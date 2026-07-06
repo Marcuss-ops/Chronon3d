@@ -11,6 +11,7 @@
 #include "../builder/graph_builder_pipeline.hpp"
 #include "../builder/graph_builder_internal.hpp"
 #include "helpers.hpp"
+#include <optional>
 #include <vector>
 #include <spdlog/spdlog.h>
 #include <tbb/parallel_for.h>
@@ -151,12 +152,58 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         (settings.motion_blur.mode == MotionBlurMode::TemporalAccumulation) &&
         (settings.motion_blur.samples > 1);
 
+    // ═══════════════════════════════════════════════════════════════════
+    // Compile the default camera descriptor ONCE per render_composition_frame.
+    // The compiled CameraProgram is reused in both the single-frame and the
+    // motion-blur (temporal accumulation) branches.  CameraSession is persistent
+    // across evaluations to preserve stateful constraint state (e.g. DampedFollow).
+    // ═══════════════════════════════════════════════════════════════════════
+    camera_v1::CameraSession camera_session;
+    std::optional<camera_v1::CameraProgram> compiled_program;
+    {
+        if (comp.has_default_camera_descriptor()) {
+            camera_v1::CameraCompileContext compile_ctx{};
+            auto result = camera_v1::compile_camera(
+                comp.default_camera_descriptor(), nullptr, compile_ctx);
+            if (result.has_value()) {
+                compiled_program.emplace(std::move(result).value());
+            } else {
+                spdlog::warn(
+                    "[default-camera] compile_camera failed for '{}': "
+                    "keeping scene default camera",
+                    comp.name());
+            }
+        }
+    }
+
+    // Helper: evaluate the ONCE-compiled camera program for the given
+    // frame and stamp the resulting Camera2_5D onto the scene.
+    auto apply_default_camera = [&](Scene& s, Frame fr) {
+        if (!compiled_program.has_value()) return;
+        auto cam_ctx = camera_v1::CameraEvalContext::at(
+            fr, comp.frame_rate(), comp.width(), comp.height());
+        auto result = compiled_program->evaluate(cam_ctx, camera_session);
+        if (result.has_value()) {
+            s.set_camera_2_5d(result->camera);
+            spdlog::debug(
+                "[default-camera] applied '{}' at frame={} "
+                "pos=({:.0f},{:.0f},{:.0f}) zoom={:.0f}",
+                comp.name(), static_cast<int>(fr),
+                result->camera.position.x,
+                result->camera.position.y,
+                result->camera.position.z,
+                result->camera.zoom);
+        } else {
+            spdlog::warn(
+                "[default-camera] evaluate failed for '{}': keeping "
+                "scene default camera",
+                comp.name());
+        }
+    };
+
     if (!want_temporal_accumulation) {
         if (settings.motion_blur.mode == MotionBlurMode::TemporalAccumulation &&
             settings.motion_blur.samples <= 1) {
-            // Misconfiguration: caller asked for Temporal mode with 0 or 1 samples.
-            // We fall back to the no-blur single-frame path; the velocity-buffer
-            // path is NOT auto-selected (that would be silent mode-flipping).
             spdlog::warn(
                 "[motion-blur] mode=TemporalAccumulation requires samples >= 2 "
                 "(got {}). Falling back to single-frame render; no motion blur "
@@ -165,9 +212,6 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                 settings.motion_blur.samples);
         } else if (settings.motion_blur.mode == MotionBlurMode::VelocityApproximation &&
                    settings.motion_blur.samples > 1) {
-            // Informational only: samples count is irrelevant for Velocity mode
-            // (the velocity-buffer pass computes its own sample count from
-            // `VelocityBufferMotionBlur::settings().samples`).
             spdlog::info(
                 "[motion-blur] mode=VelocityApproximation: samples={} ignored "
                 "(velocity-buffer path uses its own sample count); shutter_angle "
@@ -179,60 +223,12 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         Scene scene;
         {
             CHRONON_ZONE_C("evaluate_composition", trace_category::kTimeline);
-            // codex/agent2-font-bind-fixes — thread the renderer-owned
-            // FontEngine pointer through to FrameContext so the
-            // composition lambda's auto-bound SceneBuilder can shape
-            // text layers.  See Composition::evaluate's engine-aware
-            // overload (engine before memres; memres has a default).
             scene = comp.evaluate(frame, 0.0f, frame_engine);
         }
         evaluate_ms = profiling::duration_ms(t_eval0, profiling::now());
         layer_count = static_cast<int>(scene.layers().size());
 
-        // ── TICKET-FIX-DEFAULT-CAMERA: honour Composition::default_camera_descriptor ──
-        //
-        // The V1 legacy render path (`render_composition_frame`) builds the
-        // Scene via `comp.evaluate()` but never reads
-        // `comp.default_camera_descriptor()`.  Compositions that set a
-        // CameraDescriptor (e.g. CameraTruthOrbit with OrbitMotion) get a
-        // default Camera2_5D (enabled=false) on their Scene, which is then
-        // skipped by resolve_scene_camera.  This fix bridges the gap:
-        // compile the descriptor once, evaluate it at the current frame,
-        // and stamp the resulting Camera2_5D onto the Scene so the
-        // downstream projection pipeline picks it up.
-        if (comp.has_default_camera_descriptor()) {
-            const auto& desc = comp.default_camera_descriptor();
-            camera_v1::CameraCompileContext compile_ctx{};
-            auto compiled = camera_v1::compile_camera(
-                desc, /*catalog=*/nullptr, compile_ctx);
-            if (compiled.has_value()) {
-                camera_v1::CameraSession session;
-                auto cam_ctx = camera_v1::CameraEvalContext::at(
-                    frame, comp.frame_rate(), comp.width(), comp.height());
-                auto result = compiled->evaluate(cam_ctx, session);
-                if (result.has_value()) {
-                    scene.set_camera_2_5d(result->camera);
-                    spdlog::debug(
-                        "[default-camera] applied '{}' at frame={} "
-                        "pos=({:.0f},{:.0f},{:.0f}) zoom={:.0f}",
-                        comp.name(), static_cast<int>(frame),
-                        result->camera.position.x,
-                        result->camera.position.y,
-                        result->camera.position.z,
-                        result->camera.zoom);
-                } else {
-                    spdlog::warn(
-                        "[default-camera] evaluate failed for '{}': keeping "
-                        "scene default camera",
-                        comp.name());
-                }
-            } else {
-                spdlog::warn(
-                    "[default-camera] compile_camera failed for '{}': "
-                    "keeping scene default camera",
-                    comp.name());
-            }
-        }
+        apply_default_camera(scene, frame);
 
         const auto t_scene0 = profiling::now();
         {
@@ -243,8 +239,6 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     } else {
         const int N = std::max(2, settings.motion_blur.samples);
 
-        // PR1 — use the canonical temporal-sample generator.  Identical
-        // (params, frame) yields identical output as `ShutterPoseSampler::evaluate()`.
         chronon3d::temporal::TemporalSampleParams mb_params;
         mb_params.shutter_angle_deg = settings.motion_blur.shutter_angle_deg;
         mb_params.shutter_phase_deg = settings.motion_blur.shutter_phase_deg;
@@ -259,13 +253,6 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         std::vector<float> sample_times(static_cast<size_t>(N));
 
         {
-            // PR1 — Use the canonical geometric info from the new module.
-            // `samples.exposure_normalized`     = shutter_angle_deg / 360
-            // `samples.window_start_normalized` = shutter_phase_deg   / 360
-            // (Identical numerically to the previous inlined formula, but
-            //  reads from a single source of truth — which is exactly what
-            //  PR1 promised.  If generate_temporal_samples ever clamps /
-            //  validates inputs, the two callers will agree by construction.)
             const double opening_offset = samples.window_start_normalized;
             const double exposure_norm  = samples.exposure_normalized;
             for (int s = 0; s < N; ++s) {
@@ -274,34 +261,8 @@ std::shared_ptr<Framebuffer> render_composition_frame(
             }
         }
 
-        // perf(review-block-3): pool the accumulator buffer — replaces the
-        // per-frame `std::vector<float> accum(rw*rh*4)` heap alloc
-        // (~32 MiB at 1080p ssaa=1, ~133 MiB at ssaa=2 / 4K) by acquiring the
-        // SAME pooled buffer up-front that we ultimately return as
-        // `render_fb`.  Pool's `clear=true` zeroes to `Color::transparent()`
-        // (R=G=B=A=0) — the initial-condition required for premul
-        // `+= sub * w` accumulation.
         render_fb = backend.framebuffer_pool()->acquire(rw, rh, /*clear=*/true);
 
-        // TICKET-007.j — track the sum of the SAME weights that were sent into
-        // the accumulator.  Multiplication by `1 / sum_w` at the post-loop step
-        // cancels any FP-rounding error introduced upstream by the per-sample
-        // weight normalisation.  The accumulation is still sub-frames-anonymous:
-        // a pixel covered by multiple sub-frame samples accumulates ALL their
-        // weight contributions before any post-normalisation.
-        //
-        // Cross-N determinism is preserved in the equal-weight (Stratified + Box
-        // / Stratified alone / Single-Frame) regime: every per-sample `v_weight`
-        // equals the normalisation constant `1/N`, so `buffer == sample_0 * N`
-        // trivially.  In that regime `buffer * (1 / sum_w) == sample_0` is
-        // bit-exact, hence the static-framebuffer byte-equality contract between
-        // N=1 / N=16 / mode=Off is preserved end-to-end.
-        //
-        // For DIVERSE-weight sub-frames (theoretical: per-sample weights not all
-        // equal) the same `buffer * (1 / sum_w)` reciprocal-multiply is still
-        // FP-stable and algebraically equivalent to per-pixel divide, but NOT
-        // bit-equal to the per-pixel divide path.  This document does not claim
-        // more than that; the equal-weight case is what the unit tests verify.
         float actual_weight_sum = 0.0f;
 
         const auto t_mb0 = profiling::now();
@@ -311,19 +272,14 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                 const float t = sample_times[s];
                 const float w = samples.normalized_weights[s];
                 actual_weight_sum += w;
-                // codex/agent2-font-bind-fixes — same engine forwarding
-                // as the single-frame path above.  Sub-frame samples in
-                // the motion-blur accumulator must each see the engine
-                // pointer so text is shaped consistently across the
-                // shutter window.  Engine-aware overload uses default
-                // memres so callers don't need to write
-                // `std::pmr::get_default_resource()`.
                 Scene sub = comp.evaluate(frame, t, frame_engine);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
+
+                // Apply the default camera to each sub-frame scene.
+                apply_default_camera(sub, frame);
+
                 const Framebuffer& sub_fb = *call_graph(sub, frame, t);
 
-                // Parallel accumulation with TBB + Highway SIMD
-                // Each row is independent — no race conditions.
                 tbb::parallel_for(tbb::blocked_range<int>(0, rh, 16),
                     [&](const tbb::blocked_range<int>& range) {
                         using namespace hwy::HWY_NAMESPACE;
@@ -336,7 +292,6 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                             float* dst = reinterpret_cast<float*>(render_fb->pixels_row(y));
                             const int total_floats = rw * 4;
 
-                            // SIMD path: process full lanes
                             int x = 0;
                             for (; x + static_cast<int>(lanes) <= total_floats; x += static_cast<int>(lanes)) {
                                 auto acc = LoadU(df, dst + x);
@@ -344,7 +299,6 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                                 acc = MulAdd(vals, v_weight, acc);
                                 StoreU(acc, df, dst + x);
                             }
-                            // Scalar tail for remaining floats
                             for (; x < total_floats; ++x) {
                                 dst[x] += src[x] * w;
                             }
@@ -355,23 +309,10 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         }
         motion_blur_ms = profiling::duration_ms(t_mb0, profiling::now());
 
-        // TICKET-007.j — single reciprocal-multiply final normalization.
-        //   output = buffer * (1 / sum_w)
-        // is FP-bit-exact equivalent to buffer / sum_w but cheaper (one divide,
-        // broadcast across SIMD lanes) than per-pixel division, AND it
-        // perfectly compensates any non-associative FP drift introduced by
-        // the per-sample weight sum `sum_w == sum_{s} w_s`.  Guarded for the
-        // degenerate case where all sample weights were zero (e.g. shutter
-        // phase pushed the window outside the frame).
         const float post_norm = (actual_weight_sum > 1e-6f)
             ? (1.0f / actual_weight_sum)
             : 1.0f;
 
-        // In-place normalize: the same pooled buffer doubles as the final
-        // output.  Eliminates one full-frame copy pass (~66 MiB transferred
-        // at 1080p ssaa=1, ~264 MiB at ssaa=2 / 4K) AND the per-frame
-        // `<vector<float>>` alloc.  Bit-exact with the prior two-buffer
-        // pipeline (see commit message).
         {
             CHRONON_ZONE_C("motion_blur_normalize_in_place", trace_category::kEffect);
             tbb::parallel_for(tbb::blocked_range<int>(0, rh, 16),
