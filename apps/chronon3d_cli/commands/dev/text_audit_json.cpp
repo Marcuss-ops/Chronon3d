@@ -1,4 +1,5 @@
 #include "text_audit_types.hpp"
+#include "text_audit_helpers.hpp"
 
 #include <cstdio>
 #include <sstream>
@@ -6,40 +7,6 @@
 #include <string>
 
 namespace chronon3d::cli {
-
-namespace {
-
-std::string json_escape(const std::string& s) {
-    std::string out;
-    out.reserve(s.size() + 8);
-    for (char c : s) {
-        switch (c) {
-            case '"':  out += "\\\""; break;
-            case '\\': out += "\\\\"; break;
-            case '\n': out += "\\n";  break;
-            case '\r': out += "\\r";  break;
-            case '\t': out += "\\t";  break;
-            default:
-                if (static_cast<unsigned char>(c) < 0x20) {
-                    char buf[8];
-                    std::snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned int>(c));
-                    out += buf;
-                } else {
-                    out += c;
-                }
-        }
-    }
-    return out;
-}
-
-std::string json_bbox(const TextAuditBBox& b) {
-    std::ostringstream os;
-    os << std::fixed << std::setprecision(1);
-    os << "[" << b.x0 << ", " << b.y0 << ", " << b.x1 << ", " << b.y1 << "]";
-    return os.str();
-}
-
-} // anonymous namespace
 
 std::string audit_result_to_json(const TextAuditResult& r) {
     std::ostringstream os;
