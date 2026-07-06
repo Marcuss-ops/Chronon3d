@@ -187,12 +187,19 @@ endif()  # CHRONON3D_BUILD_CLI_BENCH
 # ==============================================================================
 add_executable(chronon3d_cli
     main.cpp
-    # AE parity camera visual comparison scenes (10 compositions registered in cli_init.hpp)
-    ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_scenes.cpp
+    # TICKET-CAMERA-LINK-DEDUP — visual/ae_parity/ae_parity_scenes.cpp is
+    # normally compiled into chronon3d_content (content/CMakeLists.txt).
+    # CONTENT=OFF fallback: inject the .cpp locally so cli_init.hpp's
+    # direct calls stay resolvable and the file is compiled exactly ONCE.
     ${CMAKE_SOURCE_DIR}/tests/visual/camera_truth/camera_truth_test.cpp
     ${CMAKE_SOURCE_DIR}/tests/visual/camera_truth/camera_truth_orbit.cpp
     ${CMAKE_SOURCE_DIR}/content/experimental/ae-parity/ae_camera_text_parity.cpp
 )
+if(NOT TARGET chronon3d_content)
+    target_sources(chronon3d_cli PRIVATE
+        ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_scenes.cpp
+    )
+endif()
 
 get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIES)
 
