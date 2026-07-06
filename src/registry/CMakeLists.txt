@@ -19,6 +19,9 @@ add_library(chronon3d_registry OBJECT
     # ODR collision).  Step 1/4 ships only the basic category; steps
     # 2/3/4 will add kinetic / cinematic / social respectively.
     text_preset_factories_basic.cpp
+    # FASE 1 — Reveal-category factory TU (10 entries extracted from
+    # text_preset_registry.cpp).
+    text_preset_factories_reveal.cpp
 )
 set_target_properties(chronon3d_registry PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_registry PUBLIC chronon3d)
