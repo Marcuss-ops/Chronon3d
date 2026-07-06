@@ -263,6 +263,45 @@ graph::RenderOpResult SoftwareBackend::draw_text_run(
 #else
     CHRONON_ZONE_C("backend_draw_text_run", trace_category::kText);
 
+    // TICKET-104 DIAGNOSTIC — one-shot runtime log of draw_text_run
+    // INPUT matrix + shape + framebuffer + returned items_drawn.  *** REMOVE
+    // once root cause is confirmed. ***
+    // This is the entry point of the Blend2D text rasterizer for TextRunNode.
+    // Combined with the build_world_matrix and prepare_per_frame_shape
+    // diagnostics, this isolates whether the rasterization gap is in the
+    // matrix composition (off-canvas world bbox), the per-frame shape
+    // clone (animator transforms off-canvas), the BL bridge / coord
+    // interpretation, or the framebuffer bbox silent fast-out
+    // (compute_text_run_world_bbox ∩ fb is empty even when glyphs are valid).
+    static bool kTicket104DtrOneShot = true;
+    if (kTicket104DtrOneShot) {
+        const f32 mm_t_x = model_matrix[3][0];
+        const f32 mm_t_y = model_matrix[3][1];
+        const f32 mm_t_z = model_matrix[3][2];
+        const std::size_t n_glyphs = shape.glyphs.size();
+        const bool has_layout = static_cast<bool>(shape.layout);
+        const f32 bounds_w = has_layout ? shape.layout->bounds.x : -1.0f;
+        const f32 bounds_h = has_layout ? shape.layout->bounds.y : -1.0f;
+        const i32 fb_w = static_cast<i32>(fb.width());
+        const i32 fb_h = static_cast<i32>(fb.height());
+        // Compute the world bbox the rasterizer will see; this is the
+        // same call that drives the silent-success-empty fast-out.
+        const raster::BBox world_bbox =
+            renderer::compute_text_run_world_bbox(shape, model_matrix, 0.0f);
+        spdlog::info(
+            "[TICKET104:draw_text_run] INPUT "
+            "model.t=({:.2f},{:.2f},{:.2f}) opacity={:.2f} "
+            "n_glyphs={} layout.bounds=({:.2f},{:.2f}) "
+            "fb={}x{} "
+            "world_bbox=({:d},{:d},{:d},{:d})",
+            mm_t_x, mm_t_y, mm_t_z,
+            opacity, n_glyphs,
+            bounds_w, bounds_h,
+            fb_w, fb_h,
+            world_bbox.x0, world_bbox.y0, world_bbox.x1, world_bbox.y1
+        );
+    }
+
     // TICKET-118 — m_owner NO MORE.  The processor context is attached
     // via attach_processor_context() immediately after construction.
     // We use m_proc_ctx.asset_resolver (mirrors services.asset_resolver)
@@ -278,7 +317,22 @@ graph::RenderOpResult SoftwareBackend::draw_text_run(
     }
 
     renderer::TextRunDrawParams params{fb, shape, model_matrix, opacity};
-    return renderer::draw_text_run(m_proc_ctx, params);
+    graph::RenderOpResult result = renderer::draw_text_run(m_proc_ctx, params);
+
+    if (kTicket104DtrOneShot) {
+        std::size_t items_drawn = 0;
+        if (result.has_value()) {
+            items_drawn = result.value().items_drawn;
+        }
+        spdlog::info(
+            "[TICKET104:draw_text_run] RETURNED items_drawn={} has_error={}",
+            items_drawn,
+            result.has_value() ? 0 : 1
+        );
+        kTicket104DtrOneShot = false;
+    }
+
+    return result;
 #endif
 }
 
