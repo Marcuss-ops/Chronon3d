@@ -93,17 +93,17 @@ namespace doctest {
 struct Approx3D { Vec3 v; explicit Approx3D(Vec3 v_) : v(v_) {} };
 struct Approx2D { Vec2 v; explicit Approx2D(Vec2 v_) : v(v_) {} };
 } // namespace doctest
-inline bool operator==(const Vec3& a, const doctest::Approx3D& b) {
+inline bool operator==(Vec3 a, const doctest::Approx3D& b) {
     return a.x == doctest::Approx(b.v.x).epsilon(1e-5)
         && a.y == doctest::Approx(b.v.y).epsilon(1e-5)
         && a.z == doctest::Approx(b.v.z).epsilon(1e-5);
 }
-inline bool operator!=(const Vec3& a, const doctest::Approx3D& b) { return !(a == b); }
-inline bool operator==(const Vec2& a, const doctest::Approx2D& b) {
+inline bool operator!=(Vec3 a, const doctest::Approx3D& b) { return !(a == b); }
+inline bool operator==(Vec2 a, const doctest::Approx2D& b) {
     return a.x == doctest::Approx(b.v.x).epsilon(1e-5)
         && a.y == doctest::Approx(b.v.y).epsilon(1e-5);
 }
-inline bool operator!=(const Vec2& a, const doctest::Approx2D& b) { return !(a == b); }
+inline bool operator!=(Vec2 a, const doctest::Approx2D& b) { return !(a == b); }
 // ─────────────────────────────────────────────────────────────────────────
 
 // Test-only friend accessor for the private `release()` helper on all
@@ -319,7 +319,8 @@ TEST_CASE("Authoring/Animator: Scale overload picks Vec3 vs uniform") {
     REQUIRE(u_built.properties.size() == 1);
     auto* sp = std::get_if<chronon3d::ScaleProperty>(&u_built.properties[0]);
     REQUIRE(sp != nullptr);
-    CHECK(sp->value.evaluate(0) == doctest::Approx3D(Vec3{0.5f, 0.5f, 1.0f}));
+    auto eval_u = sp->value.evaluate(0);
+    CHECK(eval_u == doctest::Approx3D(Vec3{0.5f, 0.5f, 1.0f}));
 
     Animator v = animator("vec3");
     v.scale(Vec3{0.5f, 0.25f, 2.0f});
@@ -327,7 +328,8 @@ TEST_CASE("Authoring/Animator: Scale overload picks Vec3 vs uniform") {
     REQUIRE(v_built.properties.size() == 1);
     auto* sp2 = std::get_if<chronon3d::ScaleProperty>(&v_built.properties[0]);
     REQUIRE(sp2 != nullptr);
-    CHECK(sp2->value.evaluate(0) == doctest::Approx3D(Vec3{0.5f, 0.25f, 2.0f}));
+    auto eval_v = sp2->value.evaluate(0);
+    CHECK(eval_v == doctest::Approx3D(Vec3{0.5f, 0.25f, 2.0f}));
 }
 
 TEST_CASE("Authoring/Animator: rotation / anchor / colours apply") {
