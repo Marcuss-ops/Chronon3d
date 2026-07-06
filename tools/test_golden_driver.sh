@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════════════════
 # tools/test_golden_driver.sh — ADR-014 thin driver for the 12 user-spec
-# text golden tests (chronon3d_text_golden_user_spec_tests).
+# text golden tests (chronon3d_text_golden_tests + AE-parity subscenario).
 #
 # Conventions (AGENTS.md V0.1, ADR-014 Decision 3):
 #   * No Python dependencies; no new include in include/chronon3d/; no
@@ -19,7 +19,7 @@
 # Exit codes:
 #   0   — all tests passed
 #   1   — at least one test failed (or build/ctest error)
-#   2   — precondition failed (e.g. no chronon3d_text_golden_user_spec_tests
+#   2   — precondition failed (e.g. no chronon3d_text_golden_tests
 #        target after build → indicates cmake config error)
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -65,7 +65,7 @@ if [ ! -d "$BUILD_DIR" ]; then
     exit 2
 fi
 
-# ── 3. Build the user-spec test target ────────────────────────────────────
+# ── 3. Build the test target ──────────────────────────────────────────────
 log "build target='$TARGET'"
 if ! cmake --build "$BUILD_DIR" --target "$TARGET" -j"$(nproc)" 2>&1 | tail -20; then
     err "build failed for target '$TARGET'"
@@ -82,16 +82,37 @@ if [ ! -x "$BINARY" ]; then
 fi
 
 # ── 5. Run via ctest (with optional golden-capture env) ───────────────────
-log "ctest -R '$CTEST_REGEX'"
+# NOTE (TICKET-GOLDEN-CAPTURE / Opzione A fix, 2026-07-05):
+# `ctest --test-dir $BUILD_DIR` was overriding the per-test WORKING_DIRECTORY
+# declared in `tests/text_golden_tests.cmake::add_test(... WORKING_DIRECTORY
+# ${CMAKE_SOURCE_DIR})`, sending PNG output to `$BUILD_DIR/test_renders/...`
+# (gitignored, invisible to git status) instead of
+# `${CMAKE_SOURCE_DIR}/test_renders/...` (visible to git). Removing
+# `--test-dir` and using `cd "$BUILD_DIR" && ctest` lets ctest respect the
+# per-test WORKING_DIRECTORY from `add_test`. The env var
+# CHRONON3D_UPDATE_GOLDENS is preserved across the cd boundary via the
+# parenthesized subshell.
+log "ctest -R '$CTEST_REGEX'  (WORKING_DIRECTORY honored = $REPO_ROOT via tests/text_golden_tests.cmake add_test)"
 if [ "$UPDATE_GOLDENS" -eq 1 ]; then
     log "  mode: UPDATE (CHRONON3D_UPDATE_GOLDENS=1) — first-run capture"
-    CHRONON3D_UPDATE_GOLDENS=1 \
-        ctest --test-dir "$BUILD_DIR" -R "$CTEST_REGEX" --output-on-failure
+    (
+        export CHRONON3D_UPDATE_GOLDENS=1
+        cd "$BUILD_DIR"
+        ctest -R "$CTEST_REGEX" --output-on-failure
+    )
 else
     log "  mode: VERIFY (default) — regression check"
-    ctest --test-dir "$BUILD_DIR" -R "$CTEST_REGEX" --output-on-failure
+    (
+        cd "$BUILD_DIR"
+        ctest -R "$CTEST_REGEX" --output-on-failure
+    )
 fi
 
 # ── 6. Post-run hint ───────────────────────────────────────────────────────
-log "artifacts: $BUILD_DIR/test_renders/golden/text/user_spec_*.png (if any)"
+PNG_DIR="$REPO_ROOT/test_renders/golden/text"
+log "expected artifacts dir: $PNG_DIR ({user_spec,ae}_*.png)"
+PNG_COUNT=$(find "$PNG_DIR" -name 'user_spec_*.png' 2>/dev/null | wc -l)
+AE_COUNT=$(find "$PNG_DIR" -name 'ae_*.png' 2>/dev/null | wc -l)
+log "captured user_spec PNG count: $PNG_COUNT"
+log "captured ae_parity  PNG count: $AE_COUNT"
 log "exit $?  (0=pass, 1=fail, 2=precondition)"
