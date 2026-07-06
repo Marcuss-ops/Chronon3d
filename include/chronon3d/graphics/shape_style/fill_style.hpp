@@ -122,8 +122,8 @@ inline Fill FillStyle::to_fill() const {
 }
 
 
+} // namespace chronon3d::graphics
+
 // Lerp / interpolation helpers extracted to fill_style_lerp.hpp (FASE 9 Step 2).
 // Include that header when you need FillStyle/StrokeStyle animation lerp.
 #include <chronon3d/graphics/shape_style/fill_style_lerp.hpp>
-
-} // namespace chronon3d::graphics
