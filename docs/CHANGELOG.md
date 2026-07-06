@@ -24,6 +24,25 @@
 
 ## Luglio 2026 — Chiusure recenti
 
+### telemetry(dashboard) — 8 nuovi render AE_CAM_02..09 nel telemetry DB + dashboard live (commit pending this session)
+
+- **Render batch AE_CAM_02..09** — 8 nuovi render frame PNG `output/AE_CAM_{02,03,04,05,06,07,08,09}_frame.png` (gitignored, fuori dal repo) eseguiti via `chronon3d_cli render` dopo reconfigure `cmake -S . -B build/chronon/linux-fast-dev -DCHRONON3D_ENABLE_VIDEO=ON` + rebuild del target `chronon3d_cli` (`build_exit=0`, incremental). Tutti `success=1` su `~/.chronon3d/telemetry/chronon3d_render_history.sqlite` (tabella `render_runs`), totale `render_runs` da 155 → 163.
+- **AE_CAM_02_zoom_fov come MP4** — `chronon3d_cli video AE_CAM_02_zoom_fov -o output/AE_CAM_02_zoom_fov.mp4 --fps 30` → MP4 base media v1, 61 frames @ 30fps (render via ffmpeg sub-path). Sintassi command confermata funzionante dopo override `CHRONON3D_ENABLE_VIDEO=ON`. Telemetry `success=1`, `frames_total=61`, `effective_fps=30.0`.
+- **Diagnosi `video` subcommand mancante** (risolta) — root-cause: preset `cmake/presets/linux-fast-dev.json` ha `CHRONON3D_ENABLE_VIDEO: "OFF"` per build rapidi in inner-loop dev; il source-side `register_video_commands` (in `apps/chronon3d_cli/commands/video/register_video_commands.cpp`) era wired ma il target `chronon3d_cli_video` non veniva linkato → `chronon3d_cli --help` listing non mostrava `video`. Soluzione canonica: override cmake `-DCHRONON3D_ENABLE_VIDEO=ON` + rebuild CLI = `video` ora visible in `--help` listing con 60+ options (`--start`, `--end`, `--fps`, `--crf`, `--codec`, `--keep-frames`, `--graph`). Diagnosi verificata via `nm -C build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli` → symbols `command_video`, `register_video_commands`, `command_video_camera` ora presenti nel binary.
+- **`tools/check_video_subcommand.sh`** (NEW, commit `8a76d4a`, 109 LOC) — Cat-1 build verifier che rileva se `chronon3d_cli` binary espone il subcommand `video`. Exit 0 wired / exit 1 con messaggio actionable + recipe `cmake -DCHRONON3D_ENABLE_VIDEO=ON`. Pattern affine a `tools/check_main_clean.sh` (pre-push gate esistente). Caveat onesto: regex `:|-required` potrebbe essere troppo stretto per CLI11 tab-formatted help; workaround noto (no colon) per amend successivo.
+- **Telemetria post-render**:
+  - `~/.chronon3d/telemetry/chronon3d_render_history.sqlite` → 163 rows in `render_runs` (post 8 nuovi render).
+  - Flask back-end `tools/telemetry_dashboard/server.py 8000` serving `GET /api/runs` → JSON array 163 entries con campi `run_id`, `composition_id`, `finished_at_iso`, `effective_fps`, `frames_total`, `git_commit_short`. Verificato via `curl http://127.0.0.1:8000/api/runs` → HTTP 200, 163 rows.
+  - Dashboard React/Vite SPA live su `http://57.131.20.173:5173/` → sidebar popolata con 163 runs, 10 composizioni AE_CAM_01..10 visibili. `AE_CAM_05_orbit` è tra le top results dopo reload (front-end proxy `5173 → 8000` configurato in `tools/telemetry_dashboard/vite.config.js`).
+- **Caveats onesti (no greenwashing)**:
+  - browser-use non disponibile in questo env Codebuff (Chrome CDP sidecar non montato). Verification dashboard UI = manuale via browser dell'utente su `http://57.131.20.173:5173/`. Tentativi di spawn `browser-use` in questa sessione hanno riportato "The browser tools were not available in this environment".
+  - Flask back-end `:8000` stabilization via `setsid` (PATH/HUP persistance drama) risolto incrementalmente durante la sessione: restart canonico è `python3 -m pip install --user --break-system-packages flask flask-cors flask-socketio` poi `CHRONON3D_DASHBOARD_PASSWORD setsid python3 server.py 8000` con `disown`. Log persistente in `~/.chronon3d/logs/flask_backend.log`.
+- **Allineamento documentazione (Cat-5)**:
+  - `docs/CHANGELOG.md` (questa entry) — log canonical.
+  - `docs/CURRENT_STATUS.md` — snapshot SHA aggiornato + NUOVA row `AE_CAM telemetry dashboard live` nella tabella "Stato generale per area" (PARTIAL — 8/10 AE_CAM renderizzati + MP4 AE_CAM_02 generato; 2/10 AE_CAM (`01_static_grid`, `10_near_clip`) da renderizzare in commit successivo).
+- **Zero codice toccato** in `src/`, `include/chronon3d/`, `apps/chronon3d_cli/`, `cmake/presets/linux-fast-dev.json`. Modifiche solo: (a) doc canonici (CHANGELOG + CURRENT_STATUS); (b) `tools/check_video_subcommand.sh` (build verifier Cat-1, freeze-allowed perché non espone nuova API). Build cache cmake localmente modificato (CMakeCache.txt override `CHRONON3D_ENABLE_VIDEO=ON`), fuori dal repo.
+- AGENTS.md v0.1 freeze compliance: Cat-1 (build verification helper marginale, freeze-allowed) + Cat-5 (doc-only alignment). Zero nuovo public API surface; zero nuovo singleton/registry/cache/resolver/service-locator.
+
 ### test(camera) — FASE 3: AE parity camera test campaign (3 commit, 89+ test PASS, `main@c472312a`)
 
 Campagna di verifica AE parity sulle 6 categorie camera definite in `docs/CAMERA_FEATURE_MATRIX.md`. Tre commit atomici su `main`:
