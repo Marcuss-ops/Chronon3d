@@ -40,7 +40,7 @@ set -euo pipefail
 # IGNORED_DIRS_HEADER_DATE — bump this whenever IGNORED_DIRS or
 # IGNORED_FILE_PATTERNS below is amended so a `git blame` consumer
 # can spot list-vs-gitignore drift.
-IGNORED_DIRS_HEADER_DATE='2026-06-30'
+IGNORED_DIRS_HEADER_DATE='2026-07-06'
 
 # Top-level trailing-/ patterns mirrored from .gitignore. Build
 # directories are listed first (most likely to catch violations), then
@@ -68,7 +68,10 @@ IGNORED_DIRS=(
     output
     output/new_features
     renders
-    test_renders
+    # test_renders/ is intentionally PARTIALLY tracked:
+    #   test_renders/golden/ (golden PNGs — committed via !exception in .gitignore)
+    #   test_renders/*     (all other runtime artifacts — gitignored)
+    # Removed from IGNORED_DIRS to avoid false-positive FAIL on tracked golden PNGs.
     temp_assets
     artifacts/visual/camera
     logs

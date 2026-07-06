@@ -398,7 +398,7 @@ This is the exact recipe used to start the dashboard on `149.56.131.97` (2026-07
 
 ```bash
 # ─── Terminal 1: Flask backend (API + WebSocket) ───
-cd /home/pierone/Pyt/Chronon3d
+cd <REPO_ROOT>
 CHRONON3D_DASHBOARD_PASSWORD="chronon3d_admin" \
     setsid python3 tools/start_dashboard_shim.py 8000 \
     </dev/null >/tmp/flask_backend.log 2>&1 &
@@ -407,7 +407,7 @@ CHRONON3D_DASHBOARD_PASSWORD="chronon3d_admin" \
 # Expected: 200 (returns JSON array of runs)
 
 # ─── Terminal 2: Vite dev server (React with hot-reload) ───
-cd /home/pierone/Pyt/Chronon3d/tools/telemetry_dashboard/frontend
+cd <REPO_ROOT>/tools/telemetry_dashboard/frontend
 setsid npm run dev </dev/null >/tmp/vite_dev.log 2>&1 &
 
 # Verify: curl -s -o /dev/null -w '%{http_code}' http://localhost:5173/
@@ -594,7 +594,7 @@ la dashboard mostrerà "No runs match your filter". Per popolare il DB:
 Per servire i golden PNG AE parity (o qualsiasi cartella di immagini):
 
 ```bash
-cd /home/pierone/Pyt/Chronon3d/tests/golden/ae_parity
+cd <REPO_ROOT>/tests/golden/ae_parity
 setsid python3 -m http.server 8888 --bind 0.0.0.0 \
     </dev/null >/dev/null 2>&1 &
 

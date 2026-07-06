@@ -229,7 +229,7 @@ Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA,
 | 1 | `check_architecture_boundaries.sh`          | ✅ PASS    | Exit 0; tutti i check statici rispettati.                                  |
 | 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS    | Exit 0; 15/15 assertions.                                                  |
 | 3 | `check_software_renderer_boundary.sh`       | ✅ PASS    | Exit 0; I1-I5 tutti rispettati.                                            |
-| 4 | `check_gitignored_dirs.sh`                  | ❌ FAIL    | abs-path leak rilevato in `docs/tickets/TICKET-GATE-10-PHASE-4-BLACK-FU4.md:75` (`cd /home/pierone/Pyt/Chronon3d`); propagazione TICKET-GATE-4-LEAK cluster (stato aggiornato a PARTIAL in `FOLLOWUP_TICKETS.md`). |
+| 4 | `check_gitignored_dirs.sh`                  | ❌ FAIL    | abs-path leak rilevato in `docs/tickets/TICKET-GATE-10-PHASE-4-BLACK-FU4.md:75` (`cd <REPO_ROOT>`); propagazione TICKET-GATE-4-LEAK cluster (stato aggiornato a PARTIAL in `FOLLOWUP_TICKETS.md`). |
 | 5 | `audit_software_renderer.sh`                | ✅ PASS    | Exit 0; report generato.                                                   |
 | 6 | `check_camera_architecture.sh`              | ✅ PASS    | Exit 0; 6/6 check (CameraSessionLease §3.1 commit `a8414705` verified on main). |
 | 7 | `check_doc_sync.sh`                         | ✅ PASS    | Exit 0; doc-sync door-keep between canonicals (FOLLOWUP_TICKETS + ROADMAP + CURRENT_STATUS + CHANGELOG) nello stesso §3.6 commit. |

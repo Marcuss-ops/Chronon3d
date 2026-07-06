@@ -201,7 +201,7 @@ AGENTS.md v0.1 freeze Cat-2 (test deterministici) + Cat-5 (allineamento document
 - `docs/CURRENT_STATUS.md` NUOVA sezione "Gate audit snapshot — `main@2895bd88`" inserita prima del benchmark storico `main@1078ab46`: 11-gate audit table con esito osservato per SHA corrente + caveat \"audit run pre-§3.6-push; post-§3.6 HEAD sarà figlio diretto di `2895bd88`\" per evitare readback staleness.
 - `docs/FOLLOWUP_TICKETS.md`:
   - TICKET-A3-CACHE-LEASE row nel Agent3 cluster table promossa da `PARTIAL` a `DONE` (commit `a8414705`).
-  - TICKET-GATE-4-LEAK row aggiornata da `PLANNED` (solo `reports/perf/main-73a2aa9b-gates.json` abs-path leak) a `PARTIAL` (multi-leak: aggiunto `docs/tickets/TICKET-GATE-10-PHASE-4-BLACK-FU4.md:75` `cd /home/pierone/Pyt/Chronon3d` surfaced post-§3.1 origin/main FF-pull).
+  - TICKET-GATE-4-LEAK row aggiornata da `PLANNED` (solo `reports/perf/main-73a2aa9b-gates.json` abs-path leak) a `PARTIAL` (multi-leak: aggiunto `docs/tickets/TICKET-GATE-10-PHASE-4-BLACK-FU4.md:75` `cd <REPO_ROOT>` surfaced post-§3.1 origin/main FF-pull).
   - NUOVA TICKET-GATE-4-LEAK-NEW-FU5 sub-row aperta (stato PARTIAL, Propaga g4 leak + assorbimento nel TICKET-GATE-4-LEAK cluster originale).
   - NUOVA entry in "Recently closed" table per TICKET-A3-CACHE-LEASE mirroring la narrative di CHANGELOG (commit `a8414705`, design deviation `std::optional<CameraSession>` on lease → `CameraSession working_session` field on `Entry` per thinker-with-files-gemini zero-alloc hot-path).
 - `docs/CHANGELOG.md` (this entry): §3.6 doc-sync entry aggiunto al top of "Luglio 2026 — Chiusure recenti" + cross-link 4-file canonici + SHA `a8414705` shortening per consistency con file convention (7-char format).
