@@ -29,7 +29,7 @@ inline void draw_debug_overlays(
     int ink_bottom,
     const TextLayoutResult& layout_res,
     const BLFont& font,
-    float text_start_x,
+    float text_start_y,
     int img_w)
 {
     if (!debug_cfg || !debug_cfg->text_bbox() || t.text.empty()) return;
@@ -70,7 +70,7 @@ inline void draw_debug_overlays(
     }
 
     if (!layout_res.lines.empty()) {
-        const float baseline_y = text_start_x + layout_res.lines[0].position.y + font.metrics().ascent;
+        const float baseline_y = text_start_y + layout_res.lines[0].position.y + font.metrics().ascent;
         dbg.setStrokeStyle(BLRgba32(48, 128, 255, 180));
         dbg.setStrokeWidth(1.0f);
         dbg.strokeLine(0.0f, baseline_y, static_cast<float>(img_w), baseline_y);
