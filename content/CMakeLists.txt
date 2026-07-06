@@ -37,8 +37,17 @@ add_library(chronon3d_content OBJECT
     # ── Experimental gateway (only registers diagnostics when enabled) ─────
     experimental/effects-gateway/effect_diagnostics_gateway.cpp
 
+    # ── Examples ────────────────────────────────────────────────────────────
+    examples/text/text_animations.cpp
+    examples/image/image_animated_reveals.cpp
+
     # ── Backgrounds ────────────────────────────────────────────────────────
     backgrounds/grid_clean.cpp
+
+    # ── Certification compositions (FASE 3.1-3.4 text verification) ──────
+    certification/cert_title.cpp
+    certification/cert_lower_third.cpp
+    certification/cert_long_text.cpp
 
     # ── AE Parity camera scenes (10 visual comparison scenes as CLI compositions) ─
     ae_parity/register_ae_parity_compositions.cpp
