@@ -75,6 +75,7 @@ chronon3d-*.log
 
 # Generated visual test outputs
 test_renders/
+!test_renders/golden/
 output/new_features/
 .history/
 /test_output_*.png
