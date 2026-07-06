@@ -76,7 +76,9 @@ const registry::TextPresetRegistry& shared_text_preset_registry() {
 }
 
 // Build a composition that applies the named preset.
-Composition build_preset_composition(const std::string& preset_id,
+// renderer: required so SceneBuilder can bind font_engine() for text layout.
+Composition build_preset_composition(SoftwareRenderer& renderer,
+                                      const std::string& preset_id,
                                       AspectRatioBin r,
                                       int fps = 30) {
     AspectDims d = aspect_dims(r);
@@ -87,8 +89,9 @@ Composition build_preset_composition(const std::string& preset_id,
          .width = d.width, .height = d.height,
          .frame_rate = FrameRate{fps, 1},
          .duration = 60},
-        [preset, d](const FrameContext& ctx) -> Scene {
+        [&renderer, preset, d](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             const f32 font_size = (d.width >= d.height) ? 96.0f : 64.0f;
             TextSpec base = content::text::centered_text(
                 content::text::CenterTextOptions{
@@ -110,7 +113,9 @@ Composition build_preset_composition(const std::string& preset_id,
 }
 
 // Build a static fill+stroke composition (no preset).
-Composition build_static_fill_stroke_composition(AspectRatioBin r,
+// renderer: required so SceneBuilder can bind font_engine() for text layout.
+Composition build_static_fill_stroke_composition(SoftwareRenderer& renderer,
+                                                   AspectRatioBin r,
                                                    int fps = 30) {
     AspectDims d = aspect_dims(r);
     return composition(
@@ -118,8 +123,9 @@ Composition build_static_fill_stroke_composition(AspectRatioBin r,
          .width = d.width, .height = d.height,
          .frame_rate = FrameRate{fps, 1},
          .duration = 60},
-        [d](const FrameContext& ctx) -> Scene {
+        [&renderer, d](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             const f32 fs = (d.width >= d.height) ? 96.0f : 64.0f;
             s.layer("hero", [fs, d](LayerBuilder& l) {
                 l.text("t", {
@@ -175,7 +181,7 @@ void emit_golden_gate(SoftwareRenderer& renderer,
                        AspectRatioBin r,
                        int t_frame,
                        const std::string& short_label) {
-    auto comp = build_preset_composition(preset_id, r, 30);
+    auto comp = build_preset_composition(renderer, preset_id, r, 30);
     verify_text_golden(renderer, comp, Frame{t_frame}, short_label);
 }
 
@@ -184,7 +190,7 @@ void emit_static_golden(SoftwareRenderer& renderer,
                          AspectRatioBin r,
                          int t_frame,
                          const std::string& short_label) {
-    auto comp = build_static_fill_stroke_composition(r, 30);
+    auto comp = build_static_fill_stroke_composition(renderer, r, 30);
     verify_text_golden(renderer, comp, Frame{t_frame}, short_label);
 }
 

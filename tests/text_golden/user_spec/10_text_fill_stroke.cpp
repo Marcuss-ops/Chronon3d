@@ -42,14 +42,15 @@ GoldenTestConfig make_test10_config() {
     return cfg;
 }
 
-Composition build_test10_composition() {
+Composition build_test10_composition(SoftwareRenderer& renderer) {
     return composition(
         {.name = "UserSpec/10/text_fill_stroke",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
+        [&renderer](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("stroke", {
                     .content = {.value = "STROKE"},
@@ -79,7 +80,7 @@ Composition build_test10_composition() {
 
 TEST_CASE("UserSpec 10: text fill + stroke 1920x1080") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_test10_composition(), Frame{0});
+    auto fb = renderer.render(build_test10_composition(renderer), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_10_text_fill_stroke", make_test10_config());
     if (r.golden_missing) { MESSAGE("Golden missing"); return; }

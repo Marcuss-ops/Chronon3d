@@ -43,14 +43,15 @@ GoldenTestConfig make_test02_config() {
     return cfg;
 }
 
-Composition build_test02_composition_bold() {
+Composition build_test02_composition_bold(SoftwareRenderer& renderer) {
     return composition(
         {.name = "UserSpec/02/font_swap_bold",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
+        [&renderer](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "SAME TEXT"},
@@ -69,14 +70,15 @@ Composition build_test02_composition_bold() {
         });
 }
 
-Composition build_test02_composition_regular() {
+Composition build_test02_composition_regular(SoftwareRenderer& renderer) {
     return composition(
         {.name = "UserSpec/02/font_swap_regular",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
+        [&renderer](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "SAME TEXT"},
@@ -99,7 +101,7 @@ Composition build_test02_composition_regular() {
 
 TEST_CASE("UserSpec 02: font swap same text — Bold frame 0") {
     auto renderer = test::make_renderer();
-    auto comp = build_test02_composition_bold();
+    auto comp = build_test02_composition_bold(renderer);
     auto fb = renderer.render(comp, Frame{0});
     REQUIRE(fb != nullptr);
 
@@ -111,7 +113,7 @@ TEST_CASE("UserSpec 02: font swap same text — Bold frame 0") {
 
 TEST_CASE("UserSpec 02: font swap same text — Regular frame 30") {
     auto renderer = test::make_renderer();
-    auto comp = build_test02_composition_regular();
+    auto comp = build_test02_composition_regular(renderer);
     auto fb = renderer.render(comp, Frame{30});
     REQUIRE(fb != nullptr);
 

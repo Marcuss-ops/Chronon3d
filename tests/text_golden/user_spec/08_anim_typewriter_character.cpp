@@ -41,14 +41,15 @@ GoldenTestConfig make_test08_config() {
     return cfg;
 }
 
-Composition build_test08_composition() {
+Composition build_test08_composition(SoftwareRenderer& renderer) {
     return composition(
         {.name = "UserSpec/08/anim_typewriter_character",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
+        [&renderer](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             // 15 characters in "TYPEWRITER TEST" — one new char per frame
             // reveal_count is a function of frame index; compositor will
             // deterministically gate characters whose cluster_index >= reveal.
@@ -83,7 +84,7 @@ Composition build_test08_composition() {
 
 TEST_CASE("UserSpec 08: typewriter character animation — frame 0 (empty)") {
     auto renderer = test::make_renderer();
-    auto comp = build_test08_composition();
+    auto comp = build_test08_composition(renderer);
     auto fb = renderer.render(comp, Frame{0});
     REQUIRE(fb != nullptr);
     auto result = verify_golden(*fb, "user_spec_08_anim_typewriter_f00", make_test08_config());
@@ -94,7 +95,7 @@ TEST_CASE("UserSpec 08: typewriter character animation — frame 0 (empty)") {
 
 TEST_CASE("UserSpec 08: typewriter character animation — frame 7 (mid)") {
     auto renderer = test::make_renderer();
-    auto comp = build_test08_composition();
+    auto comp = build_test08_composition(renderer);
     auto fb = renderer.render(comp, Frame{7});
     REQUIRE(fb != nullptr);
     auto result = verify_golden(*fb, "user_spec_08_anim_typewriter_f07", make_test08_config());
@@ -104,7 +105,7 @@ TEST_CASE("UserSpec 08: typewriter character animation — frame 7 (mid)") {
 
 TEST_CASE("UserSpec 08: typewriter character animation — frame 14 (full)") {
     auto renderer = test::make_renderer();
-    auto comp = build_test08_composition();
+    auto comp = build_test08_composition(renderer);
     auto fb = renderer.render(comp, Frame{14});
     REQUIRE(fb != nullptr);
     auto result = verify_golden(*fb, "user_spec_08_anim_typewriter_f14", make_test08_config());
