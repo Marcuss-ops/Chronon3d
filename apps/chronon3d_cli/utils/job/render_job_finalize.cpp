@@ -6,13 +6,14 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
-#endif
 
 #include <spdlog/spdlog.h>
 
+#include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 
 namespace chronon3d::cli {
 
@@ -28,6 +29,74 @@ std::string resolve_output_path_for_telemetry(const std::string& output) {
         resolved = std::filesystem::absolute(resolved);
     }
     return resolved.lexically_normal().string();
+}
+
+// ── Direct JSONL write (bypasses TelemetryManager when SQLite not compiled) ───
+void write_run_to_jsonl(const chronon3d::telemetry::RenderTelemetryRecord& run) {
+    const char* home = std::getenv("HOME");
+    if (!home) return;
+    std::filesystem::path jsonl_path = std::filesystem::path(home) /
+        ".chronon3d" / "telemetry" / "render_history.jsonl";
+
+    std::error_code ec;
+    std::filesystem::create_directories(jsonl_path.parent_path(), ec);
+
+    // Escape helper: escape backslashes and double quotes for JSON string values.
+    auto json_escape = [](const std::string& s) -> std::string {
+        std::string out;
+        out.reserve(s.size() + 8);
+        for (char c : s) {
+            switch (c) {
+            case '"':  out += "\\\""; break;   // → \"
+            case '\\': out += "\\\\"; break;   // → \\
+            case '\n': out += "\\n";  break;
+            case '\r': out += "\\r";  break;
+            case '\t': out += "\\t";  break;
+            default:   out += c;       break;
+            }
+        }
+        return out;
+    };
+
+    std::ostringstream js;
+    js << "{";
+    js << "\"type\":\"run\"";
+    js << ",\"run_id\":\"" << json_escape(run.run_id) << "\"";
+    js << ",\"composition_id\":\"" << json_escape(run.composition_id) << "\"";
+    js << ",\"output_path\":\"" << json_escape(run.output_path) << "\"";
+    js << ",\"success\":" << (run.success ? "1" : "0");
+    js << ",\"frames_total\":" << run.frames_total;
+    js << ",\"frames_written\":" << run.frames_written;
+    js << ",\"wall_time_ms\":" << run.wall_time_ms;
+    js << ",\"render_ms\":" << run.render_ms;
+    js << ",\"encode_ms\":" << run.encode_ms;
+    js << ",\"effective_fps\":" << run.effective_fps;
+    js << ",\"started_at_iso\":\"" << json_escape(run.started_at_iso) << "\"";
+    js << ",\"finished_at_iso\":\"" << json_escape(run.finished_at_iso) << "\"";
+    js << ",\"git_commit_short\":\"" << json_escape(run.git_commit_short) << "\"";
+    js << ",\"build_type\":\"" << json_escape(run.build_type) << "\"";
+    js << ",\"os\":\"" << json_escape(run.os) << "\"";
+    js << ",\"cpu_model\":\"" << json_escape(run.cpu_model) << "\"";
+    js << ",\"cores\":" << run.cores;
+    js << ",\"cache_hits\":" << run.cache_hits;
+    js << ",\"cache_misses\":" << run.cache_misses;
+    js << ",\"pixels_touched\":" << run.pixels_touched;
+    js << ",\"dirty_pixels\":" << run.dirty_pixels;
+    js << ",\"framebuffer_allocations\":" << run.framebuffer_allocations;
+    js << ",\"framebuffer_reuses\":" << run.framebuffer_reuses;
+    js << ",\"framebuffer_bytes_allocated\":" << run.framebuffer_bytes_allocated;
+    js << ",\"framebuffer_bytes_peak\":" << run.framebuffer_bytes_peak;
+    js << ",\"compiler_info\":\"" << json_escape(run.compiler_info) << "\"";
+    js << "}\n";
+
+    std::ofstream out(jsonl_path, std::ios::app);
+    if (out.is_open()) {
+        out << js.str();
+        out.close();
+        spdlog::info("[report] Telemetry run written to JSONL: {}", run.run_id);
+    } else {
+        spdlog::warn("[report] Failed to open JSONL for append: {}", jsonl_path.string());
+    }
 }
 
 } // anonymous namespace
@@ -63,12 +132,7 @@ bool finalize_render_job(
 
     // ── Build the top-level run record ────────────────────────────────
     chronon3d::telemetry::RenderTelemetryRecord run;
-    run.run_id =
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-        chronon3d::telemetry::TelemetryManager::generate_uuid();
-#else
-        "";
-#endif
+    run.run_id = chronon3d::telemetry::TelemetryManager::generate_uuid();
     run.composition_id = plan.comp_id;
     run.output_path = resolve_output_path_for_telemetry(plan.output);
     run.success = ok;
@@ -79,12 +143,7 @@ bool finalize_render_job(
     run.encode_ms = total_encode_ms;
     run.effective_fps = wall_time_ms > 0.0 ? (run.frames_total * 1000.0 / wall_time_ms) : 0.0;
     run.started_at_iso = setup.job_started_iso;
-    run.finished_at_iso =
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-        chronon3d::telemetry::TelemetryManager::get_current_iso_time();
-#else
-        "";
-#endif
+    run.finished_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
 
     if (counters) {
         cli::telemetry::populate_run_metrics(run, *counters);
@@ -117,19 +176,13 @@ bool finalize_render_job(
 
     // ── Write telemetry (only when --report is set) ───────────────────
     const bool write_telemetry = plan.report;
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     if (write_telemetry) {
-#ifndef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-        spdlog::info("[report] Telemetry support is disabled in this build.");
-#endif
-        chronon3d::telemetry::TelemetryManager::instance().record_run(
-            run, telemetry_frames, phases, counters_list,
-            telemetry.node_events, telemetry.layer_events,
-            telemetry.cache_events, telemetry.culling_events,
-            telemetry.text_events, telemetry.image_events,
-            telemetry.tile_events);
+        // Write directly to JSONL (dashboard reads from both SQLite + JSONL).
+        // TelemetryManager is only used for UUID generation and timestamps;
+        // the actual telemetry SQLite store requires a compile flag not
+        // available in fast-dev builds.
+        write_run_to_jsonl(run);
     }
-#endif
 
     // ── Generate execution report ─────────────────────────────────────
     if (plan.report) {
