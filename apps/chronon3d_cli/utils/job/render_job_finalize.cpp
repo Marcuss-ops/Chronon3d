@@ -33,10 +33,24 @@ std::string resolve_output_path_for_telemetry(const std::string& output) {
 
 // ── Direct JSONL write (bypasses TelemetryManager when SQLite not compiled) ───
 void write_run_to_jsonl(const chronon3d::telemetry::RenderTelemetryRecord& run) {
-    const char* home = std::getenv("HOME");
-    if (!home) return;
-    std::filesystem::path jsonl_path = std::filesystem::path(home) /
-        ".chronon3d" / "telemetry" / "render_history.jsonl";
+    // Honour CHRONON3D_TELEMETRY_PATH if set; otherwise default to ~/.chronon3d/telemetry/
+    std::filesystem::path jsonl_path;
+    const char* env_path = std::getenv("CHRONON3D_TELEMETRY_PATH");
+    if (env_path && env_path[0] != '\0') {
+        std::filesystem::path env_base(env_path);
+        if (env_base.extension() == ".db" || env_base.extension() == ".sqlite") {
+            // Env var points to a specific DB file — we write JSONL alongside it.
+            jsonl_path = env_base.parent_path() / "render_history.jsonl";
+        } else {
+            // Env var points to a directory.
+            jsonl_path = env_base / "render_history.jsonl";
+        }
+    } else {
+        const char* home = std::getenv("HOME");
+        if (!home) return;
+        jsonl_path = std::filesystem::path(home) /
+            ".chronon3d" / "telemetry" / "render_history.jsonl";
+    }
 
     std::error_code ec;
     std::filesystem::create_directories(jsonl_path.parent_path(), ec);
