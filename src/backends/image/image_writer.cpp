@@ -73,40 +73,40 @@ bool save_png(const Framebuffer& framebuffer, const std::string& path) {
     i32 width = framebuffer.width();
     i32 height = framebuffer.height();
     
-    // Convert Framebuffer (float RGBA) to byte RGBA
+    // Convert Framebuffer (float RGBA) to byte RGBA.
+    // Uses the same canonical LUT-based linear→sRGB8 conversion as
+    // Framebuffer::save_ppm(), keeping both paths bit-equivalent.
+    // (The previous to_srgb() + std::round() path produced identical
+    // byte values for all validated inputs but triggered a near-black
+    // PNG regression in the install_consumer Phase 4 gate — root cause
+    // TBD; this change mirrors the proven save_ppm pixel path.)
     std::vector<uint8_t> data(width * height * 4);
 
     for (i32 y = 0; y < height; ++y) {
+        const Color* row = framebuffer.pixels_row(y);
         for (i32 x = 0; x < width; ++x) {
-            Color linear_c = framebuffer.get_pixel(x, y);
-            // NaN/Inf guard: skip corrupted pixels to prevent output file corruption
-            if (std::isnan(linear_c.r) || std::isnan(linear_c.g) || std::isnan(linear_c.b) || std::isnan(linear_c.a) ||
-                std::isinf(linear_c.r) || std::isinf(linear_c.g) || std::isinf(linear_c.b) || std::isinf(linear_c.a)) {
-                linear_c = Color::transparent();
-            }
-            Color c = linear_c.to_srgb(); // Convert from linear to sRGB for saving
-            usize index = (y * width + x) * 4;
+            const Color& linear_c = row[x];
 
-            // Quantize to 8-bit with proper rounding.
-            //
-            // The previous code used `static_cast<uint8_t>(c.r * 255.0f)` which
-            // TRUNCATES toward zero. At the top end of the sRGB curve
-            // (`to_srgb(1.0)` returns ~0.99999994 in IEEE 754 single precision
-            // because `1.055f - 0.055f` does not collapse to exactly 1.0f),
-            // this produced 254 instead of 255 — visible as off-by-one banding
-            // in install_consumer PNG outputs (TICKET-GATE-10-PHASE-4-BLACK,
-            // M1.5#9 regression isolated via chronon3d_save_png_roundtrip_test).
-            //
-            // `std::round` (rounds-half-away-from-zero) is the canonical
-            // IEEE 754 quantizer used by `Color::linear_to_srgb8_lut()`
-            // construction at color.hpp:24 — mirroring the LUT behaviour
-            // here keeps the two paths bit-equivalent.
-            data[index + 0] = static_cast<uint8_t>(std::clamp(std::round(c.r * 255.0f), 0.0f, 255.0f));
-            data[index + 1] = static_cast<uint8_t>(std::clamp(std::round(c.g * 255.0f), 0.0f, 255.0f));
-            data[index + 2] = static_cast<uint8_t>(std::clamp(std::round(c.b * 255.0f), 0.0f, 255.0f));
-            // Alpha stays in linear space (no sRGB curve) — apply the same
-            // rounding so values just below 1.0 do not silently drop to 254.
-            data[index + 3] = static_cast<uint8_t>(std::clamp(std::round(c.a * 255.0f), 0.0f, 255.0f));
+            // NaN/Inf guard: skip corrupted pixels to prevent
+            // undefined behavior in linear_to_srgb8() and output
+            // file corruption.
+            usize index = (y * width + x) * 4;
+            if (std::isnan(linear_c.r) || std::isnan(linear_c.g) ||
+                std::isnan(linear_c.b) || std::isnan(linear_c.a) ||
+                std::isinf(linear_c.r) || std::isinf(linear_c.g) ||
+                std::isinf(linear_c.b) || std::isinf(linear_c.a)) {
+                data[index + 0] = 0;
+                data[index + 1] = 0;
+                data[index + 2] = 0;
+                data[index + 3] = 0;
+                continue;
+            }
+
+            data[index + 0] = Color::linear_to_srgb8(linear_c.r);
+            data[index + 1] = Color::linear_to_srgb8(linear_c.g);
+            data[index + 2] = Color::linear_to_srgb8(linear_c.b);
+            // Alpha stays in linear space (no sRGB curve).
+            data[index + 3] = static_cast<uint8_t>(std::clamp(std::round(linear_c.a * 255.0f), 0.0f, 255.0f));
         }
     }
     
