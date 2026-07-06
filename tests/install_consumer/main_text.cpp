@@ -45,13 +45,12 @@ int main(int argc, char* argv[]) {
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
 
-            // Forward font_engine from render pipeline for text shaping
-            std::printf("[consumer-diag] ctx.font_engine=%s\n", ctx.font_engine ? "SET" : "NULL");
+            // Forward font_engine from render pipeline so text can be shaped
             if (ctx.font_engine) {
                 s.font_engine(ctx.font_engine);
             }
 
-            // Bright background to verify camera rendering works
+            // Background layer
             s.layer("bg", [](c3d::LayerBuilder& l) {
                 l.rect("bg_rect", c3d::RectParams{
                     .size = {640.0f, 360.0f},
@@ -100,22 +99,6 @@ int main(int argc, char* argv[]) {
     engine.set_assets_root(std::filesystem::path{assets_root});
 
     // ── 3. Render ──────────────────────────────────────────────────
-    // Diagnostic: evaluate scene before rendering
-    {
-        auto diag_scene = comp.evaluate(c3d::Frame{0});
-        std::printf("[consumer-diag] scene has %zu layers\n", diag_scene.layers().size());
-        for (size_t li = 0; li < diag_scene.layers().size(); ++li) {
-            const auto& l = diag_scene.layers()[li];
-            std::printf("[consumer-diag]   layer[%zu] name='%s' kind=%d nodes=%zu visible=%d\n",
-                li, l.name.c_str(), static_cast<int>(l.kind), l.nodes.size(), l.visible ? 1 : 0);
-            for (size_t ni = 0; ni < l.nodes.size(); ++ni) {
-                const auto& n = l.nodes[ni];
-                std::printf("[consumer-diag]     node[%zu] name='%s' shape_type=%d visible=%d\n",
-                    ni, n.name.c_str(), static_cast<int>(n.shape.type()), n.visible ? 1 : 0);
-            }
-        }
-    }
-
     auto result = engine.render(comp, c3d::sdk::Frame{0});
     if (!result.has_value()) {
         std::fprintf(stderr,
@@ -174,9 +157,6 @@ int main(int argc, char* argv[]) {
         if (lum > kLight) ++light_pixels;
     }
     const size_t total = fb.pixel_count();
-
-    std::printf("[consumer-diag] %zu/%zu dark pixels, %zu/%zu light pixels\n",
-                dark_pixels, total, light_pixels, total);
 
     // Se TUTTI i pixel sono scuri → nessun testo visibile → FAIL
     if (light_pixels == 0 && dark_pixels > total * 99 / 100) {
