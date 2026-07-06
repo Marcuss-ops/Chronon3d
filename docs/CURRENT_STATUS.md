@@ -209,7 +209,7 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 
 Ultima baseline macchina-verificata: `main@7eb5c2ba` — **11/11 PASS** (2026-07-06). Feature freeze V0.1 REVOCATO.
 Audit corrente: `main@7eb5c2ba` — **11/11 PASS**.  Baseline verde certificata: tutti gli 11 gate PASS sullo stesso commit.
-  - gate #4 (`check_gitignored_dirs.sh`) — **PASS** (fix: `/home/pierone/Pyt/Chronon3d` -> `<REPO_ROOT>` in `docs/CHANGELOG.md`).
+  - gate #4 (`check_gitignored_dirs.sh`) — **PASS** (fix: `<REPO_ROOT>` -> `<REPO_ROOT>` in `docs/CHANGELOG.md`).
   - gate #6 (`check_camera_architecture.sh`) — **PASS** (fix: `ae_parity_scenes.cpp` + `camera_truth_test.cpp` whitelisted in check 3/6).
   - gate #10 (`install_consumer_test.sh`) — **PASS** (fix: PIL installato; `save_png` allineato a `save_ppm`).
   - gate #8 (`check_filename_drift.sh`) — **PASS*** (warn-mode, 87 drift findings, exit 0).

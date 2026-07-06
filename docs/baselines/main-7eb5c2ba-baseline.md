@@ -23,7 +23,7 @@
 | Gate | Problema | Fix | Commit |
 |------|----------|-----|--------|
 | G10 | PIL non installato → `ImportError` scambiato per PNG near-black | `pip3 install --break-system-packages Pillow`; `save_png` allineato a `save_ppm` path canonico | `2b104072` |
-| G4 | abs-path leak in `docs/CHANGELOG.md` | `/home/pierone/Pyt/Chronon3d` → `<REPO_ROOT>` | `7eb5c2ba` |
+| G4 | abs-path leak in `docs/CHANGELOG.md` | `<REPO_ROOT>` → `<REPO_ROOT>` | `7eb5c2ba` |
 | G6 | `SceneBuilder::animated_camera()` in test files non whitelistati | Aggiunti `ae_parity_scenes.cpp` + `camera_truth_test.cpp` alla whitelist | `7eb5c2ba` |
 
 ## Commit chain
