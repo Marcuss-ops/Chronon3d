@@ -22,6 +22,9 @@ add_library(chronon3d_registry OBJECT
     # FASE 1 — Reveal-category factory TU (10 entries extracted from
     # text_preset_registry.cpp).
     text_preset_factories_reveal.cpp
+    # FASE 1 — Cinematic-category factory TU (4 entries extracted from
+    # text_preset_registry.cpp).
+    text_preset_factories_cinematic.cpp
 )
 set_target_properties(chronon3d_registry PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_registry PUBLIC chronon3d)
