@@ -20,10 +20,10 @@
    **AGENTS.md v0.1 Cat-1 build-fix scope honoured**: this commit's code delta is the 1-line `using std::pair;` qualifier addition (paired with the 2 docs-only forward-only ticket entries in `FOLLOWUP_TICKETS.md` + this status note). **`bash tools/test_architectural.sh` + `bash tools/check_architecture_boundaries.sh` gate verification deferred to TICKET-011-i implementation commit** (cannot pass while the 8-level TextUnitMap API impl drift remains on `src/text/text_unit_map.cpp`).
 
 >
-> **Ultima baseline macchina-verificata:** `main@aaf70032` — **10/11 PASS** (gate #10 FAIL: Phase 4 render black).
+> **Ultima baseline macchina-verificata:** `main@2b104072` — **9/11 PASS** (2026-07-06, post gate-10 fix: PIL prerequisite + save_png alignment). G4 FAIL (`docs/CHANGELOG.md` abs-path leak), G6 FAIL (`SceneBuilder::animated_camera()` in test files).
 > **Baseline precedente:** `main@e8623a8a` (10/10 verificati, 1 NOT RUN).
 >
-> **Gate #10 — `install_consumer_test.sh`:** Phase 1-4 PASS. Phase 4 PASS post-force-rebuild of `chronon3d_sdk_impl` (deleting stale `libchronon3d_sdk_impl.a` restored `sdk_render_engine.cpp.o` to the merged archive; consumer linked and rendered `[BOUNDARY-OK] 230400/230400 pixels >5/255`); canary entry for `chronon3d::sdk::RenderEngine` added in `cmake/Chronon3DCanarySymbols.cmake` (commit `8fd0588e`) to lock the regression. Pre-existing `sw_sidecar` threading fix in `2ef2b377` was insufficient because the actual root cause was a stale build cache, not a threading issue.
+> **Gate #10 — `install_consumer_test.sh`:** Phase 1-4 PASS (commit `2b104072`). Root cause: PIL (Pillow) not installed -> Python ImportError (exit 1) misinterpreted as PNG near-black. Fix: `pip3 install --break-system-packages Pillow`. Collateral: `save_png` aligned to `save_ppm` canonical `linear_to_srgb8()` LUT path.
 > **Gate #8:** 82 drift warning (↓ da 170).
 >
 > **Fase A — P0 chiusi (2026-07-03):** A1 (symlink legacy + gate standalone compile), A2 (backend construction unificata), A3 (sdk::RenderEngine canonico), A4+A5 (error propagation), A6 (clone-before-mutate — nodi immutabili).
@@ -207,14 +207,33 @@ Per la storia delle chiusure vedi `Recently closed` in `FOLLOWUP_TICKETS.md` + [
 
 ## Certificazione corrente
 
-Ultima baseline macchina-verificata: `main@aaf70032` — **10/11 PASS** (carry-over da 2026-07-04; nessuna baseline certificata >10/11 a `c73f7493`).
-Audit corrente: `main@c73f7493` — **9/11 PASS** (post GATE-MNT-01-EXT + gate-1+#9 SSoT POSIX regex).  **9/11 NON è 11/11: feature freeze ancora attivo.**  Pre-audit chain: 10/11 aaf70032 → 9/11 16319557 → 7/11 9ecb4879 → 7/11 eb8e3a24 → 9/11 c73f7493.
-  - gate #1 + #9 SDK public-deps SSoT wiring (Check 16) — **FLIPPED to PASS at `a5ee07e7`** (POSIX regex migration `\s`→`[[:space:]]`, `\S`→`[^[:space:]]` per mawk-compat in `tools/check_architecture_boundaries.sh` Check 16; pre-existing bug su sistemi con `mawk` default).
-  - gate #10 install_consumer — FAIL (carry-over rot da `9ecb4879`; failure-mode a `c73f7493` = `ninja subcommand failure during compilation of highway_*_kernels.cpp.o` in `chronon3d_backend_software` target; richiede independent re-run per disambiguare transient noise vs durable build rot; TICKET-GATE-10-PHASE-4-FIX da aprire).
-  - gate #11 backend sanitization `printf` in `software_grid_background_processor.cpp:23` — FAIL (pre-esistente, intro `b62ef4429`; TICKET-GATE-11-PRINTF-FIX da aprire).
-Nessuna baseline certificata oltre `aaf70032`.
-Per la revoca del **feature freeze** (vedi `AGENTS.md`) è richiesto **11/11 PASS sullo stesso commit**; 9/11 NON è sufficiente.
+Ultima baseline macchina-verificata: `main@2b104072` — **9/11 PASS** (2026-07-06, post gate-10 fix — PIL prerequisite + save_png alignment).
+Audit corrente: `main@2b104072` — **9/11 PASS**.  **9/11 NON e' 11/11: feature freeze ancora attivo.**  Pre-audit chain: 9/11 2b104072 -> 10/11 aaf70032 -> 9/11 c73f7493 -> 9/11 16319557 -> 7/11 9ecb4879.
+  - gate #4 (`check_gitignored_dirs.sh`) — **FAIL**: abs-path leak in tracked file `docs/CHANGELOG.md`; TICKET-GATE-4-LEAK-CHANGELOG da aprire.
+  - gate #6 (`check_camera_architecture.sh`) — **FAIL**: `SceneBuilder::animated_camera()` called in `tests/visual/ae_parity/ae_parity_scenes.cpp` (7 violations: lines 135,180,226,283,323,414,462) + `tests/visual/camera_truth/camera_truth_test.cpp` (1 violation: line 113); TICKET-036 (camera architecture gate) traccia la fix.
+  - gate #10 (`install_consumer_test.sh`) — **PASS** (Phase 1-4 OK; root cause PIL non installato -> `ImportError` scambiato per PNG near-black; PIL installato via `pip3 install --break-system-packages Pillow`; `save_png` allineato a `save_ppm` path canonico `linear_to_srgb8()`).
+Nessuna baseline certificata 11/11.
+Per la revoca del **feature freeze** (vedi `AGENTS.md`) e' richiesto **11/11 PASS sullo stesso commit**; 9/11 NON e' sufficiente.
 Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA, una sola baseline per commit).
+
+## Gate audit snapshot — `main@2b104072` (2026-07-06, post gate-10 fix — 9/11 PASS)
+
+| # | Gate                                        | Esito      | Note                                                                       |
+|---|---------------------------------------------|------------|----------------------------------------------------------------------------|
+| 1 | `check_architecture_boundaries.sh`          | ✅ PASS    | Exit 0; tutti i check statici rispettati.                                  |
+| 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS    | Exit 0; 15/15 assertions.                                                  |
+| 3 | `check_software_renderer_boundary.sh`       | ✅ PASS    | Exit 0; I1-I5 tutti rispettati.                                            |
+| 4 | `check_gitignored_dirs.sh`                  | ❌ FAIL    | abs-path leak in tracked file `docs/CHANGELOG.md`; TICKET-GATE-4-LEAK-CHANGELOG. |
+| 5 | `audit_software_renderer.sh`                | ✅ PASS    | Exit 0; report generato.                                                   |
+| 6 | `check_camera_architecture.sh`              | ❌ FAIL    | Check 3/6: `SceneBuilder::animated_camera()` in `tests/visual/ae_parity/ae_parity_scenes.cpp` (7) + `tests/visual/camera_truth/camera_truth_test.cpp` (1). |
+| 7 | `check_doc_sync.sh`                         | ✅ PASS    | Exit 0; doc-sync invariants hold.                                          |
+| 8 | `check_filename_drift.sh`                   | ⚠️ PASS*   | warn-mode; 87 drift findings.                                              |
+| 9 | `test_architectural.sh`                     | ✅ PASS    | Exit 0; static architecture-level rot: 0.                                  |
+| 10 | `install_consumer_test.sh`                  | ✅ PASS    | Phase 1-4 PASS. Root cause: PIL not installed -> ImportError misinterpreted as PNG near-black. Fix: `pip3 install --break-system-packages Pillow`. Save_png aligned to save_ppm canonical path. |
+| 11 | `check_backend_sanitization.py`             | ✅ PASS    | Exit 0; tutti i check passati.                                             |
+
+**Totale: 9/11 PASS.** G4 FAIL (abs-path leak `docs/CHANGELOG.md`), G6 FAIL (`animated_camera()` in test files). **NON e' 11/11: feature freeze resta attivo.**
+
 
 ## Chiusure recenti (P1)
 
@@ -265,9 +284,11 @@ Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA,
 
 ## Prossimo passo operativo
 
-1. **Certificare una nuova baseline macchina-verificata** su `main@8fd0588e` (o HEAD post-doc-sync): 11/11 PASS atteso; promuovere `docs/baselines/main-<sha>-baseline.md` + revocare formalmente il feature freeze.
-2. **TICKET-120 burn-down (24 pre-esistenti test failures):** 4/24 chiusi; 17/24 ancora aperti. Continuare con la prossima categoria di test failure (es. anamorphic focal_x/y spherical ratio bug, frame budget overrun, etc.).
-3. **P1 backlog (post-baseline):** TICKET-P1-07 (asset resolver globale), TICKET-P1-08 (text renderer monolite), TICKET-P1-09 (RenderRuntime service locator), TICKET-P1-11 (timeline percorsi multipli).
+1. **Chiudere gate #4** (`docs/CHANGELOG.md` abs-path leak): rimuovere il path assoluto dal file tracciato; TICKET-GATE-4-LEAK-CHANGELOG.
+2. **Chiudere gate #6** (`SceneBuilder::animated_camera()` in test files): migrare `tests/visual/ae_parity/ae_parity_scenes.cpp` (7 siti) + `tests/visual/camera_truth/camera_truth_test.cpp` (1 sito) alla canonica `SceneBuilder::camera(CameraDescriptor)` — vedi TICKET-036.
+3. **Raggiungere 11/11 PASS** su stesso commit → promuovere `docs/baselines/main-<sha>-baseline.md` + revocare formalmente il feature freeze.
+4. **TICKET-120 burn-down (17/24 residui):** continuare con la prossima categoria di test failure post-baseline.
+5. **P1 backlog (post-baseline):** TICKET-P1-07, TICKET-P1-08, TICKET-P1-09, TICKET-P1-11.
 
 ## Hygiene
 
