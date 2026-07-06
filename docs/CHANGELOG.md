@@ -40,16 +40,21 @@ Campagna di split di 9 file monolitici in unità a responsabilità singola.
 | 7 | `glow_pipeline.cpp` | 759 | 550 | **-28%** | `glow_bloom.cpp/.hpp`, `glow_pipeline_converters.cpp` |
 | 8 | `glyph_selector.cpp` | 680 | 514 | **-24%** | `glyph_selector_random.cpp/.hpp` |
 | 9 | `fill_style.hpp` | 642 | 129 | **-80%** | `stroke_style.hpp`, `fill_style_lerp.hpp` |
+| 10 | `expression.hpp` | 781 | 554 | **-29%** | `expression_builtins.hpp` |
+| 11 | `scene_presets.hpp` | 707 | 95 | **-87%** | `scenes/saas_intro.hpp`, `_floating_cards_hero.hpp`, `_kinetic_title.hpp`, `_depth_product_reveal.hpp`, `_apple_style_hero.hpp` |
+| 12 | `text_unit_map.cpp` | 615 | 382 | **-38%** | `text_unit_map_lookups.cpp` |
+| 13 | `catmull_rom_path.hpp` | 590 | 491 | **-17%** | `catmull_rom_camera_motion.hpp` |
+| 14 | `font_engine.cpp` | 587 | 479 | **-18%** | `font_engine_placed_run.cpp` |
 
 ### Riepilogo complessivo
 
 | Metrica | Valore |
 |---------|--------|
-| File splittati | 9 |
-| Nuovi file creati | 28 (.cpp + .hpp/.h) |
-| Righe rimosse dai file originali | ~4.800 |
-| Riduzione media | **-50%** |
-| Commit su main | ~35 |
+| File splittati | 14 |
+| Nuovi file creati | 38 (.cpp + .hpp/.h) |
+| Righe rimosse dai file originali | ~6.000 |
+| Riduzione media | **-51%** |
+| Commit su main | ~45 |
 | Build verificata | ✅ `chronon3d_cli` |
 
 ---
