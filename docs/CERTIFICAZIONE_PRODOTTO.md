@@ -158,7 +158,7 @@ Ispezione manuale dei golden PNG: cinematic title reveal, typewriter, word casca
 | 12 | Subtitle | SRT/JSON word timing | **EXPECTED FAIL** ✅ | Feature non ancora implementata (Blocco 10 del text roadmap) |
 | 13 | AE parity | Golden PNG generati | **PASS** (file) / **BLOCKED** (contenuto) | 90 golden PNG in `test_renders/golden/`. Tutti neri: bloccati da TICKET-104. La pipeline di capture funziona |
 | 14 | Determinismo | Stesso frame ×2 = hash identico | **PASS** | SHA256: `a8725e0a...24626608` identico su 2 render CertMultilingual consecutivi (run indipendenti) |
-| 15 | Performance | 300 frame 1080p DarkGridBackground | **PASS** | 299 frame in 180s (~602ms/frame), 25MB disco (83KB/PNG). Max RSS: 279MB, 0 major page faults |
+| 15 | Performance | 300 frame 1080p DarkGridBackground | **PASS** | 300/300 frame in 180s (~600ms/frame). 25MB disco (83KB/PNG). Max RSS: 279MB, 0 major page faults. Nota: `--frames 0-300` (end esclusivo) = 300 frame; `0-299` darebbe 299 frame |
 | 16 | Packaging | `install` + `find_package` | **PASS** | `libchronon3d_sdk_impl.a` (1.7GB), `Chronon3DConfig.cmake`, `Chronon3DTargets.cmake` presenti |
 
 ### Riepilogo
