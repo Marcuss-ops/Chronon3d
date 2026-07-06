@@ -87,7 +87,7 @@ struct TestContext {
         // reaches a real executor instead of nullptr.
         session.services.executor   = &local_executor;
 
-        ctx.services.backend         = &backend;
+        ctx.services.backend = &backend.backend();
         ctx.services.node_cache      = &node_cache;
         ctx.services.framebuffer_pool = pool;
         ctx.services.registry        = &registry;
@@ -123,9 +123,9 @@ TEST_CASE("precomp_cache: cache hit returns same program on repeated execute") {
 
     // First execution → cache miss
     auto fb0 = precomp.execute(tc.ctx, {}, {});
-    REQUIRE(fb0 != nullptr);
-    REQUIRE(fb0->width() == 200);
-    REQUIRE(fb0->height() == 200);
+    REQUIRE(fb0.has_value());
+    REQUIRE(fb0.value()->width() == 200);
+    REQUIRE(fb0.value()->height() == 200);
 
     auto stats = tc.session.program_store().aggregate_stats();
     CHECK(stats.misses == 1);
@@ -134,7 +134,7 @@ TEST_CASE("precomp_cache: cache hit returns same program on repeated execute") {
 
     // Second execution, same frame → cache hit
     auto fb1 = precomp.execute(tc.ctx, {}, {});
-    REQUIRE(fb1 != nullptr);
+    REQUIRE(fb1.has_value());
 
     stats = tc.session.program_store().aggregate_stats();
     CHECK(stats.misses == 1);       // still 1 miss
@@ -206,9 +206,9 @@ TEST_CASE("precomp_cache: nonexistent composition returns empty fb") {
     PrecompNode precomp("ghost", Frame{0}, Frame{60}, Frame{-1}, policy);
 
     auto fb = precomp.execute(tc.ctx, {}, {});
-    REQUIRE(fb != nullptr);
-    CHECK(fb->width() == 200);
-    CHECK(fb->height() == 200);
+    REQUIRE(fb.has_value());
+    CHECK(fb.value()->width() == 200);
+    CHECK(fb.value()->height() == 200);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -339,21 +339,21 @@ TEST_CASE("precomp_cache: nested_frame past duration returns empty") {
     // Frame 0 → within duration → rendered
     tc.set_frame(Frame{0});
     auto fb0 = precomp.execute(tc.ctx, {}, {});
-    REQUIRE(fb0 != nullptr);
+    REQUIRE(fb0.has_value());
     auto stats0 = tc.session.program_store().aggregate_stats();
     CHECK(stats0.misses == 1);
 
     // Frame 30 → past duration → empty
     tc.set_frame(Frame{30});
     auto fb30 = precomp.execute(tc.ctx, {}, {});
-    REQUIRE(fb30 != nullptr);
+    REQUIRE(fb30.has_value());
     auto stats30 = tc.session.program_store().aggregate_stats();
     CHECK(stats30.misses == 1);  // no new cache activity
 
     // Frame 31 → also past duration
     tc.set_frame(Frame{31});
     auto fb31 = precomp.execute(tc.ctx, {}, {});
-    REQUIRE(fb31 != nullptr);
+    REQUIRE(fb31.has_value());
 }
 
 TEST_CASE("precomp_cache: negative nested_frame returns empty") {
@@ -366,12 +366,12 @@ TEST_CASE("precomp_cache: negative nested_frame returns empty") {
     // Frame 0 → nested_frame = -10 → empty
     tc.set_frame(Frame{0});
     auto fb = precomp.execute(tc.ctx, {}, {});
-    REQUIRE(fb != nullptr);
+    REQUIRE(fb.has_value());
 
     // Frame 10 → nested_frame = 0 → renders
     tc.set_frame(Frame{10});
     fb = precomp.execute(tc.ctx, {}, {});
-    REQUIRE(fb != nullptr);
+    REQUIRE(fb.has_value());
     auto stats = tc.session.program_store().aggregate_stats();
     CHECK(stats.misses == 1);
 }
