@@ -205,7 +205,7 @@ AGENTS.md v0.1 freeze Cat-2 (test deterministici) + Cat-5 (allineamento document
   - NUOVA TICKET-GATE-4-LEAK-NEW-FU5 sub-row aperta (stato PARTIAL, Propaga g4 leak + assorbimento nel TICKET-GATE-4-LEAK cluster originale).
   - NUOVA entry in "Recently closed" table per TICKET-A3-CACHE-LEASE mirroring la narrative di CHANGELOG (commit `a8414705`, design deviation `std::optional<CameraSession>` on lease → `CameraSession working_session` field on `Entry` per thinker-with-files-gemini zero-alloc hot-path).
 - `docs/CHANGELOG.md` (this entry): §3.6 doc-sync entry aggiunto al top of "Luglio 2026 — Chiusure recenti" + cross-link 4-file canonici + SHA `a8414705` shortening per consistency con file convention (7-char format).
-- **Honesty policy compliance**: nessun falso 11/11 PASS macchina-verificato fabbricato.  `docs/baselines/main-2895bd88-baseline.md` NON creato.  AGENTS.md §Feature Freeze NON modificato (revoca richiede 11/11 macchina-verificato sullo stesso commit, non soddisfatto).  Niente cambi al codice sorgente.
+- **Honesty policy compliance**: nessun falso 11/11 PASS macchina-verificato fabbricato.  `docs/baselines/` (baseline non creata — SHA non ha raggiunto 11/11) NON creato.  AGENTS.md §Feature Freeze NON modificato (revoca richiede 11/11 macchina-verificato sullo stesso commit, non soddisfatto).  Niente cambi al codice sorgente.
 - AGENTS.md v0.1 freeze Cat-5 (allineamento documentazione).  Zero codice toccato; pure doc-sync di 4 canonicals.
 - Verification machine: `bash tools/check_doc_sync.sh` → atteso PASS (canonical shape + Open blockers strict = TICKET-A3-CACHE-LEASE moved out + TICKET-GATE-4-LEAK aggiornata con nuova leak location); `bash tools/wrap_push.sh origin main` → atteso GATE-MNT-01 PASS (per-branch rebase `true`, tree clean dopo §3.6 commit, FF-pure sul nuovo HEAD post-commit).
 - Code-reviewer verdict: pending (parallel con `tools/wrap_push.sh origin main` push sequence).
@@ -320,9 +320,9 @@ The `std::span<const TextPresetDescriptor> builtin_text_presets()` accessor IS a
 - Refs: TICKET-120, TICKET-035, C7 (golden test ground truth for the 3.011 ratio = 1.506 * 2.0).
 
 ### camera — Camera V1 projection contract: golden 6-mode test (commit `eb1ce8e5`)
-- `tests/scene/camera/golden_projection_test.cpp` (new): 1 `TEST_CASE` × 6 `SUBCASEs` covering Zoom, FOV 50°, PhysicalLens ARRI Alexa 35, GateFit::Stretch, GateFit::Overscan, Anamorphic 2×. Tolerance-based assertions against analytical ground-truth formulas in `include/chronon3d/scene/math/camera_math.hpp`.
+- `tests/scene/camera/golden_projection_test.cpp` (new): 1 `TEST_CASE` × 6 `SUBCASEs` covering Zoom, FOV 50°, PhysicalLens ARRI Alexa 35, GateFit::Stretch, GateFit::Overscan, Anamorphic 2×. Tolerance-based assertions against analytical ground-truth formulas in `include/chronon3d/math/camera_2_5d_projection.hpp`.
 - Closes the Camera V1 projection-contract cluster (C1–C7); Camera V1 DoD 6/6 CAM-DOC 04 arch-boundary checks PASS (`tools/check_camera_architecture.sh`).
-- AGENTS.md v0.1 freeze Cat-2 (test deterministici — golden test) + Cat-3 (regression-gate verification). Zero new public API; lock lives in `tests/scene/camera/golden_projection_test.cpp` + `include/chronon3d/scene/math/camera_math.hpp`.
+- AGENTS.md v0.1 freeze Cat-2 (test deterministici — golden test) + Cat-3 (regression-gate verification). Zero new public API; lock lives in `tests/scene/camera/golden_projection_test.cpp` + `include/chronon3d/math/camera_2_5d_projection.hpp`.
 - Companion tickets: TICKET-035 (anamorphic squeeze), TICKET-034D (CameraDescriptor fingerprint). Stato promosso PLANNED → DONE per i sub-tickets chiusi da questo commit.
 
 ### docs — Camera V1 docs refresh: Feature Matrix + Architecture Plan + Status (commit `34d0e373`)
@@ -355,7 +355,7 @@ The `std::span<const TextPresetDescriptor> builtin_text_presets()` accessor IS a
 - Companion: TICKET-120 (open).
 
 ### render_graph — TICKET-camera-policy-pre-existing closure (M1.5#1 + M1.5#2 carryover) verified clean on main@83e74169
-- `src/render_graph/pipeline/camera_change_policy.cpp:24` — rot pre-esistente `Camera2_5D::projection_mode` rimossa e migrata a `Camera2_5D::optics_mode` (origin fixata in commit `ac514fea`). Field ora canonico nel camera_v1 schema (`camera_v1::Lens` famiglia in `include/chronon3d/scene/camera/camera_v1/camera_2_5d_projection.hpp`).
+- `src/render_graph/pipeline/camera_change_policy.cpp:24` — rot pre-esistente `Camera2_5D::projection_mode` rimossa e migrata a `Camera2_5D::optics_mode` (origin fixata in commit `ac514fea`). Field ora canonico nel camera_v1 schema (`camera_v1::Lens` famiglia in `include/chronon3d/math/camera_2_5d_projection.hpp`).
 - Verifica macchina su `main@83e74169`:
   - `grep -rnE 'Camera2_5D::projection_mode' src/` → **0 hit**.
   - `prev->optics_mode` + `current.optics_mode` referenze confermate come field canonico sostitutivo.
