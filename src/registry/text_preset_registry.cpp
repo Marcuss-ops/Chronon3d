@@ -190,30 +190,7 @@ void TextPresetRegistry::reset() {
 //     20. yellow_keyword             (Stage 3)
 //     21. glow_pulse                 (Stage 3)
 //     22. caption_box                (Stage 3)
-namespace {
 
-using LayerBuilderT  = ::chronon3d::LayerBuilder;
-using SceneBuilderT  = ::chronon3d::SceneBuilder;
-using TextSpecT      = ::chronon3d::TextSpec;
-
-// ── Helper: 22-branch default animator preamble (TEXT-RES-01) ──────────────
-//
-// Returns the standard `presetc_<id>` TextAnimatorSpec skeleton:
-//   - id             = "presetc_<id>"; enabled=true;
-//     transform_mode = Add; color_mode = Replace.
-//   - selectors      = [GlyphSelectorSpec{id = "<id>_sel_global",
-//                                          unit=Glyph, shape=Square,
-//                                          start=0, end=100, amount=100}].
-//
-// Each entry's `animator_factory` calls this at the start and then
-// appends the entry-specific properties / selector overrides.  This
-// is the FACTORED equivalent of the pre-TEXT-RES-01 `compose_for`
-// preamble, kept in ONE place (here) so all 22 entries share the
-// canonical scaffold.
-
-// ── FASE 5 (TICKET-107) — per-category register helpers lifted out of the
-// anon namespace into `chronon3d::registry::register_helpers_internal` so
-// tests (and any sibling internal TU) can call them in isolation.
 namespace register_helpers_internal {
 
 void register_text_preset_cinematic(TextPresetRegistry& r) {
