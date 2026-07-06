@@ -5,6 +5,8 @@
 // extracted from glyph_selector.cpp (FASE 8 Step 1)
 // ---------------------------------------------------------------------------
 
+#include <chronon3d/core/types/types.hpp>
+
 #include <cstdint>
 #include <vector>
 
