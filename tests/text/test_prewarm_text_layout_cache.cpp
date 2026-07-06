@@ -27,6 +27,7 @@ static chronon3d::TextLayoutCache s_text_cache;
 #include <chronon3d/text/text_run_driver.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <doctest/doctest.h>
+#include "test_text_font_fixture.hpp"
 
 #include <memory>
 #include <string>
@@ -37,18 +38,7 @@ namespace {
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
-/// Default font loaded by every test: Inter-Bold at 700 weight, 32px.
-/// Path is asset-relative (existing project convention); tests run
-/// from the repo root via CMake's WORKING_DIRECTORY setting.
-FontSpec inter_bold() {
-    return FontSpec{
-        .font_path   = "tests/fixtures/Inter-Bold.ttf",
-        .font_family = "Inter",
-        .font_weight = 700,
-        .font_style  = "normal",
-        .font_size   = 32.0f,
-    };
-}
+// inter_bold() re-exported via test_text_font_fixture.hpp
 
 /// Build a TextRunShape holding a real Inter-Bold-backed TextRunLayout.
 /// Glyph count is non-zero when assets/fonts/Inter-Bold.ttf is present;
@@ -57,7 +47,7 @@ std::shared_ptr<TextRunShape> make_real_shape(
     const std::string& text,
     FontEngine& engine,
     const TextLayoutSpec& layout,
-    FontSpec font = inter_bold()
+    FontSpec font = test_text_fixture::inter_bold()
 ) {
     TextDocument doc;
     doc.utf8 = text;
@@ -146,7 +136,7 @@ TEST_CASE("Prewarm PR11: tests/fixtures/Inter-Bold.ttf fixture is loadable") {
     chronon3d::Config cfg;
     chronon3d::runtime::RenderRuntime runtime(cfg);
     FontEngine engine{runtime.resolver()};
-    const FontSpec spec = inter_bold();
+    const FontSpec spec = test_text_fixture::inter_bold();
     REQUIRE(engine.can_load(spec));
 }
 
@@ -160,7 +150,7 @@ TEST_CASE("Prewarm PR11: static (Hold) prewarm populates cache with active->utf8
     FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
 
     const std::string held_text = "PR11StaticHold_v1";
     auto shape = make_real_shape(held_text, engine, layout, font);
@@ -196,7 +186,7 @@ TEST_CASE("Prewarm PR11: Scramble prewarm populates cache with transition_text b
     FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
 
     auto shape = make_real_shape("PR11ScrambleSrc", engine, layout, font);
     REQUIRE(shape != nullptr);
@@ -242,7 +232,7 @@ TEST_CASE("Prewarm PR11: prewarming the same frame twice is safe (idempotent)") 
     FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
 
     const std::string text = "PR11Idempotent_v1";
     auto shape = make_real_shape(text, engine, layout, font);
@@ -273,7 +263,7 @@ TEST_CASE("Prewarm PR11: Scramble prewarm at different frames writes distinct ca
     FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
 
     auto shape = make_real_shape("PR11ScrambleSrc", engine, layout, font);
     REQUIRE(shape != nullptr);
@@ -318,7 +308,7 @@ TEST_CASE("Prewarm PR11: post-boundary prewarm caches active->utf8 (not transiti
     FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
 
     // Static doc — at every sample_at, transition_text is empty and
     // active->utf8 is the held text.  prewarm must buffer the entry.
@@ -397,7 +387,7 @@ TEST_CASE("Prewarm PR11 CF: CrossfadeLayouts prewarm populates BOTH active and c
     FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
 
     auto shape = make_real_shape("PR11CFSrc", engine, layout, font);
     REQUIRE(shape != nullptr);
@@ -444,7 +434,7 @@ TEST_CASE("Prewarm PR11 CF: apply_active_state populates crossfade_* slots insid
     FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
 
     // Pre-boundary frame 0: state.transition is Hold (we're at the
     // outgoing keyframe's frame but BEFORE the gap opens).  Actually,
@@ -515,7 +505,7 @@ TEST_CASE("Prewarm PR11 CF: fallback — Hold→Hold doc never populates crossfa
     FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
 
     auto doc = std::make_shared<AnimatedTextDocument>();
     SourceTextKeyframe kf0;

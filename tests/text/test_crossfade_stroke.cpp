@@ -45,6 +45,7 @@ static chronon3d::TextLayoutCache s_text_cache;
 #include <chronon3d/text/text_run_builder.hpp>  // build_text_run, make_initial_glyph_states, apply_active_state_to_text_run_shape
 #include <chronon3d/core/types/frame.hpp>
 #include <doctest/doctest.h>
+#include "test_text_font_fixture.hpp"
 
 #include <memory>
 #include <string>
@@ -53,23 +54,12 @@ using namespace chronon3d;
 
 namespace {
 
-/// Inter-Bold font fixture (canonical for deterministic text tests).
-FontSpec inter_bold() {
-    return FontSpec{
-        .font_path   = "tests/fixtures/Inter-Bold.ttf",
-        .font_family = "Inter",
-        .font_weight = 700,
-        .font_style  = "normal",
-        .font_size   = 32.0f,
-    };
-}
-
 /// Build a TextRunShape backed by a real Inter-Bold layout.
 std::shared_ptr<TextRunShape> make_real_shape(
     const std::string& text,
     FontEngine& engine,
     const TextLayoutSpec& layout,
-    FontSpec font = inter_bold()
+    FontSpec font = test_text_fixture::inter_bold()
 ) {
     TextDocument doc;
     doc.utf8 = text;
@@ -146,7 +136,7 @@ TEST_CASE("TICKET-068: crossfade shape with longer outgoing text establishes OOB
     FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
 
     // Active: short (3 chars).  Outgoing: longer (28 chars).
     // Both share the same Inter-Bold font so glyph counts are
@@ -217,7 +207,7 @@ TEST_CASE("TICKET-068: crossfade post-gap clears slots; longer outgoing data doe
     FontEngine engine{runtime.resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
-    const FontSpec font = inter_bold();
+    const FontSpec font = test_text_fixture::inter_bold();
 
     const std::string active_text = "Post";
     const std::string outgoing_text = "PreTransitionABCDEFGHIJKLMNOPQR";  // longer

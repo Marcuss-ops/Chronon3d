@@ -159,7 +159,8 @@ TEST_CASE("compile_text_document: central paragraph fails — all 3 CompiledPara
     CHECK(compile_result.paragraphs[0].result.has_value());
     if (compile_result.paragraphs[0].result.has_value()) {
         const auto& layout0 = *compile_result.paragraphs[0].result.value();
-        CHECK(layout0.units.glyph_to_grapheme.empty() == false || layout0.source_text.empty() == false);
+        bool layout0_has_data = !layout0.units.glyph_to_grapheme.empty() || !layout0.source_text.empty();
+        CHECK(layout0_has_data);
     }
 
     // Central paragraph (source=1, multi-font "AAAABBBB") is REJECTED
@@ -177,7 +178,8 @@ TEST_CASE("compile_text_document: central paragraph fails — all 3 CompiledPara
     CHECK(compile_result.paragraphs[2].result.has_value());
     if (compile_result.paragraphs[2].result.has_value()) {
         const auto& layout2 = *compile_result.paragraphs[2].result.value();
-        CHECK(layout2.units.glyph_to_grapheme.empty() == false || layout2.source_text.empty() == false);
+        bool layout2_has_data = !layout2.units.glyph_to_grapheme.empty() || !layout2.source_text.empty();
+        CHECK(layout2_has_data);
     }
 
     // ── INVARIANT (TICKET-092 #4): complete flag reflects ANY Err. ──

@@ -59,7 +59,7 @@ TextDocument make_doc(const std::string& utf8) {
 ///
 /// If a future test needs a custom runtime or mutated config, it should
 /// construct its own FontEngine directly instead of using this helper.
-FontEngine make_engine() {
+FontEngine make_determinism_engine() {
     static const Config cfg;
     static const runtime::RenderRuntime runtime(cfg);
     return FontEngine{runtime.resolver()};
@@ -139,7 +139,7 @@ TEST_CASE("P1-2: compile-time FriBidi gate is present") {
 // alla funzione) — questo richiede un refactor post-freeze.
 
 TEST_CASE("P1-2: Font fallback — unloadable font does not crash") {
-    FontEngine engine = make_engine();
+    FontEngine engine = make_determinism_engine();
 
     FontSpec unloadable;
     unloadable.font_family = "__nonexistent_font_family_xyzzy__";
@@ -158,7 +158,7 @@ TEST_CASE("P1-2: Font fallback — unloadable font does not crash") {
 }
 
 TEST_CASE("P1-2: Font fallback — loadable primary font is returned unchanged") {
-    FontEngine engine = make_engine();
+    FontEngine engine = make_determinism_engine();
 
     // Inter-Bold should be loadable via the asset resolver.
     FontSpec inter;
@@ -173,7 +173,7 @@ TEST_CASE("P1-2: Font fallback — loadable primary font is returned unchanged")
 }
 
 TEST_CASE("P1-2: Font fallback — empty input is handled") {
-    FontEngine engine = make_engine();
+    FontEngine engine = make_determinism_engine();
 
     FontSpec empty_spec;  // all fields default
 
@@ -194,7 +194,7 @@ TEST_CASE("P1-2: Font fallback — empty input is handled") {
 TEST_CASE("P1-2: resolve_text_run_tree — same input → same output") {
     std::string mixed = "Hello \xD8\xB3\xD9\x84\xD8\xA7\xD9\x85 World";
     auto doc = make_doc(mixed);
-    FontEngine engine = make_engine();
+    FontEngine engine = make_determinism_engine();
 
     auto tree_a = resolve_text_run_tree(doc, engine);
     auto tree_b = resolve_text_run_tree(doc, engine);
@@ -220,7 +220,7 @@ TEST_CASE("P1-2: resolve_text_run_tree — same input → same output") {
 }
 
 TEST_CASE("P1-2: resolve_fallback_fonts — same input → same output") {
-    FontEngine engine = make_engine();
+    FontEngine engine = make_determinism_engine();
 
     FontSpec spec;
     spec.font_family = "DejaVu Sans";
@@ -238,7 +238,7 @@ TEST_CASE("P1-2: resolve_fallback_fonts — same input → same output") {
 
 TEST_CASE("P1-2: Multi-paragraph — same input → same structure") {
     auto doc = make_doc("First paragraph\nSecond paragraph\nThird paragraph");
-    FontEngine engine = make_engine();
+    FontEngine engine = make_determinism_engine();
 
     auto a = resolve_text_run_tree(doc, engine);
     auto b = resolve_text_run_tree(doc, engine);
@@ -266,7 +266,7 @@ TEST_CASE("P1-2: Multi-paragraph — same input → same structure") {
 TEST_CASE("P1-2: Shaping sentinel — shape_resolved_run produces deterministic hash") {
     std::string arabic = "\xD8\xB3\xD9\x84\xD8\xA7\xD9\x85";  // "سلام"
     auto doc = make_doc(arabic);
-    FontEngine engine = make_engine();
+    FontEngine engine = make_determinism_engine();
     auto tree = resolve_text_run_tree(doc, engine);
 
     REQUIRE(tree.paragraphs.size() == 1);
@@ -292,7 +292,7 @@ TEST_CASE("P1-2: Shaping sentinel — shape_resolved_run produces deterministic 
 TEST_CASE("P1-2: Shaping sentinel — glyph positions are reproducible") {
     std::string arabic = "\xD8\xB3\xD9\x84\xD8\xA7\xD9\x85";  // "سلام"
     auto doc = make_doc(arabic);
-    FontEngine engine = make_engine();
+    FontEngine engine = make_determinism_engine();
     auto tree = resolve_text_run_tree(doc, engine);
 
     REQUIRE(!tree.paragraphs[0].runs.empty());
@@ -326,7 +326,7 @@ TEST_CASE("P1-2: Shaping sentinel — glyph positions are reproducible") {
 // la risoluzione asset.
 
 TEST_CASE("P1-2: AssetRegistry — asset-registered font is loadable") {
-    FontEngine engine = make_engine();
+    FontEngine engine = make_determinism_engine();
 
     // Inter-Bold is registered as an asset (assets/fonts/Inter-Bold.ttf).
     FontSpec asset_font;
@@ -336,7 +336,7 @@ TEST_CASE("P1-2: AssetRegistry — asset-registered font is loadable") {
 }
 
 TEST_CASE("P1-2: AssetRegistry — asset font shapes correctly") {
-    FontEngine engine = make_engine();
+    FontEngine engine = make_determinism_engine();
 
     TextShaping shaping;
     shaping.direction = TextDirection::LTR;
@@ -355,7 +355,7 @@ TEST_CASE("P1-2: AssetRegistry — asset font shapes correctly") {
 }
 
 TEST_CASE("P1-2: AssetRegistry — nonexistent asset path is not loadable") {
-    FontEngine engine = make_engine();
+    FontEngine engine = make_determinism_engine();
 
     FontSpec nonexistent;
     nonexistent.font_path = "assets/fonts/__nonexistent_font__.ttf";
@@ -375,7 +375,7 @@ TEST_CASE("P1-2: AssetRegistry — nonexistent asset path is not loadable") {
 TEST_CASE("P1-2: Bidi — mixed LTR+RTL produces multiple directional runs") {
     std::string mixed = "Hello \xD8\xB3\xD9\x84\xD8\xA7\xD9\x85 World";
     auto doc = make_doc(mixed);
-    FontEngine engine = make_engine();
+    FontEngine engine = make_determinism_engine();
     auto tree = resolve_text_run_tree(doc, engine);
 
     REQUIRE(tree.paragraphs.size() == 1);
@@ -400,7 +400,7 @@ TEST_CASE("P1-2: Bidi — mixed LTR+RTL produces multiple directional runs") {
 TEST_CASE("P1-2: Bidi — pure Arabic produces RTL run") {
     std::string arabic = "\xD8\xB3\xD9\x84\xD8\xA7\xD9\x85";  // "سلام"
     auto doc = make_doc(arabic);
-    FontEngine engine = make_engine();
+    FontEngine engine = make_determinism_engine();
     auto tree = resolve_text_run_tree(doc, engine);
 
     REQUIRE(tree.paragraphs.size() == 1);
