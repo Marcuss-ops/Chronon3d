@@ -58,16 +58,20 @@ Campagna di split di 9 file monolitici in unità a responsabilità singola.
 | 12 | `text_unit_map.cpp` | 615 | 382 | **-38%** | `text_unit_map_lookups.cpp` |
 | 13 | `catmull_rom_path.hpp` | 590 | 491 | **-17%** | `catmull_rom_camera_motion.hpp` |
 | 14 | `font_engine.cpp` | 587 | 479 | **-18%** | `font_engine_placed_run.cpp` |
+| 15 | `animated_text_document.cpp` | 497 | 220 | **-56%** | `text_scramble_helpers.cpp/.hpp` |
+| 16 | `frame_graph_compiler.cpp` | 511 | 270 | **-47%** | `frame_graph_builder.cpp` |
+| 17 | `camera_projection_resolver.hpp` | 540 | 380 | **-30%** | `camera_projection_frustum.hpp`, `_clip.hpp`, `_matrix.hpp` |
+| 18 | `framebuffer_pool.cpp` | 586 | 397 | **-32%** | `framebuffer_pool_evict.cpp` |
 
 ### Riepilogo complessivo
 
 | Metrica | Valore |
 |---------|--------|
-| File splittati | 14 |
-| Nuovi file creati | 38 (.cpp + .hpp/.h) |
-| Righe rimosse dai file originali | ~6.000 |
+| File splittati | 18 |
+| Nuovi file creati | 44 (.cpp + .hpp/.h) |
+| Righe rimosse dai file originali | ~6.500 |
 | Riduzione media | **-51%** |
-| Commit su main | ~45 |
+| Commit su main | ~47 |
 | Build verificata | ✅ `chronon3d_cli` |
 
 ---
