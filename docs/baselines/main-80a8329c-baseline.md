@@ -27,7 +27,7 @@
 | CMake             | `cmake version 4.2.3` |
 | Ninja             | `1.13.2` |
 | VCPKG_ROOT        | `unset` |
-| VCPKG toolchain   | `/home/pierone/Pyt/Chronon3d/vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake` (when present) |
+| VCPKG toolchain   | `<REPO_ROOT>/vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake` (when present) |
 | Working tree      | Clean post-baseline write |
 
 ## Comandi eseguiti (per i 11 gate)
@@ -66,7 +66,7 @@ Per ogni gate #, exit code, stato (PASS/FAIL/NOT RUN), elapsed seconds, e log pa
 >
 > Questo commit (`80a8329c`) non raggiunge 11/11 PASS. I due FAIL sono:
 >
-> - **Gate #4** `check_gitignored_dirs.sh`: ass-path leaks in doc-sync di CHANGELOG.md + CURRENT_STATUS.md + FOLLOWUP_TICKETS.md + ROADMAP.md + docs/tickets/TICKET-GATE-10-PHASE-4-BLACK-FU4.md (cd /home/pierone/Pyt/Chronon3d residual refs).
+> - **Gate #4** `check_gitignored_dirs.sh`: ass-path leaks in doc-sync di CHANGELOG.md + CURRENT_STATUS.md + FOLLOWUP_TICKETS.md + ROADMAP.md + docs/tickets/TICKET-GATE-10-PHASE-4-BLACK-FU4.md (cd <REPO_ROOT> residual refs).
 > - **Gate #10** `install_consumer_test.sh`: Phase 4 strict mean-RGB FAIL (territorio FU5, vedi [TICKET-GATE-10-PHASE-4-BLACK-FU5](tickets/TICKET-GATE-10-PHASE-4-BLACK-FU5.md) — 0 pixels con mean RGB > 5/255).
 >
 > Action items per chiudere 11/11:

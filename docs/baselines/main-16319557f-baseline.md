@@ -37,7 +37,7 @@
 ```
 [install_consumer_test] Consumer: [2026-07-04 11:57:37.764] [warning] Text rasterization failed for node 'title_text'
 [BOUNDARY-OK] sdk consumer (P3-H) rendered 640x360 PNG (9446 bytes, 230400/230400 pixels >5/255, format=Rgba8, bytes_per_row=2560, 0.000 ms)
-[install_consumer_test] FAIL: phase4 strict: PNG is near-black (0 pixels with mean RGB > 5/255). Output: /home/pierone/tmp/chronon3d_install_consumer_build.1sblfz/sdk_consumer_output.png
+[install_consumer_test] FAIL: phase4 strict: PNG is near-black (0 pixels with mean RGB > 5/255). Output: <REPO_ROOT>/../tmp/chronon3d_install_consumer_build.1sblfz/sdk_consumer_output.png
 ```
 
 The Phase 1–3 build pipeline succeeds end-to-end. The Phase 4 consumer renders a framebuffer with 230400/230400 pixels above 5/255 *during the BoundaryOK check*, but the subsequent strict-mode 5/255 mean-RGB assertion finds 0 qualifying pixels. The `[consumer-diag]` and `[gb-diag]` lines show the grid background processor IS producing white pixels `(1.0000, 1.0000, 1.0000, 1.0000)`, but the strict-mode assertion (mean-RGB > 5/255) appears to evaluate pixels differently — likely the strict-mode reads a different region or applies a different aggregation. This is the Phase 4 carry-over from `c5793405` / `aaf70032`.
