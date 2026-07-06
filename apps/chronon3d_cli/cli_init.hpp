@@ -96,9 +96,11 @@ inline void init_compositions(CompositionRegistry& registry) {
     chronon3d::register_builtin_compositions(registry);
 
     // Register AE parity camera visual comparison scenes (AE_CAM_01–AE_CAM_10).
-    // These are always available so visual parity tests can be run via the CLI.
-    // Inlined here (instead of via register_content_modules) because the CLI
-    // does not link chronon3d_content.
+    // Inlined here only when content is off — when CHRONON3D_BUILD_CONTENT=ON
+    // they arrive via register_content_modules() above (content/ae_parity
+    // is compiled into chronon3d_content, so manual registration would
+    // cause a duplicate).
+#ifndef CHRONON3D_BUILD_CONTENT
     registry.add("AE_CAM_01_static_grid",   [](const CompositionProps&) { return test::make_ae_cam_01_static_grid(); });
     registry.add("AE_CAM_02_zoom_fov",      [](const CompositionProps&) { return test::make_ae_cam_02_zoom_fov(); });
     registry.add("AE_CAM_03_two_node_poi",  [](const CompositionProps&) { return test::make_ae_cam_03_two_node_poi(); });
@@ -109,6 +111,7 @@ inline void init_compositions(CompositionRegistry& registry) {
     registry.add("AE_CAM_08_dof",           [](const CompositionProps&) { return test::make_ae_cam_08_dof(); });
     registry.add("AE_CAM_09_motion_blur",   [](const CompositionProps&) { return test::make_ae_cam_09_motion_blur(); });
     registry.add("AE_CAM_10_near_clip",     [](const CompositionProps&) { return test::make_ae_cam_10_near_clip(); });
+#endif  // !CHRONON3D_BUILD_CONTENT
 
     // Camera 3D projection truth test
     registry.add("CameraTruthTest", [](const CompositionProps&) { return test::make_camera_truth_test(); });
