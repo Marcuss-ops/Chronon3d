@@ -91,30 +91,11 @@ inline bool project_world_point_2_5d(
     return true;
 }
 
-/// Build the 4×4 perspective projection matrix.
-//
-//   proj[0][0] = focal       (X scale)
-//   proj[1][1] = +focal      (Y scale — no Y inversion; the passive
-//                             "out.transform" branch already does
-//                             the Y-flip to screen-Y-down)
-//   proj[2][3] = 1           (w = z for perspective divide)
-//   proj[3][3] = epsilon     (avoids division by zero)
-//
-// Previously we set proj[1][1] = -focal to match a Y-up↔Y-down convention flip
-// at the matrix path, but this broke all existing enable_3d() compositions
-// (text disappeared off-screen because both the matrix AND the out.transform
-// branches were simultaneously flipping Y).  Now both paths agree again:
-// matrix path does NOT flip Y, the out.transform.position.y branch is the
-// sole Y-inverter.  This restores pre-session render correctness.
-inline Mat4 build_perspective_matrix(f32 focal) {
-    Mat4 proj(0.0f);
-    proj[0][0] = focal;
-    proj[1][1] = +focal;        // no Y inversion in matrix path (matched with passive path)
-    proj[2][2] = 1.0f;
-    proj[2][3] = 1.0f;          // w = z
-    proj[3][3] = 0.0001f;       // epsilon
-    return proj;
-}
+// NOTE: build_perspective_matrix(f32) was REMOVED in fix #1 (post-FASE-17
+// code-review). The legacy single-scalar overload is unused; the canonical
+// `build_perspective_matrix(const camera_math::FocalPx&)` lives in
+// camera_projection_matrix.hpp (FASE 17) and is what project_layer_2_5d()
+// uses via `chronon3d::build_perspective_matrix(focal_xy)`.
 
 inline ProjectedLayer2_5D project_layer_2_5d(
     const Transform& layer_transform,
