@@ -76,7 +76,7 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
                 }
                 continue;
             }
-            matrix = canvas_center * ssaa_scale * glm::translate(Mat4(1.0f), Vec3(proj.transform.position.x, proj.transform.position.y, 0.0f)) * glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
+            matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
         } else if (m_uses_2_5d_projection || m_centered) {
             matrix = canvas_center * ssaa_scale * item.matrix;
         } else {
@@ -267,7 +267,7 @@ NodeExecResult MultiSourceNode::execute(
                         }
                         continue;
                     }
-                    world_matrix = canvas_center * ssaa_scale * glm::translate(Mat4(1.0f), Vec3(proj.transform.position.x, proj.transform.position.y, 0.0f)) * glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
+                    world_matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
                 } else if (m_uses_2_5d_projection || m_centered) {
                     world_matrix = canvas_center * ssaa_scale * item.matrix;
                 } else {
@@ -381,7 +381,7 @@ NodeExecResult MultiSourceNode::execute(
                     }
                     continue;
                 }
-                state.matrix = canvas_center * ssaa_scale * glm::translate(Mat4(1.0f), Vec3(proj.transform.position.x, proj.transform.position.y, 0.0f)) * glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
+                state.matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
             } else if (m_uses_2_5d_projection) {
                 state.matrix = canvas_center * ssaa_scale * item.matrix;
             } else {

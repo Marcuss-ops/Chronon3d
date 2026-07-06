@@ -174,6 +174,14 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     const f32 bbox_h = std::max(1e-6f, max_pos.y - min_pos.y);
     out.transform.scale.x = bbox_w;
     out.transform.scale.y = bbox_h;
+    // Normalize residual TRS fields so callers using proj.transform.to_mat4()
+    // get a clean screen-space TRS (X/Y from the projected bbox, Z = identity,
+    // rotation = identity, anchor = origin). Without these writes,
+    // transform.scale.z / rotation / anchor would propagate from the input
+    // layer_transform and silently leak into the draw matrix composition.
+    out.transform.scale.z = 1.0f;
+    out.transform.rotation = Quat(1.0f, 0.0f, 0.0f, 0.0f);
+    out.transform.anchor = Vec3(0.0f, 0.0f, 0.0f);
 
     // ── Build the projection matrix from the resolver ───────────────────────
     const Mat4 view = camera_math::view_matrix_for_camera(camera);
