@@ -75,7 +75,7 @@ The two arms — `Stop` and `SkipFailedConstraint` — MUST NOT touch `session.l
 
 `src/scene/camera/camera_v1/camera_program.cpp` lines ~478–522 — the `switch (failure_policy_)` switch inside the constraint loop, dominated by the TICKET-A3-SESSION-POLICY sentinel block-comment (called out as the SOLE wire of `session.last_valid_camera`).  The end-of-evaluate writepoint is at line ~590 (`session.last_valid_camera = result.camera;`).
 
-The struct field is declared in `include/chronon3d/scene/camera/v1/camera_session.hpp` as `std::optional<Camera2_5D> last_valid_camera{}` inside `CameraSession`.  `CameraSession::reset()` (called by `CameraSessionCache`'s must-reprime path) clears the optional.  `CameraSessionCache::find()` and `cache.acquire()` do NOT directly touch it — only `evaluate()` does.
+The struct field is declared in `include/chronon3d/scene/camera/camera_v1/camera_session.hpp` as `std::optional<Camera2_5D> last_valid_camera{}` inside `CameraSession`.  `CameraSession::reset()` (called by `CameraSessionCache`'s must-reprime path) clears the optional.  `CameraSessionCache::find()` and `cache.acquire()` do NOT directly touch it — only `evaluate()` does.
 
 ### Test lock
 
@@ -108,7 +108,7 @@ The contract is layered in three places:
 
 ### Source anchor
 
-`include/chronon3d/scene/camera/v1/camera_session_cache.hpp` lines ~52–110 (`kCanonicalPrerollMaxFrames = 30`, `CameraSessionLease`, `CameraSessionCache::commit_lease(...)`).
+`include/chronon3d/scene/camera/camera_v1/camera_session_cache.hpp` lines ~52–110 (`kCanonicalPrerollMaxFrames = 30`, `CameraSessionLease`, `CameraSessionCache::commit_lease(...)`).
 
 `src/scene/camera/camera_v1/camera_session_cache.cpp`:
 - `acquire()`: lines ~107–144 — the `if (must_reprime)` arm writes fingerprint/cut_seen/shot_start_frame and calls `preroll_session_for_frame(...)`.  The CAM-05 sentinel *explicitly* documents that `last_evaluated_frame` is now written by `commit()`.
@@ -147,10 +147,10 @@ The propagation contract is enforced at:
 
 ### Source anchor
 
-* `include/chronon3d/scene/camera/v1/camera_motion_context.hpp` lines 42–47 (`CameraMotionContext::at`) and 78–86 (`CameraEvalContext::at`).
+* `include/chronon3d/scene/camera/camera_v1/camera_motion_context.hpp` lines 42–47 (`CameraMotionContext::at`) and 78–86 (`CameraEvalContext::at`).
 * `src/scene/camera/camera_v1/shot_timeline.hpp` lines ~76–89 (`ShotTimelineResolver::evaluate` signature post-A3-CTX-FRAMERATE).
 * `src/scene/camera/camera_v1/shot_timeline.cpp` lines ~290–360 — the 3 `CameraEvalContext::at(...)` call-sites now use the resolver's `fps` parameter directly; the previous-recipe `constexpr FrameRate kTimelineFps{30, 1};` is removed.
-* `include/chronon3d/scene/camera/v1/camera_session_cache.hpp` line 197 (the `preroll_session_for_frame` signature with `FrameRate frame_rate` as 6th positional, no default).
+* `include/chronon3d/scene/camera/camera_v1/camera_session_cache.hpp` line 197 (the `preroll_session_for_frame` signature with `FrameRate frame_rate` as 6th positional, no default).
 * `src/scene/camera/camera_v1/camera_session_cache.cpp` lines ~36–88 (the helper implementation).
 
 ### Test lock
@@ -255,7 +255,7 @@ Channel invariants:
 ### Source anchor
 
 * The canonical push site: `src/scene/camera/camera_v1/camera_program.cpp` line ~471 (`result.diagnostics.push_back(*orient_diag)` — already cited in Decision 6, generalised by Decision 7 to all orientation/constraint/modifier helpers).
-* The `Severity` enum: `include/chronon3d/scene/camera/v1/camera_program_diagnostic.hpp` lines ~35–60 (the closed 3-value enum).
+* The `Severity` enum: `include/chronon3d/scene/camera/camera_v1/camera_program_diagnostic.hpp` lines ~35–60 (the closed 3-value enum).
 * The struct: `struct CameraProgramDiagnostic { Severity severity; std::string message; /* optional source-anchor */ }` in the same header.
 * The forbidden-channel grep (in-vivo enforcement): `grep -rnE 'std::cerr|std::cout|printf|fmt::print.*stderr|spdlog::(warn|info|error)' src/scene/camera/camera_v1/` must return 0 hits from evaluate-stage helpers (only pre-existing scaffold markers permitted).
 
@@ -288,8 +288,8 @@ Two paired invariants locking the compile-time surface:
 ### Source anchor
 
 * **Determinism (gate (i))** — `src/scene/camera/camera_v1/camera_program_compiler.cpp` lines ~1–35 (`compile_camera()` entry-point) + the constraint-loop body that iterates `descriptor.constraints[]` in declaration order (NOT `std::unordered_map`).
-* **Post-compile immutability (gate (j))** — `include/chronon3d/scene/camera/v1/camera_program.hpp` lines ~30–110 (the `class CameraProgram` declaration).  No public non-`const` member function that mutates a `CameraProgram` field; `compile_camera()` returns a new program by value.
-* The fingerprint contract: `include/chronon3d/scene/camera/v1/camera_descriptor.hpp` `descriptor_fingerprint()` declaration (~lines 150–170) — bridge between Decision 3's `descriptor_fingerprint` cache-key and Decision 8's compile-determinism lock.
+* **Post-compile immutability (gate (j))** — `include/chronon3d/scene/camera/camera_v1/camera_program.hpp` lines ~30–110 (the `class CameraProgram` declaration).  No public non-`const` member function that mutates a `CameraProgram` field; `compile_camera()` returns a new program by value.
+* The fingerprint contract: `include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp` `descriptor_fingerprint()` declaration (~lines 150–170) — bridge between Decision 3's `descriptor_fingerprint` cache-key and Decision 8's compile-determinism lock.
 
 ### Test lock
 
