@@ -10,10 +10,6 @@
 
 #include "expression_types.hpp"
 
-// ── Built-in function dispatch (extracted for readability) ────────────
-// Included inline within the ExpressionParser class body.
-#include "expression_builtins.hpp"
-
 #include <algorithm>
 #include <cctype>
 #include <cmath>
