@@ -284,15 +284,16 @@ LayerBuilder& TextRunBuilder::commit() {
     // changed shaping inputs).
     m_spec->params.cache_layout = m_cache_layout;
 
-    // TICKET-104 — call the canonical consumed-decrement helper.  The
-    // counter increments regardless of whether the spec's previous
-    // state was already-consumed; this is intentional (commits that
-    // re-emit on the same spec still count as a decrement action
-    // under the diagnostic).  When callers want a strict
-    // "first-commit-only" semantic, they should check `!spec.consumed`
-    // before calling `commit()` themselves.  See
-    // src/text/pending_text_run_impl.hpp for the counter contract.
-    chronon3d::text_internal::mark_consumed(*m_spec);
+    // TICKET-104 — consumed-flag lifecycle: commit() finalizes ONLY the
+    // animator/selector stack onto the spec.  The `consumed` flag MUST
+    // NOT be set here — doing so would cause LayerBuilder::build() to
+    // skip the spec (via `if (spec.consumed) continue;`) and the text
+    // node would never be materialized.  `mark_consumed` is called
+    // exclusively in LayerBuilder::build() AFTER the RenderNode is
+    // created (see the matching call site in that method).
+    //
+    //   ❌ Previous (buggy): chronon3d::text_internal::mark_consumed(*m_spec);
+    //   ✅ Correct:         defer consumed-flag to build() post-node-creation.
 
     return *m_parent;
 }
