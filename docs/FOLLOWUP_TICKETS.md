@@ -213,6 +213,19 @@ Workstream design-FROZEN 2026-07-04 contro feature-freeze attivo; **nessun codic
 | TICKET-080-unicode | unicode extraction utf8_decoder + whitespace (distinto da TICKET-080 vcpkg toolchain) | — |
 | P1-CMAKE-01 | CMake core/video boundary fix (P1 #5) | — |
 
+### FASE 17+18 — code-reviewer follow-up closures (DONE, 2026-07-06)
+
+6 non-blocking follow-ups from the FASE 17+18 code-reviewer pass, registered here per user request so they don't get forgotten in future iterations. Tutti `DONE` — il fix pass è confluito nei commit elencati.
+
+| ID | Area | Commit / Note |
+|---|---|---|
+| TICKET-F17+18-1 | vestigial overload: drop `build_perspective_matrix(f32 focal)` overload on `include/chronon3d/math/camera_2_5d_projection.hpp` (zero callers; canonical FocalPx version lives in `camera_projection_matrix.hpp` ed è quanto `project_layer_2_5d` usa via `chronon3d::build_perspective_matrix(focal_xy)`) | commit `0f1e9351` |
+| TICKET-F17+18-2 | naming interni cleanup: orphan "(PathTimingMode moved to spatial_motion_path...)" comment rimosso da `temporal_curve_1d.hpp` (la dichiarazione era falsa post-FASE-19 split perché la move non era stata eseguita) + tighten doc-comment di `build_perspective_matrix` in `camera_2_5d_projection.hpp` (3-line use-FocalPx-version invece di verbose parafrasi) | commit `0f1e9351` |
+| TICKET-F17+18-3 | namespace consolidamento: merge dei due `namespace chronon3d` block in `include/chronon3d/math/camera_projection_resolver.hpp` (helper headers ora inclusi a FILE SCOPE prima del singolo block); `enum class FrustumResult` ownership spostato in `camera_projection_frustum.hpp` (single source of truth, evita redefinition) | commit `0f1e9351` |
+| TICKET-F17+18-4 | missing unit test — NEW `tests/core/math/test_clip_with_uv.cpp` (7 TEST_CASEs) locks `clip_with_uv()` extraction operated in FASE 17; registered in `tests/core_tests.cmake` (cat-1 build-fix scope: zero new public API surface) | commit `13144807` |
+| TICKET-F17+18-5 | missing unit test — NEW `tests/core/math/test_frustum_culling.cpp` (7 TEST_CASEs) locks `test_frustum_culling()` extraction (test 6 near-plane per-plane reject **tightened** dal code-reviewer #3: ora `CHECK(r != FrustumResult::Outside)` invece della versione pre-fix che lasciava `Intersects` come side-effect) | commit `13144807` |
+| TICKET-F17+18-6 | missing unit test — NEW `tests/cache/test_evict_lru_for.cpp` (5 TEST_CASEs) locks cross-bucket LRU eviction driver `evict_lru_for` estratto in FASE 18; registered in `tests/cache_tests.cmake` (settled code-reviewer #2: il file NON era stato aggiunto al cache_tests target — omissione scoperta macchina-verificato) | commit `13144807` |
+
 ## Deferred / non-blocking (PLANNED, post-baseline)
 
 | ID | Area | Note |
