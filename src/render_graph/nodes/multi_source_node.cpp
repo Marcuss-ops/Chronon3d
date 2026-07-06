@@ -2,6 +2,7 @@
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/math/camera_2_5d_projection.hpp>
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <chronon3d/text/text_run_geometry.hpp>
 #include <chronon3d/text/text_run.hpp>
@@ -35,7 +36,27 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     for (const auto& item : m_items) {
         if (!item.node) continue;
         Mat4 matrix;
-        if (m_uses_2_5d_projection || m_centered) {
+        if (m_uses_2_5d_projection && ctx.frame_input.has_camera_2_5d) {
+            // Cat-1 fix: when 2.5D projection is enabled AND a camera is
+            // supplied by frame_input, the layer's world TRS alone is not
+            // enough — we still need proj * view * layerTRS so the layer
+            // lands at the camera-projected screen position.  Without this
+            // branch, items rendered with anchored origin (default
+            // anchor=(0,0,0)) would clip into the canvas top-left
+            // (e.g. rect 100x100 at world (0,0,0) with default zoom 1000
+            // falls back to top-left instead of canvas center).
+            chronon3d::Transform tr;
+            auto proj = chronon3d::project_layer_2_5d(
+                tr, item.matrix,
+                ctx.frame_input.camera_2_5d,
+                static_cast<f32>(ctx.frame_input.width),
+                static_cast<f32>(ctx.frame_input.height),
+                false);
+            if (!proj.visible) {
+                continue;
+            }
+            matrix = canvas_center * ssaa_scale * proj.projection_matrix;
+        } else if (m_uses_2_5d_projection || m_centered) {
             matrix = canvas_center * ssaa_scale * item.matrix;
         } else {
             matrix = ssaa_scale * item.matrix;
@@ -195,7 +216,22 @@ NodeExecResult MultiSourceNode::execute(
                 chronon3d::update_text_run_shape_per_frame(local_shape, ctx.frame_input.sample_time);
 
                 Mat4 world_matrix;
-                if (m_uses_2_5d_projection || m_centered) {
+                if (m_uses_2_5d_projection && ctx.frame_input.has_camera_2_5d) {
+                    // Cat-1 fix: same camera-in-projection treatment as
+                    // regular items (mirror of predicted_bbox/execute
+                    // regular branch).
+                    chronon3d::Transform tr;
+                    auto proj = chronon3d::project_layer_2_5d(
+                        tr, item.matrix,
+                        ctx.frame_input.camera_2_5d,
+                        static_cast<f32>(ctx.frame_input.width),
+                        static_cast<f32>(ctx.frame_input.height),
+                        false);
+                    if (!proj.visible) {
+                        continue;
+                    }
+                    world_matrix = canvas_center * ssaa_scale * proj.projection_matrix;
+                } else if (m_uses_2_5d_projection || m_centered) {
                     world_matrix = canvas_center * ssaa_scale * item.matrix;
                 } else {
                     world_matrix = ssaa_scale * item.matrix;
@@ -258,7 +294,27 @@ NodeExecResult MultiSourceNode::execute(
             RenderState state;
             state.frame_number = static_cast<int>(ctx.frame_input.frame);
             state.ssaa_factor = ctx.policy.ssaa_factor;
-            if (m_uses_2_5d_projection) {
+            if (m_uses_2_5d_projection && ctx.frame_input.has_camera_2_5d) {
+                // Cat-1 fix: compute proj*view*layerTRS at render time so
+                // anchor-aware items render at the camera-projected screen
+                // position.  When the layer is behind the camera plane or
+                // off the frustum, we skip the item entirely (proj.visible
+                // would be false) so it does not pop into the top-left of
+                // the canvas (regression where the bbox-equivalent matrix
+                // would otherwise be identity and the rect's local origin
+                // would clip at (0,0)).
+                chronon3d::Transform tr;
+                auto proj = chronon3d::project_layer_2_5d(
+                    tr, item.matrix,
+                    ctx.frame_input.camera_2_5d,
+                    static_cast<f32>(ctx.frame_input.width),
+                    static_cast<f32>(ctx.frame_input.height),
+                    false);
+                if (!proj.visible) {
+                    continue;
+                }
+                state.matrix = canvas_center * ssaa_scale * proj.projection_matrix;
+            } else if (m_uses_2_5d_projection) {
                 state.matrix = canvas_center * ssaa_scale * item.matrix;
             } else {
                 if (m_centered) {
