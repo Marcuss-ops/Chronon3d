@@ -72,6 +72,7 @@ add_library(chronon3d_text_core OBJECT
     unicode/utf8_decoder.cpp
     unicode/whitespace.cpp
     boundary_resolver/text_unit_map.cpp
+    boundary_resolver/text_unit_map_lookups.cpp   # FASE 12 — forward/inverse/count lookups extracted
     # TICKET-108a — internal text_resolver_helpers (adopt aliases.hpp 7
     # typedefs through internal-only helper functions; not installed).
     internal/text_resolver_helpers.cpp
@@ -96,6 +97,7 @@ add_library(chronon3d_text_core OBJECT
 set_source_files_properties(
     timed_text_document.cpp
     boundary_resolver/text_unit_map.cpp
+    boundary_resolver/text_unit_map_lookups.cpp
     PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
 )
 
