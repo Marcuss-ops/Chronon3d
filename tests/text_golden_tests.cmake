@@ -67,6 +67,19 @@ target_sources(chronon3d_text_golden_tests
         text_golden/ae_parity/ae_05_lower_third.cpp
 )
 
+# TICKET-AE-PARITY-CINEMATIC-09 — ae_blur_in scene. Appended directly to the
+# existing target via target_sources() (no new harness chain). 6 TEST_CASEs
+# = 16:9 + 9:16 × 3 frame snapshots f00/f15/f30 with progressive blur tier
+# (0.0f / 7.0f / 20.0f) locked against `kBlurTierRadii = {{0, 2, 7, 13, 20}}`
+# (text_run_processor/text_run_stages.hpp:51). LayerBuilder::blur() → bucket
+# via detail::bucket_radius_for_tier → apply_separable_box_blur. Parent-
+# blocker TICKET-GOLDEN-CAPTURE closed 2026-07-06 (Phase F). Cat-2 freeze-
+# compliant (zero new public API; verify_golden reuse; same harness chain).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/ae_parity/ae_09_blur_in.cpp
+)
+
 add_test(
     NAME TextGolden
     COMMAND chronon3d_text_golden_tests
