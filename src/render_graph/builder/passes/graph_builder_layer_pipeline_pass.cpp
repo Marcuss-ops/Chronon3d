@@ -160,7 +160,7 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
                 rctx.policy.diagnostics_enabled);
             if (proj.visible) {
                 const Mat4 eff_proj = is_native_3d_layer(layer)
-                    ? Mat4(1.0f) : proj.projection_matrix;
+                    ? Mat4(1.0f) : proj.transform.to_mat4();
                 current_3d_bin.push_back(LayerGraphItem{
                     .layer             = resolved_layer.layer,
                     .transform         = proj.transform,

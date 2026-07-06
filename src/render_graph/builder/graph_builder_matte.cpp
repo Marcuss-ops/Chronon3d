@@ -43,7 +43,7 @@ LayerGraphItem make_item_for_matte_source(
         if (proj.visible) {
             const Mat4 eff_proj = is_native_3d_layer(*rl.layer)
                 ? Mat4(1.0f)
-                : proj.projection_matrix;
+                : proj.transform.to_mat4();
             return LayerGraphItem{
                 .layer             = rl.layer,
                 .transform         = proj.transform,
