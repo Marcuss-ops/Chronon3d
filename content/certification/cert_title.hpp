@@ -19,5 +19,6 @@ chronon3d::Composition cert_title();
 chronon3d::Composition cert_title_vertical();
 chronon3d::Composition cert_lower_third();
 chronon3d::Composition cert_long_text();
+chronon3d::Composition cert_multilingual();
 
 } // namespace chronon3d::content::certification

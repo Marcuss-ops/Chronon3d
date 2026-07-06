@@ -30,7 +30,8 @@ namespace chronon3d::content::backgrounds  { void register_grid_clean_background
 namespace chronon3d::content::ae_parity    { void register_ae_parity_compositions(CompositionRegistry&); }
 namespace chronon3d::content::certification { void register_cert_title_compositions(CompositionRegistry&);
                                                void register_cert_lower_third_compositions(CompositionRegistry&);
-                                               void register_cert_long_text_compositions(CompositionRegistry&); }
+                                               void register_cert_long_text_compositions(CompositionRegistry&);
+                                               void register_cert_multilingual_compositions(CompositionRegistry&); }
 
 namespace chronon3d {
 
@@ -60,6 +61,7 @@ public:
         content::certification::register_cert_title_compositions(ctx.compositions);
         content::certification::register_cert_lower_third_compositions(ctx.compositions);
         content::certification::register_cert_long_text_compositions(ctx.compositions);
+        content::certification::register_cert_multilingual_compositions(ctx.compositions);
     }
 };
 

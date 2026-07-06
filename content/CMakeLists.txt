@@ -48,6 +48,7 @@ add_library(chronon3d_content OBJECT
     certification/cert_title.cpp
     certification/cert_lower_third.cpp
     certification/cert_long_text.cpp
+    certification/cert_multilingual.cpp
 
     # ── AE Parity camera scenes (10 visual comparison scenes as CLI compositions) ─
     ae_parity/register_ae_parity_compositions.cpp
