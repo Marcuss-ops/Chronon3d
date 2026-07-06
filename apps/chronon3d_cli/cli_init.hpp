@@ -19,6 +19,8 @@
 #include "tests/visual/ae_parity/ae_parity_scenes.hpp"
 // Camera 3D projection truth test
 #include "tests/visual/camera_truth/camera_truth_test.hpp"
+// Camera orbit truth test (OrbitMotion via CameraDescriptor)
+#include "tests/visual/camera_truth/camera_truth_orbit.hpp"
 // AE Camera Text Parity — 360-frame multi-segment stress test
 #include "content/experimental/ae-parity/ae_camera_text_parity.hpp"
 
@@ -110,6 +112,9 @@ inline void init_compositions(CompositionRegistry& registry) {
 
     // Camera 3D projection truth test
     registry.add("CameraTruthTest", [](const CompositionProps&) { return test::make_camera_truth_test(); });
+
+    // Camera orbit truth test (OrbitMotion via CameraDescriptor, yaw 0→90°)
+    registry.add("CameraTruthOrbit", [](const CompositionProps&) { return test::make_camera_truth_orbit(); });
 
     // AE Camera Text Parity — 360-frame multi-segment stress test
     // (static / dolly-zoom / orbit / rack-focus / whip-pan+motion-blur / stress)
