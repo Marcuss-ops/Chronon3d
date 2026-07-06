@@ -85,6 +85,7 @@
 /// FT_Outline_Decompose race against concurrent FT_Set_Pixel_Sizes).
 #include "blend2d_glyph_conversion.hpp"
 #include "freetype_outline_conversion.hpp"
+#include "text_rasterizer_atlas.hpp"
 
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <ft2build.h>
@@ -452,63 +453,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     };
 
     // ── GlyphAtlas: per-glyph cache integration ─────────────────────
-    // On atlas hit: blit cached glyph bitmaps (skip fillGlyphRun).
-    // On miss: render normally, then store glyphs for future reuse.
-    // Only for solid-color fills without geometric transforms, box
-    // backgrounds, or strokes (ensures clean glyph extraction).
-    struct PendingGlyphStore {
-        std::string font_path;
-        PlacedGlyphRun placed;
-        BLFont font;
-        float origin_x{0.0f}, origin_y{0.0f};
-        float font_size{0.0f};
-        u32   fill_rgba{0};
-    };
-    std::vector<PendingGlyphStore> pending_glyph_stores;
-
-    auto can_use_glyph_atlas = [&](
-        const TextStyle& style, bool has_placed, bool has_stroke
-    ) -> bool {
-        return has_placed
-            && !use_geometric_transform
-            && !t.style.box_style.enabled
-            && !has_stroke
-            && (!style.paint.fill_style.has_value()
-                || style.paint.fill_style->type == FillType::Solid);
-    };
-
-    auto resolve_atlas_fill_rgba = [](
-        const TextStyle& style, const Color& fallback
-    ) -> u32 {
-        if (style.paint.fill_style.has_value()
-            && style.paint.fill_style->type == FillType::Solid)
-            return to_bl_rgba(style.paint.fill_style->solid).value;
-        return to_bl_rgba(fallback).value;
-    };
-
-    auto try_atlas_blit = [&](
-        const PlacedGlyphRun& run, const std::string& fp,
-        float fs, u32 fill_rgba, float ox, float oy
-    ) -> bool {
-        if (run.glyphs.empty()) return false;
-        const u32 fsu = static_cast<u32>(std::ceil(fs));
-        std::vector<GlyphAtlasEntry> entries;
-        entries.reserve(run.glyphs.size());
-        for (const auto& pg : run.glyphs) {
-            auto e = glyph_atlas_lookup(fp, pg.glyph_id, fsu);
-            if (!e || e->fill_color_rgba != fill_rgba) return false;
-            entries.push_back(std::move(*e));
-        }
-        for (size_t i = 0; i < run.glyphs.size(); ++i) {
-            const auto& pg = run.glyphs[i];
-            const auto& e  = entries[i];
-            ctx.blitImage(
-                BLPoint(ox + pg.x + static_cast<float>(e.x_offset),
-                        oy + pg.y + static_cast<float>(e.y_offset)),
-                *e.image);
-        }
-        return true;
-    };
+    // Extracted to detail::can_use_glyph_atlas / resolve_atlas_fill_rgba /
+    // try_atlas_blit / store_pending_glyphs (text_rasterizer_atlas.hpp).
+    std::vector<detail::PendingGlyphStore> pending_glyph_stores;
 
     auto render_run = [&](const TextLayoutLineRun& run, const TextLayoutLine& line) {
         if (run.text.empty()) return;
@@ -606,9 +553,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         if (placed) {
             const bool has_stroke = run_style.paint.stroke_enabled
                 && run_style.paint.stroke_width > 0.0f;
-            if (can_use_glyph_atlas(run_style, true, has_stroke)) {
-                const u32 frgba = resolve_atlas_fill_rgba(run_style, run_fill);
-                if (try_atlas_blit(*placed, run_style.font_path,
+            if (detail::can_use_glyph_atlas(use_geometric_transform, t.style.box_style.enabled, has_stroke, run_style.paint.fill_style)) {
+                const u32 frgba = detail::resolve_atlas_fill_rgba(run_style.paint.fill_style, to_bl_rgba(run_fill).value);
+                if (detail::try_atlas_blit(ctx, *placed, run_style.font_path,
                         run_shape_size, frgba, lx, baseline_y)) {
                     if (profiling::g_current_counters)
                         profiling::g_current_counters->glyph_atlas_hits.fetch_add(1, std::memory_order_relaxed);
@@ -710,9 +657,9 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         if (placed) {
             const bool has_stroke = t.style.paint.stroke_enabled
                 && t.style.paint.stroke_width > 0.0f;
-            if (can_use_glyph_atlas(t.style, true, has_stroke)) {
-                const u32 frgba = resolve_atlas_fill_rgba(t.style, line_fill);
-                if (try_atlas_blit(*placed, t.style.font_path,
+            if (detail::can_use_glyph_atlas(use_geometric_transform, t.style.box_style.enabled, has_stroke, t.style.paint.fill_style)) {
+                const u32 frgba = detail::resolve_atlas_fill_rgba(t.style.paint.fill_style, to_bl_rgba(line_fill).value);
+                if (detail::try_atlas_blit(ctx, *placed, t.style.font_path,
                         layout_res.font_size, frgba, lx, ly)) {
                     if (profiling::g_current_counters)
                         profiling::g_current_counters->glyph_atlas_hits.fetch_add(1, std::memory_order_relaxed);
@@ -737,11 +684,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     ctx.end();
 
     // ── GlyphAtlas: store individual glyphs for future reuse ────────
-    for (const auto& ps : pending_glyph_stores) {
-        glyph_atlas_store_from_placed_run(
-            ps.font_path, img, ps.placed, ps.font,
-            ps.origin_x, ps.origin_y, ps.font_size, ps.fill_rgba);
-    }
+    detail::store_pending_glyphs(pending_glyph_stores, img);
 
     // ── Trim trailing rows AND compute ink-bounds for centering ───────
     float ink_center_frac = -1.0f;
