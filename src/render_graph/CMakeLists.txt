@@ -106,6 +106,7 @@ target_precompile_headers(chronon3d_graph_builder PRIVATE
 # ── Compiler: graph compilation & optimization ──────────────────────────────
 add_library(chronon3d_graph_compiler OBJECT
     compiler/frame_graph_compiler.cpp
+    compiler/frame_graph_builder.cpp    # FASE 16 - extracted private builders
     compiler/scene_binding_compiler.cpp
     optimizer/graph_optimizer.cpp
 )
