@@ -249,65 +249,6 @@ compose_minimal_white(const PresetMetadata& /*meta*/) {
 // as the preamble then appends entry-specific properties + (when needed)
 // selector overrides.
 
-// 1. animation_compositions — depth_reveal(280,45) + soft_pop(30) + float_idle(8,120)
-[[nodiscard]] inline std::optional<TextAnimatorSpec>
-compose_animation_compositions(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = make_presetc_template("animation_compositions");
-    a.properties.push_back(PositionProperty{Vec3{0.0f, 8.0f, 280.0f}});
-    a.properties.push_back(OpacityProperty{1.0f});
-    return a;
-}
-
-// 2. cinematic_text_camera — depth_reveal(260,50) + scale_drop(0.95,30) + soft_pop(24)
-[[nodiscard]] inline std::optional<TextAnimatorSpec>
-compose_cinematic_text_camera(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = make_presetc_template("cinematic_text_camera");
-    a.properties.push_back(PositionProperty{Vec3{0.0f, 0.0f, 260.0f}});
-    a.properties.push_back(ScaleProperty{Vec3{0.95f, 0.95f, 1.0f}});
-    a.properties.push_back(OpacityProperty{1.0f});
-    return a;
-}
-
-// 4. cinematic_title_reveal — animated timeline (ease-out cubic, 36f).
-// AGENT 2 (TICKET-A2) — replaces prior static ScaleProperty{0.92} + OpacityProperty{1.0f}.
-[[nodiscard]] inline std::optional<TextAnimatorSpec>
-compose_cinematic_title_reveal(const PresetMetadata& /*meta*/) {
-    const EasingCurve eo_cine{Easing::OutCubic};
-    TextAnimatorSpec a = make_presetc_template("cinematic_title_reveal");
-
-    ScaleProperty sp;
-    sp.value.add_keyframe(Frame{0},  Vec3{0.92f, 0.92f, 1.0f}, eo_cine);
-    sp.value.add_keyframe(Frame{36}, Vec3{1.0f,  1.0f,  1.0f}, eo_cine);
-    a.properties.push_back(sp);
-
-    OpacityProperty op;
-    op.value.add_keyframe(Frame{0},  0.0f, eo_cine);
-    op.value.add_keyframe(Frame{36}, 1.0f, eo_cine);
-    a.properties.push_back(op);
-
-    BlurProperty bp;
-    bp.radius.add_keyframe(Frame{0},  12.0f, eo_cine);
-    bp.radius.add_keyframe(Frame{36}, 0.0f,  eo_cine);
-    a.properties.push_back(bp);
-
-    PositionProperty pp;
-    pp.value.add_keyframe(Frame{0},  Vec3{0.0f, 40.0f, 0.0f}, eo_cine);
-    pp.value.add_keyframe(Frame{36}, Vec3{0.0f, 0.0f,  0.0f}, eo_cine);
-    a.properties.push_back(pp);
-
-    return a;
-}
-
-// 5. tilt_sweep_title_v2 — scale_drop(1.08,45) + focus_in(2.5,30) + soft_pop(24)
-[[nodiscard]] inline std::optional<TextAnimatorSpec>
-compose_tilt_sweep_title_v2(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = make_presetc_template("tilt_sweep_title_v2");
-    a.properties.push_back(ScaleProperty{Vec3{1.08f, 1.08f, 1.0f}});
-    a.properties.push_back(BlurProperty{2.5f});
-    a.properties.push_back(OpacityProperty{1.0f});
-    return a;
-}
-
 // 16. word_pop — FASE 2b — per-word bouncy scale overshoot with Word selector.
 // Uses TextSelectorUnit::Word so the pop effect targets each whitespace-delimited
 // word independently, matching the preset's semantic intent ("per-word emphasis pop").
@@ -423,135 +364,6 @@ wire_through_resolver(LayerBuilderT& lb,
         ::chronon3d::registry::wire_preset_text_run_params(preset_id, spec);
     const std::string entry_name = std::string{preset_id} + "_text";
     return lb.text_run(entry_name, params).commit();
-}
-
-
-// ── 15. animation_compositions ────────────────────────────────────────────
-TextPresetDescriptor animation_compositions_entry() {
-    PresetMetadata meta;
-    meta.id           = "animation_compositions";
-    meta.display_name = "Animation compositions utility suite";
-    meta.category     = TextPresetCategory::Cinematic;
-    meta.description  = "Catalogues helper functions for animation compositions "
-                         "(reveal/tilt/word-shimmer factory). Cinematic depth-reveal "
-                         "+ soft-pop + float_idle motion preset.";
-    meta.builtin      = true;
-
-    TextPresetDescriptor d;
-    d.id              = meta.id;
-    d.metadata        = meta;
-    d.fixture         = "tests/visual/cinematic_motion/DeepParallaxCascade";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
-                          LayerBuilderT& lb,
-                          const TextSpecT& spec) {
-        wire_through_resolver(lb, "animation_compositions", spec)
-          .depth_reveal(280.0f, Frame{45})
-          .soft_pop(Frame{30})
-          .float_idle(8.0f, Frame{120});
-    };
-    d.animator_factory = compose_animation_compositions;
-    return d;
-}
-
-// ── 16. cinematic_text_camera ─────────────────────────────────────────────
-TextPresetDescriptor cinematic_text_camera_entry() {
-    PresetMetadata meta;
-    meta.id           = "cinematic_text_camera";
-    meta.display_name = "Cinematic text-camera compositions (5 hero comps)";
-    meta.category     = TextPresetCategory::Cinematic;
-    meta.description  = "5 hero cinematic compositions (DeepParallaxCascade, "
-                         "WhipPanHeroReveal, OrbitHandheldGlow, RackFocusTitleSwap, "
-                         "AbyssFreefallStagger). Camera-driven depth reveal. "
-                         "Stage 4 (TICKET-A2): resolver-wires a TextAnimatorSpec "
-                         "onto the TextRun when the spec carries rich-paint "
-                         "signals (stroke_enabled / fill_style / stroke_style).";
-    meta.builtin      = true;
-
-    TextPresetDescriptor d;
-    d.id              = meta.id;
-    d.metadata        = meta;
-    d.fixture         = "tests/visual/camera/camera_visual_tests";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
-                          LayerBuilderT& lb,
-                          const TextSpecT& spec) {
-        // Stages 4 + 5 wiring: when spec is rich, push the Stage-4 anchor
-        // first (so other content layers compose with `ctc_rich_<id>`), then
-        // push the canonical end-state composition.  The descriptor's
-        // `animator_factory` now produces the canonical TextAnimatorSpec
-        // via the registry-routed
-        // `AnimatorResolver::compose_for(<id>)` call below — there is NO
-        // per-id branch in the resolver TU.
-        TextRunParams params;
-        params.text = spec;
-        if (::chronon3d::registry::AnimatorResolver::spec_is_rich(spec)) {
-            params.animators.push_back(
-                ::chronon3d::registry::AnimatorResolver::rich_paint_anchor("cinematic_text_camera"));
-        }
-        if (auto canonical = ::chronon3d::registry::AnimatorResolver::compose_for("cinematic_text_camera")) {
-            params.animators.push_back(*canonical);
-        }
-        lb.text_run("camera_text", params)
-          .commit()
-          .depth_reveal(260.0f, Frame{50})
-          .scale_drop(0.95f, Frame{30})
-          .soft_pop(Frame{24});
-    };
-    d.animator_factory = compose_cinematic_text_camera;
-    return d;
-}
-
-// ── 17. cinematic_title_reveal ────────────────────────────────────────────
-TextPresetDescriptor cinematic_title_reveal_entry() {
-    PresetMetadata meta;
-    meta.id           = "cinematic_title_reveal";
-    meta.display_name = "Cinematic title reveal (push-in/tilt variants)";
-    meta.category     = TextPresetCategory::Cinematic;
-    meta.description  = "Cinematic title reveal utilities — push-in + tilt "
-                         "variants for hero/section titles with subtle drift. "
-                         "AGENT 2 (TICKET-A2) — animation is resolver-driven "
-                         "(Scale/Opacity/Blur/Position AnimatedValue over 36f "
-                         "ease-out cubic); no layer-level chain so the canonical "
-                         "resolver path is the single source of keyframes.";
-    meta.builtin      = true;
-
-    TextPresetDescriptor d;
-    d.id              = meta.id;
-    d.metadata        = meta;
-    d.fixture         = "tests/visual/cinematic_motion/cinematic_title_reveal";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
-                          LayerBuilderT& lb,
-                          const TextSpecT& spec) {
-        (void)wire_through_resolver(lb, "cinematic_title_reveal", spec);
-    };
-    d.animator_factory = compose_cinematic_title_reveal;
-    return d;
-}
-
-// ── 18. tilt_sweep_title_v2 ───────────────────────────────────────────────
-TextPresetDescriptor tilt_sweep_title_v2_entry() {
-    PresetMetadata meta;
-    meta.id           = "tilt_sweep_title_v2";
-    meta.display_name = "Tilt-sweep title v2";
-    meta.category     = TextPresetCategory::Cinematic;
-    meta.description  = "Tilt-sweep title with cinematic push-in reveal, "
-                         "scale animation, and blur ramp — cross-link "
-                         "tilt_sweep_title preset family.";
-    meta.builtin      = true;
-
-    TextPresetDescriptor d;
-    d.id              = meta.id;
-    d.metadata        = meta;
-    d.fixture         = "tests/visual/cinematic_motion/tilt_sweep_title_v2";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
-                          LayerBuilderT& lb,
-                          const TextSpecT& spec) {
-        wire_through_resolver(lb, "tilt_sweep_title_v2", spec)
-          .scale_drop(1.08f, Frame{45})
-          .focus_in(2.5f, Frame{30})
-          .soft_pop(Frame{24});
-    };
-    d.animator_factory = compose_tilt_sweep_title_v2;
-    return d;
 }
 
 
@@ -775,11 +587,10 @@ TextPresetDescriptor caption_box_entry() {
 namespace register_helpers_internal {
 
 void register_text_preset_cinematic(TextPresetRegistry& r) {
-    // ── Cinematic (4) — PR `41cda40c` kept verbatim ──────────────────────
-    r.register_preset(animation_compositions_entry());
-    r.register_preset(cinematic_text_camera_entry());
-    r.register_preset(cinematic_title_reveal_entry());
-    r.register_preset(tilt_sweep_title_v2_entry());
+    // ── Cinematic (4) — FASE 1: delegates to per-category factory ───────
+    for (auto& desc : register_helpers_internal::factory_cinematic::create_text_presets()) {
+        r.register_preset(std::move(desc));
+    }
 }
 
 void register_text_preset_reveal(TextPresetRegistry& r) {
