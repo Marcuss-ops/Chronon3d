@@ -175,13 +175,12 @@ add_test(NAME chronon3d_pr3_composition_visual_tests
 add_executable(chronon3d_ae_parity_tests
     ${TEST_MAIN}
     visual/ae_parity/ae_parity_tests.cpp
+    visual/ae_parity/ae_parity_scenes.cpp
 )
-# TICKET-CAMERA-LINK-DEDUP — visual/ae_parity/ae_parity_scenes.cpp is
-# compiled into chronon3d_content (content/CMakeLists.txt).  Consume its
-# symbols here via target_link_libraries so the file is compiled ONCE.
-if(TARGET chronon3d_content)
-    target_link_libraries(chronon3d_ae_parity_tests PRIVATE chronon3d_content)
-endif()
+# ae_parity_scenes.cpp was previously linked via chronon3d_content OBJECT
+# library; that link broke post content-dedup.  Compiling it directly
+# into the test binary restores the symbols without duplicating the TU
+# across the CLI binary (which also compiles it).
 
 target_link_libraries(chronon3d_ae_parity_tests
     PRIVATE
