@@ -87,6 +87,7 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/geometry/vertex.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/gradient.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/shape_style/fill_style.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/graphics/shape_style/stroke_style.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/layout/layout_flow_grid.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/layout/layout_rules.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/math/camera_2_5d_projection.hpp"
