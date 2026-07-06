@@ -156,6 +156,7 @@ add_library(chronon3d_cli_dev STATIC
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_engine.cpp>
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_json.cpp>
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_helpers.cpp>
+    $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_typewriter.cpp>
     utils/batch/batch_job_spec.cpp
     utils/batch/batch_runner.cpp
 )
