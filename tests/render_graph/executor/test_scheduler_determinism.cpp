@@ -59,6 +59,7 @@
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
 #include <chronon3d/core/scheduler/scheduler_mode.hpp>
 #include <chronon3d/core/scope/execution_scope.hpp>
+#include <chronon3d/core/memory/arena.hpp>
 // PR-2 rewire (CHANGELOG.md R6): tests now compile via FrameGraphCompiler.
 // ExecutionPlanCache was RETIRED by the PR-2 rewire (see CHANGELOG.md R6).
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>
@@ -212,6 +213,7 @@ inline ExecutionScheduler build_scheduler(
 // mismatch — Q1 reviewer concern.
 struct TestFixture {
     FakeBackend                                       backend;
+    FrameArena                                        arena;
     cache::NodeCache                                  node_cache;
     std::shared_ptr<cache::FramebufferPool>           fb_pool;
     ExecutionScheduler                                runtime_scheduler;
@@ -263,9 +265,9 @@ inline std::shared_ptr<Framebuffer> render_with_mode(
 {
     auto scheduler = build_scheduler(mode, worker_count);
     GraphExecutor executor;
-    ExecutionScope root_scope(
-        ExecutionScopeKind::Root,
+    ExecutionScope root_scope = ExecutionScope::make_root(
         fix.session,
+        fix.arena,
         fix.compiled.graph_instance_id);
     return executor.execute_with_scope(
         fix.compiled, fix.ctx, root_scope, scheduler);

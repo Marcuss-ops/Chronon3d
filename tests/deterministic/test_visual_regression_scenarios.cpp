@@ -140,7 +140,7 @@ inline ScenarioMetrics compute_metrics(const Framebuffer& fb,
 #define VR_GATE(short_label, kref, metrics_expr)                          \
     do {                                                                   \
         auto m = (metrics_expr);                                            \
-        if (is_reference_captured(kref)) {                                  \  // PR-A3 fix B5: anon-namespace lookup (was qualified)
+        if (is_reference_captured(kref)) {                                  \
             REQUIRE(m.hash == kref);                                        \
         } else {                                                            \
             MESSAGE("VR/" << short_label                                    \
