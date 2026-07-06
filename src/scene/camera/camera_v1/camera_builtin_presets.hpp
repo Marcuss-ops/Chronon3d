@@ -10,6 +10,7 @@
 #pragma once
 
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_catalog.hpp>
 
 #include <span>
 
