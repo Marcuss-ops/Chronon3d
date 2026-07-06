@@ -50,10 +50,7 @@
 #include "text_preset_register_helpers.hpp"
 #include "text_preset_internal_helpers.hpp"  // M1.5#13 (1/4) — shared factory helpers (NOT installed; lives under src/registry/).
 
-#include <chronon3d/scene/builders/scene_builder.hpp>   // full SceneBuilder
-#include <chronon3d/scene/builders/layer_builder.hpp>    // full LayerBuilder
-#include <chronon3d/scene/builders/builder_params.hpp>   // full TextSpec (canonical), GlyphSelectorSpec,
-                                                          // AnimatedValue<>, EasingCurve, Easing, Frame.
+#include <chronon3d/scene/builders/builder_params.hpp>   // full TextSpec (canonical), TextRunParams, AnimatorResolver types.
 
 #include <stdexcept>
 #include <utility>      // std::move for wire_preset_text_run_params implementation.
