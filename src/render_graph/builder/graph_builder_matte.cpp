@@ -43,7 +43,7 @@ LayerGraphItem make_item_for_matte_source(
         if (proj.visible) {
             const Mat4 eff_proj = is_native_3d_layer(*rl.layer)
                 ? Mat4(1.0f)
-                : proj.transform.to_mat4();
+                : glm::translate(Mat4(1.0f), Vec3(proj.transform.position.x, proj.transform.position.y, 0.0f)) * glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
             return LayerGraphItem{
                 .layer             = rl.layer,
                 .transform         = proj.transform,
