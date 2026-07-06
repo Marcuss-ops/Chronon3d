@@ -43,13 +43,24 @@ Composition make_camera_truth_test() {
                 });
             });
 
-            // ── Three 3D cards at different Z depths ──────────────────
-            // Red   = near  (z=0)    — should move the most when camera pans
-            // Green = mid   (z=500)  — should move moderately
-            // Blue  = far   (z=1000) — should move the least (parallax)
+            // ── Four 3D cards at different Z depths ───────────────────
+            // Dark red (behind cam) = z=-1200 — behind-camera clipping test (depth negative)
+            // Red (near)       = z=0     — should move the most
+            // Green (mid)      = z=500   — should move moderately
+            // Blue (far)       = z=1000  — should move the least (parallax)
+
+            s.layer("card_behind", [](LayerBuilder& l) {
+                l.enable_3d().position({0.0f, 0.0f, -1200.0f});
+                l.rect("rect", {
+                    .size = {120.0f, 80.0f},
+                    .color = Color{0.85f, 0.10f, 0.10f, 0.6f},
+                    .pos = {0.0f, 0.0f, 0.0f},
+                    .fill = FillStyle::solid(Color{0.85f, 0.10f, 0.10f, 0.6f})
+                });
+            });
 
             s.layer("card_near", [](LayerBuilder& l) {
-                l.enable_3d().position({0.0f, 0.0f, 0.0f});
+                l.enable_3d().position({-300.0f, 0.0f, 0.0f});
                 l.rect("rect", {
                     .size = {100.0f, 65.0f},
                     .color = Color{1.0f, 0.15f, 0.15f, 1.0f},
@@ -69,7 +80,7 @@ Composition make_camera_truth_test() {
             });
 
             s.layer("card_far", [](LayerBuilder& l) {
-                l.enable_3d().position({0.0f, 0.0f, 1000.0f});
+                l.enable_3d().position({300.0f, 0.0f, 1000.0f});
                 l.rect("rect", {
                     .size = {100.0f, 65.0f},
                     .color = Color{0.15f, 0.35f, 1.0f, 1.0f},
@@ -132,6 +143,7 @@ Composition make_camera_truth_test() {
                              (depth > 0.0f) ? "true" : "false");
             };
 
+            log_card("behind",     Vec3{0.0f, 0.0f, -1200.0f});
             log_card("near(red)",  Vec3{-300.0f, 0.0f, 0.0f});
             log_card("mid(green)", Vec3{0.0f, 0.0f, 500.0f});
             log_card("far(blue)",  Vec3{300.0f, 0.0f, 1000.0f});
