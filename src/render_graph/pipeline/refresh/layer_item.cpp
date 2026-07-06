@@ -22,7 +22,7 @@ LayerGraphItem make_layer_graph_item_for_refresh(
         if (proj.visible) {
             const Mat4 eff_proj = is_native_3d_layer(layer)
                 ? Mat4(1.0f)
-                : proj.projection_matrix;
+                : proj.transform.to_mat4();
             return LayerGraphItem{
                 .layer             = resolved_layer.layer,
                 .transform         = proj.transform,
