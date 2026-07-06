@@ -69,7 +69,7 @@ TextDocument make_golden_doc() {
 }
 
 /// Build a FontEngine bound to a RenderRuntime.
-FontEngine make_engine() {
+FontEngine make_golden_engine() {
     static const Config cfg;
     static const runtime::RenderRuntime runtime(cfg);
     return FontEngine{runtime.resolver()};
@@ -117,7 +117,7 @@ FontEngine make_engine() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("M1.5#8: FontResolver::resolve is deterministic across N invocations") {
-    auto engine = make_engine();
+    auto engine = make_golden_engine();
     chronon3d::text::resolver::FontResolver resolver{engine};
     chronon3d::text::resolver::FontRequest req;
     req.primary.font_family = "Inter";
@@ -141,8 +141,8 @@ TEST_CASE("M1.5#8: FontResolver::resolve is deterministic across N invocations")
 
 TEST_CASE("M1.5#8: resolve_text_run_tree + FNV-1a gold snapshot is stable") {
     auto doc   = make_golden_doc();
-    auto eng_a = make_engine();
-    auto eng_b = make_engine();
+    auto eng_a = make_golden_engine();
+    auto eng_b = make_golden_engine();
 
     const auto tree_a = resolve_text_run_tree(doc, eng_a);
     const auto tree_b = resolve_text_run_tree(doc, eng_b);
@@ -178,7 +178,7 @@ TEST_CASE("M1.5#8: resolve_text_run_tree + FNV-1a gold snapshot is stable") {
 // silently violated.
 
 TEST_CASE("M1.5#8: deprecated resolve_fallback_fonts == FontResolver::resolve") {
-    auto engine = make_engine();
+    auto engine = make_golden_engine();
 
     FontSpec primary;
     primary.font_family = "NonexistentPrimary";
@@ -214,7 +214,7 @@ TEST_CASE("M1.5#8: deprecated resolve_fallback_fonts == FontResolver::resolve") 
 
 TEST_CASE("M1.5#8: CHRONON3D_FORCE_NO_FRIBIDI env override → single LTR run") {
     auto doc   = make_golden_doc();
-    auto engine = make_engine();
+    auto engine = make_golden_engine();
 
     const auto tree = resolve_text_run_tree(doc, engine);
 
