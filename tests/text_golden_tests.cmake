@@ -80,6 +80,19 @@ target_sources(chronon3d_text_golden_tests
         text_golden/ae_parity/ae_09_blur_in.cpp
 )
 
+# TICKET-AE-PARITY-CINEMATIC-06 — ae_tracking_expansion scene. Appended
+# directly to existing target via target_sources(). 6 TEST_CASEs = 16:9 +
+# 9:16 × 3 frame snapshots f00/f15/f30 with title-trailer-style reveal
+# triple anim: tracking (.layout.tracking text-level field, values 4.0/12.0/
+# 22.0), opacity (LayerBuilder::opacity, layer_builder.cpp:138, values
+# 0.30/0.70/1.00) + blur reveal (LayerBuilder::blur → kBlurTierRadii tier
+# 4/2/0). Cross-link ae_09_blur_in (already shipped); reused same blur
+# mapping pattern. Cat-2 freeze-compliant.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/ae_parity/ae_06_tracking_expansion.cpp
+)
+
 add_test(
     NAME TextGolden
     COMMAND chronon3d_text_golden_tests
