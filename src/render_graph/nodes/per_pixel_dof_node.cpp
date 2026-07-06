@@ -9,6 +9,7 @@
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <spdlog/spdlog.h>
 
 namespace chronon3d::graph {
 
@@ -17,6 +18,12 @@ NodeExecResult PerPixelDofNode::execute(
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes)
 {
+    if (ctx.policy.diagnostics_enabled) {
+        spdlog::info("[PerPixelDofNode] focus_z={:.1f} enabled={} dof_depth_size={} inputs_count={}",
+            m_camera.dof.focus_z, m_camera.dof.enabled,
+            ctx.node_exec.dof_depth.size(), inputs.size());
+    }
+
     if (inputs.empty() || !inputs[0]) {
         auto empty = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height);
         empty->clear(Color::transparent());
