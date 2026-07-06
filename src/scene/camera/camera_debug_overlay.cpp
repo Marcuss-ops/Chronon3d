@@ -21,6 +21,7 @@ void add_camera_debug_overlay(
     CameraDebugOverlayOptions options,
     const CameraPathVisualization* path
 ) {
+if (!options.enable_overlay) return;
     s.layer("camera_debug_hud", [&](LayerBuilder& l) {
         OverlayContext ctx{l, report, camera, resolved, viewport, options, path};
 

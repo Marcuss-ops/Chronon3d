@@ -749,7 +749,7 @@ Scene camera_test_orchestrator(
     add_camera_debug_overlay(
         s_overlay, report, cam, resolved,
         {static_cast<f32>(ctx.width), static_cast<f32>(ctx.height)},
-        {},
+        {.enable_overlay=true},
         (path_vis.samples.empty() ? nullptr : &path_vis)
     );
 
