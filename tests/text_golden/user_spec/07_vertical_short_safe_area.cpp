@@ -41,14 +41,15 @@ GoldenTestConfig make_test07_config() {
     return cfg;
 }
 
-Composition build_test07_composition() {
+Composition build_test07_composition(SoftwareRenderer& renderer) {
     return composition(
         {.name = "UserSpec/07/vertical_short_safe_area",
          .width = 1080, .height = 1920,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
+        [&renderer](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             // Title: top safe area (y ~ 280 of 1920 = top 14%)
             s.layer("title", [](LayerBuilder& l) {
                 l.text("title", {
@@ -87,7 +88,7 @@ Composition build_test07_composition() {
 
 TEST_CASE("UserSpec 07: 9:16 vertical safe area 1080x1920") {
     auto renderer = test::make_renderer();
-    auto comp = build_test07_composition();
+    auto comp = build_test07_composition(renderer);
     auto fb = renderer.render(comp, Frame{0});
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == 1080);

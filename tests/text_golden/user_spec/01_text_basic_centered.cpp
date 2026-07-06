@@ -44,27 +44,31 @@ GoldenTestConfig make_test01_config() {
     return cfg;
 }
 
-Composition build_test01_composition() {
+Composition build_test01_composition(SoftwareRenderer& renderer) {
     return composition(
         {.name = "UserSpec/01/text_basic_centered",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
+        [&renderer](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
-            s.layer("hero", [](LayerBuilder& l) {
-                l.text("title", {
-                    .content = {.value = "Chronon3D Text Engine"},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 96.0f},
-                    .layout = {.box = {1920.0f, 1080.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f, 0.0f}
-                });
+            s.font_engine(&renderer.font_engine());
+            s.layer("hero", [&renderer](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                l.text_run("title", TextRunParams{
+                    .text = TextSpec{
+                        .content = {.value = "Chronon3D Text Engine"},
+                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                 .font_family = "Inter",
+                                 .font_weight = 700,
+                                 .font_size = 96.0f},
+                        .layout = {.box = {1920.0f, 1080.0f},
+                                   .align = TextAlign::Center,
+                                   .vertical_align = VerticalAlign::Middle},
+                        .appearance = {.color = Color::white()},
+                        .position = {960.0f, 540.0f, 0.0f}
+                    }
+                }).commit();
             });
             return s.build();
         });
@@ -74,7 +78,7 @@ Composition build_test01_composition() {
 
 TEST_CASE("UserSpec 01: text basic centered 1920x1080 Inter Bold 96") {
     auto renderer = test::make_renderer();
-    auto comp = build_test01_composition();
+    auto comp = build_test01_composition(renderer);
     auto fb = renderer.render(comp, Frame{0});
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == 1920);
