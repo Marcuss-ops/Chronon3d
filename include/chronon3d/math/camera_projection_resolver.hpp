@@ -81,6 +81,14 @@
 #include <cmath>
 #include <limits>
 #include <cstdint>
+#include <cstdlib>
+
+#include <spdlog/spdlog.h>
+
+// CHRONON3D_PROJ_DIAG enables one-shot spdlog::warn diagnostic for every
+// `out.visible = false` branch in CameraProjectionResolver::project_layer().
+// Set via env var (e.g. `CHRONON3D_PROJ_DIAG=1 ./render ...`).  Zero cost when
+// unset.  Used by TICKET-AE-CAM-PRECISION-COLLAPSE forensic analysis.
 
 namespace chronon3d {
 
@@ -220,6 +228,10 @@ struct CameraProjectionResolver {
                 focal_xy, input.viewport.width, input.viewport.height,
                 input.far_plane);
             if (out.frustum_result == FrustumResult::Outside) {
+                if (std::getenv("CHRONON3D_PROJ_DIAG")) {
+                    spdlog::warn("[PROJ_DIAG] branch=FRUSTUM_OUTSIDE cam_z[min/max]=[{:.4f}/{:.4f}] far_plane={:.1f}",
+                        cam_min_z, cam_max_z, input.far_plane);
+                }
                 out.visible = false;
                 return out;
             }
@@ -235,6 +247,15 @@ struct CameraProjectionResolver {
         }
 
         if (all_near) {
+            if (std::getenv("CHRONON3D_PROJ_DIAG")) {
+                const Vec4 wpos = input.world_transform[3];
+                spdlog::warn("[PROJ_DIAG] branch=ALL_BEHIND cam_z[min/max]=[{:.4f}/{:.4f}] kNear={:.4f} corners_z=[{:.4f},{:.4f},{:.4f},{:.4f}] world_origin=({:.1f},{:.1f},{:.1f}) cam_pos=({:.1f},{:.1f},{:.1f}) layer_size=({:.1f},{:.1f})",
+                    cam_min_z, cam_max_z, camera_math::kNearClipZ,
+                    cam_corners[0].z, cam_corners[1].z, cam_corners[2].z, cam_corners[3].z,
+                    wpos.x, wpos.y, wpos.z,
+                    input.camera.position.x, input.camera.position.y, input.camera.position.z,
+                    input.layer_size.x, input.layer_size.y);
+            }
             out.clip_state = ClipState::AllBehind;
             out.visible = false;
             return out;
@@ -253,6 +274,13 @@ struct CameraProjectionResolver {
         }
 
         if (all_far) {
+            if (std::getenv("CHRONON3D_PROJ_DIAG")) {
+                const Vec4 wpos = input.world_transform[3];
+                spdlog::warn("[PROJ_DIAG] branch=ALL_BEYOND cam_z[min/max]=[{:.4f}/{:.4f}] far_plane={:.1f} world_origin=({:.1f},{:.1f},{:.1f}) cam_pos=({:.1f},{:.1f},{:.1f})",
+                    cam_min_z, cam_max_z, input.far_plane,
+                    wpos.x, wpos.y, wpos.z,
+                    input.camera.position.x, input.camera.position.y, input.camera.position.z);
+            }
             out.clip_state = ClipState::AllBeyond;
             out.visible = false;
             return out;
@@ -270,6 +298,10 @@ struct CameraProjectionResolver {
                 clipped_corners, clipped_uvs, &corner_count,
                 camera_math::kNearClipZ, true);
             if (!ok || corner_count < 3) {
+                if (std::getenv("CHRONON3D_PROJ_DIAG")) {
+                    spdlog::warn("[PROJ_DIAG] branch=NEAR_CLIP_DESTROYED corner_count={} cam_z[min/max]=[{:.4f}/{:.4f}] kNear={:.4f}",
+                        corner_count, cam_min_z, cam_max_z, camera_math::kNearClipZ);
+                }
                 out.visible = false;
                 return out;
             }
@@ -295,6 +327,10 @@ struct CameraProjectionResolver {
                 input.far_plane, false);
 
             if (!ok || far_count < 3) {
+                if (std::getenv("CHRONON3D_PROJ_DIAG")) {
+                    spdlog::warn("[PROJ_DIAG] branch=FAR_CLIP_DESTROYED corner_count={} far_plane={:.1f}",
+                        far_count, input.far_plane);
+                }
                 out.clip_state = ClipState::AllBeyond;
                 out.visible = false;
                 return out;
@@ -343,7 +379,12 @@ struct CameraProjectionResolver {
         out.perspective_scale = max_ps;
         out.visible = corner_count >= 3;
 
-        if (!out.visible) return out;
+        if (!out.visible) {
+            if (std::getenv("CHRONON3D_PROJ_DIAG")) {
+                spdlog::warn("[PROJ_DIAG] branch=CORNER_COUNT_BELOW_3 corner_count={}", corner_count);
+            }
+            return out;
+        }
 
         // -- 10. Screen-space signed area (for diagnostics, not backface) -------
         out.signed_area = chronon3d::compute_signed_area(out.corners, corner_count);
@@ -352,6 +393,9 @@ struct CameraProjectionResolver {
         if (out.back_facing) {
             switch (input.backface_mode) {
                 case BackfaceMode::Hidden:
+                    if (std::getenv("CHRONON3D_PROJ_DIAG")) {
+                        spdlog::warn("[PROJ_DIAG] branch=BACKFACE_HIDDEN corner_count={}", corner_count);
+                    }
                     out.visible = false;
                     return out;
 
