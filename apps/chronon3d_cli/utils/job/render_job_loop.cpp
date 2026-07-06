@@ -4,7 +4,6 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 
 #include <spdlog/spdlog.h>
 #include <fmt/format.h>
@@ -18,14 +17,6 @@ RenderLoopResult run_render_job_loop(
     SoftwareRenderer & renderer)
 {
     RenderLoopResult result;
-
-    const bool write_telemetry = plan.report;
-    if (write_telemetry) {
-        // Initialise the default telemetry manager stores only when we are
-        // actually generating an execution report. Normal renders should not
-        // depend on SQLite telemetry being available.
-        chronon3d::telemetry::TelemetryManager::instance().initialize_default_stores();
-    }
 
     const int64_t effective_end = (plan.range.start == plan.range.end)
                                       ? plan.range.start + 1
