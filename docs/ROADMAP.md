@@ -129,7 +129,7 @@ per pipeline video automatizzate.
 - supporto globale ICU completo;
 - nuovo renderer testuale parallelo.
 
-## M1.AE-PARITY-CINEMATIC-EXPANSION — Text golden cinematic suite (PLANNED, post-baseline-verde)
+## M1.6 — AE-Parity Cinematic Text Golden Expansion (PLANNED, post-baseline-verde)
 
 > **Origine:** action-plan landing 2026-07-06 dalla strategia "Chronon3D vs After Effects per kinetic typography 2D". Formalizza l'espansione del floor AE-parity (5/20 IMPL shipped storicamente — Phases D) al target completo (20/20 IMPL + 288 PNG floor + 4 killer test + referee AE-side). NON avviabile fino a `TICKET-GOLDEN-CAPTURE` chiusura + gate #10 `install_consumer_test.sh` 11/11 PASS macchina-verificato sullo stesso commit (AGENTS.md v0.1 §Feature Freeze revoca).
 >
