@@ -44,7 +44,7 @@ Risultato gate #10 compile + link PASS. Runtime Phase 4 strict FAIL per sub-bloc
 - [TICKET-GATE-10-PHASE-4-BLACK](TICKET-GATE-10-PHASE-4-BLACK.md) (parent DONE)
 - [TICKET-GATE-10-PHASE-4-BLACK-FU5](TICKET-GATE-10-PHASE-4-BLACK-FU5.md) (sibling OPEN, sub-block C)
 - TICKET-M1.5#7-AUDIT (proactive diagnostic for the rot pattern)
-- TICKET-GATE-4-LEAK-NEW-FU5 (DONE — abs-path /home/pierone/Pyt/Chronon3d cleaned to <REPO_ROOT> at line 75)
+- TICKET-GATE-4-LEAK-NEW-FU5 (DONE — abs-path <REPO_ROOT> cleaned to <REPO_ROOT> at line 75)
 
 ## Historical notes
 Scoperto durante riesecuzione audit 11-gate @ main@c9415e5b. 3-commit chain (35cb1127 + 2895bd88 + 63da8946) introdotta Option-preferred ma rompeva OPP-internal compile. Pivot adoptato per minimizzare blast radius. Documentato deviation postmortem per non-future-repetition.
