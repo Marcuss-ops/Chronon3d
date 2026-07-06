@@ -129,6 +129,60 @@ per pipeline video automatizzate.
 - supporto globale ICU completo;
 - nuovo renderer testuale parallelo.
 
+## M1.AE-PARITY-CINEMATIC-EXPANSION — Text golden cinematic suite (PLANNED, post-baseline-verde)
+
+> **Origine:** action-plan landing 2026-07-06 dalla strategia "Chronon3D vs After Effects per kinetic typography 2D". Formalizza l'espansione del floor AE-parity (5/20 IMPL shipped storicamente — Phases D) al target completo (20/20 IMPL + 288 PNG floor + 4 killer test + referee AE-side). NON avviabile fino a `TICKET-GOLDEN-CAPTURE` chiusura + gate #10 `install_consumer_test.sh` 11/11 PASS macchina-verificato sullo stesso commit (AGENTS.md v0.1 §Feature Freeze revoca).
+>
+> **Regola di stato osservabile:** PASS / FAIL / PARTIAL / NOT RUN / BLOCKED / PLANNED. Tutti i 17 ticket di questo workstream sono PLANNED al landing.
+
+### Obiettivo
+
+Portare Chronon3D al livello "After Effects-like per kinetic typography 2D automatizzata e timelined subtitle video" via:
+
+- **Floor 1:** 20 scene cinematic AE-parity scene-builder IMPL × 6 AR/frame snapshots = 120 PNG floor
+- **Floor 2:** + user-spec 12 golden tests × 6 PNG (4×1.5 già tracked + 20 PNG total) = ~140 PNG
+- **Floor 3:** + motion-blur text 6 PNG (TICKET-MOTION-BLUR-TEXT) = ~146 PNG
+- **Floor 4:** + 4 killer test visual regression (motion_blur + per_char_3D + wiggly_wave + subtitle_word_timing) = ~288 PNG floor verificato macchina
+- **Floor 5:** referee pipeline AE-side → Chronon3D-side diff `mean_abs_diff` < 5/255 su almeno 10/15 scene cinematic
+- **Floor 6:** consumer SDK `tests/install_consumer/` deve usare almeno 3 cinematic preset senza includere header interni (manifest-clean DoD §P3-H)
+
+### Lavori (sequenza rigida, un commit per ticket atomicamente)
+
+Sequenza di lavoro — 5 step incrementali. Ogni step è un commit atomic su `main` (AGENTS.md §GATE-MNT-01 + `tools/wrap_push.sh`); nessun branch di feature.
+
+1. **AE-PARITY-CINEMATIC-06..20 IMPL** (15 ticket, ciascuno un `tests/text_golden/ae_parity/ae_NN_<id>.cpp` scene-builder + 6 TEST_CASE × AR × frame = 30 PNG per scene). Scopes: tracking_expansion, stroke_reveal, glow_pulse, blur_in, scale_pop, rotation_per_character, random_jitter, text_on_path, multiline_9_16_safezone, long_paragraph_wrap, mixed_font_rich_text, arabic_english_bidi, small_subtitle_readability, fast_motion_stress, karaoke_word_highlight. Harness reuse `verify_golden` da `tests/visual/support/golden_test.hpp` + canonical pipeline `composition(...) + SceneBuilder::layer(...) + LayerBuilder::text(...)`. ZERO `TextShape` / `rich_text` references (AGENTS.md v0.1 Cat-2 freeze-compliant).
+
+2. **Killer test driver** (TICKET-AE-PARITY-KILLER-PER-CHAR-3D + TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION; cross-link TICKET-MOTION-BLUR-TEXT + TICKET-GOLDEN-30). Per ogni killer test: `tests/text_golden/ae_parity_killer/<name>.cpp` con 3 SUBCASEs (determinism seed + frame-by-frame delta + cross-run reproducibility). Cross-link a M5 milestone per per-char-3D (text 3D + Expressions V2 stable prerequisite).
+
+3. **Floor deliverable: 288 PNG** (TICKET-AE-PARITY-FLOOR) post-CAPTURE-fix (`TICKET-GOLDEN-CAPTURE` chiusura prerequisita). `git ls-files HEAD ./test_renders/golden/text/ae_*.png` ≥ 120; consumato dal `tools/test_golden_driver.sh verify linux-release` con zero PNG drift.
+
+4. **Referee pipeline** (TICKET-AE-PARITY-DRIVER). `tools/ae_parity_referee.sh`: per ogni AE-parity scene, `reference/after_effects/scene_NNN_frame_NN.png` (AE-side mock futuro) + `reference/chronon3d/scene_NNN_frame_NN.png` (engine output) + diff harness `mean_abs_diff + perceptual color metric` con lock a 5/255 threshold. Rigoroso: nessun claim di "AE-like" finché referee non passa su almeno 10/15 scene cinematic. Step forward-only: prima le 5 scene storiche (ae_01..05) devono passare referee come proof-of-concept.
+
+5. **Cinematic preset registry + SDK certifier**. Promozione dei 22 preset (4 basic + 8 kinetic + 4 cinematic + 6 subtitle) da `builtin_text_presets()` (M1.5#13 Step 1/4) a `built_in_text_presets_v1()` API pubblica. Consumer SDK `tests/install_consumer/` deve linkare almeno 3 cinematic preset senza includere header `internal/`/`test/`/etc. (manifest-clean DoD §P3-H — `cmake/Chronon3DPublicHeaders.cmake` scope + `tools/install_consumer_test.sh` end-to-end 11/11 PASS). `docs/FEATURES.md` Text paragrafo aggiornato da "Parziali" → "Presenti" per cinematic kinetic typography.
+
+### Gate di uscita
+
+- tutti i 288+ golden PNG tracked in `test_renders/golden/` (gitignored-friendly, whitelisted);
+- 4 killer test PASS macchina-verificato sullo stesso commit;
+- referee pipeline `tools/ae_parity_referee.sh` exit 0 su almeno 10/15 scene cinematic NOT RUN (0 su 15), PARTIAL (1-9 su 15), PASS (10+ su 15);
+- consumer SDK include `Chronon3D::SDK` 22 preset text senza header `internal/`;
+- `docs/FEATURES.md` Text paragrafo aggiornato da "Parziali" a "Presenti" per cinematic kinetic typography;
+- `docs/CHANGELOG.md` chiusura "M1.AE-PARITY-CINEMATIC-EXPANSION" registrata.
+
+### Non-goal M1.AE
+
+- complete global text support (emoji/CJK) — M5;
+- text 3D production-grade — M5;
+- Expression Selector production-grade (Wiggly/Wave solo smoke-test in M1.AE);
+- per-character 3D beyond demo — M5.
+
+### Cross-link canonici
+
+- Workstream cinematic track: ticket rows `TICKET-AE-PARITY-CINEMATIC-{01..20}` (01..05 DONE Phase D) + `TICKET-AE-PARITY-SUITE` (umbrella 5→20 transition tracker) + `TICKET-AE-PARITY-KILLER-*` (4 killer);
+- Concurrency precond: `TICKET-GOLDEN-CAPTURE` (Phase C capture pipeline rot parent) + `TICKET-GATE-10-PHASE-4-FIX` (gate #10 FU5);
+- Referee spec: roadmap stub `docs/adr/ADR-015-ae-parity-cinematic-expansion.md` (PLANNED, da stilare al primo commit cinematico successivo alla revoca freeze);
+- Match RElease gate §Text Production V1: 20 preset generali + 8 subtitle verificati (TICKET-AE-PARITY-CINEMATIC tracks i 20 generali; i 8 subtitle sono cross-link a TICKET-GOLDEN-30 + TICKET-AE-PARITY-CINEMATIC-20 karaoke_word_highlight).
+
 ## M2 — Camera Production V1
 
 ### Obiettivo
