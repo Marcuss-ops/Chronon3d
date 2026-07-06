@@ -21,7 +21,7 @@ struct InkTrimResult {
     float ink_center_frac = -1.0f;
     float ink_w           = 0.0f;
     int   ink_left        = 0;
-    int   ink_right        = 0;
+    int   ink_right       = 0;
     int   ink_top          = 0;
     int   ink_bottom       = 0;
 };
