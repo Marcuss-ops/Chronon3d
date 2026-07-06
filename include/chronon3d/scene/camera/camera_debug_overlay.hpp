@@ -26,6 +26,7 @@ enum class OverlayAnchor {
 };
 
 struct CameraDebugOverlayOptions {
+    bool enable_overlay{false};
     bool show_target{true};
     bool show_safe_area{true};
     bool show_projected_bounds{true};
