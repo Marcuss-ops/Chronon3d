@@ -45,14 +45,15 @@ GoldenTestConfig make_test09_config() {
     return cfg;
 }
 
-Composition build_test09_composition() {
+Composition build_test09_composition(SoftwareRenderer& renderer) {
     return composition(
         {.name = "UserSpec/09/anim_character_offset_wave",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
+        [&renderer](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             const std::string text = "WAVE MOTION";
             const float base_y = 540.0f;
             const float amplitude = 60.0f;
@@ -85,7 +86,7 @@ Composition build_test09_composition() {
 
 TEST_CASE("UserSpec 09: character offset wave — frame 0") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_test09_composition(), Frame{0});
+    auto fb = renderer.render(build_test09_composition(renderer), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_09_anim_wave_f00", make_test09_config());
     if (r.golden_missing) { MESSAGE("Golden missing"); return; }
@@ -94,7 +95,7 @@ TEST_CASE("UserSpec 09: character offset wave — frame 0") {
 
 TEST_CASE("UserSpec 09: character offset wave — frame 20") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_test09_composition(), Frame{20});
+    auto fb = renderer.render(build_test09_composition(renderer), Frame{20});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_09_anim_wave_f20", make_test09_config());
     if (r.golden_missing) { MESSAGE("Golden missing"); return; }
@@ -103,7 +104,7 @@ TEST_CASE("UserSpec 09: character offset wave — frame 20") {
 
 TEST_CASE("UserSpec 09: character offset wave — frame 40") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_test09_composition(), Frame{40});
+    auto fb = renderer.render(build_test09_composition(renderer), Frame{40});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_09_anim_wave_f40", make_test09_config());
     if (r.golden_missing) { MESSAGE("Golden missing"); return; }

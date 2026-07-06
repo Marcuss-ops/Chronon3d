@@ -65,8 +65,9 @@ TEST_CASE("UserSpec 04: multi-font middle run failure — healthy baseline + str
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
+        [&renderer](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "LEFT BROKEN RIGHT"},
