@@ -5,6 +5,23 @@
 
 ---
 
+## Luglio 2026 — Diagnostic
+
+### docs(text,golden) — TICKET-GOLDEN-CAPTURE diagnostic ticket NEW (commit pending this session)
+
+- **+ `docs/tickets/TICKET-GOLDEN-CAPTURE.md`** (NEW canonical ticket file, complementare alla one-line row già presente in `docs/FOLLOWUP_TICKETS.md` §Open blockers). 9 sezioni: (1) sintomo osservabile, (2) conferma codice wired, (3) architettura codepath, (4) hypothesis matrix 4 candidati (H1 `ctest --test-dir` WORKING_DIRECTORY override → write in `build/.../test_renders/` invece di `${CMAKE_SOURCE_DIR}/test_renders/`; H2 `test::make_renderer()` stub; H3 font path resolution sotto `build/`; H4 stale binary cache), (5) reproduction recipe (4 step shell), (6) proposed fix-path (3 alternative: A=`WORKING_DIRECTORY` bump-up, B=`make_renderer` font wiring, C=stale cache wipe), (7) acceptance criteria 5 punti check-list, (8) cross-references, (9) asset category + AGENTS Cat-2/5 freeze compliance.
+- Smoking-gun identificati dalla code-reading diagnostica:
+  1. `tools/test_golden_driver.sh` step 5 esegue `ctest --test-dir $BUILD_DIR` che **sovrascrive** il `WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}` dichiarato in `tests/text_golden_tests.cmake` — risultato: i PNG attesi finiscono sotto `build/chronon/<preset>/test_renders/...` (gitignored), invisibili a `find . -name 'user_spec_*.png'`.
+  2. Il branch `if (result.golden_missing) { MESSAGE(...); return; }` nei TEST_CASE bypassa `CHECK(result.passed)` quando i golden sono missing — doctest riporta "Passed (0.01s)" perché nessun REQUIRE/CHECK fallisce, ma 12 rendering reali in 0.01s è fisicamente impossibile (glyph compositing).
+  3. Driver stesso al rigo 91 conferma il flow: `log "artifacts: $BUILD_DIR/test_renders/golden/text/user_spec_*.png (if any)"`.
+- AGENTS.md v0.1 Cat-2 (test deterministici) + Cat-5 (doc alignment) freeze-compliant: zero new public API surface, zero new singleton/registry/cache, no Python deps. Solo doc-only; il **fix-path** (Step 2 del piano AE parity) sarà un commit Cat-2 separato che modifica `tests/text_golden_tests.cmake` riga 53 + `tools/test_golden_driver.sh` step 5 + eventualmente `tests/helpers/test_utils.hpp::make_renderer`.
+- `docs/FOLLOWUP_TICKETS.md` row `TICKET-GOLDEN-CAPTURE` resta `OPEN` con la descrizione compatta one-liner; il ticket file esternalizza hypothesis matrix + reproduction recipe. Companion cross-link da aggiungere in `FOLLOWUP_TICKETS` in un commit successivo (Scheda column `[TICKET-GOLDEN-CAPTURE.md](tickets/TICKET-GOLDEN-CAPTURE.md)`).
+- Cross-references: ADR-014 Decision 1 (12 user-spec) + Decision 2 (5 forward-only TICKET-GOLDEN-10/16/30/31/32); TICKET-AE-PARITY-SUITE (5 scene forward-only); `tools/test_golden_driver.sh` (driver flow); `tests/visual/support/golden_test.cpp::verify_golden` (capture codepath).
+
+
+
+---
+
 ## Luglio 2026 — Chiusure recenti
 
 ### test(camera) — FASE 3: AE parity camera test campaign (3 commit, 89+ test PASS, `main@c472312a`)
