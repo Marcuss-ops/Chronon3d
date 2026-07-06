@@ -82,6 +82,13 @@ constexpr std::uint64_t kRefVRScaleExtreme   = kUncapturedSentinel;
 
 // ── ScenarioMetrics (8-metric canon from docs/01-baseline-green.md §2.4-2.5)
 
+// ── RectF POD (TXT-00 forbids cross-package aliasing of canonical types;
+// each test TU declares a 4-float POD locally.  Same convention as
+// tests/text/visual/text_visual_metrics.cpp::RectF.)
+struct RectF {
+    float x{0.0f}, y{0.0f}, w{0.0f}, h{0.0f};
+};
+
 struct ScenarioMetrics {
     std::uint64_t hash{0};
     RectF         ink_bbox{};
@@ -170,8 +177,8 @@ inline CenterTextOptions make_opts(const std::string& text,
         .font_family = "Poppins",
         .font_weight = 700,
         .font_size   = size,
-        .max_lines   = max_lines,
         .color       = color,
+        .max_lines   = max_lines,
     };
 }
 
@@ -360,9 +367,9 @@ TEST_CASE("VisualRegression/Typewriter — char reveal at midpoint frame") {
             const int   filled = static_cast<int>(t * 32.0f);
             for (int i = 0; i < filled; ++i) {
                 s.rect("c" + std::to_string(i),
-                       {.size = {16, 24},
-                        .pos  = {-kVW * 0.4f + i * 24.0f, 0.0f, 0.0f},
-                        .color = Color{0.95f, 0.95f, 0.95f, 1.0f}});
+                       {.size  = {16, 24},
+                        .color = Color{0.95f, 0.95f, 0.95f, 1.0f},
+                        .pos   = {-kVW * 0.4f + i * 24.0f, 0.0f, 0.0f}});
             }
             return s.build();
         });
@@ -384,9 +391,9 @@ TEST_CASE("VisualRegression/AnimGlyph — per-glyph opacity wobble snapshot") {
                 const float a = 0.4f + 0.5f * std::abs(
                     std::sin(phase + static_cast<float>(i) * 0.5f));
                 s.rect("g" + std::to_string(i), {
-                    .size = {40.0f, 40.0f},
-                    .pos  = {-kVW * 0.4f + static_cast<float>(i) * 64.0f, 0.0f, 0.0f},
+                    .size  = {40.0f, 40.0f},
                     .color = Color{1.0f, 0.8f, 0.4f, a},
+                    .pos   = {-kVW * 0.4f + static_cast<float>(i) * 64.0f, 0.0f, 0.0f},
                 });
             }
             return s.build();
@@ -409,9 +416,9 @@ TEST_CASE("VisualRegression/AnimWord — per-word wave displacement snapshot") {
                 const float dy = 30.0f * std::sin(
                     phase + static_cast<float>(w) * 0.6f);
                 s.rect("w" + std::to_string(w), {
-                    .size = {120.0f, 60.0f},
-                    .pos  = {-kVW * 0.4f + static_cast<float>(w) * 160.0f, dy, 0.0f},
+                    .size  = {120.0f, 60.0f},
                     .color = Color{0.6f, 0.85f, 1.0f, 1.0f},
+                    .pos   = {-kVW * 0.4f + static_cast<float>(w) * 160.0f, dy, 0.0f},
                 });
             }
             return s.build();
@@ -453,7 +460,7 @@ TEST_CASE("VisualRegression/CJK — CN + JP + KR mixed sample") {
 TEST_CASE("VisualRegression/EmojiFallback — mixed emoji + ASCII sample") {
     auto renderer = make_renderer();
     auto comp = make_text_composition("VR_EmojiFallback",
-        make_opts("Hello \uD83C\uDF0D \uD83D\uDE80 \u2728 World!",
+        make_opts("Hello \U0001F30D \U0001F680 \u2728 World!",
                   72.0f, Color::black(),
                   Vec2{kVW * 0.9f, 240.0f}));
     auto t0 = std::chrono::steady_clock::now();
