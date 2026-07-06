@@ -70,6 +70,14 @@ endif()
 
 add_executable(check_install main.cpp)
 
+# ── FASE 2.2 — Consumer con testo reale (certificazione prodotto) ──
+add_executable(check_text main_text.cpp)
+set_target_properties(check_text PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+)
+target_link_libraries(check_text PRIVATE Chronon3D::SDK)
+
 # C++20 — must match the SDK's compile feature set so the consumer's
 # headers behave the same way as in-tree.
 set_target_properties(check_install PROPERTIES

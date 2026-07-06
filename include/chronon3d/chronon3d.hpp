@@ -61,6 +61,13 @@
 // for OPP-internal TUs that only need shared_ptr<TextRunShape>.
 #include <chronon3d/text/text_run_shape.hpp>
 
+// ── Authoring API — SceneBuilder, LayerBuilder, FrameContext ────────────
+// The canonical authoring API for building scenes. These are the primary
+// entry points for SDK consumers composing text, shapes, and camera.
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+
 // ── Image I/O helper (save_png, etc.) ──────────────────────────────────
 #include <chronon3d/backends/image/image_writer.hpp>
 
