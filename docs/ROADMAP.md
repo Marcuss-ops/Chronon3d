@@ -167,13 +167,13 @@ Sequenza di lavoro — 5 step incrementali. Ogni step è un commit atomic su `ma
 - referee pipeline `tools/ae_parity_referee.sh` exit 0 su almeno 10/15 scene cinematic NOT RUN (0 su 15), PARTIAL (1-9 su 15), PASS (10+ su 15);
 - consumer SDK include `Chronon3D::SDK` 22 preset text senza header `internal/`;
 - `docs/FEATURES.md` Text paragrafo aggiornato da "Parziali" a "Presenti" per cinematic kinetic typography;
-- `docs/CHANGELOG.md` chiusura "M1.AE-PARITY-CINEMATIC-EXPANSION" registrata.
+- `docs/CHANGELOG.md` chiusura "M1.6 — AE-Parity Cinematic Text Golden Expansion" registrata.
 
-### Non-goal M1.AE
+### Non-goal M1.6
 
 - complete global text support (emoji/CJK) — M5;
 - text 3D production-grade — M5;
-- Expression Selector production-grade (Wiggly/Wave solo smoke-test in M1.AE);
+- Expression Selector production-grade (Wiggly/Wave solo smoke-test in M1.6);
 - per-character 3D beyond demo — M5.
 
 ### Cross-link canonici
