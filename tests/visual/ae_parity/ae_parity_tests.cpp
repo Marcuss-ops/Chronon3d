@@ -192,8 +192,9 @@ TEST_CASE("AE_CAM_02: zoom_fov — zoom interpolation varies between frames") {
     // 286e136b last clean).  Relaxed to WARN until the rendering bug
     // is fixed.
     MESSAGE("AE_CAM_02 zoom interpolation: frame0/30/60 hash-collision "
-            "known issue — see TICKET-AE-CAM-PRECISION-COLLAPSE "
-            "(commit 715e1f1c) for AE_CAM_02+04 downstream-cache investigation.");
+            "known issue — see TICKET-ae-cam-hash-collision for the "
+            "downstream-cache / node_cache fix path. "
+            "AE_CAM_02+04 share the same root cause.");
 }
 
 TEST_CASE("AE_CAM_02: zoom_fov — no NaN, not black, deterministic") {
@@ -264,8 +265,8 @@ TEST_CASE("AE_CAM_04: parent_null — camera moves relative to scene") {
     // via spdlog diagnostic in prior task). Relaxed to MESSAGE since the
     // underlying bug is open.
     MESSAGE("AE_CAM_04 camera-moves: fb0 == fb60 hash collision — known "
-            "issue, see TICKET-AE-CAM-PRECISION-COLLAPSE "
-            "(commit 715e1f1c) for AE_CAM_02+04 investigation.");
+            "issue; see TICKET-ae-cam-hash-collision for the "
+            "downstream-cache / node_cache fix path.");
 }
 
 TEST_CASE("AE_CAM_04: parent_null — no NaN, not black, deterministic") {
@@ -388,8 +389,8 @@ TEST_CASE("AE_CAM_07: gatefit — corner markers visible within viewport") {
     // uniformly blank render.  Per-corner CHECKs cannot pass any positive
     // threshold (3 of 4 corners luma == 0.0) until the wide-angle grid
     // extent is fixed, so we emit the four corner luma values as an info
-    // MESSAGE for now.  See TICKET-AE-CAM-PRECISION-COLLAPSE for the wider
-    // down-stream-cache investigation.
+    // MESSAGE for now.  See TICKET-ae-cam-hash-collision for the broader
+    // AE-camera downstream-cache investigation lineage.
     MESSAGE("AE_CAM_07 corner luma TL/TR/BL/BR = "
             << average_luma_rect(*fb, 0, 0, 100, 100) << ", "
             << average_luma_rect(*fb, kAeParityWidth-100, 0, 100, 100) << ", "
@@ -436,10 +437,9 @@ TEST_CASE("AE_CAM_08: dof — focus distance changes blur pattern") {
     // resolve_scene_camera).  Relaxed to WARN until DOF per-frame
     // evaluation is wired correctly.
     MESSAGE("AE_CAM_08 focus-distance: fb0/60/120 hash collision "
-            "known issue — DOF blur not applied per-frame; see "
-            "TICKET-AE-CAM-PRECISION-COLLAPSE "
-            "(commit 715e1f1c) for AE_CAM_02+04+08 downstream "
-            "investigation.");
+            "known issue — DOF blur not applied per-frame; "
+            "see TICKET-ae-cam-hash-collision for the "
+            "downstream-cache / node_cache fix path.");
 
     // Each frame must have some blur visible (non-zero pixels).
     check_not_black(*fb0);
