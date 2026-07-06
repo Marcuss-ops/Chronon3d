@@ -42,14 +42,15 @@ GoldenTestConfig make_test12_config() {
     return cfg;
 }
 
-Composition build_test12_composition(int fps, int sample_frame) {
+Composition build_test12_composition(SoftwareRenderer& renderer, int fps, int sample_frame) {
     return composition(
         {.name = "UserSpec/12/anim_framerate_determinism",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{fps, 1},
          .duration = fps * 2},
-        [sample_frame](const FrameContext& ctx) -> Scene {
+        [&renderer, sample_frame](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             // Time 0..1.0s: position x animates 0 → 1700 (linear).
             // At frame sample_frame (half a second in): x ≈ 850.
             // FrameContext exposes frame_rate directly; the field is
@@ -80,7 +81,7 @@ Composition build_test12_composition(int fps, int sample_frame) {
 
 TEST_CASE("UserSpec 12: framerate determinism — 24fps @ frame 12") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_test12_composition(24, 12), Frame{12});
+    auto fb = renderer.render(build_test12_composition(renderer, 24, 12), Frame{12});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_12_framerate_24fps", make_test12_config());
     if (r.golden_missing) { MESSAGE("Golden missing"); return; }
@@ -89,7 +90,7 @@ TEST_CASE("UserSpec 12: framerate determinism — 24fps @ frame 12") {
 
 TEST_CASE("UserSpec 12: framerate determinism — 30fps @ frame 15") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_test12_composition(30, 15), Frame{15});
+    auto fb = renderer.render(build_test12_composition(renderer, 30, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_12_framerate_30fps", make_test12_config());
     if (r.golden_missing) { MESSAGE("Golden missing"); return; }
@@ -98,7 +99,7 @@ TEST_CASE("UserSpec 12: framerate determinism — 30fps @ frame 15") {
 
 TEST_CASE("UserSpec 12: framerate determinism — 60fps @ frame 30") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_test12_composition(60, 30), Frame{30});
+    auto fb = renderer.render(build_test12_composition(renderer, 60, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_12_framerate_60fps", make_test12_config());
     if (r.golden_missing) { MESSAGE("Golden missing"); return; }

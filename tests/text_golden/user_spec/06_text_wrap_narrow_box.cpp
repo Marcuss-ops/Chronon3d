@@ -40,14 +40,15 @@ GoldenTestConfig make_test06_config() {
     return cfg;
 }
 
-Composition build_test06_composition() {
+Composition build_test06_composition(SoftwareRenderer& renderer) {
     return composition(
         {.name = "UserSpec/06/text_wrap_narrow_box",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
+        [&renderer](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "This is a long sentence that must wrap into multiple lines without cutting words."},
@@ -71,7 +72,7 @@ Composition build_test06_composition() {
 
 TEST_CASE("UserSpec 06: text wrap narrow box — 500x500") {
     auto renderer = test::make_renderer();
-    auto comp = build_test06_composition();
+    auto comp = build_test06_composition(renderer);
     auto fb = renderer.render(comp, Frame{0});
     REQUIRE(fb != nullptr);
 

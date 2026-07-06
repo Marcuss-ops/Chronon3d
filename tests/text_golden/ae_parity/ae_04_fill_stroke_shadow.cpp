@@ -50,14 +50,15 @@ static float stroke_width_for(std::size_t f) {
     return 12.0f;
 }
 
-Composition build_landscape(std::size_t frame_idx) {
+Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
     return composition(
         {.name = "AE/04/fill_stroke_shadow/16x9",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [frame_idx](const FrameContext& ctx) -> Scene {
+        [&renderer, frame_idx](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             s.layer("hero", [frame_idx](LayerBuilder& l) {
                 const float w = stroke_width_for(frame_idx);
                 l.text("stroke", {
@@ -84,14 +85,15 @@ Composition build_landscape(std::size_t frame_idx) {
         });
 }
 
-Composition build_portrait(std::size_t frame_idx) {
+Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
     return composition(
         {.name = "AE/04/fill_stroke_shadow/9x16",
          .width = 1080, .height = 1920,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [frame_idx](const FrameContext& ctx) -> Scene {
+        [&renderer, frame_idx](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             s.layer("hero", [frame_idx](LayerBuilder& l) {
                 const float w = stroke_width_for(frame_idx);
                 l.text("stroke", {
@@ -122,7 +124,7 @@ Composition build_portrait(std::size_t frame_idx) {
 
 TEST_CASE("AE 04 fill_stroke_shadow 16x9 f00") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_landscape(0), Frame{0});
+    auto fb = renderer.render(build_landscape(renderer, 0), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_04_fill_stroke_shadow_16x9_f00", make_config());
     if (r.golden_missing) { MESSAGE("Golden missing"); return; }
@@ -130,7 +132,7 @@ TEST_CASE("AE 04 fill_stroke_shadow 16x9 f00") {
 }
 TEST_CASE("AE 04 fill_stroke_shadow 16x9 f15") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_landscape(15), Frame{15});
+    auto fb = renderer.render(build_landscape(renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_04_fill_stroke_shadow_16x9_f15", make_config());
     if (r.golden_missing) { MESSAGE("Golden missing"); return; }
@@ -138,7 +140,7 @@ TEST_CASE("AE 04 fill_stroke_shadow 16x9 f15") {
 }
 TEST_CASE("AE 04 fill_stroke_shadow 16x9 f30") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_landscape(30), Frame{30});
+    auto fb = renderer.render(build_landscape(renderer, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_04_fill_stroke_shadow_16x9_f30", make_config());
     if (r.golden_missing) { MESSAGE("Golden missing"); return; }
@@ -146,7 +148,7 @@ TEST_CASE("AE 04 fill_stroke_shadow 16x9 f30") {
 }
 TEST_CASE("AE 04 fill_stroke_shadow 9x16 f00") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_portrait(0), Frame{0});
+    auto fb = renderer.render(build_portrait(renderer, 0), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_04_fill_stroke_shadow_9x16_f00", make_config());
     if (r.golden_missing) { MESSAGE("Golden missing"); return; }
@@ -154,7 +156,7 @@ TEST_CASE("AE 04 fill_stroke_shadow 9x16 f00") {
 }
 TEST_CASE("AE 04 fill_stroke_shadow 9x16 f15") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_portrait(15), Frame{15});
+    auto fb = renderer.render(build_portrait(renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_04_fill_stroke_shadow_9x16_f15", make_config());
     if (r.golden_missing) { MESSAGE("Golden missing"); return; }
@@ -162,7 +164,7 @@ TEST_CASE("AE 04 fill_stroke_shadow 9x16 f15") {
 }
 TEST_CASE("AE 04 fill_stroke_shadow 9x16 f30") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_portrait(30), Frame{30});
+    auto fb = renderer.render(build_portrait(renderer, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_04_fill_stroke_shadow_9x16_f30", make_config());
     if (r.golden_missing) { MESSAGE("Golden missing"); return; }

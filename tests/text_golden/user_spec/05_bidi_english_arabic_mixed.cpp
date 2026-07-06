@@ -44,14 +44,15 @@ GoldenTestConfig make_test05_config() {
     return cfg;
 }
 
-Composition build_test05_composition() {
+Composition build_test05_composition(SoftwareRenderer& renderer) {
     return composition(
         {.name = "UserSpec/05/bidi_english_arabic_mixed",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
+        [&renderer](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("t", {
                     // U+0633 U+0644 U+0627 U+0645 → "سلام" (Arabic for "peace")
@@ -75,7 +76,7 @@ Composition build_test05_composition() {
 
 TEST_CASE("UserSpec 05: bidi English+Arabic mixed — 1920x1080 FriBidi REQUIRED") {
     auto renderer = test::make_renderer();
-    auto comp = build_test05_composition();
+    auto comp = build_test05_composition(renderer);
     auto fb = renderer.render(comp, Frame{0});
     REQUIRE(fb != nullptr);
 

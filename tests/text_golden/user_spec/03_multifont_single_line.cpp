@@ -40,14 +40,15 @@ GoldenTestConfig make_test03_config() {
     return cfg;
 }
 
-Composition build_test03_composition() {
+Composition build_test03_composition(SoftwareRenderer& renderer) {
     return composition(
         {.name = "UserSpec/03/multifont_single_line",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
+        [&renderer](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             s.layer("big", [](LayerBuilder& l) {
                 l.text("big", {
                     .content = {.value = "BIG "},
@@ -98,7 +99,7 @@ Composition build_test03_composition() {
 
 TEST_CASE("UserSpec 03: multi-font single line — 1920x1080") {
     auto renderer = test::make_renderer();
-    auto comp = build_test03_composition();
+    auto comp = build_test03_composition(renderer);
     auto fb = renderer.render(comp, Frame{0});
     REQUIRE(fb != nullptr);
 

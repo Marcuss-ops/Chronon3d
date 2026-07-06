@@ -44,14 +44,15 @@ GoldenTestConfig make_test11_config() {
 }
 
 // Landscape 1920×1080
-Composition build_test11_landscape() {
+Composition build_test11_landscape(SoftwareRenderer& renderer) {
     return composition(
         {.name = "UserSpec/11/aspect_landscape",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
+        [&renderer](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             // 50% horizontal, 25% vertical → top
             s.layer("title", [](LayerBuilder& l) {
                 l.text("title", {
@@ -100,14 +101,15 @@ Composition build_test11_landscape() {
 }
 
 // Portrait 1080×1920 — same 25/50/83% ratios
-Composition build_test11_portrait() {
+Composition build_test11_portrait(SoftwareRenderer& renderer) {
     return composition(
         {.name = "UserSpec/11/aspect_portrait",
          .width = 1080, .height = 1920,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
+        [&renderer](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
             s.layer("title", [](LayerBuilder& l) {
                 l.text("title", {
                     .content = {.value = "TITLE"},
@@ -158,7 +160,7 @@ Composition build_test11_portrait() {
 
 TEST_CASE("UserSpec 11: aspect ratio layout 1920x1080") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_test11_landscape(), Frame{0});
+    auto fb = renderer.render(build_test11_landscape(renderer), Frame{0});
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width() == 1920);
     REQUIRE(fb->height() == 1080);
@@ -169,7 +171,7 @@ TEST_CASE("UserSpec 11: aspect ratio layout 1920x1080") {
 
 TEST_CASE("UserSpec 11: aspect ratio layout 1080x1920") {
     auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_test11_portrait(), Frame{0});
+    auto fb = renderer.render(build_test11_portrait(renderer), Frame{0});
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width() == 1080);
     REQUIRE(fb->height() == 1920);
