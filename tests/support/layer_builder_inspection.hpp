@@ -72,7 +72,7 @@ namespace testing {
     // surface on LayerBuilder for that purpose.
     struct PendingRunSnapshot {
         std::string name;
-        std::vector<chronon3d::registry::TextAnimatorSpec> animators;
+        std::vector<chronon3d::TextAnimatorSpec> animators;
     };
 
     // ── Test-only inspector (friend-closed) ─────────────────────────────────
