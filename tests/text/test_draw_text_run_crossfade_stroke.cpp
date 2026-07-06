@@ -1,4 +1,3 @@
-static chronon3d::TextLayoutCache s_text_cache;
 // ═══════════════════════════════════════════════════════════════════════════
 // test_draw_text_run_crossfade_stroke.cpp — TICKET-068 E2E regression coverage
 // ═══════════════════════════════════════════════════════════════════════════
@@ -41,6 +40,8 @@ static chronon3d::TextLayoutCache s_text_cache;
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/text/text_run_builder.hpp>
+#include <chronon3d/text/text_run_driver.hpp>
+#include <chronon3d/text/text_layout_cache.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/software_backend.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
@@ -55,6 +56,8 @@ static chronon3d::TextLayoutCache s_text_cache;
 #include <filesystem>
 #include <memory>
 #include <string>
+
+static chronon3d::TextLayoutCache s_text_cache;
 
 using namespace chronon3d;
 
