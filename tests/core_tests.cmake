@@ -413,6 +413,15 @@ set_source_files_properties(
     ${CMAKE_CURRENT_SOURCE_DIR}/text/test_rich_text_paragraph_preservation.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/text/test_compile_text_layout_per_paragraph_failure.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_unit_map_joint_include.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_unit_map_8level.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/text/test_crossfade_stroke.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/text/test_draw_text_run_crossfade_stroke.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/text/test_font_io_fence.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/text/test_draw_text_run_scratch_state.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/test_text_preset_registry.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/runtime/test_camera_session_cache_failed_no_commit_session_state.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/registry/test_text_preset_descriptor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/authoring/test_animator_dsl.cpp
     PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
 )
 
