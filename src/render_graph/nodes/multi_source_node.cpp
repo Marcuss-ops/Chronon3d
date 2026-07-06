@@ -268,6 +268,22 @@ NodeExecResult MultiSourceNode::execute(
                 }
 
                 if (ctx.policy.diagnostics_enabled) {
+                    // Canonical per-item log — text_run branch.  screen=
+                    // derived from world_matrix (proj*view*layerTRS +
+                    // canvas_center + ssaa_scale), the same chain as
+                    // state.matrix in the regular branch, so the two
+                    // log blocks stay bit-equivalent across greps.
+                    spdlog::info(
+                        "[AE_CAM] frame={} node='{}' item#{} world=({},{},{}) screen=({},{}) depth={} scale={} visible={}",
+                        ctx.frame_input.sample_time.integral_frame(),
+                        m_name,
+                        i,
+                        item.matrix[3][0], item.matrix[3][1], item.matrix[3][2],
+                        world_matrix[3][0], world_matrix[3][1],
+                        world_matrix[3][2],
+                        glm::length(Vec3(item.matrix[0])),
+                        true
+                    );
                     spdlog::debug(
                         "[multi-source] node='{}' text_run drew={} glyphs={} "
                         "hash=0x{:016x} opacity={:.3f} tx={:.1f} ty={:.1f}",
