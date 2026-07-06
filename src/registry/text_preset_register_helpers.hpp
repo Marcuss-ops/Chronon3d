@@ -110,6 +110,16 @@ create_text_presets();
 
 } // namespace factory_cinematic
 
+namespace factory_emphasis {
+
+/// Per-category factory surface (emphasis = Emphasis category).
+/// Returns 4 entries in canonical Emphasis insertion order.
+/// Defined in `src/registry/text_preset_factories_emphasis.cpp`.
+[[nodiscard]] std::vector<TextPresetDescriptor>
+create_text_presets();
+
+} // namespace factory_emphasis
+
 } // namespace register_helpers_internal
 
 // ── Public re-exports — DELIBERATELY OMITTED (reviewer finding #6) ────────
