@@ -88,6 +88,12 @@ namespace chronon3d::authoring {
 
 class Layer;  // forward — Layer::text(...) returns Text
 
+// Forward-declare TextRunBuilderInspector for TUs that include this
+// header before the test-only inspection header.  The actual definition
+// lives in tests/support/text_run_builder_inspection.hpp under
+// chronon3d::authoring::testing.
+namespace testing { class TextRunBuilderInspector; }
+
 // ── FrameContext — viewport information carried by Layer ───────────────
 //
 // Kept lean on purpose: only the dimensions needed by `.center()`.  Other
@@ -439,8 +445,9 @@ public:
     [[nodiscard]] const MotionRegistry* ambient_motion_registry() const noexcept { return motion_registry_; }
 
 private:
-    friend class Layer;                                               // PR 3 — Layer::text() needs to expose `text(content)` factory returning a Text handle.
-    friend class testing::TextRunBuilderInspector;                    // TICKET-110 — test-only read access via the inspector pattern; see tests/support/text_run_builder_inspection.hpp.
+    friend class Layer;                                               // PR 3
+    friend class testing::TextRunBuilderInspector;                    // TICKET-110 — test-only
+
 
     // TICKET-110 — demoted from public; reachable only via the friend grants above.
     [[nodiscard]] PendingTextRun&       mutable_pending() noexcept { return *pending_; }

@@ -257,7 +257,7 @@ TEST_CASE("build_text_run: multi-font paragraph is NO LONGER skipped (N contract
     // \u2014 Ok \u21d2 units populated unconditionally).
     for (const auto& l : result.paragraphs) {
         REQUIRE(l != nullptr);
-        REQUIRE(l->source_text.empty() == false || l->units.glyph_to_grapheme.size() >= 0);
+        REQUIRE_FALSE(l->source_text.empty());
     }
 
     // The middle paragraph's `font_spans` has at least 2 entries (the 2

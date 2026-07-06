@@ -50,7 +50,8 @@ public:
         std::span<const FramebufferRef>,
         std::span<const std::optional<raster::BBox>>
     ) override {
-        return NodeExecResult{};
+        return NodeExecResult{NodeExecutionError{
+            RenderBackendErrorCode::InvalidInput, m_name, "test mock — not implemented"}};
     }
 
 private:

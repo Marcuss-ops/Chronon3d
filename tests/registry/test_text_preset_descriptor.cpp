@@ -199,7 +199,7 @@ TEST_CASE("TextPresetDescriptor: fail-safe paths (Sub-cases D1-D2)") {
     }
 
     SUBCASE("D2) builtin_text_preset_registry returns a frozen registry") {
-        const auto& r = builtin_text_preset_registry();
+        auto r = builtin_text_preset_registry();
         CHECK(r.is_frozen());
         // Subsequent register attempts throw.
         TextPresetDescriptor rogue;
