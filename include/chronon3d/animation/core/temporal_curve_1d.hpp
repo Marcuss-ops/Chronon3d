@@ -25,9 +25,6 @@
 
 namespace chronon3d {
 
-// (PathTimingMode moved to spatial_motion_path.hpp in FASE 19 review pass:
-//  it is the spatial sampler's input knob, not a 1D timing primitive.)
-
 // ── TemporalCurve1D — answers "what fraction of the segment have I completed?" ──
 //
 // Wraps either a simple `EasingCurve` (for presets) or a full `AnimationCurve`
