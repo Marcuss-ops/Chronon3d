@@ -179,3 +179,9 @@ dist/
 node_modules/
 artifacts/
 test_output/
+
+# Auto-emitted golden-diff artifact subdirs (created by tests/visual/support/golden_test.hpp
+# when verify_golden produces a mismatch).  Transient by design — regenerated per
+# run and never recomputed into goldens.  Listed explicitly (not `**/diff/`) so the
+# tracked `tests/golden/ae_parity/` parent remains indexable.
+tests/golden/ae_parity/diff/
