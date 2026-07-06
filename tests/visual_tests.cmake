@@ -174,9 +174,14 @@ add_test(NAME chronon3d_pr3_composition_visual_tests
 
 add_executable(chronon3d_ae_parity_tests
     ${TEST_MAIN}
-    visual/ae_parity/ae_parity_scenes.cpp
     visual/ae_parity/ae_parity_tests.cpp
 )
+# TICKET-CAMERA-LINK-DEDUP — visual/ae_parity/ae_parity_scenes.cpp is
+# compiled into chronon3d_content (content/CMakeLists.txt).  Consume its
+# symbols here via target_link_libraries so the file is compiled ONCE.
+if(TARGET chronon3d_content)
+    target_link_libraries(chronon3d_ae_parity_tests PRIVATE chronon3d_content)
+endif()
 
 target_link_libraries(chronon3d_ae_parity_tests
     PRIVATE
