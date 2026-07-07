@@ -457,6 +457,52 @@ else
     echo "SKIP (registry or Config template missing)"
 fi
 
+# ── 17. src/-only include via public path (TICKET-ae-cam-hash-collision) ───
+# Pre-fix guard for the bug in commit 1184f67c (round-3/4 follow-up):
+# a `src/`-only header (per AGENTS.md v0.1 Cat-3 freeze, NOT installed
+# with the SDK) must NOT be included via the public include path
+# `<chronon3d/...>` which maps to `include/chronon3d/...`.  Catches the
+# exact regression pattern: `#include <chronon3d/render_graph/nodes/
+# detail/projection_helpers.hpp>` when the file actually lives at
+# `src/render_graph/nodes/detail/projection_helpers.hpp`.  Correct
+# usage: relative include `#include "detail/projection_helpers.hpp"`
+# (or any path that resolves to the `src/`-only header).
+#
+# Detection: for every `#include <chronon3d/X>` reference, check that
+# `include/chronon3d/X` exists on disk.  If not, the include is to a
+# `src/`-only header via the public path → FAIL.  Skips:
+#   - `#include <chronon3d_sdk_impl/...>` (separate concern, check #14)
+#   - lines that are pure comments (the `filter_symbol_in_code_only`
+#     pipeline doesn't apply here since `#include` syntax is easy to
+#     pattern-match without false positives)
+echo -n "  [17/17] src/-only include via public path ... "
+hits=""
+while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    # Extract the include path after `<chronon3d/` (strip the `<` prefix
+    # and `>` suffix).
+    inc_path=$(echo "$line" | sed -E 's|.*<chronon3d/([^>]+)>.*|\1|')
+    [ -z "$inc_path" ] && continue
+    # Skip sdk_impl (separate concern, check #14).
+    case "$inc_path" in
+        sdk_impl/*) continue ;;
+    esac
+    # Only flag when the file lives in src/ (src/-only) but NOT in
+    # the public include tree — the exact regression pattern.
+    if [ -f "src/$inc_path" ] && [ ! -f "include/chronon3d/$inc_path" ]; then
+        hits="${hits}${line}"$'\n'
+    fi
+done < <(grep -RnE '#include[[:space:]]*<chronon3d/[^>]+>' $SCRIPT_PATHS 2>/dev/null \
+    | grep -vE ':[[:space:]]*(//|/\*|\*|///)' \
+    | grep -v 'chronon3d_sdk_impl' \
+    || true)
+if [ -n "$hits" ]; then
+    echo "FAIL"
+    echo "  src/-only headers included via public path (use relative include instead):"
+    echo -n "$hits" | sed 's/^/    /'
+    FAILED=1
+else echo "PASS"; fi
+
 # ── Summary ───────────────────────────────────────────────────────────
 echo ""
 if [ "$FAILED" -ne 0 ]; then
