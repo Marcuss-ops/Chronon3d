@@ -787,6 +787,76 @@ per confermare che il grid_background venga eseguito DOPO le card.
 `dbfaf164` — modifica scena (cerchio rosso)
 `9bb337ea` — golden update + questo doc
 
+## FASE 7 — Diagnostica render-order (2026-07-07)
+
+### Obiettivo
+
+Verificare l'ordine di esecuzione dei nodi SourceNode per AE_CAM_02, confermando
+l'ipotesi che il `grid_background` venga disegnato DOPO le card.
+
+### Metodo
+
+Aggiunto log `spdlog::warn` temporaneo in `SourceNode::execute()` prima di `draw_node()`:
+
+```cpp
+spdlog::warn("[RENDER_ORDER] node='{}' shape={} frame={}", m_name, shape_type, frame);
+```
+
+### Risultati
+
+AE_CAM_02 a frame 0, 30, 60:
+
+```
+frame=0:  card(1) → grid(9) → dot(3) → card → card → card → card
+frame=30: grid(9) → card → card → card → dot(3) → card
+frame=60: grid(9) → card → card → card → card → dot(3)
+```
+
+**Shape types:** 1=Rect (card), 3=Circle (anchor dot), 9=GridBackground
+
+### Analisi
+
+1. **L'ordine NON è deterministico** — a frame 0 il grid (shape=9) viene disegnato
+   SECONDO, dopo una card. A frame 30 e 60 il grid viene PRIMA. L'ordine varia
+   tra frame e tra diverse esecuzioni dello stesso frame.
+
+2. **A frame 0, il grid copre la prima card** — il grid ha `bg_color` opaco
+   (alpha=1.0) e copre l'intero canvas. Quando viene disegnato DOPO una card,
+   la sovrascrive completamente.
+
+3. **Il grafo memorizza i nodi in ordine corretto** — `RenderGraph::m_nodes` è un
+   `std::vector` in ordine di creazione (grid PRIMA, card DOPO). Ma l'esecutore
+   del grafo (`GraphExecutor`) visita i nodi in ordine topologico dal nodo di
+   output, NON in ordine di inserimento.
+
+4. **Root cause**: il nodo di output (compositor/layer_pipeline) riceve input da
+   tutti i SourceNode ma li compone in un ordine NON garantito — probabilmente
+   l'ordine degli edge o un hash-map interno.
+
+### Conclusione FASE 7
+
+**Render-order bug CONFERMATO.** Il grid_background viene disegnato DOPO le card
+in modo non-deterministico, coprendole con il suo sfondo opaco. Questo spiega
+perché l'hash `cc86d2b5...` è l'hash del "solo grid background" — è il risultato
+del grid che sovrascrive tutto ciò che è stato disegnato prima.
+
+### Fix path
+
+Il fix richiede di garantire che i nodi SourceNode siano eseguiti in ordine di
+layer (background → foreground):
+1. **Opzione A**: nel `GraphExecutor`, eseguire i nodi foglia (senza dipendenze)
+   in ordine di `m_nodes` (ordine di creazione layer)
+2. **Opzione B**: nel layer pipeline pass, ordinare gli input per layer_index
+   prima di comporli
+3. **Opzione C**: aggiungere esplicitamente dipendenze tra nodi nel grafo
+   (grid → card1 → card2 → ... → output) per forzare l'ordine topologico
+
+**Next step: FASE 8** — implementare una delle tre opzioni di fix.
+
+### Log temporaneo rimosso
+
+Il log `spdlog::warn` è stato rimosso da `source_node.cpp` prima del commit.
+
 ## FASE 4 — Analisi geometria scena AE_CAM_02 (2026-07-07)
 
 ### Obiettivo
