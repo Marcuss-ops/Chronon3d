@@ -20,48 +20,6 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
     const Layer& layer = *item.layer;
     const bool is_static = layer.cache_static || item.is_static;
 
-    // TICKET-104 — one-shot runtime diagnostic.  Logs the layout-solver's
-    // post-resolution `item.transform.position` for the first Normal-kind
-    // layer seen (the `cert_title` `title` layer is kind=0 = Normal).
-    // *** REMOVE this diagnostic once TICKET-104 root cause is fixed and ***
-    // *** committed to main.  It is unconditional spdlog::info and will    ***
-    // *** leak into production builds. ***
-    // Goal: isolate the (+1232, +723) off-canvas offset source by
-    // comparing the observed position to the expected canvas center:
-    //   expected position.x = canvas_w  * 0.5  = 960  (1920×1080)
-    //   expected position.y = canvas_h * 0.5  = 540
-    //   delta_from_canvas_center = (0, 0)    <-- if layout solver is correct
-    // Self-disables after the first matching call so production CLI
-    // renders (which loop over many frames / many layers) aren't spammed.
-    // Intentionally NOT gated by `ctx.policy.diagnostics_enabled` —
-    // cert_title's CLI render doesn't pass --diagnostics, but we still
-    // need layout-solver visibility to chase the bug.
-    static bool kTicket104SourcePassOneShot = true;
-    if (kTicket104SourcePassOneShot && !layer.nodes.empty()
-        && layer.kind == LayerKind::Normal) {
-        const f32 cx = static_cast<f32>(ctx.frame_input.width)  * 0.5f;
-        const f32 cy = static_cast<f32>(ctx.frame_input.height) * 0.5f;
-        spdlog::info(
-            "[TICKET104:source_pass] layer='{}' kind=Normal nodes={} "
-            "item.transform.position=({:.2f},{:.2f}) "
-            "layer.transform.position=({:.2f},{:.2f}) "
-            "pin.has={} margin={:.2f} "
-            "canvas={}x{} canvas_center=({:.2f},{:.2f}) "
-            "delta_from_canvas_center=({:+.2f},{:+.2f})",
-            layer.name.c_str(),
-            layer.nodes.size(),
-            item.transform.position.x, item.transform.position.y,
-            layer.transform.position.x, layer.transform.position.y,
-            layer.layout.pin.has_value() ? 1 : 0,
-            layer.layout.margin,
-            ctx.frame_input.width, ctx.frame_input.height,
-            cx, cy,
-            item.transform.position.x - cx,
-            item.transform.position.y - cy
-        );
-        kTicket104SourcePassOneShot = false;
-    }
-
     if (layer.kind == LayerKind::Adjustment) {
         return k_invalid_node;
     }
