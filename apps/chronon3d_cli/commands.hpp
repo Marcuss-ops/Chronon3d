@@ -187,6 +187,15 @@ struct PreflightArgs {
     std::string json_file;
 };
 
+struct StillArgs {
+    std::string comp_id;
+    Frame frame{0};
+    std::string output;
+    RenderPipelineArgs pipeline{};
+    std::string log_level{"info"};
+    bool skip_preflight{false};
+};
+
 struct BakeLayerArgs {
     std::string comp_id;
     std::string layer_id;
@@ -236,6 +245,7 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::vector<std::string>& job_specs);
 int command_telemetry(const TelemetryArgs& args);
 int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args);
+int command_still(const CompositionRegistry& registry, const StillArgs& args);
 int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args);
 int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);
 int command_text_audit(const CompositionRegistry& registry, const TextAuditArgs& args);
