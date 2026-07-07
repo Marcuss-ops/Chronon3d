@@ -93,10 +93,8 @@ void refresh_source_node(
         cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
     }
 
-    // TICKET-TEXT-CLEANUP-5 (SourceNode refresh follow-up): bake
-    // canvas_center into the matrix when (centered || projected) &&
-    // !modular_coordinates.  Preserves old m_uses_2_5d_projection ||
-    // m_centered behavior.
+    // Bake canvas_center into the matrix when (centered || projected) &&
+    // !modular_coordinates.
     Mat4 resolved_matrix = render_matrix;
     if (!ctx.policy.modular_coordinates && (should_use_centered_rendering(item, ctx) || item.projected)) {
         const Mat4 cc = glm::translate(Mat4(1.0f),
