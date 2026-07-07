@@ -210,6 +210,11 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
 
 cache::NodeCacheKey SourceNode::cache_key(const RenderGraphContext& ctx) const {
     auto key = m_key;
+    // TICKET-122: use the current evaluation frame instead of the
+    // build-time frame (always Frame{0} for frame-variant nodes),
+    // so the cache key differentiates between frames even when
+    // params_hash alone would collide (e.g. zoom-identical states).
+    key.frame = ctx.frame_input.frame;
     key.params_hash = hash_combine(key.params_hash, static_cast<u64>(ctx.policy.modular_coordinates));
     if (m_matrix_override) {
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&(*m_matrix_override)[0][0], sizeof(Mat4)));
