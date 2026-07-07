@@ -1,7 +1,7 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
-#include "../../utils/common/cli_utils.hpp"
 #include <spdlog/spdlog.h>
+#include <filesystem>
 #include <memory>
 
 namespace chronon3d::cli {
@@ -66,8 +66,20 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
         state->args->command_line = ctx.command_line;
         // fb_pool_budget_mb is handled in plan_render_job() via Config::set_fb_pool_budget()
         if (state->args->output.empty()) {
-            state->args->output = chronon_artifact_path("renders", "render_####.png").string();
-            spdlog::warn("No output path specified, defaulting to {}", state->args->output);
+            // Default output path: <project_root>/output/<comp_id_basename>.png
+            // (relative to CWD, which the Flask dashboard's ALLOWED_ARTIFACT_ROOTS
+            // accepts via PROJECT_ROOT/OUTPUT_DIR). This ensures the resulting
+            // output_path in render_runs.output_path is always dashboard-previewable
+            // out of the box, instead of falling back to ~/.chronon3d/artifacts/renders/
+            // (which is outside ALLOWED_ARTIFACT_ROOTS and would surface as
+            // "Frame preview unavailable" in the dashboard UI).
+            std::filesystem::path comp_path(state->args->comp_id);
+            std::string comp_basename = comp_path.stem().string();
+            if (comp_basename.empty()) {
+                comp_basename = "render";
+            }
+            state->args->output = "output/" + comp_basename + ".png";
+            spdlog::info("No output path specified, defaulting to {}", state->args->output);
         }
         if (state->args->log_level == "trace") {
             spdlog::set_level(spdlog::level::trace);
