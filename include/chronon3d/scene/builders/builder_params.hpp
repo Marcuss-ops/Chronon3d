@@ -120,10 +120,12 @@ struct TextLayoutSpec {
     i32           max_lines{0};               // ✅ TextRun pipeline: cache key + text layout engines
     bool          ellipsis{false};            // ✅ Implemented: text_layout_single/inline.hpp + cache key
 
-    /// Paragraph-level typography (composer, justification, indentation,
-    /// spacing, hanging punctuation, hyphenation, widow/orphan control).
-    /// ❌ TODO: not implemented — struct defined (paragraph_style.hpp) but
-    /// not wired in text rendering pipeline.
+    /// Paragraph-level typography: spacing collapse (space_before/after,
+    /// Add/Maximum merge), indentation (left/right), direction, language.
+    /// ✅ Implemented: effective_paragraph_style() + apply_spacing_collapse()
+    /// in src/text/text_run_builder.cpp.  Other ParagraphStyle fields
+    /// (composer, justification, hyphenation, hanging-punctuation,
+    /// widow/orphan) are declared but not yet consumed by the pipeline.
     ParagraphStyle paragraph{};
 };
 
