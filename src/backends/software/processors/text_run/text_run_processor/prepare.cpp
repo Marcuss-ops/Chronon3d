@@ -33,24 +33,11 @@ namespace chronon3d::renderer::text_run_stages {
 
 // ── Local helpers ───────────────────────────────────────────────────────────
 
-// (Lifted verbatim from the anon-namespace of the old monolith.)
-// Walks `glyphs` against its placed run, padding for blur + stroke + safety.
-static void expand_per_glyph_bbox(
-    float& min_x, float& min_y, float& max_x, float& max_y,
-    const std::vector<GlyphInstanceState>& glyphs,
-    const PlacedGlyphRun& placed
-) {
-    for (const auto& g : glyphs) {
-        const float gx = g.layout_position.x + g.position.x;
-        const float gy = g.layout_position.y + g.position.y;
-        const float pad = g.blur + g.stroke_width + 8.0f;
-        min_x = std::min(min_x, gx - pad);
-        min_y = std::min(min_y, gy - pad);
-        max_x = std::max(max_x, gx + placed.total_width /
-            static_cast<float>(std::max(std::size_t{1}, placed.glyphs.size())) + pad);
-        max_y = std::max(max_y, gy + placed.total_height + pad);
-    }
-}
+// NOTE: expand_per_glyph_bbox() was removed in TICKET-TEXT-CLEANUP-2.
+// Replaced by the canonical compute_text_run_visual_bounds() from
+// text_run_geometry.hpp — single source of truth for per-glyph local-space
+// bounds.  The old function used placed.total_width / glyph_count as an
+// x-extent estimate and lacked 2.5D shear/scale padding.
 
 // (Lifted verbatim from FASE 3b helpers.)
 [[nodiscard]] static float extract_uniform_scale(const Mat4& model) {
@@ -183,12 +170,15 @@ static void expand_per_glyph_bbox(
     }
 
     // ── Stage 1.1 bbox expansion (active side + crossfade side) ──────────
-    expand_per_glyph_bbox(s.min_x, s.min_y, s.max_x, s.max_y,
-                          shape.glyphs, layout.placed);
-    if (shape.crossfade_layout && !shape.crossfade_glyphs.empty()) {
-        expand_per_glyph_bbox(s.min_x, s.min_y, s.max_x, s.max_y,
-                              shape.crossfade_glyphs,
-                              shape.crossfade_layout->placed);
+    // Uses the canonical compute_text_run_visual_bounds() which handles
+    // both active + crossfade sides, 2.5D shear/scale padding, and
+    // per-glyph advance estimation (replacing the old total_width/glyph_count
+    // heuristic).
+    if (auto local_bounds = compute_text_run_visual_bounds(shape)) {
+        s.min_x = std::min(s.min_x, local_bounds->min_x);
+        s.min_y = std::min(s.min_y, local_bounds->min_y);
+        s.max_x = std::max(s.max_x, local_bounds->max_x);
+        s.max_y = std::max(s.max_y, local_bounds->max_y);
     }
 
     // ── Stage 1.2 shadow padding (active side ONLY — shadows track paint) ─
