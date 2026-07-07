@@ -226,4 +226,14 @@ set(CHRONON3D_PUBLIC_HEADERS
     #   (zero nuovi singleton / zero modifiche al codice esistente / zero ABI bloat).
     #   Destinato all'eliminazione a Step 4 (TICKET-SEQUENCE-LOCAL-FRAME).
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/legacy_adapters.hpp"
+    # ── M1.7 Step 1: Asset Readiness V2 single-source-of-truth (TICKET-ASSET-READINESS) ──
+    #   AssetKind enum + AssetRef POD + AssetManifest class + AssetPreflightResult POD +
+    #   AssetPreflightResolver class in namespace `chronon3d::assets::v2` (distinto da
+    #   `chronon3d::AssetType` esistente in asset_metadata.hpp). Designed green: zero
+    #   code-side mutate, zero new singleton, ABI pubblico preservato. Step 2 wireà i
+    #   legacy adapters (font_path/image_path/video_path/audio_path → AssetRef);
+    #   Step 3 popolerà check_* reali + RenderJob::start() preflight; Step 4 eliminerà
+    #   TextPreflight/ImagePreflight/VideoPreflight/AudioPreflight/FontPreflight e i
+    #   fallback silenziosi.
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_readiness_v2.hpp"
 )
