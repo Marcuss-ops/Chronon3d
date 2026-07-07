@@ -46,7 +46,7 @@ Composition make_special_name_comp(const char* name, AnimSetup setup) {
                     .aura_strength = 0.0f,   // skip aura pass
                     .bloom_strength = 0.80f, // compensate for skipped core+aura
                 });
-                l.text("name", text::centered_text({.text = DEMO_NAME, .font_size = 110.0f, .tracking = 14.0f}));
+                l.text("name", text::centered_text({.text = DEMO_NAME, .pos = {960.0f, 540.0f, 0.0f}, .font_size = 110.0f, .tracking = 14.0f}));
             });
             return s.build();
         });
@@ -148,6 +148,7 @@ Composition special_name_typewriter() {
                 .bloom_strength = 0.80f, // compensate for skipped core+aura
             });
             chronon3d::content::text::CenterTextOptions opts;
+            opts.pos      = {960.0f, 540.0f, 0.0f};
             opts.text      = DEMO_NAME;
             opts.font_size = 110.0f;
             opts.tracking  = 14.0f;
