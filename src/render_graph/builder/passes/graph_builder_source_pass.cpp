@@ -201,13 +201,11 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             );
         }
         if (saw_orphan_text_run) {
-            spdlog::error(
-                "[source-pass] layer='{}' contains a TextRun-typed node "
-                "with null text_run_shape_handle().value in a multi-node layer — the text "
-                "will be skipped at execute time.  Wiring failed to "
-                "attach the shape; check LayerBuilder::text_run + "
-                "materialize_text_run_shape.",
-                layer.name.c_str());
+            throw std::logic_error(
+                "[source-pass] layer='" + std::string(layer.name) + "' contains a TextRun-typed node "
+                "with null text_run_shape_handle().value in a multi-node layer. "
+                "Wiring failed to attach the shape; check LayerBuilder::text_run() + "
+                "materialize_text_run_shape().");
         }
 
         cache::NodeCacheKey source_key{
