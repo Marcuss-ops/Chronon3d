@@ -161,7 +161,6 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
                 source = graph.add_node(std::make_unique<SourceNode>(
                     std::string(node.name), node, source_key,
-                    item.projected,
                     ctx.policy.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::optional<Mat4>(resolved_source_matrix),
                     ctx.policy.modular_coordinates ? std::optional<f32>(shape_opacity) : std::optional<f32>(resolved_source_opacity),
                     source_is_static ? static_memory_cache("source") : frame_variant_cache("source")
@@ -267,7 +266,6 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             std::string(layer.name) + "_multi",
             std::move(items),
             source_key,
-            item.projected,
             source_is_static ? static_memory_cache("multi_source") : frame_variant_cache("multi_source")
         ));
         return multi_source;
