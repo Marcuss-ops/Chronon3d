@@ -35,7 +35,7 @@ TEST_CASE("PR2-Unit-DoF: cache_key varies with focus_z / aperture / max_blur") {
     using chronon3d::graph::PerPixelDofNode;
 
     auto ctx_a = graph::RenderGraphContext{};
-    ctx_a.frame = ctt::make_render_frame_info(128, 128);
+    ctx_a.frame_input = ctt::make_render_frame_info(128, 128);
 
     auto node_a = PerPixelDofNode::create(make_cam2_5d(50.0f,  0.05f,   8.0f));
     auto node_b = PerPixelDofNode::create(make_cam2_5d(150.0f, 0.05f,   8.0f));    // focus_z differs
@@ -58,7 +58,7 @@ TEST_CASE("PR2-Unit-DoF: predicted_bbox expands symmetrically by max_blur") {
 
     auto node = PerPixelDofNode::create(make_cam2_5d(50.0f, 0.05f, 12.0f));
     graph::RenderGraphContext ctx;
-    ctx.frame = ctt::make_render_frame_info(200, 200);
+    ctx.frame_input = ctt::make_render_frame_info(200, 200);
 
     raster::BBox input{50, 50, 100, 100};
     std::array<std::optional<raster::BBox>, 1> inputs = { input };

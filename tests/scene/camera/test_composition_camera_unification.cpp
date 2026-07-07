@@ -175,8 +175,8 @@ TEST_CASE("P3-F [2]: 100 concurrent renders share one immutable CameraProgram") 
                 cam_ctx.sample_time =
                     SampleTime::from_frame(0.0, kTestFps);
                 auto r = cc.camera_program->evaluate(cam_ctx, session);
-                REQUIRE(r.ok);
-                return r.camera;
+                REQUIRE(r.has_value());
+                return r.value().camera;
             }));
     }
 
@@ -234,7 +234,7 @@ TEST_CASE("P3-F [3]: each render has its own CameraSession — no cross-thread s
                 cam_ctx.sample_time =
                     SampleTime::from_frame(0.0, kTestFps);
                 auto r = cc.camera_program->evaluate(cam_ctx, session);
-                REQUIRE(r.ok);
+                REQUIRE(r.has_value());
                 const auto* post = &session;
                 // Same identity (no internal aliasing).
                 CHECK(pre == post);
@@ -399,7 +399,7 @@ TEST_CASE("P3-F [6]: parity — legacy Camera adapter == hand-crafted descriptor
     desc_b.source      = StaticCameraSource{};
     desc_b.orientation = FixedOrientation{};
     desc_b.base.position = legacy_cam.transform.position;
-    desc_b.base.rotation = legacy_cam.transform.rotation;
+    desc_b.base.rotation = legacy_cam.rotation_euler();
     {
         FovProjection proj{};
         proj.fov_deg.set(legacy_cam.fov_deg);

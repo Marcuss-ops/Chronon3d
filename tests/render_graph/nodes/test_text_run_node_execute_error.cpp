@@ -301,12 +301,11 @@ TEST_CASE("TextRunNode: draw_text_run ExecutionFailure surfaces diagnostic (P0-3
 
     std::span<const FramebufferRef> empty_inputs{};
     std::span<const std::optional<raster::BBox>> empty_bboxes{};
-    OwnedFB fb;
     // P0-1 — seed the frame_error slot so the node can surface the
     // backend failure.  Without this, the node's ctx.frame_error is
     // null (no-op), and the test only validates the spdlog diagnostic.
     ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
-    REQUIRE_NOTHROW(fb = node.execute(ctx, empty_inputs, empty_bboxes));
+    REQUIRE_NOTHROW(auto _fb = node.execute(ctx, empty_inputs, empty_bboxes));
 
     // Locked invariant: the dispatch reached the backend exactly once.
     CHECK(backend->draw_text_run_calls() == 1);
@@ -365,14 +364,12 @@ TEST_CASE("TextRunNode: absent text_run capability is diagnosed once per node (P
 
     // First call → diagnostic fires.
     {
-        OwnedFB fb;
-        REQUIRE_NOTHROW(fb = node.execute(ctx, empty_inputs, empty_bboxes));
+        REQUIRE_NOTHROW(node.execute(ctx, empty_inputs, empty_bboxes));
     }
     // Second call → still returns error (Fase A6: no throttle —
     // node returns NodeExecutionError immediately each time).
     {
-        OwnedFB fb;
-        REQUIRE_NOTHROW(fb = node.execute(ctx, empty_inputs, empty_bboxes));
+        REQUIRE_NOTHROW(node.execute(ctx, empty_inputs, empty_bboxes));
     }
 
     // Locked invariant: capability gate prevented draw_text_run dispatch.
@@ -427,12 +424,10 @@ TEST_CASE("TextRunNode: null backend is diagnosed once per node (P0-3)") {
     ctx.frame_error = std::make_shared<std::optional<NodeExecutionError>>();
 
     {
-        OwnedFB fb;
-        REQUIRE_NOTHROW(fb = node.execute(ctx, empty_inputs, empty_bboxes));
+        REQUIRE_NOTHROW(node.execute(ctx, empty_inputs, empty_bboxes));
     }
     {
-        OwnedFB fb;
-        REQUIRE_NOTHROW(fb = node.execute(ctx, empty_inputs, empty_bboxes));
+        REQUIRE_NOTHROW(node.execute(ctx, empty_inputs, empty_bboxes));
     }
 
     int null_err_count = 0;
