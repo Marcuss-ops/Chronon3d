@@ -39,6 +39,17 @@ u64 TextLayoutCacheKey::digest() const {
     seed = hash_combine(seed, hash_string(features));
     seed = hash_combine(seed, hash_string(variation_axes));  // M1.5#5
 
+    // TICKET-TEXT-CLEANUP-6: visual-affecting TextLayoutSpec fields
+    seed = hash_combine(seed, hash_value(box_height));
+    seed = hash_combine(seed, hash_value(align));
+    seed = hash_combine(seed, hash_value(vertical_align));
+    seed = hash_combine(seed, hash_value(anchor));
+    seed = hash_combine(seed, hash_value(centering_mode));
+    seed = hash_combine(seed, hash_value(line_height));
+    seed = hash_combine(seed, hash_value(max_lines));
+    seed = hash_combine(seed, hash_value(overflow));
+    seed = hash_combine(seed, hash_value(ellipsis));
+
     // Paragraph-level typography
     seed = hash_combine(seed, hash_value(static_cast<u8>(paragraph.composer)));
     seed = hash_combine(seed, hash_value(static_cast<u8>(paragraph.justification)));
