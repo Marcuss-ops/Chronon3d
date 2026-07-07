@@ -57,6 +57,13 @@ namespace chronon3d {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunParams params) {
+    // Sequence V2: collect font asset reference
+    if (!params.text.font.font_path.empty()) {
+        m_layer.asset_manifest.add_font(
+            params.text.font.font_path,
+            std::string(m_layer.name) + "/" + name);
+    }
+
     auto spec_uptr = std::make_unique<PendingTextRun>(PendingTextRun{
         .name = std::move(name),
         .params = std::move(params),

@@ -8,6 +8,7 @@
 #include <chronon3d/rendering/light_context.hpp>
 #include <chronon3d/rendering/lighting_rig.hpp>
 #include <chronon3d/rendering/depth_grade.hpp>
+#include <chronon3d/assets/asset_manifest.hpp>
 #include <vector>
 #include <memory_resource>
 #include <memory>
@@ -75,6 +76,10 @@ public:
     [[nodiscard]] const std::filesystem::path& assets_root() const { return m_assets_root; }
     void set_assets_root(std::filesystem::path root) { m_assets_root = std::move(root); }
 
+    // Asset manifest: aggregated from all layers during build.
+    [[nodiscard]] const AssetManifest& asset_manifest() const { return m_manifest; }
+    [[nodiscard]] AssetManifest& asset_manifest() { return m_manifest; }
+
 private:
     std::pmr::vector<RenderNode> m_nodes;
     std::pmr::vector<Layer> m_layers;
@@ -84,6 +89,7 @@ private:
     rendering::DepthGrade m_depth_grade{};
     bool m_hierarchy_baked{false};
     std::filesystem::path m_assets_root;
+    AssetManifest m_manifest;
 };
 
 } // namespace chronon3d
