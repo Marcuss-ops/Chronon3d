@@ -77,25 +77,12 @@ namespace chronon3d::renderer::text_run_stages {
         });
     }
 
-    // ── World-bbox vs framebuffer intersection (silent fast-out) ──────────
-    {
-        const raster::BBox world_bbox =
-            compute_text_run_world_bbox(shape, params.model_matrix, 0.0f);
-        const raster::BBox fb_bbox{
-            0, 0,
-            static_cast<i32>(params.fb.width()),
-            static_cast<i32>(params.fb.height())
-        };
-        const i32 x_lo = std::max(world_bbox.x0, fb_bbox.x0);
-        const i32 x_hi = std::min(world_bbox.x1, fb_bbox.x1);
-        const i32 y_lo = std::max(world_bbox.y0, fb_bbox.y0);
-        const i32 y_hi = std::min(world_bbox.y1, fb_bbox.y1);
-        if (x_hi <= x_lo || y_hi <= y_lo) {
-            // Off-canvas text: silent success with explicit Outcome{0}.
-            s.silent_success_empty = true;
-            return graph::RenderOpResult(graph::RenderOpOutcome{0});
-        }
-    }
+    // TICKET-TEXT-CLEANUP-4: world-bbox vs framebuffer intersection
+    // fast-out removed entirely (was silent_success_empty).  The bbox
+    // approximation can be wrong (2.5D shear, animation), and silently
+    // skipping visible text is worse than rendering one extra off-canvas
+    // frame.  The world_bbox computation that was here is now unused —
+    // removed along with the fast-out to avoid wasted work per frame.
 
     // ── Empty-framebuffer guard ───────────────────────────────────────────
     if (params.fb.width() == 0 || params.fb.height() == 0) {

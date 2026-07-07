@@ -111,10 +111,8 @@ struct SingleGlyphRun {
 ) {
     (void)rctx;  // (consumed implicitly via scratch_handle + s.* field-set in Stage 1)
 
-    // Short-circuit if prepare set the silent-success flag.
-    if (s.silent_success_empty) {
-        return graph::RenderOpResult(graph::RenderOpOutcome{0});
-    }
+    // TICKET-TEXT-CLEANUP-4: silent_success_empty short-circuit removed.
+    // Off-canvas text is now always rasterized (bbox approximation may be wrong).
 
     const auto& shape = params.shape;
     const auto& layout = *shape.layout;
