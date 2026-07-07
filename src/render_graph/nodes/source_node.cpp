@@ -358,8 +358,9 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexce
     // a 2.5D camera the screen-space "full frame" assumption no longer
     // holds (zoom changes the effective coverage), so full-frame
     // seeding would produce stale FBs that bypass the cache-key fix.
+    // TICKET-TEXT-CLEANUP-8: m_uses_2_5d_projection removed.  2.5D
+    // projection is now conditioned on has_camera_2_5d globally.
     if (!m_cache_policy.reusable_across_frames()
-        || m_uses_2_5d_projection
         || ctx.frame_input.has_camera_2_5d) {
         return false;
     }
