@@ -54,6 +54,20 @@ struct TextLayoutCacheKey {
     /// line breaks, so they MUST be part of the cache key.
     ParagraphStyle paragraph{};
 
+    // ── TICKET-TEXT-CLEANUP-6: visual-affecting TextLayoutSpec fields ──
+    // These fields affect layout geometry and must be part of the cache
+    // key.  Previously missing — two layouts differing only in these
+    // fields would collide on the same cache entry.
+    f32           box_height{0.0f};              // layout box height (0 = unbounded)
+    int           align{1};                      // TextAlign enum (0=Left, 1=Center, 2=Right)
+    int           vertical_align{1};             // VerticalAlign enum (0=Top, 1=Middle, 2=Bottom)
+    int           anchor{0};                     // TextAnchor enum
+    int           centering_mode{0};             // TextCenteringMode enum (0=LayoutBox, 1=PixelInk)
+    f32           line_height{1.2f};             // line height multiplier
+    int           max_lines{0};                  // 0 = unlimited
+    int           overflow{0};                   // TextOverflow enum (0=Clip, 1=Ellipsis)
+    bool          ellipsis{false};               // ellipsis truncation
+
     [[nodiscard]] u64 digest() const;
     [[nodiscard]] bool operator==(const TextLayoutCacheKey& other) const = default;
 };
