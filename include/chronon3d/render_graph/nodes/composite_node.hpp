@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_graph/nodes/basic_nodes_common.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
+#include <atomic>
 #include <span>
 
 namespace chronon3d::graph {
@@ -14,7 +15,8 @@ public:
                   float world_z = 0.0f,
                   ::chronon3d::CompositeOperator op = ::chronon3d::CompositeOperator::SourceOver,
                   RenderNodeCachePolicy policy = static_memory_cache("composite"))
-        : RenderGraphNode(policy), m_mode(mode), m_cache_frame(cache_frame), m_world_z(world_z), m_operator(op) {}
+        : RenderGraphNode(policy), m_mode(mode), m_cache_frame(cache_frame), m_world_z(world_z), m_operator(op),
+          m_unique_id(++s_counter) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Composite; }
     std::string_view name() const noexcept override { return "Composite"; }
@@ -68,13 +70,20 @@ public:
     }
 
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
+        // TICKET-122 diagnostic: fold unique instance ID into the cache key
+        // so distinct CompositeNodes can never hash-collide, and use the
+        // current frame for frame-variant composites (m_cache_frame < 0)
+        // so zoom-different frames can never collide either.
         const u64 params_hash = hash_combine(
-            static_cast<u64>(m_mode),
-            static_cast<u64>(m_operator)
+            m_unique_id,
+            hash_combine(
+                static_cast<u64>(m_mode),
+                static_cast<u64>(m_operator)
+            )
         );
         return cache::NodeCacheKey{
             .scope = "composite",
-            .frame = m_cache_frame >= 0 ? m_cache_frame : Frame{0},
+            .frame = m_cache_frame >= 0 ? m_cache_frame : ctx.frame_input.frame,
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
             .params_hash = params_hash
@@ -96,6 +105,8 @@ private:
     CompositeOperator          m_operator{CompositeOperator::SourceOver};
     Frame                      m_cache_frame{-1};
     float                      m_world_z{0.0f};
+    u64                        m_unique_id{0};
+    static inline std::atomic<u64> s_counter{0};
 };
 
 } // namespace chronon3d::graph
