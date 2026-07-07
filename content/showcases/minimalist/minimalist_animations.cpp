@@ -37,6 +37,7 @@ Composition make_minimalist_comp(const char* name, const char* text,
                 l.glow(TextGlowPresets::ae_cinematic_white().to_glow_params());
                 l.text("phrase", text::centered_text({
                     .text      = text,
+                    .pos       = {960.0f, 540.0f, 0.0f},
                     .font_size = font_size,
                     .tracking  = tracking,
                 }));
