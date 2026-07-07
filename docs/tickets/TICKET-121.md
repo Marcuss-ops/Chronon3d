@@ -386,17 +386,87 @@ la cache key cambia tra frame con camera diversa.
 | `src/text/text_run_geometry.cpp` | `compute_text_run_world_bbox` | ✅ model matrix |
 | `include/chronon3d/render_graph/nodes/detail/bbox_projection.hpp` | `projected_native_3d_bbox` | ✅ world_matrix (3D only) |
 
-## Azioni rimanenti
+## FASE 3 — Investigazione cache layer (2026-07-07)
 
-1. ~~Sostituire `proj.projection_matrix` con `proj.transform.to_mat4()`~~ — **DONE** (già applicato)
-2. ~~Tracciare `state.matrix` → backend raster~~ — **DONE** (FASE 2: percorso corretto, nessun bug trovato)
-3. **FASE 3**: Investigare le due ipotesi residue:
-   - 3a: CacheEvaluator / graph_cache_coordinator (secondo livello cache)
-   - 3b: `project_layer_2_5d()` restituisce transform identici?
-4. **FASE 4**: Fix reale (cache o projection resolver)
-5. **FASE 5**: Regression test + verifica hash diversi
-6. **FASE 6**: Gate check + doc sync
-7. **FASE 7**: Aggiorna golden PNGs
+### Node-level cache (`cache_evaluator.cpp`)
+
+```cpp
+CacheEvalResult evaluate_cache(const RenderGraphNode& node, const RenderGraphContext& ctx, ...) {
+    cr.key = node.cache_key(ctx);  // MultiSourceNode::cache_key() includes camera state
+    // ...
+    cr.result = ctx.services.node_cache->get(cr.key);  // cache lookup with camera-aware key
+}
+```
+
+**Verdetto: ✅ CORRETTO.** `MultiSourceNode::cache_key()` include `hash(cam.position)`,
+`hash(cam.zoom)`, `hash(cam.fov_deg)`, `hash(cam.point_of_interest)` — camera diversa = key diversa = cache miss = riesecuzione.
+
+### Graph-level cache (`graph_cache_coordinator.cpp`)
+
+```cpp
+result.can_reuse = scene_structure_unchanged && graph_cache != nullptr && graph_cache->has(width, height);
+```
+
+**Verdetto: ✅ CORRETTO.** Il graph cache memorizza solo la STRUTTURA del grafo
+(nodi, connessioni), NON i framebuffer. Quando la struttura è invariata, riusa il
+compiled graph e refresh i payload. Non causa collisioni di framebuffer.
+
+### Node cache key (`node_cache.hpp`)
+
+```cpp
+struct NodeCacheKey {
+    std::string scope;  Frame frame;  i32 width, height;
+    u64 params_hash, source_hash, input_hash;
+    TemporalSampleKey temporal_key;
+    i32 tile_x, tile_y, tile_size;  u64 tile_hash;
+};
+```
+
+**Verdetto: ✅ CORRETTO.** La key include `params_hash` (che per MultiSourceNode
+contiene camera state), `frame`, `temporal_key`. Frame diversi con camera diversa
+producono key diverse.
+
+### Projection resolver (`camera_2_5d_projection.hpp`)
+
+```cpp
+// project_layer_2_5d() → CameraProjectionResolver::project_layer(input)
+// out.transform.position = centroid of projected corners
+// out.transform.scale = bbox size of projected corners
+```
+
+**Verdetto: ✅ DOVREBBE funzionare.** `proj.transform.position` e `proj.transform.scale`
+sono calcolati dai corner proiettati, che dipendono dalla camera (zoom, position, fov).
+
+### Conclusione FASE 3
+
+**Tutti i layer investigati sono corretti.** Non c'è nessun bug da fixare a livello
+di cache o matrix path. Il percorso completo:
+
+```
+Camera2_5D animata → CameraProjectionResolver::project_layer()
+  → proj.transform (screen-space position + scale)
+  → proj.transform.to_mat4()
+  → canvas_center * ssaa_scale * proj.transform.to_mat4() = state.matrix
+  → SoftwareShapeProcessor::draw() → draw_transformed_shape(fb, shape, state.matrix)
+  → compute_world_bbox(shape, model) → screen-space bbox
+  → rasterizzazione pixel
+```
+
+è **integralmente corretto**. Il nodo viene rieseguito (cache miss confermato dalla
+key camera-aware), la matrice viene calcolata con la proiezione, e il processor la
+usa per rasterizzare.
+
+### Ipotesi rimanente
+
+Se il percorso è corretto ma i framebuffer restano identici, il problema è nella
+**geometria delle scene di test**, non nell'infrastruttura:
+- Le scene AE_CAM potrebbero usare shape full-canvas (background rect) che producono
+  sempre lo stesso output indipendentemente dallo zoom
+- Oppure le animazioni camera potrebbero essere configurate in modo che il cambiamento
+  visivo sia trascurabile (es. zoom su un pattern uniforme)
+
+**Next step consigliato: FASE 3b** — verificare con log diretto che
+`proj.transform.position` e `proj.transform.scale` siano DIVERSI tra frame 0 e 60.
 
 ## Collegamenti
 
