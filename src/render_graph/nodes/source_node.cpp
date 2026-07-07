@@ -104,15 +104,19 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     // the SourceNode used by AE_CAM_02/04/07/09 (confirmed by the
     // existing inline comment in `cache_key()` below) so conditioning
     // on it would make the projection branch unreachable for the very
-    // scenes the cache key fix was designed to differentiate.  Native
-    // 3D shapes (FakeBox3D, GridPlane) are EXCLUDED because they
-    // route through `detail::projected_native_3d_bbox` further down
-    // and expect an unprojected world matrix there.
+    // scenes the cache key fix was designed to differentiate.  Only
+    // FakeBox3D is excluded — it routes through
+    // `detail::projected_native_3d_bbox` further down and expects an
+    // unprojected world matrix there.  GridPlane was formerly excluded
+    // too (TICKET-122 FASE 3: removed so grid scales with zoom).
     const ShapeType shape_type = m_node.shape.type();
+    // TICKET-122 FASE 3: GridPlane (grid_background) now participates
+    // in 2.5D projection so the grid scales with zoom.  Previously
+    // excluded, it always rendered full-canvas identically regardless
+    // of zoom — the root cause of AE_CAM_02 hash collision.
     const bool apply_2_5d_projection =
         ctx.frame_input.has_camera_2_5d &&
-        shape_type != ShapeType::FakeBox3D &&
-        shape_type != ShapeType::GridPlane;
+        shape_type != ShapeType::FakeBox3D;
     if (apply_2_5d_projection) {
         // TICKET-ae-cam-hash-collision SourceNode forward-fix (per
         // ## Verification gap): pass the actual layer TRS to
@@ -189,8 +193,10 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     }
     spread += 8.0f;
 
+    // TICKET-122 FASE 3: GridPlane now goes through 2.5D projection above,
+    // so it uses the standard compute_world_bbox path (not native 3D).
     if (ctx.frame_input.has_camera_2_5d &&
-        (m_node.shape.type() == ShapeType::FakeBox3D || m_node.shape.type() == ShapeType::GridPlane)) {
+        m_node.shape.type() == ShapeType::FakeBox3D) {
         const Mat4 world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
         if (auto bbox = detail::projected_native_3d_bbox(ctx, m_node, world_matrix, spread)) {
             return bbox;
@@ -275,15 +281,15 @@ NodeExecResult SourceNode::execute(
         // mirror the cache-key pattern: condition the 2.5D projection
         // on the *global* `has_camera_2_5d` trigger, NOT on the
         // per-node `m_uses_2_5d_projection` flag.  See the matching
-        // comment in `predicted_bbox` above for the rationale.  Native
-        // 3D shapes (FakeBox3D, GridPlane) are EXCLUDED because they
-        // expect unprojected world matrices in the backend's native
-        // 3D pipeline.
+        // comment in `predicted_bbox` above for the rationale.  Only
+        // FakeBox3D is excluded (GridPlane now projected per TICKET-122
+        // FASE 3).
+        // TICKET-122 FASE 3: GridPlane participates in 2.5D projection
+        // so the grid scales with zoom (matches predicted_bbox above).
         const ShapeType exec_shape_type = m_node.shape.type();
         const bool exec_apply_2_5d_projection =
             ctx.frame_input.has_camera_2_5d &&
-            exec_shape_type != ShapeType::FakeBox3D &&
-            exec_shape_type != ShapeType::GridPlane;
+            exec_shape_type != ShapeType::FakeBox3D;
         if (exec_apply_2_5d_projection) {
             // TICKET-ae-cam-hash-collision SourceNode forward-fix (per
             // ## Verification gap): same `from_mat4(base_matrix, ...)`
