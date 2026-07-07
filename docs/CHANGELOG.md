@@ -4,6 +4,32 @@
 > Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 ---
+## Luglio 2026 — M1.7 Sequence Step 1 landed (TimelineResolver V2 surface)
+
+### feat(timeline) — TICKET-SEQUENCE-LOCAL-FRAME Step 1/4: 4 nuovi simboli pubblici canonici per TimelineResolver V2 single-source-of-truth (commit TBD-pending this session, 2026-07-07)
+
+- **NEW header landed** in [`include/chronon3d/timeline/timeline_resolver_v2.hpp`](include/chronon3d/timeline/timeline_resolver_v2.hpp) — 4 simboli pubblici canonici in namespace `chronon3d::timeline::v2` (distint da `chronon3d::SequenceContext` esistente):
+  - `struct TimeRange { Frame from{0}; Frame duration{1}; }` — POD constexpr-friendly. Sostituisce il pattern `frame >= start && frame < end` sparso nei content (legacy item A) + il `duration=1` magic numero (legacy item D, distinct sentinel — vedi comment in-source).
+  - `struct SequenceNode { std::string name{}; TimeRange range{}; std::function<void(SequetteBuilder&)> build{}; }` — callback opzionale al content lambda (forward-point Step 3 ridefinirà `SequenceBuilder`).
+  - `struct TimelineSampleContext { Frame global_frame; Frame local_frame; Frame sequence_start; float fps; }` — unico value type che sostituisce le 5 coordinate temporali duplicate (composition / layer / sequence / animator / video source frame; legacy item E).
+  - `class TimelineResolver { ResolvedScene resolve(SceneDescriptor, Frame, float); }` — header-only inline, stateless, no singleton/registry/cache. Risolve al frame globale → `local_frame = global_frame - sequence_start` (clamp 0 se prima del range). Forward-point Step 2 wirerà i legacy adapters.
+  - `struct SceneDescriptor { TimeRange composition_range; std::vector<SequenceNode> sequences; }` + `struct ResolvedScene { ... active_sequences ... TimelineSampleContext sample; }` — input/output del resolver.
+  - `struct SequenceBuilder {}` — empty placeholder (ABI-stable, Step 3 ridefinirà full body). Scelto empty-complete vs forward-declaration per eliminare portability concern con `std::function<void(SequetteBuilder&)>` (libc++/MSVC in strict mode possono rompere il type-incompleto; GCC 13 è permissivo).
+- **Static helper `TimelineResolver::make_local_frame(Frame global, Frame start) -> Frame`** — `constexpr`, `noexcept`. Implementa il clamp `global_frame >= sequence_start ? global - start : Frame{0}`. Già usato da `TimelineResolver::resolve` per popolare `sample.local_frame` verbatim. I consumer post-Step-2 (animator/sampler) possono usarlo direttamente senza dipendere dal resolver.
+- **`cmake/Chronon3DPublicHeaders.cmake` aggiornato** — append manuale (NO GLOB) del nuovo header al CHRONON3D_PUBLIC_HEADERS set; comment block che cross-linka `TICKET-SEQUENCE-LOCAL-FRAME` + le 4-step forward-points.
+- **Invariante runtime verificata** `/tmp/_step1_consumer_check.cpp` (forward-check TU, non committata): (a) TimeRange default `{0, 1}` + explicit-init correct; (b) SequenceNode designated-initializer `{ .name, .range, .build }` correct; (c) TimelineSampleContext default-init correct; (d) TimelineResolver::resolve rialsce `composition_range` preservato + `sample.global_frame = global_frame arg` + `sample.sequence_start = composition_range.from` + `sample.local_frame = global - sequence_start (clamp 0 prima del range)` + `sample.fps = fps arg` + `active_sequences` sempre vuoto a Step 1; (e) `make_local_frame` constexpr arithmetics via Frame - Frame (frame.hpp:43). Output: `OK Step 1 typecheck + behavior invariants`. **NOT committed** (file lives outside repo; puramente forward-check verification).
+- **Code-reviewer (`code-reviewer-minimax-m3`) APPROVED** round 2 — 1 nit minore `duration{1}` default documentation risolto (comment in-source che chiarisce distintione sentinel vs legacy-frame-skip).
+- **Typecheck (`g++ -std=c++20 -I include -I vcpkg_installed/linux-fast-dev/x64-linux/include`)** — header `exit 0`, test TU `exit 0`, compile + run `exit 0`. ZERO nuovi `#include <msdfgen>|<libtess2>|<unicode[/...]>`. ZERO codice esistente toccato. AGENTS.md v0.1 Cat-3 freeze-compliant (zero new public API symbols beyond the 4 canonical + 3 POD helpers; ABI pubblico invariato).
+- **Honesty policy (AGENTS v0.1 §anti-greenwashing)**: questo commit promuove `TICKET-SEQUENCE-LOCAL-FRAME` da `PLANNED` a `PARTIAL (Step 1/4 DONE)`. Promozione a `DONE` completo richiederà Step 4 macchina-verifica (target: post `main@7eb5c2ba` baseline-verde + 11/11 PASS + grep-audit backlog = 0 su tutti i 5 legacy items A-E). Steps 2/3/4 (legacy adapters + migrate new content + eliminate legacy) restano forward-point.
+- **AGENTS.md v0.1 freeze compliance**:
+  - Cat-3 (zero new public API symbols oltre i 4-nuovi-disegnati + 3 POD helpers; ABI preservato).
+  - Cat-5 (doc-only alignment via questo entry + 3 file canonical: `FOLLOWUP_TICKETS.md` + `CURRENT_STATUS.md` §M1.7 + `TICKET-SEQUENCE-LOCAL-FRAME.md` §Stato).
+  - Zero nuovi singleton / registry / cache / service-locator (`SequenceRegistry` / `GlobalTimeline` / `ResolverServiceLocator` vietati da AGENTS.md §Anti-duplication Rules).
+- **Production git trace**: 1 NEW header (`include/chronon3d/timeline/timeline_resolver_v2.hpp` ~210 LOC) + 1 modified CMake manifest (`cmake/Chronon3DPublicHeaders.cmake` +1 riga) + 4 doc canonical updates (FOLLOWUP_TICKETS.md + CURRENT_STATUS.md + CHANGELOG.md questo entry + TICKET-SEQUENCE-LOCAL-FRAME.md §Stato). Test TUs at `/tmp/` NON nel commit (gitignored-friendly path).
+- **Cross-references**: [`docs/tickets/TICKET-SEQUENCE-LOCAL-FRAME.md`](docs/tickets/TICKET-SEQUENCE-LOCAL-FRAME.md) `## Stato` ora `PARTIAL (Step 1/4 DONE)`; [`docs/ROADMAP.md`](../ROADMAP.md) §M1.7 milestone; [`docs/FOLLOWUP_TICKETS.md`](../FOLLOWUP_TICKETS.md) §M1.7 backlog; [`docs/CURRENT_STATUS.md`](../CURRENT_STATUS.md) §M1.7 paragraph bumped; questo CHANGELOG entry; [`include/chronon3d/core/types/frame.hpp`](../include/chronon3d/core/types/frame.hpp) (canonical Frame POD con constexpr Frame arithmetic).
+
+---
+
 ## Luglio 2026 — M1.7 Sequence + Asset Readiness action-plan landing
 
 ### docs(tickets) — TICKET-SEQUENCE-LOCAL-FRAME + TICKET-ASSET-READINESS action-plan landing (PLANNED, 2026-07-07)

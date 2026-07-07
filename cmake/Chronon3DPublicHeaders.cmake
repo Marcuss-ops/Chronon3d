@@ -213,4 +213,11 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/vector/path_factories.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/vector/shape_style.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition_props.hpp"
+    # ── Timeline V2 single-source-of-truth (M1.7 Step 1, TICKET-SEQUENCE-LOCAL-FRAME) ──
+    #   TimeRange + SequenceNode + TimelineSampleContext + TimelineResolver
+    #   in namespace `chronon3d::timeline::v2`. Designed green: zero code-side
+    #   mutate, zero new singleton, ABI pubblico invariato. Step 2 wireà i
+    #   legacy adapters; Step 3 abiliterà `SequenceBuilder`; Step 4 eliminerà
+    #   `Layer.from/duration` e `SequenceContext` legacy.
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/timeline_resolver_v2.hpp"
 )
