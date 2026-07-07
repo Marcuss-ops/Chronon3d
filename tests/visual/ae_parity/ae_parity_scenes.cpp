@@ -113,6 +113,15 @@ Composition make_ae_cam_02_zoom_fov() {
                            Vec2{140.0f, 100.0f},
                            Color{0.99f, 0.44f, 0.82f, 1.0f});
 
+            // FASE 5: small red circle (50px) at center — non-fullscreen anchor
+            // to make zoom effect visually observable across frames.
+            s.layer("anchor", [](LayerBuilder& l) {
+                l.enable_3d().position({0.0f, 0.0f, 0.0f});
+                l.circle("dot", {.radius = 25.0f, .color = Color{1.0f, 0.1f, 0.1f, 1.0f},
+                                 .pos = {0.0f, 0.0f, 0.0f},
+                                 .fill = FillStyle::solid(Color{1.0f, 0.1f, 0.1f, 1.0f})});
+            });
+
             // Corner markers at different depths.
             add_depth_card(s, "tl", Vec3{-350.0f, -200.0f, 200.0f},
                            Vec2{40.0f, 40.0f}, Color{0.2f, 0.85f, 1.0f, 1.0f});
