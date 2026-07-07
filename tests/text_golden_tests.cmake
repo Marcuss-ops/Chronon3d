@@ -131,6 +131,81 @@ target_sources(chronon3d_text_golden_tests
         text_golden/ae_parity/ae_11_rotation_per_character.cpp
 )
 
+# TICKET-AE-PARITY-CINEMATIC-08 — ae_glow_pulse scene. Appended directly
+# to existing target via target_sources(). 6 TEST_CASEs = 16:9 + 9:16 × 3
+# frame snapshots f00/f15/f30 with opacity + scale co-modulation pulse
+# envelope (opacity 0.40/0.85/0.50 + uniform scale 0.96/1.05/0.98) to
+# evoke a "pulsing aura" without requiring a glow compositor (which is
+# forward-only per Blocco 5 of docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md).
+# Reads as the text itself pulsing in/out of the focal plane. Layer-level
+# (whole text as a single rigid body); TRUE per-character pulse is
+# forward-only. Cat-2 freeze-compliant (zero new public API; verify_golden
+# reuse; same harness chain).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/ae_parity/ae_08_glow_pulse.cpp
+)
+
+# TICKET-AE-PARITY-CINEMATIC-10 — ae_scale_pop scene. Appended directly
+# to existing target via target_sources(). 6 TEST_CASEs = 16:9 + 9:16 × 3
+# frame snapshots f00/f15/f30 with scale overshoot (0.50/1.30/1.00) +
+# opacity fade-in (0.00/0.80/1.00) co-modulation. Reads as a classic
+# AE pop entrance — the text springs into existence, overshoots its
+# target scale by 30% at f15, then settles to natural size at f30 with
+# full opacity. Layer-level (whole text as a single rigid body); TRUE
+# per-character pop is forward-only Phase 2 Killer scope. Cat-2
+# freeze-compliant (zero new public API; verify_golden reuse; same
+# harness chain).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/ae_parity/ae_10_scale_pop.cpp
+)
+
+# TICKET-AE-PARITY-CINEMATIC-12 — ae_random_character_jitter scene. Appended
+# directly to existing target via target_sources(). 6 TEST_CASEs = 16:9 +
+# 9:16 × 3 frame snapshots f00/f15/f30 with deterministic per-frame
+# translate offsets (0/+8,-4/-5,+3) + opacity micro-dip at f15 (0.92).
+# Seed-locked (frame-index-deterministic) cross-run reproducibility; the
+# full per-character Random selector is forward-only Phase 2 Killer 1
+# (TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION already shipped the
+# cell-level substrate). This scene exercises the LAYER-LEVEL translate
+# envelope as the visual phase 1 cover. Cat-2 freeze-compliant (zero
+# new public API; verify_golden reuse; same harness chain).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/ae_parity/ae_12_random_character_jitter.cpp
+)
+
+# TICKET-AE-PARITY-CINEMATIC-14 — ae_multiline_9_16_safezone scene. Appended
+# directly to existing target via target_sources(). 6 TEST_CASEs = 16:9 +
+# 9:16 × 3 frame snapshots f00/f15/f30 with multiline text (3 lines) in
+# 9:16 portrait with 10% safe-zone inset (108px on each side of 1080)
+# + fade-in + upward settle. TikTok/Reels-style multiline title
+# treatment. The 16:9 variant exercises the same multiline text in a
+# wider box (no safe-zone constraint) for cross-AR comparison. Cat-2
+# freeze-compliant (zero new public API; verify_golden reuse; same
+# harness chain).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/ae_parity/ae_14_multiline_9_16.cpp
+)
+
+# TICKET-MOTION-BLUR-TEXT — motion-blur text smoke goldens. Appended
+# directly to existing target via target_sources() (no new harness chain).
+# 6 TEST_CASEs = 3 baseline (motion-blur OFF at f05/f10/f15) + 3 motion-
+# blur ON at the same 3 frame snapshots, to enable cross-compare of the
+# effect activation. Acceptance contract: `mean_abs_diff(blurred, baseline)
+# > 5/255` AND `pixel_changed_ratio > 0.10` at every frame. The blurred
+# variant uses `LayerBuilder::blur(13.0f)` (tier 3 of kBlurTierRadii)
+# to materialize the motion-blur codepath via
+# `sw::apply_separable_box_blur` (text_run_processor/scratch.cpp:70).
+# Cat-2 freeze-compliant (zero new public API; verify_golden reuse; same
+# harness chain).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/motion_blur_text/motion_blur_text_scene.cpp
+)
+
 # TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION — Phase 2 Killer 1 determinism
 # lock for the Wiggly/Wave/Random selector substrate. Forward-only note:
 # `WigglySelector` and `WaveSelector` are PLANNED, NOT YET IMPL (zero
@@ -216,6 +291,27 @@ target_sources(chronon3d_text_golden_tests
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity_killer/killer_03_character_offset.cpp
+)
+
+# TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION — Phase 2 Killer 4
+# companion: Random order determinism lock. The existing Killer 1
+# (killer_01_wiggly_wave.cpp) ships the Random order substrate; this
+# Killer 4 is a focused regression lock on the Random order surface
+# specifically (cell-level hash + end-to-end evaluate_animator with
+# TextSelectorOrder::Random + cross-run FNV-1a reference lock).
+# 2 TEST_CASEs × 3 SUBCASEs = 6 SUBCASEs:
+#   * TEST_CASE 1 (cell-level permutation substrate): hash_to_unit_float
+#     byte-identity (SUBCASE 1) + zero mutable state across 4 threads
+#     × 16 iterations (SUBCASE 2) + reentrant parallel Fisher-Yates
+#     (SUBCASE 3).
+#   * TEST_CASE 2 (end-to-end Random order via evaluate_animator): same-
+#     seed per-glyph state byte-identity (SUBCASE 1) + different-seed
+#     observable drift (SUBCASE 2) + cross-run FNV-1a reference lock
+#     (SUBCASE 3).
+# Cat-2 freeze-compliant (zero new public API; test-only includes;
+# uses production `evaluate_animator` + `TextSelectorOrder::Random`).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
 )
 
 add_test(
