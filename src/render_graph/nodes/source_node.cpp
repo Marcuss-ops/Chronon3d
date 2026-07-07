@@ -128,6 +128,13 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
             return std::nullopt;
         }
         matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
+        // T121_DIAG: temporary — verify proj.transform differs between animated frames.
+        // Remove after capturing frame0/frame60 for AE_CAM_02.
+        spdlog::warn("[T121_DIAG] src_bbox node='{}' frame={} zoom={:.1f} pos=({:.2f},{:.2f}) scale=({:.4f},{:.4f})",
+            m_name, ctx.frame_input.sample_time.integral_frame(),
+            ctx.frame_input.camera_2_5d.zoom,
+            proj.transform.position.x, proj.transform.position.y,
+            proj.transform.scale.x, proj.transform.scale.y);
     } else if (m_uses_2_5d_projection || m_centered) {
         matrix = canvas_center * ssaa_scale * base_matrix;
     } else {
@@ -285,6 +292,13 @@ NodeExecResult SourceNode::execute(
                 return NodeExecResult{std::move(fb)};
             }
             state.matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
+            // T121_DIAG: temporary — verify proj.transform differs between animated frames.
+            // Remove after capturing frame0/frame60 for AE_CAM_02.
+            spdlog::warn("[T121_DIAG] src_exec node='{}' frame={} zoom={:.1f} pos=({:.2f},{:.2f}) scale=({:.4f},{:.4f})",
+                m_name, ctx.frame_input.sample_time.integral_frame(),
+                ctx.frame_input.camera_2_5d.zoom,
+                proj.transform.position.x, proj.transform.position.y,
+                proj.transform.scale.x, proj.transform.scale.y);
         } else if (m_uses_2_5d_projection || m_centered) {
             state.matrix = canvas_center * ssaa_scale * base_matrix;
         } else {
