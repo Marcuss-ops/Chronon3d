@@ -127,6 +127,10 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                         .params_hash = content_hash,
                         .source_hash = hash_combine(hash_string(node.name), placement_hash)
                     };
+                    // TICKET-ae-cam-hash-collision Soluzione B
+                    if (ctx.frame_input.has_camera_2_5d) {
+                        cache::fold_camera_into_params_hash(run_key, ctx.frame_input.camera_2_5d);
+                    }
                     const Mat4 run_matrix = use_local
                         ? node.world_transform.to_mat4()
                         : (item_source_world * node.world_transform.to_mat4());
@@ -172,6 +176,10 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     .params_hash = content_hash,
                     .source_hash = hash_combine(hash_string(node.name), placement_hash)
                 };
+                // TICKET-ae-cam-hash-collision Soluzione B
+                if (ctx.frame_input.has_camera_2_5d) {
+                    cache::fold_camera_into_params_hash(source_key, ctx.frame_input.camera_2_5d);
+                }
 
                 const Mat4 text_matrix = use_local
                     ? node.world_transform.to_mat4()
@@ -197,6 +205,10 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     .params_hash = content_hash,
                     .source_hash = hash_combine(hash_string(node.name), placement_hash)
                 };
+                // TICKET-ae-cam-hash-collision Soluzione B
+                if (ctx.frame_input.has_camera_2_5d) {
+                    cache::fold_camera_into_params_hash(source_key, ctx.frame_input.camera_2_5d);
+                }
 
                 const Mat4 shape_matrix = use_local
                     ? node.world_transform.to_mat4()
@@ -268,6 +280,10 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             .params_hash = aggregated_params_hash,
             .source_hash = aggregated_source_hash
         };
+        // TICKET-ae-cam-hash-collision Soluzione B
+        if (ctx.frame_input.has_camera_2_5d) {
+            cache::fold_camera_into_params_hash(source_key, ctx.frame_input.camera_2_5d);
+        }
 
         std::vector<MultiSourceItem> items;
         items.reserve(layer.nodes.size());

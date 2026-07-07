@@ -27,6 +27,21 @@ add_executable(chronon3d_cache_tests
     cache/test_evict_lru_for.cpp
     cache/test_video_frame_cache.cpp
     cache/test_framebuffer_pool.cpp
+    # TICKET-ae-cam-hash-collision Soluzione B — camera-aware NodeCacheKey
+    # regression lock. Asserts `camera_fingerprint_digest` and
+    # `fold_camera_into_params_hash` differentiate per-camera-state so the
+    # AE_CAM_02/04 framebuffer-hash-collision (downstream cache surface)
+    # cannot regress to pre-Soluzione-B state. See
+    # `tests/cache/test_node_cache_hash_includes_camera.cpp`.
+    cache/test_node_cache_hash_includes_camera.cpp
+    # TICKET-ae-cam-hash-collision / Soluzione B - opt-in regression lock
+    # + first captured-in-a-test activation of the
+    # `node_cache_hash_collisions` counter (declared via X-macro at
+    # `include/chronon3d/core/profiling/render_counter_macros.hpp:35`).
+    # Asserts 3 scenes x 3 frames = 9 distinct NodeCacheKey per AE_CAM
+    # sweep scenarios (zoom-only AE_CAM_02 / Z-dolly AE_CAM_04 /
+    # parent-name axis), with the TLS counter held at 0 post-probe.
+    cache/test_node_cache_ae_sweep.cpp
     render_graph/cache/test_scene_program_cache.cpp
     render_graph/cache/test_compiled_graph_cache.cpp
 )
