@@ -7,6 +7,15 @@
 
 ## Luglio 2026 — Diagnostic
 
+### diag(ae-cam) — TICKET-121 FASE 1-4: diagnosi completa AE_CAM hash-collision (4 commit su main, 2026-07-07)
+
+- **FASE 1 (ca13ab09, 9f06a9e1):** Build + run `chronon3d_ae_parity_tests` con `CHRONON3D_PROJ_DIAG=1`. Scoperto che la fix suggerita dal ticket (sostituire `proj.projection_matrix` → `proj.transform.to_mat4()`) era **gia applicata** in tutti e 3 i branch di `multi_source_node.cpp` (righe 72, 190, 260). PROJ_DIAG non ha emesso output (tutti i layer visibili). I test AE_CAM_02 e AE_CAM_04 hanno gia MESSAGE workaround che forward-pointano a `TICKET-ae-cam-hash-collision`.
+- **FASE 2 (2b54898d, 7a6fd2ba):** Tracciato il percorso completo `state.matrix` → raster attraverso 10 file: `SoftwareBackend::draw_node()`, `SoftwareShapeProcessor::draw()`, `SoftwareTextProcessor::draw()`, `SoftwareLineProcessor::draw()`, `SoftwareMeshProcessor::draw()`, `compute_world_bbox()` (shape_rasterizer.cpp), `compute_text_run_world_bbox()` (text_run_geometry.cpp). **Tutti i processor 2D usano correttamente `state.matrix`.** Solo `FakeBox3DProcessor` usa `state.world_matrix` (forme 3D, irrilevante).
+- **FASE 3 (97d4bdec):** Investigato il cache layer: `cache_evaluator.cpp` (node cache key include camera state → corretto), `graph_cache_coordinator.cpp` (cacha solo struttura grafo → corretto), `node_cache.hpp` (NodeCacheKey con params_hash → corretto), `camera_2_5d_projection.hpp` (proj.transform da corner proiettati → dovrebbe funzionare). **Nessun bug trovato nel cache layer.**
+- **FASE 4 (4694eda0):** Regression test: 35/35 AE_CAM PASS, 140/140 assertions, AE_CAM_01 no top-left regression. Hash verification: 4/6 collisioni risolte (CAM_03/05/06/09 frame0!=frame60), 2 rimanenti (CAM_02+04) in TICKET-ae-cam-hash-collision. Hash comune `cc86d2b5...` presente in 10+ golden files — probabile background statico.
+- Gate check 3/3 PASS (main_clean, architecture_boundaries, doc_sync).
+- Zero codice modificato — solo documentazione operativa nel ticket file + 3 canonici.
+
 ### ae(cam) — TICKET-AE-CAM-PRECISION-COLLAPSE: consumer-side skip-path instrumented via CHRONON3D_PROJ_DIAG (3 sites in multi_source_node.cpp, commit pending this session)
 
 - **Phase-2 instrumentation in `src/render_graph/nodes/multi_source_node.cpp`** (~70 LOC diff) — per-frame `spdlog::warn` diagnostic added at the 3 `if (!proj.visible) continue;` skip-paths (mirror of the Phase-1 producer-side instrumentation in `include/chronon3d/math/camera_projection_resolver.hpp`). Each diagnostic emit is gated on env-var `CHRONON3D_PROJ_DIAG` (zero cost when unset; revertable by `unset CHRONON3D_PROJ_DIAG` — no source removal needed).
