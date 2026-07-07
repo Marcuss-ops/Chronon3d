@@ -72,6 +72,14 @@ void refresh_multi_source_node(
         .source_hash = hash_string(layer_name_str + "_multisource")
     };
 
+    // TICKET-ae-cam-hash-collision Soluzione B — fold evaluated cam into
+    // params_hash so this MultiSourceNode's framebuffer cache distinguishes
+    // zoom-animated frames (AE_CAM_02) and parent-relative Z-dolly frames
+    // (AE_CAM_04) at the cache-key level.
+    if (ctx.frame_input.has_camera_2_5d) {
+        cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
+    }
+
     node.refresh(
         layer_name_str + "_multi",
         std::move(items),

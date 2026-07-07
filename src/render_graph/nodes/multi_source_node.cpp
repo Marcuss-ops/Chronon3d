@@ -165,18 +165,14 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
 #endif
     }
 
-    // 2.5D camera transform — invalidate when the camera moves so the bg
-    // matrix inside compute_text_run_world_bbox / compute_world_bbox is
-    // up-to-date.  Mirrors SourceNode::cache_key and TextRunNode::cache_key.
-    if (m_uses_2_5d_projection && ctx.frame_input.has_camera_2_5d) {
-        const auto& cam = ctx.frame_input.camera_2_5d;
-        key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.position, sizeof(Vec3)));
-        key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.rotation, sizeof(Vec3)));
-        key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.zoom, sizeof(f32)));
-        key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.fov_deg, sizeof(f32)));
-        if (cam.point_of_interest_enabled) {
-            key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.point_of_interest, sizeof(Vec3)));
-        }
+    // 2.5D camera fingerprint (TICKET-ae-cam-hash-collision Soluzione B).
+    // Conditional on `has_camera_2_5d` (not `m_uses_2_5d_projection`) so even
+    // nodes without the 2.5D flag still differentiate per-frame when the scene
+    // carries a Camera2_5D (e.g. AE_CAM_02 zoom-only composition whose
+    // SourceNode does NOT have m_uses_2_5d_projection but IS animated by
+    // cam.zoom 500/1000/1500).
+    if (ctx.frame_input.has_camera_2_5d) {
+        cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
     }
 
     return key;
