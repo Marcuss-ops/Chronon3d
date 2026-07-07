@@ -128,7 +128,7 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
     // frame so consecutive frames with different animator states don't
     // share a stale entry.
     key.params_hash = hash_combine(key.params_hash, hash_value(static_cast<u64>(ctx.frame_input.sample_time.integral_frame())));
-    key.frame = Frame{0};
+    key.frame = ctx.frame_input.frame;
     key.params_hash = hash_combine(key.params_hash, static_cast<u64>(ctx.policy.modular_coordinates));
 
     // Hash every item's full world matrix and opacity so the cache key
