@@ -181,6 +181,43 @@ target_sources(chronon3d_text_golden_tests
         text_golden/ae_parity_killer/killer_02_expression_selector.cpp
 )
 
+# TICKET-AE-PARITY-KILLER-CHARACTER-OFFSET-VALUE-RANGE — Phase 2 Killer 3
+# pre-shaping invalidation lock for the CharacterOffset + CharacterValue +
+# CharacterRange property-stage invalidation contract per docs/tickets/
+# TICKET-AE-LIKE-TEXT-ACTION-PLAN.md Decision 2 Killer 3 + Blocco 2 of
+# docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md. CharacterOffsetProperty is
+# IMPL + PreShaping (FASE 2a, src/text/animation/text_pre_shaping.cpp:
+# `apply_character_offset_to_source()` Caesar-cipher on UTF-8 code points).
+# CharacterValue + CharacterRange are PLANNED, NOT YET IMPL (zero
+# `character_value*.cpp` / `character_range*.cpp` files in src/text/; new
+# `src/text/source/character_offset_evaluator.cpp` per the action plan).
+# This test locks the pre-shaping transformation + cache invalidation
+# substrate that the future CharacterValue/Range impl will compose on:
+#   * Cell-level (TEST_CASE 1, 3 SUBCASEs): apply_character_offset_to_source
+#     pure-function (byte-identity + boundary contracts: offset=0, +5, +1
+#     wrap, -1 reverse, 26 cycle, non-letter pass-through, empty source);
+#     evaluate_pre_shaping_source composes multiple CharacterOffset
+#     properties (total = sum of all enabled animators' offsets);
+#     has_pre_shaping_properties detection (true for any enabled pre-
+#     shaping animator, false for PostLayout-only, false for disabled).
+#   * End-to-end (TEST_CASE 2, 3 SUBCASEs): CharacterOffset +5 swaps the
+#     source text "A" -> "F" (pre-shaping transformation, NOT post-layout
+#     visual offset; combined with PositionProperty{Vec3{0,0,0}} the source
+#     still changes, proving the swap is pre-shaping); TextLayoutCacheKey
+#     digest changes when the pre-shaping source changes (proves the cache
+#     will miss on next lookup and rebuild with the new source);
+#     CharacterValue + CharacterRange FORWARD-ONLY smoke-test documenting
+#     the production contract that the future IMPL must follow.
+# When TICKET-CHARACTER-VALUE-RANGE-IMPL lands, SUBCASE 3 of TEST_CASE 2
+# is upgraded from a smoke-test placeholder to a hard CHECK on the
+# production contract (CharacterValue replaces index content +
+# CharacterRange applies override to contiguous range).
+# Cat-2 freeze-compliant (zero new public API surface; test-only includes).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/ae_parity_killer/killer_03_character_offset.cpp
+)
+
 add_test(
     NAME TextGolden
     COMMAND chronon3d_text_golden_tests
