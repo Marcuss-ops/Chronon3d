@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | DONE (2026-07-07, commit (this commit)) |
+| **Status** | DONE (2026-07-07, commit `aa260f99`) |
 | **Date** | 2026-07-07 |
 | **Deciders** | Agent 3 (AE-parity cluster) |
 | **Tags** | `tools`, `AE-parity`, `referee`, `anti-greenwashing`, `cat-5`, `feature-freeze-V0.1-revoked` |
@@ -224,7 +224,7 @@ once the baseline is stable.
 
 ---
 
-## Per-commit lock
+## Per-commit lock (closure SHA `aa260f99`)
 
 ```bash
 # Bash syntax check
@@ -294,4 +294,4 @@ tools/ae_parity_referee.sh --json                  # exit 1, JSON output
 - TICKET-AE-PARITY-KILLER-EXPRESSION-SELECTOR (sibling per-property killer)
 - TICKET-AE-PARITY-KILLER-CHARACTER-OFFSET-VALUE-RANGE (sibling per-property killer)
 - [docs/adr/ADR-014-text-golden-coverage.md](../adr/ADR-014-text-golden-coverage.md) (the AGENTS Cat-5 freeze-compliant doc-only precedent for `tools/test_golden_driver.sh` sibling)
-- `docs/FOLLOWUP_TICKETS.md` (canonical index — DONE row with `(this commit)` SHA placeholder)
+- `docs/FOLLOWUP_TICKETS.md` (canonical index — DONE row with `aa260f99` SHA)
