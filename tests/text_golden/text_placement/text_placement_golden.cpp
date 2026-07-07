@@ -94,9 +94,11 @@ GoldenTestConfig make_placement_config() {
 
 // ── verify_placement ─────────────────────────────────────────────────────
 // Render a composition at a given frame and compare against golden.
-// Some effect-heavy compositions (large glow/shadow radius) may throw
-// "Framebuffer dimensions must be positive" — this is a pre-existing
-// limitation in the effect pipeline's intermediate buffer allocation.
+// HARDENED: any render exception or null framebuffer is now a hard FAIL
+// (not a soft MESSAGE) — the suite can no longer silently regress on a
+// broken effect pipeline or a null-allocation regression.  The
+// pre-existing "effect pipeline throws on heavy glow/shadow" pipeline bug
+// MUST be fixed in the production code, not papered over in tests.
 void verify_placement(Composition& comp, Frame frame,
                        const std::string& label) {
     auto renderer = test::make_renderer();
@@ -104,15 +106,14 @@ void verify_placement(Composition& comp, Frame frame,
     try {
         fb = renderer.render(comp, frame);
     } catch (const std::exception& e) {
-        // Effect-heavy compositions (large glow/shadow radius) may hit a
-        // pre-existing limitation in the effect pipeline's intermediate
-        // buffer allocation.  Log as warning so it's visible in output.
-        MESSAGE("Render failed for ", label, ": ", e.what(), " — skipping golden check.");
-        return;
+        FAIL("Render failed for ", label, ": ", e.what(),
+             " — effect pipeline regression (was previously swallowed by MESSAGE+return).");
+        return;  // unreachable: FAIL throws out of the test case.
     }
     if (!fb) {
-        MESSAGE("Render returned null for ", label, " — skipping golden check.");
-        return;
+        FAIL("Render returned null for ", label,
+             " — framebuffer allocation regression (was previously swallowed by MESSAGE+return).");
+        return;  // unreachable.
     }
 
     auto cfg = make_placement_config();
@@ -183,6 +184,29 @@ bool alpha_touches_edge(const Framebuffer& fb, float alpha_threshold = 0.05f) {
     return false;
 }
 
+// ── Modular ON/OFF renderer factory ──────────────────────────────────────
+// Shared by G.1 (centroid parity) and G.2 (parity + edge-touch) test cases.
+// Creating a renderer with use_modular_graph toggled is non-trivial (4 calls)
+// so we extract it to a single helper to keep the two paths in lockstep.
+SoftwareRenderer make_mod_renderer_for_test(bool modular) {
+    SoftwareRenderer renderer(Config{});
+    RenderSettings settings;
+    settings.use_modular_graph = modular;
+    renderer.set_settings(settings);
+    renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
+    test::attach_software_backend(&renderer);
+    return renderer;
+}
+
+// ── AntiDouble center-check tolerance constants ──────────────────────────
+// 15% of canvas W/H — strict enough to expose the documented "(w/4, h/4)"
+// placement bug (which is ~25% from canvas center), wide enough to absorb
+// pipeline float jitter.  If you change these, also file a follow-up so the
+// "near center" claim stays calibrated.
+constexpr float kAntiDoubleCenterToleranceW = 0.15f;
+constexpr float kAntiDoubleCenterToleranceH = 0.15f;
+constexpr float kNotAtDoubleCenterToleranceW = 0.10f;  // anti-double-translation
+
 } // anonymous namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -233,12 +257,14 @@ TEST_CASE("TextPlace Portrait 1080x1920") {
 // Group B — Anti-double-translation (alpha centroid check)
 // ═══════════════════════════════════════════════════════════════════════════
 
-// B.1 — Static text: alpha centroid must be visible on canvas and NOT at
+// B.1 — Static text: alpha centroid must (a) be visible on canvas,
+// (b) sit NEAR canvas center (within 15% of W/H), AND (c) NOT be near
 // 2× canvas center (the double-translation bug).
-// NOTE: The text pipeline renders glyphs in a local coordinate space;
-// the centroid is typically at ~(width/4, height/4) rather than exact
-// canvas center.  The anti-double-translation check is the authoritative
-// regression gate.
+// HARDENED: previously the test only checked (a) on-canvas + (c) not-at-
+// double-center, which let a documented "centroid at ~(w/4, h/4)" bug
+// slip through.  Now we ALSO require (b) since the composition is named
+// `make_antidouble_static` + uses pin_to(Anchor::Center) — anything other
+// than near-canvas-center is a real placement regression.
 TEST_CASE("TextPlace AntiDouble Static — centroid at canvas center") {
     auto renderer = test::make_renderer();
     auto comp = make_antidouble_static();
@@ -252,7 +278,9 @@ TEST_CASE("TextPlace AntiDouble Static — centroid at canvas center") {
 
     const f32 cx = static_cast<f32>(fb->width())  * 0.5f;   // 960
     const f32 cy = static_cast<f32>(fb->height()) * 0.5f;   // 540
-    const f32 tolerance = static_cast<f32>(fb->width()) * 0.10f;  // 10% = 96px
+    // kNotAtDoubleCenterToleranceW = 10% of canvas width — anti-double-
+    // translation regression gate (same constant used by B.3 below).
+    const f32 tolerance = static_cast<f32>(fb->width()) * kNotAtDoubleCenterToleranceW;
 
     // The centroid must be on-canvas (not off-screen).
     INFO("Alpha centroid: (", c.x, ", ", c.y, ")");
@@ -261,10 +289,29 @@ TEST_CASE("TextPlace AntiDouble Static — centroid at canvas center") {
     CHECK(c.x < static_cast<f32>(fb->width()));
     CHECK(c.y < static_cast<f32>(fb->height()));
 
-    // CRITICAL: the centroid must NOT be near 2× canvas center (the double-translation bug).
+    // CI-NEAR-CENTER: with pin_to(Anchor::Center), the alpha-weighted
+    // centroid of visible glyph pixels must sit near canvas center
+    // (within kAntiDoubleCenterToleranceW/H of cx,cy).  Wide enough to
+    // absorb pipeline jitter, narrow enough to catch any regression that
+    // pushes the text out of the central band.
+    //
+    // RED-ON-FIRST-RUN CONTRACT: this check explicitly fails the test
+    // when the centroid is at the historically-documented ~(w/4, h/4)
+    // position (which is ~25% from canvas center — outside the 15%
+    // band).  Composition `make_antidouble_static` has author-comment
+    // "Expected: alpha centroid ≈ canvas center {960, 540}" — so this
+    // test enforces that intent and surfaces the deviation as a bug.
+    const f32 center_tol_w = static_cast<f32>(fb->width())  * kAntiDoubleCenterToleranceW;
+    const f32 center_tol_h = static_cast<f32>(fb->height()) * kAntiDoubleCenterToleranceH;
+    INFO("Expected near canvas center: (", cx, ", ", cy,
+         ")  tolerance ±(", center_tol_w, ", ", center_tol_h, ") px");
+    CHECK(std::abs(c.x - cx) < center_tol_w);
+    CHECK(std::abs(c.y - cy) < center_tol_h);
+
+    // CRITICAL: the centroid must NOT be near 2× canvas center
+    // (the double-translation bug).
     const f32 dx2 = std::abs(c.x - cx * 2.0f);
     const f32 dy2 = std::abs(c.y - cy * 2.0f);
-    // NOT at {1920, 1080}
     bool near_double_center = (dx2 < tolerance) && (dy2 < tolerance);
     CHECK_FALSE(near_double_center);
 }
@@ -299,7 +346,10 @@ TEST_CASE("TextPlace AntiDouble Animated — centroid offset at f0") {
     if (!result.golden_missing) CHECK(result.passed);
 }
 
-// B.3 — Animated text at frame 30 (settled): centroid on-canvas, not double-translated.
+// B.3 — Animated text at frame 30 (settled): centroid on-canvas, near
+// canvas center (composition is pin_to(Center) + position_anim settling
+// to origin), and not double-translated.  HARDENED same as B.1: now
+// checks near-canvas-center in addition to on-canvas + not-at-2x.
 TEST_CASE("TextPlace AntiDouble Animated — centroid settled at f30") {
     auto renderer = test::make_renderer();
     auto comp = make_antidouble_animated();
@@ -311,14 +361,33 @@ TEST_CASE("TextPlace AntiDouble Animated — centroid settled at f30") {
 
     const f32 cx = static_cast<f32>(fb->width())  * 0.5f;
     const f32 cy = static_cast<f32>(fb->height()) * 0.5f;
-    const f32 tolerance = static_cast<f32>(fb->width()) * 0.10f;
+    // kNotAtDoubleCenterToleranceW = 10% of canvas width — anti-double-
+    // translation regression gate (same constant used by B.1 above).
+    const f32 tolerance = static_cast<f32>(fb->width()) * kNotAtDoubleCenterToleranceW;
 
     // Centroid must be on-canvas.
-    INFO("Alpha centroid: (", c.x, ", ", c.y, ")");
+    INFO("Alpha centroid (f30): (", c.x, ", ", c.y, ")");
     CHECK(c.x > 0.0f);
     CHECK(c.y > 0.0f);
     CHECK(c.x < static_cast<f32>(fb->width()));
     CHECK(c.y < static_cast<f32>(fb->height()));
+
+    // CI-NEAR-CENTER-F30: at f30 the position_anim has settled to
+    // (0,0,0), so the centroid must land near canvas center
+    // (kAntiDoubleCenterTolerance* band — same RED-ON-FIRST-RUN
+    // contract as B.1 above; pinned to file-static const).
+    const f32 center_tol_w = static_cast<f32>(fb->width())  * kAntiDoubleCenterToleranceW;
+    const f32 center_tol_h = static_cast<f32>(fb->height()) * kAntiDoubleCenterToleranceH;
+    INFO("Expected near canvas center: (", cx, ", ", cy,
+         ")  tolerance ±(", center_tol_w, ", ", center_tol_h, ") px");
+    CHECK(std::abs(c.x - cx) < center_tol_w);
+    CHECK(std::abs(c.y - cy) < center_tol_h);
+
+    // NOT at 2× canvas center — anti-double-translation regression gate.
+    const f32 dx2 = std::abs(c.x - cx * 2.0f);
+    const f32 dy2 = std::abs(c.y - cy * 2.0f);
+    bool near_double_center = (dx2 < tolerance) && (dy2 < tolerance);
+    CHECK_FALSE(near_double_center);
 
     // Centroid at f30 should be similar to f0 (animation settled).
     auto comp_f0 = make_antidouble_animated();
@@ -377,17 +446,22 @@ TEST_CASE("TextPlace Clip Scale 2.00") {
     verify_placement(comp, Frame{0}, "text_placement_clip_scale200");
 }
 
-// Edge-touch check: verify that clipped text doesn't touch framebuffer edges.
-// Grouped into a single test case for efficiency.
-TEST_CASE("TextPlace Clipping — no edge touch") {
-    // Only check the compositions where clipping is plausible:
-    // Blur 20 (large blur), Glow 40 (large glow), Shadow 80 (large offset), Scale 2.00
+// Edge-touch split into TWO test cases (HARDENED):
+//
+//   1. "blur core no edge touch" — blur 0 and blur 7 have no halo and no
+//      large blur radius, so touching a framebuffer edge means the
+//      raster surface is too small or the layer bbox is wrong.
+//      CHECK_FALSE(alpha_touches_edge) — HARD regression gate.
+//
+//   2. "effect halo diagnostic" — blur 20, glow 40, shadow 80, scale
+//      1.30 + 2.00 may LEGITIMATELY have their effect halo reach the
+//      canvas edge.  We log but don't hard-fail (informational only).
+
+TEST_CASE("TextPlace Clipping — blur core no edge touch") {
     struct ClipCheck { std::string label; Composition comp; };
     std::vector<ClipCheck> checks;
-    checks.push_back({"blur20",  make_clip_blur_20()});
-    checks.push_back({"glow40",  make_clip_glow_40()});
-    checks.push_back({"shadow80", make_clip_shadow_80()});
-    checks.push_back({"scale200", make_clip_scale_200()});
+    checks.push_back({"blur0", make_clip_blur_0()});
+    checks.push_back({"blur7", make_clip_blur_7()});
 
     auto renderer = test::make_renderer();
     for (auto& ch : checks) {
@@ -395,20 +469,56 @@ TEST_CASE("TextPlace Clipping — no edge touch") {
         try {
             fb = renderer.render(ch.comp, Frame{0});
         } catch (const std::exception& e) {
-            MESSAGE("Render failed for ", ch.label, ": ", e.what());
-            continue;
+            FAIL("Render failed for ", ch.label, ": ", e.what(),
+                 " — blur0/7 must always render (no heavy halo to throw).");
         }
-        if (!fb) continue;
+        REQUIRE(fb != nullptr);
         bool touches = alpha_touches_edge(*fb);
-        INFO("Clip check [", ch.label, "] alpha_touches_edge = ", touches);
-        // NOTE: edge-touch means the content reaches the framebuffer edge.
-        // For glow/shadow/scale, this may be EXPECTED if the effect extends
-        // to the canvas edge.  We log it but don't hard-fail — the golden
-        // comparison is the authoritative check.
+        INFO("Clip-core check [", ch.label, "] alpha_touches_edge = ", touches);
+        // HARD: blur 0/7 has no halo — touching the canvas edge means
+        // the raster surface is too small or the layer bbox is wrong.
+        // This is the spatial gate for clipping regressions.
+        CHECK_FALSE(touches);
+    }
+}
+
+TEST_CASE("TextPlace Clipping — effect halo diagnostic") {
+    struct ClipCheck { std::string label; Composition comp; };
+    std::vector<ClipCheck> checks;
+    checks.push_back({"blur20",   make_clip_blur_20()});
+    checks.push_back({"glow40",   make_clip_glow_40()});
+    checks.push_back({"shadow80", make_clip_shadow_80()});
+    checks.push_back({"scale130", make_clip_scale_130()});
+    checks.push_back({"scale200", make_clip_scale_200()});
+
+    auto renderer = test::make_renderer();
+    int rendered = 0;
+    int touches_count = 0;
+    for (auto& ch : checks) {
+        // HARD FAIL on render exception / null fb — same gate as
+        // verify_placement().  Edge-touch is informational only, but
+        // null output is a regression regardless of effect presence.
+        std::shared_ptr<Framebuffer> fb;
+        try {
+            fb = renderer.render(ch.comp, Frame{0});
+        } catch (const std::exception& e) {
+            FAIL("Render failed for ", ch.label, ": ", e.what(),
+                 " — effect pipeline regression (halo diagnostic is also a regression gate).");
+        }
+        REQUIRE(fb != nullptr);
+        ++rendered;
+        bool touches = alpha_touches_edge(*fb);
+        INFO("Halo diagnostic [", ch.label, "] alpha_touches_edge = ", touches);
         if (touches) {
-            MESSAGE("Edge touch detected for ", ch.label, " — check golden for clipping");
+            ++touches_count;
+            MESSAGE("Halo reaches framebuffer edge for ", ch.label,
+                    " — confirm via golden comparison (informational).");
         }
     }
+    CHECK(rendered > 0);
+    CHECK(static_cast<size_t>(rendered) == checks.size());
+    INFO("Effect-halo compositions touching framebuffer edge: ", touches_count,
+         "/", checks.size(), " (informational; golden is the visual gate).");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -538,24 +648,21 @@ TEST_CASE("TextPlace Cache Invalidation — content changes") {
 
     INFO("MAE f0->f31: ", err_01, "  f31->f61: ", err_12, "  f0->f61: ", err_02);
 
-    // "HELLO" -> "WORLD" -> "CENTER" -- each transition should produce
-    // a visible pixel difference (MAE > small threshold).
-    // TODO: The scene fingerprint / node cache pipeline may not propagate
-    // frame-dependent text content changes, causing MAE=0 even with fresh
-    // compositions.  Track as follow-up; the individual golden tests above
-    // (HELLO at f0, WORLD at f31, CENTER at f61) validate rendering.
+    // CACHE-INV-1: each HELLO→WORLD→CENTER transition must produce a
+    // visible pixel difference (MAE > 1/255).  HARDENED: removed the
+    // soft early-return path — if any pair produces MAE=0 the test now
+    // FAILS.  The frame-dependent content MUST be propagated by the
+    // scene-fingerprint / node-cache pipeline; suppressing this check
+    // would let the cache-skip regression of frame-dependent text ship
+    // silently to production.
+    // TODO: track follow-up on production cache key to include text
+    // content (this test is the regression gate, not the workaround).
     const double min_diff = 1.0 / 255.0;
-    if (err_01 < min_diff && err_12 < min_diff && err_02 < min_diff) {
-        MESSAGE("MAE=0 for all frame pairs — frame-dependent content changes "
-                "may not propagate through the rendering pipeline. "
-                "Individual frame golden tests validate rendering correctness.");
-        return;
-    }
     CHECK(err_01 > min_diff);
     CHECK(err_12 > min_diff);
     CHECK(err_02 > min_diff);
 
-    // Ensure "HELLO" != "CENTER" (start != end) -- should be the largest diff.
+    // Ensure "HELLO" != "CENTER" (start != end) — should be the largest diff.
     CHECK(err_02 > err_01 * 0.5);
 }
 
@@ -664,27 +771,19 @@ TEST_CASE("TextPlace modular_coordinates ON/OFF — centroid parity") {
         {"Multisource",   make_multisource_text_plus_shape, Frame{0}},
     };
 
-    // Helper: create a renderer with explicit modular_coordinates setting.
-    // Mirrors test::make_renderer() but with configurable use_modular_graph.
-    auto make_mod_renderer = [](bool modular) {
-        SoftwareRenderer renderer(Config{});
-        RenderSettings settings;
-        settings.use_modular_graph = modular;
-        renderer.set_settings(settings);
-        renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-        test::attach_software_backend(&renderer);
-        return renderer;
-    };
+    // Helper: use the file-static make_mod_renderer_for_test(...).
+    // No local lambda — keeps G.1 and G.2 in lockstep with one
+    // canonical renderer-init pattern.
 
     for (auto& tc : cases) {
         INFO("Case: ", tc.label);
 
-        auto renderer_on = make_mod_renderer(true);
+        auto renderer_on = make_mod_renderer_for_test(true);
         auto comp_on = tc.factory();
         auto fb_on = renderer_on.render(comp_on, tc.frame);
         REQUIRE(fb_on != nullptr);
 
-        auto renderer_off = make_mod_renderer(false);
+        auto renderer_off = make_mod_renderer_for_test(false);
         auto comp_off = tc.factory();
         auto fb_off = renderer_off.render(comp_off, tc.frame);
         REQUIRE(fb_off != nullptr);
@@ -708,43 +807,65 @@ TEST_CASE("TextPlace modular_coordinates ON/OFF — centroid parity") {
 }
 
 // G.2 — Edge-touch parity: if ON doesn't clip, OFF shouldn't either.
-// G.2 — Edge-touch parity: if modular ON doesn't clip, the rendering is
-// consistent.  The OFF path (use_modular_graph=false) may hit pre-existing
-// issues with the non-modular graph pipeline; we test ON only and verify
-// no edge-touch occurs for effect-heavy compositions.
-TEST_CASE("TextPlace modular_coordinates ON — no clipping regression") {
+// G.2 — ON/OFF parity: render with use_modular_graph=true AND=false
+// for each composition.  HARDENED: previously the OFF path was skipped
+// (commented as "may hit pre-existing issues") — now BOTH paths are
+// exercised as a real regression gate.  Each path must:
+//   - render successfully (no exception / null framebuffer)
+//   - have visible alpha (max_alpha > 0.3)
+//   - not touch the framebuffer edge (CHECK_FALSE on alpha_touches_edge)
+// ON vs OFF parity also requires centroid drift < 5% canvas width
+// (the same 5% tolerance as G.1) to prove the two paths converge.
+TEST_CASE("TextPlace modular_coordinates ON/OFF — parity check") {
     std::vector<ModCoordParityCase> cases{
         {"GlowShadow", make_glow_shadow_center_no_pos, Frame{0}},
         {"Scale130",   make_scale_130_center_no_pos,   Frame{0}},
         {"Blur20",     make_clip_blur_20,              Frame{0}},
     };
 
-    auto renderer = test::make_renderer();
-    CHECK(!cases.empty());  // at least one case under test
-    int rendered = 0;
+    // Helper: file-static make_mod_renderer_for_test(bool) — see anon namespace.
+    int rendered_on = 0;
+    int rendered_off = 0;
     for (auto& tc : cases) {
         INFO("Case: ", tc.label);
 
-        auto comp = tc.factory();
-        std::shared_ptr<Framebuffer> fb;
+        // ON path — hard-fail on render exception / null fb.
+        std::shared_ptr<Framebuffer> fb_on;
         try {
-            fb = renderer.render(comp, tc.frame);
+            fb_on = make_mod_renderer_for_test(true).render(tc.factory(), tc.frame);
         } catch (const std::exception& e) {
-            MESSAGE("Render failed for ", tc.label, ": ", e.what());
-            continue;
+            FAIL("ON render failed for ", tc.label, ": ", e.what());
         }
-        if (!fb) continue;
-        ++rendered;
+        REQUIRE(fb_on != nullptr);
+        ++rendered_on;
+        auto c_on = compute_alpha_centroid(*fb_on);
+        CHECK(c_on.max_alpha > 0.3f);
+        // No edge touch on ON path — modular graph must not clip.
+        CHECK_FALSE(alpha_touches_edge(*fb_on));
 
-        bool touches = alpha_touches_edge(*fb);
-        INFO("clipped=", touches);
-
-        // Edge-touch is logged but not a hard failure — golden comparison
-        // is the authoritative check.  Glow/shadow/scale may legitimately
-        // touch edges if the effect extends to the canvas boundary.
-        if (touches) {
-            MESSAGE("Edge touch detected for ", tc.label);
+        // OFF path (formerly skipped — now exercised).
+        std::shared_ptr<Framebuffer> fb_off;
+        try {
+            fb_off = make_mod_renderer_for_test(false).render(tc.factory(), tc.frame);
+        } catch (const std::exception& e) {
+            FAIL("OFF render failed for ", tc.label, ": ", e.what(),
+                 " — non-modular graph path must also produce a framebuffer.");
         }
+        REQUIRE(fb_off != nullptr);
+        ++rendered_off;
+        auto c_off = compute_alpha_centroid(*fb_off);
+        CHECK(c_off.max_alpha > 0.3f);
+        // No edge touch on OFF path either — parity with ON.
+        CHECK_FALSE(alpha_touches_edge(*fb_off));
+
+        // ON/OFF centroid parity (5% canvas width, same as G.1).
+        const f32 tolerance = static_cast<f32>(fb_on->width()) * 0.05f;
+        INFO("ON  centroid: (", c_on.x, ", ", c_on.y,
+             ")  OFF centroid: (", c_off.x, ", ", c_off.y,
+             ")  tolerance ", tolerance, "px");
+        CHECK(std::abs(c_on.x - c_off.x) < tolerance);
+        CHECK(std::abs(c_on.y - c_off.y) < tolerance);
     }
-    CHECK(rendered > 0);  // at least one composition rendered successfully
+    CHECK(static_cast<size_t>(rendered_on)  == cases.size());
+    CHECK(static_cast<size_t>(rendered_off) == cases.size());
 }
