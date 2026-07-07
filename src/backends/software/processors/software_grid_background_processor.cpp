@@ -18,9 +18,22 @@ public:
         (void)width;
         (void)height;
 
-        const auto& g = node.shape.grid_background();
+        auto g = node.shape.grid_background();
         if (g.size.x <= 0.0f || g.size.y <= 0.0f) {
             return;
+        }
+
+        // TICKET-122 FASE 6: apply projected matrix scale to grid geometry
+        // so the grid scales with zoom.  The matrix includes canvas_center +
+        // ssaa + 2.5D projection; we extract just the net scale factor.
+        // Only apply when a 2.5D camera is active (state.projection.ready).
+        if (state.projection.ready) {
+            const f32 sx = state.matrix[0][0];
+            if (sx > 0.0f) {
+                g.spacing          *= sx;
+                g.minor_thickness  *= sx;
+                g.major_thickness  *= sx;
+            }
         }
 
         // Always render full viewport — the clip_rect from the render system may
