@@ -2,11 +2,15 @@
 
 ## Stato
 
-PARTIAL — fix superficiale (`proj.transform.to_mat4()`) già applicata in tutti e 3 i branch di `multi_source_node.cpp`. La collisione hash residua è tracciata in [`TICKET-ae-cam-hash-collision`](./TICKET-ae-cam-hash-collision.md) (cache render-graph).
+**CLOSED** (2026-07-07) — L'infrastruttura di proiezione 2.5D è completamente esonerata dopo 5 fasi di diagnostica (10+ commit su main). Il root cause delle 2 collisioni hash residue (CAM_02, CAM_04) è:
+1. **Render-order bug**: il `grid_background` full-canvas viene disegnato DOPO le card e le copre
+2. **Geometria scena**: shape full-canvas + colori uniformi che producono lo stesso output a tutti gli zoom
+
+Il percorso `CameraProjectionResolver → proj.transform → state.matrix → processor.draw() → raster` è integralmente verificato e corretto. Vedi [`TICKET-ae-cam-hash-collision`](./TICKET-ae-cam-hash-collision.md) per il fix del render-order.
 
 ## Priorità
 
-P1 (declassata da P0 — la fix di surface è done; il root cause è nel cache layer, non nella projection)
+P1 → **CHIUSO** (root cause identificato: scene geometry + render-order, non proiezione)
 
 ## Problema
 
