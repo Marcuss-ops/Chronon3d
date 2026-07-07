@@ -29,6 +29,8 @@ Commands:
   scene-test [pat]    Build + run scene tests matching pattern
   cli-test [pat]      Build + run CLI tests matching pattern
   ctest [filter]      Run ctest with filter (default: core|scene|cli)
+  content             Build with linux-content-dev (CLI + content ON, no telemetry)
+  dashboard           Build with linux-dashboard-dev (CLI + content + telemetry + diagnostics)
   turbo               Ultra-fast Debug build (CLI only, no tests/content)
   turbo-inc <group>   Incremental rebuild of CLI group + relink
     Groups: dev | render | video | telemetry | bench | core
@@ -193,6 +195,40 @@ case "${TARGET}" in
         echo "║  Running tests: $filter"
         echo "╚══════════════════════════════════════════╝"
         ctest --test-dir "$BUILD_DIR" --output-on-failure -R "$filter"
+        ;;
+    content)
+        # ./build-fast.sh content —  engine + content ON (no telemetry)
+        CONTENT_BUILD_DIR="${BUILD_DIR_OVERRIDE:-/tmp/chronon-builds/linux-content-dev}"
+        CONTENT_PRESET="linux-content-dev"
+        content_symlink="$ROOT_DIR/build/chronon/linux-content-dev"
+        mkdir -p "$CONTENT_BUILD_DIR"
+        mkdir -p "$(dirname "$content_symlink")"
+        ln -sfnT "$CONTENT_BUILD_DIR" "$content_symlink"
+        if [[ ! -f "$CONTENT_BUILD_DIR/build.ninja" ]]; then
+            cmake --preset "$CONTENT_PRESET" -B "$CONTENT_BUILD_DIR"
+        fi
+        echo "╔══════════════════════════════════════════╗"
+        echo "║  📦 CONTENT build: CLI + content ON      ║"
+        echo "╚══════════════════════════════════════════╝"
+        cmake --build "$CONTENT_BUILD_DIR" --target chronon3d_dev_fast -j "$JOBS"
+        echo "✅ Content build done."
+        ;;
+    dashboard)
+        # ./build-fast.sh dashboard —  engine + content + telemetry + diagnostics
+        DASH_BUILD_DIR="${BUILD_DIR_OVERRIDE:-/tmp/chronon-builds/linux-dashboard-dev}"
+        DASH_PRESET="linux-dashboard-dev"
+        dash_symlink="$ROOT_DIR/build/chronon/linux-dashboard-dev"
+        mkdir -p "$DASH_BUILD_DIR"
+        mkdir -p "$(dirname "$dash_symlink")"
+        ln -sfnT "$DASH_BUILD_DIR" "$dash_symlink"
+        if [[ ! -f "$DASH_BUILD_DIR/build.ninja" ]]; then
+            cmake --preset "$DASH_PRESET" -B "$DASH_BUILD_DIR"
+        fi
+        echo "╔══════════════════════════════════════════╗"
+        echo "║  📊 DASHBOARD build: content + telemetry ║"
+        echo "╚══════════════════════════════════════════╝"
+        cmake --build "$DASH_BUILD_DIR" --target chronon3d_dev_fast -j "$JOBS"
+        echo "✅ Dashboard build done."
         ;;
     turbo)
         # ./build-fast.sh turbo  —  absolute fastest build (Debug, no tests, no content, unity batch 32)
