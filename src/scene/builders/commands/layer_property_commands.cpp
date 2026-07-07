@@ -79,6 +79,10 @@ LayerBuilder& LayerBuilder::transition_out(LayerTransitionSpec spec) {
 // ── Video / Precomp ───────────────────────────────────────────────────
 
 LayerBuilder& LayerBuilder::video(video::VideoSource source) {
+    // Sequence V2: collect video asset reference
+    if (!source.path.empty()) {
+        m_layer.asset_manifest.add_video(source.path, std::string(m_layer.name) + "/video");
+    }
     m_layer.kind = LayerKind::Video;
     m_layer.video_source = std::make_unique<video::VideoSource>(std::move(source));
     return *this;

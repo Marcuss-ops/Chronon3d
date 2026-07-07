@@ -12,6 +12,7 @@
 #include <chronon3d/scene/model/core/depth_role.hpp>
 #include <chronon3d/scene/model/layer/track_matte.hpp>
 #include <chronon3d/scene/model/core/transition.hpp>
+#include <chronon3d/assets/asset_manifest.hpp>
 // material_2_5d.hpp  — forward-declared
 // card3d_material.hpp — forward-declared
 #include <chronon3d/layout/layout_rules.hpp>
@@ -102,6 +103,9 @@ struct Layer {
     // FontEngine pointer for precise text shaping / glyph metrics.
     // Inherited from LayerBuilder when the layer is built.
     FontEngine* font_engine{nullptr};
+
+    // Asset manifest: collected during build, consumed by preflight.
+    AssetManifest asset_manifest;
 
     // Cache for incremental scene fingerprinting
     mutable uint64_t m_static_hash{0};
