@@ -5,6 +5,19 @@
 
 ---
 
+## Luglio 2026 — TICKET-122 FASE 6: grid_background backend fix
+
+### fix(backend) — TICKET-122 FASE 6: scale grid_background spacing/thickness by projected matrix (commit `0c897faf`, 2026-07-07)
+
+- **Root cause**: `SoftwareGridBackgroundProcessor::draw()` in `src/backends/software/processors/software_grid_background_processor.cpp` ignored `state.matrix` entirely, always rendering full-viewport procedural grid at native size regardless of zoom. Combined with the FASE 3 render-graph fix (GridBackground now routes through `project_to_camera_space` → gets 2.5D-projected matrices with scale 0.5/1.0/1.5), the grid was receiving correct per-frame matrices but the backend processor was discarding them — causing AE_CAM_02 frame0 and frame60 to produce byte-identical golden PNGs even after the graph-level fix.
+- **Fix**: when `state.projection.ready` (2.5D camera active), extract scale factor from `state.matrix[0][0]` and apply to `g.spacing`, `g.minor_thickness`, and `g.major_thickness`. At zoom 500 (scale 0.5) grid lines are closer together; at zoom 1500 (scale 1.5) lines are further apart. The matrix scale factor uses `mtx[0][0]` (uniform scale in zoom-only scenes).
+- **Build fix (companion)**: `src/render_graph/nodes/multi_source_node.cpp` line 4 include changed from relative `"detail/projection_helpers.hpp"` to `<chronon3d/render_graph/nodes/detail/projection_helpers.hpp>` (same pattern as `source_node.cpp` fix in FASE 4).
+- **Golden re-bake**: 12 PNGs changed across AE_CAM tests (AE_CAM_02 2 PNG + AE_CAM_04 2 PNG + others affected by grid rendering). SHA256 verified: `ae_cam_02_zoom_fov_frame000.png` ≠ `ae_cam_02_zoom_fov_frame060.png` (different file sizes: 22856 vs 21596 bytes).
+- **Verification**: build PASS, 34/35 AE_CAM tests PASS (1 pre-existing `framebuffer_hash` assertion still failing, expected — separate root cause). Gate checks 3/3 PASS (main_clean, architecture_boundaries, doc_sync).
+- **Cross-references**: [`docs/tickets/TICKET-122.md`](docs/tickets/TICKET-122.md); commits `feccefe6` (FASE 3 render-graph fix) + `e97f31d6` (FASE 4 build fix); [`src/backends/software/processors/software_grid_background_processor.cpp`](src/backends/software/processors/software_grid_background_processor.cpp) (the fixed processor); [`src/render_graph/nodes/source_node.cpp`](src/render_graph/nodes/source_node.cpp) (graph-level projection fix, FASE 3).
+
+---
+
 ## Luglio 2026 — Floor Dashboard atomic landing (5 scene companion)
 
 ### feat(cli,ae-parity) — TICKET-AE-PARITY-FLOOR-DASHBOARD: build rot fix + 5 new cinematic compositions registered + 5 dashboard rows (commit `pending this session`)
