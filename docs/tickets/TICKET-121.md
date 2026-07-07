@@ -590,6 +590,74 @@ davvero identici o se il problema è nell'hash comparison.
 
 Il log `spdlog::warn` è stato rimosso da `camera_2_5d_projection.hpp` prima del commit.
 
+## FASE 7 — Rigenerazione golden PNGs (2026-07-07)
+
+### Procedura
+
+```bash
+cmake --build /tmp/chronon-builds/linux-fast-dev --target chronon3d_ae_parity_tests -j $(nproc)
+CHRONON3D_UPDATE_GOLDENS=1 /tmp/chronon-builds/linux-fast-dev/tests/chronon3d_ae_parity_tests -tc='AE_CAM*'
+```
+
+### Risultati
+
+| Metrica | Valore |
+|---|---|
+| Golden regeneration | 35/35 PASS, 24 PNGs scritti |
+| Verifica senza UPDATE_GOLDENS | 35/35 PASS, 140/140 assertions |
+| `git diff --stat tests/golden/ae_parity/` | **Nessuna modifica** — i golden rigenerati sono pixel-identici agli esistenti |
+
+### Hash comparison (post-rigenerazione)
+
+| Test | frame0 hash | frame60 hash | Diversi? | Workaround |
+|---|---|---|---|---|
+| AE_CAM_02 (zoom) | `cc86d2b5` | `cc86d2b5` | ❌ COLLISION | MESSAGE L194 |
+| AE_CAM_03 (POI) | `45c78856` | `cc86d2b5` | ✅ DIVERSI | nessuno |
+| AE_CAM_04 (parent null) | `cc86d2b5` | `cc86d2b5` | ❌ COLLISION | MESSAGE L267 |
+| AE_CAM_05 (orbit) | `8c040e3e` | `cc86d2b5` | ✅ DIVERSI | nessuno |
+| AE_CAM_06 (dolly) | `41ce83c4` | `387f80e7` | ✅ DIVERSI | nessuno |
+| AE_CAM_09 (motion blur) | `cc86d2b5` | `cc86d2b5` (f030) | ❌ COLLISION | MESSAGE L392 |
+
+### Analisi
+
+1. **Golden PNG rigenerati = esistenti**: nessun rendering code è stato modificato in questo branch,
+   quindi la rigenerazione produce file identici. Questo conferma che le diagnostiche FASE 1-6
+   non hanno alterato l'output render.
+
+2. **Collisioni rimanenti**: CAM_02, CAM_04, CAM_09 condividono l'hash `cc86d2b5...`
+   ("background universale"). Tutti e 3 sono coperti da `MESSAGE` workaround nel file di test
+   (`ae_parity_tests.cpp:194, 267, 392, 441`) che forward-pointano a
+   `TICKET-ae-cam-hash-collision`.
+
+3. **4/6 collisioni originali risolte**: CAM_03/05/06/08 hanno frame0 != frame60 —
+   la camera animata produce output visivamente diversi per questi test.
+
+### Conclusione FASE 7
+
+La rigenerazione golden è un no-op: nessun file modificato, nessun commit necessario per i
+PNGs. Il ticket TICKET-121 rimane PARTIAL in attesa della risoluzione di
+`TICKET-ae-cam-hash-collision` per le 2 collisioni hash residue.
+
+### Riepilogo FASI 1-7
+
+| Fase | Commit | Scoperta |
+|---|---|---|
+| FASE 1 | `ca13ab09` | Fix `proj.transform.to_mat4()` già applicata |
+| FASE 2 | `7a6fd2ba` | Percorso `state.matrix`→raster: tutto corretto |
+| FASE 3 | `97d4bdec` | Cache layer (node + graph): corretto |
+| FASE 4 | `4694eda0` | Regression test: 35/35 PASS, 4/6 collisioni risolte |
+| FASE 5 | `50c9a4a3` | Gate check 3/3 PASS + doc sync |
+| FASE 6 | `e8fee983` | `proj.transform` diverso tra frame — projection math OK |
+| FASE 7 | (questo commit) | Golden rigenerazione no-op, 24/24 PNGs invariati |
+
+### Next step
+
+Il root cause delle 2 collisioni residue è fuori scope per TICKET-121:
+- La scena produce pixel identici nonostante transform diversi (es. background full-canvas)
+  → investigare le scene `ae_parity_scenes.cpp` per CAM_02 e CAM_04
+- Oppure il framebuffer viene effettivamente cachato da un layer che non abbiamo identificato
+  → pixel-level dump in `TICKET-ae-cam-hash-collision`
+
 ## Collegamenti
 
 - Area: Camera Production V1
@@ -599,4 +667,4 @@ Il log `spdlog::warn` è stato rimosso da `camera_2_5d_projection.hpp` prima del
 - Test attesi: `tests/visual/ae_parity/ae_parity_tests.cpp`
 - Scene attese: `tests/visual/ae_parity/ae_parity_scenes.cpp`
 - Ticket correlati: TICKET-036, TICKET-120, [`TICKET-ae-cam-hash-collision`](./TICKET-ae-cam-hash-collision.md)
-- Commit diagnostica: `fc9177a4` (creazione ticket), questa modifica (FASE 1 evidence)
+- Commit diagnostica: `fc9177a4` (creazione ticket), `e8fee983` (FASE 6), questo commit (FASE 7)
