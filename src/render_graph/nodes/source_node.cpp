@@ -2,6 +2,7 @@
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -92,11 +93,45 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     std::span<const std::optional<raster::BBox>>
 ) const {
     const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
-    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));    Mat4 matrix;
-    if (m_uses_2_5d_projection || m_centered) {
-        matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
+    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
+    const Mat4 base_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
+    Mat4 matrix;
+    // TICKET-ae-cam-hash-collision Soluzione B (rendering-side) — mirror
+    // the cache-key pattern: condition the 2.5D projection on the
+    // *global* `has_camera_2_5d` trigger, NOT on the per-node
+    // `m_uses_2_5d_projection` flag.  The per-node flag is `false` on
+    // the SourceNode used by AE_CAM_02/04/07/09 (confirmed by the
+    // existing inline comment in `cache_key()` below) so conditioning
+    // on it would make the projection branch unreachable for the very
+    // scenes the cache key fix was designed to differentiate.  Native
+    // 3D shapes (FakeBox3D, GridPlane) are EXCLUDED because they
+    // route through `detail::projected_native_3d_bbox` further down
+    // and expect an unprojected world matrix there.
+    const ShapeType shape_type = m_node.shape.type();
+    const bool apply_2_5d_projection =
+        ctx.frame_input.has_camera_2_5d &&
+        shape_type != ShapeType::FakeBox3D &&
+        shape_type != ShapeType::GridPlane;
+    if (apply_2_5d_projection) {
+        chronon3d::Transform tr;
+        auto proj = chronon3d::project_layer_2_5d(
+            tr, base_matrix,
+            ctx.frame_input.camera_2_5d,
+            static_cast<f32>(ctx.frame_input.width),
+            static_cast<f32>(ctx.frame_input.height),
+            false);
+        if (!proj.visible) {
+            // Behind camera / off frustum: return no bbox so the graph
+            // aggressively culls the node (saves context acquisition
+            // overhead).  Native 3D shapes are excluded above so this
+            // path is only hit for 2.5D-projected 2D layers.
+            return std::nullopt;
+        }
+        matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
+    } else if (m_uses_2_5d_projection || m_centered) {
+        matrix = canvas_center * ssaa_scale * base_matrix;
     } else {
-        matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
+        matrix = ssaa_scale * base_matrix;
     }
 
     // TICKET-104 DIAGNOSTIC — one-shot runtime log of SourceNode's
@@ -165,15 +200,15 @@ cache::NodeCacheKey SourceNode::cache_key(const RenderGraphContext& ctx) const {
     if (m_opacity_override) {
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&(*m_opacity_override), sizeof(f32)));
     }
-    if (m_uses_2_5d_projection && ctx.frame_input.has_camera_2_5d) {
-        const auto& cam = ctx.frame_input.camera_2_5d;
-        key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.position, sizeof(Vec3)));
-        key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.rotation, sizeof(Vec3)));
-        key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.zoom, sizeof(f32)));
-        key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.fov_deg, sizeof(f32)));
-        if (cam.point_of_interest_enabled) {
-            key.params_hash = hash_combine(key.params_hash, hash_bytes(&cam.point_of_interest, sizeof(Vec3)));
-        }
+    // 2.5D camera fingerprint (TICKET-ae-cam-hash-collision Soluzione B).
+    // Conditional on `has_camera_2_5d` (NOT on `m_uses_2_5d_projection`) —
+    // the bug in tickets `TICKET-AE-CAM-PRECISION-COLLAPSE` and
+    // TICKET-ae-cam-hash-collision was precisely that the prior gate made
+    // fingerprinting conditional on the per-node flag, so AE_CAM_02 frame
+    // 0 / 30 / 60 (`m_uses_2_5d_projection == false` on the
+    // SourceNode used by `ae_cam_02_zoom_fov`) collided on the cache key.
+    if (ctx.frame_input.has_camera_2_5d) {
+        cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
     }
     return key;
 }
@@ -204,17 +239,56 @@ NodeExecResult SourceNode::execute(
         }
     }
 
-    auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, !skip_clear);        if (ctx.services.backend) {
+    auto fb = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, !skip_clear);
+    const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
+    const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
+    const Mat4 base_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
+
+    if (ctx.services.backend) {
         RenderState state;
         state.frame_number = static_cast<int>(ctx.frame_input.frame);
         state.ssaa_factor = ctx.policy.ssaa_factor;
-        const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
-        const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
 
-        if (m_uses_2_5d_projection || m_centered) {
-            state.matrix = canvas_center * ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
+        // TICKET-ae-cam-hash-collision Soluzione B (rendering-side) —
+        // mirror the cache-key pattern: condition the 2.5D projection
+        // on the *global* `has_camera_2_5d` trigger, NOT on the
+        // per-node `m_uses_2_5d_projection` flag.  See the matching
+        // comment in `predicted_bbox` above for the rationale.  Native
+        // 3D shapes (FakeBox3D, GridPlane) are EXCLUDED because they
+        // expect unprojected world matrices in the backend's native
+        // 3D pipeline.
+        const ShapeType exec_shape_type = m_node.shape.type();
+        const bool exec_apply_2_5d_projection =
+            ctx.frame_input.has_camera_2_5d &&
+            exec_shape_type != ShapeType::FakeBox3D &&
+            exec_shape_type != ShapeType::GridPlane;
+        if (exec_apply_2_5d_projection) {
+            chronon3d::Transform tr;
+            auto proj = chronon3d::project_layer_2_5d(
+                tr, base_matrix,
+                ctx.frame_input.camera_2_5d,
+                static_cast<f32>(ctx.frame_input.width),
+                static_cast<f32>(ctx.frame_input.height),
+                false);
+            if (!proj.visible) {
+                // Layer is behind camera plane / off frustum: skip the
+                // draw call and return the empty (cleared) fb so the
+                // graph continues.  Matches MultiSourceNode skip-path
+                // semantics (execute continue;).
+                if (ctx.policy.diagnostics_enabled) {
+                    spdlog::info(
+                        "[source-skip] node='{}' proj.visible=false frame={} — returning empty fb",
+                        m_name,
+                        ctx.frame_input.sample_time.integral_frame());
+                }
+                fb->set_opaque(false);  // empty fb is not opaque (defensive)
+                return NodeExecResult{std::move(fb)};
+            }
+            state.matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
+        } else if (m_uses_2_5d_projection || m_centered) {
+            state.matrix = canvas_center * ssaa_scale * base_matrix;
         } else {
-            state.matrix = ssaa_scale * m_matrix_override.value_or(m_node.world_transform.to_mat4());
+            state.matrix = ssaa_scale * base_matrix;
         }
         state.opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
         state.world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
@@ -266,7 +340,14 @@ NodeExecResult SourceNode::execute(
 
 bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexcept {
     // Frame-invariant + reusable across frames = eligible to skip the clear.
-    if (!m_cache_policy.reusable_across_frames() || m_uses_2_5d_projection) {
+    // TICKET-ae-cam-hash-collision Soluzione B (rendering-side) — bail
+    // when a camera is active even if the per-node flag is false: with
+    // a 2.5D camera the screen-space "full frame" assumption no longer
+    // holds (zoom changes the effective coverage), so full-frame
+    // seeding would produce stale FBs that bypass the cache-key fix.
+    if (!m_cache_policy.reusable_across_frames()
+        || m_uses_2_5d_projection
+        || ctx.frame_input.has_camera_2_5d) {
         return false;
     }
 
