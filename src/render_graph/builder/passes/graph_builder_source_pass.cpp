@@ -67,10 +67,6 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             if (node.shape.type() == ShapeType::TextRun) {
                 auto run_shape = node.shape.text_run_shape_handle().value;
                 if (!run_shape) {
-                    // Hard fail — null shape is a wiring error (wiring failed
-                    // to attach the shape).  Don't silently fall through to
-                    // SourceNode and render a blank layer; the user must fix
-                    // the binding (LayerBuilder::text_run + materialize_text_run_shape).
                     throw std::logic_error(
                         "[source-pass] layer='" + std::string(layer.name) + "' node='" + std::string(node.name) +
                         "' ShapeType::TextRun but text_run_shape_handle().value is null — "
@@ -89,10 +85,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 if (ctx.frame_input.has_camera_2_5d) {
                     cache::fold_camera_into_params_hash(run_key, ctx.frame_input.camera_2_5d);
                 }
-                const auto placement = resolve_text_run_placement(item, node, ctx);
-                const f32 run_opacity = use_local
-                    ? node.world_transform.opacity
-                    : (item.transform.opacity * node.world_transform.opacity);
+
+                // ITEM 7: use dedicated resolve_text_run_placement()
+                // instead of source_space_world_matrix() +
+                // should_use_centered_rendering() + manual canvas-center bake.
+                f32 resolved_opacity = 0.0f;
+                const auto placement = resolve_text_run_placement(item, node, ctx, resolved_opacity);
 
                 source = graph.add_node(std::make_unique<TextRunNode>(
                     std::string(node.name),
@@ -100,7 +98,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     node,
                     run_key,
                     placement,
-                    ctx.policy.modular_coordinates ? std::optional<f32>(run_opacity) : std::nullopt,
+                    std::optional<f32>(resolved_opacity),
                     source_is_static ? static_memory_cache("text_run") : frame_variant_cache("text_run")
                 ));
 
