@@ -17,7 +17,6 @@ struct MultiSourceItem {
 class MultiSourceNode final : public RenderGraphNode {
 public:
     MultiSourceNode(std::string name, std::vector<MultiSourceItem> items, const cache::NodeCacheKey& key,
-                    bool uses_2_5d_projection = false,
                     RenderNodeCachePolicy policy = static_memory_cache("multi_source"));
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
@@ -41,19 +40,16 @@ public:
     [[nodiscard]] bool can_seed_full_frame(const RenderGraphContext& ctx) const noexcept override { return false; }
 
     const std::vector<MultiSourceItem>& items() const { return m_items; }
-    bool uses_2_5d_projection() const { return m_uses_2_5d_projection; }
 
     void refresh(
         std::string name,
         std::vector<MultiSourceItem> items,
         const cache::NodeCacheKey& key,
-        bool uses_2_5d_projection = false,
         RenderNodeCachePolicy policy = static_memory_cache("multi_source")
     ) {
         m_name = std::move(name);
         m_items = std::move(items);
         m_key = key;
-        m_uses_2_5d_projection = uses_2_5d_projection;
         if (m_cache_policy.mode != policy.mode || m_cache_policy.invalidation != policy.invalidation) {
             spdlog::warn("[multi_source_node] cache policy changed from {}/{} to {}/{} — compiled graph must be invalidated",
                          static_cast<int>(m_cache_policy.mode), m_cache_policy.reason,
@@ -64,13 +60,17 @@ public:
 
     /// Returns true if this node represents a single full-frame image source.
     /// Used by the graph builder for skip-when-opaque analysis.
-    [[nodiscard]] bool is_single_full_frame_image() const { return m_items.size() == 1 && cache_policy().reusable_across_frames() && !m_uses_2_5d_projection; }
+    // TICKET-TEXT-CLEANUP-8: m_uses_2_5d_projection removed.  2.5D
+    // projection is now conditioned on ctx.frame_input.has_camera_2_5d
+    // globally (Soluzione B).  can_seed_full_frame() (which always returns
+    // false for MultiSourceNode) handles the runtime check.
+    [[nodiscard]] bool is_single_full_frame_image() const { return m_items.size() == 1 && cache_policy().reusable_across_frames(); }
 
 private:
     std::string m_name;
     std::vector<MultiSourceItem> m_items;
     cache::NodeCacheKey m_key;
-    bool m_uses_2_5d_projection{false};
+
 
     // ── Fase A6 (DONE) — node immutability ───────────────────────────
     // TextRunShape items inside m_items are READ-ONLY after construction.

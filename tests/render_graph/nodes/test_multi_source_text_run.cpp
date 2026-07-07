@@ -126,7 +126,7 @@ TEST_CASE("MultiSourceNode: predicted_bbox handles text_run item via text_run he
     ctx.services.backend = &backend.backend();
 
     cache::NodeCacheKey key{};
-    MultiSourceNode node("mixed_multi", std::move(items), key, false, false);
+    MultiSourceNode node("mixed_multi", std::move(items), key);
 
     auto bbox_opt = node.predicted_bbox(ctx);
     REQUIRE(bbox_opt.has_value());
@@ -171,7 +171,7 @@ TEST_CASE("MultiSourceNode: cache_key invalidates on text_run per-glyph state ch
     items_a.push_back({&text_node, Mat4(1.0f), 1.0f});
 
     cache::NodeCacheKey key{};
-    MultiSourceNode node_a("anim_a", std::move(items_a), key, false, false);
+    MultiSourceNode node_a("anim_a", std::move(items_a), key);
     auto k_a = node_a.cache_key(ctx);
 
     // Mutate middle glyph position (animator-driven slide).
@@ -179,7 +179,7 @@ TEST_CASE("MultiSourceNode: cache_key invalidates on text_run per-glyph state ch
     text_node.shape.text_run_shape_handle().value = shape_b;
     std::vector<MultiSourceItem> items_b;
     items_b.push_back({&text_node, Mat4(1.0f), 1.0f});
-    MultiSourceNode node_b("anim_b", std::move(items_b), key, false, false);
+    MultiSourceNode node_b("anim_b", std::move(items_b), key);
     auto k_b = node_b.cache_key(ctx);
 
     CHECK(k_a != k_b);
@@ -221,7 +221,7 @@ TEST_CASE("MultiSourceNode: execute tolerant of text_run item with null shape") 
     ctx.services.node_cache = &node_cache;
 
     cache::NodeCacheKey key{};
-    MultiSourceNode node("orphan_run", std::move(items), key, false, false);
+    MultiSourceNode node("orphan_run", std::move(items), key);
 
     // Must NOT crash; the null-shape text item is silently skipped
     // (LayerBuilder::text_run already error-logs the same defect),
@@ -272,7 +272,7 @@ TEST_CASE("MultiSourceNode: execute with mixed rect + text_run returns valid fb"
     ctx.services.node_cache = &node_cache;
 
     cache::NodeCacheKey key{};
-    MultiSourceNode node("mixed_full", std::move(items), key, false, false);
+    MultiSourceNode node("mixed_full", std::move(items), key);
 
     auto result = node.execute(ctx, {}, {});
     REQUIRE(result.ok());
@@ -297,7 +297,7 @@ TEST_CASE("MultiSourceNode: cache_key invalidates when 2.5D camera moves under p
     items.push_back({&text_node, Mat4(1.0f), 1.0f});
 
     cache::NodeCacheKey key{};
-    MultiSourceNode node("proj_node", std::move(items), key, /*centered=*/false, /*uses_2_5d_projection=*/true);
+    MultiSourceNode node("proj_node", std::move(items), key);
 
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
