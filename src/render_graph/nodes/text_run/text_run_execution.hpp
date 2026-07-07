@@ -18,6 +18,8 @@
 
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/render_graph/nodes/text_run_node.hpp>
 
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <chronon3d/text/text_run.hpp>
@@ -59,6 +61,20 @@ std::optional<NodeExecutionError> validate_execution(
 TextRunShape prepare_per_frame_shape(
     const TextRunShape& source,
     chronon3d::SampleTime sample_time
+);
+
+/// Unified TextRun rendering — used by BOTH TextRunNode::execute()
+/// and MultiSourceNode::execute().  Ensures there is one single code
+/// path for per-frame shape prep + world-matrix + draw dispatch.
+///
+/// Returns RenderOpResult (items_drawn or error).
+[[nodiscard]] graph::RenderOpResult render_text_run_item(
+    const RenderGraphContext& ctx,
+    RenderBackend& backend,
+    Framebuffer& fb,
+    const TextRunShape& source_shape,
+    const TextRunPlacement& placement,
+    float opacity
 );
 
 #endif // CHRONON3D_ENABLE_TEXT
