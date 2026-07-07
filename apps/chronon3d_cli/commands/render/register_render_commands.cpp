@@ -41,6 +41,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
 
     cmd->add_flag("--report", args.report,
         "Generate an execution report log");
+    cmd->add_flag("--debug-text-layout", args.pipeline.text_layout_debug,
+                  "Draw text layout debug overlay (canvas center, layout box, visual bounds, alpha centroid) + emit [text-layout] structured log per TextRun");
     cmd->add_flag("--force-scalar-normal-blend", args.pipeline.force_scalar_normal_blend,
                   "Force scalar (non-SIMD) Normal blend for diagnosing rendering regressions");
     cmd->add_flag("--warmup-renderer", args.pipeline.warmup_renderer,
