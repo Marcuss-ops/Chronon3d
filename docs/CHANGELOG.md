@@ -5,6 +5,35 @@
 
 ---
 
+## Luglio 2026 — Text cleanup sweep (ITEM 7, 8, 11)
+
+### refactor(text) — ITEM 7: TextRunPlacement resolver in source pass (commit `f89662bb`, 2026-07-07)
+
+- **TextRunPlacement resolver** — added `TextRunPlacement` struct + `resolve_text_run_placement()` to `graph_builder_coordinates.hpp`. TextRun nodes now use a single resolver call instead of the scattered `source_space_world_matrix()` + `is_implicit_2d_centering_only()` + `should_use_centered_rendering()` + manual canvas-center bake chain.
+- **Resolver encapsulates ALL coordinate decisions for TextRun**: (a) modular-coordinates local path (use_local), (b) implicit canvas-center strip (for `pin_to(Center)` layers), (c) canvas-center bake for non-modular centered layers, (d) resolved opacity (item × node).
+- **`source_pass.cpp` refactored** — TextRun branch now calls `resolve_text_run_placement(item, node, ctx, opacity)` — single call replaces the scattered chain. Other shape types (SourceNode, MultiSourceNode) continue to use the general-purpose helpers directly.
+- **Merged with remote's `TextRunPlacement` API** — remote commit `ea98da9f` defined `TextRunPlacement` in `text_run_node.hpp` and `TextRunNode` constructor takes it directly. This commit adds the resolver function that produces the `TextRunPlacement` values with correct centering logic.
+- **Verification**: build PASS (`chronon3d_graph_builder`), golden tests TXT-QA-01:A* PASS, code-reviewer APPROVED.
+- **Cross-references**: [`src/render_graph/builder/graph_builder_coordinates.hpp`](src/render_graph/builder/graph_builder_coordinates.hpp) (resolver); [`src/render_graph/builder/passes/graph_builder_source_pass.cpp`](src/render_graph/builder/passes/graph_builder_source_pass.cpp) (call site); [`include/chronon3d/render_graph/nodes/text_run_node.hpp`](include/chronon3d/render_graph/nodes/text_run_node.hpp) (`TextRunPlacement` struct).
+
+### fix(text) — ITEM 8: correct stale TODO/legacy comments on TextLayoutSpec fields (commit `7ed31a43`, 2026-07-07)
+
+- **Audit result**: ALL 15 fields in `TextLayoutSpec` are actively used by the text pipeline. The stale `❌ TODO: not implemented` and `⚠️ Legacy-only` comments in `builder_params.hpp` were misleading.
+- **Updated inline comments** to reference actual pipeline consumers: box → `text_run_builder` + `text_run_shaping`, anchor → `text_run_shaping` (cache key), centering_mode → `text_rasterizer_render` + `text_run_shaping`, align → `text_rasterizer_render` (line alignment), vertical_align → `text_rasterizer_render` (vertical placement), wrap → `text_run_builder` (line wrapping), overflow → `text_layout_single` + `text_layout_inline`, line_height → `text_run_builder`, tracking → `text_run_builder`, auto_fit → `text_layout_engine`, min/max_font_size → `paragraph_style` auto_fit, max_lines → `text_layout_single`, ellipsis → `text_layout_single` + `text_layout_inline`, paragraph → `text_run_builder`.
+- **Comment-only change** — zero code modified. Build PASS, golden tests PASS.
+- **Cross-references**: [`include/chronon3d/scene/builders/builder_params.hpp`](include/chronon3d/scene/builders/builder_params.hpp) (updated comments).
+
+### feat(build) — ITEM 11: add content and dashboard commands to build-fast.sh (commit `179d0e9f`, 2026-07-07)
+
+- **CMake presets `linux-content-dev` and `linux-dashboard-dev`** already existed in `cmake/presets/development.json` (added in commit `27efc27b`). This commit wires them into `build-fast.sh`:
+  - `./build-fast.sh content` → `linux-content-dev` preset (CLI + content ON, no telemetry)
+  - `./build-fast.sh dashboard` → `linux-dashboard-dev` preset (CLI + content + telemetry + diagnostics)
+- **Both follow the existing `release` command pattern**: separate tmpfs build dir, symlink, auto-configure, build. Also added to help text.
+- **Known issue**: content tree has pre-existing PCH build rot (deprecated `Composition` API in `content/`) — unrelated to this change. The presets themselves are correctly wired.
+- **Cross-references**: [`build-fast.sh`](build-fast.sh) (new commands); [`cmake/presets/development.json`](cmake/presets/development.json) (preset definitions).
+
+---
+
 ## Luglio 2026 — TICKET-122 FASE 6: grid_background backend fix
 
 ### fix(backend) — TICKET-122 FASE 6: scale grid_background spacing/thickness by projected matrix (commit `0c897faf`, 2026-07-07)
