@@ -39,6 +39,7 @@ add_library(chronon3d_content OBJECT
 
     # ── Examples ────────────────────────────────────────────────────────────
     examples/text/text_animations.cpp
+    examples/light/light_text_animations.cpp
     examples/image/image_animated_reveals.cpp
 
     # ── Backgrounds ────────────────────────────────────────────────────────
