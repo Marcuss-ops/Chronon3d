@@ -27,10 +27,7 @@ namespace chronon3d::renderer::text_run_stages {
     TextRunDrawParams&              params,
     TextRunStageState&              s
 ) {
-    if (s.silent_success_empty) {
-        return graph::RenderOpResult(graph::RenderOpOutcome{0});
-    }
-
+    // TICKET-TEXT-CLEANUP-4: silent_success_empty guard removed.
     if (s.glyphs_drawn == 0) {
         // Already released in raster tail when zero-glyph.  Just return.
         return graph::RenderOpResult(graph::RenderOpOutcome{s.glyphs_drawn});

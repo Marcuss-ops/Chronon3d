@@ -135,10 +135,10 @@ struct TextRunStageState {
     BLImage img;
     std::size_t glyphs_drawn{0};
 
-    // Silent-success flag — set when prepare detects world-bbox outside
-    // framebuffer.  Orchestrator returns Outcome{0} without running the
-    // heavy raster pass.
-    bool silent_success_empty{false};
+    // TICKET-TEXT-CLEANUP-4: silent_success_empty removed.
+    // Text that appears off-canvas is still rendered — the bbox
+    // approximation may be wrong, and silently skipping visible text
+    // is worse than rendering one extra off-canvas frame.
 };
 
 // ── Stage function signatures ──────────────────────────────────────────────
@@ -150,7 +150,7 @@ struct TextRunStageState {
 // Three stage error-code patterns:
 //   1) InvalidInput    — bad shape/fb/null resources (terminal return).
 //   2) ExecutionFailure — font face failed to load / scratch acquire failed.
-//   3) Outcome{N}      — silent success (0 when silent_success_empty).
+//   3) Outcome{N}      — silent success (0 glyphs drawn).
 
 [[nodiscard]] graph::RenderOpResult prepare_text_run(
     const SoftwareProcessorContext& rctx,

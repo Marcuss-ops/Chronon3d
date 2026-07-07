@@ -27,11 +27,10 @@ namespace chronon3d::renderer::text_run_stages {
     const TextRunDrawParams&        params,
     TextRunStageState&              s
 ) {
-    // Guard BEFORE apply_text_material: if raster returned Outcome{0}
-    // (zero-glyph), it has already released s.img back to the pool; we
-    // must NOT pass a released BLImage into apply_text_material — running
-    // the material pass on stale pool state would be a use-after-release.
-    if (s.silent_success_empty || s.glyphs_drawn == 0) {
+    // Zero-glyph guard: raster releases s.img back to the pool when
+    // zero glyphs were drawn.  Must NOT pass a released BLImage into
+    // apply_text_material — that would be a use-after-release.
+    if (s.glyphs_drawn == 0) {
         return graph::RenderOpResult(graph::RenderOpOutcome{0});
     }
 
