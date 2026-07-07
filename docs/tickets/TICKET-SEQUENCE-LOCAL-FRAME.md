@@ -2,7 +2,9 @@
 
 ## Stato
 
-**PLANNED** (action-plan landing 2026-07-07). Scope: introduzione del sistema canonico `TimeRange + SequenceNode + TimelineResolver + TimelineSampleContext` + eliminazione del legacy "doppia timeline dentro layer/render graph" via la sequenza 4-step safe migration. **Workstream design-FROZEN** (no codice toccato in questo commit di landing; solo governance canonico + grep-audit backlog + path di eliminazione).
+**PARTIAL** — Step 1/4 DONE (commit successivo a questo, 2026-07-07). Code landed: 4 nuovi simboli pubblici canonici `TimeRange + SequenceNode + TimelineResolver + TimelineSampleContext` (+ `SceneDescriptor` + `ResolvedScene` + `SequenceBuilder` empty placeholder) in `include/chronon3d/timeline/timeline_resolver_v2.hpp` namespace `chronon3d::timeline::v2`. Manifest aggiornato in `cmake/Chronon3DPublicHeaders.cmake`. Header `g++ -std=c++20 -fsyntax-only` exit 0 + `/tmp/_step1_consumer_check.cpp` compile + run exit 0 (`OK Step 1 typecheck + behavior invariants`). Code-reviewer-minimax-m3 APPROVED (round 2; 1 nit minore `duration{1}` documentation risolto). ZERO codice esistente toccato (test preesistenti bit-identicali garantiti). AGENTS Cat-3 freeze-compliant + ABI pubblico invariato.
+
+Workstream design-FROZEN 2026-07-07 per le 4-step rimanenti. Forward-only ticket cluster per Step 2 (legacy adapters) + Step 3 (migrate new content) + Step 4 (eliminate legacy).
 
 ## Priorità
 
@@ -133,6 +135,8 @@ $ rg 'cropped_frame|composition_frame|layer_frame|sequence_frame|animator_frame|
 3. Step 3 DOPO — nuovi contenuti solo `s.sequence(...)`;
 4. Step 4 ULTIMO — solo quando grep-audit backlog è ZERO su tutti i 5 legacy items + tutti i test PASS macchina-verificato.
 
-## Stato del ticket (this commit)
+## Stato del ticket (post-landing commit 2026-07-07)
 
-**PLANNED** (action-plan landing 2026-07-07). Zero codice toccato. Grep-audit backlog: da compilare al primo commit di Step 1 (forward-point). Owner: Matteo / agenti cron. Acceptance evidence: macchina-verifica al commit Step 4 (target: post `main@7eb5c2ba` baseline-verde + 11/11 PASS).
+**PARTIAL** (Step 1/4 DONE). Header landed su `main` come commit atomico successivo a `3c122543` (commit `TBD-pending`). Grep-audit backlog: da compilare al commit di Step 1 (snapshot numerico pre-Elimination per i 5 legacy items A-E). Owner: Matteo / agenti cron. Acceptance evidence: macchina-verifica al commit Step 4 (target: post `main@7eb5c2ba` baseline-verde + 11/11 PASS + grep-audit backlog = 0 per ogni legacy item).
+
+Honesty policy (AGENTS v0.1 §anti-greenwashing): questo snapshot promuove Step 1 a DONE con evidence verbatim (header compiles clean, runtime invariants verificati OK, code-reviewer round 2 APPROVED). Steps 2/3/4 restano PLANNED a forward-point. La promozione a `DONE` completo richiederà Step 4 macchina-verifica (target: 11/11 PASS + zero banned-PNG runtime hash + zero catch-MESSAGE-return nei test readiness).
