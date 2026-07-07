@@ -365,18 +365,30 @@ namespace {
     const FontSpec&       font_spec  = params.text.font;
     const TextLayoutSpec& layout     = params.text.layout;
 
-    // ── Legacy cache key (BIT-IDENTICAL to pre-refactor) ───────────
+    // TICKET-TEXT-CLEANUP-6: replaced legacy 10-field cache key with
+    // canonical key that includes ALL visual-affecting fields.
     TextLayoutCacheKey cache_key;
-    cache_key.text        = text;
-    cache_key.font_path   = font_spec.font_path;
-    cache_key.font_weight = font_spec.font_weight;
-    cache_key.font_style  = font_spec.font_style;
-    cache_key.font_size   = font_spec.font_size;
-    cache_key.tracking    = layout.tracking;
-    cache_key.box_width   = layout.box.x;
-    cache_key.wrap        = layout.wrap;
-    cache_key.direction   = params.direction;
-    cache_key.language    = params.language;
+    cache_key.text           = text;
+    cache_key.font_path      = font_spec.font_path;
+    cache_key.font_family    = font_spec.font_family;
+    cache_key.font_weight    = font_spec.font_weight;
+    cache_key.font_style     = font_spec.font_style;
+    cache_key.font_size      = font_spec.font_size;
+    cache_key.tracking       = layout.tracking;
+    cache_key.box_width      = layout.box.x;
+    cache_key.box_height     = layout.box.y;
+    cache_key.wrap           = layout.wrap;
+    cache_key.direction      = params.direction;
+    cache_key.language       = params.language;
+    cache_key.paragraph      = layout.paragraph;
+    cache_key.align          = static_cast<int>(layout.align);
+    cache_key.vertical_align = static_cast<int>(layout.vertical_align);
+    cache_key.anchor         = static_cast<int>(layout.anchor);
+    cache_key.centering_mode = static_cast<int>(layout.centering_mode);
+    cache_key.line_height    = layout.line_height;
+    cache_key.max_lines      = layout.max_lines;
+    cache_key.overflow       = static_cast<int>(layout.overflow);
+    cache_key.ellipsis       = layout.ellipsis;
 
     // Fase B3: per-materializer local cache.  Each materialize call
     // uses a standalone cache; the engine/session should supply a

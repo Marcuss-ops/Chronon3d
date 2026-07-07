@@ -117,6 +117,18 @@ build_cache_key(
     key.features    = features;              // TICKET-103a — new field
     key.variation_axes = variation_axes;     // M1.5#5
     key.paragraph   = layout.paragraph;
+
+    // TICKET-TEXT-CLEANUP-6: include all visual-affecting TextLayoutSpec fields
+    key.box_height      = layout.box.y;
+    key.align           = static_cast<int>(layout.align);
+    key.vertical_align  = static_cast<int>(layout.vertical_align);
+    key.anchor          = static_cast<int>(layout.anchor);
+    key.centering_mode  = static_cast<int>(layout.centering_mode);
+    key.line_height     = layout.line_height;
+    key.max_lines       = layout.max_lines;
+    key.overflow        = static_cast<int>(layout.overflow);
+    key.ellipsis        = layout.ellipsis;
+
     return key;
 }
 
