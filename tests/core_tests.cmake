@@ -296,6 +296,7 @@ add_executable(chronon3d_core_tests
     core/timeline/test_timeline_builder.cpp
     core/timeline/test_code_first_composition.cpp
     core/timeline/test_sequence.cpp
+    core/timeline/test_timeline_resolver.cpp
     assets/test_svg_path_loader.cpp
     assets/test_render_preflight.cpp
     assets/test_asset_registry.cpp
