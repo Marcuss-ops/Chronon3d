@@ -146,10 +146,18 @@ LayerBuilder& LayerBuilder::timeline_bar(std::string name, TimelineBarParams p) 
 // ── Content Shapes ────────────────────────────────────────────────────
 
 LayerBuilder& LayerBuilder::image(std::string name, ImageParams p) {
+    // Sequence V2: collect image asset reference
+    if (!p.path.empty()) {
+        m_layer.asset_manifest.add_image(p.path, std::string(m_layer.name) + "/" + name);
+    }
     return shape(registry::shape_ids::Image, std::move(name), std::move(p));
 }
 
 LayerBuilder& LayerBuilder::tiled_image(std::string name, ImageParams p) {
+    // Sequence V2: collect image asset reference (same as image())
+    if (!p.path.empty()) {
+        m_layer.asset_manifest.add_image(p.path, std::string(m_layer.name) + "/" + name);
+    }
     return shape(registry::shape_ids::TiledImage, std::move(name), std::move(p));
 }
 
