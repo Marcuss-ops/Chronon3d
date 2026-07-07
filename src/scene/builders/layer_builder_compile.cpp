@@ -32,6 +32,7 @@
 
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/text_run_builder.hpp>
+#include <chronon3d/scene/model/render/render_node_factory.hpp>
 #include <chronon3d/math/transform.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
@@ -166,7 +167,9 @@ Layer LayerBuilder::build() {
             node.shape.set_type(ShapeType::TextRun);
             node.font_engine = m_font_engine;
             node.world_transform.position = spec.params.text.position;
-            node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
+            node.world_transform.anchor = resolve_text_anchor(
+                spec.params.text.layout.anchor,
+                spec.params.text.layout.box);
             node.world_transform.scale = Vec3{1.0f, 1.0f, 1.0f};
             node.world_transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
             node.color = spec.params.text.appearance.color;
