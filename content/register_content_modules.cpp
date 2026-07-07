@@ -21,6 +21,7 @@ namespace chronon3d::content::shapes       { void register_shape_compositions(Co
 namespace chronon3d::content::images       { void register_image_compositions(CompositionRegistry&); }
 #endif
 namespace chronon3d::content::anims        { void register_anim_compositions(CompositionRegistry&); }
+namespace chronon3d::content::light_text   { void register_light_text_compositions(CompositionRegistry&); }
 namespace chronon3d::content::effects      { void register_effect_compositions(CompositionRegistry&); }
 namespace chronon3d::content::grid         { void register_grid_compositions(CompositionRegistry&); }
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
@@ -51,6 +52,7 @@ public:
         content::images::register_image_compositions(ctx.compositions);
 #endif
         content::anims::register_anim_compositions(ctx.compositions);
+        content::light_text::register_light_text_compositions(ctx.compositions);
         content::effects::register_effect_compositions(ctx.compositions);
         content::grid::register_grid_compositions(ctx.compositions);
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
