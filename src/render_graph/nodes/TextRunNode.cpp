@@ -213,6 +213,7 @@ NodeExecResult TextRunNode::execute(
         ctx, *backend, *fb, *m_shape, m_placement, opacity);
 
     if (!dispatch) {
+
         text_run::report_failure(
             m_name,
             dispatch.error().code,
