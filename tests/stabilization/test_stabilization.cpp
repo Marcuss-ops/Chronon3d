@@ -495,14 +495,14 @@ TEST_CASE("Stabilization: tile_effect renders identically to full-frame pass") {
     // Render without tiles (full-frame)
     settings.dirty.tile_size  = 0;  // 0 = disabled
     renderer.set_settings(settings);
-    auto full_fb = renderer.render_scene(scene, scene.camera_2_5d(), 320, 240);
+    auto full_fb = renderer.render_scene(scene, std::make_optional(scene.camera_2_5d()), 320, 240, 30.0f);
     REQUIRE(full_fb != nullptr);
     CHECK(framebuffer_has_only_finite(*full_fb));
 
     // Render with tile rendering
     settings.dirty.tile_size  = 64;
     renderer.set_settings(settings);
-    auto tile_fb = renderer.render_scene(scene, scene.camera_2_5d(), 320, 240);
+    auto tile_fb = renderer.render_scene(scene, std::make_optional(scene.camera_2_5d()), 320, 240, 30.0f);
     REQUIRE(tile_fb != nullptr);
     CHECK(framebuffer_has_only_finite(*tile_fb));
 
@@ -539,14 +539,14 @@ TEST_CASE("Stabilization: tile_effect small tile sizes produce identical output"
     // Full-frame reference
     settings.dirty.tile_size = 0;
     renderer.set_settings(settings);
-    auto ref_fb = renderer.render_scene(scene, scene.camera_2_5d(), 128, 128);
+    auto ref_fb = renderer.render_scene(scene, std::make_optional(scene.camera_2_5d()), 128, 128, 30.0f);
     REQUIRE(ref_fb != nullptr);
 
     // Test with multiple tile sizes
     for (int ts : {8, 16, 32, 64}) {
         settings.dirty.tile_size = ts;
         renderer.set_settings(settings);
-        auto fb = renderer.render_scene(scene, scene.camera_2_5d(), 128, 128);
+        auto fb = renderer.render_scene(scene, std::make_optional(scene.camera_2_5d()), 128, 128, 30.0f);
         REQUIRE(fb != nullptr);
 
         float delta = framebuffer_max_delta(*ref_fb, *fb);
@@ -591,7 +591,7 @@ TEST_CASE("Stabilization: tile_effect produces no NaN/Inf for complex scenes") {
     settings.dirty.tile_size = 32;
     renderer.set_settings(settings);
 
-    auto fb = renderer.render_scene(scene, scene.camera_2_5d(), 320, 240);
+    auto fb = renderer.render_scene(scene, std::make_optional(scene.camera_2_5d()), 320, 240, 30.0f);
     REQUIRE(fb != nullptr);
     CHECK(framebuffer_has_only_finite(*fb));
 }
