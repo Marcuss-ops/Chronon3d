@@ -19,9 +19,9 @@ namespace chronon3d::graph {
 
 MultiSourceNode::MultiSourceNode(
     std::string name, std::vector<MultiSourceItem> items, const cache::NodeCacheKey& key,
-    bool centered, bool uses_2_5d_projection, RenderNodeCachePolicy policy
+    bool uses_2_5d_projection, RenderNodeCachePolicy policy
 ) : RenderGraphNode(policy), m_name(std::move(name)), m_items(std::move(items)), m_key(key),
-    m_centered(centered), m_uses_2_5d_projection(uses_2_5d_projection) {}
+    m_uses_2_5d_projection(uses_2_5d_projection) {}
 
 std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
     const RenderGraphContext& ctx,
@@ -68,9 +68,9 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
                 continue;
             }
             matrix = *matrix_opt;
-        } else if (m_uses_2_5d_projection || m_centered) {
-            matrix = canvas_center * ssaa_scale * item.matrix;
         } else {
+            // TICKET-TEXT-CLEANUP-5: centering is now baked into item.matrix
+            // by the source pass / refresh.  m_centered removed.
             matrix = ssaa_scale * item.matrix;
         }
 
@@ -301,14 +301,10 @@ NodeExecResult MultiSourceNode::execute(
                     continue;
                 }
                 state.matrix = *state_matrix_opt;
-            } else if (m_uses_2_5d_projection) {
-                state.matrix = canvas_center * ssaa_scale * item.matrix;
             } else {
-                if (m_centered) {
-                    state.matrix = canvas_center * ssaa_scale * item.matrix;
-                } else {
-                    state.matrix = ssaa_scale * item.matrix;
-                }
+                // TICKET-TEXT-CLEANUP-5: centering is now baked into item.matrix
+                // by the source pass / refresh.  m_centered removed.
+                state.matrix = ssaa_scale * item.matrix;
             }
 
             state.opacity = item.opacity;

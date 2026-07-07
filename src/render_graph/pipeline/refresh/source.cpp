@@ -93,13 +93,23 @@ void refresh_source_node(
         cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
     }
 
+    // TICKET-TEXT-CLEANUP-5 (SourceNode refresh follow-up): bake
+    // canvas_center into the matrix when (centered || projected) &&
+    // !modular_coordinates.  Preserves old m_uses_2_5d_projection ||
+    // m_centered behavior.
+    Mat4 resolved_matrix = render_matrix;
+    if (!ctx.policy.modular_coordinates && (should_use_centered_rendering(item, ctx) || item.projected)) {
+        const Mat4 cc = glm::translate(Mat4(1.0f),
+            Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
+        resolved_matrix = cc * render_matrix;
+    }
+
     node.refresh(
         std::string(src_node.name),
         src_node,
         key,
-        should_use_centered_rendering(item, ctx),
         item.projected,
-        ctx.policy.modular_coordinates ? std::optional<Mat4>(render_matrix) : std::nullopt,
+        ctx.policy.modular_coordinates ? std::optional<Mat4>(render_matrix) : std::optional<Mat4>(resolved_matrix),
         ctx.policy.modular_coordinates ? std::optional<f32>(render_opacity) : std::nullopt,
         source_is_static ? static_memory_cache("source") : frame_variant_cache("source")
     );

@@ -144,12 +144,26 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     ? node.world_transform.opacity
                     : (item.transform.opacity * node.world_transform.opacity);
 
+                // TICKET-TEXT-CLEANUP-5 (SourceNode follow-up): bake
+                // canvas_center into the matrix when (centered || projected)
+                // && !modular_coordinates, so the node no longer needs to
+                // know about centering.  The `item.projected` condition
+                // preserves the old `m_uses_2_5d_projection || m_centered`
+                // behavior where projected layers always got canvas_center
+                // even without implicit centering.
+                Mat4 resolved_source_matrix = shape_matrix;
+                f32 resolved_source_opacity = shape_opacity;
+                if (!ctx.policy.modular_coordinates && (should_use_centered_rendering(item, ctx) || item.projected)) {
+                    const Mat4 cc = glm::translate(Mat4(1.0f),
+                        Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
+                    resolved_source_matrix = cc * shape_matrix;
+                }
+
                 source = graph.add_node(std::make_unique<SourceNode>(
                     std::string(node.name), node, source_key,
-                    should_use_centered_rendering(item, ctx),
                     item.projected,
-                    ctx.policy.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::nullopt,
-                    ctx.policy.modular_coordinates ? std::optional<f32>(shape_opacity) : std::nullopt,
+                    ctx.policy.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::optional<Mat4>(resolved_source_matrix),
+                    ctx.policy.modular_coordinates ? std::optional<f32>(shape_opacity) : std::optional<f32>(resolved_source_opacity),
                     source_is_static ? static_memory_cache("source") : frame_variant_cache("source")
                 ));
             }
@@ -236,11 +250,23 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             });
         }
 
+        // TICKET-TEXT-CLEANUP-5 (MultiSourceNode follow-up): bake
+        // canvas_center into each item matrix when (centered || projected)
+        // && !modular_coordinates.  The `item.projected` condition
+        // preserves the old `m_uses_2_5d_projection || m_centered`
+        // behavior.
+        if (!ctx.policy.modular_coordinates && (should_use_centered_rendering(item, ctx) || item.projected)) {
+            const Mat4 cc = glm::translate(Mat4(1.0f),
+                Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
+            for (auto& mi : items) {
+                mi.matrix = cc * mi.matrix;
+            }
+        }
+
         auto multi_source = graph.add_node(std::make_unique<MultiSourceNode>(
             std::string(layer.name) + "_multi",
             std::move(items),
             source_key,
-            should_use_centered_rendering(item, ctx),
             item.projected,
             source_is_static ? static_memory_cache("multi_source") : frame_variant_cache("multi_source")
         ));
