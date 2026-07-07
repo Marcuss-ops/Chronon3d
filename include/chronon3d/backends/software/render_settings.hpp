@@ -142,6 +142,12 @@ struct RenderSettings {
     /// Diagnostic overlay and preflight report settings.
     DiagnosticSettings diagnostics{};
 
+    /// Text layout debug overlay + structured log.
+    /// When true, TextRunNode draws colored markers (canvas center, layout box,
+    /// visual bounds, alpha centroid) and emits a compact [text-layout] log.
+    /// Enabled by --debug-text-layout CLI flag.
+    bool text_layout_debug{false};
+
     /**
      * WP-6 PR 6.9 — Determinism-contract safety net (default ON).
      *

@@ -63,6 +63,9 @@ struct RenderPipelineArgs {
     size_t program_cache_tune_min_capacity{2};
     // Maximum capacity when auto-tuning up (default 128).
     size_t program_cache_tune_max_capacity{128};
+
+    // Text layout debug overlay + structured log per TextRun.
+    bool text_layout_debug{false};
 };
 
 struct RenderArgs {
