@@ -2,11 +2,11 @@
 
 ## Stato
 
-OPEN
+PARTIAL — fix superficiale (`proj.transform.to_mat4()`) già applicata in tutti e 3 i branch di `multi_source_node.cpp`. La collisione hash residua è tracciata in [`TICKET-ae-cam-hash-collision`](./TICKET-ae-cam-hash-collision.md) (cache render-graph).
 
 ## Priorità
 
-P0
+P1 (declassata da P0 — la fix di surface è done; il root cause è nel cache layer, non nella projection)
 
 ## Problema
 
@@ -240,6 +240,65 @@ Il ticket è DONE solo quando tutti questi controlli sono veri sullo stesso comm
 - Nessuna nuova occorrenza di projection math duplicata viene introdotta fuori da `CameraProjectionResolver` o dai wrapper legacy già esistenti.
 - `git diff --check` non segnala whitespace/errori di patch.
 
+## FASE 1 — Diagnostica PROJ_DIAG (2026-07-07)
+
+### Build & run
+
+```bash
+cmake --build /tmp/chronon-builds/linux-fast-dev --target chronon3d_ae_parity_tests -j $(nproc)
+CHRONON3D_PROJ_DIAG=1 /tmp/chronon-builds/linux-fast-dev/tests/chronon3d_ae_parity_tests \
+    -tc='AE_CAM_02*,AE_CAM_03*,AE_CAM_04*,AE_CAM_05*,AE_CAM_06*,AE_CAM_09*'
+```
+
+**Risultato:** 19/19 PASS, 16 SKIPPED, 0 FAIL.
+
+### Analisi del codice
+
+Ispezione di `src/render_graph/nodes/multi_source_node.cpp`:
+
+| Branch | Riga | Stato `proj.transform.to_mat4()` |
+|---|---|---|
+| `predicted_bbox` | 72 | ✅ già applicato |
+| `execute` TextRun | 190 | ✅ già applicato |
+| `execute` regular | 260 | ✅ già applicato |
+
+La fix suggerita dal ticket (sostituire `proj.projection_matrix` → `proj.transform.to_mat4()`)
+è **già presente nel codice**. La collisione hash `frame0 == frame60` NON è causata dalla
+matrice di proiezione sbagliata.
+
+### Root cause reale
+
+Il problema è a valle, nel **render-graph cache layer**. I framebuffer vengono cachati
+con una key che non include lo stato valutato della camera, quindi frame diversi con
+camera animata diversa ricevono lo stesso FB dalla cache. Vedi:
+- [`TICKET-ae-cam-hash-collision`](./TICKET-ae-cam-hash-collision.md) — diagnosi completa
+- `src/render_graph/pipeline/frame_state_commit.cpp` — cache-key composition
+- `src/render_graph/pipeline/graph_cache_coordinator.cpp` — cache invalidation
+- `src/cache/node_cache.cpp` — `make_node_cache_key`
+
+### PROJ_DIAG output
+
+Nessun output PROJ_DIAG — `proj.visible == true` per tutti i layer, nessuno skip.
+Le coordinate `[AE_CAM] screen=` richiedono `ctx.policy.diagnostics_enabled=true`
+(non attivo nei test di default).
+
+### MESSAGE workaround già attivi
+
+I test `AE_CAM_02` e `AE_CAM_04` hanno già `MESSAGE` che forward-pointano a
+`TICKET-ae-cam-hash-collision`:
+- `ae_parity_tests.cpp:194` — CAM_02 hash-collision
+- `ae_parity_tests.cpp:267` — CAM_04 hash-collision
+
+## Azioni rimanenti
+
+1. ~~Sostituire `proj.projection_matrix` con `proj.transform.to_mat4()`~~ — **DONE** (già applicato)
+2. **FASE 2**: Tracciare `state.matrix` → backend raster (vedi suggested follow-up)
+3. **FASE 3**: Fix reale nel cache layer (`TICKET-ae-cam-hash-collision`)
+4. **FASE 4**: Regression test + verifica hash diversi
+5. **FASE 5**: Gate check + doc sync
+6. **FASE 6**: Deep-dive `CameraProjectionResolver` (se necessario dopo FASE 2-3)
+7. **FASE 7**: Aggiorna golden PNGs
+
 ## Collegamenti
 
 - Area: Camera Production V1
@@ -248,4 +307,5 @@ Il ticket è DONE solo quando tutti questi controlli sono veri sullo stesso comm
 - Adapter render path: `include/chronon3d/math/camera_2_5d_projection.hpp`
 - Test attesi: `tests/visual/ae_parity/ae_parity_tests.cpp`
 - Scene attese: `tests/visual/ae_parity/ae_parity_scenes.cpp`
-- Ticket correlati: TICKET-036, TICKET-120
+- Ticket correlati: TICKET-036, TICKET-120, [`TICKET-ae-cam-hash-collision`](./TICKET-ae-cam-hash-collision.md)
+- Commit diagnostica: `fc9177a4` (creazione ticket), questa modifica (FASE 1 evidence)
