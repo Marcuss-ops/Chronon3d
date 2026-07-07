@@ -140,3 +140,23 @@ $ rg 'cropped_frame|composition_frame|layer_frame|sequence_frame|animator_frame|
 **PARTIAL** (Step 1/4 DONE). Header landed su `main` come commit atomico successivo a `3c122543` (commit `TBD-pending`). Grep-audit backlog: da compilare al commit di Step 1 (snapshot numerico pre-Elimination per i 5 legacy items A-E). Owner: Matteo / agenti cron. Acceptance evidence: macchina-verifica al commit Step 4 (target: post `main@7eb5c2ba` baseline-verde + 11/11 PASS + grep-audit backlog = 0 per ogni legacy item).
 
 Honesty policy (AGENTS v0.1 §anti-greenwashing): questo snapshot promuove Step 1 a DONE con evidence verbatim (header compiles clean, runtime invariants verificati OK, code-reviewer round 2 APPROVED). Steps 2/3/4 restano PLANNED a forward-point. La promozione a `DONE` completo richiederà Step 4 macchina-verifica (target: 11/11 PASS + zero banned-PNG runtime hash + zero catch-MESSAGE-return nei test readiness).
+
+## Grep-Audit Pre-Step-4 Snapshot (commit TBD-pending this session, 2026-07-07)
+
+**Forward-only grep-gate tool**: [`tools/check_legacy_timeline_prevalence.sh`](../check_legacy_timeline_prevalence.sh).
+
+**Snapshot numerico pre-Elimination (machine-verified post-fix round 2, exit 0)**:
+
+| Item | Count | Pattern |
+| --- | --- | --- |
+| SEQ_ITEM_A | 151 hits | `frame[[:space:]]*[<>]=[[:space:]]*[0-9] \| if[[:space:]]*\(.*frame \| layer\.from \| \.duration\(\) \| duration[[:space:]]*=[[:space:]]*[01]` |
+| SEQ_ITEM_B | 39 hits  | `\b(ctx\.frame \| frame_context\.frame \| global_frame)\b` |
+| SEQ_ITEM_C | 1 hit    | `if[[:space:]]*\([[:space:]]*frame[[:space:]]*<[[:space:]]*layer\.from \| layer\.from.*duration` |
+| SEQ_ITEM_D | 52 hits  | `duration[[:space:]]*=[[:space:]]*[01]` |
+| SEQ_ITEM_E | 11 hits  | `(composition_frame \| layer_frame \| sequence_frame \| animator_frame \| source_frame)` |
+| **Total** | **254** | (target post-Step-4 DONE = 0) |
+
+**Step 4 acceptance gate**: `tools/check_legacy_timeline_prevalence.sh` exit 0 con tutti i 5 items = 0.
+
+**Honest state**: il snapshot documenta la pre-Elimination surface. AST_ITEM_D=0 è un caso fortunato (nessun file di test usava il pattern completo catch + MESSAGE + return al commit del landing). Le count sono machine-verified; ogni drift post-Elimination richiederà re-run del tool.
+

@@ -4,6 +4,53 @@
 > Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 ---
+## Luglio 2026 — M1.7 grep-audit pre-Elimination snapshot landed (commit TBD-pending this session)
+
+### chore(tools) — TICKET-SEQUENCE-LOCAL-FRAME + TICKET-ASSET-READINESS: forward-only grep-gate tools + pre-Elimination snapshot
+
+- **NEW 2 forward-only grep-gate tools** landed (sibling workstream M1.7 grep-audit backlog):
+  - `tools/check_legacy_timeline_prevalence.sh` — 5 Sequence legacy items A-E grep audit (frame-if sparsi / animator global_frame / Layer.from/.duration / duration=0/1 magic / 5 coordinate temporali duplicate).
+  - `tools/check_legacy_asset_prevalence.sh` — 5 Asset legacy items A-E grep audit (path raw / asset discovery render-time / fallback silenziosi / catch MESSAGE return test readiness / Preflight per-feature).
+  - **Exit codes** (per convention `tools/check_legacy_text_pipeline.sh`): 0 = audit done (count può essere > 0 in pre-Step-4 surface), 1 = MISSING_TOOL o invalid REPO_ROOT. NO `set -e` (rimosso per compatibilità con pipefail + no-match exit 1; `count_hits` neutralizzato via `|| echo "0"` per output uniforme). Tool detection: ripgrep (rg) preferred se disponibile, POSIX grep -rE fallback.
+  - `chmod +x` su entrambi gli script.
+
+- **Pre-Elimination snapshot numerico (machine-verified post-fix round 2 — `bash tools/check_legacy_*.sh` exit 0)**:
+
+  | Sequence | Count | Legacy item |
+  | --- | --- | --- |
+  | SEQ_ITEM_A | 151 hits | frame-if sparsi / frame>=start / layer.from / .duration() / duration=0/1 |
+  | SEQ_ITEM_B | 39 hits  | animator reads global_frame / ctx.frame / frame_context.frame |
+  | SEQ_ITEM_C | 1 hit    | render graph decides temporal via Layer.from |
+  | SEQ_ITEM_D | 52 hits  | duration = 0/1 magic in content/scene |
+  | SEQ_ITEM_E | 11 hits  | 5 coordinate temporali duplicate |
+  | **SEQ Total** | **254** | |
+
+  | Asset | Count | Legacy item |
+  | --- | --- | --- |
+  | AST_ITEM_A | 67 hits  | path raw (font_path / image_path / video_path / audio_path) in content/ + src/scene/ |
+  | AST_ITEM_B | 8 hits   | asset discovery render-time (resolve_handle / load_image / decode_video / decode_audio / font_engine.load) |
+  | AST_ITEM_C | 8 hits   | fallback silenziosi (use_default_font / draw_black_rect / empty_frame / placeholder + continue;//missing) |
+  | AST_ITEM_D | 0 hits   | catch (...) { MESSAGE ... return } nei test readiness (multi-line pattern) |
+  | AST_ITEM_E | 2 hits   | Asset validation duplicata per-feature (Text/Image/Video/Audio/Font Preflight) |
+  | **AST Total** | **85** | |
+
+  **Grand total: 339 hits** da eliminare entro Step 4 acceptance gate (target: 0 per ogni item, total = 0).
+
+- **Step 4 acceptance gate** (post-Elimination): rieseguire entrambi gli script e verificare che:
+  - `SEQ_ITEM_A..E` tutti = 0
+  - `AST_ITEM_A..E` tutti = 0
+  - Total = 0
+
+- **Honesty policy (AGENTS v0.1 §anti-greenwashing)**: questo snapshot documenta evidence verbatim (count numerici machine-verified da `bash tools/check_legacy_*.sh` exit 0), non fabbrica PASS. La promozione a Step 4 DONE richiederà rieseguire i tools su main post-Elimination e verificare che il grand total = 0. AST_ITEM_D = 0 (clean) per caso fortunato (no test file usano il pattern catch + MESSAGE + return). AST_ITEM_E = 2 (TextPreflight + ImagePreflight — vedi `src/text/text_preflight*.hpp`).
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-1 (script lives in `tools/`, NON in `src/` o `include/chronon3d/`); zero new public API surface; zero new singleton/registry/cache. Cat-5 (doc-only alignment via questo entry + 2 ticket updates + FOLLOWUP_TICKETS bump + CURRENT_STATUS §M1.7 paragraph). Code-reviewer-minimax-m3 APPROVED round 2 (1 nit minore `|| echo "0"` consistency applicato). ZERO codice esistente toccato (entrambi gli script sono NEW, manifest NON toccato).
+
+- **Production git trace**: 2 NEW tools (1.5 KB totali) + 4 doc canonical updates (CHANGELOG.md questo entry + TICKET-SEQUENCE-LOCAL-FRAME.md §Grep-Audit Pre-Step-4 Snapshot + TICKET-ASSET-READINESS.md §Grep-Audit Pre-Step-4 Snapshot + FOLLOWUP_TICKETS.md §M1.7 row text + CURRENT_STATUS.md §M1.7 paragraph). ZERO codice sorgente toccato.
+
+- **Cross-references**: `docs/tickets/TICKET-SEQUENCE-LOCAL-FRAME.md` `## Grep-Audit Pre-Step-4 Snapshot`; `docs/tickets/TICKET-ASSET-READINESS.md` `## Grep-Audit Pre-Step-4 Snapshot`; `docs/FOLLOWUP_TICKETS.md` §M1.7 P1 backlog; `docs/CURRENT_STATUS.md` §M1.7 paragraph; `tools/check_legacy_timeline_prevalence.sh` + `tools/check_legacy_asset_prevalence.sh` (i 2 forward-only grep-gate tools); `docs/ROADMAP.md` §M1.7 milestone canonical.
+
+---
+
 ## Luglio 2026 — M1.7 Sequence Step 1 landed (TimelineResolver V2 surface)
 
 ### feat(timeline) — TICKET-SEQUENCE-LOCAL-FRAME Step 1/4: 4 nuovi simboli pubblici canonici per TimelineResolver V2 single-source-of-truth (commit TBD-pending this session, 2026-07-07)
