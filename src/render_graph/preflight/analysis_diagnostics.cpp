@@ -127,11 +127,11 @@ void check_coordinate_mismatch(
     std::vector<bool> node_is_3d(graph.size(), false);
     for (GraphNodeId u : topo_order) {
         const auto& node = graph.node(u);
-        if (auto* src = dynamic_cast<const SourceNode*>(&node)) {
-            if (src->uses_2_5d_projection()) node_is_3d[u] = true;
-        } else if (auto* msrc = dynamic_cast<const MultiSourceNode*>(&node)) {
-            if (msrc->uses_2_5d_projection()) node_is_3d[u] = true;
-        } else {
+        {
+            // TICKET-TEXT-CLEANUP-8: m_uses_2_5d_projection removed from
+            // SourceNode/MultiSourceNode.  2.5D projection is now a global
+            // camera concern (ctx.frame_input.has_camera_2_5d), not a per-node
+            // flag.  Coordinate mismatch detection relies on parent propagation.
             for (GraphNodeId v : graph.inputs(u)) {
                 if (graph.has_node(v) && node_is_3d[v]) {
                     node_is_3d[u] = true;

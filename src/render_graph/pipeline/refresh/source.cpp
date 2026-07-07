@@ -108,7 +108,6 @@ void refresh_source_node(
         std::string(src_node.name),
         src_node,
         key,
-        item.projected,
         ctx.policy.modular_coordinates ? std::optional<Mat4>(render_matrix) : std::optional<Mat4>(resolved_matrix),
         ctx.policy.modular_coordinates ? std::optional<f32>(render_opacity) : std::nullopt,
         source_is_static ? static_memory_cache("source") : frame_variant_cache("source")
