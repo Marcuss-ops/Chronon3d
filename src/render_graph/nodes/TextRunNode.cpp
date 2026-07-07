@@ -159,6 +159,8 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
 
 cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const {
     auto key = m_key;
+    // TICKET-122: use current evaluation frame for cache isolation.
+    key.frame = ctx.frame_input.frame;
 
 #ifdef CHRONON3D_ENABLE_TEXT
     if (m_shape) {
