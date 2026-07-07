@@ -4,6 +4,35 @@
 > Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 ---
+## Luglio 2026 — Sequence V2 Steps 1-7 code-complete
+
+### feat(timeline,assets,cli): Sequence V2 full pipeline — Steps 1-7 code-complete (commits `de10920c`..`6264614b`, 2026-07-07)
+
+7 atomic commits landing the Sequence V2 pipeline end-to-end:
+
+- **Step 1** (`de10920c`): SequenceNode tree + TimelineResolver — resolves nested sequence hierarchy at any global frame, producing local FrameContexts for each active sequence.
+- **Step 2** (`78e4e194`): SequenceBuilder facade + nested support — `SceneBuilder::sequence(name, spec, callback)` with `SequenceBuilder` for nesting.
+- **Step 3** (`81af2949`): Animation context wiring — bbox collector uses `layer.local_frame(frame)` for blur hash inside sequences; 6 tests proving opacity/position/scale animations evaluate at local frame 0.
+- **Step 4** (`090edb66`): AssetRef + AssetManifest — typed asset references collected during build (text→font, image→image, video→video); aggregated through Layer → Scene.
+- **Step 5** (`01edc9a4`): AssetPreflightResolver — unified preflight with `PreflightMode::FullComposition` (all assets) and `PreflightMode::FrameOnly` (active layers only).
+- **Step 6** (`6264614b`): CLI integration — `command_preflight` uses `AssetPreflightResolver::check_manifest()` alongside legacy `RenderPreflight::validate()`; new `chronon still CompName --frame N` command with FrameOnly preflight.
+- **Step 7** (this commit): Integration tests + doc updates.
+
+New files:
+- `include/chronon3d/timeline/timeline_resolver.hpp` — TimelineResolver + SequenceNode + SequenceRange
+- `include/chronon3d/scene/builders/sequence_builder.hpp` — SequenceBuilder facade
+- `include/chronon3d/assets/asset_manifest.hpp` — AssetRef + AssetManifest
+- `include/chronon3d/assets/asset_preflight_resolver.hpp` — AssetPreflightResolver
+- `apps/chronon3d_cli/commands/render/command_still.cpp` — `chronon still` command
+- `apps/chronon3d_cli/utils/common/cli_asset_preflight_utils.hpp` — shared `make_cli_resolver()`
+- `tests/core/timeline/test_timeline_resolver.cpp` — 14 TEST_CASEs for TimelineResolver
+- `tests/core/timeline/test_sequence_animation.cpp` — 6 TEST_CASEs for animation-in-sequence
+- `tests/core/timeline/test_sequence_integration.cpp` — 3 TEST_CASEs for cross-cutting integration
+- `tests/assets/test_asset_manifest.cpp` — 12 TEST_CASEs for AssetManifest
+- `tests/assets/test_asset_preflight_resolver.cpp` — 7 TEST_CASEs for preflight
+
+---
+
 ## Luglio 2026 — M1.7 Asset Readiness Step 2 landed (Legacy Adapters)
 
 ### feat(assets) — TICKET-ASSET-READINESS Step 2/4: 3 free functions additive Legacy Adapters per path raw→AssetRef + manifest + render-error bridge (commit TBD-pending this session, 2026-07-07)
