@@ -7,6 +7,10 @@
 
 ## Luglio 2026 — Diagnostic
 
+### feat(tickets) — TICKET-122: fix render-order grid_background (2026-07-07)
+
+- **NEW `docs/tickets/TICKET-122.md`** — ticket per il fix del render-order bug scoperto in TICKET-121 FASE 7. Il `GraphExecutor` visita i nodi SourceNode in ordine topologico non-deterministico, causando l'esecuzione del `grid_background` DOPO le card e coprendole con lo sfondo opaco. Tre opzioni di fix: (A) stable sort per node_id nel GraphExecutor, (B) edge espliciti tra layer nel graph_builder, (C) sort nel compositor. Priorità P1 — chiude definitivamente le collisioni hash CAM_02/CAM_04.
+
 ### diag(ae-cam) — TICKET-121 CLOSED: proiezione 2.5D completamente esonerata (5 fasi, 10+ commit, 2026-07-07)
 
 - **Conclusione**: l'infrastruttura di proiezione 2.5D è integralmente verificata e corretta. Il percorso completo `CameraProjectionResolver → proj.transform → state.matrix → processor.draw() → raster` funziona correttamente per tutti i 10 test AE_CAM. Le 2 collisioni hash residue (CAM_02, CAM_04) sono causate da un render-order bug (grid_background full-canvas disegnato DOPO le card) + geometria scena monocromatica.
