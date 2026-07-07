@@ -488,3 +488,117 @@ TEST_CASE("TextPlace Cache Invalidation — content changes") {
     // Ensure "HELLO" != "CENTER" (start != end) -- should be the largest diff.
     CHECK(err_02 > err_01 * 0.5);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Group G — modular_coordinates ON/OFF parity
+// ═══════════════════════════════════════════════════════════════════════════
+
+// G.1 — Verify that the same composition renders identically (or near-identically)
+// with modular_coordinates ON and OFF.  If the centroid shifts, there is
+// still a double-translation path gated on the modular_coordinates flag.
+//
+// We test a subset of representative compositions:
+//   - Static center (basic pin_to path)
+//   - Animated center (exercises use_local path)
+//   - Box alignment (exercises align/vertical_align)
+//   - Multisource (text + rect in same layer)
+
+using CompFactory = Composition (*)();
+
+struct ModCoordParityCase {
+    const char* label;
+    CompFactory factory;
+    Frame       frame;
+};
+
+TEST_CASE("TextPlace modular_coordinates ON/OFF — centroid parity") {
+    std::vector<ModCoordParityCase> cases{
+        {"StaticCenter",  make_static_center_no_pos,    Frame{0}},
+        {"AnimatedCenter", make_animated_center_no_pos,  Frame{30}},
+        {"BoxAlign",      make_box_alignment,           Frame{0}},
+        {"Multisource",   make_multisource_text_plus_shape, Frame{0}},
+    };
+
+    // Helper: create a renderer with explicit modular_coordinates setting.
+    auto make_mod_renderer = [](bool modular) {
+        SoftwareRenderer renderer(Config{});
+        RenderSettings settings;
+        settings.use_modular_graph = modular;
+        renderer.set_settings(settings);
+        test::attach_software_backend(&renderer);
+        return renderer;
+    };
+
+    for (auto& tc : cases) {
+        INFO("Case: ", tc.label);
+
+        // Render with modular_coordinates = true
+        auto renderer_on = make_mod_renderer(true);
+        auto comp_on = tc.factory();
+        auto fb_on = renderer_on.render(comp_on, tc.frame);
+        REQUIRE(fb_on != nullptr);
+
+        // Render with modular_coordinates = false
+        auto renderer_off = make_mod_renderer(false);
+        auto comp_off = tc.factory();
+        auto fb_off = renderer_off.render(comp_off, tc.frame);
+        REQUIRE(fb_off != nullptr);
+
+        auto c_on  = compute_alpha_centroid(*fb_on);
+        auto c_off = compute_alpha_centroid(*fb_off);
+
+        CHECK(c_on.max_alpha > 0.3f);
+        CHECK(c_off.max_alpha > 0.3f);
+
+        INFO("ON  centroid: (", c_on.x, ", ", c_on.y, ")");
+        INFO("OFF centroid: (", c_off.x, ", ", c_off.y, ")");
+
+        // The centroids should be within 5% of canvas width of each other.
+        // Exact match is ideal but slight floating-point / rounding
+        // differences between the two coordinate paths are acceptable.
+        const f32 tolerance = static_cast<f32>(fb_on->width()) * 0.05f;
+        CHECK(std::abs(c_on.x - c_off.x) < tolerance);
+        CHECK(std::abs(c_on.y - c_off.y) < tolerance);
+    }
+}
+
+// G.2 — Edge-touch parity: if ON doesn't clip, OFF shouldn't either.
+TEST_CASE("TextPlace modular_coordinates ON/OFF — no clipping regression") {
+    std::vector<ModCoordParityCase> cases{
+        {"GlowShadow", make_glow_shadow_center_no_pos, Frame{0}},
+        {"Scale130",   make_scale_130_center_no_pos,   Frame{0}},
+        {"Blur20",     make_clip_blur_20,              Frame{0}},
+    };
+
+    auto make_mod_renderer = [](bool modular) {
+        SoftwareRenderer renderer(Config{});
+        RenderSettings settings;
+        settings.use_modular_graph = modular;
+        renderer.set_settings(settings);
+        test::attach_software_backend(&renderer);
+        return renderer;
+    };
+
+    for (auto& tc : cases) {
+        INFO("Case: ", tc.label);
+
+        auto renderer_on = make_mod_renderer(true);
+        auto comp_on = tc.factory();
+        auto fb_on = renderer_on.render(comp_on, tc.frame);
+        REQUIRE(fb_on != nullptr);
+
+        auto renderer_off = make_mod_renderer(false);
+        auto comp_off = tc.factory();
+        auto fb_off = renderer_off.render(comp_off, tc.frame);
+        REQUIRE(fb_off != nullptr);
+
+        bool clip_on  = alpha_touches_edge(*fb_on);
+        bool clip_off = alpha_touches_edge(*fb_off);
+
+        INFO("ON  clipped=", clip_on, "  OFF clipped=", clip_off);
+
+        // Both should agree on clipping state.  If ON clips and OFF doesn't
+        // (or vice versa), the coordinate path diverges.
+        CHECK(clip_on == clip_off);
+    }
+}
