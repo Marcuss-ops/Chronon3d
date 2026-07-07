@@ -304,6 +304,7 @@ add_executable(chronon3d_core_tests
     assets/test_asset_registry.cpp
     assets/test_asset_resolver.cpp
     assets/test_asset_manifest.cpp
+    assets/test_asset_preflight_resolver.cpp
     core/math/test_color_space.cpp
     core/math/test_nan_guard.cpp
     core/test_system_metrics_parse.cpp
