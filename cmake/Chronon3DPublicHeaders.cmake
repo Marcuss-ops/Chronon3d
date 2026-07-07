@@ -236,4 +236,10 @@ set(CHRONON3D_PUBLIC_HEADERS
     #   TextPreflight/ImagePreflight/VideoPreflight/AudioPreflight/FontPreflight e i
     #   fallback silenziosi.
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_readiness_v2.hpp"
+    # ── M1.7 Step 2: Asset Legacy Adapters (path raw → AssetRef + manifest + render-error bridge) ──
+    #   `make_asset_ref(kind, path, owner, required)` POD builder + `register_path(manifest, ...)`
+    #   convenience wrapper + `accumulate_preflight_result(result, ref, found)` bridge accumulator.
+    #   Pure additive: AGENTS Cat-3 freeze-compliant (zero nuovi singleton / zero modifiche al codice
+    #   esistente / zero ABI bloat / FNV-1a cache key invariato). Destinato all'eliminazione a Step 4.
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/legacy_adapters.hpp"
 )
