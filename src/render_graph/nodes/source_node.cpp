@@ -1,6 +1,7 @@
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
+#include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -119,30 +120,31 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
         // (which would collapse `input.layer_size = (1,1)` and cause
         // the projected bbox to be sub-pixel-clipped at the rasterizer,
         // rendering 2D layers as transparent-black and producing
-        // framebuffer_hash collisions).  `from_mat4(base_matrix, ...)`
-        // extracts the actual scale from the matrix's column vectors
-        // (canonical TRS decomposition per <chronon3d/math/transform.hpp>),
-        // faithfully matching what MultiSourceNode does with
-        // `from_mat4(item.matrix, item.opacity)` at the 3 sibling sites
-        // (commit 853ace48).  This handles the m_matrix_override case
-        // correctly: base_matrix is either the override or the world
-        // transform's matrix, and from_mat4 decomposes the source of
-        // truth.
-        auto tr = chronon3d::from_mat4(base_matrix, m_opacity_override.value_or(m_node.world_transform.opacity));
-        auto proj = chronon3d::project_layer_2_5d(
-            tr, base_matrix,
-            ctx.frame_input.camera_2_5d,
-            static_cast<f32>(ctx.frame_input.width),
-            static_cast<f32>(ctx.frame_input.height),
-            false);
-        if (!proj.visible) {
+        // framebuffer_hash collisions).
+        //
+        // Dedup (round-2/3 code-reviewer #2 follow-up): the
+        // projection+continue logic is extracted to
+        // `chronon3d::graph::detail::project_to_camera_space` in
+        // `src/render_graph/nodes/detail/projection_helpers.hpp` and
+        // shared with the 3 multi_source_node.cpp sites.  This handles
+        // the m_matrix_override case correctly: base_matrix is either
+        // the override or the world transform's matrix, and from_mat4
+        // (called inside the helper) decomposes the source of truth.
+        //  m_opacity_override.value_or(m_node.world_transform.opacity)
+        //  precedence is preserved (override > world transform).
+        auto matrix_opt = chronon3d::graph::detail::project_to_camera_space(
+            base_matrix, m_opacity_override.value_or(m_node.world_transform.opacity),
+            ctx, m_name, "predicted_bbox");
+        if (!matrix_opt) {
             // Behind camera / off frustum: return no bbox so the graph
             // aggressively culls the node (saves context acquisition
             // overhead).  Native 3D shapes are excluded above so this
-            // path is only hit for 2.5D-projected 2D layers.
+            // path is only hit for 2.5D-projected 2D layers.  The
+            // CHRONON3D_PROJ_DIAG diagnostic has already been emitted
+            // by the helper.
             return std::nullopt;
         }
-        matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
+        matrix = *matrix_opt;
     } else if (m_uses_2_5d_projection || m_centered) {
         matrix = canvas_center * ssaa_scale * base_matrix;
     } else {
@@ -284,14 +286,22 @@ NodeExecResult SourceNode::execute(
             // for the full rationale (extracts actual layer scale from
             // base_matrix's column vectors, pre-empting the
             // empty-Transform-tr transparent-black bug).
-            auto tr = chronon3d::from_mat4(base_matrix, m_opacity_override.value_or(m_node.world_transform.opacity));
-            auto proj = chronon3d::project_layer_2_5d(
-                tr, base_matrix,
-                ctx.frame_input.camera_2_5d,
-                static_cast<f32>(ctx.frame_input.width),
-                static_cast<f32>(ctx.frame_input.height),
-                false);
-            if (!proj.visible) {
+            //
+            // Dedup (round-2/3 code-reviewer #2 follow-up): the
+            // projection+continue logic is extracted to
+            // `chronon3d::graph::detail::project_to_camera_space` and
+            // shared with the 3 multi_source_node sites + the sibling
+            // predicted_bbox site.  The helper emits the
+            // CHRONON3D_PROJ_DIAG diagnostic internally.  After the
+            // helper returns nullopt, this site adds the
+            // `[source-skip]` per-site diagnostic (gated on
+            // `ctx.policy.diagnostics_enabled`, not on
+            // CHRONON3D_PROJ_DIAG) + the defensive `fb->set_opaque(false)`
+            // + the early-return of the cleared fb.
+            auto state_matrix_opt = chronon3d::graph::detail::project_to_camera_space(
+                base_matrix, m_opacity_override.value_or(m_node.world_transform.opacity),
+                ctx, m_name, "execute");
+            if (!state_matrix_opt) {
                 // Layer is behind camera plane / off frustum: skip the
                 // draw call and return the empty (cleared) fb so the
                 // graph continues.  Matches MultiSourceNode skip-path
@@ -305,7 +315,7 @@ NodeExecResult SourceNode::execute(
                 fb->set_opaque(false);  // empty fb is not opaque (defensive)
                 return NodeExecResult{std::move(fb)};
             }
-            state.matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
+            state.matrix = *state_matrix_opt;
         } else if (m_uses_2_5d_projection || m_centered) {
             state.matrix = canvas_center * ssaa_scale * base_matrix;
         } else {
