@@ -278,6 +278,22 @@ foreach(_rg_sw_consumer
         chronon3d_graph_preflight)
     target_include_directories(${_rg_sw_consumer} PRIVATE ${CMAKE_SOURCE_DIR}/src/backends/software/include_private)
 endforeach()
+
+# TICKET-AE-PARITY-FLOOR-DASHBOARD — internal-only header at
+# src/render_graph/nodes/detail/projection_helpers.hpp is FULL-included by
+# source_node.cpp + multi_source_node.cpp via the public include path
+# <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>.  Per
+# AGENTS.md "non esporre headers interni come public API", we do NOT move
+# the header to include/chronon3d/; instead, expose ONLY the
+# src/render_graph/nodes/ subtree (the minimum needed) as PRIVATE to the
+# chronon3d_graph_nodes target (the only target that contains the two
+# .cpp files referencing the detail header).  Mirrors the existing
+# `src/backends/software/include_private` pattern above (also narrow,
+# one subdir) — code-reviewer-minimax-m3 round-1 flagged the broader
+# `${CMAKE_SOURCE_DIR}/src` as over-exposed; narrowing to the
+# `src/render_graph/nodes` subtree minimizes accidental coupling while
+# keeping the same internal-header access pattern.
+target_include_directories(chronon3d_graph_nodes PRIVATE ${CMAKE_SOURCE_DIR}/src/render_graph/nodes)
 # Backward direction — runtime headers (Commit #3) are FULL-included by
 # `software_renderer.hpp` (Compile-time dependency).  chronon3d_backend_software
 # PUBLIC-links `chronon3d_runtime` (Commit #3 pre-emptive edit) so
