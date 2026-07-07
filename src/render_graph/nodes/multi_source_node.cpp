@@ -89,8 +89,10 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
                 *item.node->shape.text_run_shape_handle().value, matrix, spread);
         } else
 #endif
+        // TICKET-122 FASE 3: GridPlane now uses 2.5D projection,
+        // standard compute_world_bbox path (not native 3D).
         if (ctx.frame_input.has_camera_2_5d &&
-            (item.node->shape.type() == ShapeType::FakeBox3D || item.node->shape.type() == ShapeType::GridPlane)) {
+            item.node->shape.type() == ShapeType::FakeBox3D) {
             if (auto proj_bbox = detail::projected_native_3d_bbox(ctx, *item.node, item.matrix, spread)) {
                 bbox = *proj_bbox;
             } else {
