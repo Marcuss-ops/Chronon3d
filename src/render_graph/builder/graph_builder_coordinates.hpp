@@ -79,8 +79,12 @@ inline bool is_implicit_2d_centering_only(const LayerGraphItem& item, const Rend
     if (item.projected) return false;
     if (item.native_3d) return false;
     if (item.layer->uses_2_5d_projection) return false;
+    // Only check the 4×4 matrix (position/rotation/scale/anchor).
+    // Opacity is NOT part of to_mat4() and must not prevent canvas-center
+    // detection — a layer can be canvas-centered AND have custom opacity.
+    // Without this, l.opacity(non-1.0) would trigger use_local=true which
+    // skips canvas center bake, pushing text off-screen.
     if (!item.transform.any()) return false;
-    if (item.transform.opacity != 1.0f) return false;
 
     return matrix_near(item.transform.to_mat4(), implicit_canvas_center_matrix(ctx));
 }

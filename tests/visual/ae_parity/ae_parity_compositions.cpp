@@ -63,6 +63,9 @@ static inline std::size_t snapshot_bucket_for(const FrameContext& ctx) {
 //   ─────────┼──────────────┼──────────────┼──────────────┤
 //   opacity  │ 0.40         │ 0.85         │ 0.50         │
 //   scale    │ (0.96,0.96)  │ (1.05,1.05)  │ (0.98,0.98)  │
+//
+// Scale animation deferred: l.scale() triggers use_local which skips
+// canvas center bake for non-identity scale transforms.
 // ─────────────────────────────────────────────────────────────────────────────
 Composition make_ae_08_glow_pulse(const CompositionProps& /*props*/) {
     return composition(
@@ -71,13 +74,15 @@ Composition make_ae_08_glow_pulse(const CompositionProps& /*props*/) {
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
         [](const FrameContext& ctx) -> Scene {
+            const std::size_t f = snapshot_bucket_for(ctx);
+            const float opacity = (f == 0) ? 0.40f : (f <= 15 ? 0.85f : 0.50f);
             SceneBuilder s(ctx);
-            s.layer("hero", [](LayerBuilder& l) {
+            s.layer("hero", [opacity](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
+                l.opacity(opacity);
                 l.text("glow_pulse", content::text::centered_text({
                     .text = "PULSE GLOW",
                     .box = {1920.0f, 1080.0f},
-                    .pos = {960.0f, 540.0f, 0.0f},
                     .font_path = "assets/fonts/Inter-Bold.ttf",
                     .font_family = "Inter",
                     .font_weight = 700,
@@ -95,6 +100,9 @@ Composition make_ae_08_glow_pulse(const CompositionProps& /*props*/) {
 //   ─────────┼──────────────┼──────────────┼──────────────┤
 //   scale    │ (0.50,0.50)  │ (1.30,1.30)  │ (1.00,1.00)  │
 //   opacity  │ 0.00         │ 0.80         │ 1.00         │
+//
+// Scale animation deferred: l.scale() triggers use_local which skips
+// canvas center bake for non-identity scale transforms.
 // ─────────────────────────────────────────────────────────────────────────────
 Composition make_ae_10_scale_pop(const CompositionProps& /*props*/) {
     return composition(
@@ -103,13 +111,15 @@ Composition make_ae_10_scale_pop(const CompositionProps& /*props*/) {
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
         [](const FrameContext& ctx) -> Scene {
+            const std::size_t f = snapshot_bucket_for(ctx);
+            const float opacity = (f == 0) ? 0.00f : (f <= 15 ? 0.80f : 1.00f);
             SceneBuilder s(ctx);
-            s.layer("hero", [](LayerBuilder& l) {
+            s.layer("hero", [opacity](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
+                l.opacity(opacity);
                 l.text("scale_pop", content::text::centered_text({
                     .text = "POP IN",
                     .box = {1920.0f, 1080.0f},
-                    .pos = {960.0f, 540.0f, 0.0f},
                     .font_path = "assets/fonts/Inter-Bold.ttf",
                     .font_family = "Inter",
                     .font_weight = 700,
@@ -139,13 +149,15 @@ Composition make_ae_12_random_character_jitter(const CompositionProps& /*props*/
             const Vec2 jitter = (f == 0)
                 ? Vec2{0.0f, 0.0f}
                 : (f <= 15 ? Vec2{8.0f, -4.0f} : Vec2{-5.0f, 3.0f});
+            const float opacity = (f == 0) ? 1.00f : (f <= 15 ? 0.92f : 1.00f);
             SceneBuilder s(ctx);
-            s.layer("hero", [jitter](LayerBuilder& l) {
+            s.layer("hero", [jitter, opacity](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
+                l.opacity(opacity);
                 l.text("random_jitter", content::text::centered_text({
                     .text = "JITTER",
                     .box = {1920.0f, 1080.0f},
-                    .pos = {960.0f + jitter.x, 540.0f + jitter.y, 0.0f},
+                    .pos = {jitter.x, jitter.y, 0.0f},
                     .font_path = "assets/fonts/Inter-Bold.ttf",
                     .font_family = "Inter",
                     .font_weight = 700,
@@ -175,13 +187,15 @@ Composition make_ae_14_multiline_landscape(const CompositionProps& /*props*/) {
         [](const FrameContext& ctx) -> Scene {
             const std::size_t f = snapshot_bucket_for(ctx);
             const float dy = (f == 0) ? 20.0f : (f <= 15 ? 8.0f : 0.0f);
+            const float opacity = (f == 0) ? 0.00f : (f <= 15 ? 0.70f : 1.00f);
             SceneBuilder s(ctx);
-            s.layer("hero", [dy](LayerBuilder& l) {
+            s.layer("hero", [dy, opacity](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
+                l.opacity(opacity);
                 l.text("multiline", content::text::centered_text({
                     .text = "LINE ONE\nLINE TWO\nLINE THREE",
                     .box = {1920.0f, 1080.0f},
-                    .pos = {960.0f, 540.0f + dy, 0.0f},
+                    .pos = {0.0f, dy, 0.0f},
                     .font_path = "assets/fonts/Inter-Bold.ttf",
                     .font_family = "Inter",
                     .font_weight = 700,
@@ -200,6 +214,8 @@ Composition make_ae_14_multiline_landscape(const CompositionProps& /*props*/) {
 //   ─────────┼──────────────┼──────────────┼──────────────┤
 //   dx       │ +8           │ +16          │ +24          │
 //   blur     │ 13.0 (tier 3)│ 13.0         │ 13.0         │
+//
+// Blur animation deferred: l.blur() compositing path not yet supported.
 // ─────────────────────────────────────────────────────────────────────────────
 Composition make_motion_blur_text(const CompositionProps& /*props*/) {
     return composition(
@@ -216,7 +232,7 @@ Composition make_motion_blur_text(const CompositionProps& /*props*/) {
                 l.text("motion_blur", content::text::centered_text({
                     .text = "MOTION BLUR",
                     .box = {1280.0f, 720.0f},
-                    .pos = {640.0f + dx, 360.0f, 0.0f},
+                    .pos = {dx, 0.0f, 0.0f},
                     .font_path = "assets/fonts/Inter-Bold.ttf",
                     .font_family = "Inter",
                     .font_weight = 700,
