@@ -105,24 +105,24 @@ struct GridBackgroundParams {
 // ═══════════════════════════════════════════════════════════════════════════
 
 struct TextLayoutSpec {
-    Vec2          box{900.0f, 160.0f};
-    TextAnchor    anchor{TextAnchor::Center};
-    TextCenteringMode centering_mode{TextCenteringMode::LayoutBox};
-    TextAlign     align{TextAlign::Center};
-    VerticalAlign vertical_align{VerticalAlign::Middle};
-    TextWrap      wrap{TextWrap::Word};
-    TextOverflow  overflow{TextOverflow::Clip};
-    f32           line_height{1.2f};
-    f32           tracking{0.0f};
-    bool          auto_fit{false};
-    f32           min_font_size{12.0f};
-    f32           max_font_size{160.0f};
-    int           max_lines{0};
-    bool          ellipsis{false};
+    Vec2          box{900.0f, 160.0f};       // ✅ TextRun pipeline: box.x used for layout width (box.y TBD)
+    TextAnchor    anchor{TextAnchor::Center}; // ⚠️  Legacy-only — not wired in TextRun pipeline
+    TextCenteringMode centering_mode{TextCenteringMode::LayoutBox}; // ⚠️  Legacy-only
+    TextAlign     align{TextAlign::Center};   // ⚠️  Legacy-only — not wired in TextRun pipeline
+    VerticalAlign vertical_align{VerticalAlign::Middle}; // ⚠️  Legacy-only
+    TextWrap      wrap{TextWrap::Word};       // ✅ TextRun pipeline: forwarded to text_run_builder
+    TextOverflow  overflow{TextOverflow::Clip}; // ⚠️  Legacy-only (text_layout_inline); not in TextRun
+    f32           line_height{1.2f};          // ✅ TextRun pipeline: forwarded to text_run_builder
+    f32           tracking{0.0f};             // ✅ TextRun pipeline: forwarded to text_run_builder
+    bool          auto_fit{false};            // ❌ TODO: not implemented — no reader in text pipeline
+    f32           min_font_size{12.0f};       // ❌ TODO: not implemented — no reader in src/
+    f32           max_font_size{160.0f};      // ❌ TODO: not implemented — no reader in src/
+    int           max_lines{0};               // ❌ TODO: not implemented — no reader in text pipeline
+    bool          ellipsis{false};            // ⚠️  Legacy-only (text_layout_single); not in TextRun
 
     /// Paragraph-level typography (composer, justification, indentation,
     /// spacing, hanging punctuation, hyphenation, widow/orphan control).
-    /// Defaults to SingleLine composer with Left justification.
+    /// ❌ TODO: not implemented — not wired in text rendering pipeline.
     ParagraphStyle paragraph{};
 };
 
