@@ -111,7 +111,10 @@ std::unordered_map<std::string, LayerBBoxState> compute_layer_bboxes_parallel(
                     state.uses_2_5d_projection = rl.layer->uses_2_5d_projection;
                     uint64_t content_h = rl.layer->get_static_hash();
                     if (rl.layer->anim_transform.blur.is_time_dependent()) {
-                        content_h = hash_combine(content_h, hash_value(rl.layer->anim_transform.blur.evaluate(frame)));
+                        // Sequence V2: use layer's local_frame for correct
+                        // animation evaluation inside sequences.
+                        const Frame blur_frame = rl.layer->local_frame(frame);
+                        content_h = hash_combine(content_h, hash_value(rl.layer->anim_transform.blur.evaluate(blur_frame)));
                     }
                     state.content_hash = content_h;
                     local_map[std::string(rl.layer->name)] = state;
