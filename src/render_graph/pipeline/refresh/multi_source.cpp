@@ -80,10 +80,8 @@ void refresh_multi_source_node(
         cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
     }
 
-    // TICKET-TEXT-CLEANUP-5 (MultiSourceNode refresh follow-up): bake
-    // canvas_center into each item matrix when (centered || projected) &&
-    // !modular_coordinates.  Preserves old m_uses_2_5d_projection ||
-    // m_centered behavior.
+    // Bake canvas_center into each item matrix when (centered || projected)
+    // && !modular_coordinates.
     if (!ctx.policy.modular_coordinates && (should_use_centered_rendering(item, ctx) || item.projected)) {
         const Mat4 cc = glm::translate(Mat4(1.0f),
             Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
