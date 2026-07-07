@@ -289,14 +289,113 @@ I test `AE_CAM_02` e `AE_CAM_04` hanno già `MESSAGE` che forward-pointano a
 - `ae_parity_tests.cpp:194` — CAM_02 hash-collision
 - `ae_parity_tests.cpp:267` — CAM_04 hash-collision
 
+## FASE 2 — Tracciatura `state.matrix` → raster (2026-07-07)
+
+### Percorso completo tracciato
+
+```
+MultiSourceNode::execute()                          [multi_source_node.cpp:384]
+  state.matrix = canvas_center * ssaa_scale * proj.transform.to_mat4()       ✅ screen-space
+  state.world_matrix = item.matrix                                           ⚠️ world-space raw
+  ctx.services.backend->draw_node(*fb, *item.node, state, ...)
+    │
+    ▼
+SoftwareBackend::draw_node()                        [software_backend.cpp:122]
+  processor->draw(m_proc_ctx, fb, node, state, camera, w, h)                 ✅ state.matrix passato
+    │
+    ├─► SoftwareShapeProcessor::draw()              [software_shape_processor.cpp:25]
+    │     draw_transformed_shape(fb, shape, state.matrix, ...)                ✅ state.matrix
+    │
+    ├─► SoftwareTextProcessor::draw()               [software_text_processor.cpp:81]
+    │     const Mat4& model = state.matrix                                    ✅ state.matrix
+    │
+    ├─► SoftwareLineProcessor::draw()               [software_line_processor.cpp:23-24]
+    │     state.matrix * Vec4(...)                                            ✅ state.matrix
+    │
+    ├─► SoftwareMeshProcessor::draw()               [software_mesh_processor.cpp:19]
+    │     state.matrix                                                        ✅ state.matrix
+    │
+    ├─► SoftwareImageProcessor::draw()              [software_image_processor.cpp]
+    │     state.matrix                                                        ✅ state.matrix
+    │
+    ├─► SoftwareTiledImageProcessor::draw()         [software_tiled_image_processor.cpp]
+    │     state.matrix                                                        ✅ state.matrix
+    │
+    └─► SoftwareFakeBox3DProcessor::draw()          [software_utility_processors.cpp:26]
+          s.world_matrix = state.world_matrix                                ⚠️ world_matrix (FakeBox3D only)
+```
+
+### BBox path
+
+```
+MultiSourceNode::predicted_bbox()                   [multi_source_node.cpp:72]
+  matrix = canvas_center * ssaa_scale * proj.transform.to_mat4()             ✅ screen-space
+  │
+  ├─► compute_world_bbox(shape, matrix, spread)     [shape_rasterizer.cpp:35]
+  │     ▶ Trasforma 4 corner locali con matrix → screen-space bbox           ✅
+  │
+  └─► compute_text_run_world_bbox(shape, matrix, 0) [text_run_geometry.cpp:26]
+        ▶ Trasforma 4 corner locali con matrix → screen-space bbox           ✅
+```
+
+### Cache key path
+
+```
+MultiSourceNode::cache_key()                        [multi_source_node.cpp]
+  key.params_hash = hash(camera.position)                                    ✅
+  key.params_hash = hash(camera.rotation)                                    ✅
+  key.params_hash = hash(camera.zoom)                                        ✅
+  key.params_hash = hash(camera.fov_deg)                                     ✅
+  key.params_hash = hash(camera.point_of_interest)                           ✅
+  key.params_hash = hash(item.matrix)                                        ✅
+```
+
+### Conclusioni FASE 2
+
+**Il percorso `state.matrix` → raster è CORRETTO.** Nessun shape processor 2D ignora
+`state.matrix` a favore di `state.world_matrix`. L'unica eccezione è `FakeBox3DProcessor`
+che usa `state.world_matrix` per forme 3D (non rilevante per i test AE_CAM).
+
+Anche la `cache_key()` di `MultiSourceNode` include lo stato della camera, quindi
+la cache key cambia tra frame con camera diversa.
+
+**Due ipotesi residue per il root cause:**
+
+1. **Node-cache level**: il `CacheEvaluator` potrebbe non usare `cache_key()` o potrebbe
+   esserci un secondo livello di cache (graph-level) che non include la camera.
+   → Investiga `src/render_graph/executor/cache_evaluator.cpp` e
+   `src/render_graph/pipeline/graph_cache_coordinator.cpp`.
+
+2. **`project_layer_2_5d()` identico**: se `CameraProjectionResolver::project_layer_2_5d()`
+   restituisce lo stesso `proj.transform` per due stati camera diversi, allora
+   `state.matrix` è identico e il FB hash è lo stesso.
+   → Investiga `include/chronon3d/math/camera_projection_resolver.hpp`.
+
+### File ispezionati
+
+| File | Ruolo | Stato |
+|---|---|---|
+| `src/render_graph/nodes/multi_source_node.cpp` | `state.matrix` / `state.world_matrix` assignment | ✅ `proj.transform.to_mat4()` |
+| `src/backends/software/software_backend.cpp` | `draw_node()` / `draw_text_run()` dispatch | ✅ state passato al processor |
+| `src/backends/software/processors/software_shape_processor.cpp` | Rect/Circle/RoundedRect draw | ✅ `state.matrix` |
+| `src/backends/software/processors/text/software_text_processor.cpp` | Text draw | ✅ `state.matrix` |
+| `src/backends/software/processors/software_line_processor.cpp` | Line draw | ✅ `state.matrix` |
+| `src/backends/software/processors/software_mesh_processor.cpp` | Mesh draw | ✅ `state.matrix` |
+| `src/backends/software/processors/software_utility_processors.cpp` | FakeBox3D/GridPlane | ⚠️ `state.world_matrix` (3D only) |
+| `src/backends/software/rasterizers/shape_rasterizer.cpp` | `compute_world_bbox` | ✅ model matrix |
+| `src/text/text_run_geometry.cpp` | `compute_text_run_world_bbox` | ✅ model matrix |
+| `include/chronon3d/render_graph/nodes/detail/bbox_projection.hpp` | `projected_native_3d_bbox` | ✅ world_matrix (3D only) |
+
 ## Azioni rimanenti
 
 1. ~~Sostituire `proj.projection_matrix` con `proj.transform.to_mat4()`~~ — **DONE** (già applicato)
-2. **FASE 2**: Tracciare `state.matrix` → backend raster (vedi suggested follow-up)
-3. **FASE 3**: Fix reale nel cache layer (`TICKET-ae-cam-hash-collision`)
-4. **FASE 4**: Regression test + verifica hash diversi
-5. **FASE 5**: Gate check + doc sync
-6. **FASE 6**: Deep-dive `CameraProjectionResolver` (se necessario dopo FASE 2-3)
+2. ~~Tracciare `state.matrix` → backend raster~~ — **DONE** (FASE 2: percorso corretto, nessun bug trovato)
+3. **FASE 3**: Investigare le due ipotesi residue:
+   - 3a: CacheEvaluator / graph_cache_coordinator (secondo livello cache)
+   - 3b: `project_layer_2_5d()` restituisce transform identici?
+4. **FASE 4**: Fix reale (cache o projection resolver)
+5. **FASE 5**: Regression test + verifica hash diversi
+6. **FASE 6**: Gate check + doc sync
 7. **FASE 7**: Aggiorna golden PNGs
 
 ## Collegamenti
