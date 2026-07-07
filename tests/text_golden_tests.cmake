@@ -113,6 +113,24 @@ target_sources(chronon3d_text_golden_tests
         text_golden/ae_parity/ae_07_stroke_reveal.cpp
 )
 
+# TICKET-AE-PARITY-CINEMATIC-11 — ae_rotation_per_character scene. Appended
+# directly to existing target via target_sources(). 6 TEST_CASEs = 16:9 +
+# 9:16 × 3 frame snapshots f00/f15/f30 with Y-axis rotation progressive ramp
+# (0° → 12° → 24° per-frame) + slight camera-prospettica Z-translation
+# (z=0 → -60 → -120) to evoke depth kickoff for Phase 2 Killer 4
+# (per-character 3D complete). Layer-level rotation approximation
+# (whole text as a single rigid body rotating around its layer anchor);
+# TRUE per-character fan composition via `.select(Character).rotation()`
+# Animator chain is the forward-only Phase 2 Killer 4 ticket scope. Pure
+# Y-axis here (Z rotation 0°, X rotation 0°) so the fan reads as a
+# cinema-tilt-and-depth reveal rather than a full per-axis 3D rotation.
+# LayerBuilder::rotate + LayerBuilder::position (Z-channel) — both
+# LayerBuilder public surface, no new SDK surface. Cat-2 freeze-compliant.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/ae_parity/ae_11_rotation_per_character.cpp
+)
+
 add_test(
     NAME TextGolden
     COMMAND chronon3d_text_golden_tests
