@@ -42,12 +42,14 @@ public:
     /// Cache policy is decided at construction time — pass a
     /// `frame_variant_cache("text_run")` for animated text,
     /// `static_memory_cache("text_run")` (default) for static.
+    // TICKET-TEXT-CLEANUP-5: `centered` parameter removed.  The source
+    // pass now always provides the resolved matrix (including canvas-center
+    // for centered layers).  TextRunNode just applies SSAA.
     TextRunNode(
         std::string name,
         std::shared_ptr<TextRunShape> shape,
         const ::chronon3d::RenderNode& render_ref,
         const cache::NodeCacheKey& key,
-        bool centered = false,
         bool uses_2_5d_projection = false,
         std::optional<Mat4> matrix_override = std::nullopt,
         std::optional<f32> opacity_override = std::nullopt,
@@ -102,7 +104,8 @@ private:
     std::shared_ptr<TextRunShape> m_shape;
     ::chronon3d::RenderNode m_render_ref;
     cache::NodeCacheKey m_key;
-    bool m_centered{false};
+    // TICKET-TEXT-CLEANUP-5: m_centered removed — centering is now
+    // resolved by the source pass and baked into m_matrix_override.
     bool m_uses_2_5d_projection{false};
     std::optional<Mat4> m_matrix_override;
     std::optional<f32> m_opacity_override;

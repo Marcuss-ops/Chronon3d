@@ -49,7 +49,6 @@ TextRunNode::TextRunNode(
     std::shared_ptr<TextRunShape> shape,
     const ::chronon3d::RenderNode& render_ref,
     const cache::NodeCacheKey& key,
-    bool centered,
     bool uses_2_5d_projection,
     std::optional<Mat4> matrix_override,
     std::optional<f32> opacity_override,
@@ -60,7 +59,6 @@ TextRunNode::TextRunNode(
       m_shape(std::move(shape)),
       m_render_ref(render_ref),
       m_key(key),
-      m_centered(centered),
       m_uses_2_5d_projection(uses_2_5d_projection),
       m_matrix_override(std::move(matrix_override)),
       m_opacity_override(opacity_override)
@@ -84,7 +82,7 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
     }
 
     const Mat4 matrix = text_run::build_world_matrix(
-        m_render_ref, ctx, m_uses_2_5d_projection, m_centered, m_matrix_override);
+        m_render_ref, ctx, m_uses_2_5d_projection, m_matrix_override);
 
     f32 spread = 0.0f;
     if (m_render_ref.shadow.enabled) {
@@ -214,7 +212,7 @@ NodeExecResult TextRunNode::execute(
 #endif
 
     const Mat4 world_matrix = text_run::build_world_matrix(
-        m_render_ref, ctx, m_uses_2_5d_projection, m_centered, m_matrix_override);
+        m_render_ref, ctx, m_uses_2_5d_projection, m_matrix_override);
     const f32 opacity = m_opacity_override.value_or(m_render_ref.world_transform.opacity);
 
     // ── 4. Dispatch draw_text_run + surface backend error. ──
