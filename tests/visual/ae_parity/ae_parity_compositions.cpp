@@ -1,0 +1,279 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// tests/visual/ae_parity/ae_parity_compositions.cpp
+//
+// TICKET-AE-PARITY-FLOOR-DASHBOARD — Composition factory implementations
+// (5 functions) extracted from the test build_landscape/build_portrait
+// patterns at:
+//   tests/text_golden/ae_parity/ae_08_glow_pulse.cpp
+//   tests/text_golden/ae_parity/ae_10_scale_pop.cpp
+//   tests/text_golden/ae_parity/ae_12_random_character_jitter.cpp
+//   tests/text_golden/ae_parity/ae_14_multiline_9_16.cpp
+//   tests/text_golden/motion_blur_text/motion_blur_text_scene.cpp
+//
+// Each factory mirrors the corresponding test file's build_landscape path
+// (16:9, 1920x1080) with HARDCODED composition params (name/width/height/
+// frame_rate/duration) — same pattern as the test files AND the existing
+// `make_ae_cam_01_static_grid()` factory in `tests/visual/ae_parity/
+// ae_parity_scenes.cpp` (which also takes no props arguments). The
+// `const CompositionProps&` parameter is REQUIRED by the CompositionRegistry
+// lambda signature but is UNUSED (the props system provides
+// values/project_root/assets, none of which the 5 new scenes need — they
+// use hardcoded text content + the global SoftwareRenderer singleton).
+//
+// Frame index derived dynamically from `ctx.frame.value % 30` (matches
+// the test files' 0/15/30 snapshot buckets so rendered output is
+// bit-equivalent to the corresponding test snapshot).
+//
+// AGENTS.md v0.1 Cat-2 freeze-compliant: zero new public API in
+// include/chronon3d/; reuses existing test::make_renderer() + composition
+// factory pattern; 5 new free functions in `chronon3d::test` namespace
+// (test infrastructure, NOT in include/).
+// ═══════════════════════════════════════════════════════════════════════════
+
+#include "ae_parity_compositions.hpp"
+
+#include <chronon3d/api/composition.hpp>
+#include <chronon3d/api/scene.hpp>
+#include <chronon3d/api/renderer.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+
+#include <tests/helpers/test_utils.hpp>
+
+using namespace chronon3d;
+using namespace chronon3d::test;
+
+namespace chronon3d::test {
+
+// Map ctx.frame.value (any non-negative int) to one of the 3 snapshot
+// buckets {0, 15, 30} used by the test files.  Mirrors the test files'
+// `if (f == 0) ... if (f <= 15) ... else ...` pattern.
+static inline std::size_t snapshot_bucket_for(const FrameContext& ctx) {
+    const long v = ctx.frame.value;
+    if (v <= 0)  return 0;
+    if (v <= 15) return 15;
+    return 30;
+}
+
+// File-scope static SoftwareRenderer singleton (code-reviewer round-1 fix).
+// test::make_renderer() constructs a fresh SoftwareRenderer (font loading,
+// atlas init, glyph cache warmup) per call.  In a video-export loop (30+
+// frames) that's 30× the init cost.  Hoisting to file-scope static means
+// ONE renderer instance is shared across all 5 registered compositions
+// and across all 30+ frame evaluations per composition.  Mirrors the
+// `cli_asset_registry()` singleton pattern in apps/chronon3d_cli/cli_init.hpp:43.
+static SoftwareRenderer& shared_renderer() {
+    static SoftwareRenderer r = make_renderer();
+    return r;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scene 08: glow_pulse
+//   Channel │ f00          │ f15          │ f30          │
+//   ─────────┼──────────────┼──────────────┼──────────────┤
+//   opacity  │ 0.40         │ 0.85         │ 0.50         │
+//   scale    │ (0.96,0.96)  │ (1.05,1.05)  │ (0.98,0.98)  │
+// ─────────────────────────────────────────────────────────────────────────────
+Composition make_ae_08_glow_pulse(const CompositionProps& /*props*/) {
+    return composition(
+        {.name = "ae_08_glow_pulse",
+         .width = 1920, .height = 1080,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 60},
+        [](const FrameContext& ctx) -> Scene {
+            auto& renderer = shared_renderer();
+            const std::size_t f = snapshot_bucket_for(ctx);
+            const float opacity = (f == 0) ? 0.40f : (f <= 15 ? 0.85f : 0.50f);
+            const Vec3 scale = (f == 0)
+                ? Vec3{0.96f, 0.96f, 1.0f}
+                : (f <= 15 ? Vec3{1.05f, 1.05f, 1.0f} : Vec3{0.98f, 0.98f, 1.0f});
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("hero", [opacity, scale](LayerBuilder& l) {
+                l.text("glow_pulse", {
+                    .content = {.value = "PULSE GLOW"},
+                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                             .font_family = "Inter",
+                             .font_weight = 700,
+                             .font_size = 230.0f},
+                    .layout = {.box = {1700.0f, 360.0f},
+                               .align = TextAlign::Center,
+                               .vertical_align = VerticalAlign::Middle},
+                    .appearance = {.color = Color::white()},
+                    .position = {960.0f, 540.0f, 0.0f}
+                });
+                l.opacity(opacity);
+                l.scale(scale);
+            });
+            return s.build();
+        });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scene 10: scale_pop
+//   Channel │ f00          │ f15          │ f30          │
+//   ─────────┼──────────────┼──────────────┼──────────────┤
+//   scale    │ (0.50,0.50)  │ (1.30,1.30)  │ (1.00,1.00)  │
+//   opacity  │ 0.00         │ 0.80         │ 1.00         │
+// ─────────────────────────────────────────────────────────────────────────────
+Composition make_ae_10_scale_pop(const CompositionProps& /*props*/) {
+    return composition(
+        {.name = "ae_10_scale_pop",
+         .width = 1920, .height = 1080,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 60},
+        [](const FrameContext& ctx) -> Scene {
+            auto& renderer = shared_renderer();
+            const std::size_t f = snapshot_bucket_for(ctx);
+            const Vec3 scale = (f == 0)
+                ? Vec3{0.50f, 0.50f, 1.0f}
+                : (f <= 15 ? Vec3{1.30f, 1.30f, 1.0f} : Vec3{1.00f, 1.00f, 1.0f});
+            const float opacity = (f == 0) ? 0.00f : (f <= 15 ? 0.80f : 1.00f);
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("hero", [scale, opacity](LayerBuilder& l) {
+                l.text("scale_pop", {
+                    .content = {.value = "POP IN"},
+                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                             .font_family = "Inter",
+                             .font_weight = 700,
+                             .font_size = 240.0f},
+                    .layout = {.box = {1700.0f, 360.0f},
+                               .align = TextAlign::Center,
+                               .vertical_align = VerticalAlign::Middle},
+                    .appearance = {.color = Color::white()},
+                    .position = {960.0f, 540.0f, 0.0f}
+                });
+                l.scale(scale);
+                l.opacity(opacity);
+            });
+            return s.build();
+        });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scene 12: random_character_jitter
+//   Channel │ f00          │ f15          │ f30          │
+//   ─────────┼──────────────┼──────────────┼──────────────┤
+//   jitter   │ (0,0)        │ (8,-4)       │ (-5,3)       │
+//   opacity  │ 1.00         │ 0.92         │ 1.00         │
+// ─────────────────────────────────────────────────────────────────────────────
+Composition make_ae_12_random_character_jitter(const CompositionProps& /*props*/) {
+    return composition(
+        {.name = "ae_12_random_character_jitter",
+         .width = 1920, .height = 1080,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 60},
+        [](const FrameContext& ctx) -> Scene {
+            auto& renderer = shared_renderer();
+            const std::size_t f = snapshot_bucket_for(ctx);
+            const Vec2 jitter = (f == 0)
+                ? Vec2{0.0f, 0.0f}
+                : (f <= 15 ? Vec2{8.0f, -4.0f} : Vec2{-5.0f, 3.0f});
+            const float opacity = (f <= 15 && f > 0) ? 0.92f : 1.00f;
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("hero", [jitter, opacity](LayerBuilder& l) {
+                l.text("random_jitter", {
+                    .content = {.value = "JITTER"},
+                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                             .font_family = "Inter",
+                             .font_weight = 700,
+                             .font_size = 240.0f},
+                    .layout = {.box = {1700.0f, 360.0f},
+                               .align = TextAlign::Center,
+                               .vertical_align = VerticalAlign::Middle},
+                    .appearance = {.color = Color::white()},
+                    .position = {960.0f, 540.0f, 0.0f}
+                });
+                l.position(Vec3{jitter.x, jitter.y, 0.0f});
+                l.opacity(opacity);
+            });
+            return s.build();
+        });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Scene 14: multiline (registered as 16:9 landscape variant;
+//             the 9:16 safe-zone variant is the test file's build_portrait
+//             path, not exposed via CLI — out of scope for 5-scene request)
+//   Channel │ f00          │ f15          │ f30          │
+//   ─────────┼──────────────┼──────────────┼──────────────┤
+//   opacity  │ 0.00         │ 0.70         │ 1.00         │
+//   dy       │ +20          │ +8           │ 0            │
+// ─────────────────────────────────────────────────────────────────────────────
+Composition make_ae_14_multiline_landscape(const CompositionProps& /*props*/) {
+    return composition(
+        {.name = "ae_14_multiline_landscape",
+         .width = 1920, .height = 1080,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 60},
+        [](const FrameContext& ctx) -> Scene {
+            auto& renderer = shared_renderer();
+            const std::size_t f = snapshot_bucket_for(ctx);
+            const float dy = (f == 0) ? 20.0f : (f <= 15 ? 8.0f : 0.0f);
+            const float opacity = (f == 0) ? 0.00f : (f <= 15 ? 0.70f : 1.00f);
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("hero", [dy, opacity](LayerBuilder& l) {
+                l.text("multiline", {
+                    .content = {.value = "LINE ONE\nLINE TWO\nLINE THREE"},
+                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                             .font_family = "Inter",
+                             .font_weight = 700,
+                             .font_size = 120.0f},
+                    .layout = {.box = {1600.0f, 700.0f},
+                               .align = TextAlign::Center,
+                               .vertical_align = VerticalAlign::Middle,
+                               .max_lines = 3},
+                    .appearance = {.color = Color::white()},
+                    .position = {960.0f, 540.0f + dy, 0.0f}
+                });
+                l.opacity(opacity);
+            });
+            return s.build();
+        });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// motion_blur_text (blurred variant — frame 10 snapshot)
+//   Channel │ f05          │ f10          │ f15          │
+//   ─────────┼──────────────┼──────────────┼──────────────┤
+//   dx       │ +8           │ +16          │ +24          │
+//   blur     │ 13.0 (tier 3)│ 13.0         │ 13.0         │
+// ─────────────────────────────────────────────────────────────────────────────
+Composition make_motion_blur_text(const CompositionProps& /*props*/) {
+    return composition(
+        {.name = "motion_blur_text",
+         .width = 1280, .height = 720,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 30},
+        [](const FrameContext& ctx) -> Scene {
+            auto& renderer = shared_renderer();
+            const std::size_t f = snapshot_bucket_for(ctx);
+            const float dx = (f <= 5) ? 8.0f : (f <= 15 ? 16.0f : 24.0f);
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("hero", [dx](LayerBuilder& l) {
+                l.text("motion_blur", {
+                    .content = {.value = "MOTION BLUR"},
+                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                             .font_family = "Inter",
+                             .font_weight = 700,
+                             .font_size = 180.0f},
+                    .layout = {.box = {1100.0f, 200.0f},
+                               .align = TextAlign::Center,
+                               .vertical_align = VerticalAlign::Middle},
+                    .appearance = {.color = Color::white()},
+                    .position = {640.0f + dx, 360.0f, 0.0f}
+                });
+                l.blur(13.0f);
+            });
+            return s.build();
+        });
+}
+
+} // namespace chronon3d::test
