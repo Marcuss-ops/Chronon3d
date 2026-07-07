@@ -23,6 +23,7 @@ target_link_libraries(chronon3d_text_golden_tests
     PRIVATE
         chronon3d_sdk
         chronon3d_software
+        chronon3d_content
         doctest::doctest
 )
 
@@ -314,6 +315,16 @@ target_sources(chronon3d_text_golden_tests
     PRIVATE
 )
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Text Placement Golden Suite — content registerable + golden test.
+# Covers: dashboard (8), anti-double-translation, layout box, clipping (7),
+# multi-resolution (4), cache invalidation.
+# ═══════════════════════════════════════════════════════════════════════════
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_placement/text_placement_golden.cpp
+)
+
 add_test(
     NAME TextGolden
     COMMAND chronon3d_text_golden_tests
@@ -335,5 +346,12 @@ add_test(
 add_test(
     NAME TextGoldenKiller
     COMMAND chronon3d_text_golden_tests --test-case="KILLER *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# ── Text Placement Golden Suite ────────────────────────────────────────
+add_test(
+    NAME TextPlacement
+    COMMAND chronon3d_text_golden_tests --test-case="TextPlace *"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
