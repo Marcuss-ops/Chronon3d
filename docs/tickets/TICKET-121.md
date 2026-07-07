@@ -720,6 +720,121 @@ prima del commit.
 `3dd2a86b` — log diagnostico aggiunto in `source_node.cpp`
 Questo commit — rimozione log + documentazione FASE 3b
 
+## FASE 4 — Analisi geometria scena AE_CAM_02 (2026-07-07)
+
+### Obiettivo
+
+Ispezionare `ae_parity_scenes.cpp` per determinare perché l'hash framebuffer resta
+identico (`cc86d2b5...`) nonostante `proj.transform` sia diverso tra frame.
+
+### Struttura della scena AE_CAM_02
+
+```cpp
+Composition make_ae_cam_02_zoom_fov() {
+    // 1. Grid background full-canvas 960×540
+    add_grid_background(s);
+    //   → GridBackground shape: bg_color=(0.02,0.02,0.05,1.0) dark blue
+    //     grid_color=(0.28,0.48,0.98,0.10) blue at 10% opacity
+    //     spacing=60px, centered=true, size={960,540}
+
+    // 2. Subject card at origin
+    add_depth_card(s, "subject", {0,0,0}, {140,100}, pink);
+
+    // 3. Four corner cards at depth ±200
+    add_depth_card(s, "tl", {-350,-200,200}, {40,40}, cyan);
+    add_depth_card(s, "tr", {350,-200,-200}, {40,40}, yellow);
+    add_depth_card(s, "bl", {-350,200,-200}, {40,40}, green);
+    add_depth_card(s, "br", {350,200,200}, {40,40}, purple);
+
+    // 4. Camera zoom 500→1000→1500
+    cam.zoom.key(Frame{0}, 500).key(Frame{30}, 1000).key(Frame{60}, 1500);
+}
+```
+
+### Analisi del collasso hash
+
+Dalla FASE 3b, i valori `proj.transform` per la griglia a frame 0/30/60:
+
+| Frame | Zoom | grid pos | grid scale | card "subject" pos | card scale |
+|---|---|---|---|---|---|
+| 0 | 500 | (0, 0) | (0.50, 0.50) | (-10, 10) | (0.50, 0.50) |
+| 60 | 1500 | (0, 0) | (1.50, 1.50) | (-30, 30) | (1.50, 1.50) |
+
+**Perché l'hash FB resta identico:**
+
+1. **Grid background full-canvas**: il `GridBackground` shape ha dimensione 960×540 =
+   esattamente il canvas. Anche se lo scale cambia (0.5→1.5), il renderer griglia
+   disegna un pattern ripetuto che copre l'intero framebuffer. A scale 0.5 le linee
+   della griglia sono a 30px, a scale 1.5 sono a 90px — MA il `bg_color` è un
+   **blu scuro uniforme** che domina il 90%+ dei pixel. Le linee della griglia sono
+   al **10% di opacità** (alpha=0.10), quasi invisibili contro il bg scuro.
+
+2. **Card "subject" a (0,0,0)**: la card è centrata sul POI della camera (anch'esso a
+   (0,0,0)). A zoom 500 è 70×50 pixel, a zoom 1500 è 210×150 pixel. Sono DIMENSIONI
+   DIVERSE — occupano aree DIVERSE del canvas. Ma il colore rosa della card è
+   `(0.99, 0.44, 0.82, 1.0)`, drasticamente diverso dal bg blu scuro. Quindi
+   l'hash DOVREBBE essere diverso.
+
+3. **Card corner a depth ±200**: queste card sono fuori dal piano focale (POI a z=0).
+   Con la proiezione 2.5D, vengono scalate e traslate diversamente a ogni zoom.
+   Anche qui, colori diversi dal background.
+
+### Ipotesi sul collasso
+
+Dato che l'hash è IDENTICO (`cc86d2b5...`) tra frame 0 e 60 — non solo simile ma
+**pixel-perfect uguale** — le spiegazioni possibili sono:
+
+**Ipotesi A — Cache FB ancora attiva**: nonostante la `cache_key()` includa lo stato
+camera, qualche layer di caching (fuori dal node_cache) riusa il FB. Questa ipotesi
+è stata testata nella FASE 3 (node cache + graph cache), ma potrebbe esistere un
+terzo livello (es. `FramebufferPool`, `frame_state_commit`, o cache a livello
+di `draw_node`).
+
+**Ipotesi B — Grid background domina l'hash**: se il grid_background riempie OGNI
+pixel del FB, e le card vengono renderizzate SOPRA ma il loro contributo è trascurabile
+(es. blending bug, ordine di rendering invertito, o alpha premultiplied che annulla
+il colore), allora l'hash rimane quello del solo background. Il `cc86d2b5...` appare
+in 10+ golden files → è l'hash del background griglia da solo, senza card.
+
+**Ipotesi C — Ordine layer invertito**: se il grid_background viene renderizzato DOPO
+le card (invece che prima), il suo `bg_color` opaco (alpha=1.0) coprirebbe tutte
+le card, e l'FB finale sarebbe solo il pattern griglia. Questo spiegherebbe perché
+CAM_02, CAM_04, CAM_07, CAM_09 condividono tutti lo stesso hash — sono tutti
+"solo grid background".
+
+### Verifica rapida dell'ipotesi C
+
+Il `grid_background` è la PRIMA cosa aggiunta alla scena (`add_grid_background`),
+quindi nel grafo di rendering dovrebbe essere il primo layer renderizzato. Le card
+vengono dopo e dovrebbero essere SRC_OVER. Ma se c'è un bug nell'ordine dei layer
+nel render graph, il grid potrebbe finire in cima.
+
+### Conclusione FASE 4
+
+La scena AE_CAM_02 ha geometria CORRETTA: grid background scuro + 5 card colorate
+a diverse profondità. I `proj.transform` sono DIVERSI tra frame (FASE 3b confermato).
+
+L'hash FB identico non è spiegabile dalla sola geometria della scena — con colori
+così diversi (rosa vs blu scuro), dimensioni diverse delle card tra frame dovrebbero
+produrre hash diversi. **Il collasso hash è probabilmente un bug di rendering order
+(il grid sovrascrive le card) o di cache FB a un livello non ancora investigato.**
+
+### Next step: FASE 8
+
+Verificare l'ordine di esecuzione dei nodi nel render graph per AE_CAM_02:
+- Il grid background viene eseguito PRIMA (dovrebbe)
+- Le card vengono eseguite DOPO (dovrebbero)
+- Verificare che l'alpha blending sia SRC_OVER e non venga invertito
+
+### File ispezionati
+
+- `tests/visual/ae_parity/ae_parity_scenes.cpp` — intero file (10 scene)
+- `src/render_graph/nodes/source_node.cpp` — percorso di render per AE_CAM_02
+
+### Commit
+
+Questo commit — analisi geometria scena AE_CAM_02 + ipotesi collasso hash
+
 ## Collegamenti
 
 - Area: Camera Production V1
