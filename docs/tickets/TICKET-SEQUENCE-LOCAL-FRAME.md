@@ -2,9 +2,9 @@
 
 ## Stato
 
-**PARTIAL** — Step 1/4 DONE (commit successivo a questo, 2026-07-07). Code landed: 4 nuovi simboli pubblici canonici `TimeRange + SequenceNode + TimelineResolver + TimelineSampleContext` (+ `SceneDescriptor` + `ResolvedScene` + `SequenceBuilder` empty placeholder) in `include/chronon3d/timeline/timeline_resolver_v2.hpp` namespace `chronon3d::timeline::v2`. Manifest aggiornato in `cmake/Chronon3DPublicHeaders.cmake`. Header `g++ -std=c++20 -fsyntax-only` exit 0 + `/tmp/_step1_consumer_check.cpp` compile + run exit 0 (`OK Step 1 typecheck + behavior invariants`). Code-reviewer-minimax-m3 APPROVED (round 2; 1 nit minore `duration{1}` documentation risolto). ZERO codice esistente toccato (test preesistenti bit-identicali garantiti). AGENTS Cat-3 freeze-compliant + ABI pubblico invariato.
+**PARTIAL** — Step 1/4 + Step 2/4 DONE (commit successivo a questo, 2026-07-07). Code landed: (Step 1) 4 nuovi simboli pubblici canonici `TimeRange + SequenceNode + TimelineResolver + TimelineSampleContext` (+ `SceneDescriptor` + `ResolvedScene` + `SequenceBuilder` empty placeholder) in `include/chronon3d/timeline/timeline_resolver_v2.hpp` namespace `chronon3d::timeline::v2`; (Step 2) 3 free functions additive `is_active` constexpr + `make_sequence_from_layer` + `make_sample_context` in `include/chronon3d/timeline/legacy_adapters.hpp` namespace `chronon3d::timeline::v2`. Manifest aggiornato in `cmake/Chronon3DPublicHeaders.cmake`. Header `g++ -std=c++20 -fsyntax-only` exit 0 per entrambi gli header; verification TU `/tmp/_step2_consumer_check.cpp` syntax-only exit 0. Code-reviewer-minimax-m3 APPROVED (round 1; 2 forward-only notes su `is_active` ADL doc + `fps` cast precision, entrambi out-of-scope per Step 2). ZERO codice esistente toccato (test preesistenti bit-identicali garantiti — gli adapter sono AGGIUNTI ma NON chiamati dal render graph / scene builder / composition). AGENTS Cat-3 freeze-compliant + ABI pubblico espanso di 3 free functions POD (no new class).
 
-Workstream design-FROZEN 2026-07-07 per le 4-step rimanenti. Forward-only ticket cluster per Step 2 (legacy adapters) + Step 3 (migrate new content) + Step 4 (eliminate legacy).
+Workstream design-FROZEN 2026-07-07 per le 2-step rimanenti. Forward-only ticket cluster per Step 3 (migrate new content) + Step 4 (eliminate legacy).
 
 ## Priorità
 
