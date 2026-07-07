@@ -658,13 +658,76 @@ Il root cause delle 2 collisioni residue è fuori scope per TICKET-121:
 - Oppure il framebuffer viene effettivamente cachato da un layer che non abbiamo identificato
   → pixel-level dump in `TICKET-ae-cam-hash-collision`
 
+## FASE 3b CRITICA — Log `proj.transform` in SourceNode (2026-07-07)
+
+### Obiettivo
+
+Determinare se `proj.transform` è diverso o uguale tra frame animati **nel percorso
+SourceNode** (usato da AE_CAM_02/04), non solo nel `CameraProjectionResolver` (FASE 6).
+Se uguale → bug nel resolver. Se diverso → bug nella geometria della scena.
+
+### Metodo
+
+Aggiunto log `spdlog::warn` temporaneo in:
+- `src/render_graph/nodes/source_node.cpp` — `predicted_bbox` + `execute`, dopo
+  `proj.transform.to_mat4()` (il branch `apply_2_5d_projection` su SourceNode)
+- `src/render_graph/nodes/multi_source_node.cpp` — per copertura completa (non attivato:
+  AE_CAM_02 usa SourceNode, non MultiSourceNode)
+
+### Risultati AE_CAM_02 (zoom 500→1000→1500)
+
+| Frame | Zoom | node='card' pos | scale | node='grid' pos | scale |
+|---|---|---|---|---|---|
+| 0 | 500 | (-10.00, 10.00) | (0.50, 0.50) | (0.00, 0.00) | (0.50, 0.50) |
+| 30 | 1000 | (-20.00, 20.00) | (1.00, 1.00) | (0.00, 0.00) | (1.00, 1.00) |
+| 60 | 1500 | (-30.00, 30.00) | (1.50, 1.50) | (0.00, 0.00) | (1.50, 1.50) |
+
+### Conclusione FASE 3b
+
+**`proj.transform` è DIVERSO tra frame 0 e 60 ANCHE nel percorso SourceNode.**
+
+- `scale` è esattamente proporzionale allo zoom (0.5→1.0→1.5 = 500→1000→1500)
+- `position` segue lo stesso scaling proporzionale
+- Il `CameraProjectionResolver` funziona correttamente in entrambi i percorsi
+  (SourceNode E MultiSourceNode)
+
+**Il root cause NON è nell'infrastruttura di proiezione.** L'intero stack è verificato:
+
+```
+Camera2_5D → CameraProjectionResolver::project_layer() → proj.transform ✅ diverso
+  → proj.transform.to_mat4() → canvas_center * ssaa_scale * ... ✅ calcolato
+  → state.matrix ✅ passa al processor
+  → SoftwareShapeProcessor::draw() → draw_transformed_shape() ✅ usa state.matrix
+  → rasterizzazione pixel → hash collision ❌
+```
+
+**Ipotesi finale:** le scene CAM_02 e CAM_04 usano shape (es. grid full-canvas +
+card monocolore) che producono output pixel-identico a qualsiasi zoom. Il `grid` a
+pos=(0,0) con scale variabile produce SEMPRE lo stesso pattern visivo quando copre
+l'intero canvas. Le `card` hanno lo stesso colore del background → invisibili a
+tutti gli zoom.
+
+**Next step: FASE 8** — ispezionare `ae_parity_scenes.cpp` per CAM_02 e CAM_04 e
+verificare se le shape sono effettivamente monocromatiche / full-canvas.
+
+### Log temporaneo rimosso
+
+I log `spdlog::warn` sono stati rimossi da `source_node.cpp` e `multi_source_node.cpp`
+prima del commit.
+
+### Commit
+
+`3dd2a86b` — log diagnostico aggiunto in `source_node.cpp`
+Questo commit — rimozione log + documentazione FASE 3b
+
 ## Collegamenti
 
 - Area: Camera Production V1
 - File principale: `src/render_graph/nodes/multi_source_node.cpp`
+- SourceNode path: `src/render_graph/nodes/source_node.cpp`
 - Math source of truth: `include/chronon3d/math/camera_projection_resolver.hpp`
 - Adapter render path: `include/chronon3d/math/camera_2_5d_projection.hpp`
 - Test attesi: `tests/visual/ae_parity/ae_parity_tests.cpp`
 - Scene attese: `tests/visual/ae_parity/ae_parity_scenes.cpp`
 - Ticket correlati: TICKET-036, TICKET-120, [`TICKET-ae-cam-hash-collision`](./TICKET-ae-cam-hash-collision.md)
-- Commit diagnostica: `fc9177a4` (creazione ticket), `e8fee983` (FASE 6), questo commit (FASE 7)
+- Commit diagnostica: `fc9177a4` (creazione ticket), `e8fee983` (FASE 6), `3dd2a86b` (FASE 3b log), questo commit (FASE 3b cleanup)

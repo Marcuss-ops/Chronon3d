@@ -77,13 +77,6 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
                 continue;
             }
             matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
-            // T121_DIAG: temporary — verify proj.transform differs between animated frames.
-            // Remove after capturing frame0/frame60 for AE_CAM_02.
-            spdlog::warn("[T121_DIAG] bbox branch='{}' item#{} frame={} zoom={:.1f} pos=({:.2f},{:.2f}) scale=({:.4f},{:.4f})",
-                m_name, bbox_i, ctx.frame_input.sample_time.integral_frame(),
-                ctx.frame_input.camera_2_5d.zoom,
-                proj.transform.position.x, proj.transform.position.y,
-                proj.transform.scale.x, proj.transform.scale.y);
         } else if (m_uses_2_5d_projection || m_centered) {
             matrix = canvas_center * ssaa_scale * item.matrix;
         } else {
@@ -385,13 +378,6 @@ NodeExecResult MultiSourceNode::execute(
                     continue;
                 }
                 state.matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
-            // T121_DIAG: temporary — verify proj.transform differs between animated frames.
-            // Remove after capturing frame0/frame60 for AE_CAM_02.
-            spdlog::warn("[T121_DIAG] exec branch='{}' item#{} frame={} zoom={:.1f} pos=({:.2f},{:.2f}) scale=({:.4f},{:.4f})",
-                m_name, i, ctx.frame_input.sample_time.integral_frame(),
-                ctx.frame_input.camera_2_5d.zoom,
-                proj.transform.position.x, proj.transform.position.y,
-                proj.transform.scale.x, proj.transform.scale.y);
             } else if (m_uses_2_5d_projection) {
                 state.matrix = canvas_center * ssaa_scale * item.matrix;
             } else {
