@@ -102,6 +102,14 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
     auto bbox = renderer::compute_world_bbox(m_render_ref.shape, matrix, spread);
 #endif
 
+    // When text_layout_debug is enabled, the overlay draws markers at
+    // canvas center, layer origin, and alpha centroid — all outside the
+    // tight text bbox.  Return full-canvas so the compositor doesn't clip
+    // the overlay markers.
+    if (ctx.policy.text_layout_debug) {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    }
+
     if (!ctx.policy.diagnostics_enabled) {
         bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
     }

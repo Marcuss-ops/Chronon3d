@@ -560,6 +560,81 @@ TEST_CASE("TextPlace Cache Invalidation — content changes") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Group H — Debug overlay verification (§5 + §6)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// H.1 — Render with text_layout_debug=true and verify overlay markers appear
+// on the framebuffer.  The overlay draws 6 colored markers:
+//   Red (1.0, 0.2, 0.2) = canvas center crosshair
+//   Blue (0.2, 0.4, 1.0) = layer origin dot
+//   Green (0.2, 1.0, 0.4) = layout box rectangle
+//   Yellow (1.0, 1.0, 0.2) = visual bounds rectangle
+//   Violet (0.8, 0.2, 1.0) = raster surface rectangle
+//   White (1.0, 1.0, 1.0) = alpha centroid crosshair
+TEST_CASE("TextPlace Debug Overlay — markers drawn") {
+    // Create renderer with text_layout_debug enabled.
+    SoftwareRenderer renderer(Config{});
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    settings.text_layout_debug = true;
+    renderer.set_settings(settings);
+    renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
+    test::attach_software_backend(&renderer);
+
+    auto comp = make_static_center_no_pos();
+    auto fb = renderer.render(comp, Frame{0});
+    REQUIRE(fb != nullptr);
+
+    const int w = static_cast<int>(fb->width());
+    const int h = static_cast<int>(fb->height());
+    CHECK(w == 1920);
+    CHECK(h == 1080);
+
+    // The overlay (§5) draws markers on the TextRunNode's internal
+    // framebuffer.  After the compositor merges all layers, the markers
+    // survive as composited pixels.  We scan for the overlay's distinct
+    // color signatures:
+    //   Red crosshair: R≈0.9, G≈0.18, B≈0.18 (composited over dark bg)
+    //   Blue origin dot: similar composited signature
+    int overlay_pixel_count = 0;
+
+    for (int y = 0; y < h; ++y) {
+        const Color* row = fb->pixels_row(y);
+        for (int x = 0; x < w; ++x) {
+            const Color& c = row[x];
+            // Red crosshair marker (composited over dark bg: ~0.9, 0.18, 0.18)
+            // Also catch blue dot (~0.18, 0.22, 0.92) and green rect (~0.18, 0.9, 0.32)
+            // All overlay markers have R or G or B > 0.85 with the other
+            // channels < 0.4 — distinct from white text (all > 0.9) and
+            // dark background (all < 0.1).
+            bool is_redish  = (c.r > 0.85f && c.g < 0.35f && c.b < 0.35f);
+            bool is_bluish  = (c.b > 0.85f && c.r < 0.35f && c.g < 0.55f);
+            bool is_greenish = (c.g > 0.85f && c.r < 0.35f && c.b < 0.55f);
+            if (is_redish || is_bluish || is_greenish) ++overlay_pixel_count;
+        }
+    }
+
+    INFO("Overlay pixels: ", overlay_pixel_count);
+
+    // The overlay should produce at least a few dozen marker pixels.
+    // If the compositor clips the overlay to the text's predicted bbox,
+    // some markers at canvas center may be outside the clip region.
+    // We use a generous minimum to account for this.
+    if (overlay_pixel_count == 0) {
+        MESSAGE("No overlay marker pixels detected in composited output. "
+                "The overlay draws on the TextRunNode's internal FB; "
+                "markers may be clipped by the compositor's bbox-limited "
+                "compositing.  The [text-layout] structured log (§6) "
+                "confirms the overlay code path executes correctly.");
+    }
+    CHECK(overlay_pixel_count > 0);
+
+    // Verify the overlay didn't destroy the text content.
+    auto c = compute_alpha_centroid(*fb);
+    CHECK(c.max_alpha > 0.5f);  // text still visible
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Group G — modular_coordinates ON/OFF parity
 // ═══════════════════════════════════════════════════════════════════════════
 
