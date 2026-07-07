@@ -2,7 +2,7 @@
 
 ## Stato
 
-OPEN (resealed formal ticket; diagnostic + workaround landed in commit `fc351bfe` this session).
+PARTIAL (Code landed on `origin/main@d39b37f1` 2026-07-07; build-verification **FAILED** — see `## Verification gap` below).  Diagnostic + workaround landed in commit `fc351bfe` (earlier session).  The pre-fix state was `OPEN`; the post-Soluzione-B code state remains `PARTIAL` because the build-host verification of Soluzione B's atomic commit `d39b37f1` did NOT transition the gate from `FAIL` to `PASS`.
 
 ## Priorità
 
@@ -143,6 +143,37 @@ Most-likely fix path (ranked, post-diagnostic verification):
   regression coverage lost to MESSAGE-only sites.
 - **Telemetry assertion**: `node_cache_hash_collisions == 0` post-fix in a
   clean AE_CAM_02+04+08 sweep.
+
+## Verification gap (machine-verified 2026-07-07, working build host)
+
+End-to-end verification of the Soluzione B atomic commit `d39b37f1` (which combined the 7-site `fold_camera_into_params_hash` propagation + the `SourceNode` rendering-side mirror + the 9-key regression lock + the anti-stale-gate) was attempted on a working build host on 2026-07-07.  **Verification did NOT pass**:
+
+- `chronon3d_ae_parity_tests` built OK (incremental, source changes compiled clean).
+- `CHRONON3D_UPDATE_GOLDENS=1 chronon3d_ae_parity_tests --test-case='AE_CAM_*'` ran: **32/35 tests PASSED, 3 in-memory `framebuffer_hash(*fb0) != framebuffer_hash(*fb60)` CHECKs FAILED** at `tests/visual/ae_parity/ae_parity_tests.cpp:230` (AE_CAM_03_two_node_poi), `:303` (AE_CAM_05_orbit), `:341` (AE_CAM_06_dolly_zoom).
+- **13 banned PNGs** (`sha256` prefix `cc86d2b5e80287dc`) remain on disk → `bash tools/check_ae_parity_golden_state.sh` exit 1 `GATE_FAIL`.  Banned PNGs map to: `ae_cam_02_zoom_fov_frame{000,060}`, `ae_cam_03_two_node_poi_frame{030,060}`, `ae_cam_04_parent_null_frame{000,060}`, `ae_cam_05_orbit_frame{015,030,060}`, `ae_cam_07_gatefit_frame000`, `ae_cam_09_motion_blur_frame{000,030}`, `ae_cam_10_near_clip_frame000`.
+- `chronon3d_cache_tests` BUILD FAILED at the `ar` link step for `src/libchronon3d_sdk_impl.a` (system-level disk-quota exceeded, same as prior turns) → 9-key `test_node_cache_ae_sweep` did NOT run.
+- The promotion clause (`docs/FOLLOWUP_TICKETS.md` row `DONE (matrix-fix cluster) + OPEN (hash-collision cluster)` → fully `DONE`) is **intentionally NOT triggered** because the gate did not transition.
+
+### Candidate root cause (Gemini source-read, NOT machine-verified)
+
+The 3 in-memory FB hash failures and 13 banned PNGs both point to a single candidate root cause in `src/render_graph/nodes/source_node.cpp`:
+
+- The round-2 fix (commit `20dd4b11` on this branch, propagated into the cumulative `d39b37f1`) added a new `apply_2_5d_projection` branch in both `SourceNode::predicted_bbox` (lines 109-127) and `SourceNode::execute` (lines 203-227).  The branch condition is `ctx.frame_input.has_camera_2_5d && shape != FakeBox3D && shape != GridPlane` (the **global** camera trigger, NOT the per-node `m_uses_2_5d_projection` flag, mirroring the cache-key Soluzione B pattern).
+- Inside the branch, the call is `chronon3d::project_layer_2_5d(tr, base_matrix, ctx.frame_input.camera_2_5d, ...)` where `tr` is **default-constructed** `chronon3d::Transform tr;` (scale=(1,1,1), rotation=identity, anchor=(0,0,0)).
+- The pre-fix code conditioned on the per-node flag (which is `false` on the SourceNode used by AE_CAM_02/04/07/09).  The post-fix code conditions on the global trigger (which is `true` for ALL `AE_CAM_*` scenes).
+- The empty `Transform tr` propagates `input.layer_size = (1,1)` to `CameraProjectionResolver::project_layer()`, dropping the actual shape bbox (which only survives via the `item.matrix` argument).  The resulting 1x1 projected bbox may be sub-pixel-clipped at the rasterizer, dropping the layer from the rendered output even though `proj.visible = true`.
+- Symptom: 2D layers in AE_CAM_03/05/06 are now invisible (transparent-black) at all frames, making `framebuffer_hash(*fb0) == framebuffer_hash(*fb60)` (both transparent-black) — the inverse of the original precision-collapse bug (where layers collided at extreme positions).  The 13 banned PNGs (all in scenes where 2D layers dominate the output) similarly produce transparent-black output, hashing to the banned `cc86d2b5e80287dc`.
+
+### Forward-fix path (next session, working build host)
+
+1. **Restore the `m_uses_2_5d_projection` check** in the new branch — condition on `(m_uses_2_5d_projection && has_camera_2_5d)` (the original mirror of `MultiSourceNode`) instead of `has_camera_2_5d` alone.  This was the round-1 fix pattern (rejected because the per-node flag is `false` for AE_CAM_02/04/07/09), but the CANDIDATE root cause suggests the round-1 approach is actually correct for the SourceNode path: SourceNode-per-node flag accurately signals "this layer should be 2.5D-projected", whereas the cache key fold only needs the global trigger because the cache key is per-scene, not per-node.
+2. **Alternative**: keep the global trigger but pass the layer's actual `Transform` (not the empty `tr`) to `project_layer_2_5d`.  The layer's `Transform` is available via `m_node.world_transform` (which is the same data source as `base_matrix`).
+3. **Lock verification**: `tests/cache/test_node_cache_ae_sweep.cpp` (9-key regression lock, 3 scenes × 3 frames) needs to PASS post-fix (currently blocked at the `ar` link step).  The 24-PNG anti-stale-gate `tools/check_ae_parity_golden_state.sh` must transition FAIL→PASS (re-bake via `CHRONON3D_UPDATE_GOLDENS=1` should produce 24 fresh-distinct PNGs).
+4. **Code-reviewer (parallel with verification)**: re-review the round-2 fix with the candidate root-cause analysis.  The 2 follow-up concerns from the prior round-2 review (MultiSourceNode divergence + shape exclusion completeness) are subsumed by this analysis: the MultiSourceNode path uses the per-node flag correctly; the SourceNode path is the divergence.
+
+### Honesty policy (AGENTS.md §anti-greenwashing)
+
+This ticket's `## Stato` correctly reflects the conditional PARTIAL state — promotion to `DONE` is gated on Soluzione B machine-verification (gate FAIL→PASS + 9-key test PASS), which is still pending.  The 3 in-memory FB hash failures and 13 banned PNGs are the machine-verified evidence that the gate did NOT transition.  No false "DONE" claim is fabricated.
 
 ## Forward-point references (in source)
 
