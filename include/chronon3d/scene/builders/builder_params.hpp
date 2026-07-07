@@ -105,25 +105,24 @@ struct GridBackgroundParams {
 // ═══════════════════════════════════════════════════════════════════════════
 
 struct TextLayoutSpec {
-    Vec2          box{900.0f, 160.0f};       // ✅ TextRun pipeline: box.x used for layout width (box.y TBD)
-    TextAnchor    anchor{TextAnchor::Center}; // ⚠️  Legacy-only — not wired in TextRun pipeline
-    TextCenteringMode centering_mode{TextCenteringMode::LayoutBox}; // ⚠️  Legacy-only
-    TextAlign     align{TextAlign::Center};   // ⚠️  Legacy-only — not wired in TextRun pipeline
-    VerticalAlign vertical_align{VerticalAlign::Middle}; // ⚠️  Legacy-only
-    TextWrap      wrap{TextWrap::Word};       // ✅ TextRun pipeline: forwarded to text_run_builder
-    TextOverflow  overflow{TextOverflow::Clip}; // ⚠️  Legacy-only (text_layout_inline); not in TextRun
-    f32           line_height{1.2f};          // ✅ TextRun pipeline: forwarded to text_run_builder
-    f32           tracking{0.0f};             // ✅ TextRun pipeline: forwarded to text_run_builder
-    bool          auto_fit{false};            // ❌ TODO: not implemented — no reader in text pipeline
-    f32           min_font_size{12.0f};       // ❌ TODO: not implemented — no reader in src/
-    f32           max_font_size{160.0f};      // ❌ TODO: not implemented — no reader in src/
-    int           max_lines{0};               // ❌ TODO: not implemented — no reader in text pipeline
-    bool          ellipsis{false};            // ⚠️  Legacy-only (text_layout_single); not in TextRun
+    Vec2          box{900.0f, 160.0f};       // text_run_builder + text_run_shaping (cache key)
+    TextAnchor    anchor{TextAnchor::Center}; // text_run_shaping (cache key)
+    TextCenteringMode centering_mode{TextCenteringMode::LayoutBox}; // text_rasterizer_render + text_run_shaping
+    TextAlign     align{TextAlign::Center};   // text_rasterizer_render (line alignment)
+    VerticalAlign vertical_align{VerticalAlign::Middle}; // text_rasterizer_render (vertical placement)
+    TextWrap      wrap{TextWrap::Word};       // text_run_builder (line wrapping)
+    TextOverflow  overflow{TextOverflow::Clip}; // text_layout_single + text_layout_inline (clipping)
+    f32           line_height{1.2f};          // text_run_builder (line spacing)
+    f32           tracking{0.0f};             // text_run_builder (glyph tracking)
+    bool          auto_fit{false};            // text_layout_engine (auto-shrink to fit box)
+    f32           min_font_size{12.0f};       // paragraph_style auto_fit_font_size (floor)
+    f32           max_font_size{160.0f};      // paragraph_style auto_fit_font_size (ceiling)
+    int           max_lines{0};               // text_layout_single (line limit, 0=unlimited)
+    bool          ellipsis{false};            // text_layout_single + text_layout_inline (truncation)
 
     /// Paragraph-level typography (composer, justification, indentation,
     /// spacing, hanging punctuation, hyphenation, widow/orphan control).
-    /// ❌ TODO: not implemented — not wired in text rendering pipeline.
-    ParagraphStyle paragraph{};
+    ParagraphStyle paragraph{};               // text_run_builder (paragraph styles)
 };
 
 struct TextAppearanceSpec {
