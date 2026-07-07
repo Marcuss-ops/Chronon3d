@@ -164,32 +164,68 @@ inline Transform calculate_centered_transform(const Transform& t, const RenderGr
     return t;
 }
 
-/// TextRun placement resolver — bypasses all centering machinery.
+// ═══════════════════════════════════════════════════════════════════════════
+// resolve_text_run_placement — dedicated TextRun coordinate resolver
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// TextRun nodes use this single resolver instead of the scattered
+// source_space_world_matrix() + is_implicit_2d_centering_only() +
+// should_use_centered_rendering() + manual canvas-center bake chain.
+// The resolver encapsulates ALL coordinate decisions:
+//
+//   - modular-coordinates local path (use_local)
+//   - implicit canvas-center strip (for pin_to(Center) layers)
+//   - canvas-center bake for non-modular centered layers
+//
+// Opacity is handled separately (returned via the opacity output param)
+// because TextRunNode takes it as a distinct optional.
+//
+// Other shape types (SourceNode, MultiSourceNode) continue to use the
+// general-purpose helpers directly.
+
+/// Resolve TextRun placement in a single call.
 ///
-/// TextRun items receive a pre-resolved `TextRunPlacement` from the graph
-/// builder.  `build_world_matrix` only applies SSAA scaling on top — no
-/// canvas-centre or centering-mode decisions happen downstream.  This
-/// function computes the final placement directly from the layer item and
-/// node transforms, WITHOUT going through `source_space_world_matrix`,
-/// `is_implicit_2d_centering_only`, or `should_use_centered_rendering`.
-///
-/// The centering functions remain available for non-TextRun shapes
-/// (SourceNode / MultiSourceNode regular items).
+/// Equivalent to the old sequence:
+///   item_source_world = source_space_world_matrix(item, ctx)
+///   run_matrix = item_source_world * node.world_transform.to_mat4()
+///   if (!modular && centered) resolved = canvas_center * run_matrix
+/// but encapsulated so the source pass's TextRun branch doesn't depend
+/// on those helpers directly.
 inline TextRunPlacement resolve_text_run_placement(
     const LayerGraphItem& item,
     const ::chronon3d::RenderNode& node,
-    const RenderGraphContext& ctx
+    const RenderGraphContext& ctx,
+    f32& out_opacity
 ) {
-    const bool needs_transform = layer_needs_render_transform(item, ctx);
-    const bool use_local = ctx.policy.modular_coordinates && needs_transform && !item.native_3d;
+    const bool needs_xform = layer_needs_render_transform(item, ctx);
+    const bool use_local = ctx.policy.modular_coordinates
+                        && needs_xform && !item.native_3d;
 
     if (use_local) {
+        out_opacity = node.world_transform.opacity;
         return TextRunPlacement{node.world_transform.to_mat4()};
     }
-    // Raw world matrix — no canvas-centre stripping.  TextRunNode's
-    // `build_world_matrix` only applies SSAA and trusts the builder
-    // has already resolved everything else.
-    return TextRunPlacement{item.world_matrix * node.world_transform.to_mat4()};
+
+    // Non-local path: build item-level world matrix.
+    // For implicit-centering-only layers, strip the canvas center
+    // so it's applied exactly once (re-applied below if centered).
+    Mat4 item_world = item.world_matrix;
+    if (is_implicit_2d_centering_only(item, ctx)) {
+        item_world = glm::inverse(implicit_canvas_center_matrix(ctx)) * item_world;
+    }
+
+    Mat4 matrix = item_world * node.world_transform.to_mat4();
+    out_opacity = item.transform.opacity * node.world_transform.opacity;
+
+    // Bake canvas center for centered layers (non-modular path).
+    // This matches TICKET-TEXT-CLEANUP-5: the source pass always
+    // provides the resolved matrix so TextRunNode just applies SSAA.
+    if (!ctx.policy.modular_coordinates
+        && should_use_centered_rendering(item, ctx)) {
+        matrix = implicit_canvas_center_matrix(ctx) * matrix;
+    }
+
+    return TextRunPlacement{matrix};
 }
 
 } // namespace chronon3d::graph::detail
