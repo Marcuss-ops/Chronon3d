@@ -200,16 +200,18 @@ add_executable(chronon3d_cli
 if(NOT TARGET chronon3d_content)
     target_sources(chronon3d_cli PRIVATE
         ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_scenes.cpp
-        # TICKET-AE-PARITY-FLOOR-DASHBOARD — 5 new cinematic scene
-        # composition factories (ae_08/10/12/14 + motion_blur_text)
-        # registered as CLI compositions.  Same fallback pattern as
-        # ae_parity_scenes.cpp: when CHRONON3D_BUILD_CONTENT=OFF the
-        # CLI compiles this test-side .cpp directly.  Functions are
-        # TEST infrastructure (in tests/visual/ae_parity/, NOT in
-        # include/) — zero new public API surface.
-        ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_compositions.cpp
     )
 endif()
+# ae_parity_compositions.cpp is ALWAYS compiled into the CLI because
+# cli_init.hpp unconditionally registers the 5 cinematic compositions
+# and this file defines their factory functions.  It depends on
+# test_utils.hpp → internal/software_processor_services.hpp which is
+# reachable from the CLI via the transitive chronon3d_backend_software
+# PUBLIC include directory.  Cannot be compiled into chronon3d_content
+# (the content OBJECT target lacks the internal header dependency).
+target_sources(chronon3d_cli PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_compositions.cpp
+)
 
 get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIES)
 
