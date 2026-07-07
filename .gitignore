@@ -185,3 +185,10 @@ test_output/
 # run and never recomputed into goldens.  Listed explicitly (not `**/diff/`) so the
 # tracked `tests/golden/ae_parity/` parent remains indexable.
 tests/golden/ae_parity/diff/
+
+# AE-parity referee engine output (TICKET-AE-PARITY-DRIVER).  The AE-side
+# mocks at `reference/after_effects/*.png` are manually committed; the
+# engine output at `reference/chronon3d/*.png` is regenerated per ctest run
+# and MUST stay out of git to keep `git status` clean.  The `*.gitkeep`
+# placeholders are preserved (they don't match `*.png`).
+reference/chronon3d/*.png
