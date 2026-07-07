@@ -45,6 +45,9 @@ add_library(chronon3d_content OBJECT
     # ── Backgrounds ────────────────────────────────────────────────────────
     backgrounds/grid_clean.cpp
 
+    # ── Text placement test suite (content registerable) ─────────────
+    text_placement/text_placement_compositions.cpp
+
     # ── Certification compositions (FASE 3.1-3.4 text verification) ──────
     certification/cert_title.cpp
     certification/cert_lower_third.cpp
