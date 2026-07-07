@@ -44,7 +44,7 @@ The rollout is structured as three sequential phases, each with a clear PARTIAL�
 - Each killer: `tests/text_golden/ae_parity_killer/<name>.cpp` (NEW sub-directory under `ae_parity/`) with 3 SUBCASEs (seed-lock + frame-by-frame delta + cross-run reproducibility). Diff asset under `tests/text_golden/ae_parity_killer/reference/`.
 
 **Phase 3 — 288 PNG floor deliverable + `tools/ae_parity_referee.sh`**
-- Computed by gap-fill: 13 scene builders × 6 PNG = 78 PNG (closing 42→120 floor) + 20 user_spec (already 20 in `test_renders/golden/text/`) + 6 motion_blur text (TICKET-MOTION-BLUR-TEXT) + 5 killer evidence (5 × 1 reference frame + 1 cross-run = 10 PNG) → **288 PNG floor** verifiable macchina.
+- Computed by gap-fill (canonical authoritative figure lives in `docs/FOLLOWUP_TICKETS.md` row `TICKET-AE-PARITY-FLOOR`): 13 new scene builders × 6 PNG = 78 new PNG (joining the 42 existing CINEMATIC PNG already on disk → **120 cinematic floor**) + 20 user_spec (already tracked) + 6 motion_blur text (TICKET-MOTION-BLUR-TEXT) + 5 killer tests × ~28 PNG each ≈ **142** (each killer lands a 3-SUBCASE × AR-frame matrix + cross-run reproducibility PNG suite). Sum: **120 + 20 + 6 + 142 = 288 PNG floor** verified macchina.
 - Build `tools/ae_parity_referee.sh`: per scene, `reference/after_effects/scene_NNN_frame_NN.png` (AE-side mock — placeholder for future real AE renders) + `reference/chronon3d/scene_NNN_frame_NN.png` (engine output) + `mean_abs_diff + perceptual color metric` lock at 5/255 threshold (Rigoroso — `docs/FOLLOWUP_TICKETS.md §TICKET-AE-PARITY-DRIVER`).
 - Anti-greenwashing: no claim of "AE-like" until referee pipeline exits 0 on at least **10/15** cinematic scenes (PARTIAL=1-9/15; PASS=10+/15).
 
