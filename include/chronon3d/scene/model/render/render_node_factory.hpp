@@ -9,6 +9,24 @@
 
 namespace chronon3d {
 
+/// Maps a TextAnchor enum value to the corresponding world_transform
+/// anchor for a text box of the given size.  The anchor determines which
+/// point of the text box corresponds to the node's position.
+///
+/// Used by RenderNodeFactory::text(), RenderNodeFactory::text_run(),
+/// and LayerBuilder::build() to ensure consistent anchor resolution.
+inline Vec3 resolve_text_anchor(TextAnchor anchor, Vec2 box) {
+    switch (anchor) {
+        case TextAnchor::TopLeft:        return {0.0f, 0.0f, 0.0f};
+        case TextAnchor::TopCenter:      return {box.x * 0.5f, 0.0f, 0.0f};
+        case TextAnchor::Center:         return {box.x * 0.5f, box.y * 0.5f, 0.0f};
+        case TextAnchor::BottomCenter:   return {box.x * 0.5f, box.y, 0.0f};
+        case TextAnchor::BaselineLeft:   return {0.0f, box.y * 0.5f, 0.0f};
+        case TextAnchor::BaselineCenter: return {box.x * 0.5f, box.y * 0.5f, 0.0f};
+    }
+    return {box.x * 0.5f, box.y * 0.5f, 0.0f}; // fallback = Center
+}
+
 class RenderNodeFactory {
 public:
     static RenderNode rect(std::pmr::memory_resource* res, std::string name, const RectParams& p);

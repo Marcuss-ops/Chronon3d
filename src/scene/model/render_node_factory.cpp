@@ -132,19 +132,9 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
     return node;
 }
 
-// ── resolve_text_anchor — maps TextAnchor enum to world_transform anchor ──
-// Determines which point of the text box corresponds to TextParams.pos.
-static Vec3 resolve_text_anchor(TextAnchor anchor, Vec2 box) {
-    switch (anchor) {
-        case TextAnchor::TopLeft:        return {0.0f, 0.0f, 0.0f};
-        case TextAnchor::TopCenter:      return {box.x * 0.5f, 0.0f, 0.0f};
-        case TextAnchor::Center:         return {box.x * 0.5f, box.y * 0.5f, 0.0f};
-        case TextAnchor::BottomCenter:   return {box.x * 0.5f, box.y, 0.0f};
-        case TextAnchor::BaselineLeft:   return {0.0f, box.y * 0.5f, 0.0f};
-        case TextAnchor::BaselineCenter: return {box.x * 0.5f, box.y * 0.5f, 0.0f};
-    }
-    return {box.x * 0.5f, box.y * 0.5f, 0.0f}; // fallback = Center
-}
+// NOTE: resolve_text_anchor() is now defined inline in
+// include/chronon3d/scene/model/render/render_node_factory.hpp
+// and shared with LayerBuilder::build() and RenderNodeFactory::text_run().
 
 // ── M1.5#9 step 2 — RenderNodeFactory::text() ─────────────────────────
 //
@@ -282,7 +272,8 @@ RenderNode RenderNodeFactory::text_run(
 
     // World transform from TextRunSpec (deep-nested field paths).
     node.world_transform.position = p.text.position;
-    node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
+    node.world_transform.anchor = resolve_text_anchor(
+        p.text.layout.anchor, p.text.layout.box);
 
 #ifdef CHRONON3D_USE_BLEND2D
     // ── Pass canonical composite TextRunSpec directly ───────────────
