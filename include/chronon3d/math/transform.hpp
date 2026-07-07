@@ -4,6 +4,7 @@
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/scene/model/core/mask_utils.hpp>
+#include <spdlog/spdlog.h>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -57,6 +58,29 @@ struct Transform {
 
     Mat4 local = matrix;
     if (!glm::decompose(local, scale, rotation, translation, skew, perspective)) {
+        // TICKET-ae-cam-hash-collision forward-fix (round-2/3 code-reviewer
+        // follow-up): log a warning when the fallback branch fires so that
+        // a degenerate matrix (zero determinant, singular, or otherwise
+        // non-invertible) is visible in the log instead of silently
+        // producing a default Transform with scale=(1,1,1).  This was the
+        // root cause of the 3 in-memory FB hash failures + 13 banned PNGs
+        // during the 2026-07-07 verification (the same bug at
+        // `multi_source_node.cpp:122/216` + `source_node.cpp:122/216` where
+        // an empty `chronon3d::Transform tr;` was passed to
+        // `project_layer_2_5d` and propagated `layer_size=1x1` to the
+        // resolver, causing 2D layers to render as transparent-black).
+        // The warning is gated to spdlog::warn (not fatal) so it does
+        // not break the rendering path; the fallback behavior is
+        // preserved (returns a default-initialized Transform with the
+        // requested opacity) so existing callers do not need to change.
+        // Note: this adds a spdlog dependency to this public math header.
+        // The dependency is light (single header include, no link-time
+        // cost) and the runtime cost is one spdlog::warn on the rare
+        // glm::decompose failure path (zero cost on the success path).
+        spdlog::warn(
+            "[MATH] from_mat4 fallback triggered (glm::decompose returned false for matrix with det={:.6e}) — returning default Transform with opacity={}",
+            static_cast<double>(glm::determinant(matrix)),
+            opacity);
         Transform out;
         out.opacity = opacity;
         return out;

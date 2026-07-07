@@ -1,6 +1,7 @@
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
+#include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -51,43 +52,21 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
             // already lives here, so the rendering-side projection must
             // also reach the same trigger for key/pixel consistency).
             //
-            // Bug-fix forward-point: the previous code used an empty
-            // `chronon3d::Transform tr;` (default scale=1,1,1) which
-            // propagated `layer_size=1x1` to `project_layer_2_5d`,
-            // dropping the actual shape bbox.  The fix uses
-            // `chronon3d::from_mat4(item.matrix, item.opacity)` — the
-            // canonical TRS decomposition helper that extracts the
-            // actual layer scale from the world matrix's column
-            // vectors.  The companion TICKET-ae-cam-hash-collision.md
-            // `## Verification gap` documents the empty-Transform bug
-            // in the SourceNode path; this multi_source_node fix
-            // pre-empts the same bug at 3 sites here.
-            auto tr = chronon3d::from_mat4(item.matrix, item.opacity);
-            auto proj = chronon3d::project_layer_2_5d(
-                tr, item.matrix,
-                ctx.frame_input.camera_2_5d,
-                static_cast<f32>(ctx.frame_input.width),
-                static_cast<f32>(ctx.frame_input.height),
-                false);
-            if (!proj.visible) {
-                // CHRONON3D_PROJ_DIAG: per-frame diagnostic for the proj.visible=false
-                // skip path in predicted_bbox. Gated on env var so zero-cost when unset;
-                // revertable by `unset CHRONON3D_PROJ_DIAG`. Emits user-spec fields:
-                // proj.layer_* + camera.{position,zoom,fov} + world_z_depth + frame.
-                if (std::getenv("CHRONON3D_PROJ_DIAG")) {
-                    spdlog::warn("[PROJ_DIAG] branch=SKIP_NOT_VISIBLE stage=predicted_bbox node='{}' item#{} world_z_depth={:.1f} proj.depth={:.4f} proj.perspective_scale={:.4f} proj.position=({:.1f},{:.1f}) proj.scale=({:.4f},{:.4f}) camera.position=({:.1f},{:.1f},{:.1f}) camera.zoom={:.1f} camera.fov_deg={:.1f} frame={}",
-                        m_name, bbox_i,
-                        item.matrix[3][2],
-                        proj.depth, proj.perspective_scale,
-                        proj.transform.position.x, proj.transform.position.y,
-                        proj.transform.scale.x, proj.transform.scale.y,
-                        ctx.frame_input.camera_2_5d.position.x, ctx.frame_input.camera_2_5d.position.y, ctx.frame_input.camera_2_5d.position.z,
-                        ctx.frame_input.camera_2_5d.zoom, ctx.frame_input.camera_2_5d.fov_deg,
-                        ctx.frame_input.sample_time.integral_frame());
-                }
+            // Dedup (round-2/3 code-reviewer #2 follow-up): the
+            // projection+continue logic (from_mat4 + project_layer_2_5d +
+            // CHRONON3D_PROJ_DIAG diagnostic + canvas_center*ssaa_scale
+            // composition) is extracted to
+            // `chronon3d::graph::detail::project_to_camera_space` in
+            // `src/render_graph/nodes/detail/projection_helpers.hpp` and
+            // shared with the 2 source_node.cpp sites + the 2 sibling
+            // multi_source_node sites below.  See the helper header for
+            // the full design rationale.
+            auto matrix_opt = chronon3d::graph::detail::project_to_camera_space(
+                item.matrix, item.opacity, ctx, m_name, "predicted_bbox", bbox_i);
+            if (!matrix_opt) {
                 continue;
             }
-            matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
+            matrix = *matrix_opt;
         } else if (m_uses_2_5d_projection || m_centered) {
             matrix = canvas_center * ssaa_scale * item.matrix;
         } else {
@@ -248,37 +227,18 @@ NodeExecResult MultiSourceNode::execute(
                 if (ctx.frame_input.has_camera_2_5d) {
                     // TICKET-ae-cam-hash-collision Soluzione B
                     // (MultiSourceNode consistency follow-up): same
-                    // global-trigger + from_mat4(item.matrix, item.opacity)
-                    // pattern as predicted_bbox site above.  See the
-                    // site-1 comment for the full rationale + bug-fix
-                    // forward-point to TICKET-ae-cam-hash-collision.md
-                    // `## Verification gap`.
-                    auto tr = chronon3d::from_mat4(item.matrix, item.opacity);
-                    auto proj = chronon3d::project_layer_2_5d(
-                        tr, item.matrix,
-                        ctx.frame_input.camera_2_5d,
-                        static_cast<f32>(ctx.frame_input.width),
-                        static_cast<f32>(ctx.frame_input.height),
-                        false);
-                    if (!proj.visible) {
-                        // CHRONON3D_PROJ_DIAG: per-frame diagnostic for the proj.visible=false
-                        // skip path in text_run execute branch. Gated on env var so
-                        // zero-cost when unset; revertable by `unset CHRONON3D_PROJ_DIAG`.
-                        // Emits user-spec fields: proj.layer_* + camera.{position,zoom,fov} + world_z_depth + frame.
-                        if (std::getenv("CHRONON3D_PROJ_DIAG")) {
-                            spdlog::warn("[PROJ_DIAG] branch=SKIP_NOT_VISIBLE stage=text_run_execute node='{}' item#{} world_z_depth={:.1f} proj.depth={:.4f} proj.perspective_scale={:.4f} proj.position=({:.1f},{:.1f}) proj.scale=({:.4f},{:.4f}) camera.position=({:.1f},{:.1f},{:.1f}) camera.zoom={:.1f} camera.fov_deg={:.1f} frame={}",
-                                m_name, i,
-                                item.matrix[3][2],
-                                proj.depth, proj.perspective_scale,
-                                proj.transform.position.x, proj.transform.position.y,
-                                proj.transform.scale.x, proj.transform.scale.y,
-                                ctx.frame_input.camera_2_5d.position.x, ctx.frame_input.camera_2_5d.position.y, ctx.frame_input.camera_2_5d.position.z,
-                                ctx.frame_input.camera_2_5d.zoom, ctx.frame_input.camera_2_5d.fov_deg,
-                                ctx.frame_input.sample_time.integral_frame());
-                        }
+                    // global-trigger pattern as predicted_bbox site
+                    // above.  Dedup (round-2/3 code-reviewer #2): the
+                    // projection+continue logic is extracted to
+                    // `chronon3d::graph::detail::project_to_camera_space`
+                    // and shared across all 5 sites.  See the helper
+                    // header for the full design rationale.
+                    auto world_matrix_opt = chronon3d::graph::detail::project_to_camera_space(
+                        item.matrix, item.opacity, ctx, m_name, "text_run_execute", i);
+                    if (!world_matrix_opt) {
                         continue;
                     }
-                    world_matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
+                    world_matrix = *world_matrix_opt;
                 } else if (m_uses_2_5d_projection || m_centered) {
                     world_matrix = canvas_center * ssaa_scale * item.matrix;
                 } else {
@@ -361,37 +321,18 @@ NodeExecResult MultiSourceNode::execute(
             if (ctx.frame_input.has_camera_2_5d) {
                 // TICKET-ae-cam-hash-collision Soluzione B
                 // (MultiSourceNode consistency follow-up): same
-                // global-trigger + from_mat4(item.matrix, item.opacity)
-                // pattern as predicted_bbox site above.  See the
-                // site-1 comment for the full rationale + bug-fix
-                // forward-point to TICKET-ae-cam-hash-collision.md
-                // `## Verification gap`.
-                auto tr = chronon3d::from_mat4(item.matrix, item.opacity);
-                auto proj = chronon3d::project_layer_2_5d(
-                    tr, item.matrix,
-                    ctx.frame_input.camera_2_5d,
-                    static_cast<f32>(ctx.frame_input.width),
-                    static_cast<f32>(ctx.frame_input.height),
-                    false);
-                if (!proj.visible) {
-                    // CHRONON3D_PROJ_DIAG: per-frame diagnostic for the proj.visible=false
-                    // skip path in regular execute branch. Gated on env var so zero-cost
-                    // when unset; revertable by `unset CHRONON3D_PROJ_DIAG`.
-                    // Emits user-spec fields: proj.layer_* + camera.{position,zoom,fov} + world_z_depth + frame.
-                    if (std::getenv("CHRONON3D_PROJ_DIAG")) {
-                        spdlog::warn("[PROJ_DIAG] branch=SKIP_NOT_VISIBLE stage=regular_execute node='{}' item#{} world_z_depth={:.1f} proj.depth={:.4f} proj.perspective_scale={:.4f} proj.position=({:.1f},{:.1f}) proj.scale=({:.4f},{:.4f}) camera.position=({:.1f},{:.1f},{:.1f}) camera.zoom={:.1f} camera.fov_deg={:.1f} frame={}",
-                            m_name, i,
-                            item.matrix[3][2],
-                            proj.depth, proj.perspective_scale,
-                            proj.transform.position.x, proj.transform.position.y,
-                            proj.transform.scale.x, proj.transform.scale.y,
-                            ctx.frame_input.camera_2_5d.position.x, ctx.frame_input.camera_2_5d.position.y, ctx.frame_input.camera_2_5d.position.z,
-                            ctx.frame_input.camera_2_5d.zoom, ctx.frame_input.camera_2_5d.fov_deg,
-                            ctx.frame_input.sample_time.integral_frame());
-                    }
+                // global-trigger pattern as predicted_bbox site
+                // above.  Dedup (round-2/3 code-reviewer #2): the
+                // projection+continue logic is extracted to
+                // `chronon3d::graph::detail::project_to_camera_space`
+                // and shared across all 5 sites.  See the helper
+                // header for the full design rationale.
+                auto state_matrix_opt = chronon3d::graph::detail::project_to_camera_space(
+                    item.matrix, item.opacity, ctx, m_name, "regular_execute", i);
+                if (!state_matrix_opt) {
                     continue;
                 }
-                state.matrix = canvas_center * ssaa_scale * proj.transform.to_mat4();
+                state.matrix = *state_matrix_opt;
             } else if (m_uses_2_5d_projection) {
                 state.matrix = canvas_center * ssaa_scale * item.matrix;
             } else {
