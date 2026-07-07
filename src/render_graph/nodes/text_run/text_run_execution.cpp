@@ -4,6 +4,7 @@
 // See text_run_execution.hpp for the contract.
 
 #include "text_run_execution.hpp"
+#include "text_run_transform.hpp"
 
 #include <chronon3d/text/text_run_driver.hpp>   // update_text_run_shape_per_frame
 #include <spdlog/spdlog.h>
@@ -60,6 +61,28 @@ TextRunShape prepare_per_frame_shape(
     chronon3d::update_text_run_shape_per_frame(local, sample_time);
 
     return local;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// render_text_run_item — unified TextRun rendering (TextRunNode + MultiSourceNode)
+// ═══════════════════════════════════════════════════════════════════════════
+
+graph::RenderOpResult render_text_run_item(
+    const RenderGraphContext& ctx,
+    RenderBackend& backend,
+    Framebuffer& fb,
+    const TextRunShape& source_shape,
+    const TextRunPlacement& placement,
+    float opacity
+) {
+    // A6 immutability: clone the mutable per-glyph vector, evaluate
+    // animators into the clone.
+    TextRunShape local_shape = source_shape;
+    chronon3d::update_text_run_shape_per_frame(local_shape, ctx.frame_input.sample_time);
+
+    const glm::mat4 world_matrix = build_world_matrix(ctx, placement);
+
+    return backend.draw_text_run(fb, local_shape, world_matrix, opacity);
 }
 
 #endif // CHRONON3D_ENABLE_TEXT
