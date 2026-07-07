@@ -98,13 +98,8 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     const Mat4 base_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
     Mat4 matrix;
     // TICKET-ae-cam-hash-collision Soluzione B (rendering-side) — mirror
-    // the cache-key pattern: condition the 2.5D projection on the
-    // *global* `has_camera_2_5d` trigger, NOT on the per-node
-    // `m_uses_2_5d_projection` flag.  The per-node flag is `false` on
-    // the SourceNode used by AE_CAM_02/04/07/09 (confirmed by the
-    // existing inline comment in `cache_key()` below) so conditioning
-    // on it would make the projection branch unreachable for the very
-    // scenes the cache key fix was designed to differentiate.  Only
+    // Condition the 2.5D projection on the global `has_camera_2_5d`
+    // trigger (TICKET-ae-cam-hash-collision Soluzione B).  Only
     // FakeBox3D is excluded — it routes through
     // `detail::projected_native_3d_bbox` further down and expects an
     // unprojected world matrix there.  GridPlane was formerly excluded
@@ -200,12 +195,8 @@ cache::NodeCacheKey SourceNode::cache_key(const RenderGraphContext& ctx) const {
         key.params_hash = hash_combine(key.params_hash, hash_bytes(&(*m_opacity_override), sizeof(f32)));
     }
     // 2.5D camera fingerprint (TICKET-ae-cam-hash-collision Soluzione B).
-    // Conditional on `has_camera_2_5d` (NOT on `m_uses_2_5d_projection`) —
-    // the bug in tickets `TICKET-AE-CAM-PRECISION-COLLAPSE` and
-    // TICKET-ae-cam-hash-collision was precisely that the prior gate made
-    // fingerprinting conditional on the per-node flag, so AE_CAM_02 frame
-    // 0 / 30 / 60 (`m_uses_2_5d_projection == false` on the
-    // SourceNode used by `ae_cam_02_zoom_fov`) collided on the cache key.
+    // Conditional on `has_camera_2_5d` globally — AE_CAM_02 zoom-only
+    // frames now produce distinct per-frame keys.
     if (ctx.frame_input.has_camera_2_5d) {
         cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
     }
@@ -249,11 +240,8 @@ NodeExecResult SourceNode::execute(
         state.ssaa_factor = ctx.policy.ssaa_factor;
 
         // TICKET-ae-cam-hash-collision Soluzione B (rendering-side) —
-        // mirror the cache-key pattern: condition the 2.5D projection
-        // on the *global* `has_camera_2_5d` trigger, NOT on the
-        // per-node `m_uses_2_5d_projection` flag.  See the matching
-        // comment in `predicted_bbox` above for the rationale.  Only
-        // FakeBox3D is excluded (GridPlane now projected per TICKET-122
+        // Condition the 2.5D projection on the global `has_camera_2_5d`
+        // trigger (Soluzione B).  Only FakeBox3D is excluded (GridPlane now projected per TICKET-122
         // FASE 3).
         // TICKET-122 FASE 3: GridPlane participates in 2.5D projection
         // so the grid scales with zoom (matches predicted_bbox above).

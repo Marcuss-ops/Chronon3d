@@ -151,11 +151,9 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
     }
 
     // 2.5D camera fingerprint (TICKET-ae-cam-hash-collision Soluzione B).
-    // Conditional on `has_camera_2_5d` (NOT on `m_uses_2_5d_projection`) —
-    // see `multi_source_node.cpp::cache_key` and `source_node.cpp::cache_key`
-    // for the rationale. Fold zoom + position.z + parent + DOF into
-    // `params_hash` so AE_CAM_02 (zoom-only animation, layer does NOT have
-    // `m_uses_2_5d_projection` flag) produces distinct per-frame keys.
+    // Conditional on `has_camera_2_5d` globally.  Fold zoom + position.z +
+    // parent + DOF into `params_hash` so zoom-animated frames produce
+    // distinct per-frame keys.
     if (ctx.frame_input.has_camera_2_5d) {
         cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
     }

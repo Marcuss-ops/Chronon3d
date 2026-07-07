@@ -36,9 +36,8 @@
 // - Native 3D shape exclusion (FakeBox3D, GridPlane) is the caller's
 //   responsibility (this helper is for the 2D-projection path only — the
 //   native 3D shapes still go through `detail::projected_native_3d_bbox`).
-// - The helper does NOT include the `m_uses_2_5d_projection` per-node flag
-//   check; the caller must gate the call with `ctx.frame_input.has_camera_2_5d`
-//   (consistency with the Soluzione B rendering-side pattern).
+// - The caller must gate the call with `ctx.frame_input.has_camera_2_5d`
+//   (Soluzione B: global camera trigger, no per-node flag).
 
 #pragma once
 
