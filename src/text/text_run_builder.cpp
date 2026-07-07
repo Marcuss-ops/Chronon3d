@@ -63,6 +63,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cmath>
 
 namespace chronon3d {
 
@@ -312,6 +313,39 @@ compile_text_layout(
         para_text
     );
     tci::apply_composition_to_placed(merged, composed);
+
+    // ── Apply vertical alignment within the text box ──────────────
+    // The composition pass places glyphs starting at y=0 (top of the
+    // first line).  When vertical_align is Middle or Bottom and the box
+    // height exceeds the text height, shift glyphs down so the text is
+    // centered or bottom-aligned within the box.  Without this,
+    // TextAnchor::Center + VerticalAlign::Middle renders text at the
+    // top of the box, making it appear visually off-center (too high).
+    //
+    // BOTH `merged.glyphs` AND `composed.bounds.y` need the shift:
+    // rasterizers/cullers consume glyph positions, but downstream
+    // `finalize_text_run_layout` copies `composed.bounds` into
+    // `text_layout->bounds` (the canonical bbox used by cache_key,
+    // culling and any hit-test).  Without bumping `composed.bounds.y`
+    // the layout bbox is stale by exactly `dy` — the same magnitude
+    // as the fix itself.
+    if (layout.box.y > 0.0f && layout.vertical_align != VerticalAlign::Top) {
+        const float text_height = composed.bounds.y;
+        if (std::isfinite(text_height) && layout.box.y > text_height) {
+            float dy = 0.0f;
+            if (layout.vertical_align == VerticalAlign::Middle) {
+                dy = (layout.box.y - text_height) * 0.5f;
+            } else if (layout.vertical_align == VerticalAlign::Bottom) {
+                dy = layout.box.y - text_height;
+            }
+            if (dy > 0.0f) {
+                for (auto& g : merged.glyphs) {
+                    g.y += dy;
+                }
+                composed.bounds.y += dy;
+            }
+        }
+    }
 
     // ── Build initial TextRunLayout (orchestrator assembly) ────────
     auto text_layout = std::make_shared<TextRunLayout>();
