@@ -17,6 +17,13 @@
 
 // AE parity camera visual comparison scenes (10 compositions, always registered)
 #include "tests/visual/ae_parity/ae_parity_scenes.hpp"
+// TICKET-AE-PARITY-FLOOR-DASHBOARD — 5 new cinematic scene compositions
+// (ae_08_glow_pulse, ae_10_scale_pop, ae_12_random_character_jitter,
+//  ae_14_multiline_9_16, motion_blur_text) registered as CLI compositions
+// so they can be rendered via `chronon3d_cli render <comp_id>` and show
+// up in the telemetry dashboard.  Source: tests/text_golden/ae_parity/* +
+// tests/text_golden/motion_blur_text/* (landed in commits 3ddbbdff/45be2b40).
+#include "tests/visual/ae_parity/ae_parity_compositions.hpp"
 // Camera 3D projection truth test
 #include "tests/visual/camera_truth/camera_truth_test.hpp"
 // Camera orbit truth test (OrbitMotion via CameraDescriptor)
@@ -122,6 +129,25 @@ inline void init_compositions(CompositionRegistry& registry) {
     // AE Camera Text Parity — 360-frame multi-segment stress test
     // (static / dolly-zoom / orbit / rack-focus / whip-pan+motion-blur / stress)
     registry.add("AECameraTextParity", [](const CompositionProps&) { return chronon3d::content::anims::ae_camera_text_parity(); });
+
+    // TICKET-AE-PARITY-FLOOR-DASHBOARD — 5 new cinematic scene
+    // compositions (Phase 1 scenes 08/10/12/14 + motion_blur_text).  Each
+    // derives per-frame state (opacity/scale/jitter/blur) from
+    // `ctx.frame.value % 30` inside the runtime lambda, matching the
+    // 0/15/30 snapshot buckets used by the test files.  CLI invocations:
+    //   chronon3d_cli render ae_08_glow_pulse -o /tmp/ae_08.png --frame 15
+    //   chronon3d_cli render ae_10_scale_pop -o /tmp/ae_10.png --frame 15
+    //   chronon3d_cli render ae_12_random_character_jitter -o /tmp/ae_12.png --frame 15
+    //   chronon3d_cli render ae_14_multiline_landscape -o /tmp/ae_14.png --frame 0
+    //   chronon3d_cli render motion_blur_text -o /tmp/mb.png --frame 10
+    // Each render produces 1 row in render_runs SQLite with
+    // git_commit_short = 3ddbbdff or 45be2b40 (the SHAs that landed the
+    // matching test code), visible in http://149.56.131.97:5173/.
+    registry.add("ae_08_glow_pulse",               [](const CompositionProps& p) { return test::make_ae_08_glow_pulse(p); });
+    registry.add("ae_10_scale_pop",                [](const CompositionProps& p) { return test::make_ae_10_scale_pop(p); });
+    registry.add("ae_12_random_character_jitter",  [](const CompositionProps& p) { return test::make_ae_12_random_character_jitter(p); });
+    registry.add("ae_14_multiline_landscape",     [](const CompositionProps& p) { return test::make_ae_14_multiline_landscape(p); });
+    registry.add("motion_blur_text",               [](const CompositionProps& p) { return test::make_motion_blur_text(p); });
 }
 
 } // namespace chronon3d::cli

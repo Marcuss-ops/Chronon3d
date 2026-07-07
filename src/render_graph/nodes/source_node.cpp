@@ -1,7 +1,7 @@
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
-#include <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>
+#include <detail/projection_helpers.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>

@@ -200,6 +200,14 @@ add_executable(chronon3d_cli
 if(NOT TARGET chronon3d_content)
     target_sources(chronon3d_cli PRIVATE
         ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_scenes.cpp
+        # TICKET-AE-PARITY-FLOOR-DASHBOARD — 5 new cinematic scene
+        # composition factories (ae_08/10/12/14 + motion_blur_text)
+        # registered as CLI compositions.  Same fallback pattern as
+        # ae_parity_scenes.cpp: when CHRONON3D_BUILD_CONTENT=OFF the
+        # CLI compiles this test-side .cpp directly.  Functions are
+        # TEST infrastructure (in tests/visual/ae_parity/, NOT in
+        # include/) — zero new public API surface.
+        ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_compositions.cpp
     )
 endif()
 
