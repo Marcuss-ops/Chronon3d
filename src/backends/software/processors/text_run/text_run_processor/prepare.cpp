@@ -17,7 +17,7 @@
 //   - Image dimensions + supersample factor precomputation (FASE 3b).
 //
 // Populates TextRunStageState fully (raster uses s.span_handles + s.img_w +
-// s.ss + s.active_tiers + ...).
+// s.raster_space + s.active_tiers + ...).
 
 #include "text_run_stages.hpp"
 #include <chronon3d/text/text_run_geometry.hpp>
@@ -204,11 +204,11 @@ namespace chronon3d::renderer::text_run_stages {
     s.offset_y = s.min_y - kMargin;
 
     const float layer_scale = extract_uniform_scale(params.model_matrix);
-    s.ss = supersampling_factor(layer_scale);
-    s.ss_img_w = s.img_w * s.ss;
-    s.ss_img_h = s.img_h * s.ss;
-    s.ss_offset_x = s.offset_x * static_cast<float>(s.ss);
-    s.ss_offset_y = s.offset_y * static_cast<float>(s.ss);
+    s.raster_space.scale = supersampling_factor(layer_scale);
+    s.ss_img_w = s.img_w * s.raster_space.scale;
+    s.ss_img_h = s.img_h * s.raster_space.scale;
+    s.raster_space.offset_x = s.offset_x * static_cast<float>(s.raster_space.scale);
+    s.raster_space.offset_y = s.offset_y * static_cast<float>(s.raster_space.scale);
 
     // Outcome reports span_handles.size() (1 fanned out at the orchestrator).
     return graph::RenderOpResult(graph::RenderOpOutcome{s.span_handles.size()});
