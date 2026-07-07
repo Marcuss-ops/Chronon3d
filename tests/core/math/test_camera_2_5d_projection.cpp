@@ -241,3 +241,111 @@ TEST_CASE("Camera2_5D projection: direct point projection keeps X and Y orientat
     // projects to a negative screen Y (above centre in screen coordinates).
     CHECK(screen.y < 0.0f);
 }
+
+// Regression lock for ADR-015 Decision 1 — producer-side screen-space TRS
+// invariant. Companion to matrix-fix corpus commit c03ce2a2.
+// Asserts: after project_layer_2_5d(), out.transform.scale.z == 1.0f,
+// out.transform.rotation is identity (Quat(1,0,0,0)), and out.transform.anchor
+// is origin (Vec3(0,0,0)) regardless of the input layer_transform's
+// scale.z / rotation / anchor values. Locks the three producer-side
+// normalize-out writes at include/chronon3d/math/camera_2_5d_projection.hpp:
+//   out.transform.scale.z = 1.0f;
+//   out.transform.rotation = Quat(1.0f, 0.0f, 0.0f, 0.0f);
+//   out.transform.anchor   = Vec3(0.0f, 0.0f, 0.0f);
+// A future refactor that drops any one of these writes (because "1.0f is the
+// Transform default" or "rotation default is identity") is caught by the
+// non-identity-input subcase below, since the producer initially
+// `out.transform = layer_transform;` propagates the input verbatim and only
+// the explicit writes reset scale.z / rotation / anchor.
+TEST_CASE("Camera2_5D projection: project_layer_2_5d normalizes out.transform to screen-space TRS (ADR-015 regression lock)") {
+    Camera2_5D cam;
+    cam.enabled = true;
+    cam.position = {0, 0, -1000};
+    cam.zoom = 1000.0f;
+
+    SUBCASE("identity input: out.scale.z=1 + rotation=identity + anchor=origin (baseline control)") {
+        Transform tr;
+        auto out = project_layer_2_5d(tr, cam, 1280, 720);
+        CHECK(out.visible);
+        CHECK(out.transform.scale.z == doctest::Approx(1.0f));
+        CHECK(out.transform.rotation.w == doctest::Approx(1.0f));
+        CHECK(out.transform.rotation.x == doctest::Approx(0.0f));
+        CHECK(out.transform.rotation.y == doctest::Approx(0.0f));
+        CHECK(out.transform.rotation.z == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.x == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.y == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.z == doctest::Approx(0.0f));
+    }
+
+    SUBCASE("non-default input scale.z=7.5: out.scale.z reset to 1.0f (scale.z-write lock)") {
+        Transform tr;
+        tr.position = {0, 0, -500};  // visible (in front of camera)
+        tr.scale = {1.0f, 1.0f, 7.5f};  // deliberately wrong scale.z
+        auto out = project_layer_2_5d(tr, cam, 1280, 720);
+        CHECK(out.visible);
+        CHECK(out.transform.scale.z == doctest::Approx(1.0f));
+        CHECK(out.transform.rotation.w == doctest::Approx(1.0f));
+        CHECK(out.transform.rotation.x == doctest::Approx(0.0f));
+        CHECK(out.transform.rotation.y == doctest::Approx(0.0f));
+        CHECK(out.transform.rotation.z == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.x == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.y == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.z == doctest::Approx(0.0f));
+    }
+
+    SUBCASE("non-default input rotation (Z-axis pi/2): out.rotation reset to identity (rotation-write lock)") {
+        // glm::quat constructor order is (w, x, y, z). Z-axis pi/2 -> (cos(pi/4), 0, 0, sin(pi/4)).
+        const f32 half = 0.5f * 1.5707963f;
+        const f32 s = std::sin(half);
+        const f32 c = std::cos(half);
+        Transform tr;
+        tr.rotation = Quat(c, 0.0f, 0.0f, s);
+        auto out = project_layer_2_5d(tr, cam, 1280, 720);
+        CHECK(out.visible);
+        CHECK(out.transform.scale.z == doctest::Approx(1.0f));
+        CHECK(out.transform.rotation.w == doctest::Approx(1.0f));
+        CHECK(out.transform.rotation.x == doctest::Approx(0.0f));
+        CHECK(out.transform.rotation.y == doctest::Approx(0.0f));
+        CHECK(out.transform.rotation.z == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.x == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.y == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.z == doctest::Approx(0.0f));
+    }
+
+    SUBCASE("non-default input anchor (300,-200,50): out.anchor reset to origin (anchor-write lock)") {
+        Transform tr;
+        tr.position = {100.0f, 0.0f, 0.0f};
+        tr.anchor = {300.0f, -200.0f, 50.0f};  // deliberately wrong off-origin anchor
+        auto out = project_layer_2_5d(tr, cam, 1280, 720);
+        CHECK(out.visible);
+        CHECK(out.transform.scale.z == doctest::Approx(1.0f));
+        CHECK(out.transform.rotation.w == doctest::Approx(1.0f));
+        CHECK(out.transform.rotation.x == doctest::Approx(0.0f));
+        CHECK(out.transform.rotation.y == doctest::Approx(0.0f));
+        CHECK(out.transform.rotation.z == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.x == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.y == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.z == doctest::Approx(0.0f));
+    }
+
+    SUBCASE("all-non-default input (combined worst case): all 3 normalize-out writes verified simultaneously") {
+        const f32 half = 0.5f * 1.5707963f;
+        const f32 s = std::sin(half);
+        const f32 c = std::cos(half);
+        Transform tr;
+        tr.position  = {100.0f, 50.0f, -500.0f};
+        tr.scale     = {2.0f, 3.0f, 4.0f};   // scale.z = 4.0f, must be reset
+        tr.rotation  = Quat(c, s, 0.0f, 0.0f);  // arbitrary (w,x,y,z), must be reset to identity
+        tr.anchor    = {100.0f, 200.0f, 300.0f};  // off-origin, must be reset
+        auto out = project_layer_2_5d(tr, cam, 1280, 720);
+        CHECK(out.visible);
+        CHECK(out.transform.scale.z == doctest::Approx(1.0f));
+        CHECK(out.transform.rotation.w == doctest::Approx(1.0f));
+        CHECK(out.transform.rotation.x == doctest::Approx(0.0f));
+        CHECK(out.transform.rotation.y == doctest::Approx(0.0f));
+        CHECK(out.transform.rotation.z == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.x == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.y == doctest::Approx(0.0f));
+        CHECK(out.transform.anchor.z == doctest::Approx(0.0f));
+    }
+}
