@@ -12,6 +12,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/render_graph_context.hpp>
+#include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/scene/model/render/render_node.hpp>
 
 #include <optional>
@@ -20,15 +21,16 @@
 
 namespace chronon3d::graph::text_run {
 
-/// TICKET-TEXT-CLEANUP-5: centralized centering.
-/// The source pass now always provides the resolved matrix (including
-/// canvas-center for centered layers).  build_world_matrix just applies
-/// SSAA scale — no centering decision here.
+/// Build the world-space model matrix for TextRun rendering.
+///
+/// The graph builder has already pre-computed the final world matrix
+/// (including canvas-centre, 2.5D projection, and layer transform).
+/// This helper only applies SSAA scaling on top.
+///
+/// Used by BOTH `TextRunNode::predicted_bbox()` and `execute()`.
 glm::mat4 build_world_matrix(
-    const ::chronon3d::RenderNode& render_ref,
     const RenderGraphContext& ctx,
-    bool uses_2_5d_projection,
-    std::optional<glm::mat4> matrix_override
+    const TextRunPlacement& placement
 );
 
 }  // namespace chronon3d::graph::text_run
