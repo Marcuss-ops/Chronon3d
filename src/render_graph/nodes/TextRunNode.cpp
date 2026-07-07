@@ -31,6 +31,9 @@
 #include "text_run/text_run_execution.hpp"
 #include "text_run/text_run_transform.hpp"
 #include "text_run/text_run_diagnostics.hpp"
+#ifdef CHRONON3D_ENABLE_TEXT
+#include "text_run/text_run_debug_overlay.hpp"
+#endif
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -231,6 +234,18 @@ NodeExecResult TextRunNode::execute(
     // NOTE: draw_text_run() already increments text_glyphs_rasterized
     // inside the processor.  Do NOT double-count here — the processor
     // is the single source of truth for telemetry.
+
+    // ── 6. Text layout debug overlay + structured log (§5 + §6). ──
+#ifdef CHRONON3D_ENABLE_TEXT
+    if (ctx.policy.text_layout_debug) {
+        const Mat4 world_matrix = text_run::build_world_matrix(ctx, m_placement);
+        const bool use_local = ctx.policy.modular_coordinates;
+        text_run::draw_text_debug_overlay(
+            *fb, *m_shape, m_name, world_matrix, opacity,
+            dispatch.value().items_drawn, use_local,
+            m_render_ref.world_transform.position);
+    }
+#endif
 
     return NodeExecResult{std::move(fb)};
 }
