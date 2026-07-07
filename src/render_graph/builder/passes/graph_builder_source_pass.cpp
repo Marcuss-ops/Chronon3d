@@ -94,25 +94,17 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     : (item_source_world * node.world_transform.to_mat4());
                 const f32 run_opacity = use_local
                     ? node.world_transform.opacity
-                    : (item.transform.opacity * node.world_transform.opacity);                    // TICKET-TEXT-CLEANUP-5: always pass resolved matrix.
-                    // Canvas center is now baked into matrix_override by the
-                    // source pass — TextRunNode no longer decides centering.
-                    Mat4 resolved_matrix = run_matrix;
-                    f32  resolved_opacity = run_opacity;
-                    if (!ctx.policy.modular_coordinates
-                        && should_use_centered_rendering(item, ctx)) {
-                        resolved_matrix = implicit_canvas_center_matrix(ctx) * run_matrix;
-                    }
-                    source = graph.add_node(std::make_unique<TextRunNode>(
-                        std::string(node.name),
-                        run_shape,
-                        node,
-                        run_key,
-                        item.projected,
-                        std::optional<Mat4>(resolved_matrix),
-                        std::optional<f32>(resolved_opacity),
-                        source_is_static ? static_memory_cache("text_run") : frame_variant_cache("text_run")
-                    ));
+                    : (item.transform.opacity * node.world_transform.opacity);
+
+                source = graph.add_node(std::make_unique<TextRunNode>(
+                    std::string(node.name),
+                    run_shape,
+                    node,
+                    run_key,
+                    TextRunPlacement{run_matrix},
+                    ctx.policy.modular_coordinates ? std::optional<f32>(run_opacity) : std::nullopt,
+                    source_is_static ? static_memory_cache("text_run") : frame_variant_cache("text_run")
+                ));
 
                 if (ctx.policy.diagnostics_enabled) {
                     spdlog::info(

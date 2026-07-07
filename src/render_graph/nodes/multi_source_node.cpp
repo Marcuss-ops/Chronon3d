@@ -7,7 +7,8 @@
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <chronon3d/text/text_run_geometry.hpp>
 #include <chronon3d/text/text_run.hpp>
-#include <chronon3d/text/text_run_driver.hpp>
+#include "text_run/text_run_execution.hpp"
+#include "text_run/text_run_transform.hpp"
 #endif
 #include <spdlog/spdlog.h>
 #include <cstdlib>
@@ -214,37 +215,11 @@ NodeExecResult MultiSourceNode::execute(
             if (!item.node) continue;
 
 #ifdef CHRONON3D_ENABLE_TEXT
-            // ── text_run branch (Fase A6: clone-before-mutate) ─────
+            // ── text_run branch — unified via render_text_run_item ────
             if (item.node->shape.type() == ShapeType::TextRun) {
                 auto run_shape = item.node->shape.text_run_shape_handle().value;
                 if (!run_shape) {
                     continue;
-                }
-                // Fase A6 — never mutate the shared shape. Clone glyphs
-                // locally, evaluate into the clone, pass clone to backend.
-                TextRunShape local_shape = *run_shape;
-                chronon3d::update_text_run_shape_per_frame(local_shape, ctx.frame_input.sample_time);
-
-                Mat4 world_matrix;
-                if (ctx.frame_input.has_camera_2_5d) {
-                    // TICKET-ae-cam-hash-collision Soluzione B
-                    // (MultiSourceNode consistency follow-up): same
-                    // global-trigger pattern as predicted_bbox site
-                    // above.  Dedup (round-2/3 code-reviewer #2): the
-                    // projection+continue logic is extracted to
-                    // `chronon3d::graph::detail::project_to_camera_space`
-                    // and shared across all 5 sites.  See the helper
-                    // header for the full design rationale.
-                    auto world_matrix_opt = chronon3d::graph::detail::project_to_camera_space(
-                        item.matrix, item.opacity, ctx, m_name, "text_run_execute", i);
-                    if (!world_matrix_opt) {
-                        continue;
-                    }
-                    world_matrix = *world_matrix_opt;
-                } else if (m_uses_2_5d_projection || m_centered) {
-                    world_matrix = canvas_center * ssaa_scale * item.matrix;
-                } else {
-                    world_matrix = ssaa_scale * item.matrix;
                 }
 
                 if (!ctx.services.backend->capabilities().text_run) {
@@ -259,9 +234,22 @@ NodeExecResult MultiSourceNode::execute(
                     }};
                 }
 
-                auto result = ctx.services.backend->draw_text_run(
-                    *fb, local_shape, world_matrix,
-                    item.opacity);
+                // 2.5D-aware placement: if camera is active, project
+                // the item matrix; otherwise the source pass already
+                // resolved the final matrix.
+                Mat4 resolved_matrix = item.matrix;
+                if (ctx.frame_input.has_camera_2_5d) {
+                    auto proj_opt = chronon3d::graph::detail::project_to_camera_space(
+                        item.matrix, item.opacity, ctx, m_name, "text_run_execute", i);
+                    if (!proj_opt) {
+                        continue;
+                    }
+                    resolved_matrix = *proj_opt;
+                }
+
+                auto result = text_run::render_text_run_item(
+                    ctx, *ctx.services.backend, *fb, *run_shape,
+                    TextRunPlacement{resolved_matrix}, item.opacity);
 
                 if (!result) {
                     spdlog::error(
@@ -277,34 +265,12 @@ NodeExecResult MultiSourceNode::execute(
                 }
 
                 if (ctx.policy.diagnostics_enabled) {
-                    // Canonical per-item log — text_run branch.  screen=
-                    // derived from world_matrix (proj*view*layerTRS +
-                    // canvas_center + ssaa_scale), the same chain as
-                    // state.matrix in the regular branch, so the two
-                    // log blocks stay bit-equivalent across greps.
                     spdlog::info(
-                        "[AE_CAM] frame={} node='{}' item#{} world=({},{},{}) screen=({},{}) depth={} scale={} visible={}",
+                        "[AE_CAM] frame={} node='{}' item#{} world=({},{},{}) opacity={:.3f}",
                         ctx.frame_input.sample_time.integral_frame(),
-                        m_name,
-                        i,
+                        m_name, i,
                         item.matrix[3][0], item.matrix[3][1], item.matrix[3][2],
-                        world_matrix[3][0], world_matrix[3][1],
-                        world_matrix[3][2],
-                        glm::length(Vec3(item.matrix[0])),
-                        true
-                    );
-                    spdlog::debug(
-                        "[multi-source] node='{}' text_run drew={} glyphs={} "
-                        "hash=0x{:016x} opacity={:.3f} tx={:.1f} ty={:.1f}",
-                        m_name,
-                        result ? result.value().items_drawn : 0u,
-                        item.node->shape.text_run_shape_handle().value->glyphs.size(),
-                        chronon3d::hash_text_run_shape(
-                            local_shape,
-                            ctx.frame_input.sample_time.integral_frame()),
-                        item.opacity,
-                        world_matrix[3][0],
-                        world_matrix[3][1]
+                        item.opacity
                     );
                 }
                 continue;

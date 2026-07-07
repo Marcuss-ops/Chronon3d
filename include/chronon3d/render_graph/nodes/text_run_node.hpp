@@ -25,33 +25,35 @@
 
 namespace chronon3d::graph {
 
+/// Resolved placement for a TextRun — the graph builder pre-computes
+/// the final world matrix (including canvas-centre and 2.5D
+/// projection if applicable).  TextRunNode receives this and only
+/// applies SSAA scaling during rasterization.
+struct TextRunPlacement {
+    Mat4 matrix;
+};
+
 class TextRunNode final : public RenderGraphNode {
 public:
     /// Builds a TextRunNode from:
     ///   - `shape`            : the TextRunShape holding immutable layout +
-    ///                          per-glyph animated state.  Mutated per-frame
-    ///                          by `evaluate_animator_stack` (writes
-    ///                          into `shape->glyphs`).
-    ///   - `render_ref`       : the underlying RenderNode carrying position,
-    ///                          opacity, transform override plumbing.
-    ///   - `key`              : skeleton cache key (scope + frame + size);
-    ///                          `cache_key()` will fill in content hash.
-    ///   - `centered`         : canvas centroid (matches SourceNode).
-    ///   - `uses_2_5d_projection` : 2.5D camera pipeline branch.
-    ///   - `matrix_override`  / `opacity_override` : modular-coordinates plumbing.
-    /// Cache policy is decided at construction time — pass a
-    /// `frame_variant_cache("text_run")` for animated text,
-    /// `static_memory_cache("text_run")` (default) for static.
-    // TICKET-TEXT-CLEANUP-5: `centered` parameter removed.  The source
-    // pass now always provides the resolved matrix (including canvas-center
-    // for centered layers).  TextRunNode just applies SSAA.
+    ///                          per-glyph animated state.
+    ///   - `render_ref`       : the underlying RenderNode (for shadow/glow
+    ///                          spread + shape hash in cache_key).
+    ///   - `key`              : skeleton cache key (scope + frame + size).
+    ///   - `placement`        : pre-resolved world matrix (graph builder
+    ///                          already applied canvas-centre + 2.5D
+    ///                          projection if needed; TextRunNode only
+    ///                          applies SSAA on top).
+    ///   - `opacity_override` : modular-coordinates opacity plumbing.
+    /// Cache policy: pass `frame_variant_cache("text_run")` for animated
+    /// text, `static_memory_cache("text_run")` for static.
     TextRunNode(
         std::string name,
         std::shared_ptr<TextRunShape> shape,
         const ::chronon3d::RenderNode& render_ref,
         const cache::NodeCacheKey& key,
-        bool uses_2_5d_projection = false,
-        std::optional<Mat4> matrix_override = std::nullopt,
+        TextRunPlacement placement,
         std::optional<f32> opacity_override = std::nullopt,
         RenderNodeCachePolicy policy = static_memory_cache("text_run")
     );
@@ -76,7 +78,8 @@ public:
     ///   - skeleton key (from source pass: scope, frame, size)
     ///   - `hash_text_run_shape(*m_shape)` (layout + per-glyph state + material)
     ///   - placement hash (node name + position)
-    ///   - matrix_override / opacity_override bytes (when present)
+    ///   - placement.matrix hash
+    ///   - opacity_override bytes (when present)
     ///   - 2.5D camera position/rotation/zoom/fov (when projected)
     cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override;
 
@@ -97,17 +100,13 @@ public:
     // ── Accessors used by the source pass and tests ──────────────────────
     const ::chronon3d::RenderNode& render_node() const { return m_render_ref; }
     const std::shared_ptr<TextRunShape>& shape() const { return m_shape; }
-    bool uses_2_5d_projection() const { return m_uses_2_5d_projection; }
 
 private:
     std::string m_name;
     std::shared_ptr<TextRunShape> m_shape;
     ::chronon3d::RenderNode m_render_ref;
     cache::NodeCacheKey m_key;
-    // TICKET-TEXT-CLEANUP-5: m_centered removed — centering is now
-    // resolved by the source pass and baked into m_matrix_override.
-    bool m_uses_2_5d_projection{false};
-    std::optional<Mat4> m_matrix_override;
+    TextRunPlacement m_placement;
     std::optional<f32> m_opacity_override;
 
     // ── Fase A6 (DONE) — node immutability ───────────────────────────

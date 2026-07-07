@@ -49,8 +49,7 @@ TextRunNode::TextRunNode(
     std::shared_ptr<TextRunShape> shape,
     const ::chronon3d::RenderNode& render_ref,
     const cache::NodeCacheKey& key,
-    bool uses_2_5d_projection,
-    std::optional<Mat4> matrix_override,
+    TextRunPlacement placement,
     std::optional<f32> opacity_override,
     RenderNodeCachePolicy policy
 )
@@ -59,8 +58,7 @@ TextRunNode::TextRunNode(
       m_shape(std::move(shape)),
       m_render_ref(render_ref),
       m_key(key),
-      m_uses_2_5d_projection(uses_2_5d_projection),
-      m_matrix_override(std::move(matrix_override)),
+      m_placement(placement),
       m_opacity_override(opacity_override)
 {}
 
@@ -81,8 +79,7 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
         return std::nullopt;
     }
 
-    const Mat4 matrix = text_run::build_world_matrix(
-        m_render_ref, ctx, m_uses_2_5d_projection, m_matrix_override);
+    const Mat4 matrix = text_run::build_world_matrix(ctx, m_placement);
 
     f32 spread = 0.0f;
     if (m_render_ref.shadow.enabled) {
@@ -144,11 +141,9 @@ cache::NodeCacheKey TextRunNode::cache_key(const RenderGraphContext& ctx) const 
     key.params_hash = hash_combine(
         key.params_hash,
         static_cast<u64>(ctx.policy.modular_coordinates));
-    if (m_matrix_override) {
-        key.params_hash = hash_combine(
-            key.params_hash,
-            hash_bytes(&(*m_matrix_override)[0][0], sizeof(Mat4)));
-    }
+    key.params_hash = hash_combine(
+        key.params_hash,
+        hash_bytes(&m_placement.matrix[0][0], sizeof(Mat4)));
     if (m_opacity_override) {
         key.params_hash = hash_combine(
             key.params_hash,
@@ -203,20 +198,11 @@ NodeExecResult TextRunNode::execute(
         return NodeExecResult{std::move(*err)};
     }
 
-    // ── 3. Prepare per-frame shape (A6 immutability) + world transform + opacity. ──
-#ifdef CHRONON3D_ENABLE_TEXT
-    const TextRunShape eval_shape =
-        text_run::prepare_per_frame_shape(*m_shape, ctx.frame_input.sample_time);
-#else
-    const TextRunShape& eval_shape = *m_shape;
-#endif
-
-    const Mat4 world_matrix = text_run::build_world_matrix(
-        m_render_ref, ctx, m_uses_2_5d_projection, m_matrix_override);
+    // ── 3-4. Unified TextRun rendering (shape prep + matrix + draw). ──
     const f32 opacity = m_opacity_override.value_or(m_render_ref.world_transform.opacity);
+    auto dispatch = text_run::render_text_run_item(
+        ctx, *backend, *fb, *m_shape, m_placement, opacity);
 
-    // ── 4. Dispatch draw_text_run + surface backend error. ──
-    auto dispatch = backend->draw_text_run(*fb, eval_shape, world_matrix, opacity);
     if (!dispatch) {
         text_run::report_failure(
             m_name,
@@ -232,16 +218,16 @@ NodeExecResult TextRunNode::execute(
 
     // ── 5. Per-frame debug diagnostic (opt-in via ctx.policy.diagnostics_enabled). ──
     if (ctx.policy.diagnostics_enabled) {
+        const Mat4 world_matrix = text_run::build_world_matrix(ctx, m_placement);
+        text_run::report_diagnostic(
+            m_name, *m_shape, dispatch.value().items_drawn, opacity, world_matrix,
 #ifdef CHRONON3D_ENABLE_TEXT
-        text_run::report_diagnostic(
-            m_name, eval_shape, dispatch.value().items_drawn, opacity, world_matrix,
             chronon3d::hash_text_run_shape(
-                eval_shape, ctx.frame_input.sample_time.integral_frame()));
+                *m_shape, ctx.frame_input.sample_time.integral_frame())
 #else
-        text_run::report_diagnostic(
-            m_name, eval_shape, dispatch.value().items_drawn, opacity, world_matrix,
-            std::nullopt);
+            std::nullopt
 #endif
+        );
     }
 
     // NOTE: draw_text_run() already increments text_glyphs_rasterized

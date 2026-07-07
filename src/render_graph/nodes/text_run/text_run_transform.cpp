@@ -7,30 +7,22 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <spdlog/spdlog.h>
 
 namespace chronon3d::graph::text_run {
 
 glm::mat4 build_world_matrix(
-    const ::chronon3d::RenderNode& render_ref,
     const RenderGraphContext& ctx,
-    bool uses_2_5d_projection,
-    std::optional<glm::mat4> matrix_override
+    const TextRunPlacement& placement
 ) {
     const glm::mat4 ssaa_scale = glm::scale(
         glm::mat4(1.0f),
         glm::vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
 
-    // TICKET-TEXT-CLEANUP-5: centralized centering.
-    // The source pass now always provides the resolved matrix
-    // (including canvas-center for centered layers).  TextRunNode
-    // no longer decides centering — it just applies SSAA.
-    //
-    // For 2.5D projection without a pre-resolved matrix (should not
-    // happen in practice — the source pass always provides one),
-    // fall back to the render ref's world transform.
-    return ssaa_scale
-         * matrix_override.value_or(render_ref.world_transform.to_mat4());
+    // The graph builder has already pre-computed the final world matrix
+    // (including canvas-centre + 2.5D projection when applicable).
+    // We only apply SSAA scaling on top — no centering or projection
+    // decisions happen here.
+    return ssaa_scale * placement.matrix;
 }
 
 }  // namespace chronon3d::graph::text_run
