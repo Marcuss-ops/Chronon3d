@@ -131,6 +131,74 @@ per pipeline video automatizzate.
 - supporto globale ICU completo;
 - nuovo renderer testuale parallelo.
 
+## M1.7 — Sequence + Asset Readiness (Single Source of Truth) (PLANNED, post-baseline-verde)
+
+> **Origine:** action-plan landing 2026-07-07 (dedicato a TICKET-SEQUENCE-LOCAL-FRAME + TICKET-ASSET-READINESS). Formalizza l'eliminazione delle **due verità** che creano caos nel motore:
+>
+> 1. Timeline legacy dentro `layer/render graph` (`if frame... sparsi` + `Layer.from/duration`) vs Timeline nuova dentro `SequenceResolver`.
+> 2. Asset controllati durante il render vs Asset controllati prima del render (preflight).
+>
+> NON avviabile fino a **11/11 PASS macchina-verificato sullo stesso commit** (AGENTS.md §Feature Freeze revoca) + TICKET-GATE-10-PHASE-4-FIX + TICKET-GOLDEN-CAPTURE chiusura.
+>
+> **Regola di stato osservabile:** PASS / FAIL / PARTIAL / NOT RUN / BLOCKED / PLANNED. I 2 ticket sono PLANNED al landing.
+
+### Obiettivo
+
+Riallineamento canonico a UNA timeline (SequenceNode) + UN preflight (AssetPreflightResolver), eliminando le 10 legacy items combinate dei due piani utente:
+
+- **Sequence (5 legacy items A-E)**: (A) `if frame...` sparsi nei content + (B) animator che legge frame globale + (C) `Layer.from/duration` gestiti dal render graph + (D) `duration=1` trucco statico + (E) 5 coordinate temporali duplicate (composition / layer / sequence / animator / video source frame).
+- **Asset (5 legacy items A-E)**: (A) path raw senza `AssetRef` + (B) asset discovery render-time + (C) fallback silenziosi (default font / black rect / empty frame) + (D) `catch MESSAGE return` nei test readiness + (E) asset validation duplicata per-feature (TextPreflight / ImagePreflight / VideoPreflight / AudioPreflight / FontPreflight).
+
+Sequenza canonica finale:
+
+- `TimelineResolver` decide cosa esiste al frame globale.
+- `AssetPreflightResolver` decide se tutti gli asset sono pronti.
+- `RenderGraphBuilder` riceve scena già risolta (active layers + local_frame risolto).
+- `Renderer` non inventa timeline (no skip) e non inventa asset (no fallback).
+
+### Vincoli architetturali
+
+- **Zero nuovi singleton / registry / resolver / cache / service-locator** (regola permanente AGENTS.md §Anti-duplication Rules).
+- I 4 nuovi simboli pubblici canonici per ticket:
+  - Sequence: `TimeRange{Frame from, Frame duration}; SequenceNode{string name, TimeRange range, build_callback}; TimelineResolver::resolve(scene, frame, fps)->ResolvedScene; TimelineSampleContext{global_frame, local_frame, sequence_start, fps}`. Tutti in `include/chronon3d/timeline/`.
+  - Asset: `AssetKind enum{Font, Image, Video, Audio}; AssetRef{kind, path, owner, required}; AssetManifest::add(entry)/entry_for(owner)/all(); AssetPreflightResolver::preflight(manifest)->AssetPreflightResult{ok, missing[]}; AssetPreflightResult::missing -> {owner, path, kind}`. Tutti in `include/chronon3d/assets/`.
+- Nessun `#include <msdfgen>`, `<libtess2>`, `<unicode[/...]>` aggiunto (AGENTS.md Gate 5 deny-everywhere).
+- ABI pubblico invariato (canonical `composition({...}, [lambda])`, `RenderNodeFactory::text(name, TextSpec)`, `RenderNodeFactory::image(uri)` invariati; solo back-compat wrapper + adapters dietro le quinte fino a Step 4 elimination).
+
+### Lavori (sequenza 4-step per ticket, atomic su main)
+
+1. **Step 1 (Add new system, verde)** — sequenza canonica: (a) NEW `include/chronon3d/timeline/{time_range, sequence_node, timeline_resolver, timeline_sample_context}.hpp` + (b) NEW `include/chronon3d/assets/{asset_ref, asset_kind, asset_manifest, asset_preflight_resolver, asset_preflight_result}.hpp` + (c) zero modifiche al codice esistente: tutti i `Layer.from/duration`, `if frame...` sparsi, asset path raw, fallback silenziosi continuano a funzionare bit-identical.
+2. **Step 2 (Legacy adapters)** — back-compat wrappers: `Layer.from/duration` -> `SequenceNode` implicita; `font_path/image_path/video_path/audio_path` -> `AssetRef` nel `AssetManifest` della scena a startup; `rctx.text_resources->resolve_handle(...)` errore -> `AssetPreflightResult::missing` esplicito. Tutti i test preesistenti PASS bit-identical (cache key stable).
+3. **Step 3 (Migrate new content)** — almeno 5 scene nuove (ae-parity cinematic-21..25 o showcase) usano SOLO `s.sequence("intro", {.from = Frame{0}, .duration = Frame{60}}, ...)` + `AssetRef{kind, path, owner, required}`. `RenderJob::start()` chiama `AssetPreflightResolver::preflight(manifest)` UNA volta prima del render loop; se `result.ok == false`, fail esplicito.
+4. **Step 4 (Eliminate legacy, post-macchina-verifica)** — fisicamente rimuovi i 10 legacy items quando i test passano + `Layer.from/Layer.duration` come campi del modello (drop dopo sweep M1.5#-like) + `TextPreflight/ImagePreflight/VideoPreflight/AudioPreflight/FontPreflight` consolidati in `AssetPreflightResolver` + `tools/check_render_graph_temporal_skip.sh` (NEW) + `tools/check_no_silent_asset_fallback.sh` (NEW) entrambi ZERO exit.
+
+### Gate di uscita
+
+- grep-audit backlog = 0 per ognuno dei 10 legacy items A-E;
+- `chronon3d_text_golden_tests` + `chronon3d_ae_parity_tests` + `chronon3d_install_consumer_tests` + `chronon3d_cache_tests` PASS bit-identical post-Step-4;
+- `tools/check_render_graph_temporal_skip.sh` + `tools/check_no_silent_asset_fallback.sh` 0 hit;
+- ZERO PNG scuri per asset mancante nel `chronon3d_install_consumer_tests` Phase 4 (grazie a FAIL esplicito preflight);
+- `Layer.from/Layer.duration` rimossi dal modello;
+- `chronon3d_render_graph_tests` 16/16 PASS;
+- `docs/FEATURES.md` Text + Asset paragrafo aggiornato da "Parziali" a "Presenti" per il preflight single-source-of-truth.
+
+### Avvio rigido
+
+Per AGENTS.md regola di stato: Step 1 PRIMA -> Step 2 DOPO -> Step 3 DOPO -> Step 4 ULTIMO. **Mai** iniziare Step 4 senza grep-audit backlog = 0 su tutti i 10 legacy items + macchina-verifica verde.
+
+### Cross-link canonici
+
+- Ticket rows `TICKET-SEQUENCE-LOCAL-FRAME` + `TICKET-ASSET-READINESS` (P1 backlog §M1.7 di FOLLOWUP_TICKETS.md);
+- Prereq gate #10 chiusura + baseline verde 11/11 (AGENTS.md §Feature Freeze);
+- TICKET-P1-11 (Timeline percorsi multipli) + TICKET-P1-07 (Asset resolver globale) cross-link: questa milestone è la concretizzazione canonicale di entrambi.
+
+### Non-goal M1.7
+
+- Expressions Selector production-grade (M5);
+- Text 3D + per-character 3D (M5);
+- Variable fonts + color glyph/emoji (M5);
+- Asset pipeline parallelo (zero nuovi registry).
+
 ## M1.6 — AE-Parity Cinematic Text Golden Expansion (PLANNED, post-baseline-verde)
 
 > **Origine:** action-plan landing 2026-07-06 dalla strategia "Chronon3D vs After Effects per kinetic typography 2D". Formalizza l'espansione del floor AE-parity (5/20 IMPL shipped storicamente — Phases D) al target completo (20/20 IMPL + 288 PNG floor + 4 killer test + referee AE-side). NON avviabile fino a `TICKET-GOLDEN-CAPTURE` chiusura + gate #10 `install_consumer_test.sh` 11/11 PASS macchina-verificato sullo stesso commit (AGENTS.md v0.1 §Feature Freeze revoca).

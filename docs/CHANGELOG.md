@@ -4,6 +4,32 @@
 > Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 ---
+## Luglio 2026 — M1.7 Sequence + Asset Readiness action-plan landing
+
+### docs(tickets) — TICKET-SEQUENCE-LOCAL-FRAME + TICKET-ASSET-READINESS action-plan landing (PLANNED, 2026-07-07)
+
+- **2 nuovi ticket canonici** in [`docs/tickets/TICKET-SEQUENCE-LOCAL-FRAME.md`](docs/tickets/TICKET-SEQUENCE-LOCAL-FRAME.md) + [`docs/tickets/TICKET-ASSET-READINESS.md`](docs/tickets/TICKET-ASSET-READINESS.md) — landing della sequenza safe migration 4-step ("Non eliminare subito tutto fisicamente") che elimina le due verità che creano caos nel motore:
+  - **Sequence (5 legacy items A-E)**: (A) `if frame...` sparsi nei content + (B) animator che legge frame globale + (C) `Layer.from/duration` gestiti dal render graph + (D) `duration=1` trucco statico + (E) 5 coordinate temporali duplicate (`composition_frame / layer_frame / sequence_frame / animator_frame / source_frame`).
+  - **Asset (5 legacy items A-E)**: (A) path raw senza `AssetRef` (`std::string font_path{...}` in `CenterTextOptions`) + (B) asset discovery render-time (`rctx.text_resources->resolve_handle(...)`) + (C) fallback silenziosi (`use_default_font / draw_black_rect / return empty_frame / continue`) + (D) `catch MESSAGE return` nei test readiness + (E) asset validation duplicata per-feature (`TextPreflight / ImagePreflight / VideoPreflight / AudioPreflight / FontPreflight`).
+- **Canonical systems emergenti (post-Step-1):**
+  - `include/chronon3d/timeline/` — `TimeRange{Frame from, Frame duration} + SequenceNode{name, TimeRange, build_callback} + TimelineResolver::resolve(scene, frame, fps) -> ResolvedScene + TimelineSampleContext{global_frame, local_frame, sequence_start, fps}`
+  - `include/chronon3d/assets/` — `AssetKind enum{Font, Image, Video, Audio} + AssetRef{kind, path, owner, required} + AssetManifest::add(entry) / entry_for(owner) / all() + AssetPreflightResolver::preflight(manifest) -> AssetPreflightResult{ok, missing[]} + AssetPreflightResult::missing -> {owner, path, kind}`
+- **Regola finale vincolante**: `TimelineResolver` decide cosa esiste al frame globale; `AssetPreflightResolver` decide se tutti gli asset sono pronti; `RenderGraphBuilder` riceve scena già risolta (active layers + local_frame risolto); `Renderer` non inventa timeline (no skip) e non inventa asset (no fallback). PNG scuri vietati.
+- **Sequence 4-step safe migration**: Step 1 add new system (zero code-side mutate); Step 2 legacy adapters + zero test regressions bit-identical; Step 3 migration new content on canonical systems; Step 4 eliminiation legacy quando grep-audit backlog = 0 + tests PASS macchina-verificato.
+- **Cross-link canonici**: ticket rows in [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §M1.7 (NEW this commit) + milestone [`docs/ROADMAP.md`](docs/ROADMAP.md) §M1.7 (NEW this commit) + snapshot [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §M1.7 (NEW this commit) + questo [`docs/CHANGELOG.md`](docs/CHANGELOG.md) entry.
+- **Lavoro prerequisito aggregato**: TICKET-P1-11 Timeline percorsi multipli + TICKET-P1-07 Asset resolver globale + TICKET-GATE-10-PHASE-4-FIX + TICKET-GOLDEN-CAPTURE + 11/11 macchina-verifica baseline verde.
+- **AGENTS.md v0.1 Cat-3 + Cat-5 freeze-compliant landing questo commit** (zero codice toccato in `src/`, `include/chronon3d/`, `apps/`, `cmake/`, `tests/`, `tools/`; doc-only governance canonico: 2 nuovi ticket docs + 4 file canonici aggiornati). ZERO nuovi singleton / registry / resolver / service-locator introdotti oggi; i 4 nuovi simboli pubblici canonici per ticket sono designati per i prossimi commit Step 1 (post-baseline-verde).
+
+### Cross-link canonici per la M1.7 milestone
+
+- [`docs/tickets/TICKET-SEQUENCE-LOCAL-FRAME.md`](docs/tickets/TICKET-SEQUENCE-LOCAL-FRAME.md) — SequenceNode local-frame single source of truth
+- [`docs/tickets/TICKET-ASSET-READINESS.md`](docs/tickets/TICKET-ASSET-READINESS.md) — AssetPreflightResolver single source of truth
+- [`docs/ROADMAP.md`](../ROADMAP.md) §M1.7 — milestone canonical
+- [`docs/FOLLOWUP_TICKETS.md`](../FOLLOWUP_TICKETS.md) §M1.7 — P1 backlog rows
+- [`docs/CURRENT_STATUS.md`](../CURRENT_STATUS.md) §M1.7 — snapshot one-line
+
+---
+
 
 ## Luglio 2026 — Text cleanup sweep (ITEM 7, 8, 11)
 
