@@ -31,7 +31,8 @@
 
 namespace chronon3d {
 
-class FontEngine;  // forward decl — per-frame engine cascade
+class FontEngine;      // forward decl — per-frame engine cascade
+class SequenceBuilder;  // forward decl — Sequence V2 facade (sequence_builder.hpp)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SceneBuilder — public declarations only
@@ -103,6 +104,7 @@ class SceneBuilder {
     struct SequenceSpec {
         Frame from{0};
         Frame duration{0};
+        Frame trim_before{0};  // Sequence V2: local frame offset
     };
 
     // ── DECL-only templates (Phase-3.3 split; bodies in .inl) ────────
@@ -159,6 +161,7 @@ class SceneBuilder {
     [[nodiscard]] SampleTime sample_time() const;
 
     friend class CameraApi;
+    friend class SequenceBuilder;  // Sequence V2: access scene_ for nested merge
 
   private:
     void set_camera(Camera2_5D camera);
