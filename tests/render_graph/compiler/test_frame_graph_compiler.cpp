@@ -39,7 +39,7 @@ public:
         std::span<const FramebufferRef>,
         std::span<const std::optional<raster::BBox>>
     ) override {
-        return NodeExecResult{};
+        return OwnedFB{};
     }
 
 private:

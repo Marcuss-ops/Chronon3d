@@ -94,7 +94,7 @@ static RenderLoopContext make_loop_context(
     std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames)
 {
     return RenderLoopContext{
-        .backend = renderer,
+        .backend = renderer.backend(),
         .node_cache = node_cache,
         .settings = renderer.render_settings(),
         .registry = registry,

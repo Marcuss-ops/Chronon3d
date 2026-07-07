@@ -77,7 +77,7 @@ public:
         std::span<const FramebufferRef>,
         std::span<const std::optional<raster::BBox>>
     ) override {
-        return NodeExecResult{};
+        return OwnedFB{};
     }
 
 private:
@@ -108,7 +108,7 @@ TEST_CASE("node_identity: hash_stable_node_inputs never returns 0 (null-guard)")
     // Sweep a few obvious candidates for "yielded 0" — none should.
     for (std::uint64_t a = 0; a < 16; ++a) {
         for (std::uint64_t b = 0; b < 16; ++b) {
-            const auto h = hash_stable_node_inputs(a, b);
+            const StableNodeId h = hash_stable_node_inputs(a, b);
             CHECK(h != 0);
         }
     }
@@ -128,10 +128,10 @@ TEST_CASE("node_identity: hash_stable_node_inputs has wide output range") {
     // by the hash family), but we do require that the hash family produces
     // at least ~98% distinct outputs for that grid — a sanity bound that
     // catches a degenerate implementation.
-    std::set<std::uint64_t> seen;
+    std::set<StableNodeId> seen;
     for (std::uint64_t a = 1; a <= 64; ++a) {
         for (std::uint64_t b = 1; b <= 64; ++b) {
-            const auto h = hash_stable_node_inputs(a, b);
+            const StableNodeId h = hash_stable_node_inputs(a, b);
             CHECK(h != 0);
             seen.insert(h);
         }

@@ -123,7 +123,7 @@ TEST_CASE("MultiSourceNode: predicted_bbox handles text_run item via text_run he
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
-    ctx.services.backend = &backend;
+    ctx.services.backend = &backend.backend();
 
     cache::NodeCacheKey key{};
     MultiSourceNode node("mixed_multi", std::move(items), key, false, false);
@@ -216,7 +216,7 @@ TEST_CASE("MultiSourceNode: execute tolerant of text_run item with null shape") 
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.frame_input.frame = 0;
-    ctx.services.backend = &backend;
+    ctx.services.backend = &backend.backend();
     ctx.services.framebuffer_pool = pool;
     ctx.services.node_cache = &node_cache;
 
@@ -226,7 +226,9 @@ TEST_CASE("MultiSourceNode: execute tolerant of text_run item with null shape") 
     // Must NOT crash; the null-shape text item is silently skipped
     // (LayerBuilder::text_run already error-logs the same defect),
     // the rect item still renders SRC_OVER onto the shared framebuffer.
-    auto fb = node.execute(ctx, {}, {});
+    auto result = node.execute(ctx, {}, {});
+    REQUIRE(result.ok());
+    auto fb = result.take_value();
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 1920);
     CHECK(fb->height() == 1080);
@@ -265,14 +267,16 @@ TEST_CASE("MultiSourceNode: execute with mixed rect + text_run returns valid fb"
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
     ctx.frame_input.frame = 0;
-    ctx.services.backend = &backend;
+    ctx.services.backend = &backend.backend();
     ctx.services.framebuffer_pool = pool;
     ctx.services.node_cache = &node_cache;
 
     cache::NodeCacheKey key{};
     MultiSourceNode node("mixed_full", std::move(items), key, false, false);
 
-    auto fb = node.execute(ctx, {}, {});
+    auto result = node.execute(ctx, {}, {});
+    REQUIRE(result.ok());
+    auto fb = result.take_value();
     REQUIRE(fb != nullptr);
     CHECK(fb->width() == 1920);
     CHECK(fb->height() == 1080);
@@ -298,14 +302,14 @@ TEST_CASE("MultiSourceNode: cache_key invalidates when 2.5D camera moves under p
     RenderGraphContext ctx;
     ctx.frame_input.width = 1920;
     ctx.frame_input.height = 1080;
-    ctx.camera.has_camera_2_5d = true;
-    ctx.camera.camera_2_5d.position = Vec3(0.0f, 0.0f, 0.0f);
+    ctx.frame_input.has_camera_2_5d = true;
+    ctx.frame_input.camera_2_5d.position = Vec3(0.0f, 0.0f, 0.0f);
 
     auto k_baseline = node.cache_key(ctx);
 
     // Move camera along Z; should invalidate (the `proj` branch folds
     // cam.position into params_hash; same logic as SourceNode / TextRunNode).
-    ctx.camera.camera_2_5d.position = Vec3(100.0f, 0.0f, 50.0f);
+    ctx.frame_input.camera_2_5d.position = Vec3(100.0f, 0.0f, 50.0f);
     auto k_moved = node.cache_key(ctx);
 
     CHECK(k_baseline != k_moved);
