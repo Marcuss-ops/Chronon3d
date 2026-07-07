@@ -220,4 +220,10 @@ set(CHRONON3D_PUBLIC_HEADERS
     #   legacy adapters; Step 3 abiliterà `SequenceBuilder`; Step 4 eliminerà
     #   `Layer.from/duration` e `SequenceContext` legacy.
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/timeline_resolver_v2.hpp"
+    # ── M1.7 Step 2: Legacy Adapters (Layer → SequenceNode + FrameContext → TimelineSampleContext) ──
+    #   `is_active(TimeRange, Frame)` constexpr + `make_sequence_from_layer(Layer)` +
+    #   `make_sample_context(FrameContext)`. Pure additive: AGENTS Cat-3 freeze-compliant
+    #   (zero nuovi singleton / zero modifiche al codice esistente / zero ABI bloat).
+    #   Destinato all'eliminazione a Step 4 (TICKET-SEQUENCE-LOCAL-FRAME).
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/legacy_adapters.hpp"
 )
