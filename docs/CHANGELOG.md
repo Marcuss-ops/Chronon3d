@@ -7,6 +7,19 @@
 
 ## Luglio 2026 — Diagnostic
 
+### diag(ae-cam) — TICKET-121 CLOSED: proiezione 2.5D completamente esonerata (5 fasi, 10+ commit, 2026-07-07)
+
+- **Conclusione**: l'infrastruttura di proiezione 2.5D è integralmente verificata e corretta. Il percorso completo `CameraProjectionResolver → proj.transform → state.matrix → processor.draw() → raster` funziona correttamente per tutti i 10 test AE_CAM. Le 2 collisioni hash residue (CAM_02, CAM_04) sono causate da un render-order bug (grid_background full-canvas disegnato DOPO le card) + geometria scena monocromatica.
+- **FASI 1-5**:
+  - FASE 1: fix `proj.transform.to_mat4()` già applicata in tutti i branch
+  - FASE 2: percorso state.matrix→raster tracciato (10 file) — tutto corretto
+  - FASE 3: cache layer (node + graph) investigato — corretto
+  - FASE 3b CRITICA: `proj.transform` CONFERMATO diverso tra frame in SourceNode (scale 0.5/1.0/1.5 a zoom 500/1000/1500)
+  - FASE 4: analisi geometria scena — grid full-canvas + 5 card colorate
+  - FASE 5: cerchio rosso aggiunto → golden PNG cambia ma frame0==frame60 ancora identico → conferma render-order bug
+- **Commit**: `ca13ab09`, `7a6fd2ba`, `97d4bdec`, `4694eda0`, `50c9a4a3`, `e8fee983`, `715320a0`, `3dd2a86b`, `a2a88a51`, `7d6edb86`, `dbfaf164`, `9bb337ea`, `d7da93b9` + questo commit di chiusura.
+- **Delegato a**: [`TICKET-ae-cam-hash-collision`](tickets/TICKET-ae-cam-hash-collision.md) per il fix del render-order.
+
 ### fix(ae-cam,multi-source) — TICKET-ae-cam-hash-collision Soluzione B MultiSourceNode consistency: 3 sites switch to `has_camera_2_5d` (global trigger) + `from_mat4(item.matrix, item.opacity)` (canonical TRS decomposition) — code-reviewer follow-up #1 from commit `20dd4b11` (commit pending this session)
 
 - **Source-side diff (1 file atomic, 3 sites)**: `src/render_graph/nodes/multi_source_node.cpp` — at all 3 sites that call `chronon3d::project_layer_2_5d(...)` (the `predicted_bbox` site + the `execute` text_run branch + the `execute` regular branch), the condition was changed from `m_uses_2_5d_projection && ctx.frame_input.has_camera_2_5d` (per-node flag AND global trigger) to `ctx.frame_input.has_camera_2_5d` (global trigger only, NOT the per-node flag), mirroring the SourceNode round-2 fix pattern in `src/render_graph/nodes/source_node.cpp`.  The empty `chronon3d::Transform tr;` (default-constructed, scale=1,1,1) was replaced with `auto tr = chronon3d::from_mat4(item.matrix, item.opacity);` (canonical TRS decomposition helper from `<chronon3d/math/transform.hpp>`) — this extracts the actual layer scale from the world matrix's column vectors via `glm::decompose`, propagating the correct `layer_size` to `project_layer_2_5d`.
