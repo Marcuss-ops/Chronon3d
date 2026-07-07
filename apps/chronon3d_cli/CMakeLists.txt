@@ -60,6 +60,7 @@ add_library(chronon3d_cli_render STATIC
     commands/render/register_render_commands.cpp
     commands/render/command_render.cpp
     commands/render/command_preflight.cpp
+    commands/render/command_still.cpp
     commands/render/command_bake_layer.cpp
     commands/render/command_graph.cpp
     utils/job/render_job.cpp

@@ -1,8 +1,10 @@
 #include "../../commands.hpp"
 #include "../../cli_init.hpp"
+#include "../../utils/common/cli_asset_preflight_utils.hpp"
 #include <chronon3d/assets/render_preflight.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/assets/asset_preflight_resolver.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 #include <nlohmann/json.hpp>
@@ -26,50 +28,38 @@ int command_preflight(const CompositionRegistry& registry, const PreflightArgs& 
         return 1;
     }
 
-    // WP-8 PR 8.0 — explicit typed resolver for preflight.  Mirror the
-    // CLI's AssetRegistry mount (see render_job_setup.cpp) so relative
-    // preflight paths resolve to the same absolute paths render-time
-    // resolution would.  Lifetime: scoped to this command — no global
-    // mutation, no service-locator bridge.
-    static chronon3d::assets::AssetResolver s_cli_resolver;
-    s_cli_resolver.mount(std::filesystem::current_path());
+    auto comp = registry.create(args.comp_id);
+    auto resolver = make_cli_resolver(comp.assets_root());
 
+    // Sequence V2: collect the AssetManifest from sampled frames
+    AssetManifest manifest;
+    for (Frame f = args.start; f <= args.end; f += static_cast<Frame>(args.sample_step)) {
+        auto scene = comp.evaluate(f);
+        manifest.merge(scene.asset_manifest());
+    }
+
+    // Run manifest-based preflight (Sequence V2)
+    auto manifest_result = AssetPreflightResolver::check_manifest(manifest, resolver);
+
+    // Also run legacy RenderPreflight for backward compatibility
     auto& preflight = RenderPreflight::instance();
-
-    // Collect output path requirement if specified
     if (!args.output.empty()) {
         preflight.require_output_path(args.output);
     }
+    auto legacy_issues = preflight.validate(cli_asset_registry(), resolver);
 
-    // Evaluate scenes at sampled frames and register requirements
-    // (This is the foundation for the SceneAssetCollector; for now we
-    //  focus on the preflight infrastructure itself.)
-    auto comp = registry.create(args.comp_id);
-
-    for (Frame f = args.start; f <= args.end; f += static_cast<Frame>(args.sample_step)) {
-        (void)comp.evaluate(f);
-        // Future: SceneAssetCollector would traverse the scene here and
-        // call preflight.add_requirements() with collected assets.
-    }
-
-    // Run validation
-    auto issues = preflight.validate(cli_asset_registry(), s_cli_resolver);
+    // Combine issues
+    std::vector<PreflightIssue> all_issues;
+    all_issues.insert(all_issues.end(), manifest_result.issues.begin(), manifest_result.issues.end());
+    all_issues.insert(all_issues.end(), legacy_issues.begin(), legacy_issues.end());
 
     // Format and print terminal output
-    if (!issues.empty()) {
-        bool has_errors = false;
-        for (const auto& i : issues) {
-            if (i.severity == PreflightSeverity::Error) {
-                has_errors = true;
-                break;
-            }
-        }
-
+    if (!all_issues.empty()) {
+        bool has_errors = has_preflight_errors(all_issues);
         if (has_errors) {
-            fmt::print(stderr, "{}", format_preflight_issues_text(issues));
+            fmt::print(stderr, "{}", format_preflight_issues_text(all_issues));
         } else {
-            // Only warnings / infos: print to stdout
-            fmt::print("{}", format_preflight_issues_text(issues));
+            fmt::print("{}", format_preflight_issues_text(all_issues));
         }
     } else {
         fmt::print("PREFLIGHT OK — all assets and requirements validated successfully.\n");
@@ -77,7 +67,7 @@ int command_preflight(const CompositionRegistry& registry, const PreflightArgs& 
 
     // Write JSON output if requested
     if (!args.json_file.empty()) {
-        auto js = preflight_issues_to_json(issues);
+        auto js = preflight_issues_to_json(all_issues);
         std::ofstream out(args.json_file);
         if (out.is_open()) {
             out << js.dump(2);
@@ -89,11 +79,7 @@ int command_preflight(const CompositionRegistry& registry, const PreflightArgs& 
     }
 
     // Determine exit code
-    for (const auto& i : issues) {
-        if (i.severity == PreflightSeverity::Error) return 1;
-    }
-
-    return 0;
+    return has_preflight_errors(all_issues) ? 1 : 0;
 }
 
 } // namespace cli

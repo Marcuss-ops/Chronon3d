@@ -96,6 +96,35 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
         }
         ctx.exit_code = command_render(ctx.registry, *state->args);
     });
+
+    // ── still: single-frame render with FrameOnly preflight ────────
+    auto still_state = std::make_shared<std::shared_ptr<StillArgs>>(std::make_shared<StillArgs>());
+    auto& still_args = **still_state;
+
+    auto* still = app.add_subcommand("still", "Render a single frame with asset preflight");
+    still->add_option("input", still_args.comp_id, "Composition name or .specscene path")->required();
+    still->add_option("--frame", still_args.frame, "Frame number to render")->default_val(0);
+    still->add_option("-o,--output", still_args.output, "Output PNG path");
+    still->add_flag("--skip-preflight", still_args.skip_preflight, "Skip FrameOnly asset preflight");
+    still->add_option("-v,--log-level", still_args.log_level, "Log level: trace | debug | info | warn | error");
+    // Pipeline options (subset of render)
+    still->add_flag("--graph,!--no-graph", still_args.pipeline.use_modular_graph, "Use modular RenderGraph path");
+    still->add_flag("--no-dirty-rects", still_args.pipeline.no_dirty_rects, "Disable dirty-rectangle invalidation");
+    still->add_flag("--motion-blur", still_args.pipeline.quality.motion_blur, "Enable temporal motion blur");
+    still->add_option("--ssaa", still_args.pipeline.quality.ssaa, "Super Sampling factor (default 1.0)");
+    still->allow_windows_style_options();
+    still->callback([still_state, &ctx]() {
+        if ((*still_state)->log_level == "trace") {
+            spdlog::set_level(spdlog::level::trace);
+        } else if ((*still_state)->log_level == "debug") {
+            spdlog::set_level(spdlog::level::debug);
+        } else if ((*still_state)->log_level == "warn") {
+            spdlog::set_level(spdlog::level::warn);
+        } else if ((*still_state)->log_level == "error" || (*still_state)->log_level == "err") {
+            spdlog::set_level(spdlog::level::err);
+        }
+        ctx.exit_code = command_still(ctx.registry, **still_state);
+    });
 }
 
 } // namespace chronon3d::cli
