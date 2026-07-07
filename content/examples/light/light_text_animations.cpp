@@ -49,7 +49,6 @@ Composition make_light_comp(const char* name, const std::string& text,
                 l.text("label", text::centered_text({
                     .text      = text,
                     .box       = {1200.0f, 240.0f},
-                    .pos       = {960.0f, 540.0f, 0.0f},
                     .font_size = 90.0f,
                     .tracking  = 6.0f,
                     .color     = {0.95f, 0.96f, 0.99f, 1.0f},
