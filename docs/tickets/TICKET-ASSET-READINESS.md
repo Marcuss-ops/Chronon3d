@@ -148,3 +148,23 @@ $ rg 'class\s+\w+Preflight\b' src include --type cpp --type hpp
 ## Stato del ticket (this commit)
 
 **PLANNED** (action-plan landing 2026-07-07). Zero codice toccato. Grep-audit backlog: da compilare al primo commit di Step 1 (forward-point). Owner: Matteo / agenti cron. Acceptance evidence: macchina-verifica al commit Step 4 (target: post `main@7eb5c2ba` baseline-verde + 11/11 PASS).
+
+## Grep-Audit Pre-Step-4 Snapshot (commit TBD-pending this session, 2026-07-07)
+
+**Forward-only grep-gate tool**: [`tools/check_legacy_asset_prevalence.sh`](../check_legacy_asset_prevalence.sh).
+
+**Snapshot numerico pre-Elimination (machine-verified post-fix round 2, exit 0)**:
+
+| Item | Count | Pattern |
+| --- | --- | --- |
+| AST_ITEM_A | 67 hits  | `\b(font_path \| image_path \| video_path \| audio_path)\b` (scope: content/ + src/scene/ — exclude `include/chronon3d/` `.path` field reads) |
+| AST_ITEM_B | 8 hits   | `(resolve_handle \| load_image \| decode_video \| decode_audio \| font_engine\.load)` |
+| AST_ITEM_C | 8 hits   | `(use_default_font \| draw_black_rect \| empty_frame \| placeholder)` + `continue;[[:space:]]*//[[:space:]]*missing` |
+| AST_ITEM_D | 0 hits   | `catch\s*\(\s*\.\.\.\s*\)\s*\{[^}]*MESSAGE[^}]*return` (multi-line pattern) |
+| AST_ITEM_E | 2 hits   | `class[[:space:]]+[A-Za-z]+Preflight\b` |
+| **Total** | **85** | (target post-Step-4 DONE = 0) |
+
+**Step 4 acceptance gate**: `tools/check_legacy_asset_prevalence.sh` exit 0 con tutti i 5 items = 0.
+
+**Honest state**: il snapshot documenta la pre-Elimination surface. AST_ITEM_D=0 (clean) per caso fortunato (nessun test file usava il pattern completo catch + MESSAGE + return al commit del landing). AST_ITEM_E=2 (TextPreflight + ImagePreflight — vedi `src/text/text_preflight*.hpp` storico). Le count sono machine-verified; ogni drift post-Elimination richiederà re-run del tool.
+
