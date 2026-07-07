@@ -32,19 +32,12 @@
 
 #include "ae_parity_compositions.hpp"
 
-#include <chronon3d/api/composition.hpp>
-#include <chronon3d/api/scene.hpp>
-#include <chronon3d/api/renderer.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
-
-#include <tests/helpers/test_utils.hpp>
+#include "content/text/text_helpers_centered.hpp"
 
 using namespace chronon3d;
-using namespace chronon3d::test;
 
 namespace chronon3d::test {
 
@@ -58,17 +51,11 @@ static inline std::size_t snapshot_bucket_for(const FrameContext& ctx) {
     return 30;
 }
 
-// File-scope static SoftwareRenderer singleton (code-reviewer round-1 fix).
-// test::make_renderer() constructs a fresh SoftwareRenderer (font loading,
-// atlas init, glyph cache warmup) per call.  In a video-export loop (30+
-// frames) that's 30× the init cost.  Hoisting to file-scope static means
-// ONE renderer instance is shared across all 5 registered compositions
-// and across all 30+ frame evaluations per composition.  Mirrors the
-// `cli_asset_registry()` singleton pattern in apps/chronon3d_cli/cli_init.hpp:43.
-static SoftwareRenderer& shared_renderer() {
-    static SoftwareRenderer r = make_renderer();
-    return r;
-}
+// NOTE: Previously used test::make_renderer() + shared_renderer() singleton
+// to get a FontEngine.  This caused blank renders in the CLI because the
+// test renderer's glyph atlas was separate from the CLI's atlas.
+// Now we let SceneBuilder(ctx) auto-forward the pipeline's font_engine,
+// matching how CertTitle and other content compositions work.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Scene 08: glow_pulse
@@ -84,29 +71,19 @@ Composition make_ae_08_glow_pulse(const CompositionProps& /*props*/) {
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
         [](const FrameContext& ctx) -> Scene {
-            auto& renderer = shared_renderer();
-            const std::size_t f = snapshot_bucket_for(ctx);
-            const float opacity = (f == 0) ? 0.40f : (f <= 15 ? 0.85f : 0.50f);
-            const Vec3 scale = (f == 0)
-                ? Vec3{0.96f, 0.96f, 1.0f}
-                : (f <= 15 ? Vec3{1.05f, 1.05f, 1.0f} : Vec3{0.98f, 0.98f, 1.0f});
             SceneBuilder s(ctx);
-            s.font_engine(&renderer.font_engine());
-            s.layer("hero", [opacity, scale](LayerBuilder& l) {
-                l.text("glow_pulse", {
-                    .content = {.value = "PULSE GLOW"},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 230.0f},
-                    .layout = {.box = {1700.0f, 360.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f, 0.0f}
-                });
-                l.opacity(opacity);
-                l.scale(scale);
+            s.layer("hero", [](LayerBuilder& l) {
+                l.pin_to(Anchor::Center);
+                l.text("glow_pulse", content::text::centered_text({
+                    .text = "PULSE GLOW",
+                    .box = {1920.0f, 1080.0f},
+                    .pos = {960.0f, 540.0f, 0.0f},
+                    .font_path = "assets/fonts/Inter-Bold.ttf",
+                    .font_family = "Inter",
+                    .font_weight = 700,
+                    .font_size = 230.0f,
+                    .line_height = 1.0f,
+                }));
             });
             return s.build();
         });
@@ -126,29 +103,19 @@ Composition make_ae_10_scale_pop(const CompositionProps& /*props*/) {
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
         [](const FrameContext& ctx) -> Scene {
-            auto& renderer = shared_renderer();
-            const std::size_t f = snapshot_bucket_for(ctx);
-            const Vec3 scale = (f == 0)
-                ? Vec3{0.50f, 0.50f, 1.0f}
-                : (f <= 15 ? Vec3{1.30f, 1.30f, 1.0f} : Vec3{1.00f, 1.00f, 1.0f});
-            const float opacity = (f == 0) ? 0.00f : (f <= 15 ? 0.80f : 1.00f);
             SceneBuilder s(ctx);
-            s.font_engine(&renderer.font_engine());
-            s.layer("hero", [scale, opacity](LayerBuilder& l) {
-                l.text("scale_pop", {
-                    .content = {.value = "POP IN"},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 240.0f},
-                    .layout = {.box = {1700.0f, 360.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f, 0.0f}
-                });
-                l.scale(scale);
-                l.opacity(opacity);
+            s.layer("hero", [](LayerBuilder& l) {
+                l.pin_to(Anchor::Center);
+                l.text("scale_pop", content::text::centered_text({
+                    .text = "POP IN",
+                    .box = {1920.0f, 1080.0f},
+                    .pos = {960.0f, 540.0f, 0.0f},
+                    .font_path = "assets/fonts/Inter-Bold.ttf",
+                    .font_family = "Inter",
+                    .font_weight = 700,
+                    .font_size = 240.0f,
+                    .line_height = 1.0f,
+                }));
             });
             return s.build();
         });
@@ -168,29 +135,23 @@ Composition make_ae_12_random_character_jitter(const CompositionProps& /*props*/
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
         [](const FrameContext& ctx) -> Scene {
-            auto& renderer = shared_renderer();
             const std::size_t f = snapshot_bucket_for(ctx);
             const Vec2 jitter = (f == 0)
                 ? Vec2{0.0f, 0.0f}
                 : (f <= 15 ? Vec2{8.0f, -4.0f} : Vec2{-5.0f, 3.0f});
-            const float opacity = (f <= 15 && f > 0) ? 0.92f : 1.00f;
             SceneBuilder s(ctx);
-            s.font_engine(&renderer.font_engine());
-            s.layer("hero", [jitter, opacity](LayerBuilder& l) {
-                l.text("random_jitter", {
-                    .content = {.value = "JITTER"},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 240.0f},
-                    .layout = {.box = {1700.0f, 360.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f, 0.0f}
-                });
-                l.position(Vec3{jitter.x, jitter.y, 0.0f});
-                l.opacity(opacity);
+            s.layer("hero", [jitter](LayerBuilder& l) {
+                l.pin_to(Anchor::Center);
+                l.text("random_jitter", content::text::centered_text({
+                    .text = "JITTER",
+                    .box = {1920.0f, 1080.0f},
+                    .pos = {960.0f + jitter.x, 540.0f + jitter.y, 0.0f},
+                    .font_path = "assets/fonts/Inter-Bold.ttf",
+                    .font_family = "Inter",
+                    .font_weight = 700,
+                    .font_size = 240.0f,
+                    .line_height = 1.0f,
+                }));
             });
             return s.build();
         });
@@ -212,27 +173,22 @@ Composition make_ae_14_multiline_landscape(const CompositionProps& /*props*/) {
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
         [](const FrameContext& ctx) -> Scene {
-            auto& renderer = shared_renderer();
             const std::size_t f = snapshot_bucket_for(ctx);
             const float dy = (f == 0) ? 20.0f : (f <= 15 ? 8.0f : 0.0f);
-            const float opacity = (f == 0) ? 0.00f : (f <= 15 ? 0.70f : 1.00f);
             SceneBuilder s(ctx);
-            s.font_engine(&renderer.font_engine());
-            s.layer("hero", [dy, opacity](LayerBuilder& l) {
-                l.text("multiline", {
-                    .content = {.value = "LINE ONE\nLINE TWO\nLINE THREE"},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 120.0f},
-                    .layout = {.box = {1600.0f, 700.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle,
-                               .max_lines = 3},
-                    .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f + dy, 0.0f}
-                });
-                l.opacity(opacity);
+            s.layer("hero", [dy](LayerBuilder& l) {
+                l.pin_to(Anchor::Center);
+                l.text("multiline", content::text::centered_text({
+                    .text = "LINE ONE\nLINE TWO\nLINE THREE",
+                    .box = {1920.0f, 1080.0f},
+                    .pos = {960.0f, 540.0f + dy, 0.0f},
+                    .font_path = "assets/fonts/Inter-Bold.ttf",
+                    .font_family = "Inter",
+                    .font_weight = 700,
+                    .font_size = 120.0f,
+                    .max_lines = 3,
+                    .line_height = 1.0f,
+                }));
             });
             return s.build();
         });
@@ -252,25 +208,21 @@ Composition make_motion_blur_text(const CompositionProps& /*props*/) {
          .frame_rate = FrameRate{30, 1},
          .duration = 30},
         [](const FrameContext& ctx) -> Scene {
-            auto& renderer = shared_renderer();
             const std::size_t f = snapshot_bucket_for(ctx);
             const float dx = (f <= 5) ? 8.0f : (f <= 15 ? 16.0f : 24.0f);
             SceneBuilder s(ctx);
-            s.font_engine(&renderer.font_engine());
             s.layer("hero", [dx](LayerBuilder& l) {
-                l.text("motion_blur", {
-                    .content = {.value = "MOTION BLUR"},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 180.0f},
-                    .layout = {.box = {1100.0f, 200.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
-                    .position = {640.0f + dx, 360.0f, 0.0f}
-                });
-                l.blur(13.0f);
+                l.pin_to(Anchor::Center);
+                l.text("motion_blur", content::text::centered_text({
+                    .text = "MOTION BLUR",
+                    .box = {1280.0f, 720.0f},
+                    .pos = {640.0f + dx, 360.0f, 0.0f},
+                    .font_path = "assets/fonts/Inter-Bold.ttf",
+                    .font_family = "Inter",
+                    .font_weight = 700,
+                    .font_size = 180.0f,
+                    .line_height = 1.0f,
+                }));
             });
             return s.build();
         });
