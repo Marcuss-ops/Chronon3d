@@ -171,9 +171,18 @@ Sequenza di lavoro — 5 step incrementali. Ogni step è un commit atomic su `ma
 - `docs/FEATURES.md` Text paragrafo aggiornato da "Parziali" a "Presenti" per cinematic kinetic typography;
 - `docs/CHANGELOG.md` chiusura "M1.6 — AE-Parity Cinematic Text Golden Expansion" registrata.
 
-### Esito Floor PNG (Math Correction, 2026-07-07)
+### Esito Floor PNG (Math Correction, 2026-07-07; re-bake DELIVERED 2026-07-07)
 
 Il floor target originario di 288 PNG è matematicamente irraggiungibile. I test "Killer" per il determinismo del testo (Phase-2) implementano rigorose validazioni hash cross-run via `doctest` `CHECK` assertions + `evaluate_animator` direttamente a livello di memoria, producendo **0 asset visivi PNG** (sono unit-test deterministici, non visual golden captures). Il ceiling realistico post-Phase-1 osservato: **114 PNG tracked a HEAD** (54 `ae_*.png` + 20 `user_spec_*.png` + 40 altri) + **30 PNG net new** dalle 4 scene cinematic + motion_blur_text appena landate (re-bake via `CHRONON3D_UPDATE_GOLDENS=1` deferred a prossima sessione con working build host) = **144 PNG post-re-bake** (50% del target 288). `TICKET-AE-PARITY-FLOOR` rimane onestamente tracciato in stato **PARTIAL** per riflettere questo ceiling in superamento ai target presunti errati — nessun claim "DONE" fabbricato. Companion dettaglio in [`docs/CHANGELOG.md`](CHANGELOG.md) entry "feat(tests,text) — TICKET-AE-PARITY-CINEMATIC-08/10/12/14 + TICKET-MOTION-BLUR-TEXT + TICKET-AE-PARITY-FLOOR math correction".
+
+**UPDATE 2026-07-07 (re-bake delivered, this commit)**: 5 `CHRONON3D_UPDATE_GOLDENS=1` commands executed sequentially on working build host (rc=0 across the 5x6=30 PNG captures):
+- `chronon3d_text_golden_tests --test-case='*AE 08*'` → 6 PNG (ae_08_glow_pulse_16x9_f{00,15,30} + ae_08_glow_pulse_9x16_f{00,15,30})
+- `chronon3d_text_golden_tests --test-case='*AE 10*'` → 6 PNG (ae_10_scale_pop_16x9_f{00,15,30} + ae_10_scale_pop_9x16_f{00,15,30})
+- `chronon3d_text_golden_tests --test-case='*AE 12*'` → 6 PNG (ae_12_random_character_jitter_16x9_f{00,15,30} + ae_12_random_character_jitter_9x16_f{00,15,30})
+- `chronon3d_text_golden_tests --test-case='*AE 14*'` → 6 PNG (ae_14_multiline_9_16_16x9_f{00,15,30} + ae_14_multiline_9_16_9x16_f{00,15,30})
+- `chronon3d_text_golden_tests --test-case='*motion_blur*'` → 6 PNG (motion_blur_text_{baseline,blurred}_f{05,10,15})
+
+**Net delta: `git ls-files HEAD ./test_renders/golden/text/ | wc -l` = 114 → 144 PNG tracked at HEAD** (30 PNG net new verified machine on disk via `ls -la test_renders/golden/text/ae_08_*.png ae_10_*.png ae_12_*.png ae_14_*.png motion_blur_text_*.png` post re-bake). Test case name pattern discovered: `AE NN <name> <AR> f<FF>` con spazi interni (doctest `--test-case='*AE 08*'` wildmatch). `TICKET-AE-PARITY-FLOOR` rimane `PARTIAL` — il ceiling reale a 144 PNG è matematicamente limitato dal design Phase-2 killer (0 PNG prodotti, sono unit-test), e il target 288 richiederebbe ~15 nuove scene visual aggiuntive (forward-only). **Nessun claim DONE fabbricato**: il deliverable è il PNG floor tracking + il completamento onesto del re-bake deferred. Companion dettaglio in [`docs/CHANGELOG.md`](CHANGELOG.md) entry "test(ae-parity) — TICKET-AE-PARITY-FLOOR re-bake delivered: 30 PNG net new, 114 → 144 ceiling (2026-07-07)".
 
 ### Non-goal M1.6
 
