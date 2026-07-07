@@ -2,18 +2,20 @@
 
 ## Stato
 
-OPEN (forward-only ticket — created 2026-07-06 as a follow-up companion to
-`TICKET-AE-CAM-PRECISION-COLLAPSE` and `TICKET-ae-cam-hash-collision` post the
-matrix-fix commit `c03ce2a2` + the ae-parity golden re-bake).
+**PARTIAL** (closed 2026-07-06 per on-disk sha256 observance + Gemini source-read
+exoneration) — Sub-cluster A formalmente **NOT-NEEDED**; Sub-cluster B
+**forward-pointed** a [`TICKET-ae-cam-hash-collision`](tickets/TICKET-ae-cam-hash-collision.md)
+Soluzione B (più specifico, stesso codepath `node_cache` invalidation).
+
+Created 2026-07-06 as a follow-up companion to `TICKET-AE-CAM-PRECISION-COLLAPSE`
+and `TICKET-ae-cam-hash-collision` post the matrix-fix commit `c03ce2a2` + the
+ae-parity golden re-bake.
 
 ## Priorità
 
-P1 — visual-regression blocker on the cat-2 AE-parity floor (gate #2).  This
-ticket covers the residual surface that the corpus-commit `c03ce2a2`
-(`fix(cam-projection): 2.5D path uses resolver screen-space TRS`) could NOT
-reach in a single-file fix because it is structural: it lives across 3 parallel
-`project_layer_2_5d` call sites in 3 distinct TU families + a downstream
-`node_cache` key invalidation surface.
+P1 — visual-regression blocker on the cat-2 AE-parity floor (gate #2).  Closura
+effettiva richiede `camera-aware node_cache key extension` (Soluzione B) per i
+soliti 13/24 PNG tracked con collision-hash encoded `cc86d2b5e80287dc`.
 
 ## Problema
 
@@ -37,11 +39,18 @@ update cycle:
 - `src/render_graph/pipeline/refresh/layer_item.cpp:14` — **PLANNED** (this ticket)
 
 All 6 sites share the same `chronon3d::Transform tr;` default-constructed
-Transform (scale={1,1,1}, rotation=Quat(1,0,0,0), anchor={0,0,0}) pattern. At
-sites 4–6, the input `layer_size = (1,1)` propagated to `project_layer_2_5d`
-flattens any per-card shape bbox before the rasterizer sees it; the resulting
-1×1 projected bbox is then sub-pixel-clipped at the rasterizer, dropping the
-layer from rendered output even though `proj.visible = true`.
+Transform (scale={1,1,1}, rotation=Quat(1,0,0,0), anchor={0,0,0}) pattern **at
+first glance** — ma l'analisi Gemini source-read (post-commit `c03ce2a2`)
+ha confermato che sites 4–6 NON sono bug:
+
+- **`src/render_graph/builder/graph_builder_matte.cpp:35`** — consuma un `eff_proj` **affine** (T+S perspective_scale), NON `proj.projection_matrix` prospettico raw. Il `tr` vuoto pattern è condiviso ma il **significato** è diverso (bbox per-card flatten è il CORRETTO per il matte-pass che non usa prospettica).
+- **`src/render_graph/pipeline/dirty/layer_bbox_collector.cpp:37`** — idem: dirty-rect calculation non usa matrice prospettica per il frame-dirty-marking, solo per il viewport-bbox.
+- **`src/render_graph/pipeline/refresh/layer_item.cpp:14`** — idem: refresh path ricostruisce `MultiSourceItem.matrix` da frame data, NON da `project_layer_2_5d` projective output.
+
+**Conseguenza**: la fix `proj.transform.to_mat4()` del corpus `c03ce2a2` NON è
+applicabile a sites 4-6. Sub-cluster A **NOT-NEEDED** — formalmente chiuso per
+cheque Gemini source-read clarification (cache-evidence + live source inspection
+3 siti).
 
 ### Sub-cluster B — Cache-key invalidation surface (AE_CAM_02 + AE_CAM_04)
 
@@ -85,15 +94,42 @@ src/render_graph/pipeline/dirty/layer_bbox_collector.cpp:37  (TODO)
 src/render_graph/pipeline/refresh/layer_item.cpp:14       (TODO)
 ```
 
-### Sub-cluster B sha256 evidence (machine-verified, this session)
+### Sub-cluster B sha256 observance (machine-verified ON-DISK)
 
-- AE_CAM_02: `frame000.sha=` cached collision-hash (per `fc351bfe` workaround)
-- AE_CAM_04: `frame000.sha=` cached collision-hash (per `fc351bfe` workaround)
-- AE_CAM_02/04 prefix sha256 verification: shared encoded collision hash
-  `cc86d2b5...` (per Ticket text "shared between the 2 PNG goldens that
-  encode current renderer state").
-- AE_CAM_03/05/06 frame0 ≠ frame60: confirmed by `sha256 | head -c 16`
-  prefix-comparison on re-baked PNGs in `tests/golden/ae_parity/`.
+`sha256 | head -c 16` di tutti i 24 PNG tracked in `tests/golden/ae_parity/`
+(commit `HEAD` post-`c03ce2a2` + re-bake):
+
+| Scene                  | frame000       | frame015 | frame030       | frame060       | Status |
+|------------------------|----------------|----------|----------------|----------------|--------|
+| AE_CAM_02_zoom_fov     | `cc86d2b5...`  | –        | –              | `cc86d2b5...`  | ✗ STILL COLLIDING (pair f000↔f060) |
+| AE_CAM_03_two_node_poi | distinct       | –        | `cc86d2b5...`  | `cc86d2b5...`  | ✗ STILL COLLIDING (pair f030↔f060 + others vary) |
+| AE_CAM_04_parent_null  | `cc86d2b5...`  | –        | –              | `cc86d2b5...`  | ✗ STILL COLLIDING (pair f000↔f060) |
+| AE_CAM_05_orbit        | distinct       | `cc86d2b5...` | `cc86d2b5...` | `cc86d2b5...` | ✗ STILL COLLIDING (cluster f015/f030/f060) |
+| AE_CAM_06_dolly_zoom   | distinct       | distinct | distinct       | distinct       | ✓ FULLY DISTINCT (all 4 frames) |
+| AE_CAM_07_static_wide_angle | `cc86d2b5...` | –   | –              | –              | (orthogonal: single-frame scene) |
+| AE_CAM_08_dof_focus    | (orthogonal)   | –        | –              | –              | (orthogonal: ANOTHER path — DOF anim) |
+| AE_CAM_09_motion_blur  | `cc86d2b5...`  | `4338a...` | `cc86d2b5...` | –              | △ PARTIAL (only f015 fresh-distinct) |
+
+**Onesto state summary**: solo **AE_CAM_06** (4/4 frames) + **AE_CAM_09_f015**
+(1/3 frames) sono fresh-distinct su disco. AE_CAM_02/03/04/05/07/09-f000/f030
+(13/24 PNG tracked, `21556B` size + `cc86d2b5e80287dc` sha256 prefix) restano
+collision-encoded per `fc351bfe` workaround.
+
+**Layered truth** (per anti-greenwashing):
+
+1. **In-memory runtime FB-hash** (volatile, post-render): `chronon3d_ae_parity_tests`
+   `--test-case='AE_CAM_*'` reports 35/35 PASS, 140/140 assertions, `SUCCESS!`
+   banner; CHECK `framebuffer_hash(*fb_X) != framebuffer_hash(*fb_Y)` enforced
+   per `tests/visual/ae_parity/ae_parity_tests.cpp` (200+ LOC TEST_CASEs) per
+   AE_CAM_03/05/06/09; per AE_CAM_02/04/08 the test uses only MESSAGE
+   forward-point (NO CHECK — greenwash strutturale).
+2. **On-disk GOLDEN sha256** (persisted, regress-controllable): come da tabella
+   sopra — solo AE_CAM_06 + AE_CAM_09_f015 fresh-distinct.
+
+La fix `c03ce2a2` ha spostato la collision FUORI dal runtime FB-hash (memory)
+ma NON ha cambiato la collision-encoded `cc86d2b5...` PNG output che atterra su
+`tests/golden/ae_parity/`. La collision-encoded goldens persistono per design
+(`fc351bfe`) oltre la fix.
 
 ## Impatto
 
@@ -195,11 +231,32 @@ parent ticket.
 - Diagnostic instrumentation precedent: `CHRONON3D_PROJ_DIAG` env-gated spdlog
 - Cache-key collision counter: `include/chronon3d/core/profiling/counters.hpp:30 ::node_cache_hash_collisions`
 
-## Status del ticket (forward-only)
+## Status del ticket (post sha256 observance + Gemini exoneration)
 
-PLANNED. Compiler scope is fixed; Soluzione A + Soluzione B are independent
-and can be implemented in any order; both required to close the AE_CAM_02 +
-AE_CAM_04 residual after the corpus-commit `c03ce2a2` + re-bake have landed.
+**PARTIAL** (Sub-cluster A NOT-NEEDED + Sub-cluster B forward-pointed to
+`TICKET-ae-cam-hash-collision` Soluzione B). State transition: PLANNED →
+PARTIAL on 2026-07-06 per:
+- (a) Gemini source-read clarification on sites 4-6 (consumano `eff_proj`
+  affine, NON `proj.projection_matrix` prospettico raw → Sub-cluster A
+  NOT-NEEDED);
+- (b) Machine-verified sha256 observance on 24 PNG goldens (13/24 collision-encoded
+  per `cc86d2b5e80287dc` prefix → Sub-cluster B effective solo per quei 13 PNG,
+  con AE_CAM_06 + AE_CAM_09_f015 fresh-distinct).
+
+Compiler scope is fixed. Sub-cluster A **closed NOT-NEEDED**; Sub-cluster B
+forward-point: per chiudere il residuo osservato sui 13 PNG tracked
+collision-encoded servono:
+- (1) Extension di `src/cache/node_cache.cpp::make_node_cache_key(u64, int, int)`
+  con 4° parametro `camera_fingerprint` + propagazione ai siti di `cache_key(ctx)`;
+- (2) Re-bake `tests/golden/ae_parity/ae_cam_{02,03,04,05,09}_*.png` con
+  `CHRONON3D_UPDATE_GOLDENS=1` post-fix;
+- (3) Lock test `tests/cache/test_node_cache_hash_includes_camera.cpp`
+  asserting `framebuffer_hash(fb_zoom_500) != framebuffer_hash(fb_zoom_1000)
+  != framebuffer_hash(fb_zoom_1500)`.
+
+Implementazione tracciata canonically su `TICKET-ae-cam-hash-collision`
+(ticket sibling più specifico; questo ticket rimane PARTIAL con pointer
+forward per context continuity).
 
 ## AGENTS.md v0.1 freeze compliance
 

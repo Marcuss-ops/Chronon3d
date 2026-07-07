@@ -29,6 +29,12 @@ GraphNodeId append_root_sources(RenderGraph& graph, const Scene& scene,
             .params_hash = hash_render_node(node),
             .source_hash = hash_bytes(node.name.data(), node.name.size())
         };
+        // TICKET-ae-cam-hash-collision Soluzione B — root-level source keys
+        // ALSO need the camera fingerprint so a cinematic camera-driven
+        // composition with mixed root/child sources stays deterministic.
+        if (ctx.frame_input.has_camera_2_5d) {
+            cache::fold_camera_into_params_hash(source_key, ctx.frame_input.camera_2_5d);
+        }
 
         auto source = graph.add_node(std::make_unique<SourceNode>(
             std::string(node.name), node, source_key,
@@ -138,6 +144,14 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
         matte_key.params_hash = hash_combine(
             matte_key.params_hash,
             static_cast<u64>(layer.track_matte.type));
+
+        // TICKET-ae-cam-hash-collision Soluzione B — track-matte cache keys
+        // also participate in the framebuffer cache lookup chain, so they
+        // MUST differentiate per-camera-state (track-matte compositing is
+        // camera-position relative on multi-camera compositions).
+        if (ctx.frame_input.has_camera_2_5d) {
+            cache::fold_camera_into_params_hash(matte_key, ctx.frame_input.camera_2_5d);
+        }
 
         // PR2-cleanup: TrackMatteNode carries its policy in `m_cache_policy` (ctor-time).
         {

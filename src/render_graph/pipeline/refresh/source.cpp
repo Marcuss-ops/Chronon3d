@@ -29,6 +29,13 @@ void refresh_source_node(
             .params_hash = hash_render_node(src_node),
             .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
         };
+        // TICKET-ae-cam-hash-collision Soluzione B — fold cam into root
+        // source-node cache key so root-level sources also differentiate
+        // per-camera-state (otherwise root.source keys would still collide
+        // on AE_CAM_02 zoom-only).
+        if (ctx.frame_input.has_camera_2_5d) {
+            cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
+        }
         node.refresh(
             std::string(src_node.name),
             src_node,
@@ -77,6 +84,14 @@ void refresh_source_node(
         .params_hash = hash_render_node(src_node),
         .source_hash = hash_bytes(src_node.name.data(), src_node.name.size())
     };
+
+    // TICKET-ae-cam-hash-collision Soluzione B — layer-source case (the
+    // dominant path for AE_CAM_02/04 single-shape compositions). Fold the
+    // evaluated camera state into params_hash so cache-key distinguishes
+    // zoom-animated and Z-dolly frames at the framebuffer cache level.
+    if (ctx.frame_input.has_camera_2_5d) {
+        cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
+    }
 
     node.refresh(
         std::string(src_node.name),
