@@ -511,6 +511,85 @@ Se il percorso è corretto ma i framebuffer restano identici, il problema è nel
 **Next step consigliato: FASE 3b** — verificare con log diretto che
 `proj.transform.position` e `proj.transform.scale` siano DIVERSI tra frame 0 e 60.
 
+## FASE 5 — Gate check + doc sync (2026-07-07)
+
+### Gate results
+
+| Gate | Risultato |
+|---|---|
+| `tools/check_main_clean.sh` | GATE_PASS |
+| `tools/check_architecture_boundaries.sh` | 16/16 PASS |
+| `tools/check_doc_sync.sh` | 0 hard failures, 1 warning (CHANGELOG update expected) |
+
+### Doc updates
+
+| Documento | Aggiornamento |
+|---|---|
+| `docs/FOLLOWUP_TICKETS.md` | Aggiunta riga TICKET-121 (PARTIAL, gate #2) |
+| `docs/CHANGELOG.md` | Entry FASE 1-4 diagnostica |
+| `docs/tickets/TICKET-121.md` | Stato: PARTIAL, 4 fasi documentate |
+
+### Commit
+
+`50c9a4a3` — `docs(ae-cam): TICKET-121 FASE 5 - gate check 3/3 PASS + doc sync: FOLLOWUP_TICKETS + CHANGELOG updated, TICKET-121 PARTIAL status`
+
+## FASE 6 — Diagnostica `project_layer_2_5d()` (2026-07-07)
+
+### Obiettivo
+
+Verificare che `proj.transform.position` e `proj.transform.scale` siano effettivamente
+diversi tra frame animati, escludendo un collasso dei valori nel projection resolver.
+
+### Metodo
+
+Aggiunto log `spdlog::warn` temporaneo in `include/chronon3d/math/camera_2_5d_projection.hpp`
+all'interno di `project_layer_2_5d()`:
+
+```cpp
+spdlog::warn("[T121_DIAG] project_layer_2_5d: zoom={:.1f} pos=({:.2f},{:.2f},{:.2f}) scale=({:.4f},{:.4f},{:.4f})",
+    cam.zoom, out.transform.position.x, out.transform.position.y, out.transform.position.z,
+    out.transform.scale.x, out.transform.scale.y, out.transform.scale.z);
+```
+
+### Risultati
+
+AE_CAM_02 (zoom animato 500→1500) ha prodotto 3 valori di zoom distinti:
+
+```
+zoom=500.0  pos, scale (frame 0)
+zoom=1000.0 pos, scale (frame 30)
+zoom=1500.0 pos, scale (frame 60)
+```
+
+### Conclusione
+
+**`proj.transform` è DIVERSO tra frame 0 e frame 60.** Il `CameraProjectionResolver`
+calcola correttamente valori diversi per stati camera diversi. Il collasso hash
+`frame0 == frame60` NON è causato da un collasso dei valori di proiezione.
+
+### Root cause aggiornato
+
+Con tutte le fasi diagnostiche completate, il percorso completo è verificato:
+
+```
+Camera2_5D → proj.transform (✅ diverso tra frame) → state.matrix (✅ screen-space) →
+processor.draw() (✅ usa state.matrix) → raster FB → hash collision frame0==frame60 (❌)
+```
+
+L'unica ipotesi rimasta: il **framebuffer viene cachato a un livello superiore**
+(es. `graph_cache_coordinator` o `frame_state_commit`) con una key che non include
+lo stato della camera, oppure il FB viene prodotto ma poi confrontato con un golden
+identico perché la scena produce lo stesso output visivo nonostante transform diversi
+(es. background full-canvas, shape monocolore senza gradienti visibili).
+
+**Next step: FASE 7** — dumpare il contenuto effettivo dei pixel del framebuffer
+per frame0 e frame60, bypassando il cache layer, per verificare se i pixel sono
+davvero identici o se il problema è nell'hash comparison.
+
+### Log temporaneo rimosso
+
+Il log `spdlog::warn` è stato rimosso da `camera_2_5d_projection.hpp` prima del commit.
+
 ## Collegamenti
 
 - Area: Camera Production V1
