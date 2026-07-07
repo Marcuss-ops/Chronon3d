@@ -17,7 +17,7 @@ struct MultiSourceItem {
 class MultiSourceNode final : public RenderGraphNode {
 public:
     MultiSourceNode(std::string name, std::vector<MultiSourceItem> items, const cache::NodeCacheKey& key,
-                    bool centered = false, bool uses_2_5d_projection = false,
+                    bool uses_2_5d_projection = false,
                     RenderNodeCachePolicy policy = static_memory_cache("multi_source"));
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
@@ -47,14 +47,12 @@ public:
         std::string name,
         std::vector<MultiSourceItem> items,
         const cache::NodeCacheKey& key,
-        bool centered = false,
         bool uses_2_5d_projection = false,
         RenderNodeCachePolicy policy = static_memory_cache("multi_source")
     ) {
         m_name = std::move(name);
         m_items = std::move(items);
         m_key = key;
-        m_centered = centered;
         m_uses_2_5d_projection = uses_2_5d_projection;
         if (m_cache_policy.mode != policy.mode || m_cache_policy.invalidation != policy.invalidation) {
             spdlog::warn("[multi_source_node] cache policy changed from {}/{} to {}/{} — compiled graph must be invalidated",
@@ -72,7 +70,6 @@ private:
     std::string m_name;
     std::vector<MultiSourceItem> m_items;
     cache::NodeCacheKey m_key;
-    bool m_centered{false};
     bool m_uses_2_5d_projection{false};
 
     // ── Fase A6 (DONE) — node immutability ───────────────────────────
