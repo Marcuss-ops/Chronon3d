@@ -137,6 +137,9 @@ struct SingleGlyphRun {
     // `source_placed`) into `target`.  When `override_color` is set, every
     // glyph is filled (and stroked) with that color — the shadow pass.
     // Otherwise per-glyph fill/stroke are honored with shape.paint fallback.
+    //
+    // TICKET-TEXT-CLEANUP-3: render_offset_x/y replaced by TextRasterSpace.
+    // Use to_surface_matrix() to combine glyph matrix with raster space.
     auto render_tier_to_image = [&](
         BLImage& target,
         std::optional<Color> override_color,
@@ -144,8 +147,7 @@ struct SingleGlyphRun {
         const std::vector<GlyphInstanceState>& source_glyphs,
         const PlacedGlyphRun& source_placed,
         const std::vector<std::uint32_t>& tier_glyphs,
-        float render_offset_x,
-        float render_offset_y
+        const TextRasterSpace& raster_space
     ) -> std::size_t {
         std::size_t drawn = 0;
         BLContext ctx(target);
@@ -171,8 +173,8 @@ struct SingleGlyphRun {
                 : g.opacity;
             if (op_alpha <= 0.0f && eff_stroke.a <= 0.0f) continue;
 
-            BLMatrix2D glyph_mat = build_glyph_matrix(g);
-            glyph_mat.translate(-render_offset_x, -render_offset_y);
+            BLMatrix2D glyph_mat = to_surface_matrix(
+                build_glyph_matrix(g), raster_space);
 
             ctx.save();
             ctx.setTransform(glyph_mat);
@@ -244,11 +246,12 @@ struct SingleGlyphRun {
             shadow.color.r, shadow.color.g, shadow.color.b,
             shadow.color.a * shadow.opacity
         };
+        const TextRasterSpace shadow_space{1, s.offset_x, s.offset_y};
         const std::size_t sh_drawn = render_tier_to_image(
             shadow_img, shadow_color,
             detail::bucket_radius_for_tier(shadow.blur),
             shape.glyphs, layout.placed, s.all_active_glyphs,
-            s.offset_x, s.offset_y);
+            shadow_space);
         if (sh_drawn == 0) {
             release_surface(s, std::move(shadow_img));
             continue;
@@ -284,7 +287,7 @@ struct SingleGlyphRun {
         const std::size_t drawn = render_tier_to_image(
             tier_img, std::nullopt, kBlurTierRadii[tier],
             shape.glyphs, layout.placed, s.active_tiers[tier],
-            s.ss_offset_x, s.ss_offset_y);
+            s.raster_space);
         if (drawn == 0) {
             release_surface(s, std::move(tier_img));
             continue;
@@ -312,7 +315,7 @@ struct SingleGlyphRun {
                 tier_img, std::nullopt, kBlurTierRadii[tier],
                 shape.crossfade_glyphs, shape.crossfade_layout->placed,
                 s.crossfade_tiers[tier],
-                s.ss_offset_x, s.ss_offset_y);
+                s.raster_space);
             if (drawn == 0) {
                 release_surface(s, std::move(tier_img));
                 continue;
@@ -337,11 +340,11 @@ struct SingleGlyphRun {
     }
 
     // ── Stage 7 (raster tail) — Downsample supersampled image (FASE 3b) ──
-    if (s.ss > 1) {
+    if (s.raster_space.scale > 1) {
         BLImage ds_img = acquire_surface(s, s.img_w, s.img_h);
         if (ds_img.empty()) ds_img = BLImage(s.img_w, s.img_h, BL_FORMAT_PRGB32);
 
-        downsample_supersampled(ds_img, s.img, s.ss, s);
+        downsample_supersampled(ds_img, s.img, s.raster_space.scale, s);
         release_surface(s, std::move(s.img));  // free supersampled
         s.img = std::move(ds_img);
     }
