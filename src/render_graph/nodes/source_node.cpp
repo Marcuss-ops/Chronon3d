@@ -113,7 +113,22 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
         shape_type != ShapeType::FakeBox3D &&
         shape_type != ShapeType::GridPlane;
     if (apply_2_5d_projection) {
-        chronon3d::Transform tr;
+        // TICKET-ae-cam-hash-collision SourceNode forward-fix (per
+        // ## Verification gap): pass the actual layer TRS to
+        // project_layer_2_5d, NOT a default-constructed Transform
+        // (which would collapse `input.layer_size = (1,1)` and cause
+        // the projected bbox to be sub-pixel-clipped at the rasterizer,
+        // rendering 2D layers as transparent-black and producing
+        // framebuffer_hash collisions).  `from_mat4(base_matrix, ...)`
+        // extracts the actual scale from the matrix's column vectors
+        // (canonical TRS decomposition per <chronon3d/math/transform.hpp>),
+        // faithfully matching what MultiSourceNode does with
+        // `from_mat4(item.matrix, item.opacity)` at the 3 sibling sites
+        // (commit 853ace48).  This handles the m_matrix_override case
+        // correctly: base_matrix is either the override or the world
+        // transform's matrix, and from_mat4 decomposes the source of
+        // truth.
+        auto tr = chronon3d::from_mat4(base_matrix, m_opacity_override.value_or(m_node.world_transform.opacity));
         auto proj = chronon3d::project_layer_2_5d(
             tr, base_matrix,
             ctx.frame_input.camera_2_5d,
@@ -263,7 +278,13 @@ NodeExecResult SourceNode::execute(
             exec_shape_type != ShapeType::FakeBox3D &&
             exec_shape_type != ShapeType::GridPlane;
         if (exec_apply_2_5d_projection) {
-            chronon3d::Transform tr;
+            // TICKET-ae-cam-hash-collision SourceNode forward-fix (per
+            // ## Verification gap): same `from_mat4(base_matrix, ...)`
+            // pattern as predicted_bbox site above.  See site-1 comment
+            // for the full rationale (extracts actual layer scale from
+            // base_matrix's column vectors, pre-empting the
+            // empty-Transform-tr transparent-black bug).
+            auto tr = chronon3d::from_mat4(base_matrix, m_opacity_override.value_or(m_node.world_transform.opacity));
             auto proj = chronon3d::project_layer_2_5d(
                 tr, base_matrix,
                 ctx.frame_input.camera_2_5d,
