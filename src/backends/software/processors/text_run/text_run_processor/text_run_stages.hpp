@@ -37,6 +37,31 @@
 
 namespace chronon3d::renderer::text_run_stages {
 
+// ── TextRasterSpace — unified supersampling + offset ─────────────────────
+//
+// TICKET-TEXT-CLEANUP-3: replaces the separate ss_offset_x / ss_offset_y
+// fields with a single object that encapsulates the rasterization coordinate
+// system.  `scale` is the supersampling factor, `offset_x/y` are the
+// surface-space offsets (already scaled by ss).  Use to_surface_matrix()
+// to combine a glyph matrix with the raster space.
+struct TextRasterSpace {
+    int   scale{1};
+    float offset_x{0.0f};
+    float offset_y{0.0f};
+};
+
+/// Combine a glyph matrix with the raster space to produce a surface-local
+/// matrix.  Replaces the manual `glyph_mat.translate(-offset_x, -offset_y)`
+/// pattern.
+[[nodiscard]] inline BLMatrix2D to_surface_matrix(
+    const BLMatrix2D& glyph_mat,
+    const TextRasterSpace& rs
+) {
+    BLMatrix2D m = glyph_mat;
+    m.translate(-rs.offset_x, -rs.offset_y);
+    return m;
+}
+
 // Number of blur tiers for per-glyph blur classification.
 // Invariant: matches the size of kBlurTierRadii below + BlurTiers::value_type.
 inline constexpr std::size_t kNumBlurTiers = 5;
@@ -92,11 +117,12 @@ struct TextRunStageState {
 
     // Supersampling (FASE 3b) — pre-computed by prepare so the raster
     // pass can route through the resolved factor without recomputing.
-    int   ss{1};
+    // TICKET-TEXT-CLEANUP-3: ss, ss_offset_x, ss_offset_y replaced by
+    // a single TextRasterSpace.  ss_img_w / ss_img_h remain as cached
+    // image dimensions (used extensively for surface allocation).
+    TextRasterSpace raster_space;
     int   ss_img_w{0};
     int   ss_img_h{0};
-    float ss_offset_x{0.0f};
-    float ss_offset_y{0.0f};
 
     // Tier pre-classification (O(G) over `active` side and optional crossfade).
     BlurTiers active_tiers{};
