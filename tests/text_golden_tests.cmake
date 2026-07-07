@@ -152,6 +152,35 @@ target_sources(chronon3d_text_golden_tests
         text_golden/ae_parity_killer/killer_01_wiggly_wave.cpp
 )
 
+# TICKET-AE-PARITY-KILLER-EXPRESSION-SELECTOR — Phase 2 Killer 2 determinism
+# lock for the per-character ExpressionSelector surface
+# (amount = selectorValue * textIndex / textTotal per docs/tickets/
+# TICKET-AE-LIKE-TEXT-ACTION-PLAN.md Decision 2 Killer 2). Forward-only note:
+# `ExpressionSelector` is PLANNED, NOT YET IMPL (zero `expression_evaluator.cpp`
+# files in src/text/; new file per Blocco 6 of
+# docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md). This test locks the
+# deterministic, thread-safe substrate that the future ExpressionSelector
+# will compose on:
+#   * Cell-level (TEST_CASE 1, 3 SUBCASEs): test-internal pure-function
+#     `expression_ramp(selector_value, text_index, text_total)` implementing
+#     the contract formula. Proves byte-identity, zero global mutable state
+#     (pure function), reentrant across 4 threads × 16 iterations.
+#   * End-to-end (TEST_CASE 2, 3 SUBCASEs): evaluate_animator with
+#     GlyphSelectorSpec{unit=Character, shape=RampUp, start=0, end=100,
+#     amount=AnimatedValue{selectorValue*100}} + PositionProperty{Vec3{1,0,0}}
+#     emulating the per-character linear ramp. Proves random-access frame 30
+#     byte-identical to sequential up to frame 30; zero global mutable state
+#     in the evaluator; reentrant across 4 threads × 16 iterations.
+# When TICKET-EXPRESSION-IMPL lands (src/text/selector/expression_evaluator.cpp
+# per Blocco 6), TEST_CASE 2 can be extended to use the production
+# ExpressionSelector surface directly. The cell-level substrate (TEST_CASE 1)
+# is the contract the future ExpressionSelector must implement.
+# Cat-2 freeze-compliant (zero new public API surface; test-only includes).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/ae_parity_killer/killer_02_expression_selector.cpp
+)
+
 add_test(
     NAME TextGolden
     COMMAND chronon3d_text_golden_tests
