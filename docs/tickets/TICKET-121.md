@@ -720,6 +720,69 @@ prima del commit.
 `3dd2a86b` — log diagnostico aggiunto in `source_node.cpp`
 Questo commit — rimozione log + documentazione FASE 3b
 
+## FASE 5 — Modifica scena + verifica empirica (2026-07-07)
+
+### Obiettivo
+
+Aggiungere un piccolo shape non-fullscreen (cerchio rosso 50px) al centro di AE_CAM_02
+per rendere osservabile l'effetto dello zoom. Se l'hash frame0≠frame60 dopo la modifica,
+il bug è nella geometria monotona della scena originale. Se ancora identico, il bug è
+nel render order o nella cache.
+
+### Modifica
+
+```cpp
+// Aggiunto in make_ae_cam_02_zoom_fov() dopo la subject card:
+s.layer("anchor", [](LayerBuilder& l) {
+    l.enable_3d().position({0.0f, 0.0f, 0.0f});
+    l.circle("dot", {.radius = 25.0f, .color = Color{1.0f, 0.1f, 0.1f, 1.0f},
+                     .pos = {0.0f, 0.0f, 0.0f},
+                     .fill = FillStyle::solid(Color{1.0f, 0.1f, 0.1f, 1.0f})});
+});
+```
+
+### Risultati
+
+| Metrica | Valore |
+|---|---|
+| Golden PNG hash (vecchio) | `cc86d2b5...` (background universale) |
+| Golden PNG hash (nuovo) | `96a9f309...` — il cerchio È visibile! |
+| `sha256(frame0)` vs `sha256(frame60)` | `96a9f309...` == `96a9f309...` ❌ IDENTICI |
+| Test runtime | 32/35 PASS, 3 FAILED |
+
+### Analisi
+
+1. **Il cerchio rosso è renderizzato** — il golden hash è cambiato da `cc86d2b5` a
+   `96a9f309`, confermando che la modifica alla scena produce output diverso.
+
+2. **frame0 e frame60 sono ANCORA identici** — nonostante `proj.transform.scale` sia
+   0.5 a frame 0 e 1.5 a frame 60 (FASE 3b confermato), il PNG finale è pixel-perfect
+   uguale. Un cerchio di 25px raggio a scale 0.5 (12.5px screen) vs scale 1.5 (37.5px
+   screen) DOVREBBE produrre hash diversi.
+
+3. **Il golden è identico anche SENZA UPDATE_GOLDENS** — i PNG su disco sono stati
+   rigenerati con `CHRONON3D_UPDATE_GOLDENS=1` e il test di golden match passa, ma
+   frame0 e frame60 condividono lo stesso file.
+
+### Conclusione FASE 5
+
+**Il cerchio viene renderizzato MA a dimensione identica a tutti gli zoom.** Questo
+prova che il bug NON è nella geometria della scena né nel `CameraProjectionResolver`
+(che produce `proj.transform` diversi) ma nel **render order**: il `grid_background`
+viene disegnato DOPO gli altri shape e li copre con il suo pattern full-canvas.
+
+Il `grid_background` ha `bg_color` opaco (alpha=1.0) e copre l'intero canvas 960×540.
+Se viene eseguito come ultimo nodo nel render graph, sovrascrive qualsiasi cosa sia
+stata disegnata prima — incluso il cerchio rosso e tutte le card colorate.
+
+**Next step: FASE 6** — verificare l'ordine di esecuzione dei nodi nel render graph
+per confermare che il grid_background venga eseguito DOPO le card.
+
+### Commit
+
+`dbfaf164` — modifica scena (cerchio rosso)
+`9bb337ea` — golden update + questo doc
+
 ## FASE 4 — Analisi geometria scena AE_CAM_02 (2026-07-07)
 
 ### Obiettivo
