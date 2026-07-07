@@ -217,11 +217,18 @@ inline TextRunPlacement resolve_text_run_placement(
     Mat4 matrix = item_world * node.world_transform.to_mat4();
     out_opacity = item.transform.opacity * node.world_transform.opacity;
 
-    // Bake canvas center for centered layers (non-modular path).
-    // This matches TICKET-TEXT-CLEANUP-5: the source pass always
-    // provides the resolved matrix so TextRunNode just applies SSAA.
-    if (!ctx.policy.modular_coordinates
-        && should_use_centered_rendering(item, ctx)) {
+    // Bake canvas center for centered layers.
+    //
+    // For non-modular: the source pass does NOT bake canvas center into
+    // TextRun nodes (the TextRun branch returns early before the bake).
+    // For modular: the source pass strips canvas center from item_world
+    // but does not re-apply it (same reason — TextRun returns early).
+    //
+    // In BOTH cases, the resolver must provide the final canvas-center
+    // translation so TextRunNode's draw_text_run renders at the correct
+    // canvas position.  SourceNode and MultiSourceNode handle their own
+    // canvas-center bake in the source pass; TextRunNode relies on us.
+    if (should_use_centered_rendering(item, ctx)) {
         matrix = implicit_canvas_center_matrix(ctx) * matrix;
     }
 
