@@ -50,6 +50,7 @@
 #include <cstdlib>
 #include <optional>
 #include <string>
+#include <cmath>
 
 namespace chronon3d::graph::detail {
 
@@ -91,6 +92,41 @@ inline std::optional<Mat4> project_to_camera_space(
     const char* stage = nullptr,
     std::size_t item_index = static_cast<std::size_t>(-1)
 ) {
+    // TICKET-ae-cam-hash-collision forward-fix (code-reviewer round-3/4
+    // follow-up #1, option (b)): detect degenerate matrices BEFORE calling
+    // `from_mat4` and emit a `spdlog::warn` with caller-specific context
+    // (node_name + stage + item_index + opacity + determinant).  This was
+    // the root cause of the 3 in-memory FB hash failures + 13 banned PNGs
+    // during the 2026-07-07 verification — the same bug at
+    // `multi_source_node.cpp:122/216` + `source_node.cpp:122/216` where an
+    // empty `chronon3d::Transform tr;` was passed to `project_layer_2_5d`
+    // and propagated `layer_size=1x1` to the resolver, causing 2D layers
+    // to render as transparent-black.  The check is gated on env var
+    // `CHRONON3D_FROM_MAT4_DIAG` (zero cost when unset — one getenv lookup
+    // per call).  The detection threshold `std::abs(det) < 1e-6f` catches
+    // the common degenerate-matrix case; the rare edge case
+    // (non-zero-determinant-but-non-invertible matrix where
+    // `glm::decompose` still fails) is not caught here but the silent
+    // fallback in `from_mat4` preserves the same semantics as the
+    // pre-18b54ca9 behavior.  The `spdlog` include lives in this
+    // `src/`-only header (NOT in the public `include/chronon3d/math/
+    // transform.hpp`), so the Cat-3 cost (spdlog as direct dep of public
+    // math header) flagged by the round-2/3 code-reviewer is fully
+    // eliminated.  The `glm::determinant` call is cached in `det` to
+    // avoid the 3x-evaluation antipattern flagged by the round-3/4
+    // code-reviewer (micro-perf + readability).
+    if (std::getenv("CHRONON3D_FROM_MAT4_DIAG")) {
+        const f32 det = glm::determinant(world_matrix);
+        if (std::isfinite(det) && std::abs(det) < 1e-6f) {
+            spdlog::warn(
+                "[FROM_MAT4_DIAG] from_mat4 fallback will trigger (matrix det={:.6e} < 1e-6) — node='{}' stage={} item#{} opacity={}",
+                static_cast<double>(det),
+                node_name,
+                stage ? stage : "unknown",
+                item_index,
+                opacity);
+        }
+    }
     auto tr = chronon3d::from_mat4(world_matrix, opacity);
     auto proj = chronon3d::project_layer_2_5d(
         tr, world_matrix,

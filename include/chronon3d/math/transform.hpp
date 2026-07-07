@@ -4,7 +4,6 @@
 #include <chronon3d/math/projection_context.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/scene/model/core/mask_utils.hpp>
-#include <spdlog/spdlog.h>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -58,29 +57,23 @@ struct Transform {
 
     Mat4 local = matrix;
     if (!glm::decompose(local, scale, rotation, translation, skew, perspective)) {
-        // TICKET-ae-cam-hash-collision forward-fix (round-2/3 code-reviewer
-        // follow-up): log a warning when the fallback branch fires so that
-        // a degenerate matrix (zero determinant, singular, or otherwise
-        // non-invertible) is visible in the log instead of silently
-        // producing a default Transform with scale=(1,1,1).  This was the
-        // root cause of the 3 in-memory FB hash failures + 13 banned PNGs
-        // during the 2026-07-07 verification (the same bug at
-        // `multi_source_node.cpp:122/216` + `source_node.cpp:122/216` where
-        // an empty `chronon3d::Transform tr;` was passed to
-        // `project_layer_2_5d` and propagated `layer_size=1x1` to the
-        // resolver, causing 2D layers to render as transparent-black).
-        // The warning is gated to spdlog::warn (not fatal) so it does
-        // not break the rendering path; the fallback behavior is
-        // preserved (returns a default-initialized Transform with the
-        // requested opacity) so existing callers do not need to change.
-        // Note: this adds a spdlog dependency to this public math header.
-        // The dependency is light (single header include, no link-time
-        // cost) and the runtime cost is one spdlog::warn on the rare
-        // glm::decompose failure path (zero cost on the success path).
-        spdlog::warn(
-            "[MATH] from_mat4 fallback triggered (glm::decompose returned false for matrix with det={:.6e}) — returning default Transform with opacity={}",
-            static_cast<double>(glm::determinant(matrix)),
-            opacity);
+        // TICKET-ae-cam-hash-collision forward-fix (round-4 code-reviewer
+        // follow-up #3, option (b)): from_mat4 is SILENT again on the
+        // fallback branch (returns a default-initialized Transform with
+        // the requested opacity) so that this public math header does
+        // NOT depend on spdlog.  The degenerate-matrix detection has
+        // been moved to the 5 caller sites (via the shared helper
+        // `chronon3d::graph::detail::project_to_camera_space` in
+        // `src/render_graph/nodes/detail/projection_helpers.hpp`) which
+        // check `glm::abs(glm::determinant(m)) < 1e-6` BEFORE calling
+        // from_mat4 and emit a `spdlog::warn` with caller-specific
+        // context (node_name + stage + item_index + opacity) gated on
+        // env var `CHRONON3D_FROM_MAT4_DIAG`.  This eliminates the Cat-3
+        // cost (spdlog as direct dep of public math header) that the
+        // round-2/3 code-reviewer flagged as non-blocking.  The edge
+        // case where `glm::decompose` fails but `abs(det) >= 1e-6` is
+        // rare; the silent fallback preserves the same semantics as
+        // the pre-18b54ca9 behavior.
         Transform out;
         out.opacity = opacity;
         return out;
