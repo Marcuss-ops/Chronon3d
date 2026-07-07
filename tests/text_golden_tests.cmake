@@ -131,6 +131,27 @@ target_sources(chronon3d_text_golden_tests
         text_golden/ae_parity/ae_11_rotation_per_character.cpp
 )
 
+# TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION — Phase 2 Killer 1 determinism
+# lock for the Wiggly/Wave/Random selector substrate. Forward-only note:
+# `WigglySelector` and `WaveSelector` are PLANNED, NOT YET IMPL (zero
+# `*wiggly*` / `*wave*` files in include/chronon3d/ + src/text/). This test
+# locks the deterministic, thread-safe substrate that they will compose on:
+#   * Cell-level (TEST_CASE 1, 3 SUBCASEs): hash_to_unit_float + Fisher-Yates
+#     cached permutation get_or_build_permutation. Proves same-seed byte-
+#     identity; different-seed divergence; parallel-compute race-freedom.
+#   * End-to-end (TEST_CASE 2, 3 SUBCASEs): evaluate_animator with
+#     TextSelectorOrder::Random + mocked PlacedGlyphRun + PositionProperty.
+#     Proves same-seed per-glyph state byte-identity; different-seed
+#     observable drift; cross-run reference lock (FNV-1a fingerprint).
+# When TICKET-WIGGLY-IMPL + TICKET-WAVE-IMPL land, TEST_CASE 2 expands to
+# include a 4th SUBCASE exercising the new Wiggly/Wave surfaces. The
+# cell-level substrate (TEST_CASE 1) is the foundation they compose on.
+# Cat-2 freeze-compliant (zero new public API surface; test-only includes).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/ae_parity_killer/killer_01_wiggly_wave.cpp
+)
+
 add_test(
     NAME TextGolden
     COMMAND chronon3d_text_golden_tests
@@ -142,5 +163,15 @@ add_test(
 add_test(
     NAME TextGoldenUserSpec
     COMMAND chronon3d_text_golden_tests --test-case="UserSpec*"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+# TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION — KILLER* ctest filter
+# (CI isolation for the Phase 2 killer tests as a unit). Companion to
+# `TextGolden` (all-tests) + `TextGoldenUserSpec` (12 user-spec only);
+# this third filter runs only the KILLER-NN tests so CI can verify
+# selector determinism in isolation from the visual golden suite.
+add_test(
+    NAME TextGoldenKiller
+    COMMAND chronon3d_text_golden_tests --test-case="KILLER *"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
