@@ -155,35 +155,6 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
         matrix = ssaa_scale * base_matrix;
     }
 
-    // TICKET-104 DIAGNOSTIC — one-shot runtime log of SourceNode's
-    // matrix composition for the first call (covers the bg_grid layer
-    // in cert_title).  Compare `matrix.t` with the build_world_matrix
-    // diagnostic (TextRunNode) to determine whether the +offset bug is
-    // in the shared matrix composition path or TextRunNode-specific.
-    // *** REMOVE once root cause is confirmed. ***
-    static bool kTicket104SourceNodeOneShot = true;
-    if (kTicket104SourceNodeOneShot) {
-        spdlog::info(
-            "[TICKET104:source_node:predicted_bbox] shape={} "
-            "override.has={} override.t=({:.2f},{:.2f}) "
-            "node.wt=({:.2f},{:.2f}) centered={} uses_2_5d={} "
-            "ssaa={:.2f} matrix.t=({:.2f},{:.2f}) canvas=({:.0f},{:.0f})",
-            static_cast<int>(m_node.shape.type()),
-            m_matrix_override.has_value() ? 1 : 0,
-            m_matrix_override ? (*m_matrix_override)[3][0] : -1.0f,
-            m_matrix_override ? (*m_matrix_override)[3][1] : -1.0f,
-            m_node.world_transform.position.x,
-            m_node.world_transform.position.y,
-            m_centered ? 1 : 0,
-            m_uses_2_5d_projection ? 1 : 0,
-            static_cast<f32>(ctx.policy.ssaa_factor),
-            matrix[3][0], matrix[3][1],
-            static_cast<f32>(ctx.frame_input.width),
-            static_cast<f32>(ctx.frame_input.height)
-        );
-        kTicket104SourceNodeOneShot = false;
-    }
-
     f32 spread = 0.0f;
     if (m_node.shadow.enabled) {
         spread = std::max(spread, m_node.shadow.radius + std::max(std::abs(m_node.shadow.offset.x), std::abs(m_node.shadow.offset.y)));

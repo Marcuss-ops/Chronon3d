@@ -104,51 +104,11 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
     auto bbox = renderer::compute_world_bbox(m_render_ref.shape, matrix, spread);
 #endif
 
-    // TICKET-104 DIAGNOSTIC — one-shot runtime log of the predicted
-    // bbox computation + clip-to-canvas decision.  *** REMOVE once root
-    // cause is confirmed. ***
-    // Critical for isolating the rasterization gap: if the fix's matrix
-    // (translate(1920, 1080)) puts the world bbox off-canvas, the
-    // clip_to() makes the bbox empty, and the function returns a zero
-    // bbox.  The executor likely interprets a zero bbox as "no work to
-    // do" and skips execute() entirely, which would explain why
-    // prepare_per_frame_shape and draw_text_run diagnostics never fire.
-    static bool kTicket104PbxOneShot = true;
-    if (kTicket104PbxOneShot) {
-        const bool diag = ctx.policy.diagnostics_enabled;
-        const f32 mm_t_x = matrix[3][0];
-        const f32 mm_t_y = matrix[3][1];
-        spdlog::info(
-            "[TICKET104:predicted_bbox] "
-            "matrix.t=({:.2f},{:.2f}) spread={:.2f} "
-            "world_bbox=({:d},{:d},{:d},{:d}) "
-            "diagnostics_enabled={} canvas=({:.0f},{:.0f})",
-            mm_t_x, mm_t_y, spread,
-            bbox.x0, bbox.y0, bbox.x1, bbox.y1,
-            diag ? 1 : 0,
-            static_cast<f32>(ctx.frame_input.width),
-            static_cast<f32>(ctx.frame_input.height)
-        );
-    }
-
     if (!ctx.policy.diagnostics_enabled) {
         bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
     }
     if (bbox.is_empty()) {
-        if (kTicket104PbxOneShot) {
-            spdlog::info(
-                "[TICKET104:predicted_bbox] RETURN zero-bbox "
-                "(executor likely skips execute())");
-            kTicket104PbxOneShot = false;
-        }
         return raster::BBox{0, 0, 0, 0};
-    }
-    if (kTicket104PbxOneShot) {
-        spdlog::info(
-            "[TICKET104:predicted_bbox] RETURN bbox=({:d},{:d},{:d},{:d})",
-            bbox.x0, bbox.y0, bbox.x1, bbox.y1
-        );
-        kTicket104PbxOneShot = false;
     }
     return bbox;
 }
