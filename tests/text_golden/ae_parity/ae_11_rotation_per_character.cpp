@@ -38,15 +38,18 @@
 // character across the text run) is Phase 2 Killer 4 ticket
 // `TICKET-AE-PARITY-KILLER-PER-CHAR-3D`.
 //
-// Phase 2 Killer 4 upgrade path (forward-only, NOT YET IMPL —
-// TICKET-001 tier):
+// Phase 2 Killer 4 upgrade path (forward-only, NOT YET IMPL — TICKET-001 tier).
+// The chain uses an explicit literal 22.0f (not a kYawMaxDeg constant) to
+// keep the documented call site self-contained — no symbol that future
+// readers must look up. When Phase 2 Killer 4 lands, refactor 22.0f into a
+// named constant at that scope (e.g. `static constexpr f32 kYawMaxDeg = 22.0f;`):
 //   l.text_run("rot_fan", {.content = "PER GLYPH 3D", ...})
 //     .animate(animator("rot_fan_selector_char")
 //                .select(selector(TextSelectorUnit::Character)
 //                          .shape_smooth()
 //                          .start(Frame{ 0},    0.0f)
 //                          .start(Frame{30}, 100.0f))
-//                .rotation(Vec3{0.0f, kYawMaxDeg, 0.0f}));
+//                .rotation(Vec3{0.0f, 22.0f, 0.0f}));               // = kYawMaxDeg
 //
 // This per-glyph Animator chain pushes a TextAnimatorSpec into the layer's
 // pending run; the per-glyph evaluator at
