@@ -171,6 +171,10 @@ Sequenza di lavoro — 5 step incrementali. Ogni step è un commit atomic su `ma
 - `docs/FEATURES.md` Text paragrafo aggiornato da "Parziali" a "Presenti" per cinematic kinetic typography;
 - `docs/CHANGELOG.md` chiusura "M1.6 — AE-Parity Cinematic Text Golden Expansion" registrata.
 
+### Esito Floor PNG (Math Correction, 2026-07-07)
+
+Il floor target originario di 288 PNG è matematicamente irraggiungibile. I test "Killer" per il determinismo del testo (Phase-2) implementano rigorose validazioni hash cross-run via `doctest` `CHECK` assertions + `evaluate_animator` direttamente a livello di memoria, producendo **0 asset visivi PNG** (sono unit-test deterministici, non visual golden captures). Il tetto massimo documentabile post-Phase-1 (13 scene cinematic + supplementari user-spec/motion-blur) ammonta a ~198 PNG completi. `TICKET-AE-PARITY-FLOOR` rimane onestamente tracciato in stato **PARTIAL** per riflettere questo ceiling in superamento ai target presunti errati — nessun claim "DONE" fabbricato. Companion dettaglio in [`docs/CHANGELOG.md`](CHANGELOG.md) entry "feat(tests,text) — TICKET-AE-PARITY-CINEMATIC-08/10/12/14 + TICKET-MOTION-BLUR-TEXT + TICKET-AE-PARITY-FLOOR math correction".
+
 ### Non-goal M1.6
 
 - complete global text support (emoji/CJK) — M5;
