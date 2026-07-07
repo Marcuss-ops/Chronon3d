@@ -24,7 +24,7 @@ namespace ctt = chronon3d::test;   // centralised test helpers
 
 static graph::RenderGraphContext make_ctx(int frame, int w, int h) {
     graph::RenderGraphContext ctx;
-    ctx.frame = ctt::make_render_frame_info(w, h, frame);
+    ctx.frame_input = ctt::make_render_frame_info(w, h, frame);
     return ctx;
 }
 

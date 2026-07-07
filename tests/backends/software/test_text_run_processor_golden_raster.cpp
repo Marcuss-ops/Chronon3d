@@ -26,22 +26,12 @@
 #include <blend2d.h>
 #include <cstdint>
 
+#include "text_test_fnv1a.h"
+
 using chronon3d::TextRenderResources;
 using chronon3d::TextScratchManager;
 
 namespace {
-
-// ── FNV-1a 64-bit hash (canonical, matches tests/scene/camera pattern) ────
-[[nodiscard]] std::uint64_t fnv1a_64(const std::uint8_t* data, std::size_t n) noexcept {
-    constexpr std::uint64_t kOffset = 0xcbf29ce484222325ULL;
-    constexpr std::uint64_t kPrime  = 0x100000001b3ULL;
-    std::uint64_t h = kOffset;
-    for (std::size_t i = 0; i < n; ++i) {
-        h ^= static_cast<std::uint64_t>(data[i]);
-        h *= kPrime;
-    }
-    return h;
-}
 
 // ── Helper: render a fixed synthetic BLImage + return its pixel-data hash ──
 //

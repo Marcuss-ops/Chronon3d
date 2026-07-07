@@ -30,7 +30,7 @@ TEST_CASE("PR2-Unit-Mask: predicted_bbox is identity passthrough") {
     m.pos = {10.0f, 20.0f, 0.0f};
 
     graph::RenderGraphContext ctx;
-    ctx.frame = ctt::make_render_frame_info(200, 200);
+    ctx.frame_input = ctt::make_render_frame_info(200, 200);
 
     raster::BBox input{12, 18, 88, 92};
     std::array<std::optional<raster::BBox>, 1> inputs = { input };
@@ -64,8 +64,8 @@ TEST_CASE("PR2-Unit-Mask: cache_key varies with mask type + radius") {
     auto node_big  = std::make_unique<MaskNode>(Mask{rect_big});
 
     graph::RenderGraphContext ctx;
-    ctx.frame = ctt::make_render_frame_info(200, 200);
-    ctx.options.modular_coordinates = false;
+    ctx.frame_input = ctt::make_render_frame_info(200, 200);
+    ctx.policy.modular_coordinates = false;
 
     auto k_rect  = node_rect->cache_key(ctx);
     auto k_circ  = node_circ->cache_key(ctx);
@@ -85,10 +85,10 @@ TEST_CASE("PR2-Unit-Mask: cache_key differs when modular_coordinates flag flips"
     auto node = std::make_unique<MaskNode>(Mask{m});
     graph::RenderGraphContext ctx_a;
     graph::RenderGraphContext ctx_b;
-    ctx_a.frame = ctt::make_render_frame_info(200, 200);
-    ctx_b.frame = ctt::make_render_frame_info(200, 200);
-    ctx_a.options.modular_coordinates = false;
-    ctx_b.options.modular_coordinates = true;
+    ctx_a.frame_input = ctt::make_render_frame_info(200, 200);
+    ctx_b.frame_input = ctt::make_render_frame_info(200, 200);
+    ctx_a.policy.modular_coordinates = false;
+    ctx_b.policy.modular_coordinates = true;
 
     CHECK(node->cache_key(ctx_a).params_hash != node->cache_key(ctx_b).params_hash);
 }
