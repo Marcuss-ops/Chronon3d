@@ -14,6 +14,8 @@
 // AE parity scene factories
 #include "../../tests/visual/ae_parity/ae_parity_scenes.hpp"
 
+
+
 namespace chronon3d::content::ae_parity {
 
 void register_ae_parity_compositions(CompositionRegistry& registry) {
@@ -37,6 +39,11 @@ void register_ae_parity_compositions(CompositionRegistry& registry) {
         [](const CompositionProps&) { return test::make_ae_cam_09_motion_blur(); });
     registry.add("AE_CAM_10_near_clip",
         [](const CompositionProps&) { return test::make_ae_cam_10_near_clip(); });
+
+    // NOTE: The 5 cinematic compositions (ae_08/10/12/14 + motion_blur_text)
+    // are registered via cli_init.hpp when CHRONON3D_BUILD_CONTENT is OFF,
+    // or via the CLI's own source compilation when CONTENT is ON.
+    // See apps/chronon3d_cli/CMakeLists.txt for the fallback source inclusion.
 }
 
 } // namespace chronon3d::content::ae_parity
