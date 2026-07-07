@@ -93,6 +93,26 @@ target_sources(chronon3d_text_golden_tests
         text_golden/ae_parity/ae_06_tracking_expansion.cpp
 )
 
+# TICKET-AE-PARITY-CINEMATIC-07 — ae_stroke_reveal scene. Appended directly
+# to existing target via target_sources(). 6 TEST_CASEs = 16:9 + 9:16 × 3
+# frame snapshots f00/f15/f30 with stroke-then-fill cinematic reveal:
+# stroke paint always on (medial-edge silhouette scaffold stable across
+# frames) while the inner fill Color α interpolates 0.05 → 0.55 → 1.00 —
+# outline-only at f00 reading as pure stroke silhouette, half-outline /
+# half-cream-tinted fill at f15, fully composited white-body + ink-stroke
+# silhouette at f30. Stroke width stable at 8.0f for in-flight reveal,
+# settles to 6.0f at f30 (typographic finalisation). Fill-color RGB
+# interpolates amber→cream→white for cinematic poster-typography feel.
+# Cross-link ae_04_fill_stroke_shadow (already shipped) — same .paint
+# stroke_enabled + stroke_color + stroke_width pattern; ae_07 adds the
+# fill-alpha choreography + RGB interpolation over the static stroke
+# scaffold. Cat-2 freeze-compliant (zero new public API; verify_golden
+# reuse; same harness chain).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/ae_parity/ae_07_stroke_reveal.cpp
+)
+
 add_test(
     NAME TextGolden
     COMMAND chronon3d_text_golden_tests
