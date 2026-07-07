@@ -7,6 +7,28 @@
 
 ## Luglio 2026 — Diagnostic
 
+### diag(ae-cam) — TICKET-ae-cam-hash-collision Soluzione B build-verification FAILED (working build host, 2026-07-07)
+
+- **Verification attempt outcome**: end-to-end verification of the Soluzione B atomic commit `d39b37f1` was attempted on a working build host on 2026-07-07.  **Gate did NOT transition FAIL→PASS**.  Promotion to `DONE` is intentionally deferred.
+- **Machine-verified evidence** (this session, post-`d39b37f1` push):
+  - `chronon3d_ae_parity_tests` built OK (incremental rebuild, source changes compiled clean).
+  - `CHRONON3D_UPDATE_GOLDENS=1 chronon3d_ae_parity_tests --test-case='AE_CAM_*'` ran: **32/35 tests PASSED, 3 in-memory `framebuffer_hash(*fb0) != framebuffer_hash(*fb60)` CHECKs FAILED** at `tests/visual/ae_parity/ae_parity_tests.cpp:230` (AE_CAM_03_two_node_poi), `:303` (AE_CAM_05_orbit), `:341` (AE_CAM_06_dolly_zoom).
+  - **13 banned PNGs** (`sha256` prefix `cc86d2b5e80287dc`) remain on disk → `bash tools/check_ae_parity_golden_state.sh` exit 1 `GATE_FAIL`.  Banned PNGs map to: `ae_cam_02_zoom_fov_frame{000,060}`, `ae_cam_03_two_node_poi_frame{030,060}`, `ae_cam_04_parent_null_frame{000,060}`, `ae_cam_05_orbit_frame{015,030,060}`, `ae_cam_07_gatefit_frame000`, `ae_cam_09_motion_blur_frame{000,030}`, `ae_cam_10_near_clip_frame000`.
+  - `chronon3d_cache_tests` BUILD FAILED at the `ar` link step for `src/libchronon3d_sdk_impl.a` (system-level disk-quota exceeded, same as prior turns) → 9-key `test_node_cache_ae_sweep` did NOT run.
+  - `tools/check_ae_parity_golden_state.sh` self-test (`tests/tools/test_check_ae_parity_golden_state.sh`) PASSes 3/3 cases (the gate script itself is correct; the on-disk PNG set is the failure surface).
+- **Candidate root cause (Gemini source-read, NOT machine-verified)**: the round-2 fix in `src/render_graph/nodes/source_node.cpp` (commit `20dd4b11`, propagated into `d39b37f1`) added a new `apply_2_5d_projection` branch in `SourceNode::predicted_bbox` (lines 109-127) and `SourceNode::execute` (lines 203-227), conditioned on the **global** `has_camera_2_5d` trigger.  Inside the branch, the call `chronon3d::project_layer_2_5d(tr, base_matrix, ...)` passes a **default-constructed** `chronon3d::Transform tr;` (scale=(1,1,1), rotation=identity, anchor=(0,0,0)).  The empty `tr` propagates `input.layer_size = (1,1)` to `CameraProjectionResolver::project_layer()`, dropping the actual shape bbox.  The 1x1 projected bbox is sub-pixel-clipped at the rasterizer → 2D layers render as transparent-black → `framebuffer_hash(*fb0) == framebuffer_hash(*fb60)` (both transparent-black).  This is the **inverse** of the original precision-collapse bug.
+- **Forward-fix path (next session, working build host)**:
+  1. Restore the `m_uses_2_5d_projection` check in the new branch — condition on `(m_uses_2_5d_projection && has_camera_2_5d)` (the original round-1 pattern, mirroring `MultiSourceNode`).  SourceNode per-node flag accurately signals "this layer should be 2.5D-projected"; the cache-key fold only needs the global trigger because the cache key is per-scene, not per-node.
+  2. **Alternative**: keep the global trigger but pass the layer's actual `Transform` (from `m_node.world_transform`, same data source as `base_matrix`) instead of the empty `tr`.
+  3. Lock verification: 9-key `test_node_cache_ae_sweep` PASS + 24-PNG anti-stale-gate FAIL→PASS transition (re-bake via `CHRONON3D_UPDATE_GOLDENS=1` produces 24 fresh-distinct PNGs).
+  4. Re-review with code-reviewer-minimax-m3 (parallel with verification).
+- **Doc-sync in this commit**:
+  - `docs/FOLLOWUP_TICKETS.md` `TICKET-AE-CAM-PRECISION-COLLAPSE` + `TICKET-ae-cam-hash-collision` rows updated with 1-sentence forward-point to this verification gap.
+  - `docs/tickets/TICKET-ae-cam-hash-collision.md` `## Stato` updated `OPEN` → `PARTIAL (Code landed, verification FAILED)` + new `## Verification gap` section with full machine-verified evidence + candidate root cause + forward-fix path.
+- **Honesty policy (AGENTS.md §anti-greenwashing)**: this commit DOES NOT promote any ticket to `DONE`.  No false "9-key test PASS" claim is fabricated (the build failed at `ar` step, test never ran).  No false "gate transitioned FAIL→PASS" claim is fabricated (13 banned PNGs remain, gate exit 1).  The promotion clause in the original user request ("Once verified, update ... to fully DONE") is explicitly NOT triggered.
+- **AGENTS.md v0.1 freeze compliance**: Cat-5 (doc-only alignment) + Cat-1 (build verifier status honest report).  Zero new public API surface, zero new singleton/registry/cache/resolver/service-locator.  No code-side changes in this commit (pure documentation).
+- **Cross-references**: [`docs/tickets/TICKET-ae-cam-hash-collision.md`](docs/tickets/TICKET-ae-cam-hash-collision.md) `## Verification gap` (full diagnosis); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) rows for `TICKET-AE-CAM-PRECISION-COLLAPSE` + `TICKET-ae-cam-hash-collision` (state preserved at PARTIAL + forward-point); `src/render_graph/nodes/source_node.cpp` lines 109-127 + 203-227 (candidate bug surface).
+
 ### diag(ae-cam) — TICKET-121 FASE 1-4: diagnosi completa AE_CAM hash-collision (4 commit su main, 2026-07-07)
 
 - **FASE 1 (ca13ab09, 9f06a9e1):** Build + run `chronon3d_ae_parity_tests` con `CHRONON3D_PROJ_DIAG=1`. Scoperto che la fix suggerita dal ticket (sostituire `proj.projection_matrix` → `proj.transform.to_mat4()`) era **gia applicata** in tutti e 3 i branch di `multi_source_node.cpp` (righe 72, 190, 260). PROJ_DIAG non ha emesso output (tutti i layer visibili). I test AE_CAM_02 e AE_CAM_04 hanno gia MESSAGE workaround che forward-pointano a `TICKET-ae-cam-hash-collision`.
