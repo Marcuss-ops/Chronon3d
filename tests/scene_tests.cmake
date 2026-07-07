@@ -67,6 +67,7 @@ add_executable(chronon3d_scene_tests
     # src/scene/camera/camera_v1/shot_timeline.cpp on the same commit.
     scene/camera/test_camera_context_framerate_propagation.cpp
     scene/camera/test_orient_along_path.cpp   # Agent1 DoD: 4-sub-test OrientAlongPath regression lock (Step 4)
+    scene/camera/test_camera_trajectory_preserves_base_fields.cpp   # CAM-DoD Agent1: TrajectoryMotion carry-forward (lens/DOF/motion_blur/parent/POI)
     scene/camera/test_camera_stabilization.cpp
     scene/camera/test_camera_projection_contract.cpp
     scene/camera/test_dof_ae_parity.cpp   # FASE 5 — DOF AE parity: 6 test categories (enable, rack focus, aperture, physical lens, projection independence, disabled fields)
