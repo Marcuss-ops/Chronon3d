@@ -149,9 +149,9 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
             return std::nullopt;
         }
         matrix = *matrix_opt;
-    } else if (m_uses_2_5d_projection || m_centered) {
-        matrix = canvas_center * ssaa_scale * base_matrix;
     } else {
+        // TICKET-TEXT-CLEANUP-5: centering is now baked into matrix_override
+        // by the source pass / refresh.  m_centered removed.
         matrix = ssaa_scale * base_matrix;
     }
 
@@ -298,9 +298,9 @@ NodeExecResult SourceNode::execute(
                 return NodeExecResult{std::move(fb)};
             }
             state.matrix = *state_matrix_opt;
-        } else if (m_uses_2_5d_projection || m_centered) {
-            state.matrix = canvas_center * ssaa_scale * base_matrix;
         } else {
+            // TICKET-TEXT-CLEANUP-5: centering is now baked into matrix_override
+            // by the source pass / refresh.  m_centered removed.
             state.matrix = ssaa_scale * base_matrix;
         }
         state.opacity = m_opacity_override.value_or(m_node.world_transform.opacity);
@@ -390,11 +390,11 @@ bool SourceNode::can_seed_full_frame(const RenderGraphContext& ctx) const noexce
     const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
     const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
     const Mat4 local_matrix = m_matrix_override.value_or(tr.to_mat4());
-    const Mat4 effective_matrix = m_uses_2_5d_projection || m_centered
-        ? (canvas_center * ssaa_scale * local_matrix)
-        : (ssaa_scale * local_matrix);
+    // TICKET-TEXT-CLEANUP-5: centering is now baked into matrix_override
+    // by the source pass / refresh.  m_centered removed.
+    const Mat4 effective_matrix = ssaa_scale * local_matrix;
 
-    return covers_full_frame_as_rectangle(effective_matrix, static_cast<f32>(ctx.frame_input.width), static_cast<f32>(ctx.frame_input.height), m_uses_2_5d_projection || m_centered);
+    return covers_full_frame_as_rectangle(effective_matrix, static_cast<f32>(ctx.frame_input.width), static_cast<f32>(ctx.frame_input.height), false);
 }
 
 } // namespace chronon3d::graph
