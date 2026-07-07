@@ -89,9 +89,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 if (ctx.frame_input.has_camera_2_5d) {
                     cache::fold_camera_into_params_hash(run_key, ctx.frame_input.camera_2_5d);
                 }
-                const Mat4 run_matrix = use_local
-                    ? node.world_transform.to_mat4()
-                    : (item_source_world * node.world_transform.to_mat4());
+                const auto placement = resolve_text_run_placement(item, node, ctx);
                 const f32 run_opacity = use_local
                     ? node.world_transform.opacity
                     : (item.transform.opacity * node.world_transform.opacity);
@@ -101,7 +99,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     run_shape,
                     node,
                     run_key,
-                    TextRunPlacement{run_matrix},
+                    placement,
                     ctx.policy.modular_coordinates ? std::optional<f32>(run_opacity) : std::nullopt,
                     source_is_static ? static_memory_cache("text_run") : frame_variant_cache("text_run")
                 ));
@@ -109,11 +107,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 if (ctx.policy.diagnostics_enabled) {
                     spdlog::info(
                         "[source-pass] layer='{}' routed to TextRunNode "
-                        "glyphs={} centered={} projected={}",
+                        "glyphs={}",
                         layer.name.c_str(),
-                        node.shape.text_run_shape_handle().value->glyphs.size(),
-                        should_use_centered_rendering(item, ctx),
-                        item.projected
+                        node.shape.text_run_shape_handle().value->glyphs.size()
                     );
                 }
                 return source;
