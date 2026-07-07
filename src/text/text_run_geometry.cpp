@@ -4,6 +4,12 @@
 // Extracted from backends/software/processors/text_run/text_run_processor.cpp
 // so the render graph can compute bounding boxes without linking the software
 // backend.
+//
+// Canonical per-glyph bbox accumulator: compute_text_run_visual_bounds()
+// Used by:
+//   - compute_text_run_world_bbox (adds model transform + spread)
+//   - software rasterizer prepare stage (uses local-space directly)
+//   - future cache/tile pruning, debug overlay, etc.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/text/text_run_geometry.hpp>
@@ -15,42 +21,37 @@
 namespace chronon3d::renderer {
 
 // ═══════════════════════════════════════════════════════════════════════════
-// compute_text_run_world_bbox
+// compute_text_run_visual_bounds — canonical local-space bbox accumulator
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Conservative approximation.  Uses layout positions + position offsets,
-// per-glyph rotation.x/y shear estimates, scale.z expansion, blur,
-// stroke width, and spread padding.  Transforms the four corners of the
-// local-space bbox by the model matrix to produce a world-space bbox.
+// Single source of truth for per-glyph visual bounds.  Walks both active
+// and crossfade glyph vectors, accounting for:
+//   - layout position + animated offset
+//   - blur + stroke width + safety padding (8px)
+//   - 2.5D shear estimates (rotation.x/y tangent projection)
+//   - scale.z expansion
+//   - approximate glyph advance (12px)
+//   - placed.total_height for baseline-to-bottom extent
+//
+// Excludes: model transform, world-space projection, shadow padding,
+// spread (shadow/glow), and rasterizer margin.  Those are caller concerns.
 
-raster::BBox compute_text_run_world_bbox(
-    const TextRunShape& shape,
-    const Mat4& model,
-    f32 spread
+std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
+    const TextRunShape& shape
 ) {
     const bool has_active =
         shape.layout != nullptr && !shape.glyphs.empty();
     const bool has_crossfade =
         shape.crossfade_layout != nullptr && !shape.crossfade_glyphs.empty();
 
-    // Only return zero when BOTH sides are empty.  A single-side
-    // edge case (e.g. active->utf8 is empty post-keyframe while
-    // crossfade_from still has content) still shows the crossfade
-    // glyphs during the brief residue frame, so we keep the bbox
-    // computation alive for it.
     if (!has_active && !has_crossfade) {
-        return {0, 0, 0, 0};
+        return std::nullopt;
     }
 
     float min_x = 1e10f, max_x = -1e10f;
     float min_y = 1e10f, max_y = -1e10f;
 
-    // Per-glyph bbox accumulator.  Walks one glyph vector against
-    // one PlacedGlyphRun and widens the running local-space bbox.
-    // Captured (by reference) so the active + crossfade iterations
-    // below share the same min/max accumulators; the world-space
-    // transform later operates on the union.
-    auto accumulate_for_layout =
+    auto accumulate =
         [&](const std::vector<GlyphInstanceState>& glyphs,
             const PlacedGlyphRun& placed) {
             for (const auto& g : glyphs) {
@@ -65,13 +66,13 @@ raster::BBox compute_text_run_world_bbox(
                         static_cast<float>(g.rotation.y)
                             * (3.14159265f / 180.0f),
                         -1.5607f, 1.5607f)))
-                    * static_cast<float>(g.layout_position.y);
+                    * std::abs(static_cast<float>(g.layout_position.y));
                 const float shear_y_extra = std::abs(std::tan(
                     std::clamp(
                         static_cast<float>(g.rotation.x)
                             * (3.14159265f / 180.0f),
                         -1.5607f, 1.5607f)))
-                    * static_cast<float>(g.layout_position.x);
+                    * std::abs(static_cast<float>(g.layout_position.x));
                 const float scale_extra =
                     std::abs(static_cast<float>(g.scale.z) - 1.0f)
                     * std::abs(static_cast<float>(g.layout_position.y));
@@ -90,12 +91,37 @@ raster::BBox compute_text_run_world_bbox(
     // (rather than eager-clone), so a shorter crossfade text doesn't
     // clip the longer active text and vice versa.
     if (has_active) {
-        accumulate_for_layout(shape.glyphs, shape.layout->placed);
+        accumulate(shape.glyphs, shape.layout->placed);
     }
     if (has_crossfade) {
-        accumulate_for_layout(shape.crossfade_glyphs,
-                              shape.crossfade_layout->placed);
+        accumulate(shape.crossfade_glyphs,
+                  shape.crossfade_layout->placed);
     }
+
+    return TextRunLocalBounds{min_x, min_y, max_x, max_y};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// compute_text_run_world_bbox
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Delegates to compute_text_run_visual_bounds() for local-space bounds,
+// then transforms the four corners by @p model and pads by @p spread.
+
+raster::BBox compute_text_run_world_bbox(
+    const TextRunShape& shape,
+    const Mat4& model,
+    f32 spread
+) {
+    auto local = compute_text_run_visual_bounds(shape);
+    if (!local) {
+        return {0, 0, 0, 0};
+    }
+
+    const float min_x = local->min_x;
+    const float min_y = local->min_y;
+    const float max_x = local->max_x;
+    const float max_y = local->max_y;
 
     // Transform corners to world space
     Vec4 corners[4] = {
