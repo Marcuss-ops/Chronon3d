@@ -144,13 +144,11 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     ? node.world_transform.opacity
                     : (item.transform.opacity * node.world_transform.opacity);
 
-                // TICKET-TEXT-CLEANUP-5 (SourceNode follow-up): bake
-                // canvas_center into the matrix when (centered || projected)
+                // Bake canvas_center into the matrix when (centered || projected)
                 // && !modular_coordinates, so the node no longer needs to
                 // know about centering.  The `item.projected` condition
-                // preserves the old `m_uses_2_5d_projection || m_centered`
-                // behavior where projected layers always got canvas_center
-                // even without implicit centering.
+                // ensures projected layers always get canvas_center even
+                // without implicit centering.
                 Mat4 resolved_source_matrix = shape_matrix;
                 f32 resolved_source_opacity = shape_opacity;
                 if (!ctx.policy.modular_coordinates && (should_use_centered_rendering(item, ctx) || item.projected)) {
@@ -249,11 +247,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             });
         }
 
-        // TICKET-TEXT-CLEANUP-5 (MultiSourceNode follow-up): bake
-        // canvas_center into each item matrix when (centered || projected)
+        // Bake canvas_center into each item matrix when (centered || projected)
         // && !modular_coordinates.  The `item.projected` condition
-        // preserves the old `m_uses_2_5d_projection || m_centered`
-        // behavior.
+        // ensures projected layers always get canvas_center.
         if (!ctx.policy.modular_coordinates && (should_use_centered_rendering(item, ctx) || item.projected)) {
             const Mat4 cc = glm::translate(Mat4(1.0f),
                 Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));

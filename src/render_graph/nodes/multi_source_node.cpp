@@ -44,13 +44,9 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
         if (!item.node) continue;
         Mat4 matrix;
         if (ctx.frame_input.has_camera_2_5d) {
-            // TICKET-ae-cam-hash-collision Soluzione B (MultiSourceNode
-            // consistency follow-up, code-reviewer #1 from commit 20dd4b11):
-            // condition the 2.5D projection on the *global* `has_camera_2_5d`
-            // trigger, NOT on the per-node `m_uses_2_5d_projection` flag.
-            // Mirrors the SourceNode round-2 pattern (the cache-key fold
-            // already lives here, so the rendering-side projection must
-            // also reach the same trigger for key/pixel consistency).
+            // Condition the 2.5D projection on the global `has_camera_2_5d`
+            // trigger (Soluzione B).  Mirrors the SourceNode pattern for
+            // key/pixel consistency.
             //
             // Dedup (round-2/3 code-reviewer #2 follow-up): the
             // projection+continue logic (from_mat4 + project_layer_2_5d +
@@ -158,11 +154,8 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
     }
 
     // 2.5D camera fingerprint (TICKET-ae-cam-hash-collision Soluzione B).
-    // Conditional on `has_camera_2_5d` (not `m_uses_2_5d_projection`) so even
-    // nodes without the 2.5D flag still differentiate per-frame when the scene
-    // carries a Camera2_5D (e.g. AE_CAM_02 zoom-only composition whose
-    // SourceNode does NOT have m_uses_2_5d_projection but IS animated by
-    // cam.zoom 500/1000/1500).
+    // Conditional on `has_camera_2_5d` globally so zoom-animated frames
+    // (e.g. AE_CAM_02) produce distinct per-frame keys.
     if (ctx.frame_input.has_camera_2_5d) {
         cache::fold_camera_into_params_hash(key, ctx.frame_input.camera_2_5d);
     }
