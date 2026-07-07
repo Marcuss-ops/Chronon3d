@@ -66,7 +66,7 @@
 
 ## Luglio 2026 — Diagnostic
 
-### feat(tests,text) — TICKET-AE-PARITY-CINEMATIC-08/10/12/14 + TICKET-MOTION-BLUR-TEXT + TICKET-AE-PARITY-FLOOR math correction (commit pending this session)
+### feat(tests,text) — TICKET-AE-PARITY-CINEMATIC-08/10/12/14 + TICKET-MOTION-BLUR-TEXT + TICKET-AE-PARITY-FLOOR math correction (commit `3ddbbdff`, 2026-07-07)
 
 - **4 nuove scene cinematic AE-parity (24 PNG net new)** — landed `tests/text_golden/ae_parity/ae_08_glow_pulse.cpp` + `ae_10_scale_pop.cpp` + `ae_12_random_character_jitter.cpp` + `ae_14_multiline_9_16.cpp`. Ognuna produce 6 TEST_CASE × AR (16:9 landscape + 9:16 portrait) × 3 frame snapshots = 6 PNG per scene (4 × 6 = 24 PNG net new). Canonical pattern `composition(...) + SceneBuilder::layer(...) + LayerBuilder::text(...)` + `verify_golden` da `tests/visual/support/golden_test.hpp`. ZERO `TextShape` / `rich_text` references (AGENTS.md v0.1 Cat-2 freeze-compliant). Code-reviewer (`code-reviewer-minimax-m3`) 3 round (v1 build-risk → v2 cosmetic → v3 final) tutti PASS con rilievi non-blocking su `u64 → std::uint64_t` portability e `.max_lines` field non-canonical (entrambi applicati).
 - **Motion blur text scene (6 PNG net new)** — landed `tests/text_golden/motion_blur_text/motion_blur_text_scene.cpp` (3 baseline + 3 blurred TEST_CASEs). Forward-point a `TICKET-MOTION-BLUR-TEXT` capture pipeline.
