@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <glm/glm.hpp>
 #include <cmath>
 
@@ -161,6 +162,34 @@ inline Mat4 strip_implicit_canvas_centering(
 
 inline Transform calculate_centered_transform(const Transform& t, const RenderGraphContext&) {
     return t;
+}
+
+/// TextRun placement resolver — bypasses all centering machinery.
+///
+/// TextRun items receive a pre-resolved `TextRunPlacement` from the graph
+/// builder.  `build_world_matrix` only applies SSAA scaling on top — no
+/// canvas-centre or centering-mode decisions happen downstream.  This
+/// function computes the final placement directly from the layer item and
+/// node transforms, WITHOUT going through `source_space_world_matrix`,
+/// `is_implicit_2d_centering_only`, or `should_use_centered_rendering`.
+///
+/// The centering functions remain available for non-TextRun shapes
+/// (SourceNode / MultiSourceNode regular items).
+inline TextRunPlacement resolve_text_run_placement(
+    const LayerGraphItem& item,
+    const ::chronon3d::RenderNode& node,
+    const RenderGraphContext& ctx
+) {
+    const bool needs_transform = layer_needs_render_transform(item, ctx);
+    const bool use_local = ctx.policy.modular_coordinates && needs_transform && !item.native_3d;
+
+    if (use_local) {
+        return TextRunPlacement{node.world_transform.to_mat4()};
+    }
+    // Raw world matrix — no canvas-centre stripping.  TextRunNode's
+    // `build_world_matrix` only applies SSAA and trusts the builder
+    // has already resolved everything else.
+    return TextRunPlacement{item.world_matrix * node.world_transform.to_mat4()};
 }
 
 } // namespace chronon3d::graph::detail
