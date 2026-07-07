@@ -107,69 +107,20 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             // supported here — multi-node aggregation into MultiSourceNode
             // does not currently understand TextRunShape.
             if (node.shape.type() == ShapeType::TextRun) {
-                // Defensive: a TextRun node with a null shape is a
-                // programmer error (wiring failed to attach the shape).
-                // Surface loudly so the user fixes the binding rather than
-                // wondering why their text silently vanished.
                 auto run_shape = node.shape.text_run_shape_handle().value;
                 if (!run_shape) {
-                    spdlog::error(
-                        "[source-pass] layer='{}' node='{}' ShapeType::TextRun "
-                        "but text_run_shape_handle().value is null — wiring failed to attach "
-                        "the shape; falling through to SourceNode path.",
-                        layer.name.c_str(), std::string(node.name));
-                } else {
-                    cache::NodeCacheKey run_key{
-                        .scope = "layer.textrun:" + std::string(layer.name) + ":" + std::string(node.name),
-                        .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
-                        .width = ctx.frame_input.width,
-                        .height = ctx.frame_input.height,
-                        .params_hash = content_hash,
-                        .source_hash = hash_combine(hash_string(node.name), placement_hash)
-                    };
-                    // TICKET-ae-cam-hash-collision Soluzione B
-                    if (ctx.frame_input.has_camera_2_5d) {
-                        cache::fold_camera_into_params_hash(run_key, ctx.frame_input.camera_2_5d);
-                    }
-                    const Mat4 run_matrix = use_local
-                        ? node.world_transform.to_mat4()
-                        : (item_source_world * node.world_transform.to_mat4());
-                    const f32 run_opacity = use_local
-                        ? node.world_transform.opacity
-                        : (item.transform.opacity * node.world_transform.opacity);
-
-                    source = graph.add_node(std::make_unique<TextRunNode>(
-                        std::string(node.name),
-                        run_shape,
-                        node,
-                        run_key,
-                        should_use_centered_rendering(item, ctx),
-                        item.projected,
-                        ctx.policy.modular_coordinates ? std::optional<Mat4>(run_matrix) : std::nullopt,
-                        ctx.policy.modular_coordinates ? std::optional<f32>(run_opacity) : std::nullopt,
-                        source_is_static ? static_memory_cache("text_run") : frame_variant_cache("text_run")
-                    ));
-
-                    if (ctx.policy.diagnostics_enabled) {
-                        spdlog::info(
-                            "[source-pass] layer='{}' routed to TextRunNode "
-                            "glyphs={} centered={} projected={}",
-                            layer.name.c_str(),
-                            node.shape.text_run_shape_handle().value->glyphs.size(),
-                            should_use_centered_rendering(item, ctx),
-                            item.projected
-                        );
-                    }
-                    return source;
+                    // Hard fail — null shape is a wiring error (wiring failed
+                    // to attach the shape).  Don't silently fall through to
+                    // SourceNode and render a blank layer; the user must fix
+                    // the binding (LayerBuilder::text_run + materialize_text_run_shape).
+                    throw std::logic_error(
+                        "[source-pass] layer='" + std::string(layer.name) + "' node='" + std::string(node.name) +
+                        "' ShapeType::TextRun but text_run_shape_handle().value is null — "
+                        "wiring failed to attach the shape. Check LayerBuilder::text_run() + "
+                        "materialize_text_run_shape().");
                 }
-                // Null shape → fall through to existing SourceNode paths so the
-                // composition still builds.  The error log above is the user
-                // signal; the resulting SourceNode will render a blank layer.
-            }
-
-            if (node.shape.type() == ShapeType::Text) {
-                cache::NodeCacheKey source_key{
-                    .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
+                cache::NodeCacheKey run_key{
+                    .scope = "layer.textrun:" + std::string(layer.name) + ":" + std::string(node.name),
                     .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
                     .width = ctx.frame_input.width,
                     .height = ctx.frame_input.height,
@@ -178,25 +129,51 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 };
                 // TICKET-ae-cam-hash-collision Soluzione B
                 if (ctx.frame_input.has_camera_2_5d) {
-                    cache::fold_camera_into_params_hash(source_key, ctx.frame_input.camera_2_5d);
+                    cache::fold_camera_into_params_hash(run_key, ctx.frame_input.camera_2_5d);
                 }
-
-                const Mat4 text_matrix = use_local
+                const Mat4 run_matrix = use_local
                     ? node.world_transform.to_mat4()
                     : (item_source_world * node.world_transform.to_mat4());
-                const f32 text_opacity = use_local
+                const f32 run_opacity = use_local
                     ? node.world_transform.opacity
                     : (item.transform.opacity * node.world_transform.opacity);
 
-                source = graph.add_node(std::make_unique<SourceNode>(
-                    std::string(node.name), node, source_key,
+                source = graph.add_node(std::make_unique<TextRunNode>(
+                    std::string(node.name),
+                    run_shape,
+                    node,
+                    run_key,
                     should_use_centered_rendering(item, ctx),
                     item.projected,
-                    ctx.policy.modular_coordinates ? std::optional<Mat4>(text_matrix) : std::nullopt,
-                    ctx.policy.modular_coordinates ? std::optional<f32>(text_opacity) : std::nullopt,
-                    source_is_static ? static_memory_cache("source") : frame_variant_cache("source")
+                    ctx.policy.modular_coordinates ? std::optional<Mat4>(run_matrix) : std::nullopt,
+                    ctx.policy.modular_coordinates ? std::optional<f32>(run_opacity) : std::nullopt,
+                    source_is_static ? static_memory_cache("text_run") : frame_variant_cache("text_run")
                 ));
-            } else {
+
+                if (ctx.policy.diagnostics_enabled) {
+                    spdlog::info(
+                        "[source-pass] layer='{}' routed to TextRunNode "
+                        "glyphs={} centered={} projected={}",
+                        layer.name.c_str(),
+                        node.shape.text_run_shape_handle().value->glyphs.size(),
+                        should_use_centered_rendering(item, ctx),
+                        item.projected
+                    );
+                }
+                return source;
+            }
+
+            // ShapeType::Text is deprecated — all text now routes through
+            // ShapeType::TextRun (set by LayerBuilder::text_run()).  If this
+            // triggers, the caller is using the legacy text() API without
+            // the TextRun migration.
+            if (node.shape.type() == ShapeType::Text) {
+                throw std::logic_error(
+                    "[source-pass] ShapeType::Text is deprecated; use TextRun. "
+                    "LayerBuilder::text() should be migrated to text_run(). "
+                    "layer='" + std::string(layer.name) + "' node='" + std::string(node.name) + "'");
+            }
+            {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
                     .frame = source_is_static ? Frame{0} : ctx.frame_input.frame,
