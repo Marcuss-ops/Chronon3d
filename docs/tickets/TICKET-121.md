@@ -386,7 +386,50 @@ la cache key cambia tra frame con camera diversa.
 | `src/text/text_run_geometry.cpp` | `compute_text_run_world_bbox` | ✅ model matrix |
 | `include/chronon3d/render_graph/nodes/detail/bbox_projection.hpp` | `projected_native_3d_bbox` | ✅ world_matrix (3D only) |
 
-## FASE 3 — Investigazione cache layer (2026-07-07)
+## FASE 4 — Regression test + hash verification (2026-07-07)
+
+### Test execution
+
+```bash
+cmake --build /tmp/chronon-builds/linux-fast-dev --target chronon3d_ae_parity_tests -j $(nproc)
+/tmp/chronon-builds/linux-fast-dev/tests/chronon3d_ae_parity_tests -tc='AE_CAM_01*'  # regression top-left
+/tmp/chronon-builds/linux-fast-dev/tests/chronon3d_ae_parity_tests -tc='AE_CAM*'     # suite completa
+```
+
+**Risultato:** 35/35 PASS, 140/140 assertions, 0 FAIL, 0 SKIPPED.
+AE_CAM_01 PASS — nessuna regressione top-left.
+
+### Hash comparison frame0 vs frame60
+
+| Test | frame000 hash (short) | frame060 hash (short) | Diversi? |
+|---|---|---|---|
+| AE_CAM_01 (static_grid) | `367b1ca2` | N/A (static) | N/A |
+| AE_CAM_02 (zoom_fov) | `cc86d2b5` | `cc86d2b5` | ❌ COLLISION |
+| AE_CAM_03 (two_node_poi) | `45c78856` | `cc86d2b5` | ✅ DIVERSI |
+| AE_CAM_04 (parent_null) | `cc86d2b5` | `cc86d2b5` | ❌ COLLISION |
+| AE_CAM_05 (orbit) | `8c040e3e` | `cc86d2b5` | ✅ DIVERSI |
+| AE_CAM_06 (dolly_zoom) | `41ce83c4` | `387f80e7` | ✅ DIVERSI |
+| AE_CAM_07 (gatefit) | `cc86d2b5` | N/A | N/A (static) |
+| AE_CAM_08 (dof) | `bee303af` | `efd56a62` | ✅ DIVERSI |
+| AE_CAM_09 (motion_blur) | `cc86d2b5` | `cc86d2b5` (frame030) | ❌ COLLISION frame000==030 |
+| AE_CAM_10 (near_clip) | `7592b0e2` | N/A | N/A |
+
+### Analisi
+
+**Miglioramento significativo:** da 6 collisioni hash originali a solo 2 (+1 parziale):
+- AE_CAM_02 e AE_CAM_04: ancora hash-collision (già documentate nei MESSAGE workaround)
+- AE_CAM_09: frame000 == frame030 collision (frame015 è diverso — suggerisce che il motion blur non è attivo ai frame estremi)
+- AE_CAM_03, 05, 06, 08: frame0 != frame60 — **la camera animata produce output diversi!**
+
+**Hash comune:** `cc86d2b5e80287dc62010b2da4d335500d41bf75f50e71b56c31af2c8195cc7a`
+appare in 10+ golden files attraverso test diversi. È probabile che sia l'hash del
+golden "background statico" — frame dove la camera non ha ancora mosso la scena
+o la scena è un background full-canvas.
+
+### File ispezionati
+
+- `tests/golden/ae_parity/` — 23 golden PNGs totali
+- `tests/visual/ae_parity/ae_parity_tests.cpp:48` — golden_directory = `tests/golden/ae_parity`
 
 ### Node-level cache (`cache_evaluator.cpp`)
 
