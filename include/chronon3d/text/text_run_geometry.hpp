@@ -12,14 +12,42 @@
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 
+#include <optional>
+
 namespace chronon3d::renderer {
+
+/// Local-space visual bounds of a text run (no model transform applied).
+/// Returned by compute_text_run_visual_bounds().
+struct TextRunLocalBounds {
+    f32 min_x;
+    f32 min_y;
+    f32 max_x;
+    f32 max_y;
+};
+
+/// Compute the local-space visual bounds of a text run.
+///
+/// Walks both active and crossfade glyph vectors, accumulating a
+/// conservative bounding box that accounts for:
+///   - glyph layout positions + animated offsets
+///   - per-glyph blur and stroke width
+///   - 2.5D shear estimates (rotation.x/y)
+///   - scale.z expansion
+///   - approximate glyph advance (12px)
+///   - placed.total_height for baseline-to-bottom extent
+///
+/// Returns std::nullopt when both active and crossfade sides are empty.
+/// This is the SINGLE canonical per-glyph bbox accumulator — used by
+/// compute_text_run_world_bbox (adds model transform + spread) and by
+/// the software rasterizer's prepare stage (uses local-space directly).
+[[nodiscard]] std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
+    const TextRunShape& shape
+);
 
 /// Compute the world-space bounding box of a text run.
 ///
-/// Uses glyph positions (layout + animated offset), per-glyph 2.5D shear
-/// estimates (rotation.x/y), scale.z expansion, blur, stroke width, and a
-/// caller-supplied spread (shadow/glow padding) to produce a conservative
-/// box that is then transformed by @p model into world space.
+/// Delegates to compute_text_run_visual_bounds() for local-space bounds,
+/// then transforms the four corners by @p model and pads by @p spread.
 ///
 /// This function is pure geometry — it has no dependency on any rendering
 /// backend and can be used from the render graph, preflight, or tests.
