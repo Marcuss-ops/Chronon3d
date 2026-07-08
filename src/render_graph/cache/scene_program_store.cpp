@@ -199,4 +199,25 @@ void SceneProgramStore::enforce_immutable_policy(
     }
 }
 
+// ── total_recorded_executions() ──────────────────────────────────────────
+
+std::uint64_t SceneProgramStore::total_recorded_executions() const noexcept {
+    // Snapshot the bucket shared_ptrs under the lock, then sum outside.
+    std::vector<std::shared_ptr<InstanceEntry>> snapshot;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        snapshot.reserve(m_instances.size());
+        for (const auto& [k, entry] : m_instances) {
+            snapshot.push_back(entry);
+        }
+    }
+    std::uint64_t total = 0;
+    for (const auto& entry : snapshot) {
+        if (entry->cache) {
+            total += entry->cache->recorded_executions();
+        }
+    }
+    return total;
+}
+
 } // namespace chronon3d::graph

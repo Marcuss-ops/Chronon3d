@@ -56,7 +56,7 @@ TEST_CASE("RenderBackend - RenderGraphContext accepts and executes RenderBackend
     FakeBackend backend;
     cache::NodeCache cache;
     RenderGraphContext ctx{
-        .resources = {.backend = &backend, .node_cache = &cache}
+        .services = {.backend = &backend, .node_cache = &cache}
     };
     CHECK(ctx.services.backend == &backend);
 }
@@ -71,8 +71,8 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
     Scene scene = builder.build();
 
     RenderGraphContext ctx{
-        .frame = {.width = 64, .height = 64},
-        .resources = {.backend = &backend, .node_cache = &cache}
+        .frame_input = {.width = 64, .height = 64},
+        .services = {.backend = &backend, .node_cache = &cache}
     };
     
     RenderGraph graph = GraphBuilder::build(scene, ctx);
@@ -83,8 +83,7 @@ TEST_CASE("RenderBackend - SourceNode execution calls draw_node on backend") {
     GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler{SchedulerMode::Sequential, 1, false};
-    ExecutionScope root_scope(
-        ExecutionScopeKind::Root, session, compiled.graph_instance_id);
+    auto root_scope = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
     auto out = executor.execute_with_scope(compiled, ctx, root_scope, scheduler);
 
     REQUIRE(out != nullptr);
@@ -104,8 +103,8 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
     Scene scene = builder.build();
 
     RenderGraphContext ctx{
-        .frame = {.width = 64, .height = 64},
-        .resources = {.backend = &backend, .node_cache = &cache}
+        .frame_input = {.width = 64, .height = 64},
+        .services = {.backend = &backend, .node_cache = &cache}
     };
     
     RenderGraph graph = GraphBuilder::build(scene, ctx);
@@ -115,8 +114,7 @@ TEST_CASE("RenderBackend - EffectStackNode execution calls apply_effect_stack on
     GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler2{SchedulerMode::Sequential, 1, false};
-    ExecutionScope root_scope2(
-        ExecutionScopeKind::Root, session, compiled.graph_instance_id);
+    auto root_scope2 = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
     auto out = executor.execute_with_scope(compiled, ctx, root_scope2, scheduler2);
 
     REQUIRE(out != nullptr);
@@ -134,8 +132,8 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
     Scene scene = builder.build();
 
     RenderGraphContext ctx{
-        .frame = {.width = 64, .height = 64},
-        .resources = {.backend = &backend, .node_cache = &cache}
+        .frame_input = {.width = 64, .height = 64},
+        .services = {.backend = &backend, .node_cache = &cache}
     };
     
     RenderGraph graph = GraphBuilder::build(scene, ctx);
@@ -145,8 +143,7 @@ TEST_CASE("RenderBackend - CompositeNode execution calls composite_layer on back
     GraphExecutor executor;
     RenderSession session;
     ExecutionScheduler scheduler3{SchedulerMode::Sequential, 1, false};
-    ExecutionScope root_scope3(
-        ExecutionScopeKind::Root, session, compiled.graph_instance_id);
+    auto root_scope3 = ExecutionScope::make_root(session, session.arena(), compiled.graph_instance_id);
     auto out = executor.execute_with_scope(compiled, ctx, root_scope3, scheduler3);
 
     REQUIRE(out != nullptr);

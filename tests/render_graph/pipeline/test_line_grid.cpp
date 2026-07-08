@@ -24,7 +24,7 @@ TEST_CASE("Line Thickness - BBox and Raster Verification") {
     Camera camera;
 
     // Render onto a 400x200 framebuffer
-    auto fb = renderer.render_scene(scene, camera, 400, 200, 30.0f)0
+    auto fb = renderer.render_scene(scene, camera, 400, 200, 30.0f);
     REQUIRE(fb != nullptr);
 
     // Let's print any colored pixels we find
