@@ -320,8 +320,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
             artifact.type = "video";
             artifact.path = out_path;
             std::error_code ec;
-            artifact.exists = fs::exists(out_path, ec);
-            if (artifact.exists) {
+            artifact.file_exists = fs::exists(out_path, ec);
+            if (artifact.file_exists) {
                 artifact.size_bytes = static_cast<int64_t>(fs::file_size(out_path, ec));
                 if (ec) artifact.size_bytes = 0;
             }
