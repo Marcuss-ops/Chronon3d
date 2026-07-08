@@ -369,7 +369,7 @@ void apply_text_material(BLImage& img, const TextMaterial& mat) {
                             count++;
                         }
                     }
-                    tmp[y * w + x] = sum / count;
+                    tmp_holder[y * w + x] = sum / count;
                 }
             }
             // Vertical pass
@@ -380,7 +380,7 @@ void apply_text_material(BLImage& img, const TextMaterial& mat) {
                     for (int k = -r; k <= r; ++k) {
                         int ny = y + k;
                         if (ny >= 0 && ny < h) {
-                            sum += tmp[ny * w + x];
+                            sum += tmp_holder[ny * w + x];
                             count++;
                         }
                     }
