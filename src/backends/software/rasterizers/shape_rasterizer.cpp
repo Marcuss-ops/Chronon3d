@@ -223,7 +223,9 @@ void draw_transformed_shape(Framebuffer& fb, const Shape& shape, const Mat4& mod
     const bool use_gradient = fill && fill->type != FillType::Solid;
     const bool has_stroke = stroke_width_for_shape(shape) > 0.0f;
     const bool use_stroke_gradient = has_stroke && stroke_has_gradient(shape);
-    const Vec2 sz = (use_gradient || use_stroke_gradient) ? shape_size_for_fill(shape) : Vec2{0, 0};
+    const Vec2 sz = (use_gradient || use_stroke_gradient)
+        ? safe_shape_size_for_fill(shape)
+        : Vec2{1.0f, 1.0f};
 
     const Vec3 col0 = invH[0];
     const Vec3 col1 = invH[1];
