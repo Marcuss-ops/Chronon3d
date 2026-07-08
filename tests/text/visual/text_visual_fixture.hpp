@@ -81,7 +81,7 @@ make_preset_base_opts(const std::string& text,
     return chronon3d::content::text::CenterTextOptions{
         .text        = text,
         .box         = Vec2{d.width * 0.85f, d.height * 0.85f},
-        .font_path   = kVFont,
+        .font_asset   = kVFont,
         .font_family = "Poppins",
         .font_weight = 700,
         .font_size   = font_size,
