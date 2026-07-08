@@ -56,6 +56,7 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         cmd->add_option("--sample-step", args.sample_step, "Sample every N frames");
         cmd->add_option("-o,--output", args.output, "Output file path (to check writability)");
         cmd->add_option("--json", args.json_file, "Path to output preflight JSON report");
+        cmd->add_flag("--legacy-preflight", args.legacy_preflight, "Also run legacy RenderPreflight (default: V2 manifest-only)");
         cmd->callback([state, &ctx]() { ctx.exit_code = command_preflight(ctx.registry, *state->args); });
     }
 }
