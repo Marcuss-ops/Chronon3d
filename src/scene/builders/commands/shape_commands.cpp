@@ -210,13 +210,33 @@ LayerBuilder& LayerBuilder::grid_plane(std::string name, GridPlaneParams p) {
 // ── Convenience Shapes ────────────────────────────────────────────────
 
 LayerBuilder& LayerBuilder::fullscreen_rect(std::string name, Color color) {
-    // In modular centered coordinates, pos={0,0,0} centers the rect at
-    // canvas center, so a rect with size={w,h} extends from (-w/2,-h/2)
-    // to (w/2,h/2) — covering the full canvas correctly.
+    // FIX 4 (10-point friction audit): make fullscreen_rect canvas-correct
+    // in BOTH modular_coordinates=true (root shift applied by the
+    // resolver) and modular_coordinates=false (centered-rendering bake
+    // added by the source pass / bbox collector).
+    //
+    // Mechanism: pin_to(Anchor::Center) marks this layer as canvas-centred
+    // via the LAYOUT pin flag; the explicit pos offset (-w/2, -h/2) pre-
+    // translates the rect into the negative half-plane so that the
+    // downstream canvas-centre translation (added by either the resolver
+    // for modular or the source pass for non-modular) produces the
+    // intended full-canvas bbox (0,0)→(w,h).
+    //
+    // Without this offset the rect would land at (w/2,h/2)→(w,h) (only
+    // bottom-right quadrant) because pin_to(Center) DOES NOT itself add
+    // a transform translation; the offset MUST be made explicit here.
+    // Do not simplify this back to pos=(0,0,0) — it reintroduces the
+    // half-canvas bug.  Regression test:
+    //   tests/scene/test_fullscreen_rect_modular_bbox.cpp
+    pin_to(Anchor::Center);
     return rect(std::move(name), {
         .size = { m_screen_width, m_screen_height },
         .color = color,
-        .pos = { 0.0f, 0.0f, 0.0f }
+        .pos = {
+            -m_screen_width * 0.5f,
+            -m_screen_height * 0.5f,
+            0.0f
+        }
     });
 }
 

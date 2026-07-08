@@ -55,3 +55,4 @@ Per la lista completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) + [`docs/ARCHIVE
 | TICKET-MOTION-BLUR-TEXT | motion-blur text goldens | DONE (2026-07-07) |
 | TICKET-AE-PARITY-DRIVER | referee pipeline | DONE (2026-07-07) |
 | TICKET-AE-CAM-MULTI-NODE-SWEEP | AE-parity multi-node sweep | DONE (2026-07-08) — Sub-cluster A NOT-NEEDED, Sub-cluster B resolved by hash-collision DONE |
+| FIX-4-FULLSCREEN-RECT | fullscreen_rect canvas-correct in modular coordinates | DONE (this session) — `pin_to(Anchor::Center) + pos=(-w/2,-h/2,0)` + bbox regression test (`tests/scene/test_fullscreen_rect_modular_bbox.cpp`, 4 TEST_CASEs). Known limitation: macchina-verifica across modular_coordinates=true|false pipeline required (forward note in CHANGELOG). |
