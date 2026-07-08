@@ -27,14 +27,8 @@ for f in "$REPO_ROOT"/tests/*.cmake; do
     [ -f "$f" ] || continue
     basename=$(basename "$f")
 
-    raw=$(grep -c 'add_executable(chronon3d_.*test' "$f" 2>/dev/null | head -1 || echo 0)
-    suite=$(grep -c 'chronon3d_add_test_suite(' "$f" 2>/dev/null | head -1 || echo 0)
-
-    # Subtract comments
-    raw_comments=$(grep -c '#.*add_executable' "$f" 2>/dev/null | head -1 || echo 0)
-    suite_comments=$(grep -c '#.*chronon3d_add_test_suite' "$f" 2>/dev/null | head -1 || echo 0)
-    raw=$((raw - raw_comments))
-    suite=$((suite - suite_comments))
+    raw=$(grep 'add_executable(chronon3d_.*test' "$f" 2>/dev/null | grep -v '^#' | wc -l || echo 0)
+    suite=$(grep 'chronon3d_add_test_suite(' "$f" 2>/dev/null | grep -v '^#' | wc -l || echo 0)
 
     if [ "$raw" -gt 0 ]; then
         echo "  RAW  $basename  ($raw targets)"
