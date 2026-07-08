@@ -328,7 +328,7 @@ CREATE TABLE IF NOT EXISTS render_artifacts (
     path TEXT,             -- absolute or relative output path
     sha256 TEXT,           -- hex digest (empty = not computed)
     size_bytes INTEGER,    -- file size on disk (0 = file does not exist)
-    exists INTEGER,        -- 1 if file was found on disk after render
+    file_exists INTEGER,   -- 1 if file was found on disk after render
     PRIMARY KEY (run_id, type, path)
 );
 
