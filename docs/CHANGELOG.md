@@ -4,6 +4,68 @@
 > Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 ---
+## Luglio 2026 — CMake migration + pre-existing build/test fixes (commits `9fcb0e7b`..`55b60651`, 2026-07-08)
+
+7 fixes addressing build rot, test failures, and CMake test infrastructure migration.
+
+### build(tests): migrate visual_tests.cmake to chronon3d_add_test_suite (`55b60651`)
+
+- Migrated all 10 test targets from raw `add_executable` to `chronon3d_add_test_suite()`.
+- 7 visual rendering tests → TIER INTEGRATION, 3 Gate tests → TIER INTEGRATION.
+- All targets use LINK_TARGETS override; Gate targets get LABELS "gate".
+- CHRONON3D_SOURCE_DIR preserved as post-hoc compile defs (8 targets).
+- Gate 2-4 get post-hoc `target_include_directories(${CMAKE_SOURCE_DIR})` for parity.
+- Also fixed latent `set_tests_properties`/`add_test` ordering bug in `Chronon3DTestSuite.cmake`.
+- Audit: 17 suite-registered (was 7), 24 raw (was 34).
+- Files: `tests/visual_tests.cmake`, `cmake/Chronon3DTestSuite.cmake`.
+
+### build(tests): migrate core_tests.cmake to chronon3d_add_test_suite (`ed3315b0`)
+
+- Migrated monolithic `chronon3d_core_tests` (~80 sources) from raw `add_executable` to `chronon3d_add_test_suite()`.
+- TIER INTEGRATION, LINK_TARGETS override (`chronon3d_sdk`, `chronon3d_sdk_impl`, `chronon3d_pipeline`).
+- Post-hoc: conditional `chronon3d_backend_text`, `CMAKE_CURRENT_BINARY_DIR` compile def, SKIP_UNITY_BUILD_INCLUSION on 14 files, conditional `chronon3d_content`.
+- Audit: 18 suite-registered (was 17), 23 raw (was 24).
+- Files: `tests/core_tests.cmake`.
+
+### fix(test): MockTelemetryStore missing write_artifacts override (`8ec60e37`)
+
+- `MockTelemetryStore` was missing the 13th pure virtual `write_artifacts()` override.
+- Added stub `bool write_artifacts(...) override { return true; }`.
+- Fixes `invalid new-expression of abstract class type` build error in `test_telemetry.cpp`.
+- Files: `tests/runtime/test_telemetry.cpp`.
+
+### fix(tests): Gate 1 timeline_visual — use seq.rect() not s.rect() (`670c6572`)
+
+- **Root cause:** `SceneBuilder::sequence()` always executes the lambda (for asset manifest collection). Test lambdas captured parent `SceneBuilder& s` and called `s.rect()` directly, adding render nodes to the parent scene — bypassing the `if (active)` guard.
+- **Fix:** Changed all lambdas from `[&s](SequenceBuilder&) { s.rect(...); }` to `[](SequenceBuilder& seq) { seq.rect(...); }`.
+- `SequenceBuilder::rect()` delegates to the sub_builder's scene, properly guarded.
+- All 4 Gate 1 test cases now pass (was 2/4 failing).
+- Files: `tests/visual/timeline/test_timeline_golden.cpp`.
+
+### fix(tests): render_modular() missing attach_software_backend() (`3f712e7f`)
+
+- `render_fixtures.hpp::render_modular()` created a bare `SoftwareRenderer` without calling `attach_software_backend()`.
+- Replaced manual construction with `make_renderer_shared()` from `test_utils.hpp`.
+- Fixes "RenderRuntime::backend() called before attach_backend()" in 20 tests.
+- Files: `tests/helpers/render_fixtures.hpp`.
+
+### fix(tests): add TextRunPlacement{} to TextRunNode constructors (`9fcb0e7b`)
+
+- `TextRunNode` constructor requires `TextRunPlacement` (5th arg, no default) but two test files used the old 4-arg signature.
+- Added `TextRunPlacement{}` (identity matrix) at all 4 construction sites.
+- Files: `tests/render_graph/nodes/test_text_run_node_execute_error.cpp`, `tests/render_graph/nodes/test_text_run_node_return_channel.cpp`.
+
+### Gate validation (all PASS)
+
+| Gate | Result |
+|------|--------|
+| Gate 1-4 Test Suite | ✅ 4/4 PASS |
+| Doc-sync | ✅ 0 failures, 0 warnings |
+| Main-clean | ✅ GATE_PASS |
+| Doctest hygiene | ✅ HYGIENE_PASS |
+| Test suite audit | ℹ️ 23 raw / 18 suite (was 34 raw / 7 suite) |
+
+---
 ## Luglio 2026 — 10-point friction audit + fixes (commits `0ff8b100`..`8c1e9ddc`, 2026-07-08)
 
 10 fixes addressing the biggest friction points found during the Timeline Definition of Done implementation.
