@@ -193,3 +193,4 @@ tests/golden/ae_parity/diff/
 # placeholders are preserved (they don't match `*.png`).
 reference/chronon3d/*.png
 tools/telemetry_dashboard/.vite/
+.ccache/
