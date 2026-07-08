@@ -50,6 +50,19 @@ jobs:
           submodules: recursive
           lfs: ${{ github.event_name == 'push' }}
 
+      # TICKET-110 — pre-build test suite registration gate (gate #10c,
+      # wired into tools/wrap_push.sh as Step 4.5b).  Triggered by this
+      # workflow because its `paths:` filter scopes to tests/* and
+      # CMakeLists.txt changes — exactly the surface where a raw
+      # add_executable(chronon3d_*test) would land.  Single source of
+      # truth (gates-full-validation only); ci.yml gates on test_hygiene,
+      # gates.yml gates on the heavy build/install path.  Local-only
+      # execution per the gate parity contract documented in
+      # docs/AGENT_WORKFLOW.md §6.
+      - name: Gate / Test Suite Registration (chronon3d_add_test_suite contract)
+        working-directory: ${{ github.workspace }}
+        run: bash tools/check_test_suite_registration.sh
+
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:

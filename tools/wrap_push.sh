@@ -4,9 +4,21 @@
 # ═══════════════════════════════════════════════════════════════════════════
 #
 # Auto fast-forward-merges remote commits into local before pushing, then
-# runs the canonical gate (`tools/check_main_clean.sh`), and only forwards
-# `git push "$@"` if the gate passes.  Drop-in replacement for `git push`
+# runs the canonical gate (`tools/check_main_clean.sh`),
+# runs the two TICKET-110 hygiene gates (`tools/check_test_hygiene.sh` and
+# `tools/check_test_suite_registration.sh`), and only forwards
+# `git push "$@"` if ALL gates pass.  Drop-in replacement for `git push`
 # (forwards all args including --force / --no-verify / refspec forms).
+#
+# Gate chain (post-auto-FF, in order):
+#   1. tools/check_main_clean.sh          (GATE-MNT-01 rebase-clean invariant)
+#   2. tools/check_test_hygiene.sh        (gate #10b doctest no-duplicate-main)
+#   3. tools/check_test_suite_registration.sh (gate #10c raw add_executable audit)
+#   4. exec git push "$@" atomically
+#
+# Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
+# always; no --skip-gates escape hatch.  Documented in
+# `docs/AGENT_WORKFLOW.md` §6 (Pre-push hygiene gates).
 #
 # Behaviour (post TICKET-076 closure, 2026-06-30, + GATE-MNT-01-EXT
 # closure 2026-07-04 — auto-repair of per-branch rebase on push):
@@ -19,32 +31,19 @@
 #        preference); only repairs missing entries (post-clone state).
 #   3. If HEAD != $REMOTE/$REFSPEC AND `is-ancestor HEAD REMOTE_REF`
 #      (i.e., remote is descendant of local AND the history is linear so
-#      an FF-merge is possible) — `git merge --ff-only "$REMOTE/$REFSPEC"`
+#      an FF-merge is possible) -- `git merge --ff-only "$REMOTE/$REFSPEC"`
 #      to advance the local branch pointer automatically.  If FF fails
 #      (true divergence caught at FF-time), reject with diagnostic +
 #      manual-resolution hint; do not proceed to the gate.
 #   4. Run the canonical gate (`tools/check_main_clean.sh`): rejects
 #      divergence + dirty tree (post-FF working-tree state).
+#   4.5. (TICKET-110 — this commit) Run the two hygiene gates:
+#          (a) check_test_hygiene.sh — no duplicate DOCTEST_MAIN;
+#          (b) check_test_suite_registration.sh — every test target via
+#              chronon3d_add_test_suite(TIER, SOURCES, [LINK_TARGETS]).
+#          Both local, both exit 1 on violation, both emit remediation
+#          hints via the canonical CHANGELOG/AGENT_WORKFLOW surface.
 #   5. Forward `git push "$@"` on success.
-#
-# TICKET-067 closure lineage:
-#   - TICKET-048: wrapped `git push` with `tools/check_main_clean.sh`.
-#   - TICKET-067 / TICKET-075: relaxed strict-SHA equality to merge-base
-#     ancestor relation (the gate accepts the "remote is descendant of
-#     local" direction).
-#   - GATE-MNT-01-EXT (this commit's companion in
-#     tools/check_main_clean.sh + tools/install_consumer_test.sh):
-#     the wrapper now auto-repairs a MISSING
-#     `branch.${TARGET_BRANCH}.rebase` entry to `true` so future pulls
-#     on this branch use rebase (linear history).  Idempotent +
-#     forward-only; explicit non-'true' values are preserved (only
-#     missing entries are repaired, per user spec).
-#   - TICKET-076: the wrapper AUTOMATICALLY performs the
-#     fast-forward merge on the remote-ahead case so a manual
-#     `git pull --rebase origin <branch>` step is no longer required
-#     between the gate failure and the next push.  Cognition speed-up:
-#     one fewer command per Agent3 atomic-commit iteration when origin
-#     has advanced (CI commits, partner squash, etc.).
 #
 # Rationale for the wrapper vs `.git/hooks/pre-push`:
 #   - `.git/hooks/` is typically git-ignored (no cross-clone persistence)
@@ -60,7 +59,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-GATE="${REPO_ROOT}/tools/check_main_clean.sh"
+SCRIPT_DIR="${REPO_ROOT}/tools"
+GATE="${SCRIPT_DIR}/check_main_clean.sh"
 
 if [ ! -x "$GATE" ]; then
     echo "wrap_push.sh: gate script missing or not executable: $GATE" >&2
@@ -159,6 +159,26 @@ if ! "$GATE"; then
     echo "        is required (see gate diagnostics above)." >&2
     exit 1
 fi
+
+# ── Step 4.5: Pre-push hygiene gates (TICKET-110 — this commit) ─────────
+# Atomic-commit contract: every test-related invariant must be verified
+# BEFORE git push executes.  Both gates run LOCALLY (no network, no gh
+# API): they exit 1 on violation and emit a remediation hint pointing
+# to docs/CHANGELOG.md.  No `--skip-gates` escape hatch is provided
+# because: (a) duplicate DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN hardbreaks
+# the link, (b) raw add_executable bypasses the §11.1 source-registry
+# contract, and (c) deferring the failure to CI just pollutes the git
+# history with broken commits.  Hardblock always.
+#   Sequence (post-main-clean + post-auto-FF):
+#     1. check_test_hygiene.sh        (gate #10b doctest)
+#     2. check_test_suite_registration.sh (gate #10c test suite audit)
+echo "wrap_push.sh: checking test hygiene (duplicate DOCTEST_CONFIG_IMPLEMENT)..."
+bash "${SCRIPT_DIR}/check_test_hygiene.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_test_hygiene.sh (exit $?)" >&2; exit 1; }
+
+echo "wrap_push.sh: checking test suite registration (raw add_executable)..."
+bash "${SCRIPT_DIR}/check_test_suite_registration.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_test_suite_registration.sh (exit $?)" >&2; exit 1; }
 
 # ── Step 5: forward to git push ───────────────────────────────────────────
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"

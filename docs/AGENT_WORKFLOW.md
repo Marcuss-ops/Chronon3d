@@ -111,15 +111,49 @@ internal.cpp: target svuotamento progressivo
 
 ---
 
-## 6. Comando Per Trovare File Caldi
+## 6. Pre-push hygiene gates (Atomic Commits - TICKET-110)
+
+Prima di inoltrare `git push`, lo script `tools/wrap_push.sh` esegue una catena di gate bloccanti
+in ordine (Exit code: 0 = pass, 1 = fail). La parity in CI e garantita eseguendo i medesimi
+script nei workflow GitHub Actions corrispondenti.
+
+**Sequenza gate (locale via `tools/wrap_push.sh`):**
+
+1. **`tools/check_main_clean.sh`** (GATE-MNT-01) — verifica rebase-clean, nessuna divergenza da
+   `origin/main`, nessun dirty tree, `branch.main.rebase=true`. Chiusura TICKET-076.
+2. **`tools/check_test_hygiene.sh`** (gate #10b doctest) — blocca `DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN`
+   duplicato in `tests/**` (escluso `tests/test_main.cpp`). Fix: includere `<doctest/doctest.h>`
+   invece di ridefinire l'implementazione nei file di test aggiuntivi. Chiusura del
+   10-point friction audit item #10.
+3. **`tools/check_test_suite_registration.sh`** (gate #10c, promosso bloccante in commit
+   `7e7c8498`) — blocca `add_executable(chronon3d_*test_*...)` grezzo; ogni test target deve
+   passare per `chronon3d_add_test_suite(NAME TIER SOURCES [LINK_TARGETS] [LABELS])`.
+   Audit finale: **41 SUITE / 0 RAW**.
+
+**Parity in CI (workflow GitHub Actions):**
+
+| Gate | Workflow | Step name | Trigger |
+|------|----------|-----------|---------|
+| `check_test_hygiene.sh` | `.github/workflows/ci.yml` | "Gate / Test Hygiene" | ogni PR + push (pre-build; **Linux only via `if: runner.os == 'Linux'`** perché la matrice include Windows Release) |
+| `check_test_suite_registration.sh` | `.github/workflows/gates-full-validation.yml` | "Gate / Test Suite Registration" | PR-with-sensitive-changes + push (pre-build, paths-scoped a `tests/*` + `CMakeLists.txt`; **Ubuntu-pinned via `runs-on: ubuntu-latest`**) |
+| `check_main_clean.sh` | non CI (GATE-MNT-01 = local-only per design) | — | invocato localmente da `tools/wrap_push.sh` + `.git/hooks/pre-push` |
+
+**Nessun `--skip-gates` escape hatch.** Motivi: (a) un duplicate `DOCTEST_MAIN` rompe il link;
+(b) un raw `add_executable` bypassa il source-registry contract §11.1; (c) deferire il fail a CI
+inquina la cronologia `main` con commit rotti. Hardblock sempre.
+
+Workflow locale canonico per atomic-commit (sequenza post-modifica):
 
 ```bash
-git log --format= --name-only --all \
-  | sed '/^$/d' \
-  | sort \
-  | uniq -c \
-  | sort -nr \
-  | sed -n '1,40p'
+git fetch origin && git checkout main && git pull --ff-only origin main
+# ...edit/test/commit...
+bash tools/wrap_push.sh origin main   # drop-in per `git push`, applica la catena gate intera
+```
+
+## 7. Comando Per Trovare File Caldi
+
+```bash
+git log --format= --name-only --all         | sed '/^$/d'  | sort       | uniq -c | sort -nr    | sed -n '1,40p'
 ```
 
 Quando un file core resta tra i piu' modificati, non aggiungere altra logica li'. Estrarre un extension point o un helper dedicato.
