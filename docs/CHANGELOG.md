@@ -1,5 +1,39 @@
 # Chronon3D — Changelog
 
+## Luglio 2026 — TICKET-TEXT-CLIP-ASCENT + TICKET-RENDER-TABLES-EXISTS-COL (commits landed this session, 2026-07-08, 3 atomic commits)
+
+### text(text-clip): TICKET-TEXT-CLIP-ASCENT — baseline/ascent bbox math clipping glyph ink (commit `c14a0911`)
+
+- **Root cause**: `compute_text_run_visual_bounds` in `src/text/text_run_geometry.cpp` was anchoring the bbox to the baseline (`min_y = gy - pad`) instead of the top of glyph ink (`min_y = gy - ascent`). Plus a hardcoded `+12.0f` advance approximation was clipping wide glyphs on the right edge. User-reported symptom on `output/ae_08_glow_pulse.png` (1920×1080): visible bbox x=974..1919, y=783..801 (only 19 px tall) + touches right edge.
+- **Fix** (5 files / 419 ins / 17 del):
+  - `src/text/text_run_geometry.cpp` — `min_y = gy - ascent*scale_y - pad` + `max_y = gy + descent*scale_y + pad` + real per-glyph `advance = max(1, |placed.glyphs[i].advance_x|)` + `scale_x = abs(g.scale.x * g.scale.z)`, `scale_y = abs(g.scale.y * g.scale.z)` for 2.5D depth scale. Legacy `scale_extra` deviation-hack removed (double-counting on vertical axis).
+  - `include/chronon3d/text/text_run_geometry.hpp` — doc comment update only, no public API change.
+  - `src/backends/software/processors/text_run/text_run_processor/prepare.cpp` — Stage 1.2 shadow padding loop mirrored same ascent/descent math + Stage 1.3 new diagnostic `spdlog::warn` gated on `CHRONON3D_TEXT_CLIP_DEBUG=1` env var (cached via IIFE `static const bool kClipDebugEnabled`, zero per-call overhead in production). Per-glyph first+last `surface_top = (gy - ascent - s.offset_y) * s.raster_space.scale` / `surface_bottom` (user-spec verbatim) — bug detector: `surface_top < 0` ⇒ ascender clipped above scratch, `surface_bottom > ss_img_h` ⇒ descender clipped below, last-glyph `surface_right > ss_img_w` ⇒ right-edge clipped.
+  - `tests/text_golden/text_clip/text_clip_bounds.cpp` (NEW, ~250 lines) — 3-test numerical bbox regression lock: `Clip 01 TextClip AscentNotCut` (bbox.height() > 90, bbox.width() > 500, bbox.x1 < width-10), `Clip 02 TextClip RightEdgeNotCut` (bbox.x1 < width-5), `Clip 03 TextClip Scale130NotCut` (bbox.height() > 200, bbox.width() > 1000, uniform scale 1.30×). Numerical assertions fail IMMEDIATELY on the pre-fix (~19 px sliver) + `verify_golden()` safety net (loose thresholds). Custom `alpha_bbox(framebuffer)` pixel scanner.
+  - `tests/text_golden_tests.cmake` — registered new test source + `add_test(NAME TextClipBounds ... --test-case="Clip *")` alias.
+- **Verification**: 3-round code-reviewer-minimax-m3 APPROVED. Build verification deferred to working build host per AGENTS.md §honesty (VPS unfit: vcpkg glm/magic_enum + tmpfs quota). Numerical bbox scan is the safety net: at pre-fix state, `bbox.height() == 19` → all 3 Clip tests fail loudly + consistently across machines.
+
+### fix(telemetry): TICKET-RENDER-TABLES-EXISTS-COL — SQLite reserved-keyword collision in `render_artifacts.exists` (commit `b827592c`)
+
+- **Root cause**: column `render_artifacts.exists INTEGER` in `src/runtime/telemetry/sqlite/telemetry_schema.sql` collided with SQLite's reserved `EXISTS` keyword, causing `OperationalError: near "exists": syntax error` in subsequent INSERT/SELECT statements. Dashboard symptom: `no runs match your filter` (the dashboard's `Sidebar.jsx:100` fallback when `/api/runs` returns empty due to the SQL error).
+- **Fix** (5 files / 8 ins / 8 del, pure 1:1 rename):
+  - `src/runtime/telemetry/sqlite/telemetry_schema.sql` — column `exists INTEGER` → `file_exists INTEGER`
+  - `src/runtime/telemetry/sqlite/sqlite_telemetry_store.cpp` — INSERT column list + `bind_all(static_cast<int>(a.file_exists))`
+  - `include/chronon3d/runtime/telemetry/render_telemetry_record.hpp` — struct field `bool exists{false}` → `bool file_exists{false}`
+  - `apps/chronon3d_cli/commands/video/exporters/pipe_export_telemetry.cpp` + `video_export_chunked.cpp` — assignment + 2 read-conditional sites closed in round 2 (build-breaking if missed)
+- **Verification**: 2-round code-reviewer-minimax-m3 APPROVED. Python sqlite3 probe pre-fix: `OperationalError: near "exists": syntax error`; post-fix: `POST_FIX_2_OK file_exists col working`.
+- **BREAKING (public header)**: `RenderArtifactRecord::exists` → `::file_exists`. External consumers using the field must update to `record.file_exists`.
+- **Migration note (forward-only)**: existing on-disk DBs with old `render_artifacts` schema need `ALTER TABLE render_artifacts RENAME COLUMN exists TO file_exists;` (NOT auto-applied — existing telemetry data is read-only diagnostic, not production). The `CREATE TABLE IF NOT EXISTS` pattern in the new schema means old DBs will continue to use the legacy column name on next INSERT; the migration ALTER is a manual one-liner.
+- **Build verification deferred** to working build host per AGENTS.md §honesty.
+
+### refactor(text-material): tmp → tmp_holder rename in box_blur scratch buffer (commit `30b15299`)
+
+- **Scope**: `src/backends/text/text_material.cpp` — 1 file / 2 ins / 2 del. Held back from the TICKET-RENDER-TABLES-EXISTS-COL commit per AGENTS.md "no mezclar refactor indipendenti" (the file contained an unrelated `tmp` → `tmp_holder` rename in the box_blur lambda `[&]` capture, not part of the SQLite reserved-keyword fix).
+- **Verification**: 1-round code-reviewer-minimax-m3 APPROVED. 1 minor forward-only: confirm no 2nd `tmp` site missed in the file via `git show 30b15299 -- src/backends/text/text_material.cpp` + `grep -nE '\btmp\b' src/backends/text/text_material.cpp`.
+- **Build verification deferred** to working build host per AGENTS.md §honesty.
+
+---
+
 ## Luglio 2026 — P1-#9 TODO debt cleanup (doc-only per-ticket atomic commits, 2026-07-08)
 
 **Session context**: VPS unfit for cmake full-build + scene_tests runtime exec + intuition-fidelity verify (vcpkg `glm`/`magic_enum` not resolvable + tmpfs quota per CHANGELOG lineage). Per `AGENTS.md §anti-greenwashing` + P1-#6/7/8 + P2-#11 doc-only precedent this session: per `AGENTS.md one-commit-per-responsibility` rule + user spec `7 commit atomic separati`, 7 separate atomic commits per TODO site (2 LOW-risk code-cleanup commits Done at HEAD this session: Issue 6 commit `1b63feb6` + Issue 2 commit `bb8f7156`; 5 audit-only doc commits consolidated under the per-issue sub-entries below, deferred to working build host per `macchina-verifica deferred se VPS unfit`). ZERO new public API (Cat-3 freeze respected: only existing docblocks + internal-named symbols touched). ZERO new singleton/registry (Cat-5 freeze respected).
