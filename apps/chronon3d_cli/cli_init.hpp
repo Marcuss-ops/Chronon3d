@@ -133,7 +133,7 @@ inline void init_compositions(CompositionRegistry& registry) {
     // TICKET-AE-PARITY-FLOOR-DASHBOARD — 5 new cinematic scene
     // compositions (Phase 1 scenes 08/10/12/14 + motion_blur_text).  Each
     // derives per-frame state (opacity/scale/jitter/blur) from
-    // `ctx.frame.value % 30` inside the runtime lambda, matching the
+    // `ctx.frame.integral() % 30` inside the runtime lambda, matching the
     // 0/15/30 snapshot buckets used by the test files.  CLI invocations:
     //   chronon3d_cli render ae_08_glow_pulse -o /tmp/ae_08.png --frame 15
     //   chronon3d_cli render ae_10_scale_pop -o /tmp/ae_10.png --frame 15

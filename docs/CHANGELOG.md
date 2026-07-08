@@ -2,6 +2,48 @@
 
 ---
 
+## Luglio 2026 — TICKET-FRAME-VALUE-CONVENTION (commit pending this session, 2026-07-08, sequence 2/2 — fixes + gate promoted to bloccante)
+
+### refactor + feat(tools): Frame::value grep-gate — 20 real hits fixed, gate promoted to FAIL (commit pending)
+
+- **Progressive fix of 20 real Frame::value hits** across 14 source files. All `.value` accesses on `Frame`-typed identifiers replaced with the canonical accessor `frame.integral()` per type-stability invariant (the `i64 value` field is the Frame layout implementation detail; callers MUST go through accessor methods to keep the layout swappable).
+
+  | File | Hits | Fix |
+  |---|---|---|
+  | `src/runtime/sdk_render_engine.cpp:118` | 1 | `chronon3d::Frame{frame.value}` → `chronon3d::Frame{frame.integral()}` |
+  | `src/scene/camera/camera_v1/camera_program_compiler.cpp:154,179` | 2 | `kf.frame.value` → `kf.frame.integral()` (FOV/zoom keyframe diagnostics) |
+  | `src/animations/temporal/temporal_samples.cpp:57` | 1 | `frame.value` → `frame.integral()` (FNV-1a hash sample) |
+  | `include/chronon3d/core/hash/hash_builder.hpp:55` | 1 | `f.value` → `f.integral()` (frame hash mix) |
+  | `include/chronon3d/scene/camera/camera_v1/camera_descriptor_fingerprint.hpp:63` | 1 | `kf.frame.value` → `kf.frame.integral()` |
+  | `include/chronon3d/timeline/timeline_resolver_v2.hpp:174` | 1 (doc-comment) | `global_frame.value - sequence_start.value` → `global_frame.integral() - sequence_start.integral()` |
+  | `apps/chronon3d_cli/commands/render/command_still.cpp:49,62` | 2 | `args.frame.value` → `args.frame.integral()` (frame-to-string conversion) |
+  | `apps/chronon3d_cli/cli_init.hpp:136` | 1 (doc-comment) | `ctx.frame.value` → `ctx.frame.integral()` |
+  | `tests/visual/ae_parity/ae_parity_compositions.hpp:15` | 1 (doc-comment) | `ctx.frame.value` → `ctx.frame.integral()` |
+  | `tests/visual/ae_parity/ae_parity_compositions.cpp:23,44,48` | 3 (2 doc-comments + 1 code) | `ctx.frame.value` → `ctx.frame.integral()` |
+  | `tests/scene/camera/test_camera_compiled_evaluate.cpp:272,278,472` | 3 (loop step + 2 CAPTURE) | `f.value` → `f.integral()` |
+  | `tests/scene/camera/test_camera_program.cpp:239,399` | 2 (CAPTURE) | `f.value` → `f.integral()` |
+  | `tests/scene/camera/test_camera_lookat_layer_missing_transforms.cpp:212` | 1 (CAPTURE) | `f.value` → `f.integral()` |
+
+- **Gate promoted to FAIL mode**: `tools/check_frame_value_convention.sh` default mode flipped from `WARN` to `FAIL` (override via `FRAME_VALUE_GATE_MODE=WARN` env var for ad-hoc inventory runs). On promotion:
+  - Fail-mode `bash tools/check_frame_value_convention.sh` returns exit 1 with `GATE_FAIL` + remediation hint + free-fix-link to convention table in `include/chronon3d/core/types/frame.hpp`.
+  - Warn-mode `FRAME_VALUE_GATE_MODE=WARN bash tools/check_frame_value_convention.sh` returns exit 0 with the violation list (forbidden by default; use only when actively cleaning a backlog).
+
+- **Counter-bug fix in gate**: discovered during the post-fix verification — the original `COUNT="$(printf '%s\n' "${HITS}" | grep -c '^')"` overcounted by 1 on the empty HITS case (the trailing newline from the upstream grep matched `^` as an empty line, inflating 0→1). Fixed to `grep -c .` (matches any NON-EMPTY line). Documented inline with rationale. This bug would have caused false-positive FAIL on a clean tree in production — caught before commit 2; the gate now reports 0 hits + exit 0 on the post-fix state.
+
+- **Convention table update in `frame.hpp`**: the header's reading-convention docblock now explicitly notes that the strict gate supersedes the "core / time-critical code → `frame.value` is OK" historical concession. The accessor methods (`integral()` / `as_i64()` / `static_cast<int64_t>()` / Frame arithmetic) are the ONLY path even in render hot paths — the `noexcept` + constexpr nature of `integral()` makes the performance contract zero-impact (1 ns per call vs direct field access, inlinable).
+
+- **Verified post-fix state (machine)**: `bash tools/check_frame_value_convention.sh` → `PASS — no out-of-header Frame::value usage` (exit 0). The 20 expected-noise hits in `src/registry/text_preset_factories_{reveal,cinematic}.cpp` (AnimatedValue::value on property wrappers) are correctly excluded by the refined regex. The 7 `std::expected<T,E>::value()` method-call false positives are correctly excluded by the post-filter `grep -vE '\.value\('`.
+
+- **Gate chain readiness for `tools/wrap_push.sh` integration** (forward-only, NOT in this commit): when `tools/wrap_push.sh` Step 4.5 already-includes `check_test_hygiene.sh` + `check_test_suite_registration.sh`, this gate can be appended to Step 4.5c in a follow-up. Wiring intentionally deferred because the FAIL-mode promotion needed its own atomic commit + a fully clean tree (machine-verified PASS) before being added to the local pre-push chain. Pushing with a FAIL-mode gate that exits 0 today enables the follow-up wire-up commit (separate).
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-1 (build corrective — convention enforcement) + Cat-5 (doc-only alignment via CHANGELOG + convention-table update in `frame.hpp`). Zero new public API surface — `Frame::integral()` is already documented in the canonical header (added in earlier commit `2c0254c3`, FIX 6 of the 10-point friction audit). Zero new singleton/registry/cache/resolver/service-locator. Zero ABI change — accessor substitution only. `tools/check_frame_value_convention.sh` reads existing API surface only.
+
+- **Production git trace** (commit 2 of 2): 1 NEW tool (`tools/check_frame_value_convention.sh` promoted in commit 1, default-mode flipped + COUNT bug fixed in this commit) + 13 source files modified (sdk_render_engine.cpp + camera_program_compiler.cpp + temporal_samples.cpp + hash_builder.hpp + camera_descriptor_fingerprint.hpp + timeline_resolver_v2.hpp + command_still.cpp + cli_init.hpp + ae_parity_compositions.hpp + ae_parity_compositions.cpp + test_camera_compiled_evaluate.cpp + test_camera_program.cpp + test_camera_lookat_layer_missing_transforms.cpp) + 1 canonical header (`include/chronon3d/core/types/frame.hpp`, doc-only convention-table update) + 2 canonical doc updates (`docs/CHANGELOG.md` commits 1+2 entries + `docs/FOLLOWUP_TICKETS.md` recently-closed row update).
+
+- **Cross-references**: [`tools/check_frame_value_convention.sh`](tools/check_frame_value_convention.sh) (the now-bloccante gate); [`include/chronon3d/core/types/frame.hpp`](include/chronon3d/core/types/frame.hpp) (the canonical Frame type + reading convention table the gate enforces); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) recently-closed row update.
+
+---
+
 ## Luglio 2026 — TICKET-FRAME-VALUE-CONVENTION: Frame::value grep-gate (commit pending this session, 2026-07-08, sequence 1/2 — WARN mode)
 
 ### feat(tools): Frame::value convention grep-gate — WARN mode (commit pending)

@@ -269,13 +269,13 @@ TEST_CASE("CAM-DOC 04 [2]: parity compiled pipeline == legacy AnimatedCamera2_5D
     // keyframe evaluation in the legacy side coincides with the V1
     // side's keyframe evaluation, allowing a tight ε.
     constexpr float kEpsilon = 1e-3f;
-    for (Frame f{0}; f <= Frame{90}; f = Frame{f.value + 3}) {
+    for (Frame f{0}; f <= Frame{90}; f = Frame{f.integral() + 3}) {
         Camera2_5D legacy_cam = legacy.evaluate(f);
 
         auto cam_parity = run_compiled_cam(program, f);
 
         // Position, rotation, zoom are the parity-critical fields.
-        CAPTURE(f.value);
+        CAPTURE(f.integral());
         CHECK(cam_parity.position.x ==
               doctest::Approx(legacy_cam.position.x).epsilon(kEpsilon));
         CHECK(cam_parity.position.y ==
@@ -469,7 +469,7 @@ TEST_CASE("CAM-DOC 04 [5]: random-access — sequence [5,100,0,50,25,10,0] yield
                                [f](const CameraRef& r) { return r.frame == f; });
         REQUIRE(it != reference.end());
 
-        CAPTURE(f.value);
+        CAPTURE(f.integral());
         check_camera_2_5d_fields(it->cam, res->camera, kFieldEps);
     }
 }

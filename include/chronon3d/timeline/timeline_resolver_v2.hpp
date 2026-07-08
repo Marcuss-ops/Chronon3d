@@ -171,7 +171,7 @@ public:
     /// constexpr-friendly arithmetic via Frame helpers (frame.hpp:43-44).
     static constexpr Frame make_local_frame(Frame global_frame,
                                             Frame sequence_start) noexcept {
-        // `Frame - Frame` su frame.hpp:43 — `global_frame.value - sequence_start.value`.
+        // `Frame - Frame` su frame.hpp:43 — `global_frame.integral() - sequence_start.integral()`.
         // Se `global_frame < sequence_start`, locale rimane 0 (sequence non ancora attiva).
         return (global_frame >= sequence_start) ? (global_frame - sequence_start)
                                                 : Frame{0};

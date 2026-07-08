@@ -63,7 +63,7 @@
 set -euo pipefail
 
 # Commit 1 default: WARN; commit 2 promotes this to FAIL.
-: "${FRAME_VALUE_GATE_MODE:=WARN}"
+: "${FRAME_VALUE_GATE_MODE:=FAIL}"
 MODE="$(printf '%s' "${FRAME_VALUE_GATE_MODE}" | tr '[:lower:]' '[:upper:]')"
 
 if [[ "${MODE}" != "WARN" && "${MODE}" != "FAIL" ]]; then
@@ -118,7 +118,12 @@ HITS=$(grep -RnE \
   || true)
 
 # --- summary -----------------------------------------------------------------
-COUNT="$(printf '%s\n' "${HITS}" | grep -c '^' || true)"
+# Use `grep -c .` (not `grep -c '^'`) to count NON-EMPTY lines: an empty
+# HITS still emits a single trailing newline from the upstream grep
+# pipeline, which `^` matches as a zero-content line, inflating the
+# count from 0 to 1. `.` matches any non-empty line; the trailing
+# newline-only line is correctly excluded.
+COUNT="$(printf '%s\n' "${HITS}" | grep -c . || true)"
 COUNT="${COUNT:-0}"
 
 echo "frame::value convention gate (mode=${MODE}, canonical=${CANONICAL_HEADER})"

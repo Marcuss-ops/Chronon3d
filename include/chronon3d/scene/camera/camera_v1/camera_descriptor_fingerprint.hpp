@@ -60,7 +60,7 @@ inline void hash_animated_value(Fnv1aHasher& h,
     const auto& kfs = av.keyframes();
     h.mix_u64(kfs.size());
     for (const auto& kf : kfs) {
-        h.mix_i32(kf.frame.value);
+        h.mix_i32(kf.frame.integral());
         h.mix_bytes(&kf.value, sizeof(T));
         h.mix_enum(kf.interp);
         h.mix_bool(kf.roving);
