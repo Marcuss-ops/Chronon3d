@@ -52,7 +52,7 @@ public:
 
     /// Hash a Frame (strong type, not integral).
     HashBuilder& add(Frame f) {
-        mix(static_cast<uint64_t>(f.value));
+        mix(static_cast<uint64_t>(f.integral()));
         return *this;
     }
 

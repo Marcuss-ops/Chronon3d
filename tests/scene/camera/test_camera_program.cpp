@@ -236,7 +236,7 @@ TEST_CASE("handheld_noise_insert_order — "
                                [f](const CameraRef& r) { return r.frame == f; });
         REQUIRE(it != reference.end());
 
-        CAPTURE(f.value);
+        CAPTURE(f.integral());
         CHECK(got.position.x == doctest::Approx(it->cam.position.x).epsilon(kFieldEps));
         CHECK(got.position.y == doctest::Approx(it->cam.position.y).epsilon(kFieldEps));
         CHECK(got.position.z == doctest::Approx(it->cam.position.z).epsilon(kFieldEps));
@@ -396,7 +396,7 @@ TEST_CASE("handheld_no_modifier_is_identity — static base + empty modifiers �
     // Sample at multiple frames; despite sampling, the static source
     // + empty modifier yield a camera EQUAL to base.
     for (Frame f : {Frame{0}, Frame{30}, Frame{60}, Frame{90}}) {
-        CAPTURE(f.value);
+        CAPTURE(f.integral());
         auto cam = eval_at(program, session, f);
         CHECK(cam.position.x == doctest::Approx(0.0f).epsilon(kFieldEps));
         CHECK(cam.position.y == doctest::Approx(0.0f).epsilon(kFieldEps));

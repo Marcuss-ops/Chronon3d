@@ -151,7 +151,7 @@ compile_camera(const CameraDescriptor& descriptor,
                     if (!std::isfinite(v) || v <= 0.0f || v >= 179.0f) {
                         return CameraCompileError{
                             CameraCompileError::Kind::InvalidFov,
-                            "FOV keyframe at frame " + std::to_string(kf.frame.value) +
+                            "FOV keyframe at frame " + std::to_string(kf.frame.integral()) +
                                 " is invalid (" + std::to_string(v) +
                                 ") — must be finite, positive, and < 179°"
                         };
@@ -176,7 +176,7 @@ compile_camera(const CameraDescriptor& descriptor,
                     if (!std::isfinite(v) || v <= 0.0f) {
                         return CameraCompileError{
                             CameraCompileError::Kind::InvalidZoom,
-                            "zoom keyframe at frame " + std::to_string(kf.frame.value) +
+                            "zoom keyframe at frame " + std::to_string(kf.frame.integral()) +
                                 " is invalid (" + std::to_string(v) +
                                 ") — must be finite and positive"
                         };

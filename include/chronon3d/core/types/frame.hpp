@@ -22,13 +22,27 @@ namespace chronon3d {
  * |----------------------------------|-----------------------------|----------------------------------------|
  * | Tests, logs, human-readable fmt  | `frame.integral()`          | Self-documenting, named accessor       |
  * | Interfacing with external APIs   | `static_cast<int>(frame)`   | Explicit narrowing, visible at call    |
- * | Core / time-critical code        | `frame.value`               | Direct field, no function-call overhead|
+ * | Core / time-critical code        | `frame.integral()`          | Layout-privacy invariant (see gate)    |
  *
- * **Avoid** `frame.value` in test code — `integral()` or `static_cast<int>`
- * make the intent clear and survive future refactors of the Frame layout.
+ * **Note** (since 2026-07-08, enforced by
+ * [`tools/check_frame_value_convention.sh`](../../../tools/check_frame_value_convention.sh)):
+ * the historic `frame.value` direct-field-access concession for core
+ * math / time-critical code is **SUPERSEDED** by strict gate enforcement.
+ * The `.value` field is the Frame layout implementation detail; callers
+ * MUST go through accessor methods (or `static_cast<int64_t>()` /
+ * `Frame{N}+Frame{M}` arithmetic) so a future Frame layout change
+ * (e.g. int width + sequence id + reserved fields) does not silently
+ * break the caller. The strict gate makes `.value` access outside this
+ * canonical header a deterministic link-time / compile-time violation.
  *
- * **Avoid** `static_cast<int>` in hot loops — the explicit operator is
- * constexpr but `.value` is the idiomatic form in core math / render code.
+ * **Avoid** `frame.value` in any code (including core math / render code)
+ * — use `frame.integral()` (self-documenting, named accessor, noexcept,
+ * constexpr, fully inlinable; zero perf regression vs direct field
+ * access). The `static_cast<int64_t>(frame)` form is permitted for
+ * external-API narrowing only.
+ *
+ * **Avoid** `frame.value` in comments and documentation —
+ * the gate scans both code AND comments for the pattern.
  */
 struct Frame {
     i64 value{0};

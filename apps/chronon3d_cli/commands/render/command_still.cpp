@@ -46,7 +46,7 @@ int command_still(const CompositionRegistry& registry, const StillArgs& args) {
     // Build a RenderArgs with the requested frame and pipeline settings.
     RenderArgs render_args;
     render_args.comp_id = args.comp_id;
-    render_args.frames = std::to_string(args.frame.value);
+    render_args.frames = std::to_string(args.frame.integral());
     render_args.output = args.output;
     render_args.log_level = args.log_level;
     render_args.pipeline = args.pipeline;
@@ -59,7 +59,7 @@ int command_still(const CompositionRegistry& registry, const StillArgs& args) {
             comp_basename = "still";
         }
         render_args.output = "output/" + comp_basename
-                             + "_f" + std::to_string(args.frame.value) + ".png";
+                             + "_f" + std::to_string(args.frame.integral()) + ".png";
         spdlog::info("No output path specified, defaulting to {}", render_args.output);
     }
 

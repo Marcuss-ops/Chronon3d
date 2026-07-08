@@ -209,7 +209,7 @@ TEST_CASE(
 
             const std::string msg = find_missing_transforms_diagnostic(
                 res->diagnostics, "per.frame.target");
-            CAPTURE(f.value);
+            CAPTURE(f.integral());
             CAPTURE(msg);
             CHECK_FALSE(msg.empty());
         }
