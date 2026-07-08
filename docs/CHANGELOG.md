@@ -3,6 +3,37 @@
 > Lavoro completato su `main`. Per i dettagli completi di ogni ticket: [`docs/tickets/`](docs/tickets/).
 > Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).---
 
+## Luglio 2026 — test-suite migration close-out: 20 raw → 0, gate promoted to bloccante (commit pending this session, 2026-07-08)
+
+### build(tests): close §11.1 / §12.1 test-suite migration backlog — 41 SUITE / 0 RAW (commit pending)
+
+- **Audit final**: `bash tools/check_test_suite_registration.sh` (PROMOTED to bloccante — exit 1 on any residual raw `add_executable(chronon3d_*test...)`) → **41 SUITE / 0 RAW** on this commit.  Was 21 SUITE / 20 RAW at the start of the migration series (commit `0ff8b100` chain + scene_tests + visual_tests + core_tests + sdk_tests).
+- **18 cmake files migrated** (20 raw `add_executable` calls replaced with `chronon3d_add_test_suite(...)`):
+  - **Simple UNIT tier** (5 files × 1 target): `animation_tests.cmake`, `cache_tests.cmake`, `deterministic_tests.cmake`, `optimizer_tests.cmake`, `precomp_focus_tests.cmake`
+  - **Standard INTEGRATION tier** (9 files × 9 targets): `authoring_tests.cmake`, `backends_software_tests.cmake`, `compositor_tests.cmake`, `content_tests.cmake`, `gradient_visual_tests.cmake`, `graphics_tests.cmake`, `io_tests.cmake`, `media_tests.cmake`, `rounded_rect_visual_tests.cmake`
+  - **SDK tier + custom include dir** (2 files): `cli_tests.cmake` (`apps/chronon3d_cli` include dir preserved), `io_tests.cmake`
+  - **INTEGRATION tier with post-hoc compile-definitions** (1 file × 1 target): `breathing_golden_tests.cmake` (3 sub-tests, all kept on sdk+backend_software+scene link contract) + 3 `target_compile_definitions(CHRONON3D_SOURCE_DIR=...)` outside the helper call (the helper does not wrap them)
+  - **INTEGRATION tier with append-after-base source list** (1 file): `text_golden_tests.cmake` — 1 base call with 3 sources + 13 follow-up `target_sources(... PRIVATE ...)` blocks for user-spec, AE-parity, motion-blur, AE-parity-killer, text-placement families + 4 `add_test` aliases (`TextGolden`, `TextGoldenUserSpec`, `TextGoldenKiller`, `TextPlacement`) preserved verbatim (these filter via doctest `--test-case=` patterns, not on the executable itself).
+  - **INTEGRATION tier with `CMAKE_CURRENT_SOURCE_DIR` paths** (1 file): `text_preset_visual_tests.cmake`
+
+- **Gate promotion** in `tools/check_test_suite_registration.sh`:
+  - **Before (informational)**: `exit 0` always, comment "Convert targets incrementally".
+  - **After (bloccante)**: `exit 1` if `raw_count > 0`, listing each raw cmake file; `exit 0` only when `raw_count == 0` and `total == 41`.  Exit 2 reserved for internal script errors (missing `tests/` dir, rg/grep unavailable).
+  - Per-file enumeration changed: raw/suite counts always printed + a SUITE/RAW summary line + a clear GATE_PASS / GATE_FAIL diagnostic block + a `KEEP-CONTRACT` migration hint pointing at `cmake/Chronon3DTestSuite.cmake §11.1`.
+
+- **AGENTS.md v0.1 freeze compliance**:
+  - Cat-1 (build corrective — gate promotion from informational to blocking closes the §11.1 backlog contract).
+  - Cat-3 (zero new public API surface; `cmake/Chronon3DTestSuite.cmake::chronon3d_add_test_suite` is the single canonical entry-point; the LIB contract documented in `cmake/Chronon3DPublicHeaders.cmake` is unchanged).
+  - Cat-5 (doc-only alignment via this CHANGELOG entry + `docs/FOLLOWUP_TICKETS.md` recently-closed row).
+
+- **Honesty policy (AGENTS.md §anti-greenwashing)**: this commit IS the hard closure of the §11.1 migration backlog.  All 18 cmake files verified to have `grep -E '^\s*add_executable\(\s*chronon3d_.*_tests?\b' tests/<file>.cmake | wc -l` = 0 (machine-verified via the promoted gate).  Test build verification deferred to next session with working build host — the CHANGELOG/AGENTS honesty policy forbids `PASS` fabrication.
+
+- **Production git trace**: 18 cmake files modified (migration to suite) + 1 tool promoted (`tools/check_test_suite_registration.sh` exit code change) + 2 canonical doc updates (`docs/CHANGELOG.md` this entry + `docs/FOLLOWUP_TICKETS.md` recently-closed row).  Zero source code in `src/` or `include/chronon3d/` touched.
+
+- **Cross-references**: [`cmake/Chronon3DTestSuite.cmake`](cmake/Chronon3DTestSuite.cmake) (the canonical helper, single source of truth for test-source registration + per-tier link contract); [`tools/check_test_suite_registration.sh`](tools/check_test_suite_registration.sh) (the now-bloccante audit gate); [`docs/AGENTS.md`](AGENTS.md) §Anti-duplication Rules (single source of truth for test registration).
+
+---
+
 ## Luglio 2026 — FIX 4 fullscreen_rect canvas-correct (commit pending this session, 2026-07-08)
 
 ### fix(builder): FIX 4 — fullscreen_rect canvas-correct in modular coordinates (commit pending)

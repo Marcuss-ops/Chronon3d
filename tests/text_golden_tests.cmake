@@ -5,37 +5,25 @@
 # Kept separate from chronon3d_text_preset_visual_tests to avoid
 # unity-build conflicts between golden_test.cpp / image_diff.cpp
 # and the text visual harness includes.
+# Migrated to chronon3d_add_test_suite(TIER INTEGRATION) (this commit,
+# closing the §11.1 migration backlog).
 #
 # Golden PNGs:   test_renders/golden/text/
 # Artifacts:     test_renders/artifacts/text/
 #
 # Update goldens: CHRONON3D_UPDATE_GOLDENS=1 ctest -R TextGolden
-# ═══════════════════════════════════════════════════════════════════════════
 
-add_executable(chronon3d_text_golden_tests
-    ${TEST_MAIN}
-    text/test_text_golden.cpp
-    visual/support/golden_test.cpp
-    visual/support/image_diff.cpp
+chronon3d_add_test_suite(
+    NAME chronon3d_text_golden_tests
+    TIER INTEGRATION
+    LINK_TARGETS chronon3d_sdk chronon3d_software chronon3d_content
+    SOURCES text/test_text_golden.cpp
+            visual/support/golden_test.cpp
+            visual/support/image_diff.cpp
 )
-
-target_link_libraries(chronon3d_text_golden_tests
-    PRIVATE
-        chronon3d_sdk
-        chronon3d_software
-        chronon3d_content
-        doctest::doctest
-)
-
 target_compile_definitions(chronon3d_text_golden_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-target_include_directories(chronon3d_text_golden_tests PRIVATE ${CMAKE_SOURCE_DIR})
-set_target_properties(chronon3d_text_golden_tests PROPERTIES UNITY_BUILD OFF)
-chronon3d_enable_test_pch(chronon3d_text_golden_tests)
 
 # ADR-014 Decision 1 — 12 user-spec golden tests (TXT-QA-01 visual group).
-# Appended directly to the existing target via target_sources() to avoid
-# duplicating the harness include chain. UNITY_BUILD OFF keeps per-test
-# translation units independent (no ODR collisions on lambda captures).
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/user_spec/01_text_basic_centered.cpp
@@ -53,12 +41,6 @@ target_sources(chronon3d_text_golden_tests
 )
 
 # ADR-015 (TICKET-AE-PARITY-SUITE) — 5 cinematic AE-parity scene-builders.
-# Cat-2 freeze-compliant (forward-only): zero new public API; verify_golden
-# reuse from tests/visual/support/golden_test.hpp; same harness chain as the
-# 12 user-spec tests above. 5 scene × 2 AR (16:9 + 9:16) × 3 frame (0,15,30)
-# = 30 golden PNG target. Capture blocked by TICKET-GOLDEN-CAPTURE root
-# cause until that ticket is closed (see FOLLOWUP_TICKETS.md); impl ships
-# forward-only until capture pipeline is fixed.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity/ae_01_cinematic_title_reveal.cpp
@@ -68,251 +50,76 @@ target_sources(chronon3d_text_golden_tests
         text_golden/ae_parity/ae_05_lower_third.cpp
 )
 
-# TICKET-AE-PARITY-CINEMATIC-09 — ae_blur_in scene. Appended directly to the
-# existing target via target_sources() (no new harness chain). 6 TEST_CASEs
-# = 16:9 + 9:16 × 3 frame snapshots f00/f15/f30 with progressive blur tier
-# (0.0f / 7.0f / 20.0f) locked against `kBlurTierRadii = {{0, 2, 7, 13, 20}}`
-# (text_run_processor/text_run_stages.hpp:51). LayerBuilder::blur() → bucket
-# via detail::bucket_radius_for_tier → apply_separable_box_blur. Parent-
-# blocker TICKET-GOLDEN-CAPTURE closed 2026-07-06 (Phase F). Cat-2 freeze-
-# compliant (zero new public API; verify_golden reuse; same harness chain).
+# TICKET-AE-PARITY-CINEMATIC-09 — ae_blur_in scene.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity/ae_09_blur_in.cpp
 )
 
-# TICKET-AE-PARITY-CINEMATIC-06 — ae_tracking_expansion scene. Appended
-# directly to existing target via target_sources(). 6 TEST_CASEs = 16:9 +
-# 9:16 × 3 frame snapshots f00/f15/f30 with title-trailer-style reveal
-# triple anim: tracking (.layout.tracking text-level field, values 4.0/12.0/
-# 22.0), opacity (LayerBuilder::opacity, layer_builder.cpp:138, values
-# 0.30/0.70/1.00) + blur reveal (LayerBuilder::blur → kBlurTierRadii tier
-# 4/2/0). Cross-link ae_09_blur_in (already shipped); reused same blur
-# mapping pattern. Cat-2 freeze-compliant.
+# TICKET-AE-PARITY-CINEMATIC-06 — ae_tracking_expansion scene.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity/ae_06_tracking_expansion.cpp
 )
 
-# TICKET-AE-PARITY-CINEMATIC-07 — ae_stroke_reveal scene. Appended directly
-# to existing target via target_sources(). 6 TEST_CASEs = 16:9 + 9:16 × 3
-# frame snapshots f00/f15/f30 with stroke-then-fill cinematic reveal:
-# stroke paint always on (medial-edge silhouette scaffold stable across
-# frames) while the inner fill Color α interpolates 0.05 → 0.55 → 1.00 —
-# outline-only at f00 reading as pure stroke silhouette, half-outline /
-# half-cream-tinted fill at f15, fully composited white-body + ink-stroke
-# silhouette at f30. Stroke width stable at 8.0f for in-flight reveal,
-# settles to 6.0f at f30 (typographic finalisation). Fill-color RGB
-# interpolates amber→cream→white for cinematic poster-typography feel.
-# Cross-link ae_04_fill_stroke_shadow (already shipped) — same .paint
-# stroke_enabled + stroke_color + stroke_width pattern; ae_07 adds the
-# fill-alpha choreography + RGB interpolation over the static stroke
-# scaffold. Cat-2 freeze-compliant (zero new public API; verify_golden
-# reuse; same harness chain).
+# TICKET-AE-PARITY-CINEMATIC-07 — ae_stroke_reveal scene.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity/ae_07_stroke_reveal.cpp
 )
 
-# TICKET-AE-PARITY-CINEMATIC-11 — ae_rotation_per_character scene. Appended
-# directly to existing target via target_sources(). 6 TEST_CASEs = 16:9 +
-# 9:16 × 3 frame snapshots f00/f15/f30 with Y-axis rotation progressive ramp
-# (0° → 12° → 24° per-frame) + slight camera-prospettica Z-translation
-# (z=0 → -60 → -120) to evoke depth kickoff for Phase 2 Killer 4
-# (per-character 3D complete). Layer-level rotation approximation
-# (whole text as a single rigid body rotating around its layer anchor);
-# TRUE per-character fan composition via `.select(Character).rotation()`
-# Animator chain is the forward-only Phase 2 Killer 4 ticket scope. Pure
-# Y-axis here (Z rotation 0°, X rotation 0°) so the fan reads as a
-# cinema-tilt-and-depth reveal rather than a full per-axis 3D rotation.
-# LayerBuilder::rotate + LayerBuilder::position (Z-channel) — both
-# LayerBuilder public surface, no new SDK surface. Cat-2 freeze-compliant.
+# TICKET-AE-PARITY-CINEMATIC-11 — ae_rotation_per_character scene.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity/ae_11_rotation_per_character.cpp
 )
 
-# TICKET-AE-PARITY-CINEMATIC-08 — ae_glow_pulse scene. Appended directly
-# to existing target via target_sources(). 6 TEST_CASEs = 16:9 + 9:16 × 3
-# frame snapshots f00/f15/f30 with opacity + scale co-modulation pulse
-# envelope (opacity 0.40/0.85/0.50 + uniform scale 0.96/1.05/0.98) to
-# evoke a "pulsing aura" without requiring a glow compositor (which is
-# forward-only per Blocco 5 of docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md).
-# Reads as the text itself pulsing in/out of the focal plane. Layer-level
-# (whole text as a single rigid body); TRUE per-character pulse is
-# forward-only. Cat-2 freeze-compliant (zero new public API; verify_golden
-# reuse; same harness chain).
+# TICKET-AE-PARITY-CINEMATIC-08 — ae_glow_pulse scene.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity/ae_08_glow_pulse.cpp
 )
 
-# TICKET-AE-PARITY-CINEMATIC-10 — ae_scale_pop scene. Appended directly
-# to existing target via target_sources(). 6 TEST_CASEs = 16:9 + 9:16 × 3
-# frame snapshots f00/f15/f30 with scale overshoot (0.50/1.30/1.00) +
-# opacity fade-in (0.00/0.80/1.00) co-modulation. Reads as a classic
-# AE pop entrance — the text springs into existence, overshoots its
-# target scale by 30% at f15, then settles to natural size at f30 with
-# full opacity. Layer-level (whole text as a single rigid body); TRUE
-# per-character pop is forward-only Phase 2 Killer scope. Cat-2
-# freeze-compliant (zero new public API; verify_golden reuse; same
-# harness chain).
+# TICKET-AE-PARITY-CINEMATIC-10 — ae_scale_pop scene.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity/ae_10_scale_pop.cpp
 )
 
-# TICKET-AE-PARITY-CINEMATIC-12 — ae_random_character_jitter scene. Appended
-# directly to existing target via target_sources(). 6 TEST_CASEs = 16:9 +
-# 9:16 × 3 frame snapshots f00/f15/f30 with deterministic per-frame
-# translate offsets (0/+8,-4/-5,+3) + opacity micro-dip at f15 (0.92).
-# Seed-locked (frame-index-deterministic) cross-run reproducibility; the
-# full per-character Random selector is forward-only Phase 2 Killer 1
-# (TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION already shipped the
-# cell-level substrate). This scene exercises the LAYER-LEVEL translate
-# envelope as the visual phase 1 cover. Cat-2 freeze-compliant (zero
-# new public API; verify_golden reuse; same harness chain).
+# TICKET-AE-PARITY-CINEMATIC-12 — ae_random_character_jitter scene.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity/ae_12_random_character_jitter.cpp
 )
 
-# TICKET-AE-PARITY-CINEMATIC-14 — ae_multiline_9_16_safezone scene. Appended
-# directly to existing target via target_sources(). 6 TEST_CASEs = 16:9 +
-# 9:16 × 3 frame snapshots f00/f15/f30 with multiline text (3 lines) in
-# 9:16 portrait with 10% safe-zone inset (108px on each side of 1080)
-# + fade-in + upward settle. TikTok/Reels-style multiline title
-# treatment. The 16:9 variant exercises the same multiline text in a
-# wider box (no safe-zone constraint) for cross-AR comparison. Cat-2
-# freeze-compliant (zero new public API; verify_golden reuse; same
-# harness chain).
+# TICKET-AE-PARITY-CINEMATIC-14 — ae_multiline_9_16_safezone scene.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity/ae_14_multiline_9_16.cpp
 )
 
-# TICKET-MOTION-BLUR-TEXT — motion-blur text smoke goldens. Appended
-# directly to existing target via target_sources() (no new harness chain).
-# 6 TEST_CASEs = 3 baseline (motion-blur OFF at f05/f10/f15) + 3 motion-
-# blur ON at the same 3 frame snapshots, to enable cross-compare of the
-# effect activation. Acceptance contract: `mean_abs_diff(blurred, baseline)
-# > 5/255` AND `pixel_changed_ratio > 0.10` at every frame. The blurred
-# variant uses `LayerBuilder::blur(13.0f)` (tier 3 of kBlurTierRadii)
-# to materialize the motion-blur codepath via
-# `sw::apply_separable_box_blur` (text_run_processor/scratch.cpp:70).
-# Cat-2 freeze-compliant (zero new public API; verify_golden reuse; same
-# harness chain).
+# TICKET-MOTION-BLUR-TEXT — motion-blur text smoke goldens.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/motion_blur_text/motion_blur_text_scene.cpp
 )
 
-# TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION — Phase 2 Killer 1 determinism
-# lock for the Wiggly/Wave/Random selector substrate. Forward-only note:
-# `WigglySelector` and `WaveSelector` are PLANNED, NOT YET IMPL (zero
-# `*wiggly*` / `*wave*` files in include/chronon3d/ + src/text/). This test
-# locks the deterministic, thread-safe substrate that they will compose on:
-#   * Cell-level (TEST_CASE 1, 3 SUBCASEs): hash_to_unit_float + Fisher-Yates
-#     cached permutation get_or_build_permutation. Proves same-seed byte-
-#     identity; different-seed divergence; parallel-compute race-freedom.
-#   * End-to-end (TEST_CASE 2, 3 SUBCASEs): evaluate_animator with
-#     TextSelectorOrder::Random + mocked PlacedGlyphRun + PositionProperty.
-#     Proves same-seed per-glyph state byte-identity; different-seed
-#     observable drift; cross-run reference lock (FNV-1a fingerprint).
-# When TICKET-WIGGLY-IMPL + TICKET-WAVE-IMPL land, TEST_CASE 2 expands to
-# include a 4th SUBCASE exercising the new Wiggly/Wave surfaces. The
-# cell-level substrate (TEST_CASE 1) is the foundation they compose on.
-# Cat-2 freeze-compliant (zero new public API surface; test-only includes).
+# TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION — Phase 2 Killer 1.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity_killer/killer_01_wiggly_wave.cpp
 )
 
-# TICKET-AE-PARITY-KILLER-EXPRESSION-SELECTOR — Phase 2 Killer 2 determinism
-# lock for the per-character ExpressionSelector surface
-# (amount = selectorValue * textIndex / textTotal per docs/tickets/
-# TICKET-AE-LIKE-TEXT-ACTION-PLAN.md Decision 2 Killer 2). Forward-only note:
-# `ExpressionSelector` is PLANNED, NOT YET IMPL (zero `expression_evaluator.cpp`
-# files in src/text/; new file per Blocco 6 of
-# docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md). This test locks the
-# deterministic, thread-safe substrate that the future ExpressionSelector
-# will compose on:
-#   * Cell-level (TEST_CASE 1, 3 SUBCASEs): test-internal pure-function
-#     `expression_ramp(selector_value, text_index, text_total)` implementing
-#     the contract formula. Proves byte-identity, zero global mutable state
-#     (pure function), reentrant across 4 threads × 16 iterations.
-#   * End-to-end (TEST_CASE 2, 3 SUBCASEs): evaluate_animator with
-#     GlyphSelectorSpec{unit=Character, shape=RampUp, start=0, end=100,
-#     amount=AnimatedValue{selectorValue*100}} + PositionProperty{Vec3{1,0,0}}
-#     emulating the per-character linear ramp. Proves random-access frame 30
-#     byte-identical to sequential up to frame 30; zero global mutable state
-#     in the evaluator; reentrant across 4 threads × 16 iterations.
-# When TICKET-EXPRESSION-IMPL lands (src/text/selector/expression_evaluator.cpp
-# per Blocco 6), TEST_CASE 2 can be extended to use the production
-# ExpressionSelector surface directly. The cell-level substrate (TEST_CASE 1)
-# is the contract the future ExpressionSelector must implement.
-# Cat-2 freeze-compliant (zero new public API surface; test-only includes).
+# TICKET-AE-PARITY-KILLER-EXPRESSION-SELECTOR — Phase 2 Killer 2.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity_killer/killer_02_expression_selector.cpp
 )
 
-# TICKET-AE-PARITY-KILLER-CHARACTER-OFFSET-VALUE-RANGE — Phase 2 Killer 3
-# pre-shaping invalidation lock for the CharacterOffset + CharacterValue +
-# CharacterRange property-stage invalidation contract per docs/tickets/
-# TICKET-AE-LIKE-TEXT-ACTION-PLAN.md Decision 2 Killer 3 + Blocco 2 of
-# docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md. CharacterOffsetProperty is
-# IMPL + PreShaping (FASE 2a, src/text/animation/text_pre_shaping.cpp:
-# `apply_character_offset_to_source()` Caesar-cipher on UTF-8 code points).
-# CharacterValue + CharacterRange are PLANNED, NOT YET IMPL (zero
-# `character_value*.cpp` / `character_range*.cpp` files in src/text/; new
-# `src/text/source/character_offset_evaluator.cpp` per the action plan).
-# This test locks the pre-shaping transformation + cache invalidation
-# substrate that the future CharacterValue/Range impl will compose on:
-#   * Cell-level (TEST_CASE 1, 3 SUBCASEs): apply_character_offset_to_source
-#     pure-function (byte-identity + boundary contracts: offset=0, +5, +1
-#     wrap, -1 reverse, 26 cycle, non-letter pass-through, empty source);
-#     evaluate_pre_shaping_source composes multiple CharacterOffset
-#     properties (total = sum of all enabled animators' offsets);
-#     has_pre_shaping_properties detection (true for any enabled pre-
-#     shaping animator, false for PostLayout-only, false for disabled).
-#   * End-to-end (TEST_CASE 2, 3 SUBCASEs): CharacterOffset +5 swaps the
-#     source text "A" -> "F" (pre-shaping transformation, NOT post-layout
-#     visual offset; combined with PositionProperty{Vec3{0,0,0}} the source
-#     still changes, proving the swap is pre-shaping); TextLayoutCacheKey
-#     digest changes when the pre-shaping source changes (proves the cache
-#     will miss on next lookup and rebuild with the new source);
-#     CharacterValue + CharacterRange FORWARD-ONLY smoke-test documenting
-#     the production contract that the future IMPL must follow.
-# When TICKET-CHARACTER-VALUE-RANGE-IMPL lands, SUBCASE 3 of TEST_CASE 2
-# is upgraded from a smoke-test placeholder to a hard CHECK on the
-# production contract (CharacterValue replaces index content +
-# CharacterRange applies override to contiguous range).
-# Cat-2 freeze-compliant (zero new public API surface; test-only includes).
+# TICKET-AE-PARITY-KILLER-CHARACTER-OFFSET-VALUE-RANGE — Phase 2 Killer 3.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity_killer/killer_03_character_offset.cpp
-)
-
-# TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION — Phase 2 Killer 4
-# companion: Random order determinism lock. The existing Killer 1
-# (killer_01_wiggly_wave.cpp) ships the Random order substrate; this
-# Killer 4 is a focused regression lock on the Random order surface
-# specifically (cell-level hash + end-to-end evaluate_animator with
-# TextSelectorOrder::Random + cross-run FNV-1a reference lock).
-# 2 TEST_CASEs × 3 SUBCASEs = 6 SUBCASEs:
-#   * TEST_CASE 1 (cell-level permutation substrate): hash_to_unit_float
-#     byte-identity (SUBCASE 1) + zero mutable state across 4 threads
-#     × 16 iterations (SUBCASE 2) + reentrant parallel Fisher-Yates
-#     (SUBCASE 3).
-#   * TEST_CASE 2 (end-to-end Random order via evaluate_animator): same-
-#     seed per-glyph state byte-identity (SUBCASE 1) + different-seed
-#     observable drift (SUBCASE 2) + cross-run FNV-1a reference lock
-#     (SUBCASE 3).
-# Cat-2 freeze-compliant (zero new public API; test-only includes;
-# uses production `evaluate_animator` + `TextSelectorOrder::Random`).
-target_sources(chronon3d_text_golden_tests
-    PRIVATE
 )
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -325,24 +132,21 @@ target_sources(chronon3d_text_golden_tests
         text_golden/text_placement/text_placement_golden.cpp
 )
 
+# ── add_test aliases (preserved verbatim — these are NOT registered via
+# the chronon3d_add_test_suite helper because they filter on doctest
+# --test-case patterns, not on the executable itself). ───────────────
 add_test(
     NAME TextGolden
     COMMAND chronon3d_text_golden_tests
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
-# Filter ctest -R to the user-spec subset only (per ADR-014 Decision 3:
-# bash driver / CI use this regex; the full chronon3d_text_golden_tests
-# target name still works for the original TXT-QA-01 cases).
+# Filter ctest -R to the user-spec subset only (per ADR-014 Decision 3).
 add_test(
     NAME TextGoldenUserSpec
     COMMAND chronon3d_text_golden_tests --test-case="UserSpec*"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
-# TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION — KILLER* ctest filter
-# (CI isolation for the Phase 2 killer tests as a unit). Companion to
-# `TextGolden` (all-tests) + `TextGoldenUserSpec` (12 user-spec only);
-# this third filter runs only the KILLER-NN tests so CI can verify
-# selector determinism in isolation from the visual golden suite.
+# TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION — KILLER* ctest filter.
 add_test(
     NAME TextGoldenKiller
     COMMAND chronon3d_text_golden_tests --test-case="KILLER *"
