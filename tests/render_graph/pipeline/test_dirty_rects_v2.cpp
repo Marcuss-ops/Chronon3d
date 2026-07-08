@@ -456,7 +456,8 @@ TEST_CASE("Dirty Rects: Long sequence equivalence with moving elements") {
     });
 
     // Two renderers: one with dirty rects, one without
-    SoftwareRenderer r_dirty, r_clean;
+    auto r_dirty = test::make_renderer();
+    auto r_clean = test::make_renderer();
     {
         RenderSettings s;
         s.use_modular_graph = true;

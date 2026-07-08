@@ -36,7 +36,7 @@ GraphPreflightReport run_preflight(
     float time_sec = 0.0f
 ) {
     return debug_preflight_render_graph(
-        renderer, node_cache, scene, camera,
+        renderer.backend(), node_cache, scene, camera,
         W, H, frame, time_sec,
         renderer.render_settings(),
         renderer.composition_registry(),
