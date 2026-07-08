@@ -300,7 +300,6 @@ add_executable(chronon3d_core_tests
     core/timeline/test_sequence_builder.cpp
     core/timeline/test_sequence_animation.cpp
     core/timeline/test_sequence_integration.cpp
-    core/timeline/test_sequence_v2_compositions.cpp
     assets/test_svg_path_loader.cpp
     assets/test_render_preflight.cpp
     assets/test_asset_registry.cpp
@@ -401,6 +400,11 @@ add_executable(chronon3d_core_tests
     ${CMAKE_SOURCE_DIR}/tools/test_software_renderer_boundary_consistency.cpp
 )
 target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline doctest::doctest)
+# M1.5#7 — UNITY_BUILD OFF for tests (matches chronon3d_add_test_suite convention).
+# test_main.cpp has #define DOCTEST_CONFIG_IMPLEMENT which emits doctest
+# implementation symbols; unity builds merge these across TUs causing
+# duplicate symbol linker errors.
+set_target_properties(chronon3d_core_tests PROPERTIES UNITY_BUILD OFF)
 # TICKET-006: CORE_BLEND2D_TESTS exercise symbols that only resolve when
 # chronon3d_backend_text is linked (bidi_segmenter, font_engine, glyph_atlas,
 # shared_font_engine, rasterize_text_to_bl_image, etc.). Without this guard
@@ -443,5 +447,11 @@ set_source_files_properties(
     ${CMAKE_CURRENT_SOURCE_DIR}/authoring/test_animator_dsl.cpp
     PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
 )
+
+# Sequence V2 compositions live in the content module — only compile when content is built.
+if(CHRONON3D_BUILD_CONTENT AND TARGET chronon3d_content)
+    target_sources(chronon3d_core_tests PRIVATE core/timeline/test_sequence_v2_compositions.cpp)
+    target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_content)
+endif()
 
 add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

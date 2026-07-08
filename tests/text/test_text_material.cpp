@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 // WP-8 PR 8.1 — FontEngine full definition; text_rasterizer_utils.hpp
 // only forward-declares `class FontEngine;` (header-conscious design:

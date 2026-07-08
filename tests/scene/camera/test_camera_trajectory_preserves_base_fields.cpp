@@ -74,8 +74,8 @@ using namespace chronon3d::camera_v1;
 
 namespace {
 
-constexpr float kEps = 1e-5f;
-constexpr FrameRate kFps{60, 1};
+constexpr float kEpsTrajPreserves = 1e-5f;
+constexpr FrameRate kFpsTrajPreserves{60, 1};
 
 // Build a non-trivial trajectory: 2 points, single Linear segment.
 // At any sampled frame the position lies between P0 and P1 (so
@@ -134,7 +134,7 @@ CameraDescriptor make_sentinel_desc() {
     return desc;
 }
 
-CameraProgram compile_or_die(const CameraDescriptor& desc) {
+CameraProgram compile_or_die_traj_preserves(const CameraDescriptor& desc) {
     auto result = compile_camera(desc, /*catalog=*/nullptr);
     if (!result.has_value()) {
         // Silent-on-success diagnostic.  INFO prints only on the next
@@ -149,11 +149,11 @@ CameraProgram compile_or_die(const CameraDescriptor& desc) {
     return program;
 }
 
-Camera2_5D eval_at_or_die(const CameraProgram& program,
+Camera2_5D eval_at_or_die_traj_preserves(const CameraProgram& program,
                           CameraSession& session, Frame frame) {
     CameraEvalContext ctx;
     ctx.frame = frame;
-    ctx.sample_time = SampleTime::from_frame_int(frame, kFps);
+    ctx.sample_time = SampleTime::from_frame_int(frame, kFpsTrajPreserves);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
     return res->camera;
@@ -168,9 +168,9 @@ Camera2_5D eval_at_or_die(const CameraProgram& program,
 TEST_CASE("TrajectoryMotion preserves base.lens (35mm prime carry-forward, "
           "ZoomProjection path)") {
     auto desc = make_sentinel_desc();
-    auto program = compile_or_die(desc);
+    auto program = compile_or_die_traj_preserves(desc);
     CameraSession session;
-    auto cam = eval_at_or_die(program, session, Frame{0});
+    auto cam = eval_at_or_die_traj_preserves(program, session, Frame{0});
 
     CHECK(cam.optics_mode == CameraOpticsMode::Zoom);
 
@@ -180,37 +180,37 @@ TEST_CASE("TrajectoryMotion preserves base.lens (35mm prime carry-forward, "
     CAPTURE(cam.lens.sensor_width);
     CAPTURE(cam.lens.sensor_height);
     CAPTURE(static_cast<int>(cam.lens.gate_fit));
-    CHECK(cam.lens.focal_length  == doctest::Approx(35.0f).epsilon(kEps));
-    CHECK(cam.lens.f_stop        == doctest::Approx(1.4f).epsilon(kEps));
-    CHECK(cam.lens.close_focus   == doctest::Approx(300.0f).epsilon(kEps));
-    CHECK(cam.lens.sensor_width  == doctest::Approx(36.0f).epsilon(kEps));
-    CHECK(cam.lens.sensor_height == doctest::Approx(24.0f).epsilon(kEps));
+    CHECK(cam.lens.focal_length  == doctest::Approx(35.0f).epsilon(kEpsTrajPreserves));
+    CHECK(cam.lens.f_stop        == doctest::Approx(1.4f).epsilon(kEpsTrajPreserves));
+    CHECK(cam.lens.close_focus   == doctest::Approx(300.0f).epsilon(kEpsTrajPreserves));
+    CHECK(cam.lens.sensor_width  == doctest::Approx(36.0f).epsilon(kEpsTrajPreserves));
+    CHECK(cam.lens.sensor_height == doctest::Approx(24.0f).epsilon(kEpsTrajPreserves));
     CHECK(cam.lens.gate_fit == GateFit::Fill);
 }
 
 TEST_CASE("TrajectoryMotion preserves base.dof "
           "(focus=5m, aperture=f/2.8, max_blur=3px)") {
     auto desc = make_sentinel_desc();
-    auto program = compile_or_die(desc);
+    auto program = compile_or_die_traj_preserves(desc);
     CameraSession session;
-    auto cam = eval_at_or_die(program, session, Frame{0});
+    auto cam = eval_at_or_die_traj_preserves(program, session, Frame{0});
 
     CAPTURE(cam.dof.enabled);
     CAPTURE(cam.dof.focus_distance);
     CAPTURE(cam.dof.aperture);
     CAPTURE(cam.dof.max_blur);
     CHECK(cam.dof.enabled);
-    CHECK(cam.dof.focus_distance == doctest::Approx(5000.0f).epsilon(kEps));
-    CHECK(cam.dof.aperture       == doctest::Approx(2.8f).epsilon(kEps));
-    CHECK(cam.dof.max_blur       == doctest::Approx(3.0f).epsilon(kEps));
+    CHECK(cam.dof.focus_distance == doctest::Approx(5000.0f).epsilon(kEpsTrajPreserves));
+    CHECK(cam.dof.aperture       == doctest::Approx(2.8f).epsilon(kEpsTrajPreserves));
+    CHECK(cam.dof.max_blur       == doctest::Approx(3.0f).epsilon(kEpsTrajPreserves));
 }
 
 TEST_CASE("TrajectoryMotion preserves base.motion_blur "
           "(TemporalAccumulation carry-forward)") {
     auto desc = make_sentinel_desc();
-    auto program = compile_or_die(desc);
+    auto program = compile_or_die_traj_preserves(desc);
     CameraSession session;
-    auto cam = eval_at_or_die(program, session, Frame{0});
+    auto cam = eval_at_or_die_traj_preserves(program, session, Frame{0});
 
     CAPTURE(static_cast<int>(cam.motion_blur.mode));
     CAPTURE(cam.motion_blur.samples);
@@ -218,15 +218,15 @@ TEST_CASE("TrajectoryMotion preserves base.motion_blur "
     CAPTURE(cam.motion_blur.shutter_phase_deg);
     CHECK(cam.motion_blur.mode              == MotionBlurMode::TemporalAccumulation);
     CHECK(cam.motion_blur.samples           == 7);
-    CHECK(cam.motion_blur.shutter_angle_deg == doctest::Approx(270.0f).epsilon(kEps));
-    CHECK(cam.motion_blur.shutter_phase_deg == doctest::Approx(60.0f).epsilon(kEps));
+    CHECK(cam.motion_blur.shutter_angle_deg == doctest::Approx(270.0f).epsilon(kEpsTrajPreserves));
+    CHECK(cam.motion_blur.shutter_phase_deg == doctest::Approx(60.0f).epsilon(kEpsTrajPreserves));
 }
 
 TEST_CASE("TrajectoryMotion preserves base.parent_name ('shot_main')") {
     auto desc = make_sentinel_desc();
-    auto program = compile_or_die(desc);
+    auto program = compile_or_die_traj_preserves(desc);
     CameraSession session;
-    auto cam = eval_at_or_die(program, session, Frame{0});
+    auto cam = eval_at_or_die_traj_preserves(program, session, Frame{0});
 
     CAPTURE(cam.parent_name.c_str());
     CHECK(cam.parent_name == "shot_main");
@@ -242,9 +242,9 @@ TEST_CASE("TrajectoryMotion preserves base.parent_name ('shot_main')") {
 TEST_CASE("TrajectoryMotion point_of_interest carry-forward (forced-enabled "
           "+ base-default when trajectory has no per-point target)") {
     auto desc = make_sentinel_desc();
-    auto program = compile_or_die(desc);
+    auto program = compile_or_die_traj_preserves(desc);
     CameraSession session;
-    auto cam = eval_at_or_die(program, session, Frame{0});
+    auto cam = eval_at_or_die_traj_preserves(program, session, Frame{0});
 
     // The trajectory branch in cpp:474-477 ALWAYS sets
     // cam.point_of_interest_enabled = true (regardless of
@@ -259,20 +259,20 @@ TEST_CASE("TrajectoryMotion point_of_interest carry-forward (forced-enabled "
     CAPTURE(cam.point_of_interest.x);
     CAPTURE(cam.point_of_interest.y);
     CAPTURE(cam.point_of_interest.z);
-    CHECK(cam.point_of_interest.x == doctest::Approx(0.0f).epsilon(kEps));
-    CHECK(cam.point_of_interest.y == doctest::Approx(0.0f).epsilon(kEps));
-    CHECK(cam.point_of_interest.z == doctest::Approx(0.0f).epsilon(kEps));
+    CHECK(cam.point_of_interest.x == doctest::Approx(0.0f).epsilon(kEpsTrajPreserves));
+    CHECK(cam.point_of_interest.y == doctest::Approx(0.0f).epsilon(kEpsTrajPreserves));
+    CHECK(cam.point_of_interest.z == doctest::Approx(0.0f).epsilon(kEpsTrajPreserves));
 }
 
 TEST_CASE("TrajectoryMotion applies trajectory.position (sanity guard — "
           "proves the trajectory source is actually consulted, not statically "
           "replaced by base.position)") {
     auto desc = make_sentinel_desc();
-    auto program = compile_or_die(desc);
+    auto program = compile_or_die_traj_preserves(desc);
     CameraSession session;
     // Mid-segment (Frame{45} of a 90-frame piece) so position is well
     // away from base.position and from both P0 and P1.
-    auto cam = eval_at_or_die(program, session, Frame{45});
+    auto cam = eval_at_or_die_traj_preserves(program, session, Frame{45});
 
     // base.position = (0,0,-1000).  Expected midpoint z = (-1500 + -800)/2
     // = -1150.  ±5 px slack accommodates the linear-segment numerical drift.

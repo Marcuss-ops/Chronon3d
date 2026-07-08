@@ -35,6 +35,7 @@ using chronon3d::RenderSession;
 using chronon3d::FrameHistory;
 using chronon3d::DirtyHistory;
 using chronon3d::LayerBBoxState;
+using chronon3d::i32;
 using chronon3d::graph::SceneHasher;
 using chronon3d::graph::SceneProgramStore;
 using chronon3d::raster::BBox;

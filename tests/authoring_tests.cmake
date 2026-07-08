@@ -9,9 +9,16 @@ add_executable(chronon3d_authoring_tests
 )
 target_link_libraries(chronon3d_authoring_tests
     PRIVATE
+        chronon3d_sdk
+        chronon3d_sdk_impl
         chronon3d_pipeline
         doctest::doctest
 )
+# Same guard as core_tests.cmake: authoring tests share test_main.cpp
+# which conditionally links against content/extension/text symbols.
+if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D AND TARGET chronon3d_backend_text)
+    target_link_libraries(chronon3d_authoring_tests PRIVATE chronon3d_backend_text)
+endif()
 target_include_directories(chronon3d_authoring_tests PRIVATE ${CMAKE_SOURCE_DIR})
 # Keep the test-only authoring::testing release accessor visible (the
 # `friend struct testing::AnimatorTestAccess` declaration in the
