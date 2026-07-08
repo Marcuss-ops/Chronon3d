@@ -304,11 +304,6 @@ template <typename T>
             seed = hash_combine(seed, hash_bytes(&s.grid_background().major_thickness, sizeof(f32)));
             seed = hash_combine(seed, hash_bytes(&s.grid_background().major_every, sizeof(i32)));
             return hash_combine(seed, hash_bytes(&s.grid_background().centered, sizeof(bool)));
-        case ShapeType::Text:
-            // Delegate to the canonical text hash used by the raster cache.
-            // This ensures text nodes with different materials, gradients,
-            // shaping params, shadows, etc. get different content hashes.
-            return hash_text_style_full(s.text(), s.text().style.size, 0, nullptr);
         case ShapeType::FakeBox3D:
             seed = hash_combine(seed, hash_vec3(s.fake_box3d().world_pos));
             seed = hash_combine(seed, hash_vec2(s.fake_box3d().size));
