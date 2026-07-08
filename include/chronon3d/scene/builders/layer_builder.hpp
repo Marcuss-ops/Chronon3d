@@ -113,6 +113,14 @@ public:
     LayerBuilder& until(Frame frame);
     LayerBuilder& offset(Frame frames);
 
+    // ── Timing aliases (FIX 7: clearer naming) ──
+    /// Alias for `from(frame)` — clearer when reading build code:
+    ///   l.start_at(Frame{30}).length(Frame{60});
+    LayerBuilder& start_at(Frame frame) { return from(frame); }
+    /// Alias for `duration(frames)` — clearer when reading build code:
+    ///   l.start_at(Frame{30}).length(Frame{60});
+    LayerBuilder& length(Frame frames) { return duration(frames); }
+
     // ── Time Remap ──
     LayerBuilder& speed(f32 multiplier);
     LayerBuilder& reverse(bool value = true);
