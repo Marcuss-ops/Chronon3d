@@ -54,7 +54,7 @@ namespace {
     int total_samples) noexcept
 {
     std::uint64_t h = seed;
-    h ^= static_cast<std::uint64_t>(frame.value)        * 0x9E3779B97F4A7C15ULL;
+    h ^= static_cast<std::uint64_t>(frame.integral())  * 0x9E3779B97F4A7C15ULL;
     h ^= static_cast<std::uint64_t>(sample_idx)         * 0xBF58476D1CE4E5B9ULL;
     h ^= static_cast<std::uint64_t>(total_samples)      * 0x94D049BB133111EBULL;
     h = (h ^ (h >> 30)) * 0xBF58476D1CE4E5B9ULL;
