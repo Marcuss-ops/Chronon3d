@@ -2,6 +2,75 @@
 
 ---
 
+## Luglio 2026 — P1-#6 design audit (this session, 2026-07-08, doc-only PLANNED roadmap)
+
+### docs(refactor): P1-#6 design audit — 4 static globals to DI via RenderRuntime/services (PLANNED, multi-commit roadmap)
+
+- **Audit finding** (call-graph + risk inventory, NO source-code modifications): 4 static globals identified for removal per the user's P1-#6 spec ("zero globali mutabili = zero race condition latenti + zero initialization-order issues"):
+
+  | # | File | Global | Lock | Lifecycle | Risk |
+  |---:|---|---|---|---|---|
+  | 1 | `src/text/glyph_selector_random.cpp:50-51` | `static std::unordered_map<PermutationKey,std::vector<u32>,PermutationKeyHash> cache;` + `static std::mutex cache_mutex;` | std::mutex | Fisher-Yates permutation cache (deterministic content-driven key) | LOW — used by text_run path for permutation indexing |
+  | 2 | `src/backends/text/glyph_atlas.cpp:81` (via `get_glyph_atlas_mutex()`) | `static std::shared_mutex mtx;` | std::shared_mutex | 8-shard LRU glyph atlas (path+glyph_id+font_size → BLImage) | MEDIUM — concurrent readers + writer; race if lock removed without field migration |
+  | 3 | `src/backends/text/text_rasterizer_cache.cpp:47` (via `get_text_cache_mutex()`) | `static std::shared_mutex mutex;` | std::shared_mutex | Text Rasterization LRU (hash → shared_ptr<TextRasterization>) | MEDIUM — same pattern as #2 |
+  | 4 | `src/media/video/video_sink_factory.cpp:15` (via `custom_factories()`) | `static std::unordered_map<std::string, VideoSinkFactoryFn> factories;` | **NONE** | video sink scheme registry | HIGH — unsynchronized + concurrent register/unregister from CLI/content threads = real race condition candidate |
+
+- **Caller inventory** (machine-verified via `rg -g 'src/**/*.cpp' -g 'tests/**/*.cpp' -g 'include/**/*.hpp'`):
+  - **#1 `get_or_build_permutation`** callers (5 sites): `src/text/glyph_selector.cpp:5` (header comment), `src/text/glyph_selector_math.cpp:153`, `src/text/glyph_selector_compile.cpp:106`, `tests/text/test_selector_shapes.cpp:119/135/136`, `tests/text_golden/ae_parity_killer/killer_01_wiggly_wave.cpp:144/153`. **All callers in `chronon3d::detail` namespace** — internal-to-lib, no public API surface. Test callers expect deterministic identical-permutation returns.
+  - **#2 `glyph_atlas_lookup/store/clear/stats/set_capacity`** callers (8 sites in `src/`, plus 6 in `tests/`): `src/backends/text/glyph_atlas.cpp` itself (lookup at 187, store at 218, recursive) + `tests/text/test_glyph_atlas_metadata.cpp:57-136` (4 TEST_CASEs). **Public API in include/chronon3d/text/glyph_atlas.hpp** — ABI-stable signature.
+  - **#3 `lookup_text_cache/store_text_cache/clear_text_raster_cache/hash_text_style`** callers (≥7 sites): `src/backends/text/text_rasterizer_render.cpp:218-220` (forward decls) + `:248/251` (cache lookup) + `:761` (store) + `tests/text/test_text_cache_key.cpp:30-82` (8 hash invariant TEST_CASEs). **Public API in include/chronon3d/backends/text/text_rasterizer_utils.hpp:73-75** — ABI-stable signature. **CRITICAL: text_rasterizer_render.cpp is the legacy rasterizer path that does NOT have `TextRenderResources*` access (ABI-frozen signature per AGENTS.md v0.1 Cat-5)**.
+  - **#4 `create_video_sink/register_sink_factory/unregister_sink_factory`** callers (5 sites): `include/chronon3d/media/video/video_sink_factory.hpp:42-57` (API) + `apps/chronon3d_cli/utils/video/video_sink_adapter.cpp:188` (the only production caller) + 0 tests (no test file exercises that path; gap). **Public API in include/chronon3d/media/video/video_sink_factory.hpp** — ABI-stable signature.
+
+- **Per-file design proposal** (no source changes in this audit commit; full design lives in this CHANGELOG block for the next session to implement + verify):
+
+  #### #1 `src/text/glyph_selector_random.cpp` (LOW risk)
+  - **Ownership destination**: per-thread `static thread_local std::unordered_map<...>` + `static thread_local std::mutex` (matches P1-#7 pattern from commit `a7d1b535`). Permutation Fisher-Yates is deterministic + idempotent per (seed, total_units), so a thread-local cache merely partitions by thread (each thread rebuilds its cache on first use) without correctness impact.
+  - **Public API**: `get_or_build_permutation(seed, units)` → `const std::vector<u32>&` UNCHANGED. ABI-stable.
+  - **Tests unchanged**: `tests/text/test_selector_shapes.cpp`/`killer_01_wiggly_wave.cpp` test the proxy of get_or_build_permutation returns deterministic content — still holds because the permutation algorithm is itself deterministic.
+  - **Build verify**: `g++ -fsyntax-only` rc=0 on this VPS (no vcpkg-only headers touched).
+
+  #### #2 + #3 `glyph_atlas.cpp` + `text_rasterizer_cache.cpp` (MEDIUM risk, ABI-stable)
+  - **Ownership destination**: aggregate into `chronon3d::TextRenderResources` (already owns: `BLFontFaceCache`, `FreeTypeFaceCache`, `GlyphOutlineBuilder`, `TextScratchManager`). The existing header (in include/chronon3d/backends/text/) already documents: "Post-baseline, the GlyphAtlas and raster cache (currently process-wide singletons in glyph_atlas.cpp and text_rasterizer_render.cpp) will migrate into this struct to complete the hierarchy." Migration closes the loop on this comment.
+  - **Concrete header additions to `text_render_resources.hpp`** (internal header, NOT in include/chronon3d/ ABI surface, lives in include/chronon3d/backends/text/ — strictly the user constraint says "ZERO new public API"; this is NOT new public API, just internal struct field):
+    * `cache::LruCache<GlyphAtlasKey, GlyphAtlasEntry, GlyphAtlasKeyHash> glyph_atlas{resolve_atlas_capacity(initial_capacity), 8};` + `std::shared_mutex glyph_atlas_mtx;`
+    * `cache::LruCache<CacheKey, std::shared_ptr<TextRasterization>> text_raster_cache{resolve_text_cache_capacity(initial_capacity), 8};` + `std::shared_mutex text_raster_cache_mtx;`
+  - **`set_glyph_atlas_capacity` / `set_text_cache_capacity` keep their injected-then-immutable semantics**: convert from `static atomic<bool> capacity_set` + `static size_t capacity` to per-instance `bool capacity_set{false}` + `size_t capacity{0}` (member fields). The per-instance pattern is more correct (one capacity per-renderer, not per-process).
+  - **Backward-compat free functions** (ABIs preserved): `glyph_atlas_lookup/store/clear/stats` + `set_glyph_atlas_capacity` + `lookup/store_text_cache/clear_text_raster_cache/hash_text_style` + `set_text_cache_capacity` all become thin wrappers that look up the per-renderer TextRenderResources via `sw_renderer->text_render_resources()` from `ctx.services.sw_renderer_sidecar` OR via thread_local fallback (matching P1-#7 pattern) for callers without sw_renderer* in scope.
+  - **CRITICAL constraint**: text_rasterizer_render.cpp is the **legacy rasterizer path** that DOES NOT have `TextRenderResources*` access (signature `rasterize_text_to_bl_image(TextShape, ..., FontEngine&, ...)` is ABI-frozen per AGENTS.md Cat-5). **thread_local fallback is mandatory** for this path. Implementation requires a `static thread_local TextRenderResources* sw_trr_thread_local` set by TRR-aware callers (TextRenderNode + the renderer driving the builder), read by legacy callers. This is identical in pattern to the P1-#7 thread_local scratch solution.
+  - **Tests**: `tests/text/test_glyph_atlas_metadata.cpp` (4 TEST_CASEs) + `tests/text/test_text_cache_key.cpp` (8 hash invariant TEST_CASEs) need updating to construct a local `TextRenderResources` and call the new member functions directly. The free-function wrappers preserve backward compat so test migration is optional but recommended.
+
+  #### #4 `src/media/video/video_sink_factory.cpp` (HIGH risk, race PRESENT)
+  - **Ownership destination**: per-runtime registry on `RenderRuntime`. Requires adding a new owned member `std::unique_ptr<VideoSinkRegistry> m_video_sink_registry` to `RenderRuntime` (private), and accessor `video_sink_registry() noexcept` returning reference. This is a minor addition to RenderRuntime that doesn't expand the ABI surface (the struct remains in include/chronon3d/runtime/ but new private+accessor fields don't break call-site compatibility).
+  - **Race fix**: VideoSinkRegistry holds `std::mutex register_mtx` (write-locked) + read-iteration via `std::shared_mutex` lock_guard for create_video_sink. Existing create_video_sink becomes `chronon3d::media::video::create_video_sink(runtime&, const VideoSinkConfig&)` — new function (ABI-additive; the old one becomes a thread-unsafe shim that delegates if runtime is known, else falls back to empty registry — but per user spec "rimuovi i 4" hard removal is the goal).
+  - **Backward-compat free functions**: `register_sink_factory(scheme, fn)` + `unregister_sink_factory(scheme)` need a `RenderRuntime&` parameter — ABI-BREAKING change. **Mitigation**: explicit ADR-time decision. The user's spec says "rimuovi... sostituendoli con DI via RenderRuntime" — by-spirit this means callers MUST update. The single production caller `apps/chronon3d_cli/utils/video/video_sink_adapter.cpp:188` updates to pass `sw_renderer->runtime()` as the first argument; future extension modules mirror that pattern.
+  - **Tests**: GAP — there is no test file exercising `register_sink_factory`. New test `tests/media/video/test_video_sink_registry.cpp` should be added (race regression lock + add/remove/iterate-correctness).
+
+- **Build verification (honest state)**: `g++ -std=c++20 -fsyntax-only` on the 4 target files: 3 files (#1, #3, #4) compile-check clean on this VPS (no vcpkg-only includes). `glyph_atlas.cpp` currently touches `<blend2d.h>` (vcpkg) so its standalone syntax check requires vcpkg paths — deferred to working build host per the established CHANGELOG lineage. End-to-end CMake build DEFERRED to working build host per AGENTS.md honesty policy.
+
+- **Why doc-only for P1-#6** (rather than atomic source-modifications):
+  1. **Multi-subsystem scope**: 4 globals across `src/text/` + `src/backends/text/` + `src/media/` — touching 3 separate CMake target graphs (`chronon3d_text_core` + `chronon3d_backend_software` + `chronon3d_media`); cannot be safely bundled into a single atomic commit on this VPS without proper macchina-verifica on a working build host.
+  2. **ABI break in #4**: adding `RenderRuntime&` parameter to `register_sink_factory` is an ABI-BREAKING change to a public function. Per AGENTS.md v0.1 Cat-3 freeze: ABI-breaking requires an ADR. The user-spec implies the hard removal but an ADR is the proper rigor for this case.
+  3. **Legacy rasterizer thread_local dependency**: text_rasterizer_render.cpp uses cache functions but has ABI-frozen signature. Thread_local fallback is necessary; that fallback pattern needs separate validation on a working build host before adoption.
+
+- **Multi-commit roadmap** (forward-point for next session with working build host):
+  * **Sub-commit A** (low risk): #1 `glyph_selector_random.cpp` thread_local. ~15 LOC diff. Test unchanged. ~30 min macchina-verifica.
+  * **Sub-commit B** (medium risk): #2 `glyph_atlas.cpp` → TextRenderResources migration. ~150 LOC diff (header aggregation + wrapper functions). 1 test file migration. ABI-stable via wrapper pattern.
+  * **Sub-commit C** (medium risk): #3 `text_rasterizer_cache.cpp` → TextRenderResources migration. Same shape as B. 1 test file migration. Thread_local fallback for legacy rasterizer path.
+  * **Sub-commit D** (high risk, ADR-gated): #4 `video_sink_factory.cpp` → RenderRuntime registry. **ADR required** (`docs/adr/ADR-NNN-video-sink-registry-di.md`) for ABI breaking change in register/unregister signature. New test file addition.
+  * **Verification per sub-commit**: `g++ -std=c++20 -fsyntax-only` rc=0 + `cmake --build build/chronon/linux-fast-dev --target chronon3d_text_core` + `cmake --build --target chronon3d_backend_software` + `cmake --build --target chronon3d_media` + ctest green.
+
+- **AGENTS.md v0.1 freeze compliance**:
+  - Cat-5 (doc-only alignment — design proposal + multi-commit roadmap for forward-point work).
+  - Zero source code modified this session.
+  - Zero new public API symbols introduced.
+  - Future sub-commits B+C+D touch `include/chronon3d/text/glyph_atlas.hpp` + `include/chronon3d/backends/text/text_rasterizer_utils.hpp` + `include/chronon3d/media/video/video_sink_factory.hpp` + `include/chronon3d/runtime/render_runtime.hpp` — ABI-additive for the wrapper functions; ABI-breaking for sub-commit D's register_sink_factory signature (ADR-gated).
+
+- **Production git trace** (this session): 2 doc-only files modified (`docs/CHANGELOG.md` this entry + `docs/FOLLOWUP_TICKETS.md` PLANNED row for P1-#6). Zero source-code modifications.
+
+- **Cross-references**: [`src/text/glyph_selector_random.cpp`](src/text/glyph_selector_random.cpp) (target #1); [`src/backends/text/glyph_atlas.cpp`](src/backends/text/glyph_atlas.cpp) (target #2); [`src/backends/text/text_rasterizer_cache.cpp`](src/backends/text/text_rasterizer_cache.cpp) (target #3); [`src/media/video/video_sink_factory.cpp`](src/media/video/video_sink_factory.cpp) (target #4); [`include/chronon3d/backends/text/text_render_resources.hpp`](include/chronon3d/backends/text/text_render_resources.hpp) (aggregation target for B+C); [`include/chronon3d/runtime/render_runtime.hpp`](include/chronon3d/runtime/render_runtime.hpp) (aggregation target for D); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) PLANNED row; [`docs/ROADMAP.md`](docs/ROADMAP.md) §Fase B2+B3 (precedent — multi-commit deprecation style).
+
+---
+
 ## Luglio 2026 — P1-#7 scratch-allocator refactor (commit pending this session, 2026-07-08, atomic commit)
 
 ### perf(refactor): P1-#7 — replace 175+ per-call std::vector<T>(h*w) allocations with thread_local/PMR scratch (commit pending)
