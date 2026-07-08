@@ -9,7 +9,6 @@
 | TICKET-011 | mainline build rot (chronon3d_core_tests) | PARTIAL | gate 1–8 | [TICKET-011](tickets/TICKET-011.md) |
 | TICKET-036 | SceneBuilder::animated_camera() in test files | PLANNED | gate 6 | [TICKET-036](tickets/TICKET-036.md) |
 | TICKET-120 | 17/24 scene test failures | PARTIAL | Camera V1 cert | [TICKET-120](tickets/TICKET-120.md) |
-| TICKET-AE-CAM-MULTI-NODE-SWEEP | 3 unreached call sites + cache-key camera fp | PLANNED | gate 2 | [Scheda](tickets/TICKET-AE-CAM-MULTI-NODE-SWEEP.md) |
 | TICKET-GATE-4-LEAK-CHANGELOG | abs-path leak in CHANGELOG.md | OPEN | gate 4 | — |
 | TICKET-GATE-10-PHASE-4-BLACK-FU5 | PNG mean-RGB metric rot | OPEN | gate 10 | [FU5](tickets/TICKET-GATE-10-PHASE-4-BLACK-FU5.md) |
 
