@@ -205,3 +205,35 @@ add_test(NAME chronon3d_ae_parity_tests
     COMMAND chronon3d_ae_parity_tests
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+# ── Gate 1 — Timeline Visual Golden Tests ──
+# 4 tests proving sequence boundaries, local frame mapping,
+# animation-from-local-frame, and nested sequence mapping
+# work correctly at the render level.
+
+add_executable(chronon3d_timeline_visual_tests
+    ${TEST_MAIN}
+    visual/timeline/test_timeline_golden.cpp
+)
+
+target_link_libraries(chronon3d_timeline_visual_tests
+    PRIVATE
+        chronon3d_sdk
+        chronon3d_visual_test_support
+        chronon3d_backend_software
+        chronon3d_scene
+        doctest::doctest
+)
+
+target_compile_definitions(chronon3d_timeline_visual_tests
+    PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+target_include_directories(chronon3d_timeline_visual_tests
+    PRIVATE ${CMAKE_SOURCE_DIR}
+)
+set_target_properties(chronon3d_timeline_visual_tests PROPERTIES UNITY_BUILD OFF)
+chronon3d_enable_test_pch(chronon3d_timeline_visual_tests)
+add_test(NAME chronon3d_timeline_visual_tests
+    COMMAND chronon3d_timeline_visual_tests
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
