@@ -303,3 +303,98 @@ TEST_CASE("resolve_stroke_gradient_color: zero-length gradient direction returns
     Color expected = Color{1.0f, 0.0f, 0.0f, 1.0f}.to_linear();
     CHECK(c.r == doctest::Approx(expected.r).epsilon(1e-5f));
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// safe_shape_size_for_fill — zero-size guard
+// ══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("safe_shape_size_for_fill: Text with box.enabled=false returns {1,1}") {
+    Shape s;
+    s.set_type(ShapeType::Text);
+    s.text().box.enabled = false;
+    s.text().box.size = {0.0f, 0.0f};
+    // shape_size_for_fill returns {0,0} because box.enabled=false,
+    // safe_shape_size_for_fill must guard with {1,1} fallback.
+    Vec2 sz = safe_shape_size_for_fill(s);
+    CHECK(sz.x > 0.0f);
+    CHECK(sz.y > 0.0f);
+    CHECK(sz.x == doctest::Approx(1.0f));
+    CHECK(sz.y == doctest::Approx(1.0f));
+}
+
+TEST_CASE("safe_shape_size_for_fill: Rect with positive size returns it") {
+    Shape s;
+    s.set_type(ShapeType::Rect);
+    s.rect().size = {200.0f, 100.0f};
+    Vec2 sz = safe_shape_size_for_fill(s);
+    CHECK(sz.x == doctest::Approx(200.0f));
+    CHECK(sz.y == doctest::Approx(100.0f));
+}
+
+TEST_CASE("safe_shape_size_for_fill: None type returns {1,1}") {
+    Shape s;
+    s.set_type(ShapeType::None);
+    Vec2 sz = safe_shape_size_for_fill(s);
+    CHECK(sz.x > 0.0f);
+    CHECK(sz.y > 0.0f);
+    CHECK(sz.x == doctest::Approx(1.0f));
+    CHECK(sz.y == doctest::Approx(1.0f));
+}
+
+TEST_CASE("safe_shape_size_for_fill: Circle with positive radius returns diameter") {
+    Shape s;
+    s.set_type(ShapeType::Circle);
+    s.circle().radius = 50.0f;
+    Vec2 sz = safe_shape_size_for_fill(s);
+    CHECK(sz.x == doctest::Approx(100.0f));
+    CHECK(sz.y == doctest::Approx(100.0f));
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// resolve_gradient_color — division-by-zero guard (sz={0,0})
+// ══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("resolve_gradient_color: zero-size sz does not produce NaN/Inf") {
+    GradientFill g;
+    g.type = FillType::LinearGradient;
+    g.from  = {0.0f, 0.5f};
+    g.to    = {1.0f, 0.5f};
+    g.stops = {
+        {0.0f, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 1.0f, 1.0f}},
+    };
+    Fill fill;
+    fill.type = FillType::LinearGradient;
+    fill.gradient = g;
+
+    // Pass sz={0,0} — the guard should clamp to sx=1, sy=1 and produce valid colour.
+    Color c = resolve_gradient_color(fill, {100.0f, 50.0f}, {0.0f, 0.0f}, 1.0f);
+    CHECK_FALSE(std::isnan(c.r));
+    CHECK_FALSE(std::isnan(c.g));
+    CHECK_FALSE(std::isnan(c.b));
+    CHECK_FALSE(std::isnan(c.a));
+    CHECK_FALSE(std::isinf(c.r));
+    CHECK_FALSE(std::isinf(c.g));
+    CHECK_FALSE(std::isinf(c.b));
+    CHECK_FALSE(std::isinf(c.a));
+}
+
+TEST_CASE("resolve_gradient_color: zero-size sz with radial gradient does not crash") {
+    GradientFill g;
+    g.type = FillType::RadialGradient;
+    g.from  = {0.5f, 0.5f};
+    g.to    = {1.0f, 0.5f};
+    g.stops = {
+        {0.0f, {1.0f, 1.0f, 1.0f, 1.0f}},
+        {1.0f, {0.0f, 0.0f, 0.0f, 1.0f}},
+    };
+    Fill fill;
+    fill.type = FillType::RadialGradient;
+    fill.gradient = g;
+
+    Color c = resolve_gradient_color(fill, {50.0f, 50.0f}, {0.0f, 0.0f}, 1.0f);
+    CHECK_FALSE(std::isnan(c.r));
+    CHECK_FALSE(std::isnan(c.g));
+    CHECK_FALSE(std::isnan(c.b));
+    CHECK_FALSE(std::isnan(c.a));
+}

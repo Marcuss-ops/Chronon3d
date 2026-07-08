@@ -26,9 +26,14 @@ namespace chronon3d::renderer {
         return c;
     }
 
+    // Guard against zero-size sz which would produce NaN/Inf in norm
+    // (e.g. rounded_rect with gradient fill and zero bbox).
+    const f32 sx = std::max(sz.x, 1.0f);
+    const f32 sy = std::max(sz.y, 1.0f);
+
     f32 t = 0.0f;
     if (fill.type == FillType::LinearGradient) {
-        const Vec2 norm = { (lp.x / sz.x), (lp.y / sz.y) };
+        const Vec2 norm = { (lp.x / sx), (lp.y / sy) };
         const Vec2 dir = fill.gradient.to - fill.gradient.from;
         const f32 len_sq = dir.x * dir.x + dir.y * dir.y;
         if (len_sq > 1e-6f) {
@@ -36,13 +41,13 @@ namespace chronon3d::renderer {
             t = (rel.x * dir.x + rel.y * dir.y) / len_sq;
         }
     } else if (fill.type == FillType::RadialGradient) {
-        const Vec2 norm = { (lp.x / sz.x), (lp.y / sz.y) };
+        const Vec2 norm = { (lp.x / sx), (lp.y / sy) };
         const Vec2 d = norm - fill.gradient.from;
         const Vec2 rv = fill.gradient.to - fill.gradient.from;
         const f32 r = glm::length(rv);
         t = (r > 1e-6f) ? glm::length(d) / r : 0.0f;
     } else if (fill.type == FillType::ConicGradient) {
-        const Vec2 norm = { (lp.x / sz.x), (lp.y / sz.y) };
+        const Vec2 norm = { (lp.x / sx), (lp.y / sy) };
         const Vec2 d = norm - fill.gradient.from;
         float angle = std::atan2(d.y, d.x);
         if (angle < 0.0f) {
@@ -108,6 +113,23 @@ namespace chronon3d::renderer {
         case ShapeType::Text:        return shape.text().box.enabled ? shape.text().box.size : Vec2{0.0f, 0.0f};
         default:                     return {0, 0};
     }
+}
+
+/// Safe variant of shape_size_for_fill — guards against zero-size returns
+/// (e.g. Text with box.enabled=false, or unknown ShapeType).  Falls back
+/// to the shape's canonical size or {1,1} so gradient normalisation never
+/// divides by zero.
+[[nodiscard]] static inline Vec2 safe_shape_size_for_fill(const Shape& shape) {
+    Vec2 sz = shape_size_for_fill(shape);
+    if (sz.x <= 0.0f || sz.y <= 0.0f) {
+        switch (shape.type()) {
+            case ShapeType::Rect:        return shape.rect().size;
+            case ShapeType::RoundedRect: return shape.rounded_rect().size;
+            case ShapeType::Circle:      return {shape.circle().radius * 2, shape.circle().radius * 2};
+            default:                     return {1.0f, 1.0f};
+        }
+    }
+    return sz;
 }
 
 [[nodiscard]] static inline f32 stroke_width_for_shape(const Shape& shape) {
