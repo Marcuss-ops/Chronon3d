@@ -135,11 +135,47 @@ $ rg 'cropped_frame|composition_frame|layer_frame|sequence_frame|animator_frame|
 3. Step 3 DOPO — nuovi contenuti solo `s.sequence(...)`;
 4. Step 4 ULTIMO — solo quando grep-audit backlog è ZERO su tutti i 5 legacy items + tutti i test PASS macchina-verificato.
 
-## Stato del ticket (post-landing commit 2026-07-07)
+## Stato del ticket (post-landing commit 2026-07-07, **REVISITING post-rebase 2026-07-08**)
 
-**PARTIAL** (Step 1/4 DONE). Header landed su `main` come commit atomico successivo a `3c122543` (commit `TBD-pending`). Grep-audit backlog: da compilare al commit di Step 1 (snapshot numerico pre-Elimination per i 5 legacy items A-E). Owner: Matteo / agenti cron. Acceptance evidence: macchina-verifica al commit Step 4 (target: post `main@7eb5c2ba` baseline-verde + 11/11 PASS + grep-audit backlog = 0 per ogni legacy item).
+**PARTIAL (Step 1/4 + Step 2/4 DONE, PIVOT architetturale in atto)**.
 
-Honesty policy (AGENTS v0.1 §anti-greenwashing): questo snapshot promuove Step 1 a DONE con evidence verbatim (header compiles clean, runtime invariants verificati OK, code-reviewer round 2 APPROVED). Steps 2/3/4 restano PLANNED a forward-point. La promozione a `DONE` completo richiederà Step 4 macchina-verifica (target: 11/11 PASS + zero banned-PNG runtime hash + zero catch-MESSAGE-return nei test readiness).
+### Revisione architetturale — 2026-07-08 (post-rebase `main@0481a1ce`)
+
+La safe migration di M1.7 ha prodotto 4 simboli canonici + 3 legacy adapters in `chronon3d::timeline::v2::*` (commits `0f47d591` + `fab2046e`) namespace-disjoint dall'esistente `chronon3d::SequenceContext`. Il rebase del commit `0481a1ce` (post-Step 2 freshness re-verify) su `origin/main` ha rivelato che parallelamente il lineage `a0fbc57b` (integrato su `main` dai commit `7a4b5a6e` + `81af2949` + `4a874219`) ha sviluppato una architettura canonica top-level con:
+- `chronon3d::SequenceNode` recursive tree (children = nested sequences) in `include/chronon3d/timeline/sequence_node.hpp:87`. **NON flat come il v2**.
+- `chronon3d::TimelineResolver` static recursive walker in `include/chronon3d/timeline/timeline_resolver.hpp:38` con `static std::vector<Resolution> resolve(roots, ctx)` che walks the tree + emits `Resolution{active_path + effective_context}` per active node.
+- `chronon3d::SequenceBuilder` full type facade (180+ LOC) in `include/chronon3d/scene/builders/sequence_builder.hpp:36` con `if constexpr (std::is_invocable_v<Fn, SequenceBuilder&>)` dispatch da `SceneBuilder::sequence()` (back-compat con `SceneBuilder&` lambda esistente).
+- `tests/core/timeline/test_sequence_builder.cpp` 10+ test case coverage del top-level canonical (basic, nested 3-level, trim_before, overlapping siblings, context propagation, back-compat).
+
+### Decisione di design (forward-point, codificata in ADR-016 Decision 6 — Addendum 2026-07-08)
+
+Il **design top-level recursive tree** è dichiarato **SSoT canonico** (Decision 6.1 di ADR-016). Razionale: (a) integrazione reale con `SceneBuilder::sequence()` + 10+ test cases; (b) gestione `trim_before` + nested context propagation che il modello flat di v2 non supporta; (c) `Resolution` output semanticamente più ricco del `ResolvedScene` flat. Il namespace v2 è **deprecated ex-post** (Decision 6.2) e designato per rimozione fisica allo Step 3 PIVOT.
+
+### Step 3 PIVOT include rimozione namespace v2 come pre-subtask obbligatorio (Decision 6.5 di ADR-016)
+
+Step 3 NON inizia con `s.sequence(...)` migration diretto; include un **pre-subtask di rimozione fisica** di:
+1. `include/chronon3d/timeline/timeline_resolver_v2.hpp` (4 simboli v2: `SequenceBuilder{}` empty placeholder + `TimeRange` + `SequenceNode` flat + `TimelineSampleContext` + `SceneDescriptor` + `ResolvedScene` + `TimelineResolver` flat).
+2. `include/chronon3d/timeline/legacy_adapters.hpp` (3 adapters v2: `is_active` + `make_sequence_from_layer` + `make_sample_context`).
+3. De-registration da `cmake/Chronon3DPublicHeaders.cmake` delle 2 voci v2.
+
+Prima della rimozione, **i 3 free functions namespace v2 vengono preventivamente promossi a top-level canonical** (Decision 6.4 di ADR-016) per preservare la funzionalità senza interruzione:
+- `is_active(TimeRange v2, Frame) noexcept` → top-level `::chronon3d::is_active(SequenceRange, Frame) noexcept` (adattato al `SequenceRange` con `trim_before`).
+- `make_sequence_from_layer(const Layer&) -> SequenceNode v2` → top-level `make_sequence_node_from_layer(const Layer&) -> ::chronon3d::SequenceNode` (Layer → canonical `SequenceNode` con `range: SequenceRange{from, duration, trim_before=0}`).
+- `make_sample_context(const FrameContext&) -> TimelineSampleContext v2` → top-level `make_sample_context(const FrameContext&) -> ::chronon3d::TimelineSampleContext` (con la **promozione** `local_frame = global_frame - sequence_start` semantics che Step 3 del flat design aveva rimandato).
+
+Inoltre il POD `chronon3d::timeline::v2::TimelineSampleContext` viene **promosso top-level** come `chronon3d::TimelineSampleContext` (Decision 6.3 di ADR-016) — unica innovazione utile del namespace v2 non già presente nel canonical. Implementazione target: `include/chronon3d/timeline/timeline_sample_context.hpp` (NUOVO header).
+
+La rimozione namespace v2 è bit-identical-safe perché:
+* `chronon3d::timeline::v2::TimelineResolver` ha firma `resolve(descriptor, frame, fps) -> ResolvedScene` ma al commit del landing Step 1+2 ritorna SEMPRE `active_sequences` vuoto (forward-point Step 3 che non è mai stato processato). Nessun consumer interno chiama `TimelineResolver::resolve()` nel namespace v2 (gli adapter sono AGGIUNTI ma NON chiamati dal render graph / scene builder / composition).
+* I 3 free functions namespace v2 sono AGGIUNTI ma NON chiamati dal render graph / scene builder / composition. Promozione a top-level + rimozione namespace v2 = zero perdita funzionale.
+
+### Stato finale pre-Step-3 PIVOT
+
+Sequence Step 1/4 + Step 2/4 done (entrambi i commit landed, namespace v2 additivo). Step 3 PIVOT pianificato come prossimo commit di lavoro (multi-task bounded: rimozione namespace v2 + promozione sample-context + 5+ scene migration su `s.sequence(\"intro\", TimeRange/SequenceRange, build_callback)` + populate check_* in Asset + wire AssetPreflightResolver in RenderJob::start). Steps 4 (elimination legacy) target post `main@7eb5c2ba` baseline-verde + 11/11 PASS macchina-verifica.
+
+### Honesty policy (AGENTS v0.1 §anti-greenwashing rev 2026-07-08)
+
+Questo snapshot promuove Step 1+2 a DONE con evidence verbatim (entrambi i header typecheck exit 0 + 3 adapters landed). NON promuove Step 3 a DONE. La promozione a `DONE` completo richiederà: (a) esecuzione del pre-subtask rimozione namespace v2 (0 file consumer rimanenti = safe); (b) `s.sequence(...)` migration su 5+ scene nuove in `content/experimental/ae-parity/`; (c) `AssetManifest::add(...)` migration su 5+ scene nuove; (d) full build su working build host con `11/11 PASS` confermato + grep-audit backlog = 0 per ogni legacy item Sequence (A-E) + Asset (A-E).
 
 ## Grep-Audit Pre-Step-4 Snapshot (commit TBD-pending this session, 2026-07-07)
 
