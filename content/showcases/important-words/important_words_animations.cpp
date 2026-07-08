@@ -75,7 +75,7 @@ static void build_important_word(SceneBuilder& s,
         {
             auto tp = text::centered_text({
                 .text        = word.label,
-                .font_path   = WORD_FONT_PATH,
+                 .font_asset = WORD_FONT_PATH,
                 .font_family = WORD_FONT_FAMILY,
                 .font_weight = 700,
                 .font_size   = word.font_size,
