@@ -240,8 +240,18 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
     )
 endif()
 
-add_executable(chronon3d_core_tests
-    ${TEST_MAIN}
+# ── Shared link contract (§11.1 INTEGRATION tier) ────────────────────
+set(_CORE_LINK_TARGETS
+    chronon3d_sdk
+    chronon3d_sdk_impl
+    chronon3d_pipeline
+)
+
+chronon3d_add_test_suite(
+    NAME   chronon3d_core_tests
+    TIER   INTEGRATION
+    LINK_TARGETS ${_CORE_LINK_TARGETS}
+    SOURCES
     core/test_frame_context.cpp
     core/memory/test_huge_page_allocator.cpp
     core/math/test_math.cpp
@@ -404,12 +414,7 @@ add_executable(chronon3d_core_tests
     # next free numeric slot.
     ${CMAKE_SOURCE_DIR}/tools/test_software_renderer_boundary_consistency.cpp
 )
-target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline doctest::doctest)
-# M1.5#7 — UNITY_BUILD OFF for tests (matches chronon3d_add_test_suite convention).
-# test_main.cpp has #define DOCTEST_CONFIG_IMPLEMENT which emits doctest
-# implementation symbols; unity builds merge these across TUs causing
-# duplicate symbol linker errors.
-set_target_properties(chronon3d_core_tests PROPERTIES UNITY_BUILD OFF)
+
 # TICKET-006: CORE_BLEND2D_TESTS exercise symbols that only resolve when
 # chronon3d_backend_text is linked (bidi_segmenter, font_engine, glyph_atlas,
 # shared_font_engine, rasterize_text_to_bl_image, etc.). Without this guard
@@ -429,8 +434,7 @@ endif()
 target_compile_definitions(chronon3d_core_tests PRIVATE
     CMAKE_CURRENT_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
 )
-target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/tests)
-chronon3d_enable_test_pch(chronon3d_core_tests)
+target_include_directories(chronon3d_core_tests PRIVATE ${CMAKE_SOURCE_DIR})
 
 # TICKET-011 build-rot fix: unity-build exclusions for test files with
 # anonymous-namespace struct collisions (LocalEngine) and ODR conflicts
@@ -459,4 +463,4 @@ if(CHRONON3D_BUILD_CONTENT AND TARGET chronon3d_content)
     target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_content)
 endif()
 
-add_test(NAME chronon3d_core_tests COMMAND chronon3d_core_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
