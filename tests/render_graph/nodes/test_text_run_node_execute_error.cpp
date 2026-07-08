@@ -295,7 +295,7 @@ TEST_CASE("TextRunNode: draw_text_run ExecutionFailure surfaces diagnostic (P0-3
     auto shape   = make_minimal_shape();
     RenderNode render_ref{};
     cache::NodeCacheKey key{};
-    TextRunNode node("P03_execfail_node", shape, render_ref, key);
+    TextRunNode node("P03_execfail_node", shape, render_ref, key, TextRunPlacement{});
 
     RenderGraphContext ctx = make_text_run_ctx(64, 64, backend.get());
 
@@ -352,7 +352,7 @@ TEST_CASE("TextRunNode: absent text_run capability is diagnosed once per node (P
     auto shape   = make_minimal_shape();
     RenderNode render_ref{};
     cache::NodeCacheKey key{};
-    TextRunNode node("P03_no_capability_node", shape, render_ref, key);
+    TextRunNode node("P03_no_capability_node", shape, render_ref, key, TextRunPlacement{});
 
     RenderGraphContext ctx = make_text_run_ctx(64, 64, backend.get());
 
@@ -413,7 +413,7 @@ TEST_CASE("TextRunNode: null backend is diagnosed once per node (P0-3)") {
     auto shape   = make_minimal_shape();
     RenderNode render_ref{};
     cache::NodeCacheKey key{};
-    TextRunNode node("P03_null_backend_node", shape, render_ref, key);
+    TextRunNode node("P03_null_backend_node", shape, render_ref, key, TextRunPlacement{});
 
     RenderGraphContext ctx = make_text_run_ctx(64, 64, /*backend=*/nullptr);
 
