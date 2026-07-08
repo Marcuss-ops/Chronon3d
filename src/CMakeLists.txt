@@ -149,6 +149,23 @@ target_link_libraries(chronon3d_pipeline INTERFACE
     chronon3d_core
     chronon3d_software
 )
+# ── OBJECT .o propagation for in-tree consumers ──────────────────────
+# CMake ≥3.12 supports target_link_libraries(INTERFACE objlib) but
+# OBJECT files do NOT reliably propagate through a chain of INTERFACE
+# targets (INTERFACE → INTERFACE → OBJECT).  Tests that link only
+# chronon3d_pipeline (e.g. chronon3d_authoring_tests) would see
+# undefined references to symbols from chronon3d_scene,
+# chronon3d_backend_software, etc.  The same workaround is applied to
+# chronon3d_sdk in cmake/Chronon3DSdkTargets.cmake.  Here we attach
+# the objects to chronon3d_pipeline so ALL in-tree consumers (tests,
+# CLI via sdk→pipeline) get them without each target needing to also
+# link chronon3d_sdk_impl.
+foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
+    if(TARGET ${_reg_obj})
+        target_sources(chronon3d_pipeline INTERFACE
+            $<BUILD_INTERFACE:$<TARGET_OBJECTS:${_reg_obj}>>)
+    endif()
+endforeach()
 
 # ==============================================================================
 # SDK consumer-facing surface — moved to `cmake/Chronon3DSdkTargets.cmake`.

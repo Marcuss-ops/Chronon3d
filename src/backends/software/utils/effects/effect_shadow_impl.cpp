@@ -53,6 +53,14 @@ void apply_shadow_effect(
     const i32 roi_w = x_max_pad - x_min_pad;
     const i32 roi_h = y_max_pad - y_min_pad;
 
+    // Guard: when the clip region is inverted or empty (e.g. an empty
+    // layer bbox or a sub-pixel shape), roi dimensions become
+    // non-positive.  acquire_temp_framebuffer would throw
+    // "Framebuffer dimensions must be positive" — early-out instead.
+    if (roi_w <= 0 || roi_h <= 0) {
+        return;
+    }
+
     auto build_shadow = [&](f32 opacity_scale, f32 blur_radius, f32 offset_scale) {
         auto shadow_map_fb = acquire_temp_framebuffer(roi_w, roi_h);
         shadow_map_fb->clear(Color{0.0f, 0.0f, 0.0f, 0.0f});

@@ -106,18 +106,11 @@ foreach(_entry IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)
     )
 endforeach()
 
-# ── In-tree link closure — derived from central registry ──────────────
-# Every OBJECT library registered in cmake/Chronon3DRegistry.cmake has
-# its .o files propagated for in-tree consumers (CLI, tests) via
-# $<TARGET_OBJECTS:…>.  The foreach-if-TARGET loop handles conditional
-# subsystems automatically.  When you add a new OBJECT library, add its
-# name to cmake/Chronon3DRegistry.cmake — this block picks it up automatically.
-foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
-    if(TARGET ${_reg_obj})
-        target_sources(chronon3d_sdk INTERFACE
-            $<BUILD_INTERFACE:$<TARGET_OBJECTS:${_reg_obj}>>)
-    endif()
-endforeach()
+# ── In-tree link closure ──────────────────────────────────────────────
+# OBJECT .o files are now propagated by chronon3d_pipeline (see
+# src/CMakeLists.txt).  Since chronon3d_sdk links chronon3d_pipeline at
+# BUILD_INTERFACE time, the objects flow transitively to all in-tree sdk
+# consumers (CLI, tests).  No separate target_sources loop needed here.
 
 set_target_properties(chronon3d_sdk PROPERTIES EXPORT_NAME SDK)
 add_library(Chronon3D::SDK ALIAS chronon3d_sdk)

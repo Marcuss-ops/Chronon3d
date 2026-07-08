@@ -20,7 +20,15 @@ std::optional<raster::BBox> EffectStackNode::predicted_bbox(
     }
     auto bbox = *input_bboxes[0];
     if (bbox.is_empty()) {
-        return bbox;
+        // When the input bbox is empty (e.g. a degenerate shape whose
+        // corners all project to w≈0, producing an inverted {max,max,min,min}
+        // bbox that collapses to {0,0,0,0} after SourceNode clipping),
+        // returning it as a valid BBox causes execute() to intersect it
+        // with the clip rect → inverted local_clip → negative ROI
+        // dimensions → acquire_temp_framebuffer crash.  Return nullopt
+        // so execute() falls back to the full input framebuffer + the
+        // executor-provided clip_rect, which is always well-formed.
+        return std::nullopt;
     }
     const f32 spread = compute_max_effect_spread();
     if (spread <= 0.0f) {
@@ -46,8 +54,11 @@ std::optional<raster::BBox> EffectStackNode::predicted_bbox(
         );
     }
 
+    // After spread expansion + clamping, the bbox could still be empty
+    // (e.g. input was inverted and expansion didn't fix it).  Return
+    // nullopt so execute() falls back to the full input framebuffer.
     if (bbox.is_empty()) {
-        return bbox;
+        return std::nullopt;
     }
     return bbox;
 }
@@ -104,6 +115,12 @@ NodeExecResult EffectStackNode::execute(
                 local_clip->y1 = std::min(local_clip->y1, pred_bbox->y1);
             } else {
                 local_clip = pred_bbox;
+            }
+            // Guard: if the intersection produced an inverted clip
+            // (x0 > x1 or y0 > y1), discard it so effect
+            // implementations don't receive invalid region bounds.
+            if (local_clip && local_clip->is_empty()) {
+                local_clip = std::nullopt;
             }
         }
         const effects::EffectExecutionContext effect_context{
