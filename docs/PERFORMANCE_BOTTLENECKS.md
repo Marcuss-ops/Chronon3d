@@ -26,6 +26,19 @@
 
 ### 1. Hot Attribution Coverage: 17.2% — L'83% del tempo è invisibile
 
+> **⚠️ Status as of 2026-07-08 (this commit's audit, followup P0-#2):**
+>
+> ✅ **This section is HISTORICAL — the timer wiring described below is ALREADY APPLIED at HEAD via commit [`8387c8a4`](docs/CHANGELOG.md) (June 2026, `feature/frictions-pass1` workstream).**
+>
+> **Sintomo originale (rimane valido come letteratura di bottleneck):** the 17.2% attribution gap exists for the *June 8 baseline* build `2796e99`. The counter fields `cache_eval_ms`, `dirty_eval_ms`, `predicted_bbox_ms`, `clone_context_ms`, `state_assign_ms` now WIRING populate at HEAD via:
+> - `src/render_graph/executor/cache_evaluator.cpp` line 23 (`t_cache0`) + line 122 (`fetch_add` at end of `evaluate_cache()`),
+> - `src/render_graph/pipeline/scene_dirty.cpp` line 47 (`t_dirty0`) + lines 61 + 221 (`fetch_add` in BOTH return paths),
+> - `src/render_graph/executor/executor_levels.cpp` lines 51–57 (per-level vectors) + lines 220–237 (parent rollup),
+> - `src/render_graph/executor/node_runner.cpp` lines 230–233 (`predicted_bbox_ms` via `out_predicted_bbox_ms` parameter).
+> - Regressione LOCK in `tests/core/test_cache_eval_dirty_counters.cpp` (4 TEST_CASE: field exists/aligned, accumulate >0 post-pass, merge_tls no-records-lost).
+>
+> **Tests ✓ PASS machine-verified** in the original commit; **macchina-verifica fresh at HEAD deferred to next working build host** (per AGENTS.md honesty policy). The interpretation note about sub-ms rounding (`static_cast<uint64_t>(duration_ms(...))` may truncate light frames to 0) remains valid: forward-only upgrade to microsecond resolution is the residual improvement.
+
 **Sintomo:**
 ```
 node_execute_actual_ms    = 221 ms
