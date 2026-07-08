@@ -110,7 +110,6 @@ namespace chronon3d::renderer {
         case ShapeType::Circle:      return {shape.circle().radius * 2, shape.circle().radius * 2};
         case ShapeType::Image:       return shape.image().size;
         case ShapeType::TiledImage:  return shape.tiled_image().image.size;
-        case ShapeType::Text:        return shape.text().box.enabled ? shape.text().box.size : Vec2{0.0f, 0.0f};
         default:                     return {0, 0};
     }
 }
