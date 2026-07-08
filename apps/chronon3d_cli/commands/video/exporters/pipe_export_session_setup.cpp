@@ -7,8 +7,10 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/assets/asset_preflight_resolver.hpp>
+#include "../../../cli_init.hpp"
 
 #include <spdlog/spdlog.h>
+#include <filesystem>
 #include <thread>
 #include <memory>
 
@@ -70,6 +72,12 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     if (opts.sink.sink_type == VideoSinkType::Ffmpeg) {
         track_pipe_encoder_process(opts, *session->encoder, session->sys_metrics);
     }
+
+    // ── Mount assets ────────────────────────────────────────────────────
+    // Mount current working directory as asset root so relative asset paths
+    // (fonts, images, etc.) resolve correctly — mirrors render_job_setup.
+    auto& assets = cli_asset_registry();
+    assets.mount(std::filesystem::current_path());
 
     // ── Create renderer ──────────────────────────────────────────────────
     const auto renderer_t0 = profiling::now();
