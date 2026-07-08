@@ -2,10 +2,9 @@
 
 ## Stato
 
-**PARTIAL** (closed 2026-07-06 per on-disk sha256 observance + Gemini source-read
-exoneration) — Sub-cluster A formalmente **NOT-NEEDED**; Sub-cluster B
-**forward-pointed** a [`TICKET-ae-cam-hash-collision`](tickets/TICKET-ae-cam-hash-collision.md)
-Soluzione B (più specifico, stesso codepath `node_cache` invalidation).
+**DONE** (closed 2026-07-08) — Sub-cluster A formally **NOT-NEEDED**;
+Sub-cluster B **resolved** by [`TICKET-ae-cam-hash-collision`](tickets/TICKET-ae-cam-hash-collision.md)
+(DONE Fase 6, 35/35 PASS, AE_CAM_02/04 sha256-distinct).
 
 Created 2026-07-06 as a follow-up companion to `TICKET-AE-CAM-PRECISION-COLLAPSE`
 and `TICKET-ae-cam-hash-collision` post the matrix-fix commit `c03ce2a2` + the
