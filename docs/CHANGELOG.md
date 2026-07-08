@@ -68,6 +68,37 @@
 
 **Refs**: [`docs/tickets/TICKET-120.md`](docs/tickets/TICKET-120.md) (canonical ticket description, PARTIAL state to be promoted to PARTIAL-AUDIT-DONE in [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) by this commit’s row-update companion). Cross-link this CHANGELOG entry from the FOLLOWUP row.
 
+### docs(tools): TICKET-GATE-10-PHASE-4-BLACK-FU5 audit — PNG mean-RGB metric rot + Path 2 (alpha-aware any-channel metric) recommendation (OPEN → PARTIAL-AUDIT-DONE per per-ticket atomic commit, 2026-07-08)
+
+**Audit findings (machine-verified at HEAD this session)**:
+
+- **In-memory framebuffer content confirmed**: `src/backends/image/image_writer.cpp:90–102` comment block + line 108–111 conversion states the framebuffer pixels are `Color RGBA(1.0, 1.0, 1.0, 1.0)` after linear-to-sRGB8 conversion + alpha-stays-linear quantization. `data[index+0..2] = Color::linear_to_srgb8(linear_c.r/g/b)` → for `linear_c = 1.0` → sRGB byte `255`. NaN/Inf guard at line 96–105 zero-out corrupted pixels (only if isNaN/isInf).
+- **PNG encoding path confirmed**: `data[3] = std::clamp(std::round(linear_c.a * 255.0f), 0, 255)` → for `linear_c.a = 1.0` → byte `255`. Alpha bit-stream is independent from RGB.
+- **stbi_write_png invocation**: `src/backends/image/image_writer.cpp:113` calls `stbi_write_png(path.c_str(), w, h, 4, data.data(), w*4)` (4 channels, stride `w*4` bytes). Encoding emits RGBA byte stream + PNG-compressed.
+
+**Rot divergence isolation**:
+- `tools/sdk/run_external_consumer.sh:173` (consumer-side any-channel PASS): `230400/230400 pixels >5/255` → confirms PNG file contains non-black *RGB or alpha* content.
+- `tools/sdk/run_external_consumer.sh:244` (gate Phase 4 strict FAIL): `0 pixels mean RGB > 5/255` → gate-metric reads *all RGB channels via mean* and finds them all black.
+
+**Machine-verified rot hypothesis**: the strict gate metric computes *mean of RGB channels* (alpha-blind divisor) and 0 RGB>5/255 pixels are detected. This is incompatible with the in-memory framebuffer state (white RGBA) AND with the consumer any-channel assertion (PASS). The only consistent reading is the gate metric is mis-positioned or the PNG output uses *alpha-only = 255 / all-RGB-0* encoding edge case. Cross-reference `src/backends/image/image_writer.cpp:90–93` issue comment (“`previous to_srgb() + std::round() path produced identical byte values for all validated inputs but triggered a near-black PNG regression in the install_consumer Phase 4 gate — root cause TBD`”). The “root cause TBD” comment is a direct CHE evidence that the actual C++ rot is undiagnosed, making Path 1 ineffective without a dedicated write-side diagnostic test run.
+
+**Path selection (audit-only this session)**:
+- **Path 1** (write-side diagnostic test via `tests/debug/test_save_png_roundtrip.cpp:183`): would require running the cmake full build + the actual consumer-side PNG round-trip with binary diff. **VPS-unavailable** this session (vcpkg glm/magic_enum not resolvable).
+- **Path 2** (gate metric alignment alphaware): 1-line change to `tools/sdk/run_external_consumer.sh:244` — replace `(R+G+B)/3 > 5/255` with `any(R,G,B) > 5/255 || A > 5/255` (or equivalent alpha-aware assertion). Matches the consumer-side any-channel PASS contract. LOWEST risk + SMALLEST diff + does NOT require live build verification (binary bash script change, syntax-check only).
+- **Path 3** (rendering pipeline debug): would require profiler tracing the Framebuffer pass-through — out of scope without working build host.
+- **Path 4** (PNG encoding edge case): speculative; would require stbi_write_png investigation + a documented PIL/Pillow decoding mismatch analysis. NOT selected this session.
+
+**Forward-only: per-path fix-roadmap** (committed here, scheduled for working build host):
+
+1. **Sub-commit A (highest-priority on working host)**: investigate `Color::linear_to_srgb8()` LUT for the `1.0` input value — confirm sRGB byte `255` output. If LUT resets at `1.0` to 0 (off-by-one at upper boundary), fix LUT entry.
+2. **Sub-commit B** (required for true root cause): enable `tests/debug/test_save_png_roundtrip.cpp` to dump the actual PNG bytes consumed by `tools/sdk/run_external_consumer.sh` decoder, asserting RGB byte values vs expected white = 255.
+3. **Sub-commit C** (Path 2 applied on macchina-verifica): if Path 1 fails to identify a C++ rot → apply Path 2 (alpha-aware any-channel metric) to `tools/sdk/run_external_consumer.sh:244`, with explicit divergence rationale comment block documenting the in-memory PNG byte content. The change is a single-line regex/substitution.
+4. **Sub-commit D** (post-fix): document in `docs/CAMERA_FEATURE_MATRIX.md` camera-feature-row + `docs/CHANGELOG.md` M3 SDK V1 closure row that the install_consumer Phase 4 strict certifier is now alpha-aware.
+
+**State transition forward** (on macchina-verifica pass of Sub-commits A or C): PARTIAL-AUDIT-DONE → DONE. Until then PARTIAL-AUDIT-DONE persists. The ticket is NOT closed without a verified live install_consumer exit 0.
+
+**Refs**: [`docs/tickets/TICKET-GATE-10-PHASE-4-BLACK-FU5.md`](docs/tickets/TICKET-GATE-10-PHASE-4-BLACK-FU5.md) (canonical ticket description, OPEN state to be promoted to PARTIAL-AUDIT-DONE in [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) by this commit’s row-update companion). Cross-link this CHANGELOG entry from the FOLLOWUP row. Cross-references: FU4 sibling DONE (`commit 0b365354`), FU4 lineage closing the C++ rot sub-cluster + introducing this FU5 metric-mismatch open.
+
 ---
 
 ## Luglio 2026 — P1-#8 typed scene IDs (commit pending this session, 2026-07-08, atomic commit)

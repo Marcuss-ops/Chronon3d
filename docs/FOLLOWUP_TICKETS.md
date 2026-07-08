@@ -15,7 +15,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-036 | P0 | camera architecture gate G6 | PLANNED | gate 6 |
 | TICKET-120 | P1 | 17/24 scene test failures | PARTIAL-AUDIT-DONE | Camera V1 cert (audit closed 2026-07-08: TICKET-035 + TICKET-034D + TrajectoryMotion sanity guard verified-at-HEAD; 17 remaining failures enumerated in `docs/CHANGELOG.md` P2-#11 design audit entry; fix-roadmap Steps A→F deferred to working build host) |
 | TICKET-GATE-4-LEAK-CHANGELOG | P0 | abs-path leak in CHANGELOG.md | OPEN | gate 4 |
-| TICKET-GATE-10-PHASE-4-BLACK-FU5 | P0 | PNG mean-RGB metric rot | OPEN | gate 10 |
+| TICKET-GATE-10-PHASE-4-BLACK-FU5 | P0 | PNG mean-RGB metric rot | PARTIAL-AUDIT-DONE | gate 10 (audit closed 2026-07-08: Path 2 alpha-aware any-channel metric recommended as lowest-risk fix; Full Path 1 (write-side diagnostic) deferred to working build host — see `docs/CHANGELOG.md` P2-#11 design audit entry; sub-commits A→D roadmap documented) |
 | TICKET-005 | P1 | post-cascade cleanup | PARTIAL | gate 5 |
 | TICKET-011-i | P0 | text_unit_map impl drift | PLANNED | gate 1–8 |
 | TICKET-044 | P1 | selftest hardcoded paths | PLANNED | gate 5 |
