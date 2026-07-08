@@ -175,6 +175,9 @@ public:
         return m_cache.stats().current_size;
     }
     [[nodiscard]] std::size_t capacity() const noexcept { return m_capacity; }
+    [[nodiscard]] std::uint64_t recorded_executions() const noexcept {
+        return m_recorded_executions.load(std::memory_order_relaxed);
+    }
 
     /// Adjust the cache capacity.  If `new_capacity` is smaller than
     /// the current weight, the least-recently-used entries are evicted
