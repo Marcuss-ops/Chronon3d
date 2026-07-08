@@ -70,12 +70,23 @@ raster::BBox compute_world_bbox(const Shape& shape, const Mat4& model, f32 sprea
     };
 
     f32 min_x = 1e10f, min_y = 1e10f, max_x = -1e10f, max_y = -1e10f;
+    bool any_valid = false;
     for (const auto& c : corners) {
         if (std::abs(c.w) < 1e-7f) continue;
         const f32 x = c.x / c.w;
         const f32 y = c.y / c.w;
         min_x = std::min(min_x, x); min_y = std::min(min_y, y);
         max_x = std::max(max_x, x); max_y = std::max(max_y, y);
+        any_valid = true;
+    }
+
+    // When ALL corners project to w≈0 (degenerate model matrix), the
+    // min/max stay at their sentinel values ({1e10, -1e10}), producing
+    // an inverted bbox.  Return an explicit empty bbox so callers
+    // (SourceNode, EffectStackNode) treat it as "no content" rather
+    // than propagating the inverted bounds through the clip pipeline.
+    if (!any_valid) {
+        return raster::BBox{0, 0, 0, 0};
     }
 
     return {
