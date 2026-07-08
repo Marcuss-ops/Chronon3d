@@ -173,7 +173,7 @@ inline CenterTextOptions make_opts(const std::string& text,
     return CenterTextOptions{
         .text        = text,
         .box         = box,
-        .font_path   = kVFont,
+        .font_asset  = kVFont,
         .font_family = "Poppins",
         .font_weight = 700,
         .font_size   = size,

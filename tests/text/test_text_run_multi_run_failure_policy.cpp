@@ -32,7 +32,6 @@
 // tests/text/test_compile_text_layout_per_paragraph_failure.cpp.
 //
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
 #include <chronon3d/core/config.hpp>
