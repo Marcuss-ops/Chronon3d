@@ -34,7 +34,8 @@ public:
                     const std::vector<CullingTelemetryRecord>& culling_events = {},
                     const std::vector<TextTelemetryRecord>& text_events = {},
                     const std::vector<ImageTelemetryRecord>& image_events = {},
-                    const std::vector<TileTelemetryRecord>& tile_events = {});
+                    const std::vector<TileTelemetryRecord>& tile_events = {},
+                    const std::vector<RenderArtifactRecord>& artifacts = {});
 
     // System helper queries
     static std::string get_os_name();

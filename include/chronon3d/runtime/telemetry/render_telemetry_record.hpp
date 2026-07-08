@@ -350,4 +350,18 @@ struct TileTelemetryRecord {
     int dirty_rects_count{0};
 };
 
+// ── Render artifact record (P0 video/text — Fase 1) ────────────────────────
+
+/// Tracks every output artifact produced by a render run.
+/// Written unconditionally (no --report flag required) so the telemetry
+/// dashboard always shows what was produced.
+struct RenderArtifactRecord {
+    std::string run_id;
+    std::string type;        // "png", "video", "frames", "audio"
+    std::string path;        // absolute or relative output path
+    std::string sha256;      // hex digest (computed lazily; empty = not computed)
+    int64_t size_bytes{0};   // file size on disk (0 = file does not exist)
+    bool exists{false};      // true if the file was found on disk after render
+};
+
 } // namespace chronon3d::telemetry

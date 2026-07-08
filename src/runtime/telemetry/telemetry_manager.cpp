@@ -111,7 +111,8 @@ bool TelemetryManager::record_run(RenderTelemetryRecord& run,
                                   const std::vector<CullingTelemetryRecord>& culling_events,
                                   const std::vector<TextTelemetryRecord>& text_events,
                                   const std::vector<ImageTelemetryRecord>& image_events,
-                                  const std::vector<TileTelemetryRecord>& tile_events) {
+                                  const std::vector<TileTelemetryRecord>& tile_events,
+                                  const std::vector<RenderArtifactRecord>& artifacts) {
     spdlog::info("[telemetry] record_run called with {} stores registered", m_stores.size());
     // Inject automatically gathered host attributes
     if (run.run_id.empty()) {
@@ -192,6 +193,11 @@ bool TelemetryManager::record_run(RenderTelemetryRecord& run,
         if (!tile_events.empty()) {
             bool r = store->write_tile_events(run.run_id, tile_events);
             spdlog::info("[telemetry] write_tile_events returned: {}", r);
+            ok &= r;
+        }
+        if (!artifacts.empty()) {
+            bool r = store->write_artifacts(run.run_id, artifacts);
+            spdlog::info("[telemetry] write_artifacts returned: {}", r);
             ok &= r;
         }
         store->end_transaction(ok);

@@ -7,6 +7,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/assets/asset_preflight_resolver.hpp>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::cli {
@@ -34,6 +35,20 @@ int dry_run_video_job(const VideoJobPlan& plan) {
         // (the canonical CLI-side wire).  No dynamic_cast required; route the
         // first arg through `->backend()` (post-R3b SoftwareRenderer derives
         // only from Renderer, no implicit IS-A upcast to RenderBackend).
+
+        // ── Font preflight (P0 video/text — Fase 1) ────────────────────────
+        {
+            Scene scene = plan.comp->evaluate(plan.start);
+            auto preflight_result = AssetPreflightResolver::check(
+                scene, renderer->runtime().resolver(),
+                PreflightMode::FullComposition);
+            if (!preflight_result.ok()) {
+                std::string text = format_preflight_issues_text(preflight_result.issues);
+                spdlog::error("[dry-run] Asset preflight FAILED:\n{}", text);
+                return 1;
+            }
+        }
+
         spdlog::info("[dry-run]   Backend: SoftwareRenderer");
         cache::NodeCache node_cache;
         auto fb = graph::render_composition_frame(

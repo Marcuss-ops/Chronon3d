@@ -533,4 +533,31 @@ bool SqliteTelemetryStore::write_image_events(const std::string& run_id, const s
     return true;
 }
 
+bool SqliteTelemetryStore::write_artifacts(const std::string& run_id, const std::vector<RenderArtifactRecord>& artifacts) {
+    std::scoped_lock lock(m_impl->mutex);
+    if (!m_impl->db) return false;
+
+    const char* sql = "INSERT OR REPLACE INTO render_artifacts "
+        "(run_id, type, path, sha256, size_bytes, exists) "
+        "VALUES (?, ?, ?, ?, ?, ?);";
+    SqliteStatement stmt(m_impl->db, sql);
+    if (!stmt) {
+        return false;
+    }
+
+    for (const auto& a : artifacts) {
+        if (!stmt.reset() || !bind_all(stmt,
+                run_id,
+                a.type,
+                a.path,
+                a.sha256,
+                a.size_bytes,
+                static_cast<int>(a.exists)) || !stmt.step_done()) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 } // namespace chronon3d::telemetry

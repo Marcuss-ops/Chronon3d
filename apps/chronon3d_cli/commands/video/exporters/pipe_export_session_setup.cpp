@@ -6,6 +6,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/assets/asset_preflight_resolver.hpp>
 
 #include <spdlog/spdlog.h>
 #include <thread>
@@ -84,6 +85,22 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // (the CLI-side type contract is now SoftwareRenderer-direct).  No
     // dynamic_cast required; the renderer pointer IS the right type.
     session->sw_renderer = session->renderer.get();
+
+    // ── Font preflight (P0 video/text — Fase 1) ────────────────────────────
+    // Check fonts referenced by the composition before rendering starts.
+    // Missing fonts fail early with a clear error instead of crashing or
+    // producing black frames.
+    {
+        Scene scene = comp.evaluate(start);
+        auto preflight_result = AssetPreflightResolver::check(
+            scene, session->renderer->runtime().resolver(),
+            PreflightMode::FullComposition);
+        if (!preflight_result.ok()) {
+            std::string text = format_preflight_issues_text(preflight_result.issues);
+            spdlog::error("[video] Asset preflight FAILED:\n{}", text);
+            return session;
+        }
+    }
 
     // ── Wire counters into encoder so async converter thread can report telemetry ──
     if (session->sw_renderer && session->sw_renderer->counters()) {
