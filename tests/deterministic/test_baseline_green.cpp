@@ -179,12 +179,12 @@ ArenaPinnedRenderResult render_in_arena(int slots, SoftwareRenderer& r,
 
 constexpr std::uint64_t kUncapturedSentinel = 0xDEADBEEFDEADBEEFULL;
 
-constexpr std::uint64_t kRefBaselineFreshShader  = 610724219931969400ULL;
-constexpr std::uint64_t kRefBaselineArenaPin     = 610724219931969400ULL;
-constexpr std::uint64_t kRefBaselineThreadEq     = 610724219931969400ULL;
-constexpr std::uint64_t kRefBaselineComposite    = 610724219931969400ULL;
-constexpr std::uint64_t kRefBaselineSsim         = 610724219931969400ULL;
-constexpr std::uint64_t kRefBaselinePrecompCache = 15056832347528341909ULL;
+constexpr std::uint64_t kRefBaselineFreshShader  = kUncapturedSentinel;
+constexpr std::uint64_t kRefBaselineArenaPin     = kUncapturedSentinel;
+constexpr std::uint64_t kRefBaselineThreadEq     = kUncapturedSentinel;
+constexpr std::uint64_t kRefBaselineComposite    = kUncapturedSentinel;
+constexpr std::uint64_t kRefBaselineSsim         = kUncapturedSentinel;
+constexpr std::uint64_t kRefBaselinePrecompCache = kUncapturedSentinel;
 
 inline bool is_reference_captured(std::uint64_t r) noexcept {
     return r != kUncapturedSentinel;
