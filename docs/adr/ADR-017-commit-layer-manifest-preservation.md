@@ -101,6 +101,10 @@ Additionally, `video_layer()` now includes `builder.screen_dimensions()` (was mi
 | `Assets.MissingVideoFailsPreflight` | 3 | ✅ PASS |
 | `Assets.FrameOnlyVsFullComposition` | 12 | ✅ PASS |
 | `Assets.PreflightErrorFormatting` | 5 | ✅ PASS |
+| `Debug.TimelineDebugInfoCapturesActiveSequences` | 10 | ✅ PASS |
+| `Debug.TimelineJSONOutput` | 9 | ✅ PASS |
+| `Debug.NestedSequencePathHierarchy` | 9 | ✅ PASS |
+| `Debug.MultipleAssetTypesInOutput` | 10 | ✅ PASS |
 
 Total: 16 tests, 168 assertions, 0 failures.
 
