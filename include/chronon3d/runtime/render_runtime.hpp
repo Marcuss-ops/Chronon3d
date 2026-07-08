@@ -214,8 +214,14 @@ public:
     [[nodiscard]] chronon3d::graph::PipelineCatalogs& catalogs() noexcept { return m_catalogs; }
     [[nodiscard]] const chronon3d::graph::PipelineCatalogs& catalogs() const noexcept { return m_catalogs; }
 
-    // ── Service-locator bundle ───────────────────────────────────────
-    [[nodiscard]] RenderServices& services() noexcept { return m_services; }
+    // ── Service-locator bundle (Fase 5 — const-only read access) ──────
+    // The RenderServices bundle is the canonical wiring point for
+    // internal bridges (runtime_adapter, test_utils).  External
+    // consumers should use the typed direct accessors below
+    // (node_cache(), executor(), framebuffer_pool(), etc.).
+    // The mutable overload was REMOVED in Fase 5 (TICKET-P1-09)
+    // — services are configured once in populate() and must not
+    // be mutated externally.
     [[nodiscard]] const RenderServices& services() const noexcept { return m_services; }
 
     // ── Direct accessors used by SoftwareRenderer (forwarders for

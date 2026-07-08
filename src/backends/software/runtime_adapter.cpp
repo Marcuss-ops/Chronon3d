@@ -26,12 +26,14 @@ chronon3d::SoftwareRenderSession make_session(
     chronon3d::runtime::RenderRuntime& runtime
 ) {
     chronon3d::SoftwareRenderSession session;
+    // Fase 5 — use direct typed accessors instead of the
+    // runtime.services() bundle (TICKET-P1-09 surface reduction).
     session.common.services = chronon3d::runtime::SessionServices{
-        .executor            = runtime.services().executor,
-        .node_cache          = runtime.services().node_cache,
-        .framebuffer_pool    = runtime.services().framebuffer_pool,
-        .graph_cache         = runtime.services().graph_cache,
-        .asset_registry      = runtime.services().asset_registry,
+        .executor            = &runtime.executor(),
+        .node_cache          = &runtime.node_cache(),
+        .framebuffer_pool    = &runtime.framebuffer_pool(),
+        .graph_cache         = &runtime.graph_cache(),
+        .asset_registry      = &runtime.assets(),
     };
     return session;
 }

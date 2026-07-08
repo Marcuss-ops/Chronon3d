@@ -374,6 +374,11 @@ add_executable(chronon3d_core_tests
     # the existing tests/runtime/test_render_session_reset_and_isolation.cpp
     # (WP-3 PR 3.x) on the cache-isolation pattern.
     runtime/test_camera_session_cache_failed_no_commit.cpp
+    # Fase 5 — TICKET-P1-09 closure: two independent RenderRuntime
+    # instances must not share state (caches, pools, registries,
+    # resolvers, schedulers, executors).  Pure constructor/config test;
+    # no backend, no threads, no time, no PRNG.
+    runtime/test_render_runtime_isolation.cpp
     # TICKET-ZERO-A1 / TICKET-A3-CACHE-LEASE follow-on — locks the
     # SESSION STATE rollback contract on top of test_camera_session_cache_
     # failed_no_commit.cpp (which only locks last_evaluated_frame).
