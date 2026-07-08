@@ -20,7 +20,7 @@
 - **FIX 4**: `fullscreen_rect()` comment clarified for modular centered coordinates.
 - Files: `scene_builder.hpp`, `scene_builder_layers.inl`, `scene_builder_sequences.inl`, `shape_commands.cpp`.
 
-### feat(tests): sRGB pixel assertion helper + doctest hygiene gate (`a1419c4a`)
+### feat(tests): sRGB pixel assertion helper + doctest hygiene gate (`6afdd24e`)
 
 - **FIX 5**: `tests/helpers/color_expect.hpp` — `read_display_pixel()` converts linear→sRGB before comparison; `CHECK_PIXEL_SRGB` macro with configurable epsilon.
 - **FIX 10**: `tools/check_test_hygiene.sh` — gate ensures `DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN` only in `tests/test_main.cpp`.
@@ -46,11 +46,12 @@
 - Output path writability check still runs even without legacy flag.
 - Files: `commands.hpp`, `register_inspect_commands.cpp`, `command_preflight.cpp`.
 
-### build(tests): test suite registration audit gate (`8c1e9ddc`)
+### build(tests): test suite registration audit gate (`27fab453` + `8c1e9ddc`)
 
 - **FIX 9**: `tools/check_test_suite_registration.sh` — audits all test cmake files for `add_executable` vs `chronon3d_add_test_suite()`.
 - Current state: 34 raw targets, 7 suite-registered targets. Informational gate (exit 0) until migration complete.
 - Files: `tools/check_test_suite_registration.sh` (NEW).
+- Bugfix `8c1e9ddc`: fixed arithmetic syntax error in the audit script.
 
 ### Gate validation (all PASS)
 
