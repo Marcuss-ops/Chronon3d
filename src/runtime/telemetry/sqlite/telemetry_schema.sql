@@ -319,3 +319,18 @@ CREATE INDEX IF NOT EXISTS idx_culling_events_run ON render_culling_events(run_i
 CREATE INDEX IF NOT EXISTS idx_text_events_run ON render_text_events(run_id);
 CREATE INDEX IF NOT EXISTS idx_image_events_run ON render_image_events(run_id);
 CREATE INDEX IF NOT EXISTS idx_tile_events_run ON render_tile_events(run_id);
+
+-- ── Render artifacts (P0 video/text — Fase 1) ────────────────────────────
+
+CREATE TABLE IF NOT EXISTS render_artifacts (
+    run_id TEXT,
+    type TEXT,             -- "png", "video", "frames", "audio"
+    path TEXT,             -- absolute or relative output path
+    sha256 TEXT,           -- hex digest (empty = not computed)
+    size_bytes INTEGER,    -- file size on disk (0 = file does not exist)
+    exists INTEGER,        -- 1 if file was found on disk after render
+    PRIMARY KEY (run_id, type, path)
+);
+
+CREATE INDEX IF NOT EXISTS idx_artifacts_run ON render_artifacts(run_id);
+CREATE INDEX IF NOT EXISTS idx_artifacts_type ON render_artifacts(type);

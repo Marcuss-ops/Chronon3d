@@ -164,7 +164,8 @@ inline void record_output_run(const std::string& composition_id,
                               const std::vector<chronon3d::telemetry::CullingTelemetryRecord>& culling_events = {},
                               const std::vector<chronon3d::telemetry::TextTelemetryRecord>& text_events = {},
                               const std::vector<chronon3d::telemetry::ImageTelemetryRecord>& image_events = {},
-                              const std::vector<chronon3d::telemetry::TileTelemetryRecord>& tile_events = {}) {
+                              const std::vector<chronon3d::telemetry::TileTelemetryRecord>& tile_events = {},
+                              const std::vector<chronon3d::telemetry::RenderArtifactRecord>& artifacts = {}) {
     chronon3d::telemetry::TelemetryManager::instance().initialize_default_stores();
 
     chronon3d::telemetry::RenderTelemetryRecord run;
@@ -212,7 +213,8 @@ inline void record_output_run(const std::string& composition_id,
     chronon3d::telemetry::TelemetryManager::instance().record_run(
         run, frames, phases, resolved_counters, node_events,
         layer_events, cache_events, culling_events,
-        text_events, image_events, tile_events
+        text_events, image_events, tile_events,
+        artifacts
     );
 }
 
@@ -244,7 +246,7 @@ inline void record_output_run(const std::string& composition_id,
                       {},
                       counters_src,
                       frames,
-                      {}, {}, {}, {}, {}, {});
+                      {}, {}, {}, {}, {}, {}, {});
 }
 #endif // CHRONON3D_ENABLE_SQLITE_TELEMETRY
 
