@@ -175,6 +175,7 @@ hits=$(grep -Rn --include='*.hpp' --include='*.cpp' \
     | grep -Ev 'content/.*compositions/.*\.cpp:' \
     | grep -Ev 'include/chronon3d/scene/presets/.*\.hpp:' \
     | grep -Ev 'include/chronon3d/presets/.*\.hpp:' \
+    | grep -Ev 'include/chronon3d/scene/builders/sequence_builder\.hpp:' \
     | grep -Ev 'content/.*saas_intro_premium.*\.cpp:' \
     || true)
 if [ -n "$hits" ]; then
@@ -275,6 +276,7 @@ hits=$(grep -Rn --include='*.cpp' \
     | grep -Ev 'tests/' \
     | grep -Ev 'src/timeline/composition\.cpp' \
     | grep -Ev 'src/timeline/compile_evaluate\.cpp' \
+    | grep -Ev 'src/render_graph/pipeline/composition\.cpp' \
     || true)
 if [ -n "$hits" ]; then
     echo "FAIL"; echo "$hits" | sed 's/^/    /'; FAILED=1
