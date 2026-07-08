@@ -4,6 +4,65 @@
 > Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 ---
+## Luglio 2026 — 10-point friction audit + fixes (commits `0ff8b100`..`8c1e9ddc`, 2026-07-08)
+
+10 fixes addressing the biggest friction points found during the Timeline Definition of Done implementation.
+
+### fix(scene-builder): preserve asset manifests for inactive layers and sequences (`0ff8b100`)
+
+- **FIX 1+2+3**: Core infrastructure change — `commit_layer()` helper ensures the `AssetManifest` is complete even for layers/sequences outside the current frame.
+  - Added private `commit_layer(Layer)` to `SceneBuilder`: merges manifest before conditionally adding layer to renderable list.
+  - All 7 layer methods (`layer`, `screen_layer`, `adjustment_layer`, `precomp_layer`, `video_layer` x2, `null_layer`) now use `commit_layer()` instead of `if(active_at)`.
+  - `sequence()` always executes the lambda (even when inactive) to collect assets, merges sub_scene manifest unconditionally, only adds layers when active.
+  - `sequence()` uses `trim_before` for inactive local frame (avoids negative frame).
+  - `video_layer()` now routes through `LayerBuilder::video()` to register asset in manifest (was bypassing manifest registration).
+  - `video_layer()` now includes `screen_dimensions()` (was missing).
+- **FIX 4**: `fullscreen_rect()` comment clarified for modular centered coordinates.
+- Files: `scene_builder.hpp`, `scene_builder_layers.inl`, `scene_builder_sequences.inl`, `shape_commands.cpp`.
+
+### feat(tests): sRGB pixel assertion helper + doctest hygiene gate (`a1419c4a`)
+
+- **FIX 5**: `tests/helpers/color_expect.hpp` — `read_display_pixel()` converts linear→sRGB before comparison; `CHECK_PIXEL_SRGB` macro with configurable epsilon.
+- **FIX 10**: `tools/check_test_hygiene.sh` — gate ensures `DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN` only in `tests/test_main.cpp`.
+- Files: `tests/helpers/color_expect.hpp` (NEW), `tools/check_test_hygiene.sh` (NEW).
+
+### docs(api): Frame reading convention (`2c0254c3`)
+
+- **FIX 6**: Added comment block to `frame.hpp` documenting the preferred reading form per context:
+  - Tests/logs: `frame.integral()` (self-documenting)
+  - External APIs: `static_cast<int>(frame)` (explicit narrowing)
+  - Core/time-critical: `frame.value` (no overhead)
+- Files: `include/chronon3d/core/types/frame.hpp`.
+
+### feat(builder): LayerBuilder aliases start_at() + length() (`2332dc7d`)
+
+- **FIX 7**: Clearer alternatives to `from()`/`duration()` for build code readability: `l.start_at(Frame{30}).length(Frame{60})`.
+- Additive-only — `from()` and `duration()` remain unchanged.
+- Files: `include/chronon3d/scene/builders/layer_builder.hpp`.
+
+### fix(preflight): V2 preflight default in CLI (`99323724`)
+
+- **FIX 8**: CLI `preflight` command now defaults to V2 manifest-based check. Legacy `RenderPreflight` is opt-in behind `--legacy-preflight` flag.
+- Output path writability check still runs even without legacy flag.
+- Files: `commands.hpp`, `register_inspect_commands.cpp`, `command_preflight.cpp`.
+
+### build(tests): test suite registration audit gate (`8c1e9ddc`)
+
+- **FIX 9**: `tools/check_test_suite_registration.sh` — audits all test cmake files for `add_executable` vs `chronon3d_add_test_suite()`.
+- Current state: 34 raw targets, 7 suite-registered targets. Informational gate (exit 0) until migration complete.
+- Files: `tools/check_test_suite_registration.sh` (NEW).
+
+### Gate validation (all PASS)
+
+| Gate | Result |
+|------|--------|
+| Gate 1-4 Test Suite | ✅ 4/4 PASS (168 assertions) |
+| Doc-sync | ✅ 0 failures, 0 warnings |
+| Main-clean | ✅ GATE_PASS |
+| Doctest hygiene | ✅ HYGIENE_PASS |
+| Test suite audit | ℹ️ 34 raw / 7 suite (informational) |
+
+---
 ## Luglio 2026 — Migration Step 4 grep-audit elimination
 
 ### fix(tools,content): Migration Step 4 — grep-audit legacy items reduced to 0/10 (this commit)
