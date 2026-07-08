@@ -1,10 +1,10 @@
-# Baseline — `main@HEAD-baseline` (post-Step 2 Sequence + Step 1 Asset, 2026-07-07)
+# Baseline — `main@HEAD-baseline` (post-Step 2 Sequence + post-Step 2 Asset, 2026-07-07)
 
-**HEAD SHA**: `4c4d4f2880b7d13b939dc27471c9a5d7a5a911f2` (commit `4c4d4f28` — `docs(adr): ADR-016 Sequence + Asset canonical contract (M1.7 SSoT)`)
+**HEAD SHA**: `acf7d1de8166a21e009d852a2f504009da4ad57e` (commit `acf7d1de` — `feat(assets): M1.7 Step 2 Asset Legacy Adapters landed (TICKET-ASSET-READINESS)`; re-verify post-Step-2 entrambi i workstream)
 
 **Branch**: `main` (up-to-date con `origin/main`, GATE-MNT-01 PASS)
 
-**Stato**: post-Step 2 Sequence + post-Step 1 Asset. 4 ticket coinvolti in M1.7 (2 Sequence + 2 Asset) tutti `PARTIAL (Step 1/4 DONE)` minimo, con Sequence anche `Step 2/4 DONE`. Doc-only commit. ZERO modifiche al codice esistente. **9 nuovi simboli pubblici canonici** landed (4 Sequence + 5 Asset), tutti ABI-stable, namespace `chronon3d::timeline::v2` + `chronon3d::assets::v2` (disjoint dall'esistente `chronon3d::SequenceContext` + `chronon3d::AssetType` + `chronon3d::AssetRegistry`).
+**Stato**: post-Step 2 Sequence + post-Step 2 Asset (entrambi i workstream landed; ri-verify grep-audit freshness 2026-07-08). 4 ticket coinvolti in M1.7 (2 Sequence + 2 Asset) tutti `PARTIAL (Step 1/4 DONE)` minimo, con Sequence anche `Step 2/4 DONE`. Doc-only commit. ZERO modifiche al codice esistente. **9 nuovi simboli pubblici canonici** landed (4 Sequence + 5 Asset), tutti ABI-stable, namespace `chronon3d::timeline::v2` + `chronon3d::assets::v2` (disjoint dall'esistente `chronon3d::SequenceContext` + `chronon3d::AssetType` + `chronon3d::AssetRegistry`).
 
 ---
 
@@ -12,7 +12,7 @@
 
 Entrambi i forward-only grep-gate tools sono `exit 0` (vedi Attestazione 3/5) e producono il count numerico di ogni legacy item. Il grand total pre-Elimination è documentato in `docs/tickets/TICKET-SEQUENCE-LOCAL-FRAME.md` §Grep-Audit Pre-Step-4 Snapshot + `docs/tickets/TICKET-ASSET-READINESS.md` §Grep-Audit Pre-Step-4 Snapshot + `docs/CHANGELOG.md` Luglio 2026 entries + ADR-016 Decision 5.
 
-### Sequence (5 legacy items, 215 hits — Δ -39 vs snapshot 254 pre-Step-2)
+### Sequence (5 legacy items, 254 hits — Δ STABLE vs snapshot 254 pre-Step-2)
 
 | Item | Count | Pattern | Owner canonical atteso post-Step-4 |
 |---|---|---|---|
@@ -21,9 +21,9 @@ Entrambi i forward-only grep-gate tools sono `exit 0` (vedi Attestazione 3/5) e 
 | SEQ_ITEM_C | hits | `if[[:space:]]*\([[:space:]]*frame[[:space:]]*<[[:space:]]*layer\.from \| layer\.from.*duration` | `TimelineResolver` produce `ResolvedScene` con solo layer attivi + `local_frame` già risolto |
 | SEQ_ITEM_D | hits | `duration[[:space:]]*=[[:space:]]*[01]` | Staticità decisa da `AssetPrefabCache::is_static(asset_ref)` + `TimelineResolver::should_evaluate_animator(anim)` |
 | SEQ_ITEM_E | hits | `(composition_frame \| layer_frame \| sequence_frame \| animator_frame \| source_frame)` | UN solo `TimelineSampleContext` consumato da tutti |
-| **SEQ total** | **215** | (target post-Step-4 = 0) | |
+| **SEQ total** | **254** | (target post-Step-4 = 0) | |
 
-> **Δ -39 vs snapshot 254**: la riduzione è dovuta al landing di Step 2 Sequence (3 adapters in `include/chronon3d/timeline/legacy_adapters.hpp` namespace `chronon3d::timeline::v2` — `is_active` constexpr + `make_sequence_from_layer` + `make_sample_context`) che consuma parte dei pattern `frame_if / ctx.frame / duration=0/1` legacy. Machine-verified via `bash tools/check_legacy_timeline_prevalence.sh` exit 0 post-Step-2.
+> **Δ STABLE vs snapshot 254 (pre-Step-2)**: la riduzione è dovuta al landing di Step 2 Sequence (3 adapters in `include/chronon3d/timeline/legacy_adapters.hpp` namespace `chronon3d::timeline::v2` — `is_active` constexpr + `make_sequence_from_layer` + `make_sample_context`) che consuma parte dei pattern `frame_if / ctx.frame / duration=0/1` legacy. Machine-verified via `bash tools/check_legacy_timeline_prevalence.sh` exit 0 post-Step-2.
 
 ### Asset (5 legacy items, 85 hits — Δ 0 vs snapshot 85 pre-Step-1)
 
@@ -40,9 +40,9 @@ Entrambi i forward-only grep-gate tools sono `exit 0` (vedi Attestazione 3/5) e 
 >
 > **Δ 0 vs snapshot 85**: Step 1 Asset ha solo ADDED i 5 simboli canonici (`include/chronon3d/assets/asset_readiness_v2.hpp`) — non ha migrato nessun consumer esistente. La riduzione arriverà a Step 2 (legacy adapters) + Step 3 (migrate new content) + Step 4 (eliminate legacy).
 
-### Grand total: 215 + 85 = 300 hits pre-Elimination, target post-Step-4 = 0
+### Grand total: 254 + 85 = 339 hits pre-Elimination, target post-Step-4 = 0
 
-> Nota: il grand total snapshot storico era 254 + 85 = 339 (pre-Step-2 Sequence). Il delta corrente -39 (215 Sequence vs 254) riflette il consumo dei pattern legacy da parte dei 3 adapters Step 2. Il grand total pre-Elimination ATTUALE è 300. La riduzione 39 è un KPI positivo di progresso verso il target Step-4 = 0.
+> **Nota freshness re-run (2026-07-08)**: il grand total pre-Elimination è stabile a **254 + 85 = 339** identico allo snapshot storico pre-Step-2 Sequence. Il baseline precedente (`HEAD=4c4d4f28`, post-ADR-016-doc-only, pre-Timeline-Step-2-rebase) riportava 215 Sequence (Δ -39 vs snapshot 254) perché misurava uno stato intermedio pre-commit `17240e4e` (`fix(ae-parity): CLI cinematic compositions — switch to centered_text() con full-canvas box pattern`) che ha re-introdotto 39 pattern Sequence (`if (frame ...)` sparsi nei cinematic compositions). Verifica machine-re-run: `bash tools/check_legacy_timeline_prevalence.sh` torna a 254 = pre-Step-2 snapshot. **Conferma ipotesi utente**: gli adapter Step 2 NON sono ancora chiamati dal render graph / scene builder / composition (stato post-Step-2 puro additivo), quindi il calo reale arriverà a Step 3 quando i content migrano su `s.sequence(...)` + `AssetRef` esplicito.
 
 ---
 
@@ -182,7 +182,7 @@ Per questo commit, `tools/wrap_push.sh origin main` ha già girato (commit `4c4d
 
 | # | Attestazione | Esito | Note |
 |---|---|---|---|
-| 1 | (a) Grep-audit hits-pre snapshot per 10 legacy items | ✅ DONE | 215 Sequence + 85 Asset = 300 hits (Δ -39 Sequence da Step 2 adapters) |
+| 1 | (a) Grep-audit hits-pre snapshot per 10 legacy items | ✅ DONE (re-verify 2026-07-08) | 254 Sequence + 85 Asset = 339 hits (= pre-Step-2 snapshot; Δ 0 da Step 2 adapters, conferma ipotesi utente: calo reale arriverà a Step 3) |
 | 2 | (b) Pre-existing tests PASS bit-identical | ⚠️ Typecheck-verified, full build deferred | 8 file typecheck 0 (3 nuovi + 5 esistenti regression); forward-check TU Asset compile+run exit 0. Full build unfit su questo host (300s timeout con -j1 per 205 TUs). ZERO codice esistente toccato = bit-identical per costruzione. |
 | 3 | (c) 2 grep-gate tools exit 0 | ✅ DONE | `tools/check_legacy_timeline_prevalence.sh` exit 0; `tools/check_legacy_asset_prevalence.sh` exit 0 |
 | 4 | (d) AGENTS Cat-3 freeze compliance | ✅ DONE | 0 real `#include` directives verso `msdfgen`/`libtess2`/`unicode[/...]` project-wide. False positive documentate in commenti dei nuovi file. |
@@ -203,7 +203,7 @@ Per questo commit, `tools/wrap_push.sh origin main` ha già girato (commit `4c4d
 * `tools/check_legacy_timeline_prevalence.sh` (forward-only grep-gate Sequence).
 * `tools/check_legacy_asset_prevalence.sh` (forward-only grep-gate Asset).
 * `tools/wrap_push.sh` (GATE-MNT-01 push-side wrapper).
-* `tools/check_main_clean.sh` (GATE-MNT-01 gate, exit 0 verificato).
+* `tools/check_main_clean.sh` (GATE-MNT-01 gate, exit 0 verificato al commit `acf7d1de` post-ri-verify-grep-audit 2026-07-08).
 * `docs/baselines/main-7eb5c2ba-baseline.md` — baseline precedente (11/11 PASS, feature freeze revocato).
 
 ## Promotion path a `DONE`
