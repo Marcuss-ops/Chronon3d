@@ -50,8 +50,6 @@ namespace chronon3d::graph {
         case ShapeType::Circle:
         case ShapeType::Line:
             return 2;
-        case ShapeType::Text:
-            return 4;
         case ShapeType::Path:
             return 8;
         case ShapeType::Mesh:
@@ -97,14 +95,6 @@ static inline void check_shape_assets(
             const std::string resolved = resolve_path(path);
             if (!std::filesystem::exists(resolved)) {
                 warnings.push_back("MISSING_ASSET: TiledImage file does not exist: \"" + path + "\"");
-            }
-        }
-    } else if (shape.type() == ShapeType::Text) {
-        const std::string font_path = shape.text().style.font_path;
-        if (!font_path.empty()) {
-            const std::string resolved = resolve_path(font_path);
-            if (!std::filesystem::exists(resolved)) {
-                warnings.push_back("MISSING_ASSET: Font file does not exist: \"" + font_path + "\"");
             }
         }
     } else if (shape.type() == ShapeType::FakeExtrudedText) {
