@@ -2,6 +2,37 @@
 
 ---
 
+## Luglio 2026 — M1.5#11 audit (this session, 2026-07-08, doc-only verification addendum)
+
+### docs(refactor): TICKET-M1.5#11-TEXT-RASTERIZER — split confirmed landed at HEAD, doc-only verification addendum (this session)
+
+- **Audit finding**: `src/backends/text/text_rasterizer_render.cpp` (775 LoC, the largest file in the repo per the user spec) ALREADY HAS the M1.5#11 utility extraction landed at HEAD per the existing M1.5#11 design pattern. No source-code modification required this session (§anti-greenwashing: do not duplicate work that exists). The split follows the existing M1.5#11 contract:
+  - (a) Orchestrator `text_rasterizer_render.cpp` (775 LoC) keeps the `rasterize_text_to_bl_image()` body intact + the local `Blend2DResources` legacy cache + the local `FtGlyphPathBuilder::load_face` face-loader. Forward-point: wholesale deletion scheduled in M1.5#9 Step 5 (legacy rasterizer infrastructure deletion).
+  - (b) `blend2d_glyph_conversion.hpp` (140 LoC) + `blend2d_glyph_conversion.cpp` (151 LoC) = **291 LoC** — user-spec (b) "utility riusabile `blend2d_glyph_conversion`". Hosts `apply_text_style` (unified fill/stroke with `StyleOp` discriminator) + `apply_text_fill_style` + `apply_text_stroke_style` (thin legacy-signature wrappers) + `HbToBlGlyphRun::from` (HarfBuzz placed-glyph → Blend2D `BLGlyphRun` with design-unit scaling matching `BL_GLYPH_PLACEMENT_TYPE_ADVANCE_OFFSET`). Doc-block at the top of the header documents the anti-duplication invariant vs M1.5#7's `BLFontFaceCache` (which holds per-session BLFontFace caching, distinct from this pure-conversion module).
+  - (c) `freetype_outline_conversion.hpp` (80 LoC) + `freetype_outline_conversion.cpp` (141 LoC) = **221 LoC** — user-spec (c) "utility riusabile `freetype_outline_conversion`" (matches the ~225 LoC spec target almost exactly). Hosts `convert_ft_outline_to_bl_path(FT_Face, PlacedGlyphRun, ox, oy)` + `build_outline_funcs()` factory returning the `FT_Outline_Funcs` table with `move_to`/`line_to`/`conic_to`/`cubic_to` callbacks dispatching into a `DecomposeCtx` BLPath-build context. Y-axis inversion (font-up → BL-down) hardcoded into the callbacks + 26.6 fixed-point pixel scale baked in. Caller owns FT_Face + mutex.
+
+- **Filename deviation from user spec**: the user followup proposed `text_rasterizer_blend2d_conversion.cpp` + `text_rasterizer_freetype_conversion.cpp` (with `text_rasterizer_` prefix). The HEAD implementation uses direct-form names (`blend2d_glyph_conversion.cpp` + `freetype_outline_conversion.cpp`) per "explicit semantic intent" rationale documented at the top of each header ("`blend2d_glyph_conversion` hosts the apply_text_* fill/stroke helper family"; "`freetype_outline_conversion` hosts the `BLPath` outline-decoder"). User spec describes the conceptual decomposition; HEAD implementation chooses direct-form names for clarity on what each module converts (the `text_rasterizer_` prefix would have been a category tag, not a semantic hint).
+
+- **CMakeLists.txt integration (already landed)**: `src/backends/text/CMakeLists.txt` line 8 lists `blend2d_glyph_conversion.cpp` + line 9 lists `freetype_outline_conversion.cpp` as part of the backends_text OBJECT library set. No CMake change needed.
+
+- **Orchestrator uses the utilities via include (already landed)**: `text_rasterizer_render.cpp` lines 85-86 `#include "blend2d_glyph_conversion.hpp"` + `#include "freetype_outline_conversion.hpp"`. The orchestrator delegates to the utilities through:
+  - `apply_text_fill_style(ctx, run_style, run_fill, ...)` call (was anonymous-ns local; now external per M1.5#11 extraction)
+  - `apply_text_stroke_style(ctx, run_style, ...)` call (same)
+  - `HbToBlGlyphRun::from(*placed, face, shape_size)` for fill-styling glyph runs (was anonymous-ns local; now external)
+  - `convert_ft_outline_to_bl_path(ft_path.ft_face, *placed, lx, baseline_y)` (called inside `std::lock_guard<std::mutex> ft_lock(ft_path.mutex)` block — matches the original synchronization window for `FT_Load_Glyph` + `FT_Outline_Decompose` race against concurrent `FT_Set_Pixel_Sizes`).
+
+- **Zero new public API surface (Cat-3 freeze-compliant)**: both utility headers are internal-to-backend (lives in `src/backends/text/`, NOT in `include/chronon3d/`). No new ABI symbols. No modification to existing `text_rasterizer_render.cpp` ABI surface (call-signatures unchanged). No modification to tests (none required per the M1.5#11 contract).
+
+- **Forward-point (not in this commit)**: the orchestrator remains at 775 LoC (vs user-spec ~350 LoC target). Further slimming would require invasive intra-function extraction from the `rasterize_text_to_bl_image()` body (each sub-block — cache lookup, BoxStyle rendering, glyph line render_run, per-line render with bidi, ink-trim — could become a free function within the same TU). This is M1.5#9 Step 5 (wholesale legacy rasterizer infrastructure deletion) forward-point and explicitly documented in the orchestrator header comment ("`Blend2DResources` ... Will be deleted with the rest of this TU in M1.5#9 Step 5").
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-5 (doc-only alignment — verification addendum + FOLLOWUP_TICKETS row). Zero source-code this session. Zero new public API surface. Zero ABI change. Zero new singleton/registry/cache/resolver/service-locator. `tools/wrap_push.sh` GATE-MNT-01 verified pre-push.
+
+- **Production git trace** (this session): 1 canonical doc file modified (`docs/FOLLOWUP_TICKETS.md` row `TICKET-M1.5#11-TEXT-RASTERIZER` reclassified to DONE with audit evidence + 1 `docs/CHANGELOG.md` verification addendum) + zero source-code modifications + zero CMake manifest modifications.
+
+- **Cross-references**: [`src/backends/text/text_rasterizer_render.cpp`](src/backends/text/text_rasterizer_render.cpp) (orchestrator with M1.5#11 REMOVED-NOTE banner); [`src/backends/text/blend2d_glyph_conversion.hpp`](src/backends/text/blend2d_glyph_conversion.hpp) + `.cpp` (the extracted blend2d utility); [`src/backends/text/freetype_outline_conversion.hpp`](src/backends/text/freetype_outline_conversion.hpp) + `.cpp` (the extracted freetype utility); [`src/backends/text/CMakeLists.txt`](src/backends/text/CMakeLists.txt) lines 8-9 (the existing CMake registration); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) row update.
+
+---
+
 ## Luglio 2026 — M1.5#12 SoftwareRenderer cpp-split (commit pending this session, 2026-07-08, single-shot atomic commit)
 
 ### refactor(backend): split software_renderer.cpp into 4 companion TUs (factory + dispatch + text + effects) per M1.5#12 pattern (commit pending)
