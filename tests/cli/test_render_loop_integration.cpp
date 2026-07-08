@@ -5,6 +5,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <tests/helpers/test_utils.hpp>
+#include <apps/chronon3d_cli/utils/job/cli_render_utils.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
@@ -49,8 +50,13 @@ static Composition make_integration_comp(int width, int height, int duration) {
 }
 
 /// Set up a renderer suitable for render loop integration tests.
+/// Uses the canonical create_renderer() factory instead of the
+/// deprecated SoftwareRenderer(Config{}) path.
 static std::shared_ptr<SoftwareRenderer> make_integration_renderer() {
-    return std::make_shared<SoftwareRenderer>(test::make_renderer());
+    CompositionRegistry registry;
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    return chronon3d::cli::create_renderer(registry, settings);
 }
 
 /// Background consumer that drains the queue and releases arena buffers.
