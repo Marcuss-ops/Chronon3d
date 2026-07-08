@@ -237,3 +237,83 @@ add_test(NAME chronon3d_timeline_visual_tests
     COMMAND chronon3d_timeline_visual_tests
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+# ── Gate 2 — Media Time Visual Tests ──
+# 3 tests proving trim_before (source_start), playback_rate (speed),
+# and freeze_frame work correctly at the map_video_frame level.
+
+add_executable(chronon3d_media_time_tests
+    ${TEST_MAIN}
+    visual/timeline/test_media_time_golden.cpp
+)
+
+target_link_libraries(chronon3d_media_time_tests
+    PRIVATE
+        chronon3d_sdk
+        chronon3d_scene
+        doctest::doctest
+)
+
+target_include_directories(chronon3d_media_time_tests
+    PRIVATE ${CMAKE_SOURCE_DIR}
+)
+set_target_properties(chronon3d_media_time_tests PROPERTIES UNITY_BUILD OFF)
+chronon3d_enable_test_pch(chronon3d_media_time_tests)
+add_test(NAME chronon3d_media_time_tests
+    COMMAND chronon3d_media_time_tests
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# ── Gate 3 — Asset Readiness Tests ──
+# 4 tests proving missing font/image/video cause hard preflight failure,
+# and FrameOnly vs FullComposition scoping works correctly.
+
+add_executable(chronon3d_asset_readiness_tests
+    ${TEST_MAIN}
+    visual/timeline/test_asset_readiness.cpp
+)
+
+target_link_libraries(chronon3d_asset_readiness_tests
+    PRIVATE
+        chronon3d_sdk
+        chronon3d_scene
+        nlohmann_json::nlohmann_json
+        doctest::doctest
+)
+
+target_include_directories(chronon3d_asset_readiness_tests
+    PRIVATE ${CMAKE_SOURCE_DIR}
+)
+set_target_properties(chronon3d_asset_readiness_tests PROPERTIES UNITY_BUILD OFF)
+chronon3d_enable_test_pch(chronon3d_asset_readiness_tests)
+add_test(NAME chronon3d_asset_readiness_tests
+    COMMAND chronon3d_asset_readiness_tests
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# ── Gate 4 — Debug Timeline Overlay Tests ──
+# 4 tests proving TimelineDebugInfo model captures active sequences,
+# local frames, and assets_used with valid JSON serialization.
+
+add_executable(chronon3d_debug_overlay_tests
+    ${TEST_MAIN}
+    visual/timeline/test_debug_overlay.cpp
+)
+
+target_link_libraries(chronon3d_debug_overlay_tests
+    PRIVATE
+        chronon3d_sdk
+        chronon3d_scene
+        nlohmann_json::nlohmann_json
+        doctest::doctest
+)
+
+target_include_directories(chronon3d_debug_overlay_tests
+    PRIVATE ${CMAKE_SOURCE_DIR}
+)
+set_target_properties(chronon3d_debug_overlay_tests PROPERTIES UNITY_BUILD OFF)
+chronon3d_enable_test_pch(chronon3d_debug_overlay_tests)
+add_test(NAME chronon3d_debug_overlay_tests
+    COMMAND chronon3d_debug_overlay_tests
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
