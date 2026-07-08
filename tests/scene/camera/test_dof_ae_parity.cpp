@@ -35,7 +35,7 @@ using namespace chronon3d::camera_v1;
 
 namespace {
 constexpr FrameRate kDofAeFps{60, 1};
-constexpr float    kEps = 1e-3f;
+constexpr float    kDofEps = 1e-3f;
 constexpr int      kW = 320;
 constexpr int      kH = 180;
 
@@ -106,9 +106,9 @@ TEST_CASE("FASE 5.1: DOF enable/disable toggle") {
 
         Camera2_5D cam = eval_one(def);
         CHECK(cam.dof.enabled);
-        CHECK(cam.dof.focus_distance == doctest::Approx(750.0f).epsilon(kEps));
-        CHECK(cam.dof.aperture       == doctest::Approx(4.0f).epsilon(kEps));
-        CHECK(cam.dof.max_blur       == doctest::Approx(18.0f).epsilon(kEps));
+        CHECK(cam.dof.focus_distance == doctest::Approx(750.0f).epsilon(kDofEps));
+        CHECK(cam.dof.aperture       == doctest::Approx(4.0f).epsilon(kDofEps));
+        CHECK(cam.dof.max_blur       == doctest::Approx(18.0f).epsilon(kDofEps));
     }
 
     SUBCASE("DOF toggled off → on → off across recompile") {
@@ -124,7 +124,7 @@ TEST_CASE("FASE 5.1: DOF enable/disable toggle") {
         def.camera->base.dof.focus_distance = 500.0f;
         Camera2_5D cam_on = eval_one(def);
         CHECK(cam_on.dof.enabled);
-        CHECK(cam_on.dof.focus_distance == doctest::Approx(500.0f).epsilon(kEps));
+        CHECK(cam_on.dof.focus_distance == doctest::Approx(500.0f).epsilon(kDofEps));
 
         // Off again
         def.camera->base.dof.enabled = false;
@@ -157,31 +157,31 @@ TEST_CASE("FASE 5.2: Animated focus distance — rack focus") {
     SUBCASE("frame 0 — focus at near") {
         Camera2_5D cam = eval_one(def, Frame{0});
         CHECK(cam.dof.enabled);
-        CHECK(cam.dof.focus_distance == doctest::Approx(200.0f).epsilon(kEps));
-        CHECK(cam.dof.aperture       == doctest::Approx(0.03f).epsilon(kEps));
-        CHECK(cam.dof.max_blur       == doctest::Approx(24.0f).epsilon(kEps));
+        CHECK(cam.dof.focus_distance == doctest::Approx(200.0f).epsilon(kDofEps));
+        CHECK(cam.dof.aperture       == doctest::Approx(0.03f).epsilon(kDofEps));
+        CHECK(cam.dof.max_blur       == doctest::Approx(24.0f).epsilon(kDofEps));
     }
 
     SUBCASE("frame 60 — focus at far (keyframe peak)") {
         Camera2_5D cam = eval_one(def, Frame{60});
-        CHECK(cam.dof.focus_distance == doctest::Approx(1000.0f).epsilon(kEps));
+        CHECK(cam.dof.focus_distance == doctest::Approx(1000.0f).epsilon(kDofEps));
     }
 
     SUBCASE("frame 120 — focus back to near (keyframe end)") {
         Camera2_5D cam = eval_one(def, Frame{120});
-        CHECK(cam.dof.focus_distance == doctest::Approx(200.0f).epsilon(kEps));
+        CHECK(cam.dof.focus_distance == doctest::Approx(200.0f).epsilon(kDofEps));
     }
 
     SUBCASE("frame 30 — midpoint interpolation (200→1000)") {
         Camera2_5D cam = eval_one(def, Frame{30});
         // Linear interpolation: 200 + (1000-200)/2 = 600
-        CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kEps));
+        CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kDofEps));
     }
 
     SUBCASE("frame 90 — midpoint interpolation (1000→200)") {
         Camera2_5D cam = eval_one(def, Frame{90});
         // Linear interpolation: 1000 + (200-1000)/2 = 600
-        CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kEps));
+        CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kDofEps));
     }
 }
 
@@ -201,7 +201,7 @@ TEST_CASE("FASE 5.3: Aperture scale propagation") {
         def.camera->base.dof.aperture = ap;
         Camera2_5D cam = eval_one(def);
         INFO("aperture=", ap);
-        CHECK(cam.dof.aperture == doctest::Approx(ap).epsilon(kEps));
+        CHECK(cam.dof.aperture == doctest::Approx(ap).epsilon(kDofEps));
     }
 }
 
@@ -229,11 +229,11 @@ TEST_CASE("FASE 5.4: Physical lens DOF model") {
         Camera2_5D cam = eval_one(def);
         CHECK(cam.dof.enabled);
         CHECK(cam.dof.use_physical_model);
-        CHECK(cam.dof.focus_distance     == doctest::Approx(800.0f).epsilon(kEps));
-        CHECK(cam.lens.focal_length      == doctest::Approx(24.0f).epsilon(kEps));
-        CHECK(cam.lens.f_stop            == doctest::Approx(2.0f).epsilon(kEps));
-        CHECK(cam.lens.sensor_width      == doctest::Approx(36.0f).epsilon(kEps));
-        CHECK(cam.lens.sensor_height     == doctest::Approx(24.0f).epsilon(kEps));
+        CHECK(cam.dof.focus_distance     == doctest::Approx(800.0f).epsilon(kDofEps));
+        CHECK(cam.lens.focal_length      == doctest::Approx(24.0f).epsilon(kDofEps));
+        CHECK(cam.lens.f_stop            == doctest::Approx(2.0f).epsilon(kDofEps));
+        CHECK(cam.lens.sensor_width      == doctest::Approx(36.0f).epsilon(kDofEps));
+        CHECK(cam.lens.sensor_height     == doctest::Approx(24.0f).epsilon(kDofEps));
     }
 
     SUBCASE("physical lens model toggle preserves DOF fields") {
@@ -244,10 +244,10 @@ TEST_CASE("FASE 5.4: Physical lens DOF model") {
 
         Camera2_5D cam = eval_one(def);
         CHECK_FALSE(cam.dof.use_physical_model);
-        CHECK(cam.dof.aperture == doctest::Approx(0.015f).epsilon(kEps));
-        CHECK(cam.dof.max_blur == doctest::Approx(18.0f).epsilon(kEps));
+        CHECK(cam.dof.aperture == doctest::Approx(0.015f).epsilon(kDofEps));
+        CHECK(cam.dof.max_blur == doctest::Approx(18.0f).epsilon(kDofEps));
         // focus_distance is still valid in legacy mode.
-        CHECK(cam.dof.focus_distance == doctest::Approx(800.0f).epsilon(kEps));
+        CHECK(cam.dof.focus_distance == doctest::Approx(800.0f).epsilon(kDofEps));
     }
 }
 
@@ -272,9 +272,9 @@ TEST_CASE("FASE 5.5: DOF survives projection type changes") {
 
         Camera2_5D cam = eval_one(def);
         CHECK(cam.dof.enabled);
-        CHECK(cam.zoom == doctest::Approx(1200.0f).epsilon(kEps));
-        CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kEps));
-        CHECK(cam.dof.aperture       == doctest::Approx(2.0f).epsilon(kEps));
+        CHECK(cam.zoom == doctest::Approx(1200.0f).epsilon(kDofEps));
+        CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kDofEps));
+        CHECK(cam.dof.aperture       == doctest::Approx(2.0f).epsilon(kDofEps));
     }
 
     SUBCASE("FOV projection — DOF intact") {
@@ -284,9 +284,9 @@ TEST_CASE("FASE 5.5: DOF survives projection type changes") {
 
         Camera2_5D cam = eval_one(def);
         CHECK(cam.dof.enabled);
-        CHECK(cam.fov_deg == doctest::Approx(65.0f).epsilon(kEps));
-        CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kEps));
-        CHECK(cam.dof.aperture       == doctest::Approx(2.0f).epsilon(kEps));
+        CHECK(cam.fov_deg == doctest::Approx(65.0f).epsilon(kDofEps));
+        CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kDofEps));
+        CHECK(cam.dof.aperture       == doctest::Approx(2.0f).epsilon(kDofEps));
     }
 
     SUBCASE("PhysicalLens projection — DOF intact") {
@@ -300,9 +300,9 @@ TEST_CASE("FASE 5.5: DOF survives projection type changes") {
 
         Camera2_5D cam = eval_one(def);
         CHECK(cam.dof.enabled);
-        CHECK(cam.lens.focal_length == doctest::Approx(35.0f).epsilon(kEps));
-        CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kEps));
-        CHECK(cam.dof.aperture       == doctest::Approx(2.0f).epsilon(kEps));
+        CHECK(cam.lens.focal_length == doctest::Approx(35.0f).epsilon(kDofEps));
+        CHECK(cam.dof.focus_distance == doctest::Approx(600.0f).epsilon(kDofEps));
+        CHECK(cam.dof.aperture       == doctest::Approx(2.0f).epsilon(kDofEps));
     }
 }
 
@@ -323,7 +323,7 @@ TEST_CASE("FASE 5.6: DOF disabled preserves field values") {
     Camera2_5D cam = eval_one(def);
     CHECK_FALSE(cam.dof.enabled);
     // Fields are preserved even when DOF is disabled.
-    CHECK(cam.dof.focus_distance == doctest::Approx(400.0f).epsilon(kEps));
-    CHECK(cam.dof.aperture       == doctest::Approx(1.5f).epsilon(kEps));
-    CHECK(cam.dof.max_blur       == doctest::Approx(16.0f).epsilon(kEps));
+    CHECK(cam.dof.focus_distance == doctest::Approx(400.0f).epsilon(kDofEps));
+    CHECK(cam.dof.aperture       == doctest::Approx(1.5f).epsilon(kDofEps));
+    CHECK(cam.dof.max_blur       == doctest::Approx(16.0f).epsilon(kDofEps));
 }

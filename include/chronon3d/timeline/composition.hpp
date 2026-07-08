@@ -73,6 +73,18 @@ public:
     [[nodiscard]] const std::string& name() const { return m_spec.name; }
     [[nodiscard]] const std::string& assets_root() const { return m_spec.assets_root; }
 
+    /// Direct evaluation from a pre-built FrameContext.
+    /// This is the natural V2 entry point: callers that already have a
+    /// FrameContext (e.g. tests, content compositions) can pass it
+    /// directly without extracting individual fields.
+    [[nodiscard]] Scene evaluate(const FrameContext& ctx) const {
+        Scene result = m_render(ctx);
+        if (!ctx.assets_root.empty()) {
+            result.set_assets_root(ctx.assets_root);
+        }
+        return result;
+    }
+
     [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]
     [[nodiscard]] Scene evaluate(Frame frame,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
