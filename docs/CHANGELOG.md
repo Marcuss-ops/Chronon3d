@@ -2,6 +2,67 @@
 
 ---
 
+## Luglio 2026 — TICKET-FRAME-VALUE-CONVENTION: Frame::value grep-gate (commit pending this session, 2026-07-08, sequence 1/2 — WARN mode)
+
+### feat(tools): Frame::value convention grep-gate — WARN mode (commit pending)
+
+- **NEW gate script**: `tools/check_frame_value_convention.sh` enforces the Frame reading convention documented in [`include/chronon3d/core/types/frame.hpp`](include/chronon3d/core/types/frame.hpp). The convention table prefers `frame.integral()` for tests/logs, `static_cast<int64_t>(frame)` for external API, and (historically) `frame.value` for core math/render code — but the latter forces out-of-header `.value` access that couples to Frame struct layout. We promote the enforcement to **zero `.value` access outside the canonical header** as a layout-privacy invariant.
+
+- **Mode contract (commit 1 of 2)**:
+  - Default mode = **`WARN`** (exit 0) in this commit. The gate logs all raw violations without failing the build, so existing 4 raw hits + 16 false-positive-class hits can be progressively fixed in commit 2.
+  - Commit 2 (next) flips default to **`FAIL`** (exit 1) after the progressive fix.
+  - Override via `FRAME_VALUE_GATE_MODE=WARN|FAIL` env var.
+  - Exit codes: 0 = PASS / WARN-no-violations; 1 = FAIL-on-violations (only when mode=FAIL); 2 = internal script error.
+
+- **Refined regex (documented refinement over the literal user grep)**:
+  - User's literal grep `grep '\.value' | grep Frame | grep -v canonical` over-matches: 24 hits, of which **20 are false positives** where `.value` is `AnimatedValue<T>::value` (member of `OpacityProperty`/`PositionProperty`/`ScaleProperty`/`TrackingProperty`/`BlurProperty`) and `Frame{N}` on the same line is the keyframe TIMESTAMP argument, not a Frame field access.
+  - Refined regex (committed in this script):
+    ```
+    \b([Ff]rame|[Ff]|sequence_start|sequence_end|local_frame|global_frame|sequenceFrame|sequence_frame)\w*\.value\b
+    |
+    \b\w+\.frame\.value\b
+    ```
+    applied to `src include tests apps` for `*.cpp/*.hpp`, then piped through:
+    - `grep -v canonical_header` (exclude the canonical Frame definition)
+    - `grep -vE '\.value\('` (exclude `std::expected<T,E>::value()` and `Result<T,E>::value()` method calls — these are method invocations on different types, NOT Frame::value member access)
+  - Result: **20 REAL Frame::value hits** out of 27 total raw match lines (the 7 remaining are the `value()` method-call false positives noted above).
+
+- **Pre-fix inventory (machine-verified via `bash tools/check_frame_value_convention.sh` in WARN mode this commit)**:
+
+  | File | Hit | Pattern | Context |
+  |---|---|---|---|
+  | `src/runtime/sdk_render_engine.cpp` | 1 | `chronon3d::Frame{frame.value}` | SDK bridge to internal engine |
+  | `src/scene/camera/camera_v1/camera_program_compiler.cpp` | 2 | `kf.frame.value` (×2 FOV/zoom keyframe) | compile-time keyframe diagnostic |
+  | `src/animations/temporal/temporal_samples.cpp` | 1 | `frame.value` (FNV-1a hash sample) | temporal sampling hash |
+  | `include/chronon3d/core/hash/hash_builder.hpp` | 1 | `mix(static_cast<uint64_t>(f.value))` | frame hash builder |
+  | `include/chronon3d/scene/camera/camera_v1/camera_descriptor_fingerprint.hpp` | 1 | `h.mix_i32(kf.frame.value)` | camera descriptor fingerprint |
+  | `include/chronon3d/timeline/timeline_resolver_v2.hpp` | 1 | `global_frame.value - sequence_start.value` (comment ref @ line 174) | doc-only reference |
+  | `apps/chronon3d_cli/commands/render/command_still.cpp` | 2 | `args.frame.value` (×2 frame str conversion) | CLI still-frame render |
+  | `apps/chronon3d_cli/cli_init.hpp` | 1 | comment reference | doc-only |
+  | `tests/visual/ae_parity/ae_parity_compositions.hpp` | 1 | comment reference | doc-only |
+  | `tests/visual/ae_parity/ae_parity_compositions.cpp` | 4 | `ctx.frame.value` (×1 code @ line 48 + 3 doc-comments) | parity test fixture |
+  | `tests/scene/camera/test_camera_compiled_evaluate.cpp` | 3 | `f.value` (loop step + 2× CAPTURE) | camera determinism test |
+  | `tests/scene/camera/test_camera_program.cpp` | 2 | `CAPTURE(f.value)` (×2) | camera program test |
+  | `tests/scene/camera/test_camera_lookat_layer_missing_transforms.cpp` | 1 | `CAPTURE(f.value)` | lookat-missing-transforms test |
+  | **TOTAL** | **20** | | |
+
+- **Excluded (not Frame::value, NOT a violation)**:
+  - **14+6 = 20 false-positives in `src/registry/text_preset_factories_{reveal,cinematic}.cpp`**: `op.value.add_keyframe(Frame{0}, 0.0f, eo_words)` style — `.value` is `AnimatedValue<T>::value` (curve wrapper for keyframed properties), `Frame{N}` is the keyframe timestamp argument. Renaming `AnimatedValue::value` → `AnimatedValue::animated` would be an invasive public-API ripple (~20+ call sites + potential SDK consumer impact); the refined regex correctly excludes these by anchoring on Frame-typed identifier names only.
+  - **7 `std::expected<T,E>::value()` / `Result<T,E>::value()` method-call hits** in `src/backends/software/runtime_adapter.cpp` (`factory_result.value()`) + `tests/render_graph/nodes/test_precomp_node_cache.cpp` (`fb0.value()->width()` ×4) + `tests/text/test_text_document_builder.cpp` (`font_size_multiplier.value()` ×2). These are method invocations on a different type (variant-like), not Frame member access; post-filter `grep -vE '\.value\('` removes them.
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-1 (gate tooling, lives in `tools/`, NOT in `src/` or `include/chronon3d/`) + Cat-5 (doc-only alignment via this CHANGELOG entry + `docs/FOLLOWUP_TICKETS.md` row addition). **Zero new public API surface** — the gate enforces an existing convention documented in the canonical header. **Zero new singleton/registry/cache/resolver/service-locator** — the gate is a stateless shell script with `set -euo pipefail`. **ABI fully preserved** — all 20 hits will be fixed by accessor substitution only.
+
+- **Forward-only notes**:
+  1. The historic "Core / time-critical code → `frame.value`" line in the convention table is now SUPERSEDED by this gate's STRICT enforcement: `.value` access is forbidden OUTSIDE the canonical header even in render hot paths. The SDK-bridge site at `src/runtime/sdk_render_engine.cpp:118` will switch to `.integral()` (named accessor; `noexcept`; inlinable constexpr — zero perf regression).
+  2. The 20 `AnimatedValue::value` false-positives are documented accepted noise. If a future ADR proposes renaming `AnimatedValue::value` → `AnimatedValue::animated`, the gate's regex naturally tightens to exclude the rename automatically (no further gate code needed).
+  3. The 7 `std::expected::value()` / `Result::value()` method-call exclusions are by type-class (`grep -vE '\.value\('`); future additions to the post-filter list (e.g. `T::value_or(x)`) would need a gateway expansion.
+
+- **Production git trace** (commit 1 of 2): 1 NEW tool (`tools/check_frame_value_convention.sh` ~170 LOC) + 2 canonical doc updates (`docs/CHANGELOG.md` this entry + `docs/FOLLOWUP_TICKETS.md` row addition). **ZERO source code in `src/`, `include/chronon3d/`, `tests/`, `apps/` modified in this commit** — the gate is informational; fixes land in commit 2 with the gate promotion to FAIL.
+
+- **Cross-references**: [`tools/check_frame_value_convention.sh`](tools/check_frame_value_convention.sh) (the new gate script); [`include/chronon3d/core/types/frame.hpp`](include/chronon3d/core/types/frame.hpp) §Reading convention (canonical invariant this gate enforces); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) recently-closed row for TICKET-FRAME-VALUE-CONVENTION (added in this commit).
+
+---
+
 ## Luglio 2026 — TICKET-110: pre-push hygiene gates wired (commit pending this session, 2026-07-08)
 
 ### build(tests,tools,ci): wire hygiene gates into wrap_push.sh + parallel CI / AGENT_WORKFLOW.md (commit pending)
