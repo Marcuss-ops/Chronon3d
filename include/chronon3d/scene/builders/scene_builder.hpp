@@ -171,6 +171,17 @@ class SceneBuilder {
 
     [[nodiscard]] Frame current_integer_frame() const;
 
+    /// Always merge the layer's asset manifest into the scene, then
+    /// conditionally add the layer to the scene's renderable list.
+    /// This ensures the manifest is complete even for inactive layers
+    /// (needed by AssetPreflightResolver FullComposition mode).
+    void commit_layer(Layer layer) {
+        scene_.asset_manifest().merge(layer.asset_manifest);
+        if (layer.active_at(current_integer_frame())) {
+            scene_.add_layer(std::move(layer));
+        }
+    }
+
     Scene scene_;
     SampleTime current_time_{SampleTime::from_frame_int(0, FrameRate{30, 1})};
     FrameContext m_ctx{};
