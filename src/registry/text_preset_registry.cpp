@@ -3,7 +3,7 @@
 // Cluster A DoD #1 (DoD primo-milestone #1 — "20+ preset stabili Reveal /
 // Emphasis / Cinematic / Subtitle").  Stage 1 (PR `41cda40c`) shipped
 // metadata-only cataloguing of the 5 compositionally-derived entries.
-// Stage 2 (PR `ba107a7d`) filled the no-op builders (TODO(c3d-001))
+// Stage 2 (PR `ba107a7d`) filled the no-op builders (c3d-001)
 // with real LayerBuilder API calls.  Stage 3 (PR-c3d-002 copy-modify)
 // shipped the 17 addizionali ceiling, reaching 22 entries total
 // (≥20+, DoD #1 verde).
