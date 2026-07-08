@@ -16,304 +16,186 @@ target_include_directories(chronon3d_visual_test_support
     PUBLIC ${CMAKE_SOURCE_DIR}
 )
 
-# Test the support library itself.
-add_executable(chronon3d_visual_test_support_tests
-    ${TEST_MAIN}
-    visual/support/test_visual_support.cpp
-)
-
-target_link_libraries(chronon3d_visual_test_support_tests
-    PRIVATE
+# ── Visual Test Support Tests ──
+# Tests the support library itself (image_diff, golden_test).
+chronon3d_add_test_suite(
+    NAME chronon3d_visual_test_support_tests
+    TIER INTEGRATION
+    SOURCES visual/support/test_visual_support.cpp
+    LINK_TARGETS
         chronon3d_sdk
         chronon3d_visual_test_support
         chronon3d_backend_software
         chronon3d_backend_image
         chronon3d_scene
-        doctest::doctest
 )
-
 target_compile_definitions(chronon3d_visual_test_support_tests
     PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
-target_include_directories(chronon3d_visual_test_support_tests
-    PRIVATE ${CMAKE_SOURCE_DIR}
-)
-
-set_target_properties(chronon3d_visual_test_support_tests PROPERTIES UNITY_BUILD OFF)
-chronon3d_enable_test_pch(chronon3d_visual_test_support_tests)
-add_test(NAME chronon3d_visual_test_support_tests
-    COMMAND chronon3d_visual_test_support_tests
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
-
 # ── Camera Visual Regression Tests ──
 # Golden image tests for camera behavior: center, parallax, orbit, near-plane, z-sort.
-
-add_executable(chronon3d_camera_visual_tests
-    ${TEST_MAIN}
-    visual/camera/camera_visual_compare.cpp
-    visual/camera/camera_visual_scenes.cpp
-    visual/camera/camera_visual_tests.cpp
-)
-
-target_link_libraries(chronon3d_camera_visual_tests
-    PRIVATE
+chronon3d_add_test_suite(
+    NAME chronon3d_camera_visual_tests
+    TIER INTEGRATION
+    SOURCES
+        visual/camera/camera_visual_compare.cpp
+        visual/camera/camera_visual_scenes.cpp
+        visual/camera/camera_visual_tests.cpp
+    LINK_TARGETS
         chronon3d_sdk
         chronon3d_visual_test_support
         chronon3d_backend_software
         chronon3d_scene
-        doctest::doctest
 )
-
-target_compile_definitions(chronon3d_camera_visual_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-target_include_directories(chronon3d_camera_visual_tests PRIVATE ${CMAKE_SOURCE_DIR})
-set_target_properties(chronon3d_camera_visual_tests PROPERTIES UNITY_BUILD OFF)
-chronon3d_enable_test_pch(chronon3d_camera_visual_tests)
-add_test(NAME chronon3d_camera_visual_tests COMMAND chronon3d_camera_visual_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+target_compile_definitions(chronon3d_camera_visual_tests
+    PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
 
 # ── Cinematic Motion Visual Regression Tests ──
 # Diagnostic visual tests for SampleTime sub-frame, CubicBezier3D handles,
 # arc-length spacing, temporal/spatial curve separation, cache parity.
-
-add_executable(chronon3d_cinematic_motion_visual_tests
-    ${TEST_MAIN}
-    visual/cinematic_motion/cinematic_motion_scenes.cpp
-    visual/cinematic_motion/cinematic_motion_scenes_bezier.cpp
-    visual/cinematic_motion/cinematic_motion_scenes_quat.cpp
-    visual/cinematic_motion/cinematic_motion_compare.cpp
-    visual/cinematic_motion/cinematic_motion_tests.cpp
-)
-
-target_link_libraries(chronon3d_cinematic_motion_visual_tests
-    PRIVATE
+chronon3d_add_test_suite(
+    NAME chronon3d_cinematic_motion_visual_tests
+    TIER INTEGRATION
+    SOURCES
+        visual/cinematic_motion/cinematic_motion_scenes.cpp
+        visual/cinematic_motion/cinematic_motion_scenes_bezier.cpp
+        visual/cinematic_motion/cinematic_motion_scenes_quat.cpp
+        visual/cinematic_motion/cinematic_motion_compare.cpp
+        visual/cinematic_motion/cinematic_motion_tests.cpp
+    LINK_TARGETS
         chronon3d_sdk
         chronon3d_visual_test_support
         chronon3d_backend_software
         chronon3d_scene
-        doctest::doctest
 )
-
-target_compile_definitions(chronon3d_cinematic_motion_visual_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-target_include_directories(chronon3d_cinematic_motion_visual_tests PRIVATE ${CMAKE_SOURCE_DIR})
-set_target_properties(chronon3d_cinematic_motion_visual_tests PROPERTIES UNITY_BUILD OFF)
-chronon3d_enable_test_pch(chronon3d_cinematic_motion_visual_tests)
-add_test(NAME chronon3d_cinematic_motion_visual_tests COMMAND chronon3d_cinematic_motion_visual_tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+target_compile_definitions(chronon3d_cinematic_motion_visual_tests
+    PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
 
 # ── Render-Graph Node Golden Tests ──
 # PR2 — 6 golden PNG snapshots for the 4 node categories
 # (ShadowNode ×2, PerPixelDofNode, MaskNode ×2, GlowPipeline).
-
-add_executable(chronon3d_render_graph_node_visual_tests
-    ${TEST_MAIN}
-    visual/render_graph/node_goldens.cpp
-)
-
-target_link_libraries(chronon3d_render_graph_node_visual_tests
-    PRIVATE
+chronon3d_add_test_suite(
+    NAME chronon3d_render_graph_node_visual_tests
+    TIER INTEGRATION
+    SOURCES visual/render_graph/node_goldens.cpp
+    LINK_TARGETS
         chronon3d_sdk
         chronon3d_visual_test_support
         chronon3d_backend_software
         chronon3d_scene
-        doctest::doctest
 )
-
 target_compile_definitions(chronon3d_render_graph_node_visual_tests
     PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-)
-
-target_include_directories(chronon3d_render_graph_node_visual_tests
-    PRIVATE ${CMAKE_SOURCE_DIR}
-)
-
-set_target_properties(chronon3d_render_graph_node_visual_tests PROPERTIES UNITY_BUILD OFF)
-chronon3d_enable_test_pch(chronon3d_render_graph_node_visual_tests)
-add_test(NAME chronon3d_render_graph_node_visual_tests
-    COMMAND chronon3d_render_graph_node_visual_tests
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 # ── PR3 End-to-End Composition Visual Regression Tests ──
 # 4 end-to-end compositions (text+gradient+mask, camera+depth+DoF,
 # motion blur+transparencies, video+images+RTL text), each rendered as
 # a none-vs-effect-on golden pair (8 PNGs total) under tests/golden/pr3/.
-
-add_executable(chronon3d_pr3_composition_visual_tests
-    ${TEST_MAIN}
-    visual/PR3/pr3_compositions.cpp
-)
-
-target_link_libraries(chronon3d_pr3_composition_visual_tests
-    PRIVATE
+chronon3d_add_test_suite(
+    NAME chronon3d_pr3_composition_visual_tests
+    TIER INTEGRATION
+    SOURCES visual/PR3/pr3_compositions.cpp
+    LINK_TARGETS
         chronon3d_sdk
         chronon3d_visual_test_support
         chronon3d_backend_software
         chronon3d_scene
-        doctest::doctest
 )
-
 target_compile_definitions(chronon3d_pr3_composition_visual_tests
     PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-)
-
-target_include_directories(chronon3d_pr3_composition_visual_tests
-    PRIVATE ${CMAKE_SOURCE_DIR}
-)
-
-set_target_properties(chronon3d_pr3_composition_visual_tests PROPERTIES UNITY_BUILD OFF)
-chronon3d_enable_test_pch(chronon3d_pr3_composition_visual_tests)
-add_test(NAME chronon3d_pr3_composition_visual_tests
-    COMMAND chronon3d_pr3_composition_visual_tests
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 # ── AE Parity Camera Visual Regression Tests ──
 # 10 AE parity scenes for visual comparison Chronon3D ↔ After Effects.
 # Golden PNGs in tests/golden/ae_parity/; diffs in tests/golden/ae_parity/diff/.
 # Set CHRONON3D_UPDATE_GOLDENS=1 to create / update golden PNGs.
-
-add_executable(chronon3d_ae_parity_tests
-    ${TEST_MAIN}
-    visual/ae_parity/ae_parity_tests.cpp
-    visual/ae_parity/ae_parity_scenes.cpp
-)
+#
 # ae_parity_scenes.cpp was previously linked via chronon3d_content OBJECT
 # library; that link broke post content-dedup.  Compiling it directly
 # into the test binary restores the symbols without duplicating the TU
 # across the CLI binary (which also compiles it).
-
-target_link_libraries(chronon3d_ae_parity_tests
-    PRIVATE
+chronon3d_add_test_suite(
+    NAME chronon3d_ae_parity_tests
+    TIER INTEGRATION
+    SOURCES
+            visual/ae_parity/ae_parity_tests.cpp
+        visual/ae_parity/ae_parity_scenes.cpp
+    LINK_TARGETS
         chronon3d_sdk
         chronon3d_visual_test_support
         chronon3d_backend_software
         chronon3d_scene
-        doctest::doctest
 )
-
 target_compile_definitions(chronon3d_ae_parity_tests
     PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-)
-
-target_include_directories(chronon3d_ae_parity_tests
-    PRIVATE ${CMAKE_SOURCE_DIR}
-)
-
-set_target_properties(chronon3d_ae_parity_tests PROPERTIES UNITY_BUILD OFF)
-chronon3d_enable_test_pch(chronon3d_ae_parity_tests)
-add_test(NAME chronon3d_ae_parity_tests
-    COMMAND chronon3d_ae_parity_tests
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 # ── Gate 1 — Timeline Visual Golden Tests ──
 # 4 tests proving sequence boundaries, local frame mapping,
 # animation-from-local-frame, and nested sequence mapping
 # work correctly at the render level.
-
-add_executable(chronon3d_timeline_visual_tests
-    ${TEST_MAIN}
-    visual/timeline/test_timeline_golden.cpp
-)
-
-target_link_libraries(chronon3d_timeline_visual_tests
-    PRIVATE
+chronon3d_add_test_suite(
+    NAME chronon3d_timeline_visual_tests
+    TIER INTEGRATION
+    SOURCES visual/timeline/test_timeline_golden.cpp
+    LINK_TARGETS
         chronon3d_sdk
         chronon3d_visual_test_support
         chronon3d_backend_software
         chronon3d_scene
-        doctest::doctest
+    LABELS gate
 )
-
 target_compile_definitions(chronon3d_timeline_visual_tests
     PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-)
-target_include_directories(chronon3d_timeline_visual_tests
-    PRIVATE ${CMAKE_SOURCE_DIR}
-)
-set_target_properties(chronon3d_timeline_visual_tests PROPERTIES UNITY_BUILD OFF)
-chronon3d_enable_test_pch(chronon3d_timeline_visual_tests)
-add_test(NAME chronon3d_timeline_visual_tests
-    COMMAND chronon3d_timeline_visual_tests
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 # ── Gate 2 — Media Time Visual Tests ──
 # 3 tests proving trim_before (source_start), playback_rate (speed),
 # and freeze_frame work correctly at the map_video_frame level.
-
-add_executable(chronon3d_media_time_tests
-    ${TEST_MAIN}
-    visual/timeline/test_media_time_golden.cpp
-)
-
-target_link_libraries(chronon3d_media_time_tests
-    PRIVATE
+chronon3d_add_test_suite(
+    NAME chronon3d_media_time_tests
+    TIER INTEGRATION
+    SOURCES visual/timeline/test_media_time_golden.cpp
+    LINK_TARGETS
         chronon3d_sdk
         chronon3d_scene
-        doctest::doctest
+    LABELS gate
 )
-
-target_include_directories(chronon3d_media_time_tests
-    PRIVATE ${CMAKE_SOURCE_DIR}
-)
-set_target_properties(chronon3d_media_time_tests PROPERTIES UNITY_BUILD OFF)
-chronon3d_enable_test_pch(chronon3d_media_time_tests)
-add_test(NAME chronon3d_media_time_tests
-    COMMAND chronon3d_media_time_tests
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
+# Gate 2-4 don't link chronon3d_visual_test_support so they don't
+# inherit ${CMAKE_SOURCE_DIR} transitively.  Add it explicitly for
+# parity with the raw target include dirs.
+target_include_directories(chronon3d_media_time_tests PRIVATE ${CMAKE_SOURCE_DIR})
 
 # ── Gate 3 — Asset Readiness Tests ──
 # 4 tests proving missing font/image/video cause hard preflight failure,
 # and FrameOnly vs FullComposition scoping works correctly.
-
-add_executable(chronon3d_asset_readiness_tests
-    ${TEST_MAIN}
-    visual/timeline/test_asset_readiness.cpp
-)
-
-target_link_libraries(chronon3d_asset_readiness_tests
-    PRIVATE
+chronon3d_add_test_suite(
+    NAME chronon3d_asset_readiness_tests
+    TIER INTEGRATION
+    SOURCES visual/timeline/test_asset_readiness.cpp
+    LINK_TARGETS
         chronon3d_sdk
         chronon3d_scene
         nlohmann_json::nlohmann_json
-        doctest::doctest
+    LABELS gate
 )
-
-target_include_directories(chronon3d_asset_readiness_tests
-    PRIVATE ${CMAKE_SOURCE_DIR}
-)
-set_target_properties(chronon3d_asset_readiness_tests PROPERTIES UNITY_BUILD OFF)
-chronon3d_enable_test_pch(chronon3d_asset_readiness_tests)
-add_test(NAME chronon3d_asset_readiness_tests
-    COMMAND chronon3d_asset_readiness_tests
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
+target_include_directories(chronon3d_asset_readiness_tests PRIVATE ${CMAKE_SOURCE_DIR})
 
 # ── Gate 4 — Debug Timeline Overlay Tests ──
 # 4 tests proving TimelineDebugInfo model captures active sequences,
 # local frames, and assets_used with valid JSON serialization.
-
-add_executable(chronon3d_debug_overlay_tests
-    ${TEST_MAIN}
-    visual/timeline/test_debug_overlay.cpp
-)
-
-target_link_libraries(chronon3d_debug_overlay_tests
-    PRIVATE
+chronon3d_add_test_suite(
+    NAME chronon3d_debug_overlay_tests
+    TIER INTEGRATION
+    SOURCES visual/timeline/test_debug_overlay.cpp
+    LINK_TARGETS
         chronon3d_sdk
         chronon3d_scene
         nlohmann_json::nlohmann_json
-        doctest::doctest
+    LABELS gate
 )
-
-target_include_directories(chronon3d_debug_overlay_tests
-    PRIVATE ${CMAKE_SOURCE_DIR}
-)
-set_target_properties(chronon3d_debug_overlay_tests PROPERTIES UNITY_BUILD OFF)
-chronon3d_enable_test_pch(chronon3d_debug_overlay_tests)
-add_test(NAME chronon3d_debug_overlay_tests
-    COMMAND chronon3d_debug_overlay_tests
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
+target_include_directories(chronon3d_debug_overlay_tests PRIVATE ${CMAKE_SOURCE_DIR})
