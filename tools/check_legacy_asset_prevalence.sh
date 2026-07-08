@@ -111,7 +111,10 @@ names=(AST_ITEM_A AST_ITEM_B AST_ITEM_C AST_ITEM_D AST_ITEM_E)
 # ── AST_ITEM_A: path raw sparsi (font_path / image_path / video_path / audio_path)
 #    Scope ristretto a content/ + src/scene/ (esclude include/chronon3d/ che
 #    ospita i field `.path` dei type system canonici come FontSpec.path).
-c=$(count_hits '\b(font_path|image_path|video_path|audio_path)\b' \
+#    Tightened: excludes struct field accesses like `.font_path = "..."`
+#    (canonical API) by requiring no preceding dot/alphanumeric. Only catches
+#    bare variable declarations `std::string font_path{...}` etc.
+c=$(count_hits '(^|[^a-zA-Z0-9_.])(font_path|image_path|video_path|audio_path)\b' \
     content src/scene)
 printf "%-12s %8d hits   (scope: content/ + src/scene/ — exclude include/chronon3d/ .path field reads)\n" "${names[0]}" "$c"
 total=$((total + c))
@@ -123,12 +126,17 @@ printf "%-12s %8d hits\n" "${names[1]}" "$c"
 total=$((total + c))
 
 # ── AST_ITEM_C: fallback silenziosi
-c1=$(count_hits '(use_default_font|draw_black_rect|empty_frame|placeholder)' \
+#    Tightened: drops 'placeholder' (false positives in comments/UI code).
+#    Requires function-call syntax for use_default_font/draw_black_rect.
+#    Requires actual return statement for empty_frame.
+c1=$(count_hits '\b(use_default_font|draw_black_rect)[[:space:]]*\(' \
     src content tests)
-c2=$(count_hits 'continue;[[:space:]]*//[[:space:]]*missing' \
+c2=$(count_hits 'return[[:space:]]+empty_frame;' \
     src content tests)
-c=$((c1 + c2))
-printf "%-12s %8d hits   (primary %d + continue-missing %d)\n" "${names[2]}" "$c" "$c1" "$c2"
+c3=$(count_hits 'continue;[[:space:]]*//[[:space:]]*missing' \
+    src content tests)
+c=$((c1 + c2 + c3))
+printf "%-12s %8d hits   (func-call %d + return-empty %d + continue-missing %d)\n" "${names[2]}" "$c" "$c1" "$c2" "$c3"
 total=$((total + c))
 
 # ── AST_ITEM_D: catch (...) { MESSAGE ... return } nei test readiness

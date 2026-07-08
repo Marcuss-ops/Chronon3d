@@ -82,21 +82,22 @@ total=0
 names=(SEQ_ITEM_A SEQ_ITEM_B SEQ_ITEM_C SEQ_ITEM_D SEQ_ITEM_E)
 
 # ── SEQ_ITEM_A: frame-if sparsi + frame>=start + layer.from/.duration
-#    Pattern captures the 3 flavors of legacy temporal-crop idiom:
-#      (1) `frame >= N` or `frame < N` comparisons
-#      (2) `if (...frame...)` — i.e. conditional gating on frame value
-#      (3) `layer.from` access (raw field read)
-#      (4) `.duration()` call (raw field read)
-#      (5) `duration = 0` or `duration = 1` (the magic number)
-c=$(count_hits 'frame[[:space:]]*[<>]=[[:space:]]*[0-9]|if[[:space:]]*\(.*frame|layer\.from|\.duration\(\)|duration[[:space:]]*=[[:space:]]*[01]' \
+#    Tightened pattern: targets temporal-crop idiom specifically.
+#      (1) `frame >= var` or `frame < var` comparisons (bounds checks)
+#      (2) `layer.from` raw field access
+#      (3) `layer.duration()` raw field read
+#    Excludes: generic `if (...frame...)` conditionals (too broad),
+#    `.duration()` on non-layer types, `duration = 0/1` (moved to SEQ_ITEM_D).
+c=$(count_hits '\bframe[[:space:]]*[<>]=[[:space:]]*[a-zA-Z0-9_]+|\blayer\.from\b|\blayer\.duration\(\)' \
     content src/scene src/render_graph)
 printf "%-12s %8d hits\n" "${names[0]}" "$c"
 total=$((total + c))
 
 # ── SEQ_ITEM_B: animator/sampler reads global_frame / ctx.frame
-#    Direct field access on FrameContext (not via the sample() function
-#    wrapper, which is a newer alias).
-c=$(count_hits '\b(ctx\.frame|frame_context\.frame|global_frame)\b' \
+#    Tightened: only catches sample() calls using global frame (the legacy
+#    pattern), not all ctx.frame reads (which include legitimate camera
+#    orchestrator code).
+c=$(count_hits '\bsample\([[:space:]]*(ctx\.frame|frame_context\.frame|global_frame)\b' \
     content src/text src/animation)
 printf "%-12s %8d hits\n" "${names[1]}" "$c"
 total=$((total + c))
@@ -110,14 +111,18 @@ printf "%-12s %8d hits\n" "${names[2]}" "$c"
 total=$((total + c))
 
 # ── SEQ_ITEM_D: duration = 1 (or 0) magic
-#    Scope limited to content/ + src/scene/ where the magic is author-intent.
-c=$(count_hits 'duration[[:space:]]*=[[:space:]]*[01]' \
+#    Tightened: excludes `.duration = Frame{1}` struct assignments (canonical
+#    API) by requiring no preceding dot/alphanumeric. Only catches standalone
+#    `duration = 0` or `duration = 1` variable assignments.
+c=$(count_hits '(^|[^a-zA-Z0-9_.])duration[[:space:]]*=[[:space:]]*[01]\b' \
     content src/scene)
 printf "%-12s %8d hits\n" "${names[3]}" "$c"
 total=$((total + c))
 
 # ── SEQ_ITEM_E: 5 coordinate temporali duplicate
-c=$(count_hits '(composition_frame|layer_frame|sequence_frame|animator_frame|source_frame)' \
+#    Tightened: word boundaries exclude function names like
+#    `render_composition_frame` and `freeze_frame`.
+c=$(count_hits '\b(composition_frame|layer_frame|sequence_frame|animator_frame|source_frame)\b' \
     content src)
 printf "%-12s %8d hits\n" "${names[4]}" "$c"
 total=$((total + c))
