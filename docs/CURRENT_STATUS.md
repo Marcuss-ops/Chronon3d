@@ -26,6 +26,7 @@ Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 | Render runtime | PASS | ImageCache + RenderSession::layout_cache landed. |
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
 | Sistemi meta (Expressions V2 / V3) | PLANNED | Expressions V2 OFF di default; V3 subordinato a V1. |
+| 10-point friction audit | DONE (2026-07-08) | Lineage officially closed. 7 atomic commits landed (range `0ff8b100`..`8c1e9ddc`) sweeping FIX 1–10 (Camera V1 + SDK C++ + Render runtime + Composition + Test). Forward-only honesty: pre-existing rot tickets tracked in §Active Blockers (`TICKET-011` + `TICKET-036` + `TICKET-120` + `TICKET-GATE-4-LEAK-CHANGELOG` + `TICKET-GATE-10-PHASE-4-BLACK-FU5`) NON chiusi da questo audit; rimangono nel §Active Blockers. Tickets tracked elsewhere come `TICKET-005` / `TICKET-011-i` / `TICKET-044` (FOLLOWUP_TICKETS §Open Blockers) sono anch'essi out-of-scope. Cross-link: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Recently Closed `TICKET-10-POINT-FRICTION-AUDIT-CLOSURE` row + [`docs/ROADMAP.md`](docs/ROADMAP.md) closure-note above `## M0 — Baseline verificata` + [`docs/CHANGELOG.md`](docs/CHANGELOG.md) "10-point friction audit + fixes" entry. |
 
 ## Gate Audit — ultima verifica
 
