@@ -9,7 +9,16 @@
 add_library(chronon3d_backend_software OBJECT
     # Top-level files only — subsystem sources are in per-directory CMakeLists.txt
     software_compositor.cpp
+    # M1.5#12 — SoftwareRenderer split: main = lifecycle + RenderRuntime forwarders;
+    # 4 companion TUs hold construction / dispatch / text / effects per the
+    # `software_backend_factory.cpp` M1.5#12 pattern (1/4 factory + dispatch +
+    # text + effects).  No new public API.  ABI invariant.  Move ops confined
+    # to software_renderer.cpp (ODR — single TU).
     software_renderer.cpp
+    software_renderer_factory.cpp    # M1.5#12 -TICKET-M1.5#12 1/4 — 2 construction ctors
+    software_renderer_dispatch.cpp   # M1.5#12 2/4 — render/draw_node/composite/apply_blur/apply_per_pixel_dof
+    software_renderer_text.cpp       # M1.5#12 3/4 — preflight + text-aware render_scene + accessors + RAII
+    software_renderer_effects.cpp    # M1.5#12 4/4 — apply_effect_stack single forwarder
     software_backend.cpp
     software_backend_factory.cpp   # M1.5#12 1/4 — make_software_backend() factory (UNIQUE validation source)
     software_processor_context.cpp
