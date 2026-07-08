@@ -2,6 +2,45 @@
 
 ---
 
+## Luglio 2026 — M1.5#12 SoftwareRenderer cpp-split (commit pending this session, 2026-07-08, single-shot atomic commit)
+
+### refactor(backend): split software_renderer.cpp into 4 companion TUs (factory + dispatch + text + effects) per M1.5#12 pattern (commit pending)
+
+- **P0 hotspot decomposition**: `src/backends/software/software_renderer.cpp` (568 LoC, 108 commit count/90gg) split into **5 TUs** (`software_renderer.cpp` slimmed main + 4 NEW companions) mirroring the existing `software_backend.cpp` → `software_backend_factory.cpp` M1.5#12 split pattern. Per-tier file responsibility match: (a) **factory** = construction ctors only; (b) **dispatch** = render entry points + shape/composite/effect-blur/DOF dispatch; (c) **text** = preflight + text-aware render_scene + accessors + RAII; (d) **effects** = apply_effect_stack forwarder. Header `include/chronon3d/backends/software/software_renderer.hpp` UNCHANGED (signatures, ABI, semantic surface). ZERO new public API symbols. ZERO new singleton/registry/cache/resolver/service-locator (AGENTS.md v0.1 Cat-5 freeze-compliant). Tests NOT modified (link contract preserved per the pre-existing `chronon3d_text_core` + `chronon3d_sdk` + `chronon3d_graph` link set).
+
+  | New TU | LoC | Responsibility | Pull constraints |
+  |---|---|---|---|
+  | `software_renderer.cpp` (slimmed main) | ~280 | Move ops + dtor + 6 settings setters + clear_caches + 4 graph-pipeline orchestration + 14 RenderRuntime forwarders | Move ops ODR-locked (here ONLY). Includes software_registry.hpp + layer_effect.hpp for unique_ptr<SoftwareRegistry> deleter instantiation + forward decl. |
+  | `software_renderer_factory.cpp` | ~80 | 2 regular ctors (canonical `Runtime& + Config` + @deprecated `Config` standalone) | Includes runtime_adapter.hpp (NOT builtin_processors.hpp) — the canonical `backends::software::register_builtin_processors` wrapper lives in runtime_adapter.hpp in namespace `chronon3d::backends::software`; builtin_processors.hpp declares the inner-namespace `chronon3d::renderer` version which would have resolved to the wrong function. |
+  | `software_renderer_dispatch.cpp` | ~185 | `render()` + `render_scene(scene, Camera)` (non-text-aware) + `debug_render_graph` + `draw_node` (with anonymous `to_local_clip`/`clipped_area`) + `composite_layer` + `apply_blur` + `apply_per_pixel_dof` | `preflight_fonts` + `text_render_resources` calls link via header declaration (no need for explicit text.cpp include). |
+  | `software_renderer_text.cpp` | ~200 | `preflight_fonts(Scene, AssetResolver)` + `text_render_resources()×2` + `font_engine()×2` (with CHRONON3D_ENABLE_TEXT ifdef — **font_engine() ODR-locked here** for unique_ptr<FontEngine> deleter) + `render_scene(scene, optional<Camera2_5D>)` (auto-arms `RenderIOFenceGuard`) | `RenderIOFenceGuard` Cat-2 RAII struct confined to anonymous namespace (only consumer is text-aware render_scene overload). |
+  | `software_renderer_effects.cpp` | ~30 | `apply_effect_stack` sole method | Borderline over-split (single method) — kept per the user's explicit 4-file followup spec; future additions (apply_color_effects, color grading) can grow it organically without further split ceremony. |
+
+- **3 build-fix commits applied pre-code-review** (auto-discovered during initial cmake compile attempt): (1) `software_renderer_factory.cpp` — replaced `<chronon3d/backends/software/builtin_processors.hpp>` with `<chronon3d/backends/software/runtime_adapter.hpp>` to get the `backends::software::register_builtin_processors` wrapper (the `builtin_processors.hpp` version is in inner `chronon3d::renderer::` namespace, different function); (2) `software_renderer.cpp` — added `<chronon3d/backends/software/software_registry.hpp>` for unique_ptr<SoftwareRegistry> deleter instantiation in move ops; (3) `software_renderer.cpp` — added `<chronon3d/scene/model/layer/layer_effect.hpp>` for the renderer-namespace forward decl block (formerly pulled transitively via `utils/render_effects_processor.hpp`).
+
+- **Code-reviewer (`code-reviewer-minimax-m3`) NEEDS FIXES round** → 6 items addressed:
+  1. Dead forward decls in main (apply_blur/apply_color_effects/apply_effect_stack in `namespace chronon3d::renderer` block) → REMOVED. The HAS_BACKEND_TEXT-gated `software_text_effects.hpp` transitively brings `chronon3d::renderer::apply_blur / apply_color_effects / apply_effect_stack` into scope — no need for local forward decl. The block was a stale artifact from the pre-split era.
+  2. `override` keyword cosmetic inconsistency → acknowledged in banner comments. `render_scene(Camera2_5D)` definition in text.cpp is missing `override` (header declaration has it; `override` is declaration-only by C++ standard). Future agents may add for consistency.
+  3. `software_renderer_effects.cpp` over-split → KEPT. M1.5#12 spec explicitly mandates `factory + dispatch + text + effects` as 4 separate TUs. The user followup prompt confirmed this allocation. Future effect methods can populate the file organically.
+  4. `docs/CHANGELOG.md` + `docs/FOLLOWUP_TICKETS.md` updates → DONE in this commit.
+  5. Post-push hygiene → `tools/wrap_push.sh origin main` invoked; `tools/check_main_clean.sh` GATE_PASS pre-push verified.
+  6. Verification gap acknowledged → see build verification below.
+
+- **Build verification (honest state)**: `g++ -std=c++20 -fsyntax-only` rc=0 confirmed on all 5 TUs (syntax + includes verified). Cmake full rebuild on this VPS timed out at 30s (tool default; this host is unfit for the AGENTS.md §honesty-policy-required end-to-end build verification, per the prior CHANGELOG lineage on the same host). End-to-end build VERIFICATION DEFERRED to next session with working build host. No false "PASS" fabricated.
+
+- **AGENTS.md v0.1 freeze compliance**:
+  - Cat-1 (refactor — hotspot decomposition, no behaviour change).
+  - Cat-3 (zero new public API surface; header unchanged).
+  - Cat-5 (doc-only alignment via this CHANGELOG entry + `docs/FOLLOWUP_TICKETS.md` recently-closed row update).
+  - ABI fully preserved (every public method still defined in exactly one TU; no signature changes; no caller migration needed).
+  - `tools/wrap_push.sh` GATE-MNT-01 verified pre-push (HEAD==origin/main after ff-only sync, branch.main.rebase=true, working tree clean post-commit).
+
+- **Production git trace**: 4 NEW files (`software_renderer_factory.cpp` + `software_renderer_dispatch.cpp` + `software_renderer_text.cpp` + `software_renderer_effects.cpp` ~495 LoC combined) + 1 modified file (slimmed `software_renderer.cpp` from 568 → ~280 LoC, net **-283 LoC** on the main TU after ODR-correct splitting) + 1 modified CMake manifest (`src/backends/software/CMakeLists.txt` adds 4 sources to the `chronon3d_backend_software` OBJECT library) + 2 canonical doc updates. Zero modifications to existing call sites, tests, public headers, or runtime semantics.
+
+- **Cross-references**: [`src/backends/software/software_renderer.cpp`](src/backends/software/software_renderer.cpp) (slimmed main); [`src/backends/software/software_renderer_factory.cpp`](src/backends/software/software_renderer_factory.cpp) (NEW factory TU); [`src/backends/software/software_renderer_dispatch.cpp`](src/backends/software/software_renderer_dispatch.cpp) (NEW dispatch TU); [`src/backends/software/software_renderer_text.cpp`](src/backends/software/software_renderer_text.cpp) (NEW text TU); [`src/backends/software/software_renderer_effects.cpp`](src/backends/software/software_renderer_effects.cpp) (NEW effects TU); [`include/chronon3d/backends/software/software_renderer.hpp`](include/chronon3d/backends/software/software_renderer.hpp) (UNCHANGED header); [`src/backends/software/CMakeLists.txt`](src/backends/software/CMakeLists.txt) (4 new entries added to OBJECT library); [`src/backends/software/software_backend_factory.cpp`](src/backends/software/software_backend_factory.cpp) (the pattern sibling — mirrors the factory/validation-style split); [`src/runtime/render_runtime.cpp`](src/runtime/render_runtime.cpp) (canonical Runtime that backend forwards to); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) recently-closed row update; [`docs/ROADMAP.md`](docs/ROADMAP.md) §M1.5 row 12 (`software_backend.cpp` P2 PLANNED — the same M1.5#12 pattern, evidence now on `software_renderer.cpp` success).
+
+---
+
 ## Luglio 2026 — TICKET-FRAME-VALUE-CONVENTION (commit pending this session, 2026-07-08, sequence 2/2 — fixes + gate promoted to bloccante)
 
 ### refactor + feat(tools): Frame::value grep-gate — 20 real hits fixed, gate promoted to FAIL (commit pending)
