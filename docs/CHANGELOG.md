@@ -1,9 +1,50 @@
 # Chronon3D — Changelog
 
 > Lavoro completato su `main`. Per i dettagli completi di ogni ticket: [`docs/tickets/`](docs/tickets/).
-> Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
+> Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).---
+
+## Luglio 2026 — FIX 4 fullscreen_rect canvas-correct (commit pending this session, 2026-07-08)
+
+### fix(builder): FIX 4 — fullscreen_rect canvas-correct in modular coordinates (commit pending)
+
+- **Root cause**: `LayerBuilder::fullscreen_rect(name, color)` in `src/scene/builders/commands/shape_commands.cpp::220` constructed a `RectShape` with `pos = {0,0,0}` and a misleading comment claiming it "covers the full canvas correctly" in modular-coordinates mode. In a center-origin canvas (the modular resolve path), `pos=(0,0,0)` is the canvas centre — so a `size=(w,h)` rect with that pos would only cover from `(-w/2,-h/2)` to `(w/2,h/2)` and NOT the full `0,0→w,h`. Content callers (~14 sites in `content/text_placement/`, `content/experimental/proofs/`, `content/showcases/sequence-v2/`, etc.) relied on the misleading comment + worked around it via separate `l.pin_to(Anchor::Center)` calls.
+
+- **Fix** (matches the 10-point friction audit review, scostamento del literal del user prompt):
+  ```cpp
+  LayerBuilder& LayerBuilder::fullscreen_rect(std::string name, Color color) {
+      // FIX 4 — pin_to(Anchor::Center) + pos=(-w/2, -h/2, 0)
+      // The negative pos offset pre-translates the rect into the
+      // negative half-plane so the downstream canvas-centre
+      // translation (added by either the resolver for modular or the
+      // source pass for non-modular) maps the bbox to the intended
+      // full-canvas (0,0)→(w,h).
+      pin_to(Anchor::Center);
+      return rect(std::move(name), {
+          .size = { m_screen_width, m_screen_height },
+          .color = color,
+          .pos = { -m_screen_width * 0.5f, -m_screen_height * 0.5f, 0.0f }
+      });
+  }
+  ```
+
+- **Regression test** (`tests/scene/test_fullscreen_rect_modular_bbox.cpp`, NEW, 4 TEST_CASEs):
+  1. `fullscreen_rect on 1920x1080` — pin_to(Center) flag flipped + rect.pos=(-960, -540, 0) + size=(1920, 1080)
+  2. `fullscreen_rect on 1280x720 explicit screen_dimensions` — exercises non-default dims
+  3. `fill()` helper delegates to `fullscreen_rect("fill", color)` — covers the alias path
+  4. `fullscreen_rect falls back to 1920x1080 defaults when screen_dimensions not called` — edge case for the 14 historical callers that did not set screen info
+
+- **Test registration**: appended after `scene/layout/test_scene_builder.cpp` in the `chronon3d_scene_tests` SOURCES list in `tests/scene_tests.cmake`.
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-1 (build corrective — DSL-level bug) + Cat-5 (doc-only alignment via this CHANGELOG entry + `FOLLOWUP_TICKETS.md` recently-closed row). Zero new public API surface (no header changes). Zero new singleton/registry/cache/resolver/service-locator. ABI preserved.
+
+- **Forward-only macchina-verifica note (open ticket)**: this fix is designed for the canonical `modular_coordinates=false` (default per `include/chronon3d/render_graph/render_graph_context.hpp:169`) path; the `modular_coordinates=true` source-pass path may not produce the same (0,0)→(w,h) bbox (per thinker analysis: implicit-canvas-center strip + no re-bake in SourceNode for non-TextRun nodes). Run all 14 historical `content/` callers post-fix-in-a-session to confirm no regression. If modular mode regresses, the alternative path documented in the original review (conditional `pin_to(Center)` only when `use_modular_graph==true`) is available as a follow-up.
+
+- **Production git trace**: 2 files modified (`src/scene/builders/commands/shape_commands.cpp` +28/-4 LOC + `tests/scene_tests.cmake` +1 LOC) + 1 NEW file (`tests/scene/test_fullscreen_rect_modular_bbox.cpp` ~115 LOC including the explanatory header + 4 TEST_CASEs) + 2 canonical doc updates (`docs/CHANGELOG.md` this entry + `docs/FOLLOWUP_TICKETS.md` recently-closed row).
+
+- **Cross-references**: [`src/scene/builders/commands/shape_commands.cpp`](src/scene/builders/commands/shape_commands.cpp) (the patched `fullscreen_rect` impl); [`tests/scene/test_fullscreen_rect_modular_bbox.cpp`](tests/scene/test_fullscreen_rect_modular_bbox.cpp) (the regression test); [`tests/scene_tests.cmake`](tests/scene_tests.cmake) (test registration at SOURCES line 28); [`include/chronon3d/render_graph/builder/graph_builder_coordinates.hpp`](include/chronon3d/render_graph/builder/graph_builder_coordinates.hpp) (the resolver path that handles pin_to(Center) + implicit-canvas-center in modular mode); [`include/chronon3d/scene/builders/layer_builder.hpp`](include/chronon3d/scene/builders/layer_builder.hpp) (`pin_to` + `fullscreen_rect` declaration).
 
 ---
+
 ## Luglio 2026 — CMake migration + pre-existing build/test fixes (commits `9fcb0e7b`..`c563fb60`, 2026-07-08)
 
 9 fixes addressing build rot, test failures, and CMake test infrastructure migration.
