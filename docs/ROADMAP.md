@@ -29,6 +29,29 @@ Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di r
 - **C3** (`3b4dbdc6`): Pipeline canonica documentata (Definition→Compiler→Evaluator→GraphCompiler→Executor).
 - **C1** (doc-only): `CompiledTextRun` pianificato in `text_run.hpp`; blocked by feature freeze.
 
+## 10-point friction audit — closure summary (2026-07-08)
+
+> **Snapshot macchina-verificato (2026-07-08):** 10-point friction audit lineage officially closed. 7 atomic commits landed (commit range `0ff8b100`..`8c1e9ddc`) sweeping FIX 1–10 sui 4 aree di sudore principale (Camera V1 + SDK C++ installabile + Render runtime + Composition pipeline + Test/CI). Il commitment chain copre ogni singolo FIX con un commit atomic, tutti verificati a livello strutturale (gate): `check_architecture_boundaries.sh` PASS, `check_main_clean.sh` PASS, `check_test_hygiene.sh` PASS, `check_test_suite_registration.sh` PASS (post `e369f9e7` promotion a bloccante), `check_frame_value_convention.sh` PASS (post `fae3a0ac` chain).
+
+> **Per-FIX commit-range mapping (machine-verified)** — vedi blocco equivalente (più dettagliato) su [`docs/CHANGELOG.md`](docs/CHANGELOG.md) entry "10-point friction audit + fixes" + su [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Recently Closed `TICKET-10-POINT-FRICTION-AUDIT-CLOSURE` row. Riassunto:
+
+> | FIX | Area | Commit | Deliverable sintetico |
+> |---|---|---|---|
+> | 1+2+3 | Composition / asset-manifest | `0ff8b100` | `commit_layer()` helper preserves AssetManifest for inactive layers/sequences |
+> | 4 | Composition / shape DSL | `3ded66a9` | `fullscreen_rect` canvas-correct via `pin_to(Anchor::Center)` + `pos=(-w/2,-h/2,0)` |
+> | 5 | Tests / docs | `8c1e9ddc` chain | sRGB pixel assertion helper (`tests/helpers/color_expect.hpp`) + doctest hygiene gate (`tools/check_test_hygiene.sh`) |
+> | 6 | SDK / canonical header | `2c0254c3` (then promoted to strict gate in `fae3a0ac` chain) | Frame reading convention docblock in `include/chronon3d/core/types/frame.hpp` |
+> | 7 | SDK / build DSL | `2332dc7d` | LayerBuilder `start_at()` + `length()` aliases (additive-only) |
+> | 8 | CLI / preflight | `99323724` | V2 preflight default in CLI + `--legacy-preflight` opt-in flag |
+> | 9 | Tests / audit | `27fab453` + `8c1e9ddc` (promoted to FAIL via TICKET-110 chain `e369f9e7`) | test suite registration audit gate |
+> | 10 | Tests / build rot | `4113a8db` chain | Unblock `chronon3d_render_graph_tests` compilation + SceneProgramStore/SceneProgramCache accessors + ExecutionScope::make_root factory |
+
+> **Cross-link canonici (gate #7 `check_doc_sync.sh`):** [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale per area "10-point friction audit" row + [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Recently Closed `TICKET-10-POINT-FRICTION-AUDIT-CLOSURE` row + [`docs/CHANGELOG.md`](docs/CHANGELOG.md) "10-point friction audit + fixes" entry (commit range `0ff8b100`..`8c1e9ddc` block).
+
+> **Forward-only honesty (AGENTS.md §anti-greenwashing):** questo audit-closure NON chiude i seguenti pre-existing rot tickets tracked in [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Active Blockers: `TICKET-011` — `chronon3d_core_tests` mainline rot (PARTIAL); `TICKET-036` — camera architecture gate G6 (PLANNED); `TICKET-120` — 17/24 scene test failures (PARTIAL); `TICKET-GATE-4-LEAK-CHANGELOG` — abs-path leak in CHANGELOG.md (OPEN); `TICKET-GATE-10-PHASE-4-BLACK-FU5` — PNG mean-RGB rot (OPEN). Tickets tracked altrove (`TICKET-005` / `TICKET-011-i` / `TICKET-044` in FOLLOWUP §Open Blockers) sono anch'essi out-of-scope. Tutti questi ticket sono out-of-scope rispetto ai 10 del friction audit e richiedono lavori separati per la chiusura.
+
+---
+
 ## M0 — Baseline verificata
 
 ### Obiettivo
