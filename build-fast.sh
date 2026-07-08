@@ -109,9 +109,9 @@ resolve_build_dir() {
     ln -sfnT "$BUILD_DIR" "$symlink"
 }
 
+PRESET="linux-fast-dev"
 bootstrap_ccache
 resolve_build_dir
-PRESET="linux-fast-dev"
 TURBO_BUILD_DIR="$ROOT_DIR/build/chronon/linux-turbo"
 TURBO_PRESET="linux-turbo"
 RELEASE_BUILD_DIR="${BUILD_DIR_OVERRIDE:-${ROOT_DIR}/.tmp/chronon-builds/linux-fast-dev-release}"
