@@ -35,3 +35,4 @@
 > 07 non producono i file. Slot successivi (Expressions V2, V3
 > tile-first, nuove API pubbliche) prendono ADR-008 in poi.
 >
+| ADR-017 | commit_layer(): manifest completeness for inactive layers | Accepted (main@0ff8b100) | [commit-layer-manifest-preservation](ADR-017-commit-layer-manifest-preservation.md) |
