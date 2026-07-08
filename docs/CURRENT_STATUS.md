@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@54292ee5` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato. Linux-only. Fase 7 audit: 10/11 gates PASS, gate #10 BLOCKED (disk space, infra).
+> **Snapshot:** `main@54292ee5` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato. Linux-only. Fase 7 audit: gates 1-9,11 PASS; gate #10 PARTIAL (A+B build/install PASS, C FU5 black-frame pre-existing).
 
 ## Active Blockers (top 6)
 
@@ -46,7 +46,7 @@ Baseline: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c
 | 7 | `check_doc_sync.sh` | ✅ PASS | Fixato heading `## Stato generale per area` in CURRENT_STATUS.md |
 | 8 | `check_filename_drift.sh` | ⚠️ PASS* | warn-mode; 109 drift findings |
 | 9 | `test_architectural.sh` | ✅ PASS | |
-| 10 | `install_consumer_test.sh` | 🔴 BLOCKED | `ar` disk-space exhaustion (46GB build dir, 31GB free); TICKET-GATE-10-AR-RACE infra |
+| 10 | `install_consumer_test.sh` | ⚠️ PARTIAL | A+B (build/install): PASS. C (FU5 mean-RGB): FAIL — black-frame, pre-existing TICKET-GATE-10-PHASE-4-BLACK-FU5. Fix: +17 transitive headers, disk cleanup, namespace fix. |
 | 11 | `check_backend_sanitization.py` | ✅ PASS | |
 
 AE parity golden checker: GATE_PASS (23/23 fresh). Suite AE_CAM: 35/35 PASS, 142/142 assertions.
