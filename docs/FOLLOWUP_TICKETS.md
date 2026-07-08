@@ -47,6 +47,8 @@ Per la lista completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) + [`docs/ARCHIVE
 
 | ID | Area | Note |
 |---|---|---|
+| TICKET-TEXT-CLIP-ASCENT | baseline/ascent bbox math clipping glyph ink (visible 19 px sliver in 1080-row canvas, touches right edge) | DONE (this commit, 2026-07-08) — 5-file fix for `compute_text_run_visual_bounds` (gy±ascent*scale_y baseline math + real per-glyph advance_x + 2.5D depth scale via scale.x*z / scale.y*z). 3-test numerical bbox regression lock at `tests/text_golden/text_clip/text_clip_bounds.cpp` (Clip 01/02/03: AscentNotCut/RightEdgeNotCut/Scale130NotCut). 3-round code-reviewer APPROVED. Build verification deferred to working build host per AGENTS.md §honesty (VPS unfit: vcpkg glm/magic_enum + tmpfs quota). |
+| TICKET-RENDER-TABLES-EXISTS-COL | SQLite reserved-keyword collision in `render_artifacts.exists` column (dashboard `near "exists": syntax error`) | DONE (this commit, 2026-07-08) — 5-file atomic rename `exists` → `file_exists`. Touched: telemetry_schema.sql + sqlite_telemetry_store.cpp + render_telemetry_record.hpp + 2 video exporters. 2-round code-reviewer APPROVED. Python sqlite3 probe pre/post verified. Migration note: existing on-disk DBs need `ALTER TABLE render_artifacts RENAME COLUMN exists TO file_exists;` (forward-only). Build verification deferred to working build host per AGENTS.md §honesty. |
 | TICKET-ae-cam-hash-collision | AE-parity hash collision (Fase 6) | DONE (2026-07-08) — 35/35 PASS |
 | TICKET-P1-09 | RenderRuntime service locator | DONE (Fase 5) |
 | TICKET-CONTENT-PCH-ROT | content build pipeline | DONE (2026-07-07) |
