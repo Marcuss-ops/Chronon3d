@@ -11,10 +11,11 @@
 # (forwards all args including --force / --no-verify / refspec forms).
 #
 # Gate chain (post-auto-FF, in order):
-#   1. tools/check_main_clean.sh          (GATE-MNT-01 rebase-clean invariant)
-#   2. tools/check_test_hygiene.sh        (gate #10b doctest no-duplicate-main)
+#   1. tools/check_main_clean.sh            (GATE-MNT-01 rebase-clean invariant)
+#   2. tools/check_test_hygiene.sh          (gate #10b doctest no-duplicate-main)
 #   3. tools/check_test_suite_registration.sh (gate #10c raw add_executable audit)
-#   4. exec git push "$@" atomically
+#   4. tools/check_frame_value_convention.sh (TICKET-110b gate — Frame::value canonical-reading invariant)
+#   5. exec git push "$@" atomically
 #
 # Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
 # always; no --skip-gates escape hatch.  Documented in
@@ -37,11 +38,15 @@
 #      manual-resolution hint; do not proceed to the gate.
 #   4. Run the canonical gate (`tools/check_main_clean.sh`): rejects
 #      divergence + dirty tree (post-FF working-tree state).
-#   4.5. (TICKET-110 — this commit) Run the two hygiene gates:
+#   4.5. (TICKET-110 — this commit) Run the hygiene gates:
 #          (a) check_test_hygiene.sh — no duplicate DOCTEST_MAIN;
 #          (b) check_test_suite_registration.sh — every test target via
-#              chronon3d_add_test_suite(TIER, SOURCES, [LINK_TARGETS]).
-#          Both local, both exit 1 on violation, both emit remediation
+#              chronon3d_add_test_suite(TIER, SOURCES, [LINK_TARGETS]);
+#          (c) check_frame_value_convention.sh — (TICKET-110b) zero
+#              Frame::value access outside canonical header
+#              (`include/chronon3d/core/types/frame.hpp`); pass=exit 0,
+#              fail=exit 1 with remediation hint + frame.hpp cross-link.
+#          All local, all exit 1 on violation, all emit remediation
 #          hints via the canonical CHANGELOG/AGENT_WORKFLOW surface.
 #   5. Forward `git push "$@"` on success.
 #
@@ -172,6 +177,7 @@ fi
 #   Sequence (post-main-clean + post-auto-FF):
 #     1. check_test_hygiene.sh        (gate #10b doctest)
 #     2. check_test_suite_registration.sh (gate #10c test suite audit)
+#     3. check_frame_value_convention.sh (gate TICKET-110b Frame::value canonical-reading)
 echo "wrap_push.sh: checking test hygiene (duplicate DOCTEST_CONFIG_IMPLEMENT)..."
 bash "${SCRIPT_DIR}/check_test_hygiene.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_test_hygiene.sh (exit $?)" >&2; exit 1; }
@@ -179,6 +185,10 @@ bash "${SCRIPT_DIR}/check_test_hygiene.sh" \
 echo "wrap_push.sh: checking test suite registration (raw add_executable)..."
 bash "${SCRIPT_DIR}/check_test_suite_registration.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_test_suite_registration.sh (exit $?)" >&2; exit 1; }
+
+echo "wrap_push.sh: checking Frame::value canonical-reading convention (TICKET-110b)..."
+bash "${SCRIPT_DIR}/check_frame_value_convention.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_frame_value_convention.sh (exit $?)" >&2; exit 1; }
 
 # ── Step 5: forward to git push ───────────────────────────────────────────
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
