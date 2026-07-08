@@ -29,7 +29,7 @@ Commands:
   scene-test [pat]    Build + run scene tests matching pattern
   cli-test [pat]      Build + run CLI tests matching pattern
   ctest [filter]      Run ctest with filter (default: core|scene|cli)
-  content             Build with linux-content-dev (CLI + content ON, no telemetry)
+  content             Build with linux-content-dev (CLI + content + video ON, no telemetry)
   dashboard           Build with linux-dashboard-dev (CLI + content + telemetry + diagnostics)
   turbo               Ultra-fast Debug build (CLI only, no tests/content)
   turbo-inc <group>   Incremental rebuild of CLI group + relink
@@ -102,9 +102,10 @@ resolve_build_dir() {
         BUILD_DIR="$BUILD_DIR_OVERRIDE"
         return
     fi
-    # Default: tmpfs with a symlink so CMake binaryDir stays stable.
+    # Default: derive from PRESET name so 'PRESET=linux-content-dev' Just Works.
+    BUILD_DIR="/tmp/chronon-builds/${PRESET}"
     mkdir -p "$BUILD_DIR"
-    local symlink="$ROOT_DIR/build/chronon/linux-fast-dev"
+    local symlink="$ROOT_DIR/build/chronon/${PRESET}"
     mkdir -p "$(dirname "$symlink")"
     ln -sfnT "$BUILD_DIR" "$symlink"
 }

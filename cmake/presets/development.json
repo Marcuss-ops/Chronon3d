@@ -97,8 +97,8 @@
     {
       "name": "linux-content-dev",
       "inherits": "base-linux",
-      "displayName": "Linux Content Dev (engine + content ON)",
-      "description": "Content development preset: CLI + content + tests. Text + Blend2D enabled. BuildType=Debug, unity build ON. Content ON for composition development and rendering.",
+      "displayName": "Linux Content Dev (content + video ON)",
+      "description": "Content+video development preset: CLI + content + video + tests. Text + Blend2D enabled. BuildType=Debug, unity build ON. Content ON for composition development and rendering. Video ON for pipe export.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -107,13 +107,13 @@
         "CHRONON3D_BUILD_CONTENT": "ON",
         "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
         "CHRONON3D_ENABLE_EXR": "OFF",
-        "CHRONON3D_ENABLE_VIDEO": "OFF",
+        "CHRONON3D_ENABLE_VIDEO": "ON",
         "CHRONON3D_ENABLE_MESH": "OFF",
         "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
         "CHRONON3D_ENABLE_TELEMETRY": "OFF",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "CHRONON3D_UNITY_BUILD": "ON",
-        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests;video"
       }
     },
     {
