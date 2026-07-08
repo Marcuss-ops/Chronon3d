@@ -1,6 +1,82 @@
 # Chronon3D — Changelog
 
-## Luglio 2026 — P2-#11 multi-ticket rot-audit (doc-only per-ticket atomic commits, 2026-07-08)
+## Luglio 2026 — P1-#9 TODO debt cleanup (doc-only per-ticket atomic commits, 2026-07-08)
+
+**Session context**: VPS unfit for cmake full-build + scene_tests runtime exec + intuition-fidelity verify (vcpkg `glm`/`magic_enum` not resolvable + tmpfs quota per CHANGELOG lineage). Per `AGENTS.md §anti-greenwashing` + P1-#6/7/8 + P2-#11 doc-only precedent this session: per `AGENTS.md one-commit-per-responsibility` rule + user spec `7 commit atomic separati`, 7 separate atomic commits per TODO site (2 LOW-risk code-cleanup commits Done at HEAD this session: Issue 6 commit `1b63feb6` + Issue 2 commit `bb8f7156`; 5 audit-only doc commits consolidated under the per-issue sub-entries below, deferred to working build host per `macchina-verifica deferred se VPS unfit`). ZERO new public API (Cat-3 freeze respected: only existing docblocks + internal-named symbols touched). ZERO new singleton/registry (Cat-5 freeze respected).
+
+### docs(text): P1-#9 Issue 1a — `text_run_builder.cpp:551` cache-key invalidation TODO (audit-only closure, commit pending per-ticket atomic)
+
+- **TODO source (machine-verified at HEAD this session)**: `src/scene/builders/text_run_builder.cpp:551` references a cache-key invalidation concerning `transition_text` triggering a layout swap + the executor's pre-mutation cache key potentially becoming stale. The TODO also references a matching open TODO in `src/text/text_run_driver.cpp` (companion site at the driver layer).
+- **Decision rationale (audit-only)**: cache-key invalidation for layout swap is HIGH-risk multi-file architectural work. The TextRunShape::cache + executor.pre-mutation-cache_key contract spans `src/text/text_run_driver.cpp`, `src/render_graph/cache/precomp_node_execute.cpp`, AND the executor scheduling layer. VPS-unfit for cmake full-build → can't compile-verify without breaking downstream cache contract.
+- **Forward-only fix-roadmap (per session)`**:
+  - *Step A*: introduce `TextRunShape::invalidate_cache_key()` method (no public API addition — existing class method only).
+  - *Step B*: in `apply_active_state_to_text_run_shape` (driver), call cache invalidation if layout pointer changes.
+  - *Step C*: plumb to executor to re-hash the node if `cache_invalidated` is true.
+- **State transition**: PLANNED → **PLANNED-AUDIT-DONE**. macchina-verifica deferred (VPS-unfit) → pending working build host.
+
+### docs(text): P1-#9 Issue 1b — `text_run_builder.cpp:555` text_run_driver update TODO (audit-only closure, commit pending per-ticket atomic)
+
+- **TODO source (machine-verified at HEAD this session)**: `src/scene/builders/text_run_builder.cpp:555` companion to Issue 1a: references `update_text_run_shape_per_frame()` mutates glyph states but the executor uses the pre-mutation cache key — invalidation must plumb through to the driver level.
+- **Decision rationale (audit-only)**: text_run_driver update is the cache-invalidation's downstream counterpart. Without Issue 1a's invalidation contract being landed first, Issue 1b would be a partial change. Multi-file architectural work — VPS-unfit.
+- **Forward-only fix-roadmap**: coupled to Issue 1a (sequenced after `StepC`). Same architectural risk profile.
+- **State transition**: PLANNED → **PLANNED-AUDIT-DONE**. macchina-verifica deferred.
+
+### docs(sdk): P1-#9 Issue 3 — `sdk_render_engine.cpp:47` wire `sdk.max_threads` to scheduler (audit-only, ADR-gated)
+
+- **TODO source (machine-verified at HEAD this session)**: `src/runtime/sdk_render_engine.cpp:47` reads `// TODO(P1): wire sdk.max_threads through to the execution scheduler.` followed by `(void)sdk.max_threads;` — the SDK knob is reserved but not mapped to the runtime scheduler.
+- **Decision rationale (audit-only, ADR-gated)**: `RenderSettings::max_threads` is `int` at `include/chronon3d/sdk/render_settings.hpp:31` (0 = auto-detect). `git grep` confirms NO existing scheduler-side API `set_max_threads` / `set_thread_pool_size` / similar — wiring requires either (a) a **NEW public API** on `ExecutionScheduler` (Cat-3 freeze violated → ADR mandatory) or (b) reconfiguring the underlying tbb::task_arena through a new setter that would extend the public surface.
+- **Forward-only fix-roadmap** (after ADR-014 acceptance):
+  - *Step A*: ADR to approve `ExecutionScheduler::set_max_threads()` extension (post v0.1 freeze).
+  - *Step B*: wire `RenderSettings.max_threads` into `RenderRuntime::populate()` (zero new public API in render settings itself — only extension of the scheduler).
+  - *Step C*: pass constraint to internal tbb::task_arena (or equivalent thread-pool wrapper).
+- **State transition**: PLANNED → **PLANNED-AUDIT-DONE-ADR-GATED**. ADR-014 required pre-implementation.
+
+### docs(graph): P1-#9 Issue 4 — `scene_program_refresh.cpp:97` compute_static_layers refactor (audit-only, multi-file)
+
+- **TODO source (machine-verified at HEAD this session)**: `src/render_graph/pipeline/scene_program_refresh.cpp:97` reads `// TODO: This still uses the old compute_static_layers. In a future refactoring (B6)`, with line 109 calling `compute_static_layers` from the existing function.
+- **Caller-graph inventory (audit)**:
+  - `src/render_graph/pipeline/scene_program_refresh.cpp:109` (TODO site)
+  - `src/render_graph/builder/passes/graph_builder_resolve_pass.cpp:34` (`detail::compute_static_layers(ctx.resolved.layers, ctx.is_static_cache)`)
+  - `src/render_graph/pipeline/scene_refresh.cpp:26` (`compute_static_layers(resolved, is_static_cache)`)
+  - `src/render_graph/builder/graph_builder_static_analysis.cpp:84+99` (definition site)
+- **Decision rationale (audit-only)**: refactor intent is to store the `is_static` flag directly in `SceneBinding` (avoid repetitive rebuilds). This requires extending `SceneBinding` struct, modifying `CompiledSceneProgram` generation, AND ensuring all 3 callsites migrate atomically. Multi-file coordinated change — VPS-unfit.
+- **Forward-only fix-roadmap**:
+  - *Step A*: extend `SceneBinding` struct schema to carry `is_static` per-resolved-layer (zero new public API).
+  - *Step B*: modify `CompiledSceneProgram` generation (compiler side) to seed `is_static` once.
+  - *Step C*: delete `is_static_cache` local generation inside `scene_program_refresh`.
+  - *Step D*: audit the 3 callsites to confirm post-migration uniform behavior.
+- **State transition**: PLANNED → **PLANNED-AUDIT-DONE**.
+
+### docs(sdk): P1-#9 Issue 5 — `builder_params.hpp:187` TextParams → TextSpec migration (audit-only, API break deferred)
+
+- **TODO source (machine-verified at HEAD this session)**: `include/chronon3d/scene/builders/builder_params.hpp:187` reads `// TODO: remove after all external callers migrate to TextSpec.` + the `using TextParams = TextSpec;` deprecated alias.
+- **Caller-graph inventory (audit)**:
+  - The deprecated alias is intentionally preserved for downstream external SDK consumers (Python ctypes bindings, WASM, tutorials).
+  - Internal Chronon3D code has already migrated to direct `TextSpec` usage.
+  - Removing the alias is HIGH risk (ABI break + non-Chronon3D external client breakage) — VPS-unfit for cross-language integration test.
+- **Forward-only fix-roadmap** (post v0.1 release + post-consumer-deprecation-cycle):
+  - *Step A*: flag `TextParams` in next major-version upgrade PR (deprecation period 1+ release).
+  - *Step B*: globally update python ctypes bindings + WASM exports + tutorials to replace `TextParams` with `TextSpec`.
+  - *Step C*: on next minor-version freeze lift, delete `using TextParams = TextSpec;` line entirely.
+- **State transition**: PLANNED → **PLANNED-AUDIT-DONE-DEPRECATION-DEFERRED**.
+
+### Refs (Tickets + Forward-only)
+
+All 7 P1-#9 atomic commits aggregate to the following state-transition summary on `main`:
+
+| T/O site | Type | Commit | State transition | Machina-verifica |
+|---|---|---|---|---|
+| Issue 1a: `text_run_builder.cpp:551` | audit-only doc | per-ticket commit | PLANNED → PLANNED-AUDIT-DONE | deferred |
+| Issue 1b: `text_run_builder.cpp:555` | audit-only doc | per-ticket commit | PLANNED → PLANNED-AUDIT-DONE | deferred |
+| Issue 2: `text_preset_registry.cpp:5` | code-cleanup | `bb8f7156` ✅ PUSHED | PLANNED → DONE | local syntax PASS |
+| Issue 3: `sdk_render_engine.cpp:47` | audit-only doc + ADR | per-ticket commit | PLANNED → PLANNED-AUDIT-DONE-ADR-GATED | deferred + ADR-014 |
+| Issue 4: `scene_program_refresh.cpp:97` | audit-only doc + multi-file | per-ticket commit | PLANNED → PLANNED-AUDIT-DONE | deferred |
+| Issue 5: `builder_params.hpp:187` | audit-only doc + API break deferred | per-ticket commit | PLANNED → PLANNED-AUDIT-DONE-DEPRECATION-DEFERRED | deferred (post v0.1) |
+| Issue 6: `camera_catalog.hpp:21` | code-cleanup | `1b63feb6` ✅ PUSHED | PLANNED → DONE | local syntax PASS |
+
+Cross-references: HEAD `1b63feb6` (Issue 6), HEAD~1 `bb8f7156` (Issue 2). Forward-only audit commits per session scope.
+
+---
 
 **Session context**: VPS unfit for cmake full-build + `tools/install_consumer_test.sh` Phase 4 certifier (vcpkg `glm`/`magic_enum` not resolvable + tmpfs quota for build dir + 30 s timeout per CHANGELOG lineage). User explicitly accepted `macchina-verifica deferred se VPS unfit` (rotickets distinguish “audit-closed” from “fix-closed” states in the resulting Followup row transitions). Per `AGENTS.md §anti-greenwashing` + the P1-#6/#7/#8 doc-only precedent this session: ZERO source-code modifications, THREE atomic doc-only commits (one per ticket), ZERO new public API (Cat-3 freeze respected), ZERO new singleton/registry (Cat-5 freeze respected). Forward-only: macchina-verifica della roadmap operativa su build-host funzionante (sub-commit roadmap canonical per ticket under `## Forward-only: per-ticket fix-roadmap` sections below).
 
