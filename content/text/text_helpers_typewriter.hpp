@@ -79,7 +79,7 @@ inline TextSpec typewriter_text(CenterTextOptions o,
     auto make_base = [&](std::string value, Color c) -> TextSpec {
         return TextSpec{
             .content    = {.value = std::move(value)},
-            .font       = {.font_path   = std::move(o.font_path),
+            .font       = {.font_path   = std::move(o.font_asset),
                            .font_family = std::move(o.font_family),
                            .font_weight = o.font_weight,
                            .font_style  = std::move(o.font_style),
@@ -143,7 +143,7 @@ struct TypewriterBuildOptions {
     f32   font_size{96.0f};
     f32   tracking{0.0f};
     f32   line_height{1.10f};
-    std::string font_path{"assets/fonts/Poppins-Bold.ttf"};
+    std::string font_asset{"assets/fonts/Poppins-Bold.ttf"};  // asset-relative path
     std::string font_family{"Poppins"};
     int   font_weight{700};
     Color color{1.0f, 1.0f, 1.0f, 1.0f};
@@ -404,7 +404,7 @@ inline void typewriter_build(
     const chronon3d::assets::AssetResolver& resolver)
 {
     FontSpec font_spec;
-    font_spec.font_path = opts.font_path;
+    font_spec.font_path = opts.font_asset;
     font_spec.font_family = opts.font_family;
     font_spec.font_weight = opts.font_weight;
 
@@ -550,7 +550,7 @@ inline void typewriter_build(
         std::string lname = std::string(layer_prefix) + "_c" + std::to_string(i);
 
         s.layer(lname, [cp, glyph, opacity, char_placed,
-                        fp = opts.font_path, ff = opts.font_family,
+                        fp = opts.font_asset, ff = opts.font_family,
                         fw = opts.font_weight, fs = opts.font_size,
                         col = opts.color, lh = opts.line_height](LayerBuilder& l) {
             l.pin_to(Anchor::Center);

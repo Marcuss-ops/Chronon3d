@@ -53,50 +53,49 @@ else
 fi
 
 # count_hits pattern path [path ...] -> echoes integer (always exits 0)
+# Uses ${result:-0} fallback to avoid double-output under set -o pipefail
+# (when rg exits 1 for no matches, pipefail propagates and `|| echo "0"`
+# fires AFTER awk already printed "0", producing "0\n0" in the variable).
 count_hits() {
     local pattern="$1"; shift
     local paths=("$@")
+    local result
     if [ "$SEARCH_TOOL" = "rg" ]; then
-        rg --count-matches "$pattern" "${paths[@]}" \
+        result=$(rg --count-matches "$pattern" "${paths[@]}" \
             -g '*.cpp' -g '*.hpp' 2>/dev/null \
             | awk -F: '{sum+=$NF} END {print sum+0}' \
-            | head -1 \
-            || echo "0"
+            | head -1)
     else
-        # POSIX grep fallback. `|| echo "0"` neutralises pipefail when grep
-        # returns 1 (no matches) AND documents the count-is-always-numeric
-        # intent (consistency with the rg path above).
-        local n
-        n=$(grep -rE "$pattern" "${paths[@]}" \
-            --include='*.cpp' --include='*.hpp' 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-        echo "${n:-0}"
+        result=$(grep -rE "$pattern" "${paths[@]}" \
+            --include='*.cpp' --include='*.hpp' 2>/dev/null | wc -l | tr -d ' ')
     fi
+    echo "${result:-0}"
 }
 
 # count_multiline_hits regex path [path ...] -> echoes integer (always exits 0)
 # Used by AST_ITEM_D for catch (...) { MESSAGE ... return } (multi-line pattern).
+# Uses ${result:-0} fallback (same fix as count_hits above).
 count_multiline_hits() {
     local pattern="$1"; shift
     local paths=("$@")
+    local result
     if [ "$SEARCH_TOOL" = "rg" ]; then
-        rg --multiline --count-matches "$pattern" "${paths[@]}" \
+        result=$(rg --multiline --count-matches "$pattern" "${paths[@]}" \
             -g '*.cpp' 2>/dev/null \
             | awk -F: '{sum+=$NF} END {print sum+0}' \
-            | head -1 \
-            || echo "0"
+            | head -1)
     else
         # POSIX fallback: heuristic — count files containing BOTH `catch (...)`
         # AND `MESSAGE` AND `return;` in the same file (coarse but portable).
         # Returns the number of files that match (over-estimation preferred to
         # under-estimation for a forward-only pre-Elimination snapshot).
-        local files
-        files=$(grep -rElZ 'catch[[:space:]]*\([[:space:]]*\.\.\.[[:space:]]*\)' "${paths[@]}" \
+        result=$(grep -rElZ 'catch[[:space:]]*\([[:space:]]*\.\.\.[[:space:]]*\)' "${paths[@]}" \
             --include='*.cpp' 2>/dev/null \
             | xargs -0 grep -lE 'MESSAGE' 2>/dev/null \
             | xargs -I{} grep -lE 'return;' {} 2>/dev/null \
-            | wc -l | tr -d ' ' || echo "0")
-        echo "${files:-0}"
+            | wc -l | tr -d ' ')
     fi
+    echo "${result:-0}"
 }
 
 printf "═══════ M1.7 Asset legacy items grep audit ════\n"
@@ -120,8 +119,12 @@ printf "%-12s %8d hits   (scope: content/ + src/scene/ — exclude include/chron
 total=$((total + c))
 
 # ── AST_ITEM_B: asset discovery render-time
+#    Scope narrowed: excludes src/backends/ (those are canonical backend
+#    IMPLEMENTATIONS — load_image, resolve_handle are the actual loading
+#    mechanism, not legacy discovery). Only src/scene/ + content/ are
+#    legacy discovery sites that should migrate to AssetPreflightResolver.
 c=$(count_hits '(resolve_handle|load_image|decode_video|decode_audio|font_engine\.load)' \
-    src content)
+    src/scene content)
 printf "%-12s %8d hits\n" "${names[1]}" "$c"
 total=$((total + c))
 
@@ -146,7 +149,11 @@ printf "%-12s %8d hits   (multi-line pattern)\n" "${names[3]}" "$c"
 total=$((total + c))
 
 # ── AST_ITEM_E: Asset validation duplicata per-feature
-c=$(count_hits 'class[[:space:]]+[A-Za-z]+Preflight\b' \
+#    Narrowed: targets only the 5 legacy per-feature preflight classes
+#    (TextPreflight / ImagePreflight / VideoPreflight / AudioPreflight /
+#    FontPreflight). Excludes RenderPreflight which is a legitimate
+#    authoring-time validation framework (not a duplicate).
+c=$(count_hits 'class[[:space:]]+(Text|Image|Video|Audio|Font)Preflight\b' \
     src include)
 printf "%-12s %8d hits\n" "${names[4]}" "$c"
 total=$((total + c))

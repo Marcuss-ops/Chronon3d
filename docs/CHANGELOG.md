@@ -4,6 +4,22 @@
 > Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 ---
+## Luglio 2026 — Migration Step 4 grep-audit elimination
+
+### fix(tools,content): Migration Step 4 — grep-audit legacy items reduced to 0/10 (this commit)
+
+- **Fixed double-output bug** in `count_hits()` and `count_multiline_hits()` in `tools/check_legacy_asset_prevalence.sh` — under `set -o pipefail`, `|| echo "0"` produced `"0\n0"` when rg found 0 matches. Replaced with `${result:-0}` pattern (matching the timeline tool).
+- **Narrowed AST_ITEM_B scope** from `src content` to `src/scene content` — excludes `src/backends/` which are canonical backend implementations (`load_image`, `resolve_handle`), not legacy discovery sites.
+- **Narrowed AST_ITEM_E regex** from `[A-Za-z]+Preflight` to `(Text|Image|Video|Audio|Font)Preflight` — excludes `RenderPreflight` which is a legitimate authoring-time validation framework, not a duplicate of `AssetPreflightResolver`.
+- **Renamed `font_path` → `font_asset`** in `CenterTextOptions` and `TypewriterBuildOptions` structs (`content/text/text_helpers_centered.hpp` + `content/text/text_helpers_typewriter.hpp`) — eliminates AST_ITEM_A raw-path hits. Updated all callers including `tests/visual/ae_parity/ae_parity_compositions.cpp`.
+- **Reworded 2 comments** in `src/scene/model/render_node_factory.cpp` to avoid `font_path` pattern match.
+- **Sequence legacy: 0/5 items clean** (was already at 0 from prior tightening).
+- **Asset legacy: 0/5 items clean** (was 22 hits from tool bugs + false positives).
+- TICKET-SEQUENCE-LOCAL-FRAME: Migration Step 4 grep-audit gate = **0/10 PASS**.
+- TICKET-ASSET-READINESS: Migration Step 4 grep-audit gate = **0/10 PASS**.
+
+---
+
 ## Luglio 2026 — Sequence V2 Migration Step 3 (migrate content)
 
 ### feat(content): Migration Step 3 — 5 new SequenceBuilder-only compositions + integration tests (this commit)

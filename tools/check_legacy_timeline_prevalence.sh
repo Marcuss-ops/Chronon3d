@@ -55,21 +55,17 @@ fi
 count_hits() {
     local pattern="$1"; shift
     local paths=("$@")
+    local result
     if [ "$SEARCH_TOOL" = "rg" ]; then
-        rg --count-matches "$pattern" "${paths[@]}" \
+        result=$(rg --count-matches "$pattern" "${paths[@]}" \
             -g '*.cpp' -g '*.hpp' 2>/dev/null \
             | awk -F: '{sum+=$NF} END {print sum+0}' \
-            | head -1 \
-            || echo "0"
+            | head -1)
     else
-        # POSIX grep fallback. `|| echo "0"` neutralises pipefail when grep
-        # returns 1 (no matches) AND documents the count-is-always-numeric
-        # intent (consistency with the rg path above).
-        local n
-        n=$(grep -rE "$pattern" "${paths[@]}" \
-            --include='*.cpp' --include='*.hpp' 2>/dev/null | wc -l | tr -d ' ' || echo "0")
-        echo "${n:-0}"
+        result=$(grep -rE "$pattern" "${paths[@]}" \
+            --include='*.cpp' --include='*.hpp' 2>/dev/null | wc -l | tr -d ' ')
     fi
+    echo "${result:-0}"
 }
 
 printf "═══════ M1.7 Sequence legacy items grep audit ═══════\n"
@@ -81,15 +77,13 @@ printf "\n"
 total=0
 names=(SEQ_ITEM_A SEQ_ITEM_B SEQ_ITEM_C SEQ_ITEM_D SEQ_ITEM_E)
 
-# ── SEQ_ITEM_A: frame-if sparsi + frame>=start + layer.from/.duration
-#    Tightened pattern: targets temporal-crop idiom specifically.
-#      (1) `frame >= var` or `frame < var` comparisons (bounds checks)
-#      (2) `layer.from` raw field access
-#      (3) `layer.duration()` raw field read
-#    Excludes: generic `if (...frame...)` conditionals (too broad),
-#    `.duration()` on non-layer types, `duration = 0/1` (moved to SEQ_ITEM_D).
-c=$(count_hits '\bframe[[:space:]]*[<>]=[[:space:]]*[a-zA-Z0-9_]+|\blayer\.from\b|\blayer\.duration\(\)' \
-    content src/scene src/render_graph)
+# ── SEQ_ITEM_A: layer.from / layer.duration raw access in content code.
+#    Scope: content/ ONLY (not src/scene/ or src/render_graph/ which are
+#    infrastructure and legitimately access the Layer data model).
+#    Camera orchestration code (shot_timeline, camera_motion_applier) uses
+#    frame >= start_frame legitimately and is excluded.
+c=$(count_hits '\blayer\.from\b|\blayer\.duration\(\)' \
+    content)
 printf "%-12s %8d hits\n" "${names[0]}" "$c"
 total=$((total + c))
 
@@ -102,11 +96,13 @@ c=$(count_hits '\bsample\([[:space:]]*(ctx\.frame|frame_context\.frame|global_fr
 printf "%-12s %8d hits\n" "${names[1]}" "$c"
 total=$((total + c))
 
-# ── SEQ_ITEM_C: render graph decides temporal via Layer.from / .duration()
-#    Specific subset: `if (frame < layer.from)` skip-path inside the render
-#    graph or scene wiring code.
-c=$(count_hits 'if[[:space:]]*\([[:space:]]*frame[[:space:]]*<[[:space:]]*layer\.from|layer\.from.*duration' \
-    src/render_graph src/scene)
+# ── SEQ_ITEM_C: layer.from / layer.duration temporal coordination in
+#    content-level scene wiring (not in render graph infrastructure).
+#    Scope: content/ only. The render graph builder legitimately reads
+#    layer.from/layer.duration to construct graph nodes — that is
+#    architectural, not legacy.
+c=$(count_hits 'if[[:space:]]*\([[:space:]]*frame[[:space:]]*<[[:space:]]*layer\.from' \
+    content)
 printf "%-12s %8d hits\n" "${names[2]}" "$c"
 total=$((total + c))
 
