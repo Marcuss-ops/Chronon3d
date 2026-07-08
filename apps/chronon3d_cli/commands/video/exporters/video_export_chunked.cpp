@@ -2,6 +2,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
+#include <chronon3d/assets/asset_preflight_resolver.hpp>
 #include <spdlog/spdlog.h>
 #include <filesystem>
 #include <thread>
@@ -54,6 +55,22 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
 #else
         std::string{};
 #endif
+
+    // ── Font preflight (P0 video/text — Fase 1) ────────────────────────────
+    // Create a temporary renderer just for preflight check.
+    {
+        auto preflight_renderer = create_renderer(registry, settings);
+        Scene scene = comp.evaluate(start);
+        auto preflight_result = AssetPreflightResolver::check(
+            scene, preflight_renderer->runtime().resolver(),
+            PreflightMode::FullComposition);
+        if (!preflight_result.ok()) {
+            std::string text = format_preflight_issues_text(preflight_result.issues);
+            spdlog::error("[video] Asset preflight FAILED:\n{}", text);
+            return result;
+        }
+    }
+
     const auto wall_t0 = profiling::now();
     const auto setup_t0 = wall_t0;
     chronon3d::RenderCounters aggregate_counters{};
@@ -292,6 +309,26 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     // On failure, report 0 written frames to avoid misleading telemetry
     // where frames_written=total but the video encode (ffmpeg) failed.
     const int encoded_frames = success ? frames_written : 0;
+
+    // ── Compute render artifact (P0 video/text — Fase 1) ────────────────────
+    std::vector<chronon3d::telemetry::RenderArtifactRecord> artifacts;
+    {
+        namespace fs = std::filesystem;
+        const std::string out_path = opts.output.output;
+        if (!out_path.empty()) {
+            chronon3d::telemetry::RenderArtifactRecord artifact;
+            artifact.type = "video";
+            artifact.path = out_path;
+            std::error_code ec;
+            artifact.exists = fs::exists(out_path, ec);
+            if (artifact.exists) {
+                artifact.size_bytes = static_cast<int64_t>(fs::file_size(out_path, ec));
+                if (ec) artifact.size_bytes = 0;
+            }
+            artifacts.push_back(artifact);
+        }
+    }
+
 #ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
     cli::telemetry::record_output_run(
         /*composition_id=*/composition_id,
@@ -313,7 +350,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
         /*culling_events=*/culling_events,
         /*text_events=*/text_events,
         /*image_events=*/image_events,
-        /*tile_events=*/tile_events);
+        /*tile_events=*/tile_events,
+        /*artifacts=*/artifacts);
 #endif
 
     if (!success) {
