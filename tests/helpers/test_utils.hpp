@@ -77,8 +77,37 @@ inline void attach_software_backend(SoftwareRenderer* renderer) {
 #endif
 }
 
+/// Canonical renderer factory — returns shared_ptr<SoftwareRenderer> with
+/// full wiring (settings, image backend, software backend).  Self-contained:
+/// no dependency on CLI headers.  Prefer this over make_renderer() in new tests.
+inline std::shared_ptr<SoftwareRenderer> make_renderer_shared() {
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+    auto renderer = std::make_shared<SoftwareRenderer>(Config{});
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+    RenderSettings settings;
+    settings.use_modular_graph = true;
+    renderer->set_settings(settings);
+    renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
+    attach_software_backend(renderer.get());
+    return renderer;
+}
+
+/// @deprecated Prefer make_renderer_shared() which returns shared_ptr.
+/// Kept for source compatibility with existing tests.
 inline SoftwareRenderer make_renderer() {
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
     SoftwareRenderer renderer(Config{});
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
     RenderSettings settings;
     settings.use_modular_graph = true;
     renderer.set_settings(settings);
@@ -87,8 +116,16 @@ inline SoftwareRenderer make_renderer() {
     return renderer;
 }
 
+/// @deprecated Prefer make_renderer_shared() — uses create_renderer() canonical path.
 inline SoftwareRenderer make_renderer_ssaa(float factor) {
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
     SoftwareRenderer renderer(Config{});
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
     RenderSettings settings;
     settings.use_modular_graph = true;
     settings.ssaa_factor = std::max(1.0f, factor);
@@ -115,8 +152,16 @@ inline SoftwareRenderer make_renderer_ssaa(float factor) {
 /// silently changing observed rendering for tests that passed `false`.  The
 /// parameter is kept for ABI/source compatibility and is documented as a
 /// no-op until a downstream knob reappears.
+/// @deprecated Prefer make_renderer_shared() — uses create_renderer() canonical path.
 inline SoftwareRenderer make_renderer(bool /*modular_coordinates_unused*/) {
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
     SoftwareRenderer renderer(Config{});
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
     RenderSettings settings;
     settings.use_modular_graph = true;     // preserved invariant
     renderer.set_settings(settings);
@@ -211,13 +256,9 @@ inline std::shared_ptr<Framebuffer> render_fn(
     int width = 200,
     int height = 200
 ) {
-    SoftwareRenderer renderer(Config{});
-    RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
-    attach_software_backend(&renderer);
+    auto renderer = make_renderer_shared();
     Composition comp = composition({.width = width, .height = height}, build_fn);
-    return renderer.render(comp, 0);
+    return renderer->render(comp, 0);
 }
 
 inline std::shared_ptr<Framebuffer> load_png_as_framebuffer(const std::string& path) {
