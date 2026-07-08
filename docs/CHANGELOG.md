@@ -4,9 +4,20 @@
 > Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 ---
-## Luglio 2026 — CMake migration + pre-existing build/test fixes (commits `9fcb0e7b`..`55b60651`, 2026-07-08)
+## Luglio 2026 — CMake migration + pre-existing build/test fixes (commits `9fcb0e7b`..`c563fb60`, 2026-07-08)
 
-7 fixes addressing build rot, test failures, and CMake test infrastructure migration.
+8 fixes addressing build rot, test failures, and CMake test infrastructure migration.
+
+### build(tests): migrate scene_tests.cmake to chronon3d_add_test_suite (`c563fb60`)
+
+- Migrated 3 test targets from raw `add_executable` to `chronon3d_add_test_suite()`.
+- `chronon3d_scene_tests`: TIER INTEGRATION, full link targets (`_SCENE_LINK_TARGETS`).
+- `chronon3d_camera_compiled_evaluate_tests`: TIER UNIT, lighter link targets (no `chronon3d_pipeline`, no `chronon3d_backend_software`).
+- `chronon3d_composition_camera_unification_tests`: TIER UNIT, lighter link targets (same as camera_compiled).
+- Preserved: `camera_architecture_gate` (bash script, unchanged), conditional `chronon3d_backend_text` link for Blend2D+Text sources, `SCENE_TEXT_TESTS` conditional source list.
+- Post-hoc: `target_include_directories(... PRIVATE ${CMAKE_SOURCE_DIR})` for all 3 compiled targets.
+- Audit: 20 raw / 21 suite (was 23 raw / 18 suite).
+- Files: `tests/scene_tests.cmake`.
 
 ### build(tests): migrate visual_tests.cmake to chronon3d_add_test_suite (`55b60651`)
 
@@ -63,7 +74,7 @@
 | Doc-sync | ✅ 0 failures, 0 warnings |
 | Main-clean | ✅ GATE_PASS |
 | Doctest hygiene | ✅ HYGIENE_PASS |
-| Test suite audit | ℹ️ 23 raw / 18 suite (was 34 raw / 7 suite) |
+| Test suite audit | ℹ️ 20 raw / 21 suite (was 34 raw / 7 suite) |
 
 ---
 ## Luglio 2026 — 10-point friction audit + fixes (commits `0ff8b100`..`8c1e9ddc`, 2026-07-08)
