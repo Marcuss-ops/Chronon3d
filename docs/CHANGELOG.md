@@ -36,6 +36,38 @@
 
 **Refs**: [`docs/tickets/TICKET-011.md`](docs/tickets/TICKET-011.md) (canonical ticket description, OPEN state to be promoted to PARTIAL-AUDIT-DONE in [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) by this commit’s row-update companion). Cross-link this CHANGELOG entry from the FOLLOWUP row.
 
+### docs(tests): TICKET-120 audit — `chronon3d_scene_tests` 17 remaining scene test failures (PARTIAL → PARTIAL-AUDIT-DONE per per-ticket atomic commit, 2026-07-08)
+
+**Audit findings (machine-verified at HEAD this session)**:
+- (a) **TICKET-035 anamorphic_squeeze 1-line fix ✅ already-at-HEAD**: `tests/scene/camera/test_camera_projection_contract.cpp:974` TEST_CASE title `“TICKET-035: anamorphic_squeeze 2.0 produces focal_x == 3.011 * focal_y for anamorphic_50mm”` + assertion body matches C7 golden contract `golden_projection_test.cpp:285` (`CHECK(fxy.x == doctest::Approx(3.011f * fxy.y).epsilon(0.01f))`). The earlier closure lineage `commit 734b8486` (per TICKET-120.md) has already applied the correct assertion.
+- (b) **TICKET-034D CameraDescriptor SIGABRT fix ✅ already-at-HEAD**: `tests/scene/camera/test_composition_default_camera.cpp:69` `std::memcpy` on `CameraDescriptor` already replaced with `desc_copy = desc;` per TICKET-120.md Fase 7-F description (commit `9a429c19` lineage).
+- (c) **TrajectoryMotion sanity guard fix ✅ already-at-HEAD**: `tests/scene/camera/test_camera_trajectory_preserves_base_fields.cpp` already swapped doctest Approx-relative → std::abs(... ) > 10.0f per TICKET-120.md same commit lineage.
+- (d) **test_camera_hierarchy.cpp ⚠ disabled**: still `#if 0` per TICKET-120.md (fast target swap 720≠520, TICKET-007.h geometry rot NOT in scope of TICKET-120).
+
+**17 remaining failures by file-class** (forward-only to working build host):
+
+| Failure class | File | Count | Hypothesis (audit only) |
+|---|---|---|---|
+| Cache counter mismatch | `tests/render_graph/pipeline/test_graph_cache.cpp` | 5 | `node_cache` hit/miss counter assertions likely race the executor concurrent insert path; needs a serialized-test awaiter pattern (existing `framebuffer_pool_evict` uses `std::barrier<>` async-finish; same pattern) |
+| Position/rotation/distance constraint | `tests/scene/camera/test_camera_program_compiled.cpp` (2265 LoC) | 6 | Large TU — likely CameraProgram compile path produces invalid Transform quaternions; needs guard-pipeline test or rebuild-after-rotate |
+| Framebuffer byte comparison | `tests/scene/camera/test_motion_blur_torture_pr1.cpp` | 1 | MotionBlur compositing rasterizer output likely off-by-one or premul-alpha regression; canary test for CI parity |
+| Rotation L2 norm | `tests/scene/camera/test_orient_along_path.cpp` | 3 | Quaternion path-interpolation Euler-equivalent mismatch; needs `quat.slerp` preference over Euler lerp |
+| SIGABRT Result::value() | `tests/scene/camera/test_shot_timeline.cpp` | 1 | Unchecked-error path: `Result::value()` on error branch — fix is `if (auto v = res.value_or(default)) { … }` or `CHECK(res.is_ok())` precondition guards |
+| Uncategorized | TBD | 2 | Per-file triage during sub-commit audit |
+
+**Forward-only: per-failure fix-roadmap** (committed here, scheduled for working build host):
+
+1. **Sub-commit A** — `test_graph_cache.cpp`: introduce `std::barrier<>` async-finish sync (mirror `framebuffer_pool_evict`); insert before counter assertions. 5/17 → 0/17 in this TU.
+2. **Sub-commit B** — `test_camera_program_compiled.cpp`: split `compile_or_die_camera_program` per-file (Unity-build deconflict per TICKET-120 documented pattern commit `5985224c`); 6/17 → TBD per-split pre/post state.
+3. **Sub-commit C** — `test_motion_blur_torture_pr1.cpp`: introduce alpha-aware byte cmp helper matching `tools/check_software_renderer_boundary.sh` pixel parity (already wired as `TICKET-005` partial close).
+4. **Sub-commit D** — `test_orient_along_path.cpp`: assert quat-on-quat distance (1 - |dot|) < ε instead of Euler L2 norm; quat invariant under unit-norm composition.
+5. **Sub-commit E** — `test_shot_timeline.cpp:488` (SIGABRT line): replace `result.value()` with `result.value_or(fallback)` guard at composition-time evaluation path.
+6. **Sub-commit F** — uncategorized 2: triage per-file after sub-commits A–E.
+
+**State transition forward** (on macchina-verifica pass): PARTIAL-AUDIT-DONE → DONE (17/17 closed). Until then PARTIAL-AUDIT-DONE persists. Sub-commits A–F aggregate to a single PARTIAL → DONE promotion in the next Camera V1 cert cycle.
+
+**Refs**: [`docs/tickets/TICKET-120.md`](docs/tickets/TICKET-120.md) (canonical ticket description, PARTIAL state to be promoted to PARTIAL-AUDIT-DONE in [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) by this commit’s row-update companion). Cross-link this CHANGELOG entry from the FOLLOWUP row.
+
 ---
 
 ## Luglio 2026 — P1-#8 typed scene IDs (commit pending this session, 2026-07-08, atomic commit)
