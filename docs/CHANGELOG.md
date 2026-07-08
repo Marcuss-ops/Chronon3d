@@ -387,6 +387,40 @@ Cross-references: HEAD `1b63feb6` (Issue 6), HEAD~1 `bb8f7156` (Issue 2). Forwar
 
 ---
 
+## Luglio 2026 — 10-point friction audit — closure summary (this session, 2026-07-08, doc-only sync commit at non-TOP anchor)
+
+### docs: 10-point friction audit — closure summary (post-canonical-sync, no source-code modifications this commit)
+
+- **Audit closure**: 10-point friction audit lineage officially closed. 7 atomic commits landed (commit range `0ff8b100`..`8c1e9ddc`) sweeping FIX 1–10 across Camera V1 + SDK C++ installabile + Render runtime + Composition pipeline + Test/CI:
+
+  | FIX | Area | Commit | Deliverable sintetico |
+  |---|---|---|---|
+  | 1+2+3 | Composition / asset-manifest | `0ff8b100` | `commit_layer()` helper preserves AssetManifest for inactive layers/sequences |
+  | 4 | Composition / shape DSL | `3ded66a9` | `fullscreen_rect` canvas-correct via `pin_to(Anchor::Center)` + `pos=(-w/2,-h/2,0)` |
+  | 5 | Tests / docs | `8c1e9ddc` chain | sRGB pixel assertion helper (`tests/helpers/color_expect.hpp`) + doctest hygiene gate (`tools/check_test_hygiene.sh`) |
+  | 6 | SDK / canonical header | `2c0254c3` (then promoted to strict gate in `fae3a0ac` chain) | Frame reading convention docblock in `include/chronon3d/core/types/frame.hpp` |
+  | 7 | SDK / build DSL | `2332dc7d` | LayerBuilder `start_at()` + `length()` aliases (additive-only) |
+  | 8 | CLI / preflight | `99323724` | V2 preflight default in CLI + `--legacy-preflight` opt-in flag |
+  | 9 | Tests / audit | `27fab453` + `8c1e9ddc` (promoted to FAIL via TICKET-110 chain `e369f9e7`) | test suite registration audit gate |
+  | 10 | Tests / build rot | `4113a8db` chain | Unblock `chronon3d_render_graph_tests` compilation + SceneProgramStore/SceneProgramCache accessors + ExecutionScope::make_root factory |
+
+- **Insertion-anchor choice (non-TOP)**: questo entry è stato posizionato tra M1.5#12 SoftwareRenderer cpp-split (precedente entry, fine section) e TICKET-FRAME-VALUE-CONVENTION 2/2 (successivo entry, inizio section) per evitare il conflict che ha colpito v1 commit `87fe6ba4` + v2 commit `5d826d82` (entrambi tentavano INSERTION TOP-of-file + REBASE su origin/main che aveva già il proprio M1.5#11 audit al top — stesso logical anchor → conflict). v4 strategy (questo commit) sceglie un anchor-different (mid-document, fra i due entry esistenti) → zero overlap con origin → clean linear rebase. CHANGELOG most-recent-first chronology preservata (M1.5#11 audit originariamente al top rimane al top come chronological-most-recent among the audit-cluster; questo entry è sync di chiusura post-completion dello stesso audit-cluster).
+
+- **Cantoni canonical status sync** (in commit `d6023c56`, già pushed su origin/main): [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale per area — riga "10-point friction audit | DONE (2026-07-08)" appendata + [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Recently Closed — riga `TICKET-10-POINT-FRICTION-AUDIT-CLOSURE` appendata + [`docs/ROADMAP.md`](docs/ROADMAP.md) — closure-note `## 10-point friction audit — closure summary (2026-07-08)` inserted ABOVE `## M0 — Baseline verificata`. Questo commit chiude il 4-canonical loop con `docs/CHANGELOG.md`.
+
+- **Forward-only honesty (AGENTS.md §anti-greenwashing)**: questo audit-closure NON chiude i seguenti pre-existing rot tickets (rimangono tracked in [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Active Blockers + [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blockers):
+  - §Active Blockers (5): `TICKET-011` (chronon3d_core_tests mainline rot, PARTIAL) + `TICKET-036` (camera architecture gate G6, PLANNED) + `TICKET-120` (17/24 scene test failures, PARTIAL-AUDIT-DONE per CHANGELOG P2-#11) + `TICKET-GATE-4-LEAK-CHANGELOG` (abs-path leak, OPEN) + `TICKET-GATE-10-PHASE-4-BLACK-FU5` (PNG mean-RGB rot, PARTIAL-AUDIT-DONE per CHANGELOG P2-#11).
+  - §Open Blockers (3): `TICKET-005` (post-cascade cleanup) + `TICKET-011-i` (text_unit_map impl drift) + `TICKET-044` (selftest hardcoded paths).
+  - Tutti questi ticket sono out-of-scope dei 10 del friction audit; la chiusura di ciascuno richiede un commit separato macchina-verificato (forward-point post-audit).
+
+- **AGENTS.md v0.1 freeze-compliance (Cat-5 doc-only alignment)**: 1 doc-only file modificato (`docs/CHANGELOG.md` questo entry insertato) + zero source code modificato + zero new public API surface + zero ABI change + zero new singleton / registry / cache / resolver / service-locator. `tools/wrap_push.sh` GATE-MNT-01 verificato pre-push (HEAD==origin/main post-FF-sync, branch.main.rebase=true, working tree clean post-commit). `tools/check_doc_sync.sh` R1 default HEAD~1..HEAD scope PASS (questo commit docs-only → nessun src/runtime/* modification in diff scope).
+
+- **Production git trace**: 1 modified doc (`docs/CHANGELOG.md` +1 entry inserted at non-TOP anchor, line-count ~+30 lines net) + zero source-code + zero CMake manifest + zero tests modifications + zero follow-up forward-only tickets.
+
+- **Cross-references**: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale per area "10-point friction audit" row + [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Recently Closed `TICKET-10-POINT-FRICTION-AUDIT-CLOSURE` row + [`docs/ROADMAP.md`](docs/ROADMAP.md) closure-note above `## M0 — Baseline verificata`. La FIX-1-10 lineage complete vive nel CHANGELOG.md "10-point friction audit + fixes" (commits `0ff8b100`..`8c1e9ddc`) block + ADR-016 (sequence-asset-canonical-contract) + ADR-017 (commit-layer-manifest-preservation).
+
+---
+
 ## Luglio 2026 — TICKET-FRAME-VALUE-CONVENTION (commit pending this session, 2026-07-08, sequence 2/2 — fixes + gate promoted to bloccante)
 
 ### refactor + feat(tools): Frame::value grep-gate — 20 real hits fixed, gate promoted to FAIL (commit pending)
