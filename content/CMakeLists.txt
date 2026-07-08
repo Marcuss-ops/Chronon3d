@@ -54,6 +54,9 @@ add_library(chronon3d_content OBJECT
     certification/cert_long_text.cpp
     certification/cert_multilingual.cpp
 
+    # ── Sequence V2 migrated compositions (SequenceBuilder-only) ──
+    showcases/sequence-v2/sequence_v2_compositions.cpp
+
     # ── AE Parity camera scenes (10 visual comparison scenes as CLI compositions) ─
     ae_parity/register_ae_parity_compositions.cpp
     ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_scenes.cpp

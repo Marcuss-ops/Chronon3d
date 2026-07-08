@@ -4,6 +4,24 @@
 > Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 ---
+## Luglio 2026 — Sequence V2 Migration Step 3 (migrate content)
+
+### feat(content): Migration Step 3 — 5 new SequenceBuilder-only compositions + integration tests (this commit)
+
+- **5 new compositions** in `content/showcases/sequence-v2/sequence_v2_compositions.cpp`:
+  - `SeqV2IntroOutro` — sequential sequences with local_frame restart
+  - `SeqV2DeepNesting` — 3-level nested sequences (act → chapter → title/body)
+  - `SeqV2StaggeredTimeline` — overlapping sequences with animation
+  - `SeqV2TrimOffset` — trim_before for delayed animation start
+  - `SeqV2MixedMedia` — text + image in separate sequences (manifest aggregation)
+- All compositions use `s.sequence(name, spec, [](SequenceBuilder& seq) {...})` exclusively — zero legacy path.
+- AssetManifest automatically collected via LayerBuilder (text→font, image→image).
+- Integration tests in `tests/core/timeline/test_sequence_v2_compositions.cpp` (5 TEST_CASEs, 15+ SUBCASEs).
+- TICKET-SEQUENCE-LOCAL-FRAME: Migration Step 3 DONE (5 new scenes using SequenceBuilder exclusively).
+- TICKET-ASSET-READINESS: Migration Step 3 DONE (5 new scenes using AssetRef via manifest auto-collection).
+
+---
+
 ## Luglio 2026 — Sequence V2 Steps 1-7 code-complete
 
 ### feat(timeline,assets,cli): Sequence V2 full pipeline — Steps 1-7 code-complete (commits `de10920c`..`6264614b`, 2026-07-07)
