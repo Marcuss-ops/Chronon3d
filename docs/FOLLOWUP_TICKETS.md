@@ -14,7 +14,6 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-011 | P0 | mainline build rot (chronon3d_core_tests) | PARTIAL | gate 1–8 |
 | TICKET-036 | P0 | camera architecture gate G6 | PLANNED | gate 6 |
 | TICKET-120 | P1 | 17/24 scene test failures | PARTIAL | Camera V1 cert |
-| TICKET-AE-CAM-MULTI-NODE-SWEEP | P1 | 3 unreached call sites + cache-key camera fp | PLANNED | gate 2 |
 | TICKET-GATE-4-LEAK-CHANGELOG | P0 | abs-path leak in CHANGELOG.md | OPEN | gate 4 |
 | TICKET-GATE-10-PHASE-4-BLACK-FU5 | P0 | PNG mean-RGB metric rot | OPEN | gate 10 |
 | TICKET-005 | P1 | post-cascade cleanup | PARTIAL | gate 5 |
@@ -55,4 +54,4 @@ Per la lista completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) + [`docs/ARCHIVE
 | TICKET-M1.5#10-SEQUENCE | rich_text.hpp legacy deletion | DONE (4/4 steps) |
 | TICKET-MOTION-BLUR-TEXT | motion-blur text goldens | DONE (2026-07-07) |
 | TICKET-AE-PARITY-DRIVER | referee pipeline | DONE (2026-07-07) |
-| TICKET-GOLDEN-CAPTURE | capture pipeline verified | DONE (2026-07-06) |
+| TICKET-AE-CAM-MULTI-NODE-SWEEP | AE-parity multi-node sweep | DONE (2026-07-08) — Sub-cluster A NOT-NEEDED, Sub-cluster B resolved by hash-collision DONE |
