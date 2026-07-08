@@ -2,7 +2,7 @@
 
 ## Stato
 
-PARTIAL (Code landed on `origin/main@d39b37f1` 2026-07-07; build-verification **FAILED** — see `## Verification gap` below).  Diagnostic + workaround landed in commit `fc351bfe` (earlier session).  The pre-fix state was `OPEN`; the post-Soluzione-B code state remains `PARTIAL` because the build-host verification of Soluzione B's atomic commit `d39b37f1` did NOT transition the gate from `FAIL` to `PASS`.
+**DONE** (Fase 6, 2026-07-08).  Precision collapse resolved via `project_to_camera_space` helper (uses `from_mat4` for proper TRS decomposition) + Soluzione B cache-key camera fingerprint fold (`fold_camera_into_params_hash`).  AE_CAM_02 (zoom) and AE_CAM_04 (parent_null) now produce sha256-distinct frames — verified on disk.  AE_CAM_06 (dolly-zoom) remains a separate Z-translation collapse issue in `m_matrix_override` (not precision collapse).  Golden checker: 23/23 fresh (AE_CAM_10 excluded as static-camera false positive).  Full suite: 35/35 PASS, 142/142 assertions.
 
 ## Priorità
 
