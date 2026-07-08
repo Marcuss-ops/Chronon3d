@@ -279,6 +279,7 @@ echo -n "  [11/15] msdfgen/libtess2/unicode includes FORBIDDEN (ADR-009 scoped) 
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#[[:space:]]*include[[:space:]]*[<"](msdfgen|libtess2|unicode|tesselator)([-./][^>"]*)?[>"]' \
     $SCRIPT_PATHS 2>/dev/null \
+    | grep -v '//.*#include' \
     | awk -F: '
         {
             path = $1
