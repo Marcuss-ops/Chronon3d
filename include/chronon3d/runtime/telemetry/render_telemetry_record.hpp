@@ -361,7 +361,7 @@ struct RenderArtifactRecord {
     std::string path;        // absolute or relative output path
     std::string sha256;      // hex digest (computed lazily; empty = not computed)
     int64_t size_bytes{0};   // file size on disk (0 = file does not exist)
-    bool exists{false};      // true if the file was found on disk after render
+    bool file_exists{false}; // true if the file was found on disk after render
 };
 
 } // namespace chronon3d::telemetry
