@@ -27,6 +27,7 @@ public:
     virtual bool write_text_events(const std::string& run_id, const std::vector<TextTelemetryRecord>& events) = 0;
     virtual bool write_image_events(const std::string& run_id, const std::vector<ImageTelemetryRecord>& events) = 0;
     virtual bool write_tile_events(const std::string& run_id, const std::vector<TileTelemetryRecord>& events) = 0;
+    virtual bool write_artifacts(const std::string& run_id, const std::vector<RenderArtifactRecord>& artifacts) = 0;
 };
 
 } // namespace chronon3d::telemetry

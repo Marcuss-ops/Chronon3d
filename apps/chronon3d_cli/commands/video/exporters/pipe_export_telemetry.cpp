@@ -12,6 +12,7 @@
 #include <spdlog/spdlog.h>
 #include <chrono>
 #include <algorithm>
+#include <filesystem>
 
 namespace chronon3d::cli {
 
@@ -134,6 +135,24 @@ void record_pipe_telemetry(
         resolved_counters.push_back({"framebuffer_pool_size_class_count", pool_stats.size_class_count});
     }
 
+    // ── Compute render artifact (P0 video/text — Fase 1) ────────────────────
+    std::vector<chronon3d::telemetry::RenderArtifactRecord> artifacts;
+    {
+        namespace fs = std::filesystem;
+        const std::string out_path = session.opts.output.output;
+        chronon3d::telemetry::RenderArtifactRecord artifact;
+        artifact.run_id = "";  // filled by record_output_run
+        artifact.type = "video";
+        artifact.path = out_path;
+        std::error_code ec;
+        artifact.exists = fs::exists(out_path, ec);
+        if (artifact.exists) {
+            artifact.size_bytes = static_cast<int64_t>(fs::file_size(out_path, ec));
+            if (ec) artifact.size_bytes = 0;
+        }
+        artifacts.push_back(artifact);
+    }
+
     // ── Record ─────────────────────────────────────────────────────────────
     const int encoded_frames = pipe_encoded_frame_count(loop_result.status);
     const auto& counters = session.renderer->counters();
@@ -146,7 +165,8 @@ void record_pipe_telemetry(
         session.started_at_iso, phases, resolved_counters,
         telemetry.node_events, counters, mutable_frames,
         telemetry.layer_events, telemetry.cache_events, telemetry.culling_events,
-        telemetry.text_events, telemetry.image_events, telemetry.tile_events);
+        telemetry.text_events, telemetry.image_events, telemetry.tile_events,
+        artifacts);
 #endif
 }
 
