@@ -185,18 +185,15 @@ function(chronon3d_add_test_suite)
     )
     chronon3d_enable_test_pch(${ARG_NAME})
 
-    # LABELS is forwarded to ctest's -L filter (e.g. `ctest -L gate`).
-    # The existing per-area tests do not set labels except for the
-    # `chronon3d_camera_architecture_gate` (which sets
-    # `camera_architecture_gate;gate`); this field is forward-compat
-    # for the migration in §11.2-11.3.
-    if(ARG_LABELS)
-        set_tests_properties(${ARG_NAME} PROPERTIES LABELS "${ARG_LABELS}")
-    endif()
-
     add_test(NAME ${ARG_NAME}
         COMMAND ${ARG_NAME}
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+    # LABELS is forwarded to ctest's -L filter (e.g. `ctest -L gate`).
+    # Must be set AFTER add_test so the test target exists.
+    if(ARG_LABELS)
+        set_tests_properties(${ARG_NAME} PROPERTIES LABELS "${ARG_LABELS}")
+    endif()
 
     # ── NEW in §11.1: per-tier + global target tracking for §11.4 ───
     # The §11.4 gate (tools/check_arch_test_tiers.sh) enumerates
