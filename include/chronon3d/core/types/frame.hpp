@@ -15,6 +15,20 @@ namespace chronon3d {
  * Implicitly constructible from i64 for backward compatibility with
  * existing code. Explicit conversion operators are provided for
  * conversion to numeric types.
+ *
+ * ## Reading convention (pick ONE per context)
+ *
+ * | Context                          | Preferred form              | Notes                                  |
+ * |----------------------------------|-----------------------------|----------------------------------------|
+ * | Tests, logs, human-readable fmt  | `frame.integral()`          | Self-documenting, named accessor       |
+ * | Interfacing with external APIs   | `static_cast<int>(frame)`   | Explicit narrowing, visible at call    |
+ * | Core / time-critical code        | `frame.value`               | Direct field, no function-call overhead|
+ *
+ * **Avoid** `frame.value` in test code — `integral()` or `static_cast<int>`
+ * make the intent clear and survive future refactors of the Frame layout.
+ *
+ * **Avoid** `static_cast<int>` in hot loops — the explicit operator is
+ * constexpr but `.value` is the idiomatic form in core math / render code.
  */
 struct Frame {
     i64 value{0};
