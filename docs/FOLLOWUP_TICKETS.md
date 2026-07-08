@@ -11,7 +11,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 
 | ID | Pri | Area | Stato | Blocca |
 |---|---|---|---|---|
-| TICKET-011 | P0 | mainline build rot (chronon3d_core_tests) | PARTIAL | gate 1–8 |
+| TICKET-011 | P0 | mainline build rot (chronon3d_core_tests) | PARTIAL-AUDIT-DONE | gate 1–8 (audit closed 2026-07-08, fix-roadmap deferred to working build host — see `docs/CHANGELOG.md` P2-#11 design audit entry; sub-tickets (i)+(ii) DONE session-precedent + 4 remaining ODR/canonical-type fixes planned in CHANGELOG Step A→E roadmap) |
 | TICKET-036 | P0 | camera architecture gate G6 | PLANNED | gate 6 |
 | TICKET-120 | P1 | 17/24 scene test failures | PARTIAL | Camera V1 cert |
 | TICKET-GATE-4-LEAK-CHANGELOG | P0 | abs-path leak in CHANGELOG.md | OPEN | gate 4 |

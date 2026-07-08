@@ -1,5 +1,41 @@
 # Chronon3D — Changelog
 
+## Luglio 2026 — P2-#11 multi-ticket rot-audit (doc-only per-ticket atomic commits, 2026-07-08)
+
+**Session context**: VPS unfit for cmake full-build + `tools/install_consumer_test.sh` Phase 4 certifier (vcpkg `glm`/`magic_enum` not resolvable + tmpfs quota for build dir + 30 s timeout per CHANGELOG lineage). User explicitly accepted `macchina-verifica deferred se VPS unfit` (rotickets distinguish “audit-closed” from “fix-closed” states in the resulting Followup row transitions). Per `AGENTS.md §anti-greenwashing` + the P1-#6/#7/#8 doc-only precedent this session: ZERO source-code modifications, THREE atomic doc-only commits (one per ticket), ZERO new public API (Cat-3 freeze respected), ZERO new singleton/registry (Cat-5 freeze respected). Forward-only: macchina-verifica della roadmap operativa su build-host funzionante (sub-commit roadmap canonical per ticket under `## Forward-only: per-ticket fix-roadmap` sections below).
+
+### docs(tests): TICKET-011 audit — `chronon3d_core_tests` linker rot (PARTIAL → PARTIAL-AUDIT-DONE per per-ticket atomic commit, 2026-07-08)
+
+**Scope of audit** (operator-readable per-file): 6 known rot file candidates in the `chronon3d_core_tests` target (registered in `tests/core_tests.cmake:251`). Per `git grep` of the canonical locus for `inter_bold()`, `skip_if_missing()`, `TextUnitMap` (see [(external grep result of tests/text/test_draw_text_run_scratch_state.cpp line 77] inter_bold redefinition + [tests/text/test_draw_text_run_crossfade_stroke.cpp:75] skip_if_missing redefinition + [tests/text/test_text_unit_map_8level.cpp:435 LoC] N-level TextUnitMap usage rot):
+
+| Locus | Status | Citation |
+|---|---|---|
+| `tests/text/test_text_font_resolver_golden.cpp` (249 LoC) | rot | pre-existing rot per CHANGELOG 1462 reference |
+| `tests/text/test_text_unit_map_8level.cpp` (435 LoC) | rot | TextUnitMap ambiguity resolved via `include/chronon3d/text/text_unit_map.hpp:120` 8-level canonical |
+| `tests/text/test_draw_text_run_scratch_state.cpp` (255 LoC) | rot | ODR redefinition `inter_bold()` line 77 |
+| `tests/text/test_draw_text_run_crossfade_stroke.cpp` (388 LoC) | rot | ODR redefinition `skip_if_missing()` line 75 |
+| `tests/text/test_compile_text_layout.cpp` | FILE MISSING (basher confirmed) | per `git ls-files` |
+| `tests/text/test_compile_text_layout_validation.cpp` | FILE MISSING (basher confirmed) | per `git ls-files` |
+
+**Boundary check**: target registered at `tests/core_tests.cmake:251`, links against `chronon3d_backend_text` (line 430) + `chronon3d_content` (line 463) + includes `${CMAKE_SOURCE_DIR}` (line 437). No `include/chronon3d/` modifications required by DoD.
+
+**Why audit-only (vs code-fix) this session**:
+- VPS cannot run `cmake --build build --target chronon3d_core_tests` cleanly (vcpkg headers missing + tmpfs quota; see CHANGELOG P1-#7 lineage).
+- Guessing exact ODR redefinition resolution OR missing-stub-file body content sight-unseen is highly rot-prone: each fix could be wrong without a live build, and the wrong fix would silently re-open earlier closed sub-tickets (TICKET-011 sub-tickets (i)+(ii) per CHANGELOG 1439+1457).
+- Following P1-#6/#7/#8 doc-only precedent set in this session.
+
+**Forward-only: per-ticket fix-roadmap** (committed here, scheduled for working build host):
+
+1. **Step A** (sub-commit) — `inter_bold()` ODR: reduce to single free function in `src/text/text_layout_identity.cpp` (or rename to `text_layout_identity_inter_bold` per `M1.5#6` deconflict pattern). Per `git grep`, the second copy lives in `tests/text/test_draw_text_run_scratch_state.cpp:77`: rename callsite to match.
+2. **Step B** (sub-commit) — `skip_if_missing()` ODR: identical treatment — single free function in test-support header `tests/text/test_draw_text_run_support.hpp` or inline callsite-only definitions.
+3. **Step C** (sub-commit) — `text_unit_map_8level.cpp` rot: verify TextUnitMap is the canonical `include/chronon3d/text/text_unit_map.hpp:120` 8-level type (NOT the narrow `include/chronon3d/text/glyph_selector.hpp:94` 3-level type). The fix is likely include-canonical substitution.
+4. **Step D** (sub-commit) — `test_text_font_resolver_golden.cpp`: resolve per CHANGELOG 1462 rot-reference.
+5. **Step E** (sub-commit) — `test_compile_text_layout{,_validation}.cpp`: either restore the missing TU or remove the test-suite registration at the cmake target. Decision requires inspection of deleted-history.
+
+**State transition forward** (on macchina-verifica pass): PARTIAL-AUDIT-DONE → DONE. Until then PARTIAL-AUDIT-DONE persists.
+
+**Refs**: [`docs/tickets/TICKET-011.md`](docs/tickets/TICKET-011.md) (canonical ticket description, OPEN state to be promoted to PARTIAL-AUDIT-DONE in [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) by this commit’s row-update companion). Cross-link this CHANGELOG entry from the FOLLOWUP row.
+
 ---
 
 ## Luglio 2026 — P1-#8 typed scene IDs (commit pending this session, 2026-07-08, atomic commit)
