@@ -9,6 +9,7 @@
 
 #include <chronon3d/scene/model/core/hierarchy_resolver.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
+#include "../internal/scene_ids.hpp"
 #include <glm/gtx/matrix_decompose.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/transform.hpp>
@@ -181,19 +182,19 @@ void HierarchyResolver::resolve_one(std::size_t index) {
 
 // ── build_name_index helper ────────────────────────────────────────────────
 
-std::unordered_map<std::string_view, std::size_t> build_name_index(
+std::unordered_map<std::string_view, LayerID> build_name_index(
     const std::pmr::vector<Layer>& layers
 ) {
-    std::unordered_map<std::string_view, std::size_t> map;
+    std::unordered_map<std::string_view, LayerID> map;
     map.reserve(layers.size());
     for (std::size_t i = 0; i < layers.size(); ++i) {
         std::string_view name(layers[i].name);
-        auto [it, inserted] = map.emplace(name, i);
+        auto [it, inserted] = map.emplace(name, LayerID{i});
         if (!inserted) {
             throw std::runtime_error(
                 "Duplicate layer name '" + std::string(name)
                 + "' at index " + std::to_string(i)
-                + " (previously at index " + std::to_string(it->second) + ")");
+                + " (previously at index " + std::to_string(it->second.value) + ")");
         }
     }
     return map;
@@ -327,10 +328,10 @@ ResolvedSceneTransforms resolve_scene_transforms(
         names.push_back(i.name);
     }
 
-    std::unordered_map<std::string, std::size_t> name_to_idx;
+    std::unordered_map<std::string, LayerID> name_to_idx;
     name_to_idx.reserve(inputs.size());
     for (std::size_t i = 0; i < names.size(); ++i) {
-        name_to_idx.emplace(names[i], i);
+        name_to_idx.emplace(names[i], LayerID{i});
     }
 
     std::vector<HierarchyNodeView> views;
@@ -343,7 +344,7 @@ ResolvedSceneTransforms resolve_scene_transforms(
             v.parent_declared = true;
             auto pit = name_to_idx.find(in.local.parent_name);
             if (pit != name_to_idx.end()) {
-                v.parent = pit->second;
+                v.parent = pit->second.value;
             }
             // Missing parent (parent_declared=true, parent=nullopt)
             // → HierarchyResolver marks `parent_missing` in resolve_one().

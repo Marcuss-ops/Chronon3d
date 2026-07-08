@@ -2,6 +2,39 @@
 
 ---
 
+## Luglio 2026 — P1-#8 typed scene IDs (commit pending this session, 2026-07-08, atomic commit)
+
+### refactor(scene): P1-#8 — primitive obsession fix: typed LayerID/MediaRef/CameraClipID + NodeID reuse (commit pending)
+
+- **P1-#8 closure (Step 1 of N)**: introduce typed scene IDs to eliminate `std::unordered_map<std::string, T>` primitives + their `string`-keyed lookups in src/scene/. Mirrors the canonical `StableNodeId` strong-type pattern from WP-4.0 `include/chronon3d/render_graph/core/node_identity.hpp` (struct wraps `std::uint64_t .value` + std::hash spec + `explicit(false)` uint64_t ctor). 1 NEW file + 2 migrations landed. Sites 3+5 deferred to P1-FU commits (user-facing string APIs — would be ABI-breaking if migrated without a typed-key alternative).
+
+  | Component | Status | Detail |
+  |---|---|---|
+  | `src/scene/internal/scene_ids.hpp` (NEW, ~140 LoC) | LANDED | Defines `LayerID` + `MediaRef` + `CameraClipID` (3 new typed structs); `using NodeID = chronon3d::graph::StableNodeId;` (reuses WP-4.0 strong type, zero side-side surface); `std::hash<LayerID/MediaRef/CameraClipID>` specializations (copy-constructible, default-constructible, noexcept operator(), drop-in for `std::unordered_map<K, T>` keys). `AssetRef` cross-referenced via header comment (canonical definition lives in `include/chronon3d/assets/asset_readiness_v2.hpp` from M1.7). Strictly internal-to-lib (`src/scene/internal/`), NOT in `include/chronon3d/` — AGENTS.md v0.1 Cat-3 freeze: ZERO new public API surface. |
+  | Site 1: `hierarchy_resolver.cpp:184` `build_name_index()` | LANDED | Value type `std::size_t` → `LayerID` (string_view keys preserved for human-readable names). Cumulative LoC diff: +3/-2 LOC. Caller `HierarchyResolver::resolve()` reads downstream via `it->second.value` (positional index used for `optional<size_t> v.parent` assignment). |
+  | Site 2: `hierarchy_resolver.cpp:330` `name_to_idx` | LANDED | Value type `std::size_t` → `LayerID`. Downstream lookup `pit->second.value` already updated. Cumulative LoC diff: +2/-2 LOC. |
+  | Site 4: `joints_api.cpp:61` `layer_by_name` | LANDED | Value type `std::size_t` → `LayerID`. Two downstream lookups `p_it->second` / `c_it->second` updated to `.value` (assigned to `ValidatedJoint::parent_lidx / child_lidx`). Cumulative LoC diff: +3/-2 LOC. |
+  | Site 3: `camera_shot_validator.cpp:49` `layer_reports` | DEFERRED (P1-FU) | KEY is user-facing string (`require_target_centered(target_name, …)` takes `std::string`); migration requires typed-key alternative to preserve the public API — design sketch in COMMIT-NOTES below. Forward-point row added to `docs/FOLLOWUP_TICKETS.md`. |
+  | Site 5: `layout_solver.cpp:53` `collect_layout_groups` | DEFERRED (P1-FU) | KEY is `LayoutFlow::group_id`/`LayoutGrid::group_id` string field (set by content code via JSON-like builders); migration requires changing the public-builder API. Forward-point row added. |
+
+- **Pattern correctness verified by code-reviewer**: `explicit(false) uint64_t ctor` allows existing positional-init sites (`LayerID{layer_position}`) to keep building without churn while the strong type refuses cross-typing at typed-factory call sites (same exit criterion as WP-4.0's `NodeIdentity{1, 5}` aggregate-literal test fixture). `std::hash<>` specializations funnel through `std::hash<std::uint64_t>` (O(1) hash, zero allocation, deterministic across compiler / libstdc++ versions, matches WP-4.0 lesson that broke the default std::hash fallback because SFINAE gates the hash machinery when a struct declares non-trivial ctors).
+
+- **CMakeLists.txt**: NO change required. New header lives in `src/scene/internal/`, included via `#include "../internal/scene_ids.hpp"` (relative to `src/scene/model/core/hierarchy_resolver.cpp` and `src/scene/joints/joints_api.cpp`). No new .cpp registered. chrono3d_scene library target is unchanged.
+
+- **ABI risk assessment**: ZERO. The 3 migrated sites use INTERNAL free functions / function-local maps (no public-header signatures changed). The 5 sites with `std::string` keys either stay string-keyed (sites 3+5 deferred) or are scoped to the .cpp TU (sites 1+2+4 returned maps are consumed within the same TU). Source-level ABI within `chronon3d::` namespace unchanged.
+
+- **Zero new public API surface** (AGENTS.md v0.1 Cat-3 freeze): NEW file lives in `src/scene/internal/` — strictly internal-to-lib; user code never reaches it via `<chronon3d/scene/...>`. ZERO new ABI symbols, ZERO new singleton/registry/cache/resolver/service-locator, ZERO `#include <msdfgen>|<libtess2>|<unicode[/...]>`.
+
+- **CHANGELOG/FOLLOWUP_TICKETS row updates**: src/scene/internal/scene_ids.hpp comment-block documents the full P1-#8 Step-1 taxonomy + deferred-step rationale; the canonical comment in the header also lists the 3 deferred sites with their ABI-breaking rationale so future agents don't re-attempt the migration without a typed-key alternative.
+
+- **Build verification (honest state)**: `g++ -std=c++20 -fsyntax-only` standalone invocation failed on this VPS due to missing vcpkg-installed includes (`glm/glm.hpp` transitively via `include/chronon3d/math/glm_types.hpp`). Same VPS limitation documented in prior session CHANGELOG lineage (`a7d1b535` P1-#7 + `4e2d3498` P1-#6 + earlier). The P1-#8 changes are syntactically C++17/20-standard idioms (validated by code-reviewer-minimax-m3 cross-check of the .cpp edits + header spec). Cmake full build DEFERRED to next session with working build host per AGENTS.md honesty policy. The pragma-once warning on `scene_ids.hpp:44` is a syntax-check artifact (g++ invoked the .hpp as a TU); not a real warning at compile-time.
+
+- **Production git trace** (this session): 1 NEW file (`src/scene/internal/scene_ids.hpp` ~140 LoC) + 2 source files modified (`src/scene/model/core/hierarchy_resolver.cpp` ~+5/-4 LOC net for sites 1+2 + `#include "../internal/scene_ids.hpp"` directive; `src/scene/joints/joints_api.cpp` ~+3/-2 LOC net for site 4 + `#include "../internal/scene_ids.hpp"` directive) + 2 canonical doc updates (`docs/CHANGELOG.md` this entry + `docs/FOLLOWUP_TICKETS.md` DONE row + sub-rows for sites 3+5).
+
+- **Cross-references**: [`src/scene/internal/scene_ids.hpp`](src/scene/internal/scene_ids.hpp) (NEW — the canonical IDs header); [`src/scene/model/core/hierarchy_resolver.cpp`](src/scene/model/core/hierarchy_resolver.cpp) (sites 1+2 migrated); [`src/scene/joints/joints_api.cpp`](src/scene/joints/joints_api.cpp) (site 4 migrated); [`include/chronon3d/render_graph/core/node_identity.hpp`](../include/chronon3d/render_graph/core/node_identity.hpp) (WP-4.0 canonical strong-type template that `NodeID` aliases); [`include/chronon3d/assets/asset_readiness_v2.hpp`](../include/chronon3d/assets/asset_readiness_v2.hpp) (M1.7 canonical AssetRef — cross-referenced, NOT redefined); [`docs/FOLLOWUP_TICKETS.md`](../docs/FOLLOWUP_TICKETS.md) DONE row + 2 forward-only sub-rows for the deferred sites.
+
+---
+
 ## Luglio 2026 — P1-#6 design audit (this session, 2026-07-08, doc-only PLANNED roadmap)
 
 ### docs(refactor): P1-#6 design audit — 4 static globals to DI via RenderRuntime/services (PLANNED, multi-commit roadmap)

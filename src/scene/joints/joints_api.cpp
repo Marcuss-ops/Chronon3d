@@ -14,6 +14,7 @@
 #include <chronon3d/scene/joints/joints_api.hpp>
 
 #include <chronon3d/scene/model/layer/layer.hpp>
+#include "../internal/scene_ids.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -57,8 +58,11 @@ JointApplyResult apply_joints(Scene& scene, const JointRegistry& reg) {
         return result;
     }
 
-    // ── (1) layer name -> index lookup (string_view, copy-free)
-    std::unordered_map<std::string_view, size_t> layer_by_name;
+    // ── (1) layer name -> LayerID lookup (string_view, copy-free).
+    // P1-#8: value type is typed `LayerID` (not raw `size_t`) — preserves
+    // type-safety at call sites where the lookup feeds downstream
+    // vector-indexing (`valid[a].parent_lidx = p_it->second.value`).
+    std::unordered_map<std::string_view, LayerID> layer_by_name;
     layer_by_name.reserve(layers.size());
     for (size_t i = 0; i < layers.size(); ++i) {
         // std::string_view compares transparently against std::string and
@@ -66,7 +70,8 @@ JointApplyResult apply_joints(Scene& scene, const JointRegistry& reg) {
         // std::string(c_str()) per layer; correctness identical (no NUL-
         // embedded allocation behaviour for std::pmr::string).
         layer_by_name.emplace(
-            std::string_view(layers[i].name.c_str(), layers[i].name.size()), i);
+            std::string_view(layers[i].name.c_str(), layers[i].name.size()),
+            LayerID{i});
     }
 
     // ── (2) Filter out self-loops, missing layers, and capture valid joints
@@ -94,8 +99,8 @@ JointApplyResult apply_joints(Scene& scene, const JointRegistry& reg) {
         }
         ValidJoint vj;
         vj.valid_index  = valid.size();
-        vj.parent_lidx  = p_it->second;
-        vj.child_lidx   = c_it->second;
+        vj.parent_lidx  = p_it->second.value;
+        vj.child_lidx   = c_it->second.value;
         vj.id           = jid;
         vj.offset_px    = j.offset_px;
         vj.rotation_deg = j.rotation_deg;
