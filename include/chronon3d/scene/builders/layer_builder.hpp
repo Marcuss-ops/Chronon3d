@@ -116,7 +116,7 @@ public:
     // ── Time Remap ──
     LayerBuilder& speed(f32 multiplier);
     LayerBuilder& reverse(bool value = true);
-    LayerBuilder& freeze_frame(Frame source_frame);
+    LayerBuilder& freeze_frame(Frame frame);
     LayerBuilder& time_remap(AnimatedValue<f32> curve);
     AnimatedValue<f32>& time_remap_anim();
     LayerBuilder& visible(bool value);

@@ -86,8 +86,8 @@ LayerBuilder& LayerBuilder::reverse(bool value) {
     return *this;
 }
 
-LayerBuilder& LayerBuilder::freeze_frame(Frame source_frame) {
-    m_layer.time_remap.freeze_frame = source_frame;
+LayerBuilder& LayerBuilder::freeze_frame(Frame frame) {
+    m_layer.time_remap.freeze_frame = frame;
     return *this;
 }
 
