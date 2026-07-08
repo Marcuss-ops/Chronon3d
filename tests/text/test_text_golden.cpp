@@ -97,7 +97,7 @@ Composition build_preset_composition(SoftwareRenderer& renderer,
                 content::text::CenterTextOptions{
                     .text        = "THE QUICK BROWN FOX JUMPS",
                     .box         = Vec2{d.width * 0.85f, d.height * 0.85f},
-                    .font_path   = "assets/fonts/Poppins-Bold.ttf",
+                    .font_asset   = "assets/fonts/Poppins-Bold.ttf",
                     .font_family = "Poppins",
                     .font_weight = 700,
                     .font_size   = font_size,
