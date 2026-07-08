@@ -180,7 +180,7 @@ TextRunNode make_node(const std::string& name) {
     auto shape   = make_minimal_shape();
     RenderNode render_ref{};
     cache::NodeCacheKey key{};
-    return TextRunNode(name, std::move(shape), render_ref, key);
+    return TextRunNode(name, std::move(shape), render_ref, key, TextRunPlacement{});
 }
 
 }  // namespace
