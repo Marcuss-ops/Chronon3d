@@ -77,8 +77,15 @@ log_warn() { if [[ "$wip" -eq 1 ]]; then echo "[WARN:skipped] $1"; return; fi; w
 # materiale storico (non operativo). Qualsiasi modifica (edit o aggiunta) sotto
 # docs/ARCHIVE/ è un FAIL hard (R0 ha priorità su R1..R5; è la prima regola
 # valutata).
+# Eccezione: CURRENT_STATUS_HISTORY.md è il dump di cronologia rimosso dal
+# CURRENT_STATUS.md compresso (Fix #7) — è un'operazione di archival one-shot,
+# non una modifica operativa di file storici.
 if has_change '^docs/ARCHIVE/'; then
-  fail "R0: modificati o aggiunti file sotto docs/ARCHIVE/ (materiale storico, non operativo)"
+  # Whitelist: CURRENT_STATUS_HISTORY.md is a one-shot archival dump
+  archive_changes=$(printf '%s\n' "$changed_files" | grep '^docs/ARCHIVE/' | grep -v '^docs/ARCHIVE/CURRENT_STATUS_HISTORY\.md$' || true)
+  if [[ -n "$archive_changes" ]]; then
+    fail "R0: modificati o aggiunti file sotto docs/ARCHIVE/ (materiale storico, non operativo): $archive_changes"
+  fi
 fi
 
 # -- R1: src/runtime/** ⇒ CURRENT_STATUS.md + ROADMAP.md --------------------------
