@@ -26,7 +26,7 @@ std::shared_ptr<Framebuffer> render_graph_scene(
     int height
 ) {
     return render_scene_via_graph(
-        renderer,
+        renderer.backend(),
         node_cache,
         scene,
         camera,
@@ -36,7 +36,8 @@ std::shared_ptr<Framebuffer> render_graph_scene(
         0.0f,
         renderer.render_settings(),
         renderer.composition_registry(),
-        renderer.video_decoder()
+        renderer.video_decoder(),
+        30.0f
     );
 }
 
@@ -474,7 +475,7 @@ TEST_CASE("GraphHealth: graph output matches direct renderer for layered scene")
 
     auto direct_renderer = test::make_renderer();
     Camera camera;
-    auto fb_direct = direct_renderer.render_scene(scene, camera, W, H, 30.0f)H
+    auto fb_direct = direct_renderer.render_scene(scene, camera, W, H, 30.0f);
 
     auto graph_renderer = test::make_renderer();
     cache::NodeCache node_cache;

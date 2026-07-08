@@ -20,7 +20,7 @@ TEST_CASE("RenderPipeline - render_scene_via_graph produces valid framebuffer") 
     Camera camera;
 
     auto fb = render_scene_via_graph(
-        renderer,
+        renderer.backend(),
         node_cache,
         scene,
         camera,
@@ -28,7 +28,8 @@ TEST_CASE("RenderPipeline - render_scene_via_graph produces valid framebuffer") 
         0, 0.0f,
         renderer.render_settings(),
         renderer.composition_registry(),
-        renderer.video_decoder()
+        renderer.video_decoder(),
+        30.0f
     );
 
     REQUIRE(fb != nullptr);
@@ -57,11 +58,11 @@ TEST_CASE("RenderPipeline - SoftwareRenderer::render_scene produces same output 
     auto renderer = test::make_renderer();
     Camera camera;
 
-    auto fb_backend = renderer.render_scene(scene, camera, 100, 100, 30.0f)0
+    auto fb_backend = renderer.render_scene(scene, camera, 100, 100, 30.0f);
     
     cache::NodeCache node_cache;
     auto fb_pipeline = render_scene_via_graph(
-        renderer,
+        renderer.backend(),
         node_cache,
         scene,
         camera,
@@ -69,7 +70,8 @@ TEST_CASE("RenderPipeline - SoftwareRenderer::render_scene produces same output 
         0, 0.0f,
         renderer.render_settings(),
         renderer.composition_registry(),
-        renderer.video_decoder()
+        renderer.video_decoder(),
+        30.0f
     );
 
     REQUIRE(fb_backend != nullptr);
@@ -103,7 +105,7 @@ TEST_CASE("RenderPipeline - debug_render_graph passes through the unique pipelin
     auto renderer = test::make_renderer();
     Camera camera;
 
-    std::string dot = renderer.debug_render_graph(scene, camera, 100, 100);
+    std::string dot = renderer.debug_render_graph(scene, camera, 100, 100, 30.0f);
 
     // DOT output should contain standard clear/composite nodes
     CHECK(dot.find("Clear") != std::string::npos);
@@ -176,11 +178,12 @@ TEST_CASE("RenderGraph: unpinned fullscreen 2D layer is not clipped to top-left 
     Camera camera;
 
     auto fb = render_scene_via_graph(
-        renderer, node_cache, scene, camera,
+        renderer.backend(), node_cache, scene, camera,
         W, H, 0, 0.0f,
         renderer.render_settings(),
         renderer.composition_registry(),
-        renderer.video_decoder()
+        renderer.video_decoder(),
+        30.0f
     );
 
     REQUIRE(fb != nullptr);
@@ -213,11 +216,12 @@ TEST_CASE("RenderGraph: custom translated layer still renders correctly") {
     Camera camera;
 
     auto fb = render_scene_via_graph(
-        renderer, node_cache, scene, camera,
+        renderer.backend(), node_cache, scene, camera,
         W, H, 0, 0.0f,
         renderer.render_settings(),
         renderer.composition_registry(),
-        renderer.video_decoder()
+        renderer.video_decoder(),
+        30.0f
     );
 
     REQUIRE(fb != nullptr);
@@ -257,11 +261,12 @@ TEST_CASE("RenderGraph: glow on centered 2D layer is not clipped by local frameb
     Camera camera;
 
     auto fb = render_scene_via_graph(
-        renderer, node_cache, scene, camera,
+        renderer.backend(), node_cache, scene, camera,
         W, H, 0, 0.0f,
         renderer.render_settings(),
         renderer.composition_registry(),
-        renderer.video_decoder()
+        renderer.video_decoder(),
+        30.0f
     );
 
     REQUIRE(fb != nullptr);
@@ -296,7 +301,7 @@ TEST_CASE("RenderGraph: unpinned fullscreen centered rect covers the whole frame
     Camera camera;
 
     auto fb = render_scene_via_graph(
-        renderer,
+        renderer.backend(),
         node_cache,
         scene,
         camera,
@@ -305,7 +310,8 @@ TEST_CASE("RenderGraph: unpinned fullscreen centered rect covers the whole frame
         0.0f,
         renderer.render_settings(),
         renderer.composition_registry(),
-        renderer.video_decoder()
+        renderer.video_decoder(),
+        30.0f
     );
 
     REQUIRE(fb != nullptr);
@@ -346,7 +352,7 @@ TEST_CASE("RenderGraph: fullscreen background and centered object render togethe
     Camera camera;
 
     auto fb = render_scene_via_graph(
-        renderer,
+        renderer.backend(),
         node_cache,
         scene,
         camera,
@@ -355,7 +361,8 @@ TEST_CASE("RenderGraph: fullscreen background and centered object render togethe
         0.0f,
         renderer.render_settings(),
         renderer.composition_registry(),
-        renderer.video_decoder()
+        renderer.video_decoder(),
+        30.0f
     );
 
     REQUIRE(fb != nullptr);
@@ -395,7 +402,7 @@ TEST_CASE("RenderGraph: custom translated layer still applies transform") {
     Camera camera;
 
     auto fb = render_scene_via_graph(
-        renderer,
+        renderer.backend(),
         node_cache,
         scene,
         camera,
@@ -404,7 +411,8 @@ TEST_CASE("RenderGraph: custom translated layer still applies transform") {
         0.0f,
         renderer.render_settings(),
         renderer.composition_registry(),
-        renderer.video_decoder()
+        renderer.video_decoder(),
+        30.0f
     );
 
     REQUIRE(fb != nullptr);
@@ -447,7 +455,7 @@ TEST_CASE("RenderGraph: glow on unpinned centered layer is not clipped") {
     Camera camera;
 
     auto fb = render_scene_via_graph(
-        renderer,
+        renderer.backend(),
         node_cache,
         scene,
         camera,
@@ -456,7 +464,8 @@ TEST_CASE("RenderGraph: glow on unpinned centered layer is not clipped") {
         0.0f,
         renderer.render_settings(),
         renderer.composition_registry(),
-        renderer.video_decoder()
+        renderer.video_decoder(),
+        30.0f
     );
 
     REQUIRE(fb != nullptr);
