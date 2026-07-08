@@ -10,6 +10,16 @@
 //   - compute_text_run_world_bbox (adds model transform + spread)
 //   - software rasterizer prepare stage (uses local-space directly)
 //   - future cache/tile pruning, debug overlay, etc.
+//
+// TICKET-TEXT-CLIP-ASCENT — baseline-anchored bbox math.
+// Previously the local-bbox accumulator used `min_y = gy - pad` and
+// `max_y = gy + pad + placed.total_height`, treating `gy` (the
+// baseline of the glyph) as if it were the top of the glyph ink.  That
+// cut off ~80% of ascender extents and produced scratch surfaces large
+// enough for only the descender strip — visually identical to seeing
+// a 19 px sliver of text in a 1080-row canvas.  See
+// tests/text_golden/text_clip/text_clip_bounds.cpp for the regression
+// lock that captures this symptom numerically.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/text/text_run_geometry.hpp>
@@ -30,8 +40,13 @@ namespace chronon3d::renderer {
 //   - blur + stroke width + safety padding (8px)
 //   - 2.5D shear estimates (rotation.x/y tangent projection)
 //   - scale.z expansion
-//   - approximate glyph advance (12px)
-//   - placed.total_height for baseline-to-bottom extent
+//   - per-glyph advance from `placed.glyphs[i].advance_x`
+//     (TICKET-TEXT-CLIP-ASCENT: was a hardcoded 12 px approximation
+//      which clipped wider glyphs on the right edge of the scratch)
+//   - baseline-anchored ascent/descent from `placed.ascent/descent`
+//     (TICKET-TEXT-CLIP-ASCENT: was `placed.total_height` + `gy - pad`,
+//      which anchored the bbox to the baseline instead of the top of
+//      the glyph ink and clipped ~80% of ascender extents)
 //
 // Excludes: model transform, world-space projection, shadow padding,
 // spread (shadow/glow), and rasterizer margin.  Those are caller concerns.
@@ -54,7 +69,18 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
     auto accumulate =
         [&](const std::vector<GlyphInstanceState>& glyphs,
             const PlacedGlyphRun& placed) {
-            for (const auto& g : glyphs) {
+            // TICKET-TEXT-CLIP-ASCENT — baseline-anchored bbox math.
+            // min_y: baseline - ascent (top of glyph ink).
+            // max_y: baseline + descent (bottom of glyph ink).
+            //   The old code used `gy - pad` for min_y which
+            //   anchored the bbox to the baseline (= ~80% of ascender
+            //   extents clipped).  Use the actual font ascent/descent
+            //   so the scratch raster surface includes both ascender
+            //   and descender extents.
+            const float ascent  = std::max(0.0f, placed.ascent);
+            const float descent = std::max(0.0f, placed.descent);
+            for (std::size_t i = 0; i < glyphs.size(); ++i) {
+                const auto& g = glyphs[i];
                 const float gx = g.layout_position.x + g.position.x;
                 const float gy = g.layout_position.y + g.position.y;
                 // 2.5D-aware padding: per-glyph shears can swing the
@@ -73,16 +99,31 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
                             * (3.14159265f / 180.0f),
                         -1.5607f, 1.5607f)))
                     * std::abs(static_cast<float>(g.layout_position.x));
-                const float scale_extra =
-                    std::abs(static_cast<float>(g.scale.z) - 1.0f)
-                    * std::abs(static_cast<float>(g.layout_position.y));
+                // TICKET-TEXT-CLIP-ASCENT — `pad` here adds only shear-based padding
+                // (rotation × layout_position tangent) plus per-glyph blur/stroke.
+                // The pre-fix code additionally added
+                //     scale_extra = abs(scale.z - 1.0) * abs(layout_position.y)
+                // which was an ad-hoc depth-scale hack that double-counted the 2.5D
+                // depth expansion against the new per-axis `scale_y = abs(scale.y * scale.z)`
+                // math.  Removed; `git log -p --follow` shows the full removal.
                 const float pad = g.blur + g.stroke_width + 8.0f
-                    + shear_x_extra + shear_y_extra + scale_extra;
+                    + shear_x_extra + shear_y_extra;
+                // Per-axis scale combines local (x,y) axes with the
+                // 2.5D depth scale (scale.z acts as a uniform expansion
+                // multiplier for the planar glyph extents).
+                const float scale_x = std::abs(g.scale.x * g.scale.z);
+                const float scale_y = std::abs(g.scale.y * g.scale.z);
+                // TICKET-TEXT-CLIP-ASCENT — use the real advance from
+                // the shaped glyph run, not a hardcoded 12 px
+                // approximation (which clipped wide glyphs on the
+                // right edge of the scratch surface — visible in the
+                // PNG symptom as "touches right edge").
+                const float advance = std::max(
+                    1.0f, std::abs(placed.glyphs[i].advance_x));
                 min_x = std::min(min_x, gx - pad);
-                max_x = std::max(
-                    max_x, gx + pad + 12.0f);    // approximate glyph advance
-                min_y = std::min(min_y, gy - pad);
-                max_y = std::max(max_y, gy + pad + placed.total_height);
+                max_x = std::max(max_x, gx + advance * scale_x + pad);
+                min_y = std::min(min_y, gy - ascent * scale_y - pad);
+                max_y = std::max(max_y, gy + descent * scale_y + pad);
             }
         };
 

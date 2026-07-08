@@ -132,6 +132,30 @@ target_sources(chronon3d_text_golden_tests
         text_golden/text_placement/text_placement_golden.cpp
 )
 
+# TICKET-TEXT-CLIP-ASCENT — text-clip numerical-bbox regression lock.
+# Three TEST_CASEs in text_clip/text_clip_bounds.cpp:
+#   - AscentNotCut    : baseline HAMBURGER, asserts visible_height>90,
+#                       visible_width>500, no right-edge touch.
+#   - RightEdgeNotCut : exclusive right-edge assertion.
+#   - Scale130NotCut  : uniform scale 1.30x → bbox grows proportionally
+#                       AND still stays inside the framebuffer.
+# The numeric bbox scans fail IMMEDIATELY on the pre-fix code; the
+# golden PNG diff is a belt+suspenders safety net once the fix lands.
+# See docs/CHANGELOG.md TICKET-TEXT-CLIP-ASCENT entry for symptom
+# context (visible_bbox: x=974..1919, y=783..801 — 19 px tall — on
+# output/ae_08_glow_pulse.png).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_clip/text_clip_bounds.cpp
+)
+
+# Filter ctest -R to the text-clip numerical-bbox subset (ADR-NNN).
+add_test(
+    NAME TextClipBounds
+    COMMAND chronon3d_text_golden_tests --test-case="Clip *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # ── add_test aliases (preserved verbatim — these are NOT registered via
 # the chronon3d_add_test_suite helper because they filter on doctest
 # --test-case patterns, not on the executable itself). ───────────────

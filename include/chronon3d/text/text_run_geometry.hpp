@@ -33,8 +33,17 @@ struct TextRunLocalBounds {
 ///   - per-glyph blur and stroke width
 ///   - 2.5D shear estimates (rotation.x/y)
 ///   - scale.z expansion
-///   - approximate glyph advance (12px)
-///   - placed.total_height for baseline-to-bottom extent
+///   - per-glyph advance from `placed.glyphs[i].advance_x`
+///     (TICKET-TEXT-CLIP-ASCENT: was a hardcoded 12 px approximation
+///      which clipped wider glyphs on the right edge of the scratch
+///      surface — the "touches right edge" symptom seen in the bug
+///      dashboard PNG)
+///   - baseline-anchored ascent/descent from `placed.ascent/descent`
+///     (TICKET-TEXT-CLIP-ASCENT: was `placed.total_height` combined
+///      with `gy - pad`, which anchored the bbox to the baseline
+///      instead of the top of the glyph ink and clipped ~80% of
+///      ascender extents — the "19 px sliver in 1080-row canvas"
+///      symptom seen in the bug dashboard PNG)
 ///
 /// Returns std::nullopt when both active and crossfade sides are empty.
 /// This is the SINGLE canonical per-glyph bbox accumulator — used by
