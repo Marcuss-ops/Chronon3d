@@ -20,7 +20,7 @@ struct CenterTextOptions {
     std::string text;                     // text content (consumed)
     Vec2  box{1200.0f, 240.0f};           // logical text box
     Vec3  pos{0.0f, 0.0f, 0.0f};          // position (anchor is always Center)
-    std::string font_path{"assets/fonts/Poppins-Bold.ttf"};
+    std::string font_asset{"assets/fonts/Poppins-Bold.ttf"};  // asset-relative path
     std::string font_family{"Poppins"};
     int   font_weight{700};
     std::string font_style{"normal"};
@@ -41,7 +41,7 @@ struct CenterTextOptions {
 inline TextSpec centered_text(CenterTextOptions o) {
     return TextSpec{
         .content    = {.value = std::move(o.text)},
-        .font       = {.font_path   = std::move(o.font_path),
+        .font       = {.font_path   = std::move(o.font_asset),
                        .font_family = std::move(o.font_family),
                        .font_weight = o.font_weight,
                        .font_style  = std::move(o.font_style),
@@ -74,7 +74,7 @@ inline TextSpec glow_text(CenterTextOptions o,
                             f32 /*intensity*/ = 0.6f) {
     return TextSpec{
         .content    = {.value = std::move(o.text)},
-        .font       = {.font_path   = std::move(o.font_path),
+        .font       = {.font_path   = std::move(o.font_asset),
                        .font_family = std::move(o.font_family),
                        .font_weight = o.font_weight,
                        .font_style  = std::move(o.font_style),

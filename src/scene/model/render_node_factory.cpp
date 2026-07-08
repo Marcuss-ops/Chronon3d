@@ -142,7 +142,7 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
 // `TextRunSpec` and delegates to `materialize_text_run_shape(...)`,
 // the single canonical materializer shared with `text_run()` and
 // `LayerBuilder::build()`.  The legacy `ShapeType::Text` code path
-// that built a `TextShape` (paint / shadows / material / font_path /
+// that built a `TextShape` (paint / shadows / material / font fields /
 // style.{...}/ box.{...}) is REMOVED from this factory.  Step 3
 // (M1.5#9) will drop the orphan `create_text_processor()` + factory
 // registration in builtin_processors.cpp; step 4 deletes the legacy
@@ -196,7 +196,7 @@ RenderNode RenderNodeFactory::text(
     const Vec3         world_pos  = p.position;
     const Color        text_color = p.appearance.color;
 
-    // Fallback: if the caller left font_path empty, use the project
+    // Fallback: if the caller left font path empty, use the project
     // default (Inter-Bold).  Without this, the renderer would fail to
     // locate a font when materializing via the supplied engine.
     // Preserved from the pre-step-2 implementation for back-compat so
