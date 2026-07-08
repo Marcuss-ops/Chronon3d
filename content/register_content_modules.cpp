@@ -30,6 +30,7 @@ namespace chronon3d::content::two_point_five_d { void register_2d5_compositions(
 namespace chronon3d::content::backgrounds  { void register_grid_clean_background(CompositionRegistry&); }
 namespace chronon3d::content::ae_parity    { void register_ae_parity_compositions(CompositionRegistry&); }
 namespace chronon3d::content::text_placement { void register_text_placement_compositions(CompositionRegistry&); }
+namespace chronon3d::content::sequence_v2 { void register_sequence_v2_compositions(CompositionRegistry&); }
 namespace chronon3d::content::certification { void register_cert_title_compositions(CompositionRegistry&);
                                                void register_cert_lower_third_compositions(CompositionRegistry&);
                                                void register_cert_long_text_compositions(CompositionRegistry&);
@@ -66,6 +67,7 @@ public:
         content::certification::register_cert_long_text_compositions(ctx.compositions);
         content::certification::register_cert_multilingual_compositions(ctx.compositions);
         content::text_placement::register_text_placement_compositions(ctx.compositions);
+        content::sequence_v2::register_sequence_v2_compositions(ctx.compositions);
     }
 };
 
