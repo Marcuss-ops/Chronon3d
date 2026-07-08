@@ -38,20 +38,29 @@ int command_preflight(const CompositionRegistry& registry, const PreflightArgs& 
         manifest.merge(scene.asset_manifest());
     }
 
-    // Run manifest-based preflight (Sequence V2)
+    // FIX 8: V2 manifest-based preflight is the DEFAULT path.
+    // Legacy RenderPreflight is opt-in behind --legacy-preflight.
     auto manifest_result = AssetPreflightResolver::check_manifest(manifest, resolver);
 
-    // Also run legacy RenderPreflight for backward compatibility
-    auto& preflight = RenderPreflight::instance();
-    if (!args.output.empty()) {
-        preflight.require_output_path(args.output);
-    }
-    auto legacy_issues = preflight.validate(cli_asset_registry(), resolver);
-
-    // Combine issues
     std::vector<PreflightIssue> all_issues;
     all_issues.insert(all_issues.end(), manifest_result.issues.begin(), manifest_result.issues.end());
-    all_issues.insert(all_issues.end(), legacy_issues.begin(), legacy_issues.end());
+
+    // Legacy RenderPreflight: opt-in only
+    if (args.legacy_preflight) {
+        auto& preflight = RenderPreflight::instance();
+        if (!args.output.empty()) {
+            preflight.require_output_path(args.output);
+        }
+        auto legacy_issues = preflight.validate(cli_asset_registry(), resolver);
+        all_issues.insert(all_issues.end(), legacy_issues.begin(), legacy_issues.end());
+    } else if (!args.output.empty()) {
+        // Even without legacy, check output path writability
+        auto& preflight = RenderPreflight::instance();
+        preflight.require_output_path(args.output);
+        auto output_issues = preflight.validate(cli_asset_registry(), resolver);
+        all_issues.insert(all_issues.end(), output_issues.begin(), output_issues.end());
+        preflight.clear();
+    }
 
     // Format and print terminal output
     if (!all_issues.empty()) {
