@@ -280,7 +280,7 @@ Storico baseline: [`docs/baselines/`](docs/baselines/) (file immutabili per SHA,
 | P1 #12 | CMake ar merge + include_private | `59b2439f` | ✅ DONE |
 | P1 #7 | Asset resolver globale | — | PLANNED |
 | P1 #8 | Text renderer monolite | — | PLANNED |
-| P1 #9 | RenderRuntime service locator | — | PLANNED |
+| P1 #9 | RenderRuntime service locator | Fase 5 (2026-07-08) | **DONE** |
 | P1 #11 | Timeline percorsi multipli | — | PLANNED |
 
 ## Gate audit snapshot — `main@2895bd88` (2026-07-04, post-§3.1 execution-plan + FF-pull origin/main — 11-gate atomic audit)
