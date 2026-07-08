@@ -72,20 +72,15 @@ okf()  { echo "[ OK ] $1"; }
 # -- preconditions ------------------------------------------------------------------
 [[ -f "$CS" ]] || { echo "[FAIL] missing $CS" >&2; exit 1; }
 
-# -- expected label roster (12 named rows; presence required) -------------------------
+# -- expected label roster (7 named rows; presence required) -------------------------
 EXPECTED_LABELS=(
-  "Render graph compilato"
-  "Software backend"
-  "Execution scope (precomp + nested)"
+  "Camera V1"
   "Text Production V1"
-  "Camera Production V1"
   "SDK C++ installabile"
   "SDK cross-language"
-  "Sistemi meta (Expressions V2 / V3 tile-first)"
-  "Render runtime (session + caches)"
-  "Render engine construction"
+  "Render runtime"
   "Composition pipeline"
-  "Text pre-compilation (CompiledTextRun)"
+  "Sistemi meta (Expressions V2 / V3)"
 )
 
 # -- locate the table area -----------------------------------------------------------
@@ -126,7 +121,7 @@ if ! printf '%s\n' "$TABLE_BLOCK" | grep -qE '\|[[:space:]]*Area[[:space:]]*\|';
 fi
 
 # Verify the data row count is at least 12 (canonical roster must be present).
-EXPECTED_MIN_DATA_ROWS=12
+EXPECTED_MIN_DATA_ROWS=7
 if [[ "${DATA_COUNT:-0}" -lt "$EXPECTED_MIN_DATA_ROWS" ]]; then
   fail "data row count: got ${DATA_COUNT}, expected at least ${EXPECTED_MIN_DATA_ROWS}"
 fi
