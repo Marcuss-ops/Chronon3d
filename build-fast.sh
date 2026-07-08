@@ -3,12 +3,12 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Build location: default to tmpfs for speed; override with BUILD_DIR_OVERRIDE.
-BUILD_DIR="${BUILD_DIR_OVERRIDE:-/tmp/chronon-builds/linux-fast-dev}"
+# Build location: project-local .tmp for deterministic builds, avoid /tmp tmpfs bottleneck.
+BUILD_DIR="${BUILD_DIR_OVERRIDE:-${ROOT_DIR}/.tmp/chronon-builds/linux-fast-dev}"
 
-# ccache: persistent, SSD-backed by default. 20 GiB cap and sloppiness
+# ccache: persistent, project-local by default. 20 GiB cap and sloppiness
 # tuned for Clang/GCC PCH header drift.
-export CCACHE_DIR="${CCACHE_DIR:-${HOME}/.ccache}"
+export CCACHE_DIR="${CCACHE_DIR:-${ROOT_DIR}/.ccache}"
 
 show_help() {
     cat <<EOF
@@ -88,10 +88,9 @@ compression = true
 compression_level = 6
 hash_dir = false
 cache_dir_levels = 3
-temporary_dir = /tmp/ccache-tmp
+temporary_dir = ${CCACHE_DIR}/tmp
 CCACHE_EOF
-        mkdir -p /tmp/ccache-tmp
-        chmod 1777 /tmp/ccache-tmp
+        mkdir -p "${CCACHE_DIR}/tmp"
         echo "→ ccache config bootstrapped at $CCACHE_DIR/ccache.conf"
     fi
 }
@@ -115,9 +114,9 @@ resolve_build_dir
 PRESET="linux-fast-dev"
 TURBO_BUILD_DIR="$ROOT_DIR/build/chronon/linux-turbo"
 TURBO_PRESET="linux-turbo"
-RELEASE_BUILD_DIR="${BUILD_DIR_OVERRIDE:-/tmp/chronon-builds/linux-fast-dev-release}"
+RELEASE_BUILD_DIR="${BUILD_DIR_OVERRIDE:-${ROOT_DIR}/.tmp/chronon-builds/linux-fast-dev-release}"
 RELEASE_PRESET="linux-fast-dev-release"
-JOBS="${JOBS:-$(nproc)}"
+JOBS="${JOBS:-8}"
 
 ensure_configured() {
     if [[ ! -f "$BUILD_DIR/build.ninja" ]]; then
@@ -199,7 +198,7 @@ case "${TARGET}" in
         ;;
     content)
         # ./build-fast.sh content —  engine + content ON (no telemetry)
-        CONTENT_BUILD_DIR="${BUILD_DIR_OVERRIDE:-/tmp/chronon-builds/linux-content-dev}"
+        CONTENT_BUILD_DIR="${BUILD_DIR_OVERRIDE:-${ROOT_DIR}/.tmp/chronon-builds/linux-content-dev}"
         CONTENT_PRESET="linux-content-dev"
         content_symlink="$ROOT_DIR/build/chronon/linux-content-dev"
         mkdir -p "$CONTENT_BUILD_DIR"
@@ -216,7 +215,7 @@ case "${TARGET}" in
         ;;
     dashboard)
         # ./build-fast.sh dashboard —  engine + content + telemetry + diagnostics
-        DASH_BUILD_DIR="${BUILD_DIR_OVERRIDE:-/tmp/chronon-builds/linux-dashboard-dev}"
+        DASH_BUILD_DIR="${BUILD_DIR_OVERRIDE:-${ROOT_DIR}/.tmp/chronon-builds/linux-dashboard-dev}"
         DASH_PRESET="linux-dashboard-dev"
         dash_symlink="$ROOT_DIR/build/chronon/linux-dashboard-dev"
         mkdir -p "$DASH_BUILD_DIR"
