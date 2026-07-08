@@ -185,6 +185,7 @@ struct PreflightArgs {
     int sample_step{1};
     std::string output;
     std::string json_file;
+    bool legacy_preflight{false};  // FIX 8: legacy RenderPreflight behind flag
 };
 
 struct StillArgs {
