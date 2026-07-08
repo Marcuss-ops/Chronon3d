@@ -1,9 +1,91 @@
 # Chronon3D — Changelog
 
-> Lavoro completato su `main`. Per i dettagli completi di ogni ticket: [`docs/tickets/`](docs/tickets/).
-> Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).---
+---
 
-## Luglio 2026 — test-suite migration close-out: 20 raw → 0, gate promoted to bloccante (commit pending this session, 2026-07-08)
+## Luglio 2026 — TICKET-110: pre-push hygiene gates wired (commit pending this session, 2026-07-08)
+
+### build(tests,tools,ci): wire hygiene gates into wrap_push.sh + parallel CI / AGENT_WORKFLOW.md (commit pending)
+
+- **TICKET-110 closure**: `tools/check_test_hygiene.sh` (gate #10b doctest) +
+  `tools/check_test_suite_registration.sh` (gate #10c raw add_executable audit) are now
+  hard-bloccante in BOTH local push AND CI as an atomic-commit contract.  No
+  `--skip-gates` escape hatch (duplicate `DOCTEST_MAIN` hardbreaks the link;
+  raw `add_executable` bypasses the §11.1 source-registry contract; deferring
+  the failure to CI just pollutes the git history with broken commits).
+
+- **`tools/wrap_push.sh` Step 4.5** (new section after Step 4 gate-success, BEFORE
+  Step 5 `exec git push "$@"`): invokes both hygiene gates in chain.  Sequence:
+  ```
+  Step 1: parse args                       (origin, current branch)
+  Step 2: git fetch origin
+  Step 2.5: auto-repair branch.*.rebase=true (post-clone invariants)
+  Step 3: auto-FF if remote is ahead
+  Step 4: tools/check_main_clean.sh         (GATE-MNT-01 rebase-clean)
+  Step 4.5a: tools/check_test_hygiene.sh    (gate #10b duplicate DOCTEST main)
+  Step 4.5b: tools/check_test_suite_registration.sh (gate #10c raw add_executable)
+  Step 5: exec git push "$@"
+  ```
+  Each new gate emits a per-failure `GATE_FAIL on check_<name>.sh (exit N)`
+  diagnostic with the canonical remediation hint.  `set -euo pipefail`
+  semantics preserve on existing chain (verified).
+
+- **`.github/workflows/ci.yml`** — pre-build step `Gate / Test Hygiene (duplicate
+  DOCTEST main)` inserted immediately after the `Checkout` step, gated on
+  `if: runner.os == 'Linux'`.  Runs BEFORE cmake --preset, before the 16-config
+  matrix builds start, so a duplicate `DOCTEST_MAIN` is caught in ~1s rather
+  than 5-10 min.  Parity with `tools/wrap_push.sh` Step 4.5a.
+
+- **`.github/workflows/gates-full-validation.yml`** — pre-build step `Gate /
+  Test Suite Registration (chronon3d_add_test_suite contract)` inserted
+  immediately after the `Checkout` step.  Triggered by the workflow's
+  `paths:` filter which scopes to `tests/*` + `CMakeLists.txt` + `tools/*` —
+  exactly the surface where a raw `add_executable(chronon3d_*test)` would
+  land.  Single source of truth (this workflow only); ci.yml gates on
+  test_hygiene, gates.yml gates on heavy build/install path.  Parity with
+  `tools/wrap_push.sh` Step 4.5b.
+
+- **`docs/AGENT_WORKFLOW.md`** — new §6 `Pre-push hygiene gates (Atomic Commits)`
+  documents the canonical gate chain + CI parity matrix + `bash tools/wrap_push.sh
+  origin main` as the canonical post-edit / pre-push command.  Existing §6
+  "Comando Per Trovare File Caldi" shifts to §7.  AGENTS.md + AGENT_WORKFLOW.md
+  parity surface for the atomic-commit workflow is now complete (`git fetch /
+  git pull --ff-only / edit / test / wrap_push.sh`).
+
+- **AGENTS.md v0.1 freeze compliance**:
+  - Cat-1 (build corrective — wires two pre-existing gates into the canonical
+    push path so violations are caught at push-time, not CI-time).
+  - Cat-3 (zero new public API surface; the two gate scripts are already
+    canonical, plus a CI step that invokes them via `bash`).
+  - Cat-5 (doc-only alignment via this CHANGELOG entry +
+    `docs/AGENT_WORKFLOW.md` §6 + `docs/FOLLOWUP_TICKETS.md` recently-closed row).
+
+- **Honesty policy (AGENTS.md §anti-greenwashing)**: this commit IS the wire-up
+  closure.  Local-machine verification automated via the gate itself
+  (`bash tools/check_test_hygiene.sh` exit 0 + `bash tools/check_test_suite_registration.sh`
+  exit 0).  CI verification deferred to next session with working CI runner
+  — the YAML structure was preserved (no indentation / sequence errors);
+  live CI run not executed here.
+
+- **Production git trace**: 4 files modified (`tools/wrap_push.sh` +50/-3 LOC
+  net, `.github/workflows/ci.yml` +12 LOC, `.github/workflows/gates-full-validation.yml`
+  +13 LOC, `docs/AGENT_WORKFLOW.md` +45/-6 LOC net for new §6 + §7 documentation)
+  + 2 canonical doc updates (`docs/CHANGELOG.md` this entry +
+    `docs/FOLLOWUP_TICKETS.md` recently-closed row).
+
+- **Cross-references**: [`tools/wrap_push.sh`](tools/wrap_push.sh) (the local
+  pre-push wrapper); [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+  (matrix build workflow, gates on test_hygiene);
+  [`.github/workflows/gates-full-validation.yml`](.github/workflows/gates-full-validation.yml)
+  (heavy-validation workflow, gates on suite registration);
+  [`docs/AGENT_WORKFLOW.md`](docs/AGENT_WORKFLOW.md) §6 (gate chain + CI
+  parity matrix); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md)
+  recently-closed row.
+
+---
+
+
+> Lavoro completato su `main`. Per i dettagli completi di ogni ticket: [`docs/tickets/`](docs/tickets/).
+> Per lo stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).## Luglio 2026 — test-suite migration close-out: 20 raw → 0, gate promoted to bloccante (commit pending this session, 2026-07-08)
 
 ### build(tests): close §11.1 / §12.1 test-suite migration backlog — 41 SUITE / 0 RAW (commit pending)
 
