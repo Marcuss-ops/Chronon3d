@@ -73,6 +73,17 @@ jobs:
           submodules: recursive
           lfs: ${{ github.event_name == 'push' }}
 
+      # TICKET-110 — pre-build hygiene gate (gate #10b doctest, wired into
+      # tools/wrap_push.sh as Step 4.5a).  Runs BEFORE the cmake build
+      # because a duplicate DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN hardbreaks
+      # the link step; the cost is a single-grep audit (~1s) vs. a 5-10 min
+      # CI rebuild on a duplicate.  Local-only execution per the gate
+      # parity contract documented in docs/AGENT_WORKFLOW.md §6.
+      - name: Gate / Test Hygiene (duplicate DOCTEST main)
+        if: runner.os == 'Linux'
+        working-directory: ${{ github.workspace }}
+        run: bash tools/check_test_hygiene.sh
+
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
