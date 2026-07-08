@@ -210,6 +210,9 @@ LayerBuilder& LayerBuilder::grid_plane(std::string name, GridPlaneParams p) {
 // ── Convenience Shapes ────────────────────────────────────────────────
 
 LayerBuilder& LayerBuilder::fullscreen_rect(std::string name, Color color) {
+    // In modular centered coordinates, pos={0,0,0} centers the rect at
+    // canvas center, so a rect with size={w,h} extends from (-w/2,-h/2)
+    // to (w/2,h/2) — covering the full canvas correctly.
     return rect(std::move(name), {
         .size = { m_screen_width, m_screen_height },
         .color = color,

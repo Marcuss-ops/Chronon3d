@@ -30,10 +30,7 @@ namespace chronon3d {
         builder.font_engine(m_font_engine);  // cascade scene-level bind
         std::forward<Fn>(fn)(builder);
 
-        Layer l = builder.build();
-        if (l.active_at(current_integer_frame())) {
-            scene_.add_layer(std::move(l));
-        }
+        commit_layer(builder.build());
         return *this;
     }
 
@@ -45,10 +42,7 @@ namespace chronon3d {
         builder.font_engine(m_font_engine);  // cascade scene-level bind
         std::forward<Fn>(fn)(builder);
 
-        Layer l = builder.build();
-        if (l.active_at(current_integer_frame())) {
-            scene_.add_layer(std::move(l));
-        }
+        commit_layer(builder.build());
         return *this;
     }
 
@@ -62,9 +56,7 @@ namespace chronon3d {
 
         Layer l = builder.build();
         l.kind = LayerKind::Adjustment;
-        if (l.active_at(current_integer_frame())) {
-            scene_.add_layer(std::move(l));
-        }
+        commit_layer(std::move(l));
         return *this;
     }
 
@@ -78,25 +70,22 @@ namespace chronon3d {
         Layer l = builder.build();
         l.kind = LayerKind::Precomp;
         l.precomp_composition_name = std::pmr::string{comp_name, scene_.resource()};
-        if (l.active_at(current_integer_frame())) {
-            scene_.add_layer(std::move(l));
-        }
+        commit_layer(std::move(l));
         return *this;
     }
 
     // ── Video Layer (source overload) ───────────────────────────────────────
+    // Route through LayerBuilder::video() so the asset is registered in the
+    // manifest (Fix 3: video asset manifest gap).
     template <typename Fn>
     SceneBuilder &SceneBuilder::video_layer(std::string name, video::VideoSource source, Fn &&fn) {
         LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
+        builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
         builder.font_engine(m_font_engine);  // cascade scene-level bind
+        builder.video(std::move(source));     // registers asset in manifest
         std::forward<Fn>(fn)(builder);
 
-        Layer l = builder.build();
-        l.kind = LayerKind::Video;
-        l.video_source = std::make_unique<video::VideoSource>(std::move(source));
-        if (l.active_at(current_integer_frame())) {
-            scene_.add_layer(std::move(l));
-        }
+        commit_layer(builder.build());
         return *this;
     }
 
@@ -127,9 +116,7 @@ namespace chronon3d {
             l.parent_name = std::pmr::string(params.transform.parent_name, scene_.resource());
             l.visible = params.visible_in_diagnostics;
 
-            if (l.active_at(current_integer_frame())) {
-                scene_.add_layer(std::move(l));
-            }
+            commit_layer(std::move(l));
             return *this;
         } else {
             LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
@@ -138,9 +125,7 @@ namespace chronon3d {
 
             Layer l = builder.build();
             l.kind = LayerKind::Null;
-            if (l.active_at(current_integer_frame())) {
-                scene_.add_layer(std::move(l));
-            }
+            commit_layer(std::move(l));
             return *this;
         }
     }

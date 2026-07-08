@@ -22,18 +22,17 @@ namespace chronon3d {
     SceneBuilder &SceneBuilder::sequence(const std::string & /*name*/, SequenceSpec spec, Fn &&fn) {
         const Frame cf = current_integer_frame();
         bool active = cf >= spec.from && cf < spec.from + spec.duration;
-        if (!active) {
-            return *this;
-        }
 
         // Sequence V2: apply trim_before offset
-        const Frame local = cf - spec.from + spec.trim_before;
+        // When inactive, use trim_before as-is (avoid negative local frame).
+        const Frame local = active
+            ? (cf - spec.from + spec.trim_before)
+            : spec.trim_before;
 
         FrameContext local_ctx = m_ctx;
         local_ctx.frame = local;
         local_ctx.local_frame = local;
         local_ctx.duration = spec.duration;
-        // Preserve sub-frame fraction from the parent time.
         local_ctx.frame_time = m_ctx.frame_time;
 
         f32 progress = (spec.duration > Frame{0})
@@ -42,31 +41,25 @@ namespace chronon3d {
                 0.0f, 1.0f)
             : 0.0f;
 
+        // ALWAYS execute the lambda to collect asset manifests,
+        // even when the sequence is inactive.
+        Scene sub_scene;
         if constexpr (std::is_invocable_v<Fn, SequenceBuilder&>) {
-            // Sequence V2 path: pass SequenceBuilder with context
             SceneBuilder sub_builder(local_ctx, m_shape_registry);
             SequenceBuilder seq(sub_builder, local_ctx, local, spec.duration, progress);
             std::forward<Fn>(fn)(seq);
-
-            Scene sub_scene = sub_builder.build();
-            for (auto &layer : sub_scene.layers()) {
-                if (layer.duration >= 0) {
-                    layer.from += spec.from;
-                } else {
-                    layer.from = spec.from;
-                    layer.duration = spec.duration;
-                }
-                scene_.add_layer(std::move(layer));
-            }
-            for (auto &node : sub_scene.nodes()) {
-                scene_.add_node(std::move(node));
-            }
+            sub_scene = sub_builder.build();
         } else {
-            // Legacy path: pass SceneBuilder (backward compatible)
             SceneBuilder sub_builder(local_ctx, m_shape_registry);
             std::forward<Fn>(fn)(sub_builder);
+            sub_scene = sub_builder.build();
+        }
 
-            Scene sub_scene = sub_builder.build();
+        // ALWAYS preserve child assets in the parent manifest
+        scene_.asset_manifest().merge(sub_scene.asset_manifest());
+
+        // ONLY add spatial layers/nodes if the sequence is active
+        if (active) {
             for (auto &layer : sub_scene.layers()) {
                 if (layer.duration >= 0) {
                     layer.from += spec.from;
