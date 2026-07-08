@@ -279,8 +279,11 @@ TEST_CASE("TrajectoryMotion applies trajectory.position (sanity guard — "
     CAPTURE(cam.position.x);
     CAPTURE(cam.position.y);
     CAPTURE(cam.position.z);
-    CHECK(cam.position.x != doctest::Approx(0.0f).epsilon(1.0f));   // != base
-    CHECK(cam.position.z != doctest::Approx(-1000.0f).epsilon(1.0f));
+    // Mid-segment position differs from base.position (sanity guard —
+    // proves the trajectory source is actually consulted, not statically
+    // replaced by base.position).
+    CHECK(std::abs(cam.position.x - 0.0f) > 10.0f);   // != base 0, tolerance
+    CHECK(std::abs(cam.position.z - (-1000.0f)) > 10.0f);
     CHECK(std::abs(cam.position.x - 50.0f) <= 5.0f);
     CHECK(std::abs(cam.position.y - 25.0f) <= 5.0f);
     CHECK(std::abs(cam.position.z - (-1150.0f)) <= 5.0f);
