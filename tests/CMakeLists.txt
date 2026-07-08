@@ -32,6 +32,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/visual_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/graphics_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/gradient_visual_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/rounded_rect_visual_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/text_preset_visual_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/text_golden_tests.cmake
@@ -109,6 +110,7 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
     include(${CMAKE_CURRENT_SOURCE_DIR}/visual_tests.cmake)
     include(${CMAKE_CURRENT_SOURCE_DIR}/graphics_tests.cmake)
     include(${CMAKE_CURRENT_SOURCE_DIR}/gradient_visual_tests.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/rounded_rect_visual_tests.cmake)
     include(${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake)
 
 # ── TXT-QA-01 — Real Golden Text Harness (standalone, UNITY_BUILD OFF)
@@ -223,6 +225,9 @@ if(TARGET chronon3d_cinematic_motion_visual_tests)
 endif()
 if(TARGET chronon3d_gradient_visual_tests)
     list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_gradient_visual_tests)
+endif()
+if(TARGET chronon3d_rounded_rect_visual_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_rounded_rect_visual_tests)
 endif()
 if(TARGET chronon3d_render_graph_node_visual_tests)
     list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_render_graph_node_visual_tests)
