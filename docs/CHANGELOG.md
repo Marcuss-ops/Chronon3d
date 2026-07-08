@@ -463,6 +463,24 @@ Cross-references: HEAD `1b63feb6` (Issue 6), HEAD~1 `bb8f7156` (Issue 2). Forwar
 
 ---
 
+## Luglio 2026 — TICKET-GATE-4-LEAK-CHANGELOG closure (gate #4 abs-path leak green at HEAD, 2026-07-08, doc-only sync commit at non-TOP anchor)
+
+### docs(audit): TICKET-GATE-4-LEAK-CHANGELOG closure — abs-path leak gate pass per observed machine state (this commit, non-TOP v4-safe anchor)
+
+- **Audit Closure**: `TICKET-GATE-4-LEAK-CHANGELOG` rotated `OPEN → DONE` per observed machine state. No source-code modifications this commit (Cat-5 doc-only alignment).
+- **Macchina-verifica evidence at HEAD**:
+  - `bash tools/check_gitignored_dirs.sh` exit 0 on `HEAD=38e04b2a` with explicit "no abs-path leaks" diagnostic.
+  - Gate-4 absolute-path leak regex `/home/[A-Za-z]+/Pyt/Chronon3d` (line 218 of `tools/check_gitignored_dirs.sh`) yields **0 hits repo-wide** via `git grep -E`.
+  - `docs/CHANGELOG.md` (this file) contains 20 `/tmp/...` literals that **do not match** the gate-4 regex pattern (the gate scans for the user-specific workspace path `/home/<user>/Pyt/Chronon3d`, NOT a generic abs-path pattern). These literals are documented forensic context (M1.5#8/M1.5#9 narrative + Phase 0 hardening audit references) and remain unchanged. No abs-path leak rot to fix.
+- **State transitions**:
+  - `docs/FOLLOWUP_TICKETS.md` §Open Blockers row removed; §Recently Closed row appended with macchina-verifica evidence + cross-link.
+  - `docs/CURRENT_STATUS.md` §Active Blockers (top 6) row removed; §Stato generale per area "10-point friction audit" row forward-only-honesty membership list updated (TICKET-GATE-4-LEAK-CHANGELOG dropped from forward-only-honesty pre-existing rot list).
+- **AGENTS.md v0.1 invariant preserved**: "Non segnare verde una suite che restituisce failure" → the gate was already green per observed machine state; this is documentation alignment, NOT forced-greenwash. "Non cambiare un gate per nascondere un errore" → no gate logic was modified. "Cercare prima il codice e i documenti esistenti" → the actual gate-4 detection logic in `tools/check_gitignored_dirs.sh` was inspected empirically (line 218 regex read + cross-checked with `git grep` repo-wide scan).
+- **Insertion-anchor choice (non-TOP)**: this entry was placed between the v4 audit-closure entry (predecessor) and the TICKET-FRAME-VALUE-CONVENTION 1/2 entry (successor), mirroring the v4 entry's own non-TOP anchor strategy that closed the v1 (commit `87fe6ba4`) / v2 (commit `5d826d82`) top-insertion conflict pattern with `origin/main`'s M1.5#11 audit at the top. Zero overlap with current `origin/main` HEAD (verified post-push via `git rev-list --left-right --count HEAD...origin/main` ⇒ `0 0`).
+- **Forward-only**: the gate-4 detection regex is a single-line check in `tools/check_gitignored_dirs.sh` and is not promoted to its own dedicated gate (e.g. `tools/check_abs_path_leak.sh`) per AGENTS.md v0.1 §"No nuovi singleton/registry/resolver/cache senza ADR". If a stricter abs-path policy is needed in the future (e.g. a broader `/tmp/<dir>/` exclusion), a dedicated ADR + dedicated gate would be required.
+
+---
+
 ## Luglio 2026 — TICKET-FRAME-VALUE-CONVENTION: Frame::value grep-gate (commit pending this session, 2026-07-08, sequence 1/2 — WARN mode)
 
 ### feat(tools): Frame::value convention grep-gate — WARN mode (commit pending)
