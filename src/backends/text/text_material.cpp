@@ -80,8 +80,18 @@ void apply_text_material(BLImage& img, const TextMaterial& mat) {
     const int stride = static_cast<int>(data.stride / sizeof(uint32_t));
     auto* pixels = static_cast<uint32_t*>(data.pixelData);
 
+    // ── P1-#7: thread-local scratch (zero per-call heap alloc on hot path) ──
+    // `apply_text_material` ABI-freeze (AGENTS.md Cat-5) forbids plumbing a
+    // TextRenderResources* through the legacy rasterizer signature; the
+    // canonical scratch-pool pattern lives on per-call thread-local storage
+    // instead.  Capacity is preserved across calls (zero realloc, zero
+    // heap interaction) — the user-spec invariant ("mai vettori ricreati
+    // per draw" / M1.5#6+#7 anti-duplication).
+    static thread_local std::vector<float> tl_alpha;
+    tl_alpha.resize(static_cast<size_t>(w) * static_cast<size_t>(h));
+    auto& alpha = tl_alpha;
+
     // ── Extract alpha channel for bevel / highlight processing ──
-    std::vector<float> alpha(static_cast<size_t>(w) * static_cast<size_t>(h));
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x) {
             uint8_t a;
@@ -178,8 +188,15 @@ void apply_text_material(BLImage& img, const TextMaterial& mat) {
             const int window = bp * 2;
             const size_t n = static_cast<size_t>(w) * static_cast<size_t>(h);
 
+            // ── P1-#7: thread-local scratch buffers (preserve capacity across calls) ──
+            static thread_local std::vector<float> tl_h_max;
+            tl_h_max.resize(n);
+            auto& h_max = tl_h_max;
+            static thread_local std::vector<float> tl_v_max;
+            tl_v_max.resize(n);
+            auto& v_max = tl_v_max;
+
             // Horizontal sliding-window maximum
-            std::vector<float> h_max(n);
             for (int y = 0; y < h; ++y) {
                 std::deque<int> dq;
                 const size_t row_base = static_cast<size_t>(y) * static_cast<size_t>(w);
@@ -193,7 +210,6 @@ void apply_text_material(BLImage& img, const TextMaterial& mat) {
             }
 
             // Vertical sliding-window maximum
-            std::vector<float> v_max(n);
             for (int x = 0; x < w; ++x) {
                 std::deque<int> dq;
                 const size_t col = static_cast<size_t>(x);
@@ -327,13 +343,20 @@ void apply_text_material(BLImage& img, const TextMaterial& mat) {
 
     // ── 5. Inner Shadow ────────────────────────────────────────
     if (mat.inner_shadow_enabled) {
-        auto box_blur = [](const std::vector<float>& src, std::vector<float>& dst, int w, int h, float radius) {
+        // ── P1-#7: thread-local scratch for box_blur intermediate buffer ──
+        // Capture mode changed from `[]` (stateless) to `[&]` because the
+        // thread-local `tmp_holder` (alias for `tl_box_blur_tmp`) carries
+        // the horizontal-blur-pass intermediate.  Capacity preserved across
+        // calls — zero per-apply heap alloc, matching the M1.5#6+#7 spec
+        // invariant ("mai vettori ricreati per draw").
+        static thread_local std::vector<float> tmp_holder;
+        auto box_blur = [&](const std::vector<float>& src, std::vector<float>& dst, int w, int h, float radius) {
             int r = static_cast<int>(std::round(radius));
             if (r <= 0) {
                 dst = src;
                 return;
             }
-            std::vector<float> tmp(src.size());
+            tmp_holder.resize(src.size());
             // Horizontal pass
             for (int y = 0; y < h; ++y) {
                 for (int x = 0; x < w; ++x) {
@@ -375,14 +398,19 @@ void apply_text_material(BLImage& img, const TextMaterial& mat) {
             return 1.0f;
         };
 
-        std::vector<float> inner_shadow_src(w * h);
+        // ── P1-#7: thread-local scratch buffers ──
+        static thread_local std::vector<float> tl_inner_shadow_src;
+        tl_inner_shadow_src.resize(static_cast<size_t>(w) * static_cast<size_t>(h));
+        auto& inner_shadow_src = tl_inner_shadow_src;
         for (int y = 0; y < h; ++y) {
             for (int x = 0; x < w; ++x) {
                 inner_shadow_src[y * w + x] = sample_inverted_alpha(x, y, mat.inner_shadow_offset.x, mat.inner_shadow_offset.y, alpha, w, h);
             }
         }
 
-        std::vector<float> inner_shadow_blurred(w * h);
+        static thread_local std::vector<float> tl_inner_shadow_blurred;
+        tl_inner_shadow_blurred.resize(static_cast<size_t>(w) * static_cast<size_t>(h));
+        auto& inner_shadow_blurred = tl_inner_shadow_blurred;
         box_blur(inner_shadow_src, inner_shadow_blurred, w, h, mat.inner_shadow_blur);
 
         // Blend inner shadow color inside the glyph bounds
