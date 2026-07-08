@@ -58,7 +58,7 @@ count_hits() {
     local paths=("$@")
     if [ "$SEARCH_TOOL" = "rg" ]; then
         rg --count-matches "$pattern" "${paths[@]}" \
-            --type cpp --type hpp 2>/dev/null \
+            -g '*.cpp' -g '*.hpp' 2>/dev/null \
             | awk -F: '{sum+=$NF} END {print sum+0}' \
             | head -1 \
             || echo "0"
@@ -80,7 +80,7 @@ count_multiline_hits() {
     local paths=("$@")
     if [ "$SEARCH_TOOL" = "rg" ]; then
         rg --multiline --count-matches "$pattern" "${paths[@]}" \
-            --type cpp 2>/dev/null \
+            -g '*.cpp' 2>/dev/null \
             | awk -F: '{sum+=$NF} END {print sum+0}' \
             | head -1 \
             || echo "0"
