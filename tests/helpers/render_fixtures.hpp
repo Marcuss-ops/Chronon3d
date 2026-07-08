@@ -1,7 +1,6 @@
 #pragma once
 
-#include <chronon3d/chronon3d.hpp>
-#include <chronon3d/backends/software/software_renderer.hpp>
+#include <tests/helpers/test_utils.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <memory>
 #include <string>
@@ -10,12 +9,11 @@
 namespace chronon3d::test {
 
 inline std::shared_ptr<Framebuffer> render_modular(const Composition& comp, Frame frame = 0) {
-    SoftwareRenderer renderer(Config{});
-    RenderSettings settings;
-    settings.use_modular_graph = true;
+    auto renderer = make_renderer_shared();
+    RenderSettings settings = renderer->render_settings();
     settings.diagnostics.enabled = true;
-    renderer.set_settings(settings);
-    return renderer.render(comp, frame);
+    renderer->set_settings(settings);
+    return renderer->render(comp, frame);
 }
 
 inline void save_debug(const Framebuffer& fb, const std::string& path) {
