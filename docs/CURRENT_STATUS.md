@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@3a6163c3` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato. Linux-only.
+> **Snapshot:** `main@54292ee5` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato. Linux-only. Fase 7 audit: 10/11 gates PASS, gate #10 BLOCKED (disk space, infra).
 
 ## Active Blockers (top 6)
 
@@ -16,7 +16,7 @@
 Per il dettaglio completo: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) + [`docs/tickets/`](docs/tickets/).
 Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
-## Stato per area
+## Stato generale per area
 
 | Area | Stato | Note sintetiche |
 |---|---|---|
@@ -28,24 +28,28 @@ Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
 | Sistemi meta (Expressions V2 / V3) | PLANNED | Expressions V2 OFF di default; V3 subordinato a V1. |
 
-## Gate Audit — ultima baseline certificata
+## Gate Audit — ultima verifica
 
-**`main@7eb5c2ba` — 11/11 PASS** (2026-07-06). Feature freeze V0.1 revocato.
+**`main@7eb5c2ba` — 11/11 PASS** (2026-07-06, certificata). Feature freeze V0.1 revocato.
 Baseline: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c2ba-baseline.md).
 
-| # | Gate | Esito |
-|---|------|-------|
-| 1 | `check_architecture_boundaries.sh` | ✅ PASS |
-| 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS |
-| 3 | `check_software_renderer_boundary.sh` | ✅ PASS |
-| 4 | `check_gitignored_dirs.sh` | ✅ PASS |
-| 5 | `audit_software_renderer.sh` | ✅ PASS |
-| 6 | `check_camera_architecture.sh` | ✅ PASS |
-| 7 | `check_doc_sync.sh` | ✅ PASS |
-| 8 | `check_filename_drift.sh` | ⚠️ PASS* |
-| 9 | `test_architectural.sh` | ✅ PASS |
-| 10 | `install_consumer_test.sh` | ✅ PASS |
-| 11 | `check_backend_sanitization.py` | ✅ PASS |
+**`main@54292ee5` — Fase 7 audit** (2026-07-08):
+
+| # | Gate | Esito | Note |
+|---|------|-------|------|
+| 1 | `check_architecture_boundaries.sh` | ✅ PASS | |
+| 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS | |
+| 3 | `check_software_renderer_boundary.sh` | ✅ PASS | |
+| 4 | `check_gitignored_dirs.sh` | ✅ PASS | |
+| 5 | `audit_software_renderer.sh` | ✅ PASS | |
+| 6 | `check_camera_architecture.sh` | ✅ PASS | |
+| 7 | `check_doc_sync.sh` | ✅ PASS | Fixato heading `## Stato generale per area` in CURRENT_STATUS.md |
+| 8 | `check_filename_drift.sh` | ⚠️ PASS* | warn-mode; 109 drift findings |
+| 9 | `test_architectural.sh` | ✅ PASS | |
+| 10 | `install_consumer_test.sh` | 🔴 BLOCKED | `ar` disk-space exhaustion (46GB build dir, 31GB free); TICKET-GATE-10-AR-RACE infra |
+| 11 | `check_backend_sanitization.py` | ✅ PASS | |
+
+AE parity golden checker: GATE_PASS (23/23 fresh). Suite AE_CAM: 35/35 PASS, 142/142 assertions.
 
 ## Come leggere gli stati
 

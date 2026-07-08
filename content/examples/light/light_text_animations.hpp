@@ -2,6 +2,8 @@
 
 #include <chronon3d/timeline/composition.hpp>
 
+namespace chronon3d { class CompositionRegistry; }
+
 namespace chronon3d::content::light_text {
 
 // ── 8 Light 2D Text Entrance Animations ────────────────────────────────
@@ -28,6 +30,6 @@ Composition light_spin();
 Composition light_glow_pulse();
 
 /// Register all LightText compositions into the given registry.
-void register_light_text_compositions(class CompositionRegistry& registry);
+void register_light_text_compositions(chronon3d::CompositionRegistry& registry);
 
 } // namespace chronon3d::content::light_text
