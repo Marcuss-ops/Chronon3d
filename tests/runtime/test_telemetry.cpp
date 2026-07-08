@@ -81,6 +81,7 @@ public:
         return true;
     }
     bool write_tile_events(const std::string&, const std::vector<TileTelemetryRecord>&) override { return true; }
+    bool write_artifacts(const std::string&, const std::vector<RenderArtifactRecord>&) override { return true; }
 };
 
 TEST_CASE("Telemetry: TelemetryManager and MockStore Orchestration") {
