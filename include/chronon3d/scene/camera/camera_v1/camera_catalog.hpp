@@ -19,7 +19,7 @@
 //   - PR1:  CameraCatalog exists alongside CameraMotionRegistry.
 //           compile_camera() can accept an optional catalog.
 //   - PR2:  All built-in presets are converted to descriptor entries.
-//           register_default_camera_motions() TODO is eliminated.
+//           register_default_camera_motions() registration was eliminated.
 //   - PR7+: CameraMotionRegistry is removed; only CameraCatalog remains.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
