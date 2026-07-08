@@ -24,6 +24,7 @@
 #include <chronon3d/scene/builders/sequence_builder.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/motion/timeline.hpp>
+#include <chronon3d/assets/asset_manifest.hpp>
 
 #include "content/common/background_helpers.hpp"
 
@@ -33,14 +34,29 @@ using namespace chronon3d::content::backgrounds;
 
 namespace {
 
-// ── Shared constants ────────────────────────────────────────────────────────
+// ── Shared asset declarations ───────────────────────────────────────────────
+// Explicit AssetRef declarations for all assets used by these compositions.
+// This makes asset dependencies visible and typed — the canonical pattern
+// for Sequence V2 content (vs raw string paths).
+const AssetRef kTitleFont{
+    AssetType::Font,
+    "assets/fonts/Poppins-Bold.ttf",
+    "seq-v2/title-font",
+    true
+};
+const AssetRef kPlaceholderImage{
+    AssetType::Image,
+    "assets/images/placeholder.png",
+    "seq-v2/placeholder",
+    false  // soft dep — composition renders without it
+};
+
 constexpr Color kTextColor{0.94f, 0.95f, 0.98f, 1.0f};
-constexpr const char* kFontPath = "assets/fonts/Poppins-Bold.ttf";
 
 TextSpec title_text(const char* text, f32 size = 80.0f) {
     return TextSpec{
         .content = {.value = text},
-        .font = {.font_path = kFontPath, .font_size = size},
+        .font = {.font_path = kTitleFont.path, .font_size = size},
         .layout = {.box = {1400.0f, 200.0f}, .align = TextAlign::Center,
                    .vertical_align = VerticalAlign::Middle,
                    .line_height = 1.0f, .tracking = 4.0f},
@@ -52,7 +68,7 @@ TextSpec title_text(const char* text, f32 size = 80.0f) {
 TextSpec body_text(const char* text, f32 size = 48.0f) {
     return TextSpec{
         .content = {.value = text},
-        .font = {.font_path = kFontPath, .font_size = size},
+        .font = {.font_path = kTitleFont.path, .font_size = size},
         .layout = {.box = {1200.0f, 400.0f}, .align = TextAlign::Center,
                    .vertical_align = VerticalAlign::Middle,
                    .line_height = 1.1f, .tracking = 2.0f},
@@ -369,7 +385,7 @@ Composition seq_v2_mixed_media() {
                         apply_fade_in(l, Frame{15});
                         apply_fade_out(l, Frame{45}, Frame{58});
                         l.image("hero", ImageParams{
-                            .path = "assets/images/placeholder.png",
+                            .path = kPlaceholderImage.path,
                             .size = {600.0f, 400.0f},
                         });
                     });
