@@ -538,7 +538,7 @@ bool SqliteTelemetryStore::write_artifacts(const std::string& run_id, const std:
     if (!m_impl->db) return false;
 
     const char* sql = "INSERT OR REPLACE INTO render_artifacts "
-        "(run_id, type, path, sha256, size_bytes, exists) "
+        "(run_id, type, path, sha256, size_bytes, file_exists) "
         "VALUES (?, ?, ?, ?, ?, ?);";
     SqliteStatement stmt(m_impl->db, sql);
     if (!stmt) {
@@ -552,7 +552,7 @@ bool SqliteTelemetryStore::write_artifacts(const std::string& run_id, const std:
                 a.path,
                 a.sha256,
                 a.size_bytes,
-                static_cast<int>(a.exists)) || !stmt.step_done()) {
+                static_cast<int>(a.file_exists)) || !stmt.step_done()) {
             return false;
         }
     }
