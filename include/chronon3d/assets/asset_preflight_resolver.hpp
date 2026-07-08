@@ -28,6 +28,7 @@
 
 #include <chronon3d/assets/asset_manifest.hpp>
 #include <chronon3d/assets/asset_metadata.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/assets/render_preflight.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/core/types/frame.hpp>
@@ -35,9 +36,6 @@
 #include <vector>
 
 namespace chronon3d {
-
-// Forward declaration
-namespace assets { class AssetResolver; }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PreflightMode — controls which assets are checked

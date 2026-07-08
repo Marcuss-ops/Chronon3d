@@ -81,7 +81,7 @@ namespace {
 // that collide in Unity build: see TICKET-120 build-redefinition
 // group).
 constexpr float kEpsOrientAlongPath = 1e-5f;
-constexpr FrameRate kFps{60, 1};
+constexpr FrameRate kFpsOrientAlongPath{60, 1};
 
 // ── NaN / Infinity detector for result.camera.rotation ──
 bool is_finite3(const Vec3& v) {
@@ -102,11 +102,11 @@ CameraProgram compile_or_die_orient_along_path(const CameraDescriptor& desc) {
     return program;
 }
 
-Camera2_5D eval_at_or_die(const CameraProgram& program,
+Camera2_5D eval_at_or_die_orient(const CameraProgram& program,
                           CameraSession& session, Frame frame) {
     CameraEvalContext ctx;
     ctx.frame = frame;
-    ctx.sample_time = SampleTime::from_frame_int(frame, kFps);
+    ctx.sample_time = SampleTime::from_frame_int(frame, kFpsOrientAlongPath);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
     return res->camera;
@@ -165,7 +165,7 @@ TEST_CASE("OrientAlongPath (a) — tangent valid + keep_horizon=true sets "
     //        cam.rotation = quat_to_camera_euler(quat_look_along((0,0,+1)), 0)
     //        with keep_horizon=true → roll stays 0  ⇒  cam.rotation.z == 0 exactly
     //   4. constraints (none here)
-    auto cam = eval_at_or_die(program, session, Frame{30});
+    auto cam = eval_at_or_die_orient(program, session, Frame{30});
 
     CAPTURE(cam.rotation.x);
     CAPTURE(cam.rotation.y);
@@ -220,7 +220,7 @@ TEST_CASE("OrientAlongPath (b) — tangent valid + keep_horizon=false + "
     // match the existing baseline `compiled_trajectory_transfers_roll_deg`
     // pattern (which asserts at Frame{0} with ±1° slack for arc-length
     // drift near the boundary) we anchor at Frame{0} here too.
-    auto cam = eval_at_or_die(program, session, Frame{0});
+    auto cam = eval_at_or_die_orient(program, session, Frame{0});
 
     CAPTURE(cam.rotation.x);
     CAPTURE(cam.rotation.y);
@@ -277,7 +277,7 @@ TEST_CASE("OrientAlongPath (c) — degenerate tangent falls back to "
     //   step 1 fires → cam.rotation known; session.last_tangent populated.
     CameraEvalContext ctx15;
     ctx15.frame = Frame{15};
-    ctx15.sample_time = SampleTime::from_frame_int(Frame{15}, kFps);
+    ctx15.sample_time = SampleTime::from_frame_int(Frame{15}, kFpsOrientAlongPath);
     auto res15 = program.evaluate(ctx15, session);
     REQUIRE(res15.has_value());
     CHECK(is_finite3(res15->camera.rotation));
@@ -290,7 +290,7 @@ TEST_CASE("OrientAlongPath (c) — degenerate tangent falls back to "
     //   - Warning diagnostic mentioning "previous frame tangent"
     CameraEvalContext ctx45;
     ctx45.frame = Frame{45};
-    ctx45.sample_time = SampleTime::from_frame_int(Frame{45}, kFps);
+    ctx45.sample_time = SampleTime::from_frame_int(Frame{45}, kFpsOrientAlongPath);
     auto res45 = program.evaluate(ctx45, session);
     REQUIRE(res45.has_value());
 
@@ -345,7 +345,7 @@ TEST_CASE("OrientAlongPath (d) — fully degenerate (StaticCameraSource, "
     // Build the eval context manually so we can also inspect diagnostics.
     CameraEvalContext ctx;
     ctx.frame = Frame{0};
-    ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kFps);
+    ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kFpsOrientAlongPath);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
 
@@ -402,7 +402,7 @@ TEST_CASE("OrientAlongPath (e) — fully degenerate (no tangent, "
 
     CameraEvalContext ctx;
     ctx.frame = Frame{0};
-    ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kFps);
+    ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kFpsOrientAlongPath);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
 
