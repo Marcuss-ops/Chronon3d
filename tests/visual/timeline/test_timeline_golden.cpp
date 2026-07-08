@@ -13,10 +13,12 @@
 //   3. AnimationUsesLocalFrame — fade-in starts at local_frame 0
 //   4. NestedSequenceMapping — nested chapter→title boundaries
 //
-// NOTE: We use SceneBuilder::rect() directly inside sequence lambdas
-// (not LayerBuilder::rect() via seq.layer()) because the layer coordinate
+// NOTE: We use SequenceBuilder::rect() inside sequence lambdas (not
+// LayerBuilder::rect() via seq.layer()) because the layer coordinate
 // system in modular centered mode causes rects to render in unexpected
-// quadrants. Using SceneBuilder directly ensures correct positioning.
+// quadrants. SequenceBuilder::rect() delegates to the sub_builder's
+// SceneBuilder::rect(), ensuring nodes are added to the sub_builder's
+// scene (properly guarded by the if(active) check in sequence()).
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>
@@ -96,20 +98,20 @@ Composition make_sequence_boundaries_comp() {
             SceneBuilder s(ctx);
 
             s.sequence("intro", {.from = Frame{0}, .duration = Frame{30}},
-                [&s](SequenceBuilder& /*seq*/) {
-                    s.rect("intro_bg",
+                [](SequenceBuilder& seq) {
+                    seq.rect("intro_bg",
                         {.size={200, 200}, .color=kIntroBg, .pos={0, 0, 0}});
                 });
 
             s.sequence("title", {.from = Frame{30}, .duration = Frame{60}},
-                [&s](SequenceBuilder& /*seq*/) {
-                    s.rect("title_bg",
+                [](SequenceBuilder& seq) {
+                    seq.rect("title_bg",
                         {.size={200, 200}, .color=kTitleBg, .pos={0, 0, 0}});
                 });
 
             s.sequence("outro", {.from = Frame{90}, .duration = Frame{30}},
-                [&s](SequenceBuilder& /*seq*/) {
-                    s.rect("outro_bg",
+                [](SequenceBuilder& seq) {
+                    seq.rect("outro_bg",
                         {.size={200, 200}, .color=kOutroBg, .pos={0, 0, 0}});
                 });
 
@@ -127,11 +129,11 @@ Composition make_local_frame_mapping_comp() {
             SceneBuilder s(ctx);
 
             s.sequence("title", {.from = Frame{30}, .duration = Frame{60}},
-                [&ctx, &s](SequenceBuilder& seq) {
+                [](SequenceBuilder& seq) {
                     Frame local = seq.local_frame();
                     float t = static_cast<float>(local.value) / 60.0f;
                     Color enc{t, 0.2f, 0.8f, 1.0f};
-                    s.rect("enc_bg",
+                    seq.rect("enc_bg",
                         {.size={64, 64}, .color=enc, .pos={0, 0, 0}});
                 });
 
@@ -151,13 +153,13 @@ Composition make_animation_local_frame_comp() {
             // Use SceneBuilder rect directly for the background
             // The opacity is applied via the SequenceBuilder's context
             s.sequence("fade_title", {.from = Frame{60}, .duration = Frame{40}},
-                [&ctx, &s](SequenceBuilder& seq) {
+                [](SequenceBuilder& seq) {
                     Frame local = seq.local_frame();
                     float opacity = std::clamp(
                         static_cast<float>(local.value) / 20.0f, 0.0f, 1.0f);
                     // Use a color with the opacity baked into the alpha channel
                     Color c{1.0f, 1.0f, 1.0f, opacity};
-                    s.rect("fade_bg",
+                    seq.rect("fade_bg",
                         {.size={64, 64}, .color=c, .pos={0, 0, 0}});
                 });
 
@@ -175,10 +177,10 @@ Composition make_nested_sequence_comp() {
             SceneBuilder s(ctx);
 
             s.sequence("chapter", {.from = Frame{100}, .duration = Frame{100}},
-                [&s](SequenceBuilder& chapter) {
+                [](SequenceBuilder& chapter) {
                     chapter.sequence("title", {.from = Frame{20}, .duration = Frame{30}},
-                        [&s](SequenceBuilder& /*title*/) {
-                            s.rect("nested_bg",
+                        [](SequenceBuilder& title) {
+                            title.rect("nested_bg",
                                 {.size={64, 64},
                                  .color=Color{0.9f, 0.8f, 0.1f, 1.0f},
                                  .pos={0, 0, 0}});
