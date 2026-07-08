@@ -6,9 +6,16 @@
 ---
 ## Luglio 2026 — CMake migration + pre-existing build/test fixes (commits `9fcb0e7b`..`c563fb60`, 2026-07-08)
 
-8 fixes addressing build rot, test failures, and CMake test infrastructure migration.
+9 fixes addressing build rot, test failures, and CMake test infrastructure migration.
 
-### build(tests): migrate scene_tests.cmake to chronon3d_add_test_suite (`c563fb60`)
+### fix(tests): unblock chronon3d_render_graph_tests compilation (`4113a8db`)
+
+- Fixed pre-existing build rot across 7 test files + 1 missing impl that blocked the full `chronon3d_render_graph_tests` target.
+- Compile fixes: SoftwareRenderer no-default-ctor → `test::make_renderer()`; `render_scene_via_graph`/`debug_preflight_render_graph` take `RenderBackend&` not `SoftwareRenderer&` → `.backend()`; mandatory `fps` param added; `RenderGraphContext` field renames (`.resources`→`.services`, `.frame`→`.frame_input`); `ExecutionScope` private ctor → `make_root()` factory; `SourceNode`/`MultiSourceNode` dropped `centered`/`native_3d` ctor params; `NodeExecResult` = `Result<OwnedFB,NodeExecutionError>` has no `operator!=` vs `nullptr` → unwrap with `has_value()` + `take_value()`; fixed 5 stray chars after `render_scene()` calls; added `SceneProgramStore::total_recorded_executions()` impl + `SceneProgramCache::recorded_executions()` accessor.
+- Files: `tests/render_graph/pipeline/test_line_grid.cpp`, `test_dirty_rects_v2.cpp`, `test_graph_health.cpp`, `test_graph_preflight_diagnostics.cpp`, `test_render_pipeline.cpp`, `test_render_backend.cpp`, `test_pipeline_robustness.cpp`, `include/chronon3d/render_graph/cache/scene_program_cache.hpp`, `src/render_graph/cache/scene_program_store.cpp`.
+- Runtime status post-fix: SourceNode 11/12 pass, MultiSourceNode 6/6 pass, RenderBackend 7/7 pass, RenderPipeline all pass. Remaining runtime failures are pre-existing (GraphHealth 8/11, Dirty Rects 4/9, FrameGraphCompiler 2/12, PR2/MaskNode 3/19).
+
+### build(tests): migrate scene_tests.cmake to chronon3d_add_test_suite (`c563fb60`, 2026-07-08)
 
 - Migrated 3 test targets from raw `add_executable` to `chronon3d_add_test_suite()`.
 - `chronon3d_scene_tests`: TIER INTEGRATION, full link targets (`_SCENE_LINK_TARGETS`).
