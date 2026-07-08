@@ -39,6 +39,7 @@ using chronon3d::i32;
 using chronon3d::graph::SceneHasher;
 using chronon3d::graph::SceneProgramStore;
 using chronon3d::raster::BBox;
+using chronon3d::i32;
 
 namespace chronon3d {
 
