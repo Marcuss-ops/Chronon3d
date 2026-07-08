@@ -27,8 +27,6 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 
-#include <cstring>
-
 using namespace chronon3d;
 
 // ── TICKET-034A: empty Composition has no descriptor. ────────────────────
@@ -82,13 +80,10 @@ TEST_CASE("TICKET-034D: CameraDescriptor is fingerprint-serializable") {
 
     const auto fp_before = compute_camera_descriptor_fingerprint(desc);
 
-    // BIN-LEVEL ROUND-TRIP (CameraDescriptor is a POD aggregable struct of
-    // standard-layout members + std::string; memcpy of bytes is a
-    // canonical serialisation path validated here as the "serializzabile"
-    // half of the user spec for TICKET-034.  No JSON / msgpack is in
-    // scope per the codebase's anti-duplication rules.)
-    camera_v1::CameraDescriptor desc_copy;
-    std::memcpy(&desc_copy, &desc, sizeof(camera_v1::CameraDescriptor));
+    // Copy round-trip: CameraDescriptor contains std::string members and is
+    // NOT bitwise-copyable via memcpy (would double-free). The canonical
+    // serialisation path uses value semantics (copy assignment).
+    camera_v1::CameraDescriptor desc_copy = desc;
 
     // The stored descriptor must match via fingerprint + deep field read.
     comp.default_camera_descriptor(desc_copy);
