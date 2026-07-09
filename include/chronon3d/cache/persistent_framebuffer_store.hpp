@@ -44,6 +44,8 @@
 #include <utility>
 #include <vector>
 
+namespace chronon3d::runtime { class RenderRuntime; }
+
 namespace chronon3d::cache {
 
 // ── PersistentFramebufferHeader (CFB4, 72 bytes) ─────────────────────────
@@ -103,6 +105,7 @@ struct PersistentStoreStats {
 class PersistentFramebufferStore {
 public:
     static PersistentFramebufferStore& instance();
+    friend class chronon3d::runtime::RenderRuntime;
 
     /// Feature-flag gate (checked by load/store internally; callers can
     /// short-circuit before key generation for hot-path avoidance).
