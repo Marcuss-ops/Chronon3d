@@ -32,7 +32,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
-#include <chronon3d/api/settings.hpp>
+#include <chronon3d/backends/software/render_settings.hpp>
 
 #include <tests/visual/support/golden_test.hpp>
 #include <tests/helpers/test_utils.hpp>
