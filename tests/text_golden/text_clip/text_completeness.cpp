@@ -435,6 +435,7 @@ TEST_CASE("TextCompleteness.Scale130NotCut 1920x1080") {
     CHECK_FALSE(bbox.empty());
     CHECK(bbox.height() > 120);
     CHECK(bbox.width()  > 500);
+    CHECK_FALSE(bbox.touches_left(0));
     CHECK_FALSE(bbox.touches_top(0));
     CHECK_FALSE(bbox.touches_bottom(fb->height(), 0));
     CHECK_FALSE(bbox.touches_right(fb->width(), 0));
