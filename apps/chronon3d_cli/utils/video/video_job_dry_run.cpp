@@ -5,6 +5,7 @@
 #include "video_job_plan.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/assets/asset_preflight_resolver.hpp>
