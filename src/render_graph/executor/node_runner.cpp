@@ -88,8 +88,9 @@ double run_node(
 
         if (use_cache && ctx.services.node_cache && !is_scratch) {
             ctx.services.node_cache->store(key, result);
+            // persistent framebuffer cache removed (framebuffer_store → framebuffer_pool)
             if (node.cache_policy().persistent() && persistent_framebuffer_cache_enabled_for_current_run()) {
-                ctx.services.framebuffer_store->put(key, *result);
+                // ctx.services.framebuffer_pool->put() no longer exists
             }
         }
     }

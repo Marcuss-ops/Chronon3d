@@ -84,7 +84,7 @@
 /// FT_Outline_Decompose race against concurrent FT_Set_Pixel_Sizes).
 #include "blend2d_glyph_conversion.hpp"
 #include "freetype_outline_conversion.hpp"
-#include "glyph_texture_updater.hpp"  # FASE 4 — atlas-or-fill renderer (centralizes render_run + for-line duplication)
+#include "glyph_texture_updater.hpp"  # FASE 4 -- atlas-or-fill renderer (centralizes render_run + for-line duplication)
 #include "text_rasterizer_atlas.hpp"
 #include "text_rasterizer_debug.hpp"
 #include "text_rasterizer_trim.hpp"
