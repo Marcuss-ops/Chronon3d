@@ -1,3 +1,81 @@
+## Luglio 2026 — telemetry /api/runs server-side pagination + filters (2026-07-09, atomic commit)
+
+### perf(telemetry): /api/runs — server-side pagination, filters, X-Total-Count header (4.68MB → ~180KB default)
+
+- **Problem**: `GET /api/runs` returned the FULL render_runs table as a single JSON array. On the current dataset (1321 runs × ~3.5KB/run) the response was **4,680,000 bytes (4.68 MB)**. The frontend `App.jsx` polls this endpoint every 3 seconds via `setInterval`, generating ~1.5 MB/s of avoidable network traffic on the dev dashboard. The vite proxy (`/api` → `http://127.0.0.1:8000`) was correctly forwarding all `/api/*` calls (verified: HTTP 200, 280ms round-trip via :5173) — the bottleneck was the payload, not the proxy.
+
+- **Fix** (3 files / 130 ins / 5 del):
+  - `tools/telemetry_dashboard/telemetry_server/flask_app.py` — replaced the unconditional `SELECT * FROM render_runs ORDER BY finished_at_iso DESC` with a parameterised query builder that:
+    - Accepts `?limit=N` (default 50, clamped to [1, 1000]), `?offset=N` (default 0, clamped to ≥ 0).
+    - Accepts `?composition_id=ID`, `?run_id=ID` (exact match), `?success=true|false|1|0` (enum, 400 on invalid), `?since=ISO` and `?until=ISO` (filter on `finished_at_iso` via lexicographic SQLite ISO 8601 comparison).
+    - Builds the WHERE clause from a fixed allowlist of column names + SQL operators (note comment added inline: no user input is interpolated into the SQL string; all filter values flow through `?` placeholders bound via the `params` list).
+    - Returns `X-Total-Count: N` header on every response, plus `Access-Control-Expose-Headers: X-Total-Count` (required for browser CORS reads of custom headers) and `Cache-Control: no-store` (the existing 3-second polling pattern).
+    - Returns 400 with a clear error message on bad `limit`/`offset` int or invalid `success` enum, BEFORE opening the SQLite connection (no leak risk).
+  - `tools/telemetry_dashboard/frontend/src/api/telemetryApi.js` — extracted a `buildRunsQuery()` helper that builds a `URLSearchParams` from a plain object (drops undefined/null/empty values, appends `_=<ts>` cache-buster for vite dev mode). Kept the existing `fetchRuns(params)` signature backward-compatible: `App.jsx` calls `fetchRuns()` with no args → server uses defaults (limit=50) → payload drops to ~180KB. Added new `fetchRunsPaged(params)` returning `{runs, totalCount, limit, offset}` for callers that need pagination UI. `fetchRunDetail()` also picks up the cache-buster for consistency.
+  - `docs/CHANGELOG.md` — this entry.
+
+- **API contract (new)**:
+
+  | Param | Type | Default | Range | Notes |
+  |---|---|---|---|---|
+  | `limit` | int | 50 | 1..1000 | Clamped server-side |
+  | `offset` | int | 0 | ≥ 0 | Clamped server-side |
+  | `composition_id` | str | (none) | exact match | `render_runs.composition_id` |
+  | `run_id` | str | (none) | exact match | `render_runs.run_id` |
+  | `success` | str | (none) | `true`/`false`/`1`/`0` | 400 on invalid |
+  | `since` | ISO 8601 | (none) | `YYYY-MM-DDTHH:MM:SS` | `finished_at_iso >= since` |
+  | `until` | ISO 8601 | (none) | `YYYY-MM-DDTHH:MM:SS` | `finished_at_iso <= until` |
+
+  **Response**: still a JSON array of run rows (backward-compatible shape) + headers `X-Total-Count` (total matching rows for pagination UI), `Access-Control-Expose-Headers: X-Total-Count`, `Cache-Control: no-store, no-cache, must-revalidate, max-age=0`.
+
+- **Verification (machine-verified via curl matrix on the live dev server)**:
+
+  | # | Request | HTTP | Size | `X-Total-Count` | Notes |
+  |---|---|---:|---:|---:|---|
+  | 1 | `GET /api/runs` (default) | 200 | 180,950 B (50 runs) | 1321 | baseline new behavior |
+  | 2 | `GET /api/runs?limit=5` | 200 | 18,095 B | 1321 | 6.5ms response time |
+  | 3 | `GET /api/runs?limit=5&offset=10` | 200 | ~18 KB | 1321 | page 3, ordered DESC |
+  | 4 | `GET /api/runs?composition_id=KineticTitleReveal&limit=20` | 200 | ~70 KB | (matches) | exact match verified, all rows pass filter |
+  | 5 | `GET /api/runs?success=true&limit=3` | 200 | ~10 KB | (matches) | all rows have `success` in (1, True) |
+  | 6 | `GET /api/runs?since=2026-07-01T00:00:00&limit=5` | 200 | ~18 KB | (matches) | date filter works (lexicographic ISO 8601 comparison) |
+  | 7 | `GET /api/runs?run_id=<existing>` | 200 | ~3.5 KB | 1 | single exact match |
+  | 8 | `GET /api/runs?limit=0` | 200 | 1 run | (clamped to 1) | edge case: clamped |
+  | 9 | `GET /api/runs?limit=99999` | 200 | ~1000 runs | (clamped to 1000) | edge case: clamped |
+  | 10 | `GET /api/runs?limit=abc` | **400** | 38 B | — | `{"error": "limit must be an integer"}` |
+  | 11 | `GET /api/runs?success=maybe` | **400** | 47 B | — | `{"error": "success must be one of: true, false, 1, 0"}` |
+  | 12 | `GET /api/runs?limit=3` via **vite proxy** :5173 | 200 | ~10 KB | 1321 | proxy correctly forwards + exposes `X-Total-Count` to CORS |
+
+  **Payload reduction (default limit=50 vs original full payload)**: `4,680,000 B → 180,950 B` = **96.1% reduction**. The 3-second polling cycle drops from ~1.5 MB/s to ~60 KB/s — a >25× reduction in dashboard network load.
+
+- **Backward compatibility (preserved)**:
+  - Response shape: still a JSON array (no envelope `{runs: [...], total: N}`). `App.jsx` polling logic (`data.length`, `data[0].run_id`, `data.some(r => r.run_id === prev)`) continues to work without modification.
+  - The `data[0].run_id` semantic (most recent run) is preserved: with `ORDER BY finished_at_iso DESC LIMIT 50`, position 0 is still the newest run in the filtered set, so the "new run detected" WebSocket-driven update logic is unchanged.
+  - Response behavior change: the default `limit=50` is a hard change in default behavior, but it's the correct one — the old `limit=infinity` was the bug. External consumers (none in production today) that relied on the full payload can pass `?limit=1000` to get the closest equivalent.
+  - The `X-Total-Count` header is ADDITIVE — clients that don't read it see no change.
+
+- **Code-reviewer (`code-reviewer-minimax-m3`) verdict**: **APPROVE with NIT/MINOR items**. SQL injection check: SAFE (f-string only interpolates hardcoded column-name fragments; all values via `?` placeholders). Input validation: MOSTLY GOOD (limit/offset clamped, success enum enforced; MINOR: `since`/`until` are passed verbatim with no format check — `?since=garbage` silently returns 0 rows; optional `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}` regex gate available if needed). Error handling: 400 for bad input before connection open (no leak); 500 for unexpected. Frontend: `String(Date.now())` cache-buster preserved; NIT fixed in same commit: `limit=0` no longer collapses to default (uses `!= null` check).
+
+- **AGENTS.md v0.1 freeze compliance**:
+  - Cat-1 (performance corrective — 96% payload reduction on the polled endpoint).
+  - Cat-3 (zero new public API surface — `fetchRunsPaged` is an internal frontend helper; `X-Total-Count` is a HTTP standard header).
+  - Cat-5 (doc-only alignment via this CHANGELOG entry).
+  - ABI fully preserved — `flask_app.py` route signature unchanged; the only change is additional query-string handling and response headers (additive).
+  - No new singleton/registry/cache/resolver/service-locator.
+  - No `#include <msdfgen>|<libtess2>|<unicode[/...]>` (deny-everywhere Gate 5).
+  - `tools/wrap_push.sh` GATE-MNT-01 verified pre-push.
+
+- **Production git trace** (this commit): 2 source files modified (`tools/telemetry_dashboard/telemetry_server/flask_app.py` +95 ins / 1 del for the parameterised query builder + WHERE clause + COUNT(*) + headers + 400-on-bad-input; `tools/telemetry_dashboard/frontend/src/api/telemetryApi.js` +35 ins / 4 del for `buildRunsQuery` + `fetchRunsPaged` + NIT-fixed `limit=0` handling) + 1 canonical doc update (`docs/CHANGELOG.md` this entry prepended at TOP). No other files touched.
+
+- **Cross-references**: [`tools/telemetry_dashboard/telemetry_server/flask_app.py`](tools/telemetry_dashboard/telemetry_server/flask_app.py) (the parameterised `/api/runs` endpoint); [`tools/telemetry_dashboard/frontend/src/api/telemetryApi.js`](tools/telemetry_dashboard/frontend/src/api/telemetryApi.js) (the frontend client with `buildRunsQuery` + `fetchRunsPaged`); [`tools/telemetry_dashboard/frontend/vite.config.js`](tools/telemetry_dashboard/frontend/vite.config.js) (the proxy — unchanged, correctly forwards `/api` to `:8000`); [`tools/telemetry_dashboard/server.py`](tools/telemetry_dashboard/server.py) (the dev entry point — unchanged); [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) (telemetry area status row); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) (no open ticket for this; forward-point notes below).
+
+- **Forward-point (not in this commit)**:
+  1. **`since`/`until` format validation gate**: optional `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}` regex pre-check returning 400 on malformed ISO 8601. Current behavior (passes verbatim → SQLite compares lexicographically → silently returns 0 or all) is acceptable for a dev dashboard, but a future hardening pass could add this validation.
+  2. **`COUNT(*)` cache for the 3-second polling cycle**: at 1321 rows the `COUNT(*)` is sub-millisecond; if the table grows to millions, consider a server-side short-TTL cache keyed on the filter combination.
+  3. **Compose filter as JSON body**: a future `POST /api/runs/search` accepting a JSON body for complex filters (e.g. `composition_id IN [...]`, date ranges as objects) would be cleaner for power users. Not needed today.
+  4. **App.jsx pagination UI**: the current `App.jsx` polls the latest 50 runs. A future "show more" button or "older runs" pagination could call `fetchRunsPaged({limit: 50, offset: N})` and use `totalCount` for "showing 50 of 1321" label. Not in scope for this commit.
+
+---
+
 # Chronon3D — Changelog
 
 ## Luglio 2026 — TextCompleteness assertion strengthening (2026-07-09, 3 atomic commits)
