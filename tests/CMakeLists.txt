@@ -21,6 +21,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/scene_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cli_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/optimizer_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/preflight_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cache_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/compositor_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/authoring_tests.cmake
@@ -91,6 +92,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/core_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/scene_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cli_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/optimizer_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/preflight_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cache_tests.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/compositor_tests.cmake)
 # Authoring tests require text subsystem (glyph_selector, evaluate_selector, etc.)

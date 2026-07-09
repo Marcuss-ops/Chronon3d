@@ -1,6 +1,7 @@
 #include <chronon3d/assets/render_preflight.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/render_graph/preflight/path_existence_map.hpp>
 #include "render_preflight_helpers.hpp"
 
 #include <filesystem>
@@ -14,7 +15,8 @@ void validate_file_exists(const PreflightRequirement& req,
                           const std::string& code,
                           PreflightAssetType type,
                           std::vector<PreflightIssue>& issues,
-                          const chronon3d::assets::AssetResolver& resolver) {
+                          const chronon3d::assets::AssetResolver& resolver,
+                          const chronon3d::preflight::PathExistenceMap* cache = nullptr) {
     namespace fs = std::filesystem;
     // WP-8 PR 8.0 — resolver passed in explicitly (no service-locator
     // bridge).  Preserves the legacy semantics on the fallback branch
@@ -28,7 +30,12 @@ void validate_file_exists(const PreflightRequirement& req,
         resolved = req.path.empty() ? std::string{} : std::string{req.path};
     }
 
-    if (!fs::exists(resolved)) {
+    // Cache-aware existence check. nullptr → legacy sync path; provided
+    // → O(1) lookup with TTL-driven refresh (zero syscalls in steady state).
+    const bool exists_now = cache
+        ? cache->exists(fs::path(resolved))
+        : fs::exists(resolved);
+    if (!exists_now) {
         PreflightIssue issue;
         issue.severity       = PreflightSeverity::Error;
         issue.type = type;
@@ -146,23 +153,24 @@ void validate_external_tool(const PreflightRequirement& req,
 
 std::vector<PreflightIssue> RenderPreflight::validate(
     const AssetRegistry& registry,
-    const chronon3d::assets::AssetResolver& resolver
+    const chronon3d::assets::AssetResolver& resolver,
+    const chronon3d::preflight::PathExistenceMap* cache
 ) const {
     std::vector<PreflightIssue> issues;
 
     for (const auto& req : m_requirements) {
         switch (req.type) {
             case PreflightAssetType::Image:
-                validate_file_exists(req, "MISSING_IMAGE", PreflightAssetType::Image, issues, resolver);
+                validate_file_exists(req, "MISSING_IMAGE", PreflightAssetType::Image, issues, resolver, cache);
                 break;
             case PreflightAssetType::Video:
-                validate_file_exists(req, "MISSING_VIDEO", PreflightAssetType::Video, issues, resolver);
+                validate_file_exists(req, "MISSING_VIDEO", PreflightAssetType::Video, issues, resolver, cache);
                 break;
             case PreflightAssetType::Font:
-                validate_file_exists(req, "MISSING_FONT", PreflightAssetType::Font, issues, resolver);
+                validate_file_exists(req, "MISSING_FONT", PreflightAssetType::Font, issues, resolver, cache);
                 break;
             case PreflightAssetType::Audio:
-                validate_file_exists(req, "MISSING_AUDIO", PreflightAssetType::Audio, issues, resolver);
+                validate_file_exists(req, "MISSING_AUDIO", PreflightAssetType::Audio, issues, resolver, cache);
                 break;
             case PreflightAssetType::OutputPath:
                 validate_output_writable(req, issues);
@@ -176,7 +184,13 @@ std::vector<PreflightIssue> RenderPreflight::validate(
     }
 
     for (const auto& asset : registry.assets()) {
-        if (!std::filesystem::exists(asset.path)) {
+        // Cache-aware existence check. nullptr → legacy sync path; provided
+        // → O(1) lookup with TTL-driven refresh (zero syscalls per call
+        // once the cache is populated).
+        const bool exists_now = cache
+            ? cache->exists(asset.path)
+            : std::filesystem::exists(asset.path);
+        if (!exists_now) {
             PreflightIssue issue;
             issue.severity = PreflightSeverity::Error;
             issue.type = PreflightAssetType::RegisteredAsset;
@@ -193,16 +207,18 @@ std::vector<PreflightIssue> RenderPreflight::validate(
 
 void RenderPreflight::validate_or_throw(
     const AssetRegistry& registry,
-    const chronon3d::assets::AssetResolver& resolver
+    const chronon3d::assets::AssetResolver& resolver,
+    const chronon3d::preflight::PathExistenceMap* cache
 ) {
-    throw_if_preflight_errors(validate(registry, resolver));
+    throw_if_preflight_errors(validate(registry, resolver, cache));
 }
 
 bool RenderPreflight::ok(
     const AssetRegistry& registry,
-    const chronon3d::assets::AssetResolver& resolver
+    const chronon3d::assets::AssetResolver& resolver,
+    const chronon3d::preflight::PathExistenceMap* cache
 ) const {
-    return !has_preflight_errors(validate(registry, resolver));
+    return !has_preflight_errors(validate(registry, resolver, cache));
 }
 
 } // namespace chronon3d
