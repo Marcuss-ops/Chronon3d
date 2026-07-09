@@ -148,6 +148,19 @@ target_sources(chronon3d_text_golden_tests
         text_golden/text_completeness/text_visible_ink.cpp
 )
 
+# P0-3 Text Wrapping — layout box wrapping correctness tests.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_completeness/text_wrapping.cpp
+)
+
+# Filter ctest -R to the wrapping subset.
+add_test(
+    NAME TextWrapping
+    COMMAND chronon3d_text_golden_tests --test-case="TextWrap *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # Filter ctest -R to the visible-ink subset.
 add_test(
     NAME TextVisibleInk
