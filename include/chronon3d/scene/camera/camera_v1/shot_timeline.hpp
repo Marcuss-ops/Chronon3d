@@ -21,11 +21,13 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -170,14 +172,23 @@ public:
     bool has(CameraTransitionKind kind) const;
 
     void freeze();
-    bool is_frozen() const noexcept { return frozen_; }
+    // Acquire load — paired with freeze()'s release-store. Reads are
+    // treated as publishing-publish-receiving synchronisation points so
+    // a reader that observes frozen_=true also observes all prior
+    // factories_[k] writes (acquire/release ordering).
+    bool is_frozen() const noexcept { return frozen_.load(std::memory_order_acquire); }
 
     void register_defaults();
 
 private:
-    mutable std::mutex mu_;
+    // TICKET-lock-free-shared_mutex — std::shared_mutex lets concurrent
+    // create() / has() readers proceed in parallel. writes via
+    // register_transition still take the exclusive path. After
+    // freeze()=true the read paths skip the mutex entirely (acquire-load
+    // of frozen_ synchronises with freeze()'s release-store).
+    mutable std::shared_mutex  mu_;
     std::map<CameraTransitionKind, Factory> factories_;
-    bool frozen_{false};
+    std::atomic<bool>           frozen_{false};
 };
 
 /// Backward-compatible alias for migration.
