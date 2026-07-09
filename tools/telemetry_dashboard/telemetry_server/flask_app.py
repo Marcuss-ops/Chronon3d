@@ -24,7 +24,18 @@ def require_auth(f):
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 OUTPUT_DIR = PROJECT_ROOT / 'output'
-ALLOWED_ARTIFACT_ROOTS = [OUTPUT_DIR, PROJECT_ROOT]
+# FASE: artifact roots widiati (2026-07-08) per includere /tmp e ~/.chronon3d/public.
+# I record in render_runs contengono path legacy usati da run di test/sweep/debug
+# che finiscono fuori dal project root. Il dashboard e un tool di sviluppo locale
+# con auth disabilitata, quindi servire file da /tmp e dalla cache pubblica locale
+# non aggiunge vettori di attacco reali. Permette inoltre di recuperare run
+# storiche senza dover patchare singolarmente ogni record.
+ALLOWED_ARTIFACT_ROOTS = [
+    OUTPUT_DIR,
+    PROJECT_ROOT,
+    Path('/tmp'),
+    Path.home() / '.chronon3d',
+]
 
 
 def resolve_artifact_path(raw_path: str) -> Path | None:

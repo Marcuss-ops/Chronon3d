@@ -5,6 +5,7 @@
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/assets/asset_preflight_resolver.hpp>
 #include "../../../cli_init.hpp"
