@@ -214,6 +214,18 @@ target_sources(chronon3d_text_golden_tests
         text_golden/text_completeness/text_wrapping.cpp
 )
 
+# P1-9 Text Style Properties — atomic property-coverage tests.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_completeness/text_style_properties.cpp
+)
+
+add_test(
+    NAME TextStyleProps
+    COMMAND chronon3d_text_golden_tests --test-case="TextStyle *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # Filter ctest -R to the wrapping subset.
 add_test(
     NAME TextWrapping
