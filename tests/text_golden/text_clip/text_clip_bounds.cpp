@@ -17,7 +17,7 @@
 // glyph ink) was clipped because the bbox was anchored to the
 // baseline instead of `baseline - ascent`.
 //
-// Three TEST_CASEs lock the regression using a "HAMBURGER" 180 pt
+// Five TEST_CASEs lock the regression using a "HAMBURGER" 180 pt
 // centered on a 1920×1080 canvas.  Each renders a single frame, scans
 // the Framebuffer for the alpha bounding box, asserts numerical
 // bounds, AND runs a golden PNG diff (CHRONON3D_UPDATE_GOLDENS=1 to
@@ -116,21 +116,30 @@ GoldenTestConfig make_clip_config(std::string_view case_slug) {
 // 1920×1080 canvas.  The optional uniform `scale3` multiplier is
 // applied at the LAYER level (not glyph level) to test the scale.z
 // expansion path through `compute_text_run_visual_bounds`.
+// Optional `shadows` exercises the shadow-padding path in
+// prepare_text_run() (TICKET-TEXT-CLIP-ASCENT).
+// Optional `glow_params` exercises the glow compositor path
+// (layer-level glow applied post-raster).
 Composition build_clip_composition(
     SoftwareRenderer& renderer,
-    Vec3 uniform_scale = Vec3{1.0f, 1.0f, 1.0f}
+    Vec3 uniform_scale = Vec3{1.0f, 1.0f, 1.0f},
+    std::vector<TextShadow> shadows = {},
+    GlowParams glow_params = {}
 ) {
     return composition(
         {.name = "TextClip/HAMBURGER_centered 1920x1080",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
-        [&renderer, uniform_scale](const FrameContext& ctx) -> Scene {
+        [&renderer, uniform_scale, shadows, glow_params](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
             s.font_engine(&renderer.font_engine());
-            s.layer("hero", [&renderer, uniform_scale](LayerBuilder& l) {
+            s.layer("hero", [&renderer, uniform_scale, shadows, glow_params](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.scale(uniform_scale);
+                if (glow_params.enabled) {
+                    l.glow(glow_params);
+                }
                 l.text_run("title", TextRunParams{
                     .text = {
                         .content = {.value = "HAMBURGER"},
@@ -145,7 +154,10 @@ Composition build_clip_composition(
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
                         },
-                        .appearance = {.color = Color::white()},
+                        .appearance = {
+                            .color = Color::white(),
+                            .shadows = shadows
+                        },
                         .position = {960.0f, 540.0f, 0.0f}
                     }
                 }).commit();
@@ -239,4 +251,139 @@ TEST_CASE("Clip 03 TextClip Scale130NotCut 1920x1080") {
     CHECK(bbox.height() > 200);
     CHECK(bbox.width() > 1000);
     CHECK(bbox.x1 < fb->width() - 5);
+}
+
+// ═══ Test 4 — ShadowNotCut ═══════════════════════════════════════════════
+// Drop shadow with offset {20, 40} + blur 30 px.  The shadow padding
+// path in prepare_text_run() must expand the scratch surface to include
+// the shadow extents (offset + blur + safety padding) WITHOUT clipping
+// the glyph ink.  Pre-fix: shadow padding used `s.min_y = gy - sh_pad`
+// / `s.max_y = gy + sh_pad` which anchored to the baseline and clipped
+// both ascenders AND shadow cast.  Post-fix: shadow padding uses
+// `shadow_ascent` / `shadow_descent` from placed.ascent/descent.
+//
+// Assertions:
+//   height > 90  — glyph ink must be visible (pre-fix: ~19 px)
+//   width  > 500 — glyph ink must be visible
+//   x1 < fb_width - 5 — no right-edge clipping
+//   y1 > y0_no_shadow + 10 — shadow offset should shift bbox downward
+//     compared to the no-shadow baseline (verifies shadow is rendered)
+TEST_CASE("Clip 04 TextClip ShadowNotCut 1920x1080") {
+    auto renderer = test::make_renderer();
+
+    // Baseline: no-shadow bbox (for comparison).
+    auto fb_no_shadow = renderer.render(
+        build_clip_composition(renderer, Vec3{1.0f, 1.0f, 1.0f}),
+        Frame{0});
+    REQUIRE(fb_no_shadow != nullptr);
+    const AlphaBBox bbox_no_shadow = alpha_bbox(*fb_no_shadow);
+    INFO("no-shadow bbox y0=", bbox_no_shadow.y0,
+         " y1=", bbox_no_shadow.y1);
+
+    // Shadow composition: offset {20, 40}, blur 30.
+    std::vector<TextShadow> shadows = {{
+        .enabled = true,
+        .offset = Vec2{20.0f, 40.0f},
+        .blur = 30.0f,
+        .opacity = 0.5f,
+        .color = Color{0.0f, 0.0f, 0.0f, 1.0f}
+    }};
+    auto fb = renderer.render(
+        build_clip_composition(
+            renderer, Vec3{1.0f, 1.0f, 1.0f}, shadows),
+        Frame{0});
+    REQUIRE(fb != nullptr);
+    REQUIRE(fb->width()  == 1920);
+    REQUIRE(fb->height() == 1080);
+
+    const AlphaBBox bbox = alpha_bbox(*fb);
+    INFO("shadow bbox x0=", bbox.x0, " y0=", bbox.y0,
+         " x1=", bbox.x1, " y1=", bbox.y1,
+         " width=", bbox.width(), " height=", bbox.height());
+
+    // Primary assertions: glyph ink not clipped.
+    CHECK(bbox.height() > 90);
+    CHECK(bbox.width() > 500);
+    CHECK(bbox.x1 < fb->width() - 5);
+
+    // Shadow extends the bbox downward (offset.y = 40, blur = 30 =>
+    // ~70 px below the glyph baseline).  The shadow bbox should be
+    // visibly taller than the no-shadow baseline.
+    CHECK(bbox.y1 > bbox_no_shadow.y1 + 10);
+
+    auto r = verify_golden(*fb, "text_clip_04_shadow_not_cut",
+                           make_clip_config("clip_04"));
+    if (r.golden_missing) {
+        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 "
+                "to create.");
+        return;
+    }
+    INFO("Golden: ", r.message);
+    CHECK(r.passed);
+}
+
+// ═══ Test 5 — GlowNotCut ═════════════════════════════════════════════════
+// Layer-level glow (radius 24, intensity 0.8, additive).  The glow is
+// a compositor effect applied post-raster; it expands the visible bbox
+// beyond the glyph ink but must NOT clip the glyph itself.  The
+// TICKET-TEXT-CLIP-ASCENT symptom was discovered on
+// output/ae_08_glow_pulse.png (19 px tall text on a 1080-row canvas),
+// so a glow composition provides a direct regression lock on that
+// exact rendering path.
+//
+// Assertions:
+//   height > 90  — glyph ink must be visible (pre-fix: ~19 px)
+//   width  > 500 — glyph ink must be visible
+//   x1 < fb_width - 5 — no right-edge clipping
+//   height_glow >= height_no_glow — glow expands or preserves bbox
+TEST_CASE("Clip 05 TextClip GlowNotCut 1920x1080") {
+    auto renderer = test::make_renderer();
+
+    // Baseline: no-glow bbox (for comparison).
+    auto fb_no_glow = renderer.render(
+        build_clip_composition(renderer, Vec3{1.0f, 1.0f, 1.0f}),
+        Frame{0});
+    REQUIRE(fb_no_glow != nullptr);
+    const AlphaBBox bbox_no_glow = alpha_bbox(*fb_no_glow);
+    INFO("no-glow bbox height=", bbox_no_glow.height(),
+         " width=", bbox_no_glow.width());
+
+    // Glow composition: radius 24, intensity 0.8, additive.
+    GlowParams glow;
+    glow.enabled   = true;
+    glow.radius    = 24.0f;
+    glow.intensity = 0.8f;
+    glow.additive  = true;
+    auto fb = renderer.render(
+        build_clip_composition(
+            renderer, Vec3{1.0f, 1.0f, 1.0f}, {}, glow),
+        Frame{0});
+    REQUIRE(fb != nullptr);
+    REQUIRE(fb->width()  == 1920);
+    REQUIRE(fb->height() == 1080);
+
+    const AlphaBBox bbox = alpha_bbox(*fb);
+    INFO("glow bbox x0=", bbox.x0, " y0=", bbox.y0,
+         " x1=", bbox.x1, " y1=", bbox.y1,
+         " width=", bbox.width(), " height=", bbox.height());
+
+    // Primary assertions: glyph ink not clipped.
+    CHECK(bbox.height() > 90);
+    CHECK(bbox.width() > 500);
+    CHECK(bbox.x1 < fb->width() - 5);
+
+    // Glow is additive — it should expand (or at minimum preserve)
+    // the visible bbox compared to the no-glow baseline.
+    CHECK(bbox.height() >= bbox_no_glow.height());
+    CHECK(bbox.width()  >= bbox_no_glow.width());
+
+    auto r = verify_golden(*fb, "text_clip_05_glow_not_cut",
+                           make_clip_config("clip_05"));
+    if (r.golden_missing) {
+        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 "
+                "to create.");
+        return;
+    }
+    INFO("Golden: ", r.message);
+    CHECK(r.passed);
 }

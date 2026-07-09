@@ -79,7 +79,7 @@ void check_asset_integrity(
     const RenderGraph& graph,
     const chronon3d::assets::AssetResolver& resolver,
     GraphPreflightReport& report,
-    const chronon3d::preflight::PathExistenceMap* path_cache = nullptr
+    chronon3d::preflight::PathExistenceMap* path_cache
 ) {
     for (GraphNodeId i = 0; i < static_cast<GraphNodeId>(graph.size()); ++i) {
         if (!graph.has_node(i)) continue;

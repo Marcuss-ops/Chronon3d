@@ -50,7 +50,7 @@
 #include <chronon3d/core/types/frame.hpp>
 
 #include <doctest/doctest.h>
-#include <helpers/test_utils.hpp>
+#include <tests/helpers/test_utils.hpp>
 #include "test_text_font_fixture.hpp"
 
 #include <filesystem>

@@ -133,12 +133,16 @@ target_sources(chronon3d_text_golden_tests
 )
 
 # TICKET-TEXT-CLIP-ASCENT — text-clip numerical-bbox regression lock.
-# Three TEST_CASEs in text_clip/text_clip_bounds.cpp:
+# Five TEST_CASEs in text_clip/text_clip_bounds.cpp:
 #   - AscentNotCut    : baseline HAMBURGER, asserts visible_height>90,
 #                       visible_width>500, no right-edge touch.
 #   - RightEdgeNotCut : exclusive right-edge assertion.
 #   - Scale130NotCut  : uniform scale 1.30x → bbox grows proportionally
 #                       AND still stays inside the framebuffer.
+#   - ShadowNotCut    : drop shadow offset {20,40} + blur 30 → shadow
+#                       padding path exercised; glyph ink not clipped.
+#   - GlowNotCut      : layer-level glow radius 24 intensity 0.8 →
+#                       glow compositor path exercised; glyph not clipped.
 # The numeric bbox scans fail IMMEDIATELY on the pre-fix code; the
 # golden PNG diff is a belt+suspenders safety net once the fix lands.
 # See docs/CHANGELOG.md TICKET-TEXT-CLIP-ASCENT entry for symptom
