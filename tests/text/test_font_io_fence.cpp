@@ -25,15 +25,14 @@
 #include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
 
-#include <atomic>
-#include <filesystem>
 #include <fstream>
 #include <set>
 #include <sstream>
 #include <string>
-#include <system_error>
 
 #include <doctest/doctest.h>
+
+#include "test_text_font_fixture.hpp"
 
 using namespace chronon3d;
 
@@ -46,23 +45,10 @@ namespace {
 // missing fixtures so CI runs without bundled fonts still pass.
 constexpr const char* kFixturePath = "tests/fixtures/Inter-Bold.ttf";
 
-bool fixture_exists(const char* p) noexcept {
-    if (p == nullptr) return false;
-    std::error_code ec;
-    return std::filesystem::exists(p, ec);
-}
-
-void skip_if_missing(const char* fixture, const char* what) noexcept {
-    if (!fixture_exists(fixture)) {
-        MESSAGE("Skipping: ", what, " requires ", fixture,
-                " which is unavailable.");
-    }
-}
-
 // Skip helper used by REQUIRE-FORM for early returns so the TEST_CASE
 // body exits cleanly without false failures on missing-fixture runs.
 bool can_run_tests() noexcept {
-    return fixture_exists(kFixturePath);
+    return test_text_fixture::fixture_exists(kFixturePath);
 }
 
 std::shared_ptr<assets::AssetResolver> make_resolver_with_fixture() {
@@ -82,7 +68,7 @@ std::shared_ptr<assets::AssetResolver> make_resolver_with_fixture() {
 
 TEST_CASE("font_io_fence: arm + cache miss throws std::runtime_error") {
     if (!can_run_tests()) {
-        skip_if_missing(kFixturePath, "Cat-2 font I/O fence regression");
+        test_text_fixture::skip_if_missing(kFixturePath, "Cat-2 font I/O fence regression");
         return;
     }
     auto resolver = make_resolver_with_fixture();
@@ -104,7 +90,7 @@ TEST_CASE("font_io_fence: arm + cache miss throws std::runtime_error") {
 
 TEST_CASE("font_io_fence: disarm + cache miss does NOT throw (cache lazy-load)") {
     if (!can_run_tests()) {
-        skip_if_missing(kFixturePath, "Cat-2 font I/O fence regression");
+        test_text_fixture::skip_if_missing(kFixturePath, "Cat-2 font I/O fence regression");
         return;
     }
     auto resolver = make_resolver_with_fixture();
@@ -124,7 +110,7 @@ TEST_CASE("font_io_fence: disarm + cache miss does NOT throw (cache lazy-load)")
 
 TEST_CASE("font_io_fence: re-arm + cache hit does NOT throw") {
     if (!can_run_tests()) {
-        skip_if_missing(kFixturePath, "Cat-2 font I/O fence regression");
+        test_text_fixture::skip_if_missing(kFixturePath, "Cat-2 font I/O fence regression");
         return;
     }
     auto resolver = make_resolver_with_fixture();
@@ -150,7 +136,7 @@ TEST_CASE("font_io_fence: re-arm + cache hit does NOT throw") {
 
 TEST_CASE("font_io_fence: preflight per-tuple, distinct sizes get distinct entries") {
     if (!can_run_tests()) {
-        skip_if_missing(kFixturePath, "Cat-2 font I/O fence regression");
+        test_text_fixture::skip_if_missing(kFixturePath, "Cat-2 font I/O fence regression");
         return;
     }
     auto resolver = make_resolver_with_fixture();

@@ -5,16 +5,12 @@
 #include <cmath>
 #include <vector>
 #include <string>
+
+#include "test_text_font_fixture.hpp"
+
 using namespace chronon3d;
+using test_text_fixture::inter_bold;
 
-
-static FontSpec inter_bold() {
-    return FontSpec{
-        .font_path = "assets/fonts/Inter-Bold.ttf",
-        .font_family = "Inter",
-        .font_weight = 700,
-    };
-}
 
 static FontSpec poppins_bold() {
     return FontSpec{
