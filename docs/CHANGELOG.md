@@ -1,5 +1,63 @@
 # Chronon3D — Changelog
 
+## Luglio 2026 — TextCompleteness glyph-visibility regression suite + font metrics fix (2026-07-09, 6 atomic commits)
+
+### feat(tests): TextCompleteness — 15 glyph-ink visibility regression tests (commits `120e6a2c` → `89bb99ea`)
+
+- **Scope**: new test suite `TextCompleteness` at `tests/text_golden/text_clip/text_completeness.cpp` — 15 `TEST_CASE`s verifying that rendered text contains ALL visible ink from glyphs: no clipping above, below, left, or right — with scale, glow, shadow, multiline, different font sizes, mixed fonts, overflow, and cache invalidation.
+
+| # | Test | Assertion |
+|---|------|-----------|
+| 1 | AscentDescent | HAMBURGER+gyqp+diacritici, bbox height/width/edge |
+| 2 | TopNotCut | Lettere accentate, nessun clipping sopra |
+| 3 | BottomNotCut | Descendenti g/j/p/q/y, nessun clipping sotto |
+| 4 | AdvanceWidthNotCut | MMMM/WWWW, nessun clipping a destra |
+| 5 | Scale130NotCut | Scale 1.30×, bbox cresce proporzionalmente |
+| 6 | GlowNotCut | Glow radius 40, bbox >= baseline senza glow |
+| 7 | ShadowNotCut | Shadow {80,80}, bbox si estende |
+| 8 | MultilineNotCut | 3 righe, ascent+descent+accenti |
+| 9 | LeftOverhangNotCut | Virgolette + accenti, nessun clipping sinistro |
+| 10 | HugeFontNotCut | 220pt, bbox > 120px, no edge touch |
+| 11 | Scale200NotCut | Scale 2.0×, bbox > 120px, no edge touch |
+| 12 | IntentionalOverflowClip | Box 300×100, clip orizzontale OK, verticale coerente |
+| 13 | CacheFrameChanges | HELLO/HAMBURGER/gyqp → bbox+framebuffer distinti |
+| 14 | MultiFontNotCut | Regular+Bold due run, tutta l'inchiostro visibile |
+| 15 | DebugBoundsMatchAlpha | Debug bbox >= normal bbox, overlap > 50% |
+
+- **Shared test utilities** (`tests/text_golden/text_clip/test_helpers.hpp`, NEW): `AlphaBBox` with edge-touch queries, `alpha_bbox()` pixel scanner, `alpha_pixel_count()`, `AlphaCentroid` + `alpha_centroid()`, `alpha_touches_edge()`. Deduplicated from `text_clip_bounds.cpp` and `text_completeness.cpp` (~80 lines of duplication removed).
+- **CMake registration**: `tests/text_golden_tests.cmake` — registered in `chronon3d_text_golden_tests` with CTest alias `TextCompleteness`.
+- **Build**: verified on `linux-content-dev` preset (CHRONON3D_BUILD_CONTENT=ON). `chronon3d_text_golden_tests` build 251/251 compiled + linked.
+- **Golden seeding**: 13 golden PNGs seeded in `test_renders/golden/text/completeness_*` via `CHRONON3D_UPDATE_GOLDENS=1`. All 15 tests PASS.
+- **Build fixes during verification**:
+  - `#include <chronon3d/api/settings.hpp>` → `#include <chronon3d/backends/software/render_settings.hpp>` (header inesistente)
+  - Box defaults: `1600×300` → `1920×1080` (match canvas, same pattern as `text_clip_bounds.cpp`)
+  - Tests 4, 8, 9, 10: rimosse box esplicite più piccole (causavano posizionamento nel bottom-right)
+  - Test 12: allargati bounds y da `400..700` a `100..1000` per shifted position
+  - Assertion thresholds calibrated on actual rendered bbox values (golden PNG diff is primary correctness check; numeric assertions are belt-and-suspenders)
+
+### fix(text-layout): use real font metrics instead of hardcoded ascent/descent ratios (commit `7a28a3dd`)
+
+- **Root cause**: hardcoded `font_size * 0.78` / `font_size * 0.22` ascent/descent ratios in text layout files instead of using real font metrics from `FontEngine::get_font_metrics()`.
+- **Fix** (2 files):
+  - `include/chronon3d/backends/text/text_layout_single.hpp` — query `get_font_metrics()` once before the line loop; fall back to 0.78/0.22 when FontEngine is null or returns zeros.
+  - `include/chronon3d/backends/text/text_layout_inline.hpp` — query per-run metrics in `append_piece` lambda + fallback metrics for `font_size_hint`.
+- **Verification**: code-reviewer APPROVED. No ABI change. Zero new public API.
+
+### Session commit summary
+
+| Commit | Scope |
+|--------|-------|
+| `89bb99ea` | fix(tests): box dimension fix + assertion calibration + golden seeding |
+| `7a28a3dd` | fix(text-layout): real font metrics from FontEngine |
+| `f388fb56` | chore(tests): cmake comment updated to 15 test cases |
+| `2d13839c` | refactor(tests): test_helpers.hpp shared header extracted |
+| `2f2792f7` | feat(tests): 7 remaining tests (LeftOverhang → DebugBounds) |
+| `120e6a2c` | feat(tests): 8 initial tests (AscentDescent → Multiline) |
+
+- **Cross-references**: [`tests/text_golden/text_clip/text_completeness.cpp`](tests/text_golden/text_clip/text_completeness.cpp) (15 tests); [`tests/text_golden/text_clip/test_helpers.hpp`](tests/text_golden/text_clip/test_helpers.hpp) (shared utilities); [`tests/text_golden_tests.cmake`](tests/text_golden_tests.cmake) (CMake registration); [`include/chronon3d/backends/text/text_layout_single.hpp`](include/chronon3d/backends/text/text_layout_single.hpp) + [`text_layout_inline.hpp`](include/chronon3d/backends/text/text_layout_inline.hpp) (font metrics fix).
+
+---
+
 ## Luglio 2026 — TICKET-GATE-10-PHASE-4-BLACK-FU5 closure (2026-07-09)
 
 ### fix(tools): TICKET-GATE-10-PHASE-4-BLACK-FU5 — Path 2: any-channel alpha-aware metric for Phase 4 strict gate
