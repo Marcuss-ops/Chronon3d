@@ -105,7 +105,7 @@ public:
     [[nodiscard]] std::vector<PreflightIssue> validate(
         const AssetRegistry& registry,
         const chronon3d::assets::AssetResolver& resolver,
-        const chronon3d::preflight::PathExistenceMap* cache = nullptr
+        chronon3d::preflight::PathExistenceMap* cache = nullptr
     ) const;
 
     /// Behaves exactly like the original: throws ChrononAssetError if any error
@@ -113,14 +113,14 @@ public:
     void validate_or_throw(
         const AssetRegistry& registry,
         const chronon3d::assets::AssetResolver& resolver,
-        const chronon3d::preflight::PathExistenceMap* cache = nullptr
+        chronon3d::preflight::PathExistenceMap* cache = nullptr
     );
 
     /// Returns true when validate(registry) would return an empty vector.
     [[nodiscard]] bool ok(
         const AssetRegistry& registry,
         const chronon3d::assets::AssetResolver& resolver,
-        const chronon3d::preflight::PathExistenceMap* cache = nullptr
+        chronon3d::preflight::PathExistenceMap* cache = nullptr
     ) const;
 
     void clear();

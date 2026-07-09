@@ -20,6 +20,7 @@
 // full resolver definition is in <chronon3d/assets/asset_resolver.hpp>
 // for callers that need to dereference the reference.
 namespace chronon3d::assets { class AssetResolver; }
+namespace chronon3d::preflight { class PathExistenceMap; }
 
 namespace chronon3d::graph {
 
@@ -48,7 +49,8 @@ void check_topological_warnings(
 void check_asset_integrity(
     const RenderGraph& graph,
     const chronon3d::assets::AssetResolver& resolver,
-    GraphPreflightReport& report);
+    GraphPreflightReport& report,
+    chronon3d::preflight::PathExistenceMap* path_cache = nullptr);
 
 void check_coordinate_mismatch(
     const RenderGraph& graph,
@@ -71,7 +73,8 @@ inline void check_topological_warnings(
 inline void check_asset_integrity(
     const RenderGraph& /*graph*/,
     const chronon3d::assets::AssetResolver& /*resolver*/,
-    GraphPreflightReport& /*report*/) {}
+    GraphPreflightReport& /*report*/,
+    chronon3d::preflight::PathExistenceMap* /*path_cache*/ = nullptr) {}
 
 inline void check_coordinate_mismatch(
     const RenderGraph& /*graph*/,
