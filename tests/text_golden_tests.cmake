@@ -16,10 +16,20 @@
 chronon3d_add_test_suite(
     NAME chronon3d_text_golden_tests
     TIER INTEGRATION
+    # TICKET-RENDER-PIPELINE-INTEGRITY M2 fix: chronon3d_software is an
+    # INTERFACE that does NOT transitively pull in chronon3d_core (and
+    # therefore chronon3d_runtime / RenderRuntime).  The new whitespace
+    # test materialises TextRunShape via runtime::RenderRuntime, so we
+    # link chronon3d_runtime explicitly.  chronon3d_text_core provides
+    # FontEngine.
     LINK_TARGETS chronon3d_sdk chronon3d_software chronon3d_content
+                  chronon3d_runtime chronon3d_text_core
     SOURCES text/test_text_golden.cpp
             visual/support/golden_test.cpp
             visual/support/image_diff.cpp
+            # TICKET-RENDER-PIPELINE-INTEGRITY layer 3 — whitespace guard
+            # short-circuits before compile_text_layout.
+            text/test_materialize_whitespace_guarded.cpp
 )
 target_compile_definitions(chronon3d_text_golden_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
