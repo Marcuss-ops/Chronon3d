@@ -80,6 +80,7 @@ struct DomainSnapshot {
 
 class CacheDiagnostics {
 public:
+    [[deprecated("Use runtime().diagnostics() where a RenderRuntime& is in scope; instance() is the singleton bootstrap fallback only")]]
     static CacheDiagnostics& instance();
 
     CacheDiagnostics(const CacheDiagnostics&)            = delete;

@@ -2391,3 +2391,5 @@ vedi la stessa DOCUMENTATION_GOVERNANCE.md §"Documenti di supporto"
 applicata. -->
 
 - refactor(cache): add RenderRuntime::diagnostics() accessor (runtime-scoped CacheDiagnostics)
+
+- refactor(cache): mark CacheDiagnostics::instance() @deprecated (use runtime().diagnostics())
