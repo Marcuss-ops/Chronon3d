@@ -19,7 +19,7 @@
 
 #include <chronon3d/core/types/types.hpp>           // u32, f32, u64
 #include <chronon3d/math/color.hpp>                // Color (RGBA POD)
-#include <chronon3d/text/glyph_selector.hpp>       // GlyphSelectorSpec
+#include <chronon3d/text/glyph_selector_spec.hpp>  // GlyphSelectorSpec (TICKET-046 Phase 1a)
 #include <chronon3d/text/text_material.hpp>         // TextMaterial
 
 #include <optional>
