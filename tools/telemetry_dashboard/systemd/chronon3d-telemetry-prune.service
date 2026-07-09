@@ -1,0 +1,11 @@
+[Unit]
+Description=Chronon3D Telemetry — Prune old runs (keep 50 most recent)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Pyt/Chronon3d
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 %h/Pyt/Chronon3d/tools/telemetry_dashboard/prune_telemetry.py --keep 50
+StandardOutput=append:%h/.chronon3d/logs/telemetry_prune.log
+StandardError=append:%h/.chronon3d/logs/telemetry_prune.log
