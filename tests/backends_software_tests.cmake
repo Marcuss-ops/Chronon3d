@@ -52,4 +52,8 @@ chronon3d_add_test_suite(
             backends/software/test_text_run_processor_scratch_pool.cpp
             backends/software/test_text_run_processor_golden_raster.cpp
             backends/software/test_text_run_processor_bench_serial_vs_parallel.cpp
+            # TICKET-121 (Phase 1) — frame-bound allocation counter / thread
+            # local isolation lock.  Strictly under src/backends/software/
+            # (BUILD_INTERFACE path); no include/chronon3d/ expansion.
+            backends/software/test_frame_alloc_counter.cpp
 )

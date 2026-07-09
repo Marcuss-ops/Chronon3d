@@ -31,6 +31,13 @@
 #include <numbers>
 #include <vector>
 
+// TICKET-121 (Phase 1) — single-shot instrumentation hook for the hot-path
+// transient `Framebuffer` wrapper inside `apply_radial_blur`.  Measurable
+// allocation audit; observability only.  Internal header resolved via
+// the chronon3d_backend_software PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+// entry (same path that TICKET-118 internal bridge consumers use).
+#include "internal/frame_alloc_counter.hpp"
+
 namespace chronon3d::renderer {
 
 // =============================================================================
@@ -168,6 +175,14 @@ void apply_radial_blur(
     // Pre-generate tap patterns for each pixel? That would be expensive.
     // Instead, we generate taps per pixel since they depend on the
     // direction from the pixel to the centre.
+
+    // TICKET-121 (Phase 1) — frame-bound allocation counter hook.  Records
+    // the bytes-allocated-event for the transient blurred FB; observability
+    // only; no observable effect on output.  Future PRs (per TICKET-121
+    // Phase 2 / Phase 3) replace this with a `FrameScratchPool`-backed RAII
+    // handle once an ADR is filed and accepted.
+    chronon3d::internal::FrameAllocCounter::record_alloc(
+        static_cast<std::size_t>(w) * static_cast<std::size_t>(h) * sizeof(Color));
     auto temp = std::make_unique<Framebuffer>(w, h);
     temp->blit(fb, 0, 0);
     const AlphaCentroid source_centroid = compute_alpha_centroid(*temp);
