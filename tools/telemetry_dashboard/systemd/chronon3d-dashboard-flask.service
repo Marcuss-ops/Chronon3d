@@ -8,7 +8,7 @@ Type=simple
 WorkingDirectory=%h/Pyt/Chronon3d
 Environment=CHRONON3D_DASHBOARD_PASSWORD=chronon3d_admin
 Environment=PYTHONUNBUFFERED=1
-ExecStart=%h/venv/bin/python3 %h/Pyt/Chronon3d/tools/start_dashboard_shim.py 8000
+ExecStart=/usr/bin/python3 %h/Pyt/Chronon3d/tools/start_dashboard_shim.py 8000
 Restart=always
 RestartSec=3
 StandardOutput=append:%h/.chronon3d/logs/flask_backend.log
