@@ -2389,3 +2389,5 @@ documentale). Per la regola di governance su cosa vive in `docs/ARCHIVE/`,
 vedi la stessa DOCUMENTATION_GOVERNANCE.md §"Documenti di supporto"
 (`Materiale storico (non operativo) → docs/ARCHIVE/`). Code-reviewer note #5
 applicata. -->
+
+- refactor(cache): add RenderRuntime::diagnostics() accessor (runtime-scoped CacheDiagnostics)
