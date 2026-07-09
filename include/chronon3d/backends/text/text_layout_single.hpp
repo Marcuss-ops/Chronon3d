@@ -422,12 +422,22 @@ inline TextLayoutResult layout_single_run(const TextLayoutInput& input) {
     result.size.x = max_seen_width;
     result.size.y = static_cast<float>(raw_lines.size()) * line_height;
 
+    // Query real font metrics when FontEngine is available.
+    // Fallback: hardcoded 0.78/0.22 ratio (reasonable for Inter/Latin fonts).
+    float metric_ascent  = font_size * 0.78f;
+    float metric_descent = font_size * 0.22f;
+    if (input.font_engine) {
+        const auto fm = input.font_engine->get_font_metrics(input.font_spec, font_size);
+        if (fm.ascent > 0.0f)  metric_ascent  = fm.ascent;
+        if (fm.descent > 0.0f) metric_descent = fm.descent;
+    }
+
     for (size_t i = 0; i < raw_lines.size(); ++i) {
         TextLayoutLine line;
         line.text = raw_lines[i];
         line.width = line_widths[i];
-        line.ascent = font_size * 0.78f;
-        line.descent = font_size * 0.22f;
+        line.ascent = metric_ascent;
+        line.descent = metric_descent;
         line.baseline = line.ascent;
 
         float dx = 0.0f;
