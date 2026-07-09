@@ -148,6 +148,18 @@ target_sources(chronon3d_text_golden_tests
         text_golden/text_completeness/text_visible_ink.cpp
 )
 
+# P0-5/6 Text Unicode — Unicode scripts + font fallback tests.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_completeness/text_unicode.cpp
+)
+
+add_test(
+    NAME TextUnicode
+    COMMAND chronon3d_text_golden_tests --test-case="TextUnicode *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # P0-4 Text Alignment — bbox position verification for all align combos.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
