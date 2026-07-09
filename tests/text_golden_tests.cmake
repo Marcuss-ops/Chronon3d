@@ -238,6 +238,18 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+# P2-12 Text Edge Cases — pathological input resilience tests.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_completeness/text_edge_cases.cpp
+)
+
+add_test(
+    NAME TextEdgeCases
+    COMMAND chronon3d_text_golden_tests --test-case="TextEdge *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # Filter ctest -R to the wrapping subset.
 add_test(
     NAME TextWrapping
