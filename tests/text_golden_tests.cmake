@@ -214,11 +214,12 @@ target_sources(chronon3d_text_golden_tests
 )
 
 # TextCompleteness — comprehensive glyph-visibility regression tests.
-# 15 TEST_CASEs: AscentDescent, TopNotCut, BottomNotCut, AdvanceWidthNotCut,
+# 18 TEST_CASEs: AscentDescent, TopNotCut, BottomNotCut, AdvanceWidthNotCut,
 #                Scale130NotCut, GlowNotCut, ShadowNotCut, MultilineNotCut,
 #                LeftOverhangNotCut, HugeFontNotCut, Scale200NotCut,
 #                IntentionalOverflowClip, CacheFrameChanges, MultiFontNotCut,
-#                DebugBoundsMatchAlpha.
+#                DebugBoundsMatchAlpha, Scale200NotCutHugeFont,
+#                IntentionalOverflowEllipsis, TriFontNotCut.
 # Uses shared test_helpers.hpp for AlphaBBox/alpha_bbox/alpha_centroid.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
