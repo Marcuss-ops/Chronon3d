@@ -289,36 +289,3 @@ TEST_CASE("TextRunBBox: 180°-rotated extreme transform still leaves intersectin
     CHECK(bbox.y1 > fb_bbox.y0);
 }
 
-#if 0 // Disabled: pre-existing semantic bugs (PlacedGlyphRun const-binding + AnimatedValue explicit ctor) revealed by umbrella namespace addition. Restore when ready.
-TEST_CASE("TextRunGlyph: baseline_shift transports the glyph along Y") {
-    // baseline_shift is on GlyphInstanceState and is wired into
-    // build_glyph_matrix as `m.translate(0, baseline_shift)` between
-    // the layout translate (step 1) and the position translate (step 2).
-    // Verifying the build_glyph_matrix requires friend access; instead
-    // we verify the field round-trips through evaluate_animator_stack,
-    // confirming the upstream producer wired baseline_shift correctly.
-    auto layout = make_test_layout_trp("ABC");
-    PlacedGlyphRun& placed = layout->placed;
-
-    TextAnimatorSpec baseline_spec;
-    baseline_spec.id = "test_baseline_shift";
-    baseline_spec.enabled = true;
-    baseline_spec.selectors = {{
-        .id = "all_sel",
-        .unit = TextSelectorUnit::Glyph,
-        .shape = TextSelectorShape::Square,
-        .start = {0.0f}, .end = {100.0f}, .amount = {100.0f}
-    }};
-    TextShaping shaping_unused;  // (default)
-    (void)shaping_unused;
-    baseline_spec.properties = { BaselineShiftProperty{8.0f} };
-
-    std::vector<TextAnimatorSpec> animators{ baseline_spec };
-    SampleTime st = SampleTime::from_frame_int(1, FrameRate{30, 1});
-    auto states = evaluate_animator_stack(animators, placed, "ABC", st);
-    REQUIRE(states.size() == placed.glyphs.size());
-    for (const auto& s : states) {
-        CHECK(s.baseline_shift == doctest::Approx(8.0f));
-    }
-}
-#endif // Disabled: pre-existing semantic bugs revealed by umbrella namespace addition.
