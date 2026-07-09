@@ -77,8 +77,16 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
             //   extents clipped).  Use the actual font ascent/descent
             //   so the scratch raster surface includes both ascender
             //   and descender extents.
-            const float ascent  = std::max(0.0f, placed.ascent);
-            const float descent = std::max(0.0f, placed.descent);
+            // Defensive floor: when the shaping engine returns zero
+            // or tiny ascent/descent (e.g. missing font metrics), fall
+            // back to standard typographic ratios (ascent ≈ 80%,
+            // descent ≈ 20% of font size).  Without this floor, the
+            // scratch surface is sized to pad-only (~8px) and clips
+            // all glyph ink.  font_size is the canonical fallback
+            // because it is always populated by the text compiler.
+            const float font_size = shape.layout ? shape.layout->font_size : 16.0f;
+            const float ascent  = std::max({0.0f, placed.ascent, font_size * 0.8f});
+            const float descent = std::max({0.0f, placed.descent, font_size * 0.2f});
             for (std::size_t i = 0; i < glyphs.size(); ++i) {
                 const auto& g = glyphs[i];
                 const float gx = g.layout_position.x + g.position.x;
@@ -118,8 +126,16 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
                 // approximation (which clipped wide glyphs on the
                 // right edge of the scratch surface — visible in the
                 // PNG symptom as "touches right edge").
-                const float advance = std::max(
-                    1.0f, std::abs(placed.glyphs[i].advance_x));
+                // For the last glyph, use a conservative minimum ink
+                // width: the shaping advance under-reports the right
+                // boundary for italic, wide, or emoji glyphs that
+                // overhang their advance.  Using font_size * 1.2f as
+                // the floor ensures the scratch surface extends past
+                // the last glyph's visible ink.
+                const float raw_advance = std::abs(placed.glyphs[i].advance_x);
+                const float ink_floor = (i == glyphs.size() - 1)
+                    ? font_size * 1.2f : 0.0f;
+                const float advance = std::max(1.0f, std::max(raw_advance, ink_floor));
                 min_x = std::min(min_x, gx - pad);
                 max_x = std::max(max_x, gx + advance * scale_x + pad);
                 min_y = std::min(min_y, gy - ascent * scale_y - pad);

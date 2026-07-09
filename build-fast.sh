@@ -39,11 +39,11 @@ Commands:
 Environment:
   JOBS                       Parallel jobs (default: nproc)
   CCACHE_DIR                 ccache store (default: \${HOME}/.ccache, max 20G)
-  BUILD_DIR_OVERRIDE         Override the resolved build dir (default: /tmp/chronon-builds/linux-fast-dev)
+  BUILD_DIR_OVERRIDE         Override the resolved build dir (default: .tmp/chronon-builds/linux-fast-dev)
 
 Notes:
-  - Build dir defaults to tmpfs (/tmp/chronon-builds/linux-fast-dev).
-    Set BUILD_DIR_OVERRIDE for an on-disk location.
+  - Build dir defaults to project-local .tmp/ on disk.
+    Set BUILD_DIR_OVERRIDE for a custom build location.
   - ccache config is auto-bootstrapped on first run (skipped when CCACHE_DIR
     is explicitly set to a non-default path to avoid clobbering CI caches).
 
@@ -102,7 +102,8 @@ resolve_build_dir() {
         return
     fi
     # Default: derive from PRESET name so 'PRESET=linux-content-dev' Just Works.
-    BUILD_DIR="/tmp/chronon-builds/${PRESET}"
+    # Use project-local .tmp/ on disk, NOT /tmp (tmpfs) which runs out of space.
+    BUILD_DIR="${ROOT_DIR}/.tmp/chronon-builds/${PRESET}"
     mkdir -p "$BUILD_DIR"
     local symlink="$ROOT_DIR/build/chronon/${PRESET}"
     mkdir -p "$(dirname "$symlink")"
