@@ -27,6 +27,11 @@ CacheDiagnostics::Handle CacheDiagnostics::register_cache(
     {
         std::lock_guard lock(m_mutex);
         m_entries[domain].insert(entry);
+        // TICKET-O(n)-audit — unordered_set::insert silently dedups.
+        // Duplicate registrations of the same Entry* pointer are now
+        // idempotent and ignored (the previous vector::push_back would
+        // have surfaced them in snapshot(); callers must verify they
+        // register each Entry exactly once).
     }
     return Handle{this, entry};
 }
