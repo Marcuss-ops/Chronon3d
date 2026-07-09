@@ -15,7 +15,9 @@
 // from src/scene/builders/ to src/text/ = "../../text/...".
 #include "../../text/pending_text_run_impl.hpp"
 
+#include <algorithm>
 #include <cassert>
+#include <cctype>
 #include <iterator>
 #include <utility>
 #include <spdlog/spdlog.h>
@@ -464,8 +466,43 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
     const std::string& text      = params.text.content.value;
     const TextAppearanceSpec& appearance = params.text.appearance;
 
-    if (text.empty()) {
-        spdlog::warn("materialize_text_run_shape: empty text — skipping.");
+    // TICKET-TEXT-CLIP-ASCENT (extension — layer 3 of render-pipeline-integrity):
+    // Surface and gate the actual text content the materializer receives.
+    //
+    // History: the previous guard short-circuited ONLY on truly empty text.
+    // Whitespace-only text fell through to compile_text_layout, which then
+    // failed with Err(PerRunShapingFailed) ("HarfBuzz produced zero glyphs
+    // for non-empty text") observed e.g. on MinimalistTextFadeUp @ frame=30
+    // where the per-frame scramble animation resolves to a single " ".
+    //
+    // Two changes here:
+    //   (a) Diagnostic — log len + first-byte hex + head sample, so future
+    //       "zero-glyphs" failures are diagnosable from the log alone
+    //       (empty vs whitespace-only vs scramble vs genuine content).
+    //   (b) Broaden the early-return guard to cover whitespace-only.
+    {
+        const std::string head =
+            text.size() > 80 ? text.substr(0, 80) + "..." : text;
+        const unsigned char first_byte =
+            text.empty() ? 0u : static_cast<unsigned char>(text.front());
+        spdlog::debug(
+            "materialize_text_run_shape: incoming text content: "
+            "len={} first_byte=0x{:02x} head='{}'",
+            text.size(),
+            static_cast<unsigned int>(first_byte),
+            head);
+    }
+    const bool only_whitespace =
+        text.empty() ||
+        std::all_of(text.begin(), text.end(),
+            [](unsigned char c) { return std::isspace(c); });
+    if (only_whitespace) {
+        const std::string sample =
+            text.size() > 16 ? text.substr(0, 16) + "..." : text;
+        spdlog::warn(
+            "materialize_text_run_shape: text is empty or whitespace-only "
+            "(len={}, sample='{}') — skipping compile_text_layout",
+            text.size(), sample);
         return nullptr;
     }
 

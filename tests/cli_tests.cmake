@@ -18,6 +18,9 @@ chronon3d_add_test_suite(
             cli/test_video_end_semantics.cpp
             cli/test_video_sink_encoders.cpp
             cli/test_ffmpeg_export_options.cpp
+            # TICKET-RENDER-PIPELINE-INTEGRITY layer 1 — pre-write framebuffer
+            # sanity scan (alpha-zero > 0.85, NaN/Inf > 0.05).
+            cli/test_render_job_write_frame_sanity.cpp
 )
 # CLI tests have a non-standard include dir for the chrono3d_cli
 # production sources; explicit add on top of the helper's default.
