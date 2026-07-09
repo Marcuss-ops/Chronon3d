@@ -8,6 +8,7 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -117,6 +118,7 @@ public:
     using Value = std::shared_ptr<Framebuffer>;
 
     explicit NodeCache(size_t capacity_bytes = 2048ULL * 1024 * 1024);
+    ~NodeCache();
     NodeCache(NodeCache&&) noexcept = default;
     NodeCache& operator=(NodeCache&&) noexcept = default;
 
@@ -135,6 +137,7 @@ public:
 
 private:
     CacheDiagnostics::Handle m_diag_handle;
+    std::atomic<bool> m_diag_alive{true};
     FramebufferCache m_cache;
 };
 
