@@ -1,12 +1,16 @@
 // =============================================================================
 // persistent_framebuffer_store.cpp — CFB4 binary codec + persistent I/O.
 //
-// persistent_framebuffer_store.cpp — Unified binary format with:
-//   - Little-endian field-by-field serialization (no raw struct writes)
-//   - XXH64 checksum of payload
-//   - Path sharding (first 4 hex chars → 2-level subdirectory)
-//   - Atomic writes (tmp → fsync → rename)
-//   - Corruption handling (delete bad files → return miss)
+// Reader is gated behind CHRONON3D_USE_MMAP=1 on POSIX:
+//   * default  (unset / != "1") — std::ifstream cross-platform path
+//   * set to "1" on Linux       — ::mmap zero-copy path
+//
+// On non-Linux builds the env var is ignored (mmap helper is #ifdef'd
+// out); std::ifstream is always used.  Writer is unchanged — std::ofstream
+// with atomic tmp→fsync→rename.
+//
+// Public ABI: unchanged.  No new methods, types, or symbols in
+// include/chronon3d/.
 // =============================================================================
 
 #include <chronon3d/cache/persistent_framebuffer_store.hpp>
@@ -15,6 +19,7 @@
 #include <xxhash.h>
 
 #include <atomic>
+#include <cstdlib>     // std::getenv — CHRONON3D_USE_MMAP gate
 #include <mutex>
 
 #include <algorithm>
@@ -23,6 +28,8 @@
 #include <iomanip>
 #include <mutex>
 #include <sstream>
+#include <string>
+#include <string_view>
 #include <system_error>
 
 #ifdef __linux__
@@ -67,6 +74,24 @@ bool read_le(const uint8_t* data, size_t size, size_t& pos, T& out) {
     std::memcpy(&out, buf, sizeof(T));
     pos += sizeof(T);
     return true;
+}
+
+/// `CHRONON3D_USE_MMAP=1` gates the zero-copy mmap reader on POSIX.
+/// Default false (keeps the cross-platform fopen path).  Consulted on
+/// every `load()` call — cheap getenv(3) syscall, dominated by file I/O.
+///
+/// Consulted per-call so the micro-benchmark in
+/// `tests/bench/micro_benchmarks.cpp` can flip the gate via
+/// `setenv(3)` between iterations without a process restart.
+inline bool use_mmap_reader() {
+#ifdef __linux__
+    if (const char* e = std::getenv("CHRONON3D_USE_MMAP")) {
+        return std::string_view{e} == "1";
+    }
+    return false;
+#else
+    return false;
+#endif
 }
 
 } // namespace
@@ -138,158 +163,24 @@ std::filesystem::path PersistentFramebufferStore::cache_dir() const {
     return m_cache_dir;
 }
 
-// ── Read ──────────────────────────────────────────────────────────────────
+// ── Read helpers (extracted from the legacy monolithic load()) ────────────
+//
+// `load_via_ifstream` is the cross-platform default (used unconditionally
+// on non-Linux builds; used on Linux when CHRONON3D_USE_MMAP != "1").
+// `load_via_mmap` is the Linux-only opt-in zero-copy path (used when
+// CHRONON3D_USE_MMAP=1).  Both share `reconstruct_framebuffer()` for the
+// pixel-copy / stride-aware unpacking so the output is bit-identical.
 
-std::shared_ptr<Framebuffer> PersistentFramebufferStore::get(
-    const NodeCacheKey& key)
+namespace {
+
+/// Reconstruct a Framebuffer from a validated header + payload pointer.
+/// Bit-identical to the pre-PR inline reconstruction logic that lived
+/// inside `load()` (now extracted so both reader helpers share it).
+StoreLoadResult reconstruct_framebuffer(
+    const NodeCacheKey& key,
+    const PersistentFramebufferHeader& hdr,
+    const uint8_t* payload)
 {
-    return load(key).framebuffer;
-}
-
-StoreLoadResult PersistentFramebufferStore::load(const NodeCacheKey& key) {
-    CHRONON_ZONE_C("persistent_fb_load", trace_category::kPipeline);
-
-    StoreLoadResult result{};
-    if (!enabled_for_current_run()) {
-        result.status = StoreLoadStatus::NotFound;
-        return result;
-    }
-
-    const auto path = file_path(key);
-    if (!std::filesystem::exists(path)) {
-        result.status = StoreLoadStatus::NotFound;
-        return result;
-    }
-
-#ifdef __linux__
-    // ── Linux: mmap for zero-copy reads ────────────────────────────────
-    int fd = ::open(path.string().c_str(), O_RDONLY);
-    if (fd == -1) {
-        result.status = StoreLoadStatus::OpenFailed;
-        return result;
-    }
-
-    struct stat st{};
-    if (::fstat(fd, &st) == -1) {
-        ::close(fd);
-        result.status = StoreLoadStatus::OpenFailed;
-        return result;
-    }
-
-    const auto file_size = static_cast<size_t>(st.st_size);
-    if (file_size < PersistentFramebufferHeader::kHeaderSize) {
-        ::close(fd);
-        // Truncated file — delete and return miss.
-        spdlog::warn("[PersistentFB] truncated file ({} bytes) — deleting {}",
-                     file_size, path.string());
-        std::error_code ec;
-        std::filesystem::remove(path, ec);
-        result.status = StoreLoadStatus::TooSmall;
-        return result;
-    }
-
-    void* mapped = ::mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
-    ::close(fd);
-    if (mapped == MAP_FAILED) {
-        result.status = StoreLoadStatus::OpenFailed;
-        return result;
-    }
-
-    const auto* data = static_cast<const uint8_t*>(mapped);
-    size_t pos = 0;
-
-    // ── Parse header field-by-field (LE) ──────────────────────────────
-    PersistentFramebufferHeader hdr{};
-
-    // Magic is a byte sequence — read raw, no byte-swapping.
-    if (pos + hdr.magic.size() > file_size) {
-        ::munmap(mapped, file_size);
-        result.status = StoreLoadStatus::TooSmall;
-        return result;
-    }
-    std::memcpy(hdr.magic.data(), data + pos, hdr.magic.size());
-    pos += hdr.magic.size();
-
-    if (!read_le(data, file_size, pos, hdr.version)    ||
-        !read_le(data, file_size, pos, hdr.header_size) ||
-        !read_le(data, file_size, pos, hdr.width)       ||
-        !read_le(data, file_size, pos, hdr.height)      ||
-        !read_le(data, file_size, pos, hdr.allocated_width) ||
-        !read_le(data, file_size, pos, hdr.origin_x)    ||
-        !read_le(data, file_size, pos, hdr.origin_y)    ||
-        !read_le(data, file_size, pos, hdr.pixel_format) ||
-        !read_le(data, file_size, pos, hdr.flags)        ||
-        !read_le(data, file_size, pos, hdr.reserved)     ||
-        !read_le(data, file_size, pos, hdr.key_digest)   ||
-        !read_le(data, file_size, pos, hdr.payload_bytes) ||
-        !read_le(data, file_size, pos, hdr.checksum)) {
-        ::munmap(mapped, file_size);
-        result.status = StoreLoadStatus::TooSmall;
-        return result;
-    }
-
-    // ── Validate header ───────────────────────────────────────────────
-    if (hdr.magic != PersistentFramebufferHeader::kMagic) {
-        ::munmap(mapped, file_size);
-        spdlog::warn("[PersistentFB] bad magic in {} — deleting", path.string());
-        std::error_code ec;
-        std::filesystem::remove(path, ec);
-        result.status = StoreLoadStatus::BadMagic;
-        return result;
-    }
-
-    if (hdr.version != PersistentFramebufferHeader::kCurrentVersion) {
-        ::munmap(mapped, file_size);
-        // Version mismatch — delete and return miss.
-        spdlog::info("[PersistentFB] version {} != {} in {} — deleting",
-                     hdr.version, PersistentFramebufferHeader::kCurrentVersion,
-                     path.string());
-        std::error_code ec;
-        std::filesystem::remove(path, ec);
-        result.status = StoreLoadStatus::BadVersion;
-        return result;
-    }
-
-    const size_t expected_payload =
-        static_cast<size_t>(hdr.width) * hdr.height * sizeof(Color);
-    if (hdr.payload_bytes != expected_payload) {
-        ::munmap(mapped, file_size);
-        spdlog::warn("[PersistentFB] bad payload size in {} — deleting", path.string());
-        std::error_code ec;
-        std::filesystem::remove(path, ec);
-        result.status = StoreLoadStatus::BadSize;
-        return result;
-    }
-
-    if (file_size < pos + hdr.payload_bytes) {
-        ::munmap(mapped, file_size);
-        spdlog::warn("[PersistentFB] truncated payload in {} — deleting", path.string());
-        std::error_code ec;
-        std::filesystem::remove(path, ec);
-        result.status = StoreLoadStatus::TooSmall;
-        return result;
-    }
-
-    // ── Verify checksum (XXH64 of payload) ────────────────────────────
-    const auto* payload = data + pos;
-    const u64 computed_checksum = XXH64(payload, hdr.payload_bytes, 0);
-    if (computed_checksum != hdr.checksum) {
-        ::munmap(mapped, file_size);
-        spdlog::warn("[PersistentFB] checksum mismatch in {} — deleting", path.string());
-        std::error_code ec;
-        std::filesystem::remove(path, ec);
-        result.status = StoreLoadStatus::ChecksumMismatch;
-        return result;
-    }
-
-    // ── Validate key_digest matches the requested key ──────────────────
-    if (hdr.key_digest != key.digest()) {
-        ::munmap(mapped, file_size);
-        result.status = StoreLoadStatus::KeyMismatch;
-        return result;
-    }
-
-    // ── Reconstruct Framebuffer ───────────────────────────────────────
     auto fb = std::make_shared<Framebuffer>(
         static_cast<i32>(hdr.width), static_cast<i32>(hdr.height));
     fb->set_origin(static_cast<i32>(hdr.origin_x), static_cast<i32>(hdr.origin_y));
@@ -306,20 +197,170 @@ StoreLoadResult PersistentFramebufferStore::load(const NodeCacheKey& key) {
         }
     }
 
-    ::munmap(mapped, file_size);
-    result.status       = StoreLoadStatus::Ok;
-    result.framebuffer  = std::move(fb);
+    StoreLoadResult result{};
+    result.status      = StoreLoadStatus::Ok;
+    result.framebuffer = std::move(fb);
     return result;
+}
 
-#else
-    // ── Non-Linux: fstream fallback ────────────────────────────────────
-    std::ifstream file(path, std::ios::binary);
-    if (!file) {
-        result.status = StoreLoadStatus::OpenFailed;
-        return result;
+#ifdef __linux__
+/// Linux-only zero-copy reader used when `use_mmap_reader()` returned
+/// true.  Validates header + checksum, then dispatches to
+/// `reconstruct_framebuffer(hdr, mapped_payload)`.  Any corruption
+/// (bad magic, version, size, checksum, key mismatch, truncation)
+/// deletes the file and returns the appropriate status — bit-identical
+/// to the inline body that lived inside the pre-PR `load()`.
+StoreLoadResult load_via_mmap(const NodeCacheKey& key,
+                              const std::filesystem::path& path) {
+    int fd = ::open(path.string().c_str(), O_RDONLY);
+    if (fd == -1) {
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::OpenFailed;
+        return r;
     }
 
-    // Read header field-by-field.
+    struct stat st{};
+    if (::fstat(fd, &st) == -1) {
+        ::close(fd);
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::OpenFailed;
+        return r;
+    }
+
+    const auto file_size = static_cast<size_t>(st.st_size);
+    if (file_size < PersistentFramebufferHeader::kHeaderSize) {
+        ::close(fd);
+        spdlog::warn("[PersistentFB] truncated file ({} bytes) — deleting {}",
+                     file_size, path.string());
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::TooSmall;
+        return r;
+    }
+
+    void* mapped = ::mmap(nullptr, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    ::close(fd);
+    if (mapped == MAP_FAILED) {
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::OpenFailed;
+        return r;
+    }
+
+    const auto* data = static_cast<const uint8_t*>(mapped);
+    size_t pos = 0;
+
+    PersistentFramebufferHeader hdr{};
+    if (pos + hdr.magic.size() > file_size) {
+        ::munmap(mapped, file_size);
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::TooSmall;
+        return r;
+    }
+    std::memcpy(hdr.magic.data(), data + pos, hdr.magic.size());
+    pos += hdr.magic.size();
+
+    if (!read_le(data, file_size, pos, hdr.version)         ||
+        !read_le(data, file_size, pos, hdr.header_size)    ||
+        !read_le(data, file_size, pos, hdr.width)          ||
+        !read_le(data, file_size, pos, hdr.height)         ||
+        !read_le(data, file_size, pos, hdr.allocated_width)||
+        !read_le(data, file_size, pos, hdr.origin_x)       ||
+        !read_le(data, file_size, pos, hdr.origin_y)       ||
+        !read_le(data, file_size, pos, hdr.pixel_format)   ||
+        !read_le(data, file_size, pos, hdr.flags)          ||
+        !read_le(data, file_size, pos, hdr.reserved)       ||
+        !read_le(data, file_size, pos, hdr.key_digest)     ||
+        !read_le(data, file_size, pos, hdr.payload_bytes)  ||
+        !read_le(data, file_size, pos, hdr.checksum)) {
+        ::munmap(mapped, file_size);
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::TooSmall;
+        return r;
+    }
+
+    if (hdr.magic != PersistentFramebufferHeader::kMagic) {
+        ::munmap(mapped, file_size);
+        spdlog::warn("[PersistentFB] bad magic in {} — deleting", path.string());
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::BadMagic;
+        return r;
+    }
+
+    if (hdr.version != PersistentFramebufferHeader::kCurrentVersion) {
+        ::munmap(mapped, file_size);
+        spdlog::info("[PersistentFB] version {} != {} in {} — deleting",
+                     hdr.version, PersistentFramebufferHeader::kCurrentVersion,
+                     path.string());
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::BadVersion;
+        return r;
+    }
+
+    const size_t expected_payload =
+        static_cast<size_t>(hdr.width) * hdr.height * sizeof(Color);
+    if (hdr.payload_bytes != expected_payload) {
+        ::munmap(mapped, file_size);
+        spdlog::warn("[PersistentFB] bad payload size in {} — deleting", path.string());
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::BadSize;
+        return r;
+    }
+
+    if (file_size < pos + hdr.payload_bytes) {
+        ::munmap(mapped, file_size);
+        spdlog::warn("[PersistentFB] truncated payload in {} — deleting", path.string());
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::TooSmall;
+        return r;
+    }
+
+    const auto* payload = data + pos;
+    const u64 computed_checksum = XXH64(payload, hdr.payload_bytes, 0);
+    if (computed_checksum != hdr.checksum) {
+        ::munmap(mapped, file_size);
+        spdlog::warn("[PersistentFB] checksum mismatch in {} — deleting", path.string());
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::ChecksumMismatch;
+        return r;
+    }
+
+    if (hdr.key_digest != key.digest()) {
+        ::munmap(mapped, file_size);
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::KeyMismatch;
+        return r;
+    }
+
+    auto result = reconstruct_framebuffer(key, hdr, payload);
+    ::munmap(mapped, file_size);
+    return result;
+}
+#endif // __linux__
+
+/// Cross-platform fopen fallback.  Reads the entire payload into a
+/// std::vector<uint8_t>, then dispatches to `reconstruct_framebuffer`.
+/// Used unconditionally on non-Linux builds and on Linux when
+/// CHRONON3D_USE_MMAP != "1" (the default).
+StoreLoadResult load_via_ifstream(const NodeCacheKey& key,
+                                  const std::filesystem::path& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::OpenFailed;
+        return r;
+    }
+
     PersistentFramebufferHeader hdr{};
     auto read_field = [&](auto& field) {
         uint8_t buf[sizeof(field)];
@@ -331,30 +372,34 @@ StoreLoadResult PersistentFramebufferStore::load(const NodeCacheKey& key) {
         return true;
     };
 
-    if (!read_field(hdr.magic)      || !read_field(hdr.version) ||
-        !read_field(hdr.header_size) || !read_field(hdr.width)  ||
-        !read_field(hdr.height)      || !read_field(hdr.allocated_width) ||
-        !read_field(hdr.origin_x)    || !read_field(hdr.origin_y) ||
-        !read_field(hdr.pixel_format)|| !read_field(hdr.flags)   ||
-        !read_field(hdr.reserved)    || !read_field(hdr.key_digest) ||
+    if (!read_field(hdr.magic)        || !read_field(hdr.version) ||
+        !read_field(hdr.header_size)  || !read_field(hdr.width)    ||
+        !read_field(hdr.height)       || !read_field(hdr.allocated_width) ||
+        !read_field(hdr.origin_x)     || !read_field(hdr.origin_y) ||
+        !read_field(hdr.pixel_format) || !read_field(hdr.flags)   ||
+        !read_field(hdr.reserved)     || !read_field(hdr.key_digest) ||
         !read_field(hdr.payload_bytes)|| !read_field(hdr.checksum)) {
         file.close();
         std::error_code ec;
         std::filesystem::remove(path, ec);
-        result.status = StoreLoadStatus::TooSmall;
-        return result;
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::TooSmall;
+        return r;
     }
 
-    // Validate.
     if (hdr.magic != PersistentFramebufferHeader::kMagic) {
         file.close();
         std::error_code ec; std::filesystem::remove(path, ec);
-        result.status = StoreLoadStatus::BadMagic; return result;
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::BadMagic;
+        return r;
     }
     if (hdr.version != PersistentFramebufferHeader::kCurrentVersion) {
         file.close();
         std::error_code ec; std::filesystem::remove(path, ec);
-        result.status = StoreLoadStatus::BadVersion; return result;
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::BadVersion;
+        return r;
     }
 
     const size_t expected_payload =
@@ -362,53 +407,76 @@ StoreLoadResult PersistentFramebufferStore::load(const NodeCacheKey& key) {
     if (hdr.payload_bytes != expected_payload) {
         file.close();
         std::error_code ec; std::filesystem::remove(path, ec);
-        result.status = StoreLoadStatus::BadSize; return result;
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::BadSize;
+        return r;
     }
 
-    // Read and checksum payload.
     std::vector<uint8_t> payload_buf(hdr.payload_bytes);
     if (!file.read(reinterpret_cast<char*>(payload_buf.data()),
                    static_cast<std::streamsize>(hdr.payload_bytes))) {
         file.close();
-        std::error_code ec; std::filesystem::remove(path, ec);
-        result.status = StoreLoadStatus::TooSmall; return result;
+        std::error_code ec;
+        std::filesystem::remove(path, ec);
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::TooSmall;
+        return r;
     }
 
     const u64 computed_checksum = XXH64(payload_buf.data(), hdr.payload_bytes, 0);
     if (computed_checksum != hdr.checksum) {
         file.close();
         std::error_code ec; std::filesystem::remove(path, ec);
-        result.status = StoreLoadStatus::ChecksumMismatch; return result;
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::ChecksumMismatch;
+        return r;
     }
 
-    // Validate key_digest.
     if (hdr.key_digest != key.digest()) {
         file.close();
-        result.status = StoreLoadStatus::KeyMismatch;
+        StoreLoadResult r{};
+        r.status = StoreLoadStatus::KeyMismatch;
+        return r;
+    }
+
+    return reconstruct_framebuffer(key, hdr, payload_buf.data());
+}
+
+} // namespace
+
+// ── Read (dispatch) ──────────────────────────────────────────────────────
+
+std::shared_ptr<Framebuffer> PersistentFramebufferStore::get(
+    const NodeCacheKey& key)
+{
+    return load(key).framebuffer;
+}
+
+StoreLoadResult PersistentFramebufferStore::load(const NodeCacheKey& key) {
+    CHRONON_ZONE_C("persistent_fb_load", trace_category::kPipeline);
+
+    if (!enabled_for_current_run()) {
+        StoreLoadResult result{};
+        result.status = StoreLoadStatus::NotFound;
         return result;
     }
 
-    // Reconstruct.
-    auto fb = std::make_shared<Framebuffer>(
-        static_cast<i32>(hdr.width), static_cast<i32>(hdr.height));
-    fb->set_origin(static_cast<i32>(hdr.origin_x), static_cast<i32>(hdr.origin_y));
-    if (hdr.flags & 1u) fb->set_opaque(true);
-
-    if (fb->allocated_width() == hdr.width) {
-        std::memcpy(fb->data(), payload_buf.data(), hdr.payload_bytes);
-    } else {
-        for (u32 y = 0; y < hdr.height; ++y) {
-            const auto* src_row = payload_buf.data() +
-                static_cast<size_t>(y) * hdr.width * sizeof(Color);
-            std::memcpy(fb->pixels_row(static_cast<i32>(y)), src_row,
-                       static_cast<size_t>(hdr.width) * sizeof(Color));
-        }
+    const auto path = file_path(key);
+    if (!std::filesystem::exists(path)) {
+        StoreLoadResult result{};
+        result.status = StoreLoadStatus::NotFound;
+        return result;
     }
 
-    result.status       = StoreLoadStatus::Ok;
-    result.framebuffer  = std::move(fb);
-    return result;
+    // Gate: mmap only when CHRONON3D_USE_MMAP=1 on POSIX (see
+    // `use_mmap_reader()` above).  Default keeps the cross-platform
+    // fopen path — existing builds preserve identical behaviour.
+#ifdef __linux__
+    if (use_mmap_reader()) {
+        return load_via_mmap(key, path);
+    }
 #endif
+    return load_via_ifstream(key, path);
 }
 
 // ── Write ─────────────────────────────────────────────────────────────────
