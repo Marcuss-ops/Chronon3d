@@ -6,7 +6,15 @@
 
 #include <spdlog/spdlog.h>
 
+#include <cmath>
 #include <filesystem>
+
+// TICKET-RENDER-PIPELINE-INTEGRITY: framebuffer sanity types + scan
+// function exposed in a separate header so the cli unit tests can
+// call `scan_framebuffer_sanity(fb)` directly.  Definition is `inline`
+// in the header (no ODR risk; the .cpp and the test TU each get a
+// copy but the linker picks one per ODR merge).
+#include "render_job_write_frame_sanity.hpp"
 
 namespace chronon3d::cli {
 
@@ -84,6 +92,21 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
         spdlog::error("Unsupported image output format for path: {}", path);
         ok = false;
         return -1.0;
+    }
+
+    // TICKET-RENDER-PIPELINE-INTEGRITY: pre-write sanity gate.  Catches
+    // SYSTEMIC failures (mostly empty or corrupt frames) BEFORE the
+    // per-pixel NaN guard in image_writer::save_png ever runs.  This is
+    // a defense-in-depth layer: save_png throws on per-pixel NaN/Inf
+    // detection (since it now refuses to silently zero-fill corrupt
+    // channels); this scan rejects whole frames where the corruption
+    // is statistically significant.
+    {
+        const auto sanity = scan_framebuffer_sanity(*fb);
+        if (!sanity.ok) {
+            ok = false;
+            return -1.0;
+        }
     }
 
     {
