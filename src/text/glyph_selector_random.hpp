@@ -16,7 +16,7 @@ namespace chronon3d::detail {
 f32 hash_to_unit_float(u64 seed, u64 unit_index);
 
 /// Return a Fisher-Yates permutation (bijection) for the given (seed, total_units).
-/// Thread-safe with a static mutex-guarded cache.
+/// Thread-safe via thread_local cache — each thread maintains its own.
 const std::vector<u32>& get_or_build_permutation(u64 seed, u32 total_units);
 
 } // namespace chronon3d::detail
