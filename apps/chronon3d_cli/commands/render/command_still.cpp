@@ -2,6 +2,7 @@
 #include "../../cli_init.hpp"
 #include "../../utils/common/cli_asset_preflight_utils.hpp"
 #include <chronon3d/assets/asset_preflight_resolver.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
@@ -24,7 +25,19 @@ int command_still(const CompositionRegistry& registry, const StillArgs& args) {
         auto resolver = make_cli_resolver(comp.assets_root());
 
         // Evaluate the scene at the target frame to get the manifest
-        auto scene = comp.evaluate(args.frame);
+        FrameContext still_ctx{
+            .frame = args.frame,
+            .local_frame = args.frame,
+            .frame_time = 0.0f,
+            .duration = comp.duration(),
+            .frame_rate = comp.frame_rate(),
+            .width = comp.width(),
+            .height = comp.height(),
+            .assets_root = comp.assets_root(),
+            .resource = std::pmr::get_default_resource(),
+            .font_engine = nullptr,
+        };
+        auto scene = comp.evaluate(still_ctx);
 
         auto result = AssetPreflightResolver::check(
             scene, resolver, PreflightMode::FrameOnly, args.frame);
