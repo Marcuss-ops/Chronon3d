@@ -116,7 +116,7 @@ RenderEngine& RenderEngine::operator=(RenderEngine&& other) noexcept {
 chronon3d::Result<RenderOutput, RenderError>
 RenderEngine::render(const chronon3d::Composition& composition, Frame frame) {
     try {
-        auto fb = m_impl->engine.render(composition, chronon3d::Frame{frame.integral()});
+        auto fb = m_impl->engine.render(composition, chronon3d::Frame{frame.value});
         if (!fb) {
             RenderError err;
             err.code    = RenderErrorCode::RuntimeFailure;
