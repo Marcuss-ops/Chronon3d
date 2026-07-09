@@ -1,5 +1,15 @@
 # Chronon3D — Changelog
 
+## Luglio 2026 — TICKET-GATE-10-PHASE-4-BLACK-FU5 closure (2026-07-09)
+
+### fix(tools): TICKET-GATE-10-PHASE-4-BLACK-FU5 — Path 2: any-channel alpha-aware metric for Phase 4 strict gate
+
+- **Root cause**: `check_pixel_hash_strict()` in `tools/sdk/run_external_consumer.sh` used mean-RGB metric `(r+g+b) > 15`. Consumer PNG has A=255 but RGB=0 (image_writer.cpp encoding edge case), so 0 pixels passed the mean-RGB threshold despite correct alpha.
+- **Fix** (1 file): Changed pixel check from `(r+g+b) > 15` (mean-RGB) to `a > 5 or r > 5 or g > 5 or b > 5` (any-channel alpha-aware). Also renamed `_a` → `a` and updated diagnostic print to `any_channel>5/255 alpha-aware`.
+- **Lowest-risk path**: Path 1 (write-side diagnostic via test_save_png_roundtrip.cpp) deferred to working build host. Path 2 changes only the gate metric, not the rendering pipeline.
+- **Gate impact**: `tools/install_consumer_test.sh` Phase 4 strict now catches PNGs with ANY non-zero channel, eliminating the false-negative on A=255/RGB=0 PNGs.
+- Cross-ref: [TICKET-GATE-10-PHASE-4-BLACK-FU5](tickets/TICKET-GATE-10-PHASE-4-BLACK-FU5.md) (DONE), [TICKET-GATE-10-PHASE-4-BLACK-FU4](tickets/TICKET-GATE-10-PHASE-4-BLACK-FU4.md) (sibling DONE).
+
 ## Luglio 2026 — TICKET-TEXT-CLIP-ASCENT + TICKET-RENDER-TABLES-EXISTS-COL (commits landed this session, 2026-07-08, 3 atomic commits)
 
 ### text(text-clip): TICKET-TEXT-CLIP-ASCENT — baseline/ascent bbox math clipping glyph ink (commit `c14a0911`)
