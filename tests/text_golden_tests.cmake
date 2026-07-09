@@ -148,6 +148,18 @@ target_sources(chronon3d_text_golden_tests
         text_golden/text_completeness/text_visible_ink.cpp
 )
 
+# P0-2 Text No Clipping — glyph clipping regression tests.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_completeness/text_no_clipping.cpp
+)
+
+add_test(
+    NAME TextNoClip
+    COMMAND chronon3d_text_golden_tests --test-case="NoClip *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # P0-3 Text Wrapping — layout box wrapping correctness tests.
 target_sources(chronon3d_text_golden_tests
     PRIVATE

@@ -6,6 +6,36 @@
 
 namespace chronon3d::test::completeness {
 
+// ── AlphaBBox — tight axis-aligned bounding box of visible pixels ──────
+struct AlphaBBox {
+    int x0{-1}, y0{-1}, x1{-1}, y1{-1};
+    [[nodiscard]] int width()  const noexcept {
+        return (x1 >= 0) ? (x1 - x0 + 1) : 0;
+    }
+    [[nodiscard]] int height() const noexcept {
+        return (y1 >= 0) ? (y1 - y0 + 1) : 0;
+    }
+    [[nodiscard]] bool empty() const noexcept {
+        return x1 < 0 || y1 < 0;
+    }
+};
+
+inline AlphaBBox alpha_bbox(const Framebuffer& fb, float epsilon = 0.01f) {
+    AlphaBBox b{fb.width(), fb.height(), -1, -1};
+    for (int y = 0; y < fb.height(); ++y) {
+        const Color* row = fb.pixels_row(y);
+        for (int x = 0; x < fb.width(); ++x) {
+            if (row[x].a > epsilon) {
+                b.x0 = std::min(b.x0, x);
+                b.x1 = std::max(b.x1, x);
+                b.y0 = std::min(b.y0, y);
+                b.y1 = std::max(b.y1, y);
+            }
+        }
+    }
+    return b;
+}
+
 // ── Pixel scanning helpers for text completeness tests ─────────────────
 // Shared across VisibleInk, Wrapping, Alignment, Unicode, and
 // Determinism tests.  All functions take a Framebuffer and an alpha
