@@ -262,6 +262,18 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+# Golden coverage gaps — Hebrew RTL, text gradient fill, camera DOF.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_completeness/text_golden_gaps.cpp
+)
+
+add_test(
+    NAME TextGoldenGaps
+    COMMAND chronon3d_text_golden_tests --test-case="GoldenGap *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # Filter ctest -R to the wrapping subset.
 add_test(
     NAME TextWrapping
