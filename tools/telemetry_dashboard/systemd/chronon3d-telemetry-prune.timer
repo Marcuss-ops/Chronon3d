@@ -1,0 +1,10 @@
+[Unit]
+Description=Chronon3D Telemetry — Weekly prune timer (Sunday 03:00)
+
+[Timer]
+OnCalendar=Sun *-*-* 03:00:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target
