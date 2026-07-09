@@ -18,8 +18,10 @@
 #include <cstddef>
 #include <functional>
 #include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace chronon3d::cache {
@@ -131,8 +133,18 @@ private:
 
     void unregister(Entry* entry);
 
-    mutable std::mutex                              m_mutex;
-    std::unordered_map<CacheDomain, std::vector<Entry*>> m_entries;
+    // TICKET-lock-free-shared_mutex — std::shared_mutex lets concurrent
+    // readers (snapshot / snapshot_by_domain / snapshot_all_domains /
+    // registered_count / introspection) proceed in parallel. Writers
+    // (register_cache / unregister / clear_by_domain / clear_all) take
+    // the exclusive path. Public API surface unchanged (Cat-2 freeze).
+    mutable std::shared_mutex                       m_mutex;
+    // TICKET-O(n)-audit — storage switched from std::vector<Entry*> to
+    // std::unordered_set<Entry*> so CacheDiagnostics::unregister performs
+    // an O(1) lookup instead of an O(n) std::find linear scan.
+    // Public API surface is unchanged (only the private m_entries type
+    // changes; no new public symbols introduced — AGENTS.md Cat-2 OK).
+    std::unordered_map<CacheDomain, std::unordered_set<Entry*>> m_entries;
     std::atomic<bool>                               m_enabled{true};
 
     friend class Handle;
