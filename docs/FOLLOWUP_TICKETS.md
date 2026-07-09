@@ -14,7 +14,6 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-011 | P0 | mainline build rot (chronon3d_core_tests) | PARTIAL-AUDIT-DONE | gate 1–8 (audit closed 2026-07-08, fix-roadmap deferred to working build host — see `docs/CHANGELOG.md` P2-#11 design audit entry; sub-tickets (i)+(ii) DONE session-precedent + 4 remaining ODR/canonical-type fixes planned in CHANGELOG Step A→E roadmap) |
 | TICKET-036 | P0 | camera architecture gate G6 | PLANNED | gate 6 |
 | TICKET-120 | P1 | 17/24 scene test failures | PARTIAL-AUDIT-DONE | Camera V1 cert (audit closed 2026-07-08: TICKET-035 + TICKET-034D + TrajectoryMotion sanity guard verified-at-HEAD; 17 remaining failures enumerated in `docs/CHANGELOG.md` P2-#11 design audit entry; fix-roadmap Steps A→F deferred to working build host) |
-| TICKET-GATE-10-PHASE-4-BLACK-FU5 | P0 | PNG mean-RGB metric rot | PARTIAL-AUDIT-DONE | gate 10 (audit closed 2026-07-08: Path 2 alpha-aware any-channel metric recommended as lowest-risk fix; Full Path 1 (write-side diagnostic) deferred to working build host — see `docs/CHANGELOG.md` P2-#11 design audit entry; sub-commits A→D roadmap documented) |
 | TICKET-005 | P1 | post-cascade cleanup | PARTIAL | gate 5 |
 | TICKET-011-i | P0 | text_unit_map impl drift | PLANNED | gate 1–8 |
 | TICKET-044 | P1 | selftest hardcoded paths | PLANNED | gate 5 |
@@ -42,6 +41,10 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | [TICKET-ASSET-READINESS](tickets/TICKET-ASSET-READINESS.md) | P1 | PARTIAL (Steps 1-7 + Migration code-complete) |
 
 ## Recently Closed
+
+| ID | Area | Note |
+|---|---|---|
+| TICKET-GATE-10-PHASE-4-BLACK-FU5 | PNG mean-RGB metric rot (gate 10 Phase 4) | DONE (2026-07-09) — Path 2: any-channel alpha-aware metric in tools/sdk/run_external_consumer.sh. Mean-RGB (r+g+b)>15 → any-channel (a>5 or r>5 or g>5 or b>5). Lowest-risk fix for alpha=255/RGB=0 PNG encoding edge case. |
 
 Per la lista completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) + [`docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`](docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md).
 
