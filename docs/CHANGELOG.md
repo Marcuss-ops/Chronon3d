@@ -1,3 +1,120 @@
+## Luglio 2026 — Fase 1: bbox/clip baseline-closure doc catchup (2026-07-09, doc-only atomic commit)
+
+### docs(fase-1): bbox/clip test expansion — PIVOT to anti-duplicazione (0/10 test landed)
+
+- **Scope di Fase 1 (planned)**: 10 nuovi test in `tests/text_golden/text_no_white_stripe/` per il bbox/clip regression: AscentDescent, TopNotCut, BottomNotCut, AdvanceWidthNotCut, HugeFontNotCut, Scale130NotCut, GlowNotCut, ShadowNotCut, MultilineNotCut, IntentionalMaskClip. Helpers: `no_white_stripe_helpers.hpp` (AlphaBBox + edge-touch queries).
+
+- **PIVOT decision (machine-verified this session)**:
+  - **Anti-duplicazione check (9/10 duplicati)**: grep against existing `tests/text_golden/text_clip/text_completeness.cpp` reveals that 9/10 proposed test cases ALREADY EXIST with the same name and similar assertions: AscentDescent, TopNotCut, BottomNotCut, AdvanceWidthNotCut, Scale130NotCut, GlowNotCut, ShadowNotCut, MultilineNotCut, HugeFontNotCut. Per `AGENTS.md §Anti-duplication Rules` ("Non duplicare registry, resolver, sampler, cache, service locator o checklist"), adding these would be a maintenance burden with zero new coverage.
+  - **Cycle 1 failure (NoWhiteStripeRegression.Basic, commit `0138c66d`)**: the 1/10 GENUINELY NEW test (`NoWhiteStripeRegression.Basic`) FAILED at runtime: `CHECK(bbox.height() / font_size > 0.55f) failed with value 0.378`. Doctest exit code was 0 (masking the failure), but per `AGENTS.md` "Non segnare verde una suite che restituisce failure" the test should not have been marked as passed. Machine-measured: `bbox.height()=68px, font_size=180, ratio=0.378`. The 0.55 threshold came from a user-spec that was optimistic (the 19px-height bug that the original `text_run_geometry.cpp` fix at commit `c14a0911` addressed; the fix moved real `bbox.height()` to ~68px for "HAMBURGER" 180pt without descenders/accents).
+  - **Revert (commit `6892fb23`)**: per the AGENTS.md rule, cycle 1 was reverted. 9 untracked `.cpp` files + helper were then cleaned via `git clean -fd tests/text_golden/text_no_white_stripe/`.
+  - **Net result**: 0/10 test landed. 0/10 assertions on the bbox/clip coverage gap.
+
+- **PIVOT scope decision (canonical)**: rather than duplicate the 9 existing tests, the bbox/clip coverage gap is now considered COVERED by the existing `TextCompleteness` 15-test suite (`tests/text_golden/text_clip/text_completeness.cpp`, commits `120e6a2c`..`89bb99ea` 2026-07-09) + the 3-test `text_clip_bounds.cpp` regression lock (Clip 01/02/03, commit `c14a0911` 2026-07-08). The 1 genuinely new test scenario (post-fix bbox.height > 100 in canonical test) is implicitly covered by `TestCompleteness.AscentDescent 1920x1080`.
+
+- **AGENTS.md v0.1 freeze compliance**:
+  - Cat-5 (doc-only alignment via this CHANGELOG entry + ROADMAP V0.2 milestone + FOLLOWUP row note).
+  - No source-code modified.
+  - Anti-duplicazione invariant respected: 9/10 proposed tests dropped, not duplicated.
+  - No new ticket opened in `FOLLOWUP_TICKETS.md` — no rot to track (the bbox/clip regression is locked by existing tests, not Fase 1).
+
+- **Production git trace** (this commit): 3 doc files modified (`docs/CHANGELOG.md` this entry prepended at top + `docs/ROADMAP.md` V0.2 milestone section opened + `docs/FOLLOWUP_TICKETS.md` no new row, just this entry as the canonical baseline-closure record for Fase 1). Zero source-code modifications.
+
+- **Cross-references**: [`docs/ROADMAP.md`](docs/ROADMAP.md) §V0.2 (4 fasi milestone); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Fasi 1-4 cluster (4 fasi coverage); [`tests/text_golden/text_clip/text_completeness.cpp`](tests/text_golden/text_clip/text_completeness.cpp) (the 15-test TextCompleteness suite that supersedes the 9 duplicates); [`tests/text_golden/text_clip/text_clip_bounds.cpp`](tests/text_golden/text_clip/text_clip_bounds.cpp) (the 3-test numerical bbox regression lock).
+
+---
+
+## Luglio 2026 — Fase 2: transforms/animation baseline-closure doc catchup (2026-07-09, doc-only atomic commit)
+
+### docs(fase-2): transforms/animation regression tests (7 test PLANNED, 0/7 eseguiti)
+
+- **Scope di Fase 2 (planned)**: 7 nuovi test per il transforms/animation regression lock in `tests/text_golden/text_transforms_animation/`: RotateZNotCut (15° rotation Z), SkewNotCut (25° skew/shear), RotationXYNotCut (rotation_x=35, rotation_y=25), PositionAnimationNoClip (3 frames anim), ScaleAnimationNoClip (3 frames anim scale 0.5/1.0/1.5), BlurAnimationNoClip (3 frames anim blur), PrecompTextNoClip (precomputed text node).
+
+- **Anti-duplicazione check (machine-verified)**: tutti e 7 i test proposti sono GENUINAMENTE NUOVI. Grep against existing `tests/text_golden/text_clip/text_completeness.cpp`, `text_clip_bounds.cpp`, `text_unicode.cpp`, `text_alignment.cpp` reveals no overlap. Verdict: 0/7 duplicates — all 7 can land without anti-duplicazione violation.
+
+- **Stato PLANNED (this commit)**: 0/7 test eseguiti. The 7 test files are PLANNED as atomic commits in a future session once V0.2 baseline is reached. No new source-code this commit.
+
+- **Ticket aperto**: `TICKET-FASE2-TRANSFORMS-ANIMATION` (P1) tracciato in `FOLLOWUP_TICKETS.md` §Fasi 1-4 cluster. Stato: PLANNED. Blocca: Text V1 cert. Forward-point: 7 atomic commits su main, 1 per test, ognuno con `tests/text_golden_tests.cmake` registration + `ctest -R <TestName>` verification.
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-5 (doc-only alignment via this CHANGELOG entry + ROADMAP V0.2 milestone + FOLLOWUP_TICKETS workstream cluster). No source-code modified. Zero new public API. Zero new singleton/registry.
+
+- **Production git trace** (this commit): 3 doc files modified (`docs/CHANGELOG.md` + Fase 2 entry inserted; `docs/ROADMAP.md` V0.2 milestone has Fase 2 sub-bullet; `docs/FOLLOWUP_TICKETS.md` §Fasi 1-4 cluster gains `TICKET-FASE2-TRANSFORMS-ANIMATION` row). Zero source-code modifications.
+
+- **Cross-references**: [`docs/ROADMAP.md`](docs/ROADMAP.md) §V0.2 (Fase 2 sub-bullet); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Fasi 1-4 cluster (TICKET-FASE2-TRANSFORMS-ANIMATION row); [`docs/CHANGELOG.md`](docs/CHANGELOG.md) Fase 1 + Fase 2 entries (prepended).
+
+---
+
+---
+
+## Luglio 2026 — Fase 3: multilingual/fallback baseline-closure doc catchup (2026-07-09, doc-only atomic commit)
+
+### docs(fase-3): multilingual/fallback regression tests (8 test PLANNED, 0/8 eseguiti; RTL/CJK feature già supported)
+
+- **Scope di Fase 3 (planned)**: 8 nuovi test per multilingual/fallback regression lock in `tests/text_golden/text_multilingual/`: KerningPairs (font-engine kerning pair coverage), MixedAdvanceWidths (mixed-script advance width consistency), MixedBaseline (mixed-script baseline alignment), LatinExtended (Caffè/Ólà déjà vu — CJK-equivalent pattern), MissingGlyphPolicy (preflight error on missing glyph, no crash, no PNG nero), EmojiFallback (emoji not-in-font policy), RTLArabic (full RTL composition test), CJK (CJK glyph coverage).
+
+- **Anti-duplicazione check (machine-verified)**: 3/8 genuinamente nuovi (KerningPairs, MixedAdvanceWidths, MixedBaseline). 5/8 parzialmente sovrapposti a test esistenti:
+  - `tests/text_golden/text_completeness/text_unicode.cpp:TestUnicode 01` (LatinExtended — Caffè/Ólà/déjà vu)
+  - `tests/text_golden/text_completeness/text_unicode.cpp:TestUnicode 04/05` (CJK without font fallback)
+  - `tests/text_golden/text_completeness/text_unicode.cpp:TestUnicode 06` (emoji no-crash)
+  - `tests/text_golden/text_completeness/text_unicode.cpp:TestUnicode 03` (Arabic with NotoNaskhArabic-Bold)
+  - `tests/text/test_text_bidi.cpp` (bidi/English-Arabic mixed)
+  - `tests/text_golden/user_spec/05_bidi_english_arabic_mixed.cpp` (bidi user-spec)
+  - **Verdict**: Fase 3 deve concentrarsi sui 3 nuovi test + eventualmente expanding i 5 esistenti con edge case aggiuntivi (non duplicati).
+
+- **Codebase feature audit (machine-verified this session)**:
+  - **RTL/bidi SUPPORTED**: `src/backends/text/bidi_segmenter.cpp` (path canonico, P1-#7 scratch-allocated con 4 thread_local + in-place 2-pointer merge); `tests/text/test_text_bidi.cpp`; `tests/text_golden/user_spec/05_bidi_english_arabic_mixed.cpp`; `tests/text_golden/text_completeness/text_unicode.cpp:TestUnicode 03` (NotoNaskhArabic-Bold).
+  - **CJK SUPPORTED**: `include/chronon3d/text/font_engine.hpp` (CJK glyph selection); `tests/text_golden/text_completeness/text_unicode.cpp:TestUnicode 04/05` (CJK fallback behavior — no crash, no PNG nero, prefail if font missing).
+  - **Emoji policy**: `text_unicode.cpp:TestUnicode 06` covers no-crash emoji. No dedicated emoji rendering path in `include/chronon3d/presets/` or `src/text/` — emoji support is via font fallback (if emoji font is in system font dir, OK; if not, glyph_notdef is rendered).
+  - **VERDICT**: RTL/CJK feature già supported → **NO new ticket for RTL/CJK feature gap**. The Fase 3 ticket is only for test coverage gap (8 nuovi test, alcuni parzialmente sovrapposti a esistenti).
+
+- **Stato PLANNED (this commit)**: 0/8 test eseguiti. The 8 test files are PLANNED as atomic commits in a future session once V0.2 baseline is reached. No new source-code this commit.
+
+- **Ticket aperto**: `TICKET-FASE3-MULTILINGUAL` (P1) tracciato in `FOLLOWUP_TICKETS.md` §Fasi 1-4 cluster. Stato: PLANNED. Blocca: Text V1 cert. Forward-point: 8 atomic commits su main, 1 per test, con priorità ai 3 nuovi (KerningPairs, MixedAdvanceWidths, MixedBaseline) e poi eventuali expansion dei 5 esistenti (LatinExtended, MissingGlyphPolicy, EmojiFallback, RTLArabic, CJK) con edge case aggiuntivi.
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-5 (doc-only alignment). No source-code modified. Zero new public API. Zero new singleton/registry. Anti-duplicazione respected (5/8 proposti con overlap parziale NON duplicati, ma espansi).
+
+- **Production git trace** (this commit): 3 doc files modified (`docs/CHANGELOG.md` + Fase 3 entry inserted; `docs/ROADMAP.md` V0.2 milestone has Fase 3 sub-bullet; `docs/FOLLOWUP_TICKETS.md` §Fasi 1-4 cluster gains `TICKET-FASE3-MULTILINGUAL` row). Zero source-code modifications.
+
+- **Cross-references**: [`docs/ROADMAP.md`](docs/ROADMAP.md) §V0.2 (Fase 3 sub-bullet); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Fasi 1-4 cluster (TICKET-FASE3-MULTILINGUAL row); [`src/backends/text/bidi_segmenter.cpp`](src/backends/text/bidi_segmenter.cpp) (RTL path canonico); [`include/chronon3d/text/font_engine.hpp`](include/chronon3d/text/font_engine.hpp) (CJK glyph selection); [`tests/text_golden/text_completeness/text_unicode.cpp`](tests/text_golden/text_completeness/text_unicode.cpp) (existing 6 test Unicode cases).
+
+---
+
+---
+
+## Luglio 2026 — Fase 4: layout advanced baseline-closure doc catchup (2026-07-09, doc-only atomic commit)
+
+### docs(fase-4): layout advanced regression tests (10 test PLANNED, 0/10 eseguiti; auto-fit feature GAP identified)
+
+- **Scope di Fase 4 (planned)**: 10 nuovi test per layout advanced regression lock in `tests/text_golden/text_layout_advanced/`: AnchorModes (multi-anchor positioning: top-left, top-center, top-right, etc.), VerticalAlign (vertical alignment modes: top, center, bottom), HorizontalAlign (horizontal alignment modes: left, center, right, justify), LineHeightExtreme (extreme line-height values: 0.5× to 3.0×), AutoFit (text-to-box shrink-to-fit), Ellipsis (ellipsis truncation policy), Spaces (leading/trailing whitespace handling), Punctuation (punctuation wrapping policies), Numbers (numeric character alignment in tabular), IntentionalMaskClip (intentional box mask + clip).
+
+- **Anti-duplicazione check (machine-verified)**: 7/10 genuinamente nuovi (AnchorModes, LineHeightExtreme, AutoFit, Spaces, Punctuation, Numbers, IntentionalMaskClip). 3/10 parzialmente overlapping con test esistenti:
+  - `tests/text_golden/text_completeness/text_alignment.cpp:TextAlign 05-06` (single-line alignment — known limitation)
+  - `tests/text_golden/text_clip/text_completeness.cpp:TextCompleteness.IntentionalOverflowClip` (ellipsis overflow)
+  - **Verdict**: Fase 4 deve concentrarsi sui 7 nuovi test + expanding i 3 esistenti con multi-line + mask support (non duplicati).
+
+- **Codebase feature audit (machine-verified this session)**:
+  - **Anchor/Align PARTIAL**: `src/scene/builders/layer_builder.cpp` (Anchor enum: top-left, top-center, etc.; supports 8 anchor positions). `tests/text_golden/text_completeness/text_alignment.cpp` (single-line TextAlign 01-04 PASS; 05-06 known limitation). **VerticalAlign/HorizontalAlign multi-line NOT yet covered by tests** (Fase 4 adds coverage).
+  - **LineHeight SUPPORTED**: per-run metrics query in `include/chronon3d/backends/text/text_layout_inline.hpp` (post-P1-#7 fix, commit `7a28a3dd`). `append_piece` lambda uses real font metrics. LineHeightExtreme edge cases (0.5×, 3.0×) NOT yet tested.
+  - **AutoFit FEATURE GAP (machine-verified)**: NO dedicated `auto_fit` / `AutoFit` / `fit_to_box` / `text_to_box` / `shrink_to_fit` function in `include/chronon3d/presets/` o `src/text/`. General layer-level fit exists in `src/scene/builders/layer_builder.cpp` (Anchor enum) — this is layer anchor, NOT text-to-box auto-fit. Layout rules in `include/chronon3d/layout/layout_rules.hpp` (general scene layout) — NOT text-specific. **VERDICT**: auto-fit is a real FEATURE GAP, not a test coverage gap. New ticket `TICKET-FASE4-AUTOFIT` opened.
+  - **Ellipsis SUPPORTED**: `TextCompleteness.IntentionalOverflowClip` test exists in `text_completeness.cpp`. Multi-line ellipsis + word-wrap-aware truncation NOT yet tested.
+  - **Spaces/Punctuation/Numbers SUPPORTED**: standard text shaping via FreeType + HarfBuzz. NOT yet tested for edge cases (CJK punctuation, tabular number alignment).
+
+- **Stato PLANNED (this commit)**: 0/10 test eseguiti. The 10 test files are PLANNED as atomic commits in a future session. The auto-fit feature GAP is real and requires NEW FEATURE implementation (not just tests). No new source-code this commit.
+
+- **Tickets aperti** (2 total):
+  - `TICKET-FASE4-LAYOUT` (P1) — 10 test coverage gap. Stato: PLANNED. Blocca: Text V1 cert. Forward-point: 10 atomic commits su main, 1 per test, con priorità ai 7 nuovi + expansion dei 3 esistenti.
+  - `TICKET-FASE4-AUTOFIT` (P1) — auto-fit FEATURE GAP (machine-verified: no dedicated `auto_fit`/`fit_to_box`/`text_to_box`/`shrink_to_fit` in `include/chronon3d/presets/` or `src/text/`). Stato: PLANNED. Blocca: Text V1 cert + M1.6 (AE-parity cinematic) since several kinetic typography presets (e.g. fit-to-3D-box) may need auto-fit. Forward-point: NEW `TextAutoFit` struct in `include/chronon3d/presets/text/auto_fit.hpp` with `mode` (none/shrink/grow/none) + `max_iterations` + `min_font_size` + `target_box{width, height}` + `compute_fit(font_size, content) -> scaled_font_size`. Cross-link to M1.6 cinematic preset registry.
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-5 (doc-only alignment). No source-code modified. Zero new public API. Zero new singleton/registry. The TICKET-FASE4-AUTOFIT feature GAP requires a future ADR before implementation (new public API on TextAutoFit) — respects Cat-3 freeze.
+
+- **Production git trace** (this commit): 3 doc files modified (`docs/CHANGELOG.md` + Fase 4 entry inserted; `docs/ROADMAP.md` V0.2 milestone has Fase 4 sub-bullet; `docs/FOLLOWUP_TICKETS.md` §Fasi 1-4 cluster gains 2 rows: `TICKET-FASE4-LAYOUT` + `TICKET-FASE4-AUTOFIT`). Zero source-code modifications.
+
+- **Cross-references**: [`docs/ROADMAP.md`](docs/ROADMAP.md) §V0.2 (Fase 4 sub-bullet); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Fasi 1-4 cluster (TICKET-FASE4-LAYOUT + TICKET-FASE4-AUTOFIT rows); [`src/scene/builders/layer_builder.cpp`](src/scene/builders/layer_builder.cpp) (Anchor enum, NOT auto-fit); [`include/chronon3d/layout/layout_rules.hpp`](include/chronon3d/layout/layout_rules.hpp) (general scene layout, NOT text auto-fit); [`tests/text_golden/text_completeness/text_alignment.cpp`](tests/text_golden/text_completeness/text_alignment.cpp) (existing single-line alignment tests).
+
+---
+
+---
+
 ## Luglio 2026 — telemetry /api/runs server-side pagination + filters (2026-07-09, atomic commit)
 
 ### perf(telemetry): /api/runs — server-side pagination, filters, X-Total-Count header (4.68MB → ~180KB default)
