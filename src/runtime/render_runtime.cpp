@@ -136,6 +136,7 @@ void RenderRuntime::populate() {
         .executor            = m_owned_executor.get(),
         .graph_node_registry = m_owned_graph_node_registry.get(),
         .effect_catalog      = m_owned_effect_catalog.get(),
+        .diagnostics         = &m_diagnostics,
         // WP-3 PR 3.1 — .scene_hasher and .program_store fields are
         // gone from RenderServices (per-session ownership).  This is
         // the canonical PR 3.1 service-bundle table.
