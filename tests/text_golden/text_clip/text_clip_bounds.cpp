@@ -387,3 +387,71 @@ TEST_CASE("Clip 05 TextClip GlowNotCut 1920x1080") {
     INFO("Golden: ", r.message);
     CHECK(r.passed);
 }
+
+// ═══ Test A — DebugLayout Diagnostic ═════════════════════════════════════
+// Original analysis (Test A): render with text_layout_debug=true.
+// When enabled, predicted_bbox() returns full canvas {0,0,w,h} instead
+// of the computed tight bbox.  This isolates the compositor clipping
+// path from the scratch-surface sizing path:
+//
+//   debug ON + text fully visible → bug is in predicted_bbox/compositor
+//   debug ON + text still clipped  → bug is in scratch raster surface
+//
+// This test renders Clip 01 both ways and logs the difference.
+TEST_CASE("Clip 06 TextClip DebugLayout Diagnostic 1920x1080") {
+    // Normal render (text_layout_debug = false, default)
+    auto renderer_normal = test::make_renderer_shared();
+    auto fb_normal = renderer_normal->render(
+        build_clip_composition(*renderer_normal, Vec3{1.0f, 1.0f, 1.0f}),
+        Frame{0});
+    REQUIRE(fb_normal != nullptr);
+    const AlphaBBox bbox_normal = alpha_bbox(*fb_normal);
+    INFO("NORMAL  bbox: x0=", bbox_normal.x0, " y0=", bbox_normal.y0,
+         " x1=", bbox_normal.x1, " y1=", bbox_normal.y1,
+         " w=", bbox_normal.width(), " h=", bbox_normal.height());
+
+    // Debug render (text_layout_debug = true)
+    auto renderer_debug = test::make_renderer_shared();
+    RenderSettings debug_settings;
+    debug_settings.use_modular_graph = true;  // mirror make_renderer_shared
+    debug_settings.text_layout_debug = true;
+    renderer_debug->set_settings(debug_settings);
+    auto fb_debug = renderer_debug->render(
+        build_clip_composition(*renderer_debug, Vec3{1.0f, 1.0f, 1.0f}),
+        Frame{0});
+    REQUIRE(fb_debug != nullptr);
+    const AlphaBBox bbox_debug = alpha_bbox(*fb_debug);
+    INFO("DEBUG   bbox: x0=", bbox_debug.x0, " y0=", bbox_debug.y0,
+         " x1=", bbox_debug.x1, " y1=", bbox_debug.y1,
+         " w=", bbox_debug.width(), " h=", bbox_debug.height());
+
+    // Diagnostic comparison
+    INFO("Delta: dy0=", bbox_debug.y0 - bbox_normal.y0,
+         " dy1=", bbox_debug.y1 - bbox_normal.y1,
+         " dh=", bbox_debug.height() - bbox_normal.height(),
+         " dx1=", bbox_debug.x1 - bbox_normal.x1);
+
+    // ── Export PNGs for visual inspection ─────────────────────────────────
+    const char* kNormalPath = "/tmp/clip06_normal.png";
+    const char* kDebugPath  = "/tmp/clip06_debug.png";
+    CHECK(save_png(*fb_normal, kNormalPath));
+    CHECK(save_png(*fb_debug,  kDebugPath));
+    MESSAGE("PNG exported: ", kNormalPath);
+    MESSAGE("PNG exported: ", kDebugPath);
+
+    const bool debug_fixes_clipping =
+        bbox_debug.height() > bbox_normal.height() + 50;
+
+    if (debug_fixes_clipping) {
+        MESSAGE("VERDICT: debug fixes vertical clipping -> bug is in predicted_bbox / compositor, NOT in scratch surface");
+    } else if (bbox_debug.height() <= bbox_normal.height()) {
+        MESSAGE("VERDICT: debug does NOT fix vertical clipping -> bug is in scratch raster surface / local bounds");
+    } else {
+        MESSAGE("Ambiguous: debug height =", bbox_debug.height(),
+                "normal height =", bbox_normal.height(),
+                "(difference < 50 px threshold — manual investigation needed)");
+    }
+
+    // Sanity-check: normal render must have produced visible pixels
+    CHECK(bbox_normal.height() > 0);
+}
