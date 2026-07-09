@@ -802,7 +802,15 @@ def create_merged_connection():
         db_mtime = DB_PATH.stat().st_mtime if DB_PATH.exists() else 0
         jsonl_mtime = JSONL_PATH.stat().st_mtime if JSONL_PATH.exists() else 0
 
-        if _cached_master is None or db_mtime > _last_db_mtime or jsonl_mtime > _last_jsonl_mtime:
+        # TICKET-dashboard-cache: switch from `>` to `!=` for mtime
+        # comparison.  Filesystem mtime granularity is often ~1s, so two
+        # writes inside the same second (rapid CLI render) would NOT
+        # invalidate the cache under `>` and the new entry would not
+        # appear in /api/runs even after restart.  Using `!=` catches
+        # such same-second churn.
+        if (_cached_master is None
+                or db_mtime != _last_db_mtime
+                or jsonl_mtime != _last_jsonl_mtime):
             schema_sql = _load_schema_sql()
             master = sqlite3.connect(':memory:', check_same_thread=False)
             master.row_factory = sqlite3.Row
