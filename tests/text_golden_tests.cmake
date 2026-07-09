@@ -142,6 +142,19 @@ target_sources(chronon3d_text_golden_tests
         text_golden/text_placement/text_placement_golden.cpp
 )
 
+# P0-1 Text Visible Ink — anti-false-positive regression tests.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_completeness/text_visible_ink.cpp
+)
+
+# Filter ctest -R to the visible-ink subset.
+add_test(
+    NAME TextVisibleInk
+    COMMAND chronon3d_text_golden_tests --test-case="VisibleInk *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # TICKET-TEXT-CLIP-ASCENT — text-clip numerical-bbox regression lock.
 # Five TEST_CASEs in text_clip/text_clip_bounds.cpp:
 #   - AscentNotCut    : baseline HAMBURGER, asserts visible_height>90,
