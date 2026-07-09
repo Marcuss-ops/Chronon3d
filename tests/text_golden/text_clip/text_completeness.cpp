@@ -307,8 +307,11 @@ TEST_CASE("TextCompleteness.AscentDescent 1920x1080") {
          " w=", bbox.width(), " h=", bbox.height());
 
     CHECK_FALSE(bbox.empty());
-    CHECK(bbox.height() > 100);
-    CHECK(bbox.width()  > 700);
+    // font_size * 0.65 = 117 — catches the 19px-sliver bug.
+    CHECK(bbox.height() > static_cast<int>(font_size * 0.65f));
+    // font_size * 5 = 900 — realistic for centered text in a 1920px box;
+    // font_size * 8 would exceed the canvas at this point size.
+    CHECK(bbox.width()  > static_cast<int>(font_size * 5));
     CHECK(bbox.y0 > 4);
     CHECK(bbox.y1 < static_cast<int>(fb->height()) - 4);
 
