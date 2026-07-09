@@ -97,6 +97,11 @@ bool FramebufferPool::evict_global_lru() {
     std::optional<FramebufferPoolKey> lru_key;
     size_t                              lru_idx  = 0;
     uint64_t                            min_tick = std::numeric_limits<uint64_t>::max();
+    // TICKET-O(n)-audit -- capture the bucket pointer at selection time
+    // so we do NOT redundantly m_free.find(*lru_key) after the loop.  The
+    // bucket is the value owned by m_free; we never mutate m_free
+    // between selection and use, so the pointer remains valid.
+    std::vector<PoolEntry>*             picked_bucket = nullptr;
 
     for (auto& [key, bucket] : m_free) {
         if (bucket.empty()) continue;
@@ -114,15 +119,13 @@ bool FramebufferPool::evict_global_lru() {
             lru_key  = key;
             lru_idx  = static_cast<size_t>(
                 std::distance(bucket.begin(), local_lru));
+            picked_bucket = &bucket;
         }
     }
 
-    if (!lru_key.has_value()) return false;
+    if (!lru_key.has_value() || picked_bucket == nullptr) return false;
 
-    auto it = m_free.find(*lru_key);
-    if (it == m_free.end()) return false;
-
-    auto& bucket = it->second;
+    auto& bucket = *picked_bucket;
     if (lru_idx >= bucket.size()) return false;
 
     size_t evicted_bytes = bucket[lru_idx].fb->size_bytes();
@@ -134,7 +137,7 @@ bool FramebufferPool::evict_global_lru() {
     m_pressure_count.fetch_add(1, std::memory_order_relaxed);
 
     if (bucket.empty()) {
-        m_free.erase(it);
+        m_free.erase(*lru_key);
     }
     return true;
 }
