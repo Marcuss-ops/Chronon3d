@@ -100,6 +100,11 @@ void write_run_to_jsonl(const chronon3d::telemetry::RenderTelemetryRecord& run) 
     js << ",\"framebuffer_reuses\":" << run.framebuffer_reuses;
     js << ",\"framebuffer_bytes_allocated\":" << run.framebuffer_bytes_allocated;
     js << ",\"framebuffer_bytes_peak\":" << run.framebuffer_bytes_peak;
+    // Process-wide peak memory usage (bytes) — populated by
+    // cli::telemetry::populate_run_host_attribs.  Placed adjacent to the
+    // framebuffer gauges because the dashboard renders the two in the same
+    // memory-pressure chart group.
+    js << ",\"bytes_allocated_peak\":" << run.bytes_allocated_peak;
     js << ",\"compiler_info\":\"" << json_escape(run.compiler_info) << "\"";
     js << "}\n";
 
