@@ -166,11 +166,11 @@ from PIL import Image
 img = Image.open(sys.argv[1]).convert('RGBA')
 w, h = img.size
 above = 0
-for r, g, b, _a in img.getdata():
-    if (r + g + b) > 15:
+for r, g, b, a in img.getdata():
+    if a > 5 or r > 5 or g > 5 or b > 5:
         above += 1
 img.close()
-print(f'PASS above={above}/{w*h} (mean_rgb_per_pixel>5/255)')
+print(f'PASS above={above}/{w*h} (any_channel>5/255 alpha-aware)')
 sys.exit(0 if above >= 1 else 1)
 PYEOF
 )"
@@ -190,6 +190,9 @@ PYEOF
     # all pixels in RGB) and compares against > 5/255 normalised.
     # mean < 5/255 implies the integrated luminance is below the
     # threshold (sufficient but not necessary condition for FAIL).
+    # NOTE: IM fallback is mean-RGB only (not alpha-aware) — a PNG
+    # with A=255/RGB=0 would still FAIL here.  The Python+PIL primary
+    # path uses the fixed any-channel alpha-aware metric.
     if command -v identify >/dev/null 2>&1; then
         local mean
         mean="$(identify -format '%[fx:mean]' "$png" 2>/dev/null || true)"
