@@ -31,6 +31,10 @@ add_library(chronon3d_backend_software OBJECT
     # `SoftwareProcessorContext` without holding a SoftwareRenderer* back-pointer.
     # Strictly under src/; never installed; not in include/chronon3d/.
     internal/software_processor_services.cpp
+    # TICKET-121 — Phase 1 frame-bound allocation counter (thread_local, no
+    # public API).  Lives alongside TICKET-118 internal bridge; the same
+    # $<BUILD_INTERFACE:...> pattern keeps it strictly under src/.
+    internal/frame_alloc_counter.cpp
     runtime_adapter.cpp
     buffer_ring.cpp
     scratch_buffer.cpp
