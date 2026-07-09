@@ -113,9 +113,9 @@ RenderEngine& RenderEngine::operator=(RenderEngine&& other) noexcept {
 // ── render() ──────────────────────────────────────────────────────────────
 
 chronon3d::Result<RenderOutput, RenderError>
-RenderEngine::render(const chronon3d::Composition& composition, Frame frame) {
+RenderEngine::render(const chronon3d::Composition& composition, Frame req) {
     try {
-        auto fb = m_impl->engine.render(composition, chronon3d::Frame{frame.value});
+        auto fb = m_impl->engine.render(composition, chronon3d::Frame{req.value});
         if (!fb) {
             RenderError err;
             err.code    = RenderErrorCode::RuntimeFailure;
@@ -127,7 +127,7 @@ RenderEngine::render(const chronon3d::Composition& composition, Frame frame) {
         framebuffer_to_rgba8(*fb, m_impl->pixel_buffer);
 
         RenderOutput out;
-        out.frame              = frame;
+        out.frame              = req;
         out.width              = fb->width();
         out.height             = fb->height();
         out.format             = PixelFormat::Rgba8;
