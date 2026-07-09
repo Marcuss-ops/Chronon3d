@@ -4,7 +4,6 @@
 // ---------------------------------------------------------------------------
 
 #include "glyph_selector_random.hpp"
-#include <mutex>
 #include <numeric>
 #include <unordered_map>
 
@@ -47,15 +46,14 @@ struct PermutationKeyHash {
 };
 
 const std::vector<u32>& get_or_build_permutation(u64 seed, u32 total_units) {
-    static std::unordered_map<PermutationKey, std::vector<u32>, PermutationKeyHash> cache;
-    static std::mutex cache_mutex;
+    // P1-#6-GLOBALS-TO-DI Sub-commit A: thread_local cache per thread —
+    // no shared state, no mutex needed.  Each thread independently
+    // builds and caches its own Fisher-Yates permutations.
+    thread_local std::unordered_map<PermutationKey, std::vector<u32>, PermutationKeyHash> cache;
     PermutationKey key{seed, total_units};
-    {
-        std::lock_guard<std::mutex> lock(cache_mutex);
-        auto it = cache.find(key);
-        if (it != cache.end()) {
-            return it->second;
-        }
+    auto it = cache.find(key);
+    if (it != cache.end()) {
+        return it->second;
     }
 
     std::vector<u32> perm(total_units);
@@ -67,7 +65,6 @@ const std::vector<u32>& get_or_build_permutation(u64 seed, u32 total_units) {
         const u32 j = (raw_j < i) ? raw_j : u;
         std::swap(perm[u], perm[j]);
     }
-    std::lock_guard<std::mutex> lock(cache_mutex);
     auto inserted = cache.emplace(key, std::move(perm));
     return inserted.first->second;
 }
