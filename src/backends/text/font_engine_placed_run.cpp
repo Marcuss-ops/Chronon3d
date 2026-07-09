@@ -11,8 +11,6 @@
 #include <chronon3d/text/font_engine.hpp>
 
 #include <algorithm>
-#include <set>
-#include <unordered_map>
 #include <vector>
 
 namespace chronon3d {
@@ -65,53 +63,69 @@ PlacedGlyphRun resolve_placed_glyph_run(
     result.total_height = hb_run.ascent + hb_run.descent;
 
     if (!source_text.empty()) {
-        std::set<u32> cluster_set;
+        // ── Pass 1: collect + sort + dedupe cluster byte offsets ────
+        //
+        // Replaces the canonical `<set>` RB-tree + RB-tree-to-vector copy +
+        // `<unordered_map>` zip that the previous KILL-PASS variant used.
+        // `std::vector<u32> + std::sort + std::unique` is a single contiguous
+        // allocation, cache-friendly, and naturally produces the sorted
+        // ascending order required by the consumer (text_run_resolver,
+        // text_run_builder, etc. iterate `result.clusters` in byte order).
+        std::vector<u32> sorted_clusters;
+        sorted_clusters.reserve(hb_run.glyphs.size() + 1);
         for (const auto& g : hb_run.glyphs) {
-            cluster_set.insert(g.cluster);
+            sorted_clusters.push_back(g.cluster);
         }
-        cluster_set.insert(static_cast<u32>(source_text.size()));
+        // Sentinel: source_text.size() closes the final cluster range, so
+        // `result.clusters.back().byte_offset + byte_len == source_text.size()`.
+        sorted_clusters.push_back(static_cast<u32>(source_text.size()));
 
-        std::vector<u32> sorted_clusters(cluster_set.begin(), cluster_set.end());
-        std::unordered_map<u32, std::pair<size_t, size_t>> cluster_to_range;
-        for (size_t k = 0; k + 1 < sorted_clusters.size(); ++k) {
-            cluster_to_range[sorted_clusters[k]] = {
-                static_cast<size_t>(sorted_clusters[k]),
-                static_cast<size_t>(sorted_clusters[k + 1])
-            };
-        }
+        std::sort(sorted_clusters.begin(), sorted_clusters.end());
+        sorted_clusters.erase(std::unique(sorted_clusters.begin(), sorted_clusters.end()),
+                              sorted_clusters.end());
 
+        // ── Pass 2: build result.clusters + populate per-glyph byte fields ─
+        //
+        // Replaces the previous 3rd pass (separate loop over result.clusters
+        // + per-glyph fill).  Because `sorted_clusters` is already deduped
+        // and sorted ascending, `sorted_clusters[k]` and `sorted_clusters[k+1]`
+        // directly form the open-end byte range of cluster k — the prior
+        // `<unordered_map>` cluster_to_range was redundant.  Per-glyph
+        // `byte_offset` / `byte_len` fill is merged inline at the end of
+        // each cluster-build step, collapsing the original 4-pass dance
+        // (set-insert / map-zip / cluster-build / per-glyph-fill) to 2
+        // passes total.
         result.clusters.reserve(sorted_clusters.size() - 1);
         for (size_t k = 0; k + 1 < sorted_clusters.size(); ++k) {
             const u32 c = sorted_clusters[k];
-            auto it = cluster_to_range.find(c);
-            if (it == cluster_to_range.end()) continue;
+            const size_t start_byte = c;
+            const size_t end_byte   = sorted_clusters[k + 1];
 
-            const auto& [start_byte, end_byte] = it->second;
+            // Preserve the original degenerate-case skip conditions.
             if (end_byte <= start_byte || start_byte >= source_text.size()) continue;
 
             PlacedGlyphRun::Cluster cl;
             cl.byte_offset = start_byte;
-            cl.byte_len = end_byte - start_byte;
+            cl.byte_len    = end_byte - start_byte;
+
             for (size_t gi = 0; gi < result.glyphs.size(); ++gi) {
                 if (result.glyphs[gi].cluster == c) {
                     if (cl.start_glyph == 0 && cl.end_glyph == 0) {
                         cl.start_glyph = gi;
                     }
-                    cl.end_glyph = gi + 1;
-                    cl.advance += result.glyphs[gi].advance_x;
+                    cl.end_glyph   = gi + 1;
+                    cl.advance    += result.glyphs[gi].advance_x;
                     cl.raw_advance += result.glyphs[gi].raw_advance_x;
                 }
             }
 
             result.clusters.push_back(cl);
-        }
 
-        // ── Third pass: populate per-glyph source fields ───────────
-        for (const auto& cl : result.clusters) {
+            // Inline per-glyph source-field fill (was the original 3rd pass).
             for (size_t gi = cl.start_glyph; gi < cl.end_glyph; ++gi) {
                 if (gi < result.glyphs.size()) {
                     result.glyphs[gi].byte_offset = cl.byte_offset;
-                    result.glyphs[gi].byte_len = cl.byte_len;
+                    result.glyphs[gi].byte_len    = cl.byte_len;
                 }
             }
         }

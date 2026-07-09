@@ -956,6 +956,86 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
     BENCHMARK(persistentfb_bench::BM_PersistentFBRead_Mmap)
         ->Unit(benchmark::kMillisecond)
         ->Name("PersistentFB/Mmap16x1920x1080");
+
+    // ──────────────────────────────────────────────────────────────────────
+    // TICKET-cluster-dedup — microbenchmark for `resolve_placed_glyph_run`.
+    //
+    // Before/after comparison of the cluster-dedup refactor in
+    // `src/backends/text/font_engine_placed_run.cpp`:
+    //   BEFORE: std::set<u32> + std::vector<u32> + std::unordered_map<u32,
+    //                std::pair<size_t,size_t>>   (4 passes: set-insert /
+    //                map-zip / cluster-build / per-glyph-fill).
+    //   AFTER:  std::vector<u32> + std::sort + std::unique        (2 passes:
+    //                sort+dedup / cluster-build-with-inline-fill).
+    //
+    // Fixture is a synthetic 4k-character run with each glyph mapping 1:1
+    // to a byte offset — a typical ASCII path through HarfBuzz shaping.
+    // Counters expose `cluster_count` (= glyph_count here) so future
+    // regressions on the same shape are detectable.
+    //
+    // Output: ns/iter per call to `resolve_placed_glyph_run(*hb_run,
+    // 0.0f, source_text)`.  Before the refactor: O(N log N) tree insert +
+    // 2-extra allocations (set + map).  After: single contiguous vector +
+    // single sort call.
+    // ──────────────────────────────────────────────────────────────────────
+    namespace placedrun_bench {
+
+    constexpr int kRunChars = 4000;
+
+    chronon3d::GlyphRun build_synthetic_glyph_run() {
+        using namespace chronon3d;
+        GlyphRun run;
+        run.font_size   = 16.0f;
+        run.ascent      = 16.0f;
+        run.descent     = 4.0f;
+        run.baseline    = 0.0f;
+        run.line_height = 20.0f;
+        run.width       = static_cast<float>(kRunChars) * 10.0f;
+        run.glyphs.reserve(static_cast<std::size_t>(kRunChars));
+        for (int i = 0; i < kRunChars; ++i) {
+            GlyphPosition g;
+            g.glyph_id        = static_cast<u32>(i % 128);  // pseudo-random but stable
+            g.cluster         = static_cast<u32>(i);         // 1:1 with char index
+            g.is_cluster_start = true;                       // every glyph IS a cluster start in this fixture
+            g.advance_x       = 10.0f;
+            g.advance_y       = 0.0f;
+            g.x_offset        = 0.0f;
+            g.y_offset        = 0.0f;
+            run.glyphs.push_back(g);
+        }
+        return run;
+    }
+
+    const chronon3d::GlyphRun& fixture_run() {
+        static const chronon3d::GlyphRun run = build_synthetic_glyph_run();
+        return run;
+    }
+
+    const std::string& fixture_source_text() {
+        // Source text mirror: 1 byte per glyph.
+        static const std::string source(static_cast<std::size_t>(kRunChars), 'a');
+        return source;
+    }
+
+    } // namespace placedrun_bench
+
+    void BM_ResolvePlacedGlyphRun(benchmark::State& state) {
+        const auto& run = placedrun_bench::fixture_run();
+        const auto& source_text = placedrun_bench::fixture_source_text();
+        for (auto _ : state) {
+            auto placed = chronon3d::resolve_placed_glyph_run(
+                run, /*tracking=*/0.0f, source_text);
+            benchmark::DoNotOptimize(placed);
+        }
+        state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) *
+                                 placedrun_bench::kRunChars);
+        state.counters["cluster_count"] = static_cast<double>(placedrun_bench::kRunChars);
+        state.counters["glyph_count"]   = static_cast<double>(placedrun_bench::kRunChars);
+    }
+
+    BENCHMARK(BM_ResolvePlacedGlyphRun)
+        ->Unit(benchmark::kMicrosecond)
+        ->Name("FontEngine/resolve_placed_glyph_run_4kchars");
 } // namespace
 
 #if 0   // Sibling benchmark REGISTRATIONS disabled (function defs are #if 0 above;
