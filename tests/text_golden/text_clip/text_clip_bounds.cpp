@@ -136,7 +136,15 @@ Composition build_clip_composition(
             s.font_engine(&renderer.font_engine());
             s.layer("hero", [&renderer, uniform_scale, shadows, glow_params](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.scale(uniform_scale);
+                // IMPORTANT: Do NOT call l.scale() with identity values.
+                // Even l.scale({1,1,1}) sets item.transform.any() == true,
+                // which changes how the graph builder computes world_matrix
+                // and causes text to render at the wrong position.
+                const bool is_identity_scale =
+                    uniform_scale.x == 1.0f && uniform_scale.y == 1.0f && uniform_scale.z == 1.0f;
+                if (!is_identity_scale) {
+                    l.scale(uniform_scale);
+                }
                 if (glow_params.enabled) {
                     l.glow(glow_params);
                 }
