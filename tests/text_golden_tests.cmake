@@ -148,6 +148,18 @@ target_sources(chronon3d_text_golden_tests
         text_golden/text_completeness/text_visible_ink.cpp
 )
 
+# P0-7 Text Typewriter — frame-by-frame kinetic typography tests.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_completeness/text_typewriter.cpp
+)
+
+add_test(
+    NAME TextTypewriter
+    COMMAND chronon3d_text_golden_tests --test-case="TextTypewriter *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # P0-5/6 Text Unicode — Unicode scripts + font fallback tests.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
