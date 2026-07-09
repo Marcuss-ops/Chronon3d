@@ -240,10 +240,13 @@ public:
     // accessors instead of direct vector field access.
 
     /// Glyph→grapheme O(1) lookup.  Returns InvalidIndex if glyph_idx OOB.
-    [[nodiscard]] u32 glyph_to_grapheme(u32 glyph_idx) const noexcept;
+    [[nodiscard]] u32 compat_glyph_to_grapheme(u32 glyph_idx) const noexcept {
+        if (auto g = glyph_to_grapheme(glyph_idx)) return *g;
+        return InvalidIndex;
+    }
 
     /// Glyph→word O(1) direct lookup.  Returns InvalidIndex if glyph_idx OOB.
-    [[nodiscard]] u32 glyph_to_word(u32 glyph_idx) const noexcept {
+    [[nodiscard]] u32 compat_glyph_to_word(u32 glyph_idx) const noexcept {
         return glyph_idx < glyph_to_word_.size() ? glyph_to_word_[glyph_idx] : InvalidIndex;
     }
 

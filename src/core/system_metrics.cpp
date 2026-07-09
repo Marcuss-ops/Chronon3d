@@ -188,7 +188,7 @@ long SystemMetricsCollector::clock_ticks_per_sec() {
 
 // TICKET-122 -- acquire-load pairs with the worker's release-store so
 // the caller sees both jiffies values from one coherent tick snapshot.
-ProcessCpuTime SystemMetricsCollector::process_cpu_time() {
+SystemMetricsCollector::ProcessCpuTime SystemMetricsCollector::process_cpu_time() {
     return ProcessCpuTime{
         m_cached_utime_jiffies.load(std::memory_order_acquire),
         m_cached_stime_jiffies.load(std::memory_order_acquire)
@@ -209,7 +209,7 @@ void SystemMetricsCollector::sample_cpu_start() {
     baseline_valid_ = true;
 }
 
-ProcessCpuTime SystemMetricsCollector::sample_cpu_delta() {
+SystemMetricsCollector::ProcessCpuTime SystemMetricsCollector::sample_cpu_delta() {
     ProcessCpuTime delta;
     if (!baseline_valid_) return delta;
     const auto ct = process_cpu_time();
@@ -225,7 +225,7 @@ ProcessCpuTime SystemMetricsCollector::sample_cpu_delta() {
 
 // TICKET-122 -- acquire-load pairs with the worker's release-store so
 // both system-memory halves reflect one coherent worker tick.
-SystemMemory SystemMetricsCollector::system_memory() {
+SystemMetricsCollector::SystemMemory SystemMetricsCollector::system_memory() {
     return SystemMemory{
         m_cached_sys_mem_total_bytes.load(std::memory_order_acquire),
         m_cached_sys_mem_available_bytes.load(std::memory_order_acquire)
