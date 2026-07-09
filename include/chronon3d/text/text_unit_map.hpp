@@ -232,6 +232,38 @@ public:
     // ── Semantic span name → span_idx (O(N) linear, span sets are small) ─
     [[nodiscard]] u32 span_index_by_name(std::string_view name) const noexcept;
 
+    // ── Adapter API (TICKET-046 Phase 0) — narrow struct TextUnitMap compatibility ──
+    //
+    // Drop-in replacement for the narrow `struct TextUnitMap` in
+    // `glyph_selector.hpp`.  Migrating callers swap `#include
+    // <glyph_selector.hpp>` for `<text_unit_map.hpp>` and use these
+    // accessors instead of direct vector field access.
+
+    /// Glyph→grapheme O(1) lookup.  Returns InvalidIndex if glyph_idx OOB.
+    [[nodiscard]] u32 glyph_to_grapheme(u32 glyph_idx) const noexcept;
+
+    /// Glyph→word O(1) direct lookup.  Returns InvalidIndex if glyph_idx OOB.
+    [[nodiscard]] u32 glyph_to_word(u32 glyph_idx) const noexcept {
+        return glyph_idx < glyph_to_word_.size() ? glyph_to_word_[glyph_idx] : InvalidIndex;
+    }
+
+    /// Glyph→line O(1) via glyph→word→line chain.  Returns InvalidIndex if OOB.
+    [[nodiscard]] u32 glyph_to_line(u32 glyph_idx) const noexcept;
+
+    /// First glyph index for a given word (O(n) scan).  Returns InvalidIndex if none.
+    [[nodiscard]] u32 first_glyph_for_word(u32 word_idx) const noexcept;
+
+    /// First glyph index for a given line (O(n) scan).  Returns InvalidIndex if none.
+    [[nodiscard]] u32 first_glyph_for_line(u32 line_idx) const noexcept;
+
+    /// Drop-in compatible unit_index(): maps a glyph index to its unit index
+    /// for the given TextUnitKind.  Returns InvalidIndex on OOB or empty level.
+    [[nodiscard]] u32 unit_index(u32 glyph_index, TextUnitKind unit) const noexcept;
+
+    /// Drop-in compatible unit_count(): returns the total number of units
+    /// for the given TextUnitKind.  Returns 0 for empty/unset levels.
+    [[nodiscard]] u32 unit_count(TextUnitKind unit) const noexcept;
+
 private:
     // ── Forward dense maps ────────────────────────────────────────────
     std::vector<u32> byte_to_codepoint_;   // size = byte_count
