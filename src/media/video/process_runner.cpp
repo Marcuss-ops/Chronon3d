@@ -1,11 +1,37 @@
 #include "process_runner.hpp"
 #include "process_pipe_io.hpp"
+#include "process_error_handler.hpp"
 
-// ── Linux / POSIX subprocess runner using posix_spawnp ───────────────────
+// ════════════════════════════════════════════════════════════════════════════
+// process_runner.cpp — ProcessOrchestration owner (FASE 5 step 3 polish).
+//
+//  This file owns the I/O-orchestration layer of the FASE 5 media_video
+//  decomposition:
+//
+//    * construction  — ~ProcessRunner() (graceful shutdown).
+//    * launch()      — posix_spawnp + pipe + non-blocking setup (the only
+//                      fully-orchestrating method this class owns itself).
+//    * move/dtor ops — move ctor + move assignment.
+//
+//  Every other public method is a 1-line ABI-stability trampoline that
+//  delegates to one of two stateless sub-namespace helpers:
+//
+//    chronon3d::media::video::process_pipe_io
+//      drain_stderr / consume_stderr / write_all / write_for / close_fd
+//
+//    chronon3d::media::video::process_error_handler
+//      wait / wait_for / terminate / terminate_and_wait / is_running
+//      detail::reap_child
+//
+//  The two sub-namespace modules live in src/media/video/ as siblings to
+//  this file; their bodies are bit-identical to the pre-extraction
+//  ProcessRunner::{method} bodies with `this->member` renamed to explicit
+//  parameter `member`.  Anti-duplication invariants per AGENTS.md Cat-5
+//  ABI-stable preserved.
+// ════════════════════════════════════════════════════════════════════════════
 
 #include <algorithm>
 #include <cerrno>
-#include <cstring>
 #include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
@@ -13,7 +39,6 @@
 #include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
-#include "process_error_handler.hpp"
 
 // POSIX requires `environ` for posix_spawnp.
 extern char** environ;
@@ -84,11 +109,11 @@ ProcessRunner& ProcessRunner::operator=(ProcessRunner&& other) noexcept {
     return *this;
 }
 
-// ============================================================================
-//  reap_child() — waitpid with EINTR retry
-// ============================================================================
-
-// Process-error-handler extract (FASE 5 step 2): body of ProcessRunner::reap_child() moved verbatim into process_error_handler::detail::reap_child() with `this->member_` -> explicit parameter rename.  Kept here as a 1-line trampoline for ABI-safety (binary consumers that linked against the pre-extraction symbols still resolve).
+// ── reap_child() (ABI-trampoline → process_error_handler::detail::reap_child).
+//
+//   Private member — no longer called from inside ProcessRunner.  Kept as a
+//   private member so pre-extraction SO/DLL consumers that linked against
+//   runner.reap_child() still resolve.
 int ProcessRunner::reap_child() {
     return process_error_handler::detail::reap_child(child_pid_, stderr_fd_, stderr_buffer_, kMaxStderrBytes);
 }
@@ -192,104 +217,62 @@ bool ProcessRunner::launch(const std::string& executable,
     return true;
 }
 
-// ============================================================================
-//  drain_stderr() — collect child stderr into buffer (non-blocking)
-// ============================================================================
-
+// ── drain_stderr() (ABI-trampoline → process_pipe_io::drain_stderr).
+//
+//   No longer called from inside ProcessRunner — the process_error_handler
+//   callers reach process_pipe_io::drain_stderr directly.  Member symbol
+//   kept for ABI-stability with pre-extraction SO/DLL consumers.
 void ProcessRunner::drain_stderr() {
-    // Pipe-IO extract (FASE 5 step 1): body moved verbatim into
-    // process_pipe_io::drain_stderr with `this->member` → parameter rename.
     process_pipe_io::drain_stderr(stderr_fd_, stderr_buffer_, kMaxStderrBytes);
 }
 
-// ============================================================================
-//  consume_stderr() — return captured stderr and clear the buffer
-// ============================================================================
-
+// ── consume_stderr() (ABI-trampoline → process_pipe_io::consume_stderr).
 std::string ProcessRunner::consume_stderr() noexcept {
-    // Pipe-IO extract (FASE 5 step 1): body moved verbatim; helper internally
-    // calls drain_stderr and then swap-and-returns in one step.
     return process_pipe_io::consume_stderr(stderr_fd_, stderr_buffer_, kMaxStderrBytes);
 }
 
-// ============================================================================
-//  write() — raw fd write with EINTR retry
-// ============================================================================
-
+// ── write() (ABI-trampoline → process_pipe_io::write_all).
 bool ProcessRunner::write(const std::uint8_t* data, std::size_t size) {
-    // Pipe-IO extract (FASE 5 step 1): body moved verbatim into
-    // process_pipe_io::write_all with `stdin_fd_` → `fd` parameter rename.
     return process_pipe_io::write_all(stdin_fd_, data, size);
 }
 
-// ============================================================================
-//  write_for() — poll-based write with deadline + stderr drain
-// ============================================================================
-
+// ── write_for() (ABI-trampoline → process_pipe_io::write_for).
 bool ProcessRunner::write_for(const std::uint8_t* data, std::size_t size,
                                std::chrono::milliseconds timeout) {
-    // Pipe-IO extract (FASE 5 step 1): body moved verbatim into
-    // process_pipe_io::write_for with all member references → explicit
-    // parameters (stdin_fd_, stderr_fd_, stderr_buffer_, kMaxStderrBytes).
     return process_pipe_io::write_for(stdin_fd_, stderr_fd_, stderr_buffer_,
                                       kMaxStderrBytes, data, size, timeout);
 }
 
-// ============================================================================
-//  close_stdin() — signal EOF to the child
-// ============================================================================
-
+// ── close_stdin() (ABI-trampoline → process_pipe_io::close_fd).
 void ProcessRunner::close_stdin() {
-    // Pipe-IO extract (FASE 5 step 1): body moved verbatim into
-    // process_pipe_io::close_fd; the sentinel-reset semantics are preserved.
     process_pipe_io::close_fd(stdin_fd_);
 }
 
-// ============================================================================
-//  wait() — collect child exit status (with EINTR retry)
-// ============================================================================
-
-// Process-error-handler extract (FASE 5 step 2): body of ProcessRunner::wait() moved verbatim into process_error_handler::wait() with `this->member_` -> explicit parameter rename.  Kept here as a 1-line trampoline for ABI-safety (binary consumers that linked against the pre-extraction symbols still resolve).
+// ── wait() (ABI-trampoline → process_error_handler::wait).
 int ProcessRunner::wait() {
     return process_error_handler::wait(child_pid_, cached_exit_status_, exit_cached_, stdin_fd_, stderr_fd_, stderr_buffer_, kMaxStderrBytes);
 }
 
 
-// ============================================================================
-//  terminate() — SIGTERM the child
-// ============================================================================
-
-// Process-error-handler extract (FASE 5 step 2): body of ProcessRunner::terminate() moved verbatim into process_error_handler::terminate() with `this->member_` -> explicit parameter rename.  Kept here as a 1-line trampoline for ABI-safety (binary consumers that linked against the pre-extraction symbols still resolve).
+// ── terminate() (ABI-trampoline → process_error_handler::terminate).
 void ProcessRunner::terminate() {
     process_error_handler::terminate(child_pid_);
 }
 
 
-// ============================================================================
-//  is_running() — non-blocking check; caches exit status for wait()
-// ============================================================================
-
-// Process-error-handler extract (FASE 5 step 2): body of ProcessRunner::is_running() moved verbatim into process_error_handler::is_running() with `this->member_` -> explicit parameter rename.  Kept here as a 1-line trampoline for ABI-safety (binary consumers that linked against the pre-extraction symbols still resolve).
+// ── is_running() (ABI-trampoline → process_error_handler::is_running).
 bool ProcessRunner::is_running() {
     return process_error_handler::is_running(child_pid_, cached_exit_status_, exit_cached_);
 }
 
 
-// ============================================================================
-//  wait_for() — block up to `timeout` for child to exit
-// ============================================================================
-
-// Process-error-handler extract (FASE 5 step 2): body of ProcessRunner::wait_for() moved verbatim into process_error_handler::wait_for() with `this->member_` -> explicit parameter rename.  Kept here as a 1-line trampoline for ABI-safety (binary consumers that linked against the pre-extraction symbols still resolve).
+// ── wait_for() (ABI-trampoline → process_error_handler::wait_for).
 int ProcessRunner::wait_for(std::chrono::milliseconds timeout) {
     return process_error_handler::wait_for(child_pid_, cached_exit_status_, exit_cached_, stdin_fd_, stderr_fd_, stderr_buffer_, kMaxStderrBytes, timeout);
 }
 
 
-// ============================================================================
-//  terminate_and_wait() — SIGTERM → wait → SIGKILL → reap
-// ============================================================================
-
-// Process-error-handler extract (FASE 5 step 2): body of ProcessRunner::terminate_and_wait() moved verbatim into process_error_handler::terminate_and_wait() with `this->member_` -> explicit parameter rename.  Kept here as a 1-line trampoline for ABI-safety (binary consumers that linked against the pre-extraction symbols still resolve).
+// ── terminate_and_wait() (ABI-trampoline → process_error_handler::terminate_and_wait).
 int ProcessRunner::terminate_and_wait(std::chrono::milliseconds graceful_timeout) {
     return process_error_handler::terminate_and_wait(child_pid_, cached_exit_status_, exit_cached_, stdin_fd_, stderr_fd_, stderr_buffer_, kMaxStderrBytes, graceful_timeout);
 }

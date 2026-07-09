@@ -21,7 +21,6 @@
 
 #include <cerrno>
 #include <chrono>
-#include <cstring>
 #include <signal.h>
 #include <sys/wait.h>
 #include <thread>
