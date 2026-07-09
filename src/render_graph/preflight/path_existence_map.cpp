@@ -77,7 +77,7 @@ bool PathExistenceMap::insert(const std::filesystem::path& path) {
     return it->second.exists;
 }
 
-bool PathExistenceMap::exists(const std::filesystem::path& path) {
+bool PathExistenceMap::exists(const std::filesystem::path& path) const {
     auto now = std::chrono::steady_clock::now();
     {
         std::shared_lock read_lock(mu_);
@@ -86,10 +86,15 @@ bool PathExistenceMap::exists(const std::filesystem::path& path) {
             return it->second.exists;
         }
     }
+    // Stale/miss → refresh.  Both `mu_` and `map_` are `mutable` (see
+    // header), so the const lookup can directly drive the unique_lock
+    // write path.  No const_cast needed — the shared-cache idiom
+    // (mutable members + const methods) gives callers the same O(1)
+    // lookup regardless of cache-pointer const-ness.
     return refresh(path);
 }
 
-bool PathExistenceMap::refresh(const std::filesystem::path& path) {
+bool PathExistenceMap::refresh(const std::filesystem::path& path) const {
     std::unique_lock write_lock(mu_);
     auto it = map_.find(path);
     if (it == map_.end()) {

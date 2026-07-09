@@ -63,18 +63,27 @@ public:
     void populate(std::initializer_list<std::filesystem::path> paths);
 
     // Lazy single-path populate (or refresh if already present).
+    // Non-const because it may insert a fresh entry.
     bool insert(const std::filesystem::path& path);
 
     // Fast lookup with auto-refresh on TTL expiry.
     //   * entry fresh  → returns cached existence (no syscall).
     //   * entry stale  → refreshes the entry and returns the new value.
     //   * entry absent → inserts and returns the new value.
-    // Not marked const because the stale/absent cases mutate the map.
-    bool exists(const std::filesystem::path& path);
+    // Marked const because the cache contract is "logical-const lookup
+    // with internal TTL-driven auto-refresh"; a const-qualified caller
+    // (e.g. `RenderPreflight::validate() const`) holding a
+    // `const PathExistenceMap*` still gets the O(1) lookup path.  Both
+    // `mu_` AND `map_` are `mutable` (see below), so the const method
+    // body can legally acquire the unique_lock and write a refreshed
+    // entry on stale/miss.  vs const_cast: this is the cleaner shared-
+    // cache pattern documented in canonical C++ references.
+    bool exists(const std::filesystem::path& path) const;
 
     // Force refresh of a single entry. Returns the fresh existence value.
     // Inserts if absent (same as `exists()` for the absent case).
-    bool refresh(const std::filesystem::path& path);
+    // Const-qualified for symmetry with `exists()`.
+    bool refresh(const std::filesystem::path& path) const;
 
     // Drop all entries.
     void clear() noexcept;
@@ -90,8 +99,17 @@ public:
 
 private:
     using Map = std::unordered_map<std::filesystem::path, Entry>;
+    // Shared-cache idiom: every data member that the const lookup path
+    // may touch is `mutable` so a `const`-qualified caller (e.g.
+    // `RenderPreflight::validate() const` holding a
+    // `const PathExistenceMap*`) still gets TTL-driven auto-refresh
+    // without a const_cast dance.  `mu_` allows lock/unlock;
+    // `map_` allows the emplace/refresh/insert writes that the lookup
+    // may need on stale/miss.  Callers see "logical const" — the cache
+    // contract is "lookup-only from caller's view, internal state
+    // advances optimistically under shared_mutex".
     mutable std::shared_mutex mu_;
-    Map map_;
+    mutable Map map_;
     std::chrono::milliseconds ttl_;
 
     // Compute a fresh entry by stat. Caller holds the unique lock.
