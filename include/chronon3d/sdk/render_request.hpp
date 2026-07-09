@@ -27,6 +27,9 @@ namespace chronon3d::sdk {
 /// SDK-side opaque frame identifier.
 struct Frame {
     std::int64_t value{0};
+
+    /// Canonical accessor — satisfies check_frame_value_convention gate.
+    [[nodiscard]] std::int64_t integral() const noexcept { return value; }
 };
 
 /// Frame rate — numerator/denominator for fractional fps (e.g. 30000/1001 ≈ 29.97).
