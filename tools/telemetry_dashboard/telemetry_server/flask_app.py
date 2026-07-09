@@ -97,6 +97,36 @@ def login():
 def logout():
     return jsonify({"success": True})
 
+
+@app.route('/api/refresh', methods=['GET', 'POST'])
+@require_auth
+def force_refresh():
+    """Force the dashboard merge cache to rebuild on next /api/runs request.
+
+    Resets the internal `_last_*_mtime` sentinels in database.py so the
+    next call to `create_merged_connection()` rebuilds the in-memory
+    master DB from the on-disk SQLite + JSONL.  Returns the resulting
+    row count so the client confirms the dataset that is now visible.
+    """
+    from . import database as _db
+    with _db._db_lock:
+        _db._last_db_mtime = -1
+        _db._last_jsonl_mtime = -1
+
+    conn = _db.create_merged_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) AS total FROM render_runs")
+        total = cursor.fetchone()['total']
+    finally:
+        conn.close()
+
+    return jsonify({
+        "success": True,
+        "rebuilt": True,
+        "new_total_entries": total,
+    })
+
 @app.route('/api/runs')
 @require_auth
 def get_runs():
@@ -177,8 +207,14 @@ def get_runs():
         cursor.execute(f"SELECT COUNT(*) AS total FROM render_runs{where_clause}", params)
         total_count = cursor.fetchone()['total']
 
-        # Paginated + filtered result
-        query = f"SELECT * FROM render_runs{where_clause} ORDER BY finished_at_iso DESC LIMIT ? OFFSET ?"
+        # TICKET-dashboard-ordering: ORDER BY started_at_iso DESC instead of
+        # finished_at_iso DESC.  New JSONL entries can land with NULL
+        # `finished_at_iso` (the CLI populates `finished_at_iso` only when
+        # the render fully completes; records still in flight or records
+        # produced by tooling that omits the field sort to the BOTTOM under
+        # NULLS LAST default).  Order by `started_at_iso` ensures the
+        # most-recently-attempted run appears at the top of /api/runs.
+        query = f"SELECT * FROM render_runs{where_clause} ORDER BY started_at_iso DESC LIMIT ? OFFSET ?"
         cursor.execute(query, params + [limit, offset])
         runs = [dict(row) for row in cursor.fetchall()]
 
@@ -515,13 +551,17 @@ def watch_database():
             if JSONL_PATH.exists():
                 current_mtime = max(current_mtime, os.path.getmtime(JSONL_PATH))
 
-            if current_mtime > last_mtime:
+            # TICKET-dashboard-cache: switch from `>` to `!=` for mtime
+            # comparison — see tools/telemetry_dashboard/telemetry_server/database.py
+            # for the same rationale.  Same-second writes must invalidate.
+            if current_mtime != last_mtime:
                 last_mtime = current_mtime
 
                 # Check for the latest merged run, regardless of whether it landed in SQLite or JSONL.
                 conn = create_merged_connection()
                 cursor = conn.cursor()
-                cursor.execute("SELECT * FROM render_runs ORDER BY finished_at_iso DESC LIMIT 1")
+                # TICKET-dashboard-ordering: see /api/runs route for rationale.
+                cursor.execute("SELECT * FROM render_runs ORDER BY started_at_iso DESC LIMIT 1")
                 row = cursor.fetchone()
                 conn.close()
 
