@@ -32,6 +32,19 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | (f) Pre-roll FPS | TICKET-A3-PRE-ROLL-FPS | PLANNED |
 | (g) LookAt diagnostic | TICKET-A3-LOOKAT-DIAGNOSTIC | PLANNED |
 | (h) ADR-013 | TICKET-A3-ADR-013 | PLANNED |
+## Fasi 1–4 — Test coverage expansion (V0.2 milestone, PLANNED, this session catchup)
+
+> **Origine:** sessione 2026-07-09. 4 fasi sequenziali di test coverage (bbox/clip → transforms/animation → multilingual → layout advanced) introdotte per chiudere gap di regression lock su Text V1. Stato onesto: Fase 1 PIVOTED (9/10 erano duplicati, 1/10 genuinely new FAILED at runtime); Fasi 2-4 PLANNED. Dettaglio in [`docs/ROADMAP.md`](docs/ROADMAP.md) §V0.2 e in [`docs/CHANGELOG.md`](docs/CHANGELOG.md) entry "docs(fase-N)" (4 entry prepended).
+
+| ID | Pri | Area | Stato | Blocca |
+|---|---|---|---|---|
+| TICKET-FASE2-TRANSFORMS-ANIMATION | P1 | transforms/animation regression tests (7 test: RotateZ, Skew, RotationXY, PositionAnim, ScaleAnim, BlurAnim, PrecompText) | PLANNED | Text V1 cert — all 7 PLANNED, no duplicates (machine-verified against text_completeness.cpp / text_clip_bounds.cpp / text_unicode.cpp) |
+| TICKET-FASE3-MULTILINGUAL | P1 | multilingual/fallback regression tests (8 test: KerningPairs, MixedAdvanceWidths, MixedBaseline, LatinExtended, MissingGlyphPolicy, EmojiFallback, RTLArabic, CJK) | PLANNED | Text V1 cert — RTL/CJK feature già supported nel codebase (bidi_segmenter.cpp + text_unicode.cpp); 3/8 genuinamente nuovi, 5/8 partial overlap con test esistenti |
+| TICKET-FASE4-LAYOUT | P1 | layout advanced regression tests (10 test: AnchorModes, VerticalAlign, HorizontalAlign, LineHeightExtreme, AutoFit, Ellipsis, Spaces, Punctuation, Numbers, IntentionalMaskClip) | PLANNED | Text V1 cert — 7/10 nuovi, 3/10 partial overlap |
+| TICKET-FASE4-AUTOFIT | P1 | auto-fit FEATURE GAP: no dedicated `auto_fit`/`fit_to_box`/`text_to_box`/`shrink_to_fit` in `include/chronon3d/presets/` or `src/text/` (machine-verified) | PLANNED | Text V1 cert + M1.6 AE-parity cinematic (kinetic typography presets may need auto-fit) — future ADR-gated before implementation (Cat-3 freeze: new public API) |
+
+**Refs:** [`docs/ROADMAP.md`](docs/ROADMAP.md) §V0.2 milestone (4 fasi overview); [`docs/CHANGELOG.md`](docs/CHANGELOG.md) 4 entry prepended (Fase 1 PIVOTED + Fase 2/3/4 PLANNED).
+
 
 ## M1.7 Sequence + Asset Readiness
 
