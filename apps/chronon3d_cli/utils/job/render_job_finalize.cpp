@@ -202,19 +202,11 @@ bool finalize_render_job(
     const bool write_telemetry = plan.report;
     if (write_telemetry) {
         // ── Populate shared fields BEFORE the JSONL write so JSONL and
-        //    SQLite describe the same run identically (code-review 2nd
-        //    pass, JSONL/SQLite consistency invariant).  record_run()
-        //    would fill the same fields internally but it only runs when
-        //    CHRONON3D_ENABLE_SQLITE_TELEMETRY is defined; mirror the
-        //    fill here so the JSONL fallback path stays complete.
-        if (run.os.empty())                  run.os = chronon3d::telemetry::TelemetryManager::get_os_name();
-        if (run.cpu_model.empty())           run.cpu_model = chronon3d::telemetry::TelemetryManager::get_cpu_model();
-        if (run.cores == 0)                  run.cores = chronon3d::telemetry::TelemetryManager::get_logical_cores();
-        if (run.compiler_info.empty())       run.compiler_info = chronon3d::telemetry::TelemetryManager::get_compiler_info();
-        if (run.build_type.empty())          run.build_type = chronon3d::telemetry::TelemetryManager::get_build_type();
-        if (run.git_commit_short.empty())    run.git_commit_short = chronon3d::telemetry::TelemetryManager::get_git_commit();
-        run.bytes_allocated_peak =
-            chronon3d::telemetry::TelemetryManager::get_peak_memory_usage();
+        //    SQLite describe the same run identically (JSONL/SQLite
+        //    consistency invariant).  Both record_run() and the JSONL
+        //    writer consume the same field set; populate via the shared
+        //    helper so future host attributes propagate to both stores.
+        cli::telemetry::populate_run_host_attribs(run);
 
         // 1. JSONL — jsonl_loader per-run detail pages.
         write_run_to_jsonl(run);
