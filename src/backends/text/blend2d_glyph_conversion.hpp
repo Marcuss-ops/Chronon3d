@@ -13,14 +13,16 @@
 //
 // What this header exposes:
 //   * `apply_text_style`        — unified BLContext fill/stroke style
-//                                  applicator with `StyleOp` discriminator
-//                                  (deduplicates previously-mirrored
+//                                  applicator with `StyleOp` discriminator.
+//                                  Replaced the previously-mirrored
 //                                  apply_text_fill_style / apply_text_stroke_style
-//                                  textual mirror images).
-//   * `apply_text_fill_style`   — thin wrapper preserving the legacy
-//                                  TextStyle&-and-fallback-colour fill
-//                                  call-site signature.
-//   * `apply_text_stroke_style` — thin wrapper for stroke.
+//                                  textual mirror images — those two thin
+//                                  wrappers were deleted in M1.5
+//                                  KILL-PASS #1 (0 callers remain;
+//                                  every callsite migrated to the
+//                                  canonical `apply_text_style(ctx,
+//                                  StyleOp::{Fill|Stroke}, style.paint.*,
+//                                  fallback, ...)` form).
 //   * `HbToBlGlyphRun` struct    — owned-buffer RAII handle for the
 //                                  HarfBuzz placed-glyph → Blend2D
 //                                  BLGlyphRun data conversion, with
@@ -77,29 +79,13 @@ void apply_text_style(
     float                                        height
 );
 
-// ── apply_text_fill_style — legacy TextStyle& wrapper for fill ────────────
-void apply_text_fill_style(
-    BLContext&           ctx,
-    const TextStyle&     style,
-    const Color&         fallback_color,
-    float                origin_x,
-    float                origin_y,
-    float                width,
-    float                height
-);
-
-// ── apply_text_stroke_style — legacy TextStyle& wrapper for stroke ────────
-void apply_text_stroke_style(
-    BLContext&           ctx,
-    const TextStyle&     style,
-    const Color&         fallback_stroke_color,
-    float                origin_x,
-    float                origin_y,
-    float                width,
-    float                height
-);
-
 // ── HbToBlGlyphRun — HarfBuzz placed-glyph → Blend2D BLGlyphRun converter ─
+//
+// M1.5 KILL-PASS #1 — `apply_text_fill_style` and `apply_text_stroke_style`
+// are INTENTIONALLY ABSENT here.  Delete them again and watch the build
+// break — the 4 callsites in `src/backends/text/text_rasterizer_render.cpp`
+// were inlined to `apply_text_style(StyleOp::{Fill|Stroke}, ...)` and
+// the two wrappers have NO remaining callers.
 //
 // The struct owns the underlying glyph-id + placement vectors and
 // configures a `BLGlyphRun` POD that points into those vectors.
