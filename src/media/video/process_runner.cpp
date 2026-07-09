@@ -13,6 +13,7 @@
 #include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
+#include "process_error_handler.hpp"
 
 // POSIX requires `environ` for posix_spawnp.
 extern char** environ;
@@ -87,34 +88,11 @@ ProcessRunner& ProcessRunner::operator=(ProcessRunner&& other) noexcept {
 //  reap_child() — waitpid with EINTR retry
 // ============================================================================
 
+// Process-error-handler extract (FASE 5 step 2): body of ProcessRunner::reap_child() moved verbatim into process_error_handler::detail::reap_child() with `this->member_` -> explicit parameter rename.  Kept here as a 1-line trampoline for ABI-safety (binary consumers that linked against the pre-extraction symbols still resolve).
 int ProcessRunner::reap_child() {
-    if (child_pid_ <= 0) {
-        drain_stderr();
-        return -1;
-    }
-
-    int status;
-    pid_t result;
-    do {
-        result = ::waitpid(child_pid_, &status, 0);
-    } while (result < 0 && errno == EINTR);
-
-    child_pid_ = -1;
-
-    // Drain any remaining stderr after the child has fully exited.
-    drain_stderr();
-
-    // Close the stderr pipe read-end — no more data will arrive.
-    if (stderr_fd_ >= 0) {
-        ::close(stderr_fd_);
-        stderr_fd_ = -1;
-    }
-
-    if (result < 0) return -1;
-    if (WIFEXITED(status)) return WEXITSTATUS(status);
-    if (WIFSIGNALED(status)) return -WTERMSIG(status);
-    return -1;
+    return process_error_handler::detail::reap_child(child_pid_, stderr_fd_, stderr_buffer_, kMaxStderrBytes);
 }
+
 
 // ============================================================================
 //  launch() — posix_spawnp with stdin pipe
@@ -271,179 +249,50 @@ void ProcessRunner::close_stdin() {
 //  wait() — collect child exit status (with EINTR retry)
 // ============================================================================
 
+// Process-error-handler extract (FASE 5 step 2): body of ProcessRunner::wait() moved verbatim into process_error_handler::wait() with `this->member_` -> explicit parameter rename.  Kept here as a 1-line trampoline for ABI-safety (binary consumers that linked against the pre-extraction symbols still resolve).
 int ProcessRunner::wait() {
-    if (child_pid_ <= 0) {
-        drain_stderr();
-        return -1;
-    }
-
-    // If is_running() already cached the exit status, use it.
-    if (exit_cached_) {
-        drain_stderr();
-        const int rc = cached_exit_status_;
-        child_pid_ = -1;
-        exit_cached_ = false;
-        return rc;
-    }
-
-    // Ensure stdin is closed before waiting — the child may be blocked
-    // reading from stdin.
-    close_stdin();
-
-    drain_stderr();
-
-    return reap_child();
+    return process_error_handler::wait(child_pid_, cached_exit_status_, exit_cached_, stdin_fd_, stderr_fd_, stderr_buffer_, kMaxStderrBytes);
 }
+
 
 // ============================================================================
 //  terminate() — SIGTERM the child
 // ============================================================================
 
+// Process-error-handler extract (FASE 5 step 2): body of ProcessRunner::terminate() moved verbatim into process_error_handler::terminate() with `this->member_` -> explicit parameter rename.  Kept here as a 1-line trampoline for ABI-safety (binary consumers that linked against the pre-extraction symbols still resolve).
 void ProcessRunner::terminate() {
-    if (child_pid_ > 0) {
-        ::kill(child_pid_, SIGTERM);
-    }
+    process_error_handler::terminate(child_pid_);
 }
+
 
 // ============================================================================
 //  is_running() — non-blocking check; caches exit status for wait()
 // ============================================================================
 
+// Process-error-handler extract (FASE 5 step 2): body of ProcessRunner::is_running() moved verbatim into process_error_handler::is_running() with `this->member_` -> explicit parameter rename.  Kept here as a 1-line trampoline for ABI-safety (binary consumers that linked against the pre-extraction symbols still resolve).
 bool ProcessRunner::is_running() {
-    if (child_pid_ <= 0) return false;
-
-    // If we already cached the exit, the child is not running.
-    if (exit_cached_) return false;
-
-    int status;
-    const pid_t result = ::waitpid(child_pid_, &status, WNOHANG);
-    if (result == 0) return true;   // still running
-
-    // Child has exited — cache the exit status so wait() can retrieve it.
-    if (result > 0) {
-        if (WIFEXITED(status)) {
-            cached_exit_status_ = WEXITSTATUS(status);
-        } else if (WIFSIGNALED(status)) {
-            cached_exit_status_ = -WTERMSIG(status);
-        } else {
-            cached_exit_status_ = -1;
-        }
-        exit_cached_ = true;
-    }
-    // result < 0: child already reaped or error — not running.
-    return false;
+    return process_error_handler::is_running(child_pid_, cached_exit_status_, exit_cached_);
 }
+
 
 // ============================================================================
 //  wait_for() — block up to `timeout` for child to exit
 // ============================================================================
 
+// Process-error-handler extract (FASE 5 step 2): body of ProcessRunner::wait_for() moved verbatim into process_error_handler::wait_for() with `this->member_` -> explicit parameter rename.  Kept here as a 1-line trampoline for ABI-safety (binary consumers that linked against the pre-extraction symbols still resolve).
 int ProcessRunner::wait_for(std::chrono::milliseconds timeout) {
-    if (child_pid_ <= 0) {
-        drain_stderr();
-        return -1;
-    }
-
-    // If is_running() already cached the exit status, use it.
-    if (exit_cached_) {
-        drain_stderr();
-        const int rc = cached_exit_status_;
-        child_pid_ = -1;
-        exit_cached_ = false;
-        return rc;
-    }
-
-    // Ensure stdin is closed — the child may be blocked reading.
-    close_stdin();
-
-    // If timeout is zero or negative, just check once non-blocking.
-    if (timeout.count() <= 0) {
-        drain_stderr();
-        int status;
-        const pid_t result = ::waitpid(child_pid_, &status, WNOHANG);
-        if (result == 0) return -2;  // still running → timeout
-        if (result < 0 && errno == EINTR) return -2;
-        if (result < 0) return -1;
-
-        child_pid_ = -1;
-        if (WIFEXITED(status)) return WEXITSTATUS(status);
-        if (WIFSIGNALED(status)) return -WTERMSIG(status);
-        return -1;
-    }
-
-    // Poll with WNOHANG, sleeping 10ms between polls.
-    // This is simpler and more portable than waitid(P_PID, ..., WEXITED | WNOWAIT)
-    // with a timer, and the granularity is fine for subprocess management.
-    constexpr auto kPollInterval = std::chrono::milliseconds(10);
-    const auto deadline = std::chrono::steady_clock::now() + timeout;
-
-    int status;
-    pid_t result;
-    do {
-        // Drain stderr every iteration to prevent the child from blocking
-        // on a full stderr pipe while we wait for it to exit.
-        drain_stderr();
-
-        result = ::waitpid(child_pid_, &status, WNOHANG);
-        if (result > 0) {
-            // Child has exited.
-            child_pid_ = -1;
-            drain_stderr();
-            if (WIFEXITED(status)) return WEXITSTATUS(status);
-            if (WIFSIGNALED(status)) return -WTERMSIG(status);
-            return -1;
-        }
-        if (result < 0) {
-            if (errno == EINTR) continue;
-            // Child already reaped or error.
-            child_pid_ = -1;
-            drain_stderr();
-            return -1;
-        }
-        // result == 0 → still running, sleep.
-        if (std::chrono::steady_clock::now() >= deadline) {
-            drain_stderr();
-            return -2;  // timeout
-        }
-        std::this_thread::sleep_for(kPollInterval);
-    } while (true);
+    return process_error_handler::wait_for(child_pid_, cached_exit_status_, exit_cached_, stdin_fd_, stderr_fd_, stderr_buffer_, kMaxStderrBytes, timeout);
 }
+
 
 // ============================================================================
 //  terminate_and_wait() — SIGTERM → wait → SIGKILL → reap
 // ============================================================================
 
+// Process-error-handler extract (FASE 5 step 2): body of ProcessRunner::terminate_and_wait() moved verbatim into process_error_handler::terminate_and_wait() with `this->member_` -> explicit parameter rename.  Kept here as a 1-line trampoline for ABI-safety (binary consumers that linked against the pre-extraction symbols still resolve).
 int ProcessRunner::terminate_and_wait(std::chrono::milliseconds graceful_timeout) {
-    if (child_pid_ <= 0) {
-        drain_stderr();
-        return -1;
-    }
-
-    // If the child already exited via is_running(), use cached status.
-    if (exit_cached_) {
-        drain_stderr();
-        const int rc = cached_exit_status_;
-        child_pid_ = -1;
-        exit_cached_ = false;
-        return rc;
-    }
-
-    // Step 1: SIGTERM.
-    ::kill(child_pid_, SIGTERM);
-
-    // Step 2: Wait for graceful shutdown with timeout.
-    int rc = wait_for(graceful_timeout);
-    if (rc != -2) {
-        // Child exited or error (not a timeout).
-        drain_stderr();
-        return rc;
-    }
-
-    // Step 3: Timeout — escalate to SIGKILL.
-    ::kill(child_pid_, SIGKILL);
-
-    // Step 4: Must reap now — no timeout.
-    return reap_child();
+    return process_error_handler::terminate_and_wait(child_pid_, cached_exit_status_, exit_cached_, stdin_fd_, stderr_fd_, stderr_buffer_, kMaxStderrBytes, graceful_timeout);
 }
+
 
 } // namespace chronon3d::media::video
