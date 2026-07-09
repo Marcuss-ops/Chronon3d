@@ -9,8 +9,9 @@
 
 namespace chronon3d::graph {
 
+// persistent framebuffer cache removed (framebuffer_store → framebuffer_pool)
 bool persistent_framebuffer_cache_enabled_for_current_run() {
-    return cache::PersistentFramebufferStore::enabled_for_current_run();
+    return false;
 }
 
 CacheEvalResult evaluate_cache(
@@ -76,12 +77,8 @@ CacheEvalResult evaluate_cache(
     if (cr.use_cache) {
         cr.result = ctx.services.node_cache->get(cr.key);
         
-        if (!cr.result && policy.persistent() && persistent_framebuffer_cache_enabled_for_current_run()) {
-            cr.result = ctx.services.framebuffer_store->get(cr.key);
-            if (cr.result) {
-                ctx.services.node_cache->store(cr.key, cr.result);
-            }
-        }
+        // persistent framebuffer cache removed (framebuffer_store → framebuffer_pool)
+        (void)policy.persistent();
 
         if (ctx.node_exec.counters) {
             if (cr.result) {
