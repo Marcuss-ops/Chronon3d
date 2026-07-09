@@ -36,6 +36,7 @@
 
 #include <tests/visual/support/golden_test.hpp>
 #include <tests/helpers/test_utils.hpp>
+#include <tests/text_golden/text_clip/test_helpers.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -46,55 +47,6 @@ using namespace chronon3d;
 using namespace chronon3d::test;
 
 namespace {
-
-// ── AlphaBBox ──────────────────────────────────────────────────────────
-// Tight axis-aligned bounding box of all pixels with alpha > epsilon.
-// Returns (-1,-1,-1,-1) when the framebuffer contains no opaque draw.
-// NOTE: Duplicated from text_clip_bounds.cpp — keep in sync until extracted
-// to a shared test utility header (e.g. tests/text_golden/text_clip/test_helpers.hpp).
-struct AlphaBBox {
-    int x0{-1}, y0{-1}, x1{-1}, y1{-1};
-    [[nodiscard]] int width()  const noexcept {
-        return (x1 >= 0) ? (x1 - x0 + 1) : 0;
-    }
-    [[nodiscard]] int height() const noexcept {
-        return (y1 >= 0) ? (y1 - y0 + 1) : 0;
-    }
-    [[nodiscard]] bool empty() const noexcept {
-        return x1 < 0 || y1 < 0;
-    }
-    [[nodiscard]] bool touches_left(int margin = 4)   const noexcept { return x0 >= 0 && x0 <= margin; }
-    [[nodiscard]] bool touches_top(int margin = 4)    const noexcept { return y0 >= 0 && y0 <= margin; }
-    [[nodiscard]] bool touches_right(int canvas_w, int margin = 4)  const noexcept { return x1 >= 0 && x1 >= canvas_w - margin; }
-    [[nodiscard]] bool touches_bottom(int canvas_h, int margin = 4) const noexcept { return y1 >= 0 && y1 >= canvas_h - margin; }
-};
-
-[[nodiscard]] AlphaBBox alpha_bbox(const Framebuffer& fb, float epsilon = 0.01f) {
-    AlphaBBox b{fb.width(), fb.height(), -1, -1};
-    for (int y = 0; y < fb.height(); ++y) {
-        const Color* row = fb.pixels_row(y);
-        for (int x = 0; x < fb.width(); ++x) {
-            if (row[x].a > epsilon) {
-                b.x0 = std::min(b.x0, x);
-                b.x1 = std::max(b.x1, x);
-                b.y0 = std::min(b.y0, y);
-                b.y1 = std::max(b.y1, y);
-            }
-        }
-    }
-    return b;
-}
-
-[[nodiscard]] int alpha_pixel_count(const Framebuffer& fb, float epsilon = 0.01f) {
-    int count = 0;
-    for (int y = 0; y < fb.height(); ++y) {
-        const Color* row = fb.pixels_row(y);
-        for (int x = 0; x < fb.width(); ++x) {
-            if (row[x].a > epsilon) ++count;
-        }
-    }
-    return count;
-}
 
 // ── GoldenTestConfig factory ───────────────────────────────────────────
 GoldenTestConfig make_completeness_config(std::string_view case_slug) {
