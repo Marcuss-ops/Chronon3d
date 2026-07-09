@@ -148,6 +148,18 @@ target_sources(chronon3d_text_golden_tests
         text_golden/text_completeness/text_visible_ink.cpp
 )
 
+# P1-10 Text Determinism — identical output across multiple renders.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_completeness/text_determinism.cpp
+)
+
+add_test(
+    NAME TextDeterminism
+    COMMAND chronon3d_text_golden_tests --test-case="TextDeterminism *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # P0-7 Text Typewriter — frame-by-frame kinetic typography tests.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
