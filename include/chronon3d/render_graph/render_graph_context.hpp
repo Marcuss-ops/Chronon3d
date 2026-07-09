@@ -174,6 +174,11 @@ struct RenderPolicy {
     /// per TextRun.  Enabled by --debug-text-layout CLI flag.
     bool text_layout_debug{false};
 
+    /// Text layout debug JSON export path.
+    /// When non-empty and text_layout_debug is true, writes per-TextRun
+    /// bounds data as JSON to this path.
+    std::string text_layout_debug_json_path;
+
     // Composition / dirty-rect / framebuffer-reuse / skip-clear
     bool optimize_compositing{true};
     bool dirty_rects_enabled{false};

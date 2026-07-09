@@ -148,6 +148,12 @@ struct RenderSettings {
     /// Enabled by --debug-text-layout CLI flag.
     bool text_layout_debug{false};
 
+    /// Text layout debug JSON export path.
+    /// When non-empty and text_layout_debug is true, writes a JSON file
+    /// with per-TextRun bounds data (alpha_bounds, layout_bounds,
+    /// scratch_bounds, ascent, descent).
+    std::string text_layout_debug_json_path;
+
     /**
      * WP-6 PR 6.9 — Determinism-contract safety net (default ON).
      *
