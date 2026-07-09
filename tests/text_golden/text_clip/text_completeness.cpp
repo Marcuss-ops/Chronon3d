@@ -139,12 +139,11 @@ void verify_completeness_golden(
 ) {
     auto r = verify_golden(fb, std::string{case_slug},
                            make_completeness_config(case_slug));
-    if (r.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
+    CHECK_FALSE(r.golden_missing);
+    if (!r.golden_missing) {
+        INFO("Golden: ", r.message);
+        CHECK(r.passed);
     }
-    INFO("Golden: ", r.message);
-    CHECK(r.passed);
 }
 
 // ── Multi-font composition builder (2 fonts) ───────────────────────
