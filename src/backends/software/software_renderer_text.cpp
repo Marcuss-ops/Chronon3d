@@ -33,6 +33,12 @@
 // more than one TU — ODR violation risk).
 #include <chronon3d/text/font_engine.hpp>
 #endif
+// TICKET-dashboard-build: linux-dashboard-dev preset defines
+// CHRONON3D_BUILD_DIAGNOSTICS=ON, which enables the draw_null_overlay()
+// call below; include its header so the namespace resolves.
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+#include "diagnostics/nulls_overlay.hpp"
+#endif
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <optional>
 #include <set>
