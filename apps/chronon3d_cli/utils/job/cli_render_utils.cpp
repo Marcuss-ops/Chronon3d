@@ -6,6 +6,7 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 
 #include <cassert>
+#include <filesystem>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {
@@ -62,6 +63,48 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
         // make_software_backend + attach_processor_context duplicate.
         chronon3d::backends::software::attach_software_backend(renderer.get());
     }
+
+    // FIX (video-pipeline SEGV): capture cwd once and mount it on both
+    // asset services of the per-runtime.  Without this mount the
+    // resolver side stays empty, AssetPreflightResolver::check falls
+    // through "no FontEngine available" → SIGSEGV during the first
+    // frame graph execution.  cli_render_utils.cpp is the SINGLE
+    // chokepoint for renderer creation (used by both the working `render`
+    // command and the crashing `video` command), so mounting here covers
+    // every code path.  Capturing cwd into a local avoids the racy
+    // global mutable CWD read across the two mount() calls.
+    const std::filesystem::path cwd = std::filesystem::current_path();
+
+    // Mount 1/2 — typed AssetRegistry.  Picked up by callers that go
+    // through `runtime().assets()` (mirrors `cli_asset_registry().mount()`
+    // in render_job_setup.cpp at the CLI-wide global level).
+    renderer->runtime().assets().mount(cwd);
+
+    // Mount 2/2 — per-engine Resolver.  WP-8 PR 8.0 split the runtime
+    // assets into TWO siblings: `assets()` (typed registry) and
+    // `resolver()` (per-engine typed path resolver).  The FontEngine
+    // is constructed in `SoftwareRenderer(Config{})` via
+    // `make_unique<FontEngine>(m_runtime->resolver())`
+    // (src/backends/software/software_renderer.cpp), so font lookup goes
+    // through the resolver — NOT the registry.  Likewise
+    // AssetPreflightResolver::check calls `resolver.resolve_lexical(ref.path)`
+    // (include/chronon3d/assets/asset_preflight_resolver.hpp) and
+    // SoftwareRenderer::preflight_fonts passes `m_runtime->resolver()` to
+    // `TextRenderResources::resolve_handle(...)`.  Mounting assets()
+    // alone is therefore insufficient — the resolver side stays empty
+    // and produces the same SEGV.  Mount both siblings.
+    renderer->runtime().resolver().mount(cwd);
+
+    // FIX (correctness — populate idempotency): the canonical
+    // `RenderRuntime::create()` factory auto-pops the runtime via
+    // `populate()`, but the deprecated `SoftwareRenderer(Config{})` ctor
+    // path may leave m_populated=false until first attach_backend.  The
+    // header guarantees `populate()` idempotent ("calling populate() on
+    // a populated runtime is a no-op"), so calling it here after
+    // attach_software_backend() is safe and guards against any internal
+    // ctor-ordering surprises.  Renamed from "safety" to "correctness":
+    // this is in fact a correctness fix, not just defensive.
+    renderer->runtime().populate();
 
     return renderer;
 }
