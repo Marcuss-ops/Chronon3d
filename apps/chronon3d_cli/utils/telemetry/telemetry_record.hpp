@@ -2,9 +2,14 @@
 
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+
+// TelemetryManager::get_os_name()/get_cpu_model()/etc. are static helpers
+// available unconditionally (both SqliteTelemetryStore and NullTelemetryStore
+// builds expose them) and are needed for the JSONL fallback path which runs
+// regardless of CHRONON3D_ENABLE_SQLITE_TELEMETRY.  Keep the include
+// unconditional.  `record_output_run()` below additionally requires the
+// SQLite build; its block is still gated by the same #ifdef.
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
-#endif
 
 #include "telemetry_capture.hpp"
 
@@ -12,6 +17,30 @@
 #include <vector>
 
 namespace chronon3d::cli::telemetry {
+
+/// Populates host-system attributes on a RenderTelemetryRecord.
+///
+/// Each attribute is filled only when currently empty (idempotent: callers may
+/// pre-populate fields from setup-time data).  This helper exists to keep the
+/// JSONL-fallback write path and the SqliteTelemetryStore path describing the
+/// *same* host context; without it, runs written via the JSONL-only path
+/// would silently miss fields that TelemetryManager::record_run() fills
+/// internally.  Centralize here so adding a new host attribute (e.g.
+/// architecture, NUMA topology, distro version) only needs editing one place
+/// and automatically propagates to both stores.
+///
+/// `bytes_allocated_peak` is set unconditionally because it is a process-wide
+/// gauge (not a missing-field situation): the value is taken at finalize time
+/// which is when the render finished, so it is the canonical snapshot.
+inline void populate_run_host_attribs(chronon3d::telemetry::RenderTelemetryRecord& run) {
+    if (run.os.empty())               run.os               = chronon3d::telemetry::TelemetryManager::get_os_name();
+    if (run.cpu_model.empty())        run.cpu_model        = chronon3d::telemetry::TelemetryManager::get_cpu_model();
+    if (run.cores == 0)               run.cores            = chronon3d::telemetry::TelemetryManager::get_logical_cores();
+    if (run.compiler_info.empty())    run.compiler_info    = chronon3d::telemetry::TelemetryManager::get_compiler_info();
+    if (run.build_type.empty())       run.build_type       = chronon3d::telemetry::TelemetryManager::get_build_type();
+    if (run.git_commit_short.empty()) run.git_commit_short = chronon3d::telemetry::TelemetryManager::get_git_commit();
+    run.bytes_allocated_peak = chronon3d::telemetry::TelemetryManager::get_peak_memory_usage();
+}
 
 /// Populates a RenderTelemetryRecord from atomic RenderCounters.
 inline void populate_run_metrics(chronon3d::telemetry::RenderTelemetryRecord& run, const chronon3d::RenderCounters& counters) {
@@ -182,6 +211,11 @@ inline void record_output_run(const std::string& composition_id,
     run.bytes_allocated_peak = chronon3d::telemetry::TelemetryManager::get_peak_memory_usage();
     run.started_at_iso = started_at_iso;
     run.finished_at_iso = chronon3d::telemetry::TelemetryManager::get_current_iso_time();
+    // Idempotent w.r.t. TelemetryManager::record_run() (which also fills these
+    // fields internally): calling here means any caller of record_output_run
+    // sees a fully-populated record on return, even if they never persist at
+    // all — preserving the helper's no-drift invariant for future host attribs.
+    populate_run_host_attribs(run);
 
     // Derive chronon render throughput and FFmpeg breakdown from phases
     for (const auto& phase : phases) {
