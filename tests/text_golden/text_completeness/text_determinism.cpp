@@ -170,8 +170,8 @@ Composition build_alt_comp(SoftwareRenderer& renderer) {
 TEST_CASE("TextDeterminism 01: 10 renders of same scene produce identical hash") {
     std::unordered_set<std::uint64_t> hashes;
     for (int i = 0; i < 10; ++i) {
-        auto renderer = test::make_renderer();
-        auto fb = renderer.render(build_static_comp(renderer), Frame{0});
+        auto renderer = test::make_renderer_shared();
+        auto fb = renderer->render(build_static_comp(*renderer), Frame{0});
         REQUIRE(fb != nullptr);
         hashes.insert(framebuffer_hash(*fb));
     }
@@ -181,18 +181,18 @@ TEST_CASE("TextDeterminism 01: 10 renders of same scene produce identical hash")
 
 // ═══ Test 2 — Frame 0→1→2→back to 0 = same as original ══════════════════
 TEST_CASE("TextDeterminism 02: frame 0 after round-trip equals original") {
-    auto r_orig = test::make_renderer();
-    auto r_rt   = test::make_renderer();
+    auto r_orig = test::make_renderer_shared();
+    auto r_rt   = test::make_renderer_shared();
 
     // Original frame 0.
-    auto fb_orig = r_orig.render(build_frame_comp(r_orig, 0), Frame{0});
+    auto fb_orig = r_orig->render(build_frame_comp(*r_orig, 0), Frame{0});
     REQUIRE(fb_orig != nullptr);
     const auto hash_orig = framebuffer_hash(*fb_orig);
 
     // Render frame 1, 2 — then back to 0.
-    auto fb1 = r_rt.render(build_frame_comp(r_rt, 1), Frame{1});
-    auto fb2 = r_rt.render(build_frame_comp(r_rt, 2), Frame{2});
-    auto fb0_rt = r_rt.render(build_frame_comp(r_rt, 0), Frame{0});
+    auto fb1 = r_rt->render(build_frame_comp(*r_rt, 1), Frame{1});
+    auto fb2 = r_rt->render(build_frame_comp(*r_rt, 2), Frame{2});
+    auto fb0_rt = r_rt->render(build_frame_comp(*r_rt, 0), Frame{0});
 
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
@@ -215,8 +215,8 @@ TEST_CASE("TextDeterminism 03: random frame order produces same output") {
     // Sequential reference: render frames 0, 1, 2, 3 in order.
     std::array<std::uint64_t, 4> ref_hashes;
     for (std::size_t f = 0; f < 4; ++f) {
-        auto renderer = test::make_renderer();
-        auto fb = renderer.render(build_frame_comp(renderer, f), Frame{f});
+        auto renderer = test::make_renderer_shared();
+        auto fb = renderer->render(build_frame_comp(*renderer, f), Frame{f});
         REQUIRE(fb != nullptr);
         ref_hashes[f] = framebuffer_hash(*fb);
     }
@@ -224,10 +224,10 @@ TEST_CASE("TextDeterminism 03: random frame order produces same output") {
     // Random order: render frames 3, 0, 2, 1
     std::array<int, 4> random_order = {3, 0, 2, 1};
     std::array<std::uint64_t, 4> rand_hashes;
-    auto r2 = test::make_renderer();
+    auto r2 = test::make_renderer_shared();
     for (int idx : random_order) {
-        auto fb = r2.render(
-            build_frame_comp(r2, static_cast<std::size_t>(idx)),
+        auto fb = r2->render(
+            build_frame_comp(*r2, static_cast<std::size_t>(idx)),
             Frame{static_cast<std::size_t>(idx)});
         REQUIRE(fb != nullptr);
         rand_hashes[static_cast<std::size_t>(idx)] = framebuffer_hash(*fb);
@@ -242,11 +242,11 @@ TEST_CASE("TextDeterminism 03: random frame order produces same output") {
 
 // ═══ Test 4 — Two separate renderers produce same output ═════════════════
 TEST_CASE("TextDeterminism 04: two separate renderers produce same hash") {
-    auto r1 = test::make_renderer();
-    auto r2 = test::make_renderer();
+    auto r1 = test::make_renderer_shared();
+    auto r2 = test::make_renderer_shared();
 
-    auto fb1 = r1.render(build_static_comp(r1), Frame{0});
-    auto fb2 = r2.render(build_static_comp(r2), Frame{0});
+    auto fb1 = r1->render(build_static_comp(*r1), Frame{0});
+    auto fb2 = r2->render(build_static_comp(*r2), Frame{0});
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
 
@@ -260,11 +260,11 @@ TEST_CASE("TextDeterminism 04: two separate renderers produce same hash") {
 
 // ═══ Test 5 — Single renderer reused → consistent across calls ═══════════
 TEST_CASE("TextDeterminism 05: reused renderer produces consistent output") {
-    auto renderer = test::make_renderer();
+    auto renderer = test::make_renderer_shared();
 
-    auto fb1 = renderer.render(build_static_comp(renderer), Frame{0});
-    auto fb2 = renderer.render(build_static_comp(renderer), Frame{0});
-    auto fb3 = renderer.render(build_static_comp(renderer), Frame{0});
+    auto fb1 = renderer->render(build_static_comp(*renderer), Frame{0});
+    auto fb2 = renderer->render(build_static_comp(*renderer), Frame{0});
+    auto fb3 = renderer->render(build_static_comp(*renderer), Frame{0});
 
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
@@ -287,13 +287,25 @@ TEST_CASE("TextDeterminism 05: reused renderer produces consistent output") {
 // ═══ Test 6 — Different compositions produce different hashes ═════════════
 // Sanity check: determinism means same→same, but different→different.
 TEST_CASE("TextDeterminism 06: different compositions give different hashes") {
-    auto r1 = test::make_renderer();
-    auto r2 = test::make_renderer();
+    auto r1 = test::make_renderer_shared();
+    auto r2 = test::make_renderer_shared();
 
-    auto fb_static = r1.render(build_static_comp(r1), Frame{0});
-    auto fb_alt = r2.render(build_alt_comp(r2), Frame{0});
+    auto fb_static = r1->render(build_static_comp(*r1), Frame{0});
+    auto fb_alt = r2->render(build_alt_comp(*r2), Frame{0});
     REQUIRE(fb_static != nullptr);
     REQUIRE(fb_alt != nullptr);
+
+    // Sanity guard: both compositions must render SOMETHING before we trust
+    // the hash comparison.  Without this, two empty framebuffers (e.g. from
+    // a setup bug like the deprecated make_renderer() dangling-pointer
+    // issue) would produce identical hashes and pass a "different !=
+    // different" check by accident, masking real renderer regressions.
+    const int vis_static = count_visible_pixels(*fb_static);
+    const int vis_alt = count_visible_pixels(*fb_alt);
+    INFO("static visible_pixels=", vis_static,
+         " alt visible_pixels=", vis_alt);
+    CHECK(vis_static > 0);
+    CHECK(vis_alt > 0);
 
     const auto h_static = framebuffer_hash(*fb_static);
     const auto h_alt = framebuffer_hash(*fb_alt);
