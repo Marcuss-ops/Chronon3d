@@ -368,26 +368,50 @@ Camera2_5D ShotTimelineResolver::evaluate(int frame,
 
 void CameraTransitionCatalog::register_transition(CameraTransitionKind kind, Factory f) {
     if (!f) throw std::invalid_argument("CameraTransitionCatalog: null factory");
-    std::lock_guard<std::mutex> lk(mu_);
-    if (frozen_) throw std::logic_error("CameraTransitionCatalog: frozen");
+    std::unique_lock<std::shared_mutex> lk(mu_);
+    // Relaxed check is sufficient here: the unique_lock already serialises
+    // us with freeze()'s store, and register_transition is not on any
+    // lock-free fast path.
+    if (frozen_.load(std::memory_order_relaxed))
+        throw std::logic_error("CameraTransitionCatalog: frozen");
     factories_[kind] = std::move(f);
 }
 
 std::shared_ptr<CameraTransition> CameraTransitionCatalog::create(
         CameraTransitionKind kind) const {
-    std::lock_guard<std::mutex> lk(mu_);
+    // Lock-skip optimisation: after freeze(), the factories_ map is
+    // immutable. The acquire-load of frozen_ synchronises with freeze()'s
+    // release-store, so any factories_[k] write committed BEFORE freeze
+    // is safely visible here. Zero-cost on the hot path that runs every
+    // frame inside ShotTimelineResolver::evaluate().
+    if (frozen_.load(std::memory_order_acquire)) {
+        auto it = factories_.find(kind);
+        return (it != factories_.end()) ? it->second() : nullptr;
+    }
+    std::shared_lock<std::shared_mutex> lk(mu_);
     auto it = factories_.find(kind);
     return (it != factories_.end()) ? it->second() : nullptr;
 }
 
 bool CameraTransitionCatalog::has(CameraTransitionKind kind) const {
-    std::lock_guard<std::mutex> lk(mu_);
+    // Same lock-skip optimisation as create(): once the catalog is
+    // frozen, the factories_ map is read-only and the count check is
+    // safe without holding the mutex. Acquire-load pairs with freeze()'s
+    // release-store to guarantee happens-before visibility.
+    if (frozen_.load(std::memory_order_acquire)) {
+        return factories_.count(kind) > 0;
+    }
+    std::shared_lock<std::shared_mutex> lk(mu_);
     return factories_.count(kind) > 0;
 }
 
 void CameraTransitionCatalog::freeze() {
-    std::lock_guard<std::mutex> lk(mu_);
-    frozen_ = true;
+    std::unique_lock<std::shared_mutex> lk(mu_);
+    // Release-store publishes the freeze decision + all factories_[k]
+    // writes that happened-before this point, so concurrent readers
+    // that observe frozen_=true via acquire-load (in create()/has())
+    // see the fully committed map.
+    frozen_.store(true, std::memory_order_release);
 }
 
 void CameraTransitionCatalog::register_defaults() {
