@@ -1,6 +1,7 @@
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
 
 namespace chronon3d::runtime {
 
@@ -55,8 +56,19 @@ RendererWarmupResult warmup_renderer(
         // "no FontEngine available" during the dummy-frame passes.
         FontEngine* engine = &renderer.font_engine();
         for (int pass = 0; pass < 2; ++pass) {
-            auto scene = composition.evaluate(
-                options.dummy_frame, 0.0f, engine);
+            FrameContext warmup_ctx{
+                .frame = options.dummy_frame,
+                .local_frame = options.dummy_frame,
+                .frame_time = 0.0f,
+                .duration = composition.duration(),
+                .frame_rate = composition.frame_rate(),
+                .width = composition.width(),
+                .height = composition.height(),
+                .assets_root = composition.assets_root(),
+                .resource = std::pmr::get_default_resource(),
+                .font_engine = engine,
+            };
+            auto scene = composition.evaluate(warmup_ctx);
             auto fb = renderer.render_scene(
                 scene,
                 composition.camera,

@@ -352,7 +352,19 @@ void audit_typewriter_frames(
     TextAuditFrameResult* prev = nullptr;
 
     for (int frame : frames) {
-        auto scene = comp.evaluate(Frame{frame});
+        FrameContext frame_ctx{
+            .frame = Frame{frame},
+            .local_frame = Frame{frame},
+            .frame_time = 0.0f,
+            .duration = comp.duration(),
+            .frame_rate = comp.frame_rate(),
+            .width = result.canvas_width,
+            .height = result.canvas_height,
+            .assets_root = comp.assets_root(),
+            .resource = std::pmr::get_default_resource(),
+            .font_engine = nullptr,
+        };
+        auto scene = comp.evaluate(frame_ctx);
         auto nodes = collect_text_from_scene(scene);
         auto tw_groups = detect_typewriter_groups(nodes);
 
@@ -507,7 +519,19 @@ void audit_regular_text_frames(
 {
     // Collect expected text from frame 0
     {
-        auto scene = comp.evaluate(Frame{0});
+        FrameContext frame0_ctx{
+            .frame = Frame{0},
+            .local_frame = Frame{0},
+            .frame_time = 0.0f,
+            .duration = comp.duration(),
+            .frame_rate = comp.frame_rate(),
+            .width = result.canvas_width,
+            .height = result.canvas_height,
+            .assets_root = comp.assets_root(),
+            .resource = std::pmr::get_default_resource(),
+            .font_engine = nullptr,
+        };
+        auto scene = comp.evaluate(frame0_ctx);
         auto nodes = collect_text_from_scene(scene);
         for (const auto& node : nodes) {
             if (!result.expected_text.empty()) result.expected_text += " | ";
@@ -518,7 +542,19 @@ void audit_regular_text_frames(
     TextAuditFrameResult* prev = nullptr;
 
     for (int frame : frames) {
-        auto scene = comp.evaluate(Frame{frame});
+        FrameContext frame_ctx{
+            .frame = Frame{frame},
+            .local_frame = Frame{frame},
+            .frame_time = 0.0f,
+            .duration = comp.duration(),
+            .frame_rate = comp.frame_rate(),
+            .width = result.canvas_width,
+            .height = result.canvas_height,
+            .assets_root = comp.assets_root(),
+            .resource = std::pmr::get_default_resource(),
+            .font_engine = nullptr,
+        };
+        auto scene = comp.evaluate(frame_ctx);
         auto nodes = collect_text_from_scene(scene);
 
         bool found_text = false;
@@ -589,7 +625,19 @@ TextAuditResult audit_composition(
     std::vector<LayerTextNode> tw_last_chars;
 
     {
-        auto last_scene = comp.evaluate(Frame{frames.back()});
+        FrameContext last_ctx{
+            .frame = Frame{frames.back()},
+            .local_frame = Frame{frames.back()},
+            .frame_time = 0.0f,
+            .duration = comp.duration(),
+            .frame_rate = comp.frame_rate(),
+            .width = result.canvas_width,
+            .height = result.canvas_height,
+            .assets_root = comp.assets_root(),
+            .resource = std::pmr::get_default_resource(),
+            .font_engine = nullptr,
+        };
+        auto last_scene = comp.evaluate(last_ctx);
         auto last_nodes = collect_text_from_scene(last_scene);
         auto tw_groups = detect_typewriter_groups(last_nodes);
 
