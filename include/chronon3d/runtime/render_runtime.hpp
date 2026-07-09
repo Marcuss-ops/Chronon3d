@@ -66,6 +66,7 @@
 
 #include <cassert>
 #include <chrono>
+#include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
@@ -144,6 +145,7 @@ struct RenderServices {
     chronon3d::graph::GraphExecutor*          executor{nullptr};
     chronon3d::graph::GraphNodeCatalog*       graph_node_registry{nullptr};
     chronon3d::effects::EffectCatalog*        effect_catalog{nullptr};
+    chronon3d::cache::CacheDiagnostics*          diagnostics{nullptr};
     // WP-3 PR 3.1 — `scene_hasher` and `program_store` pointer fields
     // were REMOVED here.  Both state engines are now per-session owned
     // (see `RenderSession::scene_hasher` / `RenderSession::program_store`).
@@ -230,6 +232,8 @@ public:
     // ── WP-8 PR 8.0 typed asset resolver (sibling of m_assets) ───────
     [[nodiscard]] chronon3d::assets::AssetResolver&       resolver()       noexcept { return m_resolver; }
     [[nodiscard]] const chronon3d::assets::AssetResolver& resolver() const noexcept { return m_resolver; }
+    [[nodiscard]] chronon3d::cache::CacheDiagnostics&       diagnostics()       noexcept { return m_diagnostics; }
+    [[nodiscard]] const chronon3d::cache::CacheDiagnostics& diagnostics() const noexcept { return m_diagnostics; }
     [[nodiscard]] chronon3d::cache::NodeCache&             node_cache()     noexcept { return m_owned_node_cache; }
     [[nodiscard]] chronon3d::graph::CompiledGraphCache&    graph_cache()    noexcept { return m_owned_graph_cache; }
     [[nodiscard]] std::shared_ptr<chronon3d::cache::FramebufferPool> framebuffer_pool_shared() noexcept { return m_owned_framebuffer_pool; }
@@ -274,6 +278,11 @@ private:
 
     // Fase B B1 — per-runtime image cache (replaces process-wide singleton)
     chronon3d::ImageCache                           m_image_cache;
+    // diag accessor: per-runtime CacheDiagnostics instance (value member; construction happens
+    // at object-init time so even pre-populate() callers can use diagnostics() directly.
+    // The friend declaration in cache_diagnostics.hpp gives RenderRuntime access to the
+    // private default ctor.)
+    chronon3d::cache::CacheDiagnostics                  m_diagnostics{};
 
     std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
     bool                                              m_populated{false};

@@ -24,6 +24,8 @@
 #include <unordered_set>
 #include <vector>
 
+namespace chronon3d::runtime { class RenderRuntime; }
+
 namespace chronon3d::cache {
 
 // ── Free function: human-readable cache snapshot dump ──────────────────
@@ -148,6 +150,7 @@ private:
     std::atomic<bool>                               m_enabled{true};
 
     friend class Handle;
+    friend class chronon3d::runtime::RenderRuntime;
 };
 
 // ── Handle — RAII registration token ──────────────────────────────────────
