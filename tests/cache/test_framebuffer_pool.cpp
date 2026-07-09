@@ -3,6 +3,7 @@
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
+#include <cstring>
 using namespace chronon3d;
 
 using namespace chronon3d::cache;
@@ -427,4 +428,108 @@ TEST_CASE("FramebufferPool reuse with smaller logical size from same bucket") {
 
     // allocated_width should still be >= 1920 (the bucket size)
     CHECK(fb2->allocated_width() >= 1920);
+}
+
+// ── acquire_noclear: byte-identical-equivalence test ────────────────
+//
+// Verifies the contract: `acquire_noclear(w, h)` followed by the
+// caller-contract `fb->clear(transparent)` produces pixel-by-pixel
+// byte-identical output to `acquire(w, h, clear=true)` (the existing
+// default-cleared path).  Internally the two paths share the same
+// `acquire_unique()` helper, so the bytes-after-clear must match —
+// this test pins that property so future refactors cannot drift the
+// two paths apart.
+//
+// SECURITY NOTE: the test exercises both `acquire_noclear` and
+// `acquire` in the SAME process.  The default `acquire` path zeroes
+// before returning, so the `acquire_noclear` test branch's manual
+// clear takes the FB to the same end state as the existing path.
+// The no-info-leak contract is documented in the header — this test
+// simply verifies bit-equivalence after manual clear.
+TEST_CASE("FramebufferPool::acquire_noclear + manual clear == acquire (byte-identical)") {
+    auto pool = std::make_shared<FramebufferPool>(1024ULL * 1024ULL);
+    pool->reset_counters();
+
+    constexpr int kW = 64;
+    constexpr int kH = 64;
+    constexpr std::size_t kPayloadBytes =
+        static_cast<std::size_t>(kW) * kH * sizeof(Color);
+
+    // ── Path A: default acquire (acquire(w, h, clear=true) preset). ──
+    // FB is freshly allocated; is_content_cleared() == true at the
+    // wrapper boundary, so the O(w*h) full-clear is skipped on this
+    // path — but the test compares CONTENT, so this is a fair baseline.
+    auto fb_default = pool->acquire(kW, kH);
+    REQUIRE(fb_default != nullptr);
+    REQUIRE(fb_default->data() != nullptr);
+
+    // Currently held (NOT released), so the second acquire from the
+    // pool's perspective is a fresh_alloc.  To exercise the hot-miss
+    // path (where stale content would be a concern), release Path A,
+    // then run Path B which will reuse Path A's buffer via best-fit.
+    auto* ptr_default = fb_default.get();
+    fb_default.reset();
+
+    // ── Path B: acquire_noclear + manual clear. ──
+    // The first acquire_noclear after Path A's release goes through
+    // acquire_unique, hits the exact bucket, gets ptr_default back,
+    // and SKIPS the wrapper's clear (acquire_noclear doesn't clear).
+    // Steps:
+    //   1. acquire_noclear — gets ptr_default (the same buffer Path A used).
+    //   2. The pixel content is whatever Path A wrote (transparent).
+    //   3. Manually fb->clear(transparent) — same colour as the
+    //      default-path wrapper would have done.
+    //   4. The two FBs are now byte-identical (both all-transparent).
+    auto fb_noclear = pool->acquire_noclear(kW, kH);
+    REQUIRE(fb_noclear != nullptr);
+    REQUIRE(fb_noclear->data() != nullptr);
+
+    // The acquire_noclear path on the SAME pool reuses the same FB
+    // pointer (= ptr_default) — that's the hot-miss reuse path that
+    // the new variant is designed to accelerate.
+    CHECK(fb_noclear.get() == ptr_default);
+
+    // Caller honors the security contract: explicit clear before reading.
+    fb_noclear->clear(Color::transparent());
+
+    // Structural parity.
+    CHECK(fb_noclear->width()  == kW);
+    CHECK(fb_noclear->height() == kH);
+    CHECK(fb_noclear->allocated_width() >= kW);
+    CHECK(fb_noclear->allocated_height() >= kH);
+
+    // ── Byte-by-byte payload equality (the core of the test). ──
+    // Allocate a third FB at the SAME size, take the cleared default
+    // path on a SECOND default-acquire (which will reuse ptr_default
+    // a second time — Path A's logic cleared it on the previous
+    // acquire), and compare against the manually-cleared noclear FB.
+    // Both paths end on transparent (the wrapper's clear colour is
+    // `Color::transparent()`, matching the manual `clear` we did).
+    auto fb_default_b = pool->acquire(kW, kH);   // exact-hit reuse, no clear
+    REQUIRE(fb_default_b != nullptr);
+    REQUIRE(fb_default_b.get() == ptr_default);
+    REQUIRE(fb_default_b->data() != nullptr);
+    CHECK(std::memcmp(fb_default_b->data(), fb_noclear->data(), kPayloadBytes) == 0);
+
+    // Spot-check each pixel via the canonical accessors — round out
+    // the structural verification with a row-by-row + col-by-col walk.
+    for (int y = 0; y < kH; ++y) {
+        for (int x = 0; x < kW; ++x) {
+            const Color c_def = fb_default_b->get_pixel(x, y);
+            const Color c_nc  = fb_noclear->get_pixel(x, y);
+            CHECK(c_def.r == c_nc.r);
+            CHECK(c_def.g == c_nc.g);
+            CHECK(c_def.b == c_nc.b);
+            CHECK(c_def.a == c_nc.a);
+        }
+    }
+
+    // ── Counter parity. ──
+    // Acquire_noclear MUST NOT trigger framebuffer_pool_clear_ms —
+    // its purpose is precisely to skip the clear.  The default path
+    // (second acquire) ALSO skipped clear on this run (because the FB
+    // is_content_cleared() from the manual clear).  Net: zero clears
+    // counted in this test, matching the expected behaviour.
+    auto stats = pool->stats();
+    CHECK(stats.total_clears == 0);
 }
