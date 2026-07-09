@@ -1,5 +1,31 @@
 # Chronon3D — Changelog
 
+## Luglio 2026 — TextCompleteness assertion strengthening (2026-07-09, 3 atomic commits)
+
+### fix(test): TextCompleteness — formulaic + 4-edge assertion hardening
+
+- **Commits**: `81033e66`, `46538aec`, `9604deb7`.
+- **Test 1 (AscentDescent)** — commit `81033e66`: sostituite soglie hardcoded con formula `font_size`:
+  - `CHECK(bbox.height() > 100)` → `CHECK(bbox.height() > static_cast<int>(font_size * 0.65f))`
+  - `CHECK(bbox.width() > 700)` → `CHECK(bbox.width() > static_cast<int>(font_size * 5))`
+  - Nota: `font_size * 8` (1440 a 180pt) non raggiungibile con testo centrato in box 1920px — il bbox reale è 949px.
+- **Test 5 (Scale130NotCut)** — commit `9604deb7`: aggiunto `CHECK_FALSE(bbox.touches_left(0))` mancante. Copertura 4-edge ora completa (top/bottom/left/right).
+  - Nota: test pre-esistente fallisce per bbox vuoto (rendering bug con scale 1.3×, non introdotto da questa modifica).
+- **Test 10 (HugeFontNotCut)** — commit `46538aec`: `CHECK(bbox.width() > 600)` → `CHECK(bbox.width() > 800)` come da spec.
+  - Nota: `CHECK(bbox.height() > 120)` pre-esistente fallisce (reale: 81 a 220pt) — non toccato da questa modifica.
+- **Test 7 (Scale130NotCut — Clip bounds)**: già verificato con `ctest -R TextClipBounds` → 1/1 PASS.
+- **Scansione anti-pattern**: nessun `catch + MESSAGE + return` trovato in `text_completeness.cpp`.
+
+### Session commit summary
+
+| Commit | Scope |
+|--------|-------|
+| `81033e66` | fix(test): AscentDescent — formula font_size 0.65f/5 invece di hardcoded 100/700 |
+| `46538aec` | fix(test): HugeFontNotCut — width 600→800 come da spec |
+| `9604deb7` | fix(test): Scale130NotCut — aggiunto touches_left(0) per copertura 4-edge |
+
+---
+
 ## Luglio 2026 — TextCompleteness glyph-visibility regression suite + font metrics fix (2026-07-09, 6 atomic commits)
 
 ### feat(tests): TextCompleteness — 15 glyph-ink visibility regression tests (commits `120e6a2c` → `89bb99ea`)
