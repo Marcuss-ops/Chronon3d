@@ -226,6 +226,18 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+# P2-11 Text Long Text — stress tests for long inputs.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_completeness/text_long_text.cpp
+)
+
+add_test(
+    NAME TextLongText
+    COMMAND chronon3d_text_golden_tests --test-case="TextLongText *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # Filter ctest -R to the wrapping subset.
 add_test(
     NAME TextWrapping
