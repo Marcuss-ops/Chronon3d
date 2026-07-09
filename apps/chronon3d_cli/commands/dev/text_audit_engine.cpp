@@ -296,26 +296,258 @@ TextAuditFrameResult audit_single_text(
     }
 
     // ── Determine status ──────────────────────────────────────────────
-    bool has_fail = false;
-    bool has_warn = false;
-
-    if (!result.checks.inside_canvas) has_fail = true;
-    if (!result.checks.inside_safe_area) has_warn = true;
-    if (!result.checks.no_clipping) has_fail = true;
-    if (!result.checks.stable_line_breaks) has_fail = true;
-    if (!result.checks.stable_glyph_positions) has_fail = true;
-    if (!result.checks.utf8_valid) has_fail = true;
-    if (!result.checks.final_text_matches) has_fail = true;
-    if (result.checks.missing_glyphs > 0) has_fail = true;
-    if (result.checks.text_box_height_overflow) has_warn = true;
-    if (result.checks.center_error_x_px > policy.max_center_error_px) has_warn = true;
-    if (result.checks.center_error_y_px > policy.max_center_error_y_px) has_warn = true;
-    if (result.checks.border_alpha_pixels > policy.max_border_alpha_pixels) has_fail = true;
-
-    result.status = has_fail ? AuditStatus::Fail : (has_warn ? AuditStatus::Warn : AuditStatus::Pass);
+    result.status = compute_audit_status(result.checks, policy);
 
     return result;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Internal helpers — extracted from audit_composition
+// ═══════════════════════════════════════════════════════════════════════════
+
+namespace {
+
+/// Compute AuditStatus from checks + policy.
+/// Extracted from the 12-condition block that was duplicated in
+/// audit_single_text() and the typewriter geometry-override path.
+AuditStatus compute_audit_status(const TextAuditChecks& checks,
+                                  const TextAuditPolicy& policy) {
+    bool has_fail = false;
+    bool has_warn = false;
+
+    if (!checks.inside_canvas)           has_fail = true;
+    if (!checks.inside_safe_area)        has_warn = true;
+    if (!checks.no_clipping)             has_fail = true;
+    if (!checks.stable_line_breaks)      has_fail = true;
+    if (!checks.stable_glyph_positions)  has_fail = true;
+    if (!checks.utf8_valid)              has_fail = true;
+    if (!checks.final_text_matches)      has_fail = true;
+    if (checks.missing_glyphs > 0)       has_fail = true;
+    if (checks.text_box_height_overflow) has_warn = true;
+    if (checks.center_error_x_px > policy.max_center_error_px) has_warn = true;
+    if (checks.center_error_y_px > policy.max_center_error_y_px) has_warn = true;
+    if (checks.border_alpha_pixels > policy.max_border_alpha_pixels) has_fail = true;
+
+    return has_fail ? AuditStatus::Fail
+                    : (has_warn ? AuditStatus::Warn : AuditStatus::Pass);
+}
+
+/// Audit a typewriter composition across multiple frames.
+/// The full text is known from the last frame.  Each frame audits the
+/// full layout (for geometry checks) but overrides visible text and
+/// adds per-character opacity checks.
+void audit_typewriter_frames(
+    TextAuditResult& result,
+    Composition& comp,
+    const std::vector<int>& frames,
+    const TextAuditPolicy& policy,
+    const std::string& tw_full_text,
+    const TextShape& tw_font_ref,
+    float tw_box_w, float tw_box_h,
+    float tw_tracking,
+    const std::vector<LayerTextNode>& tw_last_chars)
+{
+    result.expected_text = tw_full_text;
+
+    TextAuditFrameResult* prev = nullptr;
+
+    for (int frame : frames) {
+        auto scene = comp.evaluate(Frame{frame});
+        auto nodes = collect_text_from_scene(scene);
+        auto tw_groups = detect_typewriter_groups(nodes);
+
+        if (tw_groups.empty() || tw_groups[0].chars.empty()) {
+            // Before start_delay: nothing visible
+            TextAuditFrameResult empty;
+            empty.frame = frame;
+            empty.total_codepoints = count_codepoints(tw_full_text);
+            empty.status = AuditStatus::Pass;
+            result.frames.push_back(empty);
+            prev = &result.frames.back();
+            continue;
+        }
+
+        auto& group = tw_groups[0];
+
+        // Create synthetic TextShape with full text for layout + raster audit.
+        TextShape synthetic = tw_font_ref;
+        synthetic.text = tw_full_text;
+        synthetic.style.tracking = tw_tracking;
+        synthetic.style.wrap = TextWrap::Word;
+        synthetic.box.size = {tw_box_w, tw_box_h};
+        synthetic.box.enabled = true;
+
+        auto fr = audit_single_text(
+            synthetic,
+            result.canvas_width,
+            result.canvas_height,
+            frame,
+            policy,
+            prev);
+
+        // Override visible text with what's actually revealed at this frame
+        fr.visible_text = group.full_text;
+        fr.visible_codepoints = count_codepoints(group.full_text);
+        fr.total_codepoints = count_codepoints(tw_full_text);
+
+        // Typewriter opacity checks
+        int partially_visible = 0;
+        int fully_visible_below_99 = 0;
+        for (const auto& ch : group.chars) {
+            if (ch.layer_opacity > 0.01f && ch.layer_opacity < 0.99f) {
+                partially_visible++;
+            } else if (ch.layer_opacity < 0.99f) {
+                fully_visible_below_99++;
+            }
+        }
+        fr.checks.partially_visible_glyphs = partially_visible;
+        fr.checks.fully_visible_glyphs_below_99 = fully_visible_below_99;
+        fr.checks.future_glyphs_above_0 = 0;
+
+        // Downgrade text_box_height_overflow for partial reveals
+        if (fr.visible_codepoints < fr.total_codepoints &&
+            fr.checks.text_box_height_overflow) {
+            fr.checks.text_box_height_overflow = false;
+        }
+
+        // Override geometry with position-based values from actual
+        // typewriter character positions.
+        {
+            const float cx = result.canvas_width * 0.5f;
+            const float cy = result.canvas_height * 0.5f;
+            const float fs = tw_font_ref.style.size;
+            const float half_w = std::max(fs * 0.35f, 1.0f);
+            const float half_h = fs * 0.55f;
+
+            // Layout bbox from ALL characters at last frame
+            float l_min_x = 1e9f, l_max_x = -1e9f;
+            float l_min_y = 1e9f, l_max_y = -1e9f;
+            for (const auto& ch : tw_last_chars) {
+                l_min_x = std::min(l_min_x, ch.offset_x - half_w);
+                l_max_x = std::max(l_max_x, ch.offset_x + half_w);
+                l_min_y = std::min(l_min_y, ch.offset_y - half_h);
+                l_max_y = std::max(l_max_y, ch.offset_y + half_h);
+            }
+            fr.layout_bbox = {cx + l_min_x, cy + l_min_y,
+                              cx + l_max_x, cy + l_max_y};
+
+            // Ink bbox from VISIBLE characters at current frame
+            float i_min_x = 1e9f, i_max_x = -1e9f;
+            float i_min_y = 1e9f, i_max_y = -1e9f;
+            bool has_ink = false;
+            for (const auto& ch : group.chars) {
+                if (ch.layer_opacity < 0.01f) continue;
+                i_min_x = std::min(i_min_x, ch.offset_x - half_w);
+                i_max_x = std::max(i_max_x, ch.offset_x + half_w);
+                i_min_y = std::min(i_min_y, ch.offset_y - half_h);
+                i_max_y = std::max(i_max_y, ch.offset_y + half_h);
+                has_ink = true;
+            }
+            if (has_ink) {
+                fr.ink_bbox = {cx + i_min_x, cy + i_min_y,
+                               cx + i_max_x, cy + i_max_y};
+            }
+
+            // Border alpha from synthetic rasterization is meaningless
+            // for typewriter (per-character layers don't have texture-border
+            // artifacts).
+            fr.checks.border_alpha_pixels = 0;
+            fr.checks.no_clipping = true;
+
+            // Re-check text_box_height_overflow with position-based layout
+            if (synthetic.box.enabled) {
+                float layout_h = fr.layout_bbox.y1 - fr.layout_bbox.y0;
+                fr.checks.text_box_height_overflow =
+                    (layout_h > synthetic.box.size.y * 1.05f);
+            }
+
+            // Re-run geometry checks with corrected bboxes
+            fr.checks.inside_canvas =
+                !(fr.ink_bbox.x0 < 0 || fr.ink_bbox.y0 < 0 ||
+                  fr.ink_bbox.x1 > result.canvas_width ||
+                  fr.ink_bbox.y1 > result.canvas_height);
+            fr.checks.inside_safe_area =
+                !(fr.ink_bbox.x0 < fr.safe_area.x0 ||
+                  fr.ink_bbox.y0 < fr.safe_area.y0 ||
+                  fr.ink_bbox.x1 > fr.safe_area.x1 ||
+                  fr.ink_bbox.y1 > fr.safe_area.y1);
+            if (fr.ink_bbox.x1 > fr.ink_bbox.x0) {
+                float ink_cx = (fr.ink_bbox.x0 + fr.ink_bbox.x1) * 0.5f;
+                fr.checks.center_error_x_px =
+                    std::abs(ink_cx - result.canvas_width * 0.5f);
+            }
+            if (fr.ink_bbox.y1 > fr.ink_bbox.y0) {
+                float ink_cy = (fr.ink_bbox.y0 + fr.ink_bbox.y1) * 0.5f;
+                fr.checks.center_error_y_px =
+                    std::abs(ink_cy - result.canvas_height * 0.5f);
+            }
+            float lw = fr.layout_bbox.x1 - fr.layout_bbox.x0;
+            float iw = fr.ink_bbox.x1 - fr.ink_bbox.x0;
+            if (lw > 0 && iw > 0) {
+                fr.checks.layout_vs_ink_ratio = iw / lw;
+            }
+        }
+
+        // Re-determine status after geometry override
+        fr.status = compute_audit_status(fr.checks, policy);
+
+        result.frames.push_back(fr);
+        prev = &result.frames.back();
+    }
+}
+
+/// Audit a regular (non-typewriter) composition across multiple frames.
+/// Walks scene.layers() to find text shapes and audits the first text
+/// node per frame.
+void audit_regular_text_frames(
+    TextAuditResult& result,
+    Composition& comp,
+    const std::vector<int>& frames,
+    const TextAuditPolicy& policy)
+{
+    // Collect expected text from frame 0
+    {
+        auto scene = comp.evaluate(Frame{0});
+        auto nodes = collect_text_from_scene(scene);
+        for (const auto& node : nodes) {
+            if (!result.expected_text.empty()) result.expected_text += " | ";
+            result.expected_text += node.text.text;
+        }
+    }
+
+    TextAuditFrameResult* prev = nullptr;
+
+    for (int frame : frames) {
+        auto scene = comp.evaluate(Frame{frame});
+        auto nodes = collect_text_from_scene(scene);
+
+        bool found_text = false;
+        for (const auto& node : nodes) {
+            auto fr = audit_single_text(
+                node.text,
+                result.canvas_width,
+                result.canvas_height,
+                frame,
+                policy,
+                prev);
+
+            result.frames.push_back(fr);
+            prev = &result.frames.back();
+            found_text = true;
+            break;  // audit first text node per frame
+        }
+
+        if (!found_text) {
+            TextAuditFrameResult empty;
+            empty.frame = frame;
+            empty.status = AuditStatus::Pass;
+            result.frames.push_back(empty);
+            prev = &result.frames.back();
+        }
+    }
+}
+
+} // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
 // audit_composition — compile scene at each frame and audit text nodes
@@ -412,229 +644,13 @@ TextAuditResult audit_composition(
     }
 
     if (is_typewriter) {
-        // ── Typewriter path ─────────────────────────────────────────────
-        // The full text is known from the last frame.  At each frame we
-        // audit the full layout (for geometry checks) but override the
-        // visible text and add per-character opacity checks.
-        result.expected_text = tw_full_text;
-
-        TextAuditFrameResult* prev = nullptr;
-
-        for (int frame : frames) {
-            auto scene = comp.evaluate(Frame{frame});
-            auto nodes = collect_text_from_scene(scene);
-            auto tw_groups = detect_typewriter_groups(nodes);
-
-            if (tw_groups.empty() || tw_groups[0].chars.empty()) {
-                // Before start_delay: nothing visible
-                TextAuditFrameResult empty;
-                empty.frame = frame;
-                empty.total_codepoints = count_codepoints(tw_full_text);
-                empty.status = AuditStatus::Pass;
-                result.frames.push_back(empty);
-                prev = &result.frames.back();
-                continue;
-            }
-
-            auto& group = tw_groups[0];
-
-            // Create synthetic TextShape with full text for layout + raster audit.
-            // This lets audit_single_text check geometry (ink bbox, centering,
-            // safe area, border alpha) against the complete text layout.
-            TextShape synthetic = tw_font_ref;
-            synthetic.text = tw_full_text;
-            synthetic.style.tracking = tw_tracking;
-            synthetic.style.wrap = TextWrap::Word;
-            synthetic.box.size = {tw_box_w, tw_box_h};
-            synthetic.box.enabled = true;
-
-            auto fr = audit_single_text(
-                synthetic,
-                result.canvas_width,
-                result.canvas_height,
-                frame,
-                policy,
-                prev);
-
-            // Override visible text with what's actually revealed at this frame
-            fr.visible_text = group.full_text;
-            fr.visible_codepoints = count_codepoints(group.full_text);
-            fr.total_codepoints = count_codepoints(tw_full_text);
-
-            // Typewriter opacity checks (spec Check 9)
-            // Already-revealed chars should be alpha=1, current char fades in,
-            // future chars should not exist as layers at all.
-            int partially_visible = 0;
-            int fully_visible_below_99 = 0;
-            for (const auto& ch : group.chars) {
-                if (ch.layer_opacity > 0.01f && ch.layer_opacity < 0.99f) {
-                    partially_visible++;
-                } else if (ch.layer_opacity < 0.99f) {
-                    fully_visible_below_99++;
-                }
-            }
-            fr.checks.partially_visible_glyphs = partially_visible;
-            fr.checks.fully_visible_glyphs_below_99 = fully_visible_below_99;
-            // typewriter_build never creates layers for unrevealed characters
-            fr.checks.future_glyphs_above_0 = 0;
-
-            // Downgrade text_box_height_overflow for partial reveals
-            if (fr.visible_codepoints < fr.total_codepoints &&
-                fr.checks.text_box_height_overflow) {
-                fr.checks.text_box_height_overflow = false;
-            }
-
-            // Override geometry with position-based values from actual
-            // typewriter character positions.  TextLayoutEngine produces
-            // different line breaks than compute_typewriter_layout's
-            // heuristic, so the synthetic layout_bbox/ink_bbox from
-            // audit_single_text may not match the rendered positions.
-            // Using the actual character positions gives correct geometry.
-            {
-                const float cx = result.canvas_width * 0.5f;
-                const float cy = result.canvas_height * 0.5f;
-                const float fs = tw_font_ref.style.size;
-                // Conservative glyph extents (slightly larger than actual
-                // to avoid false PASS on edge-case glyphs like W or g)
-                const float half_w = std::max(fs * 0.35f, 1.0f);
-                const float half_h = fs * 0.55f;
-
-                // Layout bbox from ALL characters at last frame
-                // Character positions are relative to canvas center.
-                float l_min_x = 1e9f, l_max_x = -1e9f;
-                float l_min_y = 1e9f, l_max_y = -1e9f;
-                for (const auto& ch : tw_last_chars) {
-                    l_min_x = std::min(l_min_x, ch.offset_x - half_w);
-                    l_max_x = std::max(l_max_x, ch.offset_x + half_w);
-                    l_min_y = std::min(l_min_y, ch.offset_y - half_h);
-                    l_max_y = std::max(l_max_y, ch.offset_y + half_h);
-                }
-                fr.layout_bbox = {cx + l_min_x, cy + l_min_y,
-                                  cx + l_max_x, cy + l_max_y};
-
-                // Ink bbox from VISIBLE characters at current frame
-                float i_min_x = 1e9f, i_max_x = -1e9f;
-                float i_min_y = 1e9f, i_max_y = -1e9f;
-                bool has_ink = false;
-                for (const auto& ch : group.chars) {
-                    if (ch.layer_opacity < 0.01f) continue;
-                    i_min_x = std::min(i_min_x, ch.offset_x - half_w);
-                    i_max_x = std::max(i_max_x, ch.offset_x + half_w);
-                    i_min_y = std::min(i_min_y, ch.offset_y - half_h);
-                    i_max_y = std::max(i_max_y, ch.offset_y + half_h);
-                    has_ink = true;
-                }
-                if (has_ink) {
-                    fr.ink_bbox = {cx + i_min_x, cy + i_min_y,
-                                   cx + i_max_x, cy + i_max_y};
-                }
-
-                // Border alpha from the synthetic rasterization is
-                // meaningless for typewriter (per-character layers don't
-                // have texture-border artifacts).  Override to avoid false
-                // clipping failures.
-                fr.checks.border_alpha_pixels = 0;
-                fr.checks.no_clipping = true;
-
-                // Re-check text_box_height_overflow with position-based layout
-                if (synthetic.box.enabled) {
-                    float layout_h = fr.layout_bbox.y1 - fr.layout_bbox.y0;
-                    fr.checks.text_box_height_overflow =
-                        (layout_h > synthetic.box.size.y * 1.05f);
-                }
-
-                // Re-run geometry checks with corrected bboxes
-                fr.checks.inside_canvas =
-                    !(fr.ink_bbox.x0 < 0 || fr.ink_bbox.y0 < 0 ||
-                      fr.ink_bbox.x1 > result.canvas_width ||
-                      fr.ink_bbox.y1 > result.canvas_height);
-                fr.checks.inside_safe_area =
-                    !(fr.ink_bbox.x0 < fr.safe_area.x0 ||
-                      fr.ink_bbox.y0 < fr.safe_area.y0 ||
-                      fr.ink_bbox.x1 > fr.safe_area.x1 ||
-                      fr.ink_bbox.y1 > fr.safe_area.y1);
-                if (fr.ink_bbox.x1 > fr.ink_bbox.x0) {
-                    float ink_cx = (fr.ink_bbox.x0 + fr.ink_bbox.x1) * 0.5f;
-                    fr.checks.center_error_x_px =
-                        std::abs(ink_cx - result.canvas_width * 0.5f);
-                }
-                if (fr.ink_bbox.y1 > fr.ink_bbox.y0) {
-                    float ink_cy = (fr.ink_bbox.y0 + fr.ink_bbox.y1) * 0.5f;
-                    fr.checks.center_error_y_px =
-                        std::abs(ink_cy - result.canvas_height * 0.5f);
-                }
-                float lw = fr.layout_bbox.x1 - fr.layout_bbox.x0;
-                float iw = fr.ink_bbox.x1 - fr.ink_bbox.x0;
-                if (lw > 0 && iw > 0) {
-                    fr.checks.layout_vs_ink_ratio = iw / lw;
-                }
-            }
-
-            // Re-determine status after geometry override
-            {
-                bool has_fail = false, has_warn = false;
-                if (!fr.checks.inside_canvas) has_fail = true;
-                if (!fr.checks.inside_safe_area) has_warn = true;
-                if (!fr.checks.no_clipping) has_fail = true;
-                if (!fr.checks.stable_line_breaks) has_fail = true;
-                if (!fr.checks.stable_glyph_positions) has_fail = true;
-                if (!fr.checks.utf8_valid) has_fail = true;
-                if (!fr.checks.final_text_matches) has_fail = true;
-                if (fr.checks.missing_glyphs > 0) has_fail = true;
-                if (fr.checks.text_box_height_overflow) has_warn = true;
-                if (fr.checks.center_error_x_px > policy.max_center_error_px) has_warn = true;
-                if (fr.checks.center_error_y_px > policy.max_center_error_y_px) has_warn = true;
-                if (fr.checks.border_alpha_pixels > policy.max_border_alpha_pixels) has_fail = true;
-                fr.status = has_fail ? AuditStatus::Fail : (has_warn ? AuditStatus::Warn : AuditStatus::Pass);
-            }
-
-            result.frames.push_back(fr);
-            prev = &result.frames.back();
-        }
+        audit_typewriter_frames(
+            result, comp, frames, policy,
+            tw_full_text, tw_font_ref,
+            tw_box_w, tw_box_h, tw_tracking,
+            tw_last_chars);
     } else {
-        // ── Regular text path ───────────────────────────────────────────
-        // Walk scene.layers() (not scene.nodes()) to find text shapes.
-
-        // Collect expected text from frame 0
-        {
-            auto scene = comp.evaluate(Frame{0});
-            auto nodes = collect_text_from_scene(scene);
-            for (const auto& node : nodes) {
-                if (!result.expected_text.empty()) result.expected_text += " | ";
-                result.expected_text += node.text.text;
-            }
-        }
-
-        TextAuditFrameResult* prev = nullptr;
-
-        for (int frame : frames) {
-            auto scene = comp.evaluate(Frame{frame});
-            auto nodes = collect_text_from_scene(scene);
-
-            bool found_text = false;
-            for (const auto& node : nodes) {
-                auto fr = audit_single_text(
-                    node.text,
-                    result.canvas_width,
-                    result.canvas_height,
-                    frame,
-                    policy,
-                    prev);
-
-                result.frames.push_back(fr);
-                prev = &result.frames.back();
-                found_text = true;
-                break;  // audit first text node per frame
-            }
-
-            if (!found_text) {
-                TextAuditFrameResult empty;
-                empty.frame = frame;
-                empty.status = AuditStatus::Pass;
-                result.frames.push_back(empty);
-                prev = &result.frames.back();
-            }
-        }
+        audit_regular_text_frames(result, comp, frames, policy);
     }
 
     result.exit_code = audit_exit_code(result);
