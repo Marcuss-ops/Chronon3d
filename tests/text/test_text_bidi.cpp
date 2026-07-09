@@ -8,18 +8,10 @@
 
 #include <string>
 #include <vector>
+#include "test_text_font_fixture.hpp"
+
 using namespace chronon3d;
 
-
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-static FontSpec inter_bold_bidi() {
-    FontSpec spec;
-    spec.font_path = "assets/fonts/Inter-Bold.ttf";
-    spec.font_family = "Inter";
-    spec.font_weight = 700;
-    return spec;
-}
 
 // ── Bidi Segmenter Tests ─────────────────────────────────────────────────
 
@@ -132,7 +124,7 @@ TEST_CASE("TextLayout: bidi with pure Latin text") {
     TextLayoutInput input;
     input.text = "Hello World";
     input.font_engine = &engine;
-    input.font_spec = inter_bold_bidi();
+    input.font_spec = test_text_fixture::inter_bold();
     input.style.font_path = "assets/fonts/Inter-Bold.ttf";
     input.style.size = 32.0f;
     input.style.shaping.direction = TextDirection::Auto;
@@ -150,7 +142,7 @@ TEST_CASE("TextLayout: bidi with pure Arabic text") {
     TextLayoutInput input;
     input.text = "\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7";  // "مرحبا"
     input.font_engine = &engine;
-    input.font_spec = inter_bold_bidi();
+    input.font_spec = test_text_fixture::inter_bold();
     input.style.font_path = "assets/fonts/Inter-Bold.ttf";
     input.style.size = 32.0f;
     input.style.shaping.direction = TextDirection::Auto;
@@ -167,7 +159,7 @@ TEST_CASE("TextLayout: bidi with mixed Arabic+English") {
     TextLayoutInput input;
     input.text = "Hello \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 World";
     input.font_engine = &engine;
-    input.font_spec = inter_bold_bidi();
+    input.font_spec = test_text_fixture::inter_bold();
     input.style.font_path = "assets/fonts/Inter-Bold.ttf";
     input.style.size = 32.0f;
     input.style.shaping.direction = TextDirection::Auto;
@@ -195,7 +187,7 @@ TEST_CASE("TextLayout: explicit LTR direction skips bidi segmentation") {
     TextLayoutInput input;
     input.text = "Hello \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 World";
     input.font_engine = &engine;
-    input.font_spec = inter_bold_bidi();
+    input.font_spec = test_text_fixture::inter_bold();
     input.style.font_path = "assets/fonts/Inter-Bold.ttf";
     input.style.size = 32.0f;
     input.style.shaping.direction = TextDirection::LTR;
@@ -216,7 +208,7 @@ TEST_CASE("TextLayout: explicit RTL direction preserves single run") {
     TextLayoutInput input;
     input.text = "\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 English";  // Arabic + English
     input.font_engine = &engine;
-    input.font_spec = inter_bold_bidi();
+    input.font_spec = test_text_fixture::inter_bold();
     input.style.font_path = "assets/fonts/Inter-Bold.ttf";
     input.style.size = 32.0f;
     input.style.shaping.direction = TextDirection::RTL;
@@ -237,7 +229,7 @@ TEST_CASE("TextLayout: bidi run widths are non-zero") {
     TextLayoutInput input;
     input.text = "Hello \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 World";
     input.font_engine = &engine;
-    input.font_spec = inter_bold_bidi();
+    input.font_spec = test_text_fixture::inter_bold();
     input.style.font_path = "assets/fonts/Inter-Bold.ttf";
     input.style.size = 32.0f;
     input.style.shaping.direction = TextDirection::Auto;
@@ -264,7 +256,7 @@ TEST_CASE("FontEngine: shaping Arabic with explicit RTL") {
 
     auto run = engine.shape_text(
         "\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7",
-        inter_bold_bidi(), 48.0f, rtl_shaping);
+        test_text_fixture::inter_bold(), 48.0f, rtl_shaping);
 
     REQUIRE(run.has_value());
     REQUIRE(!run->glyphs.empty());
@@ -280,7 +272,7 @@ TEST_CASE("FontEngine: shaping Arabic+English with Auto") {
 
     auto run = engine.shape_text(
         "Hello \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 World",
-        inter_bold_bidi(), 48.0f, auto_shaping);
+        test_text_fixture::inter_bold(), 48.0f, auto_shaping);
 
     REQUIRE(run.has_value());
     CHECK(run->width > 0.0f);

@@ -31,12 +31,13 @@
 #include <chronon3d/core/types/types.hpp>
 
 #include <atomic>
-#include <filesystem>
 #include <memory>
 #include <thread>
 #include <vector>
 
 #include <doctest/doctest.h>
+
+#include "test_text_font_fixture.hpp"
 
 using namespace chronon3d;
 
@@ -50,23 +51,6 @@ namespace {
 // missing fixtures so CI runs without bundled fonts still pass.
 constexpr const char* kFontAPath = "tests/fixtures/Inter-Bold.ttf";
 constexpr const char* kFontBPath = "assets/fonts/Poppins-Regular.ttf";
-
-bool fixture_exists(const char* p) noexcept {
-    if (p == nullptr) return false;
-    std::error_code ec;
-    return std::filesystem::exists(p, ec);
-}
-
-// Match the project's skipping convention (see tests/text/test_text_layout.cpp
-// "MESSAGE(\"Skipping: <file> not available\");" pattern). Doctest does not
-// have a WARN_SKIP macro — the canonical skip pattern is a MESSAGE log
-// followed by an early return from the TEST_CASE body.
-void skip_if_missing(const char* fixture, const char* what) noexcept {
-    if (!fixture_exists(fixture)) {
-        MESSAGE("Skipping: ", what, " requires ", fixture,
-                " which is unavailable.");
-    }
-}
 
 // Touch a glyph the same way GlyphOutlineBuilder::build_path does:
 // FT_Load_Glyph + check glyph->format.  Mimicking the call site of the
@@ -86,8 +70,8 @@ bool touch_glyph(FT_Face face, FT_UInt glyph_id) noexcept {
 // ═════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("freetype_face_cache: concurrent get_face across many threads") {
-    if (!fixture_exists(kFontAPath) || !fixture_exists(kFontBPath)) {
-        skip_if_missing(kFontAPath, "Fase 1#7 concurrency test");
+    if (!test_text_fixture::fixture_exists(kFontAPath) || !test_text_fixture::fixture_exists(kFontBPath)) {
+        test_text_fixture::skip_if_missing(kFontAPath, "Fase 1#7 concurrency test");
         return;
     }
 
@@ -140,8 +124,8 @@ TEST_CASE("freetype_face_cache: concurrent get_face across many threads") {
 // ═════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("freetype_face_cache: shared_ptr outlives cache destruction") {
-    if (!fixture_exists(kFontAPath)) {
-        skip_if_missing(kFontAPath, "Fase 1#7 lease-anchor test");
+    if (!test_text_fixture::fixture_exists(kFontAPath)) {
+        test_text_fixture::skip_if_missing(kFontAPath, "Fase 1#7 lease-anchor test");
         return;
     }
 
@@ -166,8 +150,8 @@ TEST_CASE("freetype_face_cache: shared_ptr outlives cache destruction") {
 // ═════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("freetype_face_cache: identical key returns same FT_Face") {
-    if (!fixture_exists(kFontAPath)) {
-        skip_if_missing(kFontAPath, "Fase 1#7 identity test");
+    if (!test_text_fixture::fixture_exists(kFontAPath)) {
+        test_text_fixture::skip_if_missing(kFontAPath, "Fase 1#7 identity test");
         return;
     }
 
@@ -189,8 +173,8 @@ TEST_CASE("freetype_face_cache: identical key returns same FT_Face") {
 // ═════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("freetype_face_cache: distinct size buckets get distinct entries") {
-    if (!fixture_exists(kFontAPath)) {
-        skip_if_missing(kFontAPath, "Fase 1#7 size-bucket test");
+    if (!test_text_fixture::fixture_exists(kFontAPath)) {
+        test_text_fixture::skip_if_missing(kFontAPath, "Fase 1#7 size-bucket test");
         return;
     }
 
@@ -206,8 +190,8 @@ TEST_CASE("freetype_face_cache: distinct size buckets get distinct entries") {
 }
 
 TEST_CASE("freetype_face_cache: identical size buckets share the entry") {
-    if (!fixture_exists(kFontAPath)) {
-        skip_if_missing(kFontAPath, "Fase 1#7 size-floats test");
+    if (!test_text_fixture::fixture_exists(kFontAPath)) {
+        test_text_fixture::skip_if_missing(kFontAPath, "Fase 1#7 size-floats test");
         return;
     }
 
