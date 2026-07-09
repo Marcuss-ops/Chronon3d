@@ -8,6 +8,11 @@
 #include <chronon3d/effects/glow_pipeline.hpp>
 #include <chronon3d/media/frame_conversion/converted_frame_cache.hpp>
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
+// TICKET-O(n)-audit — micro-benchmark setup uses unordered_set / vector.
+#include <unordered_set>
+#include <cstdint>
+#include <algorithm>  // std::min_element, std::find
+#include <limits>      // std::numeric_limits
 
 // Include the real blur implementation for proper benchmarks
 #include "src/backends/software/utils/render_effects_processor.hpp"
@@ -713,6 +718,108 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
         ->Unit(benchmark::kMillisecond);
     BENCHMARK_CAPTURE(BM_GlowLayerPass, Falloff100, 1.0f)
         ->Unit(benchmark::kMillisecond);
+
+    // ----------------------------------------------------------------------
+    // TICKET-O(n)-audit — micro-benchmarks (before vs after) for the three
+    // sites that switched from O(n) std::find / hand-rolled linear scans to
+    // std::unordered_set lookup or std::min_element.  Bit-identical
+    // behaviour; the bench exists so future regressions on the same shape
+    // are detectable.
+    // ----------------------------------------------------------------------
+    namespace onshore {
+
+    constexpr int kBenchN = 100'000;  // 100k-entry workload per follow-up brief.
+
+    // Site 1: vector vs unordered_set membership (Entry* identity pattern).
+    void BM_Site1_Lookup(benchmark::State& state, bool use_set) {
+        std::vector<int> vec;
+        std::unordered_set<int> set;
+        vec.reserve(static_cast<size_t>(kBenchN));
+        for (int i = 0; i < kBenchN; ++i) {
+            vec.push_back(i);
+            set.insert(i);
+        }
+        const int probe = kBenchN - 1;  // worst-case scan length.
+        for (auto _ : state) {
+            if (use_set) {
+                benchmark::DoNotOptimize(set.find(probe));
+            } else {
+                benchmark::DoNotOptimize(std::find(vec.begin(), vec.end(), probe));
+            }
+        }
+        state.SetItemsProcessed(static_cast<int64_t>(state.iterations()));
+    }
+
+    // Site 2: vector<string> vs unordered_set<string> membership.
+    void BM_Site2_StringDedup(benchmark::State& state, bool use_set) {
+        std::vector<std::string> vec;
+        std::unordered_set<std::string> set;
+        vec.reserve(static_cast<size_t>(kBenchN));
+        for (int i = 0; i < kBenchN; ++i) {
+            const auto s = std::string{"reason_"} + std::to_string(i);
+            vec.push_back(s);
+            set.insert(s);
+        }
+        const std::string probe = std::string{"reason_"} + std::to_string(kBenchN - 1);
+        for (auto _ : state) {
+            if (use_set) {
+                benchmark::DoNotOptimize(set.count(probe));
+            } else {
+                benchmark::DoNotOptimize(std::find(vec.begin(), vec.end(), probe));
+            }
+        }
+        state.SetItemsProcessed(static_cast<int64_t>(state.iterations()));
+    }
+
+    // Site 3: hand-rolled min-tick linear scan vs std::min_element.
+    // Per-bucket sizes in production are bounded (~8-16 by
+    // max_buffers_per_size_class); the bench uses a large bucket to expose
+    // any genuine compiler-codegen gap.  Real win is readability.
+    struct BenchEntry {
+        std::uint64_t tick{0};
+    };
+
+    void BM_Site3_LRU(benchmark::State& state, bool use_stl) {
+        std::vector<BenchEntry> bucket;
+        bucket.resize(static_cast<size_t>(kBenchN));
+        for (int i = 0; i < kBenchN; ++i) {
+            bucket[i].tick = static_cast<std::uint64_t>(i);
+        }
+        for (auto _ : state) {
+            if (use_stl) {
+                auto it = std::min_element(
+                    bucket.begin(), bucket.end(),
+                    [](const BenchEntry& a, const BenchEntry& b) noexcept {
+                        return a.tick < b.tick;
+                    });
+                benchmark::DoNotOptimize(it);
+            } else {
+                std::uint64_t min_t = std::numeric_limits<std::uint64_t>::max();
+                std::size_t  idx   = 0;
+                for (std::size_t i = 0; i < bucket.size(); ++i) {
+                    if (bucket[i].tick < min_t) {
+                        min_t = bucket[i].tick;
+                        idx   = i;
+                    }
+                }
+                benchmark::DoNotOptimize(idx);
+            }
+        }
+        state.SetItemsProcessed(static_cast<int64_t>(state.iterations()));
+    }
+
+    } // namespace onshore
+
+    // TICKET-O(n)-audit registrations — exposed to google-benchmark's
+    // static-init registration machinery inside this anonymous namespace.
+    BENCHMARK_CAPTURE(BM_Site1_Lookup, VectorFind,  false);
+    BENCHMARK_CAPTURE(BM_Site1_Lookup, UnorderedSet, true);
+
+    BENCHMARK_CAPTURE(BM_Site2_StringDedup, VectorFind,  false);
+    BENCHMARK_CAPTURE(BM_Site2_StringDedup, UnorderedSet, true);
+
+    BENCHMARK_CAPTURE(BM_Site3_LRU, HandRolled,    false);
+    BENCHMARK_CAPTURE(BM_Site3_LRU, StdMinElement, true);
 } // namespace
 
 #if 0   // Sibling benchmark REGISTRATIONS disabled (function defs are #if 0 above;
