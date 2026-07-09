@@ -66,6 +66,12 @@ struct RenderPipelineArgs {
 
     // Text layout debug overlay + structured log per TextRun.
     bool text_layout_debug{false};
+
+    // Text layout debug JSON export path.
+    // When non-empty and text_layout_debug is true, writes a JSON file
+    // with per-TextRun bounds data (alpha_bounds, layout_bounds,
+    // scratch_bounds, ascent, descent).  Append mode (JSONL).
+    std::string text_layout_debug_json_path;
 };
 
 struct RenderArgs {
