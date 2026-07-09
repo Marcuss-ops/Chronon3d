@@ -45,7 +45,26 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 
 **Refs:** [`docs/ROADMAP.md`](docs/ROADMAP.md) §V0.2 milestone (4 fasi overview); [`docs/CHANGELOG.md`](docs/CHANGELOG.md) 4 entry prepended (Fase 1 PIVOTED + Fase 2/3/4 PLANNED).
 
+## Regression analysis — telemetry outliers (this session, 2026-07-09)
 
+> **Origine:** sessione 2026-07-09. IQR outlier analysis su 50 runs più recenti (su 1321 totali) via `/api/runs?limit=50` dal telemetry dashboard. Soglie IQR (Q3 + 1.5×IQR upper bound): `render_ms > 818ms`, `framebuffer_bytes_peak > 619,315,200 B` (590 MB), `dirty_pixels > 10,368,000 px`. **Tutti i 5 suspect condividono `composition_id=AECameraTextParity` con metriche identiche** (`dirty_pixels=33,177,600` = 3.2× upper bound; `framebuffer_bytes_peak=726,073,344` = 1.17× upper bound; `render_ms` > 818ms) → probabile stesso root cause (regression sulla composizione AECameraTextParity). `wall_time_ms` NON è outlier di per sé (tutti entro IQR 2.04–2.69s) ma è il tie-breaker di ranking.
+>
+> **5/5 shared root cause hypothesis**: tutti i 5 run hanno `composition_id=AECameraTextParity` con `cache_hits=7, cache_misses=19` (27% hit rate, **anomalo per stessa composizione ripetuta 5 volte — dovrebbe tendere a 100%**) + `dirty_pixels=33,177,600` (costante byte-identical) + `framebuffer_bytes_peak=726,073,344` (costante). Pattern deterministic conferma root cause comune + probabile cache regression sulla composizione AECameraTextParity. **Forward-point**: dopo investigazione root cause, consolidare i 5 ticket in UN SOLO `TICKET-REGRESSION-AECAMERATEXTPARITY` con i 5 run_ids come evidenza (code-reviewer `code-reviewer-minimax-m3` ha flaggato questo come soft ticket-sprawl, mantenuto 5 separati per rispettare la user instruction esplicita "apri ticket per ognuno").
+
+| ID | Pri | Area | Stato | Blocca |
+|---|---|---|---|---|
+| TICKET-REGRESSION-AECAMERATEXTPARITY-86A54851 | P1 | AECameraTextParity regression — run_86a54851_9aad6309, wall_time=2459.55ms, 3 flags (render_ms/framebuffer_bytes_peak/dirty_pixels). **5/5 shared root cause** | OPEN | Text V1 cert + AE-parity cinematic — `dirty_pixels=33,177,600` = 3.2× IQR upper bound (10,368,000). **Remediation first-line**: profile AECameraTextParity con `tools/check_software_renderer_boundary.sh` + per-layer breakdown in `src/render_graph/pipeline/scene_program_refresh.cpp` per identificare sorgente 3× `dirty_pixels` (target: ridurre a <15M). |
+| TICKET-REGRESSION-AECAMERATEXTPARITY-DA61CA7E | P1 | AECameraTextParity regression — run_da61ca7e_165fd985, wall_time=2423.57ms, 3 flags. **5/5 shared root cause** | OPEN | Same composition + flagged metrics. **Remediation first-line**: comparare PNG output con golden (post `TICKET-GOLDEN-CAPTURE` chiusura) per verificare se bbox/shadow è cambiato; controllare `dirty_full_fallbacks=0` (significativo: bug nel bbox system, NON negli effects). |
+| TICKET-REGRESSION-AECAMERATEXTPARITY-32D1CF3A | P1 | AECameraTextParity regression — run_32d1cf3a_616d3340, wall_time=2390.86ms, 3 flags. **5/5 shared root cause** | OPEN | Same. **Remediation first-line**: verificare se i 5 run condividono stesso seed (deterministic? se sì, baseline stabile ma shifted vs IQR); aprire `tests/visual/ae_parity/ae_parity_text_parity.cpp` con seed=42 e confermare riproducibilità. |
+| TICKET-REGRESSION-AECAMERATEXTPARITY-2869C66F | P1 | AECameraTextParity regression — run_2869c66f_b74fe039, wall_time=2357.77ms, 3 flags. **5/5 shared root cause** | OPEN | Same. **Remediation first-line**: `cache_hits=7, cache_misses=19` (27% hit rate) è il leverage point più chiaro — stessa composizione 5 volte dovrebbe avere ~100% hit rate dopo la prima; investigare `src/backends/text/text_rasterizer_cache.cpp` per cache-key collision su AECameraTextParity (target: portare a >80% hit rate). |
+| TICKET-REGRESSION-AECAMERATEXTPARITY-B53DF8C3 | P1 | AECameraTextParity regression — run_b53df8c3_32034a00, wall_time=2339.05ms, 3 flags. **5/5 shared root cause** | OPEN | Same. **Remediation first-line**: investigare `framebuffer_bytes_peak=726,073,344` (693 MB) costante — è peak per-frame o leak cumulativo? Cross-link con `src/cache/framebuffer_pool.cpp` per verificare pool best-fit vs exact-hit. |
+
+**Refs:**
+- Analysis methodology: IQR-based outlier detection (Q3 + 1.5×IQR upper bound) su 50 runs più recenti via `GET /api/runs?limit=50` (paginated endpoint introdotto in commit `1ea01eb7`, 96% payload reduction)
+- IQR upper bounds: `render_ms > 818ms`, `framebuffer_bytes_peak > 619,315,200 B`, `dirty_pixels > 10,368,000 px` (calcolati da 50 sample)
+- Raw analysis data: `/tmp/runs_50.json` (50 most recent runs, fetch via `curl -sS 'http://127.0.0.1:8000/api/runs?limit=50'`)
+- Cross-link: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) entry "perf(telemetry): /api/runs server-side pagination" (commit `1ea01eb7`) — the endpoint that enabled this analysis
+- 5/5 shared root cause: tutti `composition_id=AECameraTextParity` + `cache_hits=7, cache_misses=19` (27% hit rate, anomalo) + byte-identical `dirty_pixels=33,177,600` + `framebuffer_bytes_peak=726,073,344`
 ## M1.7 Sequence + Asset Readiness
 
 | ID | Pri | Stato |
