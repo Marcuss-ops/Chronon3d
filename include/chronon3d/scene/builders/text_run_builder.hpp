@@ -63,7 +63,7 @@
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/text/animated_text_document.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
-#include <chronon3d/text/glyph_selector.hpp>
+#include <chronon3d/text/glyph_selector_spec.hpp>  // GlyphSelectorSpec (TICKET-046 Phase 1a)
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/text/text_run.hpp>
 

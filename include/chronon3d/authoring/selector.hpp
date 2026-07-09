@@ -30,7 +30,7 @@
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/types.hpp>
-#include <chronon3d/text/glyph_selector.hpp>
+#include <chronon3d/text/glyph_selector_spec.hpp>  // TICKET-046 Phase 1a
 
 #include <utility>
 
