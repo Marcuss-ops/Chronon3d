@@ -180,6 +180,7 @@ function(chronon3d_add_test_suite)
     # ${CMAKE_SOURCE_DIR}/tests (test-only headers like
     # tests/helpers/test_utils.hpp) are required by existing tests.
     target_include_directories(${ARG_NAME} PRIVATE
+        ${CMAKE_SOURCE_DIR}
         ${CMAKE_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}
     )
