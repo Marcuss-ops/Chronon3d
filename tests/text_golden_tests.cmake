@@ -250,6 +250,18 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+# Anti-False-Green — negative tests that MUST fail on bogus output.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_completeness/text_anti_false_green.cpp
+)
+
+add_test(
+    NAME TextAntiFalseGreen
+    COMMAND chronon3d_text_golden_tests --test-case="AntiFalseGreen *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # Filter ctest -R to the wrapping subset.
 add_test(
     NAME TextWrapping
