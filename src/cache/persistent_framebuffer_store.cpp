@@ -26,7 +26,6 @@
 #include <cstring>
 #include <fstream>
 #include <iomanip>
-#include <mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -203,6 +202,45 @@ StoreLoadResult reconstruct_framebuffer(
     return result;
 }
 
+/// Validate parsed header fields + payload against expected constants.
+/// Checks magic, version, payload size, checksum, and key digest.
+/// Returns the error status on failure (logs warnings).  Does NOT
+/// delete the file — the caller handles I/O cleanup (munmap/close +
+/// conditional std::filesystem::remove).
+/// On success returns StoreLoadStatus::Ok.
+StoreLoadStatus validate_loaded_header(
+    const NodeCacheKey& key,
+    const PersistentFramebufferHeader& hdr,
+    const uint8_t* payload,
+    const std::filesystem::path& path)
+{
+    if (hdr.magic != PersistentFramebufferHeader::kMagic) {
+        spdlog::warn("[PersistentFB] bad magic in {} — deleting", path.string());
+        return StoreLoadStatus::BadMagic;
+    }
+    if (hdr.version != PersistentFramebufferHeader::kCurrentVersion) {
+        spdlog::info("[PersistentFB] version {} != {} in {} — deleting",
+                     hdr.version, PersistentFramebufferHeader::kCurrentVersion,
+                     path.string());
+        return StoreLoadStatus::BadVersion;
+    }
+    const size_t expected_payload =
+        static_cast<size_t>(hdr.width) * hdr.height * sizeof(Color);
+    if (hdr.payload_bytes != expected_payload) {
+        spdlog::warn("[PersistentFB] bad payload size in {} — deleting", path.string());
+        return StoreLoadStatus::BadSize;
+    }
+    const u64 computed_checksum = XXH64(payload, hdr.payload_bytes, 0);
+    if (computed_checksum != hdr.checksum) {
+        spdlog::warn("[PersistentFB] checksum mismatch in {} — deleting", path.string());
+        return StoreLoadStatus::ChecksumMismatch;
+    }
+    if (hdr.key_digest != key.digest()) {
+        return StoreLoadStatus::KeyMismatch;
+    }
+    return StoreLoadStatus::Ok;
+}
+
 #ifdef __linux__
 /// Linux-only zero-copy reader used when `use_mmap_reader()` returned
 /// true.  Validates header + checksum, then dispatches to
@@ -279,40 +317,8 @@ StoreLoadResult load_via_mmap(const NodeCacheKey& key,
         return r;
     }
 
-    if (hdr.magic != PersistentFramebufferHeader::kMagic) {
-        ::munmap(mapped, file_size);
-        spdlog::warn("[PersistentFB] bad magic in {} — deleting", path.string());
-        std::error_code ec;
-        std::filesystem::remove(path, ec);
-        StoreLoadResult r{};
-        r.status = StoreLoadStatus::BadMagic;
-        return r;
-    }
-
-    if (hdr.version != PersistentFramebufferHeader::kCurrentVersion) {
-        ::munmap(mapped, file_size);
-        spdlog::info("[PersistentFB] version {} != {} in {} — deleting",
-                     hdr.version, PersistentFramebufferHeader::kCurrentVersion,
-                     path.string());
-        std::error_code ec;
-        std::filesystem::remove(path, ec);
-        StoreLoadResult r{};
-        r.status = StoreLoadStatus::BadVersion;
-        return r;
-    }
-
-    const size_t expected_payload =
-        static_cast<size_t>(hdr.width) * hdr.height * sizeof(Color);
-    if (hdr.payload_bytes != expected_payload) {
-        ::munmap(mapped, file_size);
-        spdlog::warn("[PersistentFB] bad payload size in {} — deleting", path.string());
-        std::error_code ec;
-        std::filesystem::remove(path, ec);
-        StoreLoadResult r{};
-        r.status = StoreLoadStatus::BadSize;
-        return r;
-    }
-
+    // Truncation check (mmap-specific — verifies the mapped region
+    // contains the full payload before we touch it).
     if (file_size < pos + hdr.payload_bytes) {
         ::munmap(mapped, file_size);
         spdlog::warn("[PersistentFB] truncated payload in {} — deleting", path.string());
@@ -324,21 +330,17 @@ StoreLoadResult load_via_mmap(const NodeCacheKey& key,
     }
 
     const auto* payload = data + pos;
-    const u64 computed_checksum = XXH64(payload, hdr.payload_bytes, 0);
-    if (computed_checksum != hdr.checksum) {
-        ::munmap(mapped, file_size);
-        spdlog::warn("[PersistentFB] checksum mismatch in {} — deleting", path.string());
-        std::error_code ec;
-        std::filesystem::remove(path, ec);
-        StoreLoadResult r{};
-        r.status = StoreLoadStatus::ChecksumMismatch;
-        return r;
-    }
 
-    if (hdr.key_digest != key.digest()) {
+    // Common header validation (magic, version, payload size, checksum, key).
+    auto status = validate_loaded_header(key, hdr, payload, path);
+    if (status != StoreLoadStatus::Ok) {
         ::munmap(mapped, file_size);
+        if (status != StoreLoadStatus::KeyMismatch) {
+            std::error_code ec;
+            std::filesystem::remove(path, ec);
+        }
         StoreLoadResult r{};
-        r.status = StoreLoadStatus::KeyMismatch;
+        r.status = status;
         return r;
     }
 
@@ -387,31 +389,8 @@ StoreLoadResult load_via_ifstream(const NodeCacheKey& key,
         return r;
     }
 
-    if (hdr.magic != PersistentFramebufferHeader::kMagic) {
-        file.close();
-        std::error_code ec; std::filesystem::remove(path, ec);
-        StoreLoadResult r{};
-        r.status = StoreLoadStatus::BadMagic;
-        return r;
-    }
-    if (hdr.version != PersistentFramebufferHeader::kCurrentVersion) {
-        file.close();
-        std::error_code ec; std::filesystem::remove(path, ec);
-        StoreLoadResult r{};
-        r.status = StoreLoadStatus::BadVersion;
-        return r;
-    }
-
-    const size_t expected_payload =
-        static_cast<size_t>(hdr.width) * hdr.height * sizeof(Color);
-    if (hdr.payload_bytes != expected_payload) {
-        file.close();
-        std::error_code ec; std::filesystem::remove(path, ec);
-        StoreLoadResult r{};
-        r.status = StoreLoadStatus::BadSize;
-        return r;
-    }
-
+    // Read payload before validation (ifstream path — reads into a
+    // heap buffer; the mmap path validates bounds instead).
     std::vector<uint8_t> payload_buf(hdr.payload_bytes);
     if (!file.read(reinterpret_cast<char*>(payload_buf.data()),
                    static_cast<std::streamsize>(hdr.payload_bytes))) {
@@ -423,19 +402,16 @@ StoreLoadResult load_via_ifstream(const NodeCacheKey& key,
         return r;
     }
 
-    const u64 computed_checksum = XXH64(payload_buf.data(), hdr.payload_bytes, 0);
-    if (computed_checksum != hdr.checksum) {
+    // Common header validation (magic, version, payload size, checksum, key).
+    auto status = validate_loaded_header(key, hdr, payload_buf.data(), path);
+    if (status != StoreLoadStatus::Ok) {
         file.close();
-        std::error_code ec; std::filesystem::remove(path, ec);
+        if (status != StoreLoadStatus::KeyMismatch) {
+            std::error_code ec;
+            std::filesystem::remove(path, ec);
+        }
         StoreLoadResult r{};
-        r.status = StoreLoadStatus::ChecksumMismatch;
-        return r;
-    }
-
-    if (hdr.key_digest != key.digest()) {
-        file.close();
-        StoreLoadResult r{};
-        r.status = StoreLoadStatus::KeyMismatch;
+        r.status = status;
         return r;
     }
 
