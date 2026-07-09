@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace chronon3d::graph {
@@ -176,9 +177,21 @@ void propagate_dirty_chain(
 ) {
     for (GraphNodeId u : topo_order) {
         auto& rec = report.nodes[u];
+        // TICKET-O(n)-audit — `seen_reasons` is a per-node shadow
+        // std::unordered_set used to dedup reason strings in O(1).
+        // The `rec.dirty_reasons` std::vector is preserved (and keeps
+        // deterministic insertion order for stable diagnostic reports).
+        // Bit-identical final state: same set of reasons in the same order.
+        std::unordered_set<std::string> seen_reasons(
+            rec.dirty_reasons.begin(), rec.dirty_reasons.end());
+
         if (rec.frame_dependent) {
             rec.dirty = true;
-            rec.dirty_reasons.push_back("Node is frame-dependent (animated parameters or time-varying input)");
+            const std::string frame_dep_reason =
+                "Node is frame-dependent (animated parameters or time-varying input)";
+            if (seen_reasons.insert(frame_dep_reason).second) {
+                rec.dirty_reasons.push_back(frame_dep_reason);
+            }
         }
         for (GraphNodeId v : graph.inputs(u)) {
             if (!graph.has_node(v)) continue;
@@ -189,7 +202,8 @@ void propagate_dirty_chain(
                 if (!parent_rec.dirty_reasons.empty()) {
                     reason += " because: [" + parent_rec.dirty_reasons[0] + "]";
                 }
-                if (std::find(rec.dirty_reasons.begin(), rec.dirty_reasons.end(), reason) == rec.dirty_reasons.end()) {
+                // O(1) dedup check (returns .second == true iff newly inserted).
+                if (seen_reasons.insert(reason).second) {
                     rec.dirty_reasons.push_back(reason);
                 }
             }

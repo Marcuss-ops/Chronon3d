@@ -26,19 +26,21 @@ CacheDiagnostics::Handle CacheDiagnostics::register_cache(
                             std::move(mode_fn), capacity};
     {
         std::lock_guard lock(m_mutex);
-        m_entries[domain].push_back(entry);
+        m_entries[domain].insert(entry);
     }
     return Handle{this, entry};
 }
 
 void CacheDiagnostics::unregister(Entry* entry) {
     std::lock_guard lock(m_mutex);
-    for (auto& [domain, vec] : m_entries) {
-        auto it = std::find(vec.begin(), vec.end(), entry);
-        if (it != vec.end()) {
-            vec.erase(it);
+    for (auto& [domain, set] : m_entries) {
+        // TICKET-O(n)-audit — O(1) lookup in unordered_set replaces the
+        // previous O(n) std::find linear scan.
+        auto it = set.find(entry);
+        if (it != set.end()) {
+            set.erase(it);
             delete entry;
-            if (vec.empty()) {
+            if (set.empty()) {
                 // Don't erase from the map mid-iteration; cleanup happens
                 // lazily during snapshot/clear which only reads values.
             }
@@ -56,8 +58,8 @@ std::vector<CacheSnapshot> CacheDiagnostics::snapshot() const {
     if (!m_enabled.load(std::memory_order_relaxed)) return result;
 
     std::lock_guard lock(m_mutex);
-    for (const auto& [domain, vec] : m_entries) {
-        for (const auto* entry : vec) {
+    for (const auto& [domain, set] : m_entries) {
+        for (const auto* entry : set) {
             GenericCacheStats gs = entry->stats_fn();
             result.push_back(CacheSnapshot{
                 .domain         = domain,
@@ -101,10 +103,10 @@ std::vector<DomainSnapshot> CacheDiagnostics::snapshot_all_domains() const {
     if (!m_enabled.load(std::memory_order_relaxed)) return result;
 
     std::lock_guard lock(m_mutex);
-    for (const auto& [domain, vec] : m_entries) {
-        if (vec.empty()) continue;
-        DomainSnapshot ds{.domain = domain, .instance_count = vec.size()};
-        for (const auto* entry : vec) {
+    for (const auto& [domain, set] : m_entries) {
+        if (set.empty()) continue;
+        DomainSnapshot ds{.domain = domain, .instance_count = set.size()};
+        for (const auto* entry : set) {
             GenericCacheStats gs = entry->stats_fn();
             ds.hits           += gs.hits;
             ds.misses         += gs.misses;
@@ -139,9 +141,9 @@ std::size_t CacheDiagnostics::clear_all() {
 
     std::lock_guard lock(m_mutex);
     std::size_t total = 0;
-    for (auto& [domain, vec] : m_entries) {
-        total += vec.size();
-        for (auto* entry : vec) {
+    for (auto& [domain, set] : m_entries) {
+        total += set.size();
+        for (auto* entry : set) {
             entry->clear_fn();
         }
     }
@@ -153,8 +155,8 @@ std::size_t CacheDiagnostics::clear_all() {
 std::size_t CacheDiagnostics::registered_count() const {
     std::lock_guard lock(m_mutex);
     std::size_t total = 0;
-    for (const auto& [domain, vec] : m_entries) {
-        total += vec.size();
+    for (const auto& [domain, set] : m_entries) {
+        total += set.size();
     }
     return total;
 }
@@ -164,6 +166,9 @@ std::size_t CacheDiagnostics::registered_count(CacheDomain domain) const {
     auto it = m_entries.find(domain);
     return it != m_entries.end() ? it->second.size() : 0;
 }
+
+// (registered_count(CacheDomain) uses unordered_set::size which is O(1)
+ //  instead of std::distance(vec.begin(), vec.end()). TICKET-O(n)-audit.)
 
 // ── Toggle ────────────────────────────────────────────────────────────────
 

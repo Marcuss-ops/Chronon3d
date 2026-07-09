@@ -59,15 +59,19 @@ bool FramebufferPool::evict_one_from_bucket(FramebufferPoolKey key) {
     if (it == m_free.end() || it->second.empty()) return false;
 
     auto& bucket = it->second;
-    // Find LRU entry in this bucket
-    size_t lru_idx = 0;
-    uint64_t min_tick = std::numeric_limits<uint64_t>::max();
-    for (size_t i = 0; i < bucket.size(); ++i) {
-        if (bucket[i].last_used_tick < min_tick) {
-            min_tick = bucket[i].last_used_tick;
-            lru_idx = i;
-        }
-    }
+    // TICKET-O(n)-audit — std::min_element replaces the hand-rolled
+    // linear min-tick scan. Bit-identical: the same LRU entry is
+    // returned. Per-bucket size is bounded by max_buffers_per_size_class
+    // (typically 8-16), so the O(n) cost is already small; the win is
+    // readability + branch-friendly codegen.
+    auto lru_it = std::min_element(
+        bucket.begin(), bucket.end(),
+        [](const PoolEntry& a, const PoolEntry& b) noexcept {
+            return a.last_used_tick < b.last_used_tick;
+        });
+    if (lru_it == bucket.end()) return false;
+    const size_t lru_idx = static_cast<size_t>(
+        std::distance(bucket.begin(), lru_it));
 
     size_t evicted_bytes = bucket[lru_idx].fb->size_bytes();
     bucket[lru_idx] = std::move(bucket.back());
@@ -91,17 +95,25 @@ bool FramebufferPool::evict_one_from_bucket(FramebufferPoolKey key) {
 // ---------------------------------------------------------------------------
 bool FramebufferPool::evict_global_lru() {
     std::optional<FramebufferPoolKey> lru_key;
-    size_t lru_idx = 0;
-    uint64_t min_tick = std::numeric_limits<uint64_t>::max();
+    size_t                              lru_idx  = 0;
+    uint64_t                            min_tick = std::numeric_limits<uint64_t>::max();
 
     for (auto& [key, bucket] : m_free) {
         if (bucket.empty()) continue;
-        for (size_t i = 0; i < bucket.size(); ++i) {
-            if (bucket[i].last_used_tick < min_tick) {
-                min_tick = bucket[i].last_used_tick;
-                lru_idx = i;
-                lru_key = key;
-            }
+        // TICKET-O(n)-audit — std::min_element replaces the hand-rolled
+        // inner linear scan; bit-identical globally-LRU entry is still
+        // picked. Readability + branch-friendly codegen is the win.
+        auto local_lru = std::min_element(
+            bucket.begin(), bucket.end(),
+            [](const PoolEntry& a, const PoolEntry& b) noexcept {
+                return a.last_used_tick < b.last_used_tick;
+            });
+        if (local_lru == bucket.end()) continue;
+        if (local_lru->last_used_tick < min_tick) {
+            min_tick = local_lru->last_used_tick;
+            lru_key  = key;
+            lru_idx  = static_cast<size_t>(
+                std::distance(bucket.begin(), local_lru));
         }
     }
 
