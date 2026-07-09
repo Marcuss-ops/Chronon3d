@@ -7,6 +7,7 @@ add_library(chronon3d_backend_text OBJECT
     text_rasterizer_render.cpp       # M1.5#11 — legacy entry (deleted with M1.5#9 Step 5)
     blend2d_glyph_conversion.cpp     # M1.5#11 — fill/stroke style applicator + Hb→BL glyph run converter (pure conversion)
     freetype_outline_conversion.cpp  # M1.5#11 — FT_Outline→BLPath outline-decoder (pure conversion, caller-owned FT_Face)
+    glyph_texture_updater.cpp        # FASE 4 — atlas-or-fill placed-glyph renderer (centralizes render_run + for-line duplication)
     text_rasterizer_ink.cpp
     text_material.cpp
     font_engine.cpp

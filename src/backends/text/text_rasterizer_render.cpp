@@ -84,6 +84,7 @@
 /// FT_Outline_Decompose race against concurrent FT_Set_Pixel_Sizes).
 #include "blend2d_glyph_conversion.hpp"
 #include "freetype_outline_conversion.hpp"
+#include "glyph_texture_updater.hpp"  # FASE 4 — atlas-or-fill renderer (centralizes render_run + for-line duplication)
 #include "text_rasterizer_atlas.hpp"
 #include "text_rasterizer_debug.hpp"
 #include "text_rasterizer_trim.hpp"
@@ -572,32 +573,27 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             line.baseline + line.descent
         );
 
-        if (placed) {
-            const bool has_stroke = run_style.paint.stroke_enabled
-                && run_style.paint.stroke_width > 0.0f;
-            if (detail::can_use_glyph_atlas(use_geometric_transform, t.style.box_style.enabled, has_stroke, run_style.paint.fill_style)) {
-                const u32 frgba = detail::resolve_atlas_fill_rgba(run_style.paint.fill_style, to_bl_rgba(run_fill).value);
-                if (detail::try_atlas_blit(ctx, *placed, run_style.font_path,
-                        run_shape_size, frgba, lx, baseline_y)) {
-                    if (profiling::g_current_counters)
-                        profiling::g_current_counters->glyph_atlas_hits.fetch_add(1, std::memory_order_relaxed);
-                    return;
-                }
-                // M1.5#11 — `HbToBlGlyphRun::from` resolved via the
-                // `blend2d_glyph_conversion.hpp` include.
-                auto bl = HbToBlGlyphRun::from(*placed, run_face, run_shape_size);
-                ctx.fillGlyphRun(BLPoint(lx, baseline_y), run_font, bl.bl_run);
+        // FASE 4 — atlas-or-fill path centralized in `GlyphTextureUpdater::render_placed`.
+        const bool run_has_stroke = run_style.paint.stroke_enabled
+            && run_style.paint.stroke_width > 0.0f;
+        const u32 run_frgba = detail::resolve_atlas_fill_rgba(
+            run_style.paint.fill_style, to_bl_rgba(run_fill).value);
+        switch (GlyphTextureUpdater::render_placed(
+                ctx, placed, run_face, run_font, lx, baseline_y,
+                run_style.font_path, run_shape_size, run_frgba,
+                use_geometric_transform, t.style.box_style.enabled,
+                run_has_stroke, run_style.paint.fill_style)) {
+            case GlyphTextureUpdater::Path::Hit:
+                return;
+            case GlyphTextureUpdater::Path::Miss:
+                // Caller-scheduled PendingGlyphStore for post-render atlas storage.
                 pending_glyph_stores.push_back({
                     run_style.font_path, std::move(*placed), run_font,
-                    lx, baseline_y, run_shape_size, frgba});
-                if (profiling::g_current_counters)
-                    profiling::g_current_counters->glyph_atlas_misses.fetch_add(1, std::memory_order_relaxed);
-            } else {
-                auto bl = HbToBlGlyphRun::from(*placed, run_face, run_shape_size);
-                ctx.fillGlyphRun(BLPoint(lx, baseline_y), run_font, bl.bl_run);
-            }
-        } else {
-            ctx.fillUtf8Text(BLPoint(lx, baseline_y), run_font, run.text.c_str());
+                    lx, baseline_y, run_shape_size, run_frgba});
+                return;
+            case GlyphTextureUpdater::Path::NoPlaced:
+                ctx.fillUtf8Text(BLPoint(lx, baseline_y), run_font, run.text.c_str());
+                return;
         }
     };
 
@@ -685,30 +681,26 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             text_block_h
         );
 
-        if (placed) {
-            const bool has_stroke = t.style.paint.stroke_enabled
-                && t.style.paint.stroke_width > 0.0f;
-            if (detail::can_use_glyph_atlas(use_geometric_transform, t.style.box_style.enabled, has_stroke, t.style.paint.fill_style)) {
-                const u32 frgba = detail::resolve_atlas_fill_rgba(t.style.paint.fill_style, to_bl_rgba(line_fill).value);
-                if (detail::try_atlas_blit(ctx, *placed, t.style.font_path,
-                        layout_res.font_size, frgba, lx, ly)) {
-                    if (profiling::g_current_counters)
-                        profiling::g_current_counters->glyph_atlas_hits.fetch_add(1, std::memory_order_relaxed);
-                    continue;
-                }
-                auto bl = HbToBlGlyphRun::from(*placed, face, layout_res.font_size);
-                ctx.fillGlyphRun(BLPoint(lx, ly), font, bl.bl_run);
+        // FASE 4 — atlas-or-fill path centralized in `GlyphTextureUpdater::render_placed`.
+        const bool line_has_stroke = t.style.paint.stroke_enabled
+            && t.style.paint.stroke_width > 0.0f;
+        const u32 line_frgba = detail::resolve_atlas_fill_rgba(
+            t.style.paint.fill_style, to_bl_rgba(line_fill).value);
+        switch (GlyphTextureUpdater::render_placed(
+                ctx, placed, face, font, lx, ly,
+                t.style.font_path, layout_res.font_size, line_frgba,
+                use_geometric_transform, t.style.box_style.enabled,
+                line_has_stroke, t.style.paint.fill_style)) {
+            case GlyphTextureUpdater::Path::Hit:
+                continue;
+            case GlyphTextureUpdater::Path::Miss:
                 pending_glyph_stores.push_back({
                     t.style.font_path, std::move(*placed), font,
-                    lx, ly, layout_res.font_size, frgba});
-                if (profiling::g_current_counters)
-                    profiling::g_current_counters->glyph_atlas_misses.fetch_add(1, std::memory_order_relaxed);
-            } else {
-                auto bl = HbToBlGlyphRun::from(*placed, face, layout_res.font_size);
-                ctx.fillGlyphRun(BLPoint(lx, ly), font, bl.bl_run);
-            }
-        } else {
-            ctx.fillUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
+                    lx, ly, layout_res.font_size, line_frgba});
+                continue;
+            case GlyphTextureUpdater::Path::NoPlaced:
+                ctx.fillUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
+                continue;
         }
     }
 
