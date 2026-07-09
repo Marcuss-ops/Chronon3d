@@ -212,7 +212,7 @@ Layer LayerBuilder::build() {
             // `g_consumed_decrements` so tests can assert that the
             // decrement is REAL.  See src/text/pending_text_run_impl.hpp
             // for the counter contract.
-            chronon3d::text_internal::mark_consumed(spec);
+            (void)chronon3d::text_internal::mark_consumed(spec);
         }
     }
 

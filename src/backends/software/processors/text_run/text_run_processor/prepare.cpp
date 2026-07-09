@@ -116,6 +116,16 @@ namespace chronon3d::renderer::text_run_stages {
         });
     }
 
+    // ── Stage 2 early: supersample factor precomputation ──────────────
+    // Moved BEFORE font resolve so that BLFont can be created at the
+    // supersampled font_size (font_size * raster_space.scale).  Without
+    // this, the rasterizer draws unscaled glyphs into a scaled scratch
+    // surface, producing tiny / off-screen text (visible at scale >1.0x
+    // as a completely empty framebuffer).
+    constexpr float kMargin = 8.0f;
+    const float layer_scale = extract_uniform_scale(params.model_matrix);
+    s.raster_space.scale = supersampling_factor(layer_scale);
+
     // ── Per-span font resolve (Phase 1.4 multi-font OR single-font alias) ─
     const bool has_font_spans = !layout.font_spans.empty();
     if (has_font_spans) {
@@ -133,7 +143,8 @@ namespace chronon3d::renderer::text_run_stages {
             }
             s.span_handles.push_back(std::move(span_handle));
             BLFont span_blfont;
-            span_blfont.createFromFace(*s.span_handles.back().bl_face, layout.font_size);
+            span_blfont.createFromFace(*s.span_handles.back().bl_face,
+                layout.font_size * static_cast<float>(s.raster_space.scale));
             s.span_fonts.push_back(std::move(span_blfont));
         }
         s.per_glyph_span_idx.assign(layout.placed.glyphs.size(), 0);
@@ -158,7 +169,8 @@ namespace chronon3d::renderer::text_run_stages {
         }
         s.span_handles.push_back(std::move(single_handle));
         BLFont single_blfont;
-        single_blfont.createFromFace(*s.span_handles.back().bl_face, layout.font_size);
+        single_blfont.createFromFace(*s.span_handles.back().bl_face,
+            layout.font_size * static_cast<float>(s.raster_space.scale));
         s.span_fonts.push_back(std::move(single_blfont));
         s.per_glyph_span_idx.assign(layout.placed.glyphs.size(), 0);
     }
@@ -182,10 +194,11 @@ namespace chronon3d::renderer::text_run_stages {
     // the shadow scratch surface.  Use real baseline metrics so the
     // shadow scratch surface is sized to the actual glyph ink extent
     // (plus the shadow's blur + offset + 8 px safety padding).
-    const float shadow_ascent  = std::max(
-        0.0f, shape.layout->placed.ascent);
-    const float shadow_descent = std::max(
-        0.0f, shape.layout->placed.descent);
+    const float shadow_font_size = shape.layout->font_size;
+    const float shadow_ascent  = std::max({
+        0.0f, shape.layout->placed.ascent, shadow_font_size * 0.8f});
+    const float shadow_descent = std::max({
+        0.0f, shape.layout->placed.descent, shadow_font_size * 0.2f});
     const auto& shadow_placed  = shape.layout->placed;
     for (std::size_t gi = 0; gi < shape.glyphs.size(); ++gi) {
         const auto& g = shape.glyphs[gi];
@@ -207,15 +220,16 @@ namespace chronon3d::renderer::text_run_stages {
         }
     }
 
-    // ── Stage 2 derived image dimensions + supersample factor ────────────
-    constexpr float kMargin = 8.0f;
+    // ── Stage 2 derived image dimensions ────────────────────────────────
+    // kMargin is the safety padding around the bbox (8px local space).
+    // raster_space.scale and layer_scale were computed earlier (before
+    // font resolve) so that BLFont could be created at the supersampled
+    // size.  Only the image dimensions and offset remain to be computed.
     s.img_w = std::max(1, static_cast<int>(std::ceil(s.max_x - s.min_x + kMargin * 2.0f)));
     s.img_h = std::max(1, static_cast<int>(std::ceil(s.max_y - s.min_y + kMargin * 2.0f)));
     s.offset_x = s.min_x - kMargin;
     s.offset_y = s.min_y - kMargin;
 
-    const float layer_scale = extract_uniform_scale(params.model_matrix);
-    s.raster_space.scale = supersampling_factor(layer_scale);
     s.ss_img_w = s.img_w * s.raster_space.scale;
     s.ss_img_h = s.img_h * s.raster_space.scale;
     s.raster_space.offset_x = s.offset_x * static_cast<float>(s.raster_space.scale);
