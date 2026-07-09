@@ -104,6 +104,8 @@ struct PersistentStoreStats {
 
 class PersistentFramebufferStore {
 public:
+    [[deprecated("Use runtime().framebuffer_store() where a RenderRuntime& is in scope; instance() is the singleton bootstrap fallback only")]]
+
     static PersistentFramebufferStore& instance();
     friend class chronon3d::runtime::RenderRuntime;
 

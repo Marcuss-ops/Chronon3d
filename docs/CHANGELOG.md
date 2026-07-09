@@ -2395,3 +2395,5 @@ applicata. -->
 - refactor(cache): mark CacheDiagnostics::instance() @deprecated (use runtime().diagnostics())
 
 - refactor(cache): add RenderRuntime::framebuffer_store() accessor (runtime-scoped PersistentFramebufferStore)
+
+- refactor(cache): mark PersistentFramebufferStore::instance() @deprecated (use runtime().framebuffer_store())

@@ -77,7 +77,7 @@ CacheEvalResult evaluate_cache(
         cr.result = ctx.services.node_cache->get(cr.key);
         
         if (!cr.result && policy.persistent() && persistent_framebuffer_cache_enabled_for_current_run()) {
-            cr.result = cache::PersistentFramebufferStore::instance().get(cr.key);
+            cr.result = ctx.services.framebuffer_store->get(cr.key);
             if (cr.result) {
                 ctx.services.node_cache->store(cr.key, cr.result);
             }
