@@ -130,6 +130,17 @@ install_manifest.json
 .tmp_gate*/
 .tmp_*/
 
+# Canonical build dir used by build-fast.sh (BUILD_DIR_OVERRIDE-defaulted to
+# `${ROOT_DIR}/.tmp/chronon-builds/<preset>`).  NEVER committed: contains
+# build.ninja, CMakeCache.txt, *.ninja_log, compile_commands.json etc., which
+# leak absolute build-machine paths.  AGENTS.md § anti-artefact invariant:
+# never commit build output.  Without this rule, every machine leaves an
+# untracked entry in `git status` that breaks tools/check_main_clean.sh's
+# "working tree dirty" gate (the gate enforces the invariant); the other
+# .tmp_* patterns above are gate-pipeline-specific and do not cover the
+# bare `.tmp/` project-local build root.
+/.tmp/
+
 # Local git worktrees (parallel agent branches — never on main)
 .worktrees/
 .build-tmp/
