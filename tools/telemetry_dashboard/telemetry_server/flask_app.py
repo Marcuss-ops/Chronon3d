@@ -100,13 +100,93 @@ def logout():
 @app.route('/api/runs')
 @require_auth
 def get_runs():
+    """List render runs with server-side pagination + filtering.
+
+    Query parameters (all optional):
+      limit           int    1..1000, default 50
+      offset          int    >= 0, default 0
+      composition_id  str    exact match on render_runs.composition_id
+      run_id          str    exact match on render_runs.run_id
+      success         str    'true' | 'false' | '1' | '0'
+      since           str    ISO 8601 datetime; finished_at_iso >= since
+      until           str    ISO 8601 datetime; finished_at_iso <= until
+
+    Response: JSON array of run rows (backward-compatible shape).
+    Headers:
+      X-Total-Count: total matching rows (for pagination UI)
+      Access-Control-Expose-Headers: X-Total-Count
+      Cache-Control: no-store
+    """
     conn = None
     try:
+        # ── Parse + clamp pagination params ────────────────────────────
+        try:
+            limit = int(request.args.get('limit', 50))
+        except (TypeError, ValueError):
+            return jsonify({"error": "limit must be an integer"}), 400
+        try:
+            offset = int(request.args.get('offset', 0))
+        except (TypeError, ValueError):
+            return jsonify({"error": "offset must be an integer"}), 400
+        limit = max(1, min(limit, 1000))
+        offset = max(0, offset)
+
+        # ── Parse filter params ────────────────────────────────────────
+        composition_id = request.args.get('composition_id', type=str) or None
+        run_id = request.args.get('run_id', type=str) or None
+        success_raw = (request.args.get('success', type=str) or '').lower() or None
+        since_raw = request.args.get('since', type=str) or None
+        until_raw = request.args.get('until', type=str) or None
+
+        conditions = []
+        params = []
+        if composition_id is not None:
+            conditions.append("composition_id = ?")
+            params.append(composition_id)
+        if run_id is not None:
+            conditions.append("run_id = ?")
+            params.append(run_id)
+        success_value = None
+        if success_raw is not None:
+            if success_raw in ('true', '1'):
+                success_value = 1
+            elif success_raw in ('false', '0'):
+                success_value = 0
+            else:
+                return jsonify({"error": "success must be one of: true, false, 1, 0"}), 400
+            conditions.append("success = ?")
+            params.append(success_value)
+        if since_raw is not None:
+            conditions.append("finished_at_iso >= ?")
+            params.append(since_raw)
+        if until_raw is not None:
+            conditions.append("finished_at_iso <= ?")
+            params.append(until_raw)
+
+        # NOTE: where_clause is built from a fixed allowlist of column names
+        # and SQL operators (see the conditions.append calls above). No user
+        # input is interpolated into the SQL string; all filter values flow
+        # through `?` placeholders bound via the `params` list.
+
+        where_clause = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+
         conn = create_merged_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM render_runs ORDER BY finished_at_iso DESC")
+
+        # Total count for X-Total-Count header
+        cursor.execute(f"SELECT COUNT(*) AS total FROM render_runs{where_clause}", params)
+        total_count = cursor.fetchone()['total']
+
+        # Paginated + filtered result
+        query = f"SELECT * FROM render_runs{where_clause} ORDER BY finished_at_iso DESC LIMIT ? OFFSET ?"
+        cursor.execute(query, params + [limit, offset])
         runs = [dict(row) for row in cursor.fetchall()]
-        return jsonify(runs)
+
+        response = jsonify(runs)
+        response.headers['X-Total-Count'] = str(total_count)
+        response.headers['Access-Control-Expose-Headers'] = 'X-Total-Count'
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        return response
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
