@@ -5,6 +5,7 @@
 #include <chronon3d/runtime/telemetry/null_telemetry_store.hpp>
 #endif
 #include <spdlog/spdlog.h>
+#include <atomic>
 #include <filesystem>
 #include <thread>
 #include <chrono>
@@ -30,6 +31,91 @@ std::string get_telemetry_directory() {
         home_path = "/tmp";
     }
     return (home_path / ".chronon3d" / "telemetry").string();
+}
+
+// ── TICKET-122 ── Get_peak_memory_usage cache ──────────────────────────────
+//
+// Single-file-static anonymous struct (program-lifetime) with its own
+// ~1 Hz worker thread that scans /proc/self/status for VmHWM and
+// maintains a monotonic peak via CAS.  TelemetryManager::get_peak_memory_usage
+// reduces to a single atomic load; callers (only record_run) no longer
+// block on a synchronous file-open + string-scan on the record path.
+//
+// Pause-on-shutdown: the destructor sets `stop` and joins; the worst-
+// case wait is one tick (~1s) when the worker is mid-sleep.
+//
+// Why per-TU instead of extending SystemMetricsCollector: Cat-2 freeze
+// forbids new public API symbols; inlining the cache in this TU keeps
+// the public surface untouched (get_peak_memory_usage signature is
+// preserved verbatim; only its body changed).
+struct PeakMemoryCache {
+    std::atomic<bool>     stop{false};
+    std::atomic<uint64_t> max_vmhwm_bytes{0};  // monotonic CAS-updated peak
+    std::thread           worker;
+
+    static uint64_t parse_vmhwm_internal() {
+        std::ifstream status("/proc/self/status");
+        std::string line;
+        while (std::getline(status, line)) {
+            if (line.rfind("VmHWM:", 0) == 0) {
+                std::istringstream iss(line.substr(6));
+                uint64_t kb = 0;
+                iss >> kb;
+                if (kb > 0) return kb * 1024ULL;
+                break;
+            }
+        }
+        // Fallback to getrusage when /proc/self/status did not report
+        // VmHWM (e.g. non-Linux build path or older kernel).
+        struct rusage usage {};
+        if (getrusage(RUSAGE_SELF, &usage) == 0 && usage.ru_maxrss > 0) {
+            return static_cast<uint64_t>(usage.ru_maxrss) * 1024ULL;
+        }
+        return 0;
+    }
+
+    // TICKET-122 -- extracted primed-update body; called both as the
+    // ctor's synchronous first read and as the worker's per-tick body.
+    // Acquire-load on the previous peak pairs with the release-CAS on
+    // success so the consumer thread (TelemetryManager::get_peak_memory_usage)
+    // sees a coherent monotonic peak value across calls.
+    void prime_once_internal() {
+        uint64_t current = parse_vmhwm_internal();
+        uint64_t prev = max_vmhwm_bytes.load(std::memory_order_acquire);
+        while (current > prev) {
+            if (max_vmhwm_bytes.compare_exchange_weak(prev, current,
+                                                      std::memory_order_release,
+                                                      std::memory_order_relaxed)) {
+                break;
+            }
+        }
+    }
+    PeakMemoryCache() {
+        // TICKET-122 -- prime synchronously BEFORE spawning the worker
+        // so the very first call into get_peak_memory_usage() observes
+        // a real VmHWM value (the OLD implementation returned 0 for up
+        // to ~1s until the worker had completed its first tick).
+        prime_once_internal();
+        worker = std::thread([this]() {
+            // Acquire-load pairs with the dtor's release-store so the
+            // worker respects shutdown within at most one tick (<1s).
+            while (!stop.load(std::memory_order_acquire)) {
+                prime_once_internal();
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+        });
+    }
+    ~PeakMemoryCache() {
+        stop.store(true, std::memory_order_release);
+        if (worker.joinable()) worker.join();
+    }
+};
+
+// Function-local static (Meyers singleton): thread-safe init per
+// [stmt.dcl]/3 in C++11 onwards.  Program-lifetime; worker runs once.
+PeakMemoryCache& peak_memory_cache() {
+    static PeakMemoryCache inst;
+    return inst;
 }
 
 } // namespace
@@ -278,28 +364,14 @@ std::string TelemetryManager::generate_uuid() {
     return oss.str();
 }
 
+// TICKET-122 — get_peak_memory_usage now serves the cached monotonic
+// peak maintained by peak_memory_cache() (separate ~1Hz worker in this
+// TU).  Callers (record_run) no longer block on a /proc/self/status
+// re-scan on the record path.  Acquire-load pairs with the worker's
+// release-CAS so the value observed is coherent with respect to the
+// producer's release point.
 uint64_t TelemetryManager::get_peak_memory_usage() {
-    {
-        std::ifstream status("/proc/self/status");
-        std::string line;
-        while (std::getline(status, line)) {
-            if (line.rfind("VmHWM:", 0) == 0) {
-                std::istringstream iss(line.substr(6));
-                uint64_t kb = 0;
-                iss >> kb;
-                if (kb > 0) {
-                    return kb * 1024ULL;
-                }
-                break;
-            }
-        }
-    }
-
-    struct rusage usage {};
-    if (getrusage(RUSAGE_SELF, &usage) == 0 && usage.ru_maxrss > 0) {
-        return static_cast<uint64_t>(usage.ru_maxrss) * 1024ULL;
-    }
-    return 0;
+    return peak_memory_cache().max_vmhwm_bytes.load(std::memory_order_acquire);
 }
 
 } // namespace chronon3d::telemetry
