@@ -450,7 +450,7 @@ inline TextLayoutResult layout_single_run(const TextLayoutInput& input) {
 
         TextLayoutLineRun run;
         run.text = line.text;
-        run.position = {line.position.x, 0.0f};
+        run.position = line.position;
         run.width = line.width;
         run.style = input.style;
         line.runs.push_back(std::move(run));
