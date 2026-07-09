@@ -26,7 +26,7 @@
 
 #include <chronon3d/text/animation/glyph_instance_state.hpp>
 #include <chronon3d/text/animation/text_animator_properties.hpp>  // TextAnimatorProperty, TextPropertyBlendMode
-#include <chronon3d/text/glyph_selector.hpp>                       // SelectorWeight
+#include <chronon3d/text/glyph_selector_spec.hpp>              // SelectorWeight (TICKET-046 Phase 1a)
 #include <chronon3d/core/types/sample_time.hpp>                     // SampleTime
 
 namespace chronon3d::detail {

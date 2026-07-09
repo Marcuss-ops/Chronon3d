@@ -3,7 +3,7 @@
 // North→south dependency: properties (TextPropertyBlendMode +
 // TextAnimatorProperty variant) feeds into TextAnimatorSpec.
 #include <chronon3d/text/animation/text_animator_properties.hpp>
-#include <chronon3d/text/glyph_selector.hpp>                       // GlyphSelectorSpec
+#include <chronon3d/text/glyph_selector_spec.hpp>              // GlyphSelectorSpec (TICKET-046 Phase 1a)
 
 #include <string>
 #include <vector>
