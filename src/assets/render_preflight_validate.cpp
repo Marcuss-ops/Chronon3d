@@ -16,7 +16,7 @@ void validate_file_exists(const PreflightRequirement& req,
                           PreflightAssetType type,
                           std::vector<PreflightIssue>& issues,
                           const chronon3d::assets::AssetResolver& resolver,
-                          const chronon3d::preflight::PathExistenceMap* cache = nullptr) {
+                          chronon3d::preflight::PathExistenceMap* cache = nullptr) {
     namespace fs = std::filesystem;
     // WP-8 PR 8.0 — resolver passed in explicitly (no service-locator
     // bridge).  Preserves the legacy semantics on the fallback branch
@@ -154,7 +154,7 @@ void validate_external_tool(const PreflightRequirement& req,
 std::vector<PreflightIssue> RenderPreflight::validate(
     const AssetRegistry& registry,
     const chronon3d::assets::AssetResolver& resolver,
-    const chronon3d::preflight::PathExistenceMap* cache
+    chronon3d::preflight::PathExistenceMap* cache
 ) const {
     std::vector<PreflightIssue> issues;
 
@@ -208,7 +208,7 @@ std::vector<PreflightIssue> RenderPreflight::validate(
 void RenderPreflight::validate_or_throw(
     const AssetRegistry& registry,
     const chronon3d::assets::AssetResolver& resolver,
-    const chronon3d::preflight::PathExistenceMap* cache
+    chronon3d::preflight::PathExistenceMap* cache
 ) {
     throw_if_preflight_errors(validate(registry, resolver, cache));
 }
@@ -216,7 +216,7 @@ void RenderPreflight::validate_or_throw(
 bool RenderPreflight::ok(
     const AssetRegistry& registry,
     const chronon3d::assets::AssetResolver& resolver,
-    const chronon3d::preflight::PathExistenceMap* cache
+    chronon3d::preflight::PathExistenceMap* cache
 ) const {
     return !has_preflight_errors(validate(registry, resolver, cache));
 }
