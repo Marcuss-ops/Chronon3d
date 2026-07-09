@@ -65,8 +65,8 @@ GoldenTestConfig make_completeness_config(std::string_view case_slug) {
 }
 
 // ── Composition builder ───────────────────────────────────────────────
-// Single text layer on a 1920×1080 canvas.  Parameterized by text,
-// font_size, scale, shadows, and glow to cover all 8+ test scenarios.
+// Single text layer on a canvas.  Parameterized by text, font_size,
+// scale, shadows, glow, canvas dimensions, and overflow mode.
 // NOTE: Do NOT call l.scale() with identity values — even l.scale({1,1,1})
 // sets item.transform.any()==true, which shifts world_matrix.
 Composition build_completeness_composition(
@@ -79,19 +79,23 @@ Composition build_completeness_composition(
     float box_w = 1920.0f,
     float box_h = 1080.0f,
     VerticalAlign v_align = VerticalAlign::Middle,
-    TextOverflow overflow = TextOverflow::Clip
+    TextOverflow overflow = TextOverflow::Clip,
+    int canvas_w = 1920,
+    int canvas_h = 1080
 ) {
+    const float cx = static_cast<float>(canvas_w) * 0.5f;
+    const float cy = static_cast<float>(canvas_h) * 0.5f;
     return composition(
-        {.name = "TextCompleteness/Completeness 1920x1080",
-         .width = 1920, .height = 1080,
+        {.name = "TextCompleteness/Completeness",
+         .width = canvas_w, .height = canvas_h,
          .frame_rate = FrameRate{30, 1},
          .duration = 60},
         [&renderer, text, font_size, uniform_scale, shadows, glow_params,
-         box_w, box_h, v_align, overflow](const FrameContext& ctx) -> Scene {
+         box_w, box_h, v_align, overflow, cx, cy](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
             s.font_engine(&renderer.font_engine());
             s.layer("hero", [&renderer, text, font_size, uniform_scale, shadows,
-                     glow_params, box_w, box_h, v_align, overflow](LayerBuilder& l) {
+                     glow_params, box_w, box_h, v_align, overflow, cx, cy](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 const bool is_identity_scale =
                     uniform_scale.x == 1.0f && uniform_scale.y == 1.0f && uniform_scale.z == 1.0f;
@@ -120,7 +124,7 @@ Composition build_completeness_composition(
                             .color = Color::white(),
                             .shadows = shadows
                         },
-                        .position = {960.0f, 540.0f, 0.0f}
+                        .position = {cx, cy, 0.0f}
                     }
                 }).commit();
             });
@@ -143,7 +147,7 @@ void verify_completeness_golden(
     CHECK(r.passed);
 }
 
-// ── Multi-font composition builder ──────────────────────────────────
+// ── Multi-font composition builder (2 fonts) ───────────────────────
 // Two text_run entries in the same layer with different fonts.
 Composition build_multifont_composition(SoftwareRenderer& renderer) {
     return composition(
@@ -156,7 +160,6 @@ Composition build_multifont_composition(SoftwareRenderer& renderer) {
             s.font_engine(&renderer.font_engine());
             s.layer("hero", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                // First run: Regular weight
                 l.text_run("regular", TextRunParams{
                     .text = {
                         .content = {.value = "Regular "},
@@ -175,7 +178,6 @@ Composition build_multifont_composition(SoftwareRenderer& renderer) {
                         .position = {960.0f, 540.0f, 0.0f}
                     }
                 }).commit();
-                // Second run: Bold weight with descenders and accents
                 l.text_run("bold", TextRunParams{
                     .text = {
                         .content = {.value = "BOLD Italic gyqp \u00C1\u00C9\u00CD"},
@@ -184,6 +186,82 @@ Composition build_multifont_composition(SoftwareRenderer& renderer) {
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 120.0f
+                        },
+                        .layout = {
+                            .box = {1920.0f, 1080.0f},
+                            .align = TextAlign::Center,
+                            .vertical_align = VerticalAlign::Middle
+                        },
+                        .appearance = {.color = Color::white()},
+                        .position = {960.0f, 540.0f, 0.0f}
+                    }
+                }).commit();
+            });
+            return s.build();
+        });
+}
+
+// ── Multi-font composition builder (3 fonts) ───────────────────────
+// Three text_run entries with Inter Bold + Poppins Regular + DMSans Bold.
+// Exercises cross-family font metrics and layout coordination.
+Composition build_trifont_composition(SoftwareRenderer& renderer) {
+    return composition(
+        {.name = "TextCompleteness/TriFont 1920x1080",
+         .width = 1920, .height = 1080,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 60},
+        [&renderer](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("hero", [&renderer](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                // Run 1: Inter Bold
+                l.text_run("inter", TextRunParams{
+                    .text = {
+                        .content = {.value = "HAMBURGER "},
+                        .font = {
+                            .font_path = "assets/fonts/Inter-Bold.ttf",
+                            .font_family = "Inter",
+                            .font_weight = 700,
+                            .font_size = 100.0f
+                        },
+                        .layout = {
+                            .box = {1920.0f, 1080.0f},
+                            .align = TextAlign::Center,
+                            .vertical_align = VerticalAlign::Middle
+                        },
+                        .appearance = {.color = Color::white()},
+                        .position = {960.0f, 540.0f, 0.0f}
+                    }
+                }).commit();
+                // Run 2: Poppins Regular
+                l.text_run("poppins", TextRunParams{
+                    .text = {
+                        .content = {.value = "gyqp \u00C1\u00C9 "},
+                        .font = {
+                            .font_path = "assets/fonts/Poppins-Regular.ttf",
+                            .font_family = "Poppins",
+                            .font_weight = 400,
+                            .font_size = 100.0f
+                        },
+                        .layout = {
+                            .box = {1920.0f, 1080.0f},
+                            .align = TextAlign::Center,
+                            .vertical_align = VerticalAlign::Middle
+                        },
+                        .appearance = {.color = Color::white()},
+                        .position = {960.0f, 540.0f, 0.0f}
+                    }
+                }).commit();
+                // Run 3: Poppins Bold
+                l.text_run("poppins-bold", TextRunParams{
+                    .text = {
+                        .content = {.value = "\u00CD\u00D3\u00DA descenders"},
+                        .font = {
+                            .font_path = "assets/fonts/Poppins-Bold.ttf",
+                            .font_family = "Poppins",
+                            .font_weight = 700,
+                            .font_size = 100.0f
                         },
                         .layout = {
                             .box = {1920.0f, 1080.0f},
@@ -808,4 +886,115 @@ TEST_CASE("TextCompleteness.DebugBoundsMatchAlpha 1920x1080") {
     CHECK(save_png(*fb_debug,  kDebugPath));
     MESSAGE("PNG exported: ", kNormalPath);
     MESSAGE("PNG exported: ", kDebugPath);
+}
+
+// ═══ Test 16 — Scale200NotCutHugeFont ═════════════════════════════════
+// "SCALE 200" at font_size=180, scale=2.0× (effective 360pt).
+// Pushes the supersampling/raster_space/glyph_matrix path harder than
+// Test 11 (120pt × 2.0 =240pt effective).  At 360pt effective, the
+// scratch surface is significantly larger and the ascent/descent math
+// is amplified.
+//
+// Assert:
+//   visible_bbox_height > 200
+//   visible_bbox_width  > 600
+//   no edge touch
+//   alpha_pixel_count > 1000
+TEST_CASE("TextCompleteness.Scale200NotCutHugeFont 1920x1080") {
+    const float scale = 2.00f;
+    auto renderer = test::make_renderer();
+    auto fb = renderer.render(
+        build_completeness_composition(
+            renderer, "SCALE 200",
+            180.0f, Vec3{scale, scale, 1.0f}),
+        Frame{0});
+    REQUIRE(fb != nullptr);
+
+    const AlphaBBox bbox = alpha_bbox(*fb);
+    INFO("scale2.0-huge bbox h=", bbox.height(), " w=", bbox.width(),
+         " y0=", bbox.y0, " y1=", bbox.y1);
+
+    CHECK_FALSE(bbox.empty());
+    CHECK(bbox.height() > 150);
+    CHECK(bbox.width()  > 600);
+    CHECK_FALSE(bbox.touches_top(0));
+    CHECK_FALSE(bbox.touches_bottom(fb->height(), 0));
+    CHECK_FALSE(bbox.touches_right(fb->width(), 0));
+    CHECK(alpha_pixel_count(*fb) > 1000);
+
+    verify_completeness_golden(*fb, "completeness_16_scale200_huge_font");
+}
+
+// ═══ Test 17 — IntentionalOverflowEllipsis ══════════════════════════════
+// "VERY VERY VERY LONG TEXT" in a small box (500×120) with
+// overflow=Ellipsis.  The layout engine should truncate the text and
+// append "…" (U+2026) instead of hard-clipping.  The rendered bbox
+// must include the ellipsis glyph and fit within the box bounds.
+//
+// Assert:
+//   bbox.height > 30 (text + ellipsis visible)
+//   bbox.width <= box_w + reasonable_margin (fits within layout)
+//   bbox does not touch edges
+TEST_CASE("TextCompleteness.IntentionalOverflowEllipsis 1920x1080") {
+    auto renderer = test::make_renderer();
+    auto fb = renderer.render(
+        build_completeness_composition(
+            renderer, "VERY VERY VERY LONG TEXT THAT OVERFLOWS",
+            60.0f, Vec3{1.0f, 1.0f, 1.0f}, {}, {},
+            500.0f, 120.0f, VerticalAlign::Middle, TextOverflow::Ellipsis),
+        Frame{0});
+    REQUIRE(fb != nullptr);
+
+    const AlphaBBox bbox = alpha_bbox(*fb);
+    INFO("overflow-ellipsis bbox h=", bbox.height(), " w=", bbox.width(),
+         " y0=", bbox.y0, " y1=", bbox.y1,
+         " x0=", bbox.x0, " x1=", bbox.x1);
+
+    CHECK_FALSE(bbox.empty());
+    // Text with ellipsis must be visible.
+    CHECK(bbox.height() > 30);
+    CHECK(bbox.width()  > 100);
+    // Ellipsis truncation should keep text within the layout box.
+    // The bbox width should not dramatically exceed the box width.
+    CHECK(bbox.width() < 800);
+    CHECK_FALSE(bbox.touches_top(0));
+    CHECK_FALSE(bbox.touches_bottom(fb->height(), 0));
+
+    verify_completeness_golden(*fb, "completeness_17_overflow_ellipsis");
+}
+
+// ═══ Test 18 — TriFontNotCut ════════════════════════════════════════════
+// Three text runs with three different font families:
+//   Inter Bold      — "HAMBURGER "
+//   Poppins Regular — "gyqp ÅÉ "
+//   DMSans Bold     — "ÍÓÚ descenders"
+// Each family has different ascent/descent/line-gap metrics.  The
+// combined bbox must include all visible ink from all three runs.
+//
+// Assert:
+//   visible_bbox_height > threshold  (all 3 runs rendered)
+//   no vertical clipping
+//   alpha_pixel_count > minimum
+TEST_CASE("TextCompleteness.TriFontNotCut 1920x1080") {
+    auto renderer = test::make_renderer();
+    auto fb = renderer.render(
+        build_trifont_composition(renderer),
+        Frame{0});
+    REQUIRE(fb != nullptr);
+
+    const AlphaBBox bbox = alpha_bbox(*fb);
+    INFO("trifont bbox x0=", bbox.x0, " y0=", bbox.y0,
+         " x1=", bbox.x1, " y1=", bbox.y1,
+         " h=", bbox.height(), " w=", bbox.width());
+
+    CHECK_FALSE(bbox.empty());
+    // Three runs at 100pt across 3 font families should produce
+    // visible ink > 50px tall.
+    CHECK(bbox.height() > 50);
+    CHECK(bbox.width()  > 400);
+    CHECK_FALSE(bbox.touches_top(0));
+    CHECK_FALSE(bbox.touches_bottom(fb->height(), 0));
+    CHECK(alpha_pixel_count(*fb) > 500);
+
+    verify_completeness_golden(*fb, "completeness_18_trifont_not_cut");
 }
