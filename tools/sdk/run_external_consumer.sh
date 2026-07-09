@@ -150,19 +150,24 @@ consumer_bin="$CONS_BUILD/check_install"
 # Return codes:
 #   0 = PASS (≥ 1 such pixel found); stdout holds a diagnostic line.
 #   1 = FAIL (zero such pixels → output PNG is black/below threshold).
-#   2 = TOOL-MISSING (neither python3+PIL nor ImageMagick available).
+#   2 = TOOL-MISSING (python3+PIL not available — install: pip install Pillow).
 check_pixel_hash_strict() {
     local png="$1"
 
-    # Python + PIL primary path.  convert('RGBA') guarantees 4-channel
-    # data; we sum per-channel byte values; threshold R+G+B > 15 picks
-    # up any pixel with mean RGB > 5/255.
-    if command -v python3 >/dev/null 2>&1; then
-        local py_rc py_out
-        set +e
-        py_out="$(python3 - "$png" <<'PYEOF' 2>/dev/null)
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 2   # python3 not found
+    fi
+
+    # Python + PIL — REQUIRED (no fallback).  convert('RGBA') guarantees
+    # 4-channel data; any channel > 5/255 passes (alpha-aware).
+    local py_rc py_out
+    set +e
+    py_out="$(python3 - "$png" <<'PYEOF' 2>/dev/null)
 import sys
-from PIL import Image
+try:
+    from PIL import Image
+except ImportError:
+    sys.exit(2)
 img = Image.open(sys.argv[1]).convert('RGBA')
 w, h = img.size
 above = 0
@@ -174,40 +179,17 @@ print(f'PASS above={above}/{w*h} (any_channel>5/255 alpha-aware)')
 sys.exit(0 if above >= 1 else 1)
 PYEOF
 )"
-        py_rc=$?
-        set -e
-        if [[ "$py_rc" -eq 0 ]]; then
-            printf '%s' "$py_out"
-            return 0
-        fi
-        if [[ "$py_rc" -eq 1 ]]; then
-            return 1
-        fi
-        # py_rc=2 ⇒ PIL not installed (ImportError).  Fall through to IM.
+    py_rc=$?
+    set -e
+    if [[ "$py_rc" -eq 0 ]]; then
+        printf '%s' "$py_out"
+        return 0
     fi
-
-    # ImageMagick fallback — alpha-aware per-channel max.
-    # Uses %[max] on RGB and Alpha channels separately (not %[fx:mean]
-    # which dilutes RGB with alpha and misses alpha-only content).
-    # Threshold: any channel max > 5/255 ≈ 0.0196 (matches Python+PIL path).
-    if command -v identify >/dev/null 2>&1; then
-        local rgb_max alpha_max
-        rgb_max="$(identify -channel RGB -format '%[max]' "$png" 2>/dev/null || true)"
-        alpha_max="$(identify -channel A -format '%[max]' "$png" 2>/dev/null || true)"
-        if [[ -z "$rgb_max" && -z "$alpha_max" ]]; then
-            return 2   # tool failed — treat as missing
-        fi
-        if awk -v r="${rgb_max:-0}" -v a="${alpha_max:-0}" \
-               'BEGIN { exit !(r > 0.0196 || a > 0.0196) }'; then
-            printf 'PASS (ImageMagick alpha-aware max-RGB=%s max-A=%s > 0.0196)' \
-                   "${rgb_max:-0}" "${alpha_max:-0}"
-            return 0
-        else
-            return 1
-        fi
+    if [[ "$py_rc" -eq 1 ]]; then
+        return 1
     fi
-
-    return 2   # neither Python+PIL nor ImageMagick available
+    # py_rc=2 ⇒ PIL not installed (ImportError).
+    return 2
 }
 
 # ── Run consumer + assert [BOUNDARY-OK] ───────────────────────────────
@@ -244,7 +226,7 @@ set -e
 case "$hash_rc" in
     0) log "PNG strict pixel-hash verified: $output_png ($png_size bytes, $pixel_hash_out)" ;;
     1) fail "phase4 strict: PNG is near-black (0 pixels with mean RGB > 5/255). Output: $output_png" ;;
-    2) fail "phase4 strict: cannot verify pixel-hash — install python3+PIL or ImageMagick" ;;
+    2) fail "phase4 strict: cannot verify pixel-hash — python3+PIL required (pip install Pillow)" ;;
     *) fail "phase4 strict: check_pixel_hash_strict returned unknown rc=$hash_rc" ;;
 esac
 
