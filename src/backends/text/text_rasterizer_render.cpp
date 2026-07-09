@@ -104,8 +104,18 @@ namespace chronon3d {
 // Using-declarations live inside `namespace chronon3d` so unqualified
 // callers in this TU find them through `chronon3d::to_bl_rgba` lookup
 // at the right scope (consistent with `text_processor_helpers.hpp`).
+//
+// M1.5 KILL-PASS #1 — `StyleOp` (Fill/Stroke discriminator) is also
+// re-exported here so the inlined `apply_text_style` callsites below
+// can write `StyleOp::Fill` / `StyleOp::Stroke` instead of the fully
+// qualified `chronon3d::blend2d_bridge::paint::StyleOp::*`. The
+// legacy `apply_text_fill_style` / `apply_text_stroke_style` thin
+// wrappers (formerly around line 83–130 of `blend2d_glyph_conversion.cpp`)
+// are now deleted — 0 callers remain after this PR (4 callsites in
+// this TU were migrated in-place).
 using chronon3d::blend2d_bridge::paint::to_bl_rgba;
 using chronon3d::blend2d_bridge::paint::build_bl_gradient;
+using chronon3d::blend2d_bridge::paint::StyleOp;
 
 namespace {
 
@@ -509,10 +519,17 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         // re-shape with Blend2D's internal shaper and may produce
         // different GSUB substitutions for Arabic, Devanagari, etc.
         // Stroke colour supports gradients via stroke_style Fill.
+        //
+        // M1.5 KILL-PASS #1 — was `apply_text_stroke_style(...)` (deleted
+        // thin wrapper).  Inlined to the canonical `apply_text_style` with
+        // the `StyleOp::Stroke` discriminator (bit-identical: the deleted
+        // wrapper internally just forwarded `run_style.paint.stroke_style`
+        // as the `std::optional<Fill>&` parameter).
         if (run_style.paint.stroke_enabled && run_style.paint.stroke_width > 0.0f) {
-            apply_text_stroke_style(
+            apply_text_style(
                 ctx,
-                run_style,
+                StyleOp::Stroke,
+                run_style.paint.stroke_style,
                 run_style.paint.stroke_color,
                 text_start_x,
                 text_start_y,
@@ -541,11 +558,15 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             }
         }
 
-        // M1.5#11 — `apply_text_fill_style` resolved via the
-        // `blend2d_glyph_conversion.hpp` include (formerly anonymous-ns
-        // local; now explicitly-named external utility).
-        apply_text_fill_style(
-            ctx, run_style, run_fill,
+        // M1.5 KILL-PASS #1 — was `apply_text_fill_style(...)` (deleted
+        // thin wrapper).  Inlined to the canonical `apply_text_style` with
+        // the `StyleOp::Fill` discriminator. The deleted wrapper internally
+        // just forwarded `run_style.paint.fill_style` as the
+        // `std::optional<Fill>&` parameter; the same access pattern lives
+        // here now (bit-identical rendering output).
+        apply_text_style(
+            ctx, StyleOp::Fill,
+            run_style.paint.fill_style, run_fill,
             text_start_x, text_start_y,
             std::max(1.0f, run.width),
             line.baseline + line.descent
@@ -621,10 +642,15 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
 
         // ── Stroke: same HarfBuzz glyph paths as fill (see render_run above).
         // Stroke colour supports gradients via stroke_style Fill.
+        //
+        // M1.5 KILL-PASS #1 — was `apply_text_stroke_style(...)` (deleted
+        // thin wrapper).  Inlined to canonical `apply_text_style` with the
+        // `StyleOp::Stroke` discriminator.
         if (t.style.paint.stroke_enabled && t.style.paint.stroke_width > 0.0f) {
-            apply_text_stroke_style(
+            apply_text_style(
                 ctx,
-                t.style,
+                StyleOp::Stroke,
+                t.style.paint.stroke_style,
                 t.style.paint.stroke_color,
                 text_start_x,
                 text_start_y,
@@ -648,8 +674,12 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
             } else {
                 ctx.strokeUtf8Text(BLPoint(lx, ly), font, line.text.c_str());
             }
-        }        apply_text_fill_style(
-            ctx, t.style, line_fill,
+        }        // M1.5 KILL-PASS #1 — was `apply_text_fill_style(...)` (deleted
+        // thin wrapper); inlined to canonical `apply_text_style` with
+        // `StyleOp::Fill` discriminator (bit-identical).
+        apply_text_style(
+            ctx, StyleOp::Fill,
+            t.style.paint.fill_style, line_fill,
             text_start_x, text_start_y,
             text_block_w,
             text_block_h

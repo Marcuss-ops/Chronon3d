@@ -80,41 +80,13 @@ void apply_text_style(
     set(to_bl_rgba(fallback_color));
 }
 
-void apply_text_fill_style(
-    BLContext&           ctx,
-    const TextStyle&     style,
-    const Color&         fallback_color,
-    float                origin_x,
-    float                origin_y,
-    float                width,
-    float                height
-) {
-    apply_text_style(
-        ctx,
-        chronon3d::blend2d_bridge::paint::StyleOp::Fill,
-        style.paint.fill_style, fallback_color,
-        origin_x, origin_y, width, height
-    );
-}
-
-void apply_text_stroke_style(
-    BLContext&           ctx,
-    const TextStyle&     style,
-    const Color&         fallback_stroke_color,
-    float                origin_x,
-    float                origin_y,
-    float                width,
-    float                height
-) {
-    apply_text_style(
-        ctx,
-        chronon3d::blend2d_bridge::paint::StyleOp::Stroke,
-        style.paint.stroke_style, fallback_stroke_color,
-        origin_x, origin_y, width, height
-    );
-}
-
 // ── HbToBlGlyphRun — HarfBuzz placed-glyph → Blend2D BLGlyphRun converter ─
+//
+// M1.5 KILL-PASS #1 — `apply_text_fill_style` and `apply_text_stroke_style`
+// thin wrappers are INTENTIONALLY ABSENT here. The 4 remaining callsites
+// in `src/backends/text/text_rasterizer_render.cpp` were inlined to
+// `apply_text_style(StyleOp::{Fill|Stroke}, style_—, fallback_color, ...)`
+// and the wrappers have NO remaining callers.
 
 HbToBlGlyphRun HbToBlGlyphRun::from(
     const PlacedGlyphRun&   placed,
