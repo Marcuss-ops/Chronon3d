@@ -163,10 +163,25 @@ target_sources(chronon3d_text_golden_tests
         text_golden/text_clip/text_clip_bounds.cpp
 )
 
+# TextCompleteness — comprehensive glyph-visibility regression tests.
+# 8 TEST_CASEs: AscentDescent, TopNotCut, BottomNotCut, AdvanceWidthNotCut,
+#               Scale130NotCut, GlowNotCut, ShadowNotCut, MultilineNotCut.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_clip/text_completeness.cpp
+)
+
 # Filter ctest -R to the text-clip numerical-bbox subset (ADR-NNN).
 add_test(
     NAME TextClipBounds
     COMMAND chronon3d_text_golden_tests --test-case="Clip *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# TextCompleteness ctest alias.
+add_test(
+    NAME TextCompleteness
+    COMMAND chronon3d_text_golden_tests --test-case="TextCompleteness*"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
