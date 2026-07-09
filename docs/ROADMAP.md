@@ -79,6 +79,22 @@ riportano lo stesso stato.
 - tutti i profili richiesti verdi sullo stesso commit;
 - documenti sincronizzati.
 
+## V0.2 — Test coverage expansion (4 fasi, PLANNED, post-baseline-verde)
+
+> **Origine:** sessione 2026-07-09. 4 fasi sequenziali di test coverage (bbox/clip → transforms/animation → multilingual → layout advanced). NON avviabili fino a `11/11 PASS` macchina-verificato sullo stesso commit (AGENTS.md §Feature Freeze revoca già avvenuta 2026-07-06 con `main@7eb5c2ba` 11/11). Regola di stato osservabile: PASS / FAIL / PARTIAL / NOT RUN / PLANNED.
+
+- **Fase 1 — bbox/clip regression (10 test proposti)** (PIVOT, 2026-07-09): 9/10 test proposti erano duplicati di `tests/text_golden/text_clip/text_completeness.cpp` esistenti (TextCompleteness 15-test suite, commits `120e6a2c`..`89bb99ea`) — AGENTS.md anti-duplicazione violation. Cycle 1 (NoWhiteStripeRegression.Basic commit `0138c66d`) FALLITO al runtime (bbox.height/font_size = 0.378 vs spec 0.55, doctest exit 0 mascherato). Revertito in `6892fb23`. 9 untracked .cpp + helper poi scartati via `git clean -fd tests/text_golden/text_no_white_stripe/`. **PIVOT decision**: bbox/clip coverage gap è ora considerato COVERED dall'esistente TextCompleteness 15-test suite + 3-test `text_clip_bounds.cpp` regression lock. **0/10 test landed**. NO new ticket in FOLLOWUP. Vedi [`docs/CHANGELOG.md`](CHANGELOG.md) entry "docs(fase-1): bbox/clip test expansion — PIVOT to anti-duplicazione".
+
+- **Fase 2 — transforms/animation (7 test proposti)** (PLANNED, macchina-verifica deferred): RotateZNotCut, SkewNotCut, RotationXYNotCut, PositionAnimationNoClip, ScaleAnimationNoClip, BlurAnimationNoClip, PrecompTextNoClip. Anti-duplicazione: tutti e 7 genuinamente nuovi (no match in text_completeness.cpp / text_clip_bounds.cpp / text_unicode.cpp). **0/7 eseguiti**. Ticket `TICKET-FASE2-TRANSFORMS-ANIMATION` aperto in [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Fasi 1-4 cluster.
+
+- **Fase 3 — multilingual/fallback (8 test proposti)** (PLANNED): KerningPairs, MixedAdvanceWidths, MixedBaseline, LatinExtended, MissingGlyphPolicy, EmojiFallback, RTLArabic, CJK. **RTL/CJK feature già supported nel codebase** (tests esistenti: `tests/text_golden/text_completeness/text_unicode.cpp:TestUnicode 03` NotoNaskhArabic-Bold + `TestUnicode 04/05` CJK fallback + `tests/text/test_text_bidi.cpp` + `tests/text_golden/user_spec/05_bidi_english_arabic_mixed.cpp`; source: `src/backends/text/bidi_segmenter.cpp` path canonico). Quindi **NO ticket per RTL/CJK feature gap** (features already present). Ticket `TICKET-FASE3-MULTILINGUAL` aperto solo per test coverage gap (8 test PLANNED per chiudere coverage).
+
+- **Fase 4 — layout advanced (10 test proposti)** (PLANNED): AnchorModes, VerticalAlign, HorizontalAlign, LineHeightExtreme, AutoFit, Ellipsis, Spaces, Punctuation, Numbers, IntentionalMaskClip. Anti-duplicazione: AnchorModes + LineHeightExtreme + AutoFit + Spaces + Punctuation + Numbers + IntentionalMaskClip genuinamente nuovi; VerticalAlign/HorizontalAlign/Ellipsis parzialmente overlapping. **Auto-fit FEATURE GAP** (machine-verified): nessun dedicated `auto_fit`/`AutoFit`/`fit_to_box`/`text_to_box`/`shrink_to_fit` function in `include/chronon3d/presets/` o `src/text/`. General layer fit/anchor in `src/scene/builders/layer_builder.cpp` (Anchor, not auto-fit). Layout rules in `include/chronon3d/layout/layout_rules.hpp` (general scene, not text-specific auto-fit). 2 ticket aperti: `TICKET-FASE4-LAYOUT` (test coverage) + `TICKET-FASE4-AUTOFIT` (feature gap, real blocker per la Fase 4 use case).
+
+- **Gate di uscita V0.2**: tutti i 4 ticket in `FOLLOWUP_TICKETS.md` §Fasi 1-4 cluster promossi da PLANNED a DONE; macchina-verifica `ctest` su `chronon3d_text_golden_tests` verde per ciascuno dei 4 lotti (Fase 1 = N/A post-pivot, Fasi 2/3/4 = nuovi lotti). `docs/FEATURES.md` §Text aggiornato per riflettere il gap di auto-fit (presente/assente/parziale). `docs/CHANGELOG.md` chiusura "V0.2 — Test coverage expansion" registrata.
+
+- **Cross-link canonici**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Fasi 1-4 cluster; [`docs/CHANGELOG.md`](docs/CHANGELOG.md) 4 entry prepended (una per fase); [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale per area (Text Production V1 row) verrà aggiornato alla chiusura V0.2.
+
 ## M1 — Text Production V1
 
 ### Obiettivo
