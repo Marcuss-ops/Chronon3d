@@ -36,6 +36,12 @@ chronon3d_add_test_suite(
             # parent-name axis), with the TLS counter held at 0 post-probe.
             cache/test_node_cache_ae_sweep.cpp
             render_graph/cache/test_scene_program_cache.cpp
+            # TICKET-lock-free-shared_mutex — 16-thread concurrency stress
+            # tests validating that shared_mutex migration is safe under
+            # heavy concurrent register + read + clear (no UB / deadlock
+            # / torn-read). Tagged [stress] so CI runtimes stay bounded.
+            cache/stress/test_cache_diagnostics_stress.cpp
+            cache/stress/test_camera_transition_catalog_stress.cpp
             render_graph/cache/test_compiled_graph_cache.cpp
 )
 # Video-dependent test sources (require CHRONON3D_ENABLE_VIDEO)

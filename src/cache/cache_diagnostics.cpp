@@ -4,6 +4,7 @@
 
 #include <chronon3d/cache/cache_diagnostics.hpp>
 #include <algorithm>
+#include <shared_mutex>  // TICKET-lock-free-shared_mutex — std::shared_lock lives here.
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::cache {
@@ -25,7 +26,7 @@ CacheDiagnostics::Handle CacheDiagnostics::register_cache(
     auto* entry = new Entry{std::move(stats_fn), std::move(clear_fn),
                             std::move(mode_fn), capacity};
     {
-        std::lock_guard lock(m_mutex);
+        std::unique_lock lock(m_mutex);
         m_entries[domain].insert(entry);
         // TICKET-O(n)-audit — unordered_set::insert silently dedups.
         // Duplicate registrations of the same Entry* pointer are now
@@ -37,7 +38,7 @@ CacheDiagnostics::Handle CacheDiagnostics::register_cache(
 }
 
 void CacheDiagnostics::unregister(Entry* entry) {
-    std::lock_guard lock(m_mutex);
+    std::unique_lock lock(m_mutex);
     for (auto& [domain, set] : m_entries) {
         // TICKET-O(n)-audit — O(1) lookup in unordered_set replaces the
         // previous O(n) std::find linear scan.
@@ -62,7 +63,7 @@ std::vector<CacheSnapshot> CacheDiagnostics::snapshot() const {
     std::vector<CacheSnapshot> result;
     if (!m_enabled.load(std::memory_order_relaxed)) return result;
 
-    std::lock_guard lock(m_mutex);
+    std::shared_lock lock(m_mutex);
     for (const auto& [domain, set] : m_entries) {
         for (const auto* entry : set) {
             GenericCacheStats gs = entry->stats_fn();
@@ -86,7 +87,7 @@ DomainSnapshot CacheDiagnostics::snapshot_by_domain(CacheDomain domain) const {
     DomainSnapshot ds{.domain = domain};
     if (!m_enabled.load(std::memory_order_relaxed)) return ds;
 
-    std::lock_guard lock(m_mutex);
+    std::shared_lock lock(m_mutex);
     auto it = m_entries.find(domain);
     if (it == m_entries.end()) return ds;
 
@@ -107,7 +108,7 @@ std::vector<DomainSnapshot> CacheDiagnostics::snapshot_all_domains() const {
     std::vector<DomainSnapshot> result;
     if (!m_enabled.load(std::memory_order_relaxed)) return result;
 
-    std::lock_guard lock(m_mutex);
+    std::shared_lock lock(m_mutex);
     for (const auto& [domain, set] : m_entries) {
         if (set.empty()) continue;
         DomainSnapshot ds{.domain = domain, .instance_count = set.size()};
@@ -130,7 +131,7 @@ std::vector<DomainSnapshot> CacheDiagnostics::snapshot_all_domains() const {
 std::size_t CacheDiagnostics::clear_by_domain(CacheDomain domain) {
     if (!m_enabled.load(std::memory_order_relaxed)) return 0;
 
-    std::lock_guard lock(m_mutex);
+    std::unique_lock lock(m_mutex);
     auto it = m_entries.find(domain);
     if (it == m_entries.end()) return 0;
 
@@ -144,7 +145,7 @@ std::size_t CacheDiagnostics::clear_by_domain(CacheDomain domain) {
 std::size_t CacheDiagnostics::clear_all() {
     if (!m_enabled.load(std::memory_order_relaxed)) return 0;
 
-    std::lock_guard lock(m_mutex);
+    std::unique_lock lock(m_mutex);
     std::size_t total = 0;
     for (auto& [domain, set] : m_entries) {
         total += set.size();
@@ -158,7 +159,7 @@ std::size_t CacheDiagnostics::clear_all() {
 // ── Introspection ─────────────────────────────────────────────────────────
 
 std::size_t CacheDiagnostics::registered_count() const {
-    std::lock_guard lock(m_mutex);
+    std::shared_lock lock(m_mutex);
     std::size_t total = 0;
     for (const auto& [domain, set] : m_entries) {
         total += set.size();
@@ -167,7 +168,7 @@ std::size_t CacheDiagnostics::registered_count() const {
 }
 
 std::size_t CacheDiagnostics::registered_count(CacheDomain domain) const {
-    std::lock_guard lock(m_mutex);
+    std::shared_lock lock(m_mutex);
     auto it = m_entries.find(domain);
     return it != m_entries.end() ? it->second.size() : 0;
 }
