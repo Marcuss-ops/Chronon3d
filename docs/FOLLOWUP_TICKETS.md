@@ -45,7 +45,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | ID | Area | Note |
 |---|---|---|
 | TICKET-GATE-10-PHASE-4-BLACK-FU5 | PNG mean-RGB metric rot (gate 10 Phase 4) | DONE (2026-07-09) — Path 2: any-channel alpha-aware metric in tools/sdk/run_external_consumer.sh. Mean-RGB (r+g+b)>15 → any-channel (a>5 or r>5 or g>5 or b>5). Lowest-risk fix for alpha=255/RGB=0 PNG encoding edge case. |
-| TEXT-COMPLETENESS-SUITE | TextCompleteness 15-test glyph-visibility regression suite + font metrics fix | DONE (2026-07-09) — 15 TEST_CASEs in `tests/text_golden/text_clip/text_completeness.cpp` covering ascent/descent/edges/scale/glow/shadow/multiline/overhang/overflow/cache/multifont/debug. Shared `test_helpers.hpp` extracted. Hardcoded 0.78/0.22 ascent/descent replaced with real `FontEngine::get_font_metrics()` in `text_layout_single.hpp` + `text_layout_inline.hpp`. 13 golden PNGs seeded. Build verified on `linux-content-dev` preset. 6 atomic commits (`120e6a2c` → `89bb99ea`). |
+| TEXT-COMPLETENESS-SUITE | TextCompleteness 15-test glyph-visibility regression suite + font metrics fix + assertion strengthening | DONE (2026-07-09) — 15 TEST_CASEs in `tests/text_golden/text_clip/text_completeness.cpp` + 3 assertion-strengthening commits (`81033e66`, `46538aec`, `9604deb7`): AscentDescent hardcoded→formulaic, HugeFontNotCut width 600→800, Scale130NotCut +touches_left. 6+3=9 atomic commits total. |
 
 Per la lista completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) + [`docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`](docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md).
 
