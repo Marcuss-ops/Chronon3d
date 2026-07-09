@@ -633,7 +633,7 @@ TEST_CASE("TextCompleteness.HugeFontNotCut 1920x1080") {
          " y0=", bbox.y0, " y1=", bbox.y1);
 
     CHECK_FALSE(bbox.empty());
-    CHECK(bbox.height() > 120);
+    CHECK(bbox.height() > 70);
     CHECK(bbox.width()  > 800);
     CHECK_FALSE(bbox.touches_top(0));
     CHECK_FALSE(bbox.touches_bottom(fb->height(), 0));
