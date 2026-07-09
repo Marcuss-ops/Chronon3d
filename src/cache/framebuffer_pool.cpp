@@ -222,6 +222,21 @@ OwnedFB FramebufferPool::acquire_owned(int width, int height, bool clear) {
     return OwnedFB(fb.release(), PoolFbDeleter(ReturnToPool{weak_from_this()}));
 }
 
+// ── acquire_noclear — hot-miss zero-fill-cost opt-in ────────────────
+//
+// Thin public wrapper around `acquire_unique()` that DOES NOT call
+// `fb->clear(Color::transparent())` on a pool-miss reuse.  See the
+// header doc-comment for the security contract — callers MUST
+// overwrite every pixel or call `fb->clear(...)` themselves before
+// reading pixels.  The existing `acquire` / `acquire_hinted` /
+// `acquire_pooled` / `acquire_owned` keep their zero-on-return
+// semantics, so callers who want a guaranteed-cleared buffer should
+// continue using those.
+std::unique_ptr<Framebuffer> FramebufferPool::acquire_noclear(int width, int height) {
+    bool fresh_alloc_unused = false;
+    return acquire_unique(width, height, &fresh_alloc_unused);
+}
+
 // ── TICKET-011-final — adapters restored after PoolFbDeleter migration
 
 OwnedFB FramebufferPool::acquire_from(const Framebuffer& other) {

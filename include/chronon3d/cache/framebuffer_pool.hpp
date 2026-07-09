@@ -142,6 +142,34 @@ public:
     /// Zero atomic overhead vs shared_ptr — use in the hot execution path.
     OwnedFB acquire_owned(int width, int height, bool clear = true);
 
+    /// Acquire a framebuffer with no explicit content zeroing.
+    ///
+    /// Returns a `std::unique_ptr<Framebuffer>` immediately, drawing
+    /// from the pool's free list (exact-bucket hit or best-fit reuse)
+    /// or constructing a fresh one (against `kDefaultBudgetBytes` /
+    /// configured budget).  Unlike `acquire` / `acquire_hinted` /
+    /// `acquire_pooled` / `acquire_owned`, this method does NOT call
+    /// `fb->clear(Color::transparent())` on a pool reuse — the O(w*h)
+    /// zero-fill cost is skipped, which matters at hot-miss rates
+    /// during a 1920x1080 RGBA8 frame stream.
+    ///
+    /// SECURITY CONTRACT (no-info-leak between cache slots):
+    ///   When the returned FB came from the pool's free list (the
+    ///   common hot-miss case) its pixel content is whatever the
+    ///   *previous* user of that buffer wrote.  Callers MUST do ONE
+    ///   of the following before reading pixels:
+    ///     * call `fb->clear(Color::transparent())` (or any color), OR
+    ///     * overwrite every pixel via `set_pixel` / `pixels_row`,
+    ///       ensuring no stale byte survives into the consumer pipeline.
+    ///
+    /// Freshly-constructed FBs (no pool hit) ARE pure-zero by virtue
+    /// of `Framebuffer`'s allocator default — that case is not at risk.
+    ///
+    /// Use this variant only on hot paths where you WILL overwrite
+    /// every pixel and the `fb->clear()` cost is provably wasted.  For
+    /// safety, default to `acquire(w, h, /*clear=*/true)`.
+    std::unique_ptr<Framebuffer> acquire_noclear(int width, int height);
+
     // ── TICKET-011-final — adapter methods re-introduced for callers
     // that retain the post-PoolFbDeleter-migration API expectations.
 
@@ -210,6 +238,11 @@ private:
     /// Sets *out_fresh_alloc to true when the returned FB was freshly
     /// constructed (zero-initialized by the Framebuffer constructor)
     /// and therefore doesn't need explicit clearing.
+    /// Public-facing counterparts:
+    ///   * `acquire_noclear(w, h)`        — raw, no clear (hot path)
+    ///   * `acquire_hinted(w, h, ...)`    — conditional clear (Default hint)
+    ///   * `acquire_pooled(w, h, p, c)`   — wrapper around acquire_unique
+    ///   * `acquire_owned(w, h, c)`       — OwnedFB wrapper
     std::unique_ptr<Framebuffer> acquire_unique(int width, int height, bool* out_fresh_alloc = nullptr);
 
     /// Evict entries until there is room for `incoming_bytes`, or until no
