@@ -153,7 +153,7 @@ add_library(chronon3d_graph_preflight OBJECT
     preflight/analysis_graph.cpp
 )
 if(CHRONON3D_ENABLE_DIAGNOSTICS)
-    target_sources(chronon3d_graph_preflight PRIVATE preflight/analysis_diagnostics.cpp)
+    target_sources(chronon3d_graph_preflight PRIVATE preflight/analysis_diagnostics.cpp preflight/path_existence_map.cpp)
 endif()
 set_target_properties(chronon3d_graph_preflight PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_preflight PUBLIC

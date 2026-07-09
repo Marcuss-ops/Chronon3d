@@ -14,6 +14,7 @@
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/video_node.hpp>
+#include <chronon3d/render_graph/preflight/path_existence_map.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
 #include <algorithm>
 #include <filesystem>
@@ -77,7 +78,8 @@ void check_topological_warnings(
 void check_asset_integrity(
     const RenderGraph& graph,
     const chronon3d::assets::AssetResolver& resolver,
-    GraphPreflightReport& report
+    GraphPreflightReport& report,
+    const chronon3d::preflight::PathExistenceMap* path_cache = nullptr
 ) {
     for (GraphNodeId i = 0; i < static_cast<GraphNodeId>(graph.size()); ++i) {
         if (!graph.has_node(i)) continue;
@@ -104,7 +106,13 @@ void check_asset_integrity(
                 } else {
                     resolved = path.empty() ? std::string{} : std::string{path};
                 }
-                if (!std::filesystem::exists(resolved)) {
+                // Cache-aware existence check. nullptr → legacy sync path;
+                // provided → O(1) lookup with TTL-driven refresh (zero
+                // syscalls per call once populated).
+                const bool exists_now = path_cache
+                    ? path_cache->exists(std::filesystem::path(resolved))
+                    : std::filesystem::exists(resolved);
+                if (!exists_now) {
                     asset_warnings.push_back("MISSING_ASSET: Video file does not exist: \"" + path + "\"");
                 }
             }

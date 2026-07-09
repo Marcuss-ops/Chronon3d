@@ -14,6 +14,7 @@ namespace chronon3d {
 // would over-bloat every TU that pulls render_preflight.hpp.
 class AssetRegistry;
 namespace assets { class AssetResolver; }
+namespace preflight { class PathExistenceMap; }
 
 class ChrononAssetError : public std::runtime_error {
 public:
@@ -103,20 +104,23 @@ public:
     // root.
     [[nodiscard]] std::vector<PreflightIssue> validate(
         const AssetRegistry& registry,
-        const chronon3d::assets::AssetResolver& resolver
+        const chronon3d::assets::AssetResolver& resolver,
+        const chronon3d::preflight::PathExistenceMap* cache = nullptr
     ) const;
 
     /// Behaves exactly like the original: throws ChrononAssetError if any error
     /// is found. Backward-compatible.
     void validate_or_throw(
         const AssetRegistry& registry,
-        const chronon3d::assets::AssetResolver& resolver
+        const chronon3d::assets::AssetResolver& resolver,
+        const chronon3d::preflight::PathExistenceMap* cache = nullptr
     );
 
     /// Returns true when validate(registry) would return an empty vector.
     [[nodiscard]] bool ok(
         const AssetRegistry& registry,
-        const chronon3d::assets::AssetResolver& resolver
+        const chronon3d::assets::AssetResolver& resolver,
+        const chronon3d::preflight::PathExistenceMap* cache = nullptr
     ) const;
 
     void clear();
