@@ -186,22 +186,21 @@ PYEOF
         # py_rc=2 ⇒ PIL not installed (ImportError).  Fall through to IM.
     fi
 
-    # ImageMagick fallback.  Uses the global image mean (averaged over
-    # all pixels in RGB) and compares against > 5/255 normalised.
-    # mean < 5/255 implies the integrated luminance is below the
-    # threshold (sufficient but not necessary condition for FAIL).
-    # NOTE: IM fallback is mean-RGB only (not alpha-aware) — a PNG
-    # with A=255/RGB=0 would still FAIL here.  The Python+PIL primary
-    # path uses the fixed any-channel alpha-aware metric.
+    # ImageMagick fallback — alpha-aware per-channel max.
+    # Uses %[max] on RGB and Alpha channels separately (not %[fx:mean]
+    # which dilutes RGB with alpha and misses alpha-only content).
+    # Threshold: any channel max > 5/255 ≈ 0.0196 (matches Python+PIL path).
     if command -v identify >/dev/null 2>&1; then
-        local mean
-        mean="$(identify -format '%[fx:mean]' "$png" 2>/dev/null || true)"
-        if [[ -z "$mean" ]]; then
+        local rgb_max alpha_max
+        rgb_max="$(identify -channel RGB -format '%[max]' "$png" 2>/dev/null || true)"
+        alpha_max="$(identify -channel A -format '%[max]' "$png" 2>/dev/null || true)"
+        if [[ -z "$rgb_max" && -z "$alpha_max" ]]; then
             return 2   # tool failed — treat as missing
         fi
-        # mean is normalised to [0,1]. Threshold: 5/255 ≈ 0.0196.
-        if awk -v m="$mean" 'BEGIN { exit !(m > 0.0196) }'; then
-            printf 'PASS (ImageMagick mean=%s > 0.0196)' "$mean"
+        if awk -v r="${rgb_max:-0}" -v a="${alpha_max:-0}" \
+               'BEGIN { exit !(r > 0.0196 || a > 0.0196) }'; then
+            printf 'PASS (ImageMagick alpha-aware max-RGB=%s max-A=%s > 0.0196)' \
+                   "${rgb_max:-0}" "${alpha_max:-0}"
             return 0
         else
             return 1
