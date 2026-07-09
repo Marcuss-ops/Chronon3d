@@ -117,8 +117,15 @@ inline TextLayoutResult layout_inline_runs(const TextLayoutInput& input) {
         }
 
         const float run_size = std::max(1.0f, piece.style.size);
-        const float ascent = run_size * 0.78f;
-        const float descent = run_size * 0.22f;
+        // Query real font metrics when FontEngine is available.
+        float ascent  = run_size * 0.78f;
+        float descent = run_size * 0.22f;
+        if (input.font_engine) {
+            const auto fm = input.font_engine->get_font_metrics(
+                resolve_font_spec(input, piece.style), run_size);
+            if (fm.ascent > 0.0f)  ascent  = fm.ascent;
+            if (fm.descent > 0.0f) descent = fm.descent;
+        }
         const float width = measure_run_width(input, piece, run_size);
 
         TextLayoutLineRun layout_run;
@@ -384,8 +391,17 @@ inline TextLayoutResult layout_inline_runs(const TextLayoutInput& input) {
         auto& line_state = lines[i];
         TextLayoutLine line;
         line.width = line_state.width;
-        line.ascent = std::max(line_state.ascent, font_size_hint * 0.78f);
-        line.descent = std::max(line_state.descent, font_size_hint * 0.22f);
+        // Use the max of per-run metrics (already queried above) and a
+        // fallback based on the default font size hint.
+        float fallback_ascent  = font_size_hint * 0.78f;
+        float fallback_descent = font_size_hint * 0.22f;
+        if (input.font_engine) {
+            const auto fm = input.font_engine->get_font_metrics(input.font_spec, font_size_hint);
+            if (fm.ascent > 0.0f)  fallback_ascent  = fm.ascent;
+            if (fm.descent > 0.0f) fallback_descent = fm.descent;
+        }
+        line.ascent = std::max(line_state.ascent, fallback_ascent);
+        line.descent = std::max(line_state.descent, fallback_descent);
         line.baseline = line.ascent;
         line.position.y = static_cast<float>(i) * line_height;
         line.text.clear();
