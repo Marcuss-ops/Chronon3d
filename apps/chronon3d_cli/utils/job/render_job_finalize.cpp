@@ -189,13 +189,49 @@ bool finalize_render_job(
     auto telemetry = chronon3d::telemetry::collect_all_telemetry();
 
     // ── Write telemetry (only when --report is set) ───────────────────
+    // TICKET-render-sqlite — dual write so /api/runs shows the new entry.
+    // The dashboard /api/runs list reads from chronon3d_render_history.sqlite
+    // (via create_merged_connection() in tools/telemetry_dashboard/telemetry_server/database.py),
+    // not from the JSONL fallback.  The legacy path writes ONLY to JSONL,
+    // which made the runs invisible to the front-page table.  We now also
+    // dispatch through TelemetryManager::record_run() which iterates every
+    // registered store (SqliteTelemetryStore under CHRONON3D_ENABLE_SQLITE_TELEMETRY,
+    // else NullTelemetryStore no-op).  The JSONL write is preserved because
+    // jsonl_loader.py uses it for per-run detail pages (frames / phases /
+    // counters breakdown).
     const bool write_telemetry = plan.report;
     if (write_telemetry) {
-        // Write directly to JSONL (dashboard reads from both SQLite + JSONL).
-        // TelemetryManager is only used for UUID generation and timestamps;
-        // the actual telemetry SQLite store requires a compile flag not
-        // available in fast-dev builds.
+        // ── Populate shared fields BEFORE the JSONL write so JSONL and
+        //    SQLite describe the same run identically (code-review 2nd
+        //    pass, JSONL/SQLite consistency invariant).  record_run()
+        //    would fill the same fields internally but it only runs when
+        //    CHRONON3D_ENABLE_SQLITE_TELEMETRY is defined; mirror the
+        //    fill here so the JSONL fallback path stays complete.
+        if (run.os.empty())                  run.os = chronon3d::telemetry::TelemetryManager::get_os_name();
+        if (run.cpu_model.empty())           run.cpu_model = chronon3d::telemetry::TelemetryManager::get_cpu_model();
+        if (run.cores == 0)                  run.cores = chronon3d::telemetry::TelemetryManager::get_logical_cores();
+        if (run.compiler_info.empty())       run.compiler_info = chronon3d::telemetry::TelemetryManager::get_compiler_info();
+        if (run.build_type.empty())          run.build_type = chronon3d::telemetry::TelemetryManager::get_build_type();
+        if (run.git_commit_short.empty())    run.git_commit_short = chronon3d::telemetry::TelemetryManager::get_git_commit();
+        run.bytes_allocated_peak =
+            chronon3d::telemetry::TelemetryManager::get_peak_memory_usage();
+
+        // 1. JSONL — jsonl_loader per-run detail pages.
         write_run_to_jsonl(run);
+
+#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
+        // 2. SQLite — main /api/runs list.  We reuse our local `run`
+        //    directly rather than calling cli::telemetry::record_output_run()
+        //    (the wrapper regenerates run.run_id, splitting this single
+        //    render into two distinct rows keyed on different run_ids).
+        //    Using TelemetryManager keeps run_id coherent across stores.
+        auto& tm = chronon3d::telemetry::TelemetryManager::instance();
+        tm.initialize_default_stores();  // creates chronon3d_render_history.sqlite if missing
+        if (!tm.record_run(run, telemetry_frames, phases, counters_list)) {
+            spdlog::warn("[report] TelemetryManager::record_run reported failure for run {}",
+                         run.run_id);
+        }
+#endif
     }
 
     // ── Generate execution report ─────────────────────────────────────
