@@ -43,6 +43,7 @@
 #include <chronon3d/render_graph/pipeline/scene_refresh.hpp>
 #include <chronon3d/render_graph/builder/precomp_builder_service.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/core/execution/execution_scope_types.hpp>
 
 namespace chronon3d::graph {
@@ -185,7 +186,19 @@ NodeExecResult PrecompNode::execute_with_scope(
     nested_ctx.frame_input.camera = comp.camera;
     nested_ctx.node_exec.current_identity.graph = static_cast<GraphInstanceId>(precomp_key.graph);
 
-    const Scene nested_scene = comp.evaluate(nested_frame);
+    const FrameContext nested_frame_ctx{
+        .frame = nested_frame,
+        .local_frame = nested_frame,
+        .frame_time = 0.0f,
+        .duration = comp.duration(),
+        .frame_rate = comp.frame_rate(),
+        .width = comp.width(),
+        .height = comp.height(),
+        .assets_root = comp.assets_root(),
+        .resource = std::pmr::get_default_resource(),
+        .font_engine = nullptr,
+    };
+    const Scene nested_scene = comp.evaluate(nested_frame_ctx);
 
     // ── 4. Compute SceneStructureKey for cache lookup ────────────────────
     SceneHasher hasher;

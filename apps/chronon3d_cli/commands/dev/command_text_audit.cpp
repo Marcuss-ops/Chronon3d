@@ -1,6 +1,7 @@
 #include "../../commands.hpp"
 #include "text_audit_engine.hpp"
 #include "text_audit_types.hpp"
+#include <chronon3d/core/types/frame_context.hpp>
 
 #include <spdlog/spdlog.h>
 #include <fstream>
@@ -70,7 +71,19 @@ bool render_frame_to_png(
         if (!registry.contains(comp_id)) return false;
 
         Composition comp = registry.create(comp_id);
-        auto scene = comp.evaluate(Frame{frame});
+        FrameContext render_ctx{
+            .frame = Frame{frame},
+            .local_frame = Frame{frame},
+            .frame_time = 0.0f,
+            .duration = comp.duration(),
+            .frame_rate = comp.frame_rate(),
+            .width = comp.width(),
+            .height = comp.height(),
+            .assets_root = comp.assets_root(),
+            .resource = std::pmr::get_default_resource(),
+            .font_engine = nullptr,
+        };
+        auto scene = comp.evaluate(render_ctx);
 
         // Use the existing render pipeline via SoftwareRenderer
         // For now, skip actual pixel rendering — the audit uses the
