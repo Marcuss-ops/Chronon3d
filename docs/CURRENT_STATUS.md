@@ -2,14 +2,14 @@
 
 > **Snapshot:** `main@54292ee5` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato. Linux-only. Fase 7 audit: gates 1-9,11 PASS; gate #10 PARTIAL (A+B build/install PASS, C FU5 black-frame pre-existing).
 
-## Active Blockers (top 6)
+## Active Blockers (top 3)
 
 | ID | Area | Stato | Blocca | Scheda |
 |---|---|---|---|---|
 | TICKET-011 | mainline build rot (chronon3d_core_tests) | PARTIAL | gate 1–8 | [TICKET-011](tickets/TICKET-011.md) |
 | TICKET-036 | SceneBuilder::animated_camera() in test files | PLANNED | gate 6 | [TICKET-036](tickets/TICKET-036.md) |
 | TICKET-120 | 17/24 scene test failures | PARTIAL | Camera V1 cert | [TICKET-120](tickets/TICKET-120.md) |
-| TICKET-GATE-10-PHASE-4-BLACK-FU5 | PNG mean-RGB metric rot | OPEN | gate 10 | [FU5](tickets/TICKET-GATE-10-PHASE-4-BLACK-FU5.md) |
+| TICKET-GATE-10-PHASE-4-BLACK-FU5 | PNG mean-RGB metric rot | DONE | gate 10 | [FU5](tickets/TICKET-GATE-10-PHASE-4-BLACK-FU5.md) |
 
 Per il dettaglio completo: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) + [`docs/tickets/`](docs/tickets/).
 Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
@@ -20,7 +20,7 @@ Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 |---|---|---|
 | Camera V1 | PASS | AE-parity 35/35 PASS; hash collision (AE_CAM_02/04) resolved via Fase 6 cache-key camera fingerprint. |
 | Text Production V1 | PARTIAL | Golden capture pipeline funzionante; 144 PNG tracked. M1.5#1–#13 refactor completati. |
-| SDK C++ installabile | PARTIAL | gate #10: sub-blocks A+B PASS, sub-block C (FU5 mean-RGB) OPEN. |
+| SDK C++ installabile | PASS | gate #10: sub-blocks A+B PASS, sub-block C (FU5 mean-RGB) DONE. |
 | SDK cross-language | NOT RUN | C ABI e formato `.chronon` da progettare. |
 | Render runtime | PASS | ImageCache + RenderSession::layout_cache landed. |
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
@@ -45,7 +45,7 @@ Baseline: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c
 | 7 | `check_doc_sync.sh` | ✅ PASS | Fixato heading `## Stato generale per area` in CURRENT_STATUS.md |
 | 8 | `check_filename_drift.sh` | ⚠️ PASS* | warn-mode; 109 drift findings |
 | 9 | `test_architectural.sh` | ✅ PASS | |
-| 10 | `install_consumer_test.sh` | ⚠️ PARTIAL | A+B (build/install): PASS. C (FU5 mean-RGB): FAIL — black-frame, pre-existing TICKET-GATE-10-PHASE-4-BLACK-FU5. Fix: +17 transitive headers, disk cleanup, namespace fix. |
+| 10 | `install_consumer_test.sh` | ✅ PASS | A+B (build/install): PASS. C (FU5 mean-RGB): DONE — any-channel alpha-aware metric. |
 | 11 | `check_backend_sanitization.py` | ✅ PASS | |
 
 AE parity golden checker: GATE_PASS (23/23 fresh). Suite AE_CAM: 35/35 PASS, 142/142 assertions.
