@@ -69,15 +69,23 @@ target_link_libraries(chronon3d_content
 )
 
 # ==============================================================================
-# Diagnostics — separate OBJECT target, linked into chronon3d_content ONLY when
-# CHRONON3D_BUILD_DIAGNOSTICS=ON.
+# Diagnostics — source files condensed inline into chrono3d_content
 #
 # These .cpp files define the per-domain register_*_compositions() functions
-# that register_content_modules.cpp forward-declares and calls under
+# and the camera_spline_comparison() composition that register_content_modules.cpp
+# (and animation_compositions.cpp) forward-declare and call under
 # #ifdef CHRONON3D_BUILD_DIAGNOSTICS.
+#
+# They are inlined directly into chrono3d_content (under the diagnostic gate)
+# rather than wrapped in a separate `chronon3d_diagnostics` OBJECT target,
+# because OBJECT-to-OBJECT PRIVATE/PRIVATE-or-PUBLIC link propagation has
+# historically shown inconsistent behaviour across CMake versions and Unity
+# build configurations in this repo.  Inlining sidesteps the entire
+# propagation question: the .o files become part of chronon3d_content's
+# unity chunks and reach the consumer's final link line unconditionally.
 # ==============================================================================
 if(CHRONON3D_BUILD_DIAGNOSTICS)
-    add_library(chronon3d_diagnostics OBJECT
+    target_sources(chronon3d_content PRIVATE
         # ── Camera diagnostic suite ──
         experimental/camera/two_point_five_d_compositions.cpp
         experimental/camera/camera_calibration_scene.cpp
@@ -94,7 +102,15 @@ if(CHRONON3D_BUILD_DIAGNOSTICS)
         experimental/ref-2d5/reference_2_5d_suite_cards.cpp
 
         # ── AE parity stress test ──
-        experimental/ae-parity/ae_camera_text_parity.cpp
+        # NOTE: ae_camera_text_parity.cpp is NOT inlined here.  It is
+        # already a direct source in apps/chrono3d_cli/CMakeLists.txt's
+        # add_executable(chrono3d_cli …) block, because cli_init.hpp
+        # registers its composition unconditionally (gated only by
+        # CHRONON3D_BUILD_CONTENT) and the file is needed both in the
+        # content-ON + diagnostics-OFF case and content-ON + diagnostics-ON
+        # case.  Inlining here too would create a duplicate symbol at
+        # chronon3d_cli's link step; keeping the chronon3d_cli list as
+        # the single home ensures exactly-one compilation path.
 
         # ── Camera spline comparison ──
         experimental/camera-spline/camera_spline_comparison.cpp
@@ -105,13 +121,6 @@ if(CHRONON3D_BUILD_DIAGNOSTICS)
         experimental/proofs/image_proofs.cpp
         experimental/proofs/image_test_patterns.cpp
     )
-
-    target_include_directories(chronon3d_diagnostics PRIVATE ${CMAKE_SOURCE_DIR})
-    target_link_libraries(chronon3d_diagnostics
-        PUBLIC chronon3d
-    )
-
-    target_link_libraries(chronon3d_content PRIVATE chronon3d_diagnostics)
 endif()
 
 if(CMAKE_PROJECT_NAME STREQUAL "Chronon3d")
