@@ -16,6 +16,41 @@ enum class TextAuditExit : int {
     VisualDiff      = 5,
 };
 
+// ── Audit Status enum (replaces std::string "PASS"|"FAIL"|"WARN") ──────────
+// Use AuditStatus (instead of std::string) for the .status / .overall_status
+// fields below. The four explicit states cover the audit vocabulary observed
+// in production today (PASS/FAIL/WARN) plus a WarnPartial slot for future
+// typewriter-opacity mid-state reporting (see text_audit_engine.cpp).
+enum class AuditStatus {
+    Pass,
+    Fail,
+    Warn,
+    WarnPartial,
+};
+
+// to_string: stable bijective stringification for JSON dump + spdlog reports.
+// Unknown enum values fall through to a defensive sentinel (loud, observable,
+// never silent) per AGENTS.md fail-loud principle.
+inline std::string to_string(AuditStatus s) {
+    switch (s) {
+        case AuditStatus::Pass: return "PASS";
+        case AuditStatus::Fail: return "FAIL";
+        case AuditStatus::Warn: return "WARN";
+        case AuditStatus::WarnPartial: return "WARN_PARTIAL";
+    }
+    return "WARN_UNRECOGNIZED_ENUM_VALUE";
+}
+
+// from_string: fail-closed — unknown strings collapse to Fail so an
+// unintended external state never silently re-classifies as PASS.
+inline AuditStatus from_string(const std::string& s) {
+    if (s == "PASS") return AuditStatus::Pass;
+    if (s == "FAIL") return AuditStatus::Fail;
+    if (s == "WARN") return AuditStatus::Warn;
+    if (s == "WARN_PARTIAL") return AuditStatus::WarnPartial;
+    return AuditStatus::Fail;
+}
+
 // ── Policy (configurable thresholds) ───────────────────────────────────────
 struct TextAuditPolicy {
     float safe_margin_x{0.05f};         // fraction of canvas width
@@ -104,7 +139,7 @@ struct TextAuditFrameResult {
     // Checks
     TextAuditChecks checks;
     // Status
-    std::string status; // "PASS", "FAIL", "WARN"
+    AuditStatus status; // see AuditStatus enum above (was std::string "PASS"|"FAIL"|"WARN")
 };
 
 // ── Full audit result ──────────────────────────────────────────────────────
@@ -115,7 +150,7 @@ struct TextAuditResult {
     std::string expected_text;
     TextAuditPolicy policy;
     std::vector<TextAuditFrameResult> frames;
-    std::string overall_status; // "PASS", "FAIL", "WARN"
+    AuditStatus overall_status; // see AuditStatus enum above (was std::string "PASS"|"FAIL"|"WARN")
     int exit_code{0};
 };
 

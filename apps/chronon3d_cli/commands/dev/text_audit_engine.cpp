@@ -312,7 +312,7 @@ TextAuditFrameResult audit_single_text(
     if (result.checks.center_error_y_px > policy.max_center_error_y_px) has_warn = true;
     if (result.checks.border_alpha_pixels > policy.max_border_alpha_pixels) has_fail = true;
 
-    result.status = has_fail ? "FAIL" : (has_warn ? "WARN" : "PASS");
+    result.status = has_fail ? AuditStatus::Fail : (has_warn ? AuditStatus::Warn : AuditStatus::Pass);
 
     return result;
 }
@@ -332,7 +332,7 @@ TextAuditResult audit_composition(
     result.policy = policy;
 
     if (!registry.contains(comp_id)) {
-        result.overall_status = "ERROR";
+        result.overall_status = AuditStatus::Fail; // "ERROR" collapses into Fail (fail-closed; exit_code=1 below still signals composition-not-found)
         result.exit_code = 1;
         spdlog::error("text-audit: unknown composition '{}'", comp_id);
         return result;
@@ -430,7 +430,7 @@ TextAuditResult audit_composition(
                 TextAuditFrameResult empty;
                 empty.frame = frame;
                 empty.total_codepoints = count_codepoints(tw_full_text);
-                empty.status = "PASS";
+                empty.status = AuditStatus::Pass;
                 result.frames.push_back(empty);
                 prev = &result.frames.back();
                 continue;
@@ -585,7 +585,7 @@ TextAuditResult audit_composition(
                 if (fr.checks.center_error_x_px > policy.max_center_error_px) has_warn = true;
                 if (fr.checks.center_error_y_px > policy.max_center_error_y_px) has_warn = true;
                 if (fr.checks.border_alpha_pixels > policy.max_border_alpha_pixels) has_fail = true;
-                fr.status = has_fail ? "FAIL" : (has_warn ? "WARN" : "PASS");
+                fr.status = has_fail ? AuditStatus::Fail : (has_warn ? AuditStatus::Warn : AuditStatus::Pass);
             }
 
             result.frames.push_back(fr);
@@ -630,7 +630,7 @@ TextAuditResult audit_composition(
             if (!found_text) {
                 TextAuditFrameResult empty;
                 empty.frame = frame;
-                empty.status = "PASS";
+                empty.status = AuditStatus::Pass;
                 result.frames.push_back(empty);
                 prev = &result.frames.back();
             }
@@ -643,10 +643,10 @@ TextAuditResult audit_composition(
     bool any_fail = false;
     bool any_warn = false;
     for (const auto& fr : result.frames) {
-        if (fr.status == "FAIL") any_fail = true;
-        if (fr.status == "WARN") any_warn = true;
+        if (fr.status == AuditStatus::Fail) any_fail = true;
+        if (fr.status == AuditStatus::Warn) any_warn = true;
     }
-    result.overall_status = any_fail ? "FAIL" : (any_warn ? "WARN" : "PASS");
+    result.overall_status = any_fail ? AuditStatus::Fail : (any_warn ? AuditStatus::Warn : AuditStatus::Pass);
 
     return result;
 }
