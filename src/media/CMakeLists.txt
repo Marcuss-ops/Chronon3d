@@ -38,6 +38,7 @@ if(CHRONON3D_ENABLE_VIDEO)
         video/raw_video_sink.cpp
         video/ffmpeg_pipe_sink.cpp
         video/process_runner.cpp
+        video/process_pipe_io.cpp        # FASE 5 step 1 — pipe_read/pipe_write extraction
         video/video_sink_factory.cpp
         video/video_config_validator.cpp
     )
