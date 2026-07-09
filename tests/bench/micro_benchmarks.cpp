@@ -5,6 +5,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
+#include <chronon3d/cache/persistent_framebuffer_store.hpp>
 #include <chronon3d/effects/glow_pipeline.hpp>
 #include <chronon3d/media/frame_conversion/converted_frame_cache.hpp>
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
@@ -820,6 +821,141 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
 
     BENCHMARK_CAPTURE(BM_Site3_LRU, HandRolled,    false);
     BENCHMARK_CAPTURE(BM_Site3_LRU, StdMinElement, true);
+
+    // ----------------------------------------------------------------------
+    // PersistentFramebufferStore read-microbench.
+    //
+    // Compares the two reader paths on the same 16-frame 1920x1080 RGBA8
+    // fixture (1 entry ≈ 7.9 MB raw; total ≈ 127 MB):
+    //
+    //   /FOpen                — cross-platform std::ifstream path (DEFAULT,
+    //                           `CHRONON3D_USE_MMAP` unset or != "1")
+    //   /Mmap                 — Linux-only zero-copy ::mmap OPT-IN path
+    //                           (`CHRONON3D_USE_MMAP=1`)
+    //
+    // Both share the same on-disk fixture (writes complete before timed
+    // loop), so output bytes, checksums, and Framebuffer layouts are
+    // identical — only the kernel-to-userspace transfer mechanism differs.
+    // The expected win for mmap is the elimination of std::ifstream's
+    // read-buffer copy + intermediate std::vector<uint8_t> allocation.
+    //
+    // Custom counters per Google Benchmark convention:
+    //   frames              — entries sequenced per iteration (always 16)
+    //   bytes_per_frame     — payload size per read (always = 1920*1080*16)
+    // ----------------------------------------------------------------------
+    namespace persistentfb_bench {
+
+    constexpr int kFrameW         = 1920;
+    constexpr int kFrameH         = 1080;
+    constexpr int kFrames         = 16;
+    constexpr int kBytesPerFrame  = kFrameW * kFrameH * static_cast<int>(sizeof(chronon3d::Color));
+
+    /// Build the 16-frame fixture under a fresh temp directory.  Lazy-init
+    /// via static — runs ONCE per process; both bench variants share the
+    /// same in-memory + on-disk fixture (writes complete on first call,
+    /// before any timed loop starts).
+    std::vector<chronon3d::cache::NodeCacheKey> build_fixture() {
+        using namespace chronon3d;
+        namespace fs = std::filesystem;
+
+        // Unique-per-run dir under tmp to avoid colliding with leftover
+        // state from prior runs (and to keep distinct bench-process dirs
+        // separate if two bench runs overlap).
+        static const fs::path cache_root = fs::temp_directory_path() /
+            ("chronon3d_bench_persistentfb_" +
+             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        std::error_code ec;
+        fs::remove_all(cache_root, ec);            // start clean
+        fs::create_directories(cache_root, ec);
+
+        auto& store = cache::PersistentFramebufferStore::instance();
+        store.set_cache_dir(cache_root);
+
+        std::vector<cache::NodeCacheKey> keys;
+        keys.reserve(kFrames);
+        for (int i = 0; i < kFrames; ++i) {
+            // Distinct digests so the 2-level hex path sharding distributes
+            // files across multiple subdirs (mirrors production layout).
+            cache::NodeCacheKey key{};
+            key.scope       = "fb_bench";
+            key.frame       = static_cast<std::size_t>(i);
+            key.width       = static_cast<std::uint32_t>(kFrameW);
+            key.height      = static_cast<std::uint32_t>(kFrameH);
+            key.params_hash = 0xDEADBEEFCAFE0001ULL + static_cast<std::uint64_t>(i);
+            keys.push_back(key);
+
+            // Deterministic per-pixel fill: each frame's content differs
+            // in checksum so we exercise the keyed lookup path with
+            // distinct payloads (not a degenerate 16× same-content case).
+            auto fb = std::make_shared<Framebuffer>(kFrameW, kFrameH);
+            for (int y = 0; y < kFrameH; ++y) {
+                for (int x = 0; x < kFrameW; ++x) {
+                    fb->set_pixel(x, y, Color{
+                        static_cast<float>(x + i) * (1.0f / 4096.0f),
+                        static_cast<float>(y + i) * (1.0f / 4096.0f),
+                        static_cast<float>(i) * (1.0f / 16.0f),
+                        1.0f
+                    });
+                }
+            }
+            auto wr = store.store(key, *fb);
+            if (!wr.ok) {
+                // Fixture build failed (disk full, invalid path, etc.).
+                // The bench loop will still run with this key producing
+                // a miss; we log once so the cause is visible in CI logs.
+                spdlog::warn(
+                    "[persistentfb_bench] fixture write failed for key #{}; "
+                    "bench loop will emit a load miss on this entry.",
+                    i);
+            }
+        }
+        return keys;
+    }
+
+    const std::vector<chronon3d::cache::NodeCacheKey>& fixture_keys() {
+        static const auto keys = build_fixture();
+        return keys;
+    }
+
+    void read_all_keys() {
+        using namespace chronon3d;
+        auto& store = cache::PersistentFramebufferStore::instance();
+        for (const auto& key : fixture_keys()) {
+            auto fb = store.get(key);
+            benchmark::DoNotOptimize(fb);
+        }
+    }
+
+    void BM_PersistentFBRead_FOpen(benchmark::State& state) {
+        (void)fixture_keys();                      // ensure fixture built
+        ::setenv("CHRONON3D_USE_MMAP", "0", 1);
+        for (auto _ : state) { read_all_keys(); }
+        state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * kFrames);
+        state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
+                                 kFrames * kBytesPerFrame);
+        state.counters["frames"]          = static_cast<double>(kFrames);
+        state.counters["bytes_per_frame"] = static_cast<double>(kBytesPerFrame);
+    }
+
+    void BM_PersistentFBRead_Mmap(benchmark::State& state) {
+        (void)fixture_keys();
+        ::setenv("CHRONON3D_USE_MMAP", "1", 1);
+        for (auto _ : state) { read_all_keys(); }
+        state.SetItemsProcessed(static_cast<int64_t>(state.iterations()) * kFrames);
+        state.SetBytesProcessed(static_cast<int64_t>(state.iterations()) *
+                                 kFrames * kBytesPerFrame);
+        state.counters["frames"]          = static_cast<double>(kFrames);
+        state.counters["bytes_per_frame"] = static_cast<double>(kBytesPerFrame);
+    }
+
+    } // namespace persistentfb_bench
+
+    BENCHMARK(persistentfb_bench::BM_PersistentFBRead_FOpen)
+        ->Unit(benchmark::kMillisecond)
+        ->Name("PersistentFB/FOpen16x1920x1080");
+    BENCHMARK(persistentfb_bench::BM_PersistentFBRead_Mmap)
+        ->Unit(benchmark::kMillisecond)
+        ->Name("PersistentFB/Mmap16x1920x1080");
 } // namespace
 
 #if 0   // Sibling benchmark REGISTRATIONS disabled (function defs are #if 0 above;
