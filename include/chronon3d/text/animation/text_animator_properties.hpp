@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chronon3d/text/glyph_selector.hpp>
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/core/types/types.hpp>
