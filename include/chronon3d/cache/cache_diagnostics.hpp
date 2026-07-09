@@ -20,6 +20,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace chronon3d::cache {
@@ -132,7 +133,12 @@ private:
     void unregister(Entry* entry);
 
     mutable std::mutex                              m_mutex;
-    std::unordered_map<CacheDomain, std::vector<Entry*>> m_entries;
+    // TICKET-O(n)-audit — storage switched from std::vector<Entry*> to
+    // std::unordered_set<Entry*> so CacheDiagnostics::unregister performs
+    // an O(1) lookup instead of an O(n) std::find linear scan.
+    // Public API surface is unchanged (only the private m_entries type
+    // changes; no new public symbols introduced — AGENTS.md Cat-2 OK).
+    std::unordered_map<CacheDomain, std::unordered_set<Entry*>> m_entries;
     std::atomic<bool>                               m_enabled{true};
 
     friend class Handle;
