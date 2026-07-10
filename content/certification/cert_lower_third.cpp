@@ -52,14 +52,15 @@ Composition cert_lower_third() {
             });
 
             // ── Main title line ─────────────────────────────────────
-            // pin_to(BottomCenter) already translates the layer origin;
-            // pos={0,84,0} preserves original Y = kBoxHeight*0.5 + 14.
+            // pin_to(BottomCenter) anchors the layer at the bottom edge
+            // minus kMargin.  pos={0,-20,0} places the title above
+            // the pin point with 52px gap from subtitle, inside the box.
             s.layer("title_line", [](LayerBuilder& l) {
                 l.pin_to(Anchor::BottomCenter, kMargin);
                 l.text("title", text::centered_text({
                     .text       = "BREAKING NEWS",
                     .box        = {static_cast<float>(kWidth) - kMargin * 2.0f, 60.0f},
-                    .pos        = {0.0f, 84.0f, 0.0f},
+                    .pos        = {0.0f, -20.0f, 0.0f},
                      .font_asset = "assets/fonts/Inter-Bold.ttf",
                     .font_family = "Inter",
                     .font_weight = 700,
@@ -69,8 +70,8 @@ Composition cert_lower_third() {
             });
 
             // ── Subtitle line ───────────────────────────────────────
-            // pin_to(BottomCenter) already translates the layer origin;
-            // pos={0,32,0} preserves original Y = kBoxHeight*0.5 - 38.
+            // pin_to(BottomCenter) anchors the layer; pos={0,32,0}
+            // places the subtitle below the title, still inside the box.
             s.layer("subtitle_line", [](LayerBuilder& l) {
                 l.pin_to(Anchor::BottomCenter, kMargin);
                 l.text("subtitle", text::centered_text({
