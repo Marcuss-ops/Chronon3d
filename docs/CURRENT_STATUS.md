@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@54292ee5` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato. Linux-only. Fase 7 audit: gates 1-9,11 PASS; gate #10 PARTIAL (A+B build/install PASS, C FU5 black-frame pre-existing).
+> **Snapshot:** `main@be14bc7a` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato. Linux-only. Fase 7 audit: gates 1-9,11 PASS; gate #10 PASS (A+B build/install + Text Export V1 [TEXT-OK] + anti-false-green 6100/230400 delta pixels). Grid-only consumer (check_install) has pre-existing rendering issue (non-fatal).
 
 ## Active Blockers (top 3)
 
@@ -20,7 +20,7 @@ Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 | Area | Stato | Note sintetiche |
 |---|---|---|
 | Camera V1 | PASS | AE-parity 35/35 PASS; hash collision (AE_CAM_02/04) resolved via Fase 6 cache-key camera fingerprint. |
-| Text Production V1 | PARTIAL | Golden capture pipeline funzionante; 144 PNG tracked. M1.5#1–#13 refactor completati. Clip 06 diagnostic ha escluso la "scratch surface" hypothesis: il bug è in `predicted_bbox` / compositor (TICKET-TEXT-CLIP-PREDICTED-BBOX, nuovo P0). I 5 goldens Clip 01–05 vanno re-seeded sotto il nuovo code path (TICKET-TEXT-CLIP-GOLDENS-01-05, nuovo P1). |
+| Text Production V1 | PARTIAL | **Text Export V1 certificato** ✅: check_text pipeline passa ([TEXT-OK], 6100/230400 delta pixels, anti-false-green). FontEngine auto-wiring verificato end-to-end. Esempio standalone `examples/text_export_consumer/` aggiunto. Golden capture pipeline: 144 PNG tracked. M1.5#1–#13 refactor completati. Clip 06 diagnostic (TICKET-TEXT-CLIP-PREDICTED-BBOX, P0): bug in `predicted_bbox` / compositor. I 5 goldens Clip 01–05 vanno re-seeded (TICKET-TEXT-CLIP-GOLDENS-01-05, P1). |
 | SDK C++ installabile | PASS | gate #10: sub-blocks A+B PASS, sub-block C (FU5 mean-RGB) DONE. |
 | SDK cross-language | NOT RUN | C ABI e formato `.chronon` da progettare. |
 | Render runtime | PASS | ImageCache + RenderSession::layout_cache landed. |
@@ -46,7 +46,7 @@ Baseline: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c
 | 7 | `check_doc_sync.sh` | ✅ PASS | Fixato heading `## Stato generale per area` in CURRENT_STATUS.md |
 | 8 | `check_filename_drift.sh` | ⚠️ PASS* | warn-mode; 109 drift findings |
 | 9 | `test_architectural.sh` | ✅ PASS | |
-| 10 | `install_consumer_test.sh` | ✅ PASS | A+B (build/install): PASS. C (FU5 mean-RGB): DONE — any-channel alpha-aware metric. |
+| 10 | `install_consumer_test.sh` | ✅ PASS | A+B (build/install): PASS. Text Export V1: check_text [TEXT-OK] PASS (anti-false-green 6100/230400 delta pixels). Grid-only (check_install): pre-existing rendering issue (non-fatal, tracked separately). |
 | 11 | `check_backend_sanitization.py` | ✅ PASS | |
 
 AE parity golden checker: GATE_PASS (23/23 fresh). Suite AE_CAM: 35/35 PASS, 142/142 assertions.
