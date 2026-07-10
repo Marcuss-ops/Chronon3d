@@ -221,6 +221,7 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_layout_identity.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/font_engine.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/glyph_selector.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/glyph_selector_spec.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/paragraph_style.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_animator_property.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_direction.hpp"
