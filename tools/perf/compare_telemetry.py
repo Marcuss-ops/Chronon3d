@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 PR 0: Performance Benchmark Comparison Tool
-============================================
 Compares key telemetry metrics between two render runs.
 
 Supports both:
