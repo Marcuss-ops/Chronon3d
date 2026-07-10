@@ -35,7 +35,6 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include "content/text/text_helpers_centered.hpp"
 
 using namespace chronon3d;
 
@@ -78,17 +77,19 @@ Composition make_ae_08_glow_pulse(const CompositionProps& /*props*/) {
             const float opacity = (f == 0) ? 0.40f : (f <= 15 ? 0.85f : 0.50f);
             SceneBuilder s(ctx);
             s.layer("hero", [opacity](LayerBuilder& l) {
-                l.pin_to(Anchor::Center);
+                l.text("glow_pulse", {
+                    .content = {.value = "PULSE GLOW"},
+                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                             .font_family = "Inter",
+                             .font_weight = 700,
+                             .font_size = 230.0f},
+                    .layout = {.box = {1700.0f, 360.0f},
+                               .align = TextAlign::Center,
+                               .vertical_align = VerticalAlign::Middle},
+                    .appearance = {.color = Color::white()},
+                    .position = {960.0f, 540.0f, 0.0f}
+                });
                 l.opacity(opacity);
-                l.text("glow_pulse", content::text::centered_text({
-                    .text = "PULSE GLOW",
-                    .box = {1920.0f, 1080.0f},
-                    .font_asset = "assets/fonts/Inter-Bold.ttf",
-                    .font_family = "Inter",
-                    .font_weight = 700,
-                    .font_size = 230.0f,
-                    .line_height = 1.0f,
-                }));
             });
             return s.build();
         });
@@ -115,17 +116,19 @@ Composition make_ae_10_scale_pop(const CompositionProps& /*props*/) {
             const float opacity = (f == 0) ? 0.00f : (f <= 15 ? 0.80f : 1.00f);
             SceneBuilder s(ctx);
             s.layer("hero", [opacity](LayerBuilder& l) {
-                l.pin_to(Anchor::Center);
+                l.text("scale_pop", {
+                    .content = {.value = "POP IN"},
+                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                             .font_family = "Inter",
+                             .font_weight = 700,
+                             .font_size = 240.0f},
+                    .layout = {.box = {1700.0f, 360.0f},
+                               .align = TextAlign::Center,
+                               .vertical_align = VerticalAlign::Middle},
+                    .appearance = {.color = Color::white()},
+                    .position = {960.0f, 540.0f, 0.0f}
+                });
                 l.opacity(opacity);
-                l.text("scale_pop", content::text::centered_text({
-                    .text = "POP IN",
-                    .box = {1920.0f, 1080.0f},
-                    .font_asset = "assets/fonts/Inter-Bold.ttf",
-                    .font_family = "Inter",
-                    .font_weight = 700,
-                    .font_size = 240.0f,
-                    .line_height = 1.0f,
-                }));
             });
             return s.build();
         });
@@ -152,18 +155,20 @@ Composition make_ae_12_random_character_jitter(const CompositionProps& /*props*/
             const float opacity = (f == 0) ? 1.00f : (f <= 15 ? 0.92f : 1.00f);
             SceneBuilder s(ctx);
             s.layer("hero", [jitter, opacity](LayerBuilder& l) {
-                l.pin_to(Anchor::Center);
+                l.text("random_jitter", {
+                    .content = {.value = "JITTER"},
+                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                             .font_family = "Inter",
+                             .font_weight = 700,
+                             .font_size = 240.0f},
+                    .layout = {.box = {1700.0f, 360.0f},
+                               .align = TextAlign::Center,
+                               .vertical_align = VerticalAlign::Middle},
+                    .appearance = {.color = Color::white()},
+                    .position = {960.0f, 540.0f, 0.0f}
+                });
+                l.position(Vec3{jitter.x, jitter.y, 0.0f});
                 l.opacity(opacity);
-                l.text("random_jitter", content::text::centered_text({
-                    .text = "JITTER",
-                    .box = {1920.0f, 1080.0f},
-                    .pos = {jitter.x, jitter.y, 0.0f},
-                    .font_asset = "assets/fonts/Inter-Bold.ttf",
-                    .font_family = "Inter",
-                    .font_weight = 700,
-                    .font_size = 240.0f,
-                    .line_height = 1.0f,
-                }));
             });
             return s.build();
         });
@@ -190,19 +195,20 @@ Composition make_ae_14_multiline_landscape(const CompositionProps& /*props*/) {
             const float opacity = (f == 0) ? 0.00f : (f <= 15 ? 0.70f : 1.00f);
             SceneBuilder s(ctx);
             s.layer("hero", [dy, opacity](LayerBuilder& l) {
-                l.pin_to(Anchor::Center);
+                l.text("multiline", {
+                    .content = {.value = "LINE ONE\nLINE TWO\nLINE THREE"},
+                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                             .font_family = "Inter",
+                             .font_weight = 700,
+                             .font_size = 120.0f},
+                    .layout = {.box = {1700.0f, 500.0f},
+                               .align = TextAlign::Center,
+                               .vertical_align = VerticalAlign::Middle,
+                               .max_lines = 3},
+                    .appearance = {.color = Color::white()},
+                    .position = {960.0f, 540.0f + dy, 0.0f}
+                });
                 l.opacity(opacity);
-                l.text("multiline", content::text::centered_text({
-                    .text = "LINE ONE\nLINE TWO\nLINE THREE",
-                    .box = {1920.0f, 1080.0f},
-                    .pos = {0.0f, dy, 0.0f},
-                    .font_asset = "assets/fonts/Inter-Bold.ttf",
-                    .font_family = "Inter",
-                    .font_weight = 700,
-                    .font_size = 120.0f,
-                    .max_lines = 3,
-                    .line_height = 1.0f,
-                }));
             });
             return s.build();
         });
@@ -228,17 +234,18 @@ Composition make_motion_blur_text(const CompositionProps& /*props*/) {
             const float dx = (f <= 5) ? 8.0f : (f <= 15 ? 16.0f : 24.0f);
             SceneBuilder s(ctx);
             s.layer("hero", [dx](LayerBuilder& l) {
-                l.pin_to(Anchor::Center);
-                l.text("motion_blur", content::text::centered_text({
-                    .text = "MOTION BLUR",
-                    .box = {1280.0f, 720.0f},
-                    .pos = {dx, 0.0f, 0.0f},
-                    .font_asset = "assets/fonts/Inter-Bold.ttf",
-                    .font_family = "Inter",
-                    .font_weight = 700,
-                    .font_size = 180.0f,
-                    .line_height = 1.0f,
-                }));
+                l.text("motion_blur", {
+                    .content = {.value = "MOTION BLUR"},
+                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                             .font_family = "Inter",
+                             .font_weight = 700,
+                             .font_size = 180.0f},
+                    .layout = {.box = {1100.0f, 300.0f},
+                               .align = TextAlign::Center,
+                               .vertical_align = VerticalAlign::Middle},
+                    .appearance = {.color = Color::white()},
+                    .position = {640.0f + dx, 360.0f, 0.0f}
+                });
             });
             return s.build();
         });
