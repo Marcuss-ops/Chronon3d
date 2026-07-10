@@ -24,6 +24,12 @@
 // up in the telemetry dashboard.  Source: tests/text_golden/ae_parity/* +
 // tests/text_golden/motion_blur_text/* (landed in commits 3ddbbdff/45be2b40).
 #include "tests/visual/ae_parity/ae_parity_compositions.hpp"
+// BUG 2 / TICKET-TEXT-GLOW-DARKENING — Step 3 A/B test (sibling composition
+// with glow_intensity=0.0, registered here as a 1-line additive include so
+// the experiment can render via `chronon3d_cli render AnimTypewriterGlowNoGlow`).
+// The production `AnimTypewriterGlow` composition is NOT modified — only an
+// additive registration is added.  See docs/baselines/2026-07-10-glow-ab-result.md.
+#include "tests/visual/glow_ab/glow_ab_compositions.hpp"
 // Camera 3D projection truth test
 #include "tests/visual/camera_truth/camera_truth_test.hpp"
 // Camera orbit truth test (OrbitMotion via CameraDescriptor)
@@ -155,6 +161,11 @@ inline void init_compositions(CompositionRegistry& registry, AssetRegistry& asse
     registry.add("ae_12_random_character_jitter",  [](const CompositionProps& p) { return test::make_ae_12_random_character_jitter(p); });
     registry.add("ae_14_multiline_landscape",     [](const CompositionProps& p) { return test::make_ae_14_multiline_landscape(p); });
     registry.add("motion_blur_text",               [](const CompositionProps& p) { return test::make_motion_blur_text(p); });
+
+    // BUG 2 / TICKET-TEXT-GLOW-DARKENING — Step 3 A/B test (additive).
+    // Registers the no-glow sibling composition used as the A/B control.
+    // The production AnimTypewriterGlow is untouched.
+    test::glow_ab::register_glow_ab_compositions(registry);
 }
 
 } // namespace chronon3d::cli
