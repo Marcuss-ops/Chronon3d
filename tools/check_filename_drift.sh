@@ -33,13 +33,10 @@
 #   1 — at least one BLOCKING drift detected in --strict mode
 #   2 — usage error (unknown flag)
 #
-# Categories:
-#   BLOCKING    — drift on (a) consumer manifest under tests/install_consumer/,
-#                 (b) doc-sync canonical files (CURRENT_STATUS.md, ROADMAP.md,
-#                 RELEASE_GATE.md, FOLLOWUP_TICKETS.md), (c) gate-3 invariant
-#                 headers under include/chronon3d/core/memory/. These exit 1.
-#   DIAGNOSTIC  — drift on any other cited path. Reported with [DIAGNOSTIC],
-#                 does NOT contribute to the gate verdict (exit remains 0).
+# Categories (post-fix: fully blocking):
+#   In --strict mode, ALL drift (missing cited paths that lack a
+#   `drift-allow:` marker) is BLOCKING and causes exit 1.
+#   The `drift-allow: <id>` marker opts out individual lines.
 # ============================================================================
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -123,31 +120,14 @@ candidates=$(grep -rEn "${PAT}" "${files[@]}" 2>/dev/null | awk -F: '
 ')
 
 # Existence check — one shell loop per UNIQUE candidate token.
-# Per AGENTS.md / fail-on-FAIL semantic: BLOCKING drift = exit 1.
-# DIAGNOSTIC drift = exit 0 (reported as advisory, does NOT contribute to verdict).
+# In --strict mode ALL drift is BLOCKING (exit 1).
 errs=0
-blocking_fail=0
-diagnostic_only=0
-
-# Classification regex — files in these paths are BLOCKING.
-BLOCKING_RE='^(tests/install_consumer/|docs/(CURRENT_STATUS|ROADMAP|RELEASE_GATE|FOLLOWUP_TICKETS)\.md$|include/chronon3d/core/memory/.*\.hpp$)'
-
-is_blocking_token() {
-    local tok="$1"
-    [[ "$tok" =~ $BLOCKING_RE ]]
-}
 
 while IFS=: read -r file tok; do
   [ -z "$tok" ] && continue
   if [[ ! -e "$ROOT/$tok" ]]; then
     if [[ "$mode" == "strict" ]]; then
-      if is_blocking_token "$tok"; then
-        echo "[BLOCKING FAIL] ${file}: drift: '${tok}' cited but not on disk" >&2
-        blocking_fail=$((blocking_fail + 1))
-      else
-        echo "[DIAGNOSTIC] ${file}: drift: '${tok}' cited but not on disk (advisory, not gate-blocking)"
-        diagnostic_only=$((diagnostic_only + 1))
-      fi
+      echo "[BLOCKING FAIL] ${file}: drift: '${tok}' cited but not on disk" >&2
       errs=$((errs + 1))
     else
       echo "[WARN] ${file}: drift: '${tok}' cited but not on disk"
@@ -158,9 +138,8 @@ done <<< "${candidates}"
 
 echo
 if [[ "$mode" == "strict" ]]; then
-  echo "Summary: ${blocking_fail} blocking_fail, ${diagnostic_only} diagnostic_only, ${errs} total (mode=${mode})"
-  # fail-on-FAIL semantic: only BLOCKING drift fails the gate.
-  [[ "$blocking_fail" -eq 0 ]] || exit 1
+  echo "Summary: ${errs} blocking drift finding(s) (mode=${mode})"
+  [[ "$errs" -eq 0 ]] || exit 1
   exit 0
 else
   echo "Summary: ${errs} drift finding(s) (mode=${mode})"

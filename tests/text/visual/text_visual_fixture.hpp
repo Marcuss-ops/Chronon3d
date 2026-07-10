@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // tests/text/visual/text_visual_fixture.hpp — Phase-2.1 P0 split
 //
-// Phase-2.1 mechanical split of tests/text/test_text_preset_visual.cpp
+// Phase-2.1 mechanical split of tests/text/test_text_preset_visual.cpp  // drift-allow: stale-ref
 // (898 LOC, 128 sentinels).  Fixture header owns ONLY the composition-
 // building + frame-render + gate-emission orchestration; the metric POD,
 // hash/ink computation, and VisualExpectation enum live in `text_visual_

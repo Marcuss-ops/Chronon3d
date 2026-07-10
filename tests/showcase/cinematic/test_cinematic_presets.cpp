@@ -6,7 +6,7 @@
 //    • TEST_CASE("AGENT4: A4.3 text motion per preset (5 cinematic compositions)")
 //    • TEST_CASE("AGENT4: A4.3-strict preset coverage gate (>= 5 cinematic compositions)")
 //
-//  from the monolithic tests/showcase/test_cinematic_camera_showcase.cpp
+//  from the monolithic tests/showcase/test_cinematic_camera_showcase.cpp  // drift-allow: stale-ref
 //  (was 771 LOC).  Behaviour preserved bit-identical: same kPresets[]
 //  factory-pointer table (5 entries, deep_parallax_cascade,
 //  whip_pan_hero_reveal, orbit_handheld_glow, rack_focus_title_swap,
