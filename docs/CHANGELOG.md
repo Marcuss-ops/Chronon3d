@@ -1,3 +1,19 @@
+## Luglio 2026 — F1.B Unified Text Placement Resolver (2026-07-10, atomic commit)
+
+### feat(text): F1.B — Unified text placement resolver (TextPlacement enum + ResolvedTextPlacement + resolve_text_placement)
+
+- **Header**: `include/chronon3d/text/text_placement_resolver.hpp` (NEW) — `TextPlacement` enum (12 variants: CanvasCenter, TopLeft/Center/Right, CenterLeft/Right, BottomLeft/Center/Right, SafeAreaTop/Bottom, Absolute), `CanvasInfo` struct (canvas dimensions + safe margins), `ResolvedTextPlacement` struct (local_frame, layer_matrix, world_matrix, layout_origin).
+- **Source**: `src/text/text_placement_resolver.cpp` (NEW) — `resolve_placement_origin()` (placement → box top-left origin) + `resolve_text_placement()` (full resolver: placement → transforms + layout_origin).
+- **Test**: `tests/text/test_text_placement_resolver.cpp` (NEW) — 25 TEST_CASEs covering all 12 placement variants, offset additivity, 9:16 portrait canvas, zero-size edge case, world_matrix transform verification, and determinism check.
+- **CMake**: `src/text/CMakeLists.txt` (text_placement_resolver.cpp registered in chronon3d_text_core), `tests/core_tests.cmake` (test registered in chronon3d_core_tests).
+- **ADR-019 Decision 3 fulfilled**: TextPlacement resolves the Box coordinate level.
+- **Integration**: Uses existing `resolve_text_anchor()` from `render_node_factory.hpp`. Produces `world_matrix` consumable by `TextRunPlacement.matrix`. Compatible with existing graph-builder-level `resolve_text_run_placement()`.
+- **Text Simplicity Action Plan**: F1.B complete (second of 17 planned actions).
+- **AGENTS.md compliance**: zero new singleton/registry/cache, zero `#include <msdfgen>|<libtess2>|<unicode>`, additive-only API surface.
+- **Cross-references**: [`include/chronon3d/text/text_placement_resolver.hpp`](include/chronon3d/text/text_placement_resolver.hpp); [`src/text/text_placement_resolver.cpp`](src/text/text_placement_resolver.cpp); [`tests/text/test_text_placement_resolver.cpp`](tests/text/test_text_placement_resolver.cpp); [`docs/adr/ADR-019-text-coordinate-model.md`](docs/adr/ADR-019-text-coordinate-model.md) Decision 3.
+
+---
+
 ## Luglio 2026 — ADR-019 Text Coordinate Model (2026-07-10, doc-only atomic commit)
 
 ### docs(adr): ADR-019 Text Coordinate Model — 4-level Canvas/Layer/Box/Glyph
