@@ -66,6 +66,17 @@ NodeExecResult TransformNode::execute(
     //    animated transforms (e.g. breathing scale animation).
     auto result = ctx.acquire_scratch_fb(out_w, out_h, true, out_bounds);
 
+    // TICKET-012 — acquire_scratch_fb / acquire_owned_fb ignore the
+    // `bounds` parameter today (pool only supports origin-(0,0) buffers).
+    // Explicitly stamp the canvas-space origin so the clipping code below
+    // (which uses canvas coordinates) can correctly map into the result
+    // buffer's local pixel space.  Without this, a predicted_bbox at e.g.
+    // (1037, 926) produces a result buffer at origin (0, 0) and the
+    // clamp(x0, 0, width) collapses the rendering region to zero area.
+    if (out_bounds.x0 != 0 || out_bounds.y0 != 0) {
+        result->set_origin(out_bounds.x0, out_bounds.y0);
+    }
+
     // ── Centering & homography ──────────────────────────────────────────
     const Mat4 dst_canvas_offset = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
     const Mat4 src_canvas_offset = glm::translate(Mat4(1.0f), Vec3(input->width() * 0.5f, input->height() * 0.5f, 0.0f));
