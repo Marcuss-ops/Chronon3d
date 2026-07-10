@@ -397,10 +397,14 @@ namespace {
     cache_key.overflow       = static_cast<int>(layout.overflow);
     cache_key.ellipsis       = layout.ellipsis;
 
-    // Fase B3: per-materializer local cache.  Each materialize call
-    // uses a standalone cache; the engine/session should supply a
-    // shared cache via TextRunShape::cache for hot-path reuse.
-    static thread_local TextLayoutCache s_materializer_cache;
+    // FIX #3b — shared cache across all threads.  TextLayoutCache is
+    // already thread-safe via its own std::shared_mutex in Impl
+    // (shared_lock for find, unique_lock for store).  find() returns
+    // shared_ptr so pointer lifetime is safe across concurrent
+    // store/evict.  Previously `thread_local` meant each worker thread
+    // in multi-chunk video export had its own cold cache — same
+    // composition rendered 5× never hit on threads 2-5.
+    static TextLayoutCache s_materializer_cache;
     auto& cache = s_materializer_cache;
     if (params.cache_layout) {
         if (auto cached = cache.find(cache_key)) {
