@@ -18,6 +18,24 @@
 
 ---
 
+## Luglio 2026 — TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY: `--diagnostic-overlay` flag (2026-07-10)
+
+### feat(cli): TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY — `--diagnostic-overlay` draws bbox, anchor, baseline
+
+- **New CLI flag**: `--diagnostic-overlay` on `render` and `video` commands — enables visual diagnostic overlay on text layers:
+  - **Green rectangle**: layout box bounds
+  - **Blue dot**: text anchor point (world origin)
+  - **Cyan horizontal line + dot**: text baseline
+- **Implementation** (4 files):
+  - `apps/chronon3d_cli/commands.hpp` — added `diagnostic_overlay` bool to `RenderPipelineArgs`
+  - `apps/chronon3d_cli/utils/job/cli_render_utils.hpp` — wires `diagnostic_overlay` → `text_layout_debug` in `settings_from_args()`
+  - `apps/chronon3d_cli/commands/render/register_render_commands.cpp` + `register_video_commands.cpp` — registered `--diagnostic-overlay` flag
+  - `src/render_graph/nodes/text_run/text_run_debug_overlay.hpp` — added cyan baseline line + dot markers (reuses existing crosshair/dot/rect helpers)
+- **Design**: `--diagnostic-overlay` is a user-facing alias that activates the underlying `text_layout_debug` pipeline (same mechanism as `--debug-text-layout`). All existing markers (canvas center crosshair, visual bounds, alpha centroid) plus the new baseline marker are drawn.
+- **Text Simplicity Action Plan**: TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY complete (18th action).
+
+---
+
 ## Luglio 2026 — TICKET-SIMPLICITY-INSPECT-TEXT: CLI `inspect text-def` JSON diagnostic (2026-07-10)
 
 ### feat(cli): TICKET-SIMPLICITY-INSPECT-TEXT — `inspect text-def` exports TextRunShape+TextRunLayout to JSON

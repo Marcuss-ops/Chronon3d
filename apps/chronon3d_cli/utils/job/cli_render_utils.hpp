@@ -94,7 +94,7 @@ RenderSettings settings_from_args(const Args& args,
     s.motion_blur.filter           = static_cast<TemporalFilter>(args.pipeline.quality.motion_blur_filter);
     s.ssaa_factor               = args.pipeline.quality.ssaa;
     s.force_scalar_normal_blend = args.pipeline.force_scalar_normal_blend;
-    s.text_layout_debug         = args.pipeline.text_layout_debug;
+    s.text_layout_debug         = args.pipeline.text_layout_debug || args.pipeline.diagnostic_overlay;
     s.program_cache_capacity     = args.pipeline.program_cache_capacity;
     s.program_cache_tune                  = args.pipeline.program_cache_tune;
     s.program_cache_tune_interval         = args.pipeline.program_cache_tune_interval;

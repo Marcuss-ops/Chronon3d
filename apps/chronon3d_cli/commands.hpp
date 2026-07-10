@@ -68,6 +68,10 @@ struct RenderPipelineArgs {
     // Text layout debug overlay + structured log per TextRun.
     bool text_layout_debug{false};
 
+    // Diagnostic overlay: draws bbox, anchor point, and baseline markers
+    // on text layers.  Alias for text_layout_debug with a user-facing name.
+    bool diagnostic_overlay{false};
+
     // Text layout debug JSON export path.
     // When non-empty and text_layout_debug is true, writes a JSON file
     // with per-TextRun bounds data (alpha_bounds, layout_bounds,

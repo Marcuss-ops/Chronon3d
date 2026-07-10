@@ -89,7 +89,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-SIMPLICITY-PRESETS | P1 | 5 preset riutilizzabili con golden | DONE | Text V1 + TICKET-SIMPLICITY-BUILDER — F3.C: title_preset(), subtitle_preset(), caption_preset(), kinetic_hero_preset(), lower_third_preset() in include/chronon3d/presets/text_presets.hpp. Golden tests in tests/text_golden/presets/test_text_presets_golden.cpp. CTest alias TextPresetsGolden.
 | TICKET-SIMPLICITY-PIPELINE-PARITY | P1 | Pipeline parity (render/video/CLI) | DONE | Text V1 — parity-by-construction verified: from_text_spec↔from_text_definition round-trip lossless, LayerBuilder::text() paths converge on identical TextSpec → same TextRunSpec → same render output |
 | TICKET-SIMPLICITY-INSPECT-TEXT | P1 | CLI inspect-text (JSON diagnostic) | **DONE** | Text V1 — diagnostica headless: `inspect text-def` subcommand exports all TextRunShape fields to JSON |
-| TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY | P2 | Diagnostic overlay (visual bbox PNG) | PLANNED | Text V1 + TICKET-SIMPLICITY-INSPECT-TEXT |
+| TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY | P2 | Diagnostic overlay (visual bbox PNG) | **DONE** | Text V1 + TICKET-SIMPLICITY-INSPECT-TEXT — `--diagnostic-overlay` flag on render/video draws bbox (green), anchor (blue dot), baseline (cyan line) |
 | TICKET-SIMPLICITY-DEPRECATION | P2 | Deprecazioni graduali API legacy | DONE | Text V1 + TICKET-SIMPLICITY-ADAPTERS — TextParams/TextRunParams marked [[deprecated]], 48 files migrated to TextRunSpec |
 | TICKET-SIMPLICITY-DOCS | P2 | Documentazione copy-paste first | PLANNED | Text V1 + TICKET-SIMPLICITY-BUILDER |
 

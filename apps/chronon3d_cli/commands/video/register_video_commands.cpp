@@ -29,6 +29,8 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph, "Use modular RenderGraph path");
     cmd->add_flag("--no-dirty-rects", args.pipeline.no_dirty_rects, "Disable dirty-rectangle invalidation (dirty rects are ON by default)");
     cmd->add_flag("--diagnostic", args.pipeline.diagnostic, "Enable diagnostic overlays and logging");
+    cmd->add_flag("--diagnostic-overlay", args.pipeline.diagnostic_overlay,
+                  "Draw diagnostic overlay on text layers: bbox (green rect), anchor point (blue dot), baseline (cyan line)");
     cmd->add_flag("--motion-blur", args.pipeline.quality.motion_blur, "Enable temporal motion blur");
     cmd->add_option("--motion-blur-samples", args.pipeline.quality.motion_blur_samples, "Subframe samples")->default_val(8);
     cmd->add_option("--shutter-angle", args.pipeline.quality.shutter_angle_deg, "Shutter angle in degrees")->default_val(180.0f);
