@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@4cce8f52` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Phase A.3 closed (commit `4cce8f52`, post-rebase; original `9f791cef`); 5/5 baseline gates PASS post-commit. Feature freeze V0.1 revocato. Linux-only. Gate #10 PASS. CI status artifacts uploaded per run (90-day retention).
+> **Snapshot:** `main@a5a0475c` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Phase A.3 closed (commit `4cce8f52`, post-rebase; original `9f791cef`); 5/5 baseline gates PASS post-commit. Feature freeze V0.1 revocato. Linux-only. Gate #10 PASS. CI status artifacts uploaded per run (90-day retention).
 
 ## Active Blockers (top 3)
 
