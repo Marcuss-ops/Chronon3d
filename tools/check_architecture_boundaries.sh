@@ -48,6 +48,9 @@
 #        (dual-channel placement pattern: spec.placement.offset is canonical)
 #  20. TextFrame consolidated placement      — Phase A4 close-out
 #        (TextFrame.{position,placement_kind,offset} → TextPlacement placement)
+#  21. Asset namespace canonicalization      — Phase A2 close-out
+#        (v2::Asset{Kind,Ref,Manifest} → assets::{AssetKind,InternalAssetRef,AssetManifest}
+#         + to_v2_ref() RETIRED)
 #
 # Wired into:
 #   - CI:     .github/workflows/gates.yml (Gate 5 / architecture-check)
@@ -525,7 +528,7 @@ else echo "PASS"; fi
 # `chronon3d::`, NOT `chronon3d::assets::v2`) and is wired into the CLI +
 # video exporters + canonical tests. This guard prevents silent
 # re-introduction of the always-green stubs.
-echo -n "  [18/18] V2 AssetPreflight stubs RETIRED ... "
+echo -n "  [18/21] V2 AssetPreflight stubs RETIRED ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\b(assets::v2::AssetPreflightResult|assets::v2::AssetPreflightResolver|accumulate_preflight_result)\b' \
     $SCRIPT_PATHS 2>/dev/null \
@@ -558,7 +561,7 @@ else echo "PASS"; fi
 # position). Files matching `*glyph_selector*` are explicitly exempted
 # so the gate does not false-positive on the AnimationOffset property
 # setter chain.
-echo -n "  [19/19] TextSpec::offset RETIRED        ... "
+echo -n "  [19/21] TextSpec::offset RETIRED        ... "
 # Path filter exempts files touching `GlyphSelectorSpec::offset`
 # (animator property for phase shift, NOT a pin position):
 #   * src/text/glyph_selector_compile.cpp  (compile path)
@@ -589,7 +592,7 @@ else echo "PASS"; fi
 # Scope: any structural read or write of `frame.position`, `frame.placement_kind`
 # or `frame.offset` in include/ src/ tests/ apps/ — comment-only mentions are
 # stripped by `filter_symbol_in_code_only` (same as gates #6/#7/#18/#19).
-echo -n "  [20/20] TextFrame consolidated           ... "
+echo -n "  [20/21] TextFrame consolidated           ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bframe\.(position|placement_kind|offset)\b' $SCRIPT_PATHS 2>/dev/null \
     | filter_symbol_in_code_only '\bframe\.(position|placement_kind|offset)\b' \
