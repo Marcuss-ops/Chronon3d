@@ -30,6 +30,7 @@ jobs:
       matrix:
         config:
           - name: Linux (Release)
+            slug: linux-release
             os: ubuntu-latest
             preset: linux-ci-release-build
             build_preset: linux-ci-release-build
@@ -37,6 +38,7 @@ jobs:
             vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
 
           - name: Linux (Debug/CI)
+            slug: linux-debug-ci
             os: ubuntu-latest
             preset: linux-ci
             build_preset: linux-ci
@@ -44,6 +46,7 @@ jobs:
             vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
 
           - name: Linux (No Content)
+            slug: linux-nocontent
             os: ubuntu-latest
             preset: linux-ci-nocontent
             build_preset: linux-ci-nocontent
@@ -53,6 +56,7 @@ jobs:
           # NOTE: ASan+UBSAN moved to nightly-sanitizers.yml (P2-A).
 
           - name: Windows (Release)
+            slug: windows-release
             os: windows-latest
             preset: win-release
             build_preset: win
@@ -107,11 +111,15 @@ jobs:
         run: |
           ctest --preset ${{ matrix.config.test_preset }} \
             -R "chronon3d_core_tests|chronon3d_scene_tests|chronon3d_cli_tests|chronon3d_optimizer_tests|chronon3d_cache_tests|chronon3d_compositor_tests" \
-            --output-on-failure
+            --output-on-failure \
+            --output-junit test-results-${{ matrix.config.slug }}.xml
 
       - name: Run Tests (Full — Push)
         if: github.event_name != 'pull_request'
-        run: ctest --preset ${{ matrix.config.test_preset }} --output-on-failure
+        run: |
+          ctest --preset ${{ matrix.config.test_preset }} \
+            --output-on-failure \
+            --output-junit test-results-${{ matrix.config.slug }}.xml
 
       # ── Agent 2 / ci-showcase plan (Step 2/6) — daily smoke ──────────
       # Smoke runs ONLY on push to main, on the linux-ci matrix (where
@@ -151,3 +159,25 @@ jobs:
             echo "clang-tidy found errors!"
             exit 1
           fi
+
+      # ── P3-A: Generate machine-readable CI status JSON ─────────────
+      # Parses ctest JUnit XML into a structured JSON artifact with
+      # commit, tested_at, tests_total, passed, failed, skipped,
+      # gates_passed, and per-suite breakdowns.
+      - name: Generate CI status JSON
+        if: runner.os == 'Linux'
+        run: |
+          python3 tools/ci_status_from_junit.py \
+            --junit "test-results-${{ matrix.config.slug }}.xml" \
+            --commit "${{ github.sha }}" \
+            --workflow "${{ github.workflow }}" \
+            --out "ci_status.json"
+
+      - name: Upload CI status artifact
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-status-${{ github.sha }}
+          path: ci_status.json
+          retention-days: 90
+          if-no-files-found: ignore
