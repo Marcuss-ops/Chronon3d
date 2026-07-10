@@ -20,6 +20,7 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -209,10 +210,23 @@ struct TextRevealDescriptor {
 inline void build_text_reveal_line(SceneBuilder& s,
                                    const TextRevealDescriptor& d) {
     FontEngine* engine = s.font_engine();
-    if (!engine) return;
+    if (!engine) {
+        throw std::runtime_error(
+            "build_text_reveal_line: SceneBuilder has no FontEngine. "
+            "Ensure the renderer or composition wires a FontEngine "
+            "before calling build_text_reveal_line(). "
+            "Text: '" + d.text.substr(0, 60) + "'");
+    }
     auto chars = layout_glyphs(d.text, d.font_size, d.font_spec,
                                d.tracking, d.ref_offset_x, *engine);
-    if (chars.empty()) return;
+    if (chars.empty()) {
+        throw std::runtime_error(
+            "build_text_reveal_line: HarfBuzz shaping produced zero glyphs. "
+            "font_path='" + d.font_spec.font_path +
+            "' font_size=" + std::to_string(d.font_size) +
+            " text='" + d.text.substr(0, 60) + "'. "
+            "Check that the font file exists and the AssetResolver is mounted.");
+    }
 
     for (size_t i = 0; i < chars.size(); ++i) {
         const auto& gc = chars[i];

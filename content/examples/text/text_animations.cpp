@@ -34,6 +34,7 @@
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
 
 #include "content/common/animation_helpers.hpp"
 #include "content/common/background_helpers.hpp"
@@ -91,6 +92,20 @@ TextSpec txt_center(std::string text, f32 font_size = 72.0f) {
 // Previously each composition duplicated ~15 lines of identical boilerplate;
 // now they are 5–10 lines of pure animation logic.
 
+
+// ── Shared static resolver + FontEngine for ALL 5 typewriter variants ──
+// Matches the AnimTypewriter pattern in animation_compositions.cpp.
+// Mounted at first-use time with the current working directory so
+// relative font paths (assets/fonts/Poppins-Regular.ttf) resolve
+// regardless of the renderer's internal FontEngine configuration.
+static chronon3d::FontEngine& shared_typewriter_engine() {
+    static chronon3d::assets::AssetResolver s_resolver;
+    if (!s_resolver.has_mount()) {
+        s_resolver.mount(std::filesystem::current_path());
+    }
+    static chronon3d::FontEngine s_engine(s_resolver);
+    return s_engine;
+}
 
 // ── Tracking constant (kept local for typewriter section below) ────
 constexpr f32 TRACKING = 4.0f;
@@ -216,6 +231,7 @@ Composition anim_typewriter_simple() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
+        s.font_engine(&shared_typewriter_engine());
 
         // Precompute widths FIRST, then use inline build_text_reveal_line calls
         auto spec = font_regular();
@@ -253,6 +269,7 @@ Composition anim_typewriter_cursor() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
+        s.font_engine(&shared_typewriter_engine());
 
         // Precompute needed values BEFORE build_2line_typewriter
         auto spec = font_regular();
@@ -309,6 +326,7 @@ Composition anim_typewriter_slide() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
+        s.font_engine(&shared_typewriter_engine());
 
         auto spec = font_regular();
         f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING, *s.font_engine());
@@ -350,6 +368,7 @@ Composition anim_typewriter_glow() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
+        s.font_engine(&shared_typewriter_engine());
 
         // Stable per-glyph typewriter with glow on revealed characters
         build_2line_typewriter(s,
@@ -370,6 +389,7 @@ Composition anim_typewriter_stagger() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
+        s.font_engine(&shared_typewriter_engine());
 
         const struct { const char* text; f32 size; f32 delay; } lines[] = {
             {"THIS TEXT",   60.0f,  0.0f},
