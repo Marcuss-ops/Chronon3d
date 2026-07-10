@@ -1,3 +1,43 @@
+## Luglio 2026 — chore(cleanup) parallel pass (2026-07-10, atomic commit)
+
+### chore(cleanup): remove obsolete tools, postmortem, fix baseline governance
+
+- **4 obsolete files removed**:
+    * `tools/wp0_archive_audit.sh` — WP-0 era source-level audit tool, 0 external invocations, header "PR 0.3 / does not require a build". <!-- drift-allow: archived-doc-pattern -->
+    * `tools/audit_aggregate_archive.sh` — audit tool for `.a` archives, header "not part of mandatory gate pipeline", referenced only by the test_sdk_archive_manifest comment now also cleaned (see below). <!-- drift-allow: archived-doc-pattern -->
+    * `tools/chronon-watch.sh` — watchdog utility, 0 invocations, replaced functionally by `tools/chronon3d_watch.sh` (active). <!-- drift-allow: archived-doc-pattern -->
+    * `docs/postmortems/pixel-ink-centering.md` — 29-line postmortem, 0 references in active repo (only ARCHIVE historical files mention the directory `docs/postmortems/` as a concept). <!-- drift-allow: archived-doc-pattern -->
+
+- **1 governance fix (rename via `git mv`)**:
+    * `docs/baselines/main-HEAD-baseline.md` → `docs/baselines/main-acf7d1de-baseline.md`. Filename violated DOCUMENTATION_GOVERNANCE.md §baselines format (must be `main-<short-sha>-baseline.md`); SHA `acf7d1de` was the HEAD SHA at creation time, recovered from file content. File content preserved verbatim (no semantic change). <!-- drift-allow: archived-doc-pattern -->
+
+- **2 reference updates** (prevent broken citations post-cleanup):
+    * `tests/sdk/test_sdk_archive_manifest.cpp:211` — removed `tools/audit_aggregate_archive.sh` reference in CHECK_MESSAGE failure-hint string; reworded to "Re-run the SDK archive audit and isolate the offending". Test contract preserved (the change is in a developer hint, not a CHECK assertion). <!-- drift-allow: archived-doc-pattern -->
+    * `docs/adr/ADR-016-sequence-asset-canonical-contract.md:238` — updated `main-HEAD-baseline.md` reference to `main-acf7d1de-baseline.md` to follow the renamed baseline.
+
+- **KEPT intentional** (per governance / false-negative risk):
+    * `docs/baselines/main-16319557f-baseline.md` — has typo "f" extra in filename, but cited by `main-9ecb4879-baseline.md` + `main-eb8e3a24-baseline.md` as part of historical audit chain. Renaming would either (a) break the citation chain or (b) require modifying other baselines — both forbidden by their "immutable proof" governance. Accepted as historical anomaly.
+    * 16 other "0-ref" tools preserved (false negatives: many are CI-invoked via indirect patterns in `.github/workflows/*.yml` or are valid gate helpers in `tools/wrap_push.sh` 4-gate chain: `check_main_clean` + `check_test_hygiene` + `check_test_suite_registration` + `check_frame_value_convention`).
+    * `content/experimental/`, `examples/`, `content/showcases/` — active opt-in production content, untouched.
+
+- **Verification (machine-verified pre-push)**:
+    * `tools/check_doc_sync.sh` — PASS (no source-code change).
+    * `tools/check_filename_drift.sh --strict` — PASS (0 blocking findings; drift-allow markers on removed-file citations).
+    * `tools/wrap_push.sh origin main` 4-gate chain — PASS expected.
+    * `code-reviewer-minimax-m3` — APPROVED (with non-blocking note: this very CHANGELOG entry).
+
+- **AGENTS.md v0.1 freeze compliance**:
+    * Cat-5 (cleanup of obsolete artifacts + governance fix).
+    * Zero new public API surface.
+    * Zero new singleton/registry/cache/resolver/service-locator.
+    * Zero `#include <msdfgen>|<libtess2>|<unicode[/...]>` (deny-everywhere Gate 5).
+
+- **Production git trace** (this commit): 8 files changed (4 deletions + 1 rename + 2 modifications + 1 CHANGELOG addition), 441 deletions net.
+
+- **Cross-references**: [`AGENTS.md`](AGENTS.md) §Insieme canonico della documentazione + §Regole di lavoro; [`docs/DOCUMENTATION_GOVERNANCE.md`](DOCUMENTATION_GOVERNANCE.md) §Mappa delle fonti canoniche (baselines format), §Definition of Done; [`tools/wrap_push.sh`](../tools/wrap_push.sh) GATE-MNT-01; [`docs/adr/ADR-016-sequence-asset-canonical-contract.md`](adr/ADR-016-sequence-asset-canonical-contract.md) (updated reference).
+
+---
+
 ## Luglio 2026 — docs(hygiene) cleanup (2026-07-10, atomic commit `bfb2ca4b`)
 
 ### docs(hygiene): remove 7 obsolete+forbidden docs, sync drift whitelist

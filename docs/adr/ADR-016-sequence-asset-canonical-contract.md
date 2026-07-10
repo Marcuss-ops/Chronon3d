@@ -235,7 +235,7 @@ Per Marcuss-ops "Non eliminare subito tutto fisicamente" (sezione 4 del piano ut
 * `tests/core/timeline/test_sequence_builder.cpp` (10+ test case coverage del top-level canonical).
 * `docs/tickets/TICKET-SEQUENCE-LOCAL-FRAME.md` §Stato (revisiting 2026-07-08 con pivot architetturale).
 * `include/chronon3d/timeline/timeline_sample_context.hpp` (NEW header per `chronon3d::TimelineSampleContext` POD, target post-Addendum Step 4 promotion).  <!-- drift-allow: stale-ref -->
-* `docs/baselines/main-HEAD-baseline.md` (re-verify grep-audit post-Step-2 freshness, 2026-07-08 baseline).
+* `docs/baselines/main-acf7d1de-baseline.md` (re-verify grep-audit post-Step-2 freshness, 2026-07-08 baseline).
 
 ## Alternatives considered
 
