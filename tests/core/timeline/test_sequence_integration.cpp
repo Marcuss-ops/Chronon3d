@@ -104,7 +104,7 @@ TEST_CASE("Sequence integration — manifest aggregates across sequence boundari
     s.sequence("intro", {.from = Frame{0}, .duration = Frame{30}},
         [](SceneBuilder& s) {
             s.layer("title", [](LayerBuilder& l) {
-                TextRunParams p;
+                TextRunSpec p;
                 p.text.font.font_path = "assets/fonts/Intro.ttf";
                 p.text.content.value = "INTRO";
                 (void)l.text_run("label", std::move(p));
@@ -156,7 +156,7 @@ TEST_CASE("Sequence integration — preflight FrameOnly with nested sequences") 
             outer.sequence("inner", {.from = Frame{100}, .duration = Frame{100}},
                 [](SequenceBuilder& inner) {
                     inner.layer("title", [](LayerBuilder& l) {
-                        TextRunParams p;
+                        TextRunSpec p;
                         p.text.font.font_path = "assets/fonts/Nested.ttf";
                         p.text.content.value = "NESTED";
                         (void)l.text_run("label", std::move(p));

@@ -176,11 +176,11 @@ LayerBuilder& LayerBuilder::text(std::string name, TextSpec p) {
     // chronon3d::registry::ShapeRegistry (only `TextRun` remains). To keep
     // the existing `LayerBuilder::text(name, TextSpec)` ergonomic — used by
     // 59+ content/ call sites — this method is now a transitional shim that
-    // maps the flat TextSpec into a TextRunParams (with .text = std::move(p))
+    // maps the flat TextSpec into a TextRunSpec (with .text = std::move(p))
     // and routes through `text_run(name, params).commit()`. The downstream
     // RenderNode is flagged ShapeType::TextRun in both cases; empty animators
     // still produce a valid TextRunShape via `materialize_text_run_shape`.
-    TextRunParams run;
+    TextRunSpec run;
     run.text = std::move(p);
     return text_run(std::move(name), std::move(run)).commit();
 }

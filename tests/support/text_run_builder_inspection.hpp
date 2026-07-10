@@ -83,7 +83,7 @@ namespace testing {
         // write `snap->params.text.font.font_path` (operator->) or
         // `(*snap).params.text.font.font_path` (operator*).  This
         // preserves the existing test-callsite chain without forcing a
-        // deep copy of the (potentially heavy) `TextRunParams` payload.
+        // deep copy of the (potentially heavy) `TextRunSpec` payload.
         const chronon3d::PendingTextRun* operator->() const noexcept {
             return pending;
         }

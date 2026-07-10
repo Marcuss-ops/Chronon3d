@@ -54,7 +54,7 @@ Composition build_wrap_composition(
             s.font_engine(&renderer.font_engine());
             s.layer("wrap_layer", [&renderer, box_width, box_height, text](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("wrap_test", TextRunParams{
+                l.text_run("wrap_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = std::string{text}},
                         .font = {
