@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@be14bc7a` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato. Linux-only. Fase 7 audit: gates 1-9,11 PASS; gate #10 PASS (A+B build/install + Text Export V1 [TEXT-OK] + anti-false-green 6100/230400 delta pixels). Grid-only consumer (check_install) has pre-existing rendering issue (non-fatal).
+> **Snapshot:** `main@3fa5880f` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato. Linux-only. Gate #10 PASS: check_install [BOUNDARY-OK] + check_text [TEXT-OK] (anti-false-green 6100/230400 delta pixels). Both consumers use SceneBuilder public API.
 
 ## Active Blockers (top 3)
 
@@ -46,7 +46,7 @@ Baseline: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c
 | 7 | `check_doc_sync.sh` | ✅ PASS | Fixato heading `## Stato generale per area` in CURRENT_STATUS.md |
 | 8 | `check_filename_drift.sh` | ⚠️ PASS* | warn-mode; 109 drift findings |
 | 9 | `test_architectural.sh` | ✅ PASS | |
-| 10 | `install_consumer_test.sh` | ✅ PASS | A+B (build/install): PASS. Text Export V1: check_text [TEXT-OK] PASS (anti-false-green 6100/230400 delta pixels). Grid-only (check_install): pre-existing rendering issue (non-fatal, tracked separately). |
+| 10 | `install_consumer_test.sh` | ✅ PASS | check_install [BOUNDARY-OK] PASS (SceneBuilder rewrite fixed black PNG). check_text [TEXT-OK] PASS (anti-false-green 6100/230400 delta pixels). Text Export V1 certified. |
 | 11 | `check_backend_sanitization.py` | ✅ PASS | |
 
 AE parity golden checker: GATE_PASS (23/23 fresh). Suite AE_CAM: 35/35 PASS, 142/142 assertions.

@@ -113,7 +113,7 @@ per pipeline video automatizzate.
 7. Verificare 24/30/60 fps e determinismo seriale/parallelo.
 8. ~~Esporre esempi pubblici tramite `Chronon3D::SDK`.~~ **DONE** — Text Export V1 certificato (vedi sotto).
 
-### Text Export V1 — CERTIFICATO ✅ (2026-07-10, `main@be14bc7a`)
+### Text Export V1 — CERTIFICATO ✅ (2026-07-10, `main@3fa5880f`)
 
 > **Definizione:** Un progetto esterno installa Chronon3D, crea testo da una stringa,
 > carica un font controllato e produce glifi visibili e deterministici senza utilizzare
