@@ -377,13 +377,11 @@ TEST_CASE("TextRunShape: hash changes with different paint") {
 }
 
 TEST_CASE("TextRunShape: hash with null layout") {
+    // F0.4 — default-constructed TextRunShape has null layout + empty glyphs.
+    // Explicit `layout = nullptr` is no longer allowed (invariant: non-empty
+    // shapes must have a valid layout).
     TextRunShape a;
-    a.layout = nullptr;
-    a.glyphs = {};
-
     TextRunShape b;
-    b.layout = nullptr;
-    b.glyphs = {};
 
     CHECK(hash_text_run_shape(a) == hash_text_run_shape(b));
 }

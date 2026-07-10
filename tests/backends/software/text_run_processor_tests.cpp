@@ -91,8 +91,9 @@ TextRunShape make_test_shape(const std::string& text = "ABC") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextRunBBox: empty shape returns zero bbox") {
+    // F0.4 — default-constructed TextRunShape (null layout + empty glyphs)
+    // is the canonical way to represent an empty text run.
     TextRunShape shape;
-    shape.layout = nullptr;
     Mat4 identity{1.0f};
     auto bbox = compute_text_run_world_bbox(shape, identity, 0.0f);
     CHECK(bbox.x0 == 0);

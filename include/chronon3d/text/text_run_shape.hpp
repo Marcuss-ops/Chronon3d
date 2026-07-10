@@ -74,7 +74,19 @@ namespace chronon3d {
 // → text_animator_property.hpp → glyph_selector.hpp → animated_value.hpp
 // → fill_style.hpp (circular!).
 
+// F0.4 — layout-null invariant:
+//   - Default-constructed TextRunShape has layout == nullptr (empty shape).
+//   - A shape with non-empty glyphs MUST have a valid (non-null) layout.
+//   - Explicit `shape.layout = nullptr` is forbidden on populated shapes.
+//   - The renderer and compositor both guard on `layout != nullptr` as a
+//     short-circuit for empty runs; this is correct for the default state.
+//
+// Enforcement: the explicit default constructor documents that null-layout
+// is the canonical empty state.  A future private-layout refactor (F4+) will
+// add runtime assertion on set_layout().
 struct TextRunShape {
+    TextRunShape() = default;
+
     SharedTextRunLayout layout;                  // immutable layout (shared across frames)
     std::vector<GlyphInstanceState> glyphs;       // per-glyph animated state
 
