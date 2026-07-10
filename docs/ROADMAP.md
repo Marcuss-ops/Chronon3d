@@ -488,6 +488,56 @@ V3 è una futura evoluzione interna. Non deve interrompere la chiusura di Text,
 Camera e SDK V1 né introdurre una pipeline parallela prima che i contratti V1
 siano verificati.
 
+## M1.8 — Text Simplicity (Remotion-like Ergonomics) (PLANNED)
+
+> **Origine:** sessione 2026-07-10. Piano dettagliato per raggiungere l'ergonomia di Remotion
+> mantenendo headless, CPU-first, deterministico, server-side, senza browser.
+> Piano operativo completo: [`docs/TEXT_SIMPLICITY_ACTION_PLAN.md`](docs/TEXT_SIMPLICITY_ACTION_PLAN.md).
+> Regola operativa: commit atomici su `main`, nessuna branch, push frequente.
+
+### Obiettivo
+
+Rendere il testo Chronon3D semplice quanto Remotion: un titolo centrato in < 10 righe,
+un'animazione in < 5 righe, diagnostica visuale con un comando CLI.
+
+### Fasi (17 commit totali)
+
+| Fase | Area | Ticket | Stato |
+|---|---|---|---|
+| 1A | ADR Coordinate Model (Canvas/Layer/Box/Glyph) | TICKET-SIMPLICITY-COORDINATES | PLANNED |
+| 1B | Placement Resolver Unico | TICKET-SIMPLICITY-PLACEMENT-RESOLVER | PLANNED |
+| 1C | Fallback Conservativo BBox | TICKET-SIMPLICITY-CONSERVATIVE-BBOX | PLANNED |
+| 1D | FontEngine Automatico | TICKET-SIMPLICITY-AUTO-FONT | PLANNED |
+| 1E | Contratto Visibilità Automatico | TICKET-SIMPLICITY-VISIBILITY-CONTRACT | PLANNED |
+| 2A | TextDefinition Canonica | TICKET-SIMPLICITY-TEXTDEFINITION | PLANNED |
+| 2B | Simple API Builder | TICKET-SIMPLICITY-BUILDER | PLANNED |
+| 2C | text()/text_run() come Adapter | TICKET-SIMPLICITY-ADAPTERS | PLANNED |
+| 2D | Migrazione Composizioni | TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS | PLANNED |
+| 3A | Animation Helpers (interpolate/spring/sequence) | TICKET-SIMPLICITY-ANIMATION | PLANNED |
+| 3B | Placement Leggibili + Safe Areas | TICKET-SIMPLICITY-PLACEMENT | PLANNED |
+| 3C | Preset Riutilizzabili (5 preset) | TICKET-SIMPLICITY-PRESETS | PLANNED |
+| 4A | Pipeline Parity (render/video/CLI) | TICKET-SIMPLICITY-PIPELINE-PARITY | PLANNED |
+| 4B | CLI inspect-text (JSON diagnostic) | TICKET-SIMPLICITY-INSPECT-TEXT | PLANNED |
+| 4C | Diagnostic Overlay (visual bbox PNG) | TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY | PLANNED |
+| 5A | Deprecazioni Graduali | TICKET-SIMPLICITY-DEPRECATION | PLANNED |
+| 5B | Documentazione Copy-Paste First | TICKET-SIMPLICITY-DOCS | PLANNED |
+
+### Gate di uscita
+
+- titolo centrato < 10 righe;
+- animazione opacity < 5 righe;
+- `inspect-text` diagnostica PASS/FAIL;
+- 5 preset stabili con golden frame;
+- pipeline parity ≤ 2px differenza;
+- zero API deprecate nelle composizioni;
+- documentazione quickstart con 10 esempi.
+
+### Non-goal M1.8
+
+- Text 3D, MSDF, morph avanzato, ICU globale, renderer parallelo, GUI/browser, GPU obbligatoria.
+
+---
+
 ## Vincoli permanenti
 
 - non reintrodurre executor su raw graph o `ExecutionPlanCache`;

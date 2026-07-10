@@ -68,6 +68,31 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 - Raw analysis data: `/tmp/runs_50.json` (50 most recent runs, fetch via `curl -sS 'http://127.0.0.1:8000/api/runs?limit=50'`)
 - Cross-link: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) entry "perf(telemetry): /api/runs server-side pagination" (commit `1ea01eb7`) — the endpoint that enabled this analysis
 - 5/5 shared root cause: tutti `composition_id=AECameraTextParity` + `cache_hits=7, cache_misses=19` (27% hit rate, anomalo) + byte-identical `dirty_pixels=33,177,600` + `framebuffer_bytes_peak=726,073,344`
+## M1.8 Text Simplicity — Remotion-like Ergonomics (PLANNED)
+
+> **Origine:** sessione 2026-07-10. Piano operativo completo: [`docs/TEXT_SIMPLICITY_ACTION_PLAN.md`](docs/TEXT_SIMPLICITY_ACTION_PLAN.md).
+> Regola: commit atomici su `main`, nessuna branch, 17 commit totali in 5 fasi.
+
+| ID | Pri | Area | Stato | Blocca |
+|---|---|---|---|---|
+| TICKET-SIMPLICITY-COORDINATES | P0 | ADR Coordinate Model (Canvas/Layer/Box/Glyph) | PLANNED | Text V1 — prerequisite per tutti gli altri |
+| TICKET-SIMPLICITY-PLACEMENT-RESOLVER | P0 | Placement Resolver Unico | PLANNED | Text V1 + TICKET-TEXT-CLIP-PREDICTED-BBOX |
+| TICKET-SIMPLICITY-CONSERVATIVE-BBOX | P0 | Fallback Conservativo BBox | PLANNED | Text V1 — 19px sliver regression |
+| TICKET-SIMPLICITY-AUTO-FONT | P0 | FontEngine Automatico | PLANNED | Text V1 — zero manual FontEngine* |
+| TICKET-SIMPLICITY-VISIBILITY-CONTRACT | P0 | Contratto Visibilità Automatico | PLANNED | Text V1 — zero false-negative invisibilità |
+| TICKET-SIMPLICITY-TEXTDEFINITION | P1 | TextDefinition Canonica | PLANNED | Text V1 — unica rappresentazione interna |
+| TICKET-SIMPLICITY-BUILDER | P1 | Simple API Builder (.text().content().place()) | PLANNED | Text V1 + TICKET-SIMPLICITY-TEXTDEFINITION |
+| TICKET-SIMPLICITY-ADAPTERS | P1 | text_run/centered_text/glow_text → adapter | PLANNED | Text V1 + TICKET-SIMPLICITY-BUILDER |
+| TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS | P1 | Migrazione composizioni al builder | PLANNED | Text V1 + TICKET-SIMPLICITY-ADAPTERS |
+| TICKET-SIMPLICITY-ANIMATION | P1 | Animation helpers (interpolate/spring/sequence) | PLANNED | Text V1 — frame-driven animation |
+| TICKET-SIMPLICITY-PLACEMENT | P1 | Placement leggibili + safe areas | PLANNED | Text V1 + TICKET-SIMPLICITY-COORDINATES |
+| TICKET-SIMPLICITY-PRESETS | P1 | 5 preset riutilizzabili con golden | PLANNED | Text V1 + TICKET-SIMPLICITY-BUILDER |
+| TICKET-SIMPLICITY-PIPELINE-PARITY | P1 | Pipeline parity (render/video/CLI) | PLANNED | Text V1 — max 2px differenza |
+| TICKET-SIMPLICITY-INSPECT-TEXT | P1 | CLI inspect-text (JSON diagnostic) | PLANNED | Text V1 — diagnostica headless |
+| TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY | P2 | Diagnostic overlay (visual bbox PNG) | PLANNED | Text V1 + TICKET-SIMPLICITY-INSPECT-TEXT |
+| TICKET-SIMPLICITY-DEPRECATION | P2 | Deprecazioni graduali API legacy | PLANNED | Text V1 + TICKET-SIMPLICITY-ADAPTERS |
+| TICKET-SIMPLICITY-DOCS | P2 | Documentazione copy-paste first | PLANNED | Text V1 + TICKET-SIMPLICITY-BUILDER |
+
 ## M1.7 Sequence + Asset Readiness
 
 | ID | Pri | Stato |
