@@ -16,6 +16,33 @@
 
 ---
 
+## Luglio 2026 — Phase A.3 TextDefinition Effects + Animation (2026-07-10, atomic commit)
+
+### feat(text): Phase A.3 — populate TextEffects + TextAnimation structs
+
+- **TextEffects (11 fields)** — compositor-level decorator surface:
+  - `enabled` master switch (opt-out by default)
+  - Glow: color, radius, intensity
+  - Bevel: px, highlight_opacity, highlight_color, shadow_opacity
+  - Blur: radius, strength
+  - Intentional subset of [TextMaterial](include/chronon3d/text/text_material.hpp) per AGENTS.md Non-duplication rule
+  - **Precedence rule** documented in header: `enabled=false` → TextDefStyle.material is canonical; `enabled=true` → def.effects wins (compositor override). This split lets `glow_text()` keep populating TextDefStyle.material without touching TextEffects.
+- **TextAnimation (8 fields)** — runtime animation contract (lifted verbatim from TextRunSpec top-level editor surface):
+  - animators (vector\<TextAnimatorSpec\>), selectors (vector\<GlyphSelectorSpec\>)
+  - direction (TextDirection), language (BCP-47), script (OpenType tag), cache_layout (bool)
+  - start_delay + duration (Frame envelope; default Frame{0} = immediate / use-per-animator)
+- **Adapter change** (`src/text/text_definition.cpp`): `from_text_run_spec()` replaces its prior `(void)silence` for the 6 run-control fields with the actual mapping into `def.animation`. start_delay + duration have no TextRunSpec source → default to Frame{0}.
+- **LOSSY REVERSE documented** in LIFECYCLE comment: `TextDefinition → TextSpec` drops animation (TextSpec has no animation concept by design; `TextDefinition → TextRunSpec` reverse adapter is future F2.D milestone).
+- **Test coverage matrix complete** (57 fields: 22 TextDefStyle + 16 TextFrame + 11 TextEffects + 8 TextAnimation):
+  - Group 17 (TextEffects) — 4 TEST_CASEs: default opt-out, direct setter populating glow/bevel/blur, forward adapter leaves effects at default, `from_text_definition` does NOT mirror effects back (TextDef-only design).
+  - Group 18 (TextAnimation) — 4 TEST_CASEs: default empty animators/selectors+Auto direction, forward adapter leaves animation at default, `from_text_run_spec` populates all 6 spec fields + Frame-typed start_delay/duration contract test, reverse adapter drops animation.
+  - Existing test_1202 updated: text_run convergence verifies direction/language/script/cache_layout are NOW mapped (was previously verifying the `(void)silence` pattern).
+- **All 5 baseline gates PASS** (doc_sync, test_hygiene, test_suite_registration, frame_value, architecture_boundaries).
+- **Text Simplicity Action Plan**: Phase A.3 complete (the 2 placeholder actions blocked by F2.A placeholders now DONE).
+- **Cross-references**: [`include/chronon3d/text/text_definition.hpp`](include/chronon3d/text/text_definition.hpp); [`src/text/text_definition.cpp`](src/text/text_definition.cpp); [`tests/text/test_text_definition.cpp`](tests/text/test_text_definition.cpp).
+
+---
+
 ## Luglio 2026 — TICKET-SIMPLICITY-PIPELINE-PARITY: empirical verification (2026-07-10)
 
 ### test(parity): PIPELINE-PARITY — 3-layer verification (code audit + Python field audit + CLI render parity)
