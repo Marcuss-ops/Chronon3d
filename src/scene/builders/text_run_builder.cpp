@@ -2,6 +2,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 
 #include <chronon3d/text/text_run_driver.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
 // TICKET-100 — route the legacy materialize_text_run_shape pipeline through
 // compile_text_layout.  Single canonical TextRunLayout compiler lives in
 // src/text/text_run_builder.cpp; we include it here so the materializer
@@ -324,16 +325,42 @@ LayerBuilder& TextRunBuilder::commit() {
 
 namespace text_run_materialize_detail {
 
-/// WP-8 PR 8.0 — resolver is now REQUIRED at the per-spec override
-/// (`PendingTextRun.font_engine`) or per-layer default
-/// (`LayerBuilder.m_font_engine`).  Returns `preferred` if non-null and
-/// nullptr otherwise; the legacy `&shared_font_engine()` fallback has
-/// been REMOVED in PR 8.0 — production code paths must supply a
-/// `FontEngine*` bound to an explicit `AssetResolver&` either at the
-/// per-spec override (PendingTextRun.font_engine) or at the per-layer
-/// default (LayerBuilder::m_font_engine).
+/// F1.D — FontEngine Automatico: process-wide fallback.
+///
+/// Returns `preferred` if non-null.  When null (CLI still render, precomp
+/// nodes, text audit, or any path without a SoftwareRenderer), falls back
+/// to a lazy process-wide FontEngine backed by a default AssetResolver.
+///
+/// The fallback resolver is UNMOUNTED (no assets root), so only absolute
+/// font paths or system-installed fonts resolve.  Callers that need
+/// relative-path resolution must supply a FontEngine* bound to an
+/// explicit AssetResolver via PendingTextRun.font_engine or
+/// LayerBuilder::m_font_engine.  This fallback prevents the hard
+/// "no FontEngine available → renders blank" failure mode.
 [[nodiscard]] FontEngine* resolve_engine(FontEngine* preferred) {
-    return preferred;
+    if (preferred) return preferred;
+
+    // Lazy process-wide fallback: one FontEngine + AssetResolver per
+    // process, constructed on first use.  Thread-safe via C++11 magic
+    // statics.  The resolver is unmounted — absolute paths and system
+    // fonts work; relative paths under an assets_root do not (callers
+    // needing that must wire an explicit FontEngine).
+    static assets::AssetResolver s_fallback_resolver;
+    static FontEngine s_fallback_engine(s_fallback_resolver);
+
+    // One-shot warning: log once per process lifetime to avoid spamming
+    // on every text-run materialization in a composition without an
+    // explicit FontEngine.
+    static bool s_warned = false;
+    if (!s_warned) {
+        s_warned = true;
+        spdlog::warn(
+            "resolve_engine: no FontEngine provided — using process-wide "
+            "fallback (unmounted resolver; only absolute font paths work). "
+            "Wire a FontEngine* via SceneBuilder::font_engine() or "
+            "LayerBuilder::font_engine() for full asset resolution.");
+    }
+    return &s_fallback_engine;
 }
 
 } // namespace text_run_materialize_detail
@@ -602,17 +629,10 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
     }
 
     FontEngine* use_engine = resolve_engine(engine);
-    if (!use_engine) {
-        spdlog::error(
-            "materialize_text_run_shape: no FontEngine available — "
-            "text_run '{}' (no resolver bound) will render blank.  "
-            "WP-8 PR 8.0: caller must supply a FontEngine* bound to an "
-            "explicit AssetResolver via PendingTextRun.font_engine or "
-            "LayerBuilder.m_font_engine.",
-            text
-        );
-        return nullptr;
-    }
+    // F1.D: resolve_engine() now guarantees non-null via fallback.
+    // The old null-check + spdlog::error + return nullptr block was removed
+    // because the fallback engine is always valid (unmounted resolver works
+    // for absolute paths and system fonts).
 
     // ── Delegate 5 pipeline phases to compile_or_cache_layout ──────
     // TICKET-100 — the legacy inline cache/shape/placed/build/store
