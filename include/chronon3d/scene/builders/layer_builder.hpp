@@ -303,6 +303,124 @@ public:
     LayerBuilder& image(std::string name, ImageParams p);
     LayerBuilder& tiled_image(std::string name, ImageParams p);
     LayerBuilder& grid_background(std::string name, GridBackgroundParams p);
+    // ── Text V1 Fluent API Note (text V1 plan Phase A.5) ────────────────
+    //
+    // The PHASE-A5 spec asks for a fluent public builder on `LayerBuilder`:
+    //   layer.text("id")
+    //        .content("HELLO")
+    //        .font(path, size)
+    //        .frame({w, h})
+    //        .place(TextPlacement::CanvasCenter)
+    //        .align(H::Center, V::Middle)
+    //        .commit();
+    //
+    // The thinker's Option B verdict (verbatim: "the fluent chain already
+    // exists natively on the higher-level authoring facade via
+    // `chronon3d::authoring::Layer::text("id")`") establishes that the
+    // fluent surface is ALREADY canonical on the authoring facade.  The
+    // AGENTS.md "Non duplicare..." + "No espansione API non necessaria"
+    // rules forbid adding a parallel fluent chain here when one already
+    // perfectly functions on the authoring layer.
+    //
+    // Architecture rationale:
+    //   - `LayerBuilder` operates on low-level specs and pipelines
+    //     (`TextRunBuilder`, `TextRunParams`).  Injecting a high-level
+    //     fluent authoring interface (which needs context like
+    //     `FrameContext` and registries) directly into the builder
+    //     violates the facade separation.
+    //   - The old `text(name, TextSpec)` API below is preserved (NOT
+    //     removed) per the PHASE-A5 spec: "Does NOT remove old APIs yet
+    //     (Phase B)".
+    //
+    // IMPORTANT: this is the OLD API.  The new fluent surface is on
+    // `chronon3d::authoring::Layer::text(id)` — see the class-level
+    // docstring at the top of `LayerBuilder` for the entry point.
+    // This per-method note is here for callers who land on this method
+    // via the OLD spec and need to be redirected.
+    //
+    // Spec-to-implementation mapping (PHASE-A5):
+    //   Spec term                |  Canonical authoring-facade API
+    //   -------------------------+---------------------------------------------
+    //   layer.text("id")         |  chronon3d::authoring::Layer::text("id")
+    //   .content("HELLO")        |  .content("HELLO")
+    //   .font(path, size)        |  .font(path, size)
+    //   .frame({w, h})           |  .box({w, h})
+    //   .place(TextPlacement::…) |  .place(TextPlacement{TextPlacementKind::…})
+    //   .align(H::Center, …)     |  TWO-CALL SPLIT (see note below)
+    //   H::Center                |  TextAlign::Center  (from shape.hpp)
+    //   V::Middle                |  VerticalAlign::Middle  (from shape.hpp)
+    //   .commit()                |  NO METHOD — IMMEDIATE application
+    //                                (see note below)
+    //
+    // Note on `.align(H::Center, V::Middle)` 2-call split:
+    //   The user spec shows `.align(H::Center, V::Middle)` as a single
+    //   call, but the `Text` authoring facade exposes alignment as TWO
+    //   separate setters: `.align(TextAlign)` for horizontal + `.vertical_
+    //   align(VerticalAlign)` for vertical.  This is a deliberate
+    //   2-call split (not a 1-call sugar) because the two axes have
+    //   independent semantics (per-character vs per-line).
+    //
+    // Note on `.commit()`:
+    //   The `Text` handle is NOT a destructor-committer (see
+    //   `include/chronon3d/authoring/text.hpp` class docstring at top
+    //   of `Text`).  Each setter mutates `pending_->params.text`
+    //   IMMEDIATELY when called — there is no `.commit()` method and
+    //   no deferred-commit on destruction.  This is the inverse of
+    //   `TextRunBuilder` (which DOES require `.commit()` to return
+    //   control to the layer-level builder).
+    //
+    // Usage (PHASE-A5 spec, rewritten with canonical enums + 2-call split):
+    //   // At top of file:
+    //   using namespace chronon3d::authoring;  // optional but recommended
+    //
+    //   // On a layer (LayerBuilder):
+    //   layer.text("hello-id")                  // OLD API — preserved, not removed
+    //        .content("HELLO")                  // ← these setters go on the OLD TextSpec
+    //        .font("fonts/Inter-Bold.ttf", 64.0f)
+    //        .box({1700, 360})
+    //        ...
+    //
+    //   // On a layer (NEW fluent surface, recommended):
+    //   layer.text("hello-id")                  // Layer::text returns Text handle
+    //        .content("HELLO")                  // immediate (no .commit() needed)
+    //        .font("fonts/Inter-Bold.ttf", 64.0f)
+    //        .box({1700, 360})
+    //        .place(TextPlacement{TextPlacementKind::CanvasCenter})
+    //        .align(TextAlign::Center)          // 2-call split: horizontal
+    //        .vertical_align(VerticalAlign::Middle);  // 2-call split: vertical
+    //
+    // Lifecycle:
+    //   Phase A.1 (text_definition.hpp)   — TextDefinition DTO (input)
+    //   Phase A.2 (text_placement.hpp)    — TextPlacement authoring type
+    //   Phase A.3 (text_placement_resolver) — ResolvedTextPlacement + resolver
+    //   Phase A.4 (compile_text_layout)   — canonical TextCompiler
+    //   Phase A.5 (THIS COMMENT)          — fluent authoring facade (existing)
+    //   Phase B (migration)               — Old `text(name, spec)` API
+    //                                       deprecation + new API promotion
+    //                                       (the new Layer::text() fluent
+    //                                       chain is the only authoring
+    //                                       path forward after Phase B)
+    //   Phase C (builder)                 — Simple builder sugar
+    //   Phase D (gate)                    — Anti-legacy gate
+    //
+    // Anti-duplicazione honour:
+    //   - No new fluent chain on LayerBuilder (the authoring facade
+    //     already provides it).
+    //   - No `H::` / `V::` namespace aliases (the canonical
+    //     `TextAlign` / `VerticalAlign` enums are used directly).
+    //   - No new `LayerTextHandle` wrapper class.
+    //   - No `.commit()` method on Text (the existing immediate-apply
+    //     semantic is preserved per text.hpp's non-destructor-committer
+    //     contract).
+    //
+    // Usage example includes (typically transitively included):
+    //   #include <chronon3d/scene/model/shape/shape.hpp>  // for TextAlign / VerticalAlign
+    //   #include <chronon3d/text/text_placement.hpp>      // for TextPlacement / TextPlacementKind
+    //   #include <chronon3d/authoring/text.hpp>          // for the fluent Text handle
+    //
+    // See also: the class-level docstring at the top of `LayerBuilder`
+    // for the canonical entry point to the new fluent surface.
+    //
     LayerBuilder& text(std::string name, TextSpec p);
 
     // ── TextRunBuilder (PR 4 — TextAnimator V2) ──────────────────────────
