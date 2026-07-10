@@ -50,6 +50,18 @@ target_sources(chronon3d_text_golden_tests
         text_golden/user_spec/12_anim_framerate_determinism.cpp
 )
 
+# F3.C — 5 reusable TextDefinition preset golden tests.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/presets/test_text_presets_golden.cpp
+)
+add_test(
+    NAME TextPresetsGolden
+    COMMAND chronon3d_text_golden_tests "--test-case=F3.C Presets:*"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(TextPresetsGolden PROPERTIES LABELS "text;golden;presets;f3c")
+
 # ADR-015 (TICKET-AE-PARITY-SUITE) — 5 cinematic AE-parity scene-builders.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
