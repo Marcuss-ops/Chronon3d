@@ -1,12 +1,13 @@
 #pragma once
 
 #include <chronon3d/core/types/time.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>  // WP-9 PR 9.0 — full def for font_engine_or_null()
 #include <algorithm>
 #include <memory_resource>
 #include <string>
 
 namespace chronon3d {
-namespace runtime { class RenderRuntime; }  // WP-9 PR 9.0 — forward decl for ctx.runtime
+// (RenderRuntime is now fully included — forward decl removed)
 class AssetRegistry;  // forward declaration for migration path
 class FontEngine;     // TICKET-A4 follow-up — codex/agent2-font-bind-fixes:
                       // WP-8 PR 8.0 strict binding means composition
