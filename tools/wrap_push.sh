@@ -190,6 +190,17 @@ echo "wrap_push.sh: checking Frame::value canonical-reading convention (TICKET-1
 bash "${SCRIPT_DIR}/check_frame_value_convention.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_frame_value_convention.sh (exit $?)" >&2; exit 1; }
 
+# TICKET-CHANGELOG-CONFLICT-CLEANUP — pre-push CHANGELOG conflict-marker
+# detector. Prevents recurrence of the f5551a13 incident (failed `git merge`
+# of be77fbd5 F3.D committed verbatim with `<<<<<<<` / `=======` / `>>>>>>>`
+# markers in docs/CHANGELOG.md; the broken state persisted in main for ~10
+# commits before commit 5efcc301 resolved it as a side effect).  See
+# `docs/tickets/TICKET-CHANGELOG-CONFLICT-CLEANUP.md` for the full
+# forensic timeline + acceptance criteria.
+echo "wrap_push.sh: checking CHANGELOG for unresolved git conflict markers (TICKET-CHANGELOG-CONFLICT-CLEANUP)..."
+bash "${SCRIPT_DIR}/check_no_changelog_conflict_markers.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_no_changelog_conflict_markers.sh (exit $?)" >&2; exit 1; }
+
 # ── Step 5: forward to git push ───────────────────────────────────────────
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
 exec git push "$@"
