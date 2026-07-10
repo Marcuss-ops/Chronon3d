@@ -193,7 +193,8 @@ bool VideoSinkEncoderAdapter::open(const FfmpegPipeOptions& options) {
 
     // ── Open sink ──────────────────────────────────────────────────────
     if (!sink_->open(config)) {
-        spdlog::error("[video_adapter] sink->open() failed");
+        spdlog::error("[video_adapter] sink->open() failed: {} — {}",
+                      to_string(sink_->last_error()), sink_->last_error_message());
         sink_.reset();
         return false;
     }
@@ -323,8 +324,9 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
     const auto submit_t1 = std::chrono::steady_clock::now();
 
     if (!ok) {
-        spdlog::error("[video_adapter] sink->submit() failed at frame {}",
-                      frames_written_);
+        spdlog::error("[video_adapter] sink->submit() failed at frame {}: {} — {}",
+                      frames_written_,
+                      to_string(sink_->last_error()), sink_->last_error_message());
         return false;
     }
 
@@ -375,12 +377,14 @@ bool VideoSinkEncoderAdapter::close() {
 
     bool flush_ok = sink_->flush();
     if (!flush_ok) {
-        spdlog::warn("[video_adapter] sink->flush() reported failure");
+        spdlog::warn("[video_adapter] sink->flush() reported failure: {} — {}",
+                      to_string(sink_->last_error()), sink_->last_error_message());
     }
 
     bool close_ok = sink_->close();
     if (!close_ok) {
-        spdlog::error("[video_adapter] sink->close() failed");
+        spdlog::error("[video_adapter] sink->close() failed: {} — {}",
+                      to_string(sink_->last_error()), sink_->last_error_message());
     }
 
     const auto close_t1 = profiling::now();

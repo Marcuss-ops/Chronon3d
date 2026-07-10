@@ -76,6 +76,10 @@ public:
         };
     }
 
+    // ── Structured error reporting (P1-C) ──────────────────────────
+    [[nodiscard]] VideoSinkError last_error() const noexcept override { return last_error_; }
+    [[nodiscard]] std::string last_error_message() const noexcept override { return last_error_msg_; }
+
 private:
     // ── Subprocess management ──────────────────────────────────────────
 
@@ -115,6 +119,10 @@ private:
     /// Per-frame write deadline (from config.transport.write_timeout).
     /// 0ms = no timeout (blocking write).
     std::chrono::milliseconds write_timeout_{30000};
+
+    /// Structured error state (P1-C).
+    VideoSinkError last_error_{VideoSinkError::None};
+    std::string    last_error_msg_;
 };
 
 } // namespace chronon3d::media::video

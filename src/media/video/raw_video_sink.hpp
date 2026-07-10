@@ -82,6 +82,15 @@ private:
     /// Validate that a frame matches the session contract.
     /// Returns true if valid; sets state to Failed and returns false otherwise.
     bool validate_frame_match(int width, int height, PixelFormat fmt) noexcept;
+
+    /// Structured error state (P1-C).
+    VideoSinkError last_error_{VideoSinkError::None};
+    std::string    last_error_msg_;
+
+public:
+    // ── Structured error reporting (P1-C) ──────────────────────────
+    [[nodiscard]] VideoSinkError last_error() const noexcept override { return last_error_; }
+    [[nodiscard]] std::string last_error_message() const noexcept override { return last_error_msg_; }
 };
 
 } // namespace chronon3d::media::video
