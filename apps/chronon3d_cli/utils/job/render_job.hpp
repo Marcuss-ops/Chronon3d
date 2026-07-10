@@ -12,7 +12,9 @@
 
 namespace chronon3d::cli {
 
-struct RenderJobPlan {
+// D1 — [[deprecated]]: use chronon3d::RenderJob from
+// <chronon3d/timeline/render_job.hpp> instead.
+struct [[deprecated("Use chronon3d::RenderJob from timeline/render_job.hpp")]] RenderJobPlan {
     FrameRange range;
     std::shared_ptr<Composition> comp;
     std::string comp_id;

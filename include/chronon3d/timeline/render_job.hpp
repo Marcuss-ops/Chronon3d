@@ -1,85 +1,157 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// timeline/render_job.hpp — D1: unified render job descriptor.
+//
+// Replaces the pre-D1 split (cli::RenderJobPlan for render/still +
+// cli::VideoJobPlan for video + separate command paths) with a single
+// canonical RenderJob type covering all three render modes.
+//
+//   RenderMode::Still    — single frame to PNG
+//   RenderMode::Sequence — frame range to image sequence
+//   RenderMode::Video    — frame range encoded to video
+//
+// The CLI converts its args (RenderArgs / StillArgs / VideoArgs) into
+// a RenderJob and calls a single executor — no second orchestration.
+//
+// Per-frame execution state (RenderSession, CameraSession) is kept
+// separate from the job descriptor to preserve copy semantics.
+// ═══════════════════════════════════════════════════════════════════════════
+
 #pragma once
 
-// ============================================================================
-// include/chronon3d/timeline/render_job.hpp
-//
-// P3-C (V0.2 timeline staging) — `RenderJob` lives NEXT to the legacy
-// `Composition` class.  It formalises the V2 per-frame orchestration payload:
-//     RenderSession + CameraSession + RenderDiagnostics
-//
-// The new `RenderDiagnostics` struct is INTRODUCED in this commit (it's not
-// a legacy alias).  It is deliberately a placeholder for the upcoming V2
-// diagnostics surface; fields will be added over the next few V2 PRs as
-// every legacy shared-state tracking variable in render_engine.cpp gets
-// folded into a typed observer.
-//
-// Anti-DRY note (Rule 4 ANTI_DUPLICATION_RULES):
-//   `RenderJob` is the V2 staging synonym for the per-frame coupling that
-//   today lives implicitly across `RenderEngine::Impl` + `Runtime::attach_backend`
-//   + the per-worker `CameraSessionCache`.  It is a struct, not a service;
-//   there is no `RenderJobFactory`, `RenderJobBuilder`, or `RenderJobRegistry`.
-// ============================================================================
+#include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/timeline/composition.hpp>
 
-#include <cstdint>                                                  // std::uint32_t
-
-#include <chronon3d/internal/runtime/render_session.hpp>                     // RenderSession
-#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>     // camera_v1::CameraSession
+#include <cstdint>
+#include <memory>
+#include <string>
 
 namespace chronon3d {
 
-// ─────────────────────────────────────────────────────────────────────────────
-// chronon3d::RenderDiagnostics  (P3-C placeholder)
-//
-//   V2 staging struct.  Sits NEXT to (does NOT replace) any legacy diagnostics
-//   surface (RenderDiagnostic in chronon3d::render:: is a singular internal-marker
-//   type for render-graph nodes and is intentionally NOT surfaced here \u2014 V2
-//   uses an ACCUMULATOR pattern, single-static-instance per RenderJob, which is
-//   what this struct will eventually hold).
-//
-//   `version` \u2014 monotonically-incrementing schema tag for the V2 diagnostics
-//             shape.  Bumped per V2 field-add so consumers can gate against
-//             stale assumptions.
-//
-// Placeholder fields will be added in subsequent V2 PRs:
-//     - frame_timings                  (per-stage stopwatch row)
-//     - cache_stats                     (compile + per-hit/per-miss counters)
-//     - camera_program_session_view     (per-worker checkpoint ids)
-//     - composition_dispatch_trace      (event log of composition dispatch decisions)
-// ─────────────────────────────────────────────────────────────────────────────
+// ── RenderMode ─────────────────────────────────────────────────────────
+
+enum class RenderMode : std::uint8_t {
+    Still    = 0,  // single frame → image file
+    Sequence = 1,  // frame range → image sequence
+    Video    = 2,  // frame range → video encode
+};
+
+// ── VideoSettings ──────────────────────────────────────────────────────
+
+/// Video-specific parameters folded into the unified RenderJob.
+/// System-local config (ffmpeg path, pipe mode) lives outside the job.
+struct VideoSettings {
+    int         fps{30};
+    int         crf{16};
+    std::string codec{"auto"};
+    std::string encode_preset{"slow"};
+    std::string tune;
+    bool        keep_frames{false};
+    std::string frames_dir;
+    int         chunks{1};
+};
+
+// ── RenderDiagnostics (V2 placeholder, unchanged from P3-C) ────────────
+
 struct RenderDiagnostics {
     std::uint32_t version{0};
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// chronon3d::RenderJob
-//
-//   V2 staging struct.  Sits NEXT to (does NOT replace) anything; it is the
-//   per-frame orchestration payload that the future V2 render driver will
-//   assemble once per frame, then route through `RenderEngine::Impl`.
-//
-//   * `render_session`  \u2014 the per-call `RenderSession` (lifetime bound to one
-//                          frame); engines borrow services from the runtime,
-//                          the session owns the per-call state.
-//   * `camera_session`  \u2014 the per-call `camera_v1::CameraSession` (per-worker
-//                          from `CameraSessionCache::acquire(...)`).
-//   * `diagnostics`     \u2014 the per-call `RenderDiagnostics` accumulator (V2
-//                          staging placeholder; see comment above).
-//
-//   Move-only contract:  `RenderSession` contains `unique_ptr` fields
-//   (`FrameArena`, `SceneProgramStore`, …); embedding it by value makes
-//   `RenderJob` itself MOVE-ONLY.  Copy is deleted to surface the move-only
-//   intent at the API level rather than papering over it.
-// ─────────────────────────────────────────────────────────────────────────────
-struct RenderJob {
-    RenderSession                       render_session{};
-    camera_v1::CameraSession            camera_session{};
-    RenderDiagnostics                   diagnostics{};
+// ── RenderJob — canonical unified render descriptor ───────────────────
 
-    RenderJob() = default;
-    RenderJob(RenderJob&&) noexcept = default;
-    RenderJob& operator=(RenderJob&&) noexcept = default;
-    RenderJob(const RenderJob&) = delete;
-    RenderJob& operator=(const RenderJob&) = delete;
+/// Single job descriptor covering still, sequence, and video render.
+///
+/// Copyable value type.  Per-frame execution payload (RenderSession,
+/// CameraSession) is assembled by the executor, NOT stored here.
+///
+/// Factory conveniences:
+///   RenderJob::still("hero", Frame{42}, "hero.png")
+///   RenderJob::sequence("intro", Frame{0}, Frame{90}, "frame_%04d.png")
+///   RenderJob::video("intro", Frame{0}, Frame{90}, "intro.mp4")
+struct RenderJob {
+    // ── Identity ────────────────────────────────────────────────────
+
+    std::string                       comp_id;
+    std::shared_ptr<const Composition> comp;        // resolved from comp_id
+
+    // ── Mode + frames ───────────────────────────────────────────────
+
+    RenderMode mode{RenderMode::Still};
+    Frame      still_frame{0};            // Still mode target frame
+    Frame      first_frame{0};            // Sequence / Video start (inclusive)
+    Frame      last_frame{0};             // Sequence / Video end (inclusive)
+
+    // ── Output ──────────────────────────────────────────────────────
+
+    std::string output;                    // file path or printf pattern
+
+    // ── Settings ────────────────────────────────────────────────────
+
+    RenderSettings settings;
+    VideoSettings  video;
+
+    // ── Diagnostics ─────────────────────────────────────────────────
+
+    RenderDiagnostics diagnostics{};
+
+    // ── Factory conveniences ────────────────────────────────────────
+
+    /// Create a still-frame render job.
+    static RenderJob still(std::string id,
+                           std::shared_ptr<const Composition> c,
+                           Frame frame,
+                           std::string out) {
+        RenderJob job;
+        job.comp_id     = std::move(id);
+        job.comp        = std::move(c);
+        job.mode        = RenderMode::Still;
+        job.still_frame = frame;
+        job.output      = std::move(out);
+        return job;
+    }
+
+    /// Create an image-sequence render job.
+    static RenderJob sequence(std::string id,
+                              std::shared_ptr<const Composition> c,
+                              Frame first,
+                              Frame last,
+                              std::string out) {
+        RenderJob job;
+        job.comp_id    = std::move(id);
+        job.comp       = std::move(c);
+        job.mode       = RenderMode::Sequence;
+        job.first_frame = first;
+        job.last_frame  = last;
+        job.output     = std::move(out);
+        return job;
+    }
+
+    /// Create a video render job.
+    static RenderJob video(std::string id,
+                               std::shared_ptr<const Composition> c,
+                               Frame first,
+                               Frame last,
+                               std::string out) {
+        RenderJob job;
+        job.comp_id    = std::move(id);
+        job.comp       = std::move(c);
+        job.mode       = RenderMode::Video;
+        job.first_frame = first;
+        job.last_frame  = last;
+        job.output     = std::move(out);
+        return job;
+    }
+
+    /// Frame count (valid for Sequence and Video modes).
+    [[nodiscard]] Frame frame_count() const noexcept {
+        if (last_frame <= first_frame) return Frame{0};
+        return last_frame - first_frame + Frame{1};
+    }
+
+    /// True if the composition has been resolved.
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return comp != nullptr;
+    }
 };
 
 } // namespace chronon3d
