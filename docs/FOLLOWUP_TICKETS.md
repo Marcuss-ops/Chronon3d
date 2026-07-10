@@ -17,6 +17,8 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-005 | P1 | post-cascade cleanup | PARTIAL | gate 5 |
 | TICKET-011-i | P0 | text_unit_map impl drift | PLANNED | gate 1–8 |
 | TICKET-044 | P1 | selftest hardcoded paths | PLANNED | gate 5 |
+| TICKET-TEXT-CLIP-PREDICTED-BBOX | P0 | text compositor `predicted_bbox` (Clip 06 diagnostic) | PARTIAL | text golden cert + scene test cluster (was: scratch surface — ruled out by Clip 06) |
+| TICKET-TEXT-CLIP-GOLDENS-01-05 | P1 | text clip bounds goldens (Clip 01–05) | OPEN | text golden cert — goldens need seeding under the new code path |
 
 ---
 

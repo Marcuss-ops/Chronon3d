@@ -206,8 +206,23 @@ inline TextRunPlacement resolve_text_run_placement(
                         && needs_xform && !item.native_3d;
 
     if (use_local) {
-        out_opacity = node.world_transform.opacity;
-        return TextRunPlacement{node.world_transform.to_mat4()};
+        // TICKET-TEXT-CLIP-PREDICTED-BBOX — for use_local=true (custom
+        // layer transform like l.scale(1.30)) the placement must
+        // compose the layer's transform with the node's transform.
+        // The layer's transform encodes "translate then scale"
+        // (T(canvas_center) * S(scale)), but the user intent is
+        // "scale around canvas center".  The composition
+        //   layer_t * inverse(canvas_center) * node_t
+        // converts "translate then scale" to "scale around canvas
+        // center, then position at the (scaled) box top-left":
+        //   = T(canvas_center) * S(scale) * T(-canvas_center) * T(box_top_left)
+        // Without this conversion the 1.30× scale pushes the text
+        // to canvas (1168, 1047) (bottom-right) and the bbox is
+        // clipped to empty.
+        out_opacity = item.transform.opacity * node.world_transform.opacity;
+        Mat4 layer_t = item.transform.to_mat4();
+        Mat4 cc = implicit_canvas_center_matrix(ctx);
+        return TextRunPlacement{layer_t * glm::inverse(cc) * node.world_transform.to_mat4()};
     }
 
     // Non-local path: build item-level world matrix.
@@ -221,18 +236,17 @@ inline TextRunPlacement resolve_text_run_placement(
     Mat4 matrix = item_world * node.world_transform.to_mat4();
     out_opacity = item.transform.opacity * node.world_transform.opacity;
 
-    // Bake canvas center for centered layers.
-    //
-    // For non-modular: the source pass does NOT bake canvas center into
-    // TextRun nodes (the TextRun branch returns early before the bake).
-    // For modular: the source pass strips canvas center from item_world
-    // but does not re-apply it (same reason — TextRun returns early).
-    //
-    // In BOTH cases, the resolver must provide the final canvas-center
-    // translation so TextRunNode's draw_text_run renders at the correct
-    // canvas position.  SourceNode and MultiSourceNode handle their own
-    // canvas-center bake in the source pass; TextRunNode relies on us.
-    if (should_use_centered_rendering(item, ctx)) {
+    // TICKET-TEXT-CLIP-PREDICTED-BBOX — do NOT re-bake the canvas
+    // center for implicit-centered layers.  The strip above already
+    // removed the implicit canvas-center from item_world, and the
+    // node.world_transform is already in canvas coords.  Re-baking
+    // here would double-translate implicit-centered layers to
+    // translate(1920, 1080) and push the rendered text off-canvas
+    // at the bottom-right corner.  For non-implicit-centered
+    // layers (e.g. l.scale(1.30)) the canvas center is NOT in
+    // item.world_matrix, so we DO need to bake it here so the
+    // centered text ends up at the canvas-center position.
+    if (should_use_centered_rendering(item, ctx) && !is_implicit_2d_centering_only(item, ctx)) {
         matrix = implicit_canvas_center_matrix(ctx) * matrix;
     }
 
