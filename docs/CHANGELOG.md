@@ -1,3 +1,21 @@
+## Luglio 2026 — F3.C: 5 Reusable TextDefinition Presets with Golden Tests (2026-07-10)
+
+### feat(presets): F3.C — 5 ready-to-use TextDefinition presets with golden tests
+
+- **Header**: `include/chronon3d/presets/text_presets.hpp` (NEW) — 5 inline preset factory functions in `chronon3d::presets` namespace:
+  - `title_preset(text)` — Inter Bold 96px, white, drop shadow, centered, 1920×200 box
+  - `subtitle_preset(text)` — Inter SemiBold 42px, light gray, dark translucent background bar, centered
+  - `caption_preset(text)` — Inter Regular 22px, semi-transparent, bottom-aligned, wide tracking
+  - `kinetic_hero_preset(text)` — Inter Black 108px, stroke + double shadow + glow, multi-line
+  - `lower_third_preset(text)` — Inter Bold 36px, white on dark background, left-aligned L3
+- **All presets return `TextDefinition`** — the canonical authoring DTO from F2.A. Compose directly with `LayerBuilder::text(name, preset)` via the F2.C adapter overload.
+- **Golden tests**: `tests/text_golden/presets/test_text_presets_golden.cpp` (NEW, ~165 lines) — 5 `TEST_CASE`s, one per preset. Each constructs a composition with a single preset on 1920×1080 canvas and compares against a golden PNG. Test alias: `TextPresetsGolden` (`ctest -R TextPresetsGolden`). Golden targets: `test_renders/golden/text/f3c_*.png`.
+- **CMake**: `tests/text_golden_tests.cmake` — registered via `target_sources` + `add_test(NAME TextPresetsGolden ...)` with labels `text;golden;presets;f3c`.
+- **Code reviewer**: `TextBoxStyle` field `.background` confirmed correct from `shape.hpp:148-151`.
+- **Text Simplicity Action Plan**: F3.C complete (fifteenth of 17 actions). **Fase 3 — Ergonomia: 3/3 completata (100%)**.
+
+---
+
 ## Luglio 2026 — TICKET-SIMPLICITY-PIPELINE-PARITY: empirical verification (2026-07-10)
 
 ### test(parity): PIPELINE-PARITY — 3-layer verification (code audit + Python field audit + CLI render parity)
