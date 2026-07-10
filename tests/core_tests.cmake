@@ -298,6 +298,10 @@ chronon3d_add_test_suite(
     core/animation/test_animation_track.cpp
     core/animation/test_wiggle.cpp
     core/animation/test_sample_time.cpp
+    # P2-D — frame rate edge cases: 23.976/24/25/29.97/30/59.94/60 fps,
+    # subframe evaluation, freeze frame, reverse playback, TemporalSampleKey ticks.
+    # Core types only (FrameRate, SampleTime, TemporalSampleKey) — no video dependency.
+    core/test_frame_rate_edge_cases.cpp
     core/animation/test_temporal_spatial_curve.cpp
     core/animation/path/test_catmull_rom_path.cpp
     core/animation/path/test_spatial_bezier_path.cpp
