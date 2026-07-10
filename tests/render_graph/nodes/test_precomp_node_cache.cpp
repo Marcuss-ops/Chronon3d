@@ -67,7 +67,6 @@ Composition make_inner_comp(const char* name, int w, int h, Color color) {
 // this wiring, the PrecompNode::execute() fallback path would return an
 // empty framebuffer instead of the cached one the test expects.
 struct TestContext {
-    Config                      renderer_cfg;
     SoftwareRenderer            backend;
     std::shared_ptr<FramebufferPool> pool;
     NodeCache                   node_cache;
@@ -78,7 +77,7 @@ struct TestContext {
     RenderGraphContext          ctx;
 
     TestContext(int w = 200, int h = 200)
-        : backend(renderer_cfg)
+        : backend(test::make_renderer())
         , pool(std::make_shared<FramebufferPool>(128))
         , scheduler(SchedulerMode::Sequential, 1, false)
     {

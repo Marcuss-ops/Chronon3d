@@ -141,13 +141,15 @@ TEST_CASE("AE_CAM Sweep: 3 scenes x 3 frames produce 9 distinct NodeCacheKey + 0
                                            make_cam_zoom_only(zoom)));
     }
     // Scene B: Z-dolly axis (covers AE_CAM_04 parent_null Z-dolly).
-    for (f32 z : {-600.0f, -1000.0f, -1400.0f}) {
+    // Avoid z=-1000 which collides with Scene A's zoom=1000 (same cam state).
+    for (f32 z : {-800.0f, -1200.0f, -1600.0f}) {
         keys.push_back(make_node_cache_key(kBaseParams, kWidth, kHeight,
                                            make_cam_z_dolly(z)));
     }
     // Scene C: parent_name axis (covers AE_CAM_08-style layered +
     // AE_CAM_04 parent enable/disable variation).
-    for (const char* parent : {"", "layer_a", "layer_b"}) {
+    // Avoid empty parent which collides with Scene A/B default (same cam state).
+    for (const char* parent : {"layer_a", "layer_b", "layer_c"}) {
         keys.push_back(make_node_cache_key(kBaseParams, kWidth, kHeight,
                                            make_cam_parent_axis(std::pmr::string{parent})));
     }

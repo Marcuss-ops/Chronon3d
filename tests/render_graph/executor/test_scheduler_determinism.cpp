@@ -239,6 +239,7 @@ struct TestFixture {
         ctx.services.node_cache       = &node_cache;
         ctx.services.framebuffer_pool = fb_pool;
         ctx.services.scheduler        = &runtime_scheduler;
+        ctx.services.session          = &session;
         ctx.frame_input.width         = 320;
         ctx.frame_input.height        = 180;
         ctx.frame_input.frame         = 0;
