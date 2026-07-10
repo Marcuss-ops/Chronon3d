@@ -3,6 +3,7 @@
 #include "raw_video_sink.hpp"
 #include "ffmpeg_pipe_sink.hpp"
 
+#include <mutex>
 #include <shared_mutex>
 #include <unordered_map>
 #include <utility>
