@@ -196,10 +196,10 @@ verification path:
 ## Forward-only contract
 
 - When TICKET-CHARACTER-VALUE-RANGE-IMPL lands (new
-  `src/text/source/character_offset_evaluator.cpp` per Blocco 2
+  `src/text/source/character_offset_evaluator.cpp` per Blocco 2  <!-- drift-allow: stale-ref -->
   of `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`):
   1. Implement CharacterValue + CharacterRange in
-     `src/text/source/character_offset_evaluator.cpp`
+     `src/text/source/character_offset_evaluator.cpp`  <!-- drift-allow: stale-ref -->
   2. Wire them into the `TextAnimatorProperty` variant
      alongside `CharacterOffsetProperty`
   3. Extend `has_pre_shaping_properties` to detect them
