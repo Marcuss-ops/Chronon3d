@@ -99,8 +99,16 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // Check fonts referenced by the composition before rendering starts.
     // Missing fonts fail early with a clear error instead of crashing or
     // producing black frames.
+    //
+    // FIX #4 — Wire FontEngine into preflight evaluate().  Without the
+    // engine, materialize_text_run_shape logs "no FontEngine available"
+    // and returns nullptr, causing text shapes to be missing from the
+    // preflight scene.  The actual render path (renderer->render())
+    // correctly wires FontEngine via render_composition_frame, but the
+    // preflight was calling comp.evaluate(start) without it.
     {
-        Scene scene = comp.evaluate(start);
+        Scene scene = comp.evaluate(start, 0.0f,
+                                    &session->renderer->font_engine());
         auto preflight_result = AssetPreflightResolver::check(
             scene, session->renderer->runtime().resolver(),
             PreflightMode::FullComposition);
