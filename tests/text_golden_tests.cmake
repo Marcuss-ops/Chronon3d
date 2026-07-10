@@ -429,6 +429,24 @@ target_sources(chronon3d_text_golden_tests
         text_golden/text_multilingual/06_arabic_shaping.cpp
 )
 
+# TICKET-FASE3-MULTILINGUAL §HebrewNikud — seventh genuinely new
+# multilingual text golden.  3 TEST_CASEs × 2 ARs = 6 PNG goldens in
+# `test_renders/golden/text/text_multilingual/hebrew_nikud/`
+# (base consonants + 5 final letter forms / nikud vowels / nikud +
+# final forms combined).  Exercises HarfBuzz Hebrew shaping: 5 final
+# letter forms (כ→ך kaf, מ→ם mem, נ→ן nun, פ→ף pe, צ→ץ tsade), 6 of
+# the 10 nikud types (qamats/patach/segol/chirik/cholam/dagesh), and
+# the shin/sin dot (שׁ U+05C1) which disambiguates shin (sh) from sin
+# (s) + RTL base direction.  Depends on system font fallback (Noto
+# Serif Hebrew or Noto Sans Hebrew on Linux, New Peninim MT on macOS,
+# David CLM on Windows) — Inter-Bold does NOT contain Hebrew glyphs
+# natively.  RTL is auto-detected by HarfBuzz from the Hebrew Unicode
+# block; no explicit `TextDirection::RTL` is required.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_multilingual/07_hebrew_nikud.cpp
+)
+
 # TICKET-FASE3-MULTILINGUAL ctest aliases.
 add_test(
     NAME TextMultilingualKerningPairs
@@ -458,6 +476,11 @@ add_test(
 add_test(
     NAME TextMultilingualArabicShaping
     COMMAND chronon3d_text_golden_tests --test-case="Multilingual.ArabicShaping *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+add_test(
+    NAME TextMultilingualHebrewNikud
+    COMMAND chronon3d_text_golden_tests --test-case="Multilingual.HebrewNikud *"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
