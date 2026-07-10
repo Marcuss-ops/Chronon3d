@@ -1,3 +1,30 @@
+## Luglio 2026 — V1 cert run + baseline artifact for main@908c7034 (10/13 PASS, 3 FAIL, 1 NOT RUN) (2026-07-10, atomic commit)
+
+### docs(baseline): main@908c7034 — V1 cert run with pre-existing TICKET-FASE2 §10 build rot discovery
+
+- **Scope**: AGENTS.md §Priorità #1 "Mantenere baseline verde: 11/11 gate su ogni commit su main" — fresh machine-verification on the post-TICKET-011-Drop-+-doc-sync state. User-requested fresh cert.
+
+- **Observed state (raw, AGENTS.md §honesty, never fabricated)**:
+  - 12 fast gates run (Stage A 5 + Stage B 7): **11 PASS + 1 FAIL**.
+  - 3 heavy gates run (Stage C cmake build + Stage D ctest + Stage E install_consumer_test): **2 FAIL + 1 NOT RUN**.
+  - **Net: 10/13 PASS, 3 FAIL, 1 NOT RUN.** NOT promoted to 11/11 (would violate AGENTS.md §honesty).
+
+- **New pre-existing build rot discovered** (forward-only fix):
+  - `tests/text_golden_tests.cmake:345` `target_sources(... PRIVATE text_golden/text_transforms_animation/01_rotate_z_not_cut.cpp)` references a source file that does not exist.
+  - Per `docs/FOLLOWUP_TICKETS.md` §Fasi 1–4 cluster, TICKET-FASE2-TRANSFORMS-ANIMATION §10 spec'd this test (1st of 7 transforms/animation tests) but the source file was never written.
+  - The ctest alias `TextRotateZ` also in `text_golden_tests.cmake:354`.
+  - **Forward fix path** (out of scope this commit per AGENTS.md "Fare PR piccole e mirate"): Path α — implement `tests/text_golden/text_transforms_animation/01_rotate_z_not_cut.cpp` per TICKET-FASE2 §10 spec (3 rotations × 2 ARs = 6 PNG goldens), OR Path β — comment-out the cmake + ctest alias lines until TICKET-FASE2 commits its implementation.
+
+- **A.5 FAIL on `tools/check_main_clean.sh`**: dirty tree because cert log was dumped to `tmp/baseline-908c7034/`. **Self-inflicted**. Fixed PROACTIVELY in this same atomic commit by adding `tmp/` to `.gitignore` (canonical fix for cert log patterns; future cert runs no longer trigger the FAIL).
+
+- **Cat-3 freeze compliance**: zero new public API; gate state unchanged; only doc + gitignore evolution.
+
+- **Feature Freeze status**: unaffected. The 11/11 verde certification remains at `main@7eb5c2ba` (2026-07-06). Feature freeze revoke-clause (11/11 PASS required on same commit) is NOT met at `908c7034`, so freeze remains REVOCATO (as it was at `7eb5c2ba`) — i.e., the post-`7eb5c2ba` V0.1 work continues unimpeded. **No promotion, no regression**; this commit is a doc-only bookkeeping step in the AGENTS.md §Priorità #1 cadence.
+
+- **Cross-references**: [`docs/baselines/main-908c7034-baseline.md`](baselines/main-908c7034-baseline.md) (the primary artifact); [`tests/text_golden_tests.cmake`](../tests/text_golden_tests.cmake:343-354) (the broken cmake reference); [`docs/FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md) §Fasi 1–4 (the ticket that owns the forward fix); [`AGENTS.md`](../AGENTS.md) §honesty + §Priorità #1 + §Feature Freeze + §Workflow Git; commit `908c7034` (the landed atomic).
+
+---
+
 ## Luglio 2026 — TICKET-FASE3-MULTILINGUAL §HebrewNikud (7th multilingual golden: 3 TEST_CASEs, 6 PNG) (2026-07-10, atomic commit)
 
 ### feat(text_golden): TICKET-FASE3-MULTILINGUAL §HebrewNikud — 5 final letter forms + nikud vowels (שלום ספר ארץ בָּרָא חֶסֶד וַיֹּאמֶר שָׁלוֹם סוֹף תַּלְמִיד)
