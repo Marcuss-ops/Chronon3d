@@ -102,15 +102,12 @@ if(CHRONON3D_BUILD_DIAGNOSTICS)
         experimental/ref-2d5/reference_2_5d_suite_cards.cpp
 
         # ── AE parity stress test ──
-        # NOTE: ae_camera_text_parity.cpp is NOT inlined here.  It is
-        # already a direct source in apps/chrono3d_cli/CMakeLists.txt's
-        # add_executable(chrono3d_cli …) block, because cli_init.hpp
-        # registers its composition unconditionally (gated only by
-        # CHRONON3D_BUILD_CONTENT) and the file is needed both in the
-        # content-ON + diagnostics-OFF case and content-ON + diagnostics-ON
-        # case.  Inlining here too would create a duplicate symbol at
-        # chronon3d_cli's link step; keeping the chronon3d_cli list as
-        # the single home ensures exactly-one compilation path.
+        # Moved here from apps/chronon3d_cli/CMakeLists.txt so that the
+        # symbol is available to all targets linking chronon3d_content
+        # (not just the CLI).  animation_compositions.cpp registers
+        # ae_camera_text_parity() under #ifdef CHRONON3D_BUILD_DIAGNOSTICS,
+        # so the definition must live in the same library.
+        experimental/ae-parity/ae_camera_text_parity.cpp
 
         # ── Camera spline comparison ──
         experimental/camera-spline/camera_spline_comparison.cpp
