@@ -382,6 +382,35 @@ target_sources(chronon3d_text_golden_tests
         text_golden/text_multilingual/03_mixed_baseline.cpp
 )
 
+# TICKET-FASE3-MULTILINGUAL §HangulComposition — fourth genuinely new
+# multilingual text golden.  3 TEST_CASEs × 2 ARs = 6 PNG goldens in
+# `test_renders/golden/text/text_multilingual/hangul_composition/`
+# (simple syllables / complex syllables / real Korean word).
+# Exercises HarfBuzz Hangul syllable-decomposition shaping
+# (onset + nucleus + coda).  Depends on NotoSansCJK fallback for
+# Hangul glyphs — Inter-Bold does NOT contain Hangul natively.
+# NOTE: source registration was missing from the original cycle 4
+# commit (`5efcc301`); added in cycle 5 (this commit) to make the
+# build complete.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_multilingual/04_hangul_composition.cpp
+)
+
+# TICKET-FASE3-MULTILINGUAL §DevanagariConjuncts — fifth genuinely new
+# multilingual text golden.  3 TEST_CASEs × 2 ARs = 6 PNG goldens in
+# `test_renders/golden/text/text_multilingual/devanagari_conjuncts/`
+# (simple conjuncts / conjuncts with vowel marks / real Devanagari words).
+# Exercises HarfBuzz Devanagari shaping: virama/halant (U+094D) conjunct
+# decomposition + pre-base/post-base vowel mark positioning. Depends on
+# system font fallback (Noto Sans Devanagari on Linux, Kohinoor
+# Devanagari on macOS, Mangal on Windows) — Inter-Bold does NOT contain
+# Devanagari glyphs natively.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_multilingual/05_devanagari_conjuncts.cpp
+)
+
 # TICKET-FASE3-MULTILINGUAL ctest aliases.
 add_test(
     NAME TextMultilingualKerningPairs
@@ -395,13 +424,17 @@ add_test(
 )
 add_test(
     NAME TextMultilingualMixedBaseline
-
+    COMMAND chronon3d_text_golden_tests --test-case="Multilingual.MixedBaseline *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
 add_test(
     NAME TextMultilingualHangulComposition
     COMMAND chronon3d_text_golden_tests --test-case="Multilingual.HangulComposition *"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
-    COMMAND chronon3d_text_golden_tests --test-case="Multilingual.MixedBaseline *"
+add_test(
+    NAME TextMultilingualDevanagariConjuncts
+    COMMAND chronon3d_text_golden_tests --test-case="Multilingual.DevanagariConjuncts *"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
