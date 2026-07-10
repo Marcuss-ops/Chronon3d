@@ -1,3 +1,22 @@
+## Luglio 2026 — F2.B Simple API Builder (2026-07-10, atomic commit)
+
+### feat(authoring): F2.B — .place(TextPlacement) on Text authoring handle
+
+- **Header**: `include/chronon3d/authoring/text.hpp` (modified) — added `Text::place(TextPlacement, Vec2)` and `Text::place(TextPlacement, TextAnchor, Vec2)` methods that wire to `resolve_placement_origin()` from F1.B.
+- **Design**: pin-point semantics. `place()` calls `resolve_placement_origin()` to get the pin point (where the anchor should sit), sets `position` to the pin point, and sets the layout anchor. This matches the rendering pipeline's contract: `node.world_transform.position = spec.position` with `node.world_transform.anchor = resolve_text_anchor(anchor, box)`.
+- **API surface**:
+  - `.place(TextPlacement::CanvasCenter)` — box center = canvas center
+  - `.place(TextPlacement::TopLeft)` — box center = safe area top-left
+  - `.place(TextPlacement::SafeAreaBottom)` — box center = safe area bottom
+  - `.place(TextPlacement::Absolute({500, 300}))` — box center = (500, 300)
+  - `.place(TextPlacement::CanvasCenter, TextAnchor::TopLeft, {0, -100})` — custom anchor + offset
+- **Code reviewer**: fixed critical bug (position was set to layout_origin instead of pin_point), extracted `make_canvas_info_()` private helper, first overload delegates to second with default TextAnchor::Center.
+- **Text Simplicity Action Plan**: F2.B complete (fourth of 17 planned actions).
+- **AGENTS.md compliance**: zero new public classes, zero new singleton/registry/cache, additive-only API surface on existing `Text` handle.
+- **Cross-references**: [`include/chronon3d/authoring/text.hpp`](include/chronon3d/authoring/text.hpp); [`include/chronon3d/text/text_placement_resolver.hpp`](include/chronon3d/text/text_placement_resolver.hpp) (F1.B resolver).
+
+---
+
 ## Luglio 2026 — F1.D FontEngine Automatico (2026-07-10, atomic commit)
 
 ### feat(text): F1.D — FontEngine Automatico: process-wide fallback in resolve_engine()
