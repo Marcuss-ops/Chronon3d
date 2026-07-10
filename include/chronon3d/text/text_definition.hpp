@@ -14,9 +14,9 @@
 //                            fill in TextStyle + TextFrame with real fields
 //                            mapped from TextSpec
 //   Phase A.3 / F3.B/C     — fill in TextEffects + TextAnimation
-//   Phase B                — TextDocumentBuilder::build(const TextDefinition&)
-//                            lowers this DTO into the canonical TextDocument
-//                            pipeline model (see text_document.hpp)
+//   Phase B (implemented)   — to_text_document(const TextDefinition&) lowers
+//                            this DTO into the canonical TextDocument pipeline
+//                            model consumed by compile_text_layout()
 //
 // DO NOT USE TextDefinition IN THE RUNTIME PIPELINE.
 // The runtime pipeline consumes TextDocument (text_document.hpp), not this
@@ -221,5 +221,25 @@ struct TextDefinition {
 /// that need to bridge from the canonical DTO to the builder's TextSpec.
 /// Full implementation in src/text/text_definition.cpp (F2.C adapter phase).
 [[nodiscard]] TextSpec from_text_definition(const TextDefinition& def);
+
+/// Phase B — lower the canonical TextDefinition into a TextDocument
+/// (the runtime pipeline model consumed by compile_text_layout()).
+///
+/// Maps:
+///   - content.value → doc.utf8
+///   - style + frame + paragraph → doc.defaults (via from_text_definition)
+///   - spans (TextSpanOverride) → doc.spans (TextStyleSpan)
+///   - paragraph → split_paragraphs()
+///
+/// Callers that need a TextLayoutSpec for compile_text_layout() should also
+/// call from_text_definition() to obtain the matching TextSpec.layout.
+///
+/// Usage:
+///   TextDefinition def = centered_text(opts);
+///   TextDocument doc = to_text_document(def);
+///   TextSpec spec = from_text_definition(def);
+///   TextLayoutRequest req{&doc, &spec.layout, spec.font};
+///   auto result = compile_text_layout(req, services);
+[[nodiscard]] TextDocument to_text_document(const TextDefinition& def);
 
 } // namespace chronon3d
