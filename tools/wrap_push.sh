@@ -18,6 +18,7 @@
 #   4.5d. tools/check_no_changelog_conflict_markers.sh (TICKET-CHANGELOG-CONFLICT-CLEANUP — docs/CHANGELOG.md conflict-marker invariant)
 #   4.5e. tools/check_text_golden_sources_aligned.sh (TICKET-TEXT-GOLDEN-SOURCES-ALIGNED — text_multilingual add_test ↔ target_sources alignment)
 #   4.5f. tools/check_doc_sha_dedup.sh (TICKET-FOLLOWUP-DE-DUP-REFERENCES macchina-verifica gate -- dedup (file,sha7) pairs in `docs/adr/`; ADRs 015/016 EXEMPT). Exit 1 if non-EXEMPT count > 0.
+#   4.5g. tools/check_commit_subject_length.sh (AGENTS.md 'no cosmetic amend churn' gate -- last 10 commit subjects, 72-char envelope; char-count via awk length, NOT byte-count). Exit 1 if any over-limit.
 #   5. exec git push "$@" atomically
 #
 # Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
@@ -235,6 +236,16 @@ bash "${SCRIPT_DIR}/check_text_golden_sources_aligned.sh" \
 echo "wrap_push.sh: checking docs/adr SHA-cite dedup (TICKET-FOLLOWUP-DE-DUP-REFERENCES gate)..."
 bash "${SCRIPT_DIR}/check_doc_sha_dedup.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_doc_sha_dedup.sh (exit $?)" >&2; exit 1; }
+
+# ── Step 4.5g: 72-char commit-subject envelope (AGENTS.md "no cosmetic amend churn unless enforceable") ──
+# Last 10 commit subjects must be <=72 chars. Char-count via `awk length`
+# (NOT byte-count), so UTF-8 multi-byte chars (em-dash U+2014, accented
+# letters) count once each. No SKIP escape hatch — matches GATE-MNT-01
+# "Hardblock always" convention. On FAIL: prints offending (SHA, length,
+# subject) rows and remediation hint (per AGENTS.md Amend-only-via-rebase).
+echo "wrap_push.sh: checking commit subject length (last 10, max 72 chars)..."
+bash "${SCRIPT_DIR}/check_commit_subject_length.sh" 10 \
+    || { echo "wrap_push.sh: GATE_FAIL on check_commit_subject_length.sh (exit $?)" >&2; exit 1; }
 
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
 exec git push "$@"
