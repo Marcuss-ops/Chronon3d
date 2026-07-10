@@ -16,11 +16,12 @@
 // The rule: asset mancante = render non parte. No PNG nero, no fallback
 // silenzioso a font default.
 //
-// NOTE: We use flat layer() calls (not sequence() wrappers) because
-// SceneBuilder::sequence() short-circuits inactive sequences — their
-// lambdas are never called, so assets are never registered in the
-// manifest. layer() always executes the lambda, ensuring assets are
-// collected regardless of active_at() filtering.
+// NOTE: We use flat layer() calls (not sequence() wrappers) for
+// simplicity.  SceneBuilder::sequence() now ALWAYS executes the lambda
+// and merges asset manifests (fixed in 10-point friction audit,
+// commit 0ff8b100).  SequenceBuilder::sequence() (nested) was fixed
+// in the A1 sequence-manifest unification (same contract).  Both
+// paths now correctly collect assets regardless of active_at() filtering.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>
