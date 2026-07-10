@@ -221,14 +221,12 @@ public:
     }
 
     Text& center() {
-        // A2 — context_ is always set by the Layer ctor (fail-fast if
-        // screen_dimensions were never called).  The previous 1920×1080
-        // fallback was a silent footgun for non-16:9 compositions.
+        // F2 — store semantic placement kind; resolution deferred to build().
+        // context_ guard: ensures the Layer properly wired a FrameContext
+        // at construction time (Layer ctor guarantees this for every Text handle).
         assert(context_ && "Text::center(): FrameContext must be set (Layer ctor guarantees this)");
-        const f32 w = context_->width;
-        const f32 h = context_->height;
-        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute};
-        pending_->params.text.offset    = {w * 0.5f, h * 0.5f};
+        pending_->params.text.placement = TextPlacement{TextPlacementKind::CanvasCenter};
+        pending_->params.text.offset    = {0.0f, 0.0f};
         auto& layout = pending_->params.text.layout;
         layout.anchor         = TextAnchor::Center;
         layout.align          = TextAlign::Center;
@@ -274,17 +272,13 @@ public:
     /// specific anchor.  The anchor determines which point of the box
     /// aligns with the placement position.
     ///
-    /// Position is set to the pin point (resolve_placement_origin), NOT
-    /// the box top-left.  This matches the rendering pipeline's contract:
-    /// `node.world_transform.position = spec.params.text.position` with
-    /// `node.world_transform.anchor = resolve_text_anchor(anchor, box)`.
+    /// F2 — semantic placement kind is preserved through the pipeline;
+    /// resolution to concrete canvas coordinates is deferred to
+    /// LayerBuilder::build() which has access to the layer's canvas
+    /// dimensions at materialization time.
     Text& place(TextPlacement placement, TextAnchor anchor) {
-        const CanvasInfo canvas = make_canvas_info_();
-        const Vec2 box_size = pending_->params.text.layout.box;
-        const Vec2 pin_point = resolve_placement_origin(
-            canvas, box_size, placement);
-        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute};
-        pending_->params.text.offset    = {pin_point.x, pin_point.y};
+        pending_->params.text.placement = placement;  // F2: preserve kind
+        pending_->params.text.offset    = placement.offset;  // carry offset
         pending_->params.text.layout.anchor = anchor;
         return *this;
     }
@@ -594,21 +588,6 @@ private:
         if (s.pre_shaped) {
             spec.content.pre_shaped = s.pre_shaped;
         }
-    }
-
-    // ── Private helpers ────────────────────────────────────────────────
-
-    CanvasInfo make_canvas_info_() const noexcept {
-        CanvasInfo canvas;
-        if (context_) {
-            canvas.width  = context_->width;
-            canvas.height = context_->height;
-            canvas.safe_margin_top    = context_->height * 0.05f;
-            canvas.safe_margin_bottom = context_->height * 0.05f;
-            canvas.safe_margin_left   = context_->width  * 0.05f;
-            canvas.safe_margin_right  = context_->width  * 0.05f;
-        }
-        return canvas;
     }
 
     PendingTextRun* pending_;
