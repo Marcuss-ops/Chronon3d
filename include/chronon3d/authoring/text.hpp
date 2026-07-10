@@ -73,6 +73,7 @@
 #include <chronon3d/text/font_engine.hpp>                 // FontEngine — required for `Text::font_engine(FontEngine&)` reference parameter (also pulls in transitively via text_run_builder.hpp, but explicit for hygiene)
 #include <chronon3d/text/text_animator_property.hpp>      // TextAnimatorSpec
 #include <chronon3d/text/text_direction.hpp>              // TextDirection
+#include <chronon3d/text/text_placement_resolver.hpp>     // TextPlacement, CanvasInfo, resolve_text_placement
 
 #include <chronon3d/authoring/animator.hpp>
 #include <chronon3d/authoring/material.hpp>
@@ -222,6 +223,47 @@ public:
         layout.anchor         = TextAnchor::Center;
         layout.align          = TextAlign::Center;
         layout.vertical_align = VerticalAlign::Middle;
+        return *this;
+    }
+
+    // ── F2.B — Semantic placement via TextPlacement enum ──────────────
+    //
+    /// Place the text box using high-level placement semantics.
+    /// This is the ergonomic replacement for manual `.at(x,y)` + `.center()`
+    /// combinations.
+    ///
+    /// The placement determines WHERE on the canvas the box's ANCHOR POINT
+    /// sits.  The anchor defaults to TextAnchor::Center, so the box is
+    /// centered on the placement position.  Position is set to the pin
+    /// point (where the anchor sits), matching the `.center()` semantics.
+    ///
+    /// Examples:
+    ///   .place(TextPlacement::CanvasCenter)               — box center = canvas center
+    ///   .place(TextPlacement::TopLeft)                     — box center = safe area top-left
+    ///   .place(TextPlacement::SafeAreaBottom)              — box center = safe area bottom
+    ///   .place(TextPlacement::Absolute({500, 300}))        — box center = (500, 300)
+    ///   .place(TextPlacement::CanvasCenter, {0, -100})    — box center = canvas center + offset
+    ///
+    /// Safe margins are derived from the canvas context (5% of each dimension).
+    Text& place(TextPlacement placement, Vec2 offset = {}) {
+        return place(placement, TextAnchor::Center, offset);
+    }
+
+    /// Place the text box using high-level placement semantics with a
+    /// specific anchor.  The anchor determines which point of the box
+    /// aligns with the placement position.
+    ///
+    /// Position is set to the pin point (resolve_placement_origin), NOT
+    /// the box top-left.  This matches the rendering pipeline's contract:
+    /// `node.world_transform.position = spec.params.text.position` with
+    /// `node.world_transform.anchor = resolve_text_anchor(anchor, box)`.
+    Text& place(TextPlacement placement, TextAnchor anchor, Vec2 offset = {}) {
+        const CanvasInfo canvas = make_canvas_info_();
+        const Vec2 box_size = pending_->params.text.layout.box;
+        const Vec2 pin_point = resolve_placement_origin(
+            canvas, box_size, placement, offset);
+        pending_->params.text.position = {pin_point.x, pin_point.y, 0.0f};
+        pending_->params.text.layout.anchor = anchor;
         return *this;
     }
 
@@ -495,6 +537,21 @@ private:
         if (s.pre_shaped) {
             spec.content.pre_shaped = s.pre_shaped;
         }
+    }
+
+    // ── Private helpers ────────────────────────────────────────────────
+
+    CanvasInfo make_canvas_info_() const noexcept {
+        CanvasInfo canvas;
+        if (context_) {
+            canvas.width  = context_->width;
+            canvas.height = context_->height;
+            canvas.safe_margin_top    = context_->height * 0.05f;
+            canvas.safe_margin_bottom = context_->height * 0.05f;
+            canvas.safe_margin_left   = context_->width  * 0.05f;
+            canvas.safe_margin_right  = context_->width  * 0.05f;
+        }
+        return canvas;
     }
 
     PendingTextRun* pending_;

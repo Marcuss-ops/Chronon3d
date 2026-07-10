@@ -81,7 +81,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-SIMPLICITY-AUTO-FONT | P0 | FontEngine Automatico | DONE | Text V1 — resolve_engine() fallback via process-wide FontEngine + AssetResolver |
 | TICKET-SIMPLICITY-VISIBILITY-CONTRACT | P0 | Contratto Visibilità Automatico | PLANNED | Text V1 — zero false-negative invisibilità |
 | TICKET-SIMPLICITY-TEXTDEFINITION | P1 | TextDefinition Canonica | PLANNED | Text V1 — unica rappresentazione interna |
-| TICKET-SIMPLICITY-BUILDER | P1 | Simple API Builder (.text().content().place()) | PLANNED | Text V1 + TICKET-SIMPLICITY-TEXTDEFINITION |
+| TICKET-SIMPLICITY-BUILDER | P1 | Simple API Builder (.text().content().place()) | DONE | Text V1 — .place(TextPlacement) on Text handle, pin-point semantics |
 | TICKET-SIMPLICITY-ADAPTERS | P1 | text_run/centered_text/glow_text → adapter | PLANNED | Text V1 + TICKET-SIMPLICITY-BUILDER |
 | TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS | P1 | Migrazione composizioni al builder | PLANNED | Text V1 + TICKET-SIMPLICITY-ADAPTERS |
 | TICKET-SIMPLICITY-ANIMATION | P1 | Animation helpers (interpolate/spring/sequence) | PLANNED | Text V1 — frame-driven animation |
