@@ -1,7 +1,9 @@
 #include "../../commands.hpp"
+#include "../../utils/job/cli_render_utils.hpp"
 #include "text_audit_engine.hpp"
 #include "text_audit_types.hpp"
-#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
 
 #include <spdlog/spdlog.h>
 #include <fstream>
@@ -60,41 +62,47 @@ std::vector<int> parse_frame_spec(const std::string& spec) {
     return frames;
 }
 
-// Render a single frame to PNG for visual inspection
+// Render a single frame to PNG using SoftwareRenderer with optional diagnostic overlay
 bool render_frame_to_png(
     const CompositionRegistry& registry,
     const std::string& comp_id,
     int frame,
-    const std::string& output_path)
+    const std::string& output_path,
+    bool diagnostic_overlay,
+    bool diagnostic_overlay_only)
 {
     try {
         if (!registry.contains(comp_id)) return false;
 
         Composition comp = registry.create(comp_id);
-        FrameContext render_ctx{
-            .frame = Frame{frame},
-            .local_frame = Frame{frame},
-            .frame_time = 0.0f,
-            .duration = comp.duration(),
-            .frame_rate = comp.frame_rate(),
-            .width = comp.width(),
-            .height = comp.height(),
-            .assets_root = comp.assets_root(),
-            .resource = std::pmr::get_default_resource(),
-            .font_engine = nullptr,
-        };
-        auto scene = comp.evaluate(render_ctx);
 
-        // Use the existing render pipeline via SoftwareRenderer
-        // For now, skip actual pixel rendering — the audit uses the
-        // rasterizer directly for ink bbox analysis.
-        //
-        // Full frame rendering can be added later with:
-        //   SoftwareRenderer renderer(...);
-        //   renderer.render(scene, frame);
-        //   renderer.write_png(output_path);
+        // Build RenderSettings with diagnostic overlay flags
+        RenderSettings settings;
+        settings.use_modular_graph = true;
+        settings.text_layout_debug = diagnostic_overlay || diagnostic_overlay_only;
+        settings.diagnostic_overlay_only = diagnostic_overlay_only;
 
-        spdlog::debug("text-audit: render frame {} to {} (placeholder)", frame, output_path);
+        // Create renderer and render the frame
+        auto renderer = create_renderer(registry, settings);
+        auto fb = renderer->render(comp, Frame{frame});
+
+        if (!fb) {
+            spdlog::error("text-audit: render frame {} produced no output", frame);
+            return false;
+        }
+
+        // Save to PNG
+        ImageWriteOptions write_options;
+        write_options.format = ImageFormat::Png;
+        write_options.convert_png_to_srgb = true;
+
+        if (!save_image(*fb, output_path, write_options)) {
+            spdlog::error("text-audit: failed to save frame {} to '{}'", frame, output_path);
+            return false;
+        }
+
+        spdlog::info("text-audit: rendered frame {} to '{}' ({}x{})",
+                     frame, output_path, fb->width(), fb->height());
         return true;
     } catch (const std::exception& e) {
         spdlog::error("text-audit: render frame {} failed: {}", frame, e.what());
@@ -174,7 +182,8 @@ int command_text_audit(const CompositionRegistry& registry, const TextAuditArgs&
         for (int frame : frames) {
             std::string fname = comp_id + "_frame_" + std::to_string(frame) + ".png";
             fs::path out_path = render_dir / fname;
-            render_frame_to_png(registry, comp_id, frame, out_path.string());
+            render_frame_to_png(registry, comp_id, frame, out_path.string(),
+                                args.diagnostic_overlay, args.diagnostic_overlay_only);
         }
         spdlog::info("text-audit: rendered frames to '{}'", args.render_dir);
     }
