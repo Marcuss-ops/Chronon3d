@@ -17,3 +17,13 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(chronon3d_architecture_render_graph_software_boundary PROPERTIES LABELS "architecture")
+
+# Gate 11 — Backend sanitization checks (legacy files, legacy references,
+# debug smoke signals, test smoke signals).  Invokes the Python script via
+# Python3_EXECUTABLE (not bash) so the import statements execute correctly.
+add_test(
+    NAME chronon3d_gate11_backend_sanitization
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_backend_sanitization.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_gate11_backend_sanitization PROPERTIES LABELS "architecture;gate")
