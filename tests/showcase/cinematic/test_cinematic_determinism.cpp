@@ -5,7 +5,7 @@
 //
 //    • TEST_CASE("AGENT4: A4.4 determinism run A == run B")
 //
-//  from the monolithic tests/showcase/test_cinematic_camera_showcase.cpp
+//  from the monolithic tests/showcase/test_cinematic_camera_showcase.cpp  // drift-allow: stale-ref
 //  (was 771 LOC).  Behaviour preserved bit-identical: same dual-render
 //  loop pattern (`run_a / run_b` pairwise compare on `runtime_kf()`),
 //  same `matches_a == kf_count` bookkeeping, same MESSAGE forensic

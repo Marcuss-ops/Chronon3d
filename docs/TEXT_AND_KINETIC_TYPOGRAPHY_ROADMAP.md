@@ -152,7 +152,7 @@ TextPresetDescriptor
 
 ## 3.2 Pipeline legacy `TextAnimator`
 
-`include/chronon3d/text/text_animator.hpp` crea un layer separato per carattere, parola, riga o glifo.
+`include/chronon3d/text/text_animator.hpp` crea un layer separato per carattere, parola, riga o glifo.  <!-- drift-allow: stale-ref -->
 
 Questa è una pipeline parallela rispetto a:
 

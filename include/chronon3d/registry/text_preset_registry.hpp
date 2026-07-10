@@ -199,7 +199,7 @@ private:
 /// that wish to mutate must call `freeze()` after construction
 /// (EffectCatalog parity, enforced at `src/runtime/render_runtime.cpp`
 /// for the catalog mirror and at PR-A4's static-singleton fixture in
-/// `tests/text/test_text_preset_visual.cpp` for the canonical "default
+/// `tests/text/test_text_preset_visual.cpp` for the canonical "default  // drift-allow: stale-ref
 /// text preset registry" surface today) so `register_preset` throws
 /// `std::runtime_error` on any later mutation attempt.
 TextPresetRegistry make_default_text_preset_registry();

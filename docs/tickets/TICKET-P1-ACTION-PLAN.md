@@ -101,7 +101,7 @@ canonica.
 
 **File canonici:** `src/backends/software/processors/text/software_text_processor.cpp`
 (legacy processor), `src/backends/text/text_rasterizer_render.cpp` (legacy rasterizer),
-`include/chronon3d/text/rich_text.hpp` (legacy polyfill),
+`include/chronon3d/text/rich_text.hpp` (legacy polyfill),  <!-- drift-allow: stale-ref -->
 `tools/check_legacy_text_pipeline.sh` (architecture gate).
 
 | Dimensione        | Stato        | Evidenza osservabile |
@@ -134,7 +134,7 @@ M1.5#10 (2-4) + baseline-verde.
 |---|--------------------------------------------|-----------------|
 | 1 | `include/chronon3d/backends/text/text_layout_engine.hpp` | **DEFINITION** |
 | 2 | `src/backends/text/text_rasterizer_render.cpp` | **DEPRECATE** |
-| 3 | `include/chronon3d/text/rich_text.hpp`        | **DEPRECATE** (line 257) |
+| 3 | `include/chronon3d/text/rich_text.hpp`        | **DEPRECATE** (line 257) |  <!-- drift-allow: stale-ref -->
 | 4 | `apps/chronon3d_cli/commands/dev/text_audit_engine.cpp` | CLI diagnostic |
 | 5-9 | `tests/text/test_text_*.cpp` (5 file)        | Test |
 
