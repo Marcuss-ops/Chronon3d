@@ -107,7 +107,7 @@ Composition orbit_handheld_glow() {
                 .key(Frame{30},  Vec3{1.05f, 1.05f, 1.0f}, EasingCurve{Easing::OutCubic})
                 .key(Frame{60},  Vec3{1.00f, 1.00f, 1.0f}, EasingCurve{Easing::InOutCubic});
 
-            TextSpec tp = chronon3d::content::text::centered_text({
+            auto tp = chronon3d::content::text::centered_text({
                 .text        = "AURORA",
                 .box         = {1200.0f, 320.0f},
                 .font_size   = 220.0f,

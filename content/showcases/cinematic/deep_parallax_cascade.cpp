@@ -52,7 +52,7 @@ using chronon3d::content::text::FRESH_TEXT_WHITE;
 // split .cpp files do not share it (kept inline here rather than
 // promoted to cinematic_showcase_helpers.hpp because the helper
 // is composition-specific in spirit).
-TextSpec title_text(const std::string& s, f32 fs,
+auto title_text(const std::string& s, f32 fs,
                       Color color = FRESH_TEXT_WHITE,
                       f32 tracking = 6.0f) {
     return chronon3d::content::text::centered_text({
@@ -136,7 +136,7 @@ Composition deep_parallax_cascade() {
                     .key(Frame{0},                                blur_peak, EasingCurve{Easing::Linear})
                     .key(Frame{static_cast<Frame>(130 - 30.0f * i)}, 0.0f,   EasingCurve{Easing::OutCubic})
                     .key(Frame{180},                              0.0f,       EasingCurve{Easing::Linear});
-            TextSpec tp = chronon3d::content::text::centered_text({
+            auto tp = chronon3d::content::text::centered_text({
                 .text        = L.text,
                 .box         = {1500.0f, 320.0f},
                 .font_size   = L.size,

@@ -56,6 +56,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/registry/text_preset_registry.hpp>
 #include <content/text/text_helpers.hpp>
+#include <chronon3d/text/text_definition.hpp>  // F2.C — from_text_definition()
 
 #include <chrono>
 #include <utility>
@@ -123,7 +124,7 @@ inline Composition build_preset_composition(const std::string& preset_id,
         [preset, preset_id, t_frame, r, font_engine](const chronon3d::FrameContext& ctx) -> chronon3d::Scene {
             chronon3d::SceneBuilder s(ctx);
             if (font_engine) s.font_engine(font_engine);
-            chronon3d::TextSpec base = chronon3d::content::text::centered_text(
+            auto base = chronon3d::content::text::centered_text(
                 make_preset_base_opts("THE QUICK BROWN FOX JUMPS",
                                        aspect_dims(r)));
             s.layer("hero", [&s, &preset, base](chronon3d::LayerBuilder& l) {
@@ -133,7 +134,7 @@ inline Composition build_preset_composition(const std::string& preset_id,
                 // MultiSourceNode instead of TextRunNode — the duplicate's animators
                 // (fade_in / scale_drop) can blank the static text at early frames.
                 if (preset.builder) {
-                    preset.builder(s, l, base);
+                    preset.builder(s, l, from_text_definition(base));
                 }
             });
             return s.build();

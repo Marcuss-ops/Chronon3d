@@ -138,7 +138,7 @@ Composition abyss_freefall_stagger() {
                 {
                     Color base{0.65f, 0.85f, 1.0f, 1.0f};
                     if (i % 2 == 0) base = Color{0.85f, 0.95f, 1.0f, 1.0f};
-                    TextSpec tp = chronon3d::content::text::centered_text({
+                    auto tp = chronon3d::content::text::centered_text({
                         .text        = ch,
                         .box         = {fs * 1.5f, fs * 1.8f},
                         .font_size   = fs,

@@ -112,7 +112,7 @@ Composition rack_focus_title_swap() {
                 .key(Frame{30}, 1.0f, EasingCurve{Easing::Linear})
                 .key(Frame{150}, 1.0f, EasingCurve{Easing::Linear})
                 .key(Frame{180}, 0.7f, EasingCurve{Easing::InCubic});
-            TextSpec tp = chronon3d::content::text::centered_text({
+            auto tp = chronon3d::content::text::centered_text({
                 .text        = "FOCUS NEAR",
                 .box         = {1500.0f, 240.0f},
                 .font_size   = 130.0f,
@@ -148,7 +148,7 @@ Composition rack_focus_title_swap() {
                 .key(Frame{120}, 0.55f, EasingCurve{Easing::Linear})
                 .key(Frame{150}, 1.0f, EasingCurve{Easing::OutCubic})
                 .key(Frame{180}, 1.0f, EasingCurve{Easing::Linear});
-            TextSpec tp = chronon3d::content::text::centered_text({
+            auto tp = chronon3d::content::text::centered_text({
                 .text        = "FAR AWAY",
                 .box         = {1500.0f, 220.0f},
                 .font_size   = 120.0f,
