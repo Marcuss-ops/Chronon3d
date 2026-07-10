@@ -201,8 +201,8 @@ Layer LayerBuilder::build() {
             node.shape.set_type(ShapeType::TextRun);
             node.font_engine = m_font_engine;
             node.world_transform.position = Vec3{
-                spec.params.text.placement.offset.x,
-                spec.params.text.placement.offset.y,
+                spec.params.text.offset.x,
+                spec.params.text.offset.y,
                 0.0f
             };
             node.world_transform.anchor = resolve_text_anchor(

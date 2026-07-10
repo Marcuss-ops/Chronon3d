@@ -52,7 +52,8 @@ inline TextSpec make_text(const std::string& text, f32 font_size = 64.0f) {
         .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = font_size},
         .layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 0.95f, .tracking = 3.0f},
         .appearance = {.color = TEXT_COLOR},
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+        .placement = {TextPlacementKind::Absolute},
+        .offset    = {0.0f, 0.0f},
     };
 }
 

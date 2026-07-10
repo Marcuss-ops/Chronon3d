@@ -202,21 +202,21 @@ public:
         return *this;
     }
 
-    // ── Position (mutate spec.text.placement directly; NOT per-glyph) ─────
+    // ── Position (mutate spec.text.offset directly; NOT per-glyph) ─────
     Text& at(Vec3 pos) {
-        pending_->params.text.placement = TextPlacement{
-            TextPlacementKind::Absolute, {pos.x, pos.y}};
+        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute};
+        pending_->params.text.offset    = {pos.x, pos.y};
         return *this;
     }
     Text& at(Vec2 pos) {
-        pending_->params.text.placement = TextPlacement{
-            TextPlacementKind::Absolute, {pos.x, pos.y}};
+        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute};
+        pending_->params.text.offset    = {pos.x, pos.y};
         return *this;
     }
     /// f32 x, f32 y convenience — lifts to Absolute placement.
     Text& at(f32 x, f32 y) {
-        pending_->params.text.placement = TextPlacement{
-            TextPlacementKind::Absolute, {x, y}};
+        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute};
+        pending_->params.text.offset    = {x, y};
         return *this;
     }
 
@@ -227,8 +227,8 @@ public:
         assert(context_ && "Text::center(): FrameContext must be set (Layer ctor guarantees this)");
         const f32 w = context_->width;
         const f32 h = context_->height;
-        pending_->params.text.placement = TextPlacement{
-            TextPlacementKind::Absolute, {w * 0.5f, h * 0.5f}};
+        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute};
+        pending_->params.text.offset    = {w * 0.5f, h * 0.5f};
         auto& layout = pending_->params.text.layout;
         layout.anchor         = TextAnchor::Center;
         layout.align          = TextAlign::Center;
@@ -283,8 +283,8 @@ public:
         const Vec2 box_size = pending_->params.text.layout.box;
         const Vec2 pin_point = resolve_placement_origin(
             canvas, box_size, placement);
-        pending_->params.text.placement = TextPlacement{
-            TextPlacementKind::Absolute, {pin_point.x, pin_point.y}};
+        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute};
+        pending_->params.text.offset    = {pin_point.x, pin_point.y};
         pending_->params.text.layout.anchor = anchor;
         return *this;
     }

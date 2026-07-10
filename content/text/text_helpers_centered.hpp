@@ -63,8 +63,8 @@ inline TextDefinition centered_text(CenterTextOptions o) {
                        .max_font_size  = o.max_font_size,
                        .max_lines      = o.max_lines},
         .appearance = {.color = o.color},
-        .placement  = TextPlacement{
-            TextPlacementKind::Absolute, {o.pos.x, o.pos.y}},
+        .placement = {TextPlacementKind::Absolute},
+        .offset    = {o.pos.x, o.pos.y},
     });
 }
 

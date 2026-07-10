@@ -162,7 +162,8 @@ struct TextSpec {
     FontSpec           font;
     TextLayoutSpec     layout;
     TextAppearanceSpec appearance;
-    TextPlacement      placement{};  // F1: replaces Vec3 position — kind + Vec2 offset
+    TextPlacement      placement{};  // F1: placement kind (internal .offset ignored when kind=Absolute)
+    Vec2               offset{};     // F1: flat 2D position — the primary offset for Absolute placements
 };
 
 // ── TextParams: DEPRECATED type-alias for TextSpec ──────────────────

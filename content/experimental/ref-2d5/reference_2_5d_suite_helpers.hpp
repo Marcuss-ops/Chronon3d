@@ -25,21 +25,24 @@ inline void add_header(SceneBuilder& s, const std::string& id, const std::string
                                 .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_style = "normal", .font_size = 24.0f},
                                 .layout = {.box = {52.0f, 52.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},
                                 .appearance = {.color = kWhite},
-                                .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}}
+                                .placement = {TextPlacementKind::Absolute},
+                                .offset    = {0.0f, 0.0f}
                             });
         l.text("title", TextSpec{
                             .content = {.value = title},
                             .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_style = "normal", .font_size = title_font_size},
                             .layout = {.box = {1060.0f, 36.0f}, .align = TextAlign::Left, .vertical_align = VerticalAlign::Middle},
                             .appearance = {.color = kWhite},
-                            .placement = TextPlacement{TextPlacementKind::Absolute, {84.0f, -2.0f}}
+                            .placement = {TextPlacementKind::Absolute},
+                            .offset    = {84.0f, -2.0f}
                         });
         l.text("subtitle", TextSpec{
                                .content = {.value = subtitle},
                                .font = {.font_path = "assets/fonts/Poppins-Regular.ttf", .font_family = "Inter", .font_weight = 400, .font_style = "normal", .font_size = subtitle_font_size},
                                .layout = {.box = {1060.0f, 24.0f}, .align = TextAlign::Left, .vertical_align = VerticalAlign::Middle},
                                .appearance = {.color = {0.78f, 0.82f, 0.92f, 1.0f}},
-                               .placement = TextPlacement{TextPlacementKind::Absolute, {84.0f, 28.0f}}
+                               .placement = {TextPlacementKind::Absolute},
+                               .offset    = {84.0f, 28.0f}
                            });
     });
 }
