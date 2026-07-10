@@ -30,7 +30,7 @@ namespace chronon3d::detail {
 /// Apply TrackingProperty to a glyph using the running-sum accumulator.
 ///
 /// Algorithm (apply-first, then increment), port from V1
-/// `include/chronon3d/text/text_animator.hpp:325-337`:
+/// `include/chronon3d/text/text_animator.hpp:325-337`:  // drift-allow: stale-ref
 ///
 ///     cumulative_tracking_delta = 0;
 ///     for each glyph gi:

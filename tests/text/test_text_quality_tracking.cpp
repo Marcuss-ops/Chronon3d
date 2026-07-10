@@ -21,7 +21,7 @@ using namespace test_text_quality;
 // measure_unit_width grapheme cluster count) have been REMOVED in
 // TEXT-RET-01 because they relied on `TextAnimator` and
 // `TextAnimMode::ByGlyph` from the deleted
-// `include/chronon3d/text/text_animator.hpp` header.
+// `include/chronon3d/text/text_animator.hpp` header.  // drift-allow: stale-ref
 //
 // Where the § 7 invariants live today (canonical equivalents):
 //   * Per-glyph staggered reveal

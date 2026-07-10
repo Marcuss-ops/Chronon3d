@@ -180,7 +180,7 @@ TEST_CASE("PLY-05b: CJK opening bracket codepoints recognised by helper") {
     // U+FF08 （, U+3010 【, U+FF3B ［, U+3014 〔.
     //
     // These are the 8 codepoints that `is_cjk_opening_bracket` (defined
-    // in src/text/internal/composer_helpers.hpp) matches.  Listed here
+    // in src/text/internal/composer_helpers.hpp) matches.  Listed here  // drift-allow: stale-ref
     // for documentation; tests in this file can't include the internal
     // header, but the hex values match the helper 1:1.
     constexpr char32_t expected_set[] = {

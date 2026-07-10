@@ -492,7 +492,7 @@ TEST_CASE("Property: ScaleProperty Add vs Multiply produce different results") {
 }
 
 // Cumulative tracking semantics — V1 carry-over from
-// include/chronon3d/text/text_animator.hpp:325-337.
+// include/chronon3d/text/text_animator.hpp:325-337.  // drift-allow: stale-ref
 //
 // After Effects-style tracking is the running letter-spacing gap between
 // consecutive glyphs.  Algorithm (apply-first, then increment):

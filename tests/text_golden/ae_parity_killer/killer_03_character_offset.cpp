@@ -20,7 +20,7 @@
 // (verified via find-grep: zero `character_value*.cpp` or
 // `character_range*.cpp` files in src/text/).  Source anchor per
 // docs/tickets/TICKET-AE-LIKE-TEXT-ACTION-PLAN.md Decision 2 Killer 3:
-// `src/text/source/character_offset_evaluator.cpp` (NEW; replaces the
+// `src/text/source/character_offset_evaluator.cpp` (NEW; replaces the  // drift-allow: stale-ref
 // current `GlyphInstanceState`-only path).
 //
 // What IS IMPL (and what this killer test locks):
@@ -51,7 +51,7 @@
 //
 // Forward-only contract:
 //   When TICKET-CHARACTER-VALUE-RANGE-IMPL lands (new
-//   `src/text/source/character_offset_evaluator.cpp` per Blocco 2 of
+//   `src/text/source/character_offset_evaluator.cpp` per Blocco 2 of  // drift-allow: stale-ref
 //   docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md), SUBCASE 3 of
 //   TEST_CASE 2 is upgraded from a smoke-test placeholder to a hard
 //   CHECK on the production contract (CharacterValue replaces index
@@ -354,7 +354,7 @@ TEST_CASE("KILLER 03 character_offset — end-to-end pre-shaping invalidation") 
         // `character_range*.cpp` files in src/text/).  Source anchor
         // per docs/tickets/TICKET-AE-LIKE-TEXT-ACTION-PLAN.md
         // Decision 2 Killer 3:
-        //   `src/text/source/character_offset_evaluator.cpp` (NEW;
+        //   `src/text/source/character_offset_evaluator.cpp` (NEW;  // drift-allow: stale-ref
         //    replaces the current `GlyphInstanceState`-only path)
         //
         // This SUBCASE documents the production contract that the
@@ -373,7 +373,7 @@ TEST_CASE("KILLER 03 character_offset — end-to-end pre-shaping invalidation") 
         // HarfBuzz shaping and MUST invalidate the shaping + layout
         // caches on change).  The forward-only upgrade path is:
         //   1. Implement CharacterValue + CharacterRange in
-        //      `src/text/source/character_offset_evaluator.cpp`
+        //      `src/text/source/character_offset_evaluator.cpp`  // drift-allow: stale-ref
         //   2. Wire them into the `TextAnimatorProperty` variant
         //      alongside CharacterOffsetProperty
         //   3. Extend `has_pre_shaping_properties` to detect them

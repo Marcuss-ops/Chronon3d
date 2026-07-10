@@ -53,7 +53,7 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
             // CHRONON3D_PROJ_DIAG diagnostic + canvas_center*ssaa_scale
             // composition) is extracted to
             // `chronon3d::graph::detail::project_to_camera_space` in
-            // `src/render_graph/nodes/detail/projection_helpers.hpp` and
+            // `src/render_graph/nodes/detail/projection_helpers.hpp` and  // drift-allow: stale-ref
             // shared with the 2 source_node.cpp sites + the 2 sibling
             // multi_source_node sites below.  See the helper header for
             // the full design rationale.

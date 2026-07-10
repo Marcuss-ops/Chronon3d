@@ -154,7 +154,7 @@ without re-compiling.
 
 - **Right-associativity:** `a ? b : c ? d : e` parses as
   `a ? b : (c ? d : e)`. The determinism test in
-  `experimental/expressions/tests/test_expressions_v2_determinism.cpp`
+  `experimental/expressions/tests/test_expressions_v2_determinism.cpp`  <!-- drift-allow: stale-ref -->
   Section D pins this in place (see Gate 2 audit log).
 - **Default-constructed `ast` = variant alt 0 (`double 0.0`).** This
   is the sentinel for failed lex/parse. A test should never
@@ -319,7 +319,7 @@ The two practical patterns a host should adopt:
    and anim-system pooling).** Construct once, reuse across many
    frames, call `reset()` at isolation boundaries. The Gate 2
    determinism suite in
-   `experimental/expressions/tests/test_expressions_v2_determinism.cpp`
+   `experimental/expressions/tests/test_expressions_v2_determinism.cpp`  <!-- drift-allow: stale-ref -->
    verifies the second pattern.
 
 ---

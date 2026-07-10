@@ -6,7 +6,7 @@
 //    • TEST_CASE("AGENT4: A4.5 contact sheet 3x2 to output/showcase/contact_sheet.png")
 //    • TEST_CASE("AGENT4: A4.6 performance telemetry")
 //
-//  from the monolithic tests/showcase/test_cinematic_camera_showcase.cpp
+//  from the monolithic tests/showcase/test_cinematic_camera_showcase.cpp  // drift-allow: stale-ref
 //  (was 771 LOC).  Behaviour preserved bit-identical: same DOCTEST_SKIP
 //  short-circuit (smoke-mode for A4.5 + smoke-without-perf-opt-in for
 //  A4.6), same doc-comment-version fall-back (`#if DOCTEST_VERSION_MAJOR

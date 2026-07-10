@@ -3,7 +3,7 @@
 //
 //  Phase-2.2 mechanical split.  Single source of truth for the env-var
 //  driven runtime mode selection that the monolithic
-//  tests/showcase/test_cinematic_camera_showcase.cpp (was 771 LOC)
+//  tests/showcase/test_cinematic_camera_showcase.cpp (was 771 LOC)  // drift-allow: stale-ref
 //  reads via two env vars:
 //
 //    CHRONON3D_CINEMATIC_FRAME_COUNT  1..6  (default 6)

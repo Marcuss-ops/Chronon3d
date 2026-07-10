@@ -86,27 +86,27 @@ Each killer test establishes a corridor that proves the engine is **AE-like in s
 **Killer 2 — Expression Selector** (NEW ticket `TICKET-AE-PARITY-KILLER-EXPRESSION-SELECTOR` seeded by this commit)
 - Evaluate per-character expression `amount = selectorValue * textIndex / textTotal`
 - Acceptance: random access frame 30 == sequential rendering up to frame 30 (byte-identical); zero global mutable state accessed from the expression evaluator
-- Source anchor: `src/text/selector/expression_evaluator.cpp` (NEW; resolver comes from `AnimatorResolver` per Blocco 6)
+- Source anchor: `src/text/selector/expression_evaluator.cpp` (NEW; resolver comes from `AnimatorResolver` per Blocco 6)  <!-- drift-allow: stale-ref -->
 - Asset: `tests/text_golden/ae_parity_killer/killer_02_expression_selector.cpp` (3 SUBCASEs)
 
 **Killer 3 — Character Offset / Value / Range** (NEW ticket `TICKET-AE-PARITY-KILLER-CHARACTER-OFFSET-VALUE-RANGE` seeded by this commit)
 - Character Offset +5 changes the actual glyph ID (NOT a post-layout visual transform; this is the property-stage invalidation contract from Blocco 2 of the text roadmap)
 - Character Value replaces a specific index's text content
 - Character Range applies an override to a contiguous range
-- Acceptance: pre-shaping invalidation MUST swap glyphs + invalidate shaping cache + invalidate layout cache; post-shaping-only changes pass the lock contract from `tests/text/test_text_property_stage_invalidation.cpp`
-- Source anchor: `src/text/source/character_offset_evaluator.cpp` (NEW; replaces the current `GlyphInstanceState`-only path)
+- Acceptance: pre-shaping invalidation MUST swap glyphs + invalidate shaping cache + invalidate layout cache; post-shaping-only changes pass the lock contract from `tests/text/test_text_property_stage_invalidation.cpp`  <!-- drift-allow: stale-ref -->
+- Source anchor: `src/text/source/character_offset_evaluator.cpp` (NEW; replaces the current `GlyphInstanceState`-only path)  <!-- drift-allow: stale-ref -->
 - Asset: `tests/text_golden/ae_parity_killer/killer_03_character_offset.cpp` (3 SUBCASEs)
 
 **Killer 4 — Per-character 3D** (cross-link `TICKET-AE-PARITY-KILLER-PER-CHAR-3D` + `TICKET-AE-PARITY-CINEMATIC-11`)
 - Each letter rotates on Y-axis; camera perspective active; Z ordering correct; no collapse to 2D
 - Acceptance: frame 0 ≠ frame 30 (proves 3D depth actually renders, not a 2D rotation); pixel-changed-ratio > 0.10 at frame 15
-- Asset: `tests/text_golden/ae_parity_killer/killer_04_per_char_3d.cpp` (3 SUBCASEs)
+- Asset: `tests/text_golden/ae_parity_killer/killer_04_per_char_3d.cpp` (3 SUBCASEs)  <!-- drift-allow: stale-ref -->
 
 **Killer 5 — Subtitle Word Timing** (cross-link `TICKET-GOLDEN-30` karaoke + `TICKET-AE-PARITY-CINEMATIC-20`)
 - Per-word SRT/VTT/JSON adapter ingest; active word fills + scales; safe-area respected
 - Acceptance: random-access frame 120 == sequential rendering up to frame 120; no audio-time / frame-time drift
-- Source anchor: `src/text/timed_text/semantic_word_highlight.cpp` (NEW; uses existing `timed_text_adapter_srt.cpp` + the `WordHighlightProperty` spec from Blocco 10)
-- Asset: `tests/text_golden/ae_parity_killer/killer_05_subtitle_word_timing.cpp` (3 SUBCASEs)
+- Source anchor: `src/text/timed_text/semantic_word_highlight.cpp` (NEW; uses existing `timed_text_adapter_srt.cpp` + the `WordHighlightProperty` spec from Blocco 10)  <!-- drift-allow: stale-ref -->
+- Asset: `tests/text_golden/ae_parity_killer/killer_05_subtitle_word_timing.cpp` (3 SUBCASEs)  <!-- drift-allow: stale-ref -->
 
 ### Source anchor
 
@@ -139,10 +139,10 @@ Every rollout commit touches the 4 canonical docs in lockstep per AGENTS.md `too
 | `docs/ROADMAP.md`           | `M1.6 §Cinematic Text Golden Expansion` row updates; milestone DoD advancement                                                              | Renaming the section (would invalidate cross-link); adding freeform "plans" without milestone DoD |
 | `docs/RELEASE_GATE.md`      | Acceptance criteria advancement                                                                                                              | Adding freeform scope (would invalidate gate count)                                                |
 | `docs/FOLLOWUP_TICKETS.md`  | Single ticket row flip (`State: PLANNED → PARTIAL → DONE`) + `commit_sha` cross-link                                                        | Multi-ticket row consolidation (one row per ID — atomic-per-responsibility)                         |
-| `docs/tickets/TICKET-NNN.md`| Sub-cluster ticket deep-dive (e.g. this file)                                                                                                | New "status report"-named files (`docs/STATUS.md`, `docs/PLAN.md`, `docs/ACTION_PLAN.md`)            |
+| `docs/tickets/TICKET-NNN.md`| Sub-cluster ticket deep-dive (e.g. this file)                                                                                                | New "status report"-named files (`docs/STATUS.md`, `docs/PLAN.md`, `docs/ACTION_PLAN.md`)            |  <!-- drift-allow: stale-ref -->
 | `docs/adr/ADR-NNN-*.md`     | Architectural decision; one file per decision; cross-link existing tickets (NOT vice-versa)                                                  | Implementation status / timeline / partial partial                                                  |
 
-This is **Decision 1 of this file's own structure**: the rollout NEVER creates `docs/PLAN.md`, `docs/STATUS.md`, `docs/STATUS_NEXT.md`, `docs/ACTION_PLAN.md`, `docs/ROADMAP_*.md` variants, or `docs/FOLLOWUP_*.md` variants — all progress lives in the canonical carriers (per AGENTS.md §"Pattern di filename vietati").
+This is **Decision 1 of this file's own structure**: the rollout NEVER creates `docs/PLAN.md`, `docs/STATUS.md`, `docs/STATUS_NEXT.md`, `docs/ACTION_PLAN.md`, `docs/ROADMAP_*.md` variants, or `docs/FOLLOWUP_*.md` variants — all progress lives in the canonical carriers (per AGENTS.md §"Pattern di filename vietati").  <!-- drift-allow: stale-ref -->
 
 ### Source anchor
 
@@ -157,7 +157,7 @@ The `tools/check_doc_sync.sh` script is the per-commit lock. Any commit introduc
 ### Failure mode (if silently broken)
 
 - **Drift detection rot** — `tools/check_doc_sync.sh` is locally bypassed by an agent pushing to `main` directly. Wrap_push integrates the gate; bypassing the wrapper means missing GATE-MNT-01.
-- **Section split rot** — a future PR splits `docs/ROADMAP.md §M1.6` into `docs/M1.6-cinematic.md` + `docs/M1.6-killers.md` + `docs/M1.6-floor.md`. AGENTS.md explicitly forbids roadmap variants: any new file matching `docs/ROADMAP_*.md` triggers the gate.
+- **Section split rot** — a future PR splits `docs/ROADMAP.md §M1.6` into `docs/M1.6-cinematic.md` + `docs/M1.6-killers.md` + `docs/M1.6-floor.md`. AGENTS.md explicitly forbids roadmap variants: any new file matching `docs/ROADMAP_*.md` triggers the gate.  <!-- drift-allow: stale-ref -->
 
 ---
 

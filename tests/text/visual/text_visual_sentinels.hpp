@@ -3,7 +3,7 @@
 //
 // 128 explicit sentinel constants (16 presets × 8 each: 4 timestamps ×
 // 2 aspect ratios).  Mechanical split-off from
-// tests/text/test_text_preset_visual.cpp (formerly 248–440 LOC).
+// tests/text/test_text_preset_visual.cpp (formerly 248–440 LOC).  // drift-allow: stale-ref
 //
 // Per user spec: `i sentinels sono in file dati (non logica test)`.
 // This header holds ONLY constexpr uint64_t data + header comments.
