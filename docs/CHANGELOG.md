@@ -1,3 +1,47 @@
+## Luglio 2026 — docs(hygiene) cleanup (2026-07-10, atomic commit `bfb2ca4b`)
+
+### docs(hygiene): remove 7 obsolete+forbidden docs, sync drift whitelist
+
+- **`docs/NEXT_STEPS.md` deleted** — was VIETATO per AGENTS.md §Pattern di filename vietati (line 45); canonical content already lives in `docs/CURRENT_STATUS.md` + `docs/FOLLOWUP_TICKETS.md` + `docs/ARCHIVE/NEXT_STEPS.md`. <!-- drift-allow: archived-doc-pattern -->
+
+- **6 stale 0-ref docs deleted**:
+    * `docs/MAINTENANCE_INVENTORY.md` — pre-baseline maintenance backlog from 2026-06-24, 0 citations. <!-- drift-allow: archived-doc-pattern -->
+    * `docs/CERTIFICAZIONE_PRODOTTO.md` — one-shot certification snapshot from 2026-07-06, 0 citations. <!-- drift-allow: archived-doc-pattern -->
+    * `docs/CODE_IMPROVEMENTS.md` — pre-freeze C++20 improvement suggestions from 2026-06-16, 1 citation (drift whitelist). <!-- drift-allow: archived-doc-pattern -->
+    * `docs/CAMERA_REGIA_AE_PLAN.md` — Camera "regia" state document, all phases completed (transformation hierarchy, null controller, CameraRig, debug overlay, test suite). <!-- drift-allow: archived-doc-pattern -->
+    * `docs/TEXT_SELECTOR_SINGLE_PIPELINE_PLAN.md` — migration plan, 1 self-ref + drift whitelist, superseded by `docs/MIGRATION_TEXT_SPEC.md` + `docs/ANTI_DUPLICATION_RULES.md`. <!-- drift-allow: archived-doc-pattern -->
+    * `docs/video_pipeline.md` — pipeline architecture doc (2026-06-07), 0 active citations. <!-- drift-allow: archived-doc-pattern -->
+
+- **KEPT conservative** (per AGENTS.md governance contract DOCUMENTATION_GOVERNANCE.md):
+    * 4 canonical docs: `CURRENT_STATUS.md`, `ROADMAP.md`, `RELEASE_GATE.md`, `FOLLOWUP_TICKETS.md`.
+    * 7 registered support docs: `DOCUMENTATION_GOVERNANCE.md`, `ARCHITECTURE_AUDIT.md`, `FEATURES.md`, `TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`, `CAMERA_FEATURE_MATRIX.md`, `V3_BLUEPRINT.md`, `CHANGELOG.md`.
+    * Active-reference docs: `AGENT_WORKFLOW.md`, `CONTRIBUTING.md`, `README.md`, `CORE_OWNERSHIP.md`, `ARCHITECTURE_EVOLUTION_PLAN.md`, `ANTI_DUPLICATION_RULES.md`, `DEFINITION_OF_DONE.md`, `MIGRATION_TEXT_SPEC.md`, `text-architecture-inventory.md`, `ORIENTATION.md`, `PERFORMANCE_BOTTLENECKS.md`, `TELEMETRY_DASHBOARD.md`, `FAST_BUILD.md`, `TEXT_BOTTLENECKS.md`, `CAMERA_AE_GAP_VENDETTA.md`, `measure_profile_readme.md`, `EXPRESSIONS_V2_*` (3 docs).
+
+- **Drift script sync** — `tools/check_filename_drift.sh`: removed 3 no-longer-needed `! -path` whitelist entries (`CODE_IMPROVEMENTS.md`, `CAMERA_REGIA_AE_PLAN.md`, `TEXT_SELECTOR_SINGLE_PIPELINE_PLAN.md`). Final 6-line whitelist.
+
+- **Inline drift-allow markers added** (mirrors existing convention in same files):
+    * `AGENTS.md:58` — added `// drift-allow: archived-doc-pattern` on the continuation line of the doc-sync bullet (awk filter `/drift-allow:/{next}` is per-line, prior marker was only on the wrapping line).
+    * `docs/baselines/main-9ef0fe33-dod-fail-matrix.md:115` — added `<!-- drift-allow: archived-doc-pattern -->` on the line that cites deleted `docs/NEXT_STEPS.md`. Preserves semantic immutability of the baseline (annotation-only, no content change).
+
+- **Verification (machine-verified pre-push)**:
+    * `tools/check_doc_sync.sh` — PASS (no source-code change).
+    * `tools/check_filename_drift.sh --strict` — PASS (0 blocking findings).
+    * `tools/wrap_push.sh origin main` — PASS (4-gate chain: `check_main_clean` + `check_test_hygiene` + `check_test_suite_registration` + `check_frame_value_convention`).
+    * `code-reviewer-minimax-m3` (post-amend round) — APPROVED.
+
+- **AGENTS.md v0.1 freeze compliance**:
+    * Cat-5 (doc-only hygiene).
+    * Zero new public API surface.
+    * Zero new singleton/registry/cache/resolver/service-locator.
+    * Zero `#include <msdfgen>|<libtess2>|<unicode[/...]>`.
+    * VIETATO pattern closure: `docs/NEXT_STEPS.md` deletion strictly enforces AGENTS.md §Pattern di filename vietati. <!-- drift-allow: archived-doc-pattern -->
+
+- **Production git trace** (this commit): 10 files changed, 1 insertion, 1457 deletions (`7 deletions` of docs/VOL `.md` + `tools/check_filename_drift.sh` 3-line whitelist drop + `docs/baselines/main-9ef0fe33-dod-fail-matrix.md:115` 1-line `drift-allow` + `AGENTS.md:58` 1-line `drift-allow`).
+
+- **Cross-references**: [`AGENTS.md`](AGENTS.md) §Insieme canonico della documentazione (canonical docs contract) + §Pattern di filename vietati (VIETATO VIETATO-list) + §Regola del gate doc-sync; [`docs/DOCUMENTATION_GOVERNANCE.md`](DOCUMENTATION_GOVERNANCE.md) §Mappa delle fonti canoniche (4 canonical + 7 registered support) + §Pattern vietati; [`tools/check_filename_drift.sh`](../tools/check_filename_drift.sh) (drift gate, awk filter `/drift-allow:/{next}` per-line); [`docs/CURRENT_STATUS.md`](CURRENT_STATUS.md) §Hygiene + §Link canonici (mirror of cleanup lineage).
+
+---
+
 ## Luglio 2026 — acquire_temp_framebuffer dimension clamp (2026-07-10, atomic commit)
 
 ### fix(effects): acquire_temp_framebuffer — dimension clamp prevents "Framebuffer dimensions must be positive" crash
