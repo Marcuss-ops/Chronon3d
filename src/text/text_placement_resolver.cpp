@@ -185,6 +185,12 @@ ResolvedTextPlacement resolve_text_placement(
     result.local_frame = Vec4(origin.x, origin.y, box_size.x, box_size.y);
     result.layer_matrix = layer_matrix;
 
+    // Phase A.3 — echo the input anchor so downstream consumers
+    // (renderer, future builder API) can re-derive layout without
+    // re-running the full resolver.  Defaults to TextAnchor::Center
+    // (matching the free function's default parameter).
+    result.resolved_anchor = anchor;
+
     return result;
 }
 
