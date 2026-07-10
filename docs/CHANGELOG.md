@@ -1,4 +1,27 @@
+## Luglio 2026 — TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS RESOLUTION + macchina-verifica CI gate (2026-07-10)
 
+### fix(docs): TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS — close the P0 rot (3 conflict-marked files) + wire macchina-verifica into CI
+
+- **Problem (P0 rot)**: 3 tracked files carried committed merge markers (rot at `git grep -lE '^(<<<<<<<|=======|>>>>>>>)' .`):
+  - `docs/CHANGELOG.md`: 3-way merge conflict block (`<<<<<<< HEAD` / `=======` / `>>>>>>> be77fbd5`) merged into the repo.
+  - `tools/perf/compare_telemetry.py`: decorative `===` (44 chars) divider (false-positive match on the recipe's prefix anchor).
+  - `tools/perf/pr_gate.py`: decorative `===` (61 chars) divider (same).
+- **Resolution (3 atomic single-file rot-fix commits)**:
+  - `627d64b5` (`fix(docs): CHANGELOG — resolve 3-way merge conflict`) — 1 file / 3 deletions; the 3 marker lines only; post-conflict F3.D + F2.D block preserved.
+  - `538117c3` (`style(perf): compare_telemetry — drop decorative ASCII = docstring divider`) — 1 file / 1 deletion.
+  - `5de9545a` (`style(perf): pr_gate — drop decorative ASCII = docstring divider`) — 1 file / 1 deletion.
+- **macchina-verifica PASS**: `git grep -lE '^(<<<<<<<|=======|>>>>>>>)' .` → 0 hits; `python3 -m py_compile tools/perf/*.py` → exit 0. Code-reviewer final verdict: `ACCEPT_AS_IS`.
+- **macchina-verifica gate wired (forward-point)** per TICKET-FOLLOWUP-DE-DUP-REFERENCES: NEW `tools/check_doc_sha_dedup.sh` (`17981acb`) — per-ADR `(file, sha7)` duplicate counter + EXEMPT filter (ADR-015/016). Registered as `tools/wrap_push.sh` Step 4.5f (`e84d997d`) parallel to Step 4.5a-c. Gate fires before `git push` — pins the macchina-verifica exit criterion in CI (no push permitted while non-EXEMPT pair count > 0).
+- **Closure append lineage** (4-cite per session convention):
+  - `627d64b5` (rot-fix #1: CHANGELOG conflict resolution)
+  - `538117c3` (rot-fix #2: compare_telemetry divider drop)
+  - `5de9545a` (rot-fix #3: pr_gate divider drop)
+  - `e84d997d` (gate wire-up: `tools/check_doc_sha_dedup.sh` + Step 4.5f registration)
+- **TICKET-FOLLOWUP-DE-DUP-REFERENCES** (chains into this closure, still OPEN): the macchina-verifica gate is its enforcement mechanism per §Criteri di accettazione. 11 forward-point atomic dedup commits remain (ADR-001/9f9af90e, ADR-010/6e0c7413, ADR-012 ×3, ADR-013/ac514fea, ADR-020 ×multiple) per dispatch table at `docs/tickets/TICKET-FOLLOWUP-DE-DUP-REFERENCES.md` §Soluzione accettabile §1. Closed already: ADR-020/d4737889 (prior session) + ADR-017/0ff8b100 (commit `14716822`).
+- **Cross-references**: `docs/tickets/TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS.md` §Stato now DONE; row migrated Open Blockers → Recently Closed in `docs/FOLLOWUP_TICKETS.md`.
+- **Code reviewer**: ACCEPT_AS_IS (1 non-blocking note: commit `627d64b5` subject ~96 ASCII / ~110 UTF-8 chars over 72-envelope; amend declined in absence of CI subject-length gate per AGENTS.md "no cosmetic churn").
+
+---
 
 ---
 
