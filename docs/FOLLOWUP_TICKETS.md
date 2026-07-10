@@ -84,7 +84,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-SIMPLICITY-BUILDER | P1 | Simple API Builder (.text().content().place()) | DONE | Text V1 — .place(TextPlacement) on Text handle, pin-point semantics |
 | TICKET-SIMPLICITY-ADAPTERS | P1 | text_run/centered_text/glow_text → adapter | PLANNED | Text V1 + TICKET-SIMPLICITY-BUILDER |
 | TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS | P1 | Migrazione composizioni al builder | PLANNED | Text V1 + TICKET-SIMPLICITY-ADAPTERS |
-| TICKET-SIMPLICITY-ANIMATION | P1 | Animation helpers (interpolate/spring/sequence) | PLANNED | Text V1 — frame-driven animation |
+| TICKET-SIMPLICITY-ANIMATION | P1 | Animation helpers (interpolate/spring/sequence) | DONE | Text V1 — interpolate.hpp convenience header with 10 free functions |
 | TICKET-SIMPLICITY-PLACEMENT | P1 | Placement leggibili + safe areas | PLANNED | Text V1 + TICKET-SIMPLICITY-COORDINATES |
 | TICKET-SIMPLICITY-PRESETS | P1 | 5 preset riutilizzabili con golden | PLANNED | Text V1 + TICKET-SIMPLICITY-BUILDER |
 | TICKET-SIMPLICITY-PIPELINE-PARITY | P1 | Pipeline parity (render/video/CLI) | PLANNED | Text V1 — max 2px differenza |
