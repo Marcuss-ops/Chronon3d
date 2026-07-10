@@ -223,7 +223,7 @@ Composition anim_typewriter_simple() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        s.font_engine(ctx.font_engine);
+        s.font_engine(ctx.font_engine_or_null());
 
         // Precompute widths FIRST, then use inline build_text_reveal_line calls
         auto spec = font_regular();
@@ -261,7 +261,7 @@ Composition anim_typewriter_cursor() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        s.font_engine(ctx.font_engine);
+        s.font_engine(ctx.font_engine_or_null());
 
         // Precompute needed values BEFORE build_2line_typewriter
         auto spec = font_regular();
@@ -318,7 +318,7 @@ Composition anim_typewriter_slide() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        s.font_engine(ctx.font_engine);
+        s.font_engine(ctx.font_engine_or_null());
 
         auto spec = font_regular();
         f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING, *s.font_engine());
@@ -360,7 +360,7 @@ Composition anim_typewriter_glow() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        s.font_engine(ctx.font_engine);
+        s.font_engine(ctx.font_engine_or_null());
 
         // Stable per-glyph typewriter with glow on revealed characters
         build_2line_typewriter(s,
@@ -381,7 +381,7 @@ Composition anim_typewriter_stagger() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        s.font_engine(ctx.font_engine);
+        s.font_engine(ctx.font_engine_or_null());
 
         const struct { const char* text; f32 size; f32 delay; } lines[] = {
             {"THIS TEXT",   60.0f,  0.0f},

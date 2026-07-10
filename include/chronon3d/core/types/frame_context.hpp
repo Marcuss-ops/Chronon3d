@@ -6,6 +6,7 @@
 #include <string>
 
 namespace chronon3d {
+namespace runtime { class RenderRuntime; }  // WP-9 PR 9.0 — forward decl for ctx.runtime
 class AssetRegistry;  // forward declaration for migration path
 class FontEngine;     // TICKET-A4 follow-up — codex/agent2-font-bind-fixes:
                       // WP-8 PR 8.0 strict binding means composition
@@ -36,6 +37,25 @@ struct FrameContext {
                                        // setter); backwards-compatible with
                                        // any tests that build FrameContext
                                        // by hand without an engine.
+                                       //
+                                       // WP-9 PR 9.0 (deprecated, prefer):
+                                       // composition lambdas should now
+                                       // read `ctx.runtime->font_engine()`
+                                       // when available and fall back to
+                                       // this direct field otherwise.
+
+    // ── WP-9 PR 9.0 — Runtime accessor threaded into composition ctx ─
+    /// Non-owning pointer to the per-runtime RenderRuntime.  Render-time
+    /// injection point: Composition's evaluate(Frame, f32, RenderRuntime&,
+    /// FontEngine*, ...) overload sets ctx.runtime = &runtime.  The
+    /// render pipeline may also populate this when SoftwareRenderer
+    /// constructs the per-frame FrameContext for graph execution.
+    ///
+    /// Composition lambdas should prefer `ctx.runtime->font_engine()`
+    /// over `ctx.font_engine` when ctx.runtime is non-null.  Null-safe
+    /// default keeps legacy callers (e.g. hand-built FrameContext in
+    /// tests) compiling without a runtime.
+    const chronon3d::runtime::RenderRuntime* runtime{nullptr};
 
     [[nodiscard]] double fps() const { return frame_rate.fps(); }
 
@@ -61,6 +81,23 @@ struct FrameContext {
 
     [[nodiscard]] bool is_first_frame() const { return frame == 0; }
     [[nodiscard]] bool is_last_frame() const { return duration > 0 && frame >= duration - 1; }
+
+    // ── WP-9 PR 9.0 — Runtime-aware FontEngine accessor helper ────────
+    /// AGENTS.md §5 anti-duplication helper.  Returns the
+    /// runtime-supplied FontEngine when ctx.runtime is wired (preferred
+    /// path per ADR-020 migration), or the legacy direct ctx.font_engine
+    /// field when no runtime is available.  Null-safe default allows
+    /// hand-built FrameContext (e.g. tests, install_consumer examples)
+    /// to call this without allocating a RenderRuntime.
+    ///
+    /// Composition lambdas should call this method directly:
+    ///     `s.font_engine(ctx.font_engine_or_null())` ; or
+    ///     `if (auto* engine = ctx.font_engine_or_null()) { ... }`
+    /// instead of repeating the `runtime ? runtime->font_engine() : font_engine`
+    /// ternary at every call site (6 sites consolidated by this helper).
+    [[nodiscard]] FontEngine* font_engine_or_null() const noexcept {
+        return runtime ? runtime->font_engine() : font_engine;
+    }
 };
 
 } // namespace chronon3d
