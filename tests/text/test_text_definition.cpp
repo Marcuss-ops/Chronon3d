@@ -22,9 +22,11 @@
 //  13. Full convergence: centered_text() → to_text_document() → TextDocument
 //  14. text_run() convergence — TextDefinition → TextRunSpec → from_text_run_spec()
 //  15. Determinism — same input always produces same output
-//  16. TextFrame.offset — gap-fill coverage (NOT mirrored in TextSpec)
-//  17. TextEffects — Phase A.3: compositor-level effects (glow/bevel/blur)
-//  18. TextAnimation — Phase A.3: animators + selectors + run-control + Frame timing
+//  16. TextFrame.offset — gap-fill coverage (NOT mirrored in TextSpec)//   17. TextEffects — Phase A.3: compositor-level effects (glow/bevel/blur)
+//   18. TextAnimation — Phase A.3: animators + selectors + run-control + Frame timing
+//   19. to_text_run_spec — F2.D: TextDefinition → TextRunSpec reverse adapter
+//                              (direction/language/script/animators/selectors/
+//                              cache_layout mappable; Frame envelope lossily dropped)
 //
 // Phase A.3 (this commit): TextEffects + TextAnimation are populated with
 // real fields mapped from TextRunSpec/TextMaterial; from_text_run_spec now
@@ -1488,4 +1490,195 @@ TEST_CASE("TextAnimation: reverse adapter drops animation (TextDef-only by desig
     CHECK(restored.animation.language.empty());
     CHECK(restored.animation.script == 0u);
     CHECK(restored.animation.cache_layout == true);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 19. to_text_run_spec — F2.D: TextDefinition → TextRunSpec reverse adapter
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// F2.D closes the LOSSY REVERSE gap flagged in the LIFECYCLE comment of
+// text_definition.hpp:  the 6 spec-only animation fields
+// (animators, selectors, direction, language, script, cache_layout) are now
+// carried back from TextDefinition to a TextRunSpec.
+//
+// DOCUMENTED LOSSY DROP: TextAnimation.start_delay + .duration (Frame envelope)
+// are NOT representable in TextRunSpec; the conversion therefore silently
+// drops them.  Roundtrip TextDefinition → TextRunSpec → TextDefinition yields
+// Frame{0} for both envelope fields.
+
+TEST_CASE("to_text_run_spec: forward mapping populates all 6 animation fields") {
+    TextDefinition def;
+    def.content.value = "F2D forward";
+    def.style.font.font_size = 48.0f;
+
+    // Populate the 6 spec-only animation fields
+    TextAnimatorSpec animator;
+    animator.id = "fade_in";
+    animator.enabled = true;
+    def.animation.animators.push_back(animator);
+    GlyphSelectorSpec selector;
+    selector.id = "all_glyphs";
+    def.animation.selectors.push_back(selector);
+    def.animation.direction    = TextDirection::RTL;
+    def.animation.language     = "ar";
+    def.animation.script       = 0x41726162u;  // 'Arab' OpenType tag
+    def.animation.cache_layout = false;
+
+    auto run = to_text_run_spec(def);
+
+    // The 6 animation fields must all be carried over verbatimly
+    REQUIRE(run.animators.size() == 1);
+    CHECK(run.animators[0].id == "fade_in");
+    CHECK(run.animators[0].enabled == true);
+    REQUIRE(run.selectors.size() == 1);
+    CHECK(run.selectors[0].id == "all_glyphs");
+    CHECK(run.direction    == TextDirection::RTL);
+    CHECK(run.language     == "ar");
+    CHECK(run.script       == 0x41726162u);
+    CHECK(run.cache_layout == false);
+}
+
+TEST_CASE("to_text_run_spec: base spec reuses from_text_definition (no manual remap drift)") {
+    // The base TextSpec fields must be populated via from_text_definition() —
+    // verifying that the F2.D adapter does NOT manually map the 22 base
+    // fields (drift-prevention pattern documented in the header).
+    TextDefinition def;
+    def.content.value = "Base reuse";
+    def.style.font = {.font_path = "fonts/F2D.ttf", .font_family = "F2D",
+                      .font_weight = 600, .font_size = 64.0f};
+    def.frame.size = {1200.0f, 240.0f};
+    def.frame.anchor = TextAnchor::TopCenter;
+    def.frame.tracking = 1.5f;
+    def.frame.max_lines = 3;
+    def.style.color = Color{0.4f, 0.6f, 0.8f, 1.0f};
+    def.frame.position = {400.0f, 300.0f, 5.0f};
+
+    auto run = to_text_run_spec(def);
+    // The behavior MUST match from_text_definition(def): 22 base fields preserved
+    auto direct_spec = from_text_definition(def);
+
+    CHECK(run.text.content.value == direct_spec.content.value);
+    CHECK(run.text.font.font_path == direct_spec.font.font_path);
+    CHECK(run.text.font.font_family == direct_spec.font.font_family);
+    CHECK(run.text.font.font_weight == direct_spec.font.font_weight);
+    CHECK(run.text.font.font_size == doctest::Approx(direct_spec.font.font_size));
+    CHECK(run.text.layout.box.x == doctest::Approx(direct_spec.layout.box.x));
+    CHECK(run.text.layout.box.y == doctest::Approx(direct_spec.layout.box.y));
+    CHECK(run.text.layout.anchor == direct_spec.layout.anchor);
+    CHECK(run.text.layout.tracking == doctest::Approx(direct_spec.layout.tracking));
+    CHECK(run.text.layout.max_lines == direct_spec.layout.max_lines);
+    CHECK(run.text.appearance.color.r == doctest::Approx(direct_spec.appearance.color.r));
+    CHECK(run.text.appearance.color.g == doctest::Approx(direct_spec.appearance.color.g));
+    CHECK(run.text.appearance.color.b == doctest::Approx(direct_spec.appearance.color.b));
+    CHECK(run.text.position.x == doctest::Approx(direct_spec.position.x));
+    CHECK(run.text.position.y == doctest::Approx(direct_spec.position.y));
+    CHECK(run.text.position.z == doctest::Approx(direct_spec.position.z));
+}
+
+TEST_CASE("to_text_run_spec: empty def yields empty animation vectors + default defaults") {
+    // Default-constructed TextDefinition has empty animators + selectors +
+    // probe default TextRunSpec fields too (direction=Auto, language="",
+    // script=0, cache_layout=true — TextRunSpec's defaults).
+    TextDefinition def;
+    auto run = to_text_run_spec(def);
+
+    CHECK(run.animators.empty());
+    CHECK(run.selectors.empty());
+    CHECK(run.direction == TextDirection::Auto);
+    CHECK(run.language.empty());
+    CHECK(run.script == 0u);
+    CHECK(run.cache_layout == true);  // TextRunSpec default is true; mapping preserves it
+}
+
+TEST_CASE("to_text_run_spec: Frame start_delay/duration are lossily dropped (canonical behaviour)") {
+    // F2.D documented loss: start_delay + duration are NOT representable in
+    // TextRunSpec.  The adapter therefore silently drops them.  This test
+    // exercises the canonical, tested behaviour (NOT a bug, NOT undefined).
+    //
+    // Verification strategy: roundtrip def → run_spec → new def then assert
+    // the envelope is Frame{0} (the default Frame value used by the
+    // from_text_run_spec forward path when no field is set).
+    TextDefinition def;
+    def.content.value = "Envelope lossy";
+    def.animation.start_delay = Frame{42};   // explicitly set; will be dropped
+    def.animation.duration    = Frame{120};  // explicitly set; will be dropped
+    // Plus 1 mappable field for context
+    TextAnimatorSpec animator;
+    animator.id = "fade_in";
+    def.animation.animators.push_back(animator);
+
+    auto run = to_text_run_spec(def);
+    // Verification is on the ROUND-TRIPPED definition (returned by
+    // from_text_run_spec), not on run_spec directly (TextRunSpec lacks these
+    // fields at all).
+    auto roundtrip = from_text_run_spec(run);
+
+    CHECK(roundtrip.animation.start_delay == Frame{0});   // dropped → Frame{0}
+    CHECK(roundtrip.animation.duration    == Frame{0});   // dropped → Frame{0}
+    // The single mappable field survives the round-trip
+    REQUIRE(roundtrip.animation.animators.size() == 1);
+    CHECK(roundtrip.animation.animators[0].id == "fade_in");
+}
+
+TEST_CASE("to_text_run_spec: round-trip is idempotent for the 6 spec-only fields") {
+    // The point of F2.D:  def → run_spec → def should round-trip the 6
+    // animation fields verbatimly (modulo the documented Frame envelope drop).
+    TextDefinition def;
+    def.content.value = "Round-trip F2D";
+    def.style.font.font_size = 56.0f;
+    def.frame.size = {1000.0f, 200.0f};
+    // Set a NON-DEFAULT offset so the roundtrip CHECK below actually exercises
+    // the drift-prevention contract (asset: to_text_run_spec reuses
+    // from_text_definition which does NOT remap offset; if it ever started to,
+    // the check would catch the regression).
+    def.frame.offset = Vec2{42.5f, -17.3f};
+
+    TextAnimatorSpec animator_a;
+    animator_a.id = "fade_in";
+    animator_a.enabled = true;
+    TextAnimatorSpec animator_b;
+    animator_b.id = "typewriter";
+    animator_b.enabled = false;
+    def.animation.animators = {animator_a, animator_b};
+
+    GlyphSelectorSpec selector;
+    selector.id = "every_2nd";
+    def.animation.selectors = {selector};
+
+    def.animation.direction    = TextDirection::LTR;
+    def.animation.language     = "en-US";
+    def.animation.script       = 0x4C61746Eu;  // 'Latn' OpenType tag
+    def.animation.cache_layout = true;
+
+    // Round-trip: def → run_spec → def
+    auto run = to_text_run_spec(def);
+    auto restored = from_text_run_spec(run);
+
+    // The 6 spec-only fields must round-trip exactly
+    REQUIRE(restored.animation.animators.size() == 2);
+    CHECK(restored.animation.animators[0].id == "fade_in");
+    CHECK(restored.animation.animators[0].enabled == true);
+    CHECK(restored.animation.animators[1].id == "typewriter");
+    CHECK(restored.animation.animators[1].enabled == false);
+    REQUIRE(restored.animation.selectors.size() == 1);
+    CHECK(restored.animation.selectors[0].id == "every_2nd");
+    CHECK(restored.animation.direction    == TextDirection::LTR);
+    CHECK(restored.animation.language     == "en-US");
+    CHECK(restored.animation.script       == 0x4C61746Eu);
+    CHECK(restored.animation.cache_layout == true);
+
+    // The base TextSpec fields ALSO round-trip (via from_text_definition reuse)
+    CHECK(restored.content.value == "Round-trip F2D");
+    CHECK(restored.style.font.font_size == doctest::Approx(56.0f));
+    CHECK(restored.frame.size.x == doctest::Approx(1000.0f));
+    CHECK(restored.frame.size.y == doctest::Approx(200.0f));
+
+    // TextFrame.offset (authoring-only, NOT mirrored in TextSpec) must
+    // survive the round-trip:  to_text_run_spec reuses from_text_definition,
+    // which does NOT remap offset, so offset carries verbatimly through
+    // run.text (no spec destination to stomp to on either side).  The
+    // non-default Vec2{42.5, -17.3} is set BEFORE the roundtrip — a future
+    // edit that begins remapping offset would break this assertion.
+    CHECK(restored.frame.offset.x == doctest::Approx(42.5f));
+    CHECK(restored.frame.offset.y == doctest::Approx(-17.3f));
 }
