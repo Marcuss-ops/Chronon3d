@@ -127,6 +127,9 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         # text_layout->font.font_size at the default 0.0f).  Gracefully degrades
         # via MESSAGE+return when system fonts are absent (no external fixture).
         text/test_compile_text_layout_identity.cpp
+        # ADR-018 — auto-fit binary search regression locks:
+        # shrink triggers, no-op when fits, min clamp, 12-iteration determinism.
+        text/test_auto_fit_font_size.cpp
         # TICKET-101 — text cat-3 #2 regression suite for build_text_run +
         # compile_text_layout after the refactor that:
         #   (a) added `paragraph_index` to TextLayoutRequest (HPP POD
