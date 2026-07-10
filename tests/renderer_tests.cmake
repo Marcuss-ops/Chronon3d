@@ -142,6 +142,7 @@ chronon3d_add_test_suite(
         # the P0-3 lock above).  4 cases: ExecutionFailure,
         # CapabilitiesOff, NullBackend, Success.
         render_graph/nodes/test_text_run_node_return_channel.cpp
+        render_graph/nodes/test_text_run_predicted_bbox.cpp
         render_graph/nodes/test_per_pixel_dof_node_rg_integration.cpp
         render_graph/nodes/test_per_pixel_dof_node_unit.cpp
         render_graph/nodes/test_shadow_node_rg_integration.cpp
