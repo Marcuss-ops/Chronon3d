@@ -137,7 +137,6 @@ public:
 
 private:
     CacheDiagnostics::Handle m_diag_handle;
-    std::atomic<bool> m_diag_alive{true};
     FramebufferCache m_cache;
     // Pre-existing pre-rewrite leftover: lifetime guard for the lambdas
     // stored in CacheDiagnostics via m_diag_handle.  Set false in
