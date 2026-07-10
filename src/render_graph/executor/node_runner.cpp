@@ -4,6 +4,7 @@
 #include "tile_pruning.hpp"
 #include "telemetry_emitter.hpp"
 #include <chronon3d/cache/persistent_framebuffer_store.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/math/color.hpp>
@@ -367,12 +368,89 @@ void execute_single_node(
         *out_execute_ms = duration_ms;
     }
 
+    // TICKET-SIMPLICITY-CONSERVATIVE-BBOX — F1.C post-render alpha_bbox
+    // expansion.  After a TextRun node renders, scan the framebuffer's
+    // alpha channel to compute the actual ink bounding box.  If the
+    // actual ink extends beyond the predicted bbox, expand
+    // resolved_bboxes[id] so the compositor doesn't clip visible text.
+    // This catches cases where predicted_bbox was technically valid
+    // (finite, non-empty) but under-estimated the glyph ink extent
+    // (e.g., tight font metrics, unexpected kerning, large descenders).
+    //
+    // Gated on: TextRun node kind, successful render (non-null fb),
+    // non-empty predicted_bbox (otherwise we already fall back to full
+    // canvas in the pre-render guard).
+    if (node.kind() == RenderGraphNodeKind::TextRun &&
+        cache_eval.result && predicted_bbox && !predicted_bbox->is_empty())
+    {
+        const Framebuffer* fb_ptr = cache_eval.result.get();
+        if (fb_ptr && fb_ptr->width() > 0 && fb_ptr->height() > 0) {
+            const int fb_w = static_cast<int>(fb_ptr->width());
+            const int fb_h = static_cast<int>(fb_ptr->height());
+            int alpha_x0 = fb_w, alpha_y0 = fb_h;
+            int alpha_x1 = -1, alpha_y1 = -1;
+            // Scan alpha channel to find actual ink bounding box.
+            // Scan top-to-bottom; stop once top+bottom edges are found
+            // and we've already seen left+right (checked per-row).
+            for (int y = 0; y < fb_h; ++y) {
+                const Color* row = fb_ptr->pixels_row(y);
+                bool row_has_ink = false;
+                for (int x = 0; x < fb_w; ++x) {
+                    if (row[x].a > 0.01f) {
+                        row_has_ink = true;
+                        if (x < alpha_x0) alpha_x0 = x;
+                        if (x > alpha_x1) alpha_x1 = x;
+                    }
+                }
+                if (row_has_ink) {
+                    if (y < alpha_y0) alpha_y0 = y;
+                    alpha_y1 = y;
+                }
+                // Early exit: stop once we've passed the bottom edge
+                // and haven't found ink for 2+ rows (prevents scanning
+                // the entire canvas below the text).
+                if (y > alpha_y1 + 2 && alpha_y1 >= alpha_y0) break;
+            }
+            if (alpha_x0 <= alpha_x1 && alpha_y0 <= alpha_y1) {
+                raster::BBox actual{alpha_x0, alpha_y0, alpha_x1 + 1, alpha_y1 + 1};
+                // Expand resolved_bboxes if actual ink exceeds predicted.
+                raster::BBox expanded = *predicted_bbox;
+                bool needs_expand = false;
+                if (actual.x0 < expanded.x0) { expanded.x0 = actual.x0; needs_expand = true; }
+                if (actual.y0 < expanded.y0) { expanded.y0 = actual.y0; needs_expand = true; }
+                if (actual.x1 > expanded.x1) { expanded.x1 = actual.x1; needs_expand = true; }
+                if (actual.y1 > expanded.y1) { expanded.y1 = actual.y1; needs_expand = true; }
+                if (needs_expand) {
+                    predicted_bbox = expanded;
+                    if (ctx.node_exec.counters) {
+                        ctx.node_exec.counters->text_bbox_contract_violations.fetch_add(
+                            1, std::memory_order_relaxed);
+                    }
+                    static bool warned = false;
+                    if (!warned) {
+                        spdlog::warn(
+                            "[text-bbox] POST_RENDER_EXPAND node={} "
+                            "predicted=({}, {}, {}, {}) "
+                            "actual=({}, {}, {}, {}) "
+                            "expanded=({}, {}, {}, {})",
+                            node.name(),
+                            predicted_bbox->x0, predicted_bbox->y0,
+                            predicted_bbox->x1, predicted_bbox->y1,
+                            actual.x0, actual.y0, actual.x1, actual.y1,
+                            expanded.x0, expanded.y0, expanded.x1, expanded.y1);
+                        warned = true;
+                    }
+                }
+            }
+        }
+    }
+
     const auto t_telemetry0 = profiling::now();
     emit_node_records(
         ctx, node,
         cache_eval.key,
         cache_eval.result,
-        node_ctx.node_exec.clip_rect,
+        predicted_bbox,
         cache_eval.cache_status,
         cache_eval.is_cacheable,
         static_cast<int>(input_ids.size()),
