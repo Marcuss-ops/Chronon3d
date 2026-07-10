@@ -43,6 +43,9 @@ chronon3d_add_test_suite(
             cache/stress/test_cache_diagnostics_stress.cpp
             cache/stress/test_camera_transition_catalog_stress.cpp
             render_graph/cache/test_compiled_graph_cache.cpp
+            # In-process cache reuse: same renderer, same frame, 5 iterations.
+            # Verifies cache hits increase, no hash collisions, pixel consistency.
+            cache/test_cache_reuse_identical_frame.cpp
 )
 # Video-dependent test sources (require CHRONON3D_ENABLE_VIDEO)
 if(CHRONON3D_ENABLE_VIDEO)
