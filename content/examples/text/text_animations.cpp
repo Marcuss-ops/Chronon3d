@@ -94,23 +94,10 @@ TextSpec txt_center(std::string text, f32 font_size = 72.0f) {
 // now they are 5–10 lines of pure animation logic.
 
 
-// ── Shared static resolver + FontEngine for ALL 5 typewriter variants ──
-// Matches the AnimTypewriter pattern in animation_compositions.cpp.
-// Mounted at first-use time with the current working directory so
-// relative font paths (assets/fonts/Poppins-Regular.ttf) resolve
-// regardless of the renderer's internal FontEngine configuration.
-//
-// ADR-020: this is a function-local static singleton; rationale
-// + migration plan (FontEngine-from-runtime) is documented in
-// docs/adr/ADR-020-shared-static-fontengine-singleton.md.
-static chronon3d::FontEngine& shared_typewriter_engine() {
-    static chronon3d::assets::AssetResolver s_resolver;
-    if (!s_resolver.has_mount()) {
-        s_resolver.mount(std::filesystem::current_path());
-    }
-    static chronon3d::FontEngine s_engine(s_resolver);
-    return s_engine;
-}
+// F0.2 — shared_typewriter_engine() + current_path() static resolver REMOVED.
+// Typewriter compositions now use ctx.font_engine from the runtime chain:
+//   RenderEngine::set_assets_root() → Runtime::resolver() → FontEngine → FrameContext
+// See docs/adr/ADR-020-shared-static-fontengine-singleton.md for migration rationale.
 
 // ── Tracking constant (kept local for typewriter section below) ────
 constexpr f32 TRACKING = 4.0f;
@@ -236,7 +223,7 @@ Composition anim_typewriter_simple() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        s.font_engine(&shared_typewriter_engine());
+        s.font_engine(ctx.font_engine);
 
         // Precompute widths FIRST, then use inline build_text_reveal_line calls
         auto spec = font_regular();
@@ -274,7 +261,7 @@ Composition anim_typewriter_cursor() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        s.font_engine(&shared_typewriter_engine());
+        s.font_engine(ctx.font_engine);
 
         // Precompute needed values BEFORE build_2line_typewriter
         auto spec = font_regular();
@@ -331,7 +318,7 @@ Composition anim_typewriter_slide() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        s.font_engine(&shared_typewriter_engine());
+        s.font_engine(ctx.font_engine);
 
         auto spec = font_regular();
         f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING, *s.font_engine());
@@ -373,7 +360,7 @@ Composition anim_typewriter_glow() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        s.font_engine(&shared_typewriter_engine());
+        s.font_engine(ctx.font_engine);
 
         // Stable per-glyph typewriter with glow on revealed characters
         build_2line_typewriter(s,
@@ -394,7 +381,7 @@ Composition anim_typewriter_stagger() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        s.font_engine(&shared_typewriter_engine());
+        s.font_engine(ctx.font_engine);
 
         const struct { const char* text; f32 size; f32 delay; } lines[] = {
             {"THIS TEXT",   60.0f,  0.0f},
