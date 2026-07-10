@@ -37,9 +37,10 @@ int main(int argc, char** argv) {
     // (CompositionRegistry now starts empty — compositions are added
     //  explicitly via init_compositions()).
     chronon3d::CompositionRegistry registry;
-    chronon3d::cli::init_compositions(registry);
+    chronon3d::AssetRegistry assets;
+    chronon3d::cli::init_compositions(registry, assets);
     int exit_code = 0;
-    chronon3d::cli::CliContext ctx{registry, exit_code, std::move(cmd_line)};
+    chronon3d::cli::CliContext ctx{registry, exit_code, std::move(cmd_line), assets};
 
     // Explicit group registration — only linked groups get registered.
     // Build profiles control which groups are compiled/linked:

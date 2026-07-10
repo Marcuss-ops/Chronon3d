@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/assets/asset_registry.hpp>
 #include <string>
 #include <vector>
 #include <filesystem>
@@ -251,7 +252,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
 int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::vector<std::string>& job_specs);
 int command_telemetry(const TelemetryArgs& args);
-int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args);
+int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args, AssetRegistry& assets);
 int command_still(const CompositionRegistry& registry, const StillArgs& args);
 int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args);
 int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);
