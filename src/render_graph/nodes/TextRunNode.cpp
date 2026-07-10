@@ -37,6 +37,9 @@
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+#include <chronon3d/text/text_visibility_audit.hpp>
+#endif
 #include <spdlog/spdlog.h>
 
 #include <cmath>
@@ -323,9 +326,12 @@ NodeExecResult TextRunNode::execute(
         }};
     }
 
+    // Pre-compute world_matrix once — shared by diagnostic (below),
+    // debug overlay (§6), and F1.E visibility audit (below).
+    const Mat4 world_matrix = text_run::build_world_matrix(ctx, m_placement);
+
     // ── 5. Per-frame debug diagnostic (opt-in via ctx.policy.diagnostics_enabled). ──
     if (ctx.policy.diagnostics_enabled) {
-        const Mat4 world_matrix = text_run::build_world_matrix(ctx, m_placement);
         text_run::report_diagnostic(
             m_name, *m_shape, dispatch.value().items_drawn, opacity, world_matrix,
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -340,6 +346,41 @@ NodeExecResult TextRunNode::execute(
     // NOTE: draw_text_run() already increments text_glyphs_rasterized
     // inside the processor.  Do NOT double-count here — the processor
     // is the single source of truth for telemetry.
+
+    // TICKET-SIMPLICITY-VISIBILITY-CONTRACT — F1.E post-render visibility
+    // audit.  Verifies the 6 invariants: font_resolved, shaping_succeeded,
+    // finite, predicted_contains_world, clip_contains_visible_ink, and
+    // alpha_bbox non-empty.  Emits structured spdlog::warn diagnostics
+    // via verify_text_visibility() (one-shot per invariant).
+    //
+    // Uses world_matrix (computed once above), predicted_bbox (recomputed
+    // here in diagnostics mode only), and the rendered framebuffer.
+    // clip_rect = predicted_r (the compositor uses predicted_bbox as
+    // clip_rect for TextRun nodes — see compute_dirty_clip in
+    // tile_pruning.cpp).
+    // Gated on CHRONON3D_BUILD_DIAGNOSTICS — zero overhead in production.
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+    if (m_shape && fb) {
+        auto pred = predicted_bbox(ctx, {});
+        Rect predicted_r{};
+        if (pred) {
+            predicted_r = Rect{
+                {static_cast<float>(pred->x0), static_cast<float>(pred->y0)},
+                {static_cast<float>(pred->x1 - pred->x0),
+                 static_cast<float>(pred->y1 - pred->y0)}};
+        } else {
+            predicted_r = Rect{
+                {0, 0},
+                {static_cast<float>(ctx.frame_input.width),
+                 static_cast<float>(ctx.frame_input.height)}};
+        }
+        // clip_rect = predicted_r: matches compositor behavior for TextRun
+        Rect clip_r = predicted_r;
+        verify_text_visibility(
+            *m_shape, world_matrix, predicted_r, clip_r,
+            fb.get(), m_name.c_str());
+    }
+#endif
 
     // ── 6. Text layout debug overlay + structured log (§5 + §6). ──
 #ifdef CHRONON3D_ENABLE_TEXT
