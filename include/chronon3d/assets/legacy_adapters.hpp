@@ -1,19 +1,26 @@
 // =============================================================================
 // chronon3d/assets/legacy_adapters.hpp
 //
-// M1.7 Step 2 — Legacy Adapters per la safe migration Asset Readiness V2.
+// M1.7 Step 2 (post-Phase-A1 close-out, 2026-07-10) — Legacy Adapters per
+// la safe migration Asset Readiness V2.
 //
-// 3 funzioni free additive, puramente header-only inline, per convertire
-// i pattern asset legacy (path raw sparsi + asset discovery render-time +
-// fallback silenziosi) ai nuovi tipi V2 canonici (`AssetRef` +
-// `AssetManifest` + `AssetPreflightResult`) definiti in
-// `asset_readiness_v2.hpp`. Non modificano lo stato, non alloccano
+// 2 funzioni free additive rimaste (`make_asset_ref` + `register_path`),
+// puramente header-only inline, per convertire i pattern asset legacy
+// (path raw sparsi + asset discovery render-time + fallback silenziosi)
+// ai nuovi tipi V2 canonici POD (`AssetRef` + `AssetManifest`) definiti
+// in `asset_readiness_v2.hpp`. Non modificano lo stato, non alloccano
 // singleton/registry/cache/service-locator.
 //
-// File destinato all'eliminazione allo Step 4 (TICKET-ASSET-READINESS) —
-// gli adapter diventano obsoleti quando il render graph + il content
-// migrano completamente alla nuova asset readiness (`Step 3` migrate
-// new content).
+// L'adapter 3 (`accumulate_preflight_result`) è stato rimosso il 2026-07-10
+// (cleanup Phase A1) perché dipendeva dall'`AssetPreflightResult` stub
+// SEMPRE-VERDE rimosso da `asset_readiness_v2.hpp`. Un
+// `accumulate_preflight_result` su un result SEMPRE-VERDE generava FALSI
+// VERDI lato consumer — incompatibile con la regola "preflight che dice
+// sempre OK è peggio dell'assenza di preflight".
+//
+// File destinato all'eliminazione completa a Step 4 (TICKET-ASSET-READINESS)
+// — i 2 adapter rimasti diventano obsoleti quando il render graph + il
+// content migrano completamente alla nuova asset readiness (`Step 3`).
 //
 // Vincoli AGENTS.md v0.1 (Cat-3 freeze):
 //   * ZERO nuovi singleton / registry / cache / service-locator.
@@ -22,8 +29,8 @@
 //     rimangono PASS bit-identical — gli adapter sono AGGIUNTI ma NON
 //     chiamati dal render graph / scene builder / composition).
 //   * FNV-1a cache key invariato (gli adapter NON toccano il cache path).
-//   * ABI pubblico espanso con 3 nuove free functions (non 3 nuove classi)
-//     → ABI footprint incrementale trascurabile.
+//   * ABI pubblico espanso con 2 (post-A1) nuove free functions (non 2
+//     nuove classi) → ABI footprint incrementale trascurabile.
 //
 // Namespace: `chronon3d::assets::v2` (stesso di `asset_readiness_v2.hpp`).
 // =============================================================================
@@ -91,38 +98,23 @@ register_path(AssetManifest& manifest,
 }
 
 // -----------------------------------------------------------------------------
-// Adapter 2 — `accumulate_preflight_result` — bridge accumulator per
-// render-time not-found errors.
+// Adapter `accumulate_preflight_result` — REMOVED 2026-07-10 (Phase A1
+// cleanup).
 //
-// Dato un `AssetRef` (l'asset che è stato cercato al render-time) + un
-// "found" boolean (true = trovato/caricato, false = not-found al
-// render-time), accumula il risultato in un `AssetPreflightResult`
-// esistente: setta `result.ok = false` se `!found` + appende `ref` a
-// `result.missing`.
+// Operava sull'`AssetPreflightResult` stub SEMPRE-VERDE rimosso da
+// `asset_readiness_v2.hpp`: settava `result.ok = false` se `!found` e
+// appendeva `ref` a `result.missing`. Rimosso perché dipendere da un
+// type la cui rimozione è già decisa + perché l'accumulo partiva da
+// un result SEMPRE-VERDE (falsi verdi sul lato consumer). Il preflight
+// canonico reale (con accumulator semantico built-in) vive in
+// `include/chronon3d/assets/asset_preflight_resolver.hpp` — namespace
+// `chronon3d::` (NON `chronon3d::assets::v2`).
 //
-// Pattern d'uso tipico (post-Step-3, quando i wrapper specifici per
-// dominio saranno aggiunti):
-//
-//   AssetPreflightResult result;  // empty, ok = true, missing = []
-//   for (const auto& ref : manifest.all()) {
-//       bool found = check_one_for_domain(ref, ...);  // domain-specific
-//       accumulate_preflight_result(result, ref, found);
-//   }
-//   if (!result.ok) FAIL_PREFLIGHT(result.missing);
-//
-// NON noexcept di design: `result.missing.push_back(ref)` può allocare
-// su OOM. Se OOM succede, l'eccezione propaga honestamente al caller
-// (post-Step-3: `RenderJob::start()`). NO silent failure (AGENTS v0.1
-// §"Renderer non inventa fallback" + §"no silent asset fallback").
+// Se mai servirà di nuovo, reintrodurre SOLO dopo che
+// `chronon3d::AssetPreflightResolver` canonico esponga un'API typed
+// result-aware concreta (forward-point a TICKET-ASSET-READINESS Step 3
+// reale + ADR-016 §Decision 2). Ad ogni modo non reintrodurre MAI
+// `chronon3d::assets::v2::AssetPreflightResult` (compile-fail gate #18).
 // -----------------------------------------------------------------------------
-inline void
-accumulate_preflight_result(AssetPreflightResult& result,
-                            const AssetRef& ref,
-                            bool found) {
-    if (!found) {
-        result.ok = false;
-        result.missing.push_back(ref);
-    }
-}
 
 } // namespace chronon3d::assets::v2

@@ -247,20 +247,25 @@ set(CHRONON3D_PUBLIC_HEADERS
     #   (zero nuovi singleton / zero modifiche al codice esistente / zero ABI bloat).
     #   Destinato all'eliminazione a Step 4 (TICKET-SEQUENCE-LOCAL-FRAME).
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/legacy_adapters.hpp"
-    # ── M1.7 Step 1: Asset Readiness V2 single-source-of-truth (TICKET-ASSET-READINESS) ──
-    #   AssetKind enum + AssetRef POD + AssetManifest class + AssetPreflightResult POD +
-    #   AssetPreflightResolver class in namespace `chronon3d::assets::v2` (distinto da
-    #   `chronon3d::AssetType` esistente in asset_metadata.hpp). Designed green: zero
-    #   code-side mutate, zero new singleton, ABI pubblico preservato. Step 2 wireà i
-    #   legacy adapters (font_path/image_path/video_path/audio_path → AssetRef);
-    #   Step 3 popolerà check_* reali + RenderJob::start() preflight; Step 4 eliminerà
-    #   TextPreflight/ImagePreflight/VideoPreflight/AudioPreflight/FontPreflight e i
-    #   fallback silenziosi.
+    # ── M1.7 Step 1 (post-Phase-A1 close-out, 2026-07-10): Asset Readiness V2 POD types ──
+    #   3 simboli pubblici canonici POD (`AssetKind` enum + `AssetRef` struct +
+    #   `AssetManifest` class) in namespace `chronon3d::assets::v2` (distinto da
+    #   `chronon3d::AssetType` esistente in asset_metadata.hpp). Gli stub
+    #   SEMPRE-VERDI `AssetPreflightResult` + `AssetPreflightResolver` sono stati
+    #   rimossi in Phase A1 (2026-07-10) — un preflight che dice sempre OK è
+    #   peggio dell'assenza di preflight perché genera falsi verdi. Il preflight
+    #   canonico reale vive in `asset_preflight_resolver.hpp` (namespace
+    #   `chronon3d::`, NON `chronon3d::assets::v2`). Wrap_push + compile-fail gate
+    #   #18 in `tools/check_architecture_boundaries.sh` vietano la re-introduzione.
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_readiness_v2.hpp"
-    # ── M1.7 Step 2: Asset Legacy Adapters (path raw → AssetRef + manifest + render-error bridge) ──
-    #   `make_asset_ref(kind, path, owner, required)` POD builder + `register_path(manifest, ...)`
-    #   convenience wrapper + `accumulate_preflight_result(result, ref, found)` bridge accumulator.
-    #   Pure additive: AGENTS Cat-3 freeze-compliant (zero nuovi singleton / zero modifiche al codice
-    #   esistente / zero ABI bloat / FNV-1a cache key invariato). Destinato all'eliminazione a Step 4.
+    # ── M1.7 Step 2 (post-Phase-A1 close-out, 2026-07-10): Asset Legacy Adapters ──
+    #   2 funzioni free additive rimaste: `make_asset_ref(kind, path, owner, required)`
+    #   POD builder + `register_path(manifest, kind, path, owner, required)`
+    #   convenience wrapper. L'adapter 3 `accumulate_preflight_result(result, ref,
+    #   found)` bridge accumulator è stato rimosso in Phase A1 perché dipendeva
+    #   dall'`AssetPreflightResult` stub SEMPRE-VERDE rimosso. Pure additive:
+    #   AGENTS Cat-3 freeze-compliant (zero nuovi singleton / zero modifiche al
+    #   codice esistente / zero ABI bloat / FNV-1a cache key invariato).
+    #   Destinato all'eliminazione completa a Step 4.
     "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/legacy_adapters.hpp"
 )
