@@ -29,6 +29,9 @@ struct FrameRate {
     // `.numerator` at call sites).
     [[nodiscard]] constexpr i32 num() const noexcept { return numerator; }
     [[nodiscard]] constexpr i32 den() const noexcept { return denominator; }
+
+    // Equality — needed for SampleTime::operator== (defaulted) to compile.
+    constexpr bool operator==(const FrameRate&) const = default;
 };
 
 struct TimeRange {

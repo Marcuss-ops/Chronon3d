@@ -21,6 +21,7 @@ chronon3d_add_test_suite(
             video/test_ffmpeg_pipe_sink_lifecycle.cpp
             video/test_ffmpeg_pipe_sink_submit.cpp
             video/test_ffmpeg_pipe_sink_edge.cpp
+            video/test_frame_rate_video_validation.cpp
             video/reference_yuv_converter.cpp
             cli/test_video_adapter_e2e.cpp
             ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli/utils/video/video_sink_adapter.cpp
