@@ -285,8 +285,8 @@ inline void build_text_reveal_line(SceneBuilder& s,
             TextSpec ts;
             ts.content.value           = ch;
             ts.layout.box           = {ch_w + pad, d.font_size * 1.8f};
-            ts.placement          = TextPlacement{
-                TextPlacementKind::Absolute, {0.0f, 0.0f}};
+            ts.placement = {TextPlacementKind::Absolute};
+            ts.offset    = {0.0f, 0.0f};
             ts.font.font_path      = d.font_spec.font_path;
             ts.font.font_family    = d.font_spec.font_family;
             ts.font.font_weight    = d.font_spec.font_weight;
