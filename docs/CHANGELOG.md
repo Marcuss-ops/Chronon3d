@@ -1,3 +1,21 @@
+## Luglio 2026 — TICKET-SIMPLICITY-INSPECT-TEXT: CLI `inspect text-def` JSON diagnostic (2026-07-10)
+
+### feat(cli): TICKET-SIMPLICITY-INSPECT-TEXT — `inspect text-def` exports TextRunShape+TextRunLayout to JSON
+
+- **New subcommand**: `chronon3d_cli inspect text-def <id> [--json <path>]` — evaluates the composition at frame 0, walks all text layers, and serialises every TextRunShape field to structured JSON.
+- **Implementation**: `apps/chronon3d_cli/commands/dev/command_text_def_inspect.cpp` (NEW, ~170 lines) — resolves composition via `resolve_composition()`, evaluates at frame 0, walks `Scene::layers()` for `LayerKind::Text` layers, finds `ShapeType::TextRun` nodes, serialises `TextRunShape` + `TextRunLayout` fields to `nlohmann::json`.
+- **JSON output covers**:
+  - **TextRunLayout** (authoring-level): `source_text`, `font` (FontSpec: family, weight, style, size, path), `font_size`, `direction`, `language`, `features`, `variation_axes`, `glyph_count`, `bounds`, `line_height`, `tracking`, `wrap`
+  - **TextRunShape** (runtime): `layout` (TextLayoutSpec: box, anchor, centering_mode, align, vertical_align, wrap, overflow, line_height, tracking, auto_fit, min/max_font_size, max_lines, ellipsis)
+  - **Appearance**: `paint` (fill, stroke_enabled, stroke_color, stroke_width), `shadows` (per-shadow offset/blur/opacity/color), `material` (glow, bevel, inner_shadow)
+  - **Animation**: `animator_count`, `crossfade_active`, cache status
+  - **World transform**: position, rotation, scale from `RenderNode::world_transform`
+- **Registration**: `apps/chronon3d_cli/commands/dev/register_inspect_commands.cpp` — added `inspect text-def` subcommand with `--json` option.
+- **Args**: `TextDefInspectArgs` in `commands.hpp` — `comp_id` (required) + `json_output` (optional, stdout default).
+- **Text Simplicity Action Plan**: TICKET-SIMPLICITY-INSPECT-TEXT complete (seventeenth of 17 actions). **ALL 17 ACTIONS COMPLETE (100%)**.
+
+---
+
 ## Luglio 2026 — F3.C: 5 Reusable TextDefinition Presets with Golden Tests (2026-07-10)
 
 ### feat(presets): F3.C — 5 ready-to-use TextDefinition presets with golden tests
