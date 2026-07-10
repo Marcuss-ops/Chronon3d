@@ -10,8 +10,9 @@
 //
 // LIFECYCLE:
 //
-//   F2.A (this commit)    — fill in TextContent + TextStyle + TextFrame
-//                            with real fields mapped from TextSpec
+//   F2.A (this commit)    — reuse TextContent from builder_params.hpp +
+//                            fill in TextStyle + TextFrame with real fields
+//                            mapped from TextSpec
 //   Phase A.3 / F3.B/C     — fill in TextEffects + TextAnimation
 //   Phase B                — TextDocumentBuilder::build(const TextDefinition&)
 //                            lowers this DTO into the canonical TextDocument
@@ -40,6 +41,7 @@
                                                   // TextCenteringMode
 #include <chronon3d/text/text_material.hpp>       // TextMaterial
 #include <chronon3d/scene/model/shape/shape.hpp>  // TextPaint, TextShadow
+#include <chronon3d/scene/builders/builder_params.hpp>  // TextContent (canonical), TextSpec, TextRunSpec
 
 #include <cstddef>   // std::size_t
 #include <optional>
@@ -48,40 +50,38 @@
 
 namespace chronon3d {
 
-// Forward declarations for lightweight adapter.
-struct TextSpec;
-struct TextRunSpec;
+// Forward declaration — TextDocument is the runtime pipeline model.
 class TextDocument;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TextContent — what characters + style overrides
+// TextSpanOverride — per-range style overrides (authoring-level)
 // ═══════════════════════════════════════════════════════════════════════════
+//
+// TextContent (value + pre_shaped) is the canonical struct from
+// builder_params.hpp — we reuse it directly, NO duplication.
+// SpanOverride is a new authoring-only type that does not exist in
+// builder_params.hpp; it lives here and is lowered to TextStyleSpan
+// by the Phase B compiler.
 
-struct TextContent {
-    /// Raw UTF-8 text content (maps to TextSpec::content.value).
-    std::string value;
-
-    /// Pre-shaped glyph run (optional, maps to TextSpec::content.pre_shaped).
-    std::shared_ptr<PlacedGlyphRun> pre_shaped;
-
-    /// Per-range style overrides (maps to TextDocument::spans).
-    /// Uses a lightweight span descriptor to avoid pulling text_document.hpp
-    /// into this header.  Lowered to TextStyleSpan by the Phase B compiler.
-    struct SpanOverride {
-        std::size_t byte_start{0};
-        std::size_t byte_end{0};
-        std::optional<FontSpec>  font;
-        std::optional<Color>     color;
-        std::optional<f32>       font_size;
-    };
-    std::vector<SpanOverride> spans;
+struct TextSpanOverride {
+    std::size_t byte_start{0};
+    std::size_t byte_end{0};
+    std::optional<FontSpec>  font;
+    std::optional<Color>     color;
+    std::optional<f32>       font_size;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TextStyle — font, size, color, stroke, material
+// TextDefStyle — font, size, color, stroke, material (TextDefinition-scoped)
 // ═══════════════════════════════════════════════════════════════════════════
+//
+// Named TextDefStyle (not TextStyle) to avoid collision with the existing
+// chronon3d::TextStyle in shape.hpp (which is the registry-resolved style
+// used by the authoring facade's .style(id, registry) path).
+// TextDefStyle is the TextDefinition-internal representation that maps
+// from TextSpec::font + TextSpec::appearance fields.
 
-struct TextStyle {
+struct TextDefStyle {
     /// Font specification (path, family, weight, size).
     /// Maps to TextSpec::font.
     FontSpec font{};
@@ -182,12 +182,13 @@ struct TextAnimation {};
 // ═══════════════════════════════════════════════════════════════════════════
 
 struct TextDefinition {
-    TextContent     content;     ///< text + pre-shaped glyphs + style spans
-    TextStyle       style;       ///< font, size, color, stroke, material
-    TextFrame       frame;       ///< layout box, position, alignment
-    ParagraphStyle  paragraph;   ///< paragraph-level typography (reused)
-    TextEffects     effects;     ///< glow, shadow, etc. (Phase A.3)
-    TextAnimation   animation;   ///< typewriter, reveal, etc. (Phase A.3)
+    TextContent              content;     ///< text + pre-shaped glyphs (canonical from builder_params.hpp)
+    std::vector<TextSpanOverride> spans;  ///< per-range style overrides (authoring-level)
+    TextDefStyle             style;       ///< font, size, color, stroke, material
+    TextFrame                frame;       ///< layout box, position, alignment
+    ParagraphStyle           paragraph;   ///< paragraph-level typography (reused)
+    TextEffects              effects;     ///< glow, shadow, etc. (Phase A.3)
+    TextAnimation            animation;   ///< typewriter, reveal, etc. (Phase A.3)
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

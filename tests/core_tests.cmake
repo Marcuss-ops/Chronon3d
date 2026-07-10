@@ -240,6 +240,13 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         text/test_text_document_builder.cpp
         # FASE 4b — timed text model + adapter tests
         text/test_timed_text_document.cpp
+        # F2.A — TextDefinition adapter convergence tests:
+        # from_text_spec / from_text_run_spec field-by-field mapping,
+        # centered_text / glow_text convergence, no-data-loss round-trip,
+        # default TextSpec, TextSpanOverride, determinism.
+        # Gated on Blend2D because content/text/text_helpers_centered.hpp
+        # transitively includes backends/text/text_layout_engine.hpp.
+        text/test_text_definition.cpp
     )
 endif()
 

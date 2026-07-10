@@ -12,18 +12,18 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/text/text_definition.hpp>
-#include <chronon3d/scene/builders/builder_params.hpp>  // TextSpec, TextRunSpec
+// builder_params.hpp is already pulled in transitively via text_definition.hpp
+// (which includes it for the canonical TextContent + TextSpec + TextRunSpec).
 
 namespace chronon3d {
 
 TextDefinition from_text_spec(const TextSpec& spec) {
     TextDefinition def;
 
-    // ── content ────────────────────────────────────────────────────────
-    def.content.value      = spec.content.value;
-    def.content.pre_shaped = spec.content.pre_shaped;
+    // ── content (canonical TextContent from builder_params.hpp) ───────
+    def.content = spec.content;
 
-    // ── style ──────────────────────────────────────────────────────────
+    // ── style (TextDefStyle — font, color, paint, shadows, material) ──
     def.style.font     = spec.font;
     def.style.color    = spec.appearance.color;
     def.style.paint    = spec.appearance.paint;
