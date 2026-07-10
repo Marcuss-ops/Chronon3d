@@ -27,3 +27,13 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(chronon3d_gate11_backend_sanitization PROPERTIES LABELS "architecture;gate")
+
+# py_compile check — verifies check_backend_sanitization.py has no syntax
+# errors.  This catches Python syntax regressions at configure/test time
+# without requiring the full sanitization logic to run.
+add_test(
+    NAME chronon3d_gate11_backend_sanitization_py_compile
+    COMMAND ${Python3_EXECUTABLE} -m py_compile ${CMAKE_SOURCE_DIR}/tools/check_backend_sanitization.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_gate11_backend_sanitization_py_compile PROPERTIES LABELS "architecture;gate")
