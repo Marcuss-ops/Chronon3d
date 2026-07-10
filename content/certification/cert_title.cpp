@@ -35,17 +35,19 @@ static Composition make_cert_title_comp(const char* name,
             // Dark grid background
             backgrounds::add_common_background(
                 s, backgrounds::BackgroundStyles::Minimalist());
-            // Centered text layer — pin_to(Center) already translates the
-            // layer origin to canvas centre, so pos must be {0,0,0} to
-            // avoid a double-offset (previously {w/2, h/2} pushed text
-            // to the bottom-right corner).
+            // Centered text layer.
+            // NOTE: pin_to(Center) does NOT translate text nodes —
+            // text pos must be absolute canvas coordinates.
+            // (TICKET: pin_to + text-node interaction needs engine fix.)
             s.layer("title", [&](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
                 l.text("title_text", text::centered_text({
                     .text      = text,
                     .box        = {static_cast<float>(width),
                                    static_cast<float>(height)},
-                    .pos        = {0.0f, 0.0f, 0.0f},
+                    .pos        = {static_cast<float>(width) * 0.5f,
+                                   static_cast<float>(height) * 0.5f,
+                                   0.0f},
                      .font_asset = "assets/fonts/Inter-Bold.ttf",
                     .font_family = "Inter",
                     .font_weight = 700,
