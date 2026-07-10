@@ -31,7 +31,7 @@ TEST_CASE("AssetManifest — add_font") {
     AssetManifest m;
     m.add_font("assets/fonts/Inter-Bold.ttf", "title/text");
     CHECK(m.size() == 1);
-    CHECK(m.assets()[0].kind == AssetType::Font);
+    CHECK(m.assets()[0].kind == assets::AssetKind::Font);
     CHECK(m.assets()[0].path == "assets/fonts/Inter-Bold.ttf");
     CHECK(m.assets()[0].owner == "title/text");
     CHECK(m.assets()[0].required == true);
@@ -41,7 +41,7 @@ TEST_CASE("AssetManifest — add_image") {
     AssetManifest m;
     m.add_image("assets/bg.png", "background/rect", false);
     CHECK(m.size() == 1);
-    CHECK(m.assets()[0].kind == AssetType::Image);
+    CHECK(m.assets()[0].kind == assets::AssetKind::Image);
     CHECK(m.assets()[0].path == "assets/bg.png");
     CHECK(m.assets()[0].required == false);
 }
@@ -50,14 +50,14 @@ TEST_CASE("AssetManifest — add_video") {
     AssetManifest m;
     m.add_video("assets/intro.mp4", "intro/video");
     CHECK(m.size() == 1);
-    CHECK(m.assets()[0].kind == AssetType::Video);
+    CHECK(m.assets()[0].kind == assets::AssetKind::Video);
 }
 
 TEST_CASE("AssetManifest — add_audio") {
     AssetManifest m;
     m.add_audio("assets/music.mp3", "bgm/audio");
     CHECK(m.size() == 1);
-    CHECK(m.assets()[0].kind == AssetType::Audio);
+    CHECK(m.assets()[0].kind == assets::AssetKind::Audio);
 }
 
 TEST_CASE("AssetManifest — filter by type") {
@@ -67,18 +67,18 @@ TEST_CASE("AssetManifest — filter by type") {
     m.add_font("c.ttf", "z");
     m.add_video("d.mp4", "w");
 
-    auto fonts = m.filter(AssetType::Font);
+    auto fonts = m.filter(assets::AssetKind::Font);
     CHECK(fonts.size() == 2);
     CHECK(fonts[0].path == "a.ttf");
     CHECK(fonts[1].path == "c.ttf");
 
-    auto images = m.filter(AssetType::Image);
+    auto images = m.filter(assets::AssetKind::Image);
     CHECK(images.size() == 1);
 
-    auto videos = m.filter(AssetType::Video);
+    auto videos = m.filter(assets::AssetKind::Video);
     CHECK(videos.size() == 1);
 
-    auto audio = m.filter(AssetType::Audio);
+    auto audio = m.filter(assets::AssetKind::Audio);
     CHECK(audio.empty());
 }
 
@@ -92,8 +92,8 @@ TEST_CASE("AssetManifest — merge") {
 
     a.merge(b);
     CHECK(a.size() == 3);
-    CHECK(a.assets()[1].kind == AssetType::Image);
-    CHECK(a.assets()[2].kind == AssetType::Video);
+    CHECK(a.assets()[1].kind == assets::AssetKind::Image);
+    CHECK(a.assets()[2].kind == assets::AssetKind::Video);
 }
 
 TEST_CASE("AssetManifest — clear") {
@@ -130,7 +130,7 @@ TEST_CASE("AssetManifest — text_run collects font asset") {
     const auto& manifest = scene.asset_manifest();
     REQUIRE(manifest.size() >= 1);
 
-    auto fonts = manifest.filter(AssetType::Font);
+    auto fonts = manifest.filter(assets::AssetKind::Font);
     REQUIRE(fonts.size() >= 1);
     bool found = false;
     for (const auto& f : fonts) {
@@ -150,7 +150,7 @@ TEST_CASE("AssetManifest — image collects image asset") {
 
     Scene scene = s.build();
     const auto& manifest = scene.asset_manifest();
-    auto images = manifest.filter(AssetType::Image);
+    auto images = manifest.filter(assets::AssetKind::Image);
     REQUIRE(images.size() >= 1);
     bool found = false;
     for (const auto& img : images) {
@@ -169,7 +169,7 @@ TEST_CASE("AssetManifest — empty path not collected") {
     });
 
     Scene scene = s.build();
-    auto images = scene.asset_manifest().filter(AssetType::Image);
+    auto images = scene.asset_manifest().filter(assets::AssetKind::Image);
     CHECK(images.empty());
 }
 
@@ -187,8 +187,8 @@ TEST_CASE("AssetManifest — multiple layers aggregate") {
 
     Scene scene = s.build();
     const auto& manifest = scene.asset_manifest();
-    CHECK(manifest.filter(AssetType::Font).size() >= 1);
-    CHECK(manifest.filter(AssetType::Image).size() >= 1);
+    CHECK(manifest.filter(assets::AssetKind::Font).size() >= 1);
+    CHECK(manifest.filter(assets::AssetKind::Image).size() >= 1);
 }
 
 TEST_CASE("AssetManifest — sequence layers propagate to scene") {
@@ -205,7 +205,7 @@ TEST_CASE("AssetManifest — sequence layers propagate to scene") {
         });
 
     Scene scene = s.build();
-    auto fonts = scene.asset_manifest().filter(AssetType::Font);
+    auto fonts = scene.asset_manifest().filter(assets::AssetKind::Font);
     bool found = false;
     for (const auto& f : fonts) {
         if (f.path == "assets/fonts/Poppins-Bold.ttf") {

@@ -36,7 +36,8 @@
 
 #pragma once
 
-#include <chronon3d/assets/asset_readiness_v2.hpp>
+#include <chronon3d/assets/asset_readiness_v2.hpp>   // assets::AssetKind + assets::InternalAssetRef
+#include <chronon3d/assets/asset_manifest.hpp>        // assets::AssetManifest (canonical class body lives here)
 
 #include <string>
 

@@ -143,13 +143,18 @@ private:
 
     // ── Map AssetType → PreflightAssetType ───────────────────────────
 
-    [[nodiscard]] static constexpr PreflightAssetType to_preflight_type(AssetType type) noexcept {
-        switch (type) {
-            case AssetType::Font:   return PreflightAssetType::Font;
-            case AssetType::Image:  return PreflightAssetType::Image;
-            case AssetType::Video:  return PreflightAssetType::Video;
-            case AssetType::Audio:  return PreflightAssetType::Audio;
-            default:                return PreflightAssetType::RegisteredAsset;
+    /// Phase A2 #2/3 — switched from `AssetType` (6-value, registry/metadata)
+    /// to `assets::AssetKind` (4-value, manifest/owner-centric) since the
+    /// manifest exclusively carries Font/Image/Video/Audio entries. The
+    /// 4-value AssetKind semantics match the manifest's scope (no
+    /// Mesh/Unknown in a scene-manifest context).
+    [[nodiscard]] static constexpr PreflightAssetType to_preflight_type(assets::AssetKind kind) noexcept {
+        switch (kind) {
+            case assets::AssetKind::Font:   return PreflightAssetType::Font;
+            case assets::AssetKind::Image:  return PreflightAssetType::Image;
+            case assets::AssetKind::Video:  return PreflightAssetType::Video;
+            case assets::AssetKind::Audio:  return PreflightAssetType::Audio;
+            default:                        return PreflightAssetType::RegisteredAsset;
         }
     }
 };
