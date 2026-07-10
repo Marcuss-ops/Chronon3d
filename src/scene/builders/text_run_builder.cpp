@@ -109,13 +109,18 @@ TextRunBuilder& TextRunBuilder::font_size(f32 v) {
     // Font size lives inside the composable TextSpec under
     // .text().font.font_size — it affects HarfBuzz shaping upstream of
     // any glyph-level animation, so this mutator updates the BASE
-    // parameter (no animator injection).  Setting the size also
-    // invalidates the layout cache so the next commit re-shapes.
+    // parameter (no animator injection).
+    //
+    // FIX #3 — Do NOT disable caching here.  The cache key already
+    // includes font_size (cache_key.font_size = font_spec.font_size),
+    // so a different font_size produces a different key and naturally
+    // invalidates the cache.  Previously, setting font_size forced
+    // cache_layout=false, which permanently disabled cache lookups
+    // for that text run — causing the observed 27% hit rate (7 hits
+    // / 19 misses) because virtually every composition calls .font_size().
+    // This setter is called at BUILD TIME (once); animation goes through
+    // the animator stack, not through this mutator.
     m_spec->params.text.font.font_size = v;
-    m_cache_layout = false;
-    // PR 2: sync immediately so observers reading `spec().cache_layout`
-    // (without calling `.commit()`) see the invalidated state.
-    m_spec->params.cache_layout = false;
     return *this;
 }
 
