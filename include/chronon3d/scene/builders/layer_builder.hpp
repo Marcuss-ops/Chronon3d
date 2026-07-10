@@ -461,6 +461,23 @@ public:
     /// control back to the layer-level builder.
     [[nodiscard]] TextRunBuilder& text_run(std::string name, TextRunSpec params);
 
+    /// F2.C — canonical authoring overload accepting TextDefinition.
+    /// Converts TextDefinition → TextSpec via from_text_definition(),
+    /// wraps into a TextRunSpec, and delegates to text_run(name,
+    /// TextRunSpec).  Returns TextRunBuilder& so callers can chain
+    /// animators / selectors on top of the canonical DTO:
+    ///   layer.text_run("title", centered_text(opts))
+    ///       .opacity(0.8f)
+    ///       .commit();
+    ///
+    /// Note: TextRunSpec-specific fields (direction, language, script,
+    /// animators) are NOT carried from TextDefinition — they default to
+    /// Auto/empty/empty.  Use .animator(...) / .selector(...) on the
+    /// returned TextRunBuilder& to add animation.  direction/language
+    /// will be carried from TextDefinition after Phase A.3 fills
+    /// TextAnimation.
+    [[nodiscard]] TextRunBuilder& text_run(std::string name, const TextDefinition& def);
+
     LayerBuilder& shape(std::string_view id, std::string name, registry::ShapeParams params);
 
     // ── 3D Shapes (Delegated) ──

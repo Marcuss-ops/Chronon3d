@@ -39,6 +39,7 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
+#include <chronon3d/text/text_definition.hpp>  // F2.C — from_text_definition() for TextDefinition overload
 // TICKET-104 -- internal helper consumed by the per-spec
 // materialization site below.  Forward declaration is intentionally
 // NOT exposed via the PUBLIC HPP (cat-3 freeze: zero new public
@@ -92,6 +93,17 @@ TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunSpec params) {
     m_text_run_builders.push_back(
         std::make_unique<TextRunBuilder>(this, spec_ptr));
     return *m_text_run_builders.back();
+}
+
+TextRunBuilder& LayerBuilder::text_run(std::string name, const TextDefinition& def) {
+    // F2.C — canonical authoring overload.
+    // Converts TextDefinition → TextSpec via from_text_definition(),
+    // wraps into a TextRunSpec, and delegates to text_run(name, TextRunSpec).
+    // This lets callers chain animators/selectors on top of the canonical DTO:
+    //   layer.text_run("title", centered_text(opts)).opacity(0.8f).commit();
+    TextRunSpec run;
+    run.text = from_text_definition(def);
+    return text_run(std::move(name), std::move(run));
 }
 
 Layer LayerBuilder::build() {
