@@ -7,7 +7,6 @@
 #include <string>
 
 #include "content/common/background_helpers.hpp"
-#include "content/text/text_helpers_centered.hpp"
 
 namespace chronon3d::content::animation_helpers {
 
@@ -20,9 +19,18 @@ inline constexpr f32   BOX_H = 240.0f;
 
 // ── add_black_background ───────────────────────────────────────────────────
 // Full-screen black background layer used by all animation compositions.
+// Uses rect() + cache_static() + pin_to() instead of fullscreen_rect() to
+// match the pattern used by add_common_background(), which renders correctly.
+// (fullscreen_rect alone produced 100%-transparent frames — root cause of
+// AnimFadeInText/AnimSlideText/AnimScaleText/AnimTypewriter rendering failure.)
 inline void add_black_background(SceneBuilder& s) {
     s.layer("_bg", [](LayerBuilder& l) {
-        l.fullscreen_rect("bg", Color{0.0f, 0.0f, 0.0f, 1.0f});
+        l.cache_static();
+        l.pin_to(Anchor::Center);
+        l.rect("bg", {
+            .size = {1920.0f, 1080.0f},
+            .color = {0.0f, 0.0f, 0.0f, 1.0f},
+        });
     });
 }
 
@@ -30,18 +38,22 @@ inline void add_black_background(SceneBuilder& s) {
 // Standard centered text: 1200×240 box, Poppins-Bold, consistent tracking &
 // drop-shadow-ready color.  Designed for AnimFadeIn, AnimSlide, AnimScale.
 //
-// Delegates to text::centered_text() which produces a fully-populated
-// TextSpec with all layout fields (anchor, centering_mode, wrap, overflow,
-// max_lines, etc.) that the M1.5 text compiler pipeline requires.
+// Standard centered text: bare TextSpec with only the fields the classic
+// renderer pipeline understands.  Avoids centered_text() which adds
+// TextAnchor/TextCenteringMode/TextWrap/TextOverflow fields that the
+// current scene compiler may not handle — causing 100%-transparent frames.
+//
+// TODO: migrate to centered_text() once the M1.5 text compiler pipeline
+// fully supports the extended layout fields (TextAnchor::Center,
+// TextCenteringMode::PixelInk, TextWrap::Word, etc.).
 inline TextSpec make_text(const std::string& text, f32 font_size = 64.0f) {
-    auto spec = chronon3d::content::text::centered_text({
-        .text      = text,
-        .box       = {BOX_W, BOX_H},
-        .font_size = font_size,
-        .tracking  = 3.0f,
-        .color     = TEXT_COLOR,
-    });
-    return spec;
+    return TextSpec{
+        .content = {.value = text},
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = font_size},
+        .layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 0.95f, .tracking = 3.0f},
+        .appearance = {.color = TEXT_COLOR},
+        .position = {0.0f, 0.0f, 0.0f},
+    };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
