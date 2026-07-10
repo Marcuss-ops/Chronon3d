@@ -1242,6 +1242,9 @@ TEST_CASE("Authoring/Text: style(id, registry) field-maps TextStyle to spec.text
     Text t = layer.text("CHRONON");
     t.style("youtube.hero.premium", styles);
 
+    // A3 — structured outcome: explicit-path success records Found.
+    CHECK(t.last_style_outcome() == chronon3d::authoring::ResolutionOutcome::Found);
+
     const auto& F = TextRunBuilderInspector::pending_of(t)->params.text.font;
     const auto& L = TextRunBuilderInspector::pending_of(t)->params.text.layout;
     const auto& A = TextRunBuilderInspector::pending_of(t)->params.text.appearance;
@@ -1270,6 +1273,9 @@ TEST_CASE("Authoring/Text: style() with unknown id is a no-op (doesn't drop cont
     // unknown id should leave the existing setup intact
     const StyleRegistry empty_registry;
     t.style("not.registered", empty_registry);
+
+    // A3 — structured outcome: explicit-path unknown id records Missing.
+    CHECK(t.last_style_outcome() == chronon3d::authoring::ResolutionOutcome::Missing);
 
     const auto& spec = TextRunBuilderInspector::pending_of(t)->params.text;
     CHECK(spec.content.value            == "FUTURI MILIONARI");
@@ -1470,6 +1476,9 @@ TEST_CASE("Authoring/Layer + Text: ambient style(id) resolves via LayerBuilder::
     // The ambient-resolution path: no registry argument supplied.
     t.style("hero.premium");
 
+    // A3 — structured outcome: ambient-path success records Found.
+    CHECK(t.last_style_outcome() == chronon3d::authoring::ResolutionOutcome::Found);
+
     const auto& spec = TextRunBuilderInspector::pending_of(t)->params.text;
     CHECK(spec.font.font_path   == "fonts/Inter-Bold.ttf");
     CHECK(spec.font.font_weight == 800);
@@ -1529,8 +1538,11 @@ TEST_CASE("Authoring/Layer + Text: ambient methods no-op when no ExtensionContex
 
     // Without ambient pointers attached, the ambient-resolution methods
     // must NO-OP — the explicit external registry is never consulted.
+    // A3 — structured outcome: null pointers record RegistryUnavailable.
     t.style("ignored");
+    CHECK(t.last_style_outcome() == chronon3d::authoring::ResolutionOutcome::RegistryUnavailable);
     t.motion("ignored.motion");
+    CHECK(t.last_motion_outcome() == chronon3d::authoring::ResolutionOutcome::RegistryUnavailable);
 
     // Font set by the prior .font() call is preserved; the ambient
     // attempts did not mutate spec.appearance.color or the animators vector.
@@ -1561,12 +1573,15 @@ TEST_CASE("Authoring/Layer + Text: ambient method no-op when ExtensionContext.st
     REQUIRE(t.ambient_motion_registry() == &motions);
 
     // Ambient `.style(id)` should no-op because the pointer is null.
+    // A3 — structured outcome: null registry pointer records RegistryUnavailable.
     t.style("anything");
+    CHECK(t.last_style_outcome() == chronon3d::authoring::ResolutionOutcome::RegistryUnavailable);
     CHECK(TextRunBuilderInspector::pending_of(t)->params.text.font.font_path == "Y.ttf");
 
     // Ambient `.motion(id)` no-ops when id is unregistered even though
     // the pointer is set.
     t.motion("unregistered.id");
+    CHECK(t.last_motion_outcome() == chronon3d::authoring::ResolutionOutcome::Missing);
     CHECK(TextRunBuilderInspector::pending_of(t)->params.animators.empty());
 }
 
@@ -1630,6 +1645,10 @@ TEST_CASE("Authoring/Layer + Text: ambient resolves unknown id to no-op (preserv
 
     t.style("never.registered");
     t.motion("never.registered.either");
+
+    // A3 — structured outcomes: unknown ids in valid registries record Missing.
+    CHECK(t.last_style_outcome() == chronon3d::authoring::ResolutionOutcome::Missing);
+    CHECK(t.last_motion_outcome() == chronon3d::authoring::ResolutionOutcome::Missing);
 
     CHECK(TextRunBuilderInspector::pending_of(t)->params.text.font.font_path == "K.ttf");
     CHECK(TextRunBuilderInspector::pending_of(t)->params.animators.empty());
