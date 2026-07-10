@@ -82,7 +82,7 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
                             .font = {.font_size = 18.0f},
                             .layout = {.anchor = TextAnchor::TopLeft, .align = TextAlign::Left},
                             .appearance = {.color = {1.0f, 0.2f, 0.2f, 0.85f}},
-                            .position = {208.0f, 0.0f, 0.1f}
+                            .placement = {TextPlacementKind::Absolute}, .offset = {208.0f, 0.0f}
                         });
     });
 
@@ -99,7 +99,7 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
                             .font = {.font_size = 18.0f},
                             .layout = {.anchor = TextAnchor::BottomCenter, .align = TextAlign::Center},
                             .appearance = {.color = {0.2f, 1.0f, 0.2f, 0.85f}},
-                            .position = {0.0f, 208.0f, 0.1f}
+                            .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 208.0f}
                         });
     });
 
@@ -116,7 +116,7 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
                             .font = {.font_size = 18.0f},
                             .layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},
                             .appearance = {.color = {0.2f, 0.2f, 1.0f, 0.85f}},
-                            .position = {0.0f, 0.0f, -210.0f}
+                            .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 0.0f}
                         });
     });
 
@@ -146,7 +146,7 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
                           .font = {.font_size = 11.0f},
                           .layout = {.anchor = TextAnchor::TopLeft, .align = TextAlign::Left},
                           .appearance = {.color = {1.0f, 0.45f, 0.45f, 0.75f}},
-                          .position = {30.0f, -6.0f, 0.2f}
+                          .placement = {TextPlacementKind::Absolute}, .offset = {30.0f, -6.0f}
                       });
     });
 
@@ -250,7 +250,7 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
                                 .font = {.font_size = 20.0f},
                                 .layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},
                                 .appearance = {.color = {0.75f, 0.85f, 1.0f, 0.85f}},
-                                .position = {0.0f, -kCardHalfH + 18.0f, 0.15f}
+                                .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, -kCardHalfH + 18.0f}
                             });
 
         l.text("label_left", TextSpec{
@@ -258,7 +258,7 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
                                  .font = {.font_size = 18.0f},
                                  .layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},
                                  .appearance = {.color = {0.75f, 0.85f, 1.0f, 0.75f}},
-                                 .position = {-kCardHalfW + 20.0f, 0.0f, 0.15f}
+                                 .placement = {TextPlacementKind::Absolute}, .offset = {-kCardHalfW + 20.0f, 0.0f}
                              });
 
         l.text("label_front", TextSpec{
@@ -266,7 +266,7 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
                                   .font = {.font_size = 28.0f},
                                   .layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},
                                   .appearance = {.color = {0.90f, 0.95f, 1.0f, 1.0f}},
-                                  .position = {0.0f, -4.0f, 0.15f}
+                                  .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, -4.0f}
                               });
 
         l.text("label_right", TextSpec{
@@ -274,7 +274,7 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
                                   .font = {.font_size = 18.0f},
                                   .layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},
                                   .appearance = {.color = {0.75f, 0.85f, 1.0f, 0.75f}},
-                                  .position = {kCardHalfW - 22.0f, 0.0f, 0.15f}
+                                  .placement = {TextPlacementKind::Absolute}, .offset = {kCardHalfW - 22.0f, 0.0f}
                               });
 
         l.text("label_bottom", TextSpec{
@@ -282,7 +282,7 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
                                    .font = {.font_size = 20.0f},
                                    .layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},
                                    .appearance = {.color = {0.75f, 0.85f, 1.0f, 0.85f}},
-                                   .position = {0.0f, kCardHalfH - 18.0f, 0.15f}
+                                   .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, kCardHalfH - 18.0f}
                                });
     });
 }

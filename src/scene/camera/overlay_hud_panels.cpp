@@ -121,7 +121,7 @@ void draw_null_parent_markers(const OverlayContext& ctx) {
                 .content = {.value = name},
                 .font = {.font_size = 10.0f},
                 .appearance = {.color = Color{0.0f, 0.9f, 1.0f, 0.8f}},
-                .position = {n_sp.position.x + 15.0f, n_sp.position.y + 5.0f, 0.0f}
+                .placement = {TextPlacementKind::Absolute}, .offset = {n_sp.position.x + 15.0f, n_sp.position.y + 5.0f}
             });
         }
     }
@@ -176,7 +176,7 @@ void draw_projected_bounds(const OverlayContext& ctx) {
                 .content = {.value = lr.name + (lr.passed ? " (PASS)" : " (FAIL)")},
                 .font = {.font_size = 12.0f},
                 .appearance = {.color = border_color},
-                .position = {lr.bounds.min.x + 5.0f, lr.bounds.min.y + 15.0f, 0.0f}
+                .placement = {TextPlacementKind::Absolute}, .offset = {lr.bounds.min.x + 5.0f, lr.bounds.min.y + 15.0f}
             });
         }
     }
