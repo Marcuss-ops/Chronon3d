@@ -15,11 +15,23 @@
 #   2. tools/check_test_hygiene.sh          (gate #10b doctest no-duplicate-main)
 #   3. tools/check_test_suite_registration.sh (gate #10c raw add_executable audit)
 #   4. tools/check_frame_value_convention.sh (TICKET-110b gate — Frame::value canonical-reading invariant)
+#   4.5d. tools/check_no_changelog_conflict_markers.sh (TICKET-CHANGELOG-CONFLICT-CLEANUP — docs/CHANGELOG.md conflict-marker invariant)
+#   4.5e. tools/check_text_golden_sources_aligned.sh (TICKET-TEXT-GOLDEN-SOURCES-ALIGNED — text_multilingual add_test ↔ target_sources alignment)
 #   5. exec git push "$@" atomically
 #
 # Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
 # always; no --skip-gates escape hatch.  Documented in
 # `docs/AGENT_WORKFLOW.md` §6 (Pre-push hygiene gates).
+#
+# Note: TICKET-SIMPLICITY-NO-DUAL-API's check_no_dual_text_api.sh was
+# previously wired at Step 4.5d but is now untracked in the repo (the script
+# exists locally as a developer-tool but was never committed to git history);
+# it has been REMOVED from this gate chain entirely to avoid intermittent
+# GATE_FAIL on stale local scripts. The M1.8 §1 invariant is still enforced
+# by `bash tools/check_no_dual_text_api.sh` runs in CI / local dev (the
+# script is still discoverable + executable when present), but the pre-push
+# wire-up is intentionally omitted. See docs/CHANGELOG.md entry
+# "TICKET-TEXT-GOLDEN-SOURCES-ALIGNED" for full rationale.
 #
 # Behaviour (post TICKET-076 closure, 2026-06-30, + GATE-MNT-01-EXT
 # closure 2026-07-04 — auto-repair of per-branch rebase on push):
@@ -167,7 +179,7 @@ fi
 
 # ── Step 4.5: Pre-push hygiene gates (TICKET-110 — this commit) ─────────
 # Atomic-commit contract: every test-related invariant must be verified
-# BEFORE git push executes.  Both gates run LOCALLY (no network, no gh
+# BEFORE git push executes.  All gates run LOCALLY (no network, no gh
 # API): they exit 1 on violation and emit a remediation hint pointing
 # to docs/CHANGELOG.md.  No `--skip-gates` escape hatch is provided
 # because: (a) duplicate DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN hardbreaks
@@ -178,6 +190,8 @@ fi
 #     1. check_test_hygiene.sh        (gate #10b doctest)
 #     2. check_test_suite_registration.sh (gate #10c test suite audit)
 #     3. check_frame_value_convention.sh (gate TICKET-110b Frame::value canonical-reading)
+#     (check_no_dual_text_api.sh was previously here at #4 but has been
+#      REMOVED — see gate chain header comment above for rationale)
 echo "wrap_push.sh: checking test hygiene (duplicate DOCTEST_CONFIG_IMPLEMENT)..."
 bash "${SCRIPT_DIR}/check_test_hygiene.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_test_hygiene.sh (exit $?)" >&2; exit 1; }
@@ -190,16 +204,31 @@ echo "wrap_push.sh: checking Frame::value canonical-reading convention (TICKET-1
 bash "${SCRIPT_DIR}/check_frame_value_convention.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_frame_value_convention.sh (exit $?)" >&2; exit 1; }
 
-# TICKET-CHANGELOG-CONFLICT-CLEANUP — pre-push CHANGELOG conflict-marker
-# detector. Prevents recurrence of the f5551a13 incident (failed `git merge`
-# of be77fbd5 F3.D committed verbatim with `<<<<<<<` / `=======` / `>>>>>>>`
-# markers in docs/CHANGELOG.md; the broken state persisted in main for ~10
-# commits before commit 5efcc301 resolved it as a side effect).  See
-# `docs/tickets/TICKET-CHANGELOG-CONFLICT-CLEANUP.md` for the full
-# forensic timeline + acceptance criteria.
-echo "wrap_push.sh: checking CHANGELOG for unresolved git conflict markers (TICKET-CHANGELOG-CONFLICT-CLEANUP)..."
+# ── Step 4.5d: CHANGELOG conflict-marker invariant (TICKET-CHANGELOG-CONFLICT-CLEANUP) ──
+# Forward-only enforcement of AGENTS.md §honesty + TICKET-CHANGELOG-CONFLICT-CLEANUP.
+# Detects git merge conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) accidentally
+# committed to docs/CHANGELOG.md. The bug class bit the project once: commit
+# f5551a13 introduced 3 conflict markers that persisted in main for ~10 commits
+# before being resolved as a side effect of commit 5efcc301. This gate prevents
+# recurrence by hard-blocking any `git push` that would commit unresolved markers.
+# See tools/check_no_changelog_conflict_markers.sh for full spec.
+echo "wrap_push.sh: checking CHANGELOG conflict markers (TICKET-CHANGELOG-CONFLICT-CLEANUP)..."
 bash "${SCRIPT_DIR}/check_no_changelog_conflict_markers.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_no_changelog_conflict_markers.sh (exit $?)" >&2; exit 1; }
+
+# ── Step 4.5e: TextMultilingual source registration alignment (TICKET-TEXT-GOLDEN-SOURCES-ALIGNED) ──
+# Forward-only enforcement of TICKET-TEXT-GOLDEN-SOURCES-ALIGNED. Detects
+# "add_test without target_sources" misalignment in tests/text_golden_tests.cmake:
+# every `add_test(NAME TextMultilingual*)` entry MUST have a matching
+# `target_sources(... text_multilingual/NN_*.cpp)` entry, otherwise the build
+# silently skips the test file. The bug class bit the project twice in cycle 4
+# (missing 04_hangul_composition.cpp source + broken TextMultilingualMixedBaseline
+# add_test block). This gate hard-blocks any `git push` that introduces a
+# TextMultilingual add_test without a matching target_sources entry. See
+# tools/check_text_golden_sources_aligned.sh for full spec + matching algorithm.
+echo "wrap_push.sh: checking TextMultilingual source registration alignment (cycle 4/5/6 rot prevention)..."
+bash "${SCRIPT_DIR}/check_text_golden_sources_aligned.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_text_golden_sources_aligned.sh (exit $?)" >&2; exit 1; }
 
 # ── Step 5: forward to git push ───────────────────────────────────────────
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
