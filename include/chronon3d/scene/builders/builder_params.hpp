@@ -182,9 +182,9 @@ struct TextSpec {
 //
 // Note: because the two names are now identical, any field-set pattern
 // like `TextParams tp; tp.text = "x";` will NOT compile — `TextSpec` has
-// no `.text` field (use `.content.value`).  The deprecation attribute
-// surfaces this at the type level so callers see migration guidance.
-[[deprecated("Use TextSpec directly")]]
+// no `.text` field (use `.content.value`).  Migration guidance is in
+// the doxygen comment block immediately above (the recommended path is
+// direct migration to `TextSpec`).
 using TextParams = TextSpec;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -232,8 +232,9 @@ struct TextRunSpec {
 //   spec.{direction|language|animators|selectors|cache_layout} (top-level)
 //
 // The alias exists to keep external integrations that still reference the
-// legacy name compiling during migration with a deprecation warning.
-[[deprecated("Use TextRunSpec directly")]]
+// legacy name compiling during migration.  Migration guidance: see the
+// doxygen comment block immediately above (direct migration to
+// `TextRunSpec` is the recommended path).
 using TextRunParams = TextRunSpec;
 
 struct ShadowStyle {
