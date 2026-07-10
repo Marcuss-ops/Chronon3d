@@ -22,6 +22,7 @@
 //  13. Full convergence: centered_text() → to_text_document() → TextDocument
 //  14. text_run() convergence — TextDefinition → TextRunSpec → from_text_run_spec()
 //  15. Determinism — same input always produces same output
+//  16. TextFrame.offset — gap-fill coverage (NOT mirrored in TextSpec)
 //
 // Phase B (implemented): to_text_document() lowers the canonical TextDefinition
 // into a TextDocument for compile_text_layout().  The full convergence chain is:
@@ -1236,4 +1237,47 @@ TEST_CASE("from_text_spec: deterministic across repeated calls") {
     CHECK(a.frame.size.y == doctest::Approx(b.frame.size.y));
     CHECK(a.frame.anchor == b.frame.anchor);
     CHECK(a.frame.align  == b.frame.align);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 16. TextFrame.offset — gap-fill coverage (NOT mirrored in TextSpec)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// TextFrame.offset is intentionally NOT mirrored in TextSpec/TextLayoutSpec.
+// The closest TextSpec analogue is TextSpec.position (Vec3 absolute position);
+// offset is the additive component from the resolved placement pin
+// (authoring API: .place(...).offset(...)).  This group locks in the
+// behavior so future adapter changes don't silently lose offset data.
+
+TEST_CASE("TextFrame.offset: default TextFrame constructs with {0,0}") {
+    TextFrame frame;
+    CHECK(frame.offset.x == doctest::Approx(0.0f));
+    CHECK(frame.offset.y == doctest::Approx(0.0f));
+}
+
+TEST_CASE("TextFrame.offset: from_text_spec(default) gives def.frame.offset = {0,0}") {
+    TextSpec spec;  // all defaults; no TextSpec payload to pollute offset
+    auto def = from_text_spec(spec);
+    CHECK(def.frame.offset.x == doctest::Approx(0.0f));
+    CHECK(def.frame.offset.y == doctest::Approx(0.0f));
+}
+
+TEST_CASE("TextFrame.offset: from_text_definition preserves authored offset") {
+    // Verify the reverse adapter does not stomp offset back to default
+    // (since there's no TextSpec destination to write to).
+    TextDefinition def;
+    def.frame.offset = Vec2{42.5f, -17.3f};
+    auto spec = from_text_definition(def);  // const ref; must not mutate def
+    (void)spec;
+    CHECK(def.frame.offset.x == doctest::Approx(42.5f));
+    CHECK(def.frame.offset.y == doctest::Approx(-17.3f));
+}
+
+TEST_CASE("TextFrame.offset: setter roundtrip on TextDefinition directly") {
+    // Mirrors the frame.position setter pattern — verifies Vec2 offset is a
+    // settable, readable authoring-side field on TextDefinition.
+    TextDefinition def;
+    def.frame.offset = Vec2{100.0f, 50.0f};
+    CHECK(def.frame.offset.x == doctest::Approx(100.0f));
+    CHECK(def.frame.offset.y == doctest::Approx(50.0f));
 }
