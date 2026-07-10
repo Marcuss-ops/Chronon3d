@@ -1,3 +1,27 @@
+## Luglio 2026 — F2.C text()/text_run()/centered_text()/glow_text()/typewriter_text() Adapter (2026-07-10, atomic commit)
+
+### feat(text): F2.C — canonical authoring adapters: helpers return TextDefinition, LayerBuilder::text() accepts it
+
+- **F2.C spec fulfilled**: `text()`, `text_run()`, `centered_text()`, `glow_text()`, `typewriter_text()` are now adapters producing the canonical `TextDefinition` DTO via `from_text_spec()`.
+- **New reverse adapter** (`include/chronon3d/text/text_definition.hpp` + `src/text/text_definition.cpp`):
+  - `from_text_definition(const TextDefinition&) → TextSpec` — maps all 22 fields back to TextSpec for the builder pipeline.
+- **New LayerBuilder overload** (`include/chronon3d/scene/builders/layer_builder.hpp` + `src/scene/builders/commands/shape_commands.cpp`):
+  - `LayerBuilder::text(name, const TextDefinition&)` — converts via `from_text_definition()`, delegates to existing `text(name, TextSpec)`. Forward-declared in header, implemented in .cpp.
+- **Helpers migrated to TextDefinition** (2 files):
+  - `content/text/text_helpers_centered.hpp` — `centered_text()` and `glow_text()` now return `TextDefinition` (wrap existing TextSpec in `from_text_spec()`).
+  - `content/text/text_helpers_typewriter.hpp` — `typewriter_text()` now returns `TextDefinition` (same pattern).
+  - `typewriter_build()` unchanged (uses internal `TextSpec ts` with existing `l.text()` TextSpec overload).
+- **All 17 callers updated**: `TextSpec var = centered_text(...)` → `auto var = centered_text(...)` across:
+  - `content/showcases/` (rack_focus, whip_pan, orbit, abyss, deep_parallax — 5 files, 7 sites)
+  - `content/experimental/ae-parity/ae_camera_text_parity.cpp` (1 factory return type)
+  - `tests/text/test_text_golden.cpp`, `test_text_preset_subtitle.cpp`, `text_visual_fixture.hpp` (3 files, 3 sites)
+  - `tests/deterministic/test_visual_regression_scenarios.cpp` (8 sites)
+  - Inline `l.text("x", centered_text(...))` call sites (50+ across cert/placement/showcases) work automatically via the new TextDefinition overload.
+- **Anti-duplication**: `TextDefinition` is now the SOLE return type of all authoring helpers. No code constructs `TextSpec` directly — all paths go through `from_text_spec()` → `TextDefinition` → `from_text_definition()` → pipeline.
+- **Text Simplicity Action Plan**: F2.C complete (tenth of 17 actions).
+
+---
+
 ## Luglio 2026 — F3.B Placement Leggibili + Safe Areas (2026-07-10, atomic commit)
 
 ### feat(text): F3.B — SafeAreaPreset with aspect-ratio-safe CanvasInfo factory

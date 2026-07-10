@@ -14,6 +14,7 @@
 
 // Needed for complete CenterTextOptions type used by-value in typewriter_text()
 #include "text_helpers_centered.hpp"
+#include <chronon3d/text/text_definition.hpp>  // F2.C — canonical DTO
 
 #include <mutex>
 #include <string>
@@ -66,7 +67,8 @@ struct TypewriterOptions {
     f32         fade_chars{1.0f};
 };
 
-inline TextSpec typewriter_text(CenterTextOptions o,
+/// F2.C — canonical authoring helper.  Returns TextDefinition.
+inline TextDefinition typewriter_text(CenterTextOptions o,
                                   Frame frame,
                                   f32 chars_per_frame = 1.5f,
                                   TypewriterOptions tw = {}) {
@@ -76,8 +78,8 @@ inline TextSpec typewriter_text(CenterTextOptions o,
     const f32 raw_frame = static_cast<f32>(frame) - static_cast<f32>(tw.start_delay);
     const f32 total_chars_f = static_cast<f32>(grapheme_cluster_count(o.text));
 
-    auto make_base = [&](std::string value, Color c) -> TextSpec {
-        return TextSpec{
+    auto make_base = [&](std::string value, Color c) -> TextDefinition {
+        return from_text_spec(TextSpec{
             .content    = {.value = std::move(value)},
             .font       = {.font_path   = std::move(o.font_asset),
                            .font_family = std::move(o.font_family),
@@ -99,7 +101,7 @@ inline TextSpec typewriter_text(CenterTextOptions o,
                            .max_lines      = o.max_lines},
             .appearance = {.color = c},
             .position   = o.pos,
-        };
+        });
     };
 
     if (raw_frame < 0.0f || total_chars_f <= 0.0f) {

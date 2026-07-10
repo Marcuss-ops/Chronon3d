@@ -144,7 +144,7 @@ Composition whip_pan_hero_reveal() {
                 pos.key(Frame{55}, Vec3{ 0.0f, 230.0f, 0.0f}, EasingCurve{Easing::OutCubic});
                 pos.key(Frame{68}, Vec3{ 0.0f, 200.0f, 0.0f}, EasingCurve{Easing::Linear});
             }
-            TextSpec tp = chronon3d::content::text::centered_text({
+            auto tp = chronon3d::content::text::centered_text({
                 .text        = "MOTION BY CAMERA",
                 .box         = {1100.0f, 80.0f},
                 .font_size   = 38.0f,

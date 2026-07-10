@@ -205,7 +205,7 @@ inline CenterTextOptions make_opts(const std::string& text,
 
 inline Composition make_text_composition(const std::string& name,
                                             const CenterTextOptions& opt) {
-    TextSpec ts = centered_text(opt);
+    auto ts = centered_text(opt);
     return composition(
         {.name = name, .width = kVW, .height = kVH, .duration = 1},
         [ts](const FrameContext& ctx) {
@@ -263,11 +263,11 @@ TEST_CASE("VisualRegression/Stroke — thick stroke style applied via TextAppear
     auto renderer = make_renderer();
     // CenterTextOptions does not carry stroke; we build the TextSpec
     // directly to apply the canonical stroke style.
-    TextSpec spec = centered_text(make_opts("STROKE", 96.0f, Color::black()));
+    auto spec = centered_text(make_opts("STROKE", 96.0f, Color::black()));
     // PR-A3 fix B2: stroke lives on TextPaint (shape.hpp), not on TextAppearanceSpec.
-    spec.appearance.paint.stroke_enabled = true;
-    spec.appearance.paint.stroke_width   = 8.0f;
-    spec.appearance.paint.stroke_color   = Color{1.0f, 0.30f, 0.10f, 1.0f};
+    spec.style.paint.stroke_enabled = true;
+    spec.style.paint.stroke_width   = 8.0f;
+    spec.style.paint.stroke_color   = Color{1.0f, 0.30f, 0.10f, 1.0f};
     auto comp = composition(
         {.name = "VR_Stroke", .width = kVW, .height = kVH, .duration = 1},
         [spec](const FrameContext& ctx) {
@@ -284,11 +284,11 @@ TEST_CASE("VisualRegression/Stroke — thick stroke style applied via TextAppear
 // §5 Gradient fill ────────────────────────────────────────────────────────
 TEST_CASE("VisualRegression/Gradient — gradient fill on canonical text") {
     auto renderer = make_renderer();
-    TextSpec spec = centered_text(make_opts("GRADIENT", 96.0f, Color::white()));
+    auto spec = centered_text(make_opts("GRADIENT", 96.0f, Color::white()));
     // Inject a two-stop linear gradient via the appearance paint.
     // PR-A3 fix B3: text gradient is one field on TextMaterial.gradient_angle;
     // multi-stop linear gradient is via TextPaint.fill_style = Fill::linear(...).
-    spec.appearance.paint.fill_style = Fill::linear(
+    spec.style.paint.fill_style = Fill::linear(
         {0.0f, 0.0f},                              // from (Vec2)
         {0.0f, 1.0f},                              // to   (Vec2)
         {
@@ -311,7 +311,7 @@ TEST_CASE("VisualRegression/Gradient — gradient fill on canonical text") {
 // §6 Shadow ────────────────────────────────────────────────────────────────
 TEST_CASE("VisualRegression/Shadow — drop shadow applied via l.drop_shadow") {
     auto renderer = make_renderer();
-    TextSpec spec = centered_text(make_opts("SHADOW", 96.0f, Color::black()));
+    auto spec = centered_text(make_opts("SHADOW", 96.0f, Color::black()));
     auto comp = composition(
         {.name = "VR_Shadow", .width = kVW, .height = kVH, .duration = 1},
         [spec](const FrameContext& ctx) {
@@ -331,7 +331,7 @@ TEST_CASE("VisualRegression/Shadow — drop shadow applied via l.drop_shadow") {
 // §7 Glow ──────────────────────────────────────────────────────────────────
 TEST_CASE("VisualRegression/Glow — AE-style multi-layer glow via l.glow") {
     auto renderer = make_renderer();
-    TextSpec spec = centered_text(make_opts("GLOW", 96.0f, Color::white()));
+    auto spec = centered_text(make_opts("GLOW", 96.0f, Color::white()));
     auto comp = composition(
         {.name = "VR_Glow", .width = kVW, .height = kVH, .duration = 1},
         [spec](const FrameContext& ctx) {
@@ -359,7 +359,7 @@ TEST_CASE("VisualRegression/Glow — AE-style multi-layer glow via l.glow") {
 // §8 Blur ──────────────────────────────────────────────────────────────────
 TEST_CASE("VisualRegression/Blur — gaussian blur radius applied via l.blur") {
     auto renderer = make_renderer();
-    TextSpec spec = centered_text(make_opts("BLUR", 96.0f, Color::black()));
+    auto spec = centered_text(make_opts("BLUR", 96.0f, Color::black()));
     auto comp = composition(
         {.name = "VR_Blur", .width = kVW, .height = kVH, .duration = 1},
         [spec](const FrameContext& ctx) {
@@ -493,12 +493,12 @@ TEST_CASE("VisualRegression/EmojiFallback — mixed emoji + ASCII sample") {
 // §15 Scale extreme — very small + very large dual composition ───────────
 TEST_CASE("VisualRegression/ScaleExtreme — small + huge dual composition") {
     auto renderer = make_renderer();
-    TextSpec tiny = centered_text(make_opts("tiny", 8.0f, Color{0.0f, 0.0f, 0.5f, 1.0f},
+    auto tiny = centered_text(make_opts("tiny", 8.0f, Color{0.0f, 0.0f, 0.5f, 1.0f},
                                               Vec2{160.0f, 30.0f}));
-    tiny.position = {-260.0f,  150.0f, 0.0f};  // PR-A3 fix F: NW anchor — avoids overlap with huge
-    TextSpec huge = centered_text(make_opts("HUGE", 220.0f, Color{0.86f, 0.08f, 0.24f, 1.0f},
+    tiny.frame.position = {-260.0f,  150.0f, 0.0f};  // PR-A3 fix F: NW anchor — avoids overlap with huge
+    auto huge = centered_text(make_opts("HUGE", 220.0f, Color{0.86f, 0.08f, 0.24f, 1.0f},
                                               Vec2{kVW * 0.95f, kVH * 0.95f}));
-    huge.position = { 260.0f, -100.0f, 0.0f};  // PR-A3 fix F: SE anchor; huge 480→220 (fix E) to fit 760×510 box
+    huge.frame.position = { 260.0f, -100.0f, 0.0f};  // PR-A3 fix F: SE anchor; huge 480→220 (fix E) to fit 760×510 box
     auto comp = composition(
         {.name = "VR_ScaleExtreme", .width = kVW, .height = kVH, .duration = 1},
         [tiny, huge](const FrameContext& ctx) {

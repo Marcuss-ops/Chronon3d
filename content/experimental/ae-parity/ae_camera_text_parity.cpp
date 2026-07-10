@@ -135,7 +135,7 @@ void add_pedestal_cards(SceneBuilder& s) {
 
 // Helper: identical text label at a given depth with a chosen font size.
 // Each layer shows its own depth-tag so the test is legibly interpretable.
-chronon3d::TextSpec text_label(const std::string& word, f32 font_size) {
+auto text_label(const std::string& word, f32 font_size) {
     return chronon3d::content::text::centered_text({
         .text        = word,
         .box         = {1400.0f, 200.0f},
