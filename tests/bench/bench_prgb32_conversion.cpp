@@ -11,7 +11,7 @@
 ///       -I../../../include -I../../../deps/include \
 ///       -I../../../vcpkg_installed/x64-linux/include \
 ///       ../../../tests/bench/bench_prgb32_conversion.cpp \
-///       src/backends/software/CMakeFiles/chronon3d_backend_software.dir/simd/highway_color_kernels.cpp.o \
+///       src/backends/software/CMakeFiles/chronon3d_backend_software.dir/simd/highway_color_kernels.cpp.o \  // drift-allow: stale-ref
 ///       -L../../../vcpkg_installed/x64-linux/lib -lhwy -lfmt -lspdlog \
 ///       -o bench_prgb32 && ./bench_prgb32
 // =============================================================================

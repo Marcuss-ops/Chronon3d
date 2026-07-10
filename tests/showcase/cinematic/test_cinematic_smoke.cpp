@@ -6,7 +6,7 @@
 //    • TEST_CASE("AGENT4: A4.1 every keyframe non-empty")
 //    • TEST_CASE("AGENT4: A4.2 camera motion across keyframes")
 //
-//  from the monolithic tests/showcase/test_cinematic_camera_showcase.cpp
+//  from the monolithic tests/showcase/test_cinematic_camera_showcase.cpp  // drift-allow: stale-ref
 //  (was 771 LOC).  Behaviour preserved bit-identical: same hash, same
 //  REQUIRE/CHECK ordering, same MESSAGE forensic lines, same
 //  smoke-mode-tolerant motion-bound threshold (12/15 in full mode;

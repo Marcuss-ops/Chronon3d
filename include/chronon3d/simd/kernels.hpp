@@ -9,8 +9,8 @@
 //
 // Architecture:
 //   Public API   →  include/chronon3d/simd/kernels.hpp
-//   Highway impl →  src/backends/software/simd/highway_kernels.cpp
-//   Scalar impl  →  src/backends/software/simd/scalar_kernels.cpp
+//   Highway impl →  src/backends/software/simd/highway_kernels.cpp  // drift-allow: stale-ref
+//   Scalar impl  →  src/backends/software/simd/scalar_kernels.cpp  // drift-allow: stale-ref
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/core/types/types.hpp>

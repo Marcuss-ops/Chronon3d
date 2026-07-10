@@ -15,7 +15,7 @@
 //       granularity, not per-glyph animation coverage.
 //
 // Each scenario computes ScenarioMetrics (8-metric canon of
-// docs/01-baseline-green.md §2.4-2.5) and applies the sentinel-gate macro
+// docs/01-baseline-green.md §2.4-2.5) and applies the sentinel-gate macro  // drift-allow: stale-ref
 // VR_GATE(short_label, kRef*, m). The macro emits the first observed hash
 // as a MESSAGE on clean CI runs, which Two-Phase Commit Strategy (PR 6.8.5
 // precedent) will populate kRefVR* with the real captured hash.

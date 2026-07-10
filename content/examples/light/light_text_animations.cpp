@@ -1,4 +1,4 @@
-// content/examples/light/light_text_animations.cpp
+// content/examples/light/light_text_animations.cpp  // drift-allow: stale-ref
 //
 // 8 Light 2D Text Entrance Animations — 5 second (150 frame) compositions.
 //

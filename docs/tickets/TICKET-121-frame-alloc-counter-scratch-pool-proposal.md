@@ -42,7 +42,7 @@ This ticket opens the proposal and lands Phase 1 only.
 - Unit test `tests/backends/software/test_frame_alloc_counter.cpp` asserting
   thread_local isolation.
 
-### Phase 2 (follow-up ADR — `docs/adr/ADR-NNN-scratch-pool.md` — gated on this PR)
+### Phase 2 (follow-up ADR — `docs/adr/ADR-NNN-scratch-pool.md` — gated on this PR)  <!-- drift-allow: stale-ref -->
 
 Document a candidate `FrameScratchPool` interface (per-renderer-instance reservation,
 RAII return, deterministic teardown). Submit ADR only after Phase-1 measurements

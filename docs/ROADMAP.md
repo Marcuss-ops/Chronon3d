@@ -162,9 +162,9 @@ per pipeline video automatizzate.
 | 5  | `src/text/text_run_builder.cpp`                                 | P1     | PLANNED  | Pipeline canonica: validate → resolve → shape → failure-policy → compose → font-spans → cache-store.    |
 | 6  | `src/backends/software/processors/text_run/text_run_processor.cpp` | P1 | PLANNED  | Scratch allocator / `TextRenderResources`; niente vettori temporanei allocati per draw.                 |
 | 7  | `include/chronon3d/backends/text/text_render_resources.hpp`     | P1     | PLANNED  | Aggregatore leggero; cache/font/atlas/scratch in sub-header separati.                                    |
-| 8  | `src/text/text_resolver.cpp`                                    | P1     | PLANNED  | Unico entry `ResolvedTextTree`; nessun secondo resolver in backend o builder.                            |
+| 8  | `src/text/text_resolver.cpp`                                    | P1     | PLANNED  | Unico entry `ResolvedTextTree`; nessun secondo resolver in backend o builder.                            |  <!-- drift-allow: stale-ref -->
 | 9  | `src/backends/software/processors/text/software_text_processor.cpp` | P1  | PLANNED  | Svuotamento progressivo dopo migrazione callsite a `TextRunNode`; rimozione del processor legacy.        |
-| 10 | `include/chronon3d/text/rich_text.hpp`                          | P1     | PLANNED  | Eliminazione completa dopo migrazione `RichTextLine → TextDocument` / `draw_rich_text → text_run(...)`. |
+| 10 | `include/chronon3d/text/rich_text.hpp`                          | P1     | PLANNED  | Eliminazione completa dopo migrazione `RichTextLine → TextDocument` / `draw_rich_text → text_run(...)`. |  <!-- drift-allow: stale-ref -->
 | 11 | `src/backends/text/text_rasterizer_render.cpp`                  | P1     | PLANNED  | Classificare utility riusabili (`blend2d_glyph_conversion`, `freetype_outline_conversion`) vs legacy.    |
 | 12 | `src/backends/software/software_backend.cpp`                    | P2     | PLANNED  | Factory + dispatch + text + effects in file separati; main = ctor/dtor/accessors.                        |
 | 13 | Registry preset testuali                                        | P2     | PLANNED  | Factory per categoria (basic/kinetic/cinematic/social); registro centrale unico invariato.               |
@@ -188,7 +188,7 @@ per pipeline video automatizzate.
 - **Sincronizzazione documentale:** ogni chiusura aggiorna `CURRENT_STATUS.md` (stato)
   e `FOLLOWUP_TICKETS.md` (storico) nello **stesso** commit (vincolo gate #7 `check_doc_sync.sh`).
 - **Matrice di avanzamento** (Implementazione / Test / Migrazione / Rimozione legacy)
-  per item — popolata in `docs/baselines/text-decomp-matrix.md` dopo lo sblocco freeze.
+  per item — popolata in `docs/baselines/text-decomp-matrix.md` dopo lo sblocco freeze.  <!-- drift-allow: stale-ref -->
 
 ### Non-goal M1
 
@@ -330,7 +330,7 @@ Il floor target originario di 288 PNG è matematicamente irraggiungibile. I test
 
 - Workstream cinematic track: ticket rows `TICKET-AE-PARITY-CINEMATIC-{01..20}` (01..05 DONE Phase D) + `TICKET-AE-PARITY-SUITE` (umbrella 5→20 transition tracker) + `TICKET-AE-PARITY-KILLER-*` (4 killer);
 - Concurrency precond: `TICKET-GOLDEN-CAPTURE` (Phase C capture pipeline rot parent) + `TICKET-GATE-10-PHASE-4-FIX` (gate #10 FU5);
-- Referee spec: roadmap stub `docs/adr/ADR-015-ae-parity-cinematic-expansion.md` (PLANNED, da stilare al primo commit cinematico successivo alla revoca freeze);
+- Referee spec: roadmap stub `docs/adr/ADR-015-ae-parity-cinematic-expansion.md` (PLANNED, da stilare al primo commit cinematico successivo alla revoca freeze);  <!-- drift-allow: stale-ref -->
 - Match RElease gate §Text Production V1: 20 preset generali + 8 subtitle verificati (TICKET-AE-PARITY-CINEMATIC tracks i 20 generali; i 8 subtitle sono cross-link a TICKET-GOLDEN-30 + TICKET-AE-PARITY-CINEMATIC-20 karaoke_word_highlight).
 
 ## M2 — Camera Production V1

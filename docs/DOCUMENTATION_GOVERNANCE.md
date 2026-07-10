@@ -191,7 +191,7 @@ Le celle non devono contenere paragrafi.
 Il dettaglio completo vive in:
 
 ```text
-docs/tickets/TICKET-NNN.md
+docs/tickets/TICKET-NNN.md  <!-- drift-allow: stale-ref -->
 ```
 
 Quando un ticket viene chiuso:
@@ -203,7 +203,7 @@ Quando un ticket viene chiuso:
 
 ---
 
-### `docs/tickets/TICKET-NNN.md`
+### `docs/tickets/TICKET-NNN.md`  <!-- drift-allow: stale-ref -->
 
 Ogni scheda deve utilizzare questa struttura:
 

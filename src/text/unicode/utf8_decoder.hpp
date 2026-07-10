@@ -13,10 +13,10 @@
 //     covering ASCII + 2/3/4-byte UTF-8 only (no library header prefix
 //     `unicode/` allowed, even if not an actual ICU/Boost import).
 //   • Replaces 4 private duplicate impls:
-//       (1) `chronon3d::detail::utf8_decode`         in include/.../text_unicode_utils.hpp
-//       (2) `chronon3d::detail::decode_utf8_codepoint_from` in include/.../glyph_selector.hpp
-//       (3) `composer_internal::decode_codepoint_at` in src/text/internal/composer_helpers.hpp
-//       (4) anonymous `decode_utf8(sv, idx)` in src/text/text_unit_map.cpp
+//       (1) `chronon3d::detail::utf8_decode`         in include/.../text_unicode_utils.hpp  // drift-allow: stale-ref
+//       (2) `chronon3d::detail::decode_utf8_codepoint_from` in include/.../glyph_selector.hpp  // drift-allow: stale-ref
+//       (3) `composer_internal::decode_codepoint_at` in src/text/internal/composer_helpers.hpp  // drift-allow: stale-ref
+//       (4) anonymous `decode_utf8(sv, idx)` in src/text/text_unit_map.cpp  // drift-allow: stale-ref
 //     The public-header variants (1)+(2) remain defined for back-compat
 //     with all current callers (inside include/chronon3d/), but new code
 //     under src/ should prefer this canonical header.

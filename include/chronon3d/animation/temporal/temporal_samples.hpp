@@ -7,7 +7,7 @@
 // and normalized reconstruction-filter weights.
 //
 // PR1 — replaces the duplicated helpers that previously co-existed in:
-//   * src/scene/camera/camera_v1/camera_motion_blur.cpp
+//   * src/scene/camera/camera_v1/camera_motion_blur.cpp  // drift-allow: stale-ref
 //       (CameraMotionBlurIntegrator::halton + sub_sample_times + filter_weight)
 //   * src/render_graph/pipeline/composition.cpp
 //       (static motion_blur_jitter + motion_blur_filter_weight + Halton inline)

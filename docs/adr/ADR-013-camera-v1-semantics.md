@@ -148,7 +148,7 @@ The propagation contract is enforced at:
 ### Source anchor
 
 * `include/chronon3d/scene/camera/camera_v1/camera_motion_context.hpp` lines 42–47 (`CameraMotionContext::at`) and 78–86 (`CameraEvalContext::at`).
-* `src/scene/camera/camera_v1/shot_timeline.hpp` lines ~76–89 (`ShotTimelineResolver::evaluate` signature post-A3-CTX-FRAMERATE).
+* `src/scene/camera/camera_v1/shot_timeline.hpp` lines ~76–89 (`ShotTimelineResolver::evaluate` signature post-A3-CTX-FRAMERATE).  <!-- drift-allow: stale-ref -->
 * `src/scene/camera/camera_v1/shot_timeline.cpp` lines ~290–360 — the 3 `CameraEvalContext::at(...)` call-sites now use the resolver's `fps` parameter directly; the previous-recipe `constexpr FrameRate kTimelineFps{30, 1};` is removed.
 * `include/chronon3d/scene/camera/camera_v1/camera_session_cache.hpp` line 197 (the `preroll_session_for_frame` signature with `FrameRate frame_rate` as 6th positional, no default).
 * `src/scene/camera/camera_v1/camera_session_cache.cpp` lines ~36–88 (the helper implementation).
@@ -255,13 +255,13 @@ Channel invariants:
 ### Source anchor
 
 * The canonical push site: `src/scene/camera/camera_v1/camera_program.cpp` line ~471 (`result.diagnostics.push_back(*orient_diag)` — already cited in Decision 6, generalised by Decision 7 to all orientation/constraint/modifier helpers).
-* The `Severity` enum: `include/chronon3d/scene/camera/camera_v1/camera_program_diagnostic.hpp` lines ~35–60 (the closed 3-value enum).
+* The `Severity` enum: `include/chronon3d/scene/camera/camera_v1/camera_program_diagnostic.hpp` lines ~35–60 (the closed 3-value enum).  <!-- drift-allow: stale-ref -->
 * The struct: `struct CameraProgramDiagnostic { Severity severity; std::string message; /* optional source-anchor */ }` in the same header.
 * The forbidden-channel grep (in-vivo enforcement): `grep -rnE 'std::cerr|std::cout|printf|fmt::print.*stderr|spdlog::(warn|info|error)' src/scene/camera/camera_v1/` must return 0 hits from evaluate-stage helpers (only pre-existing scaffold markers permitted).
 
 ### Test lock
 
-* `tests/scene/camera/test_camera_program_diagnostic_channel.cpp` — primary lock.  Two SUBCASEs:
+* `tests/scene/camera/test_camera_program_diagnostic_channel.cpp` — primary lock.  Two SUBCASEs:  <!-- drift-allow: stale-ref -->
   - **`diagnostic_channel_emits_severity_tagged_only`** — fuzzes 6 evaluate() scenarios (LookAtLayer missing-transforms, KeepLastValidCamera recovered, modifier-applied, ConstraintFailure-as-diagnostic, DampedFollow EMA-overflow, source-variant fallback).  Asserts `severity != Severity::Unspecified` for every emitted diagnostic + emit count matches documented expected per scenario.
   - **`diagnostic_channel_avoids_side_channels`** — same 6 scenarios wrapped in `testing::CaptureStderr()` + `testing::CaptureStdout()` + a `spdlog::sinks_init_list` sink-capture.  Asserts captured side-channel output is empty (excluding pre-existing machine markers).
 * Companion: the existing `tests/scene/camera/test_camera_lookat_layer_missing_transforms.cpp` Decision 6 lock is a structural sub-lock (Decision 6 diagnostic carries `Severity::Warning`).
@@ -293,7 +293,7 @@ Two paired invariants locking the compile-time surface:
 
 ### Test lock
 
-* `tests/scene/camera/test_camera_program_compiler_determinism.cpp` — primary lock.  Two SUBCASEs:
+* `tests/scene/camera/test_camera_program_compiler_determinism.cpp` — primary lock.  Two SUBCASEs:  <!-- drift-allow: stale-ref -->
   - **`compiler_byte_deterministic_across_fuzz`** — runs `compile_camera(desc)` 1000 times with shadowed Map<K,V> insertion orders (12 different orderings).  Asserts all 1000 emitted programs are byte-equal under `CameraProgram::operator==`.  Cross-thread determinism: 16-thread parallel-compile fuzz where all 16 programs must bit-match.
   - **`program_immutable_post_compile_flag`** — runs `compile_camera(desc)` 100 times; `static_assert` that `decltype(program)::failure_policy() const`, `::time_dependent() const`, `::evaluation_dependency() const`, `::descriptor() const` are the only public accessors; `decltype(program).failure_policy() &` (non-`const`) MUST NOT compile.  Asserts `descriptor_fingerprint() == desc.fingerprint()` for every emitted program (Decision 1 + Decision 8 canon).
 * Companion: `test_camera_program_compiler_post_compile_is_readonly.cpp` — counts public non-`const` functions on `CameraProgram`; fails if any are introduced.
@@ -321,8 +321,8 @@ This ADR is the consolidating node for the 8 tickets in the A3 cluster (C5-compl
 | TICKET-A3-CTX-FRAMERATE (gate (e)) | `5d42cd63`-line commit | Decision 4 | `camera_motion_context.hpp` 42–86 + `shot_timeline.{hpp,cpp}` + `camera_session_cache.cpp` 36–88 | `tests/scene/camera/test_camera_context_framerate_propagation.cpp` |
 | TICKET-A3-DAMPED-HISTORY (gate (b)) | `5f76a73b`-line commit | Decision 5 | `camera_program_compiler.cpp` ~lines 325–355 | `tests/scene/camera/test_camera_program_damped_history_force.cpp` |
 | TICKET-A3-LOOKAT-DIAGNOSTIC (gate (g)) | `0d645b90`-line commit | Decision 6 | `camera_program.cpp` ~lines 95–135 + push at ~471 | `tests/scene/camera/test_camera_lookat_layer_missing_transforms.cpp` |
-| **TICKET-A3-DIAGNOSTIC-CHANNEL (gate (h), ADR-013-EXT)** | _alongside ADR-013-EXT commit (Doc-only — contract introduced here; source-code commits to follow)_ | Decision 7 | `camera_program.cpp` ~line 471 (canonical push) + all evaluate-stage helpers emitting a `CameraProgramDiagnostic` | `tests/scene/camera/test_camera_program_diagnostic_channel.cpp` (locks `Severity::{Warning,Info,Severe}` exclusivity + no side-channel emit from evaluate()) |
-| **TICKET-A3-COMPILER-DETERMINISM (gates (i)+(j), ADR-013-EXT)** | _alongside ADR-013-EXT commit (Doc-only — contract introduced here; source-code commits to follow)_ | Decision 8 | `camera_program_compiler.cpp` ~lines 287–307 (`compiled_ = true` writepoint) + `camera_program.hpp` class (no setter APIs post-`compiled_`) | `tests/scene/camera/test_camera_program_compiler_determinism.cpp` (fuzzes compile_camera() with shadowed map orderings; locks byte-identical program + post-`compiled_` immutability) |
+| **TICKET-A3-DIAGNOSTIC-CHANNEL (gate (h), ADR-013-EXT)** | _alongside ADR-013-EXT commit (Doc-only — contract introduced here; source-code commits to follow)_ | Decision 7 | `camera_program.cpp` ~line 471 (canonical push) + all evaluate-stage helpers emitting a `CameraProgramDiagnostic` | `tests/scene/camera/test_camera_program_diagnostic_channel.cpp` (locks `Severity::{Warning,Info,Severe}` exclusivity + no side-channel emit from evaluate()) |  <!-- drift-allow: stale-ref -->
+| **TICKET-A3-COMPILER-DETERMINISM (gates (i)+(j), ADR-013-EXT)** | _alongside ADR-013-EXT commit (Doc-only — contract introduced here; source-code commits to follow)_ | Decision 8 | `camera_program_compiler.cpp` ~lines 287–307 (`compiled_ = true` writepoint) + `camera_program.hpp` class (no setter APIs post-`compiled_`) | `tests/scene/camera/test_camera_program_compiler_determinism.cpp` (fuzzes compile_camera() with shadowed map orderings; locks byte-identical program + post-`compiled_` immutability) |  <!-- drift-allow: stale-ref -->
 
 ### Chain to ADR-011 Decision 5 (call-site migration list)
 

@@ -32,8 +32,8 @@ namespace chronon3d {
 //
 // Minimal viable PODs that satisfy the `std::optional<T>` complete-type
 // requirement of `TextSpanStyle`. Will be promoted to:
-//   * `include/chronon3d/text/text_stroke.hpp`
-//   * `include/chronon3d/text/text_highlight_box.hpp`
+//   * `include/chronon3d/text/text_stroke.hpp`  // drift-allow: stale-ref
+//   * `include/chronon3d/text/text_highlight_box.hpp`  // drift-allow: stale-ref
 // in Fase 4 step 2 with full implementations (dash patterns, multi-pass
 // material layers, padding semantics, etc.).
 struct TextStrokeStyle {

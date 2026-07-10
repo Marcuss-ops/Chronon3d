@@ -94,7 +94,7 @@ focused commits, but the merge that removes the quarantine lands them all.
 
 | Status | Criterion |
 |---|---|
-| ☐ | A migration map exists at `docs/EXPRESSIONS_V1_TO_V2.md` enumerating every Path-A surface (`AnimatedValue::parse(...)`, `Expression::compile(...)`, etc.) and its Path-B replacement. |
+| ☐ | A migration map exists at `docs/EXPRESSIONS_V1_TO_V2.md` enumerating every Path-A surface (`AnimatedValue::parse(...)`, `Expression::compile(...)`, etc.) and its Path-B replacement. |  <!-- drift-allow: stale-ref -->
 | ☐ | For every Path-A surface, the map lists: (a) replacement, (b) adapter if co-existence is required, (c) criterion for removal of the old path. |
 | ☐ | The map's "removal criterion" column is objective and verifiable — no subjective "when usage drops" without a numeric threshold. |
 
@@ -139,7 +139,7 @@ focused commits, but the merge that removes the quarantine lands them all.
 | 2026-06-20 | Quarantined under `experimental/expressions/` with `CHRONON3D_BUILD_EXPERIMENTAL=OFF` default | this PR |
 | 2026-06-20 | Opzione B criteria document published | this PR |
 | 2026-06-20 | Gate 1: zero disabled tests without ticket — compliant (TICKET-007 umbrella applied; underlying bugs NOT fixed by this PR) | TICKET-007 |
-| 2026-06-20 | Gate 2: determinism suite landed in `experimental/expressions/tests/test_expressions_v2_determinism.cpp` (sections A–E; executable `chronon3d_expressions_v2_tests`); `Vm::reset()/empty()/env_size()` exposed in `vm.hpp` | this PR |
+| 2026-06-20 | Gate 2: determinism suite landed in `experimental/expressions/tests/test_expressions_v2_determinism.cpp` (sections A–E; executable `chronon3d_expressions_v2_tests`); `Vm::reset()/empty()/env_size()` exposed in `vm.hpp` | this PR |  <!-- drift-allow: stale-ref -->
 | 2026-06-20 | Gate 3: kickoff — `TICKET-EXP2-G3` opened; Path A audit captured (10-row surface table); delegation design landed (TWO-PR split: 3a Path B feature parity, 3b AnimatedValue swap); Vm resolver hook + lazy-compile-on-AnimatedValue + per-property cache shape designed in TICKET-EXP2-G3 (no global LRU per Gate 2 determinism contract); code changes TBD on 3a/3b | TICKET-EXP2-G3 |
 | 2026-06-20 | Gate 4: kickoff — `docs/EXPRESSIONS_V2_API.md` (per-symbol reference for all 8 `chronon3d_experimental/expressions/v2/*.hpp` headers; lifetime/invariant/threading + 7 end-to-end usage examples) and `docs/EXPRESSIONS_V2_PIPELINE.md` (source → lex → parse → type-check → emit → VM trace + `Type::Top` permissiveness rationale + 5 onboarding notes for new contributors) scaffolded; each Gate 4 sub-criterion (#symbol doc, #API ref with examples, #pipeline diagram) covered. Cross-references `docs/EXPRESSIONS_V2_API.md` and `docs/EXPRESSIONS_V2_PIPELINE.md` from this row for grep-to-source symmetry | this PR |
 | TBD | Gate 5: benchmark vs Path A |  |

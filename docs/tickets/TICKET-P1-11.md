@@ -23,6 +23,6 @@ Coesistono 6+ percorsi concorrenti: `Composition::evaluate()`, `compile_composit
 
 ## File interessati
 
-- `src/animation_compositions.cpp`, `content/animation_compositions.cpp`
-- `include/chronon3d/animation_compositions.hpp`
+- `src/animation_compositions.cpp`, `content/animation_compositions.cpp`  <!-- drift-allow: stale-ref -->
+- `include/chronon3d/animation_compositions.hpp`  <!-- drift-allow: stale-ref -->
 - `src/render_graph/`, `src/runtime/`

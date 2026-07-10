@@ -99,7 +99,7 @@ tests/renderer/2d5/test_card3d_rasterizer.cpp
 tests/renderer/2d5/test_depth_grade.cpp
 tests/renderer/camera/test_animated_camera.cpp
 tests/renderer/camera/test_camera_motion.cpp
-tests/renderer/camera/test_camera_rig.cpp
+tests/renderer/camera/test_camera_rig.cpp  # drift-allow: stale-ref
 tests/renderer/camera/test_dof.cpp
 tests/renderer/camera/test_lens_model.cpp
 tests/renderer/camera/test_per_pixel_dof.cpp

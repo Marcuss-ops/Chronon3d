@@ -6,13 +6,13 @@
 | Priorit\u00e0   | P2    |
 | Area       | audit_v3 phantom-path triage (TICKET-GATE-10-PHASE-4-FULL) |
 | Stato      | TRACKED |
-| Wrapper    | `include/chronon3d/math/glm/gtx/transform.hpp` |
+| Wrapper    | `include/chronon3d/math/glm/gtx/transform.hpp` |  <!-- drift-allow: stale-ref -->
 | Upstream   | `` |
 | Categoria  | I. Third-party Vendoring Policy (`docs/ARCHITECTURE_AUDIT.md`) |
 
 ## Diagnosi
 
-`/tmp/audit_v3.py` flagged `include/chronon3d/math/glm/gtx/transform.hpp` as missing from `cmake/Chronon3DPublicHeaders.cmake`.
+`/tmp/audit_v3.py` flagged `include/chronon3d/math/glm/gtx/transform.hpp` as missing from `cmake/Chronon3DPublicHeaders.cmake`.  <!-- drift-allow: stale-ref -->
 Filesystem-existence check: ABSENT.  The path is an upstream-vendored submodule (``),
 referenced by OPP-side code via `#include <math/glm/gtx/transform.hpp>` resolve.
 

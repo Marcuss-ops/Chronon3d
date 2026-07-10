@@ -3,7 +3,7 @@
 //
 // VisualExpectation enum + expectation_name() + kVisibleMinPixels
 // threshold + VR_TEXT_PRESET_GATE macro.  Mechanical split-off from
-// tests/text/test_text_preset_visual.cpp (formerly 165–235 LOC in the
+// tests/text/test_text_preset_visual.cpp (formerly 165–235 LOC in the  // drift-allow: stale-ref
 // anonymous namespace).
 //
 // ── VisualExpectation (Blocco 2) ─────────────────────────────────────────

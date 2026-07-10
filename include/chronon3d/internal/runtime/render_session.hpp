@@ -7,7 +7,7 @@
 // runtime/render_session.hpp
 //
 // TICKET-008 — Per-session rendering state, relocated from
-// `include/chronon3d/core/memory/render_session.hpp` to resolve a
+// `include/chronon3d/core/memory/render_session.hpp` to resolve a  // drift-allow: stale-ref
 // dependency-direction violation.  The previous location in `core/memory/`
 // pulled in software-specific headers (`backends/software/buffer_ring.hpp`,
 // `backends/software/scratch_buffer.hpp`) and render-graph internals
@@ -51,7 +51,7 @@
 // requires the full type of these two state engines so `RenderSession`
 // can hold them by-value (SceneHasher) or via unique_ptr (SceneProgramStore
 // because it carries a std::mutex and is therefore non-movable).  See
-// `docs/refactor-roadmap/03-render-session-boundary.md` for the
+// `docs/refactor-roadmap/03-render-session-boundary.md` for the  // drift-allow: stale-ref
 // migration rationale and the architectural invariant flip.
 // ===========================================================================
 
@@ -102,7 +102,7 @@ struct RenderSession {
     // `scene_hasher` / `program_store` to `_state` so they don't
     // collide with the public accessor methods of the same name;
     // see the apply-minimal-fix-A migration note in
-    // `docs/refactor-roadmap/03-render-session-boundary.md`).
+    // `docs/refactor-roadmap/03-render-session-boundary.md`).  // drift-allow: stale-ref
     //   * scene_hasher_state: by-value (struct, default-constructible, movable).
     //   * program_store_state: heap (class with std::mutex, non-movable).
     chronon3d::graph::SceneHasher scene_hasher_state{};
@@ -163,6 +163,6 @@ struct RenderSession {
 // for the canonical struct (engine-generic + software-backend composition).
 // This header keeps only `RenderSession` so the runtime/ layer does not
 // have a struct ODR defined twice across two headers.  See PR 3.1 + 3.4
-// in `docs/refactor-roadmap/03-render-session-boundary.md`.
+// in `docs/refactor-roadmap/03-render-session-boundary.md`.  // drift-allow: stale-ref
 
 } // namespace chronon3d

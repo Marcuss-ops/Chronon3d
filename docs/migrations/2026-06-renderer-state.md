@@ -19,7 +19,7 @@ The `SoftwareRenderer` internal state has been refactored into dedicated aggrega
 **SoftwareRenderer accessors** — `SoftwareRenderer` now exposes `.frame_history()`, `.dirty_telemetry()`, `.layer_history()`, `.buffer_ring()`, `.scratch_buffer()`, and `.graph_cache()` instead of the old direct public members.
 
 **Deleted headers:**
-- `include/chronon3d/backends/software/software_renderer_internal.hpp` — removed; migrate includes to the four new headers above.
+- `include/chronon3d/backends/software/software_renderer_internal.hpp` — removed; migrate includes to the four new headers above.  <!-- drift-allow: stale-ref -->
 
 ## Breaking Changes
 
