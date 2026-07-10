@@ -61,9 +61,15 @@ namespace chronon3d {
     }
 
     // ── Precomp Layer ────────────────────────────────────────────────────────
+    //
+    // A2 — precomp_layer now propagates screen_dimensions.  Previously
+    // the builder was constructed without a screen_dimensions() call,
+    // causing authoring::Layer to fail-fast with "screen_dimensions were
+    // never set" at construction time.
     template <typename Fn>
     SceneBuilder &SceneBuilder::precomp_layer(std::string name, std::string comp_name, Fn &&fn) {
         LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
+        builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
         builder.font_engine(m_font_engine);  // cascade scene-level bind
         std::forward<Fn>(fn)(builder);
 
@@ -120,6 +126,7 @@ namespace chronon3d {
             return *this;
         } else {
             LayerBuilder builder(std::move(name), current_time_, scene_.resource(), m_shape_registry);
+            builder.screen_dimensions(static_cast<f32>(m_width), static_cast<f32>(m_height));
             builder.font_engine(m_font_engine);  // cascade scene-level bind
             std::forward<Fn>(fn)(builder);
 
