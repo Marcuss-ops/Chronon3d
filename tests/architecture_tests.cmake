@@ -18,7 +18,24 @@ add_test(
 )
 set_tests_properties(chronon3d_architecture_render_graph_software_boundary PROPERTIES LABELS "architecture")
 
-# Gate 11 — Backend sanitization checks (legacy files, legacy references,
+# TICKET-SIMPLICITY-PIPELINE-PARITY — Python source-level audit verifying
+# that TextSpec ↔ TextDefinition round-trip covers all 30 sub-fields
+# bidirectionally.  PASS = all fields mapped, guaranteeing 0px render diff.
+add_test(
+    NAME chronon3d_text_definition_round_trip_parity
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/architecture/test_text_definition_round_trip_parity.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_text_definition_round_trip_parity PROPERTIES LABELS "architecture;text;parity")
+
+# py_compile check — verifies test_text_definition_round_trip_parity.py
+# has no syntax errors.
+add_test(
+    NAME chronon3d_text_definition_round_trip_parity_py_compile
+    COMMAND ${Python3_EXECUTABLE} -m py_compile ${CMAKE_CURRENT_SOURCE_DIR}/architecture/test_text_definition_round_trip_parity.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_text_definition_round_trip_parity_py_compile PROPERTIES LABELS "architecture;text;parity") (legacy files, legacy references,
 # debug smoke signals, test smoke signals).  Invokes the Python script via
 # Python3_EXECUTABLE (not bash) so the import statements execute correctly.
 add_test(
