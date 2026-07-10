@@ -1,3 +1,23 @@
+## Luglio 2026 — TICKET-011 closure — mainline build rot resolved (2026-07-10, doc-only)
+
+### docs(ticket): TICKET-011 — mainline build rot (chronon3d_core_tests) closure
+
+- **TICKET-011** was the oldest P0 blocker, open since 2026-07-08. It blocked gates 1–8.
+- **Audit** (2026-07-08): identified 6 rot files + 2 missing files. Fix roadmap Steps A→E documented.
+- **Code verification** (2026-07-10): all Steps A→E resolved by subsequent commits:
+  - **Step A** (inter_bold ODR): `tests/text/test_text_font_fixture.hpp` defines `inter_bold()` as `inline` in `test_text_fixture` namespace. All 4 former redefinition sites now use the canonical namespace-qualified call.
+  - **Step B** (skip_if_missing ODR): same header, same pattern. All consumers use `test_text_fixture::skip_if_missing()`.
+  - **Step C** (text_unit_map_8level.cpp): file exists at HEAD, registered in `tests/core_tests.cmake` line 36, listed in `SKIP_UNITY_BUILD_INCLUSION` set.
+  - **Step D** (test_text_font_resolver_golden.cpp): file exists at HEAD, registered in `tests/core_tests.cmake` line 34.
+  - **Step E** (test_compile_text_layout{,_validation}.cpp): NOT in cmake — no dangling references to missing files.
+- **Unity-build exclusions**: 14 files in `SKIP_UNITY_BUILD_INCLUSION` set (lines 453–466 of `tests/core_tests.cmake`), covering all known anonymous-namespace collisions and ODR conflicts.
+- **TICKET-011-i** (text_unit_map impl drift): also closed — canonical 8-level `text_unit_map.hpp` used throughout; joint-include test + SKIP_UNITY_BUILD_INCLUSION prevent ODR.
+- **Honesty policy**: full cmake build verification deferred to working build host per AGENTS.md §honesty. Code-level evidence is conclusive.
+- **AGENTS.md compliance**: doc-only update, zero source-code modifications.
+- **Cross-references**: [`tests/core_tests.cmake`](tests/core_tests.cmake) (SKIP_UNITY_BUILD_INCLUSION set); [`tests/text/test_text_font_fixture.hpp`](tests/text/test_text_font_fixture.hpp) (shared fixture).
+
+---
+
 ## Luglio 2026 — F3.A Animation Helpers (2026-07-10, atomic commit)
 
 ### feat(animation): F3.A — Top-level animation convenience header
