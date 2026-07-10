@@ -4,7 +4,7 @@
 - **Date:** 2026-07-10 (Accepted) → 2026-07-10 (Superseded by PR WP-9 PR 9.0)
 - **Snapshot:** `main@95594653` — 2026-07-10. Linux-only.
 - **Supersedes:** — (does not supersede any prior ADR)
-- **Superseded by:** `feat(runtime): FontEngine-from-runtime — plumb through FrameContext + retire shared_typewriter_engine` — this ADR's "How to migrate away" plan IS the implementation; both `shared_typewriter_engine()` (deleted in commit `8f19d02c`) and `s_typewriter_resolver` (deleted in same commit) are GONE; the 5 typewriter lambdas + `anim_typewriter` now source from `ctx.runtime->font_engine()` with graceful fallback to `ctx.font_engine`.
+- **Superseded by:** `feat(runtime): FontEngine-from-runtime — plumb through FrameContext + retire shared_typewriter_engine` (commit **`6f3db3ed`**) — this ADR's "How to migrate away" plan IS the implementation; both `shared_typewriter_engine()` and `s_typewriter_resolver` were retired in that same commit (verified-absent in current `main` per `rg -n 'shared_typewriter_engine\|s_typewriter_resolver' content/`); the 5 typewriter lambdas + `anim_typewriter` now source from `ctx.runtime->font_engine()` with graceful fallback to `ctx.font_engine`.
 
 > MADR-style ADR (sections: Context & Forces · Decision · Consequences · Compliance & Verification · References).
 
@@ -247,7 +247,7 @@ grep -c 'layout_glyphs:' content/common/text_reveal_helpers.hpp
 ## References
 
 - `content/examples/text/text_animations.cpp:shared_typewriter_engine` (the new singleton)
-- `content/animation_compositions.cpp:66–88` (the canonical `anim_typewriter` pattern, introduced in commit **`d4737889`** which is visible in the green baseline `main@7eb5c2ba`)
+- `content/animation_compositions.cpp:66–88` (the canonical `anim_typewriter` pattern, originally introduced in commit **`2ba38c78`** as the `static const AssetResolver` form, then modified to lazy-mount cwd via commit **`d4737889`**; both visible in the green baseline `main@7eb5c2ba`)
 - `content/common/text_reveal_helpers.hpp:layout_glyphs` (the fail-loud throw, commit `3b833565`)
 - `AGENTS.md` §"Regole permanenti" — singleton ban
 - `AGENTS.md` §5 — anti-duplication rule
@@ -256,4 +256,6 @@ grep -c 'layout_glyphs:' content/common/text_reveal_helpers.hpp
 - `docs/DOCUMENTATION_GOVERNANCE.md` — ADR template + style guide
 - Code-reviewer-minimax-m3 issue #7, round 6
 - Commit `aae298e7 chore(text): cleanup include + diagnostic format` (where the 5 callers were added)
-- Commit `d4737889` (canonical `s_typewriter_resolver` / `anim_typewriter` pattern, green-baseline lineage)
+- Commit **`2ba38c78`** (original `s_typewriter_resolver` introducer — `static const chronon3d::assets::AssetResolver s_typewriter_resolver;` declaration + use-site in `text::typewriter_build(..., s_typewriter_resolver)`; see commit message for context on replacing sed residuals `s_test_resolver`)
+- Commit `d4737889` (canonical mount-pattern modification — removed `const`, added lazy-mount guard at `std::filesystem::current_path()`; green-baseline lineage visible in `main@7eb5c2ba`)
+- Commit **`6f3db3ed`** (retirement commit — both `s_typewriter_resolver` and `shared_typewriter_engine()` deleted; supersedes this ADR's "How to migrate away" plan)
