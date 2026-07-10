@@ -257,5 +257,4 @@ grep -c 'layout_glyphs:' content/common/text_reveal_helpers.hpp
 - Code-reviewer-minimax-m3 issue #7, round 6
 - Commit `aae298e7 chore(text): cleanup include + diagnostic format` (where the 5 callers were added)
 - Commit **`2ba38c78`** (original `s_typewriter_resolver` introducer — `static const chronon3d::assets::AssetResolver s_typewriter_resolver;` declaration + use-site in `text::typewriter_build(..., s_typewriter_resolver)`; see commit message for context on replacing sed residuals `s_test_resolver`)
-- Commit `d4737889` (canonical mount-pattern modification — removed `const`, added lazy-mount guard at `std::filesystem::current_path()`; green-baseline lineage visible in `main@7eb5c2ba`)
 - Commit **`6f3db3ed`** (retirement commit — both `s_typewriter_resolver` and `shared_typewriter_engine()` deleted; supersedes this ADR's "How to migrate away" plan)
