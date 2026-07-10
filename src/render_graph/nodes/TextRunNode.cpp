@@ -118,8 +118,8 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
         !std::isfinite(bbox.x1) || !std::isfinite(bbox.y1) ||
         bbox.is_empty();
     if (pre_clip_violation) {
-        if (ctx.counters) {
-            ctx.counters->text_bbox_contract_violations.fetch_add(
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->text_bbox_contract_violations.fetch_add(
                 1, std::memory_order_relaxed);
         }
         if (ctx.policy.diagnostics_enabled) {
