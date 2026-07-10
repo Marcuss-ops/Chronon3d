@@ -103,70 +103,17 @@ public:
 
     // ── Nested sequence ─────────────────────────────────────────────
     //
-    // Asset manifest contract (A1 — unified with SceneBuilder::sequence()):
-    //   • ALWAYS execute the lambda — even when the sequence is inactive —
-    //     so that asset manifests are collected for preflight.
-    //   • ALWAYS merge sub_scene.asset_manifest() into the parent builder's
-    //     scene manifest.
-    //   • ONLY add spatial layers/nodes if the sequence is active at the
-    //     current frame.  This matches the SceneBuilder::sequence()
-    //     behaviour fixed in the 10-point friction audit (commit 0ff8b100).
+    // C2 — delegates to SceneBuilder::compile_sequence(), the single
+    // canonical implementation shared with SceneBuilder::sequence().
+    // Asset manifest contract (A1) is enforced by compile_sequence().
 
     template <typename Fn>
     SequenceBuilder& sequence(const std::string& name,
                               SceneBuilder::SequenceSpec spec, Fn&& fn) {
-        const Frame cf = m_local_frame;
-        bool active = cf >= spec.from && cf < spec.from + spec.duration;
-
-        // Use trim_before as the local frame when inactive (avoids
-        // negative frame values).  Matching SceneBuilder::sequence().
-        Frame inner_local = active
-            ? (cf - spec.from + spec.trim_before)
-            : spec.trim_before;
-
-        FrameContext inner_ctx = m_ctx;
-        inner_ctx.frame = inner_local;
-        inner_ctx.local_frame = inner_local;
-        inner_ctx.duration = spec.duration;
-        inner_ctx.frame_time = m_ctx.frame_time;
-
-        f32 inner_progress = (spec.duration > Frame{0})
-            ? std::clamp(static_cast<f32>(inner_local) / static_cast<f32>(spec.duration), 0.0f, 1.0f)
-            : 0.0f;
-
-        // ALWAYS build the sub-scene to collect asset manifests,
-        // even when the sequence is inactive.
-        SceneBuilder sub_builder(inner_ctx, m_builder.m_shape_registry);
-
-        if constexpr (std::is_invocable_v<Fn, SequenceBuilder&>) {
-            SequenceBuilder sub_seq(sub_builder, inner_ctx, inner_local, spec.duration, inner_progress);
-            std::forward<Fn>(fn)(sub_seq);
-        } else {
-            std::forward<Fn>(fn)(sub_builder);
-        }
-
-        Scene sub_scene = sub_builder.build();
-
-        // ALWAYS merge child assets into the parent scene manifest.
-        m_builder.scene_.asset_manifest().merge(sub_scene.asset_manifest());
-
-        // ONLY add spatial layers/nodes if the sequence is active.
-        if (active) {
-            for (auto& layer : sub_scene.layers()) {
-                if (layer.duration >= 0) {
-                    layer.from += spec.from;
-                } else {
-                    layer.from = spec.from;
-                    layer.duration = spec.duration;
-                }
-                m_builder.scene_.add_layer(std::move(layer));
-            }
-
-            for (auto& node : sub_scene.nodes()) {
-                m_builder.scene_.add_node(std::move(node));
-            }
-        }
-
+        m_builder.compile_sequence(m_local_frame, m_ctx, spec,
+                                   std::forward<Fn>(fn),
+                                   m_builder.scene_,
+                                   m_builder.m_shape_registry);
         return *this;
     }
 
