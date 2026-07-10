@@ -558,24 +558,23 @@ inline void typewriter_build(
             l.pin_to(Anchor::Center);
             l.opacity(opacity);
 
-            TextSpec ts{
-                .content    = {.value = glyph, .pre_shaped = char_placed},
-                .font       = {.font_path = fp, .font_family = ff,
-                               .font_weight = fw, .font_size = fs},
-                .layout     = {.box = {fs * 2.0f, fs * 2.0f},
-                               .anchor = TextAnchor::Center,
-                               .centering_mode = TextCenteringMode::PixelInk,
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle,
-                               .wrap = TextWrap::None,
-                               .overflow = TextOverflow::Clip,
-                               .line_height = lh,
-                               .tracking = 0.0f},
-                .appearance = {.color = col},
-                .position   = {cp.x, cp.y, 0.0f},
-            };
-
-            l.text("glyph", ts);
+            // F2.D — canonical TextDefinition instead of TextSpec
+            l.text("glyph", TextDefinition{
+                .content = {.value = glyph, .pre_shaped = char_placed},
+                .style = {.font = {.font_path = fp, .font_family = ff,
+                                   .font_weight = fw, .font_size = fs},
+                          .color = col},
+                .frame = {.size = {fs * 2.0f, fs * 2.0f},
+                          .anchor = TextAnchor::Center,
+                          .centering_mode = TextCenteringMode::PixelInk,
+                          .align = TextAlign::Center,
+                          .vertical_align = VerticalAlign::Middle,
+                          .wrap = TextWrap::None,
+                          .overflow = TextOverflow::Clip,
+                          .line_height = lh,
+                          .tracking = 0.0f,
+                          .position = {cp.x, cp.y, 0.0f}},
+            });
         });
     }
 }
