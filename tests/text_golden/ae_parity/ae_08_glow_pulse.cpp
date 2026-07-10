@@ -85,19 +85,22 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
         [&renderer, frame_idx](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
             s.font_engine(&renderer.font_engine());
-            s.layer("hero", [frame_idx](LayerBuilder& l) {
-                l.text("glow_pulse", {
-                    .content = {.value = "PULSE GLOW"},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 230.0f},
-                    .layout = {.box = {1700.0f, 360.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f, 0.0f}
-                });
+            s.layer("hero", [frame_idx, &renderer](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                l.text_run("glow_pulse", TextRunParams{
+                    .text = {
+                        .content = {.value = "PULSE GLOW"},
+                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                 .font_family = "Inter",
+                                 .font_weight = 700,
+                                 .font_size = 230.0f},
+                        .layout = {.box = {1700.0f, 360.0f},
+                                   .align = TextAlign::Center,
+                                   .vertical_align = VerticalAlign::Middle},
+                        .appearance = {.color = Color::white()},
+                        .position = {960.0f, 540.0f, 0.0f}
+                    }
+                }).commit();
                 l.opacity(opacity_for(frame_idx));
                 l.scale(scale_for(frame_idx));
             });
@@ -114,19 +117,22 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
         [&renderer, frame_idx](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
             s.font_engine(&renderer.font_engine());
-            s.layer("hero", [frame_idx](LayerBuilder& l) {
-                l.text("glow_pulse", {
-                    .content = {.value = "PULSE GLOW"},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 160.0f},
-                    .layout = {.box = {1000.0f, 280.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
-                    .position = {540.0f, 960.0f, 0.0f}
-                });
+            s.layer("hero", [frame_idx, &renderer](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                l.text_run("glow_pulse", TextRunParams{
+                    .text = {
+                        .content = {.value = "PULSE GLOW"},
+                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                 .font_family = "Inter",
+                                 .font_weight = 700,
+                                 .font_size = 160.0f},
+                        .layout = {.box = {1000.0f, 280.0f},
+                                   .align = TextAlign::Center,
+                                   .vertical_align = VerticalAlign::Middle},
+                        .appearance = {.color = Color::white()},
+                        .position = {540.0f, 960.0f, 0.0f}
+                    }
+                }).commit();
                 l.opacity(opacity_for(frame_idx));
                 l.scale(scale_for(frame_idx));
             });
@@ -222,8 +228,11 @@ TEST_CASE("AE 08 glow_pulse 9x16 f30") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TICKET-TEXT-CLIP-ASCENT: ae_08 16x9 f15 alpha bbox is centered and not clipped") {
-    auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_landscape(renderer, 15), Frame{15});
+    auto renderer = test::make_renderer_shared();
+    auto fb = renderer->render(build_landscape(*renderer, 15), Frame{15});
+    REQUIRE(fb != nullptr);
+    // Verify the renderer produced non-empty output before scanning pixels.
+    // If this fails, the text shape was not materialized (font engine issue).
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
@@ -255,8 +264,10 @@ TEST_CASE("TICKET-TEXT-CLIP-ASCENT: ae_08 16x9 f15 alpha bbox is centered and no
 }
 
 TEST_CASE("TICKET-TEXT-CLIP-ASCENT: ae_08 9x16 f15 alpha bbox is centered and not clipped") {
-    auto renderer = test::make_renderer();
-    auto fb = renderer.render(build_portrait(renderer, 15), Frame{15});
+    auto renderer = test::make_renderer_shared();
+    auto fb = renderer->render(build_portrait(*renderer, 15), Frame{15});
+    REQUIRE(fb != nullptr);
+    // Verify the renderer produced non-empty output before scanning pixels.
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
