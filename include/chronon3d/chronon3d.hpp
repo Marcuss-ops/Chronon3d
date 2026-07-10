@@ -75,9 +75,10 @@
 // ── Image I/O helper (save_png, etc.) ──────────────────────────────────
 #include <chronon3d/backends/image/image_writer.hpp>
 
-// D2 — [[deprecated]]: prefer <chronon3d/authoring.hpp> or <chronon3d/render.hpp>.
-// (Pragma warning deferred to follow-up PR to avoid breaking -Werror builds
-//  during migration.  See docs/FOLLOWUP_TICKETS.md for the D2-pragma ticket.)
+// D4 — [[deprecated]]: prefer <chronon3d/authoring.hpp> or <chronon3d/render.hpp>.
+#ifdef __GNUC__
+#pragma GCC warning "chronon3d.hpp is DEPRECATED — prefer <chronon3d/authoring.hpp> for composition building and <chronon3d/render.hpp> for rendering. Add -Wno-cpp to suppress during migration."
+#endif
 
 // ── NOTE: chronon3d::RenderEngine (api/render_engine.hpp) is NOT
 //    re-exported through the umbrella.  The canonical public rendering

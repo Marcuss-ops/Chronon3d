@@ -156,9 +156,8 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
     }
 }
 
-// ── Legacy registration (backward compat) ───────────────────────────
-// The old `graph`, `preflight`, `camera-path` top-level commands are
-// retained via register_inspect_commands() but will be deprecated in
-// a follow-up PR once all callers have migrated to `inspect <subcmd>`.
+// D4 — All legacy top-level commands (graph, preflight, camera-path, text-audit)
+// have been removed.  The canonical entry points are `inspect graph`,
+// `inspect preflight`, `inspect camera`, and `inspect text`.
 
 } // namespace chronon3d::cli
