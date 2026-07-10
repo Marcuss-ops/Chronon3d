@@ -160,6 +160,7 @@ struct PipeExportSession {
 
     // State
     FfmpegExportOptions opts;
+    std::string original_output_path;  // P1-B: final path (before .partial suffix)
     SystemMetricsCollector sys_metrics;
     std::string started_at_iso;
     int64_t total_frames{0};

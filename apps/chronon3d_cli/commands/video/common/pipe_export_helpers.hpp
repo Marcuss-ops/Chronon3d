@@ -54,4 +54,15 @@ void warmup_pipe_renderer(
 void log_pipe_export_failure(
     const PipeExportStatus& status);
 
+/// P1-B: Run ffprobe on the output file to validate it is a valid video
+/// with the expected stream, resolution, fps, and duration.
+/// Returns true if validation passes, false if ffprobe is missing (with
+/// a warning — non-fatal) or if the output is invalid.
+[[nodiscard]] bool validate_video_output(
+    const std::string& output_path,
+    int expected_width,
+    int expected_height,
+    int expected_fps,
+    int64_t expected_frames);
+
 } // namespace chronon3d::cli
