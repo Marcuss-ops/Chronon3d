@@ -19,6 +19,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-044 | P1 | selftest hardcoded paths | PLANNED | gate 5 |
 | TICKET-TEXT-CLIP-PREDICTED-BBOX | P0 | text compositor `predicted_bbox` (Clip 06 diagnostic) | PARTIAL | text golden cert + scene test cluster (was: scratch surface — ruled out by Clip 06) |
 | TICKET-TEXT-CLIP-GOLDENS-01-05 | P1 | text clip bounds goldens (Clip 01–05) | OPEN | text golden cert — goldens need seeding under the new code path |
+| [TICKET-TEXT-VISIBILITY-PIPELINE](tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md) | P0 | text visibility audit pipeline (13-section contract: font→layout→bbox→transform→predicted_bbox→clip→pixel) | PLANNED | Text V1 cert + scene test cluster + AE-parity cinematic — roadmap parent of FU01..FU13; FU01 closes upstream TICKET-TEXT-CLIP-PREDICTED-BBOX (parent chain, no closure-lineage collapse) |
 
 ---
 
