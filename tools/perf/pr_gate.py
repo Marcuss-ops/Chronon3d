@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 PR Gate — Regression Test Suite for Chronon3D Performance PRs
-=============================================================
 Every performance PR must pass these 4 gates before merge:
   1. Determinism: same frame rendered twice = identical pixels
   2. Dirty-rect correctness: dirty rect on vs off = same pixels
