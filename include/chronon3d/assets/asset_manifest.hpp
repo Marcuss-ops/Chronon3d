@@ -1,35 +1,48 @@
 // ── include/chronon3d/assets/asset_manifest.hpp
 //
-// Phase A2 close-out #2/3 (2026-07-10) — CANONICAL AssetManifest body (the
-// single class implementation lives in the top-level `chronon3d::`
-// namespace; the flat `chronon3d::assets::AssetManifest` is a `using` alias
-// at the bottom).
+// Phase A2 close-out #3/3 (2026-07-10) — FINAL canonical asset surface.
+// SINGLE canonical home for the entire asset-manifest stack:
 //
-// Designed to live in the top-level namespace to minimize external-API
-// churn: `Layer::asset_manifest`, `Scene::m_manifest`, all CLI commands
-// (`command_preflight.cpp`, `command_still.cpp`), all video exporters,
-// `AssetPreflightResolver`, all tests, all content code
-// (`sequence_v2_compositions.cpp`) ALREADY reference the top-level
-// name `chronon3d::AssetManifest` and need to keep compiling.
+//   * `chronon3d::assets::AssetKind`        — enum Font/Image/Video/Audio
+//                                             (POD, 4 values, type-erased
+//                                             manifest owner-key).
+//   * `chronon3d::assets::InternalAssetRef` — POD `{kind, path, owner,
+//                                             required}`. Type-erased
+//                                             internal storage slot.
+//   * `chronon3d::AssetManifest`            — value-type with O(1)
+//                                             `entry_for()` owner-keyed
+//                                             lookup + `add_file/asset`
+//                                             typed convenience methods
+//                                             + filter/merge/clear.
+//   * `chronon3d::assets::AssetManifest`    — `using` alias for the
+//                                             flat-namespace spelling.
 //
-// The flat-namespace spelling `chronon3d::assets::AssetManifest` is the
-// canonical alias for downstream consumers that prefer the `assets::`
-// namespace (e.g., `asset_ref.hpp` documents it). One identity, two
-// spellings — no duplicate class body, no ODR violation.
+// Phase A2 lineage (post-A2 close-out):
+//   * Phase A1 (2026-07-10) — removed the always-green
+//     `chronon3d::assets::v2::AssetPreflightResult` stub +
+//     `accumulate_preflight_result` bridge (compile-fail gate #18).
+//   * Phase A2 #1/3 — flattened `chronon3d::assets::v2` to
+//     `chronon3d::assets` flat namespace + renamed POD
+//     `v2::AssetRef` -> `InternalAssetRef` + dropped `to_v2_ref()` +
+//     added compile-fail migration gate #21.
+//   * Phase A2 #2/3 — promoted `chronon3d::AssetManifest` to a SINGLE
+//     canonical class body (top-level + flat-namespace alias), dropped
+//     local `chronon3d::AssetRef` struct entirely, migrated 5 callers
+//     from `AssetType::X` -> `assets::AssetKind::X`.
+//   * Phase A2 #3/3 — INLINE PODs here from the deleted
+//     `asset_readiness_v2.hpp` (single canonical home); DELETE the
+//     orphan files (`asset_readiness_v2.hpp` +
+//     `legacy_adapters.hpp`) + drop both from
+//     `cmake/Chronon3DPublicHeaders.cmake`; fix P2 cosmetic drift
+//     (banner count + alias style).
 //
-// Entry type (Phase A2 rename, A2 #1/3): `assets::InternalAssetRef` POD
-// (4 fields: `kind`=AssetKind, `path`, `owner`, `required`). The previous
-// local `chronon3d::AssetRef` struct is DELETED in this commit (B1).
-//
-// Internally the manifest holds BOTH:
-//   * `m_assets`    : vector in insertion order (preserved for `assets()`,
-//                     and for `all()`-style semantics with first-inserted-
-//                     wins duplicates kept visible).
-//   * `m_by_owner`  : unordered_map keyed by `owner` for O(1)
-//                     `entry_for(owner)` lookup.
-// First-inserted-wins on duplicate owner keys (canonical semantics from
-// the v2 spec adopted Phase-A2 #2: `std::unordered_map::emplace` on an
-// existing key is a no-op from C++11, so the FIRST insertion is preserved).
+// Distinction from `chronon3d::AssetType` (in `asset_metadata.hpp`):
+// `AssetType` is the 6-value registry/metadata discriminator (has
+// `Mesh` + `Unknown` semantically). `assets::AssetKind` is the
+// 4-value manifest/owner-key discriminator. The two coexist with
+// distinct semantics — see `asset_metadata.hpp` for AssetType usage
+// in `AssetRegistry::import_image/_font/_video/_audio` +
+// `AssetMetadata::type`.
 //
 // Vincoli AGENTS.md v0.1 (Cat-3 freeze):
 //   * ZERO nuovi singleton / registry / cache / service-locator.
@@ -45,11 +58,54 @@
 
 #pragma once
 
-#include <chronon3d/assets/asset_readiness_v2.hpp>   // AssetKind + InternalAssetRef
 #include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+namespace chronon3d::assets {
+
+// ═══════════════════════════════════════════════════════════════════════════
+// `AssetKind` — discriminator minimo per il `InternalAssetRef` del manifest.
+//
+// 4 valori, sizeof 1 byte. Distinto da `chronon3d::AssetType` (6 valori
+// inclusi Mesh + Unknown, semantica metadata/registry; vive in
+// `asset_metadata.hpp`, usato da `AssetRegistry::import_*` e
+// `AssetMetadata::type`).
+// ═══════════════════════════════════════════════════════════════════════════
+enum class AssetKind : unsigned char {
+    Font  = 0,
+    Image = 1,
+    Video = 2,
+    Audio = 3
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// `InternalAssetRef` — reference canonico a un asset richiesto da una scena.
+//
+// Type-erased POD storage slot. Phase A2 #1 renamed from the pre-A2
+// `chronon3d::assets::v2::AssetRef`. Phase A2 #2 promoted this AS THE
+// SINGLE canonical asset-ref shape after deleting the legacy
+// `chronon3d::AssetRef` top-level struct.
+//
+//   * `kind`     : `AssetKind` (Font/Image/Video/Audio).
+//   * `path`     : path raw (relativo a `assets_root` o assoluto).
+//   * `owner`    : identificatore logico del "proprietario" dell'asset
+//                  (es. "LightPulse/text/label", "CenterTextOptions/label",
+//                  "SceneBuilder::image(\"hero\")"). Discriminant per
+//                  `AssetManifest::entry_for(owner)`. Unico per scena.
+//   * `required` : se true, l'asset è HARD-REQUIRED (mancanza = FAIL
+//                  preflight con `ok=false` + `missing` non-empty);
+//                  se false, l'asset è soft-optional.
+// ═══════════════════════════════════════════════════════════════════════════
+struct InternalAssetRef {
+    AssetKind  kind{AssetKind::Image};
+    std::string path{};
+    std::string owner{};
+    bool        required{true};
+};
+
+} // namespace chronon3d::assets
 
 namespace chronon3d {
 
@@ -66,18 +122,18 @@ namespace chronon3d {
 //
 class AssetManifest {
 public:
-    /// Type alias for entries. The canonical POD lives at
-    /// `chronon3d::assets::InternalAssetRef` (Phase A2 rename).
+    /// Type alias for entries. The canonical POD is
+    /// `chronon3d::assets::InternalAssetRef` (Phase A2 inline).
     using Entry = assets::InternalAssetRef;
 
     AssetManifest() = default;
 
     // ── Generic add ────────────────────────────────────────────────────
 
-    /// Insert an `InternalAssetRef` (the canonical entry type). First-inserted-
-    /// wins on duplicate owner (the `m_by_owner.emplace` no-op semantics
-    /// preserves the FIRST insertion; later duplicates are appended to
-    /// `m_assets` and visible via `assets()` but not via `entry_for()`).
+    /// Insert an `InternalAssetRef`. First-inserted-wins on duplicate
+    /// owner (the `m_by_owner.emplace` no-op semantics preserves the
+    /// FIRST insertion; later duplicates are appended to `m_assets` and
+    /// visible via `assets()` but NOT via `entry_for()`).
     void add(assets::InternalAssetRef ref) {
         m_by_owner.emplace(ref.owner, ref);
         m_assets.push_back(std::move(ref));
@@ -170,14 +226,13 @@ private:
 // `chronon3d::assets::AssetManifest` resolves to the same type as the
 // top-level canonical `chronon3d::AssetManifest`. Both spellings
 // return identical objects. The alias is the ONLY `AssetManifest`
-// symbol declared in this header's `assets::` namespace — there is no
-// separate `assets::AssetManifest` class body here, so ABI / name-mangling
-// is identical between the two spellings.
+// symbol declared in the `assets::` namespace of this header — there
+// is no separate `assets::AssetManifest` class body here, so ABI
+// / name-mangling is identical between the two spellings.
 //
-// Downstream consumers that include <chronon3d/assets/asset_ref.hpp>
-// (which documents the canonical typed AssetRef<K> wrapper) may spell
-// `assets::AssetManifest&` interchangeably with
-// `chronon3d::AssetManifest&`.
+// P2 cosmetic (Phase A2 #3/3): dropped leading-`::` qualifier on
+// the alias target so the syntax matches the rest of the codebase's
+// `using` aliases.
 namespace chronon3d::assets {
-using AssetManifest = ::chronon3d::AssetManifest;
+using AssetManifest = chronon3d::AssetManifest;
 } // namespace chronon3d::assets
