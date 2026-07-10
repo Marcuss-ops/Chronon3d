@@ -22,7 +22,7 @@
 //                              LOSSY REVERSE: from_text_definition returns
 //                              TextSpec only — direction/language/script/
 //                              animators/selectors are NOT carried back.
-//   F2.D (this commit)          — to_text_run_spec closes the adapter gap.
+//   F2.D                         — to_text_run_spec closes the adapter gap.
 //                              The 6 spec-only fields above are now carried
 //                              back to a TextRunSpec from a TextDefinition.
 //                              ADDITIONAL LOSSY DROP (per-run Frame envelope):
@@ -33,6 +33,29 @@
 //                              TextDefinition therefore re-initialises the
 //                              Frame envelope to Frame{0}.  This is the
 //                              documented, tested behaviour.
+//   F3.D                         — LayerBuilder overloads
+//                              (`text(name, TextDefinition)`
+//                              in commands/shape_commands.cpp +
+//                              `text_run(name, TextDefinition)`
+//                              in commands/layer_builder_compile.cpp)
+//                              now route via to_text_run_spec() instead of
+//                              the F2.C lossy `from_text_definition()`
+//                              path.  This makes the 17 helper-site
+//                              call sites (`centered_text()` /
+//                              `glow_text()` / `typewriter_text()` /
+//                              presets) end-to-end lossless: animation
+//                              fields populated in TextDefinition reach
+//                              TextRunSpec + materialize_text_run_shape()
+//                              instead of being silently dropped.
+//                              F3.D also ADDs a forward-point overload
+//                              `text(name, TextRunSpec)` — the symmetric
+//                              counterpart of the existing
+//                              `text_run(name, TextRunSpec)` — letting
+//                              callers fully migrated to TextRunSpec
+//                              authoring use the short-form
+//                              `layer.text("id", run_spec).commit()`.
+//                              Frame envelope drop (start_delay + duration)
+//                              is identical to F2.D contract.
 //   Phase B (implemented)   — to_text_document(const TextDefinition&) lowers
 //                            this DTO into the canonical TextDocument pipeline
 //                            model consumed by compile_text_layout()

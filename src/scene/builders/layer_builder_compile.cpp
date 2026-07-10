@@ -39,7 +39,7 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
-#include <chronon3d/text/text_definition.hpp>  // F2.C — from_text_definition() for TextDefinition overload
+#include <chronon3d/text/text_definition.hpp>  // F3.D — to_text_run_spec() for TextDefinition overload (F2.D lossless reverse adapter)
 // TICKET-104 -- internal helper consumed by the per-spec
 // materialization site below.  Forward declaration is intentionally
 // NOT exposed via the PUBLIC HPP (cat-3 freeze: zero new public
@@ -96,14 +96,25 @@ TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunSpec params) {
 }
 
 TextRunBuilder& LayerBuilder::text_run(std::string name, const TextDefinition& def) {
-    // F2.C — canonical authoring overload.
-    // Converts TextDefinition → TextSpec via from_text_definition(),
-    // wraps into a TextRunSpec, and delegates to text_run(name, TextRunSpec).
-    // This lets callers chain animators/selectors on top of the canonical DTO:
-    //   layer.text_run("title", centered_text(opts)).opacity(0.8f).commit();
-    TextRunSpec run;
-    run.text = from_text_definition(def);
-    return text_run(std::move(name), std::move(run));
+    // F3.D — forward-point wiring: route via to_text_run_spec (the F2.D
+    // lossless reverse adapter) instead of the F2.C path that read
+    // `text_run.text = from_text_definition(def)` (lossy — drops the 6
+    // spec-only animation fields).
+    //
+    // This makes the 17 helper-site call sites end-to-end lossless:
+    // centered_text(), glow_text(), typewriter_text(), and any direct
+    // TextDefinition constructed by the user now carry the 6 spec-only
+    // animation fields (animators, selectors, direction, language, script,
+    // cache_layout) all the way through to TextRunSpec and downstream into
+    // materialize_text_run_shape() / evaluate_animator_stack().
+    //
+    // Frame envelope (TextAnimation.start_delay + .duration) IS lossily
+    // dropped by to_text_run_spec per the F2.D LIFECYCLE contract — these
+    // live on Layer (Frame envelope of the run), not on TextRunSpec.
+    //
+    // Symmetric with text(name, TextDefinition) (F3.D — same overload family
+    // in shape_commands.cpp).
+    return text_run(std::move(name), to_text_run_spec(def));
 }
 
 Layer LayerBuilder::build() {
