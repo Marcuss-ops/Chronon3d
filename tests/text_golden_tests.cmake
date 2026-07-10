@@ -411,6 +411,24 @@ target_sources(chronon3d_text_golden_tests
         text_golden/text_multilingual/05_devanagari_conjuncts.cpp
 )
 
+# TICKET-FASE3-MULTILINGUAL §ArabicShaping — sixth genuinely new
+# multilingual text golden.  3 TEST_CASEs × 2 ARs = 6 PNG goldens in
+# `test_renders/golden/text/text_multilingual/arabic_shaping/`
+# (basic joining / lam-alef ligatures / diacritics).  Exercises
+# HarfBuzz Arabic shaping: 4 positional forms (isolated/initial/medial/
+# final) for connector + non-connector letters, 4 mandatory lam-alef
+# ligatures (لا/لأ/لإ/لآ), and 7 of the 8 main combining diacritics
+# (fatha/kasra/damma/sukun/shadda/fathatan/dammatan) + RTL base
+# direction.  Depends on system font fallback (Noto Sans Arabic on
+# Linux, Geeza Pro on macOS, Arial on Windows) — Inter-Bold does NOT
+# contain Arabic glyphs natively.  RTL is auto-detected by HarfBuzz
+# from the Arabic Unicode block; no explicit `TextDirection::RTL` is
+# required by the current pipeline.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_multilingual/06_arabic_shaping.cpp
+)
+
 # TICKET-FASE3-MULTILINGUAL ctest aliases.
 add_test(
     NAME TextMultilingualKerningPairs
@@ -435,6 +453,11 @@ add_test(
 add_test(
     NAME TextMultilingualDevanagariConjuncts
     COMMAND chronon3d_text_golden_tests --test-case="Multilingual.DevanagariConjuncts *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+add_test(
+    NAME TextMultilingualArabicShaping
+    COMMAND chronon3d_text_golden_tests --test-case="Multilingual.ArabicShaping *"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
