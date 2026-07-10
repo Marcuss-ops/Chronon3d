@@ -55,7 +55,7 @@ Per qualsiasi nuova informazione operativa: aggiungere il contenuto al **canonic
 
 `tools/check_doc_sync.sh` deve accettare aggiornamenti **SOLO** ai 4 file canonical sopra elencati.
 Qualsiasi check o validazione che richieda aggiornamenti a file diversi (es. `docs/STATUS.md`,    // drift-allow: archived-doc-pattern
-`docs/NEXT_STEPS.md`, `docs/stabilization-plan/...`) è vietato e deve essere rimosso —
+`docs/NEXT_STEPS.md`, `docs/stabilization-plan/...`) è vietato e deve essere rimosso — // drift-allow: archived-doc-pattern
 quei file sono storici, vivono in `docs/ARCHIVE/` e non possono essere modificati operativamente.
 
 ### Documenti di supporto (NON fonti canoniche di stato)
