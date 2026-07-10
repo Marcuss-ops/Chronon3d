@@ -1,10 +1,10 @@
 # ADR-020 — Shared static FontEngine singleton for 5 typewriter variants
 
-- **Status:** Accepted (deferred action)
-- **Date:** 2026-07-10
+- **Status:** Superseded (PR WP-9 PR 9.0 closure)
+- **Date:** 2026-07-10 (Accepted) → 2026-07-10 (Superseded by PR WP-9 PR 9.0)
 - **Snapshot:** `main@95594653` — 2026-07-10. Linux-only.
 - **Supersedes:** — (does not supersede any prior ADR)
-- **Superseded by:** —
+- **Superseded by:** `feat(runtime): FontEngine-from-runtime — plumb through FrameContext + retire shared_typewriter_engine` — this ADR's "How to migrate away" plan IS the implementation; both `shared_typewriter_engine()` (deleted in commit `8f19d02c`) and `s_typewriter_resolver` (deleted in same commit) are GONE; the 5 typewriter lambdas + `anim_typewriter` now source from `ctx.runtime->font_engine()` with graceful fallback to `ctx.font_engine`.
 
 > MADR-style ADR (sections: Context & Forces · Decision · Consequences · Compliance & Verification · References).
 

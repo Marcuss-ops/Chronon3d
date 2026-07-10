@@ -90,6 +90,7 @@ namespace chronon3d {
     struct Config;
     struct RenderSettings;
     class DebugConfig;
+    class FontEngine;       // WP-9 PR 9.0 — runtime FontEngine forward decl
     class RenderBackend;
 }
 
@@ -234,6 +235,25 @@ public:
     // ── WP-8 PR 8.0 typed asset resolver (sibling of m_assets) ───────
     [[nodiscard]] chronon3d::assets::AssetResolver&       resolver()       noexcept { return m_resolver; }
     [[nodiscard]] const chronon3d::assets::AssetResolver& resolver() const noexcept { return m_resolver; }
+
+    // ── WP-9 PR 9.0 — FontEngine slot ----------------------------------
+    /// Non-owning accessor for the per-runtime FontEngine (forward-
+    /// declared `class FontEngine;` at top of this file).  Returns the
+    /// value provided via the renderer-side wiring path
+    /// (`SoftwareRenderer::Impl` ctor); the wiring site itself lives in
+    /// the dedicated wiring commit (deferred to avoid scope creep on
+    /// this PR's blast radius).
+    ///
+    /// Composition lambdas reach the FontEngine via
+    /// `ctx.runtime->font_engine()` — preferred over the legacy direct
+    /// `ctx.font_engine` field, which is kept for backward compat per
+    /// TICKET-A4 / codex/agent2-font-bind-fixes.
+    ///
+    /// Returns nullptr until the wiring commit lands; null-safe default
+    /// allows Composition lambdas to fall back to the direct
+    /// ctx.font_engine when no runtime is wired.
+    [[nodiscard]] chronon3d::FontEngine* font_engine() const noexcept { return m_font_engine; }
+
     [[nodiscard]] chronon3d::cache::CacheDiagnostics&       diagnostics()       noexcept { return m_diagnostics; }
     [[nodiscard]] const chronon3d::cache::CacheDiagnostics& diagnostics() const noexcept { return m_diagnostics; }
     [[nodiscard]] chronon3d::cache::PersistentFramebufferStore&       framebuffer_store()       noexcept { return m_framebuffer_store; }
@@ -293,6 +313,10 @@ private:
     chronon3d::cache::PersistentFramebufferStore                  m_framebuffer_store{};
 
     std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
+    /// WP-9 PR 9.0 — runtime FontEngine slot.  Pointer (not value)
+    /// because SoftwareRenderer still owns the engine; runtime holds a
+    /// non-owning view reachable from composition lambdas.
+    chronon3d::FontEngine*                            m_font_engine{nullptr};
     bool                                              m_populated{false};
 };
 
