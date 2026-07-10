@@ -86,7 +86,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS | P1 | Migrazione composizioni al builder | DONE | Text V1 + TICKET-SIMPLICITY-ADAPTERS — F2.D: showcases + certification ZERO TextSpec, 6 files converted, 10 sites eliminated |
 | TICKET-SIMPLICITY-ANIMATION | P1 | Animation helpers (interpolate/spring/sequence) | DONE | Text V1 — interpolate.hpp convenience header with 10 free functions |
 | TICKET-SIMPLICITY-PLACEMENT | P1 | Placement leggibili + safe areas | DONE | Text V1 — SafeAreaPreset (4 presets) + CanvasInfo::with_safe_area() factory |
-| TICKET-SIMPLICITY-PRESETS | P1 | 5 preset riutilizzabili con golden | PLANNED | Text V1 + TICKET-SIMPLICITY-BUILDER |
+| TICKET-SIMPLICITY-PRESETS | P1 | 5 preset riutilizzabili con golden | DONE | Text V1 + TICKET-SIMPLICITY-BUILDER — F3.C: title_preset(), subtitle_preset(), caption_preset(), kinetic_hero_preset(), lower_third_preset() in include/chronon3d/presets/text_presets.hpp. Golden tests in tests/text_golden/presets/test_text_presets_golden.cpp. CTest alias TextPresetsGolden.
 | TICKET-SIMPLICITY-PIPELINE-PARITY | P1 | Pipeline parity (render/video/CLI) | DONE | Text V1 — parity-by-construction verified: from_text_spec↔from_text_definition round-trip lossless, LayerBuilder::text() paths converge on identical TextSpec → same TextRunSpec → same render output |
 | TICKET-SIMPLICITY-INSPECT-TEXT | P1 | CLI inspect-text (JSON diagnostic) | PLANNED | Text V1 — diagnostica headless |
 | TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY | P2 | Diagnostic overlay (visual bbox PNG) | PLANNED | Text V1 + TICKET-SIMPLICITY-INSPECT-TEXT |
