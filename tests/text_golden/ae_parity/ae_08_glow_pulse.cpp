@@ -87,7 +87,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.font_engine(&renderer.font_engine());
             s.layer("hero", [frame_idx, &renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("glow_pulse", TextRunParams{
+                l.text_run("glow_pulse", TextRunSpec{
                     .text = {
                         .content = {.value = "PULSE GLOW"},
                         .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
@@ -119,7 +119,7 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.font_engine(&renderer.font_engine());
             s.layer("hero", [frame_idx, &renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("glow_pulse", TextRunParams{
+                l.text_run("glow_pulse", TextRunSpec{
                     .text = {
                         .content = {.value = "PULSE GLOW"},
                         .font = {.font_path = "assets/fonts/Inter-Bold.ttf",

@@ -64,7 +64,7 @@ public:
 
     // ── text-run factory ──
     //
-    // Materializes a TextRunSpec (canonical composable; TextRunParams was
+    // Materializes a TextRunSpec (canonical composable; TextRunSpec was
     // the prior alias) into a `RenderNode` flagged with
     // `is_text_run_shape=true`.  Shares its core with
     // `LayerBuilder::text_run(...)` via the helper

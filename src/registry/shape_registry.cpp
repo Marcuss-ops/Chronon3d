@@ -111,9 +111,9 @@ void register_builtin_shapes(ShapeRegistry& registry) {
     // The legacy `Text` ShapeDescriptor entry was REMOVED. Every text node
     // now enters the authoring layer through `LayerBuilder::text(name,
     // TextSpec)` which is a transitional shim into
-    // `text_run(name, TextRunParams).commit()`. The downstream RenderNode
+    // `text_run(name, TextRunSpec).commit()`. The downstream RenderNode
     // is flagged ShapeType::TextRun regardless of whether animators are
-    // populated (an empty-animators TextRunParams still synthesizes a valid
+    // populated (an empty-animators TextRunSpec still synthesizes a valid
     // TextRunShape via `materialize_text_run_shape`).
     registry.register_shape(ShapeDescriptor{
         .id = std::string{shape_ids::TextRun},

@@ -57,7 +57,7 @@ Composition build_text_composition(
                 if (opacity < 1.0f) {
                     l.opacity(opacity);
                 }
-                l.text_run("ink_test", TextRunParams{
+                l.text_run("ink_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = std::string{text}},
                         .font = {

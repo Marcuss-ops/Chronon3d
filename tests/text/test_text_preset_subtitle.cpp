@@ -136,7 +136,7 @@ TEST_CASE("TextE2E: materialize + draw_text_run produces visible ink pixels") {
     auto spec = chronon3d::content::text::centered_text(std::move(opts));
 
     // Materialize the text shape via the canonical helper
-    chronon3d::TextRunParams params;
+    chronon3d::TextRunSpec params;
     params.text = std::move(from_text_definition(spec));
     chronon3d::SampleTime st = chronon3d::SampleTime::from_frame_int(0, chronon3d::FrameRate{30, 1});
     auto shape = chronon3d::materialize_text_run_shape(params, &engine, st);

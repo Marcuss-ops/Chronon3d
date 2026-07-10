@@ -71,7 +71,7 @@ Composition build_frame_comp(SoftwareRenderer& renderer,
             s.font_engine(&renderer.font_engine());
             s.layer("det_layer", [&renderer, text, font_size](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("det_test", TextRunParams{
+                l.text_run("det_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = text},
                         .font = {
@@ -106,7 +106,7 @@ Composition build_static_comp(SoftwareRenderer& renderer) {
             s.font_engine(&renderer.font_engine());
             s.layer("static_layer", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("static_test", TextRunParams{
+                l.text_run("static_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "DETERMINISTIC"},
                         .font = {
@@ -141,7 +141,7 @@ Composition build_alt_comp(SoftwareRenderer& renderer) {
             s.font_engine(&renderer.font_engine());
             s.layer("alt_layer", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("alt_test", TextRunParams{
+                l.text_run("alt_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "DIFFERENT"},
                         .font = {

@@ -202,7 +202,7 @@ TEST_CASE("Debug.TimelineJSONOutput") {
     SceneBuilder s(debug_ctx(Frame{50}));
     s.layer("title", [](LayerBuilder& l) {
         l.from(Frame{30}).duration(Frame{60});
-        TextRunParams p;
+        TextRunSpec p;
         p.text.font.font_path = "assets/fonts/Poppins-Bold.ttf";
         p.text.content.value = "HELLO";
         (void)l.text_run("label", std::move(p));
@@ -323,7 +323,7 @@ TEST_CASE("Debug.MultipleAssetTypesInOutput") {
     SceneBuilder s(debug_ctx(Frame{30}));
     s.layer("mixed", [](LayerBuilder& l) {
         l.from(Frame{0}).duration(Frame{60});
-        TextRunParams p;
+        TextRunSpec p;
         p.text.font.font_path = "assets/fonts/Inter-Bold.ttf";
         p.text.content.value = "Hello";
         (void)l.text_run("text", std::move(p));

@@ -145,7 +145,7 @@ TextPresetDescriptor cinematic_text_camera_entry() {
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
                           const TextSpecT& spec) {
-        TextRunParams params;
+        TextRunSpec params;
         params.text = spec;
         if (::chronon3d::registry::AnimatorResolver::spec_is_rich(spec)) {
             params.animators.push_back(

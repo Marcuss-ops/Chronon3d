@@ -50,7 +50,7 @@
 #include "text_preset_register_helpers.hpp"
 #include "text_preset_internal_helpers.hpp"  // M1.5#13 (1/4) — shared factory helpers (NOT installed; lives under src/registry/).
 
-#include <chronon3d/scene/builders/builder_params.hpp>   // full TextSpec (canonical), TextRunParams, AnimatorResolver types.
+#include <chronon3d/scene/builders/builder_params.hpp>   // full TextSpec (canonical), TextRunSpec, AnimatorResolver types.
 
 #include <stdexcept>
 #include <utility>      // std::move for wire_preset_text_run_params implementation.
@@ -245,11 +245,11 @@ void register_builtin_presets(TextPresetRegistry& r) {
 // This is the SINGLE source of truth for the per-id mapping — adding
 // a 23rd preset is now a single `*_entry()` factory above, NOTHING in
 // `src/registry/animator_resolver.cpp` changes.
-TextRunParams
+TextRunSpec
 wire_preset_text_run_params(std::string_view preset_id,
                             TextSpec spec) noexcept {
     auto composed = ::chronon3d::registry::AnimatorResolver::compose_for(preset_id);
-    TextRunParams out;
+    TextRunSpec out;
     out.text = std::move(spec);
     if (composed) {
         out.animators.push_back(std::move(*composed));

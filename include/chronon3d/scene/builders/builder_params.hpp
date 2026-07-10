@@ -165,25 +165,26 @@ struct TextSpec {
     Vec3               position{};
 };
 
-// ── TextParams: deprecated type-alias for TextSpec ─────────────────────
+// ── TextParams: DEPRECATED type-alias for TextSpec ──────────────────
+//
+// ⚠️ DEPRECATED since 2026-07-10 (TICKET-SIMPLICITY-DEPRECATION).
+// Use `TextSpec` directly.
 //
 // The 30-field TextParams monolith has been retired in favour of the
 // composable TextSpec (TextContent + FontSpec + TextLayoutSpec +
 // TextAppearanceSpec + position).  `TextParams` is kept as a deprecated
 // alias so any external code that still references the name continues to
-// compile.  To migrate:
-//   1. Construct via TextSpec{...} nested designated initializers, or
-//   2. Read/write through TextSpec's sub-structs (.content.value, .font.*,
+// compile with a warning.  To migrate:
+//   1. Replace `TextParams` with `TextSpec`
+//   2. Construct via TextSpec{...} nested designated initializers, or
+//   3. Read/write through TextSpec's sub-structs (.content.value, .font.*,
 //      .layout.*, .appearance.*, .position).
-// Internally the project uses TextSpec directly at all call sites; the
-// alias exists only as a transition aid for external integrations.
 //
 // Note: because the two names are now identical, any field-set pattern
 // like `TextParams tp; tp.text = "x";` will NOT compile — `TextSpec` has
 // no `.text` field (use `.content.value`).  The deprecation attribute
 // surfaces this at the type level so callers see migration guidance.
-// TextParams kept as type alias for backward compatibility.
-// TODO: remove after all external callers migrate to TextSpec.
+[[deprecated("Use TextSpec directly")]]
 using TextParams = TextSpec;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -209,30 +210,30 @@ struct TextRunSpec {
     bool                           cache_layout{true};
 };
 
-// -----------------------------------------------------------------------
-// TextRunParams — deprecated type-alias of TextRunSpec.
+// ── TextRunParams: DEPRECATED type-alias of TextRunSpec ────────────────
+//
+// ⚠️ DEPRECATED since 2026-07-10 (TICKET-SIMPLICITY-DEPRECATION).
+// Use `TextRunSpec` directly.
 //
 // The former flat `struct TextRunParams` (with separate `pos` / `color` /
 // `font_path` / ... fields) has been removed.  Production code now reads
 // and writes the composable nested fields:
-//   spec.text().content.value    (was spec.text)
-//   spec.text().font.font_path   (was spec.font_path)
-//   spec.text().font.font_size   (was spec.font_size)
-//   spec.text().font.font_weight (was spec.font_weight)
-//   spec.text().appearance.color (was spec.color)
-//   spec.text().position         (was spec.pos)
-//   spec.text().layout.box       (was spec.size)
-//   spec.text().layout.tracking  (was spec.tracking)
-//   spec.text().layout.{anchor|align|vertical_align|wrap|line_height}
-//   spec.text().appearance.{paint|shadows|material}
-//   spec.text().content.pre_shaped (was spec.pre_shaped)
+//   spec.text.content.value    (was spec.text)
+//   spec.text.font.font_path   (was spec.font_path)
+//   spec.text.font.font_size   (was spec.font_size)
+//   spec.text.font.font_weight (was spec.font_weight)
+//   spec.text.appearance.color (was spec.color)
+//   spec.text.position         (was spec.pos)
+//   spec.text.layout.box       (was spec.size)
+//   spec.text.layout.tracking  (was spec.tracking)
+//   spec.text.layout.{anchor|align|vertical_align|wrap|line_height}
+//   spec.text.appearance.{paint|shadows|material}
+//   spec.text.content.pre_shaped (was spec.pre_shaped)
 //   spec.{direction|language|animators|selectors|cache_layout} (top-level)
 //
 // The alias exists to keep external integrations that still reference the
-// legacy name compiling during migration; it carries the SAME identity as
-// TextRunSpec — enforced by a static_assert in
-// tests/text/test_text_run_builder.cpp.
-// ---------------------------------------------------------------------------
+// legacy name compiling during migration with a deprecation warning.
+[[deprecated("Use TextRunSpec directly")]]
 using TextRunParams = TextRunSpec;
 
 struct ShadowStyle {

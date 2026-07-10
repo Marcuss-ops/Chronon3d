@@ -295,7 +295,7 @@ LayerBuilder& TextRunBuilder::commit() {
     // LayerBuilder::build() reads m_text_runs directly; the spec is
     // already up-to-date.  Touching m_cache_layout=false here forces
     // a re-shape even if the layout cache already contains an entry
-    // for the spec's TextRunParams (because user edits may have
+    // for the spec's TextRunSpec (because user edits may have
     // changed shaping inputs).
     m_spec->params.cache_layout = m_cache_layout;
 
@@ -317,7 +317,7 @@ LayerBuilder& TextRunBuilder::commit() {
 // materialize_text_run_shape — shared helper
 //
 // Reads the composable nested TextRunSpec fields after the PR3→PR4
-// migration (TextRunParams is now an alias of TextRunSpec — see
+// migration (TextRunSpec is now an alias of TextRunSpec — see
 // builder_params.hpp).
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -399,7 +399,7 @@ namespace text_run_materialize_detail {
 namespace {
 
 [[nodiscard]] Result<std::shared_ptr<TextRunLayout>, TextLayoutError> compile_or_cache_layout(
-    const TextRunParams& params,
+    const TextRunSpec& params,
     FontEngine& engine
 ) {
     // ═════════════════════════════════════════════════════════════════
@@ -615,7 +615,7 @@ namespace {
 } // anonymous namespace
 
 std::shared_ptr<TextRunShape> materialize_text_run_shape(
-    const TextRunParams& params,
+    const TextRunSpec& params,
     FontEngine* engine,
     SampleTime sample_time,
     std::shared_ptr<const AnimatedTextDocument> animated_doc

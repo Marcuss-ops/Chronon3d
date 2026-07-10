@@ -19,7 +19,7 @@
 //  (c) `wire_through_resolver(lb, preset_id, spec)` — engine-side factory
 //      body helper that delegates to the Cluster B public API
 //      (`::chronon3d::registry::wire_preset_text_run_params`) then
-//      routes the returned `TextRunParams` through
+//      routes the returned `TextRunSpec` through
 //      `lb.text_run(<name>, params).commit()`.  Single canonical pipeline
 //      for all 22 built-ins.
 //
@@ -109,7 +109,7 @@ make_presetc_template(std::string_view preset_id) {
 //
 // Thin factory-body helper that delegates to the Cluster B public API
 // (`wire_preset_text_run_params`) and then routes the returned
-// TextRunParams through `lb.text_run(<entry_name>, params).commit()`.
+// TextRunSpec through `lb.text_run(<entry_name>, params).commit()`.
 // Single canonical pipeline: every text preset enters the render graph
 // as a TextRunShape (ShapeType::TextRun), regardless of whether the
 // resolver wired a TextAnimatorSpec or not.
@@ -123,7 +123,7 @@ make_presetc_template(std::string_view preset_id) {
 wire_through_resolver(LayerBuilderT& lb,
                       std::string_view preset_id,
                       const TextSpecT& spec) {
-    TextRunParams params =
+    TextRunSpec params =
         ::chronon3d::registry::wire_preset_text_run_params(preset_id, spec);
     const std::string entry_name = std::string{preset_id} + "_text";
     return lb.text_run(entry_name, params).commit();

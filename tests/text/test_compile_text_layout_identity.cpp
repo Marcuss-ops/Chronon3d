@@ -75,13 +75,13 @@ inline void reset_layout_cache_for_test() {
     // cache reset deferred: TICKET-011 (build-rot fix) — s_text_cache scope is file-local
 }
 
-[[nodiscard]] TextRunParams make_test_params(
+[[nodiscard]] TextRunSpec make_test_params(
     const std::string& utf8,
     float font_size,
     TextDirection direction = TextDirection::LTR,
     const std::string& language = "en"
 ) {
-    TextRunParams params;
+    TextRunSpec params;
     params.text.content.value          = utf8;
     params.text.font.font_family       = "DejaVu Sans";   // system fallback
     params.text.font.font_size         = font_size;

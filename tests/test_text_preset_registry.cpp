@@ -886,7 +886,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
 // TIER G — Cluster B public API surface (Sub-case 31)
 // ─────────────────────────────────────────────────────────────────────────
 // Stage 5+ exposes the AnimatorResolver table via a SINGLE public free
-// function: `wire_preset_text_run_params(preset_id, spec) -> TextRunParams`.
+// function: `wire_preset_text_run_params(preset_id, spec) -> TextRunSpec`.
 // This is the deterministic verification entry point the test harness and
 // downstream authoring facade use — no LayerBuilder, no SceneBuilder,
 // no factory-body invocation.  Sub-case 31 iterates all 22 presets and
@@ -901,20 +901,20 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
 // follow — Sub-case 30 stays as the integration regression test.
 TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
 
-    SUBCASE("31) wire_preset_text_run_params returns deterministic TextRunParams for all 22 presets") {
+    SUBCASE("31) wire_preset_text_run_params returns deterministic TextRunSpec for all 22 presets") {
         const auto& reg = make_default_text_preset_registry();
         const auto plain = make_test_text_spec();
 
         // Signature contract check — the public free function lives
         // in <chronon3d/registry/text_preset_resolver.hpp> with the
-        // exact signature (string_view, TextSpec) -> TextRunParams.
+        // exact signature (string_view, TextSpec) -> TextRunSpec.
         // The compile-time assertion below verifies the resolved type
         // via `decltype(function-name)` which yields the function type.
         static_assert(
             std::is_same_v<
                 decltype(wire_preset_text_run_params),
-                TextRunParams(std::string_view, TextSpec) noexcept>,
-            "wire_preset_text_run_params must return TextRunParams via (string_view, TextSpec) noexcept");
+                TextRunSpec(std::string_view, TextSpec) noexcept>,
+            "wire_preset_text_run_params must return TextRunSpec via (string_view, TextSpec) noexcept");
 
         // ── Per-preset pure-function probe ─────────────────────────────────
         // Iterate all 22 preset ids via reg.available() (sorted-by-key,
@@ -943,7 +943,7 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
 
             if (id == "minimal_white") {
                 // No canonical motion → public function returns
-                // TextRunParams with animators.empty() == true.  The
+                // TextRunSpec with animators.empty() == true.  The
                 // caller routes via plain lb.text(...) which does not
                 // require an AnimatorResolver entry.
                 CHECK(params.animators.empty());
@@ -1001,7 +1001,7 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
         }
 
         // ── Unknown id contract (fail-safe path) ───────────────────────────
-        // The public function must return TextRunParams with empty
+        // The public function must return TextRunSpec with empty
         // animators when called with an id that is not in the registered
         // catalog.  This is the fail-safe fallback for any downstream
         // authoring facade that misroutes a preset id.

@@ -1,7 +1,7 @@
 #include <chronon3d/presets/motion_renderer.hpp>
 #include <chronon3d/presets/motion_resolver.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
-#include <chronon3d/scene/builders/builder_params.hpp>  // P1 — TextRunSpec (TextRunParams alias) for the migrated shape_ids::TextRun call site.
+#include <chronon3d/scene/builders/builder_params.hpp>  // P1 — TextRunSpec (TextRunSpec alias) for the migrated shape_ids::TextRun call site.
 #include <chronon3d/math/camera_pose.hpp>
 
 #include <algorithm>
@@ -111,13 +111,13 @@ void draw_content(LayerBuilder& l, const MotionObject& obj, const MotionState& s
     case MotionObjectType::Text: {
         // P1 — single canonical text pipeline. The legacy shape_ids::Text
         // entry was REMOVED from chronon3d::registry::ShapeRegistry; this
-        // direct caller now wraps the TextSpec into a TextRunParams (alias
+        // direct caller now wraps the TextSpec into a TextRunSpec (alias
         // TextRunSpec) and reaches the render graph via shape_ids::TextRun
         // (the ONLY surviving text shape descriptor in the authoring
         // registry). The downstream RenderNode is flagged ShapeType::TextRun
         // — same node shape as if the user had called `l.text_run(...)`
         // directly. Anti-duplication rule respected: no second code path.
-        chronon3d::TextRunParams run_params;
+        chronon3d::TextRunSpec run_params;
         run_params.text = chronon3d::TextSpec{
             .content = {.value = apply_text_reveal(obj.text_value, st.text_reveal)},
             .font = {.font_path = obj.text_style.font_path, .font_family = obj.text_style.font_family, .font_weight = obj.text_style.font_weight, .font_style = obj.text_style.font_style, .font_size = obj.text_style.font_size},

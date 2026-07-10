@@ -55,7 +55,7 @@ TEST_CASE("AssetPreflightResolver — empty manifest: ok") {
 TEST_CASE("AssetPreflightResolver — missing font: error") {
     SceneBuilder s(preflight_ctx(Frame{0}));
     s.layer("title", [](LayerBuilder& l) {
-        TextRunParams p;
+        TextRunSpec p;
         p.text.font.font_path = "assets/fonts/Nonexistent.ttf";
         p.text.content.value = "Hello";
         (void)l.text_run("label", std::move(p));
@@ -88,7 +88,7 @@ TEST_CASE("AssetPreflightResolver — missing image: error") {
 TEST_CASE("AssetPreflightResolver — multiple missing assets") {
     SceneBuilder s(preflight_ctx(Frame{0}));
     s.layer("title", [](LayerBuilder& l) {
-        TextRunParams p;
+        TextRunSpec p;
         p.text.font.font_path = "assets/fonts/Nope.ttf";
         p.text.content.value = "Hello";
         (void)l.text_run("label", std::move(p));
@@ -114,7 +114,7 @@ TEST_CASE("AssetPreflightResolver — FrameOnly: skips inactive layers") {
     // Layer active at frame 0-30 with font
     s.layer("early", [](LayerBuilder& l) {
         l.from(Frame{0}).duration(Frame{30});
-        TextRunParams p;
+        TextRunSpec p;
         p.text.font.font_path = "assets/fonts/Early.ttf";
         p.text.content.value = "Early";
         (void)l.text_run("label", std::move(p));
@@ -122,7 +122,7 @@ TEST_CASE("AssetPreflightResolver — FrameOnly: skips inactive layers") {
     // Layer active at frame 60-90 with font
     s.layer("late", [](LayerBuilder& l) {
         l.from(Frame{60}).duration(Frame{30});
-        TextRunParams p;
+        TextRunSpec p;
         p.text.font.font_path = "assets/fonts/Late.ttf";
         p.text.content.value = "Late";
         (void)l.text_run("label", std::move(p));

@@ -90,7 +90,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-SIMPLICITY-PIPELINE-PARITY | P1 | Pipeline parity (render/video/CLI) | PLANNED | Text V1 — max 2px differenza |
 | TICKET-SIMPLICITY-INSPECT-TEXT | P1 | CLI inspect-text (JSON diagnostic) | PLANNED | Text V1 — diagnostica headless |
 | TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY | P2 | Diagnostic overlay (visual bbox PNG) | PLANNED | Text V1 + TICKET-SIMPLICITY-INSPECT-TEXT |
-| TICKET-SIMPLICITY-DEPRECATION | P2 | Deprecazioni graduali API legacy | PLANNED | Text V1 + TICKET-SIMPLICITY-ADAPTERS |
+| TICKET-SIMPLICITY-DEPRECATION | P2 | Deprecazioni graduali API legacy | DONE | Text V1 + TICKET-SIMPLICITY-ADAPTERS — TextParams/TextRunParams marked [[deprecated]], 48 files migrated to TextRunSpec |
 | TICKET-SIMPLICITY-DOCS | P2 | Documentazione copy-paste first | PLANNED | Text V1 + TICKET-SIMPLICITY-BUILDER |
 
 ## M1.7 Sequence + Asset Readiness
