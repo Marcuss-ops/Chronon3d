@@ -39,6 +39,7 @@ constexpr Color kOverlayLayoutBox{0.2f, 1.0f, 0.4f, 0.7f};       // green
 constexpr Color kOverlayVisualBounds{1.0f, 1.0f, 0.2f, 0.7f};    // yellow
 constexpr Color kOverlayRasterSurface{0.8f, 0.2f, 1.0f, 0.7f};   // violet
 constexpr Color kOverlayAlphaCentroid{1.0f, 1.0f, 1.0f, 0.9f};   // white
+constexpr Color kOverlayBaseline{0.0f, 0.9f, 1.0f, 0.8f};           // cyan
 
 // ── Drawing helpers ────────────────────────────────────────────────────────
 
@@ -181,7 +182,24 @@ inline void draw_text_debug_overlay(
                        static_cast<int>(centroid.y), arm / 2, kOverlayAlphaCentroid);
     }
 
-    // 7. Structured log (§6)
+    // 7. Cyan horizontal line at baseline (text origin y-position).
+    //    Spans the layout box width, anchored at world origin (ox, oy).
+    if (shape.layout_spec.box.x > 0) {
+        const int bw = static_cast<int>(shape.layout_spec.box.x);
+        const int bx0 = ox - bw / 2;
+        const int bx1 = ox + bw / 2;
+        const int by  = oy;  // baseline = text origin y
+        auto put = [&](int x, int y) {
+            if (x >= 0 && x < w && y >= 0 && y < h) {
+                fb.pixels_row(y)[x] = kOverlayBaseline;
+            }
+        };
+        for (int x = bx0; x <= bx1; ++x) put(x, by);
+        // Small cyan dot at the left end of baseline for visibility
+        draw_dot(fb, bx0, by, kOverlayBaseline);
+    }
+
+    // 8. Structured log (§6)
     const f32 cx = static_cast<f32>(w) * 0.5f;
     const f32 cy = static_cast<f32>(h) * 0.5f;
     const f32 delta_x = centroid.x >= 0 ? centroid.x - cx : -1.0f;
