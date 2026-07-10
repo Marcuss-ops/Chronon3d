@@ -29,8 +29,10 @@ namespace chronon3d::motion {
 // AnimatedValue interpolates correctly.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// C1 — [[deprecated]]: prefer MotionTimeline<T> from
+// <chronon3d/animation/motion/motion.hpp>.
 template <typename T>
-class Timeline {
+class [[deprecated("Use MotionTimeline<T> from animation/motion/motion.hpp")]] Timeline {
 public:
     struct Segment {
         Frame end_frame{0};
@@ -137,7 +139,10 @@ private:
 
 // ── Factory function ────────────────────────────────────────────────────────
 
+// C1 — [[deprecated]]: prefer Motion<T>::timeline(initial) from
+// <chronon3d/animation/motion/motion.hpp>.
 template <typename T>
+[[deprecated("Use Motion<T>::timeline() from animation/motion/motion.hpp")]]
 [[nodiscard]] inline Timeline<T> timeline(T initial) {
     return Timeline<T>(std::move(initial));
 }
