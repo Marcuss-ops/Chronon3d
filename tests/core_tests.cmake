@@ -287,6 +287,8 @@ chronon3d_add_test_suite(
     core/math/test_clip_with_uv.cpp
     core/math/test_frustum_culling.cpp
     core/geometry/test_geometry.cpp
+    # F1.B — unified text placement resolver (ADR-019 Decision 3)
+    text/test_text_placement_resolver.cpp
     core/animation/test_animation.cpp
     core/animation/test_interpolate.cpp
     core/animation/test_spring.cpp

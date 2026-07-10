@@ -78,6 +78,8 @@ add_library(chronon3d_text_core OBJECT
     driver/text_font_state.cpp
     driver/text_layout_rebuild.cpp
     text_run_geometry.cpp
+    # F1.B — unified text placement resolver (ADR-019 Decision 3)
+    text_placement_resolver.cpp
     text_scramble_helpers.cpp       # FASE 15 — scramble/morph transition helpers extracted
     unicode/utf8_decoder.cpp
     unicode/whitespace.cpp
