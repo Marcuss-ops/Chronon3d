@@ -26,20 +26,9 @@ namespace chronon3d::test::glow_ab {
 
 namespace {
 
-// ── Mirror of the static FontEngine pattern from text_animations.cpp ──
-//
-// `anim_typewriter_glow` uses `shared_typewriter_engine()` defined in the
-// anonymous namespace of text_animations.cpp.  We replicate the pattern
-// here (local static) so the sibling composition has its own resolver
-// and engine, mounted at the project assets root.
-chronon3d::FontEngine& no_glow_engine() {
-    static chronon3d::assets::AssetResolver s_resolver;
-    if (!s_resolver.has_mount()) {
-        s_resolver.mount(std::filesystem::current_path());
-    }
-    static chronon3d::FontEngine s_engine(s_resolver);
-    return s_engine;
-}
+// F0.2 — no_glow_engine() + current_path() static resolver REMOVED.
+// The A/B composition now uses ctx.font_engine from the runtime chain:
+//   RenderEngine::set_assets_root() → Runtime::resolver() → FontEngine → FrameContext
 
 // Constants copied verbatim from text_animations.cpp (the production file
 // keeps these in an anonymous namespace, so we replicate them here to
@@ -64,7 +53,7 @@ Composition make_anim_typewriter_glow_no_glow() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        s.font_engine(&no_glow_engine());
+        s.font_engine(ctx.font_engine);
 
         // Same scene as anim_typewriter_glow() but glow_intensity=0.0f.
         // All other parameters (text, sizes, line_spacing, start_delay_2,
