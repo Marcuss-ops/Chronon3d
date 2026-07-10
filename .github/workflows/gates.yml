@@ -262,3 +262,61 @@ jobs:
       - name: Install consumer
         if: runner.os == 'Linux'
         run: bash tools/install_consumer_test.sh
+
+  # ─────────────────────────────────────────────────────────────────────
+  # 7. Gate status summary — machine-readable JSON artifact (P3-A).
+  # Collects pass/fail from all gate jobs and produces a structured
+  # ci_gates_status.json uploaded as a GitHub Actions artifact.
+  # ─────────────────────────────────────────────────────────────────────
+  gate-status:
+    name: Gate Status Summary (P3-A)
+    if: ${{ !cancelled() }}
+    needs:
+      - core-build
+      - sdk-build
+      - public-header-check
+      - install-consumer-check
+      - architecture-check
+      - install-consumer-script
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate gate status JSON
+        run: |
+          python3 -c "
+          import json, datetime
+          gates = {
+              'core-build':             '${{ needs.core-build.result }}',
+              'sdk-build':              '${{ needs.sdk-build.result }}',
+              'public-header-check':    '${{ needs.public-header-check.result }}',
+              'install-consumer-check': '${{ needs.install-consumer-check.result }}',
+              'architecture-check':     '${{ needs.architecture-check.result }}',
+              'install-consumer-script':'${{ needs.install-consumer-script.result }}',
+          }
+          passed = sum(1 for v in gates.values() if v == 'success')
+          status = {
+              'schema_version': 1,
+              'commit': '${{ github.sha }}',
+              'tested_at': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+              'workflow': '${{ github.workflow }}',
+              'gates': gates,
+              'gates_total': len(gates),
+              'gates_passed': passed,
+              'gates_failed': len(gates) - passed,
+              'gates_passed_bool': passed == len(gates),
+          }
+          with open('ci_gates_status.json', 'w') as f:
+              json.dump(status, f, indent=2)
+              f.write('\n')
+          print(json.dumps(status, indent=2))
+          "
+
+      - name: Upload gate status artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-gates-status-${{ github.sha }}
+          path: ci_gates_status.json
+          retention-days: 90
