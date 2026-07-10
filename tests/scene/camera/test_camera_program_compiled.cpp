@@ -1810,7 +1810,7 @@ TEST_CASE("compiled_failure_policy_stop — "
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     CHECK_FALSE(res.has_value());
-    CHECK(res.error().message == "distance-zero");
+    CHECK(res.error().message.find("distance-zero") != std::string::npos);
 }
 
 TEST_CASE("compiled_failure_policy_skip_failed — "

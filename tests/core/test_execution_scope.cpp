@@ -256,7 +256,7 @@ TEST_CASE("ExecutionScope: recursion detection — direct precomp loop rejected"
     auto pc2_same_key = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_b,
         GraphInstanceId{3}, &pc1, /*owner_key*/ 0xDEADBEEFull);
-    REQUIRE(pc2_same_key.has_value());
+    REQUIRE_FALSE(pc2_same_key.has_value());
     CHECK(pc2_same_key.error().code == ScopeErrorCode::RecursiveOwner);
 
     // A different key should succeed.
@@ -296,7 +296,7 @@ TEST_CASE("ExecutionScope: recursion detection — indirect loop via shared ance
     auto pc3_ancestor_key = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, arena_c,
         GraphInstanceId{4}, &pc2, /*owner_key*/ 0x456ull);
-    REQUIRE(pc3_ancestor_key.has_value());
+    REQUIRE_FALSE(pc3_ancestor_key.has_value());
     CHECK(pc3_ancestor_key.error().code == ScopeErrorCode::RecursiveOwner);
 
     // A new key (not yet on the chain) must succeed.
@@ -418,7 +418,7 @@ TEST_CASE("ExecutionScope: anthrilinear (ancestor-then-sibling) — RecursiveOwn
     auto reentry = ExecutionScope::make_child(
         ExecutionScopeKind::Precomp, session, a[3],
         GraphInstanceId{0}, &b_res.value(), /*owner_key*/ 0xABCDEFull);
-    REQUIRE(reentry.has_value());
+    REQUIRE_FALSE(reentry.has_value());
     CHECK(reentry.error().code == ScopeErrorCode::RecursiveOwner);
 
     // A non-colliding key must succeed.
@@ -456,7 +456,7 @@ TEST_CASE("ExecutionScope: kMaxScopeChainLength — make_child Err at boundary")
     auto overflow_res = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, overflow_arena,
         GraphInstanceId{0xFFFFu}, deepest);
-    REQUIRE(overflow_res.has_value());
+    REQUIRE_FALSE(overflow_res.has_value());
     CHECK(overflow_res.error().code == ScopeErrorCode::ChainLimitExceeded);
 
     // Failing the 16th child does NOT consume any state — the chain is
@@ -477,7 +477,7 @@ TEST_CASE("ExecutionScope: make_child — Root kind rejected (InvalidChildKind)"
     auto bad = ExecutionScope::make_child(
         ExecutionScopeKind::Root, session, arena,
         GraphInstanceId{2}, &root);
-    REQUIRE(bad.has_value());
+    REQUIRE_FALSE(bad.has_value());
     CHECK(bad.error().code == ScopeErrorCode::InvalidChildKind);
 }
 
@@ -487,7 +487,7 @@ TEST_CASE("ExecutionScope FASE 5: make_child — parent=nullptr rejected (Parent
     auto bad = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, arena,
         GraphInstanceId{1}, /*parent*/ nullptr);
-    REQUIRE(bad.has_value());
+    REQUIRE_FALSE(bad.has_value());
     CHECK(bad.error().code == ScopeErrorCode::ParentRequired);
 }
 
@@ -501,7 +501,7 @@ TEST_CASE("ExecutionScope FASE 5: make_child — arena aliasing rejected (ArenaA
     auto bad = ExecutionScope::make_child(
         ExecutionScopeKind::Tile, session, session.arena(),
         GraphInstanceId{2}, &root);
-    REQUIRE(bad.has_value());
+    REQUIRE_FALSE(bad.has_value());
     CHECK(bad.error().code == ScopeErrorCode::ArenaAliasesParent);
 }
 
