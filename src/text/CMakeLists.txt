@@ -87,8 +87,12 @@ add_library(chronon3d_text_core OBJECT
     # F2.A — TextDefinition Canonica adapter implementations
     # (from_text_spec / from_text_run_spec)
     text_definition.cpp
-    # F1.B — unified text placement resolver (ADR-019 Decision 3)
-    text_placement_resolver.cpp
+    # Phase A6 close-out (2026-07-10) — canonical text placement
+    # resolver surface (free function only; class wrapper RETIRED).
+    # Replaces `text_placement_resolver.cpp` which co-resident with
+    # the now-deleted `class TextPlacementResolver` shim.  See ADR-019
+    # Decision 3 + the new gate #23 in tools/check_architecture_boundaries.sh.
+    resolve_text_placement.cpp
     text_scramble_helpers.cpp       # FASE 15 — scramble/morph transition helpers extracted
     unicode/utf8_decoder.cpp
     unicode/whitespace.cpp

@@ -223,6 +223,17 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/glyph_selector.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/glyph_selector_spec.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/paragraph_style.hpp"
+    # ── Phase A6 close-out (2026-07-10): canonical text placement resolver ──
+    #   ADR-019 Decision 3 establishes `resolve_text_placement()` as the
+    #   SINGLE canonical surface for converting high-level placement
+    #   semantics into the `ResolvedTextPlacement` the renderer consumes.
+    #   Phase A6 removed the parallel `class TextPlacementResolver` shim
+    #   that previously co-resident with the free function in the
+    #   retired `text_placement_resolver.hpp`.  That wrapper header is now
+    #   BANNED from `include/chronon3d/` by gate #23 in
+    #   `tools/check_architecture_boundaries.sh`.  If you want to re-expose
+    #   the wrapper class you MUST update ADR + open a new ticket.
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/resolve_text_placement.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_animator_property.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_direction.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_material.hpp"
