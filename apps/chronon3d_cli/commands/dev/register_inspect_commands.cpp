@@ -1,5 +1,5 @@
 // D3 — unified `inspect` command replacing scattered graph/preflight/camera-path/text-audit.
-// Subcommands: inspect graph, inspect preflight, inspect camera, inspect text.
+// Subcommands: inspect graph, inspect preflight, inspect camera, inspect text, inspect text-def.
 
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
@@ -82,10 +82,21 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
             ctx.exit_code = command_text_audit(ctx.registry, *s);
         });
     }
+
+    // ── inspect text-def ─────────────────────────────────────────────
+    {
+        auto s = std::make_shared<TextDefInspectArgs>();
+        auto* cmd = inspect->add_subcommand("text-def", "Dump TextDefinition/TextRunSpec fields as JSON for frame 0");
+        cmd->add_option("id", s->comp_id, "Composition name")->required();
+        cmd->add_option("--json", s->json_output, "JSON output path (stdout if empty)");
+        cmd->callback([s, &ctx]() {
+            ctx.exit_code = command_text_def_inspect(ctx.registry, *s);
+        });
+    }
 }
 
 // D4 — All legacy top-level commands (graph, preflight, camera-path, text-audit)
 // have been removed.  The canonical entry points are `inspect graph`,
-// `inspect preflight`, `inspect camera`, and `inspect text`.
+// `inspect preflight`, `inspect camera`, `inspect text`, and `inspect text-def`.
 
 } // namespace chronon3d::cli
