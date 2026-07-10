@@ -39,7 +39,7 @@ int main() {
                 l.font("fonts/Inter-Bold.ttf")
                  .font_size(72.0f)
                  .center();
-                l.text_run("t", c3d::TextRunParams{
+                l.text_run("t", c3d::TextRunSpec{
                     .text = c3d::TextSpec{
                         .content = {.value = "Hello, Chronon3D!"},
                         .font = {.font_family = "Inter", .font_weight = 700},

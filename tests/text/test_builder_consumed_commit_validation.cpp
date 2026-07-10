@@ -176,9 +176,9 @@ TEST_CASE("TICKET-104 (1) TextRunBuilder::commit drops orphaned selectors (selec
     LayerBuilder layer("ticket_104_layer_1", SampleTime{});
 
     // Push a text_run spec via the canonical `.text_run(name, params)`
-    // entry point.  Use minimal TextRunParams (only the required
+    // entry point.  Use minimal TextRunSpec (only the required
     // fields populated -- the rest get their default member init).
-    TextRunParams params;
+    TextRunSpec params;
     params.text.content.value          = "orphan-selectors";
     params.text.font.font_family       = "DejaVu Sans";   // system fallback
     params.text.font.font_size         = 32.0f;
@@ -255,7 +255,7 @@ TEST_CASE("TICKET-104 (1) TextRunBuilder::commit drops orphaned selectors (selec
 
     // Secondary structural assertion: the spec's selector list is NOT
     // populated (orphan was dropped, not silently attached).  In the
-    // current TextRunParams surface, selectors live on
+    // current TextRunSpec surface, selectors live on
     // `TextAnimatorSpec::selectors` -- with no animators registered,
     // the implicit per-mutator animator would still be the only entry
     // — and ONLY if a mutator was invoked.  `.selector(...)` alone

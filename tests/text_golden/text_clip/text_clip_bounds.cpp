@@ -114,7 +114,7 @@ Composition build_clip_composition(
                 if (glow_params.enabled) {
                     l.glow(glow_params);
                 }
-                l.text_run("title", TextRunParams{
+                l.text_run("title", TextRunSpec{
                     .text = {
                         .content = {.value = "HAMBURGER"},
                         .font = {

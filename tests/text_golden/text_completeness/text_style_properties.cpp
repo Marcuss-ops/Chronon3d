@@ -57,7 +57,7 @@ Composition build_baseline(SoftwareRenderer& renderer,
             s.font_engine(&renderer.font_engine());
             s.layer("style_layer", [&renderer, text, font_size](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("style_test", TextRunParams{
+                l.text_run("style_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = std::string{text}},
                         .font = {
@@ -92,7 +92,7 @@ Composition build_weight(SoftwareRenderer& renderer, int weight) {
             s.font_engine(&renderer.font_engine());
             s.layer("w_layer", [&renderer, weight](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("weight_test", TextRunParams{
+                l.text_run("weight_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "WEIGHT"},
                         .font = {
@@ -129,7 +129,7 @@ Composition build_style(SoftwareRenderer& renderer, std::string_view font_style)
             s.font_engine(&renderer.font_engine());
             s.layer("fs_layer", [&renderer, font_style, font_path](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("font_style_test", TextRunParams{
+                l.text_run("font_style_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "STYLE"},
                         .font = {
@@ -165,7 +165,7 @@ Composition build_fill(SoftwareRenderer& renderer, Color color) {
             s.font_engine(&renderer.font_engine());
             s.layer("fill_layer", [&renderer, color](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("fill_test", TextRunParams{
+                l.text_run("fill_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "COLOR"},
                         .font = {
@@ -206,7 +206,7 @@ Composition build_stroke(SoftwareRenderer& renderer, bool stroke_on, float strok
             s.font_engine(&renderer.font_engine());
             s.layer("stroke_layer", [&renderer, paint](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("stroke_test", TextRunParams{
+                l.text_run("stroke_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "STROKE"},
                         .font = {
@@ -242,7 +242,7 @@ Composition build_opacity(SoftwareRenderer& renderer, float opacity) {
             s.layer("opacity_layer", [&renderer, opacity](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.opacity(opacity);
-                l.text_run("opacity_test", TextRunParams{
+                l.text_run("opacity_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "FADE"},
                         .font = {
@@ -277,7 +277,7 @@ Composition build_line_height(SoftwareRenderer& renderer, float lh) {
             s.font_engine(&renderer.font_engine());
             s.layer("lh_layer", [&renderer, lh](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("lh_test", TextRunParams{
+                l.text_run("lh_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "LINE ONE\nLINE TWO\nLINE THREE"},
                         .font = {
@@ -311,7 +311,7 @@ Composition build_tracking(SoftwareRenderer& renderer, float tracking) {
             s.font_engine(&renderer.font_engine());
             s.layer("track_layer", [&renderer, tracking](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("track_test", TextRunParams{
+                l.text_run("track_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "TRACKING"},
                         .font = {
@@ -347,7 +347,7 @@ Composition build_wrap_box(SoftwareRenderer& renderer, float box_width) {
             s.font_engine(&renderer.font_engine());
             s.layer("wrap_box_layer", [&renderer, box_width](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("wrap_box_test", TextRunParams{
+                l.text_run("wrap_box_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "The quick brown fox jumps over the lazy dog"},
                         .font = {
@@ -382,7 +382,7 @@ Composition build_anchor(SoftwareRenderer& renderer, TextAnchor anchor) {
             s.font_engine(&renderer.font_engine());
             s.layer("anchor_layer", [&renderer, anchor](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("anchor_test", TextRunParams{
+                l.text_run("anchor_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "ANCHOR"},
                         .font = {
@@ -448,7 +448,7 @@ Composition build_position(SoftwareRenderer& renderer, Vec3 pos) {
             s.font_engine(&renderer.font_engine());
             s.layer("pos_layer", [&renderer, pos](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("pos_test", TextRunParams{
+                l.text_run("pos_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "POS"},
                         .font = {

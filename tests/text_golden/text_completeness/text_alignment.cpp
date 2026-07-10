@@ -58,7 +58,7 @@ Composition build_position_composition(
             s.layer("align_layer",
                 [&renderer, position, h_align, v_align, text](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("align_test", TextRunParams{
+                l.text_run("align_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = std::string{text}},
                         .font = {
