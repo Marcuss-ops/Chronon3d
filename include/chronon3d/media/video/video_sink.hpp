@@ -28,6 +28,7 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/media/video/video_frame.hpp>
+#include <chronon3d/core/types/result.hpp>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -53,6 +54,52 @@ enum class VideoSinkState : uint8_t {
     /// An error occurred (I/O, encoder, broken pipe, etc.).
     /// The sink is in an unusable state and must be destroyed.
     Failed = 4,
+};
+
+/// Categorical failure code for VideoSink operations.
+/// Discriminant order is stable ABI: do NOT reorder, only append before Count.
+enum class VideoSinkError : uint8_t {
+    None            = 0,   ///< No error
+    InvalidConfig   = 1,   ///< Config validation failed (empty path, bad codec, etc.)
+    FfmpegNotFound  = 2,   ///< FFmpeg executable not found on PATH
+    PipeBroken      = 3,   ///< stdin pipe to FFmpeg broke (EPIPE, child exited)
+    Timeout         = 4,   ///< FFmpeg timed out waiting for encoder flush
+    InvalidFrame    = 5,   ///< Frame format/dimensions don't match session contract
+    InvalidStride   = 6,   ///< Frame stride < tight row bytes
+    FileExists      = 7,   ///< Output file exists and overwrite=false
+    EncoderFailed   = 8,   ///< FFmpeg exited with non-zero code
+    WriteFailed     = 9,   ///< write_for() returned false (pipe full, broken, etc.)
+    PartialOutput   = 10,  ///< ffprobe validation failed on completed output
+    AlreadyClosed   = 11,  ///< Operation on an already-closed sink
+    NotOpen         = 12,  ///< submit/flush on a sink that was never opened
+    Count           = 255  ///< Sentinel — do not use
+};
+
+/// Stable string-form name for VideoSinkError. For logging only.
+[[nodiscard]] inline const char* to_string(VideoSinkError e) noexcept {
+    switch (e) {
+        case VideoSinkError::None:           return "None";
+        case VideoSinkError::InvalidConfig:  return "InvalidConfig";
+        case VideoSinkError::FfmpegNotFound: return "FfmpegNotFound";
+        case VideoSinkError::PipeBroken:     return "PipeBroken";
+        case VideoSinkError::Timeout:        return "Timeout";
+        case VideoSinkError::InvalidFrame:   return "InvalidFrame";
+        case VideoSinkError::InvalidStride:  return "InvalidStride";
+        case VideoSinkError::FileExists:     return "FileExists";
+        case VideoSinkError::EncoderFailed:  return "EncoderFailed";
+        case VideoSinkError::WriteFailed:    return "WriteFailed";
+        case VideoSinkError::PartialOutput:  return "PartialOutput";
+        case VideoSinkError::AlreadyClosed:  return "AlreadyClosed";
+        case VideoSinkError::NotOpen:        return "NotOpen";
+        case VideoSinkError::Count:          break;
+    }
+    return "Unknown";
+}
+
+/// Structured error payload (code + diagnostic message).
+struct VideoSinkErrorInfo {
+    VideoSinkError code{VideoSinkError::None};
+    std::string    message;
 };
 
 /// Returns a human-readable name for the state.
@@ -152,6 +199,60 @@ public:
     /// Return runtime diagnostics from the sink implementation.
     [[nodiscard]] virtual Diagnostics diagnostics() const noexcept {
         return {};
+    }
+
+    // ── Structured error reporting (P1-C, ABI-additive) ──────────────
+
+    /// Returns the last error code set by a failed operation.
+    /// Reset to None on successful open().
+    [[nodiscard]] virtual VideoSinkError last_error() const noexcept {
+        return VideoSinkError::None;
+    }
+
+    /// Returns a human-readable diagnostic for the last error.
+    /// Empty string if no error.
+    [[nodiscard]] virtual std::string last_error_message() const noexcept {
+        return {};
+    }
+
+    // ── Result-based wrappers (non-virtual, inline) ──────────────────
+    // Uses Result<bool, E> (not Result<void, E>) because the current
+    // Result<T,E> implementation requires T to be a non-void type.
+
+    /// open() returning structured error info on failure.
+    [[nodiscard]] Result<bool, VideoSinkErrorInfo> open_result(const VideoSinkConfig& config) {
+        if (open(config)) return true;
+        return VideoSinkErrorInfo{last_error(), last_error_message()};
+    }
+
+    /// submit() returning structured error info on failure.
+    [[nodiscard]] Result<bool, VideoSinkErrorInfo> submit_result(const VideoFrameView& frame) {
+        if (submit(frame)) return true;
+        return VideoSinkErrorInfo{last_error(), last_error_message()};
+    }
+
+    /// submit_planar() returning structured error info on failure.
+    [[nodiscard]] Result<bool, VideoSinkErrorInfo> submit_planar_result(const PlanarVideoFrameView& frame) {
+        if (submit_planar(frame)) return true;
+        return VideoSinkErrorInfo{last_error(), last_error_message()};
+    }
+
+    /// submit_biplanar() returning structured error info on failure.
+    [[nodiscard]] Result<bool, VideoSinkErrorInfo> submit_biplanar_result(const BiplanarVideoFrameView& frame) {
+        if (submit_biplanar(frame)) return true;
+        return VideoSinkErrorInfo{last_error(), last_error_message()};
+    }
+
+    /// flush() returning structured error info on failure.
+    [[nodiscard]] Result<bool, VideoSinkErrorInfo> flush_result() {
+        if (flush()) return true;
+        return VideoSinkErrorInfo{last_error(), last_error_message()};
+    }
+
+    /// close() returning structured error info on failure.
+    [[nodiscard]] Result<bool, VideoSinkErrorInfo> close_result() noexcept {
+        if (close()) return true;
+        return VideoSinkErrorInfo{last_error(), last_error_message()};
     }
 };
 
