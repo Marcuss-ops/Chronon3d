@@ -194,4 +194,26 @@ ResolvedTextPlacement resolve_text_placement(
     return result;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// F3.B — SafeAreaPreset constants and CanvasInfo factory
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SafeAreaPreset SafeAreaPreset::Landscape16x9{0.05f, 0.05f, 0.05f, 0.05f};
+const SafeAreaPreset SafeAreaPreset::Portrait9x16{0.05f, 0.05f, 0.05f, 0.05f};
+const SafeAreaPreset SafeAreaPreset::Square1x1{0.05f, 0.05f, 0.05f, 0.05f};
+const SafeAreaPreset SafeAreaPreset::Landscape4x3{0.05f, 0.05f, 0.05f, 0.05f};
+
+CanvasInfo CanvasInfo::with_safe_area(
+    f32 width, f32 height, const SafeAreaPreset& preset)
+{
+    CanvasInfo info;
+    info.width              = width;
+    info.height             = height;
+    info.safe_margin_top    = height * preset.margin_top_fraction;
+    info.safe_margin_bottom = height * preset.margin_bottom_fraction;
+    info.safe_margin_left   = width * preset.margin_left_fraction;
+    info.safe_margin_right  = width * preset.margin_right_fraction;
+    return info;
+}
+
 } // namespace chronon3d
