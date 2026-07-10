@@ -100,6 +100,20 @@ ValidationResult validate_video_sink_config(
     if (stream.height <= 0) {
         return {false, "stream.height must be > 0"};
     }
+    if (stream.width > kMaxFrameDimension) {
+        return {false, "stream.width exceeds max dimension (16384)"};
+    }
+    if (stream.height > kMaxFrameDimension) {
+        return {false, "stream.height exceeds max dimension (16384)"};
+    }
+    // Overflow guard: width*height must not exceed max pixel count.
+    {
+        const int64_t pixels = static_cast<int64_t>(stream.width)
+                             * static_cast<int64_t>(stream.height);
+        if (pixels > kMaxPixelCount) {
+            return {false, "width*height exceeds max pixel count (268M)"};
+        }
+    }
 
     if (stream.frame_rate_num <= 0) {
         return {false, "stream.frame_rate_num must be > 0"};

@@ -20,6 +20,14 @@
 
 namespace chronon3d::media::video {
 
+/// Maximum frame dimension in any single axis (P2-B memory budget).
+/// 16384 pixels = 8K UHD width, sufficient for all production formats.
+inline constexpr int kMaxFrameDimension = 16384;
+
+/// Maximum total pixel count (width × height) to prevent unbounded memory.
+/// 268,435,456 pixels ≈ 16384×16384 ≈ 1 GiB for RGBA8.
+inline constexpr int64_t kMaxPixelCount = 268435456LL;
+
 /// Pixel format of a VideoFrameView buffer.
 /// This is a superset of the encoder-only formats in EncoderPixelFormat
 /// and adds the native RGBA8 format used by the renderer output path.
@@ -42,6 +50,8 @@ enum class PixelFormat : uint8_t {
 /// Returns 0 for unknown formats or non-positive dimensions.
 [[nodiscard]] inline uint64_t frame_buffer_size(PixelFormat fmt, int width, int height) noexcept {
     if (width <= 0 || height <= 0) return 0;
+    // P2-B overflow guard: reject dimensions that would overflow size_t.
+    if (width > kMaxFrameDimension || height > kMaxFrameDimension) return 0;
     const uint64_t w = static_cast<uint64_t>(width);
     const uint64_t h = static_cast<uint64_t>(height);
 
