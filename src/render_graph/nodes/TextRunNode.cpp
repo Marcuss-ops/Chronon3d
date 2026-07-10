@@ -37,6 +37,7 @@
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+#include <spdlog/spdlog.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -101,6 +102,33 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
 #else
     auto bbox = renderer::compute_world_bbox(m_render_ref.shape, matrix, spread);
 #endif
+
+    // TICKET-TEXT-CLIP-PREDICTED-BBOX — diagnostic logging.
+    // Gated on diagnostics_enabled to avoid per-frame overhead in
+    // production.  Logs the raw world bbox, the matrix translation,
+    // and the placement matrix so the clipping root-cause can be
+    // traced by comparing predicted_bbox vs actual alpha_bbox.
+    if (ctx.policy.diagnostics_enabled) {
+        const f32 mtx = matrix[3][0];
+        const f32 mty = matrix[3][1];
+        spdlog::debug(
+            "[text-bbox] node={} "
+            "world=({}, {}, {}, {}) "
+            "w={} h={} "
+            "matrix_tx={:.1f} matrix_ty={:.1f} "
+            "spread={:.1f} "
+            "canvas={}x{} "
+            "placement[3][0]={:.1f} placement[3][1]={:.1f} "
+            "op_override={}",
+            m_name,
+            bbox.x0, bbox.y0, bbox.x1, bbox.y1,
+            bbox.x1 - bbox.x0, bbox.y1 - bbox.y0,
+            mtx, mty,
+            spread,
+            ctx.frame_input.width, ctx.frame_input.height,
+            m_placement.matrix[3][0], m_placement.matrix[3][1],
+            m_opacity_override.has_value());
+    }
 
     // When text_layout_debug is enabled, the overlay draws markers at
     // canvas center, layer origin, and alpha centroid — all outside the
