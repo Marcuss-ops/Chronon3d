@@ -128,7 +128,9 @@ inline std::vector<GlyphPos> layout_glyphs(
         throw std::runtime_error(
             "layout_glyphs: HarfBuzz shaping produced zero glyphs. "
             "font_path='" + spec.font_path +
-            "' font_size=" + std::to_string(font_size) +
+            // font_size is f32; cast to int for compact diagnostics (avoid "72.000000")
+            "' font_size=" + std::to_string(static_cast<int>(font_size)) +
+            // truncate text to 60 chars (intentional, no ellipsis — keeps log lines bounded)
             " text='" + text.substr(0, 60) + "'. "
             "Check that the font file exists and the AssetResolver is mounted.");
     }
@@ -222,6 +224,7 @@ inline void build_text_reveal_line(SceneBuilder& s,
             "build_text_reveal_line: SceneBuilder has no FontEngine. "
             "Ensure the renderer or composition wires a FontEngine "
             "before calling build_text_reveal_line(). "
+            // truncate text to 60 chars (intentional, no ellipsis — keeps log lines bounded)
             "Text: '" + d.text.substr(0, 60) + "'");
     }
     auto chars = layout_glyphs(d.text, d.font_size, d.font_spec,
