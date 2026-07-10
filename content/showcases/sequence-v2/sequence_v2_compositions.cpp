@@ -27,6 +27,7 @@
 #include <chronon3d/assets/asset_manifest.hpp>
 
 #include "content/common/background_helpers.hpp"
+#include <chronon3d/text/text_definition.hpp>  // F2.D — canonical DTO
 
 namespace chronon3d::content::sequence_v2 {
 
@@ -53,27 +54,27 @@ const AssetRef kPlaceholderImage{
 
 constexpr Color kTextColor{0.94f, 0.95f, 0.98f, 1.0f};
 
-TextSpec title_text(const char* text, f32 size = 80.0f) {
-    return TextSpec{
+/// F2.D — returns canonical TextDefinition instead of TextSpec.
+TextDefinition title_text(const char* text, f32 size = 80.0f) {
+    return TextDefinition{
         .content = {.value = text},
-        .font = {.font_path = kTitleFont.path, .font_size = size},
-        .layout = {.box = {1400.0f, 200.0f}, .align = TextAlign::Center,
-                   .vertical_align = VerticalAlign::Middle,
-                   .line_height = 1.0f, .tracking = 4.0f},
-        .appearance = {.color = kTextColor},
-        .position = {0.0f, 0.0f, 0.0f},
+        .style = {.font = {.font_path = kTitleFont.path, .font_size = size},
+                  .color = kTextColor},
+        .frame = {.size = {1400.0f, 200.0f}, .align = TextAlign::Center,
+                  .vertical_align = VerticalAlign::Middle,
+                  .line_height = 1.0f, .tracking = 4.0f},
     };
 }
 
-TextSpec body_text(const char* text, f32 size = 48.0f) {
-    return TextSpec{
+/// F2.D — returns canonical TextDefinition instead of TextSpec.
+TextDefinition body_text(const char* text, f32 size = 48.0f) {
+    return TextDefinition{
         .content = {.value = text},
-        .font = {.font_path = kTitleFont.path, .font_size = size},
-        .layout = {.box = {1200.0f, 400.0f}, .align = TextAlign::Center,
-                   .vertical_align = VerticalAlign::Middle,
-                   .line_height = 1.1f, .tracking = 2.0f},
-        .appearance = {.color = Color{0.75f, 0.78f, 0.85f, 1.0f}},
-        .position = {0.0f, 0.0f, 0.0f},
+        .style = {.font = {.font_path = kTitleFont.path, .font_size = size},
+                  .color = Color{0.75f, 0.78f, 0.85f, 1.0f}},
+        .frame = {.size = {1200.0f, 400.0f}, .align = TextAlign::Center,
+                  .vertical_align = VerticalAlign::Middle,
+                  .line_height = 1.1f, .tracking = 2.0f},
     };
 }
 

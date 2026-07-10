@@ -1,3 +1,22 @@
+## Luglio 2026 — F2.D Migrate Compositions to TextDefinition (2026-07-10, atomic commit)
+
+### feat(text): F2.D — Migrate content/showcases/ and content/certification/ to TextDefinition
+
+- **F2.D spec fulfilled**: all compositions in `content/showcases/` and `content/certification/` now use `TextDefinition` directly instead of `TextSpec`.
+- **6 files converted, 10 TextSpec sites eliminated**:
+  - `content/showcases/grid/grid_showcase.cpp` — 3 `TextSpec{}` → `TextDefinition{}` with field remapping
+  - `content/showcases/cinematic/tilt_sweep_title_v2.cpp` — 2 `TextSpec{}` → `TextDefinition{}`
+  - `content/showcases/cinematic/catmull_rom_showcase.cpp` — 1 `TextSpec{}` → `TextDefinition{}`
+  - `content/showcases/cinematic/dolly_zoom_showcase.cpp` — 1 `TextSpec{}` → `TextDefinition{}`
+  - `content/showcases/cinematic/cinematic_title_helpers.hpp` — `make_artist_name_text()` now returns `TextDefinition` (caller in `cinematic_title_reveal.cpp` works automatically via F2.C overload)
+  - `content/showcases/sequence-v2/sequence_v2_compositions.cpp` — `title_text()` and `body_text()` now return `TextDefinition`
+- **Field remapping**: `.font` → `.style.font`, `.appearance.color` → `.style.color`, `.layout.box` → `.frame.size`, `.position` → `.frame.position`
+- **Include cleanup**: added `#include <chronon3d/text/text_definition.hpp>` to all 6 files (zero new `builder_params.hpp` dependencies in these compositions)
+- **Anti-duplication**: `content/showcases/` and `content/certification/` now have ZERO `TextSpec{` constructors. All authoring paths produce `TextDefinition`.
+- **Text Simplicity Action Plan**: F2.D complete (eleventh of 17 actions). **Fase 2 — Semplificazione: 4/4 completata (100%)**.
+
+---
+
 ## Luglio 2026 — F2.C text()/text_run()/centered_text()/glow_text()/typewriter_text() Adapter (2026-07-10, atomic commit)
 
 ### feat(text): F2.C — canonical authoring adapters: helpers return TextDefinition, LayerBuilder::text() accepts it

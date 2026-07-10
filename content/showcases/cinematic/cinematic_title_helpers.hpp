@@ -5,6 +5,7 @@
 
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/text/text_definition.hpp>  // F2.D — canonical DTO
 
 namespace chronon3d::content::anims {
 
@@ -13,13 +14,13 @@ namespace chronon3d::content::anims {
 // TiltSweepTitleV2 use Georgia Bold, 118pt, PixelInk centering, 1.0f
 // tracking in a 900×180 box.  The colour defaults to cinematic off-white;
 // V2 overrides it with pure white.
-inline TextSpec make_artist_name_text(const char* name, Color color) {
-    return TextSpec{
+/// F2.D — returns canonical TextDefinition instead of TextSpec.
+inline TextDefinition make_artist_name_text(const char* name, Color color) {
+    return TextDefinition{
         .content = {.value = name},
-        .font = {.font_path = "assets/fonts/Georgia_Bold.ttf", .font_family = "Georgia", .font_weight = 700, .font_size = 118.0f},
-        .layout = {.box = {900.0f, 180.0f}, .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk, .align = TextAlign::Center, .wrap = TextWrap::None, .tracking = 1.0f},
-        .appearance = {.color = color},
-        .position = {0.0f, 0.0f, 0.0f},
+        .style = {.font = {.font_path = "assets/fonts/Georgia_Bold.ttf", .font_family = "Georgia", .font_weight = 700, .font_size = 118.0f},
+                  .color = color},
+        .frame = {.size = {900.0f, 180.0f}, .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk, .align = TextAlign::Center, .wrap = TextWrap::None, .tracking = 1.0f},
     };
 }
 
