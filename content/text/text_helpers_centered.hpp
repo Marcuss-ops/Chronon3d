@@ -69,39 +69,38 @@ inline TextDefinition centered_text(CenterTextOptions o) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 2. glow_text
+// 2. glow_text — DEPRECATED since F2 (2026-07-10)
 // ═════════════════════════════════════════════════════════════════════════════
-
-/// F2.C — canonical authoring helper.  Returns TextDefinition.
-/// Glow parameters are reserved for Phase A.3 TextEffects population.
+//
+// ⚠️ DEPRECATED: use centered_text() + set .effects directly on the returned
+// TextDefinition.  This keeps the glow as a post-compositor TextEffect instead
+// of baking it into the helper function.
+//
+// Migration:
+//   // Before:
+//   auto def = glow_text(opts, glow_color, radius, intensity);
+//   // After:
+//   auto def = centered_text(opts);
+//   def.effects.enabled       = true;
+//   def.effects.glow_color    = glow_color;
+//   def.effects.glow_radius   = radius;
+//   def.effects.glow_intensity = intensity;
+//
+/// F2 — wires glow parameters to TextEffect on the returned TextDefinition.
+/// The glow is applied as a post-compositor effect, matching the Phase A.3
+/// split between TextDefStyle.material (appearance) and TextEffects (compositor).
+[[deprecated("Use centered_text() + set .effects on TextDefinition instead")]]
 inline TextDefinition glow_text(CenterTextOptions o,
-                            Color /*glow_color*/ = {1.0f, 1.0f, 1.0f, 1.0f},
-                            f32 /*radius*/ = 24.0f,
-                            f32 /*intensity*/ = 0.6f) {
-    return from_text_spec(TextSpec{
-        .content    = {.value = std::move(o.text)},
-        .font       = {.font_path   = std::move(o.font_asset),
-                       .font_family = std::move(o.font_family),
-                       .font_weight = o.font_weight,
-                       .font_style  = std::move(o.font_style),
-                       .font_size   = o.font_size},
-        .layout     = {.box            = o.box,
-                       .anchor         = TextAnchor::Center,
-                       .centering_mode = TextCenteringMode::PixelInk,
-                       .align          = TextAlign::Center,
-                       .vertical_align = VerticalAlign::Middle,
-                       .wrap           = TextWrap::Word,
-                       .overflow       = TextOverflow::Clip,
-                       .line_height    = o.line_height,
-                       .tracking       = o.tracking,
-                       .auto_fit       = o.auto_fit,
-                       .min_font_size  = o.min_font_size,
-                       .max_font_size  = o.max_font_size,
-                       .max_lines      = o.max_lines},
-        .appearance = {.color = o.color},
-        .placement  = TextPlacement{
-            TextPlacementKind::Absolute, {o.pos.x, o.pos.y}},
-    });
+                            Color glow_color = {1.0f, 1.0f, 1.0f, 1.0f},
+                            f32 radius = 24.0f,
+                            f32 intensity = 0.6f) {
+    auto def = centered_text(std::move(o));
+    // F2: wire glow parameters to TextEffect (post-compositor surface)
+    def.effects.enabled        = true;
+    def.effects.glow_color     = glow_color;
+    def.effects.glow_radius    = radius;
+    def.effects.glow_intensity = intensity;
+    return def;
 }
 
 } // namespace chronon3d::content::text
