@@ -495,10 +495,10 @@ TEST_CASE("VisualRegression/ScaleExtreme — small + huge dual composition") {
     auto renderer = make_renderer();
     auto tiny = centered_text(make_opts("tiny", 8.0f, Color{0.0f, 0.0f, 0.5f, 1.0f},
                                               Vec2{160.0f, 30.0f}));
-    tiny.frame.position = {-260.0f,  150.0f, 0.0f};  // PR-A3 fix F: NW anchor — avoids overlap with huge
+    tiny.frame.placement = TextPlacement{TextPlacementKind::Absolute, {-260.0f, 150.0f}};  // PR-A3 fix F: NW anchor
     auto huge = centered_text(make_opts("HUGE", 220.0f, Color{0.86f, 0.08f, 0.24f, 1.0f},
                                               Vec2{kVW * 0.95f, kVH * 0.95f}));
-    huge.frame.position = { 260.0f, -100.0f, 0.0f};  // PR-A3 fix F: SE anchor; huge 480→220 (fix E) to fit 760×510 box
+    huge.frame.placement = TextPlacement{TextPlacementKind::Absolute, {260.0f, -100.0f}};  // PR-A3 fix F: SE anchor
     auto comp = composition(
         {.name = "VR_ScaleExtreme", .width = kVW, .height = kVH, .duration = 1},
         [tiny, huge](const FrameContext& ctx) {
