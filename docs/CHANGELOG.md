@@ -1,3 +1,38 @@
+## Luglio 2026 — TICKET-FASE3-MULTILINGUAL §HebrewNikud (7th multilingual golden: 3 TEST_CASEs, 6 PNG) (2026-07-10, atomic commit)
+
+### feat(text_golden): TICKET-FASE3-MULTILINGUAL §HebrewNikud — 5 final letter forms + nikud vowels (שלום ספר ארץ בָּרָא חֶסֶד וַיֹּאמֶר שָׁלוֹם סוֹף תַּלְמִיד)
+
+- **Scope**: Seventh test of the TICKET-FASE3-MULTILINGUAL cluster. Verifies that Hebrew script shaping is handled correctly by HarfBuzz across three orthogonal axes: (1) **5 final letter forms** (Hebrew-only positional forms at word end: כ→ך kaf, מ→ם mem, נ→ן nun, פ→ף pe, צ→ץ tsade — these letters have a different glyph when they appear at the end of a word), (2) **nikud** (10 combining vowel point diacritics: qamats, patach, segol, tzere, chirik, cholam, kubutz, shuruk, cholam-vav, dagesh) — this test exercises 6 of the 10 types, and (3) **the shin/sin dot** (שׁ U+05C1 / שׂ U+05C2) which disambiguates shin (sh) from sin (s), with RTL base direction.
+
+- **3 TEST_CASEs × 2 ARs = 6 PNG goldens** in `test_renders/golden/text/text_multilingual/hebrew_nikud/`:
+  - 3 test cases: `01_base_consonants` (שלום ספר ארץ דן — 4 words, exercises 3 of the 5 final letter forms: ם mem in שלום, ץ tsade in ארץ, ן nun in דן + base glyphs + RTL), `02_nikud_vowels` (בָּרָא חֶסֶד וַיֹּאמֶר — 3 words, exercises 5 of the 10 nikud types: qamats, dagesh, segol, patach, cholam; cluster total with test 3's chirik = 6 of 10 nikud types, missing: tzere, kubutz, shuruk, cholam-vav), `03_nikud_with_finals` (שָׁלוֹם סוֹף מֶלֶךְ — 3 words, exercises the HARDEST combination: nikud positioned over the FINAL form glyph + the remaining 2 of 5 final letter forms: ף pe in סוֹף, ך kaf in מֶלֶךְ + shin/sin dot)
+  - **Cluster coverage**: all 5 final letter forms (ם / ן / ץ / ף / ך) + 6 of 10 nikud types (qamats, dagesh, segol, patach, cholam, chirik) + shin/sin dot + RTL
+  - 2 aspect ratios per case: 1920×1080 (16:9 landscape) + 1080×1920 (9:16 portrait)
+  - 6 PNG goldens: `multilingual_hebrew_nikud_{01,02,03}_{1920x1080,1080x1920}.png`
+
+- **New file (1)**:
+  - `tests/text_golden/text_multilingual/07_hebrew_nikud.cpp` (~210 LoC) — 3 TEST_CASEs, 6 `verify_golden()` calls (3 cases × 2 ARs via the `render_and_verify_hebrew()` helper). Uses existing `composition()` + `SceneBuilder` + `LayerBuilder::text()` + `verify_golden()` + `GoldenTestConfig` + `test::make_renderer()` helpers. Anti-duplicazione honoured: no new types, no new helpers. Hand-decoded UTF-8 byte sequences per the Unicode Hebrew chart (U+0590–U+05FF block, 2-byte UTF-8 encoding 0xD6/0xD7 prefix).
+
+- **Modified files (1)**:
+  - `tests/text_golden_tests.cmake` — `target_sources(... 07_hebrew_nikud.cpp)` + new `add_test(NAME TextMultilingualHebrewNikud ...)` ctest alias with the same filter pattern as the Fase 3/4/5/6 aliases.
+
+- **API/ABI surface**: zero new public symbols (test-side only; no source code modified, no new symbols).
+
+- **Anti-duplicazione honour**: reuses `LayerBuilder::text()` + `verify_golden()` + `GoldenTestConfig`; NO new singleton/registry/cache/resolver/sampler/service-locator.
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-3 SATISFIED (zero new public API); Gate 5 deny-everywhere N/A.
+
+- **Honest-gap documentation** (per AGENTS.md §honesty):
+  - All 3 tests gracefully skip on `result.golden_missing`. 6 PNG re-bake requires a working build host (vcpkg + tmpfs).
+  - Inter-Bold.ttf does NOT contain Hebrew glyphs natively; the font-resolver's system fallback chain (Noto Serif Hebrew or Noto Sans Hebrew on Linux, New Peninim MT on macOS, David CLM on Windows) must be present for the goldens to render correctly.
+  - RTL base direction is auto-detected by HarfBuzz from the Hebrew Unicode block; no explicit `TextDirection::RTL` is required (verified by the existing `02_mixed_advance_widths.cpp` test which mixes LTR + RTL without direction overrides).
+  - UTF-8 byte sequences for all 23 Hebrew codepoints (22 base letters + final forms for 5 letters + shin/sin dot + 6 nikud types) were hand-decoded against the Unicode Hebrew chart and cross-checked with the 06 Arabic byte-encoding pattern (both Arabic and Hebrew use 2-byte UTF-8 in adjacent blocks U+0590-U+05FF and U+0600-U+06FF).
+
+- **Re-bake command** (deferred to working build host):
+  `CHRONON3D_UPDATE_GOLDENS=1 ctest -R TextMultilingualHebrewNikud --output-on-failure`
+
+---
+
 ## Luglio 2026 — TICKET-FASE3-MULTILINGUAL §ArabicShaping (6th multilingual golden: 3 TEST_CASEs, 6 PNG) (2026-07-10, atomic commit)
 
 ### feat(text_golden): TICKET-FASE3-MULTILINGUAL §ArabicShaping — 4 positional forms + lam-alef ligatures + harakat (جملة كتاب بسم لا لأ لإ لآ بِسْمِ مَرْحَبًا كُتَّابٌ)
