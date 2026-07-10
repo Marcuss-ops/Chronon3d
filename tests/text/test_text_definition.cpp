@@ -20,7 +20,8 @@
 //  10. TextSpanOverride — authoring-level span overrides are independent
 //  12. to_text_document() — Phase B: TextDefinition → TextDocument lowering
 //  13. Full convergence: centered_text() → to_text_document() → TextDocument
-//  14. Determinism — same input always produces same output
+//  14. text_run() convergence — TextDefinition → TextRunSpec → from_text_run_spec()
+//  15. Determinism — same input always produces same output
 //
 // Phase B (implemented): to_text_document() lowers the canonical TextDefinition
 // into a TextDocument for compile_text_layout().  The full convergence chain is:
@@ -1056,7 +1057,168 @@ TEST_CASE("to_text_document: deterministic across repeated calls") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 14. Determinism — same input always produces same output
+// 14. text_run() convergence — TextDefinition → TextRunSpec → from_text_run_spec()
+// ═══════════════════════════════════════════════════════════════════════════
+// Verifies that LayerBuilder::text_run(name, TextDefinition) — which internally
+// does TextDefinition → from_text_definition() → TextSpec → TextRunSpec →
+// text_run(name, TextRunSpec) — preserves all authored values through the
+// full adapter chain.  We test at the adapter level (not through LayerBuilder)
+// because the builder requires heavy scene/registry dependencies.
+
+TEST_CASE("text_run convergence: TextDefinition → TextRunSpec → from_text_run_spec round-trip") {
+    // Simulate what LayerBuilder::text_run(name, TextDefinition) does:
+    //   TextRunSpec run;
+    //   run.text = from_text_definition(def);
+    //   text_run(name, std::move(run));
+    //
+    // Then verify from_text_run_spec(run) produces the same TextDefinition.
+    TextDefinition original;
+    original.content.value = "TEXT_RUN_ADAPTER";
+    original.style.font = {.font_path = "fonts/Adapter.ttf", .font_family = "Adapter",
+                           .font_weight = 600, .font_size = 72.0f};
+    original.frame.size = {1200.0f, 240.0f};
+    original.frame.anchor = TextAnchor::Center;
+    original.frame.align = TextAlign::Center;
+    original.frame.tracking = 1.5f;
+    original.frame.max_lines = 2;
+    original.style.color = Color{0.3f, 0.7f, 0.9f, 1.0f};
+    original.frame.position = {400.0f, 300.0f, 2.0f};
+
+    // Step 1: TextDefinition → TextSpec (what text_run(name, TextDefinition) does)
+    TextSpec spec = from_text_definition(original);
+    // Step 2: TextSpec → TextRunSpec (wrapping)
+    TextRunSpec run;
+    run.text = std::move(spec);
+    // Step 3: TextRunSpec → TextDefinition (reverse via from_text_run_spec)
+    auto restored = from_text_run_spec(run);
+
+    // All authored values must survive the full round-trip
+    CHECK(restored.content.value == "TEXT_RUN_ADAPTER");
+    CHECK(restored.style.font.font_path   == "fonts/Adapter.ttf");
+    CHECK(restored.style.font.font_family == "Adapter");
+    CHECK(restored.style.font.font_weight == 600);
+    CHECK(restored.style.font.font_size   == doctest::Approx(72.0f));
+    CHECK(restored.frame.size.x     == doctest::Approx(1200.0f));
+    CHECK(restored.frame.size.y     == doctest::Approx(240.0f));
+    CHECK(restored.frame.anchor     == TextAnchor::Center);
+    CHECK(restored.frame.align      == TextAlign::Center);
+    CHECK(restored.frame.tracking   == doctest::Approx(1.5f));
+    CHECK(restored.frame.max_lines  == 2);
+    CHECK(restored.style.color.r    == doctest::Approx(0.3f));
+    CHECK(restored.style.color.g    == doctest::Approx(0.7f));
+    CHECK(restored.style.color.b    == doctest::Approx(0.9f));
+    CHECK(restored.frame.position.x == doctest::Approx(400.0f));
+    CHECK(restored.frame.position.y == doctest::Approx(300.0f));
+    CHECK(restored.frame.position.z == doctest::Approx(2.0f));
+}
+
+TEST_CASE("text_run convergence: centered_text → from_text_definition → TextRunSpec → from_text_run_spec") {
+    // Full chain: centered_text() → TextDefinition → from_text_definition() →
+    // TextSpec → TextRunSpec → from_text_run_spec() → TextDefinition
+    // This is the adapter-level path that LayerBuilder::text_run(name, TextDefinition)
+    // uses internally.
+    CenterTextOptions opts;
+    opts.text        = "CENTERED_RUN";
+    opts.box         = {1000.0f, 200.0f};
+    opts.pos         = {500.0f, 300.0f, 0.0f};
+    opts.font_asset  = "fonts/Run.ttf";
+    opts.font_family = "Run";
+    opts.font_weight = 700;
+    opts.font_size   = 80.0f;
+    opts.tracking    = 2.0f;
+    opts.color       = Color{0.5f, 0.5f, 0.5f, 1.0f};
+
+    auto def = centered_text(opts);
+
+    // Simulate text_run(name, def) adapter path
+    TextRunSpec run;
+    run.text = from_text_definition(def);
+    auto restored = from_text_run_spec(run);
+
+    CHECK(restored.content.value == "CENTERED_RUN");
+    CHECK(restored.style.font.font_path   == "fonts/Run.ttf");
+    CHECK(restored.style.font.font_family == "Run");
+    CHECK(restored.style.font.font_weight == 700);
+    CHECK(restored.style.font.font_size   == doctest::Approx(80.0f));
+    CHECK(restored.frame.size.x     == doctest::Approx(1000.0f));
+    CHECK(restored.frame.size.y     == doctest::Approx(200.0f));
+    CHECK(restored.frame.anchor     == TextAnchor::Center);
+    CHECK(restored.frame.tracking   == doctest::Approx(2.0f));
+    CHECK(restored.frame.position.x == doctest::Approx(500.0f));
+    CHECK(restored.frame.position.y == doctest::Approx(300.0f));
+    CHECK(restored.style.color.r    == doctest::Approx(0.5f));
+}
+
+TEST_CASE("text_run convergence: glow_text → from_text_definition → TextRunSpec → from_text_run_spec") {
+    // Full chain: glow_text() → TextDefinition → from_text_definition() →
+    // TextSpec → TextRunSpec → from_text_run_spec() → TextDefinition
+    CenterTextOptions opts;
+    opts.text      = "GLOW_RUN";
+    opts.box       = {1200.0f, 240.0f};
+    opts.font_size = 72.0f;
+    opts.color     = Color{1.0f, 0.5f, 0.0f, 1.0f};
+
+    auto def = glow_text(opts, Color{1.0f, 1.0f, 0.0f, 1.0f}, 30.0f, 0.8f);
+
+    TextRunSpec run;
+    run.text = from_text_definition(def);
+    auto restored = from_text_run_spec(run);
+
+    CHECK(restored.content.value == "GLOW_RUN");
+    CHECK(restored.style.font.font_size == doctest::Approx(72.0f));
+    CHECK(restored.frame.size.x  == doctest::Approx(1200.0f));
+    CHECK(restored.frame.size.y  == doctest::Approx(240.0f));
+    CHECK(restored.frame.anchor  == TextAnchor::Center);
+    CHECK(restored.style.color.r == doctest::Approx(1.0f));
+    CHECK(restored.style.color.g == doctest::Approx(0.5f));
+    CHECK(restored.style.color.b == doctest::Approx(0.0f));
+}
+
+TEST_CASE("text_run convergence: typewriter_text → from_text_definition → TextRunSpec → from_text_run_spec") {
+    // Full chain: typewriter_text() → TextDefinition → from_text_definition() →
+    // TextSpec → TextRunSpec → from_text_run_spec() → TextDefinition
+    CenterTextOptions opts;
+    opts.text      = "TYPEWRITER_RUN";
+    opts.box       = {800.0f, 200.0f};
+    opts.font_size = 48.0f;
+    opts.color     = Color::white();
+
+    auto def = typewriter_text(opts, Frame{1000}, 1.0f);
+
+    TextRunSpec run;
+    run.text = from_text_definition(def);
+    auto restored = from_text_run_spec(run);
+
+    CHECK(restored.content.value == "TYPEWRITER_RUN");
+    CHECK(restored.style.font.font_size == doctest::Approx(48.0f));
+    CHECK(restored.frame.size.x  == doctest::Approx(800.0f));
+    CHECK(restored.frame.size.y  == doctest::Approx(200.0f));
+    CHECK(restored.frame.anchor  == TextAnchor::Center);
+    CHECK(restored.frame.align   == TextAlign::Center);
+    CHECK(restored.style.color.a == doctest::Approx(1.0f));  // full opacity at frame 1000
+}
+
+TEST_CASE("text_run convergence: TextRunSpec direction/language preserved in spec (not in TextDefinition yet)") {
+    // TextRunSpec carries direction/language that TextDefinition doesn't map yet
+    // (Phase A.3 placeholder).  This test verifies that the TextSpec portion
+    // round-trips correctly even when TextRunSpec carries extra fields.
+    TextRunSpec run;
+    run.text.content.value = "RTL_TEXT";
+    run.text.font.font_size = 48.0f;
+    run.direction = TextDirection::RTL;
+    run.language = "ar";
+
+    auto def = from_text_run_spec(run);
+
+    // TextSpec fields must be correct
+    CHECK(def.content.value == "RTL_TEXT");
+    CHECK(def.style.font.font_size == doctest::Approx(48.0f));
+    // direction/language are not mapped to TextDefinition yet (Phase A.3)
+    // — but the adapter must not crash.
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 15. Determinism — same input always produces same output
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("from_text_spec: deterministic across repeated calls") {
