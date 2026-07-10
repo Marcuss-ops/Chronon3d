@@ -141,7 +141,9 @@ Composition build_static_fill_stroke_composition(SoftwareRenderer& renderer,
                                    .paint = {.stroke_enabled = true,
                                               .stroke_color = Color{0.2f, 0.6f, 1.0f, 1.0f},
                                               .stroke_width = 3.0f}},
-                    .position = {d.width * 0.5f, d.height * 0.5f, 0.0f}
+                    .placement = TextPlacement{
+                        TextPlacementKind::Absolute,
+                        {d.width * 0.5f, d.height * 0.5f}}
                 });
             });
             return s.build();

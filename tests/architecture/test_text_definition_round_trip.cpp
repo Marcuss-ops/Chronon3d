@@ -96,7 +96,7 @@ namespace test {
     };
 
     // ── position (1 field) ──────────────────────────────────────────────
-    spec.position = Vec3{100.0f, 200.0f, 0.0f};  // non-default
+    spec.placement = TextPlacement{TextPlacementKind::Absolute, {100.0f, 200.0f}};  // non-default
 
     return spec;
 }
@@ -233,9 +233,9 @@ TEST_CASE("TICKET-SIMPLICITY-PIPELINE-PARITY: TextSpec ↔ TextDefinition round-
 
     // ── Position (1 field, 3 components) ────────────────────────────────
     SUBCASE("position") {
-        CHECK(roundtripped.position.x == doctest::Approx(original.position.x));
-        CHECK(roundtripped.position.y == doctest::Approx(original.position.y));
-        CHECK(roundtripped.position.z == doctest::Approx(original.position.z));
+        CHECK(roundtripped.placement.offset.x == doctest::Approx(original.placement.offset.x));
+        CHECK(roundtripped.placement.offset.y == doctest::Approx(original.placement.offset.y));
+        // F1: z dropped from TextSpec.position — placement.offset is Vec2 only
     }
 }
 
@@ -303,9 +303,9 @@ TEST_CASE("TICKET-SIMPLICITY-PIPELINE-PARITY: adapter paths converge on identica
     CHECK(adapter_path.appearance.paint.stroke_enabled == original.appearance.paint.stroke_enabled);
 
     // Position identity
-    CHECK(adapter_path.position.x == doctest::Approx(original.position.x));
-    CHECK(adapter_path.position.y == doctest::Approx(original.position.y));
-    CHECK(adapter_path.position.z == doctest::Approx(original.position.z));
+    CHECK(adapter_path.placement.offset.x == doctest::Approx(original.placement.offset.x));
+    CHECK(adapter_path.placement.offset.y == doctest::Approx(original.placement.offset.y));
+    // F1: z dropped from TextSpec.position — placement.offset is Vec2 only
 }
 
 }  // namespace test
