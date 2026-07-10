@@ -57,6 +57,7 @@ Risultato del sweep (97 tuple in 10 ADR):
 
 La soluzione completa è articolata in **3 sotto-task**:
 1. Per ogni DUPLICATE_TARGET produrre un commit atomico che mantiene la cite col contesto narrativo più ricco e rimuove le cite ridondanti (consolidando inline il info payload); subject convention `docs(adr): ADR-NNN inline-one SHA cite (de-dup COMMIT_SHA)`.
+   - For forward-points whose SHA appears in non-trivial wrapping (backticks, em-dashes, smart-quotes), prefer Python byte-equality replace over sed — saves the 3-cycle silent-failure tax demonstrated by ADR-001 / 9f9af90e.
 2. Per EXEMPT_SPECIAL_CASE (ADR-015, ADR-016) aggiungere una nota in §References footer del ADR che dichiara la giustificazione dell'exemption + cross-link a questo ticket.
 3. Macchina-verifica finale a 0 (file, sha7) pair con >1 occorrenza.
 
