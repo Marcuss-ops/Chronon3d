@@ -128,6 +128,16 @@ struct ResolvedTextPlacement {
     TextAnchor resolved_anchor{TextAnchor::Center};
 };
 
+// ── Forward decl — resolve_text_placement called by TextPlacementResolver ──
+// (Full declaration + doc-comment follows after the class.)
+[[nodiscard]] ResolvedTextPlacement resolve_text_placement(
+    const CanvasInfo& canvas,
+    Vec2 box_size,
+    TextPlacement placement,
+    TextAnchor anchor,
+    const Mat4& layer_matrix
+);
+
 // ── TextPlacementResolver — class-based resolver surface (Phase A.3) ─────
 //
 // Phase A.3 spec asks for a `TextPlacementResolver` class wrapping the
