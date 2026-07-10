@@ -205,3 +205,6 @@ tests/golden/ae_parity/diff/
 reference/chronon3d/*.png
 tools/telemetry_dashboard/.vite/
 .ccache/
+
+# Build output directory (chronon-builds artifacts)
+.tmp/
