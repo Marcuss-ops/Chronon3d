@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # tools/check_architecture_boundaries.sh
 # ─────────────────────────────────────────────────────────────────────
-# WP-0 (PR 0.2 / 0.5 close-out) + F3.1 phase B + ADR-010 + Phase-A1 + Phase-A3 —
-# Architecture boundary grep + semantic checks (19 total).
+# WP-0 (PR 0.2 / 0.5 close-out) + F3.1 phase B + ADR-010 + Phase-A1 + Phase-A3 +
+# Phase-A4 — Architecture boundary grep + semantic checks (20 total).
 #
 # Verifies that headers / symbols retired in prior refactors have not been
 # accidentally re-introduced.  Every check runs linearly before the summary
@@ -46,6 +46,8 @@
 #        (asset_readiness_v2.hpp always-green stubs + accumulate_preflight_result)
 #  19. TextSpec::offset RETIRED              — Phase A3 close-out
 #        (dual-channel placement pattern: spec.placement.offset is canonical)
+#  20. TextFrame consolidated placement      — Phase A4 close-out
+#        (TextFrame.{position,placement_kind,offset} → TextPlacement placement)
 #
 # Wired into:
 #   - CI:     .github/workflows/gates.yml (Gate 5 / architecture-check)
@@ -115,7 +117,7 @@ filter_symbol_in_code_only() {
     '
 }
 
-echo "=== Architecture boundary grep + semantic checks (WP-0 / F3.1 / P1-4 / Phase-A1 / Phase-A3 — 19 checks) ==="
+echo "=== Architecture boundary grep + semantic checks (WP-0 / F3.1 / P1-4 / Phase-A1 / Phase-A3 / Phase-A4 \u2014 20 checks) ==="
 
 # ── 1. core/memory/render_session.hpp ─────────────────────────────────
 # Split into runtime/render_session.hpp + software_session_resources.hpp
@@ -574,6 +576,31 @@ if [ -n "$hits" ]; then
     echo "  → Migrate to \`spec.placement.offset\` (bundled with"
     echo "    TextPlacement.kind). GlyphSelectorSpec::offset is exempt"
     echo "    (animation phase shift)."
+    FAILED=1
+else echo "PASS"; fi
+
+# ── 20. TextFrame consolidated placement (Phase A4 close-out) ──────────────────────────────────────────
+# After Phase A4 the TextFrame triple of `Vec3 position` + `TextPlacementKind
+# placement_kind` + `Vec2 offset` is replaced by a single `TextPlacement
+# placement` field bundling kind + offset. The render pipeline was always 2D
+# (resolve_text_placement() ignores frame.position.z). This gate forbids the
+# re-introduction of the desync-prone triple representation.
+#
+# Scope: any structural read or write of `frame.position`, `frame.placement_kind`
+# or `frame.offset` in include/ src/ tests/ apps/ — comment-only mentions are
+# stripped by `filter_symbol_in_code_only` (same as gates #6/#7/#18/#19).
+echo -n "  [20/20] TextFrame consolidated           ... "
+hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+    -E '\bframe\.(position|placement_kind|offset)\b' $SCRIPT_PATHS 2>/dev/null \
+    | filter_symbol_in_code_only '\bframe\.(position|placement_kind|offset)\b' \
+    || true)
+if [ -n "$hits" ]; then
+    echo "FAIL"
+    echo "  TextFrame placement triple re-introduced (Phase A4 closed it):"
+    echo "$hits" | sed 's/^/    /'
+    echo "  → Migrate to \`frame.placement\` (TextPlacement struct:"
+    echo "    kind + offset bundled). The z component of the old Vec3 position"
+    echo "    was never consumed by resolve_text_placement() and is dropped."
     FAILED=1
 else echo "PASS"; fi
 

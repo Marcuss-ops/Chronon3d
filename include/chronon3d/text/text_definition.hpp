@@ -163,16 +163,12 @@ struct TextFrame {
     /// Layout box size in canvas pixels (maps to TextSpec::layout.box).
     Vec2 size{900.0f, 160.0f};
 
-    /// Position in canvas space (maps to TextSpec::position).
-    Vec3 position{};
-
-    /// Placement semantics (F3: preserved from TextSpec.placement.kind
-    /// for lossless round-trip TextSpec ↔ TextDefinition).
-    TextPlacementKind placement_kind{TextPlacementKind::Absolute};
-
-    /// Placement-pin offset (authoring-side; NOT mirrored in TextSpec).
-    /// Populate via .place(...).offset(...) or directly via def.frame.offset.
-    Vec2 offset{};
+    /// Canonical placement semantics + 2D pin offset (the F3 lossless
+    /// round-trip channel; replaces the redundant Vec3 position +
+    /// TextPlacementKind + Vec2 offset triple). Depth (TextSpec's old
+    /// position.z) is intentionally not preserved — the render pipeline
+    /// operates on 2D pin coordinates via resolve_text_placement().
+    TextPlacement placement{TextPlacementKind::Absolute};
 
     /// Anchor point for positioning (maps to TextSpec::layout.anchor).
     TextAnchor anchor{TextAnchor::Center};

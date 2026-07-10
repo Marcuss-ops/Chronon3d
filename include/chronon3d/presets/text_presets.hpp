@@ -50,7 +50,7 @@ inline TextDefinition title_preset(std::string text) {
         .radius = 12.0f,
     }};
     def.frame.size           = Vec2{1920.0f, 200.0f};
-    def.frame.position       = Vec3{960.0f, 540.0f, 0.0f};
+    def.frame.placement      = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}};
     def.frame.anchor         = TextAnchor::Center;
     def.frame.align          = TextAlign::Center;
     def.frame.vertical_align = VerticalAlign::Middle;
@@ -87,7 +87,7 @@ inline TextDefinition subtitle_preset(std::string text) {
         .radius     = 8.0f,
     };
     def.frame.size           = Vec2{1200.0f, 80.0f};
-    def.frame.position       = Vec3{960.0f, 620.0f, 0.0f};
+    def.frame.placement      = TextPlacement{TextPlacementKind::Absolute, {960.0f, 620.0f}};
     def.frame.anchor         = TextAnchor::Center;
     def.frame.align          = TextAlign::Center;
     def.frame.vertical_align = VerticalAlign::Middle;
@@ -118,7 +118,7 @@ inline TextDefinition caption_preset(std::string text) {
     };
     def.style.color         = Color{1.0f, 1.0f, 1.0f, 0.65f};
     def.frame.size           = Vec2{1920.0f, 40.0f};
-    def.frame.position       = Vec3{960.0f, 1040.0f, 0.0f};
+    def.frame.placement      = TextPlacement{TextPlacementKind::Absolute, {960.0f, 1040.0f}};
     def.frame.anchor         = TextAnchor::Center;
     def.frame.align          = TextAlign::Center;
     def.frame.vertical_align = VerticalAlign::Middle;
@@ -166,7 +166,7 @@ inline TextDefinition kinetic_hero_preset(std::string text) {
         },
     };
     def.frame.size           = Vec2{1800.0f, 280.0f};
-    def.frame.position       = Vec3{960.0f, 500.0f, 0.0f};
+    def.frame.placement      = TextPlacement{TextPlacementKind::Absolute, {960.0f, 500.0f}};
     def.frame.anchor         = TextAnchor::Center;
     def.frame.align          = TextAlign::Center;
     def.frame.vertical_align = VerticalAlign::Middle;
@@ -203,7 +203,7 @@ inline TextDefinition lower_third_preset(std::string text) {
         .radius     = 6.0f,
     };
     def.frame.size           = Vec2{800.0f, 60.0f};
-    def.frame.position       = Vec3{80.0f, 960.0f, 0.0f};
+    def.frame.placement      = TextPlacement{TextPlacementKind::Absolute, {80.0f, 960.0f}};
     def.frame.anchor         = TextAnchor::TopLeft;
     def.frame.align          = TextAlign::Left;
     def.frame.vertical_align = VerticalAlign::Middle;
