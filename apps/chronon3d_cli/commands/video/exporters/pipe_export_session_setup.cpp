@@ -8,7 +8,7 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/assets/asset_preflight_resolver.hpp>
-#include "../../../cli_init.hpp"
+
 
 #include <spdlog/spdlog.h>
 #include <filesystem>
@@ -74,11 +74,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         track_pipe_encoder_process(opts, *session->encoder, session->sys_metrics);
     }
 
-    // ── Mount assets ────────────────────────────────────────────────────
-    // Mount current working directory as asset root so relative asset paths
-    // (fonts, images, etc.) resolve correctly — mirrors render_job_setup.
-    auto& assets = cli_asset_registry();
-    assets.mount(std::filesystem::current_path());
+    // NOTE: asset mounting (CWD) is handled per-renderer inside
+    // create_renderer() (cli_render_utils.cpp) which mounts CWD on both
+    // renderer->runtime().assets() and renderer->runtime().resolver().
+    // The old cli_asset_registry().mount(CWD) here was a redundant
+    // global mutable mount removed in the P1-A refactor.
 
     // ── Create renderer ──────────────────────────────────────────────────
     const auto renderer_t0 = profiling::now();
