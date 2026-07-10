@@ -64,7 +64,7 @@ using namespace chronon3d::testing::cinematic_cfg;
 TEST_CASE("AGENT4: A4.5 contact sheet 3x2 to output/showcase/contact_sheet.png") {
     if (g_runtime.skip_contact_sheet) {
 #if defined(AGENT4_HAS_DOCTEST_SKIP) && AGENT4_HAS_DOCTEST_SKIP
-        DOCTEST_SKIP("A4.5 — contact sheet skipped (smoke mode: "
+        DOCTEST_SKIP("[TICKET-A4] A4.5 — contact sheet skipped (smoke mode: "
                      "CHRONON3D_CINEMATIC_FRAME_COUNT=" << g_runtime.frame_count
                      << " < 6). Render via nightly-visual workflow "
                      "(.github/workflows/nightly-visual.yml) for the full 5760×2160 grid.");
@@ -134,7 +134,7 @@ TEST_CASE("AGENT4: A4.6 performance telemetry") {
     const bool perf_opt_in = perf_opt_in_from_env();
     if (g_runtime.smoke_mode && !perf_opt_in) {
 #if defined(AGENT4_HAS_DOCTEST_SKIP) && AGENT4_HAS_DOCTEST_SKIP
-        DOCTEST_SKIP("A4.6 — telemetry skipped (smoke mode without "
+        DOCTEST_SKIP("[TICKET-A4] A4.6 — telemetry skipped (smoke mode without "
                      "CHRONON3D_CINEMATIC_PERF=1). "
                      "Nightly-visual workflow (workflow_dispatch + cron) "
                      "runs the full envelope.");
