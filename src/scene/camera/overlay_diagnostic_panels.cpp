@@ -44,7 +44,7 @@ void draw_diagnostic_overlay(
             .color = cc,
             .pos   = {center.x, center.y, 0.0f}
         });
-        l.text("diag_center_lbl", TextSpec{.content = {.value = "(SCREEN)"}, .font = {.font_size = 8.0f}, .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 0.15f}}, .position = {center.x + 20.0f, center.y + 4.0f, 0.0f}});
+        l.text("diag_center_lbl", TextSpec{.content = {.value = "(SCREEN)"}, .font = {.font_size = 8.0f}, .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 0.15f}}, .placement = {TextPlacementKind::Absolute}, .offset = {center.x + 20.0f, center.y + 4.0f}});
     }
 
     // ── 2. Target marker (coloured by deviation) ──────────────────────
@@ -92,7 +92,7 @@ void draw_diagnostic_overlay(
                 // Error text
                 std::ostringstream oss;
                 oss << std::fixed << std::setprecision(1) << err << " px";
-                l.text("diag_target_err", TextSpec{.content = {.value = oss.str()}, .font = {.font_size = 10.0f}, .appearance = {.color = tc}, .position = {sp.position.x + 22.0f, sp.position.y + 6.0f, 0.0f}});
+                l.text("diag_target_err", TextSpec{.content = {.value = oss.str()}, .font = {.font_size = 10.0f}, .appearance = {.color = tc}, .placement = {TextPlacementKind::Absolute}, .offset = {sp.position.x + 22.0f, sp.position.y + 6.0f}});
             }
         }
     }
@@ -115,10 +115,10 @@ void draw_diagnostic_overlay(
                 .to   = {sp_tip.position.x, sp_tip.position.y, 0.0f},
                 .thickness = 2.0f, .color = col
             });
-            l.text(std::string("diag_axis_lbl_") + id, TextSpec{.content = {.value = label}, .font = {.font_size = 11.0f}, .appearance = {.color = col}, .position = {sp_tip.position.x + 4.0f, sp_tip.position.y + 4.0f, 0.0f}});
+            l.text(std::string("diag_axis_lbl_") + id, TextSpec{.content = {.value = label}, .font = {.font_size = 11.0f}, .appearance = {.color = col}, .placement = {TextPlacementKind::Absolute}, .offset = {sp_tip.position.x + 4.0f, sp_tip.position.y + 4.0f}});
         };
 
-        l.text("diag_axes_lbl", TextSpec{.content = {.value = "(WORLD)"}, .font = {.font_size = 8.0f}, .appearance = {.color = Color{0.5f, 0.5f, 0.5f, 0.15f}}, .position = {center.x + 20.0f, center.y - 12.0f, 0.0f}});
+        l.text("diag_axes_lbl", TextSpec{.content = {.value = "(WORLD)"}, .font = {.font_size = 8.0f}, .appearance = {.color = Color{0.5f, 0.5f, 0.5f, 0.15f}}, .placement = {TextPlacementKind::Absolute}, .offset = {center.x + 20.0f, center.y - 12.0f}});
         draw_axis("X", pose.right(),   Color{1.0f, 0.25f, 0.25f, 0.85f}, "X");
         draw_axis("Y", pose.up(),      Color{0.25f, 1.0f, 0.25f, 0.85f}, "Y");
         draw_axis("Z", pose.forward(), Color{0.25f, 0.40f, 1.0f, 0.85f}, "Z");
@@ -146,7 +146,7 @@ void draw_diagnostic_overlay(
             oss << lr.name << "  " << std::fixed << std::setprecision(0)
                 << (lr.bounds.visible_ratio * 100.0f) << "%";
             if (!lr.passed) oss << " FAIL";
-            l.text("diag_bbox_lbl_" + std::to_string(idx), TextSpec{.content = {.value = oss.str()}, .font = {.font_size = 10.0f}, .appearance = {.color = bc}, .position = {lr.bounds.min.x + 4.0f, lr.bounds.min.y + 14.0f, 0.0f}});
+            l.text("diag_bbox_lbl_" + std::to_string(idx), TextSpec{.content = {.value = oss.str()}, .font = {.font_size = 10.0f}, .appearance = {.color = bc}, .placement = {TextPlacementKind::Absolute}, .offset = {lr.bounds.min.x + 4.0f, lr.bounds.min.y + 14.0f}});
             idx++;
         }
     }
@@ -158,7 +158,7 @@ void draw_diagnostic_overlay(
         const float line_h  = 18.0f;
 
         auto draw_line = [&](const std::string& text, const Color& col = Color{1,1,1,1}) {
-            l.text("diag_metric_" + std::to_string(static_cast<int>(panel_y)), TextSpec{.content = {.value = text}, .font = {.font_size = 13.0f}, .layout = {.align = TextAlign::Left}, .appearance = {.color = col}, .position = {panel_x, panel_y, 0.0f}});
+            l.text("diag_metric_" + std::to_string(static_cast<int>(panel_y)), TextSpec{.content = {.value = text}, .font = {.font_size = 13.0f}, .layout = {.align = TextAlign::Left}, .appearance = {.color = col}, .placement = {TextPlacementKind::Absolute}, .offset = {panel_x, panel_y}});
             panel_y += line_h;
         };
 

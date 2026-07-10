@@ -38,7 +38,7 @@ Composition camera_near_plane_crossing_test() {
                                   .font = {.font_size = 18.0f},
                                   .layout = {.align = TextAlign::Center},
                                   .appearance = {.color = {0.75f, 0.85f, 1.0f, 0.85f}},
-                                  .position = {0.0f, -4.0f, 0.1f}
+                                  .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, -4.0f}
                               });
         });
 
@@ -73,7 +73,7 @@ Composition camera_near_plane_crossing_test() {
                                     .font = {.font_size = 16.0f},
                                     .layout = {.align = TextAlign::Center},
                                     .appearance = {.color = {1.0f, 1.0f, 1.0f, 0.9f}},
-                                    .position = {0.0f, -4.0f, 0.1f}
+                                    .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, -4.0f}
                                 });
 
             // Depth zone label
@@ -86,7 +86,7 @@ Composition camera_near_plane_crossing_test() {
                                    .font = {.font_size = 11.0f},
                                    .layout = {.align = TextAlign::Center},
                                    .appearance = {.color = {1.0f, 1.0f, 1.0f, 0.6f}},
-                                   .position = {0.0f, 18.0f, 0.1f}
+                                   .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 18.0f}
                                });
         });
 
@@ -100,7 +100,7 @@ Composition camera_near_plane_crossing_test() {
                               .font = {.font_size = 18.0f},
                               .layout = {.anchor = TextAnchor::TopLeft, .align = TextAlign::Left},
                               .appearance = {.color = {0.6f, 0.6f, 0.6f, 0.7f}},
-                              .position = {0.0f, 0.0f, 0.0f}
+                              .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 0.0f}
                           });
         });
 

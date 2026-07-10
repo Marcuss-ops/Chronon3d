@@ -44,7 +44,7 @@ Composition camera_floor_grid_comparison_test() {
                               .font = {.font_size = 14.0f},
                               .layout = {.align = TextAlign::Center},
                               .appearance = {.color = {0.2f, 0.8f, 0.3f, 0.7f}},
-                              .position = {0.0f, -280.0f, 0.1f}
+                              .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, -280.0f}
                           });
         });
 
@@ -65,7 +65,7 @@ Composition camera_floor_grid_comparison_test() {
                               .font = {.font_size = 14.0f},
                               .layout = {.align = TextAlign::Center},
                               .appearance = {.color = {0.8f, 0.3f, 0.2f, 0.7f}},
-                              .position = {0.0f, -280.0f, 0.1f}
+                              .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, -280.0f}
                           });
         });
 
@@ -93,7 +93,7 @@ Composition camera_floor_grid_comparison_test() {
                                      .font = {.font_size = 16.0f},
                                      .layout = {.align = TextAlign::Center},
                                      .appearance = {.color = {0.8f, 0.85f, 1.0f, 0.85f}},
-                                     .position = {0.0f, -4.0f, 0.1f}
+                                     .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, -4.0f}
                                  });
         });
 
@@ -105,7 +105,7 @@ Composition camera_floor_grid_comparison_test() {
                                      .font = {.font_size = 14.0f},
                                      .layout = {.align = TextAlign::Center},
                                      .appearance = {.color = {0.5f, 0.5f, 0.5f, 0.6f}},
-                                     .position = {0.0f, 480.0f, 0.0f}
+                                     .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 480.0f}
                                  });
         });
 
