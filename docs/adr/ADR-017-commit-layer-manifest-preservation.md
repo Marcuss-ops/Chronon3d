@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| **Status** | ✅ Accepted (landed `main@0ff8b100`, 2026-07-08) |
+| **Status** | ✅ Accepted (landed 2026-07-08) |
 | **Date** | 2026-07-08 |
 | **Deciders** | Timeline Definition of Done implementation owner |
 | **Tags** | `scene-builder`, `asset-manifest`, `preflight`, `timeline-v2`, `sequence-v2`, `single-source-of-truth` |
