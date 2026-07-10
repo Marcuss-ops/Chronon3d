@@ -233,6 +233,7 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/vector/path_factories.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/vector/shape_style.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition_props.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/project.hpp"
     # ── Timeline V2 single-source-of-truth (M1.7 Step 1, TICKET-SEQUENCE-LOCAL-FRAME) ──
     #   TimeRange + SequenceNode + TimelineSampleContext + TimelineResolver
     #   in namespace `chronon3d::timeline::v2`. Designed green: zero code-side
