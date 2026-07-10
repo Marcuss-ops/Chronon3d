@@ -5,6 +5,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/text/text_definition.hpp>  // F2.D — canonical DTO
 
 namespace chronon3d::content::grid {
 
@@ -112,36 +113,33 @@ Composition grid_color_showcase() {
         // ── Title: "GRID SHOWCASE" ──
         s.layer("title", [](auto& l) {
             l.pin_to(Anchor::TopCenter, 80.0f);
-            l.text("title", TextSpec{
+            l.text("title", TextDefinition{
                 .content = {.value = "GRID SHOWCASE"},
-                .font = {.font_family = "Inter", .font_weight = 800, .font_size = 56.0f},
-                .layout = {.box = {900, 70}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 12.0f},
-                .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 0.90f}},
-                .position = {0.0f, 0.0f, 0.0f}
+                .style = {.font = {.font_family = "Inter", .font_weight = 800, .font_size = 56.0f},
+                          .color = Color{1.0f, 1.0f, 1.0f, 0.90f}},
+                .frame = {.size = {900, 70}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 12.0f},
             });
         });
 
         // ── Subtitle with color key ──
         s.layer("subtitle", [](auto& l) {
             l.pin_to(Anchor::TopCenter, 150.0f);
-            l.text("sub", TextSpec{
+            l.text("sub", TextDefinition{
                 .content = {.value = "BLUE  ·  PINK  ·  GOLD  ·  GREEN  ·  VIOLET"},
-                .font = {.font_family = "Inter", .font_weight = 600, .font_size = 24.0f},
-                .layout = {.box = {1000, 40}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 6.0f},
-                .appearance = {.color = Color{0.65f, 0.70f, 0.85f, 0.70f}},
-                .position = {0.0f, 0.0f, 0.0f}
+                .style = {.font = {.font_family = "Inter", .font_weight = 600, .font_size = 24.0f},
+                          .color = Color{0.65f, 0.70f, 0.85f, 0.70f}},
+                .frame = {.size = {1000, 40}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 6.0f},
             });
         });
 
         // ── Bottom info line ──
         s.layer("footer", [](auto& l) {
             l.pin_to(Anchor::BottomCenter, 50.0f);
-            l.text("foot", TextSpec{
+            l.text("foot", TextDefinition{
                 .content = {.value = "5 overlapping grids · sparse procedural kernel · 1920×1080"},
-                .font = {.font_family = "Inter", .font_weight = 400, .font_size = 16.0f},
-                .layout = {.box = {800, 30}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 3.0f},
-                .appearance = {.color = Color{0.50f, 0.55f, 0.70f, 0.50f}},
-                .position = {0.0f, 0.0f, 0.0f}
+                .style = {.font = {.font_family = "Inter", .font_weight = 400, .font_size = 16.0f},
+                          .color = Color{0.50f, 0.55f, 0.70f, 0.50f}},
+                .frame = {.size = {800, 30}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 3.0f},
             });
         });
 
