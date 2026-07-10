@@ -36,6 +36,10 @@ chronon3d_add_test_suite(
             # CI run per PR 6.8.5 Two-Phase Commit Strategy.  See
             # docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md §"Fase 2".
             deterministic/test_visual_regression_scenarios.cpp
+            # P2-C — Determinism matrix: FNV-1a hash comparison across
+            # 5 scene types × 6 conditions (same renderer, new renderer,
+            # cache invalidation, thread count, 50× stress, sanity).
+            deterministic/test_determinism_matrix.cpp
 )
 target_compile_definitions(chronon3d_deterministic_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 endif()
