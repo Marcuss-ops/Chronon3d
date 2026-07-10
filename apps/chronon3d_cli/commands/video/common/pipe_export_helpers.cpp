@@ -232,4 +232,98 @@ void log_pipe_export_failure(const PipeExportStatus& status) {
     );
 }
 
+bool validate_video_output(
+    const std::string& output_path,
+    int expected_width,
+    int expected_height,
+    int expected_fps,
+    int64_t expected_frames)
+{
+    namespace fs = std::filesystem;
+
+    // Check file exists and non-empty
+    std::error_code ec;
+    if (!fs::exists(output_path, ec) || fs::file_size(output_path, ec) == 0) {
+        spdlog::error("[video] ffprobe: output file missing or empty: {}", output_path);
+        return false;
+    }
+
+    // Run ffprobe — if not installed, warn and skip (non-fatal)
+    const std::string cmd =
+        "ffprobe -v quiet -print_format json -show_streams -show_format "
+        + output_path;
+
+    FILE* pipe = popen(cmd.c_str(), "r");
+    if (!pipe) {
+        spdlog::warn("[video] ffprobe not available — skipping output validation");
+        return true;  // non-fatal: ffprobe missing is not a failure
+    }
+
+    std::string json_output;
+    char buf[4096];
+    while (fgets(buf, sizeof(buf), pipe)) {
+        json_output += buf;
+    }
+    const int rc = pclose(pipe);
+    if (rc != 0) {
+        spdlog::error("[video] ffprobe exited with code {} — output may be corrupt", rc);
+        return false;
+    }
+
+    // Minimal JSON parsing — look for video stream and validate fields
+    // We don't pull in nlohmann/json to avoid adding a dependency to the
+    // helpers file.  Instead, use simple string searches on the JSON output.
+    const auto find_value = [&](const std::string& key) -> std::string {
+        const auto pos = json_output.find('"' + key + '"');
+        if (pos == std::string::npos) return "";
+        const auto colon = json_output.find(':', pos + key.size() + 2);
+        if (colon == std::string::npos) return "";
+        auto start = json_output.find_first_not_of(" \t\n\r", colon + 1);
+        if (start == std::string::npos) return "";
+        // Handle quoted string values
+        if (json_output[start] == '"') {
+            const auto end = json_output.find('"', start + 1);
+            if (end == std::string::npos) return "";
+            return json_output.substr(start + 1, end - start - 1);
+        }
+        // Handle numeric values
+        const auto end = json_output.find_first_of(",}\n\r", start);
+        if (end == std::string::npos) return "";
+        return json_output.substr(start, end - start);
+    };
+
+    // Check for codec_type = video (confirms a video stream exists)
+    const std::string codec_type = find_value("codec_type");
+    if (codec_type != "video") {
+        spdlog::error("[video] ffprobe: no video stream found in {}", output_path);
+        return false;
+    }
+
+    // Check resolution
+    const std::string width_str = find_value("width");
+    const std::string height_str = find_value("height");
+    if (!width_str.empty() && !height_str.empty()) {
+        const int w = std::atoi(width_str.c_str());
+        const int h = std::atoi(height_str.c_str());
+        if (w != expected_width || h != expected_height) {
+            spdlog::error("[video] ffprobe: resolution mismatch: {}x{} (expected {}x{}",
+                         w, h, expected_width, expected_height);
+            return false;
+        }
+    }
+
+    // Check duration is plausible (> 0)
+    const std::string duration_str = find_value("duration");
+    if (!duration_str.empty()) {
+        const double duration = std::atof(duration_str.c_str());
+        if (duration <= 0.0) {
+            spdlog::error("[video] ffprobe: duration={:.3f}s (expected > 0)", duration);
+            return false;
+        }
+    }
+
+    spdlog::info("[video] ffprobe validation passed for {}", output_path);
+    return true;
+}
+
 } // namespace chronon3d::cli
