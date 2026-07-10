@@ -10,7 +10,6 @@
 
 #include <functional>
 #include <algorithm>
-#include <filesystem>
 
 namespace chronon3d::content::anims {
 
@@ -63,29 +62,23 @@ Composition anim_scale_text() {
 }
 
 // ── AnimTypewriter: per-character typewriter reveal ─────────────────────
+// F0.2b — static current_path() resolver REMOVED.  FontEngine is now
+// supplied via ctx.font_engine (wired by the runtime chain:
+// RenderEngine::set_assets_root → Runtime::resolver() → FontEngine).
 Composition anim_typewriter() {
-    // Fase B2 — static local resolver, mounted at the project assets root
-    // so that FontEngine can locate Poppins-Bold.ttf at render time.
-    // Without mount(), the resolver has no search paths and font shaping
-    // fails silently, producing an empty layout → blank frame.
-    // NOTE: mounted at registration-time cwd, not render-time. If the
-    // CLI is launched from a different working directory than where
-    // assets/fonts/ lives, this resolver won't find the fonts.
-    static chronon3d::assets::AssetResolver s_typewriter_resolver;
-    if (!s_typewriter_resolver.has_mount()) {
-        s_typewriter_resolver.mount(std::filesystem::current_path());
-    }
     return composition({.name = "AnimTypewriter", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
-        text::typewriter_build(s, "tw", {
-            .text = "Typewriter",
-            .box = {1200.0f, 240.0f},
-            .font_size = 64.0f,
-            .tracking = 3.0f,
-            .chars_per_frame = 0.3f,
-            .easing = EasingCurve{Easing::OutCubic},
-        }, ctx.frame, s_typewriter_resolver);
+        if (ctx.font_engine) {
+            text::typewriter_build(s, "tw", {
+                .text = "Typewriter",
+                .box = {1200.0f, 240.0f},
+                .font_size = 64.0f,
+                .tracking = 3.0f,
+                .chars_per_frame = 0.3f,
+                .easing = EasingCurve{Easing::OutCubic},
+            }, ctx.frame, *ctx.font_engine);
+        }
         return s.build();
     });
 }
