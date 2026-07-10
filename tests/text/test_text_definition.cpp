@@ -323,9 +323,11 @@ TEST_CASE("centered_text convergence: full field chain through TextDefinition") 
 // ═══════════════════════════════════════════════════════════════════════════
 // 4. glow_text() convergence — CenterTextOptions → TextDefinition (F2.C)
 // ═══════════════════════════════════════════════════════════════════════════
-// F2.C breaking change: glow_text() now returns TextDefinition directly.
+// F2: glow_text() now wires glow parameters to TextEffect on the returned
+// TextDefinition.  The function itself is deprecated — users should migrate
+// to centered_text() + set .effects directly.
 
-TEST_CASE("glow_text convergence: produces valid TextDefinition") {
+TEST_CASE("glow_text convergence: produces valid TextDefinition with TextEffect wired") {
     CenterTextOptions opts;
     opts.text      = "GLOW";
     opts.box       = {1200.0f, 240.0f};
@@ -345,6 +347,14 @@ TEST_CASE("glow_text convergence: produces valid TextDefinition") {
     CHECK(def.frame.size.y  == doctest::Approx(240.0f));
     CHECK(def.frame.anchor  == TextAnchor::Center);
     CHECK(def.frame.align   == TextAlign::Center);
+
+    // F2: TextEffect wiring — glow params are now populated
+    CHECK(def.effects.enabled        == true);
+    CHECK(def.effects.glow_color.r   == doctest::Approx(glow_color.r));
+    CHECK(def.effects.glow_color.g   == doctest::Approx(glow_color.g));
+    CHECK(def.effects.glow_color.b   == doctest::Approx(glow_color.b));
+    CHECK(def.effects.glow_radius    == doctest::Approx(30.0f));
+    CHECK(def.effects.glow_intensity == doctest::Approx(0.8f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
