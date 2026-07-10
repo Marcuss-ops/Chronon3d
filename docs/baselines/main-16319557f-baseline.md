@@ -22,7 +22,7 @@
 | 2 | `check_architecture_boundaries_selftest.sh` | 0 | **PASS** ✅ | 15/15 assertions |
 | 3 | `check_software_renderer_boundary.sh` | 0 | **PASS** ✅ | I1–I5 all OK; `SoftwareRenderer&` accessor rot closed since `P0-1` lineage `2989b91d` |
 | 4 | `check_gitignored_dirs.sh` | 0 | **PASS** ✅ | directory glob + file-pattern regex clean |
-| 5 | `audit_software_renderer.sh` | 0 | **PASS** ✅ | Header LOC ≤200; no `SoftwareRenderer&` references in process surfaces; no camera-related lines in the audit (camera_v1 stays SDK-agnostic per gate #6) |
+| 5 | `audit_software_renderer.sh` | 0 | **PASS** ✅ | Header LOC ≤200; no `SoftwareRenderer&` references in process surfaces; no camera-related lines in the audit (camera_v1 stays SDK-agnostic per gate #6) | <!-- drift-allow: archived-doc-pattern -->
 | 6 | `check_camera_architecture.sh` | 0 | **PASS** ✅ | 6/6 CAM-DOC 04 architecture-boundary checks |
 | 7 | `check_doc_sync.sh` | 0 | **PASS** ✅ | 0 hard failures, 0 warnings. **R-Table (the new hardening gate from the prior session) was wired in but did NOT fire** — `docs/CURRENT_STATUS.md` is not in the HEAD~1..HEAD diff range (the only diff is `docs/FOLLOWUP_TICKETS.md`), so the R-Table rule correctly did not engage. Gate #7 R-Table verdict: PASS-by-no-diff. |
 | 8 | `check_filename_drift.sh` | 0 | **PASS** ✅ | Warn-mode; **84 drift findings** (down from 179 → 80 → 84 → present). The two new `chore(drift)` upstream commits (Batch 1 → 80, Batch 2 → 87) and the natural accumulation of cross-language drift warnings between `aaf70032` (170) and the present Head (84) account for the variance. |

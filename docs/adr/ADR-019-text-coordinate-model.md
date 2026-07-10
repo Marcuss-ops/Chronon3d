@@ -164,7 +164,7 @@ struct ResolvedTextPlacement {
 
 - `src/render_graph/nodes/text_run/text_run_transform.cpp:13` — `build_world_matrix()` currently composes the text run's world matrix from context + placement
 - `include/chronon3d/render_graph/nodes/detail/projection_helpers.hpp:70` — `build_projected_draw_matrix()` composes `canvas_center * ssaa_scale * proj.transform.to_mat4()`
-- `src/render_graph/builder/graph_builder_coordinates.hpp:112` — `source_space_world_matrix()` handles canvas-center stripping
+- `src/render_graph/builder/graph_builder_coordinates.hpp:112` — `source_space_world_matrix()` handles canvas-center stripping <!-- drift-allow: stale-ref -->
 
 ### Test lock (planned)
 
@@ -316,7 +316,7 @@ Considered adding a Frame level between Canvas and Layer for sequence-local coor
 - `include/chronon3d/scene/model/core/hierarchy_resolver.hpp:41` — `ResolvedNode::world_matrix`
 - `include/chronon3d/scene/model/render/resolved_types.hpp:12` — `ResolvedLayer::world_matrix`
 - `include/chronon3d/render_graph/builder/graph_builder.hpp:15` — `LayerGraphItem::world_matrix`
-- `include/chronon3d/render_graph/builder/graph_builder_coordinates.hpp:112` — `source_space_world_matrix()`
+- `include/chronon3d/render_graph/builder/graph_builder_coordinates.hpp:112` — `source_space_world_matrix()` <!-- drift-allow: stale-ref -->
 - `include/chronon3d/render_graph/nodes/detail/projection_helpers.hpp:70` — `build_projected_draw_matrix()`
 - `include/chronon3d/math/camera_2_5d_projection.hpp:38` — `ProjectedLayer2_5D` (ADR-015)
 - `include/chronon3d/text/text_run_geometry.hpp:52` — `compute_text_run_visual_bounds()`

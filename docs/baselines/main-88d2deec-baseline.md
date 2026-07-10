@@ -14,7 +14,7 @@
 | 2 | `check_architecture_boundaries_selftest.sh` | 0 | **PASS** ✅ | 14 assertions passed; Cases 5/8/9/10 skipped (patterns removed from main script) |
 | 3 | `check_software_renderer_boundary.sh` | 2 | **FAIL** ❌ | I5: 1 `SoftwareRenderer&` at `src/runtime/render_engine.cpp:255` (`RenderEngineAccess::software_renderer()`) |
 | 4 | `check_gitignored_dirs.sh` | 0 | **PASS** ✅ | 31/31 directories clean |
-| 5 | `audit_software_renderer.sh` | 0 | **PASS** ✅ | All 9 grep→wc pipelines have `\|\| true`; pipefail-safe |
+| 5 | `audit_software_renderer.sh` | 0 | **PASS** ✅ | All 9 grep→wc pipelines have `\|\| true`; pipefail-safe | <!-- drift-allow: archived-doc-pattern -->
 | 6 | `check_camera_architecture.sh` | 0 | **PASS** ✅ | 6/6 CAM-DOC 04 checks passed |
 | 7 | `check_doc_sync.sh` | 0 | **PASS** ✅ | |
 | 8 | `check_filename_drift.sh` | 0 | **PASS** ✅ | Warn mode; 102 drift warnings (advisory, exit 0) |

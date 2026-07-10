@@ -19,7 +19,7 @@
 | 2 | `check_architecture_boundaries_selftest.sh` | 0 | **PASS** ✅ | 15/15 assertions passed |
 | 3 | `check_software_renderer_boundary.sh` | 0 | **PASS** ✅ | I1–I5 all OK; **closes the persistent `SoftwareRenderer&` accessor rot** (clean since `P0-1` lineage `2989b91d`) |
 | 4 | `check_gitignored_dirs.sh` | 0 | **PASS** ✅ | directory glob + file-pattern regex clean |
-| 5 | `audit_software_renderer.sh` | 0 | **PASS** ✅ | Header LOC ≤200; no `SoftwareRenderer&` references in process surfaces; no camera-related lines in `audit_software_renderer` audit (camera_v1 stays SDK-agnostic per gate #6) |
+| 5 | `audit_software_renderer.sh` | 0 | **PASS** ✅ | Header LOC ≤200; no `SoftwareRenderer&` references in process surfaces; no camera-related lines in `audit_software_renderer` audit (camera_v1 stays SDK-agnostic per gate #6) | <!-- drift-allow: archived-doc-pattern -->
 | 6 | `check_camera_architecture.sh` | 0 | **PASS** ✅ | 6/6 CAM-DOC 04 architecture-boundary checks passed |
 | 7 | `check_doc_sync.sh` | 0 | **PASS** ✅ | 0 hard failures, 0 warnings (only the 4 canonicals CURRENT_STATUS/ROADMAP/RELEASE_GATE/FOLLOWUP_TICKETS + CHANGELOG of support were touched; row recovery passed gate) |
 | 8 | `check_filename_drift.sh` | 0 | **PASS** ✅ | Warn mode (`--warn`); drift warnings carry-over from prior baselines |

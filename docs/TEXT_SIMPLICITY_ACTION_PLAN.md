@@ -56,7 +56,7 @@ Glyph   → coordinate dei singoli glifi (post-layout + animator)
 ```
 
 **Deliverable:**
-- `docs/adr/ADR-019-text-coordinate-model.md`
+- `docs/adr/ADR-019-text-coordinate-model.md` <!-- drift-allow: stale-ref -->
 - Ogni trasformazione applicata una sola volta
 - Esempi numerici per canvas 1920×1080
 - Cross-link a `TICKET-TEXT-CLIP-PREDICTED-BBOX`
@@ -93,8 +93,8 @@ struct ResolvedTextPlacement {
 ```
 
 **Deliverable:**
-- `include/chronon3d/text/text_placement_resolver.hpp`
-- `src/text/text_placement_resolver.cpp`
+- `include/chronon3d/text/text_placement_resolver.hpp` <!-- drift-allow: stale-ref -->
+- `src/text/text_placement_resolver.cpp` <!-- drift-allow: stale-ref -->
 - Test che verifica: stessa matrice usata da layout, predicted_bbox, tile pruning, rasterizzazione, compositing
 
 **Criterio di completamento:** `TICKET-TEXT-CLIP-PREDICTED-BBOX` diagnostic PASS con lo stesso resolver.
@@ -201,7 +201,7 @@ struct TextDefinition {
 ```
 
 **Deliverable:**
-- `include/chronon3d/text/text_definition.hpp` (o estensione di `text_document.hpp`)
+- `include/chronon3d/text/text_definition.hpp` (o estensione di `text_document.hpp`) <!-- drift-allow: stale-ref -->
 - Adapter da `TextSpec`, `text_run()`, preset → `TextDefinition`
 - Test: `text()`, `text_run()` e preset producono tutti `TextDefinition`
 
@@ -247,7 +247,7 @@ layer.text("title")
 
 **Deliverable:**
 - Estensione di `include/chronon3d/authoring/text.hpp` (già esiste `authoring::Text`)
-- `TextPlacement` enum in `include/chronon3d/text/text_placement.hpp`
+- `TextPlacement` enum in `include/chronon3d/text/text_placement.hpp` <!-- drift-allow: stale-ref -->
 - Test: titolo centrato < 10 righe leggibili
 
 **Criterio di completamento:** un titolo centrato richiede meno di dieci righe.
@@ -340,9 +340,9 @@ clamp(value, min, max);
 ```
 
 **Deliverable:**
-- `include/chronon3d/animation/interpolate.hpp`
-- `include/chronon3d/animation/spring.hpp`
-- `include/chronon3d/animation/sequence.hpp`
+- `include/chronon3d/animation/interpolate.hpp` <!-- drift-allow: stale-ref -->
+- `include/chronon3d/animation/spring.hpp` <!-- drift-allow: stale-ref -->
+- `include/chronon3d/animation/sequence.hpp` <!-- drift-allow: stale-ref -->
 - Test: ogni funzione con frame 0, 15, 30
 
 **Criterio di completamento:** gli esempi base di Remotion riproducibili con complessità simile.
@@ -394,7 +394,7 @@ lower_third("Name", "Title").style(subtitle_style);
 - Non usare un resolver proprio
 
 **Deliverable:**
-- `include/chronon3d/presets/text_presets.hpp`
+- `include/chronon3d/presets/text_presets.hpp` <!-- drift-allow: stale-ref -->
 - 5 preset base: `title_centered`, `subtitle_bottom`, `caption_safe_area`, `kinetic_word`, `lower_third`
 - Test golden per ogni preset (3 timestamp × 2 AR)
 
@@ -436,7 +436,7 @@ hash finale
 ```
 
 **Deliverable:**
-- `tests/text_golden/text_parity/pipeline_parity.cpp`
+- `tests/text_golden/text_parity/pipeline_parity.cpp` <!-- drift-allow: stale-ref -->
 - Test che esegue lo stesso testo in 6+ configurazioni
 - Max differenza geometrica: 1-2 pixel
 
@@ -591,7 +591,7 @@ layer.text("title")
 ```
 
 **Deliverable:**
-- `docs/TEXT_QUICKSTART.md` con 10 esempi copy-paste
+- `docs/TEXT_QUICKSTART.md` con 10 esempi copy-paste <!-- drift-allow: stale-ref -->
 - Aggiornamento `README.md` con link al quickstart
 - Esempi funzionanti in `examples/text_simplicity/`
 

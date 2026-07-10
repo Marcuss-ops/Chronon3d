@@ -21,7 +21,7 @@
 | 2 | `check_architecture_boundaries_selftest.sh` | 0 | **PASS** ✅ | 14 assertions passed |
 | 3 | `check_software_renderer_boundary.sh` | 0 | **PASS** ✅ | I1-I5 all OK; **closes the prior `21103265` I5 FAIL** (`SoftwareRenderer&` accessor rotated to `SoftwareRenderer*` per P0-1 commit lineage) |
 | 4 | `check_gitignored_dirs.sh` | 0 | **PASS** ✅ | 28/28 directories clean |
-| 5 | `audit_software_renderer.sh` | 0 | **PASS** ✅ | Header LOC=182, non-local includes=6, renderer& in proc=5 (all within budget); report written to `docs/audits/<date>-software-renderer-inventory.md` |
+| 5 | `audit_software_renderer.sh` | 0 | **PASS** ✅ | Header LOC=182, non-local includes=6, renderer& in proc=5 (all within budget); report written to `docs/audits/<date>-software-renderer-inventory.md` | <!-- drift-allow: archived-doc-pattern -->
 | 6 | `check_camera_architecture.sh` | 0 | **PASS** ✅ | 6/6 CAM-DOC 04 checks passed |
 | 7 | `check_doc_sync.sh` | 0 | **PASS** ✅ | 0 hard failures, 0 warnings |
 | 8 | `check_filename_drift.sh` | 0 | **PASS** ✅ | Warn mode; 53 drift warnings (advisory — same baseline carry-over) |
