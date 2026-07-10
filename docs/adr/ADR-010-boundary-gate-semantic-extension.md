@@ -18,11 +18,11 @@ The boundary gate `tools/check_architecture_boundaries.sh` enforces 11 activity-
 
 3. **`RenderPipeline::m_renderer` outside `src/runtime/render_pipeline.cpp`**.  After F2.4, `runtime::RenderPipeline` is deleted (the sidecar `m_renderer` arg was an explicit violation of single-identity ownership per [ADR-009](ADR-009-render-pipeline-single-identity.md) on branch `p1/render-pipeline-single-identity`).  The gate must guard against reintroduction of any `RenderPipeline`-shaped facade that stores `m_renderer` outside its own TU, by failing any future restoration on the file `src/runtime/render_pipeline.cpp` which post-F2.4 doesn't exist (vacuous exclude) and any other TU which would mean the sidecar is back.
 
-The pre-flight on `main@6e0c7413` (this branch's fork point) confirmed:
+The pre-flight on (this branch's fork point) confirmed:
 
 - **Check 1** finds 4 hits in `src/backends/software/software_renderer.cpp` at lines 152, 153, 172, 173.  Lines 172–173 are canonical `other.m_runtime = nullptr; other.m_registry = nullptr;` inside a move-assign body — filtered by `grep -Ev 'other\.m_(runtime|registry)'`.  Lines 152–153 are bare `m_runtime = nullptr; m_registry = nullptr;` inside the `~SoftwareRenderer()` destructor body — legitimate teardown but would still match the bare pattern; documented ADR-010 exception, gate allows with a comment + a narrowly-scoped `grep -Ev 'src/backends/software/software_renderer\.cpp:15[0-9]:'` filter.
 - **Check 2** finds 4 hits: 1 in `include/chronon3d/runtime/render_runtime.hpp:61` (a `//` comment, stripped by the existing `filter_symbol_in_code_only` helper), and 3 in `src/runtime/render_engine.cpp:71, 90, 202` (real F0.2 rot).  The 3 real callsites are FIXED in the same gate-update commit by mapping `m_renderer->settings()` → `m_renderer->render_settings()`.
-- **Check 3** finds 0 hits on `main@6e0c7413` (RenderPipeline already deleted on the fast-forward).  Gate PASS by default; future regression-resistance provided by the bare pattern.
+- **Check 3** finds 0 hits on (RenderPipeline already deleted on the fast-forward).  Gate PASS by default; future regression-resistance provided by the bare pattern.
 
 ## Decision
 
@@ -105,5 +105,6 @@ Not applicable.  Internal tooling (gate script + self-test) + one internal acces
 * [TICKET-011]((...) — render-runtime ownership, the construction-sequence invariant that constrains `m_runtime`/`m_registry`/`m_renderer` lifetime).
 * F0.2 PR (`p0/fix-software-renderer-move-ctor`) — the original `settings()` → `render_settings()` rename.  Re-applied here to the 3 callsites that escaped the original wave.
 * F2.4 prior work (`p1/render-pipeline-single-identity`) — the `runtime::RenderPipeline` deletion that ADR-010 Check 14 regression-guards.
-* Branch: `chore/boundary-gate-semantic-checks` @ `main@6e0c7413` (fast-forwarded to `6e0c7413` from `14dbc415`).
+* Branch: `chore/boundary-gate-semantic-checks` @ main (fast-forwarded from `14dbc415`).
+  * Pre-flight target SHA: `main@6e0c7413` (fork point + RenderPipeline already deleted)
 * CI: `.github/workflows/gates.yml` Gate 5 — runs `tools/check_architecture_boundaries.sh` and `tools/check_software_renderer_boundary.sh` on every push.  Adds 3 new failure modes (12, 13, 14) without modifying the integration surface.
