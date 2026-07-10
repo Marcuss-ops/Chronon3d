@@ -163,6 +163,20 @@ follow-up cycle. Specifically:
   This duplicates the `s_typewriter_resolver` pattern from
   `anim_typewriter`. When the FontEngine-from-runtime path is
   plumbed, BOTH patterns can be eliminated.
+- **Layering concern:** The content layer (authoring +
+  composition) is reaching down into the engine/runtime layer
+  (engine = harfbuzz + asset lookup; the FontEngine is a runtime
+  resource owned by the renderer/scene-builder, not the content
+  authoring layer). Architecturally the FontEngine should be
+  sourced from the runtime (a `ctx.runtime.font_engine()` API or
+  similar), not owned by content-layer code. The current pattern
+  blurs the layering: `content/examples/text/text_animations.cpp`
+  embeds engine-side concerns (`FontEngine` + `AssetResolver`
+  mount) into the content module, which means the content module
+  is no longer purely authoring+composition. The proper fix is the
+  FontEngine-from-runtime plumbing described in the migration
+  plan below; this ADR defers that refactor but explicitly
+  acknowledges the layering violation as the primary motivator.
 - **Path sensitivity:** The function-local static mounts at
   `std::filesystem::current_path()`. If a future CLI invocation
   changes the working directory between mount and use, the static
@@ -233,7 +247,7 @@ grep -c 'layout_glyphs:' content/common/text_reveal_helpers.hpp
 ## References
 
 - `content/examples/text/text_animations.cpp:shared_typewriter_engine` (the new singleton)
-- `content/animation_compositions.cpp:66–88` (the canonical `anim_typewriter` pattern)
+- `content/animation_compositions.cpp:66–88` (the canonical `anim_typewriter` pattern, introduced in commit **`d4737889`** which is visible in the green baseline `main@7eb5c2ba`)
 - `content/common/text_reveal_helpers.hpp:layout_glyphs` (the fail-loud throw, commit `3b833565`)
 - `AGENTS.md` §"Regole permanenti" — singleton ban
 - `AGENTS.md` §5 — anti-duplication rule
@@ -242,3 +256,4 @@ grep -c 'layout_glyphs:' content/common/text_reveal_helpers.hpp
 - `docs/DOCUMENTATION_GOVERNANCE.md` — ADR template + style guide
 - Code-reviewer-minimax-m3 issue #7, round 6
 - Commit `aae298e7 chore(text): cleanup include + diagnostic format` (where the 5 callers were added)
+- Commit `d4737889` (canonical `s_typewriter_resolver` / `anim_typewriter` pattern, green-baseline lineage)
