@@ -1,3 +1,26 @@
+## Luglio 2026 — F3.B Placement Leggibili + Safe Areas (2026-07-10, atomic commit)
+
+### feat(text): F3.B — SafeAreaPreset with aspect-ratio-safe CanvasInfo factory
+
+- **F3.B spec fulfilled**: 14 `TextPlacementKind` variants already existed (F1.B). This commit adds aspect-ratio-aware safe area configuration.
+- **New types** (2 files):
+  - `include/chronon3d/text/text_placement.hpp` — `SafeAreaPreset` struct with 4 static presets: `Landscape16x9`, `Portrait9x16`, `Square1x1`, `Landscape4x3`. Each preset has fraction-based margins (default 5% on all sides, matching industry-standard title/action-safe zones).
+  - `include/chronon3d/text/text_placement_resolver.hpp` — `CanvasInfo::with_safe_area(width, height, preset)` factory method that computes pixel margins from fractions (vertical ∝ height, horizontal ∝ width).
+  - `src/text/text_placement_resolver.cpp` — Static const definitions + factory implementation.
+- **Design**: All 4 presets use identical 5% fractions — the differentiation comes from canvas dimensions. The preset names document aspect-ratio intent. Future presets with different fractions (e.g., larger side margins for 9:16 portrait) can be added as needed.
+- **Ergonomics**:
+  ```cpp
+  auto canvas = CanvasInfo::with_safe_area(1920, 1080, SafeAreaPreset::Landscape16x9);
+  auto canvas = CanvasInfo::with_safe_area(1080, 1920, SafeAreaPreset::Portrait9x16);
+  auto canvas = CanvasInfo::with_safe_area(1080, 1080, SafeAreaPreset::Square1x1);
+  ```
+- **Existing coverage**: 25+ tests in `test_text_placement_resolver.cpp` cover all 14 placements on 1920×1080 and 1080×1920.
+- **Code reviewer**: 3 issues fixed: (1) comment added explaining identical fraction design, (2) SafeAreaPreset tests added.
+- **Text Simplicity Action Plan**: F3.B complete (ninth of 17 actions).
+- **Cross-references**: [`include/chronon3d/text/text_placement.hpp`](include/chronon3d/text/text_placement.hpp); [`include/chronon3d/text/text_placement_resolver.hpp`](include/chronon3d/text/text_placement_resolver.hpp); [`src/text/text_placement_resolver.cpp`](src/text/text_placement_resolver.cpp).
+
+---
+
 ## Luglio 2026 — F2.A TextDefinition Canonica (2026-07-10, atomic commit)
 
 ### feat(text): F2.A — Canonical TextDefinition with from_text_spec() adapter
