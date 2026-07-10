@@ -152,8 +152,8 @@ TEST_CASE("SeqV2 compositions — MixedMedia: manifest collects font + image") {
     SUBCASE("frame 35: both sequences active — font + image in manifest") {
         Scene scene = comp.evaluate(Frame{35});
         const auto& manifest = scene.asset_manifest();
-        auto fonts = manifest.filter(AssetType::Font);
-        auto images = manifest.filter(AssetType::Image);
+        auto fonts = manifest.filter(assets::AssetKind::Font);
+        auto images = manifest.filter(assets::AssetKind::Image);
 
         // Both sequences active: title_seq (0-59) + image_seq (30-89)
         CHECK(fonts.size() >= 1);
@@ -175,14 +175,14 @@ TEST_CASE("SeqV2 compositions — MixedMedia: manifest collects font + image") {
     SUBCASE("frame 10: title_seq only — font but no image") {
         Scene scene = comp.evaluate(Frame{10});
         const auto& manifest = scene.asset_manifest();
-        auto fonts = manifest.filter(AssetType::Font);
+        auto fonts = manifest.filter(assets::AssetKind::Font);
         CHECK(fonts.size() >= 1);
     }
 
     SUBCASE("frame 70: image_seq only — image but no font") {
         Scene scene = comp.evaluate(Frame{70});
         const auto& manifest = scene.asset_manifest();
-        auto images = manifest.filter(AssetType::Image);
+        auto images = manifest.filter(assets::AssetKind::Image);
         CHECK(images.size() >= 1);
     }
 }
