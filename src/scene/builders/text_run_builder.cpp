@@ -397,6 +397,83 @@ namespace {
     cache_key.overflow       = static_cast<int>(layout.overflow);
     cache_key.ellipsis       = layout.ellipsis;
 
+    // ── ADR-018: Auto-fit font size binary search ─────────────────
+    // Shrink-only: when auto_fit_font_size is true and the authored
+    // text overflows the box, binary search for the largest font size
+    // in [min_font_size, min(authored, max_font_size)] that fits.
+    // 12 fixed iterations → ~0.02pt precision.  Intermediate
+    // compile_text_layout calls use cache=nullptr.  The resolved
+    // font size replaces the authored size in the cache key.
+    f32 effective_font_size = font_spec.font_size;
+    if (layout.paragraph.auto_fit_font_size) {
+        const f32 min_fs = layout.paragraph.min_font_size;
+        const f32 max_fs = std::min(font_spec.font_size,
+                                    layout.paragraph.max_font_size);
+        if (max_fs > min_fs) {
+            // Quick check: does text already fit at authored size?
+            f32 low  = min_fs;
+            f32 high = max_fs;
+            f32 best = min_fs;  // fallback = smallest allowed if nothing fits
+            bool fits_at_authored = false;
+            {
+                FontSpec probe_font = font_spec;
+                probe_font.font_size = high;
+                TextDocument probe_doc;
+                probe_doc.utf8 = text;
+                probe_doc.defaults.font = probe_font;
+                probe_doc.split_paragraphs();
+                TextLayoutRequest probe_req{
+                    &probe_doc, &layout, probe_font};
+                TextCompileServices probe_svc{&engine, nullptr};
+                auto probe = compile_text_layout(probe_req, probe_svc);
+                if (probe) {
+                    const auto& b = probe.value()->bounds;
+                    fits_at_authored =
+                        (b.x <= layout.box.x && b.y <= layout.box.y);
+                }
+            }
+            if (!fits_at_authored) {
+                spdlog::debug(
+                    "auto-fit: triggered — authored={:.1f}pt, "
+                    "box={:.0f}x{:.0f}, range=[{:.1f}, {:.1f}]",
+                    font_spec.font_size, layout.box.x, layout.box.y,
+                    min_fs, max_fs);
+                constexpr int kMaxIter = 12;
+                for (int i = 0; i < kMaxIter; ++i) {
+                    const f32 mid = (low + high) * 0.5f;
+                    FontSpec mid_font = font_spec;
+                    mid_font.font_size = mid;
+                    TextDocument mid_doc;
+                    mid_doc.utf8 = text;
+                    mid_doc.defaults.font = mid_font;
+                    mid_doc.split_paragraphs();
+                    TextLayoutRequest mid_req{
+                        &mid_doc, &layout, mid_font};
+                    TextCompileServices mid_svc{&engine, nullptr};
+                    auto mid_res =
+                        compile_text_layout(mid_req, mid_svc);
+                    if (mid_res) {
+                        const auto& b = mid_res.value()->bounds;
+                        if (b.x <= layout.box.x &&
+                            b.y <= layout.box.y) {
+                            best = mid;
+                            low = mid;   // fits — try larger
+                        } else {
+                            high = mid;  // overflow — try smaller
+                        }
+                    } else {
+                        high = mid;  // compile failed — try smaller
+                    }
+                }
+                spdlog::debug(
+                    "auto-fit: resolved {:.1f}pt → {:.1f}pt",
+                    font_spec.font_size, best);
+            }
+            effective_font_size = best;
+            cache_key.font_size = best;
+        }
+    }
+
     // FIX #3b — shared cache across all threads.  TextLayoutCache is
     // already thread-safe via its own std::shared_mutex in Impl
     // (shared_lock for find, unique_lock for store).  find() returns
@@ -421,10 +498,12 @@ namespace {
     // ── Build per-shape TextDocument for compile_text_layout ──────
     TextDocument doc;
     doc.utf8          = text;
-    doc.defaults.font = font_spec;
+    FontSpec effective_font = font_spec;
+    effective_font.font_size = effective_font_size;
+    doc.defaults.font = effective_font;
     doc.split_paragraphs();
 
-    TextLayoutRequest request{&doc, &layout, font_spec};
+    TextLayoutRequest request{&doc, &layout, effective_font};
 
     // cache=nullptr to suppress compile_text_layout's internal cache dance
     // (its key collapses direction/language).  We own the cache here.
