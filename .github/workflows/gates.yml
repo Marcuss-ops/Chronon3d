@@ -222,24 +222,15 @@ jobs:
       - name: Run tools/check_architecture_boundaries.sh
         run: bash tools/check_architecture_boundaries.sh
 
-      # 06 R5 boundary gate — RENAMED to `renderer-boundary-observation`
-      # (Agent 2 / Step 5/6 contract, 2026-06-29).  Until R2+R3+R4 land,
-      # the boundary invariants (I1..I5) FAIL on `main`: 467/200 LOC on
-      # software_renderer.hpp; 28/6 non-local includes; 8
-      # dynamic_cast<SoftwareRenderer*> sites; public graph::RenderBackend
-      # dual-identity still in place.  This step is therefore EXPLICITLY
-      # observation-only — promote to blocking ONLY after a future ADR
-      # explicitly removes `continue-on-error` AND the check has a green
-      # baseline measurement on a stable commit.  Naming uses
-      # 'observation' (NOT 'gate' / 'required' / 'must pass' /
-      # 'blocking') to keep the advisory semantics explicit in workflow
-      # runs and dashboards.  Tool invocation + threshold are deliberately
-      # unchanged per Step 5/6 contract.
-      - name: renderer-boundary-observation (06 R5 — observation)
-        continue-on-error: true
-        run: |
-          bash tools/check_software_renderer_boundary.sh
-          echo "::notice::renderer-boundary-observation: non-blocking observation; current exit code is informational only. Do not promote to blocking without an ADR."
+      # 06 R5 boundary gate — PROMOTED to blocking (P0-C, 2026-07-10).
+      # All 5 invariants (I1..I5) hold green on main: 200/200 LOC, 6/6
+      # non-local includes, 0 dynamic_cast, 0 SoftwareRenderer& in process
+      # surfaces, single identity confirmed.  The old observation-only
+      # comment referenced R2+R3+R4 not yet landed — those are now merged.
+      # Green baseline verified: check_software_renderer_boundary.sh exit 0
+      # on main@HEAD.  continue-on-error removed to make this a blocking gate.
+      - name: renderer-boundary-gate (06 R5 — blocking)
+        run: bash tools/check_software_renderer_boundary.sh
 
       - name: Run tools/check_gitignored_dirs.sh
         run: bash tools/check_gitignored_dirs.sh
