@@ -326,9 +326,8 @@ TEST_CASE("TextQuality: typewriter tracking — width matches layout engine") {
     li.font_spec = spec;
     float layout_width = TextLayoutEngine::layout(li).size.x;
 
-    const auto& resolver = runtime.resolver();
     auto tw = ct::compute_typewriter_layout(
-        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, resolver);
+        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, engine);
 
     CHECK(tw.total_width == doctest::Approx(layout_width).epsilon(0.15f));
     CHECK(tw.chars.size() > 1);
@@ -353,9 +352,8 @@ TEST_CASE("TextQuality: typewriter tracking — zero tracking matches layout") {
     li.font_spec = spec;
     float layout_width = TextLayoutEngine::layout(li).size.x;
 
-    const auto& resolver = runtime.resolver();
     auto tw = ct::compute_typewriter_layout(
-        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, resolver);
+        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, engine);
 
     CHECK(tw.total_width == doctest::Approx(layout_width).epsilon(0.02f));
     CHECK(tw.chars.size() == 3);
@@ -372,9 +370,8 @@ TEST_CASE("TextQuality: typewriter tracking — per-char advances sum to total")
     const float tracking = 8.0f;
     const FontSpec spec = inter_bold_quality();
 
-    const auto& resolver = runtime.resolver();
     auto tw = ct::compute_typewriter_layout(
-        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, resolver);
+        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, engine);
 
     REQUIRE(tw.chars.size() == 4);
 
@@ -398,9 +395,8 @@ TEST_CASE("TextQuality: typewriter tracking — with combining marks no double-c
     const float tracking = 20.0f;
     const FontSpec spec = inter_bold_quality();
 
-    const auto& resolver = runtime.resolver();
     auto tw = ct::compute_typewriter_layout(
-        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, resolver);
+        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, engine);
 
     REQUIRE(tw.chars.size() == 3);
 
@@ -435,9 +431,8 @@ TEST_CASE("TextQuality: typewriter tracking — with ZWJ emoji sequence") {
     const float tracking = 10.0f;
     const FontSpec spec = inter_bold_quality();
 
-    const auto& resolver = runtime.resolver();
     auto tw = ct::compute_typewriter_layout(
-        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, resolver);
+        text, size, tracking, {2000.0f, 2000.0f}, 1.0f, spec, engine);
 
     CHECK(tw.total_width >= 0.0f);
     CHECK(tw.chars.size() >= 1);

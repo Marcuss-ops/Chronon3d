@@ -170,18 +170,19 @@ struct TypewriterLayout {
     f32 total_height{0.0f};
 };
 
+// F0.2b — resolver-based overloads replaced by FontEngine&.
 // Forward-declare: full implementation lives in this header.
 TypewriterLayout compute_typewriter_layout(
     const std::string& text, f32 font_size, f32 tracking,
     Vec2 box, f32 line_height,
     const FontSpec& font_spec,
-    const chronon3d::assets::AssetResolver& resolver,
+    FontEngine& engine,
     PlacedGlyphRun* out_placed = nullptr);
 
 void typewriter_build(
     SceneBuilder& s, std::string_view layer_prefix,
     const TypewriterBuildOptions& opts, Frame frame,
-    const chronon3d::assets::AssetResolver& resolver);
+    FontEngine& engine);
 
 } // namespace chronon3d::content::text
 
@@ -198,15 +199,13 @@ inline TypewriterLayout compute_typewriter_layout(
     const std::string& text, f32 font_size, f32 tracking,
     Vec2 box, f32 line_height,
     const FontSpec& font_spec,
-    const chronon3d::assets::AssetResolver& resolver,
+    FontEngine& engine,
     PlacedGlyphRun* out_placed)
 {
     TypewriterLayout result;
     if (text.empty()) return result;
 
-    // WP-8 PR 8.0 — caller-supplied explicit resolver (the
-    // process-wide `shared_font_engine()` bridge has been removed).
-    FontEngine engine{resolver};
+    // F0.2b — FontEngine is now caller-supplied (wired from ctx.font_engine).
 
     auto run = engine.shape_text(text, font_spec, font_size);
     if (!run || run->glyphs.empty()) return result;
@@ -403,7 +402,7 @@ inline TypewriterLayout compute_typewriter_layout(
 inline void typewriter_build(
     SceneBuilder& s, std::string_view layer_prefix,
     const TypewriterBuildOptions& opts, Frame frame,
-    const chronon3d::assets::AssetResolver& resolver)
+    FontEngine& engine)
 {
     FontSpec font_spec;
     font_spec.font_path = opts.font_asset;
@@ -419,11 +418,13 @@ inline void typewriter_build(
     static Vec2        cached_box{0.0f, 0.0f};
     static f32         cached_line_height{0.0f};
     static FontSpec    cached_font_spec;
-    static const chronon3d::assets::AssetResolver* cached_resolver{nullptr};
+    // F0.2b — cached_resolver (pointer-identity) cache key tier replaced
+    // by FontEngine* identity; same lifetime guarantee.
+    static const FontEngine* cached_engine{nullptr};
 
     std::lock_guard<std::mutex> lock(s_cache_mutex);
 
-    bool cache_hit = (cached_resolver == &resolver &&
+    bool cache_hit = (cached_engine == &engine &&
                       cached_text == opts.text &&
                       cached_font_size == opts.font_size &&
                       cached_tracking == opts.tracking &&
@@ -439,7 +440,7 @@ inline void typewriter_build(
         cached_layout = compute_typewriter_layout(
             opts.text, opts.font_size, opts.tracking,
             opts.box, opts.line_height, font_spec,
-            resolver,
+            engine,
             &cached_placed);
         cached_text = opts.text;
         cached_font_size = opts.font_size;
@@ -448,14 +449,9 @@ inline void typewriter_build(
         cached_line_height = opts.line_height;
         cached_font_spec = font_spec;
 
-        // WP-8 PR 8.0 M-2 lifetime contract:
-        // AssetResolver pointer-identity is used as the FIRST cache key
-        // tier.  This is correct because AssetResolver is held by value
-        // inside RenderRuntime, so the address is stable for the runtime's
-        // lifetime (eager invalidation only triggers if RenderRuntime is
-        // moved inside a relocating container — rare).  The pointer key
-        // cheaply distinguishes runtimes without wholy re-doing shape work.
-        cached_resolver = &resolver;
+        // F0.2b — FontEngine pointer-identity replaces AssetResolver
+        // pointer-identity as the cache key tier.
+        cached_engine = &engine;
     }
 
     auto& layout = cached_layout;
@@ -586,7 +582,7 @@ inline TypewriterLayout compute_single_line_glyph_layout(
     f32 font_size,
     f32 tracking,
     const FontSpec& font,
-    const chronon3d::assets::AssetResolver& resolver)
+    FontEngine& engine)
 {
     return compute_typewriter_layout(
         text,
@@ -595,7 +591,7 @@ inline TypewriterLayout compute_single_line_glyph_layout(
         Vec2{100000.0f, font_size * 2.0f},
         1.0f,
         font,
-        resolver
+        engine
     );
 }
 
