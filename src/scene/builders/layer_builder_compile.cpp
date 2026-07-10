@@ -40,6 +40,7 @@
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/text_definition.hpp>  // F3.D — to_text_run_spec() for TextDefinition overload (F2.D lossless reverse adapter)
+#include <chronon3d/text/text_placement_resolver.hpp>  // F2 — resolve_placement_origin for build-time semantic placement
 // TICKET-104 -- internal helper consumed by the per-spec
 // materialization site below.  Forward declaration is intentionally
 // NOT exposed via the PUBLIC HPP (cat-3 freeze: zero new public
@@ -200,11 +201,20 @@ Layer LayerBuilder::build() {
             node.name = std::pmr::string{spec.name, res};
             node.shape.set_type(ShapeType::TextRun);
             node.font_engine = m_font_engine;
-            node.world_transform.position = Vec3{
-                spec.params.text.offset.x,
-                spec.params.text.offset.y,
-                0.0f
-            };
+
+            // F2 — resolve semantic placement at build time using
+            // canvas dimensions from the layer context.  Constructs a
+            // temporary TextPlacement combining the stored kind with
+            // the flat offset, then resolves to a concrete pin point
+            // via resolve_placement_origin().
+            {
+                TextPlacement tp = spec.params.text.placement;
+                tp.offset = spec.params.text.offset;  // flat offset → resolver input
+                CanvasInfo canvas{m_screen_width, m_screen_height};
+                Vec2 pin = resolve_placement_origin(
+                    canvas, spec.params.text.layout.box, tp);
+                node.world_transform.position = Vec3{pin.x, pin.y, 0.0f};
+            }
             node.world_transform.anchor = resolve_text_anchor(
                 spec.params.text.layout.anchor,
                 spec.params.text.layout.box);
