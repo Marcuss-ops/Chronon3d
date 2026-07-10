@@ -197,6 +197,15 @@ test_output/
 # tracked `tests/golden/ae_parity/` parent remains indexable.
 tests/golden/ae_parity/diff/
 
+# BUG 2 / TICKET-TEXT-GLOW-DARKENING — Step 3 A/B test outputs (transient
+# experiment PNGs regenerated per `chronon3d_cli render` invocation, never
+# recomputed into goldens).  Mirrors the `tests/golden/ae_parity/diff/`
+# pattern above: tracked repo holds the experiment SOURCES (composition,
+# script, report), the rendered PNGs are ephemeral.  See
+# docs/baselines/2026-07-10-glow-ab-result.md for reproduction commands.
+tests/visual/glow_with/
+tests/visual/glow_without/
+
 # AE-parity referee engine output (TICKET-AE-PARITY-DRIVER).  The AE-side
 # mocks at `reference/after_effects/*.png` are manually committed; the
 # engine output at `reference/chronon3d/*.png` is regenerated per ctest run
