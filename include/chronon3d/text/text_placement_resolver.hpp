@@ -66,15 +66,34 @@ struct CanvasInfo {
 // ADR-019 Decision 3: the resolved placement contains all coordinate
 // information needed by the rendering pipeline.
 //
+// Phase A.3 of the text V1 plan also reinterprets the spec terms onto this
+// single canonical struct (no parallel type introduced per AGENTS.md
+// "Non duplicare...").  Mapping of the Phase A.3 spec terms to the actual
+// fields (so users searching for `canvas_position` / `resolved_frame` /
+// `resolved_anchor` can find the canonical name):
+//
+//   Phase A.3 spec term       |  ResolvedTextPlacement field
+//   --------------------------+---------------------------------------------
+//   Vec2  canvas_position     |  layout_origin  (Vec2; box top-left in Canvas)
+//   TextFrame resolved_frame  |  local_frame    (Vec4 = x, y, width, height)
+//   Anchor resolved_anchor   |  resolved_anchor (TextAnchor; input echo)
+//
+// The 2 additional fields (layer_matrix, world_matrix) are kept for the
+// rendering pipeline's transform composition (ADR-019 Decision 1) — they
+// are NOT part of the Phase A.3 spec terms but are essential for the
+// downstream consumer path.
+//
 // Coordinate levels (ADR-019 Decision 1):
 //   - local_frame:    Box in Canvas coords (after placement resolution)
 //   - layer_matrix:   Layer transform (parent chain)
 //   - world_matrix:   = layer_matrix × local_to_world(local_frame)
 //   - layout_origin:  Origin for glyph layout (top-left of text frame
 //                     after alignment adjustment)
+//   - resolved_anchor: Echo of the input TextAnchor parameter (Phase A.3)
 struct ResolvedTextPlacement {
     // Box position in Canvas coords (x, y, width, height).
     // Represents the top-left corner and size of the text frame.
+    // Phase A.3 spec term: `resolved_frame` (TextFrame-style Vec4 packing).
     Vec4 local_frame{0.0f, 0.0f, 0.0f, 0.0f};
 
     // Layer transform (parent chain accumulated).
@@ -89,7 +108,59 @@ struct ResolvedTextPlacement {
     // Origin for glyph layout (top-left of text frame in Canvas coords).
     // After alignment adjustment (TextAlign + VerticalAlign).
     // Glyph positions are relative to this origin.
+    // Phase A.3 spec term: `canvas_position` (Vec2 pin-point alias).
     Vec2 layout_origin{0.0f, 0.0f};
+
+    // Phase A.3 — echo of the input `TextAnchor` parameter.
+    // The resolver uses the anchor to compute `local_frame` (via
+    // resolve_text_anchor's anchor_offset); until A.3 the input was
+    // not echoed in the result struct (the value was used internally
+    // for the offset computation but not stored).  Downstream
+    // consumers (renderer, future builder API) re-derive layout from
+    // this echo (e.g., re-anchor after a box resize without re-running
+    // the full resolver).  Default is `TextAnchor::Center` to match
+    // the free function's default parameter.
+    TextAnchor resolved_anchor{TextAnchor::Center};
+};
+
+// ── TextPlacementResolver — class-based resolver surface (Phase A.3) ─────
+//
+// Phase A.3 spec asks for a `TextPlacementResolver` class wrapping the
+// resolver.  The free function `resolve_text_placement` remains the
+// canonical implementation (per the AGENTS.md "Non duplicare..." rule
+// and the Option C reinterpretation from the thinker's verdict); this
+// class is a thin literal-spec shim that delegates to the free function.
+//
+// Why a class wrapper if the implementation is stateless?
+//   1. Satisfies the Phase A.3 spec's class-based surface literally.
+//   2. Hides the free function name from the public surface in case
+//      the canonical name changes (e.g., to `resolve` for parity with
+//      other resolver classes in the codebase).
+//
+// Future stateful extensions (e.g., a cache lease, prewarm hooks, or
+// per-frame memoization) will be added in a future commit when the
+// concrete need is identified.  At that point the class may either
+// grow a stateful constructor or be replaced by a stateful class; the
+// current class does NOT speculate about future API shape.
+//
+// Usage:
+//   TextPlacementResolver resolver;
+//   auto r = resolver.resolve(canvas, box, placement, anchor, parent);
+//
+class TextPlacementResolver final {
+public:
+    // Delegating wrapper around `resolve_text_placement` — see that
+    // free function for the full parameter + return contract.
+    [[nodiscard]] ResolvedTextPlacement resolve(
+        const CanvasInfo& canvas,
+        Vec2 box_size,
+        TextPlacement placement,
+        TextAnchor anchor = TextAnchor::Center,
+        const Mat4& layer_matrix = Mat4(1.0f)
+    ) const {
+        return resolve_text_placement(canvas, box_size, placement,
+                                       anchor, layer_matrix);
+    }
 };
 
 // ── resolve_text_placement — the unified resolver ─────────────────────────

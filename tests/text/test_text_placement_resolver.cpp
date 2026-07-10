@@ -429,3 +429,138 @@ TEST_CASE("TextPlacement: struct kind+offset init") {
     CHECK(p.kind == TextPlacementKind::Absolute);
     CHECK(vec2_near(p.offset, {123.0f, 456.0f}));
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// Phase A.3 — ResolvedTextPlacement output contract
+// ═════════════════════════════════════════════════════════════════════════
+
+// Phase A.3 spec maps these terms onto ResolvedTextPlacement fields:
+//   Vec2  canvas_position     ↔ layout_origin  (Vec2; box top-left in Canvas)
+//   TextFrame resolved_frame  ↔ local_frame    (Vec4 = x, y, width, height)
+//   Anchor resolved_anchor   ↔ resolved_anchor (TextAnchor; input echo)
+//
+// These tests lock the Phase A.3 contract: the resolver must populate
+// every field of ResolvedTextPlacement, including the new `resolved_anchor`
+// echo of the input TextAnchor (previously discarded).
+
+TEST_CASE("ResolvedTextPlacement: resolved_anchor echoes input TextAnchor (Phase A.3)") {
+    auto c = default_canvas();
+    Vec2 box{800.0f, 200.0f};
+
+    // The resolver previously used the anchor to compute the anchor
+    // offset, then discarded it.  Phase A.3 stores the input anchor
+    // in `resolved_anchor` so downstream consumers can re-derive layout
+    // without re-running the full resolver.
+    //
+    // Parametric coverage: all 8 TextAnchor values must be echoed.
+    // (We use a sequence of CHECKs rather than DOCTEST_VALUE_PARAMETERIZED
+    // to keep the test self-contained and easy to read.)
+    struct AnchorCase { TextAnchor input; };
+    const AnchorCase cases[] = {
+        {TextAnchor::TopLeft},
+        {TextAnchor::TopCenter},
+        {TextAnchor::TopRight},
+        {TextAnchor::CenterLeft},
+        {TextAnchor::Center},
+        {TextAnchor::CenterRight},
+        {TextAnchor::BottomLeft},
+        {TextAnchor::BottomCenter},
+        {TextAnchor::BottomRight},
+    };
+    for (const auto& tc : cases) {
+        auto r = resolve_text_placement(c, box,
+            TextPlacement{TextPlacementKind::CanvasCenter}, tc.input);
+        CHECK(r.resolved_anchor == tc.input);
+    }
+}
+
+TEST_CASE("ResolvedTextPlacement: TextPlacementResolver class wrapper (Phase A.3)") {
+    // The Phase A.3 spec asks for a `TextPlacementResolver` class.  The
+    // class is a thin wrapper that delegates to the free function (per
+    // Option C re-interpretation: no parallel resolver, single canonical
+    // implementation in the free function).  This test locks the
+    // delegation contract.
+    auto c = default_canvas();
+    Vec2 box{800.0f, 200.0f};
+
+    TextPlacementResolver resolver;
+    auto r = resolver.resolve(c, box,
+        TextPlacement{TextPlacementKind::CanvasCenter},
+        TextAnchor::TopLeft);
+
+    // The class wrapper must produce the same result as the free function.
+    auto r_free = resolve_text_placement(c, box,
+        TextPlacement{TextPlacementKind::CanvasCenter},
+        TextAnchor::TopLeft);
+    CHECK(r.resolved_anchor == r_free.resolved_anchor);
+    // Component-wise comparison: doctest::Approx is scalar-only, so
+    // compare each Vec4/Vec2 component separately.
+    CHECK(r.local_frame.x == doctest::Approx(r_free.local_frame.x));
+    CHECK(r.local_frame.y == doctest::Approx(r_free.local_frame.y));
+    CHECK(r.local_frame.z == doctest::Approx(r_free.local_frame.z));
+    CHECK(r.local_frame.w == doctest::Approx(r_free.local_frame.w));
+    CHECK(r.layout_origin.x == doctest::Approx(r_free.layout_origin.x));
+    CHECK(r.layout_origin.y == doctest::Approx(r_free.layout_origin.y));
+}
+
+TEST_CASE("ResolvedTextPlacement: default anchor when not specified (Phase A.3)") {
+    // The free function defaults `anchor` to TextAnchor::Center; the
+    // resolved_anchor field must mirror that default.
+    auto c = default_canvas();
+    Vec2 box{800.0f, 200.0f};
+    auto r = resolve_text_placement(c, box,
+        TextPlacement{TextPlacementKind::CanvasCenter});
+    CHECK(r.resolved_anchor == TextAnchor::Center);
+}
+
+TEST_CASE("ResolvedTextPlacement: canvas_position = layout_origin (Phase A.3 spec alias)") {
+    // The Phase A.3 spec term `canvas_position` maps to the existing
+    // `layout_origin` field (Vec2; box top-left in Canvas coords).
+    auto c = default_canvas();
+    Vec2 box{1700.0f, 360.0f};
+    auto r = resolve_text_placement(c, box,
+        TextPlacement{TextPlacementKind::CanvasCenter});
+
+    // The "canvas_position" per the spec is where the text frame is
+    // placed in Canvas coords.  After anchor adjustment, the box's
+    // top-left lands at (110, 360) on a 1920×1080 canvas with a
+    // 1700×360 box centered on the canvas.
+    const Vec2 canvas_position = r.layout_origin;
+    CHECK(vec2_near(canvas_position, {110.0f, 360.0f}));
+}
+
+TEST_CASE("ResolvedTextPlacement: resolved_frame = local_frame (Phase A.3 spec alias)") {
+    // The Phase A.3 spec term `resolved_frame` maps to the existing
+    // `local_frame` field (Vec4 = x, y, width, height).
+    auto c = default_canvas();
+    Vec2 box{1700.0f, 360.0f};
+    auto r = resolve_text_placement(c, box,
+        TextPlacement{TextPlacementKind::CanvasCenter});
+
+    // The "resolved_frame" per the spec is the box position + size in
+    // Canvas coords.  local_frame packs (x, y, width, height).
+    const Vec4 resolved_frame = r.local_frame;
+    CHECK(resolved_frame.x == doctest::Approx(110.0f));
+    CHECK(resolved_frame.y == doctest::Approx(360.0f));
+    CHECK(resolved_frame.z == doctest::Approx(1700.0f));
+    CHECK(resolved_frame.w == doctest::Approx(360.0f));
+}
+
+TEST_CASE("ResolvedTextPlacement: layer_matrix + world_matrix preserved (beyond spec)") {
+    // The 2 additional fields beyond the Phase A.3 spec terms
+    // (layer_matrix, world_matrix) are kept for the rendering
+    // pipeline's transform composition.  Lock their population so
+    // downstream consumers can rely on them.
+    auto c = default_canvas();
+    Vec2 box{800.0f, 200.0f};
+    Mat4 parent = glm::translate(Mat4(1.0f), Vec3(100.0f, 50.0f, 0.0f));
+    auto r = resolve_text_placement(c, box,
+        TextPlacement{TextPlacementKind::TopLeft},
+        TextAnchor::TopLeft, parent);
+
+    // layer_matrix echoes the input parent transform
+    CHECK(mat4_near(r.layer_matrix, parent));
+    // world_matrix = parent × T(origin) where origin = (96, 54)
+    Mat4 expected = parent * glm::translate(Mat4(1.0f), Vec3(96.0f, 54.0f, 0.0f));
+    CHECK(mat4_near(r.world_matrix, expected));
+}
