@@ -229,6 +229,13 @@ TEST_CASE("AE 08 glow_pulse 9x16 f30") {
 
 TEST_CASE("TICKET-TEXT-CLIP-ASCENT: ae_08 16x9 f15 alpha bbox is centered and not clipped") {
     auto renderer = test::make_renderer_shared();
+    // Enable diagnostics to activate [text-bbox] logging in predicted_bbox.
+    {
+        RenderSettings diag_settings;
+        diag_settings.use_modular_graph = true;
+        diag_settings.diagnostics.enabled = true;
+        renderer->set_settings(diag_settings);
+    }
     auto fb = renderer->render(build_landscape(*renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     // Verify the renderer produced non-empty output before scanning pixels.
@@ -265,6 +272,12 @@ TEST_CASE("TICKET-TEXT-CLIP-ASCENT: ae_08 16x9 f15 alpha bbox is centered and no
 
 TEST_CASE("TICKET-TEXT-CLIP-ASCENT: ae_08 9x16 f15 alpha bbox is centered and not clipped") {
     auto renderer = test::make_renderer_shared();
+    {
+        RenderSettings diag_settings;
+        diag_settings.use_modular_graph = true;
+        diag_settings.diagnostics.enabled = true;
+        renderer->set_settings(diag_settings);
+    }
     auto fb = renderer->render(build_portrait(*renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     // Verify the renderer produced non-empty output before scanning pixels.
