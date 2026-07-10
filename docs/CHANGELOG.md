@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ## Luglio 2026 — TICKET-SIMPLICITY-INSPECT-TEXT-RENDER: `inspect text` real frame rendering (2026-07-10)
 
 ### fix(cli): `inspect text` — wire `--diagnostic-overlay` into actual frame rendering via SoftwareRenderer
@@ -31,6 +32,23 @@
 - **Flag semantics**: `--diagnostic-overlay-only` is standalone — it activates the overlay pipeline (via `text_layout_debug`) on its own and also skips scene content rendering. No need to also pass `--diagnostic-overlay` alongside it.
 
 ---
+=======
+## Luglio 2026 — F3.D: LayerBuilder forward-point wiring via `to_text_run_spec` (2026-07-10, atomic commit)
+
+### feat(text): F3.D — `LayerBuilder` `text`/`text_run` `TextDefinition` overloads route through `to_text_run_spec` (preserves 6 spec-only animation fields)
+
+- **F3.D forward-point rewiring** (closes the LOAD-LOSS GAP flagged in the F2.D → F3.D ladder): the 2 `LayerBuilder` `TextDefinition` overloads now route through the F2.D lossless reverse adapter `to_text_run_spec` instead of the F2.C lossy `from_text_definition` path. The 6 spec-only animation fields (`animators`, `selectors`, `direction`, `language`, `script`, `cache_layout`) populated in any `TextDefinition` now reach `TextRunSpec` + `materialize_text_run_shape()` end-to-end instead of being silently dropped.
+  - `src/scene/builders/commands/shape_commands.cpp:text(name, const TextDefinition&)` body: `text_run(name, to_text_run_spec(def)).commit()` (replaces `text(name, from_text_definition(def))`).
+  - `src/scene/builders/layer_builder_compile.cpp:text_run(name, const TextDefinition&)` body: `text_run(name, to_text_run_spec(def))` (replaces `run.text = from_text_definition(def)` + delegate pattern).
+- **F3.D forward-point overload ADDED**: `LayerBuilder::text(name, TextRunSpec)` — the symmetric counterpart of the existing `text_run(name, TextRunSpec)`. Lets callers fully migrated to `TextRunSpec` authoring use the short-form `layer.text("id", run_spec).commit()` instead of the verbose `layer.text_run("id", run_spec).commit()`. Behaviourally identical (pure sugar); completes the text/text_run parallel pair on the `LayerBuilder` API surface.
+- **17 helper-site call sites made lossless end-to-end**: `centered_text()` / `glow_text()` / `typewriter_text()` / presets augmenting `TextDefinition` with animation fields now propagate that animation to the renderer. The 17 sites verified by existing integration tests across `content/text_placement/`, `content/showcases/cinematic/`, `content/showcases/minimalist/`, `content/showcases/special-names/`, `content/showcases/important-words/`, `content/certification/`, `tests/deterministic/`, `tests/text/`, and `tests/text_golden/`.
+- **LIFECYCLE update**: `include/chronon3d/text/text_definition.hpp` gains a F3.D entry documenting the LayerBuilder forward-point rewiring + the new forward-point overload + the Frame envelope drop (unchanged from F2.D contract).
+- **Doc-block updates in `include/chronon3d/scene/builders/layer_builder.hpp`**: the two F2.C doc-blocks (text + text_run `TextDefinition` overloads) updated to F3.D wording. Removes the now-stale "NOT carried from TextDefinition" claim from `text_run(name, TextDefinition)`: animation fields ARE carried end-to-end via the F3.D wire. Adds the F3.D doc-block for the new `text(name, TextRunSpec)` overload.
+- **Tests** — group 20 in `tests/text/test_text_definition.cpp` (1 NEW `TEST_CASE`):
+  - **20.1** Helper-site augmentation pattern: `centered_text(opts)` + manual `def.animation.{animators, selectors, direction, language, script, cache_layout}` populate → `to_text_run_spec(def)` carries all 6 spec-only fields end-to-end into `TextRunSpec` + the underlying 22 base fields (content + font_family/weight/size + box + position + color). This is a meaningful regression lock for the F3.D wire: a future edit reverting to `from_text_definition()` would leave `run.animators` empty and FAIL 20.1.
+- **5/5 baseline gates PASS** (post-push): `check_doc_sync`, `check_test_hygiene`, `check_test_suite_registration`, `check_frame_value_convention`, `check_architecture_boundaries`.
+- **Files changed (5)**: `include/chronon3d/scene/builders/layer_builder.hpp`, `include/chronon3d/text/text_definition.hpp`, `src/scene/builders/commands/shape_commands.cpp`, `src/scene/builders/layer_builder_compile.cpp`, `tests/text/test_text_definition.cpp` (+203/-33 lines).
+>>>>>>> be77fbd5 (docs(sync): F3.D closure - CHANGELOG + FOLLOWUP + CURRENT_STATUS)
 
 ## Luglio 2026 — F2.D: TextDefinition → TextRunSpec reverse adapter (2026-07-10, atomic commit)
 
