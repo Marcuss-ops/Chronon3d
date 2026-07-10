@@ -37,75 +37,84 @@ namespace chronon3d {
 Vec2 resolve_placement_origin(
     const CanvasInfo& canvas,
     Vec2 box_size,
-    TextPlacement placement,
-    Vec2 offset
+    TextPlacement placement
 ) {
     Vec2 pin{0.0f, 0.0f};
     (void)box_size; // pin point is independent of box size for most placements
 
-    switch (placement) {
-        case TextPlacement::CanvasCenter:
+    switch (placement.kind) {
+        case TextPlacementKind::CanvasCenter:
             pin.x = canvas.width * 0.5f;
             pin.y = canvas.height * 0.5f;
             break;
 
-        case TextPlacement::TopLeft:
+        case TextPlacementKind::TopLeft:
             pin.x = canvas.safe_margin_left;
             pin.y = canvas.safe_margin_top;
             break;
 
-        case TextPlacement::TopCenter:
+        case TextPlacementKind::TopCenter:
             pin.x = canvas.width * 0.5f;
             pin.y = canvas.safe_margin_top;
             break;
 
-        case TextPlacement::TopRight:
+        case TextPlacementKind::TopRight:
             pin.x = canvas.width - canvas.safe_margin_right;
             pin.y = canvas.safe_margin_top;
             break;
 
-        case TextPlacement::CenterLeft:
+        case TextPlacementKind::CenterLeft:
             pin.x = canvas.safe_margin_left;
             pin.y = canvas.height * 0.5f;
             break;
 
-        case TextPlacement::CenterRight:
+        case TextPlacementKind::Center:                // Phase A.2: explicit canvas center
+            pin.x = canvas.width * 0.5f;
+            pin.y = canvas.height * 0.5f;
+            break;
+
+        case TextPlacementKind::CenterRight:
             pin.x = canvas.width - canvas.safe_margin_right;
             pin.y = canvas.height * 0.5f;
             break;
 
-        case TextPlacement::BottomLeft:
+        case TextPlacementKind::BottomLeft:
             pin.x = canvas.safe_margin_left;
             pin.y = canvas.height - canvas.safe_margin_bottom;
             break;
 
-        case TextPlacement::BottomCenter:
+        case TextPlacementKind::BottomCenter:
             pin.x = canvas.width * 0.5f;
             pin.y = canvas.height - canvas.safe_margin_bottom;
             break;
 
-        case TextPlacement::BottomRight:
+        case TextPlacementKind::BottomRight:
             pin.x = canvas.width - canvas.safe_margin_right;
             pin.y = canvas.height - canvas.safe_margin_bottom;
             break;
 
-        case TextPlacement::SafeAreaTop:
+        case TextPlacementKind::SafeAreaTop:
             pin.x = canvas.width * 0.5f;
             pin.y = canvas.safe_margin_top;
             break;
 
-        case TextPlacement::SafeAreaBottom:
+        case TextPlacementKind::SafeAreaBottom:
             pin.x = canvas.width * 0.5f;
             pin.y = canvas.height - canvas.safe_margin_bottom;
             break;
 
-        case TextPlacement::Absolute:
+        case TextPlacementKind::SafeAreaCenter:        // Phase A.2: center of safe area bounds
+            pin.x = (canvas.safe_margin_left + (canvas.width - canvas.safe_margin_right)) * 0.5f;
+            pin.y = (canvas.safe_margin_top + (canvas.height - canvas.safe_margin_bottom)) * 0.5f;
+            break;
+
+        case TextPlacementKind::Absolute:
             // For Absolute, the offset IS the pin point.
-            return offset;
+            return placement.offset;
     }
 
     // Apply user-specified offset (additive).
-    pin += offset;
+    pin += placement.offset;
     return pin;
 }
 
@@ -138,14 +147,14 @@ ResolvedTextPlacement resolve_text_placement(
     const CanvasInfo& canvas,
     Vec2 box_size,
     TextPlacement placement,
-    Vec2 offset,
     TextAnchor anchor,
     const Mat4& layer_matrix
 ) {
     ResolvedTextPlacement result;
 
     // Step 1: Resolve the pin point — where the box's anchor should be.
-    const Vec2 pin_point = resolve_placement_origin(canvas, box_size, placement, offset);
+    // The placement struct bundles kind + offset (Phase A.2 consolidation).
+    const Vec2 pin_point = resolve_placement_origin(canvas, box_size, placement);
 
     // Step 2: Compute anchor offset within the box.
     // resolve_text_anchor() returns the anchor point RELATIVE to the

@@ -32,33 +32,18 @@
 
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>  // TextAnchor, TextAlign, VerticalAlign
+#include <chronon3d/text/text_placement.hpp>      // TextPlacement, TextPlacementKind
 
 namespace chronon3d {
 
-// ── TextPlacement — high-level placement semantics ────────────────────────
+// `TextPlacementKind` (the enum) and `TextPlacement` (the bundling struct)
+// now live in `text_placement.hpp`.  See that header for the full 14-variant
+// list and authoring rationale (Phase A.2 of the text V1 plan).
 //
-// Determines where the text box is positioned relative to the canvas or
-// layer.  Each variant produces a different Vec2 origin in Canvas coords.
-//
-// Usage:
-//   .place(TextPlacement::CanvasCenter)    // center of canvas
-//   .place(TextPlacement::SafeAreaBottom)  // bottom safe area
-//   .place(TextPlacement::Absolute({960, 540}))  // explicit position
-//
-enum class TextPlacement : u8 {
-    CanvasCenter,       // Box center = Canvas center
-    TopLeft,            // Box origin = Canvas (0, 0) + safe margin
-    TopCenter,          // Box top-center = Canvas top-center + safe margin
-    TopRight,           // Box top-right = Canvas top-right + safe margin
-    CenterLeft,         // Box center-left = Canvas center-left
-    CenterRight,        // Box center-right = Canvas center-right
-    BottomLeft,         // Box bottom-left = Canvas bottom-left - safe margin
-    BottomCenter,       // Box bottom-center = Canvas bottom-center - safe margin
-    BottomRight,        // Box bottom-right = Canvas bottom-right - safe margin
-    SafeAreaTop,        // Box top-center = Safe area top edge
-    SafeAreaBottom,     // Box bottom-center = Safe area bottom edge
-    Absolute,           // Box origin = explicit (x, y) in Canvas coords
-};
+// Backward-compat note: the resolver functions previously took the enum
+// `TextPlacement` + a separate `Vec2 offset` parameter.  After Phase A.2
+// they take a single `TextPlacement` struct (kind + offset bundled).  This
+// is a deliberate API consolidation (per AGENTS.md "Non duplicare…").
 
 // ── CanvasInfo — canvas descriptor for placement resolution ───────────────
 //
@@ -150,15 +135,14 @@ struct ResolvedTextPlacement {
 // Example:
 //   CanvasInfo canvas{1920, 1080};
 //   auto resolved = resolve_text_placement(
-//       canvas, {1700, 360}, TextPlacement::CanvasCenter);
+//       canvas, {1700, 360}, TextPlacement{TextPlacementKind::CanvasCenter});
 //   // resolved.local_frame = {110, 360, 1700, 360}
 //   // resolved.layout_origin = {110, 360}
 //   // resolved.world_matrix = translate(110, 360, 0)
 [[nodiscard]] ResolvedTextPlacement resolve_text_placement(
     const CanvasInfo& canvas,
     Vec2 box_size,
-    TextPlacement placement,
-    Vec2 offset = {},
+    TextPlacement placement,                          // kind + offset bundled
     TextAnchor anchor = TextAnchor::Center,
     const Mat4& layer_matrix = Mat4(1.0f)
 );
@@ -172,7 +156,7 @@ struct ResolvedTextPlacement {
 //
 // For CanvasCenter:  pin = (canvas.width/2, canvas.height/2)
 // For TopLeft:       pin = (safe_margin_left, safe_margin_top)
-// For Absolute:      pin = offset
+// For Absolute:      pin = placement.offset
 //
 // box_size is reserved for future placements that may need box geometry
 // (e.g. auto-fit-aware placements).
@@ -180,13 +164,11 @@ struct ResolvedTextPlacement {
 // Parameters:
 //   canvas:     Canvas dimensions and safe area margins
 //   box_size:   Text frame size (reserved for future use)
-//   placement:  High-level placement semantics (TextPlacement enum)
-//   offset:     User-specified offset from the placement position (pixels)
+//   placement:  High-level placement (kind + offset bundled struct)
 [[nodiscard]] Vec2 resolve_placement_origin(
     const CanvasInfo& canvas,
     Vec2 box_size,
-    TextPlacement placement,
-    Vec2 offset = {}
+    TextPlacement placement
 );
 
 } // namespace chronon3d
