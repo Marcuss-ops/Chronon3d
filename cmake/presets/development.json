@@ -62,12 +62,28 @@
       "name": "linux-asan",
       "inherits": "base-linux",
       "displayName": "Linux ASan + UBSan (DEBUG)",
-      "description": "AddressSanitizer + UndefinedBehaviorSanitizer debug preset, tests on. Daily buildType=Debug. NOTE: asan-specific -fsanitize flags override base-linux diag-color+pipe flags.",
+      "description": "AddressSanitizer + UndefinedBehaviorSanitizer debug preset, tests on. Nightly schedule (P2-A). NOTE: asan-specific -fsanitize flags override base-linux diag-color+pipe flags.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_UNITY_BUILD": "OFF",
         "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
         "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined",
+        "VCPKG_MANIFEST_FEATURES": "tests",
+        "CHRONON3D_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "linux-tsan",
+      "inherits": "base-linux",
+      "displayName": "Linux TSan (DEBUG, no unity build)",
+      "description": "ThreadSanitizer debug preset, tests on. Weekly schedule (P2-A). Unity build OFF to avoid false-positive cross-TU data races. TSan-specific -fsanitize=thread flags override base-linux diag-color+pipe flags.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_UNITY_BUILD": "OFF",
+        "CMAKE_CXX_FLAGS": "-fsanitize=thread -fno-omit-frame-pointer",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=thread",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=thread",
         "VCPKG_MANIFEST_FEATURES": "tests",
         "CHRONON3D_BUILD_TESTS": "ON"
       }
@@ -162,6 +178,15 @@
       "jobs": 16
     },
     {
+      "name": "linux-tsan",
+      "configurePreset": "linux-tsan",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests"
+      ],
+      "jobs": 16
+    },
+    {
       "name": "linux-content-dev",
       "configurePreset": "linux-content-dev",
       "targets": ["chronon3d_cli"],
@@ -188,6 +213,13 @@
     {
       "name": "linux-asan-test",
       "configurePreset": "linux-asan",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-tsan-test",
+      "configurePreset": "linux-tsan",
       "output": {
         "outputOnFailure": true
       }

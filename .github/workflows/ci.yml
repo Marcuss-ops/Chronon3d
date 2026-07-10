@@ -8,7 +8,9 @@
 # Matrix:
 #   linux-ci            — Debug build (profiling OFF, faster compile), full suite
 #   linux-ci-nocontent  — Debug, no content modules (validates modular build)
-#   linux-asan          — Address Sanitizer + Undefined Behavior Sanitizer
+#
+# Sanitizers (P2-A): ASan+UBSAN nightly + TSan weekly via
+#   nightly-sanitizers.yml (not on every push — too slow for fast feedback).
 # ═══════════════════════════════════════════════════════════════════════════════
 
 name: Chronon CI
@@ -48,12 +50,7 @@ jobs:
             test_preset: linux-ci-nocontent-test
             vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
 
-          - name: Linux (ASAN+UBSAN)
-            os: ubuntu-latest
-            preset: linux-asan
-            build_preset: linux-asan
-            test_preset: linux-asan-test
-            vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+          # NOTE: ASan+UBSAN moved to nightly-sanitizers.yml (P2-A).
 
           - name: Windows (Release)
             os: windows-latest
