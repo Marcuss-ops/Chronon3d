@@ -222,7 +222,7 @@ TextRunBuilder& TextRunBuilder::font_engine(FontEngine* engine) {
     // back via build_spec().  Priority at materialization:
     //   1. PendingTextRun.font_engine (per-spec, set here)
     //   2. LayerBuilder.m_font_engine  (per-layer default)
-    //   3. shared_font_engine()       (process-wide fallback in materialize_text_run_shape)
+    //   3. resolve_engine() fallback   (F1.D: process-wide FontEngine + AssetResolver)
     m_spec->font_engine = engine;
     return *this;
 }
