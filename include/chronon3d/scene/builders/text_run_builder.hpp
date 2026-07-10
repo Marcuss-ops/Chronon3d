@@ -194,6 +194,11 @@ public:
     TextRunBuilder& tracking(f32 px);
     TextRunBuilder& baseline_shift(f32 px);
 
+    // ── Font shorthand ──
+    /// Set the font path on this text run's TextSpec.
+    /// Shorthand for accessing params().text.font.font_path.
+    TextRunBuilder& font(std::string path);
+
     // ── Explicit user-supplied animators / selectors ──
     /// Append a TextAnimatorSpec to the spec's evaluator stack.
     TextRunBuilder& animator(TextAnimatorSpec spec);

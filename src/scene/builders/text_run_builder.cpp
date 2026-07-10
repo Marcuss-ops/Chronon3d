@@ -124,6 +124,13 @@ TextRunBuilder& TextRunBuilder::font_size(f32 v) {
     return *this;
 }
 
+TextRunBuilder& TextRunBuilder::font(std::string path) {
+    // Font path shorthand — sets the composable TextSpec's font_path
+    // directly.  This triggers font resolution at materialization time.
+    m_spec->params.text.font.font_path = std::move(path);
+    return *this;
+}
+
 TextRunBuilder& TextRunBuilder::blur(f32 radius) {
     TextAnimatorSpec spec;
     spec.id = "__trb_blur_" + std::to_string(m_implicit_id_seq++);
