@@ -1089,15 +1089,19 @@ TEST_CASE("Authoring/Text: center() uses FrameContext viewport") {
     CHECK(L.vertical_align == VerticalAlign::Middle);
 }
 
-TEST_CASE("Authoring/Text: center() falls back to 1920x1080 when no FrameContext provided") {
-    LayerBuilder lb("fallback");
-    lb.screen_dimensions(1920.0f, 1080.0f);
-    Layer layer(lb);  // default FrameContext
+TEST_CASE("Authoring/Text: center() uses FrameContext viewport from Layer ctor") {
+    // A2 — center() no longer falls back to 1920×1080.  It reads
+    // context_->width/height from the FrameContext set by the Layer ctor.
+    // The Layer ctor requires screen_dimensions to have been set, so
+    // context_ is always valid.
+    LayerBuilder lb("center_fb");
+    lb.screen_dimensions(1280.0f, 720.0f);
+    Layer layer(lb);  // FrameContext auto-detected from screen_dimensions
 
     Text t = layer.text("x");
     t.center();
     CHECK(TextRunBuilderInspector::pending_of(t)->params.text.position
-          == doctest::Approx3D(Vec3{960.0f, 540.0f, 0.0f}));
+          == doctest::Approx3D(Vec3{640.0f, 360.0f, 0.0f}));
 }
 
 TEST_CASE("Authoring/Text: layout setters propagate to spec.text.layout") {

@@ -107,6 +107,10 @@ struct FrameContext {
     f32 width  {1920.0f};
     f32 height {1080.0f};
 
+    // ── A2 — deprecated: silently assumes 1920×1080, a footgun for
+    // non-16:9 compositions.  Prefer `FrameContext::default_viewport()`
+    // only in test/legacy code where 16:9 is the explicit intent.
+    [[deprecated("Use FrameContext::from_dimensions(w, h) with explicit viewport dimensions")]]
     static FrameContext default_viewport() noexcept {
         return FrameContext{1920.0f, 1080.0f};
     }
@@ -213,12 +217,13 @@ public:
         return *this;
     }
 
-    /// Place at the viewport center. Implicitly sets the layout's anchor +
-    /// alignment + vertical-alignment so the visible glyphs are centred
-    /// even when the box is wider than the ink.
     Text& center() {
-        const f32 w = context_ ? context_->width  : 1920.0f;
-        const f32 h = context_ ? context_->height : 1080.0f;
+        // A2 — context_ is always set by the Layer ctor (fail-fast if
+        // screen_dimensions were never called).  The previous 1920×1080
+        // fallback was a silent footgun for non-16:9 compositions.
+        assert(context_ && "Text::center(): FrameContext must be set (Layer ctor guarantees this)");
+        const f32 w = context_->width;
+        const f32 h = context_->height;
         pending_->params.text.position = {w * 0.5f, h * 0.5f, 0.0f};
         auto& layout = pending_->params.text.layout;
         layout.anchor         = TextAnchor::Center;
