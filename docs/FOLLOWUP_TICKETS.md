@@ -80,7 +80,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-SIMPLICITY-CONSERVATIVE-BBOX | P0 | Fallback Conservativo BBox | DONE | Text V1 — font-size-proportional pre-render check + post-render alpha_bbox expansion in node_runner.cpp |
 | TICKET-SIMPLICITY-AUTO-FONT | P0 | FontEngine Automatico | DONE | Text V1 — resolve_engine() fallback via process-wide FontEngine + AssetResolver |
 | TICKET-SIMPLICITY-VISIBILITY-CONTRACT | P0 | Contratto Visibilità Automatico | DONE | Text V1 — verify_text_visibility() con 6 invariant + structured diagnostic post-render in TextRunNode::execute() |
-| TICKET-SIMPLICITY-TEXTDEFINITION | P1 | TextDefinition Canonica | PLANNED | Text V1 — unica rappresentazione interna |
+| TICKET-SIMPLICITY-TEXTDEFINITION | P1 | TextDefinition Canonica | DONE | Text V1 — TextContent/TextStyle/TextFrame filled with real fields mapped from TextSpec |
 | TICKET-SIMPLICITY-BUILDER | P1 | Simple API Builder (.text().content().place()) | DONE | Text V1 — .place(TextPlacement) on Text handle, pin-point semantics |
 | TICKET-SIMPLICITY-ADAPTERS | P1 | text_run/centered_text/glow_text → adapter | PLANNED | Text V1 + TICKET-SIMPLICITY-BUILDER |
 | TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS | P1 | Migrazione composizioni al builder | PLANNED | Text V1 + TICKET-SIMPLICITY-ADAPTERS |

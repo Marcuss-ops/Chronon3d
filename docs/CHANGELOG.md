@@ -1,3 +1,23 @@
+## Luglio 2026 — F2.A TextDefinition Canonica (2026-07-10, atomic commit)
+
+### feat(text): F2.A — Canonical TextDefinition with from_text_spec() adapter
+
+- **Header**: `include/chronon3d/text/text_definition.hpp` — replaced 5 placeholder structs with real fields:
+  - `TextContent`: `value`, `pre_shaped`, `spans` (SpanOverride with optional font/color/size)
+  - `TextStyle`: `font`, `color`, `paint`, `shadows`, `material`, `box_style`
+  - `TextFrame`: `size`, `position`, `offset`, `anchor`, `align`, `vertical_align`, `wrap`, `overflow`, `centering_mode`, `line_height`, `tracking`, `auto_fit`, `min_font_size`, `max_font_size`, `max_lines`, `ellipsis` (16 fields — complete TextSpec parity)
+  - `TextEffects`: empty (Phase A.3)
+  - `TextAnimation`: empty (Phase A.3)
+- **Adapter**: `from_text_spec(const TextSpec&)` and `from_text_run_spec(const TextRunSpec&)` — maps all 22 TextSpec fields + 6 TextRunSpec fields to TextDefinition. `src/text/text_definition.cpp` (NEW).
+- **CMake**: `text_definition.cpp` registered in `chronon3d_text_core`.
+- **Anti-duplication**: TextDefinition is the SOLE canonical authoring DTO. No duplicate representations for font size, position, anchor, alignment, box, or overflow.
+- **Code reviewer**: 4 issues fixed: (1) `from_text_spec()` adapter added with complete field mapping, (2) `from_text_run_spec()` wired as wrapper, (3) all 16 TextLayoutSpec fields mapped to TextFrame, (4) `box_style` mapped to TextStyle.
+- **Forward-point**: Phase A.3 (F3.B/F3.C) will fill TextEffects/TextAnimation. F2.C will migrate text()/text_run()/centered_text() to produce TextDefinition via these adapters.
+- **Text Simplicity Action Plan**: F2.A complete (eighth of 17 actions).
+- **Cross-references**: [`include/chronon3d/text/text_definition.hpp`](include/chronon3d/text/text_definition.hpp); [`src/text/text_definition.cpp`](src/text/text_definition.cpp); [`src/text/CMakeLists.txt`](src/text/CMakeLists.txt).
+
+---
+
 ## Luglio 2026 — F1.E Visibility Contract (2026-07-10, atomic commit)
 
 ### feat(text): F1.E — verify_text_visibility() post-render con 6 invariant
