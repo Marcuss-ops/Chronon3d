@@ -310,6 +310,7 @@ chronon3d_add_test_suite(
     core/timeline/test_timeline_builder.cpp
     core/timeline/test_code_first_composition.cpp
     core/timeline/test_sequence.cpp
+    test_project.cpp
     core/timeline/test_timeline_resolver.cpp
     core/timeline/test_sequence_builder.cpp
     core/timeline/test_sequence_animation.cpp
