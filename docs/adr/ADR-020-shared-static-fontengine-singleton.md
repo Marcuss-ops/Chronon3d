@@ -247,7 +247,7 @@ grep -c 'layout_glyphs:' content/common/text_reveal_helpers.hpp
 ## References
 
 - `content/examples/text/text_animations.cpp:shared_typewriter_engine` (the new singleton)
-- `content/animation_compositions.cpp:66–88` (the canonical `anim_typewriter` pattern, originally introduced in commit **`2ba38c78`** as the `static const AssetResolver` form, then modified to lazy-mount cwd via commit **`d4737889`**; both visible in the green baseline `main@7eb5c2ba`)
+- `content/animation_compositions.cpp:66–88` (the canonical `anim_typewriter` pattern, originally introduced in commit **`2ba38c78`** as the `static const AssetResolver` form, then modified in commit **`d4737889`** as the canonical **mount-pattern modification** (removed `const`, added lazy-mount guard at `std::filesystem::current_path()`); both visible in the green baseline `main@7eb5c2ba`)
 - `content/common/text_reveal_helpers.hpp:layout_glyphs` (the fail-loud throw, commit `3b833565`)
 - `AGENTS.md` §"Regole permanenti" — singleton ban
 - `AGENTS.md` §5 — anti-duplication rule
