@@ -27,6 +27,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 {
     auto session = std::make_unique<PipeExportSession>();
     session->opts = opts;
+    // P1-B: atomic output — FFmpeg writes to a .partial temp file.
+    // On success, make_pipe_export_result() renames it to the final path.
+    // On failure, the .partial file is cleaned up.
+    session->original_output_path = opts.output.output;
+    session->opts.output.output += ".partial";
     session->start_frame = start;
     session->end_frame = end;
     session->canvas_width = comp.width();
@@ -43,35 +48,37 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
 
     // ── Resolve codec ─────────────────────────────────────────────────────
-    const bool codec_auto = opts.encoder.codec == "auto";
+    // Uses session->opts (not the const param opts) because output.output
+    // has been modified to include the .partial suffix for atomic output.
+    const bool codec_auto = session->opts.encoder.codec == "auto";
     const std::string codec = codec_auto
         ? "libx264"
-        : resolve_cli_ffmpeg_codec(opts.encoder.codec, opts.encoder.hardware_encoder);
+        : resolve_cli_ffmpeg_codec(session->opts.encoder.codec, session->opts.encoder.hardware_encoder);
 
     // ── Create encoder ────────────────────────────────────────────────────
-    session->encoder = create_video_encoder(opts);
+    session->encoder = create_video_encoder(session->opts);
     if (!session->encoder) {
         spdlog::error("[video] Failed to create encoder");
         return session;  // encoder is null → caller checks
     }
 
     // Only create output directory for sinks that actually write output
-    if (opts.sink.sink_type == VideoSinkType::Ffmpeg ||
-        opts.sink.sink_type == VideoSinkType::RawFile) {
-        if (!ensure_output_directory_exists(opts.output.output)) {
+    if (session->opts.sink.sink_type == VideoSinkType::Ffmpeg ||
+        session->opts.sink.sink_type == VideoSinkType::RawFile) {
+        if (!ensure_output_directory_exists(session->opts.output.output)) {
             return session;
         }
     }
 
-    auto pipe_options = make_pipe_options(comp, opts, codec);
+    auto pipe_options = make_pipe_options(comp, session->opts, codec);
     if (!session->encoder->open(pipe_options)) {
         spdlog::error("[video] Failed to open encoder");
         return session;
     }
 
     // Track FFmpeg process only for ffmpeg pipe sink
-    if (opts.sink.sink_type == VideoSinkType::Ffmpeg) {
-        track_pipe_encoder_process(opts, *session->encoder, session->sys_metrics);
+    if (session->opts.sink.sink_type == VideoSinkType::Ffmpeg) {
+        track_pipe_encoder_process(session->opts, *session->encoder, session->sys_metrics);
     }
 
     // NOTE: asset mounting (CWD) is handled per-renderer inside
@@ -125,7 +132,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
         // Record the sink type in telemetry counters (renderer must exist first)
         session->sw_renderer->counters()->video_sink_type_id.store(
-            static_cast<uint64_t>(opts.sink.sink_type), std::memory_order_relaxed);
+            static_cast<uint64_t>(session->opts.sink.sink_type), std::memory_order_relaxed);
     }
 
     // ── Arena, queue ──────────────────────────────────────────────────────
