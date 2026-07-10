@@ -1,3 +1,15 @@
+## Luglio 2026 — TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS: typewriter_build() → TextDefinition (2026-07-10, atomic commit)
+
+### feat(text): Migrate typewriter_build() internal TextSpec to TextDefinition
+
+- **Last remaining TextSpec in text helpers**: `typewriter_build()` in `content/text/text_helpers_typewriter.hpp` had an internal `TextSpec ts{...}` passed to `l.text("glyph", ts)`. Converted to inline `TextDefinition{...}` with canonical field mappings.
+- **Field remapping**: `.font`→`.style.font`, `.appearance.color`→`.style.color`, `.layout.box`→`.frame.size`, `.position`→`.frame.position`, `.layout.*`→`.frame.*`.
+- **Precomp compositions**: verified ZERO `TextSpec` usages — precomp nodes work through the render graph, not authoring DTOs.
+- **Sequence compositions**: already converted in F2.D (`title_text()`/`body_text()` return `TextDefinition`).
+- **Text Simplicity Action Plan**: TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS complete (twelfth of 17 actions).
+
+---
+
 ## Luglio 2026 — F2.D Migrate Compositions to TextDefinition (2026-07-10, atomic commit)
 
 ### feat(text): F2.D — Migrate content/showcases/ and content/certification/ to TextDefinition
