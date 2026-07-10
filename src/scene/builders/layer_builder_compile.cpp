@@ -189,7 +189,11 @@ Layer LayerBuilder::build() {
             node.name = std::pmr::string{spec.name, res};
             node.shape.set_type(ShapeType::TextRun);
             node.font_engine = m_font_engine;
-            node.world_transform.position = spec.params.text.position;
+            node.world_transform.position = Vec3{
+                spec.params.text.placement.offset.x,
+                spec.params.text.placement.offset.y,
+                0.0f
+            };
             node.world_transform.anchor = resolve_text_anchor(
                 spec.params.text.layout.anchor,
                 spec.params.text.layout.box);
