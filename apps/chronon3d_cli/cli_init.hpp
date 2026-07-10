@@ -124,9 +124,14 @@ inline void init_compositions(CompositionRegistry& registry, AssetRegistry& asse
     // Camera orbit truth test (OrbitMotion via CameraDescriptor, yaw 0→90°)
     registry.add("CameraTruthOrbit", [](const CompositionProps&) { return test::make_camera_truth_orbit(); });
 
+#ifndef CHRONON3D_BUILD_DIAGNOSTICS
     // AE Camera Text Parity — 360-frame multi-segment stress test
     // (static / dolly-zoom / orbit / rack-focus / whip-pan+motion-blur / stress)
+    // When CHRONON3D_BUILD_DIAGNOSTICS is ON, this composition is already
+    // registered via register_content_modules() → register_anim_compositions()
+    // in content/animation_compositions.cpp (guarded by the same macro).
     registry.add("AECameraTextParity", [](const CompositionProps&) { return chronon3d::content::anims::ae_camera_text_parity(); });
+#endif
 
     // TICKET-AE-PARITY-FLOOR-DASHBOARD — 5 new cinematic scene
     // compositions (Phase 1 scenes 08/10/12/14 + motion_blur_text).  Each
