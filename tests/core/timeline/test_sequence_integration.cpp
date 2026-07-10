@@ -122,8 +122,8 @@ TEST_CASE("Sequence integration — manifest aggregates across sequence boundari
     const auto& manifest = scene.asset_manifest();
 
     // Both sequences' assets should be in the scene manifest
-    auto fonts = manifest.filter(AssetType::Font);
-    auto images = manifest.filter(AssetType::Image);
+    auto fonts = manifest.filter(assets::AssetKind::Font);
+    auto images = manifest.filter(assets::AssetKind::Image);
 
     CHECK(fonts.size() >= 1);
     CHECK(images.size() >= 1);

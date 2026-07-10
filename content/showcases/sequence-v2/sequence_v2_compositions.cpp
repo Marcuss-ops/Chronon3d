@@ -39,14 +39,14 @@ namespace {
 // Explicit AssetRef declarations for all assets used by these compositions.
 // This makes asset dependencies visible and typed — the canonical pattern
 // for Sequence V2 content (vs raw string paths).
-const AssetRef kTitleFont{
-    AssetType::Font,
+const chronon3d::assets::InternalAssetRef kTitleFont{
+    assets::AssetKind::Font,
     "assets/fonts/Poppins-Bold.ttf",
     "seq-v2/title-font",
     true
 };
-const AssetRef kPlaceholderImage{
-    AssetType::Image,
+const chronon3d::assets::InternalAssetRef kPlaceholderImage{
+    assets::AssetKind::Image,
     "assets/images/placeholder.png",
     "seq-v2/placeholder",
     false  // soft dep — composition renders without it

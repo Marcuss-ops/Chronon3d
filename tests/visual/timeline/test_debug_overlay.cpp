@@ -100,10 +100,10 @@ TimelineDebugInfo analyze_scene(const Scene& scene, Frame frame) {
     for (const auto& ref : scene.asset_manifest().assets()) {
         AssetUsedInfo asset;
         switch (ref.kind) {
-            case AssetType::Font:  asset.kind = "Font"; break;
-            case AssetType::Image: asset.kind = "Image"; break;
-            case AssetType::Video: asset.kind = "Video"; break;
-            case AssetType::Audio: asset.kind = "Audio"; break;
+            case assets::AssetKind::Font:  asset.kind = "Font"; break;
+            case assets::AssetKind::Image: asset.kind = "Image"; break;
+            case assets::AssetKind::Video: asset.kind = "Video"; break;
+            case assets::AssetKind::Audio: asset.kind = "Audio"; break;
             default: asset.kind = "Unknown"; break;
         }
         asset.path = ref.path;
