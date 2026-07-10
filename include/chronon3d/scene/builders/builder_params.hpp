@@ -185,7 +185,7 @@ struct TextSpec {
 // no `.text` field (use `.content.value`).  Migration guidance is in
 // the doxygen comment block immediately above (the recommended path is
 // direct migration to `TextSpec`).
-using TextParams = TextSpec;
+using TextParams [[deprecated("Use TextSpec directly — see migration guide in doxygen above.")]] = TextSpec;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TextRunSpec — composable text-run descriptor (PR 4 canonical form).
@@ -235,7 +235,7 @@ struct TextRunSpec {
 // legacy name compiling during migration.  Migration guidance: see the
 // doxygen comment block immediately above (direct migration to
 // `TextRunSpec` is the recommended path).
-using TextRunParams = TextRunSpec;
+using TextRunParams [[deprecated("Use TextRunSpec directly — see migration guide in doxygen above.")]] = TextRunSpec;
 
 struct ShadowStyle {
     TextShadow contact{
