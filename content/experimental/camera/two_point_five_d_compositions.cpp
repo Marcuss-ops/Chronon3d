@@ -174,7 +174,7 @@ Composition dof_showcase() {
         const f32 cam_z = -1000.0f + p * 200.0f;
         s.camera().set({
             .enabled = true,
-            .position = {0.0f, 0.0f, cam_z},
+            .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 0.0f},
             .zoom = 1000.0f,
             .dof = DepthOfFieldSettings{
                 .enabled  = true,
