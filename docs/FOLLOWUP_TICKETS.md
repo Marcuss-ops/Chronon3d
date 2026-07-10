@@ -20,6 +20,8 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-TEXT-CLIP-PREDICTED-BBOX | P0 | text compositor `predicted_bbox` (Clip 06 diagnostic) | **DONE** (FU01) | closed via `fix(text): close TICKET-TEXT-CLIP-PREDICTED-BBOX — restore bbox on contract violation` (FU01 of `TICKET-TEXT-VISIBILITY-PIPELINE`); new counter `text_bbox_contract_violations` atomically bumps on degenerate world-matrix pre-clip bboxes; regression locks deferred to FU03/FU06 |
 | TICKET-TEXT-CLIP-GOLDENS-01-05 | P1 | text clip bounds goldens (Clip 01–05) | OPEN | text golden cert — goldens need seeding under the new code path |
 | [TICKET-TEXT-VISIBILITY-PIPELINE](tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md) | P0 | text visibility audit pipeline (13-section contract: font→layout→bbox→transform→predicted_bbox→clip→pixel) | PLANNED | Text V1 cert + scene test cluster + AE-parity cinematic — roadmap parent of FU01..FU13; FU01 closes upstream TICKET-TEXT-CLIP-PREDICTED-BBOX (parent chain, no closure-lineage collapse) |
+| [TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS](tickets/TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS.md) | P0 | pre-existing rot: 3 tracked files contain committed `<<<<<<<` merge markers | OPEN | docs + perf tooling + changelog append — discovered during TICKET-FOLLOWUP-PRECEDENT-DOCS exec; gate gap (`tools/check_doc_sync.sh` non detecta); resolution = 3 atomic single-file commits |
+| [TICKET-FOLLOWUP-PRECEDENT-DOCS](tickets/TICKET-FOLLOWUP-PRECEDENT-DOCS.md) | P2 | doc-governance lint-rule bucket | OPEN | aggregate inline-only SHA cite (`4cded60e`) + future documented rules — first entry in new `## Regole di lint documentale` AGENTS.md section; close when 2+ rules aggregated |
 
 ---
 

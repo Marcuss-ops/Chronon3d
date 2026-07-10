@@ -150,6 +150,29 @@ error.  Status degli script INSTALL_PIPELINE_PLUMBING è tracciato in
 - Eseguire almeno i test del modulo toccato prima della PR.
 - Dopo ogni push verificare la cronologia recente con `git log -n 5 --oneline`.
 
+## Regole di lint documentale
+
+Questa sezione raccoglie regole di disciplina documentale dedotte dai cleanup pregressi (non legate a un singolo ticket). Le regole sono permanenti: ogni nuova doc-rule che emerge da un cleanup deve essere aggregata qui — non lasciata implicita nel codice, dove decade in code review ripetuti.
+
+### SHA cite pattern (inline-only rule)
+
+Quando lo stesso commit SHA deve apparire in una sezione (es. §References) o nel corpo di un testo, preferire **sempre** la citazione narrativa inline-on-file-location rispetto a una voce di catalogo standalone separata.
+
+**Perché**: la citazione inline trasporta simultaneamente il ruolo semantico E fornisce `rg`-discoverability in egual misura. Le voci standalone non necessarie creano pattern di duplicazione dello stesso SHA, che richiedono deduplicazione a valle.
+
+**Origine**: regola dedotta dai commit `3febd8cd` e `4cded60e` (lineage di dedup di ADR-020); la regola stessa applica il pattern che enuncia — cita gli SHAs inline, non come voci di catalogo separate.
+
+#### Anti-esempio — SHA cite duplication
+
+**VIETATO (duplicato standalone)**
+
+> - Commit `1a2b3c4d` (correzione del regression-lock).
+> - Risolto nel commit `1a2b3c4d` ripristinando il bounding box.
+
+**CORRETTO (singolo inline)**
+
+> - Risolto nel commit `1a2b3c4d` (correzione del regression-lock ripristinando il bounding box).
+
 ## Workflow Git obbligatorio
 
 ```bash
