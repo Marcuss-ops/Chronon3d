@@ -2,7 +2,11 @@
 
 ## Stato
 
-OPEN (pre-existing rot scoperto durante esecuzione di TICKET-FOLLOWUP-PRECEDENT-DOCS)
+**DONE** (2026-07-10) — risolto via 3 atomic single-file commits (`627d64b5` + `538117c3` + `5de9545a`).
+
+**Closure lineage**: macchina-verifica recipe `git grep -lE '^(<<<<<<<|=======|>>>>>>>)' .` produces 0 hits; `python3 -m py_compile tools/perf/*.py` exits 0. Code-reviewer final verdict: `ACCEPT_AS_IS`.
+
+**Forward-point**: macchina-verifica gate wired as `tools/check_doc_sha_dedup.sh` (`17981acb`) + `tools/wrap_push.sh` Step 4.5f registration (`e84d997d`) per TICKET-FOLLOWUP-DE-DUP-REFERENCES §Criteri di accettazione. Pins the macchina-verifica exit criterion in CI (no push permitted while non-EXEMPT pair count > 0).
 
 ## Priorità
 
