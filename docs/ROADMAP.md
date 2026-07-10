@@ -5,6 +5,8 @@ successiva per nascondere blocker della precedente.
 
 Stato corrente: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). Criteri di release: [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md).
 
+> **Snapshot (2026-07-10):** `main@50e36a04` — post 13/13 action plan closure (15 commits). CI infrastructure: sanitizers nightly/weekly, renderer-boundary gate blocking, test hygiene gate, CI status JSON artifact. Video pipeline: structured errors, memory budget, atomic output. Test coverage: frame rate 55 tests, determinism matrix 16 tests. Full details in §13/13 Action Plan closure below.
+
 > **Snapshot macchina-verificato (2026-07-04):** `main@2895bd88` — post-FF-pull origin/main; **§3.1 Esecuzione del piano commitato (commit `a8414705`)** at 2026-07-04: TICKET-A3-CACHE-LEASE (CameraSessionLease rollback real) **CHIUSO**.  **8/11 atomic PASS + 1 FAIL (g4) + 1 PASS* (g8) + 1 NOT RUN (g10)** osservato post-§3.1 atomic audit run: g1, g2, g3, g5, g6, g7, g9, g11 tutti `exit 0`; **g4 FAIL** per abs-path leak in `docs/tickets/TICKET-GATE-10-PHASE-4-BLACK-FU4.md:75` (`cd <REPO_ROOT>`) — propagazione TICKET-GATE-4-LEAK cluster (vedi `FOLLOWUP_TICKETS.md`); **g8 PASS*** (warn-mode; 89 drift findings, ↓ da 170 post-M1.5#6 tightening pass); **g10 NOT RUN** (heavy full-build requirement; carry-over rot install_consumer_test.sh, TICKET-GATE-10-PHASE-4-FIX parziale).  **8 atomic PASS ≠ 11/11: feature freeze ANCORA ATTIVO** (revoca richiede 11/11 PASS macchina-verificato sullo stesso commit, vedi `AGENTS.md` §Feature Freeze + `CURRENT_STATUS.md` §Certificazione corrente).  M2 Camera V1 ADR-013 ✅ documented+accepted; A3 cluster source-code **1/8 chiuso** (TICKET-A3-CACHE-LEASE).  M3 SDK V1 **NOT green** (gate #10 carry-over rot).  Storico baseline `>9/11` macchina-verificata: [`docs/baselines/main-aaf70032-baseline.md`](docs/baselines/main-aaf70032-baseline.md) (10/11 pre-fix log).  Ultima 11/11 macchina-verificata osservata: `main@1078ab46` (post-Fase A+B2+B3, 2026-07-04; conservata in `CURRENT_STATUS.md`, table "Gate audit snapshot — `main@1078ab46`").  Per i dettagli di ogni milestone vedi le sezioni M0–M6 sotto.
 
 > **Snapshot (2026-07-07, post-Phase-H Soluzione B + MultiSourceNode consistency — verification PENDING, tickets remain PARTIAL):** TICKET-AE-CAM-PRECISION-COLLAPSE + TICKET-ae-cam-hash-collision Soluzione B atomic commit `d39b37f1` (cumulative 27 file) + MultiSourceNode consistency commit `853ace48` (3 sites mirror source_node pattern with `from_mat4(item.matrix, item.opacity)` for proper TRS decomposition, pre-empting empty-Transform-tr bug).  **Verification FAILED on working build host 2026-07-07**: 32/35 `chronon3d_ae_parity_tests` PASSED + 3 in-memory FB hash tests FAILED (AE_CAM_03/05/06 at `tests/visual/ae_parity/ae_parity_tests.cpp:230/303/341`) + 13 banned PNGs remain on disk (sha256 prefix `cc86d2b5e80287dc`) + 9-key `test_node_cache_ae_sweep` blocked at `ar` link step (system-level disk-quota exceeded).  Candidate root cause (Gemini source-read, NOT machine-verified): SourceNode round-2 fix at `src/render_graph/nodes/source_node.cpp:122/216` passes a default-constructed `chronon3d::Transform tr;` (scale=1,1,1) to `project_layer_2_5d`, propagating `layer_size=1x1` → 2D layers render as transparent-black → `framebuffer_hash` collisions.  Forward-fix path documented in `docs/tickets/TICKET-ae-cam-hash-collision.md` `## Verification gap` (Option 1: restore `m_uses_2_5d_projection` check; Option 2: pass `m_node.world_transform` instead of empty `tr`).  **Promotion to `DONE` is intentionally NOT triggered** — the user request was "Once verified, update ... to fully DONE"; verification did NOT pass, so tickets remain at `PARTIAL` (matrix-fix cluster DONE + hash-collision cluster OPEN).  `docs/CURRENT_STATUS.md` §Phase H blockquote documents the full evidence + forward-fix path.  Cat-2 AE-parity visual contract (gate #2) status: **BLOCKED** until SourceNode empty-Transform-tr fix lands + end-to-end re-bake produces 24 fresh-distinct PNGs + `check_ae_parity_golden_state.sh` transitions FAIL→PASS + 9-key test runs + PASSes.  AGENTS.md v0.1 Cat-1 (build corrective) + Cat-3 (no public API surface) + Cat-5 (doc-only alignment) freeze-compliant.  Zero new public symbols.
@@ -68,16 +70,55 @@ riportano lo stesso stato.
 5. Chiudere i gap Precomp, execution scope e identity/session che bloccano la baseline.
    - P1 #3 (parziale): `RenderSession::layout_cache` sostituisce il singleton `shared_text_layout_cache()`. Migrazione callsite post-baseline.
 6. Eseguire core, lean, no-content e full-validation sullo stesso commit.
-7. Rendere architecture e renderer-boundary gate realmente bloccanti.
+7. ~~Rendere architecture e renderer-boundary gate realmente bloccanti.~~ **DONE** — P0-C (commit `e79f8621`): `continue-on-error` rimosso da gates.yml Gate 5, 5 invarianti (I1–I5) verificate green su `main@HEAD`.
 8. Eseguire install consumer sullo stesso commit.
 9. Registrare comandi ed esiti osservati in `docs/baselines/`.
 
 ### Gate di uscita
 
-- nessun test richiesto skipped per nascondere un errore;
+- nessun test richieto skipped per nascondere un errore;
 - nessun gate con `continue-on-error` sul percorso candidato;
 - tutti i profili richiesti verdi sullo stesso commit;
 - documenti sincronizzati.
+
+---
+
+## 13/13 Action Plan — closure summary (2026-07-10)
+
+> **Snapshot:** `main@50e36a04` — 13/13 azioni completate (15 commits su `main`, range `4e9a14d4`..`50e36a04`).
+
+| # | Azione | Commit | Deliverable sintetico |
+|---|--------|--------|---|
+| P0-A | ctest nei gate core-build/sdk-build | `61bceb6c` | `ctest --preset` aggiunto ai gate CI per esecuzione test reali |
+| P0-B | paths filter full-validation | già presente | paths filter su `gates-full-validation.yml` |
+| P0-C | renderer-boundary gate blocking | `e79f8621` | `continue-on-error` rimosso; 5 invarianti (I1–I5) blocking |
+| P0-D | consumer CI manifest-clean | `bb592df5` | consumer CI test manifest-clean |
+| P1-A | Eliminare global AssetRegistry | `f06e4b1f` | DI pattern per AssetRegistry nel CLI |
+| P1-B | Video output atomico | `7d30771f` | `.partial` temp file + ffprobe validation + rename atomico |
+| P1-C | VideoSink structured errors | `c869ac19` | `VideoSinkError` enum (13 codici) + `last_error()` virtual methods |
+| P2-A | Sanitizers nightly/weekly | `24b6b8f3` | ASan+UBSAN nightly, TSan weekly; rimosso da ogni-push CI |
+| P2-B | Memory budget | `c89b6ed2` | `kMaxFrameDimension` (16384) + overflow guards in `frame_buffer_size` |
+| P2-C | Determinism matrix | `ce01a07d` | 16 test: 5 scene × 5 condizioni, XXH64 hash comparison |
+| P2-D | Frame rate edge cases | `8695960a` | 55 test: 7 standard rates + subframe + freeze + reverse + validation |
+| P2-E | Test hygiene gate | `726042fd` | 3 invarianti: duplicate doctest main, skip senza ticket, empty assertions |
+| P3-A | CI artifact docs | `ea9f5062` | `tools/ci_status_from_junit.py` → JSON `{commit, tests_total, passed, gates_passed}` |
+| — | unbreak media_video_tests | `50e36a04` | `chronon3d_pipeline` aggiunto a LINK_TARGETS (OBJECT lib propagation) |
+| — | CURRENT_STATUS update | `c8b63471` | 3 nuove area rows: Video pipeline, CI infra, Test coverage |
+
+### Gate di uscita (verificati)
+
+- tutti i gate CI passano senza `continue-on-error`;
+- sanitizers non rallentano il feedback loop (nightly/weekly);
+- test hygiene gate (3 invarianti) blocca skip senza ticket e assertions vuote;
+- video pipeline ha errori strutturati e budget memoria esplicito;
+- determinism matrix e frame rate tests coprono edge cases critici;
+- CI produce artifact JSON machine-readable per run.
+
+### Cross-link canonici
+
+- [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale per area (3 nuove rows);
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) entry per ogni commit;
+- [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blockers (verificato invariato).
 
 ## V0.2 — Test coverage expansion (4 fasi, PLANNED, post-baseline-verde)
 
