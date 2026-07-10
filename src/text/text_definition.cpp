@@ -71,4 +71,44 @@ TextDefinition from_text_run_spec(const TextRunSpec& spec) {
     return def;
 }
 
+TextSpec from_text_definition(const TextDefinition& def) {
+    TextSpec spec;
+
+    // ── content ────────────────────────────────────────────────────────
+    spec.content.value      = def.content.value;
+    spec.content.pre_shaped = def.content.pre_shaped;
+
+    // ── font ───────────────────────────────────────────────────────────
+    spec.font = def.style.font;
+
+    // ── layout ─────────────────────────────────────────────────────────
+    spec.layout.box            = def.frame.size;
+    spec.layout.anchor         = def.frame.anchor;
+    spec.layout.align          = def.frame.align;
+    spec.layout.vertical_align = def.frame.vertical_align;
+    spec.layout.wrap           = def.frame.wrap;
+    spec.layout.overflow       = def.frame.overflow;
+    spec.layout.centering_mode = def.frame.centering_mode;
+    spec.layout.line_height    = def.frame.line_height;
+    spec.layout.tracking       = def.frame.tracking;
+    spec.layout.auto_fit       = def.frame.auto_fit;
+    spec.layout.min_font_size  = def.frame.min_font_size;
+    spec.layout.max_font_size  = def.frame.max_font_size;
+    spec.layout.max_lines      = def.frame.max_lines;
+    spec.layout.ellipsis       = def.frame.ellipsis;
+    spec.layout.paragraph      = def.paragraph;
+
+    // ── appearance ─────────────────────────────────────────────────────
+    spec.appearance.color     = def.style.color;
+    spec.appearance.paint     = def.style.paint;
+    spec.appearance.shadows   = def.style.shadows;
+    spec.appearance.material  = def.style.material;
+    spec.appearance.box_style = def.style.box_style;
+
+    // ── position ───────────────────────────────────────────────────────
+    spec.position = def.frame.position;
+
+    return spec;
+}
+
 } // namespace chronon3d

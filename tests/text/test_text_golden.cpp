@@ -42,6 +42,7 @@
 #include <tests/visual/support/golden_test.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <content/text/text_helpers.hpp>
+#include <chronon3d/text/text_definition.hpp>  // F2.C — from_text_definition()
 
 #include <chrono>
 #include <filesystem>
@@ -93,7 +94,7 @@ Composition build_preset_composition(SoftwareRenderer& renderer,
             SceneBuilder s(ctx);
             s.font_engine(&renderer.font_engine());
             const f32 font_size = (d.width >= d.height) ? 96.0f : 64.0f;
-            TextSpec base = content::text::centered_text(
+            auto base = content::text::centered_text(
                 content::text::CenterTextOptions{
                     .text        = "THE QUICK BROWN FOX JUMPS",
                     .box         = Vec2{d.width * 0.85f, d.height * 0.85f},
@@ -105,7 +106,7 @@ Composition build_preset_composition(SoftwareRenderer& renderer,
                 });
             s.layer("hero", [&s, &preset, base](LayerBuilder& l) {
                 if (preset.builder) {
-                    preset.builder(s, l, base);
+                    preset.builder(s, l, from_text_definition(base));
                 }
             });
             return s.build();

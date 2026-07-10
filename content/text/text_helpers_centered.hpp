@@ -7,6 +7,7 @@
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
+#include <chronon3d/text/text_definition.hpp>  // F2.C — canonical DTO
 #include <string>
 #include <utility>
 
@@ -38,8 +39,10 @@ struct CenterTextOptions {
 // 1. centered_text
 // ═════════════════════════════════════════════════════════════════════════════
 
-inline TextSpec centered_text(CenterTextOptions o) {
-    return TextSpec{
+/// F2.C — canonical authoring helper.  Returns TextDefinition, the single
+/// canonical authoring DTO.  Composes directly with LayerBuilder::text().
+inline TextDefinition centered_text(CenterTextOptions o) {
+    return from_text_spec(TextSpec{
         .content    = {.value = std::move(o.text)},
         .font       = {.font_path   = std::move(o.font_asset),
                        .font_family = std::move(o.font_family),
@@ -61,18 +64,20 @@ inline TextSpec centered_text(CenterTextOptions o) {
                        .max_lines      = o.max_lines},
         .appearance = {.color = o.color},
         .position   = o.pos,
-    };
+    });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
 // 2. glow_text
 // ═════════════════════════════════════════════════════════════════════════════
 
-inline TextSpec glow_text(CenterTextOptions o,
+/// F2.C — canonical authoring helper.  Returns TextDefinition.
+/// Glow parameters are reserved for Phase A.3 TextEffects population.
+inline TextDefinition glow_text(CenterTextOptions o,
                             Color /*glow_color*/ = {1.0f, 1.0f, 1.0f, 1.0f},
                             f32 /*radius*/ = 24.0f,
                             f32 /*intensity*/ = 0.6f) {
-    return TextSpec{
+    return from_text_spec(TextSpec{
         .content    = {.value = std::move(o.text)},
         .font       = {.font_path   = std::move(o.font_asset),
                        .font_family = std::move(o.font_family),
@@ -94,7 +99,7 @@ inline TextSpec glow_text(CenterTextOptions o,
                        .max_lines      = o.max_lines},
         .appearance = {.color = o.color},
         .position   = o.pos,
-    };
+    });
 }
 
 } // namespace chronon3d::content::text
