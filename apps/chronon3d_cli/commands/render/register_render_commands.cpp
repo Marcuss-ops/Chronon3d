@@ -45,6 +45,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                   "Draw text layout debug overlay (canvas center, layout box, visual bounds, alpha centroid) + emit [text-layout] structured log per TextRun");
     cmd->add_flag("--diagnostic-overlay", args.pipeline.diagnostic_overlay,
                   "Draw diagnostic overlay on text layers: bbox (green rect), anchor point (blue dot), baseline (cyan line)");
+    cmd->add_flag("--diagnostic-overlay-only", args.pipeline.diagnostic_overlay_only,
+                  "Like --diagnostic-overlay but on transparent background (no scene content)");
     cmd->add_option("--debug-text-layout-json", args.pipeline.text_layout_debug_json_path,
                     "Write per-TextRun bounds JSON (alpha_bounds, layout_bounds, scratch_bounds, ascent, descent) to PATH (requires --debug-text-layout)");
     cmd->add_flag("--force-scalar-normal-blend", args.pipeline.force_scalar_normal_blend,
@@ -114,6 +116,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     // Pipeline options (subset of render)
     still->add_flag("--diagnostic-overlay", still_args.pipeline.diagnostic_overlay,
                   "Draw diagnostic overlay on text layers: bbox (green rect), anchor point (blue dot), baseline (cyan line)");
+    still->add_flag("--diagnostic-overlay-only", still_args.pipeline.diagnostic_overlay_only,
+                  "Like --diagnostic-overlay but on transparent background (no scene content)");
     still->add_flag("--graph,!--no-graph", still_args.pipeline.use_modular_graph, "Use modular RenderGraph path");
     still->add_flag("--no-dirty-rects", still_args.pipeline.no_dirty_rects, "Disable dirty-rectangle invalidation");
     still->add_flag("--motion-blur", still_args.pipeline.quality.motion_blur, "Enable temporal motion blur");
