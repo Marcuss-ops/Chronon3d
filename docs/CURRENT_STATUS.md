@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@3fa5880f` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato. Linux-only. Gate #10 PASS: check_install [BOUNDARY-OK] + check_text [TEXT-OK] (anti-false-green 6100/230400 delta pixels). Both consumers use SceneBuilder public API.
+> **Snapshot:** `main@50e36a04` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato. Linux-only. Gate #10 PASS. CI status artifacts uploaded per run (90-day retention).
 
 ## Active Blockers (top 3)
 
@@ -20,13 +20,16 @@ Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 | Area | Stato | Note sintetiche |
 |---|---|---|
 | Camera V1 | PASS | AE-parity 35/35 PASS; hash collision (AE_CAM_02/04) resolved via Fase 6 cache-key camera fingerprint. |
-| Text Production V1 | PARTIAL | **Text Export V1 certificato** ✅: check_text pipeline passa ([TEXT-OK], 6100/230400 delta pixels, anti-false-green). FontEngine auto-wiring verificato end-to-end. Esempio standalone `examples/text_export_consumer/` aggiunto. Golden capture pipeline: 144 PNG tracked. M1.5#1–#13 refactor completati. Clip 06 diagnostic (TICKET-TEXT-CLIP-PREDICTED-BBOX, P0): bug in `predicted_bbox` / compositor. I 5 goldens Clip 01–05 vanno re-seeded (TICKET-TEXT-CLIP-GOLDENS-01-05, P1). |
+| Text Production V1 | PARTIAL | **Text Export V1 certificato** ✅: check_text pipeline passa ([TEXT-OK]). Clip 06 diagnostic (TICKET-TEXT-CLIP-PREDICTED-BBOX, P0). I 5 goldens Clip 01–05 vanno re-seeded (P1). |
 | SDK C++ installabile | PASS | gate #10: sub-blocks A+B PASS, sub-block C (FU5 mean-RGB) DONE. |
 | SDK cross-language | NOT RUN | C ABI e formato `.chronon` da progettare. |
 | Render runtime | PASS | ImageCache + RenderSession::layout_cache landed. |
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
+| Video pipeline | PASS | Structured error reporting (VideoSinkError enum, 13 codes). Memory budget: max dimension 16384, overflow guards. Atomic output (.partial + ffprobe). media_video_tests linker fixed (`chronon3d_pipeline` added to LINK_TARGETS). 98 video tests pass. |
+| CI infrastructure | PASS | Sanitizers nightly/weekly (P2-A). Renderer-boundary gate blocking (P0-C). Test hygiene gate: 3 invariants (P2-E). CI status JSON artifact (P3-A). |
+| Test coverage | PASS | Frame rate edge cases: 55 tests (P2-D). Determinism matrix: 16 tests, 5×5 matrix (P2-C). Test hygiene: 3 invariant checks. |
 | Sistemi meta (Expressions V2 / V3) | PLANNED | Expressions V2 OFF di default; V3 subordinato a V1. |
-| 10-point friction audit | DONE (2026-07-08) | Lineage officially closed. 7 atomic commits landed (range `0ff8b100`..`8c1e9ddc`) sweeping FIX 1–10 (Camera V1 + SDK C++ + Render runtime + Composition + Test). Forward-only honesty: pre-existing rot tickets tracked in §Active Blockers (`TICKET-011` + `TICKET-036` + `TICKET-120` + `TICKET-GATE-10-PHASE-4-BLACK-FU5`) NON chiusi da questo audit; rimangono nel §Active Blockers. Tickets tracked elsewhere come `TICKET-005` / `TICKET-011-i` / `TICKET-044` (FOLLOWUP_TICKETS §Open Blockers) sono anch'essi out-of-scope. Cross-link: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Recently Closed `TICKET-10-POINT-FRICTION-AUDIT-CLOSURE` row + [`docs/ROADMAP.md`](docs/ROADMAP.md) closure-note above `## M0 — Baseline verificata` + [`docs/CHANGELOG.md`](docs/CHANGELOG.md) "10-point friction audit + fixes" entry. |
+| 10-point friction audit | DONE (2026-07-08) | Lineage closed. Pre-existing rot tickets tracked in §Active Blockers. |
 
 ## Gate Audit — ultima verifica
 
