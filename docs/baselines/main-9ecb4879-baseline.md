@@ -21,7 +21,7 @@
 | 2 | `check_architecture_boundaries_selftest.sh` | 0 | **PASS** ✅ | 14/14 assertions (same baseline shape as `aaf70032`). |
 | 3 | `check_software_renderer_boundary.sh` | 0 | **PASS** ✅ | I1-I5 all OK. |
 | 4 | `check_gitignored_dirs.sh` | 0 | **PASS** ✅ | All scanned directories clean. |
-| 5 | `audit_software_renderer.sh` | 0 | **PASS** ✅ | Report generated, exit 0. |
+| 5 | `audit_software_renderer.sh` | 0 | **PASS** ✅ | Report generated, exit 0. | <!-- drift-allow: archived-doc-pattern -->
 | 6 | `check_camera_architecture.sh` | 0 | **PASS** ✅ | 6/6 CAM-DOC 04 checks passed. |
 | 7 | `check_doc_sync.sh` | 0 | **PASS** ✅ | 0 hard failures, 0 warnings. |
 | 8 | `check_filename_drift.sh` | 0 | **PASS** ✅ | Warn-mode (advisory). Exact count captured in `/tmp/11gates/g8-filename-drift.log`. |

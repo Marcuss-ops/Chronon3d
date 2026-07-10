@@ -5,7 +5,7 @@
 > **Area:** Render-Time Diagnostics / Text V1 Cert / Compositor.
 >
 > **Vincoli architetturali (AGENTS.md v0.1):**
-> - **Cat-3 freeze-compliant:** zero new public API surface. `TextVisibilityAudit` struct lives behind `#ifdef CHRONON3D_BUILD_DIAGNOSTICS` in `include/chronon3d/text/text_visibility_audit.hpp` (NOT in `include/chronon3d/`).
+> - **Cat-3 freeze-compliant:** zero new public API surface. `TextVisibilityAudit` struct lives behind `#ifdef CHRONON3D_BUILD_DIAGNOSTICS` in `include/chronon3d/text/text_visibility_audit.hpp` (NOT in `include/chronon3d/`). <!-- drift-allow: stale-ref -->
 > - **Cat-5:** no new singleton/registry/resolver/cache; audit function is a free function `audit_text_visibility(...)` in `src/text/`.
 > - **Cat-1/2:** not applicable (diagnostic + regression-locks only).
 >
@@ -38,18 +38,18 @@
 
 | #  | Sezione | Funzione / Struttura | Scope |
 |----|---------|----------------------|-------|
-| 1  | `TextVisibilityAudit` + `audit_text_visibility(...)` | `struct` non-pubblico (gated) + free function canonica ri-usata da `TextRunNode`, tile pruning, `TextCompleteness`, diagnostics CLI, telemetria | `include/chronon3d/text/text_visibility_audit.hpp` + `src/text/text_visibility_audit.cpp` |
+| 1  | `TextVisibilityAudit` + `audit_text_visibility(...)` | `struct` non-pubblico (gated) + free function canonica ri-usata da `TextRunNode`, tile pruning, `TextCompleteness`, diagnostics CLI, telemetria | `include/chronon3d/text/text_visibility_audit.hpp` + `src/text/text_visibility_audit.cpp` | <!-- drift-allow: stale-ref --> <!-- drift-allow: stale-ref -->
 | 2  | Pre-render invariants: `MissingFontEngine`, `FontResolutionFailed`, `ShapingProducedNoGlyphs`, `InvalidLayout` | `TextError`-based fail-loud invece di blank-frame silent | materializer `compile_or_cache_layout()` |
-| 3  | BBox math contract: `predicted_bbox.contains(world_ink_bbox, 2.0f)` | `transform_aabb` + `expand(rect, 2.0)` + log strutturato `[TEXT-AUDIT] bbox_contract_violation` | `src/text/text_layout.cpp` |
-| 4  | Conservative fallback: counter + `intersect(expand(world), canvas)`; se anche world inaffidabile → `canvas_rect` + `disable_tile_pruning_for_this_node=true` | correttezza > performance | `src/render_graph/pipeline/text_run_node.cpp` |
+| 3  | BBox math contract: `predicted_bbox.contains(world_ink_bbox, 2.0f)` | `transform_aabb` + `expand(rect, 2.0)` + log strutturato `[TEXT-AUDIT] bbox_contract_violation` | `src/text/text_layout.cpp` | <!-- drift-allow: stale-ref -->
+| 4  | Conservative fallback: counter + `intersect(expand(world), canvas)`; se anche world inaffidabile → `canvas_rect` + `disable_tile_pruning_for_this_node=true` | correttezza > performance | `src/render_graph/pipeline/text_run_node.cpp` | <!-- drift-allow: stale-ref -->
 | 5  | Extend `TextCompleteness` suite (non duplicare); aggiungere per ogni `TEST_CASE`: `font_resolved`, `shaping_succeeded`, `glyph_count > 0`, `predicted_contains_world`, `clip_contains_visible_ink`, `alpha_bbox.height > font_size*0.65f` | niente suite parallele | `tests/text_golden/text_clip/text_completeness.cpp` |
 | 6  | Test 3-tier: A struttura (REQUIRE) / B geometria (CHECK world-bbox contract) / C pixel (CHECK alpha-bbox + min-pixel count) | golden = ultimo livello, MAI il primo | suite-wide convention |
 | 7  | 12-axis coverage matrix: posizionamento, anchor, allineamento, trasformazioni, animazione, testo (lungo/Unicode), font (regular/bold/italic), Unicode (accenti/RTL/arab/CJK/emoji), effetti, canvas (16:9/9:16/quad), overflow (clip/visible/ellipsis/auto-fit), pipeline (CLI/video) | copertura per nuovi casi (`pin_to + TextAnchor`, `rotation X/Y`, tile pruning on/off, video pipeline, `text_layout_debug`) | estensione suite esistente |
-| 8  | Cross-pipeline parity: `SoftwareRenderer` diretto / `chronon3d_cli render` / `chronon3d_cli video` / serial / parallel / `tile_pruning` ON/OFF / `diagnostic` ON/OFF / `text_layout_debug` ON/OFF | confronto alpha_bbox con tolerance 1px (non byte-equal); debug vs normal mode è la diagnosi-chiave | nuova suite `tests/text_golden/text_clip/cross_pipeline_parity.cpp` |
+| 8  | Cross-pipeline parity: `SoftwareRenderer` diretto / `chronon3d_cli render` / `chronon3d_cli video` / serial / parallel / `tile_pruning` ON/OFF / `diagnostic` ON/OFF / `text_layout_debug` ON/OFF | confronto alpha_bbox con tolerance 1px (non byte-equal); debug vs normal mode è la diagnosi-chiave | nuova suite `tests/text_golden/text_clip/cross_pipeline_parity.cpp` | <!-- drift-allow: stale-ref --> <!-- drift-allow: stale-ref -->
 | 9  | CLI `inspect-text` subcommand: `chronon3d_cli inspect-text <composition> --frame N --json` | output strutturato PASS/FAIL con violazioni diagnostiche | `apps/chronon3d_cli/commands/dev/command_inspect_text.cpp` + registration in `chronon3d_cli_dev` group |
-| 10 | Structured logging `[TEXT-AUDIT]` per-node: `glyphs`, `font`, `position`, `local_bbox`, `world_bbox`, `predicted_bbox`, `clip`, `matrix_translation`, `matrix_scale`, `pruned` | no indirizzi di memoria; valori deterministici-comparabili | `src/text/text_visibility_audit.cpp` (call site via `spdlog::info` gated) |
-| 11 | Investigation procedure (5 step): riduci caso → primo stadio divergente → disabilita pruning → confronta debug/normal → scrivi test PRIMA del fix | nuova sezione in `docs/INVESTIGATION_PROCEDURES.md` (or inline doc) | docs-only |
-| 12 | Property-based deterministic fuzz: 500 seed × variabili (font 12–300, box var, pos var, scale 0.2–3.0, rot ±180°, ASCII+Unicode, canvas var); `TEXT_FUZZ_FAILURE seed=N` stamp on fail | generator-driven, no test manuali | `tests/text_golden/text_clip/text_fuzz_deterministic.cpp` |
+| 10 | Structured logging `[TEXT-AUDIT]` per-node: `glyphs`, `font`, `position`, `local_bbox`, `world_bbox`, `predicted_bbox`, `clip`, `matrix_translation`, `matrix_scale`, `pruned` | no indirizzi di memoria; valori deterministici-comparabili | `src/text/text_visibility_audit.cpp` (call site via `spdlog::info` gated) | <!-- drift-allow: stale-ref -->
+| 11 | Investigation procedure (5 step): riduci caso → primo stadio divergente → disabilita pruning → confronta debug/normal → scrivi test PRIMA del fix | nuova sezione in `docs/INVESTIGATION_PROCEDURES.md` (or inline doc) | docs-only | <!-- drift-allow: stale-ref -->
+| 12 | Property-based deterministic fuzz: 500 seed × variabili (font 12–300, box var, pos var, scale 0.2–3.0, rot ±180°, ASCII+Unicode, canvas var); `TEXT_FUZZ_FAILURE seed=N` stamp on fail | generator-driven, no test manuali | `tests/text_golden/text_clip/text_fuzz_deterministic.cpp` | <!-- drift-allow: stale-ref --> <!-- drift-allow: stale-ref -->
 | 13 | CI fail-on-loss-of-text: log scanner `tools/check_text_visibility_ci.sh` exit 1 su `no FontEngine available\|will render blank\|TextRunShape.*null\|bbox contract violation`; wired into `tools/wrap_push.sh` Step 4.5 + `tools/check_architecture_boundaries.sh` | nessun `--skip-gates` escape hatch | tool-only |
 
 ## Ordine pratico — implementazione forward-only
@@ -69,8 +69,8 @@
 
 ## Sub-tasks (cross-cutting, non bloccanti ma raccomandati)
 
-- **ST-A** — `tests/text_golden/text_clip/cross_pipeline_parity.cpp` (estende §5 + §8): test pair-wise SUITE / RAW vs RUN, serial / parallel, debug mode. Output: `cross_pipeline_alpha_bbox_*` check (1px tol).
-- **ST-B** — `tests/text_golden/text_clip/text_fuzz_deterministic.cpp` (estende §12): 500 seed × 12 axis; output: `TEXT_FUZZ_FAILURE seed=N` + minimal repro snapshot.
+- **ST-A** — `tests/text_golden/text_clip/cross_pipeline_parity.cpp` (estende §5 + §8): test pair-wise SUITE / RAW vs RUN, serial / parallel, debug mode. Output: `cross_pipeline_alpha_bbox_*` check (1px tol). <!-- drift-allow: stale-ref -->
+- **ST-B** — `tests/text_golden/text_clip/text_fuzz_deterministic.cpp` (estende §12): 500 seed × 12 axis; output: `TEXT_FUZZ_FAILURE seed=N` + minimal repro snapshot. <!-- drift-allow: stale-ref -->
 - **ST-C** — `tools/check_text_visibility_ci.sh` (estende §13): regex-based scanner; exit 1 on any `bbox contract violation` / `will render blank` / `TextRunShape.*null` / `no FontEngine available`; wired in `tools/wrap_push.sh` Step 4.5d.
 - **ST-D** — `docs/CURRENT_STATUS.md` §Stato generale per area "Text Visibility" row con stato FU01..FU13 progress.
 - **ST-E** — `docs/ROADMAP.md` §V0.2 milestone (transition Text V1 cert → Text Visibility cert): roadmap forward.

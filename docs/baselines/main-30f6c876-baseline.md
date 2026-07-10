@@ -14,7 +14,7 @@
 | 2 | `check_architecture_boundaries_selftest.sh` | 0 | **PASS** ✅ | 14 assertions passed |
 | 3 | `check_software_renderer_boundary.sh` | 2 | **FAIL** ❌ | I5: 1 `SoftwareRenderer&` at `src/runtime/render_engine.cpp:255` |
 | 4 | `check_gitignored_dirs.sh` | 0 | **PASS** ✅ | 31/31 directories, 8 globs, 49 file patterns clean |
-| 5 | `audit_software_renderer.sh` | 0 | **PASS** ✅ | All pipelines pipefail-safe |
+| 5 | `audit_software_renderer.sh` | 0 | **PASS** ✅ | All pipelines pipefail-safe | <!-- drift-allow: archived-doc-pattern -->
 | 6 | `check_camera_architecture.sh` | 1 | **FAIL** ❌ | P0: non-canonical `tan(fov)` focal formulas in `camera_test_orchestrator.cpp` lines 363, 557 |
 | 7 | `check_doc_sync.sh` | 0 | **PASS** ✅ | 0 hard failures, 0 warnings |
 | 8 | `check_filename_drift.sh` | 0 | **PASS** ✅ | Warn mode; 114 drift warnings (advisory, exit 0) |

@@ -10,7 +10,7 @@
 | 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS    | 15/15 assertions. |
 | 3 | `check_software_renderer_boundary.sh`       | ✅ PASS    | I1-I5 tutti rispettati. |
 | 4 | `check_gitignored_dirs.sh`                  | ✅ PASS    | Nessun abs-path leak. |
-| 5 | `audit_software_renderer.sh`                | ✅ PASS    | Report generato. |
+| 5 | `audit_software_renderer.sh`                | ✅ PASS    | Report generato. | <!-- drift-allow: archived-doc-pattern -->
 | 6 | `check_camera_architecture.sh`              | ✅ PASS    | 6/6 check (ae_parity + camera_truth test files whitelisted). |
 | 7 | `check_doc_sync.sh`                         | ✅ PASS    | Doc-sync invariants hold. |
 | 8 | `check_filename_drift.sh`                   | ✅ PASS*   | warn-mode; 87 drift findings. |

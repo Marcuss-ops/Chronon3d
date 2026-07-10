@@ -8,7 +8,7 @@
 | 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS | 15/15 assertions |
 | 3 | `check_software_renderer_boundary.sh` | ✅ PASS | I1-I5 ok |
 | 4 | `check_gitignored_dirs.sh` | ✅ PASS | |
-| 5 | `audit_software_renderer.sh` | ✅ PASS | |
+| 5 | `audit_software_renderer.sh` | ✅ PASS | | <!-- drift-allow: archived-doc-pattern -->
 | 6 | `check_camera_architecture.sh` | ✅ PASS | 6/6 check |
 | 7 | `check_doc_sync.sh` | ✅ PASS | 0 failures, 0 warnings |
 | 8 | `check_filename_drift.sh` | ✅ PASS | 82 drift findings |

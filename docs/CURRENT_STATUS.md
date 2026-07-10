@@ -45,7 +45,6 @@ Baseline: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c
 | 2 | `check_architecture_boundaries_selftest.sh` | ✅ PASS | |
 | 3 | `check_software_renderer_boundary.sh` | ✅ PASS | |
 | 4 | `check_gitignored_dirs.sh` | ✅ PASS | |
-| 5 | `audit_software_renderer.sh` | ✅ PASS | |
 | 6 | `check_camera_architecture.sh` | ✅ PASS | |
 | 7 | `check_doc_sync.sh` | ✅ PASS | Fixato heading `## Stato generale per area` in CURRENT_STATUS.md |
 | 8 | `check_filename_drift.sh` | ⚠️ PASS* | warn-mode; 109 drift findings |

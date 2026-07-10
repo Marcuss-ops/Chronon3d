@@ -94,7 +94,7 @@ The thinker's verdict (Step 4 strategic validation, 2026-06-30) was that **only 
 - **The literal manifest is unchanged** — `cmake/Chronon3DPublicHeaders.cmake` diff against `HEAD~1` is empty (this ADR is doc-only).
 - **The OPR umbrellas re-export is unchanged** — `include/chronon3d/chronon3d.hpp` still has only 6 anchored `#include`s (P3-I commit `a1f5e645`).
 - **The install consumer remains green** — `tests/install_consumer/main.cpp` continues to compile against the manifest, *via* the documented leak.
-- **No gate regressions** — `tools/audit_software_renderer.sh`, `tools/check_camera_architecture.sh`, `tools/check_architecture_boundaries.sh`, etc. are unaffected (none flag the `composition.hpp` → OPP-internal transitives as a P0 today).
+- **No gate regressions** — `tools/audit_software_renderer.sh`, `tools/check_camera_architecture.sh`, `tools/check_architecture_boundaries.sh`, etc. are unaffected (none flag the `composition.hpp` → OPP-internal transitives as a P0 today). <!-- drift-allow: archived-doc-pattern -->
 
 ### When to revisit this ADR
 
