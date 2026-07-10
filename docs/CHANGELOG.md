@@ -1,3 +1,34 @@
+## Luglio 2026 — acquire_temp_framebuffer dimension clamp (2026-07-10, atomic commit)
+
+### fix(effects): acquire_temp_framebuffer — dimension clamp prevents "Framebuffer dimensions must be positive" crash
+
+- **Root cause**: multi-pass effects (blur inside drop_shadow, glow pipeline) compute internal temporary buffer sizes from the source framebuffer dimensions. When the source bbox is degenerate (e.g. 1×1 after `TransformNode` clamped an empty predicted bbox), these secondary dimension calculations can underflow to 0 or negative. `acquire_temp_framebuffer()` in `effects_internal.hpp` had no dimension safety and passed non-positive values to the `Framebuffer` constructor (`framebuffer_impl.hpp`), throwing `std::invalid_argument: Framebuffer dimensions must be positive`.
+
+- **Symptom**: `AnimScaleText` and `ImportantWordTrio` compositions crashed with the above exception when rendered via `chronon3d_cli render`. Both compositions use `make_text_anim` which adds a `drop_shadow` effect at layer level + opacity/scale animations that produce degenerate bboxes at early frames (opacity=0 or scale near 0).
+
+- **Fix** (1 file / 5 ins / 0 del): `src/backends/software/utils/effects/effects_internal.hpp` — added `std::max(1, w)` and `std::max(1, h)` clamps at the entry point of `acquire_temp_framebuffer()`. This mirrors the existing `std::max(1, ...)` guards already present in `EffectStackNode::execute()` and `TransformNode::execute()`, extending the same defensive pattern to the shared temp-buffer allocator.
+
+- **Verification (machine-verified on linux-content-dev build)**:
+  - `AnimScaleText` frame 0: ✅ render completed without crash (previously threw `std::invalid_argument`)
+  - `ImportantWordTrio` frame 0: ✅ render completed without crash (previously threw `std::invalid_argument`)
+  - Build `linux-fast-dev`: ✅ GREEN
+  - Build `linux-content-dev`: ✅ GREEN
+  - Code-reviewer-mimo-pro: ✅ APPROVED
+
+- **Separate finding (investigated, NOT fixed this commit)**: ALL `make_text_anim` compositions produce 100% transparent output even at mid-animation frames. Root cause traced to `fullscreen_rect` (used by `add_black_background` / `add_dark_background`) not producing visible content in the `linux-content-dev` build. Compositions using `add_common_background` (pin_to + rect, e.g. CertLongText, MinimalistTextFadeUp) work correctly. This is a pre-existing issue, not caused by this fix. Forward-point: investigate `fullscreen_rect` coordinate pipeline.
+
+- **AGENTS.md v0.1 freeze compliance**:
+  - Cat-1 (crash corrective — eliminates `std::invalid_argument` crash on 2 compositions).
+  - Cat-3 (zero new public API surface — defensive clamp in existing inline function).
+  - Zero new singleton/registry/cache/resolver/service-locator.
+  - No `#include <msdfgen>|<libtess2>|<unicode[/...]>`.
+
+- **Production git trace** (this commit): 1 source file modified (`src/backends/software/utils/effects/effects_internal.hpp` +5 ins for clamp + comment) + 1 canonical doc update (`docs/CHANGELOG.md` this entry prepended at TOP). No other files touched.
+
+- **Cross-references**: [`src/backends/software/utils/effects/effects_internal.hpp`](src/backends/software/utils/effects/effects_internal.hpp) (the clamped `acquire_temp_framebuffer`); [`src/render_graph/nodes/effect_stack_node.cpp`](src/render_graph/nodes/effect_stack_node.cpp) (existing `max(1,...)` guard — same pattern); [`src/render_graph/nodes/transform_node.cpp`](src/render_graph/nodes/transform_node.cpp) (existing `max(1,...)` guard — same pattern); [`content/animation_compositions.cpp`](content/animation_compositions.cpp) (AnimScaleText definition); [`content/showcases/important-words/important_words_animations.cpp`](content/showcases/important-words/important_words_animations.cpp) (ImportantWordTrio definition).
+
+---
+
 ## Luglio 2026 — Fase 1: bbox/clip baseline-closure doc catchup (2026-07-09, doc-only atomic commit)
 
 ### docs(fase-1): bbox/clip test expansion — PIVOT to anti-duplicazione (0/10 test landed)
