@@ -196,7 +196,6 @@ add_executable(chronon3d_cli
     # direct calls stay resolvable and the file is compiled exactly ONCE.
     ${CMAKE_SOURCE_DIR}/tests/visual/camera_truth/camera_truth_test.cpp
     ${CMAKE_SOURCE_DIR}/tests/visual/camera_truth/camera_truth_orbit.cpp
-    ${CMAKE_SOURCE_DIR}/content/experimental/ae-parity/ae_camera_text_parity.cpp
 )
 if(NOT TARGET chronon3d_content)
     target_sources(chronon3d_cli PRIVATE
