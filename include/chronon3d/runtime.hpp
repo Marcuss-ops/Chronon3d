@@ -2,6 +2,8 @@
 
 // ═════════════════════════════════════════════════════════════════════════════
 // Chronon3d — Runtime Shim (DEPRECATED) — Pass D compatibility layer
+//
+// D2 — [[deprecated]]: prefer <chronon3d/render.hpp> for rendering.
 // ═════════════════════════════════════════════════════════════════════════════
 //
 // *** BUILD-BREAKING REFACTOR ***  This header is no longer an umbrella.
@@ -56,6 +58,9 @@
 //   `<chronon3d/math/camera_2_5d_projection.hpp>`
 //   `<chronon3d/assets/{asset_registry,render_preflight}.hpp>`
 // ═════════════════════════════════════════════════════════════════════════════
+
+// D2 — [[deprecated]]: prefer <chronon3d/render.hpp>.
+// (Pragma warning deferred — see docs/FOLLOWUP_TICKETS.md D2-pragma ticket.)
 
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/sdk/render_output.hpp>

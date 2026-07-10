@@ -1,7 +1,10 @@
 #pragma once
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Chronon3d — Internal Header
+// Chronon3d — Internal Header  (D2 — superseded by advanced.hpp)
+//
+// D2 — [[deprecated]]: prefer <chronon3d/advanced.hpp> for engine internals.
+// ═════════════════════════════════════════════════════════════════════════════
 //
 // Render graph, executor, effects, presets, compositor, text animator, and
 // registry internals.  Only include this when you work with the internal
@@ -43,6 +46,9 @@
 #include <chronon3d/presets/scene_presets.hpp>
 
 #include <chronon3d/text/text_animator.hpp>
+
+// D2 — [[deprecated]]: prefer <chronon3d/advanced.hpp>.
+// (Pragma warning deferred — see docs/FOLLOWUP_TICKETS.md D2-pragma ticket.)
 
 namespace chronon3d {
     // Internal umbrella

@@ -3,6 +3,10 @@
 // ═════════════════════════════════════════════════════════════════════════════
 // Chronon3d — Public API Umbrella Header  (P3-I re-export-only shim)
 //
+// D2 — [[deprecated]]: prefer <chronon3d/authoring.hpp> for composition
+// building and <chronon3d/render.hpp> for rendering.  This umbrella is
+// superseded by the 3-header canonical surface (authoring / render / advanced).
+//
 // CONTRACT — anti-duplication rule #17 (docs/ANTI_DUPLICATION_RULES.md):
 //   The umbrella is a thin re-export shim.  It pulls in ONLY the other
 //   six V0.1 public-header manifest entries — see
@@ -70,6 +74,10 @@
 
 // ── Image I/O helper (save_png, etc.) ──────────────────────────────────
 #include <chronon3d/backends/image/image_writer.hpp>
+
+// D2 — [[deprecated]]: prefer <chronon3d/authoring.hpp> or <chronon3d/render.hpp>.
+// (Pragma warning deferred to follow-up PR to avoid breaking -Werror builds
+//  during migration.  See docs/FOLLOWUP_TICKETS.md for the D2-pragma ticket.)
 
 // ── NOTE: chronon3d::RenderEngine (api/render_engine.hpp) is NOT
 //    re-exported through the umbrella.  The canonical public rendering
