@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # tools/check_architecture_boundaries.sh
 # ─────────────────────────────────────────────────────────────────────
-# WP-0 (PR 0.2 / 0.5 close-out) + F3.1 phase B + ADR-010 + Phase-A1 — Architecture
-# boundary grep + semantic checks (18 total).
+# WP-0 (PR 0.2 / 0.5 close-out) + F3.1 phase B + ADR-010 + Phase-A1 + Phase-A3 —
+# Architecture boundary grep + semantic checks (19 total).
 #
 # Verifies that headers / symbols retired in prior refactors have not been
 # accidentally re-introduced.  Every check runs linearly before the summary
@@ -44,6 +44,8 @@
 #  17. src/-only header on public path       — TICKET-ae-cam-hash-collision
 #  18. V2 AssetPreflight stubs RETIRED       — Phase A1 close-out
 #        (asset_readiness_v2.hpp always-green stubs + accumulate_preflight_result)
+#  19. TextSpec::offset RETIRED              — Phase A3 close-out
+#        (dual-channel placement pattern: spec.placement.offset is canonical)
 #
 # Wired into:
 #   - CI:     .github/workflows/gates.yml (Gate 5 / architecture-check)
@@ -113,7 +115,7 @@ filter_symbol_in_code_only() {
     '
 }
 
-echo "=== Architecture boundary grep + semantic checks (WP-0 / F3.1 / P1-4 / Phase-A1 — 18 checks) ==="
+echo "=== Architecture boundary grep + semantic checks (WP-0 / F3.1 / P1-4 / Phase-A1 / Phase-A3 — 19 checks) ==="
 
 # ── 1. core/memory/render_session.hpp ─────────────────────────────────
 # Split into runtime/render_session.hpp + software_session_resources.hpp
@@ -539,6 +541,39 @@ if [ -n "$hits" ]; then
     echo "    \`include/chronon3d/assets/asset_preflight_resolver.hpp\` (namespace"
     echo "    \`chronon3d::\`). To re-introduce these symbols you must first update"
     echo "    ADR-016 + TICKET-ASSET-READINESS with a new approved design."
+    FAILED=1
+else echo "PASS"; fi
+
+# ── 19. TextSpec::offset RETIRED (Phase A3 close-out) ───────────────────────────────────────────────────
+# After Phase A3, TextSpec has NO `Vec2 offset{}` field. The pin position
+# lives only in `spec.placement.offset` (bundled with the placement kind
+# via struct TextPlacement). This gate forbids re-introducing the redundant
+# dual-channel representation that confused `.offset = ...` with
+# `.position = ...`.
+#
+# `GlyphSelectorSpec` deliberately has its own `offset` field
+# (`animator_property<Vec2>` for an animation phase shift, NOT a pin
+# position). Files matching `*glyph_selector*` are explicitly exempted
+# so the gate does not false-positive on the AnimationOffset property
+# setter chain.
+echo -n "  [19/19] TextSpec::offset RETIRED        ... "
+# Path filter exempts files touching `GlyphSelectorSpec::offset`
+# (animator property for phase shift, NOT a pin position):
+#   * src/text/glyph_selector_compile.cpp  (compile path)
+# `test_*select*` paths are deliberately NOT exempted here — any test
+# using spec.offset on a non-GlyphSelectorSpec type should be migrated.
+hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+    -E '\bspec\.offset\b' $SCRIPT_PATHS 2>/dev/null \
+    | grep -v 'glyph_selector' \
+    | filter_symbol_in_code_only '\bspec\.offset\b' \
+    || true)
+if [ -n "$hits" ]; then
+    echo "FAIL"
+    echo "  TextSpec::offset re-introduced (Phase A3 closed it):"
+    echo "$hits" | sed 's/^/    /'
+    echo "  → Migrate to \`spec.placement.offset\` (bundled with"
+    echo "    TextPlacement.kind). GlyphSelectorSpec::offset is exempt"
+    echo "    (animation phase shift)."
     FAILED=1
 else echo "PASS"; fi
 

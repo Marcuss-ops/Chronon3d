@@ -162,8 +162,11 @@ struct TextSpec {
     FontSpec           font;
     TextLayoutSpec     layout;
     TextAppearanceSpec appearance;
-    TextPlacement      placement{};  // F1: placement kind (internal .offset ignored when kind=Absolute)
-    Vec2               offset{};     // F1: flat 2D position — the primary offset for Absolute placements
+    /// Single source of truth for placement semantics and the 2D pin offset
+    /// (F1: placement kind + offset bundled; Phase A3 close-out removes the
+    /// redundant flat `Vec2 offset` — see tools/check_architecture_boundaries.sh
+    /// gate #19 that forbids the re-introduction of this dual-channel pattern).
+    TextPlacement      placement{};
 };
 
 // ── TextParams: DEPRECATED type-alias for TextSpec ──────────────────

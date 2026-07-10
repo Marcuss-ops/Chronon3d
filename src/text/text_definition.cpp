@@ -40,8 +40,14 @@ TextDefinition from_text_spec(const TextSpec& spec) {
     def.style.box_style = spec.appearance.box_style;
 
     // ── frame ──────────────────────────────────────────────────────────
+    // Phase A3: spec.offset removed (gate #19). The pin position lives only
+    // in spec.placement.offset (bundled with placement.kind). Phase A4 will
+    // consolidate TextFrame.{position, placement_kind, offset} into a single
+    // `placement` field — until then the adapter still emits a Vec3 position
+    // (with z=0.0 in presets; non-zero in 5 round-trip tests at lines 156/313/
+    // 703/748/1139 of test_text_definition.cpp).
     def.frame.size          = spec.layout.box;
-    def.frame.position      = Vec3{spec.offset.x, spec.offset.y, 0.0f};
+    def.frame.position      = Vec3{spec.placement.offset.x, spec.placement.offset.y, 0.0f};
     def.frame.placement_kind = spec.placement.kind;  // F3: lossless round-trip
     def.frame.anchor        = spec.layout.anchor;
     def.frame.align         = spec.layout.align;
@@ -115,8 +121,12 @@ TextSpec from_text_definition(const TextDefinition& def) {
     spec.appearance.box_style = def.style.box_style;
 
     // ── placement (F3: lossless round-trip — kind preserved in TextFrame) ─
-    spec.placement = TextPlacement{def.frame.placement_kind};
-    spec.offset    = {def.frame.position.x, def.frame.position.y};
+    // Phase A3: spec.offset removed (gate #19). Reverse adapter writes the
+    // canonical x/y Vec2 into spec.placement.offset (bundled with kind).
+    spec.placement = TextPlacement{
+        def.frame.placement_kind,
+        {def.frame.position.x, def.frame.position.y}
+    };
 
     return spec;
 }
