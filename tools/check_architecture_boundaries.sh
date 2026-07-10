@@ -120,13 +120,13 @@ filter_symbol_in_code_only() {
     '
 }
 
-echo "=== Architecture boundary grep + semantic checks (WP-0 / F3.1 / P1-4 / Phase-A1 / Phase-A3 / Phase-A4 \u2014 20 checks) ==="
+echo "=== Architecture boundary grep + semantic checks (WP-0 / F3.1 / P1-4 / Phase-A1 / Phase-A2 / Phase-A3 / Phase-A4 / Phase-A5 \u2014 22 gates) ==="
 
 # ── 1. core/memory/render_session.hpp ─────────────────────────────────
 # Split into runtime/render_session.hpp + software_session_resources.hpp
 # during TICKET-011. The old path must NEVER appear in #include or
 # reference.
-echo -n "  [1/15] core/memory/render_session.hpp  ... "
+echo -n "  [1/22] core/memory/render_session.hpp  ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*core/memory/render_session\.hpp' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -138,7 +138,7 @@ else echo "PASS"; fi
 # contents (ExecutionPlanCache, GraphExecutor, SoftwareRegistry,
 # GraphNodeCatalog, EffectCatalog, ExecutionScheduler) now live on
 # runtime::RenderRuntime.
-echo -n "  [2/15] renderer_runtime_resources.hpp   ... "
+echo -n "  [2/22] renderer_runtime_resources.hpp   ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*renderer_runtime_resources\.hpp' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -148,7 +148,7 @@ else echo "PASS"; fi
 # ── 3. renderer_cache_state.hpp ───────────────────────────────────────
 # RendererCacheState eliminated in TICKET-011. Its contents (NodeCache,
 # FramebufferPool, CompiledGraphCache) now live on runtime::RenderRuntime.
-echo -n "  [3/15] renderer_cache_state.hpp         ... "
+echo -n "  [3/22] renderer_cache_state.hpp         ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include.*renderer_cache_state\.hpp' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -158,7 +158,7 @@ else echo "PASS"; fi
 # ── 4. clear_per_frame() method (WP-3 PR 3.4 close-out) ────────────────
 # Full-reset shim RETIRED. Migrate callers to `reset_frame_temporaries()`
 # (frame-scoped) or `reset_job()` (full reset).
-echo -n "  [4/15] legacy clear_per_frame() RETIRED ... "
+echo -n "  [4/22] legacy clear_per_frame() RETIRED ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bclear_per_frame\b' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -169,7 +169,7 @@ else echo "PASS"; fi
 # chronon3d::runtime::ExecutionPlanCache class & header were RETIRED
 # alongside the legacy `GraphExecutor::execute(RenderGraph&, ...)` overloads.
 # This guard enforces zero reintroduction.
-echo -n "  [5/15] plan_cache references RETIRED    ... "
+echo -n "  [5/22] plan_cache references RETIRED    ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bplan_cache\b' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -187,7 +187,7 @@ else echo "PASS"; fi
 # The single exception is the TICKET-007 canary test file, which names a
 # TEST_CASE after the symbol by string literal (line 118). That reference
 # is the test STUB for the guard itself and is exempt from the guard.
-echo -n "  [6/15] detail::g_debug_config REMOVED    ... "
+echo -n "  [6/22] detail::g_debug_config REMOVED    ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E 'detail::(g_debug_config|set_debug_config)' $SCRIPT_PATHS 2>/dev/null \
     | filter_symbol_in_code_only 'detail::(g_debug_config|set_debug_config)' \
@@ -201,7 +201,7 @@ else echo "PASS"; fi
 # Companion global (asset_registry.hpp). Migrated to per-instance
 # m_assets_root on RenderEngine; legacy global REMOVED. Same comment-strip
 # policy as check #6 applies.
-echo -n "  [7/15] g_default_assets_root REMOVED    ... "
+echo -n "  [7/22] g_default_assets_root REMOVED    ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bg_default_assets_root\b' $SCRIPT_PATHS 2>/dev/null \
     | filter_symbol_in_code_only '\bg_default_assets_root\b' \
@@ -214,7 +214,7 @@ else echo "PASS"; fi
 # Pre-PR-23 typo: `chrono3d` (missing 'n') vs the correct `chronon3d/`.
 # Original offender: `include/chronon3d/expressions/v2/lexer.hpp` line 9 —
 # since fixed in TICKET-003.  This guard prevents silent reintroduction.
-echo -n "  [8/15] chrono3d typo header RETIRED    ... "
+echo -n "  [8/22] chrono3d typo header RETIRED    ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include[[:space:]]*<chrono3d/' $SCRIPT_PATHS 2>/dev/null || true)
 if [ -n "$hits" ]; then
@@ -229,7 +229,7 @@ else echo "PASS"; fi
 # `core/memory/render_session.hpp` specifically — that is check #1.
 # This guard does NOT validate that sanctioned-include references still
 # resolve to extant files (a separate concern for build-time validation).
-echo -n "  [9/15] core/memory/* within allowlist   ... "
+echo -n "  [9/22] core/memory/* within allowlist   ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#include[[:space:]]*<[^>]*core/memory/' $SCRIPT_PATHS 2>/dev/null \
     | grep -Ev "core/memory/${MEMORY_SANCTIONED_RE}" \
@@ -243,7 +243,7 @@ else echo "PASS"; fi
 # green: 06 R2..R5 invariants on SoftwareRenderer (single-backend identity,
 # header LOC <=200, non-local includes <=6, no `dynamic_cast<SoftwareRenderer*>`,
 # no `SoftwareRenderer&` in processor surfaces).
-echo -n "  [10/15] SoftwareRenderer boundaries  ... "
+echo -n "  [10/22] SoftwareRenderer boundaries  ... "
 if [ -x tools/check_software_renderer_boundary.sh ]; then
     if bash tools/check_software_renderer_boundary.sh > /dev/null 2>&1; then
         echo "PASS"
@@ -286,7 +286,7 @@ fi
 # the included token (right after `<` or `"`), so substring coincidences
 # such as `text_unicode_utils.hpp` (a Chronon3D-internal helper whose
 # name contains `unicode` as a substring) do NOT false-positive.
-echo -n "  [11/15] msdfgen/libtess2/unicode includes FORBIDDEN (ADR-009 scoped) ... "
+echo -n "  [11/22] msdfgen/libtess2/unicode includes FORBIDDEN (ADR-009 scoped) ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '#[[:space:]]*include[[:space:]]*[<"](msdfgen|libtess2|unicode|tesselator)([-./][^>"]*)?[>"]' \
     $SCRIPT_PATHS 2>/dev/null \
@@ -319,7 +319,7 @@ else echo "PASS"; fi
 # cmake/Chronon3DRegistry.cmake. That registry is the SOLE registration
 # channel — anti-duplication per ANTI_DUPLICATION_RULES.md.  Reversed
 # guard: src OBJECT/INTERFACE libs not in registry -> FAIL.
-echo -n "  [12/15] CMake module registry (semantic) ... "
+echo -n "  [12/22] CMake module registry (semantic) ... "
 src_libs=$(grep -Rh --include='CMakeLists.txt' \
     -E '^[[:space:]]*add_library\([[:space:]]*[A-Za-z_][A-Za-z_0-9]*[[:space:]]+(OBJECT|INTERFACE)\b' \
     src/ 2>/dev/null \
@@ -347,7 +347,7 @@ else echo "PASS"; fi
 # matching entry in vcpkg.json (case-insensitive lowercase).  Allowlist
 # for CMake/system-builtin deps (Threads, EXPAT) that don't need vcpkg
 # entries.  Files: top-level CMakeLists.txt.
-echo -n "  [13/15] vcpkg dep parity (semantic) ... "
+echo -n "  [13/22] vcpkg dep parity (semantic) ... "
 miss=""
 for pkg in $(grep -hE '^[[:space:]]*find_package\([[:space:]]*[A-Za-z_][A-Za-z_0-9]*' \
                 CMakeLists.txt 2>/dev/null \
@@ -375,7 +375,7 @@ else echo "PASS"; fi
 # external consumers (apps/chronon3d_cli, install_consumer_test,
 # downstream).  Permitted entry points: <chronon3d/...> | "chronon3d/...".
 # FORBIDDEN: <chronon3d_sdk_impl[/...> | "chronon3d_sdk_impl[/...].
-echo -n "  [14/15] SDK public surface (semantic) ... "
+echo -n "  [14/22] SDK public surface (semantic) ... "
 # Tighter regex: require /, >, or " boundary immediately after
 # `chronon3d_sdk_impl` so legitimate internal filenames like
 # <chronon3d_sdk_impl_marker.h> are exempted while any include UNAMBIGUOUSLY
@@ -395,7 +395,7 @@ else echo "PASS"; fi
 # callsites of rasterize_text_to_bl_image and TextLayoutEngine::layout
 # outside the census-tracked whitelist.  See
 # docs/tickets/TICKET-P1-ACTION-PLAN.md §P1 #4.
-echo -n "  [15/15] Legacy text pipeline gate         ... "
+echo -n "  [15/22] Legacy text pipeline gate         ... "
 if [ -x tools/check_legacy_text_pipeline.sh ]; then
     if bash tools/check_legacy_text_pipeline.sh > /dev/null 2>&1; then
         echo "PASS"
@@ -424,7 +424,7 @@ fi
 # GENERATED cmake/Chronon3DConfig.cmake.  Runtime count parity is a
 # property of the substitution mechanism; this gate enforces the wiring
 # that guarantees it.
-echo -n "  [16/16] SDK public-deps SSoT wiring ... "
+echo -n "  [16/22] SDK public-deps SSoT wiring ... "
 if [ -f cmake/Chronon3DRegistry.cmake ] && [ -f cmake/Chronon3DConfig.cmake.in ]; then
     # Use POSIX character classes (NOT GNU-awk \s / \S) for cross-platform
     # portability: mawk-equivalent (default /usr/bin/awk on Debian/Ubuntu)
@@ -487,7 +487,7 @@ fi
 #   - lines that are pure comments (the `filter_symbol_in_code_only`
 #     pipeline doesn't apply here since `#include` syntax is easy to
 #     pattern-match without false positives)
-echo -n "  [17/17] src/-only include via public path ... "
+echo -n "  [17/22] src/-only include via public path ... "
 hits=""
 while IFS= read -r line; do
     [ -z "$line" ] && continue
@@ -528,7 +528,7 @@ else echo "PASS"; fi
 # `chronon3d::`, NOT `chronon3d::assets::v2`) and is wired into the CLI +
 # video exporters + canonical tests. This guard prevents silent
 # re-introduction of the always-green stubs.
-echo -n "  [18/21] V2 AssetPreflight stubs RETIRED ... "
+echo -n "  [18/22] V2 AssetPreflight stubs RETIRED ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\b(assets::v2::AssetPreflightResult|assets::v2::AssetPreflightResolver|accumulate_preflight_result)\b' \
     $SCRIPT_PATHS 2>/dev/null \
@@ -561,7 +561,7 @@ else echo "PASS"; fi
 # position). Files matching `*glyph_selector*` are explicitly exempted
 # so the gate does not false-positive on the AnimationOffset property
 # setter chain.
-echo -n "  [19/21] TextSpec::offset RETIRED        ... "
+echo -n "  [19/22] TextSpec::offset RETIRED        ... "
 # Path filter exempts files touching `GlyphSelectorSpec::offset`
 # (animator property for phase shift, NOT a pin position):
 #   * src/text/glyph_selector_compile.cpp  (compile path)
@@ -592,7 +592,7 @@ else echo "PASS"; fi
 # Scope: any structural read or write of `frame.position`, `frame.placement_kind`
 # or `frame.offset` in include/ src/ tests/ apps/ — comment-only mentions are
 # stripped by `filter_symbol_in_code_only` (same as gates #6/#7/#18/#19).
-echo -n "  [20/21] TextFrame consolidated           ... "
+echo -n "  [20/22] TextFrame consolidated           ... "
 hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     -E '\bframe\.(position|placement_kind|offset)\b' $SCRIPT_PATHS 2>/dev/null \
     | filter_symbol_in_code_only '\bframe\.(position|placement_kind|offset)\b' \
@@ -607,6 +607,45 @@ if [ -n "$hits" ]; then
     FAILED=1
 else echo "PASS"; fi
 
+# ── 22. TextEffects ELIMINATED (Phase A5 close-out) ──
+# Phase A5 dropped the duplicate `chronon3d::TextEffects` struct that lived
+# on `TextDefinition` (Phase A.3 introduced it as a "post-compositor
+# decorator surface" — but the renderer never consumed it; `def.effects.*`
+# was silently a no-op).  All glow/bevel effect authority now lives on
+# `TextDefinition.style.material` (the canonical `TextMaterial` seam).
+#
+# This gate forbids re-introduction of:
+#   1. The struct declaration `struct TextEffects` (struct-keyword guard).
+#   2. The field access `def.effects.*` on `TextDefinition` instances.
+#
+# Both are mechanical reintroduction patterns; structural-parity is locked
+# by the regression test in tests/text/test_text_definition.cpp Group 17
+# (`Phase A5 — TextEffects ELIMINATED + TextMaterial canonical seam`).
+# Future edits that need a PostTextMaterial seam must update ADR + open a
+# new ticket — not silently re-add the deleted struct.
+echo -n "  [22/22] TextEffects ELIMINATED       ... "
+hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+    -E '\bstruct\s+TextEffects\b|\bdef\.effects\.' $SCRIPT_PATHS 2>/dev/null \
+    | filter_symbol_in_code_only '\bstruct\s+TextEffects\b|\bdef\.effects\.' \
+    || true)
+if [ -n "$hits" ]; then
+    echo "FAIL"
+    echo "  TextEffects struct or def.effects.* field re-introduced:"
+    echo "$hits" | sed 's/^/    /'
+    echo "  → Phase A5 (2026-07-10) eliminated the duplicate"
+    echo "    \`chronon3d::TextEffects\` struct + \`TextDefinition::effects\`"
+    echo "    field + all consumers (\`content/text/text_helpers_centered.hpp\`"
+    echo "    \`glow_text()\`, \`tests/text/test_text_definition.cpp\` Group 4"
+    echo "    Phase A5 migration).  Canonical seam: "
+    echo "    \`TextDefinition.style.material.{glow_*, bevel_*}\` (TextMaterial"
+    echo "    is the SINGLE compositor surface; no duplicate authority).  See"
+    echo "    \`docs/CHANGELOG.md\` Phase A5 entry + Group 17 structural-parity"
+    echo "    test in \`tests/text/test_text_definition.cpp\`.  To re-introduce"
+    echo "    a PostTextMaterial seam you MUST update ADR + open a new ticket."
+    FAILED=1
+else echo "PASS"; fi
+
+# ── Summary ───────────────────────────────────────────────────────────
 # ── Summary ───────────────────────────────────────────────────────────
 echo ""
 if [ "$FAILED" -ne 0 ]; then
