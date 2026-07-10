@@ -79,6 +79,7 @@
 #include <chronon3d/authoring/material.hpp>
 #include <chronon3d/authoring/style_registry.hpp>
 #include <chronon3d/authoring/motion_registry.hpp>
+#include <chronon3d/authoring/resolution_outcome.hpp>
 
 #include <memory>
 #include <string>
@@ -404,6 +405,10 @@ public:
     // Both call paths funnel through the same private helper
     // `apply_text_style(const TextStyle&)` which performs the field-map.
     //
+    // A3 — structured outcomes: each call updates `last_style_outcome_`
+    // so callers can distinguish Found / Missing / RegistryUnavailable
+    // instead of the previous silent no-op contract.
+    //
     // Maps a `TextStyle` from the registry onto `spec.text`:
     //   font_path/family/weight/style/size  → spec.text.font.*
     //   color                               → spec.text.appearance.color
@@ -423,20 +428,31 @@ public:
     // Explicit-path (PR 3 surface): caller supplies the registry.
     Text& style(std::string_view id, const StyleRegistry& registry) {
         const auto resolved = registry.resolve(id);
-        if (!resolved.has_value()) return *this;
+        if (!resolved.has_value()) {
+            last_style_outcome_ = ResolutionOutcome::Missing;
+            return *this;
+        }
         apply_text_style(*resolved);
+        last_style_outcome_ = ResolutionOutcome::Found;
         return *this;
     }
 
     // Ambient-path (PR 3.5): resolves against the registry pinned at handle
     // construction (LayerBuilder → ExtensionContext → StyleRegistry*).
-    // When no ambient registry is attached, no-ops gracefully — no warning
-    // log because the chain is a valid authoring choice (use explicit variant).
+    // A3 — when the ambient registry pointer is null or the id is missing,
+    // records the structured outcome instead of silently no-opping.
     Text& style(std::string_view id) {
-        if (style_registry_ == nullptr) return *this;
+        if (style_registry_ == nullptr) {
+            last_style_outcome_ = ResolutionOutcome::RegistryUnavailable;
+            return *this;
+        }
         const auto resolved = style_registry_->resolve(id);
-        if (!resolved.has_value()) return *this;
+        if (!resolved.has_value()) {
+            last_style_outcome_ = ResolutionOutcome::Missing;
+            return *this;
+        }
         apply_text_style(*resolved);
+        last_style_outcome_ = ResolutionOutcome::Found;
         return *this;
     }
 
@@ -445,17 +461,28 @@ public:
     // Explicit-path.
     Text& motion(std::string_view id, const MotionRegistry& registry) {
         const auto resolved = registry.resolve(id);
-        if (!resolved.has_value()) return *this;
+        if (!resolved.has_value()) {
+            last_motion_outcome_ = ResolutionOutcome::Missing;
+            return *this;
+        }
         pending_->params.animators.push_back(*resolved);
+        last_motion_outcome_ = ResolutionOutcome::Found;
         return *this;
     }
 
     // Ambient-path.
     Text& motion(std::string_view id) {
-        if (motion_registry_ == nullptr) return *this;
+        if (motion_registry_ == nullptr) {
+            last_motion_outcome_ = ResolutionOutcome::RegistryUnavailable;
+            return *this;
+        }
         const auto resolved = motion_registry_->resolve(id);
-        if (!resolved.has_value()) return *this;
+        if (!resolved.has_value()) {
+            last_motion_outcome_ = ResolutionOutcome::Missing;
+            return *this;
+        }
         pending_->params.animators.push_back(*resolved);
+        last_motion_outcome_ = ResolutionOutcome::Found;
         return *this;
     }
 
@@ -482,7 +509,16 @@ public:
         return *this;
     }
 
-    // ── Read-only accessors (for tests and tooling) ──────────────────────
+    // ── A3 — Structured resolution outcomes ──────────────────────────
+    /// Returns the outcome of the most recent `.style()` call on this handle.
+    /// `NotAttempted` means no `.style()` call has been made yet.
+    [[nodiscard]] ResolutionOutcome last_style_outcome()  const noexcept { return last_style_outcome_; }
+
+    /// Returns the outcome of the most recent `.motion()` call on this handle.
+    /// `NotAttempted` means no `.motion()` call has been made yet.
+    [[nodiscard]] ResolutionOutcome last_motion_outcome() const noexcept { return last_motion_outcome_; }
+
+    // ── Existing accessors ──────────────────────────────────────────
     [[nodiscard]] const PendingTextRun& pending() const noexcept { return *pending_; }
     // TICKET-110 — `mutable_pending()` was demoted from public to private.
     // The accessor survives (Layer::text() construction path still needs a
@@ -572,6 +608,9 @@ private:
     // via the public accessor only for test introspection.
     const StyleRegistry*  style_registry_;
     const MotionRegistry* motion_registry_;
+    // A3 — structured resolution outcomes, updated by .style() / .motion().
+    ResolutionOutcome last_style_outcome_{ResolutionOutcome::NotAttempted};
+    ResolutionOutcome last_motion_outcome_{ResolutionOutcome::NotAttempted};
 };
 
 } // namespace chronon3d::authoring
