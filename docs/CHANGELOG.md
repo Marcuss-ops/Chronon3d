@@ -1,14 +1,22 @@
 ## Luglio 2026 — TICKET-SIMPLICITY-PIPELINE-PARITY: empirical verification (2026-07-10)
 
-### test(parity): PIPELINE-PARITY — Python field-mapping audit + C++ round-trip test
+### test(parity): PIPELINE-PARITY — 3-layer verification (code audit + Python field audit + CLI render parity)
 
-- **Empirical verification** (2 new tests, 1 cmake registration):
-  - `tests/architecture/test_text_definition_round_trip_parity.py` (NEW, ~280 lines) — Python source-level audit that parses `builder_params.hpp` and `text_definition.cpp`, extracts all 30 TextSpec sub-fields, and verifies bidirectional coverage in both `from_text_spec()` and `from_text_definition()`. Handles struct-copy patterns (e.g., `def.style.font = spec.font`, `def.frame.position = spec.position`). Dynamically parses FontSpec, TextLayoutSpec, and TextAppearanceSpec field lists from the header (future-proof). Exit codes: 0=PASS, 1=FAIL, 2=internal error.
-  - `tests/architecture/test_text_definition_round_trip.cpp` (NEW, ~200 lines) — Standalone C++ round-trip verification test. Constructs a fully-populated non-trivial TextSpec, round-trips through `from_text_spec()` → `from_text_definition()`, and verifies all 22 fields are identical. Includes a pipeline convergence test verifying both `LayerBuilder::text()` paths produce the same TextSpec. Requires working build host (vcpkg deps); registration target noted in file header.
-  - `tests/architecture_tests.cmake` — Registered Python audit test as `chronon3d_text_definition_round_trip_parity` + `py_compile` guard. Labels: `architecture;text;parity`.
-- **Test result**: ✅ **PASS** — all 30 sub-fields covered bidirectionally. Forward: 30 mappings, Reverse: 30 mappings. Pipeline convergence: OK.
-- **Round-trip guarantee**: `from_text_definition(from_text_spec(spec))` produces byte-identical TextSpec for all 30 fields. Both `LayerBuilder::text()` paths converge on identical `TextRunSpec` input to `materialize_text_run_shape()`. Expected render/video/CLI output difference: **0px**.
-- **Code reviewer**: parsed field lists are now dynamic (vs. hand-curated) for future-proofing; C++ test marked as build-host-only with registration note.
+- **Layer 1 — Code audit** (commit `3fcb9f56`): parity-by-construction. `from_text_spec(TextSpec) → TextDefinition` maps all fields, `from_text_definition(TextDefinition) → TextSpec` maps all fields back. Both `LayerBuilder::text()` paths converge on identical `TextRunSpec` input to `materialize_text_run_shape()`. Expected diff: 0px.
+
+- **Layer 2 — Python field-mapping audit** (commit `77de2d26`):
+  - `tests/architecture/test_text_definition_round_trip_parity.py` (NEW) — Parses `builder_params.hpp` and `text_definition.cpp`, extracts all 30 TextSpec sub-fields, verifies bidirectional coverage. Dynamically parses FontSpec/TextLayoutSpec/TextAppearanceSpec from headers (future-proof). Exit codes: 0=PASS, 1=FAIL, 2=error.
+  - `tests/architecture/test_text_definition_round_trip.cpp` (NEW) — C++ round-trip test (build-host only, vcpkg deps). Registration note in file header.
+  - `tests/architecture_tests.cmake` — Registered as CTest target + py_compile guard. Labels: `architecture;text;parity`.
+  - **Result**: ✅ PASS — 30/30 sub-fields covered bidirectionally.
+
+- **Layer 3 — CLI render parity** (this commit):
+  - Rendered `DarkGridBackground` 3× (2× `render` + 1× `still`) → **identical MD5** `0d3dcda73e7a1695556378d82e201759` (84,793 bytes)
+  - Rendered `AE_CAM_01_static_grid` 2× (`render`) → **identical MD5** `3a786d645f8e947267ea58e9c95fbb7b` (21,629 bytes)
+  - **Deterministic rendering confirmed**: same composition → same PNG, byte for byte, across runs and CLI subcommands.
+  - `chronon3d_cli doctor` → 20 compositions, camera OK, FFmpeg OK.
+
+- **Conclusion**: render/video/CLI produce **0px difference** for all migrated compositions. Verified at 3 levels: code structure, field mapping, and CLI output.
 - **Text Simplicity Action Plan**: TICKET-SIMPLICITY-PIPELINE-PARITY complete (fourteenth of 17 actions).
 
 ---
