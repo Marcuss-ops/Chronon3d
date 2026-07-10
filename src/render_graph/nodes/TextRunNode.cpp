@@ -170,6 +170,49 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
     if (bbox.is_empty()) {
         return raster::BBox{0, 0, 0, 0};  // legitimate post-clip cull
     }
+
+    // TICKET-SIMPLICITY-CONSERVATIVE-BBOX — F1.C conservative fallback.
+    // If predicted_bbox is suspiciously thin (height < 30% of font_size),
+    // the world bbox computation likely under-estimated the glyph ink
+    // extent.  This catches the class of bugs exemplified by the 19px-
+    // sliver regression (TICKET-TEXT-CLIP-ASCENT) where a tight
+    // predicted_bbox causes tile pruning to skip tiles that actually
+    // contain visible text.  The font-size-proportional threshold avoids
+    // false positives for small text on large canvases (e.g. 36pt caption
+    // on 3840×2160).
+    //
+    // The primary defense is the post-render alpha_bbox expansion in
+    // node_runner.cpp — this pre-render check is a safety net for cases
+    // where the bbox is degenerate-thin before rendering even starts.
+    if (m_shape) {
+        const int bbox_h = std::max(0, bbox.y1 - bbox.y0);
+        const int bbox_w = std::max(0, bbox.x1 - bbox.x0);
+        const float font_size = m_shape->font_size > 0.0f
+            ? m_shape->font_size : 32.0f;
+        const int min_h = static_cast<int>(font_size * 0.3f);
+        const int min_w = static_cast<int>(font_size * 0.5f);
+        const bool suspiciously_thin =
+            (bbox_h < min_h) || (bbox_w < min_w);
+        if (suspiciously_thin) {
+            if (ctx.node_exec.counters) {
+                ctx.node_exec.counters->text_bbox_contract_violations.fetch_add(
+                    1, std::memory_order_relaxed);
+            }
+            static bool warned = false;
+            if (!warned) {
+                spdlog::warn(
+                    "[text-bbox] CONSERVATIVE_EXPAND node={} predicted=({}, {}, {}, {}) "
+                    "w={} h={} min=({}, {}) font_size={:.0f}",
+                    m_name, bbox.x0, bbox.y0, bbox.x1, bbox.y1,
+                    bbox_w, bbox_h, min_w, min_h, font_size);
+                warned = true;
+            }
+            const int canvas_w = ctx.frame_input.width;
+            const int canvas_h = ctx.frame_input.height;
+            return raster::BBox{0, 0, canvas_w, canvas_h};
+        }
+    }
+
     return bbox;
 }
 
