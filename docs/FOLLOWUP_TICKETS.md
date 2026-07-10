@@ -82,7 +82,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-SIMPLICITY-VISIBILITY-CONTRACT | P0 | Contratto Visibilità Automatico | DONE | Text V1 — verify_text_visibility() con 6 invariant + structured diagnostic post-render in TextRunNode::execute() |
 | TICKET-SIMPLICITY-TEXTDEFINITION | P1 | TextDefinition Canonica | DONE | Text V1 — TextContent/TextStyle/TextFrame filled with real fields mapped from TextSpec |
 | TICKET-SIMPLICITY-BUILDER | P1 | Simple API Builder (.text().content().place()) | DONE | Text V1 — .place(TextPlacement) on Text handle, pin-point semantics |
-| TICKET-SIMPLICITY-ADAPTERS | P1 | text_run/centered_text/glow_text → adapter | PLANNED | Text V1 + TICKET-SIMPLICITY-BUILDER |
+| TICKET-SIMPLICITY-ADAPTERS | P1 | text_run/centered_text/glow_text → adapter | DONE | Text V1 + TICKET-SIMPLICITY-BUILDER — F2.C: helpers return TextDefinition, LayerBuilder accepts it, 17 callers updated |
 | TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS | P1 | Migrazione composizioni al builder | PLANNED | Text V1 + TICKET-SIMPLICITY-ADAPTERS |
 | TICKET-SIMPLICITY-ANIMATION | P1 | Animation helpers (interpolate/spring/sequence) | DONE | Text V1 — interpolate.hpp convenience header with 10 free functions |
 | TICKET-SIMPLICITY-PLACEMENT | P1 | Placement leggibili + safe areas | DONE | Text V1 — SafeAreaPreset (4 presets) + CanvasInfo::with_safe_area() factory |

@@ -3,6 +3,7 @@
 
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
+#include <chronon3d/text/text_definition.hpp>  // F2.C — TextDefinition → TextSpec adapter
 
 #include <algorithm>
 #include <cmath>
@@ -182,6 +183,13 @@ LayerBuilder& LayerBuilder::text(std::string name, TextSpec p) {
     TextRunParams run;
     run.text = std::move(p);
     return text_run(std::move(name), std::move(run)).commit();
+}
+
+LayerBuilder& LayerBuilder::text(std::string name, const TextDefinition& def) {
+    // F2.C — canonical authoring overload.
+    // Converts TextDefinition → TextSpec via from_text_definition(),
+    // then delegates to the existing text(name, TextSpec) pipeline.
+    return text(std::move(name), from_text_definition(def));
 }
 
 LayerBuilder& LayerBuilder::shape(std::string_view id, std::string name, registry::ShapeParams params) {

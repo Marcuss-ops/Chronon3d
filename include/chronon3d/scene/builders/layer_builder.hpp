@@ -35,6 +35,8 @@ struct ExtensionContext;  // PR 3.5 — forward-decl (host-side ambient registri
                          // Full definition lives in <chronon3d/extension/extension_context.hpp>.
                          // Kept as a forward-decl here so layer_builder.hpp stays include-light;
                          // accessor below returns the pointer verbatim.
+struct TextDefinition;  // F2.C — forward-decl for text(name, TextDefinition) overload.
+                         // Full definition in <chronon3d/text/text_definition.hpp>.
 
 // Forward-declare the test-only inspector so its `friend class`
 // declaration below resolves correctly.  Full definition lives in
@@ -422,6 +424,13 @@ public:
     // for the canonical entry point to the new fluent surface.
     //
     LayerBuilder& text(std::string name, TextSpec p);
+
+    /// F2.C — canonical authoring overload accepting TextDefinition.
+    /// Converts via from_text_definition() and delegates to text(name, TextSpec).
+    /// This is the RECOMMENDED entry point for new compositions;
+    /// centered_text() / glow_text() / typewriter_text() now all return
+    /// TextDefinition so they compose directly with this overload.
+    LayerBuilder& text(std::string name, const TextDefinition& def);
 
     // ── TextRunBuilder (PR 4 — TextAnimator V2) ──────────────────────────
     /// Push a new text-run entry into the layer's pending specs and

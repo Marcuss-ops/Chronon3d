@@ -207,12 +207,18 @@ struct TextDefinition {
 //   // ... etc.
 
 /// Convert a TextSpec to the canonical TextDefinition.
-/// Full implementation in src/text/text_definition.cpp (F2.C adapter phase).
+/// Full implementation in src/text/text_definition.cpp.
 [[nodiscard]] TextDefinition from_text_spec(const TextSpec& spec);
 
 /// Convert a TextRunSpec to the canonical TextDefinition.
 /// Includes animators (maps to TextAnimation placeholder — Phase A.3).
-/// Full implementation in src/text/text_definition.cpp (F2.C adapter phase).
+/// Full implementation in src/text/text_definition.cpp.
 [[nodiscard]] TextDefinition from_text_run_spec(const TextRunSpec& spec);
+
+/// Reverse adapter: convert the canonical TextDefinition back to TextSpec.
+/// Used by LayerBuilder::text(name, TextDefinition) and by helper functions
+/// that need to bridge from the canonical DTO to the builder's TextSpec.
+/// Full implementation in src/text/text_definition.cpp (F2.C adapter phase).
+[[nodiscard]] TextSpec from_text_definition(const TextDefinition& def);
 
 } // namespace chronon3d
