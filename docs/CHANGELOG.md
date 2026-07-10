@@ -1,3 +1,18 @@
+## Luglio 2026 — TICKET-SIMPLICITY-INSPECT-TEXT-RENDER: `inspect text` real frame rendering (2026-07-10)
+
+### fix(cli): `inspect text` — wire `--diagnostic-overlay` into actual frame rendering via SoftwareRenderer
+
+- **Problem**: `render_frame_to_png()` in `command_text_audit.cpp` was a placeholder — it evaluated the scene via `comp.evaluate()` but never rendered pixels. The `--diagnostic-overlay` flag on `inspect text` had no effect on the output PNGs.
+- **Fix** (1 file, `command_text_audit.cpp`):
+  - Replaced the placeholder `FrameContext` + `comp.evaluate()` with `SoftwareRenderer::render(comp, Frame{frame})` (canonical V0.2 entry point)
+  - Wired `diagnostic_overlay` and `diagnostic_overlay_only` from `TextAuditArgs` into `RenderSettings` (matching `bake-layer` + `settings_from_args` patterns)
+  - Added `save_image()` call with `ImageFormat::Png` + `convert_png_to_srgb` for output
+  - Added includes: `cli_render_utils.hpp` (for `create_renderer`), `render_settings.hpp`, `image_writer.hpp`
+  - Removed unused `<chronon3d/core/types/frame_context.hpp>` include
+- **Error handling**: null framebuffer check + save failure check + exception catch
+
+---
+
 ## Luglio 2026 — TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY-ONLY: `--diagnostic-overlay-only` trasparente (2026-07-10)
 
 ### feat(cli): `--diagnostic-overlay-only` — overlay markers on transparent background, no scene content
