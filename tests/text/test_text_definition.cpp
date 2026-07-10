@@ -2,8 +2,9 @@
 // test_text_definition.cpp — F2.A/F2.C adapter convergence tests
 //
 // Verifies that from_text_spec() / from_text_run_spec() / from_text_definition()
-// produce correct TextDefinition objects and that centered_text() / glow_text()
-// / typewriter_text() / text_run() converge to the canonical TextDefinition
+// / to_text_document() produce correct TextDefinition objects and that
+// centered_text() / glow_text() / typewriter_text() / text_run() converge
+// to the canonical TextDefinition → TextDocument (compile_text_layout)
 // without data loss.
 //
 // Test groups:
@@ -17,19 +18,20 @@
 //   8. Full round-trip: centered_text() → from_text_definition() → TextSpec
 //   9. Default TextSpec — default-constructed TextSpec maps to sensible defaults
 //  10. TextSpanOverride — authoring-level span overrides are independent
-//  11. Determinism — same input always produces same output
+//  12. to_text_document() — Phase B: TextDefinition → TextDocument lowering
+//  13. Full convergence: centered_text() → to_text_document() → TextDocument
+//  14. Determinism — same input always produces same output
 //
-// Forward-point: compile_text_layout convergence — Phase B will add
-// TextDocumentBuilder::build(const TextDefinition&) which lowers the DTO
-// into a TextDocument for compile_text_layout().  Until Phase B lands,
-// the adapter tests verify TextSpec ↔ TextDefinition mapping correctness
-// (no data loss at the adapter boundary).  The runtime pipeline already
-// consumes TextDocument directly, so the convergence point is the adapter.
+// Phase B (implemented): to_text_document() lowers the canonical TextDefinition
+// into a TextDocument for compile_text_layout().  The full convergence chain is:
+//   centered_text()/glow_text()/text_run() → TextDefinition → to_text_document()
+//   → TextDocument → compile_text_layout()
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>
 
 #include <chronon3d/text/text_definition.hpp>
+#include <chronon3d/text/text_document.hpp>              // TextDocument — Phase B
 #include <chronon3d/scene/builders/builder_params.hpp>  // TextSpec, TextRunSpec, TextContent
 #include <chronon3d/core/types/frame.hpp>               // Frame
 
@@ -773,7 +775,288 @@ TEST_CASE("TextSpanOverride: multiple spans are independent") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 12. Determinism — same input always produces same output
+// 12. to_text_document() — Phase B: TextDefinition → TextDocument lowering
+// ═══════════════════════════════════════════════════════════════════════════
+// Verifies that to_text_document() correctly maps TextDefinition fields to
+// the TextDocument pipeline model, including span lowering + paragraph split.
+
+TEST_CASE("to_text_document: content.value mapped to doc.utf8") {
+    TextDefinition def;
+    def.content.value = "Phase B text";
+    auto doc = to_text_document(def);
+    CHECK(doc.utf8 == "Phase B text");
+}
+
+TEST_CASE("to_text_document: defaults set from from_text_definition") {
+    TextDefinition def;
+    def.content.value = "Defaults test";
+    def.style.font = {.font_path = "fonts/Test.ttf", .font_family = "Test",
+                      .font_weight = 600, .font_size = 80.0f};
+    def.frame.size = {1000.0f, 200.0f};
+    def.frame.anchor = TextAnchor::TopCenter;
+    def.style.color = Color{0.5f, 0.5f, 0.5f, 1.0f};
+
+    auto doc = to_text_document(def);
+
+    // The defaults TextSpec should match from_text_definition(def)
+    CHECK(doc.defaults.content.value == "Defaults test");
+    CHECK(doc.defaults.font.font_path == "fonts/Test.ttf");
+    CHECK(doc.defaults.font.font_size == doctest::Approx(80.0f));
+    CHECK(doc.defaults.layout.box.x == doctest::Approx(1000.0f));
+    CHECK(doc.defaults.layout.box.y == doctest::Approx(200.0f));
+    CHECK(doc.defaults.layout.anchor == TextAnchor::TopCenter);
+    CHECK(doc.defaults.appearance.color.r == doctest::Approx(0.5f));
+}
+
+TEST_CASE("to_text_document: TextSpanOverride lowered to TextStyleSpan") {
+    TextDefinition def;
+    def.content.value = "HelloWorld";  // 10 bytes
+    def.style.font.font_size = 48.0f;
+
+    TextSpanOverride span;
+    span.byte_start = 0;
+    span.byte_end   = 5;  // "Hello"
+    span.color      = Color{1.0f, 0.0f, 0.0f, 1.0f};  // red
+    span.font       = FontSpec{.font_family = "Bold", .font_weight = 700};
+    span.font_size  = 72.0f;
+    def.spans.push_back(span);
+
+    auto doc = to_text_document(def);
+
+    REQUIRE(doc.spans.size() == 1);
+    CHECK(doc.spans[0].byte_start == 0);
+    CHECK(doc.spans[0].byte_end   == 5);
+    // Font override
+    REQUIRE(doc.spans[0].font.has_value());
+    CHECK(doc.spans[0].font->font_family == "Bold");
+    CHECK(doc.spans[0].font->font_weight == 700);
+    // Color override (wrapped in TextAppearanceSpec)
+    REQUIRE(doc.spans[0].appearance.has_value());
+    CHECK(doc.spans[0].appearance->color.r == doctest::Approx(1.0f));
+    CHECK(doc.spans[0].appearance->color.g == doctest::Approx(0.0f));
+    // Font size override → multiplier (72/48 = 1.5)
+    REQUIRE(doc.spans[0].font_size_multiplier.has_value());
+    CHECK(doc.spans[0].font_size_multiplier.value() == doctest::Approx(1.5f));
+}
+
+TEST_CASE("to_text_document: font_size override skipped when font has explicit size") {
+    // Edge case: when TextSpanOverride.font has font_size > 0 AND font_size
+    // is also set, the multiplier is NOT applied (avoids double-application).
+    TextDefinition def;
+    def.content.value = "Test";
+    def.style.font.font_size = 48.0f;
+
+    TextSpanOverride span;
+    span.byte_start = 0;
+    span.byte_end   = 4;
+    span.font       = FontSpec{.font_family = "Bold", .font_weight = 700, .font_size = 96.0f};
+    span.font_size  = 72.0f;  // different from font->font_size
+    def.spans.push_back(span);
+
+    auto doc = to_text_document(def);
+
+    REQUIRE(doc.spans.size() == 1);
+    // Font override carries the absolute font_size
+    REQUIRE(doc.spans[0].font.has_value());
+    CHECK(doc.spans[0].font->font_size == doctest::Approx(96.0f));
+    // Multiplier is NOT set — the font override already carries the size
+    CHECK(!doc.spans[0].font_size_multiplier.has_value());
+}
+
+TEST_CASE("to_text_document: multiple spans lowered correctly") {
+    TextDefinition def;
+    def.content.value = "ABCDEF";  // 6 bytes
+    def.style.font.font_size = 40.0f;
+
+    TextSpanOverride span_a;
+    span_a.byte_start = 0;
+    span_a.byte_end   = 3;
+    span_a.color      = Color::red();
+    def.spans.push_back(span_a);
+
+    TextSpanOverride span_b;
+    span_b.byte_start = 3;
+    span_b.byte_end   = 6;
+    span_b.color      = Color::blue();
+    def.spans.push_back(span_b);
+
+    auto doc = to_text_document(def);
+
+    REQUIRE(doc.spans.size() == 2);
+    CHECK(doc.spans[0].byte_start == 0);
+    CHECK(doc.spans[0].byte_end   == 3);
+    CHECK(doc.spans[1].byte_start == 3);
+    CHECK(doc.spans[1].byte_end   == 6);
+    CHECK(doc.spans[0].appearance->color.r == doctest::Approx(1.0f));  // red
+    CHECK(doc.spans[1].appearance->color.b == doctest::Approx(1.0f));  // blue
+}
+
+TEST_CASE("to_text_document: paragraphs auto-split on newlines") {
+    TextDefinition def;
+    def.content.value = "Line 1\nLine 2\nLine 3";
+    auto doc = to_text_document(def);
+
+    // split_paragraphs() should have created 3 paragraphs
+    CHECK(doc.paragraphs.size() == 3);
+    CHECK(doc.paragraphs[0].byte_start == 0);
+    CHECK(doc.paragraphs[2].byte_end   == 18);  // total utf8 length
+}
+
+TEST_CASE("to_text_document: empty content produces valid empty document") {
+    TextDefinition def;
+    def.content.value = "";
+    auto doc = to_text_document(def);
+    CHECK(doc.utf8.empty());
+    CHECK(doc.spans.empty());
+    CHECK(doc.paragraphs.empty());  // no auto-split on empty text
+}
+
+TEST_CASE("to_text_document: no spans produces empty span vector") {
+    TextDefinition def;
+    def.content.value = "No spans here";
+    auto doc = to_text_document(def);
+    CHECK(doc.spans.empty());
+    CHECK(doc.utf8 == "No spans here");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 13. Full convergence: centered_text() → to_text_document() → TextDocument
+// ═══════════════════════════════════════════════════════════════════════════
+// Verifies the complete Phase B chain: authoring helper → TextDefinition
+// → to_text_document() → TextDocument (ready for compile_text_layout).
+
+TEST_CASE("full convergence: centered_text → to_text_document → TextDocument") {
+    CenterTextOptions opts;
+    opts.text        = "CONVERGE PHASE B";
+    opts.box         = {1000.0f, 200.0f};
+    opts.pos         = {500.0f, 300.0f, 0.0f};
+    opts.font_asset  = "fonts/Test.ttf";
+    opts.font_family = "Test";
+    opts.font_weight = 600;
+    opts.font_size   = 80.0f;
+    opts.tracking    = 2.0f;
+    opts.color       = Color{0.5f, 0.5f, 0.5f, 1.0f};
+    opts.line_height = 1.0f;
+
+    // Phase B: centered_text() → TextDefinition → to_text_document() → TextDocument
+    auto def = centered_text(opts);
+    auto doc = to_text_document(def);
+
+    // Content converged
+    CHECK(doc.utf8 == "CONVERGE PHASE B");
+
+    // Defaults converged (font)
+    CHECK(doc.defaults.font.font_path   == "fonts/Test.ttf");
+    CHECK(doc.defaults.font.font_family == "Test");
+    CHECK(doc.defaults.font.font_weight == 600);
+    CHECK(doc.defaults.font.font_size   == doctest::Approx(80.0f));
+
+    // Defaults converged (layout)
+    CHECK(doc.defaults.layout.box.x     == doctest::Approx(1000.0f));
+    CHECK(doc.defaults.layout.box.y     == doctest::Approx(200.0f));
+    CHECK(doc.defaults.layout.anchor    == TextAnchor::Center);
+    CHECK(doc.defaults.layout.align     == TextAlign::Center);
+    CHECK(doc.defaults.layout.tracking  == doctest::Approx(2.0f));
+
+    // Defaults converged (appearance)
+    CHECK(doc.defaults.appearance.color.r == doctest::Approx(0.5f));
+    CHECK(doc.defaults.appearance.color.g == doctest::Approx(0.5f));
+    CHECK(doc.defaults.appearance.color.b == doctest::Approx(0.5f));
+
+    // Defaults converged (position)
+    CHECK(doc.defaults.position.x == doctest::Approx(500.0f));
+    CHECK(doc.defaults.position.y == doctest::Approx(300.0f));
+
+    // Paragraphs auto-split (single paragraph, no newlines)
+    CHECK(doc.paragraphs.size() == 1);
+    CHECK(doc.paragraphs[0].byte_start == 0);
+    CHECK(doc.paragraphs[0].byte_end   == 17);  // strlen("CONVERGE PHASE B")
+}
+
+TEST_CASE("full convergence: glow_text → to_text_document → TextDocument") {
+    CenterTextOptions opts;
+    opts.text      = "GLOW PHASE B";
+    opts.box       = {1200.0f, 240.0f};
+    opts.font_size = 72.0f;
+    opts.color     = Color{1.0f, 0.5f, 0.0f, 1.0f};
+
+    auto def = glow_text(opts, Color{1.0f, 1.0f, 0.0f, 1.0f}, 30.0f, 0.8f);
+    auto doc = to_text_document(def);
+
+    CHECK(doc.utf8 == "GLOW PHASE B");
+    CHECK(doc.defaults.font.font_size == doctest::Approx(72.0f));
+    CHECK(doc.defaults.layout.box.x   == doctest::Approx(1200.0f));
+    CHECK(doc.defaults.appearance.color.r == doctest::Approx(1.0f));
+    CHECK(doc.defaults.appearance.color.g == doctest::Approx(0.5f));
+    CHECK(doc.paragraphs.size() == 1);
+}
+
+TEST_CASE("full convergence: typewriter_text → to_text_document → TextDocument") {
+    CenterTextOptions opts;
+    opts.text      = "TYPEWRITER PHASE B";
+    opts.box       = {800.0f, 200.0f};
+    opts.font_size = 48.0f;
+    opts.color     = Color::white();
+
+    auto def = typewriter_text(opts, Frame{1000}, 1.0f);
+    auto doc = to_text_document(def);
+
+    CHECK(doc.utf8 == "TYPEWRITER PHASE B");
+    CHECK(doc.defaults.font.font_size == doctest::Approx(48.0f));
+    CHECK(doc.paragraphs.size() == 1);
+}
+
+TEST_CASE("full convergence: from_text_spec → to_text_document → TextDocument (round-trip)") {
+    TextSpec spec;
+    spec.content.value = "Round-trip Phase B";
+    spec.font = {.font_path = "fonts/RT.ttf", .font_family = "RT",
+                 .font_weight = 400, .font_size = 32.0f};
+    spec.layout.box = {600.0f, 120.0f};
+    spec.layout.anchor = TextAnchor::BottomCenter;
+    spec.layout.tracking = 1.5f;
+    spec.appearance.color = Color{0.2f, 0.8f, 0.4f, 0.9f};
+    spec.position = {100.0f, 200.0f, 5.0f};
+
+    // Forward: TextSpec → TextDefinition → TextDocument
+    auto def = from_text_spec(spec);
+    auto doc = to_text_document(def);
+
+    // Verify the TextDocument carries all the original authored values
+    CHECK(doc.utf8 == "Round-trip Phase B");
+    CHECK(doc.defaults.font.font_path   == "fonts/RT.ttf");
+    CHECK(doc.defaults.font.font_family == "RT");
+    CHECK(doc.defaults.font.font_weight == 400);
+    CHECK(doc.defaults.font.font_size   == doctest::Approx(32.0f));
+    CHECK(doc.defaults.layout.box.x     == doctest::Approx(600.0f));
+    CHECK(doc.defaults.layout.box.y     == doctest::Approx(120.0f));
+    CHECK(doc.defaults.layout.anchor    == TextAnchor::BottomCenter);
+    CHECK(doc.defaults.layout.tracking  == doctest::Approx(1.5f));
+    CHECK(doc.defaults.appearance.color.r == doctest::Approx(0.2f));
+    CHECK(doc.defaults.appearance.color.g == doctest::Approx(0.8f));
+    CHECK(doc.defaults.appearance.color.b == doctest::Approx(0.4f));
+    CHECK(doc.defaults.appearance.color.a == doctest::Approx(0.9f));
+    CHECK(doc.defaults.position.x == doctest::Approx(100.0f));
+    CHECK(doc.defaults.position.y == doctest::Approx(200.0f));
+    CHECK(doc.defaults.position.z == doctest::Approx(5.0f));
+    CHECK(doc.paragraphs.size() == 1);
+}
+
+TEST_CASE("to_text_document: deterministic across repeated calls") {
+    TextDefinition def;
+    def.content.value = "Deterministic Phase B";
+    def.style.font.font_size = 48.0f;
+
+    auto a = to_text_document(def);
+    auto b = to_text_document(def);
+
+    CHECK(a.utf8 == b.utf8);
+    CHECK(a.defaults.font.font_size == doctest::Approx(b.defaults.font.font_size));
+    CHECK(a.spans.size() == b.spans.size());
+    CHECK(a.paragraphs.size() == b.paragraphs.size());
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 14. Determinism — same input always produces same output
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("from_text_spec: deterministic across repeated calls") {
