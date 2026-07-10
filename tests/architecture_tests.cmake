@@ -35,9 +35,9 @@ add_test(
     COMMAND ${Python3_EXECUTABLE} -m py_compile ${CMAKE_CURRENT_SOURCE_DIR}/architecture/test_text_definition_round_trip_parity.py
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
-set_tests_properties(chronon3d_text_definition_round_trip_parity_py_compile PROPERTIES LABELS "architecture;text;parity") (legacy files, legacy references,
-# debug smoke signals, test smoke signals).  Invokes the Python script via
-# Python3_EXECUTABLE (not bash) so the import statements execute correctly.
+set_tests_properties(chronon3d_text_definition_round_trip_parity_py_compile PROPERTIES LABELS "architecture;text;parity")
+
+# TICKET-GATE-11 — backend sanitization audit.  Scans the include/chronon3d/
 add_test(
     NAME chronon3d_gate11_backend_sanitization
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_backend_sanitization.py
