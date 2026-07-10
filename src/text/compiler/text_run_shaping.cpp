@@ -223,9 +223,16 @@ validate_concatenated_run(
     const PlacedGlyphRun& merged,
     const std::string& para_text
 ) {
+    // FU02next — pre-render invariant: ShapingProducedNoGlyphs
+    // is the canonical Kind for "merged PlacedGlyphRun has zero
+    // glyphs despite non-empty input".  Renamed from ShapingFailed
+    // (the legacy label) as part of FU02next's invariant taxonomy
+    // alignment.  Distinguishes the post-shape zero-glyphs outcome
+    // from per-run shaping failures (PerRunShapingFailed) and from
+    // upstream font-absence failures (MissingFont).
     if (merged.glyphs.empty() && !para_text.empty()) {
         return TextLayoutError{
-            TextLayoutErrorKind::ShapingFailed,
+            TextLayoutErrorKind::ShapingProducedNoGlyphs,
             "compile_text_layout: HarfBuzz produced no glyphs for non-empty paragraph"
         };
     }

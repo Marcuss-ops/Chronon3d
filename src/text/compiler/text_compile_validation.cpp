@@ -32,9 +32,15 @@ validate_layout_request(
             "compile_text_layout: request.doc or request.layout is null"
         };
     }
+    // FU02next — pre-render invariant: MissingFontEngine is the
+    // canonical Kind for "no FontEngine wired at compile time".
+    // Renamed from ShapingFailed (the previous wrong-label) as part
+    // of FU02next's invariant taxonomy alignment.  Mirrors the
+    // RenderErrorCode::MissingFontEngine (render_diagnostic.hpp)
+    // semantic, kept local to text-complier error vocabulary.
     if (services.engine == nullptr) {
         return TextLayoutError{
-            TextLayoutErrorKind::ShapingFailed,
+            TextLayoutErrorKind::MissingFontEngine,
             "compile_text_layout: services.engine is null"
         };
     }
