@@ -2,7 +2,7 @@
 //  cinematic_showcase_fixture.hpp — AGENT 4 / TICKET-A4 frame-analysis harness.
 //
 //  Phase-2.2 mechanical split.  Hosts what was an anonymous-namespace block
-//  in tests/showcase/test_cinematic_camera_showcase.cpp (was 771 LOC):
+//  in tests/showcase/test_cinematic_camera_showcase.cpp (was 771 LOC):  // drift-allow: stale-ref
 //
 //    • Canonical key-frame indices      (kKeyFrames / kKFStatic)
 //    • Composition native resolution    (kCompW / kCompH)

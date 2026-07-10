@@ -55,7 +55,7 @@ Lean-dev preset configured cleanly. The baseline test target `chronon3d_text_pre
 
 **Important discovery (TICKET-039 — NEW, not previously expected)**:
 
-The targeted build of `chronon3d_text_preset_visual_tests` fails NOT due to the previously predicted TICKET-038 lambda-capture rot in `tests/text/test_text_preset_visual.cpp`, but due to a **new type-system rot** in `src/runtime/render_engine.cpp`:
+The targeted build of `chronon3d_text_preset_visual_tests` fails NOT due to the previously predicted TICKET-038 lambda-capture rot in `tests/text/test_text_preset_visual.cpp`, but due to a **new type-system rot** in `src/runtime/render_engine.cpp`:  <!-- drift-allow: stale-ref -->
 
 > `SoftwareRenderer::settings()` is referenced from `RenderEngine::Impl` but is `private` (declared as `m_settings`).
 
@@ -107,7 +107,7 @@ Out of scope for this baseline-record commit. Tracked separately.
 Per AGENTS.md *Priorità obbligatoria* after P0 stabilization:
 
 1. **Open TICKET-039 (NEW, prioritized-high)** — `SoftwareRenderer::settings()` access regression from `b5c7df01`; restore canonical accessor OR update `RenderEngine::Impl` consumer. Required for c.2 of any future baseline to flip to GREEN.
-2. **Open TICKET-038** — pre-existing rot in `tests/text/test_text_preset_visual.cpp` (lambda capture / auto deduction) — secondary blocker for full TU compilation chain.
+2. **Open TICKET-038** — pre-existing rot in `tests/text/test_text_preset_visual.cpp` (lambda capture / auto deduction) — secondary blocker for full TU compilation chain.  <!-- drift-allow: stale-ref -->
 3. **Land orphan-cleanup PR** — `codex/orphan-cleanup-2026-06-23` (TICKET-009 PR-A subtree-fix in `experimental/expressions/CMakeLists.txt` + 6 other orphan captures per AGENTS.md "PR piccole"). Required for main to absorb merged-from-feature work consistently.
 4. **Open TICKET-009 PR-B** — `CompileResult` rot in `experimental/expressions/src/expressions/v2/vm.cpp:414` + cascading variant errors. Required for `chronon3d_expressions_v2_tests` target to compile end-to-end.  <!-- drift-allow: stale-ref -->
 

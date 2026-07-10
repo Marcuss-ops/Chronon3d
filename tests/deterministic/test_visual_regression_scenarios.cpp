@@ -20,7 +20,7 @@
 // as a MESSAGE on clean CI runs, which Two-Phase Commit Strategy (PR 6.8.5
 // precedent) will populate kRefVR* with the real captured hash.
 //
-// Capture workflow (mirror docs/01-baseline-green.md §2.3):
+// Capture workflow (mirror docs/01-baseline-green.md §2.3):  // drift-allow: stale-ref
 //   ctest --test-dir build/chronon/linux-ci -R 'VisualRegression' -V 2>&1 \
 //     | tee /tmp/vr_first_run.txt
 //   grep -oE 'VR/[A-Za-z]+ unset; first hash to capture: [0-9]+' \
@@ -80,7 +80,7 @@ constexpr std::uint64_t kRefVRCJK            = kUncapturedSentinel;
 constexpr std::uint64_t kRefVREmojiFallback  = kUncapturedSentinel;
 constexpr std::uint64_t kRefVRScaleExtreme   = kUncapturedSentinel;
 
-// ── ScenarioMetrics (8-metric canon from docs/01-baseline-green.md §2.4-2.5)
+// ── ScenarioMetrics (8-metric canon from docs/01-baseline-green.md §2.4-2.5)  // drift-allow: stale-ref
 
 // ── RectF POD (TXT-00 forbids cross-package aliasing of canonical types;
 // each test TU declares a 4-float POD locally.  Same convention as

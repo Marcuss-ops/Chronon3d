@@ -134,7 +134,7 @@ per view non-owning sui 22 descrittori built-in.
 - `tests/registry/test_text_preset_descriptor.cpp` (22-built-in
   Sub-cases A1-A4 / B1-B2 / C1 / D1-D2) — verifies
   `builtin_text_preset_registry()` size and metadata.
-- `tests/text/test_text_preset_visual.cpp` (singleton-mirror fixture)
+- `tests/text/test_text_preset_visual.cpp` (singleton-mirror fixture)  <!-- drift-allow: stale-ref -->
   — verifies the canonical "default text preset registry" surface.
 - `tests/visual/` golden fixtures for `subtitle_*` (the 4 fixture
   paths referenced verbatim by the basic factory) — no golden path

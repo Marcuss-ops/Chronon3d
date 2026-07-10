@@ -10,7 +10,7 @@
 
 ## User spec (verbatim)
 
-> Esegui M1.5#10 — refactor di include/chronon3d/text/rich_text.hpp: NON dividerlo in nuovi file legacy. Migra invece i 4 concetti: RichTextLine → TextDocument; RichTextRun → TextStyleSpan; draw_rich_text() → LayerBuilder::text_run(...); comportamento decorative/anchor gestito dal percorso compilato. Dopo la migrazione: elimina completamente il file. Vincolo: marcato già oggi come pipeline legacy. Sequenza: questo item dopo M1.5#5 pronta. Lavora direttamente su main, un commit per step di migrazione, wrap_push.sh, doc sync nello stesso commit.
+> Esegui M1.5#10 — refactor di include/chronon3d/text/rich_text.hpp: NON dividerlo in nuovi file legacy. Migra invece i 4 concetti: RichTextLine → TextDocument; RichTextRun → TextStyleSpan; draw_rich_text() → LayerBuilder::text_run(...); comportamento decorative/anchor gestito dal percorso compilato. Dopo la migrazione: elimina completamente il file. Vincolo: marcato già oggi come pipeline legacy. Sequenza: questo item dopo M1.5#5 pronta. Lavora direttamente su main, un commit per step di migrazione, wrap_push.sh, doc sync nello stesso commit.  <!-- drift-allow: stale-ref -->
 
 ## Step 1/4 — Done (working tree, commit pending this session)
 
@@ -52,7 +52,7 @@ Se grep sweep conferma zero residui → Step 3 = doc-only commit.
 
 Operazioni atomiche nel commit finale:
 
-1. `rm include/chronon3d/text/rich_text.hpp` (380 LOC).
+1. `rm include/chronon3d/text/rich_text.hpp` (380 LOC).  <!-- drift-allow: stale-ref -->
 2. `rm src/backends/text/rich_text.cpp` (90 LOC: measure + measure_run).  <!-- drift-allow: stale-ref -->
 3. `include/chronon3d/layout/design_kit.hpp` line 17: droppa `#include <chronon3d/text/rich_text.hpp>`. Aggiorna il comment block di intestazione (line 1-15) per riflettere che `design_kit` ora ha solo `layout_stack` + `stroked_shapes` (NON più `rich_text`).
 4. Grep sweep globale:

@@ -430,7 +430,7 @@ The full removal (delete `ShapeType::Text` enum value, `RenderNodeFactory::text(
 ### 11.1 Background
 
 The legacy `chronon3d::TextAnimator` class (in
-`include/chronon3d/text/text_animator.hpp`) split text into four units
+`include/chronon3d/text/text_animator.hpp`) split text into four units  <!-- drift-allow: stale-ref -->
 (`TextAnimMode::{ByCharacter, ByWord, ByLine, ByGlyph}`) and produced
 **one Layer per unit** on the SceneBuilder (N layers for N chars,
 N layers for N words, etc.).  This API surface predates the
@@ -452,7 +452,7 @@ not by producing one layer per character.
 
 | File | Status |
 |---|---|
-| `include/chronon3d/text/text_animator.hpp` | 🟢 **DELETED** (header-only; inline `void TextAnimator::build(...)` + `split_units()` + `split_glyphs()` + `measure_unit_width()` all gone). |
+| `include/chronon3d/text/text_animator.hpp` | 🟢 **DELETED** (header-only; inline `void TextAnimator::build(...)` + `split_units()` + `split_glyphs()` + `measure_unit_width()` all gone). |  <!-- drift-allow: stale-ref -->
 | `tests/text/test_text_animator.cpp` | 🟢 **DELETED** (17 legacy TEST_CASE blocks; cover `TextAnimMode::{ByCharacter, ByWord, ByLine, ByGlyph}` splits + builder invocation). |  <!-- drift-allow: stale-ref -->
 | `tests/text/test_text_quality_tracking.cpp` | 🟢 **MIGRATED** (2 of 11 TEST_CASE blocks at § 7 retired; cross-link comment added; the 9 canonical `TextLayoutEngine`-based tests at § 8 + § 11 + § 12 unchanged). |
 | `tests/core_tests.cmake` | 🟢 **UPDATED** (`text/test_text_animator.cpp` removed from `CORE_BLEND2D_TESTS` list; 5-line cross-link comment added). |
@@ -468,7 +468,7 @@ not by producing one layer per character.
 
 | # | Criterion | Result |
 |---|---|---|
-| 1 | `git rm include/chronon3d/text/text_animator.hpp` lands clean (header-only, no .cpp consumer) | ✅ DELETED |
+| 1 | `git rm include/chronon3d/text/text_animator.hpp` lands clean (header-only, no .cpp consumer) | ✅ DELETED |  <!-- drift-allow: stale-ref -->
 | 2 | `git rm tests/text/test_text_animator.cpp` lands clean | ✅ DELETED |  <!-- drift-allow: stale-ref -->
 | 3 | `tests/core_tests.cmake` `CORE_BLEND2D_TESTS` list no longer references `text/test_text_animator.cpp` | ✅ UPDATED |
 | 4 | `tests/text/test_text_quality_tracking.cpp` § 7 retired; the 9 canonical TextLayoutEngine tests at § 8 / § 11 / § 12 unchanged | ✅ UPDATED |

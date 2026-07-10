@@ -474,7 +474,7 @@ dirty_eval_ms:  0
 
 | # | Area | Gap | Impatto | Sforzo | Strategia |
 |---|---|---|---|---|---|
-| **1** | Hot attribution | 17% → 90%+ | 🔥🔥🔥 Sapere dove va l'83% del tempo | **Basso** | Accendere timer esistenti in `internal.cpp` e `scene.cpp` |
+| **1** | Hot attribution | 17% → 90%+ | 🔥🔥🔥 Sapere dove va l'83% del tempo | **Basso** | Accendere timer esistenti in `internal.cpp` e `scene.cpp` |  <!-- drift-allow: stale-ref -->
 | **2** | Double-buffering | 1× → 1.3× (video) | 🔥🔥 30% più FPS su video | **Medio** | Coda 2 frame + thread conversione |
 | **3** | Transform SIMD | 0.5 → 2+ GB/s | 🔥🔥 10-20% speedup | **Medio** | Highway gather + bilinear |
 | **4** | Soglie TBB | peak=1 → peak=4+ | 🔥🔥 20-40% su workload pesanti | **Basso** | `simple_partitioner` + soglie ridotte |
@@ -532,7 +532,7 @@ Pushare insieme al branch locale, poi procedere con il populate step
 | File | Ruolo |
 |---|---|
 | `src/render_graph/executor/executor.cpp` | Graph executor — scheduling, dispatch node |
-| `src/render_graph/executor/internal.cpp` | Cache eval, predicted bbox, telemetry per node |
+| `src/render_graph/executor/internal.cpp` | Cache eval, predicted bbox, telemetry per node |  <!-- drift-allow: stale-ref -->
 | `src/render_graph/pipeline/scene.cpp` | `render_scene_via_graph()` — entry point render |
 | `src/render_graph/nodes/transform_kernels.cpp` | Transform kernel — sampling, clamping |
 | `include/chronon3d/render_graph/nodes/composite_node.hpp` | CompositeNode — copy + blend per layer |

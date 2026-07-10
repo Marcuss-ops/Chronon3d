@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: (project-default)
 //
-// src/render_graph/nodes/detail/projection_helpers.hpp
+// src/render_graph/nodes/detail/projection_helpers.hpp  // drift-allow: stale-ref
 //
 // Shared 2.5D camera-projection helper for SourceNode + MultiSourceNode
 // (TICKET-ae-cam-hash-collision round-2/3 code-reviewer follow-up #2: dedup

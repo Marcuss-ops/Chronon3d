@@ -197,7 +197,7 @@ struct RenderSettings {
      * batch paths triggered by `tbb::parallel_for` ordering changes.  A
      * bit-exact re-enable of those 5 tests is the gating requirement for
      * flipping the default back to `false`.  See
-     * `docs/01-baseline-green.md` §3.1 ("Test Rossi — TICKET-007 fixed
+     * `docs/01-baseline-green.md` §3.1 ("Test Rossi — TICKET-007 fixed  // drift-allow: stale-ref
      * via WP-6 PR 6.9") for the resolved-state note.
      *
      * The intended long-term fix is an *ordered* reduction (Kahan

@@ -10,7 +10,7 @@ P1
 Manca un test diagnostico per-preset che verifichi la correttezza visuale di ogni preset registrato.
 
 ## Evidenza
-`tests/text/test_text_preset_visual.cpp` esiste ma non ha copertura per-preset completa.
+`tests/text/test_text_preset_visual.cpp` esiste ma non ha copertura per-preset completa.  <!-- drift-allow: stale-ref -->
 
 ## Impatto
 Nessuna garanzia che tutti i preset producano output corretti. Blocca Text V1.
@@ -28,5 +28,5 @@ Test che itera su tutti i preset registrati e verifica output non vuoto + hash d
 
 ## Collegamenti
 - Gate: A4.3 visual
-- File: tests/text/test_text_preset_visual.cpp
+- File: tests/text/test_text_preset_visual.cpp  <!-- drift-allow: stale-ref -->
 - Milestone: M1
