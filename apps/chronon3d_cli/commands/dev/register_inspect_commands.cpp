@@ -8,56 +8,16 @@
 
 namespace chronon3d::cli {
 
-namespace {
-
-struct InspectGraphArgs {
-    std::string comp_id;
-    Frame frame{0};
-    std::string output;
-    bool summary{false};
-    bool plan{false};
-};
-
-struct InspectPreflightArgs {
-    std::string comp_id;
-    Frame start{0};
-    Frame end{0};
-    int sample_step{1};
-    std::string output;
-    std::string json_file;
-    bool legacy_preflight{false};
-};
-
-struct InspectCameraArgs {
-    std::string comp_id;
-    Frame start{0};
-    Frame end{0};
-    int step{1};
-    std::string output;
-    std::string format{"auto"};
-};
-
-struct InspectTextArgs {
-    std::string comp_id;
-    std::string frames;
-    std::string json_output;
-    std::string render_dir;
-    float safe_margin_x{0.05f};
-    float safe_margin_y{0.05f};
-    float max_center_error_px{2.0f};
-    int max_border_alpha_pixels{0};
-    float glyph_tolerance{0.01f};
-    int alpha_threshold{8};
-};
-
-} // namespace
+// D5 — Inspect subcommands now bind CLI11 options directly to the canonical
+// arg structs (GraphArgs, PreflightArgs, CameraPathArgs, TextAuditArgs)
+// instead of using shadow duplicate structs with field-by-field copy.
 
 void register_inspect_commands(CLI::App& app, CliContext& ctx) {
-    auto* inspect = app.add_subcommand("inspect", "Unified inspection: graph, preflight, camera, text (D3)");
+    auto* inspect = app.add_subcommand("inspect", "Unified inspection: graph, preflight, camera, text");
 
     // ── inspect graph ───────────────────────────────────────────────
     {
-        auto s = std::make_shared<InspectGraphArgs>();
+        auto s = std::make_shared<GraphArgs>();
         auto* cmd = inspect->add_subcommand("graph", "Inspect the render graph (summary, DOT export, layer plan)");
         cmd->add_option("id", s->comp_id, "Composition name")->required();
         cmd->add_option("--frame", s->frame, "Frame to inspect")->default_val(0);
@@ -65,23 +25,17 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         cmd->add_flag("--summary", s->summary, "Print node counts, cache stats, and timing");
         cmd->add_flag("--plan", s->plan, "Print planned layer and bbox placement before rendering");
         cmd->callback([s, &ctx]() {
-            GraphArgs ga;
-            ga.comp_id = s->comp_id;
-            ga.frame   = s->frame;
-            ga.output  = s->output;
-            ga.summary = s->summary;
-            ga.plan    = s->plan;
             if (!s->summary && s->output.empty() && !s->plan) {
                 s->output = "output/graph.dot";
                 spdlog::warn("No --output, --summary, or --plan; defaulting to {}", s->output);
             }
-            ctx.exit_code = command_graph(ctx.registry, ga);
+            ctx.exit_code = command_graph(ctx.registry, *s);
         });
     }
 
     // ── inspect preflight ───────────────────────────────────────────
     {
-        auto s = std::make_shared<InspectPreflightArgs>();
+        auto s = std::make_shared<PreflightArgs>();
         auto* cmd = inspect->add_subcommand("preflight", "Validate assets and requirements before rendering");
         cmd->add_option("id", s->comp_id, "Composition name")->required();
         cmd->add_option("--start", s->start, "Start frame")->default_val(0);
@@ -91,21 +45,13 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         cmd->add_option("--json", s->json_file, "Path to output preflight JSON report");
         cmd->add_flag("--legacy", s->legacy_preflight, "Also run legacy RenderPreflight (default: V2 manifest-only)");
         cmd->callback([s, &ctx]() {
-            PreflightArgs pa;
-            pa.comp_id         = s->comp_id;
-            pa.start           = s->start;
-            pa.end             = s->end;
-            pa.sample_step     = s->sample_step;
-            pa.output          = s->output;
-            pa.json_file       = s->json_file;
-            pa.legacy_preflight = s->legacy_preflight;
-            ctx.exit_code = command_preflight(ctx.registry, pa, ctx.assets);
+            ctx.exit_code = command_preflight(ctx.registry, *s, ctx.assets);
         });
     }
 
     // ── inspect camera ──────────────────────────────────────────────
     {
-        auto s = std::make_shared<InspectCameraArgs>();
+        auto s = std::make_shared<CameraPathArgs>();
         auto* cmd = inspect->add_subcommand("camera", "Export camera path as JSON/CSV for debug and validation");
         cmd->add_option("id", s->comp_id, "Composition name")->required();
         cmd->add_option("--start", s->start, "Start frame (inclusive)")->default_val(0);
@@ -114,20 +60,13 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         cmd->add_option("-o,--output", s->output, "Output file path (.json or .csv)");
         cmd->add_option("--format", s->format, "Export format: json or csv (auto-detected from -o extension)")->default_val("json");
         cmd->callback([s, &ctx]() {
-            CameraPathArgs cpa;
-            cpa.comp_id = s->comp_id;
-            cpa.start   = s->start;
-            cpa.end     = s->end;
-            cpa.step    = s->step;
-            cpa.output  = s->output;
-            cpa.format  = s->format;
-            ctx.exit_code = command_camera_path(ctx.registry, cpa);
+            ctx.exit_code = command_camera_path(ctx.registry, *s);
         });
     }
 
     // ── inspect text ────────────────────────────────────────────────
     {
-        auto s = std::make_shared<InspectTextArgs>();
+        auto s = std::make_shared<TextAuditArgs>();
         auto* cmd = inspect->add_subcommand("text", "Text placement audit with JSON output and optional frame renders");
         cmd->add_option("id", s->comp_id, "Composition name")->required();
         cmd->add_option("--frames", s->frames, "Frames to audit (e.g. \"0,19,40\" or \"0-300x10\")")->default_val("0");
@@ -140,18 +79,7 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         cmd->add_option("--glyph-tolerance", s->glyph_tolerance, "Glyph tolerance");
         cmd->add_option("--alpha-threshold", s->alpha_threshold, "Alpha threshold (0-255)");
         cmd->callback([s, &ctx]() {
-            TextAuditArgs ta;
-            ta.comp_id              = s->comp_id;
-            ta.frames               = s->frames;
-            ta.json_output          = s->json_output;
-            ta.render_dir           = s->render_dir;
-            ta.safe_margin_x        = s->safe_margin_x;
-            ta.safe_margin_y        = s->safe_margin_y;
-            ta.max_center_error_px   = s->max_center_error_px;
-            ta.max_border_alpha_pixels = s->max_border_alpha_pixels;
-            ta.glyph_tolerance      = s->glyph_tolerance;
-            ta.alpha_threshold      = s->alpha_threshold;
-            ctx.exit_code = command_text_audit(ctx.registry, ta);
+            ctx.exit_code = command_text_audit(ctx.registry, *s);
         });
     }
 }
