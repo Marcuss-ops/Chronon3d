@@ -249,14 +249,14 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args);
 int command_video_camera(const CompositionRegistry& registry, const VideoCameraArgs& args);
 int command_bench_convert(const CompositionRegistry& registry, const BenchConvertArgs& args);
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
-int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
+int command_graph(const CompositionRegistry& registry, const GraphArgs& args);   // D4 — internal: use `inspect graph`
 int command_batch(const CompositionRegistry& registry, const std::vector<std::string>& job_specs);
 int command_telemetry(const TelemetryArgs& args);
-int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args, AssetRegistry& assets);
+int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args, AssetRegistry& assets);   // D4 — internal: use `inspect preflight`
 int command_still(const CompositionRegistry& registry, const StillArgs& args);
 int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args);
-int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);
-int command_text_audit(const CompositionRegistry& registry, const TextAuditArgs& args);
+int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);   // D4 — internal: use `inspect camera`
+int command_text_audit(const CompositionRegistry& registry, const TextAuditArgs& args);   // D4 — internal: use `inspect text`
 
 } // namespace cli
 } // namespace chronon3d

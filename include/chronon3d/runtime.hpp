@@ -59,8 +59,10 @@
 //   `<chronon3d/assets/{asset_registry,render_preflight}.hpp>`
 // ═════════════════════════════════════════════════════════════════════════════
 
-// D2 — [[deprecated]]: prefer <chronon3d/render.hpp>.
-// (Pragma warning deferred — see docs/FOLLOWUP_TICKETS.md D2-pragma ticket.)
+// D4 — [[deprecated]]: prefer <chronon3d/render.hpp>.
+#ifdef __GNUC__
+#pragma GCC warning "runtime.hpp is DEPRECATED — prefer <chronon3d/render.hpp>. Add -Wno-cpp to suppress during migration."
+#endif
 
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/sdk/render_output.hpp>

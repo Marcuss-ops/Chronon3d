@@ -47,8 +47,10 @@
 
 #include <chronon3d/text/text_animator.hpp>
 
-// D2 — [[deprecated]]: prefer <chronon3d/advanced.hpp>.
-// (Pragma warning deferred — see docs/FOLLOWUP_TICKETS.md D2-pragma ticket.)
+// D4 — [[deprecated]]: prefer <chronon3d/advanced.hpp>.
+#ifdef __GNUC__
+#pragma GCC warning "internal.hpp is DEPRECATED — prefer <chronon3d/advanced.hpp>. Add -Wno-cpp to suppress during migration."
+#endif
 
 namespace chronon3d {
     // Internal umbrella
