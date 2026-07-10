@@ -139,6 +139,12 @@ private:
     CacheDiagnostics::Handle m_diag_handle;
     std::atomic<bool> m_diag_alive{true};
     FramebufferCache m_cache;
+    // Pre-existing pre-rewrite leftover: lifetime guard for the lambdas
+    // stored in CacheDiagnostics via m_diag_handle.  Set false in
+    // ~NodeCache() before m_diag_handle's destructor releases the
+    // lambdas, so any late call from the diagnostics thread short-circuits
+    // to a no-op instead of touching freed m_cache.
+    std::atomic<bool> m_diag_alive{true};
 };
 
 } // namespace chronon3d::cache

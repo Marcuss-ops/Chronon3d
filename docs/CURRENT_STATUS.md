@@ -1,11 +1,12 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@734d823a` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato. Linux-only.
+> **Snapshot:** `main@54292ee5` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato. Linux-only. Fase 7 audit: gates 1-9,11 PASS; gate #10 PARTIAL (A+B build/install PASS, C FU5 black-frame pre-existing).
 
 ## Active Blockers (top 3)
 
 | ID | Area | Stato | Blocca | Scheda |
 |---|---|---|---|---|
+| TICKET-TEXT-CLIP-PREDICTED-BBOX | text compositor `predicted_bbox` (Clip 06 diagnostic) | PARTIAL | text golden cert + scene test cluster | [TICKET-TEXT-CLIP-PREDICTED-BBOX](tickets/TICKET-TEXT-CLIP-PREDICTED-BBOX.md) |
 | TICKET-011 | mainline build rot (chronon3d_core_tests) | PARTIAL | gate 1–8 | [TICKET-011](tickets/TICKET-011.md) |
 | TICKET-036 | SceneBuilder::animated_camera() in test files | PLANNED | gate 6 | [TICKET-036](tickets/TICKET-036.md) |
 | TICKET-120 | 17/24 scene test failures | PARTIAL | Camera V1 cert | [TICKET-120](tickets/TICKET-120.md) |
@@ -19,7 +20,7 @@ Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 | Area | Stato | Note sintetiche |
 |---|---|---|
 | Camera V1 | PASS | AE-parity 35/35 PASS; hash collision (AE_CAM_02/04) resolved via Fase 6 cache-key camera fingerprint. |
-| Text Production V1 | PARTIAL | P0-P2 completeness suite: 14/15 ctest PASS (TextVisibleInk, NoClip, Wrapping, Align, Unicode, Typewriter, Completeness, StyleProps, Determinism, LongText, EdgeCases, AntiFalseGreen, GoldenGaps, GoldenUserSpec, GoldenKiller). TextGolden FAIL per golden PNG diff pre-esistente (108/259 assertion, differenze di rendering ambientali). Golden PNG da rigenerare con `CHRONON3D_UPDATE_GOLDENS=1`. 10 nuovi test file creati in `tests/text_golden/text_completeness/`. |
+| Text Production V1 | PARTIAL | Golden capture pipeline funzionante; 144 PNG tracked. M1.5#1–#13 refactor completati. Clip 06 diagnostic ha escluso la "scratch surface" hypothesis: il bug è in `predicted_bbox` / compositor (TICKET-TEXT-CLIP-PREDICTED-BBOX, nuovo P0). I 5 goldens Clip 01–05 vanno re-seeded sotto il nuovo code path (TICKET-TEXT-CLIP-GOLDENS-01-05, nuovo P1). |
 | SDK C++ installabile | PASS | gate #10: sub-blocks A+B PASS, sub-block C (FU5 mean-RGB) DONE. |
 | SDK cross-language | NOT RUN | C ABI e formato `.chronon` da progettare. |
 | Render runtime | PASS | ImageCache + RenderSession::layout_cache landed. |
