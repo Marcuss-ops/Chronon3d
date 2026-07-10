@@ -186,6 +186,8 @@ NodeExecResult PrecompNode::execute_with_scope(
     nested_ctx.frame_input.camera = comp.camera;
     nested_ctx.node_exec.current_identity.graph = static_cast<GraphInstanceId>(precomp_key.graph);
 
+    // F1.D: FrameContext::font_engine is nullptr — the materializer's
+    // resolve_engine() provides a process-wide fallback FontEngine.
     const FrameContext nested_frame_ctx{
         .frame = nested_frame,
         .local_frame = nested_frame,
