@@ -73,4 +73,20 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
     Frame end,
     const FfmpegExportOptions& opts);
 
+/// Canonical video-pipeline evaluate: threads the renderer's FontEngine
+/// into the composition evaluation so text shapes materialize correctly.
+/// All video exporters MUST use this instead of calling comp.evaluate()
+/// directly — without the engine, materialize_text_run_shape logs
+/// "no FontEngine available" and returns nullptr, causing blank text.
+///
+/// Non reintroduce shared_font_engine() or a global singleton:
+/// the project removed them intentionally.
+inline Scene evaluate_video_scene(
+    const Composition& comp,
+    Frame frame,
+    SoftwareRenderer& renderer)
+{
+    return comp.evaluate(frame, 0.0f, &renderer.font_engine());
+}
+
 } // namespace chronon3d::cli
