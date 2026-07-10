@@ -215,6 +215,7 @@ struct BakeLayerArgs {
     std::string output;
     bool quiet{false};
     bool diagnostic{false};
+    bool diagnostic_overlay{false};
     bool exr_bake{false};
 };
 
@@ -238,6 +239,7 @@ struct TextAuditArgs {
     int   max_border_alpha_pixels{0};
     float glyph_tolerance{0.01f};
     int   alpha_threshold{8};
+    bool  diagnostic_overlay{false}; // --diagnostic-overlay for frame PNG renders
 };
 
 int command_list(const CompositionRegistry& registry);

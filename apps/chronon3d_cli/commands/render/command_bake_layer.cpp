@@ -122,6 +122,8 @@ void register_bake_layer_commands(CLI::App& app, CliContext& ctx) {
     bake->add_option("-o,--output", bake_args.output, "Output image path")->required();
     bake->add_flag("--quiet", bake_args.quiet, "Suppress informational messages");
     bake->add_flag("--diagnostic", bake_args.diagnostic, "Enable diagnostic overlays");
+    bake->add_flag("--diagnostic-overlay", bake_args.diagnostic_overlay,
+                  "Draw diagnostic overlay on text layers: bbox, anchor point, baseline");
     bake->add_flag("--exr-bake", bake_args.exr_bake, "Bake layer as OpenEXR with DWAA compression (linear 16-bit float)");
     bake->callback([state, &ctx]() {
         ctx.exit_code = command_bake_layer(ctx.registry, *state->args);
