@@ -258,5 +258,12 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
 int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);   // D4 — internal: use `inspect camera`
 int command_text_audit(const CompositionRegistry& registry, const TextAuditArgs& args);   // D4 — internal: use `inspect text`
 
+struct TextDefInspectArgs {
+    std::string comp_id;
+    std::string json_output;   // --json output path (stdout if empty)
+};
+
+int command_text_def_inspect(const CompositionRegistry& registry, const TextDefInspectArgs& args);
+
 } // namespace cli
 } // namespace chronon3d
