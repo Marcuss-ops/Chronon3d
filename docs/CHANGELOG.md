@@ -1,3 +1,23 @@
+## Luglio 2026 — F2.D: TextDefinition → TextRunSpec reverse adapter (2026-07-10, atomic commit)
+
+### feat(text): F2.D — `to_text_run_spec` reverse adapter closes the LOSSY REVERSE gap
+
+- **New adapter**: `[[nodiscard]] TextRunSpec to_text_run_spec(const TextDefinition&)` added in `include/chronon3d/text/text_definition.hpp` (declaration) + `src/text/text_definition.cpp` (implementation). Naming parallel to `to_text_document` (Phase B).
+- **Closes the LOSSY REVERSE gap** flagged in the F2.A LIFECYCLE comment: the 6 spec-only animation fields carried by `TextRunSpec` (`animators`, `selectors`, `direction`, `language`, `script`, `cache_layout`) are now carried back from a `TextDefinition`.
+- **Drift-prevention**: reuses `run.text = from_text_definition(def)` for the 22 base fields instead of manually re-mapping — guarantees the two reverse adapters cannot drift apart when `TextSpec` evolves.
+- **Documented added lossy drop** (Frame envelope): `TextAnimation.start_delay` + `.duration` are NOT representable in `TextRunSpec` and are silently dropped during `to_text_run_spec`. Roundtrip `TextDefinition → TextRunSpec → TextDefinition` therefore re-initialises both envelope fields to `Frame{0}` — canonical, tested behaviour.
+- **LIFECYCLE update**: `text_definition.hpp` LIFECYCLE block now shows Phase A.3 historical + F2.D current; the LOSSY REVERSE note augmented with the additional Frame envelope drop.
+- **Tests** — group 19 in `tests/text/test_text_definition.cpp` (5 NEW `TEST_CASE`s):
+  - **19.1** Forward mapping: all 6 animation fields populate correctly.
+  - **19.2** Drift-prevention: `run.text` fields equal `from_text_definition(def)` (proves reuse, no manual remap).
+  - **19.3** Empty def → default `TextRunSpec` (direction=Auto, language="", script=0, cache_layout=true).
+  - **19.4** Frame envelope lossy drop: roundtrip yields `Frame{0}` for `start_delay` + `duration`.
+  - **19.5** Roundtrip idempotency for the 6 spec-only fields + non-default `Vec2{42.5,-17.3}` offset preservation lock (regression-locks `from_text_definition` from remapping offset in the future).
+- **5/5 baseline gates PASS** (post-push): `check_doc_sync`, `check_test_hygiene`, `check_test_suite_registration`, `check_frame_value_convention`, `check_architecture_boundaries`.
+- **Files changed (3)**: `include/chronon3d/text/text_definition.hpp`, `src/text/text_definition.cpp`, `tests/text/test_text_definition.cpp` (+287/-18 lines).
+
+---
+
 ## Luglio 2026 — TICKET-SIMPLICITY-INSPECT-TEXT: CLI `inspect text-def` JSON diagnostic (2026-07-10)
 
 ### feat(cli): TICKET-SIMPLICITY-INSPECT-TEXT — `inspect text-def` exports TextRunShape+TextRunLayout to JSON
