@@ -208,7 +208,7 @@ TEST_CASE(
         "TICKET-SDK-PACKAGING-CONSOLIDATION: INTERNAL-NAMESPACE LEAKAGE. "
         "Symbol table contains 'chronon3d::internal::' -- OPP internal "
         "plumbing (backends/cache/registry) leaked into the SDK archive. "
-        "Re-run tools/audit_aggregate_archive.sh and isolate the offending "
+        "Re-run the SDK archive audit and isolate the offending "
         "OBJECT target from the SDK target_link_libraries(STATIC PRIVATE) "
         "bound in cmake/Chronon3DSdkTargets.cmake.");
 
