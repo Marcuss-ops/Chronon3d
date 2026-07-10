@@ -146,14 +146,14 @@ TEST_CASE("from_text_spec: layout.box mapped to frame.size") {
     CHECK(def.frame.size.y == doctest::Approx(360.0f));
 }
 
-TEST_CASE("from_text_spec: position mapped to frame.position") {
+TEST_CASE("from_text_spec: placement mapped to frame.placement") {
     TextSpec spec;
     spec.placement = {TextPlacementKind::Absolute};
     spec.placement.offset = {960.0f, 540.0f};
     auto def = from_text_spec(spec);
-    CHECK(def.frame.position.x == doctest::Approx(960.0f));
-    CHECK(def.frame.position.y == doctest::Approx(540.0f));
-    CHECK(def.frame.position.z == doctest::Approx(10.0f));
+    CHECK(def.frame.placement.offset.x == doctest::Approx(960.0f));
+    CHECK(def.frame.placement.offset.y == doctest::Approx(540.0f));
+    CHECK(def.frame.placement.kind == TextPlacementKind::Absolute);
 }
 
 TEST_CASE("from_text_spec: layout.anchor mapped to frame.anchor") {
@@ -233,8 +233,7 @@ TEST_CASE("from_text_run_spec: produces same result as from_text_spec on .text")
     run_spec.text.content.value = "Run text";
     run_spec.text.font.font_size = 48.0f;
     run_spec.text.layout.box = {800.0f, 200.0f};
-    run_spec.text.placement = {TextPlacementKind::Absolute};
-    run_spec.text.offset    = {100.0f, 200.0f};
+    run_spec.text.placement = {TextPlacementKind::Absolute, {100.0f, 200.0f}};
     run_spec.direction = TextDirection::RTL;
     run_spec.language = "ar";
 
@@ -246,8 +245,9 @@ TEST_CASE("from_text_run_spec: produces same result as from_text_spec on .text")
     CHECK(def_run.style.font.font_size == doctest::Approx(def_spec.style.font.font_size));
     CHECK(def_run.frame.size.x    == doctest::Approx(def_spec.frame.size.x));
     CHECK(def_run.frame.size.y    == doctest::Approx(def_spec.frame.size.y));
-    CHECK(def_run.frame.position.x == doctest::Approx(def_spec.frame.position.x));
-    CHECK(def_run.frame.position.y == doctest::Approx(def_spec.frame.position.y));
+    CHECK(def_run.frame.placement.offset.x == doctest::Approx(def_spec.frame.placement.offset.x));
+    CHECK(def_run.frame.placement.offset.y == doctest::Approx(def_spec.frame.placement.offset.y));
+    CHECK(def_run.frame.placement.kind == def_spec.frame.placement.kind);
 }
 
 TEST_CASE("from_text_run_spec: animators are not yet mapped (Phase A.3 placeholder)") {
@@ -308,9 +308,8 @@ TEST_CASE("centered_text convergence: full field chain through TextDefinition") 
     // Frame
     CHECK(def.frame.size.x     == doctest::Approx(1700.0f));
     CHECK(def.frame.size.y     == doctest::Approx(360.0f));
-    CHECK(def.frame.position.x == doctest::Approx(960.0f));
-    CHECK(def.frame.position.y == doctest::Approx(540.0f));
-    CHECK(def.frame.position.z == doctest::Approx(0.0f));
+    CHECK(def.frame.placement.offset.x == doctest::Approx(960.0f));
+    CHECK(def.frame.placement.offset.y == doctest::Approx(540.0f));
     CHECK(def.frame.anchor     == TextAnchor::Center);
     CHECK(def.frame.align      == TextAlign::Center);
     CHECK(def.frame.vertical_align == VerticalAlign::Middle);
@@ -474,7 +473,7 @@ TEST_CASE("from_text_definition: layout round-trips correctly") {
     def.frame.max_font_size = 100.0f;
     def.frame.max_lines     = 4;
     def.frame.ellipsis      = true;
-    def.frame.position      = {200.0f, 300.0f, 5.0f};
+    def.frame.placement     = TextPlacement{TextPlacementKind::Absolute, {200.0f, 300.0f}};
     auto spec = from_text_definition(def);
 
     CHECK(spec.layout.box.x            == doctest::Approx(640.0f));
@@ -531,8 +530,7 @@ TEST_CASE("round-trip: TextSpec → TextDefinition → TextSpec preserves all fi
     original.appearance.box_style.enabled = true;
     original.appearance.box_style.radius  = 12.0f;
     original.layout.paragraph.justification = TextJustification::Center;
-    original.placement = {TextPlacementKind::Absolute};
-    original.offset    = {150.0f, 250.0f};
+    original.placement = {TextPlacementKind::Absolute, {150.0f, 250.0f}};
 
     // Single round-trip: forward + reverse
     auto def = from_text_spec(original);
@@ -566,9 +564,8 @@ TEST_CASE("round-trip: TextSpec → TextDefinition → TextSpec preserves all fi
     CHECK(restored.appearance.color.a == doctest::Approx(original.appearance.color.a));
     CHECK(restored.appearance.paint.stroke_enabled == original.appearance.paint.stroke_enabled);
     CHECK(restored.appearance.paint.stroke_width   == doctest::Approx(original.appearance.paint.stroke_width));
-    CHECK(restored.offset.x == doctest::Approx(original.offset.x));
-    CHECK(restored.offset.y == doctest::Approx(original.offset.y));
-    // F1: z dropped from TextSpec.position — placement.offset is Vec2 only
+    CHECK(restored.placement.offset.x == doctest::Approx(original.placement.offset.x));
+    CHECK(restored.placement.offset.y == doctest::Approx(original.placement.offset.y));
     // Shadows + material + box_style
     REQUIRE(restored.appearance.shadows.size() == 1);
     CHECK(restored.appearance.shadows[0].enabled == original.appearance.shadows[0].enabled);
@@ -698,9 +695,8 @@ TEST_CASE("no-data-loss: complex TextSpec round-trip through from_text_spec") {
     CHECK(def.frame.ellipsis          == true);
 
     // Frame — position
-    CHECK(def.frame.position.x == doctest::Approx(480.0f));
-    CHECK(def.frame.position.y == doctest::Approx(270.0f));
-    CHECK(def.frame.position.z == doctest::Approx(50.0f));
+    CHECK(def.frame.placement.offset.x == doctest::Approx(480.0f));
+    CHECK(def.frame.placement.offset.y == doctest::Approx(270.0f));
 
     // Style — color
     CHECK(def.style.color.r == doctest::Approx(0.5f));
@@ -743,9 +739,8 @@ TEST_CASE("from_text_spec: default TextSpec produces default TextDefinition") {
     CHECK(def.style.color.a == doctest::Approx(1.0f));
 
     // Position defaults to origin
-    CHECK(def.frame.position.x == doctest::Approx(0.0f));
-    CHECK(def.frame.position.y == doctest::Approx(0.0f));
-    CHECK(def.frame.position.z == doctest::Approx(0.0f));
+    CHECK(def.frame.placement.offset.x == doctest::Approx(0.0f));
+    CHECK(def.frame.placement.offset.y == doctest::Approx(0.0f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -992,8 +987,8 @@ TEST_CASE("full convergence: centered_text → to_text_document → TextDocument
     CHECK(doc.defaults.appearance.color.b == doctest::Approx(0.5f));
 
     // Defaults converged (position)
-    CHECK(doc.defaults.offset.x == doctest::Approx(500.0f));
-    CHECK(doc.defaults.offset.y == doctest::Approx(300.0f));
+    CHECK(doc.defaults.placement.offset.x == doctest::Approx(500.0f));
+    CHECK(doc.defaults.placement.offset.y == doctest::Approx(300.0f));
 
     // Paragraphs auto-split (single paragraph, no newlines)
     CHECK(doc.paragraphs.size() == 1);
@@ -1063,9 +1058,8 @@ TEST_CASE("full convergence: from_text_spec → to_text_document → TextDocumen
     CHECK(doc.defaults.appearance.color.g == doctest::Approx(0.8f));
     CHECK(doc.defaults.appearance.color.b == doctest::Approx(0.4f));
     CHECK(doc.defaults.appearance.color.a == doctest::Approx(0.9f));
-    CHECK(doc.defaults.offset.x == doctest::Approx(100.0f));
-    CHECK(doc.defaults.offset.y == doctest::Approx(200.0f));
-    // F1: z dropped from TextSpec.position — placement.offset is Vec2 only
+    CHECK(doc.defaults.placement.offset.x == doctest::Approx(100.0f));
+    CHECK(doc.defaults.placement.offset.y == doctest::Approx(200.0f));
     CHECK(doc.paragraphs.size() == 1);
 }
 
@@ -1109,7 +1103,7 @@ TEST_CASE("text_run convergence: TextDefinition → TextRunSpec → from_text_ru
     original.frame.tracking = 1.5f;
     original.frame.max_lines = 2;
     original.style.color = Color{0.3f, 0.7f, 0.9f, 1.0f};
-    original.frame.position = {400.0f, 300.0f, 2.0f};
+    original.frame.placement = TextPlacement{TextPlacementKind::Absolute, {400.0f, 300.0f}};
 
     // Step 1: TextDefinition → TextSpec (what text_run(name, TextDefinition) does)
     TextSpec spec = from_text_definition(original);
@@ -1134,9 +1128,8 @@ TEST_CASE("text_run convergence: TextDefinition → TextRunSpec → from_text_ru
     CHECK(restored.style.color.r    == doctest::Approx(0.3f));
     CHECK(restored.style.color.g    == doctest::Approx(0.7f));
     CHECK(restored.style.color.b    == doctest::Approx(0.9f));
-    CHECK(restored.frame.position.x == doctest::Approx(400.0f));
-    CHECK(restored.frame.position.y == doctest::Approx(300.0f));
-    CHECK(restored.frame.position.z == doctest::Approx(2.0f));
+    CHECK(restored.frame.placement.offset.x == doctest::Approx(400.0f));
+    CHECK(restored.frame.placement.offset.y == doctest::Approx(300.0f));
 }
 
 TEST_CASE("text_run convergence: centered_text → from_text_definition → TextRunSpec → from_text_run_spec") {
@@ -1171,8 +1164,8 @@ TEST_CASE("text_run convergence: centered_text → from_text_definition → Text
     CHECK(restored.frame.size.y     == doctest::Approx(200.0f));
     CHECK(restored.frame.anchor     == TextAnchor::Center);
     CHECK(restored.frame.tracking   == doctest::Approx(2.0f));
-    CHECK(restored.frame.position.x == doctest::Approx(500.0f));
-    CHECK(restored.frame.position.y == doctest::Approx(300.0f));
+    CHECK(restored.frame.placement.offset.x == doctest::Approx(500.0f));
+    CHECK(restored.frame.placement.offset.y == doctest::Approx(300.0f));
     CHECK(restored.style.color.r    == doctest::Approx(0.5f));
 }
 
@@ -1271,46 +1264,31 @@ TEST_CASE("from_text_spec: deterministic across repeated calls") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 16. TextFrame.offset — gap-fill coverage (NOT mirrored in TextSpec)
+// 16. TextFrame.placement — offset component coverage (Phase A4 close-out)
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// TextFrame.offset is intentionally NOT mirrored in TextSpec/TextLayoutSpec.
-// The closest TextSpec analogue is TextSpec.placement (TextPlacement struct);
-// offset is the additive component from the resolved placement pin
-// (authoring API: .place(...).offset(...)).  This group locks in the
-// behavior so future adapter changes don't silently lose offset data.
+// Post-A4 the `TextFrame.{position, placement_kind, offset}` triple was
+// consolidated into `TextFrame.placement` (a TextPlacement struct with
+// `kind` + `offset` fields).  This group locks in the consolidated behavior.
 
-TEST_CASE("TextFrame.offset: default TextFrame constructs with {0,0}") {
+TEST_CASE("TextFrame.placement: default TextFrame constructs with {0,0} offset") {
     TextFrame frame;
-    CHECK(frame.offset.x == doctest::Approx(0.0f));
-    CHECK(frame.offset.y == doctest::Approx(0.0f));
+    CHECK(frame.placement.offset.x == doctest::Approx(0.0f));
+    CHECK(frame.placement.offset.y == doctest::Approx(0.0f));
 }
 
-TEST_CASE("TextFrame.offset: from_text_spec(default) gives def.frame.offset = {0,0}") {
-    TextSpec spec;  // all defaults; no TextSpec payload to pollute offset
+TEST_CASE("TextFrame.placement: from_text_spec(default) gives def.frame.placement.offset = {0,0}") {
+    TextSpec spec;  // all defaults
     auto def = from_text_spec(spec);
-    CHECK(def.frame.offset.x == doctest::Approx(0.0f));
-    CHECK(def.frame.offset.y == doctest::Approx(0.0f));
+    CHECK(def.frame.placement.offset.x == doctest::Approx(0.0f));
+    CHECK(def.frame.placement.offset.y == doctest::Approx(0.0f));
 }
 
-TEST_CASE("TextFrame.offset: from_text_definition preserves authored offset") {
-    // Verify the reverse adapter does not stomp offset back to default
-    // (since there's no TextSpec destination to write to).
+TEST_CASE("TextFrame.placement: setter roundtrip on TextDefinition directly") {
     TextDefinition def;
-    def.frame.offset = Vec2{42.5f, -17.3f};
-    auto spec = from_text_definition(def);  // const ref; must not mutate def
-    (void)spec;
-    CHECK(def.frame.offset.x == doctest::Approx(42.5f));
-    CHECK(def.frame.offset.y == doctest::Approx(-17.3f));
-}
-
-TEST_CASE("TextFrame.offset: setter roundtrip on TextDefinition directly") {
-    // Mirrors the frame.position setter pattern — verifies Vec2 offset is a
-    // settable, readable authoring-side field on TextDefinition.
-    TextDefinition def;
-    def.frame.offset = Vec2{100.0f, 50.0f};
-    CHECK(def.frame.offset.x == doctest::Approx(100.0f));
-    CHECK(def.frame.offset.y == doctest::Approx(50.0f));
+    def.frame.placement.offset = Vec2{100.0f, 50.0f};
+    CHECK(def.frame.placement.offset.x == doctest::Approx(100.0f));
+    CHECK(def.frame.placement.offset.y == doctest::Approx(50.0f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1568,7 +1546,7 @@ TEST_CASE("to_text_run_spec: base spec reuses from_text_definition (no manual re
     def.frame.tracking = 1.5f;
     def.frame.max_lines = 3;
     def.style.color = Color{0.4f, 0.6f, 0.8f, 1.0f};
-    def.frame.position = {400.0f, 300.0f, 5.0f};
+    def.frame.placement = TextPlacement{TextPlacementKind::Absolute, {400.0f, 300.0f}};
 
     auto run = to_text_run_spec(def);
     // The behavior MUST match from_text_definition(def): 22 base fields preserved
@@ -1587,9 +1565,8 @@ TEST_CASE("to_text_run_spec: base spec reuses from_text_definition (no manual re
     CHECK(run.text.appearance.color.r == doctest::Approx(direct_spec.appearance.color.r));
     CHECK(run.text.appearance.color.g == doctest::Approx(direct_spec.appearance.color.g));
     CHECK(run.text.appearance.color.b == doctest::Approx(direct_spec.appearance.color.b));
-    CHECK(run.text.offset.x == doctest::Approx(direct_spec.offset.x));
-    CHECK(run.text.offset.y == doctest::Approx(direct_spec.offset.y));
-    // z dropped in F1 refactor
+    CHECK(run.text.placement.offset.x == doctest::Approx(direct_spec.placement.offset.x));
+    CHECK(run.text.placement.offset.y == doctest::Approx(direct_spec.placement.offset.y));
 }
 
 TEST_CASE("to_text_run_spec: empty def yields empty animation vectors + default defaults") {
@@ -1644,11 +1621,7 @@ TEST_CASE("to_text_run_spec: round-trip is idempotent for the 6 spec-only fields
     def.content.value = "Round-trip F2D";
     def.style.font.font_size = 56.0f;
     def.frame.size = {1000.0f, 200.0f};
-    // Set a NON-DEFAULT offset so the roundtrip CHECK below actually exercises
-    // the drift-prevention contract (asset: to_text_run_spec reuses
-    // from_text_definition which does NOT remap offset; if it ever started to,
-    // the check would catch the regression).
-    def.frame.offset = Vec2{42.5f, -17.3f};
+    def.frame.placement.offset = Vec2{42.5f, -17.3f};
 
     TextAnimatorSpec animator_a;
     animator_a.id = "fade_in";
@@ -1690,14 +1663,8 @@ TEST_CASE("to_text_run_spec: round-trip is idempotent for the 6 spec-only fields
     CHECK(restored.frame.size.x == doctest::Approx(1000.0f));
     CHECK(restored.frame.size.y == doctest::Approx(200.0f));
 
-    // TextFrame.offset (authoring-only, NOT mirrored in TextSpec) must
-    // survive the round-trip:  to_text_run_spec reuses from_text_definition,
-    // which does NOT remap offset, so offset carries verbatimly through
-    // run.text (no spec destination to stomp to on either side).  The
-    // non-default Vec2{42.5, -17.3} is set BEFORE the roundtrip — a future
-    // edit that begins remapping offset would break this assertion.
-    CHECK(restored.frame.offset.x == doctest::Approx(42.5f));
-    CHECK(restored.frame.offset.y == doctest::Approx(-17.3f));
+    CHECK(restored.frame.placement.offset.x == doctest::Approx(42.5f));
+    CHECK(restored.frame.placement.offset.y == doctest::Approx(-17.3f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1782,6 +1749,6 @@ TEST_CASE("F3.D: helper-site centered_text + animation augmentation flows throug
     CHECK(run.text.layout.box.x == doctest::Approx(1000.0f));
     CHECK(run.text.layout.box.y == doctest::Approx(200.0f));
     CHECK(run.text.appearance.color.r == doctest::Approx(0.5f));
-    CHECK(run.text.position.x == doctest::Approx(500.0f));
-    CHECK(run.text.position.y == doctest::Approx(300.0f));
+    CHECK(run.text.placement.offset.x == doctest::Approx(500.0f));
+    CHECK(run.text.placement.offset.y == doctest::Approx(300.0f));
 }
