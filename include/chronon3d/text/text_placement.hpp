@@ -144,4 +144,41 @@ struct TextPlacement {
     return !(a == b);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SafeAreaPreset — F3.B aspect-ratio-aware safe area configuration
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Provides predefined safe area margins for common aspect ratios.
+// Safe areas are expressed as fractions of the canvas dimension (0..1).
+// The 5% default matches industry-standard title/action-safe zones.
+//
+// Presets:
+//   Landscape16x9  — 1920×1080, 5% margins (96px horizontal, 54px vertical)
+//   Portrait9x16   — 1080×1920, 5% margins (54px horizontal, 96px vertical)
+//   Square1x1      — 1080×1080, 5% margins (54px each side)
+//   Landscape4x3   — 1440×1080, 5% margins (72px horizontal, 54px vertical)
+//
+// Usage:
+//   CanvasInfo canvas = SafeAreaPreset::Landscape16x9.canvas(1920, 1080);
+//   CanvasInfo canvas = SafeAreaPreset::Portrait9x16.canvas(1080, 1920);
+//
+struct SafeAreaPreset {
+    f32 margin_top_fraction{0.05f};
+    f32 margin_bottom_fraction{0.05f};
+    f32 margin_left_fraction{0.05f};
+    f32 margin_right_fraction{0.05f};
+
+    /// Predefined presets with standard 5% safe-area margins.
+    /// All presets use identical 5% fractions — the differentiation
+    /// comes from canvas dimensions passed to CanvasInfo::with_safe_area().
+    /// The preset names document the aspect-ratio INTENT (e.g.,
+    /// Portrait9x16 ensures margins are proportional to a 1080×1920
+    /// canvas).  Adding more presets with different fractions is
+    /// appropriate when aspect-ratio-specific safe areas are needed.
+    static const SafeAreaPreset Landscape16x9;
+    static const SafeAreaPreset Portrait9x16;
+    static const SafeAreaPreset Square1x1;
+    static const SafeAreaPreset Landscape4x3;
+};
+
 } // namespace chronon3d
