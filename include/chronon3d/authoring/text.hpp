@@ -202,21 +202,22 @@ public:
         return *this;
     }
 
-    // ── Position (mutate spec.text.offset directly; NOT per-glyph) ─────
+    // ── Position (mutate spec.text.placement only; phase A3 close-out) ───
+    // Phase A3: TextSpec::offset was removed. The pin position belongs on
+    // `placement.offset` (bundled with placement.kind) — the redundant
+    // `spec.text.offset = {...}` line is gone (`tools/check_architecture_boundaries.sh`
+    // gate #19 forbids its re-introduction).
     Text& at(Vec3 pos) {
-        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute};
-        pending_->params.text.offset    = {pos.x, pos.y};
+        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute, {pos.x, pos.y}};
         return *this;
     }
     Text& at(Vec2 pos) {
-        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute};
-        pending_->params.text.offset    = {pos.x, pos.y};
+        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute, {pos.x, pos.y}};
         return *this;
     }
     /// f32 x, f32 y convenience — lifts to Absolute placement.
     Text& at(f32 x, f32 y) {
-        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute};
-        pending_->params.text.offset    = {x, y};
+        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute, {x, y}};
         return *this;
     }
 
@@ -225,8 +226,8 @@ public:
         // context_ guard: ensures the Layer properly wired a FrameContext
         // at construction time (Layer ctor guarantees this for every Text handle).
         assert(context_ && "Text::center(): FrameContext must be set (Layer ctor guarantees this)");
+        // Phase A3: placement.offset defaults to {0,0,0} — no redundant assign.
         pending_->params.text.placement = TextPlacement{TextPlacementKind::CanvasCenter};
-        pending_->params.text.offset    = {0.0f, 0.0f};
         auto& layout = pending_->params.text.layout;
         layout.anchor         = TextAnchor::Center;
         layout.align          = TextAlign::Center;
@@ -277,8 +278,9 @@ public:
     /// LayerBuilder::build() which has access to the layer's canvas
     /// dimensions at materialization time.
     Text& place(TextPlacement placement, TextAnchor anchor) {
-        pending_->params.text.placement = placement;  // F2: preserve kind
-        pending_->params.text.offset    = placement.offset;  // carry offset
+        // Phase A3: placement already carries kind + offset; the redundant
+        // `spec.text.offset = placement.offset` line is gone (gate #19).
+        pending_->params.text.placement = placement;  // F2: preserve kind + bundled offset
         pending_->params.text.layout.anchor = anchor;
         return *this;
     }
