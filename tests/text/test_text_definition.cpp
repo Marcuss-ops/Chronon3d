@@ -1,23 +1,28 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// test_text_definition.cpp — F2.A adapter convergence tests
+// test_text_definition.cpp — F2.A/F2.C adapter convergence tests
 //
-// Verifies that from_text_spec() / from_text_run_spec() produce correct
-// TextDefinition objects and that centered_text() / glow_text() / text_run()
-// converge to the canonical TextDefinition without data loss.
+// Verifies that from_text_spec() / from_text_run_spec() / from_text_definition()
+// produce correct TextDefinition objects and that centered_text() / glow_text()
+// / typewriter_text() / text_run() converge to the canonical TextDefinition
+// without data loss.
 //
 // Test groups:
 //   1. from_text_spec() — field-by-field mapping (all 22 TextSpec fields)
 //   2. from_text_run_spec() — wraps from_text_spec() + TextRunSpec fields
-//   3. centered_text() convergence — CenterTextOptions → TextSpec → TextDefinition
-//   4. glow_text() convergence — same path via glow_text()
-//   5. Round-trip no-data-loss — TextSpec → TextDefinition → verify every field
-//   6. Default TextSpec — default-constructed TextSpec maps to sensible defaults
-//   7. TextSpanOverride — authoring-level span overrides are independent
+//   3. centered_text() convergence — CenterTextOptions → TextDefinition (F2.C)
+//   4. glow_text() convergence — CenterTextOptions → TextDefinition (F2.C)
+//   5. typewriter_text() convergence — CenterTextOptions → TextDefinition (F2.C)
+//   6. from_text_definition() — reverse adapter: TextDefinition → TextSpec
+//   7. Round-trip no-data-loss — TextSpec → TextDef → TextSpec (F2.C reverse)
+//   8. Full round-trip: centered_text() → from_text_definition() → TextSpec
+//   9. Default TextSpec — default-constructed TextSpec maps to sensible defaults
+//  10. TextSpanOverride — authoring-level span overrides are independent
+//  11. Determinism — same input always produces same output
 //
 // Forward-point: compile_text_layout convergence — Phase B will add
 // TextDocumentBuilder::build(const TextDefinition&) which lowers the DTO
 // into a TextDocument for compile_text_layout().  Until Phase B lands,
-// the adapter tests verify TextSpec → TextDefinition mapping correctness
+// the adapter tests verify TextSpec ↔ TextDefinition mapping correctness
 // (no data loss at the adapter boundary).  The runtime pipeline already
 // consumes TextDocument directly, so the convergence point is the adapter.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -26,9 +31,12 @@
 
 #include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>  // TextSpec, TextRunSpec, TextContent
+#include <chronon3d/core/types/frame.hpp>               // Frame
 
-// Content helpers — centered_text() / glow_text()
+// Content helpers — centered_text() / glow_text() (F2.C: return TextDefinition)
 #include <content/text/text_helpers_centered.hpp>
+// Content helpers — typewriter_text() (F2.C: returns TextDefinition)
+#include <content/text/text_helpers_typewriter.hpp>
 
 #include <string>
 #include <vector>
@@ -239,8 +247,10 @@ TEST_CASE("from_text_run_spec: animators are not yet mapped (Phase A.3 placehold
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 3. centered_text() convergence — CenterTextOptions → TextSpec → TextDefinition
+// 3. centered_text() convergence — CenterTextOptions → TextDefinition (F2.C)
 // ═══════════════════════════════════════════════════════════════════════════
+// F2.C breaking change: centered_text() now returns TextDefinition directly
+// (wraps from_text_spec() internally).  Tests verify the canonical DTO.
 
 TEST_CASE("centered_text convergence: full field chain through TextDefinition") {
     CenterTextOptions opts;
@@ -259,8 +269,8 @@ TEST_CASE("centered_text convergence: full field chain through TextDefinition") 
     opts.min_font_size = 12.0f;
     opts.max_font_size = 160.0f;
 
-    TextSpec spec = centered_text(opts);
-    auto def = from_text_spec(spec);
+    // F2.C: centered_text() returns TextDefinition directly
+    auto def = centered_text(opts);
 
     // Content
     CHECK(def.content.value == "CHRONON");
@@ -298,8 +308,9 @@ TEST_CASE("centered_text convergence: full field chain through TextDefinition") 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 4. glow_text() convergence — same path via glow_text()
+// 4. glow_text() convergence — CenterTextOptions → TextDefinition (F2.C)
 // ═══════════════════════════════════════════════════════════════════════════
+// F2.C breaking change: glow_text() now returns TextDefinition directly.
 
 TEST_CASE("glow_text convergence: produces valid TextDefinition") {
     CenterTextOptions opts;
@@ -309,8 +320,8 @@ TEST_CASE("glow_text convergence: produces valid TextDefinition") {
     opts.color     = Color{1.0f, 0.5f, 0.0f, 1.0f};
 
     Color glow_color{1.0f, 1.0f, 0.0f, 1.0f};
-    TextSpec spec = glow_text(opts, glow_color, 30.0f, 0.8f);
-    auto def = from_text_spec(spec);
+    // F2.C: glow_text() returns TextDefinition directly
+    auto def = glow_text(opts, glow_color, 30.0f, 0.8f);
 
     CHECK(def.content.value == "GLOW");
     CHECK(def.style.font.font_size == doctest::Approx(72.0f));
@@ -324,7 +335,271 @@ TEST_CASE("glow_text convergence: produces valid TextDefinition") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 5. Round-trip no-data-loss — verify every field survives the adapter
+// 5. typewriter_text() convergence — CenterTextOptions → TextDefinition (F2.C)
+// ═══════════════════════════════════════════════════════════════════════════
+// F2.C: typewriter_text() returns TextDefinition.  Tests verify that the
+// reveal animation produces correct content at different frame points.
+
+TEST_CASE("typewriter_text convergence: full reveal produces complete text") {
+    CenterTextOptions opts;
+    opts.text      = "HELLO";
+    opts.box       = {800.0f, 200.0f};
+    opts.font_size = 48.0f;
+    opts.color     = Color::white();
+
+    // At a very high frame, the text should be fully revealed
+    auto def = typewriter_text(opts, Frame{1000}, 1.0f);
+
+    CHECK(def.content.value == "HELLO");
+    CHECK(def.style.font.font_size == doctest::Approx(48.0f));
+    CHECK(def.style.color.a == doctest::Approx(1.0f));  // full opacity
+    CHECK(def.frame.size.x  == doctest::Approx(800.0f));
+    CHECK(def.frame.anchor  == TextAnchor::Center);
+    CHECK(def.frame.align   == TextAlign::Center);
+}
+
+TEST_CASE("typewriter_text convergence: pre-reveal produces placeholder") {
+    CenterTextOptions opts;
+    opts.text      = "HELLO";
+    opts.box       = {800.0f, 200.0f};
+    opts.font_size = 48.0f;
+    opts.color     = Color::white();
+
+    // Before start, content is a placeholder space with 0 alpha
+    auto def = typewriter_text(opts, Frame{0}, 1.0f,
+        TypewriterOptions{.start_delay = Frame{10}});
+
+    CHECK(def.content.value == " ");
+    CHECK(def.style.color.a == doctest::Approx(0.0f));  // invisible
+}
+
+TEST_CASE("typewriter_text convergence: partial reveal produces substring") {
+    CenterTextOptions opts;
+    opts.text      = "ABCDE";
+    opts.box       = {800.0f, 200.0f};
+    opts.font_size = 48.0f;
+    opts.color     = Color::white();
+
+    // At frame 2 with 1 char/frame, Linear easing, 5 chars total:
+    // linear_t = 2 * 1.0 / 5 = 0.4, eased_t = 0.4 (Linear), revealed = floor(0.4 * 5) = 2
+    auto def = typewriter_text(opts, Frame{2}, 1.0f);
+
+    // Exactly 2 chars should be revealed ("AB")
+    CHECK(def.content.value.size() == 2);
+    CHECK(def.content.value[0] == 'A');
+    CHECK(def.content.value[1] == 'B');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6. from_text_definition() — reverse adapter: TextDefinition → TextSpec (F2.C)
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("from_text_definition: content round-trips correctly") {
+    TextDefinition def;
+    def.content.value = "Reverse test";
+    auto spec = from_text_definition(def);
+    CHECK(spec.content.value == "Reverse test");
+}
+
+TEST_CASE("from_text_definition: font round-trips correctly") {
+    TextDefinition def;
+    def.style.font = FontSpec{
+        .font_path   = "fonts/Reverse.ttf",
+        .font_family = "Reverse",
+        .font_weight = 500,
+        .font_style  = "normal",
+        .font_size   = 36.0f,
+    };
+    auto spec = from_text_definition(def);
+    CHECK(spec.font.font_path   == "fonts/Reverse.ttf");
+    CHECK(spec.font.font_family == "Reverse");
+    CHECK(spec.font.font_weight == 500);
+    CHECK(spec.font.font_size   == doctest::Approx(36.0f));
+}
+
+TEST_CASE("from_text_definition: appearance round-trips correctly") {
+    TextDefinition def;
+    def.style.color = Color{0.1f, 0.2f, 0.3f, 0.4f};
+    def.style.paint.stroke_enabled = true;
+    def.style.paint.stroke_width   = 4.0f;
+    auto spec = from_text_definition(def);
+    CHECK(spec.appearance.color.r == doctest::Approx(0.1f));
+    CHECK(spec.appearance.color.g == doctest::Approx(0.2f));
+    CHECK(spec.appearance.color.b == doctest::Approx(0.3f));
+    CHECK(spec.appearance.color.a == doctest::Approx(0.4f));
+    CHECK(spec.appearance.paint.stroke_enabled == true);
+    CHECK(spec.appearance.paint.stroke_width   == doctest::Approx(4.0f));
+}
+
+TEST_CASE("from_text_definition: layout round-trips correctly") {
+    TextDefinition def;
+    def.frame.size          = {640.0f, 480.0f};
+    def.frame.anchor        = TextAnchor::TopCenter;
+    def.frame.align         = TextAlign::Left;
+    def.frame.vertical_align = VerticalAlign::Top;
+    def.frame.wrap          = TextWrap::None;
+    def.frame.overflow      = TextOverflow::Clip;
+    def.frame.line_height   = 1.3f;
+    def.frame.tracking      = 1.0f;
+    def.frame.auto_fit      = true;
+    def.frame.min_font_size = 10.0f;
+    def.frame.max_font_size = 100.0f;
+    def.frame.max_lines     = 4;
+    def.frame.ellipsis      = true;
+    def.frame.position      = {200.0f, 300.0f, 5.0f};
+    auto spec = from_text_definition(def);
+
+    CHECK(spec.layout.box.x            == doctest::Approx(640.0f));
+    CHECK(spec.layout.box.y            == doctest::Approx(480.0f));
+    CHECK(spec.layout.anchor           == TextAnchor::TopCenter);
+    CHECK(spec.layout.align            == TextAlign::Left);
+    CHECK(spec.layout.vertical_align   == VerticalAlign::Top);
+    CHECK(spec.layout.wrap             == TextWrap::None);
+    CHECK(spec.layout.overflow         == TextOverflow::Clip);
+    CHECK(spec.layout.line_height      == doctest::Approx(1.3f));
+    CHECK(spec.layout.tracking         == doctest::Approx(1.0f));
+    CHECK(spec.layout.auto_fit         == true);
+    CHECK(spec.layout.min_font_size    == doctest::Approx(10.0f));
+    CHECK(spec.layout.max_font_size    == doctest::Approx(100.0f));
+    CHECK(spec.layout.max_lines        == 4);
+    CHECK(spec.layout.ellipsis         == true);
+    CHECK(spec.position.x              == doctest::Approx(200.0f));
+    CHECK(spec.position.y              == doctest::Approx(300.0f));
+    CHECK(spec.position.z              == doctest::Approx(5.0f));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7. Round-trip no-data-loss — TextSpec → TextDef → TextSpec (F2.C reverse)
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("round-trip: TextSpec → TextDefinition → TextSpec preserves all fields") {
+    TextSpec original;
+    original.content.value = "Round-trip reverse";
+    original.font = {.font_path = "fonts/R.ttf", .font_family = "R",
+                     .font_weight = 300, .font_style = "italic", .font_size = 24.0f};
+    original.layout.box            = {500.0f, 100.0f};
+    original.layout.anchor         = TextAnchor::BottomCenter;
+    original.layout.align          = TextAlign::Right;
+    original.layout.vertical_align = VerticalAlign::Bottom;
+    original.layout.wrap           = TextWrap::Word;
+    original.layout.overflow       = TextOverflow::Ellipsis;
+    original.layout.centering_mode = TextCenteringMode::PixelInk;
+    original.layout.line_height    = 1.4f;
+    original.layout.tracking       = 0.5f;
+    original.layout.auto_fit       = true;
+    original.layout.min_font_size  = 6.0f;
+    original.layout.max_font_size  = 90.0f;
+    original.layout.max_lines      = 2;
+    original.layout.ellipsis       = true;
+    original.appearance.color      = Color{0.3f, 0.6f, 0.9f, 0.7f};
+    original.appearance.paint.stroke_enabled = true;
+    original.appearance.paint.stroke_width   = 2.0f;
+    // Shadows + material + box_style set BEFORE the round-trip
+    TextShadow shadow;
+    shadow.enabled = true;
+    shadow.blur    = 8.0f;
+    original.appearance.shadows = {shadow};
+    original.appearance.material = TextMaterial::neon();
+    original.appearance.box_style.enabled = true;
+    original.appearance.box_style.radius  = 12.0f;
+    original.layout.paragraph.justification = TextJustification::Center;
+    original.position = {150.0f, 250.0f, 3.0f};
+
+    // Single round-trip: forward + reverse
+    auto def = from_text_spec(original);
+    auto restored = from_text_definition(def);
+
+    // Every field must survive the full round-trip
+    CHECK(restored.content.value == original.content.value);
+    CHECK(restored.font.font_path   == original.font.font_path);
+    CHECK(restored.font.font_family == original.font.font_family);
+    CHECK(restored.font.font_weight == original.font.font_weight);
+    CHECK(restored.font.font_style  == original.font.font_style);
+    CHECK(restored.font.font_size   == doctest::Approx(original.font.font_size));
+    CHECK(restored.layout.box.x     == doctest::Approx(original.layout.box.x));
+    CHECK(restored.layout.box.y     == doctest::Approx(original.layout.box.y));
+    CHECK(restored.layout.anchor    == original.layout.anchor);
+    CHECK(restored.layout.align     == original.layout.align);
+    CHECK(restored.layout.vertical_align == original.layout.vertical_align);
+    CHECK(restored.layout.wrap      == original.layout.wrap);
+    CHECK(restored.layout.overflow  == original.layout.overflow);
+    CHECK(restored.layout.centering_mode == original.layout.centering_mode);
+    CHECK(restored.layout.line_height == doctest::Approx(original.layout.line_height));
+    CHECK(restored.layout.tracking  == doctest::Approx(original.layout.tracking));
+    CHECK(restored.layout.auto_fit  == original.layout.auto_fit);
+    CHECK(restored.layout.min_font_size == doctest::Approx(original.layout.min_font_size));
+    CHECK(restored.layout.max_font_size == doctest::Approx(original.layout.max_font_size));
+    CHECK(restored.layout.max_lines == original.layout.max_lines);
+    CHECK(restored.layout.ellipsis  == original.layout.ellipsis);
+    CHECK(restored.appearance.color.r == doctest::Approx(original.appearance.color.r));
+    CHECK(restored.appearance.color.g == doctest::Approx(original.appearance.color.g));
+    CHECK(restored.appearance.color.b == doctest::Approx(original.appearance.color.b));
+    CHECK(restored.appearance.color.a == doctest::Approx(original.appearance.color.a));
+    CHECK(restored.appearance.paint.stroke_enabled == original.appearance.paint.stroke_enabled);
+    CHECK(restored.appearance.paint.stroke_width   == doctest::Approx(original.appearance.paint.stroke_width));
+    CHECK(restored.position.x == doctest::Approx(original.position.x));
+    CHECK(restored.position.y == doctest::Approx(original.position.y));
+    CHECK(restored.position.z == doctest::Approx(original.position.z));
+    // Shadows + material + box_style
+    REQUIRE(restored.appearance.shadows.size() == 1);
+    CHECK(restored.appearance.shadows[0].enabled == original.appearance.shadows[0].enabled);
+    CHECK(restored.appearance.shadows[0].blur    == doctest::Approx(original.appearance.shadows[0].blur));
+    CHECK(restored.appearance.material.use_material_glow == original.appearance.material.use_material_glow);
+    CHECK(restored.appearance.box_style.enabled == original.appearance.box_style.enabled);
+    CHECK(restored.appearance.box_style.radius  == doctest::Approx(original.appearance.box_style.radius));
+    // Paragraph round-trip
+    CHECK(restored.layout.paragraph.justification == original.layout.paragraph.justification);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 8. Full convergence: centered_text() → from_text_definition() → TextSpec
+// ═══════════════════════════════════════════════════════════════════════════
+// This tests the full F2.C adapter chain: helper → TextDefinition → TextSpec
+// → (downstream pipeline).  Verifies no data loss across the full chain.
+
+TEST_CASE("full convergence: centered_text → from_text_definition → TextSpec") {
+    CenterTextOptions opts;
+    opts.text        = "CONVERGE";
+    opts.box         = {1000.0f, 200.0f};
+    opts.pos         = {500.0f, 300.0f, 0.0f};
+    opts.font_asset  = "fonts/Test.ttf";
+    opts.font_family = "Test";
+    opts.font_weight = 600;
+    opts.font_size   = 80.0f;
+    opts.tracking    = 2.0f;
+    opts.color       = Color{0.5f, 0.5f, 0.5f, 1.0f};
+    opts.max_lines   = 2;
+    opts.auto_fit    = false;
+    opts.line_height = 1.0f;
+
+    // F2.C: centered_text() returns TextDefinition
+    auto def = centered_text(opts);
+    // F2.C: from_text_definition() converts back to TextSpec
+    auto spec = from_text_definition(def);
+
+    // Verify the full chain preserves all authored values
+    CHECK(spec.content.value == "CONVERGE");
+    CHECK(spec.font.font_path   == "fonts/Test.ttf");
+    CHECK(spec.font.font_family == "Test");
+    CHECK(spec.font.font_weight == 600);
+    CHECK(spec.font.font_size   == doctest::Approx(80.0f));
+    CHECK(spec.layout.box.x     == doctest::Approx(1000.0f));
+    CHECK(spec.layout.box.y     == doctest::Approx(200.0f));
+    CHECK(spec.layout.anchor    == TextAnchor::Center);
+    CHECK(spec.layout.align     == TextAlign::Center);
+    CHECK(spec.layout.vertical_align == VerticalAlign::Middle);
+    CHECK(spec.layout.centering_mode == TextCenteringMode::PixelInk);
+    CHECK(spec.layout.tracking  == doctest::Approx(2.0f));
+    CHECK(spec.layout.max_lines == 2);
+    CHECK(spec.appearance.color.r == doctest::Approx(0.5f));
+    CHECK(spec.appearance.color.g == doctest::Approx(0.5f));
+    CHECK(spec.appearance.color.b == doctest::Approx(0.5f));
+    CHECK(spec.position.x == doctest::Approx(500.0f));
+    CHECK(spec.position.y == doctest::Approx(300.0f));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 9. from_text_spec() — field-by-field mapping (original F2.A tests)
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("no-data-loss: complex TextSpec round-trip through from_text_spec") {
@@ -409,7 +684,7 @@ TEST_CASE("no-data-loss: complex TextSpec round-trip through from_text_spec") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6. Default TextSpec — default-constructed values map to sensible defaults
+// 10. Default TextSpec — default-constructed values map to sensible defaults
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("from_text_spec: default TextSpec produces default TextDefinition") {
@@ -444,7 +719,7 @@ TEST_CASE("from_text_spec: default TextSpec produces default TextDefinition") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 7. TextSpanOverride — authoring-level span overrides
+// 11. TextSpanOverride — authoring-level span overrides
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextSpanOverride: default construction has zero range") {
@@ -498,7 +773,7 @@ TEST_CASE("TextSpanOverride: multiple spans are independent") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 8. Determinism — same input always produces same output
+// 12. Determinism — same input always produces same output
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("from_text_spec: deterministic across repeated calls") {
