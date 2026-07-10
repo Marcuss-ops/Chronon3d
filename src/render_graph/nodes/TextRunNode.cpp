@@ -39,6 +39,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <spdlog/spdlog.h>
 
+#include <cmath>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -103,6 +104,31 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
     auto bbox = renderer::compute_world_bbox(m_render_ref.shape, matrix, spread);
 #endif
 
+    // TICKET-TEXT-CLIP-PREDICTED-BBOX — contract violation guard (pre-clip).
+    // The world matrix produced degenerate coordinates (e.g. the 403-px
+    // residual offset documented in the ticket).  Conservative fallback
+    // returns full canvas — same strategy as text_layout_debug below.
+    // Each violation increments counters.text_bbox_contract_violations
+    // (atomic, anti-false-share) so /api/runs diagnostics flags it.
+    // NOTE: this guard runs *before* clip_to so a legitimately-off-canvas
+    // layer (post-clip is_empty) hits the legacy BBox{0,0,0,0} cull path
+    // below rather than the conservative fallback.
+    const bool pre_clip_violation =
+        !std::isfinite(bbox.x0) || !std::isfinite(bbox.y0) ||
+        !std::isfinite(bbox.x1) || !std::isfinite(bbox.y1) ||
+        bbox.is_empty();
+    if (pre_clip_violation) {
+        if (ctx.counters) {
+            ctx.counters->text_bbox_contract_violations.fetch_add(
+                1, std::memory_order_relaxed);
+        }
+        if (ctx.policy.diagnostics_enabled) {
+            spdlog::debug("[text-bbox] CONTRACT_VIOLATION node={} bbox=({}, {}, {}, {})",
+                          m_name, bbox.x0, bbox.y0, bbox.x1, bbox.y1);
+        }
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    }
+
     // TICKET-TEXT-CLIP-PREDICTED-BBOX — diagnostic logging.
     // Gated on diagnostics_enabled to avoid per-frame overhead in
     // production.  Logs the raw world bbox, the matrix translation,
@@ -142,7 +168,7 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
         bbox.clip_to(ctx.frame_input.width, ctx.frame_input.height);
     }
     if (bbox.is_empty()) {
-        return raster::BBox{0, 0, 0, 0};
+        return raster::BBox{0, 0, 0, 0};  // legitimate post-clip cull
     }
     return bbox;
 }
