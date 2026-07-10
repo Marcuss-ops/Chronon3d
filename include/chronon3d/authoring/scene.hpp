@@ -65,6 +65,11 @@ public:
     /// Convenience overload — default 1920×1080 viewport, used when the
     /// composition's FrameContext isn't known at Scene construction.
     /// Prefer the explicit overload in production code.
+    ///
+    /// A2 — deprecated: silently assumes 1920×1080, which produces
+    /// misaligned text in non-16:9 compositions.  Use the two-arg ctor
+    /// Scene(builder, FrameContext::from_dimensions(w, h)) explicitly.
+    [[deprecated("Use Scene(builder, FrameContext::from_dimensions(w, h)) with explicit dimensions")]]
     explicit Scene(SceneBuilder& builder) noexcept
         : Scene(builder, FrameContext::default_viewport()) {}
 
