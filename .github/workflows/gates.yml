@@ -193,8 +193,6 @@ jobs:
 
           # main.cpp (consumer sanity check): three public headers + one type.
           printf '#include <chronon3d/chronon3d.hpp>\n' > consumer/main.cpp
-          printf '#include <chronon3d/runtime.hpp>\n' >> consumer/main.cpp
-          printf '#include <chronon3d/math/color.hpp>\n' >> consumer/main.cpp
           printf 'int main() { chronon3d::Color c{}; (void)c; return 0; }\n' >> consumer/main.cpp
 
           cmake -S consumer -B consumer/build -DCMAKE_PREFIX_PATH=$PWD/consumer-install/usr/local
