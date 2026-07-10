@@ -190,8 +190,7 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
     if (m_shape) {
         const int bbox_h = std::max(0, bbox.y1 - bbox.y0);
         const int bbox_w = std::max(0, bbox.x1 - bbox.x0);
-        const float font_size = m_shape->font_size > 0.0f
-            ? m_shape->font_size : 32.0f;
+        const float font_size = 32.0f;  // TODO: restore m_shape->font_size when field is added to TextRunShape
         const int min_h = static_cast<int>(font_size * 0.3f);
         const int min_w = static_cast<int>(font_size * 0.5f);
         const bool suspiciously_thin =
