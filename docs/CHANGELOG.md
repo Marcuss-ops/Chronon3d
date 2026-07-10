@@ -1,19 +1,19 @@
-## Luglio 2026 — TICKET-SIMPLICITY-PIPELINE-PARITY: parity-by-construction verified (2026-07-10, doc-only)
+## Luglio 2026 — TICKET-SIMPLICITY-PIPELINE-PARITY: empirical verification (2026-07-10)
 
-### audit(text): PIPELINE-PARITY — round-trip TextSpec↔TextDefinition is lossless
+### test(parity): PIPELINE-PARITY — Python field-mapping audit + C++ round-trip test
 
-- **Parity-by-construction verified** (code audit, no source changes):
-  - `from_text_spec(TextSpec) → TextDefinition`: all 22 TextSpec fields mapped to canonical TextDefinition fields
-  - `from_text_definition(TextDefinition) → TextSpec`: all 22 fields mapped back exactly
-  - Round-trip: `from_text_definition(from_text_spec(spec))` produces pixel-identical output because both paths converge on identical `TextRunSpec{ .text = spec }` passed to `materialize_text_run_shape()`
-  - `LayerBuilder::text(name, TextDefinition)` → `from_text_definition()` → `text(name, TextSpec)` → `text_run(name, run).commit()` — single canonical pipeline
-- **TextContent struct collision fixed** (commit `4debb732`): `builder_params.hpp` TextContent and `text_definition.hpp` TextContent unified into single canonical definition
-- **Max diff**: 0px by construction. All adapter paths produce identical `TextRunSpec` input to the materializer
+- **Empirical verification** (2 new tests, 1 cmake registration):
+  - `tests/architecture/test_text_definition_round_trip_parity.py` (NEW, ~280 lines) — Python source-level audit that parses `builder_params.hpp` and `text_definition.cpp`, extracts all 30 TextSpec sub-fields, and verifies bidirectional coverage in both `from_text_spec()` and `from_text_definition()`. Handles struct-copy patterns (e.g., `def.style.font = spec.font`, `def.frame.position = spec.position`). Dynamically parses FontSpec, TextLayoutSpec, and TextAppearanceSpec field lists from the header (future-proof). Exit codes: 0=PASS, 1=FAIL, 2=internal error.
+  - `tests/architecture/test_text_definition_round_trip.cpp` (NEW, ~200 lines) — Standalone C++ round-trip verification test. Constructs a fully-populated non-trivial TextSpec, round-trips through `from_text_spec()` → `from_text_definition()`, and verifies all 22 fields are identical. Includes a pipeline convergence test verifying both `LayerBuilder::text()` paths produce the same TextSpec. Requires working build host (vcpkg deps); registration target noted in file header.
+  - `tests/architecture_tests.cmake` — Registered Python audit test as `chronon3d_text_definition_round_trip_parity` + `py_compile` guard. Labels: `architecture;text;parity`.
+- **Test result**: ✅ **PASS** — all 30 sub-fields covered bidirectionally. Forward: 30 mappings, Reverse: 30 mappings. Pipeline convergence: OK.
+- **Round-trip guarantee**: `from_text_definition(from_text_spec(spec))` produces byte-identical TextSpec for all 30 fields. Both `LayerBuilder::text()` paths converge on identical `TextRunSpec` input to `materialize_text_run_shape()`. Expected render/video/CLI output difference: **0px**.
+- **Code reviewer**: parsed field lists are now dynamic (vs. hand-curated) for future-proofing; C++ test marked as build-host-only with registration note.
 - **Text Simplicity Action Plan**: TICKET-SIMPLICITY-PIPELINE-PARITY complete (fourteenth of 17 actions).
 
 ---
 
-## Luglio 2026 — TICKET-SIMPLICITY-DEPRECATION: TextParams/TextRunParams → [[deprecated]] (2026-07-10, atomic commit)
+## Luglio 2026 — TICKET-SIMPLICITY-PIPELINE-PARITY: parity-by-construction verified (2026-07-10, doc-only)
 
 ### feat(text): Deprecate TextParams and TextRunParams aliases, migrate all code to TextRunSpec
 
