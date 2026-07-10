@@ -1,3 +1,37 @@
+## Luglio 2026 — TICKET-FASE3-MULTILINGUAL §ArabicShaping (6th multilingual golden: 3 TEST_CASEs, 6 PNG) (2026-07-10, atomic commit)
+
+### feat(text_golden): TICKET-FASE3-MULTILINGUAL §ArabicShaping — 4 positional forms + lam-alef ligatures + harakat (جملة كتاب بسم لا لأ لإ لآ بِسْمِ مَرْحَبًا كُتَّابٌ)
+
+- **Scope**: Sixth test of the TICKET-FASE3-MULTILINGUAL cluster. Verifies that Arabic script shaping is handled correctly by HarfBuzz across three orthogonal axes: (1) **positional forms** (isolated / initial / medial / final) for connector and non-connector letters, (2) **mandatory ligatures** (the canonical lam-alef family لا / لأ / لإ / لآ, emitted via the OpenType `calt` feature as a single glyph), and (3) **combining diacritics** (harakat: fatha, kasra, damma, sukun, shadda, fathatan, dammatan) with RTL base direction.
+
+- **3 TEST_CASEs × 2 ARs = 6 PNG goldens** in `test_renders/golden/text/text_multilingual/arabic_shaping/`:
+  - 3 test cases: `01_basic_joining` (جملة كتاب بسم — exercises initial/medial/final + non-connector final), `02_lam_alef_ligatures` (لا لأ لإ لآ — exercises the 4 mandatory lam-alef variants), `03_diacritics_harakat` (بِسْمِ مَرْحَبًا كُتَّابٌ — exercises 7 of the 8 main combining diacritics + RTL)
+  - 2 aspect ratios per case: 1920×1080 (16:9 landscape) + 1080×1920 (9:16 portrait)
+  - 6 PNG goldens: `multilingual_arabic_shaping_{01,02,03}_{1920x1080,1080x1920}.png`
+
+- **New file (1)**:
+  - `tests/text_golden/text_multilingual/06_arabic_shaping.cpp` (175 LoC) — 3 TEST_CASEs, 6 `verify_golden()` calls (3 cases × 2 ARs via the `render_and_verify_arabic()` helper). Uses existing `composition()` + `SceneBuilder` + `LayerBuilder::text()` + `verify_golden()` + `GoldenTestConfig` + `test::make_renderer()` helpers. Anti-duplicazione honoured: no new types, no new helpers. Hand-decoded UTF-8 byte sequences per the Unicode Arabic chart (U+0600–U+06FF block, 2-byte UTF-8 encoding 0xD8/0xD9 prefix).
+
+- **Modified files (1)**:
+  - `tests/text_golden_tests.cmake` — `target_sources(... 06_arabic_shaping.cpp)` + new `add_test(NAME TextMultilingualArabicShaping ...)` ctest alias with the same filter pattern as the Fase 3/4/5 aliases.
+
+- **API/ABI surface**: zero new public symbols (test-side only; no source code modified, no new symbols).
+
+- **Anti-duplicazione honour**: reuses `LayerBuilder::text()` + `verify_golden()` + `GoldenTestConfig`; NO new singleton/registry/cache/resolver/sampler/service-locator.
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-3 SATISFIED (zero new public API); Gate 5 deny-everywhere N/A.
+
+- **Honest-gap documentation** (per AGENTS.md §honesty):
+  - All 3 tests gracefully skip on `result.golden_missing`. 6 PNG re-bake requires a working build host (vcpkg + tmpfs).
+  - Inter-Bold.ttf does NOT contain Arabic glyphs natively; the font-resolver's system fallback chain (Noto Sans Arabic on Linux, Geeza Pro on macOS, Arial on Windows) must be present for the goldens to render correctly.
+  - RTL base direction is auto-detected by HarfBuzz from the Arabic Unicode block; no explicit `TextDirection::RTL` is required by the current pipeline (verified by the existing `02_mixed_advance_widths.cpp` test which mixes LTR + RTL without direction overrides).
+  - UTF-8 byte sequences for all 19 Arabic codepoints (alef, alef+madda, alef+hamza↑/↓, ba, ta, jim, ha, sin, ra, kaf, lam, mim, ta marbuta, ya, fatha, kasra, damma, sukun, shadda, fathatan, dammatan) were hand-decoded against the Unicode Arabic chart and cross-checked with the thinker's byte-verification table.
+
+- **Re-bake command** (deferred to working build host):
+  `CHRONON3D_UPDATE_GOLDENS=1 ctest -R TextMultilingualArabicShaping --output-on-failure`
+
+---
+
 ## Luglio 2026 — TICKET-FASE3-MULTILINGUAL §DevanagariConjuncts (5th multilingual golden: 3 TEST_CASEs, 6 PNG) (2026-07-10, atomic commit)
 
 ### feat(text_golden): TICKET-FASE3-MULTILINGUAL §DevanagariConjuncts — virama/halant conjunct correctness (क्ष त्र ज्ञ क्षि त्रा ज्ञा क्षमा त्रिभुवन ज्ञान)
