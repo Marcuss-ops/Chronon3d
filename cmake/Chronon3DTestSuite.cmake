@@ -186,8 +186,13 @@ function(chronon3d_add_test_suite)
     )
     chronon3d_enable_test_pch(${ARG_NAME})
 
+    # $<TARGET_FILE:> resolves the exact executable path at generate
+    # time (when build.ninja is produced), avoiding CTest's heuristic
+    # search through Debug/Release/Development/Deployment
+    # subdirectories that fails with Ninja (single-config) when the
+    # binary hasn't been built yet.
     add_test(NAME ${ARG_NAME}
-        COMMAND ${ARG_NAME}
+        COMMAND $<TARGET_FILE:${ARG_NAME}>
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
     # LABELS is forwarded to ctest's -L filter (e.g. `ctest -L gate`).
