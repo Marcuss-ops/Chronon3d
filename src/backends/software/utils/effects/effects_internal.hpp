@@ -36,6 +36,11 @@ inline f32 safe_scale(f32 depth, f32 perspective) {
 // Grabs a cleared framebuffer from the thread-local pool (if available),
 // or heap-allocates one. Always returns a cleared buffer.
 inline std::shared_ptr<Framebuffer> acquire_temp_framebuffer(int w, int h) {
+    // Clamp: degenerate source framebuffers (e.g. 1×1 after bbox collapse)
+    // can produce zero/negative temp sizes in multi-pass effects.
+    w = std::max(1, w);
+    h = std::max(1, h);
+
     if (profiling::g_current_framebuffer_pool) {
         return profiling::g_current_framebuffer_pool->acquire_pooled(
             w, h,
