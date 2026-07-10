@@ -10,6 +10,7 @@
 #include <chronon3d/scene/builders/camera_api.hpp>
 #include <chronon3d/scene/camera/camera_rig_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/node_handle.hpp>
 #include <chronon3d/scene/builders/null_builder.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
@@ -133,13 +134,24 @@ class SceneBuilder {
     template <typename Fn>
     SceneBuilder& null_layer(std::string name, Fn&& fn);
 
+    // ── A4: [[deprecated]] — use last_node_handle() for explicit node access ──
+    [[deprecated("Use last_node_handle().position(pos) for explicit node access")]]
     SceneBuilder& at(Vec3 pos);
+    [[deprecated("Use last_node_handle().rotate(euler_deg) for explicit node access")]]
     SceneBuilder& rotate(Vec3 euler_deg);
+    [[deprecated("Use last_node_handle().scale(s) for explicit node access")]]
     SceneBuilder& scale(Vec3 s);
+    [[deprecated("Use last_node_handle().anchor(a) for explicit node access")]]
     SceneBuilder& anchor(Vec3 a);
+    [[deprecated("Use last_node_handle().opacity(v) for explicit node access")]]
     SceneBuilder& opacity(f32 a);
+    [[deprecated("Use last_node_handle().with_shadow(s) for explicit node access")]]
     SceneBuilder& with_shadow(DropShadow shadow);
+    [[deprecated("Use last_node_handle().with_glow(g) for explicit node access")]]
     SceneBuilder& with_glow(Glow glow);
+
+    // ── A4 — Explicit node handle for the last pushed node ────────────
+    [[nodiscard]] NodeHandle last_node_handle();
 
     [[nodiscard]] Scene build();
     [[nodiscard]] const Camera2_5D& camera_2_5d() const;

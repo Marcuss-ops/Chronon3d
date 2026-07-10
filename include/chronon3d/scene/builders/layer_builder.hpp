@@ -4,6 +4,7 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/text_run_builder.hpp>  // PR 4 — full type required for `std::unique_ptr<TextRunBuilder>` / `std::unique_ptr<TextRunSpec>` members (was forward-declared; caused `sizeof incomplete` + cascaded `private constructor` errors at `std::make_unique` sites and at every TU that destroys a LayerBuilder).
+#include <chronon3d/scene/builders/node_handle.hpp>        // A4 — explicit node transform handle
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/vector/path_factories.hpp>
 #include <chronon3d/scene/model/layer/mask.hpp>
@@ -196,15 +197,28 @@ public:
         return *this;
     }
 
-    // ── Node Transform ──
+    // ── Node Transform (A4: [[deprecated]] — use last_node_handle() instead) ──
+    [[deprecated("Use last_node_handle().position(pos) for explicit node access")]]
     LayerBuilder& at(Vec3 pos);
+    [[deprecated("Use last_node_handle().rotate(euler_deg) for explicit node access")]]
     LayerBuilder& rotate_node(Vec3 euler_deg);
+    [[deprecated("Use last_node_handle().scale(s) for explicit node access")]]
     LayerBuilder& scale_node(Vec3 s);
+    [[deprecated("Use last_node_handle().anchor(a) for explicit node access")]]
     LayerBuilder& anchor_node(Vec3 a);
+    [[deprecated("Use last_node_handle().opacity(v) for explicit node access")]]
     LayerBuilder& node_opacity(f32 a);
 
-    // ── Node Polish ──
+    // ── A4 — Explicit node handle for the last pushed node ────────────
+    /// Returns a NodeHandle wrapping the most recently pushed node.
+    /// Use this instead of the deprecated .at()/.scale_node()/etc.
+    /// Returns a sentinel handle (no-op) when no nodes have been pushed yet.
+    [[nodiscard]] NodeHandle last_node_handle();
+
+    // ── Node Polish (A4: [[deprecated]] — use last_node_handle() instead) ──
+    [[deprecated("Use last_node_handle().with_shadow(s) for explicit node access")]]
     LayerBuilder& with_shadow(DropShadow shadow);
+    [[deprecated("Use last_node_handle().with_glow(g) for explicit node access")]]
     LayerBuilder& with_glow(Glow glow);
     LayerBuilder& accepts_lights(bool value = true);
     LayerBuilder& casts_shadows(bool value = true);
