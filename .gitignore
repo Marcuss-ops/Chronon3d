@@ -217,3 +217,6 @@ tools/telemetry_dashboard/.vite/
 
 # Build output directory (chronon-builds artifacts)
 .tmp/
+
+# Cert-run log artifacts (transient by design — e.g. `tmp/baseline-<sha>/A1..B7..C..E.log` produced by fresh `docs/baselines/main-<sha>-baseline.md` runs; regenerated per cert invocation, never recomputed into git — cert rationale: see `docs/baselines/main-908c7034-baseline.md` Forensic-replay section + AGENTS.md §honesty §"Non committare ... output, artefatti o file generati").  Without this rule, every cert run leaves an untracked `tmp/baseline-*/` that breaks `tools/check_main_clean.sh`'s "working tree dirty" gate.  Mirrors the `.tmp_gate*/` and `.tmp/chronon-builds/` patterns above.
+tmp/
