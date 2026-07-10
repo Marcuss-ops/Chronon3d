@@ -172,6 +172,19 @@ class SceneBuilder {
     /// Access the full sub-frame time for animation evaluation.
     [[nodiscard]] SampleTime sample_time() const;
 
+    /// C2 — canonical sequence compilation entry point.
+    /// Used by both SceneBuilder::sequence() and SequenceBuilder::sequence().
+    /// Extracted to eliminate code duplication and fix nested-manifest
+    /// divergence between the two call sites.
+    template <typename Fn>
+    void compile_sequence(
+        Frame cf,
+        const FrameContext& parent_ctx,
+        SequenceSpec spec,
+        Fn&& fn,
+        Scene& target_scene,
+        registry::ShapeRegistry* shape_reg);
+
     friend class CameraApi;
     friend class SequenceBuilder;  // Sequence V2: access scene_ for nested merge
 
