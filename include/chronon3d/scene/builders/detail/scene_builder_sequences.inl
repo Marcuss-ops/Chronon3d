@@ -1,16 +1,15 @@
 // ── include/chronon3d/scene/builders/detail/scene_builder_sequences.inl
 //
-// Phase-3.3 mechanical split.  Out-of-line template definition of
-// SceneBuilder::sequence<F>(name, spec, fn).
+// C2 — unified sequence compilation.
 //
-// Sequence V2: updated to support SequenceBuilder facade via if constexpr.
-// When Fn is invocable with SequenceBuilder&, the lambda receives a
-// SequenceBuilder with local_frame/progress/duration context.
-// When Fn is invocable with SceneBuilder& (legacy), the original behavior
-// is preserved verbatim.
+// compile_sequence() is the single canonical implementation shared by
+// both SceneBuilder::sequence() and SequenceBuilder::sequence().
+// It eliminates the pre-C2 code duplication and fixes the nested-manifest
+// divergence (both call sites now pass the correct target_scene +
+// shape_registry through the same code path).
 //
-// Implicitly inline (template definition); no `inline` keyword
-// needed at the definition site.
+// Phase-3.3 mechanical split.  Out-of-line template definitions.
+// Templates are implicitly inline.
 
 #pragma once
 
@@ -18,22 +17,49 @@
 
 namespace chronon3d {
 
+    // ═════════════════════════════════════════════════════════════════════
+    // compile_sequence<Fn> — single canonical sequence compilation
+    // ═════════════════════════════════════════════════════════════════════
+    //
+    // Parameters:
+    //   cf           Current frame (source depends on caller).
+    //                SceneBuilder passes current_integer_frame();
+    //                SequenceBuilder passes m_local_frame.
+    //   parent_ctx   Parent FrameContext (m_ctx).
+    //   spec         Sequence spec (from, duration, trim_before).
+    //   fn           Lambda — either (SceneBuilder&) or (SequenceBuilder&).
+    //   target_scene Where to merge the manifest and active layers/nodes.
+    //   shape_reg    ShapeRegistry pointer (may be nullptr).
+    //
+    // Contract (A1 — unified):
+    //   • ALWAYS execute the lambda → build sub-scene → merge asset
+    //     manifest into target_scene, even when the sequence is inactive
+    //     (needed by AssetPreflightResolver FullComposition mode).
+    //   • ONLY add spatial layers/nodes to target_scene if the sequence
+    //     is active at cf.
+
     template <typename Fn>
-    SceneBuilder &SceneBuilder::sequence(const std::string & /*name*/, SequenceSpec spec, Fn &&fn) {
-        const Frame cf = current_integer_frame();
+    void SceneBuilder::compile_sequence(
+        Frame cf,
+        const FrameContext& parent_ctx,
+        SequenceSpec spec,
+        Fn&& fn,
+        Scene& target_scene,
+        registry::ShapeRegistry* shape_reg)
+    {
         bool active = cf >= spec.from && cf < spec.from + spec.duration;
 
-        // Sequence V2: apply trim_before offset
-        // When inactive, use trim_before as-is (avoid negative local frame).
+        // Apply trim_before offset.  When inactive, use trim_before
+        // as-is (avoid negative local frame).
         const Frame local = active
             ? (cf - spec.from + spec.trim_before)
             : spec.trim_before;
 
-        FrameContext local_ctx = m_ctx;
+        FrameContext local_ctx = parent_ctx;
         local_ctx.frame = local;
         local_ctx.local_frame = local;
         local_ctx.duration = spec.duration;
-        local_ctx.frame_time = m_ctx.frame_time;
+        local_ctx.frame_time = parent_ctx.frame_time;
 
         f32 progress = (spec.duration > Frame{0})
             ? std::clamp(
@@ -41,39 +67,50 @@ namespace chronon3d {
                 0.0f, 1.0f)
             : 0.0f;
 
-        // ALWAYS execute the lambda to collect asset manifests,
-        // even when the sequence is inactive.
-        Scene sub_scene;
+        // ALWAYS build the sub-scene — asset manifest collection
+        // must happen regardless of active status.
+        SceneBuilder sub_builder(local_ctx, shape_reg);
+
         if constexpr (std::is_invocable_v<Fn, SequenceBuilder&>) {
-            SceneBuilder sub_builder(local_ctx, m_shape_registry);
             SequenceBuilder seq(sub_builder, local_ctx, local, spec.duration, progress);
             std::forward<Fn>(fn)(seq);
-            sub_scene = sub_builder.build();
         } else {
-            SceneBuilder sub_builder(local_ctx, m_shape_registry);
             std::forward<Fn>(fn)(sub_builder);
-            sub_scene = sub_builder.build();
         }
 
-        // ALWAYS preserve child assets in the parent manifest
-        scene_.asset_manifest().merge(sub_scene.asset_manifest());
+        Scene sub_scene = sub_builder.build();
 
-        // ONLY add spatial layers/nodes if the sequence is active
+        // ALWAYS merge child assets into the target scene manifest.
+        // target_scene is either scene_ (SceneBuilder) or
+        // m_builder.scene_ (SequenceBuilder → same scene via friend access).
+        target_scene.asset_manifest().merge(sub_scene.asset_manifest());
+
+        // ONLY add spatial layers/nodes if the sequence is active.
         if (active) {
-            for (auto &layer : sub_scene.layers()) {
+            for (auto& layer : sub_scene.layers()) {
                 if (layer.duration >= 0) {
                     layer.from += spec.from;
                 } else {
                     layer.from = spec.from;
                     layer.duration = spec.duration;
                 }
-                scene_.add_layer(std::move(layer));
+                target_scene.add_layer(std::move(layer));
             }
-            for (auto &node : sub_scene.nodes()) {
-                scene_.add_node(std::move(node));
+            for (auto& node : sub_scene.nodes()) {
+                target_scene.add_node(std::move(node));
             }
         }
+    }
 
+    // ═════════════════════════════════════════════════════════════════════
+    // SceneBuilder::sequence — delegates to compile_sequence
+    // ═════════════════════════════════════════════════════════════════════
+
+    template <typename Fn>
+    SceneBuilder& SceneBuilder::sequence(const std::string& /*name*/,
+                                          SequenceSpec spec, Fn&& fn) {
+        compile_sequence(current_integer_frame(), m_ctx, spec,
+                         std::forward<Fn>(fn), scene_, m_shape_registry);
         return *this;
     }
 
