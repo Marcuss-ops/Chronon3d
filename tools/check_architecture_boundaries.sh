@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # tools/check_architecture_boundaries.sh
 # ─────────────────────────────────────────────────────────────────────
-# WP-0 (PR 0.2 / 0.5 close-out) + F3.1 phase B — Architecture boundary
-# grep + semantic checks (14 total).
+# WP-0 (PR 0.2 / 0.5 close-out) + F3.1 phase B + ADR-010 + Phase-A1 — Architecture
+# boundary grep + semantic checks (18 total).
 #
 # Verifies that headers / symbols retired in prior refactors have not been
 # accidentally re-introduced.  Every check runs linearly before the summary
@@ -40,6 +40,10 @@
 #        (semantic)
 #  15. Legacy text pipeline gate             — P1 #4 census
 #        (check_legacy_text_pipeline.sh)
+#  16. SDK public-deps SSoT wiring           — ADR-010 Decision 3
+#  17. src/-only header on public path       — TICKET-ae-cam-hash-collision
+#  18. V2 AssetPreflight stubs RETIRED       — Phase A1 close-out
+#        (asset_readiness_v2.hpp always-green stubs + accumulate_preflight_result)
 #
 # Wired into:
 #   - CI:     .github/workflows/gates.yml (Gate 5 / architecture-check)
@@ -109,7 +113,7 @@ filter_symbol_in_code_only() {
     '
 }
 
-echo "=== Architecture boundary grep + semantic checks (WP-0 / F3.1 / P1-4 — 15 checks) ==="
+echo "=== Architecture boundary grep + semantic checks (WP-0 / F3.1 / P1-4 / Phase-A1 — 18 checks) ==="
 
 # ── 1. core/memory/render_session.hpp ─────────────────────────────────
 # Split into runtime/render_session.hpp + software_session_resources.hpp
@@ -501,6 +505,40 @@ if [ -n "$hits" ]; then
     echo "FAIL"
     echo "  src/-only headers included via public path (use relative include instead):"
     echo -n "$hits" | sed 's/^/    /'
+    FAILED=1
+else echo "PASS"; fi
+
+# ── 18. V2 AssetPreflight stubs RETIRED (Phase A1 close-out, 2026-07-10) ──
+# The always-green `chronon3d::assets::v2::AssetPreflightResult` +
+# `::AssetPreflightResolver` stubs (in `asset_readiness_v2.hpp`) and the
+# bridge accumulator `accumulate_preflight_result(...)` (in
+# `legacy_adapters.hpp`) were removed in cleanup Phase A1 because a preflight
+# that returns {ok=true, missing=[]} unconditionally is worse than no
+# preflight (silently produces FALSE-GREEN on missing assets, violating
+# AGENTS §"Renderer non inventa fallback"). The REAL canonical preflight
+# lives in `chronon3d::AssetPreflightResolver` in
+# `include/chronon3d/assets/asset_preflight_resolver.hpp` (namespace
+# `chronon3d::`, NOT `chronon3d::assets::v2`) and is wired into the CLI +
+# video exporters + canonical tests. This guard prevents silent
+# re-introduction of the always-green stubs.
+echo -n "  [18/18] V2 AssetPreflight stubs RETIRED ... "
+hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+    -E '\b(assets::v2::AssetPreflightResult|assets::v2::AssetPreflightResolver|accumulate_preflight_result)\b' \
+    $SCRIPT_PATHS 2>/dev/null \
+    | filter_symbol_in_code_only '\b(assets::v2::AssetPreflightResult|assets::v2::AssetPreflightResolver|accumulate_preflight_result)\b' \
+    || true)
+if [ -n "$hits" ]; then
+    echo "FAIL"
+    echo "  V2 preflight stubs or accumulate_preflight_result re-introduced:"
+    echo "$hits" | sed 's/^/    /'
+    echo "  → Phase A1 (2026-07-10) removed the always-green"
+    echo "    \`chronon3d::assets::v2::AssetPreflightResult\` +"
+    echo "    \`::AssetPreflightResolver\` from \`asset_readiness_v2.hpp\` +"
+    echo "    \`accumulate_preflight_result\` from \`legacy_adapters.hpp\`."
+    echo "    Real canonical preflight: \`chronon3d::AssetPreflightResolver\` in"
+    echo "    \`include/chronon3d/assets/asset_preflight_resolver.hpp\` (namespace"
+    echo "    \`chronon3d::\`). To re-introduce these symbols you must first update"
+    echo "    ADR-016 + TICKET-ASSET-READINESS with a new approved design."
     FAILED=1
 else echo "PASS"; fi
 

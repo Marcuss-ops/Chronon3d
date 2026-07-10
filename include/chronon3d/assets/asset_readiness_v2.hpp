@@ -1,32 +1,50 @@
 // =============================================================================
 // chronon3d/assets/asset_readiness_v2.hpp
 //
-// M1.7 Step 1 — Asset Readiness V2 single source of truth.
+// M1.7 Step 1 (post-Phase-A1 close-out, 2026-07-10) — Asset Readiness V2 POD
+// types: 3 simboli pubblici canonici.
 //
-// 5 nuovi simboli pubblici canonici che sostituiscono la gestione asset
-// legacy (path raw sparsi + asset discovery render-time + fallback silenziosi
-// + per-feature Preflight duplicato) e che diventano il contratto SSoT per
-// la dichiarazione e il preflight degli asset richiesti da una scena.
+// 3 simboli pubblici canonici POD per la dichiarazione canonica degli asset
+// richiesti da una scena, in namespace `chronon3d::assets::v2`:
+//   * `AssetKind`    : enum Font/Image/Video/Audio (POD).
+//   * `AssetRef`     : POD { kind, path, owner, required }.
+//   * `AssetManifest`: value type con `add(entry)` + `entry_for(owner)` + `all()`.
+// Sostituiscono i path raw sparsi nel content code e abilitano il typed
+// `chronon3d::assets::AssetRef<K>` wrapper (`asset_ref.hpp`) con factory
+// `asset::image/font/video/audio(...)`.
+//
+// Lo `AssetPreflightResult` e `AssetPreflightResolver` stub SEMPRE-VERDI
+// (ritorno `{ok=true, missing=[]}` fisso) che originariamente occupavano
+// questo header sono stati rimossi in cleanup Phase A1 (2026-07-10, TICKET
+// di cleanup). Un preflight che dice sempre "OK" è peggio dell'assenza di
+// preflight perché genera falsi verdi. Il preflight canonico reale vive
+// in `include/chronon3d/assets/asset_preflight_resolver.hpp` — namespace
+// `chronon3d::` (NON `chronon3d::assets::v2`) e produce
+// `cronon::AssetPreflightResult` con `issues[]` strutturati.
 //
 // Vincoli AGENTS.md v0.1 (Cat-3 freeze):
 //   * ZERO nuovi singleton / registry / cache / service-locator.
 //   * NO #include <msdfgen> / <libtess2> / <unicode[/...]>.
-//   * ZERO modifiche al codice esistente (tutti i test preesistenti
-//     rimangono PASS bit-identical).
-//   * ABI pubblico preservato (`chronon3d::AssetRegistry` + `chronon3d::AssetType`
-//     + `chronon3d::AssetMetadata` esistenti restano intatti e distinti).
+//   * ZERO modifiche al codice esistente (i test preesistenti rimangono
+//     PASS bit-identical — i consumer reali `asset_ref.hpp` usano SOLO i 3
+//     POD rimasti, non i tipi di preflight rimossi).
+//   * ABI pubblico preservato: 3 POD canonici + `chronon3d::AssetRegistry` +
+//     `chronon3d::AssetType` esistenti restano intatti e distinti.
+//   * Compile-fail gate #18 in `tools/check_architecture_boundaries.sh`
+//     vieta la re-introduzione di `assets::v2::AssetPreflightResult` /
+//     `assets::v2::AssetPreflightResolver` / `accumulate_preflight_result`.
 //
 // Namespace: `chronon3d::assets::v2` distinto da `chronon3d::AssetType`
 // (in `asset_metadata.hpp`) che ha semantica metadata/registry (5+ tipi
-// inclusi Mesh + Unknown). Il nuovo `AssetKind` ha semantica
+// inclusi Mesh + Unknown). Il `AssetKind` ha semantica
 // manifest/owner-centric (4 tipi: Font/Image/Video/Audio) — i due tipi
 // coesistono come concetti distinti (metadata discriminator vs
 // manifest owner-key), NON sostituiscono `AssetType`.
 //
-// Step 1 è solo AGGIUNTA + superficie minima. Step 2 (legacy adapters) +
-// Step 3 (migrate new content + real file-existence checks) +
-// Step 4 (eliminate legacy + grep-audit backlog = 0) restano forward-point.
-// Vedi `docs/tickets/TICKET-ASSET-READINESS.md` per il piano completo.
+// Forward-point: future migration del render loop per usare
+// `AssetKind → v2::AssetRef` come keys canoniche del preflight canonico
+// è design-FROZEN (`docs/tickets/TICKET-ASSET-READINESS.md` + ADR-016
+// §Decision 2). Step 4 eliminerà i fallback silenziosi legacy.
 // =============================================================================
 
 #pragma once
@@ -144,78 +162,39 @@ private:
 };
 
 // -----------------------------------------------------------------------------
-// `AssetPreflightResult` — output canonico del `AssetPreflightResolver`.
+// (REMOVED 2026-07-10 — Phase A1 cleanup)
 //
-//   * `ok`      : `true` se TUTTI gli asset richiesti sono disponibili
-//                 (post-Step-3: file esiste + leggibile + kind matches
-//                 extension). `false` se almeno un asset manca.
-//   * `missing` : lista degli `AssetRef` che NON sono disponibili.
-//                 Vuota se `ok == true`. NON vuota se `ok == false`
-//                 (post-Step-3). Step 1: sempre vuota perché i check
-//                 privati sono no-op stubs che ritornano `true`.
+// `AssetPreflightResult` + `AssetPreflightResolver` vennero originariamente
+// aggiunti come stubs SEMPRE-VERDI (M1.7 Step 1) con
+// `preflight(manifest) -> {ok=true, missing=[]}` hardcoded e i 4 metodi
+// privati `check_font / check_image / check_video / check_audio` che
+// ritornavano tutti `true` in attesa della logica reale da popolare a
+// Step 3. Sono stati rimossi perché:
+//
+//   1. Il preflight canonico reale (`AssetPreflightResolver::check(...)` /
+//      `::check_manifest(...)` con `issues[]` strutturati) VIVE GIÀ in
+//      `include/chronon3d/assets/asset_preflight_resolver.hpp` namespace
+//      `chronon3d::` (NON `chronon3d::assets::v2`) ed è già usato dal CLI
+//      (`command_preflight`, `command_still`, video exporters) + dai test
+//      canonici (`tests/visual/timeline/test_asset_readiness.cpp`).
+//
+//   2. Uno stub che ritorna sempre {ok=true, missing=[]} è peggio
+//      dell'assenza di preflight perché genera FALSI VERDI: asset
+//      mancanti passano silenziosamente e il runtime continua a renderare
+//      usando fallback impliciti (draw_black_rect, default_font, …),
+//      violando la regola AGENTS §"Renderer non inventa fallback".
+//
+// `legacy_adapters.hpp` ⇒ `accumulate_preflight_result(...)` rimosso per
+// la stessa ragione (operava sull'`AssetPreflightResult` stub).
+//
+// Wrapper canonico per "gli asset sono pronti?" post-A1:
+//   `chronon3d::AssetPreflightResolver::check(scene, resolver, mode)` /
+//   `::check_manifest(manifest, resolver)` → `chronon3d::AssetPreflightResult`
+//   con `ok()` + `issues[]`. Vive in `asset_preflight_resolver.hpp`.
+//
+// Compile-fail gate #18 in `tools/check_architecture_boundaries.sh` impedisce
+// la re-introduzione di: `assets::v2::AssetPreflightResult` /
+// `assets::v2::AssetPreflightResolver` / `accumulate_preflight_result`.
 // -----------------------------------------------------------------------------
-struct AssetPreflightResult {
-    bool ok{true};
-    std::vector<AssetRef> missing{};
-};
-
-// -----------------------------------------------------------------------------
-// `AssetPreflightResolver` — single source of truth per "gli asset sono
-// pronti?".
-//
-// Step 1 superficie minima (header-only inline; no cache; no singleton).
-// Il resolver è una value type stateless: copy/const-evaluate-friendly;
-// può essere conservato in `RenderSession` (post-Step-3) o in
-// `RenderGraphContext` senza dover introdurre nessun nuovo global registry.
-//
-// Regola finale (vincolante per Chiusura M1.7 Asset):
-//   `AssetPreflightResolver::preflight(manifest)` decide se tutti gli
-//   asset sono pronti. `RenderJob::start()` chiama preflight UNA volta
-//   prima del render loop; se `result.ok == false`, FAIL esplicito con
-//   messaggio per ogni `missing`. `Renderer` non inventa fallback
-//   (no `use_default_font`, no `draw_black_rect`, no `empty_frame`,
-//   no `continue` su missing). PNG scuri vietati.
-//
-// I 4 check privati `check_font / check_image / check_video / check_audio`
-// sono no-op stubs a Step 1 (ritornano sempre `true` → result sempre
-// `ok=true, missing=[]`). Step 3 popolerà la logica reale (file esiste +
-// kind/extension match + permission readable).
-// -----------------------------------------------------------------------------
-class AssetPreflightResolver {
-public:
-    /// Risolve il manifest. Step 1 ritorna SEMPRE `AssetPreflightResult{ok=true, missing=[]}`.
-    /// Step 3 wireà la reale attivazione dei check `check_font / check_image / ...`
-    /// e popolerà `missing` con gli `AssetRef` che falliscono il check.
-    ///
-    /// `noexcept` perché la versione Step 1 non alloca né chiama funzioni
-    /// throwing. Step 3 (con check reali) potrebbe dover rilasciare
-    /// `noexcept` se i check lanciano eccezioni filesystem.
-    [[nodiscard]] AssetPreflightResult
-    preflight(const AssetManifest& manifest) const noexcept {
-        AssetPreflightResult result;
-        result.ok = true;  // Step 1: sempre OK; Step 3 popolerà da `check_*`.
-        result.missing = {};  // Step 1: mai missing; Step 3 popolerà.
-
-        // Step 3 (forward-point) wireà qualcosa tipo:
-        //   for (const auto& ref : manifest.all()) {
-        //       if (!check_one(ref)) result.missing.push_back(ref);
-        //   }
-        //   result.ok = result.missing.empty();
-        //
-        // Per Step 1 il loop è omesso: i check privati sono no-op stubs
-        // che ritornano sempre true, e il codice esistente NON chiama
-        // `preflight` (gli adapter sono forward-point a Step 2/3).
-        (void)manifest;  // sopprimi unused-parameter warning
-        return result;
-    }
-
-private:
-    // Step 1: tutti i check sono no-op `return true;`. Step 3 popolerà
-    // la logica reale (file exists + readable + kind/extension match).
-    [[nodiscard]] bool check_font (const AssetRef& /*r*/) const noexcept { return true; }
-    [[nodiscard]] bool check_image(const AssetRef& /*r*/) const noexcept { return true; }
-    [[nodiscard]] bool check_video(const AssetRef& /*r*/) const noexcept { return true; }
-    [[nodiscard]] bool check_audio(const AssetRef& /*r*/) const noexcept { return true; }
-};
 
 } // namespace chronon3d::assets::v2
