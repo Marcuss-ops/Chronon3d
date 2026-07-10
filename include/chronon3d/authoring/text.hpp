@@ -73,7 +73,7 @@
 #include <chronon3d/text/font_engine.hpp>                 // FontEngine — required for `Text::font_engine(FontEngine&)` reference parameter (also pulls in transitively via text_run_builder.hpp, but explicit for hygiene)
 #include <chronon3d/text/text_animator_property.hpp>      // TextAnimatorSpec
 #include <chronon3d/text/text_direction.hpp>              // TextDirection
-#include <chronon3d/text/text_placement_resolver.hpp>     // TextPlacement, CanvasInfo, resolve_text_placement
+#include <chronon3d/text/resolve_text_placement.hpp>        // TextPlacement, CanvasInfo, resolve_text_placement
 
 #include <chronon3d/authoring/animator.hpp>
 #include <chronon3d/authoring/material.hpp>

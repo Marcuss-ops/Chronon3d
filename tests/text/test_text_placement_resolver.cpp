@@ -1,4 +1,4 @@
-// test_text_placement_resolver.cpp — Tests for the unified text placement resolver
+// test_text_placement_resolver.cpp — Tests for the canonical text placement resolver
 //
 // ADR-019 Decision 3: TextPlacement resolves the Box coordinate level.
 //
@@ -7,6 +7,13 @@
 // separate `Vec2 offset` parameter pair.  This file migrates all 30+ test
 // cases to the new struct API.
 //
+// Phase A.6 (2026-07-10): the co-resident `class TextPlacementResolver`
+// wrapper surface (previously tested in the now-deleted
+// `ResolvedTextPlacement: TextPlacementResolver class wrapper (Phase A.3)`
+// TEST_CASE) was RETIRED; the free-function surface is canonical.  This
+// file now exercises exclusively `resolve_placement_origin()` and
+// `resolve_text_placement()` — the canonical surface.
+//
 // Semantics:
 //   resolve_placement_origin() returns the PIN POINT — where the box's
 //   anchor point should sit on the canvas.  It is NOT the box top-left.
@@ -14,7 +21,7 @@
 
 #include <doctest/doctest.h>
 #include <chronon3d/text/text_placement.hpp>           // TextPlacement, TextPlacementKind
-#include <chronon3d/text/text_placement_resolver.hpp>   // Resolver functions
+#include <chronon3d/text/resolve_text_placement.hpp>    // Canonical resolver surface
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -472,35 +479,6 @@ TEST_CASE("ResolvedTextPlacement: resolved_anchor echoes input TextAnchor (Phase
             TextPlacement{TextPlacementKind::CanvasCenter}, tc.input);
         CHECK(r.resolved_anchor == tc.input);
     }
-}
-
-TEST_CASE("ResolvedTextPlacement: TextPlacementResolver class wrapper (Phase A.3)") {
-    // The Phase A.3 spec asks for a `TextPlacementResolver` class.  The
-    // class is a thin wrapper that delegates to the free function (per
-    // Option C re-interpretation: no parallel resolver, single canonical
-    // implementation in the free function).  This test locks the
-    // delegation contract.
-    auto c = default_canvas();
-    Vec2 box{800.0f, 200.0f};
-
-    TextPlacementResolver resolver;
-    auto r = resolver.resolve(c, box,
-        TextPlacement{TextPlacementKind::CanvasCenter},
-        TextAnchor::TopLeft);
-
-    // The class wrapper must produce the same result as the free function.
-    auto r_free = resolve_text_placement(c, box,
-        TextPlacement{TextPlacementKind::CanvasCenter},
-        TextAnchor::TopLeft);
-    CHECK(r.resolved_anchor == r_free.resolved_anchor);
-    // Component-wise comparison: doctest::Approx is scalar-only, so
-    // compare each Vec4/Vec2 component separately.
-    CHECK(r.local_frame.x == doctest::Approx(r_free.local_frame.x));
-    CHECK(r.local_frame.y == doctest::Approx(r_free.local_frame.y));
-    CHECK(r.local_frame.z == doctest::Approx(r_free.local_frame.z));
-    CHECK(r.local_frame.w == doctest::Approx(r_free.local_frame.w));
-    CHECK(r.layout_origin.x == doctest::Approx(r_free.layout_origin.x));
-    CHECK(r.layout_origin.y == doctest::Approx(r_free.layout_origin.y));
 }
 
 TEST_CASE("ResolvedTextPlacement: default anchor when not specified (Phase A.3)") {
