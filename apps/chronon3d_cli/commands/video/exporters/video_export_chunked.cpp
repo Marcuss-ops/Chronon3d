@@ -59,12 +59,11 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
 
     // ── Font preflight (P0 video/text — Fase 1) ────────────────────────────
     // Create a temporary renderer just for preflight check.
-    // FIX #4 — Wire FontEngine into preflight evaluate() so text shapes
-    // materialize correctly during the preflight scene build.
+    // Font preflight uses the canonical evaluate_video_scene() which
+    // threads FontEngine into composition evaluation.
     {
         auto preflight_renderer = create_renderer(registry, settings);
-        Scene scene = comp.evaluate(start, 0.0f,
-                                    &preflight_renderer->font_engine());
+        Scene scene = evaluate_video_scene(comp, start, *preflight_renderer);
         auto preflight_result = AssetPreflightResolver::check(
             scene, preflight_renderer->runtime().resolver(),
             PreflightMode::FullComposition);
