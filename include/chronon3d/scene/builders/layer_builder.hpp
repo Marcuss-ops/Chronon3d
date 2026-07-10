@@ -468,26 +468,49 @@ public:
     LayerBuilder& grid_plane(std::string name, GridPlaneParams p);
 
     // ── Motion Presets ──
+    // C3 — [[deprecated]]: use presets::motion_preset_packs().apply(lb, "slide_in")
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, preset_id) from motion_preset_packs.hpp")]]
     LayerBuilder& slide_in(Vec3 from, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"soft_pop\")")]]
     LayerBuilder& soft_pop(Frame duration = Frame{30});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"float_idle\")")]]
     LayerBuilder& float_idle(f32 amplitude_y = 12.0f, Frame cycle = Frame{120});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"depth_reveal\")")]]
     LayerBuilder& depth_reveal(f32 depth_z = 260.0f, Frame duration = Frame{45});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"card_flip_2_5d\")")]]
     LayerBuilder& card_flip_2_5d(Frame duration = Frame{60});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"settle\")")]]
     LayerBuilder& settle(f32 overshoot = 0.08f, Frame duration = Frame{20});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"fade_in\")")]]
     LayerBuilder& fade_in(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"focus_in\")")]]
     LayerBuilder& focus_in(f32 start_blur, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"scale_drop\")")]]
     LayerBuilder& scale_drop(f32 start_scale, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"fade_shift_vertical\")")]]
     LayerBuilder& fade_shift_vertical(Vec3 offset, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"fade_shift_horizontal\")")]]
     LayerBuilder& fade_shift_horizontal(Vec3 offset, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"reveal_from_bottom\")")]]
     LayerBuilder& reveal_from_bottom(f32 distance, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    // C3 — [[deprecated]]: use presets::motion_preset_packs().apply(lb, preset_id)
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"center_split\")")]]
     LayerBuilder& center_split(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"underline_draw\")")]]
     LayerBuilder& underline_draw(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"highlight_block\")")]]
     LayerBuilder& highlight_block(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"framing_bracket\")")]]
     LayerBuilder& framing_bracket(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"word_stagger\")")]]
     LayerBuilder& word_stagger(Frame delay, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"tracking_breathing\")")]]
     LayerBuilder& tracking_breathing(f32 scale_factor, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"elegant_exit_vertical\")")]]
     LayerBuilder& elegant_exit_vertical(Vec3 offset, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"elegant_exit_horizontal\")")]]
     LayerBuilder& elegant_exit_horizontal(Vec3 offset, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
+    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"curtain_close\")")]]
     LayerBuilder& curtain_close(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
 
     // ── Video ──
