@@ -206,23 +206,28 @@ inline TextRunPlacement resolve_text_run_placement(
                         && needs_xform && !item.native_3d;
 
     if (use_local) {
-        // TICKET-TEXT-CLIP-PREDICTED-BBOX — for use_local=true (custom
-        // layer transform like l.scale(1.30)) the placement must
-        // compose the layer's transform with the node's transform.
-        // The layer's transform encodes "translate then scale"
-        // (T(canvas_center) * S(scale)), but the user intent is
-        // "scale around canvas center".  The composition
-        //   layer_t * inverse(canvas_center) * node_t
-        // converts "translate then scale" to "scale around canvas
-        // center, then position at the (scaled) box top-left":
-        //   = T(canvas_center) * S(scale) * T(-canvas_center) * T(box_top_left)
-        // Without this conversion the 1.30× scale pushes the text
-        // to canvas (1168, 1047) (bottom-right) and the bbox is
-        // clipped to empty.
-        out_opacity = item.transform.opacity * node.world_transform.opacity;
-        Mat4 layer_t = item.transform.to_mat4();
-        Mat4 cc = implicit_canvas_center_matrix(ctx);
-        return TextRunPlacement{layer_t * glm::inverse(cc) * node.world_transform.to_mat4()};
+        // TICKET-TEXT-CLIP-PREDICTED-BBOX — for use_local=true, the
+        // downstream TransformNode handles the layer transform
+        // (layer_t) and layer opacity.  The TextRunNode only needs
+        // the node's own transform, matching the SourceNode path:
+        //   SourceNode: shape_matrix = node.world_transform.to_mat4()
+        //   SourceNode: shape_opacity = node.world_transform.opacity
+        //
+        // The node's world_transform already encodes the text box
+        // position (e.g. T(110, 360) for a 1700×360 box centered
+        // at (960, 540)).  The TransformNode's model matrix
+        // (= T(-cc) * item.world_matrix) handles canvas centering
+        // and layer scale via pixel_model = T(cc) * model * T(-cc).
+        //
+        // Baking layer_t into the placement would cause a double-
+        // transform (TextRun applies layer_t, TransformNode also
+        // applies layer_t).  Adding canvas center on top of the
+        // node's world_transform would double-translate.
+        //
+        // Mirror: graph_builder_source_pass.cpp ~line 155
+        // shape_matrix use_local branch.
+        out_opacity = node.world_transform.opacity;
+        return TextRunPlacement{node.world_transform.to_mat4()};
     }
 
     // Non-local path: build item-level world matrix.
