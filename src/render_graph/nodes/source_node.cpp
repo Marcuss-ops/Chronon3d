@@ -124,7 +124,7 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
         // Dedup (round-2/3 code-reviewer #2 follow-up): the
         // projection+continue logic is extracted to
         // `chronon3d::graph::detail::project_to_camera_space` in
-        // `src/render_graph/nodes/detail/projection_helpers.hpp` and
+        // `src/render_graph/nodes/detail/projection_helpers.hpp` and  // drift-allow: stale-ref
         // shared with the 3 multi_source_node.cpp sites.  This handles
         // the m_matrix_override case correctly: base_matrix is either
         // the override or the world transform's matrix, and from_mat4

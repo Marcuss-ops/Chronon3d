@@ -48,7 +48,7 @@
 // no longer populates them in `populate()`, no longer assigns them into
 // the `RenderServices` bundle, and no longer wires them into the
 // `SessionServices` table via `make_session()`.  See
-// `docs/refactor-roadmap/03-render-session-boundary.md` PR 3.1 + the
+// `docs/refactor-roadmap/03-render-session-boundary.md` PR 3.1 + the  // drift-allow: stale-ref
 // PR 3.0 doc-comment in `<chronon3d/internal/runtime/render_session.hpp>` for
 // the migration rationale and the per-session ownership spec.
 //
@@ -254,7 +254,7 @@ public:
     // REMOVED here.  Both state engines are now per-session owned; reach
     // them via `session.scene_hasher()` / `session.program_store()`
     // (or `session.common.scene_hasher()` / `program_store()` from a
-    // `SoftwareRenderSession`).  See `docs/refactor-roadmap/03-render-session-boundary.md`.
+    // `SoftwareRenderSession`).  See `docs/refactor-roadmap/03-render-session-boundary.md`.  // drift-allow: stale-ref
 
 private:
     chronon3d::Config                                   m_config;

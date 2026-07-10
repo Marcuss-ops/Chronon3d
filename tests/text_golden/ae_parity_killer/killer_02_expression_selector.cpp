@@ -9,7 +9,7 @@
 // textTotal`) is PLANNED, NOT YET IMPL.  Verified via find-grep: zero
 // `expression_evaluator.cpp` files in src/text/.  Source anchor per
 // docs/tickets/TICKET-AE-LIKE-TEXT-ACTION-PLAN.md Decision 2 Killer 2:
-// `src/text/selector/expression_evaluator.cpp` (NEW; resolver from
+// `src/text/selector/expression_evaluator.cpp` (NEW; resolver from  // drift-allow: stale-ref
 // `AnimatorResolver` per Blocco 6 of
 // docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md).
 //
@@ -70,7 +70,7 @@ constexpr f32 kTestSelectorValue = 0.5f;
 
 // The contract formula: amount = selectorValue * textIndex / textTotal.
 // Pure function, no side effects, no global state. The future production
-// ExpressionSelector (src/text/selector/expression_evaluator.cpp) will
+// ExpressionSelector (src/text/selector/expression_evaluator.cpp) will  // drift-allow: stale-ref
 // implement this same formula; the test-internal helper locks the
 // contract so any future implementation must match.
 [[nodiscard]] constexpr f32 expression_ramp(

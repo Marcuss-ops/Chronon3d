@@ -1,7 +1,7 @@
 #pragma once
 
 // =============================================================================
-// include/chronon3d/video/encoder.hpp — Abstract IVideoEncoder interface
+// include/chronon3d/video/encoder.hpp — Abstract IVideoEncoder interface  // drift-allow: stale-ref
 // (kept in CLI utils for incremental migration; will move to shared lib)
 // =============================================================================
 

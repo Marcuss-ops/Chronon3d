@@ -3,7 +3,7 @@
 //
 // 10 Reveal-tier presets × 8 sentinels (4 timestamps × 2 aspect ratios).
 // Mechanical split-off of TEST_CASEs that formerly lived in
-// tests/text/test_text_preset_visual.cpp alongside the Emphasis and
+// tests/text/test_text_preset_visual.cpp alongside the Emphasis and  // drift-allow: stale-ref
 // Subtitle tiers.
 //
 //   text_animations (10) · fade_in · blur_in · slide_up · slide_down

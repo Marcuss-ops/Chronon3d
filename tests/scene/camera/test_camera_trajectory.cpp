@@ -142,7 +142,7 @@ TEST_CASE("CameraTrajectory Bezier derivative matches finite difference") {
 // 3 — Handle contract uses local offsets.
 //
 // Convention (locked in by this test, do not change without rewriting the
-// waypoint-based spline spec at src/scene/camera/camera_v1/camera_trajectory.hpp):
+// waypoint-based spline spec at src/scene/camera/camera_v1/camera_trajectory.hpp):  // drift-allow: stale-ref
 //   bezier_to(in_handle, out_handle, end_pos)
 //   - in_handle is a RELATIVE OFFSET added to end_pos  → CP2 = end_pos + in_handle
 //   - out_handle is a RELATIVE OFFSET attached to end_pos that *will* become

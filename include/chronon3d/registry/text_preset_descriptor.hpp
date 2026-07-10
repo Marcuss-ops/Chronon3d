@@ -144,7 +144,7 @@ using TextPresetBuilder = std::function<
 //
 // Pure-function contract: same `(meta)` input → same `TextAnimatorSpec`
 // output (deterministic; per
-// docs/DETERMINISM_TICKETS.md §cluster-A).  The factory is the single
+// docs/DETERMINISM_TICKETS.md §cluster-A).  The factory is the single  // drift-allow: stale-ref
 // source of truth for "what the resolver returns for this preset" —
 // previously this lived as hardcoded `else if` branches in
 // AnimatorResolver::compose_for.

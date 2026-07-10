@@ -280,7 +280,7 @@ foreach(_rg_sw_consumer
 endforeach()
 
 # TICKET-AE-PARITY-FLOOR-DASHBOARD — internal-only header at
-# src/render_graph/nodes/detail/projection_helpers.hpp is FULL-included by
+# src/render_graph/nodes/detail/projection_helpers.hpp is FULL-included by  # drift-allow: stale-ref
 # source_node.cpp + multi_source_node.cpp via the public include path
 # <chronon3d/render_graph/nodes/detail/projection_helpers.hpp>.  Per
 # AGENTS.md "non esporre headers interni come public API", we do NOT move

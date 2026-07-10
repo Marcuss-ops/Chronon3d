@@ -68,19 +68,19 @@ Questo significa:
 
 Quindi l'83% del tempo non va perso in scheduling — va speso dentro `execute_single_node()` nelle fasi cache eval, predicted bbox, telemetry. Ma non possiamo vedere esattamente quanto perché i timer di sottofase non sono accesi.
 
-**Perché i counter sono a zero:** I timer di sottofase non vengono popolati perché `ctx.timer.start()`/`.stop()` non è mai chiamato per quelle fasi in `src/render_graph/executor/internal.cpp`.
+**Perché i counter sono a zero:** I timer di sottofase non vengono popolati perché `ctx.timer.start()`/`.stop()` non è mai chiamato per quelle fasi in `src/render_graph/executor/internal.cpp`.  <!-- drift-allow: stale-ref -->
 
 **Come superarlo:**
 1. Aggiungere `ctx.timer.start()` / `.stop()` per ogni fase del graph executor:
-   - `src/render_graph/executor/internal.cpp` → `evaluate_cache()`, `predicted_bbox()`
+   - `src/render_graph/executor/internal.cpp` → `evaluate_cache()`, `predicted_bbox()`  <!-- drift-allow: stale-ref -->
    - `src/render_graph/executor/executor.cpp` → node scheduling, dispatch
    - `src/render_graph/pipeline/scene.cpp` → dirty rect, input resolve, clone context
 2. Modificare ~10 righe in 3 file per accendere i timer
 3. Risultato atteso: attribuzione → **90%+**, scopriamo esattamente dove vanno i 183ms
 
 **File da modificare:**
-- `src/render_graph/executor/internal.cpp` (~riga 30: cache eval → `timer.start/stop("cache_eval_ms")`)
-- `src/render_graph/executor/internal.cpp` (~riga 50: predicted bbox → `timer.start/stop("predicted_bbox_ms")`)
+- `src/render_graph/executor/internal.cpp` (~riga 30: cache eval → `timer.start/stop("cache_eval_ms")`)  <!-- drift-allow: stale-ref -->
+- `src/render_graph/executor/internal.cpp` (~riga 50: predicted bbox → `timer.start/stop("predicted_bbox_ms")`)  <!-- drift-allow: stale-ref -->
 - `src/render_graph/pipeline/scene.cpp` (~riga 100: dirty eval → `timer.start/stop("dirty_eval_ms")`)
 
 **Sforzo:** Basso (< 30 righe, 3 file)

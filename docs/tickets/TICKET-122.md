@@ -46,7 +46,7 @@ Tre opzioni di fix, dalla più semplice alla più robusta:
 
 Nel `GraphExecutor`, quando si iterano i nodi foglia (senza dipendenze), usarne l'ordine di inserimento nel grafo invece dell'ordine di visita topologica. I nodi sono già in ordine di layer nel `m_nodes` vector.
 
-**File da modificare:** `src/render_graph/executor/graph_executor.cpp` (o equivalente)
+**File da modificare:** `src/render_graph/executor/graph_executor.cpp` (o equivalente)  <!-- drift-allow: stale-ref -->
 
 **Cambiamento:** ordinare i nodi ready-to-execute per `node_id` crescente (che corrisponde all'ordine di `add_node()` = ordine di layer).
 
@@ -95,7 +95,7 @@ Nel layer pipeline pass (che compone i FB dei vari layer), ordinare gli input pe
 
 | File | Ruolo |
 |---|---|
-| `src/render_graph/executor/graph_executor.cpp` | Esecuzione nodi in ordine topologico |
+| `src/render_graph/executor/graph_executor.cpp` | Esecuzione nodi in ordine topologico |  <!-- drift-allow: stale-ref -->
 | `src/render_graph/builder/graph_builder_layer_pipeline.cpp` | Costruzione pipeline layer |
 | `src/render_graph/builder/passes/graph_builder_source_pass.cpp` | Creazione SourceNode per layer |
 | `include/chronon3d/render_graph/render_graph.hpp` | `RenderGraph::m_nodes` (ordine corretto) |

@@ -35,7 +35,7 @@ Eseguito `/tmp/dod_c1_verify.sh` end-to-end al commit `9ef0fe33` (log: `/tmp/dod
 | 6    | `6_find_package`                         | ⏭ SKIP  | cascade.                                                                                                                                                     |
 | 7    | `7_consumer_build`                       | ⏭ SKIP  | cascade.                                                                                                                                                     |
 | 8    | `8_check_install_BOUNDARY_OK`            | ⏭ SKIP  | cascade.                                                                                                                                                     |
-| 9    | `9_ghost_sweep_GHOST_OK`                 | ❌ FAIL  | ROT-2 sibling di Fix-2 (commit `81cdc738`): incomplete-type `chronon3d::runtime::RenderRuntime` nei callsites `src/animations/animated_value_evaluation.inl` + `src/animations/animated_value.hpp`. |
+| 9    | `9_ghost_sweep_GHOST_OK`                 | ❌ FAIL  | ROT-2 sibling di Fix-2 (commit `81cdc738`): incomplete-type `chronon3d::runtime::RenderRuntime` nei callsites `src/animations/animated_value_evaluation.inl` + `src/animations/animated_value.hpp`. |  <!-- drift-allow: stale-ref -->
 
 **TOTALE: 1 PASS / 3 FAIL / 5 SKIP — non-baseline-verificato.**
 
@@ -54,16 +54,16 @@ error: expected initializer before '<' token
    include/chronon3d/animation/core/detail/animated_value_bezier.inl:31
    include/chronon3d/animation/core/detail/animated_value_bezier.inl:92
 error: 'evaluate_fill_expression' is not a member of 'chronon3d'
-   in src/animations/animated_value.hpp
+   in src/animations/animated_value.hpp  <!-- drift-allow: stale-ref -->
 error: 'evaluate_stroke_expression' is not a member of 'chronon3d'
-   in src/animations/animated_value.hpp
+   in src/animations/animated_value.hpp  <!-- drift-allow: stale-ref -->
 ```
 
 **Diagnosi (preliminare):**
 
 Il sed-fix in A1 (commit `73d5387e`) ha rimosso 116 shell-style `#`-only comment headers (102 con contenuto + 14 lone `#`) nei 5 file intestazione C++. Tuttavia, il preprocessor continua a segnalare `expected initializer before '<'` nelle stesse aree, sintomo tipico di `template<...>` non correttamente chiuso o di inline function definitions con signature male-extracted. Le due chiamate `evaluate_fill_expression` / `evaluate_stroke_expression` non risolvono come membri di `chronon3d` perché la relativa definizione nei `.inl` non viene istanziata (probabile problema di ODR o template specialization mancante).
 
-**Scope:** 4 file in `include/chronon3d/animation/core/detail/` (`animated_value_roving.inl`, `animated_value_bezier.inl`, `animated_value_evaluation.inl`, `animated_value_expressions.hpp`) + 1 file in `src/animations/animated_value.hpp`.
+**Scope:** 4 file in `include/chronon3d/animation/core/detail/` (`animated_value_roving.inl`, `animated_value_bezier.inl`, `animated_value_evaluation.inl`, `animated_value_expressions.hpp`) + 1 file in `src/animations/animated_value.hpp`.  <!-- drift-allow: stale-ref -->
 
 **Relazione con Step 5:** Step 5 (`cmake_install`) richiede `src/libchronon3d_sdk_impl.a` che si builda in Step 2 → Step 5 è in cascata FAIL (Root cause #2 separato sotto).
 
@@ -80,7 +80,7 @@ Il sed-fix in A1 (commit `73d5387e`) ha rimosso 116 shell-style `#`-only comment
 ```
 error: incomplete type 'chronon3d::runtime::RenderRuntime' is not allowed
    in src/animations/animated_value_evaluation.inl
-   in src/animations/animated_value.hpp
+   in src/animations/animated_value.hpp  <!-- drift-allow: stale-ref -->
 ```
 
 **Diagnosi:** ROT-2 è il **sibling di ROT-1 (Fix 2, commit `81cdc738`)**. Mentre Fix 2 ha aggiunto `#include <chronon3d/runtime/render_runtime.hpp>` a `src/render_graph/pipeline/scene_tile_execution.cpp` e `tile_execution_coordinator.cpp` (audit-comment block TICKET-038/TXT-00), ROT-2 è lo stesso pattern (forward-declaration di `RenderRuntime` seguita da invocazione di metodi senza incluso dell'header completo) nei callsites in area `animations/`. L'incomplete type è propagato dal compilatore da `animated_value.hpp` → `animated_value_evaluation.inl`.
@@ -111,7 +111,7 @@ cf3a2c30  fix(text): TEXT-RET-01 follow-up — persist retirement on main
 
 ## 6) Cross-references
 
-- `docs/STATUS.md` — snapshot corrente (riferimento: `81cdc738`); da aggiornare post CP-A + CP-C.
+- `docs/STATUS.md` — snapshot corrente (riferimento: `81cdc738`); da aggiornare post CP-A + CP-C.  <!-- drift-allow: stale-ref -->
 - `docs/NEXT_STEPS.md` — priority queue post A1+A3; sezione gap da riconsolidare.
 - `docs/FOLLOWUP_TICKETS.md` — tracciamento ticket (TICKET-038 rot-1 precedent; eventuale ROT-2 ticket da aprire).
 - `docs/baselines/main-446a60e2-baseline.md` — canonical reference (formato).

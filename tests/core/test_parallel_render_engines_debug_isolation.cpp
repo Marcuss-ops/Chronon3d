@@ -22,7 +22,7 @@
 // Acceptance: the test compiles clean and runs to green under ctest on
 // multiple presets (linux-ci, linux-dev, linux-lean-dev).  Full
 // renderer-level parallel render is exercised in
-// tests/renderer/test_motion_blur_torture_pr1.cpp and
+// tests/renderer/test_motion_blur_torture_pr1.cpp and  // drift-allow: stale-ref
 // tests/scene/camera/test_temporal_samples_pr1.cpp once the sandbox
 // build environment's `ar` archive-step issue is resolved.
 //

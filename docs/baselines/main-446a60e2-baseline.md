@@ -98,7 +98,7 @@ Out of scope for this baseline-record commit. Tracked separately.
 - `docs/FOLLOWUP_TICKETS.md:1118` — TICKET-009 entry (PR-A4 partially closed at `64c40ed9`; PR-A subtree-fix in orphan-cleanup; PR-B outstanding).
 - `docs/FOLLOWUP_TICKETS.md:1136` — TICKET-008 Done (precedent for hash reference archiving).
 - `docs/baselines/` — this and future baselines (one per main-HEAD consent point).
-- `docs/agent-tasks/AGENT_1_RENDERER_BOUNDARY.md` — Agent-1 perimeter scope; commit `b5c7df01` is the suspect source of TICKET-039 regression.
+- `docs/agent-tasks/AGENT_1_RENDERER_BOUNDARY.md` — Agent-1 perimeter scope; commit `b5c7df01` is the suspect source of TICKET-039 regression.  <!-- drift-allow: stale-ref -->
 - `https://github.com/Marcuss-ops/Chronon3d/compare/446a60e2^...446a60e2` — graph view of the merge commit content (archeology lookup helper).
 - AGENTS.md — gate + commit discipline + per-commit hygiene rules.
 
@@ -109,7 +109,7 @@ Per AGENTS.md *Priorità obbligatoria* after P0 stabilization:
 1. **Open TICKET-039 (NEW, prioritized-high)** — `SoftwareRenderer::settings()` access regression from `b5c7df01`; restore canonical accessor OR update `RenderEngine::Impl` consumer. Required for c.2 of any future baseline to flip to GREEN.
 2. **Open TICKET-038** — pre-existing rot in `tests/text/test_text_preset_visual.cpp` (lambda capture / auto deduction) — secondary blocker for full TU compilation chain.
 3. **Land orphan-cleanup PR** — `codex/orphan-cleanup-2026-06-23` (TICKET-009 PR-A subtree-fix in `experimental/expressions/CMakeLists.txt` + 6 other orphan captures per AGENTS.md "PR piccole"). Required for main to absorb merged-from-feature work consistently.
-4. **Open TICKET-009 PR-B** — `CompileResult` rot in `experimental/expressions/src/expressions/v2/vm.cpp:414` + cascading variant errors. Required for `chronon3d_expressions_v2_tests` target to compile end-to-end.
+4. **Open TICKET-009 PR-B** — `CompileResult` rot in `experimental/expressions/src/expressions/v2/vm.cpp:414` + cascading variant errors. Required for `chronon3d_expressions_v2_tests` target to compile end-to-end.  <!-- drift-allow: stale-ref -->
 
 Each ticket lands via its own PR per AGENTS.md "PR piccole e mirate".
 

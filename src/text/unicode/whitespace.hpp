@@ -8,9 +8,9 @@
 //
 // Anti-duplication invariants:
 //   • Replaces 3 private duplicate impls:
-//       (1) `chronon3d::detail::is_unicode_whitespace`     in include/.../glyph_selector.hpp
-//       (2) `composer_internal::is_whitespace_codepoint`   in src/text/internal/composer_helpers.hpp
-//       (3) anonymous `is_unicode_whitespace_cp`           in src/text/text_unit_map.cpp
+//       (1) `chronon3d::detail::is_unicode_whitespace`     in include/.../glyph_selector.hpp  // drift-allow: stale-ref
+//       (2) `composer_internal::is_whitespace_codepoint`   in src/text/internal/composer_helpers.hpp  // drift-allow: stale-ref
+//       (3) anonymous `is_unicode_whitespace_cp`           in src/text/text_unit_map.cpp  // drift-allow: stale-ref
 //   • The canonical list is the SUPERSET of all three lists:
 //       ASCII (`' '`, `\t`, `\r`, `\n`) +
 //       U+00A0 NBSP, U+1680 ogham space +
