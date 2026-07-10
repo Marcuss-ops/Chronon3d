@@ -1,3 +1,31 @@
+## Luglio 2026 — F3.A Animation Helpers (2026-07-10, atomic commit)
+
+### feat(animation): F3.A — Top-level animation convenience header
+
+- **Header**: `include/chronon3d/animation/interpolate.hpp` (NEW) — single include for all common animation helpers.
+- **Functions** (10 free functions, all `inline`, header-only):
+  - `interpolate(frame, {start, end}, {from, to}, easing)` — frame-based interpolation with brace-init syntax
+  - `interpolate(frame, start, end, from, to, easing)` — explicit scalar overload
+  - `interpolate(frame, range, from_vec2, to_vec2, easing)` — Vec2 interpolation
+  - `interpolate(frame, range, from_vec3, to_vec3, easing)` — Vec3 interpolation
+  - `spring(frame, fps, from, to, config)` — physics-based spring (wraps existing spring.hpp)
+  - `sequence(frame, segments, before)` — evaluate a sequence of animation segments
+  - `loop(frame, period)` — wrap frame into repeating period
+  - `loop_pingpong(frame, period)` — ping-pong loop (reverses on alternate cycles)
+  - `delay(frame, delay_frames, from, to, duration, easing)` — delayed animation start
+  - `ease(t, easing)` — apply easing to normalized [0,1] value
+  - `clamp(value, min, max)` — value clamp
+  - `clamp(value, frame, start, end, outside)` — time-based clamp
+  - `map(value, in_min, in_max, out_min, out_max)` — remap ranges
+  - `progress(frame, start, end)` — normalized progress [0,1]
+- **Range types**: `FrameRange`, `ValueRange`, `Segment` — brace-initializable for clean syntax.
+- **Design**: re-exports existing `easing/interpolate.hpp`, `easing/spring.hpp` with simplified signatures. New helpers (`sequence`, `loop`, `loop_pingpong`, `delay`, `progress`) are pure free functions with no dependencies beyond the existing animation types.
+- **Text Simplicity Action Plan**: F3.A complete (fifth of 17 planned actions).
+- **AGENTS.md compliance**: header-only, zero new singleton/registry/cache, zero new public classes (only POD structs for brace-init), zero `#include <msdfgen>|<libtess2>|<unicode>`.
+- **Cross-references**: [`include/chronon3d/animation/interpolate.hpp`](include/chronon3d/animation/interpolate.hpp); [`include/chronon3d/animation/easing/interpolate.hpp`](include/chronon3d/animation/easing/interpolate.hpp) (existing); [`include/chronon3d/animation/easing/spring.hpp`](include/chronon3d/animation/easing/spring.hpp) (existing).
+
+---
+
 ## Luglio 2026 — F2.B Simple API Builder (2026-07-10, atomic commit)
 
 ### feat(authoring): F2.B — .place(TextPlacement) on Text authoring handle
