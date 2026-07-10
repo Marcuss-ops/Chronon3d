@@ -111,7 +111,35 @@ per pipeline video automatizzate.
 5. Stabilizzare almeno 20 preset generali e 8 subtitle.
 6. Aggiungere golden 16:9/9:16, testo corto/lungo e più timestamp.
 7. Verificare 24/30/60 fps e determinismo seriale/parallelo.
-8. Esporre esempi pubblici tramite `Chronon3D::SDK`.
+8. ~~Esporre esempi pubblici tramite `Chronon3D::SDK`.~~ **DONE** — Text Export V1 certificato (vedi sotto).
+
+### Text Export V1 — CERTIFICATO ✅ (2026-07-10, `main@be14bc7a`)
+
+> **Definizione:** Un progetto esterno installa Chronon3D, crea testo da una stringa,
+> carica un font controllato e produce glifi visibili e deterministici senza utilizzare
+> alcuna API interna.
+
+**Criteri soddisfatti:**
+
+| # | Criterio | Stato |
+|---|---|---|
+| 1 | Consumer esterno installa via `cmake --install` | ✅ PASS |
+| 2 | Include solo header pubblici | ✅ PASS |
+| 3 | Linka solo `Chronon3D::SDK` | ✅ PASS |
+| 4 | Stringa UTF-8 reale | ✅ `TEXT EXPORT V1` |
+| 5 | Font esplicito incluso negli asset | ✅ `fonts/Inter-Bold.ttf` |
+| 6 | Renderer auto-crea FontEngine | ✅ verificato end-to-end |
+| 7 | Layout prodotto non nullo | ✅ glyph_count > 0 |
+| 8 | Testo genera glifi reali | ✅ 6100/230400 delta pixels |
+| 9 | Anti-false-green validation | ✅ two-pass render diff |
+| 10 | Due render identici deterministici | ✅ `deterministic=true` |
+| 11 | Consumer non dipende dalla directory sorgente | ✅ standalone build |
+
+**Componenti deliverate:**
+- `tools/sdk/run_external_consumer.sh` — check_text wired come primary Phase 4 gate
+- `tests/install_consumer/main_text.cpp` — anti-false-green two-pass validation
+- `examples/text_export_consumer/` — esempio standalone drop-in
+- `cmake/Chronon3DPublicHeaders.cmake` — `glyph_selector_spec.hpp` aggiunto al manifest
 
 ### M1.5 — Text Pipeline Decomposition Backlog (post-feature-freeze, PLANNED)
 
