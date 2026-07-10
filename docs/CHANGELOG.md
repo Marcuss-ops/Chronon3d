@@ -1,3 +1,39 @@
+## Luglio 2026 — TICKET-FASE3-MULTILINGUAL §DevanagariConjuncts (5th multilingual golden: 3 TEST_CASEs, 6 PNG) (2026-07-10, atomic commit)
+
+### feat(text_golden): TICKET-FASE3-MULTILINGUAL §DevanagariConjuncts — virama/halant conjunct correctness (क्ष त्र ज्ञ क्षि त्रा ज्ञा क्षमा त्रिभुवन ज्ञान)
+
+- **Scope**: Fifth test of the TICKET-FASE3-MULTILINGUAL cluster. Verifies that Devanagari script shaping is handled correctly by HarfBuzz, specifically the formation of conjuncts (संयुक्‍ताक्षर) using the virama/halant (U+094D) and the interaction between complex conjuncts and vowel marks (मात्रा). This is the first golden in the cluster that targets a Brahmic script.
+
+- **3 TEST_CASEs × 2 ARs = 6 PNG goldens** in `test_renders/golden/text/text_multilingual/devanagari_conjuncts/`:
+  - 3 test cases: `01_simple_conjuncts` (क्ष त्र ज्ञ — ka+virama+ssa, ta+virama+ra, ja+virama+nya), `02_conjuncts_vowels` (क्षि त्रा ज्ञा — pre-base "i" mark + post-base "aa" mark on conjuncts), `03_real_words` (क्षमा त्रिभुवन ज्ञान — "forgiveness", "three worlds", "knowledge"; exercises full reph + pre-base + post-base + below-base forms)
+  - 2 aspect ratios per case: 1920×1080 (16:9 landscape) + 1080×1920 (9:16 portrait)
+  - 6 PNG goldens: `multilingual_devanagari_conjuncts_{01,02,03}_{1920x1080,1080x1920}.png`
+
+- **New file (1)**:
+  - `tests/text_golden/text_multilingual/05_devanagari_conjuncts.cpp` (230 LoC) — 3 TEST_CASEs, 6 `verify_golden()` calls (3 cases × 2 ARs via the `render_and_verify_devanagari()` helper). Uses existing `composition()` + `SceneBuilder` + `LayerBuilder::text()` + `verify_golden()` + `GoldenTestConfig` + `test::make_renderer()` helpers. Anti-duplicazione honoured: no new types, no new helpers. Hand-decoded UTF-8 byte sequences per the Unicode Devanagari chart (U+0900–U+0FFF block, 3-byte UTF-8 encoding 0xE0 0xA4/5 prefix).
+
+- **Modified files (1)**:
+  - `tests/text_golden_tests.cmake` — 3 changes bundled in this commit:
+    1. **Missing source registration for 04**: the cycle 4 commit (`5efcc301`) added `04_hangul_composition.cpp` + the `TextMultilingualHangulComposition` ctest alias, but forgot the `target_sources(... 04_hangul_composition.cpp)` registration. This would have caused the build to skip 04 entirely. Fixed.
+    2. **Broken `TextMultilingualMixedBaseline` `add_test(` block**: the same cycle 4 commit left the `TextMultilingualMixedBaseline` block syntactically broken — the `COMMAND` / `WORKING_DIRECTORY` / `)` lines were dangling after the `TextMultilingualHangulComposition` block (instead of inside the MixedBaseline block). This made the .cmake file unparseable. Fixed by reconstructing the MixedBaseline block with its proper body and moving the dangling lines into it.
+    3. **New 05 entry**: `target_sources(... 05_devanagari_conjuncts.cpp)` + `add_test(NAME TextMultilingualDevanagariConjuncts ...)` ctest alias with the same filter pattern as the Fase 3 + Fase 4 aliases.
+
+- **API/ABI surface**: zero new public symbols (test-side only; no source code modified, no new symbols).
+
+- **Anti-duplicazione honour**: reuses `LayerBuilder::text()` + `verify_golden()` + `GoldenTestConfig`; NO new singleton/registry/cache/resolver/sampler/service-locator.
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-3 SATISFIED (zero new public API); Gate 5 deny-everywhere N/A.
+
+- **Honest-gap documentation** (per AGENTS.md §honesty):
+  - All 3 tests gracefully skip on `result.golden_missing`. 6 PNG re-bake requires a working build host (vcpkg + tmpfs).
+  - Inter-Bold.ttf does NOT contain Devanagari glyphs natively; the font-resolver's system fallback chain (Noto Sans Devanagari on Linux, Kohinoor Devanagari on macOS, Mangal on Windows) must be present for the goldens to render correctly.
+  - UTF-8 byte sequences for all 9 Devanagari codepoints (क, ष, ्, त, र, ज, ञ, म, ा, ि, भ, ु, व, न) were hand-decoded against the Unicode Devanagari chart (U+0915 / U+0937 / U+094D / U+0924 / U+0930 / U+091C / U+091E / U+092E / U+093E / U+093F / U+092D / U+0941 / U+0935 / U+0928) to avoid the kind of silent UTF-8 bug that bit the cycle 4 요 character.
+
+- **Re-bake command** (deferred to working build host):
+  `CHRONON3D_UPDATE_GOLDENS=1 ctest -R TextMultilingualDevanagariConjuncts --output-on-failure`
+
+---
+
 ## Luglio 2026 — TICKET-CHANGELOG-CONFLICT-CLEANUP — document CHANGELOG conflict root cause + add forward-only CI gate (2026-07-10, atomic commit)
 
 ### feat(docs+ci): TICKET-CHANGELOG-CONFLICT-CLEANUP — forward-only CI gate prevents recurrence of f5551a13 CHANGELOG conflict
