@@ -112,7 +112,7 @@ cf3a2c30  fix(text): TEXT-RET-01 follow-up — persist retirement on main
 ## 6) Cross-references
 
 - `docs/STATUS.md` — snapshot corrente (riferimento: `81cdc738`); da aggiornare post CP-A + CP-C.  <!-- drift-allow: stale-ref -->
-- `docs/NEXT_STEPS.md` — priority queue post A1+A3; sezione gap da riconsolidare.
+- `docs/NEXT_STEPS.md` — priority queue post A1+A3; sezione gap da riconsolidare. <!-- drift-allow: archived-doc-pattern -->
 - `docs/FOLLOWUP_TICKETS.md` — tracciamento ticket (TICKET-038 rot-1 precedent; eventuale ROT-2 ticket da aprire).
 - `docs/baselines/main-446a60e2-baseline.md` — canonical reference (formato).
 - `docs/baselines/main-9ef0fe33-dod-fail-matrix.md` — questo file.
