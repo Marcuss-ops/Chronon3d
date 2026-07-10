@@ -42,6 +42,7 @@ TextDefinition from_text_spec(const TextSpec& spec) {
     // ── frame ──────────────────────────────────────────────────────────
     def.frame.size          = spec.layout.box;
     def.frame.position      = Vec3{spec.offset.x, spec.offset.y, 0.0f};
+    def.frame.placement_kind = spec.placement.kind;  // F3: lossless round-trip
     def.frame.anchor        = spec.layout.anchor;
     def.frame.align         = spec.layout.align;
     def.frame.vertical_align = spec.layout.vertical_align;
@@ -113,8 +114,8 @@ TextSpec from_text_definition(const TextDefinition& def) {
     spec.appearance.material  = def.style.material;
     spec.appearance.box_style = def.style.box_style;
 
-    // ── placement (F1: placement kind + flat offset) ─────────────────
-    spec.placement = TextPlacement{TextPlacementKind::Absolute};
+    // ── placement (F3: lossless round-trip — kind preserved in TextFrame) ─
+    spec.placement = TextPlacement{def.frame.placement_kind};
     spec.offset    = {def.frame.position.x, def.frame.position.y};
 
     return spec;
