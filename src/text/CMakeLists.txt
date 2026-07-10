@@ -78,6 +78,12 @@ add_library(chronon3d_text_core OBJECT
     driver/text_font_state.cpp
     driver/text_layout_rebuild.cpp
     text_run_geometry.cpp
+    # FU02 — TICKET-TEXT-VISIBILITY-PIPELINE: TextVisibilityAudit contract.
+    # The .cpp body is gated by `#ifdef CHRONON3D_BUILD_DIAGNOSTICS`, so
+    # the file pre-processes to an empty TU when diagnostics=OFF (Cat-3
+    # zero-surface invariant). When diagnostics=ON, exports the canonical
+    # `audit_text_visibility()` pure function with no globals.
+    text_visibility_audit.cpp
     # F1.B — unified text placement resolver (ADR-019 Decision 3)
     text_placement_resolver.cpp
     text_scramble_helpers.cpp       # FASE 15 — scramble/morph transition helpers extracted
