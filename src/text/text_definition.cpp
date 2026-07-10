@@ -12,6 +12,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/text/text_definition.hpp>
+#include <chronon3d/text/text_document.hpp>   // TextDocument — Phase B lowering target
+#include <utility>                           // std::move — span lowering
 // builder_params.hpp is already pulled in transitively via text_definition.hpp
 // (which includes it for the canonical TextContent + TextSpec + TextRunSpec).
 
@@ -109,6 +111,97 @@ TextSpec from_text_definition(const TextDefinition& def) {
     spec.position = def.frame.position;
 
     return spec;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phase B — to_text_document(): lower TextDefinition → TextDocument
+//
+// This is the convergence point: all authoring APIs (centered_text(),
+// glow_text(), typewriter_text(), text_run()) produce TextDefinition,
+// which lowers into a TextDocument for compile_text_layout().
+//
+// Maps:
+//   content.value       → doc.utf8
+//   style+frame+paragraph → doc.defaults (via from_text_definition)
+//   spans[]             → doc.spans[] (TextSpanOverride → TextStyleSpan)
+//   paragraph           → doc.split_paragraphs()
+// ═══════════════════════════════════════════════════════════════════════════
+
+TextDocument to_text_document(const TextDefinition& def) {
+    TextDocument doc;
+
+    // ── Source text ────────────────────────────────────────────────────
+    doc.utf8 = def.content.value;
+
+    // ── Defaults (font, layout, appearance, position) ──────────────────
+    // Reuse the reverse adapter to produce the full TextSpec, then assign
+    // it as the document's defaults.  This guarantees that every field
+    // in TextDefinition (style, frame, paragraph) is faithfully mapped
+    // to the pipeline-visible TextSpec without duplication.
+    doc.defaults = from_text_definition(def);
+
+    // ── Span overrides (TextSpanOverride → TextStyleSpan) ──────────────
+    //
+    // TextSpanOverride is the authoring-level type (text_definition.hpp);
+    // TextStyleSpan is the runtime-pipeline type (text_document.hpp).
+    // Both express optional overrides on a byte range.  Map field-by-field.
+    doc.spans.reserve(def.spans.size());
+    for (const auto& src : def.spans) {
+        TextStyleSpan dst;
+        dst.byte_start = src.byte_start;
+        dst.byte_end   = src.byte_end;
+
+        // Font override → optional<FontSpec>
+        if (src.font.has_value()) {
+            dst.font = src.font;
+        }
+
+        // Color override → optional<TextAppearanceSpec>
+        // TextSpanOverride stores color standalone; TextStyleSpan wraps it
+        // in an optional<TextAppearanceSpec> (only color is set, other
+        // appearance fields inherit from defaults).
+        if (src.color.has_value()) {
+            TextAppearanceSpec appearance;
+            appearance.color = *src.color;
+            dst.appearance = appearance;
+        }
+
+        // Font size override → optional<f32> font_size_multiplier
+        // TextSpanOverride stores absolute font_size; TextStyleSpan uses
+        // a multiplier relative to the paragraph default.  When the
+        // default font size is non-zero, compute the ratio; otherwise
+        // pass 1.0 (the resolver will handle it).
+        //
+        // IMPORTANT: when src.font already carries a font_size > 0, the
+        // absolute size is conveyed via the FontSpec override.  We skip
+        // the multiplier in that case to avoid double-application (the
+        // resolver would otherwise multiply font->font_size * multiplier).
+        if (src.font_size.has_value() && *src.font_size > 0.0f) {
+            const bool font_override_has_size =
+                src.font.has_value() && src.font->font_size > 0.0f;
+            if (!font_override_has_size) {
+                const f32 default_size = def.style.font.font_size;
+                if (default_size > 0.0f) {
+                    dst.font_size_multiplier = *src.font_size / default_size;
+                } else {
+                    // No default to ratio against — store as 1.0 and let
+                    // the resolver use the absolute value from dst.font.
+                    dst.font_size_multiplier = 1.0f;
+                }
+            }
+        }
+
+        doc.spans.push_back(std::move(dst));
+    }
+
+    // ── Paragraph splitting ────────────────────────────────────────────
+    // Auto-split on hard breaks (\n, U+2029).  Uses the paragraph style
+    // from the TextDefinition as the default paragraph style.
+    if (!doc.utf8.empty()) {
+        doc.split_paragraphs(def.paragraph);
+    }
+
+    return doc;
 }
 
 } // namespace chronon3d
