@@ -150,18 +150,17 @@ public:
     }
 
     // Fluent alias for add_keyframe — enables chaining.
+    // C1 — [[deprecated]]: prefer add_keyframe() or
+    // MotionTimeline<T>::compile() for declarative animation building.
+    [[deprecated("Use add_keyframe() or MotionTimeline<T>::compile() from animation/motion/motion.hpp")]]
     AnimatedValue& key(Frame frame, const T& value, EasingCurve easing = EasingCurve{Easing::Linear}) {
         add_keyframe(frame, value, easing);
         return *this;
     }
 
-    /// Add a keyframe with spatial bezier handles for smooth curved paths.
-    /// The handles are offsets from `value` that control the cubic bezier path:
-    ///   out_handle → outgoing tangent direction from this keyframe
-    ///   in_handle  → incoming tangent direction toward the next keyframe
-    /// When both handles are zero (default), straight-line interpolation is used.
-    /// When non-zero, the segment between consecutive keyframes uses a
-    /// CubicBezier3D curve.
+    /// C1 — [[deprecated]]: prefer add_keyframe() or
+    /// MotionTimeline<T>::compile() for declarative animation building.
+    [[deprecated("Use add_keyframe() or MotionTimeline<T>::compile() from animation/motion/motion.hpp")]]
     AnimatedValue& key(Frame frame, const T& value, EasingCurve easing,
                         T out_handle, T in_handle) {
         m_keyframes.emplace_back(frame, value, easing, false);
