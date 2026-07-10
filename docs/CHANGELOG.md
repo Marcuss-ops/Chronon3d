@@ -1,3 +1,28 @@
+## Luglio 2026 — F1.E Visibility Contract (2026-07-10, atomic commit)
+
+### feat(text): F1.E — verify_text_visibility() post-render con 6 invariant
+
+- **Problem**: No post-render validation of text visibility. Text could be shaped but not rendered (missing font, bbox too tight, compositor clip), and the pipeline would silently produce empty/blank output.
+- **Fix** (3 source files):
+  - `src/text/text_visibility_audit.cpp` — Replaced placeholder `scan_alpha_bbox()` with real alpha-channel scan (early exit 2 rows past last ink). Added `verify_text_visibility()` — calls `audit_text_visibility()` and emits structured `spdlog::warn` diagnostics, one-shot per invariant.
+  - `include/chronon3d/text/text_visibility_audit.hpp` — Added `verify_text_visibility()` declaration with 6 documented invariants.
+  - `src/render_graph/nodes/TextRunNode.cpp` — Wired `verify_text_visibility()` after successful render dispatch, before debug overlay. Uses pre-computed `world_matrix` (shared with diagnostic + overlay). `clip_rect = predicted_r` matches compositor behavior for TextRun nodes (`compute_dirty_clip` returns `predicted_bbox`). Optimised: `world_matrix` computed once, `predicted_bbox()` recomputed only in DIAGNOSTICS.
+- **6 invariants** (F1.E spec):
+  1. `font_resolved` — `shape.engine != nullptr`
+  2. `shaping_succeeded` — `glyph_count > 0`
+  3. `finite` — all 5 bboxes have finite coordinates
+  4. `predicted_contains_world` — `predicted_bbox ⊇ world_ink_bbox`
+  5. `clip_contains_visible_ink` — `clip_rect ∩ rendered_alpha_bbox ≠ ∅`
+  6. `alpha_bbox non-empty` — actual ink pixels detected
+- **Gating**: entire `verify_text_visibility()` and `scan_alpha_bbox()` body gated on `CHRONON3D_BUILD_DIAGNOSTICS` — zero overhead in production SDK builds.
+- **Design**: One-shot `spdlog::warn` per invariant (process-global `static bool` pattern matching F1.D/F1.C convention). `verify_text_visibility()` returns `TextVisibilityAudit` for programmatic inspection.
+- **Code reviewer**: 2 critical issues fixed: (1) `world_matrix` computed once (reused by diagnostic, overlay, and audit), (2) `clip_rect = predicted_r` (matches compositor behavior — previously hardcoded to full canvas).
+- **AGENTS.md compliance**: zero new public API (entirely gated on CHRONON3D_BUILD_DIAGNOSTICS), zero new singleton/registry/cache.
+- **Text Simplicity Action Plan**: F1.E complete (seventh of 17 actions). **Fase 1 — Correttezza:** tutti i 5 P0 completati.
+- **Cross-references**: [`src/text/text_visibility_audit.cpp`](src/text/text_visibility_audit.cpp); [`include/chronon3d/text/text_visibility_audit.hpp`](include/chronon3d/text/text_visibility_audit.hpp); [`src/render_graph/nodes/TextRunNode.cpp`](src/render_graph/nodes/TextRunNode.cpp).
+
+---
+
 ## Luglio 2026 — F1.C Conservative BBox Fallback (2026-07-10, atomic commit)
 
 ### fix(text): F1.C — Conservative bbox fallback — predicted_bbox ⊇ world_ink_bbox

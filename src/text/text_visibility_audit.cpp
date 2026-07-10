@@ -37,6 +37,8 @@
                                                // layout.placed.glyphs.size())
 #include <chronon3d/core/memory/framebuffer.hpp>  // Framebuffer::width/height/pixel
 
+#include <spdlog/spdlog.h>                       // structured diagnostics
+
 #include <glm/glm.hpp>                       // glm::mat4, glm::vec4 for
                                                // transform_aabb corner
                                                // multiplication.
@@ -120,8 +122,40 @@ Rect transform_aabb(const Rect& local, const Mat4& M) noexcept {
 // placeholder returns `Rect{}` so callers correctly see
 // `clip_contains_visible_ink == false` — a sentinel "alpha-pending" state
 // that's safer than reporting true for unscanned frames.
-Rect scan_alpha_bbox(const Framebuffer& /*fb*/) noexcept {
-    return Rect{};
+Rect scan_alpha_bbox(const Framebuffer& fb) noexcept {
+    const int fb_w = static_cast<int>(fb.width());
+    const int fb_h = static_cast<int>(fb.height());
+    if (fb_w <= 0 || fb_h <= 0) return Rect{};
+
+    int alpha_x0 = fb_w, alpha_y0 = fb_h;
+    int alpha_x1 = -1, alpha_y1 = -1;
+
+    for (int y = 0; y < fb_h; ++y) {
+        const Color* row = fb.pixels_row(y);
+        bool row_has_ink = false;
+        for (int x = 0; x < fb_w; ++x) {
+            if (row[x].a > 0.01f) {
+                row_has_ink = true;
+                if (x < alpha_x0) alpha_x0 = x;
+                if (x > alpha_x1) alpha_x1 = x;
+            }
+        }
+        if (row_has_ink) {
+            if (y < alpha_y0) alpha_y0 = y;
+            alpha_y1 = y;
+        }
+        // Early exit: stop 2 rows past the last ink row
+        if (y > alpha_y1 + 2 && alpha_y1 >= alpha_y0) break;
+    }
+
+    if (alpha_x0 > alpha_x1 || alpha_y0 > alpha_y1) {
+        return Rect{};  // no visible ink found
+    }
+    return Rect{
+        {static_cast<float>(alpha_x0), static_cast<float>(alpha_y0)},
+        {static_cast<float>(alpha_x1 - alpha_x0 + 1),
+         static_cast<float>(alpha_y1 - alpha_y0 + 1)}
+    };
 }
 
 } // namespace (TU-private helpers)
@@ -197,6 +231,78 @@ TextVisibilityAudit audit_text_visibility(
         // pixel-side invariant (false-by-default for unscanned).
         audit.rendered_alpha_bbox  = Rect{};
         audit.clip_contains_visible_ink = false;
+    }
+
+    return audit;
+}
+
+TextVisibilityAudit verify_text_visibility(
+    const TextRunShape& shape,
+    const Mat4&         world_matrix,
+    const Rect&         predicted_bbox,
+    const Rect&         clip_rect,
+    const Framebuffer*  rendered_output,
+    const char*         node_name
+) {
+    const auto audit = audit_text_visibility(
+        shape, world_matrix, predicted_bbox, clip_rect, rendered_output);
+
+    // ── F1.E — 6 invariants with one-shot spdlog::warn ──────────────────
+    const char* nm = node_name ? node_name : "<unnamed>";
+
+    if (!audit.font_resolved) {
+        static bool w1 = false;
+        if (!w1) {
+            spdlog::warn("[text-vis] FONT_UNRESOLVED node={} engine=nullptr", nm);
+            w1 = true;
+        }
+    }
+
+    if (!audit.shaping_succeeded) {
+        static bool w2 = false;
+        if (!w2) {
+            spdlog::warn("[text-vis] SHAPING_FAILED node={} glyph_count={}",
+                         nm, audit.glyph_count);
+            w2 = true;
+        }
+    }
+
+    if (!audit.finite) {
+        static bool w3 = false;
+        if (!w3) {
+            spdlog::warn("[text-vis] BBOX_NON_FINITE node={}", nm);
+            w3 = true;
+        }
+    }
+
+    if (!audit.predicted_contains_world) {
+        static bool w4 = false;
+        if (!w4) {
+            spdlog::warn("[text-vis] PREDICTED_TOO_SMALL node={}", nm);
+            w4 = true;
+        }
+    }
+
+    if (rendered_output && !audit.clip_contains_visible_ink) {
+        static bool w5 = false;
+        if (!w5) {
+            spdlog::warn("[text-vis] CLIP_DROPS_INK node={}", nm);
+            w5 = true;
+        }
+    }
+
+    if (rendered_output && audit.shaping_succeeded) {
+        const bool alpha_empty =
+            audit.rendered_alpha_bbox.size.x <= 0.0f ||
+            audit.rendered_alpha_bbox.size.y <= 0.0f;
+        if (alpha_empty) {
+            static bool w6 = false;
+            if (!w6) {
+                spdlog::warn("[text-vis] NO_INK_RENDERED node={} glyph_count={}",
+                             nm, audit.glyph_count);
+                w6 = true;
+            }
+        }
     }
 
     return audit;

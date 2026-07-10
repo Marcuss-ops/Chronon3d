@@ -79,7 +79,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 | TICKET-SIMPLICITY-PLACEMENT-RESOLVER | P0 | Placement Resolver Unico | DONE | Text V1 — ResolvedTextPlacement + resolve_text_placement() + 12 TextPlacement variants + 25 tests |
 | TICKET-SIMPLICITY-CONSERVATIVE-BBOX | P0 | Fallback Conservativo BBox | DONE | Text V1 — font-size-proportional pre-render check + post-render alpha_bbox expansion in node_runner.cpp |
 | TICKET-SIMPLICITY-AUTO-FONT | P0 | FontEngine Automatico | DONE | Text V1 — resolve_engine() fallback via process-wide FontEngine + AssetResolver |
-| TICKET-SIMPLICITY-VISIBILITY-CONTRACT | P0 | Contratto Visibilità Automatico | PLANNED | Text V1 — zero false-negative invisibilità |
+| TICKET-SIMPLICITY-VISIBILITY-CONTRACT | P0 | Contratto Visibilità Automatico | DONE | Text V1 — verify_text_visibility() con 6 invariant + structured diagnostic post-render in TextRunNode::execute() |
 | TICKET-SIMPLICITY-TEXTDEFINITION | P1 | TextDefinition Canonica | PLANNED | Text V1 — unica rappresentazione interna |
 | TICKET-SIMPLICITY-BUILDER | P1 | Simple API Builder (.text().content().place()) | DONE | Text V1 — .place(TextPlacement) on Text handle, pin-point semantics |
 | TICKET-SIMPLICITY-ADAPTERS | P1 | text_run/centered_text/glow_text → adapter | PLANNED | Text V1 + TICKET-SIMPLICITY-BUILDER |

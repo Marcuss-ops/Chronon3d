@@ -177,6 +177,40 @@ struct TextVisibilityAudit {
     const Framebuffer*  rendered_output = nullptr
 );
 
+/// `verify_text_visibility()` — F1.E post-render visibility contract.
+///
+/// Calls `audit_text_visibility()` and emits structured `spdlog::warn`
+/// diagnostics for each of the 6 invariants that fail:
+///
+///   1. font_resolved        — `shape.engine != nullptr`
+///   2. shaping_succeeded    — `shape.layout.placed.glyphs.size() > 0`
+///   3. finite               — all 5 bboxes have finite coordinates
+///   4. predicted_contains_world — predicted_bbox ⊇ world_ink_bbox
+///   5. clip_contains_visible_ink — clip_rect ∩ rendered_alpha_bbox ≠ ∅
+///   6. rendered_alpha_bbox non-empty — actual ink pixels detected
+///
+/// Returns the populated `TextVisibilityAudit` so callers can also
+/// inspect the result programmatically.
+///
+/// GATE: one-shot `spdlog::warn` per invariant (static bool pattern)
+/// to prevent log spam on repeated violations.
+///
+/// @param shape             The TextRunShape with layout, engine, glyphs
+/// @param world_matrix      Layer → canvas transform matrix
+/// @param predicted_bbox    Producer-supplied predicted bbox (canvas-level)
+/// @param clip_rect         Compositor clip rect (canvas-level)
+/// @param rendered_output   Optional framebuffer for alpha-bbox scan
+/// @param node_name         Diagnostic label for log messages
+/// @return Populated TextVisibilityAudit struct
+[[nodiscard]] TextVisibilityAudit verify_text_visibility(
+    const TextRunShape& shape,
+    const Mat4&         world_matrix,
+    const Rect&         predicted_bbox,
+    const Rect&         clip_rect,
+    const Framebuffer*  rendered_output,
+    const char*         node_name
+);
+
 } // namespace chronon3d
 
 #endif // CHRONON3D_BUILD_DIAGNOSTICS
