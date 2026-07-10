@@ -37,3 +37,4 @@
 >
 | ADR-017 | commit_layer(): manifest completeness for inactive layers | Accepted (main@0ff8b100) | [commit-layer-manifest-preservation](ADR-017-commit-layer-manifest-preservation.md) |
 | ADR-018 | Auto-fit text: shrink-only binary search on compile_text_layout() with 12-iteration bound; min/max font size clamps; cache-key integration with resolved font size | ✅ Accepted | [auto-fit-text](ADR-018-auto-fit-text.md) |
+| ADR-019 | Text Coordinate Model: 4-level Canvas/Layer/Box/Glyph; bbox naming convention (local/world/predicted/alpha); predicted_bbox containment invariant; TextPlacement resolves Box level; fix path for TICKET-TEXT-CLIP-PREDICTED-BBOX | ✅ Accepted | [text-coordinate-model](ADR-019-text-coordinate-model.md) |
