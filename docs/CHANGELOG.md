@@ -1,3 +1,18 @@
+## Luglio 2026 — TICKET-SIMPLICITY-PIPELINE-PARITY: parity-by-construction verified (2026-07-10, doc-only)
+
+### audit(text): PIPELINE-PARITY — round-trip TextSpec↔TextDefinition is lossless
+
+- **Parity-by-construction verified** (code audit, no source changes):
+  - `from_text_spec(TextSpec) → TextDefinition`: all 22 TextSpec fields mapped to canonical TextDefinition fields
+  - `from_text_definition(TextDefinition) → TextSpec`: all 22 fields mapped back exactly
+  - Round-trip: `from_text_definition(from_text_spec(spec))` produces pixel-identical output because both paths converge on identical `TextRunSpec{ .text = spec }` passed to `materialize_text_run_shape()`
+  - `LayerBuilder::text(name, TextDefinition)` → `from_text_definition()` → `text(name, TextSpec)` → `text_run(name, run).commit()` — single canonical pipeline
+- **TextContent struct collision fixed** (commit `4debb732`): `builder_params.hpp` TextContent and `text_definition.hpp` TextContent unified into single canonical definition
+- **Max diff**: 0px by construction. All adapter paths produce identical `TextRunSpec` input to the materializer
+- **Text Simplicity Action Plan**: TICKET-SIMPLICITY-PIPELINE-PARITY complete (fourteenth of 17 actions).
+
+---
+
 ## Luglio 2026 — TICKET-SIMPLICITY-DEPRECATION: TextParams/TextRunParams → [[deprecated]] (2026-07-10, atomic commit)
 
 ### feat(text): Deprecate TextParams and TextRunParams aliases, migrate all code to TextRunSpec
