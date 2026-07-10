@@ -163,6 +163,8 @@ bool FfmpegPipeSink::launch_ffmpeg(const std::vector<std::string>& argv) {
     // argv[0] is "ffmpeg" — use as both executable name and argv[0].
     const bool ok = process_.launch(argv[0], argv);
     if (!ok) {
+        last_error_ = VideoSinkError::FfmpegNotFound;
+        last_error_msg_ = "failed to launch '" + argv[0] + "' — is ffmpeg on PATH?";
         state_ = VideoSinkState::Failed;
         return false;
     }
@@ -193,6 +195,8 @@ bool FfmpegPipeSink::write_to_pipe(const uint8_t* data, size_t size) {
 
     if (!ok) {
         pipe_failed_ = true;
+        last_error_ = VideoSinkError::PipeBroken;
+        last_error_msg_ = "write_for() failed — pipe broken or child exited";
         state_ = VideoSinkState::Failed;
         return false;
     }
@@ -228,6 +232,8 @@ bool FfmpegPipeSink::open(const VideoSinkConfig& config) {
     // Centralised config validation — reject invalid configurations early.
     const auto validation = validate_video_sink_config(config);
     if (!validation) {
+        last_error_ = VideoSinkError::InvalidConfig;
+        last_error_msg_ = validation.error_or("config validation failed");
         state_ = VideoSinkState::Failed;
         return false;
     }
@@ -241,6 +247,8 @@ bool FfmpegPipeSink::open(const VideoSinkConfig& config) {
     if (!config.output.overwrite) {
         const auto output_path = config.output.output_path;
         if (std::filesystem::exists(output_path)) {
+            last_error_ = VideoSinkError::FileExists;
+            last_error_msg_ = output_path.string() + " already exists";
             state_ = VideoSinkState::Failed;
             return false;
         }
@@ -261,10 +269,12 @@ bool FfmpegPipeSink::open(const VideoSinkConfig& config) {
     // Store the write timeout from config.
     write_timeout_ = config.transport.write_timeout;
 
-    // Reset stats.
+    // Reset stats and error state.
     stats_ = Stats{};
     total_write_blocked_ms_ = 0.0;
     pipe_failed_ = false;
+    last_error_ = VideoSinkError::None;
+    last_error_msg_.clear();
     state_ = VideoSinkState::Open;
     return true;
 }
@@ -279,6 +289,8 @@ bool FfmpegPipeSink::submit(const VideoFrameView& frame) {
     }
 
     if (!frame.data || !validate_format(frame)) {
+        last_error_ = VideoSinkError::InvalidFrame;
+        last_error_msg_ = "frame format/dimensions don't match session contract";
         state_ = VideoSinkState::Failed;
         return false;
     }
@@ -294,6 +306,8 @@ bool FfmpegPipeSink::submit(const VideoFrameView& frame) {
     // Validate stride (must be >= tight row; YUV planar only tight).
     if (!validate_packed_stride(frame.pixel_format, frame.width,
                                  frame.stride_bytes)) {
+        last_error_ = VideoSinkError::InvalidStride;
+        last_error_msg_ = "stride < tight row bytes";
         state_ = VideoSinkState::Failed;
         return false;
     }
@@ -552,18 +566,24 @@ bool FfmpegPipeSink::close() noexcept {
             // Timeout — escalate.
             process_.terminate_and_wait(std::chrono::seconds(5));
             const std::string stderr_log = process_.consume_stderr();
+            last_error_ = VideoSinkError::Timeout;
+            last_error_msg_ = "ffmpeg timed out after 30s";
             if (!stderr_log.empty()) {
                 spdlog::warn("[FfmpegPipeSink] ffmpeg timed out — stderr:\n{}",
                              stderr_log);
+                last_error_msg_ += " — stderr: " + stderr_log;
             }
             state_ = VideoSinkState::Failed;
             return false;
         }
         if (exit_code != 0) {
             const std::string stderr_log = process_.consume_stderr();
+            last_error_ = VideoSinkError::EncoderFailed;
+            last_error_msg_ = "ffmpeg exited with code " + std::to_string(exit_code);
             if (!stderr_log.empty()) {
                 spdlog::error("[FfmpegPipeSink] ffmpeg exited with code {} — stderr:\n{}",
                               exit_code, stderr_log);
+                last_error_msg_ += " — stderr: " + stderr_log;
             } else {
                 spdlog::error("[FfmpegPipeSink] ffmpeg exited with code {} (no stderr)",
                               exit_code);
@@ -575,9 +595,12 @@ bool FfmpegPipeSink::close() noexcept {
         // Pipe failed — terminate the child gracefully, then escalate.
         process_.terminate_and_wait(std::chrono::seconds(5));
         const std::string stderr_log = process_.consume_stderr();
+        last_error_ = VideoSinkError::PipeBroken;
+        last_error_msg_ = "pipe broken before close";
         if (!stderr_log.empty()) {
             spdlog::error("[FfmpegPipeSink] pipe broken — ffmpeg stderr:\n{}",
                           stderr_log);
+            last_error_msg_ += " — stderr: " + stderr_log;
         }
         state_ = VideoSinkState::Failed;
         return false;

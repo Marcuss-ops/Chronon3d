@@ -52,6 +52,8 @@ bool RawVideoSink::validate_frame_match(int width, int height, PixelFormat fmt) 
 bool RawVideoSink::open(const VideoSinkConfig& config) {
     // Only Created → Open is valid.  Closed is terminal.
     if (state_ != VideoSinkState::Created) {
+        last_error_ = VideoSinkError::AlreadyClosed;
+        last_error_msg_ = "open() called in invalid state";
         state_ = VideoSinkState::Failed;
         return false;
     }
@@ -59,6 +61,8 @@ bool RawVideoSink::open(const VideoSinkConfig& config) {
     // Centralised config validation — reject invalid configurations early.
     const auto validation = validate_video_sink_config(config);
     if (!validation) {
+        last_error_ = VideoSinkError::InvalidConfig;
+        last_error_msg_ = validation.error_or("config validation failed");
         state_ = VideoSinkState::Failed;
         return false;
     }
@@ -70,8 +74,9 @@ bool RawVideoSink::open(const VideoSinkConfig& config) {
     const auto& output = config.output;
     std::ios::openmode mode = std::ios::binary;
     if (!output.overwrite) {
-        // Check if file exists — if so, fail.
         if (std::filesystem::exists(output.output_path)) {
+            last_error_ = VideoSinkError::FileExists;
+            last_error_msg_ = output.output_path.string() + " already exists";
             state_ = VideoSinkState::Failed;
             return false;
         }
@@ -79,6 +84,8 @@ bool RawVideoSink::open(const VideoSinkConfig& config) {
 
     file_.open(output.output_path, mode);
     if (!file_) {
+        last_error_ = VideoSinkError::InvalidConfig;
+        last_error_msg_ = "failed to open output file: " + output.output_path.string();
         state_ = VideoSinkState::Failed;
         return false;
     }
@@ -105,8 +112,10 @@ bool RawVideoSink::open(const VideoSinkConfig& config) {
     const uint64_t frame_bytes = frame_buffer_size(fmt, stream.width, stream.height);
     staging_.reserve(static_cast<std::size_t>(frame_bytes));
 
-    // Reset stats for this session.
+    // Reset stats and error state for this session.
     stats_ = Stats{};
+    last_error_ = VideoSinkError::None;
+    last_error_msg_.clear();
     state_ = VideoSinkState::Open;
     return true;
 }
@@ -121,6 +130,8 @@ bool RawVideoSink::submit(const VideoFrameView& frame) {
     }
 
     if (!frame.data) {
+        last_error_ = VideoSinkError::InvalidFrame;
+        last_error_msg_ = "null frame data";
         state_ = VideoSinkState::Failed;
         return false;
     }
