@@ -35,7 +35,7 @@
 Lo stesso pattern canonico `bash tools/<gate>` (con `python3` per il gate #11) è stato
 eseguito in successione, scrivendo stdout/stderr in `/tmp/chronon-gates/g<NN>_<gate>.log`
 e gestendo exit codes via `set +e`. Cleanup pre-audit: `rm -rf /tmp/chronon-builds`
-per evitare errori ENOSPC noti (workaround storico in `tools/audit_software_renderer.sh` wrapper).
+per evitare errori ENOSPC noti (workaround storico in `tools/audit_software_renderer.sh` wrapper). <!-- drift-allow: archived-doc-pattern -->
 
 ### Risultato per ognuno dei 11 gate
 
