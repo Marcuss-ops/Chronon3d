@@ -62,16 +62,17 @@ Composition anim_scale_text() {
 }
 
 // ── AnimTypewriter: per-character typewriter reveal ─────────────────────
-// F0.2b — static current_path() resolver REMOVED.  FontEngine is now
-// supplied via ctx.font_engine (wired by the runtime chain:
-// RenderEngine::set_assets_root → Runtime::resolver() → FontEngine).
+// F0.2b — static current_path() resolver REMOVED.
 // F0.3 — typewriter_build now returns Result<bool, TextError>;
-// structured error replaces silent return.
+//        structured error replaces silent return (non-fatal best-effort).
+// WP-9 PR 9.0 — anim_typewriter now sources the engine via
+//        `ctx.font_engine_or_null()` (runtime-or-direct fallback);
+//        see `docs/adr/ADR-020-shared-static-fontengine-singleton.md`.
 Composition anim_typewriter() {
     return composition({.name = "AnimTypewriter", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
-        if (ctx.font_engine) {
+        if (FontEngine* engine = ctx.font_engine_or_null()) {
             auto result = text::typewriter_build(s, "tw", {
                 .text = "Typewriter",
                 .box = {1200.0f, 240.0f},
@@ -79,10 +80,14 @@ Composition anim_typewriter() {
                 .tracking = 3.0f,
                 .chars_per_frame = 0.3f,
                 .easing = EasingCurve{Easing::OutCubic},
-            }, ctx.frame, *ctx.font_engine);
+            }, ctx.frame, *engine);
             // F0.3 — structured error: log and continue (best-effort render).
             // Non-fatal — the scene still builds with other layers intact.
             // TODO: wire spdlog or telemetry when content/ gains logging.
+            // TICKET-FOLLOWUP-LOG-EMPTY-ERRORS (origin's F0.3): the
+            // silent-degrade handler ships empty; observability wiring
+            // deferred to a followup cycle.  Same behaviour as the
+            // previous void-return path.
             if (!result) {
                 // silent degrade: same behaviour as the previous void-return path
             }
