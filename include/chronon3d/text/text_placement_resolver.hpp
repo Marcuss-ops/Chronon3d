@@ -163,15 +163,23 @@ struct ResolvedTextPlacement {
     const Mat4& layer_matrix = Mat4(1.0f)
 );
 
-// ── resolve_placement_origin — compute the origin point for a placement ───
+// ── resolve_placement_origin — compute the PIN POINT for a placement ────
 //
-// Helper that computes just the Vec2 origin (top-left of the box) for a
-// given placement, without building the full ResolvedTextPlacement.
-// Useful for quick placement calculations without matrix composition.
+// Returns the "pin point" — the Canvas-space position where the box's
+// ANCHOR POINT should sit.  This is NOT the box's top-left corner;
+// the box top-left is derived by the caller (or by resolve_text_placement)
+// as: box_top_left = pin_point - anchor_offset.
+//
+// For CanvasCenter:  pin = (canvas.width/2, canvas.height/2)
+// For TopLeft:       pin = (safe_margin_left, safe_margin_top)
+// For Absolute:      pin = offset
+//
+// box_size is reserved for future placements that may need box geometry
+// (e.g. auto-fit-aware placements).
 //
 // Parameters:
 //   canvas:     Canvas dimensions and safe area margins
-//   box_size:   Text frame size (width × height in pixels)
+//   box_size:   Text frame size (reserved for future use)
 //   placement:  High-level placement semantics (TextPlacement enum)
 //   offset:     User-specified offset from the placement position (pixels)
 [[nodiscard]] Vec2 resolve_placement_origin(
