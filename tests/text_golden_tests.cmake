@@ -363,3 +363,15 @@ add_test(
     COMMAND chronon3d_text_golden_tests --test-case="TextPlace *"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+# ── Text Export V1 — deterministic golden regression ────────────────────
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_export/text_export_golden.cpp
+)
+
+add_test(
+    NAME TextExportGolden
+    COMMAND chronon3d_text_golden_tests --test-case="TextExportGolden*"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
