@@ -18,9 +18,9 @@
 //     scaffolding — leaves it at zero-rect (the invariants degrade
 //     gracefully to "world_ink_bbox is empty" which is always finite).
 //   - The `scan_alpha_bbox` skeleton is a TU-local helper to avoid pulling
-//     `tests/text_visual_fixture.hpp` (anti-duplicazione: test fixtures
+//     `tests/text_visual_fixture.hpp` (anti-duplicazione: test fixtures // drift-allow: stale-ref
 //     stay in tests/). FU07 forward-point: relocate this helper to a
-//     canonical `src/text/alpha_scanner.cpp` once FU06 / FU08 surface a
+//     canonical `src/text/alpha_scanner.cpp` once FU06 / FU08 surface a // drift-allow: stale-ref
 //     need for cross-pipeline reuse.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -48,7 +48,7 @@ namespace {
 // ── Rect helpers — file-local (TU-private) ───────────────────────────────
 // These helpers are kept in an anonymous namespace inside this TU so they
 // do not leak to the textual ABI. If a future FU07/08 surface a need for
-// cross-TU reuse, the canonical location is `src/text/internal/rect_math.hpp`
+// cross-TU reuse, the canonical location is `src/text/internal/rect_math.hpp` // drift-allow: stale-ref
 // (per the existing-internal-helper convention in `src/text/CMakeLists.txt`
 // for `internal/text_resolver_helpers.hpp`).
 
@@ -110,11 +110,11 @@ Rect transform_aabb(const Rect& local, const Mat4& M) noexcept {
 //     AND a real pixel-scanner is NOT yet wired (FU06/07/08 forward-point).
 //
 // Anti-duplicazione rationale: the canonical alpha-bbox scanner lives in
-// `tests/text_visual_fixture.hpp` (TEST-side helper). Reusing it from lib
+// `tests/text_visual_fixture.hpp` (TEST-side helper). Reusing it from lib // drift-allow: stale-ref
 // would create a lib → tests include dependency, which is forbidden by the
 // test/logic separation in `AGENTS.md §anti-duplication`. The TU-local
 // placeholder keeps libtext-core self-contained until FU07 promotes this
-// to `src/text/alpha_scanner.cpp`.
+// to `src/text/alpha_scanner.cpp`. // drift-allow: stale-ref
 //
 // When the framebuffer is non-empty and contains visible pixels, this
 // placeholder returns `Rect{}` so callers correctly see
