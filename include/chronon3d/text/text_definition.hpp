@@ -166,6 +166,10 @@ struct TextFrame {
     /// Position in canvas space (maps to TextSpec::position).
     Vec3 position{};
 
+    /// Placement semantics (F3: preserved from TextSpec.placement.kind
+    /// for lossless round-trip TextSpec ↔ TextDefinition).
+    TextPlacementKind placement_kind{TextPlacementKind::Absolute};
+
     /// Placement-pin offset (authoring-side; NOT mirrored in TextSpec).
     /// Populate via .place(...).offset(...) or directly via def.frame.offset.
     Vec2 offset{};
