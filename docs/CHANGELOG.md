@@ -1,3 +1,24 @@
+## Luglio 2026 — ADR-019 Text Coordinate Model (2026-07-10, doc-only atomic commit)
+
+### docs(adr): ADR-019 Text Coordinate Model — 4-level Canvas/Layer/Box/Glyph
+
+- **ADR-019** (`docs/adr/ADR-019-text-coordinate-model.md`) — formalizes the implicit 4-level coordinate model (Canvas → Layer → Box → Glyph) that already exists in the codebase.
+- **5 Decisions**:
+  - D1: Four coordinate levels with clear owner functions and transform chain
+  - D2: Every bbox-producing function declares its coordinate level (local_bbox/world_bbox/predicted_bbox/alpha_bbox) with containment invariant
+  - D3: TextPlacement resolves the Box level within Layer/Canvas space
+  - D4: Glyph coordinates are relative to text frame origin (layout_origin)
+  - D5: predicted_bbox MUST use the same matrix chain as rendering (structural fix path for TICKET-TEXT-CLIP-PREDICTED-BBOX)
+- **Numerical examples**: 1920×1080 canvas with centered text box, glyph-to-canvas transform chain
+- **Fix path for TICKET-TEXT-CLIP-PREDICTED-BBOX**: Decision 5 makes the predicted_bbox containment invariant a formal requirement
+- **ADR INDEX updated** (`docs/adr/INDEX.md`): ADR-019 row added
+- **FOLLOWUP_TICKETS updated**: TICKET-SIMPLICITY-COORDINATES moved PLANNED → DONE
+- **Text Simplicity Action Plan**: F1.A complete (first of 17 planned actions)
+- **AGENTS.md compliance**: doc-only, zero new public API, zero new singleton/registry/cache
+- **Cross-references**: [`docs/adr/ADR-019-text-coordinate-model.md`](docs/adr/ADR-019-text-coordinate-model.md); [`docs/adr/INDEX.md`](docs/adr/INDEX.md); [`docs/TEXT_SIMPLICITY_ACTION_PLAN.md`](docs/TEXT_SIMPLICITY_ACTION_PLAN.md); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §M1.8.
+
+---
+
 ## Luglio 2026 — chore(cleanup) parallel pass (2026-07-10, atomic commit)
 
 ### chore(cleanup): remove obsolete tools, postmortem, fix baseline governance

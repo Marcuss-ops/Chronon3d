@@ -75,7 +75,7 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 
 | ID | Pri | Area | Stato | Blocca |
 |---|---|---|---|---|
-| TICKET-SIMPLICITY-COORDINATES | P0 | ADR Coordinate Model (Canvas/Layer/Box/Glyph) | PLANNED | Text V1 — prerequisite per tutti gli altri |
+| TICKET-SIMPLICITY-COORDINATES | P0 | ADR Coordinate Model (Canvas/Layer/Box/Glyph) | DONE | Text V1 — ADR-019 accepted, 5 decisions documented |
 | TICKET-SIMPLICITY-PLACEMENT-RESOLVER | P0 | Placement Resolver Unico | PLANNED | Text V1 + TICKET-TEXT-CLIP-PREDICTED-BBOX |
 | TICKET-SIMPLICITY-CONSERVATIVE-BBOX | P0 | Fallback Conservativo BBox | PLANNED | Text V1 — 19px sliver regression |
 | TICKET-SIMPLICITY-AUTO-FONT | P0 | FontEngine Automatico | PLANNED | Text V1 — zero manual FontEngine* |
