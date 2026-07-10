@@ -1,3 +1,7 @@
+
+
+---
+
 ## Luglio 2026 — TICKET-SIMPLICITY-INSPECT-TEXT: CLI inspect-text, test suite registration fix, and content migration to TextSpec API (2026-07-10, atomic commit)
 
 ### feat(text): TICKET-SIMPLICITY-INSPECT-TEXT — add inspect-text CLI, tests, and migrate content to TextSpec API
