@@ -61,6 +61,9 @@ jobs:
       - name: Build (chronon3d_tests_fast)
         run: cmake --build --preset linux-ci-core-gate
 
+      - name: Run core-gate tests
+        run: ctest --preset linux-ci-core-gate-test --output-on-failure
+
   # ─────────────────────────────────────────────────────────────────────
   # 2. SDK build — Text ON, Blend2D ON. Validates consumer-side link closure.
   # ─────────────────────────────────────────────────────────────────────
@@ -85,6 +88,9 @@ jobs:
 
       - name: Build (chronon3d_cli + chronon3d_tests_fast)
         run: cmake --build --preset linux-ci-lean-gate
+
+      - name: Run lean-gate tests
+        run: ctest --preset linux-ci-lean-gate-test --output-on-failure
 
   # ─────────────────────────────────────────────────────────────────────
   # 3. Public-header check — every header compiled standalone.
