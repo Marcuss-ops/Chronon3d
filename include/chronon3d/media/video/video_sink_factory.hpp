@@ -49,7 +49,11 @@ namespace chronon3d::media::video {
 /// The `scheme` is matched against the output path's URI scheme
 /// (e.g. "file", "http", "null", "test").
 ///
-/// Thread-safety: NOT thread-safe.  Call once during initialisation.
+/// Thread-safety: Thread-safe.  create_video_sink() takes a shared_lock
+/// (concurrent reads); register/unregister take a unique_lock (exclusive
+/// write).  The factory callable is copied under the shared_lock and invoked
+/// after the lock is released, so factory code may safely call
+/// register/unregister without deadlock.
 using VideoSinkFactoryFn = std::unique_ptr<VideoSink>(*)(const VideoSinkConfig&);
 void register_sink_factory(std::string_view scheme, VideoSinkFactoryFn factory);
 

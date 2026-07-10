@@ -12,18 +12,22 @@ namespace chronon3d::media::video {
 
 namespace {
 
-/// Registered custom factory functions.
-std::unordered_map<std::string, VideoSinkFactoryFn>& custom_factories() {
-    static std::unordered_map<std::string, VideoSinkFactoryFn> factories;
-    return factories;
-}
+/// Registered custom factory functions + reader-writer mutex.
+///
+/// create_video_sink() takes a shared_lock (multiple concurrent reads)
+/// and copies the callable BEFORE releasing the lock, then invokes it
+/// AFTER the lock is released — so the factory code may safely call
+/// register/unregister without deadlock.
+///
+/// register/unregister take a unique_lock (exclusive write).
+struct SinkFactoryState {
+    std::unordered_map<std::string, VideoSinkFactoryFn> factories;
+    mutable std::shared_mutex mutex;
+};
 
-/// Mutex protecting the custom_factories() map.
-/// Reads (create_video_sink) take a shared_lock; writes (register/unregister)
-/// take a unique_lock.  Mirrors the pattern in text_rasterizer_cache.cpp.
-std::shared_mutex& factories_mutex() {
-    static std::shared_mutex mutex;
-    return mutex;
+SinkFactoryState& custom_factory_state() {
+    static SinkFactoryState state;
+    return state;
 }
 
 /// Select a built-in sink implementation based on config.
@@ -54,19 +58,22 @@ std::unique_ptr<VideoSink> create_video_sink(const VideoSinkConfig& config) {
     const auto scheme_end = path_str.find("://");
     if (scheme_end != std::string::npos) {
         const auto scheme = path_str.substr(0, scheme_end);
-        VideoSinkFactoryFn fn = nullptr;
+
+        // Copy the callable under shared_lock (multiple concurrent
+        // reads are fine).  Invoke OUTSIDE the lock so the factory
+        // code may safely call register/unregister.
+        VideoSinkFactoryFn factory;
         {
-            std::shared_lock lock(factories_mutex());
-            const auto& cf = custom_factories();
-            auto it = cf.find(scheme);
-            if (it != cf.end()) {
-                fn = it->second;
+            auto& state = custom_factory_state();
+            std::shared_lock lock(state.mutex);
+            const auto it = state.factories.find(scheme);
+            if (it != state.factories.end()) {
+                factory = it->second;
             }
         }
-        // Call outside the lock to avoid deadlock if the factory
-        // itself calls register_sink_factory() / unregister_sink_factory().
-        if (fn) {
-            return fn(config);
+
+        if (factory) {
+            return factory(config);
         }
     }
 
@@ -85,14 +92,15 @@ std::unique_ptr<VideoSink> create_video_sink(const VideoSinkConfig& config) {
 // ============================================================================
 
 void register_sink_factory(std::string_view scheme, VideoSinkFactoryFn factory) {
-    std::unique_lock lock(factories_mutex());
-    custom_factories()[std::string(scheme)] = factory;
+    auto& state = custom_factory_state();
+    std::unique_lock lock(state.mutex);
+    state.factories[std::string(scheme)] = std::move(factory);
 }
 
 void unregister_sink_factory(std::string_view scheme) noexcept {
-    std::unique_lock lock(factories_mutex());
-    auto& cf = custom_factories();
-    cf.erase(std::string(scheme));
+    auto& state = custom_factory_state();
+    std::unique_lock lock(state.mutex);
+    state.factories.erase(std::string(scheme));
 }
 
 } // namespace chronon3d::media::video
