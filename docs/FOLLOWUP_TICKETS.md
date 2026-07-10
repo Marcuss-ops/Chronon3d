@@ -11,11 +11,11 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 
 | ID | Pri | Area | Stato | Blocca |
 |---|---|---|---|---|
-| TICKET-011 | P0 | mainline build rot (chronon3d_core_tests) | PARTIAL-AUDIT-DONE | gate 1–8 (audit closed 2026-07-08, fix-roadmap deferred to working build host — see `docs/CHANGELOG.md` P2-#11 design audit entry; sub-tickets (i)+(ii) DONE session-precedent + 4 remaining ODR/canonical-type fixes planned in CHANGELOG Step A→E roadmap) |
+| TICKET-011 | P0 | mainline build rot (chronon3d_core_tests) | **DONE** (code-verified 2026-07-10) | gate 1–8 — Steps A→E all resolved: (A) inter_bold() ODR via shared test_text_font_fixture.hpp; (B) skip_if_missing() ODR same; (C) text_unit_map_8level.cpp exists + SKIP_UNITY_BUILD_INCLUSION; (D) test_text_font_resolver_golden.cpp exists + registered; (E) test_compile_text_layout{,_validation}.cpp not in cmake (no dangling refs). 14 files in SKIP_UNITY_BUILD_INCLUSION set. Build verification deferred to working build host per AGENTS.md §honesty. |
 | TICKET-036 | P0 | camera architecture gate G6 | PLANNED | gate 6 |
 | TICKET-120 | P1 | 17/24 scene test failures | PARTIAL-AUDIT-DONE | Camera V1 cert (audit closed 2026-07-08: TICKET-035 + TICKET-034D + TrajectoryMotion sanity guard verified-at-HEAD; 17 remaining failures enumerated in `docs/CHANGELOG.md` P2-#11 design audit entry; fix-roadmap Steps A→F deferred to working build host) |
 | TICKET-005 | P1 | post-cascade cleanup | PARTIAL | gate 5 |
-| TICKET-011-i | P0 | text_unit_map impl drift | PLANNED | gate 1–8 |
+| TICKET-011-i | P0 | text_unit_map impl drift | DONE (2026-07-10) | gate 1–8 — canonical 8-level text_unit_map.hpp used throughout; joint-include test + SKIP_UNITY_BUILD_INCLUSION prevent ODR |
 | TICKET-044 | P1 | selftest hardcoded paths | PLANNED | gate 5 |
 | TICKET-TEXT-CLIP-PREDICTED-BBOX | P0 | text compositor `predicted_bbox` (Clip 06 diagnostic) | **DONE** (FU01) | closed via `fix(text): close TICKET-TEXT-CLIP-PREDICTED-BBOX — restore bbox on contract violation` (FU01 of `TICKET-TEXT-VISIBILITY-PIPELINE`); new counter `text_bbox_contract_violations` atomically bumps on degenerate world-matrix pre-clip bboxes; regression locks deferred to FU03/FU06 |
 | TICKET-TEXT-CLIP-GOLDENS-01-05 | P1 | text clip bounds goldens (Clip 01–05) | OPEN | text golden cert — goldens need seeding under the new code path |
