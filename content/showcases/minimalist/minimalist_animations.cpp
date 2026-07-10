@@ -47,6 +47,44 @@ Composition make_minimalist_comp(const char* name, const char* text,
 
 } // namespace
 
+// ── Diagnostic no-glow variant (BUG 2 A/B test) ─────────────────────────
+// Identical to make_minimalist_comp but WITHOUT the glow() call, used to
+// isolate whether the glow pass is causing text invisibility.
+Composition make_minimalist_comp_no_glow(const char* name, const char* text,
+                                          AnimSetup setup,
+                                          f32 font_size = 100.0f, f32 tracking = 6.0f) {
+    return composition({.name = name, .width = 1920, .height = 1080, .duration = 150},
+        [text, setup = std::move(setup), font_size, tracking](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            add_common_background(s, BackgroundStyles::Minimalist());
+            s.layer("phrase", [&](LayerBuilder& l) {
+                l.pin_to(Anchor::Center);
+                setup(l);
+                // NO glow — diagnostic variant for BUG 2 isolation
+                l.text("phrase", text::centered_text({
+                    .text      = text,
+                    .font_size = font_size,
+                    .tracking  = tracking,
+                }));
+            });
+            return s.build();
+        });
+}
+
+Composition minimalist_text_float_in_no_glow() {
+    return make_minimalist_comp_no_glow("MinimalistTextFloatInNoGlow", "FLOAT IN", [](LayerBuilder& l) {
+        l.position_anim()
+            .key(Frame{0},  Vec3{0.0f, 80.0f, 0.0f}, EasingCurve{Easing::OutCubic})
+            .key(Frame{22}, Vec3{0.0f, 0.0f,  0.0f}, EasingCurve{Easing::OutCubic});
+        l.scale_anim()
+            .key(Frame{0},  Vec3{0.95f, 0.95f, 1.0f}, EasingCurve{Easing::OutCubic})
+            .key(Frame{22}, Vec3{1.0f,  1.0f,  1.0f}, EasingCurve{Easing::OutCubic});
+        l.opacity_anim()
+            .key(Frame{0},  0.0f, EasingCurve{Easing::OutCubic})
+            .key(Frame{22}, 1.0f, EasingCurve{Easing::Linear});
+    });
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // INTRO ANIMATIONS — 15 text entrance presets
 // ═════════════════════════════════════════════════════════════════════════════
@@ -366,6 +404,7 @@ void register_minimalist_compositions(CompositionRegistry& registry) {
     registry.add("MinimalistTextSlideRight", [](const CompositionProps&) { return minimalist_text_slide_right(); });
     registry.add("MinimalistTextScalePop", [](const CompositionProps&) { return minimalist_text_scale_pop(); });
     registry.add("MinimalistTextFloatIn", [](const CompositionProps&) { return minimalist_text_float_in(); });
+    registry.add("MinimalistTextFloatInNoGlow", [](const CompositionProps&) { return minimalist_text_float_in_no_glow(); });  // BUG 2 diagnostic
     registry.add("MinimalistTextLetterRise", [](const CompositionProps&) { return minimalist_text_letter_rise(); });
     registry.add("MinimalistTextDriftIn", [](const CompositionProps&) { return minimalist_text_drift_in(); });
     registry.add("MinimalistTextTiltIn", [](const CompositionProps&) { return minimalist_text_tilt_in(); });
