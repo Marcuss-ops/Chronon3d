@@ -177,6 +177,60 @@ enum class TextLayoutErrorKind {
     /// "skip and continue" with explicit policy.  See
     /// ShapingFailurePolicy below.
     PerRunShapingFailed,
+
+    // ══════════════════════════════════════════════════════════════════
+    // FU02next — pre-render invariants (parent ticket sec 2).
+    //
+    // 4 new values added at the ABI-stable tail of the enum per
+    // AGENTS.md "do NOT reorder existing entries; add new ones at
+    // the tail" contract.  Each replaces a previously-silent-null
+    // failure mode in the text materializer pipeline.  Catches
+    // the "render blank because caller forgot to set X" bug
+    // rather than silently emitting a zero-glyph layout whose
+    // compositor output looks like a healthy blank frame.
+    // ══════════════════════════════════════════════════════════════════
+
+    /// Pre-render invariant: no FontEngine* wired at compile time.
+    /// Canonical guard lives in `validate_layout_request`
+    /// (`src/text/compiler/text_compile_validation.cpp`) which
+    /// raises this kind when `services.engine == nullptr`.
+    /// Distinct from `MissingFont` (compiler-level check for empty
+    /// path AND empty family across all runs).
+    MissingFontEngine,
+
+    /// Pre-render invariant: `FontResolver::resolve()` returned
+    /// `FontResolutionResult::Status::Unresolved` for the input
+    /// font spec — primary font + ALL fallback candidates
+    /// unloadable.  Raised at the `compile_or_cache_layout`
+    /// boundary via a MissingFont→remap of `compile_text_layout`'s
+    /// upstream kind, so callers see a materializer-level label
+    /// distinct from `MissingFont` (paragraph-level font absence).
+    FontResolutionFailed,
+
+    /// Pre-render invariant: `compile_text_layout` succeeded at the
+    /// stage-4.5 belt-and-suspenders guard was already emitting
+    /// `ShapingFailed`, now canonicalised to `ShapingProducedNoGlyphs`:
+    /// the merged `PlacedGlyphRun` has zero glyphs for non-empty
+    /// paragraph text.  Distinct from `PerRunShapingFailed` (raised
+    /// when compile_text_layout itself rejected the layout) and
+    /// from the legacy `ShapingFailed` label (still raised upstream
+    /// at `validate_concatenated_run` pre-FU02next semantics).
+    /// The defense-in-depth check at `compile_or_cache_layout`
+    /// boundary also emits this kind if upstream regresses.
+    ShapingProducedNoGlyphs,
+
+    /// Pre-render invariant: input geometry is degenerate
+    /// (`layout.box.x` < 0, `layout.box.y` < 0,
+    /// `font_spec.font_size` <= 0, `layout.line_height` <= 0).
+    /// NOTE: box dimensions of 0.0f are NOT rejected (single-line
+    /// unbounded mode allows 0 to mean "grow to fit content"; only
+    /// NEGATIVE values are rejected).  font_size = 0.0f is
+    /// rejected because HarfBuzz rejects it anyway and the failure
+    /// would otherwise be silent.  line_height = 0.0f is rejected
+    /// because ParagraphComposer at line-height 0 produces
+    /// degenerate (infinite) allocations for EveryLine mode.
+    /// Raised at `compile_or_cache_layout` boundary.
+    InvalidLayout,
 };
 
 /// Structured compile error returned in `Result`'s error channel.

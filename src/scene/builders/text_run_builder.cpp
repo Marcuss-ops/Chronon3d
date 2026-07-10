@@ -398,10 +398,29 @@ namespace text_run_materialize_detail {
 
 namespace {
 
-[[nodiscard]] std::shared_ptr<TextRunLayout> compile_or_cache_layout(
+[[nodiscard]] Result<std::shared_ptr<TextRunLayout>, TextLayoutError> compile_or_cache_layout(
     const TextRunParams& params,
     FontEngine& engine
 ) {
+    // ═════════════════════════════════════════════════════════════════
+    // FU02next — pre-render invariant: InvalidLayout.
+    // Box dimensions < 0 (zero IS allowed for unbounded mode);
+    // font_size <= 0; line_height <= 0.  Each rejected fail-loud
+    // returns TextLayoutErrorKind::InvalidLayout; missing this
+    // gate would silently produce a zero-glyph layout whose
+    // compositor output looks healthy.  Box == 0 explicitly
+    // permitted (single-line unbounded mode).
+    // ═════════════════════════════════════════════════════════════════
+    if (params.text.layout.box.x < 0.0f || params.text.layout.box.y < 0.0f ||
+        !(params.text.font.font_size > 0.0f) ||
+        !(params.text.layout.line_height > 0.0f)) {
+        return TextLayoutError{
+            TextLayoutErrorKind::InvalidLayout,
+            "compile_or_cache_layout: invalid layout "
+            "(box/font_size/line_height)"
+        };
+    }
+
     const std::string&    text       = params.text.content.value;
     const FontSpec&       font_spec  = params.text.font;
     const TextLayoutSpec& layout     = params.text.layout;
@@ -545,13 +564,40 @@ namespace {
 
     auto compiled = compile_text_layout(request, services);
     if (!compiled) {
+        // FU02next — propagate compile_text_layout Err through Result
+        // (remap MissingFont → FontResolutionFailed so the caller sees
+        // a materializer-level semantic label rather than a compiler
+        // internal kind; spdlog emits the kind for diagnostic surfaces).
+        TextLayoutError propagated = compiled.error();
+        if (propagated.kind == TextLayoutErrorKind::MissingFont) {
+            propagated.kind =
+                TextLayoutErrorKind::FontResolutionFailed;
+            propagated.message =
+                "[materializer remap] " + propagated.message;
+        }
         spdlog::warn(
-            "materialize_text_run_shape: compile_text_layout failed — {}",
-            compiled.error().message);
-        return nullptr;
+            "compile_or_cache_layout: compile_text_layout failed — "
+            "kind={} msg={}",
+            static_cast<int>(propagated.kind),
+            propagated.message);
+        return propagated;
     }
 
     auto text_layout = compiled.value();
+
+    // FU02next — defense-in-depth: ShapingProducedNoGlyphs.
+    // Canonical guard is validate_concatenated_run (stage 4.5)
+    // deep in compile_text_layout; here at the materializer
+    // boundary we ALSO check so future regressions in upstream
+    // guards are caught immediately at compile time.
+    // Belt-and-suspenders.
+    if (text_layout->placed.glyphs.empty() && !text.empty()) {
+        return TextLayoutError{
+            TextLayoutErrorKind::ShapingProducedNoGlyphs,
+            "compile_or_cache_layout: merged PlacedGlyphRun has "
+            "zero glyphs for non-empty input"
+        };
+    }
 
     // ── Override compile_text_layout's defaults ───────────────────
     // compile_text_layout hardcodes text_layout->direction = Auto and
@@ -650,10 +696,16 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
     // post-refactor path stores `primary_font` (full 5-field FontSpec)
     // on `text_layout->font`, so transition paths that read back the
     // size no longer observe a stale 0.0f / 72.0f.
-    auto text_layout = compile_or_cache_layout(params, *use_engine);
-    if (!text_layout) {
+    auto text_layout_res = compile_or_cache_layout(params, *use_engine);
+    if (!text_layout_res) {
+        spdlog::warn(
+            "materialize_text_run_shape: compile_or_cache_layout "
+            "failed — kind={} msg={}",
+            static_cast<int>(text_layout_res.error().kind),
+            text_layout_res.error().message);
         return nullptr;
     }
+    auto text_layout = text_layout_res.take_value();
 
     // ── Evaluate animators at sample_time ───────────────────────────
     auto glyph_states = evaluate_animator_stack(

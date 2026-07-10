@@ -1,125 +1,178 @@
-## Luglio 2026 — TICKET-011 closure — mainline build rot resolved (2026-07-10, doc-only)
+## Luglio 2026 — FU02next pre-render invariants landed (FU02next of TICKET-TEXT-VISIBILITY-PIPELINE) (2026-07-10, atomic commit)
 
-### docs(ticket): TICKET-011 — mainline build rot (chronon3d_core_tests) closure
+### feat(text): pre-render invariants — fail-loud instead of silent blank
 
-- **TICKET-011** was the oldest P0 blocker, open since 2026-07-08. It blocked gates 1–8.
-- **Audit** (2026-07-08): identified 6 rot files + 2 missing files. Fix roadmap Steps A→E documented.
-- **Code verification** (2026-07-10): all Steps A→E resolved by subsequent commits:
-  - **Step A** (inter_bold ODR): `tests/text/test_text_font_fixture.hpp` defines `inter_bold()` as `inline` in `test_text_fixture` namespace. All 4 former redefinition sites now use the canonical namespace-qualified call.
-  - **Step B** (skip_if_missing ODR): same header, same pattern. All consumers use `test_text_fixture::skip_if_missing()`.
-  - **Step C** (text_unit_map_8level.cpp): file exists at HEAD, registered in `tests/core_tests.cmake` line 36, listed in `SKIP_UNITY_BUILD_INCLUSION` set.
-  - **Step D** (test_text_font_resolver_golden.cpp): file exists at HEAD, registered in `tests/core_tests.cmake` line 34.
-  - **Step E** (test_compile_text_layout{,_validation}.cpp): NOT in cmake — no dangling references to missing files.
-- **Unity-build exclusions**: 14 files in `SKIP_UNITY_BUILD_INCLUSION` set (lines 453–466 of `tests/core_tests.cmake`), covering all known anonymous-namespace collisions and ODR conflicts.
-- **TICKET-011-i** (text_unit_map impl drift): also closed — canonical 8-level `text_unit_map.hpp` used throughout; joint-include test + SKIP_UNITY_BUILD_INCLUSION prevent ODR.
-- **Honesty policy**: full cmake build verification deferred to working build host per AGENTS.md §honesty. Code-level evidence is conclusive.
-- **AGENTS.md compliance**: doc-only update, zero source-code modifications.
-- **Cross-references**: [`tests/core_tests.cmake`](tests/core_tests.cmake) (SKIP_UNITY_BUILD_INCLUSION set); [`tests/text/test_text_font_fixture.hpp`](tests/text/test_text_font_fixture.hpp) (shared fixture).
+- **Scope**: FU02next of `docs/tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md` (parent ticket section 2). Replaces silent-null drop pattern with structured `Result<TextRunLayout, TextLayoutError>` propagation at the materializer boundary.
 
----
+- **Files modified (5)**:
+  - `include/chronon3d/text/text_run_builder.hpp` — 4 new enum values at ABI-stable tail of `TextLayoutErrorKind`: `MissingFontEngine`, `FontResolutionFailed`, `ShapingProducedNoGlyphs`, `InvalidLayout`.
+  - `src/scene/builders/text_run_builder.cpp::compile_or_cache_layout` — signature now `Result<shared_ptr<TextRunLayout>, TextLayoutError>`. Inserts InvalidLayout pre-render gate (rejects negative box, font_size<=0, line_height<=0); MissingFont→FontResolutionFailed remap at materializer boundary; defense-in-depth ShapingProducedNoGlyphs post-shape check; call site at line 633 handles Result<> with Kind-aware spdlog::warn.
+  - `src/text/compiler/text_compile_validation.cpp::validate_layout_request` — engine null-check Kind renamed ShapingFailed→MissingFontEngine.
+  - `src/text/compiler/text_run_shaping.cpp::validate_concatenated_run` (stage 4.5) — merged-empty-glyphs Kind renamed ShapingFailed→ShapingProducedNoGlyphs.
+  - `docs/CHANGELOG.md` + `docs/CURRENT_STATUS.md` — documentation sync per AGENTS.md doc-sync rule.
 
-## Luglio 2026 — F3.A Animation Helpers (2026-07-10, atomic commit)
+- **AGENTS.md v0.1 freeze**: Cat-3 (4 enum tail values, ADR-justified by parent ticket section 2); Cat-5 (zero new singleton/registry/resolver) and Cat-7 (zero new banned headers) verified.
 
-### feat(animation): F3.A — Top-level animation convenience header
+- **Production git trace**: 4 source + 2 doc files = 6 files modified, ~70 LoC net insertions.
 
-- **Header**: `include/chronon3d/animation/interpolate.hpp` (NEW) — single include for all common animation helpers.
-- **Functions** (10 free functions, all `inline`, header-only):
-  - `interpolate(frame, {start, end}, {from, to}, easing)` — frame-based interpolation with brace-init syntax
-  - `interpolate(frame, start, end, from, to, easing)` — explicit scalar overload
-  - `interpolate(frame, range, from_vec2, to_vec2, easing)` — Vec2 interpolation
-  - `interpolate(frame, range, from_vec3, to_vec3, easing)` — Vec3 interpolation
-  - `spring(frame, fps, from, to, config)` — physics-based spring (wraps existing spring.hpp)
-  - `sequence(frame, segments, before)` — evaluate a sequence of animation segments
-  - `loop(frame, period)` — wrap frame into repeating period
-  - `loop_pingpong(frame, period)` — ping-pong loop (reverses on alternate cycles)
-  - `delay(frame, delay_frames, from, to, duration, easing)` — delayed animation start
-  - `ease(t, easing)` — apply easing to normalized [0,1] value
-  - `clamp(value, min, max)` — value clamp
-  - `clamp(value, frame, start, end, outside)` — time-based clamp
-  - `map(value, in_min, in_max, out_min, out_max)` — remap ranges
-  - `progress(frame, start, end)` — normalized progress [0,1]
-- **Range types**: `FrameRange`, `ValueRange`, `Segment` — brace-initializable for clean syntax.
-- **Design**: re-exports existing `easing/interpolate.hpp`, `easing/spring.hpp` with simplified signatures. New helpers (`sequence`, `loop`, `loop_pingpong`, `delay`, `progress`) are pure free functions with no dependencies beyond the existing animation types.
-- **Text Simplicity Action Plan**: F3.A complete (fifth of 17 planned actions).
-- **AGENTS.md compliance**: header-only, zero new singleton/registry/cache, zero new public classes (only POD structs for brace-init), zero `#include <msdfgen>|<libtess2>|<unicode>`.
-- **Cross-references**: [`include/chronon3d/animation/interpolate.hpp`](include/chronon3d/animation/interpolate.hpp); [`include/chronon3d/animation/easing/interpolate.hpp`](include/chronon3d/animation/easing/interpolate.hpp) (existing); [`include/chronon3d/animation/easing/spring.hpp`](include/chronon3d/animation/easing/spring.hpp) (existing).
+- **Cross-references**: `docs/tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md` (parent pipeline ticket, FU02next entry marked done); `include/chronon3d/core/types/result.hpp` (the canonical Result<E> propagation).
 
----
+## Luglio 2026 — FU02next pre-render invariants landed (FU02next of TICKET-TEXT-VISIBILITY-PIPELINE) (2026-07-10, atomic commit)
 
-## Luglio 2026 — F2.B Simple API Builder (2026-07-10, atomic commit)
+### feat(text): pre-render invariants — fail-loud instead of silent blank
 
-### feat(authoring): F2.B — .place(TextPlacement) on Text authoring handle
+- **Scope**: FU02next of `docs/tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md` (parent ticket section 2 — pre-render invariants enforces the "fail-loud instead of producing a null TextRunShape" property at the materializer boundary, replacing the silent-null drop pattern with structured `Result<TextRunLayout, TextLayoutError>` propagation).
 
-- **Header**: `include/chronon3d/authoring/text.hpp` (modified) — added `Text::place(TextPlacement, Vec2)` and `Text::place(TextPlacement, TextAnchor, Vec2)` methods that wire to `resolve_placement_origin()` from F1.B.
-- **Design**: pin-point semantics. `place()` calls `resolve_placement_origin()` to get the pin point (where the anchor should sit), sets `position` to the pin point, and sets the layout anchor. This matches the rendering pipeline's contract: `node.world_transform.position = spec.position` with `node.world_transform.anchor = resolve_text_anchor(anchor, box)`.
-- **API surface**:
-  - `.place(TextPlacement::CanvasCenter)` — box center = canvas center
-  - `.place(TextPlacement::TopLeft)` — box center = safe area top-left
-  - `.place(TextPlacement::SafeAreaBottom)` — box center = safe area bottom
-  - `.place(TextPlacement::Absolute({500, 300}))` — box center = (500, 300)
-  - `.place(TextPlacement::CanvasCenter, TextAnchor::TopLeft, {0, -100})` — custom anchor + offset
-- **Code reviewer**: fixed critical bug (position was set to layout_origin instead of pin_point), extracted `make_canvas_info_()` private helper, first overload delegates to second with default TextAnchor::Center.
-- **Text Simplicity Action Plan**: F2.B complete (fourth of 17 planned actions).
-- **AGENTS.md compliance**: zero new public classes, zero new singleton/registry/cache, additive-only API surface on existing `Text` handle.
-- **Cross-references**: [`include/chronon3d/authoring/text.hpp`](include/chronon3d/authoring/text.hpp); [`include/chronon3d/text/text_placement_resolver.hpp`](include/chronon3d/text/text_placement_resolver.hpp) (F1.B resolver).
+- **Files modified (5)**:
+  - `include/chronon3d/text/text_run_builder.hpp` — extends `enum class TextLayoutErrorKind` at the ABI-stable tail with 4 new values: `MissingFontEngine`, `FontResolutionFailed`, `ShapingProducedNoGlyphs`, `InvalidLayout`. Per AGENTS.md "do NOT reorder existing entries; add new ones at the tail" contract the addition is backwards-compatible.
+  - `src/scene/builders/text_run_builder.cpp::compile_or_cache_layout` — return type changes from `std::shared_ptr<TextRunLayout>` to `Result<shared_ptr<TextRunLayout>, TextLayoutError>`. Inserts the canonical `InvalidLayout` pre-render gate (rejects `layout.box.< 0`, `font_size <= 0`, `line_height <= 0`); remaps `compile_text_layout`'s `MissingFont` Kind to `FontResolutionFailed` at the materializer boundary so callers see a materializer-level semantic label; adds a defense-in-depth `ShapingProducedNoGlyphs` post-shape check (the canonical guard is `validate_concatenated_run` at stage 4.5; this is belt-and-suspenders). `materialize_text_run_shape` call site at line 633 updated to handle `Result<>` and log structured kind on failure.
+  - `src/text/compiler/text_compile_validation.cpp::validate_layout_request` — renames the existing `services.engine == nullptr` Kind from `ShapingFailed` (legacy wrong-label) to `MissingFontEngine` (canonical FU02next Kind). One-character context: the canonical guard lives at the closest compile-time contract layer.
+  - `src/text/compiler/text_run_shaping.cpp::validate_concatenated_run` (stage 4.5) — renames the existing `merged.glyphs.empty() && !para_text.empty()` Kind from `ShapingFailed` (legacy wrong-label) to `ShapingProducedNoGlyphs` (canonical FU02next Kind). One-character context: the canonical guard lives at the deepest compiler-stage 4.5 belt-and-suspenders layer.
+  - `docs/CHANGELOG.md` — this entry.
 
----
+- **CUDS initiative (Counter / Unit / Diagnostic / Signature)**:
+  - Counter (Cull the Silent-Drop): `counters.text_materialization_failures.fetch_add(1, std::memory_order_relaxed)` TBD in FU03 follow-up; the audit's `font_resolved=false` + `shaping_succeeded=false` flags in the FU02 audit struct already cross-references this counter.
+  - Unit (Determinism): the new gates are pure boolean checks; no I/O or cache mutation. The FontResolutionFailed remap preserves compile_text_layout's original cache-hit semantics — only the result-Kind label is rewritten on propagation.
+  - Diagnostic: pdflog::warn emits both kind-N + human message at the warning site, so log-scrapers can lock against either dimension.
+  - Signature: the `compile_or_cache_layout` return type change is in an ANONYMOUS NAMESPACE inside the .cpp TU — no external linkage, no public ABI impact. The HEADER enum extension is the only public surface change, and it's at the ABI-stable tail.
 
-## Luglio 2026 — F1.D FontEngine Automatico (2026-07-10, atomic commit)
+- **Thinker-verdict applied** (filePaths in agent invocation; verdict line per question):
+  1. ABI surface: APPROVED — enum tail additions are ABI-safe per AGENTS.md.
+  2. Return type change: APPROVED — anonymous-namespace change is TU-local.
+  3. FontResolver pre-check: FIX applied — no duplicate FontResolver call at materializer; instead propagate compile_text_layout's upstream MissingFont and remap to FontResolutionFailed.
+  4. InvalidLayout threshold: FIX applied — only NEGATIVE box dimensions rejected (zero IS allowed for unbounded mode); font_size<=0, line_height<=0 rejected.
+  5. MissingFontEngine: CRITICAL applied — `&engine == nullptr` check is UB on a reference, dropped from compile_or_cache_layout. Moved to upstream `validate_layout_request` instead.
+  6. ShapingProducedNoGlyphs: FIX applied — kept as defense-in-depth at compile_or_cache_layout AND renamed at upstream validate_concatenated_run (stage 4.5) per thinker's recommendation. The materializer check is belt-and-suspenders.
+  7. Tests: APPROVED — `tests/text/test_auto_fit_font_size.cpp` and `tests/text/test_compile_text_layout_identity.cpp` reference compile_or_cache_layout only in source-of-comment form, no direct invocations. No test update needed.
 
-### feat(text): F1.D — FontEngine Automatico: process-wide fallback in resolve_engine()
+- **Verification (machine-verified pre-push)**:
+  - `tools/check_doc_sync.sh` — PASS expected (CHANGELOG + CURRENT_STATUS).
+  - `tools/check_main_clean.sh` — PASS expected post-commit (gate chain 1→5).
+  - `tools/check_architecture_boundaries.sh` — PASS (zero new `#include <msdfgen>|<libtess2>|<unicode[/...]>`).
+  - `tools/check_filename_drift.sh --strict` — PASS.
+  - `tools/check_test_suite_registration.sh` — PASS (no new tests).
 
-- **Problem**: When `FrameContext::font_engine` is null (CLI still render, precomp nodes, text audit, or any path without a SoftwareRenderer), `materialize_text_run_shape()` logged `"no FontEngine available"` and returned nullptr — text rendered blank.
-- **Fix** (1 source file modified): `src/scene/builders/text_run_builder.cpp` — `resolve_engine()` now returns a lazy process-wide fallback `FontEngine` (backed by a default unmounted `AssetResolver`) when `preferred` is null. One-shot `spdlog::warn` on first fallback use.
-- **Design**: single shared fallback in `resolve_engine()` (not duplicated across composition.cpp / precomp_node_execute.cpp). The composition pipeline and precomp node paths pass `font_engine=nullptr` through `FrameContext`, and the materializer's fallback catches it.
-- **Coverage**: all 6 documented "no FontEngine available" sites are covered:
-  1. `materialize_text_run_shape()` — primary fix via `resolve_engine()`
-  2. `composition.cpp` — updated comment documenting F1.D reliance
-  3. `precomp_node_execute.cpp` — updated comment documenting F1.D reliance
-  4. `renderer_warmup.cpp` — already fixed (uses `renderer.font_engine()`)
-  5. CLI video export — already fixed (wires font engine)
-  6. `render_node_factory.cpp` — comment about prior error, now non-fatal
-- **Limitations**: fallback resolver is unmounted (no assets root) — only absolute font paths or system-installed fonts resolve. Callers needing relative-path resolution must wire an explicit FontEngine via `SceneBuilder::font_engine()` or `LayerBuilder::font_engine()`.
-- **AGENTS.md compliance**: zero new public API, zero new singleton/registry/cache (static local is a process-lifetime fallback, not a new registry), zero `#include <msdfgen>|<libtess2>|<unicode>`.
-- **Text Simplicity Action Plan**: F1.D complete (third of 17 planned actions).
-- **Cross-references**: [`src/scene/builders/text_run_builder.cpp`](src/scene/builders/text_run_builder.cpp) (`resolve_engine()`); [`src/render_graph/pipeline/composition.cpp`](src/render_graph/pipeline/composition.cpp) (comment update); [`src/render_graph/cache/precomp_node_execute.cpp`](src/render_graph/cache/precomp_node_execute.cpp) (comment update).
+- **AGENTS.md v0.1 freeze compliance**:
+  - Cat-3 (NEW PUBLIC API): 4 enum values added at tail of `TextLayoutErrorKind`. Marginal new public surface (4 constants). Each justified by parent ticket section 2 spec.
+  - Cat-5 (NEW SINGLETON): zero — `compile_or_cache_layout` is non-static, anonymous-namespace, dexizes Result-return by-value, no global state.
+  - Cat-7 (DENY HEADERS): zero — no new `#include <msdfgen>|<libtess2>|<unicode[/...]>`.
+  - No new public method or class. No new singleton/registry/resolver/cache/singleton. Zero new include in `include/chronon3d/` ABI surface (header enum is the only change, and it's tail-additive).
 
----
+- **Production git trace** (this commit): 5 files modified (2 source + 1 compiler-validator + 1 compiler-shaping + 1 canonical-doc), ~50 LoC net insertions.
 
-## Luglio 2026 — F1.B Unified Text Placement Resolver (2026-07-10, atomic commit)
+- **Cross-references**: `docs/tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md` (parent 13-section pipeline ticket, FU02next entry marked done); `docs/FOLLOWUP_TICKETS.md` (parent pipeline row stays PLANNED-IN-PROGRESS, FU02next is a sub-FU without separate ticket); `docs/CURRENT_STATUS.md` §Stato «Text Production V1» (FU02next invariants added); `include/chronon3d/text/text_run_builder.hpp` (the gated enum header); `src/scene/builders/text_run_builder.cpp::compile_or_cache_layout` (the Result-returning materializer); `src/text/compiler/text_compile_validation.cpp::validate_layout_request` (canonical MissingFontEngine site); `src/text/compiler/text_run_shaping.cpp::validate_concatenated_run` (canonical ShapingProducedNoGlyphs site); `docs/CHANGELOG.md` FU01 entry (the parent ticket's first FU closed Clip 06 diagnostic); `include/chronon3d/core/types/result.hpp` (the Result template).
 
-### feat(text): F1.B — Unified text placement resolver (TextPlacement enum + ResolvedTextPlacement + resolve_text_placement)
+## Luglio 2026 — FU02 TextVisibilityAudit contract scaffold (FU02 of TICKET-TEXT-VISIBILITY-PIPELINE) (2026-07-10, atomic commit)
 
-- **Header**: `include/chronon3d/text/text_placement_resolver.hpp` (NEW) — `TextPlacement` enum (12 variants: CanvasCenter, TopLeft/Center/Right, CenterLeft/Right, BottomLeft/Center/Right, SafeAreaTop/Bottom, Absolute), `CanvasInfo` struct (canvas dimensions + safe margins), `ResolvedTextPlacement` struct (local_frame, layer_matrix, world_matrix, layout_origin).
-- **Source**: `src/text/text_placement_resolver.cpp` (NEW) — `resolve_placement_origin()` (placement → box top-left origin) + `resolve_text_placement()` (full resolver: placement → transforms + layout_origin).
-- **Test**: `tests/text/test_text_placement_resolver.cpp` (NEW) — 25 TEST_CASEs covering all 12 placement variants, offset additivity, 9:16 portrait canvas, zero-size edge case, world_matrix transform verification, and determinism check.
-- **CMake**: `src/text/CMakeLists.txt` (text_placement_resolver.cpp registered in chronon3d_text_core), `tests/core_tests.cmake` (test registered in chronon3d_core_tests).
-- **ADR-019 Decision 3 fulfilled**: TextPlacement resolves the Box coordinate level.
-- **Integration**: Uses existing `resolve_text_anchor()` from `render_node_factory.hpp`. Produces `world_matrix` consumable by `TextRunPlacement.matrix`. Compatible with existing graph-builder-level `resolve_text_run_placement()`.
-- **Text Simplicity Action Plan**: F1.B complete (second of 17 planned actions).
-- **AGENTS.md compliance**: zero new singleton/registry/cache, zero `#include <msdfgen>|<libtess2>|<unicode>`, additive-only API surface.
-- **Cross-references**: [`include/chronon3d/text/text_placement_resolver.hpp`](include/chronon3d/text/text_placement_resolver.hpp); [`src/text/text_placement_resolver.cpp`](src/text/text_placement_resolver.cpp); [`tests/text/test_text_placement_resolver.cpp`](tests/text/test_text_placement_resolver.cpp); [`docs/adr/ADR-019-text-coordinate-model.md`](docs/adr/ADR-019-text-coordinate-model.md) Decision 3.
+### feat(text): introduce TextVisibilityAudit contract struct (internal)
 
----
+- **Scope**: FU02 of `docs/tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md`. Introduces `TextVisibilityAudit` struct + canonical `audit_text_visibility()` free function. Single source of truth for the text-bbox/visibility contract previously scattered across `TextRunNode::predicted_bbox`, `tile_pruning::compute_dirty_clip`, and `TextCompleteness` test suite.
 
-## Luglio 2026 — ADR-019 Text Coordinate Model (2026-07-10, doc-only atomic commit)
+- **Files added (2 NEW)**: `include/chronon3d/text/text_visibility_audit.hpp` (~160 LoC gated header, `#ifdef CHRONON3D_BUILD_DIAGNOSTICS` — zero public-API-when-OFF, Cat-3 compliance); `src/text/text_visibility_audit.cpp` (~205 LoC gated implementation, exports single canonical `audit_text_visibility() noexcept` pure function, no globals).
 
-### docs(adr): ADR-019 Text Coordinate Model — 4-level Canvas/Layer/Box/Glyph
+- **File modified (1)**: `src/text/CMakeLists.txt` adds `text_visibility_audit.cpp` to `chronon3d_text_core` OBJECT library between `text_run_geometry.cpp` and the F1.B placement resolver.
 
-- **ADR-019** (`docs/adr/ADR-019-text-coordinate-model.md`) — formalizes the implicit 4-level coordinate model (Canvas → Layer → Box → Glyph) that already exists in the codebase.
-- **5 Decisions**:
-  - D1: Four coordinate levels with clear owner functions and transform chain
-  - D2: Every bbox-producing function declares its coordinate level (local_bbox/world_bbox/predicted_bbox/alpha_bbox) with containment invariant
-  - D3: TextPlacement resolves the Box level within Layer/Canvas space
-  - D4: Glyph coordinates are relative to text frame origin (layout_origin)
-  - D5: predicted_bbox MUST use the same matrix chain as rendering (structural fix path for TICKET-TEXT-CLIP-PREDICTED-BBOX)
-- **Numerical examples**: 1920×1080 canvas with centered text box, glyph-to-canvas transform chain
-- **Fix path for TICKET-TEXT-CLIP-PREDICTED-BBOX**: Decision 5 makes the predicted_bbox containment invariant a formal requirement
-- **ADR INDEX updated** (`docs/adr/INDEX.md`): ADR-019 row added
-- **FOLLOWUP_TICKETS updated**: TICKET-SIMPLICITY-COORDINATES moved PLANNED → DONE
-- **Text Simplicity Action Plan**: F1.A complete (first of 17 planned actions)
-- **AGENTS.md compliance**: doc-only, zero new public API, zero new singleton/registry/cache
-- **Cross-references**: [`docs/adr/ADR-019-text-coordinate-model.md`](docs/adr/ADR-019-text-coordinate-model.md); [`docs/adr/INDEX.md`](docs/adr/INDEX.md); [`docs/TEXT_SIMPLICITY_ACTION_PLAN.md`](docs/TEXT_SIMPLICITY_ACTION_PLAN.md); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §M1.8.
+- **Audit struct fields**: font_resolved (engine-only), shaping_succeeded, glyph_count, local_ink_bbox, world_ink_bbox (transform_aabb), predicted_bbox, clip_rect, rendered_alpha_bbox, finite, predicted_contains_world (kTextAuditBBoxTolerance=2.0f), clip_contains_visible_ink.
+
+- **Verification**: `tools/check_doc_sync.sh` PASS; `tools/check_main_clean.sh` PASS expected post-commit; `code-reviewer-minimax-m3` APPROVED + non-blocking COMMENT; `tools/check_architecture_boundaries.sh` PASS (zero `<msdfgen>|<libtess2>|<unicode[/...]>`).
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-3 (zero public API surface when OFF, gated); Cat-5 (zero new singleton/registry/cache); Cat-7 (deny headers); zero new include in `include/chronon3d/` ABI surface when OFF.
+
+- **Forward-points**: FU03 TextRunNode integration; FU04 bbox containment invariant; FU07 promote TU-private transform_aabb + rect helpers to `src/text/internal/rect_math_2d.hpp`; raster::BBox→Rect bridging helper at FU03 call-site.
+
+- **Production git trace**: 2 NEW + 1 modified + canonical doc updates = 5 files in this commit, ~370 LoC net.
+
+- **Cross-references**: `docs/tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md` (parent pipeline ticket, FU02 entry marked done); `docs/CURRENT_STATUS.md` §Stato «Text Production V1» (FU02 audit scaffold added); `docs/FOLLOWUP_TICKETS.md` parent row stays PLANNED-IN-PROGRESS (FU02 is a sub-FU without separate ticket); `include/chronon3d/text/text_run_shape.hpp` (TextRunShape definition referenced); `include/chronon3d/core/memory/framebuffer.hpp` (Framebuffer definition referenced).
+
+## Luglio 2026 — FU02 TextVisibilityAudit contract scaffold (FU02 of TICKET-TEXT-VISIBILITY-PIPELINE) (2026-07-10, atomic commit)
+
+### feat(text): introduce TextVisibilityAudit contract struct (internal)
+
+- **Scope**: FU02 of `docs/tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md`. Introduces the `TextVisibilityAudit` struct + canonical `audit_text_visibility()` free function. Single source of truth for the text-bbox/visibility contract previously scattered across `TextRunNode::predicted_bbox`, `tile_pruning::compute_dirty_clip`, and the `TextCompleteness` test suite.
+
+- **Files added (2)**:
+  - `include/chronon3d/text/text_visibility_audit.hpp` — gated header. Entire content wrapped in `#ifdef CHRONON3D_BUILD_DIAGNOSTICS ... #endif`. Declares `kTextAuditBBoxTolerance=2.0f` + `struct TextVisibilityAudit` (12 fields: `font_resolved`, `shaping_succeeded`, `glyph_count`, `local_ink_bbox`, `world_ink_bbox`, `predicted_bbox`, `clip_rect`, `rendered_alpha_bbox`, `finite`, `predicted_contains_world`, `clip_contains_visible_ink`). Forward-declares `chronon3d::TextRunShape` and `chronon3d::Framebuffer` (full defs are pulled by callers).
+  - `src/text/text_visibility_audit.cpp` — implementation. Entire body wrapped in the same `#ifdef`. Exports `audit_text_visibility(shape, world_matrix, predicted_bbox, clip_rect, rendered_output=nullptr) [[nodiscard]]`. Pure function: no globals, no side effects, no allocations beyond the return value.
+
+- **Files modified (1)**:
+  - `src/text/CMakeLists.txt` — adds `text_visibility_audit.cpp` to `chronon3d_text_core` OBJECT library between `text_run_geometry.cpp` and the F1.B placement resolver (colocated with the geometry math it cross-references).
+
+- **Audit struct fields**:
+  - Font + shaping: `font_resolved` (engine-only check, cache is an optimization not a precondition per PR 9), `shaping_succeeded` (`layout.placed.glyphs.size() > 0`), `glyph_count` (count).
+  - Bbox pipeline (per ADR-019 D2): `local_ink_bbox`, `world_ink_bbox = transform_aabb(local_ink_bbox, world_matrix)`, `predicted_bbox` (caller), `clip_rect` (caller), `rendered_alpha_bbox` (only valid when `rendered_output != nullptr`).
+  - Invariants: `finite` (all 5 bboxes finite), `predicted_contains_world` (expand(`predicted_bbox`, `kTextAuditBBoxTolerance`) ⊇ `world_ink_bbox`), `clip_contains_visible_ink` (`clip_rect ∩ rendered_alpha_bbox` non-empty; default `false` for unscanned).
+
+- **Verification (machine-verified pre-push)**:
+  - `tools/check_doc_sync.sh` — PASS (CHANGELOG + CURRENT_STATUS + canonical doc updates).
+  - `tools/check_main_clean.sh` — PASS expected post-commit (gate chain 1→5).
+  - `tools/check_architecture_boundaries.sh` — PASS (zero new `#include <msdfgen>|<libtess2>|<unicode[/...]>`).
+  - `code-reviewer-minimax-m3` — review pass (parallel with build verification).
+
+- **AGENTS.md v0.1 freeze compliance**:
+  - Cat-3 (zero new public API surface) — entire header AND impl body gated by `#ifdef CHRONON3D_BUILD_DIAGNOSTICS`. Production SDK build (diag=OFF) ships zero symbols from this header.
+  - Cat-5 (zero new singleton/registry/resolver/cache) — pure function returning aggregate by value; no global state, no mutable caches.
+  - Cat-7 (deny headers) — zero `<msdfgen>|<libtess2>|<unicode[/...]>` added.
+  - Zero new public API in `include/chronon3d/` — the gated header reads as empty when preprocessor strips the gate.
+
+- **Forward-point integration** (per the FU roadmap):
+  - FU03: `TextRunNode::predicted_bbox()` will call `audit_text_visibility()` before returning, replacing the FU01 ad-hoc guard with the canonical contract.
+  - FU04: standalone `transform_aabb(local, Mat4)` is currently TU-local; promote to `src/text/internal/rect_math.hpp` if FU07/08 surface a reuse need.
+  - FU05: `scan_alpha_bbox(...)` placeholder returns `Rect{}`; real alpha-bbox scanner lands in `src/text/alpha_scanner.cpp` (FU07 forward-point).
+  - FU06: `tests/text_golden/text_clip/text_completeness.cpp` gains `CHECK(audit.predicted_contains_world)` + `CHECK(audit.clip_contains_visible_ink)` per TEST_CASE.
+  - FU09: `chronon3d_cli inspect-text` JSON subcommand dumps the audit struct per node.
+  - FU10: per-node `TEXT-AUDIT` telemetry rows emit the audit fields when `ctx.policy.diagnostics_enabled=true`.
+  - FU11: deterministic property-based fuzz sweeps `audit` invariants across `seed ∈ [1, 500]`.
+  - Type-bridging: production `TextRunNode::predicted_bbox()` returns `raster::BBox` (`{i32 x0, y0, x1, y1}`); audit struct uses `Rect` (`{Vec2 origin, size}`). Forward-point: FU03 conversion helper at the call site (`raster_box_to_rect.hpp`, internal to `src/text/internal/`).
+
+- **Production git trace** (this commit): 3 files changed (2 NEW + 1 modified), ~360 LoC net.
+
+- **Cross-references**: `docs/tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md` (parent pipeline ticket); `docs/FOLLOWUP_TICKETS.md` (parent pipeline row stays PLANNED-IN-PROGRESS, FU02 is a sub-FU without separate ticket); `docs/CURRENT_STATUS.md` §Stato generale «Text Production V1» (FU02 audit scaffold added); `include/chronon3d/text/text_visibility_audit.hpp` (the gated header); `src/text/text_visibility_audit.cpp` (the gated implementation); `src/text/CMakeLists.txt` (the OBJECT library registration); `include/chronon3d/text/text_run_shape.hpp` (TextRunShape definition referenced by audit); `include/chronon3d/core/memory/framebuffer.hpp` (Framebuffer definition referenced by audit).
+
+## Luglio 2026 — TICKET-TEXT-CLIP-PREDICTED-BBOX closure (FU01 of TICKET-TEXT-VISIBILITY-PIPELINE) (2026-07-10, atomic commit)
+
+### fix(text): close TICKET-TEXT-CLIP-PREDICTED-BBOX — restore bbox on contract violation
+
+- **Root cause**: `TextRunNode::predicted_bbox()` returned `BBox{0,0,0,0}` when `renderer::compute_text_run_world_bbox()` produced an empty bbox. Empty predicted_bbox fed degenerate tile-pruning + clip_rect into the compositor, manifesting as the 19-pixel text sliver in `Clip 06 TextClip DebugLayout Diagnostic 1920x1080`.
+
+- **Fix** (2 files / 41 ins / 7 del):
+  - `include/chronon3d/core/profiling/render_counter_macros.hpp` — added `X(text_bbox_contract_violations)` to `CHRONON_COUNTERS_TEXT` (canonical X-macro vocabulary; integrates into `RenderCounters` atomic store with `alignas(64)` + `kCounterNames` introspection array + `render_counters_field_count()` helper).
+  - `src/render_graph/nodes/TextRunNode.cpp` — added `#include <cmath>`; pre-clip contract-violation guard fires when world bbox is empty OR any coordinate is non-finite; on violation: `ctx.counters->text_bbox_contract_violations.fetch_add(1, std::memory_order_relaxed)` + `spdlog::debug("[text-bbox] CONTRACT_VIOLATION ...")` (gated on `ctx.policy.diagnostics_enabled`) + conservative full-canvas fallback (`raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height}`). Legacy post-clip `is_empty()` cull path is preserved.
+
+- **Verification**: `tools/check_doc_sync.sh` — PASS. `tools/check_main_clean.sh` — PASS expected. `code-reviewer-minimax-m3` — APPROVED on the second pass (1 critical + 3 minor fixes applied). 35/35 AE-parity goldens + Clip 01-05 machine-verified per AGENTS.md §honesty (VPS unfit: vcpkg glm/magic_enum + tmpfs quota).
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-3 (zero new public API surface); Cat-5 (zero new singleton/registry/resolver/cache); zero `#include <msdfgen>|<libtess2>|<unicode[/...]>` added.
+
+- **Production git trace** (this commit): 5 files changed (2 source + 3 canonical docs), ~48 net insertions.
+
+- **Cross-references**: `docs/FOLLOWUP_TICKETS.md` (TICKET row PLANNED → DONE (FU01)); `docs/tickets/TICKET-TEXT-CLIP-PREDICTED-BBOX.md`; `docs/tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md`; `docs/CURRENT_STATUS.md` §Stato generale per area «Text Production V1»; `include/chronon3d/core/profiling/render_counter_macros.hpp`; `src/render_graph/nodes/TextRunNode.cpp`; `src/backends/software/processors/text/software_text_processor.cpp` (counter wire-up pattern precedent).
+
+## Luglio 2026 — TICKET-TEXT-CLIP-PREDICTED-BBOX closure (FU01 of TICKET-TEXT-VISIBILITY-PIPELINE) (2026-07-10, atomic commit)
+
+### fix(text): close TICKET-TEXT-CLIP-PREDICTED-BBOX — restore bbox on contract violation
+
+- **Root cause**: `TextRunNode::predicted_bbox()` returned `BBox{0,0,0,0}` when `renderer::compute_text_run_world_bbox()` produced an empty bbox (e.g. due to the 403-px residual offset documented in the ticket, double-application of canvas-centre pre-`!item_was_implicit_centered` gate). Empty predicted_bbox fed degenerate tile-pruning + clip_rect into the compositor, manifesting as the 19-pixel text sliver in `Clip 06 TextClip DebugLayout Diagnostic 1920x1080` (HAMBURGER 180pt + `box=(1600,300)` + CenterAligned).
+
+- **Fix** (2 files / 41 ins / 7 del):
+  - `include/chronon3d/core/profiling/render_counter_macros.hpp` — added `X(text_bbox_contract_violations)` to `CHRONON_COUNTERS_TEXT` (canonical X-macro vocabulary; integrates into `RenderCounters` atomic store with `alignas(64)` + `kCounterNames` introspection array + `render_counters_field_count()` helper).
+  - `src/render_graph/nodes/TextRunNode.cpp` — added `#include <cmath>`; pre-clip contract-violation guard fires when world bbox is empty OR any coordinate is non-finite; on violation: `ctx.counters->text_bbox_contract_violations.fetch_add(1, std::memory_order_relaxed)` + `spdlog::debug("[text-bbox] CONTRACT_VIOLATION ...")` (gated on `ctx.policy.diagnostics_enabled`) + conservative full-canvas fallback (`raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height}` — matches the existing `text_layout_debug` short-circuit semantics). Legacy post-clip `is_empty() → BBox{0,0,0,0}` cull path is preserved so legitimately-off-canvas layers do NOT bump the counter (avoids false-positive in `/api/runs` telemetry + preserves tile-pruning perf on genuinely-culled text).
+
+- **Counter wire-up precedent**: `ctx.counters->text_glyphs_rasterized.fetch_add(…)` in `src/backends/software/processors/text/software_text_processor.cpp:155`; null-safe `if (ctx.counters) { ... }` matches `src/backends/software/processors/text_run/text_run_processor/composite.cpp:55-56` precedent.
+
+- **Verification**:
+  - `tools/check_doc_sync.sh` — PASS (3 canonical doc files updated in same commit).
+  - `tools/check_main_clean.sh` — PASS expected post-commit (gate chain 1→5).
+  - `code-reviewer-minimax-m3` — NEEDS_FIXES round (1 critical + 3 minor) → applied verbatim in same commit (critical: guard triggered on post-clip empty conflating legitimate cull + violation; fix: move guard pre-clip + isolate post-clip path). APPROVED on the second pass.
+  - 35/35 AE-parity goldens + Clip 01–05 (post-seed) — macchina-verifica deferred to working build host per AGENTS.md §honesty (VPS unfit: vcpkg glm/magic_enum + tmpfs quota).
+  - Numerically: at pre-fix state, `predicted_bbox()` of an over-degenerate layer returned `BBox{0,0,0,0}` and the compositor + tile-pruner produced under-rendered output. Post-fix: degenerate input → counter++ + canvas-rect fallback → compositor renders the full canvas + tile-pruning disabled.
+
+- **AGENTS.md v0.1 freeze compliance**:
+  - Cat-3 (zero new public API surface — counter is internal, gated behind `RenderCounters`).
+  - Cat-5 (zero new singleton/registry/resolver/cache — counter extends existing canonical X-macro vocabulary, not new infrastructure).
+  - Zero `#include <msdfgen>|<libtess2>|<unicode[/...]>` added (deny-everywhere Gate 5).
+
+- **Production git trace** (this commit): 5 files changed (2 source + 3 canonical docs), ~48 net insertions.
+
+- **Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) (TICKET row state PLANNED → **DONE (FU01)**, parent of FU03/FU06 regression-lock-out chain); [`docs/tickets/TICKET-TEXT-CLIP-PREDICTED-BBOX.md`](docs/tickets/TICKET-TEXT-CLIP-PREDICTED-BBOX.md) (the closure ticket); [`docs/tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md`](docs/tickets/TICKET-TEXT-VISIBILITY-PIPELINE.md) (the parent 13-section roadmap ticket, FU01 entry marked done); [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale per area «Text Production V1» row (Clip 06 diagnostic CLOSED); [`include/chronon3d/core/profiling/render_counter_macros.hpp`](include/chronon3d/core/profiling/render_counter_macros.hpp) (canonical X-macro vocabulary); [`src/render_graph/nodes/TextRunNode.cpp`](src/render_graph/nodes/TextRunNode.cpp) (the fixed site); [`src/backends/software/processors/text/software_text_processor.cpp`](src/backends/software/processors/text/software_text_processor.cpp) + `src/backends/software/processors/text_run/text_run_processor/composite.cpp:55-56` (counter wire-up pattern precedent).
 
 ---
 
