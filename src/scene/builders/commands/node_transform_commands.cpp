@@ -1,7 +1,19 @@
 // Node transform and internal helper implementations for LayerBuilder.
 // Extracted from layer_builder.cpp to reduce file size.
+//
+// A4 — suppressed deprecation warnings: the .at()/.scale_node()/etc.
+// implementations are the canonical bodies for the deprecated methods.
+// Call sites see the deprecation; the implementation does not.
 
 #include <chronon3d/scene/builders/layer_builder.hpp>
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#endif
 
 namespace chronon3d {
 
@@ -85,4 +97,24 @@ LayerBuilder& LayerBuilder::node_opacity(f32 a) {
     return *this;
 }
 
+// ── A4 — Explicit node handle accessor ───────────────────────────
+
+NodeHandle LayerBuilder::last_node_handle() {
+    // Return a handle to the last node.  When the node list is empty,
+    // return a handle to a static sentinel RenderNode — mutations are
+    // harmless no-ops and the caller can check .node_count() == 0 on
+    // the layer if they want to guard against this edge case.
+    if (m_layer.nodes.empty()) {
+        static RenderNode sentinel;
+        return NodeHandle(sentinel);
+    }
+    return NodeHandle(m_layer.nodes.back());
+}
+
 } // namespace chronon3d
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
