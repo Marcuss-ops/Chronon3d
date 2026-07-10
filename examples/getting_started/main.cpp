@@ -35,19 +35,17 @@ int main() {
                 l.fill(c3d::Color{0.1f, 0.1f, 0.15f, 1.0f});
             });
 
-            s.layer("title", [](c3d::LayerBuilder& l) {
+            s.layer("title", [&ctx](c3d::LayerBuilder& l) {
+                l.font("fonts/Inter-Bold.ttf")
+                 .font_size(72.0f)
+                 .center();
                 l.text_run("t", c3d::TextRunParams{
                     .text = c3d::TextSpec{
                         .content = {.value = "Hello, Chronon3D!"},
-                        .font = {.font_path = "fonts/Inter-Bold.ttf",
-                                 .font_family = "Inter",
-                                 .font_weight = 700,
-                                 .font_size = 72.0f},
-                        .layout = {.box = {1280.0f, 720.0f},
-                                   .align = c3d::TextAlign::Center,
-                                   .vertical_align = c3d::VerticalAlign::Middle},
-                        .appearance = {.color = c3d::Color::white()},
-                        .position = {640.0f, 360.0f, 0.0f}}
+                        .font = {.font_family = "Inter", .font_weight = 700},
+                        .layout = {.box = {static_cast<float>(ctx.width),
+                                           static_cast<float>(ctx.height)}},
+                        .appearance = {.color = c3d::Color::white()}}
                 }).commit();
             });
 

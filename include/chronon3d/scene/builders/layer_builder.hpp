@@ -168,6 +168,32 @@ public:
     LayerBuilder& keep_in_safe_area(SafeArea area = {});
     LayerBuilder& fit_text();
 
+    // ── Convenience ──
+    /// Position this layer at the center of the screen.
+    /// Reads m_screen_width / m_screen_height (set via screen_dimensions()
+    /// or the 1920×1080 default).
+    LayerBuilder& center() {
+        m_layer.transform.position = {
+            m_screen_width * 0.5f,
+            m_screen_height * 0.5f,
+            0.0f};
+        return *this;
+    }
+
+    /// Set the default font path for all subsequent text_run() calls on
+    /// this layer.  Overridden by an explicit font_path in TextRunParams.
+    LayerBuilder& font(std::string path) {
+        m_default_font_path = std::move(path);
+        return *this;
+    }
+
+    /// Set the default font size for all subsequent text_run() calls on
+    /// this layer.  Overridden by an explicit font_size in TextRunParams.
+    LayerBuilder& font_size(f32 size) {
+        m_default_font_size = size;
+        return *this;
+    }
+
     // ── Node Transform ──
     LayerBuilder& at(Vec3 pos);
     LayerBuilder& rotate_node(Vec3 euler_deg);
@@ -363,6 +389,8 @@ private:
     // call has occurred.  Defaults to false on construction so LayerBuilder
     // spawned without screen info can be detected by the authoring facade.
     bool m_screen_dimensions_explicit{false};
+    std::string m_default_font_path;          // layer-level default for text_run()
+    std::optional<f32> m_default_font_size;    // layer-level default for text_run()
     FontEngine* m_font_engine{nullptr};
     registry::ShapeRegistry* m_shape_registry{nullptr};
     std::optional<registry::ShapeRegistry> m_own_shape_registry;
