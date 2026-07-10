@@ -190,7 +190,19 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
     if (m_shape) {
         const int bbox_h = std::max(0, bbox.y1 - bbox.y0);
         const int bbox_w = std::max(0, bbox.x1 - bbox.x0);
-        const float font_size = 32.0f;  // TODO: restore m_shape->font_size when field is added to TextRunShape
+        // Read the canonical font_size from the shared layout (per
+        // include/chronon3d/text/text_run_layout.hpp:104). The layout is
+        // the SSOT for the per-run font_size; using it here makes the
+        // conservative-bbox threshold proportional to the actual text
+        // size (e.g. 88pt typewriters get 26px min-h, 16pt captions get
+        // 5px min-h) instead of the previous constant 32.0f fallback that
+        // mis-thresholded large and small text. Falls back to 32.0f for
+        // degenerate shapes where layout is null or font_size is unset
+        // (e.g. test fixtures, empty placeholders).
+        const float font_size =
+            (m_shape->layout && m_shape->layout->font_size > 0.0f)
+                ? m_shape->layout->font_size
+                : 32.0f;
         const int min_h = static_cast<int>(font_size * 0.3f);
         const int min_w = static_cast<int>(font_size * 0.5f);
         const bool suspiciously_thin =
