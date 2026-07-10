@@ -24,6 +24,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include "content/text/text_glow_helpers.hpp"
+#include <chronon3d/text/text_definition.hpp>  // F2.D — canonical DTO
 
 namespace chronon3d::content::anims {
 
@@ -120,12 +121,11 @@ Composition tilt_sweep_title_v2() {
                 .key(Frame{18},  4.0f,  EasingCurve{Easing::OutCubic})
                 .key(Frame{150}, 4.0f,  EasingCurve{Easing::Linear});
 
-            l.text("artist_name_shadow", TextSpec{
+            l.text("artist_name_shadow", TextDefinition{
                 .content = {.value = "LIL DIRK"},
-                .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Poppins", .font_weight = 700, .font_size = 132.0f},
-                .layout = {.box = {1280.0f, 180.0f}, .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .wrap = TextWrap::None, .tracking = 1.15f},
-                .appearance = {.color = Color{0.0f, 0.0f, 0.0f, 1.0f}},
-                .position = {0.0f, 0.0f, 0.0f}
+                .style = {.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Poppins", .font_weight = 700, .font_size = 132.0f},
+                          .color = Color{0.0f, 0.0f, 0.0f, 1.0f}},
+                .frame = {.size = {1280.0f, 180.0f}, .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .wrap = TextWrap::None, .tracking = 1.15f},
             });
         });
 
@@ -196,12 +196,11 @@ Composition tilt_sweep_title_v2() {
                 .falloff         = 0.94f,
             });
 
-            l.text("artist_name", TextSpec{
+            l.text("artist_name", TextDefinition{
                 .content = {.value = "LIL DIRK"},
-                .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Poppins", .font_weight = 700, .font_size = 132.0f},
-                .layout = {.box = {1280.0f, 180.0f}, .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .wrap = TextWrap::None, .tracking = 1.15f},
-                .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},
-                .position = {0.0f, 0.0f, 0.0f}
+                .style = {.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Poppins", .font_weight = 700, .font_size = 132.0f},
+                          .color = Color{1.0f, 1.0f, 1.0f, 1.0f}},
+                .frame = {.size = {1280.0f, 180.0f}, .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .wrap = TextWrap::None, .tracking = 1.15f},
             });
         });
 

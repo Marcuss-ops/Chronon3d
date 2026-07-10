@@ -10,6 +10,7 @@
 #include <chronon3d/animation/easing/easing.hpp>
 
 #include "cinematic_showcase_helpers.hpp"
+#include <chronon3d/text/text_definition.hpp>  // F2.D — canonical DTO
 
 #include <string>
 #include <cmath>
@@ -97,12 +98,11 @@ Composition dolly_zoom_showcase() {
 
         s.layer("hud", [ctx](LayerBuilder& l) {
             l.position({-560.0f, 320.0f, 0.0f});
-            l.text("frame_label", TextSpec{
+            l.text("frame_label", TextDefinition{
                 .content = {.value = "Dolly Zoom: t = " + std::to_string(static_cast<int>(ctx.frame))},
-                .font = {.font_size = 18.0f},
-                .layout = {.box = {1100, 40}, .align = TextAlign::Left},
-                .appearance = {.color = {0.75f, 0.78f, 0.95f, 1.0f}},
-                .position = {0.0f, 0.0f, 0.0f}
+                .style = {.font = {.font_size = 18.0f},
+                          .color = {0.75f, 0.78f, 0.95f, 1.0f}},
+                .frame = {.size = {1100, 40}, .align = TextAlign::Left},
             });
         });
 
