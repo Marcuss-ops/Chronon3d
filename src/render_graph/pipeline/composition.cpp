@@ -5,6 +5,7 @@
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/animation/temporal/temporal_samples.hpp>     // PR1: single source of truth
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
@@ -98,14 +99,13 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     Frame frame,
     chronon3d::SoftwareRenderer* sw_sidecar
 ) {
-    // codex/agent2-font-bind-fixes — Materialise the FontEngine* once
-    // at the entry point so both the single-frame and the motion-blur
-    // sub-frame evaluation paths below share the same pointer.
-    // `sw_sidecar` is the SoftwareRenderer that owns the FontEngine
-    // (per-instance, WP-8 PR 8.0 strict binding); nullptr is
-    // tolerated by Composition::evaluate (engine-aware overload defaults
-    // to nullptr), so non-software callers (tests, CLI dry-runs) keep
-    // their existing semantics.
+    // Materialise the FontEngine* once at the entry point so both the
+    // single-frame and the motion-blur sub-frame evaluation paths below
+    // share the same pointer.  Primary source: sw_sidecar (the
+    // SoftwareRenderer that owns the per-instance FontEngine).
+    // When sw_sidecar is nullptr (CLI dry-run, test paths), frame_engine
+    // is null — the materializer's resolve_engine() provides a process-wide
+    // fallback (F1.D) so text still renders.
     FontEngine* frame_engine =
         (sw_sidecar != nullptr) ? &sw_sidecar->font_engine() : nullptr;
     const auto hits_before = node_cache.stats().hits;
