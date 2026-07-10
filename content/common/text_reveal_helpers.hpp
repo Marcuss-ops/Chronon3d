@@ -124,7 +124,14 @@ inline std::vector<GlyphPos> layout_glyphs(
     f32 ref_offset_x,
     FontEngine& engine) {
     auto run = engine.shape_text(text, spec, font_size);
-    if (!run || run->glyphs.empty()) return {};
+    if (!run || run->glyphs.empty()) {
+        throw std::runtime_error(
+            "layout_glyphs: HarfBuzz shaping produced zero glyphs. "
+            "font_path='" + spec.font_path +
+            "' font_size=" + std::to_string(font_size) +
+            " text='" + text.substr(0, 60) + "'. "
+            "Check that the font file exists and the AssetResolver is mounted.");
+    }
 
     std::vector<GlyphPos> out;
     out.reserve(run->glyphs.size());
@@ -219,14 +226,6 @@ inline void build_text_reveal_line(SceneBuilder& s,
     }
     auto chars = layout_glyphs(d.text, d.font_size, d.font_spec,
                                d.tracking, d.ref_offset_x, *engine);
-    if (chars.empty()) {
-        throw std::runtime_error(
-            "build_text_reveal_line: HarfBuzz shaping produced zero glyphs. "
-            "font_path='" + d.font_spec.font_path +
-            "' font_size=" + std::to_string(d.font_size) +
-            " text='" + d.text.substr(0, 60) + "'. "
-            "Check that the font file exists and the AssetResolver is mounted.");
-    }
 
     for (size_t i = 0; i < chars.size(); ++i) {
         const auto& gc = chars[i];
