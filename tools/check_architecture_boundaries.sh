@@ -677,36 +677,60 @@ else echo "PASS"; fi
 # sentinel against future re-import under the canonical public
 # include-tree scope).
 echo -n "  [23/23] TextPlacementResolver wrapper RETIRED ... "
-hits=$(grep -RnE 'class\s+TextPlacementResolver\b' include/chronon3d/ 2>/dev/null \
-    | filter_symbol_in_code_only 'class\s+TextPlacementResolver\b' \
-    || true)
-inc_hits=$(grep -Rn --include='*.hpp' --include='*.inl' \
-    -E '#\s*include\s+<chronon3d/text/text_placement_resolver\.hpp>' \
-    include/chronon3d/ 2>/dev/null \
-    || true)
-if [ -n "$hits" ] || [ -n "$inc_hits" ]; then
+# Structural sentinel (P1 reviewer hardening): the deleted wrapper header
+# must NEVER be re-created on disk. Even a re-rename from
+# resolve_text_placement.hpp would silently re-expose the wrapped
+# surface; this check catches that pre-grep.
+if [ -f include/chronon3d/text/text_placement_resolver.hpp ] \
+    || [ -f src/text/text_placement_resolver.cpp ]; then
     echo "FAIL"
-    if [ -n "$hits" ]; then
-        echo "  class TextPlacementResolver re-declared in include/chronon3d/:"
-        echo "$hits" | sed 's/^/    /'
-    fi
-    if [ -n "$inc_hits" ]; then
-        echo "  <chronon3d/text/text_placement_resolver.hpp> included from include/chronon3d/:"
-        echo "$inc_hits" | sed 's/^/    /'
-    fi
-    echo "  → Phase A6 (2026-07-10) retired the TextPlacementResolver wrapper"
-    echo "    surface. The free function \`resolve_text_placement()\` in"
-    echo "    \`include/chronon3d/text/resolve_text_placement.hpp\` is the"
-    echo "    canonical surface (per ADR-019 Decision 3). The retired wrapper"
-    echo "    header \`text_placement_resolver.hpp\` cannot be re-imported"
-    echo "    from any header under \`include/chronon3d/\` (this gate, per"
-    echo "    the user's directive: 'vieta l'include dell'header del wrapper"
-    echo "    rimosso da include/chronon3d/'). To re-expose a stateful"
-    echo "    resolver class, you MUST update ADR-019 + open a new ticket;"
-    echo "    do NOT silently re-introduce the class via a re-imported"
-    echo "    \`text_placement_resolver.hpp\`."
+    echo "  The retired wrapper files are back on disk:"
+    [ -f include/chronon3d/text/text_placement_resolver.hpp ] && \
+        echo "    include/chronon3d/text/text_placement_resolver.hpp"
+    [ -f src/text/text_placement_resolver.cpp ] && \
+        echo "    src/text/text_placement_resolver.cpp"
+    echo "  → Phase A6 (2026-07-10) deleted both files. If you need to reintroduce"
+    echo "    the TextPlacementResolver class surface, follow the user-directive"
+    echo "    procedure (ADR + new ticket) rather than git-renaming the canonical"
+    echo "    header back to the old filename."
     FAILED=1
-else echo "PASS"; fi
+    hits=""
+    inc_hits=""
+else
+    hits=$(grep -RnE 'class\s+TextPlacementResolver\b' include/chronon3d/ 2>/dev/null \
+        | filter_symbol_in_code_only 'class\s+TextPlacementResolver\b' \
+        || true)
+    # Symmetric include scan (P1 reviewer hardening): also cover .cpp under
+    # include/chronon3d/ to catch relative `#include "text_placement_resolver.hpp"`
+    # patterns a future commit might introduce.
+    inc_hits=$(grep -Rn --include='*.hpp' --include='*.inl' --include='*.cpp' \
+        -E '#\s*include\s+<chronon3d/text/text_placement_resolver\.hpp>' \
+        include/chronon3d/ 2>/dev/null \
+        || true)
+    if [ -n "$hits" ] || [ -n "$inc_hits" ]; then
+        echo "FAIL"
+        if [ -n "$hits" ]; then
+            echo "  class TextPlacementResolver re-declared in include/chronon3d/:"
+            echo "$hits" | sed 's/^/    /'
+        fi
+        if [ -n "$inc_hits" ]; then
+            echo "  <chronon3d/text/text_placement_resolver.hpp> included from include/chronon3d/:"
+            echo "$inc_hits" | sed 's/^/    /'
+        fi
+        echo "  → Phase A6 (2026-07-10) retired the TextPlacementResolver wrapper"
+        echo "    surface. The free function \`resolve_text_placement()\` in"
+        echo "    \`include/chronon3d/text/resolve_text_placement.hpp\` is the"
+        echo "    canonical surface (per ADR-019 Decision 3). The retired wrapper"
+        echo "    header \`text_placement_resolver.hpp\` cannot be re-imported"
+        echo "    from any header under \`include/chronon3d/\` (this gate, per"
+        echo "    the user's directive: 'vieta l'include dell'header del wrapper"
+        echo "    rimosso da include/chronon3d/'). To re-expose a stateful"
+        echo "    resolver class, you MUST update ADR-019 + open a new ticket;"
+        echo "    do NOT silently re-introduce the class via a re-imported"
+        echo "    \`text_placement_resolver.hpp\`."
+        FAILED=1
+    else echo "PASS"; fi
+fi
 
 # ── Summary ───────────────────────────────────────────────────────────
 # ── Summary ───────────────────────────────────────────────────────────
