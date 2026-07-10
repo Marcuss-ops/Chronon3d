@@ -13,8 +13,7 @@
 //   F2.A                    — reuse TextContent from builder_params.hpp +
 //                              fill in TextStyle + TextFrame with real fields
 //                              mapped from TextSpec
-//   Phase A.3                  — fill in TextEffects (compositor-level glow /
-//                              bevel / blur) + TextAnimation (animators +
+//   Phase A.3                  — fill in TextAnimation (animators +
 //                              selectors + run-control + Frame envelope).
 //                              from_text_run_spec now routes the 6 spec-only
 //                              fields into TextAnimation (replaces prior
@@ -211,55 +210,6 @@ struct TextFrame {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TextEffects — compositor-level effects (Phase A.3)
-// ═══════════════════════════════════════════════════════════════════════════
-//
-// TextEffects holds the post-compositor decorator surface for a text run.
-// It is INTENTIONALLY SEPARATE from TextDefStyle.material + TextDefStyle.shadows
-// (those live in the appearance/paint pipeline and are already consumed by the
-// renderer).  TextEffects is opt-in via `enabled` (default false → no effect).
-//
-// Simplification vs TextMaterial:
-//   - glow/bevel fields are a strict subset of TextMaterial (no preset factories,
-//     no gradient_angle, no inner_shadow, no shadow overrides).  When
-//     TextEffects grows further, prefer adding new fields here over duplicating
-//     TextMaterial — per AGENTS.md "Non duplicare registry / sampler".
-//
-// Precedence rule (Phase A.3 split):
-//   - def.effects.enabled = false → TextDefStyle.material.{glow_*, bevel_*}
-//     is the canonical compositor surface.
-//   - def.effects.enabled = true  → def.effects.* wins (compositor-level
-//     override independent of the material layer).
-// This split lets `glow_text()` keep populating TextDefStyle.material without
-// touching TextEffects (renderer picks one path based on enabled flag).
-//
-// Sibling naming: `TextEffects` (NOT TextDefEffects) — verified no collision with
-// existing `chronon3d::TextStyle`/`TextBoxStyle` etc. in shape.hpp; mirror the
-// shading-name pattern used by TextBoxStyle / TextPaint / TextShadow in that
-// umbrella header.
-
-struct TextEffects {
-    /// Master switch — false = NO effect applied (renderer treats the struct
-    /// as if every field were in default state).
-    bool enabled{false};
-
-    // ── Glow — radial blur + tint pass ───────────────────────────────
-    Color glow_color{0.0f, 1.0f, 0.8f, 0.8f};    // RGBA tint
-    f32   glow_radius{8.0f};                     // extent in pixels
-    f32   glow_intensity{0.8f};                 // strength [0,1]
-
-    // ── Bevel — fake-3D edge highlight + shadow strip ───────────────
-    f32   bevel_px{0.0f};                        // bevel thickness in pixels
-    f32   bevel_highlight_opacity{0.35f};       // top-left highlight opacity
-    f32   bevel_shadow_opacity{0.25f};          // bottom-right shadow opacity
-    Color bevel_highlight_color{1.0f, 1.0f, 1.0f, 1.0f};  // top-left highlight tint
-
-    // ── Blur — Gaussian layer (distinct from TextShadow::blur) ───────
-    f32   blur_radius{0.0f};                     // extent in pixels
-    f32   blur_strength{0.0f};                  // strength [0,1]
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
 // TextAnimation — runtime animation contracts (Phase A.3)
 // ═══════════════════════════════════════════════════════════════════════════
 //
@@ -312,7 +262,6 @@ struct TextDefinition {
     TextDefStyle             style;       ///< font, size, color, stroke, material
     TextFrame                frame;       ///< layout box, position, alignment
     ParagraphStyle           paragraph;   ///< paragraph-level typography (reused)
-    TextEffects              effects;     ///< glow, shadow, etc. (Phase A.3)
     TextAnimation            animation;   ///< typewriter, reveal, etc. (Phase A.3)
 };
 
