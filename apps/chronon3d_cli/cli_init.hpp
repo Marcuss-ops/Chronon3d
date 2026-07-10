@@ -44,12 +44,11 @@
 
 namespace chronon3d::cli {
 
-/// Returns the CLI-wide static AssetRegistry.  Created once, shared
-/// between init_compositions() and render_job_setup().
-inline AssetRegistry& cli_asset_registry() {
-    static AssetRegistry reg;
-    return reg;
-}
+// cli_asset_registry() REMOVED — the global mutable static AssetRegistry
+// was a concurrency hazard (daemon, watch mode, parallel render jobs).
+// AssetRegistry is now created in main() and threaded through CliContext.
+// Per-renderer asset mounting happens in create_renderer() via
+// renderer->runtime().assets().mount(cwd) + resolver().mount(cwd).
 
 /// PR 3.5 — returns the CLI-wide static StyleRegistry + MotionRegistry.
 /// Created once, shared between authoring-time text builders. Host code
@@ -79,8 +78,7 @@ inline authoring::MotionRegistry& cli_motion_registry() {
 
 /// Register built-in content compositions and built-in compositions
 /// into the given registry.  Safe to call multiple times.
-inline void init_compositions(CompositionRegistry& registry) {
-    auto& assets = cli_asset_registry();
+inline void init_compositions(CompositionRegistry& registry, AssetRegistry& assets) {
 
 #if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
     static ExtensionCatalog content_catalog;

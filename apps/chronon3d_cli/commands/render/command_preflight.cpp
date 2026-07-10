@@ -1,5 +1,5 @@
 #include "../../commands.hpp"
-#include "../../cli_init.hpp"
+#include "../../cli_context.hpp"
 #include "../../utils/common/cli_asset_preflight_utils.hpp"
 #include <chronon3d/assets/render_preflight.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
@@ -14,7 +14,7 @@
 namespace chronon3d {
 namespace cli {
 
-int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args) {
+int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args, AssetRegistry& assets) {
     if (!registry.contains(args.comp_id)) {
         spdlog::error("Unknown composition: {}", args.comp_id);
         return 1;
@@ -51,13 +51,13 @@ int command_preflight(const CompositionRegistry& registry, const PreflightArgs& 
         if (!args.output.empty()) {
             preflight.require_output_path(args.output);
         }
-        auto legacy_issues = preflight.validate(cli_asset_registry(), resolver);
+        auto legacy_issues = preflight.validate(assets, resolver);
         all_issues.insert(all_issues.end(), legacy_issues.begin(), legacy_issues.end());
     } else if (!args.output.empty()) {
         // Even without legacy, check output path writability
         auto& preflight = RenderPreflight::instance();
         preflight.require_output_path(args.output);
-        auto output_issues = preflight.validate(cli_asset_registry(), resolver);
+        auto output_issues = preflight.validate(assets, resolver);
         all_issues.insert(all_issues.end(), output_issues.begin(), output_issues.end());
         preflight.clear();
     }
