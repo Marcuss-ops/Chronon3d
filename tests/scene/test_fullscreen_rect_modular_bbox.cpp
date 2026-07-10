@@ -34,13 +34,13 @@ using namespace chronon3d;
 namespace {
 
 // ── helpers ────────────────────────────────────────────────────────────
-// Read the RectShape from a layer's first RenderNode.  Calls REQUIRE so
-// any structural mismatch is reported as a test failure with a useful
-// message instead of a dereference of `nullopt`.
-const RectShape& first_rect_of(const Layer& layer) {
+// Read the first RenderNode from a layer.  Calls REQUIRE so any
+// structural mismatch is reported as a test failure with a useful
+// message instead of a dereference crash.
+const RenderNode& first_node_of(const Layer& layer) {
     REQUIRE(layer.nodes.size() == 1);
     REQUIRE(layer.nodes[0].shape.type() == ShapeType::Rect);
-    return layer.nodes[0].shape.rect();
+    return layer.nodes[0];
 }
 
 } // namespace
@@ -60,22 +60,26 @@ TEST_CASE("FIX 4: fullscreen_rect creates canvas-correct shape (1920x1080 defaul
     CHECK(layer.layout.enabled);
     REQUIRE(layer.layout.pin.has_value());
     CHECK(layer.layout.pin->anchor == Anchor::Center);
+    // margin lives on LayoutRules, not on AnchorPlacement.
     CHECK(layer.layout.margin == doctest::Approx(0.0f));
 
     // FIX 4 — pos = (-w/2, -h/2, 0) pre-baked negative half offset.
-    const RectShape& rect = first_rect_of(layer);
+    // RectParams.pos maps to RenderNode::world_transform.position
+    // (RectShape itself only carries size + stroke).
+    const RenderNode& node = first_node_of(layer);
+    const RectShape& rect = node.shape.rect();
     CHECK(rect.size.x == doctest::Approx(1920.0f));
     CHECK(rect.size.y == doctest::Approx(1080.0f));
-    CHECK(layer.nodes[0].world_transform.position.x == doctest::Approx(-960.0f));   // -m_screen_width  * 0.5
-    CHECK(layer.nodes[0].world_transform.position.y == doctest::Approx(-540.0f));   // -m_screen_height * 0.5
-    CHECK(layer.nodes[0].world_transform.position.z == doctest::Approx(0.0f));
+    CHECK(node.world_transform.position.x == doctest::Approx(-960.0f));   // -m_screen_width  * 0.5
+    CHECK(node.world_transform.position.y == doctest::Approx(-540.0f));   // -m_screen_height * 0.5
+    CHECK(node.world_transform.position.z == doctest::Approx(0.0f));
 
     // Name + color passed through verbatim.
-    CHECK(layer.nodes[0].name == "fill");
-    CHECK(layer.nodes[0].color.r == doctest::Approx(1.0f));
-    CHECK(layer.nodes[0].color.g == doctest::Approx(1.0f));
-    CHECK(layer.nodes[0].color.b == doctest::Approx(1.0f));
-    CHECK(layer.nodes[0].color.a == doctest::Approx(1.0f));
+    CHECK(node.name == "fill");
+    CHECK(node.color.r == doctest::Approx(1.0f));
+    CHECK(node.color.g == doctest::Approx(1.0f));
+    CHECK(node.color.b == doctest::Approx(1.0f));
+    CHECK(node.color.a == doctest::Approx(1.0f));
 }
 
 TEST_CASE("FIX 4: fullscreen_rect honors explicit screen_dimensions (1280x720)") {
@@ -92,18 +96,19 @@ TEST_CASE("FIX 4: fullscreen_rect honors explicit screen_dimensions (1280x720)")
     REQUIRE(layer.layout.pin.has_value());
     CHECK(layer.layout.pin->anchor == Anchor::Center);
 
-    const RectShape& rect = first_rect_of(layer);
+    const RenderNode& node = first_node_of(layer);
+    const RectShape& rect = node.shape.rect();
     CHECK(rect.size.x == doctest::Approx(1280.0f));
     CHECK(rect.size.y == doctest::Approx(720.0f));
-    CHECK(layer.nodes[0].world_transform.position.x == doctest::Approx(-640.0f));   // -1280 * 0.5
-    CHECK(layer.nodes[0].world_transform.position.y == doctest::Approx(-360.0f));   // -720  * 0.5
-    CHECK(layer.nodes[0].world_transform.position.z == doctest::Approx(0.0f));
+    CHECK(node.world_transform.position.x == doctest::Approx(-640.0f));   // -1280 * 0.5
+    CHECK(node.world_transform.position.y == doctest::Approx(-360.0f));   // -720  * 0.5
+    CHECK(node.world_transform.position.z == doctest::Approx(0.0f));
 
-    CHECK(layer.nodes[0].name == "fill_bg");
-    CHECK(layer.nodes[0].color.r == doctest::Approx(0.0f));
-    CHECK(layer.nodes[0].color.g == doctest::Approx(0.0f));
-    CHECK(layer.nodes[0].color.b == doctest::Approx(0.0f));
-    CHECK(layer.nodes[0].color.a == doctest::Approx(1.0f));
+    CHECK(node.name == "fill_bg");
+    CHECK(node.color.r == doctest::Approx(0.0f));
+    CHECK(node.color.g == doctest::Approx(0.0f));
+    CHECK(node.color.b == doctest::Approx(0.0f));
+    CHECK(node.color.a == doctest::Approx(1.0f));
 }
 
 TEST_CASE("FIX 4: fill() helper delegates to fullscreen_rect (pin + pos offset)") {
@@ -122,18 +127,19 @@ TEST_CASE("FIX 4: fill() helper delegates to fullscreen_rect (pin + pos offset)"
     REQUIRE(layer.layout.pin.has_value());
     CHECK(layer.layout.pin->anchor == Anchor::Center);
 
-    const RectShape& rect = first_rect_of(layer);
+    const RenderNode& node = first_node_of(layer);
+    const RectShape& rect = node.shape.rect();
     CHECK(rect.size.x == doctest::Approx(1920.0f));
     CHECK(rect.size.y == doctest::Approx(1080.0f));
-    CHECK(layer.nodes[0].world_transform.position.x == doctest::Approx(-960.0f));
-    CHECK(layer.nodes[0].world_transform.position.y == doctest::Approx(-540.0f));
-    CHECK(layer.nodes[0].world_transform.position.z == doctest::Approx(0.0f));
+    CHECK(node.world_transform.position.x == doctest::Approx(-960.0f));
+    CHECK(node.world_transform.position.y == doctest::Approx(-540.0f));
+    CHECK(node.world_transform.position.z == doctest::Approx(0.0f));
 
-    CHECK(layer.nodes[0].name == "fill");
-    CHECK(layer.nodes[0].color.r == doctest::Approx(1.0f));
-    CHECK(layer.nodes[0].color.g == doctest::Approx(0.0f));
-    CHECK(layer.nodes[0].color.b == doctest::Approx(0.0f));
-    CHECK(layer.nodes[0].color.a == doctest::Approx(1.0f));
+    CHECK(node.name == "fill");
+    CHECK(node.color.r == doctest::Approx(1.0f));
+    CHECK(node.color.g == doctest::Approx(0.0f));
+    CHECK(node.color.b == doctest::Approx(0.0f));
+    CHECK(node.color.a == doctest::Approx(1.0f));
 }
 
 TEST_CASE("FIX 4: fullscreen_rect falls back to 1920x1080 defaults when screen_dimensions not called") {
@@ -157,12 +163,13 @@ TEST_CASE("FIX 4: fullscreen_rect falls back to 1920x1080 defaults when screen_d
     CHECK(layer.layout.pin->anchor == Anchor::Center);
     CHECK(layer.layout.margin == doctest::Approx(0.0f));
 
-    const RectShape& rect = first_rect_of(layer);
+    const RenderNode& node = first_node_of(layer);
+    const RectShape& rect = node.shape.rect();
     CHECK(rect.size.x == doctest::Approx(1920.0f));
     CHECK(rect.size.y == doctest::Approx(1080.0f));
-    CHECK(layer.nodes[0].world_transform.position.x == doctest::Approx(-960.0f));
-    CHECK(layer.nodes[0].world_transform.position.y == doctest::Approx(-540.0f));
-    CHECK(layer.nodes[0].world_transform.position.z == doctest::Approx(0.0f));
+    CHECK(node.world_transform.position.x == doctest::Approx(-960.0f));
+    CHECK(node.world_transform.position.y == doctest::Approx(-540.0f));
+    CHECK(node.world_transform.position.z == doctest::Approx(0.0f));
 
     // The flag lives on LayerBuilder (not Layer), so we cannot inspect
     // it after build(); the explicit-flag contract is:
