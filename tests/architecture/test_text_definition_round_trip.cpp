@@ -97,7 +97,7 @@ namespace test {
 
     // ── position (1 field) ──────────────────────────────────────────────
     spec.placement = {TextPlacementKind::Absolute};
-    spec.offset    = {100.0f, 200.0f};  // non-default
+    spec.placement.offset = {100.0f, 200.0f};  // non-default
 
     return spec;
 }
