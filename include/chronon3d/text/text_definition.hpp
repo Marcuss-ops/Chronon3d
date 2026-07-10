@@ -13,7 +13,7 @@
 //   F2.A                    — reuse TextContent from builder_params.hpp +
 //                              fill in TextStyle + TextFrame with real fields
 //                              mapped from TextSpec
-//   Phase A.3 (this commit)   — fill in TextEffects (compositor-level glow /
+//   Phase A.3                  — fill in TextEffects (compositor-level glow /
 //                              bevel / blur) + TextAnimation (animators +
 //                              selectors + run-control + Frame envelope).
 //                              from_text_run_spec now routes the 6 spec-only
@@ -21,9 +21,18 @@
 //                              (void)silence).
 //                              LOSSY REVERSE: from_text_definition returns
 //                              TextSpec only — direction/language/script/
-//                              animators/selectors are NOT carried back.  A
-//                              TextDefinition→TextRunSpec adapter is a future
-//                              F2.D milestone.
+//                              animators/selectors are NOT carried back.
+//   F2.D (this commit)          — to_text_run_spec closes the adapter gap.
+//                              The 6 spec-only fields above are now carried
+//                              back to a TextRunSpec from a TextDefinition.
+//                              ADDITIONAL LOSSY DROP (per-run Frame envelope):
+//                              TextAnimation.start_delay + .duration are
+//                              NOT representable in TextRunSpec and are
+//                              silently dropped during to_text_run_spec.
+//                              Roundtrip TextDefinition → TextRunSpec →
+//                              TextDefinition therefore re-initialises the
+//                              Frame envelope to Frame{0}.  This is the
+//                              documented, tested behaviour.
 //   Phase B (implemented)   — to_text_document(const TextDefinition&) lowers
 //                            this DTO into the canonical TextDocument pipeline
 //                            model consumed by compile_text_layout()
@@ -309,11 +318,26 @@ struct TextDefinition {
 /// Full implementation in src/text/text_definition.cpp.
 [[nodiscard]] TextDefinition from_text_run_spec(const TextRunSpec& spec);
 
-/// Reverse adapter: convert the canonical TextDefinition back to TextSpec.
-/// Used by LayerBuilder::text(name, TextDefinition) and by helper functions
-/// that need to bridge from the canonical DTO to the builder's TextSpec.
-/// Full implementation in src/text/text_definition.cpp (F2.C adapter phase).
-[[nodiscard]] TextSpec from_text_definition(const TextDefinition& def);
+/// F2.D — Reverse adapter: convert the canonical TextDefinition back to
+/// TextRunSpec (the editor / authoring spec that carries animators, selectors,
+/// run-control fields, and cache_layout — the fields NOT present in TextSpec).
+///
+/// LOSSY DROP (documented): TextRunSpec does NOT represent the Frame envelope
+/// (TextAnimation.start_delay + .duration); these fields are silently dropped
+/// during the conversion.  Roundtrip TextDefinition → TextRunSpec →
+/// TextDefinition therefore yields Frame{0} for both envelope fields — this
+/// is the canonical, tested behaviour (see test_text_definition.cpp group 19).
+///
+/// Base fields (style, frame, paragraph) reuse from_text_definition() so the
+/// two reverse adapters (`from_text_definition` for TextSpec and
+/// `to_text_run_spec` for TextRunSpec) cannot drift out of sync — per Phase B
+/// risk register "Duplicating the Base TextSpec Conversion".
+///
+/// Parallel naming pattern to `to_text_document` (Phase B) — both lowerers
+/// consume TextDefinition into a downstream model.  Name chosen over the
+/// user-suggested `from_run_spec_definition` for symmetry with
+/// `to_text_document`.
+[[nodiscard]] TextRunSpec to_text_run_spec(const TextDefinition& def);
 
 /// Phase B — lower the canonical TextDefinition into a TextDocument
 /// (the runtime pipeline model consumed by compile_text_layout()).

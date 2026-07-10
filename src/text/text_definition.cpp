@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: MIT
 
 // ═══════════════════════════════════════════════════════════════════════════
-// text_definition.cpp — F2.A adapter implementations
+// text_definition.cpp — F2.A + F2.D adapter implementations
 //
-// from_text_spec() and from_text_run_spec() adapt the existing TextSpec /
-// TextRunSpec (builder_params.hpp) into the canonical TextDefinition DTO.
+// Adapters between the canonical TextDefinition DTO and the editor-facing
+// TextSpec / TextRunSpec (builder_params.hpp):
 //
-// These adapters bridge the F2.A (canonical struct) and F2.C (full adapter
-// phase) milestones.  During F2.C, text()/text_run()/centered_text() will
-// call these adapters to produce a single TextDefinition.
+//   from_text_spec(spec)        → def            (F2.A — base spec)
+//   from_text_run_spec(run_spec)→ def            (Phase A.3 — adds animation)
+//   from_text_definition(def)   → spec           (F2.A — reverse, lossy: drops anims)
+//   to_text_run_spec(def)       → run_spec       (F2.D — reverse, lossy: drops Frame envelope)
+//   to_text_document(def)       → doc            (Phase B — runtime lowering)
+//
+// All reverse adapters share a single loss contract:  `from_text_definition`
+// drops animation, `to_text_run_spec` drops the Frame envelope.  Both losses
+// are documented in text_definition.hpp's LIFECYCLE comment.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/text/text_definition.hpp>
@@ -111,6 +117,52 @@ TextSpec from_text_definition(const TextDefinition& def) {
     spec.position = def.frame.position;
 
     return spec;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// F2.D — to_text_run_spec(): TextDefinition → TextRunSpec
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Closes the LOSSY REVERSE gap flagged in the LIFECYCLE comment of
+// text_definition.hpp:  the 6 spec-only animation fields
+// (animators, selectors, direction, language, script, cache_layout) are now
+// carried back from TextDefinition to a TextRunSpec, enabling round-trip
+// conversions between the two authoring DTOs.
+//
+// LOSSY DROP (documented + tested in group 19):
+//   TextAnimation.start_delay + .duration (Frame envelope) are NOT
+//   representable in TextRunSpec and are silently dropped.  Roundtrip
+//   TextDefinition → TextRunSpec → TextDefinition therefore yields Frame{0}
+//   for both envelope fields — canonical behaviour.
+//
+// IMPLEMENTATION NOTE — re-uses from_text_definition() for the base spec
+// rather than re-mapping the 22 base fields manually.  This guarantees the
+// two reverse adapters cannot drift out of sync when TextSpec evolves.
+
+TextRunSpec to_text_run_spec(const TextDefinition& def) {
+    TextRunSpec run_spec;
+
+    // ── Base spec ──────────────────────────────────────────────────────
+    // Re-use the F2.A reverse adapter for the 22 base fields (content, font,
+    // layout, appearance, position).  This is intentional — duplicating the
+    // mapping here would cause immediate drift the next time TextSpec grows
+    // a field.
+    run_spec.text = from_text_definition(def);
+
+    // ── Animation (6 spec-only fields) ────────────────────────────────
+    run_spec.animators    = def.animation.animators;
+    run_spec.selectors    = def.animation.selectors;
+    run_spec.direction    = def.animation.direction;
+    run_spec.language     = def.animation.language;
+    run_spec.script       = def.animation.script;
+    run_spec.cache_layout = def.animation.cache_layout;
+
+    // ── Frame envelope (intentionally dropped) ────────────────────────
+    // start_delay + duration are NOT represented in TextRunSpec; the
+    // LOSSY DROP is documented in the LIFECYCLE comment of
+    // text_definition.hpp and asserted in test 19.4.
+
+    return run_spec;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
