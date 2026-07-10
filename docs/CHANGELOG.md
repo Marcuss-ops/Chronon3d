@@ -1,3 +1,52 @@
+## Luglio 2026 — TICKET-CHANGELOG-CONFLICT-CLEANUP — document CHANGELOG conflict root cause + add forward-only CI gate (2026-07-10, atomic commit)
+
+### feat(docs+ci): TICKET-CHANGELOG-CONFLICT-CLEANUP — forward-only CI gate prevents recurrence of f5551a13 CHANGELOG conflict
+
+- **Scope**: TICKET-CHANGELOG-CONFLICT-CLEANUP. Document the pre-existing `docs/CHANGELOG.md` conflict (the `<<<<<<< HEAD` / `=======` / `>>>>>>> be77fbd5` markers that persisted in main for ~10 commits before being resolved as a side effect of the TICKET-FASE3-MULTILINGUAL cycle 4 commit `5efcc301`), identify the introducing commit, and add a forward-only CI gate to prevent recurrence. Cross-references: [`docs/tickets/TICKET-CHANGELOG-CONFLICT-CLEANUP.md`](tickets/TICKET-CHANGELOG-CONFLICT-CLEANUP.md) (full ticket + forensic timeline + acceptance criteria); `TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS` (OPEN, broader 3-tracked-files rot pattern; this ticket is scoped to CHANGELOG.md only).
+
+- **Root cause (machine-verified)**: commit `f5551a13` (titled `docs(sync): F3.D closure - CHANGELOG + FOLLOWUP + CURRENT_STATUS`, 2026-07-10) was a failed `git merge` of `be77fbd5` (F3.D closure) into HEAD that was committed verbatim with the conflict markers still in the file. The TICKET-SIMPLICITY entries (added by HEAD between `be77fbd5` and `f5551a13`) conflicted with the F3.D entry; the merge was committed without resolution. `git log --all -p -S'<<<<<<< HEAD' -- docs/CHANGELOG.md` confirms `f5551a13` as the introducing commit. `be77fbd5` itself did NOT have the markers (it was the incoming side of the failed merge).
+
+- **Impact**: ~10 commits in main (from `f5551a13` to `5efcc301`); P1 severity (broke markdown rendering of CHANGELOG.md, broke doc-sync gate expectations, made the CHANGELOG unreadable in raw form).
+
+- **Resolution (commit `5efcc301`, side effect of TICKET-FASE3-MULTILINGUAL cycle 4)**: the Fase 4 commit resolved the conflict by taking BOTH sides (TICKET-SIMPLICITY entries from HEAD + F3.D entry from `be77fbd5`) via `sed -i '/^<<<<<<< /d; /^>>>>>>> /d; /^=======$/d' docs/CHANGELOG.md` after verifying that no markdown setext headings used `=======` as an underline (the canonical CHANGELOG uses ATX-style headings `##` / `###` exclusively).
+
+- **Forward-only CI gate (NEW)**: `tools/check_no_changelog_conflict_markers.sh` (74 LoC, executable, smoke-tested locally). Greps for `^(<<<<<<< |=======$|>>>>>>> )` in `docs/CHANGELOG.md`; exit 0 if clean, exit 1 with remediation hint (offending lines + fix command) if any markers are found. Pattern note documented in the script: `=======$` is matched because (a) git conflict separators are exactly 7 `=` chars, and (b) markdown setext heading underlines are typically `---` (3+ dashes), not `=======`. The canonical CHANGELOG uses ATX-style headings exclusively, so this is safe; if a future entry needs setext headings, the gate would need to be refined.
+
+- **Gate chain registration**: `tools/wrap_push.sh` Step 4.5d (post-`check_frame_value_convention.sh`, pre-`git push`). Follows the existing gate pattern: `echo` + `bash` + `|| { GATE_FAIL; exit 1; }`. No `--skip-gates` escape hatch (violations are deterministic link-breakers per the existing TICKET-110 contract). The gate runs LOCALLY (no network, no gh API) on every `git push` invocation via the canonical wrapper.
+
+- **New files (2)**:
+  - `docs/tickets/TICKET-CHANGELOG-CONFLICT-CLEANUP.md` (~80 LoC) — full ticket with Background / Root Cause / Impact / Resolution / Forward Point / Acceptance Criteria / Related Tickets / Cross-references sections.
+  - `tools/check_no_changelog_conflict_markers.sh` (74 LoC, NEW) — the CI gate. Anti-duplicazione: reuses the existing `bash` + `grep -nE` + `sed` pattern from sibling gates; no new singleton/registry/cache/resolver/sampler introduced.
+
+- **Modified files (3)**:
+  - `tools/wrap_push.sh` — added 7-line Step 4.5d block (echo + bash + remediation comment + `|| { GATE_FAIL; exit 1; }`). Updated header comment to reflect the new gate (Gate chain count: 5 → 6).
+  - `docs/FOLLOWUP_TICKETS.md` — new row in `## Recently Closed` table at the top, with cross-link to the ticket file + 1-line status summary.
+  - `docs/CHANGELOG.md` — this entry prepended at TOP (the Fase 4 entry moved down by 1 position).
+
+- **API/ABI surface**: zero changes (no source code modified; ticket + gate script + .sh + 2 docs only).
+
+- **Anti-duplicazione honour (AGENTS.md §anti-duplication rules)**: zero new content. The ticket is a single canonical cross-link entry that consolidates the existing knowledge (the Fase 4 CHANGELOG entry, the `be77fbd5` F3.D commit, the `f5551a13` introducing commit) into one place. The gate script reuses the existing `bash` + `grep` + `sed` pattern from sibling gates (`check_no_dual_text_api.sh`, `check_frame_value_convention.sh`); no new logging framework, no new dependency.
+
+- **AGENTS.md v0.1 freeze compliance**:
+  - **Cat-3** (no new public API surface): SATISFIED — zero source code modified, zero new symbols; ticket + gate + 2 docs only.
+  - **Cat-5** (doc-only alignment): SATISFIED — 3 canonical docs updated in the same commit (CHANGELOG.md + FOLLOWUP_TICKETS.md + the new ticket file; gate `#7 check_doc_sync.sh` R5 fires on TICKET-CHANGELOG-CONFLICT-CLEANUP closure).
+  - Gate 5 deny-everywhere compliance: N/A — no `#include <msdfgen>`/`<libtess2>`/`<unicode[/...]>` introduced.
+  - Zero nuovi singleton/registry/cache/resolver/sampler/service-locator.
+
+- **Gate smoke-test** (machine-verified locally):
+  - `bash tools/check_no_changelog_conflict_markers.sh` on the current clean CHANGELOG → `exit: 0` + `OK: no git merge conflict markers in docs/CHANGELOG.md`.
+  - `bash -c` with a synthetic CHANGELOG containing `<<<<<<< HEAD` / `=======` / `>>>>>>> be77fbd5` → `exit: 1` + `GATE_FAIL: git merge conflict markers detected in docs/CHANGELOG.md` + offending lines + remediation hint.
+  - `chmod +x tools/check_no_changelog_conflict_markers.sh` → `YES` (executable bit set).
+  - `bash -n tools/check_no_changelog_conflict_markers.sh` → syntax check PASS (no bash errors).
+
+- **Honest limitation (per AGENTS.md §honesty)**: this commit does NOT include a `TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS` resolution (the broader 3-tracked-files rot pattern remains OPEN per the §Open Blockers table). The scope of this ticket is intentionally limited to the CHANGELOG.md case (the most user-visible and doc-sync-gate-breaking of the 3 files). The `TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS` ticket should be closed in a separate forward-point commit with a generalized gate that scans all `.md` files under `docs/canonical/` (not just CHANGELOG.md) for conflict markers.
+
+- **Forward-point (not in this commit)**: `TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS` (OPEN) — generalize the gate to scan all `docs/canonical/*.md` + `docs/tickets/*.md` for conflict markers + fix the 2 remaining tracked files. All forward-points are separate atomic commits per AGENTS.md §GATE-MNT-01.
+
+- **Cross-references**: [`docs/tickets/TICKET-CHANGELOG-CONFLICT-CLEANUP.md`](docs/tickets/TICKET-CHANGELOG-CONFLICT-CLEANUP.md) (the new ticket); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Recently Closed` row (the new entry); `tools/check_no_changelog_conflict_markers.sh` (the new gate); `tools/wrap_push.sh` Step 4.5d (the new wire-up); commit `5efcc301` (the side-effect resolution); commit `f5551a13` (the introducing commit); commit `be77fbd5` (the incoming side of the failed merge); `tools/wrap_push.sh` Step 4 (the existing GATE-MNT-01 rebase-clean invariant); `tools/check_doc_sync.sh` R5 (the existing TICKET-closure → CHANGELOG co-update rule); `AGENTS.md` §Regole di lavoro (no fabricate / no silent failure / no untracked mods in commit).
+
+---
+
 ## Luglio 2026 — TICKET-FASE3-MULTILINGUAL §HangulComposition (4th multilingual golden: 3 TEST_CASEs, 6 PNG) (2026-07-10, atomic commit)
 
 ### feat(text_golden): TICKET-FASE3-MULTILINGUAL §HangulComposition — Hangul Syllables U+AC00–U+D7A3 composition correctness
