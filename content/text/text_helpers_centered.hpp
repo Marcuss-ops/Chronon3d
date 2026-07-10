@@ -69,37 +69,42 @@ inline TextDefinition centered_text(CenterTextOptions o) {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 2. glow_text — DEPRECATED since F2 (2026-07-10)
+// 2. glow_text — DEPRECATED since F2 (2026-07-10) + Phase A5 (canonical route)
 // ═════════════════════════════════════════════════════════════════════════════
 //
-// ⚠️ DEPRECATED: use centered_text() + set .effects directly on the returned
-// TextDefinition.  This keeps the glow as a post-compositor TextEffect instead
-// of baking it into the helper function.
+// ⚠️ DEPRECATED: use centered_text() + set .style.material.use_material_glow +
+// .style.material.glow_{color,radius,intensity} on the returned TextDefinition.
+// `TextMaterial` (the umbrella material struct) is the SINGLE canonical
+// compositor surface for glow/bevel effects — there is no duplicate
+// `TextEffects` field on `TextDefinition` (eliminated in Phase A5 close-out).
 //
 // Migration:
-//   // Before:
+//   // Before (Phase A.3 → Phase A5):
 //   auto def = glow_text(opts, glow_color, radius, intensity);
-//   // After:
+//   // After (Phase A5 canonical):
 //   auto def = centered_text(opts);
-//   def.effects.enabled       = true;
-//   def.effects.glow_color    = glow_color;
-//   def.effects.glow_radius   = radius;
-//   def.effects.glow_intensity = intensity;
+//   def.style.material.use_material_glow = true;
+//   def.style.material.glow_color        = glow_color;
+//   def.style.material.glow_radius       = radius;
+//   def.style.material.glow_intensity    = intensity;
 //
-/// F2 — wires glow parameters to TextEffect on the returned TextDefinition.
-/// The glow is applied as a post-compositor effect, matching the Phase A.3
-/// split between TextDefStyle.material (appearance) and TextEffects (compositor).
-[[deprecated("Use centered_text() + set .effects on TextDefinition instead")]]
+/// F2 + Phase A5 — wires glow parameters to TextMaterial.use_material_glow +
+/// TextMaterial.glow_{color,radius,intensity} on the returned TextDefinition.
+/// `TextMaterial` is the single canonical compositor surface; the prior
+/// `TextEffects` duplicate struct was eliminated in Phase A5 close-out.
+[[deprecated("Use centered_text() + set .style.material.{use_material_glow,glow_*} "
+             "on TextDefinition instead (Phase A5 canonical seam)")]]
 inline TextDefinition glow_text(CenterTextOptions o,
                             Color glow_color = {1.0f, 1.0f, 1.0f, 1.0f},
                             f32 radius = 24.0f,
                             f32 intensity = 0.6f) {
     auto def = centered_text(std::move(o));
-    // F2: wire glow parameters to TextEffect (post-compositor surface)
-    def.effects.enabled        = true;
-    def.effects.glow_color     = glow_color;
-    def.effects.glow_radius    = radius;
-    def.effects.glow_intensity = intensity;
+    // Phase A5 canonical route (was: def.effects.* in F2/Phase A.3).
+    // TextMaterial is the single canonical compositor surface.
+    def.style.material.use_material_glow = true;
+    def.style.material.glow_color        = glow_color;
+    def.style.material.glow_radius       = radius;
+    def.style.material.glow_intensity    = intensity;
     return def;
 }
 

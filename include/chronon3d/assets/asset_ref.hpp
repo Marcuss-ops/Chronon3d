@@ -28,7 +28,7 @@
 
 #pragma once
 
-#include <chronon3d/assets/asset_readiness_v2.hpp>   // assets::AssetKind, assets::InternalAssetRef, assets::AssetManifest
+#include <chronon3d/assets/asset_manifest.hpp>        // assets::AssetKind + assets::InternalAssetRef + assets::AssetManifest (Phase A2 #3/3)
 #include <chronon3d/assets/asset_resolver.hpp>        // assets::AssetResolver
 #include <chronon3d/assets/asset_registry.hpp>        // AssetRegistry, AssetId
 
