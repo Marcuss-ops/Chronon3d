@@ -439,12 +439,31 @@ public:
     //
     LayerBuilder& text(std::string name, TextSpec p);
 
-    /// F2.C — canonical authoring overload accepting TextDefinition.
-    /// Converts via from_text_definition() and delegates to text(name, TextSpec).
-    /// This is the RECOMMENDED entry point for new compositions;
-    /// centered_text() / glow_text() / typewriter_text() now all return
-    /// TextDefinition so they compose directly with this overload.
+    /// F3.D — forward-point authoring overload accepting TextDefinition.
+    /// Routes via text_run(to_text_run_spec(def)).commit(), the F2.D lossless
+    /// reverse adapter.  This is the RECOMMENDED entry point for new
+    /// compositions; centered_text() / glow_text() / typewriter_text()
+    /// all return TextDefinition and compose directly with this overload.
+    ///
+    /// Behaviour vs F2.C (historical): animation fields populated in
+    /// TextDefinition (animators, selectors, direction, language, script,
+    /// cache_layout) are now carried all the way to TextRunSpec and downstream
+    /// to materialize_text_run_shape() — previously they were silently
+    /// dropped by the F2.C lossy via from_text_definition() path.
+    ///
+    /// Frame envelope drop (TextAnimation.start_delay + .duration) is
+    /// identical to text_run(name, TextDefinition) — see text_definition.hpp
+    /// F2.D LIFECYCLE.
     LayerBuilder& text(std::string name, const TextDefinition& def);
+
+    /// F3.D — forward-point overload accepting TextRunSpec.
+    /// The symmetric counterpart of text_run(name, TextRunSpec).  Lets the
+    /// caller land on the canonical text_run chain via the short-form
+    ///   layer.text("id", run_spec).commit();
+    /// instead of the verbose
+    ///   layer.text_run("id", run_spec).commit();
+    /// Behaviourally identical — sugar only.
+    LayerBuilder& text(std::string name, TextRunSpec run);
 
     // ── TextRunBuilder (PR 4 — TextAnimator V2) ──────────────────────────
     /// Push a new text-run entry into the layer's pending specs and
@@ -461,21 +480,26 @@ public:
     /// control back to the layer-level builder.
     [[nodiscard]] TextRunBuilder& text_run(std::string name, TextRunSpec params);
 
-    /// F2.C — canonical authoring overload accepting TextDefinition.
-    /// Converts TextDefinition → TextSpec via from_text_definition(),
-    /// wraps into a TextRunSpec, and delegates to text_run(name,
-    /// TextRunSpec).  Returns TextRunBuilder& so callers can chain
-    /// animators / selectors on top of the canonical DTO:
+    /// F3.D — forward-point authoring overload accepting TextDefinition.
+    /// Routes via text_run(to_text_run_spec(def)), the F2.D lossless reverse
+    /// adapter.  Returns TextRunBuilder& so callers can chain additional
+    /// animators / selectors / opacity on top of the canonical DTO:
     ///   layer.text_run("title", centered_text(opts))
     ///       .opacity(0.8f)
     ///       .commit();
     ///
-    /// Note: TextRunSpec-specific fields (direction, language, script,
-    /// animators) are NOT carried from TextDefinition — they default to
-    /// Auto/empty/empty.  Use .animator(...) / .selector(...) on the
-    /// returned TextRunBuilder& to add animation.  direction/language
-    /// will be carried from TextDefinition after Phase A.3 fills
-    /// TextAnimation.
+    /// Behaviour vs F2.C (historical): animation fields populated in
+    /// TextDefinition (animators, selectors, direction, language, script,
+    /// cache_layout) are now carried all the way to TextRunSpec and downstream
+    /// into materialize_text_run_shape() — previously they were silently
+    /// dropped by the F2.C lossy text_run.text = from_text_definition(def) path.
+    ///
+    /// Frame envelope drop (TextAnimation.start_delay + .duration) is
+    /// documented in text_definition.hpp F2.D LIFECYCLE — these live on
+    /// Layer, not on TextRunSpec.
+    ///
+    /// Symmetric with text(name, TextDefinition) (F3.D — same overload family
+    /// in shape_commands.cpp).
     [[nodiscard]] TextRunBuilder& text_run(std::string name, const TextDefinition& def);
 
     LayerBuilder& shape(std::string_view id, std::string name, registry::ShapeParams params);

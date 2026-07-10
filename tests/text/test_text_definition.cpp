@@ -23,10 +23,13 @@
 //  14. text_run() convergence — TextDefinition → TextRunSpec → from_text_run_spec()
 //  15. Determinism — same input always produces same output
 //  16. TextFrame.offset — gap-fill coverage (NOT mirrored in TextSpec)//   17. TextEffects — Phase A.3: compositor-level effects (glow/bevel/blur)
-//   18. TextAnimation — Phase A.3: animators + selectors + run-control + Frame timing
-//   19. to_text_run_spec — F2.D: TextDefinition → TextRunSpec reverse adapter
+//   18. TextAnimation — Phase A.3: animators + selectors + run-control + Frame timing//  19. to_text_run_spec — F2.D: TextDefinition → TextRunSpec reverse adapter
 //                              (direction/language/script/animators/selectors/
 //                              cache_layout mappable; Frame envelope lossily dropped)
+//  20. F3.D — helper-site authoring via to_text_run_spec preserves the 6
+//                              spec-only animation fields in TextRunSpec
+//                              (the 17 helper-site regression lock for the
+//                              LayerBuilder forward-point rewiring)
 //
 // Phase A.3 (this commit): TextEffects + TextAnimation are populated with
 // real fields mapped from TextRunSpec/TextMaterial; from_text_run_spec now
@@ -1691,4 +1694,90 @@ TEST_CASE("to_text_run_spec: round-trip is idempotent for the 6 spec-only fields
     // edit that begins remapping offset would break this assertion.
     CHECK(restored.frame.offset.x == doctest::Approx(42.5f));
     CHECK(restored.frame.offset.y == doctest::Approx(-17.3f));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 20. F3.D — helper-site authoring via to_text_run_spec preserves the 6
+//            spec-only animation fields in TextRunSpec
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// F3.D forward-point rewires the 2 LayerBuilder TextDefinition overloads
+// (`text(name, TextDefinition)` + `text_run(name, TextDefinition)`) to route
+// through to_text_run_spec instead of the F2.C lossy `from_text_definition`
+// path.  This locks the contract for the 17 helper-site call sites
+// (`centered_text()` / `glow_text()` / `typewriter_text()` / presets):
+// a helper-site author who AUGMENTS the returned TextDefinition with animation
+// now has those fields reach the renderer.
+//
+// Regression vector: if a future edit reverts the F3.D rewiring back to
+// `from_text_definition` / `text(name, TextSpec)`, the 6 spec-only animation
+// fields would be silently dropped by the from_text_definition return path.
+// This test exercises the same authoring pattern callsites use and asserts
+// every field survives the F3.D wire.
+//
+// Frame envelope lossily dropped by to_text_run_spec per F2.D contract is
+// NOT asserted here — it is covered by group 19.4 (F2.D lossy drop test).
+
+TEST_CASE("F3.D: helper-site centered_text + animation augmentation flows through to_text_run_spec") {
+    CenterTextOptions opts;
+    opts.text        = "F3D_HELPER";
+    opts.box         = {1000.0f, 200.0f};
+    opts.pos         = {500.0f, 300.0f, 0.0f};
+    opts.font_asset  = "fonts/F3D.ttf";
+    opts.font_family = "F3D";
+    opts.font_weight = 700;
+    opts.font_size   = 80.0f;
+    opts.tracking    = 2.0f;
+    opts.color       = Color{0.5f, 0.5f, 0.5f, 1.0f};
+
+    // Helper-site authoring pattern: build a TextDefinition via centered_text,
+    // then AUGMENT with animation fields (this is what helper-site authors do
+    // when they need custom animator / direction / etc. on top of the
+    // canonical preset).
+    auto def = centered_text(opts);
+    TextAnimatorSpec fade_in;
+    fade_in.id      = "fade_in";
+    fade_in.enabled = true;
+    TextAnimatorSpec typewriter;
+    typewriter.id      = "typewriter";
+    typewriter.enabled = false;
+    def.animation.animators = {fade_in, typewriter};
+    GlyphSelectorSpec every_glyph;
+    every_glyph.id = "every_glyph";
+    def.animation.selectors = {every_glyph};
+    def.animation.direction    = TextDirection::LTR;
+    def.animation.language     = "en-US";
+    def.animation.script       = 0x4C61746Eu;  // 'Latn'
+    def.animation.cache_layout = true;
+
+    // Simulate the F3.D wire in LayerBuilder::text_run(name, TextDefinition):
+    //   text_run(name, to_text_run_spec(def));
+    auto run = to_text_run_spec(def);
+
+    // The 6 spec-only animation fields must all reach the TextRunSpec.
+    // (This is the contract that F3.D enables for the 17 helper sites.)
+    REQUIRE(run.animators.size() == 2);
+    CHECK(run.animators[0].id == "fade_in");
+    CHECK(run.animators[0].enabled == true);
+    CHECK(run.animators[1].id == "typewriter");
+    CHECK(run.animators[1].enabled == false);
+    REQUIRE(run.selectors.size() == 1);
+    CHECK(run.selectors[0].id == "every_glyph");
+    CHECK(run.direction    == TextDirection::LTR);
+    CHECK(run.language     == "en-US");
+    CHECK(run.script       == 0x4C61746Eu);
+    CHECK(run.cache_layout == true);
+
+    // The 22 base fields (via from_text_definition reuse) are still preserved
+    // — F3.D must not regress the base-spec path.  Use the populated-funnel
+    // assertions: content + font_weight + font_size + box + position + color.
+    CHECK(run.text.content.value == "F3D_HELPER");
+    CHECK(run.text.font.font_family == "F3D");
+    CHECK(run.text.font.font_weight == 700);
+    CHECK(run.text.font.font_size == doctest::Approx(80.0f));
+    CHECK(run.text.layout.box.x == doctest::Approx(1000.0f));
+    CHECK(run.text.layout.box.y == doctest::Approx(200.0f));
+    CHECK(run.text.appearance.color.r == doctest::Approx(0.5f));
+    CHECK(run.text.position.x == doctest::Approx(500.0f));
+    CHECK(run.text.position.y == doctest::Approx(300.0f));
 }

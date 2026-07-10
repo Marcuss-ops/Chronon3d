@@ -3,7 +3,7 @@
 
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
-#include <chronon3d/text/text_definition.hpp>  // F2.C — TextDefinition → TextSpec adapter
+#include <chronon3d/text/text_definition.hpp>  // F3.D — to_text_run_spec / from_text_definition adapters for the 2 TextDefinition overloads below
 
 #include <algorithm>
 #include <cmath>
@@ -186,10 +186,33 @@ LayerBuilder& LayerBuilder::text(std::string name, TextSpec p) {
 }
 
 LayerBuilder& LayerBuilder::text(std::string name, const TextDefinition& def) {
-    // F2.C — canonical authoring overload.
-    // Converts TextDefinition → TextSpec via from_text_definition(),
-    // then delegates to the existing text(name, TextSpec) pipeline.
-    return text(std::move(name), from_text_definition(def));
+    // F3.D — forward-point wiring: route via text_run(to_text_run_spec(def))
+    // (the F2.D lossless reverse adapter) instead of the F2.C path that
+    // routed through `from_text_definition` + text(name, TextSpec) and dropped
+    // the 6 spec-only animation fields (animators, selectors, direction,
+    // language, script, cache_layout).
+    //
+    // Symmetric with text_run(name, TextDefinition) (F3.D — same overload
+    // family).  Both routes now preserve any animation populated in
+    // TextDefinition.  Frame envelope drop behaviour is identical (text_run
+    // chain — see text_definition.hpp F2.D LIFECYCLE).
+    return text_run(std::move(name), to_text_run_spec(def)).commit();
+}
+
+// F3.D — forward-point overload: symmetric counterpart of
+// text_run(name, TextRunSpec).  Callers who fully migrate to TextRunSpec
+// authoring can now use the short-form `layer.text("id", run_spec).commit()`
+// instead of the verbose `layer.text_run("id", run_spec).commit()`.  Sugar
+// only — behaviourally identical to text_run(name, TextRunSpec).commit().
+//
+// Why ADD (not just reroute): `text(name, TextRunSpec)` is the F3.D forward-
+// point migration target.  The Roundtrip chain is
+//   centered_text(opts) → TextDefinition → to_text_run_spec
+//   → TextRunSpec → text(name, TextRunSpec).commit()
+// making all 17 helper-site callers able to land on a TextRunSpec egress
+// without a separate authoring overload at the run-spec layer.
+LayerBuilder& LayerBuilder::text(std::string name, TextRunSpec run) {
+    return text_run(std::move(name), std::move(run)).commit();
 }
 
 LayerBuilder& LayerBuilder::shape(std::string_view id, std::string name, registry::ShapeParams params) {
