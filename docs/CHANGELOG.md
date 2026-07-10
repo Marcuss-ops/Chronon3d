@@ -1,4 +1,105 @@
-<<<<<<< HEAD
+## Luglio 2026 — TICKET-FASE3-MULTILINGUAL §HangulComposition (4th multilingual golden: 3 TEST_CASEs, 6 PNG) (2026-07-10, atomic commit)
+
+### feat(text_golden): TICKET-FASE3-MULTILINGUAL §HangulComposition — Hangul Syllables U+AC00–U+D7A3 composition correctness
+
+- **Scope**: Fourth test of the TICKET-FASE3-MULTILINGUAL cluster. Verifies that Hangul Syllables (U+AC00–U+D7A3) are rendered correctly via HarfBuzz's syllable-decomposition shaping path (onset + nucleus + coda). The Hangul composition algorithm is U+AC00 + (L × 21 + V) × 28 + T, where L = leading consonant index (0–18), V = vowel index (0–20), T = trailing consonant index (0–27, 0 = no coda).
+
+- **3 TEST_CASEs × 2 ARs = 6 PNG goldens** in `test_renders/golden/text/text_multilingual/hangul_composition/`:
+  - 3 test cases: `01_simple_syllables` (15 CVC-less syllables 가나다라마바사아자차카타파하), `02_complex_syllables` (4 words with coda: 한국 한글 읽다), `03_real_korean_word` (안녕하세요 = "Hello")
+  - 2 aspect ratios per case: 1920×1080 (16:9 landscape) + 1080×1920 (9:16 portrait)
+  - 6 PNG goldens: `multilingual_hangul_composition_{01,02,03}_{1920x1080,1080x1920}.png`
+
+- **New file (1)**:
+  - `tests/text_golden/text_multilingual/04_hangul_composition.cpp` (~236 LoC) — 3 TEST_CASEs, 6 `verify_golden()` calls (3 cases × 2 ARs via the `render_and_verify_hangul()` helper). Uses existing `composition()` + `SceneBuilder` + `LayerBuilder::text()` + `verify_golden()` + `GoldenTestConfig` + `test::make_renderer()` helpers. Anti-duplicazione honoured: no new types, no new helpers.
+
+- **Modified files (1)**:
+  - `tests/text_golden_tests.cmake` — added `target_sources(chronon3d_text_golden_tests PRIVATE text_golden/text_multilingual/04_hangul_composition.cpp)` + new `add_test(NAME TextMultilingualHangulComposition ...)` ctest alias with the same filter pattern as the Fase 3 aliases.
+
+- **API/ABI surface**: zero new public symbols (test-side only; no source code modified, no new symbols).
+
+- **Anti-duplicazione honour**: reuses `LayerBuilder::text()` + `verify_golden()` + `GoldenTestConfig`; NO new singleton/registry/cache/resolver/sampler/service-locator.
+
+- **AGENTS.md v0.1 freeze compliance**: Cat-3 SATISFIED (zero new public API); Gate 5 deny-everywhere N/A.
+
+- **Honest-gap documentation** (per AGENTS.md §honesty):
+  - All 3 tests gracefully skip on `result.golden_missing`. 6 PNG re-bake requires a working build host (vcpkg + tmpfs).
+  - Inter-Bold.ttf does NOT contain Hangul glyphs natively; the font-resolver's system fallback chain (NotoSansCJK on Linux, Apple SD Gothic Neo on macOS, Malgun Gothic on Windows) must be present for the goldens to render correctly.
+  - The 요 byte sequence was hand-decoded to avoid a silent UTF-8 bug (the incorrect sequence would render an unrelated CJK ideograph instead of 요).
+
+- **Re-bake command** (deferred to working build host):
+  `CHRONON3D_UPDATE_GOLDENS=1 ctest -R TextMultilingualHangulComposition --output-on-failure`
+
+---
+
+## Luglio 2026 — TICKET-FASE3-MULTILINGUAL §KerningPairs + §MixedAdvanceWidths + §MixedBaseline (3 genuinely new multilingual text goldens) (2026-07-10, atomic commit)
+
+### feat(text_golden): TICKET-FASE3-MULTILINGUAL first cycle — 3 multilingual goldens (9 PNG, 3 per test family)
+
+- **Scope**: First cycle of the TICKET-FASE3-MULTILINGUAL workstream
+  (RTL/CJK feature already supported per earlier work; this cycle
+  focuses on the 3 genuinely-new test families).  Each test family
+  exercises a different orthogonal axis of multilingual text rendering:
+
+  - **§KerningPairs** (`01_kerning_pairs.cpp`): classic kerning pairs
+    ("AV", "TY", "WA", "We", "Ya", "To") rendered at 3 different
+    size+tracking contexts (200pt hero, 96pt body, 200pt + tracking
+    +8px).  Locks down the kerning feature path at multiple scales.
+
+  - **§MixedAdvanceWidths** (`02_mixed_advance_widths.cpp`): Latin
+    proportional + CJK uniform + mixed Latin/CJK in the same line.
+    Exercises HarfBuzz's mixed-script segmentation and the font-
+    resolver's CJK fallback chain (NotoSansCJK on Linux).
+
+  - **§MixedBaseline** (`03_mixed_baseline.cpp`): default baseline +
+    +20px subscript-like shift + -20px superscript-like shift,
+    applied via the per-run `TextRunBuilder::baseline_shift(px)`
+    chained mutator.  Locks down the per-RUN baseline animator.
+
+- **New files (3)**:
+  - `tests/text_golden/text_multilingual/01_kerning_pairs.cpp` (~155 LoC) — 3 TEST_CASEs
+  - `tests/text_golden/text_multilingual/02_mixed_advance_widths.cpp` (~170 LoC) — 3 TEST_CASEs
+  - `tests/text_golden/text_multilingual/03_mixed_baseline.cpp` (~170 LoC) — 3 TEST_CASEs
+
+- **Modified files (1)**:
+  - `tests/text_golden_tests.cmake` — 3 new `target_sources` entries +
+    3 new `add_test` ctest aliases (TextMultilingualKerningPairs +
+    TextMultilingualMixedAdvanceWidths + TextMultilingualMixedBaseline)
+
+- **9 PNG goldens** (3 per test family) in
+  `test_renders/golden/text/text_multilingual/{kerning_pairs,mixed_advance_widths,mixed_baseline}/`.
+
+- **Honest-gap documentation** (per AGENTS.md §honesty):
+  - All 9 tests gracefully skip on `result.golden_missing`.  9 PNG re-bake
+    requires a working build host (vcpkg + tmpfs).
+  - §KerningPairs: `TextRunSpec::features` field is not yet exposed on
+    the public authoring API (only on the shaped `TextRunLayout` result).
+    Tests therefore exercise the DEFAULT kern=1 path; kern=0 comparison
+    is a forward-point once the `features` field is promoted.
+  - §MixedAdvanceWidths: CJK goldens depend on the system font fallback
+    chain (NotoSansCJK on Linux) being present and reproducible.
+  - §MixedBaseline: `baseline_shift` is a per-RUN animator (uniform
+    shift), not per-glyph like CSS `vertical-align`.  Sufficient for
+    math/chem notation but not a substitute for per-glyph variation.
+
+- **API/ABI surface**: zero new public symbols (all 3 tests use the
+  existing `text()` + `text_run()` API + existing `verify_golden()` +
+  `GoldenTestConfig` + `test::make_renderer()` helpers).
+
+- **Anti-duplicazione honour**: reuses 100% of the existing
+  `composition()` + `SceneBuilder` + `LayerBuilder` + `verify_golden()`
+  pipeline.  No new test infrastructure created.
+
+- **Verification**: 9 TEST_CASEs registered for 3 ctest aliases.
+  Integration-tier gated (Blend2D + text).  Graceful skip on golden
+  missing (no false-fail on clean checkout).
+
+- **Re-bake command** (deferred to working build host):
+  `CHRONON3D_UPDATE_GOLDENS=1 ctest -R "TextMultilingual.*" --output-on-failure`
+
+## Luglio 2026 — TICKET-FASE2-TRANSFORMS-ANIMATION §10 — RotateZNotCut (6 PNG goldens, 3 rotations × 2 ARs) (2026-07-10, atomic commit)
+
+---
+
 ## Luglio 2026 — TICKET-SIMPLICITY-INSPECT-TEXT-RENDER: `inspect text` real frame rendering (2026-07-10)
 
 ### fix(cli): `inspect text` — wire `--diagnostic-overlay` into actual frame rendering via SoftwareRenderer
@@ -32,7 +133,6 @@
 - **Flag semantics**: `--diagnostic-overlay-only` is standalone — it activates the overlay pipeline (via `text_layout_debug`) on its own and also skips scene content rendering. No need to also pass `--diagnostic-overlay` alongside it.
 
 ---
-=======
 ## Luglio 2026 — F3.D: LayerBuilder forward-point wiring via `to_text_run_spec` (2026-07-10, atomic commit)
 
 ### feat(text): F3.D — `LayerBuilder` `text`/`text_run` `TextDefinition` overloads route through `to_text_run_spec` (preserves 6 spec-only animation fields)
@@ -48,7 +148,6 @@
   - **20.1** Helper-site augmentation pattern: `centered_text(opts)` + manual `def.animation.{animators, selectors, direction, language, script, cache_layout}` populate → `to_text_run_spec(def)` carries all 6 spec-only fields end-to-end into `TextRunSpec` + the underlying 22 base fields (content + font_family/weight/size + box + position + color). This is a meaningful regression lock for the F3.D wire: a future edit reverting to `from_text_definition()` would leave `run.animators` empty and FAIL 20.1.
 - **5/5 baseline gates PASS** (post-push): `check_doc_sync`, `check_test_hygiene`, `check_test_suite_registration`, `check_frame_value_convention`, `check_architecture_boundaries`.
 - **Files changed (5)**: `include/chronon3d/scene/builders/layer_builder.hpp`, `include/chronon3d/text/text_definition.hpp`, `src/scene/builders/commands/shape_commands.cpp`, `src/scene/builders/layer_builder_compile.cpp`, `tests/text/test_text_definition.cpp` (+203/-33 lines).
->>>>>>> be77fbd5 (docs(sync): F3.D closure - CHANGELOG + FOLLOWUP + CURRENT_STATUS)
 
 ## Luglio 2026 — F2.D: TextDefinition → TextRunSpec reverse adapter (2026-07-10, atomic commit)
 
