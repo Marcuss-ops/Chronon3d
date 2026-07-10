@@ -34,6 +34,8 @@ concept PipelinableArgs = requires(const Args& a) {
     a.pipeline.quality.ssaa;
     a.pipeline.force_scalar_normal_blend;
     a.pipeline.text_layout_debug;
+    a.pipeline.diagnostic_overlay;
+    a.pipeline.diagnostic_overlay_only;
     a.pipeline.program_cache_capacity;
     a.pipeline.program_cache_tune;
     a.pipeline.program_cache_tune_interval;
@@ -94,7 +96,8 @@ RenderSettings settings_from_args(const Args& args,
     s.motion_blur.filter           = static_cast<TemporalFilter>(args.pipeline.quality.motion_blur_filter);
     s.ssaa_factor               = args.pipeline.quality.ssaa;
     s.force_scalar_normal_blend = args.pipeline.force_scalar_normal_blend;
-    s.text_layout_debug         = args.pipeline.text_layout_debug || args.pipeline.diagnostic_overlay;
+    s.text_layout_debug         = args.pipeline.text_layout_debug || args.pipeline.diagnostic_overlay || args.pipeline.diagnostic_overlay_only;
+    s.diagnostic_overlay_only   = args.pipeline.diagnostic_overlay_only;
     s.program_cache_capacity     = args.pipeline.program_cache_capacity;
     s.program_cache_tune                  = args.pipeline.program_cache_tune;
     s.program_cache_tune_interval         = args.pipeline.program_cache_tune_interval;
