@@ -82,4 +82,18 @@ AE parity golden checker: GATE_PASS (23/23 fresh). Suite AE_CAM: 35/35 PASS, 142
 
 Main-sync hygiene enforced da GATE-MNT-01 ([`tools/wrap_push.sh`](../tools/wrap_push.sh) + [`tools/check_main_clean.sh`](../tools/check_main_clean.sh)). `branch.main.rebase = true`.
 
+### docs cleanups recenti (2026-07-10)
+
+- Commit [`bfb2ca4b`](https://github.com/.../bfb2ca4b) — `docs(hygiene): remove 7 obsolete+forbidden docs, sync drift whitelist`:
+    - **7 deletions**: `docs/NEXT_STEPS.md` (VIETATO pattern per AGENTS.md §Pattern di filename vietati), `MAINTENANCE_INVENTORY.md`, `CERTIFICAZIONE_PRODOTTO.md`, `CODE_IMPROVEMENTS.md`, `CAMERA_REGIA_AE_PLAN.md`, `TEXT_SELECTOR_SINGLE_PIPELINE_PLAN.md`, `video_pipeline.md`. <!-- drift-allow: archived-doc-pattern -->
+    - **3 whitelist removals** in `tools/check_filename_drift.sh` (entry per i 3 file rimossi).
+    - **2 inline `drift-allow:` markers**: `AGENTS.md:58` (continuazione del doc-sync bullet) + `docs/baselines/main-9ef0fe33-dod-fail-matrix.md:115` (riga che cita NEXT_STEPS.md rimosso).
+- Commit `8464c771` — `docs(changelog): record docs(hygiene) cleanup commit bfb2ca4b`: prepended CHANGELOG entry documenting bfb2ca4b (audit trail, mirrors 8464c771 pattern).
+- Commit `2c5a6be` — `chore(cleanup): remove obsolete tools, postmortem, fix baseline governance`:
+    - **4 deletions**: `tools/wp0_archive_audit.sh` (WP-0 era, 0 ref), `tools/audit_aggregate_archive.sh` (audit, "not part of mandatory gate pipeline"), `tools/chronon-watch.sh` (replaced by `chronon3d_watch.sh`), `docs/postmortems/pixel-ink-centering.md` (29-line postmortem, 0 ref). <!-- drift-allow: archived-doc-pattern -->
+    - **1 baseline rename**: `main-HEAD-baseline.md` → `main-acf7d1de-baseline.md` (governance fix: HEAD → SHA specifico per DOCUMENTATION_GOVERNANCE.md §baselines format). <!-- drift-allow: archived-doc-pattern -->
+    - **2 reference updates**: `tests/sdk/test_sdk_archive_manifest.cpp:211` (rimossa referenza al audit script rimosso) + `docs/adr/ADR-016-sequence-asset-canonical-contract.md:238` (aggiornata referenza al baseline rinominato).
+    - **1 CHANGELOG entry** prependata per il cleanup parallelo.
+- **Kept intentional**: `main-16319557f-baseline.md` (typo 'f' extra ma cited da altre 2 baseline immutabili); 16 altri "0-ref" tools (false-negative: molti CI-invoked o wrap_push gate helpers).
+
 _Limite raccomandato: 150 righe (vedi `DOCUMENTATION_GOVERNANCE.md` DoD §10)._
