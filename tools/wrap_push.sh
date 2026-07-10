@@ -17,6 +17,7 @@
 #   4. tools/check_frame_value_convention.sh (TICKET-110b gate — Frame::value canonical-reading invariant)
 #   4.5d. tools/check_no_changelog_conflict_markers.sh (TICKET-CHANGELOG-CONFLICT-CLEANUP — docs/CHANGELOG.md conflict-marker invariant)
 #   4.5e. tools/check_text_golden_sources_aligned.sh (TICKET-TEXT-GOLDEN-SOURCES-ALIGNED — text_multilingual add_test ↔ target_sources alignment)
+#   4.5f. tools/check_doc_sha_dedup.sh (TICKET-FOLLOWUP-DE-DUP-REFERENCES macchina-verifica gate -- dedup (file,sha7) pairs in `docs/adr/`; ADRs 015/016 EXEMPT). Exit 1 if non-EXEMPT count > 0.
 #   5. exec git push "$@" atomically
 #
 # Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
@@ -231,5 +232,9 @@ bash "${SCRIPT_DIR}/check_text_golden_sources_aligned.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_text_golden_sources_aligned.sh (exit $?)" >&2; exit 1; }
 
 # ── Step 5: forward to git push ───────────────────────────────────────────
+echo "wrap_push.sh: checking docs/adr SHA-cite dedup (TICKET-FOLLOWUP-DE-DUP-REFERENCES gate)..."
+bash "${SCRIPT_DIR}/check_doc_sha_dedup.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_doc_sha_dedup.sh (exit $?)" >&2; exit 1; }
+
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
 exec git push "$@"
