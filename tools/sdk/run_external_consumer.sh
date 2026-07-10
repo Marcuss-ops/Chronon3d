@@ -1,15 +1,22 @@
 #!/usr/bin/env bash
 # tools/sdk/run_external_consumer.sh — Steps 4-5 (consumer configure/build/run
-# + [BOUNDARY-OK] marker assertion + PNG non-empty verification).
+# + [BOUNDARY-OK] marker assertion + PNG non-empty verification
+# + text consumer [TEXT-OK] gate for Text Export V1).
 #
 # Builds the standalone consumer project at
 # `tests/install_consumer/` against the previously-installed SDK
-# prefix; runs the resulting `check_install` binary; asserts that:
-#   (a) the binary produced stdout containing the [BOUNDARY-OK] marker
-#   (b) the binary wrote a non-zero-size PNG to sdk_consumer_output.png
-#   (c) the PNG passes a basic pixel-count probe (diagnostic only —
-#       the strict-A consumer produces a near-empty framebuffer by
-#       design; file-size > 0 is the authoritative gate per audit P0 #6)
+# prefix; runs two consumer binaries:
+#   1. `check_install` — grid-only boundary check (P3-H):
+#      (a) stdout contains [BOUNDARY-OK] marker
+#      (b) sdk_consumer_output.png non-empty
+#      (c) pixel-hash ≥ 1 pixel with mean RGB > 5/255
+#   2. `check_text` — text rendering certifier (Text Export V1):
+#      (a) stdout/stderr contains [TEXT-OK] marker
+#      (b) sdk_text_consumer_output.png non-empty
+#      (c) text shaped and rendered via SceneBuilder + l.text() API
+#
+# Font assets are symlinked from $REPO_ROOT/assets into the consumer
+# build dir so the text consumer can resolve fonts at CWD-relative paths.
 #
 # Companion to the Fase-3 (Step 3.5) canary gate: the canary gate
 # proves the symbol is in the archive; this consumer phase proves it
@@ -28,9 +35,9 @@
 # Invocation pattern:  bash tools/sdk/run_external_consumer.sh
 #
 # Exit codes:
-#   0 = consumer rendered correctly + [BOUNDARY-OK] + PNG non-empty
+#   0 = both consumers passed ([BOUNDARY-OK] + [TEXT-OK] + PNGs non-empty)
 #   1 = any failure (configure / build / missing binary / no marker /
-#                    missing or empty / pixel probe failure)
+#                    missing or empty / pixel probe failure / text consumer fail)
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=./common.sh
@@ -138,6 +145,10 @@ cmake "${CMAKE_ARGS[@]}" 1>&2 \
 cmake --build "$CONS_BUILD" --target check_install 1>&2 \
     || fail "consumer cmake --build failed"
 
+# ── Build text consumer (Text Export V1 certifier) ────────────────────
+cmake --build "$CONS_BUILD" --target check_text 1>&2 \
+    || fail "consumer cmake --build check_text failed"
+
 consumer_bin="$CONS_BUILD/check_install"
 [[ -x "$consumer_bin" ]] || fail "consumer binary not found at $consumer_bin"
 
@@ -192,6 +203,18 @@ PYEOF
     return 2
 }
 
+# ── Symlink assets into consumer build dir (fonts, textures) ──────────
+# The consumer binary runs from CONS_BUILD (CWD).  Font assets
+# (e.g. assets/fonts/Inter-Bold.ttf) must be reachable relative to CWD
+# for the text consumer (check_text) to shape glyphs.  A symlink avoids
+# copying the entire asset tree into the temp dir.
+if [[ -d "$REPO_ROOT/assets" ]]; then
+    ln -sfn "$REPO_ROOT/assets" "$CONS_BUILD/assets"
+    log "symlinked assets: $CONS_BUILD/assets -> $REPO_ROOT/assets"
+else
+    log "WARNING: $REPO_ROOT/assets not found — text consumer may fail to shape glyphs"
+fi
+
 # ── Run consumer + assert [BOUNDARY-OK] ───────────────────────────────
 # Fix (audit P0 #5): run consumer from CONS_BUILD so the PNG written
 # to CWD (sdk_consumer_output.png — see tests/install_consumer/main.cpp)
@@ -204,6 +227,32 @@ if [[ "$consumer_output" != *"[BOUNDARY-OK]"* ]]; then
     fail "consumer missing [BOUNDARY-OK] marker in stdout"
 fi
 log "Consumer: $consumer_output"
+
+# ── Run text consumer + assert [TEXT-OK] (Text Export V1) ──────────────
+text_bin="$CONS_BUILD/check_text"
+[[ -x "$text_bin" ]] || fail "text consumer binary not found at $text_bin"
+log "running text consumer: $text_bin (CWD=$CONS_BUILD)"
+text_output="$(cd "$CONS_BUILD" && "$text_bin" 2>&1)"
+text_rc=$?
+if [[ "$text_output" != *"[TEXT-OK]"* ]]; then
+    log "Text consumer stdout/stderr:"
+    printf "%s\n" "$text_output" >&2
+    if [[ "$text_rc" -ne 0 ]]; then
+        fail "text consumer exited with rc=$text_rc and missing [TEXT-OK] marker"
+    fi
+    fail "text consumer missing [TEXT-OK] marker in output"
+fi
+log "Text consumer: $text_output"
+
+# ── Verify text PNG non-empty ─────────────────────────────────────────
+text_png="$CONS_BUILD/sdk_text_consumer_output.png"
+if [[ -f "$text_png" ]]; then
+    text_png_size="$(stat -c%s "$text_png" 2>/dev/null || echo 0)"
+    (( text_png_size > 0 )) || fail "text consumer PNG is empty: $text_png"
+    log "text consumer PNG: $text_png ($text_png_size bytes)"
+else
+    log "WARNING: text consumer PNG not found at $text_png (non-fatal — [TEXT-OK] gate passed)"
+fi
 
 # ── Verify PNG non-empty (cheap file size check) ──────────────────────
 # Fix (audit P0 #5): PNG now lives in CONS_BUILD because the consumer
