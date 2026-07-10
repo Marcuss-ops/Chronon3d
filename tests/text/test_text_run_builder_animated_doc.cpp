@@ -145,7 +145,7 @@ TEST_CASE("TextRunBuilder: from_animated_document binds into PendingTextRun") {
     auto doc_ptr = std::make_shared<const AnimatedTextDocument>(std::move(doc));
 
     LayerBuilder layer("animated_layer", Frame{30});
-    auto& trb = layer.text_run("doc_bound", TextRunParams{});
+    auto& trb = layer.text_run("doc_bound", TextRunSpec{});
     trb.from_animated_document(doc_ptr);
 
     const auto& pending = trb.build_spec();
@@ -159,7 +159,7 @@ TEST_CASE("TextRunBuilder: from_animated_document binds into PendingTextRun") {
 
 TEST_CASE("TextRunBuilder: animated_doc defaults to nullptr (no binding)") {
     LayerBuilder layer("plain", Frame{0});
-    auto& trb = layer.text_run("plain_text", TextRunParams{});
+    auto& trb = layer.text_run("plain_text", TextRunSpec{});
     (void)trb.font_size(48.0f).opacity(1.0f);
 
     const auto& pending = trb.build_spec();

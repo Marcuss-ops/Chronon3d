@@ -57,7 +57,7 @@ namespace chronon3d {
 // TextRunBuilder — PR 4 (TextAnimator V2)
 // ═══════════════════════════════════════════════════════════════════════════
 
-TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunParams params) {
+TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunSpec params) {
     // Apply layer-level defaults for font path and font size.
     // Font path: only applied when the caller left it empty.
     // Font size: always applied when set (callers can override per-run
@@ -145,7 +145,7 @@ Layer LayerBuilder::build() {
     // ── PR 4 — Materialize pending text-run specs ───────────────────
     //
     // For each PendingTextRun pushed via `LayerBuilder::text_run(name,
-    // TextRunParams)`, evaluate the animator stack at the layer's
+    // TextRunSpec)`, evaluate the animator stack at the layer's
     // current local time and append a corresponding RenderNode
     // flagged with ShapeType::TextRun.  The graph-builder
     // source-pass (PR 3) auto-routes these to a TextRunNode.

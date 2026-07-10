@@ -102,7 +102,7 @@ public:
 
         // Push the empty pending entry first.  Materialized when
         // LayerBuilder::build() runs.
-        TextRunParams seed_spec{};
+        TextRunSpec seed_spec{};
         seed_spec.text.content.value = std::move(content);
 
         TextRunBuilder& builder = builder_->text_run(

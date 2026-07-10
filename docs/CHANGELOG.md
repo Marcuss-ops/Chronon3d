@@ -1,3 +1,14 @@
+## Luglio 2026 — TICKET-SIMPLICITY-DEPRECATION: TextParams/TextRunParams → [[deprecated]] (2026-07-10, atomic commit)
+
+### feat(text): Deprecate TextParams and TextRunParams aliases, migrate all code to TextRunSpec
+
+- **builder_params.hpp**: `TextParams` and `TextRunParams` aliases now carry `[[deprecated("Use TextSpec/TextRunSpec directly")]]`.
+- **Global sed replacement**: `TextRunParams` → `TextRunSpec` in 48 files (148 insertions, 147 deletions). All production code, tests, and examples use the canonical `TextRunSpec` name.
+- **Zero breakage**: the aliases still compile (with warnings), so external SDK consumers get a clean migration path. Internal code uses canonical names exclusively.
+- **Text Simplicity Action Plan**: TICKET-SIMPLICITY-DEPRECATION complete (thirteenth of 17 actions).
+
+---
+
 ## Luglio 2026 — TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS: typewriter_build() → TextDefinition (2026-07-10, atomic commit)
 
 ### feat(text): Migrate typewriter_build() internal TextSpec to TextDefinition

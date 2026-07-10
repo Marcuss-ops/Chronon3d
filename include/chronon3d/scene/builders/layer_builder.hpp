@@ -184,14 +184,14 @@ public:
     }
 
     /// Set the default font path for all subsequent text_run() calls on
-    /// this layer.  Overridden by an explicit font_path in TextRunParams.
+    /// this layer.  Overridden by an explicit font_path in TextRunSpec.
     LayerBuilder& font(std::string path) {
         m_default_font_path = std::move(path);
         return *this;
     }
 
     /// Set the default font size for all subsequent text_run() calls on
-    /// this layer.  Overridden by an explicit font_size in TextRunParams.
+    /// this layer.  Overridden by an explicit font_size in TextRunSpec.
     LayerBuilder& font_size(f32 size) {
         m_default_font_size = size;
         return *this;
@@ -340,7 +340,7 @@ public:
     //
     // Architecture rationale:
     //   - `LayerBuilder` operates on low-level specs and pipelines
-    //     (`TextRunBuilder`, `TextRunParams`).  Injecting a high-level
+    //     (`TextRunBuilder`, `TextRunSpec`).  Injecting a high-level
     //     fluent authoring interface (which needs context like
     //     `FrameContext` and registries) directly into the builder
     //     violates the facade separation.
@@ -459,7 +459,7 @@ public:
     /// `return *this` chain.  The returned `TextRunBuilder&` is the
     /// next layer in the chain; calling `.commit()` explicitly hands
     /// control back to the layer-level builder.
-    [[nodiscard]] TextRunBuilder& text_run(std::string name, TextRunParams params);
+    [[nodiscard]] TextRunBuilder& text_run(std::string name, TextRunSpec params);
 
     LayerBuilder& shape(std::string_view id, std::string name, registry::ShapeParams params);
 

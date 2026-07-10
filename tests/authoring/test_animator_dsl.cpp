@@ -1319,7 +1319,7 @@ TEST_CASE("Authoring/Text: configure_core(Fn) lambda mutates raw TextRunSpec") {
 
     // Level 3 escape hatch: mutate top-level TextRunSpec fields the
     // fluent surface doesn't expose one step at a time.
-    t.configure_core([](chronon3d::TextRunParams& p) {
+    t.configure_core([](chronon3d::TextRunSpec& p) {
         p.direction   = TextDirection::RTL;
         p.language    = "ar";
         p.cache_layout = false;

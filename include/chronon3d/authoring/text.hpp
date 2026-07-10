@@ -69,7 +69,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>      // TextAnchor / TextAlign / VerticalAlign / TextCenteringMode / TextOverflow / TextWrap / TextShadow / TextPaint / TextBoxStyle / TextStyle
-#include <chronon3d/scene/builders/text_run_builder.hpp>  // PendingTextRun, TextRunParams
+#include <chronon3d/scene/builders/text_run_builder.hpp>  // PendingTextRun, TextRunSpec
 #include <chronon3d/text/font_engine.hpp>                 // FontEngine — required for `Text::font_engine(FontEngine&)` reference parameter (also pulls in transitively via text_run_builder.hpp, but explicit for hygiene)
 #include <chronon3d/text/text_animator_property.hpp>      // TextAnimatorSpec
 #include <chronon3d/text/text_direction.hpp>              // TextDirection

@@ -57,7 +57,7 @@ Composition build_edge_comp(SoftwareRenderer& renderer, std::string text) {
             s.font_engine(&renderer.font_engine());
             s.layer("edge_layer", [&renderer, text](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("edge_test", TextRunParams{
+                l.text_run("edge_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = text},
                         .font = {

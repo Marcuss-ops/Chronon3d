@@ -100,7 +100,7 @@ Composition build_long_text(SoftwareRenderer& renderer,
             s.font_engine(&renderer.font_engine());
             s.layer("long_layer", [&](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("long_test", TextRunParams{
+                l.text_run("long_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = text},
                         .font = {

@@ -55,7 +55,7 @@ Composition build_test01_composition(SoftwareRenderer& renderer) {
             s.font_engine(&renderer.font_engine());
             s.layer("hero", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("title", TextRunParams{
+                l.text_run("title", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "Chronon3D Text Engine"},
                         .font = {.font_path = "assets/fonts/Inter-Bold.ttf",

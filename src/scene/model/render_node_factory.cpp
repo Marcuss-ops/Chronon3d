@@ -262,7 +262,7 @@ RenderNode RenderNodeFactory::text(
 RenderNode RenderNodeFactory::text_run(
     std::pmr::memory_resource* res,
     std::string name,
-    TextRunSpec p,    // canonical composable (TextRunParams was the prior alias)
+    TextRunSpec p,    // canonical composable (TextRunSpec was the prior alias)
     FontEngine* engine,
     SampleTime sample_time
 ) {

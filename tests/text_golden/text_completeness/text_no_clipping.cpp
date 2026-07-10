@@ -57,7 +57,7 @@ Composition build_clip_test_composition(
             s.font_engine(&renderer.font_engine());
             s.layer("clip_layer", [&renderer, text, font_size, position](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("clip_test", TextRunParams{
+                l.text_run("clip_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = std::string{text}},
                         .font = {

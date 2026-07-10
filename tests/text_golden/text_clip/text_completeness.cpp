@@ -105,7 +105,7 @@ Composition build_completeness_composition(
                 if (glow_params.enabled) {
                     l.glow(glow_params);
                 }
-                l.text_run("title", TextRunParams{
+                l.text_run("title", TextRunSpec{
                     .text = {
                         .content = {.value = std::string{text}},
                         .font = {
@@ -159,7 +159,7 @@ Composition build_multifont_composition(SoftwareRenderer& renderer) {
             s.font_engine(&renderer.font_engine());
             s.layer("hero", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("regular", TextRunParams{
+                l.text_run("regular", TextRunSpec{
                     .text = {
                         .content = {.value = "Regular "},
                         .font = {
@@ -177,7 +177,7 @@ Composition build_multifont_composition(SoftwareRenderer& renderer) {
                         .position = {960.0f, 540.0f, 0.0f}
                     }
                 }).commit();
-                l.text_run("bold", TextRunParams{
+                l.text_run("bold", TextRunSpec{
                     .text = {
                         .content = {.value = "BOLD Italic gyqp \u00C1\u00C9\u00CD"},
                         .font = {
@@ -215,7 +215,7 @@ Composition build_trifont_composition(SoftwareRenderer& renderer) {
             s.layer("hero", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 // Run 1: Inter Bold
-                l.text_run("inter", TextRunParams{
+                l.text_run("inter", TextRunSpec{
                     .text = {
                         .content = {.value = "HAMBURGER "},
                         .font = {
@@ -234,7 +234,7 @@ Composition build_trifont_composition(SoftwareRenderer& renderer) {
                     }
                 }).commit();
                 // Run 2: Poppins Regular
-                l.text_run("poppins", TextRunParams{
+                l.text_run("poppins", TextRunSpec{
                     .text = {
                         .content = {.value = "gyqp \u00C1\u00C9 "},
                         .font = {
@@ -253,7 +253,7 @@ Composition build_trifont_composition(SoftwareRenderer& renderer) {
                     }
                 }).commit();
                 // Run 3: Poppins Bold
-                l.text_run("poppins-bold", TextRunParams{
+                l.text_run("poppins-bold", TextRunSpec{
                     .text = {
                         .content = {.value = "\u00CD\u00D3\u00DA descenders"},
                         .font = {

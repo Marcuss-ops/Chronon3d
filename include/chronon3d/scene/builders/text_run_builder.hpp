@@ -3,11 +3,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // TextRunBuilder — fluent chainable builder for `LayerBuilder::text_run(...)`.
 //
-// Returned by reference from `LayerBuilder::text_run(name, TextRunParams)`.
+// Returned by reference from `LayerBuilder::text_run(name, TextRunSpec)`.
 // Each mutator returns `TextRunBuilder&` so multiple setters can be
 // chained:
 //
-//     layer.text_run("hello", TextRunParams{...})
+//     layer.text_run("hello", TextRunSpec{...})
 //          .position({10, 20, 0})
 //          .opacity(0.8f)
 //          .animator(slide_in_animator)
@@ -101,7 +101,7 @@ class FontEngine;  // forward decl
 
 struct PendingTextRun {
     std::string   name;
-    TextRunParams params;
+    TextRunSpec params;
     FontEngine*   font_engine{nullptr};  // per-spec override (null = use layer default)
     bool          consumed{false};
 
@@ -150,7 +150,7 @@ struct PendingTextRun {
 // Text-run materialization helper (free function, shared by
 // LayerBuilder::build() and RenderNodeFactory::text_run).
 //
-// Resolves a TextRunParams into a TextRunShape by:
+// Resolves a TextRunSpec into a TextRunShape by:
 //   1. Shape via FontEngine (cached when cache_layout=true)
 //   2. Resolve glyph positions via resolve_placed_glyph_run()
 //   3. Build unit map
@@ -165,7 +165,7 @@ class RenderNode;
 struct TextRunBindingsContext;  // forward to avoid circle
 
 /// Pure materializer — produces a TextRunShape (layout + resolved
-/// glyph states) for a given TextRunSpec (alias `TextRunParams`) +
+/// glyph states) for a given TextRunSpec (alias `TextRunSpec`) +
 /// SampleTime + FontEngine.  No RenderNode involvement; safe to use
 /// from any backend.
 struct SampleTime;
@@ -239,7 +239,7 @@ public:
     LayerBuilder& commit();
 
     // ── Read-only accessors ──
-    [[nodiscard]] const TextRunParams&   spec()       const noexcept { return m_spec->params; }
+    [[nodiscard]] const TextRunSpec&   spec()       const noexcept { return m_spec->params; }
     /// Returns the full PendingTextRun (incl. name, font_engine override,
     /// consumed flag, animated_doc binding).  Use for tests and tooling
     /// that need to read the builder-side state; for the canonical
@@ -309,7 +309,7 @@ private:
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Public free function: materialize a TextRunShape from TextRunParams.
+// Public free function: materialize a TextRunShape from TextRunSpec.
 //
 // Both `LayerBuilder::build()` (PR 4 commit step) and
 // `RenderNodeFactory::text_run()` (PR 4 shape-registry route) consume
@@ -337,7 +337,7 @@ private:
 // ═══════════════════════════════════════════════════════════════════════════
 
 [[nodiscard]] std::shared_ptr<TextRunShape> materialize_text_run_shape(
-    const TextRunParams& params,
+    const TextRunSpec& params,
     FontEngine* engine,
     SampleTime sample_time,
     std::shared_ptr<const AnimatedTextDocument> animated_doc = nullptr
