@@ -64,7 +64,8 @@ Composition build_cert_title_comp(SoftwareRenderer& renderer) {
                                        .align = TextAlign::Center,
                                        .vertical_align = VerticalAlign::Middle},
                         .appearance = {.color = Color::white()},
-                        .position   = {960.0f, 540.0f, 0.0f},
+                        .placement  = TextPlacement{
+                            TextPlacementKind::Absolute, {960.0f, 540.0f}},
                     }
                 }).commit();
             });
@@ -97,7 +98,8 @@ Composition build_cert_lower_third_comp(SoftwareRenderer& renderer) {
                                        .align = TextAlign::Center,
                                        .vertical_align = VerticalAlign::Middle},
                         .appearance = {.color = Color::white()},
-                        .position   = {960.0f, 930.0f, 0.0f},
+                        .placement  = TextPlacement{
+                            TextPlacementKind::Absolute, {960.0f, 930.0f}},
                     }
                 }).commit();
             });
@@ -115,7 +117,8 @@ Composition build_cert_lower_third_comp(SoftwareRenderer& renderer) {
                                        .align = TextAlign::Center,
                                        .vertical_align = VerticalAlign::Middle},
                         .appearance = {.color = Color{0.85f, 0.85f, 0.9f, 1.0f}},
-                        .position   = {960.0f, 982.0f, 0.0f},
+                        .placement  = TextPlacement{
+                            TextPlacementKind::Absolute, {960.0f, 982.0f}},
                     }
                 }).commit();
             });

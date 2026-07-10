@@ -146,7 +146,8 @@ static c3d::Composition make_text_composition(const char* assets_root) {
                                .align = c3d::TextAlign::Center,
                                .vertical_align = c3d::VerticalAlign::Middle},
                     .appearance = {.color = c3d::Color::white()},
-                    .position = {320.0f, 180.0f, 0.0f}
+                    .placement = c3d::TextPlacement{
+                        c3d::TextPlacementKind::Absolute, {320.0f, 180.0f}}
                 });
             });
             return s.build();

@@ -8,6 +8,7 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/paragraph_style.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
+#include <chronon3d/text/text_placement.hpp>  // F1: TextPlacement replaces Vec3 position
 #include <memory>
 #include <optional>
 #include <string>
@@ -95,8 +96,7 @@ struct GridBackgroundParams {
 // ═══════════════════════════════════════════════════════════════════════════
 // Text composition structs — split the old 30-field TextParams monolith into
 // four composable sub-structs (FontSpec already lives in font_engine.hpp).
-//
-//   TextSpec = TextContent + FontSpec + TextLayoutSpec + TextAppearanceSpec + position
+////   TextSpec = TextContent + FontSpec + TextLayoutSpec + TextAppearanceSpec + placement
 //
 // Callers can now:
 //   - Build reusable font/layout/appearance presets
@@ -162,7 +162,7 @@ struct TextSpec {
     FontSpec           font;
     TextLayoutSpec     layout;
     TextAppearanceSpec appearance;
-    Vec3               position{};
+    TextPlacement      placement{};  // F1: replaces Vec3 position — kind + Vec2 offset
 };
 
 // ── TextParams: DEPRECATED type-alias for TextSpec ──────────────────
@@ -172,13 +172,13 @@ struct TextSpec {
 //
 // The 30-field TextParams monolith has been retired in favour of the
 // composable TextSpec (TextContent + FontSpec + TextLayoutSpec +
-// TextAppearanceSpec + position).  `TextParams` is kept as a deprecated
+// TextAppearanceSpec + placement).  `TextParams` is kept as a deprecated
 // alias so any external code that still references the name continues to
 // compile with a warning.  To migrate:
 //   1. Replace `TextParams` with `TextSpec`
 //   2. Construct via TextSpec{...} nested designated initializers, or
 //   3. Read/write through TextSpec's sub-structs (.content.value, .font.*,
-//      .layout.*, .appearance.*, .position).
+//      .layout.*, .appearance.*, .placement).
 //
 // Note: because the two names are now identical, any field-set pattern
 // like `TextParams tp; tp.text = "x";` will NOT compile — `TextSpec` has
@@ -223,7 +223,7 @@ struct TextRunSpec {
 //   spec.text.font.font_size   (was spec.font_size)
 //   spec.text.font.font_weight (was spec.font_weight)
 //   spec.text.appearance.color (was spec.color)
-//   spec.text.position         (was spec.pos)
+//   spec.text.placement       (was spec.pos, then .position)
 //   spec.text.layout.box       (was spec.size)
 //   spec.text.layout.tracking  (was spec.tracking)
 //   spec.text.layout.{anchor|align|vertical_align|wrap|line_height}

@@ -100,7 +100,8 @@ inline TextDefinition typewriter_text(CenterTextOptions o,
                            .max_font_size  = o.max_font_size,
                            .max_lines      = o.max_lines},
             .appearance = {.color = c},
-            .position   = o.pos,
+            .placement  = TextPlacement{
+                TextPlacementKind::Absolute, {o.pos.x, o.pos.y}},
         });
     };
 
@@ -569,7 +570,7 @@ inline void typewriter_build(
                           .overflow = TextOverflow::Clip,
                           .line_height = lh,
                           .tracking = 0.0f,
-                          .position = {cp.x, cp.y, 0.0f}},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, {cp.x, cp.y}},
             });
         });
     }
