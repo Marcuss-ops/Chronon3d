@@ -202,6 +202,73 @@ effective_paragraph_style(
 } // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
+// compile_text_layout — canonical TextCompiler artifact (text V1 plan Phase A.4)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// PHASE-A4 of the text V1 cleanup plan asks to introduce a canonical
+// `TextCompiler` class as the single entry point for text shaping,
+// measurement, and cache lookup.  The thinker's Option C verdict
+// (verbatim: "the existing compile_text_layout() free function IS the
+// canonical TextCompiler; no new class should be created") establishes
+// that this free function fulfills the spec's intent — the AGENTS.md
+// "Non duplicare..." + "No espansione API non necessaria" rules forbid
+// wrapping a robust 7-stage orchestrator behind a class that adds zero
+// functional value.
+//
+// Spec-to-implementation mapping (PHASE-A4):
+//   Spec term                  |  Implementation
+//   ---------------------------+---------------------------------------------
+//   class TextCompiler         |  free function `compile_text_layout`
+//   TextDefinition input       |  `const TextLayoutRequest& request`
+//                                 (TextLayoutRequest is the canonical
+//                                 internal representation of TextDefinition
+//                                 post-resolution; see text_layout_request.hpp)
+//   RenderSessionContext input |  `TextCompileServices& services`
+//                                 (services bundle font engine + cache +
+//                                 logger + failure_policy; equivalent to
+//                                 what the spec calls "RenderSessionContext")
+//   TextRunLayout output       |  `Result<std::shared_ptr<TextRunLayout>, ...>`
+//                                 (already exists at text_run_layout.hpp)
+//   TextRunShape output        |  produced downstream by
+//                                 `materialize_text_run_shape()` in the
+//                                 render-graph node path (text_run_shape.hpp)
+//   TextVisibilityContract     |  the 7-stage pipeline emits a result
+//   output                     |  that satisfies the visibility contract
+//                                 invariant above (units ALWAYS valid);
+//                                 a dedicated TextVisibilityContract type
+//                                 does NOT exist (per Option C — no parallel
+//                                 type introduced; the contract IS the
+//                                 invariant on the returned layout)
+//
+// Architectural rule (verbatim from PHASE-A4 spec):
+//   "No composition may call shaping/measurement directly."
+//   This rule is enforced by the file layout: all shaping/measurement
+//   helpers live under `src/text/compiler/` and are called ONLY from
+//   this orchestrator.  Compositions in `src/backends/` consume the
+//   pre-shaped `TextRunLayout` + `TextRunShape` and never re-invoke
+//   shaping.  See `src/render_graph/nodes/text_run/` for the consumer
+//   side and `src/text/compiler/text_compile_internal.hpp` for the
+//   helper-side.
+//
+// Lifecycle:
+//   Phase A.1 (text_definition.hpp)   — TextDefinition DTO (input DTO)
+//   Phase A.2 (text_placement.hpp)    — TextPlacement authoring type
+//   Phase A.3 (text_placement_resolver) — ResolvedTextPlacement + resolver
+//   Phase A.4 (THIS COMMENT)          — canonical TextCompiler artifact
+//   Phase B (migration)               — All call sites migrate to TextCompiler
+//   Phase C (builder)                 — Simple builder API
+//   Phase D (gate)                    — Anti-legacy gate blocks direct
+//                                       shaping/measurement from compositions
+//
+// Anti-duplicazione honour:
+//   - No new `TextCompiler` class introduced (per Option C).
+//   - No parallel orchestrator (the free function is canonical).
+//   - No new `RenderSessionContext` type (TextCompileServices is the
+//     equivalent existing bundle).
+//   - No new `TextVisibilityContract` type (the contract is the
+//     invariant on the returned layout, not a separate wrapper type).
+//
+// ═══════════════════════════════════════════════════════════════════════════
 // compile_text_layout — canonical 7-stage pipeline (M1.5#6)
 // ═══════════════════════════════════════════════════════════════════════════
 //
