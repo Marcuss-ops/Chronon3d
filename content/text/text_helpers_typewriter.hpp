@@ -9,7 +9,9 @@
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/core/types/result.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/text_error.hpp>  // F0.3 — TextErrorCode + TextError
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 
 // Needed for complete CenterTextOptions type used by-value in typewriter_text()
@@ -171,16 +173,18 @@ struct TypewriterLayout {
     f32 total_height{0.0f};
 };
 
-// F0.2b — resolver-based overloads replaced by FontEngine&.
+// F0.3 — silent returns replaced by Result<…, TextError>.
 // Forward-declare: full implementation lives in this header.
-TypewriterLayout compute_typewriter_layout(
+[[nodiscard]] Result<TypewriterLayout, TextError> compute_typewriter_layout(
     const std::string& text, f32 font_size, f32 tracking,
     Vec2 box, f32 line_height,
     const FontSpec& font_spec,
     FontEngine& engine,
     PlacedGlyphRun* out_placed = nullptr);
 
-void typewriter_build(
+// F0.3 — returns Result<bool, TextError> (bool-as-void; Result<void,…>
+// is ill-formed in this codebase).  Ok(true) = scene built successfully.
+[[nodiscard]] Result<bool, TextError> typewriter_build(
     SceneBuilder& s, std::string_view layer_prefix,
     const TypewriterBuildOptions& opts, Frame frame,
     FontEngine& engine);
@@ -196,7 +200,7 @@ void typewriter_build(
 
 namespace chronon3d::content::text {
 
-inline TypewriterLayout compute_typewriter_layout(
+inline Result<TypewriterLayout, TextError> compute_typewriter_layout(
     const std::string& text, f32 font_size, f32 tracking,
     Vec2 box, f32 line_height,
     const FontSpec& font_spec,
@@ -204,15 +208,21 @@ inline TypewriterLayout compute_typewriter_layout(
     PlacedGlyphRun* out_placed)
 {
     TypewriterLayout result;
-    if (text.empty()) return result;
+    if (text.empty()) return Err(TextError{
+        TextErrorCode::EmptyText,
+        "compute_typewriter_layout: text is empty"});
 
     // F0.2b — FontEngine is now caller-supplied (wired from ctx.font_engine).
 
     auto run = engine.shape_text(text, font_spec, font_size);
-    if (!run || run->glyphs.empty()) return result;
+    if (!run || run->glyphs.empty()) return Err(TextError{
+        TextErrorCode::ShapingFailed,
+        "compute_typewriter_layout: shaping produced no glyphs"});
 
     auto placed = resolve_placed_glyph_run(*run, tracking, text);
-    if (placed.clusters.empty()) return result;
+    if (placed.clusters.empty()) return Err(TextError{
+        TextErrorCode::NoClusters,
+        "compute_typewriter_layout: placed clusters are empty"});
 
     struct CharAdv { size_t byte_offset; size_t byte_len; f32 advance; };
     std::vector<CharAdv> char_advances;
@@ -365,7 +375,9 @@ inline TypewriterLayout compute_typewriter_layout(
         size_t max_lines = std::max(static_cast<size_t>(box.y / line_step), size_t{1});
         if (lines.size() > max_lines) lines.resize(max_lines);
     }
-    if (lines.empty()) return result;
+    if (lines.empty()) return Err(TextError{
+        TextErrorCode::NoLayoutLines,
+        "compute_typewriter_layout: word-wrap produced zero lines"});
 
     f32 max_w = 0.0f;
     for (auto& ln : lines) max_w = std::max(max_w, ln.width);
@@ -395,12 +407,12 @@ inline TypewriterLayout compute_typewriter_layout(
         *out_placed = resolve_placed_glyph_run(*run, 0.0f, text);
     }
 
-    return result;
+    return Ok(std::move(result));
 }
 
 // ── typewriter_build — implementation ─────────────────────────────────────
 
-inline void typewriter_build(
+inline Result<bool, TextError> typewriter_build(
     SceneBuilder& s, std::string_view layer_prefix,
     const TypewriterBuildOptions& opts, Frame frame,
     FontEngine& engine)
@@ -438,11 +450,14 @@ inline void typewriter_build(
 
     if (!cache_hit) {
         cached_placed = PlacedGlyphRun{};
-        cached_layout = compute_typewriter_layout(
+        auto layout_result = compute_typewriter_layout(
             opts.text, opts.font_size, opts.tracking,
             opts.box, opts.line_height, font_spec,
             engine,
             &cached_placed);
+        // F0.3 — propagate structured error from compute_typewriter_layout
+        if (!layout_result) return Err(layout_result.error());
+        cached_layout = std::move(*layout_result);
         cached_text = opts.text;
         cached_font_size = opts.font_size;
         cached_tracking = opts.tracking;
@@ -457,12 +472,17 @@ inline void typewriter_build(
 
     auto& layout = cached_layout;
 
-    if (layout.chars.empty()) return;
+    if (layout.chars.empty()) return Err(TextError{
+        TextErrorCode::NoLayoutChars,
+        "typewriter_build: layout has zero characters"});
 
     const f32 total_chars = static_cast<f32>(layout.chars.size());
     const f32 raw_frame = static_cast<f32>(frame) - static_cast<f32>(opts.start_delay);
 
-    if (raw_frame < 0.0f) return;
+    // F0.3 — start-delay guard: not an error, normal operational state.
+    // The caller is expected to call typewriter_build() every frame;
+    // bool-as-void pattern: any value means Ok (Result<void,…> not available).
+    if (raw_frame < 0.0f) return true;
 
     const f32 linear_t = std::clamp(raw_frame * opts.chars_per_frame / total_chars, 0.0f, 1.0f);
     const f32 eased_t = opts.easing.apply(linear_t);
@@ -574,11 +594,12 @@ inline void typewriter_build(
             });
         });
     }
+    return true;
 }
 
 // ── compute_single_line_glyph_layout ──────────────────────────────────────
 
-inline TypewriterLayout compute_single_line_glyph_layout(
+[[nodiscard]] inline Result<TypewriterLayout, TextError> compute_single_line_glyph_layout(
     const std::string& text,
     f32 font_size,
     f32 tracking,
