@@ -30,7 +30,7 @@ identificati come fonti di non-determinismo e di stato nascosto:
 2. `GraphExecutor` accetta solo `CompiledFrameGraph`. Gli overload
    su `RenderGraph` raw sono rimossi.
 3. `chronon3d::runtime::ExecutionPlanCache` non esiste più. La sua
-   rimozione è registrata nel commit `9f9af90e`.
+   rimozione registrata.
 
 ## Consequences
 
