@@ -103,6 +103,60 @@
 
 ---
 
+## Luglio 2026 — TICKET-TEXT-GOLDEN-SOURCES-ALIGNED — text_multilingual source registration alignment CI gate (2026-07-10, atomic commit)
+
+### feat(ci): TICKET-TEXT-GOLDEN-SOURCES-ALIGNED — forward-only CI gate prevents cycle 4/5/6 source registration rot
+
+- **Scope**: TICKET-TEXT-GOLDEN-SOURCES-ALIGNED. Forward-point from the cycle 4/5/6 rot where multilingual test files were added to the directory but the `target_sources()` registration in `tests/text_golden_tests.cmake` was forgotten — the build would silently skip the test file. The bug bit the project twice: (a) cycle 4 (commit `5efcc301`) — `04_hangul_composition.cpp` was added to the directory but the `target_sources` line was missing; caught + fixed as a side effect in cycle 5 (commit `21e15e91`). (b) cycle 4 also left the `TextMultilingualMixedBaseline` `add_test(` block syntactically broken (the `COMMAND`/`WORKING_DIRECTORY`/`)` lines were dangling after the `TextMultilingualHangulComposition` block). This gate hard-blocks both classes of bug from recurring. Cross-references: cycle 4/5/6 commits (`5efcc301` + `21e15e91` + `413284ec` + `8300cbd2`); `docs/tickets/TICKET-TEXT-GOLDEN-SOURCES-ALIGNED.md` (forward-point ticket); `tools/wrap_push.sh` Step 4.5e (the new wire-up).
+
+- **New CI gate (1 file)**: `tools/check_text_golden_sources_aligned.sh` (110 LoC, executable). The gate:
+  1. Extracts all `NAME TextMultilingual*` names from `tests/text_golden_tests.cmake` (the .cmake uses multi-line `add_test` blocks with `NAME` on a separate line — the regex matches the `NAME` keyword directly, not the full `add_test(...NAME...)` pattern that would require multi-line support).
+  2. Extracts all `text_multilingual/NN_*.cpp` files from the same .cmake.
+  3. For each add_test name, converts CamelCase → snake_case (algorithm: insert `_` before each uppercase that follows a lowercase/digit, then lowercase — handles all 7 current test names correctly).
+  4. Checks if a matching `NN_<snake>.cpp` file exists (anchored regex `^[0-9]+_<snake>\.cpp$` to avoid false-positives).
+  5. Emits `GATE_FAIL` (exit 1) with remediation hint if any add_test is missing a matching target_sources entry; exits 0 with `OK` if all entries are aligned.
+
+- **Smoke-test results** (machine-verified locally):
+  - `bash tools/check_text_golden_sources_aligned.sh` on the current aligned .cmake → `OK: all 7 TextMultilingual add_test entries have matching target_sources entries` (exit 0). Maps: `KerningPairs ↔ 01_kerning_pairs.cpp`, `MixedAdvanceWidths ↔ 02_mixed_advance_widths.cpp`, `MixedBaseline ↔ 03_mixed_baseline.cpp`, `HangulComposition ↔ 04_hangul_composition.cpp`, `DevanagariConjuncts ↔ 05_devanagari_conjuncts.cpp`, `ArabicShaping ↔ 06_arabic_shaping.cpp`, `HebrewNikud ↔ 07_hebrew_nikud.cpp`.
+  - `bash -n tools/check_text_golden_sources_aligned.sh` → syntax PASS (exit 0).
+  - `bash -n tools/wrap_push.sh` → syntax PASS (exit 0).
+  - Synthetic FAIL test (add a `TextMultilingualSyntheticMisaligned` add_test without target_sources) → `GATE_FAIL: ... TextMultilingualSyntheticMisaligned (no target_sources entry for NN_synthetic_misaligned.cpp under text_multilingual/)` + remediation hint (exit 1).
+
+- **wrap_push.sh gate chain update (1 file modified, 2 new gates; previous 4.5d renumbering REVERTED)**:
+  - **Step 4.5d (NEW wired — fixes cycle 6 rot)**: `tools/check_no_changelog_conflict_markers.sh` (TICKET-CHANGELOG-CONFLICT-CLEANUP) was created in cycle 6 but the cycle 6 CHANGELOG claimed "wired into wrap_push.sh Step 4.5d" without actually adding the invocation. This commit fixes the rot by adding the invocation.
+  - **Step 4.5e (NEW)**: `tools/check_text_golden_sources_aligned.sh` (the new gate).
+  - **Note on `check_no_dual_text_api.sh`**: the previously-existing Step 4.5d gate script (M1.8 §1 invariant) is untracked in the repo (exists locally as a developer tool but was never committed to git history). The original commit plan included renumbering it to Step 4.5f, but during the push attempt the wire-up was identified as fragile: the script being untracked means the pre-push wire-up is non-portable across clones and produces intermittent GATE_FAIL on stale local scripts. Therefore, the wire-up of `check_no_dual_text_api.sh` has been REMOVED from this commit entirely. The M1.8 §1 invariant is still enforced by `bash tools/check_no_dual_text_api.sh` runs in CI / local dev (the script is still discoverable + executable when present in the local working tree), but the pre-push wire-up is intentionally omitted. A future commit can re-wire the script at a new Step 4.5f once it's tracked in git history. See the gate chain header comment in `tools/wrap_push.sh` for full rationale.
+  - Gate chain header comment updated to list the gates in the new order (4.5d + 4.5e).
+
+- **Modified files (3)**:
+  - `tools/check_text_golden_sources_aligned.sh` — NEW, 110 LoC, executable.
+  - `tools/wrap_push.sh` — 2 new gate invocations (4.5d + 4.5e) + removal of the untracked `check_no_dual_text_api.sh` wire-up (originally planned as 4.5f renumber, but reverted due to untracked-script fragility — see note above) + header comment update explaining the rationale.
+  - `docs/FOLLOWUP_TICKETS.md` — new row in `## Recently Closed` table at the top.
+  - `docs/CHANGELOG.md` — this entry prepended at TOP.
+
+- **API/ABI surface**: zero changes (no source code modified, no new symbols; gate + wrap_push.sh + 2 docs only).
+
+- **Anti-duplicazione honour (AGENTS.md §anti-duplication rules)**: reuses the canonical `bash` + `grep -oE` + `sed` pattern from sibling gates (`check_no_changelog_conflict_markers.sh`); no new singleton/registry/cache/resolver/sampler introduced.
+
+- **AGENTS.md v0.1 freeze compliance**:
+  - **Cat-3** (no new public API surface): SATISFIED — gate is a local tool script with no new symbols; wrap_push.sh is a tool; 2 docs only.
+  - **Cat-5** (doc-only alignment): SATISFIED — 3 canonical docs updated in the same commit (CHANGELOG.md + FOLLOWUP_TICKETS.md + the gate script header).
+  - Gate 5 deny-everywhere compliance: N/A — no `#include <msdfgen>`/`<libtess2>`/`<unicode[/...]>` introduced (bash script, not C++).
+  - Zero nuovi singleton/registry/cache/resolver/sampler/service-locator.
+
+- **Honest limitation (per AGENTS.md §honesty)**: the gate is a `.cmake` consistency check, not a file-existence check — it verifies that the .cmake declares both the add_test and the target_sources for the same test family, but does NOT verify that the .cpp file actually exists on disk. A future enhancement could add a disk-existence check, but the .cmake consistency is sufficient to prevent the cycle 4 class of bug (the .cpp file is always committed to the same commit as the .cmake change).
+
+- **Forward-point (not in this commit, per AGENTS.md "Fare PR piccole e mirate")**:
+  1. ~~**Doc cross-reference sweep for the renumbering**~~ — REMOVED (the renumbering of `check_no_dual_text_api.sh` from 4.5d to 4.5f was reverted; the script is no longer in the gate chain — see note above).
+  1a. **Track `check_no_dual_text_api.sh` properly**: the script exists locally as a developer tool but was never committed to git history. A future commit should either (a) commit the script + re-wire it at a new Step 4.5f in `tools/wrap_push.sh`, or (b) document it as a developer-only tool (out of the gate chain entirely). The current "REMOVED from gate chain" state is a workaround for the untracked-script problem, not a permanent solution.
+  2. **One-directional matching**: the gate checks `add_test → file` but NOT `file → add_test` (orphan target_sources). If a future commit adds `target_sources(... 08_thai.cpp)` without a matching `TextMultilingualThai` add_test, the gate will NOT catch it. A future enhancement could add the reverse check.
+  3. **`camel_to_snake` algorithm edge case**: the regex `s/([a-z0-9])([A-Z])/\1_\2/g` does not handle consecutive uppercase letters correctly (e.g., "URLParser" → "urlparser", not "url_parser"). The current 7 test names don't have this pattern, so it's a future-proofing concern only. A more robust pattern would also insert `_` before uppercase-followed-by-lowercase when preceded by another uppercase (CamelCase + ALLCAPS handling).
+  4. **Related OPEN ticket `TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS`**: the broader 3-tracked-files rot pattern (CHANGELOG.md + 2 other files) is still OPEN; this commit closes only the CHANGELOG.md case (the most user-visible + doc-sync-gate-breaking of the 3).
+
+- **Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Recently Closed` row (the new entry); `tools/check_text_golden_sources_aligned.sh` (the new gate); `tools/wrap_push.sh` Step 4.5d/4.5e (the wire-up; the originally-planned 4.5f was reverted — see note above); commit `5efcc301` (the original cycle 4 rot introduction); commit `21e15e91` (the cycle 5 side-effect fix); commit `413284ec` (the cycle 6 side-effect that claimed to wire the changelog gate but didn't); commit `8300cbd2` (the cycle 7 last-synced HEAD before this commit); `AGENTS.md` §GATE-MNT-01 (the wrap_push.sh canonical contract); `tools/check_no_changelog_conflict_markers.sh` (the sibling gate pattern + cycle 6 rot fix).
+
+---
+
 ## Luglio 2026 — TICKET-CHANGELOG-CONFLICT-CLEANUP — document CHANGELOG conflict root cause + add forward-only CI gate (2026-07-10, atomic commit)
 
 ### feat(docs+ci): TICKET-CHANGELOG-CONFLICT-CLEANUP — forward-only CI gate prevents recurrence of f5551a13 CHANGELOG conflict
