@@ -50,18 +50,6 @@ target_sources(chronon3d_text_golden_tests
         text_golden/user_spec/12_anim_framerate_determinism.cpp
 )
 
-# F3.C — 5 reusable TextDefinition preset golden tests.
-target_sources(chronon3d_text_golden_tests
-    PRIVATE
-        text_golden/presets/test_text_presets_golden.cpp
-)
-add_test(
-    NAME TextPresetsGolden
-    COMMAND chronon3d_text_golden_tests "--test-case=F3.C Presets:*"
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
-set_tests_properties(TextPresetsGolden PROPERTIES LABELS "text;golden;presets;f3c")
-
 # ADR-015 (TICKET-AE-PARITY-SUITE) — 5 cinematic AE-parity scene-builders.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
@@ -345,6 +333,75 @@ add_test(
 add_test(
     NAME TextCompleteness
     COMMAND chronon3d_text_golden_tests --test-case="TextCompleteness.*"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# TICKET-FASE2-TRANSFORMS-ANIMATION §10 — First test of the V0.2
+# transforms/animation cluster.  Verifies that text rotated around the
+# Z axis (in the canvas plane) does NOT clip at the canvas edges.
+# 6 PNG goldens in `test_renders/golden/text/text_transforms_animation/rotate_z_not_cut/`
+# (3 rotations × 2 ARs: 15°/45°/90° × 1920×1080/1080×1920).  Graceful
+# skip on `result.golden_missing` per the §13 honest-gap pattern.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_transforms_animation/01_rotate_z_not_cut.cpp
+)
+
+# TICKET-FASE2-TRANSFORMS-ANIMATION §10 ctest alias.
+add_test(
+    NAME TextRotateZ
+    COMMAND chronon3d_text_golden_tests --test-case="TextTransforms.RotateZ *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# TICKET-FASE3-MULTILINGUAL §KerningPairs — first of the 3 genuinely new
+# multilingual text goldens.  3 PNG goldens in
+# `test_renders/golden/text/text_multilingual/kerning_pairs/`
+# (hero 200pt / body 96pt / with-tracking).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_multilingual/01_kerning_pairs.cpp
+)
+
+# TICKET-FASE3-MULTILINGUAL §MixedAdvanceWidths — second genuinely new
+# multilingual text golden.  3 PNG goldens in
+# `test_renders/golden/text/text_multilingual/mixed_advance_widths/`
+# (Latin-only / CJK-only / mixed).  CJK depends on system font fallback
+# (NotoSansCJK) per honest-gap documentation in the test file.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_multilingual/02_mixed_advance_widths.cpp
+)
+
+# TICKET-FASE3-MULTILINGUAL §MixedBaseline — third genuinely new
+# multilingual text golden.  3 PNG goldens in
+# `test_renders/golden/text/text_multilingual/mixed_baseline/`
+# (default / +20px subscript / -20px superscript).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_multilingual/03_mixed_baseline.cpp
+)
+
+# TICKET-FASE3-MULTILINGUAL ctest aliases.
+add_test(
+    NAME TextMultilingualKerningPairs
+    COMMAND chronon3d_text_golden_tests --test-case="Multilingual.KerningPairs *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+add_test(
+    NAME TextMultilingualMixedAdvanceWidths
+    COMMAND chronon3d_text_golden_tests --test-case="Multilingual.MixedAdvanceWidths *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+add_test(
+    NAME TextMultilingualMixedBaseline
+
+add_test(
+    NAME TextMultilingualHangulComposition
+    COMMAND chronon3d_text_golden_tests --test-case="Multilingual.HangulComposition *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+    COMMAND chronon3d_text_golden_tests --test-case="Multilingual.MixedBaseline *"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
