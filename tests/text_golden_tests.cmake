@@ -332,7 +332,7 @@ add_test(
 # TextCompleteness ctest alias.
 add_test(
     NAME TextCompleteness
-    COMMAND chronon3d_text_golden_tests --test-case="TextCompleteness*"
+    COMMAND chronon3d_text_golden_tests --test-case="TextCompleteness.*"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
