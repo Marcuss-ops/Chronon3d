@@ -1,14 +1,18 @@
-# ── Media/Video Tests (isolated, no chronon3d_pipeline) ──
+# ── Media/Video Tests ──
 #
-# These tests only exercise chronon3d_media_video and chronon3d_backend_video.
-# They do NOT depend on chronon3d_pipeline (no scene graph, no renderer).
-# This keeps build time low and prevents pipeline changes from breaking
-# video-sink / frame-converter tests.
+# These tests exercise chronon3d_media_video, chronon3d_backend_video,
+# and the video_sink_adapter from the CLI.
+#
+# NOTE: chronon3d_backend_software is an OBJECT library whose transitive
+# dependencies (chronon3d, chronon3d_graph, chronon3d_cache, chronon3d_effects,
+# blend2d, backend_text) do NOT propagate via target_link_libraries.
+# We must link chronon3d_pipeline explicitly to resolve all symbols.
+# This matches the standard INTEGRATION tier link contract.
 
 chronon3d_add_test_suite(
     NAME chronon3d_media_video_tests
     TIER INTEGRATION
-    LINK_TARGETS chronon3d_backend_video chronon3d_backend_software chronon3d_media_video chronon3d_scene
+    LINK_TARGETS chronon3d_pipeline chronon3d_backend_video chronon3d_backend_software chronon3d_media_video chronon3d_scene
     SOURCES video/test_frame_converter.cpp
             video/test_converted_frame_cache.cpp
             video/test_video_diff.cpp
@@ -33,3 +37,13 @@ chronon3d_add_test_suite(
 # include dirs; this explicit add covers the /apps/chronon3d_cli subset
 # the test sources need to compile.
 target_include_directories(chronon3d_media_video_tests PRIVATE ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
+
+# Backend text + Blend2D are needed when those features are enabled
+# (transitive deps of chronon3d_backend_software that don't propagate
+# from the OBJECT library link).
+if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D AND TARGET chronon3d_backend_text)
+    target_link_libraries(chronon3d_media_video_tests PRIVATE chronon3d_backend_text)
+endif()
+if(CHRONON3D_USE_BLEND2D AND TARGET blend2d::blend2d)
+    target_link_libraries(chronon3d_media_video_tests PRIVATE blend2d::blend2d)
+endif()
