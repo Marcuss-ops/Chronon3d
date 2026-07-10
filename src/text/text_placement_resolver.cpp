@@ -13,11 +13,21 @@
 namespace chronon3d {
 
 // ═══════════════════════════════════════════════════════════════════════════
-// resolve_placement_origin — compute top-left of the box for a placement
+// resolve_placement_origin — compute the PIN POINT for a placement
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// For each TextPlacement variant, computes the Vec2 origin (top-left corner
-// of the text box) in Canvas coords.  The offset is applied AFTER placement.
+// Returns the "pin point" — the Canvas-space position where the box's
+// ANCHOR POINT should sit.  This is NOT the box's top-left corner;
+// the box top-left is derived by subtracting the anchor offset:
+//
+//   box_top_left = pin_point - anchor_offset
+//
+// For CanvasCenter:  pin_point = (canvas.width/2, canvas.height/2)
+// For TopLeft:       pin_point = (safe_margin_left, safe_margin_top)
+// For Absolute:      pin_point = offset (the explicit position)
+//
+// The offset parameter is additive for all placements except Absolute
+// (where it IS the position).
 //
 // Coordinate semantics (ADR-019 Decision 1):
 //   - Canvas origin = top-left corner of the frame (0, 0)
@@ -30,75 +40,73 @@ Vec2 resolve_placement_origin(
     TextPlacement placement,
     Vec2 offset
 ) {
-    Vec2 origin{0.0f, 0.0f};
+    Vec2 pin{0.0f, 0.0f};
+    (void)box_size; // pin point is independent of box size for most placements
 
     switch (placement) {
         case TextPlacement::CanvasCenter:
-            origin.x = (canvas.width - box_size.x) * 0.5f;
-            origin.y = (canvas.height - box_size.y) * 0.5f;
+            pin.x = canvas.width * 0.5f;
+            pin.y = canvas.height * 0.5f;
             break;
 
         case TextPlacement::TopLeft:
-            origin.x = canvas.safe_margin_left;
-            origin.y = canvas.safe_margin_top;
+            pin.x = canvas.safe_margin_left;
+            pin.y = canvas.safe_margin_top;
             break;
 
         case TextPlacement::TopCenter:
-            origin.x = (canvas.width - box_size.x) * 0.5f;
-            origin.y = canvas.safe_margin_top;
+            pin.x = canvas.width * 0.5f;
+            pin.y = canvas.safe_margin_top;
             break;
 
         case TextPlacement::TopRight:
-            origin.x = canvas.width - box_size.x - canvas.safe_margin_right;
-            origin.y = canvas.safe_margin_top;
+            pin.x = canvas.width - canvas.safe_margin_right;
+            pin.y = canvas.safe_margin_top;
             break;
 
         case TextPlacement::CenterLeft:
-            origin.x = canvas.safe_margin_left;
-            origin.y = (canvas.height - box_size.y) * 0.5f;
+            pin.x = canvas.safe_margin_left;
+            pin.y = canvas.height * 0.5f;
             break;
 
         case TextPlacement::CenterRight:
-            origin.x = canvas.width - box_size.x - canvas.safe_margin_right;
-            origin.y = (canvas.height - box_size.y) * 0.5f;
+            pin.x = canvas.width - canvas.safe_margin_right;
+            pin.y = canvas.height * 0.5f;
             break;
 
         case TextPlacement::BottomLeft:
-            origin.x = canvas.safe_margin_left;
-            origin.y = canvas.height - box_size.y - canvas.safe_margin_bottom;
+            pin.x = canvas.safe_margin_left;
+            pin.y = canvas.height - canvas.safe_margin_bottom;
             break;
 
         case TextPlacement::BottomCenter:
-            origin.x = (canvas.width - box_size.x) * 0.5f;
-            origin.y = canvas.height - box_size.y - canvas.safe_margin_bottom;
+            pin.x = canvas.width * 0.5f;
+            pin.y = canvas.height - canvas.safe_margin_bottom;
             break;
 
         case TextPlacement::BottomRight:
-            origin.x = canvas.width - box_size.x - canvas.safe_margin_right;
-            origin.y = canvas.height - box_size.y - canvas.safe_margin_bottom;
+            pin.x = canvas.width - canvas.safe_margin_right;
+            pin.y = canvas.height - canvas.safe_margin_bottom;
             break;
 
         case TextPlacement::SafeAreaTop:
-            origin.x = (canvas.width - box_size.x) * 0.5f;
-            origin.y = canvas.safe_margin_top;
+            pin.x = canvas.width * 0.5f;
+            pin.y = canvas.safe_margin_top;
             break;
 
         case TextPlacement::SafeAreaBottom:
-            origin.x = (canvas.width - box_size.x) * 0.5f;
-            origin.y = canvas.height - box_size.y - canvas.safe_margin_bottom;
+            pin.x = canvas.width * 0.5f;
+            pin.y = canvas.height - canvas.safe_margin_bottom;
             break;
 
         case TextPlacement::Absolute:
-            // For Absolute, the origin IS the offset (interpreted as
-            // absolute canvas coordinates).
-            origin = offset;
-            // Don't apply offset again below.
-            return origin;
+            // For Absolute, the offset IS the pin point.
+            return offset;
     }
 
     // Apply user-specified offset (additive).
-    origin += offset;
-    return origin;
+    pin += offset;
+    return pin;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -106,15 +114,25 @@ Vec2 resolve_placement_origin(
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Steps:
-//   1. Resolve placement → box top-left origin in Canvas coords
-//   2. Compute anchor offset within box (TextAnchor → Vec2)
-//   3. Compute alignment offset within box (TextAlign + VerticalAlign → Vec2)
-//   4. Compose world_matrix = layer_matrix × T(origin + anchor_offset)
-//   5. Compute layout_origin = origin + alignment_offset
+//   1. Resolve pin point (where the anchor should be on the canvas)
+//   2. Compute anchor offset (which point of the box is the anchor)
+//   3. Compute box top-left: origin = pin_point - anchor_offset
+//   4. Compose world_matrix = layer_matrix × T(origin)
+//   5. Set layout_origin = origin (top-left of the box)
 //
-// The layout_origin is where the first glyph's top-left sits in Canvas
-// coords.  Glyph positions from the layout engine are relative to this
-// origin (ADR-019 Decision 4).
+// The pin point is the Canvas-space position where the box's anchor
+// point should sit.  The anchor offset tells us which point of the
+// box is the "pin" (center, top-left, bottom-center, etc.).
+//
+// Example: CanvasCenter + TextAnchor::Center on 1920×1080 with 1700×360 box:
+//   pin_point = (960, 540)  (canvas center)
+//   anchor_offset = (850, 180)  (box_size/2 for Center)
+//   box_top_left = (960-850, 540-180) = (110, 360)
+//
+// Example: CanvasCenter + TextAnchor::TopLeft:
+//   pin_point = (960, 540)
+//   anchor_offset = (0, 0)  (TopLeft = no offset)
+//   box_top_left = (960, 540)  (box starts at canvas center)
 
 ResolvedTextPlacement resolve_text_placement(
     const CanvasInfo& canvas,
@@ -126,40 +144,29 @@ ResolvedTextPlacement resolve_text_placement(
 ) {
     ResolvedTextPlacement result;
 
-    // Step 1: Compute the DEFAULT box origin (top-left corner in Canvas
-    // coords) assuming TextAnchor::Center.  resolve_placement_origin()
-    // centers the box on the placement concept (e.g. CanvasCenter puts
-    // the box center at canvas center).
-    const Vec2 default_origin = resolve_placement_origin(canvas, box_size, placement, offset);
+    // Step 1: Resolve the pin point — where the box's anchor should be.
+    const Vec2 pin_point = resolve_placement_origin(canvas, box_size, placement, offset);
 
-    // Step 2: Compute anchor adjustment.
-    // resolve_placement_origin() assumes TextAnchor::Center — i.e., the
-    // box is centered on the placement point.  For other anchors, we
-    // shift the origin so the ANCHOR POINT (not the center) aligns
-    // with the placement point.
-    //
-    // adjustment = center_anchor - actual_anchor
-    //
-    // For TextAnchor::Center: adjust = (0, 0) — no change.
-    // For TextAnchor::TopLeft: adjust = (box/2) — box shifts right+down
-    //   so the top-left (not center) aligns with the placement point.
-    //
-    // Example: CanvasCenter + TextAnchor::TopLeft:
-    //   default_origin = (110, 360)  (box centered on canvas)
-    //   adjust = (850, 180) - (0, 0) = (850, 180)
-    //   origin = (960, 540) — box top-left at canvas center
-    const Vec3 anchor_vec = resolve_text_anchor(anchor, box_size);
-    const Vec3 center_vec = resolve_text_anchor(TextAnchor::Center, box_size);
-    const Vec2 adjust = Vec2(center_vec.x - anchor_vec.x, center_vec.y - anchor_vec.y);
-    const Vec2 origin = default_origin + adjust;
+    // Step 2: Compute anchor offset within the box.
+    // resolve_text_anchor() returns the anchor point RELATIVE to the
+    // box's top-left corner.  For TextAnchor::Center, this is
+    // (box_size.x/2, box_size.y/2, 0).  For TextAnchor::TopLeft, it's (0,0,0).
+    const Vec3 anchor_offset = resolve_text_anchor(anchor, box_size);
 
-    // Step 3: Compose world_matrix.
+    // Step 3: Compute box origin (top-left corner in Canvas coords).
+    // box_top_left = pin_point - anchor_offset
+    const Vec2 origin = Vec2(
+        pin_point.x - anchor_offset.x,
+        pin_point.y - anchor_offset.y
+    );
+
+    // Step 4: Compose world_matrix.
     // The world matrix transforms from Box coords (0,0 → box_size)
     // to Canvas coords at the resolved origin.
     const Vec3 translation(origin.x, origin.y, 0.0f);
     result.world_matrix = layer_matrix * glm::translate(Mat4(1.0f), translation);
 
-    // Step 4: Layout origin = box top-left in Canvas coords.
+    // Step 5: Layout origin = box top-left in Canvas coords.
     // The layout engine positions glyphs relative to this origin.
     // Alignment (TextAlign + VerticalAlign) is a layout-engine concern
     // that positions glyphs WITHIN the box — not handled here.
