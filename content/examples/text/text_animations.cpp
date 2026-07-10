@@ -99,6 +99,10 @@ TextSpec txt_center(std::string text, f32 font_size = 72.0f) {
 // Mounted at first-use time with the current working directory so
 // relative font paths (assets/fonts/Poppins-Regular.ttf) resolve
 // regardless of the renderer's internal FontEngine configuration.
+//
+// ADR-020: this is a function-local static singleton; rationale
+// + migration plan (FontEngine-from-runtime) is documented in
+// docs/adr/ADR-020-shared-static-fontengine-singleton.md.
 static chronon3d::FontEngine& shared_typewriter_engine() {
     static chronon3d::assets::AssetResolver s_resolver;
     if (!s_resolver.has_mount()) {
