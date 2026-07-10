@@ -80,6 +80,8 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         cmd->add_option("--alpha-threshold", s->alpha_threshold, "Alpha threshold (0-255)");
         cmd->add_flag("--diagnostic-overlay", s->diagnostic_overlay,
                       "Draw diagnostic overlay on text layers in frame PNGs (requires --render-dir)");
+        cmd->add_flag("--diagnostic-overlay-only", s->diagnostic_overlay_only,
+                      "Like --diagnostic-overlay but on transparent background (no scene content)");
         cmd->callback([s, &ctx]() {
             ctx.exit_code = command_text_audit(ctx.registry, *s);
         });

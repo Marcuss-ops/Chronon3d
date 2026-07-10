@@ -148,6 +148,13 @@ struct RenderSettings {
     /// Enabled by --debug-text-layout CLI flag.
     bool text_layout_debug{false};
 
+    /// Diagnostic overlay-only mode: skip scene content rendering and produce
+    /// a framebuffer with ONLY the debug overlay markers on transparent
+    /// background.  Requires text_layout_debug (or --diagnostic-overlay) to
+    /// also be true — the overlay-only flag alone is a no-op.
+    /// Enabled by --diagnostic-overlay-only CLI flag.
+    bool diagnostic_overlay_only{false};
+
     /// Text layout debug JSON export path.
     /// When non-empty and text_layout_debug is true, writes a JSON file
     /// with per-TextRun bounds data (alpha_bounds, layout_bounds,

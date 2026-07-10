@@ -1,3 +1,22 @@
+## Luglio 2026 — TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY-ONLY: `--diagnostic-overlay-only` trasparente (2026-07-10)
+
+### feat(cli): `--diagnostic-overlay-only` — overlay markers on transparent background, no scene content
+
+- **New CLI flag**: `--diagnostic-overlay-only` on `render`, `still`, `video`, `bake-layer`, and `inspect text` — produces a transparent-background PNG with ONLY diagnostic markers, no scene content. Useful for overlay-on vs overlay-off comparison.
+- **Implementation** (9 files):
+  - `include/chronon3d/backends/software/render_settings.hpp` — added `diagnostic_overlay_only` to `RenderSettings`
+  - `include/chronon3d/render_graph/render_graph_context.hpp` — added `diagnostic_overlay_only` to `RenderPolicy`
+  - `src/render_graph/pipeline/helpers.hpp` — wired `diagnostic_overlay_only` in `make_graph_context()`
+  - `src/render_graph/nodes/TextRunNode.cpp` — gated text rendering on `!ctx.policy.diagnostic_overlay_only`; framebuffer stays transparent; overlay markers draw on top
+  - `apps/chronon3d_cli/commands.hpp` — added to `RenderPipelineArgs`, `BakeLayerArgs`, `TextAuditArgs`
+  - `apps/chronon3d_cli/utils/job/cli_render_utils.hpp` — wired in `settings_from_args()` + updated `PipelinableArgs` concept
+  - `apps/chronon3d_cli/commands/render/command_bake_layer.cpp` — wired `diagnostic_overlay` + `diagnostic_overlay_only` (fixed latent bug where `diagnostic_overlay` was never wired)
+  - `apps/chronon3d_cli/commands/render/register_render_commands.cpp`, `register_video_commands.cpp`, `register_inspect_commands.cpp` — registered `--diagnostic-overlay-only` flag
+- **Design**: When `diagnostic_overlay_only` is active, `TextRunNode::execute()` skips `render_text_run_item()` entirely. The framebuffer (acquired with `clear=true`) stays transparent. Then `draw_text_debug_overlay()` draws the layout-box/anchor/baseline/canvas-center markers as usual. Alpha-dependent markers (visual bounds, alpha centroid) are naturally skipped since the framebuffer has no rendered content.
+- **Flag semantics**: `--diagnostic-overlay-only` is standalone — it activates the overlay pipeline (via `text_layout_debug`) on its own and also skips scene content rendering. No need to also pass `--diagnostic-overlay` alongside it.
+
+---
+
 ## Luglio 2026 — F2.D: TextDefinition → TextRunSpec reverse adapter (2026-07-10, atomic commit)
 
 ### feat(text): F2.D — `to_text_run_spec` reverse adapter closes the LOSSY REVERSE gap
