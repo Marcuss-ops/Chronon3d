@@ -40,7 +40,7 @@
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/text_definition.hpp>  // F3.D — to_text_run_spec() for TextDefinition overload (F2.D lossless reverse adapter)
-#include <chronon3d/text/text_placement_resolver.hpp>  // F2 — resolve_placement_origin for build-time semantic placement
+#include <chronon3d/text/resolve_text_placement.hpp>     // F2 — resolve_placement_origin for build-time semantic placement
 // TICKET-104 -- internal helper consumed by the per-spec
 // materialization site below.  Forward declaration is intentionally
 // NOT exposed via the PUBLIC HPP (cat-3 freeze: zero new public

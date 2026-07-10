@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: MIT
 //
-// text_placement_resolver.cpp — Unified text placement resolver
+// resolve_text_placement.cpp — Unified text placement resolver
+//
+// Phase A6 close-out (2026-07-10).  Implements the free-function resolver
+// declared in `include/chronon3d/text/resolve_text_placement.hpp`.  The
+// previous `text_placement_resolver.{hpp,cpp}` pair co-resident with the
+// also-retired `class TextPlacementResolver` wrapper has been split: the
+// free-function surface moved here, the class wrapper is GONE.
 //
 // ADR-019 Decision 3: TextPlacement resolves the Box coordinate level.
-// See text_placement_resolver.hpp for the contract.
+// See `include/chronon3d/text/resolve_text_placement.hpp` for the contract.
 
-#include <chronon3d/text/text_placement_resolver.hpp>
+#include <chronon3d/text/resolve_text_placement.hpp>
 #include <chronon3d/scene/model/render/render_node_factory.hpp> // resolve_text_anchor
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -119,7 +125,7 @@ Vec2 resolve_placement_origin(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// resolve_text_placement — the unified resolver
+// resolve_text_placement — the canonical unified resolver
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Steps:

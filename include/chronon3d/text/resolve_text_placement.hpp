@@ -1,57 +1,45 @@
 #pragma once
 
 // ============================================================================
-// text_placement_resolver.hpp — Unified text placement resolver
+// resolve_text_placement.hpp — Canonical text placement resolver surface
 //
-// ADR-019 Decision 3: TextPlacement resolves the Box coordinate level —
-// it determines where the text frame sits within the Layer or Canvas
-// coordinate space.
+// Phase A6 close-out (2026-07-10).
 //
-// This resolver is the single entry point for converting high-level
-// placement semantics (CanvasCenter, SafeAreaBottom, Absolute, etc.)
-// into concrete Mat4 transforms and layout origins that the rendering
-// pipeline consumes.
+// ADR-019 Decision 3 establishes `resolve_text_placement()` as the SINGLE
+// canonical surface for converting high-level placement semantics
+// (CanvasCenter, SafeAreaBottom, Absolute, …) into the `ResolvedTextPlacement`
+// the rendering pipeline consumes.  Resolution is Box-coordinate-level, as
+// documented in `docs/adr/ADR-019-text-coordinate-model.md` §Decision 3.
 //
-// The resolver produces:
-//   - local_frame:    Box position in Canvas coords
-//   - layer_matrix:   Layer transform (parent chain accumulated)
-//   - world_matrix:   = layer_matrix × local_to_world(local_frame)
-//   - layout_origin:  Origin for glyph layout (top-left of text frame
-//                     after alignment adjustment)
+// A previous co-resident `class TextPlacementResolver` (a thin shim that
+// delegated every call to the free function) was REMOVED in Phase A6 per the
+// AGENTS.md "Non duplicare…" rule.  The wrapper class was introduced in
+// Phase A.3 to satisfy a literal-spec surface, but carried no state, no
+// logic, and slightly indifferent delegation overhead.  The free function
+// is the canonical surface; the class surface is permanently retired.
+// Any future stateful extension (cache lease, prewarm hooks) will be added
+// to the free-function surface directly, not resurrected as a parallel class.
 //
-// Used by:
-//   - Future simple builder API (F2.B): .place(TextPlacement::CanvasCenter)
-//   - Future resolve_text_placement() in F1.B
-//   - Future TextDefinition (F2.A)
-//
-// Distinct from graph_builder_coordinates.hpp::resolve_text_run_placement()
-// which operates at the graph-builder level with LayerGraphItem + RenderNode.
-// This resolver operates at the authoring/semantic level with CanvasInfo +
-// TextPlacement.
+// This header is the SINGLE include for callers wanting
+// `CanvasInfo` / `ResolvedTextPlacement` / `resolve_text_placement` /
+// `resolve_placement_origin` / `SafeAreaPreset`.  The now-retired wrapper
+// header `text_placement_resolver.hpp` is BANNED from `include/chronon3d/`
+// (see gate #23 in `tools/check_architecture_boundaries.sh`).
 // ============================================================================
 
-#include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/model/shape/shape.hpp>  // TextAnchor, TextAlign, VerticalAlign
-#include <chronon3d/text/text_placement.hpp>      // TextPlacement, TextPlacementKind
+#include <chronon3d/math/glm_types.hpp>                      // Vec2 / Vec3 / Vec4 / Mat4
+#include <chronon3d/scene/model/shape/shape.hpp>             // TextAnchor
+#include <chronon3d/text/text_placement.hpp>                 // TextPlacement + TextPlacementKind + SafeAreaPreset
 
 namespace chronon3d {
 
-// `TextPlacementKind` (the enum) and `TextPlacement` (the bundling struct)
-// now live in `text_placement.hpp`.  See that header for the full 14-variant
-// list and authoring rationale (Phase A.2 of the text V1 plan).
-//
-// Backward-compat note: the resolver functions previously took the enum
-// `TextPlacement` + a separate `Vec2 offset` parameter.  After Phase A.2
-// they take a single `TextPlacement` struct (kind + offset bundled).  This
-// is a deliberate API consolidation (per AGENTS.md "Non duplicare…").
-
 // ── CanvasInfo — canvas descriptor for placement resolution ───────────────
 //
-// Describes the canvas dimensions and safe area margins.  Used by
-// resolve_text_placement() to compute placement positions.
-//
-// Safe area margins are in pixels from each edge.  Default values
-// represent a typical 16:9 safe area (5% margin on each side).
+// Describes the canvas dimensions and safe area margins.  Consumed by
+// `resolve_text_placement()` and `resolve_placement_origin()` to compute
+// concrete Canvas-space pin points.  Safe area margins default to a
+// typical 16:9 safe area (5% on each side, matching industry-standard
+// title/action-safe zones).
 struct CanvasInfo {
     f32 width{1920.0f};
     f32 height{1080.0f};
@@ -69,19 +57,18 @@ struct CanvasInfo {
 // ── ResolvedTextPlacement — output of the placement resolver ──────────────
 //
 // ADR-019 Decision 3: the resolved placement contains all coordinate
-// information needed by the rendering pipeline.
-//
-// Phase A.3 of the text V1 plan also reinterprets the spec terms onto this
-// single canonical struct (no parallel type introduced per AGENTS.md
-// "Non duplicare...").  Mapping of the Phase A.3 spec terms to the actual
-// fields (so users searching for `canvas_position` / `resolved_frame` /
-// `resolved_anchor` can find the canonical name):
+// information needed by the rendering pipeline.  Phase A.3 also
+// reinterprets the spec terms onto this single canonical struct (no
+// parallel type introduced per AGENTS.md "Non duplicare...").  Mapping
+// of the Phase A.3 spec terms to the actual fields (so users searching
+// for `canvas_position` / `resolved_frame` / `resolved_anchor` can find
+// the canonical name):
 //
 //   Phase A.3 spec term       |  ResolvedTextPlacement field
 //   --------------------------+---------------------------------------------
 //   Vec2  canvas_position     |  layout_origin  (Vec2; box top-left in Canvas)
 //   TextFrame resolved_frame  |  local_frame    (Vec4 = x, y, width, height)
-//   Anchor resolved_anchor   |  resolved_anchor (TextAnchor; input echo)
+//   Anchor resolved_anchor    |  resolved_anchor (TextAnchor; input echo)
 //
 // The 2 additional fields (layer_matrix, world_matrix) are kept for the
 // rendering pipeline's transform composition (ADR-019 Decision 1) — they
@@ -128,61 +115,10 @@ struct ResolvedTextPlacement {
     TextAnchor resolved_anchor{TextAnchor::Center};
 };
 
-// ── Forward decl — resolve_text_placement called by TextPlacementResolver ──
-// (Full declaration + doc-comment follows after the class.)
-[[nodiscard]] ResolvedTextPlacement resolve_text_placement(
-    const CanvasInfo& canvas,
-    Vec2 box_size,
-    TextPlacement placement,
-    TextAnchor anchor,
-    const Mat4& layer_matrix
-);
-
-// ── TextPlacementResolver — class-based resolver surface (Phase A.3) ─────
-//
-// Phase A.3 spec asks for a `TextPlacementResolver` class wrapping the
-// resolver.  The free function `resolve_text_placement` remains the
-// canonical implementation (per the AGENTS.md "Non duplicare..." rule
-// and the Option C reinterpretation from the thinker's verdict); this
-// class is a thin literal-spec shim that delegates to the free function.
-//
-// Why a class wrapper if the implementation is stateless?
-//   1. Satisfies the Phase A.3 spec's class-based surface literally.
-//   2. Hides the free function name from the public surface in case
-//      the canonical name changes (e.g., to `resolve` for parity with
-//      other resolver classes in the codebase).
-//
-// Future stateful extensions (e.g., a cache lease, prewarm hooks, or
-// per-frame memoization) will be added in a future commit when the
-// concrete need is identified.  At that point the class may either
-// grow a stateful constructor or be replaced by a stateful class; the
-// current class does NOT speculate about future API shape.
-//
-// Usage:
-//   TextPlacementResolver resolver;
-//   auto r = resolver.resolve(canvas, box, placement, anchor, parent);
-//
-class TextPlacementResolver final {
-public:
-    // Delegating wrapper around `resolve_text_placement` — see that
-    // free function for the full parameter + return contract.
-    [[nodiscard]] ResolvedTextPlacement resolve(
-        const CanvasInfo& canvas,
-        Vec2 box_size,
-        TextPlacement placement,
-        TextAnchor anchor = TextAnchor::Center,
-        const Mat4& layer_matrix = Mat4(1.0f)
-    ) const {
-        return resolve_text_placement(canvas, box_size, placement,
-                                       anchor, layer_matrix);
-    }
-};
-
-// ── resolve_text_placement — the unified resolver ─────────────────────────
+// ── resolve_text_placement — the canonical unified resolver ──────────────────
 //
 // Resolves text placement into concrete transforms and layout origins.
-//
-// This is the single entry point for converting high-level placement
+// This is the SINGLE entry point for converting high-level placement
 // semantics into rendering-ready coordinates.  It handles:
 //   1. Placement resolution (TextPlacement → box position)
 //   2. Offset application (user-specified offset from placement)
@@ -210,8 +146,7 @@ public:
 // Parameters:
 //   canvas:       Canvas dimensions and safe area margins
 //   box_size:     Text frame size (width × height in pixels)
-//   placement:    High-level placement semantics (TextPlacement enum)
-//   offset:       User-specified offset from the placement position (pixels)
+//   placement:    High-level placement semantics (text_placement.hpp)
 //   anchor:       Which point of the box aligns with the placement position
 //   layer_matrix: Parent layer transform (identity for top-level)
 //
