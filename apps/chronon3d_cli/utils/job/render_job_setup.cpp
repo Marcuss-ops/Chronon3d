@@ -9,7 +9,7 @@
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
-#include "../../cli_init.hpp"
+
 
 #include <spdlog/spdlog.h>
 
@@ -20,16 +20,11 @@ namespace chronon3d::cli {
 void setup_render_job(const CompositionRegistry& registry,
                       RenderJobPlan& plan,
                       RenderJobSetupResult& out) {
-    // Mount current working directory as asset root so relative asset paths
-    // (fonts, images, etc.) resolve correctly.
-    auto& assets = cli_asset_registry();
-    assets.mount(std::filesystem::current_path());
-    // TICKET-011a follow-up #2 (retired) — `process_wide_assets_root()` /
-    // `set_process_wide_assets_root()` were removed in M1.5 Fase B2+B3
-    // (cat-3 legacy-removal freeze, see CURRENT_STATUS.md).  Engine-side
-    // asset resolution is the canonical path now; the previous fallback
-    // here was an orphaned argument list left over from the retire commit
-    // (build-fixing per AGENTS.md v0.1 Cat-1, no public API surface delta).
+    // NOTE: asset mounting (CWD) is handled per-renderer inside
+    // create_renderer() (cli_render_utils.cpp) which mounts CWD on both
+    // renderer->runtime().assets() and renderer->runtime().resolver().
+    // The old cli_asset_registry().mount(CWD) here was a redundant
+    // global mutable mount removed in the P1-A refactor.
 
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
