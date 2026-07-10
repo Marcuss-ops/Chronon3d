@@ -44,6 +44,7 @@
 #include <string>
 #include <algorithm>
 #include <vector>
+#include <filesystem>
 
 namespace chronon3d::content::anims {
 
