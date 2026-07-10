@@ -226,27 +226,38 @@ public:
         return *this;
     }
 
-    // ── F2.B — Semantic placement via TextPlacement enum ──────────────
+    // ── F2.B — Semantic placement via TextPlacement struct (Phase A.2) ─
     //
     /// Place the text box using high-level placement semantics.
     /// This is the ergonomic replacement for manual `.at(x,y)` + `.center()`
     /// combinations.
     ///
-    /// The placement determines WHERE on the canvas the box's ANCHOR POINT
-    /// sits.  The anchor defaults to TextAnchor::Center, so the box is
-    /// centered on the placement position.  Position is set to the pin
-    /// point (where the anchor sits), matching the `.center()` semantics.
+    /// The `TextPlacement` struct bundles the placement kind (which anchor
+    /// point on the canvas the box should pin to) with the user-specified
+    /// offset (additive from the resolved pin point).  After Phase A.2 the
+    /// `TextPlacement` enum no longer exists as a separate loose parameter —
+    /// this struct is the SINGLE source of truth (replaces the previously
+    /// ambiguous `TextSpec.position` field).
+    ///
+    /// The anchor defaults to `TextAnchor::Center`, so the box is centered
+    /// on the placement position.  Position is set to the pin point (where
+    /// the anchor sits), matching the `.center()` semantics.
     ///
     /// Examples:
-    ///   .place(TextPlacement::CanvasCenter)               — box center = canvas center
-    ///   .place(TextPlacement::TopLeft)                     — box center = safe area top-left
-    ///   .place(TextPlacement::SafeAreaBottom)              — box center = safe area bottom
-    ///   .place(TextPlacement::Absolute({500, 300}))        — box center = (500, 300)
-    ///   .place(TextPlacement::CanvasCenter, {0, -100})    — box center = canvas center + offset
+    ///   .place(TextPlacement{TextPlacementKind::CanvasCenter})
+    ///                                          — box center = canvas center
+    ///   .place(TextPlacement{TextPlacementKind::TopLeft})
+    ///                                          — box center = safe area top-left
+    ///   .place(TextPlacement{TextPlacementKind::SafeAreaBottom})
+    ///                                          — box center = safe area bottom
+    ///   .place(TextPlacement{TextPlacementKind::Absolute, {500, 300}})
+    ///                                          — box center = (500, 300)
+    ///   .place(TextPlacement{TextPlacementKind::CanvasCenter, {0, -100}})
+    ///                                          — box center = canvas center + (0, -100)
     ///
     /// Safe margins are derived from the canvas context (5% of each dimension).
-    Text& place(TextPlacement placement, Vec2 offset = {}) {
-        return place(placement, TextAnchor::Center, offset);
+    Text& place(TextPlacement placement) {
+        return place(std::move(placement), TextAnchor::Center);
     }
 
     /// Place the text box using high-level placement semantics with a
@@ -257,11 +268,11 @@ public:
     /// the box top-left.  This matches the rendering pipeline's contract:
     /// `node.world_transform.position = spec.params.text.position` with
     /// `node.world_transform.anchor = resolve_text_anchor(anchor, box)`.
-    Text& place(TextPlacement placement, TextAnchor anchor, Vec2 offset = {}) {
+    Text& place(TextPlacement placement, TextAnchor anchor) {
         const CanvasInfo canvas = make_canvas_info_();
         const Vec2 box_size = pending_->params.text.layout.box;
         const Vec2 pin_point = resolve_placement_origin(
-            canvas, box_size, placement, offset);
+            canvas, box_size, placement);
         pending_->params.text.position = {pin_point.x, pin_point.y, 0.0f};
         pending_->params.text.layout.anchor = anchor;
         return *this;
