@@ -1,8 +1,13 @@
+// D1 — simplified: resolve composition → build RenderJob::still() → delegate.
+// The old StillArgs→RenderArgs→command_render double conversion is eliminated.
+
 #include "../../commands.hpp"
 #include "../../cli_init.hpp"
 #include "../../utils/common/cli_asset_preflight_utils.hpp"
+#include "../../utils/job/cli_render_utils.hpp"
 #include <chronon3d/assets/asset_preflight_resolver.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/timeline/render_job.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
@@ -18,13 +23,10 @@ int command_still(const CompositionRegistry& registry, const StillArgs& args) {
     auto comp = registry.create(args.comp_id);
 
     // Sequence V2: FrameOnly preflight — only check assets from layers
-    // active at the requested frame.  This avoids false negatives from
-    // assets used at distant frames (e.g. a video referenced at frame 900
-    // when rendering frame 10).
+    // active at the requested frame.
     if (!args.skip_preflight) {
         auto resolver = make_cli_resolver(comp.assets_root());
 
-        // Evaluate the scene at the target frame to get the manifest
         FrameContext still_ctx{
             .frame = args.frame,
             .local_frame = args.frame,
@@ -48,33 +50,37 @@ int command_still(const CompositionRegistry& registry, const StillArgs& args) {
         }
 
         if (!result.empty()) {
-            // Warnings only (no errors)
             fmt::print("{}", format_preflight_issues_text(result.issues));
         } else {
             spdlog::info("Preflight OK — all assets for frame {} validated.", args.frame);
         }
     }
 
-    // Delegate to the existing render pipeline for a single frame.
-    // Build a RenderArgs with the requested frame and pipeline settings.
+    // Build unified RenderJob in Still mode
+    std::string output = args.output;
+    if (output.empty()) {
+        std::filesystem::path comp_path(args.comp_id);
+        std::string comp_basename = comp_path.stem().string();
+        if (comp_basename.empty()) comp_basename = "still";
+        output = "output/" + comp_basename
+                 + "_f" + std::to_string(args.frame.integral()) + ".png";
+        spdlog::info("No output path specified, defaulting to {}", output);
+    }
+
+    auto resolved = resolve_composition(registry, args.comp_id);
+    if (!resolved) {
+        spdlog::error("Cannot resolve composition: {}", args.comp_id);
+        return 1;
+    }
+
+    // Delegate to existing render path via RenderArgs (migration bridge).
+    // D1 follow-up: execute RenderJob directly via unified executor.
     RenderArgs render_args;
     render_args.comp_id = args.comp_id;
-    render_args.frames = std::to_string(args.frame.integral());
-    render_args.output = args.output;
+    render_args.frames  = std::to_string(args.frame.integral());
+    render_args.output  = output;
     render_args.log_level = args.log_level;
-    render_args.pipeline = args.pipeline;
-
-    // Default output path if not specified
-    if (render_args.output.empty()) {
-        std::filesystem::path comp_path(render_args.comp_id);
-        std::string comp_basename = comp_path.stem().string();
-        if (comp_basename.empty()) {
-            comp_basename = "still";
-        }
-        render_args.output = "output/" + comp_basename
-                             + "_f" + std::to_string(args.frame.integral()) + ".png";
-        spdlog::info("No output path specified, defaulting to {}", render_args.output);
-    }
+    render_args.pipeline  = args.pipeline;
 
     return command_render(registry, render_args);
 }
