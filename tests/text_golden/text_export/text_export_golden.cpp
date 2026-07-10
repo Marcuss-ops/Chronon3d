@@ -59,20 +59,22 @@ Composition build_text_export_composition(SoftwareRenderer& renderer) {
             });
 
             // Text layer — "TEXT EXPORT V1" centered, white, Inter-Bold 48pt
-            s.layer("title", [](LayerBuilder& l) {
-                l.kind(LayerKind::Text);
-                l.text("title", TextSpec{
-                    .content = {.value = "TEXT EXPORT V1"},
-                    .font = {.font_path = "fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 48.0f},
-                    .layout = {.box = {640.0f, 360.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
-                    .position = {320.0f, 180.0f, 0.0f}
-                });
+            s.layer("title", [&renderer](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                l.text_run("title", TextRunParams{
+                    .text = TextSpec{
+                        .content = {.value = "TEXT EXPORT V1"},
+                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                 .font_family = "Inter",
+                                 .font_weight = 700,
+                                 .font_size = 48.0f},
+                        .layout = {.box = {640.0f, 360.0f},
+                                   .align = TextAlign::Center,
+                                   .vertical_align = VerticalAlign::Middle},
+                        .appearance = {.color = Color::white()},
+                        .position = {320.0f, 180.0f, 0.0f}
+                    }
+                }).commit();
             });
 
             return s.build();
