@@ -59,6 +59,11 @@ struct CanvasInfo {
     f32 safe_margin_bottom{54.0f};
     f32 safe_margin_left{96.0f};    // 5% of 1920
     f32 safe_margin_right{96.0f};
+
+    // F3.B — SafeArea-aware factory: creates a CanvasInfo with margins
+    // computed from a SafeAreaPreset and the given canvas dimensions.
+    [[nodiscard]] static CanvasInfo with_safe_area(
+        f32 width, f32 height, const SafeAreaPreset& preset);
 };
 
 // ── ResolvedTextPlacement — output of the placement resolver ──────────────
