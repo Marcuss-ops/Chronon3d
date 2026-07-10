@@ -81,12 +81,31 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
 ///
 /// Non reintroduce shared_font_engine() or a global singleton:
 /// the project removed them intentionally.
+///
+/// SampleTime overload — canonical.  Decomposes into integral frame +
+/// sub-frame fraction for the engine-aware evaluate(Frame, f32, FontEngine*)
+/// path.  Callers with a Frame can use the convenience overload below.
+inline Scene evaluate_video_scene(
+    const Composition& comp,
+    SampleTime time,
+    SoftwareRenderer& renderer)
+{
+    return comp.evaluate(time.integral_frame(),
+                         static_cast<f32>(time.fraction()),
+                         &renderer.font_engine());
+}
+
+/// Convenience overload for callers that only have a discrete Frame
+/// (e.g. integer frame loops in chunked/pipe exporters).  Converts to
+/// SampleTime at the composition's native frame rate.
 inline Scene evaluate_video_scene(
     const Composition& comp,
     Frame frame,
     SoftwareRenderer& renderer)
 {
-    return comp.evaluate(frame, 0.0f, &renderer.font_engine());
+    return evaluate_video_scene(comp,
+                                SampleTime::from_frame_int(frame, comp.frame_rate()),
+                                renderer);
 }
 
 } // namespace chronon3d::cli
