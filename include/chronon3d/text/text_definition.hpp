@@ -10,10 +10,20 @@
 //
 // LIFECYCLE:
 //
-//   F2.A (this commit)    — reuse TextContent from builder_params.hpp +
-//                            fill in TextStyle + TextFrame with real fields
-//                            mapped from TextSpec
-//   Phase A.3 / F3.B/C     — fill in TextEffects + TextAnimation
+//   F2.A                    — reuse TextContent from builder_params.hpp +
+//                              fill in TextStyle + TextFrame with real fields
+//                              mapped from TextSpec
+//   Phase A.3 (this commit)   — fill in TextEffects (compositor-level glow /
+//                              bevel / blur) + TextAnimation (animators +
+//                              selectors + run-control + Frame envelope).
+//                              from_text_run_spec now routes the 6 spec-only
+//                              fields into TextAnimation (replaces prior
+//                              (void)silence).
+//                              LOSSY REVERSE: from_text_definition returns
+//                              TextSpec only — direction/language/script/
+//                              animators/selectors are NOT carried back.  A
+//                              TextDefinition→TextRunSpec adapter is a future
+//                              F2.D milestone.
 //   Phase B (implemented)   — to_text_document(const TextDefinition&) lowers
 //                            this DTO into the canonical TextDocument pipeline
 //                            model consumed by compile_text_layout()
@@ -42,6 +52,15 @@
 #include <chronon3d/text/text_material.hpp>       // TextMaterial
 #include <chronon3d/scene/model/shape/shape.hpp>  // TextPaint, TextShadow
 #include <chronon3d/scene/builders/builder_params.hpp>  // TextContent (canonical), TextSpec, TextRunSpec
+
+// Phase A.3 — TextAnimation fields (TextAnimatorSpec, GlyphSelectorSpec,
+// TextDirection, Frame).  Included directly (not via the compat shim) for
+// minimal per-TU include surface.
+#include <cstdint>                                     // std::uint32_t (script tag)
+#include <chronon3d/text/animation/text_animator_spec.hpp>  // TextAnimatorSpec
+#include <chronon3d/text/glyph_selector_spec.hpp>            // GlyphSelectorSpec
+#include <chronon3d/text/text_direction.hpp>                 // TextDirection
+#include <chronon3d/core/types/frame.hpp>                    // Frame (start_delay, duration)
 
 #include <cstddef>   // std::size_t
 #include <optional>
@@ -160,23 +179,96 @@ struct TextFrame {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TextEffects — glow, shadow, bevel, blur (Phase A.3 placeholder)
+// TextEffects — compositor-level effects (Phase A.3)
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Filled in by Phase A.3 / F3.B/C.  Currently empty — all effect settings
-// live in TextStyle (paint, shadows, material) until the Phase A.3
-// split separates compositor effects from paint settings.
+// TextEffects holds the post-compositor decorator surface for a text run.
+// It is INTENTIONALLY SEPARATE from TextDefStyle.material + TextDefStyle.shadows
+// (those live in the appearance/paint pipeline and are already consumed by the
+// renderer).  TextEffects is opt-in via `enabled` (default false → no effect).
+//
+// Simplification vs TextMaterial:
+//   - glow/bevel fields are a strict subset of TextMaterial (no preset factories,
+//     no gradient_angle, no inner_shadow, no shadow overrides).  When
+//     TextEffects grows further, prefer adding new fields here over duplicating
+//     TextMaterial — per AGENTS.md "Non duplicare registry / sampler".
+//
+// Precedence rule (Phase A.3 split):
+//   - def.effects.enabled = false → TextDefStyle.material.{glow_*, bevel_*}
+//     is the canonical compositor surface.
+//   - def.effects.enabled = true  → def.effects.* wins (compositor-level
+//     override independent of the material layer).
+// This split lets `glow_text()` keep populating TextDefStyle.material without
+// touching TextEffects (renderer picks one path based on enabled flag).
+//
+// Sibling naming: `TextEffects` (NOT TextDefEffects) — verified no collision with
+// existing `chronon3d::TextStyle`/`TextBoxStyle` etc. in shape.hpp; mirror the
+// shading-name pattern used by TextBoxStyle / TextPaint / TextShadow in that
+// umbrella header.
 
-struct TextEffects {};
+struct TextEffects {
+    /// Master switch — false = NO effect applied (renderer treats the struct
+    /// as if every field were in default state).
+    bool enabled{false};
+
+    // ── Glow — radial blur + tint pass ───────────────────────────────
+    Color glow_color{0.0f, 1.0f, 0.8f, 0.8f};    // RGBA tint
+    f32   glow_radius{8.0f};                     // extent in pixels
+    f32   glow_intensity{0.8f};                 // strength [0,1]
+
+    // ── Bevel — fake-3D edge highlight + shadow strip ───────────────
+    f32   bevel_px{0.0f};                        // bevel thickness in pixels
+    f32   bevel_highlight_opacity{0.35f};       // top-left highlight opacity
+    f32   bevel_shadow_opacity{0.25f};          // bottom-right shadow opacity
+    Color bevel_highlight_color{1.0f, 1.0f, 1.0f, 1.0f};  // top-left highlight tint
+
+    // ── Blur — Gaussian layer (distinct from TextShadow::blur) ───────
+    f32   blur_radius{0.0f};                     // extent in pixels
+    f32   blur_strength{0.0f};                  // strength [0,1]
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TextAnimation — selectors, properties, timing (Phase A.3 placeholder)
+// TextAnimation — runtime animation contracts (Phase A.3)
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Filled in by Phase A.3.  Will contain animators, selectors, and timing
-// information.  Currently animators live in TextRunSpec (builder_params.hpp).
+// TextAnimation holds the per-text-run animation contract.  The fields mirror
+// the top-level editor surface carried by `TextRunSpec` (builder_params.hpp),
+// lifted here so the canonical `TextDefinition` DTO carries the full authoring
+// state without leaking through the adapter boundary.
+//
+//   animators    — per-property animator specs (opacity, typewriter, etc.)
+//                  Managed by evaluate_animator_stack() at runtime.
+//   selectors    — glyph-targeting predicates (matches GlyphSelectorSpec enum
+//                  surface in shape.hpp).
+//   direction    — HarfBuzz shaping direction (default = Auto → engine
+//                  auto-detects via hb_buffer_guess_segment_properties()).
+//   language     — BCP-47 tag (empty = engine auto-detect).
+//   script       — OpenType script tag (HB_SCRIPT_*).
+//                  0 = auto, 0x4C61746E (Latin), 0x41726162 (Arabic), etc.
+//   cache_layout — hint: cache the compiled layout for repeated playback.
+//
+//   start_delay  — GLOBAL envelope start frame;
+//                  Frame{0} (default) = animations start immediately.
+//                  Animator-internal properties[].frame are unaffected.
+//   duration     — GLOBAL envelope length frame;
+//                  Frame{0} (default) = use per-animator timeline length.
+//
+// Sibling naming: `TextAnimation` — verified no collision with existing types
+// in shape.hpp or builder_params.hpp (TextAnimationSpec doesn't exist;
+// animation-related types live under chronon3d::text::animation).
 
-struct TextAnimation {};
+struct TextAnimation {
+    std::vector<TextAnimatorSpec>  animators{};
+    std::vector<GlyphSelectorSpec> selectors{};
+
+    TextDirection direction{TextDirection::Auto};
+    std::string   language;             // BCP-47 (empty = auto)
+    std::uint32_t script{0u};           // OpenType tag (0 = auto)
+    bool          cache_layout{true};
+
+    Frame         start_delay{};        // Frame{0} = immediate
+    Frame         duration{};           // Frame{0} = per-animator
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TextDefinition — F2.A canonical authoring DTO

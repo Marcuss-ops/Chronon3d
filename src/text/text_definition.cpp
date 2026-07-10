@@ -59,16 +59,16 @@ TextDefinition from_text_spec(const TextSpec& spec) {
 TextDefinition from_text_run_spec(const TextRunSpec& spec) {
     TextDefinition def = from_text_spec(spec.text);
 
-    // ── animation (Phase A.3 placeholder — stored in TextAnimation) ────
-    // Forward-point: when TextAnimation is filled in Phase A.3,
-    // spec.animators and spec.selectors will be mapped here.
-    // All TextRunSpec-only fields are intentionally not yet mapped.
-    (void)spec.animators;
-    (void)spec.selectors;
-    (void)spec.direction;
-    (void)spec.language;
-    (void)spec.script;
-    (void)spec.cache_layout;
+    // ── animation (Phase A.3 — wired through TextAnimation) ───────────
+    // TextRunSpec top-level editor surface is lifted verbatim into the
+    // canonical TextAnimation struct.  start_delay + duration default to
+    // Frame{0} (no global envelope override; per-animator timelines win).
+    def.animation.animators    = spec.animators;
+    def.animation.selectors    = spec.selectors;
+    def.animation.direction    = spec.direction;
+    def.animation.language     = spec.language;
+    def.animation.script       = spec.script;
+    def.animation.cache_layout = spec.cache_layout;
 
     return def;
 }
