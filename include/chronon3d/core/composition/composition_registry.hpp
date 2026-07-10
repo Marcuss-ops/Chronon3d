@@ -2,11 +2,13 @@
 
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/timeline/composition_props.hpp>
+#include <chronon3d/timeline/composition_descriptor.hpp>
 #include <functional>
 #include <string>
 #include <string_view>
 #include <map>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <vector>
 #include <algorithm>
@@ -16,6 +18,10 @@ namespace chronon3d {
 /**
  * CompositionRegistry holds factories for creating compositions by name.
  * Uses std::map to ensure deterministic (alphabetical) order in available().
+ *
+ * B2 — supports CompositionDescriptor for metadata-carrying registration.
+ * The old `add(name, factory)` is [[deprecated]] in favour of
+ * `add(CompositionDescriptor{...})`.
  *
  * Starts empty — compositions are added explicitly via add() during
  * startup (ExtensionModule::register_all) or directly by the host.
@@ -29,12 +35,32 @@ public:
 
     CompositionRegistry() = default;
 
+    // ── B2 — Canonical descriptor-based registration ──────────────────
+
+    /// Register a composition with full metadata.
+    /// The factory and id are required; all other fields are optional.
+    void add(CompositionDescriptor descriptor) {
+        if (factories_.contains(descriptor.id)) {
+            throw std::runtime_error("Duplicate composition: " + descriptor.id);
+        }
+        if (!descriptor.factory) {
+            throw std::runtime_error("CompositionDescriptor has null factory: " + descriptor.id);
+        }
+        std::string id = descriptor.id;
+        descriptors_[id] = std::move(descriptor);
+        factories_[id] = descriptors_[id].factory;
+    }
+
+    /// Legacy registration — [[deprecated]], use add(CompositionDescriptor{...}).
+    [[deprecated("Use add(CompositionDescriptor{.id = name, .factory = f, ...}) for metadata support")]]
     void add(std::string name, Factory factory) {
         if (factories_.contains(name)) {
              throw std::runtime_error("Duplicate composition: " + name);
         }
         factories_[std::move(name)] = std::move(factory);
     }
+
+    // ── Queries ───────────────────────────────────────────────────────
 
     /// Create a composition with default (empty) props.
     [[nodiscard]] Composition create(std::string_view name) const {
@@ -61,20 +87,40 @@ public:
         for (const auto& [name, _] : factories_) {
             ids.push_back(name);
         }
-        // std::map already keeps keys sorted.
         return ids;
     }
 
+    // ── B2 — Metadata queries ─────────────────────────────────────────
+
+    /// Returns the descriptor for a registered composition, or nullopt.
+    [[nodiscard]] std::optional<CompositionDescriptor> descriptor_of(std::string_view name) const {
+        auto it = descriptors_.find(name);
+        if (it == descriptors_.end()) return std::nullopt;
+        return it->second;
+    }
+
+    /// Returns all descriptors, sorted alphabetically by id.
+    [[nodiscard]] std::vector<CompositionDescriptor> descriptors() const {
+        std::vector<CompositionDescriptor> out;
+        for (const auto& [_, desc] : descriptors_) {
+            out.push_back(desc);
+        }
+        return out;
+    }
+
     /// Drop every registered factory — restores the registry to its
-    /// freshly-default-constructed state.  Tests use this between cases
-    /// to keep one TEST_CASE's registrations from leaking into the next
-    /// (the registry itself doesn't enforce uniqueness across the
-    /// `Composition` API surface — the unique check is at `add()` time,
-    /// so a leaked prefix would silently shadow later `add()` calls).
-    void clear() noexcept { factories_.clear(); }
+    /// freshly-default-constructed state.
+    void clear() noexcept {
+        factories_.clear();
+        descriptors_.clear();
+    }
 
 private:
     std::map<std::string, Factory, std::less<>> factories_;
+    // B2 — descriptors stored by id for metadata queries.
+    // Compositions registered via the old add(name, factory) path have
+    // no descriptor entry (descriptor_of() returns nullopt).
+    std::map<std::string, CompositionDescriptor, std::less<>> descriptors_;
 };
 
 } // namespace chronon3d
