@@ -62,7 +62,7 @@ bool RawVideoSink::open(const VideoSinkConfig& config) {
     const auto validation = validate_video_sink_config(config);
     if (!validation) {
         last_error_ = VideoSinkError::InvalidConfig;
-        last_error_msg_ = validation.error_or("config validation failed");
+        last_error_msg_ = validation.error_message.empty() ? "config validation failed" : validation.error_message;
         state_ = VideoSinkState::Failed;
         return false;
     }
