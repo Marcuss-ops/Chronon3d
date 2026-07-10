@@ -10,6 +10,7 @@
 
 #include <functional>
 #include <algorithm>
+#include <filesystem>
 
 namespace chronon3d::content::anims {
 
@@ -63,8 +64,17 @@ Composition anim_scale_text() {
 
 // ── AnimTypewriter: per-character typewriter reveal ─────────────────────
 Composition anim_typewriter() {
-    // Fase B2 — static local resolver (composition factory has no runtime in scope).
-    static const chronon3d::assets::AssetResolver s_typewriter_resolver;
+    // Fase B2 — static local resolver, mounted at the project assets root
+    // so that FontEngine can locate Poppins-Bold.ttf at render time.
+    // Without mount(), the resolver has no search paths and font shaping
+    // fails silently, producing an empty layout → blank frame.
+    // NOTE: mounted at registration-time cwd, not render-time. If the
+    // CLI is launched from a different working directory than where
+    // assets/fonts/ lives, this resolver won't find the fonts.
+    static chronon3d::assets::AssetResolver s_typewriter_resolver;
+    if (!s_typewriter_resolver.has_mount()) {
+        s_typewriter_resolver.mount(std::filesystem::current_path());
+    }
     return composition({.name = "AnimTypewriter", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
