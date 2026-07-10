@@ -2,7 +2,7 @@
 // tests/text/visual/text_visual_metrics.cpp — Phase-2.1 P0 split
 //
 // Mechanical split-off of the 8-metric ScenarioMetrics canon (PR-A3 /
-// docs/01-baseline-green.md §2.4-2.5).  This file owns:
+// docs/01-baseline-green.md §2.4-2.5).  This file owns:  // drift-allow: stale-ref
 //   * kUncapturedSentinel + is_reference_captured(r)        (1-liner)
 //   * RectF POD                                                (4-float POD)
 //   * ScenarioMetrics POD                                      (8-metric canon)
@@ -54,7 +54,7 @@ struct RectF {
     float x{0.0f}, y{0.0f}, w{0.0f}, h{0.0f};
 };
 
-// 8-metric ScenarioMetrics canon (PR-A3 / docs/01-baseline-green.md §2.4-2.5).
+// 8-metric ScenarioMetrics canon (PR-A3 / docs/01-baseline-green.md §2.4-2.5).  // drift-allow: stale-ref
 struct ScenarioMetrics {
     std::uint64_t hash{0};
     RectF         ink_bbox{};

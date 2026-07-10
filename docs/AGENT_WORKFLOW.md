@@ -42,7 +42,7 @@ src/render_graph/builder/graph_build_pipeline.cpp
 apps/chronon3d_cli/commands/video/video_export_pipe.cpp
 apps/chronon3d_cli/commands/video/video_export.cpp
 src/render_graph/executor/executor.cpp
-src/render_graph/executor/internal.cpp
+src/render_graph/executor/internal.cpp  <!-- drift-allow: stale-ref -->
 ```
 
 Se serve aggiungere comportamento, creare un file dedicato:

@@ -13,7 +13,7 @@
 # Agent 2 (text) core code are intentionally NOT touched.
 #
 # Phase-2.2 mechanical split — the monolithic
-# tests/showcase/test_cinematic_camera_showcase.cpp (was 771 LOC)
+# tests/showcase/test_cinematic_camera_showcase.cpp (was 771 LOC)  # drift-allow: stale-ref
 # decomposes into a single executable (no separate CMake target per
 # gate) that links 4 test TUs + 1 shared fixture TU:
 #

@@ -14,8 +14,8 @@
 // CMakeLists.  All TEST_CASE bodies are wrapped in `#if defined(
 // CHRONON3D_BUILD_TESTS)` so the file contributes nothing to the build.
 // When the R2 migration land fully (processors stop taking
-// `SoftwareRenderer&`), add a tests/backends/CMakeLists.txt (or wire
-// this single TU into tests/backends/software/CMakeLists.txt) and
+// `SoftwareRenderer&`), add a tests/backends/CMakeLists.txt (or wire  // drift-allow: stale-ref
+// this single TU into tests/backends/software/CMakeLists.txt) and  // drift-allow: stale-ref
 // register the new source list under `${CHRONON3D_TEST_TARGETS}` so
 // CTest picks it up.  At that point this file should also start
 // exercising a real `make_processor_context(renderer)` fixture instead

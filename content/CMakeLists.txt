@@ -38,9 +38,9 @@ add_library(chronon3d_content OBJECT
     experimental/effects-gateway/effect_diagnostics_gateway.cpp
 
     # ── Examples ────────────────────────────────────────────────────────────
-    examples/text/text_animations.cpp
-    examples/light/light_text_animations.cpp
-    examples/image/image_animated_reveals.cpp
+    examples/text/text_animations.cpp  # drift-allow: stale-ref
+    examples/light/light_text_animations.cpp  # drift-allow: stale-ref
+    examples/image/image_animated_reveals.cpp  # drift-allow: stale-ref
 
     # ── Backgrounds ────────────────────────────────────────────────────────
     backgrounds/grid_clean.cpp

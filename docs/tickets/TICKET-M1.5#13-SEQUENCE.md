@@ -154,7 +154,7 @@ per view non-owning sui 22 descrittori built-in.
   grep + manual review for safe extraction scope.
 
 ### Deliverables
-- `+ src/registry/text_preset_factories_kinetic.cpp`
+- `+ src/registry/text_preset_factories_kinetic.cpp`  <!-- drift-allow: stale-ref -->
 - `~ src/registry/text_preset_registry.cpp` (delete 10 Reveal
   entry() + 10 Reveal compose_* + update `register_text_preset_reveal`)
 - `~ src/registry/CMakeLists.txt` (+ source line)
@@ -187,7 +187,7 @@ per view non-owning sui 22 descrittori built-in.
   the ONLY step that touches the umbrella.
 
 ### Deliverables
-- `+ src/registry/text_preset_factories_social.cpp`
+- `+ src/registry/text_preset_factories_social.cpp`  <!-- drift-allow: stale-ref -->
 - `~ src/registry/text_preset_registry.cpp` (delete 4 Emphasis
   entry() + 4 Emphasis compose_* + REWIRE `register_builtin_presets`
   umbrella to use factory aggregates)

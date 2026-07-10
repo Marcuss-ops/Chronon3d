@@ -36,7 +36,7 @@ Effetti: stesso layer "decide" la propria attività in due posti (Layer pass + R
 **Step 1 — Aggiungi nuovo sistema (verde, backward-compat):**
 
 ```cpp
-// include/chronon3d/timeline/time_range.hpp
+// include/chronon3d/timeline/time_range.hpp  <!-- drift-allow: stale-ref -->
 struct TimeRange { Frame from; Frame duration; };
 struct SequenceNode { std::string name; TimeRange range;
                       std::function<void(SequenceBuilder&)> build; };
@@ -163,7 +163,7 @@ Prima della rimozione, **i 3 free functions namespace v2 vengono preventivamente
 - `make_sequence_from_layer(const Layer&) -> SequenceNode v2` → top-level `make_sequence_node_from_layer(const Layer&) -> ::chronon3d::SequenceNode` (Layer → canonical `SequenceNode` con `range: SequenceRange{from, duration, trim_before=0}`).
 - `make_sample_context(const FrameContext&) -> TimelineSampleContext v2` → top-level `make_sample_context(const FrameContext&) -> ::chronon3d::TimelineSampleContext` (con la **promozione** `local_frame = global_frame - sequence_start` semantics che Step 3 del flat design aveva rimandato).
 
-Inoltre il POD `chronon3d::timeline::v2::TimelineSampleContext` viene **promosso top-level** come `chronon3d::TimelineSampleContext` (Decision 6.3 di ADR-016) — unica innovazione utile del namespace v2 non già presente nel canonical. Implementazione target: `include/chronon3d/timeline/timeline_sample_context.hpp` (NUOVO header).
+Inoltre il POD `chronon3d::timeline::v2::TimelineSampleContext` viene **promosso top-level** come `chronon3d::TimelineSampleContext` (Decision 6.3 di ADR-016) — unica innovazione utile del namespace v2 non già presente nel canonical. Implementazione target: `include/chronon3d/timeline/timeline_sample_context.hpp` (NUOVO header).  <!-- drift-allow: stale-ref -->
 
 La rimozione namespace v2 è bit-identical-safe perché:
 * `chronon3d::timeline::v2::TimelineResolver` ha firma `resolve(descriptor, frame, fps) -> ResolvedScene` ma al commit del landing Step 1+2 ritorna SEMPRE `active_sequences` vuoto (forward-point Step 3 che non è mai stato processato). Nessun consumer interno chiama `TimelineResolver::resolve()` nel namespace v2 (gli adapter sono AGGIUNTI ma NON chiamati dal render graph / scene builder / composition).

@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Verifies the 8-level canonical TextUnitMap defined in
-// include/chronon3d/text/text_unit_map.hpp + src/text/text_unit_map.cpp.
+// include/chronon3d/text/text_unit_map.hpp + src/text/text_unit_map.cpp.  // drift-allow: stale-ref
 //
 // Bit-exact deterministic — each test builds a fresh TextUnitMap from
 // literal UTF-8 + literal HB-style placed clusters; no engine deps.

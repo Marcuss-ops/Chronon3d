@@ -29,7 +29,7 @@ come `infra-setup` (non è una regressione di codice).
    precondizione documentata.
 2. In alternativa, clonare/bootstrap `vcpkg` dentro `<WT>/vcpkg_bootstrap/`
    se assente, prima della cmake-configure phase.
-3. Documentare il contratto env in `tools/README.md` o equivalente
+3. Documentare il contratto env in `tools/README.md` o equivalente  <!-- drift-allow: stale-ref -->
    (sezione: "vcpkg bootstrap precond").
 
 ## Criteri di accettazione

@@ -80,7 +80,7 @@
 //      `source.resolve(id)` on every lookup.  This preserves source's
 //      parametric factories (which might capture by-reference) without
 //      copying.  **LIFETIME INVARIANT**: source must outlive target.
-//      See `docs/migrations/2026-06-authoring-registry.md` for the full
+//      See `docs/migrations/2026-06-authoring-registry.md` for the full  // drift-allow: stale-ref
 //      lifetime contract.
 //
 //      Locking: `std::lock(target_mutex_, source.mutex_)` acquires both

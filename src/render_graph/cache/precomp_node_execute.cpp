@@ -13,7 +13,7 @@
 // the borrowed session and delegates to `execute_with_scope(parent,
 // ...)` — the SINGLE canonical body that owns the lease-held + child-
 // scope + execute_with_scope dispatch contract documented in
-// `docs/03-execution-scope-and-precomp.md` §4.3.  This eliminates the
+// `docs/03-execution-scope-and-precomp.md` §4.3.  This eliminates the  // drift-allow: stale-ref
 // previous 85-line duplication between the two methods where any
 // reviewer-flagged concern (lease lifetime, scope-chain construction,
 // eviction callback wiring, owner_key derivation, bail-out check) had

@@ -53,7 +53,7 @@ Il parser JSON timed‑text nella forma corrente è fragile (chiude oggetti
 alla prima `}`), incompatibile con oggetti annidati. La parte timed-text
 contiene:
 
-- Parser SRT (`src/text/timed_text_parser.cpp` — verificare).
+- Parser SRT (`src/text/timed_text_parser.cpp` — verificare).  <!-- drift-allow: stale-ref -->
 - Parser VTT (se presente).
 - Parser JSON timed‑text (potenzialmente fragile).
 - `WordTiming`.

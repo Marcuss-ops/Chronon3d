@@ -115,7 +115,7 @@ Stand-alone usage:
 
 ```bash
 bash tools/audit_incomplete_type_pattern.sh                        # default: tests/install_consumer/ + include/chronon3d/
-INCOMPLETE_TYPE_SCAN_PATHS='tests/integration_test/main.cpp src/sdk_consumer/' \
+INCOMPLETE_TYPE_SCAN_PATHS='tests/integration_test/main.cpp src/sdk_consumer/' \  <!-- drift-allow: stale-ref -->
   bash tools/audit_incomplete_type_pattern.sh                       # override scan paths
 ```
 

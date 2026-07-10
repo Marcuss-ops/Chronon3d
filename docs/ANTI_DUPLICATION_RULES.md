@@ -224,7 +224,7 @@ Eventuali target pubblici aggiuntivi (`Chronon3D::Core`, `Chronon3D::Text`, `Chr
 
 **Vietato:**
 ```cpp
-#include "../../Chronon3d/src/render_graph/internal.hpp"
+#include "../../Chronon3d/src/render_graph/internal.hpp"  <!-- drift-allow: stale-ref -->
 #include <chronon3d/detail/...>
 #include <src/runtime/...>
 ```

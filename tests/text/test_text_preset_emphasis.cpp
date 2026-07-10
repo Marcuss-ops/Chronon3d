@@ -3,7 +3,7 @@
 //
 // 4 Emphasis-tier presets × 8 sentinels (4 timestamps × 2 aspect ratios).
 // Mechanical split-off from the monolithic
-// tests/text/test_text_preset_visual.cpp.
+// tests/text/test_text_preset_visual.cpp.  // drift-allow: stale-ref
 //
 //   word_pop · scale_punch · color_accent · gradient_fill
 //

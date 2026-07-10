@@ -1,10 +1,10 @@
-# TICKET-M1.5#10-SEQUENCE — Progressive deletion of `include/chronon3d/text/rich_text.hpp` (legacy polyfill)
+# TICKET-M1.5#10-SEQUENCE — Progressive deletion of `include/chronon3d/text/rich_text.hpp` (legacy polyfill)  <!-- drift-allow: stale-ref -->
 
 > **Status:** Steps 1+2/4 DONE (commits `6491cdff` + pending); Step 3/4 PLANNED.
 >
 > **Area:** Text Production V1 / Rimozione percorsi legacy (AGENTS.md v0.1 Cat-3 freeze-compliant).
 >
-> **Vincoli architetturali:** nessun nuovo file legacy, nessuna divisione di `rich_text.hpp` in sotto-headers polyfill; i 4 concetti sono migrati alle API canoniche modern; il file viene eliminato completamente al termine della sequenza.
+> **Vincoli architetturali:** nessun nuovo file legacy, nessuna divisione di `rich_text.hpp` in sotto-headers polyfill; i 4 concetti sono migrati alle API canoniche modern; il file viene eliminato completamente al termine della sequenza.  <!-- drift-allow: stale-ref -->
 >
 > **Source of truth (working tree):** working file `tests/layout/test_design_kit.cpp` post-Step 1 drop obsolete TEST_CASE + doc-sync in the canonicals.
 
@@ -14,7 +14,7 @@
 
 ## Step 1/4 — Done (working tree, commit pending this session)
 
-`tests/layout/test_design_kit.cpp` — obsolete `TEST_CASE("RichTextLine measures a mixed inline line with text, spacing and symbol")` rimosso. L'invariante "mixed inline line with text + space + star measured" non è riproducibile nel modello moderno (TextDocument + TextStyleSpan descrivono UNA stringa UTF-8 con override per range; le primitive `l.text()` + `l.star()` sono SEPARATE primitive nel LayerBuilder canonico → "decorative/anchor gestito dal percorso compilato"). La copertura equivalente vive in `tests/text/test_text_layout.cpp` + `tests/text/test_text_run_node_execute.cpp` (sub-trees del pipeline canonico).
+`tests/layout/test_design_kit.cpp` — obsolete `TEST_CASE("RichTextLine measures a mixed inline line with text, spacing and symbol")` rimosso. L'invariante "mixed inline line with text + space + star measured" non è riproducibile nel modello moderno (TextDocument + TextStyleSpan descrivono UNA stringa UTF-8 con override per range; le primitive `l.text()` + `l.star()` sono SEPARATE primitive nel LayerBuilder canonico → "decorative/anchor gestito dal percorso compilato"). La copertura equivalente vive in `tests/text/test_text_layout.cpp` + `tests/text/test_text_run_node_execute.cpp` (sub-trees del pipeline canonico).  <!-- drift-allow: stale-ref -->
 
 La cancellazione è netta: il `TEST_CASE` rimosso non è sostituito da un test "parziale" o "di transizione" — è una cancellazione perché il concetto stesso ("measured mixed line") non esiste più nel modello canonico.
 
@@ -53,7 +53,7 @@ Se grep sweep conferma zero residui → Step 3 = doc-only commit.
 Operazioni atomiche nel commit finale:
 
 1. `rm include/chronon3d/text/rich_text.hpp` (380 LOC).
-2. `rm src/backends/text/rich_text.cpp` (90 LOC: measure + measure_run).
+2. `rm src/backends/text/rich_text.cpp` (90 LOC: measure + measure_run).  <!-- drift-allow: stale-ref -->
 3. `include/chronon3d/layout/design_kit.hpp` line 17: droppa `#include <chronon3d/text/rich_text.hpp>`. Aggiorna il comment block di intestazione (line 1-15) per riflettere che `design_kit` ora ha solo `layout_stack` + `stroked_shapes` (NON più `rich_text`).
 4. Grep sweep globale:
    - `grep -rnE 'rich_text\\.hpp|RichTextLine|RichTextRun|draw_rich_text|RichTextAnchor|RichTextVerticalAnchor|RichTextRunMetrics|RichTextLineMetrics|RichTextLayoutOptions' --include='*.cpp' --include='*.hpp'` → atteso ZERO hit (post-Step-1+2+3).
@@ -74,7 +74,7 @@ Operazioni atomiche nel commit finale:
 | I 3 tipi RichTextLine/RichTextRun/RichTextAnchor vs il modello canonico TextDocument+TextStyleSpan | mapping 1:1 a livello di CAMPO, ma a livello di TIPO il `RichTextLine` collassa (concetto "mixed line" non esiste più — separato in primitive layer). |
 | `draw_rich_text()` vs `LayerBuilder::text_run(...)` | il path canonico finale è `l.text_run(...)` (produce `TextRunShape`); il path legacy emette `l.text(...)` (produce `TextShape`). La funzione legacy diventa un no-op post-3-step (elimina in Step 4 senza sostituti). |
 | Mixed-line concept (text + star + space in single `RichTextLine`) vs separate primitives (`l.text()` + `l.star()`) | separate primitives — "decorative/anchor gestito dal percorso compilato" (compile-time composition). |
-| Test coverage preservation | migration verso `tests/text/test_text_layout.cpp` + `tests/text/test_text_run_node_execute.cpp` (sub-trees del pipeline canonico). NON replace del test con uno "di transizione" — drop netto. |
+| Test coverage preservation | migration verso `tests/text/test_text_layout.cpp` + `tests/text/test_text_run_node_execute.cpp` (sub-trees del pipeline canonico). NON replace del test con uno "di transizione" — drop netto. |  <!-- drift-allow: stale-ref -->
 
 ## AGENTS.md v0.1 vincoli
 

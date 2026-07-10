@@ -38,7 +38,7 @@ TEST_CASE("VRTextPreset/CinematicTierDeferralNotice") {
     // this single TEST_CASE expands into 6 preset TEST_CASEs ×
     // 8 sentinels = 48 sentinel calls.
     MESSAGE("Cinematic tier + 2 caption_box / glow_pulse presets "
-            "are scope-locked to A4.1 per docs/01-baseline-green.md. "
+            "are scope-locked to A4.1 per docs/01-baseline-green.md. "  // drift-allow: stale-ref
             "Phase-2.1 mechanical split preserves this deferral "
             "(empty TU).  See tests/text/test_text_preset_cinematic.cpp "
             "banner for the rollout sequence.");

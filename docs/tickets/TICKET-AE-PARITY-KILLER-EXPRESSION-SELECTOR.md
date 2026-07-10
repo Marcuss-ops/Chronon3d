@@ -19,7 +19,7 @@ Phase 2 Killer 2 of the AE-like kinetic typography 2D rollout (per
 (at textIndex=0) to `selectorValue * (textTotal-1) / textTotal` (at
 textIndex=textTotal-1). This is the canonical "AE-style per-character
 expression" surface that the future production `ExpressionSelector`
-implementation (new file `src/text/selector/expression_evaluator.cpp`
+implementation (new file `src/text/selector/expression_evaluator.cpp`  <!-- drift-allow: stale-ref -->
 per Blocco 6 of `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md`,
 integrated via `AnimatorResolver`) will compose on.
 
@@ -150,7 +150,7 @@ TICKET-EXPRESSION-IMPL lands, this emulation is replaced with a direct
 
 ## Forward-only contract
 
-- When TICKET-EXPRESSION-IMPL lands (new `src/text/selector/expression_evaluator.cpp`
+- When TICKET-EXPRESSION-IMPL lands (new `src/text/selector/expression_evaluator.cpp`  <!-- drift-allow: stale-ref -->
   + `AnimatorResolver` integration per Blocco 6), TEST_CASE 2 is
   extended to use the production `ExpressionSelector` surface directly
   (instead of the `GlyphSelectorSpec` emulation). The cell-level

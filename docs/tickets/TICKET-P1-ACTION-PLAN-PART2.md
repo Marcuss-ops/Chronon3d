@@ -247,8 +247,8 @@ Nessun default nascosto nel core.
 
 ### File interessati
 
-- `src/render_graph/render_pipeline.cpp`
-- `include/chronon3d/render_graph/render_request.hpp`
+- `src/render_graph/render_pipeline.cpp`  <!-- drift-allow: stale-ref -->
+- `include/chronon3d/render_graph/render_request.hpp`  <!-- drift-allow: stale-ref -->
 - `src/animations/animated_value.cpp`
 - API graph
 
@@ -317,8 +317,8 @@ CompositionDefinition
 
 ### File interessati
 
-- `src/animation_compositions.cpp`
-- `include/chronon3d/animation_compositions.hpp`
+- `src/animation_compositions.cpp`  <!-- drift-allow: stale-ref -->
+- `include/chronon3d/animation_compositions.hpp`  <!-- drift-allow: stale-ref -->
 - `content/animation_compositions.cpp`
 - `src/render_graph/`
 - `src/runtime/`

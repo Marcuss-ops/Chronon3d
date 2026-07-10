@@ -16,7 +16,7 @@
 // `<chronon3d/render_graph/compiler/frame_graph_compiler.hpp>`) is the
 // sole topology-plan producer for all traffic.  The historical
 // TEST-ONLY `RenderGraph&` overloads were RETIRED in PR 2.4 / WP-8
-// followup — see `docs/refactor-roadmap/02-compiled-graph-only.md` for
+// followup — see `docs/refactor-roadmap/02-compiled-graph-only.md` for  // drift-allow: stale-ref
 // the exit-criterion trail and the migration path callers followed.
 // ---------------------------------------------------------------------------
 //

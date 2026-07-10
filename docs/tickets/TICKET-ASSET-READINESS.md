@@ -34,7 +34,7 @@ Effetti: la mancanza di un font viene scoperta al frame 50 quando arriva al rast
 **Step 1 — Aggiungi nuovo sistema (verde, backward-compat):**
 
 ```cpp
-// include/chronon3d/assets/asset_ref.hpp
+// include/chronon3d/assets/asset_ref.hpp  <!-- drift-allow: stale-ref -->
 enum class AssetKind { Font, Image, Video, Audio };
 struct AssetRef {
     AssetKind kind;
@@ -51,7 +51,7 @@ public:
     std::vector<AssetRef> all() const;
 };
 
-// include/chronon3d/assets/asset_preflight.hpp
+// include/chronon3d/assets/asset_preflight.hpp  <!-- drift-allow: stale-ref -->
 struct AssetPreflightResult {
     bool ok = true;
     std::vector<AssetRef> missing;  // owner + path + kind per riga

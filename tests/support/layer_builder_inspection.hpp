@@ -1,4 +1,4 @@
-// ── include/chronon3d/scene/builders/test/layer_builder_inspection.hpp
+// ── include/chronon3d/scene/builders/test/layer_builder_inspection.hpp  // drift-allow: stale-ref
 //
 // Phase-3.3 mechanical split.  Adapter TEST-ONLY (Phase-3.3 P1 spec,
 // per AGENTS feature-freeze rules — diagnostic-only extension is

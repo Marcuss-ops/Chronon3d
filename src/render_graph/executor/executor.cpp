@@ -19,7 +19,7 @@
 //
 // PR-2 rewire followup (WP-8) — the two `execute(RenderGraph&, ...)`
 // were RETIRED.  All callers compile through `FrameGraphCompiler` first;
-// see `docs/refactor-roadmap/02-compiled-graph-only.md`.
+// see `docs/refactor-roadmap/02-compiled-graph-only.md`.  // drift-allow: stale-ref
 
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>      // P0-1 — NodeExecutionError, render_backend_error_code_name

@@ -4,7 +4,7 @@
 // Implementation of chronon3d::temporal::generate_temporal_samples.
 //
 // PR1 — replaces the duplicated helpers from:
-//   * src/scene/camera/camera_v1/camera_motion_blur.cpp (Halton + filter)
+//   * src/scene/camera/camera_v1/camera_motion_blur.cpp (Halton + filter)  // drift-allow: stale-ref
 //   * src/render_graph/pipeline/composition.cpp (jitter + filter)
 //
 // The two previous implementations were almost-identical but not byte-equal

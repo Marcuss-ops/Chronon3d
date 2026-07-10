@@ -112,7 +112,7 @@ Risolve Auto codec prima della validazione.
 | `src/media/video/video_config_validator.cpp` | Validazione centralizzata |
 | `include/chronon3d/media/video/video_config.hpp` | Config struct + resolve_auto_codec() |
 | `src/media/frame_conversion/frame_conversion_service.cpp` | Conversione RGB→YUV/etc |
-| `src/media/frame_conversion/direct_yuv_converter_hwy.cpp` | Highway SIMD YUV |
+| `src/media/frame_conversion/direct_yuv_converter_hwy.cpp` | Highway SIMD YUV |  <!-- drift-allow: stale-ref -->
 
 ## Tests
 

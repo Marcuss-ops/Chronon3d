@@ -113,7 +113,7 @@ Per AGENTS.md's "no mixed refactors" rule, the code rotation is split into disti
 This ADR documents the F2.3 design; the actual code rotation is a separate F2.3.X workstream per `Decision 6`.  The contract for each deletion branch:
 
 * **Header rotation order** (Phase 3): `animated_camera_2_5d.hpp`, `camera_rig.hpp`, `camera_shot_profile.hpp`, `camera_descriptor_adapters.{hpp,cpp}` are DELETED first; their consumers then fail to compile, driving the call-site migration list (Phase 2).
-* **Fixture/test rotation**: `tests/scene/camera_rig_tests.cpp`, `tests/renderer/camera/test_camera_rig.cpp`, `tests/scene/camera/test_camera_descriptor_adapters.cpp`, `tests/renderer/camera/test_animated_camera.cpp` delete; behaviour parity is now exercised only via `camera_v1` tests.
+* **Fixture/test rotation**: `tests/scene/camera_rig_tests.cpp`, `tests/renderer/camera/test_camera_rig.cpp`, `tests/scene/camera/test_camera_descriptor_adapters.cpp`, `tests/renderer/camera/test_animated_camera.cpp` delete; behaviour parity is now exercised only via `camera_v1` tests.  <!-- drift-allow: stale-ref -->
 * **Content/ rotation**: `content/2d5/compositions/*` `CameraShotProfile` + `CameraRig` usages → `camera_v1::CameraDescriptor` direct; no adapter.
 * **Boundary gate `[14/14]` rotation**: after items 1–5 land, gate `[14/14]` transitions ADVISORY → BLOCKING per ADR-010.
 * **Boundary gate `tools/check_camera_architecture.sh` `[1/6]`+`[2/6]`**: sanctioned exemption lines drop after F2.3 closes; gates become pure "zero usages" without bridge exemption.

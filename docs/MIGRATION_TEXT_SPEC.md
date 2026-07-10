@@ -453,7 +453,7 @@ not by producing one layer per character.
 | File | Status |
 |---|---|
 | `include/chronon3d/text/text_animator.hpp` | 🟢 **DELETED** (header-only; inline `void TextAnimator::build(...)` + `split_units()` + `split_glyphs()` + `measure_unit_width()` all gone). |
-| `tests/text/test_text_animator.cpp` | 🟢 **DELETED** (17 legacy TEST_CASE blocks; cover `TextAnimMode::{ByCharacter, ByWord, ByLine, ByGlyph}` splits + builder invocation). |
+| `tests/text/test_text_animator.cpp` | 🟢 **DELETED** (17 legacy TEST_CASE blocks; cover `TextAnimMode::{ByCharacter, ByWord, ByLine, ByGlyph}` splits + builder invocation). |  <!-- drift-allow: stale-ref -->
 | `tests/text/test_text_quality_tracking.cpp` | 🟢 **MIGRATED** (2 of 11 TEST_CASE blocks at § 7 retired; cross-link comment added; the 9 canonical `TextLayoutEngine`-based tests at § 8 + § 11 + § 12 unchanged). |
 | `tests/core_tests.cmake` | 🟢 **UPDATED** (`text/test_text_animator.cpp` removed from `CORE_BLEND2D_TESTS` list; 5-line cross-link comment added). |
 
@@ -469,7 +469,7 @@ not by producing one layer per character.
 | # | Criterion | Result |
 |---|---|---|
 | 1 | `git rm include/chronon3d/text/text_animator.hpp` lands clean (header-only, no .cpp consumer) | ✅ DELETED |
-| 2 | `git rm tests/text/test_text_animator.cpp` lands clean | ✅ DELETED |
+| 2 | `git rm tests/text/test_text_animator.cpp` lands clean | ✅ DELETED |  <!-- drift-allow: stale-ref -->
 | 3 | `tests/core_tests.cmake` `CORE_BLEND2D_TESTS` list no longer references `text/test_text_animator.cpp` | ✅ UPDATED |
 | 4 | `tests/text/test_text_quality_tracking.cpp` § 7 retired; the 9 canonical TextLayoutEngine tests at § 8 / § 11 / § 12 unchanged | ✅ UPDATED |
 | 5 | Atomic single commit on `main` + push (env-vars Agent3) | ✅ COMMITTED |
@@ -522,8 +522,8 @@ The legacy `GlyphSelectorSpec` (in `include/chronon3d/text/glyph_selector.hpp`) 
 | File | Status | Purpose |
 |---|---|---|
 | `include/chronon3d/text/glyph_selector_spec.hpp` | 🟢 NEW | `TextUnitRef`, `SafeAccessMap`, `RangeSelector`, `WigglySelector`, `ExpressionSelector`, `GlyphSelectorVariant`, `GlyphSelectorSpec`, `GlyphSelectorContext`, `evaluate_selector_v2`, `evaluate_selectors_v2`. |
-| `src/text/glyph_selector_v2.cpp` | 🟢 NEW | `std::visit` dispatch + per-kind evaluation logic (`dispatch_range` / `dispatch_wiggly` / `dispatch_expression`) + `selector_targets_match` filter + `bind_builtin_variables` helper. |
-| `tests/text/test_glyph_selector_spec.cpp` | 🟢 NEW | 13 TEST_CASEs covering SafeAccessMap ops, TextUnitRef helpers, RangeSelector composition, WigglySelector determinism/clamp/shape, ExpressionSelector safe access, compositional variables (textIndex/textTotal/frame), `std::variant` dispatch, selector targets filter, `evaluate_selectors_v2` combine modes, 1000-iter bit-exact determinism, legacy back-compat (identical output). |
+| `src/text/glyph_selector_v2.cpp` | 🟢 NEW | `std::visit` dispatch + per-kind evaluation logic (`dispatch_range` / `dispatch_wiggly` / `dispatch_expression`) + `selector_targets_match` filter + `bind_builtin_variables` helper. |  <!-- drift-allow: stale-ref -->
+| `tests/text/test_glyph_selector_spec.cpp` | 🟢 NEW | 13 TEST_CASEs covering SafeAccessMap ops, TextUnitRef helpers, RangeSelector composition, WigglySelector determinism/clamp/shape, ExpressionSelector safe access, compositional variables (textIndex/textTotal/frame), `std::variant` dispatch, selector targets filter, `evaluate_selectors_v2` combine modes, 1000-iter bit-exact determinism, legacy back-compat (identical output). |  <!-- drift-allow: stale-ref -->
 
 ### 13.4 Dispatch signature
 
@@ -583,7 +583,7 @@ SelectorWeight evaluate_selector_v2(
 - `docs/ANTI_DUPLICATION_RULES.md` §registry/resolver.
 - `include/chronon3d/animation/effects/wiggle.hpp` — semantic reference for WigglySelector wps/correlation/temporal_phase/spatial_phase (no hard coupling).
 - `experimental/expressions/v2/expression_value.hpp` — explicitly NOT imported; thin subset stays in `text/`.
-- `tests/text/test_glyph_selector_spec.cpp` — 13 TEST_CASEs covering all dispatch paths + back-compat invariants.
+- `tests/text/test_glyph_selector_spec.cpp` — 13 TEST_CASEs covering all dispatch paths + back-compat invariants.  <!-- drift-allow: stale-ref -->
 
 
 ## 14. TEXT-PLY-01: Paragraph layout completo (14 feature scope)
@@ -614,7 +614,7 @@ Estende `paragraph_style.hpp::ParagraphStyle` con 14 nuovi campi / flags / helpe
 
 1. **`include/chronon3d/text/paragraph_style.hpp`** — esteso in-place: nuovi campi con default back-compat; nuovi enum `ParagraphMarkGlyph` + struct `VariableAxis` co-residenti nel namespace `chronon3d`. == rimane `=default`. **38+ callers esistenti zero-modifica**.
 
-2. **`src/text/internal/composer_helpers.hpp`** — esteso: nuovi helper `is_cjk_opening_bracket` + `apply_kinsoku`; clamp `justification_tolerance_px` iniettato in `apply_justification`; `tight_leading` moltiplicatore iniettato in `finalize_lines::line_height`. Niente logica SingleLine/EveryLine duplicata.
+2. **`src/text/internal/composer_helpers.hpp`** — esteso: nuovi helper `is_cjk_opening_bracket` + `apply_kinsoku`; clamp `justification_tolerance_px` iniettato in `apply_justification`; `tight_leading` moltiplicatore iniettato in `finalize_lines::line_height`. Niente logica SingleLine/EveryLine duplicata.  <!-- drift-allow: stale-ref -->
 
 3. **`src/text/single_line_composer.cpp`** — singola riga inserita: `apply_kinsoku(clusters, source_text, style);` chiamata subito dopo `build_clusters(...)`.
 
