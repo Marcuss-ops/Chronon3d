@@ -76,6 +76,17 @@ inline bool should_use_centered_rendering(const LayerGraphItem& item, const Rend
 inline bool is_implicit_2d_centering_only(const LayerGraphItem& item, const RenderGraphContext& ctx) {
     if (!ctx.policy.modular_coordinates) return false;
     if (!item.layer) return false;
+    // BUG 1 / TICKET-TEXT-XOFFSET-DOUBLE — Option A.  Text-kind
+    // layers have internal centering semantics in the text layout
+    // engine (HarfBuzz shapes glyphs within the text box; the layout
+    // engine produces a canvas-centered bbox from the box position).
+    // Returning false here skips the TICKET-104 strip+replay that
+    // would double-shift by ~text-box-half-width on X, pushing
+    // canvas-centered text off-canvas to x≈302 (658 px left of 960).
+    // The resolver treats Text-kind as having a "custom" transform,
+    // routing through the `use_local` path which returns
+    // `node.world_transform.to_mat4()` (already in canvas coords).
+    if (item.layer->kind == LayerKind::Text) return false;
     if (item.projected) return false;
     if (item.native_3d) return false;
     if (item.layer->uses_2_5d_projection) return false;
