@@ -42,6 +42,7 @@
 
 #include <tests/visual/support/golden_test.hpp>
 #include <tests/helpers/test_utils.hpp>
+#include <tests/text_golden/text_clip/test_helpers.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::test;
@@ -199,4 +200,89 @@ TEST_CASE("AE 08 glow_pulse 9x16 f30") {
     auto r = verify_golden(*fb, "ae_08_glow_pulse_9x16_f30", make_config());
     if (r.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); return; }
     CHECK(r.passed);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TICKET-TEXT-CLIP-ASCENT — alpha bbox regression tests.
+//
+// These TEST_CASEs verify that the rendered text is geometrically
+// correct: centered on canvas, large enough, and NOT touching any edge.
+// The golden diff tests above catch pixel-level drift; these numerical
+// assertions catch the structural clipping bug immediately and
+// consistently across machines.
+//
+// Expected visible bbox for "PULSE GLOW" 230pt on 1920×1080 canvas:
+//   - centered near (960, 540)
+//   - width > 800 px
+//   - height > 100 px
+//   - no edge contact (x0 > 10, y0 > 10, x1 < 1909, y1 < 1069)
+//
+// The original bug produced: x=974..1919, y=783..801 (19px tall, right
+// edge contact).  These assertions lock that regression permanently.
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("TICKET-TEXT-CLIP-ASCENT: ae_08 16x9 f15 alpha bbox is centered and not clipped") {
+    auto renderer = test::make_renderer();
+    auto fb = renderer.render(build_landscape(renderer, 15), Frame{15});
+    REQUIRE(fb != nullptr);
+    REQUIRE(fb->width()  == 1920);
+    REQUIRE(fb->height() == 1080);
+
+    const AlphaBBox bbox = alpha_bbox(*fb);
+    INFO("alpha bbox: x0=", bbox.x0, " y0=", bbox.y0,
+         " x1=", bbox.x1, " y1=", bbox.y1,
+         " width=", bbox.width(), " height=", bbox.height());
+
+    // Primary assertions: text is visible and large enough.
+    REQUIRE_FALSE(bbox.empty());
+    CHECK(bbox.width()  > 800);
+    CHECK(bbox.height() > 100);
+
+    // No edge contact: text must be inset from all 4 edges.
+    const int margin = 10;
+    CHECK_FALSE(bbox.touches_right(1920, margin));
+    CHECK_FALSE(bbox.touches_bottom(1080, margin));
+    CHECK_FALSE(bbox.touches_left(margin));
+    CHECK_FALSE(bbox.touches_top(margin));
+
+    // Centroid sanity: text should be near canvas center (960, 540).
+    const auto centroid = alpha_centroid(*fb);
+    INFO("centroid: x=", centroid.x, " y=", centroid.y);
+    CHECK(centroid.x > 600.0f);
+    CHECK(centroid.x < 1320.0f);
+    CHECK(centroid.y > 300.0f);
+    CHECK(centroid.y < 780.0f);
+}
+
+TEST_CASE("TICKET-TEXT-CLIP-ASCENT: ae_08 9x16 f15 alpha bbox is centered and not clipped") {
+    auto renderer = test::make_renderer();
+    auto fb = renderer.render(build_portrait(renderer, 15), Frame{15});
+    REQUIRE(fb != nullptr);
+    REQUIRE(fb->width()  == 1080);
+    REQUIRE(fb->height() == 1920);
+
+    const AlphaBBox bbox = alpha_bbox(*fb);
+    INFO("alpha bbox: x0=", bbox.x0, " y0=", bbox.y0,
+         " x1=", bbox.x1, " y1=", bbox.y1,
+         " width=", bbox.width(), " height=", bbox.height());
+
+    // Primary assertions: text is visible and large enough.
+    REQUIRE_FALSE(bbox.empty());
+    CHECK(bbox.width()  > 400);
+    CHECK(bbox.height() > 60);
+
+    // No edge contact.
+    const int margin = 10;
+    CHECK_FALSE(bbox.touches_right(1080, margin));
+    CHECK_FALSE(bbox.touches_bottom(1920, margin));
+    CHECK_FALSE(bbox.touches_left(margin));
+    CHECK_FALSE(bbox.touches_top(margin));
+
+    // Centroid sanity: text should be near canvas center (540, 960).
+    const auto centroid = alpha_centroid(*fb);
+    INFO("centroid: x=", centroid.x, " y=", centroid.y);
+    CHECK(centroid.x > 300.0f);
+    CHECK(centroid.x < 780.0f);
+    CHECK(centroid.y > 600.0f);
+    CHECK(centroid.y < 1320.0f);
 }
