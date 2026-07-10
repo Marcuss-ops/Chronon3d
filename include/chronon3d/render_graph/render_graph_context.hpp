@@ -174,6 +174,12 @@ struct RenderPolicy {
     /// per TextRun.  Enabled by --debug-text-layout CLI flag.
     bool text_layout_debug{false};
 
+    /// Diagnostic overlay-only mode: skip scene content rendering and produce
+    /// a framebuffer with ONLY the debug overlay markers on transparent
+    /// background.  Requires text_layout_debug to also be true.
+    /// Enabled by --diagnostic-overlay-only CLI flag.
+    bool diagnostic_overlay_only{false};
+
     /// Text layout debug JSON export path.
     /// When non-empty and text_layout_debug is true, writes per-TextRun
     /// bounds data as JSON to this path.

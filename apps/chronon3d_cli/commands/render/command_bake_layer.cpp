@@ -28,6 +28,8 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
 
     RenderSettings settings;
     settings.use_modular_graph = true;
+    settings.text_layout_debug = args.diagnostic_overlay || args.diagnostic_overlay_only;
+    settings.diagnostic_overlay_only = args.diagnostic_overlay_only;
     auto renderer = create_renderer(registry, settings);
 
     const auto frame = static_cast<Frame>(args.frame);
@@ -124,6 +126,8 @@ void register_bake_layer_commands(CLI::App& app, CliContext& ctx) {
     bake->add_flag("--diagnostic", bake_args.diagnostic, "Enable diagnostic overlays");
     bake->add_flag("--diagnostic-overlay", bake_args.diagnostic_overlay,
                   "Draw diagnostic overlay on text layers: bbox, anchor point, baseline");
+    bake->add_flag("--diagnostic-overlay-only", bake_args.diagnostic_overlay_only,
+                  "Like --diagnostic-overlay but on transparent background (no scene content)");
     bake->add_flag("--exr-bake", bake_args.exr_bake, "Bake layer as OpenEXR with DWAA compression (linear 16-bit float)");
     bake->callback([state, &ctx]() {
         ctx.exit_code = command_bake_layer(ctx.registry, *state->args);

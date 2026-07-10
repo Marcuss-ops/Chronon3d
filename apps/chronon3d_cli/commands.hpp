@@ -72,6 +72,11 @@ struct RenderPipelineArgs {
     // on text layers.  Alias for text_layout_debug with a user-facing name.
     bool diagnostic_overlay{false};
 
+    // Diagnostic overlay-only: skip scene content, produce transparent PNG
+    // with ONLY the debug overlay markers.  Requires --diagnostic-overlay
+    // (or --debug-text-layout) to also be active.
+    bool diagnostic_overlay_only{false};
+
     // Text layout debug JSON export path.
     // When non-empty and text_layout_debug is true, writes a JSON file
     // with per-TextRun bounds data (alpha_bounds, layout_bounds,
@@ -216,6 +221,7 @@ struct BakeLayerArgs {
     bool quiet{false};
     bool diagnostic{false};
     bool diagnostic_overlay{false};
+    bool diagnostic_overlay_only{false};
     bool exr_bake{false};
 };
 
@@ -239,7 +245,8 @@ struct TextAuditArgs {
     int   max_border_alpha_pixels{0};
     float glyph_tolerance{0.01f};
     int   alpha_threshold{8};
-    bool  diagnostic_overlay{false}; // --diagnostic-overlay for frame PNG renders
+    bool  diagnostic_overlay{false};      // --diagnostic-overlay for frame PNG renders
+    bool  diagnostic_overlay_only{false}; // --diagnostic-overlay-only: transparent bg, markers only
 };
 
 int command_list(const CompositionRegistry& registry);

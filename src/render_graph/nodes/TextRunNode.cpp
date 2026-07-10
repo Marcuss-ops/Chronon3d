@@ -319,40 +319,45 @@ NodeExecResult TextRunNode::execute(
     }
 
     // ── 3-4. Unified TextRun rendering (shape prep + matrix + draw). ──
-    const f32 opacity = m_opacity_override.value_or(m_render_ref.world_transform.opacity);
-    auto dispatch = text_run::render_text_run_item(
-        ctx, *backend, *fb, *m_shape, m_placement, opacity);
-
-    if (!dispatch) {
-
-        text_run::report_failure(
-            m_name,
-            dispatch.error().code,
-            render_backend_error_code_name(dispatch.error().code),
-            dispatch.error().message);
-        return NodeExecResult{NodeExecutionError{
-            dispatch.error().code,
-            m_name,
-            std::string(dispatch.error().message)
-        }};
-    }
-
-    // Pre-compute world_matrix once — shared by diagnostic (below),
-    // debug overlay (§6), and F1.E visibility audit (below).
+    // When diagnostic_overlay_only is true, skip text rendering entirely —
+    // the framebuffer stays transparent so only the debug overlay markers
+    // are visible.  Useful for comparing overlay-on vs overlay-off.
+    std::size_t items_drawn = 0;
+    f32 opacity = m_opacity_override.value_or(m_render_ref.world_transform.opacity);
     const Mat4 world_matrix = text_run::build_world_matrix(ctx, m_placement);
+    if (!ctx.policy.diagnostic_overlay_only) {
+        auto dispatch = text_run::render_text_run_item(
+            ctx, *backend, *fb, *m_shape, m_placement, opacity);
 
-    // ── 5. Per-frame debug diagnostic (opt-in via ctx.policy.diagnostics_enabled). ──
-    if (ctx.policy.diagnostics_enabled) {
-        text_run::report_diagnostic(
-            m_name, *m_shape, dispatch.value().items_drawn, opacity, world_matrix,
+        if (!dispatch) {
+
+            text_run::report_failure(
+                m_name,
+                dispatch.error().code,
+                render_backend_error_code_name(dispatch.error().code),
+                dispatch.error().message);
+            return NodeExecResult{NodeExecutionError{
+                dispatch.error().code,
+                m_name,
+                std::string(dispatch.error().message)
+            }};
+        }
+
+        items_drawn = dispatch.value().items_drawn;
+
+        // ── 5. Per-frame debug diagnostic (opt-in via ctx.policy.diagnostics_enabled). ──
+        if (ctx.policy.diagnostics_enabled) {
+            text_run::report_diagnostic(
+                m_name, *m_shape, items_drawn, opacity, world_matrix,
 #ifdef CHRONON3D_ENABLE_TEXT
-            chronon3d::hash_text_run_shape(
-                *m_shape, ctx.frame_input.sample_time.integral_frame())
+                chronon3d::hash_text_run_shape(
+                    *m_shape, ctx.frame_input.sample_time.integral_frame())
 #else
-            std::nullopt
+                std::nullopt
 #endif
-        );
-    }
+            );
+        }
+    } // diagnostic_overlay_only
 
     // NOTE: draw_text_run() already increments text_glyphs_rasterized
     // inside the processor.  Do NOT double-count here — the processor
@@ -370,8 +375,10 @@ NodeExecResult TextRunNode::execute(
     // clip_rect for TextRun nodes — see compute_dirty_clip in
     // tile_pruning.cpp).
     // Gated on CHRONON3D_BUILD_DIAGNOSTICS — zero overhead in production.
+    // Skip in overlay-only mode: the framebuffer is transparent so there
+    // is no rendered content to audit.
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
-    if (m_shape && fb) {
+    if (m_shape && fb && !ctx.policy.diagnostic_overlay_only) {
         auto pred = predicted_bbox(ctx, {});
         Rect predicted_r{};
         if (pred) {
@@ -400,7 +407,7 @@ NodeExecResult TextRunNode::execute(
         const bool use_local = ctx.policy.modular_coordinates;
         text_run::draw_text_debug_overlay(
             *fb, *m_shape, m_name, world_matrix, opacity,
-            dispatch.value().items_drawn, use_local,
+            items_drawn, use_local,
             m_render_ref.world_transform.position);
     }
 #endif
