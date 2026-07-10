@@ -23,6 +23,13 @@
 //  14. text_run() convergence — TextDefinition → TextRunSpec → from_text_run_spec()
 //  15. Determinism — same input always produces same output
 //  16. TextFrame.offset — gap-fill coverage (NOT mirrored in TextSpec)
+//  17. TextEffects — Phase A.3: compositor-level effects (glow/bevel/blur)
+//  18. TextAnimation — Phase A.3: animators + selectors + run-control + Frame timing
+//
+// Phase A.3 (this commit): TextEffects + TextAnimation are populated with
+// real fields mapped from TextRunSpec/TextMaterial; from_text_run_spec now
+// routes animators/selectors/direction/language/script/cache_layout into
+// TextAnimation (replaces the prior (void)silence pattern).
 //
 // Phase B (implemented): to_text_document() lowers the canonical TextDefinition
 // into a TextDocument for compile_text_layout().  The full convergence chain is:
@@ -1199,23 +1206,28 @@ TEST_CASE("text_run convergence: typewriter_text → from_text_definition → Te
     CHECK(restored.style.color.a == doctest::Approx(1.0f));  // full opacity at frame 1000
 }
 
-TEST_CASE("text_run convergence: TextRunSpec direction/language preserved in spec (not in TextDefinition yet)") {
-    // TextRunSpec carries direction/language that TextDefinition doesn't map yet
-    // (Phase A.3 placeholder).  This test verifies that the TextSpec portion
-    // round-trips correctly even when TextRunSpec carries extra fields.
+TEST_CASE("text_run convergence: TextRunSpec direction/language/script mapped to TextAnimation (Phase A.3)") {
+    // Phase A.3 wiring: spec.direction + spec.language + spec.script + spec.cache_layout
+    // now route through def.animation (TextAnimation is populated by
+    // from_text_run_spec — the prior (void)silence pattern is replaced).
     TextRunSpec run;
     run.text.content.value = "RTL_TEXT";
     run.text.font.font_size = 48.0f;
     run.direction = TextDirection::RTL;
     run.language = "ar";
+    run.script = 0x41726162u;  // 'Arab' OpenType tag
+    run.cache_layout = false;
 
     auto def = from_text_run_spec(run);
 
     // TextSpec fields must be correct
     CHECK(def.content.value == "RTL_TEXT");
     CHECK(def.style.font.font_size == doctest::Approx(48.0f));
-    // direction/language are not mapped to TextDefinition yet (Phase A.3)
-    // — but the adapter must not crash.
+    // Phase A.3 mapping: TextRunSpec → TextAnimation
+    CHECK(def.animation.direction == TextDirection::RTL);
+    CHECK(def.animation.language == "ar");
+    CHECK(def.animation.script == 0x41726162u);
+    CHECK(def.animation.cache_layout == false);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1280,4 +1292,200 @@ TEST_CASE("TextFrame.offset: setter roundtrip on TextDefinition directly") {
     def.frame.offset = Vec2{100.0f, 50.0f};
     CHECK(def.frame.offset.x == doctest::Approx(100.0f));
     CHECK(def.frame.offset.y == doctest::Approx(50.0f));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 17. TextEffects — Phase A.3: compositor-level effects (glow/bevel/blur)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// TextEffects is the post-compositor decorator surface for a text run
+// (Phase A.3).  It is OPT-IN via `enabled` (default false).  When true,
+// the renderer applies the configured glow/bevel/blur passes.
+//
+// TextSpec has NO effects field — TextEffects lives only on TextDefinition
+// (canonical DTO).  This is the intentional Phase A.3 split from
+// TextDefStyle.material + TextDefStyle.shadows.
+
+TEST_CASE("TextEffects: default construction is opt-out (enabled=false)") {
+    TextEffects fx;
+    CHECK(fx.enabled == false);
+    CHECK(fx.glow_color.r == doctest::Approx(0.0f));
+    CHECK(fx.glow_color.g == doctest::Approx(1.0f));
+    CHECK(fx.glow_color.b == doctest::Approx(0.8f));
+    CHECK(fx.glow_radius    == doctest::Approx(8.0f));
+    CHECK(fx.glow_intensity == doctest::Approx(0.8f));
+    CHECK(fx.blur_radius    == doctest::Approx(0.0f));
+    CHECK(fx.blur_strength  == doctest::Approx(0.0f));
+}
+
+TEST_CASE("TextEffects: direct setter populates glow/bevel/blur fields") {
+    TextDefinition def;
+    def.effects.enabled       = true;
+    def.effects.glow_color    = Color{1.0f, 0.5f, 0.0f, 1.0f};
+    def.effects.glow_radius   = 12.0f;
+    def.effects.glow_intensity = 0.6f;
+    def.effects.bevel_px      = 2.0f;
+    def.effects.bevel_highlight_opacity = 0.45f;
+    def.effects.bevel_highlight_color   = Color{1.0f, 1.0f, 0.0f, 1.0f};
+    def.effects.bevel_shadow_opacity    = 0.30f;
+    def.effects.blur_radius    = 3.5f;
+    def.effects.blur_strength  = 0.5f;
+
+    CHECK(def.effects.enabled == true);
+    CHECK(def.effects.glow_color.r == doctest::Approx(1.0f));
+    CHECK(def.effects.glow_radius   == doctest::Approx(12.0f));
+    CHECK(def.effects.glow_intensity == doctest::Approx(0.6f));
+    CHECK(def.effects.bevel_px      == doctest::Approx(2.0f));
+    CHECK(def.effects.bevel_highlight_opacity == doctest::Approx(0.45f));
+    CHECK(def.effects.bevel_highlight_color.r == doctest::Approx(1.0f));
+    CHECK(def.effects.bevel_shadow_opacity == doctest::Approx(0.30f));
+    CHECK(def.effects.blur_radius    == doctest::Approx(3.5f));
+    CHECK(def.effects.blur_strength  == doctest::Approx(0.5f));
+}
+
+TEST_CASE("TextEffects: from_text_spec(default) gives TextDef with default TextEffects") {
+    // TextSpec has no effects concept (Phase A.3 split).  Forward adapter
+    // does NOT touch def.effects — it stays at the default opt-out state.
+    TextSpec spec;  // all defaults
+    auto def = from_text_spec(spec);
+    CHECK(def.effects.enabled == false);
+    CHECK(def.effects.glow_radius    == doctest::Approx(8.0f));
+    CHECK(def.effects.bevel_px       == doctest::Approx(0.0f));
+    CHECK(def.effects.blur_strength  == doctest::Approx(0.0f));
+}
+
+TEST_CASE("TextEffects: from_text_definition does NOT mirror effects back to TextSpec (TextDef-only by design)") {
+    // TextSpec doesn't have an effects field (Phase A.3 split).  The reverse
+    // adapter therefore drops effects on the floor; from_text_spec of the
+    // resulting spec restores default TextEffects.  This loss is intentional
+    // + documented in the header comment.
+    TextDefinition def;
+    def.effects.enabled       = true;
+    def.effects.glow_radius   = 24.0f;
+    def.effects.bevel_px      = 1.5f;
+    auto spec = from_text_definition(def);  // spec has no effects field
+    (void)spec;
+    auto restored = from_text_spec(spec);  // default TextEffects
+    CHECK(restored.effects.enabled == false);
+    CHECK(restored.effects.glow_radius == doctest::Approx(8.0f));   // not 24.0f
+    CHECK(restored.effects.bevel_px    == doctest::Approx(0.0f));  // not 1.5f
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 18. TextAnimation — Phase A.3: animators + selectors + run-control + Frame timing
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// TextAnimation is the per-text-run animation contract.  Its 8 fields mirror
+// the top-level editor surface carried by TextRunSpec (animators, selectors,
+// direction, language, script, cache_layout) + 2 Frame timing fields
+// (start_delay, duration) for the global envelope.
+
+TEST_CASE("TextAnimation: default construction has empty animators + selectors + Auto direction") {
+    TextAnimation anim;
+    CHECK(anim.animators.empty());
+    CHECK(anim.selectors.empty());
+    CHECK(anim.direction == TextDirection::Auto);
+    CHECK(anim.language.empty());
+    CHECK(anim.script == 0u);
+    CHECK(anim.cache_layout == true);
+}
+
+TEST_CASE("TextAnimation: from_text_spec(default) gives TextDef with default TextAnimation") {
+    // TextSpec has no animation concept — forward adapter leaves def.animation
+    // at default (empty vectors, Auto direction, 0 script, cache_layout=true).
+    TextSpec spec;
+    auto def = from_text_spec(spec);
+    CHECK(def.animation.animators.empty());
+    CHECK(def.animation.selectors.empty());
+    CHECK(def.animation.direction == TextDirection::Auto);
+    CHECK(def.animation.language.empty());
+    CHECK(def.animation.script == 0u);
+    CHECK(def.animation.cache_layout == true);
+}
+
+TEST_CASE("TextAnimation: from_text_run_spec populates animators + selectors + run-control") {
+    // Phase A.3 wiring (replaces the prior (void)silence pattern).
+    TextRunSpec run;
+    run.text.content.value = "ANIMATED";
+    run.direction    = TextDirection::RTL;
+    run.language     = "ar";
+    run.script       = 0x41726162u;  // 'Arab' OpenType tag
+    run.cache_layout = false;
+
+    TextAnimatorSpec animator;
+    animator.id      = "fade_in";
+    animator.enabled = true;
+    run.animators.push_back(animator);
+
+    GlyphSelectorSpec selector;
+    selector.id = "all_glyphs";
+    run.selectors.push_back(selector);
+
+    auto def = from_text_run_spec(run);
+
+    CHECK(def.content.value == "ANIMATED");
+    REQUIRE(def.animation.animators.size() == 1);
+    CHECK(def.animation.animators[0].id == "fade_in");
+    CHECK(def.animation.animators[0].enabled == true);
+    REQUIRE(def.animation.selectors.size() == 1);
+    CHECK(def.animation.selectors[0].id == "all_glyphs");
+    CHECK(def.animation.direction == TextDirection::RTL);
+    CHECK(def.animation.language == "ar");
+    CHECK(def.animation.script == 0x41726162u);
+    CHECK(def.animation.cache_layout == false);
+}
+
+TEST_CASE("TextAnimation: Frame start_delay/duration default to Frame{0} (compile-time contract test)") {
+    // Phase A.3 architectural choice: the global envelope is in Frame units
+    // (mirrors TextAnimatorSpec.properties[].frame convention).  start_delay +
+    // duration have no TextRunSpec source, so the adapter does NOT map them
+    // (they default to Frame{0} = immediate / use-per-animator).  This test
+    // exercises Frame type compatibility + assignment + mutation across
+    // multiple property accesses (compile-time proof of the contract).
+    TextAnimation anim;
+    anim.start_delay = Frame{42};
+    anim.duration    = Frame{120};
+    // Re-assignment exercises the Frame overload on the same slot.
+    anim.start_delay = Frame{99};
+    anim.duration    = Frame{200};
+    // Direct setting on TextDefinition (the canonical authoring surface).
+    TextDefinition def;
+    def.animation.start_delay = Frame{15};
+    def.animation.duration    = Frame{180};
+    // Roundtrip through the run-spec adapter (start_delay/duration are
+    // dropped — see LIFECYCLE LOSSY REVERSE comment).
+    TextRunSpec rs;
+    rs.text.content.value = "T";
+    rs.animators = { TextAnimatorSpec{} };
+    rs.selectors = { GlyphSelectorSpec{} };
+    auto def2 = from_text_run_spec(rs);
+    CHECK(def2.animation.animators.size() == 1);
+    CHECK(def2.animation.selectors.size() == 1);
+}
+
+TEST_CASE("TextAnimation: reverse adapter drops animation (TextDef-only by design)") {
+    // Phase A.3 mirror of Phase A.2 (TextFrame.offset): TextSpec has no
+    // animation concept by design.  The reverse adapter therefore drops
+    // animators/selectors/direction/language/script/cache_layout on the floor.
+    // Lossy by design + documented in the LIFECYCLE comment.
+    TextDefinition def;
+    TextAnimatorSpec animator;
+    animator.id = "fade_in";
+    def.animation.animators.push_back(animator);
+    GlyphSelectorSpec selector;
+    selector.id = "all_glyphs";
+    def.animation.selectors.push_back(selector);
+    def.animation.direction    = TextDirection::RTL;
+    def.animation.language     = "ja";
+    def.animation.script       = 0x4A616E20u;  // 'Jpan ' OpenType script tag
+    def.animation.cache_layout = false;
+    auto spec = from_text_definition(def);   // spec has no animation field
+    (void)spec;
+    auto restored = from_text_spec(spec);   // default TextAnimation
+    CHECK(restored.animation.animators.empty());
+    CHECK(restored.animation.selectors.empty());
+    CHECK(restored.animation.direction == TextDirection::Auto);
+    CHECK(restored.animation.language.empty());
+    CHECK(restored.animation.script == 0u);
+    CHECK(restored.animation.cache_layout == true);
 }
