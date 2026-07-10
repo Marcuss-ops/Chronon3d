@@ -27,8 +27,6 @@ static void ensure_content_registered(CompositionRegistry& registry) {
     effects::EffectCatalog effects;
     AssetRegistry assets;
     assets.mount(std::filesystem::current_path());
-    // TICKET-011a follow-up #2 — typed process-wide fallback.
-        std::filesystem::current_path().string());
     ExtensionContext ctx{registry, nodes, effects, assets};
     register_content_modules(cat, ctx);
 }
@@ -54,7 +52,6 @@ TEST_CASE("2D5 content: idempotent registration") {
     static effects::EffectCatalog effects;
     static AssetRegistry assets;
     assets.mount(std::filesystem::current_path());
-        std::filesystem::current_path().string());
     ExtensionContext ctx{registry, nodes, effects, assets};
     // register_content_modules is idempotent — subsequent calls are no-ops
     // because the catalog contains the module after the first call.
