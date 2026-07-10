@@ -67,7 +67,8 @@ int main() {
                                .align = c3d::TextAlign::Center,
                                .vertical_align = c3d::VerticalAlign::Middle},
                     .appearance = {.color = c3d::Color::white()},
-                    .position = {640.0f, 360.0f, 0.0f}
+                    .placement = c3d::TextPlacement{
+                        c3d::TextPlacementKind::Absolute, {640.0f, 360.0f}}
                 });
             });
 

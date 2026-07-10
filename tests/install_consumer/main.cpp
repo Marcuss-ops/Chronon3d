@@ -79,9 +79,10 @@ int main(int argc, char* argv[]) {
                                .align = c3d::TextAlign::Center,
                                .vertical_align = c3d::VerticalAlign::Middle},
                     .appearance = {.color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f}},
-                    .position = {static_cast<c3d::f32>(ctx.width) * 0.5f,
-                                 static_cast<c3d::f32>(ctx.height) * 0.5f,
-                                 0.0f},
+                    .placement = c3d::TextPlacement{
+                        c3d::TextPlacementKind::Absolute,
+                        {static_cast<c3d::f32>(ctx.width) * 0.5f,
+                                 static_cast<c3d::f32>(ctx.height) * 0.5f}}
                 });
             });
 

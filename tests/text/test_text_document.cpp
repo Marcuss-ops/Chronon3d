@@ -30,7 +30,8 @@ TextSpec make_defaults() {
     ts.layout.box = {1920.0f, 1080.0f};
     ts.layout.align = TextAlign::Center;
     ts.layout.vertical_align = VerticalAlign::Middle;
-    ts.position = {0.0f, 0.0f, 0.0f};
+    ts.placement = TextPlacement{
+        TextPlacementKind::Absolute, {0.0f, 0.0f}};
     return ts;
 }
 
