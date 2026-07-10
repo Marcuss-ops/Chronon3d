@@ -32,6 +32,9 @@ on:
       - '.github/workflows/**'
       - 'tools/**'
       - 'tests/**'
+      - 'cmake/**'
+      - 'apps/**'
+      - 'content/**'
 
 env:
   VCPKG_ROOT: ${{ github.workspace }}/vcpkg
