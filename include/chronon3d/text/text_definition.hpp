@@ -115,7 +115,8 @@ struct TextFrame {
     /// Position in canvas space (maps to TextSpec::position).
     Vec3 position{};
 
-    /// Separate offset from placement (maps to .place(...).offset(...)).
+    /// Placement-pin offset (authoring-side; NOT mirrored in TextSpec).
+    /// Populate via .place(...).offset(...) or directly via def.frame.offset.
     Vec2 offset{};
 
     /// Anchor point for positioning (maps to TextSpec::layout.anchor).
