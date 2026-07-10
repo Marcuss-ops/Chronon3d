@@ -53,7 +53,8 @@ namespace chronon3d {
     X(text_glow_cache_misses) \
     X(glyph_atlas_hits) \
     X(glyph_atlas_misses) \
-    X(glyph_atlas_stored)
+    X(glyph_atlas_stored) \
+    X(text_bbox_contract_violations)  /**< TICKET-TEXT-CLIP-PREDICTED-BBOX: incremented when predicted_bbox() returns empty or non-finite */
 
 #define CHRONON_COUNTERS_TILE(X) \
     X(tiles_total) \

@@ -6,11 +6,12 @@
 
 | ID | Area | Stato | Blocca | Scheda |
 |---|---|---|---|---|
-| TICKET-TEXT-CLIP-PREDICTED-BBOX | text compositor `predicted_bbox` (Clip 06 diagnostic) | PARTIAL | text golden cert + scene test cluster | [TICKET-TEXT-CLIP-PREDICTED-BBOX](tickets/TICKET-TEXT-CLIP-PREDICTED-BBOX.md) |
 | TICKET-011 | mainline build rot (chronon3d_core_tests) | PARTIAL | gate 1–8 | [TICKET-011](tickets/TICKET-011.md) |
 | TICKET-036 | SceneBuilder::animated_camera() in test files | PLANNED | gate 6 | [TICKET-036](tickets/TICKET-036.md) |
 | TICKET-120 | 17/24 scene test failures | PARTIAL | Camera V1 cert | [TICKET-120](tickets/TICKET-120.md) |
 | TICKET-GATE-10-PHASE-4-BLACK-FU5 | PNG mean-RGB metric rot | DONE | gate 10 | [FU5](tickets/TICKET-GATE-10-PHASE-4-BLACK-FU5.md) |
+
+> Note: `TICKET-TEXT-CLIP-PREDICTED-BBOX` (Clip 06 diagnostic) was active at HEAD~2; **closed in this session** via `fix(text): close TICKET-TEXT-CLIP-PREDICTED-BBOX — restore bbox on contract violation` (FU01 of `TICKET-TEXT-VISIBILITY-PIPELINE`). See `docs/CHANGELOG.md` entry below + `docs/FOLLOWUP_TICKETS.md` §Recently Closed row. Counter `text_bbox_contract_violations` atomically tracks pre-clip degenerate bboxes for `/api/runs` telemetry surface; regression locks deferred to FU03/FU06.
 
 Per il dettaglio completo: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) + [`docs/tickets/`](docs/tickets/).
 Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
@@ -20,7 +21,7 @@ Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 | Area | Stato | Note sintetiche |
 |---|---|---|
 | Camera V1 | PASS | AE-parity 35/35 PASS; hash collision (AE_CAM_02/04) resolved via Fase 6 cache-key camera fingerprint. |
-| Text Production V1 | PARTIAL | **Text Export V1 certificato** ✅: check_text pipeline passa ([TEXT-OK]). Clip 06 diagnostic (TICKET-TEXT-CLIP-PREDICTED-BBOX, P0). I 5 goldens Clip 01–05 vanno re-seeded (P1). |
+| Text Production V1 | PARTIAL | **Text Export V1 certificato** ✅: check_text pipeline passa ([TEXT-OK]). Clip 06 diagnostic **CHIUSA in this session** (TICKET-TEXT-CLIP-PREDICTED-BBOX, FU01 di TICKET-TEXT-VISIBILITY-PIPELINE). I 5 goldens Clip 01–05 vanno re-seeded (P1, TICKET-TEXT-CLIP-GOLDENS-01-05). |
 | SDK C++ installabile | PASS | gate #10: sub-blocks A+B PASS, sub-block C (FU5 mean-RGB) DONE. |
 | SDK cross-language | NOT RUN | C ABI e formato `.chronon` da progettare. |
 | Render runtime | PASS | ImageCache + RenderSession::layout_cache landed. |
