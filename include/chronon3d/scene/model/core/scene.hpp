@@ -9,9 +9,12 @@
 #include <chronon3d/rendering/lighting_rig.hpp>
 #include <chronon3d/rendering/depth_grade.hpp>
 #include <chronon3d/assets/asset_manifest.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <vector>
 #include <memory_resource>
 #include <memory>
+#include <optional>
 
 namespace chronon3d {
 
@@ -19,6 +22,16 @@ namespace chronon3d {
 // scene.cpp defines all methods that access Camera2_5DRuntime fields.
 struct Camera2_5D;
 using Camera2_5DRuntime = Camera2_5D;
+
+// Forward declarations for the camera facade / shot timeline opaque types
+// (defined in their own public headers).  Forward-declaring here keeps the
+// Scene header slim and avoids pulling `camera_v1::ShotTimeline`'s transitive
+// `CameraSession` include into every TU that touches a Scene.
+namespace chronon3d {
+class SceneCameraFacade;
+namespace camera_v1 { class ShotTimeline; }
+class CameraPresetCatalog;
+}
 
 class Scene {
 public:
@@ -50,6 +63,57 @@ public:
     // ── Camera accessors (defined in scene.cpp) ──────────────────────────
     void set_camera_2_5d(Camera2_5DRuntime camera);
     [[nodiscard]] const Camera2_5DRuntime& camera_2_5d() const;
+
+    // ── Public camera facade (P3-H + feat(api) public camera facade) ─────
+    //
+    // `scene.camera()` returns a chainable facade (BY VALUE) that exposes
+    //   .descriptor(d) / .program(p) / .timeline(tl) / .preset(name, cat)
+    // setters.  Each setter mutates the scene's internal camera state via
+    // a back-reference (the facade stores `Scene&`) and returns
+    // `*this` for fluent chaining.  The facade hides `CameraSession` and
+    // `RenderGraph` from the public surface — the external consumer never
+    // sees those internal types.
+    //
+    // P3-H bug fix (code-review verdict): the facade is RETURNED BY
+    // VALUE, not by reference.  The earlier `SceneCameraFacade&` design
+    // required a `std::unique_ptr<SceneCameraFacade>` member on Scene
+    // that needed a back-reference to `*this` — chicken-and-egg
+    // (member init list cannot reference `*this`).  Return-by-value
+    // sidesteps the init-order problem entirely: the facade is a
+    // lightweight 1-pointer struct (just `Scene& scene_`) constructed
+    // on demand, bound to `*this` at call time.
+    //
+    // Const overload: removed.  The const overload returned a facade that
+    // would dispatch to a `const Scene&` — but every setter on the facade
+    // mutates the bound Scene, so a `const` overload is a foot-gun (it
+    // would require the const facade to be a different type that
+    // const_casts internally — worse than the original bug).  External
+    // consumers should always call `scene.camera()` on a non-const Scene
+    // (the Scene is owned by the SceneBuilder, so it's always non-const
+    // in practice).
+    [[nodiscard]] SceneCameraFacade camera() noexcept;
+
+    // ── Internal setters used by `SceneCameraFacade` (P3-H public facade) ──
+    // These are the single-source-of-truth for the camera state stored on
+    // a Scene.  External callers should reach them through
+    // `scene.camera().descriptor(...)` etc. — not directly.
+    void set_default_camera_descriptor(camera_v1::CameraDescriptor d) {
+        m_camera_descriptor = std::move(d);
+    }
+    void set_default_camera_program(camera_v1::CameraProgram p) {
+        m_camera_program = std::move(p);
+    }
+    void set_camera_timeline(std::shared_ptr<camera_v1::ShotTimeline> tl) {
+        m_camera_timeline = std::move(tl);
+    }
+
+    // ── Read-only accessors for the camera state (P3-H public facade) ──
+    [[nodiscard]] const std::optional<camera_v1::CameraDescriptor>&
+    default_camera_descriptor() const noexcept { return m_camera_descriptor; }
+    [[nodiscard]] const std::optional<camera_v1::CameraProgram>&
+    default_camera_program() const noexcept { return m_camera_program; }
+    [[nodiscard]] const std::shared_ptr<camera_v1::ShotTimeline>&
+    camera_timeline() const noexcept { return m_camera_timeline; }
 
     /// Non-mutating projection source — usable without including camera_2_5d.hpp.
     [[nodiscard]] CameraProjectionSource camera_projection_source() const;
@@ -90,6 +154,14 @@ private:
     bool m_hierarchy_baked{false};
     std::filesystem::path m_assets_root;
     assets::AssetManifest m_manifest;
+
+    // P3-H public camera facade — internal camera state stored on the
+    // Scene.  Mutated only via the `SceneCameraFacade` setters.  The
+    // facade is RETURNED BY VALUE from `Scene::camera()` (see comment
+    // on the public method above), so no facade member is needed here.
+    std::optional<camera_v1::CameraDescriptor> m_camera_descriptor;
+    std::optional<camera_v1::CameraProgram>    m_camera_program;
+    std::shared_ptr<camera_v1::ShotTimeline>   m_camera_timeline;
 };
 
 } // namespace chronon3d

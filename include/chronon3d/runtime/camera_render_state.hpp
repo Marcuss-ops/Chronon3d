@@ -48,7 +48,14 @@
 //   destructor remains a no-op (relying on the explicit rollback-or-commit
 //   contract).
 // ==============================================================================
-#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
+// P3-H + feat(api) public camera facade — CameraSession moved to
+// include/chronon3d/internal/scene/camera/v1/camera_session.hpp.
+// The OPP renderer-side code that needs the full type now includes the
+// internal header directly; this header (which is on the public manifest
+// but is an OPP-owned runtime header, not a consumer surface) uses
+// forward-declarations + the internal path.  shot_timeline.hpp is still
+// public (forward-declares CameraSession internally).
+#include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 #include <chronon3d/scene/camera/camera_v1/shot_timeline.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp>
 

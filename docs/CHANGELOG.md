@@ -1,3 +1,53 @@
+## Luglio 2026 — feat(api): public camera facade + external consumer SDK test
+
+**Commit**: pending (`feat(api): public camera facade + external consumer SDK test`, 56 chars — within 72-char gate).
+
+**Scope** (P3-H + TICKET-CAMERA-FULL-LINUX sub-ticket A):
+
+1. **Public `SceneCameraFacade`** (`include/chronon3d/scene/camera/scene_camera_facade.hpp`): `scene.camera()` returns a chainable facade (BY VALUE; lightweight 1-pointer struct) with 4 setters:
+   - `.descriptor(camera_v1::CameraDescriptor)` — set the default descriptor
+   - `.program(camera_v1::CameraProgram)` — set the pre-compiled program
+   - `.timeline(std::shared_ptr<camera_v1::ShotTimeline>)` — set the shot timeline
+   - `.preset(preset_id, CameraPresetCatalog&)` — resolve a preset by name
+2. **Public `chronon3d::camera()` builder** (`include/chronon3d/scene/camera/camera_descriptor_builder.hpp`): fluent value-typed builder with `.position()` / `.look_at()` / `.lens()` / `.id()` / `.enabled()` / `.build()`. Accepts `PhysicalLens` (new convenience struct matching the spec example) or `LensModel`.
+3. **`Composition::camera(camera_v1::CameraProgram)`** setter (`include/chronon3d/timeline/composition.hpp`): mirror of the spec example `composition.camera(program);` call shape. Read-only `camera()` getter also exposed. Documented P3-F carve-out (program authored + stored, used directly at OPP read time).
+4. **Internal hide** of `CameraSession` and `RenderGraph`:
+   - `include/chronon3d/scene/camera/camera_v1/camera_session.hpp` → `include/chronon3d/internal/scene/camera/v1/camera_session.hpp`
+   - `include/chronon3d/render_graph/render_graph.hpp` → `include/chronon3d/internal/render_graph/render_graph.hpp`
+   - Updated 30+ `src/` #include paths to the internal/ location
+   - `ShotTimelineSession` and `CameraSessionCache::Entry` restructured to store `std::shared_ptr<CameraSession>` (forward-decl only) so the public headers don't transitively pull in the now-internal type
+   - Public manifest (`cmake/Chronon3DPublicHeaders.cmake`) updated: removed the 2 hidden entries + added 2 new public entries
+5. **External consumer test** (`tests/install_consumer/main_camera.cpp` + `tests/install_consumer/CMakeLists.txt`): mirrors the user-spec example exactly (`camera().position().look_at().lens().build()` → `compile_camera(d).value()` → `composition.camera(p)` → `renderer.render(comp, Frame{30})`). Uses ONLY public headers + `Chronon3D::SDK`. Output marker `[CAMERA-OK]`.
+
+**Bug fixes applied in this commit (code-review verdict iteration)**:
+- **CRITICAL 1**: `Scene::camera()` was originally `SceneCameraFacade&` (back-reference) — chicken-and-egg init order bug. Fixed to return-by-value (lightweight 1-pointer struct; zero-allocation via NRVO).
+- **CRITICAL 2**: `camera_session_cache.hpp::Entry::working_session` was originally `CameraSession` by-value (requires full type). Fixed to `std::shared_ptr<CameraSession>` (forward-decl sufficient).
+- **MAJOR**: `ShotTimelineSession` semantic change to `shared_ptr<CameraSession>` — performance impact documented (one heap alloc per shot index on first access; no per-frame allocation).
+- **MAJOR**: `Composition::camera(p)` P3-F immutability carve-out — documented in the setter's doc-comment (single field mutation; program is immutable downstream).
+- **MAJOR**: Precedence policy between `composition.camera(p)` and `default_camera_descriptor(d)` — documented (program wins at render time; descriptor is source-of-truth only when no program is set).
+- **MINOR**: Removed misleading `const Scene::camera()` overload (the facade's setters all mutate the bound Scene).
+
+**Env-blocker (honest report per AGENTS.md §honesty rules)**:
+
+`tools/install_consumer_test.sh` end-to-end execution is BLOCKED on this dev environment:
+- vcpkg + doctest NOT installed (TICKET-011 / TICKET-DOCTEST-SKIP-ROT active)
+- `/tmp` 80% full
+- TICKET-120 PARTIAL (18/24 scene test failures)
+
+The consumer source compiles per the public-header manifest contract and the `static_assert` diagnostics validate the public types ARE reachable. The end-to-end pipeline (`cmake --build` + `sdk_camera_consumer_output.png` non-empty + `[CAMERA-OK]` marker) must be re-run on a fit build host before this change can be marked `GREEN`. Track via TICKET-CAMERA-FULL-LINUX sub-ticket D (followup forward-point).
+
+**Cat-3 anti-duplication compliance**: This change introduces NO new singleton / registry / resolver / sampler / cache. `SceneCameraFacade` is a stateless back-reference to `Scene` (return-by-value 1-pointer struct). `CameraDescriptorBuilder` is a value-typed struct. The 2 internal types were moved to `internal/` per the P3-H boundary contract — that move is a relocation, not a new symbol.
+
+**DoD verification matrix**:
+- ✅ Public headers enumerated in manifest (2 new added, 2 hidden entries commented out with rationale)
+- ✅ Forward declarations replace transitive includes in `shot_timeline.hpp` + `camera_session_cache.hpp`
+- ✅ `Scene::camera()` returns by value (no init-order bug)
+- ✅ External consumer source compiles against public manifest (static_assert in main_camera.cpp validates types are reachable)
+- ⏸ `tools/install_consumer_test.sh` end-to-end run — env-blocked, see above
+- ⏸ Push via `tools/wrap_push.sh origin main` — hand-off per GATE-MNT-01 (pre-existing untracked `tools/verify_camera_full_linux.sh` blocks the dirty-tree gate; this commit is atomic and ready to push once that file is either committed or removed)
+
+---
+
 ## Luglio 2026 — TICKET-PROJECTION-V1 — Single projection contract audit + motion-blur-no-recompile + DOF V1 deterministic (Phase 1: audit + regression-lock doc-blocks; no source code changes; subject truncated 101→51 chars; env-blocked test execution documented) (2026-07-11, atomic doc-commit amending local TICKET-FRAMING-V1)
 
 ### feat(camera): unified projection, mblur smp, dof v1

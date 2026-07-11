@@ -13,7 +13,7 @@
 
 #include "analysis.hpp"
 #include "format.hpp"
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/pipeline/graph_filter.hpp>
 #include <algorithm>
 #include <iomanip>

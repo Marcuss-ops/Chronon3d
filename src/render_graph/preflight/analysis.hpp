@@ -9,7 +9,7 @@
 // NOT part of the public API — do not include outside preflight_render_graph*.cpp.
 
 #include <chronon3d/render_graph/preflight/preflight_render_graph.hpp>
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 #include <cstdint>
 #include <vector>

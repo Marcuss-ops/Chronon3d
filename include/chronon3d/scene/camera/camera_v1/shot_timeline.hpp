@@ -13,13 +13,30 @@
 //   CameraTransition     → pure function: interpolate from→to camera
 //   ShotTimeline         → ordered list, find active shot, validate structure
 //   ShotTimelineResolver → evaluate camera at frame, apply transitions
-//   ShotTimelineSession  → per-shot persistent constraint state
+//   ShotTimelineSession  → per-shot persistent constraint state (owns
+//                          shared_ptr<CameraSession> per shot so the
+//                          full CameraSession type stays internal)
 //   CameraTransitionCatalog → registry of transition factories (DI, not singleton)
+//
+// P3-H + feat(api) public camera facade — ShotTimeline is part of the
+// PUBLIC SDK surface (consumers may construct timelines for
+// `scene.camera().timeline(tl)`).  The `CameraSession` type that
+// `ShotTimelineSession` stores is now internal
+// (`<chronon3d/internal/scene/camera/v1/camera_session.hpp>`); the
+// session map here holds `std::shared_ptr<CameraSession>` so the
+// forward declaration is sufficient at this layer.
 // ==============================================================================
 #include <chronon3d/core/types/sample_time.hpp>  // FrameRate (TICKET-A3-CTX-FRAMERATE)
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
+
+// Forward declaration of CameraSession — full type lives in
+// include/chronon3d/internal/scene/camera/v1/camera_session.hpp
+// (P3-H internal hide).  The ShotTimelineSession member below stores
+// shared_ptr<CameraSession> so the forward decl is sufficient.
+namespace chronon3d::camera_v1 {
+struct CameraSession;
+}
 
 #include <atomic>
 #include <cstdint>
@@ -114,11 +131,32 @@ private:
 // ShotTimelineSession — per-shot persistent constraint state.
 // Avoids resetting stateful constraints (DampedFollow, banking) each frame
 // during a transition overlap.
+//
+// P3-H: stores `std::shared_ptr<CameraSession>` per shot index instead
+// of `CameraSession` by value, so the full `CameraSession` type is not
+// required in this header (it lives in `<chronon3d/internal/...>`).
+//
+// PERFORMANCE IMPACT (P3-H code-review flag): the switch from
+// `std::unordered_map<int, CameraSession>` to
+// `std::unordered_map<int, std::shared_ptr<CameraSession>>` adds ONE
+// heap allocation per shot index on first access (the
+// `session_for(int)` helper creates the session on demand).  After the
+// first access, the slot is reused — no per-frame allocation.  Copy
+// and move semantics of `ShotTimelineSession` are no longer trivial
+// (shared_ptr refcount), but the session is owned by the per-job
+// `CameraRenderState::timeline_session` (NOT copied per frame), so the
+// per-frame impact is zero.  Documented here for the future refactor
+// that might consider `std::unique_ptr<CameraSession>` (lighter
+// per-slot) if the shared_ptr refcount overhead becomes a hot path.
 // =========================================================================
 struct ShotTimelineSession {
     // Reuse the same sessions across frames keyed by shot index.
-    std::unordered_map<int, CameraSession> shot_sessions;
-    CameraSession& session_for(int shot_idx) { return shot_sessions[shot_idx]; }
+    std::unordered_map<int, std::shared_ptr<CameraSession>> shot_sessions;
+    std::shared_ptr<CameraSession>& session_for(int shot_idx) {
+        auto& slot = shot_sessions[shot_idx];
+        if (!slot) slot = std::make_shared<CameraSession>();
+        return slot;
+    }
     void reset() { shot_sessions.clear(); }
 };
 

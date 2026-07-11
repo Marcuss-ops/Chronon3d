@@ -13,7 +13,7 @@
 
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
+#include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 
 #include <type_traits>
 #include <variant>
