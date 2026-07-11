@@ -26,7 +26,7 @@
 // and reproducible.  If a build host lacks NotoSansCJK or equivalent,
 // the CJK glyphs will render as `.notdef` (empty rectangles) and the
 // golden comparison will fail with a visible difference.  The 3 tests
-// gracefully skip on `result.golden_missing`.
+// fail if the golden reference is missing (`REQUIRE_FALSE(result.golden_missing)`).
 //
 // Re-bake command:
 //   CHRONON3D_UPDATE_GOLDENS=1 ctest -R TextMultilingualMixedAdvanceWidths \

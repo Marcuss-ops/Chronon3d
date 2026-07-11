@@ -77,8 +77,12 @@ GoldenTestConfig make_pr3_golden_config() {
 
 void verify_pr3_golden(const Framebuffer& fb, const std::string& name) {
     const auto result = verify_golden(fb, name, make_pr3_golden_config());
+<<<<<<< HEAD
     REQUIRE_FALSE(result.golden_missing);
+=======
+>>>>>>> dbf39153 (fix(tests): make golden references mandatory in CI/certification mode)
     INFO(result.message);
+    REQUIRE_FALSE(result.golden_missing);
     CHECK(result.passed);
 }
 

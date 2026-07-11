@@ -20,7 +20,17 @@ inline TextDefinition make_artist_name_text(const char* name, Color color) {
         .content = {.value = name},
         .style = {.font = {.font_path = "assets/fonts/Georgia_Bold.ttf", .font_family = "Georgia", .font_weight = 700, .font_size = 118.0f},
                   .color = color},
+<<<<<<< HEAD
         .frame = {.size = {900.0f, 180.0f}, .anchor = TextAnchor::Center, .align = TextAlign::Center, .wrap = TextWrap::None, .centering_mode = TextCenteringMode::PixelInk, .line_height = 1.2f, .tracking = 1.0f},
+=======
+        .frame = {.size = {900.0f, 180.0f},
+                  .anchor = TextAnchor::Center,
+                  .align = TextAlign::Center,
+                  .wrap = TextWrap::None,
+                  .overflow = TextOverflow::Clip,
+                  .centering_mode = TextCenteringMode::PixelInk,
+                  .tracking = 1.0f},
+>>>>>>> dbf39153 (fix(tests): make golden references mandatory in CI/certification mode)
     };
 }
 

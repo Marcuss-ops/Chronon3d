@@ -150,7 +150,10 @@ Composition dof_showcase() {
         const f32 cam_z = -1000.0f + p * 200.0f;
         s.camera().set({
             .enabled = true,
+<<<<<<< HEAD
             .position = {0.0f, 0.0f, -1000.0f},
+=======
+>>>>>>> dbf39153 (fix(tests): make golden references mandatory in CI/certification mode)
             .zoom = 1000.0f,
             .dof = DepthOfFieldSettings{
                 .enabled  = true,
