@@ -362,6 +362,16 @@ inline TextLayoutResult layout_single_run(const TextLayoutInput& input) {
 
     const int max_allowed_lines = input.style.max_lines;
     const bool apply_ellipsis = input.style.ellipsis || input.style.overflow == TextOverflow::Ellipsis;
+    // NOTE: TextOverflow::Visible is intentionally NOT handled here — it is a
+    // no-op at the layout level (same as TextOverflow::Clip for layout
+    // purposes; the renderer is the one that decides whether to render text
+    // outside the box bounds).  The `apply_ellipsis` check above evaluates
+    // to false for Visible, so the layout result matches Clip (no truncation).
+    // NOTE: TextOverflow::Visible is intentionally NOT handled here — it is a
+    // no-op at the layout level (same as TextOverflow::Clip for layout
+    // purposes; the renderer is the one that decides whether to render text
+    // outside the box bounds).  The `apply_ellipsis` check above evaluates
+    // to false for Visible, so the layout result matches Clip (no truncation).
     if (max_allowed_lines > 0 && static_cast<int>(raw_lines.size()) > max_allowed_lines) {
         raw_lines.resize(max_allowed_lines);
         line_widths.resize(max_allowed_lines);
