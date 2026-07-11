@@ -84,10 +84,20 @@ target_sources(chronon3d_text_golden_tests
         text_golden/ae_parity/ae_11_rotation_per_character.cpp
 )
 
-# TICKET-AE-PARITY-CINEMATIC-08 — ae_glow_pulse scene.
+# TICKET-AE-PARITY-CINEMATIC-08 — ae_glow_pulse scene + Phase 2 smoke.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/ae_parity/ae_08_glow_pulse.cpp
+        visual/ae_parity/ae_glow_smoke.cpp
+)
+
+# TICKET-CHRONON-GLOW-FINAL — Phase 2 smoke ctest alias.
+# 2 TEST_CASEs: 16:9 + 9:16 cinemat­ic-glow luminance preservation
+# (glow_luma >= 0.98 * source_luma at the alpha centroid).
+add_test(
+    NAME TextGlowSmoke
+    COMMAND chronon3d_text_golden_tests --test-case="PHASE-2: ae_08 cinematic additive glow preserves source *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 # TICKET-AE-PARITY-CINEMATIC-10 — ae_scale_pop scene.
