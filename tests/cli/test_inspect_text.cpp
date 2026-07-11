@@ -328,10 +328,12 @@ TEST_CASE("inspect-text #7: exit code 0/1/2 distinction (PASS/FAIL/VIOLATION)") 
         shape.engine = nullptr;  // empty shape → font_resolved=false → FAIL
         shape.layout.placed.glyphs.resize(0);
         const chronon3d::Mat4 identity{};
+        const chronon3d::Rect local_ink_bbox{{0.0f, 0.0f}, {0.0f, 0.0f}};
         const chronon3d::Rect predicted_bbox{{10.0f, 10.0f}, {10.0f, 10.0f}};
         const chronon3d::Rect clip_rect{{0.0f, 0.0f}, {100.0f, 100.0f}};
         const auto audit = chronon3d::audit_text_visibility(
-            shape, identity, predicted_bbox, clip_rect, nullptr, 4.0f);
+            shape, local_ink_bbox, identity, predicted_bbox, clip_rect,
+            nullptr, 4.0f);
         CHECK(audit.status == chronon3d::TextVisibilityStatus::FAIL);
 #else
         // Non-diagnostic build: the audit API is gated. The CLI's

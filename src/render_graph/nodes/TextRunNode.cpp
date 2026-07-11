@@ -21,9 +21,19 @@
 
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
-#ifdef CHRONON3D_ENABLE_TEXT
 #include <chronon3d/text/text_run_geometry.hpp>
-#endif
+
+namespace {
+// Convert optional renderer::TextRunLocalBounds to the project's canonical Rect.
+// Lives in an anonymous namespace to keep the symbol local to this TU.
+chronon3d::Rect local_bounds_to_rect(
+    const std::optional<chronon3d::renderer::TextRunLocalBounds>& bounds) {
+    if (!bounds) {
+        return chronon3d::Rect{};
+    }
+    return chronon3d::renderer::to_rect(*bounds);
+}
+}  // anonymous namespace
 // M1.5#1 — internal helpers under src/render_graph/nodes/text_run/
 // (NOT under include/chronon3d/).  Same-directory-relative include
 // matches the convention used by nodes/transform_kernels.cpp for
@@ -78,6 +88,10 @@ TextRunNode::TextRunNode(
 // Matrix composition is delegated to `text_run::build_world_matrix()` so
 // the bbox sampling and the rasterization dispatch agree on the canvas
 // coordinate space by construction.
+
+Mat4 TextRunNode::world_matrix(const RenderGraphContext& ctx) const {
+    return text_run::build_world_matrix(ctx, m_placement);
+}
 
 std::optional<raster::BBox> TextRunNode::predicted_bbox(
     const RenderGraphContext& ctx,
@@ -247,15 +261,18 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
     // flag is realized via the bbox expansion that guarantees
     // rasterization of all visible ink (the conceptual "disable" is the
     // guarantee that the tight bbox no longer under-estimates ink).
-#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+#if defined(CHRONON3D_BUILD_DIAGNOSTICS) && defined(CHRONON3D_ENABLE_TEXT)
     if (m_shape) {
         const Rect predicted_r{
             {static_cast<float>(bbox.x0), static_cast<float>(bbox.y0)},
             {static_cast<float>(bbox.x1 - bbox.x0),
              static_cast<float>(bbox.y1 - bbox.y0)}
         };
+        const Rect local_ink_bbox = local_bounds_to_rect(
+            renderer::compute_text_run_visual_bounds(*m_shape));
         const auto audit = audit_text_visibility(
-            *m_shape, matrix, predicted_r, predicted_r, nullptr, spread);
+            *m_shape, local_ink_bbox, matrix, predicted_r, predicted_r,
+            nullptr, spread);
         if (audit.should_disable_tile_pruning) {
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->text_bbox_contract_violations.fetch_add(
@@ -433,7 +450,7 @@ NodeExecResult TextRunNode::execute(
     // Gated on CHRONON3D_BUILD_DIAGNOSTICS — zero overhead in production.
     // Skip in overlay-only mode: the framebuffer is transparent so there
     // is no rendered content to audit.
-#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+#if defined(CHRONON3D_BUILD_DIAGNOSTICS) && defined(CHRONON3D_ENABLE_TEXT)
     if (m_shape && fb && !ctx.policy.diagnostic_overlay_only) {
         auto pred = predicted_bbox(ctx, {});
         Rect predicted_r{};
@@ -450,8 +467,10 @@ NodeExecResult TextRunNode::execute(
         }
         // clip_rect = predicted_r: matches compositor behavior for TextRun
         Rect clip_r = predicted_r;
+        const Rect local_ink_bbox = local_bounds_to_rect(
+            renderer::compute_text_run_visual_bounds(*m_shape));
         verify_text_visibility(
-            *m_shape, world_matrix, predicted_r, clip_r,
+            *m_shape, local_ink_bbox, world_matrix, predicted_r, clip_r,
             fb.get(), m_name.c_str());
     }
 #endif

@@ -6,7 +6,7 @@
 // detection (per-character layers named "{prefix}_c{N}").
 // ─────────────────────────────────────────────────────────────────────────
 
-#include <chronon3d/scene/model/scene.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 
 #include <string>

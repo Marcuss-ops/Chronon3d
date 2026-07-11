@@ -24,7 +24,7 @@
 #include <chronon3d/extension/extension_context.hpp>
 #include <stdexcept>
 
-#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
+#if defined(CHRONON3D_BUILD_CONTENT)
 // Forward declaration from content/register_content_modules.hpp.
 namespace chronon3d {
     void register_content_modules(ExtensionCatalog& catalog,
@@ -89,7 +89,7 @@ void populate_builtin_pipeline_catalogs(PipelineCatalogs& catalogs,
         std::make_unique<PipelineExtension>());
 
     // ── Content extensions ───────────────────────────────────────
-#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
+#if defined(CHRONON3D_BUILD_CONTENT)
     register_content_modules(catalogs.extensions, ctx);
 #endif
 

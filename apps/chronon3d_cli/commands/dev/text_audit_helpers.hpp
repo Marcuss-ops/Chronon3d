@@ -8,6 +8,8 @@
 
 #include "text_audit_types.hpp"
 
+#include <blend2d/image.h>
+
 #include <string>
 #include <string_view>
 

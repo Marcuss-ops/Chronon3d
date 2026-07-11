@@ -52,7 +52,12 @@ TextRunShape make_test_shape(bool with_engine = true, std::size_t glyph_count = 
         static std::byte placeholder{};
         shape.engine = reinterpret_cast<FontEngine*>(&placeholder);
     }
-    shape.layout.placed.glyphs.resize(glyph_count);
+    // SharedTextRunLayout is shared_ptr<const TextRunLayout>, so build a
+    // mutable layout first, populate its glyphs, then move it into the
+    // shared pointer.
+    TextRunLayout layout{};
+    layout.placed.glyphs.resize(glyph_count);
+    shape.layout = std::make_shared<TextRunLayout>(std::move(layout));
     return shape;
 }
 
@@ -72,9 +77,10 @@ TEST_CASE("Visibility contract #1: FAIL on invalid bbox (world out of predicted)
     const Rect predicted_bbox{{10.0f, 10.0f}, {10.0f, 10.0f}};  // (10..20) × (10..20)
     const Rect clip_rect    {{0.0f, 0.0f}, {100.0f, 100.0f}};
 
+    const Rect local_ink_bbox{{0.0f, 0.0f}, {0.0f, 0.0f}};
     const auto audit = audit_text_visibility(
-        shape, identity, predicted_bbox, clip_rect, /*rendered_output=*/nullptr,
-        /*effect_padding=*/4.0f);
+        shape, local_ink_bbox, identity, predicted_bbox, clip_rect,
+        /*rendered_output=*/nullptr, /*effect_padding=*/4.0f);
 
     // Sanity: shaping succeeded
     CHECK(audit.shaping_succeeded);
@@ -106,9 +112,10 @@ TEST_CASE("Visibility contract #2: PASS on nominal bbox (predicted contains worl
     const Rect predicted_bbox{{0.0f, 0.0f}, {10.0f, 10.0f}};  // (0..10) × (0..10)
     const Rect clip_rect    {{0.0f, 0.0f}, {100.0f, 100.0f}};
 
+    const Rect local_ink_bbox{{0.0f, 0.0f}, {0.0f, 0.0f}};
     const auto audit = audit_text_visibility(
-        shape, identity, predicted_bbox, clip_rect, /*rendered_output=*/nullptr,
-        /*effect_padding=*/4.0f);
+        shape, local_ink_bbox, identity, predicted_bbox, clip_rect,
+        /*rendered_output=*/nullptr, /*effect_padding=*/4.0f);
 
     CHECK(audit.shaping_succeeded);
     CHECK(audit.finite);
@@ -132,34 +139,27 @@ TEST_CASE("Visibility contract #3: violation response expands world_ink_bbox by 
     const Mat4 identity{};
 
     // local_ink_bbox = (10, 10, 20, 20) → world_ink_bbox (identity) = (10, 10, 20, 20).
-    // We need to populate local_ink_bbox on a TextRunShape. The audit
-    // function reads `shape.layout.placed.glyphs` for the count but does
-    // NOT read local_ink_bbox from the shape — it's passed in via the
-    // audit function call indirectly through the world's transform_aabb
-    // on the shape's local. Actually, looking at the implementation,
-    // the audit function sets `audit.local_ink_bbox = Rect{}` and computes
-    // world_ink_bbox from that. So for this test we can only verify the
-    // expansion from the zero-rect world_ink_bbox, which is the same
-    // case as #1. The expansion math is tested in #1; here we verify
-    // the effect_padding=0.0 case (no expansion).
+    // The audit now receives the real local_ink_bbox, so we can verify
+    // the expansion from a non-zero world_ink_bbox.
+    const Rect local_ink_bbox{{10.0f, 10.0f}, {10.0f, 10.0f}};
     const Rect predicted_bbox{{100.0f, 100.0f}, {10.0f, 10.0f}};  // out of range
     const Rect clip_rect    {{0.0f, 0.0f}, {200.0f, 200.0f}};
     const float padding = 16.0f;
 
     const auto audit = audit_text_visibility(
-        shape, identity, predicted_bbox, clip_rect, /*rendered_output=*/nullptr,
-        /*effect_padding=*/padding);
+        shape, local_ink_bbox, identity, predicted_bbox, clip_rect,
+        /*rendered_output=*/nullptr, /*effect_padding=*/padding);
 
-    // World point at (0,0) is outside predicted (100..110). Violation triggered.
+    // World bbox (10,10)→(20,20) is outside predicted (100..110). Violation triggered.
     CHECK_FALSE(audit.predicted_contains_world);
     CHECK(audit.should_disable_tile_pruning);
     CHECK(audit.status == TextVisibilityStatus::FAIL);
-    // expanded_predicted_bbox = (0,0) point + padding 16 on all sides
-    // = origin (-16, -16), size (1+32, 1+32) = (33, 33)
-    CHECK(audit.expanded_predicted_bbox.origin.x == doctest::Approx(-16.0f));
-    CHECK(audit.expanded_predicted_bbox.origin.y == doctest::Approx(-16.0f));
-    CHECK(audit.expanded_predicted_bbox.size.x == doctest::Approx(33.0f));
-    CHECK(audit.expanded_predicted_bbox.size.y == doctest::Approx(33.0f));
+    // expanded_predicted_bbox = world_ink_bbox (10,10,20,20) + padding 16 on all sides
+    // = origin (-6, -6), size (10+32, 10+32) = (42, 42)
+    CHECK(audit.expanded_predicted_bbox.origin.x == doctest::Approx(-6.0f));
+    CHECK(audit.expanded_predicted_bbox.origin.y == doctest::Approx(-6.0f));
+    CHECK(audit.expanded_predicted_bbox.size.x == doctest::Approx(42.0f));
+    CHECK(audit.expanded_predicted_bbox.size.y == doctest::Approx(42.0f));
 }
 
 // #4 — Edge cases: empty shape (no glyphs) + NaN predicted_bbox + infinite predicted_bbox.
@@ -168,11 +168,13 @@ TEST_CASE("Visibility contract #4: edge cases (empty shape, NaN, infinite)") {
     {
         const auto shape = make_test_shape(/*with_engine=*/false, /*glyph_count=*/0);
         const Mat4 identity{};
+        const Rect local_ink_bbox{{0.0f, 0.0f}, {0.0f, 0.0f}};
         const Rect predicted_bbox{{0.0f, 0.0f}, {10.0f, 10.0f}};
         const Rect clip_rect    {{0.0f, 0.0f}, {100.0f, 100.0f}};
 
         const auto audit = audit_text_visibility(
-            shape, identity, predicted_bbox, clip_rect, nullptr, 4.0f);
+            shape, local_ink_bbox, identity, predicted_bbox, clip_rect,
+            nullptr, 4.0f);
 
         CHECK_FALSE(audit.font_resolved);
         CHECK_FALSE(audit.shaping_succeeded);
@@ -184,6 +186,7 @@ TEST_CASE("Visibility contract #4: edge cases (empty shape, NaN, infinite)") {
     {
         const auto shape = make_test_shape();
         const Mat4 identity{};
+        const Rect local_ink_bbox{{0.0f, 0.0f}, {0.0f, 0.0f}};
         const Rect predicted_bbox{
             {std::numeric_limits<float>::quiet_NaN(), 0.0f},
             {10.0f, 10.0f}
@@ -191,7 +194,8 @@ TEST_CASE("Visibility contract #4: edge cases (empty shape, NaN, infinite)") {
         const Rect clip_rect{{0.0f, 0.0f}, {100.0f, 100.0f}};
 
         const auto audit = audit_text_visibility(
-            shape, identity, predicted_bbox, clip_rect, nullptr, 4.0f);
+            shape, local_ink_bbox, identity, predicted_bbox, clip_rect,
+            nullptr, 4.0f);
 
         CHECK_FALSE(audit.finite);  // NaN in predicted_bbox breaks finite
         CHECK(audit.status == TextVisibilityStatus::FAIL);
@@ -201,6 +205,7 @@ TEST_CASE("Visibility contract #4: edge cases (empty shape, NaN, infinite)") {
     {
         const auto shape = make_test_shape();
         const Mat4 identity{};
+        const Rect local_ink_bbox{{0.0f, 0.0f}, {0.0f, 0.0f}};
         const Rect predicted_bbox{
             {0.0f, 0.0f},
             {std::numeric_limits<float>::infinity(), 10.0f}
@@ -208,7 +213,8 @@ TEST_CASE("Visibility contract #4: edge cases (empty shape, NaN, infinite)") {
         const Rect clip_rect{{0.0f, 0.0f}, {100.0f, 100.0f}};
 
         const auto audit = audit_text_visibility(
-            shape, identity, predicted_bbox, clip_rect, nullptr, 4.0f);
+            shape, local_ink_bbox, identity, predicted_bbox, clip_rect,
+            nullptr, 4.0f);
 
         CHECK_FALSE(audit.finite);
         CHECK(audit.status == TextVisibilityStatus::FAIL);

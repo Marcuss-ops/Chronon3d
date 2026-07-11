@@ -14,6 +14,12 @@
 #include <cmath>
 #include <map>
 
+namespace {
+    // Forward declaration: defined later in this TU.
+    AuditStatus compute_audit_status(const TextAuditChecks& checks,
+                                     const TextAuditPolicy& policy);
+}
+
 namespace chronon3d::cli {
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -713,6 +719,16 @@ TextAuditResult audit_composition(
     result.overall_status = any_fail ? AuditStatus::Fail : (any_warn ? AuditStatus::Warn : AuditStatus::Pass);
 
     return result;
+}
+
+int audit_exit_code(const TextAuditResult& result) {
+    switch (result.overall_status) {
+        case AuditStatus::Pass:         return static_cast<int>(TextAuditExit::Pass);
+        case AuditStatus::Warn:         return static_cast<int>(TextAuditExit::LayoutError);
+        case AuditStatus::WarnPartial:  return static_cast<int>(TextAuditExit::LayoutError);
+        case AuditStatus::Fail:         return static_cast<int>(TextAuditExit::LayoutError);
+    }
+    return static_cast<int>(TextAuditExit::LayoutError);
 }
 
 } // namespace chronon3d::cli

@@ -43,8 +43,15 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/text/text_visibility_audit.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
+#include <chronon3d/text/text_run_geometry.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/media/media_placement.hpp>
+#include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/render_graph/nodes/text_run_node.hpp>
+#include "../../../../../src/render_graph/pipeline/helpers.hpp"
+#include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/scene/model/camera/camera.hpp>
+#include <chronon3d/core/config.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -54,6 +61,7 @@
 #include <iomanip>
 #include <string>
 #include <vector>
+#include <memory>
 
 namespace chronon3d {
 namespace cli {
@@ -177,7 +185,8 @@ int run_inspect_text_impl(const CompositionRegistry& registry,
     };
 
     // Render the composition to a framebuffer.
-    SoftwareRenderer renderer;
+    Config config;
+    SoftwareRenderer renderer{config};
     auto fb = renderer.render(comp, args.frame);
     if (!fb) {
         std::ostringstream os;
@@ -193,59 +202,111 @@ int run_inspect_text_impl(const CompositionRegistry& registry,
 
     // Walk the render graph to find TextRunNodes.
     //
-    // §12 minimal scope: emit a single representative node entry (one
-    // per composition). Multi-node iteration over the render graph is
-    // a forward-point for FU10 — see `docs/CLI_REFERENCE.md`
-    // `inspect-text internals (forward-point)` section.
-    //
     // The framebuffer is passed to the audit to enable the alpha-bbox
     // scan (full 6-invariant cascade).
     std::ostringstream os;
     os << "[\n";
 
-    // TODO(FU10): placeholder TextRunShape for the §12 minimal
-    // implementation. The full implementation will iterate the render
-    // graph nodes and reconstruct the placed TextRunShape glyphs from
-    // each TextRunNode. For now we emit a default-constructed shape
-    // (empty placed.glyphs + null engine) so the JSON output exercises
-    // the FAIL-path (font_resolved=false, shaping_succeeded=false).
-    TextRunShape shape{};
-    shape.engine = nullptr;  // font_resolved will be false
-    shape.layout.placed.glyphs.resize(0);  // empty → shaping_succeeded=false
+    // Evaluate the scene and build the render graph so we can inspect
+    // the real TextRunNode instances.
+    Scene scene = comp.evaluate(args.frame, 0.0f, &renderer.font_engine());
+    Camera default_camera;
+    chronon3d::graph::RenderGraphContext graph_ctx = graph::make_graph_context(
+        renderer.backend(), renderer.node_cache(), default_camera,
+        comp.width(), comp.height(), args.frame, 0.0f,
+        renderer.render_settings(), &registry, nullptr,
+        static_cast<float>(comp.frame_rate().fps()));
+    graph_ctx.services.sw_renderer_sidecar = &renderer;
+    if (!scene.assets_root().empty()) {
+        graph_ctx.frame_input.assets_root = scene.assets_root().string();
+    }
 
-    // Identity world matrix for the §12 minimal. The real world_matrix
-    // is computed per-node from the TextRunNode's placement.
-    const Mat4 identity{};
+    graph::RenderGraph graph = graph::GraphBuilder::build(scene, graph_ctx);
+    graph.freeze();
 
-    // Predicted bbox = full canvas (1920x1080 default).
-    const Rect predicted_bbox{
-        {0.0f, 0.0f},
-        {static_cast<float>(ctx.width), static_cast<float>(ctx.height)}
-    };
-    const Rect clip_rect = predicted_bbox;
+    int worst_exit_code = 0;
+    bool first = true;
+    for (chronon3d::graph::GraphNodeId i = 0; i < graph.size(); ++i) {
+        if (!graph.has_node(i)) continue;
+        auto* node = dynamic_cast<graph::TextRunNode*>(&graph.node(i));
+        if (!node) continue;
 
-    const auto audit = audit_text_visibility(
-        shape, identity, predicted_bbox, clip_rect, fb.get(),
-        /*effect_padding=*/0.0f);
+        const auto& shape_ptr = node->shape();
+        if (!shape_ptr) continue;
 
-    const auto mapping = map_status_for_node(audit.status,
-                                              audit.predicted_contains_world);
+        const Mat4 world_matrix = node->world_matrix(graph_ctx);
+        auto pred = node->predicted_bbox(graph_ctx);
+        Rect predicted_rect;
+        if (pred) {
+            predicted_rect = Rect{
+                Vec2{static_cast<float>(pred->x0), static_cast<float>(pred->y0)},
+                Vec2{static_cast<float>(pred->x1 - pred->x0),
+                     static_cast<float>(pred->y1 - pred->y0)}};
+        } else {
+            predicted_rect = Rect{
+                Vec2{0.0f, 0.0f},
+                Vec2{static_cast<float>(comp.width()),
+                     static_cast<float>(comp.height())}};
+        }
+        const Rect clip_rect = predicted_rect;
 
-    os << "  {\n";
-    os << "    \"node\": \"" << json_escape(args.comp_id) << "\",\n";
-    os << "    \"font\": \"<font>\",\n";
-    os << "    \"glyph_count\": " << audit.glyph_count << ",\n";
-    os << "    \"frame\": " << args.frame.integral() << ",\n";
-    os << "    \"local_bbox\": " << json_bbox(audit.local_ink_bbox) << ",\n";
-    os << "    \"world_bbox\": " << json_bbox(audit.world_ink_bbox) << ",\n";
-    os << "    \"predicted_bbox\": " << json_bbox(audit.predicted_bbox) << ",\n";
-    os << "    \"alpha_bbox\": " << json_bbox(audit.rendered_alpha_bbox) << ",\n";
-    os << "    \"status\": \"" << mapping.json_status << "\"\n";
-    os << "  }\n";
-    os << "]\n";
+        // Mirror the effect-padding computation in TextRunNode::predicted_bbox()
+        // so the audit uses the same spread the renderer uses.
+        const auto& render_ref = node->render_node();
+        float effect_padding = 0.0f;
+        if (render_ref.shadow.enabled) {
+            effect_padding = std::max(
+                effect_padding,
+                render_ref.shadow.radius
+                    + std::max(std::abs(render_ref.shadow.offset.x),
+                               std::abs(render_ref.shadow.offset.y)));
+        }
+        if (render_ref.glow.enabled) {
+            effect_padding = std::max(effect_padding, render_ref.glow.radius);
+        }
+        effect_padding += 8.0f;
 
+        Rect local_ink_bbox{};
+        if (auto bounds = renderer::compute_text_run_visual_bounds(*shape_ptr)) {
+            local_ink_bbox = renderer::to_rect(*bounds);
+        }
+        const auto audit = audit_text_visibility(
+            *shape_ptr, local_ink_bbox, world_matrix, predicted_rect,
+            clip_rect, fb.get(), effect_padding);
+
+        const auto mapping = map_status_for_node(audit.status,
+                                                audit.predicted_contains_world);
+
+        if (!first) os << ",\n";
+        first = false;
+
+        std::string font_path = "<font>";
+        if (shape_ptr->layout && !shape_ptr->layout->font.font_path.empty()) {
+            font_path = shape_ptr->layout->font.font_path;
+        }
+
+        os << "  {\n";
+        os << "    \"node\": \"" << json_escape(std::string(node->name())) << "\",\n";
+        os << "    \"font\": \"" << json_escape(font_path) << "\",\n";
+        os << "    \"glyph_count\": " << audit.glyph_count << ",\n";
+        os << "    \"frame\": " << args.frame.integral() << ",\n";
+        os << "    \"local_bbox\": " << json_bbox(audit.local_ink_bbox)
+           << ",\n";
+        os << "    \"world_bbox\": " << json_bbox(audit.world_ink_bbox)
+           << ",\n";
+        os << "    \"predicted_bbox\": " << json_bbox(audit.predicted_bbox)
+           << ",\n";
+        os << "    \"alpha_bbox\": " << json_bbox(audit.rendered_alpha_bbox)
+           << ",\n";
+        os << "    \"status\": \"" << mapping.json_status << "\"\n";
+        os << "  }";
+
+        worst_exit_code = std::max(worst_exit_code, mapping.exit_code);
+    }
+
+    os << "\n]\n";
     std::fputs(os.str().c_str(), stdout);
-    return mapping.exit_code;
+    return worst_exit_code;
 }
 
 #else  // !CHRONON3D_BUILD_DIAGNOSTICS
