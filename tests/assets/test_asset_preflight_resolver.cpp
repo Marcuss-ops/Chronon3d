@@ -16,6 +16,7 @@
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 using namespace chronon3d;
+using chronon3d::assets::AssetManifest;
 
 // ── Helper: build a FrameContext ──────────────────────────────────────
 static FrameContext preflight_ctx(Frame frame) {

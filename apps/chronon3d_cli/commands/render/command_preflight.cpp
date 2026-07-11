@@ -32,7 +32,7 @@ int command_preflight(const CompositionRegistry& registry, const PreflightArgs& 
     auto resolver = make_cli_resolver(comp.assets_root());
 
     // Sequence V2: collect the AssetManifest from sampled frames
-    AssetManifest manifest;
+    assets::AssetManifest manifest;
     for (Frame f = args.start; f <= args.end; f += static_cast<Frame>(args.sample_step)) {
         auto scene = comp.evaluate(f);
         manifest.merge(scene.asset_manifest());

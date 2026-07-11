@@ -1,13 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // asset_ref.hpp — canonical typed AssetRef<K> with compile-time asset kind.
 //
-// Phase A2 close-out (2026-07-10) — `v2::` references renamed to flat
-// `assets::` namespace. The previously exposed v2 bridge methods
-// (`to_v2_ref()`, `register_in()`, and the free-function factories
-// `asset::image/font/video/audio`) have been removed because they were
-// DEAD CODE: no production caller outside this file, despite being part
-// of the public surface for a short while.
-//
 // AssetRef<K> is a value type that:
 //
 //   1.  Carries a typed asset kind at compile time (K = AssetKind::Image, …)
@@ -16,19 +9,15 @@
 //   3.  Resolves via AssetResolver (canonical engine-local path resolution)
 //   4.  Imports into AssetRegistry (id-based lookup + dedup)
 //
-// The v2 `AssetManifest` (now `assets::AssetManifest` after Phase A2) is
-// the canonical storage container, accessed via the flat
-// `chronon3d::assets::AssetManifest` declaration in
-// `asset_readiness_v2.hpp`. There is NO explicit `register_in()` method
-// anymore; callers that need to deposit a typed asset into the manifest
-// construct an `assets::InternalAssetRef` and pass it to
-// `AssetManifest::add(...)` directly.
+// Callers that need to deposit a typed asset into the manifest construct
+// an `assets::InternalAssetRef` and pass it to `assets::AssetManifest::add(...)`
+// directly.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
 #pragma once
 
-#include <chronon3d/assets/asset_manifest.hpp>        // assets::AssetKind + assets::InternalAssetRef + assets::AssetManifest (Phase A2 #3/3)
+#include <chronon3d/assets/asset_manifest.hpp>        // assets::AssetKind + assets::InternalAssetRef + assets::AssetManifest
 #include <chronon3d/assets/asset_resolver.hpp>        // assets::AssetResolver
 #include <chronon3d/assets/asset_registry.hpp>        // AssetRegistry, AssetId
 

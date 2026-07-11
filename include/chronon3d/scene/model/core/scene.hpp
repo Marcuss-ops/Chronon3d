@@ -77,8 +77,8 @@ public:
     void set_assets_root(std::filesystem::path root) { m_assets_root = std::move(root); }
 
     // Asset manifest: aggregated from all layers during build.
-    [[nodiscard]] const AssetManifest& asset_manifest() const { return m_manifest; }
-    [[nodiscard]] AssetManifest& asset_manifest() { return m_manifest; }
+    [[nodiscard]] const assets::AssetManifest& asset_manifest() const { return m_manifest; }
+    [[nodiscard]] assets::AssetManifest& asset_manifest() { return m_manifest; }
 
 private:
     std::pmr::vector<RenderNode> m_nodes;
@@ -89,7 +89,7 @@ private:
     rendering::DepthGrade m_depth_grade{};
     bool m_hierarchy_baked{false};
     std::filesystem::path m_assets_root;
-    AssetManifest m_manifest;
+    assets::AssetManifest m_manifest;
 };
 
 } // namespace chronon3d
