@@ -105,7 +105,7 @@ struct Layer {
     FontEngine* font_engine{nullptr};
 
     // Asset manifest: collected during build, consumed by preflight.
-    AssetManifest asset_manifest;
+    assets::AssetManifest asset_manifest;
 
     // Cache for incremental scene fingerprinting
     mutable uint64_t m_static_hash{0};
