@@ -68,8 +68,9 @@ struct RenderPipelineArgs {
     // Text layout debug overlay + structured log per TextRun.
     bool text_layout_debug{false};
 
-    // Diagnostic overlay flags (mirror RenderPolicy).
+    // Diagnostic overlay on text layers (bbox, anchor, baseline).
     bool diagnostic_overlay{false};
+    // Diagnostic overlay only (transparent background, no scene content).
     bool diagnostic_overlay_only{false};
 
     // Text layout debug JSON export path.
@@ -240,8 +241,8 @@ struct TextAuditArgs {
     int   max_border_alpha_pixels{0};
     float glyph_tolerance{0.01f};
     int   alpha_threshold{8};
-    bool  diagnostic_overlay{false};      // enable diagnostic text overlay
-    bool  diagnostic_overlay_only{false};   // render only the diagnostic overlay
+    bool  diagnostic_overlay{false};
+    bool  diagnostic_overlay_only{false};
 };
 
 // §12 FU09 — TICKET-SIMPLICITY-INSPECT-TEXT: per-node TextRun audit

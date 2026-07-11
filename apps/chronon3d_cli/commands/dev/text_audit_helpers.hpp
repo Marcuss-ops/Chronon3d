@@ -8,7 +8,7 @@
 
 #include "text_audit_types.hpp"
 
-#include <blend2d/image.h>
+#include <blend2d.h>
 
 #include <string>
 #include <string_view>
