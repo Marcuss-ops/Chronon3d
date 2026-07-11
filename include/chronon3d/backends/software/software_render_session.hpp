@@ -33,8 +33,23 @@
 
 #include <chronon3d/internal/runtime/render_session.hpp>
 #include <chronon3d/backends/software/software_session_resources.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
+#include <memory>
+#include <string>
+#include <vector>
 
 namespace chronon3d {
+
+/// Lightweight snapshot of a TextRunNode captured after the render graph
+/// is built.  Used by diagnostic tools (e.g. `chronon3d_cli inspect-text`)
+/// to audit text visibility without re-evaluating the scene.
+struct TextRunAuditSnapshot {
+    std::string name;
+    std::shared_ptr<TextRunShape> shape;
+    Mat4 world_matrix;
+    Rect predicted_bbox;
+    Rect clip_rect;
+};
 
 /// Combined renderer + software-backend session for a single render job.
 ///
@@ -46,6 +61,9 @@ namespace chronon3d {
 struct SoftwareRenderSession {
     // ── Renderer-agnostic part ──────────────────────────────────────────
     RenderSession            common;
+
+    // ── Diagnostic text-run snapshots (last rendered frame) ─────────────
+    std::vector<TextRunAuditSnapshot> text_audit_snapshots;
 
     // ── Software-backend-specific part ─────────────────────────────────
     SoftwareSessionResources software;
@@ -86,6 +104,7 @@ struct SoftwareRenderSession {
     void reset_job() {
         common.reset_job();
         software.reset_job();
+        text_audit_snapshots.clear();
     }
 };
 

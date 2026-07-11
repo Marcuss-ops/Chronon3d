@@ -334,7 +334,7 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     // world matrix and predicted bbox.  We snapshot them here while the
     // graph is fully built and frozen, before execution mutates any state.
     if (sw_renderer) {
-        sw_renderer->clear_text_audit_snapshots();
+        sw_renderer->text_audit_snapshots().clear();
         const auto& graph = graph_result.compiled.graph;
         for (GraphNodeId i = 0; i < graph.size(); ++i) {
             if (!graph.has_node(i)) continue;
