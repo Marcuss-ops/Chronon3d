@@ -400,6 +400,48 @@ add_custom_target(chronon3d_tests
 if(TARGET chronon3d_media_video_tests)
     add_dependencies(chronon3d_tests chronon3d_media_video_tests)
 endif()
+
+# M1.8 §10 / TICKET-TEXT-FULL-ACCEPTANCE — umbrella BUILD target + ctest
+# label for the Text V1 milestone cert.  Single command:
+#   ctest -L text-full-acceptance
+# runs all 7 tests in one invocation (the 6 chronon3d_text_*_tests
+# + chronon3d_inspect_text_tests).  Mirrors the chronon3d_tests_fast
+# / chronon3d_tests_render / chronon3d_tests_video pattern above:
+# conditional `if(TARGET ...)` guards because some targets are gated
+# by CHRONON3D_USE_BLEND2D / CHRONON3D_BUILD_CLI_DEV at the per-area
+# .cmake level.  Forward-point: the `chronon3d_add_test_suite()` `LABELS`
+# arg is the canonical per-suite forward path; this centralized
+# application here is intentional (one place to add/remove the label
+# when a new text_*_tests target is added to the umbrella).
+set(CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS "")
+if(TARGET chronon3d_text_presets_stability_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_text_presets_stability_tests)
+endif()
+if(TARGET chronon3d_text_simplicity_adapters_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_text_simplicity_adapters_tests)
+endif()
+if(TARGET chronon3d_text_preset_visual_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_text_preset_visual_tests)
+endif()
+if(TARGET chronon3d_text_golden_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_text_golden_tests)
+endif()
+if(TARGET chronon3d_text_builder_ergonomics_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_text_builder_ergonomics_tests)
+endif()
+if(TARGET chronon3d_text_definition_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_text_definition_tests)
+endif()
+if(TARGET chronon3d_inspect_text_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_inspect_text_tests)
+endif()
+add_custom_target(chronon3d_text_full_acceptance
+    DEPENDS ${CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS}
+)
+foreach(_tfa_target IN LISTS CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS)
+    set_tests_properties(${_tfa_target} PROPERTIES LABELS "text-full-acceptance")
+endforeach()
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/architecture_tests.cmake)
 endif()
 
