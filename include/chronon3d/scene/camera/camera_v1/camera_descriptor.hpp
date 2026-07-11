@@ -89,7 +89,17 @@ using ProjectionSpec = std::variant<ZoomProjection, FovProjection, PhysicalLensP
 struct CameraBaseSpec {
     bool    enabled{true};
     Vec3    position{0.0f, 0.0f, -1000.0f};
+
+    // TICKET-CAM-QUAT-PRIMARY: Quat orientation is now the PRIMARY
+    // orientation state (avoids 179° → -179° jumps, gimbal lock, and
+    // long-rotation interpolation issues of Euler). The `rotation`
+    // field below is kept as a backward-compat Euler accessor — set
+    // `rotation` mirrors into `orientation` (and vice versa) via the
+    // `set_rotation_euler()` / `rotation_euler()` accessors.  Existing
+    // aggregate-init / .set() call sites continue to compile (the
+    // `rotation` field stays first; `orientation` defaults to identity).
     Vec3    rotation{0.0f, 0.0f, 0.0f};
+    Quat    orientation{1.0f, 0.0f, 0.0f, 0.0f};
 
     ProjectionSpec projection{ZoomProjection{AnimatedValue<float>{1000.0f}}};
 

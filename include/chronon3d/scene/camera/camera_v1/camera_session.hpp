@@ -76,6 +76,14 @@ struct CameraSession {
     /// as a fallback when the current frame's tangent is degenerate.
     std::optional<Vec3> last_tangent;
 
+    /// TICKET-CAM-QUAT-PRIMARY: last valid orientation (Quat) — used by
+    /// OrientAlongPath's frame-continuity fallback chain.  Preserved
+    /// across frames so a degenerate-tangent frame can recover the
+    /// prior frame's orientation as a Quat (avoiding Euler 179° → -179°
+    /// jumps that the deprecated Euler-only path suffered).  Reset by
+    /// `CameraSession::reset()` below alongside `last_tangent`.
+    std::optional<Quat> last_orientation;
+
     /// CAM-03 — last camera that passed all constraints.
     /// Updated after every successful evaluate().  Used by
     /// CameraFailurePolicy::KeepLastValidCamera to recover when a
@@ -93,6 +101,8 @@ struct CameraSession {
         banking_roll = 0.0f;
         skip_look_at_constraint_from_orientation = false;
         last_tangent.reset();
+        // TICKET-CAM-QUAT-PRIMARY: clear the new Quat frame-continuity slot.
+        last_orientation.reset();
         last_valid_camera.reset();
     }
 };
