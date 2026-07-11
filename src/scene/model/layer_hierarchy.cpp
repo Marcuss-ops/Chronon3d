@@ -150,8 +150,13 @@ ResolvedCamera resolve_camera_hierarchy(
         if (it != name_to_index.end()) {
             const std::size_t target_idx = it->second;
             const auto& target_result = results.at(target_idx);
+            // TICKET-007.h: pass the original layer transform so its `anchor`
+            // field survives — from_mat4() decomposition loses anchor (sets it
+            // to {0,0,0}), which made the POI resolve to the layer's world
+            // origin instead of the anchor world point. See test
+            // "Camera hierarchy: target with anchor resolves POI to anchor".
             out.camera.point_of_interest = detail::world_anchor_point(
-                from_mat4(target_result.world_matrix, target_result.world_opacity),
+                layers[target_idx].transform,
                 target_result.world_matrix);
             out.camera.point_of_interest_enabled = true;
         }
