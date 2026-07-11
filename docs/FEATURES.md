@@ -1,9 +1,11 @@
 # Chronon3D — Feature Reference
 
-> Snapshot: `main@25049b2`, 23 giugno 2026.
+> Snapshot: `HEAD`, 11 luglio 2026.
 >
 > Stato presente: [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
 > Requisiti di release: [`RELEASE_GATE.md`](RELEASE_GATE.md).
+>
+> **See also**: [§13/13 Acceptance Ortho Run Plane Contracts Forward-point 0d Ticket Acceptance Suite Phase D lineage frame](#acceptance-ortho-run-plane-contracts-forward-point-0d-ticket-acceptance-suite-phase-d-lineage-frame) (a fondo pagina) — audit-point canonico del piano di test a 3 assi ortogonali (`acceptance` / `boundary` / `ci` CTest labels) con `install_consumer_ci` come shibboleth a tripla label; chiusura di forward-point 0d del TICKET-ACCEPTANCE-SUITE-PHASE-D. Testo della sezione canonizzato come "§13/13 Acceptance" nei cross-ref di CHANGELOG.md + FOLLOWUP_TICKETS.md (il prefisso `§13/13` e un frame-label narrativo del parent closing-lineage, non parte dello slug).
 
 La presenza di codice non implica che l’intero sottosistema sia verificato o
 release-ready. Questa pagina separa feature presenti, parziali e pianificate.
@@ -172,3 +174,41 @@ feature pubblica stabile.
 
 Non includere header sperimentali nel codice stabile prima della promozione e
 della rimozione approvata della quarantena.
+
+## Acceptance Ortho Run Plane Contracts Forward-point 0d Ticket Acceptance Suite Phase D lineage frame
+
+> **Framing note (slug-friendly rename + retain §13/13 textual lineage)**: questa sezione è l'audit-point canonico del piano di test a 3 assi ortogonali (ortho run-plane: `boundary` / `ci` / `acceptance`). Il titolo è **slug-friendly** — nessun carattere `§`, `/`, em-dash `—`, o paren — per garantire identico auto-generated slug in GitHub web UI (`jekyll-anchor`) + MkDocs (`pymdownx.slugs`) + GitLab + Sphinx; lo slug canonico è `acceptance-ortho-run-plane-contracts-forward-point-0d-ticket-acceptance-suite-phase-d-lineage-frame`. Il frame-label `§13/13 Acceptance` (parent-closure-lineage, allinea con `## 13/13 Action Plan — closure summary` in `docs/ROADMAP.md` line 133) è preservato nei cross-ref testuali di `docs/CHANGELOG.md` + `docs/FOLLOWUP_TICKETS.md` come label narrativo, **non** come parte del heading slug — questo evita il bug del primo fix (slug `#§1313-...` vs `#13-13-...` vs `#1313-...` across renderers). Le altre 5 sezioni del doc usano titoli non-numerici (`## Rendering e compositing`, `## Testo`, `## Camera`, `## SDK`, `## Expressions V2 — quarantena sperimentale`).
+
+> **Source of Truth (canonical subsystem ledger)**: [`../tests/acceptance/CHANGELOG.md`](../tests/acceptance/CHANGELOG.md) — 20-row category inventory, 4 forward-points (0a/0b/0c/0d), snapshot/baseline frozen-literal inventory, aggregate-target enumeration. Questa sezione `docs/FEATURES.md` è il doc-summary anchor che **delega** al ledger di sottosistema — niente duplicazione di contenuto canonico (Cat-3 anti-duplication: ogni nuova informativa operativa va nel canonical esistente, non in duplicati).
+
+> **Cross-link canonico**: [`docs/FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md) `## Recently Closed` riga `TICKET-FEATURES-ORTHO-PLANE` — chiusura atomic-commit di forward-point 0d; [`docs/CHANGELOG.md`](CHANGELOG.md) `§00 forward-point 0d` entry prepended; [`docs/CURRENT_STATUS.md`](CURRENT_STATUS.md) Acceptance Suite row (PASS, 20/20 contract tests LANDED).
+
+L'acceptance test plane del Chronon3D è strutturato su **3 assi ortogonali** (`ortho run-plane`: boundary / ci / acceptance), ciascuno invocato da un CTest label distinto. I tre assi sono **indipendenti ma convergenti**: `install_consumer_ci` (out-of-tree) è il bridge a tripla etichetta (`LABELS boundary;ci;acceptance`) che funge da shibboleth canonico del "tutti e tre i contratti coincidono". La tabella sotto è l'audit-point unico per ispezionare il piano senza cross-file grep.
+
+| Axis (CTest label) | Aggregato / target | Comando canonico | Contratto verificato | Source of truth |
+|---|---|---|---|---|
+| `boundary` | `install_consumer_ci` + tutti i boundary-test scripts (`tools/check_*.sh`) | `bash tools/install_consumer_test.sh` (atteso `11/11 PASS`) | SDK install boundary contract — nessuna regressione del confine install/link abilitata dal push. | [`tools/install_consumer_test.sh`](../tools/install_consumer_test.sh) + [`cmake/Chronon3DSdkInstall.cmake`](../cmake/Chronon3DSdkInstall.cmake) |
+| `ci` | `install_consumer_ci` + workflow matrix `[.github/workflows/ci-*.yml]` | `ctest -L ci` (sotto linux-ci preset) | CI-pipeline orthogonal plane: i target con label `ci` sono garantiti eseguibili nel CI matrix; rot-pattern di label/CMake mismatch viene catturato da `tools/wrap_push.sh` Step 4 gate chain. | [`.github/workflows/ci-sanitizer.yml`](../.github/workflows/ci-sanitizer.yml) + [`tools/wrap_push.sh`](../tools/wrap_push.sh) |
+| `acceptance` | `chronon3d_acceptance` aggregate (`tests/CMakeLists.txt` lines ~290-340) ↦ 16 acceptance-labeled targets a HEAD (15 in-orchestrator + 1 out-of-tree `install_consumer_ci`) | `ctest -L acceptance` | 20-categories acceptance contract suite — 18 registered + 2 forward-point surfaces (vedi ledger di sottosistema). | [`tests/CMakeLists.txt`](../tests/CMakeLists.txt) + [`tests/acceptance/CMakeLists.txt`](../tests/acceptance/CMakeLists.txt) |
+
+### Cross-axis shibboleth canonico
+
+Il target **`install_consumer_ci`** è l'unico test al momento che porta simultaneamente tutte e tre le label:
+
+```
+cmake/Chronon3DTestSuite.cmake → set_tests_properties(install_consumer_ci PROPERTIES LABELS "boundary;ci;acceptance")
+```
+
+Quando questo target fallisce, i **3 assi sono in disaccordo** sul contratto SDK install+CI+acceptance: il diagnostico identifica immediatamente quale fase (boundary step / CI matrix / acceptance contract) è andata in rottura. Per la composizione della catena gate, vedi [`tools/wrap_push.sh`](../tools/wrap_push.sh) Step 4 (GATE-MNT-01) + Step 4.5 (hygiene/sanity/convention gates pre-push).
+
+### Cross-refs operativi
+
+- [`tests/acceptance/CHANGELOG.md`](../tests/acceptance/CHANGELOG.md) — subsystem chronological ledger (20-row inventory + 4 forward-points 0a/0b/0c/0d + aggregate composition + snapshot/§19 baseline enumeration). **Questo è il source-of-truth** per qualsiasi audit che richiede più del singolo asse.
+- [`cmake/Chronon3DTestSuite.cmake`](../cmake/Chronon3DTestSuite.cmake) — helper `chronon3d_add_test_suite` + `chronon3d_register_test_source` + convenzione `LABELS` (i 3 label tripode sono dichiarati in `set_tests_properties`).
+- [`tests/CMakeLists.txt`](../tests/CMakeLists.txt) line ~290-340 — `chronon3d_acceptance` aggregate (15 `if(TARGET)` guards) + le registrazioni delle singole suite categoria.
+- [`docs/CURRENT_STATUS.md`](CURRENT_STATUS.md) `## Acceptance Suite` row — verdetto macchina-verifica corrente (`20/20 PASS LANDED`, esecuzione CI deferred per AGENTS.md §honesty).
+- [`docs/ROADMAP.md`](ROADMAP.md) `## 13/13 Action Plan — closure summary` — parent frame narrative.
+
+### Honest gap (per AGENTS.md §honesty)
+
+La claim `20/20 PASS LANDED` di questa sezione è **code-level** (tutte le 18 registered targets + 2 forward-point surfaces sono boot-complete). La verifica macchina `ctest -L acceptance` richiede un working build host (vcpkg-installed glm/magic_enum + tmpfs quota-resolved) — defer per AGENTS.md §honesty come forward-point 0a di `tests/acceptance/CHANGELOG.md`. Il canonico ambiente di esecuzione rimane il CI matrix `linux-ci` preset.
