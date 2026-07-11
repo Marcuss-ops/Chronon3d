@@ -6,7 +6,7 @@
 //  Helper-specific unit-test coverage for
 //  `chronon3d::detail::image_params_resolve_path`.  The helper is the
 //  canonical forwarding-priority resolver introduced by forward-point 0f+
-//  (commit `6f784d3e`) which consolidated the 4 dispatch sites in
+//  (commit `f72f2d2b8b18710f413101ea66115708fd8c4b32`) which consolidated the 4 dispatch sites in
 //  `src/scene/builders/commands/shape_commands.cpp` (LayerBuilder::image
 //  + tiled_image) and `src/scene/model/render_node_factory.cpp`
 //  (RenderNodeFactory::image + tiled_image) into a single source of
