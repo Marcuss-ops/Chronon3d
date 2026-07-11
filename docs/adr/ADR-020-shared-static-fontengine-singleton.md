@@ -57,11 +57,10 @@ The risk: if the renderer has a custom asset mount (e.g. a packaged
 distribution where `current_path()` does NOT contain the fonts),
 the function-local static will fail to find fonts and the
 typewriter compositions will silently render blank text (the
-fail-loud path was added in commit `3b833565` but only for the
-`build_text_reveal_line` code path inside the typewriter — the
-shared engine construction itself does not fail loudly on missing
-fonts, the FontEngine just produces zero glyphs which is then
-caught by the new throw in `layout_glyphs`).
+fail-loud path was added for the `build_text_reveal_line` code path
+inside the typewriter — the shared engine construction itself does not
+fail loudly on missing fonts, the FontEngine just produces zero glyphs
+which is then caught by the new throw in `layout_glyphs`).
 
 ### Forces in tension
 
@@ -248,7 +247,7 @@ grep -c 'layout_glyphs:' content/common/text_reveal_helpers.hpp
 
 - `content/examples/text/text_animations.cpp:shared_typewriter_engine` (the new singleton)
 - `content/animation_compositions.cpp:66–88` (the canonical `anim_typewriter` pattern, originally introduced in commit **`2ba38c78`** as the `static const AssetResolver` form, then modified in commit **`d4737889`** — mount-pattern modification (removed `const`, added lazy-mount guard at `std::filesystem::current_path()`); both visible in the green baseline `main@7eb5c2ba`)
-- `content/common/text_reveal_helpers.hpp:layout_glyphs` (the fail-loud throw, commit `3b833565`)
+- `content/common/text_reveal_helpers.hpp:layout_glyphs` (the fail-loud throw)
 - `AGENTS.md` §"Regole permanenti" — singleton ban
 - `AGENTS.md` §5 — anti-duplication rule
 - `docs/baselines/main-7eb5c2ba-baseline.md` — the green baseline that contains the canonical pattern
