@@ -106,6 +106,8 @@ Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 
 ## Recently Closed
 
+| TICKET-ACCEPTANCE-SUITE-PHASE-D | chronon3d_acceptance suite — 20/20 contract tests PASS | DONE (commit `c0e23d8f`, 2026-07-11, post-rebase `21df151c`) — subsystem chronological ledger NEW in `tests/acceptance/CHANGELOG.md` (~85 LoC, 20-row category inventory table 15 in-orchestrator + 1 out-of-tree + 4 forward-point catalog rows). Anchor invariant: commit-msg 4 forward-points (`0a`/`0b`/`0c`/`0d`) = subsystem CHANGELOG 4 forward-points. Phase A→B→C→D lineage closed (commit range `aed1a0d8`..`c0e23d8f` + `21df151c` + `1a0e4ac3`). docs/CURRENT_STATUS.md `## Acceptance suite` row updated 14/14 → 20/20 (PASS). 4 forward-points: `(0a) OPPO public telemetry accessor` replaces FRAGILE HERMETIC TIMING PROXY for `cache_hit_rate`; `(0b) Internal-headers move` from `include/` to `src/` + verifies `bash tools/install_consumer_test.sh` 11/11 PASS; `(0c) Perf Gate stable-promote` controller auto-flips ADVISORY → BLOCKING at ≥3 STABLE RUN markers (closes `TICKET-PERF-GATE-STABLE-PROMOTION`); `(0d) Subsystem CHANGELOG convention` extends the CHANGELOG convention with `tests/<subsystem>/CHANGELOG.md` layer (gateway for V0.2 build-system work). |
+
 | ID | Area | Note |
 |---|---|---|
 | TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS | docs/CHANGELOG.md + 2 perf tooling rot | DONE (2026-07-10) — see `docs/tickets/TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS.md` §Stato for full closure lineage |
