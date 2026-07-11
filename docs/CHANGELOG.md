@@ -1,3 +1,36 @@
+## Luglio 2026 — TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02 — Open WAVE-02 follow-up ticket: text-shape manifest-clean alignment follow-up to TICKET-LAYER-IMAGE-MANIFEST-CLEAN (canonical ticket template spawn; 3-doc same-commit; no source-code changes) (2026-07-11, atomic chore commit)
+
+### docs(tickets): open TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02 — text-shape manifest-clean alignment follow-up (canonical ticket template per `docs/DOCUMENTATION_GOVERNANCE.md` 11-section)
+
+- **Scope**: spawns a NEW follow-up ticket WAVE-02 (the next-adjacent primitive category after TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-points 0e + 0f+ + 0g+ + 0h+ all closed at SHA `0bf5d2af`). After this commit, TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02 is in `docs/FOLLOWUP_TICKETS.md` §Open Blockers with the canonical 11-section ticket template per `docs/DOCUMENTATION_GOVERNANCE.md` (Stato / Priorità / Problema / Evidenza / Impatto / Confine / Soluzione accettabile / Criteri di accettazione / Collegamenti + ADR / baseline / milestone / ticket correlati / cross-doc). Implementation deferred to future forward-point commits (forward-point 0a closes the seed via the `## Cartography Architecture` machine-verification grep extension in chore commit 2 of this 2-commit plan).
+- **Cat-3 (no source change JUSTIFIED)**: ZERO new symbols in `include/chronon3d/text/`. ZERO `[[deprecated]]` field annotations introduced. ZERO dispatch-site forwarding logic. ZERO forward-point 0g+ equivalent test target added. The ticket is a metadata-only spawn; the principle is DOCUMENTED in the new ticket file + §Open Blockers row, the implementation is FORWARD-POINTED to future forward-point commits per AGENTS.md v0.1 Cat-3 anti-duplication rule.
+- **Cat-5 (3-doc same-commit alignment) SATISFIED**: this CHANGELOG entry (prepended at TOP) + `docs/FOLLOWUP_TICKETS.md` §Open Blockers row added (now 12 rows, +1 from prior 11) + `docs/tickets/TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02.md` NEW ticket file (canonical detail home per `docs/DOCUMENTATION_GOVERNANCE.md` ticket role) all updated in this same atomic chore commit. `tools/check_doc_sync.sh` R5 fires on this closure. **`docs/CURRENT_STATUS.md` SDK Product V1 row INTENTIONALLY UNTOUCHED**: per `docs/DOCUMENTATION_GOVERNANCE.md` the SDK row is a stato-per-area cell that requires self-contained state; SDK state at HEAD remains PASS (forward-points 0e + 0f+ + 0g+ + 0h+ closed); WAVE-02's spawn updates the FOLLOWUP-TICKETS §Open Blockers index (the canonical place per DG matrix) but does not change the SDK row's stato-per-area verdict.
+- **WAVE-02 ticket content** (per `docs/DOCUMENTATION_GOVERNANCE.md` 11-section template):
+  - **Stato**: OPEN.
+  - **Priorità**: P1 (text-shape manifest-clean alignment is a forward-point of the SDK V1 text-export contract; orthogonally to Text V1 cert which is the parallel text-cluster on the M1.8 timeline).
+  - **Problema**: TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0i+ is the LIVING scene-builder re-evaluation gate, but the next-wave primitive category (text-shape) has no formal BUCKET-A/B/C partition yet. 10+ text-shape files carry `std::string`/`std::filesystem::path` fields — these have analogous ambiguities to the scene-builder BUCKET-B (`Vec3 pos` overlap) but are NOT yet subjected to the `## Cartography Architecture` machine-verification invariant.
+  - **Evidenza**: machine-verified grep `grep -lrE 'std::string|std::filesystem::path' include/chronon3d/text/` returns 10+ hits (text_document.hpp + text_span.hpp + text_unit_map.hpp + text_document_builder.hpp + glyph_selector.hpp + timed_text_document.hpp + paragraph_style.hpp + font_engine.hpp + animation/text_pre_shaping.hpp + animation/text_animator_stack.hpp + others).
+  - **Impatto + Confine + Soluzione accettabile + Criteri di accettazione + Collegamenti**: see `docs/tickets/TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02.md` for the full canonical-ticket-template content (~75 LoC, 11 sections).
+- **Reorg shape**:
+  - **NEW `docs/tickets/TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02.md`** (~75 LoC, 11 canonical sections per `docs/DOCUMENTATION_GOVERNANCE.md`). File location: `docs/tickets/` per the canonical ticket role.
+  - **EDIT `docs/FOLLOWUP_TICKETS.md` §Open Blockers table** — 1 row added at end (now 12 rows, +1 from prior 11; the `(≤10)` header is already off-by-one per the existing lineage of transient supernumerary tickets, this addition maintains the same pattern). State OPEN. Pri P1. Blocca SDK V1 text-export contract + Text V1 cert.
+  - **PREPEND `docs/CHANGELOG.md` this entry** at TOP (above the `§ Cartography Architecture reorg` entry).
+- **Anti-duplication honoured** per AGENTS.md v0.1 §regole: the new ticket file is the canonical detail home (per DG ticket role); the FOLLOWUP §Open Blockers row is the index pointer; the CHANGELOG entry is the audit log. 3 canonical roles, zero content duplication.
+- **AGENTS.md v0.1 freeze compliance** (revoked 2026-07-06, but Cat-3 rules permanent):
+  - **Cat-1 commit-discipline**: single atomic chore commit (WAVE-02 ticket open only); pure metadata state mutation. "Fare PR piccole e mirate" honoured.
+  - **Cat-2 honest-doc-sync**: this CHANGELOG entry + FOLLOWUP `§ Open Blockers` row + new ticket file all updated/created in same commit. CURRENT_STATUS intentionally untouched per above.
+  - **Cat-3 (no new public API surface)**: SATISFIED — zero new symbols; the ticket is metadata-only; implementation deferred to future forward-point commits.
+  - **Cat-4 install-pipeline-plumbing** N/A: no install_consumer shader/spec change.
+  - **Cat-5 2-doc same-commit alignment** PARTIAL (CHANGELOG.md + FOLLOWUP_TICKETS.md + new docs/tickets/ file all updated in same commit; CURRENT_STATUS.md intentionally untouched per `docs/DOCUMENTATION_GOVERNANCE.md` SDK state-cell role).
+  - **Gate 5 deny-everywhere** N/A: no `#include <msdfgen>`/`<libtess2>`/`<unicode[/...]>` introduced.
+  - **GATE-MNT-01 fail-on-dirty** invariant: post-commit smoke-test run before push (VPS auth-block on `git push` per AGENTS.md §honesty per the established pattern).
+- **Files changed (3)**:
+  - `docs/tickets/TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02.md` NEW (~75 LoC, canonical ticket template)
+  - `docs/FOLLOWUP_TICKETS.md` EDIT (1 row added to §Open Blockers table)
+  - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+
+---
+
 ## Luglio 2026 — §Cartography Architecture reorg — promote 0i+ re-evaluation gate to living architectural catalog (3-doc sync; no source-code changes) (2026-07-11, atomic chore commit)
 
 ### docs(followup): §Cartography Architecture reorg — home for catalogued forward-points + 3-bucket partition invariant
