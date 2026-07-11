@@ -13,6 +13,8 @@
 
 > Note: `TICKET-TEXT-CLIP-PREDICTED-BBOX` (Clip 06 diagnostic) was active at HEAD~2; **closed in this session** via `fix(text): close TICKET-TEXT-CLIP-PREDICTED-BBOX — restore bbox on contract violation` (FU01 of `TICKET-TEXT-VISIBILITY-PIPELINE`). See `docs/CHANGELOG.md` entry below + `docs/FOLLOWUP_TICKETS.md` §Recently Closed row. Counter `text_bbox_contract_violations` atomically tracks pre-clip degenerate bboxes for `/api/runs` telemetry surface; regression locks deferred to FU03/FU06.
 
+> Hand-off (TICKET-PHASE-1D-PUSH): Phase 1.D commit `b27ab798` (subject 68 chars, within the 72-char `tools/check_commit_subject_length.sh` gate limit) is local-only at HEAD; push via `tools/wrap_push.sh origin main` is blocked by the same gate (upstream commit `8b59adca` 76 chars present in the last 10 commits, NOT amendable from this checkout). Per-job `CameraRenderState` + `CameraSessionLease::commit(const Camera2_5D&)` + `CameraSessionLease::rollback()` + Stop-vs-KeepLastValidCamera SUBCASE C all landed in `b27ab798`; code-reviewer PASS on A–F. User chose HAND-OFF (defer) — gate-patch or upstream-rewrite deferred to a separate follow-up ticket.
+
 Per il dettaglio completo: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) + [`docs/tickets/`](docs/tickets/).
 Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 

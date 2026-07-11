@@ -42,6 +42,7 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
+#include <chronon3d/math/camera_2_5d_projection.hpp>  // Camera2_5D (Phase 1.D commit overload)
 
 #include <cstdint>
 #include <unordered_map>
@@ -76,16 +77,24 @@ constexpr int kCanonicalPrerollMaxFrames = 30;
 // CameraSessionLease — RAII guard returned by CameraSessionCache::acquire().
 //
 // The lease holds a reference to the cached CameraSession.  The caller MUST
-// call `commit()` after a successful `program.evaluate(ctx, lease.session())`
-// to persist the session state and advance `last_evaluated_frame`.  If the
-// lease is destroyed without `commit()`, the session state is discarded and
+// call `commit()` (no-arg) or `commit(const Camera2_5D&)` (Phase 1.D) after
+// a successful `program.evaluate(ctx, lease.session())` to persist the
+// session state and advance `last_evaluated_frame`.  If the lease is
+// destroyed without a `commit()`, the session state is discarded and
 // `last_evaluated_frame` remains unchanged — protecting against exceptions,
 // cancelled jobs, and forgotten release() calls.
 //
-// Usage:
-//   auto lease = cache.acquire(program, shot_idx, shot_start, target, fps);
+// Phase 1.D (TICKET-PHASE-1D) — per-job recovery semantics (user spec verbatim):
+//   auto lease = cache.acquire(program, shot_idx, shot_start_frame, target, fps);
 //   auto result = program.evaluate(ctx, lease.session());
-//   if (result.ok) { lease.commit(); }
+//   if (!result) { lease.rollback(); return result.error(); }  // failure path
+//   lease.commit(result->camera);                              // success path
+//
+// `commit(const Camera2_5D&)` first writes `session().last_valid_camera = cam`
+// then performs the no-arg writeback (working_session → checkpoint.session +
+// `last_evaluated_frame` advance).  This is the canonical per-job termination
+// path documented in `runtime/camera_render_state.hpp` + ADR-013 Decision 3
+// (Phase 1.D lineage).
 // ============================================================================
 
 class CameraSessionLease {
@@ -96,6 +105,27 @@ public:
     /// Commit the post-evaluation session state back to the cache.
     /// Must be called exactly once after a successful evaluate().
     void commit();
+
+    /// Phase 1.D (TICKET-PHASE-1D): commit-with-payload overload. Updates the
+    /// session's `last_valid_camera` slot to the just-evaluated camera BEFORE
+    /// the no-arg commit writeback.  The no-arg writeback itself deep-copies
+    /// `working_session` → `checkpoint.session` and advances
+    /// `last_evaluated_frame`, so by writing `session().last_valid_camera = cam`
+    /// first we guarantee the success-path payload participates in the write
+    /// and is reachable via `CameraCheckpointStore` / `session.last_valid_camera`
+    /// on the next frame.  Idempotent with no-arg commit() (calling either on
+    /// an already-committed lease is a no-op).
+    void commit(const Camera2_5D& cam);
+
+    /// Phase 1.D (TICKET-PHASE-1D): explicit rollback for the failed-evaluate
+    /// branch. Marks the lease as "already-finalized-by-rollback" so any later
+    /// `commit()` becomes a no-op (semantically: the scratch working_session
+    /// is dropped, the checkpoint.session is untouched, `last_evaluated_frame`
+    /// is not advanced).  Idempotent with the implicit constructor rollback —
+    /// by the time the destructor runs after an explicit rollback(), the lease
+    /// is already finalized.  Mirrors the user-spec snippet:
+    ///   if (!result) { lease.rollback(); return result.error(); }
+    void rollback();
 
     CameraSessionLease(const CameraSessionLease&) = delete;
     CameraSessionLease& operator=(const CameraSessionLease&) = delete;

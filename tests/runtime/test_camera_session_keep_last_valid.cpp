@@ -166,6 +166,109 @@ TEST_CASE("runtime_camera_session_keep_last_valid_two_frame_recovery — "
 }
 
 // =============================================================================
+// SUBCASE C — Stop vs KeepLastValidCamera side-by-side discriminator.
+// =============================================================================
+//
+// Reuses the existing `make_klv_desc(id, policy)` fixture: identical
+// position keyframes (Frame 0 → Frame 1 distance-zero failure on the SAME
+// constraint).  Locks the user-spec invariant from Phase 1.D
+// (TICKET-PHASE-1D):
+//
+//   "Per KeepLastValidCamera: deve VERAMENTE recuperare session.last_valid_camera
+//    e continuare, NON comportarsi come Stop. Aggiungi unit test che
+//    distingue Stop da KeepLastValidCamera."
+//
+// Both policies run a Frame 0 success + a Frame 1 distance-zero failure on
+// the SAME descriptor (parametric in failure_policy).  The discriminator
+// is per-policy:
+//   - CameraFailurePolicy::Stop               → CameraEvaluationError
+//                                                  (error.code == ConstraintFailure)
+//   - CameraFailurePolicy::KeepLastValidCamera → EvaluatedCamera with the
+//                                                  cached Frame 0 snapshot
+//                                                  (camera.position.z == -1000).
+//
+// This blocks the documented failure mode (Phase 1.D ticket:
+// "KeepLastValidCamera segues the same branch as Stop") — i.e. a future
+// regression that swallows the `last_valid_camera` recovery path will
+// break SUBCASE C on KeepLastValidCamera while leaving the Stop half green.
+// =============================================================================
+TEST_CASE("runtime_camera_session_keep_last_valid_vs_stop_two_frame_distinction — "
+          "TICKET-PHASE-1D + TICKET-A3-SESSION-POLICY: side-by-side "
+          "discriminator between CameraFailurePolicy::Stop and "
+          "CameraFailurePolicy::KeepLastValidCamera on the SAME distance-zero "
+          "failing-frame fixture.  Stop returns CameraEvaluationError with "
+          "CameraErrorCode::ConstraintFailure on Frame 1 (no recovery).  "
+          "KeepLastValidCamera, after a successful Frame 0 that populates "
+          "session.last_valid_camera, returns EvaluatedCamera with the cached "
+          "Frame 0 snapshot and a recovery Warning diagnostic on Frame 1.  "
+          "Locks the SortSeguesDifference regression lock for Phase 1.D.") {
+    SUBCASE("Stop policy: Frame 0 success → Frame 1 distance-zero → CameraEvaluationError") {
+        auto desc = make_klv_desc("test.runtime.klv_vs_stop.stop",
+                                  CameraFailurePolicy::Stop);
+        auto result = compile_camera(desc);
+        REQUIRE(result.has_value());
+        auto program = std::move(result).value();
+        REQUIRE(program.is_compiled());
+
+        CameraSession session;
+        session.ensure_constraint_states(1);
+
+        // Frame 0: PASSES. Position (0,0,-1000), distance 1000 → [10,1000].
+        auto ctx0 = make_ctx(Frame{0});
+        auto res0 = program.evaluate(ctx0, session);
+        REQUIRE(res0.has_value());
+        CHECK(res0->camera.position.z == doctest::Approx(-1000.0f).epsilon(1e-5f));
+
+        // Frame 1: FAILS under Stop. No cached recovery; returns ok=false.
+        auto ctx1 = make_ctx(Frame{1});
+        auto res1 = program.evaluate(ctx1, session);
+        REQUIRE_FALSE(res1.has_value());  // discriminator arm (Stop).
+        CHECK(res1.error().code == CameraErrorCode::ConstraintFailure);
+        CHECK(res1.error().message.find("distance-zero") != std::string::npos);
+    }
+
+    SUBCASE("KeepLastValidCamera policy: Frame 0 success → Frame 1 distance-zero → cached recovery") {
+        auto desc = make_klv_desc("test.runtime.klv_vs_stop.keep",
+                                  CameraFailurePolicy::KeepLastValidCamera);
+        auto result = compile_camera(desc);
+        REQUIRE(result.has_value());
+        auto program = std::move(result).value();
+        REQUIRE(program.is_compiled());
+
+        CameraSession session;
+        session.ensure_constraint_states(1);
+
+        // Frame 0: PASSES. Caches Frame 0 camera into session.last_valid_camera.
+        auto ctx0 = make_ctx(Frame{0});
+        auto res0 = program.evaluate(ctx0, session);
+        REQUIRE(res0.has_value());
+        CHECK(res0->camera.position.z == doctest::Approx(-1000.0f).epsilon(1e-5f));
+
+        // Frame 1: FAILS distance-zero. KeepLastValidCamera + cached Frame 0
+        // → return EvaluatedCamera with the cached snapshot. This is the
+        // discriminator arm (KeepLastValidCamera) — under Phase 1.D's
+        // regression risk (KeepLastValidCamera segues the same branch as Stop),
+        // this would require_false here.
+        auto ctx1 = make_ctx(Frame{1});
+        auto res1 = program.evaluate(ctx1, session);
+        REQUIRE(res1.has_value());  // discriminator arm (Keep): ok=true.
+        CHECK(res1->camera.position.z == doctest::Approx(-1000.0f).epsilon(1e-5f));
+
+        // Recovery Warning diagnostic naming the failed constraint + reason.
+        bool found_recovery_warning = false;
+        for (const auto& d : res1->diagnostics) {
+            if (d.severity == CameraProgramDiagnostic::Severity::Warning &&
+                d.message.find("Recovered") != std::string::npos &&
+                d.message.find("distance-zero") != std::string::npos) {
+                found_recovery_warning = true;
+                break;
+            }
+        }
+        CHECK(found_recovery_warning);
+    }
+}
+
+// =============================================================================
 // SUBCASE B — session.reset() clears the cache; subsequent failures then
 // fall back to true error (the second branch of the KeepLastValidCamera
 // recovery switch — no cached snapshot to recover from).
