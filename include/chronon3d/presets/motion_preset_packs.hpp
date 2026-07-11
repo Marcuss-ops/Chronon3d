@@ -26,11 +26,13 @@
 
 #pragma once
 
+#include <chronon3d/presets/motion_error.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 
 #include <cmath>
 #include <functional>
 #include <map>
+#include <stdexcept>  // std::runtime_error (kept for register_preset() — out of §5.0b scope)
 #include <string>
 #include <string_view>
 #include <vector>
@@ -83,9 +85,19 @@ public:
     void apply(LayerBuilder& lb, std::string_view preset_id) const {
         auto it = m_presets.find(preset_id);
         if (it == m_presets.end()) {
-            throw std::runtime_error(
-                "MotionPresetPackRegistry: unknown preset '" +
-                std::string(preset_id) + "'");
+            // §5.0b — typed-exception migration: throw MotionError
+            // (subclass of std::runtime_error) instead of plain
+            // std::runtime_error. Existing catch-blocks that match
+            // `std::runtime_error` continue to compile + run unchanged
+            // (backward-compat invariant). New callers can switch on
+            // `.code` programmatically for typed recovery.
+            //
+            // SCOPE NOTE: `register_preset` (frozen + duplicate-id sites)
+            // remains std::runtime_error — out of §5.0b scope per
+            // user-spec "Migrate `apply(lb, id)`" wording. Future §5.x
+            // forward-point commit will re-evaluate those sites.
+            throw MotionError(MotionErrorCode::MotionPresetNotFound,
+                              std::string(preset_id));
         }
         it->second.apply(lb);
     }

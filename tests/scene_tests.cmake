@@ -36,6 +36,7 @@ chronon3d_add_test_suite(
         layout/test_layout_flow_grid.cpp
         presets/test_presets.cpp
         presets/test_layer_motion_presets.cpp
+        presets/test_motion_error.cpp   # §5.0b — MotionError typed-exception rot-pattern closure coverage
         render_graph/pipeline/test_graph_cache.cpp
         extension/test_graph_node_catalog.cpp
         scene/transform_hierarchy_tests.cpp
