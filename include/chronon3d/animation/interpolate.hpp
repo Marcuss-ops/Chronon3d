@@ -355,4 +355,102 @@ struct Segment {
                0.0f, 1.0f);
 }
 
+// ── M1.8 §3A extension: 6 additional helpers (17 total) ──────────────────
+//
+// The following 6 helpers are ADDITIVE (forward-only, no breakage to the
+// pre-§3A surface).  They reach the 17-helper count specified by the M1.8
+// §3A "Animation Helpers" milestone: 4 existing categories (interpolate /
+// spring / sequence / loop / delay / ease / clamp / map / progress /
+// stagger_delay) + 1 alias + 5 new value-level utilities.
+//
+// Anti-duplicazione honour: every helper reuses an existing primitive
+// (`stagger` = alias of `stagger_delay`; `tween` = alias of `interpolate`;
+// `linear` = alias of `ease(t, Easing::Linear)`; `clamp_progress` = alias
+// of `clamp(t, 0, 1)`).  `stagger_value` and `frame_to_seconds` are the
+// only NEW pure-math helpers; both are stateless and one-liners.
+
+// ── stagger — alias of stagger_delay (more user-friendly name) ───────────
+
+/// Stagger delay for an element at a given rank.  Short alias of
+/// `stagger_delay(rank, total, config)` — the more user-friendly name.
+///
+/// Example:
+///   Frame d = stagger(i, total, StaggerConfig{Frame{4}, Easing::OutCubic});
+[[nodiscard]] inline Frame stagger(
+    size_t rank,
+    size_t total,
+    const StaggerConfig& config = {}
+) {
+    return stagger_delay(rank, total, config);
+}
+
+// ── stagger_value — value-level stagger helper ────────────────────────────
+
+/// Apply a stagger delay to a base value: returns `value` shifted by the
+/// stagger offset (positive for delayed).  Convenience for chaining
+/// stagger logic into a numeric expression without manually adding
+/// `stagger_delay(rank, total, config).integral()` to a frame counter.
+///
+/// Example:
+///   f32 start_time = stagger_value(rank, total, 0.0f, config);  // delay
+///   f32 eased      = interpolate(frame, start_time, start_time+30.0f, 0, 1);
+[[nodiscard]] inline f32 stagger_value(
+    f32 base_value,
+    size_t rank,
+    size_t total,
+    const StaggerConfig& config = {}
+) {
+    return base_value + static_cast<f32>(stagger(rank, total, config).integral());
+}
+
+// ── tween — alias of interpolate (animation-industry name) ────────────────
+
+/// Tween between two values over a frame range.  Short alias of
+/// `interpolate(frame, range, values, easing)` — matches the animation-
+/// industry term "tween" (in-betweening).
+///
+/// Example:
+///   f32 opacity = tween(ctx.frame, {0, 15}, {0.0f, 1.0f}, Easing::OutCubic);
+[[nodiscard]] inline f32 tween(
+    Frame frame,
+    FrameRange range,
+    ValueRange values,
+    EasingCurve easing = EasingCurve{Easing::Linear}
+) {
+    return interpolate(frame, range, values, easing);
+}
+
+// ── frame_to_seconds — convert a frame + fps to seconds ───────────────────
+
+/// Convert a frame number + frame rate to a wall-clock seconds value.
+///
+/// Example:
+///   f32 t = frame_to_seconds(Frame{60}, FrameRate{30, 1});  // 2.0f
+[[nodiscard]] inline f32 frame_to_seconds(Frame frame, FrameRate fps) {
+    return static_cast<f32>(fps.to_seconds(frame));
+}
+
+// ── linear — alias of ease(t, Easing::Linear) (most common case) ─────────
+
+/// Apply linear easing (identity) to a normalized [0, 1] value.
+/// Short alias of `ease(t, Easing::Linear)` — the most common easing in
+/// animation code; avoids the ceremony of spelling out the enum.
+///
+/// Example:
+///   f32 t = linear(0.5f);  // 0.5f
+[[nodiscard]] inline f32 linear(f32 t) {
+    return ease(t, Easing::Linear);
+}
+
+// ── clamp_progress — alias of clamp(t, 0, 1) (the most common clamp) ─────
+
+/// Clamp a normalized [0, 1] progress value.  Short alias of
+/// `clamp(t, 0.0f, 1.0f)` — avoids the magic numbers at the call site.
+///
+/// Example:
+///   f32 p = clamp_progress(1.2f);  // 1.0f
+[[nodiscard]] inline f32 clamp_progress(f32 t) {
+    return std::clamp(t, 0.0f, 1.0f);
+}
+
 } // namespace chronon3d

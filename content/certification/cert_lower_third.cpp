@@ -5,6 +5,11 @@
 //
 // Lower third con box semi-trasparente e safe margins.
 // 1920×1080 canvas, "BREAKING NEWS" + subtitle.
+//
+// M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (2026-07-10):
+//   - 2 `text::centered_text({...})` call sites migrated to
+//     canonical `from_text_spec(TextSpec{...})` API (F2.C adapter).
+//   - `text_helpers.hpp` include removed (no longer used).
 // ==============================================================================
 
 #include <chronon3d/core/composition/composition_registry.hpp>
@@ -12,12 +17,15 @@
 #include <chronon3d/timeline/composition_props.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>
+#include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 
 #include "content/common/background_helpers.hpp"
-#include "content/text/text_helpers.hpp"
 
 namespace chronon3d::content::certification {
+
+using namespace chronon3d;
 
 Composition cert_lower_third() {
     constexpr int   kWidth   = 1920;
@@ -57,15 +65,23 @@ Composition cert_lower_third() {
             // the pin point with 52px gap from subtitle, inside the box.
             s.layer("title_line", [](LayerBuilder& l) {
                 l.pin_to(Anchor::BottomCenter, kMargin);
-                l.text("title", text::centered_text({
-                    .text       = "BREAKING NEWS",
-                    .box        = {static_cast<float>(kWidth) - kMargin * 2.0f, 60.0f},
-                    .pos        = {0.0f, -20.0f, 0.0f},
-                     .font_asset = "assets/fonts/Inter-Bold.ttf",
-                    .font_family = "Inter",
-                    .font_weight = 700,
-                    .font_size  = 42.0f,
-                    .color      = Color::white(),
+                l.text("title", from_text_spec(TextSpec{
+                    .content    = {.value = "BREAKING NEWS"},
+                    .font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                                   .font_family = "Inter",
+                                   .font_weight = 700,
+                                   .font_size   = 42.0f},
+                    .layout     = {.box            = {static_cast<float>(kWidth) - kMargin * 2.0f, 60.0f},
+                                   .anchor         = TextAnchor::Center,
+                                   .centering_mode = TextCenteringMode::PixelInk,
+                                   .align          = TextAlign::Center,
+                                   .vertical_align = VerticalAlign::Middle,
+                                   .wrap           = TextWrap::Word,
+                                   .overflow       = TextOverflow::Clip,
+                                   .line_height    = 0.95f,
+                                   .max_lines      = 1},
+                    .appearance = {.color = Color::white()},
+                    .position   = {0.0f, -20.0f, 0.0f},
                 }));
             });
 
@@ -74,15 +90,23 @@ Composition cert_lower_third() {
             // places the subtitle below the title, still inside the box.
             s.layer("subtitle_line", [](LayerBuilder& l) {
                 l.pin_to(Anchor::BottomCenter, kMargin);
-                l.text("subtitle", text::centered_text({
-                    .text       = "Chronon3D Text Engine — Production Ready",
-                    .box        = {static_cast<float>(kWidth) - kMargin * 2.0f, 40.0f},
-                    .pos        = {0.0f, 32.0f, 0.0f},
-                     .font_asset = "assets/fonts/Inter-Regular.ttf",
-                    .font_family = "Inter",
-                    .font_weight = 400,
-                    .font_size  = 24.0f,
-                    .color      = Color{0.85f, 0.85f, 0.9f, 1.0f},
+                l.text("subtitle", from_text_spec(TextSpec{
+                    .content    = {.value = "Chronon3D Text Engine — Production Ready"},
+                    .font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                                   .font_family = "Inter",
+                                   .font_weight = 400,
+                                   .font_size   = 24.0f},
+                    .layout     = {.box            = {static_cast<float>(kWidth) - kMargin * 2.0f, 40.0f},
+                                   .anchor         = TextAnchor::Center,
+                                   .centering_mode = TextCenteringMode::PixelInk,
+                                   .align          = TextAlign::Center,
+                                   .vertical_align = VerticalAlign::Middle,
+                                   .wrap           = TextWrap::Word,
+                                   .overflow       = TextOverflow::Clip,
+                                   .line_height    = 0.95f,
+                                   .max_lines      = 1},
+                    .appearance = {.color = Color{0.85f, 0.85f, 0.9f, 1.0f}},
+                    .position   = {0.0f, 32.0f, 0.0f},
                 }));
             });
 

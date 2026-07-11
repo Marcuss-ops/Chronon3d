@@ -31,6 +31,11 @@
 //   - Text shaping:  BLOCKED dal pre-existing font-engine bug
 //     (TextRunBuilder::commit produce 0 glyph — TICKET-104).
 //   - Background:    PASS (grid minimalista visibile)
+//
+// M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (2026-07-10):
+//   - 12 `text::centered_text({...})` call sites migrated to
+//     canonical `from_text_spec(TextSpec{...})` API (F2.C adapter).
+//   - `text_helpers.hpp` include removed (no longer used).
 // ==============================================================================
 
 #include <chronon3d/core/composition/composition_registry.hpp>
@@ -38,12 +43,15 @@
 #include <chronon3d/timeline/composition_props.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>
+#include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 
 #include "content/common/background_helpers.hpp"
-#include "content/text/text_helpers.hpp"
 
 namespace chronon3d::content::certification {
+
+using namespace chronon3d;
 
 Composition cert_multilingual() {
     constexpr int   kWidth   = 1920;
@@ -68,16 +76,23 @@ Composition cert_multilingual() {
 
             // ── Title header ────────────────────────────────────────
             s.layer("header", [](LayerBuilder& l) {
-                l.text("header", text::centered_text({
-                    .text       = "Multilingual Text Certification — FASE 3.5-3.6",
-                    .box        = {static_cast<float>(kWidth) - kMargin * 2.0f, 56.0f},
-                    .pos        = {static_cast<float>(kWidth) * 0.5f, 64.0f, 0.0f},
-                     .font_asset = "assets/fonts/Inter-Bold.ttf",
-                    .font_family = "Inter",
-                    .font_weight = 700,
-                    .font_size  = 30.0f,
-                    .color      = Color{0.7f, 0.7f, 0.75f, 1.0f},
-                    .max_lines  = 1,
+                l.text("header", from_text_spec(TextSpec{
+                    .content    = {.value = "Multilingual Text Certification — FASE 3.5-3.6"},
+                    .font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                                   .font_family = "Inter",
+                                   .font_weight = 700,
+                                   .font_size   = 30.0f},
+                    .layout     = {.box            = {static_cast<float>(kWidth) - kMargin * 2.0f, 56.0f},
+                                   .anchor         = TextAnchor::Center,
+                                   .centering_mode = TextCenteringMode::PixelInk,
+                                   .align          = TextAlign::Center,
+                                   .vertical_align = VerticalAlign::Middle,
+                                   .wrap           = TextWrap::Word,
+                                   .overflow       = TextOverflow::Clip,
+                                   .line_height    = 0.95f,
+                                   .max_lines      = 1},
+                    .appearance = {.color = Color{0.7f, 0.7f, 0.75f, 1.0f}},
+                    .position   = {static_cast<float>(kWidth) * 0.5f, 64.0f, 0.0f},
                 }));
             });
 
@@ -85,27 +100,41 @@ Composition cert_multilingual() {
             {
                 constexpr float y = kStartY;
                 s.layer("row1", [y](LayerBuilder& l) {
-                    l.text("row1_label", text::centered_text({
-                        .text       = "LATIN+Accents →",
-                        .box        = {200.0f, 48.0f},
-                        .pos        = {200.0f, y, 0.0f},
-                         .font_asset = "assets/fonts/Inter-Regular.ttf",
-                        .font_family = "Inter",
-                        .font_weight = 400,
-                        .font_size  = 22.0f,
-                        .color      = Color{0.5f, 0.8f, 0.5f, 1.0f},
-                        .max_lines  = 1,
+                    l.text("row1_label", from_text_spec(TextSpec{
+                        .content    = {.value = "LATIN+Accents →"},
+                        .font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                                       .font_family = "Inter",
+                                       .font_weight = 400,
+                                       .font_size   = 22.0f},
+                        .layout     = {.box            = {200.0f, 48.0f},
+                                       .anchor         = TextAnchor::Center,
+                                       .centering_mode = TextCenteringMode::PixelInk,
+                                       .align          = TextAlign::Center,
+                                       .vertical_align = VerticalAlign::Middle,
+                                       .wrap           = TextWrap::Word,
+                                       .overflow       = TextOverflow::Clip,
+                                       .line_height    = 0.95f,
+                                       .max_lines      = 1},
+                        .appearance = {.color = Color{0.5f, 0.8f, 0.5f, 1.0f}},
+                        .position   = {200.0f, y, 0.0f},
                     }));
-                    l.text("row1_text", text::centered_text({
-                        .text       = "Café naïve — São Paulo, João",
-                        .box        = {static_cast<float>(kWidth) - 500.0f, kRowH},
-                        .pos        = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},
-                         .font_asset = "assets/fonts/Inter-Bold.ttf",
-                        .font_family = "Inter",
-                        .font_weight = 700,
-                        .font_size  = kFontSize,
-                        .color      = Color::white(),
-                        .max_lines  = 2,
+                    l.text("row1_text", from_text_spec(TextSpec{
+                        .content    = {.value = "Café naïve — São Paulo, João"},
+                        .font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                                       .font_family = "Inter",
+                                       .font_weight = 700,
+                                       .font_size   = kFontSize},
+                        .layout     = {.box            = {static_cast<float>(kWidth) - 500.0f, kRowH},
+                                       .anchor         = TextAnchor::Center,
+                                       .centering_mode = TextCenteringMode::PixelInk,
+                                       .align          = TextAlign::Center,
+                                       .vertical_align = VerticalAlign::Middle,
+                                       .wrap           = TextWrap::Word,
+                                       .overflow       = TextOverflow::Clip,
+                                       .line_height    = 0.95f,
+                                       .max_lines      = 2},
+                        .appearance = {.color = Color::white()},
+                        .position   = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},
                     }));
                 });
             }
@@ -114,27 +143,41 @@ Composition cert_multilingual() {
             {
                 constexpr float y = kStartY + kRowH + kGap;
                 s.layer("row2", [y](LayerBuilder& l) {
-                    l.text("row2_label", text::centered_text({
-                        .text       = "CJK →",
-                        .box        = {200.0f, 48.0f},
-                        .pos        = {200.0f, y, 0.0f},
-                         .font_asset = "assets/fonts/Inter-Regular.ttf",
-                        .font_family = "Inter",
-                        .font_weight = 400,
-                        .font_size  = 22.0f,
-                        .color      = Color{0.5f, 0.8f, 0.5f, 1.0f},
-                        .max_lines  = 1,
+                    l.text("row2_label", from_text_spec(TextSpec{
+                        .content    = {.value = "CJK →"},
+                        .font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                                       .font_family = "Inter",
+                                       .font_weight = 400,
+                                       .font_size   = 22.0f},
+                        .layout     = {.box            = {200.0f, 48.0f},
+                                       .anchor         = TextAnchor::Center,
+                                       .centering_mode = TextCenteringMode::PixelInk,
+                                       .align          = TextAlign::Center,
+                                       .vertical_align = VerticalAlign::Middle,
+                                       .wrap           = TextWrap::Word,
+                                       .overflow       = TextOverflow::Clip,
+                                       .line_height    = 0.95f,
+                                       .max_lines      = 1},
+                        .appearance = {.color = Color{0.5f, 0.8f, 0.5f, 1.0f}},
+                        .position   = {200.0f, y, 0.0f},
                     }));
-                    l.text("row2_text", text::centered_text({
-                        .text       = "こんにちは世界 — 你好世界 中文测试",
-                        .box        = {static_cast<float>(kWidth) - 500.0f, kRowH},
-                        .pos        = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},
-                         .font_asset = "assets/fonts/Inter-Bold.ttf",
-                        .font_family = "Inter",
-                        .font_weight = 700,
-                        .font_size  = kFontSize,
-                        .color      = Color::white(),
-                        .max_lines  = 2,
+                    l.text("row2_text", from_text_spec(TextSpec{
+                        .content    = {.value = "こんにちは世界 — 你好世界 中文测试"},
+                        .font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                                       .font_family = "Inter",
+                                       .font_weight = 700,
+                                       .font_size   = kFontSize},
+                        .layout     = {.box            = {static_cast<float>(kWidth) - 500.0f, kRowH},
+                                       .anchor         = TextAnchor::Center,
+                                       .centering_mode = TextCenteringMode::PixelInk,
+                                       .align          = TextAlign::Center,
+                                       .vertical_align = VerticalAlign::Middle,
+                                       .wrap           = TextWrap::Word,
+                                       .overflow       = TextOverflow::Clip,
+                                       .line_height    = 0.95f,
+                                       .max_lines      = 2},
+                        .appearance = {.color = Color::white()},
+                        .position   = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},
                     }));
                 });
             }
@@ -143,27 +186,41 @@ Composition cert_multilingual() {
             {
                 constexpr float y = kStartY + (kRowH + kGap) * 2.0f;
                 s.layer("row3", [y](LayerBuilder& l) {
-                    l.text("row3_label", text::centered_text({
-                        .text       = "Arabic RTL (EXPECTED FAIL) →",
-                        .box        = {280.0f, 48.0f},
-                        .pos        = {200.0f, y, 0.0f},
-                         .font_asset = "assets/fonts/Inter-Regular.ttf",
-                        .font_family = "Inter",
-                        .font_weight = 400,
-                        .font_size  = 20.0f,
-                        .color      = Color{0.9f, 0.6f, 0.3f, 1.0f},
-                        .max_lines  = 1,
+                    l.text("row3_label", from_text_spec(TextSpec{
+                        .content    = {.value = "Arabic RTL (EXPECTED FAIL) →"},
+                        .font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                                       .font_family = "Inter",
+                                       .font_weight = 400,
+                                       .font_size   = 20.0f},
+                        .layout     = {.box            = {280.0f, 48.0f},
+                                       .anchor         = TextAnchor::Center,
+                                       .centering_mode = TextCenteringMode::PixelInk,
+                                       .align          = TextAlign::Center,
+                                       .vertical_align = VerticalAlign::Middle,
+                                       .wrap           = TextWrap::Word,
+                                       .overflow       = TextOverflow::Clip,
+                                       .line_height    = 0.95f,
+                                       .max_lines      = 1},
+                        .appearance = {.color = Color{0.9f, 0.6f, 0.3f, 1.0f}},
+                        .position   = {200.0f, y, 0.0f},
                     }));
-                    l.text("row3_text", text::centered_text({
-                        .text       = "مرحبا بالعالم",
-                        .box        = {static_cast<float>(kWidth) - 500.0f, kRowH},
-                        .pos        = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},
-                         .font_asset = "assets/fonts/Inter-Bold.ttf",
-                        .font_family = "Inter",
-                        .font_weight = 700,
-                        .font_size  = kFontSize,
-                        .color      = Color{0.9f, 0.7f, 0.3f, 1.0f},
-                        .max_lines  = 2,
+                    l.text("row3_text", from_text_spec(TextSpec{
+                        .content    = {.value = "مرحبا بالعالم"},
+                        .font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                                       .font_family = "Inter",
+                                       .font_weight = 700,
+                                       .font_size   = kFontSize},
+                        .layout     = {.box            = {static_cast<float>(kWidth) - 500.0f, kRowH},
+                                       .anchor         = TextAnchor::Center,
+                                       .centering_mode = TextCenteringMode::PixelInk,
+                                       .align          = TextAlign::Center,
+                                       .vertical_align = VerticalAlign::Middle,
+                                       .wrap           = TextWrap::Word,
+                                       .overflow       = TextOverflow::Clip,
+                                       .line_height    = 0.95f,
+                                       .max_lines      = 2},
+                        .appearance = {.color = Color{0.9f, 0.7f, 0.3f, 1.0f}},
+                        .position   = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},
                     }));
                 });
             }
@@ -172,27 +229,41 @@ Composition cert_multilingual() {
             {
                 constexpr float y = kStartY + (kRowH + kGap) * 3.0f;
                 s.layer("row4", [y](LayerBuilder& l) {
-                    l.text("row4_label", text::centered_text({
-                        .text       = "Hebrew RTL (EXPECTED FAIL) →",
-                        .box        = {280.0f, 48.0f},
-                        .pos        = {200.0f, y, 0.0f},
-                         .font_asset = "assets/fonts/Inter-Regular.ttf",
-                        .font_family = "Inter",
-                        .font_weight = 400,
-                        .font_size  = 20.0f,
-                        .color      = Color{0.9f, 0.6f, 0.3f, 1.0f},
-                        .max_lines  = 1,
+                    l.text("row4_label", from_text_spec(TextSpec{
+                        .content    = {.value = "Hebrew RTL (EXPECTED FAIL) →"},
+                        .font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                                       .font_family = "Inter",
+                                       .font_weight = 400,
+                                       .font_size   = 20.0f},
+                        .layout     = {.box            = {280.0f, 48.0f},
+                                       .anchor         = TextAnchor::Center,
+                                       .centering_mode = TextCenteringMode::PixelInk,
+                                       .align          = TextAlign::Center,
+                                       .vertical_align = VerticalAlign::Middle,
+                                       .wrap           = TextWrap::Word,
+                                       .overflow       = TextOverflow::Clip,
+                                       .line_height    = 0.95f,
+                                       .max_lines      = 1},
+                        .appearance = {.color = Color{0.9f, 0.6f, 0.3f, 1.0f}},
+                        .position   = {200.0f, y, 0.0f},
                     }));
-                    l.text("row4_text", text::centered_text({
-                        .text       = "שלום עולם",
-                        .box        = {static_cast<float>(kWidth) - 500.0f, kRowH},
-                        .pos        = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},
-                         .font_asset = "assets/fonts/Inter-Bold.ttf",
-                        .font_family = "Inter",
-                        .font_weight = 700,
-                        .font_size  = kFontSize,
-                        .color      = Color{0.9f, 0.7f, 0.3f, 1.0f},
-                        .max_lines  = 2,
+                    l.text("row4_text", from_text_spec(TextSpec{
+                        .content    = {.value = "שלום עולם"},
+                        .font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                                       .font_family = "Inter",
+                                       .font_weight = 700,
+                                       .font_size   = kFontSize},
+                        .layout     = {.box            = {static_cast<float>(kWidth) - 500.0f, kRowH},
+                                       .anchor         = TextAnchor::Center,
+                                       .centering_mode = TextCenteringMode::PixelInk,
+                                       .align          = TextAlign::Center,
+                                       .vertical_align = VerticalAlign::Middle,
+                                       .wrap           = TextWrap::Word,
+                                       .overflow       = TextOverflow::Clip,
+                                       .line_height    = 0.95f,
+                                       .max_lines      = 2},
+                        .appearance = {.color = Color{0.9f, 0.7f, 0.3f, 1.0f}},
+                        .position   = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},
                     }));
                 });
             }
@@ -201,27 +272,41 @@ Composition cert_multilingual() {
             {
                 constexpr float y = kStartY + (kRowH + kGap) * 4.0f;
                 s.layer("row5", [y](LayerBuilder& l) {
-                    l.text("row5_label", text::centered_text({
-                        .text       = "Emoji (EXPECTED FAIL) →",
-                        .box        = {280.0f, 48.0f},
-                        .pos        = {200.0f, y, 0.0f},
-                         .font_asset = "assets/fonts/Inter-Regular.ttf",
-                        .font_family = "Inter",
-                        .font_weight = 400,
-                        .font_size  = 20.0f,
-                        .color      = Color{0.9f, 0.5f, 0.5f, 1.0f},
-                        .max_lines  = 1,
+                    l.text("row5_label", from_text_spec(TextSpec{
+                        .content    = {.value = "Emoji (EXPECTED FAIL) →"},
+                        .font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                                       .font_family = "Inter",
+                                       .font_weight = 400,
+                                       .font_size   = 20.0f},
+                        .layout     = {.box            = {280.0f, 48.0f},
+                                       .anchor         = TextAnchor::Center,
+                                       .centering_mode = TextCenteringMode::PixelInk,
+                                       .align          = TextAlign::Center,
+                                       .vertical_align = VerticalAlign::Middle,
+                                       .wrap           = TextWrap::Word,
+                                       .overflow       = TextOverflow::Clip,
+                                       .line_height    = 0.95f,
+                                       .max_lines      = 1},
+                        .appearance = {.color = Color{0.9f, 0.5f, 0.5f, 1.0f}},
+                        .position   = {200.0f, y, 0.0f},
                     }));
-                    l.text("row5_text", text::centered_text({
-                        .text       = "🔥 🎉 🚀",
-                        .box        = {static_cast<float>(kWidth) - 500.0f, kRowH},
-                        .pos        = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},
-                         .font_asset = "assets/fonts/Inter-Bold.ttf",
-                        .font_family = "Inter",
-                        .font_weight = 700,
-                        .font_size  = 48.0f,
-                        .color      = Color{1.0f, 0.6f, 0.4f, 1.0f},
-                        .max_lines  = 2,
+                    l.text("row5_text", from_text_spec(TextSpec{
+                        .content    = {.value = "🔥 🎉 🚀"},
+                        .font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                                       .font_family = "Inter",
+                                       .font_weight = 700,
+                                       .font_size   = 48.0f},
+                        .layout     = {.box            = {static_cast<float>(kWidth) - 500.0f, kRowH},
+                                       .anchor         = TextAnchor::Center,
+                                       .centering_mode = TextCenteringMode::PixelInk,
+                                       .align          = TextAlign::Center,
+                                       .vertical_align = VerticalAlign::Middle,
+                                       .wrap           = TextWrap::Word,
+                                       .overflow       = TextOverflow::Clip,
+                                       .line_height    = 0.95f,
+                                       .max_lines      = 2},
+                        .appearance = {.color = Color{1.0f, 0.6f, 0.4f, 1.0f}},
+                        .position   = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},
                     }));
                 });
             }
@@ -230,27 +315,41 @@ Composition cert_multilingual() {
             {
                 constexpr float y = kStartY + (kRowH + kGap) * 5.0f;
                 s.layer("row6", [y](LayerBuilder& l) {
-                    l.text("row6_label", text::centered_text({
-                        .text       = "Mixed →",
-                        .box        = {200.0f, 48.0f},
-                        .pos        = {200.0f, y, 0.0f},
-                         .font_asset = "assets/fonts/Inter-Regular.ttf",
-                        .font_family = "Inter",
-                        .font_weight = 400,
-                        .font_size  = 22.0f,
-                        .color      = Color{0.5f, 0.8f, 0.5f, 1.0f},
-                        .max_lines  = 1,
+                    l.text("row6_label", from_text_spec(TextSpec{
+                        .content    = {.value = "Mixed →"},
+                        .font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                                       .font_family = "Inter",
+                                       .font_weight = 400,
+                                       .font_size   = 22.0f},
+                        .layout     = {.box            = {200.0f, 48.0f},
+                                       .anchor         = TextAnchor::Center,
+                                       .centering_mode = TextCenteringMode::PixelInk,
+                                       .align          = TextAlign::Center,
+                                       .vertical_align = VerticalAlign::Middle,
+                                       .wrap           = TextWrap::Word,
+                                       .overflow       = TextOverflow::Clip,
+                                       .line_height    = 0.95f,
+                                       .max_lines      = 1},
+                        .appearance = {.color = Color{0.5f, 0.8f, 0.5f, 1.0f}},
+                        .position   = {200.0f, y, 0.0f},
                     }));
-                    l.text("row6_text", text::centered_text({
-                        .text       = "Café 你好 مرحبا 🔥",
-                        .box        = {static_cast<float>(kWidth) - 500.0f, kRowH},
-                        .pos        = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},
-                         .font_asset = "assets/fonts/Inter-Bold.ttf",
-                        .font_family = "Inter",
-                        .font_weight = 700,
-                        .font_size  = kFontSize,
-                        .color      = Color::white(),
-                        .max_lines  = 2,
+                    l.text("row6_text", from_text_spec(TextSpec{
+                        .content    = {.value = "Café 你好 مرحبا 🔥"},
+                        .font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                                       .font_family = "Inter",
+                                       .font_weight = 700,
+                                       .font_size   = kFontSize},
+                        .layout     = {.box            = {static_cast<float>(kWidth) - 500.0f, kRowH},
+                                       .anchor         = TextAnchor::Center,
+                                       .centering_mode = TextCenteringMode::PixelInk,
+                                       .align          = TextAlign::Center,
+                                       .vertical_align = VerticalAlign::Middle,
+                                       .wrap           = TextWrap::Word,
+                                       .overflow       = TextOverflow::Clip,
+                                       .line_height    = 0.95f,
+                                       .max_lines      = 2},
+                        .appearance = {.color = Color::white()},
+                        .position   = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},
                     }));
                 });
             }

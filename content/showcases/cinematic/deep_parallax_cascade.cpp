@@ -19,6 +19,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/animation/path/catmull_rom_path.hpp>
@@ -27,11 +28,11 @@
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/text_definition.hpp>
 
 #include "content/showcases/cinematic/cinematic_showcase_helpers.hpp"
 #include "content/showcases/cinematic/cinematic_text_camera.hpp"
 #include "content/common/text_reveal_helpers.hpp"
-#include "content/text/text_helpers.hpp"
 #include "content/text/text_theme.hpp"
 
 #include <cmath>
@@ -55,13 +56,11 @@ using chronon3d::content::text::FRESH_TEXT_WHITE;
 auto title_text(const std::string& s, f32 fs,
                       Color color = FRESH_TEXT_WHITE,
                       f32 tracking = 6.0f) {
-    return chronon3d::content::text::centered_text({
-        .text        = s,
-        .box         = {1500.0f, 220.0f},
-        .font_size   = fs,
-        .tracking    = tracking,
-        .color       = color,
-        .line_height = 1.10f,
+    return from_text_spec(TextSpec{
+        .content    = {.value = s},
+        .font       = {.font_size = fs},
+        .layout     = {.box = {1500.0f, 220.0f}, .line_height = 1.10f, .tracking = tracking},
+        .appearance = {.color = color},
     });
 }
 
@@ -136,15 +135,13 @@ Composition deep_parallax_cascade() {
                     .key(Frame{0},                                blur_peak, EasingCurve{Easing::Linear})
                     .key(Frame{static_cast<Frame>(130 - 30.0f * i)}, 0.0f,   EasingCurve{Easing::OutCubic})
                     .key(Frame{180},                              0.0f,       EasingCurve{Easing::Linear});
-            auto tp = chronon3d::content::text::centered_text({
-                .text        = L.text,
-                .box         = {1500.0f, 320.0f},
-                .font_size   = L.size,
-                .tracking    = 8.0f,
-                .color       = L.color,
-                .line_height = 1.10f,
+            auto def = from_text_spec(TextSpec{
+                .content    = {.value = L.text},
+                .font       = {.font_size = L.size},
+                .layout     = {.box = {1500.0f, 320.0f}, .line_height = 1.10f, .tracking = 8.0f},
+                .appearance = {.color = L.color},
             });
-                l.text("label", tp);
+                l.text("label", def);
             });
         }
 

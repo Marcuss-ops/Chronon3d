@@ -109,6 +109,16 @@ Vec2 resolve_placement_origin(
             pin.y = canvas.height - canvas.safe_margin_bottom;
             break;
 
+        case TextPlacementKind::SafeAreaLeft:         // M1.8 §4: pin at left edge of safe area, vertically centered
+            pin.x = canvas.safe_margin_left;
+            pin.y = (canvas.safe_margin_top + (canvas.height - canvas.safe_margin_bottom)) * 0.5f;
+            break;
+
+        case TextPlacementKind::SafeAreaRight:        // M1.8 §4: pin at right edge of safe area, vertically centered
+            pin.x = canvas.width - canvas.safe_margin_right;
+            pin.y = (canvas.safe_margin_top + (canvas.height - canvas.safe_margin_bottom)) * 0.5f;
+            break;
+
         case TextPlacementKind::SafeAreaCenter:        // Phase A.2: center of safe area bounds
             pin.x = (canvas.safe_margin_left + (canvas.width - canvas.safe_margin_right)) * 0.5f;
             pin.y = (canvas.safe_margin_top + (canvas.height - canvas.safe_margin_bottom)) * 0.5f;
@@ -208,6 +218,41 @@ const SafeAreaPreset SafeAreaPreset::Landscape16x9{0.05f, 0.05f, 0.05f, 0.05f};
 const SafeAreaPreset SafeAreaPreset::Portrait9x16{0.05f, 0.05f, 0.05f, 0.05f};
 const SafeAreaPreset SafeAreaPreset::Square1x1{0.05f, 0.05f, 0.05f, 0.05f};
 const SafeAreaPreset SafeAreaPreset::Landscape4x3{0.05f, 0.05f, 0.05f, 0.05f};
+
+// ══════════════════════════════════════════════════════════════════════════
+// resolve_safe_area — M1.8 §4 SafeAreaEnum → TextPlacement{SafeArea*} mapping
+// ══════════════════════════════════════════════════════════════════════════
+//
+// Single switch on the 5-value user-facing SafeAreaEnum that resolves to
+// the canonical TextPlacement{SafeArea*} authoring struct.  This is the
+// ONLY SafeAreaEnum→TextPlacement resolution path; no parallel mapping
+// table is introduced (AGENTS.md §anti-duplicazione).
+//
+// Pin semantics for the canonical SafeArea{Top,Bottom,Left,Right,Center}
+// are documented in resolve_placement_origin() above:
+//
+//   SafeAreaTop    — (canvas.width/2, safe_margin_top)
+//   SafeAreaBottom — (canvas.width/2, canvas.height - safe_margin_bottom)
+//   SafeAreaLeft   — (safe_margin_left,  center-of-safe-area height)
+//   SafeAreaRight  — (canvas.width - safe_margin_right, center-of-safe-area height)
+//   SafeAreaCenter — center of safe area bounds
+//
+// Note that the resolve_placement_origin switch pins SafeAreaTop/Bottom/Center
+// at the safe-area-bounds center-of-axis (top/bottom center horizontally,
+// safe-area center on both axes).  M1.8 §4 extends the family symmetrically
+// with SafeAreaLeft and SafeAreaRight which pin at the left/right edges of
+// the safe area, vertically centered in the safe-area bounds.
+TextPlacement resolve_safe_area(SafeAreaEnum side) {
+    switch (side) {
+        case SafeAreaEnum::Top:      return TextPlacement{TextPlacementKind::SafeAreaTop};
+        case SafeAreaEnum::Bottom:   return TextPlacement{TextPlacementKind::SafeAreaBottom};
+        case SafeAreaEnum::Left:     return TextPlacement{TextPlacementKind::SafeAreaLeft};
+        case SafeAreaEnum::Right:    return TextPlacement{TextPlacementKind::SafeAreaRight};
+        case SafeAreaEnum::Center:   return TextPlacement{TextPlacementKind::SafeAreaCenter};
+    }
+    // Unreachable in practice (SafeAreaEnum is u8 5-value); defensive return.
+    return TextPlacement{TextPlacementKind::CanvasCenter};
+}
 
 CanvasInfo CanvasInfo::with_safe_area(
     f32 width, f32 height, const SafeAreaPreset& preset)

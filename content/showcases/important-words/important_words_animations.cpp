@@ -1,12 +1,13 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
+#include <chronon3d/text/text_definition.hpp>
 
 #include "content/common/animation_helpers.hpp"
-#include "content/text/text_helpers.hpp"
 #include "important_words_theme.hpp"
 
 namespace chronon3d::content::important_words {
@@ -73,23 +74,23 @@ static void build_important_word(SceneBuilder& s,
         // ── WHITE word on top — DMSans-Bold (modern geometric sans) ──
         // Per-letter text shadow for readability against the red backdrop.
         {
-            auto tp = text::centered_text({
-                .text        = word.label,
-                 .font_asset = WORD_FONT_PATH,
-                .font_family = WORD_FONT_FAMILY,
-                .font_weight = 700,
-                .font_size   = word.font_size,
-                .tracking    = word.tracking,
-                .color       = palette.text,
+            auto def = from_text_spec(TextSpec{
+                .content    = {.value = word.label},
+                .font       = {.font_path   = WORD_FONT_PATH,
+                               .font_family = WORD_FONT_FAMILY,
+                               .font_weight = 700,
+                               .font_size   = word.font_size},
+                .layout     = {.tracking = word.tracking},
+                .appearance = {.color = palette.text},
             });
-            tp.appearance.shadows.push_back(TextShadow{
+            def.style.shadows.push_back(TextShadow{
                 .enabled = true,
                 .offset  = {0.0f, 4.0f},
                 .blur    = 6.0f,
                 .opacity = 0.50f,
                 .color   = {0.0f, 0.0f, 0.0f, 1.0f},
             });
-            l.text("name", tp);
+            l.text("name", def);
         }
         // ── SOFT black drop shadow (radius 16, 0.55 alpha) ───────────────
         // The wider blur + low alpha gives a diffuse contact-shadow look

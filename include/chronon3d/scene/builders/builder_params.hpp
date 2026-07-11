@@ -8,7 +8,6 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/paragraph_style.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
-#include <chronon3d/text/text_placement.hpp>  // F1: TextPlacement replaces Vec3 position
 #include <memory>
 #include <optional>
 #include <string>
@@ -96,7 +95,8 @@ struct GridBackgroundParams {
 // ═══════════════════════════════════════════════════════════════════════════
 // Text composition structs — split the old 30-field TextParams monolith into
 // four composable sub-structs (FontSpec already lives in font_engine.hpp).
-////   TextSpec = TextContent + FontSpec + TextLayoutSpec + TextAppearanceSpec + placement
+//
+//   TextSpec = TextContent + FontSpec + TextLayoutSpec + TextAppearanceSpec + position
 //
 // Callers can now:
 //   - Build reusable font/layout/appearance presets
@@ -157,39 +157,66 @@ struct TextContent {
 ///   const FontSpec kHeroFont{.font_path="...", .font_family="Poppins",
 ///                             .font_weight=700, .font_size=96.0f};
 ///   TextSpec title{.content={.value="CHRONON"}, .font=kHeroFont};
+///
+/// M1.8 §5A / TICKET-SIMPLICITY-DEPRECATION — the `position` field
+/// below is the LEGACY ambiguous-pos semantic discouraged by
+/// ADR-019 Decision 3.  New code should NOT assign to `TextSpec::position`
+/// directly; instead, use the canonical `TextFrame::place(...)` +
+/// `.offset(...)` chain on the `TextDefinition` DTO (F2.A).
+///
+/// Migration target:
+///   // OLD (legacy, ambiguous):
+///   TextSpec ts;
+///   ts.content.value = "HELLO";
+///   ts.position      = Vec3{960.0f, 540.0f, 0.0f};  // ← ambiguous intent
+///
+///   // NEW (canonical, intent-explicit):
+///   auto def = chronon3d::presets::text::title_centered("HELLO");
+///   // OR (full control):
+///   auto def = from_text_spec(ts);
+///   def.frame.position = ...;   // resolved via resolve_placement_origin
+///   def.frame.anchor   = TextAnchor::Center;
+///
+/// Enforcement: the `tools/check_no_dual_text_api.sh` gate (Step 4.5d
+/// in `tools/wrap_push.sh`) refuses NEW `TextSpec.position` assignments
+/// outside the migration target scope.  Pre-existing usages in
+/// `content/` are grandfathered as migration debt (M1.8 §2D sweep).
 struct TextSpec {
     TextContent        content;
+
+    /// M1.8 §5A / TICKET-SIMPLICITY-DEPRECATION — `position` is the
+    /// LEGACY ambiguous-pos field.  Prefer the canonical
+    /// `TextFrame::place(TextPlacement::*)` + `.offset(...)` chain
+    /// (F2.A `TextDefinition` DTO) for new code.  The field is preserved
+    /// for backward compatibility with the 17 pre-F2.C caller sites +
+    /// the deprecated `centered_text()` / `glow_text()` helpers.
+    Vec3               position{};
+
     FontSpec           font;
     TextLayoutSpec     layout;
     TextAppearanceSpec appearance;
-    /// Single source of truth for placement semantics and the 2D pin offset
-    /// (F1: placement kind + offset bundled; Phase A3 close-out removes the
-    /// redundant flat `Vec2 offset` — see tools/check_architecture_boundaries.sh
-    /// gate #19 that forbids the re-introduction of this dual-channel pattern).
-    TextPlacement      placement{};
 };
 
-// ── TextParams: DEPRECATED type-alias for TextSpec ──────────────────
-//
-// ⚠️ DEPRECATED since 2026-07-10 (TICKET-SIMPLICITY-DEPRECATION).
-// Use `TextSpec` directly.
+// ── TextParams: deprecated type-alias for TextSpec ─────────────────────
 //
 // The 30-field TextParams monolith has been retired in favour of the
 // composable TextSpec (TextContent + FontSpec + TextLayoutSpec +
-// TextAppearanceSpec + placement).  `TextParams` is kept as a deprecated
+// TextAppearanceSpec + position).  `TextParams` is kept as a deprecated
 // alias so any external code that still references the name continues to
-// compile with a warning.  To migrate:
-//   1. Replace `TextParams` with `TextSpec`
-//   2. Construct via TextSpec{...} nested designated initializers, or
-//   3. Read/write through TextSpec's sub-structs (.content.value, .font.*,
-//      .layout.*, .appearance.*, .placement).
+// compile.  To migrate:
+//   1. Construct via TextSpec{...} nested designated initializers, or
+//   2. Read/write through TextSpec's sub-structs (.content.value, .font.*,
+//      .layout.*, .appearance.*, .position).
+// Internally the project uses TextSpec directly at all call sites; the
+// alias exists only as a transition aid for external integrations.
 //
 // Note: because the two names are now identical, any field-set pattern
 // like `TextParams tp; tp.text = "x";` will NOT compile — `TextSpec` has
-// no `.text` field (use `.content.value`).  Migration guidance is in
-// the doxygen comment block immediately above (the recommended path is
-// direct migration to `TextSpec`).
-using TextParams [[deprecated("Use TextSpec directly — see migration guide in doxygen above.")]] = TextSpec;
+// no `.text` field (use `.content.value`).  The deprecation attribute
+// surfaces this at the type level so callers see migration guidance.
+// TextParams kept as type alias for backward compatibility.
+// TODO: remove after all external callers migrate to TextSpec.
+using TextParams = TextSpec;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TextRunSpec — composable text-run descriptor (PR 4 canonical form).
@@ -214,32 +241,31 @@ struct TextRunSpec {
     bool                           cache_layout{true};
 };
 
-// ── TextRunParams: DEPRECATED type-alias of TextRunSpec ────────────────
-//
-// ⚠️ DEPRECATED since 2026-07-10 (TICKET-SIMPLICITY-DEPRECATION).
-// Use `TextRunSpec` directly.
+// -----------------------------------------------------------------------
+// TextRunParams — deprecated type-alias of TextRunSpec.
 //
 // The former flat `struct TextRunParams` (with separate `pos` / `color` /
 // `font_path` / ... fields) has been removed.  Production code now reads
 // and writes the composable nested fields:
-//   spec.text.content.value    (was spec.text)
-//   spec.text.font.font_path   (was spec.font_path)
-//   spec.text.font.font_size   (was spec.font_size)
-//   spec.text.font.font_weight (was spec.font_weight)
-//   spec.text.appearance.color (was spec.color)
-//   spec.text.placement       (was spec.pos, then .position)
-//   spec.text.layout.box       (was spec.size)
-//   spec.text.layout.tracking  (was spec.tracking)
-//   spec.text.layout.{anchor|align|vertical_align|wrap|line_height}
-//   spec.text.appearance.{paint|shadows|material}
-//   spec.text.content.pre_shaped (was spec.pre_shaped)
+//   spec.text().content.value    (was spec.text)
+//   spec.text().font.font_path   (was spec.font_path)
+//   spec.text().font.font_size   (was spec.font_size)
+//   spec.text().font.font_weight (was spec.font_weight)
+//   spec.text().appearance.color (was spec.color)
+//   spec.text().position         (was spec.pos)
+//   spec.text().layout.box       (was spec.size)
+//   spec.text().layout.tracking  (was spec.tracking)
+//   spec.text().layout.{anchor|align|vertical_align|wrap|line_height}
+//   spec.text().appearance.{paint|shadows|material}
+//   spec.text().content.pre_shaped (was spec.pre_shaped)
 //   spec.{direction|language|animators|selectors|cache_layout} (top-level)
 //
 // The alias exists to keep external integrations that still reference the
-// legacy name compiling during migration.  Migration guidance: see the
-// doxygen comment block immediately above (direct migration to
-// `TextRunSpec` is the recommended path).
-using TextRunParams [[deprecated("Use TextRunSpec directly — see migration guide in doxygen above.")]] = TextRunSpec;
+// legacy name compiling during migration; it carries the SAME identity as
+// TextRunSpec — enforced by a static_assert in
+// tests/text/test_text_run_builder.cpp.
+// ---------------------------------------------------------------------------
+using TextRunParams = TextRunSpec;
 
 struct ShadowStyle {
     TextShadow contact{
