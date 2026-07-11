@@ -25,6 +25,7 @@
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/animation/path/catmull_rom_path.hpp>
 #include <chronon3d/animation/effects/wiggle.hpp>
+#include <chronon3d/animation/motion/timeline.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/font_engine.hpp>
@@ -107,7 +108,7 @@ Composition orbit_handheld_glow() {
                 .key(Frame{30},  Vec3{1.05f, 1.05f, 1.0f}, EasingCurve{Easing::OutCubic})
                 .key(Frame{60},  Vec3{1.00f, 1.00f, 1.0f}, EasingCurve{Easing::InOutCubic});
 
-            auto def = from_text_spec(TextSpec{.content = {.value = "AURORA"}, .font = {.font_size = 220.0f}, .layout = {.box = {1200.0f, 320.0f}, .line_height = 1.10f, .tracking = 12.0f}, .appearance = {.color = Color{1.00f, 0.96f, 0.84f, 1.0f}}});
+            auto def = from_text_spec(TextSpec{.content    = {.value = "AURORA"},.font       = {.font_size = 220.0f},.layout     = {.box = {1200.0f, 320.0f}, .line_height = 1.10f, .tracking = 12.0f},.appearance = {.color = Color{1.00f, 0.96f, 0.84f, 1.0f}},});
             l.text("title_label", def);
         });
         // ── Camera path: Catmull-Rom closed orbit at radius 1300 ─────

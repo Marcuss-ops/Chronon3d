@@ -34,6 +34,8 @@
 #include "tests/visual/camera_truth/camera_truth_test.hpp"
 // Camera orbit truth test (OrbitMotion via CameraDescriptor)
 #include "tests/visual/camera_truth/camera_truth_orbit.hpp"
+// Real pipeline parity canary (registered as a CLI built-in composition)
+#include "tests/text/pipeline_parity_canary.hpp"
 // AE Camera Text Parity — 360-frame multi-segment stress test
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 #include "content/experimental/ae-parity/ae_camera_text_parity.hpp"
@@ -131,6 +133,10 @@ inline void init_compositions(CompositionRegistry& registry, AssetRegistry& asse
 
     // Camera orbit truth test (OrbitMotion via CameraDescriptor, yaw 0→90°)
     registry.add("CameraTruthOrbit", [](const CompositionProps&) { return test::make_camera_truth_orbit(); });
+
+    // Real pipeline parity canary — simple centered text, used by
+    // tests/text/test_pipeline_parity_real.cpp to compare SDK/CLI/video.
+    registry.add("PipelineParityCanary", [](const CompositionProps& p) { return test::make_pipeline_parity_canary(p); });
 
 #ifndef CHRONON3D_BUILD_DIAGNOSTICS
     // AE Camera Text Parity — 360-frame multi-segment stress test

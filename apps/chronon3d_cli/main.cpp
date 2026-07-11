@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <string>
 #include <thread>
 
@@ -16,9 +17,25 @@ int main(int argc, char** argv) {
     // Ensure TBB uses all available hardware cores for maximum parallelism.
     // Without this, TBB's default thread count may be limited by the task_arena
     // or environment constraints, leading to underutilized cores.
+    //
+    // Tests can override this via the CHRONON3D_THREADS environment variable
+    // (e.g. CHRONON3D_THREADS=1) to verify bit-exact output regardless of
+    // parallelism.
+    std::size_t thread_limit = std::thread::hardware_concurrency();
+    if (const char* env_threads = std::getenv("CHRONON3D_THREADS")) {
+        try {
+            const long parsed = std::strtol(env_threads, nullptr, 10);
+            if (parsed > 0) {
+                thread_limit = static_cast<std::size_t>(parsed);
+            }
+        } catch (...) {
+            // Ignore malformed env var; fall back to hardware concurrency.
+        }
+    }
+
     tbb::global_control tbb_control(
         tbb::global_control::max_allowed_parallelism,
-        std::thread::hardware_concurrency()
+        thread_limit
     );
 
     // Reconstruct command line into CliContext
