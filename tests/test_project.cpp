@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/project.hpp>
+#include <chronon3d/internal/project.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 
 using namespace chronon3d;

@@ -20,14 +20,9 @@ project(install_consumer
 # P3-H — manifest-clean consumer:
 #   This consumer transits ONLY the V0.1 public-header manifest
 #   (cmake/Chronon3DPublicHeaders.cmake). The DIRECT #include set in
-#   main.cpp is exactly:
-#     - <chronon3d/chronon3d.hpp>           (umbrella, manifest entry 1)
-#   Transitive include reachability from the umbrella is documented
-#   in `docs/adr/ADR-012-chronon3d-sdk-manifest-boundary.md` as
-#   "manifest scope" (FrameContext, Scene, Layer, RenderNode, Shape,
-#   Composition, SceneFunction, CompositionSpec, CameraDescriptor,
-#   Framebuffer, save_png). NOT advanced/, NOT internal.hpp, NOT
-#   runtime.hpp, NOT test/*.
+#   main.cpp is the explicit public SDK headers (sdk/*, timeline/composition,
+#   scene builders, text types, image writer and their transitive closure).
+#   No umbrella headers are used.
 #
 #   The consumer's runtime calls are strictly:
 #     * chronon3d::sdk::RenderEngine::render(const Composition&, Frame)
