@@ -91,7 +91,87 @@ NOR excluded** by this experiment:
 Per the user's constraint (`NON toccare il codice di produzione —
 solo experiment`), the build rot is out of scope for this commit.
 
+## Fase 4 Resumption Attempt — 2026-07-11 (e3e3ca99 + 484a87db)
+
+**Status: 🛑 STILL BLOCKED** — attempt PARTIAL.  See below for details.
+
+### What was attempted
+
+1. **[ATTEMPTED] Rebuild `chronon3d_cli`** with the parameterized A/B
+   sibling from commit `e3e3ca99 refactor(glow): deduplicate
+   build_2line_typewriter in A/B sibling`.  The refactor added
+   `AnimTypewriterGlowWithGlow` (glow_intensity=0.5f) alongside
+   the existing `AnimTypewriterGlowNoGlow` (glow_intensity=0.0f).
+
+2. **[ATTEMPTED] Render `AnimTypewriterGlowNoGlow` at frame 140**
+   using the existing `build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli`
+   binary.  This binary predates `e3e3ca99` (binary mtime 1783792733
+   vs. source mtime 1783799874 — ~7000s gap), so it contains the
+   pre-refactor `make_anim_typewriter_glow_no_glow()` factory.  The
+   render SUCCEEDED — `output/glow_final/no_glow.png` produced
+   (1920×1080 RGBA).
+
+3. **[FAILED] Render `AnimTypewriterGlowWithGlow` at frame 140**.
+   The CLI returns:
+   ```
+   [error] Unknown composition: AnimTypewriterGlowWithGlow
+   ```
+   Root cause: the existing CLI binary is from before commit
+   `e3e3ca99` and does not contain the new `AnimTypewriterGlowWithGlow`
+   registry entry.  Rebuilding the CLI is required, but the
+   pre-existing `chronon3d::content` build rot (documented in the
+   `## WITHOUT case` section above) is still blocking the rebuild.
+
+4. **[FAILED] A/B measurement**.  `tools/measure_glow_darkening.py`
+   requires BOTH `with_png` and `without_png` arguments; with only
+   the WITHOUT render available, the comparator cannot run.
+
+### Spec discrepancies noted
+
+- The resumption spec references `tools/measure_glow_three_band.py`
+  — this tool does **NOT exist** in `tools/`.  The canonical A/B
+  comparator is `tools/measure_glow_darkening.py` (referenced in
+  the original baseline methodology table above).
+- The resumption spec references `TICKET-TEXT-GLOW-DARKENING` in
+  `FOLLOWUP_TICKETS.md` — this ticket is **NOT present** in
+  `docs/FOLLOWUP_TICKETS.md`.  The ticket is only referenced in
+  this baseline file.  The PARTIAL→DONE transition cannot be
+  applied to a non-existent ticket row.
+
+### What is valid from this attempt
+
+- `output/glow_final/no_glow.png` (1920×1080 RGBA, frame 140) is a
+  valid render of `AnimTypewriterGlowNoGlow` with `glow_intensity=0.0`.
+  It can serve as the WITHOUT case **once a rebuilt CLI with both
+  A/B siblings is available** on a working build host.
+
+### What is deferred to the next working build host
+
+- Rebuild `chronon3d_cli` to obtain `AnimTypewriterGlowWithGlow`.
+- Render `AnimTypewriterGlowWithGlow` at frame 140.
+- Run `tools/measure_glow_darkening.py` on both PNGs to compute
+  the WITH-vs-WITHOUT delta.
+- Update this report with the PASS/FAIL verdict.
+- Add a `TICKET-TEXT-GLOW-DARKENING` row to `FOLLOWUP_TICKETS.md`
+  (currently absent from the tracker) and transition it to DONE
+  once the verdict is machine-verified.
+
+### Commits referenced in this attempt
+
+- `e3e3ca99 refactor(glow): deduplicate build_2line_typewriter in A/B sibling`
+  (parameterized factory + second registry entry).
+- `484a87db docs(glow): certify ChrononGlowFinalAE` (certification
+  commit that preceded this attempt).
+
+---
+
 ## Resumption steps (for the next agent)
+
+> **Note (2026-07-11)**: The `## Fase 4 Resumption Attempt` section above
+> documents the most recent attempt (commit `51b81c96` + rebase).  The
+> bash recipe below remains the canonical procedure once the build rot
+> is unblocked.  The WITHOUT render from the most recent attempt is at
+> `output/glow_final/no_glow.png` (1920×1080 RGBA, frame 140).
 
 Once `builder_params.hpp` build rot is fixed (out of scope here):
 
