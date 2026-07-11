@@ -278,6 +278,18 @@ def parse_adapter_mappings(path: Path, textspec_fields: dict) -> dict:
         # Already handled by Pattern E
         pass
 
+    # ── Manual position mapping overrides ─────────────────────────────
+    # TextSpec.position is a Vec3, but TextDefinition stores only the 2D
+    # placement offset (x, y); z is intentionally dropped.  The regex
+    # parser above does not understand inline aggregate initializers like
+    # `spec.position = {x, y, 0.0f};`, so we supply the mapping explicitly.
+    forward["position.x"] = "frame.placement.offset.x"
+    forward["position.y"] = "frame.placement.offset.y"
+    forward["position.z"] = "dropped_z"
+    reverse["frame.placement.offset.x"] = "position.x"
+    reverse["frame.placement.offset.y"] = "position.y"
+    reverse["dropped_z"] = "position.z"
+
     return {"forward": forward, "reverse": reverse}
 
 
@@ -331,8 +343,11 @@ def verify_pipeline_convergence() -> tuple[bool, str]:
 
     text_cpp = shape_commands.read_text()
 
-    if 'from_text_definition' not in text_cpp:
-        return False, "ERROR: from_text_definition() not called in shape_commands.cpp"
+    if 'from_text_definition' not in text_cpp and 'to_text_run_spec' not in text_cpp:
+        return False, "ERROR: neither from_text_definition() nor to_text_run_spec() called in shape_commands.cpp"
+
+    if 'to_text_run_spec(def)' in text_cpp:
+        return True, "OK: LayerBuilder::text(name, TextDefinition) → to_text_run_spec() → text_run(name, TextRunSpec)"
 
     if 'from_text_definition(def)' in text_cpp:
         return True, "OK: LayerBuilder::text(name, TextDefinition) → from_text_definition() → text(name, TextSpec)"

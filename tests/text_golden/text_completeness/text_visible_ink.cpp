@@ -16,17 +16,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>
-#include <chronon3d/sdk/render_engine.hpp>
-#include <chronon3d/sdk/render_output.hpp>
-#include <chronon3d/sdk/render_error.hpp>
-#include <chronon3d/sdk/render_request.hpp>
-#include <chronon3d/sdk/render_settings.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/text/text_run_shape.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
+
+#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
@@ -67,16 +58,16 @@ Composition build_text_composition(
                     l.opacity(opacity);
                 }
                 l.text_run("ink_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = std::string{text}}, .font = {
+                    .text = TextSpec{.content = {.value = std::string{text}},.position = position,.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 120.0f
-                        }, .layout = {
+                        },.layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
-                        }, .appearance = {.color = color}}
+                        },.appearance = {.color = color},}
                 }).commit();
             });
             return s.build();

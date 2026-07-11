@@ -21,17 +21,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>
-#include <chronon3d/sdk/render_engine.hpp>
-#include <chronon3d/sdk/render_output.hpp>
-#include <chronon3d/sdk/render_error.hpp>
-#include <chronon3d/sdk/render_request.hpp>
-#include <chronon3d/sdk/render_settings.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/text/text_run_shape.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
+
+#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
@@ -67,16 +58,16 @@ Composition build_baseline(SoftwareRenderer& renderer,
             s.layer("style_layer", [&renderer, text, font_size](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("style_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = std::string{text}}, .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {
+                    .text = TextSpec{.content = {.value = std::string{text}},.position = {960.0f, 540.0f, 0.0f},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = font_size
-                        }, .layout = {
+                        },.layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
-                        }, .appearance = {.color = Color::white()}}
+                        },.appearance = {.color = Color::white()},}
                 }).commit();
             });
             return s.build();
@@ -96,16 +87,16 @@ Composition build_weight(SoftwareRenderer& renderer, int weight) {
             s.layer("w_layer", [&renderer, weight](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("weight_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "WEIGHT"}, .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {
+                    .text = TextSpec{.content = {.value = "WEIGHT"},.position = {960.0f, 540.0f, 0.0f},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = weight,
                             .font_size = 96.0f
-                        }, .layout = {
+                        },.layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
-                        }, .appearance = {.color = Color::white()}}
+                        },.appearance = {.color = Color::white()},}
                 }).commit();
             });
             return s.build();
@@ -127,17 +118,17 @@ Composition build_style(SoftwareRenderer& renderer, std::string_view font_style)
             s.layer("fs_layer", [&renderer, font_style, font_path](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("font_style_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "STYLE"}, .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {
+                    .text = TextSpec{.content = {.value = "STYLE"},.position = {960.0f, 540.0f, 0.0f},.font = {
                             .font_path = font_path,
                             .font_family = "Inter",
                             .font_weight = 400,
                             .font_style = std::string{font_style},
                             .font_size = 96.0f
-                        }, .layout = {
+                        },.layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
-                        }, .appearance = {.color = Color::white()}}
+                        },.appearance = {.color = Color::white()},}
                 }).commit();
             });
             return s.build();
@@ -157,16 +148,16 @@ Composition build_fill(SoftwareRenderer& renderer, Color color) {
             s.layer("fill_layer", [&renderer, color](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("fill_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "COLOR"}, .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {
+                    .text = TextSpec{.content = {.value = "COLOR"},.position = {960.0f, 540.0f, 0.0f},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 96.0f
-                        }, .layout = {
+                        },.layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
-                        }, .appearance = {.color = color}}
+                        },.appearance = {.color = color},}
                 }).commit();
             });
             return s.build();
@@ -192,16 +183,16 @@ Composition build_stroke(SoftwareRenderer& renderer, bool stroke_on, float strok
             s.layer("stroke_layer", [&renderer, paint](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("stroke_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "STROKE"}, .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {
+                    .text = TextSpec{.content = {.value = "STROKE"},.position = {960.0f, 540.0f, 0.0f},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 96.0f
-                        }, .layout = {
+                        },.layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
-                        }, .appearance = {.color = Color::white(), .paint = paint}}
+                        },.appearance = {.color = Color::white(), .paint = paint},}
                 }).commit();
             });
             return s.build();
@@ -222,16 +213,16 @@ Composition build_opacity(SoftwareRenderer& renderer, float opacity) {
                 l.font_engine(&renderer.font_engine());
                 l.opacity(opacity);
                 l.text_run("opacity_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "FADE"}, .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {
+                    .text = TextSpec{.content = {.value = "FADE"},.position = {960.0f, 540.0f, 0.0f},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 96.0f
-                        }, .layout = {
+                        },.layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
-                        }, .appearance = {.color = Color::white()}}
+                        },.appearance = {.color = Color::white()},}
                 }).commit();
             });
             return s.build();
@@ -251,17 +242,17 @@ Composition build_line_height(SoftwareRenderer& renderer, float lh) {
             s.layer("lh_layer", [&renderer, lh](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("lh_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "LINE ONE\nLINE TWO\nLINE THREE"}, .placement = {TextPlacementKind::Absolute, {960.0f, 100.0f}}, .font = {
+                    .text = TextSpec{.content = {.value = "LINE ONE\nLINE TWO\nLINE THREE"},.position = {960.0f, 100.0f, 0.0f},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 48.0f
-                        }, .layout = {
+                        },.layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Top,
                             .line_height = lh
-                        }, .appearance = {.color = Color::white()}}
+                        },.appearance = {.color = Color::white()},}
                 }).commit();
             });
             return s.build();
@@ -279,17 +270,17 @@ Composition build_tracking(SoftwareRenderer& renderer, float tracking) {
             s.layer("track_layer", [&renderer, tracking](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("track_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "TRACKING"}, .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {
+                    .text = TextSpec{.content = {.value = "TRACKING"},.position = {960.0f, 540.0f, 0.0f},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 72.0f
-                        }, .layout = {
+                        },.layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle,
                             .tracking = tracking
-                        }, .appearance = {.color = Color::white()}}
+                        },.appearance = {.color = Color::white()},}
                 }).commit();
             });
             return s.build();
@@ -309,16 +300,16 @@ Composition build_wrap_box(SoftwareRenderer& renderer, float box_width) {
             s.layer("wrap_box_layer", [&renderer, box_width](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("wrap_box_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "The quick brown fox jumps over the lazy dog"}, .placement = {TextPlacementKind::Absolute, {box_width / 2.0f, 540.0f}}, .font = {
+                    .text = TextSpec{.content = {.value = "The quick brown fox jumps over the lazy dog"},.position = {box_width / 2.0f, 540.0f, 0.0f},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 48.0f
-                        }, .layout = {
+                        },.layout = {
                             .box = {box_width, 1080.0f},
                             .align = TextAlign::Left,
                             .vertical_align = VerticalAlign::Top
-                        }, .appearance = {.color = Color::white()}}
+                        },.appearance = {.color = Color::white()},}
                 }).commit();
             });
             return s.build();
@@ -338,17 +329,17 @@ Composition build_anchor(SoftwareRenderer& renderer, TextAnchor anchor) {
             s.layer("anchor_layer", [&renderer, anchor](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("anchor_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "ANCHOR"}, .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {
+                    .text = TextSpec{.content = {.value = "ANCHOR"},.position = {960.0f, 540.0f, 0.0f},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 64.0f
-                        }, .layout = {
+                        },.layout = {
                             .box = {1920.0f, 1080.0f},
                             .anchor = anchor,
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Top
-                        }, .appearance = {.color = Color::white()}}
+                        },.appearance = {.color = Color::white()},}
                 }).commit();
             });
             return s.build();
@@ -398,16 +389,16 @@ Composition build_position(SoftwareRenderer& renderer, Vec3 pos) {
             s.layer("pos_layer", [&renderer, pos](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("pos_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "POS"}, .font = {
+                    .text = TextSpec{.content = {.value = "POS"},.position = pos,.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 96.0f
-                        }, .layout = {
+                        },.layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
-                        }, .appearance = {.color = Color::white()}}
+                        },.appearance = {.color = Color::white()},}
                 }).commit();
             });
             return s.build();

@@ -94,6 +94,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("hero", [frame_idx](LayerBuilder& l) {
                 l.text("title", {
                     .content = {.value = "CHRONON3D"},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -101,8 +102,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                     .layout = {.box = {1600.0f, 480.0f},
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f, 0.0f}
+                    .appearance = {.color = Color::white()}
                 });
                 // Per-frame blur tier; bucket_radius_for_tier in
                 // text_run_processor.hpp:70 maps the value to the nearest
@@ -134,7 +134,6 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white()},
-                    .position = {540.0f, 960.0f, 0.0f}
                 });
                 l.blur(blur_for(frame_idx));
             });
@@ -153,7 +152,8 @@ TEST_CASE("AE 09 blur_in 16x9 f00") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_09_blur_in_16x9_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 09 blur_in 16x9 f15") {
@@ -163,7 +163,8 @@ TEST_CASE("AE 09 blur_in 16x9 f15") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_09_blur_in_16x9_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 09 blur_in 16x9 f30") {
@@ -173,7 +174,8 @@ TEST_CASE("AE 09 blur_in 16x9 f30") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_09_blur_in_16x9_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 // ─── 9:16 lifecycle snapshots ────────────────────────────────────────────────
@@ -185,7 +187,8 @@ TEST_CASE("AE 09 blur_in 9x16 f00") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_09_blur_in_9x16_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 09 blur_in 9x16 f15") {
@@ -195,7 +198,8 @@ TEST_CASE("AE 09 blur_in 9x16 f15") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_09_blur_in_9x16_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 09 blur_in 9x16 f30") {
@@ -205,5 +209,6 @@ TEST_CASE("AE 09 blur_in 9x16 f30") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_09_blur_in_9x16_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

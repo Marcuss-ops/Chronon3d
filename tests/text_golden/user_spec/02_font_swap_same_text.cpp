@@ -64,6 +64,7 @@ Composition build_test02_composition_bold(SoftwareRenderer& renderer) {
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "SAME TEXT"},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -72,7 +73,6 @@ Composition build_test02_composition_bold(SoftwareRenderer& renderer) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f, 0.0f}
                 });
             });
             return s.build();
@@ -91,6 +91,7 @@ Composition build_test02_composition_regular(SoftwareRenderer& renderer) {
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "SAME TEXT"},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,
@@ -99,7 +100,6 @@ Composition build_test02_composition_regular(SoftwareRenderer& renderer) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f, 0.0f}
                 });
             });
             return s.build();
@@ -115,7 +115,9 @@ TEST_CASE("UserSpec 02: font swap same text — Bold frame 0") {
     REQUIRE(fb != nullptr);
 
     auto result = verify_golden(*fb, "user_spec_02_font_swap_F000", make_test02_config());
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 TEST_CASE("UserSpec 02: font swap same text — Regular frame 30") {
@@ -125,5 +127,7 @@ TEST_CASE("UserSpec 02: font swap same text — Regular frame 30") {
     REQUIRE(fb != nullptr);
 
     auto result = verify_golden(*fb, "user_spec_02_font_swap_F030", make_test02_config());
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }

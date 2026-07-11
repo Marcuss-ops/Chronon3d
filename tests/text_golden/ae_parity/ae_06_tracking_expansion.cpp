@@ -122,6 +122,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("hero", [frame_idx](LayerBuilder& l) {
                 l.text("title", {
                     .content = {.value = "TITLE TRAILER"},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -130,8 +131,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle,
                                .tracking = tracking_for(frame_idx)},
-                    .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f, 0.0f}
+                    .appearance = {.color = Color::white()}
                 });
                 l.opacity(opacity_for(frame_idx));
                 l.blur(blur_for(frame_idx));
@@ -162,7 +162,6 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .vertical_align = VerticalAlign::Middle,
                                .tracking = tracking_for(frame_idx)},
                     .appearance = {.color = Color::white()},
-                    .position = {540.0f, 960.0f, 0.0f}
                 });
                 l.opacity(opacity_for(frame_idx));
                 l.blur(blur_for(frame_idx));
@@ -182,7 +181,8 @@ TEST_CASE("AE 06 tracking_expansion 16x9 f00") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_06_tracking_expansion_16x9_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 06 tracking_expansion 16x9 f15") {
@@ -192,7 +192,8 @@ TEST_CASE("AE 06 tracking_expansion 16x9 f15") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_06_tracking_expansion_16x9_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 06 tracking_expansion 16x9 f30") {
@@ -202,7 +203,8 @@ TEST_CASE("AE 06 tracking_expansion 16x9 f30") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_06_tracking_expansion_16x9_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 // ─── 9:16 lifecycle snapshots ────────────────────────────────────────────────
@@ -214,7 +216,8 @@ TEST_CASE("AE 06 tracking_expansion 9x16 f00") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_06_tracking_expansion_9x16_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 06 tracking_expansion 9x16 f15") {
@@ -224,7 +227,8 @@ TEST_CASE("AE 06 tracking_expansion 9x16 f15") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_06_tracking_expansion_9x16_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 06 tracking_expansion 9x16 f30") {
@@ -234,5 +238,6 @@ TEST_CASE("AE 06 tracking_expansion 9x16 f30") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_06_tracking_expansion_9x16_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

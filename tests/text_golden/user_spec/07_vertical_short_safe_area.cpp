@@ -63,6 +63,7 @@ Composition build_test07_composition(SoftwareRenderer& renderer) {
             s.layer("title", [](LayerBuilder& l) {
                 l.text("title", {
                     .content = {.value = "BREAKING NEWS"},
+                    .position = {540.0f, 280.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -71,7 +72,6 @@ Composition build_test07_composition(SoftwareRenderer& renderer) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white()},
-                    .position = {540.0f, 280.0f, 0.0f}
                 });
             });
             // Subtitle: bottom safe area (y ~ 1640 of 1920 = bottom 15%)
@@ -86,7 +86,6 @@ Composition build_test07_composition(SoftwareRenderer& renderer) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.85f, 0.85f, 0.85f, 1.0f}},
-                    .position = {540.0f, 1640.0f, 0.0f}
                 });
             });
             return s.build();
@@ -104,5 +103,7 @@ TEST_CASE("UserSpec 07: 9:16 vertical safe area 1080x1920") {
     REQUIRE(fb->height() == 1920);
 
     auto result = verify_golden(*fb, "user_spec_07_vertical_short_safe_area", make_test07_config());
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }

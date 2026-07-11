@@ -80,6 +80,7 @@ TEST_CASE("UserSpec 04: multi-font middle run failure — healthy baseline + str
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "LEFT BROKEN RIGHT"},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -88,7 +89,6 @@ TEST_CASE("UserSpec 04: multi-font middle run failure — healthy baseline + str
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f, 0.0f}
                 });
             });
             return s.build();
@@ -97,5 +97,7 @@ TEST_CASE("UserSpec 04: multi-font middle run failure — healthy baseline + str
     REQUIRE(fb != nullptr);
 
     auto gr = verify_golden(*fb, "user_spec_04_multifont_middle_run_failure", make_test04_config());
-    REQUIRE_GOLDEN_PASSED(gr);
+    INFO("Golden: ", gr.message);
+    REQUIRE_FALSE(gr.golden_missing);
+    CHECK(gr.passed);
 }

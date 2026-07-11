@@ -118,12 +118,12 @@ Composition make_test_comp(const std::string& name, int width, int height) {
         SceneBuilder s(ctx);
         s.text(name + "_text", {
             .content = {.value = "Hello"},
+            .position = Vec3{width / 2.0f, height / 2.0f, 0.0f},
             .font = {.font_size = 96.0f},
             .layout = {.box = Vec2{900.0f, 200.0f},
                        .anchor = TextAnchor::Center,
                        .align = TextAlign::Center,
                        .vertical_align = VerticalAlign::Middle},
-            .position = Vec3{width / 2.0f, height / 2.0f, 0.0f},
         });
         return s.build();
     });
