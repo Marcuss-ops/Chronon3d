@@ -29,7 +29,7 @@ The V0.1 SDK public surface is curated at `cmake/Chronon3DPublicHeaders.cmake` (
 | `scene/camera/camera_v1/camera_program.hpp`     | `CameraProgram`     | NO |
 | `<functional>, <string>, <memory>, <vector>` | STL types             | n/a (STL) |
 
-None of `FrameContext`, `SampleTime`, `Scene`, `AssetRegistry`, `CameraDescriptor`, `CameraProgram` are V0.1 manifest entries. A consumer that `#include <chronon3d/timeline/composition.hpp>` will see these transitively because `composition.hpp` itself pulls them directly. This is exactly the same class of leak that motivated the umbrella prune in commit `a1f5e645` (`fix(sdk): prune chronon3d.hpp umbrella to manifest-only re-export`): an installer-visible re-export violates manifest discipline. The umbrella prune closed that leak for the umbrella path; this ADR acknowledges that `composition.hpp` still has one.
+None of `FrameContext`, `SampleTime`, `Scene`, `AssetRegistry`, `CameraDescriptor`, `CameraProgram` are V0.1 manifest entries. A consumer that `#include <chronon3d/timeline/composition.hpp>` will see these transitively because `composition.hpp` itself pulls them directly. This is exactly the same class of leak that motivated the umbrella prune (`fix(sdk): prune chronon3d.hpp umbrella to manifest-only re-export`): an installer-visible re-export violates manifest discipline. (commit SHA: see §References — L118) The umbrella prune closed that leak for the umbrella path; this ADR acknowledges that `composition.hpp` still has one.
 
 ### Forces in tension
 
@@ -92,7 +92,7 @@ The thinker's verdict (Step 4 strategic validation, 2026-06-30) was that **only 
 ### Verification
 
 - **The literal manifest is unchanged** — `cmake/Chronon3DPublicHeaders.cmake` diff against `HEAD~1` is empty (this ADR is doc-only).
-- **The OPR umbrellas re-export is unchanged** — `include/chronon3d/chronon3d.hpp` still has only 6 anchored `#include`s (P3-I commit `a1f5e645`).
+- **The OPR umbrellas re-export is unchanged** — `include/chronon3d/chronon3d.hpp` still has only 6 anchored `#include`s (P3-I).
 - **The install consumer remains green** — `tests/install_consumer/main.cpp` continues to compile against the manifest, *via* the documented leak.
 - **No gate regressions** — `tools/audit_software_renderer.sh`, `tools/check_camera_architecture.sh`, `tools/check_architecture_boundaries.sh`, etc. are unaffected (none flag the `composition.hpp` → OPP-internal transitives as a P0 today). <!-- drift-allow: archived-doc-pattern -->
 
@@ -110,7 +110,7 @@ The thinker's verdict (Step 4 strategic validation, 2026-06-30) was that **only 
 - `cmake/Chronon3DPublicHeaders.cmake` — V0.1 manifest (7 entries, read-only during freeze).
 - `cmake/Chronon3DSdkInstall.cmake` — installs the manifest via `FILE_SET public_headers` (Post-P3 Step-3 alignment, commit `d73e7e0b`).
 - `cmake/Chronon3DSdkTargets.cmake` — defines `chronon3d_sdk` INTERFACE target that carries the manifest-installed FILE_SET.
-- `include/chronon3d/chronon3d.hpp` — umbrella, pruned to manifest-only re-export in P3-I (`a1f5e645`).
+- `include/chronon3d/chronon3d.hpp` — umbrella, pruned to manifest-only re-export in P3-I.
 - `include/chronon3d/timeline/composition.hpp` — manifest entry #7, *the* leak source documented in this ADR.
 - `tests/install_consumer/main.cpp` — seal-discussion surface that depends on the documented leak.
 - `docs/adr/ADR-001-frame-graph-compiler.md` … `ADR-011-camera-legacy-deletion.md` — sibling ADRs (precedent for structure).
