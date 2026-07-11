@@ -23,7 +23,7 @@ void draw_topdown_preview(const OverlayContext& ctx) {
     td_x += ctx.options.panel_offset_x; td_y += ctx.options.panel_offset_y;
 
     l.rect("topdown_bg", RectParams{.size = {td_w, td_h}, .pos = {td_x, td_y, 0.0f}, .fill = FillStyle::solid(Color{0.0f, 0.02f, 0.05f, 0.7f}), .stroke = {.enabled = true, .color = Color{0.3f, 0.5f, 0.8f, 0.35f}, .width = 1.0f}});
-    l.text("topdown_title", TextSpec{.content = {.value = "TOP-DOWN VIEW (XZ)"},.placement = {TextPlacementKind::Absolute, {td_x + 10.0f, td_y + 16.0f}},.font = {.font_size = 10.0f},.appearance = {.color = Color{0.8f, 0.85f, 1.0f, 0.8f}}});
+    l.text("topdown_title", TextSpec{.content = {.value = "TOP-DOWN VIEW (XZ)"},.placement = TextPlacement{TextPlacementKind::Absolute, {td_x + 10.0f, td_y + 16.0f}},.font = {.font_size = 10.0f},.appearance = {.color = Color{0.8f, 0.85f, 1.0f, 0.8f}}});
 
     float w_min_x = 1e9f, w_max_x = -1e9f, w_min_z = 1e9f, w_max_z = -1e9f;
     for (size_t pair_idx = 0; pair_idx < ctx.resolved.size(); ++pair_idx) {
@@ -48,8 +48,8 @@ void draw_topdown_preview(const OverlayContext& ctx) {
 
     l.line("td_grid_h", LineParams{.from = {td_x + draw_margin, draw_y0 + draw_h * 0.5f, 0.0f}, .to = {td_x + td_w - draw_margin, draw_y0 + draw_h * 0.5f, 0.0f}, .thickness = 0.5f, .color = Color{0.25f, 0.35f, 0.55f, 0.2f}});
     l.line("td_grid_v", LineParams{.from = {td_x + draw_margin + draw_w * 0.5f, draw_y0, 0.0f}, .to = {td_x + draw_margin + draw_w * 0.5f, draw_y0 + draw_h, 0.0f}, .thickness = 0.5f, .color = Color{0.25f, 0.35f, 0.55f, 0.2f}});
-    l.text("td_axis_x", TextSpec{.content = {.value = "+X"},.placement = {TextPlacementKind::Absolute, {td_x + td_w - draw_margin - 14.0f, draw_y0 + draw_h + 2.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.4f, 0.4f, 0.5f}}});
-    l.text("td_axis_z", TextSpec{.content = {.value = "+Z"},.placement = {TextPlacementKind::Absolute, {td_x + draw_margin - 2.0f, draw_y0 - 6.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.4f, 0.4f, 0.6f, 0.5f}}});
+    l.text("td_axis_x", TextSpec{.content = {.value = "+X"},.placement = TextPlacement{TextPlacementKind::Absolute, {td_x + td_w - draw_margin - 14.0f, draw_y0 + draw_h + 2.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.4f, 0.4f, 0.5f}}});
+    l.text("td_axis_z", TextSpec{.content = {.value = "+Z"},.placement = TextPlacement{TextPlacementKind::Absolute, {td_x + draw_margin - 2.0f, draw_y0 - 6.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.4f, 0.4f, 0.6f, 0.5f}}});
 
     int td_idx = 0;
     for (size_t pair_idx = 0; pair_idx < ctx.resolved.size(); ++pair_idx) {
@@ -69,7 +69,7 @@ void draw_topdown_preview(const OverlayContext& ctx) {
         if (is_null) layer_color = Color{0.0f, 0.9f, 1.0f, 0.8f};
 
         l.circle("td_layer_" + std::to_string(td_idx), CircleParams{.radius = is_null ? 4.0f : 3.5f, .color = layer_color, .pos = {screen.x, screen.y, 0.0f}});
-        if (!is_null && td_idx < 8) { l.text("td_lbl_" + std::to_string(td_idx), TextSpec{.content = {.value = pair_name},.placement = {TextPlacementKind::Absolute, {screen.x + 5.0f, screen.y - 4.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.7f, 0.75f, 0.9f, 0.55f}}}); }
+        if (!is_null && td_idx < 8) { l.text("td_lbl_" + std::to_string(td_idx), TextSpec{.content = {.value = pair_name},.placement = TextPlacement{TextPlacementKind::Absolute, {screen.x + 5.0f, screen.y - 4.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.7f, 0.75f, 0.9f, 0.55f}}}); }
         td_idx++;
     }
 
@@ -82,15 +82,15 @@ void draw_topdown_preview(const OverlayContext& ctx) {
         float fov_half = glm::radians(ctx.camera.fov_deg * 0.5f);
         l.line("td_fov_l", LineParams{.from = {cam_screen.x, cam_screen.y, 0.0f}, .to = {cam_screen.x + std::sin(yaw_rad - fov_half) * 30.0f, cam_screen.y + std::cos(yaw_rad - fov_half) * 30.0f, 0.0f}, .thickness = 1.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.35f}});
         l.line("td_fov_r", LineParams{.from = {cam_screen.x, cam_screen.y, 0.0f}, .to = {cam_screen.x + std::sin(yaw_rad + fov_half) * 30.0f, cam_screen.y + std::cos(yaw_rad + fov_half) * 30.0f, 0.0f}, .thickness = 1.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.35f}});
-        l.text("td_cam_lbl", TextSpec{.content = {.value = "CAM"},.placement = {TextPlacementKind::Absolute, {cam_screen.x + 7.0f, cam_screen.y - 8.0f}},.font = {.font_size = 8.0f},.appearance = {.color = Color{1.0f, 1.0f, 1.0f, 0.8f}}});
+        l.text("td_cam_lbl", TextSpec{.content = {.value = "CAM"},.placement = TextPlacement{TextPlacementKind::Absolute, {cam_screen.x + 7.0f, cam_screen.y - 8.0f}},.font = {.font_size = 8.0f},.appearance = {.color = Color{1.0f, 1.0f, 1.0f, 0.8f}}});
     }
 
     l.circle("td_leg_near", CircleParams{.radius = 3.0f, .color = Color{0.4f, 0.9f, 1.0f, 0.85f}, .pos = {td_x + 10.0f, td_y + td_h - 8.0f, 0.0f}});
-    l.text("td_leg_near_t", TextSpec{.content = {.value = "near"},.placement = {TextPlacementKind::Absolute, {td_x + 16.0f, td_y + td_h - 12.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.6f, 0.7f, 0.5f}}});
+    l.text("td_leg_near_t", TextSpec{.content = {.value = "near"},.placement = TextPlacement{TextPlacementKind::Absolute, {td_x + 16.0f, td_y + td_h - 12.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.6f, 0.7f, 0.5f}}});
     l.circle("td_leg_far", CircleParams{.radius = 3.0f, .color = Color{0.3f, 0.5f, 0.9f, 0.75f}, .pos = {td_x + 52.0f, td_y + td_h - 8.0f, 0.0f}});
-    l.text("td_leg_far_t", TextSpec{.content = {.value = "far"},.placement = {TextPlacementKind::Absolute, {td_x + 58.0f, td_y + td_h - 12.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.6f, 0.7f, 0.5f}}});
+    l.text("td_leg_far_t", TextSpec{.content = {.value = "far"},.placement = TextPlacement{TextPlacementKind::Absolute, {td_x + 58.0f, td_y + td_h - 12.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.6f, 0.7f, 0.5f}}});
     l.circle("td_leg_cam", CircleParams{.radius = 3.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.9f}, .pos = {td_x + 88.0f, td_y + td_h - 8.0f, 0.0f}});
-    l.text("td_leg_cam_t", TextSpec{.content = {.value = "cam"},.placement = {TextPlacementKind::Absolute, {td_x + 94.0f, td_y + td_h - 12.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.6f, 0.7f, 0.5f}}});
+    l.text("td_leg_cam_t", TextSpec{.content = {.value = "cam"},.placement = TextPlacement{TextPlacementKind::Absolute, {td_x + 94.0f, td_y + td_h - 12.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.6f, 0.7f, 0.5f}}});
 }
 
 void draw_sideview_depth(const OverlayContext& ctx) {
@@ -108,7 +108,7 @@ void draw_sideview_depth(const OverlayContext& ctx) {
     sv_x += ctx.options.panel_offset_x; sv_y += ctx.options.panel_offset_y;
 
     l.rect("sideview_bg", RectParams{.size = {sv_w, sv_h}, .pos = {sv_x, sv_y, 0.0f}, .fill = FillStyle::solid(Color{0.0f, 0.03f, 0.02f, 0.7f}), .stroke = {.enabled = true, .color = Color{0.3f, 0.6f, 0.5f, 0.35f}, .width = 1.0f}});
-    l.text("sv_title", TextSpec{.content = {.value = "DEPTH SIDE VIEW (X vs Z)"},.placement = {TextPlacementKind::Absolute, {sv_x + 10.0f, sv_y + 16.0f}},.font = {.font_size = 10.0f},.appearance = {.color = Color{0.8f, 1.0f, 0.85f, 0.8f}}});
+    l.text("sv_title", TextSpec{.content = {.value = "DEPTH SIDE VIEW (X vs Z)"},.placement = TextPlacement{TextPlacementKind::Absolute, {sv_x + 10.0f, sv_y + 16.0f}},.font = {.font_size = 10.0f},.appearance = {.color = Color{0.8f, 1.0f, 0.85f, 0.8f}}});
 
     float w_min_x = 1e9f, w_max_x = -1e9f, w_min_z = 1e9f, w_max_z = -1e9f;
     for (size_t pair_idx = 0; pair_idx < ctx.resolved.size(); ++pair_idx) {
@@ -137,11 +137,11 @@ void draw_sideview_depth(const OverlayContext& ctx) {
     if (w_min_z < 0.0f && w_max_z > 0.0f) {
         float z0_y = d_y0 + d_h - (0.0f - w_min_z) * s;
         l.line("sv_z0", LineParams{.from = {sv_x + d_margin, z0_y, 0.0f}, .to = {sv_x + sv_w - d_margin, z0_y, 0.0f}, .thickness = 1.0f, .color = Color{0.5f, 0.8f, 0.5f, 0.3f}});
-        l.text("sv_z0_lbl", TextSpec{.content = {.value = "Z=0"},.placement = {TextPlacementKind::Absolute, {sv_x + sv_w - d_margin + 2.0f, z0_y - 4.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.5f, 0.8f, 0.5f, 0.5f}}});
+        l.text("sv_z0_lbl", TextSpec{.content = {.value = "Z=0"},.placement = TextPlacement{TextPlacementKind::Absolute, {sv_x + sv_w - d_margin + 2.0f, z0_y - 4.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.5f, 0.8f, 0.5f, 0.5f}}});
     }
 
-    l.text("sv_axis_x", TextSpec{.content = {.value = "+X"},.placement = {TextPlacementKind::Absolute, {sv_x + sv_w - d_margin - 14.0f, d_y0 + d_h + 2.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.5f, 0.4f, 0.5f}}});
-    l.text("sv_axis_z", TextSpec{.content = {.value = "+Z"},.placement = {TextPlacementKind::Absolute, {sv_x + d_margin - 2.0f, d_y0 - 6.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.4f, 0.6f, 0.4f, 0.5f}}});
+    l.text("sv_axis_x", TextSpec{.content = {.value = "+X"},.placement = TextPlacement{TextPlacementKind::Absolute, {sv_x + sv_w - d_margin - 14.0f, d_y0 + d_h + 2.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.5f, 0.4f, 0.5f}}});
+    l.text("sv_axis_z", TextSpec{.content = {.value = "+Z"},.placement = TextPlacement{TextPlacementKind::Absolute, {sv_x + d_margin - 2.0f, d_y0 - 6.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.4f, 0.6f, 0.4f, 0.5f}}});
 
     int sv_idx = 0;
     for (size_t pair_idx = 0; pair_idx < ctx.resolved.size(); ++pair_idx) {
@@ -167,22 +167,22 @@ void draw_sideview_depth(const OverlayContext& ctx) {
             }
         }
 
-        if (!is_null && sv_idx < 6) { l.text("sv_lbl_" + std::to_string(sv_idx), TextSpec{.content = {.value = pair_name},.placement = {TextPlacementKind::Absolute, {screen.x + 10.0f, screen.y - 3.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.7f, 0.9f, 0.8f, 0.55f}}}); }
+        if (!is_null && sv_idx < 6) { l.text("sv_lbl_" + std::to_string(sv_idx), TextSpec{.content = {.value = pair_name},.placement = TextPlacement{TextPlacementKind::Absolute, {screen.x + 10.0f, screen.y - 3.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.7f, 0.9f, 0.8f, 0.55f}}}); }
         sv_idx++;
     }
 
     Vec2 cam_sv = to_sv(ctx.camera.position.x, ctx.camera.position.z);
     if (cam_sv.x >= sv_x + d_margin && cam_sv.x <= sv_x + sv_w - d_margin && cam_sv.y >= d_y0 && cam_sv.y <= d_y0 + d_h) {
         l.circle("sv_cam", CircleParams{.radius = 5.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.9f}, .pos = {cam_sv.x, cam_sv.y, 0.0f}});
-        l.text("sv_cam_lbl", TextSpec{.content = {.value = "CAM"},.placement = {TextPlacementKind::Absolute, {cam_sv.x + 7.0f, cam_sv.y - 4.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{1.0f, 1.0f, 1.0f, 0.8f}}});
+        l.text("sv_cam_lbl", TextSpec{.content = {.value = "CAM"},.placement = TextPlacement{TextPlacementKind::Absolute, {cam_sv.x + 7.0f, cam_sv.y - 4.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{1.0f, 1.0f, 1.0f, 0.8f}}});
     }
 
     l.circle("sv_leg_pass", CircleParams{.radius = 3.0f, .color = Color{0.2f, 0.9f, 0.3f, 0.85f}, .pos = {sv_x + 10.0f, sv_y + sv_h - 8.0f, 0.0f}});
-    l.text("sv_leg_pass_t", TextSpec{.content = {.value = "pass"},.placement = {TextPlacementKind::Absolute, {sv_x + 16.0f, sv_y + sv_h - 12.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.7f, 0.65f, 0.5f}}});
+    l.text("sv_leg_pass_t", TextSpec{.content = {.value = "pass"},.placement = TextPlacement{TextPlacementKind::Absolute, {sv_x + 16.0f, sv_y + sv_h - 12.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.7f, 0.65f, 0.5f}}});
     l.circle("sv_leg_fail", CircleParams{.radius = 3.0f, .color = Color{1.0f, 0.3f, 0.15f, 0.85f}, .pos = {sv_x + 50.0f, sv_y + sv_h - 8.0f, 0.0f}});
-    l.text("sv_leg_fail_t", TextSpec{.content = {.value = "fail"},.placement = {TextPlacementKind::Absolute, {sv_x + 56.0f, sv_y + sv_h - 12.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.7f, 0.6f, 0.6f, 0.5f}}});
+    l.text("sv_leg_fail_t", TextSpec{.content = {.value = "fail"},.placement = TextPlacement{TextPlacementKind::Absolute, {sv_x + 56.0f, sv_y + sv_h - 12.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.7f, 0.6f, 0.6f, 0.5f}}});
     l.circle("sv_leg_cam", CircleParams{.radius = 3.0f, .color = Color{1.0f, 1.0f, 1.0f, 0.9f}, .pos = {sv_x + 88.0f, sv_y + sv_h - 8.0f, 0.0f}});
-    l.text("sv_leg_cam_t", TextSpec{.content = {.value = "cam"},.placement = {TextPlacementKind::Absolute, {sv_x + 94.0f, sv_y + sv_h - 12.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.7f, 0.65f, 0.5f}}});
+    l.text("sv_leg_cam_t", TextSpec{.content = {.value = "cam"},.placement = TextPlacement{TextPlacementKind::Absolute, {sv_x + 94.0f, sv_y + sv_h - 12.0f}},.font = {.font_size = 7.0f},.appearance = {.color = Color{0.6f, 0.7f, 0.65f, 0.5f}}});
 }
 
 } // namespace chronon3d
