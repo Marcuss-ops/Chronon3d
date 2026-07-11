@@ -23,7 +23,7 @@
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/animation/path/catmull_rom_path.hpp>
 #include <chronon3d/animation/effects/wiggle.hpp>
-#include <chronon3d/animation/motion/motion.hpp>
+#include <chronon3d/animation/motion/timeline.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/font_engine.hpp>
@@ -106,7 +106,7 @@ Composition whip_pan_hero_reveal() {
                 // Note: l.position_anim() returns AnimatedValue<Vec3>& (not f32),
                 // so the timeline must hold Vec3 values throughout.
                 const f32 delta_x = 2400.0f + 200.0f * static_cast<f32>(i);
-                chronon3d::timeline(Vec3{x0, y, -400.0f})
+                motion::timeline(Vec3{x0, y, -400.0f})
                     .to(Frame{20}, Vec3{x0 + delta_x, y, -400.0f},
                         EasingCurve{Easing::OutQuad})
                     .hold_until(Frame{90})
@@ -145,7 +145,7 @@ Composition whip_pan_hero_reveal() {
                 pos.key(Frame{55}, Vec3{ 0.0f, 230.0f, 0.0f}, EasingCurve{Easing::OutCubic});
                 pos.key(Frame{68}, Vec3{ 0.0f, 200.0f, 0.0f}, EasingCurve{Easing::Linear});
             }
-            auto def = from_text_spec(TextSpec{.content = {.value = "MOTION BY CAMERA"}, .font = {.font_size = 38.0f}, .layout = {.box = {1100.0f, 80.0f}, .line_height = 1.10f, .tracking = 12.0f}, .appearance = {.color = {1.0f, 0.55f, 0.75f, 1.0f}}});
+            auto def = from_text_spec(TextSpec{.content    = {.value = "MOTION BY CAMERA"},.font       = {.font_size = 38.0f},.layout     = {.box = {1100.0f, 80.0f}, .line_height = 1.10f, .tracking = 12.0f},.appearance = {.color = {1.0f, 0.55f, 0.75f, 1.0f}},});
             l.text("subtitle_label", def);
         });
 

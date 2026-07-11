@@ -42,11 +42,11 @@ struct CenterTextOptions {
 /// F2.C — canonical authoring helper.  Returns TextDefinition, the single
 /// canonical authoring DTO.  Composes directly with LayerBuilder::text().
 inline TextDefinition centered_text(CenterTextOptions o) {
-    return from_text_spec(TextSpec{.content = {.value = std::move(o.text)}, .placement = TextPlacement{TextPlacementKind::Absolute, {o.pos.x, o.pos.y}}, .font = {.font_path   = std::move(o.font_asset),
+    return from_text_spec(TextSpec{.content    = {.value = std::move(o.text)},.position = {o.pos.x, o.pos.y, 0.0f},.font       = {.font_path   = std::move(o.font_asset),
                        .font_family = std::move(o.font_family),
                        .font_weight = o.font_weight,
                        .font_style  = std::move(o.font_style),
-                       .font_size   = o.font_size}, .layout = {.box            = o.box,
+                       .font_size   = o.font_size},.layout     = {.box            = o.box,
                        .anchor         = TextAnchor::Center,
                        .centering_mode = TextCenteringMode::PixelInk,
                        .align          = TextAlign::Center,
@@ -58,7 +58,7 @@ inline TextDefinition centered_text(CenterTextOptions o) {
                        .auto_fit       = o.auto_fit,
                        .min_font_size  = o.min_font_size,
                        .max_font_size  = o.max_font_size,
-                       .max_lines      = o.max_lines}, .appearance = {.color = o.color}});
+                       .max_lines      = o.max_lines},.appearance = {.color = o.color},});
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
