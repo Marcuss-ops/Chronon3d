@@ -46,9 +46,25 @@ for f in "$REPO_ROOT"/tests/*.cmake; do
     # Excludes ${TEST_MAIN} references and comment-only lines. Filtering
     # on the leading `^\s*` ensures we don't match `target_sources(... PRIVATE
     # add_executable ...)` (which is a string literal in a comment).
-    raw=$(grep -E '^\s*add_executable\(\s*chronon3d_.*_tests?\b' "$f" 2>/dev/null | wc -l || echo 0)
-    # Count chronon3d_add_test_suite() invocations (not comments).
-    suite=$(grep -E '^\s*chronon3d_add_test_suite\(' "$f" 2>/dev/null | wc -l || echo 0)
+    #
+    # BAND-AID (forward-point 0k+): `| tr -d '\n'` patches a set -euo
+    # pipefail bug where `grep` exiting 1 (no match) causes `wc -l` to
+    # output '0\n' and the `|| echo 0` fallback to append another '0\n',
+    # producing literal '0\n0' (multi-line) which `[[ ... -gt 0 ]]` cannot
+    # parse as a single integer → 38 'syntax error in expression' stderr
+    # lines per gate run. The `tr` strips the embedded newline, yielding
+    # '00', which bash cleanly parses as octal 0 (and evaluates to 0).
+    # CANONICAL FIX (NOT applied here per user-spec): drop `|| echo 0`
+    # entirely and let `wc -l` be the final pipeline step.
+    # ACCEPTED TRADE-OFF: if `grep` crashes mid-read with an I/O error
+    # (extremely unlikely on local repo files), the `|| echo 0` fallback
+    # would falsely append a `0` to a partial `wc -l` count, giving N0
+    # instead of N. The thinker-with-files-gemini design verdict (0k+
+    # closure) marks this as an acceptable band-aid trade-off.
+    raw=$(grep -E '^\s*add_executable\(\s*chronon3d_.*_tests?\b' "$f" 2>/dev/null | wc -l | tr -d '\n' || echo 0)
+    # Count chronon3d_add_test_suite() invocations (not comments). Same
+    # band-aid rationale as above.
+    suite=$(grep -E '^\s*chronon3d_add_test_suite\(' "$f" 2>/dev/null | wc -l | tr -d '\n' || echo 0)
 
     if [[ ${raw:-0} -gt 0 ]]; then
         echo "  RAW  $basename  ($raw targets)"
