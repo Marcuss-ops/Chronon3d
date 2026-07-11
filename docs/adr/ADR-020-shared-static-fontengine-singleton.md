@@ -256,4 +256,4 @@ grep -c 'layout_glyphs:' content/common/text_reveal_helpers.hpp
 - Code-reviewer-minimax-m3 issue #7, round 6
 
 
-- Commit **`6f3db3ed`** (retirement commit — both `s_typewriter_resolver` and `shared_typewriter_engine()` deleted; supersedes this ADR's "How to migrate away" plan)
+
