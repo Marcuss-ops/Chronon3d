@@ -181,46 +181,40 @@ TEST_CASE("AE 03 word_cascade 16x9 f00") {
     auto fb = renderer.render(build_landscape(renderer, 0), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_03_word_cascade_16x9_f00", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 TEST_CASE("AE 03 word_cascade 16x9 f15") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_landscape(renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_03_word_cascade_16x9_f15", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 TEST_CASE("AE 03 word_cascade 16x9 f30") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_landscape(renderer, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_03_word_cascade_16x9_f30", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 TEST_CASE("AE 03 word_cascade 9x16 f00") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 0), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_03_word_cascade_9x16_f00", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 TEST_CASE("AE 03 word_cascade 9x16 f15") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_03_word_cascade_9x16_f15", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 TEST_CASE("AE 03 word_cascade 9x16 f30") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_03_word_cascade_9x16_f30", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }

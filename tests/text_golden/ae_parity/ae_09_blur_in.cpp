@@ -153,8 +153,7 @@ TEST_CASE("AE 09 blur_in 16x9 f00") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_09_blur_in_16x9_f00", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("AE 09 blur_in 16x9 f15") {
@@ -164,8 +163,7 @@ TEST_CASE("AE 09 blur_in 16x9 f15") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_09_blur_in_16x9_f15", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("AE 09 blur_in 16x9 f30") {
@@ -175,8 +173,7 @@ TEST_CASE("AE 09 blur_in 16x9 f30") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_09_blur_in_16x9_f30", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 // ─── 9:16 lifecycle snapshots ────────────────────────────────────────────────
@@ -188,8 +185,7 @@ TEST_CASE("AE 09 blur_in 9x16 f00") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_09_blur_in_9x16_f00", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("AE 09 blur_in 9x16 f15") {
@@ -199,8 +195,7 @@ TEST_CASE("AE 09 blur_in 9x16 f15") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_09_blur_in_9x16_f15", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("AE 09 blur_in 9x16 f30") {
@@ -210,6 +205,5 @@ TEST_CASE("AE 09 blur_in 9x16 f30") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_09_blur_in_9x16_f30", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }

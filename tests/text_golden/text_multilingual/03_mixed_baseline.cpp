@@ -147,12 +147,7 @@ TEST_CASE("Multilingual.MixedBaseline 01: default baseline — 1920x1080") {
 
     auto r = verify_golden(*fb, "multilingual_mixed_baseline_01_default",
                            make_baseline_config("01_default"));
-    INFO("Golden: ", r.message);
-    if (r.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 // ═══ Test 2 — Subscript-like (baseline_shift = +20px) ══════════════════
@@ -164,12 +159,7 @@ TEST_CASE("Multilingual.MixedBaseline 02: subscript +20px — 1920x1080") {
 
     auto r = verify_golden(*fb, "multilingual_mixed_baseline_02_subscript",
                            make_baseline_config("02_subscript"));
-    INFO("Golden: ", r.message);
-    if (r.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 // ═══ Test 3 — Superscript-like (baseline_shift = -20px) ════════════════
@@ -181,10 +171,5 @@ TEST_CASE("Multilingual.MixedBaseline 03: superscript -20px — 1920x1080") {
 
     auto r = verify_golden(*fb, "multilingual_mixed_baseline_03_superscript",
                            make_baseline_config("03_superscript"));
-    INFO("Golden: ", r.message);
-    if (r.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }

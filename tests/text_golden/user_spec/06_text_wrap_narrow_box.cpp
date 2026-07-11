@@ -86,7 +86,5 @@ TEST_CASE("UserSpec 06: text wrap narrow box — 500x500") {
     REQUIRE(fb != nullptr);
 
     auto result = verify_golden(*fb, "user_spec_06_text_wrap_narrow_box", make_test06_config());
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }
