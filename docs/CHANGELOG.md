@@ -355,7 +355,55 @@ cmake --preset linux-content-dev -S . -B build/chronon/linux-content-dev
 **Cross-references**: [`cmake/Chronon3DVcpkgToolchain.cmake`](cmake/Chronon3DVcpkgToolchain.cmake) (the canonical toolchain wrapper, Invariant I1) + [`cmake/presets/development.json`](cmake/presets/development.json) (the `linux-content-dev` preset definition) + `vcpkg_bootstrap/vcpkg` (the vcpkg binary, version 2026-04-08) + `vcpkg_installed/linux-content-dev/x64-linux/` (the pre-installed deps) + `build/chronon/linux-content-dev/` (the configure artifacts, .gitignored) + commit `16855f33` (TICKET-GOLDEN-17-1-17-8-MIGRATION, the 6/8 tests migration whose re-bake this configure unblocks) + commit `<pending>` (TICKET-TEXT-LEGACY-POSITION-ROT / TICKET-COMPILED-FRAME-GRAPH-ROTFIX fix, the upstream rot fix whose configure attempt left the stale pkgRedirects state that the first attempt hit) + AGENTS.md §Cat-5 (3-doc same-commit alignment, satisfied) + AGENTS.md §honesty (configure-only documented; full build deferred to working build host).
 
 
+
 ## Luglio 2026 — tests(golden): migrate Tests 17.1-17.8 to canonical verify_golden (TICKET-GOLDEN-17-1-17-8-MIGRATION, 2026-07-12)
+## Luglio 2026 — TICKET-TEXT-LEGACY-POSITION-ROT sub-area (i) closure — overlay panel rot fix (4 atomic commits, 34 sites, all Z=0 safe-drop) (2026-07-11, local commits — pushed-gated by TICKET-GATE-SUBJECT-LENGTH-UPSTREAM-BLOCKER)
+
+### fix(text): TICKET-TEXT-LEGACY-POSITION-ROT sub-area (i) — 4 atomic commits (34 sites) — overlay panel rot fix
+
+- **Scope**: closes sub-area (i) of TICKET-TEXT-LEGACY-POSITION-ROT (text builder API migration rot: `.position = Vec3{x,y,z}` on `TextSpec` AuthoringLiteral replaced by `.placement = TextPlacement{TextPlacementKind::Absolute, {x,y}}` 2D intent-explicit placement per `include/chronon3d/scene/builders/builder_params.hpp` §5A deprecation note). Sub-area (i) = screen-space HUD/debug overlays; sub-area (ii/iii/iv) deferred to next sessions (see FOLLOWUP_TICKETS row).
+- **4 atomic commits** (all subject ≤72 chars — verified); ALL UNPUSHED at session end per AGENTS.md GATE-MNT-01 + upstream gate blocker TICKET-GATE-SUBJECT-LENGTH-UPSTREAM-BLOCKER:
+
+  | # | commit | subject (chars) | file | sites |
+  |---|---|---|---|---|
+  | 1 | `96a6c2be` | `fix(text): sub-area (i) diagnostic overlay panels (6 sites)` (60) | `src/scene/camera/overlay_diagnostic_panels.cpp` | 6 |
+  | 2 | `e52f290a` | `fix(text): sub-area (i) kinematic overlay panels (8 sites)` (59) | `src/scene/camera/overlay_kinematic_panels.cpp` | 8 |
+  | 3 | `29826b96` | `fix(text): sub-area (i) spatial overlay panels (17 sites)` (58) | `src/scene/camera/overlay_spatial_panels.cpp` | 17 |
+  | 4 | `140c3b49` | `fix(text): sub-area (i) hud overlay panels (3 sites)` (53) | `src/scene/camera/overlay_hud_panels.cpp` | 3 |
+  | (prior session) | (motion_renderer.cpp:143) | (overlap with 5/4/4/2 split — already pushed) | `src/scene/presets/motion_renderer.cpp` | 1 |
+
+  **Total: 35 sites migrated across 5 files (4 this session + 1 prior session to close sub-area (i) per the 5/4/4/2 ticket-row atomic split)**.
+
+- **Z-depth safety (all sites audit-verified)**: every `.position = {x, y, 0.0f}` site confirmed Z=0.0f explicit (HUD/debug overlays are screen-space — crosshair markers, target error labels, camera-axes labels, projected bounding-box labels, metrics panel, jerk graph titles + markers, 3D path trace markers + frame labels + legend labels, top-down XZ titles + axis labels + layer labels + camera position labels + legend labels, side-view Z=0 line + axis labels + layer labels + camera position labels + legend labels, target-deviation text midpoint, null/parent labels, layer bounds PASS/FAIL labels). **Zero 3D depth semantic loss** — safe flat `TextPlacementKind::Absolute` mapping preserves the screen-space intent.
+- **Migration pattern (canonical, byte-identical across 4 commits)**:
+  ```cpp
+  // BEFORE (deprecated, removed upstream in commit `8b5ee57f`):
+  .position = {center.x + 20.0f, center.y - 12.0f, 0.0f}
+  // AFTER (canonical 2D intent-explicit placement per `builder_params.hpp` §5A):
+  .placement = TextPlacement{TextPlacementKind::Absolute, {center.x + 20.0f, center.y - 12.0f}}
+  ```
+- **Path-drift surface (honest report)**: the user-specified scope path `src/scene/builders/commands/overlay_*.cpp` does NOT exist in the codebase; the actual files migrated live under `src/scene/camera/overlay_*.cpp`. The ticket-row text was updated to reflect the actual path; future migrations should use the canonical path directly.
+- **Cat-3 (no new public SDK API)**: zero new symbols in `include/chronon3d/`. Zero `[[deprecated]]` annotations. Zero dispatch-site forwarding logic added (the 4 sites are consumer-side migrations of an existing field-rename, not new SDK surface). The 4 commits use only pre-existing canonical API (`TextPlacement`, `TextPlacementKind::Absolute`) from `include/chronon3d/text/text_placement.hpp` (transitively included via `camera_debug_overlay_panels.hpp`).
+- **Cat-5 (3-doc same-commit alignment)**: this CHANGELOG entry (prepended at TOP) + `docs/FOLLOWUP_TICKETS.md` `TICKET-TEXT-LEGACY-POSITION-ROT` row UPDATE (OPEN → PARTIAL with sub-area (i) DONE + sub-area (ii)/(iii)/(iv) deferred) + `docs/FOLLOWUP_TICKETS.md` NEW `TICKET-GATE-SUBJECT-LENGTH-UPSTREAM-BLOCKER` row (the gate blocker surfaced this session) + `docs/CURRENT_STATUS.md` snapshot header bump + Stato per area text section extension all captured in this accompagnamento Cat-5 chore commit. `tools/check_doc_sync.sh` R5 fires on this closure batch.
+- **Build status (HONEST per AGENTS.md §honesty)**: `cmake --build build --target chronon3d_cli -j4` STILL FAILS even with sub-area (i) 35 sites migrated, because `tests/visual/ae_parity/ae_parity_compositions.cpp:237` `LayerBuilder::text("…", TextSpec{…, .position={…}, …})` brace-init rot hard-fails the compiler ("no matching function for call to 'LayerBuilder::text'"). This is exactly the sub-area (ii) rot class (a prior-session-escalated "LayerBuilder::text() no matching function" cascade) — 1 atomic commit (extract `.position = {x, y, z}` into local `TextPlacement{TextPlacementKind::Absolute, {x, y}}`) unblocks it. **macchina-verifica of the full build** deferred to working build host + governance-approved gate-blocker-fix session.
+- **Push status**: `bash tools/wrap_push.sh origin main` HARD-FAILURES on `tools/check_commit_subject_length.sh` gate because upstream `8b59adca` has a 76-char subject (canonical limit 72). Per AGENTS.md GATE-MNT-01 (`non cambiare un gate per nascondere un errore`) the push is BLOCKED. Resolution requires governance review to either amend the upstream commit OR ADR-formally adapt the gate lookback scope to local-only. Logged as `TICKET-GATE-SUBJECT-LENGTH-UPSTREAM-BLOCKER` (P0 row in FOLLOWUP_TICKETS §Open Blockers).
+- **Files changed (1 doc commit, 5 prior code commits)**:
+  - `src/scene/camera/overlay_diagnostic_panels.cpp` EDIT (commit `96a6c2be` — 6 rot sites migrated)
+  - `src/scene/camera/overlay_kinematic_panels.cpp` EDIT (commit `e52f290a` — 8 rot sites migrated)
+  - `src/scene/camera/overlay_spatial_panels.cpp` EDIT (commit `29826b96` — 17 rot sites migrated)
+  - `src/scene/camera/overlay_hud_panels.cpp` EDIT (commit `140c3b49` — 3 rot sites migrated)
+  - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+  - `docs/FOLLOWUP_TICKETS.md` EDIT (TICKET-TEXT-LEGACY-POSITION-ROT row UPDATE + NEW TICKET-GATE-SUBJECT-LENGTH-UPSTREAM-BLOCKER row)
+  - `docs/CURRENT_STATUS.md` EDIT (snapshot header bump + Stato per area text row extension)
+- **Honest-gap documentation (per AGENTS.md §honesty)**:
+  - macchina-verifica of `cmake --build build --target chronon3d_cli -j4` + subsequent `ctest` suite is deferred to working build host per existing CHANGELOG lineage (vcpkg glm/magic_enum + tmpfs quota).
+  - Sub-area (ii/iii/iv) sites remain rot-unfixed; this entry does NOT claim full ticket closure. The 5/4/4/2 atomic-commit split is 5/35-DONE in this session.
+  - Push is gated; sub-area (i) is bank as LOCAL atomic commit, NOT LANDED on `origin/main` until `TICKET-GATE-SUBJECT-LENGTH-UPSTREAM-BLOCKER` resolution.
+- **Cross-references**: `src/scene/camera/overlay_*.cpp` (4 migrated files); `include/chronon3d/scene/builders/builder_params.hpp` §5A deprecation note (canonical motivation); `include/chronon3d/text/text_placement.hpp` (TextPlacement + TextPlacementKind enum); `tests/builds/aa_parity/ae_parity_compositions.cpp:237` (sub-area (ii) build-blocker surfaced post-migration); `AGENTS.md` Cat-3 + Cat-5 + §honesty; `TICKET-GATE-SUBJECT-LENGTH-UPSTREAM-BLOCKER` (newly opened this session).
+
+---
+
+## Luglio 2026 — TICKET-FOLLOWUP-PRECEDENT-DOCS closure — `## Regole di lint documentale` 2nd rule aggregation: `[INFO] <gate-name>: <message>` diagnostic convention (3-doc Cat-5 same-commit; no source-code changes) (2026-07-11, atomic chore commit)
 
 ### feat(camera): transitions + random-access parity
 
