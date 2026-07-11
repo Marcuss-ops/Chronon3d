@@ -19,7 +19,17 @@
 //   (d) Output PNG via save_png
 //   (e) Pixel-hash check: fails if every pixel has mean luminance < 5/255
 
-#include <chronon3d/chronon3d.hpp>
+#include <chronon3d/sdk/render_settings.hpp>
+#include <chronon3d/sdk/render_engine.hpp>
+#include <chronon3d/sdk/render_output.hpp>
+#include <chronon3d/sdk/render_error.hpp>
+#include <chronon3d/api/composition.hpp>
+#include <chronon3d/api/scene.hpp>
+#include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
 
 #include <cstddef>
 #include <cstdint>

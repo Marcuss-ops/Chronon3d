@@ -191,8 +191,8 @@ jobs:
           printf 'add_executable(chronon_consumer main.cpp)\n' >> consumer/CMakeLists.txt
           printf 'target_link_libraries(chronon_consumer PRIVATE Chronon3D::SDK)\n' >> consumer/CMakeLists.txt
 
-          # main.cpp (consumer sanity check): three public headers + one type.
-          printf '#include <chronon3d/chronon3d.hpp>\n' > consumer/main.cpp
+          # main.cpp (consumer sanity check): explicit canonical SDK header + one type.
+          printf '#include <chronon3d/sdk/render_settings.hpp>\n' > consumer/main.cpp
           printf 'int main() { chronon3d::Color c{}; (void)c; return 0; }\n' >> consumer/main.cpp
 
           cmake -S consumer -B consumer/build -DCMAKE_PREFIX_PATH=$PWD/consumer-install/usr/local
