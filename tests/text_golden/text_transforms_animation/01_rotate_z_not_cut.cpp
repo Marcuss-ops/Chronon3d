@@ -146,12 +146,7 @@ void verify_rotate_z_golden(
 ) {
     auto r = verify_golden(fb, std::string{case_slug},
                            make_rotate_z_config(case_slug));
-    INFO("Golden: ", r.message);
-    if (r.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 // ── Render one AR for one rotation ─────────────────────────────────────

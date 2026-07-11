@@ -113,7 +113,5 @@ TEST_CASE("UserSpec 03: multi-font single line — 1920x1080") {
     REQUIRE(fb != nullptr);
 
     auto result = verify_golden(*fb, "user_spec_03_multifont_single_line", make_test03_config());
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }

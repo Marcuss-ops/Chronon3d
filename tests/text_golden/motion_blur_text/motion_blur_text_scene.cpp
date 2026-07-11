@@ -108,8 +108,7 @@ TEST_CASE("motion_blur_text baseline f05") {
     auto fb = renderer.render(build_composition(renderer, 5, false), Frame{5});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "motion_blur_text_baseline_f05", make_config("baseline_f05"));
-    if (r.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("motion_blur_text baseline f10") {
@@ -117,8 +116,7 @@ TEST_CASE("motion_blur_text baseline f10") {
     auto fb = renderer.render(build_composition(renderer, 10, false), Frame{10});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "motion_blur_text_baseline_f10", make_config("baseline_f10"));
-    if (r.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("motion_blur_text baseline f15") {
@@ -126,8 +124,7 @@ TEST_CASE("motion_blur_text baseline f15") {
     auto fb = renderer.render(build_composition(renderer, 15, false), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "motion_blur_text_baseline_f15", make_config("baseline_f15"));
-    if (r.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("motion_blur_text blurred f05") {
@@ -135,8 +132,7 @@ TEST_CASE("motion_blur_text blurred f05") {
     auto fb = renderer.render(build_composition(renderer, 5, true), Frame{5});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "motion_blur_text_blurred_f05", make_config("blurred_f05"));
-    if (r.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("motion_blur_text blurred f10") {
@@ -144,8 +140,7 @@ TEST_CASE("motion_blur_text blurred f10") {
     auto fb = renderer.render(build_composition(renderer, 10, true), Frame{10});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "motion_blur_text_blurred_f10", make_config("blurred_f10"));
-    if (r.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("motion_blur_text blurred f15") {
@@ -153,6 +148,5 @@ TEST_CASE("motion_blur_text blurred f15") {
     auto fb = renderer.render(build_composition(renderer, 15, true), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "motion_blur_text_blurred_f15", make_config("blurred_f15"));
-    if (r.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }

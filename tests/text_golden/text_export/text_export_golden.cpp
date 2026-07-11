@@ -126,10 +126,5 @@ TEST_CASE("TextExportGolden: TEXT EXPORT V1 640x360 F0") {
     // Golden diff
     auto cfg = text_export_golden_config();
     auto result = verify_golden(*fb, "text_export_v1_640x360_F000", cfg);
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }

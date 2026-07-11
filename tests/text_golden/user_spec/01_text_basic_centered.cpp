@@ -88,10 +88,5 @@ TEST_CASE("UserSpec 01: text basic centered 1920x1080 Inter Bold 96") {
     REQUIRE(fb->height() == 1080);
 
     auto result = verify_golden(*fb, "user_spec_01_text_basic_centered", make_test01_config());
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }

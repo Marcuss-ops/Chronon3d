@@ -97,7 +97,5 @@ TEST_CASE("UserSpec 04: multi-font middle run failure — healthy baseline + str
     REQUIRE(fb != nullptr);
 
     auto gr = verify_golden(*fb, "user_spec_04_multifont_middle_run_failure", make_test04_config());
-    INFO("Golden: ", gr.message);
-    if (gr.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(gr.passed);
+    REQUIRE_GOLDEN_PASSED(gr);
 }

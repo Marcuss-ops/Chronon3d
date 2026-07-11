@@ -90,7 +90,5 @@ TEST_CASE("UserSpec 05: bidi English+Arabic mixed — 1920x1080 FriBidi REQUIRED
     REQUIRE(fb != nullptr);
 
     auto result = verify_golden(*fb, "user_spec_05_bidi_english_arabic_mixed", make_test05_config());
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }

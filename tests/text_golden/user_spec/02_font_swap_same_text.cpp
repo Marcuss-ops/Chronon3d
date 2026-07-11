@@ -115,9 +115,7 @@ TEST_CASE("UserSpec 02: font swap same text — Bold frame 0") {
     REQUIRE(fb != nullptr);
 
     auto result = verify_golden(*fb, "user_spec_02_font_swap_F000", make_test02_config());
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }
 
 TEST_CASE("UserSpec 02: font swap same text — Regular frame 30") {
@@ -127,7 +125,5 @@ TEST_CASE("UserSpec 02: font swap same text — Regular frame 30") {
     REQUIRE(fb != nullptr);
 
     auto result = verify_golden(*fb, "user_spec_02_font_swap_F030", make_test02_config());
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }

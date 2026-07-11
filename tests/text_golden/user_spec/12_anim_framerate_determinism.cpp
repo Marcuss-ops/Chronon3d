@@ -93,8 +93,7 @@ TEST_CASE("UserSpec 12: framerate determinism — 24fps @ frame 12") {
     auto fb = renderer.render(build_test12_composition(renderer, 24, 12), Frame{12});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_12_framerate_24fps", make_test12_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("UserSpec 12: framerate determinism — 30fps @ frame 15") {
@@ -102,8 +101,7 @@ TEST_CASE("UserSpec 12: framerate determinism — 30fps @ frame 15") {
     auto fb = renderer.render(build_test12_composition(renderer, 30, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_12_framerate_30fps", make_test12_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("UserSpec 12: framerate determinism — 60fps @ frame 30") {
@@ -111,6 +109,5 @@ TEST_CASE("UserSpec 12: framerate determinism — 60fps @ frame 30") {
     auto fb = renderer.render(build_test12_composition(renderer, 60, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_12_framerate_60fps", make_test12_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }

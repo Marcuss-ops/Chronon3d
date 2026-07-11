@@ -98,8 +98,7 @@ TEST_CASE("UserSpec 09: character offset wave — frame 0") {
     auto fb = renderer.render(build_test09_composition(renderer), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_09_anim_wave_f00", make_test09_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("UserSpec 09: character offset wave — frame 20") {
@@ -107,8 +106,7 @@ TEST_CASE("UserSpec 09: character offset wave — frame 20") {
     auto fb = renderer.render(build_test09_composition(renderer), Frame{20});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_09_anim_wave_f20", make_test09_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("UserSpec 09: character offset wave — frame 40") {
@@ -116,6 +114,5 @@ TEST_CASE("UserSpec 09: character offset wave — frame 40") {
     auto fb = renderer.render(build_test09_composition(renderer), Frame{40});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_09_anim_wave_f40", make_test09_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
