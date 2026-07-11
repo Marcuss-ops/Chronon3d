@@ -37,8 +37,3 @@ chronon3d_add_test_suite(
 # no rendering backend).  Mirrors the pattern used for
 # chronon3d_text_definition_tests + chronon3d_safe_area_placement_tests.
 list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_text_builder_ergonomics_tests)
-
-doctest_discover_tests(chronon3d_text_builder_ergonomics_tests
-    PROPERTIES
-        TIMEOUT 30
-)
