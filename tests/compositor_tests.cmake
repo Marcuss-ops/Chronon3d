@@ -5,10 +5,13 @@
 chronon3d_add_test_suite(
     NAME chronon3d_compositor_tests
     TIER INTEGRATION
-    LINK_TARGETS chronon3d_sdk chronon3d_backend_software chronon3d_scene chronon3d::content
+    LINK_TARGETS chronon3d_sdk chronon3d_backend_software chronon3d_scene
     SOURCES render_graph/pipeline/test_composite_origin_regression.cpp
             compositor/test_blend_reference.cpp
             compositor/test_blend_simd_equivalence.cpp
             compositor/test_track_matte.cpp
 )
 target_compile_definitions(chronon3d_compositor_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+if(TARGET chronon3d::content)
+    target_link_libraries(chronon3d_compositor_tests PRIVATE chronon3d::content)
+endif()

@@ -13,10 +13,13 @@ if(CHRONON3D_USE_BLEND2D)
 chronon3d_add_test_suite(
     NAME chronon3d_precomp_focus_tests
     TIER INTEGRATION
-    LINK_TARGETS chronon3d_sdk chronon3d_backend_software chronon3d::content
+    LINK_TARGETS chronon3d_sdk chronon3d_backend_software
     SOURCES render_graph/nodes/test_precomp_node_cache.cpp
 )
 target_compile_definitions(chronon3d_precomp_focus_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+if(TARGET chronon3d::content)
+    target_link_libraries(chronon3d_precomp_focus_tests PRIVATE chronon3d::content)
+endif()
 # Note: integration into chronon3d_tests_fast is wired from
 # tests/CMakeLists.txt after `set(CHRONON3D_FAST_TEST_DEPS ...)`.
 # This `.cmake` only declares the target + CTest registration;
