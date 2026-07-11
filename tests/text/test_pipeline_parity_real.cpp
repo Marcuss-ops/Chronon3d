@@ -19,11 +19,12 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <tests/text/pipeline_parity_canary.hpp>
 // TICKET-CHRONON-GLOW-FINAL Fase 6 — `ChrononGlowFinalAE` composition
