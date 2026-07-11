@@ -41,6 +41,7 @@
 
 using namespace chronon3d;
 using namespace chronon3d::test;
+using chronon3d::assets::AssetManifest;
 
 namespace {
 

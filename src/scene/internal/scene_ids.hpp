@@ -27,12 +27,10 @@
 //   NodeID        — alias of `chronon3d::graph::StableNodeId` (WP-4.0).
 //                   Reuse of the existing render-graph ID — single source
 //                   of truth for compiled-node identity.
-//   InternalAssetRef — pre-existing 4-field POD struct in
-//                      `<chronon3d/assets/asset_readiness_v2.hpp>` (M1.7,
-//                      Phase A2). NOT redefined here; cross-referenced
-//                      for completeness. Phase A2 renamed the old
-//                      `v2::AssetRef` POD to `assets::InternalAssetRef`
-//                      and flattened the `v2::` sub-namespace.
+//   InternalAssetRef — 4-field POD struct in
+//                      `<chronon3d/assets/asset_manifest.hpp>`.
+//                      NOT redefined here; cross-referenced for
+//                      type-taxonomy completeness.
 //   MediaRef      — typed wrapper for media clip references (video / audio).
 //                   Pre-P1-#8 sites held raw `std::string` paths; future
 //                   P1-FU commits migrate `video_path / audio_path` to
@@ -54,17 +52,15 @@
 // NodeID reuses the existing render-graph identity — single source of truth.
 #include <chronon3d/render_graph/core/node_identity.hpp>
 
-// InternalAssetRef lives in M1.7 / Phase-A2 canonical header
-// (asset_readiness_v2.hpp) — not redefined here; cross-referenced for
-// type-taxonomy completeness.
+// InternalAssetRef lives in the canonical header
+// `<chronon3d/assets/asset_manifest.hpp>` — not redefined here;
+// cross-referenced for type-taxonomy completeness.
 //
 //   chronon3d::assets::InternalAssetRef
 //     { AssetKind kind; std::string path; std::string owner; bool required; }
 //
-// See `<chronon3d/assets/asset_readiness_v2.hpp>` for the canonical
-// 4-field definition + AssetManifest aggregation contract. Phase A2
-// renamed the old `v2::AssetRef` POD to `assets::InternalAssetRef` and
-// flattened the `v2::` sub-namespace.
+// See `<chronon3d/assets/asset_manifest.hpp>` for the canonical
+// 4-field definition + AssetManifest aggregation contract.
 
 namespace chronon3d {
 
