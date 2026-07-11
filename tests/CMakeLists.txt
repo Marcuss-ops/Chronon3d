@@ -442,6 +442,68 @@ foreach(_tfa_target IN LISTS CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS)
     set_tests_properties(${_tfa_target} PROPERTIES LABELS "text-full-acceptance")
 endforeach()
 
+# P2-A / TICKET-SANITIZER-GATES — chronon3d_sanitizer_subsystems umbrella
+# BUILD target + ctest label for the 7-subsystem sanitizer cert
+# (0 OOB / 0 UAF / 0 UB / 0 data races across FontEngine, glyph cache,
+# layout cache, asset resolver, text audit snapshots, renderer session,
+# factory registration).  Single command:
+#   ctest -L sanitizer-subsystems
+# runs all 5 test targets in one invocation, under the linux-asan or
+# linux-tsan preset (the preset sets the -fsanitize=* flags and the
+# test-preset `environment:` block sets the ASAN/UBSAN/TSAN_OPTIONS
+# for the cert).  Mirrors the chronon3d_text_full_acceptance pattern:
+# conditional `if(TARGET ...)` guards because some targets are gated
+# by CHRONON3D_USE_BLEND2D / CHRONON3D_BUILD_CLI_DEV /
+# CHRONON3D_BUILD_DIAGNOSTICS at the per-area .cmake level.
+#
+# 7-subsytem → test target mapping:
+#   FontEngine         → chronon3d_core_tests (test_font_engine, test_freetype_face_cache_concurrency, test_font_io_fence, test_draw_text_run_scratch_state, test_font_identity_contract)
+#   Glyph cache        → chronon3d_core_tests (test_glyph_atlas_metadata)
+#   Layout cache       → chronon3d_core_tests (test_layout_cache_collision)
+#   Asset resolver     → chronon3d_core_tests (test_asset_resolver, test_asset_registry)
+#   Text audit snapshots → chronon3d_visibility_contract_tests + chronon3d_pipeline_parity_tests + chronon3d_inspect_text_tests
+#   Renderer session   → chronon3d_core_tests (test_render_runtime_isolation, test_render_session_reset_and_isolation, test_camera_session_*)
+#   Factory registration → chronon3d_core_tests (test_text_preset_registry, test_text_preset_descriptor) + chronon3d_text_presets_stability_tests
+set(CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS "")
+if(TARGET chronon3d_core_tests)
+    list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_core_tests)
+endif()
+if(TARGET chronon3d_text_presets_stability_tests)
+    list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_text_presets_stability_tests)
+endif()
+if(TARGET chronon3d_visibility_contract_tests)
+    list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_visibility_contract_tests)
+endif()
+if(TARGET chronon3d_pipeline_parity_tests)
+    list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_pipeline_parity_tests)
+endif()
+if(TARGET chronon3d_inspect_text_tests)
+    list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_inspect_text_tests)
+endif()
+add_custom_target(chronon3d_sanitizer_subsystems
+    DEPENDS ${CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS}
+)
+# ORDER DEPENDENCY: this umbrella runs AFTER chronon3d_text_full_acceptance
+# (so get_test_property() reads the prior text-full-acceptance label for
+# the 2 overlapping targets). Do not reorder the 2 umbrellas.
+# Apply `sanitizer-subsystems` label WITHOUT clobbering pre-existing labels
+# (chronon3d_text_presets_stability_tests + chronon3d_inspect_text_tests
+# are in BOTH the chronon3d_text_full_acceptance umbrella AND this one,
+# so a naive `set_tests_properties(... LABELS "sanitizer-subsystems")` would
+# strip their `text-full-acceptance` label and silently break
+# `ctest -L text-full-acceptance` for those 2 tests). The append pattern
+# below preserves any existing labels via get_test_property() + set.
+foreach(_ss_target IN LISTS CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS)
+    get_test_property(${_ss_target} LABELS _ss_existing_labels)
+    if(_ss_existing_labels)
+        set_tests_properties(${_ss_target} PROPERTIES
+            LABELS "${_ss_existing_labels};sanitizer-subsystems")
+    else()
+        set_tests_properties(${_ss_target} PROPERTIES
+            LABELS "sanitizer-subsystems")
+    endif()
+endforeach()
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/architecture_tests.cmake)
 endif()
 
