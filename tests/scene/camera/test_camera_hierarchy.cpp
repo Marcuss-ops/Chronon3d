@@ -85,20 +85,34 @@ TEST_CASE("Camera hierarchy: parent rotation moves the camera around the origin"
     CHECK(std::abs(resolved.camera.position.z) < 0.5f);
 }
 
-// TICKET-007.h (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; fast-swap camera hierarchy resolution bug.
-//
-//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — target_b POI resolves to (720,30) instead of (520,40).
-// TODO(chronon3d): fix fast target swap resolution and re-enable.
-// TICKET-007.h (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; fast-swap camera hierarchy resolution bug.
-//
-//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — target_b POI resolves to (720,30) instead of (520,40).
-// The re-enable audit (PR-C) assumed the impl correctly resolves to (520,40)
-// but the test still fails at 720. Root cause TBD in TICKET-120 follow-up.
-// TODO(chronon3d): fix fast target swap resolution and re-enable. // TICKET-007.h
+// TICKET-007.h (CLOSED in this commit): pre-existing rot; "fast target swap"
+// camera hierarchy resolution bug. Root cause: in resolve_camera_hierarchy,
+// detail::world_anchor_point was being called with `from_mat4(target_result.
+// world_matrix, ...)` as the first arg. from_mat4() decomposes world_matrix
+// back into a Transform whose anchor field defaults to {0,0,0} (decomposition
+// cannot recover the original anchor), so the POI always resolved to the
+// LAYER's world origin (720, 30) instead of the ANCHOR's world point
+// (position + anchor) = (520, 40). Fix: pass `layers[target_idx].transform`
+// directly so the anchor survives. Numbers: position (720, 30, 0) +
+// anchor (-200, 10, 0) -> POI (520, 40, 0).
+TEST_CASE("Camera hierarchy: target with anchor resolves POI to anchor (not layer origin)") {
+    std::pmr::monotonic_buffer_resource res;
+    SceneBuilder s(&res);
+
+    s.null_layer("target_b", [](LayerBuilder& l) {
+        l.position({720, 30, 0}).anchor({-200, 10, 0});
+    });
+
+    s.camera().enable()
+     .position({0, 0, -1000})
+     .target("target_b");
+
+    auto scene = s.build();
+    auto resolved = resolve_camera_hierarchy(scene.layers(), scene.resource(), scene.camera_2_5d());
+
+    CHECK(resolved.camera.point_of_interest.x == doctest::Approx(520.0f).epsilon(0.0001f));
+    CHECK(resolved.camera.point_of_interest.y == doctest::Approx(40.0f).epsilon(0.0001f));
+    CHECK(resolved.camera.point_of_interest.z == doctest::Approx(0.0f).epsilon(0.0001f));
+    CHECK(resolved.camera.point_of_interest_enabled);
+}
 
