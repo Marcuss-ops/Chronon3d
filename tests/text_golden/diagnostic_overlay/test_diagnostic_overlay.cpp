@@ -320,12 +320,7 @@ TEST_CASE("DiagnosticOverlay: clip_06_baseline 1920x1080 F0") {
 
     auto cfg = overlay_golden_config();
     auto golden = verify_golden(*result.fb, "clip_06_baseline", cfg);
-    INFO("Golden: ", golden.message);
-    if (golden.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
-    CHECK(golden.passed);
+    REQUIRE_GOLDEN_PASSED(golden);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -340,12 +335,7 @@ TEST_CASE("DiagnosticOverlay: clip_06_expanded 1920x1080 F0") {
 
     auto cfg = overlay_golden_config();
     auto golden = verify_golden(*result.fb, "clip_06_expanded", cfg);
-    INFO("Golden: ", golden.message);
-    if (golden.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
-    CHECK(golden.passed);
+    REQUIRE_GOLDEN_PASSED(golden);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -360,12 +350,7 @@ TEST_CASE("DiagnosticOverlay: clip_06_conservative 1920x1080 F0") {
 
     auto cfg = overlay_golden_config();
     auto golden = verify_golden(*result.fb, "clip_06_conservative", cfg);
-    INFO("Golden: ", golden.message);
-    if (golden.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
-    CHECK(golden.passed);
+    REQUIRE_GOLDEN_PASSED(golden);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -380,12 +365,7 @@ TEST_CASE("DiagnosticOverlay: clip_06_full 1920x1080 F0") {
 
     auto cfg = overlay_golden_config();
     auto golden = verify_golden(*result.fb, "clip_06_full", cfg);
-    INFO("Golden: ", golden.message);
-    if (golden.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
-    CHECK(golden.passed);
+    REQUIRE_GOLDEN_PASSED(golden);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -400,10 +380,5 @@ TEST_CASE("DiagnosticOverlay: clip_06_off 1920x1080 F0") {
 
     auto cfg = overlay_golden_config();
     auto golden = verify_golden(*result.fb, "clip_06_off", cfg);
-    INFO("Golden: ", golden.message);
-    if (golden.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
-    CHECK(golden.passed);
+    REQUIRE_GOLDEN_PASSED(golden);
 }

@@ -174,8 +174,7 @@ TEST_CASE("UserSpec 11: aspect ratio layout 1920x1080") {
     REQUIRE(fb->width() == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "user_spec_11_aspect_landscape", make_test11_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 TEST_CASE("UserSpec 11: aspect ratio layout 1080x1920") {
@@ -185,6 +184,5 @@ TEST_CASE("UserSpec 11: aspect ratio layout 1080x1920") {
     REQUIRE(fb->width() == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "user_spec_11_aspect_portrait", make_test11_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }

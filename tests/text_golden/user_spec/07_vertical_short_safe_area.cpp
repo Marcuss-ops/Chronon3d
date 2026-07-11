@@ -104,7 +104,5 @@ TEST_CASE("UserSpec 07: 9:16 vertical safe area 1080x1920") {
     REQUIRE(fb->height() == 1920);
 
     auto result = verify_golden(*fb, "user_spec_07_vertical_short_safe_area", make_test07_config());
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }
