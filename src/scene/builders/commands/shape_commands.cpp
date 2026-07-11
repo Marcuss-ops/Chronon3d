@@ -148,14 +148,14 @@ LayerBuilder& LayerBuilder::timeline_bar(std::string name, TimelineBarParams p) 
 
 LayerBuilder& LayerBuilder::image(std::string name, ImageParams p) {
     // Sequence V2: collect image asset reference.
-    // TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e — prefer the
-    // manifest-clean `asset_path` field over the deprecated `path`.
-    // The `path` fallback preserves backward-compat for the ~70
-    // pre-existing call sites; new public consumers SHOULD set
-    // `asset_path` per the STEP 3 impedance closure acknowledgment
-    // documented at `docs/CHANGELOG.md` (this commit) + ADR-012.
+    // TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0f+ — prefer the
+    // manifest-clean `asset_path` field over the deprecated `path`,
+    // delegated to the canonical `chronon3d::detail::image_params_resolve_path`
+    // helper (consolidates the asset_path-wins logic across 4 dispatch
+    // sites in 2 files — see `builder_params.hpp` field-order invariant
+    // block + forward-point 0e commit `8fa1cb44` for the closure lineage).
     const std::string effective_path =
-        !p.asset_path.empty() ? p.asset_path : p.path;
+        chronon3d::detail::image_params_resolve_path(p);
     if (!effective_path.empty()) {
         m_layer.asset_manifest.add_image(
             effective_path,
@@ -166,10 +166,10 @@ LayerBuilder& LayerBuilder::image(std::string name, ImageParams p) {
 
 LayerBuilder& LayerBuilder::tiled_image(std::string name, ImageParams p) {
     // Sequence V2: collect image asset reference.
-    // TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e — symmetric
-    // forwarding priority with image() (see comment above).
+    // TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0f+ — symmetric
+    // with image() (see comment above); canonical helper invocation.
     const std::string effective_path =
-        !p.asset_path.empty() ? p.asset_path : p.path;
+        chronon3d::detail::image_params_resolve_path(p);
     if (!effective_path.empty()) {
         m_layer.asset_manifest.add_image(
             effective_path,
