@@ -19,8 +19,13 @@ inline Vec3 resolve_text_anchor(TextAnchor anchor, Vec2 box) {
     switch (anchor) {
         case TextAnchor::TopLeft:        return {0.0f, 0.0f, 0.0f};
         case TextAnchor::TopCenter:      return {box.x * 0.5f, 0.0f, 0.0f};
+        case TextAnchor::TopRight:       return {box.x, 0.0f, 0.0f};
+        case TextAnchor::CenterLeft:     return {0.0f, box.y * 0.5f, 0.0f};
         case TextAnchor::Center:         return {box.x * 0.5f, box.y * 0.5f, 0.0f};
+        case TextAnchor::CenterRight:    return {box.x, box.y * 0.5f, 0.0f};
+        case TextAnchor::BottomLeft:     return {0.0f, box.y, 0.0f};
         case TextAnchor::BottomCenter:   return {box.x * 0.5f, box.y, 0.0f};
+        case TextAnchor::BottomRight:    return {box.x, box.y, 0.0f};
         case TextAnchor::BaselineLeft:   return {0.0f, box.y * 0.5f, 0.0f};
         case TextAnchor::BaselineCenter: return {box.x * 0.5f, box.y * 0.5f, 0.0f};
     }
