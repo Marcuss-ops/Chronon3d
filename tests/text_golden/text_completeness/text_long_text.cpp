@@ -101,22 +101,16 @@ Composition build_long_text(SoftwareRenderer& renderer,
             s.layer("long_layer", [&](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("long_test", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = text},
-                        .font = {
+                    .text = TextSpec{.content = {.value = text}, .placement = {TextPlacementKind::Absolute, {box_width / 2.0f, 540.0f}}, .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 32.0f
-                        },
-                        .layout = {
+                        }, .layout = {
                             .box = {box_width, 1080.0f},
                             .align = TextAlign::Left,
                             .vertical_align = VerticalAlign::Top
-                        },
-                        .appearance = {.color = Color::white()},
-                        .position = {box_width / 2.0f, 540.0f, 0.0f}
-                    }
+                        }, .appearance = {.color = Color::white()}}
                 }).commit();
             });
             return s.build();

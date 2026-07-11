@@ -47,14 +47,7 @@ inline void add_black_background(SceneBuilder& s) {
 // fully supports the extended layout fields (TextAnchor::Center,
 // TextCenteringMode::PixelInk, TextWrap::Word, etc.).
 inline TextSpec make_text(const std::string& text, f32 font_size = 64.0f) {
-    return TextSpec{
-        .content = {.value = text},
-        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = font_size},
-        .layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 0.95f, .tracking = 3.0f},
-        .appearance = {.color = TEXT_COLOR},
-        .placement = {TextPlacementKind::Absolute},
-        .offset    = {0.0f, 0.0f},
-    };
+    return TextSpec{.content = {.value = text}, .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}, .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = font_size}, .layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 0.95f, .tracking = 3.0f}, .appearance = {.color = TEXT_COLOR}};
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

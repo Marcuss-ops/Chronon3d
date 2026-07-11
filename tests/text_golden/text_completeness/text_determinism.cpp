@@ -72,22 +72,16 @@ Composition build_frame_comp(SoftwareRenderer& renderer,
             s.layer("det_layer", [&renderer, text, font_size](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("det_test", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = text},
-                        .font = {
+                    .text = TextSpec{.content = {.value = text}, .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = font_size
-                        },
-                        .layout = {
+                        }, .layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()},
-                        .position = {960.0f, 540.0f, 0.0f}
-                    }
+                        }, .appearance = {.color = Color::white()}}
                 }).commit();
             });
             return s.build();
@@ -107,22 +101,16 @@ Composition build_static_comp(SoftwareRenderer& renderer) {
             s.layer("static_layer", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("static_test", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = "DETERMINISTIC"},
-                        .font = {
+                    .text = TextSpec{.content = {.value = "DETERMINISTIC"}, .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 96.0f
-                        },
-                        .layout = {
+                        }, .layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()},
-                        .position = {960.0f, 540.0f, 0.0f}
-                    }
+                        }, .appearance = {.color = Color::white()}}
                 }).commit();
             });
             return s.build();
@@ -142,22 +130,16 @@ Composition build_alt_comp(SoftwareRenderer& renderer) {
             s.layer("alt_layer", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("alt_test", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = "DIFFERENT"},
-                        .font = {
+                    .text = TextSpec{.content = {.value = "DIFFERENT"}, .placement = {TextPlacementKind::Absolute, {200.0f, 200.0f}}, .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 48.0f
-                        },
-                        .layout = {
+                        }, .layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Left,
                             .vertical_align = VerticalAlign::Top
-                        },
-                        .appearance = {.color = Color{1.0f, 0.0f, 0.0f, 1.0f}},
-                        .position = {200.0f, 200.0f, 0.0f}
-                    }
+                        }, .appearance = {.color = Color{1.0f, 0.0f, 0.0f, 1.0f}}}
                 }).commit();
             });
             return s.build();

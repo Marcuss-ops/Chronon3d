@@ -193,14 +193,14 @@ RenderNode RenderNodeFactory::text(
     // members would be moved-from by the time these reads happen).
     const TextAnchor   box_anchor = p.layout.anchor;
     const Vec2         box_size   = p.layout.box;
-    const Vec3         world_pos  = p.position;
+    const Vec3         world_pos  = Vec3{p.placement.offset.x, p.placement.offset.y, 0.0f};
     const Color        text_color = p.appearance.color;
 
     // Fallback: if the caller left font path empty, use the project
     // default (Inter-Bold).  Without this, the renderer would fail to
     // locate a font when materializing via the supplied engine.
     // Preserved from the pre-step-2 implementation for back-compat so
-    // external callers that construct minimal `TextSpec{.content={...}}`
+    // external callers that construct minimal `TextSpec{.content = {...}}`
     // (e.g. tests, presets) still resolve a usable font path before
     // the engine path-load kicks in.
     if (p.font.font_path.empty()) {
@@ -271,7 +271,7 @@ RenderNode RenderNodeFactory::text_run(
     node.font_engine = engine;
 
     // World transform from TextRunSpec (deep-nested field paths).
-    node.world_transform.position = p.text.position;
+    node.world_transform.position = Vec3{p.text.placement.offset.x, p.text.placement.offset.y, 0.0f};
     node.world_transform.anchor = resolve_text_anchor(
         p.text.layout.anchor, p.text.layout.box);
 

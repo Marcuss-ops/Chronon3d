@@ -67,22 +67,16 @@ Composition build_unicode_composition(
             s.layer("unicode_layer", [&renderer, text, font_path, font_size](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("unicode_test", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = std::string{text}},
-                        .font = {
+                    .text = TextSpec{.content = {.value = std::string{text}}, .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {
                             .font_path = std::string{font_path},
                             .font_family = "default",
                             .font_weight = 700,
                             .font_size = font_size
-                        },
-                        .layout = {
+                        }, .layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()},
-                        .position = {960.0f, 540.0f, 0.0f}
-                    }
+                        }, .appearance = {.color = Color::white()}}
                 }).commit();
             });
             return s.build();
