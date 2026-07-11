@@ -32,11 +32,16 @@
 
 #include "ae_parity_compositions.hpp"
 
+// TICKET-CHRONON-GLOW-FINAL — Phase 1 unified factory.  Thin-wraps
+// make_ae_08_glow_pulse() into the canonical helper.
+#include "tests/visual/ae_parity/glow_final_compositions.hpp"
+
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 
 using namespace chronon3d;
+using chronon3d::test::glow_final::ChrononGlowProps;
 
 namespace chronon3d::test {
 
@@ -57,42 +62,21 @@ static inline std::size_t snapshot_bucket_for(const FrameContext& ctx) {
 // matching how CertTitle and other content compositions work.
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scene 08: glow_pulse
-//   Channel │ f00          │ f15          │ f30          │
-//   ─────────┼──────────────┼──────────────┼──────────────┤
-//   opacity  │ 0.40         │ 0.85         │ 0.50         │
-//   scale    │ (0.96,0.96)  │ (1.05,1.05)  │ (0.98,0.98)  │
+// Scene 08: glow_pulse — TICKET-CHRONON-GLOW-FINAL Phase 1 thin-wrapper.
 //
-// Scale animation deferred: l.scale() triggers use_local which skips
-// canvas center bake for non-identity scale transforms.
+// Backward-compatible alias: delegates to the unified
+// glow_final::make_chronon_glow_final() helper with glow_enabled=false and
+// enable_scale_breath=false so the existing ae_08 CLI render remains
+// pixel-equivalent to origin/main (no cinematic glow, no scale breath).
+// Phase 2 will re-bake the goldens against the cinematic-glow pipeline
+// + scale breath, at which point both flags flip back to true.
 // ─────────────────────────────────────────────────────────────────────────────
 Composition make_ae_08_glow_pulse(const CompositionProps& /*props*/) {
-    return composition(
-        {.name = "ae_08_glow_pulse",
-         .width = 1920, .height = 1080,
-         .frame_rate = FrameRate{30, 1},
-         .duration = 60},
-        [](const FrameContext& ctx) -> Scene {
-            const std::size_t f = snapshot_bucket_for(ctx);
-            const float opacity = (f == 0) ? 0.40f : (f <= 15 ? 0.85f : 0.50f);
-            SceneBuilder s(ctx);
-            s.layer("hero", [opacity](LayerBuilder& l) {
-                l.text("glow_pulse", {
-                    .content = {.value = "PULSE GLOW"},
-                    .position = {960.0f, 540.0f, 0.0f},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 230.0f},
-                    .layout = {.box = {1700.0f, 360.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
-                });
-                l.opacity(opacity);
-            });
-            return s.build();
-        });
+    ChrononGlowProps p = chronon3d::test::glow_final::default_landscape_props();
+    // Back-compat: keep CLI render pixel-equivalent to origin/main.
+    p.glow_enabled        = false;  // legacy ae_08 had no cinematic glow
+    p.enable_scale_breath = false;  // legacy ae_08 deferred the scale breath
+    return chronon3d::test::glow_final::make_chronon_glow_final(p);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
