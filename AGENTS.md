@@ -325,6 +325,57 @@ ticket per AGENTS.md v0.1 §regole "Fare PR piccole e mirate" + the
 established rule-documentation-precedes-lint-tooling pattern (see
 the INFO-level diagnostic style rule's Lint-checkability
 forward-point above for the precedent).
+### C++ default-arg uniqueness per TU
+
+Il C++ standard (C++23 §11.5.1/2 [dcl.fct.default]/2, equivalente al C++20 §11.3.3) vieta categoricamente di specificare lo stesso argomento di default più di una volta per un medesimo parametro all'interno della stessa translation unit (TU). Questa regola impone che l'argomento di default (es. `= nullptr`) risieda **SOLO** nella dichiarazione primaria della funzione. Le dichiarazioni successive o gli inline stub, come quelli per macro `#ifndef CHRONON3D_ENABLE_DIAGNOSTICS`, **NON DEVONO** duplicare l'assegnazione dell'argomento.
+
+**Perché**: La duplicazione impedisce la compilazione causando silenti rot-pattern quando i build engine-level diagnostics vengono disabilitati. I futuri maintainer sono spesso spinti al copia-incolla delle firme complete (incluso `= nullptr`) dalla primaria allo stub generato. Serve quindi una direttiva esplicita e grep-discoverabile per far interiorizzare formalmente e a priori questa stringente limitazione imposta dal C++.
+
+**Origine**: Regola dedotta dal lineage di chiusura originato dallo stub rot di `check_asset_integrity` (in `include/chronon3d/render_graph/preflight/preflight_render_graph.hpp`-lineage), in concomitanza al fix del commento guardrail introdotto in `src/render_graph/preflight/analysis.hpp` (vedi § `### Fasi 1–4 — Test coverage expansion (V0.2 milestone, PLANNED, this session catchup)` di `docs/FOLLOWUP_TICKETS.md` per il dettaglio). L'intervento sana il rot della build upstream applicando la direttiva standard e mitigando per il futuro un pattern di rottura improvvisa nelle build prive del flag `CHRONON3D_ENABLE_DIAGNOSTICS`.
+
+#### Anti-esempio — duplicate-default-args
+
+**VIETATO (anti-pattern)**
+
+> ```cpp
+> // Forward / primary declaration — UNICO punto in cui dichiarare default args:
+> void check_asset_integrity(
+>     const RenderGraph& graph,
+>     const chronon3d::assets::AssetResolver& resolver,
+>     GraphPreflightReport& report,
+>     chronon3d::preflight::PathExistenceMap* path_cache = nullptr);
+>
+> // Inline stub sotto #ifndef CHRONON3D_ENABLE_DIAGNOSTICS — ERRORE:
+> #ifndef CHRONON3D_ENABLE_DIAGNOSTICS
+> inline void check_asset_integrity(
+>     const RenderGraph& /*graph*/,
+>     const chronon3d::assets::AssetResolver& /*resolver*/,
+>     GraphPreflightReport& /*report*/,
+>     chronon3d::preflight::PathExistenceMap* /*path_cache*/ = nullptr) {}  // ← ERRORE: default arg duplicato nella stessa TU
+> #endif
+> ```
+
+**CORRETTO (canonical pattern)**
+
+> ```cpp
+> // Forward / primary declaration — UNICO punto in cui dichiarare default args:
+> void check_asset_integrity(
+>     const RenderGraph& graph,
+>     const chronon3d::assets::AssetResolver& resolver,
+>     GraphPreflightReport& report,
+>     chronon3d::preflight::PathExistenceMap* path_cache = nullptr);
+>
+> // Inline stub sotto #ifndef CHRONON3D_ENABLE_DIAGNOSTICS — OK:
+> #ifndef CHRONON3D_ENABLE_DIAGNOSTICS
+> inline void check_asset_integrity(
+>     const RenderGraph& /*graph*/,
+>     const chronon3d::assets::AssetResolver& /*resolver*/,
+>     GraphPreflightReport& /*report*/,
+>     chronon3d::preflight::PathExistenceMap* /*path_cache*/) {}  // ← OK: default arg omesso nello stub
+> #endif
+> ```
+
+**Lint-checkability (forward-point)**: Un futuro gate CI (`tools/check_duplicate_default_arg.sh`, opzionale e non ancora implementato) potrebbe verificare via grep + parse-AST che nessun parametro riceva `= <value>` due volte nella stessa TU tra la dichiarazione primaria di una funzione e una sua ridefinizione inline (es. `inline` stub sotto `#ifndef CHRONON3D_ENABLE_DIAGNOSTICS`). Il pattern, se implementato, deve seguire la convenzione **INFO-level diagnostic style** (`[INFO] <gate-name>: <message>` su PASS addizionale al canonico `GATE_PASS`) già documentata sopra. L'implementazione è deferred a un ticket separato (AGENTS.md v0.1 §regole "Fare PR piccole e mirate" + Cat-3 anti-duplication: il rule documentation precede il lint tooling).
 
 ## Workflow Git obbligatorio
 
