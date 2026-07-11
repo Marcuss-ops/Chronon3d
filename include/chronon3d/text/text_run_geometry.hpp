@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/media/media_placement.hpp>   // chronon3d::Rect
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 
@@ -24,6 +25,12 @@ struct TextRunLocalBounds {
     f32 max_x;
     f32 max_y;
 };
+
+/// Convert local bounds to the project's canonical Rect.
+[[nodiscard]] inline Rect to_rect(const TextRunLocalBounds& b) noexcept {
+    return Rect{{b.min_x, b.min_y},
+                {b.max_x - b.min_x, b.max_y - b.min_y}};
+}
 
 /// Compute the local-space visual bounds of a text run.
 ///

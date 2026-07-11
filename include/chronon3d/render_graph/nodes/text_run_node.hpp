@@ -74,6 +74,12 @@ public:
         std::span<const std::optional<raster::BBox>> input_bboxes = {}
     ) const override;
 
+    /// Compute the full layer → canvas world matrix used by both
+    /// `predicted_bbox()` and `execute()`. Exposed so external audit
+    /// tools (e.g. `chronon3d_cli inspect-text`) can pass the same
+    /// matrix to `audit_text_visibility()`.
+    [[nodiscard]] Mat4 world_matrix(const RenderGraphContext& ctx) const;
+
     /// Cache key combines:
     ///   - skeleton key (from source pass: scope, frame, size)
     ///   - `hash_text_run_shape(*m_shape)` (layout + per-glyph state + material)

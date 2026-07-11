@@ -174,33 +174,25 @@ Rect scan_alpha_bbox(const Framebuffer& fb) noexcept {
 
 TextVisibilityAudit audit_text_visibility(
     const TextRunShape& shape,
+    const Rect&         local_ink_bbox,
     const Mat4&         world_matrix,
     const Rect&         predicted_bbox,
     const Rect&         clip_rect,
     const Framebuffer*  rendered_output,
-    float               effect_padding) noexcept
+    float               effect_padding)
 {
     TextVisibilityAudit audit{};
 
     // ── font + shaping stage ───────────────────────────────────────────
     audit.font_resolved        = (shape.engine != nullptr);
-    audit.shaping_succeeded    = (shape.layout.placed.glyphs.size() > 0);
-    audit.glyph_count          = shape.layout.placed.glyphs.size();
+    audit.shaping_succeeded    = (shape.layout && !shape.layout->placed.glyphs.empty());
+    audit.glyph_count          = shape.layout ? shape.layout->placed.glyphs.size() : 0;
 
-    // ── local_ink_bbox (PLACEHOLDER for FU04 contract fix) ─────────────
-    // The canonical per-glyph TRS-extraction + ascent/descent-anchored
-    // ink-bbox math is FU03/FU04's responsibility (mapped from the
-    // existing `renderer::compute_text_run_world_bbox()` site). For the
-    // contract scaffold, leave at zero-rect: the audit invariants
-    // (finite, predicted_contains_world, clip_contains_visible_ink) are
-    // ROBUST to a zero-rect placeholder because:
-    //   - finite is preserved iff the four input bboxes are finite.
-    //   - The world_bbox of a zero-rect local is also zero-rect (a single
-    //     point at `world_matrix * (lx0, ly0, 0, 1)`), so
-    //     `predicted_contains_world` reduces to point-in-rect, which is
-    //     trivial to evaluate. The audit correctly reports true when the
-    //     predicted_bbox fully encloses the canvas-fragment location.
-    audit.local_ink_bbox       = Rect{};
+    // ── local_ink_bbox (canonical glyph ink bbox) ─────────────────────
+    // Caller supplies the real text-frame-relative ink bbox, typically
+    // from renderer::compute_text_run_visual_bounds(). The audit uses it
+    // to compute world_ink_bbox and to evaluate predicted_contains_world.
+    audit.local_ink_bbox       = local_ink_bbox;
 
     // ── world_ink_bbox (transform pipeline) ────────────────────────────
     audit.world_ink_bbox       = transform_aabb(audit.local_ink_bbox,
@@ -280,6 +272,7 @@ TextVisibilityAudit audit_text_visibility(
 
 TextVisibilityAudit verify_text_visibility(
     const TextRunShape& shape,
+    const Rect&         local_ink_bbox,
     const Mat4&         world_matrix,
     const Rect&         predicted_bbox,
     const Rect&         clip_rect,
@@ -288,8 +281,8 @@ TextVisibilityAudit verify_text_visibility(
     float               effect_padding
 ) {
     const auto audit = audit_text_visibility(
-        shape, world_matrix, predicted_bbox, clip_rect, rendered_output,
-        effect_padding);
+        shape, local_ink_bbox, world_matrix, predicted_bbox, clip_rect,
+        rendered_output, effect_padding);
 
     // ── F1.E — 6 invariants with one-shot spdlog::warn ──────────────────
     const char* nm = node_name ? node_name : "<unnamed>";

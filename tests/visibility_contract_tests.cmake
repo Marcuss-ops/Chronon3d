@@ -26,9 +26,14 @@ endif()
 chronon3d_add_test_suite(
     NAME chronon3d_visibility_contract_tests
     TIER UNIT
-    LINK_TARGETS chronon3d_text_core
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_visibility_contract.cpp
 )
+
+# The test instantiates TextRunLayout, which needs the text backend symbols
+# (FontEngine, bidi segmentation, glyph placement) when text is enabled.
+if(TARGET chronon3d_backend_text)
+    target_link_libraries(chronon3d_visibility_contract_tests PRIVATE chronon3d_backend_text)
+endif()
 
 # Wire into the FAST test aggregator (math + harness, no rendering
 # backend required). Mirrors the pattern used for chronon3d_text_definition_tests

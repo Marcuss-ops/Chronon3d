@@ -48,7 +48,7 @@
 #include <chronon3d/text/text_visibility_audit.hpp>
 #include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/text/text_placement.hpp>
-#include <chronon3d/text/text_placement_resolver.hpp>
+#include <chronon3d/text/resolve_text_placement.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/time.hpp>
@@ -132,18 +132,18 @@ static const char* kClipVariantNames[kClipVariantCount] = {
     "baseline", "expanded", "conservative", "full", "off"
 };
 static const Rect kClipRects[kClipVariantCount] = {
-    Rect{0.0f,    0.0f,    1920.0f, 1080.0f},  // Baseline
-    Rect{-100.0f, -100.0f, 2120.0f, 1280.0f},  // Expanded (FU04 violation response)
-    Rect{96.0f,   54.0f,   1824.0f, 1026.0f},  // Conservative (5% safe-area)
-    Rect{-1000.0f, -1000.0f, 3920.0f, 3080.0f}, // Full (way over-sized)
-    Rect{0.0f,    0.0f,    0.0f,    0.0f}     // Off (zero rect)
+    Rect{{0.0f,    0.0f},    {1920.0f, 1080.0f}},  // Baseline
+    Rect{{-100.0f, -100.0f}, {2120.0f, 1280.0f}},  // Expanded (FU04 violation response)
+    Rect{{96.0f,   54.0f},   {1824.0f, 1026.0f}},  // Conservative (5% safe-area)
+    Rect{{-1000.0f, -1000.0f}, {3920.0f, 3080.0f}}, // Full (way over-sized)
+    Rect{{0.0f,    0.0f},    {0.0f,    0.0f}}     // Off (zero rect)
 };
 
 /// Render the canary composition at frame 0 with the given pipeline config.
 /// Returns the 6 invariant fields + pipeline name + frame number.
 static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
                                            const Rect& clip_rect =
-                                               Rect{0.0f, 0.0f, 1920.0f, 1080.0f}) {
+                                               Rect{{0.0f, 0.0f}, {1920.0f, 1080.0f}}) {
     auto renderer = test::make_renderer();
     RenderSettings settings;
     // No modular graph toggle — uses the canonical in-process pipeline.
@@ -157,7 +157,14 @@ static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
                        .anchor = TextAnchor::Center,
                        .align  = TextAlign::Center,
                        .vertical_align = VerticalAlign::Middle}});
-    auto comp = lb.build();
+    auto layer = lb.build();
+    Composition comp = composition(
+        CompositionSpec{.name = "canary", .width = 1920, .height = 1080},
+        [layer = std::move(layer)](const FrameContext&) mutable {
+            Scene scene;
+            scene.add_layer(std::move(layer));
+            return scene;
+        });
 
     // Render frame 0 (or multi-frame loop for pipeline_video).
     std::shared_ptr<Framebuffer> fb;
@@ -175,7 +182,7 @@ static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
 
     out.frame = cfg.multi_frame ? Frame{4} : Frame{0};
     REQUIRE(fb != nullptr);
-    out.hash = framebuffer_hash(*fb);
+    out.hash = chronon3d::test::framebuffer_hash(*fb);
 
     // Audit the visibility contract (mirrors chronon3d_cli inspect-text).
     // Note: this is a test-side approximation; the real `inspect-text` path
@@ -183,11 +190,11 @@ static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
     // struct. We re-use the public audit API to avoid coupling the test to
     // the CLI's private `text_audit_engine.cpp` impl.
     TextRunShape shape{};
-    shape.layout.placed.glyphs.resize(10);  // Canary at 96pt produces ~10 glyphs.
+    const Rect local_ink_bbox{{0.0f, 0.0f}, {0.0f, 0.0f}};
     TextVisibilityAudit audit = audit_text_visibility(
         shape,
+        local_ink_bbox, // canonical local ink bbox (placeholder: real pipeline computes this)
         Mat4{},         // identity world matrix (canary at origin)
-        Rect{},         // local_ink_bbox placeholder (real pipeline computes this)
         Rect{},         // predicted_bbox placeholder
         clip_rect,      // §11 Fase 4 — clip_rect from the 5-variant matrix
         fb.get()
