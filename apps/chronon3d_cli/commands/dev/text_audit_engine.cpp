@@ -26,6 +26,35 @@ namespace chronon3d::cli {
 // audit_single_text — the core audit for one TextShape at one frame
 // ═══════════════════════════════════════════════════════════════════════════
 
+namespace {
+
+/// Compute AuditStatus from checks + policy.
+/// Extracted from the 12-condition block that was duplicated in
+/// audit_single_text() and the typewriter geometry-override path.
+AuditStatus compute_audit_status(const TextAuditChecks& checks,
+                                  const TextAuditPolicy& policy) {
+    bool has_fail = false;
+    bool has_warn = false;
+
+    if (!checks.inside_canvas)           has_fail = true;
+    if (!checks.inside_safe_area)        has_warn = true;
+    if (!checks.no_clipping)             has_fail = true;
+    if (!checks.stable_line_breaks)      has_fail = true;
+    if (!checks.stable_glyph_positions)  has_fail = true;
+    if (!checks.utf8_valid)              has_fail = true;
+    if (!checks.final_text_matches)      has_fail = true;
+    if (checks.missing_glyphs > 0)       has_fail = true;
+    if (checks.text_box_height_overflow) has_warn = true;
+    if (checks.center_error_x_px > policy.max_center_error_px) has_warn = true;
+    if (checks.center_error_y_px > policy.max_center_error_y_px) has_warn = true;
+    if (checks.border_alpha_pixels > policy.max_border_alpha_pixels) has_fail = true;
+
+    return has_fail ? AuditStatus::Fail
+                    : (has_warn ? AuditStatus::Warn : AuditStatus::Pass);
+}
+
+} // namespace
+
 TextAuditFrameResult audit_single_text(
     const TextShape& text,
     int canvas_width,
@@ -312,31 +341,6 @@ TextAuditFrameResult audit_single_text(
 // ═══════════════════════════════════════════════════════════════════════════
 
 namespace {
-
-/// Compute AuditStatus from checks + policy.
-/// Extracted from the 12-condition block that was duplicated in
-/// audit_single_text() and the typewriter geometry-override path.
-AuditStatus compute_audit_status(const TextAuditChecks& checks,
-                                  const TextAuditPolicy& policy) {
-    bool has_fail = false;
-    bool has_warn = false;
-
-    if (!checks.inside_canvas)           has_fail = true;
-    if (!checks.inside_safe_area)        has_warn = true;
-    if (!checks.no_clipping)             has_fail = true;
-    if (!checks.stable_line_breaks)      has_fail = true;
-    if (!checks.stable_glyph_positions)  has_fail = true;
-    if (!checks.utf8_valid)              has_fail = true;
-    if (!checks.final_text_matches)      has_fail = true;
-    if (checks.missing_glyphs > 0)       has_fail = true;
-    if (checks.text_box_height_overflow) has_warn = true;
-    if (checks.center_error_x_px > policy.max_center_error_px) has_warn = true;
-    if (checks.center_error_y_px > policy.max_center_error_y_px) has_warn = true;
-    if (checks.border_alpha_pixels > policy.max_border_alpha_pixels) has_fail = true;
-
-    return has_fail ? AuditStatus::Fail
-                    : (has_warn ? AuditStatus::Warn : AuditStatus::Pass);
-}
 
 /// Audit a typewriter composition across multiple frames.
 /// The full text is known from the last frame.  Each frame audits the
