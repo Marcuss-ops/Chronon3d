@@ -34,7 +34,7 @@ TextDefinition from_text_spec(const TextSpec& spec) {
 
     // ── frame ──────────────────────────────────────────────────────────
     def.frame.size          = spec.layout.box;
-    def.frame.position      = spec.position;
+    def.frame.placement     = spec.placement;
     def.frame.anchor        = spec.layout.anchor;
     def.frame.align         = spec.layout.align;
     def.frame.vertical_align = spec.layout.vertical_align;
@@ -106,40 +106,99 @@ TextSpec from_text_definition(const TextDefinition& def) {
     spec.appearance.material  = def.style.material;
     spec.appearance.box_style = def.style.box_style;
 
-    // ── position ───────────────────────────────────────────────────────
-    spec.position = def.frame.position;
+    // ── placement ───────────────────────────────────────────────────────
+    spec.placement = def.frame.placement;
 
     return spec;
 }
 
-// ── compile_to_canonical — TICKET-SIMPLICITY-TEXTDEFINITION §3 ───────────
+// ── to_text_document — Phase B: TextDefinition → TextDocument ─────────────
 //
 // Lowers the authoring TextDefinition DTO into the runtime TextDocument
 // pipeline model.  Routes via the canonical TextDocumentBuilder to avoid
 // introducing a parallel construction path (AGENTS.md §Anti-duplicazione).
 //
-// Phase-A.3 placeholders (def.effects, def.animation) are trivially empty
-// structs (no-op at the document level today).  Effects/animators attach
-// directly to the RenderNode in the runtime compile phase (F3.B/C spawn),
-// not to TextDocument.
-//
 // Anti-duplicazione honour:
 //   - Uses existing TextDocumentBuilder (canonical pipeline DTO factory).
 //   - Defaults are taken from `from_text_definition(def)` so source + sink
 //     share the same field-set semantics (no drift between adapters).
-//   - The fallback span covers exactly the bytes of `def.content.value`;
-//     the F3 phase-B lowerer will expand `def.spans` (AUTHORING-level
-//     TextSpanOverride fields) into TextStyleSpan entries at that point.
+//   - Authoring-level TextSpanOverride entries are lowered to runtime
+//     TextStyleSpan entries, preserving font / color / font-size overrides.
+//   - Paragraphs are auto-split via split_paragraphs() on the final document.
 //   - Returns by value (TextDocument is a small POD; no heap moves).
-TextDocument compile_to_canonical(const TextDefinition& def) {
+TextDocument to_text_document(const TextDefinition& def) {
     TextDocumentBuilder builder;
-    // defaults() via the from_text_definition() adapter — same path canonical
-    // code uses elsewhere, no drift.
     builder.defaults(from_text_definition(def));
-    // Single-span fallback: covers [0, content.value.size()) with no
-    // per-span overrides.  Phase-B fills real spans from def.spans[].
-    builder.span(def.content.value);
-    return std::move(builder).build();
+
+    // Lower each authoring span to a runtime TextStyleSpan.
+    for (const auto& span : def.spans) {
+        builder.span(def.content.value.substr(span.byte_start,
+                                              span.byte_end - span.byte_start));
+        if (span.font.has_value()) {
+            // Font override: pass the absolute FontSpec through the builder.
+            // TextDocumentBuilder does not expose a direct font() setter,
+            // so we populate the span via the public appearance + scale hooks.
+            // Color override is handled below via appearance().
+            (void)span.font.value();
+        }
+        if (span.color.has_value()) {
+            builder.color(span.color.value());
+        }
+        if (span.font_size.has_value() && def.style.font.font_size > 0.0f) {
+            builder.scale(span.font_size.value() / def.style.font.font_size);
+        }
+    }
+
+    // Fallback span covering the whole content when no spans were authored.
+    if (def.spans.empty()) {
+        builder.span(def.content.value);
+    }
+
+    TextDocument doc = std::move(builder).build();
+
+    // Directly populate runtime spans from authoring overrides.  This keeps
+    // the full override semantics (font, color, font_size_multiplier) that
+    // the fluent builder API cannot express in a single call.
+    doc.spans.clear();
+    for (const auto& span : def.spans) {
+        TextStyleSpan out;
+        out.byte_start = span.byte_start;
+        out.byte_end   = span.byte_end;
+        out.font       = span.font;
+        if (span.color.has_value()) {
+            TextAppearanceSpec appearance;
+            appearance.color = span.color.value();
+            out.appearance   = appearance;
+        }
+        if (span.font_size.has_value() && def.style.font.font_size > 0.0f) {
+            out.font_size_multiplier =
+                span.font_size.value() / def.style.font.font_size;
+        }
+        doc.spans.push_back(out);
+    }
+
+    doc.split_paragraphs();
+    return doc;
+}
+
+// ── to_text_run_spec — F2.D: TextDefinition → TextRunSpec ────────────────
+//
+// Reverse adapter that carries the 6 spec-only animation fields back from
+// TextDefinition to TextRunSpec.  Base TextSpec fields reuse
+// from_text_definition() to prevent drift.
+//
+// DOCUMENTED LOSSY DROP: TextAnimation.start_delay + .duration are NOT
+// representable in TextRunSpec and are silently dropped.
+TextRunSpec to_text_run_spec(const TextDefinition& def) {
+    TextRunSpec run;
+    run.text = from_text_definition(def);
+    run.animators    = def.animation.animators;
+    run.selectors    = def.animation.selectors;
+    run.direction    = def.animation.direction;
+    run.language     = def.animation.language;
+    run.script       = def.animation.script;
+    run.cache_layout = def.animation.cache_layout;
+    return run;
 }
 
 } // namespace chronon3d

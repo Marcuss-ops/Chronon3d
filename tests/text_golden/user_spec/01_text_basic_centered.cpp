@@ -56,18 +56,12 @@ Composition build_test01_composition(SoftwareRenderer& renderer) {
             s.layer("hero", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("title", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = "Chronon3D Text Engine"},
-                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                    .text = TextSpec{.content = {.value = "Chronon3D Text Engine"}, .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                                  .font_family = "Inter",
                                  .font_weight = 700,
-                                 .font_size = 96.0f},
-                        .layout = {.box = {1920.0f, 1080.0f},
+                                 .font_size = 96.0f}, .layout = {.box = {1920.0f, 1080.0f},
                                    .align = TextAlign::Center,
-                                   .vertical_align = VerticalAlign::Middle},
-                        .appearance = {.color = Color::white()},
-                        .position = {960.0f, 540.0f, 0.0f}
-                    }
+                                   .vertical_align = VerticalAlign::Middle}, .appearance = {.color = Color::white()}}
                 }).commit();
             });
             return s.build();

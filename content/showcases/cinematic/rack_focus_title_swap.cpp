@@ -113,12 +113,7 @@ Composition rack_focus_title_swap() {
                 .key(Frame{30}, 1.0f, EasingCurve{Easing::Linear})
                 .key(Frame{150}, 1.0f, EasingCurve{Easing::Linear})
                 .key(Frame{180}, 0.7f, EasingCurve{Easing::InCubic});
-            auto def = from_text_spec(TextSpec{
-                .content    = {.value = "FOCUS NEAR"},
-                .font       = {.font_size = 130.0f},
-                .layout     = {.box = {1500.0f, 240.0f}, .line_height = 1.10f, .tracking = 8.0f},
-                .appearance = {.color = FRESH_TEXT_WHITE},
-            });
+            auto def = from_text_spec(TextSpec{.content = {.value = "FOCUS NEAR"}, .font = {.font_size = 130.0f}, .layout = {.box = {1500.0f, 240.0f}, .line_height = 1.10f, .tracking = 8.0f}, .appearance = {.color = FRESH_TEXT_WHITE}});
             l.text("label", def);
         });
 
@@ -147,12 +142,7 @@ Composition rack_focus_title_swap() {
                 .key(Frame{120}, 0.55f, EasingCurve{Easing::Linear})
                 .key(Frame{150}, 1.0f, EasingCurve{Easing::OutCubic})
                 .key(Frame{180}, 1.0f, EasingCurve{Easing::Linear});
-            auto def = from_text_spec(TextSpec{
-                .content    = {.value = "FAR AWAY"},
-                .font       = {.font_size = 120.0f},
-                .layout     = {.box = {1500.0f, 220.0f}, .line_height = 1.10f, .tracking = 10.0f},
-                .appearance = {.color = FRESH_TEXT_MUTED},
-            });
+            auto def = from_text_spec(TextSpec{.content = {.value = "FAR AWAY"}, .font = {.font_size = 120.0f}, .layout = {.box = {1500.0f, 220.0f}, .line_height = 1.10f, .tracking = 10.0f}, .appearance = {.color = FRESH_TEXT_MUTED}});
             l.text("label", def);
         });
 

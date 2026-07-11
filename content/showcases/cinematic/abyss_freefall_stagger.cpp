@@ -139,12 +139,7 @@ Composition abyss_freefall_stagger() {
                 {
                     Color base{0.65f, 0.85f, 1.0f, 1.0f};
                     if (i % 2 == 0) base = Color{0.85f, 0.95f, 1.0f, 1.0f};
-                    auto def = from_text_spec(TextSpec{
-                        .content    = {.value = ch},
-                        .font       = {.font_size = fs},
-                        .layout     = {.box = {fs * 1.5f, fs * 1.8f}, .line_height = 1.10f, .tracking = 0.0f},
-                        .appearance = {.color = base},
-                    });
+                    auto def = from_text_spec(TextSpec{.content = {.value = ch}, .font = {.font_size = fs}, .layout = {.box = {fs * 1.5f, fs * 1.8f}, .line_height = 1.10f, .tracking = 0.0f}, .appearance = {.color = base}});
                     l.glow(GlowParams{
                         .radius          = 30.0f,
                         .intensity       = 0.55f,

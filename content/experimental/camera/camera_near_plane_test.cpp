@@ -33,13 +33,7 @@ Composition camera_near_plane_crossing_test() {
                 .color = {0.08f, 0.10f, 0.18f, 1.0f},
                 .stroke = {.enabled = true, .color = {0.0f, 0.85f, 1.0f, 0.5f}, .width = 2.0f}
             });
-            l.text("ref_lbl", TextSpec{
-                                  .content = {.value = "REFERENCE (Z=0)"},
-                                  .font = {.font_size = 18.0f},
-                                  .layout = {.align = TextAlign::Center},
-                                  .appearance = {.color = {0.75f, 0.85f, 1.0f, 0.85f}},
-                                  .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, -4.0f}
-                              });
+            l.text("ref_lbl", TextSpec{.content = {.value = "REFERENCE (Z=0)"}, .placement = {TextPlacementKind::Absolute, {0.0f, -4.0f}}, .font = {.font_size = 18.0f}, .layout = {.align = TextAlign::Center}, .appearance = {.color = {0.75f, 0.85f, 1.0f, 0.85f}}});
         });
 
         // Animated card: moves from Z=+500 (behind) to Z=-500 (very close)
@@ -68,26 +62,14 @@ Composition camera_near_plane_crossing_test() {
 
             char z_buf[64];
             snprintf(z_buf, sizeof(z_buf), "Z=%.0f", z);
-            l.text("cross_lbl", TextSpec{
-                                    .content = {.value = std::string(z_buf)},
-                                    .font = {.font_size = 16.0f},
-                                    .layout = {.align = TextAlign::Center},
-                                    .appearance = {.color = {1.0f, 1.0f, 1.0f, 0.9f}},
-                                    .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, -4.0f}
-                                });
+            l.text("cross_lbl", TextSpec{.content = {.value = std::string(z_buf)}, .placement = {TextPlacementKind::Absolute, {0.0f, -4.0f}}, .font = {.font_size = 16.0f}, .layout = {.align = TextAlign::Center}, .appearance = {.color = {1.0f, 1.0f, 1.0f, 0.9f}}});
 
             // Depth zone label
             const char* zone;
             if (z > 100.0f)      zone = "BEHIND CAMERA";
             else if (z > -10.0f) zone = "NEAR-PLANE CROSSING";
             else                 zone = "CLOSE (large)";
-            l.text("zone_lbl", TextSpec{
-                                   .content = {.value = zone},
-                                   .font = {.font_size = 11.0f},
-                                   .layout = {.align = TextAlign::Center},
-                                   .appearance = {.color = {1.0f, 1.0f, 1.0f, 0.6f}},
-                                   .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 18.0f}
-                               });
+            l.text("zone_lbl", TextSpec{.content = {.value = zone}, .placement = {TextPlacementKind::Absolute, {0.0f, 18.0f}}, .font = {.font_size = 11.0f}, .layout = {.align = TextAlign::Center}, .appearance = {.color = {1.0f, 1.0f, 1.0f, 0.6f}}});
         });
 
         // Frame counter HUD
@@ -95,13 +77,7 @@ Composition camera_near_plane_crossing_test() {
             l.pin_to(Anchor::TopLeft, 20.0f);
             char buf[64];
             snprintf(buf, sizeof(buf), "Frame %d / 90", static_cast<int>(ctx.frame));
-            l.text("hud", TextSpec{
-                              .content = {.value = buf},
-                              .font = {.font_size = 18.0f},
-                              .layout = {.anchor = TextAnchor::TopLeft, .align = TextAlign::Left},
-                              .appearance = {.color = {0.6f, 0.6f, 0.6f, 0.7f}},
-                              .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 0.0f}
-                          });
+            l.text("hud", TextSpec{.content = {.value = buf}, .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}, .font = {.font_size = 18.0f}, .layout = {.anchor = TextAnchor::TopLeft, .align = TextAlign::Left}, .appearance = {.color = {0.6f, 0.6f, 0.6f, 0.7f}}});
         });
 
         // Camera: stationary, front-facing

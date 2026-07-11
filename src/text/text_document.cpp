@@ -353,7 +353,8 @@ u64 hash_text_document(const TextDocument& doc) {
     seed = hcombine(seed, hash_font_spec(doc.defaults.font));
     seed = hcombine(seed, hash_text_appearance(doc.defaults.appearance));
     seed = hcombine(seed, hbytes(&doc.defaults.layout, sizeof(doc.defaults.layout)));
-    seed = hcombine(seed, hbytes(&doc.defaults.position, sizeof(doc.defaults.position)));
+    seed = hcombine(seed, hval(static_cast<u8>(doc.defaults.placement.kind)));
+    seed = hcombine(seed, hbytes(&doc.defaults.placement.offset, sizeof(doc.defaults.placement.offset)));
 
     // Spans
     seed = hcombine(seed, hval(doc.spans.size()));
