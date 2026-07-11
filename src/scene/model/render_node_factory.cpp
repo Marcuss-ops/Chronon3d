@@ -86,13 +86,15 @@ RenderNode RenderNodeFactory::path(std::pmr::memory_resource* res, std::string n
 RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string name, ImageParams p) {
     auto node = base(res, std::move(name));
     node.shape.set_type(ShapeType::Image);
-    // TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e — prefer the
+    // TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0f+ — prefer the
     // manifest-clean `asset_path` field over the deprecated `path`,
-    // mirroring the asset_manifest.add_image() forwarding logic in
-    // LayerBuilder::image() / tiled_image().  The `path` fallback
-    // preserves backward-compat for the ~70 pre-0e call sites.
-    node.shape.image().path =
-        !p.asset_path.empty() ? std::move(p.asset_path) : std::move(p.path);
+    // delegated to the canonical `chronon3d::detail::image_params_resolve_path`
+    // helper.  Return-by-value rvalue fits `std::string::operator=` move
+    // assignment cleanly (no extra heap allocation beyond the moved-from
+    // path's small-string optimization scope).  Cross-link: see
+    // `builder_params.hpp` field-order invariant block for the closure
+    // lineage of forward-point 0e → 0f+ single-source-of-truth helper.
+    node.shape.image().path = chronon3d::detail::image_params_resolve_path(p);
     node.shape.image().size = p.size;
     node.shape.image().fit = p.fit;
     node.shape.image().focal_point = p.focal_point;
@@ -109,13 +111,15 @@ RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string 
 RenderNode RenderNodeFactory::tiled_image(std::pmr::memory_resource* res, std::string name, ImageParams p) {
     auto node = base(res, std::move(name));
     node.shape.set_type(ShapeType::TiledImage);
-    // TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e — prefer the
+    // TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0f+ — prefer the
     // manifest-clean `asset_path` field over the deprecated `path`,
-    // mirroring the asset_manifest.add_image() forwarding logic in
-    // LayerBuilder::image() / tiled_image().  The `path` fallback
-    // preserves backward-compat for the ~70 pre-0e call sites.
-    node.shape.image().path =
-        !p.asset_path.empty() ? std::move(p.asset_path) : std::move(p.path);
+    // delegated to the canonical `chronon3d::detail::image_params_resolve_path`
+    // helper.  Return-by-value rvalue fits `std::string::operator=` move
+    // assignment cleanly (no extra heap allocation beyond the moved-from
+    // path's small-string optimization scope).  Cross-link: see
+    // `builder_params.hpp` field-order invariant block for the closure
+    // lineage of forward-point 0e → 0f+ single-source-of-truth helper.
+    node.shape.image().path = chronon3d::detail::image_params_resolve_path(p);
     node.shape.image().size = p.size;
     node.shape.image().opacity = p.opacity;
     node.world_transform.position = p.pos;
