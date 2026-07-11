@@ -7,6 +7,9 @@
 //   4. Pruning ON/OFF     (SDK dirty.enabled vs CLI --no-dirty-rects)
 //   5. 1/N threads        (SDK tbb::global_control vs CLI CHRONON3D_THREADS)
 //   6. Warm/cold cache    (fresh renderer vs reused renderer / --warmup)
+//   7. Modular graph ON/OFF (SDK use_modular_graph vs CLI --graph/--no-graph)
+//   8. Diagnostic overlay  (SDK text_layout_debug vs CLI --diagnostic-overlay /
+//                          --diagnostic-overlay-only)
 //
 // The canary composition is registered as a CLI built-in composition
 // ("PipelineParityCanary") so the exact same scene is rendered by
@@ -322,6 +325,98 @@ TEST_CASE("real pipeline parity: warm/cold cache") {
     CHECK(sdk_cold_hash == sdk_warm_hash);
     CHECK(sdk_cold_hash == cli_cold_hash);
     CHECK(sdk_cold_hash == cli_warm_hash);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test: modular graph OFF parity
+//   SDK: RenderSettings.use_modular_graph = false (renders the legacy path)
+//   CLI: --no-graph  (forwards to pipeline.use_modular_graph=false, which
+//         is mapped to settings.use_modular_graph in cli_render_utils.hpp)
+//   Both must hash identically.
+// ═══════════════════════════════════════════════════════════════════════════
+TEST_CASE("real pipeline parity: modular graph OFF") {
+    const auto tmp = make_temp_dir();
+    const std::string sdk_png = (tmp / "sdk_nograph.png").string();
+    const std::string cli_png = (tmp / "cli_nograph.png").string();
+
+    RenderSettings settings = default_settings();
+    settings.use_modular_graph = false;
+
+    const u64 sdk_hash = render_sdk_to_png(sdk_png, settings);
+    REQUIRE(run_cli_still(cli_png, "--no-graph"));
+    const u64 cli_hash = hash_from_png(cli_png);
+
+    CHECK(sdk_hash == cli_hash);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test: modular graph ON (explicit) parity
+//   SDK: RenderSettings.use_modular_graph = true
+//   CLI: --graph  (forces the modular path explicitly; redundant with
+//        the default but locks the flag round-trip against future CLI
+//        default flips).
+// ═══════════════════════════════════════════════════════════════════════════
+TEST_CASE("real pipeline parity: modular graph ON (explicit)") {
+    const auto tmp = make_temp_dir();
+    const std::string sdk_png = (tmp / "sdk_graph.png").string();
+    const std::string cli_png = (tmp / "cli_graph.png").string();
+
+    RenderSettings settings = default_settings();
+    settings.use_modular_graph = true;
+
+    const u64 sdk_hash = render_sdk_to_png(sdk_png, settings);
+    REQUIRE(run_cli_still(cli_png, "--graph"));
+    const u64 cli_hash = hash_from_png(cli_png);
+
+    CHECK(sdk_hash == cli_hash);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test: diagnostic overlay ON parity
+//   SDK: settings.text_layout_debug = true
+//   CLI: --diagnostic-overlay  (maps to pipeline.diagnostic_overlay=true,
+//         which cli_render_utils.hpp OR-merges into
+//         settings.text_layout_debug=true — so the final RenderSettings
+//         on both sides are identical).
+// ═══════════════════════════════════════════════════════════════════════════
+TEST_CASE("real pipeline parity: diagnostic overlay ON") {
+    const auto tmp = make_temp_dir();
+    const std::string sdk_png = (tmp / "sdk_diag.png").string();
+    const std::string cli_png = (tmp / "cli_diag.png").string();
+
+    RenderSettings settings = default_settings();
+    settings.text_layout_debug = true;
+    // diagnostic_overlay_only defaults to false — leave it.
+
+    const u64 sdk_hash = render_sdk_to_png(sdk_png, settings);
+    REQUIRE(run_cli_still(cli_png, "--diagnostic-overlay"));
+    const u64 cli_hash = hash_from_png(cli_png);
+
+    CHECK(sdk_hash == cli_hash);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Test: diagnostic overlay ONLY parity
+//   SDK: settings.text_layout_debug = true AND
+//        settings.diagnostic_overlay_only = true
+//   CLI: --diagnostic-overlay-only  (maps to pipeline.diagnostic_overlay_only=true,
+//         which OR-merges into text_layout_debug=true and sets
+//         diagnostic_overlay_only=true — same final RenderSettings).
+// ═══════════════════════════════════════════════════════════════════════════
+TEST_CASE("real pipeline parity: diagnostic overlay ONLY") {
+    const auto tmp = make_temp_dir();
+    const std::string sdk_png = (tmp / "sdk_diag_only.png").string();
+    const std::string cli_png = (tmp / "cli_diag_only.png").string();
+
+    RenderSettings settings = default_settings();
+    settings.text_layout_debug = true;
+    settings.diagnostic_overlay_only = true;
+
+    const u64 sdk_hash = render_sdk_to_png(sdk_png, settings);
+    REQUIRE(run_cli_still(cli_png, "--diagnostic-overlay-only"));
+    const u64 cli_hash = hash_from_png(cli_png);
+
+    CHECK(sdk_hash == cli_hash);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
