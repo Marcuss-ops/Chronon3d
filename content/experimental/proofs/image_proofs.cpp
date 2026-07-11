@@ -47,7 +47,7 @@ Composition image_proofs() {
         };
 
         auto draw_cell_label = [=](LayerBuilder& l, const std::string& text, int col, int row) {
-            l.text("lbl", TextSpec{.content = {.value = text}, .font = {.font_size = 12.0f}, .layout = {.box = {get_cell_box(col, row).x, 18.0f}, .align = TextAlign::Center}, .appearance = {.color = {0.6f, 0.7f, 0.9f, 0.8f}}});
+            l.text("lbl", TextSpec{.content = {.value = text},.position = get_label_pos(col, row),.font = {.font_size = 12.0f},.layout = {.box = {get_cell_box(col, row).x, 18.0f}, .align = TextAlign::Center},.appearance = {.color = {0.6f, 0.7f, 0.9f, 0.8f}},});
         };
 
         // ── ROW 0: Fitting Modes ──
@@ -146,7 +146,7 @@ Composition image_proofs() {
                 .radius = 8.0f
             });
             // Draw card title text
-            l.text("card_title", TextSpec{.content = {.value = "LENS SPECS"}, .placement = {TextPlacementKind::Absolute, {0.0f, box.y * 0.25f}}, .font = {.font_size = 12.0f}, .layout = {.box = {box.x - 24.0f, 18.0f}, .align = TextAlign::Center}, .appearance = {.color = Color::white()}});
+            l.text("card_title", TextSpec{.content = {.value = "LENS SPECS"},.position = {0.0f, box.y * 0.25f, 0.0f},.font = {.font_size = 12.0f},.layout = {.box = {box.x - 24.0f, 18.0f}, .align = TextAlign::Center},.appearance = {.color = Color::white()},});
         });
 
         // 2,3: Image with mask rounded rect

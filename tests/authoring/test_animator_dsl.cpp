@@ -70,8 +70,6 @@ using chronon3d::TextAnchor;
 using chronon3d::TextCenteringMode;
 using chronon3d::TextDirection;
 using chronon3d::TextOverflow;
-using chronon3d::TextPlacement;
-using chronon3d::TextPlacementKind;
 using chronon3d::TextStyle;
 using chronon3d::TextWrap;
 using chronon3d::VerticalAlign;
@@ -1052,25 +1050,25 @@ TEST_CASE("Authoring/Text: font() / font_family() / weight() / italic() / font_s
     CHECK(font.font_size   == doctest::Approx(120.0f));
 }
 
-TEST_CASE("Authoring/Text: at(Vec2) lifts z to 0; at(Vec3) stores x/y and drops z") {
+TEST_CASE("Authoring/Text: at(Vec2) lifts z to 0; at(Vec3) preserves all components") {
     LayerBuilder lb("position");
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
     Text t_v2 = layer.text("v2");
     t_v2.at(Vec2{100.0f, 200.0f});
-    CHECK(TextRunBuilderInspector::pending_of(t_v2)->params.text.placement
-          == TextPlacement{TextPlacementKind::Absolute, {100.0f, 200.0f}});
+    CHECK(TextRunBuilderInspector::pending_of(t_v2)->params.text.position
+          == doctest::Approx3D(Vec3{100.0f, 200.0f, 0.0f}));
 
     Text t_v3 = layer.text("v3");
     t_v3.at(Vec3{11.0f, 22.0f, 33.0f});
-    CHECK(TextRunBuilderInspector::pending_of(t_v3)->params.text.placement
-          == TextPlacement{TextPlacementKind::Absolute, {11.0f, 22.0f}});
+    CHECK(TextRunBuilderInspector::pending_of(t_v3)->params.text.position
+          == doctest::Approx3D(Vec3{11.0f, 22.0f, 33.0f}));
 
     Text t_2arg = layer.text("2arg");
     t_2arg.at(7.0f, 8.0f);
-    CHECK(TextRunBuilderInspector::pending_of(t_2arg)->params.text.placement
-          == TextPlacement{TextPlacementKind::Absolute, {7.0f, 8.0f}});
+    CHECK(TextRunBuilderInspector::pending_of(t_2arg)->params.text.position
+          == doctest::Approx3D(Vec3{7.0f, 8.0f, 0.0f}));
 }
 
 TEST_CASE("Authoring/Text: center() uses FrameContext viewport") {
@@ -1080,9 +1078,9 @@ TEST_CASE("Authoring/Text: center() uses FrameContext viewport") {
     Text t = layer.text("hero");
     t.center();
 
-    // placement is CanvasCenter with zero offset (resolution deferred to build)
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.placement
-          == TextPlacement{TextPlacementKind::CanvasCenter});
+    // position is (w/2, h/2, 0)
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.position
+          == doctest::Approx3D(Vec3{400.0f, 300.0f, 0.0f}));
 
     // Layout auto-set for invisibly-aligned center
     const auto& L = TextRunBuilderInspector::pending_of(t)->params.text.layout;
@@ -1102,8 +1100,8 @@ TEST_CASE("Authoring/Text: center() uses FrameContext viewport from Layer ctor")
 
     Text t = layer.text("x");
     t.center();
-    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.placement
-          == TextPlacement{TextPlacementKind::CanvasCenter});
+    CHECK(TextRunBuilderInspector::pending_of(t)->params.text.position
+          == doctest::Approx3D(Vec3{640.0f, 360.0f, 0.0f}));
 }
 
 TEST_CASE("Authoring/Text: layout setters propagate to spec.text.layout") {

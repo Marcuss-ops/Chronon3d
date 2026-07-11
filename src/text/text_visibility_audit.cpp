@@ -35,6 +35,7 @@
 #include <chronon3d/text/text_run_shape.hpp>  // full TextRunShape definition
                                                // (audit only reads engine +
                                                // layout.placed.glyphs.size())
+#include <chronon3d/text/text_run_geometry.hpp>  // compute_text_run_visual_bounds
 #include <chronon3d/core/memory/framebuffer.hpp>  // Framebuffer::width/height/pixel
 
 #include <spdlog/spdlog.h>                       // structured diagnostics
@@ -184,23 +185,42 @@ TextVisibilityAudit audit_text_visibility(
 
     // ── font + shaping stage ───────────────────────────────────────────
     audit.font_resolved        = (shape.engine != nullptr);
-    audit.shaping_succeeded    = (shape.layout && shape.layout->placed.glyphs.size() > 0);
-    audit.glyph_count          = shape.layout ? shape.layout->placed.glyphs.size() : 0;
+    audit.shaping_succeeded    = (shape.layout->placed.glyphs.size() > 0);
+    audit.glyph_count          = shape.layout->placed.glyphs.size();
 
-    // ── local_ink_bbox (PLACEHOLDER for FU04 contract fix) ─────────────
-    // The canonical per-glyph TRS-extraction + ascent/descent-anchored
-    // ink-bbox math is FU03/FU04's responsibility (mapped from the
-    // existing `renderer::compute_text_run_world_bbox()` site). For the
-    // contract scaffold, leave at zero-rect: the audit invariants
-    // (finite, predicted_contains_world, clip_contains_visible_ink) are
-    // ROBUST to a zero-rect placeholder because:
-    //   - finite is preserved iff the four input bboxes are finite.
-    //   - The world_bbox of a zero-rect local is also zero-rect (a single
-    //     point at `world_matrix * (lx0, ly0, 0, 1)`), so
-    //     `predicted_contains_world` reduces to point-in-rect, which is
-    //     trivial to evaluate. The audit correctly reports true when the
-    //     predicted_bbox fully encloses the canvas-fragment location.
-    audit.local_ink_bbox       = Rect{};
+    // ── local_ink_bbox (canonical per-glyph visual bounds) ─────────────
+    // Use the same single-source-of-truth geometry function that the
+    // render graph and the software rasterizer use.  This replaces the
+    // previous zero-rect placeholder so the audit actually checks that
+    // the predicted bbox contains the real glyph ink.
+    auto local_bounds = renderer::compute_text_run_visual_bounds(shape);
+    if (!local_bounds && shape.layout && !shape.layout->placed.glyphs.empty()) {
+        // Fallback: the canonical geometry function needs per-glyph
+        // animated state. If the caller supplied a layout but no glyph
+        // instances (e.g. a test harness or a partially materialised
+        // shape), synthesise identity glyph states from the placed run
+        // and recompute the bounds.  Build a minimal temporary shape so we
+        // do not pay for copying shadows/animators/etc.
+        TextRunShape temp;
+        temp.layout = shape.layout;
+        temp.glyphs.reserve(shape.layout->placed.glyphs.size());
+        for (const auto& g : shape.layout->placed.glyphs) {
+            GlyphInstanceState state{};
+            state.layout_position = {g.x, g.y};
+            state.scale = {1.0f, 1.0f, 1.0f};
+            temp.glyphs.push_back(state);
+        }
+        local_bounds = renderer::compute_text_run_visual_bounds(temp);
+    }
+
+    if (local_bounds) {
+        audit.local_ink_bbox = Rect{
+            {local_bounds->min_x, local_bounds->min_y},
+            {local_bounds->max_x - local_bounds->min_x,
+             local_bounds->max_y - local_bounds->min_y}};
+    } else {
+        audit.local_ink_bbox = Rect{};
+    }
 
     // ── world_ink_bbox (transform pipeline) ────────────────────────────
     audit.world_ink_bbox       = transform_aabb(audit.local_ink_bbox,

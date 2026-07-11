@@ -21,6 +21,7 @@
 #include <chronon3d/render_graph/optimizer/graph_optimizer.hpp>
 #include <chronon3d/render_graph/builder/graph_build_pipeline.hpp>
 #include <chronon3d/render_graph/preflight/preflight_render_graph.hpp>
+#include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
@@ -327,6 +328,38 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         ctx.policy.diagnostics_enabled);
     ctx.policy.skip_initial_clear = graph_result.skip_initial_clear;
     const auto t_graph1 = profiling::now();
+
+    // ── 8a. Capture TextRunNode snapshots for diagnostic inspection ───────
+    // Tools such as `chronon3d_cli inspect-text` need the real TextRunShape,
+    // world matrix and predicted bbox.  We snapshot them here while the
+    // graph is fully built and frozen, before execution mutates any state.
+    if (sw_renderer) {
+        sw_renderer->clear_text_audit_snapshots();
+        const auto& graph = graph_result.compiled.graph;
+        for (GraphNodeId i = 0; i < graph.size(); ++i) {
+            if (!graph.has_node(i)) continue;
+            const auto& node = graph.node(i);
+            if (node.kind() != RenderGraphNodeKind::TextRun) continue;
+            const auto* tr_node = static_cast<const TextRunNode*>(&node);
+            if (!tr_node->shape()) continue;
+            TextRunAuditSnapshot snap;
+            snap.name = std::string(tr_node->name());
+            snap.shape = tr_node->shape();
+            snap.world_matrix = tr_node->placement().matrix;
+            if (auto pred = tr_node->predicted_bbox(ctx, {})) {
+                snap.predicted_bbox = Rect{
+                    {static_cast<float>(pred->x0), static_cast<float>(pred->y0)},
+                    {static_cast<float>(pred->x1 - pred->x0),
+                     static_cast<float>(pred->y1 - pred->y0)}};
+            } else {
+                snap.predicted_bbox = Rect{
+                    {0.0f, 0.0f},
+                    {static_cast<float>(width), static_cast<float>(height)}};
+            }
+            snap.clip_rect = snap.predicted_bbox;
+            sw_renderer->text_audit_snapshots().push_back(std::move(snap));
+        }
+    }
 
     // ── 9. Pre-frame pool preallocation ──────────────────────────────────
     const auto t_prealloc0 = profiling::now();

@@ -96,28 +96,6 @@ TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunSpec params) {
     return *m_text_run_builders.back();
 }
 
-TextRunBuilder& LayerBuilder::text_run(std::string name, const TextDefinition& def) {
-    // F3.D — forward-point wiring: route via to_text_run_spec (the F2.D
-    // lossless reverse adapter) instead of the F2.C path that read
-    // `text_run.text = from_text_definition(def)` (lossy — drops the 6
-    // spec-only animation fields).
-    //
-    // This makes the 17 helper-site call sites end-to-end lossless:
-    // centered_text(), glow_text(), typewriter_text(), and any direct
-    // TextDefinition constructed by the user now carry the 6 spec-only
-    // animation fields (animators, selectors, direction, language, script,
-    // cache_layout) all the way through to TextRunSpec and downstream into
-    // materialize_text_run_shape() / evaluate_animator_stack().
-    //
-    // Frame envelope (TextAnimation.start_delay + .duration) IS lossily
-    // dropped by to_text_run_spec per the F2.D LIFECYCLE contract — these
-    // live on Layer (Frame envelope of the run), not on TextRunSpec.
-    //
-    // Symmetric with text(name, TextDefinition) (F3.D — same overload family
-    // in shape_commands.cpp).
-    return text_run(std::move(name), to_text_run_spec(def));
-}
-
 Layer LayerBuilder::build() {
     if (m_until_frame && !m_duration_explicit) {
         m_layer.duration = *m_until_frame - m_layer.from;
@@ -202,19 +180,8 @@ Layer LayerBuilder::build() {
             node.shape.set_type(ShapeType::TextRun);
             node.font_engine = m_font_engine;
 
-            // F2 — resolve semantic placement at build time using
-            // canvas dimensions from the layer context.  Constructs a
-            // temporary TextPlacement combining the stored kind with
-            // the flat offset, then resolves to a concrete pin point
-            // via resolve_placement_origin().
-            {
-                TextPlacement tp = spec.params.text.placement;
-                tp.offset = spec.params.text.placement.offset;  // flat offset → resolver input
-                CanvasInfo canvas{m_screen_width, m_screen_height};
-                Vec2 pin = resolve_placement_origin(
-                    canvas, spec.params.text.layout.box, tp);
-                node.world_transform.position = Vec3{pin.x, pin.y, 0.0f};
-            }
+            // F2 — TextSpec now carries the resolved position directly.
+            node.world_transform.position = spec.params.text.position;
             node.world_transform.anchor = resolve_text_anchor(
                 spec.params.text.layout.anchor,
                 spec.params.text.layout.box);

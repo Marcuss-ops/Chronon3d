@@ -68,8 +68,16 @@ void add_camera_debug_overlay(
     const CameraPathVisualization* path = nullptr
 );
 
-/// Forward declaration — defined in camera_debug_overlay_panels.hpp.
-struct OverlayContext;
+/// Shared context passed to all panel drawing functions.
+struct OverlayContext {
+    LayerBuilder& layer;
+    const CameraShotReport& report;
+    const Camera2_5D& camera;
+    const ResolvedSceneTransforms& resolved;
+    Viewport viewport;
+    CameraDebugOverlayOptions options;
+    const CameraPathVisualization* path;
+};
 
 /// Draw the standardised diagnostic overlay (center cross, target marker,
 /// RGB axes, bboxes, metrics) inside the same LayerBuilder context as the

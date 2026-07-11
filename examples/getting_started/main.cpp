@@ -9,18 +9,10 @@
 //   cd build/chronon/linux-ci && cp -r ../../assets/fonts .
 //   ./examples/getting_started/getting_started
 // ═══════════════════════════════════════════════════════════════════════════
-#include <chronon3d/sdk/render_engine.hpp>
-#include <chronon3d/sdk/render_output.hpp>
-#include <chronon3d/sdk/render_error.hpp>
-#include <chronon3d/sdk/render_request.hpp>
-#include <chronon3d/sdk/render_settings.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/text/text_run_shape.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
-#include <chronon3d/internal/project.hpp>
+
+#include <chronon3d/chronon3d.hpp>
+#include <chronon3d/project.hpp>
+
 #include <cstdio>
 
 namespace c3d = chronon3d;
@@ -48,8 +40,8 @@ int main() {
                  .font_size(72.0f)
                  .center();
                 l.text_run("t", c3d::TextRunSpec{
-                    .text = c3d::TextSpec{.content = {.value = "Hello, Chronon3D!"}, .font = {.font_family = "Inter", .font_weight = 700}, .layout = {.box = {static_cast<float>(ctx.width),
-                                           static_cast<float>(ctx.height)}}, .appearance = {.color = c3d::Color::white()}}
+                    .text = c3d::TextSpec{.content = {.value = "Hello, Chronon3D!"},.font = {.font_family = "Inter", .font_weight = 700},.layout = {.box = {static_cast<float>(ctx.width),
+                                           static_cast<float>(ctx.height)}},.appearance = {.color = c3d::Color::white()}}
                 }).commit();
             });
 

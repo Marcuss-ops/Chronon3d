@@ -11,8 +11,8 @@
 //
 // Per AGENTS.md §honesty: 6 PNG re-bake requires a working build host
 // (vcpkg-installed includes + tmpfs quota for full cmake build on this
-// VPS); the 6 test cases gracefully skip on `result.golden_missing`
-// (prints a developer-instructional MESSAGE).
+// VPS); missing goldens are now treated as hard CI failures via
+// REQUIRE_FALSE(r.golden_missing).
 //
 // AGENTS.md v0.1 Cat-2 freeze-compliant: zero new public SDK API.  The
 // test uses the existing `LayerBuilder::rotate_z()` + `text_run()` + the
@@ -146,7 +146,9 @@ void verify_rotate_z_golden(
 ) {
     auto r = verify_golden(fb, std::string{case_slug},
                            make_rotate_z_config(case_slug));
-    REQUIRE_GOLDEN_PASSED(r);
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 // ── Render one AR for one rotation ─────────────────────────────────────

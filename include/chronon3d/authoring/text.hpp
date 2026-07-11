@@ -208,16 +208,16 @@ public:
     // `spec.text.offset = {...}` line is gone (`tools/check_architecture_boundaries.sh`
     // gate #19 forbids its re-introduction).
     Text& at(Vec3 pos) {
-        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute, {pos.x, pos.y}};
+        pending_->params.text.position = pos;
         return *this;
     }
     Text& at(Vec2 pos) {
-        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute, {pos.x, pos.y}};
+        pending_->params.text.position = {pos.x, pos.y, 0.0f};
         return *this;
     }
     /// f32 x, f32 y convenience — lifts to Absolute placement.
     Text& at(f32 x, f32 y) {
-        pending_->params.text.placement = TextPlacement{TextPlacementKind::Absolute, {x, y}};
+        pending_->params.text.position = {x, y, 0.0f};
         return *this;
     }
 
@@ -226,8 +226,8 @@ public:
         // context_ guard: ensures the Layer properly wired a FrameContext
         // at construction time (Layer ctor guarantees this for every Text handle).
         assert(context_ && "Text::center(): FrameContext must be set (Layer ctor guarantees this)");
-        // Phase A3: placement.offset defaults to {0,0,0} — no redundant assign.
-        pending_->params.text.placement = TextPlacement{TextPlacementKind::CanvasCenter};
+        // Phase A3: position defaults to {0,0,0} — no redundant assign.
+        pending_->params.text.position = {0.0f, 0.0f, 0.0f};
         auto& layout = pending_->params.text.layout;
         layout.anchor         = TextAnchor::Center;
         layout.align          = TextAlign::Center;
@@ -278,9 +278,10 @@ public:
     /// LayerBuilder::build() which has access to the layer's canvas
     /// dimensions at materialization time.
     Text& place(TextPlacement placement, TextAnchor anchor) {
-        // Phase A3: placement already carries kind + offset; the redundant
-        // `spec.text.offset = placement.offset` line is gone (gate #19).
-        pending_->params.text.placement = placement;  // F2: preserve kind + bundled offset
+        // Phase A3: TextSpec only carries a 3D position; map the 2D placement
+        // offset into it.  The placement kind is consumed by the builder path
+        // when a TextDefinition is produced, but is not stored on TextSpec.
+        pending_->params.text.position = {placement.offset.x, placement.offset.y, 0.0f};
         pending_->params.text.layout.anchor = anchor;
         return *this;
     }

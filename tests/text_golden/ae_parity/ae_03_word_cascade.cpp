@@ -75,6 +75,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("word_top", [cy](LayerBuilder& l) {
                 l.text("word_top", {
                     .content = {.value = "FRAMEWORK"},
+                    .position = {960.0f, cy.top * 1080.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -83,12 +84,12 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white()},
-                    .position = {960.0f, cy.top * 1080.0f, 0.0f}
                 });
             });
             s.layer("word_mid", [cy](LayerBuilder& l) {
                 l.text("word_mid", {
                     .content = {.value = "STUDIO"},
+                    .position = {960.0f, cy.mid * 1080.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -97,12 +98,12 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.9f, 0.9f, 0.9f, 1.0f}},
-                    .position = {960.0f, cy.mid * 1080.0f, 0.0f}
                 });
             });
             s.layer("word_bot", [cy](LayerBuilder& l) {
                 l.text("word_bot", {
                     .content = {.value = "MOTION"},
+                    .position = {960.0f, cy.bot * 1080.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -111,7 +112,6 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.75f, 0.75f, 0.75f, 1.0f}},
-                    .position = {960.0f, cy.bot * 1080.0f, 0.0f}
                 });
             });
             return s.build();
@@ -131,6 +131,7 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("word_top", [cy](LayerBuilder& l) {
                 l.text("word_top", {
                     .content = {.value = "FRAMEWORK"},
+                    .position = {540.0f, cy.top * 1920.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -139,12 +140,12 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white()},
-                    .position = {540.0f, cy.top * 1920.0f, 0.0f}
                 });
             });
             s.layer("word_mid", [cy](LayerBuilder& l) {
                 l.text("word_mid", {
                     .content = {.value = "STUDIO"},
+                    .position = {540.0f, cy.mid * 1920.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -153,12 +154,12 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.9f, 0.9f, 0.9f, 1.0f}},
-                    .position = {540.0f, cy.mid * 1920.0f, 0.0f}
                 });
             });
             s.layer("word_bot", [cy](LayerBuilder& l) {
                 l.text("word_bot", {
                     .content = {.value = "MOTION"},
+                    .position = {540.0f, cy.bot * 1920.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -167,7 +168,6 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.75f, 0.75f, 0.75f, 1.0f}},
-                    .position = {540.0f, cy.bot * 1920.0f, 0.0f}
                 });
             });
             return s.build();
@@ -181,40 +181,46 @@ TEST_CASE("AE 03 word_cascade 16x9 f00") {
     auto fb = renderer.render(build_landscape(renderer, 0), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_03_word_cascade_16x9_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 03 word_cascade 16x9 f15") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_landscape(renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_03_word_cascade_16x9_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 03 word_cascade 16x9 f30") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_landscape(renderer, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_03_word_cascade_16x9_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 03 word_cascade 9x16 f00") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 0), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_03_word_cascade_9x16_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 03 word_cascade 9x16 f15") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_03_word_cascade_9x16_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 03 word_cascade 9x16 f30") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_03_word_cascade_9x16_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
