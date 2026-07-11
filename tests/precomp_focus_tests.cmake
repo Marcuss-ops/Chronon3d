@@ -13,7 +13,7 @@ if(CHRONON3D_USE_BLEND2D)
 chronon3d_add_test_suite(
     NAME chronon3d_precomp_focus_tests
     TIER INTEGRATION
-    LINK_TARGETS chronon3d_sdk chronon3d_backend_software
+    LINK_TARGETS chronon3d_sdk chronon3d_backend_software chronon3d::content
     SOURCES render_graph/nodes/test_precomp_node_cache.cpp
 )
 target_compile_definitions(chronon3d_precomp_focus_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
