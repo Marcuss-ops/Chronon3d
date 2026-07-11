@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@283a8106` — baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. F3.D closed (commit `283a8106`, 2026-07-10); 5/5 baseline gates PASS post-commit. Phase A.3 historically closed (`4cce8f52`). F2.D historically closed (`a5a0475c`). Feature freeze V0.1 revocato. Linux-only. Gate #10 PASS. CI status artifacts uploaded per run (90-day retention).
+> **Snapshot:** `main@8b5ee57f` — post `feat(text): TICKET-SIMPLICITY-INSPECT-TEXT` (add inspect-text CLI, tests, and migrate content to TextSpec API). Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. F3.D closed (commit `283a8106`, 2026-07-10); 5/5 baseline gates PASS post-commit. Phase A.3 historically closed (`4cce8f52`). F2.D historically closed (`a5a0475c`). Feature freeze V0.1 revocato. Linux-only. Gate #10 PASS. CI status artifacts uploaded per run (90-day retention).
 
 ## Active Blockers (top 3)
 
