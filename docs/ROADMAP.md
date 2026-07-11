@@ -192,7 +192,7 @@ riportano lo stesso stato.
 | 1 | `TICKET-FASE2-TRANSFORMS-ANIMATION` (7 test) | **PLANNED** | P1 | Text V1 cert | 7 atomic commits su main, 1 per test |
 | 2 | `TICKET-FASE3-MULTILINGUAL` (8 test) | **PLANNED** | P1 | Text V1 cert | 8 atomic commits, priorit\u00e0 ai 3 nuovi (KerningPairs/MixedAdvanceWidths/MixedBaseline) + expand dei 5 esistenti |
 | 3 | `TICKET-FASE4-LAYOUT` (10 test) | **PLANNED** | P1 | Text V1 cert | 10 atomic commits, priorit\u00e0 ai 7 nuovi + expand dei 3 esistenti |
-| 4 | `TICKET-FASE4-AUTOFIT` (FEATURE GAP) | **PLANNED** | P1 | Text V1 cert + M1.6 AE-parity cinematic | ADR-gated prima di implementazione (Cat-3 freeze: new public API on `TextAutoFit` struct) |
+| 4 | `TICKET-FASE4-AUTOFIT` (FEATURE GAP) | **PARTIAL** (engine-level DONE commit `<pending>`, 2026-07-11) | P1 | Text V1 cert + M1.6 AE-parity cinematic | Engine-level closure: 8-iter TextLayoutEngine::layout() updated to ADR-018 12-iter pure binary search (0.1f epsilon nudge removed for determinism); compile_or_cache_layout() now uses named local `fits_inside(box, bounds)` lambda for the `fits_inside(layout_box)` gate (3 inline checks replaced); 3 new SUBCASEs in `tests/text/test_auto_fit_font_size.cpp` (termination guarantee / degenerate box / 100-run determinism). Cat-3 safe (local lambda, zero new public API). Forward-points: `include/chronon3d/presets/text/auto_fit.hpp` canonical wrapper (ADR-gated) + re-bake of `text_autofit_golden.png` on working build host. |
 
 **Refs:** [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Fasi 1-4 cluster (rows 44-47); [`docs/CHANGELOG.md`](docs/CHANGELOG.md) §10 entry (4-ticket matrix).
 
