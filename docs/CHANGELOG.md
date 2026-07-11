@@ -1,3 +1,48 @@
+## Luglio 2026 — TICKET-MOTION-ERROR-TYPED-EXCEPTION — `MotionError` typed exception + `MotionErrorCode` enum (§5.0b rot-pattern closure) (2026-07-11, atomic commit)
+
+### feat(presets): §5.0b — `MotionError { std::string path; MotionErrorCode code; }` typed exception + `enum class MotionErrorCode` + migrate `MotionPresetPackRegistry::apply(lb, id)`
+
+- **Scope**: §5 forward-point rot-pattern closure. The canonical `MotionPresetPackRegistry::apply()` lookup-miss branch (`include/chronon3d/presets/motion_preset_packs.hpp:84-89`) was throwing `std::runtime_error("MotionPresetPackRegistry: unknown preset '<id>'")` — opaque string-parse for recovery. The user-spec migration target is to emit a typed `MotionError` so callers can switch on `.code` programmatically and read `.path` directly. Two enum members per user spec: `MotionPresetNotFound` (currently thrown by `apply()`) + `UnknownPackId` (reserved for future pack-namespaced `apply()` variants — NOT currently thrown; forward-proof).
+- **New SDK symbols (2 files)**:
+  - `include/chronon3d/presets/motion_error.hpp` NEW (~115 LoC) — `MotionErrorCode` enum (scoped, 2 members) + `to_string(MotionErrorCode)` inline helper (noexcept, matches `VideoSinkError::to_string()` precedent in `include/chronon3d/media/video/video_sink.hpp:83` with the §5.0e branch-completeness lock in test A.03) + `class MotionError : public std::runtime_error` (inherits for 3-way catchability preserved across the migration: `MotionError`, `std::runtime_error`, `std::exception`).
+  - **Migration**: `include/chronon3d/presets/motion_preset_packs.hpp` — added `#include <chronon3d/presets/motion_error.hpp>` + replaced the `apply()` lookup-miss throw site (`std::runtime_error` aggregate string) with `throw MotionError(MotionErrorCode::MotionPresetNotFound, std::string(preset_id))`. The 2 `register_preset` throw sites (frozen + duplicate-id) are INTENTIONALLY OUT-OF-SCOPE for §5.0b per the user-spec "Migrate `apply(lb, id)`" wording — they remain `std::runtime_error` until a future §5.x forward-point commit re-evaluates them. Locks the scope boundary via test D.11 (out-of-scope doc-test).
+- **Field order (verbatim from user spec literal)**: `std::string path;` first, then `MotionErrorCode code;`. The 2-arg constructor `MotionError(MotionErrorCode code_, std::string path_)` accepts the discriminator first + path second (canonical typed-exception convention); the class MEMBER order matches the user literal `MotionError { std::string path; MotionErrorCode code; }`. C++20 aggregate initialization is not used because `std::runtime_error` (the base class) has no default ctor, so a constructor is mandatory. The user-spec brace-init example `MotionError{.code=MotionPresetNotFound, .path=missing-id}` maps positionally to the 2-arg constructor: `MotionError(MotionErrorCode::MotionPresetNotFound, std::string("missing-id"))`.
+- **`what()` format invariant**: `"MotionPresetPackRegistry: " + to_string(code_) + " '" + path_ + "'"` — preserves the `"MotionPresetPackRegistry:"` prefix from the pre-§5.0b string for log-greppability continuity. Tested in B.06 + C.10.
+- **AGENTS.md v0.1 freeze compliance**:
+  - **Cat-3** (no new public API surface without justification): JUSTIFIED — the 2 new symbols (`MotionErrorCode` enum + `MotionError` class) close an explicitly-documented rot pattern (3 `std::runtime_error` throw sites in the 3-arg `apply`/`register`/`register` quartet). User-explicit request, not gratuitous expansion. AGENTS.md §regole: "Cercare prima il codice e i documenti esistenti. Non duplicare..." — the design reuses the `ChrononAssetError : public std::runtime_error` precedent at `include/chronon3d/assets/render_preflight.hpp:19` (NOT duplicated; only the inheritance pattern is shared).
+  - **Cat-5** (3-doc same-commit alignment): SATISFIED — CHANGELOG.md (this entry) + FOLLOWUP_TICKETS.md (`## Recently Closed` row) + the new `motion_error.hpp` docblock updated in same commit. `tools/check_doc_sync.sh` R5 fires on this closure.
+  - Gate 5 deny-everywhere compliance: N/A — no `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` introduced (only standard `<stdexcept>` + `<string>` + the existing `motion_preset_packs.hpp` includes).
+  - Zero nuovi singleton/registry/cache/resolver/sampler/service-locator.
+- **Test coverage — 11 NEW `TEST_CASE`s in `tests/presets/test_motion_error.cpp`** (added to `chronon3d_scene_tests` SOURCES via `tests/scene_tests.cmake` line ~38):
+  - **A.01** to_string labels `MotionPresetNotFound` (canonical enum-string-mapping invariant)
+  - **A.02** to_string labels `UnknownPackId` (canonical enum-string-mapping invariant)
+  - **A.03** to_string covers ALL enum members — no `<unknown-MotionErrorCode>` placeholder ever returned (exhaustive-branch regression lock; FAILS the day a new enum member is added without its to_string branch)
+  - **A.04** to_string is noexcept (compile-time static_assert lock — refactor to non-noexcept signature breaks the build immediately)
+  - **B.05** `MotionError(code, path)` populates `.code` and `.path` correctly (ctor invariant)
+  - **B.06** `what()` contains BOTH the code label AND the path string AND the canonical `"MotionPresetPackRegistry:"` prefix (log-greppability invariant)
+  - **B.07** MotionError is catchable in 3 ways — `MotionError` + `std::runtime_error` + `std::exception` (backward-compat invariant: existing `CHECK_THROWS_AS(...,std::runtime_error)` patterns continue to work post-§5.0b unchanged)
+  - **C.08** `motion_preset_packs().apply(lb, "slide_in")` does NOT throw — happy-path regression against the canonical basic-pack preset
+  - **C.09** `reg.apply(lb, "missing-id")` throws MotionError with `.code == MotionPresetNotFound` AND `.path == "missing-id"` (verbatim user-spec invariant lock)
+  - **C.10** MotionError from `apply(missing)` is catchable as `std::runtime_error` (backward-compat invariant IN PRACTICE — existing production catch blocks unaffected)
+  - **D.11** `register_preset(rogue-after-freeze)` STILL throws `std::runtime_error` (NOT `MotionError`) — out-of-scope doc-test that locks the user-spec scope boundary; a future refactor accidentally widening the migration to register_preset would fail this test.
+- **Files changed (4)**:
+  - `include/chronon3d/presets/motion_error.hpp` NEW, ~115 LoC, `enum class MotionErrorCode` + `to_string` + `class MotionError : public std::runtime_error`
+  - `include/chronon3d/presets/motion_preset_packs.hpp` — added `#include <chronon3d/presets/motion_error.hpp>` + `<stdexcept>` (kept for register_preset — out-of-§5.0b-scope) + migrated the `apply()` lookup-miss throw (`std::runtime_error` → `MotionError(MotionErrorCode::MotionPresetNotFound, std::string(preset_id))`)
+  - `tests/presets/test_motion_error.cpp` NEW, ~200 LoC — 11 NEW TEST_CASEs across 4 groups (A=enum/to_string, B=exception semantics, C=integration with real LayerBuilder, D=out-of-scope doc-test)
+  - `tests/scene_tests.cmake` — added `presets/test_motion_error.cpp` to `chronon3d_scene_tests` SOURCES (line ~38), with §5.0b provenance comment
+  - `docs/CHANGELOG.md` — this entry prepended at TOP
+  - `docs/FOLLOWUP_TICKETS.md` — `TICKET-MOTION-ERROR-TYPED-EXCEPTION` row added to `## Recently Closed` table at the top
+- **Out-of-scope + forward-point**:
+  - `register_preset()` frozen + duplicate-id throw sites REMAIN `std::runtime_error` (user-spec scope boundary). Future §5.x forward-point commit will re-evaluate.
+  - `UnknownPackId` enum member is RESERVED for future pack-namespaced `apply()` variants; not currently thrown. The enum-to-string helper is already wired so the future `apply(pack, id)` overload will NOT need a to_string update for this variant.
+  - The `ChrononAssetError` precedent at `include/chronon3d/assets/render_preflight.hpp:19` shows a similar `class XError : public std::runtime_error` pattern that could be unified under a shared `ChrononAssetError` / `ChrononPresetError` base class — out of scope, future ADR-gated if a third typed-exception emerges.
+- **Honest-gap documentation (per AGENTS.md §honesty)**:
+  - The ctest execution of `chronon3d_scene_tests` (now 11 NEW group in test_motion_error.cpp) is deferred to working build host per the existing CHANGELOG lineage (vcpkg-installed glm/magic_enum + tmpfs quota for full cmake build, AGENTS.md §honesty-policy applies).
+  - The 3 remaining `std::runtime_error` throw sites in the codebase (frozen + duplicate-id in `MotionPresetPackRegistry::register_preset`, ALSO the analogous 2 sites in `TextPresetRegistry::register_preset`) are documented in this CHANGELOG entry as future §5.x forward-points. A bulk migration would risk a single big-bang commit; per AGENTS.md "Fare PR piccole e mirate" the per-registry scope is preferred.
+- **Cross-references**: [`include/chronon3d/presets/motion_error.hpp`](include/chronon3d/presets/motion_error.hpp) (the new header); [`include/chronon3d/presets/motion_preset_packs.hpp`](include/chronon3d/presets/motion_preset_packs.hpp) (the migrated registry); [`tests/presets/test_motion_error.cpp`](tests/presets/test_motion_error.cpp) (the 11 NEW TEST_CASEs); [`tests/scene_tests.cmake`](tests/scene_tests.cmake) (the new SOURCES line); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Recently Closed` (the new TICKET-MOTION-ERROR-TYPED-EXCEPTION row); [`include/chronon3d/assets/render_preflight.hpp`](include/chronon3d/assets/render_preflight.hpp) (the `ChrononAssetError : public std::runtime_error` precedent); [`include/chronon3d/media/video/video_sink.hpp`](include/chronon3d/media/video/video_sink.hpp) (the `to_string(Enum)` inline-helper precedent); AGENTS.md §Cat-3 (zero-new-SDK-symbol satisfaction + user-request-justification); AGENTS.md §Cat-5 (3-doc same-commit closure).
+
+---
+
 ## Luglio 2026 — TICKET-TEXT-ANIMATOR-COMPILE-ISVALID — `TextAnimatorSpec::compile()` + `is_valid()` chain methods (§5.0a + §5.0e closure) (2026-07-11, atomic commit)
 
 ### feat(text): §5.0a + §5.0e — `TextAnimatorSpec::compile()` + `is_valid()` chain-method pair, inspector-driven state-effect assertion
@@ -36,15 +81,15 @@
   - `include/chronon3d/text/animation/text_animator_spec.hpp` — added `compile()` + `is_valid()` method declarations (with §5.0a + §5.0e docblock)
   - `src/text/animation/text_animator_compile.cpp` — NEW, ~135 LoC — `compile()` + `is_valid()` implementations
   - `src/text/CMakeLists.txt` — registered `animation/text_animator_compile.cpp` in `chronon3d_text_core` SOURCES (with §5.0a + §5.0e closure provenance comment)
-  - `tests/text/test_text_definition.cpp` — group 21 (10 NEW TEST_CASEs + REQ_VALID_ANIMATOR_REQUIRE macro)
+  - `tests/text/test_text_definition.cpp` — group 21 (13 NEW TEST_CASEs + REQ_VALID_ANIMATOR_REQUIRE macro)
   - `docs/CHANGELOG.md` — this entry prepended at TOP
   - `docs/FOLLOWUP_TICKETS.md` — new `TICKET-TEXT-ANIMATOR-COMPILE-ISVALID` row in `## Recently Closed` table
 - **Honest-gap documentation (per AGENTS.md §honesty)**:
-  - The ctest execution of `chronon3d_text_definition_tests` (now 30 TEST_CASEs including the 10 NEW group 21) is deferred to next working-build-host session per the existing CHANGELOG lineage (vcpkg-installed glm/magic_enum + tmpfs quota for full cmake build, AGENTS.md §honesty-policy applies).
+  - The ctest execution of `chronon3d_text_definition_tests` (now 30 TEST_CASEs including the 13 NEW group 21) is deferred to next working-build-host session per the existing CHANGELOG lineage (vcpkg-installed glm/magic_enum + tmpfs quota for full cmake build, AGENTS.md §honesty-policy applies).
   - The 5 invariants are documented in the `text_animator_spec.hpp` docblock + `text_animator_compile.cpp` header + this CHANGELOG entry — three-anchor documentation drift-prevention.
   - `compile()` is intentionally a no-op body. The hook remains for future migration: if `AnimatedValue<T>` grows precomputed roving / bezier auto-handle cache (per the existing `compute_roving()` + `compute_auto_beziers()` entry points), `compile()` becomes the explicit-callable hook for those precomputations (deferred to a future PR per AGENTS.md “Fare PR piccole e mirate”).
 - **Re-bake command** (deferred to working build host):
-  `ctest -R "chronon3d_text_definition_tests" --output-on-failure` (expected: 30/30 PASS including the 10 NEW group 21 TEST_CASEs).
+  `ctest -R "chronon3d_text_definition_tests" --output-on-failure` (expected: 30/30 PASS including the 13 NEW group 21 TEST_CASEs).
 - **Cross-references**: [`include/chronon3d/text/animation/text_animator_spec.hpp`](include/chronon3d/text/animation/text_animator_spec.hpp) (the updated struct); [`src/text/animation/text_animator_compile.cpp`](src/text/animation/text_animator_compile.cpp) (the new implementation); [`src/text/CMakeLists.txt`](src/text/CMakeLists.txt) (the SOURCES registration); [`tests/text/test_text_definition.cpp`](tests/text/test_text_definition.cpp) group 21 (the new tests); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Recently Closed` (the new TICKET-TEXT-ANIMATOR-COMPILE-ISVALID row); `AGENTS.md` §Cat-3 (zero-new-SDK-symbol satisfaction); `AGENTS.md` §Cat-5 (3-doc same-commit closure).
 
 ---
