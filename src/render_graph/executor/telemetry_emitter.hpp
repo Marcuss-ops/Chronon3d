@@ -1,7 +1,7 @@
 #pragma once
 
 #include "execution_state.hpp"
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/memory/framebuffer_handle.hpp>
 

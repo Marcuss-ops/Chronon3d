@@ -12,7 +12,7 @@
 #include "analysis_helpers.hpp"
 #include "format.hpp"
 #include <chronon3d/render_graph/pipeline/graph_filter.hpp>
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/multi_source_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>

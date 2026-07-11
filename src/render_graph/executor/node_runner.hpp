@@ -18,7 +18,7 @@
 #include <vector>
 
 #include <chronon3d/core/scheduler/execution_scheduler.hpp>
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/render_graph/core/node_identity.hpp>
 

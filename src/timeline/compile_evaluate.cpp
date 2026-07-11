@@ -19,7 +19,7 @@
 // Bodies-only headers — kept out of the public API to keep surface includes
 // transitively minimal.
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
+#include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 
 #include <exception>
 
