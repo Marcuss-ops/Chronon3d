@@ -1,222 +1,218 @@
-# Build and local SDKs
-/build/
-/build*/
-/tests/build/
-vcpkg_installed/
-temp_assets/
-.vs/
-out/
-bin/
-lib/
-obj/
-
-# Dependency management
-vcpkg/
-vcpkg_bootstrap/
-# Top-level binary bootstrap file created by ./vcpkg_bootstrap (no slash → file or dir).
-/vcpkg_bootstrap
-
-# IDE files
-.vscode/
-.idea/
-*.user
-*.suo
-*.pdb
-*.sln
-*.vcxproj
-*.filters
-
-# OS files
-Thumbs.db
-.DS_Store
-
-# Large binary files
-*.tgz
-*.zip
-*.7z
-*.iso
-
-# Python/Watch scripts artifacts
-__pycache__/
-*.pyc
-
-# Virtual environments
-.venv/
-**/.venv/
-venv/
-**/venv/
-
-# Build logs (accidentally committed local artifacts)
-build_output.txt
-*.build.log
-
-
-
-
-# AI context
-.claude/
-.antigravitycli/
-
-# Trace/log files
-*.trace
-render_debug_trace*.log
-render_trace*.log
-trace*.json
-
-# Engine Output
-output/
-renders/
-
-# Generated render artifacts
-render_*.png
-chronon3d-*.log
-*.mp4
-
-
-# Generated visual test outputs
-test_renders/
-!test_renders/golden/
-output/new_features/
-.history/
-/test_output_*.png
-
-# Camera path output
-/path.json
-camera_path*.json
-
-# Camera test generated artifacts
-*_state.bin
-*_report*.json
-CameraTestReport.json
-camera_path_report.json
-camera_shot_report*.json
-
-# Local tool metadata and scratch
-
-# Local dev artifacts
-logs/
-
-# Build output log (captured from build failures)
-build_output.txt
-
-# ISO timestamp temp files (e.g. 2026-06-09T16:00) — accidentally created
-# by heredocs / SQL dumps / ad-hoc scripts.  Matches any filename starting
-# with YYYY-MM-DDT and a digit.
+# `${ROOT_DIR}/.tmp/chronon-builds/<preset>`).  NEVER committed: contains
+# `8d5ed596` (presets: bump version...) did not include these files; they
+# `cmake/Chronon3DRegistry.cmake`, NOT this directory.  Partner commit
+# `tools/install_consumer_test.sh`, etc.) and MUST NEVER enter the git
+# ── Dashboard frontend build artifacts ────────────────────────────────────────
 [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9]*
 [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]*
-
+*.7z
+# AE-parity referee engine output (TICKET-AE-PARITY-DRIVER).  The AE-side
+# AGENTS.md v0.1 § anti-artefact invariant: NEVER commit dist/ or node_modules/.
+# AI context
+# and MUST stay out of git to keep `git status` clean.  The `*.gitkeep`
+.antigravitycli/
+# are deferred indefinitely.  See `docs/FOLLOWUP_TICKETS.md` TICKET-062.
+artifacts/
 artifacts/visual/camera/
-.build-logs/
-/Testing/
-
 # Audit script generated reports (audit_software_renderer.sh artifact)
-/docs/audits/
-
+# Auto-emitted golden-diff artifact subdirs (created by tests/visual/support/golden_test.hpp
+# bare `.tmp/` project-local build root.
+# benchmark snapshots, ad-hoc agent tooling).  NEVER committed; playbooks in
+bin/
+# Both scoped here (dashboard-specific paths) AND globally (fallback for any
+# BUG 2 / TICKET-TEXT-GLOW-DARKENING — Step 3 A/B test outputs (transient
+/build/
+# Build and local SDKs
+*.build.log
+.build-logs/
+# Build logs (accidentally committed local artifacts)
+build.ninja
+# build.ninja, CMakeCache.txt, *.ninja_log, compile_commands.json etc., which
+# Build output directory (chronon-builds artifacts)
+# Build output log (captured from build failures)
+build_output.txt
+# Build resource logging dirs (vcpkg-manifest-install.log artifacts).
+/build_text_res_*/
+.build-tmp/
+# by heredocs / SQL dumps / ad-hoc scripts.  Matches any filename starting
+camera_path*.json
+# Camera path output
+camera_path_report.json
+camera_shot_report*.json
+# Camera test generated artifacts
+CameraTestReport.json
+# Canonical build dir used by build-fast.sh (BUILD_DIR_OVERRIDE-defaulted to
+.ccache/
+# Cert-run log artifacts (transient by design — e.g. `tmp/baseline-<sha>/A1..B7..C..E.log` produced by fresh `docs/baselines/main-<sha>-baseline.md` runs; regenerated per cert invocation, never recomputed into git — cert rationale: see `docs/baselines/main-908c7034-baseline.md` Forensic-replay section + AGENTS.md §honesty §"Non committare ... output, artefatti o file generati").  Without this rule, every cert run leaves an untracked `tmp/baseline-*/` that breaks `tools/check_main_clean.sh`'s "working tree dirty" gate.  Mirrors the `.tmp_gate*/` and `.tmp/chronon-builds/` patterns above.
+chronon3d-*.log
+# CI gate pipeline temporary build dirs (.tmp_gate10/, .tmp_gate11/, …).
+.claude/
 # CMake build artifacts (regenerated on every configure)
 CMakeCache.txt
 CMakeFiles/
-build.ninja
-.ninja_log
-.ninja_deps
-compile_commands.json
 cmake_install.cmake
+compile_commands.json
 CTestTestfile.cmake
-install_manifest.txt
-install_manifest.json
-
-# Scratch / ephemeral directories produced by gate scripts (install_consumer,
-# benchmark snapshots, ad-hoc agent tooling).  NEVER committed; playbooks in
-# docs/AGENTS.md and tools/check_repo_artifacts.sh enforce this.
-.tmp_gate*/
-.tmp_*/
-
-# Canonical build dir used by build-fast.sh (BUILD_DIR_OVERRIDE-defaulted to
-# `${ROOT_DIR}/.tmp/chronon-builds/<preset>`).  NEVER committed: contains
-# build.ninja, CMakeCache.txt, *.ninja_log, compile_commands.json etc., which
-# leak absolute build-machine paths.  AGENTS.md § anti-artefact invariant:
-# never commit build output.  Without this rule, every machine leaves an
-# untracked entry in `git status` that breaks tools/check_main_clean.sh's
-# "working tree dirty" gate (the gate enforces the invariant); the other
-# .tmp_* patterns above are gate-pipeline-specific and do not cover the
-# bare `.tmp/` project-local build root.
-/.tmp/
-
-# Local git worktrees (parallel agent branches — never on main)
-.worktrees/
-.build-tmp/
-.git_tmp_*
-
-# CI gate pipeline temporary build dirs (.tmp_gate10/, .tmp_gate11/, …).
-# Generated by CMake/ninja under gate-pipeline runs (`tools/check_*.sh`,
-# `tools/install_consumer_test.sh`, etc.) and MUST NEVER enter the git
-# index: their generated files (build.ninja, CMakeCache.txt, .ninja_deps,
 # CTestTestfile.cmake, compile_commands.json) leak absolute build-machine
-# paths (e.g. /home/<user>/Pyt/Chronon3d/...).  Hardened audit:
-#     tools/check_gitignored_dirs.sh   (Fase 0 — tracked-glob + abs-path)
-.tmp_gate*/
-
-# Build resource logging dirs (vcpkg-manifest-install.log artifacts).
-# Phase-0 close-out: these were tracked with machine-specific absolute
-# paths inside their log files; de-tracked and excluded at root.
-/build_text_res_*/
-
-# Partner-owned Refactor 1B overlay (text preset catalog split) — gitignored
-# to keep GATE-MNT-01 clean for everyone.  Canonical registry path is
-# `cmake/Chronon3DRegistry.cmake`, NOT this directory.  Partner commit
-# `8d5ed596` (presets: bump version...) did not include these files; they
-# are deferred indefinitely.  See `docs/FOLLOWUP_TICKETS.md` TICKET-062.
-/src/registry/text/
-
-# Local idempotency scratch helpers (Agent3 atomic-commit tooling) —
-# underscore prefix signals "ephemeral, not project-owned".  These are
-# re-run-on-demand scripts (e.g. `_sect12_stub.py` to restore a missing
-# doc section, `_span_name_closure.py` for batch edits) and are NOT
-# durable project tooling.  See `docs/FOLLOWUP_TICKETS.md` TICKET-063.
-tools/_*.py
-sdk_consumer_output.png
-reports/perf/
-
-# ── Dashboard frontend build artifacts ────────────────────────────────────────
-# AGENTS.md v0.1 § anti-artefact invariant: NEVER commit dist/ or node_modules/.
-# Frontend lives at tools/telemetry_dashboard/frontend/ and is rebuilt fresh
-# on demand via `cd tools/telemetry_dashboard/frontend && npm install && npm run build`.
-# Both scoped here (dashboard-specific paths) AND globally (fallback for any
-# future frontend apps + raw npm/yarn dependency caches).
-tools/telemetry_dashboard/frontend/dist/
-tools/telemetry_dashboard/frontend/node_modules/
-
-# Global fallback (belt-and-suspenders against future accidental git add .)
+# Dependency management
 dist/
-node_modules/
-artifacts/
-test_output/
-
-# Auto-emitted golden-diff artifact subdirs (created by tests/visual/support/golden_test.hpp
-# when verify_golden produces a mismatch).  Transient by design — regenerated per
-# run and never recomputed into goldens.  Listed explicitly (not `**/diff/`) so the
-# tracked `tests/golden/ae_parity/` parent remains indexable.
-tests/golden/ae_parity/diff/
-
-# BUG 2 / TICKET-TEXT-GLOW-DARKENING — Step 3 A/B test outputs (transient
-# experiment PNGs regenerated per `chronon3d_cli render` invocation, never
-# recomputed into goldens).  Mirrors the `tests/golden/ae_parity/diff/`
-# pattern above: tracked repo holds the experiment SOURCES (composition,
-# script, report), the rendered PNGs are ephemeral.  See
+# docs/AGENTS.md and tools/check_repo_artifacts.sh enforce this.
+/docs/audits/
 # docs/baselines/2026-07-10-glow-ab-result.md for reproduction commands.
+# doc section, `_span_name_closure.py` for batch edits) and are NOT
+.DS_Store
+# durable project tooling.  See `docs/FOLLOWUP_TICKETS.md` TICKET-063.
+# Engine Output
+# engine output at `reference/chronon3d/*.png` is regenerated per ctest run
+# experiment PNGs regenerated per `chronon3d_cli render` invocation, never
+*.filters
+# Frontend lives at tools/telemetry_dashboard/frontend/ and is rebuilt fresh
+# future frontend apps + raw npm/yarn dependency caches).
+# Generated by CMake/ninja under gate-pipeline runs (`tools/check_*.sh`,
+# Generated render artifacts
+# Generated visual test outputs
+.git_tmp_*
+# Global fallback (belt-and-suspenders against future accidental git add .)
+.history/
+.idea/
+# IDE files
+# index: their generated files (build.ninja, CMakeCache.txt, .ninja_deps,
+install_manifest.json
+install_manifest.txt
+*.iso
+# ISO timestamp temp files (e.g. 2026-06-09T16:00) — accidentally created
+# Large binary files
+# leak absolute build-machine paths.  AGENTS.md § anti-artefact invariant:
+lib/
+# Local dev artifacts
+# Local git worktrees (parallel agent branches — never on main)
+# Local idempotency scratch helpers (Agent3 atomic-commit tooling) —
+# Local tool metadata and scratch
+logs/
+# mocks at `reference/after_effects/*.png` are manually committed; the
+*.mp4
+# never commit build output.  Without this rule, every machine leaves an
+.ninja_deps
+.ninja_log
+node_modules/
+obj/
+# on demand via `cd tools/telemetry_dashboard/frontend && npm install && npm run build`.
+# OS files
+out/
+output/
+output/new_features/
+# Partner-owned Refactor 1B overlay (text preset catalog split) — gitignored
+/path.json
+# paths (e.g. /home/<user>/Pyt/Chronon3d/...).  Hardened audit:
+# paths inside their log files; de-tracked and excluded at root.
+# pattern above: tracked repo holds the experiment SOURCES (composition,
+*.pdb
+# Phase-0 close-out: these were tracked with machine-specific absolute
+# placeholders are preserved (they don't match `*.png`).
+*.pyc
+__pycache__/
+# Python/Watch scripts artifacts
+# recomputed into goldens).  Mirrors the `tests/golden/ae_parity/diff/`
+reference/chronon3d/*.png
+render_debug_trace*.log
+render_*.png
+renders/
+render_trace*.log
+*_report*.json
+reports/perf/
+# re-run-on-demand scripts (e.g. `_sect12_stub.py` to restore a missing
+# run and never recomputed into goldens.  Listed explicitly (not `**/diff/`) so the
+# Scratch / ephemeral directories produced by gate scripts (install_consumer,
+# script, report), the rendered PNGs are ephemeral.  See
+sdk_consumer_output.png
+*.sln
+/src/registry/text/
+*_state.bin
+*.suo
+temp_assets/
+/Testing/
+test_output/
+/test_output_*.png
+test_renders/
+!test_renders/golden/
+/tests/build/
+tests/golden/ae_parity/diff/
 tests/visual/glow_with/
 tests/visual/glow_without/
-
-# AE-parity referee engine output (TICKET-AE-PARITY-DRIVER).  The AE-side
-# mocks at `reference/after_effects/*.png` are manually committed; the
-# engine output at `reference/chronon3d/*.png` is regenerated per ctest run
-# and MUST stay out of git to keep `git status` clean.  The `*.gitkeep`
-# placeholders are preserved (they don't match `*.png`).
-reference/chronon3d/*.png
+*.tgz
+Thumbs.db
+.tmp_*/
+.tmp_gate*/
+# .tmp_* patterns above are gate-pipeline-specific and do not cover the
+# to keep GATE-MNT-01 clean for everyone.  Canonical registry path is
+#     tools/check_gitignored_dirs.sh   (Fase 0 — tracked-glob + abs-path)
+tools/_*.py
+tools/telemetry_dashboard/frontend/dist/
+tools/telemetry_dashboard/frontend/node_modules/
 tools/telemetry_dashboard/.vite/
-.ccache/
+# Top-level binary bootstrap file created by ./vcpkg_bootstrap (no slash → file or dir).
+*.trace
+trace*.json
+# Trace/log files
+# tracked `tests/golden/ae_parity/` parent remains indexable.
+# underscore prefix signals "ephemeral, not project-owned".  These are
+# untracked entry in `git status` that breaks tools/check_main_clean.sh's
+*.user
+vcpkg/
+vcpkg_bootstrap/
+vcpkg_installed/
+*.vcxproj
+.venv/
+# Virtual environments
+.vs/
+.vscode/
+# when verify_golden produces a mismatch).  Transient by design — regenerated per
+# with YYYY-MM-DDT and a digit.
+# "working tree dirty" gate (the gate enforces the invariant); the other
+.worktrees/
+*.zip
 
-# Build output directory (chronon-builds artifacts)
-.tmp/
+# --- custom additions operator-local ---
 
-# Cert-run log artifacts (transient by design — e.g. `tmp/baseline-<sha>/A1..B7..C..E.log` produced by fresh `docs/baselines/main-<sha>-baseline.md` runs; regenerated per cert invocation, never recomputed into git — cert rationale: see `docs/baselines/main-908c7034-baseline.md` Forensic-replay section + AGENTS.md §honesty §"Non committare ... output, artefatti o file generati").  Without this rule, every cert run leaves an untracked `tmp/baseline-*/` that breaks `tools/check_main_clean.sh`'s "working tree dirty" gate.  Mirrors the `.tmp_gate*/` and `.tmp/chronon-builds/` patterns above.
-tmp/
+*~
+*.a
+*.app
+*_bench
+/benchmark-results/
+/build-*/
+# Build artifacts
+.cache/
+# Cache
+/chronon
+/chronon-cli
+/.cmake/
+# CMake
+/cmake-build-*/
+/CMakeCache.txt
+/CMakeFiles/
+/cmake_install.cmake
+/compile_commands.json
+/dist/
+*.dll
+*.dylib
+# Editor / OS
+*.exe
+*.gcda
+*.gcno
+*.gcov
+# Generated test binaries
+*.lib
+*.log
+# Logs
+/Makefile
+*.o
+*.obj
+# Object/binary outputs
+/out/
+*.so
+*.swo
+*.swp
+*_test
+# Test/benchmark artifacts
+/test-results/
+/tools/chronon-linux.sh.tmp
