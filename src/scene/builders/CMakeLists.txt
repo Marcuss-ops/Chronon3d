@@ -6,7 +6,6 @@ target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/layer_builder.cpp
     # FASE 22 — motion timeline adapters (apply_axis_timeline + 9 motion
     # methods) extracted from layer_builder.cpp.
-    ${CMAKE_CURRENT_SOURCE_DIR}/layer_builder_motion.cpp
     # FASE 22 — text_run() registration + build() materialization
     # extracted from layer_builder.cpp.
     ${CMAKE_CURRENT_SOURCE_DIR}/layer_builder_compile.cpp

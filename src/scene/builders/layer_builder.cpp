@@ -3,7 +3,7 @@
 // live in layer_builder_motion.cpp; text_run() + build() live in
 // layer_builder_compile.cpp.  Post-split minimal include surface:
 //   layer_builder.hpp (always) — full class declaration including
-//     SampleTime, AnimatedValue, motion::Timeline (transitive via
+//     SampleTime, AnimatedValue (transitive via
 //     animated_transform.hpp), FontEngine forward-decl, all param structs.
 //   font_engine.hpp — needed by font_engine_setter / getter body for
 //     the full FontEngine type (pointer is fine but the include is here

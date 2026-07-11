@@ -107,13 +107,11 @@ Composition build_rotate_z_composition(
             s.font_engine(&renderer.font_engine());
             s.layer("hero", [rotate_z_deg, cx, cy, canvas_w, canvas_h](LayerBuilder& l) {
                 // Apply Z-axis rotation (in the canvas plane) BEFORE the
-                // text_run.  `rotate_z` takes a `motion::Timeline<f32>`,
-                // so we wrap the float in the canonical constant-timeline
-                // factory `motion::timeline(value)`.  This verifies that
-                // the rotation transform path correctly produces a
-                // rotated text run without clipping the visible ink at
-                // the canvas edges.
-                l.rotate_z(motion::timeline(rotate_z_deg));
+                // text_run.  `rotate(Vec3)` sets the layer's static
+                // rotation.  This verifies that the rotation transform
+                // path correctly produces a rotated text run without
+                // clipping the visible ink at the canvas edges.
+                l.rotate(Vec3{0.0f, 0.0f, rotate_z_deg});
                 l.text_run("title", TextRunParams{
                     .text = {
                         // TextSpec field order: content, position, font,

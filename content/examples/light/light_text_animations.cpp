@@ -21,7 +21,6 @@
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
-#include <chronon3d/animation/motion/timeline.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/text_definition.hpp>
 

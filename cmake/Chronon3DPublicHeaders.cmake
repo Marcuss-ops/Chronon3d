@@ -26,7 +26,6 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/core/quaternion_track.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/easing/easing.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/easing/interpolate.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/motion/timeline.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/effects/animated_transform.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animation/effects/stagger.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/api/render_engine.hpp"

@@ -26,7 +26,6 @@
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/animation/path/catmull_rom_path.hpp>
 #include <chronon3d/animation/effects/wiggle.hpp>
-#include <chronon3d/animation/motion/timeline.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/font_engine.hpp>
