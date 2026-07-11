@@ -6,8 +6,6 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/backends/software/software_render_session.hpp>
 #include <chronon3d/core/config.hpp>
-#include <chronon3d/text/text_run_shape.hpp>
-#include <chronon3d/media/media_placement.hpp>
 #include <memory>
 #include <optional>
 #include <span>
@@ -17,34 +15,18 @@
 
 namespace chronon3d {
 
-/// Lightweight snapshot of a TextRunNode captured after the render graph
-/// is built.  Used by diagnostic tools (e.g. `chronon3d_cli inspect-text`)
-/// to audit text visibility without re-evaluating the scene.
-struct TextRunAuditSnapshot {
-    std::string name;
-    std::shared_ptr<TextRunShape> shape;
-    Mat4 world_matrix;
-    Rect predicted_bbox;
-    Rect clip_rect;
-};
-
-struct TextRenderResources;
-struct FontPreflightSummary;   // TICKET-078 forward-decl; full def in text_render_resources.hpp
+struct TextRunAuditSnapshot; struct TextRenderResources; struct FontPreflightSummary;   // TICKET-078 fwd-decl; full def in text_render_resources.hpp
 
 class FontEngine; class Composition; class Scene; class Camera; class Camera2_5D;
 class CompositionRegistry; namespace media { class MediaFrameProvider; }
 namespace image { class ImageBackend; } namespace runtime { class RenderRuntime; }
 namespace raster { struct BBox; } namespace cache { class FramebufferPool; class NodeCache; }
-namespace graph { class RenderBackend; class CompiledGraphCache;
-  class GraphNodeCatalog; class SceneHasher; class SceneProgramStore; }
+namespace graph { class RenderBackend; class CompiledGraphCache; class GraphNodeCatalog; class SceneHasher; class SceneProgramStore; }
 namespace effects { class EffectCatalog; struct EffectExecutionContext; }
 namespace renderer { class SoftwareRegistry; }
 
-struct MotionBlurSettings; struct DepthOfFieldSettings; struct LensModel;
-struct Frame; struct LayerBBoxState; struct RenderNode; struct RenderState;
-struct EffectStack;
-enum class BlendMode : unsigned char;
-enum class CompositeOperator : unsigned char;
+struct MotionBlurSettings; struct DepthOfFieldSettings; struct LensModel; struct Frame; struct LayerBBoxState; struct RenderNode; struct RenderState;
+struct EffectStack; enum class BlendMode : unsigned char; enum class CompositeOperator : unsigned char;
 
 class SoftwareRenderer : public Renderer {
 public:
@@ -168,10 +150,8 @@ public:
     [[nodiscard]] RenderSession& session()                       { return m_session.common; }
     [[nodiscard]] const RenderSession& session() const           { return m_session.common; }
 
-    // ── Text audit snapshots (diagnostic/inspect-text support) ─────────
-    [[nodiscard]] std::vector<TextRunAuditSnapshot>& text_audit_snapshots() { return m_text_audit_snapshots; }
-    [[nodiscard]] const std::vector<TextRunAuditSnapshot>& text_audit_snapshots() const { return m_text_audit_snapshots; }
-    void clear_text_audit_snapshots() { m_text_audit_snapshots.clear(); }
+    // ── Text audit snapshots ──
+    [[nodiscard]] std::vector<TextRunAuditSnapshot>& text_audit_snapshots() { return m_session.text_audit_snapshots; }
     [[nodiscard]] SoftwareRenderSession& software_session()      { return m_session; }
     [[nodiscard]] const SoftwareRenderSession& software_session() const { return m_session; }
     [[nodiscard]] FrameHistory& frame_history()                  { return m_session.common.frame_history; }
@@ -215,8 +195,5 @@ private:
     std::unique_ptr<TextRenderResources> m_text_render_resources;
     std::unique_ptr<renderer::SoftwareRegistry> m_software_registry;
     SoftwareRenderSession m_session;
-
-    // ── Diagnostic text-run snapshots (last rendered frame) ───────────────
-    std::vector<TextRunAuditSnapshot> m_text_audit_snapshots;
 };
 }  // namespace chronon3d
