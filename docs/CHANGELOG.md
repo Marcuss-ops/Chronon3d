@@ -1,3 +1,40 @@
+## Luglio 2026 — forward-point 0j+ — bash-portability hardening of `tools/check_test_suite_registration.sh`: empty-array guard around `${raw_files[@]}` for-loop + single INFO-level diagnostic on clean state (silences noisy stderr; preserves gate CONTRACT rc=0) (2026-07-11, atomic chore commit)
+
+### fix(ci): test_suite_registration.sh 0j+ (empty-array guard + INFO)
+
+- **Scope**: closes the TICKET-LAYER-IMAGE-MANIFEST-CLEAN cluster's forward-point 0j+ (machine-observed: the pre-push gate sweep emitted several `integer expression expected` bash warnings at lines 53 + 58 of `tools/check_test_suite_registration.sh` despite the gate exiting 0 PASS). After this commit, the noisy stderr is silenced via: (a) an explicit `[[ ${#raw_files[@]} -gt 0 ]]` empty-array guard around the `${raw_files[@]}` for-loop in the GATE_FAIL block (canonical Pattern A: explicit length check, the most portable + bash 4.x-5.x-compatible), and (b) a single `[INFO]`-prefixed diagnostic line emitted on the canonical clean state (when `raw_count=0`).
+- **Gate CONTRACT preservation**: the canonical invariant is preserved verbatim — rc=0 means "all $total test targets use chronon3d_add_test_suite()"; rc=1 means "at least one raw `add_executable(chronon3d_*test ...)` remains in: <file-list>"; rc=2 means "internal script error". The fix is BASH-PORTABILITY HARDENING ONLY — zero change to the gate's pass/fail semantics.
+- **Empty-array guard pattern** (Pattern A — chosen for canonical alignment with sibling gates `tools/check_test_hygiene.sh` line 36, `tools/check_text_golden_sources_aligned.sh` line 79, `tools/check_no_changelog_conflict_markers.sh`):
+  ```bash
+  if [[ ${#raw_files[@]} -gt 0 ]]; then
+      for f in "${raw_files[@]}"; do
+          echo "  - tests/$f"
+      done
+  fi
+  ```
+  Other patterns considered + rejected: Pattern B (default-on-empty `${arr[@]:-}`) requires `set -u` OFF, conflicts with `set -euo pipefail` at the top of the script; Pattern C (`for x in "${arr[@]+"${arr[@]}"}"`) is arcane; Pattern D (cryptic `$((${arr[@]:-0} + 1))`) is harder to grep + harder to extend. Pattern A is the only one that works with `set -u` enabled AND is grep-discoverable.
+- **Single INFO-level diagnostic** (canonical pattern matching the [INFO] prefix style):
+  ```
+  [INFO] check_test_suite_registration: 0 raw matches found — clean state (all $suite_count suite invocations verified across $(N) test cmake files)
+  ```
+  Emitted ONCE on the canonical clean state (raw_count=0, total=suite_count). NOT emitted in the FAIL state (raw_count>0). Emitted to STDOUT (matching the gate's existing convention; sibling gates `tools/check_text_golden_sources_aligned.sh` + `tools/check_no_changelog_conflict_markers.sh` also use stdout for the OK diagnostic). The `[INFO]` prefix is grep-discoverable via `bash tools/check_test_suite_registration.sh 2>&1 | grep '^\[INFO\]'`.
+- **Cat-3 (no public API surface) SATISFIED**: zero new symbols in `include/chronon3d/`. Zero `[[deprecated]]` field annotations. Zero dispatch-site forwarding logic. The fix is a bash script internal hardening; pure tooling refactor.
+- **Cat-5 (2-doc same-commit alignment) SATISFIED**: this CHANGELOG entry (prepended at TOP, above the WAVE-02 0a entry) + `tools/check_test_suite_registration.sh` (2 surgical edits: empty-array guard + INFO diagnostic) both updated in this same atomic chore commit. `tools/check_doc_sync.sh` R5 fires on this closure. **`docs/FOLLOWUP_TICKETS.md` INTENTIONALLY UNTOUCHED**: this is a forward-point closure (audit-grade); the §Recently Closed table for the TICKET-LAYER-IMAGE-MANIFEST-CLEAN cluster already has 4 rows (0e + 0f+ + 0g+ + 0h+) — adding a 5th row for 0j+ would be over-sprawl since the closure is a 1-line tooling fix not a multi-file refactor. The 0j+ forward-point is logged HERE in CHANGELOG as the canonical closure audit. **`docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED**: per `docs/DOCUMENTATION_GOVERNANCE.md` the SDK state cell is "stato per area" — adding a row for a CI-tooling hardening would dilute the SDK-state semantic.
+- **AGENTS.md v0.1 freeze compliance** (revoked 2026-07-06, but Cat-3 + Cat-1 + §honesty rules permanent):
+  - **Cat-1 commit-discipline**: single atomic chore commit (forward-point 0j+ closure only); pure bash hardening. "Fare PR piccole e mirate" honoured.
+  - **Cat-2 honest-doc-sync**: this CHANGELOG entry + tools script both updated in same commit.
+  - **Cat-3 (no new public API surface)**: SATISFIED — zero new symbols; pure tooling refactor.
+  - **Cat-4 install-pipeline-plumbing** N/A: no install_consumer shader/spec change.
+  - **Cat-5 2-doc same-commit alignment** PARTIAL (CHANGELOG.md + tools script both updated in same commit; FOLLOWUP_TICKETS.md + CURRENT_STATUS.md intentionally untouched per above).
+  - **Gate 5 deny-everywhere** N/A: no `#include <msdfgen>`/`<libtess2>`/`<unicode[/...]>` introduced (bash script, not C++).
+  - **GATE-MNT-01 fail-on-dirty** invariant: post-commit smoke-test run before push (VPS auth-block on `git push` per AGENTS.md §honesty per the established pattern).
+  - **§honesty compliance**: the noisy stderr was previously masked by the exit-0 PASS signal; future iterations of the gate + CI log readers could mistake the warnings for real issues. The fix preserves the gate's "PASS" verdict while making the audit signal silent (no spurious warnings) AND explicit (single INFO diagnostic confirming the clean state).
+- **Files changed (2)**:
+  - `tools/check_test_suite_registration.sh` EDIT (2 surgical edits: empty-array guard around `${raw_files[@]}` for-loop + single `[INFO]`-prefixed diagnostic line on the canonical clean state)
+  - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+
+---
+
 ## Luglio 2026 — TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02 forward-point 0a — WAVE-02 first-step seed: extend ## Cartography Architecture machine-verification grep to text-shape primitives + add 1-row catalogued forward-points entry (no source-code changes; doc-only chore) (2026-07-11, atomic chore commit)
 
 ### docs(cartography): WAVE-02 first-step seed (text-shape grep + 0a) — ## Cartography Architecture extension to text-shape surface
