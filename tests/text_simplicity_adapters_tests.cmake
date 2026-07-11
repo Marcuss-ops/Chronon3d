@@ -26,8 +26,3 @@ chronon3d_add_test_suite(
 # chronon3d_text_definition_tests + chronon3d_safe_area_placement_tests
 # + chronon3d_text_builder_ergonomics_tests.
 list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_text_simplicity_adapters_tests)
-
-doctest_discover_tests(chronon3d_text_simplicity_adapters_tests
-    PROPERTIES
-        TIMEOUT 30
-)

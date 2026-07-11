@@ -237,6 +237,11 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/visibility_contract_tests.cmake)
 # this orchestrator.
 include(${CMAKE_CURRENT_SOURCE_DIR}/inspect_text_tests.cmake)
 
+# M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 presets × 3 CHECKs = 15 assertions
+# (UNCONDITIONAL, pure struct inspection).  Per ADR-018, this file is also
+# listed in CMAKE_CONFIGURE_DEPENDS at the top of this orchestrator.
+include(${CMAKE_CURRENT_SOURCE_DIR}/text_presets_stability_tests.cmake)
+
 # Tests requiring content
 if(CHRONON3D_BUILD_CONTENT)
     include(${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake)
