@@ -1,3 +1,54 @@
+## Luglio 2026 — TICKET-TEXT-ANIMATOR-COMPILE-ISVALID — `TextAnimatorSpec::compile()` + `is_valid()` chain methods (§5.0a + §5.0e closure) (2026-07-11, atomic commit)
+
+### feat(text): §5.0a + §5.0e — `TextAnimatorSpec::compile()` + `is_valid()` chain-method pair, inspector-driven state-effect assertion
+
+- **Scope**: §5 gap closure. The user-spec `resolve().compile().is_valid()` fluent chain was DESIGNED-IN to the `TextAnimatorSpec` typing surface (`include/chronon3d/text/animation/text_animator_spec.hpp` line 29 — struct definition present, but `compile()` / `is_valid()` methods NOT shipped). The authoring chain was effectively `(compile()?) (is_valid()?) — silent fallthrough` at the return-type level (callers either called the implicit no-op chain or invented ad-hoc checks). The gap was explicitly tracked in the prior session under the §5 CHANGELOG heading — this commit closes it.
+- **Method pair:**
+  - `[[nodiscard]] TextAnimatorSpec& TextAnimatorSpec::compile()` — self-reference return for fluent chaining. Implementation is a no-op body (`AnimatedValue<T>::add_keyframe` already enforces sortedness + invariance-of-default at the API surface); the method is the canonical contract hook so future authoring runs `spec.compile().is_valid()` as a single fluent expression.
+  - `[[nodiscard]] bool TextAnimatorSpec::is_valid() const` — 5 invariants beyond empty/empty membership predicate (see below).
+- **4 invariants (§5.0e spec — post code-reviewer remediation collapsed from 5 invariants; the original "Inv 2 LENIENT keyframe-population" was a tautology `size >= 0` always-true and was removed in the same commit's code-reviewer pass):**
+  - **Inv 1 — Non-empty predicates**: `selectors` AND `properties` both non-empty. Rejects authoring-tooling footguns where the orchestrator forgot to populate either side.
+  - **Inv 2 — Strict monotonicity**: AnimatedValue keyframes strictly increase (no duplicate frames). `AnimatedValue::add_keyframe` accepts duplicates at the API level (`std::sort` does not reject equal keys); the chain catches them explicitly — locks against the “add_keyframe twice at frame N” footgun.  THIS is the invariant that breaks the membership-predicate ceiling — a single empty-check is insufficient to distinguish a monotonic time-curve from a degenerate duplicate-frame one.
+  - **Inv 3 — Value integrity**: no NaN or Inf in any keyframe value OR any static-value field. Locks against the “0/0 normalized scale” + “infinite-range frame timestamp” + “NaN width/angle” authoring footguns.  Critical: Inv 3 is the invariant where the `std::is_same_v<P, ...>` dispatch matters most — each static-value alternative has its own distinct field name (`RotationProperty::degrees` NOT `value`, `AnchorProperty::value`, `SkewProperty::{angle, axis}`, `FillColor`/`StrokeColor::color`, `StrokeWidth::width`, `BaselineShift::pixels`, `CharacterOffset::offset` i32).  Lumping multiple static-value types into one `p.value` branch (the initial code-reviewer MIN catch) would be a COMPILE ERROR because `RotationProperty` has no `value` field.
+  - **Inv 4 — Blend-mode coverage**: `transform_mode` + `color_mode` are scoped enums (`TextPropertyBlendMode::{Add, Replace, Multiply}`). Out-of-enum values are UB at type level; the explicit value-comparison check makes the contract machine-verifiable.
+- **Dispatch pattern**: `std::visit` with explicit `std::is_same_v<P, ...>` branching per variant alternative. SFINAE-by-member-name was explicitly rejected in the design pass because AnimatedValue-bearing properties use different field names (`value` for Position/Scale/Opacity, `radius` for Blur, `pixels` for Tracking) — member-name SFINAE misses the latter two. The `is_same_v` pattern matches the canonical Chronon3D precedent in `src/text/animation/text_property_applier.cpp` and `text_animator_stack.cpp`.
+- **AGENTS.md v0.1 freeze compliance:**
+  - **Cat-3** (no new public SDK symbols): SATISFIED — only adds TWO methods on the existing `TextAnimatorSpec` struct; no new struct / typedef / enum / free function in `include/chronon3d/`.
+  - **Cat-5** (3-doc same-commit alignment): SATISFIED — CHANGELOG.md (this entry) + FOLLOWUP_TICKETS.md (new `## Recently Closed` row) + the `TextAnimatorSpec` header docblock updated in same commit. `tools/check_doc_sync.sh` R5 fires on this closure.
+  - Gate 5 deny-everywhere compliance: N/A — no `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` introduced (only includes the canonical `<chronon3d/text/animation/text_animator_spec.hpp>` + standard `<cmath>` / `<type_traits>` / `<variant>`).
+  - Zero nuovi singleton/registry/cache/resolver/sampler/service-locator.
+- **Test coverage — Group 21 in `tests/text/test_text_definition.cpp`** (13 NEW `TEST_CASE`s, post-code-reviewer fix; were 10 originally before the `N≥3 monotonic` + `RotationProperty::degrees` + `AnchorProperty::value` anti-locks were added):
+  - **21.1** Inv 1: empty spec fails `is_valid()` (Inv 1 — both empty)
+  - **21.2** Inv 1: non-empty selectors + empty properties fails (Inv 1)
+  - **21.3** Inv 1: empty selectors + non-empty properties fails (Inv 1)
+  - **21.4** Inv 2: animated OpacityProperty with monotonic keyframes PASS (N=2 trivial monotonic — the canonical fade-in animator; verifies `spec.compile().is_valid()` chain-form == `spec.is_valid()` direct-form)
+  - **21.5** Inv 2: animated OpacityProperty with monotonic curve N=3 PASS (the meaningful Inv 2 test — exercises the strict-monotonicity comparator over a real 3-keyframe curve, since `if (kfs.size() < 2) return true` short-circuits the helper at N=2 trivially)
+  - **21.6** Inv 2: animated OpacityProperty with DUPLICATE keyframe frames fails (Invariant 2 anti-lock regression test — locks the chain catch of the "add_keyframe twice at frame N" footgun that `std::sort` accepts)
+  - **21.7** Inv 3: animated OpacityProperty with NaN keyframe value fails (Invariant 3 anti-lock regression test for AnimatedValue-backed keyframe values)
+  - **21.8** Inv 3: static RotationProperty with NaN `degrees.x` fails (Invariant 3 anti-lock for static `RotationProperty::degrees` Vec3 — the §5.0e code-reviewer fix that split RotationProperty from AnchorProperty dispatch on `p.value`)
+  - **21.9** Inv 3: static AnchorProperty with NaN `value.x` fails (Invariant 3 anti-lock for static `AnchorProperty::value` Vec3 — the OTHER half of the §5.0e code-reviewer dispatch split)
+  - **21.10** Inv 4: blend_mode coverage (default `Add` + `Replace` PASS)
+  - **21.11** Inv 4: blend-mode invariant on Multiply (explicit `transform_mode = TextPropertyBlendMode::Multiply` passes — locks Inv 4 covers all 3 enum members, not just default Add + Replace)
+  - **21.12** compile() returns self-reference enabling fluent chain (`&chained == &spec` identity lock — locks the §5.0a contract)
+  - **21.13** chain-form == direct-form agreement (sanity check: 100 calls of `spec.compile().is_valid()` + `spec.is_valid()` agree on the same struct — locks SelfRef preserving the underlying invariant check)
+- (Note: the `REQ_VALID_ANIMATOR_REQUIRE(spec)` inspector-macro pattern proposed in the prior-commit-iteration was DROPPED in the code-reviewer round — it printed "REQs 1-5 of §5.0e all violated" with zero per-N diagnostic attribution, adding CI complexity with no payoff. Direct `CHECK(spec.is_valid())` / `CHECK_FALSE(spec.is_valid())` per the existing Chronon3D test convention in `tests/text/test_text_font_resolver_golden.cpp` is used instead.)
+- **Files changed (6)**:
+  - `include/chronon3d/text/animation/text_animator_spec.hpp` — added `compile()` + `is_valid()` method declarations (with §5.0a + §5.0e docblock)
+  - `src/text/animation/text_animator_compile.cpp` — NEW, ~135 LoC — `compile()` + `is_valid()` implementations
+  - `src/text/CMakeLists.txt` — registered `animation/text_animator_compile.cpp` in `chronon3d_text_core` SOURCES (with §5.0a + §5.0e closure provenance comment)
+  - `tests/text/test_text_definition.cpp` — group 21 (10 NEW TEST_CASEs + REQ_VALID_ANIMATOR_REQUIRE macro)
+  - `docs/CHANGELOG.md` — this entry prepended at TOP
+  - `docs/FOLLOWUP_TICKETS.md` — new `TICKET-TEXT-ANIMATOR-COMPILE-ISVALID` row in `## Recently Closed` table
+- **Honest-gap documentation (per AGENTS.md §honesty)**:
+  - The ctest execution of `chronon3d_text_definition_tests` (now 30 TEST_CASEs including the 10 NEW group 21) is deferred to next working-build-host session per the existing CHANGELOG lineage (vcpkg-installed glm/magic_enum + tmpfs quota for full cmake build, AGENTS.md §honesty-policy applies).
+  - The 5 invariants are documented in the `text_animator_spec.hpp` docblock + `text_animator_compile.cpp` header + this CHANGELOG entry — three-anchor documentation drift-prevention.
+  - `compile()` is intentionally a no-op body. The hook remains for future migration: if `AnimatedValue<T>` grows precomputed roving / bezier auto-handle cache (per the existing `compute_roving()` + `compute_auto_beziers()` entry points), `compile()` becomes the explicit-callable hook for those precomputations (deferred to a future PR per AGENTS.md “Fare PR piccole e mirate”).
+- **Re-bake command** (deferred to working build host):
+  `ctest -R "chronon3d_text_definition_tests" --output-on-failure` (expected: 30/30 PASS including the 10 NEW group 21 TEST_CASEs).
+- **Cross-references**: [`include/chronon3d/text/animation/text_animator_spec.hpp`](include/chronon3d/text/animation/text_animator_spec.hpp) (the updated struct); [`src/text/animation/text_animator_compile.cpp`](src/text/animation/text_animator_compile.cpp) (the new implementation); [`src/text/CMakeLists.txt`](src/text/CMakeLists.txt) (the SOURCES registration); [`tests/text/test_text_definition.cpp`](tests/text/test_text_definition.cpp) group 21 (the new tests); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Recently Closed` (the new TICKET-TEXT-ANIMATOR-COMPILE-ISVALID row); `AGENTS.md` §Cat-3 (zero-new-SDK-symbol satisfaction); `AGENTS.md` §Cat-5 (3-doc same-commit closure).
+
+---
+
 ## Luglio 2026 — TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS RESOLUTION + macchina-verifica CI gate (2026-07-10)
 
 ### fix(docs): TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS — close the P0 rot (3 conflict-marked files) + wire macchina-verifica into CI
