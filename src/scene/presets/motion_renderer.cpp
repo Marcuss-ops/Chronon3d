@@ -118,17 +118,11 @@ void draw_content(LayerBuilder& l, const MotionObject& obj, const MotionState& s
         // — same node shape as if the user had called `l.text_run(...)`
         // directly. Anti-duplication rule respected: no second code path.
         chronon3d::TextRunSpec run_params;
-        run_params.text = chronon3d::TextSpec{
-            .content = {.value = apply_text_reveal(obj.text_value, st.text_reveal)},
-            .font = {.font_path = obj.text_style.font_path, .font_family = obj.text_style.font_family, .font_weight = obj.text_style.font_weight, .font_style = obj.text_style.font_style, .font_size = obj.text_style.font_size},
-            .layout = {.box = obj.size_value, .align = obj.text_style.align == TextAlign::Left
+        run_params.text = chronon3d::TextSpec{.content = {.value = apply_text_reveal(obj.text_value, st.text_reveal)}, .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}, .font = {.font_path = obj.text_style.font_path, .font_family = obj.text_style.font_family, .font_weight = obj.text_style.font_weight, .font_style = obj.text_style.font_style, .font_size = obj.text_style.font_size}, .layout = {.box = obj.size_value, .align = obj.text_style.align == TextAlign::Left
                 ? chronon3d::TextAlign::Left
                 : obj.text_style.align == TextAlign::Right
                     ? chronon3d::TextAlign::Right
-                    : chronon3d::TextAlign::Center, .vertical_align = obj.text_style.vertical_align, .wrap = TextWrap::Word, .overflow = TextOverflow::Clip, .line_height = obj.text_style.line_height, .tracking = obj.text_style.tracking, .auto_fit = false, .max_lines = 0},
-            .appearance = {.color = obj.color_value},
-            .position = {0.0f, 0.0f, 0.0f}
-        };
+                    : chronon3d::TextAlign::Center, .vertical_align = obj.text_style.vertical_align, .wrap = TextWrap::Word, .overflow = TextOverflow::Clip, .line_height = obj.text_style.line_height, .tracking = obj.text_style.tracking, .auto_fit = false, .max_lines = 0}, .appearance = {.color = obj.color_value}};
         l.shape(chronon3d::registry::shape_ids::TextRun, layer_name + "_text", run_params);
         break;
     }

@@ -71,22 +71,16 @@ Composition build_typewriter_composition(
             s.layer("tw_layer", [&renderer, frame_idx](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("tw_test", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = typewriter_text(frame_idx)},
-                        .font = {
+                    .text = TextSpec{.content = {.value = typewriter_text(frame_idx)}, .placement = {TextPlacementKind::Absolute, {100.0f, 540.0f}}, .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 96.0f
-                        },
-                        .layout = {
+                        }, .layout = {
                             .box = {1800.0f, 400.0f},
                             .align = TextAlign::Left,
                             .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()},
-                        .position = {100.0f, 540.0f, 0.0f}
-                    }
+                        }, .appearance = {.color = Color::white()}}
                 }).commit();
             });
             return s.build();

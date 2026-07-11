@@ -58,22 +58,16 @@ Composition build_text_composition(
                     l.opacity(opacity);
                 }
                 l.text_run("ink_test", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = std::string{text}},
-                        .font = {
+                    .text = TextSpec{.content = {.value = std::string{text}}, .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 120.0f
-                        },
-                        .layout = {
+                        }, .layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = color},
-                        .position = position
-                    }
+                        }, .appearance = {.color = color}}
                 }).commit();
             });
             return s.build();

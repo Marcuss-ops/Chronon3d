@@ -153,15 +153,10 @@ static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
     // Build the canary composition inline (no file I/O).
     LayerBuilder lb("canary_layer", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    lb.text("canary_text", TextSpec{
-        .content    = {.value = std::string(kCanaryText)},
-        .font       = {.font_size = 96.0f},
-        .layout     = {.box = Vec2{900.0f, 200.0f},
+    lb.text("canary_text", TextSpec{.content = {.value = std::string(kCanaryText)}, .font = {.font_size = 96.0f}, .layout = {.box = Vec2{900.0f, 200.0f},
                        .anchor = TextAnchor::Center,
                        .align  = TextAlign::Center,
-                       .vertical_align = VerticalAlign::Middle},
-        .position   = Vec3{960.0f, 540.0f, 0.0f},
-    });
+                       .vertical_align = VerticalAlign::Middle}});
     auto comp = lb.build();
 
     // Render frame 0 (or multi-frame loop for pipeline_video).

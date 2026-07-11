@@ -66,7 +66,7 @@ void draw_jerk_graph(const OverlayContext& ctx) {
         });
     }
 
-    l.text("graph_title", TextSpec{.content = {.value = "CAMERA PATH KINEMATIC JERK (" + std::to_string(ctx.path->current_frame) + "/" + std::to_string(ctx.path->total_frames) + ")"}, .font = {.font_size = 11.0f}, .appearance = {.color = Color{0.9f, 0.9f, 0.9f, 0.8f}}, .placement = {TextPlacementKind::Absolute}, .offset = {graph_x + 10.0f, graph_y + 20.0f}});
+    l.text("graph_title", TextSpec{.content = {.value = "CAMERA PATH KINEMATIC JERK (" + std::to_string(ctx.path->current_frame) + "/" + std::to_string(ctx.path->total_frames) + ")"}, .placement = {TextPlacementKind::Absolute, {graph_x + 10.0f, graph_y + 20.0f}}, .font = {.font_size = 11.0f}, .appearance = {.color = Color{0.9f, 0.9f, 0.9f, 0.8f}}});
 
     float max_jerk = 0.0f;
     for (const auto& sample : ctx.path->samples) {
@@ -113,7 +113,7 @@ void draw_jerk_graph(const OverlayContext& ctx) {
                 .to = {px, graph_y + graph_h - 10.0f, 0.0f},
                 .thickness = 1.0f, .color = Color{0.7f, 0.7f, 0.7f, 0.5f}
             });
-            l.text("marker_txt_" + std::to_string(i), TextSpec{.content = {.value = std::to_string(i)}, .font = {.font_size = 8.0f}, .appearance = {.color = Color{0.7f, 0.7f, 0.7f, 0.6f}}, .placement = {TextPlacementKind::Absolute}, .offset = {px - 5.0f, graph_y + graph_h - 2.0f}});
+            l.text("marker_txt_" + std::to_string(i), TextSpec{.content = {.value = std::to_string(i)}, .placement = {TextPlacementKind::Absolute, {px - 5.0f, graph_y + graph_h - 2.0f}}, .font = {.font_size = 8.0f}, .appearance = {.color = Color{0.7f, 0.7f, 0.7f, 0.6f}}});
         }
     }
 }
@@ -157,7 +157,7 @@ void draw_path_trace(const OverlayContext& ctx) {
         .stroke = { .enabled = true, .color = Color{0.4f, 0.4f, 0.6f, 0.3f}, .width = 1.0f }
     });
 
-    l.text("trace_title", TextSpec{.content = {.value = "CAMERA 3D PATH TRACE (" + std::to_string(ctx.path->current_frame) + "/" + std::to_string(ctx.path->total_frames) + ")"}, .font = {.font_size = 11.0f}, .appearance = {.color = Color{0.9f, 0.9f, 0.9f, 0.8f}}, .placement = {TextPlacementKind::Absolute}, .offset = {trace_x + 10.0f, trace_y + 18.0f}});
+    l.text("trace_title", TextSpec{.content = {.value = "CAMERA 3D PATH TRACE (" + std::to_string(ctx.path->current_frame) + "/" + std::to_string(ctx.path->total_frames) + ")"}, .placement = {TextPlacementKind::Absolute, {trace_x + 10.0f, trace_y + 18.0f}}, .font = {.font_size = 11.0f}, .appearance = {.color = Color{0.9f, 0.9f, 0.9f, 0.8f}}});
 
     const size_t n_proj = ctx.path->samples.size();
     struct ProjectedSample { Vec2 screen_pos; float jerk; bool behind; bool current; };
@@ -245,7 +245,7 @@ void draw_path_trace(const OverlayContext& ctx) {
         Vec2 sp_start = to_panel(projected[0].screen_pos);
         clamp_to_panel(sp_start);
         l.circle("trc_start", CircleParams{.radius = 5.0f, .color = Color{0.0f, 0.9f, 1.0f, 0.9f}, .pos = {sp_start.x, sp_start.y, 0.0f}});
-        l.text("trc_start_lbl", TextSpec{.content = {.value = "START"}, .font = {.font_size = 9.0f}, .appearance = {.color = Color{0.0f, 0.9f, 1.0f, 0.8f}}, .placement = {TextPlacementKind::Absolute}, .offset = {sp_start.x + 8.0f, sp_start.y - 4.0f}});
+        l.text("trc_start_lbl", TextSpec{.content = {.value = "START"}, .placement = {TextPlacementKind::Absolute, {sp_start.x + 8.0f, sp_start.y - 4.0f}}, .font = {.font_size = 9.0f}, .appearance = {.color = Color{0.0f, 0.9f, 1.0f, 0.8f}}});
     }
 
     // Current frame marker
@@ -265,15 +265,15 @@ void draw_path_trace(const OverlayContext& ctx) {
         if (projected[i].behind) continue;
         Vec2 mp = to_panel(projected[i].screen_pos);
         clamp_to_panel(mp);
-        l.text("trc_frame_" + std::to_string(i), TextSpec{.content = {.value = std::to_string(i)}, .font = {.font_size = 8.0f}, .appearance = {.color = Color{0.6f, 0.6f, 0.7f, 0.5f}}, .placement = {TextPlacementKind::Absolute}, .offset = {mp.x - 4.0f, mp.y - 14.0f}});
+        l.text("trc_frame_" + std::to_string(i), TextSpec{.content = {.value = std::to_string(i)}, .placement = {TextPlacementKind::Absolute, {mp.x - 4.0f, mp.y - 14.0f}}, .font = {.font_size = 8.0f}, .appearance = {.color = Color{0.6f, 0.6f, 0.7f, 0.5f}}});
     }
 
     l.circle("leg_green", CircleParams{.radius = 3.0f, .color = Color{0.15f, 0.85f, 0.2f, 0.85f}, .pos = {trace_x + trace_w - 130.0f, trace_y + 18.0f, 0.0f}});
-    l.text("leg_green_t", TextSpec{.content = {.value = "smooth"}, .font = {.font_size = 9.0f}, .appearance = {.color = Color{0.7f, 0.7f, 0.7f, 0.6f}}, .placement = {TextPlacementKind::Absolute}, .offset = {trace_x + trace_w - 122.0f, trace_y + 15.0f}});
+    l.text("leg_green_t", TextSpec{.content = {.value = "smooth"}, .placement = {TextPlacementKind::Absolute, {trace_x + trace_w - 122.0f, trace_y + 15.0f}}, .font = {.font_size = 9.0f}, .appearance = {.color = Color{0.7f, 0.7f, 0.7f, 0.6f}}});
     l.circle("leg_yellow", CircleParams{.radius = 3.0f, .color = Color{1.0f, 0.8f, 0.0f, 0.85f}, .pos = {trace_x + trace_w - 80.0f, trace_y + 18.0f, 0.0f}});
-    l.text("leg_yellow_t", TextSpec{.content = {.value = "warn"}, .font = {.font_size = 9.0f}, .appearance = {.color = Color{0.7f, 0.7f, 0.7f, 0.6f}}, .placement = {TextPlacementKind::Absolute}, .offset = {trace_x + trace_w - 72.0f, trace_y + 15.0f}});
+    l.text("leg_yellow_t", TextSpec{.content = {.value = "warn"}, .placement = {TextPlacementKind::Absolute, {trace_x + trace_w - 72.0f, trace_y + 15.0f}}, .font = {.font_size = 9.0f}, .appearance = {.color = Color{0.7f, 0.7f, 0.7f, 0.6f}}});
     l.circle("leg_red", CircleParams{.radius = 3.0f, .color = Color{1.0f, 0.15f, 0.15f, 0.9f}, .pos = {trace_x + trace_w - 38.0f, trace_y + 18.0f, 0.0f}});
-    l.text("leg_red_t", TextSpec{.content = {.value = "spike"}, .font = {.font_size = 9.0f}, .appearance = {.color = Color{0.7f, 0.7f, 0.7f, 0.6f}}, .placement = {TextPlacementKind::Absolute}, .offset = {trace_x + trace_w - 30.0f, trace_y + 15.0f}});
+    l.text("leg_red_t", TextSpec{.content = {.value = "spike"}, .placement = {TextPlacementKind::Absolute, {trace_x + trace_w - 30.0f, trace_y + 15.0f}}, .font = {.font_size = 9.0f}, .appearance = {.color = Color{0.7f, 0.7f, 0.7f, 0.6f}}});
 }
 
 } // namespace chronon3d

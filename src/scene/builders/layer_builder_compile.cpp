@@ -209,7 +209,7 @@ Layer LayerBuilder::build() {
             // via resolve_placement_origin().
             {
                 TextPlacement tp = spec.params.text.placement;
-                tp.offset = spec.params.text.offset;  // flat offset → resolver input
+                tp.offset = spec.params.text.placement.offset;  // flat offset → resolver input
                 CanvasInfo canvas{m_screen_width, m_screen_height};
                 Vec2 pin = resolve_placement_origin(
                     canvas, spec.params.text.layout.box, tp);

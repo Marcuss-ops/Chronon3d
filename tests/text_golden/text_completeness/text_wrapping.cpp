@@ -55,22 +55,16 @@ Composition build_wrap_composition(
             s.layer("wrap_layer", [&renderer, box_width, box_height, text](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("wrap_test", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = std::string{text}},
-                        .font = {
+                    .text = TextSpec{.content = {.value = std::string{text}}, .placement = {TextPlacementKind::Absolute, {box_width / 2.0f, box_height / 2.0f}}, .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 48.0f
-                        },
-                        .layout = {
+                        }, .layout = {
                             .box = {box_width, box_height},
                             .align = TextAlign::Left,
                             .vertical_align = VerticalAlign::Top
-                        },
-                        .appearance = {.color = Color::white()},
-                        .position = {box_width / 2.0f, box_height / 2.0f, 0.0f}
-                    }
+                        }, .appearance = {.color = Color::white()}}
                 }).commit();
             });
             return s.build();

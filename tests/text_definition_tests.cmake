@@ -21,6 +21,6 @@
 chronon3d_add_test_suite(
     NAME chronon3d_text_definition_tests
     TIER UNIT
-    LINK_TARGETS chronon3d_text_core
+    LINK_TARGETS chronon3d_pipeline
     SOURCES text/test_text_definition.cpp
 )

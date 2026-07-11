@@ -56,12 +56,7 @@ using chronon3d::content::text::FRESH_TEXT_WHITE;
 auto title_text(const std::string& s, f32 fs,
                       Color color = FRESH_TEXT_WHITE,
                       f32 tracking = 6.0f) {
-    return from_text_spec(TextSpec{
-        .content    = {.value = s},
-        .font       = {.font_size = fs},
-        .layout     = {.box = {1500.0f, 220.0f}, .line_height = 1.10f, .tracking = tracking},
-        .appearance = {.color = color},
-    });
+    return from_text_spec(TextSpec{.content = {.value = s}, .font = {.font_size = fs}, .layout = {.box = {1500.0f, 220.0f}, .line_height = 1.10f, .tracking = tracking}, .appearance = {.color = color}});
 }
 
 } // anonymous namespace
@@ -135,12 +130,7 @@ Composition deep_parallax_cascade() {
                     .key(Frame{0},                                blur_peak, EasingCurve{Easing::Linear})
                     .key(Frame{static_cast<Frame>(130 - 30.0f * i)}, 0.0f,   EasingCurve{Easing::OutCubic})
                     .key(Frame{180},                              0.0f,       EasingCurve{Easing::Linear});
-            auto def = from_text_spec(TextSpec{
-                .content    = {.value = L.text},
-                .font       = {.font_size = L.size},
-                .layout     = {.box = {1500.0f, 320.0f}, .line_height = 1.10f, .tracking = 8.0f},
-                .appearance = {.color = L.color},
-            });
+            auto def = from_text_spec(TextSpec{.content = {.value = L.text}, .font = {.font_size = L.size}, .layout = {.box = {1500.0f, 320.0f}, .line_height = 1.10f, .tracking = 8.0f}, .appearance = {.color = L.color}});
                 l.text("label", def);
             });
         }

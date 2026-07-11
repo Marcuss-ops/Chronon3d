@@ -179,7 +179,8 @@ public:
     //   layer.text("hello", chronon3d::presets::text::title_centered("HELLO"));
     //   // OR
     //   auto def = from_text_spec(ts);
-    //   def.frame.position = ...;   // resolved via resolve_placement_origin
+    //   def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
+    //                                       Vec2{x, y}};
     //
     // Enforcement: `tools/check_no_dual_text_api.sh` [4/4] (now blocking
     // per §5A) flags files where `pin_to(...)` co-occurs with
@@ -511,6 +512,10 @@ public:
     ///   // OR
     ///   layer.text("hello_id", from_text_spec(my_text_spec));
     [[nodiscard]] TextRunBuilder& text_run(std::string name, TextRunParams params);
+
+    /// F3.D — canonical authoring overload accepting TextDefinition.
+    /// Converts via to_text_run_spec(def) and delegates to text_run(name, TextRunSpec).
+    [[nodiscard]] TextRunBuilder& text_run(std::string name, const TextDefinition& def);
 
     LayerBuilder& shape(std::string_view id, std::string name, registry::ShapeParams params);
 

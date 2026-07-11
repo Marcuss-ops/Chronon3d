@@ -123,16 +123,10 @@ Composition make_camera_truth_orbit() {
             s.layer("hud", [f](LayerBuilder& l) {
                 l.pin_to(chronon3d::Anchor::TopLeft, 12.0f);
                 l.opacity(0.85f);
-                l.text("hud_label", chronon3d::TextSpec{
-                    .content = {.value = std::string("ORBIT  |  yaw=") +
+                l.text("hud_label", chronon3d::TextSpec{.content = {.value = std::string("ORBIT  |  yaw=") +
                         std::to_string(static_cast<int>(std::round(
-                            static_cast<float>(static_cast<int>(f)) / 60.0f * 90.0f))) + "\u00B0"},
-                    .font = {.font_family = "Inter", .font_weight = 700, .font_size = 18.0f},
-                    .layout = {.box = {500.0f, 24.0f}, .align = chronon3d::TextAlign::Left,
-                                .line_height = 1.20f, .tracking = 2.0f},
-                    .appearance = {.color = chronon3d::Color{1.0f, 0.70f, 0.30f, 1.0f}},
-                    .position = {0.0f, 0.0f, 0.0f},
-                });
+                            static_cast<float>(static_cast<int>(f)) / 60.0f * 90.0f))) + "\u00B0"}, .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}, .font = {.font_family = "Inter", .font_weight = 700, .font_size = 18.0f}, .layout = {.box = {500.0f, 24.0f}, .align = chronon3d::TextAlign::Left,
+                                .line_height = 1.20f, .tracking = 2.0f}, .appearance = {.color = chronon3d::Color{1.0f, 0.70f, 0.30f, 1.0f}}});
             });
 
             // ── Diagnostic: compute orbit camera position manually and

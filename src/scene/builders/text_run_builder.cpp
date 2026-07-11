@@ -705,7 +705,7 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
             text_layout_res.error().message);
         return nullptr;
     }
-    auto text_layout = text_layout_res.take_value();
+    auto text_layout = text_layout_res.value();
 
     // ── Evaluate animators at sample_time ───────────────────────────
     auto glyph_states = evaluate_animator_stack(

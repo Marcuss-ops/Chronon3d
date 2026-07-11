@@ -40,7 +40,7 @@ Camera2_5D dolly(float t, const DollyParams& p) {
     t = smoothstep(t);
     Camera2_5D cam;
     cam.enabled = true;
-    cam.placement = {TextPlacementKind::Absolute}, .offset = {p.position_xy.x, p.position_xy.y};
+    cam.position = {p.position_xy.x, p.position_xy.y, 0.0f};
     cam.zoom = p.zoom;
     cam.point_of_interest = p.target;
     cam.point_of_interest_enabled = true;
@@ -51,7 +51,7 @@ Camera2_5D pan(float t, const PanParams& p) {
     t = smoothstep(t);
     Camera2_5D cam;
     cam.enabled = true;
-    cam.placement = {TextPlacementKind::Absolute}, .offset = {lerp(p.from_x, p.to_x};
+    cam.position = {lerp(p.from_x, p.to_x, t), 0.0f, 0.0f};
     cam.zoom = p.zoom;
     cam.point_of_interest = p.target;
     cam.point_of_interest_enabled = true;
@@ -74,7 +74,7 @@ Camera2_5D orbit(float t, const OrbitParams& p) {
     const float angle_rad = (lerp(p.start_angle_deg, p.end_angle_deg, t)) * (3.14159265f / 180.0f);
     Camera2_5D cam;
     cam.enabled = true;
-    cam.placement = {TextPlacementKind::Absolute}, .offset = {std::sin(angle_rad) * p.radius, p.y};
+    cam.position = {std::sin(angle_rad) * p.radius, p.y, 0.0f};
     cam.zoom = p.zoom;
     cam.point_of_interest = p.target;
     cam.point_of_interest_enabled = true;
@@ -85,7 +85,7 @@ Camera2_5D push_in_tilt(float t, const PushInTiltParams& p) {
     t = smoothstep(t);
     Camera2_5D cam;
     cam.enabled = true;
-    cam.placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 0.0f};
+    cam.position = {0.0f, 0.0f, 0.0f};
     cam.zoom = p.zoom;
     cam.rotation = {lerp(p.from_tilt, p.to_tilt, t), 0.0f, 0.0f};
     cam.point_of_interest = p.target;
@@ -119,7 +119,7 @@ Camera2_5D dolly_rotate(float t, float zoom) {
     t = smoothstep(t);
     Camera2_5D cam;
     cam.enabled = true;
-    cam.placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 0.0f};
+    cam.position = {0.0f, 0.0f, 0.0f};
     cam.zoom = zoom;
     cam.rotation = {lerp(-2.5f, 2.5f, t), lerp(-16.0f, 16.0f, t), lerp(-2.0f, 2.0f, t)};
     cam.point_of_interest = {0.0f, 0.0f, 0.0f};
@@ -131,7 +131,7 @@ Camera2_5D roll_reveal(float t, float max_roll_deg, float zoom) {
     t = smoothstep(t);
     Camera2_5D cam;
     cam.enabled = true;
-    cam.placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 0.0f};
+    cam.position = {0.0f, 0.0f, 0.0f};
     cam.zoom = zoom;
     cam.rotation = {0.0f, 0.0f, lerp(0.0f, max_roll_deg, t)};
     cam.point_of_interest_enabled = false;

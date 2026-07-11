@@ -7,6 +7,7 @@
 #include <chronon3d/media/media_placement.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/paragraph_style.hpp>
+#include <chronon3d/text/text_placement.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
 #include <memory>
 #include <optional>
@@ -151,6 +152,7 @@ struct TextContent {
 ///                    .font_weight = 700, .font_size = 72.0f},
 ///     .layout     = {.box = {900, 160}},
 ///     .appearance = {.color = Color::white()},
+///     .placement  = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
 ///   };
 ///
 /// Usage with presets:
@@ -158,39 +160,18 @@ struct TextContent {
 ///                             .font_weight=700, .font_size=96.0f};
 ///   TextSpec title{.content={.value="CHRONON"}, .font=kHeroFont};
 ///
-/// M1.8 §5A / TICKET-SIMPLICITY-DEPRECATION — the `position` field
-/// below is the LEGACY ambiguous-pos semantic discouraged by
-/// ADR-019 Decision 3.  New code should NOT assign to `TextSpec::position`
-/// directly; instead, use the canonical `TextFrame::place(...)` +
-/// `.offset(...)` chain on the `TextDefinition` DTO (F2.A).
-///
-/// Migration target:
-///   // OLD (legacy, ambiguous):
-///   TextSpec ts;
-///   ts.content.value = "HELLO";
-///   ts.position      = Vec3{960.0f, 540.0f, 0.0f};  // ← ambiguous intent
-///
-///   // NEW (canonical, intent-explicit):
-///   auto def = chronon3d::presets::text::title_centered("HELLO");
-///   // OR (full control):
-///   auto def = from_text_spec(ts);
-///   def.frame.position = ...;   // resolved via resolve_placement_origin
-///   def.frame.anchor   = TextAnchor::Center;
-///
-/// Enforcement: the `tools/check_no_dual_text_api.sh` gate (Step 4.5d
-/// in `tools/wrap_push.sh`) refuses NEW `TextSpec.position` assignments
-/// outside the migration target scope.  Pre-existing usages in
-/// `content/` are grandfathered as migration debt (M1.8 §2D sweep).
+/// M1.8 §5A / TICKET-SIMPLICITY-DEPRECATION — `placement` is the
+/// canonical intent-explicit position field.  It bundles the placement
+/// semantics (`TextPlacementKind`) and the 2D pin offset (`Vec2`) into
+/// a single type, eliminating the ambiguity of the old `Vec3 position`.
+/// Depth (z) is intentionally not preserved; the render pipeline
+/// operates on 2D pin coordinates via resolve_text_placement().
 struct TextSpec {
     TextContent        content;
 
-    /// M1.8 §5A / TICKET-SIMPLICITY-DEPRECATION — `position` is the
-    /// LEGACY ambiguous-pos field.  Prefer the canonical
-    /// `TextFrame::place(TextPlacement::*)` + `.offset(...)` chain
-    /// (F2.A `TextDefinition` DTO) for new code.  The field is preserved
-    /// for backward compatibility with the 17 pre-F2.C caller sites +
-    /// the deprecated `centered_text()` / `glow_text()` helpers.
-    Vec3               position{};
+    /// Canonical placement (intent + 2D offset).  Default is
+    /// CanvasCenter with zero offset.
+    TextPlacement      placement{};
 
     FontSpec           font;
     TextLayoutSpec     layout;

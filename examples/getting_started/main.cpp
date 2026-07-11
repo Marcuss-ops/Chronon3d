@@ -40,12 +40,8 @@ int main() {
                  .font_size(72.0f)
                  .center();
                 l.text_run("t", c3d::TextRunSpec{
-                    .text = c3d::TextSpec{
-                        .content = {.value = "Hello, Chronon3D!"},
-                        .font = {.font_family = "Inter", .font_weight = 700},
-                        .layout = {.box = {static_cast<float>(ctx.width),
-                                           static_cast<float>(ctx.height)}},
-                        .appearance = {.color = c3d::Color::white()}}
+                    .text = c3d::TextSpec{.content = {.value = "Hello, Chronon3D!"}, .font = {.font_family = "Inter", .font_weight = 700}, .layout = {.box = {static_cast<float>(ctx.width),
+                                           static_cast<float>(ctx.height)}}, .appearance = {.color = c3d::Color::white()}}
                 }).commit();
             });
 

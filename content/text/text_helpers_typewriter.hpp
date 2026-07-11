@@ -81,14 +81,11 @@ inline TextDefinition typewriter_text(CenterTextOptions o,
     const f32 total_chars_f = static_cast<f32>(grapheme_cluster_count(o.text));
 
     auto make_base = [&](std::string value, Color c) -> TextDefinition {
-        return from_text_spec(TextSpec{
-            .content    = {.value = std::move(value)},
-            .font       = {.font_path   = std::move(o.font_asset),
+        return from_text_spec(TextSpec{.content = {.value = std::move(value)}, .placement = TextPlacement{TextPlacementKind::Absolute, {o.pos.x, o.pos.y}}, .font = {.font_path   = std::move(o.font_asset),
                            .font_family = std::move(o.font_family),
                            .font_weight = o.font_weight,
                            .font_style  = std::move(o.font_style),
-                           .font_size   = o.font_size},
-            .layout     = {.box            = o.box,
+                           .font_size   = o.font_size}, .layout = {.box            = o.box,
                            .anchor         = TextAnchor::Center,
                            .centering_mode = TextCenteringMode::PixelInk,
                            .align          = TextAlign::Center,
@@ -100,11 +97,7 @@ inline TextDefinition typewriter_text(CenterTextOptions o,
                            .auto_fit       = o.auto_fit,
                            .min_font_size  = o.min_font_size,
                            .max_font_size  = o.max_font_size,
-                           .max_lines      = o.max_lines},
-            .appearance = {.color = c},
-            .placement = {TextPlacementKind::Absolute},
-            .offset    = {o.pos.x, o.pos.y},
-        });
+                           .max_lines      = o.max_lines}, .appearance = {.color = c}});
     };
 
     if (raw_frame < 0.0f || total_chars_f <= 0.0f) {
@@ -208,21 +201,21 @@ inline Result<TypewriterLayout, TextError> compute_typewriter_layout(
     PlacedGlyphRun* out_placed)
 {
     TypewriterLayout result;
-    if (text.empty()) return Err(TextError{
+    if (text.empty()) return TextError{
         TextErrorCode::EmptyText,
-        "compute_typewriter_layout: text is empty"});
+        "compute_typewriter_layout: text is empty"};
 
     // F0.2b — FontEngine is now caller-supplied (wired from ctx.font_engine).
 
     auto run = engine.shape_text(text, font_spec, font_size);
-    if (!run || run->glyphs.empty()) return Err(TextError{
+    if (!run || run->glyphs.empty()) return TextError{
         TextErrorCode::ShapingFailed,
-        "compute_typewriter_layout: shaping produced no glyphs"});
+        "compute_typewriter_layout: shaping produced no glyphs"};
 
     auto placed = resolve_placed_glyph_run(*run, tracking, text);
-    if (placed.clusters.empty()) return Err(TextError{
+    if (placed.clusters.empty()) return TextError{
         TextErrorCode::NoClusters,
-        "compute_typewriter_layout: placed clusters are empty"});
+        "compute_typewriter_layout: placed clusters are empty"};
 
     struct CharAdv { size_t byte_offset; size_t byte_len; f32 advance; };
     std::vector<CharAdv> char_advances;
@@ -375,9 +368,9 @@ inline Result<TypewriterLayout, TextError> compute_typewriter_layout(
         size_t max_lines = std::max(static_cast<size_t>(box.y / line_step), size_t{1});
         if (lines.size() > max_lines) lines.resize(max_lines);
     }
-    if (lines.empty()) return Err(TextError{
+    if (lines.empty()) return TextError{
         TextErrorCode::NoLayoutLines,
-        "compute_typewriter_layout: word-wrap produced zero lines"});
+        "compute_typewriter_layout: word-wrap produced zero lines"};
 
     f32 max_w = 0.0f;
     for (auto& ln : lines) max_w = std::max(max_w, ln.width);
@@ -407,7 +400,7 @@ inline Result<TypewriterLayout, TextError> compute_typewriter_layout(
         *out_placed = resolve_placed_glyph_run(*run, 0.0f, text);
     }
 
-    return Ok(std::move(result));
+    return std::move(result);
 }
 
 // ── typewriter_build — implementation ─────────────────────────────────────
@@ -456,7 +449,7 @@ inline Result<bool, TextError> typewriter_build(
             engine,
             &cached_placed);
         // F0.3 — propagate structured error from compute_typewriter_layout
-        if (!layout_result) return Err(layout_result.error());
+        if (!layout_result) return layout_result.error();
         cached_layout = std::move(*layout_result);
         cached_text = opts.text;
         cached_font_size = opts.font_size;
@@ -472,9 +465,9 @@ inline Result<bool, TextError> typewriter_build(
 
     auto& layout = cached_layout;
 
-    if (layout.chars.empty()) return Err(TextError{
+    if (layout.chars.empty()) return TextError{
         TextErrorCode::NoLayoutChars,
-        "typewriter_build: layout has zero characters"});
+        "typewriter_build: layout has zero characters"};
 
     const f32 total_chars = static_cast<f32>(layout.chars.size());
     const f32 raw_frame = static_cast<f32>(frame) - static_cast<f32>(opts.start_delay);
@@ -582,16 +575,16 @@ inline Result<bool, TextError> typewriter_build(
                                    .font_weight = fw, .font_size = fs},
                           .color = col},
                 .frame = {.size = {fs * 2.0f, fs * 2.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, {cp.x, cp.y}},
                           .anchor = TextAnchor::Center,
-                          .centering_mode = TextCenteringMode::PixelInk,
                           .align = TextAlign::Center,
                           .vertical_align = VerticalAlign::Middle,
                           .wrap = TextWrap::None,
                           .overflow = TextOverflow::Clip,
+                          .centering_mode = TextCenteringMode::PixelInk,
                           .line_height = lh,
                           .tracking = 0.0f,
-                          .placement = {TextPlacementKind::Absolute},
-                          .offset    = {cp.x, cp.y},
+                },
             });
         });
     }

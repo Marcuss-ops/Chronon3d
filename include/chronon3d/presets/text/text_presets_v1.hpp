@@ -60,7 +60,7 @@
 //   authoring::Layer lyr(lb, authoring::FrameContext::from_dimensions(
 //       1920.0f, 1080.0f));
 //   lyr.text("title").content("CHRONON3D").font("Inter-Bold.ttf", 96.0f)
-//                   .place(presets::text::title_centered("CHRONON3D").frame.position,
+//                   .place(presets::text::title_centered("CHRONON3D").frame.placement,
 //                          TextAnchor::Center);
 //   // — OR — using the preset directly:
 //   lyr.text("title").content(presets::text::title_centered("CHRONON3D"));
@@ -83,10 +83,10 @@
 //   - style.color = white (or accent_color for kinetic_word)
 //   - frame.size = layout box size
 //   - frame.anchor / frame.align / frame.vertical_align = Center / Middle
-//   - frame.position = the resolved placement pin point for 1920×1080
+//   - frame.placement = the resolved placement pin point for 1920×1080
 //     (caller can override via the returned TextDefinition)
 //
-// The frame.position is hard-locked to the 1920×1080 canonical canvas pin
+// The frame.placement is hard-locked to the 1920×1080 canonical canvas pin
 // points to satisfy the §2B "centra un titolo in < 10 righe" criterion.
 // A future multi-canvas-resolution follow-up can parameterize position
 // via the `CanvasInfo` + `resolve_placement_origin` API; this is the
@@ -124,7 +124,7 @@ namespace chronon3d::presets::text {
 ///   (A future FU10 follow-up can parameterize the canvas via
 ///   `resolve_placement_origin` + `CanvasInfo`; §3C keeps it hard-locked
 ///   for simplicity.  Callers needing custom canvas size can override
-///   `def.frame.position` after the call.)
+///   `def.frame.placement` after the call.)
 [[nodiscard]] inline TextDefinition title_centered(
     std::string text,
     float font_size = 96.0f,
@@ -148,7 +148,8 @@ namespace chronon3d::presets::text {
     def.frame.overflow        = TextOverflow::Clip;
     def.frame.line_height     = 0.95f;
     // Hard-locked pin point for 1920×1080 (canonical canvas).
-    def.frame.position        = Vec3{960.0f, 540.0f, 0.0f};
+    def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
+                                        Vec2{960.0f, 540.0f}};
     return def;
 }
 
@@ -181,7 +182,8 @@ namespace chronon3d::presets::text {
     def.frame.overflow        = TextOverflow::Clip;
     def.frame.line_height     = 1.05f;
     // Pin point: 1920×1080, SafeAreaBottom (5% margin).
-    def.frame.position        = Vec3{960.0f, 1026.0f, 0.0f};
+    def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
+                                        Vec2{960.0f, 1026.0f}};
     return def;
 }
 
@@ -214,7 +216,8 @@ namespace chronon3d::presets::text {
     def.frame.overflow        = TextOverflow::Clip;
     def.frame.line_height     = 1.15f;
     // Pin point: 1920×1080, SafeAreaCenter (5% margin symmetric).
-    def.frame.position        = Vec3{960.0f, 540.0f, 0.0f};
+    def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
+                                        Vec2{960.0f, 540.0f}};
     return def;
 }
 
@@ -248,7 +251,8 @@ namespace chronon3d::presets::text {
     def.frame.overflow        = TextOverflow::Clip;
     def.frame.line_height     = 0.90f;
     // Pin point: 1920×1080, CanvasCenter.
-    def.frame.position        = Vec3{960.0f, 540.0f, 0.0f};
+    def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
+                                        Vec2{960.0f, 540.0f}};
     return def;
 }
 
@@ -284,7 +288,8 @@ namespace chronon3d::presets::text {
     // Pin point: 1920×1080, SafeAreaLeft (5% margin = 96px from left,
     // vertically centered in safe area at y=540 minus 160 vertical
     // offset for the lower-third positioning = 920).
-    def.frame.position        = Vec3{140.0f, 920.0f, 0.0f};
+    def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
+                                        Vec2{140.0f, 920.0f}};
     return def;
 }
 

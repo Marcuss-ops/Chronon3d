@@ -199,22 +199,6 @@ LayerBuilder& LayerBuilder::text(std::string name, const TextDefinition& def) {
     return text_run(std::move(name), to_text_run_spec(def)).commit();
 }
 
-// F3.D — forward-point overload: symmetric counterpart of
-// text_run(name, TextRunSpec).  Callers who fully migrate to TextRunSpec
-// authoring can now use the short-form `layer.text("id", run_spec).commit()`
-// instead of the verbose `layer.text_run("id", run_spec).commit()`.  Sugar
-// only — behaviourally identical to text_run(name, TextRunSpec).commit().
-//
-// Why ADD (not just reroute): `text(name, TextRunSpec)` is the F3.D forward-
-// point migration target.  The Roundtrip chain is
-//   centered_text(opts) → TextDefinition → to_text_run_spec
-//   → TextRunSpec → text(name, TextRunSpec).commit()
-// making all 17 helper-site callers able to land on a TextRunSpec egress
-// without a separate authoring overload at the run-spec layer.
-LayerBuilder& LayerBuilder::text(std::string name, TextRunSpec run) {
-    return text_run(std::move(name), std::move(run)).commit();
-}
-
 LayerBuilder& LayerBuilder::shape(std::string_view id, std::string name, registry::ShapeParams params) {
     m_layer.nodes.push_back(m_shape_registry->create_node(
         id,
