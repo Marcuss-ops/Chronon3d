@@ -22,7 +22,7 @@
 
 #include <doctest/doctest.h>
 #include <chronon3d/text/text_placement.hpp>           // SafeAreaEnum, TextPlacementKind, TextPlacement, SafeAreaPreset
-#include <chronon3d/text/text_placement_resolver.hpp>   // resolve_placement_origin, resolve_safe_area, CanvasInfo
+#include <chronon3d/text/resolve_text_placement.hpp>   // resolve_placement_origin, resolve_safe_area, CanvasInfo
 
 #include <cmath>
 
@@ -332,4 +332,237 @@ TEST_CASE("SafeArea: SafeAreaLeft + offset {20, 0} → pin (116, 540) on 1920×1
     auto pin = resolve_placement_origin(c, box, p);
     // SafeAreaLeft pin (96, 540) + offset (20, 0) = (116, 540)
     CHECK(vec2_near(pin, {116.0f, 540.0f}));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §M1.8 §4: SafeArea / formats matrix (5 canvas formats × 5 SafeAreaEnum)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// User spec: "Add the safe-area / formats matrix (1920x1080, 1080x1920,
+// 1080x1080, 1280x720, 3840x2160) ensuring no hidden 1920x1080 default
+// and no inherited bottom from a prior canvas."
+//
+// This extends the existing M1.8 §3B surface from 2 formats
+// (1920x1080 landscape + 1080x1920 portrait) to a 5-format matrix
+// covering landscape, portrait, square, 720p, and 4K.  All formats
+// use the SafeAreaPreset default 5% safe-area margins (the standard
+// industry title/action safe zone).  Each format's margins are
+// computed as 5% of the corresponding canvas dimension — a 1920x1080
+// canvas has 54px vertical / 96px horizontal margins, a 1280x720
+// canvas has 36px / 64px, a 3840x2160 canvas has 108px / 192px, etc.
+//
+// Two failure modes are locked:
+//   1. Hidden 1920x1080 default: if the resolver ever silently falls
+//      back to a default-constructed CanvasInfo (which is 1920x1080),
+//      the SafeAreaBottom pin on any non-1920x1080 format would come
+//      out as (960, 1026) instead of the format's own (w/2, h - mb).
+//      §A asserts the per-format pin is correct; §A also asserts
+//      CHECK_FALSE(pin == (960, 1026)) for every non-1920x1080 format
+//      to document the intent.
+//   2. Inherited bottom: if the resolver had a `static Vec2
+//      cached_bottom;` that survives across calls, resolving on
+//      1920x1080 then 3840x2160 would pin the second call at the
+//      first's bottom (1026) instead of the second's own (2052).
+//      §B asserts the pin-Y is the per-format value on every call in
+//      a single scope.
+
+// ── Format matrix helpers ────────────────────────────────────────────────
+
+struct FormatCase {
+    const char* name;
+    f32 width;
+    f32 height;
+    f32 margin_top;     // 5% of height
+    f32 margin_bottom;  // 5% of height
+    f32 margin_left;    // 5% of width
+    f32 margin_right;   // 5% of width
+};
+
+// 5 canvas formats × 5% SafeAreaPreset default margins.  The margins
+// are 5% of each canvas dimension — the SafeAreaPreset factory is
+// aspect-ratio-aware: a 1920x1080 has 54px vertical / 96px horizontal,
+// a 1280x720 has 36px / 64px, a 3840x2160 has 108px / 192px, etc.
+static const FormatCase kFormats[] = {
+    {"1920x1080", 1920.0f, 1080.0f,  54.0f,  54.0f,  96.0f,  96.0f},
+    {"1080x1920", 1080.0f, 1920.0f,  96.0f,  96.0f,  54.0f,  54.0f},
+    {"1080x1080", 1080.0f, 1080.0f,  54.0f,  54.0f,  54.0f,  54.0f},
+    {"1280x720",  1280.0f,  720.0f,  36.0f,  36.0f,  64.0f,  64.0f},
+    {"3840x2160", 3840.0f, 2160.0f, 108.0f, 108.0f, 192.0f, 192.0f},
+};
+
+static CanvasInfo canvas_for(const FormatCase& f) {
+    return CanvasInfo{f.width, f.height,
+                      f.margin_top, f.margin_bottom,
+                      f.margin_left, f.margin_right};
+}
+
+// Diagnostic reference for each format's SafeAreaBottom pin (the value
+// the resolver must return, computed from the format's own dimensions):
+//   1920x1080 → ( 960, 1026)
+//   1080x1920 → ( 540, 1824)
+//   1080x1080 → ( 540, 1026)
+//   1280x720  → ( 640,  684)
+//   3840x2160 → (1920, 2052)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §A: 5×5 matrix — SafeAreaEnum pin point for each (format, side) pair
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The matrix has 5 formats × 5 SafeAreaEnum values = 25 pin-point
+// assertions.  For each non-1920x1080 format, also asserts the
+// SafeAreaBottom pin does NOT equal (960, 1026) — the "no hidden
+// 1920x1080 default" intent is documented inline.
+
+TEST_CASE("SafeArea formats matrix: 5 canvas formats × 5 SafeAreaEnum pin points") {
+    Vec2 box{1200.0f, 100.0f};
+    // The hidden-default sentinel: the 1920x1080 SafeAreaBottom pin.
+    // If the resolver ever silently uses a default CanvasInfo (which
+    // is 1920x1080), every format's SafeAreaBottom would come out
+    // as this value.  Bottom is the sentinel because it's the canonical
+    // 'hidden default' failure mode; the other 4 sides (Top / Left /
+    // Right / Center) are covered by the positive per-format CHECKs above.
+    const Vec2 kLandscapeBottom{960.0f, 1026.0f};
+
+    SUBCASE("1920x1080") {
+        const auto f = kFormats[0];
+        const auto c = canvas_for(f);
+        const f32 safe_cy = (f.margin_top + (f.height - f.margin_bottom)) * 0.5f;
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Top)),
+                        {f.width * 0.5f, f.margin_top}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Bottom)),
+                        {f.width * 0.5f, f.height - f.margin_bottom}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Left)),
+                        {f.margin_left, safe_cy}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Right)),
+                        {f.width - f.margin_right, safe_cy}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Center)),
+                        {f.width * 0.5f, safe_cy}));
+        // 1920x1080 IS the landscape — no CHECK_FALSE for the hidden default.
+    }
+    SUBCASE("1080x1920") {
+        const auto f = kFormats[1];
+        const auto c = canvas_for(f);
+        const f32 safe_cy = (f.margin_top + (f.height - f.margin_bottom)) * 0.5f;
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Top)),
+                        {f.width * 0.5f, f.margin_top}));
+        const auto pin_bottom = resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Bottom));
+        CHECK(vec2_near(pin_bottom, {f.width * 0.5f, f.height - f.margin_bottom}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Left)),
+                        {f.margin_left, safe_cy}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Right)),
+                        {f.width - f.margin_right, safe_cy}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Center)),
+                        {f.width * 0.5f, safe_cy}));
+        // Portrait SafeAreaBottom = (540, 1824) — must NOT be the
+        // 1920x1080 hidden default (960, 1026).
+        CHECK_FALSE(vec2_near(pin_bottom, kLandscapeBottom));
+    }
+    SUBCASE("1080x1080") {
+        const auto f = kFormats[2];
+        const auto c = canvas_for(f);
+        const f32 safe_cy = (f.margin_top + (f.height - f.margin_bottom)) * 0.5f;
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Top)),
+                        {f.width * 0.5f, f.margin_top}));
+        const auto pin_bottom = resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Bottom));
+        CHECK(vec2_near(pin_bottom, {f.width * 0.5f, f.height - f.margin_bottom}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Left)),
+                        {f.margin_left, safe_cy}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Right)),
+                        {f.width - f.margin_right, safe_cy}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Center)),
+                        {f.width * 0.5f, safe_cy}));
+        // 1080x1080 SafeAreaBottom = (540, 1026) — the Y matches the
+        // 1920x1080 hidden default by coincidence (both are 1080 high),
+        // but the X is 540 (not 960).  CHECK_FALSE catches a hidden
+        // default that returns (960, 1026) verbatim.
+        CHECK_FALSE(vec2_near(pin_bottom, kLandscapeBottom));
+    }
+    SUBCASE("1280x720") {
+        const auto f = kFormats[3];
+        const auto c = canvas_for(f);
+        const f32 safe_cy = (f.margin_top + (f.height - f.margin_bottom)) * 0.5f;
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Top)),
+                        {f.width * 0.5f, f.margin_top}));
+        const auto pin_bottom = resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Bottom));
+        CHECK(vec2_near(pin_bottom, {f.width * 0.5f, f.height - f.margin_bottom}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Left)),
+                        {f.margin_left, safe_cy}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Right)),
+                        {f.width - f.margin_right, safe_cy}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Center)),
+                        {f.width * 0.5f, safe_cy}));
+        // 1280x720 SafeAreaBottom = (640, 684) — must NOT be (960, 1026).
+        CHECK_FALSE(vec2_near(pin_bottom, kLandscapeBottom));
+    }
+    SUBCASE("3840x2160") {
+        const auto f = kFormats[4];
+        const auto c = canvas_for(f);
+        const f32 safe_cy = (f.margin_top + (f.height - f.margin_bottom)) * 0.5f;
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Top)),
+                        {f.width * 0.5f, f.margin_top}));
+        const auto pin_bottom = resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Bottom));
+        CHECK(vec2_near(pin_bottom, {f.width * 0.5f, f.height - f.margin_bottom}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Left)),
+                        {f.margin_left, safe_cy}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Right)),
+                        {f.width - f.margin_right, safe_cy}));
+        CHECK(vec2_near(resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Center)),
+                        {f.width * 0.5f, safe_cy}));
+        // 3840x2160 SafeAreaBottom = (1920, 2052) — must NOT be (960, 1026).
+        CHECK_FALSE(vec2_near(pin_bottom, kLandscapeBottom));
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §B: No inherited bottom from a prior canvas
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Sequential resolve test: re-resolve SafeAreaBottom on each of the
+// 5 formats in a single scope, in order.  The pin-Y must be the
+// per-format value (canvas.height - safe_margin_bottom) on every
+// call, not a prior canvas's bottom that leaked into the next call.
+//
+// The pure-math resolver is stateless today, so this is a forward-point
+// against a hypothetical future regression where a `static Vec2
+// cached_bottom;` is added to the resolver body.  If a future change
+// silently caches the bottom of the previously-resolved canvas, this
+// test will fail on the second+ iteration (the 1080x1920 pin-Y would
+// be the prior 1920x1080's 1026, not 1824).
+
+TEST_CASE("SafeArea formats: no inherited bottom from a prior canvas") {
+    Vec2 box{800.0f, 100.0f};
+
+    // Inline CanvasInfo values (duplicated from `kFormats` by design) serve
+    // as documentation of the expected per-format pin points — readers can
+    // see both the input (the 6 floats) and the expected output (the
+    // {w/2, h - mb} assertion) in one block, without a table lookup.
+
+    // Each block re-resolves SafeAreaBottom on a different format in
+    // sequence.  If the resolver had a stateful `last_bottom` cache,
+    // the 2nd+ blocks would return the prior canvas's pin-Y.
+    {
+        CanvasInfo c{1920.0f, 1080.0f, 54.0f, 54.0f, 96.0f, 96.0f};
+        auto pin = resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Bottom));
+        CHECK(vec2_near(pin, {960.0f, 1026.0f}));   // 1080 - 54
+    }
+    {
+        CanvasInfo c{1080.0f, 1920.0f, 96.0f, 96.0f, 54.0f, 54.0f};
+        auto pin = resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Bottom));
+        CHECK(vec2_near(pin, {540.0f, 1824.0f}));   // 1920 - 96 (NOT 1026!)
+    }
+    {
+        CanvasInfo c{1080.0f, 1080.0f, 54.0f, 54.0f, 54.0f, 54.0f};
+        auto pin = resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Bottom));
+        CHECK(vec2_near(pin, {540.0f, 1026.0f}));   // 1080 - 54
+    }
+    {
+        CanvasInfo c{1280.0f,  720.0f, 36.0f, 36.0f, 64.0f, 64.0f};
+        auto pin = resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Bottom));
+        CHECK(vec2_near(pin, {640.0f,  684.0f}));   // 720 - 36 (NOT 1026!)
+    }
+    {
+        CanvasInfo c{3840.0f, 2160.0f, 108.0f, 108.0f, 192.0f, 192.0f};
+        auto pin = resolve_placement_origin(c, box, resolve_safe_area(SafeAreaEnum::Bottom));
+        CHECK(vec2_near(pin, {1920.0f, 2052.0f}));  // 2160 - 108 (NOT 1026!)
+    }
 }
