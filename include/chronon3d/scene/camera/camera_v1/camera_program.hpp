@@ -121,6 +121,67 @@ enum class CameraEvaluationDependency : std::uint8_t {
 };
 
 // =========================================================================
+// CameraProgramKind — TICKET-PHASE-2 (Phase 2 refactor):
+// source-kind discriminator for a compiled CameraProgram.
+//
+// Re-populated by compile_camera() AFTER EVERY GRAFT (including
+// RegisteredMotionRef resolution), since the resolved source can differ
+// from the descriptor's declared source.  This is the structural classifier
+// used by the runtime to pick evaluation strategies (e.g. PoseTracks path
+// vs. trajectory path vs. static fast-path).
+// =========================================================================
+enum class CameraProgramKind : std::uint8_t {
+    Static      = 0,  // resolved to StaticCameraSource
+    PoseTracks  = 1,  // resolved to PoseTracksSource
+    Orbit       = 2,  // resolved to OrbitMotion
+    Trajectory  = 3,  // resolved to TrajectoryMotion
+    Ref         = 4,  // UNRESOLVED RegisteredMotionRef (only valid on failure)
+};
+
+// =========================================================================
+// CameraCompileErrorCode — TICKET-PHASE-2 (Phase 2 refactor):
+// top-level structured error code from compile_camera().
+//
+// Replaces the previous nested `CameraCompileError::Kind` enum.  The 11
+// values consolidate the 20+ legacy Kind variants into the canonical
+// buckets called out by the Phase 2 spec:
+//
+//   - InvalidDescriptor        : empty id, orient-without-trajectory, etc.
+//   - InvalidProjection        : Fov/Zoom keyframes out of [0, 179)
+//   - InvalidLens              : focal_length, sensor, pixel_aspect,
+//                                anamorphic_squeeze, motion_blur fields
+//   - InvalidTrajectory        : empty/null trajectory, segment duration
+//   - InvalidSegmentIndex      : segment from_idx >= to_idx or OOB
+//   - MissingPreset            : RegisteredMotionRef not in catalog
+//   - CircularPresetReference  : catalog cycle in RegisteredMotionRef chain
+//   - MissingTarget            : LookAtLayer with empty target string
+//   - MissingParent            : forward-point (never emitted in Phase 2)
+//   - InvalidConstraint        : DistanceConstraint min > max
+//   - NonFiniteValue           : numeric field is NaN or Inf
+// =========================================================================
+enum class CameraCompileErrorCode : std::uint8_t {
+    InvalidDescriptor       = 0,
+    InvalidProjection       = 1,
+    InvalidLens             = 2,
+    InvalidTrajectory       = 3,
+    InvalidSegmentIndex     = 4,
+    MissingPreset           = 5,
+    CircularPresetReference = 6,
+    MissingTarget           = 7,
+    MissingParent           = 8,  // forward-point; never emitted in Phase 2
+    InvalidConstraint       = 9,
+    NonFiniteValue          = 10,
+};
+
+// TICKET-PHASE-2 — schema version baked into the program fingerprint so
+// that pre-Phase-2 fingerprints (which did not hash schema_version,
+// pixel_aspect, anamorphic_squeeze, full motion blur, HandheldNoise) are
+// rejected by the cache invalidation contract.  Bump this when the
+// fingerprint contract changes (any new field, any new error code, any
+// reordering of the hasher mix sequence).
+inline constexpr std::uint64_t kCameraProgramSchemaVersion = 2;
+
+// =========================================================================
 // CameraProgram
 // =========================================================================
 
@@ -150,6 +211,10 @@ public:
     /// True if the camera is time-dependent (for caching).
     bool is_time_dependent() const { return time_dependent_; }
 
+    // ── TICKET-PHASE-2 accessors for the new metadata fields ──────────────
+    CameraProgramKind program_kind() const { return program_kind_; }
+    std::uint64_t     fingerprint()  const { return fingerprint_; }
+
     /// CAM-02: classify whether the compiled program requires persistent
     /// state (CameraSession) across frames.  See `CameraEvaluationDependency`
     /// above for the per-variant classification rules applied by the compiler.
@@ -165,10 +230,17 @@ private:
     CameraFailurePolicy        failure_policy_{CameraFailurePolicy::Stop};
 
     // ── Compiled state (populated by compile_camera()) ───────────────────
+    // TICKET-PHASE-2: all 5 metadata fields below are re-populated at the
+    // END of compile_camera() — AFTER every graft (including
+    // RegisteredMotionRef resolution) and AFTER every validation pass.
+    // This enforces the "always re-populate after every graft" invariant
+    // from the Phase 2 spec: no early return may leave stale metadata.
     bool                              compiled_{false};
     bool                              time_dependent_{false};
     CameraEvaluationDependency        evaluation_dependency_{
         CameraEvaluationDependency::Stateless};
+    CameraProgramKind                 program_kind_{CameraProgramKind::Static};
+    std::uint64_t                     fingerprint_{0};  // compute_camera_descriptor_fingerprint(descriptor_)
     CameraDescriptor                  descriptor_{};
 
     // ── Compiled evaluation helpers ─────────────────────────────────────

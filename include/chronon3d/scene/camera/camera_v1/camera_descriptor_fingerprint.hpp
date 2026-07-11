@@ -14,6 +14,7 @@
 // iteration order of fields.  Identical descriptors ⇒ identical hash.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_program.hpp>  // TICKET-PHASE-2: kCameraProgramSchemaVersion
 
 #include <cstdint>
 #include <cstring>
@@ -89,6 +90,14 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
     const CameraDescriptor& desc) {
     detail::Fnv1aHasher h;
 
+    // ── TICKET-PHASE-2: schema-version sentinel ──────────────────────────
+    // Bumping kCameraProgramSchemaVersion invalidates ALL pre-Phase-2
+    // fingerprints (which omitted pixel_aspect, anamorphic_squeeze, full
+    // motion blur, HandheldNoise modifier, and the schema sentinel).
+    // This guarantees that cache hits from before Phase 2 are rejected
+    // automatically — no manual cache flush required.
+    h.mix_u64(kCameraProgramSchemaVersion);
+
     // ── Identifier + policy ────────────────────────────────────────
     h.mix_str(desc.id);
     h.mix_enum(desc.failure_policy);
@@ -110,6 +119,12 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
         h.mix_f32(lens.sensor_width);
         h.mix_f32(lens.sensor_height);
         h.mix_enum(lens.gate_fit);
+        // TICKET-PHASE-2: pixel_aspect + anamorphic_squeeze (TICKET-035
+        // fields) are now part of the fingerprint contract so anamorphic
+        // lens swaps (LensPresets::anamorphic_50mm with
+        // anamorphic_squeeze=2.0) invalidate the cache.
+        h.mix_f32(lens.pixel_aspect);
+        h.mix_f32(lens.anamorphic_squeeze);
     }
     {
         const auto& dof = desc.base.dof;
@@ -123,9 +138,17 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
         h.mix_f32(dof.far_bokeh_radius);
     }
     {
+        // TICKET-PHASE-2: full MotionBlurSettings fingerprint (was
+        // partial — only mode + shutter_angle_deg).  New fields:
+        // samples, shutter_phase_deg, pattern, filter, jitter_seed.
         const auto& mb = desc.base.motion_blur;
         h.mix_u8(static_cast<std::uint8_t>(mb.mode));
+        h.mix_i32(mb.samples);
         h.mix_f32(mb.shutter_angle_deg);
+        h.mix_f32(mb.shutter_phase_deg);
+        h.mix_u8(static_cast<std::uint8_t>(mb.pattern));
+        h.mix_u8(static_cast<std::uint8_t>(mb.filter));
+        h.mix_u64(mb.jitter_seed);
     }
 
     // ── projection variant ────────────────────────────────────────
@@ -216,6 +239,20 @@ inline std::uint64_t compute_camera_descriptor_fingerprint(
                 h.mix_f32(mod.zoom_amplitude);
                 h.mix_f32(mod.frequency_hz);
                 h.mix_f32(mod.phase);
+            } else if constexpr (std::is_same_v<T, HandheldNoise>) {
+                // TICKET-PHASE-2: HandheldNoise modifier was previously
+                // un-hashed (its data fell through the visit silently
+                // because the if-constexpr chain had no `else if` for
+                // it).  A descriptor with HandheldNoise would hash the
+                // same as a descriptor without it.  This was a silent
+                // fingerprint hole; fixed by the explicit branch below.
+                h.mix_vec3(mod.position_amplitude);
+                h.mix_vec3(mod.rotation_amplitude_deg);
+                h.mix_f32(mod.zoom_amplitude);
+                h.mix_f32(mod.position_freq_hz);
+                h.mix_f32(mod.rotation_freq_hz);
+                h.mix_f32(mod.zoom_freq_hz);
+                h.mix_u32(mod.seed);
             }
         }, m);
     }

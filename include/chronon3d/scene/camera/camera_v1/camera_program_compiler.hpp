@@ -36,38 +36,19 @@ namespace chronon3d::camera_v1 {
 
 // =============================================================================
 // CameraCompileError — structured error from compile_camera().
+//
+// TICKET-PHASE-2: the previous nested `Kind` enum (20+ values) has been
+// REMOVED.  The error code is now a top-level `CameraCompileErrorCode`
+// (11 values, defined in camera_program.hpp) so that callers can pattern-
+// match on the code without depending on the CameraCompileError type.
+// Per AGENTS.md "no espansione API non necessaria", the old `Kind` enum
+// was deleted (not aliased / not deprecated) to avoid a parallel enum
+// surface that would invite drift between the two.
 // =============================================================================
 
 struct CameraCompileError {
-    enum class Kind : std::uint8_t {
-        Unknown = 0,
-        MotionNotFound,            // RegisteredMotionRef id not in catalog
-        InvalidSource,             // source is empty / misconfigured
-        TrajectoryEmpty,           // trajectory has no segments
-        TrajectoryDurationZero,    // all segments have zero duration
-        ConstraintNotFound,        // named constraint id not in registry
-        CircularParent,            // parent hierarchy cycle
-        CircularCatalogReference,  // CAM-02: RegisteredMotionRef chain loops back
-        // ── STEP 8 validation additions ──────────────────────────────────
-        EmptyId,                              // descriptor.id is empty
-        InvalidFov,                           // FOV non-finite, <=0, or >= 179°
-        InvalidZoom,                          // zoom <= 0
-        InvalidFocalLength,                   // focal length <= 0
-        InvalidSensorDimensions,              // sensor width/height <= 0
-        InvalidPixelAspect,                   // pixel_aspect <= 0
-        InvalidAnamorphicSqueeze,             // anamorphic_squeeze <= 0
-        InvalidMotionBlurSamples,             // MB samples <= 0
-        InvalidShutterAngle,                  // shutter angle <= 0 or > 360
-        InvalidConstraintRange,               // DistanceConstraint min > max
-        TrajectoryNull,                       // TrajectoryMotion with null shared_ptr
-        InvalidSegmentIndex,                  // segment from_idx >= to_idx or OOB
-        InvalidSegmentDuration,               // segment duration_frames <= 0
-        OrientAlongPathWithoutTrajectory,     // OrientAlongPath without TrajectoryMotion
-        LookAtLayerWithoutTarget,             // LookAtLayer with empty target string
-    };
-
-    Kind        kind{Kind::Unknown};
-    std::string message;
+    CameraCompileErrorCode code{CameraCompileErrorCode::InvalidDescriptor};
+    std::string            message;
 };
 
 // =============================================================================
