@@ -166,8 +166,9 @@ struct TextBoxStyle {
 };
 
 enum class TextOverflow {
-    Clip,
-    Ellipsis,
+    Clip,      // default: text within box bounds; text outside is not rendered
+    Ellipsis,  // text that exceeds max_lines or box width is truncated with "..."
+    Visible,  // text is allowed to extend beyond the box bounds (no clip, no ellipsis)
 };
 
 // TextDirection and TextShaping are defined in <chronon3d/text/font_engine.hpp>.
