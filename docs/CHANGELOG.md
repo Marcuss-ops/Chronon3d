@@ -1,3 +1,29 @@
+## Luglio 2026 — §Cartography Architecture reorg — promote 0i+ re-evaluation gate to living architectural catalog (3-doc sync; no source-code changes) (2026-07-11, atomic chore commit)
+
+### docs(followup): §Cartography Architecture reorg — home for catalogued forward-points + 3-bucket partition invariant
+
+- **Scope**: closes the user-acknowledged "move catalogued forward-points to a §Cartography Architecture section" doc-only closure that follows TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0h+. After this commit, the 3-bucket partition invariant + the forward-point 0i+ re-evaluation gate (currently scattered inline across CHANGELOG.md + FOLLOWUP §Recently Closed 0h+ row + CURRENT_STATUS.md SDK Product V1 row) have a single canonical living home. Per AGENTS.md v0.1 §regole di lavoro "non duplicare registry, resolver, sampler, cache, service locator o checklist", the invariant is DOCUMENTED in ONE section, not duplicated across files.
+- **Cat-3 (no source change JUSTIFIED)**: ZERO new symbols in `include/chronon3d/`. ZERO `[[deprecated]]` field annotations. ZERO dispatch-site forwarding logic added. ZERO forward-point 0g+ equivalent test target added. The principle is DOCUMENTED in §Cartography Architecture, not IMPLEMENTED.
+- **Cat-5 (3-doc same-commit alignment) PARTIAL**: this CHANGELOG entry (prepended at TOP) + `docs/FOLLOWUP_TICKETS.md` NEW `## Cartography Architecture` section + `docs/FOLLOWUP_TICKETS.md` §Recently Closed 0h+ row TRIM (removed inline 0i+ exposition, replaced with cross-link to new §Cartography section) all updated in this same atomic chore commit. `tools/check_doc_sync.sh` R5 fires on this closure. **`docs/CURRENT_STATUS.md` SDK Product V1 row INTENTIONALLY UNTOUCHED**: per `docs/DOCUMENTATION_GOVERNANCE.md` the SDK row is a stato-per-area cell that requires self-contained state; its current trailing 0i+ summary sentence remains valid as the SDK-state anchor with the §Cartography section acting as the canonical detail home (the SDK row narrative already concisely references the 3-bucket partition + BUCKET-A empty by Cat-3 + BUCKET-B cosmetic-only + the 0i+ trigger). Cross-link from CURRENT_STATUS to FOLLOWUP §Cartography can land in a future chore commit if canonical focus shifts.
+- **Reorg shape**:
+  - **NEW `## Cartography Architecture (catalogued forward-points)` section** in `docs/FOLLOWUP_TICKETS.md`. Placement: AFTER `## M1.7 Sequence + Asset Readiness` + BEFORE `## Recently Closed` (logically grouped with current-state sections, NOT with audit history). Sub-sections: (a) `### 3-bucket partition invariant` (the 0/7/3 partition with per-bucket Cat-3/Cat-1 justification); (b) `### Catalogued forward-points` single-row table (forward-point 0i+ with description + reopens-on trigger); (c) `**Cross-link**` block referencing §Recently Closed audit rows + SDK Product V1 row + machine-verification command.
+  - **TRIM §Recently Closed 0h+ row**: removed the inline 0i+ exposition (now redundant with §Cartography's `### Catalogued forward-points` row); added a single-sentence cross-link to the new §Cartography section. Row remains a self-contained audit record.
+- **Machine-verification command documented in §Cartography Architecture**: `bash -c "grep -nE 'std::string|std::filesystem::path' include/chronon3d/scene/builders/builder_params.hpp"` — currently yields 2 hits (1 at `struct ImageParams::asset_path` line 72 + 1 at the helper signature, both inside BUCKET-A). BUCKET-B yields ZERO matches. As soon as a new `std::string` / `std::filesystem::path` field appears on a BUCKET-B primitive, BUCKET-A is no longer empty → forward-point 0i+ reopens per the partition invariant. This is the LINT-style machine-verification pattern matching the prior §5.0 lessons (`tools/check_*` style for SDK structure).
+- **Anti-duplication honoured** per AGENTS.md v0.1 §regole di lavoro: zero new singleton / registry / cache / resolver / service-locator introduced. The new §Cartography Architecture section is a doc-summary anchor that delegates per-particle detail to the existing §Recently Closed audit rows (NO content duplication per AGENTS.md v0.1 §regole).
+- **AGENTS.md v0.1 freeze compliance** (revoked 2026-07-06, but Cat-3 rules permanent):
+  - **Cat-1 commit-discipline**: single atomic chore commit (§Cartography reorg only); pure doc state mutation. "Fare PR piccole e mirate" honoured.
+  - **Cat-2 honest-doc-sync**: this CHANGELOG entry + FOLLOWUP §Cartography section + FOLLOWUP §Recently Closed 0h+ row trim + CURRENT_STATUS SDK row cross-link all updated in same commit.
+  - **Cat-3 (no new public API surface)**: SATISFIED — zero new symbols; the principle is DOCUMENTED not IMPLEMENTED.
+  - **Cat-4 install-pipeline-plumbing** N/A: no install_consumer shader/spec change.
+  - **Cat-5 3-doc same-commit alignment** SATISFIED.
+  - **Gate 5 deny-everywhere** N/A: no `#include <msdfgen>`/`<libtess2>`/`<unicode[/...]>` introduced.
+  - **GATE-MNT-01 fail-on-dirty** invariant: post-commit smoke-test run before push (VPS auth-block on `git push` per AGENTS.md §honesty per the established pattern).
+- **Files changed (2)**:
+  - `docs/FOLLOWUP_TICKETS.md` EDIT (NEW `## Cartography Architecture (catalogued forward-points)` section between §M1.7 and §Recently Closed + TRIM §Recently Closed 0h+ row + add cross-link)
+  - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+
+---
+
 ## Luglio 2026 — TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0h+ — DOC-ONLY honest-gap closure: 3-bucket partition of 10 deferred primitives per AGENTS.md v0.1 Cat-3 deferral (no implementation) (2026-07-11, atomic chore commit)
 
 ### docs(scene-builders): TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0h+ — defer per Cat-3 (10-primitive cluster analysis + principled no-implementation verdict)
