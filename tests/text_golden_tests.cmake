@@ -612,6 +612,26 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+# TICKET-FASE3-MULTILINGUAL §FallbackMatrix — 10-case multilingual +
+# fallback golden matrix.  10 TEST_CASEs (ASCII, Latin accents, Arabic
+# RTL, Hebrew RTL, CJK, emoji, punctuation, numbers, combining marks,
+# ligatures) × 1 AR (1920×1080) = 10 PNG goldens in
+# `test_renders/golden/text/text_multilingual/fallback_matrix/`.  Each
+# test case asserts the conservative-bbox-fallback counter
+# (`text_bbox_contract_violations` in `RenderCounters`) is 0 in the
+# nominal case, which regression-locks the font fallback chain +
+# bbox computation for the 10 representative text categories.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_multilingual/08_fallback_matrix.cpp
+)
+
+add_test(
+    NAME TextMultilingualFallbackMatrix
+    COMMAND chronon3d_text_golden_tests --test-case="Multilingual.FallbackMatrix *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # ── add_test aliases (preserved verbatim — these are NOT registered via
 # the chronon3d_add_test_suite helper because they filter on doctest
 # --test-case patterns, not on the executable itself). ───────────────
