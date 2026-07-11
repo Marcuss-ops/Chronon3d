@@ -10,7 +10,17 @@
 // must account for sRGB→linear conversion (e.g. sRGB 0.5 → linear ≈ 0.214).
 
 #include <doctest/doctest.h>
-#include <chronon3d/chronon3d.hpp>
+#include <chronon3d/sdk/render_engine.hpp>
+#include <chronon3d/sdk/render_output.hpp>
+#include <chronon3d/sdk/render_error.hpp>
+#include <chronon3d/sdk/render_request.hpp>
+#include <chronon3d/sdk/render_settings.hpp>
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <tests/helpers/sample_helpers.hpp>
