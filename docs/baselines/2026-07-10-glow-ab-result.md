@@ -91,7 +91,103 @@ NOR excluded** by this experiment:
 Per the user's constraint (`NON toccare il codice di produzione —
 solo experiment`), the build rot is out of scope for this commit.
 
-## Fase 4 Resumption Attempt — 2026-07-11 (e3e3ca99 + 484a87db)
+## Fase 4 Resumption Attempt — 2026-07-11 (2bc7e0b2) — rebuild verification
+
+**Status: 🛑 STILL BLOCKED** — rebuild attempt PARTIAL.  See below for details.
+
+### What was attempted
+
+1. **[ATTEMPTED] Rebuild `chronon3d_cli`** with the parameterized A/B
+   sibling from commit `e3e3ca99 refactor(glow): deduplicate
+   build_2line_typewriter in A/B sibling`.  Command executed:
+   ```
+   cmake --build build/chronon/linux-fast-dev --target chronon3d_cli -j4
+   ```
+
+2. **[FAILED] Rebuild** — ninja reported **HARD compilation errors**
+   (not just deprecation warnings).  The binary was **NOT updated**
+   (mtime 1783792733 predates source mtime 1783799874 — ~7000s gap).
+   The pre-existing build rot identified in the previous attempt
+   has manifested as two specific C++ errors:
+
+   ```
+   FAILED: src/scene/CMakeFiles/chronon3d_scene.dir/Unity/unity_1_cxx.cxx.o
+   src/scene/camera/overlay_hud_panels.cpp:96:9: error:
+       'chronon3d::TextSpec' has no non-static data member named 'position'
+
+   FAILED: src/scene/CMakeFiles/chronon3d_scene.dir/Unity/unity_2_cxx.cxx.o
+   include/chronon3d/scene/camera/camera_v1/camera_descriptor_fingerprint.hpp:99:15: error:
+       'kCameraProgramSchemaVersion' was not declared in this scope
+   ```
+
+   These are **hard errors** (not warnings) that prevent the
+   `chronon3d_scene` library from compiling, which in turn blocks
+   the `chronon3d_cli` link step.
+
+3. **[FAILED] Render `AnimTypewriterGlowWithGlow` at frame 140** —
+   the binary is unchanged (predates `e3e3ca99`), so the CLI
+   returns `[error] Unknown composition: AnimTypewriterGlowWithGlow`.
+
+### Root cause analysis
+
+The two hard errors are unrelated to the A/B sibling refactor:
+
+- **Error 1** (`TextSpec::position` removed): The `TextSpec` struct
+  was redesigned to use `TextPlacement` (from
+  `include/chronon3d/scene/builders/builder_params.hpp`) but
+  `src/scene/camera/overlay_hud_panels.cpp:96` still references
+  the legacy `.position` field.  This is part of the broader
+  `TICKET-TEXT-LEGACY-POSITION-ROT` (~200+ sites).
+
+- **Error 2** (`kCameraProgramSchemaVersion` undeclared): The
+  constant is referenced in `camera_descriptor_fingerprint.hpp:99`
+  but not defined in the current scope.  This is a separate rot
+  unrelated to the A/B sibling.
+
+Both errors are **pre-existing** and out of scope for the A/B
+experiment (per the "NON toccare il codice di produzione" constraint).
+
+### Silent failure anomaly
+
+The `cmake --build` command reported exit code 0 despite ninja
+reporting a "subcommand failure".  This is likely a build wrapper
+artifact (the exit code is swallowed by a shell pipeline).  The
+truth is in the FAILED lines — the binary was NOT relinked.
+
+### What is valid from this attempt
+
+- `output/glow_final/no_glow.png` (1920×1080 RGBA, frame 140) is a
+  valid render of `AnimTypewriterGlowNoGlow` with `glow_intensity=0.0`.
+  It can serve as the WITHOUT case **once a rebuilt CLI with both
+  A/B siblings is available** on a working build host.
+- The deprecation warnings (TextParams, ImageParams::path,
+  Composition::camera) are correctly classified as warnings and do
+  NOT block the build — they are cosmetic.
+
+### What is deferred to the next working build host
+
+- **Fix the two hard compilation errors** (out of scope here):
+  - Migrate `src/scene/camera/overlay_hud_panels.cpp:96` from
+    `TextSpec::position` to `TextPlacement`.
+  - Define or import `kCameraProgramSchemaVersion` in
+    `camera_descriptor_fingerprint.hpp:99`.
+- Rebuild `chronon3d_cli` to obtain `AnimTypewriterGlowWithGlow`.
+- Render `AnimTypewriterGlowWithGlow` at frame 140.
+- Run `tools/measure_glow_darkening.py` on both PNGs to compute
+  the WITH-vs-WITHOUT delta.
+- Update this report with the PASS/FAIL verdict.
+- Add a `TICKET-TEXT-GLOW-DARKENING` row to `FOLLOWUP_TICKETS.md`
+  (currently absent from the tracker) and transition it to DONE
+  once the verdict is machine-verified.
+
+### Commit referenced
+
+- `2bc7e0b2 docs(baseline): Fase 4 resumption attempt - PARTIAL, build rot persists`
+  (HEAD on `origin/main` at the time of this attempt).
+
+---
+
+## Fase 4 Resumption Attempt — 2026-07-11 (e3e3ca99 + 484a87db, initial)
 
 **Status: 🛑 STILL BLOCKED** — attempt PARTIAL.  See below for details.
 
