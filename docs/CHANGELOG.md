@@ -1,3 +1,33 @@
+## Luglio 2026 — TICKET-FOLLOWUP-PRECEDENT-DOCS closure — `## Regole di lint documentale` 2nd rule aggregation: `[INFO] <gate-name>: <message>` diagnostic convention (3-doc Cat-5 same-commit; no source-code changes) (2026-07-11, atomic chore commit)
+
+### docs(agents): `## Regole di lint documentale` 2nd rule — `[INFO] <gate-name>: <message>` diagnostic convention (closes TICKET-FOLLOWUP-PRECEDENT-DOCS per `2+ rule aggregate` closure criterion)
+
+- **Scope**: closes the TICKET-FOLLOWUP-PRECEDENT-DOCS per its `2+ rule aggregate` closure criterion (the 1st rule was `### SHA cite pattern (inline-only rule)` introduced in commit `78919613`; the 2nd rule is `### INFO-level diagnostic style (gates)` introduced in this commit). After this commit, the `## Regole di lint documentale` bucket in `AGENTS.md` aggregates 2 rules (sha-cite + INFO-diagnostic) and the ticket is closed.
+- **Rule content** (canonical pattern for future sibling gates):
+  - **Format**: `[INFO] <gate-name>: <message>` with `<gate-name>` = script basename without `.sh` extension.
+  - **Bash variable**: raccomandata `GATE_NAME=check_<name>` dichiarata in cima allo script per grep-discoverability (es. `grep -rE '^\[INFO\] \${GATE_NAME}:' tools/check_*.sh`).
+  - **Emission contract**: una sola volta sullo stato clean (PASS), come riga **addizionale** al canonico `GATE_PASS` / `OK:` finale; MAI sul FAIL (FAIL path invariato, emette `GATE_FAIL:` con la lista dei colpevoli).
+  - **Message length**: ≤ 200 caratteri per one-line grep-discoverability in CI log.
+  - **Scope**: NEW gates only (gate esistenti invariati per AGENTS.md v0.1 "Fare PR piccole e mirate" — nessun churn retroattivo sui 14 gate della famiglia `OK:` / `GATE_PASS` / `HYGIENE_PASS [N/M]:` / `WARN:` / `FAIL:` / `GATE_FAIL:`).
+- **Origine rule** (dedotta dal commit pregresso 0j+ amendment): il pattern `[INFO] <gate-name>: <message>` è stato introdotto in `tools/check_test_suite_registration.sh` (line 87) come prima istanza della convenzione. La 14-gate family audit (via `tools/check_doc_sync.sh` + per-gate source review) ha confermato il gap: nessun gate esistente usava `[INFO]` come prefisso diagnostico; la famiglia era `OK:` / `GATE_PASS` / `HYGIENE_PASS [N/M]:` / `WARN:` / `FAIL:` / `GATE_FAIL:`. L'adozione 0j+ ha riempito il gap; questo commit formalizza la convenzione come rule canonica del bucket `## Regole di lint documentale`.
+- **Cat-3 (no source change JUSTIFIED)**: ZERO new symbols in `include/chronon3d/`. ZERO `[[deprecated]]` field annotations. ZERO dispatch-site forwarding logic. ZERO new SDK API surface. The change is markdown docs only.
+- **Cat-5 (3-doc same-commit alignment) SATISFIED**: this CHANGELOG entry (prepended at TOP) + `AGENTS.md` NEW `### INFO-level diagnostic style (gates)` sub-section under `## Regole di lint documentale` + `docs/FOLLOWUP_TICKETS.md` MOVE `TICKET-FOLLOWUP-PRECEDENT-DOCS` row from §Open Blockers → §Recently Closed (top of table per the established pattern). `tools/check_doc_sync.sh` R5 fires on this closure. `docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED: per `docs/DOCUMENTATION_GOVERNANCE.md` the SDK state cell is "stato per area" — doc-governance has no SDK-state semantic.
+- **AGENTS.md v0.1 freeze compliance** (revoked 2026-07-06, but Cat-3 + Cat-1 + §honesty rules permanent):
+  - **Cat-1 commit-discipline**: single atomic chore commit (TICKET-FOLLOWUP-PRECEDENT-DOCS closure only); pure doc state mutation. "Fare PR piccole e mirate" honoured.
+  - **Cat-2 honest-doc-sync**: this CHANGELOG entry + AGENTS.md new sub-section + FOLLOWUP_TICKETS row move all in same commit. CURRENT_STATUS intentionally untouched per above.
+  - **Cat-3 (no new public API surface)**: SATISFIED — zero new symbols; the principle is DOCUMENTED not IMPLEMENTED.
+  - **Cat-4 install-pipeline-plumbing** N/A: no install_consumer shader/spec change.
+  - **Cat-5 3-doc same-commit alignment** SATISFIED.
+  - **Gate 5 deny-everywhere** N/A: markdown-only change.
+  - **GATE-MNT-01 fail-on-dirty** invariant: post-commit smoke-test run before push (VPS auth-block on `git push` per AGENTS.md §honesty per the established pattern).
+- **Lint-checkability (forward-point, NOT in this commit)**: a future `tools/check_info_diagnostic_style.sh` (gate opzionale, non ancora implementato) could enforce the pattern. Implementation deferred to a separate ticket per AGENTS.md v0.1 "Fare PR piccole e mirate" + Cat-3 anti-duplication (the rule documentation precedes the lint tooling).
+- **Files changed (3)**:
+  - `AGENTS.md` EDIT (NEW `### INFO-level diagnostic style (gates)` sub-section under `## Regole di lint documentale` + verbatim SHA cite to `78919613` for the existing 1st rule + Perché/Origine/Scope/Anti-esempio/CORRETTO structure mirroring the existing 1st rule's shape)
+  - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+  - `docs/FOLLOWUP_TICKETS.md` EDIT (MOVE `TICKET-FOLLOWUP-PRECEDENT-DOCS` row from §Open Blockers → §Recently Closed top of table)
+
+---
+
 ## Luglio 2026 — forward-point 0k+ — `| tr -d '\n'` band-aid on `tools/check_test_suite_registration.sh` to silence the 0j+ residual `[[: 0\n0: syntax error in expression` stderr (38 noisy lines silenced; gate CONTRACT rc=0 preserved; band-aid trade-off documented in script comment; canonical fix cross-linked) (2026-07-11, atomic chore commit)
 
 ### fix(ci): test_suite_registration.sh 0k+ (tr-d newline band-aid)
