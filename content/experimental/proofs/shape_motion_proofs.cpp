@@ -45,24 +45,13 @@ Composition shape_motion_proofs() {
             l.path("card_bg", cp);
 
             // Draw label text (in bottom)
-            l.text("lbl", TextSpec{
-                .content = {.value = text},
-                .font = {.font_size = 14.0f},
-                .layout = {.box = {CELL_W - 30.0f, 24.0f}, .align = TextAlign::Center},
-                .appearance = {.color = {0.6f, 0.7f, 0.9f, 0.9f}},
-                .position = {0.0f, -95.0f, 0.0f},
-            });
+            l.text("lbl", TextSpec{.content = {.value = text}, .placement = {TextPlacementKind::Absolute, {0.0f, -95.0f}}, .font = {.font_size = 14.0f}, .layout = {.box = {CELL_W - 30.0f, 24.0f}, .align = TextAlign::Center}, .appearance = {.color = {0.6f, 0.7f, 0.9f, 0.9f}}});
         };
 
         // Title
         s.layer("title", [](auto& l) {
             l.pin_to(Anchor::TopCenter, 20.0f);
-            l.text("t", TextSpec{
-                .content = {.value = "SHAPE MOTION GRAPHICS PROOFS"},
-                .font = {.font_size = 28.0f},
-                .layout = {.box = {800.0f, 40.0f}, .align = TextAlign::Center},
-                .appearance = {.color = {0.9f, 0.95f, 1.0f, 1.0f}},
-            });
+            l.text("t", TextSpec{.content = {.value = "SHAPE MOTION GRAPHICS PROOFS"}, .font = {.font_size = 28.0f}, .layout = {.box = {800.0f, 40.0f}, .align = TextAlign::Center}, .appearance = {.color = {0.9f, 0.95f, 1.0f, 1.0f}}});
         });
 
         const f32 p = ctx.progress();

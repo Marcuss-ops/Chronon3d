@@ -35,7 +35,7 @@ TEST_CASE("Evaluate: offset shifts the active window") {
     spec.order = TextSelectorOrder::Forward;
     spec.start.set(0.0f);
     spec.end.set(50.0f);
-    spec.offset.set(0.0f);
+    spec.placement.offset.set(0.0f);
 
     auto placed = make_test_placed_run(4);
     auto source = make_test_source(4);
@@ -48,7 +48,7 @@ TEST_CASE("Evaluate: offset shifts the active window") {
     CHECK(w0 > 0.0f);
     CHECK(w2 == doctest::Approx(0.0f));
 
-    spec.offset.set(50.0f);
+    spec.placement.offset.set(50.0f);
     f32 w0_shifted = evaluate_selector(spec, map, 0, source, t);
     f32 w2_shifted = evaluate_selector(spec, map, 2, source, t);
     CHECK(w0_shifted == doctest::Approx(0.0f));
@@ -208,7 +208,7 @@ TEST_CASE("Animated: offset slides the window with easing") {
     spec.shape = TextSelectorShape::Square;
     spec.start.set(0.0f);
     spec.end.set(40.0f);
-    spec.offset.key(Frame{0}, 0.0f).key(Frame{30}, 100.0f, EasingCurve{Easing::Linear});
+    spec.placement.offset.key(Frame{0}, 0.0f).key(Frame{30}, 100.0f, EasingCurve{Easing::Linear});
     spec.amount.set(100.0f);
 
     auto placed = make_test_placed_run(8);

@@ -95,9 +95,8 @@ namespace test {
         .padding       = {12.0f, 8.0f},
     };
 
-    // ── position (1 field) ──────────────────────────────────────────────
-    spec.placement = {TextPlacementKind::Absolute};
-    spec.placement.offset = {100.0f, 200.0f};  // non-default
+    // ── placement (intent + 2D offset) ──────────────────────────────────
+    spec.placement = {TextPlacementKind::Absolute, {100.0f, 200.0f}};  // non-default
 
     return spec;
 }
@@ -232,10 +231,11 @@ TEST_CASE("TICKET-SIMPLICITY-PIPELINE-PARITY: TextSpec ↔ TextDefinition round-
         CHECK(roundtripped.appearance.box_style.padding.y == doctest::Approx(original.appearance.box_style.padding.y));
     }
 
-    // ── Position (1 field, 3 components) ────────────────────────────────
-    SUBCASE("position") {
-        CHECK(roundtripped.offset.x == doctest::Approx(original.offset.x));
-        CHECK(roundtripped.offset.y == doctest::Approx(original.offset.y));
+    // ── Placement (intent + 2D offset) ──────────────────────────────────
+    SUBCASE("placement") {
+        CHECK(roundtripped.placement.offset.x == doctest::Approx(original.placement.offset.x));
+        CHECK(roundtripped.placement.offset.y == doctest::Approx(original.placement.offset.y));
+        CHECK(roundtripped.placement.kind == original.placement.kind);
         // F1: z dropped from TextSpec.position — placement.offset is Vec2 only
     }
 }
@@ -303,9 +303,10 @@ TEST_CASE("TICKET-SIMPLICITY-PIPELINE-PARITY: adapter paths converge on identica
     CHECK(adapter_path.appearance.color.a == doctest::Approx(original.appearance.color.a));
     CHECK(adapter_path.appearance.paint.stroke_enabled == original.appearance.paint.stroke_enabled);
 
-    // Position identity
-    CHECK(adapter_path.offset.x == doctest::Approx(original.offset.x));
-    CHECK(adapter_path.offset.y == doctest::Approx(original.offset.y));
+    // Placement identity
+    CHECK(adapter_path.placement.offset.x == doctest::Approx(original.placement.offset.x));
+    CHECK(adapter_path.placement.offset.y == doctest::Approx(original.placement.offset.y));
+    CHECK(adapter_path.placement.kind == original.placement.kind);
     // F1: z dropped from TextSpec.position — placement.offset is Vec2 only
 }
 

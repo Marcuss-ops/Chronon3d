@@ -128,16 +128,11 @@ using namespace chronon3d::registry;
 // Designated-initializer aggregate initialisation matches the content/
 // text helpers canonical idiom in `content/text/text_helpers_centered.hpp`.
 inline TextSpec make_test_text_spec() {
-    return TextSpec{
-        .content    = {.value = "Hello"},
-        .font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+    return TextSpec{.content = {.value = "Hello"}, .font = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
                        .font_family = "Poppins",
                        .font_weight = 700,
                        .font_style  = "normal",
-                       .font_size   = 96.0f},
-        .layout     = {.box = {1200.0f, 240.0f}},
-        .appearance = {.color = {1.0f, 1.0f, 1.0f, 1.0f}},
-    };
+                       .font_size   = 96.0f}, .layout = {.box = {1200.0f, 240.0f}}, .appearance = {.color = {1.0f, 1.0f, 1.0f, 1.0f}}};
 }
 
 // ── Fixture: rich-paint TextSpec (Stage 4 wiring probe) ─────────────────
@@ -151,21 +146,16 @@ inline TextSpec make_test_text_spec() {
 // the TextRunSpec.animators vector BEFORE the canonical motion-preset
 // chain runs (depth_reveal + scale_drop + soft_pop).
 inline TextSpec make_chronon_rich_text_spec() {
-    return TextSpec{
-        .content    = {.value = "CHRONON"},
-        .font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+    return TextSpec{.content = {.value = "CHRONON"}, .font = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
                        .font_family = "Poppins",
                        .font_weight = 700,
                        .font_style  = "normal",
-                       .font_size   = 96.0f},
-        .layout     = {.box = {1200.0f, 240.0f}},
-        .appearance = {.color = {1.0f, 1.0f, 1.0f, 1.0f},
+                       .font_size   = 96.0f}, .layout = {.box = {1200.0f, 240.0f}}, .appearance = {.color = {1.0f, 1.0f, 1.0f, 1.0f},
                        .paint  = {.fill = {1.0f, 1.0f, 1.0f, 1.0f},
                                   // ── Richness trigger (bool signal) ──
                                   .stroke_enabled = true,
                                   .stroke_color  = {0.0f, 0.0f, 0.0f, 1.0f},
-                                  .stroke_width  = 2.0f}},
-    };
+                                  .stroke_width  = 2.0f}}};
 }
 
 // ── Per-preset helper: build → verify node added (Tier C) ──────────────

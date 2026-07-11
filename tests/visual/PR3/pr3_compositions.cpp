@@ -94,25 +94,19 @@ TextSpec make_text(const std::string& utf8,
                    float size_pt,
                    Color color,
                    Vec2 box) {
-    return TextSpec{
-        .content = TextContent{.value = utf8},
-        .font = FontSpec{
+    return TextSpec{.content = TextContent{.value = utf8}, .font = FontSpec{
             .font_path   = font_path,
             .font_family = family,
             .font_weight = 700,
             .font_style  = "normal",
             .font_size   = size_pt,
-        },
-        .layout = TextLayoutSpec{
+        }, .layout = TextLayoutSpec{
             .box         = box,
             .line_height = 1.20f,
             .tracking    = 1.0f,
-        },
-        .appearance = TextAppearanceSpec{
+        }, .appearance = TextAppearanceSpec{
             .color = color,
-        },
-        .position = Vec3{0.0f, 0.0f, 0.0f},
-    };
+        }};
 }
 
 // ── Render-helper with custom RenderSettings ─────────────────────────────────

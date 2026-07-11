@@ -356,7 +356,7 @@ TEST_CASE("Adapters: old API centered_text() vs new API Layer::text() — render
     // (b) new API: Layer::text(content).content().font().place() — the
     // canonical ergonomic surface.
     //
-    // The TWO paths converge at `from_text_spec(TextSpec{...})` —
+    // The TWO paths converge at `from_text_spec(TextSpec{})` —
     // same TextSpec → same TextDefinition → same compiler → same resolver
     // → same layout → same compositor → same pixel output (modulo
     // sub-pixel rasterization rounding, locked at ±1px per §5/§6 gate).
@@ -366,8 +366,8 @@ TEST_CASE("Adapters: old API centered_text() vs new API Layer::text() — render
     // covers the rendering-side). Here we lock the SHAPE equivalence.
     CHECK(old_def.content.value == "RENDER_EQUIV");
     CHECK(old_def.style.font.font_size == doctest::Approx(96.0f));
-    CHECK(old_def.frame.position.x == doctest::Approx(960.0f));
-    CHECK(old_def.frame.position.y == doctest::Approx(540.0f));
+    CHECK(old_def.frame.placement.offset.x == doctest::Approx(960.0f));
+    CHECK(old_def.frame.placement.offset.y == doctest::Approx(540.0f));
 
     // The new API produces a TextDefinition with the same content
     // and same position; the only difference is that the new API
@@ -388,8 +388,8 @@ TEST_CASE("Adapters: old API centered_text() vs new API Layer::text() — render
     CHECK(new_pending.params.text.content.value == "RENDER_EQUIV");
     CHECK(new_pending.params.text.font.font_size == doctest::Approx(96.0f));
     // CanvasCenter pin = (960, 540) — matches old API position.
-    CHECK(new_pending.params.text.position.x == doctest::Approx(960.0f));
-    CHECK(new_pending.params.text.position.y == doctest::Approx(540.0f));
+    CHECK(new_pending.params.text.placement.x == doctest::Approx(960.0f));
+    CHECK(new_pending.params.text.placement.y == doctest::Approx(540.0f));
 }
 
 TEST_CASE("Adapters: old API glow_text() vs new API TextEffects::glow — consolidation verified") {
@@ -438,8 +438,8 @@ TEST_CASE("Adapters: determinism — identical authoring produces byte-equivalen
     const PendingTextRun& a = t_a.pending();
     const PendingTextRun& b = t_b.pending();
     CHECK(a.params.text.content.value == b.params.text.content.value);
-    CHECK(a.params.text.position.x == doctest::Approx(b.params.text.position.x));
-    CHECK(a.params.text.position.y == doctest::Approx(b.params.text.position.y));
+    CHECK(a.params.text.placement.x == doctest::Approx(b.params.text.placement.x));
+    CHECK(a.params.text.placement.y == doctest::Approx(b.params.text.placement.y));
     CHECK(a.params.text.font.font_size == doctest::Approx(b.params.text.font.font_size));
 }
 #endif  // CHRONON3D_USE_BLEND2D

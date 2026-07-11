@@ -81,6 +81,7 @@
                                                   // VerticalAlign, TextWrap, TextOverflow,
                                                   // TextCenteringMode
 #include <chronon3d/text/text_material.hpp>       // TextMaterial
+#include <chronon3d/text/text_placement.hpp>       // TextPlacement, TextPlacementKind
 #include <chronon3d/scene/model/shape/shape.hpp>  // TextPaint, TextShadow
 #include <chronon3d/scene/builders/builder_params.hpp>  // TextContent (canonical), TextSpec, TextRunSpec
 
@@ -277,8 +278,9 @@ struct TextDefinition {
 //   def.content.value = spec.content.value;
 //   def.style.font    = spec.font;
 //   def.style.color   = spec.appearance.color;
-//   def.frame.size    = spec.layout.box;
-//   def.frame.position = spec.position;
+//   def.frame.size      = spec.layout.box;
+//   def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
+//                                       Vec2{spec.position.x, spec.position.y}};
 //   // ... etc.
 
 /// Convert a TextSpec to the canonical TextDefinition.
@@ -289,6 +291,10 @@ struct TextDefinition {
 /// Includes animators (maps to TextAnimation placeholder — Phase A.3).
 /// Full implementation in src/text/text_definition.cpp.
 [[nodiscard]] TextDefinition from_text_run_spec(const TextRunSpec& spec);
+
+/// F2.C — Reverse adapter: convert the canonical TextDefinition back to
+/// TextSpec (the editor / authoring spec).
+[[nodiscard]] TextSpec from_text_definition(const TextDefinition& def);
 
 /// F2.D — Reverse adapter: convert the canonical TextDefinition back to
 /// TextRunSpec (the editor / authoring spec that carries animators, selectors,

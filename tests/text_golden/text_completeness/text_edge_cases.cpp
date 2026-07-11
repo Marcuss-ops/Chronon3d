@@ -58,22 +58,16 @@ Composition build_edge_comp(SoftwareRenderer& renderer, std::string text) {
             s.layer("edge_layer", [&renderer, text](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("edge_test", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = text},
-                        .font = {
+                    .text = TextSpec{.content = {.value = text}, .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 72.0f
-                        },
-                        .layout = {
+                        }, .layout = {
                             .box = {1920.0f, 1080.0f},
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()},
-                        .position = {960.0f, 540.0f, 0.0f}
-                    }
+                        }, .appearance = {.color = Color::white()}}
                 }).commit();
             });
             return s.build();

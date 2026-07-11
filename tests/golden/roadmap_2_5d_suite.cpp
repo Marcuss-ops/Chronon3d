@@ -159,7 +159,7 @@ Composition make_hero_push_scene() {
                            .align = TextAlign::Center,
                            .vertical_align = VerticalAlign::Middle},
                 .appearance = {.color = Color{0.92f, 0.97f, 1.0f, 1.0f}},
-                .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 0.0f}
+                .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}
             });
         });
 
@@ -174,7 +174,7 @@ Composition make_hero_push_scene() {
                            .align = TextAlign::Center,
                            .vertical_align = VerticalAlign::Middle},
                 .appearance = {.color = Color{0.72f, 0.88f, 1.0f, 1.0f}},
-                .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 0.0f}
+                .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}
             });
         });
 
@@ -194,7 +194,7 @@ Composition make_hero_push_scene() {
                            .align = TextAlign::Center,
                            .vertical_align = VerticalAlign::Middle},
                 .appearance = {.color = Color::white()},
-                .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 0.0f}
+                .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}
             });
         });
 
@@ -232,7 +232,7 @@ Composition make_buttery_card_scene(f32 rotation_y) {
                            .align = TextAlign::Center,
                            .vertical_align = VerticalAlign::Middle},
                 .appearance = {.color = Color{1.0f, 0.22f, 0.82f, 1.0f}},
-                .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, -10.0f}
+                .placement = {TextPlacementKind::Absolute, {0.0f, -10.0f}}
             });
             l.text("subtitle", {
                 .content = {.value = "Motion design quality text with soft glow"},
@@ -243,7 +243,7 @@ Composition make_buttery_card_scene(f32 rotation_y) {
                            .align = TextAlign::Center,
                            .vertical_align = VerticalAlign::Middle},
                 .appearance = {.color = Color{0.82f, 0.78f, 0.92f, 1.0f}},
-                .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 100.0f}
+                .placement = {TextPlacementKind::Absolute, {0.0f, 100.0f}}
             });
         });
 
@@ -381,7 +381,7 @@ Composition make_depth_fog_scene() {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.62f, 0.82f, 1.0f, 1.0f}},
-                    .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 0.0f}
+                    .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}
                 });
             });
         }
@@ -428,7 +428,7 @@ Composition make_orbit_stability_scene(float yaw) {
                            .align = TextAlign::Center,
                            .vertical_align = VerticalAlign::Middle},
                 .appearance = {.color = Color::white()},
-                .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, -6.0f}
+                .placement = {TextPlacementKind::Absolute, {0.0f, -6.0f}}
             });
         });
 
@@ -463,7 +463,7 @@ Composition make_fake_extrusion_scene() {
                            .align = TextAlign::Center,
                            .vertical_align = VerticalAlign::Middle},
                 .appearance = {.color = Color{0.10f, 0.18f, 0.42f, 1.0f}},
-                .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 0.0f}
+                .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}
             });
         });
 
@@ -478,7 +478,7 @@ Composition make_fake_extrusion_scene() {
                            .align = TextAlign::Center,
                            .vertical_align = VerticalAlign::Middle},
                 .appearance = {.color = Color::white()},
-                .placement = {TextPlacementKind::Absolute}, .offset = {0.0f, 0.0f}
+                .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}
             });
         });
 

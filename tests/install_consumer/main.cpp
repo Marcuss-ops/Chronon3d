@@ -68,22 +68,16 @@ int main(int argc, char* argv[]) {
             // Text layer: TextRun (modern pipeline)
             s.layer("title", [&ctx](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Text);
-                l.text("title_text", c3d::TextSpec{
-                    .content = {.value = "BOUNDARY CHECK"},
-                    .font = {.font_path = "fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 48.0f},
-                    .layout = {.box = {static_cast<c3d::f32>(ctx.width),
-                                       static_cast<c3d::f32>(ctx.height)},
-                               .align = c3d::TextAlign::Center,
-                               .vertical_align = c3d::VerticalAlign::Middle},
-                    .appearance = {.color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f}},
-                    .placement = c3d::TextPlacement{
+                l.text("title_text", c3d::TextSpec{.content = {.value = "BOUNDARY CHECK"}, .placement = c3d::TextPlacement{
                         c3d::TextPlacementKind::Absolute,
                         {static_cast<c3d::f32>(ctx.width) * 0.5f,
-                                 static_cast<c3d::f32>(ctx.height) * 0.5f}}
-                });
+                                 static_cast<c3d::f32>(ctx.height) * 0.5f}}, .font = {.font_path = "fonts/Inter-Bold.ttf",
+                             .font_family = "Inter",
+                             .font_weight = 700,
+                             .font_size = 48.0f}, .layout = {.box = {static_cast<c3d::f32>(ctx.width),
+                                       static_cast<c3d::f32>(ctx.height)},
+                               .align = c3d::TextAlign::Center,
+                               .vertical_align = c3d::VerticalAlign::Middle}, .appearance = {.color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f}}});
             });
 
             return s.build();

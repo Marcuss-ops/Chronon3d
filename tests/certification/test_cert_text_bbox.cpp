@@ -54,19 +54,13 @@ Composition build_cert_title_comp(SoftwareRenderer& renderer) {
             s.layer("title", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("title_text", TextRunSpec{
-                    .text = TextSpec{
-                        .content    = {.value = "EPIC TITLE"},
-                        .font       = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                    .text = TextSpec{.content = {.value = "EPIC TITLE"}, .placement = TextPlacement{
+                            TextPlacementKind::Absolute, {960.0f, 540.0f}}, .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
-                                       .font_size = 120.0f},
-                        .layout     = {.box = {1920.0f, 1080.0f},
+                                       .font_size = 120.0f}, .layout = {.box = {1920.0f, 1080.0f},
                                        .align = TextAlign::Center,
-                                       .vertical_align = VerticalAlign::Middle},
-                        .appearance = {.color = Color::white()},
-                        .placement  = TextPlacement{
-                            TextPlacementKind::Absolute, {960.0f, 540.0f}},
-                    }
+                                       .vertical_align = VerticalAlign::Middle}, .appearance = {.color = Color::white()}}
                 }).commit();
             });
             return s.build();
@@ -88,38 +82,26 @@ Composition build_cert_lower_third_comp(SoftwareRenderer& renderer) {
             s.layer("title_line", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("title", TextRunSpec{
-                    .text = TextSpec{
-                        .content    = {.value = "BREAKING NEWS"},
-                        .font       = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                    .text = TextSpec{.content = {.value = "BREAKING NEWS"}, .placement = TextPlacement{
+                            TextPlacementKind::Absolute, {960.0f, 930.0f}}, .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
-                                       .font_size = 42.0f},
-                        .layout     = {.box = {1920.0f - kMargin * 2.0f, 60.0f},
+                                       .font_size = 42.0f}, .layout = {.box = {1920.0f - kMargin * 2.0f, 60.0f},
                                        .align = TextAlign::Center,
-                                       .vertical_align = VerticalAlign::Middle},
-                        .appearance = {.color = Color::white()},
-                        .placement  = TextPlacement{
-                            TextPlacementKind::Absolute, {960.0f, 930.0f}},
-                    }
+                                       .vertical_align = VerticalAlign::Middle}, .appearance = {.color = Color::white()}}
                 }).commit();
             });
             // Subtitle: below title
             s.layer("subtitle_line", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("subtitle", TextRunSpec{
-                    .text = TextSpec{
-                        .content    = {.value = "Chronon3D Text Engine — Production Ready"},
-                        .font       = {.font_path = "assets/fonts/Inter-Regular.ttf",
+                    .text = TextSpec{.content = {.value = "Chronon3D Text Engine — Production Ready"}, .placement = TextPlacement{
+                            TextPlacementKind::Absolute, {960.0f, 982.0f}}, .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 400,
-                                       .font_size = 24.0f},
-                        .layout     = {.box = {1920.0f - kMargin * 2.0f, 40.0f},
+                                       .font_size = 24.0f}, .layout = {.box = {1920.0f - kMargin * 2.0f, 40.0f},
                                        .align = TextAlign::Center,
-                                       .vertical_align = VerticalAlign::Middle},
-                        .appearance = {.color = Color{0.85f, 0.85f, 0.9f, 1.0f}},
-                        .placement  = TextPlacement{
-                            TextPlacementKind::Absolute, {960.0f, 982.0f}},
-                    }
+                                       .vertical_align = VerticalAlign::Middle}, .appearance = {.color = Color{0.85f, 0.85f, 0.9f, 1.0f}}}
                 }).commit();
             });
             return s.build();

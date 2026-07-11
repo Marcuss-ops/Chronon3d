@@ -57,19 +57,13 @@ int main() {
             // Title text — centered white text
             s.layer("title", [](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Text);
-                l.text("title", c3d::TextSpec{
-                    .content = {.value = "Hello, Chronon3D!"},
-                    .font = {.font_path = "fonts/Inter-Bold.ttf",
+                l.text("title", c3d::TextSpec{.content = {.value = "Hello, Chronon3D!"}, .placement = c3d::TextPlacement{
+                        c3d::TextPlacementKind::Absolute, {640.0f, 360.0f}}, .font = {.font_path = "fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
-                             .font_size = 72.0f},
-                    .layout = {.box = {1280.0f, 720.0f},
+                             .font_size = 72.0f}, .layout = {.box = {1280.0f, 720.0f},
                                .align = c3d::TextAlign::Center,
-                               .vertical_align = c3d::VerticalAlign::Middle},
-                    .appearance = {.color = c3d::Color::white()},
-                    .placement = c3d::TextPlacement{
-                        c3d::TextPlacementKind::Absolute, {640.0f, 360.0f}}
-                });
+                               .vertical_align = c3d::VerticalAlign::Middle}, .appearance = {.color = c3d::Color::white()}});
             });
 
             return s.build();

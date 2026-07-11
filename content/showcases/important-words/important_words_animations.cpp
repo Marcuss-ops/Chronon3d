@@ -74,15 +74,10 @@ static void build_important_word(SceneBuilder& s,
         // ── WHITE word on top — DMSans-Bold (modern geometric sans) ──
         // Per-letter text shadow for readability against the red backdrop.
         {
-            auto def = from_text_spec(TextSpec{
-                .content    = {.value = word.label},
-                .font       = {.font_path   = WORD_FONT_PATH,
+            auto def = from_text_spec(TextSpec{.content = {.value = word.label}, .font = {.font_path   = WORD_FONT_PATH,
                                .font_family = WORD_FONT_FAMILY,
                                .font_weight = 700,
-                               .font_size   = word.font_size},
-                .layout     = {.tracking = word.tracking},
-                .appearance = {.color = palette.text},
-            });
+                               .font_size   = word.font_size}, .layout = {.tracking = word.tracking}, .appearance = {.color = palette.text}});
             def.style.shadows.push_back(TextShadow{
                 .enabled = true,
                 .offset  = {0.0f, 4.0f},

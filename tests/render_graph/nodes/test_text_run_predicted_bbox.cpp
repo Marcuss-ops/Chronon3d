@@ -75,19 +75,13 @@ Composition build_anim_cert_title_comp(SoftwareRenderer& renderer) {
                 l.font_engine(&renderer.font_engine());
                 l.pin_to(Anchor::Center);
                 l.text_run("title_text", TextRunSpec{
-                    .text = TextSpec{
-                        .content    = {.value = "EPIC TITLE"},
-                        .font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                    .text = TextSpec{.content = {.value = "EPIC TITLE"}, .placement = TextPlacement{TextPlacementKind::Absolute,
+                                                     {960.0f, 540.0f}}, .font = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
-                                       .font_size   = 120.0f},
-                        .layout     = {.box            = {1920.0f, 1080.0f},
+                                       .font_size   = 120.0f}, .layout = {.box            = {1920.0f, 1080.0f},
                                        .align          = TextAlign::Center,
-                                       .vertical_align = VerticalAlign::Middle},
-                        .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},
-                        .placement  = TextPlacement{TextPlacementKind::Absolute,
-                                                     {960.0f, 540.0f}},
-                    },
+                                       .vertical_align = VerticalAlign::Middle}, .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}}},
                 });
             });
             return s.build();

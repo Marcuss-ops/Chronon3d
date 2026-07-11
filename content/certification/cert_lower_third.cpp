@@ -8,7 +8,7 @@
 //
 // M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (2026-07-10):
 //   - 2 `text::centered_text({...})` call sites migrated to
-//     canonical `from_text_spec(TextSpec{...})` API (F2.C adapter).
+//     canonical `from_text_spec(TextSpec{})` API (F2.C adapter).
 //   - `text_helpers.hpp` include removed (no longer used).
 // ==============================================================================
 
@@ -65,13 +65,10 @@ Composition cert_lower_third() {
             // the pin point with 52px gap from subtitle, inside the box.
             s.layer("title_line", [](LayerBuilder& l) {
                 l.pin_to(Anchor::BottomCenter, kMargin);
-                l.text("title", from_text_spec(TextSpec{
-                    .content    = {.value = "BREAKING NEWS"},
-                    .font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                l.text("title", from_text_spec(TextSpec{.content = {.value = "BREAKING NEWS"}, .placement = {TextPlacementKind::Absolute, {0.0f, -20.0f}}, .font = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                    .font_family = "Inter",
                                    .font_weight = 700,
-                                   .font_size   = 42.0f},
-                    .layout     = {.box            = {static_cast<float>(kWidth) - kMargin * 2.0f, 60.0f},
+                                   .font_size   = 42.0f}, .layout = {.box            = {static_cast<float>(kWidth) - kMargin * 2.0f, 60.0f},
                                    .anchor         = TextAnchor::Center,
                                    .centering_mode = TextCenteringMode::PixelInk,
                                    .align          = TextAlign::Center,
@@ -79,10 +76,7 @@ Composition cert_lower_third() {
                                    .wrap           = TextWrap::Word,
                                    .overflow       = TextOverflow::Clip,
                                    .line_height    = 0.95f,
-                                   .max_lines      = 1},
-                    .appearance = {.color = Color::white()},
-                    .position   = {0.0f, -20.0f, 0.0f},
-                }));
+                                   .max_lines      = 1}, .appearance = {.color = Color::white()}}));
             });
 
             // ── Subtitle line ───────────────────────────────────────
@@ -90,13 +84,10 @@ Composition cert_lower_third() {
             // places the subtitle below the title, still inside the box.
             s.layer("subtitle_line", [](LayerBuilder& l) {
                 l.pin_to(Anchor::BottomCenter, kMargin);
-                l.text("subtitle", from_text_spec(TextSpec{
-                    .content    = {.value = "Chronon3D Text Engine — Production Ready"},
-                    .font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                l.text("subtitle", from_text_spec(TextSpec{.content = {.value = "Chronon3D Text Engine — Production Ready"}, .placement = {TextPlacementKind::Absolute, {0.0f, 32.0f}}, .font = {.font_path   = "assets/fonts/Inter-Regular.ttf",
                                    .font_family = "Inter",
                                    .font_weight = 400,
-                                   .font_size   = 24.0f},
-                    .layout     = {.box            = {static_cast<float>(kWidth) - kMargin * 2.0f, 40.0f},
+                                   .font_size   = 24.0f}, .layout = {.box            = {static_cast<float>(kWidth) - kMargin * 2.0f, 40.0f},
                                    .anchor         = TextAnchor::Center,
                                    .centering_mode = TextCenteringMode::PixelInk,
                                    .align          = TextAlign::Center,
@@ -104,10 +95,7 @@ Composition cert_lower_third() {
                                    .wrap           = TextWrap::Word,
                                    .overflow       = TextOverflow::Clip,
                                    .line_height    = 0.95f,
-                                   .max_lines      = 1},
-                    .appearance = {.color = Color{0.85f, 0.85f, 0.9f, 1.0f}},
-                    .position   = {0.0f, 32.0f, 0.0f},
-                }));
+                                   .max_lines      = 1}, .appearance = {.color = Color{0.85f, 0.85f, 0.9f, 1.0f}}}));
             });
 
             return s.build();

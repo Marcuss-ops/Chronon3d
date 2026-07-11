@@ -233,7 +233,7 @@ TEST_CASE("Ergonomics: font_family / font_size / weight individual setters") {
 //
 // Verifies the canonical wiring: `Text::place(CanvasCenter)` calls
 // `resolve_placement_origin(canvas={1920,1080,5%}, box, placement)` and
-// sets `params.text.position` to the resolved pin.  This locks that the
+// sets `params.text.placement` to the resolved pin.  This locks that the
 // ergonomic surface routes through the canonical resolver (NOT a
 // parallel implementation that hardcodes "canvas center = (960, 540)"
 // without going through the safe-area bookkeeping).
@@ -246,9 +246,9 @@ TEST_CASE("Ergonomics: place(CanvasCenter) routes through canonical resolver —
     t.place(TextPlacement{TextPlacementKind::CanvasCenter});
 
     // The resolver pin point is the math center (960, 540).
-    // After .place(...), `params.text.position` is set to the pin point,
+    // After .place(...), `params.text.placement` is set to the pin point,
     // with z = 0 (Text frame is 2D).
-    const Vec3& pos = t.pending().params.text.position;
+    const Vec3& pos = t.pending().params.text.placement;
     CHECK(pos.x == doctest::Approx(kMathematicalCenterX));
     CHECK(pos.y == doctest::Approx(kMathematicalCenterY));
     CHECK(pos.z == doctest::Approx(0.0f));
@@ -271,7 +271,7 @@ TEST_CASE("Ergonomics: place(TopLeft) routes through canonical resolver — pin 
 
     // TopLeft: (safe_margin_left, safe_margin_top) = (96, 54) on 1920×1080
     // with the canonical 5% safe area.
-    const Vec3& pos = t.pending().params.text.position;
+    const Vec3& pos = t.pending().params.text.placement;
     CHECK(pos.x == doctest::Approx(96.0f));
     CHECK(pos.y == doctest::Approx(54.0f));
     CHECK(pos.z == doctest::Approx(0.0f));
@@ -290,7 +290,7 @@ TEST_CASE("Ergonomics: place(SafeAreaBottom) routes through canonical resolver �
 
     // SafeAreaBottom: (canvas.width/2, canvas.height - safe_margin_bottom)
     // = (1920/2, 1080 - 54) = (960, 1026).
-    const Vec3& pos = t.pending().params.text.position;
+    const Vec3& pos = t.pending().params.text.placement;
     CHECK(pos.x == doctest::Approx(960.0f));
     CHECK(pos.y == doctest::Approx(1026.0f));
     CHECK(pos.z == doctest::Approx(0.0f));
@@ -350,7 +350,7 @@ TEST_CASE("Ergonomics: canonical centered-title chain uses ≤ 10 method calls (
 
     // Bbox check also lives here (the centered-title invariant — bbox
     // ≤ 1px from math center on 1920×1080 + CanvasCenter placement).
-    const Vec3& pos = t.pending().params.text.position;
+    const Vec3& pos = t.pending().params.text.placement;
     CHECK(std::abs(pos.x - kMathematicalCenterX) <= kBBoxTolerance1px);
     CHECK(std::abs(pos.y - kMathematicalCenterY) <= kBBoxTolerance1px);
 }
@@ -385,9 +385,9 @@ TEST_CASE("Ergonomics: bbox is ≤ 1px from mathematical center via resolver cro
         Vec2{1700.0f, 360.0f},  // arbitrary box size (CanvasCenter is box-invariant)
         TextPlacement{TextPlacementKind::CanvasCenter});
 
-    // Bbox (via the underlying spec.position) MUST match the solver pin
+    // Bbox (via the underlying spec.placement) MUST match the solver pin
     // within 1px (matches §5 acceptance gate + kTextAuditBBoxTolerance).
-    const Vec3& pos = t.pending().params.text.position;
+    const Vec3& pos = t.pending().params.text.placement;
     CHECK(std::abs(pos.x - solver_pin.x) <= kBBoxTolerance1px);
     CHECK(std::abs(pos.y - solver_pin.y) <= kBBoxTolerance1px);
 
@@ -443,8 +443,8 @@ TEST_CASE("Ergonomics: identical setter chains produce byte-equivalent PendingTe
     CHECK(a.params.text.content.value == b.params.text.content.value);
     CHECK(a.params.text.font.font_path  == b.params.text.font.font_path);
     CHECK(a.params.text.font.font_size  == doctest::Approx(b.params.text.font.font_size));
-    CHECK(a.params.text.position.x      == doctest::Approx(b.params.text.position.x));
-    CHECK(a.params.text.position.y      == doctest::Approx(b.params.text.position.y));
-    CHECK(a.params.text.position.z      == doctest::Approx(b.params.text.position.z));
+    CHECK(a.params.text.placement.x      == doctest::Approx(b.params.text.placement.x));
+    CHECK(a.params.text.placement.y      == doctest::Approx(b.params.text.placement.y));
+    CHECK(a.params.text.placement.z      == doctest::Approx(b.params.text.placement.z));
     CHECK(a.params.text.layout.anchor   == b.params.text.layout.anchor);
 }
