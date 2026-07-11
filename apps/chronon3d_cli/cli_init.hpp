@@ -190,6 +190,17 @@ inline void init_compositions(CompositionRegistry& registry, AssetRegistry& asse
             ChrononGlowProps p = chronon3d::test::glow_final::default_landscape_props();
             return chronon3d::test::glow_final::make_chronon_glow_final(p);
         });
+    // TICKET-CHRONON-GLOW-FINAL Fase 6 — alias for the user-spec name
+    // `ChrononGlowFinalAE`.  Maps to the same landscape composition as
+    // `chronon-glow-final` (the Fase 1 unified cinematic-glow factory).
+    // The `AE` suffix matches the user-spec command line
+    // (`chronon3d_cli video ChrononGlowFinalAE ...`) and the existing
+    // `ae_*` composition naming convention (ae_08_glow_pulse etc.).
+    registry.add("ChrononGlowFinalAE",
+        [](const CompositionProps&) -> Composition {
+            ChrononGlowProps p = chronon3d::test::glow_final::default_landscape_props();
+            return chronon3d::test::glow_final::make_chronon_glow_final(p);
+        });
     registry.add("chronon-glow-final-portrait",
         [](const CompositionProps&) -> Composition {
             ChrononGlowProps p = chronon3d::test::glow_final::default_portrait_props();
