@@ -102,12 +102,7 @@ void run_preset_golden_test(
 
     auto cfg = make_preset_config();
     auto result = verify_golden(*fb, preset_label, cfg);
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }
 
 } // namespace

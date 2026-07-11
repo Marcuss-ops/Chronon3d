@@ -97,9 +97,7 @@ TEST_CASE("UserSpec 08: typewriter character animation — frame 0 (empty)") {
     auto fb = renderer.render(comp, Frame{0});
     REQUIRE(fb != nullptr);
     auto result = verify_golden(*fb, "user_spec_08_anim_typewriter_f00", make_test08_config());
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }
 
 TEST_CASE("UserSpec 08: typewriter character animation — frame 7 (mid)") {
@@ -108,8 +106,7 @@ TEST_CASE("UserSpec 08: typewriter character animation — frame 7 (mid)") {
     auto fb = renderer.render(comp, Frame{7});
     REQUIRE(fb != nullptr);
     auto result = verify_golden(*fb, "user_spec_08_anim_typewriter_f07", make_test08_config());
-    if (result.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }
 
 TEST_CASE("UserSpec 08: typewriter character animation — frame 14 (full)") {
@@ -118,6 +115,5 @@ TEST_CASE("UserSpec 08: typewriter character animation — frame 14 (full)") {
     auto fb = renderer.render(comp, Frame{14});
     REQUIRE(fb != nullptr);
     auto result = verify_golden(*fb, "user_spec_08_anim_typewriter_f14", make_test08_config());
-    if (result.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }

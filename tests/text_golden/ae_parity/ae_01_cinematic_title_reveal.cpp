@@ -136,24 +136,21 @@ TEST_CASE("AE 01 cinematic_title_reveal 16x9 f00") {
     REQUIRE(fb->width() == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_01_cinematic_title_reveal_16x9_f00", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 TEST_CASE("AE 01 cinematic_title_reveal 16x9 f15") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_landscape(renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_01_cinematic_title_reveal_16x9_f15", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 TEST_CASE("AE 01 cinematic_title_reveal 16x9 f30") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_landscape(renderer, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_01_cinematic_title_reveal_16x9_f30", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 
 // 9:16 snapshots
@@ -166,22 +163,19 @@ TEST_CASE("AE 01 cinematic_title_reveal 9x16 f00") {
     REQUIRE(fb->width() == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_01_cinematic_title_reveal_9x16_f00", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 TEST_CASE("AE 01 cinematic_title_reveal 9x16 f15") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_01_cinematic_title_reveal_9x16_f15", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }
 TEST_CASE("AE 01 cinematic_title_reveal 9x16 f30") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_01_cinematic_title_reveal_9x16_f30", make_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }

@@ -92,6 +92,5 @@ TEST_CASE("UserSpec 10: text fill + stroke 1920x1080") {
     auto fb = renderer.render(build_test10_composition(renderer), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_10_text_fill_stroke", make_test10_config());
-    if (r.golden_missing) { MESSAGE("Golden missing"); return; }
-    CHECK(r.passed);
+    REQUIRE_GOLDEN_PASSED(r);
 }

@@ -93,9 +93,7 @@ TEST_CASE("GoldenGap 01: Hebrew RTL שלום עולם") {
 
     auto result = verify_golden(*fb, "golden_gap_01_hebrew_rtl",
                                 make_golden_config("golden_gap_01"));
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1"); return; }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }
 
 // ── 2. Text gradient fill golden ───────────────────────────────────
@@ -142,9 +140,7 @@ TEST_CASE("GoldenGap 02: text gradient fill gold→red") {
 
     auto result = verify_golden(*fb, "golden_gap_02_text_gradient",
                                 make_golden_config("golden_gap_02"));
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1"); return; }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }
 
 // ── 3. Text + camera DOF golden ────────────────────────────────────
@@ -211,9 +207,7 @@ TEST_CASE("GoldenGap 03: text camera DOF off") {
 
     auto result = verify_golden(*fb, "golden_gap_03a_text_dof_off",
                                 make_golden_config("golden_gap_03"));
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1"); return; }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }
 
 TEST_CASE("GoldenGap 04: text camera DOF on") {
@@ -224,9 +218,7 @@ TEST_CASE("GoldenGap 04: text camera DOF on") {
 
     auto result = verify_golden(*fb, "golden_gap_03b_text_dof_on",
                                 make_golden_config("golden_gap_03"));
-    INFO("Golden: ", result.message);
-    if (result.golden_missing) { MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1"); return; }
-    CHECK(result.passed);
+    REQUIRE_GOLDEN_PASSED(result);
 }
 
 } // namespace
