@@ -166,9 +166,95 @@ Excludes (forward-points):
    forward-point count from 18 → 20 (Phase D-closure's 20/20 claim
    is exact at HEAD; future commits reach 22-25 if Phase D continues).
 
+### Newly promoted forward-points (TICKET-ACCEPTANCE-FORENSIC-SURFACE — 2026-07-11)
+
+Forward-points 0a/0b/0c of the **TICKET-ACCEPTANCE-FORENSIC-SURFACE**
+iteration (this commit).  These labels intentionally OVERLAP with the
+macchina-verifica / §19 dual-label / perf-gate wire-up forward-points
+tracked in the §14 Phase-D-sub table above — each new
+`TICKET-ACCEPTANCE-FORENSIC-*` lineage iteration introduces its own
+0a/0b/0c forward-points (TICKET-ACCEPTANCE-FORENSIC-SURFACE = this
+iteration's "0a/0b/0c = helper extraction + aggregate wire-up").
+
+1. **(0a)** [`tests/helpers/consumer_mean_rgb_diag.hpp`](../helpers/consumer_mean_rgb_diag.hpp)
+   — header-only inline function
+   `[[nodiscard]] int write_cumulative_mean_rgb_diag(const chronon3d::
+   Framebuffer& fb, std::FILE* out) noexcept`.  Walks `fb.data()` over
+   `fb.pixel_count()` pixels, accumulates `double sum_r/g/b` (precision-
+   loss avoidance for UHD-sized framebuffers up to 8.3M pixels),
+   emits a single-line deterministic diagnostic in the format
+   `[chronon3d-forensic] cumulative mean RGB over <N> pixels: r=%.4f g=%.4f b=%.4f`.
+   Empty-Framebuffer + null-data-pointer → skip-line + return 0 (no crash).
+   null FILE* → return -1 (contract-respecting).
+   **CLOSED (this commit)**.
+
+2. **(0b)** [`tests/helpers/asset_preload_check.hpp`](../helpers/asset_preload_check.hpp)
+   — header-only inline function
+   `void asset_preload_check_for_test(const std::filesystem::path&
+   assets_root, std::FILE* out) noexcept`.  Walks the directory
+   iterator (1-pass, single count), emits a single-line diagnostic in
+   the format `[chronon3d-forensic] assets_root='<path>' existence=<bool>
+   is_directory=<bool> file_count=<N|−1>`.  The diagnostic is intentionally
+   **permissive** (no FAIL on missing path) — the forensic surface
+   captures the run-time state without aborting the test.  null FILE* →
+   no-op (contract-respecting).
+   **CLOSED (this commit)**.
+
+3. **(0c)** [`tests/acceptance/CMakeLists.txt`](CMakeLists.txt) +
+   [`tests/acceptance/test_acceptance_forensic_surface.cpp`](test_acceptance_forensic_surface.cpp)
+   — NEW orchestrator subdirectory + INTEGRATION-tier acceptance test
+   target `chronon3d_acceptance_forensic_surface_tests` carrying the
+   `acceptance` CTest label.  7 TEST_CASEs cover: 0a empty-FB
+   short-circuit (1) + 0a 4×4 deterministic Framebuffer (1) + 0a null
+   FILE* contract (1) + 0b extant-directory diagnostic (1) + 0b missing-
+   path diagnostic (1) + 0b null FILE* no-op (1) + 0c combined-chain
+   invocation (1).  Wired into the `chronon3d_acceptance` aggregate via
+   explicit `add_dependencies(chronon3d_acceptance
+   chronon3d_acceptance_forensic_surface_tests)` in
+   [`tests/CMakeLists.txt`](../CMakeLists.txt) (defensive `if(TARGET
+   ...)` guard for forward-compat with slim builds).
+   **CLOSED (this commit)**.
+
+#### Uniform forensic-surface contract
+
+Every `ctest -L acceptance` execution now emits BOTH diagnostics in the
+SAME output stream (uniform forensic context for any acceptance
+failure).  Helper docblocks document the canonical chain order:
+**0b (assets_root) → 0a (cumulative mean RGB)** — this order is
+enforced by TEST_CASE #7's combined-chain assertion.
+
+#### Honest-gap (per AGENTS.md §honesty)
+
+Macchina-verifica of the 7 TEST_CASEs in
+`chronon3d_acceptance_forensic_surface_tests` is deferred to a working
+build host (vcpkg glm/magic_enum + tmpfs quota-resolved env), consistent
+with the existing §14 Phase-D closure lineage above.  The 7 TEST_CASEs
+are **syntactically complete** (doctest framework, tmpfile RAII fixture,
+deterministic 4×4 synthetic Framebuffer with R=0/G=0/B=1) but DO NOT
+claim PASS until `ctest -R chronon3d_acceptance_forensic_surface_tests
+--output-on-failure` runs on a fit build host.
+
+#### Forward-points (future, not in this commit)
+
+- **Generalize the helpers (0a + 0b) to non-acceptance tests via
+  `tests/test_main.cpp` doctest fixture hook** — once macchina-verifica
+  of the 7 acceptance TEST_CASEs confirms the wiring is correctly
+  observable, propagate the same forensic-surface contract to
+  `chronon3d_tests_fast` (UNIT) + `chronon3d_tests_render` (INTEGRATION)
+  via a `doctest::EventListener` registered in `tests/test_main.cpp`.
+- **Add a `tools/check_acceptance_forensic_surface.sh` gate** to verify
+  the diagnostic-format strings (`[chronon3d-forensic]`) are
+  grep-stable across CI runs.
+- **Cross-axis shibboleth**: instantiate one acceptance test that
+  exercises ALL 3 acceptance labels (`acceptance;boundary;ci`) via
+  the existing `install_consumer_ci` triple-label pattern (forward-
+  compat with the §13/13 ortho run-plane documentation closure —
+  see [docs/FEATURES.md](../../docs/FEATURES.md) `§13/13 Acceptance Ortho
+  Run Plane Contracts`).
+
 ### Cross-refs
 
-`tests/acceptance/CMakeLists.txt` (orchestrator: 15 chronon3d_add_test_suite
+`tests/acceptance/CMakeLists.txt` (orchestrator: 1 chronon3d_add_test_suite
 calls + 1 SIGNED_LABEL install_consumer_ci = 16 acceptance-labeled
 targets at HEAD). `tests/CMakeLists.txt` (15 if(TARGET) guards in the
 `chronon3d_acceptance` aggregate at lines ~290-340). `tools/check_performance_gate.sh`
