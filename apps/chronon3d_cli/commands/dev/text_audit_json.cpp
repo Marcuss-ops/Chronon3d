@@ -17,7 +17,7 @@ std::string audit_result_to_json(const TextAuditResult& r) {
     os << "  \"canvas\": { \"width\": " << r.canvas_width
        << ", \"height\": " << r.canvas_height << " },\n";
     os << "  \"expected_text\": \"" << json_escape(r.expected_text) << "\",\n";
-    os << "  \"overall_status\": \"" << r.overall_status << "\",\n";
+    os << "  \"overall_status\": \"" << to_string(r.overall_status) << "\",\n";
     os << "  \"exit_code\": " << r.exit_code << ",\n";
 
     // Policy
@@ -35,7 +35,7 @@ std::string audit_result_to_json(const TextAuditResult& r) {
         const auto& f = r.frames[fi];
         os << "    {\n";
         os << "      \"frame\": " << f.frame << ",\n";
-        os << "      \"status\": \"" << f.status << "\",\n";
+        os << "      \"status\": \"" << to_string(f.status) << "\",\n";
         os << "      \"text\": {\n";
         os << "        \"visible\": \"" << json_escape(f.visible_text) << "\",\n";
         os << "        \"visible_codepoints\": " << f.visible_codepoints << ",\n";

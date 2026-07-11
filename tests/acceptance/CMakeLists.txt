@@ -20,6 +20,6 @@
 chronon3d_add_test_suite(
     NAME chronon3d_acceptance_forensic_surface_tests
     TIER INTEGRATION
-    SOURCES test_acceptance_forensic_surface.cpp
+    SOURCES ${CMAKE_CURRENT_LIST_DIR}/test_acceptance_forensic_surface.cpp
     LABELS acceptance
 )

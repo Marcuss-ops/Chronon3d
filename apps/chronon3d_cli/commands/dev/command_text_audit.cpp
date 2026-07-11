@@ -149,10 +149,10 @@ int command_text_audit(const CompositionRegistry& registry, const TextAuditArgs&
     auto result = audit_composition(registry, comp_id, frames, policy);
 
     // Print summary to stdout
-    spdlog::info("text-audit: overall_status={} exit_code={}", result.overall_status, result.exit_code);
+    spdlog::info("text-audit: overall_status={} exit_code={}", to_string(result.overall_status), result.exit_code);
     for (const auto& fr : result.frames) {
         spdlog::info("  frame {:3d}: status={} lines={} visible={}/{} center_err_x={:.1f}px",
-            fr.frame, fr.status, fr.line_count,
+            fr.frame, to_string(fr.status), fr.line_count,
             fr.visible_codepoints, fr.total_codepoints,
             fr.checks.center_error_x_px);
     }

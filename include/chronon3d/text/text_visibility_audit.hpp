@@ -204,6 +204,10 @@ struct TextVisibilityAudit {
 ///
 /// Inputs:
 ///   - `shape`: the `TextRunShape` carrying layout, glyph states, engine.
+///   - `local_ink_bbox`: text-frame-relative axes-aligned ink bbox of the
+///     glyph run (the canonical `renderer::compute_text_run_visual_bounds()`
+///     output). This is the real geometry used to compute `world_ink_bbox`
+///     and to evaluate the `predicted_contains_world` invariant.
 ///   - `world_matrix`: layer → canvas transform.
 ///   - `predicted_bbox`: producer-supplied bbox (typically from
 ///     `TextRunNode::predicted_bbox()`).
@@ -224,37 +228,7 @@ struct TextVisibilityAudit {
 /// so callers cannot accidentally drop the audit.
 [[nodiscard]] TextVisibilityAudit audit_text_visibility(
     const TextRunShape& shape,
-    const Mat4&         world_matrix,
-    const Rect&         predicted_bbox,
-    const Rect&         clip_rect,
-    const Framebuffer*  rendered_output = nullptr,
-    float               effect_padding  = 0.0f
-);
-
-/// `audit_text_visibility()` — single canonical pure function.
-///
-/// Inputs:
-///   - `shape`: the `TextRunShape` carrying layout, glyph states, engine.
-///   - `world_matrix`: layer → canvas transform.
-///   - `predicted_bbox`: producer-supplied bbox (typically from
-///     `TextRunNode::predicted_bbox()`).
-///   - `clip_rect`: compositor clip rect (canvas-level).
-///   - `rendered_output`: optional `Framebuffer*`. When non-null the
-///     alpha-bbox is measured; when nullptr only the math side is checked.
-///   - `effect_padding`: §9 FU04 violation response input — the radius
-///     (in canvas pixels) used to expand `world_ink_bbox` when
-///     `predicted_contains_world` is false. Typically the text's
-///     shadow/glow spread (see `TextRunNode::predicted_bbox`'s `spread`
-///     computation). Default 0.0f for backwards-compat with FU02 call
-///     sites that don't supply the parameter.
-///
-/// Returns by value; the caller reads the populated struct.
-///
-/// No globals. No side effects. No allocations beyond the small fixed-size
-/// return value (Rect × 6 + bool × 6 + size_t + enum). Marked `[[nodiscard]]`
-/// so callers cannot accidentally drop the audit.
-[[nodiscard]] TextVisibilityAudit audit_text_visibility(
-    const TextRunShape& shape,
+    const Rect&         local_ink_bbox,
     const Mat4&         world_matrix,
     const Rect&         predicted_bbox,
     const Rect&         clip_rect,
@@ -281,6 +255,7 @@ struct TextVisibilityAudit {
 /// to prevent log spam on repeated violations.
 ///
 /// @param shape             The TextRunShape with layout, engine, glyphs
+/// @param local_ink_bbox    Text-frame-relative ink bbox (canonical)
 /// @param world_matrix      Layer → canvas transform matrix
 /// @param predicted_bbox    Producer-supplied predicted bbox (canvas-level)
 /// @param clip_rect         Compositor clip rect (canvas-level)
@@ -289,6 +264,7 @@ struct TextVisibilityAudit {
 /// @return Populated TextVisibilityAudit struct
 [[nodiscard]] TextVisibilityAudit verify_text_visibility(
     const TextRunShape& shape,
+    const Rect&         local_ink_bbox,
     const Mat4&         world_matrix,
     const Rect&         predicted_bbox,
     const Rect&         clip_rect,
