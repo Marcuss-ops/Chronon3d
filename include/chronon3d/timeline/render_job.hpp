@@ -67,7 +67,7 @@ struct RenderDiagnostics {
 /// Factory conveniences:
 ///   RenderJob::still("hero", Frame{42}, "hero.png")
 ///   RenderJob::sequence("intro", Frame{0}, Frame{90}, "frame_%04d.png")
-///   RenderJob::video("intro", Frame{0}, Frame{90}, "intro.mp4")
+///   RenderJob::video_job("intro", Frame{0}, Frame{90}, "intro.mp4")
 struct RenderJob {
     // ── Identity ────────────────────────────────────────────────────
 
@@ -88,7 +88,7 @@ struct RenderJob {
     // ── Settings ────────────────────────────────────────────────────
 
     RenderSettings settings;
-    VideoSettings  video;
+    VideoSettings  video_settings;
 
     // ── Diagnostics ─────────────────────────────────────────────────
 
@@ -127,7 +127,7 @@ struct RenderJob {
     }
 
     /// Create a video render job.
-    static RenderJob video(std::string id,
+    static RenderJob video_job(std::string id,
                                std::shared_ptr<const Composition> c,
                                Frame first,
                                Frame last,
