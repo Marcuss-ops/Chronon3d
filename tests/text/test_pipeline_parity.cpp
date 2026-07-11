@@ -48,15 +48,13 @@
 #include <chronon3d/text/text_visibility_audit.hpp>
 #include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/text/text_placement.hpp>
-#include <chronon3d/text/resolve_text_placement.hpp>
+#include <chronon3d/text/text_placement_resolver.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/time.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 
 #include <tests/helpers/test_utils.hpp>
@@ -134,18 +132,18 @@ static const char* kClipVariantNames[kClipVariantCount] = {
     "baseline", "expanded", "conservative", "full", "off"
 };
 static const Rect kClipRects[kClipVariantCount] = {
-    Rect{{0.0f,    0.0f},    {1920.0f, 1080.0f}},  // Baseline
-    Rect{{-100.0f, -100.0f}, {2120.0f, 1280.0f}},  // Expanded (FU04 violation response)
-    Rect{{96.0f,   54.0f},   {1824.0f, 1026.0f}},  // Conservative (5% safe-area)
-    Rect{{-1000.0f, -1000.0f}, {3920.0f, 3080.0f}}, // Full (way over-sized)
-    Rect{{0.0f,    0.0f},    {0.0f,    0.0f}}     // Off (zero rect)
+    Rect{0.0f,    0.0f,    1920.0f, 1080.0f},  // Baseline
+    Rect{-100.0f, -100.0f, 2120.0f, 1280.0f},  // Expanded (FU04 violation response)
+    Rect{96.0f,   54.0f,   1824.0f, 1026.0f},  // Conservative (5% safe-area)
+    Rect{-1000.0f, -1000.0f, 3920.0f, 3080.0f}, // Full (way over-sized)
+    Rect{0.0f,    0.0f,    0.0f,    0.0f}     // Off (zero rect)
 };
 
 /// Render the canary composition at frame 0 with the given pipeline config.
 /// Returns the 6 invariant fields + pipeline name + frame number.
 static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
                                            const Rect& clip_rect =
-                                               Rect{{0.0f, 0.0f}, {1920.0f, 1080.0f}}) {
+                                               Rect{0.0f, 0.0f, 1920.0f, 1080.0f}) {
     auto renderer = test::make_renderer();
     RenderSettings settings;
     // No modular graph toggle — uses the canonical in-process pipeline.
@@ -153,23 +151,18 @@ static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
     PipelineResult out{};
 
     // Build the canary composition inline (no file I/O).
-    Composition comp = composition({
-        .name = "canary",
-        .width = 1920,
-        .height = 1080,
-    }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        s.layer("canary_layer", [](LayerBuilder& l) {
-            l.screen_dimensions(1920.0f, 1080.0f);
-            l.text("canary_text", TextSpec{.content    = {.value = std::string(kCanaryText)},.position   = Vec3{960.0f, 540.0f, 0.0f},.font       = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                               .font_family = "Inter",
-                               .font_size = 96.0f},.layout     = {.box = Vec2{900.0f, 200.0f},
-                               .anchor = TextAnchor::Center,
-                               .align  = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},});
-        });
-        return s.build();
+    LayerBuilder lb("canary_layer", SampleTime{});
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    lb.text("canary_text", TextSpec{
+        .content    = {.value = std::string(kCanaryText)},
+        .position   = Vec3{960.0f, 540.0f, 0.0f},
+        .font       = {.font_size = 96.0f},
+        .layout     = {.box = Vec2{900.0f, 200.0f},
+                       .anchor = TextAnchor::Center,
+                       .align  = TextAlign::Center,
+                       .vertical_align = VerticalAlign::Middle},
     });
+    auto comp = lb.build();
 
     // Render frame 0 (or multi-frame loop for pipeline_video).
     std::shared_ptr<Framebuffer> fb;
@@ -187,33 +180,22 @@ static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
 
     out.frame = cfg.multi_frame ? Frame{4} : Frame{0};
     REQUIRE(fb != nullptr);
-    out.hash = test::framebuffer_hash(*fb);
+    out.hash = framebuffer_hash(*fb);
 
     // Audit the visibility contract (mirrors chronon3d_cli inspect-text).
     // Note: this is a test-side approximation; the real `inspect-text` path
-    // uses the same public `audit_text_visibility()` API. We re-use it to
-    // avoid coupling the test to the CLI's private implementation.
+    // uses `text_audit_engine.cpp` which builds the same `TextVisibilityAudit`
+    // struct. We re-use the public audit API to avoid coupling the test to
+    // the CLI's private `text_audit_engine.cpp` impl.
     TextRunShape shape{};
-    auto layout = std::make_shared<TextRunLayout>();
-    layout->placed.glyphs.resize(10);  // Canary at 96pt produces ~10 glyphs.
-    layout->placed.font_size = 96.0f;
-    layout->placed.ascent = 70.0f;
-    layout->placed.descent = 20.0f;
-    for (std::size_t i = 0; i < layout->placed.glyphs.size(); ++i) {
-        auto& g = layout->placed.glyphs[i];
-        g.x = static_cast<float>(i) * 50.0f;
-        g.y = 0.0f;
-        g.advance_x = 40.0f;
-    }
-    shape.layout = std::move(layout);
-    shape.engine = nullptr;
+    shape.layout.placed.glyphs.resize(10);  // Canary at 96pt produces ~10 glyphs.
     TextVisibilityAudit audit = audit_text_visibility(
         shape,
         Mat4{},         // identity world matrix (canary at origin)
+        Rect{},         // local_ink_bbox placeholder (real pipeline computes this)
         Rect{},         // predicted_bbox placeholder
         clip_rect,      // §11 Fase 4 — clip_rect from the 5-variant matrix
-        fb.get(),       // rendered framebuffer for alpha-bbox scan
-        0.0f            // effect_padding
+        fb.get()
     );
     out.glyph_count     = audit.glyph_count;
     out.layout_bbox      = audit.world_ink_bbox;  // approximation: layout ≈ world for canary
@@ -266,32 +248,20 @@ static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
 
 // Module-level base reference: the `chronon3d_cli render` equivalent with
 // default settings. All 6 other pipelines must match this reference.
-//
-// Implemented as function-local statics (Meyers singleton) so the
-// expensive render is NOT executed when doctest merely queries the
-// executable with `--list-test-cases` during CMake configuration.
-// C++11 guarantees thread-safe lazy initialization for function-local
-// statics, and the first call triggers the render exactly once.
 namespace {
-const PipelineResult& get_base_reference() {
-    static PipelineResult s_base_reference = render_with_pipeline(PipelineConfig{});
-    return s_base_reference;
-}
+PipelineResult s_base_reference = render_with_pipeline(PipelineConfig{});
 
 /// §11 Fase 4 — 5 base references, one per clip variant. Each
-/// `get_clip_base_ref(i)` is the BASE reference for all 7 pipeline
+/// `s_clip_base_refs[i]` is the BASE reference for all 7 pipeline
 /// variations of the i-th clip variant (7 × 5 = 35 pipeline-clip
 /// combinations, each compared against the matching base ref).
-const PipelineResult& get_clip_base_ref(std::size_t i) {
-    static PipelineResult s_clip_base_refs[kClipVariantCount] = {
-        render_with_pipeline(PipelineConfig{}, kClipRects[0]),
-        render_with_pipeline(PipelineConfig{}, kClipRects[1]),
-        render_with_pipeline(PipelineConfig{}, kClipRects[2]),
-        render_with_pipeline(PipelineConfig{}, kClipRects[3]),
-        render_with_pipeline(PipelineConfig{}, kClipRects[4])
-    };
-    return s_clip_base_refs[i];
-}
+PipelineResult s_clip_base_refs[kClipVariantCount] = {
+    render_with_pipeline(PipelineConfig{}, kClipRects[0]),
+    render_with_pipeline(PipelineConfig{}, kClipRects[1]),
+    render_with_pipeline(PipelineConfig{}, kClipRects[2]),
+    render_with_pipeline(PipelineConfig{}, kClipRects[3]),
+    render_with_pipeline(PipelineConfig{}, kClipRects[4])
+};
 }  // anonymous namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -301,14 +271,14 @@ const PipelineResult& get_clip_base_ref(std::size_t i) {
 // #1 — `chronon3d_cli render` (default flags, BASE REFERENCE).
 TEST_CASE("Pipeline parity #1: chronon3d_cli render (default, base reference)") {
     PipelineConfig cfg{};
-    assert_pipeline_18_checks("pipeline_render", cfg, get_base_reference());
+    assert_pipeline_18_checks("pipeline_render", cfg, s_base_reference);
 }
 
 // #2 — `chronon3d_cli video` (multi-frame evaluation loop, takes frame 0).
 TEST_CASE("Pipeline parity #2: chronon3d_cli video (multi-frame loop, frame 0)") {
     PipelineConfig cfg{};
     cfg.multi_frame = true;
-    assert_pipeline_18_checks("pipeline_video", cfg, get_base_reference());
+    assert_pipeline_18_checks("pipeline_video", cfg, s_base_reference);
 }
 
 // #3 — `chronon3d_cli inspect-text` (audit-based extraction of the 6 fields).
@@ -317,28 +287,28 @@ TEST_CASE("Pipeline parity #3: chronon3d_cli inspect-text (audit-based extractio
     // The inspect-text path uses the same in-process renderer; the only
     // difference is the field-extraction step (text_audit_engine.cpp vs
     // direct audit_text_visibility call). The 6 fields are the same.
-    assert_pipeline_18_checks("pipeline_inspect", cfg, get_base_reference());
+    assert_pipeline_18_checks("pipeline_inspect", cfg, s_base_reference);
 }
 
 // #4 — `warmup on` (--warmup-renderer + --warmup-dummy-frame flags).
 TEST_CASE("Pipeline parity #4: warmup on (renderer pre-allocation + dummy frame)") {
     PipelineConfig cfg{};
     cfg.warmup = true;
-    assert_pipeline_18_checks("pipeline_warmup", cfg, get_base_reference());
+    assert_pipeline_18_checks("pipeline_warmup", cfg, s_base_reference);
 }
 
 // #5 — `tile_pruning off` (disable_tile_pruning flag on TextRunNode).
 TEST_CASE("Pipeline parity #5: tile_pruning off (no dirty-rect optimization)") {
     PipelineConfig cfg{};
     cfg.disable_tile_pruning = true;
-    assert_pipeline_18_checks("pipeline_no_tile_pruning", cfg, get_base_reference());
+    assert_pipeline_18_checks("pipeline_no_tile_pruning", cfg, s_base_reference);
 }
 
 // #6 — `serial scheduler` (SchedulerMode::Sequential, no TBB parallelism).
 TEST_CASE("Pipeline parity #6: serial scheduler (no TBB parallelism)") {
     PipelineConfig cfg{};
     cfg.serial_scheduler = true;
-    assert_pipeline_18_checks("pipeline_serial", cfg, get_base_reference());
+    assert_pipeline_18_checks("pipeline_serial", cfg, s_base_reference);
 }
 
 // #7 — `diagnostic on` (text_layout_debug flag, gated by CHRONON3D_BUILD_DIAGNOSTICS).
@@ -346,7 +316,7 @@ TEST_CASE("Pipeline parity #6: serial scheduler (no TBB parallelism)") {
 TEST_CASE("Pipeline parity #7: diagnostic on (text_layout_debug, CHRONON3D_BUILD_DIAGNOSTICS=1)") {
     PipelineConfig cfg{};
     cfg.diagnostic_on = true;
-    assert_pipeline_18_checks("pipeline_diagnostic", cfg, get_base_reference());
+    assert_pipeline_18_checks("pipeline_diagnostic", cfg, s_base_reference);
 }
 #else
 TEST_CASE("Pipeline parity #7: diagnostic on (SKIPPED — CHRONON3D_BUILD_DIAGNOSTICS=0)") {
@@ -371,8 +341,8 @@ TEST_CASE("Pipeline parity #7: diagnostic on (SKIPPED — CHRONON3D_BUILD_DIAGNO
 // single-canary 18 × 7 = 126 CHECKs (the matrix does NOT replace the
 // existing tests; it ADDS to them per AGENTS.md forward-only invariant).
 //
-// Per-clip base reference: `get_clip_base_ref(clip_idx)` is computed once
-// on first use (default cfg + clip_rect = kClipRects[clip_idx]).
+// Per-clip base reference: `s_clip_base_refs[clip_idx]` is computed once
+// at module load (default cfg + clip_rect = kClipRects[clip_idx]).
 //
 // Macro: `assert_pipeline_clip_18_checks` is identical to
 // `assert_pipeline_18_checks` except it forwards the `clip_rect` to
@@ -410,37 +380,37 @@ TEST_CASE("Pipeline parity #7: diagnostic on (SKIPPED — CHRONON3D_BUILD_DIAGNO
 // #8-#14 — `clip_baseline` × 7 pipelines = 7 × 18 = 126 CHECKs.
 TEST_CASE("Pipeline parity #8: clip_baseline + pipeline_render") {
     PipelineConfig cfg{};
-    assert_pipeline_clip_18_checks("pipeline_render", kClipRects[0], get_clip_base_ref(0), cfg);
+    assert_pipeline_clip_18_checks("pipeline_render", kClipRects[0], s_clip_base_refs[0], cfg);
 }
 TEST_CASE("Pipeline parity #9: clip_baseline + pipeline_video") {
     PipelineConfig cfg{};
     cfg.multi_frame = true;
-    assert_pipeline_clip_18_checks("pipeline_video", kClipRects[0], get_clip_base_ref(0), cfg);
+    assert_pipeline_clip_18_checks("pipeline_video", kClipRects[0], s_clip_base_refs[0], cfg);
 }
 TEST_CASE("Pipeline parity #10: clip_baseline + pipeline_inspect") {
     PipelineConfig cfg{};
-    assert_pipeline_clip_18_checks("pipeline_inspect", kClipRects[0], get_clip_base_ref(0), cfg);
+    assert_pipeline_clip_18_checks("pipeline_inspect", kClipRects[0], s_clip_base_refs[0], cfg);
 }
 TEST_CASE("Pipeline parity #11: clip_baseline + pipeline_warmup") {
     PipelineConfig cfg{};
     cfg.warmup = true;
-    assert_pipeline_clip_18_checks("pipeline_warmup", kClipRects[0], get_clip_base_ref(0), cfg);
+    assert_pipeline_clip_18_checks("pipeline_warmup", kClipRects[0], s_clip_base_refs[0], cfg);
 }
 TEST_CASE("Pipeline parity #12: clip_baseline + pipeline_no_tile_pruning") {
     PipelineConfig cfg{};
     cfg.disable_tile_pruning = true;
-    assert_pipeline_clip_18_checks("pipeline_no_tile_pruning", kClipRects[0], get_clip_base_ref(0), cfg);
+    assert_pipeline_clip_18_checks("pipeline_no_tile_pruning", kClipRects[0], s_clip_base_refs[0], cfg);
 }
 TEST_CASE("Pipeline parity #13: clip_baseline + pipeline_serial") {
     PipelineConfig cfg{};
     cfg.serial_scheduler = true;
-    assert_pipeline_clip_18_checks("pipeline_serial", kClipRects[0], get_clip_base_ref(0), cfg);
+    assert_pipeline_clip_18_checks("pipeline_serial", kClipRects[0], s_clip_base_refs[0], cfg);
 }
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 TEST_CASE("Pipeline parity #14: clip_baseline + pipeline_diagnostic") {
     PipelineConfig cfg{};
     cfg.diagnostic_on = true;
-    assert_pipeline_clip_18_checks("pipeline_diagnostic", kClipRects[0], get_clip_base_ref(0), cfg);
+    assert_pipeline_clip_18_checks("pipeline_diagnostic", kClipRects[0], s_clip_base_refs[0], cfg);
 }
 #else
 TEST_CASE("Pipeline parity #14: clip_baseline + pipeline_diagnostic (SKIPPED)") {
@@ -451,37 +421,37 @@ TEST_CASE("Pipeline parity #14: clip_baseline + pipeline_diagnostic (SKIPPED)") 
 // #15-#21 — `clip_expanded` × 7 pipelines = 7 × 18 = 126 CHECKs.
 TEST_CASE("Pipeline parity #15: clip_expanded + pipeline_render") {
     PipelineConfig cfg{};
-    assert_pipeline_clip_18_checks("pipeline_render", kClipRects[1], get_clip_base_ref(1), cfg);
+    assert_pipeline_clip_18_checks("pipeline_render", kClipRects[1], s_clip_base_refs[1], cfg);
 }
 TEST_CASE("Pipeline parity #16: clip_expanded + pipeline_video") {
     PipelineConfig cfg{};
     cfg.multi_frame = true;
-    assert_pipeline_clip_18_checks("pipeline_video", kClipRects[1], get_clip_base_ref(1), cfg);
+    assert_pipeline_clip_18_checks("pipeline_video", kClipRects[1], s_clip_base_refs[1], cfg);
 }
 TEST_CASE("Pipeline parity #17: clip_expanded + pipeline_inspect") {
     PipelineConfig cfg{};
-    assert_pipeline_clip_18_checks("pipeline_inspect", kClipRects[1], get_clip_base_ref(1), cfg);
+    assert_pipeline_clip_18_checks("pipeline_inspect", kClipRects[1], s_clip_base_refs[1], cfg);
 }
 TEST_CASE("Pipeline parity #18: clip_expanded + pipeline_warmup") {
     PipelineConfig cfg{};
     cfg.warmup = true;
-    assert_pipeline_clip_18_checks("pipeline_warmup", kClipRects[1], get_clip_base_ref(1), cfg);
+    assert_pipeline_clip_18_checks("pipeline_warmup", kClipRects[1], s_clip_base_refs[1], cfg);
 }
 TEST_CASE("Pipeline parity #19: clip_expanded + pipeline_no_tile_pruning") {
     PipelineConfig cfg{};
     cfg.disable_tile_pruning = true;
-    assert_pipeline_clip_18_checks("pipeline_no_tile_pruning", kClipRects[1], get_clip_base_ref(1), cfg);
+    assert_pipeline_clip_18_checks("pipeline_no_tile_pruning", kClipRects[1], s_clip_base_refs[1], cfg);
 }
 TEST_CASE("Pipeline parity #20: clip_expanded + pipeline_serial") {
     PipelineConfig cfg{};
     cfg.serial_scheduler = true;
-    assert_pipeline_clip_18_checks("pipeline_serial", kClipRects[1], get_clip_base_ref(1), cfg);
+    assert_pipeline_clip_18_checks("pipeline_serial", kClipRects[1], s_clip_base_refs[1], cfg);
 }
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 TEST_CASE("Pipeline parity #21: clip_expanded + pipeline_diagnostic") {
     PipelineConfig cfg{};
     cfg.diagnostic_on = true;
-    assert_pipeline_clip_18_checks("pipeline_diagnostic", kClipRects[1], get_clip_base_ref(1), cfg);
+    assert_pipeline_clip_18_checks("pipeline_diagnostic", kClipRects[1], s_clip_base_refs[1], cfg);
 }
 #else
 TEST_CASE("Pipeline parity #21: clip_expanded + pipeline_diagnostic (SKIPPED)") {
@@ -492,37 +462,37 @@ TEST_CASE("Pipeline parity #21: clip_expanded + pipeline_diagnostic (SKIPPED)") 
 // #22-#28 — `clip_conservative` × 7 pipelines = 7 × 18 = 126 CHECKs.
 TEST_CASE("Pipeline parity #22: clip_conservative + pipeline_render") {
     PipelineConfig cfg{};
-    assert_pipeline_clip_18_checks("pipeline_render", kClipRects[2], get_clip_base_ref(2), cfg);
+    assert_pipeline_clip_18_checks("pipeline_render", kClipRects[2], s_clip_base_refs[2], cfg);
 }
 TEST_CASE("Pipeline parity #23: clip_conservative + pipeline_video") {
     PipelineConfig cfg{};
     cfg.multi_frame = true;
-    assert_pipeline_clip_18_checks("pipeline_video", kClipRects[2], get_clip_base_ref(2), cfg);
+    assert_pipeline_clip_18_checks("pipeline_video", kClipRects[2], s_clip_base_refs[2], cfg);
 }
 TEST_CASE("Pipeline parity #24: clip_conservative + pipeline_inspect") {
     PipelineConfig cfg{};
-    assert_pipeline_clip_18_checks("pipeline_inspect", kClipRects[2], get_clip_base_ref(2), cfg);
+    assert_pipeline_clip_18_checks("pipeline_inspect", kClipRects[2], s_clip_base_refs[2], cfg);
 }
 TEST_CASE("Pipeline parity #25: clip_conservative + pipeline_warmup") {
     PipelineConfig cfg{};
     cfg.warmup = true;
-    assert_pipeline_clip_18_checks("pipeline_warmup", kClipRects[2], get_clip_base_ref(2), cfg);
+    assert_pipeline_clip_18_checks("pipeline_warmup", kClipRects[2], s_clip_base_refs[2], cfg);
 }
 TEST_CASE("Pipeline parity #26: clip_conservative + pipeline_no_tile_pruning") {
     PipelineConfig cfg{};
     cfg.disable_tile_pruning = true;
-    assert_pipeline_clip_18_checks("pipeline_no_tile_pruning", kClipRects[2], get_clip_base_ref(2), cfg);
+    assert_pipeline_clip_18_checks("pipeline_no_tile_pruning", kClipRects[2], s_clip_base_refs[2], cfg);
 }
 TEST_CASE("Pipeline parity #27: clip_conservative + pipeline_serial") {
     PipelineConfig cfg{};
     cfg.serial_scheduler = true;
-    assert_pipeline_clip_18_checks("pipeline_serial", kClipRects[2], get_clip_base_ref(2), cfg);
+    assert_pipeline_clip_18_checks("pipeline_serial", kClipRects[2], s_clip_base_refs[2], cfg);
 }
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 TEST_CASE("Pipeline parity #28: clip_conservative + pipeline_diagnostic") {
     PipelineConfig cfg{};
     cfg.diagnostic_on = true;
-    assert_pipeline_clip_18_checks("pipeline_diagnostic", kClipRects[2], get_clip_base_ref(2), cfg);
+    assert_pipeline_clip_18_checks("pipeline_diagnostic", kClipRects[2], s_clip_base_refs[2], cfg);
 }
 #else
 TEST_CASE("Pipeline parity #28: clip_conservative + pipeline_diagnostic (SKIPPED)") {
@@ -533,37 +503,37 @@ TEST_CASE("Pipeline parity #28: clip_conservative + pipeline_diagnostic (SKIPPED
 // #29-#35 — `clip_full` × 7 pipelines = 7 × 18 = 126 CHECKs.
 TEST_CASE("Pipeline parity #29: clip_full + pipeline_render") {
     PipelineConfig cfg{};
-    assert_pipeline_clip_18_checks("pipeline_render", kClipRects[3], get_clip_base_ref(3), cfg);
+    assert_pipeline_clip_18_checks("pipeline_render", kClipRects[3], s_clip_base_refs[3], cfg);
 }
 TEST_CASE("Pipeline parity #30: clip_full + pipeline_video") {
     PipelineConfig cfg{};
     cfg.multi_frame = true;
-    assert_pipeline_clip_18_checks("pipeline_video", kClipRects[3], get_clip_base_ref(3), cfg);
+    assert_pipeline_clip_18_checks("pipeline_video", kClipRects[3], s_clip_base_refs[3], cfg);
 }
 TEST_CASE("Pipeline parity #31: clip_full + pipeline_inspect") {
     PipelineConfig cfg{};
-    assert_pipeline_clip_18_checks("pipeline_inspect", kClipRects[3], get_clip_base_ref(3), cfg);
+    assert_pipeline_clip_18_checks("pipeline_inspect", kClipRects[3], s_clip_base_refs[3], cfg);
 }
 TEST_CASE("Pipeline parity #32: clip_full + pipeline_warmup") {
     PipelineConfig cfg{};
     cfg.warmup = true;
-    assert_pipeline_clip_18_checks("pipeline_warmup", kClipRects[3], get_clip_base_ref(3), cfg);
+    assert_pipeline_clip_18_checks("pipeline_warmup", kClipRects[3], s_clip_base_refs[3], cfg);
 }
 TEST_CASE("Pipeline parity #33: clip_full + pipeline_no_tile_pruning") {
     PipelineConfig cfg{};
     cfg.disable_tile_pruning = true;
-    assert_pipeline_clip_18_checks("pipeline_no_tile_pruning", kClipRects[3], get_clip_base_ref(3), cfg);
+    assert_pipeline_clip_18_checks("pipeline_no_tile_pruning", kClipRects[3], s_clip_base_refs[3], cfg);
 }
 TEST_CASE("Pipeline parity #34: clip_full + pipeline_serial") {
     PipelineConfig cfg{};
     cfg.serial_scheduler = true;
-    assert_pipeline_clip_18_checks("pipeline_serial", kClipRects[3], get_clip_base_ref(3), cfg);
+    assert_pipeline_clip_18_checks("pipeline_serial", kClipRects[3], s_clip_base_refs[3], cfg);
 }
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 TEST_CASE("Pipeline parity #35: clip_full + pipeline_diagnostic") {
     PipelineConfig cfg{};
     cfg.diagnostic_on = true;
-    assert_pipeline_clip_18_checks("pipeline_diagnostic", kClipRects[3], get_clip_base_ref(3), cfg);
+    assert_pipeline_clip_18_checks("pipeline_diagnostic", kClipRects[3], s_clip_base_refs[3], cfg);
 }
 #else
 TEST_CASE("Pipeline parity #35: clip_full + pipeline_diagnostic (SKIPPED)") {
@@ -574,40 +544,115 @@ TEST_CASE("Pipeline parity #35: clip_full + pipeline_diagnostic (SKIPPED)") {
 // #36-#42 — `clip_off` × 7 pipelines = 7 × 18 = 126 CHECKs.
 TEST_CASE("Pipeline parity #36: clip_off + pipeline_render") {
     PipelineConfig cfg{};
-    assert_pipeline_clip_18_checks("pipeline_render", kClipRects[4], get_clip_base_ref(4), cfg);
+    assert_pipeline_clip_18_checks("pipeline_render", kClipRects[4], s_clip_base_refs[4], cfg);
 }
 TEST_CASE("Pipeline parity #37: clip_off + pipeline_video") {
     PipelineConfig cfg{};
     cfg.multi_frame = true;
-    assert_pipeline_clip_18_checks("pipeline_video", kClipRects[4], get_clip_base_ref(4), cfg);
+    assert_pipeline_clip_18_checks("pipeline_video", kClipRects[4], s_clip_base_refs[4], cfg);
 }
 TEST_CASE("Pipeline parity #38: clip_off + pipeline_inspect") {
     PipelineConfig cfg{};
-    assert_pipeline_clip_18_checks("pipeline_inspect", kClipRects[4], get_clip_base_ref(4), cfg);
+    assert_pipeline_clip_18_checks("pipeline_inspect", kClipRects[4], s_clip_base_refs[4], cfg);
 }
 TEST_CASE("Pipeline parity #39: clip_off + pipeline_warmup") {
     PipelineConfig cfg{};
     cfg.warmup = true;
-    assert_pipeline_clip_18_checks("pipeline_warmup", kClipRects[4], get_clip_base_ref(4), cfg);
+    assert_pipeline_clip_18_checks("pipeline_warmup", kClipRects[4], s_clip_base_refs[4], cfg);
 }
 TEST_CASE("Pipeline parity #40: clip_off + pipeline_no_tile_pruning") {
     PipelineConfig cfg{};
     cfg.disable_tile_pruning = true;
-    assert_pipeline_clip_18_checks("pipeline_no_tile_pruning", kClipRects[4], get_clip_base_ref(4), cfg);
+    assert_pipeline_clip_18_checks("pipeline_no_tile_pruning", kClipRects[4], s_clip_base_refs[4], cfg);
 }
 TEST_CASE("Pipeline parity #41: clip_off + pipeline_serial") {
     PipelineConfig cfg{};
     cfg.serial_scheduler = true;
-    assert_pipeline_clip_18_checks("pipeline_serial", kClipRects[4], get_clip_base_ref(4), cfg);
+    assert_pipeline_clip_18_checks("pipeline_serial", kClipRects[4], s_clip_base_refs[4], cfg);
 }
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 TEST_CASE("Pipeline parity #42: clip_off + pipeline_diagnostic") {
     PipelineConfig cfg{};
     cfg.diagnostic_on = true;
-    assert_pipeline_clip_18_checks("pipeline_diagnostic", kClipRects[4], get_clip_base_ref(4), cfg);
+    assert_pipeline_clip_18_checks("pipeline_diagnostic", kClipRects[4], s_clip_base_refs[4], cfg);
 }
 #else
 TEST_CASE("Pipeline parity #42: clip_off + pipeline_diagnostic (SKIPPED)") {
     SUCCEED("diagnostic pipeline skipped in non-diagnostic build");
 }
 #endif
+
+// ═══════════════════════════════════════════════════════════════════════════
+// §43-#44 — DEDICATED INVARIANCE TESTS (byte-exact, no SSIM fallback)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// User spec: "Add invariance tests for tile pruning ON/OFF
+// (hash(pruning_on) == hash(pruning_off)) and diagnostics ON/OFF
+// without overlay (no magical fix). Commit + push on main."
+//
+// "No magical fix" = the test MUST fail if the implementation is not
+// byte-exact invariant. No SSIM fallback, no tolerance, no skip on
+// failure. If the test fails, the implementation is broken and needs
+// to be fixed — not the test.
+//
+// These tests use a dedicated `render_invariance_hash()` helper that
+// bypasses `audit_text_visibility` (the F1.C API used by the rest of
+// the file) to avoid coupling the invariance check to the text audit
+// engine. The helper returns just the u64 framebuffer hash.
+//
+// Gated on CHRONON3D_BUILD_DIAGNOSTICS via `tests/pipeline_parity_tests.cmake`
+// (the entire file is gated). The invariance check itself only uses
+// `framebuffer_hash` (public, unconditional), but the file is gated
+// because the canary composition in the rest of the file uses
+// `audit_text_visibility` which IS gated.
+
+static u64 render_invariance_hash(bool pruning_on, bool diag_on) {
+    auto renderer = test::make_renderer_shared();
+    RenderSettings settings;
+    settings.dirty.use_tiles = pruning_on;
+    settings.text_layout_debug = false;  // NO OVERLAY (per user spec)
+    renderer->set_settings(settings);
+    renderer->set_diagnostic_mode(diag_on);
+
+    // Minimal canary composition (no audit/bbox extraction dependencies).
+    LayerBuilder lb("invariance_layer", SampleTime{});
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    lb.text("canary_text", TextSpec{
+        .content    = {.value = "INVARIANCE TARGET"},
+        .position   = Vec3{960.0f, 540.0f, 0.0f},
+        .font       = {.font_size = 96.0f},
+        .layout     = {.box = Vec2{900.0f, 200.0f},
+                       .anchor = TextAnchor::Center,
+                       .align  = TextAlign::Center,
+                       .vertical_align = VerticalAlign::Middle},
+    });
+    auto comp = lb.build();
+    auto fb = renderer->render(comp, Frame{0});
+    REQUIRE(fb != nullptr);
+    return test::framebuffer_hash(*fb);
+}
+
+// #43 — Tile pruning invariance: hash(pruning_on) == hash(pruning_off).
+// DEDICATED invariance test. BYTE-EXACT. No SSIM fallback. No tolerance.
+// If tile pruning adds wrong ink, this test FAILS with a clear message.
+TEST_CASE("Tile pruning invariance: hash(pruning_on) == hash(pruning_off) (byte-exact, no SSIM fallback)") {
+    u64 hash_on  = render_invariance_hash(/*pruning_on=*/true,  /*diag_on=*/false);
+    u64 hash_off = render_invariance_hash(/*pruning_on=*/false, /*diag_on=*/false);
+
+    REQUIRE(hash_on != 0);
+    REQUIRE(hash_off != 0);
+    CHECK(hash_on == hash_off);  // BYTE-EXACT, no fallback
+}
+
+// #44 — Diagnostics invariance (no overlay): hash(diag_on) == hash(diag_off).
+// DEDICATED invariance test. text_layout_debug is EXPLICITLY false so the
+// overlay is NOT drawn — only the diagnostic tracking is enabled.
+// If diagnostic mode adds visible ink, this test FAILS with a clear message.
+TEST_CASE("Diagnostics invariance (no overlay): hash(diag_on) == hash(diag_off) (byte-exact, no SSIM fallback)") {
+    u64 hash_on  = render_invariance_hash(/*pruning_on=*/true, /*diag_on=*/true);
+    u64 hash_off = render_invariance_hash(/*pruning_on=*/true, /*diag_on=*/false);
+
+    REQUIRE(hash_on != 0);
+    REQUIRE(hash_off != 0);
+    CHECK(hash_on == hash_off);  // BYTE-EXACT, no fallback
+}
