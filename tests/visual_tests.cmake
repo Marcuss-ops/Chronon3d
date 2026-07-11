@@ -124,6 +124,12 @@ chronon3d_add_test_suite(
     SOURCES
             visual/ae_parity/ae_parity_tests.cpp
         visual/ae_parity/ae_parity_scenes.cpp
+        # TICKET-CHRONON-GLOW-FINAL — Phase 3 SCALA regression:
+        # 6 TEST_CASEs (3 frames × 2 ARs) asserting alpha-bbox centroid
+        # stays within 2 px of canvas center despite per-frame scale
+        # breath (0.96/1.05/0.98). Locks the CanvasCenter-based centroid
+        # contract from drift caused by non-identity layer transforms.
+        visual/ae_parity/ae_glow_position_drift.cpp
     LINK_TARGETS
         chronon3d_sdk
         chronon3d_visual_test_support
@@ -132,6 +138,15 @@ chronon3d_add_test_suite(
 )
 target_compile_definitions(chronon3d_ae_parity_tests
     PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+
+# TICKET-CHRONON-GLOW-FINAL — Phase 3 SCALA ctest alias.
+# 6 TEST_CASEs: 16:9 + 9:16 × 3 snapshot frames (f00/f15/f30) verifying
+# alpha-bbox centroid stability under scale 0.96/1.05/0.98.
+add_test(
+    NAME Ae08GlowPositionDrift
+    COMMAND chronon3d_ae_parity_tests --test-case="FASE-3 SCALA: ae_08 *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
 # ── Gate 1 — Timeline Visual Golden Tests ──
