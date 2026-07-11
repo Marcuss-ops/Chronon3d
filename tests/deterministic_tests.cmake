@@ -6,7 +6,7 @@ if(CHRONON3D_USE_BLEND2D)
 chronon3d_add_test_suite(
     NAME chronon3d_deterministic_tests
     TIER INTEGRATION
-    LINK_TARGETS chronon3d_sdk chronon3d_graph chronon3d_graph_pipeline chronon3d_backend_software chronon3d_scene chronon3d::content
+    LINK_TARGETS chronon3d_sdk chronon3d_graph chronon3d_graph_pipeline chronon3d_backend_software chronon3d_scene
     SOURCES deterministic/test_deterministic.cpp
             deterministic/test_determinism_harness.cpp
             deterministic/gradient_determinism_tests.cpp
@@ -42,4 +42,7 @@ chronon3d_add_test_suite(
             deterministic/test_determinism_matrix.cpp
 )
 target_compile_definitions(chronon3d_deterministic_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+if(TARGET chronon3d::content)
+    target_link_libraries(chronon3d_deterministic_tests PRIVATE chronon3d::content)
+endif()
 endif()
