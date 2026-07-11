@@ -5,6 +5,12 @@
 //
 // CertTitle:          1920×1080 (16:9), "EPIC TITLE" Inter Bold 120pt centrato
 // CertTitleVertical:  1080×1920 (9:16), stesso testo per TikTok/Shorts
+//
+// M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (2026-07-10):
+//   - 1 `text::centered_text({...})` call site (in make_cert_title_comp
+//     helper, shared by CertTitle + CertTitleVertical) migrated to
+//     canonical `from_text_spec(TextSpec{...})` API (F2.C adapter).
+//   - `text_helpers.hpp` include removed (no longer used).
 // ==============================================================================
 
 #include <chronon3d/core/composition/composition_registry.hpp>
@@ -12,12 +18,15 @@
 #include <chronon3d/timeline/composition_props.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>
+#include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 
 #include "content/common/background_helpers.hpp"
-#include "content/text/text_helpers.hpp"
 
 namespace chronon3d::content::certification {
+
+using namespace chronon3d;
 
 // ── Helper: crea una composizione con testo centrato su sfondo ──────────
 static Composition make_cert_title_comp(const char* name,
@@ -35,18 +44,32 @@ static Composition make_cert_title_comp(const char* name,
             // Dark grid background
             backgrounds::add_common_background(
                 s, backgrounds::BackgroundStyles::Minimalist());
-            // Centered text layer (F0.5 — local coords after pin_to).
+            // Centered text layer.
+            // NOTE: pin_to(Center) does NOT translate text nodes —
+            // text pos must be absolute canvas coordinates.
+            // (TICKET: pin_to + text-node interaction needs engine fix.)
             s.layer("title", [&](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
-                l.text("title_text", text::centered_text({
-                    .text      = text,
-                    .box        = {static_cast<float>(width),
-                                   static_cast<float>(height)},
-                    .pos        = {0.0f, 0.0f, 0.0f},
-                     .font_asset = "assets/fonts/Inter-Bold.ttf",
-                    .font_family = "Inter",
-                    .font_weight = 700,
-                    .font_size  = font_size,
+                l.text("title_text", from_text_spec(TextSpec{
+                    .content    = {.value = text},
+                    .font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                                   .font_family = "Inter",
+                                   .font_weight = 700,
+                                   .font_size   = font_size},
+                    .layout     = {.box            = {static_cast<float>(width),
+                                                      static_cast<float>(height)},
+                                   .anchor         = TextAnchor::Center,
+                                   .centering_mode = TextCenteringMode::PixelInk,
+                                   .align          = TextAlign::Center,
+                                   .vertical_align = VerticalAlign::Middle,
+                                   .wrap           = TextWrap::Word,
+                                   .overflow       = TextOverflow::Clip,
+                                   .line_height    = 0.95f,
+                                   .max_lines      = 1},
+                    .appearance = {.color = Color::white()},
+                    .position   = {static_cast<float>(width) * 0.5f,
+                                   static_cast<float>(height) * 0.5f,
+                                   0.0f},
                 }));
             });
             return s.build();

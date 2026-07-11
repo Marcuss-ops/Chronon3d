@@ -171,6 +171,31 @@ CameraDescriptor
 | JSON report stabile | 🔵 | Schema/versionamento da definire. |
 | Golden camera suite | ✅ | Suite committed in `tests/scene/camera/golden_projection_test.cpp`: 1 TEST_CASE × 6 SUBCASEs (Zoom, FOV 50°, PhysicalLens ARRI, GateFit::Stretch, GateFit::Overscan, Anamorphic 2×) lockati con tolleranza 1e-3, hash-free per stabilità cross-host. Certificazione runtime PASS (71/71 assertions) su C9a (`37c03c11`). Test eseguito in `build/tests/chronon3d_scene_tests` post-C9a (build clean, unity-build escluso per `timed_text_document.cpp` + `boundary_resolver/text_unit_map.cpp` per ODR TU-locali pre-esistenti). |
 
+## 8.1 Cross-link — Text SafeArea placements (M1.8 §3B)
+
+SafeArea-aware placement è una concern di **layout/compositing**, non di camera. La camera non possiede il concetto di safe-area; questo è delegato al text pipeline canonico:
+
+- [`include/chronon3d/text/text_placement.hpp`](../include/chronon3d/text/text_placement.hpp) — `TextPlacementKind` enum (16 varianti includendo `SafeAreaTop`/`Bottom`/`Left`/`Right`/`Center`) + `SafeAreaPreset` (4 aspect-ratio presets) + user-facing `SafeAreaEnum` (5 valori).
+- [`include/chronon3d/text/text_placement_resolver.hpp`](../include/chronon3d/text/text_placement_resolver.hpp) — `resolve_safe_area(SafeAreaEnum) → TextPlacement{SafeArea*}` mapping canonico + `CanvasInfo::with_safe_area(...)` factory per aspect-ratio-aware safe-area margins.
+- [`src/text/text_placement_resolver.cpp`](../src/text/text_placement_resolver.cpp) — single switch su `SafeAreaEnum` (5 casi) + `resolve_placement_origin` switch (16 casi); nessuna tabella di mapping parallela.
+- [`tests/text/test_safe_area_placement.cpp`](../tests/text/test_safe_area_placement.cpp) — 8 sub-cases (4 placements × 2 canvases 1920×1080 + 1080×1920) + 5 SafeAreaEnum sweep + cross-link equivalence path A↔path B.
+
+Pin-point semantics (16 placements total, safe-area family 5/16):
+
+| Variant | Pin point (1920×1080) | Pin point (1080×1920) |
+|---|---|---|
+| `SafeAreaTop` | (960, 54) | (540, 96) |
+| `SafeAreaBottom` | (960, 1026) | (540, 1824) |
+| `SafeAreaLeft` | (96, 540) | (54, 960) |
+| `SafeAreaRight` | (1824, 540) | (1026, 960) |
+| `SafeAreaCenter` | (960, 540) | (540, 960) |
+
+Safe-area margins derivation (per `SafeAreaPreset::Landscape16x9` / `Portrait9x16` etc., 5% di default): `top=0.05×H`, `bottom=0.05×H`, `left=0.05×W`, `right=0.05×W`. Risoluzione canonica: `CanvasInfo::with_safe_area(width, height, preset)`.
+
+Anti-duplicazione honour: un solo switch `SafeAreaEnum → TextPlacement` nel resolver; nessuna tabella parallela. Le 5/16 varianti safe-area sono parte del `TextPlacementKind` enum (non un secondo sistema).
+
+---
+
 ## 9. Catena di blocker per la certificazione camera
 
 ### TICKET-039 — blocker globale corrente

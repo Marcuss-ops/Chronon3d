@@ -192,4 +192,34 @@ struct ResolvedTextPlacement {
     TextPlacement placement
 );
 
+// ── resolve_safe_area — SafeAreaEnum → TextPlacement{SafeArea*} mapping ────
+//
+// M1.8 §4: maps the user-facing 5-value `SafeAreaEnum` (Top / Bottom / Left /
+// Right / Center) to the canonical `TextPlacement{SafeArea*}` authoring
+// struct.  This is the ONLY SafeAreaEnum→TextPlacement resolution path
+// (no parallel mapping table); the switch lives in
+// `src/text/text_placement_resolver.cpp` `resolve_safe_area()`.
+//
+// The returned `TextPlacement` has `offset = {0, 0}` (no additive nudge);
+// callers that need a pixel nudge should set the offset field on the
+// returned struct (e.g., `auto p = resolve_safe_area(...); p.offset += {10, 0};`).
+//
+// Pin-point semantics are documented in `resolve_placement_origin()`:
+//
+//   SafeAreaTop    — (canvas.width/2, safe_margin_top)
+//   SafeAreaBottom — (canvas.w/2, canvas.h - safe_margin_bottom)
+//   SafeAreaLeft   — (safe_margin_left, center-of-safe-area height)
+//   SafeAreaRight  — (canvas.w - safe_margin_right, center-of-safe-area height)
+//   SafeAreaCenter — center of safe area bounds
+//
+// Parameters:
+//   side:    User-facing safe area identifier (5 values, exhaustive)
+//
+// Returns:
+//   TextPlacement with kind = SafeArea* and offset = {0, 0}.
+//   Defensive fallback: if `side` is an out-of-range u8 value, returns
+//   CanvasCenter (the most permissive placement; matches the resolver
+//   switch's `default` return).
+[[nodiscard]] TextPlacement resolve_safe_area(SafeAreaEnum side);
+
 } // namespace chronon3d
