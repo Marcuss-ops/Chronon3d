@@ -50,12 +50,12 @@ for f in "$REPO_ROOT"/tests/*.cmake; do
     # Count chronon3d_add_test_suite() invocations (not comments).
     suite=$(grep -E '^\s*chronon3d_add_test_suite\(' "$f" 2>/dev/null | wc -l || echo 0)
 
-    if [ "${raw:-0}" -gt 0 ]; then
+    if [[ ${raw:-0} -gt 0 ]]; then
         echo "  RAW  $basename  ($raw targets)"
         raw_files+=("$basename")
         raw_count=$((raw_count + raw))
     fi
-    if [ "${suite:-0}" -gt 0 ]; then
+    if [[ ${suite:-0} -gt 0 ]]; then
         echo "  SUITE $basename ($suite targets)"
         suite_count=$((suite_count + suite))
     fi
