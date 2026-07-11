@@ -120,6 +120,6 @@ if(CHRONON3D_BUILD_DIAGNOSTICS)
     )
 endif()
 
-if(CMAKE_PROJECT_NAME STREQUAL "Chronon3d")
+if(NOT TARGET chronon3d::content)
     add_library(chronon3d::content ALIAS chronon3d_content)
 endif()
