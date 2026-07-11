@@ -20,8 +20,12 @@ void verify_golden_or_create(
     auto config = camera_golden_config(golden_dir, artifact_dir, threshold);
     auto result = verify_golden(rendered, case_name, config);
 
+<<<<<<< HEAD
     REQUIRE_FALSE(result.golden_missing);
+=======
+>>>>>>> dbf39153 (fix(tests): make golden references mandatory in CI/certification mode)
     INFO(result.message);
+    REQUIRE_FALSE(result.golden_missing);
     CHECK(result.passed);
 }
 

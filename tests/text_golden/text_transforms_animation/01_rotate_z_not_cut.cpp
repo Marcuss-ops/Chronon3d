@@ -11,8 +11,13 @@
 //
 // Per AGENTS.md §honesty: 6 PNG re-bake requires a working build host
 // (vcpkg-installed includes + tmpfs quota for full cmake build on this
+<<<<<<< HEAD
 // VPS); missing goldens are now treated as hard CI failures via
 // REQUIRE_FALSE(r.golden_missing).
+=======
+// VPS); the 6 test cases fail if the golden reference is missing (`REQUIRE_FALSE(result.golden_missing)`)
+// (prints a developer-instructional MESSAGE).
+>>>>>>> dbf39153 (fix(tests): make golden references mandatory in CI/certification mode)
 //
 // AGENTS.md v0.1 Cat-2 freeze-compliant: zero new public SDK API.  The
 // test uses the existing `LayerBuilder::rotate_z()` + `text_run()` + the
