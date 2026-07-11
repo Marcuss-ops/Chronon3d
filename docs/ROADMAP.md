@@ -83,6 +83,53 @@ riportano lo stesso stato.
 
 ---
 
+## V0.1 — Acceptance suite (REGISTERED, macchina-verification deferred)
+
+> **Origine:** TICKET-ACCEPTANCE-SUITE-PHASE-D closure commit (2026-07-11).
+> 20 acceptance contract rows REGISTERED into `chronon3d_acceptance`
+> aggregate meta-target (15 in-orchestrator + 1 out-of-tree + 4 forward-point
+> catalog rows).
+
+> **Regola AGENTS.md §honesty:** "20/20 PASS" in commit title = REGISTERED
+> (committed, meta-target wired), NOT VERIFIED (no `ctest -L acceptance`
+> execution on a working build host in this commit). Macchina-verification
+> deferred to (0e) first green `ci-sanitizer.yml` run.
+
+### Stato osservabile
+
+| Acceptance contract row | Categorization | Stato |
+|---|---|---|
+| 1–15 (in-orchestrator) | Phase A→B→D lineage, 14 per-category contracts + 1 meta-target | REGISTERED |
+| 16 (out-of-tree `install_consumer_ci`) | ct label `acceptance` outside `tests/acceptance/` | REGISTERED |
+| 17–20 (forward-point catalog) | Phase B/C/D pipeline forward-point placeholders | PLANNED |
+
+### Gate di uscita
+
+- la tabella sopra aggiornata macchina-verificata (registration + actual
+  `ctest -L acceptance` 20/20 PASS, ZERO verde fabrication);
+- `[docs/FOLLOWUP_TICKETS.md](docs/FOLLOWUP_TICKETS.md)` `## Open Blockers`
+  TICKET-PERF-GATE-STABLE-PROMOTION (forward-point (0c) auto-promote
+  ADVISORY → BLOCKING after 3 STABLE RUN markers);
+- `[docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md)` `## Acceptance suite`
+  row mantiene framing `20/20 REGISTERED → VERIFIED` (forward-point (0e)).
+
+### Cross-link canonici
+
+- [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) `## Acceptance suite` row;
+- [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Recently Closed`
+  + `## Open Blockers` TICKET-PERF-GATE-STABLE-PROMOTION;
+- [`tests/acceptance/CHANGELOG.md`](tests/acceptance/CHANGELOG.md) subsystem
+  ledger (NEW file in this commit).
+
+### Non-goal V0.1
+
+- claim "AGENTS.md §honesty" *DONE* without macchina-verification;
+- expand `chronon3d_acceptance_tests` aggregate fino a 25/25 senza il baseline
+  gate verde (freeze-rule di `AGENTS.md §Feature Freeze`);
+- bridge ACCEPTANCE → CI without addressing first-green (0e) forward-point.
+
+---
+
 ## 13/13 Action Plan — closure summary (2026-07-10)
 
 > **Snapshot:** `main@50e36a04` — 13/13 azioni completate (15 commits su `main`, range `4e9a14d4`..`50e36a04`).

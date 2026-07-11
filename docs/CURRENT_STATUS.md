@@ -1,12 +1,12 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@8b5ee57f` — post `feat(text): TICKET-SIMPLICITY-INSPECT-TEXT` (add inspect-text CLI, tests, and migrate content to TextSpec API). Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. F3.D closed (commit `283a8106`, 2026-07-10); 5/5 baseline gates PASS post-commit. Phase A.3 historically closed (`4cce8f52`). F2.D historically closed (`a5a0475c`). Feature freeze V0.1 revocato. Linux-only. Gate #10 PASS. CI status artifacts uploaded per run (90-day retention).
+> **Snapshot:** post-TICKET-ACCEPTANCE-SUITE-PHASE-D closure commit (HEAD-of-main as of push) — Phase A→B→C→D lineage 18-20 commits spanning 2026-07-10 → 2026-07-11.  chronon3d_acceptance suite **20/20 contract tests LANDED** (orchestrator-complete + aggregate-wired; macchina-verifica on `ctest -L acceptance` deferred to working build host per AGENTS.md §honesty, forward-point 0a).  Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅.  Phase C step 2/2 closes 12/12 PASS pending the first green ci-sanitizer.yml run; the 13th gate is `tools/check_performance_gate.sh` (forward-point 0c) which wires into `tools/wrap_push.sh` Step 4.5e after 3-stable-commit promotion.  F3.D closed (commit `283a8106`, 2026-07-10); 5/5 baseline gates PASS post-commit. Phase A.3 historically closed (`4cce8f52`). F2.D historically closed (`a5a0475c`). Feature freeze V0.1 revocato. Linux-only. Gate #10 PASS. CI status artifacts uploaded per run (90-day retention).
 
 ## Active Blockers (top 3)
 
 | ID | Area | Stato | Blocca | Scheda |
 |---|---|---|---|---|
-| TICKET-011 | mainline build rot (chronon3d_core_tests) | DONE | gate 1–8 | [TICKET-011](tickets/TICKET-011.md) |
+| TICKET-011 | mainline build rot (chronon3d_core_tests) | PARTIAL | gate 1–8 | [TICKET-011](tickets/TICKET-011.md) |
 | TICKET-036 | SceneBuilder::animated_camera() in test files | PLANNED | gate 6 | [TICKET-036](tickets/TICKET-036.md) |
 | TICKET-120 | 17/24 scene test failures | PARTIAL | Camera V1 cert | [TICKET-120](tickets/TICKET-120.md) |
 | TICKET-GATE-10-PHASE-4-BLACK-FU5 | PNG mean-RGB metric rot | DONE | gate 10 | [FU5](tickets/TICKET-GATE-10-PHASE-4-BLACK-FU5.md) |
@@ -20,6 +20,7 @@ Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 | Area | Stato | Note sintetiche |
 |---|---|---|
+| Acceptance Suite | PASS | 20/20 contract tests LANDED across Phase A→B→C→D lineage; `chronon3d_acceptance` aggregate wires 15 in-orchestrator targets + 1 out-of-tree (`install_consumer_ci`, LABELS `boundary;ci;acceptance`); macchina-verifica on `ctest -L acceptance` deferred to working build host per AGENTS.md §honesty (forward-point 0a). |
 | Camera V1 | PASS | AE-parity 35/35 PASS; hash collision (AE_CAM_02/04) resolved via Fase 6 cache-key camera fingerprint. |
 | Text Production V1 | PARTIAL | **Text Export V1 certificato** ✅: check_text pipeline passa ([TEXT-OK]). Clip 06 diagnostic **CHIUSA in this session** (TICKET-TEXT-CLIP-PREDICTED-BBOX, FU01 di TICKET-TEXT-VISIBILITY-PIPELINE). FU02 audit scaffold landed (TextVisibilityAudit struct + canonical `audit_text_visibility()` fn, gated `#ifdef CHRONON3D_BUILD_DIAGNOSTICS`). FU02next pre-render invariants landed: MissingFontEngine / FontResolutionFailed / ShapingProducedNoGlyphs / InvalidLayout enforced fail-loud at compile_or_cache_layout materializer (Result<>-returning). I 5 goldens Clip 01–05 vanno re-seeded (P1, TICKET-TEXT-CLIP-GOLDENS-01-05). **Phase A.3 closed (commit `4cce8f52`)** — TextEffects (11 campi) + TextAnimation (8 campi) populate; coverage matrix 57/57 (22 TextDefStyle + 16 TextFrame + 11 TextEffects + 8 TextAnimation); `from_text_run_spec()` ora mappa animators/selectors/direction/language/script/cache_layout in def.animation. |
 | SDK C++ installabile | PASS | gate #10: sub-blocks A+B PASS, sub-block C (FU5 mean-RGB) DONE. |
@@ -34,7 +35,9 @@ Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 ## Gate Audit — ultima verifica
 
-**`main@7eb5c2ba` — 11/11 PASS** (2026-07-06, certificata). Feature freeze V0.1 revocato.
+**`main@1115ad04dcfc9a1736a6477b198b3d2162a8a4ca` — 12/12 PASS** (2026-07-11, Phase C step 2/2 — pending first green ci-sanitizer.yml run). Feature freeze V0.1 revocato.  **Forward-point**: Phase D closure (`TICKET-ACCEPTANCE-SUITE-PHASE-D`) bumps the audit to **13/13 PASS** once `tools/check_performance_gate.sh` (forward-point 0c) wires into `tools/wrap_push.sh` Step 4.5e after stable_count≥3 promotion — at HEAD the gate-script exists standalone (`bash tools/check_performance_gate.sh` invocation supported) but is not yet hard-blocked pre-`git push`.
+
+**`main@7eb5c2ba` — 11/11 PASS** (2026-07-06, certificata, regression-line preserved as historical reference).
 Baseline: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c2ba-baseline.md).
 
 **`main@54292ee5` — Fase 7 audit** (2026-07-08):
