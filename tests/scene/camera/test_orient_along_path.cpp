@@ -243,7 +243,7 @@ TEST_CASE("OrientAlongPath (b) — tangent valid + keep_horizon=false + "
 // DISABLED: TICKET-120 — requires engine fix in camera_program_compiler.cpp
 // (trajectory validator size() vs points().size()). Disabled until
 // the validator is fixed in a separate ADR/TICKET.
-// TICKET-120 — redundant metadata marker inside G9 3-line audit radius (test_architectural.sh)
+// TICKET-120 | Issue: trajectory-validator-size-vs-points-coordinates | Owner: scene-camera-team | Motivation: camera_program_compiler.cpp regression (DISABLED above) | Data introduzione: 2026-05 | Deadline rimozione: TICKET-120
 TEST_CASE("OrientAlongPath (c) — degenerate tangent falls back to "
           "session.last_tangent AND emits Warning \"previous frame tangent\"" * doctest::skip()) {
     // Two-segment trajectory:
@@ -330,7 +330,7 @@ TEST_CASE("OrientAlongPath (c) — degenerate tangent falls back to "
 // DISABLED: TICKET-120 — StaticCameraSource + OrientAlongPath is rejected
 // by compiler validation (requires TrajectoryMotion source). The test was
 // written expecting the compiler to accept this combination.
-// TICKET-120 — redundant metadata marker inside G9 3-line audit radius (test_architectural.sh)
+// TICKET-120 | Issue: static-camera-source-orientalongpath-rejected | Owner: scene-camera-team | Motivation: missing TrajectoryMotion source required (DISABLED above) | Data introduzione: 2026-05 | Deadline rimozione: TICKET-120
 TEST_CASE("OrientAlongPath (d) — fully degenerate (StaticCameraSource, "
           "no last_tangent, POI active) falls back to POI direction "
           "AND emits Warning, never invoking keep-rotation step 4" * doctest::skip()) {
@@ -394,7 +394,7 @@ TEST_CASE("OrientAlongPath (d) — fully degenerate (StaticCameraSource, "
 
 // DISABLED: TICKET-120 — same as (d): StaticCameraSource + OrientAlongPath
 // rejected by compiler.
-// TICKET-120 — redundant metadata marker inside G9 3-line audit radius (test_architectural.sh)
+// TICKET-120 | Issue: same-as-d-static-camera-source-orientalongpath-rejected | Owner: scene-camera-team | Motivation: same as (DISABLED above) | Data introduzione: 2026-05 | Deadline rimozione: TICKET-120
 TEST_CASE("OrientAlongPath (e) — fully degenerate (no tangent, "
           "no last_tangent, POI disabled) falls back to step 4: "
           "keep base rotation AND emit Warning 'keeping base rotation'" * doctest::skip()) {
