@@ -91,7 +91,12 @@ enum class VerticalAlign { Top, Middle, Bottom };
 //   Center:       pos = center of the text box
 //   TopLeft:      pos = top-left corner
 //   TopCenter:    pos = top-center
+//   TopRight:     pos = top-right corner
+//   CenterLeft:   pos = left-center
+//   CenterRight:  pos = right-center
+//   BottomLeft:   pos = bottom-left corner
 //   BottomCenter: pos = bottom-center
+//   BottomRight:  pos = bottom-right corner
 //   BaselineLeft: pos = left end of the first baseline (approx)
 //   BaselineCenter: pos = center of the first baseline (approx)
 //
@@ -101,7 +106,12 @@ enum class TextAnchor : u8 {
     Center,
     TopLeft,
     TopCenter,
+    TopRight,
+    CenterLeft,
+    CenterRight,
+    BottomLeft,
     BottomCenter,
+    BottomRight,
     BaselineLeft,
     BaselineCenter,
 };

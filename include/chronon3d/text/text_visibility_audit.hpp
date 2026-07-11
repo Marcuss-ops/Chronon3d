@@ -204,10 +204,6 @@ struct TextVisibilityAudit {
 ///
 /// Inputs:
 ///   - `shape`: the `TextRunShape` carrying layout, glyph states, engine.
-///   - `local_ink_bbox`: text-frame-relative axes-aligned ink bbox of the
-///     glyph run (the canonical `renderer::compute_text_run_visual_bounds()`
-///     output). This is the real geometry used to compute `world_ink_bbox`
-///     and to evaluate the `predicted_contains_world` invariant.
 ///   - `world_matrix`: layer → canvas transform.
 ///   - `predicted_bbox`: producer-supplied bbox (typically from
 ///     `TextRunNode::predicted_bbox()`).
@@ -228,7 +224,6 @@ struct TextVisibilityAudit {
 /// so callers cannot accidentally drop the audit.
 [[nodiscard]] TextVisibilityAudit audit_text_visibility(
     const TextRunShape& shape,
-    const Rect&         local_ink_bbox,
     const Mat4&         world_matrix,
     const Rect&         predicted_bbox,
     const Rect&         clip_rect,
@@ -255,7 +250,6 @@ struct TextVisibilityAudit {
 /// to prevent log spam on repeated violations.
 ///
 /// @param shape             The TextRunShape with layout, engine, glyphs
-/// @param local_ink_bbox    Text-frame-relative ink bbox (canonical)
 /// @param world_matrix      Layer → canvas transform matrix
 /// @param predicted_bbox    Producer-supplied predicted bbox (canvas-level)
 /// @param clip_rect         Compositor clip rect (canvas-level)
@@ -264,7 +258,6 @@ struct TextVisibilityAudit {
 /// @return Populated TextVisibilityAudit struct
 [[nodiscard]] TextVisibilityAudit verify_text_visibility(
     const TextRunShape& shape,
-    const Rect&         local_ink_bbox,
     const Mat4&         world_matrix,
     const Rect&         predicted_bbox,
     const Rect&         clip_rect,
