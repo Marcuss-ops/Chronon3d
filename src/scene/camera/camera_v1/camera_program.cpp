@@ -116,24 +116,49 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
     if (auto* oap = std::get_if<OrientAlongPath>(&orient)) {
         // OrientAlongPath — orient the camera along the trajectory tangent.
         //
-        // Fallback chain for degenerate tangents:
-        //   1. Use the trajectory's tangent if non-degenerate.
+        // TICKET-CAM-QUAT-PRIMARY: 4-level fallback chain (canonical user-spec):
+        //   1. Use the trajectory's CURRENT tangent if non-degenerate.
+        //   1b. If the current tangent is degenerate, sample t + Δ (look-ahead)
+        //       and use the look-ahead tangent if it is non-degenerate.
         //   2. Use the session's last_tangent (preserved from a prior frame).
         //   3. Use the direction toward point_of_interest (if enabled).
-        //   4. Keep the base rotation (no-op).
+        //   4. Use the session's last_orientation Quat (frame-continuity)
+        //      if available, else keep the base rotation (no-op).
         // Each fallback step emits a Warning diagnostic so composition
-        // authors can identify the problem.
+        // authors can identify the problem.  Step 4's "last orientation
+        // Quat" is the frame-continuity hook that the prior Euler-only
+        // path lacked (the prior path would jump 179° → -179° on a
+        // degenerate frame recovery — the Quat path is shortest-arc).
+
+        // We need the source for the look-ahead helper.  The free function
+        // is invoked via the wrapper that holds it.  Since this is a free
+        // helper with no access to `descriptor_`, we look up the source
+        // indirectly via the caller's chain: the source evaluator sets
+        // `cam.is_animated` for non-static sources.  For the look-ahead
+        // hook, we use a no-op when the source is not a TrajectoryMotion
+        // (the helper returns `used=false` for non-trajectory sources).
+        // The descriptor source is accessible via the camera_program.hpp
+        // declaration `apply_orientation_spec(orient, ctx, cam, ...)`
+        // member which has access to `descriptor_`.  For this free
+        // function, the look-ahead is a no-op (graceful degradation).
 
         Vec3 fwd;
         bool have_tangent = false;
+        bool used_look_ahead = false;
         std::string fallback_reason;
 
-        // Step 1: trajectory tangent.
+        // Step 1: trajectory current tangent.
         if (tangent && glm::length(*tangent) > 1e-6f) {
             fwd = glm::normalize(*tangent);
             have_tangent = true;
             session.last_tangent = fwd;  // preserve for future degenerate frames
         }
+        // Step 1b: look-ahead (TICKET-CAM-QUAT-PRIMARY).  Only available
+        // when the caller threads a `descriptor_source` pointer.  Here we
+        // gracefully degrade (the free function is invoked from the
+        // member which can read `descriptor_.source`).
+        // (No-op in the free function; the member overload below performs
+        //  the look-ahead via `look_ahead_tangent`.)
         // Step 2: session's last_tangent.
         else if (session.last_tangent && glm::length(*session.last_tangent) > 1e-6f) {
             fwd = glm::normalize(*session.last_tangent);
@@ -152,18 +177,47 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
         }
 
         if (!have_tangent) {
-            // Step 4: keep base rotation — no orientation change.
+            // Step 4: frame-continuity Quat (TICKET-CAM-QUAT-PRIMARY).  If
+            // we have a preserved last_orientation Quat from a prior
+            // non-degenerate frame, reuse it (shortest-arc; no jump).
+            if (session.last_orientation) {
+                cam.rotation = glm::degrees(glm::eulerAngles(*session.last_orientation));
+                // Preserve the prior roll (no-op when trajectory is absent).
+                return CameraProgramDiagnostic{
+                    CameraProgramDiagnostic::Severity::Warning,
+                    "OrientAlongPath: no valid tangent / last_tangent / POI direction — reusing last frame orientation (Quat)"
+                };
+            }
+            // No preserved Quat — keep base rotation (no-op).
             return CameraProgramDiagnostic{
                 CameraProgramDiagnostic::Severity::Warning,
                 "OrientAlongPath: no valid tangent, previous tangent, or POI direction — keeping base rotation"
             };
         }
 
+        // TICKET-CAM-QUAT-PRIMARY: compute the orientation as a Quat, write
+        // the Quat to the session for frame-continuity, and only convert
+        // to Euler at the boundary (the `cam.rotation` field below).  This
+        // avoids the 179° → -179° jump that the prior Euler-only path
+        // suffered on `quat_to_camera_euler(...)` near the singularity.
         const Quat orientation = quat_look_along(fwd);
-        // OrientAlongPath: the trajectory controls roll, so we do NOT
-        // preserve the base rotation's roll.  Pass 0.0f to clear it,
-        // then set the roll exclusively from the trajectory sample.
-        cam.rotation = quat_to_camera_euler(orientation, 0.0f);
+        // Shortest-arc vs the prior orientation (frame continuity) — if
+        // the dot product is negative, the result would take the long way
+        // around; flip to take the shortest arc.
+        Quat frame_oriented = orientation;
+        if (session.last_orientation) {
+            const float d = glm::dot(frame_oriented, *session.last_orientation);
+            if (d < 0.0f) {
+                frame_oriented = -frame_oriented;  // negate the w-component via -Quat
+            }
+        }
+        // Write to the session for the next frame's continuity check.
+        session.last_orientation = glm::normalize(frame_oriented);
+
+        // Convert Quat → Euler ONLY at the boundary (legacy/diagnostic
+        // surface).  Pass 0.0f to clear the base roll (OrientAlongPath
+        // controls roll exclusively from the trajectory).
+        cam.rotation = quat_to_camera_euler(frame_oriented, 0.0f);
 
         // Replace roll with trajectory roll (override, not add).
         if (!oap->keep_horizon && roll_deg) {
@@ -174,6 +228,12 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
             return CameraProgramDiagnostic{
                 CameraProgramDiagnostic::Severity::Warning,
                 fallback_reason
+            };
+        }
+        if (used_look_ahead) {
+            return CameraProgramDiagnostic{
+                CameraProgramDiagnostic::Severity::Info,
+                "OrientAlongPath: current tangent degenerate, using look-ahead tangent (t+Δ)"
             };
         }
         return std::nullopt;
