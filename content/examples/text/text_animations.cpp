@@ -56,6 +56,7 @@ using chronon3d::content::animation_helpers::TextAnimBg;
 using chronon3d::content::animation_helpers::make_text_anim;
 using chronon3d::content::animation_helpers::text_anim_opacity;
 using chronon3d::content::text_reveal::TextRevealDescriptor;
+using chronon3d::content::text_reveal::build_2line_typewriter;
 using chronon3d::content::text_reveal::build_text_reveal_line;
 using chronon3d::content::text_reveal::measure_text_width;
 using chronon3d::content::text_reveal::font_regular;
@@ -76,7 +77,13 @@ void add_bg(SceneBuilder& s) {
 
 // Centered text params (for easy animations)
 TextSpec txt_center(std::string text, f32 font_size = 72.0f) {
-    return TextSpec{.content = {.value = std::move(text)},.position = {0.0f, 0.0f, 0.0f},.font = {.font_path = FONT_REGULAR, .font_size = font_size},.layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 1.22f, .tracking = 4.0f},.appearance = {.color = TEXT_COLOR},};
+    return TextSpec{
+        .content = {.value = std::move(text)},
+        .font = {.font_path = FONT_REGULAR, .font_size = font_size},
+        .layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 1.22f, .tracking = 4.0f},
+        .appearance = {.color = TEXT_COLOR},
+        .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}},
+    };
 }
 
 // ── make_easy_anim ─────────────────────────────────────────────────────────
@@ -95,41 +102,6 @@ TextSpec txt_center(std::string text, f32 font_size = 72.0f) {
 
 // ── Tracking constant (kept local for typewriter section below) ────
 constexpr f32 TRACKING = 4.0f;
-
-// Build a 2-line typewriter block — all lines share the SAME left edge
-void build_2line_typewriter(SceneBuilder& s,
-                            const std::string& line1, f32 size1,
-                            const std::string& line2, f32 size2,
-                            f32 start_delay_2 = 36.0f,
-                            f32 line_spacing = 85.0f,
-                            bool slide_up = false,
-                            f32 glow_intensity = 0.0f)
-{        auto spec = font_regular();
-        f32 w1 = measure_text_width(line1, size1, spec, TRACKING, *s.font_engine());
-        f32 w2 = measure_text_width(line2, size2, spec, TRACKING, *s.font_engine());
-    f32 max_w = std::max(w1, w2);
-    f32 ref_x = -max_w * 0.5f;
-
-    auto d1 = TextRevealDescriptor{
-        .text = line1, .font_size = size1, .font_spec = spec,
-        .tracking = TRACKING, .ref_offset_x = ref_x,
-        .base_pos = {0.0f, BASE_Y - line_spacing * 0.5f, 0.0f},
-        .start_delay = 0.0f, .duration = 8.0f, .stagger = 2.0f,
-        .slide_up = slide_up, .pin_to_center = true,
-        .color = TEXT_COLOR, .add_shadow = true, .shadow_color = SHADOW_COLOR,
-        .glow_intensity = glow_intensity,
-        .layer_prefix = "ch_0"
-    };
-    build_text_reveal_line(s, d1);
-
-    auto d2 = d1;
-    d2.text = line2;
-    d2.font_size = size2;
-    d2.base_pos = {0.0f, BASE_Y + line_spacing * 0.5f, 0.0f};
-    d2.start_delay = start_delay_2;
-    d2.layer_prefix = "ch_1";
-    build_text_reveal_line(s, d2);
-}
 
 } // anonymous namespace
 
@@ -280,18 +252,18 @@ Composition anim_typewriter_cursor() {
 
             // Blink: 6 frames on, 6 frames off, starting after cursor_delay
             auto& op = l.opacity_anim();
-            op.key(Frame{0}, 0.0f, EasingCurve{Easing::Hold});
-            op.key(Frame{static_cast<Frame>(cursor_delay)}, 0.0f, EasingCurve{Easing::Hold});
-            op.key(Frame{static_cast<Frame>(cursor_delay)}, 1.0f, EasingCurve{Easing::Linear});
+            op.add_keyframe(Frame{0}, 0.0f, EasingCurve{Easing::Hold});
+            op.add_keyframe(Frame{static_cast<Frame>(cursor_delay)}, 0.0f, EasingCurve{Easing::Hold});
+            op.add_keyframe(Frame{static_cast<Frame>(cursor_delay)}, 1.0f, EasingCurve{Easing::Linear});
             for (f32 t = cursor_delay + 6.0f; t < 120.0f; t += 12.0f) {
-                op.key(Frame{static_cast<Frame>(t)}, 0.0f, EasingCurve{Easing::Linear});
-                op.key(Frame{static_cast<Frame>(t + 6.0f)}, 1.0f, EasingCurve{Easing::Linear});
+                op.add_keyframe(Frame{static_cast<Frame>(t)}, 0.0f, EasingCurve{Easing::Linear});
+                op.add_keyframe(Frame{static_cast<Frame>(t + 6.0f)}, 1.0f, EasingCurve{Easing::Linear});
             }
 
             TextSpec ts;
             ts.content.value = "|";
             ts.layout.box = {20.0f, BOX_H};
-            ts.position = {0.0f, 0.0f, 0.0f};
+            ts.placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}};
             ts.font.font_path = FONT_REGULAR;
             ts.font.font_size = 76.0f;
             ts.appearance.color = TEXT_COLOR;
