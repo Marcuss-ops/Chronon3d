@@ -28,9 +28,14 @@ endif()
 chronon3d_add_test_suite(
     NAME chronon3d_pipeline_parity_tests
     TIER INTEGRATION
-    LINK_TARGETS chronon3d_text_core chronon3d_scene chronon3d_core
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_pipeline_parity.cpp
 )
+
+# The test instantiates TextRunLayout and uses the software renderer, so it
+# needs the full pipeline plus the text backend when text is enabled.
+if(TARGET chronon3d_backend_text)
+    target_link_libraries(chronon3d_pipeline_parity_tests PRIVATE chronon3d_backend_text)
+endif()
 
 # Wire into the FAST test aggregator (math + harness, no rendering
 # backend required). Mirrors the pattern used for chronon3d_text_definition_tests

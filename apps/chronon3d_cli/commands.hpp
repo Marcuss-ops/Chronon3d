@@ -68,6 +68,10 @@ struct RenderPipelineArgs {
     // Text layout debug overlay + structured log per TextRun.
     bool text_layout_debug{false};
 
+    // Diagnostic overlay flags (mirror RenderPolicy).
+    bool diagnostic_overlay{false};
+    bool diagnostic_overlay_only{false};
+
     // Text layout debug JSON export path.
     // When non-empty and text_layout_debug is true, writes a JSON file
     // with per-TextRun bounds data (alpha_bounds, layout_bounds,
@@ -211,6 +215,8 @@ struct BakeLayerArgs {
     std::string output;
     bool quiet{false};
     bool diagnostic{false};
+    bool diagnostic_overlay{false};
+    bool diagnostic_overlay_only{false};
     bool exr_bake{false};
 };
 
@@ -234,6 +240,8 @@ struct TextAuditArgs {
     int   max_border_alpha_pixels{0};
     float glyph_tolerance{0.01f};
     int   alpha_threshold{8};
+    bool  diagnostic_overlay{false};      // enable diagnostic text overlay
+    bool  diagnostic_overlay_only{false};   // render only the diagnostic overlay
 };
 
 // §12 FU09 — TICKET-SIMPLICITY-INSPECT-TEXT: per-node TextRun audit
