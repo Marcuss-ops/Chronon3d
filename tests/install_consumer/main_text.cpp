@@ -17,17 +17,9 @@
 //   (b) Con testo → pixel finali
 // Se la differenza pixel-by-pixel è zero (soglia > 30/255 in almeno
 // un canale) → FAIL: il testo non è visibile.
-#include <chronon3d/sdk/render_engine.hpp>
-#include <chronon3d/sdk/render_output.hpp>
-#include <chronon3d/sdk/render_error.hpp>
-#include <chronon3d/sdk/render_request.hpp>
-#include <chronon3d/sdk/render_settings.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/text/text_run_shape.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
+
+#include <chronon3d/chronon3d.hpp>
+
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -144,13 +136,12 @@ static c3d::Composition make_text_composition(const char* assets_root) {
             // Text layer
             s.layer("title", [](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Text);
-                l.text("hello", c3d::TextSpec{.content = {.value = "TEXT EXPORT V1"}, .placement = c3d::TextPlacement{
-                        c3d::TextPlacementKind::Absolute, {320.0f, 180.0f}}, .font = {.font_path = "fonts/Inter-Bold.ttf",
+                l.text("hello", c3d::TextSpec{.content = {.value = "TEXT EXPORT V1"},.font = {.font_path = "fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
-                             .font_size = 48.0f}, .layout = {.box = {640.0f, 360.0f},
+                             .font_size = 48.0f},.layout = {.box = {640.0f, 360.0f},
                                .align = c3d::TextAlign::Center,
-                               .vertical_align = c3d::VerticalAlign::Middle}, .appearance = {.color = c3d::Color::white()}});
+                               .vertical_align = c3d::VerticalAlign::Middle},.appearance = {.color = c3d::Color::white()},});
             });
             return s.build();
         });

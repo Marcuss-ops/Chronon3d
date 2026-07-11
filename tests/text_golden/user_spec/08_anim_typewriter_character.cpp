@@ -74,6 +74,7 @@ Composition build_test08_composition(SoftwareRenderer& renderer) {
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("typewriter", {
                     .content = {.value = "TYPEWRITER TEST"},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -82,7 +83,6 @@ Composition build_test08_composition(SoftwareRenderer& renderer) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f, 0.0f}
                 });
             });
             return s.build();
@@ -97,7 +97,9 @@ TEST_CASE("UserSpec 08: typewriter character animation — frame 0 (empty)") {
     auto fb = renderer.render(comp, Frame{0});
     REQUIRE(fb != nullptr);
     auto result = verify_golden(*fb, "user_spec_08_anim_typewriter_f00", make_test08_config());
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 TEST_CASE("UserSpec 08: typewriter character animation — frame 7 (mid)") {
@@ -106,7 +108,8 @@ TEST_CASE("UserSpec 08: typewriter character animation — frame 7 (mid)") {
     auto fb = renderer.render(comp, Frame{7});
     REQUIRE(fb != nullptr);
     auto result = verify_golden(*fb, "user_spec_08_anim_typewriter_f07", make_test08_config());
-    REQUIRE_GOLDEN_PASSED(result);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 TEST_CASE("UserSpec 08: typewriter character animation — frame 14 (full)") {
@@ -115,5 +118,6 @@ TEST_CASE("UserSpec 08: typewriter character animation — frame 14 (full)") {
     auto fb = renderer.render(comp, Frame{14});
     REQUIRE(fb != nullptr);
     auto result = verify_golden(*fb, "user_spec_08_anim_typewriter_f14", make_test08_config());
-    REQUIRE_GOLDEN_PASSED(result);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }

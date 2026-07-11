@@ -71,6 +71,7 @@ Composition build_test12_composition(SoftwareRenderer& renderer, int fps, int sa
             s.layer("hero", [x_pos](LayerBuilder& l) {
                 l.text("rate", {
                     .content = {.value = "FRAME RATE TEST"},
+                    .position = {x_pos, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -79,7 +80,6 @@ Composition build_test12_composition(SoftwareRenderer& renderer, int fps, int sa
                                .align = TextAlign::Left,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{1.0f, 0.95f, 0.5f, 1.0f}},
-                    .position = {x_pos, 540.0f, 0.0f}
                 });
             });
             return s.build();
@@ -93,7 +93,8 @@ TEST_CASE("UserSpec 12: framerate determinism — 24fps @ frame 12") {
     auto fb = renderer.render(build_test12_composition(renderer, 24, 12), Frame{12});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_12_framerate_24fps", make_test12_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("UserSpec 12: framerate determinism — 30fps @ frame 15") {
@@ -101,7 +102,8 @@ TEST_CASE("UserSpec 12: framerate determinism — 30fps @ frame 15") {
     auto fb = renderer.render(build_test12_composition(renderer, 30, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_12_framerate_30fps", make_test12_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("UserSpec 12: framerate determinism — 60fps @ frame 30") {
@@ -109,5 +111,6 @@ TEST_CASE("UserSpec 12: framerate determinism — 60fps @ frame 30") {
     auto fb = renderer.render(build_test12_composition(renderer, 60, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_12_framerate_60fps", make_test12_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

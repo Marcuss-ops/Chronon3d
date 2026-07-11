@@ -2,7 +2,7 @@
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/animation/motion/motion.hpp>
+#include <chronon3d/animation/motion/timeline.hpp>
 #include <functional>
 #include <string>
 
@@ -47,7 +47,7 @@ inline void add_black_background(SceneBuilder& s) {
 // fully supports the extended layout fields (TextAnchor::Center,
 // TextCenteringMode::PixelInk, TextWrap::Word, etc.).
 inline TextSpec make_text(const std::string& text, f32 font_size = 64.0f) {
-    return TextSpec{.content = {.value = text}, .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}, .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = font_size}, .layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 0.95f, .tracking = 3.0f}, .appearance = {.color = TEXT_COLOR}};
+    return TextSpec{.content = {.value = text},.position = {0.0f, 0.0f, 0.0f},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = font_size},.layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 0.95f, .tracking = 3.0f},.appearance = {.color = TEXT_COLOR},};
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -59,7 +59,7 @@ inline TextSpec make_text(const std::string& text, f32 font_size = 64.0f) {
 //   - the TextSpec (so make_text() vs txt_center() variants stay available)
 //   - the background style (TextAnimBg)
 //   - a setup lambda that wires position_anim / scale_anim / opacity_anim
-//     using chronon3d::MotionTimeline<T> for declarative easing.
+//     using motion::Timeline<T> for declarative easing.
 //
 // The helper handles the shared skeleton (bg layer + centered text layer
 // + drop shadow + text spec) so composition authors write only anim logic.
@@ -106,7 +106,7 @@ inline Composition make_text_anim(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Convenience: chronon3d::MotionTimeline<Vec3> / <f32> shorthands for the common
+//  Convenience: motion::Timeline<Vec3> / <f32> shorthands for the common
 //  "in / out" animation shape used by all 5 easy + 3 basic anims.
 //
 //  Animations finish at Frame{6} on duration=60 compositions, matching the
@@ -117,12 +117,12 @@ inline Composition make_text_anim(
 //      then holds for the remaining frames.  Using Frame{6} explicitly yields
 //      the same visual behaviour.
 
-inline chronon3d::MotionTimeline<f32> text_anim_opacity(f32 peak = 1.0f, Frame done_at = Frame{6}) {
-    return chronon3d::timeline(0.0f).to(done_at, peak, Easing::OutCubic);
+inline motion::Timeline<f32> text_anim_opacity(f32 peak = 1.0f, Frame done_at = Frame{6}) {
+    return motion::timeline(0.0f).to(done_at, peak, Easing::OutCubic);
 }
 
-inline chronon3d::MotionTimeline<f32> text_anim_opacity_outback(Frame done_at = Frame{6}) {
-    return chronon3d::timeline(0.0f).to(done_at, 1.0f, Easing::OutBack);
+inline motion::Timeline<f32> text_anim_opacity_outback(Frame done_at = Frame{6}) {
+    return motion::timeline(0.0f).to(done_at, 1.0f, Easing::OutBack);
 }
 
 } // namespace chronon3d::content::animation_helpers

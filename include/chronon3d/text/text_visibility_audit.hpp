@@ -219,9 +219,10 @@ struct TextVisibilityAudit {
 ///
 /// Returns by value; the caller reads the populated struct.
 ///
-/// No globals. No side effects. No allocations beyond the small fixed-size
-/// return value (Rect × 6 + bool × 6 + size_t + enum). Marked `[[nodiscard]]`
-/// so callers cannot accidentally drop the audit.
+/// No globals. No side effects. The hot path performs no allocations;
+/// the fallback path for shapes without animated glyph instances may
+/// allocate a small `std::vector<GlyphInstanceState>`. Marked
+/// `[[nodiscard]]` so callers cannot accidentally drop the audit.
 [[nodiscard]] TextVisibilityAudit audit_text_visibility(
     const TextRunShape& shape,
     const Mat4&         world_matrix,

@@ -19,17 +19,9 @@
 //   cp -r ../assets/fonts .   # font must be at CWD-relative path
 //   ./text_export_consumer
 // ═══════════════════════════════════════════════════════════════════════════
-#include <chronon3d/sdk/render_engine.hpp>
-#include <chronon3d/sdk/render_output.hpp>
-#include <chronon3d/sdk/render_error.hpp>
-#include <chronon3d/sdk/render_request.hpp>
-#include <chronon3d/sdk/render_settings.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/text/text_run_shape.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
+
+#include <chronon3d/chronon3d.hpp>
+
 #include <cstdio>
 #include <filesystem>
 
@@ -65,13 +57,12 @@ int main() {
             // Title text — centered white text
             s.layer("title", [](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Text);
-                l.text("title", c3d::TextSpec{.content = {.value = "Hello, Chronon3D!"}, .placement = c3d::TextPlacement{
-                        c3d::TextPlacementKind::Absolute, {640.0f, 360.0f}}, .font = {.font_path = "fonts/Inter-Bold.ttf",
+                l.text("title", c3d::TextSpec{.content = {.value = "Hello, Chronon3D!"},.font = {.font_path = "fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
-                             .font_size = 72.0f}, .layout = {.box = {1280.0f, 720.0f},
+                             .font_size = 72.0f},.layout = {.box = {1280.0f, 720.0f},
                                .align = c3d::TextAlign::Center,
-                               .vertical_align = c3d::VerticalAlign::Middle}, .appearance = {.color = c3d::Color::white()}});
+                               .vertical_align = c3d::VerticalAlign::Middle},.appearance = {.color = c3d::Color::white()},});
             });
 
             return s.build();

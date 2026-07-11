@@ -35,17 +35,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>
-#include <chronon3d/sdk/render_engine.hpp>
-#include <chronon3d/sdk/render_output.hpp>
-#include <chronon3d/sdk/render_error.hpp>
-#include <chronon3d/sdk/render_request.hpp>
-#include <chronon3d/sdk/render_settings.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/text/text_run_shape.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
+
+#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
@@ -238,10 +229,10 @@ OverlayResult render_with_overlay(SoftwareRenderer& renderer, ClipVariant varian
             // Text layer — canary at canvas center
             s.layer("text", [&renderer, clip_rect](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text("label", TextSpec{.content = {.value = std::string(kCanaryText)}, .font = {.font_size = 96.0f}, .layout = {.box = Vec2{900.0f, 200.0f},
+                l.text("label", TextSpec{.content    = {.value = std::string(kCanaryText)},.position   = Vec3{960.0f, 540.0f, 0.0f},.font       = {.font_size = 96.0f},.layout     = {.box = Vec2{900.0f, 200.0f},
                                    .anchor = TextAnchor::Center,
                                    .align  = TextAlign::Center,
-                                   .vertical_align = VerticalAlign::Middle}});
+                                   .vertical_align = VerticalAlign::Middle},});
             });
 
             return s.build();
@@ -320,7 +311,9 @@ TEST_CASE("DiagnosticOverlay: clip_06_baseline 1920x1080 F0") {
 
     auto cfg = overlay_golden_config();
     auto golden = verify_golden(*result.fb, "clip_06_baseline", cfg);
-    REQUIRE_GOLDEN_PASSED(golden);
+    INFO("Golden: ", golden.message);
+    REQUIRE_FALSE(golden.golden_missing);
+    CHECK(golden.passed);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -335,7 +328,9 @@ TEST_CASE("DiagnosticOverlay: clip_06_expanded 1920x1080 F0") {
 
     auto cfg = overlay_golden_config();
     auto golden = verify_golden(*result.fb, "clip_06_expanded", cfg);
-    REQUIRE_GOLDEN_PASSED(golden);
+    INFO("Golden: ", golden.message);
+    REQUIRE_FALSE(golden.golden_missing);
+    CHECK(golden.passed);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -350,7 +345,9 @@ TEST_CASE("DiagnosticOverlay: clip_06_conservative 1920x1080 F0") {
 
     auto cfg = overlay_golden_config();
     auto golden = verify_golden(*result.fb, "clip_06_conservative", cfg);
-    REQUIRE_GOLDEN_PASSED(golden);
+    INFO("Golden: ", golden.message);
+    REQUIRE_FALSE(golden.golden_missing);
+    CHECK(golden.passed);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -365,7 +362,9 @@ TEST_CASE("DiagnosticOverlay: clip_06_full 1920x1080 F0") {
 
     auto cfg = overlay_golden_config();
     auto golden = verify_golden(*result.fb, "clip_06_full", cfg);
-    REQUIRE_GOLDEN_PASSED(golden);
+    INFO("Golden: ", golden.message);
+    REQUIRE_FALSE(golden.golden_missing);
+    CHECK(golden.passed);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -380,5 +379,7 @@ TEST_CASE("DiagnosticOverlay: clip_06_off 1920x1080 F0") {
 
     auto cfg = overlay_golden_config();
     auto golden = verify_golden(*result.fb, "clip_06_off", cfg);
-    REQUIRE_GOLDEN_PASSED(golden);
+    INFO("Golden: ", golden.message);
+    REQUIRE_FALSE(golden.golden_missing);
+    CHECK(golden.passed);
 }

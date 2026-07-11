@@ -140,7 +140,9 @@ TEST_CASE("PresetsGolden: title_centered 'CHRONON3D' 1920x1080 F0") {
 
     auto cfg = presets_golden_config();
     auto result = verify_golden(*rendered.fb, "preset_title_centered_1920x1080_F0", cfg);
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -155,7 +157,9 @@ TEST_CASE("PresetsGolden: subtitle_bottom 'a subtitle' 1920x1080 F0") {
 
     auto cfg = presets_golden_config();
     auto result = verify_golden(*rendered.fb, "preset_subtitle_bottom_1920x1080_F0", cfg);
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -170,7 +174,9 @@ TEST_CASE("PresetsGolden: caption_safe_area 'a caption' 1920x1080 F0") {
 
     auto cfg = presets_golden_config();
     auto result = verify_golden(*rendered.fb, "preset_caption_safe_area_1920x1080_F0", cfg);
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -185,7 +191,9 @@ TEST_CASE("PresetsGolden: kinetic_word 'HERO' 1920x1080 F0") {
 
     auto cfg = presets_golden_config();
     auto result = verify_golden(*rendered.fb, "preset_kinetic_word_1920x1080_F0", cfg);
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -200,5 +208,7 @@ TEST_CASE("PresetsGolden: lower_third 'MARCO ROSSI' 1920x1080 F0") {
 
     auto cfg = presets_golden_config();
     auto result = verify_golden(*rendered.fb, "preset_lower_third_1920x1080_F0", cfg);
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }

@@ -158,11 +158,8 @@ bool render_and_verify_devanagari(
             std::string{"multilingual_devanagari_conjuncts_"} + case_slug + "_1920x1080",
             make_devanagari_config(std::string{case_slug} + "_1920x1080"));
         INFO("Golden (1920x1080): ", r.message);
-        if (r.golden_missing) {
-            MESSAGE("Golden missing (1920x1080) — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        } else {
-            if (!r.passed) return false;
-        }
+        REQUIRE_FALSE(r.golden_missing);
+        if (!r.passed) return false;
     }
     // 1080×1920 portrait golden
     {
@@ -176,11 +173,8 @@ bool render_and_verify_devanagari(
             std::string{"multilingual_devanagari_conjuncts_"} + case_slug + "_1080x1920",
             make_devanagari_config(std::string{case_slug} + "_1080x1920"));
         INFO("Golden (1080x1920): ", r.message);
-        if (r.golden_missing) {
-            MESSAGE("Golden missing (1080x1920) — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        } else {
-            if (!r.passed) return false;
-        }
+        REQUIRE_FALSE(r.golden_missing);
+        if (!r.passed) return false;
     }
     return true;
 }

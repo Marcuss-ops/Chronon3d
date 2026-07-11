@@ -98,6 +98,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                 const float dy = translate_y_for(frame_idx);
                 l.text("multiline", {
                     .content = {.value = "LINE ONE\nLINE TWO\nLINE THREE"},
+                    .position = {960.0f, 540.0f + dy, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -106,8 +107,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle,
                                .max_lines = 3},
-                    .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f + dy, 0.0f}
+                    .appearance = {.color = Color::white()}
                 });
                 l.opacity(opacity_for(frame_idx));
             });
@@ -139,7 +139,6 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .vertical_align = VerticalAlign::Middle,
                                .max_lines = 3},
                     .appearance = {.color = Color::white()},
-                    .position = {540.0f, 960.0f + dy, 0.0f}
                 });
                 l.opacity(opacity_for(frame_idx));
             });
@@ -156,7 +155,8 @@ TEST_CASE("AE 14 multiline_9_16 16x9 f00") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_14_multiline_9_16_16x9_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 14 multiline_9_16 16x9 f15") {
@@ -166,7 +166,8 @@ TEST_CASE("AE 14 multiline_9_16 16x9 f15") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_14_multiline_9_16_16x9_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 14 multiline_9_16 16x9 f30") {
@@ -176,7 +177,8 @@ TEST_CASE("AE 14 multiline_9_16 16x9 f30") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_14_multiline_9_16_16x9_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 14 multiline_9_16 9x16 f00") {
@@ -186,7 +188,8 @@ TEST_CASE("AE 14 multiline_9_16 9x16 f00") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_14_multiline_9_16_9x16_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 14 multiline_9_16 9x16 f15") {
@@ -196,7 +199,8 @@ TEST_CASE("AE 14 multiline_9_16 9x16 f15") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_14_multiline_9_16_9x16_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 14 multiline_9_16 9x16 f30") {
@@ -206,5 +210,6 @@ TEST_CASE("AE 14 multiline_9_16 9x16 f30") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_14_multiline_9_16_9x16_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

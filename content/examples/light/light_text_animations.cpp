@@ -21,6 +21,7 @@
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/animation/motion/timeline.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/text_definition.hpp>
 
@@ -46,7 +47,7 @@ Composition make_light_comp(const char* name, const std::string& text,
                 l.pin_to(Anchor::Center);
                 setup(l);
                 // l.glow(TextGlowPresets::ae_cinematic_white().to_glow_params());
-                l.text("label", from_text_spec(TextSpec{.content = {.value = text}, .font = {.font_size = 90.0f}, .layout = {.box = {1200.0f, 240.0f}, .tracking = 6.0f}, .appearance = {.color = {0.95f, 0.96f, 0.99f, 1.0f}}}));
+                l.text("label", from_text_spec(TextSpec{.content    = {.value = text},.font       = {.font_size = 90.0f},.layout     = {.box = {1200.0f, 240.0f}, .tracking = 6.0f},.appearance = {.color = {0.95f, 0.96f, 0.99f, 1.0f}},}));
             });
             return s.build();
         });

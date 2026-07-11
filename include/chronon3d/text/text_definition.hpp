@@ -81,9 +81,9 @@
                                                   // VerticalAlign, TextWrap, TextOverflow,
                                                   // TextCenteringMode
 #include <chronon3d/text/text_material.hpp>       // TextMaterial
-#include <chronon3d/text/text_placement.hpp>       // TextPlacement, TextPlacementKind
 #include <chronon3d/scene/model/shape/shape.hpp>  // TextPaint, TextShadow
 #include <chronon3d/scene/builders/builder_params.hpp>  // TextContent (canonical), TextSpec, TextRunSpec
+#include <chronon3d/text/text_placement.hpp>          // TextPlacement, TextPlacementKind
 
 // Phase A.3 — TextAnimation fields (TextAnimatorSpec, GlyphSelectorSpec,
 // TextDirection, Frame).  Included directly (not via the compat shim) for
@@ -278,9 +278,8 @@ struct TextDefinition {
 //   def.content.value = spec.content.value;
 //   def.style.font    = spec.font;
 //   def.style.color   = spec.appearance.color;
-//   def.frame.size      = spec.layout.box;
-//   def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
-//                                       Vec2{spec.position.x, spec.position.y}};
+//   def.frame.size    = spec.layout.box;
+//   def.frame.position = spec.position;
 //   // ... etc.
 
 /// Convert a TextSpec to the canonical TextDefinition.
@@ -292,8 +291,15 @@ struct TextDefinition {
 /// Full implementation in src/text/text_definition.cpp.
 [[nodiscard]] TextDefinition from_text_run_spec(const TextRunSpec& spec);
 
-/// F2.C — Reverse adapter: convert the canonical TextDefinition back to
-/// TextSpec (the editor / authoring spec).
+/// Convert the canonical TextDefinition back to a TextSpec.
+/// This is the reverse adapter of from_text_spec(); it maps
+///   def.content → spec.content
+///   def.style   → spec.font / spec.appearance
+///   def.frame   → spec.layout / spec.position
+///   def.paragraph → spec.layout.paragraph
+/// Note: the z component of spec.position is always 0 because
+/// TextFrame stores only a 2D TextPlacement offset.
+/// Full implementation in src/text/text_definition.cpp.
 [[nodiscard]] TextSpec from_text_definition(const TextDefinition& def);
 
 /// F2.D — Reverse adapter: convert the canonical TextDefinition back to

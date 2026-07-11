@@ -66,6 +66,7 @@ Composition build_test05_composition(SoftwareRenderer& renderer) {
                 l.text("t", {
                     // U+0633 U+0644 U+0627 U+0645 → "سلام" (Arabic for "peace")
                     .content = {.value = "Hello \xd8\xb3\xd9\x84\xd8\xa7\xd9\x85 World"},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -74,7 +75,6 @@ Composition build_test05_composition(SoftwareRenderer& renderer) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f, 0.0f}
                 });
             });
             return s.build();
@@ -90,5 +90,7 @@ TEST_CASE("UserSpec 05: bidi English+Arabic mixed — 1920x1080 FriBidi REQUIRED
     REQUIRE(fb != nullptr);
 
     auto result = verify_golden(*fb, "user_spec_05_bidi_english_arabic_mixed", make_test05_config());
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }

@@ -12,17 +12,6 @@
 
 namespace chronon3d {
 
-/// Shared context passed to all panel drawing functions.
-struct OverlayContext {
-    LayerBuilder& layer;
-    const CameraShotReport& report;
-    const Camera2_5D& camera;
-    const ResolvedSceneTransforms& resolved;
-    Viewport viewport;
-    CameraDebugOverlayOptions options;
-    const CameraPathVisualization* path;
-};
-
 // ── HUD panels (safe area, target, bounds, null/parent markers) ────
 
 void draw_safe_area_and_target(const OverlayContext& ctx, bool& has_target, ScreenPoint& sp, Color& target_color);

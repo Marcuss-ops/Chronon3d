@@ -127,7 +127,9 @@ void verify_placement(Composition& comp, Frame frame,
 
     auto cfg = make_placement_config();
     auto result = verify_golden(*fb, label, cfg);
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 // ── Alpha centroid ───────────────────────────────────────────────────────
@@ -347,7 +349,8 @@ TEST_CASE("TextPlace AntiDouble Animated — centroid offset at f0") {
     auto cfg = make_placement_config();
     auto result = verify_golden(*fb, "text_placement_antidouble_animated_f0", cfg);
     INFO("Golden: ", result.message);
-    REQUIRE_GOLDEN_PASSED(result);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 // B.3 — Animated text at frame 30 (settled): centroid on-canvas, near

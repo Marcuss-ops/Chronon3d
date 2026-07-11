@@ -60,11 +60,7 @@ GoldenTestConfig make_golden_config() {
 
 void verify_node_golden(const Framebuffer& fb, const std::string& name) {
     const auto result = verify_golden(fb, name, make_golden_config());
-    if (result.golden_missing) {
-        MESSAGE("Golden missing: ", result.golden_path.string(),
-                " — Set CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
+    REQUIRE_FALSE(result.golden_missing);
     INFO(result.message);
     CHECK(result.passed);
 }

@@ -79,7 +79,7 @@ Composition make_ae_08_glow_pulse(const CompositionProps& /*props*/) {
             s.layer("hero", [opacity](LayerBuilder& l) {
                 l.text("glow_pulse", {
                     .content = {.value = "PULSE GLOW"},
-                    .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -87,7 +87,7 @@ Composition make_ae_08_glow_pulse(const CompositionProps& /*props*/) {
                     .layout = {.box = {1700.0f, 360.0f},
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()}
+                    .appearance = {.color = Color::white()},
                 });
                 l.opacity(opacity);
             });
@@ -118,7 +118,7 @@ Composition make_ae_10_scale_pop(const CompositionProps& /*props*/) {
             s.layer("hero", [opacity](LayerBuilder& l) {
                 l.text("scale_pop", {
                     .content = {.value = "POP IN"},
-                    .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -126,7 +126,7 @@ Composition make_ae_10_scale_pop(const CompositionProps& /*props*/) {
                     .layout = {.box = {1700.0f, 360.0f},
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()}
+                    .appearance = {.color = Color::white()},
                 });
                 l.opacity(opacity);
             });
@@ -157,7 +157,7 @@ Composition make_ae_12_random_character_jitter(const CompositionProps& /*props*/
             s.layer("hero", [jitter, opacity](LayerBuilder& l) {
                 l.text("random_jitter", {
                     .content = {.value = "JITTER"},
-                    .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f}},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -165,7 +165,7 @@ Composition make_ae_12_random_character_jitter(const CompositionProps& /*props*/
                     .layout = {.box = {1700.0f, 360.0f},
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()}
+                    .appearance = {.color = Color::white()},
                 });
                 l.position(Vec3{jitter.x, jitter.y, 0.0f});
                 l.opacity(opacity);
@@ -197,7 +197,7 @@ Composition make_ae_14_multiline_landscape(const CompositionProps& /*props*/) {
             s.layer("hero", [dy, opacity](LayerBuilder& l) {
                 l.text("multiline", {
                     .content = {.value = "LINE ONE\nLINE TWO\nLINE THREE"},
-                    .placement = {TextPlacementKind::Absolute, {960.0f, 540.0f + dy}},
+                    .position = {960.0f, 540.0f + dy, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -206,7 +206,7 @@ Composition make_ae_14_multiline_landscape(const CompositionProps& /*props*/) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle,
                                .max_lines = 3},
-                    .appearance = {.color = Color::white()}
+                    .appearance = {.color = Color::white()},
                 });
                 l.opacity(opacity);
             });
@@ -236,7 +236,7 @@ Composition make_motion_blur_text(const CompositionProps& /*props*/) {
             s.layer("hero", [dx](LayerBuilder& l) {
                 l.text("motion_blur", {
                     .content = {.value = "MOTION BLUR"},
-                    .placement = {TextPlacementKind::Absolute, {640.0f + dx, 360.0f}},
+                    .position = {640.0f + dx, 360.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -244,7 +244,7 @@ Composition make_motion_blur_text(const CompositionProps& /*props*/) {
                     .layout = {.box = {1100.0f, 300.0f},
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()}
+                    .appearance = {.color = Color::white()},
                 });
             });
             return s.build();

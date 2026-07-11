@@ -85,10 +85,7 @@ bool render_and_verify(Composition& comp, Frame frame,
     REQUIRE(fb != nullptr);
 
     auto result = verify_golden(*fb, case_name, cfg);
-    if (result.golden_missing) {
-        MESSAGE("Golden missing: " << result.golden_path.string()
-                << ". Set CHRONON3D_UPDATE_GOLDENS=1 to create.");
-    }
+    REQUIRE_FALSE(result.golden_missing);
     INFO(result.message);
     CHECK(result.passed);
     return result.passed;

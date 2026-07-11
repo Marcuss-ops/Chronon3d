@@ -145,7 +145,9 @@ TEST_CASE("Multilingual.KerningPairs 01: hero 200pt — 1920x1080") {
 
     auto r = verify_golden(*fb, "multilingual_kerning_pairs_01_hero_200pt",
                            make_kerning_config("01_hero_200pt"));
-    REQUIRE_GOLDEN_PASSED(r);
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 // ═══ Test 2 — Kerning at 96pt (body size) ══════════════════════════════
@@ -157,7 +159,9 @@ TEST_CASE("Multilingual.KerningPairs 02: body 96pt — 1920x1080") {
 
     auto r = verify_golden(*fb, "multilingual_kerning_pairs_02_body_96pt",
                            make_kerning_config("02_body_96pt"));
-    REQUIRE_GOLDEN_PASSED(r);
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 // ═══ Test 3 — Kerning + tracking +8px ══════════════════════════════════
@@ -169,5 +173,7 @@ TEST_CASE("Multilingual.KerningPairs 03: kerning + tracking +8px — 1920x1080")
 
     auto r = verify_golden(*fb, "multilingual_kerning_pairs_03_with_tracking",
                            make_kerning_config("03_with_tracking"));
-    REQUIRE_GOLDEN_PASSED(r);
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

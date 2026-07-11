@@ -76,6 +76,7 @@ Composition build_test09_composition(SoftwareRenderer& renderer) {
             s.layer("wave", [&, base_y](LayerBuilder& l) {
                 l.text("wave", {
                     .content = {.value = text},
+                    .position = {960.0f, base_y, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -84,7 +85,6 @@ Composition build_test09_composition(SoftwareRenderer& renderer) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.4f, 0.85f, 1.0f, 1.0f}},
-                    .position = {960.0f, base_y, 0.0f}
                 });
             });
             return s.build();
@@ -98,7 +98,8 @@ TEST_CASE("UserSpec 09: character offset wave — frame 0") {
     auto fb = renderer.render(build_test09_composition(renderer), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_09_anim_wave_f00", make_test09_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("UserSpec 09: character offset wave — frame 20") {
@@ -106,7 +107,8 @@ TEST_CASE("UserSpec 09: character offset wave — frame 20") {
     auto fb = renderer.render(build_test09_composition(renderer), Frame{20});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_09_anim_wave_f20", make_test09_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("UserSpec 09: character offset wave — frame 40") {
@@ -114,5 +116,6 @@ TEST_CASE("UserSpec 09: character offset wave — frame 40") {
     auto fb = renderer.render(build_test09_composition(renderer), Frame{40});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_09_anim_wave_f40", make_test09_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

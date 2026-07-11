@@ -126,7 +126,7 @@ TEST_CASE("RenderNode content hash ignores placement but honors policy") {
     // (independent of materialization).  The test continues to verify
     // that placement changes don't move the content hash and that
     // surface/transform policy moves BOTH content + placement hashes.
-    auto node_a = RenderNodeFactory::text(res, "title", TextSpec{.content = {.value = "This is a long line that should wrap cleanly"}, .font = {.font_size = 72.0f}, .layout = {.box = {640.0f, 180.0f}}});
+    auto node_a = RenderNodeFactory::text(res, "title", TextSpec{.content = {.value = "This is a long line that should wrap cleanly"},.font    = {.font_size = 72.0f},.layout  = {.box = {640.0f, 180.0f}},});
     CHECK(node_a.shape.type() == ShapeType::TextRun);
     auto node_b = node_a;
 

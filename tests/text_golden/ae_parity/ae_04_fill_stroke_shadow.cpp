@@ -72,6 +72,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                 const float w = stroke_width_for(frame_idx);
                 l.text("stroke", {
                     .content = {.value = "OUTLINE"},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -86,8 +87,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                             .stroke_color = Color::black(),
                             .stroke_width = w
                         }
-                    },
-                    .position = {960.0f, 540.0f, 0.0f}
+                    }
                 });
             });
             return s.build();
@@ -122,7 +122,6 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
                             .stroke_width = w
                         }
                     },
-                    .position = {540.0f, 960.0f, 0.0f}
                 });
             });
             return s.build();
@@ -136,40 +135,46 @@ TEST_CASE("AE 04 fill_stroke_shadow 16x9 f00") {
     auto fb = renderer.render(build_landscape(renderer, 0), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_04_fill_stroke_shadow_16x9_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 04 fill_stroke_shadow 16x9 f15") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_landscape(renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_04_fill_stroke_shadow_16x9_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 04 fill_stroke_shadow 16x9 f30") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_landscape(renderer, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_04_fill_stroke_shadow_16x9_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 04 fill_stroke_shadow 9x16 f00") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 0), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_04_fill_stroke_shadow_9x16_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 04 fill_stroke_shadow 9x16 f15") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_04_fill_stroke_shadow_9x16_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 04 fill_stroke_shadow 9x16 f30") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_04_fill_stroke_shadow_9x16_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

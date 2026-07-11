@@ -19,17 +19,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>
-#include <chronon3d/sdk/render_engine.hpp>
-#include <chronon3d/sdk/render_output.hpp>
-#include <chronon3d/sdk/render_error.hpp>
-#include <chronon3d/sdk/render_request.hpp>
-#include <chronon3d/sdk/render_settings.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/text/text_run_shape.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
+
+#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
@@ -71,12 +62,12 @@ Composition build_text_export_composition(SoftwareRenderer& renderer) {
             s.layer("title", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("title", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "TEXT EXPORT V1"}, .placement = {TextPlacementKind::Absolute, {320.0f, 180.0f}}, .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                    .text = TextSpec{.content = {.value = "TEXT EXPORT V1"},.position = {320.0f, 180.0f, 0.0f},.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                                  .font_family = "Inter",
                                  .font_weight = 700,
-                                 .font_size = 48.0f}, .layout = {.box = {640.0f, 360.0f},
+                                 .font_size = 48.0f},.layout = {.box = {640.0f, 360.0f},
                                    .align = TextAlign::Center,
-                                   .vertical_align = VerticalAlign::Middle}, .appearance = {.color = Color::white()}}
+                                   .vertical_align = VerticalAlign::Middle},.appearance = {.color = Color::white()},}
                 }).commit();
             });
 
@@ -126,5 +117,7 @@ TEST_CASE("TextExportGolden: TEXT EXPORT V1 640x360 F0") {
     // Golden diff
     auto cfg = text_export_golden_config();
     auto result = verify_golden(*fb, "text_export_v1_640x360_F000", cfg);
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }

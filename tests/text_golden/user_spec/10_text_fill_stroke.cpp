@@ -63,6 +63,7 @@ Composition build_test10_composition(SoftwareRenderer& renderer) {
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("stroke", {
                     .content = {.value = "STROKE"},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -78,7 +79,6 @@ Composition build_test10_composition(SoftwareRenderer& renderer) {
                             .stroke_width = 8.0f
                         }
                     },
-                    .position = {960.0f, 540.0f, 0.0f}
                 });
             });
             return s.build();
@@ -92,5 +92,6 @@ TEST_CASE("UserSpec 10: text fill + stroke 1920x1080") {
     auto fb = renderer.render(build_test10_composition(renderer), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "user_spec_10_text_fill_stroke", make_test10_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

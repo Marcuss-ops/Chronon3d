@@ -123,6 +123,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                 const Color fill = fill_color_for(frame_idx);
                 l.text("stroke_reveal", {
                     .content = {.value = "OUTLINE -> FILL"},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -137,8 +138,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                             .stroke_color    = Color{0.05f, 0.05f, 0.10f, 1.0f}, // near-black ink
                             .stroke_width    = sw
                         }
-                    },
-                    .position = {960.0f, 540.0f, 0.0f}
+                    }
                 });
             });
             return s.build();
@@ -175,7 +175,6 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
                             .stroke_width    = sw
                         }
                     },
-                    .position = {540.0f, 960.0f, 0.0f}
                 });
             });
             return s.build();
@@ -193,7 +192,8 @@ TEST_CASE("AE 07 stroke_reveal 16x9 f00") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_07_stroke_reveal_16x9_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 07 stroke_reveal 16x9 f15") {
@@ -203,7 +203,8 @@ TEST_CASE("AE 07 stroke_reveal 16x9 f15") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_07_stroke_reveal_16x9_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 07 stroke_reveal 16x9 f30") {
@@ -213,7 +214,8 @@ TEST_CASE("AE 07 stroke_reveal 16x9 f30") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_07_stroke_reveal_16x9_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 // ─── 9:16 lifecycle snapshots ────────────────────────────────────────────────
@@ -225,7 +227,8 @@ TEST_CASE("AE 07 stroke_reveal 9x16 f00") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_07_stroke_reveal_9x16_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 07 stroke_reveal 9x16 f15") {
@@ -235,7 +238,8 @@ TEST_CASE("AE 07 stroke_reveal 9x16 f15") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_07_stroke_reveal_9x16_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 07 stroke_reveal 9x16 f30") {
@@ -245,5 +249,6 @@ TEST_CASE("AE 07 stroke_reveal 9x16 f30") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_07_stroke_reveal_9x16_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

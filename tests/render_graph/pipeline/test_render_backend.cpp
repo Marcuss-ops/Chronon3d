@@ -17,7 +17,7 @@ using namespace chronon3d;
 
 using namespace chronon3d::graph;
 
-class FakeBackend : public RenderBackend {
+class FakeBackend : public graph::RenderBackend {
 public:
     int draw_node_called{0};
     int apply_effect_stack_called{0};

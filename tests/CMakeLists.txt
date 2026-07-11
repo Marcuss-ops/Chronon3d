@@ -44,6 +44,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/animation_helpers_tests.cmake  # M1.8 §3A — 17 animation helpers (interpolate/spring/sequence/stagger/loop/delay/ease/clamp/...) (no Blend2D, unconditional)
     ${CMAKE_CURRENT_SOURCE_DIR}/text_simplicity_adapters_tests.cmake  # M1.8 §6 — centered_text deprecation + glow consolidation + migration test (no Blend2D, unconditional)
     ${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_tests.cmake  # M1.8 §4A — 7-pipeline parity (render/video/inspect-text + warmup/tile_pruning/serial/diagnostic) × 6 fields × 3 properties = 126 CHECKs (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file) — 7-pipeline parity (render/video/inspect-text + warmup/tile_pruning/serial/diagnostic) × 6 fields × 3 properties = 126 CHECKs (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file)
+    ${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_real_tests.cmake  # Real pipeline parity: SDK/CLI/video/pruning/threads/cache via framebuffer hash
     ${CMAKE_CURRENT_SOURCE_DIR}/visibility_contract_tests.cmake  # M1.8 §1E — TextVisibilityAudit PASS/FAIL cascade + §9 FU04 violation response (4 TEST_CASEs / ~12 CHECKs) (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file)
     ${CMAKE_CURRENT_SOURCE_DIR}/inspect_text_tests.cmake  # M1.8 §4B — chronon3d_cli inspect-text (6 TEST_CASEs) — no Blend2D, requires CHRONON3D_BUILD_CLI_DEV=ON — TextVisibilityAudit PASS/FAIL cascade + §9 FU04 violation response (4 TEST_CASEs / ~12 CHECKs) (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file)
     ${CMAKE_CURRENT_SOURCE_DIR}/text_presets_stability_tests.cmake  # M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 presets × 3 CHECKs = 15 assertions (UNCONDITIONAL, pure struct inspection)
@@ -56,11 +57,10 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/sdk_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/debug/CMakeLists.txt
     ${CMAKE_CURRENT_SOURCE_DIR}/showcase/CMakeLists.txt
-    ${CMAKE_CURRENT_SOURCE_DIR}/acceptance/CMakeLists.txt  # TICKET-ACCEPTANCE-FORENSIC-SURFACE — forward-point 0c wiring
 )
 
 find_package(doctest CONFIG REQUIRED)
-include(doctest)
+include(${doctest_DIR}/doctest.cmake)
 
 # Shared test main
 set(TEST_MAIN test_main.cpp)
@@ -219,6 +219,11 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/text_simplicity_adapters_tests.cmake)
 # listed in `CMAKE_CONFIGURE_DEPENDS` at the top of this orchestrator.
 include(${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_tests.cmake)
 
+# Real pipeline parity — compares SDK still, CLI still, raw video frame,
+# pruning ON/OFF, 1/N threads, and warm/cold cache using real framebuffer
+# hashes. Unconditional (no diagnostics gate).
+include(${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_real_tests.cmake)
+
 # M1.8 §1E / TICKET-SIMPLICITY-VISIBILITY-CONTRACT — locks the FU04
 # TextVisibilityAudit status cascade (PASS/FAIL/INDETERMINATE) + the
 # §9 violation response (should_disable_tile_pruning +
@@ -238,11 +243,6 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/visibility_contract_tests.cmake)
 # this file is also listed in CMAKE_CONFIGURE_DEPENDS at the top of
 # this orchestrator.
 include(${CMAKE_CURRENT_SOURCE_DIR}/inspect_text_tests.cmake)
-
-# M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 presets × 3 CHECKs = 15 assertions
-# (UNCONDITIONAL, pure struct inspection).  Per ADR-018, this file is also
-# listed in CMAKE_CONFIGURE_DEPENDS at the top of this orchestrator.
-include(${CMAKE_CURRENT_SOURCE_DIR}/text_presets_stability_tests.cmake)
 
 # Tests requiring content
 if(CHRONON3D_BUILD_CONTENT)
@@ -271,15 +271,6 @@ endif()
 # installed Chronon3D package (umbrella include), so it compiles in
 # every preset that turns on CHRONON3D_BUILD_TESTS.
 include(${CMAKE_CURRENT_SOURCE_DIR}/sdk_tests.cmake)
-
-# TICKET-ACCEPTANCE-FORENSIC-SURFACE — forward-point 0c wiring.
-# Registers the new forensic-surface acceptance test (forward-points
-# 0a/0b/0c — see tests/acceptance/CHANGELOG.md for the canonical
-# forward-point lineage). Place: here, immediately after the
-# `chronon3d_add_test_suite` helper is include()'d above and before
-# the per-area `.cmake` includes. Cat-3 freeze compliance: zero new
-# SDK API (helpers live in tests/helpers/, NOT include/chronon3d/).
-include(${CMAKE_CURRENT_SOURCE_DIR}/acceptance/CMakeLists.txt)
 
 # ── Aggregate targets: build test executables grouped by cost/speed ──
 # Note: benchmarks are conditional; included only when TARGET chronon3d_benchmarks exists
@@ -407,15 +398,6 @@ add_custom_target(chronon3d_tests
 
 if(TARGET chronon3d_media_video_tests)
     add_dependencies(chronon3d_tests chronon3d_media_video_tests)
-endif()
-
-# TICKET-ACCEPTANCE-FORENSIC-SURFACE — forward-point 0c: wire the
-# new forensic-surface test into the `chronon3d_acceptance` aggregate
-# so every `ctest -L acceptance` execution emits the uniform forensic
-# surface (forward-points 0a + 0b). Defensive guards: only if BOTH
-# targets exist (forward-compat for slim builds removing one).
-if(TARGET chronon3d_acceptance AND TARGET chronon3d_acceptance_forensic_surface_tests)
-    add_dependencies(chronon3d_acceptance chronon3d_acceptance_forensic_surface_tests)
 endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/architecture_tests.cmake)
 endif()

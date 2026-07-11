@@ -453,6 +453,13 @@ public:
     /// TextDefinition so they compose directly with this overload.
     LayerBuilder& text(std::string name, const TextDefinition& def);
 
+    /// F3.D — forward-point overload: symmetric counterpart of
+    /// text_run(name, TextRunSpec).  Callers who fully migrate to TextRunSpec
+    /// authoring can use the short-form `layer.text("id", run_spec).commit()`
+    /// instead of the verbose `layer.text_run("id", run_spec).commit()`.
+    /// Sugar only — behaviourally identical to text_run(name, TextRunSpec).commit().
+    LayerBuilder& text(std::string name, TextRunSpec run);
+
     // ── TextRunBuilder (PR 4 — TextAnimator V2) ──────────────────────────
     /// Push a new text-run entry into the layer's pending specs and
     /// return a `TextRunBuilder&` for fluent chaining.  The text-run
@@ -491,7 +498,7 @@ public:
     /// Migration target:
     ///   // OLD (simple static label, ANTI-PATTERN per §5A):
     ///   layer.text_run("hello_id", TextRunParams{
-    ///       .text = TextSpec{ .content = {.value = "HELLO"}, ... },
+    ///       .text = TextSpec{.content = {.value = "HELLO"},},
     ///   }).commit();
     ///
     ///   // NEW (canonical, fluent, ~4 method calls):

@@ -147,3 +147,5 @@ private:
 };
 
 } // namespace chronon3d
+
+#include <chronon3d/scene/builders/detail/scene_builder_sequences.inl>

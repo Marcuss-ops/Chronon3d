@@ -20,11 +20,7 @@ void verify_golden_or_create(
     auto config = camera_golden_config(golden_dir, artifact_dir, threshold);
     auto result = verify_golden(rendered, case_name, config);
 
-    if (result.golden_missing) {
-        FAIL("Golden missing: " << result.golden_path.string()
-             << ". Set CHRONON3D_UPDATE_GOLDENS=1 to create.");
-    }
-
+    REQUIRE_FALSE(result.golden_missing);
     INFO(result.message);
     CHECK(result.passed);
 }

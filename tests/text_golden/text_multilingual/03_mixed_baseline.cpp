@@ -147,7 +147,9 @@ TEST_CASE("Multilingual.MixedBaseline 01: default baseline — 1920x1080") {
 
     auto r = verify_golden(*fb, "multilingual_mixed_baseline_01_default",
                            make_baseline_config("01_default"));
-    REQUIRE_GOLDEN_PASSED(r);
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 // ═══ Test 2 — Subscript-like (baseline_shift = +20px) ══════════════════
@@ -159,7 +161,9 @@ TEST_CASE("Multilingual.MixedBaseline 02: subscript +20px — 1920x1080") {
 
     auto r = verify_golden(*fb, "multilingual_mixed_baseline_02_subscript",
                            make_baseline_config("02_subscript"));
-    REQUIRE_GOLDEN_PASSED(r);
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 // ═══ Test 3 — Superscript-like (baseline_shift = -20px) ════════════════
@@ -171,5 +175,7 @@ TEST_CASE("Multilingual.MixedBaseline 03: superscript -20px — 1920x1080") {
 
     auto r = verify_golden(*fb, "multilingual_mixed_baseline_03_superscript",
                            make_baseline_config("03_superscript"));
-    REQUIRE_GOLDEN_PASSED(r);
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
