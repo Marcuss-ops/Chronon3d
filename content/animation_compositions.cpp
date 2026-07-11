@@ -3,7 +3,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
-#include <chronon3d/animation/motion/timeline.hpp>
+#include <chronon3d/animation/motion/motion.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include "content/common/animation_helpers.hpp"
 #include "content/text/text_helpers.hpp"
@@ -42,7 +42,7 @@ Composition anim_slide_text() {
     return make_text_anim("AnimSlideText", make_text("Slide In", 64.0f),
                           Frame{60}, TextAnimBg::Black,
         [](LayerBuilder& l) {
-            motion::timeline(Vec3{200.0f, 0.0f, 0.0f})
+            chronon3d::timeline(Vec3{200.0f, 0.0f, 0.0f})
                 .to(Frame{6}, Vec3{0.0f, 0.0f, 0.0f}, Easing::OutCubic)
                 .apply_to(l.position_anim());
             text_anim_opacity().apply_to(l.opacity_anim());
@@ -54,7 +54,7 @@ Composition anim_scale_text() {
     return make_text_anim("AnimScaleText", make_text("Scale Up", 64.0f),
                           Frame{60}, TextAnimBg::Black,
         [](LayerBuilder& l) {
-            motion::timeline(Vec3{0.3f, 0.3f, 1.0f})
+            chronon3d::timeline(Vec3{0.3f, 0.3f, 1.0f})
                 .to(Frame{6}, Vec3{1.0f, 1.0f, 1.0f}, Easing::OutBack)
                 .apply_to(l.scale_anim());
             text_anim_opacity_outback().apply_to(l.opacity_anim());

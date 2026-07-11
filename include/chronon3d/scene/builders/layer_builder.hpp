@@ -17,7 +17,6 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/animation/effects/animated_transform.hpp>
-#include <chronon3d/animation/motion/timeline.hpp>
 #include <string>
 #include <string_view>
 #include <memory_resource>
@@ -148,18 +147,6 @@ public:
     AnimatedValue<Vec3>& anchor_anim();
     AnimatedValue<f32>&  opacity_anim();
     AnimatedValue<f32>&  blur_anim();
-
-    // ── Motion Timeline adapters: single-axis animation with intuitive easing ──
-    LayerBuilder& rotate_x(const motion::Timeline<f32>& timeline);
-    LayerBuilder& rotate_y(const motion::Timeline<f32>& timeline);
-    LayerBuilder& rotate_z(const motion::Timeline<f32>& timeline);
-    LayerBuilder& position_x(const motion::Timeline<f32>& timeline);
-    LayerBuilder& position_y(const motion::Timeline<f32>& timeline);
-    LayerBuilder& position_z(const motion::Timeline<f32>& timeline);
-    LayerBuilder& opacity_timeline(const motion::Timeline<f32>& timeline);
-    LayerBuilder& scale_x(const motion::Timeline<f32>& timeline);
-    LayerBuilder& scale_y(const motion::Timeline<f32>& timeline);
-    LayerBuilder& blur_timeline(const motion::Timeline<f32>& timeline);
 
     // ── Depth ──
     LayerBuilder& depth_role(DepthRole role);

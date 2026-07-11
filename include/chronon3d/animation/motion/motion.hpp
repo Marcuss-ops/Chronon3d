@@ -1,15 +1,15 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // motion/motion.hpp — C1: unified canonical animation system.
 //
-// Replaces the pre-C1 split (AnimatedValue::key() + motion::Timeline +
-// AnimationTrack + scattered spring/expression/preset stitching) with a
+// Replaces the pre-C1 split (AnimatedValue::key() + AnimationTrack +
+// scattered spring/expression/preset stitching) with a
 // single canonical surface:
 //
 //   MotionProgram<T>     — stateless DTO: keyframes + expression + loop mode.
 //                          ALL animation sources (keyframe, timeline, spring,
 //                          expression, preset) compile INTO this.
 //   MotionTimeline<T>    — fluent segment-oriented builder; replaces
-//                          the deprecated motion::Timeline<T>.
+//                          the legacy timeline API.
 //   SpringConfig         — damped harmonic oscillator parameters; baked to
 //                          keyframes by MotionTimeline::spring().
 //   Motion<T>            — canonical type alias for AnimatedValue<T>.
@@ -18,7 +18,7 @@
 //                          use Motion<T> and this header.
 //
 // Usage:
-//   // Timeline (replaces motion::timeline())
+//   // Timeline builder
 //   auto prog = timeline(0.0f)
 //       .to(Frame{30}, 1.0f, Easing::OutCubic)
 //       .hold_until(Frame{60})
@@ -117,7 +117,7 @@ struct SpringConfig {
 // ── MotionTimeline<T> ───────────────────────────────────────────────────
 
 /// Fluent segment-oriented builder.  Replaces the deprecated
-/// motion::Timeline<T>.
+// legacy timeline API.
 ///
 /// Example:
 ///   auto prog = timeline(-25.0f)
@@ -288,7 +288,7 @@ private:
 // ── timeline() — factory for MotionTimeline<T> ─────────────────────────
 
 /// Create a MotionTimeline<T> builder starting at frame 0.
-/// Replaces the deprecated motion::timeline(initial) free function.
+/// Factory for MotionTimeline<T>.
 ///
 /// Usage:
 ///   auto prog = timeline(0.0f)
