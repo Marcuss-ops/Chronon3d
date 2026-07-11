@@ -68,9 +68,11 @@ echo "Summary: $suite_count SUITE / $raw_count RAW (total: $total targets)"
 if [ "$raw_count" -gt 0 ]; then
     echo ""
     echo "GATE_FAIL: $raw_count raw add_executable call(s) remain in:"
-    for f in "${raw_files[@]}"; do
-        echo "  - tests/$f"
-    done
+    if [[ ${#raw_files[@]} -gt 0 ]]; then
+        for f in "${raw_files[@]}"; do
+            echo "  - tests/$f"
+        done
+    fi
     echo ""
     echo "All test targets MUST use chronon3d_add_test_suite(NAME <name>"
     echo "TIER <UNIT|INTEGRATION> SOURCES <list> [LINK_TARGETS <list>]"
@@ -83,4 +85,5 @@ fi
 
 echo ""
 echo "GATE_PASS: 0 raw add_executable — all $total test targets use chronon3d_add_test_suite()"
+echo "[INFO] check_test_suite_registration: 0 raw matches found — clean state (all $suite_count suite invocations verified across $(printf '%s\n' "$REPO_ROOT"/tests/*.cmake | wc -l) test cmake files)"
 exit 0
