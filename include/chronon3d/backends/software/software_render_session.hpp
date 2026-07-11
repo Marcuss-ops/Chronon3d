@@ -92,19 +92,27 @@ struct SoftwareRenderSession {
     /// Per-frame reset: empty the arena (canonical) and the software
     /// scratch (buffer ring NOT touched — it's needed for the previous
     /// frame's content until the next frame's commit).
+    /// Diagnostic text-audit snapshots are per-frame state (snapshot of
+    /// the LATEST rendered frame for diagnostic tools like
+    /// `chronon3d_cli inspect-text`); cleared here so the next frame's
+    /// render starts with a clean snapshot container.
     void reset_frame_temporaries() {
         common.reset_frame_temporaries();
         software.reset_frame_temporaries();
+        text_audit_snapshots.clear();
     }
 
     /// Full per-job reset: history + dirty + telemetry + buffer ring +
     /// transform scratch + scene hasher.  Persistent runtime caches
     /// (image cache, node cache, framebuffer pool, compiled graph cache)
-    /// are intentionally NOT touched.
+    /// are intentionally NOT touched.  Diagnostic text-audit snapshots
+    /// are NOT cleared here — they belong to per-frame lifetime and
+    /// are managed exclusively by reset_frame_temporaries(), so
+    /// re-running render() within the same job preserves the
+    /// last-frame visibility for `chronon3d_cli inspect-text`.
     void reset_job() {
         common.reset_job();
         software.reset_job();
-        text_audit_snapshots.clear();
     }
 };
 
