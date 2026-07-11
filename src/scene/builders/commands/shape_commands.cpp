@@ -147,17 +147,33 @@ LayerBuilder& LayerBuilder::timeline_bar(std::string name, TimelineBarParams p) 
 // ── Content Shapes ────────────────────────────────────────────────────
 
 LayerBuilder& LayerBuilder::image(std::string name, ImageParams p) {
-    // Sequence V2: collect image asset reference
-    if (!p.path.empty()) {
-        m_layer.asset_manifest.add_image(p.path, std::string(m_layer.name) + "/" + name);
+    // Sequence V2: collect image asset reference.
+    // TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e — prefer the
+    // manifest-clean `asset_path` field over the deprecated `path`.
+    // The `path` fallback preserves backward-compat for the ~70
+    // pre-existing call sites; new public consumers SHOULD set
+    // `asset_path` per the STEP 3 impedance closure acknowledgment
+    // documented at `docs/CHANGELOG.md` (this commit) + ADR-012.
+    const std::string effective_path =
+        !p.asset_path.empty() ? p.asset_path : p.path;
+    if (!effective_path.empty()) {
+        m_layer.asset_manifest.add_image(
+            effective_path,
+            std::string(m_layer.name) + "/" + name);
     }
     return shape(registry::shape_ids::Image, std::move(name), std::move(p));
 }
 
 LayerBuilder& LayerBuilder::tiled_image(std::string name, ImageParams p) {
-    // Sequence V2: collect image asset reference (same as image())
-    if (!p.path.empty()) {
-        m_layer.asset_manifest.add_image(p.path, std::string(m_layer.name) + "/" + name);
+    // Sequence V2: collect image asset reference.
+    // TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e — symmetric
+    // forwarding priority with image() (see comment above).
+    const std::string effective_path =
+        !p.asset_path.empty() ? p.asset_path : p.path;
+    if (!effective_path.empty()) {
+        m_layer.asset_manifest.add_image(
+            effective_path,
+            std::string(m_layer.name) + "/" + name);
     }
     return shape(registry::shape_ids::TiledImage, std::move(name), std::move(p));
 }
