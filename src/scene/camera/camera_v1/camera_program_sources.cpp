@@ -8,10 +8,59 @@
 #include <chronon3d/scene/camera/camera_v1/evaluated_projection.hpp>
 #include <chronon3d/animation/path/spatial_bezier_path.hpp>
 #include <chronon3d/animation/effects/wiggle.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_motion_context.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 
 #include <glm/glm.hpp>
 #include <cmath>
 #include <variant>
+
+namespace chronon3d::camera_v1 {
+
+// =============================================================================
+// TICKET-CAM-QUAT-PRIMARY — look_ahead_tangent
+// =============================================================================
+//
+// Sample the trajectory at t + Δ and return the tangent at that future
+// sample, if valid.  Used by `apply_orientation_spec_free` to anticipate
+// a degenerate tangent at the current frame and substitute a valid
+// look-ahead direction.  Returns `used = false` (and tangent is left
+// default) if the source is not a TrajectoryMotion OR if the look-ahead
+// sample is itself degenerate — the caller falls through to the next
+// step in the fallback chain (last_tangent → POI → keep-base).
+//
+// delta_seconds defaults to 50 ms (≈ 3 frames at 60 fps) — the look-ahead
+// window is intentionally short so the substitute direction tracks the
+// actual scene motion rather than drifting toward a distant future.
+LookAheadResult look_ahead_tangent(const CameraSourceSpec& source,
+                                   const CameraEvalContext& ctx,
+                                   float delta_seconds) {
+    LookAheadResult out;
+    auto* traj = std::get_if<TrajectoryMotion>(&source);
+    if (!traj || !traj->trajectory) return out;
+
+    // Synthesise a sub-frame SampleTime at ctx.sample_time + delta_seconds.
+    const double t_now = ctx.sample_time.seconds();
+    const double t_la  = t_now + static_cast<double>(delta_seconds);
+    const SampleTime la_st = SampleTime::from_seconds(t_la, ctx.sample_time.frame_rate());
+
+    // Build a synthetic CameraMotionContext for the trajectory sampler.
+    // (We don't have the base here — but `trajectory->sample(ctx)` reads
+    // frame + sample_time, and the base position / target are only used
+    // for `use_arc_length` initialisation which is already done at
+    // trajectory construction.  Sampling at a future sample_time is safe
+    // even with default base_* fields.)
+    CameraMotionContext motion_ctx;
+    motion_ctx.frame = ctx.frame;
+    motion_ctx.sample_time = la_st;
+
+    auto s = traj->trajectory->sample(motion_ctx);
+    if (glm::length(s.tangent) > 1e-6f) {
+        out.tangent = glm::normalize(s.tangent);
+        out.used = true;
+    }
+    return out;
+}
 
 namespace chronon3d::camera_v1 {
 
