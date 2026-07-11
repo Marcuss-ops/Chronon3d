@@ -150,7 +150,7 @@ Composition dof_showcase() {
         const f32 cam_z = -1000.0f + p * 200.0f;
         s.camera().set({
             .enabled = true,
-            .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}},
+            .position = {0.0f, 0.0f, cam_z},
             .zoom = 1000.0f,
             .dof = DepthOfFieldSettings{
                 .enabled  = true,
