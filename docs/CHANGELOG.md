@@ -1,3 +1,56 @@
+## Luglio 2026 — TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0g+ — Helper-specific UNIT-tier unit-test coverage for `chronon3d::detail::image_params_resolve_path` (5 TEST_CASEs locking the canonical forwarding contract) (2026-07-11, atomic commit)
+
+### test(scene-builders): TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0g+ — dedicated UNIT-tier test target for `detail::image_params_resolve_path` with portable deprecation-suppression pragma
+
+- **Scope**: closes forward-point 0g+ of TICKET-LAYER-IMAGE-MANIFEST-CLEAN (THE forward-point 0f+ post-commit code-reviewer PASS deferred helper-specific unit-test coverage; previously PLANNED in `docs/FOLLOWUP_TICKETS.md`).  After forward-point 0f+ (commit `6f784d3e`) consolidated the 4-site ternary duplication into 1 helper, this commit locks the helper's canonical forwarding contract via 5 dedicated TEST_CASEs in a new `chronon3d_image_params_resolve_path_tests` target (UNCONDITIONAL UNIT tier).
+- **Cat-3 (new test target)** SATISFIED: 1 new CMake test target `chronon3d_image_params_resolve_path_tests` at `TIER UNIT` (links `chronon3d_pipeline` per `cmake/Chronon3DTestSuite.cmake` default contract); ZERO new public SDK symbols.  Test source file lives in `tests/` (NOT `include/chronon3d/`) per AGENTS.md v0.1 manifest discipline.
+- **Cat-5 (3-doc same-commit alignment)** SATISFIED: this CHANGELOG entry (prepended at TOP above forward-point 0f+) + `docs/FOLLOWUP_TICKETS.md` `## Recently Closed` row update (PLANNED → CLOSURE for the forward-point 0g+ row) + `docs/CURRENT_STATUS.md` `§Stato per area` extension all updated in this same atomic commit.
+- **Gate 5 deny-everywhere** N/A: zero `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` introduced.  Test file is pure std::string + ImageParams (header-only POD struct).
+- **Forward-point 0g+ — 5 TEST_CASEs lock the canonical forwarding contract:**
+  - **TEST_CASE 1 (`empty-empty → empty`):** `ImageParams p{}` (both fields default-empty). Expect `resolved.empty() == true`.  This is the trivially-empty fallback.
+  - **TEST_CASE 2 (`asset-only → asset`):** `ImageParams{.asset_path = "hero.png"}` (no `path` access → no deprecation warning). Expect `resolved == "hero.png"`.  This locks the clean-asset-branch of the forwarding priority.
+  - **TEST_CASE 3 (`path-only → path`):** `ImageParams{.path = "legacy.png"}` (asset_path left default-empty).  Expect `resolved == "legacy.png"`.  Locks the legacy backward-compat branch.
+  - **TEST_CASE 4 (`both-set → asset wins`):** `ImageParams{.asset_path = "asset.png", .path = "legacy.png"}`. Expect `resolved == "asset.png"`.  This is THE forward-point 0e canonical invariant closure regression lock.
+  - **TEST_CASE 5 (`large-path-still-resolves`):** 80-char `std::string` value far exceeding libstdc++'s ~15-char SSO threshold (heap-allocated path). Expect `resolved == long_asset_path` byte-identical.  Gates against any future fast-path optimization that might break the canonical behaviour for paths above the SSO threshold.
+- **Forward-point 0g+ — portable deprecation-suppression macro** — top-of-file macro `CHRONON3D_DEPR_PUSH` / `CHRONON3D_DEPR_POP` enables `[[deprecated]]` field access (the `ImageParams::path` field, marked deprecated at forward-point 0e) without compiler warnings.  Portable across GCC, Clang, MSVC:
+  ```cpp
+  #if defined(__GNUC__) || defined(__clang__)
+  #define CHRONON3D_DEPR_PUSH _Pragma("GCC diagnostic push") \
+                              _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
+  #define CHRONON3D_DEPR_POP  _Pragma("GCC diagnostic pop")
+  #elif defined(_MSC_VER)
+  #define CHRONON3D_DEPR_PUSH __pragma(warning(push)) \
+                              __pragma(warning(disable: 4996))
+  #define CHRONON3D_DEPR_POP  __pragma(warning(pop))
+  #else
+  #define CHRONON3D_DEPR_PUSH ((void)0)
+  #define CHRONON3D_DEPR_POP  ((void)0)
+  #endif
+  ```
+  Macro is local per-TEST_CASE (push/pop bracketing) — does NOT mute warnings globally for the TU.  Any future deprecation regression in other TUs remains loud.
+- **Forward-point 0g+ — UNCONDITIONAL UNIT-tier registration** — `tests/scene_tests.cmake` adds the new test suite at the TOP of the file (BEFORE any conditional `if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)` block) so the test runs on every CI invocation regardless of Blend2D / text-engine enabledness.  Link contract derives automatically from `TIER UNIT` (default = `chronon3d_pipeline` OBJECT aggregate per `cmake/Chronon3DTestSuite.cmake`).
+- **Cross-link to forward-points 0e + 0f+ lineage:** the test file's doc-block header (lines 1–46) explicitly cross-references commits `8fa1cb44` (forward-point 0e — adding `ImageParams::asset_path` and 4 dispatch-site ternaries) and `6f784d3e` (forward-point 0f+ — consolidating the 4-site ternaries into the `detail::` helper).  Forward-point 0g+ locks the single-source-of-truth invariant via 5 TEST_CASEs.
+- **Anti-duplication honoured:** zero new singleton / registry / cache / resolver / service-locator introduced.  The test file is a 5-TEST_CASE pure-std::string suite; the macro is a 1-line-PUSH/1-line-POP pair; the CMake registration is a 5-line block.
+- **AGENTS.md v0.1 freeze compliance (revoked 2026-07-06):**
+  - **Cat-1 commit-discipline**: single atomic commit forward-point 0g+ closure only (TEST_CASES + CMake + 3-doc sync).  Per the code-reviewer pre-flag deferred unit-tests; closure here preserves the forward-only invariant.
+  - **Cat-2 honest doc-sync**: this CHANGELOG entry + FOLLOWUP row update + CURRENT_STATUS extension all updated in same commit.
+  - **Cat-3 (no new public API surface)** SATISFIED: test file in `tests/`, NOT `include/chronon3d/`.  Helper itself unchanged (no source modifications outside `tests/`).
+  - **Cat-4 install-pipeline-plumbing** N/A: no install_consumer shader/spec change.
+  - **Cat-5 3-doc same-commit alignment** SATISFIED.
+  - **Gate 5 deny-everywhere** N/A.
+  - **GATE-MNT-01 fail-on-dirty** invariant: post-commit smoke-test run before push (per the closure protocol — push auth-blocked on this VPS per AGENTS.md §honesty; a `tools/wrap_push.sh origin main` attempt is recorded verbatim in the session for tracking).
+- **Honest gap block** (forward-points 0h+ still PLANNED, not blocking):
+  - The 5 TEST_CASEs only verify the helper's forwarding-priority contract (string resolution logic).  They do NOT exercise the downstream consumption — i.e. how `asset_manifest.add_image(...)` reacts when given an empty path, or how `node.shape.image().path` round-trips through the render-graph hashing pipeline.  Such integration tests already exist (per the indirect coverage noted at forward-point 0f+: `tests/scene/rendering/test_render_node_factory.cpp:52-81` exercises ImageParams path-forwarding end-to-end through `RenderNodeFactory::image()` which calls the helper).
+  - Other primitives (RectParams, CircleParams, RoundedRectParams, LineParams, PathParams, GridBackgroundParams, ContactShadowParams, FakeBox3DParams, GridPlaneParams, DarkGridBgParams) remain deferred for forward-points 0h+ per AGENTS.md v0.1 Cat-1 forward-only invariant (same honest-gap mentioned in forward-point 0e / 0f+ CHANGELOG entries).
+- **Files changed (4):**
+  - `tests/scene/builders/test_image_params_resolve_path.cpp` NEW (~160 LoC, file header doc-block + UNCONDITIONAL macro + 5 TEST_CASEs + portable deprecation-suppression)
+  - `tests/scene_tests.cmake` EDIT (~13 LoC: NEW `chronon3d_add_test_suite(NAME chronon3d_image_params_resolve_path_tests TIER UNIT SOURCES scene/builders/test_image_params_resolve_path.cpp)` block at TOP of file)
+  - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+  - `docs/FOLLOWUP_TICKETS.md` EDIT (forward-point 0g+ PLANNED row updated to CLOSURE row in `## Recently Closed` table)
+  - `docs/CURRENT_STATUS.md` EDIT (SDK Product V1 paragraph in §Stato per area table extended to mention forward-point 0g+ test isolation closure)
+
+---
+
 ## Luglio 2026 — TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0f+ — Consolidate the asset_path-wins forwarding logic into a single canonical `chronon3d::detail::image_params_resolve_path` helper (4 dispatch sites → 1 source of truth) (2026-07-11, atomic commit)
 
 ### refactor(scene-builders): TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0f+ — extract `chronon3d::detail::image_params_resolve_path` helper
