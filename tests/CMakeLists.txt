@@ -218,6 +218,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/text_simplicity_adapters_tests.cmake)
 # CHRONON3D_ENABLE_TEXT are OFF.  Per ADR-018, this file is also
 # listed in `CMAKE_CONFIGURE_DEPENDS` at the top of this orchestrator.
 include(${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_tests.cmake)
+# include(${CMAKE_CURRENT_SOURCE_DIR}/cross_process_parity_tests.cmake)  # DRAFT — gated with return() pending TICKET-PARITY-001..006 rot fix; see FOLLOWUP_TICKETS.md
 
 # Real pipeline parity — compares SDK still, CLI still, raw video frame,
 # pruning ON/OFF, 1/N threads, and warm/cold cache using real framebuffer
