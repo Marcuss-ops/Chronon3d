@@ -6,9 +6,6 @@
 # ============================================================================
 
 set(CHRONON3D_PUBLIC_HEADERS
-    # ── Umbrella ────────────────────────────────────────────────────────
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/chronon3d.hpp"
-
     # ── canonical sdk::* surface (V0.1 MVP) ──────────────────────────────
     "${CMAKE_SOURCE_DIR}/include/chronon3d/sdk/render_engine.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/sdk/render_output.hpp"
@@ -141,6 +138,7 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/shadow_settings.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/dirty_history.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/frame_history.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/render_runtime.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/internal/runtime/render_session.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/internal/runtime/session_services.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/runtime/telemetry/render_telemetry_record.hpp"
@@ -244,7 +242,6 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/vector/path_factories.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/vector/shape_style.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition_props.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/project.hpp"
     # ── Timeline V2 single-source-of-truth (M1.7 Step 1, TICKET-SEQUENCE-LOCAL-FRAME) ──
     #   TimeRange + SequenceNode + TimelineSampleContext + TimelineResolver
     #   in namespace `chronon3d::timeline::v2`. Designed green: zero code-side
@@ -270,4 +267,35 @@ set(CHRONON3D_PUBLIC_HEADERS
     #   asset_manifest.hpp (single canonical home) and DELETED this
     #   filename. Real canonical preflight: chronon3d::AssetPreflightResolver
     #   in asset_preflight_resolver.hpp (namespace chronon3d::).
+
+    # ── Transitive closure additions (2026-07-11) ───────────────────────
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/animator.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/basic_registry.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/material.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/motion_registry.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/resolution_outcome.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/selector.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/style_registry.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/text.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/assets/image_cache.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/image/image_backend.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/buffer_ring.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/scratch_buffer.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/software/software_session_resources.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/backends/text/text_render_resources.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/cache/persistent_framebuffer_store.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/execution/execution_scope_types.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/scheduler/execution_scheduler.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/core/scope/execution_scope.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/effects/effect_catalog.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/extension/extension_catalog.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/extension/extension_module.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/builder/precomp_builder_service.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/cache/compiled_graph_cache.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/executor/graph_executor.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/pipeline/pipeline_catalogs.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/registry/graph_node_catalog.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/node_handle.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/text/text_placement.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/timeline/composition_descriptor.hpp"
 )
