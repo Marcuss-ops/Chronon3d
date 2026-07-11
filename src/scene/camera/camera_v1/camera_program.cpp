@@ -300,7 +300,7 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
 
     if (!compiled_) {
         return CameraEvaluationError{
-            CameraEvaluationError::Kind::Uncompiled,
+            CameraErrorCode::Uncompiled,
             "CameraProgram not compiled — call compile_camera() first"
         };
     }
@@ -451,7 +451,7 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
             case CameraFailurePolicy::Stop:
                 // CAM-03: Stop = true failure.  Return error.
                 return CameraEvaluationError{
-                    CameraEvaluationError::Kind::ConstraintFailure,
+                    CameraErrorCode::ConstraintFailure,
                     "constraint[" + std::to_string(i) + "] failed: " + cr.reason
                 };
             case CameraFailurePolicy::KeepLastValidCamera:
@@ -490,9 +490,9 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
                     });
                     return result;
                 }
-                // No cached valid camera to recover — true error (same kind as Stop).
+                // No cached valid camera to recover — true error (same code as Stop).
                 return CameraEvaluationError{
-                    CameraEvaluationError::Kind::ConstraintFailure,
+                    CameraErrorCode::ConstraintFailure,
                     "constraint[" + std::to_string(i) + "] failed: " + cr.reason +
                         " (KeepLastValidCamera policy, but no valid camera cached)"
                 };

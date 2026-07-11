@@ -304,13 +304,16 @@ std::shared_ptr<CameraTransition> ShotTimelineResolver::get_transition(
     return default_cut();
 }
 
-Camera2_5D ShotTimelineResolver::evaluate(int frame,
-                                           ShotTimelineSession& timeline_session,
-                                           FrameRate             fps) const {
-    if (!timeline_ || timeline_->empty()) return {};
+chronon3d::Result<EvaluatedCamera, CameraEvaluationError>
+ShotTimelineResolver::evaluate(int frame,
+                                ShotTimelineSession& timeline_session,
+                                FrameRate             fps) const {
+    if (!timeline_ || timeline_->empty())
+        return EvaluatedCamera{Camera2_5D{}, {}};
 
     auto pair = timeline_->find_pair(frame);
-    if (!pair.current) return {};
+    if (!pair.current)
+        return EvaluatedCamera{Camera2_5D{}, {}};
 
     const CameraShot& shot = *pair.current;
     int local_frame = frame - shot.start_frame;  // local time
@@ -341,13 +344,37 @@ Camera2_5D ShotTimelineResolver::evaluate(int frame,
         auto& s_from = timeline_session.session_for(pair.idx);
         auto& s_to   = timeline_session.session_for(pair.idx + 1);
 
+        // Phase 1.C (TICKET-120 Sub-commit E lineage): structured-error
+        // propagation.  Unchecked `.value()` is replaced with explicit
+        // `if (!result)` guards that surface the program-evaluation
+        // failure as CameraErrorCode::TransitionEvaluationFailed rather
+        // than letting the canonical `Result<T,E>::value()` precondition
+        // assertion fire (the SIGABRT surface at TICKET-120 line 169 in
+        // tests/scene/camera/test_shot_timeline.cpp).
         auto eval_from = shot.program.evaluate(ctx_from, s_from);
-        auto eval_to   = pair.next->program.evaluate(ctx_to, s_to);
-        Camera2_5D from_cam = eval_from.has_value() ? eval_from.value().camera : Camera2_5D{};
-        Camera2_5D to_cam   = eval_to.has_value()   ? eval_to.value().camera   : Camera2_5D{};
+        if (!eval_from) {
+            return CameraEvaluationError{
+                .code    = CameraErrorCode::TransitionEvaluationFailed,
+                .message = std::string("ShotTimeline transition from-shot '") + shot.name +
+                           "' evaluate failed: " + eval_from.error().message
+            };
+        }
+        auto eval_to = pair.next->program.evaluate(ctx_to, s_to);
+        if (!eval_to) {
+            return CameraEvaluationError{
+                .code    = CameraErrorCode::TransitionEvaluationFailed,
+                .message = std::string("ShotTimeline transition to-shot '") + pair.next->name +
+                           "' evaluate failed: " + eval_to.error().message
+            };
+        }
 
+        Camera2_5D from_cam = eval_from.value().camera;
+        Camera2_5D to_cam   = eval_to.value().camera;
         auto transition = get_transition(shot.transition_out);
-        return transition->evaluate(t, from_cam, to_cam);
+        return EvaluatedCamera{
+            .camera      = transition->evaluate(t, from_cam, to_cam),
+            .diagnostics = {}
+        };
     }
 
     // No transition — evaluate the current shot directly with local time.
@@ -359,7 +386,17 @@ Camera2_5D ShotTimelineResolver::evaluate(int frame,
 
     auto& shot_session = timeline_session.session_for(pair.idx);
     auto eval_result = shot.program.evaluate(ctx, shot_session);
-    return eval_result.has_value() ? eval_result.value().camera : Camera2_5D{};
+    if (!eval_result) {
+        return CameraEvaluationError{
+            .code    = CameraErrorCode::TransitionEvaluationFailed,
+            .message = std::string("ShotTimeline evaluate failed for shot '") + shot.name +
+                       "': " + eval_result.error().message
+        };
+    }
+    return EvaluatedCamera{
+        .camera      = eval_result.value().camera,
+        .diagnostics = eval_result.value().diagnostics
+    };
 }
 
 // =========================================================================
