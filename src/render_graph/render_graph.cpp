@@ -1,4 +1,4 @@
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <sstream>
 #include <iomanip>
 #include <unordered_set>
