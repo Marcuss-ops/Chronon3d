@@ -172,3 +172,11 @@ vcpkg_installed/
 .worktrees/
 *.zip
 
+
+# --- restored project-universal (post-cleanup 2026-07-11) ---
+/.cmake/
+/build-*/
+/chronon
+/chronon-cli
+/cmake-build-*/
+/Makefile
