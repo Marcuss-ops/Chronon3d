@@ -88,7 +88,27 @@ struct CameraFramingRequest {
     /// manifest as jitter on small camera motions.
     /// 0 (default) disables gating (preserves legacy behavior).
     float aim_error_deg{0.0f};
+
+    // TICKET-FRAMING-V1 — composition_point + look_ahead (user-spec verbatim).
+    // composition_point is the desired screen-space anchor for the centroid
+    // (normalized [0,1] coords; default 0.5/0.5 = center; the RuleOfThirds
+    // strategy reuses this as the bias from the geometric center).  look_ahead
+    // is the velocity look-ahead in seconds (default 0.0 = disabled; the
+    // solver projects the target's motion Δt seconds into the future before
+    // computing the aim).  Both fields are pure additions to the request —
+    // they extend the existing strategy without changing the legacy
+    // dead-zone / hysteresis / aim_error_deg semantics.
+    Vec2  composition_point{0.5f, 0.5f};
+    float look_ahead{0.0f};
 };
+
+// TICKET-FRAMING-V1 — user-spec name aliases (per the design validation).
+// The canonical types remain `CameraFramingRequest` + `CameraFramingResult`;
+// the alias `FramingRequest` + `FramingSolution` is the user-spec name.
+// Aliases live in the same header so callers can `using namespace` either
+// spelling; no public symbol is duplicated (no new struct definition).
+using FramingRequest = CameraFramingRequest;
+using FramingSolution = CameraFramingResult;
 
 // =========================================================================
 // Convergence report — how close to solution.
