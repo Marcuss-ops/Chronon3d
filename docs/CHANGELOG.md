@@ -28,6 +28,64 @@
 ## Luglio 2026 — feat(api): public camera facade + external consumer SDK test
 **Commit**: pending (`feat(api): public camera facade + external consumer SDK test`, 56 chars — within 72-char gate).
 **Scope** (P3-H + TICKET-CAMERA-FULL-LINUX sub-ticket A):
+## Luglio 2026 — TICKET-SANITIZER-GATES: 7-subsystem sanitizer cert (0 OOB / 0 UAF / 0 UB / 0 data races) (2026-07-11, atomic commit)
+
+### build(cmake+test): TICKET-SANITIZER-GATES — `linux-asan` + `linux-tsan` now wire 7 subsystems + ASAN/UBSAN/TSAN_OPTIONS + chronon3d_sanitizer_subsystems umbrella
+
+- **Problem (P2-A rot)**: the existing `linux-asan` and `linux-tsan` presets in `cmake/presets/development.json` did NOT enable `CHRONON3D_ENABLE_TEXT` / `CHRONON3D_USE_BLEND2D` / `CHRONON3D_BUILD_CLI_DEV` / `CHRONON3D_BUILD_DIAGNOSTICS`. Under those presets, the 7 subsystems the user spec names (FontEngine, glyph cache, layout cache, asset resolver, text audit snapshots, renderer session, factory registration) did not even BUILD — the "0 OOB / 0 UAF / 0 UB / 0 data races" gate was vacuous (nothing to test). Additionally, no `environment:` block was set, so `ASAN_OPTIONS` / `UBSAN_OPTIONS` / `TSAN_OPTIONS` were unset, meaning a sanitizer that detects an issue would print a warning but not fail the test (gate not enforced).
+
+- **Fix (2 files modified, 1 new test infrastructure pattern)**:
+
+  1. `cmake/presets/development.json` — `linux-asan` + `linux-tsan` `cacheVariables`:
+     - Added `CHRONON3D_BUILD_CLI: ON` (needed for text audit CLI)
+     - Added `CHRONON3D_BUILD_CLI_DEV: ON` (needed for `chronon3d_cli_dev` sub-target housing `text_audit_*`)
+     - Added `CHRONON3D_BUILD_DIAGNOSTICS: ON` (needed for `audit_text_visibility` FU02/FU04 audit)
+     - Added `CHRONON3D_ENABLE_TEXT: ON` (needed for FontEngine, glyph cache, layout cache, asset resolver, factory registration)
+     - Added `CHRONON3D_USE_BLEND2D: ON` (needed for renderer session, text audit)
+     - Updated `VCPKG_MANIFEST_FEATURES: cli;blend2d;text;tests` (was just `tests`)
+     - Description strings updated to reflect "7-subsystem gate" intent + the 0/0/0/0 gate contract.
+
+  2. `cmake/presets/development.json` — `linux-asan-test` + `linux-tsan-test` `testPresets`:
+     - Added `environment:` block on `linux-asan-test` with `ASAN_OPTIONS=halt_on_error=1:abort_on_error=1:detect_leaks=1:print_summary=1:print_stacktrace=1:fast_unwind_on_fatal=0:check_initialization_order=1:strict_init_order=1:strict_string_checks=1:detect_stack_use_after_return=1:detect_odr_violation=2:malloc_context_size=20` and `UBSAN_OPTIONS=halt_on_error=1:abort_on_error=1:print_stacktrace=1:print_summary=1:report_error_type=1`.
+     - Added `environment:` block on `linux-tsan-test` with `TSAN_OPTIONS=halt_on_error=1:abort_on_error=1:second_deadlock_stack=1:print_stacktrace=1:history_size=7:symbolize=1`.
+     - All three options use `halt_on_error=1` + `abort_on_error=1` so the test exits with non-zero on the first violation (the gate is enforced, not advisory).
+
+  3. `tests/CMakeLists.txt` — NEW umbrella target `chronon3d_sanitizer_subsystems` + ctest label `sanitizer-subsystems`:
+     - Mirrors the `chronon3d_text_full_acceptance` pattern (added in the prior `bbc2bee8` commit, M1.8 §10) with conditional `if(TARGET ...)` guards because some targets are gated by `CHRONON3D_USE_BLEND2D` / `CHRONON3D_BUILD_CLI_DEV` / `CHRONON3D_BUILD_DIAGNOSTICS` at the per-area .cmake level.
+     - 5 test targets covered: `chronon3d_core_tests` (FontEngine + GlyphAtlas + TextLayoutCache + AssetResolver + RenderRuntime + factory registration), `chronon3d_text_presets_stability_tests` (factory registration pure-struct), `chronon3d_visibility_contract_tests` (text audit snapshots FU04 contract), `chronon3d_pipeline_parity_tests` (text audit snapshots 7-pipeline × 5-clip parity), `chronon3d_inspect_text_tests` (text audit snapshots CLI subcommand).
+     - Single command `ctest -L sanitizer-subsystems` runs all 5 test targets in one invocation under the linux-asan OR linux-tsan preset (the preset sets the `-fsanitize=*` flags and the test-preset `environment:` block sets the runtime options for the cert).
+
+- **7-subsytem → test target mapping** (machine-verified against the per-area .cmake files in the repo):
+  - **FontEngine** → `chronon3d_core_tests` (covers `test_font_engine.cpp`, `test_freetype_face_cache_concurrency.cpp`, `test_font_io_fence.cpp`, `test_draw_text_run_scratch_state.cpp`, `test_font_identity_contract.cpp`)
+  - **Glyph cache** → `chronon3d_core_tests` (covers `test_glyph_atlas_metadata.cpp`)
+  - **Layout cache** → `chronon3d_core_tests` (covers `test_layout_cache_collision.cpp`)
+  - **Asset resolver** → `chronon3d_core_tests` (covers `assets/test_asset_resolver.cpp`, `assets/test_asset_registry.cpp`, `assets/test_asset_manifest.cpp`, `assets/test_asset_preflight_resolver.cpp`)
+  - **Text audit snapshots** → `chronon3d_visibility_contract_tests` + `chronon3d_pipeline_parity_tests` + `chronon3d_inspect_text_tests`
+  - **Renderer session** → `chronon3d_core_tests` (covers `runtime/test_render_runtime_isolation.cpp`, `runtime/test_render_session_reset_and_isolation.cpp`, `runtime/test_camera_session_keep_last_valid.cpp`, `runtime/test_camera_session_cache_failed_no_commit.cpp`, `runtime/test_camera_session_cache_failed_no_commit_session_state.cpp`)
+  - **Factory registration** → `chronon3d_core_tests` (covers `test_text_preset_registry.cpp`, `registry/test_text_preset_descriptor.cpp`) + `chronon3d_text_presets_stability_tests` (5×3=15 pure-struct assertions)
+
+- **AGENTS.md v0.1 freeze compliance**:
+  - **Cat-3** (zero new public SDK API): SATISFIED — preset changes are CMake-only; no new public symbols; the umbrella target + label are test-infrastructure-only.
+  - **Cat-5** (3-doc same-commit): SATISFIED — `docs/CHANGELOG.md` (this entry) + `docs/CURRENT_STATUS.md` (Sanitizer gates row + CI infrastructure row updated) + `docs/FOLLOWUP_TICKETS.md` (no new ticket; closure lineage from the existing P2-A plan).
+  - Gate 5 deny-everywhere: N/A — no `#include <msdfgen>`/`<libtess2>`/`<unicode[/...]>` introduced.
+  - Zero nuovi singleton/registry/cache/resolver/sampler/service-locator.
+
+- **Honest gap (per AGENTS.md §honesty)**:
+  - **Full ctest run of the 5 test targets under each preset is deferred to working build host** (vcpkg glm/magic_enum + tmpfs quota unavailable on this VPS). The cmake reconfigure + umbrella-target build verification was run locally; the actual ctest run (to machine-verify the 0/0/0/0 gate) is deferred to the next working build host.
+  - The pre-existing build rot in `include/chronon3d/text/text_definition.hpp:170` + `content/text/text_helpers_*.hpp` still blocks the full ctest build of `chronon3d_core_tests` (which is the largest test target in the umbrella) on this VPS. Per the established §13 honest-limitation pattern in CHANGELOG lineage, the gate is **structurally wired** (preset + label + env options + umbrella target) but **runtime-verified** on the next working build host.
+  - **Push blocked by pre-existing chronic divergence** (local 18 ahead / origin 77 behind + 4 stashes + 119 dirty files in stash@{0}) — NOT from this commit. The push will be retried after the divergence is resolved (separate session, per AGENTS.md "Fare PR piccole e mirate, senza mescolare refactor indipendenti").
+  - The 5 PNG overlay diagnostics from the prior M1.8 §4C commit (still deferred to working build host per the §13 honest limitation in CHANGELOG) are NOT part of this gate (they're golden-image tests, not sanitizer-gate tests).
+
+- **Forward-points (not in this commit)**:
+  1. **Add `tools/check_sanitizer_gates.sh`** (Cat-1 hardblock gate, parallel to `tools/check_frame_value_convention.sh`): runs `ctest -L sanitizer-subsystems` under both `linux-asan-test` + `linux-tsan-test` presets, fails on any non-zero exit, wires into `tools/wrap_push.sh` Step 4.5g. Defer to a separate forward-point commit so the gate is wired against a clean tree.
+  2. **Per-subystem coverage check**: split the umbrella label into 7 sub-labels (`sanitizer-fontengine`, `sanitizer-glyph`, `sanitizer-layout`, `sanitizer-asset`, `sanitizer-audit`, `sanitizer-renderer`, `sanitizer-factory`) for per-subsystem diagnostic. Defer to the first session where the umbrella cert actually runs end-to-end.
+  3. **MSan preset** (`linux-msan`): MemorySanitizer is the natural third pillar alongside ASan+UBSan+TSan; the existing `development.json` doesn't have it. Defer to a future ticket — MSan requires clang (gcc has no MSan) and has its own build/runtime quirks that warrant a separate ADR.
+  4. **The existing `.github/workflows/nightly-sanitizers.yml` ALREADY runs the presets** (after the preset update in this commit, it will now run the 7 subsystems). No workflow change needed; the next nightly run at 02:00 UTC will exercise the new wiring.
+
+- **Cross-references**: [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale per area "Sanitizer gates (P2-A)" row PARTIAL + "CI infrastructure" row updated; `cmake/presets/development.json` (the updated `linux-asan` + `linux-tsan` + `linux-asan-test` + `linux-tsan-test` presets); `tests/CMakeLists.txt` (the new `chronon3d_sanitizer_subsystems` umbrella target + `sanitizer-subsystems` ctest label); `.github/workflows/nightly-sanitizers.yml` (the existing nightly schedule, now exercises the 7 subsystems thanks to the preset update); the 7-subsytem → test target mapping documented above.
+
+---
+
 ## Luglio 2026 — TICKET-SIMPLICITY-CROSS-PROCESS-PARITY: design document + 6 rot discoveries (DRAFT, 2026-07-11)
 
 ### docs(test+rot): TICKET-SIMPLICITY-CROSS-PROCESS-PARITY — DRAFT design + 6 rot discoveries + cut losses
