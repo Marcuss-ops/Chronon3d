@@ -4,10 +4,13 @@
 //
 // IMPORTANT: this file does NOT modify any production composition.  It
 // defines a SIBLING composition that replicates `anim_typewriter_glow()`
-// with glow_intensity=0.0f.  The existing AnimTypewriterGlow composition
-// in content/examples/text/text_animations.cpp is left untouched.  The
-// build_2line_typewriter logic is inlined here because that helper lives
-// in an anonymous namespace inside the production file.
+// with a configurable `glow_intensity` parameter — call once with 0.0f
+// (no-glow control) and once with 0.5f (with-glow match to production)
+// to get the A/B pair from the same factory.  The existing
+// AnimTypewriterGlow composition in content/examples/text/text_animations.cpp
+// is left untouched.  The build_2line_typewriter logic is inlined here
+// because that helper lives in an anonymous namespace inside the
+// production file.
 
 #include "glow_ab_compositions.hpp"
 
@@ -48,18 +51,26 @@ using chronon3d::content::text_reveal::font_regular;
 
 } // anonymous namespace
 
-Composition make_anim_typewriter_glow_no_glow() {
-    return composition({.name = "AnimTypewriterGlowNoGlow",
+Composition make_anim_typewriter_glow_no_glow(f32 glow_intensity) {
+    // Derive the internal composition name from glow_intensity so the two
+    // A/B variants are distinguishable in logs (production `build` output,
+    // telemetry, etc.) without changing the function signature.
+    const std::string comp_name = (glow_intensity > 0.0f)
+        ? "AnimTypewriterGlowWithGlow"
+        : "AnimTypewriterGlowNoGlow";
+
+    return composition({.name = comp_name,
                         .width = 1920,
                         .height = 1080,
                         .duration = 160},
-    [](const FrameContext& ctx) {
+    [glow_intensity](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
         s.font_engine(ctx.font_engine);
 
         // Inline the build_2line_typewriter logic from text_animations.cpp.
-        // Identical parameters to anim_typewriter_glow() except glow_intensity.
+        // Identical parameters to anim_typewriter_glow() except glow_intensity,
+        // which is the single A/B control variable.
         auto spec = font_regular();
         f32 w1 = measure_text_width("THIS TEXT APPEARS", 88.0f, spec, TRACKING, *s.font_engine());
         f32 w2 = measure_text_width("ONE LETTER AT A TIME", 104.0f, spec, TRACKING, *s.font_engine());
@@ -81,7 +92,7 @@ Composition make_anim_typewriter_glow_no_glow() {
             .color = TEXT_COLOR,
             .add_shadow = true,
             .shadow_color = SHADOW_COLOR,
-            .glow_intensity = 0.0f,  // No glow — the A/B control variable.
+            .glow_intensity = glow_intensity,
             .layer_prefix = "ch_0"
         });
 
@@ -100,7 +111,7 @@ Composition make_anim_typewriter_glow_no_glow() {
             .color = TEXT_COLOR,
             .add_shadow = true,
             .shadow_color = SHADOW_COLOR,
-            .glow_intensity = 0.0f,  // No glow — the A/B control variable.
+            .glow_intensity = glow_intensity,
             .layer_prefix = "ch_1"
         });
 
@@ -109,8 +120,14 @@ Composition make_anim_typewriter_glow_no_glow() {
 }
 
 void register_glow_ab_compositions(CompositionRegistry& registry) {
+    // A/B pair: no-glow control (glow_intensity=0.0f) and with-glow match
+    // (glow_intensity=0.5f, mirrors the production anim_typewriter_glow).
+    // Both variants come from the same factory — only the glow variable
+    // changes, preserving the A/B invariant.
     registry.add("AnimTypewriterGlowNoGlow",
-        [](const CompositionProps&) { return make_anim_typewriter_glow_no_glow(); });
+        [](const CompositionProps&) { return make_anim_typewriter_glow_no_glow(0.0f); });
+    registry.add("AnimTypewriterGlowWithGlow",
+        [](const CompositionProps&) { return make_anim_typewriter_glow_no_glow(0.5f); });
 }
 
 } // namespace chronon3d::test::glow_ab
