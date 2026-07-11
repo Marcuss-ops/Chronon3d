@@ -26,8 +26,17 @@
 // preset variations (no SSAA, no motion-blur) and the gate's
 // "≥ 1 such pixel" threshold catches "all-zero framebuffer"
 // regressions with a stable boundary.
-
-#include <chronon3d/chronon3d.hpp>   // umbrella — manifest entry 1
+#include <chronon3d/sdk/render_engine.hpp>
+#include <chronon3d/sdk/render_output.hpp>
+#include <chronon3d/sdk/render_error.hpp>
+#include <chronon3d/sdk/render_request.hpp>
+#include <chronon3d/sdk/render_settings.hpp>
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/text/text_run_shape.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
 
 #include <cstddef>
 #include <cstdint>
