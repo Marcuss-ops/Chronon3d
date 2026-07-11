@@ -32,7 +32,7 @@ Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
 | Video pipeline | PASS | Structured error reporting (VideoSinkError enum, 13 codes). Memory budget: max dimension 16384, overflow guards. Atomic output (.partial + ffprobe). media_video_tests linker fixed (`chronon3d_pipeline` added to LINK_TARGETS). 98 video tests pass. |
 | CI infrastructure | PASS | Sanitizers nightly/weekly (P2-A). Renderer-boundary gate blocking (P0-C). Test hygiene gate: 3 invariants (P2-E). CI status JSON artifact (P3-A). |
-| Test coverage | PASS | Frame rate edge cases: 55 tests (P2-D). Determinism matrix: 16 tests, 5×5 matrix (P2-C). Test hygiene: 3 invariant checks. |
+| Test coverage | PASS | Frame rate edge cases: 55 tests (P2-D). Determinism matrix: 16 tests, 5×5 matrix (P2-C). SafeArea formats: 5×5 pure-math matrix (1920×1080 / 1080×1920 / 1080×1080 / 1280×720 / 3840×2160 × 5 SafeAreaEnum) + no-inherited-bottom sequential lock (M1.8 §4). Test hygiene: 3 invariant checks. |
 | Sistemi meta (Expressions V2 / V3) | PLANNED | Expressions V2 OFF di default; V3 subordinato a V1. |
 | 10-point friction audit | DONE (2026-07-08) | Lineage closed. Pre-existing rot tickets tracked in §Active Blockers. |
 
