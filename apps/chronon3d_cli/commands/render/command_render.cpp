@@ -21,22 +21,21 @@ int command_render(const CompositionRegistry& registry, const RenderArgs& args) 
     }
 
     // Parse frame range from args.frames string
-    FrameRange range = parse_frame_range(args.frames);
+    FrameRange range = parse_frames(args.frames);
 
     // Build unified RenderJob — canonical job descriptor (D1)
     RenderJob job;
     job.comp_id = args.comp_id;
     job.comp    = resolved.comp;
     job.output  = args.output;
-    job.settings = resolved.settings;
 
-    if (range.count == 1) {
+    if (range.start == range.end) {
         job.mode        = RenderMode::Still;
-        job.still_frame = range.first;
+        job.still_frame = Frame{range.start};
     } else {
         job.mode        = RenderMode::Sequence;
-        job.first_frame = range.first;
-        job.last_frame  = range.last();
+        job.first_frame = Frame{range.start};
+        job.last_frame  = Frame{range.end};
     }
 
     // D1 migration bridge: delegate to existing plan+execute path.
