@@ -203,7 +203,7 @@ TEST_CASE("runtime_camera_session_keep_last_valid_reset_clears_cache — "
     auto ctx1 = make_ctx(Frame{1});
     auto res1 = program.evaluate(ctx1, session);
     REQUIRE_FALSE(res1.has_value());  // the only difference vs SUBCASE A.
-    CHECK(res1.error().kind == CameraEvaluationError::Kind::ConstraintFailure);
+    CHECK(res1.error().code == CameraErrorCode::ConstraintFailure);
     CHECK(res1.error().message.find("constraint") != std::string::npos);
     CHECK(res1.error().message.find("distance-zero") != std::string::npos);
     CHECK(res1.error().message.find("no valid camera cached") != std::string::npos);

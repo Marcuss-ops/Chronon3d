@@ -197,11 +197,11 @@ TEST_CASE("runtime_camera_session_cache_failed_no_commit_session_state — "
                                        kTarget1, kSessStateFps);
         auto ctx_a = make_ctx(Frame{kTarget1});
         auto res_a = program.evaluate(ctx_a, lease_a.session());
-        CAPTURE(res_a.error().kind);  // docs which failure branch was taken.
+        CAPTURE(res_a.error().code);  // docs which failure branch was taken.
         CAPTURE(res_a.error().message);
         REQUIRE_FALSE(res_a.has_value());  // gate feature: Frame 11 = distance-zero.
-        CHECK(res_a.error().kind ==
-              CameraEvaluationError::Kind::ConstraintFailure);
+        CHECK(res_a.error().code ==
+              CameraErrorCode::ConstraintFailure);
         CHECK(res_a.error().message.find("distance-zero") != std::string::npos);
 
         // Discriminator for the working-copy contract: working_session is

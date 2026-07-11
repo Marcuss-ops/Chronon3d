@@ -40,7 +40,13 @@ TEST_CASE("empty timeline returns empty camera") {
     ShotTimelineResolver resolver(timeline);
 
     ShotTimelineSession tls;
-    auto cam = resolver.evaluate(0, tls, FrameRate{30, 1});
+    auto r = resolver.evaluate(0, tls, FrameRate{30, 1});
+    // Phase 1.C (TICKET-120 Sub-commit E): empty timeline returns a
+    // SUCCESSFUL Result with default EvaluatedCamera (all-default
+    // Camera2_5D + empty diagnostics) so the call site can distinguish
+    // "no shot here" from "shot evaluation failed".
+    REQUIRE(r.has_value());
+    auto& cam = r.value().camera;
     CHECK(approx(cam.position.x, 0.0f));
     CHECK(approx(cam.position.y, 0.0f));
     CHECK(approx(cam.position.z, -1000.0f));
@@ -164,12 +170,18 @@ TEST_CASE("focus handoff transitions focus distance") {
 }
 
 // ==============================================================================
-// 9 — Overlap boundary non-NaN.
+// 9 — Overlap boundary surfaces structured CameraEvaluationError.
 // ==============================================================================
-// DISABLED: TICKET-120 — pre-existing SIGABRT in ShotTimelineResolver::evaluate().
-// The crash is from Result::value() on an internal error within evaluate(),
-// likely related to the shot transition overlap logic.
-TEST_CASE("overlap boundary produces non-NaN camera" * doctest::skip()) {
+// Phase 1.C (TICKET-120 Sub-commit E): the previous * doctest::skip()
+// SIGABRT surface at this test was caused by unchecked `.value()` on the
+// per-shot program evaluation Result when the program was uncompiled
+// (or otherwise failed) in a transition overlap window.  The new
+// structured-error contract pulls the program-evaluation failure up
+// through `ShotTimelineResolver::evaluate()` as
+// `CameraErrorCode::TransitionEvaluationFailed`, replacing the silent
+// SIGABRT.  This test exercises that contract with two uncompiled
+// programs in a SmoothBlend overlap at frame 25.
+TEST_CASE("overlap boundary surfaces structured CameraEvaluationError") {
     auto timeline = std::make_shared<ShotTimeline>();
     CameraShot s1, s2;
     s1.name = "first";  s1.start_frame = 0;  s1.end_frame = 30;
@@ -181,11 +193,16 @@ TEST_CASE("overlap boundary produces non-NaN camera" * doctest::skip()) {
 
     ShotTimelineResolver resolver(timeline);
     ShotTimelineSession tls;
-    auto cam = resolver.evaluate(25, tls, FrameRate{30, 1});
+    auto r = resolver.evaluate(25, tls, FrameRate{30, 1});
 
-    CHECK_FALSE(std::isnan(cam.position.x));
-    CHECK_FALSE(std::isnan(cam.position.y));
-    CHECK_FALSE(std::isnan(cam.position.z));
+    // Post-Phase-1.C contract: the inner-program error (Uncompiled on
+    // each shot's default-constructed program) is bubbled up through
+    // the resolver as TransitionEvaluationFailed.  The error message
+    // must carry the offending shot name so a future caller can route
+    // the failure back to its origin.
+    REQUIRE_FALSE(r.has_value());
+    CHECK(r.error().code == CameraErrorCode::TransitionEvaluationFailed);
+    CHECK(r.error().message.find("'first'") != std::string::npos);
 }
 
 // ==============================================================================
