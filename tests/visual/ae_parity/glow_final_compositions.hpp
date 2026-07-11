@@ -157,16 +157,30 @@ inline void build_chronon_glow_scene(
     const chronon3d::Vec2 center = props.canvas_size * 0.5f;
     const bool apply_breath = props.enable_scale_breath;
 
-    s.layer("hero", [&, opacity, scale, center, apply_breath](chronon3d::LayerBuilder& l) {
+    s.layer("hero", [&, opacity, scale, apply_breath](chronon3d::LayerBuilder& l) {
         if (engine) {
             l.font_engine(engine);
         }
         l.text_run("glow_pulse", chronon3d::TextRunSpec{
             .text = chronon3d::TextSpec{
                 .content    = {.value = props.text},
+                // TICKET-CHRONON-GLOW-FINAL — Phase 3 SCALA:
+                // `CanvasCenter` makes the text resolver bake the box
+                // absolutely at the canvas centroid at compose time, so
+                // subsequent non-identity layer transforms (e.g.
+                // `l.scale(Vec3{0.96, 0.96, 1.0})` for the cinematic breath)
+                // scale the text AND glow uniformly around the canvas
+                // centroid without drifting it.  This is the idiomatic
+                // fix — `pin_to(Anchor::Center)` would mix layer-coord
+                // anchoring with text authoring and is rejected by
+                // `tools/check_no_dual_text_api.sh`.
+                // The previous `Absolute {center.x, center.y}` form
+                // produced a centroid that drifted by ~5% of the bbox
+                // radius under non-identity scale (the symptom that
+                // Fase 1 deferred with `enable_scale_breath=false`).
                 .placement  = chronon3d::TextPlacement{
-                    chronon3d::TextPlacementKind::Absolute,
-                    {center.x, center.y},
+                    chronon3d::TextPlacementKind::CanvasCenter,
+                    {},
                 },
                 .font = {
                     .font_path   = "assets/fonts/Inter-Bold.ttf",
