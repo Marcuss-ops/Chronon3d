@@ -30,7 +30,7 @@
 //
 // Per AGENTS.md §honesty: 3 PNG re-bake requires a working build host
 // (vcpkg-installed Inter-Bold.ttf + tmpfs quota for full cmake build on
-// this VPS); the 3 test cases gracefully skip on `result.golden_missing`.
+// this VPS); the 3 test cases fail if the golden reference is missing (`REQUIRE_FALSE(result.golden_missing)`).
 //
 // Re-bake command:
 //   CHRONON3D_UPDATE_GOLDENS=1 ctest -R TextMultilingualKerningPairs \

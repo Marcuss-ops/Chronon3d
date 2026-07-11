@@ -41,7 +41,7 @@
 //
 // Honest-gap notes (per AGENTS.md §honesty):
 //   - 6 PNG re-bake requires a working build host (vcpkg + tmpfs).
-//   - The 3 tests gracefully skip on `result.golden_missing`.
+//   - The 3 tests fail if the golden reference is missing (`REQUIRE_FALSE(result.golden_missing)`).
 //   - Inter-Bold.ttf does NOT contain Hebrew glyphs natively;
 //     the font-resolver's system fallback chain (Noto Serif Hebrew
 //     or Noto Sans Hebrew on Linux, New Peninim MT on macOS,
@@ -198,7 +198,7 @@ Composition build_hebrew_composition(
 
 // Helper that renders ONE test case (one Hebrew line) at BOTH aspect
 // ratios and verifies both PNGs against the golden. Returns true if the
-// test passed (or was gracefully skipped due to missing golden); false
+// test passed (or failed via REQUIRE_FALSE if the golden reference was missing); false
 // if the test FAILED.
 bool render_and_verify_hebrew(
     SoftwareRenderer& renderer,

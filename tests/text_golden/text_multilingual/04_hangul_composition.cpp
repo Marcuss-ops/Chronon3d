@@ -14,7 +14,7 @@
 //
 // Honest-gap notes (per AGENTS.md §honesty):
 //   - 6 PNG re-bake requires a working build host (vcpkg + tmpfs).
-//   - The 3 tests gracefully skip on `result.golden_missing`.
+//   - The 3 tests fail if the golden reference is missing (`REQUIRE_FALSE(result.golden_missing)`).
 //   - Inter-Bold.ttf does NOT contain Hangul glyphs natively;
 //     the font-resolver's system fallback chain (NotoSansCJK on
 //     Linux, Apple SD Gothic Neo on macOS, Malgun Gothic on Windows)
@@ -145,7 +145,7 @@ Composition build_hangul_composition(
 
 // Helper that renders ONE test case (one Hangul text) at BOTH aspect
 // ratios and verifies both PNGs against the golden.  Returns true if
-// the test passed (or was gracefully skipped due to missing golden);
+// the test passed (or failed via REQUIRE_FALSE if the golden reference was missing);
 // false if the test FAILED.
 bool render_and_verify_hangul(
     SoftwareRenderer& renderer,
@@ -164,9 +164,14 @@ bool render_and_verify_hangul(
             std::string{"multilingual_hangul_composition_"} + case_slug + "_1920x1080",
             make_hangul_config(std::string{case_slug} + "_1920x1080"));
         INFO("Golden (1920x1080): ", r.message);
+<<<<<<< HEAD
         REQUIRE_FALSE(r.golden_missing); else {
             if (!r.passed) return false;
         }
+=======
+        REQUIRE_FALSE(r.golden_missing);
+        if (!r.passed) return false;
+>>>>>>> dbf39153 (fix(tests): make golden references mandatory in CI/certification mode)
     }
     // 1080×1920 portrait golden
     {
@@ -180,9 +185,14 @@ bool render_and_verify_hangul(
             std::string{"multilingual_hangul_composition_"} + case_slug + "_1080x1920",
             make_hangul_config(std::string{case_slug} + "_1080x1920"));
         INFO("Golden (1080x1920): ", r.message);
+<<<<<<< HEAD
         REQUIRE_FALSE(r.golden_missing); else {
             if (!r.passed) return false;
         }
+=======
+        REQUIRE_FALSE(r.golden_missing);
+        if (!r.passed) return false;
+>>>>>>> dbf39153 (fix(tests): make golden references mandatory in CI/certification mode)
     }
     return true;
 }
