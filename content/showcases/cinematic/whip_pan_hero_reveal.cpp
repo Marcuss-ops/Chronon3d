@@ -18,6 +18,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/animation/path/catmull_rom_path.hpp>
@@ -26,11 +27,11 @@
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/text_definition.hpp>
 
 #include "content/showcases/cinematic/cinematic_showcase_helpers.hpp"
 #include "content/showcases/cinematic/cinematic_text_camera.hpp"
 #include "content/common/text_reveal_helpers.hpp"
-#include "content/text/text_helpers.hpp"
 #include "content/text/text_theme.hpp"
 
 #include <cmath>
@@ -144,15 +145,13 @@ Composition whip_pan_hero_reveal() {
                 pos.key(Frame{55}, Vec3{ 0.0f, 230.0f, 0.0f}, EasingCurve{Easing::OutCubic});
                 pos.key(Frame{68}, Vec3{ 0.0f, 200.0f, 0.0f}, EasingCurve{Easing::Linear});
             }
-            auto tp = chronon3d::content::text::centered_text({
-                .text        = "MOTION BY CAMERA",
-                .box         = {1100.0f, 80.0f},
-                .font_size   = 38.0f,
-                .tracking    = 12.0f,
-                .color       = {1.0f, 0.55f, 0.75f, 1.0f},
-                .line_height = 1.10f,
+            auto def = from_text_spec(TextSpec{
+                .content    = {.value = "MOTION BY CAMERA"},
+                .font       = {.font_size = 38.0f},
+                .layout     = {.box = {1100.0f, 80.0f}, .line_height = 1.10f, .tracking = 12.0f},
+                .appearance = {.color = {1.0f, 0.55f, 0.75f, 1.0f}},
             });
-            l.text("subtitle_label", tp);
+            l.text("subtitle_label", def);
         });
 
         // ── Apply the whip-pan camera ─────────────────────────────────

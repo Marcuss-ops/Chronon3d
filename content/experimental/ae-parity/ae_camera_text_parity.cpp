@@ -19,13 +19,13 @@
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/text/text_definition.hpp>
 #include <glm/glm.hpp>
-
-#include "content/text/text_helpers.hpp"
 
 #include <cmath>
 #include <string>
@@ -136,13 +136,11 @@ void add_pedestal_cards(SceneBuilder& s) {
 // Helper: identical text label at a given depth with a chosen font size.
 // Each layer shows its own depth-tag so the test is legibly interpretable.
 auto text_label(const std::string& word, f32 font_size) {
-    return chronon3d::content::text::centered_text({
-        .text        = word,
-        .box         = {1400.0f, 200.0f},
-        .font_size   = font_size,
-        .tracking    = 6.0f,
-        .color       = {1.0f, 1.0f, 1.0f, 1.0f},
-        .line_height = 1.10f,
+    return from_text_spec(TextSpec{
+        .content    = {.value = word},
+        .font       = {.font_size = font_size},
+        .layout     = {.box = {1400.0f, 200.0f}, .line_height = 1.10f, .tracking = 6.0f},
+        .appearance = {.color = {1.0f, 1.0f, 1.0f, 1.0f}},
     });
 }
 

@@ -2,7 +2,7 @@
 //
 // Canonical test compositions exercising the TextRun placement pipeline.
 // Every composition obeys the rule:
-//     l.pin_to(Anchor::Center) + centered_text(...)  —  NO .pos workaround.
+//     l.pin_to(Anchor::Center) + from_text_spec(TextSpec{...})  —  NO .pos workaround.
 //
 // Groups:
 //   A. Dashboard (8)  — static, animated, scale, glow, multiline, overflow,
@@ -14,12 +14,31 @@
 //   F. Cache invalidation — frame-dependent text content
 //
 // Register via register_text_placement_compositions().
+//
+// M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (2026-07-10):
+//   - 4 helper functions (make_centered_text_comp, make_1080p_centered,
+//     make_clipping_comp, make_multires) refactored to compute the
+//     canonical TextDefinition from CenterTextOptions internally;
+//     the 9 call sites passing CenterTextOptions unchanged.
+//   - 3 inline `centered_text({...})` call sites (A.7 multisource,
+//     C.1 box alignment, F.1 cache invalidation) replaced with
+//     `from_text_spec(TextSpec{...})` directly.
+//   - The legacy `centered_text()` wrapper is no longer invoked
+//     anywhere in this file (gate [2/4] satisfied).
+//   - `CenterTextOptions` struct definition is preserved (still used
+//     as the helper input parameter type — matches the §2D migration
+//     principle "minimize breakage of helper signatures").
+//   - `#include <content/text/text_helpers.hpp>` is preserved
+//     (provides `CenterTextOptions`); the `centered_text`/`glow_text`
+//     deprecated wrappers are NOT invoked.
 
 #include "text_placement_compositions.hpp"
 
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>
+#include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 
@@ -29,7 +48,7 @@
 
 namespace chronon3d::content::text_placement {
 
-using namespace chronon3d::content::text;
+using namespace chronon3d::content::text;   // for CenterTextOptions (input type)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Shared helpers
@@ -54,6 +73,38 @@ inline void add_dark_background(SceneBuilder& s) {
 /// (anim, glow, shadow, scale, etc.).
 using TextLayerSetup = std::function<void(LayerBuilder&)>;
 
+/// M1.8 §2D — convert the legacy CenterTextOptions (helper input type)
+/// to the canonical TextDefinition (F2.A DTO) used by LayerBuilder::text().
+/// This is the same conversion that the deprecated `centered_text()`
+/// wrapper performed; we inline it here to avoid invoking the deprecated
+/// path.  Field mapping is byte-equivalent to the centered_text() body
+/// in `content/text/text_helpers_centered.hpp`.
+inline TextDefinition options_to_definition(const CenterTextOptions& opts) {
+    return from_text_spec(TextSpec{
+        .content    = {.value = opts.text},
+        .font       = {.font_path   = opts.font_asset,
+                       .font_family = opts.font_family,
+                       .font_weight = opts.font_weight,
+                       .font_style  = opts.font_style,
+                       .font_size   = opts.font_size},
+        .layout     = {.box            = opts.box,
+                       .anchor         = TextAnchor::Center,
+                       .centering_mode = TextCenteringMode::PixelInk,
+                       .align          = TextAlign::Center,
+                       .vertical_align = VerticalAlign::Middle,
+                       .wrap           = TextWrap::Word,
+                       .overflow       = TextOverflow::Clip,
+                       .line_height    = opts.line_height,
+                       .tracking       = opts.tracking,
+                       .auto_fit       = opts.auto_fit,
+                       .min_font_size  = opts.min_font_size,
+                       .max_font_size  = opts.max_font_size,
+                       .max_lines      = opts.max_lines},
+        .appearance = {.color = opts.color},
+        .position   = opts.pos,
+    });
+}
+
 /// Build a composition with dark bg + one centered text layer.
 /// All compositions use this skeleton to guarantee the "no .pos workaround"
 /// invariant is uniformly applied.
@@ -64,15 +115,21 @@ Composition make_centered_text_comp(
     CenterTextOptions opts,
     TextLayerSetup setup = {})
 {
+    // M1.8 §2D — pre-compute the canonical TextDefinition once per
+    // composition (NOT per frame; the same def is reused across all
+    // frames because the opts are captured by value).  This avoids
+    // invoking the deprecated `centered_text()` wrapper at the call
+    // site while preserving byte-equivalent field semantics.
+    TextDefinition def = options_to_definition(opts);
     return composition(
         {.name = name, .width = width, .height = height, .duration = duration},
-        [opts = std::move(opts), setup = std::move(setup)](const FrameContext& ctx) {
+        [def = std::move(def), setup = std::move(setup)](const FrameContext& ctx) {
             SceneBuilder s(ctx);
             add_dark_background(s);
             s.layer("text", [&](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
                 if (setup) setup(l);
-                l.text("label", centered_text(opts));
+                l.text("label", def);
             });
             return s.build();
         });
@@ -173,6 +230,12 @@ Composition make_small_box_overflow_clip() {
 
 // A.7 — Multisource: text + decorative rectangle in the same layer.
 // The layer is pinned to center; text and rect share the coordinate space.
+// M1.8 §2D — inline `centered_text({...})` replaced with
+// `from_text_spec(TextSpec{...})` directly.  All CenterTextOptions
+// defaults (box={1200,240}, pos={0,0,0}, font_asset="assets/fonts/Poppins-Bold.ttf",
+// font_family="Poppins", font_weight=700, font_style="normal", color=Color{1,1,1,1},
+// max_lines=1, auto_fit=false, line_height=0.95, min_font_size=12, max_font_size=160)
+// are preserved exactly.
 Composition make_multisource_text_plus_shape() {
     return composition(
         {.name = "TextPlaceMultisource", .width = 1920, .height = 1080,
@@ -189,10 +252,27 @@ Composition make_multisource_text_plus_shape() {
                     .pos = {0.0f, 48.0f, 0.0f},
                 });
                 // Centered text above the underline
-                l.text("title", centered_text({
-                    .text = "MULTISOURCE",
-                    .font_size = kDefaultFontSize,
-                    .tracking = 6.0f,
+                l.text("title", from_text_spec(TextSpec{
+                    .content    = {.value = "MULTISOURCE"},
+                    .font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+                                   .font_family = "Poppins",
+                                   .font_weight = 700,
+                                   .font_style  = "normal",
+                                   .font_size   = kDefaultFontSize},
+                    .layout     = {.box            = {1200.0f, 240.0f},
+                                   .anchor         = TextAnchor::Center,
+                                   .centering_mode = TextCenteringMode::PixelInk,
+                                   .align          = TextAlign::Center,
+                                   .vertical_align = VerticalAlign::Middle,
+                                   .wrap           = TextWrap::Word,
+                                   .overflow       = TextOverflow::Clip,
+                                   .line_height    = 0.95f,
+                                   .tracking       = 6.0f,
+                                   .min_font_size  = 12.0f,
+                                   .max_font_size  = 160.0f,
+                                   .max_lines      = 1},
+                    .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},
+                    .position   = {0.0f, 0.0f, 0.0f},
                 }));
             });
             return s.build();
@@ -250,6 +330,12 @@ Composition make_antidouble_animated() {
 // C.1 — Visible debug rect + centered text in the same box dimensions.
 // Verifies that align, vertical_align, anchor and box are applied correctly:
 // the text alpha centroid should be near the box center, not the top-left.
+// M1.8 §2D — inline `centered_text({...})` replaced with
+// `from_text_spec(TextSpec{...})` directly.  All CenterTextOptions
+// defaults (pos={0,0,0}, font_asset="assets/fonts/Poppins-Bold.ttf",
+// font_family="Poppins", font_weight=700, font_style="normal", color=Color{1,1,1,1},
+// max_lines=1, auto_fit=false, line_height=0.95, min_font_size=12, max_font_size=160)
+// are preserved exactly.
 Composition make_box_alignment() {
     return composition(
         {.name = "TextPlaceBoxAlign", .width = 1920, .height = 1080,
@@ -265,11 +351,27 @@ Composition make_box_alignment() {
                     .color = {0.0f, 0.0f, 1.0f, 0.12f},
                 });
                 // Text inside the same box dimensions
-                l.text("label", centered_text({
-                    .text = "CENTER",
-                    .box = {1200.0f, 240.0f},
-                    .font_size = 90.0f,
-                    .tracking = 4.0f,
+                l.text("label", from_text_spec(TextSpec{
+                    .content    = {.value = "CENTER"},
+                    .font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+                                   .font_family = "Poppins",
+                                   .font_weight = 700,
+                                   .font_style  = "normal",
+                                   .font_size   = 90.0f},
+                    .layout     = {.box            = {1200.0f, 240.0f},
+                                   .anchor         = TextAnchor::Center,
+                                   .centering_mode = TextCenteringMode::PixelInk,
+                                   .align          = TextAlign::Center,
+                                   .vertical_align = VerticalAlign::Middle,
+                                   .wrap           = TextWrap::Word,
+                                   .overflow       = TextOverflow::Clip,
+                                   .line_height    = 0.95f,
+                                   .tracking       = 4.0f,
+                                   .min_font_size  = 12.0f,
+                                   .max_font_size  = 160.0f,
+                                   .max_lines      = 1},
+                    .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},
+                    .position   = {0.0f, 0.0f, 0.0f},
                 }));
             });
             return s.build();
@@ -374,6 +476,9 @@ Composition make_multires_3840x2160() {
 //   - Text actually changes (not served from stale cache)
 //   - BBox changes with content
 //   - Center remains correct across all frames
+// M1.8 §2D — inline `centered_text({...})` replaced with
+// `from_text_spec(TextSpec{...})` directly.  The runtime-determined
+// `word` value is captured into the TextSpec::content.value (std::string).
 Composition make_cache_invalidation() {
     return composition(
         {.name = "TextPlaceCacheInvalidation", .width = 1920, .height = 1080,
@@ -389,10 +494,27 @@ Composition make_cache_invalidation() {
             add_dark_background(s);
             s.layer("text", [word](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
-                l.text("label", centered_text({
-                    .text = word,
-                    .font_size = kDefaultFontSize,
-                    .tracking = 8.0f,
+                l.text("label", from_text_spec(TextSpec{
+                    .content    = {.value = word},
+                    .font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+                                   .font_family = "Poppins",
+                                   .font_weight = 700,
+                                   .font_style  = "normal",
+                                   .font_size   = kDefaultFontSize},
+                    .layout     = {.box            = {1200.0f, 240.0f},
+                                   .anchor         = TextAnchor::Center,
+                                   .centering_mode = TextCenteringMode::PixelInk,
+                                   .align          = TextAlign::Center,
+                                   .vertical_align = VerticalAlign::Middle,
+                                   .wrap           = TextWrap::Word,
+                                   .overflow       = TextOverflow::Clip,
+                                   .line_height    = 0.95f,
+                                   .tracking       = 8.0f,
+                                   .min_font_size  = 12.0f,
+                                   .max_font_size  = 160.0f,
+                                   .max_lines      = 1},
+                    .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},
+                    .position   = {0.0f, 0.0f, 0.0f},
                 }));
             });
             return s.build();

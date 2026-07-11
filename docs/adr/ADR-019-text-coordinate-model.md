@@ -309,6 +309,164 @@ Considered adding a Frame level between Canvas and Layer for sequence-local coor
 
 ---
 
+## §6 — Numerical Examples (1920×1080 canonical canvas)
+
+> **Origin:** this section was added in §2 follow-up (2026-07-10, post-F1.A). It collects
+> a single reproducible numerical lattice (canvas 1920×1080, default 5% safe-area
+> margins = top/bottom 54, left/right 96) so the decisions above can be inspected
+> end-to-end with one screen of numbers. Tests in
+> [`tests/text/test_text_placement_resolver.cpp`](../../tests/text/test_text_placement_resolver.cpp)
+> lock every numerical claim below. **No fourth coordinate level is added** —
+> this section is a worked example, not a model extension.
+
+### §6.1 — Placement (TextPlacementKind → pin point in Canvas coords)
+
+Canvas 1920×1080, default safe margins `96/96/54/54` (Left/Right/Top/Bottom),
+box 1700×360, no offset, anchor `TextAnchor::Center`.
+
+| Placement Kind              | Pin (Canvas px) | Formula                                  | Resolved origin (anchor = Center, box_top_left = pin − box/2) |
+|-----------------------------|-----------------|------------------------------------------|--------------------------------------------------------------|
+| `CanvasCenter`              | `(960, 540)`    | `(width/2, height/2)`                    | `(110, 360)`                                                 |
+| `TopLeft`                   | `(96, 54)`      | `(safe_margin_left, safe_margin_top)`    | `(-754, -126)` (off-screen; box's center at the safe margin)|
+| `TopCenter`                 | `(960, 54)`     | `(width/2, safe_margin_top)`             | `(110, -126)` (off-screen below 0; box extends down)        |
+| `TopRight`                  | `(1824, 54)`    | `(width - safe_margin_right, top)`       | `(974, -126)`                                                |
+| `CenterLeft`/`CenterRight`  | `(96/1824, 540)`| `(margin, height/2)` / `(width-margin, h/2)`| `(-704, 360)` / `(974, 360)`                                 |
+| `BottomLeft/Center/Right`   | `(96/960/1824, 1026)` | `(margin, height - bottom_margin)` | top-left `(-704, 846)`, `(110, 846)`, `(974, 846)`           |
+| `SafeAreaTop`/`SafeAreaBottom` | `(960, 54)/(960, 1026)` | same as TopCenter/BottomCenter | `(110, -126)` / `(110, 846)`                               |
+| `SafeAreaCenter`            | `(960, 540)`    | `((sl + (w-sr))/2, (st + (h-sb))/2)`       | `(110, 360)` (same as CanvasCenter for symmetric 5%-margins)|
+| `Absolute({x,y})`           | `(x, y)`        | `offset` itself (additive offset ignored)| origin = `(x - 850, y - 180)` for box 1700x360                |
+
+### §6.2 — Offset (placement.offset additivity)
+
+Same canvas 1920×1080 + box 800x200 (small for legibility).
+
+| Placement        | offset           | Pin                       | Note                                              |
+|------------------|------------------|---------------------------|---------------------------------------------------|
+| `TopLeft`        | `{0, 0}`         | `(96, 54)`                | Default — pin = safe-margin corner                 |
+| `TopLeft`        | `{10, 20}`       | `(106, 74)`               | Additive: `(96 + 10, 54 + 20)`                     |
+| `TopLeft`        | `{1824, 1026}`   | `(1920, 1080)`            | Pushes pin past the canvas — pin = origin + offset |
+| `CanvasCenter`   | `{-200, 100}`    | `(760, 640)`              | Negative offset shifts pin left/up                |
+| `Absolute({500,300})` | _ignored_  | `(500, 300)`              | `Absolute` is **not** additive (per Decision 3 § `Absolute` spec) |
+
+**Key contract:** pin = `placement_resolved_kind(canvas)` + `placement.offset`,
+_except_ for `Absolute` (where `offset` IS the pin and no kind math is applied).
+
+### §6.3 — Alignment (TextAlign + VerticalAlign — layout-engine concern)
+
+The placement resolver returns `layout_origin` = box top-left in Canvas
+coords (`(110, 360)` for the §6.1 example). The layout engine then positions
+each glyph within the box according to `TextAlign` (horizontal) and
+`VerticalAlign` (vertical).
+
+For box `(110, 360, 1700, 360)` and a notional text run of width `W`
+and height `H`:
+
+| align        | vertical_align | Glyph block origin (Box-local)                          |
+|--------------|----------------|---------------------------------------------------------|
+| `Left`       | `Top`          | `(0, 0)`                                                |
+| `Center`     | `Middle`       | `((1700 - W)/2, (360 - H)/2)`                            |
+| `Right`      | `Bottom`       | `(1700 - W, 360 - H)`                                    |
+| `Left`       | `Middle`       | `(0, (360 - H)/2)`                                      |
+| `Center`     | `Top`          | `((1700 - W)/2, 0)`                                     |
+| `Justify`*   | _n/a_          | *Per-line left-to-right flush, no block offset*          |
+
+> (*) `Justify` is a future extension tracked by `TICKET-FASE4-LAYOUT`
+> (V0.2 §Fase 4 cluster); not yet implemented.
+
+**Key contract:** the resolver returns the box origin; alignment is a
+layout-engine concern handled *inside* the box. Tests in
+`tests/text/test_text_placement_resolver.cpp::TextPlacement: ... + Anchor::...`
+indirectly confirm by locking box origin (and so the layout engine's
+working space).
+
+### §6.4 — Rotation (layer_matrix rotation, around box center)
+
+The placement resolver composes `world_matrix = layer_matrix * T(origin)`.
+Rotation enters via `layer_matrix`; it rotates the entire text frame around
+the layer origin (typically the canvas center `(960, 540)` for a top-level
+layer) by the angle theta = rad(`rotation_z`).
+
+Setup: canvas 1920x1080, box 1700x360, `CanvasCenter`, anchor `Center`, origin
+`(110, 360)`. Apply `layer_matrix = rotate_z(15°)`:
+
+| Element                                  | Pre-rotation            | Post-rotation (15° around `(960, 540)`)               |
+|------------------------------------------|-------------------------|--------------------------------------------------------|
+| Box top-left (Box-local `(0, 0)`)        | Canvas `(110, 360)`     | `(110-960, 360-540)` rotated -> `(909.1, 511.4)`     |
+| Box top-right (Box-local `(1700, 0)`)    | Canvas `(1810, 360)`    | `(1810-960, 360-540)` rotated -> `(1410.6, 218.6)`    |
+| Box bottom-left (Box-local `(0, 360)`)   | Canvas `(110, 720)`     | `(110-960, 720-540)` rotated -> `(789.1, 754.4)`      |
+| Box center                                | Canvas `(960, 540)`    | `(960, 540)` (rotation pivot, invariant)              |
+
+**Key contract:** rotation is applied _after_ placement resolution (the box
+origin is computed in Canvas coords, then the entire frame rotates around
+the layer origin). For 90° the rotation matrix degenerates to a swap;
+numerical lock is at 15° to avoid the degenerate case. Tests in
+`tests/text/test_text_placement_resolver.cpp` extend rotation coverage via
+`layer_matrix` rotation parameter — see `TextPlacement rotate_layer_matrix`
+case (planned companion test).
+
+### §6.5 — Anchor (TextAnchor → anchor_offset within the box)
+
+Same canvas 1920x1080, box 1700x360, `CanvasCenter` placement (pin `(960, 540)`):
+
+| Anchor             | anchor_offset (Box-local) | box_top_left (Canvas)                | behavioral note                          |
+|--------------------|---------------------------|-------------------------------------|------------------------------------------|
+| `TopLeft`          | `(0, 0)`                  | `(960, 540)`                         | Box's top-left at canvas center          |
+| `TopCenter`        | `(850, 0)`                | `(110, 540)`                         | Box's top-center at canvas center        |
+| `Center`           | `(850, 180)`              | `(110, 360)`                         | **Default** — box's center at canvas center |
+| `CenterRight`      | `(1700, 180)`             | `(-740, 360)`                        | Box's right-center at canvas center (off-screen) |
+| `BottomLeft`       | `(0, 360)`                | `(960, 180)`                         | Box's bottom-left at canvas center       |
+| `BottomCenter`     | `(850, 360)`              | `(110, 180)`                         | Box's bottom-center at canvas center     |
+| `BaselineLeft`     | `(0, baseline_y)`         | `(960, 540 - baseline_y)`            | Baseline at canvas center (y depends on font metrics) |
+| `BaselineCenter`   | `(850, baseline_y)`       | `(110, 540 - baseline_y)`            | Baseline-center at canvas center         |
+
+**Key contract:** anchor controls WHICH POINT OF THE BOX aligns with the
+pin point. `Center` is the default and matches the canonical "centered
+title" use case (Hero example in §Obiettivo finale of the simplicity
+plan). `Baseline*` variants depend on font metrics (ascent); the layout
+engine resolves them at shape time, not at the resolver's call site.
+
+### §6.6 — Putting it together (Hero example)
+
+Layer-text authoring target from §Obiettivo finale (this is the
+end-to-end pin point for the 5 sections above + §1, §3, §4, §6, §7-§13):
+
+```
+layer.text("title")
+  .content("PULSE GLOW")
+  .font("assets/fonts/Inter-Bold.ttf", 230.0f)
+  .frame({1700.0f, 360.0f})
+  .place(TextPlacement::CanvasCenter)
+  .opacity(interpolate(ctx.frame, {0, 15}, {0.4f, 0.85f}))
+  .commit();
+```
+
+On Canvas 1920x1080, default safe-area 5%, font Inter-Bold 230 px:
+
+| Property              | Value (after resolver)                                               |
+|-----------------------|----------------------------------------------------------------------|
+| Pin point             | `(960, 540)` (canvas center)                                         |
+| Anchor                | `Center` (default)                                                   |
+| Anchor offset         | `(850, 180)`                                                         |
+| Box top-left (Canvas) | `(110, 360)`                                                         |
+| Box extent (Canvas)   | `(110, 360)` -> `(1810, 720)`                                        |
+| Layout origin         | `(110, 360)`                                                         |
+| world_matrix          | `translate(110, 360)` (top-level layer, identity parent)             |
+| Predicted canvas bbox | contains `(110, 360, 1700, 360)` (containment with world_ink_bbox per Decision 5)|
+| Opacity @ frame 0     | `0.4f` (start of `interpolate` range)                                |
+| Opacity @ frame 15    | `0.85f` (end of `interpolate` range)                                 |
+
+This is the single worked example each follow-up commit (placement,
+offset, alignment, rotate, anchor) MUST be cross-checked against.
+
+---
+
+## Cross-references
+
+- `docs/ROADMAP.md` §M1.8 §2 — backward link from the §1A row of the M1.8 table
+- `include/chronon3d/text/text_definition.hpp` — top-of-file docblock quote of the §6 lattice
+
+---
+
 ## References
 
 - `include/chronon3d/core/types/frame_context.hpp` — `FrameContext::local_frame` (timeline, not spatial)

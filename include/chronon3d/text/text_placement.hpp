@@ -99,6 +99,8 @@ enum class TextPlacementKind : u8 {
     BottomRight,
     SafeAreaTop,
     SafeAreaBottom,
+    SafeAreaLeft,          // M1.8 §4: pin at left edge of safe area, vertically centered in safe area bounds
+    SafeAreaRight,         // M1.8 §4: pin at right edge of safe area, vertically centered in safe area bounds
     SafeAreaCenter,        // Phase A.2 addition: center of safe area bounds
     Absolute,              // The `offset` field IS the pin point
 };
@@ -179,6 +181,43 @@ struct SafeAreaPreset {
     static const SafeAreaPreset Portrait9x16;
     static const SafeAreaPreset Square1x1;
     static const SafeAreaPreset Landscape4x3;
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SafeAreaEnum — user-facing 5-value identifier for the safe-area family
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// User-facing enumeration for the canonical SafeArea placement family.
+// This is the ONLY input surface for `resolve_safe_area()` (M1.8 §4); the
+// resolver maps each variant to the corresponding `TextPlacement{
+// TextPlacementKind::SafeArea*}` authoring struct.  Consumers should
+// pass SafeAreaEnum when the intent is "place the text at a safe-area
+// edge/center" — the resolver handles the canvas-geometry bookkeeping.
+//
+// Anti-duplicazione rationale (per AGENTS.md §anti-duplication):
+//   - This enum mirrors the SafeArea{Kind} authoring surface (Top,
+//     Bottom, Left, Right, Center).  It does NOT introduce a parallel
+//     mapping table (e.g., a 5-element constant array indexed by
+//     SafeAreaEnum); the resolver is a switch on this enum.
+//   - Adding a new SafeArea placement (e.g., SafeAreaTopLeft) means:
+//       1. Adding `SafeAreaTopLeft` to `TextPlacementKind`
+//       2. Extending the switch in `resolve_safe_area()`
+//       3. Extending the switch in `resolve_placement_origin()`
+//     All three are intentional and tracked in lockstep.
+//
+// Coordinate semantics (M1.8 §4):
+//   Top    — pin at top-center of safe area (canvas.width/2, safe_margin_top)
+//   Bottom — pin at bottom-center of safe area (canvas.width/2, h - safe_margin_bottom)
+//   Left   — pin at left-center of safe area (safe_margin_left, safe-area vertical center)
+//   Right  — pin at right-center of safe area (w - safe_margin_right, safe-area vertical center)
+//   Center — pin at center of safe area bounds (mid of both axes)
+//
+enum class SafeAreaEnum : u8 {
+    Top,
+    Bottom,
+    Left,
+    Right,
+    Center,
 };
 
 } // namespace chronon3d

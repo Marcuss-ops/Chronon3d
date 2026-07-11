@@ -71,6 +71,26 @@ class Framebuffer;      // forward decl — `<chronon3d/core/memory/framebuffer.
 /// beyond ±2 px is a true contract fault.
 inline constexpr float kTextAuditBBoxTolerance = 2.0f;
 
+/// §9 FU04 — `TextVisibilityStatus` enum, the single-source-of-truth PASS/FAIL
+/// verdict for the text-bbox contract. Computed from the 4 critical invariants
+/// (font_resolved, shaping_succeeded, finite, predicted_contains_world) plus
+/// the 2 deferred alpha-bbox invariants (clip_contains_visible_ink, alpha_bbox
+/// non-empty — only evaluated when a framebuffer is supplied).
+///
+/// - `PASS`: all 4 critical invariants hold AND either (a) no framebuffer was
+///   provided (alpha-bbox invariants deferred) OR (b) framebuffer was provided
+///   AND clip_contains_visible_ink is true.
+/// - `FAIL`: at least one critical invariant is false, OR framebuffer was
+///   provided AND clip_contains_visible_ink is false.
+/// - `INDETERMINATE`: legacy sentinel for "audit not yet evaluated" (default
+///   value of `status` field). Reserved for future use; not produced by
+///   `audit_text_visibility()`.
+enum class TextVisibilityStatus : u8 {
+    INDETERMINATE = 0,  // not yet evaluated (default-initialized struct)
+    PASS           = 1,  // all critical invariants hold
+    FAIL           = 2,  // at least one critical invariant violated
+};
+
 /// `TextVisibilityAudit` — single-source-of-truth contract struct for
 /// text-bbox / visibility / clipping invariants. Populated by
 /// `audit_text_visibility()` and consumed by:
@@ -88,6 +108,10 @@ inline constexpr float kTextAuditBBoxTolerance = 2.0f;
 ///
 /// The fields are intentionally split per ADR-019 Decision 2: every
 /// bbox-producing function declares its coordinate level.
+///
+/// §9 FU04 — added `status` (PASS/FAIL), `should_disable_tile_pruning` (FU04
+/// violation response flag), and `expanded_predicted_bbox` (FU04 violation
+/// response output: world_ink_bbox expanded by effect_padding).
 struct TextVisibilityAudit {
     // ── font + shaping stage ────────────────────────────────────────────
     bool        font_resolved{false};       // `shape.engine != nullptr`
@@ -151,6 +175,29 @@ struct TextVisibilityAudit {
                                             //  The smoking-gun invariant for
                                             //  the Clip 06 19-pixel sliver
                                             //  regression.
+
+    // ── §9 FU04 — status + violation response ──────────────────────
+    TextVisibilityStatus status{TextVisibilityStatus::INDETERMINATE};
+    // PASS if all 4 critical invariants (font_resolved, shaping_succeeded,
+    // finite, predicted_contains_world) hold AND (no framebuffer OR
+    // clip_contains_visible_ink). FAIL otherwise. See `audit_text_visibility`
+    // for the exact cascade.
+
+    bool should_disable_tile_pruning{false};
+    // True iff `predicted_contains_world` is false. Set as the FU04
+    // violation response flag: the caller (TextRunNode::predicted_bbox)
+    // reads this and applies the bbox expansion (see below). For TextRun
+    // nodes tile_pruning is already off by design (see
+    // tile_pruning::compute_dirty_clip), so the "disable" semantics is
+    // realized via the bbox expansion that guarantees rasterization of
+    // all visible ink.
+
+    Rect expanded_predicted_bbox{};
+    // FU04 violation response output: `world_ink_bbox` expanded by
+    // `effect_padding` on all 4 sides. ONLY valid when
+    // `should_disable_tile_pruning == true`. Zero-rect (default) when
+    // the audit PASSes. Caller reads this when the flag is set and
+    // substitutes it for the original tight `predicted_bbox`.
 };
 
 /// `audit_text_visibility()` — single canonical pure function.
@@ -163,18 +210,56 @@ struct TextVisibilityAudit {
 ///   - `clip_rect`: compositor clip rect (canvas-level).
 ///   - `rendered_output`: optional `Framebuffer*`. When non-null the
 ///     alpha-bbox is measured; when nullptr only the math side is checked.
+///   - `effect_padding`: §9 FU04 violation response input — the radius
+///     (in canvas pixels) used to expand `world_ink_bbox` when
+///     `predicted_contains_world` is false. Typically the text's
+///     shadow/glow spread (see `TextRunNode::predicted_bbox`'s `spread`
+///     computation). Default 0.0f for backwards-compat with FU02 call
+///     sites that don't supply the parameter.
 ///
 /// Returns by value; the caller reads the populated struct.
 ///
 /// No globals. No side effects. No allocations beyond the small fixed-size
-/// return value (Rect × 5 + bool × 5 + size_t). Marked `[[nodiscard]]` so
-/// callers cannot accidentally drop the audit.
+/// return value (Rect × 6 + bool × 6 + size_t + enum). Marked `[[nodiscard]]`
+/// so callers cannot accidentally drop the audit.
 [[nodiscard]] TextVisibilityAudit audit_text_visibility(
     const TextRunShape& shape,
     const Mat4&         world_matrix,
     const Rect&         predicted_bbox,
     const Rect&         clip_rect,
-    const Framebuffer*  rendered_output = nullptr
+    const Framebuffer*  rendered_output = nullptr,
+    float               effect_padding  = 0.0f
+);
+
+/// `audit_text_visibility()` — single canonical pure function.
+///
+/// Inputs:
+///   - `shape`: the `TextRunShape` carrying layout, glyph states, engine.
+///   - `world_matrix`: layer → canvas transform.
+///   - `predicted_bbox`: producer-supplied bbox (typically from
+///     `TextRunNode::predicted_bbox()`).
+///   - `clip_rect`: compositor clip rect (canvas-level).
+///   - `rendered_output`: optional `Framebuffer*`. When non-null the
+///     alpha-bbox is measured; when nullptr only the math side is checked.
+///   - `effect_padding`: §9 FU04 violation response input — the radius
+///     (in canvas pixels) used to expand `world_ink_bbox` when
+///     `predicted_contains_world` is false. Typically the text's
+///     shadow/glow spread (see `TextRunNode::predicted_bbox`'s `spread`
+///     computation). Default 0.0f for backwards-compat with FU02 call
+///     sites that don't supply the parameter.
+///
+/// Returns by value; the caller reads the populated struct.
+///
+/// No globals. No side effects. No allocations beyond the small fixed-size
+/// return value (Rect × 6 + bool × 6 + size_t + enum). Marked `[[nodiscard]]`
+/// so callers cannot accidentally drop the audit.
+[[nodiscard]] TextVisibilityAudit audit_text_visibility(
+    const TextRunShape& shape,
+    const Mat4&         world_matrix,
+    const Rect&         predicted_bbox,
+    const Rect&         clip_rect,
+    const Framebuffer*  rendered_output = nullptr,
+    float               effect_padding  = 0.0f
 );
 
 /// `verify_text_visibility()` — F1.E post-render visibility contract.
@@ -208,7 +293,8 @@ struct TextVisibilityAudit {
     const Rect&         predicted_bbox,
     const Rect&         clip_rect,
     const Framebuffer*  rendered_output,
-    const char*         node_name
+    const char*         node_name,
+    float               effect_padding = 0.0f
 );
 
 } // namespace chronon3d

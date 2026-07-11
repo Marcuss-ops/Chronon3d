@@ -21,6 +21,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/animation/path/catmull_rom_path.hpp>
@@ -29,11 +30,11 @@
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/text_definition.hpp>
 
 #include "content/showcases/cinematic/cinematic_showcase_helpers.hpp"
 #include "content/showcases/cinematic/cinematic_text_camera.hpp"
 #include "content/common/text_reveal_helpers.hpp"
-#include "content/text/text_helpers.hpp"
 #include "content/text/text_theme.hpp"
 
 #include <cmath>
@@ -138,13 +139,11 @@ Composition abyss_freefall_stagger() {
                 {
                     Color base{0.65f, 0.85f, 1.0f, 1.0f};
                     if (i % 2 == 0) base = Color{0.85f, 0.95f, 1.0f, 1.0f};
-                    auto tp = chronon3d::content::text::centered_text({
-                        .text        = ch,
-                        .box         = {fs * 1.5f, fs * 1.8f},
-                        .font_size   = fs,
-                        .tracking    = 0.0f,
-                        .color       = base,
-                        .line_height = 1.10f,
+                    auto def = from_text_spec(TextSpec{
+                        .content    = {.value = ch},
+                        .font       = {.font_size = fs},
+                        .layout     = {.box = {fs * 1.5f, fs * 1.8f}, .line_height = 1.10f, .tracking = 0.0f},
+                        .appearance = {.color = base},
                     });
                     l.glow(GlowParams{
                         .radius          = 30.0f,
@@ -153,7 +152,7 @@ Composition abyss_freefall_stagger() {
                         .preserve_source = true,
                         .additive        = true,
                     });
-                    l.text("label", tp);
+                    l.text("label", def);
                 }
             });
         }

@@ -37,6 +37,17 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/text_preset_visual_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/text_golden_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/diagnostic_overlay_tests.cmake  # M1.8 §4C — diagnostic overlay
+    ${CMAKE_CURRENT_SOURCE_DIR}/text_definition_tests.cmake  # M1.8 §3 — pure struct + adapter lock tests (no Blend2D dependency, unconditional)
+    ${CMAKE_CURRENT_SOURCE_DIR}/safe_area_placement_tests.cmake  # M1.8 §3B — SafeAreaTop/Bottom/Left/Right/Center + resolve_safe_area (no Blend2D, unconditional)
+    ${CMAKE_CURRENT_SOURCE_DIR}/text_builder_ergonomics_tests.cmake  # M1.8 §5 — author handle chain + 1px-bbox invariant (no Blend2D, unconditional)
+    ${CMAKE_CURRENT_SOURCE_DIR}/animation_helpers_tests.cmake  # M1.8 §3A — 17 animation helpers (interpolate/spring/sequence/stagger/loop/delay/ease/clamp/...) (no Blend2D, unconditional)
+    ${CMAKE_CURRENT_SOURCE_DIR}/text_simplicity_adapters_tests.cmake  # M1.8 §6 — centered_text deprecation + glow consolidation + migration test (no Blend2D, unconditional)
+    ${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_tests.cmake  # M1.8 §4A — 7-pipeline parity (render/video/inspect-text + warmup/tile_pruning/serial/diagnostic) × 6 fields × 3 properties = 126 CHECKs (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file) — 7-pipeline parity (render/video/inspect-text + warmup/tile_pruning/serial/diagnostic) × 6 fields × 3 properties = 126 CHECKs (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file)
+    ${CMAKE_CURRENT_SOURCE_DIR}/visibility_contract_tests.cmake  # M1.8 §1E — TextVisibilityAudit PASS/FAIL cascade + §9 FU04 violation response (4 TEST_CASEs / ~12 CHECKs) (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file)
+    ${CMAKE_CURRENT_SOURCE_DIR}/inspect_text_tests.cmake  # M1.8 §4B — chronon3d_cli inspect-text (6 TEST_CASEs) — no Blend2D, requires CHRONON3D_BUILD_CLI_DEV=ON — TextVisibilityAudit PASS/FAIL cascade + §9 FU04 violation response (4 TEST_CASEs / ~12 CHECKs) (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file)
+    ${CMAKE_CURRENT_SOURCE_DIR}/text_presets_stability_tests.cmake  # M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 presets × 3 CHECKs = 15 assertions (UNCONDITIONAL, pure struct inspection)
+    ${CMAKE_CURRENT_SOURCE_DIR}/presets_golden_tests.cmake  # M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 PNG goldens in test_renders/golden/text/presets/ (Blend2D-gated INTEGRATION tier)
     ${CMAKE_CURRENT_SOURCE_DIR}/precomp_focus_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/video_tests.cmake
@@ -117,6 +128,10 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
 
 # ── TXT-QA-01 — Real Golden Text Harness (standalone, UNITY_BUILD OFF)
 include(${CMAKE_CURRENT_SOURCE_DIR}/text_golden_tests.cmake)
+# ── M1.8 §4C — Diagnostic overlay golden test (Blend2D-gated INTEGRATION tier).
+# Self-guards on CHRONON3D_USE_BLEND2D + CHRONON3D_ENABLE_TEXT (no-op in
+# SDK-only builds).  Same pattern as `text_presets_visual_tests.cmake`.
+include(${CMAKE_CURRENT_SOURCE_DIR}/diagnostic_overlay_tests.cmake)
 
 # ── PR-A4 (Blocco A, Fase 1 followup) — 16 text-style preset visual regression
 # The executable is gated by the outer `if(CHRONON3D_USE_BLEND2D AND
@@ -133,6 +148,94 @@ endif()
 # Note: the .cmake file self-guards on CHRONON3D_USE_BLEND2D so the
 # include is unconditional here.
 include(${CMAKE_CURRENT_SOURCE_DIR}/precomp_focus_tests.cmake)
+
+# M1.8 §3 / TICKET-SIMPLICITY-TEXTDEFINITION — pure struct + adapter
+# lock tests.  Listed here (UNCONDITIONAL) and NOT inside the
+# Blend2D+Text conditional above because: (i) the test exercises only
+# pure data structs (TextDefinition, TextSpec, TextDocument, TextDocumentBuilder)
+# with no compositor / no GPU / no FontEngine allocation; (ii) the
+# include must register even on SDK-only builds where
+# CHRONON3D_USE_BLEND2D / CHRONON3D_ENABLE_TEXT are OFF.  Per ADR-018,
+# this file is also listed in CMAKE_CONFIGURE_DEPENDS at the top of this
+# orchestrator.
+include(${CMAKE_CURRENT_SOURCE_DIR}/text_definition_tests.cmake)
+
+# M1.8 §3B / TICKET-SIMPLICITY-PLACEMENT — pure SafeArea solver lock
+# tests.  Listed here (UNCONDITIONAL) and NOT inside the Blend2D+Text
+# conditional above because: (i) the test exercises only
+# `resolve_placement_origin()` + `resolve_safe_area()`-style pure
+# math (no compositor / no GPU / no FontEngine allocation); (ii) the
+# include must register even on SDK-only builds where
+# CHRONON3D_USE_BLEND2D / CHRONON3D_ENABLE_TEXT are OFF.  Per ADR-018,
+# this file is also listed in CMAKE_CONFIGURE_DEPENDS at the top of
+# this orchestrator.
+include(${CMAKE_CURRENT_SOURCE_DIR}/safe_area_placement_tests.cmake)
+
+# M1.8 §5 / TICKET-SIMPLICITY-BUILDER exit-gate validation — locks the
+# canonical `Layer::text(content) → Text handle → ... .commit()-less
+# chain` ergonomics surface ("centra un titolo in < 10 righe"
+# criterion, M1.8 §2B acceptance gate).  Listed here (UNCONDITIONAL)
+# and NOT inside the Blend2D+Text conditional above because: (i) the
+# test exercises only the authoring façade (PendingTextRun + Text
+# setters + canonical resolver) with no compositor / no GPU / no
+# FontEngine allocation; (ii) the include must register even on
+# SDK-only builds where `CHRONON3D_USE_BLEND2D` /
+# `CHRONON3D_ENABLE_TEXT` are OFF.  Per ADR-018, this file is also
+# listed in `CMAKE_CONFIGURE_DEPENDS` at the top of this orchestrator.
+include(${CMAKE_CURRENT_SOURCE_DIR}/text_builder_ergonomics_tests.cmake)
+# M1.8 §3A / TICKET-SIMPLICITY-ANIMATION — locks ALL 17 animation helpers
+# exported by `interpolate.hpp` with 17 × 2 = 34 doctest CHECK assertions
+# (determinism + edge case per helper).  Pure math harness, no Blend2D /
+# FontEngine / HarfBuzz / Framebuffer / GPU dependency.  UNCONDITIONAL
+# registration (out of the Blend2D+Text conditional).
+include(${CMAKE_CURRENT_SOURCE_DIR}/animation_helpers_tests.cmake)
+
+# M1.8 §6 / TICKET-SIMPLICITY-ADAPTERS — deprecation + glow consolidation +
+# migration test.  Listed here (UNCONDITIONAL) and NOT inside the
+# Blend2D+Text conditional above because: (i) the math/diagnostic tests
+# (#1-6 + #10) run in every build profile (no compositor / no GPU /
+# no FontEngine allocation); (ii) the render tests (#7-9) are wrapped
+# in `#ifdef CHRONON3D_USE_BLEND2D` inside the .cpp file so the math
+# tests run in slim configurations without breaking the build.  Per
+# ADR-018, this file is also listed in `CMAKE_CONFIGURE_DEPENDS` at the
+# top of this orchestrator.
+include(${CMAKE_CURRENT_SOURCE_DIR}/text_simplicity_adapters_tests.cmake)
+
+# M1.8 §4A / TICKET-SIMPLICITY-PIPELINE-PARITY — locks the 7-pipeline
+# parity contract (chronon3d_cli render / video / inspect-text + warmup
+# on/off + tile_pruning on/off + serial/parallel + Debug/Release) that
+# produces the same `glyph_count`, `layout_bbox`, `world_bbox`,
+# `predicted_bbox`, `alpha_bbox`, hash (max ±2px differenza per bbox,
+# byte-exact per `glyph_count`/`hash`).  7 pipelines × 18 CHECKs = 126
+# assertions.  Listed here (UNCONDITIONAL) and NOT inside the
+# Blend2D+Text conditional above because: (i) the test exercises the
+# in-process SoftwareRenderer + text visibility audit harness +
+# canonical framebuffer_hash (pure math + harness, no Blend2D / GPU
+# dependency for the base identity checks); (ii) the include must
+# register even on SDK-only builds where CHRONON3D_USE_BLEND2D /
+# CHRONON3D_ENABLE_TEXT are OFF.  Per ADR-018, this file is also
+# listed in `CMAKE_CONFIGURE_DEPENDS` at the top of this orchestrator.
+include(${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_tests.cmake)
+
+# M1.8 §1E / TICKET-SIMPLICITY-VISIBILITY-CONTRACT — locks the FU04
+# TextVisibilityAudit status cascade (PASS/FAIL/INDETERMINATE) + the
+# §9 violation response (should_disable_tile_pruning +
+# expanded_predicted_bbox) with 4 TEST_CASEs / ~12 CHECK assertions.
+# Pure math harness, no Blend2D / GPU dependency.  CONDITIONAL on
+# CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file
+# (the audit function is gated).  Per ADR-018, this file is also
+# listed in CMAKE_CONFIGURE_DEPENDS at the top of this orchestrator.
+include(${CMAKE_CURRENT_SOURCE_DIR}/visibility_contract_tests.cmake)
+
+# M1.8 §4B / TICKET-SIMPLICITY-INSPECT-TEXT — locks the inspect-text
+# CLI subcommand JSON schema + exit code mapping with 6 TEST_CASEs
+# (PASS / FAIL / JSON-array format / entries / non-diagnostic build /
+# frame number).  CONDITIONAL on CHRONON3D_BUILD_CLI_DEV via
+# early-return in the .cmake file (the inspect-text subcommand lives
+# in the chronon3d_cli_dev sub-target, OFF by default).  Per ADR-018,
+# this file is also listed in CMAKE_CONFIGURE_DEPENDS at the top of
+# this orchestrator.
+include(${CMAKE_CURRENT_SOURCE_DIR}/inspect_text_tests.cmake)
 
 # Tests requiring content
 if(CHRONON3D_BUILD_CONTENT)
@@ -246,6 +349,15 @@ endif()
 # TXT-QA-01 — text golden harness (standalone, UNITY_BUILD OFF)
 if(TARGET chronon3d_text_golden_tests)
     list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_text_golden_tests)
+endif()
+# M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 PNG goldens (Blend2D-gated INTEGRATION tier)
+if(TARGET chronon3d_presets_golden_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_presets_golden_tests)
+endif()
+# M1.8 §4C / TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY — 5 PNG overlay goldens
+# (Blend2D-gated INTEGRATION tier, one per clip variant).
+if(TARGET chronon3d_diagnostic_overlay_tests)
+    list(APPEND CHRONON3D_RENDER_TEST_DEPS chronon3d_diagnostic_overlay_tests)
 endif()
 # AGENT 4 / TICKET-A4 — append the cinematic camera showcase binary to the
 # render aggregator (single canonical site, mirrors the PR-A4 append

@@ -18,6 +18,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/animation/path/catmull_rom_path.hpp>
@@ -26,11 +27,11 @@
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/text_definition.hpp>
 
 #include "content/showcases/cinematic/cinematic_showcase_helpers.hpp"
 #include "content/showcases/cinematic/cinematic_text_camera.hpp"
 #include "content/common/text_reveal_helpers.hpp"
-#include "content/text/text_helpers.hpp"
 #include "content/text/text_theme.hpp"
 
 #include <cmath>
@@ -112,15 +113,13 @@ Composition rack_focus_title_swap() {
                 .key(Frame{30}, 1.0f, EasingCurve{Easing::Linear})
                 .key(Frame{150}, 1.0f, EasingCurve{Easing::Linear})
                 .key(Frame{180}, 0.7f, EasingCurve{Easing::InCubic});
-            auto tp = chronon3d::content::text::centered_text({
-                .text        = "FOCUS NEAR",
-                .box         = {1500.0f, 240.0f},
-                .font_size   = 130.0f,
-                .tracking    = 8.0f,
-                .color       = FRESH_TEXT_WHITE,
-                .line_height = 1.10f,
+            auto def = from_text_spec(TextSpec{
+                .content    = {.value = "FOCUS NEAR"},
+                .font       = {.font_size = 130.0f},
+                .layout     = {.box = {1500.0f, 240.0f}, .line_height = 1.10f, .tracking = 8.0f},
+                .appearance = {.color = FRESH_TEXT_WHITE},
             });
-            l.text("label", tp);
+            l.text("label", def);
         });
 
         // ── BACK title at Z=+800 — blurred then sharpens in ──────────
@@ -148,15 +147,13 @@ Composition rack_focus_title_swap() {
                 .key(Frame{120}, 0.55f, EasingCurve{Easing::Linear})
                 .key(Frame{150}, 1.0f, EasingCurve{Easing::OutCubic})
                 .key(Frame{180}, 1.0f, EasingCurve{Easing::Linear});
-            auto tp = chronon3d::content::text::centered_text({
-                .text        = "FAR AWAY",
-                .box         = {1500.0f, 220.0f},
-                .font_size   = 120.0f,
-                .tracking    = 10.0f,
-                .color       = FRESH_TEXT_MUTED,
-                .line_height = 1.10f,
+            auto def = from_text_spec(TextSpec{
+                .content    = {.value = "FAR AWAY"},
+                .font       = {.font_size = 120.0f},
+                .layout     = {.box = {1500.0f, 220.0f}, .line_height = 1.10f, .tracking = 10.0f},
+                .appearance = {.color = FRESH_TEXT_MUTED},
             });
-            l.text("label", tp);
+            l.text("label", def);
         });
 
         // ── Camera Vertigo dolly-zoom: close in Z while widening FOV ───

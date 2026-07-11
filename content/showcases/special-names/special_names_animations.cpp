@@ -1,11 +1,13 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/text/text_definition.hpp>
 
 #include "content/common/animation_helpers.hpp"
-#include "content/text/text_helpers.hpp"
+#include "content/text/text_helpers.hpp"   // M1.8 §2D — kept for typewriter_text() in special_name_typewriter()
 #include "special_names_theme.hpp"
 
 namespace chronon3d::content::special_names {
@@ -46,7 +48,11 @@ Composition make_special_name_comp(const char* name, AnimSetup setup) {
                     .aura_strength = 0.0f,   // skip aura pass
                     .bloom_strength = 0.80f, // compensate for skipped core+aura
                 });
-                l.text("name", text::centered_text({.text = DEMO_NAME, .font_size = 110.0f, .tracking = 14.0f}));
+                l.text("name", from_text_spec(TextSpec{
+                    .content = {.value = DEMO_NAME},
+                    .font    = {.font_size = 110.0f},
+                    .layout  = {.tracking = 14.0f},
+                }));
             });
             return s.build();
         });

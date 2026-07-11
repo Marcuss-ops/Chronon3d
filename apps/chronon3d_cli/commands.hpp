@@ -68,15 +68,6 @@ struct RenderPipelineArgs {
     // Text layout debug overlay + structured log per TextRun.
     bool text_layout_debug{false};
 
-    // Diagnostic overlay: draws bbox, anchor point, and baseline markers
-    // on text layers.  Alias for text_layout_debug with a user-facing name.
-    bool diagnostic_overlay{false};
-
-    // Diagnostic overlay-only: skip scene content, produce transparent PNG
-    // with ONLY the debug overlay markers.  Requires --diagnostic-overlay
-    // (or --debug-text-layout) to also be active.
-    bool diagnostic_overlay_only{false};
-
     // Text layout debug JSON export path.
     // When non-empty and text_layout_debug is true, writes a JSON file
     // with per-TextRun bounds data (alpha_bounds, layout_bounds,
@@ -220,8 +211,6 @@ struct BakeLayerArgs {
     std::string output;
     bool quiet{false};
     bool diagnostic{false};
-    bool diagnostic_overlay{false};
-    bool diagnostic_overlay_only{false};
     bool exr_bake{false};
 };
 
@@ -245,8 +234,14 @@ struct TextAuditArgs {
     int   max_border_alpha_pixels{0};
     float glyph_tolerance{0.01f};
     int   alpha_threshold{8};
-    bool  diagnostic_overlay{false};      // --diagnostic-overlay for frame PNG renders
-    bool  diagnostic_overlay_only{false}; // --diagnostic-overlay-only: transparent bg, markers only
+};
+
+// §12 FU09 — TICKET-SIMPLICITY-INSPECT-TEXT: per-node TextRun audit
+// with structured JSON output + exit code (0=PASS, 1=FAIL, 2=VIOLATION).
+struct InspectTextArgs {
+    std::string comp_id;          // Composition name (required)
+    Frame       frame{0};          // --frame N (required)
+    bool        json{true};        // --json: emit JSON to stdout (default on)
 };
 
 int command_list(const CompositionRegistry& registry);
@@ -262,21 +257,15 @@ int command_video(const CompositionRegistry& registry, const VideoArgs& args);
 int command_video_camera(const CompositionRegistry& registry, const VideoCameraArgs& args);
 int command_bench_convert(const CompositionRegistry& registry, const BenchConvertArgs& args);
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
-int command_graph(const CompositionRegistry& registry, const GraphArgs& args);   // D4 — internal: use `inspect graph`
+int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::vector<std::string>& job_specs);
 int command_telemetry(const TelemetryArgs& args);
-int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args, AssetRegistry& assets);   // D4 — internal: use `inspect preflight`
+int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args, AssetRegistry& assets);
 int command_still(const CompositionRegistry& registry, const StillArgs& args);
 int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args);
-int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);   // D4 — internal: use `inspect camera`
-int command_text_audit(const CompositionRegistry& registry, const TextAuditArgs& args);   // D4 — internal: use `inspect text`
-
-struct TextDefInspectArgs {
-    std::string comp_id;
-    std::string json_output;   // --json output path (stdout if empty)
-};
-
-int command_text_def_inspect(const CompositionRegistry& registry, const TextDefInspectArgs& args);
+int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);
+int command_text_audit(const CompositionRegistry& registry, const TextAuditArgs& args);
+int command_inspect_text(const CompositionRegistry& registry, const InspectTextArgs& args);
 
 } // namespace cli
 } // namespace chronon3d

@@ -1,12 +1,13 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
+#include <chronon3d/text/text_definition.hpp>
 
 #include "content/common/background_helpers.hpp"
-#include "content/text/text_helpers.hpp"
 
 namespace chronon3d::content::minimalist {
 
@@ -35,10 +36,10 @@ Composition make_minimalist_comp(const char* name, const char* text,
                 l.pin_to(Anchor::Center);
                 setup(l);
                 l.glow(TextGlowPresets::ae_cinematic_white().to_glow_params());
-                l.text("phrase", text::centered_text({
-                    .text      = text,
-                    .font_size = font_size,
-                    .tracking  = tracking,
+                l.text("phrase", from_text_spec(TextSpec{
+                    .content = {.value = text},
+                    .font    = {.font_size = font_size},
+                    .layout  = {.tracking = tracking},
                 }));
             });
             return s.build();
@@ -61,10 +62,10 @@ Composition make_minimalist_comp_no_glow(const char* name, const char* text,
                 l.pin_to(Anchor::Center);
                 setup(l);
                 // NO glow — diagnostic variant for BUG 2 isolation
-                l.text("phrase", text::centered_text({
-                    .text      = text,
-                    .font_size = font_size,
-                    .tracking  = tracking,
+                l.text("phrase", from_text_spec(TextSpec{
+                    .content = {.value = text},
+                    .font    = {.font_size = font_size},
+                    .layout  = {.tracking = tracking},
                 }));
             });
             return s.build();
