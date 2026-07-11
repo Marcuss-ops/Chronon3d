@@ -337,7 +337,7 @@ Specifically:
 
 ### Chain to the pre-existing rot at `src/render_graph/pipeline/camera_change_policy.cpp:24`
 
-This is the **TICKET-camera-policy-pre-existing rot**, present pre-`ac514fea`: the rot was that `camera_change_policy.cpp` wrote to `prev->projection_mode != current.projection_mode` for the change-detection logic.  This was masked by the existence of BOTH `projection_mode` and `optics_mode` on `Camera2_5D`, AND by the `tools/check_camera_architecture.sh` gate's sanctioned-bridge exemption for the legacy `camera_change_policy.cpp`.  Fix in `ac514fea` (per `docs/FOLLOWUP_TICKETS.md`): `projection_mode → optics_mode`, unblocking `chronon3d_render_graph_tests` + `chronon3d_core_tests` LINK.
+This is the **TICKET-camera-policy-pre-existing rot**, present before the fix: the rot was that `camera_change_policy.cpp` wrote to `prev->projection_mode != current.projection_mode` for the change-detection logic.  This was masked by the existence of BOTH `projection_mode` and `optics_mode` on `Camera2_5D`, AND by the `tools/check_camera_architecture.sh` gate's sanctioned-bridge exemption for the legacy `camera_change_policy.cpp`.  The fix (per `docs/FOLLOWUP_TICKETS.md`): `projection_mode → optics_mode`, unblocking `chronon3d_render_graph_tests` + `chronon3d_core_tests` LINK.
 
 This rot is the **documentation precedent** for the 6 A3 contracts above.  Specifically:
 
@@ -382,7 +382,7 @@ The cluster row's last entry — "TICKET-camera-policy-pre-existing" carryover (
 
 * The 6 A3 tickets' commits already ship the source-code changes; this ADR does not introduce new commits.
 * `tools/check_camera_architecture.sh` gates `[1/6]`–`[6/6]` continue to enforce the camera_v1 surface from the architectural side; this ADR is the runtime-contract side of the same envelope.
-* The `TICKET-camera-policy-pre-existing` rot (camera_change_policy.cpp:24, `projection_mode → optics_mode` fix in `ac514fea`) stays **out of scope** for the A3 cluster per `docs/FOLLOWUP_TICKETS.md`; it is documented here only as precedent.
+* The `TICKET-camera-policy-pre-existing` rot (camera_change_policy.cpp:24, `projection_mode → optics_mode` fix) stays **out of scope** for the A3 cluster per `docs/FOLLOWUP_TICKETS.md`; it is documented here only as precedent.
 
 ## Alternatives considered
 
@@ -403,7 +403,7 @@ The cluster row's last entry — "TICKET-camera-policy-pre-existing" carryover (
 * `docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md` — the canonical pre-roll procedure that Decision 3 (`commit()` as sole writepoint for `last_evaluated_frame`) implements.
 * `docs/camera-plan/04-INTEGRATION_TESTS_AND_LEGACY_REMOVAL.md` — the integration-test plan that the 6 A3 regression locks implement.
 * TICKET-A3-METADATA / SESSION-POLICY / CACHE-LEASE / CTX-FRAMERATE / DAMPED-HISTORY / LOOKAT-DIAGNOSTIC — the 6 A3-cluster tickets in `docs/FOLLOWUP_TICKETS.md` whose canonical contract is consolidated here.
-* TICKET-camera-policy-pre-existing (M1.5#1 carryover + M1.5#2 carryover) — the `camera_change_policy.cpp:24` rot fixata in `ac514fea` (projection_mode→optics_mode); the **documentation precedent** for the silent-fallback rot class that ADR-013's 6 contracts address.
+* TICKET-camera-policy-pre-existing (M1.5#1 carryover + M1.5#2 carryover) — the `camera_change_policy.cpp:24` rot (projection_mode→optics-mode fix); the **documentation precedent** for the silent-fallback rot class that ADR-013's 6 contracts address.
 * `tools/check_camera_architecture.sh` (gates `[1/6]`–`[6/6]`) — enforces the architectural-side envelope that this ADR's runtime contracts sit inside.
 * `tools/check_doc_sync.sh` — `docs/adr/ADR-NNN-<title>.md` is a canonical file; this ADR is in-scope.
 * `tools/install_consumer_test.sh` — the SDK consumer-side attestator that ADR-013's "no surface expansion" claim is audited.
