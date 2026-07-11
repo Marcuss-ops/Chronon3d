@@ -105,6 +105,18 @@ Rect transform_aabb(const Rect& local, const Mat4& M) noexcept {
     return Rect{ {xmin, ymin}, {xmax - xmin, ymax - ymin} };
 }
 
+// `expand_rect()` — §9 FU04 violation response helper. Returns `r` padded
+// by `padding` on all 4 sides. AABB semantics, axis-aligned. If `padding`
+// is negative, the function still produces a valid rect (potentially
+// degenerate). If `r` has non-finite coordinates, the result is undefined
+// (caller is responsible for guarding via `rect_is_finite()` first).
+Rect expand_rect(const Rect& r, float padding) noexcept {
+    return Rect{
+        {r.origin.x - padding, r.origin.y - padding},
+        {r.size.x + 2.0f * padding, r.size.y + 2.0f * padding}
+    };
+}
+
 // `scan_alpha_bbox()` — conservative placeholder.
 //
 // Returns an empty `Rect{}` (zero size) when:
@@ -165,7 +177,8 @@ TextVisibilityAudit audit_text_visibility(
     const Mat4&         world_matrix,
     const Rect&         predicted_bbox,
     const Rect&         clip_rect,
-    const Framebuffer*  rendered_output) noexcept
+    const Framebuffer*  rendered_output,
+    float               effect_padding) noexcept
 {
     TextVisibilityAudit audit{};
 
@@ -208,9 +221,11 @@ TextVisibilityAudit audit_text_visibility(
         kTextAuditBBoxTolerance);
 
     // ── alpha-bbox (only when framebuffer provided) ───────────────────
-    if (rendered_output != nullptr
-        && rendered_output->width() > 0
-        && rendered_output->height() > 0) {
+    const bool framebuffer_supplied =
+        (rendered_output != nullptr
+         && rendered_output->width() > 0
+         && rendered_output->height() > 0);
+    if (framebuffer_supplied) {
         audit.rendered_alpha_bbox = scan_alpha_bbox(*rendered_output);
         // If the alpha scan returns a non-finite Rect (degenerate), report
         // the conservative false; if finite, intersect-test against clip.
@@ -233,6 +248,33 @@ TextVisibilityAudit audit_text_visibility(
         audit.clip_contains_visible_ink = false;
     }
 
+    // §9 FU04 — status cascade + violation response
+    // Status computation: PASS iff all 4 critical invariants hold AND
+    // (no framebuffer OR clip_contains_visible_ink). FAIL otherwise.
+    const bool critical_pass = audit.font_resolved
+                            && audit.shaping_succeeded
+                            && audit.finite
+                            && audit.predicted_contains_world;
+    if (!critical_pass) {
+        audit.status = TextVisibilityStatus::FAIL;
+    } else if (framebuffer_supplied && !audit.clip_contains_visible_ink) {
+        audit.status = TextVisibilityStatus::FAIL;
+    } else {
+        audit.status = TextVisibilityStatus::PASS;
+    }
+    // Violation response: set the flag + compute the expansion. Triggered
+    // iff `predicted_contains_world` is false (the math-side contract
+    // violation that the user-facing status would also flag). The
+    // expansion is `world_ink_bbox` padded by `effect_padding` on all
+    // 4 sides. The caller (TextRunNode::predicted_bbox) reads the flag
+    // + the expansion and substitutes it for the original tight bbox.
+    audit.should_disable_tile_pruning = !audit.predicted_contains_world;
+    if (audit.should_disable_tile_pruning
+        && rect_is_finite(audit.world_ink_bbox)) {
+        audit.expanded_predicted_bbox =
+            expand_rect(audit.world_ink_bbox, effect_padding);
+    }
+
     return audit;
 }
 
@@ -242,10 +284,12 @@ TextVisibilityAudit verify_text_visibility(
     const Rect&         predicted_bbox,
     const Rect&         clip_rect,
     const Framebuffer*  rendered_output,
-    const char*         node_name
+    const char*         node_name,
+    float               effect_padding
 ) {
     const auto audit = audit_text_visibility(
-        shape, world_matrix, predicted_bbox, clip_rect, rendered_output);
+        shape, world_matrix, predicted_bbox, clip_rect, rendered_output,
+        effect_padding);
 
     // ── F1.E — 6 invariants with one-shot spdlog::warn ──────────────────
     const char* nm = node_name ? node_name : "<unnamed>";

@@ -166,6 +166,25 @@ public:
     LayerBuilder& depth_offset(f32 offset);
 
     // ── Layout ──
+    // M1.8 §5A / TICKET-SIMPLICITY-DEPRECATION — `pin_to(Anchor)` operates
+    // on LAYER coordinates, NOT canvas coordinates.  For text layers
+    // (any layer that calls `.text(...)` on this same LayerBuilder),
+    // mixing `pin_to(Anchor)` with `TextAnchor::` on the inner
+    // TextSpec/TextDefinition indicates a Canvas/Layer/Box coordinate-
+    // level confusion per ADR-019 §3 (the predicted_bbox vs world_ink_bbox
+    // divergence that triggered TICKET-TEXT-CLIP-PREDICTED-BBOX).
+    //
+    // For text layers, prefer the canonical `TextPlacement` chain on the
+    // TextDefinition:
+    //   layer.text("hello", chronon3d::presets::text::title_centered("HELLO"));
+    //   // OR
+    //   auto def = from_text_spec(ts);
+    //   def.frame.position = ...;   // resolved via resolve_placement_origin
+    //
+    // Enforcement: `tools/check_no_dual_text_api.sh` [4/4] (now blocking
+    // per §5A) flags files where `pin_to(...)` co-occurs with
+    // `TextAnchor::` and `.text(...)` in the same TU.  See the gate
+    // header for the full list of grandfathered pre-existing files.
     LayerBuilder& pin_to(Anchor anchor, f32 margin = 0.0f);
     LayerBuilder& pin_to(AnchorPlacement placement, f32 margin = 0.0f);
     LayerBuilder& keep_in_safe_area(SafeArea area = {});
@@ -184,14 +203,14 @@ public:
     }
 
     /// Set the default font path for all subsequent text_run() calls on
-    /// this layer.  Overridden by an explicit font_path in TextRunSpec.
+    /// this layer.  Overridden by an explicit font_path in TextRunParams.
     LayerBuilder& font(std::string path) {
         m_default_font_path = std::move(path);
         return *this;
     }
 
     /// Set the default font size for all subsequent text_run() calls on
-    /// this layer.  Overridden by an explicit font_size in TextRunSpec.
+    /// this layer.  Overridden by an explicit font_size in TextRunParams.
     LayerBuilder& font_size(f32 size) {
         m_default_font_size = size;
         return *this;
@@ -340,7 +359,7 @@ public:
     //
     // Architecture rationale:
     //   - `LayerBuilder` operates on low-level specs and pipelines
-    //     (`TextRunBuilder`, `TextRunSpec`).  Injecting a high-level
+    //     (`TextRunBuilder`, `TextRunParams`).  Injecting a high-level
     //     fluent authoring interface (which needs context like
     //     `FrameContext` and registries) directly into the builder
     //     violates the facade separation.
@@ -439,31 +458,12 @@ public:
     //
     LayerBuilder& text(std::string name, TextSpec p);
 
-    /// F3.D — forward-point authoring overload accepting TextDefinition.
-    /// Routes via text_run(to_text_run_spec(def)).commit(), the F2.D lossless
-    /// reverse adapter.  This is the RECOMMENDED entry point for new
-    /// compositions; centered_text() / glow_text() / typewriter_text()
-    /// all return TextDefinition and compose directly with this overload.
-    ///
-    /// Behaviour vs F2.C (historical): animation fields populated in
-    /// TextDefinition (animators, selectors, direction, language, script,
-    /// cache_layout) are now carried all the way to TextRunSpec and downstream
-    /// to materialize_text_run_shape() — previously they were silently
-    /// dropped by the F2.C lossy via from_text_definition() path.
-    ///
-    /// Frame envelope drop (TextAnimation.start_delay + .duration) is
-    /// identical to text_run(name, TextDefinition) — see text_definition.hpp
-    /// F2.D LIFECYCLE.
+    /// F2.C — canonical authoring overload accepting TextDefinition.
+    /// Converts via from_text_definition() and delegates to text(name, TextSpec).
+    /// This is the RECOMMENDED entry point for new compositions;
+    /// centered_text() / glow_text() / typewriter_text() now all return
+    /// TextDefinition so they compose directly with this overload.
     LayerBuilder& text(std::string name, const TextDefinition& def);
-
-    /// F3.D — forward-point overload accepting TextRunSpec.
-    /// The symmetric counterpart of text_run(name, TextRunSpec).  Lets the
-    /// caller land on the canonical text_run chain via the short-form
-    ///   layer.text("id", run_spec).commit();
-    /// instead of the verbose
-    ///   layer.text_run("id", run_spec).commit();
-    /// Behaviourally identical — sugar only.
-    LayerBuilder& text(std::string name, TextRunSpec run);
 
     // ── TextRunBuilder (PR 4 — TextAnimator V2) ──────────────────────────
     /// Push a new text-run entry into the layer's pending specs and
@@ -478,29 +478,39 @@ public:
     /// `return *this` chain.  The returned `TextRunBuilder&` is the
     /// next layer in the chain; calling `.commit()` explicitly hands
     /// control back to the layer-level builder.
-    [[nodiscard]] TextRunBuilder& text_run(std::string name, TextRunSpec params);
-
-    /// F3.D — forward-point authoring overload accepting TextDefinition.
-    /// Routes via text_run(to_text_run_spec(def)), the F2.D lossless reverse
-    /// adapter.  Returns TextRunBuilder& so callers can chain additional
-    /// animators / selectors / opacity on top of the canonical DTO:
-    ///   layer.text_run("title", centered_text(opts))
-    ///       .opacity(0.8f)
-    ///       .commit();
     ///
-    /// Behaviour vs F2.C (historical): animation fields populated in
-    /// TextDefinition (animators, selectors, direction, language, script,
-    /// cache_layout) are now carried all the way to TextRunSpec and downstream
-    /// into materialize_text_run_shape() — previously they were silently
-    /// dropped by the F2.C lossy text_run.text = from_text_definition(def) path.
+    /// ── M1.8 §3 / TICKET-SIMPLICITY-TEXTDEFINITION callout ──
+    /// `text_run(name, TextRunParams)` retains the legacy TextRunParams /
+    /// TextRunSpec entry point per AGENTS.md forward-only invariant
+    /// ("no code removal in atomic commits").  For new TextDefinition
+    /// compositions, use `text(name, const TextDefinition&)` — the
+    /// canonical authoring overload (F2.C) declared above — which
+    /// routes through `from_text_definition(def)` and produces the
+    /// same RenderNode shape via the canonical authoring DTO.  This
+    /// keeps `LayerBuilder::text_run()` available for direct animator
+    /// authoring while the TextDefinition lower lands cleanly in F3.
     ///
-    /// Frame envelope drop (TextAnimation.start_delay + .duration) is
-    /// documented in text_definition.hpp F2.D LIFECYCLE — these live on
-    /// Layer, not on TextRunSpec.
+    /// ── M1.8 §5A / TICKET-SIMPLICITY-DEPRECATION callout ──
+    /// For SIMPLE text cases (no TextAnimator, no GlyphSelector, no
+    /// script/language override, no per-run cache_layout tweak), prefer
+    /// `text(name, const TextDefinition&)` over `text_run(name, TextRunParams)`.
+    /// The `text()` overload skips the `TextRunBuilder` indirection
+    /// (which exists primarily to host animators/selectors) and goes
+    /// directly through the canonical authoring DTO.  Reserve
+    /// `text_run()` for the case where you actually need a
+    /// `TextAnimatorSpec` / `GlyphSelectorSpec` array.
     ///
-    /// Symmetric with text(name, TextDefinition) (F3.D — same overload family
-    /// in shape_commands.cpp).
-    [[nodiscard]] TextRunBuilder& text_run(std::string name, const TextDefinition& def);
+    /// Migration target:
+    ///   // OLD (simple static label, ANTI-PATTERN per §5A):
+    ///   layer.text_run("hello_id", TextRunParams{
+    ///       .text = TextSpec{ .content = {.value = "HELLO"}, ... },
+    ///   }).commit();
+    ///
+    ///   // NEW (canonical, fluent, ~4 method calls):
+    ///   layer.text("hello_id", chronon3d::presets::text::title_centered("HELLO"));
+    ///   // OR
+    ///   layer.text("hello_id", from_text_spec(my_text_spec));
+    [[nodiscard]] TextRunBuilder& text_run(std::string name, TextRunParams params);
 
     LayerBuilder& shape(std::string_view id, std::string name, registry::ShapeParams params);
 
@@ -509,49 +519,26 @@ public:
     LayerBuilder& grid_plane(std::string name, GridPlaneParams p);
 
     // ── Motion Presets ──
-    // C3 — [[deprecated]]: use presets::motion_preset_packs().apply(lb, "slide_in")
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, preset_id) from motion_preset_packs.hpp")]]
     LayerBuilder& slide_in(Vec3 from, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"soft_pop\")")]]
     LayerBuilder& soft_pop(Frame duration = Frame{30});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"float_idle\")")]]
     LayerBuilder& float_idle(f32 amplitude_y = 12.0f, Frame cycle = Frame{120});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"depth_reveal\")")]]
     LayerBuilder& depth_reveal(f32 depth_z = 260.0f, Frame duration = Frame{45});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"card_flip_2_5d\")")]]
     LayerBuilder& card_flip_2_5d(Frame duration = Frame{60});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"settle\")")]]
     LayerBuilder& settle(f32 overshoot = 0.08f, Frame duration = Frame{20});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"fade_in\")")]]
     LayerBuilder& fade_in(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"focus_in\")")]]
     LayerBuilder& focus_in(f32 start_blur, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"scale_drop\")")]]
     LayerBuilder& scale_drop(f32 start_scale, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"fade_shift_vertical\")")]]
     LayerBuilder& fade_shift_vertical(Vec3 offset, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"fade_shift_horizontal\")")]]
     LayerBuilder& fade_shift_horizontal(Vec3 offset, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"reveal_from_bottom\")")]]
     LayerBuilder& reveal_from_bottom(f32 distance, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    // C3 — [[deprecated]]: use presets::motion_preset_packs().apply(lb, preset_id)
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"center_split\")")]]
     LayerBuilder& center_split(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"underline_draw\")")]]
     LayerBuilder& underline_draw(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"highlight_block\")")]]
     LayerBuilder& highlight_block(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"framing_bracket\")")]]
     LayerBuilder& framing_bracket(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"word_stagger\")")]]
     LayerBuilder& word_stagger(Frame delay, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"tracking_breathing\")")]]
     LayerBuilder& tracking_breathing(f32 scale_factor, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"elegant_exit_vertical\")")]]
     LayerBuilder& elegant_exit_vertical(Vec3 offset, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"elegant_exit_horizontal\")")]]
     LayerBuilder& elegant_exit_horizontal(Vec3 offset, Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
-    [[deprecated("Use presets::motion_preset_packs().apply(lb, \"curtain_close\")")]]
     LayerBuilder& curtain_close(Frame duration, EasingCurve easing = EasingCurve{Easing::OutCubic});
 
     // ── Video ──

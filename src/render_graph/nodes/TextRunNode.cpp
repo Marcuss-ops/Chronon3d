@@ -227,6 +227,62 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
         }
     }
 
+    // TICKET-SIMPLICITY-VISIBILITY-CONTRACT — §9 FU04 pre-render audit.
+    // Calls `audit_text_visibility()` with the current tight bbox (no
+    // framebuffer yet — alpha-bbox invariants deferred). If the audit
+    // detects a `predicted_contains_world` violation (the math-side
+    // contract fault that the FU01/FU03 guards don't catch), apply the
+    // §9 violation response: substitute the `expanded_predicted_bbox`
+    // (world_ink_bbox padded by `effect_padding` on all 4 sides) for
+    // the original tight bbox. Logged via spdlog::warn + counter bump
+    // so the telemetry surface surfaces the FU04 catch.
+    //
+    // Gated on CHRONON3D_BUILD_DIAGNOSTICS — in production builds the
+    // tight bbox is returned unchanged (zero overhead). The expansion
+    // is only computed in debug/diagnostic/inspect builds where the
+    // audit is active.
+    //
+    // For TextRun nodes tile_pruning is already off by design (see
+    // tile_pruning::compute_dirty_clip), so the "should_disable_tile_pruning"
+    // flag is realized via the bbox expansion that guarantees
+    // rasterization of all visible ink (the conceptual "disable" is the
+    // guarantee that the tight bbox no longer under-estimates ink).
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+    if (m_shape) {
+        const Rect predicted_r{
+            {static_cast<float>(bbox.x0), static_cast<float>(bbox.y0)},
+            {static_cast<float>(bbox.x1 - bbox.x0),
+             static_cast<float>(bbox.y1 - bbox.y0)}
+        };
+        const auto audit = audit_text_visibility(
+            *m_shape, matrix, predicted_r, predicted_r, nullptr, spread);
+        if (audit.should_disable_tile_pruning) {
+            if (ctx.node_exec.counters) {
+                ctx.node_exec.counters->text_bbox_contract_violations.fetch_add(
+                    1, std::memory_order_relaxed);
+            }
+            const auto& exp = audit.expanded_predicted_bbox;
+            static bool warn_fu04 = false;
+            if (!warn_fu04) {
+                spdlog::warn(
+                    "[text-bbox] FU04_EXPAND node={} tight=({}, {}, {}, {}) "
+                    "expanded=({}, {}, {}, {}) effect_padding={:.1f}",
+                    m_name, bbox.x0, bbox.y0, bbox.x1, bbox.y1,
+                    exp.origin.x, exp.origin.y,
+                    exp.origin.x + exp.size.x, exp.origin.y + exp.size.y,
+                    spread);
+                warn_fu04 = true;
+            }
+            return raster::BBox{
+                static_cast<int>(exp.origin.x),
+                static_cast<int>(exp.origin.y),
+                static_cast<int>(exp.origin.x + exp.size.x),
+                static_cast<int>(exp.origin.y + exp.size.y)
+            };
+        }
+    }
+#endif
+
     return bbox;
 }
 
