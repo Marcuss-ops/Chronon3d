@@ -29,7 +29,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
-#include <chronon3d/animation/motion/timeline.hpp>
 #include <tests/helpers/test_utils.hpp>
 
 #include <cmath>

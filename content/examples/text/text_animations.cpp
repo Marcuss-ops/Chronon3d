@@ -30,7 +30,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
-#include <chronon3d/animation/motion/timeline.hpp>
+#include <chronon3d/animation/motion/motion.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
@@ -143,7 +143,7 @@ Composition anim_slide_up() {
     return make_text_anim("AnimSlideUp", txt_center("Slide Up", 80.0f),
                           Frame{60}, TextAnimBg::MinimalistGrid,
         [](LayerBuilder& l) {
-            motion::timeline(Vec3{0.0f, BASE_Y + 80.0f, 0.0f})
+            chronon3d::timeline(Vec3{0.0f, BASE_Y + 80.0f, 0.0f})
                 .to(Frame{6}, Vec3{0.0f, BASE_Y, 0.0f}, Easing::OutCubic)
                 .apply_to(l.position_anim());
             text_anim_opacity().apply_to(l.opacity_anim());
@@ -155,7 +155,7 @@ Composition anim_scale_pop() {
     return make_text_anim("AnimScalePop", txt_center("Scale Pop", 80.0f),
                           Frame{60}, TextAnimBg::MinimalistGrid,
         [](LayerBuilder& l) {
-            motion::timeline(Vec3{0.6f, 0.6f, 1.0f})
+            chronon3d::timeline(Vec3{0.6f, 0.6f, 1.0f})
                 .to(Frame{6}, Vec3{1.0f, 1.0f, 1.0f}, Easing::OutBack)
                 .apply_to(l.scale_anim());
             text_anim_opacity().apply_to(l.opacity_anim());
@@ -169,7 +169,7 @@ Composition anim_blur_focus() {
                           Frame{60}, TextAnimBg::MinimalistGrid,
         [](LayerBuilder& l) {
             l.opacity(1.0f);
-            motion::timeline(24.0f)
+            chronon3d::timeline(24.0f)
                 .to(Frame{20}, 0.0f, Easing::OutCubic)
                 .apply_to(l.blur_anim());
         });
@@ -180,7 +180,7 @@ Composition anim_slide_left() {
     return make_text_anim("AnimSlideLeft", txt_center("Slide Left", 80.0f),
                           Frame{60}, TextAnimBg::MinimalistGrid,
         [](LayerBuilder& l) {
-            motion::timeline(Vec3{-120.0f, BASE_Y, 0.0f})
+            chronon3d::timeline(Vec3{-120.0f, BASE_Y, 0.0f})
                 .to(Frame{6}, Vec3{0.0f, BASE_Y, 0.0f}, Easing::OutCubic)
                 .apply_to(l.position_anim());
             text_anim_opacity().apply_to(l.opacity_anim());
@@ -194,10 +194,10 @@ Composition anim_bounce_drop() {
     return make_text_anim("AnimBounceDrop", txt_center("Bounce Drop", 80.0f),
                           Frame{80}, TextAnimBg::MinimalistGrid,
         [](LayerBuilder& l) {
-            motion::timeline(Vec3{0.0f, -230.0f, 0.0f})
+            chronon3d::timeline(Vec3{0.0f, -230.0f, 0.0f})
                 .to(Frame{10}, Vec3{0.0f, BASE_Y, 0.0f}, Easing::OutBounce)
                 .apply_to(l.position_anim());
-            motion::timeline(0.0f)
+            chronon3d::timeline(0.0f)
                 .to(Frame{16}, 1.0f, Easing::OutCubic)
                 .apply_to(l.opacity_anim());
         });
