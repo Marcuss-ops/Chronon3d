@@ -23,7 +23,9 @@
 
 if(NOT CHRONON3D_BUILD_DIAGNOSTICS)
     return()
-endif()chronon3d_add_test_suite(
+endif()
+
+chronon3d_add_test_suite(
     NAME chronon3d_pipeline_parity_tests
     TIER INTEGRATION
     LINK_TARGETS chronon3d_text_core chronon3d_scene chronon3d_core
@@ -37,8 +39,3 @@ endif()chronon3d_add_test_suite(
 # Gated by CHRONON3D_BUILD_DIAGNOSTICS via the early return above; only
 # append the target to the FAST aggregator when the executable exists.
 list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_pipeline_parity_tests)
-
-doctest_discover_tests(chronon3d_pipeline_parity_tests
-    PROPERTIES
-        TIMEOUT 30
-)
