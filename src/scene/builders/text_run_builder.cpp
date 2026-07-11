@@ -463,6 +463,16 @@ namespace {
         const f32 max_fs = std::min(font_spec.font_size,
                                     layout.paragraph.max_font_size);
         if (max_fs > min_fs) {
+            // ── ADR-018 / user-spec: fits_inside(layout_box) gate ──────
+            // Local lambda (Cat-3 safe: no new public symbol).  Returns
+            // true iff `bounds` fit within `box`.  The named gate is
+            // documented in the user spec; using a named lambda here
+            // makes the intent self-documenting and keeps the 2 call
+            // sites (probe + per-iter mid) byte-identical.
+            const auto fits_inside = [](const Vec2& box, const Vec2& bounds) {
+                return bounds.x <= box.x && bounds.y <= box.y;
+            };
+
             // Quick check: does text already fit at authored size?
             f32 low  = min_fs;
             f32 high = max_fs;
@@ -481,8 +491,7 @@ namespace {
                 auto probe = compile_text_layout(probe_req, probe_svc);
                 if (probe) {
                     const auto& b = probe.value()->bounds;
-                    fits_at_authored =
-                        (b.x <= layout.box.x && b.y <= layout.box.y);
+                    fits_at_authored = fits_inside(layout.box, b);
                 }
             }
             if (!fits_at_authored) {
@@ -507,8 +516,7 @@ namespace {
                         compile_text_layout(mid_req, mid_svc);
                     if (mid_res) {
                         const auto& b = mid_res.value()->bounds;
-                        if (b.x <= layout.box.x &&
-                            b.y <= layout.box.y) {
+                        if (fits_inside(layout.box, b)) {
                             best = mid;
                             low = mid;   // fits — try larger
                         } else {
