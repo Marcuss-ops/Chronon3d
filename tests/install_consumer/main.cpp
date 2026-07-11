@@ -88,6 +88,32 @@ int main(int argc, char* argv[]) {
                                .vertical_align = c3d::VerticalAlign::Middle}, .appearance = {.color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f}}});
             });
 
+            // Image layer (TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e).
+            //   Exercises the manifest-clean `asset_path` field on
+            //   `ImageParams` through the umbrella-reachable public
+            //   surface (`<chronon3d/chronon3d.hpp>` →
+            //   `<chronon3d/scene/builders/layer_builder.hpp>` →
+            //   `<chronon3d/scene/builders/builder_params.hpp>`).
+            //
+            //   The asset path MAY NOT exist on this CI host; the
+            //   image rasterizer is permissive and skips missing
+            //   files — the seal-check (≥ 5/255 on ≥ 1 pixel) is
+            //   satisfied by GridBackground + TextRun above, NOT by
+            //   this image-layer.  The point of this 3rd layer is to
+            //   prove the public-surface composability, not produce
+            //   a visible output.
+            s.layer("logo", [&ctx](c3d::LayerBuilder& l) {
+                l.kind(c3d::LayerKind::Shape);
+                l.image("logo_image", c3d::ImageParams{
+                    .asset_path = "assets/logos/sample_logo.png",
+                    .size = {128.0f, 128.0f},
+                    .pos = {static_cast<c3d::f32>(ctx.width) - 160.0f,
+                            32.0f,
+                            0.0f},
+                    .radius = 8.0f,
+                });
+            });
+
             return s.build();
         });
 
