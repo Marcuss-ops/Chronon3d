@@ -33,6 +33,11 @@ EXEMPT_ADRS=(
     "ADR-015"  # single-SHA / c03ce2a2 cited 17x; corpus-consolidation ADR
     "ADR-016"  # multi-SHA / multi-role structural cite (33798b0a/0f47d591/fab2046e/7eb5c2ba/a0fbc57b)
 )
+# Per-file SHA exemptions: pairs that are legitimate multi-cite (e.g. baseline references).
+# Format: "BASENAME:SHA7"
+EXEMPT_FILE_SHAS=(
+    "ADR-020-shared-static-fontengine-singleton.md:7eb5c2b"  # green baseline main@7eb5c2ba, cited in multiple semantic roles
+)
 SKIP_FILES=("INDEX.md")  # INDEX is a pure cross-ref index, not a dedup target
 
 echo "================================================================"
@@ -81,7 +86,14 @@ for f in docs/adr/*.md; do
         shas="$(echo "${content}" | grep -oE '[0-9a-f]{7,40}' || true)"
         for sha in ${shas}; do
             [[ -z "${sha}" ]] && continue
-            echo "${base}:${sha:0:7}" >> "${PAIR_FILE}"
+            sha7="${sha:0:7}"
+            pair="${base}:${sha7}"
+            exempt=0
+            for ex_pair in "${EXEMPT_FILE_SHAS[@]}"; do
+                [[ "${pair}" == "${ex_pair}" ]] && { exempt=1; break; }
+            done
+            [[ "${exempt}" -eq 1 ]] && continue
+            echo "${pair}" >> "${PAIR_FILE}"
             total_pairs=$((total_pairs + 1))
         done
     done < <(git grep -nE '[0-9a-f]{7,}' -- "${f}" 2>/dev/null || true)
