@@ -23,7 +23,7 @@
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/animation/path/catmull_rom_path.hpp>
 #include <chronon3d/animation/effects/wiggle.hpp>
-#include <chronon3d/animation/motion/timeline.hpp>
+#include <chronon3d/animation/motion/motion.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/font_engine.hpp>
@@ -106,7 +106,7 @@ Composition whip_pan_hero_reveal() {
                 // Note: l.position_anim() returns AnimatedValue<Vec3>& (not f32),
                 // so the timeline must hold Vec3 values throughout.
                 const f32 delta_x = 2400.0f + 200.0f * static_cast<f32>(i);
-                motion::timeline(Vec3{x0, y, -400.0f})
+                chronon3d::timeline(Vec3{x0, y, -400.0f})
                     .to(Frame{20}, Vec3{x0 + delta_x, y, -400.0f},
                         EasingCurve{Easing::OutQuad})
                     .hold_until(Frame{90})

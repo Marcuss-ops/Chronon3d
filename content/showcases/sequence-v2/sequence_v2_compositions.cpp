@@ -23,7 +23,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/sequence_builder.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
-#include <chronon3d/animation/motion/timeline.hpp>
+#include <chronon3d/animation/motion/motion.hpp>
 #include <chronon3d/assets/asset_manifest.hpp>
 
 #include "content/common/background_helpers.hpp"
@@ -84,7 +84,7 @@ void add_seq_bg(SceneBuilder& s) {
 
 // ── Fade-in animation applied inside a sequence ─────────────────────────────
 void apply_fade_in(LayerBuilder& l, Frame done_at = Frame{12}) {
-    motion::timeline(0.0f)
+    chronon3d::timeline(0.0f)
         .to(done_at, 1.0f, Easing::OutCubic)
         .apply_to(l.opacity_anim());
 }
