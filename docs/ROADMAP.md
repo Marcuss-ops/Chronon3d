@@ -441,6 +441,8 @@ Il floor target originario di 288 PNG è matematicamente irraggiungibile. I test
 Rendere `CameraDescriptor → CameraProgram` l'unico percorso authoring nuovo e
 coprire i movimenti cinematografici necessari al motion graphics 2.5D.
 
+> **Blocker:** Runtime certification is PARTIAL and gated by [TICKET-120](tickets/TICKET-120.md) (24→18 remaining; 2 fixed, 1 hierarchy test `#if 0` disabled). Camera Production V1 closure reroutes to TICKET-120 GREEN.
+
 ### Lavori
 
 1. Completare i ticket camera P0/P1 ancora test-blocked o parziali.

@@ -7,6 +7,7 @@
 > **HEAD ricontrollato:** `main@37c03c11` (C9a, runtime certifier), 2026-07-04.
 >
 > Stato presente: [`CURRENT_STATUS.md`](CURRENT_STATUS.md).
+> Camera Production V1 certification blocker: [`TICKET-120`](tickets/TICKET-120.md).
 > Prova operativa: [`baselines/main-446a60e2-baseline.md`](baselines/main-446a60e2-baseline.md).
 > Piano canonico: [`camera-plan/`](camera-plan/).
 >
