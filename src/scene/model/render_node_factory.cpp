@@ -86,7 +86,13 @@ RenderNode RenderNodeFactory::path(std::pmr::memory_resource* res, std::string n
 RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string name, ImageParams p) {
     auto node = base(res, std::move(name));
     node.shape.set_type(ShapeType::Image);
-    node.shape.image().path = std::move(p.path);
+    // TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e — prefer the
+    // manifest-clean `asset_path` field over the deprecated `path`,
+    // mirroring the asset_manifest.add_image() forwarding logic in
+    // LayerBuilder::image() / tiled_image().  The `path` fallback
+    // preserves backward-compat for the ~70 pre-0e call sites.
+    node.shape.image().path =
+        !p.asset_path.empty() ? std::move(p.asset_path) : std::move(p.path);
     node.shape.image().size = p.size;
     node.shape.image().fit = p.fit;
     node.shape.image().focal_point = p.focal_point;
@@ -103,7 +109,13 @@ RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string 
 RenderNode RenderNodeFactory::tiled_image(std::pmr::memory_resource* res, std::string name, ImageParams p) {
     auto node = base(res, std::move(name));
     node.shape.set_type(ShapeType::TiledImage);
-    node.shape.image().path = std::move(p.path);
+    // TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e — prefer the
+    // manifest-clean `asset_path` field over the deprecated `path`,
+    // mirroring the asset_manifest.add_image() forwarding logic in
+    // LayerBuilder::image() / tiled_image().  The `path` fallback
+    // preserves backward-compat for the ~70 pre-0e call sites.
+    node.shape.image().path =
+        !p.asset_path.empty() ? std::move(p.asset_path) : std::move(p.path);
     node.shape.image().size = p.size;
     node.shape.image().opacity = p.opacity;
     node.world_transform.position = p.pos;

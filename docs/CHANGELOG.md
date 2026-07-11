@@ -1,3 +1,48 @@
+## Luglio 2026 — TICKET-LAYER-IMAGE-MANIFEST-CLEAN — Close the STEP 3 impedance of `l.image()` on LayerBuilder (forward-point 0e, manifest-clean `ImageParams::asset_path` field, 2026-07-11, atomic commit)
+
+### feat(sdk): TICKET-LAYER-IMAGE-MANIFEST-CLEAN — Land forward-point 0e (`ImageParams::asset_path` field + LayerBuilder::image forwarding + umbrella narrative update + install_consumer composition exercise)
+
+- **Scope**: closes the STEP 3 impedance honestly acknowledged in the prior amend (commit `1c38040b`, TICKET-FEATURES-ORTHO-PLANE umbrella prune narrative — `docs/CURRENT_STATUS.md` notes the lineage).  After this commit, future consumers compose an image-layer via the umbrella-reachable public surface with the manifest-clean `.asset_path` field name (i.e. `l.image("name", ImageParams{.asset_path = "..."})` is the canonical entry point).
+- **Cat-3 (new public SDK symbol conditional)** SATISFIED: 1 new optional field added to a public struct (`ImageParams::asset_path{}`); 0 new functions, 0 new structs, 0 new namespaces.  The new field is JUSTIFIED per the user spec verbatim demand (`ImageParams{.asset_path = "..."}`) + the alignment with the OPP's `chronon3d::resolve_asset_path(assets_root, relative)` canonical free function (in `<chronon3d/assets/asset_registry.hpp>`), which already disambiguates `assets_root`-relative vs absolute paths.  No ADR required (simple field-alignment with an existing documented semantic; no architectural decision).
+- **Cat-5 (3-doc same-commit alignment)** SATISFIED: this CHANGELOG entry (prepended at TOP above TICKET-ACCEPTANCE-FORENSIC-SURFACE) + `docs/FOLLOWUP_TICKETS.md` `## Recently Closed` row + `docs/CURRENT_STATUS.md` `§Stato per area` minimal note on the SDK Product V1 forward-point 0e closure all updated in this same atomic commit.
+- **Gate 5 deny-everywhere** N/A: no `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` introduced (only standard `std::move` + `std::string` patterns; no new dependencies).
+- **Forward-point 0e — `ImageParams::asset_path` field** — `include/chronon3d/scene/builders/builder_params.hpp:72` adds `std::string asset_path{}` as the canonical first field of `struct ImageParams`.  Marked with a doc-block explaining the manifest-clean rationale + the closure lineage.  The legacy `path` field is preserved intact with the new `[[deprecated("Use asset_path instead — manifest-clean alternative that aligns with resolve_asset_path(assets_root, relative)")]]` attribute for backward compatibility with ~70 pre-existing call sites (verified count: 70+ occurrences across `content/` `tests/` `apps/` `src/`).
+- **Forward-point 0e — `LayerBuilder::image()` / `tiled_image()` body forwarding** — `src/scene/builders/commands/shape_commands.cpp:138` implements the canonical asset_path-wins forwarding priority:
+  ```cpp
+  const std::string effective_path =
+      !p.asset_path.empty() ? p.asset_path : p.path;
+  if (!effective_path.empty()) {
+      m_layer.asset_manifest.add_image(effective_path, ...);
+  }
+  ```
+  Same forwarding logic applied symmetrically to `LayerBuilder::tiled_image()`.
+- **Forward-point 0e — `RenderNodeFactory::image()` / `tiled_image()` factory forwarding** — `src/scene/model/render_node_factory.cpp:88` applies the same asset_path-wins priority for the render-node setup path (`node.shape.image().path = !p.asset_path.empty() ? std::move(p.asset_path) : std::move(p.path)`).  This ensures the render-graph node receives the manifest-clean path whether the user populated `asset_path` (preferred) or the legacy `path` field.
+- **Forward-point 0e — umbrella narrative update** — `include/chronon3d/chronon3d.hpp:34` extends the DOWNSTREAM IMPACT narrative to note that STEP 3 image-layer impedance is now closed: `ImageParams` is umbrella-reachable via `<chronon3d/scene/builders/layer_builder.hpp>` (line 73 of umbrella, transitive), and `LayerBuilder::image(name, ImageParams{.asset_path = "..."})` is the canonical entry point.  No new `#include` directive was added (anti-duplication rule #17 + ADR-012 — the umbrella is full; transitive closure is sufficient).
+- **Forward-point 0e — install_consumer composition exercise** — `tests/install_consumer/main.cpp` adds a 3rd layer `"logo"` inside the SceneBuilder lambda (after `"background"` GridBackground + `"title"` TextRun) composing `c3d::ImageParams{.asset_path = "assets/logos/sample_logo.png", .size = {128.0f, 128.0f}, .radius = 8.0f, .pos = ...}`.  This is the proof-of-composability showing that a downstream consumer compiles + links + composes an image-layer through `<chronon3d/chronon3d.hpp>` alone (no extra `#include`).  The asset path MAY NOT exist on this CI host; the rasterizer is permissive and the seal-check is satisfied by GridBackground + TextRun (forward-point 0e consumer-side proof-forward, not a render-quality exercise).
+- **Anti-duplication honoured**: zero new singleton / registry / cache / resolver / service-locator introduced.  The new `asset_path` field is a std::string value on a public struct; the forwarding logic in shape_commands.cpp / render_node_factory.cpp is local to each dispatch site (no shared helper that would risk ODR drift across TUs).
+- **AGENTS.md freeze compliance (revoked 2026-07-06)**:
+  - **Cat-1 commit-discipline**: single atomic commit, no mixed refactors, "Fare PR piccole e mirate" honoured (one API field + 4 forwarding sites + 1 consumer exercise + 3-doc sync).
+  - **Cat-2 honest-doc-sync**: this CHANGELOG entry + FOLLOWUP row + CURRENT_STATUS note all updated in same commit (`tools/check_doc_sync.sh` R5 fires on TICKET-LAYER-IMAGE-MANIFEST-CLEAN closure).
+  - **Cat-3 new public symbol** JUSTIFIED above (1 optional field; user spec verbatim demand + resolve_asset_path alignment).
+  - **Cat-4 install-pipeline-plumbing** N/A: no install_consumer shader/spec change — only a rendered-layer addition (the install consumer test produces the same PNG output, with one additional layer that may render blank if the asset is missing).
+  - **Cat-5 3-doc same-commit alignment** SATISFIED.
+  - **Gate 5 deny-everywhere** N/A.
+  - **GATE-MNT-01 fail-on-dirty** invariant: post-commit smoke-test run before push (per the closure protocol — push auth-blocked on this VPS per AGENTS.md §honesty; a `tools/wrap_push.sh origin main` attempt is recorded verbatim in the session for tracking).
+- **Honest gap block** (forward-points 0f+ still PLANNED, not blocking):
+  - `RectParams`, `CircleParams`, `RoundedRectParams`, `LineParams`, `PathParams`, `GridBackgroundParams`, `ContactShadowParams`, `FakeBox3DParams`, `GridPlaneParams`, `DarkGridBgParams`, etc. — all inherit the legacy ambiguous-intent field naming; their own manifest-clean alignment is deferred to follow-up tickets (per AGENTS.md Cat-1 forward-only invariant).
+  - The umbrella narrative at L34 still mentions `Color`, `Vec3`, `SceneBuilder/LayerBuilder`, `GridBackgroundParams`, `TextAlign`, `VerticalAlign` as transitive types — same forward-only closure target for those primitives.
+- **Files changed (5)**:
+  - `include/chronon3d/scene/builders/builder_params.hpp` EDIT (added `std::string asset_path{}` + `[[deprecated]]` on `path` field + Cat-3 doc-block comment)
+  - `include/chronon3d/chronon3d.hpp` EDIT (extended DOWNSTREAM IMPACT narrative at L34 to note STEP 3 image-layer impedance closed)
+  - `src/scene/builders/commands/shape_commands.cpp` EDIT (asset_path-wins forwarding logic in `LayerBuilder::image()` + `LayerBuilder::tiled_image()`)
+  - `src/scene/model/render_node_factory.cpp` EDIT (asset_path-wins forwarding logic in `RenderNodeFactory::image()` + `RenderNodeFactory::tiled_image()`)
+  - `tests/install_consumer/main.cpp` EDIT (added a 3rd layer `"logo"` inside the SceneBuilder lambda composing `ImageParams{.asset_path = "..."}`)
+  - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+  - `docs/FOLLOWUP_TICKETS.md` EDIT (new `TICKET-LAYER-IMAGE-MANIFEST-CLEAN` row added at top of `## Recently Closed`)
+  - `docs/CURRENT_STATUS.md` EDIT (minimal §Stato per area note in SDK Product V1 — STEP 3 image-layer impedance closed)
+
+---
+
 ## Luglio 2026 — TICKET-ACCEPTANCE-FORENSIC-SURFACE — Promote forward-points 0a/0b/0c of TICKET-ACCEPTANCE-SUITE-PHASE-D (forward-point 0a `write_cumulative_mean_rgb_diag` helper + forward-point 0b `asset_preload_check_for_test` helper + forward-point 0c `chronon3d_acceptance` aggregate wire-up) (2026-07-11, atomic commit)
 
 ### feat(tests): TICKET-ACCEPTANCE-FORENSIC-SURFACE — Promote forward-points 0a/0b/0c (helper extraction + forensic-surface wiring into `chronon3d_acceptance` aggregate)

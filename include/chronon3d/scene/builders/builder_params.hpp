@@ -70,7 +70,48 @@ struct PathParams {
     bool closed{false};
 };
 
+// ── M1.8 §5C / TICKET-LAYER-IMAGE-MANIFEST-CLEAN (forward-point 0e) ──
+//
+// `ImageParams::asset_path` is the MANIFEST-CLEAN alternative to the
+// `path` field.  It is the prefer-red field name for new code:
+//   - semantically aligns with chronon3d::resolve_asset_path(assets_root,
+//     relative) (canonical asset-root resolver at
+//     <chronon3d/assets/asset_registry.hpp>); and
+//   - is the field consumed by the STEP 3 impedance closure (commit
+//     narrative: this commit) — `LayerBuilder::image(name, ImageParams
+//     {.asset_path = "..."})` composes an image-layer through the
+//     public umbrella surface.
+//
+// Forwarding priority (canonical): LayerBuilder::image() and
+// LayerBuilder::tiled_image() prefer `asset_path` when both fields
+// are non-empty; the legacy `path` field is preserved for backward
+// compatibility with the ~70 pre-0e call sites (content/* + tests/*
+// + apps/*) until a future migration sweep retires it.
+//
+// AGENTS.md Cat-3 freeze compliance: this adds 1 new optional field
+// to a public struct; rationale justified per the closure lineage of
+// TICKET-LAYER-IMAGE-MANIFEST-CLEAN (cat-3 just-symbol-on-need basis —
+// the user spec verbatim demands `ImageParams{.asset_path = "..."}`).
+//
+// ── Field-order invariant (locked by code-reviewer-minimax-m3, forward-point 0e) ──
+// `asset_path` is at field-index 0, `path` is at field-index 1 (legacy). All
+// call sites MUST use designated initializers (`.asset_path = "..."` or
+// `.path = "..."`). Positional init is NOT supported — silently assigns to
+// `asset_path` instead of `path` after the forward-point 0e field reorder.
 struct ImageParams {
+    /// Manifest-clean image path.  Preferred over `path` for new code.
+    /// Forwarding: LayerBuilder::image() bodies pick this field first
+    /// when non-empty; falls back to the deprecated `path` otherwise.
+    /// Field-index 0 — canonical first field.
+    std::string asset_path{};
+    /// Legacy ambiguous-intent field.  Prefer `asset_path` (this
+    /// struct's manifest-clean alternative) for new code per the
+    /// STEP 3 impedance closure narrative (forward-point 0e).
+    /// Preserved intact for backward compatibility with ~70 pre-0e
+    /// callers across `content/` + `tests/` + `apps/` until the
+    /// migration sweep.  Field-index 1 (legacy).
+    [[deprecated("Use asset_path instead — manifest-clean alternative "
+                 "that aligns with resolve_asset_path(assets_root, relative)")]]
     std::string path;
     Vec2 size{100.0f, 100.0f};
     Vec3 pos{0.0f, 0.0f, 0.0f};
