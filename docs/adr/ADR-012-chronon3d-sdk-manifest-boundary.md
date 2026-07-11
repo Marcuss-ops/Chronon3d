@@ -74,7 +74,7 @@ The thinker's verdict (Step 4 strategic validation, 2026-06-30) was that **only 
 
 - **The leak remains in code.** Downstream consumers who `#include <chronon3d/timeline/composition.hpp>` continue to see the OPP-internal types listed above transitively. This is OPP-internal-API surface published via a manifest-shim, which is technically a violation of V0.1 manifest discipline.
 - **`docs/CURRENT_STATUS.md` cannot record a clean V0.1 manifest compliance** until this ADR's referenced restructure is implemented.
-- Gate 10 (install_consumer_test.sh) Phase-1.1 cmake-configure currently fails on a *different* layer (CMP0077 INTERFACE_INCLUDE_DIRECTORIES source-tree path leak — see `fix(build): resolve chronon3d_runtime<->backend_software OBJECT library cycle` and the prior committed file-set fix at `d73e7e0b`). That blocker must be cleared *before* the leak this ADR documents is structurally resolved, since the structural resolution would touch the same include graph.
+- Gate 10 (install_consumer_test.sh) Phase-1.1 cmake-configure currently fails on a *different* layer (CMP0077 INTERFACE_INCLUDE_DIRECTORIES source-tree path leak — see `fix(build): resolve chronon3d_runtime<->backend_software OBJECT library cycle` and the prior committed file-set fix (commit SHA: see §References — L119)). That blocker must be cleared *before* the leak this ADR documents is structurally resolved, since the structural resolution would touch the same include graph.
 
 ### Neutral / Ongoing
 
@@ -108,7 +108,7 @@ The thinker's verdict (Step 4 strategic validation, 2026-06-30) was that **only 
 - `docs/ANTI_DUPLICATION_RULES.md` — rule #17 (one source of truth per domain), § Source of Truth table.
 - `docs/CORE_OWNERSHIP.md` — registry, resolver, sampler ownership canon.
 - `cmake/Chronon3DPublicHeaders.cmake` — V0.1 manifest (7 entries, read-only during freeze).
-- `cmake/Chronon3DSdkInstall.cmake` — installs the manifest via `FILE_SET public_headers` (Post-P3 Step-3 alignment, commit `d73e7e0b`).
+- `cmake/Chronon3DSdkInstall.cmake` — installs the manifest via `FILE_SET public_headers` (Post-P3 Step-3 alignment).
 - `cmake/Chronon3DSdkTargets.cmake` — defines `chronon3d_sdk` INTERFACE target that carries the manifest-installed FILE_SET.
 - `include/chronon3d/chronon3d.hpp` — umbrella, pruned to manifest-only re-export in P3-I.
 - `include/chronon3d/timeline/composition.hpp` — manifest entry #7, *the* leak source documented in this ADR.
