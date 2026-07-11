@@ -74,7 +74,7 @@ inline void check_asset_integrity(
     const RenderGraph& /*graph*/,
     const chronon3d::assets::AssetResolver& /*resolver*/,
     GraphPreflightReport& /*report*/,
-    chronon3d::preflight::PathExistenceMap* /*path_cache*/ = nullptr) {}
+    chronon3d::preflight::PathExistenceMap* /*path_cache*/) {}
 
 inline void check_coordinate_mismatch(
     const RenderGraph& /*graph*/,
