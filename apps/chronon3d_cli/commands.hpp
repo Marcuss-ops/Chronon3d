@@ -253,6 +253,19 @@ struct InspectTextArgs {
     bool        json{true};        // --json: emit JSON to stdout (default on)
 };
 
+// TICKET-CHRONON-GLOW-FINAL Fase 5 — `chronon3d_cli text-def-inspect`:
+// after the render, consume `renderer.text_audit_snapshots()` and call
+// `audit_text_visibility()` per snapshot.  Output: JSON array of
+// per-snapshot objects (node/font_resolved/glyph_count/
+// predicted_contains_world/alpha_bbox_empty/status).  Gated by
+// `CHRONON3D_BUILD_DIAGNOSTICS` — in non-diagnostic builds the command
+// emits an error JSON and returns exit 1.
+struct TextDefInspectArgs {
+    std::string comp_id;          // Composition name (required)
+    Frame       frame{0};          // --frame N (default 0)
+    std::string json_output;      // --json-output path (empty = stdout)
+};
+
 int command_list(const CompositionRegistry& registry);
 int command_watch(const CompositionRegistry& registry, const std::string& comp_id);
 int command_daemon(const CompositionRegistry& registry,
@@ -275,6 +288,7 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
 int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);
 int command_text_audit(const CompositionRegistry& registry, const TextAuditArgs& args);
 int command_inspect_text(const CompositionRegistry& registry, const InspectTextArgs& args);
+int command_text_def_inspect(const CompositionRegistry& registry, const TextDefInspectArgs& args);
 
 } // namespace cli
 } // namespace chronon3d
