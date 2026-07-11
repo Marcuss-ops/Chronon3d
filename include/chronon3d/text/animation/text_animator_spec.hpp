@@ -35,6 +35,54 @@ struct TextAnimatorSpec {
 
     TextPropertyBlendMode transform_mode{TextPropertyBlendMode::Add};
     TextPropertyBlendMode color_mode{TextPropertyBlendMode::Replace};
+
+    // ─────────────────────────────────────────────────────────────────────
+    // §5.0a — compile() + §5.0e — is_valid() chain-method pair
+    // ─────────────────────────────────────────────────────────────────────
+    //
+    // Closes the user-spec `resolve().compile().is_valid()` gap documented
+    // in `docs/CHANGELOG.md` §5 (gap explicitly tracked there since the
+    // MotionTimeline<T> declarator landed in the F3.A batch).  The pair
+    // enables a fluent authoring pattern:
+    //
+    //     AuthoringSite::build_animator()
+    //         .resolve_selectors(...)
+    //         .compile()       // self-ref; normalizes internal state
+    //         .is_valid()      // ≥5 invariants checked
+    //         .commit()
+    //
+    // Implementation lives in
+    // `src/text/animation/text_animator_compile.cpp` (an OBJECT FILE,
+    // not a singleton/registry — see AGENTS.md v0.1 Cat-5 invariant).
+    //
+    //   compile()  — self-reference return for fluent chaining.  No
+    //                heap allocation; no public struct members added;
+    //                AGENTS.md Cat-3 zero-new-SDK-symbol compliance
+    //                (existing struct, two new methods on it).
+    //   is_valid() — 4 invariants beyond empty/empty membership:
+    //                (Inv 1) non-empty selectors + non-empty properties
+    //                        (this IS the "membership predicate" the user
+    //                        referenced the chain-method pair as breaking);
+    //                (Inv 2) strict monotonicity: AnimatedValue keyframe
+    //                        frames strictly increase (no duplicates) —
+    //                        locks against the "add_keyframe twice at frame N"
+    //                        footgun.  This is the invariant that breaks
+    //                        the membership-predicate ceiling — a single
+    //                        empty-check is insufficient to distinguish a
+    //                        monotonic time-curve from a degenerate duplicate-
+    //                        frame one.
+    //                (Inv 3) value integrity: no NaN/Inf in any keyframe
+    //                        value OR any static-value property field —
+    //                        locks against the "0/0 in normalized scale"
+    //                        + "infinite-range frame timestamp" + "NaN
+    //                        width/angle" footguns;
+    //                (Inv 4) blend-mode coverage: transform_mode + color_mode
+    //                        are scoped enums; explicit value-comparison
+    //                        against {Add, Replace, Multiply} makes the
+    //                        contract machine-verifiable.
+
+    [[nodiscard]] TextAnimatorSpec& compile();
+    [[nodiscard]] bool is_valid() const;
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
