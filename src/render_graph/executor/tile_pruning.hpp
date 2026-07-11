@@ -1,7 +1,7 @@
 #pragma once
 
 #include "execution_state.hpp"
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/math/raster_utils.hpp>
 
 #include <optional>

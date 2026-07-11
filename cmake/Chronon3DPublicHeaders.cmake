@@ -128,7 +128,12 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/internal/render_graph/core/scene_hasher.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/nodes/render_graph_node.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_backend.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_graph.hpp"
+    # P3-H + feat(api) public camera facade — RenderGraph moved to
+    # include/chronon3d/internal/ (TICKET-CAMERA-FULL-LINUX sub-ticket B).
+    # External consumers MUST NOT see this type.  RenderGraph is the
+    # internal pipeline topology used by the OPP renderer; the public
+    # surface exposes only `chronon3d::sdk::RenderEngine::render(...)`.
+    # "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_graph.hpp"  # HIDDEN
     "${CMAKE_SOURCE_DIR}/include/chronon3d/render_graph/render_graph_context.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/depth_grade.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/rendering/light_context.hpp"
@@ -167,7 +172,11 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_motion_context.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_program.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp"
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_session.hpp"
+    # P3-H + feat(api) public camera facade — CameraSession moved to
+    # include/chronon3d/internal/ (TICKET-CAMERA-FULL-LINUX sub-ticket B).
+    # External consumers MUST NOT see this type.  The session lives in the
+    # per-frame evaluation hot path and is owned by the OPP renderer.
+    # "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_session.hpp"  # HIDDEN
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_session_cache.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_trajectory.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/evaluated_projection.hpp"
@@ -268,6 +277,14 @@ set(CHRONON3D_PUBLIC_HEADERS
     #   in asset_preflight_resolver.hpp (namespace chronon3d::).
 
     # ── Transitive closure additions (2026-07-11) ───────────────────────
+    # P3-H + feat(api) public camera facade — NEW public headers.
+    #   scene_camera_facade.hpp     → `scene.camera().descriptor/program/timeline/preset`
+    #                                  chainable setters (back-references Scene)
+    #   camera_descriptor_builder.hpp → `chronon3d::camera()` fluent builder
+    #                                   for `CameraDescriptor` (with `PhysicalLens`
+    #                                   convenience struct for the spec example)
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/scene_camera_facade.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_descriptor_builder.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/animator.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/basic_registry.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/material.hpp"

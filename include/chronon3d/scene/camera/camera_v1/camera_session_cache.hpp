@@ -40,11 +40,14 @@
 // paths.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_session.hpp>
+// P3-H + feat(api) public camera facade — CameraSession moved to internal/.
+// Use forward declaration here so the public manifest consumer doesn't
+// need access to the internal header.
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/math/camera_2_5d_projection.hpp>  // Camera2_5D (Phase 1.D commit overload)
 
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
 
 namespace chronon3d::camera_v1 {
@@ -54,6 +57,8 @@ namespace chronon3d::camera_v1 {
 // to size the session's constraint slots ONCE per program; once sized,
 // subsequent calls reuse the same allocation.
 struct CameraProgram;
+struct CameraSession;          // P3-H: forward decl (full type in internal/)
+struct CameraStateCheckpoint;  // P3-H: forward decl (full type in internal/)
 
 // Forward declaration needed by CameraSessionLease's private constructor
 // (which takes CameraSessionCache* before the class is defined below).
@@ -150,11 +155,14 @@ private:
         : cache_(cache), shot_idx_(shot_idx),
           session_(session), target_frame_(target_frame) {}
 
-    CameraSessionCache* cache_;
-    int                 shot_idx_;
-    CameraSession*      session_;
-    int                 target_frame_;
-    bool                committed_{false};
+    CameraSessionCache*     cache_;
+    int                     shot_idx_;
+    // P3-H: lease holds a `shared_ptr<CameraSession>` (not raw pointer)
+    // so the cache's ownership semantics are uniform across the public
+    // surface.  The full CameraSession type lives in internal/.
+    std::shared_ptr<CameraSession> session_;
+    int                     target_frame_;
+    bool                    committed_{false};
 };
 
 // ============================================================================
@@ -207,22 +215,25 @@ public:
 
 private:
     struct Entry {
-        CameraStateCheckpoint          checkpoint;
+        // P3-H + code-review verdict round 2: `CameraStateCheckpoint` is
+        // forward-declared at the top of this header (the full type lives
+        // in `<chronon3d/internal/...>`).  The Entry holds the checkpoint
+        // as `std::shared_ptr<CameraStateCheckpoint>` (not by-value) so
+        // this header compiles with the forward decl alone.  Same
+        // treatment as `working_session` below.  The `commit_lease`
+        // member function (defined in camera_session_cache.cpp) operates
+        // on the full type — its definition includes the internal header.
+        std::shared_ptr<CameraStateCheckpoint> checkpoint;
 
         // TICKET-ZERO-A1 / TICKET-A3-CACHE-LEASE — working session for
-        // in-flight mutations under an active lease.  Allocated as a
-        // plain value (NOT std::optional) so the in-place std::vector
-        // capacity grows to `descriptor.constraints.size()` on the first
-        // acquire and is REUSED across subsequent acquires.  Acquire()
-        // copies `checkpoint.session` into `working_session` (capacity
-        // reuse, 0 heap allocations per acquire); lease.session() returns
-        // a reference to `working_session`; commit() copies
-        // `working_session` back to `checkpoint.session`.  Uncommitted
-        // leases implicitly rollback — the working_session scratch is
-        // dropped along with the lease destructor and `checkpoint.session`
-        // is untouched.  See ADR-013 Decision 3 + the regression lock in
+        // in-flight mutations under an active lease.  Stored as a
+        // `shared_ptr<CameraSession>` so the full CameraSession type is
+        // not required at this header's compilation point.  Allocated
+        // once per acquire; capacity grows to `descriptor.constraints.size()`
+        // on first use and is REUSED across subsequent acquires.  See
+        // ADR-013 Decision 3 + the regression lock in
         // tests/runtime/test_camera_session_cache_failed_no_commit_session_state.cpp.
-        CameraSession                  working_session{};
+        std::shared_ptr<CameraSession> working_session;
     };
 
     // Keyed by shot_idx.  We don't include program_id because the cache
@@ -257,7 +268,7 @@ private:
                                              int shot_start_frame,
                                              int target_frame,
                                              int preroll_max_frames,
-                                             CameraSession& session,
+                                             std::shared_ptr<CameraSession> session,
                                              FrameRate frame_rate);
 
 } // namespace chronon3d::camera_v1

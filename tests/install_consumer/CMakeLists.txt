@@ -73,6 +73,22 @@ set_target_properties(check_text PROPERTIES
 )
 target_link_libraries(check_text PRIVATE Chronon3D::SDK)
 
+# ── P3-H + feat(api) public camera facade — external consumer test ──
+#
+# The `check_camera` consumer validates the public SceneCameraFacade
+# (scene.camera().descriptor/program/timeline/preset chain), the public
+# `chronon3d::camera()` fluent builder, the public `composition.camera(p)`
+# setter, AND the boundary contract: the consumer source MUST NOT see
+# `CameraSession` or `RenderGraph` (those types live in `internal/`, which
+# is not on the installed SDK's include path).  The output marker
+# `[CAMERA-OK]` is consumed by `tools/sdk/run_external_consumer.sh`.
+add_executable(check_camera main_camera.cpp)
+set_target_properties(check_camera PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+)
+target_link_libraries(check_camera PRIVATE Chronon3D::SDK)
+
 # C++20 — must match the SDK's compile feature set so the consumer's
 # headers behave the same way as in-tree.
 set_target_properties(check_install PROPERTIES
