@@ -1911,7 +1911,7 @@ TEST_CASE("compiled_uncompiled_evaluate_returns_error — "
 
     auto res = program.evaluate(ctx, session);
     CHECK_FALSE(res.has_value());
-    CHECK(res.error().kind == CameraEvaluationError::Kind::Uncompiled);
+    CHECK(res.error().code == CameraErrorCode::Uncompiled);
     // Textual contract: the error message must mention "compile" / "not compiled".
     CHECK(res.error().message.find("compile")
           != std::string::npos);

@@ -58,16 +58,28 @@ struct EvaluatedCamera {
     std::vector<CameraProgramDiagnostic>    diagnostics;
 };
 
-/// Fatal error from CameraProgram::evaluate().
+/// Discrete error codes returned by CameraProgram + ShotTimeline
+/// evaluation paths.  Phase 1.C (TICKET-120): split this out of the
+/// per-struct `Kind` enum so that ShotTimelineResolver::evaluate can
+/// surface its OWN distinct failure (`TransitionEvaluationFailed`) without
+/// having to inherit CameraProgram's discriminator.  `CameraEvaluationError`
+/// now carries a `CameraErrorCode code` (no nested `Kind`) — see
+/// CHANGELOG_ARCHIVE.md §TICKET-120 Sub-commit E + the user's Phase 1.C
+/// spec for the rationale.
+enum class CameraErrorCode : std::uint8_t {
+    Unknown = 0,
+    Uncompiled,                  // evaluate() called before compile_camera()
+    ConstraintFailure,           // a constraint failed with Stop policy
+    TransitionEvaluationFailed,  // Phase 1.C: ShotTimelineResolver::evaluate
+                                 // could not propagate a structured error
+                                 // from a transition-time program evaluation.
+};
+
+/// Fatal error from CameraProgram::evaluate() / ShotTimelineResolver::evaluate().
 /// Returned via Result<EvaluatedCamera, CameraEvaluationError>.
 struct CameraEvaluationError {
-    enum class Kind : std::uint8_t {
-        Unknown = 0,
-        Uncompiled,          // evaluate() called before compile_camera()
-        ConstraintFailure,   // a constraint failed with Stop policy
-    };
-    Kind        kind{Kind::Unknown};
-    std::string message;
+    CameraErrorCode code{CameraErrorCode::Unknown};
+    std::string    message;
 };
 
 /// Source evaluation result — carries the evaluated camera plus optional
