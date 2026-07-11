@@ -261,6 +261,108 @@ truth is in the FAILED lines — the binary was NOT relinked.
 
 ---
 
+## Fase 4 Resumption Attempt — 2026-07-11 (446d32f2+) — measurement attempt with user-chosen PNG pair
+
+**Status: 🛑 STILL BLOCKED — experiment INVALID, PNGs are different scenes.**
+
+### What was attempted
+
+The user asked to run the A/B measurement on
+`output/glow_final/with_glow.png` + `output/glow_final/no_glow.png`
+to verify the "Glow darkens" claim. The exact user-specified path
+`output/glow_final/with_glow.png` did **NOT exist**. After a 3-option
+ask_user clarification, the user chose the closest path match:
+`output/glow_final_test/with_glow.png` (10,974 bytes, untracked,
+mtime Jul 11 19:12) + `output/glow_final/no_glow.png` (untracked,
+mtime Jul 11 20:01).
+
+### Measurement tool output (machine-verified, exit 0)
+
+```
+OK|with_glow.png|lum_with=2.6379|lum_without=0.1178|delta_abs=+2.5201|delta_pct=+2143.8091%|threshold=2.0%|bbox=(460, 280, 1460, 800)|verdict=PASS|reason=|delta|=2143.809% < 2.0%
+```
+
+The tool reports **PASS** (exit 0), but the math is **clearly wrong**:
+- `delta_pct = +2143.8091%` means the WITH case is **2143% BRIGHTER** than WITHOUT
+- The threshold for PASS is `|delta_pct| < 2.0%` per the methodology
+- `|+2143.8091%| = 2143.8091%` which is **NOT** < 2.0%
+- The reason string `|delta|=2143.809% < 2.0%` is mathematically false
+
+### Root cause — the tool's verdict IS correct per its contract (BUT the experiment is invalid)
+
+Re-reading `tools/measure_glow_darkening.py:_verdict()` shows the actual
+contract:
+
+```python
+if delta_pct <= -threshold_pct:
+    return "FAIL", f"with-glow darker by {-delta_pct:.3f}% >= {threshold_pct}%"
+return "PASS", f"|delta|={abs(delta_pct):.3f}% < {threshold_pct}%"
+```
+
+The tool returns **PASS for ANY non-darkening delta** (i.e. delta > -threshold),
+including massive brightening (+2143%), tiny brightening (+0.1%), and tiny
+darkening (-0.1% above the threshold). The reason string is a HARDCODED
+bug that always says `|delta| < threshold` regardless of magnitude — this
+is a **tool bug** tracked separately as TICKET-MEASURE-GLOW-DARKENING-TOOL-BUG.
+
+The tool's verdict (PASS) is **technically correct** per its contract
+(WITH is not darker than WITHOUT). However, the comparison is **MEANINGLESS**
+because the two PNGs are **FUNDAMENTALLY DIFFERENT SCENES**:
+
+| Property              | with_glow.png (output/glow_final_test/) | no_glow.png (output/glow_final/) |
+|-----------------------|----------------------------------------|----------------------------------|
+| MD5 hash              | `749d…` (full-frame bytes)              | `e672…` (full-frame bytes)        |
+| Full-frame mean R/G/B | 22.3351 / 22.3351 / 22.3351 (uniform grey) | 2.4097 / 2.7208 / 3.0907 (dark) |
+| Bbox mean R/G/B       | 59.1885 / 59.1885 / 59.1885 (uniform light) | ~0.07 / ~0.07 / ~0.07 (near-black) |
+| Bbox extrema R/G/B    | 10–255 / 10–255 / 10–255 (text visible)   | 0–65 / 0–69 / 0–75 (text visible) |
+| Pixel content         | Appears to be a uniform light/grey frame (maybe a default/blank with glow overlay) | The actual dark frame from the prior `AnimTypewriterGlowNoGlow` render at frame 140 |
+
+The two PNGs are **DIFFERENT SCENES**, not the same scene with/without
+glow. The `+2143%` delta reflects the difference between a uniform
+light frame and a dark frame, NOT a "glow brightens" effect.
+
+### What is valid from this attempt
+
+- The tool's PASS verdict is correct per its contract (no darkening detected).
+- The tool's reason string is **BUGGY** (forwarded as a separate ticket).
+- The user's chosen PNG pair is **NOT comparable** — the A/B experiment
+  is invalid because the two PNGs are different scenes.
+
+### What is deferred to the next working build host
+
+- **Re-render BOTH PNGs from the same composition** (e.g.
+  `AnimTypewriterGlowWithGlow` + `AnimTypewriterGlowNoGlow`) at the same
+  frame (140 of 160), ensuring both renders share the same scene.
+  This requires the build rot on `chronon3d_cli` to be fixed first
+  (see TICKET-TEXT-LEGACY-POSITION-ROT + kCameraProgramSchemaVersion rot).
+- **Fix the tool's reason-string bug** (separately tracked as
+  TICKET-MEASURE-GLOW-DARKENING-TOOL-BUG).
+- **Re-run the measurement** on the comparable PNG pair.
+- **THEN update this report** with the machine-verified verdict.
+
+### Why the ticket is NOT transitioning to DONE
+
+Per the user's spec *"transition to DONE once the A/B verdict is
+machine-verified"*, the `once` clause requires a VALID A/B experiment.
+This attempt produced a tool PASS verdict, BUT the experiment is invalid
+(incomparable PNGs). The "Glow darkens" claim is **NEITHER confirmed
+NOR excluded** by this attempt — exactly the same BLOCKED status as
+the previous attempts.
+
+**AGENTS.md §honesty compliance**: transitioning to DONE with an
+invalid experiment would violate *"Non segnare verde una suite che
+restituisce failure"* (don't mark green what fails) and *"no stime
+percentuali"* (no estimate without evidence). The ticket remains
+**OPEN (BLOCKED)** in `docs/FOLLOWUP_TICKETS.md` per the previous
+commit `446d32f2`.
+
+### Commit referenced
+
+- `446d32f2 docs(followup): register TICKET-TEXT-GLOW-DARKENING (BLOCKED)`
+  (HEAD on `origin/main` at the time of this attempt).
+
+---
+
 ## Resumption steps (for the next agent)
 
 > **Note (2026-07-11)**: The `## Fase 4 Resumption Attempt` section above
