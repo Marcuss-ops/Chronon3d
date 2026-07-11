@@ -1,5 +1,18 @@
 # ── Scene Tests ──
 
+# ── TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0g+ ──
+# Helper-specific UNIT-tier test coverage for
+# `chronon3d::detail::image_params_resolve_path` (5 TEST_CASEs
+# locking the canonical forwarding contract introduced by forward-
+# point 0e + consolidated by forward-point 0f+).  UNCONDITIONAL
+# (no Blend2D, no rendering backend, no SDK install surface) — must
+# run on every CI invocation per cat-1 single-purpose atomic commit.
+chronon3d_add_test_suite(
+    NAME   chronon3d_image_params_resolve_path_tests
+    TIER   UNIT
+    SOURCES scene/builders/test_image_params_resolve_path.cpp
+)
+
 # Text/Blend2D-dependent test sources
 set(SCENE_TEXT_TESTS "")
 if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
