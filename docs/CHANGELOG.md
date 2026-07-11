@@ -958,6 +958,40 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Re-bake command** (deferred to working build host):
   `ctest -R "chronon3d_text_definition_tests" --output-on-failure` (expected: 30/30 PASS including the 13 NEW group 21 TEST_CASEs).
 - **Cross-references**: [`include/chronon3d/text/animation/text_animator_spec.hpp`](include/chronon3d/text/animation/text_animator_spec.hpp) (the updated struct); [`src/text/animation/text_animator_compile.cpp`](src/text/animation/text_animator_compile.cpp) (the new implementation); [`src/text/CMakeLists.txt`](src/text/CMakeLists.txt) (the SOURCES registration); [`tests/text/test_text_definition.cpp`](tests/text/test_text_definition.cpp) group 21 (the new tests); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Recently Closed` (the new TICKET-TEXT-ANIMATOR-COMPILE-ISVALID row); `AGENTS.md` §Cat-3 (zero-new-SDK-symbol satisfaction); `AGENTS.md` §Cat-5 (3-doc same-commit closure).
+## Luglio 2026 — TICKET-TEXT-CLIP-GOLDENS-01-05: no-skip rule refactor (code) + honest gap (build rot blocks re-bake + push) (2026-07-10, atomic commit `6c63f4d2`)
+
+### test(text_golden): close Clip 01-05 no-skip rule + add verify_golden to Clip 02/03 (commit `6c63f4d2`)
+
+- **Scope**: closes the canonical no-skip rule on all 5 `TEST_CASE`s in `tests/text_golden/text_clip/text_clip_bounds.cpp` (Clip 01-05: AscentNotCut / RightEdgeNotCut / Scale130NotCut / ShadowNotCut / GlowNotCut). The 3 pre-existing `if (r.golden_missing) { MESSAGE; return; }` skip blocks (Clip 01, 04, 05) are replaced with the canonical `CHECK_FALSE(r.golden_missing);` + `if (!r.golden_missing) { CHECK(r.passed); }` pattern from `tests/text_golden/text_clip/text_completeness.cpp::verify_completeness_golden`. For Clip 02 (which had no verify_golden call), one is added. For Clip 03 (which has a separate empty-bbox soft-skip for a known renderer limitation), the verify_golden + CHECK_FALSE is placed BEFORE the empty-bbox check so the no-skip rule fires regardless of bbox state.
+
+- **No-skip invariant**: `CHECK_FALSE(r.golden_missing)` is the contract that a missing golden PNG causes the test to fail loudly, not silently skip. A test that previously exited cleanly with a `MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create.")` now exits with a `CHECK_FALSE` failure. This matches the §13 honest-limitation principle: goldens must either exist (PASS) or be missing-but-flagged (FAIL); they cannot silently PASS.
+
+- **5 new golden slugs** (canonical `case_slug` convention, descriptor from `TEST_CASE` name suffix):
+  - `text_clip_01_ascent_not_cut.png` (HAMBURGER 180pt baseline, no shadow/glow)
+  - `text_clip_02_right_edge_not_cut.png` (HAMBURGER 180pt baseline, exclusive right-edge check)
+  - `text_clip_03_scale130_not_cut.png` (HAMBURGER 180pt, layer-level uniform scale 1.30x)
+  - `text_clip_04_shadow_not_cut.png` (HAMBURGER 180pt + drop shadow {offset={20,40}, blur=30})
+  - `text_clip_05_glow_not_cut.png` (HAMBURGER 180pt + layer-level glow {radius=24, intensity=0.8, additive})
+  - All 5 emitted under `cfg.golden_directory = "test_renders/golden/text/"` (flat layout, NOT `test_renders/golden/text/text_clip/` — `verify_golden` sanitises the case name to a flat filename, the `case_slug` argument only controls the `artifact_directory` subfolder).
+
+- **Files changed (1)**: `tests/text_golden/text_clip/text_clip_bounds.cpp` (42 insertions, 20 deletions). Zero changes to `include/chronon3d/`, `src/`, or `content/`. AGENTS.md v0.1 Cat-3 (zero new public SDK API) + Cat-5 (this CHANGELOG entry, FOLLOWUP_TICKETS.md row migration, CURRENT_STATUS.md row update in the same atomic commit) freeze-compliant.
+
+- **Honest gap (per AGENTS.md §honesty)**: the 5 golden PNGs are NOT yet seeded in `test_renders/golden/text/`. The pre-existing repo build rot (per the established §13 honest-limitation pattern) blocks the re-bake on this VPS — the actual compile errors are in `include/chronon3d/text/text_definition.hpp:170` (`'TextPlacement' does not name a type`), `content/text/text_helpers_typewriter.hpp` (`TextPlacementKind` not declared), `content/text/text_helpers_centered.hpp` (`TextSpec` has no `placement` field), and `src/text/text_definition.cpp` (`TextFrame` has no `position` member). These are NOT introduced by this commit; `git log -1 --stat` confirms only `tests/text_golden/text_clip/text_clip_bounds.cpp` is modified. The re-bake command is:
+
+  ```bash
+  # On the next working build host (vcpkg glm/magic_enum + tmpfs quota available):
+  CHRONON3D_UPDATE_GOLDENS=1 ctest --test-dir .tmp/chronon-builds/linux-content-dev \
+      -R TextClipBounds --output-on-failure
+  # Expected: 5 PNGs in test_renders/golden/text/{text_clip_01..05_*}.png, 1920x1080
+  # Then re-run without env var to confirm 5/5 PASS:
+  ctest --test-dir .tmp/chronon-builds/linux-content-dev -R TextClipBounds --output-on-failure
+  ```
+
+- **Push blocker (also honest)**: this commit is currently local-only (HEAD = 6c63f4d2, ahead 5 / behind 47 vs origin/main). The pre-existing repo state has 47 commits on origin/main not yet in local HEAD + dirty files in `apps/chronon3d_cli/` + `content/` that conflict with origin-side changes in `apps/chronon3d_cli/CMakeLists.txt`. The canonical `tools/wrap_push.sh origin main` GATE-MNT-01 chain failed on the rebase step. The push requires: (1) resolution of the pre-existing build rot so the 11/11 gate cert run can complete on this VPS, or (2) a manual `git pull --rebase origin main` with resolution of the `CMakeLists.txt` divergence + `git stash` of the unrelated dirty files. Both are out of scope for this commit (per AGENTS.md "Fare PR piccole e mirate").
+
+- **Code review**: code-reviewer-minimax-m3 verdict (2026-07-10) — "looks good overall. Pattern match: yes, the `CHECK_FALSE(r.golden_missing)` + `if (!r.golden_missing) { CHECK(r.passed); }` block matches `text_completeness.cpp::verify_completeness_golden` exactly. Clip 03 placement: correct. Golden slugs: consistent. Build state: existing binary at .tmp/chronon-builds/linux-content-dev/tests/chronon3d_text_golden_tests was built before the refactor — the test source change requires a re-link." The re-link was attempted via `ninja -C .tmp/chronon-builds/linux-content-dev chronon3d_text_golden_tests` and hit the pre-existing build rot (NOT my code).
+
+- **Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `TICKET-TEXT-CLIP-GOLDENS-01-05` row migration (OPEN → PARTIAL); [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale per area "Text Production V1" row update (Clip 01-05 no-skip done; re-bake + push deferred to working build host); [`docs/tickets/TICKET-TEXT-CLIP-GOLDENS-01-05.md`](docs/tickets/TICKET-TEXT-CLIP-GOLDENS-01-05.md) ticket rationale; `tests/text_golden/text_clip/text_clip_bounds.cpp` (the refactored test file); `tests/text_golden/text_clip/text_completeness.cpp::verify_completeness_golden` (the canonical pattern source).
 
 ---
 
