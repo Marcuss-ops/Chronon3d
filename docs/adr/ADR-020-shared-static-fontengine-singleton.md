@@ -255,5 +255,5 @@ grep -c 'layout_glyphs:' content/common/text_reveal_helpers.hpp
 - `docs/DOCUMENTATION_GOVERNANCE.md` — ADR template + style guide
 - Code-reviewer-minimax-m3 issue #7, round 6
 
-- Commit **`2ba38c78`** (original `s_typewriter_resolver` introducer — `static const chronon3d::assets::AssetResolver s_typewriter_resolver;` declaration + use-site in `text::typewriter_build(..., s_typewriter_resolver)`; see commit message for context on replacing sed residuals `s_test_resolver`)
+
 - Commit **`6f3db3ed`** (retirement commit — both `s_typewriter_resolver` and `shared_typewriter_engine()` deleted; supersedes this ADR's "How to migrate away" plan)
