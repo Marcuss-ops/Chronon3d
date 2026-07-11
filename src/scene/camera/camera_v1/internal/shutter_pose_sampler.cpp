@@ -6,6 +6,48 @@
 // deduplicated against `src/render_graph/pipeline/composition.cpp` —
 // sample-time / jitter / filter-weight generation now goes through
 // chronon3d::temporal::generate_temporal_samples (single source of truth).
+//
+// ── TICKET-PROJECTION-V1: motion-blur-no-recompile invariant ──────────────────
+//
+// The user spec mandates: "La compilazione deve restare FUORI da
+// render_frame, tile loop, nodo, layer, motion blur subsample."
+// (Compilation must stay OUT of render_frame, tile loop, node, layer,
+// motion blur subsample.)
+//
+// This invariant is satisfied by the following architectural property:
+//
+//   1. `ShutterPoseSampler` is constructed ONCE per `MotionBlurSettings`,
+//      typically at composition-build time or at the start of a render
+//      pass.  The constructor reads the `MotionBlurSettings` (mode +
+//      samples + shutter_angle_deg + shutter_phase_deg + pattern + filter
+//      + jitter_seed) and computes the per-tick Halton weights via
+//      `chronon3d::temporal::generate_temporal_samples`.
+//
+//   2. The sub-frame loop calls `ShutterPoseSampler::evaluate(frame, fps, ...)`
+//      which returns an accumulated `Camera2_5D` for the shutter window.
+//      The sampler does NOT re-construct itself per call; the temporal
+//      weights + Halton sequence are pre-computed and held by value in
+//      the sampler (per `params` + `samples` locals below).
+//
+//   3. The per-tick `evaluator` is a `CameraEvaluatorFn` (function pointer /
+//      closure) that the caller pre-binds to a PRE-COMPILED `CameraProgram`.
+//      The `evaluator(sub_frame)` call invokes `program.evaluate(ctx, ...)`
+//      on the pre-compiled program; it does NOT call `compile_camera()`
+//      per tick.  The `CameraProgram` is built once by `compile_camera()`
+//      outside the render loop and reused for all N sub-frame samples.
+//
+// REGRESSION LOCK: a future change that calls `compile_camera()` or
+// `apply_projection_spec()` (which mutates `cam.zoom` / `cam.fov_deg`
+// / `cam.lens`) inside the sub-frame loop would break this invariant.
+// The motion-blur test suite (`tests/scene/camera/test_motion_blur_torture_pr1.cpp`
+// + `tests/visual/cinematic_motion/cinematic_motion_tests.cpp`) exercises
+// the full shutter sweep and would catch a recompile-per-tick regression
+// via timing + memory-allocation signatures.
+//
+// DO NOT introduce `compile_camera()` calls inside the sub-frame loop
+// or any inner loop.  The compile pipeline lives at the shot / scene
+// boundary, NOT in the per-pixel render path.  See AGENTS.md §honesty
+// for the canonical no-recompile rule.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/internal/shutter_pose_sampler.hpp>
 #include <chronon3d/math/camera_pose.hpp>

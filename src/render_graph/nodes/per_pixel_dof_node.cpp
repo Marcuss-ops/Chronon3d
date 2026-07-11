@@ -3,6 +3,56 @@
 //
 // Moved out of the header to break the inline dependency on the software
 // backend.  Uses DofKernelInterface from RenderResourceContext.
+//
+// ── TICKET-PROJECTION-V1: DOF V1 deterministic-result contract ────────────────
+//
+// The user spec mandates "risultato deterministico" (deterministic result)
+// for the DOF V1 pass.  `PerPixelDofNode` is a PURE FUNCTION:
+//
+//   apply_per_pixel_dof(input_fb, depth_buffer, dof_settings, lens) -> output_fb
+//
+// Determinism invariants:
+//
+//   1. No RNG: the blur kernel is a deterministic Gaussian with a
+//      per-pixel radius derived from the depth value + DOF settings.
+//      There is no `std::rand`, `mt19937`, `uniform_real_distribution`,
+//      or temporal noise source.  The same (depth_buffer, dof_settings,
+//      lens) tuple ALWAYS produces the same output_fb byte-for-byte.
+//
+//   2. No temporal drift: the node does not hold any state across
+//      `execute()` invocations.  There are no member variables that
+//      accumulate, no caches, no last-frame memory, no thread-local
+//      state.  Each call is a self-contained pure function of its
+//      inputs.
+//
+//   3. No compilation: the DOF pass is a render-graph node, not a
+//      camera compile step.  The camera program + DOF settings are
+//      baked in at compile time (outside the render loop) and the
+//      execute() function reads them by value per call.  No
+//      `compile_camera()` call inside execute() (same invariant as
+//      the motion-blur-no-recompile contract).
+//
+//   4. No threading-induced non-determinism: the kernel processes
+//      pixels in a deterministic order (left-to-right, top-to-bottom
+//      per the clip rectangle).  Even with multi-threaded dispatch
+//      the output is identical because each pixel's result depends
+//      only on the depth buffer + settings (no cross-pixel feedback
+//      that would race).
+//
+// REGRESSION LOCK: `tests/renderer/camera/test_per_pixel_dof.cpp` exercises
+// the deterministic contract via the following invariants:
+//   - Same inputs → same output (tested by repeating the kernel call
+//     and asserting byte-identical output via `memcmp`).
+//   - Empty framebuffer (all transparent) survives blur (no NaN/Inf
+//     injected from empty depth data).
+//   - 1x1 framebuffer does not crash (no off-by-one on the kernel
+//     boundary).
+//   - Mismatched depth buffer size is a no-op (early-return guard
+//     prevents OOB reads).
+//
+// DO NOT introduce state into the kernel.  DO NOT add RNG.  DO NOT
+// add cross-pixel feedback (e.g. iterative refinement).  The
+// "risultato deterministico" guarantee is part of the user spec.
 // ============================================================================
 
 #include <chronon3d/render_graph/nodes/per_pixel_dof_node.hpp>
