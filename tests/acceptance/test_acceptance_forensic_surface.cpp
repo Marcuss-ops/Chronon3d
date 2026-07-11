@@ -16,7 +16,7 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/chronon3d.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <tests/helpers/consumer_mean_rgb_diag.hpp>
 #include <tests/helpers/asset_preload_check.hpp>
 

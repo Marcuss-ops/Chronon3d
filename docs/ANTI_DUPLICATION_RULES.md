@@ -231,7 +231,7 @@ Eventuali target pubblici aggiuntivi (`Chronon3D::Core`, `Chronon3D::Text`, `Chr
 
 **Consentito:**
 ```cpp
-#include <chronon3d/chronon3d.hpp>
+#include <chronon3d/sdk/render_settings.hpp>
 #include <chronon3d/extension/extension_context.hpp>
 ```
 

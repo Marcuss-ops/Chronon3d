@@ -20,7 +20,7 @@
 // (no new public SDK API surface).
 // ──────────────────────────────────────────────────────────────────────────────
 
-#include <chronon3d/chronon3d.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 
 #include <cstddef>
 #include <cstdio>

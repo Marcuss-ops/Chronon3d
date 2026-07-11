@@ -18,7 +18,6 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>

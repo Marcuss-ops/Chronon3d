@@ -20,7 +20,13 @@
 //   ./text_export_consumer
 // ═══════════════════════════════════════════════════════════════════════════
 
-#include <chronon3d/chronon3d.hpp>
+#include <chronon3d/sdk/render_output.hpp>
+#include <chronon3d/api/composition.hpp>
+#include <chronon3d/api/scene.hpp>
+#include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
 
 #include <cstdio>
 #include <filesystem>
