@@ -1,3 +1,38 @@
+## Luglio 2026 — TICKET-SIMPLICITY-INSPECT-TEXT: CLI inspect-text, test suite registration fix, and content migration to TextSpec API (2026-07-10, atomic commit)
+
+### feat(text): TICKET-SIMPLICITY-INSPECT-TEXT — add inspect-text CLI, tests, and migrate content to TextSpec API
+
+- **Scope**: single atomic commit landing three deliverables for the M1.8 Text Simplicity workstream:
+  1. **New CLI subcommand** `chronon3d_cli inspect-text <comp_id> --frame N --json` — per-node TextRun audit with structured JSON output and exit-code mapping (0=PASS, 1=FAIL, 2=VIOLATION). Gated by `CHRONON3D_BUILD_DIAGNOSTICS`; in non-diagnostic builds emits error JSON and exits 1.
+  2. **Test suite registration hygiene** — 9 new test `.cmake` files (`animation_helpers_tests.cmake`, `inspect_text_tests.cmake`, `pipeline_parity_tests.cmake`, `safe_area_placement_tests.cmake`, `text_builder_ergonomics_tests.cmake`, `text_definition_tests.cmake`, `text_presets_stability_tests.cmake`, `text_simplicity_adapters_tests.cmake`, `visibility_contract_tests.cmake`) converted from raw `add_executable` to the canonical `chronon3d_add_test_suite()` helper, satisfying `tools/check_test_suite_registration.sh`.
+  3. **Content migration to TextSpec API** — 15 `content/` files (5 original + 10 revealed by verification grep) migrated from legacy `text::centered_text({...})` to canonical `from_text_spec(TextSpec{...})` (F2.C adapter). Affected files include `content/certification/cert_{multilingual,lower_third,title,long_text}.cpp`, `content/text_placement/text_placement_compositions.cpp`, and 10 showcase/example compositions.
+
+- **New files (2)**:
+  - `apps/chronon3d_cli/commands/dev/command_inspect_text.cpp` — implementation of `command_inspect_text()`.
+  - `apps/chronon3d_cli/commands/dev/command_inspect_text.hpp` — header for the above.
+
+- **Modified files (high-level)**:
+  - `apps/chronon3d_cli/CMakeLists.txt` — added `command_inspect_text.cpp` to `chronon3d_cli_dev` sources.
+  - `apps/chronon3d_cli/commands.hpp` — added `InspectTextArgs` struct and `command_inspect_text()` declaration; removed stale `diagnostic_overlay`/`diagnostic_overlay_only` fields from `RenderPipelineArgs`/`BakeLayerArgs`/`TextAuditArgs` (superseded by dedicated `inspect-text` command).
+  - `apps/chronon3d_cli/commands/dev/register_inspect_commands.cpp` — registered `inspect-text` subcommand with `--frame` and `--json` flags.
+  - 9 `tests/*.cmake` files — converted to `chronon3d_add_test_suite(NAME ... TIER ... LINK_TARGETS ...)`.
+  - 15 `content/*.cpp` files — migrated to `from_text_spec(TextSpec{...})`.
+
+- **API/ABI surface**: zero new public SDK symbols. `InspectTextArgs` and `command_inspect_text()` are CLI-internal. Content migration uses existing public `TextSpec`/`TextDefinition` APIs.
+
+- **AGENTS.md v0.1 freeze compliance**:
+  - **Cat-3** (no new public API surface): SATISFIED — CLI-internal symbols only; content uses existing public APIs.
+  - **Cat-5** (doc-only alignment): SATISFIED — `docs/CURRENT_STATUS.md`, `docs/FOLLOWUP_TICKETS.md`, and `docs/CHANGELOG.md` updated in the same doc-sync commit.
+  - Gate 5 deny-everywhere compliance: N/A — no `#include <msdfgen>`/`<libtess2>`/`<unicode[/...]>` introduced.
+  - Zero nuovi singleton/registry/cache/resolver/sampler/service-locator.
+
+- **Cross-references**:
+  - [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §M1.8 — `TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS` promoted to DONE.
+  - [`docs/ROADMAP.md`](docs/ROADMAP.md) §M1.8 — `TICKET-SIMPLICITY-INSPECT-TEXT` and `TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS` rows already marked DONE.
+  - Commit `8b5ee57f` (the landed atomic commit).
+
+---
+
 ## Luglio 2026 — V1 cert run + baseline artifact for main@908c7034 (10/13 PASS, 3 FAIL, 1 NOT RUN) (2026-07-10, atomic commit)
 
 ### docs(baseline): main@908c7034 — V1 cert run with pre-existing TICKET-FASE2 §10 build rot discovery
