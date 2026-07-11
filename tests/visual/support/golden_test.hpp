@@ -80,4 +80,23 @@ GoldenTestResult verify_golden(
 
 std::string sanitise_case_name(std::string_view name);
 
+// ── REQUIRE_GOLDEN_PASSED ─────────────────────────────────────────────────
+// Hardened assertion for golden-test results.  Always checks result.passed,
+// so a missing golden in verify mode is a hard failure (no false greens).
+// The informational message is still emitted when the golden is missing.
+//
+// Usage:
+//   auto result = verify_golden(...);
+//   REQUIRE_GOLDEN_PASSED(result);
+
+#define REQUIRE_GOLDEN_PASSED(result) \
+    do { \
+        const auto& _golden_result = (result); \
+        INFO("Golden: ", _golden_result.message); \
+        if (_golden_result.golden_missing) { \
+            MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 to create."); \
+        } \
+        REQUIRE(_golden_result.passed); \
+    } while (0)
+
 } // namespace chronon3d::test
