@@ -64,18 +64,18 @@ void propagate_dirty_chain(
 
 #ifndef CHRONON3D_ENABLE_DIAGNOSTICS
 
-// ── No-op stubs when engine-level diagnostics are disabled at compile time ──
-
-inline void check_topological_warnings(
-    const RenderGraph& /*graph*/,
-    GraphPreflightReport& /*report*/) {}
-
 // NB: default arguments (e.g. `path_cache = nullptr`) live on the
 // PRIMARY declaration above at line 49 ONLY. The C++ standard
 // forbids specifying a default argument more than once for the
 // same parameter in visible declarations within this translation
 // unit. Future maintainers: do NOT add `= nullptr` to any of the
 // inline stubs below — the compiler will reject the build.
+
+// ── No-op stubs when engine-level diagnostics are disabled at compile time ──
+
+inline void check_topological_warnings(
+    const RenderGraph& /*graph*/,
+    GraphPreflightReport& /*report*/) {}
 
 inline void check_asset_integrity(
     const RenderGraph& /*graph*/,
