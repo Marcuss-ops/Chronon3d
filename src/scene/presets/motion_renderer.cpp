@@ -120,7 +120,10 @@ void draw_content(LayerBuilder& l, const MotionObject& obj, const MotionState& s
         chronon3d::TextRunSpec run_params;
         run_params.text = chronon3d::TextSpec{
             .content = {.value = apply_text_reveal(obj.text_value, st.text_reveal)},
-            .position = {0.0f, 0.0f, 0.0f},
+            // TICKET-TEXT-LEGACY-POSITION-ROT: legacy .position Vec3 removed
+            // upstream; migrate to .placement TextPlacement (Z dropped, Z=0.0f
+            // here so no semantic loss; no LayerBuilder::translate no-op needed).
+            .placement = chronon3d::TextPlacement{chronon3d::TextPlacementKind::Absolute, {0.0f, 0.0f}},
             .font = {.font_path = obj.text_style.font_path,
                      .font_family = obj.text_style.font_family,
                      .font_weight = obj.text_style.font_weight,
