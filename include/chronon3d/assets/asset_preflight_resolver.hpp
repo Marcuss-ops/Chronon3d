@@ -89,7 +89,7 @@ public:
             check_manifest(scene.asset_manifest(), resolver, result);
         } else {
             // FrameOnly: build a manifest from only active layers
-            AssetManifest active_manifest;
+            assets::AssetManifest active_manifest;
             for (const auto& layer : scene.layers()) {
                 if (layer.active_at(frame)) {
                     active_manifest.merge(layer.asset_manifest);
@@ -105,7 +105,7 @@ public:
 
     /// Check a manifest directly (no scene needed).
     [[nodiscard]] static AssetPreflightResult check_manifest(
-        const AssetManifest& manifest,
+        const assets::AssetManifest& manifest,
         const assets::AssetResolver& resolver
     ) {
         AssetPreflightResult result;
@@ -117,7 +117,7 @@ private:
     // ── Internal: check each asset in a manifest ─────────────────────
 
     static void check_manifest(
-        const AssetManifest& manifest,
+        const assets::AssetManifest& manifest,
         const assets::AssetResolver& resolver,
         AssetPreflightResult& result
     ) {
@@ -143,11 +143,6 @@ private:
 
     // ── Map AssetType → PreflightAssetType ───────────────────────────
 
-    /// Phase A2 #2/3 — switched from `AssetType` (6-value, registry/metadata)
-    /// to `assets::AssetKind` (4-value, manifest/owner-centric) since the
-    /// manifest exclusively carries Font/Image/Video/Audio entries. The
-    /// 4-value AssetKind semantics match the manifest's scope (no
-    /// Mesh/Unknown in a scene-manifest context).
     [[nodiscard]] static constexpr PreflightAssetType to_preflight_type(assets::AssetKind kind) noexcept {
         switch (kind) {
             case assets::AssetKind::Font:   return PreflightAssetType::Font;

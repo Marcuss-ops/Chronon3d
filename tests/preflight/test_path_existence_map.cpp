@@ -58,10 +58,8 @@ public:
         out << content;
         out.flush();
         out.close();
-        // Force mtime strictly forward: set to 1 second past current time.
-        auto now = std::chrono::system_clock::now();
-        auto future = now + std::chrono::seconds(2);
-        auto ftime = std::chrono::file_clock::from_system_clock(future);
+        // Force mtime strictly forward: set to 2 seconds past current file time.
+        auto ftime = std::chrono::file_clock::now() + std::chrono::seconds(2);
         fs::last_write_time(p, ftime);
     }
 
