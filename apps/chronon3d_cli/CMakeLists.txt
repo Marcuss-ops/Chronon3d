@@ -212,6 +212,7 @@ endif()
 # (the content OBJECT target lacks the internal header dependency).
 target_sources(chronon3d_cli PRIVATE
     ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_compositions.cpp
+    ${CMAKE_SOURCE_DIR}/tests/visual/glow_ab/glow_ab_compositions.cpp
 )
 # glow_ab_compositions.cpp is ALWAYS compiled into the CLI because
 # cli_init.hpp unconditionally registers the glow A/B control composition.
