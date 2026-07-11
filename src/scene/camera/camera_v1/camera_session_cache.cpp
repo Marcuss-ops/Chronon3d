@@ -168,6 +168,30 @@ void CameraSessionLease::commit() {
     }
 }
 
+// Phase 1.D (TICKET-PHASE-1D): commit-with-payload overload. Writes the given
+// camera onto `session.last_valid_camera` (so the success-path payload joins
+// the writeback) and then performs the no-arg commit() writeback in one
+// atomic-then-commit step. The id-check on `committed_` is shared with
+// no-arg commit() so calling either path on an already-finalized lease
+// is a safe no-op (idempotent with the no-arg path).
+void CameraSessionLease::commit(const Camera2_5D& cam) {
+    if (!committed_) {
+        session_->last_valid_camera = cam;
+        commit();
+    }
+}
+
+// Phase 1.D (TICKET-PHASE-1D): explicit rollback for the failed-evaluate branch.
+// Mirrors the user-spec pattern `if (!result) { lease.rollback(); return ...; }`.
+// Marking `committed_ = true` blocks any subsequent commit() from accidentally
+// promoting the in-flight working_session back to checkpoint.session. The
+// destructor remains a no-op (the implicit rollback-by-construction via
+// scratch working_session still holds; we just synchronously finalize the
+// lease so the failure branch is observable at the call site).
+void CameraSessionLease::rollback() {
+    committed_ = true;  // finalise without writeback; idempotent with commit().
+}
+
 CameraSessionLease::~CameraSessionLease() {
     // No-op.  TICKET-ZERO-A1 / TICKET-A3-CACHE-LEASE: rollback is BY
     // CONSTRUCTION — lease.session() returns *Entry::working_session
