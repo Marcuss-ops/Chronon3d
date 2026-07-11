@@ -123,7 +123,7 @@ void draw_null_parent_markers(const OverlayContext& ctx) {
                 });
                 l.text("null_parent_lbl_" + name, TextSpec{
                     .content = {.value = name},
-                    .position = {n_sp.position.x + 15.0f, n_sp.position.y + 5.0f, 0.0f},
+                    .placement = {TextPlacementKind::Absolute, {n_sp.position.x + 15.0f, n_sp.position.y + 5.0f}},
                     .font = {.font_size = 10.0f},
                     .appearance = {.color = Color{0.0f, 0.9f, 1.0f, 0.8f}}
                 });
@@ -179,7 +179,7 @@ void draw_projected_bounds(const OverlayContext& ctx) {
             if (ctx.options.show_layer_names) {
                 l.text("label_hud_" + lr.name + "_" + std::to_string(idx), TextSpec{
                     .content = {.value = lr.name + (lr.passed ? " (PASS)" : " (FAIL)")},
-                    .position = {lr.bounds.min.x + 5.0f, lr.bounds.min.y + 15.0f, 0.0f},
+                    .placement = {TextPlacementKind::Absolute, {lr.bounds.min.x + 5.0f, lr.bounds.min.y + 15.0f}},
                     .font = {.font_size = 12.0f},
                     .appearance = {.color = border_color}
                 });
