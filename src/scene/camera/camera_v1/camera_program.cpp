@@ -615,6 +615,57 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
         intermediate = cr.camera;
     }
 
+    // TICKET-FRAMING-V1: 5th-stage framing (after constraints, before
+    // final return).  Opt-in: runs only when the descriptor has
+    // non-empty `framing_targets` in `CameraBaseSpec`.  The framing
+    // solver picks the camera position + aim that frames all targets
+    // within the safe area + rule-of-thirds + dead-zone constraints.
+    // The solver's per-frame state (previous aim, smoothed dolly,
+    // hysteresis EMA) is held in `session.framing_session` and
+    // persists across evaluations for stable on-screen motion.
+    //
+    // HONEST GAP: the per-layer "real bounds" query is NOT implemented;
+    // the evaluator reads the targets from `descriptor_.base.framing_targets`
+    // which the composition author fills in at descriptor-build time.
+    // A real-bounds resolver (against `ctx.transforms` or a new
+    // scene-bounds resolver) is catalogued as a forward-point in
+    // `docs/FOLLOWUP_TICKETS.md` §Catalogued forward-points.
+    if (!descriptor_.base.framing_targets.empty()) {
+        CameraFramingRequest req;
+        req.targets = descriptor_.base.framing_targets;
+        req.composition_point = descriptor_.base.composition_point;
+        req.look_ahead = descriptor_.base.look_ahead;
+        req.viewport = ctx.viewport;
+        const CameraFramingResult framing_result =
+            framing_solver_.solve(req, intermediate, session.framing_session);
+        intermediate = framing_result.camera;
+    }
+
+    // TICKET-FRAMING-V1: 7th-stage validation finale (end-of-pipeline
+    // NaN/Inf sanity check on the final camera state).  Per the
+    // design validation (thinker Q-A), this reuses the existing
+    // `CameraErrorCode::ConstraintFailure` discriminator (no new public
+    // symbol) and emits a descriptive message naming the failing field.
+    // The check fires AFTER framing so a solver that produces a
+    // degenerate state (e.g. NaN from a divide-by-zero in a degenerate
+    // bounding box) is caught before the renderer sees it.
+    auto has_nan_or_inf = [](const Vec3& v) {
+        return std::isnan(v.x) || std::isnan(v.y) || std::isnan(v.z) ||
+               std::isinf(v.x) || std::isinf(v.y) || std::isinf(v.z);
+    };
+    if (has_nan_or_inf(intermediate.position)) {
+        return CameraEvaluationError{
+            CameraErrorCode::ConstraintFailure,
+            "validation finale: NaN/Inf in final camera position"
+        };
+    }
+    if (has_nan_or_inf(intermediate.rotation)) {
+        return CameraEvaluationError{
+            CameraErrorCode::ConstraintFailure,
+            "validation finale: NaN/Inf in final camera rotation"
+        };
+    }
+
     result.camera = intermediate;
     // CAM-03: persist the last camera that passed all constraints.
     // Used by KeepLastValidCamera policy on subsequent failures.

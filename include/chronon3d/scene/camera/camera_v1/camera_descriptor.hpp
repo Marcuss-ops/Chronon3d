@@ -30,6 +30,7 @@
 // ==============================================================================
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_trajectory.hpp>    // CameraTrajectory
+#include <chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp>  // TICKET-FRAMING-V1: FramingBBox
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>             // Camera2_5D, DepthOfFieldSettings, MotionBlurSettings, LensModel
 
 #include <cstdint>
@@ -110,6 +111,20 @@ struct CameraBaseSpec {
     std::string parent_name;
     bool        point_of_interest_enabled{false};
     Vec3        point_of_interest{0.0f, 0.0f, 0.0f};
+
+    // TICKET-FRAMING-V1: opt-in framing targets.  When non-empty, the
+    // evaluator runs a 5th stage (framing) AFTER constraints and BEFORE
+    // the final return.  Each FramingBBox is a world-space AABB; the
+    // solver picks the camera position + aim that frames all targets
+    // within the safe area + rule-of-thirds + dead-zone constraints.
+    // HONEST GAP: the per-layer "real bounds" query (the user spec asks
+    // for "Usa i bounds REALI dei layer NON tabelle manuali") is NOT
+    // implemented — the evaluator reads the targets from this field, which
+    // the composition author fills in at descriptor-build time.  The
+    // real-bounds query (against `ctx.transforms` or a new scene-bounds
+    // resolver) is catalogued as a follow-up forward-point in
+    // `docs/FOLLOWUP_TICKETS.md` §Catalogued forward-points.
+    std::vector<FramingBBox> framing_targets;
 };
 
 // =============================================================================

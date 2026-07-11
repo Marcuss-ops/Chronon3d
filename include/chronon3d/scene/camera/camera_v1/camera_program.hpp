@@ -20,6 +20,7 @@
 //   4. Orientation + modifiers + constraint spec evaluation
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp>  // TICKET-FRAMING-V1: CameraFramingSolver
 #include <chronon3d/core/types/result.hpp>
 
 #include <chronon3d/math/camera_2_5d_projection.hpp>  // Camera2_5D
@@ -255,6 +256,15 @@ private:
         const std::optional<Vec3>& tangent,
         const std::optional<float>& roll_deg,
         CameraSession& session) const;
+
+    // TICKET-FRAMING-V1: framing solver member.  `mutable` so the const
+    // `evaluate()` can thread the solver through (the solver's `solve()`
+    // is logically const but the per-call `FramingSession` is owned by
+    // the caller — see `CameraSession::framing_session`).  The solver
+    // itself is stateless; `solve()` only mutates the session argument,
+    // not the solver.  Reusing one solver across evaluations avoids
+    // per-frame construction cost.
+    mutable CameraFramingSolver framing_solver_;
 };
 
 } // namespace chronon3d::camera_v1

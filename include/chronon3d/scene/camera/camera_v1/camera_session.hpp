@@ -48,6 +48,7 @@
 //     already carries).
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_constraint.hpp>  // ConstraintSession, ConstraintState
+#include <chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp>  // TICKET-FRAMING-V1: FramingSession
 #include <chronon3d/math/glm_types.hpp>   // Vec3
 
 #include <cstdint>
@@ -90,6 +91,12 @@ struct CameraSession {
     /// constraint fails on a subsequent frame.
     std::optional<Camera2_5D> last_valid_camera;
 
+    // TICKET-FRAMING-V1: framing-session slot.  Persists the framing
+    // solver's per-frame state (previous aim target, smoothed dolly,
+    // hysteresis EMA) across evaluations.  Reset by `reset()` below
+    // alongside the other per-frame state.
+    FramingSession framing_session;
+
     /// Ensure at least n constraint state slots are allocated.
     void ensure_constraint_states(std::size_t n) {
         constraint_session.ensure_states(n);
@@ -104,6 +111,8 @@ struct CameraSession {
         // TICKET-CAM-QUAT-PRIMARY: clear the new Quat frame-continuity slot.
         last_orientation.reset();
         last_valid_camera.reset();
+        // TICKET-FRAMING-V1: clear the framing solver's per-frame state.
+        framing_session.reset();
     }
 };
 
