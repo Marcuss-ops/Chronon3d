@@ -39,7 +39,10 @@ inline Composition make_pipeline_parity_canary(const CompositionProps& /*props*/
             SceneBuilder s(ctx);
             s.layer("canary_layer", [](LayerBuilder& l) {
                 l.screen_dimensions(1920.0f, 1080.0f);
-                l.text("canary_text", TextSpec{.content = {.value = std::string(kPipelineParityText)},.position = Vec3{960.0f, 540.0f, 0.0f},.font = {
+                // TICKET-TEXT-LEGACY-POSITION-ROT (sub-area test-fixture site):
+                // legacy .position Vec3 removed upstream; migrate to .placement.
+                // Z=0 explicit in legacy code, safe-drop per M1.8 §5A.
+                l.text("canary_text", TextSpec{.content = {.value = std::string(kPipelineParityText)},.placement = chronon3d::TextPlacement{chronon3d::TextPlacementKind::Absolute, {960.0f, 540.0f}},.font = {
                         .font_path = "assets/fonts/Inter-Bold.ttf",
                         .font_family = "Inter",
                         .font_size = 96.0f,
