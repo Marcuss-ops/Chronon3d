@@ -34,7 +34,10 @@ TextDefinition from_text_spec(const TextSpec& spec) {
 
     // ── frame ──────────────────────────────────────────────────────────
     def.frame.size          = spec.layout.box;
-    def.frame.placement     = {TextPlacementKind::Absolute, {spec.position.x, spec.position.y}};
+    // TICKET-TEXT-LEGACY-POSITION-ROT (sub-area ii, read direction): legacy
+    // `.position` Vec3 was the post-anchor resolved coords; faithfully map to
+    // `{TextPlacementKind::Absolute, {Vec2}}` which is byte-equivalent (Z=0).
+    def.frame.placement     = {TextPlacementKind::Absolute, {spec.placement.offset.x, spec.placement.offset.y}};
     def.frame.anchor        = spec.layout.anchor;
     def.frame.align         = spec.layout.align;
     def.frame.vertical_align = spec.layout.vertical_align;
@@ -106,8 +109,12 @@ TextSpec from_text_definition(const TextDefinition& def) {
     spec.appearance.material  = def.style.material;
     spec.appearance.box_style = def.style.box_style;
 
-    // ── position ───────────────────────────────────────────────────────
-    spec.position = {def.frame.placement.offset.x, def.frame.placement.offset.y, 0.0f};
+    // ── position (TICKET-TEXT-LEGACY-POSITION-ROT sub-area ii, write direction) ──
+    // Faithful mirror: legacy `.position = Vec3{x, y, 0}` is byte-equivalent
+    // to `TextPlacement{TextPlacementKind::Absolute, {x, y}}` (Z=0 explicit
+    // per M1.8 §5A). Hardcoding `Absolute` matches the prior semantic of
+    // `.position` carrying already-resolved coords.
+    spec.placement = {TextPlacementKind::Absolute, {def.frame.placement.offset.x, def.frame.placement.offset.y}};
 
     return spec;
 }
