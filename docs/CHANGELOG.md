@@ -1,3 +1,34 @@
+## Luglio 2026 — TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02 forward-point 0a — WAVE-02 first-step seed: extend ## Cartography Architecture machine-verification grep to text-shape primitives + add 1-row catalogued forward-points entry (no source-code changes; doc-only chore) (2026-07-11, atomic chore commit)
+
+### docs(cartography): WAVE-02 first-step seed (text-shape grep + 0a) — ## Cartography Architecture extension to text-shape surface
+
+- **Scope**: closes the WAVE-02 first-step seed (forward-point 0a) per the canonical ticket template at [`docs/tickets/TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02.md`](tickets/TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02.md) (just opened in chore commit 1 at SHA `3db684bd`). After this commit, the `## Cartography Architecture` section in `docs/FOLLOWUP_TICKETS.md` is extended to cover text-shape primitives — the machine-verification grep now scans BOTH `include/chronon3d/scene/builders/builder_params.hpp` AND `include/chronon3d/text/`, and a new `TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02 forward-point 0a` row is added to the `### Catalogued forward-points` table.
+- **Cat-3 (no source change JUSTIFIED)**: ZERO new symbols in `include/chronon3d/text/`. ZERO `[[deprecated]]` field annotations. ZERO dispatch-site forwarding logic added. ZERO forward-point 0g+ equivalent test target added. The principle is DOCUMENTED in the extended §Cartography section; the machine-verification grep extension surfaces the existing audit hit inventory; future WAVE-02 forward-points 0b+ will be opened as separate commits per AGENTS.md v0.1 Cat-3 anti-duplication rule + "Fare PR piccole e mirate".
+- **Cat-5 (2-doc same-commit alignment) SATISFIED**: this CHANGELOG entry (prepended at TOP, above the WAVE-02 open entry) + `docs/FOLLOWUP_TICKETS.md` `## Cartography Architecture` section EDIT (machine-verification grep extended + 1-row WAVE-02 0a added to `### Catalogued forward-points` table) all updated in this same atomic chore commit. `tools/check_doc_sync.sh` R5 fires on this closure. **`docs/CURRENT_STATUS.md` SDK Product V1 row INTENTIONALLY UNTOUCHED**: per `docs/DOCUMENTATION_GOVERNANCE.md` the SDK row is a stato-per-area cell that requires self-contained state; the §Cartography section is the canonical detail home for the WAVE-02 forward-point catalogue. Cross-link from CURRENT_STATUS to FOLLOWUP §Cartography can land in a future chore commit if canonical focus shifts.
+- **Machine-verification grep extension**:
+  - **Before** (chore commit 0: §Cartography Architecture reorg): `bash -c "grep -nE 'std::string|std::filesystem::path' include/chronon3d/scene/builders/builder_params.hpp"` → 2 hits (BUCKET-A only; BUCKET-B yields zero).
+  - **After** (chore commit 2 — this commit): `bash -c "grep -nE 'std::string|std::filesystem::path' include/chronon3d/scene/builders/builder_params.hpp include/chronon3d/text/"` → 2 hits in builder_params.hpp (BUCKET-A) + 10+ hits in text/ (awaiting WAVE-02 forward-point 0b+ BUCKET-A/B/C partition assignment).
+  - **WAVE-02 inventory of text-shape hits** (machine-verified 2026-07-11): text_document.hpp + text_span.hpp + text_unit_map.hpp + text_document_builder.hpp + glyph_selector.hpp + timed_text_document.hpp + paragraph_style.hpp + font_engine.hpp + animation/text_pre_shaping.hpp + animation/text_animator_stack.hpp.
+- **Catalogued forward-points 0a row addition** to `### Catalogued forward-points` table:
+  - **ID**: `TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02 forward-point 0a`
+  - **Description**: First-step seed — extends machine-verification grep to `include/chronon3d/text/` + cross-references the 10+ text-shape files carrying `std::string`/`std::filesystem::path` fields for future WAVE-02 forward-points 0b+ BUCKET-A/B/C partition assignment.
+  - **Reopens on**: new `std::string` / `std::filesystem::path` field on a text-shape primitive in the WAVE-02 BUCKET-B analogue.
+- **Cross-link block extension**: adds a `WAVE-02 follow-up ticket cross-link: docs/tickets/TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02.md` clause to the existing `**Cross-link**:` block; extends the machine-verification command to include the text-shape directory.
+- **Anti-duplication honoured** per AGENTS.md v0.1 §regole: zero new singleton / registry / cache / resolver / service-locator introduced. The new WAVE-02 0a row is a doc-summary anchor in the existing `### Catalogued forward-points` table (which now has 2 rows; the existing scene-builder 0i+ row is preserved verbatim).
+- **AGENTS.md v0.1 freeze compliance** (revoked 2026-07-06, but Cat-3 rules permanent):
+  - **Cat-1 commit-discipline**: single atomic chore commit (WAVE-02 0a first-step seed only); pure doc state mutation. "Fare PR piccole e mirate" honoured.
+  - **Cat-2 honest-doc-sync**: this CHANGELOG entry + FOLLOWUP `## Cartography Architecture` section EDIT (machine-verification grep extension + WAVE-02 0a row addition) all updated in same commit. CURRENT_STATUS intentionally untouched per above.
+  - **Cat-3 (no new public API surface)**: SATISFIED — zero new symbols; the machine-verification grep is the canonical audit surface.
+  - **Cat-4 install-pipeline-plumbing** N/A: no install_consumer shader/spec change.
+  - **Cat-5 2-doc same-commit alignment** PARTIAL (CHANGELOG.md + FOLLOWUP_TICKETS.md both updated in same commit; CURRENT_STATUS.md intentionally untouched per `docs/DOCUMENTATION_GOVERNANCE.md` SDK state-cell role).
+  - **Gate 5 deny-everywhere** N/A: no `#include <msdfgen>`/`<libtess2>`/`<unicode[/...]>` introduced.
+  - **GATE-MNT-01 fail-on-dirty** invariant: post-commit smoke-test run before push (VPS auth-block on `git push` per AGENTS.md §honesty per the established pattern).
+- **Files changed (2)**:
+  - `docs/FOLLOWUP_TICKETS.md` EDIT (NEW 1-row WAVE-02 0a in `### Catalogued forward-points` table + extended machine-verification grep command in `**Cross-link**:` block)
+  - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+
+---
+
 ## Luglio 2026 — TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02 — Open WAVE-02 follow-up ticket: text-shape manifest-clean alignment follow-up to TICKET-LAYER-IMAGE-MANIFEST-CLEAN (canonical ticket template spawn; 3-doc same-commit; no source-code changes) (2026-07-11, atomic chore commit)
 
 ### docs(tickets): open TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02 — text-shape manifest-clean alignment follow-up (canonical ticket template per `docs/DOCUMENTATION_GOVERNANCE.md` 11-section)
