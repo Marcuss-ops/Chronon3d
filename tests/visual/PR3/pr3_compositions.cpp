@@ -42,7 +42,7 @@
 #include <memory>
 #include <string>
 using namespace chronon3d;
-namespace ctt = chronon3d::test;
+using namespace chronon3d::test;
 
 namespace {
 
@@ -77,11 +77,7 @@ GoldenTestConfig make_pr3_golden_config() {
 
 void verify_pr3_golden(const Framebuffer& fb, const std::string& name) {
     const auto result = verify_golden(fb, name, make_pr3_golden_config());
-    if (result.golden_missing) {
-        MESSAGE("PR3 golden missing: ", result.golden_path.string(),
-                " — Set CHRONON3D_UPDATE_GOLDENS=1 to create.");
-        return;
-    }
+    REQUIRE_FALSE(result.golden_missing);
     INFO(result.message);
     CHECK(result.passed);
 }
@@ -94,19 +90,19 @@ TextSpec make_text(const std::string& utf8,
                    float size_pt,
                    Color color,
                    Vec2 box) {
-    return TextSpec{.content = TextContent{.value = utf8}, .font = FontSpec{
+    return TextSpec{.content = TextContent{.value = utf8},.position = Vec3{0.0f, 0.0f, 0.0f},.font = FontSpec{
             .font_path   = font_path,
             .font_family = family,
             .font_weight = 700,
             .font_style  = "normal",
             .font_size   = size_pt,
-        }, .layout = TextLayoutSpec{
+        },.layout = TextLayoutSpec{
             .box         = box,
             .line_height = 1.20f,
             .tracking    = 1.0f,
-        }, .appearance = TextAppearanceSpec{
+        },.appearance = TextAppearanceSpec{
             .color = color,
-        }};
+        },};
 }
 
 // ── Render-helper with custom RenderSettings ─────────────────────────────────
@@ -115,9 +111,7 @@ std::shared_ptr<Framebuffer> render_with(const Composition& comp, int frame,
                                          RenderSettings settings) {
     auto renderer = test::make_renderer();
     settings.use_modular_graph = true;
-    if (!settings.motion_blur.mode.has_value()) {
-        // Explicit default — caller controls via `settings.motion_blur` already.
-    }
+    (void)settings.motion_blur.mode;
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
     return renderer.render(comp, Frame{frame});
@@ -135,8 +129,8 @@ Composition make_text_gradient_composition(bool apply_mask, int w, int h) {
             s.layer("bg", [=](LayerBuilder& l) {
                 l.rect("bg_rect", {
                     .size  = {static_cast<f32>(w), static_cast<f32>(h)},
-                    .pos   = {0.0f, 0.0f, -10.0f},
                     .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                    .pos   = {0.0f, 0.0f, -10.0f},
                     .fill  = graphics::FillStyle::linear(
                         Vec2{0.0f, 0.0f}, Vec2{1.0f, 1.0f},
                         {
@@ -190,7 +184,7 @@ Composition make_text_gradient_composition(bool apply_mask, int w, int h) {
 TEST_CASE("PR3-E2E: text_gradient_mask_none") {
     constexpr int W = 320, H = 240;
     auto comp = make_text_gradient_composition(/*apply_mask=*/false, W, H);
-    auto fb = ctt::test::make_renderer().render(comp, 0);
+    auto fb = make_renderer().render(comp, 0);
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == W);
     REQUIRE(fb->height() == H);
@@ -204,21 +198,21 @@ TEST_CASE("PR3-E2E: text_gradient_mask_none") {
 TEST_CASE("PR3-E2E: text_gradient_mask_with_mask") {
     constexpr int W = 320, H = 240;
     auto comp = make_text_gradient_composition(/*apply_mask=*/true, W, H);
-    auto fb = ctt::test::make_renderer().render(comp, 0);
+    auto fb = make_renderer().render(comp, 0);
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == W);
     REQUIRE(fb->height() == H);
 
     // Non-equivalence: mask must change pixels below the title region.
-    auto reference = ctt::test::make_renderer().render(
+    auto reference = make_renderer().render(
         make_text_gradient_composition(false, W, H), 0);
     REQUIRE(reference != nullptr);
-    CHECK(ctt::framebuffer_hash(*fb) != ctt::framebuffer_hash(*reference));
+    CHECK(framebuffer_hash(*fb) != framebuffer_hash(*reference));
     // Title-region luma in the with-mask variant must exceed NONE baseline
     // (because the mask clips the title's solid white block, exposing the
     // gradient outside it).
-    const float with_luma  = ctt::average_luma_rect(*fb,        100,  90, 220, 130);
-    const float none_luma  = ctt::average_luma_rect(*reference, 100,  90, 220, 130);
+    const float with_luma  = average_luma_rect(*fb,        100,  90, 220, 130);
+    const float none_luma  = average_luma_rect(*reference, 100,  90, 220, 130);
     CHECK(with_luma < none_luma);   // mask removes bright title pixels
 
     verify_pr3_golden(*fb, "text_gradient_mask_with_mask");
@@ -285,7 +279,7 @@ Composition make_camera_depth_composition(bool apply_dof, int w, int h) {
 TEST_CASE("PR3-E2E: camera_depth_dof_none") {
     constexpr int W = 480, H = 270;
     auto comp = make_camera_depth_composition(/*apply_dof=*/false, W, H);
-    auto fb = ctt::test::make_renderer().render(comp, 0);
+    auto fb = make_renderer().render(comp, 0);
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == W);
     REQUIRE(fb->height() == H);
@@ -299,15 +293,15 @@ TEST_CASE("PR3-E2E: camera_depth_dof_none") {
 TEST_CASE("PR3-E2E: camera_depth_dof_with_dof") {
     constexpr int W = 480, H = 270;
     auto comp = make_camera_depth_composition(/*apply_dof=*/true, W, H);
-    auto fb = ctt::test::make_renderer().render(comp, 0);
+    auto fb = make_renderer().render(comp, 0);
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == W);
     REQUIRE(fb->height() == H);
 
-    auto reference = ctt::test::make_renderer().render(
+    auto reference = make_renderer().render(
         make_camera_depth_composition(false, W, H), 0);
     REQUIRE(reference != nullptr);
-    CHECK(ctt::framebuffer_hash(*fb) != ctt::framebuffer_hash(*reference));
+    CHECK(framebuffer_hash(*fb) != framebuffer_hash(*reference));
 
     verify_pr3_golden(*fb, "camera_depth_dof_with_dof");
 }
@@ -397,7 +391,7 @@ TEST_CASE("PR3-E2E: motion_blur_transp_with_blur") {
     off_settings.motion_blur.mode = MotionBlurMode::Off;
     auto fb_off = render_with(comp, 2, off_settings);
     REQUIRE(fb_off != nullptr);
-    CHECK(ctt::framebuffer_hash(*fb) != ctt::framebuffer_hash(*fb_off));
+    CHECK(framebuffer_hash(*fb) != framebuffer_hash(*fb_off));
 
     verify_pr3_golden(*fb, "motion_blur_transp_with_blur");
 }
@@ -496,7 +490,7 @@ Composition make_video_images_rtl_composition(bool with_video, int w, int h) {
 TEST_CASE("PR3-E2E: video_images_rtl_none") {
     constexpr int W = 480, H = 270;
     auto comp = make_video_images_rtl_composition(/*with_video=*/false, W, H);
-    auto fb = ctt::test::make_renderer().render(comp, 0);
+    auto fb = make_renderer().render(comp, 0);
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == W);
     REQUIRE(fb->height() == H);
@@ -510,15 +504,15 @@ TEST_CASE("PR3-E2E: video_images_rtl_none") {
 TEST_CASE("PR3-E2E: video_images_rtl_with_video") {
     constexpr int W = 480, H = 270;
     auto comp = make_video_images_rtl_composition(/*with_video=*/true, W, H);
-    auto fb = ctt::test::make_renderer().render(comp, 0);
+    auto fb = make_renderer().render(comp, 0);
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == W);
     REQUIRE(fb->height() == H);
 
-    auto reference = ctt::test::make_renderer().render(
+    auto reference = make_renderer().render(
         make_video_images_rtl_composition(false, W, H), 0);
     REQUIRE(reference != nullptr);
-    CHECK(ctt::framebuffer_hash(*fb) != ctt::framebuffer_hash(*reference));
+    CHECK(framebuffer_hash(*fb) != framebuffer_hash(*reference));
 
     verify_pr3_golden(*fb, "video_images_rtl_with_video");
 }

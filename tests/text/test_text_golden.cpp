@@ -140,6 +140,7 @@ Composition build_static_fill_stroke_composition(SoftwareRenderer& renderer,
             s.layer("hero", [fs, d](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "THE QUICK BROWN FOX"},
+                    .position = {d.width * 0.5f, d.height * 0.5f, 0.0f},
                     .font = {.font_path = "assets/fonts/Poppins-Bold.ttf",
                              .font_family = "Poppins",
                              .font_size = fs},
@@ -149,10 +150,7 @@ Composition build_static_fill_stroke_composition(SoftwareRenderer& renderer,
                     .appearance = {.color = Color::white(),
                                    .paint = {.stroke_enabled = true,
                                               .stroke_color = Color{0.2f, 0.6f, 1.0f, 1.0f},
-                                              .stroke_width = 3.0f}},
-                    .placement = TextPlacement{
-                        TextPlacementKind::Absolute,
-                        {d.width * 0.5f, d.height * 0.5f}}
+                                              .stroke_width = 3.0f}}
                 });
             });
             return s.build();

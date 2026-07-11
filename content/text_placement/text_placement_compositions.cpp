@@ -2,7 +2,7 @@
 //
 // Canonical test compositions exercising the TextRun placement pipeline.
 // Every composition obeys the rule:
-//     l.pin_to(Anchor::Center) + from_text_spec(TextSpec{})  —  NO .pos workaround.
+//     l.pin_to(Anchor::Center) + from_text_spec(TextSpec{...})  —  NO .pos workaround.
 //
 // Groups:
 //   A. Dashboard (8)  — static, animated, scale, glow, multiline, overflow,
@@ -22,7 +22,7 @@
 //     the 9 call sites passing CenterTextOptions unchanged.
 //   - 3 inline `centered_text({...})` call sites (A.7 multisource,
 //     C.1 box alignment, F.1 cache invalidation) replaced with
-//     `from_text_spec(TextSpec{})` directly.
+//     `from_text_spec(TextSpec{...})` directly.
 //   - The legacy `centered_text()` wrapper is no longer invoked
 //     anywhere in this file (gate [2/4] satisfied).
 //   - `CenterTextOptions` struct definition is preserved (still used
@@ -80,11 +80,11 @@ using TextLayerSetup = std::function<void(LayerBuilder&)>;
 /// path.  Field mapping is byte-equivalent to the centered_text() body
 /// in `content/text/text_helpers_centered.hpp`.
 inline TextDefinition options_to_definition(const CenterTextOptions& opts) {
-    return from_text_spec(TextSpec{.content = {.value = opts.text}, .font = {.font_path   = opts.font_asset,
+    return from_text_spec(TextSpec{.content    = {.value = opts.text},.position   = opts.pos,.font       = {.font_path   = opts.font_asset,
                        .font_family = opts.font_family,
                        .font_weight = opts.font_weight,
                        .font_style  = opts.font_style,
-                       .font_size   = opts.font_size}, .layout = {.box            = opts.box,
+                       .font_size   = opts.font_size},.layout     = {.box            = opts.box,
                        .anchor         = TextAnchor::Center,
                        .centering_mode = TextCenteringMode::PixelInk,
                        .align          = TextAlign::Center,
@@ -96,7 +96,7 @@ inline TextDefinition options_to_definition(const CenterTextOptions& opts) {
                        .auto_fit       = opts.auto_fit,
                        .min_font_size  = opts.min_font_size,
                        .max_font_size  = opts.max_font_size,
-                       .max_lines      = opts.max_lines}, .appearance = {.color = opts.color}});
+                       .max_lines      = opts.max_lines},.appearance = {.color = opts.color},});
 }
 
 /// Build a composition with dark bg + one centered text layer.
@@ -225,7 +225,7 @@ Composition make_small_box_overflow_clip() {
 // A.7 — Multisource: text + decorative rectangle in the same layer.
 // The layer is pinned to center; text and rect share the coordinate space.
 // M1.8 §2D — inline `centered_text({...})` replaced with
-// `from_text_spec(TextSpec{})` directly.  All CenterTextOptions
+// `from_text_spec(TextSpec{...})` directly.  All CenterTextOptions
 // defaults (box={1200,240}, pos={0,0,0}, font_asset="assets/fonts/Poppins-Bold.ttf",
 // font_family="Poppins", font_weight=700, font_style="normal", color=Color{1,1,1,1},
 // max_lines=1, auto_fit=false, line_height=0.95, min_font_size=12, max_font_size=160)
@@ -246,11 +246,11 @@ Composition make_multisource_text_plus_shape() {
                     .pos = {0.0f, 48.0f, 0.0f},
                 });
                 // Centered text above the underline
-                l.text("title", from_text_spec(TextSpec{.content = {.value = "MULTISOURCE"}, .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}, .font = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+                l.text("title", from_text_spec(TextSpec{.content    = {.value = "MULTISOURCE"},.position   = {0.0f, 0.0f, 0.0f},.font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
                                    .font_family = "Poppins",
                                    .font_weight = 700,
                                    .font_style  = "normal",
-                                   .font_size   = kDefaultFontSize}, .layout = {.box            = {1200.0f, 240.0f},
+                                   .font_size   = kDefaultFontSize},.layout     = {.box            = {1200.0f, 240.0f},
                                    .anchor         = TextAnchor::Center,
                                    .centering_mode = TextCenteringMode::PixelInk,
                                    .align          = TextAlign::Center,
@@ -261,7 +261,7 @@ Composition make_multisource_text_plus_shape() {
                                    .tracking       = 6.0f,
                                    .min_font_size  = 12.0f,
                                    .max_font_size  = 160.0f,
-                                   .max_lines      = 1}, .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}}}));
+                                   .max_lines      = 1},.appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},}));
             });
             return s.build();
         });
@@ -319,7 +319,7 @@ Composition make_antidouble_animated() {
 // Verifies that align, vertical_align, anchor and box are applied correctly:
 // the text alpha centroid should be near the box center, not the top-left.
 // M1.8 §2D — inline `centered_text({...})` replaced with
-// `from_text_spec(TextSpec{})` directly.  All CenterTextOptions
+// `from_text_spec(TextSpec{...})` directly.  All CenterTextOptions
 // defaults (pos={0,0,0}, font_asset="assets/fonts/Poppins-Bold.ttf",
 // font_family="Poppins", font_weight=700, font_style="normal", color=Color{1,1,1,1},
 // max_lines=1, auto_fit=false, line_height=0.95, min_font_size=12, max_font_size=160)
@@ -339,11 +339,11 @@ Composition make_box_alignment() {
                     .color = {0.0f, 0.0f, 1.0f, 0.12f},
                 });
                 // Text inside the same box dimensions
-                l.text("label", from_text_spec(TextSpec{.content = {.value = "CENTER"}, .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}, .font = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+                l.text("label", from_text_spec(TextSpec{.content    = {.value = "CENTER"},.position   = {0.0f, 0.0f, 0.0f},.font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
                                    .font_family = "Poppins",
                                    .font_weight = 700,
                                    .font_style  = "normal",
-                                   .font_size   = 90.0f}, .layout = {.box            = {1200.0f, 240.0f},
+                                   .font_size   = 90.0f},.layout     = {.box            = {1200.0f, 240.0f},
                                    .anchor         = TextAnchor::Center,
                                    .centering_mode = TextCenteringMode::PixelInk,
                                    .align          = TextAlign::Center,
@@ -354,7 +354,7 @@ Composition make_box_alignment() {
                                    .tracking       = 4.0f,
                                    .min_font_size  = 12.0f,
                                    .max_font_size  = 160.0f,
-                                   .max_lines      = 1}, .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}}}));
+                                   .max_lines      = 1},.appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},}));
             });
             return s.build();
         });
@@ -459,7 +459,7 @@ Composition make_multires_3840x2160() {
 //   - BBox changes with content
 //   - Center remains correct across all frames
 // M1.8 §2D — inline `centered_text({...})` replaced with
-// `from_text_spec(TextSpec{})` directly.  The runtime-determined
+// `from_text_spec(TextSpec{...})` directly.  The runtime-determined
 // `word` value is captured into the TextSpec::content.value (std::string).
 Composition make_cache_invalidation() {
     return composition(
@@ -476,11 +476,11 @@ Composition make_cache_invalidation() {
             add_dark_background(s);
             s.layer("text", [word](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
-                l.text("label", from_text_spec(TextSpec{.content = {.value = word}, .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}, .font = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+                l.text("label", from_text_spec(TextSpec{.content    = {.value = word},.position   = {0.0f, 0.0f, 0.0f},.font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
                                    .font_family = "Poppins",
                                    .font_weight = 700,
                                    .font_style  = "normal",
-                                   .font_size   = kDefaultFontSize}, .layout = {.box            = {1200.0f, 240.0f},
+                                   .font_size   = kDefaultFontSize},.layout     = {.box            = {1200.0f, 240.0f},
                                    .anchor         = TextAnchor::Center,
                                    .centering_mode = TextCenteringMode::PixelInk,
                                    .align          = TextAlign::Center,
@@ -491,7 +491,7 @@ Composition make_cache_invalidation() {
                                    .tracking       = 8.0f,
                                    .min_font_size  = 12.0f,
                                    .max_font_size  = 160.0f,
-                                   .max_lines      = 1}, .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}}}));
+                                   .max_lines      = 1},.appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},}));
             });
             return s.build();
         });

@@ -102,7 +102,9 @@ void run_preset_golden_test(
 
     auto cfg = make_preset_config();
     auto result = verify_golden(*fb, preset_label, cfg);
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 } // namespace

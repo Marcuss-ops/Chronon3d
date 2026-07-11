@@ -164,10 +164,7 @@ bool render_and_verify_hangul(
             std::string{"multilingual_hangul_composition_"} + case_slug + "_1920x1080",
             make_hangul_config(std::string{case_slug} + "_1920x1080"));
         INFO("Golden (1920x1080): ", r.message);
-        if (r.golden_missing) {
-            MESSAGE("Golden missing (1920x1080) — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-            // Graceful skip — don't fail on missing golden
-        } else {
+        REQUIRE_FALSE(r.golden_missing); else {
             if (!r.passed) return false;
         }
     }
@@ -183,10 +180,7 @@ bool render_and_verify_hangul(
             std::string{"multilingual_hangul_composition_"} + case_slug + "_1080x1920",
             make_hangul_config(std::string{case_slug} + "_1080x1920"));
         INFO("Golden (1080x1920): ", r.message);
-        if (r.golden_missing) {
-            MESSAGE("Golden missing (1080x1920) — run with CHRONON3D_UPDATE_GOLDENS=1 to create.");
-            // Graceful skip — don't fail on missing golden
-        } else {
+        REQUIRE_FALSE(r.golden_missing); else {
             if (!r.passed) return false;
         }
     }

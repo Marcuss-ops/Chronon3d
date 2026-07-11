@@ -84,7 +84,16 @@ void draw_camera_to_target_line(const OverlayContext& ctx, const ScreenPoint& sp
 
     float dist = glm::distance(sp.position, Vec2{ctx.viewport.width * 0.5f, ctx.viewport.height * 0.5f});
     if (dist > 1.0f) {
-        l.text("target_deviation_text", TextSpec{.content = {.value = std::to_string(static_cast<int>(dist)) + "px error"}, .placement = {TextPlacementKind::Absolute, {(ctx.viewport.width * 0.5f + sp.position.x) * 0.5f + 10.0f, (ctx.viewport.height * 0.5f + sp.position.y) * 0.5f + 10.0f}}, .font = {.font_size = 12.0f}, .appearance = {.color = target_color}});
+        l.text("target_deviation_text", TextSpec{
+            .content = {.value = std::to_string(static_cast<int>(dist)) + "px error"},
+            .position = {
+                (ctx.viewport.width * 0.5f + sp.position.x) * 0.5f + 10.0f,
+                (ctx.viewport.height * 0.5f + sp.position.y) * 0.5f + 10.0f,
+                0.0f
+            },
+            .font = {.font_size = 12.0f},
+            .appearance = {.color = target_color}
+        });
     }
 }
 
@@ -111,10 +120,16 @@ void draw_null_parent_markers(const OverlayContext& ctx) {
                     .from = {n_sp.position.x, n_sp.position.y - 12.0f, 0.0f},
                     .to = {n_sp.position.x, n_sp.position.y + 12.0f, 0.0f},
                     .thickness = 1.0f, .color = Color{0.0f, 0.9f, 1.0f, 0.8f}
-                });            l.text("null_parent_lbl_" + name, TextSpec{.content = {.value = name}, .placement = {TextPlacementKind::Absolute, {n_sp.position.x + 15.0f, n_sp.position.y + 5.0f}}, .font = {.font_size = 10.0f}, .appearance = {.color = Color{0.0f, 0.9f, 1.0f, 0.8f}}});
+                });
+                l.text("null_parent_lbl_" + name, TextSpec{
+                    .content = {.value = name},
+                    .position = {n_sp.position.x + 15.0f, n_sp.position.y + 5.0f, 0.0f},
+                    .font = {.font_size = 10.0f},
+                    .appearance = {.color = Color{0.0f, 0.9f, 1.0f, 0.8f}}
+                });
+            }
         }
     }
-}
 }
 
 void draw_parent_child_links(const OverlayContext& ctx) {
@@ -161,10 +176,16 @@ void draw_projected_bounds(const OverlayContext& ctx) {
                 .fill = FillStyle{ .enabled = false },
                 .stroke = { .enabled = true, .color = border_color, .width = 1.5f }
             });
-            if (ctx.options.show_layer_names) {            l.text("label_hud_" + lr.name + "_" + std::to_string(idx), TextSpec{.content = {.value = lr.name + (lr.passed ? " (PASS)" : " (FAIL)")}, .placement = {TextPlacementKind::Absolute, {lr.bounds.min.x + 5.0f, lr.bounds.min.y + 15.0f}}, .font = {.font_size = 12.0f}, .appearance = {.color = border_color}});
+            if (ctx.options.show_layer_names) {
+                l.text("label_hud_" + lr.name + "_" + std::to_string(idx), TextSpec{
+                    .content = {.value = lr.name + (lr.passed ? " (PASS)" : " (FAIL)")},
+                    .position = {lr.bounds.min.x + 5.0f, lr.bounds.min.y + 15.0f, 0.0f},
+                    .font = {.font_size = 12.0f},
+                    .appearance = {.color = border_color}
+                });
+            }
         }
-    }
-    idx++;
+        idx++;
     }
 }
 

@@ -179,11 +179,7 @@ TEST_CASE("Clip 01 TextClip AscentNotCut 1920x1080") {
 
     auto r = verify_golden(*fb, "text_clip_01_ascent_not_cut",
                            make_clip_config("clip_01"));
-    if (r.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 "
-                "to create.");
-        return;
-    }
+    REQUIRE_FALSE(r.golden_missing);
     INFO("Golden: ", r.message);
     CHECK(r.passed);
 }
@@ -285,11 +281,7 @@ TEST_CASE("Clip 04 TextClip ShadowNotCut 1920x1080") {
 
     auto r = verify_golden(*fb, "text_clip_04_shadow_not_cut",
                            make_clip_config("clip_04"));
-    if (r.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 "
-                "to create.");
-        return;
-    }
+    REQUIRE_FALSE(r.golden_missing);
     INFO("Golden: ", r.message);
     CHECK(r.passed);
 }
@@ -337,11 +329,7 @@ TEST_CASE("Clip 05 TextClip GlowNotCut 1920x1080") {
 
     auto r = verify_golden(*fb, "text_clip_05_glow_not_cut",
                            make_clip_config("clip_05"));
-    if (r.golden_missing) {
-        MESSAGE("Golden missing — run with CHRONON3D_UPDATE_GOLDENS=1 "
-                "to create.");
-        return;
-    }
+    REQUIRE_FALSE(r.golden_missing);
     INFO("Golden: ", r.message);
     CHECK(r.passed);
 }

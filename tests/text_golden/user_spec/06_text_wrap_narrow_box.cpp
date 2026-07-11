@@ -61,6 +61,7 @@ Composition build_test06_composition(SoftwareRenderer& renderer) {
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "This is a long sentence that must wrap into multiple lines without cutting words."},
+                    .position = {200.0f, 100.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,
@@ -70,7 +71,6 @@ Composition build_test06_composition(SoftwareRenderer& renderer) {
                                .vertical_align = VerticalAlign::Top,
                                .wrap = TextWrap::Word},
                     .appearance = {.color = Color::white()},
-                    .position = {200.0f, 100.0f, 0.0f}
                 });
             });
             return s.build();
@@ -86,5 +86,7 @@ TEST_CASE("UserSpec 06: text wrap narrow box — 500x500") {
     REQUIRE(fb != nullptr);
 
     auto result = verify_golden(*fb, "user_spec_06_text_wrap_narrow_box", make_test06_config());
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }

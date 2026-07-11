@@ -459,20 +459,17 @@ TEST_CASE("ResolvedTextPlacement: resolved_anchor echoes input TextAnchor (Phase
     // in `resolved_anchor` so downstream consumers can re-derive layout
     // without re-running the full resolver.
     //
-    // Parametric coverage: all 8 TextAnchor values must be echoed.
+    // Parametric coverage: all existing TextAnchor values must be echoed.
     // (We use a sequence of CHECKs rather than DOCTEST_VALUE_PARAMETERIZED
     // to keep the test self-contained and easy to read.)
     struct AnchorCase { TextAnchor input; };
     const AnchorCase cases[] = {
         {TextAnchor::TopLeft},
         {TextAnchor::TopCenter},
-        {TextAnchor::TopRight},
-        {TextAnchor::CenterLeft},
         {TextAnchor::Center},
-        {TextAnchor::CenterRight},
-        {TextAnchor::BottomLeft},
         {TextAnchor::BottomCenter},
-        {TextAnchor::BottomRight},
+        {TextAnchor::BaselineLeft},
+        {TextAnchor::BaselineCenter},
     };
     for (const auto& tc : cases) {
         auto r = resolve_text_placement(c, box,

@@ -83,6 +83,7 @@ Composition build_composition(SoftwareRenderer& renderer, std::size_t frame_idx,
             s.layer("hero", [frame_idx, motion_blur_on](LayerBuilder& l) {
                 l.text("motion_blur", {
                     .content = {.value = "MOTION BLUR"},
+                    .position = {640.0f + x_offset_for(frame_idx), 360.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -91,7 +92,6 @@ Composition build_composition(SoftwareRenderer& renderer, std::size_t frame_idx,
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white()},
-                    .position = {640.0f + x_offset_for(frame_idx), 360.0f, 0.0f}
                 });
                 if (motion_blur_on) {
                     l.blur(13.0f);  // tier 3 of kBlurTierRadii = {{0,2,7,13,20}}
@@ -108,7 +108,8 @@ TEST_CASE("motion_blur_text baseline f05") {
     auto fb = renderer.render(build_composition(renderer, 5, false), Frame{5});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "motion_blur_text_baseline_f05", make_config("baseline_f05"));
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("motion_blur_text baseline f10") {
@@ -116,7 +117,8 @@ TEST_CASE("motion_blur_text baseline f10") {
     auto fb = renderer.render(build_composition(renderer, 10, false), Frame{10});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "motion_blur_text_baseline_f10", make_config("baseline_f10"));
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("motion_blur_text baseline f15") {
@@ -124,7 +126,8 @@ TEST_CASE("motion_blur_text baseline f15") {
     auto fb = renderer.render(build_composition(renderer, 15, false), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "motion_blur_text_baseline_f15", make_config("baseline_f15"));
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("motion_blur_text blurred f05") {
@@ -132,7 +135,8 @@ TEST_CASE("motion_blur_text blurred f05") {
     auto fb = renderer.render(build_composition(renderer, 5, true), Frame{5});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "motion_blur_text_blurred_f05", make_config("blurred_f05"));
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("motion_blur_text blurred f10") {
@@ -140,7 +144,8 @@ TEST_CASE("motion_blur_text blurred f10") {
     auto fb = renderer.render(build_composition(renderer, 10, true), Frame{10});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "motion_blur_text_blurred_f10", make_config("blurred_f10"));
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("motion_blur_text blurred f15") {
@@ -148,5 +153,6 @@ TEST_CASE("motion_blur_text blurred f15") {
     auto fb = renderer.render(build_composition(renderer, 15, true), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "motion_blur_text_blurred_f15", make_config("blurred_f15"));
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

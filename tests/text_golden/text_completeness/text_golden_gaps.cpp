@@ -68,8 +68,8 @@ Composition build_hebrew_rtl(SoftwareRenderer& renderer) {
             s.layer("hebrew", [](LayerBuilder& l) {
                 // "שלום עולם" — Hebrew for "Hello World"
                 l.text("t", {
-                    .content = {.value = "\xd7\xa9\xd7\x9c\xd7\x95\xd7\x9d "
-                                         "\xd7\xa2\xd7\x95\xd7\x9c\xd7\x9d"},
+                    .content = {.value = "\xd7\xa9\xd7\x9c\xd7\x95\xd7\x9d \xd7\xa2\xd7\x95\xd7\x9c\xd7\x9d"},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -77,8 +77,7 @@ Composition build_hebrew_rtl(SoftwareRenderer& renderer) {
                     .layout = {.box = {1920.0f, 1080.0f},
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
-                    .position = {960.0f, 540.0f, 0.0f}
+                    .appearance = {.color = Color::white()}
                 });
             });
             return s.build();
@@ -93,7 +92,9 @@ TEST_CASE("GoldenGap 01: Hebrew RTL שלום עולם") {
 
     auto result = verify_golden(*fb, "golden_gap_01_hebrew_rtl",
                                 make_golden_config("golden_gap_01"));
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 // ── 2. Text gradient fill golden ───────────────────────────────────
@@ -116,6 +117,7 @@ Composition build_text_gradient(SoftwareRenderer& renderer) {
             s.layer("gradient", [mat](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "GRADIENT"},
+                    .position = {960.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -125,7 +127,6 @@ Composition build_text_gradient(SoftwareRenderer& renderer) {
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white(),
                                    .material = mat},
-                    .position = {960.0f, 540.0f, 0.0f}
                 });
             });
             return s.build();
@@ -140,7 +141,9 @@ TEST_CASE("GoldenGap 02: text gradient fill gold→red") {
 
     auto result = verify_golden(*fb, "golden_gap_02_text_gradient",
                                 make_golden_config("golden_gap_02"));
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 // ── 3. Text + camera DOF golden ────────────────────────────────────
@@ -167,6 +170,7 @@ Composition build_text_camera_dof(SoftwareRenderer& renderer, bool dof_on) {
             s.layer("focused", [](LayerBuilder& l) {
                 l.text("t0", {
                     .content = {.value = "FOCUS"},
+                    .position = {960.0f, 400.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -175,7 +179,6 @@ Composition build_text_camera_dof(SoftwareRenderer& renderer, bool dof_on) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white()},
-                    .position = {960.0f, 400.0f, 0.0f}
                 });
             });
 
@@ -183,6 +186,7 @@ Composition build_text_camera_dof(SoftwareRenderer& renderer, bool dof_on) {
             s.layer("blurred", [](LayerBuilder& l) {
                 l.text("t1", {
                     .content = {.value = "BLUR"},
+                    .position = {960.0f, 680.0f, -300.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -191,7 +195,6 @@ Composition build_text_camera_dof(SoftwareRenderer& renderer, bool dof_on) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = {0.7f, 0.7f, 1.0f, 1.0f}},
-                    .position = {960.0f, 680.0f, -300.0f}
                 });
             });
 
@@ -207,7 +210,9 @@ TEST_CASE("GoldenGap 03: text camera DOF off") {
 
     auto result = verify_golden(*fb, "golden_gap_03a_text_dof_off",
                                 make_golden_config("golden_gap_03"));
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 TEST_CASE("GoldenGap 04: text camera DOF on") {
@@ -218,7 +223,9 @@ TEST_CASE("GoldenGap 04: text camera DOF on") {
 
     auto result = verify_golden(*fb, "golden_gap_03b_text_dof_on",
                                 make_golden_config("golden_gap_03"));
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }
 
 } // namespace

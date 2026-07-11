@@ -36,17 +36,8 @@
 // ============================================================================
 
 #include <doctest/doctest.h>
-#include <chronon3d/sdk/render_engine.hpp>
-#include <chronon3d/sdk/render_output.hpp>
-#include <chronon3d/sdk/render_error.hpp>
-#include <chronon3d/sdk/render_request.hpp>
-#include <chronon3d/sdk/render_settings.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/text/text_run_shape.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
+
+#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
@@ -84,13 +75,12 @@ Composition build_anim_cert_title_comp(SoftwareRenderer& renderer) {
                 l.font_engine(&renderer.font_engine());
                 l.pin_to(Anchor::Center);
                 l.text_run("title_text", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "EPIC TITLE"}, .placement = TextPlacement{TextPlacementKind::Absolute,
-                                                     {960.0f, 540.0f}}, .font = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                    .text = TextSpec{.content    = {.value = "EPIC TITLE"},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
-                                       .font_size   = 120.0f}, .layout = {.box            = {1920.0f, 1080.0f},
+                                       .font_size   = 120.0f},.layout     = {.box            = {1920.0f, 1080.0f},
                                        .align          = TextAlign::Center,
-                                       .vertical_align = VerticalAlign::Middle}, .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}}},
+                                       .vertical_align = VerticalAlign::Middle},.appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},},
                 });
             });
             return s.build();
@@ -121,7 +111,7 @@ TEST_CASE("AnimCertTitle bbox centre X is within ±10 px of 960 (BUG 1 Option A 
 
     // Alpha-threshold ink bbox scan (matches `tests/certification/
     // test_cert_text_bbox.cpp:135` CHECK pattern).
-    const auto bbox = completeness::alpha_bbox(*fb);
+    const auto bbox = chronon3d::test::completeness::alpha_bbox(*fb);
 
     INFO("AnimCertTitle bbox: x0=", bbox.x0, " y0=", bbox.y0,
          " x1=", bbox.x1, " y1=", bbox.y1);

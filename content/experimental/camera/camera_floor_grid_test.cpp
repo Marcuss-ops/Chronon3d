@@ -39,7 +39,7 @@ Composition camera_floor_grid_comparison_test() {
                 .fade_distance = 1800.0f,
                 .fade_min_alpha = 0.02f
             });
-            l.text("lbl", TextSpec{.content = {.value = "FLOOR (Y=+250)"}, .placement = {TextPlacementKind::Absolute, {0.0f, -280.0f}}, .font = {.font_size = 14.0f}, .layout = {.align = TextAlign::Center}, .appearance = {.color = {0.2f, 0.8f, 0.3f, 0.7f}}});
+            l.text("lbl", TextSpec{.content = {.value = "FLOOR (Y=+250)"},.position = {0.0f, 0.0f, 0.0f},.font = {.font_size = 14.0f},.layout = {.align = TextAlign::Center},.appearance = {.color = {0.2f, 0.8f, 0.3f, 0.7f}},});
         });
 
         // ── Right grid: Y=-250 (CEILING — wrong for floor, Y-up style) ──
@@ -54,7 +54,7 @@ Composition camera_floor_grid_comparison_test() {
                 .fade_distance = 1800.0f,
                 .fade_min_alpha = 0.02f
             });
-            l.text("lbl", TextSpec{.content = {.value = "CEILING (Y=-250)"}, .placement = {TextPlacementKind::Absolute, {0.0f, -280.0f}}, .font = {.font_size = 14.0f}, .layout = {.align = TextAlign::Center}, .appearance = {.color = {0.8f, 0.3f, 0.2f, 0.7f}}});
+            l.text("lbl", TextSpec{.content = {.value = "CEILING (Y=-250)"},.position = {0.0f, 0.0f, 0.0f},.font = {.font_size = 14.0f},.layout = {.align = TextAlign::Center},.appearance = {.color = {0.8f, 0.3f, 0.2f, 0.7f}},});
         });
 
         // ── Center divider + card reference ────────────────────────
@@ -76,13 +76,13 @@ Composition camera_floor_grid_comparison_test() {
                 .color = {0.08f, 0.10f, 0.18f, 1.0f},
                 .stroke = {.enabled = true, .color = {0.0f, 0.85f, 1.0f, 0.5f}, .width = 2.0f}
             });
-            l.text("center_lbl", TextSpec{.content = {.value = "CENTER"}, .placement = {TextPlacementKind::Absolute, {0.0f, -4.0f}}, .font = {.font_size = 16.0f}, .layout = {.align = TextAlign::Center}, .appearance = {.color = {0.8f, 0.85f, 1.0f, 0.85f}}});
+            l.text("center_lbl", TextSpec{.content = {.value = "CENTER"},.position = {0.0f, 0.0f, 0.0f},.font = {.font_size = 16.0f},.layout = {.align = TextAlign::Center},.appearance = {.color = {0.8f, 0.85f, 1.0f, 0.85f}},});
         });
 
         // ── Y labels ──────────────────────────────────────────────
         s.layer("y_axis_label", [](LayerBuilder& l) {
             l.pin_to(Anchor::Center);
-            l.text("y_down_lbl", TextSpec{.content = {.value = "Y-DOWN: +Y = ↓ (floor), -Y = ↑ (ceiling)"}, .placement = {TextPlacementKind::Absolute, {0.0f, 480.0f}}, .font = {.font_size = 14.0f}, .layout = {.align = TextAlign::Center}, .appearance = {.color = {0.5f, 0.5f, 0.5f, 0.6f}}});
+            l.text("y_down_lbl", TextSpec{.content = {.value = "Y-DOWN: +Y = ↓ (floor), -Y = ↑ (ceiling)"},.position = {0.0f, 0.0f, 0.0f},.font = {.font_size = 14.0f},.layout = {.align = TextAlign::Center},.appearance = {.color = {0.5f, 0.5f, 0.5f, 0.6f}},});
         });
 
         // Camera: front-facing

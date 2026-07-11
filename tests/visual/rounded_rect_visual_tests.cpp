@@ -466,19 +466,15 @@ Composition make_gradient_stroke() {
                     .radius = 24.0f,
                     .color  = Color{0.0f, 0.0f, 0.0f, 0.0f},  // transparent fill
                     .pos    = {0.0f, 0.0f, 0.0f},
-                    .stroke = {
-                        .enabled = true,
-                        .width = 6.0f,
-                        .alignment = StrokeAlignment::Center,
-                        .gradient = graphics::FillStyle::linear(
-                            {0.0f, 0.5f}, {1.0f, 0.5f},
-                            {
-                                {0.0f, Color::from_hex("#ef4444")},
-                                {0.33f, Color::from_hex("#f59e0b")},
-                                {0.66f, Color::from_hex("#10b981")},
-                                {1.0f, Color::from_hex("#3b82f6")},
-                            }),
-                    },
+                    .stroke = graphics::StrokeStyle::linear_gradient(
+                        {0.0f, 0.5f}, {1.0f, 0.5f},
+                        {
+                            {0.0f, Color::from_hex("#ef4444")},
+                            {0.33f, Color::from_hex("#f59e0b")},
+                            {0.66f, Color::from_hex("#10b981")},
+                            {1.0f, Color::from_hex("#3b82f6")},
+                        },
+                        6.0f),
                 });
             });
             return s.build();

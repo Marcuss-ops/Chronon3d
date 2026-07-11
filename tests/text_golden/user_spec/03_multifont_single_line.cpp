@@ -61,6 +61,7 @@ Composition build_test03_composition(SoftwareRenderer& renderer) {
             s.layer("big", [](LayerBuilder& l) {
                 l.text("big", {
                     .content = {.value = "BIG "},
+                    .position = {200.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -69,12 +70,12 @@ Composition build_test03_composition(SoftwareRenderer& renderer) {
                                .align = TextAlign::Left,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{1.0f, 0.95f, 0.85f, 1.0f}},
-                    .position = {200.0f, 540.0f, 0.0f}
                 });
             });
             s.layer("small", [](LayerBuilder& l) {
                 l.text("small", {
                     .content = {.value = "small "},
+                    .position = {560.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,
@@ -83,12 +84,12 @@ Composition build_test03_composition(SoftwareRenderer& renderer) {
                                .align = TextAlign::Left,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.95f, 0.95f, 0.95f, 1.0f}},
-                    .position = {560.0f, 540.0f, 0.0f}
                 });
             });
             s.layer("bold", [](LayerBuilder& l) {
                 l.text("bold", {
                     .content = {.value = "BOLD"},
+                    .position = {820.0f, 540.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -97,7 +98,6 @@ Composition build_test03_composition(SoftwareRenderer& renderer) {
                                .align = TextAlign::Left,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{1.0f, 0.8f, 0.4f, 1.0f}},
-                    .position = {820.0f, 540.0f, 0.0f}
                 });
             });
             return s.build();
@@ -113,5 +113,7 @@ TEST_CASE("UserSpec 03: multi-font single line — 1920x1080") {
     REQUIRE(fb != nullptr);
 
     auto result = verify_golden(*fb, "user_spec_03_multifont_single_line", make_test03_config());
-    REQUIRE_GOLDEN_PASSED(result);
+    INFO("Golden: ", result.message);
+    REQUIRE_FALSE(result.golden_missing);
+    CHECK(result.passed);
 }

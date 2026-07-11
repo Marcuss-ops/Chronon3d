@@ -241,5 +241,5 @@ class SceneBuilder {
 // inline by definition.
 #include "chronon3d/scene/builders/detail/scene_builder_inline.inl"
 #include "chronon3d/scene/builders/detail/scene_builder_layers.inl"
-#include "chronon3d/scene/builders/detail/scene_builder_sequences.inl"
+#include <chronon3d/scene/builders/sequence_builder.hpp>
 #include "chronon3d/scene/builders/detail/scene_builder_camera.inl"

@@ -76,6 +76,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("title", [a](LayerBuilder& l) {
                 l.text("title", {
                     .content = {.value = "ALEX MORGAN"},
+                    .position = {120.0f, 880.0f, 0.0f},  // ~81% of 1080 (lower band start),
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -84,12 +85,12 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Left,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{1.0f, 1.0f, 1.0f, a.title}},
-                    .position = {120.0f, 880.0f, 0.0f}  // ~81% of 1080 (lower band start)
                 });
             });
             s.layer("subtitle", [a](LayerBuilder& l) {
                 l.text("subtitle", {
                     .content = {.value = "Senior Software Engineer"},
+                    .position = {120.0f, 950.0f, 0.0f},  // ~88% of 1080,
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,
@@ -98,13 +99,13 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Left,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.85f, 0.85f, 0.85f, a.subtitle}},
-                    .position = {120.0f, 950.0f, 0.0f}  // ~88% of 1080
                 });
             });
             // Thicker accent line under the name (cinematic lower-third band hint).
             s.layer("accent", [a](LayerBuilder& l) {
                 l.text("accent", {
                     .content = {.value = "|"},
+                    .position = {80.0f, 880.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -113,7 +114,6 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.9f, 0.4f, 0.2f, a.bar}},
-                    .position = {80.0f, 880.0f, 0.0f}
                 });
             });
             return s.build();
@@ -133,6 +133,7 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("title", [a](LayerBuilder& l) {
                 l.text("title", {
                     .content = {.value = "ALEX MORGAN"},
+                    .position = {120.0f, 1620.0f, 0.0f},  // ~84% of 1920 (lower band),
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -141,12 +142,12 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Left,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{1.0f, 1.0f, 1.0f, a.title}},
-                    .position = {120.0f, 1620.0f, 0.0f}  // ~84% of 1920 (lower band)
                 });
             });
             s.layer("subtitle", [a](LayerBuilder& l) {
                 l.text("subtitle", {
                     .content = {.value = "Senior Software Engineer"},
+                    .position = {120.0f, 1720.0f, 0.0f},  // ~90% of 1920,
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,
@@ -155,12 +156,12 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Left,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.85f, 0.85f, 0.85f, a.subtitle}},
-                    .position = {120.0f, 1720.0f, 0.0f}  // ~90% of 1920
                 });
             });
             s.layer("accent", [a](LayerBuilder& l) {
                 l.text("accent", {
                     .content = {.value = "|"},
+                    .position = {80.0f, 1620.0f, 0.0f},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -169,7 +170,6 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.9f, 0.4f, 0.2f, a.bar}},
-                    .position = {80.0f, 1620.0f, 0.0f}
                 });
             });
             return s.build();
@@ -183,40 +183,46 @@ TEST_CASE("AE 05 lower_third 16x9 f00") {
     auto fb = renderer.render(build_landscape(renderer, 0), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_05_lower_third_16x9_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 05 lower_third 16x9 f15") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_landscape(renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_05_lower_third_16x9_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 05 lower_third 16x9 f30") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_landscape(renderer, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_05_lower_third_16x9_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 05 lower_third 9x16 f00") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 0), Frame{0});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_05_lower_third_9x16_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 05 lower_third 9x16 f15") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 15), Frame{15});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_05_lower_third_9x16_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 TEST_CASE("AE 05 lower_third 9x16 f30") {
     auto renderer = test::make_renderer();
     auto fb = renderer.render(build_portrait(renderer, 30), Frame{30});
     REQUIRE(fb != nullptr);
     auto r = verify_golden(*fb, "ae_05_lower_third_9x16_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

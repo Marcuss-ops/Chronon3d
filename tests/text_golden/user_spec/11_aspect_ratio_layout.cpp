@@ -66,6 +66,7 @@ Composition build_test11_landscape(SoftwareRenderer& renderer) {
             s.layer("title", [](LayerBuilder& l) {
                 l.text("title", {
                     .content = {.value = "TITLE"},
+                    .position = {960.0f, 270.0f, 0.0f},  // 25% of 1080,
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -74,12 +75,12 @@ Composition build_test11_landscape(SoftwareRenderer& renderer) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white()},
-                    .position = {960.0f, 270.0f, 0.0f}  // 25% of 1080
                 });
             });
             s.layer("subtitle", [](LayerBuilder& l) {
                 l.text("subtitle", {
                     .content = {.value = "Subtitle line"},
+                    .position = {960.0f, 540.0f, 0.0f},  // 50% of 1080,
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,
@@ -88,12 +89,12 @@ Composition build_test11_landscape(SoftwareRenderer& renderer) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.85f, 0.85f, 0.85f, 1.0f}},
-                    .position = {960.0f, 540.0f, 0.0f}  // 50% of 1080
                 });
             });
             s.layer("caption", [](LayerBuilder& l) {
                 l.text("caption", {
                     .content = {.value = "Bottom caption"},
+                    .position = {960.0f, 900.0f, 0.0f},  // ~83% of 1080,
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,
@@ -102,7 +103,6 @@ Composition build_test11_landscape(SoftwareRenderer& renderer) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.7f, 0.7f, 0.7f, 1.0f}},
-                    .position = {960.0f, 900.0f, 0.0f}  // ~83% of 1080
                 });
             });
             return s.build();
@@ -122,6 +122,7 @@ Composition build_test11_portrait(SoftwareRenderer& renderer) {
             s.layer("title", [](LayerBuilder& l) {
                 l.text("title", {
                     .content = {.value = "TITLE"},
+                    .position = {540.0f, 480.0f, 0.0f},  // 25% of 1920,
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -130,12 +131,12 @@ Composition build_test11_portrait(SoftwareRenderer& renderer) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color::white()},
-                    .position = {540.0f, 480.0f, 0.0f}   // 25% of 1920
                 });
             });
             s.layer("subtitle", [](LayerBuilder& l) {
                 l.text("subtitle", {
                     .content = {.value = "Subtitle line"},
+                    .position = {540.0f, 960.0f, 0.0f},  // 50% of 1920,
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,
@@ -144,12 +145,12 @@ Composition build_test11_portrait(SoftwareRenderer& renderer) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.85f, 0.85f, 0.85f, 1.0f}},
-                    .position = {540.0f, 960.0f, 0.0f}   // 50% of 1920
                 });
             });
             s.layer("caption", [](LayerBuilder& l) {
                 l.text("caption", {
                     .content = {.value = "Bottom caption"},
+                    .position = {540.0f, 1600.0f, 0.0f},  // ~83% of 1920,
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,
@@ -158,7 +159,6 @@ Composition build_test11_portrait(SoftwareRenderer& renderer) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = Color{0.7f, 0.7f, 0.7f, 1.0f}},
-                    .position = {540.0f, 1600.0f, 0.0f}  // ~83% of 1920
                 });
             });
             return s.build();
@@ -174,7 +174,8 @@ TEST_CASE("UserSpec 11: aspect ratio layout 1920x1080") {
     REQUIRE(fb->width() == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "user_spec_11_aspect_landscape", make_test11_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("UserSpec 11: aspect ratio layout 1080x1920") {
@@ -184,5 +185,6 @@ TEST_CASE("UserSpec 11: aspect ratio layout 1080x1920") {
     REQUIRE(fb->width() == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "user_spec_11_aspect_portrait", make_test11_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

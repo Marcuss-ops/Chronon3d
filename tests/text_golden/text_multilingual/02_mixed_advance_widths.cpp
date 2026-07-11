@@ -136,7 +136,9 @@ TEST_CASE("Multilingual.MixedAdvanceWidths 01: Latin only — 1920x1080") {
 
     auto r = verify_golden(*fb, "multilingual_mixed_advance_widths_01_latin_only",
                            make_advance_config("01_latin_only"));
-    REQUIRE_GOLDEN_PASSED(r);
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 // ═══ Test 2 — CJK only ═════════════════════════════════════════════════
@@ -155,7 +157,9 @@ TEST_CASE("Multilingual.MixedAdvanceWidths 02: CJK only — 1920x1080") {
 
     auto r = verify_golden(*fb, "multilingual_mixed_advance_widths_02_cjk_only",
                            make_advance_config("02_cjk_only"));
-    REQUIRE_GOLDEN_PASSED(r);
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 // ═══ Test 3 — Mixed Latin + CJK ═════════════════════════════════════════
@@ -174,5 +178,7 @@ TEST_CASE("Multilingual.MixedAdvanceWidths 03: mixed Latin + CJK — 1920x1080")
 
     auto r = verify_golden(*fb, "multilingual_mixed_advance_widths_03_mixed",
                            make_advance_config("03_mixed"));
-    REQUIRE_GOLDEN_PASSED(r);
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

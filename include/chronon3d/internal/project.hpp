@@ -20,11 +20,7 @@
 //               l.fill(Color{0.1f, 0.1f, 0.15f, 1.0f});
 //           });
 //           s.layer("title", [](LayerBuilder& l) {
-//               l.text("t", TextSpec{
-//                   .content = {.value = "Hello"},
-//                   .font = {.font_size = 96.0f},
-//                   .appearance = {.color = Color::white()},
-//               });
+//               l.text("t", TextSpec{.content = {.value = "Hello"},.font = {.font_size = 96.0f},.appearance = {.color = Color::white()},});
 //           });
 //           return s.build();
 //       });

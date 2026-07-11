@@ -73,7 +73,7 @@ Composition img_grid_test() {
         });
         s.layer("label", [](auto& l) {
             l.pin_to(Anchor::BottomCenter, 40);
-            l.text("txt", TextSpec{.content = {.value = "GRID RESOLUTION TEST"}, .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}}, .font = {.font_family = "Inter", .font_weight = 800, .font_size = 24.0f}, .layout = {.box = {400, 40}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 4.0f}, .appearance = {.color = Color{0.6f, 0.7f, 0.9f, 0.6f}}});
+            l.text("txt", TextSpec{.content = {.value = "GRID RESOLUTION TEST"},.position = {0.0f, 0.0f, 0.0f},.font = {.font_family = "Inter", .font_weight = 800, .font_size = 24.0f},.layout = {.box = {400, 40}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 4.0f},.appearance = {.color = Color{0.6f, 0.7f, 0.9f, 0.6f}},});
         });
         return s.build();
     });

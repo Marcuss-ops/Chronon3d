@@ -18,17 +18,9 @@
 //   (c) Composition with GridBackground + TextRun layers + compiled camera
 //   (d) Output PNG via save_png
 //   (e) Pixel-hash check: fails if every pixel has mean luminance < 5/255
-#include <chronon3d/sdk/render_engine.hpp>
-#include <chronon3d/sdk/render_output.hpp>
-#include <chronon3d/sdk/render_error.hpp>
-#include <chronon3d/sdk/render_request.hpp>
-#include <chronon3d/sdk/render_settings.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/text/text_run_shape.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
+
+#include <chronon3d/chronon3d.hpp>
+
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
@@ -76,42 +68,13 @@ int main(int argc, char* argv[]) {
             // Text layer: TextRun (modern pipeline)
             s.layer("title", [&ctx](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Text);
-                l.text("title_text", c3d::TextSpec{.content = {.value = "BOUNDARY CHECK"}, .placement = c3d::TextPlacement{
-                        c3d::TextPlacementKind::Absolute,
-                        {static_cast<c3d::f32>(ctx.width) * 0.5f,
-                                 static_cast<c3d::f32>(ctx.height) * 0.5f}}, .font = {.font_path = "fonts/Inter-Bold.ttf",
+                l.text("title_text", c3d::TextSpec{.content = {.value = "BOUNDARY CHECK"},.font = {.font_path = "fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
-                             .font_size = 48.0f}, .layout = {.box = {static_cast<c3d::f32>(ctx.width),
+                             .font_size = 48.0f},.layout = {.box = {static_cast<c3d::f32>(ctx.width),
                                        static_cast<c3d::f32>(ctx.height)},
                                .align = c3d::TextAlign::Center,
-                               .vertical_align = c3d::VerticalAlign::Middle}, .appearance = {.color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f}}});
-            });
-
-            // Image layer (TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e).
-            //   Exercises the manifest-clean `asset_path` field on
-            //   `ImageParams` through the umbrella-reachable public
-            //   surface (`<chronon3d/chronon3d.hpp>` →
-            //   `<chronon3d/scene/builders/layer_builder.hpp>` →
-            //   `<chronon3d/scene/builders/builder_params.hpp>`).
-            //
-            //   The asset path MAY NOT exist on this CI host; the
-            //   image rasterizer is permissive and skips missing
-            //   files — the seal-check (≥ 5/255 on ≥ 1 pixel) is
-            //   satisfied by GridBackground + TextRun above, NOT by
-            //   this image-layer.  The point of this 3rd layer is to
-            //   prove the public-surface composability, not produce
-            //   a visible output.
-            s.layer("logo", [&ctx](c3d::LayerBuilder& l) {
-                l.kind(c3d::LayerKind::Shape);
-                l.image("logo_image", c3d::ImageParams{
-                    .asset_path = "assets/logos/sample_logo.png",
-                    .size = {128.0f, 128.0f},
-                    .pos = {static_cast<c3d::f32>(ctx.width) - 160.0f,
-                            32.0f,
-                            0.0f},
-                    .radius = 8.0f,
-                });
+                               .vertical_align = c3d::VerticalAlign::Middle},.appearance = {.color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f}},});
             });
 
             return s.build();

@@ -15,17 +15,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>
-#include <chronon3d/sdk/render_engine.hpp>
-#include <chronon3d/sdk/render_output.hpp>
-#include <chronon3d/sdk/render_error.hpp>
-#include <chronon3d/sdk/render_request.hpp>
-#include <chronon3d/sdk/render_settings.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/text/text_run_shape.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
+
+#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
@@ -110,16 +101,16 @@ Composition build_long_text(SoftwareRenderer& renderer,
             s.layer("long_layer", [&](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("long_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = text}, .placement = {TextPlacementKind::Absolute, {box_width / 2.0f, 540.0f}}, .font = {
+                    .text = TextSpec{.content = {.value = text},.position = {box_width / 2.0f, 540.0f, 0.0f},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 32.0f
-                        }, .layout = {
+                        },.layout = {
                             .box = {box_width, 1080.0f},
                             .align = TextAlign::Left,
                             .vertical_align = VerticalAlign::Top
-                        }, .appearance = {.color = Color::white()}}
+                        },.appearance = {.color = Color::white()},}
                 }).commit();
             });
             return s.build();

@@ -162,6 +162,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                 const Color fill  = fill_color_for(frame_idx);
                 l.text("rotation_per_character", {
                     .content = {.value = "PER GLYPH 3D"},
+                    .position = {960.0f, 540.0f, z_pos},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -169,8 +170,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                     .layout = {.box = {1700.0f, 360.0f},
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = fill},
-                    .position = {960.0f, 540.0f, z_pos}
+                    .appearance = {.color = fill}
                 });
                 l.rotate(Vec3{0.0f, y_rot, 0.0f});
             });
@@ -202,7 +202,6 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
                                .align = TextAlign::Center,
                                .vertical_align = VerticalAlign::Middle},
                     .appearance = {.color = fill},
-                    .position = {540.0f, 960.0f, z_pos}
                 });
                 l.rotate(Vec3{0.0f, y_rot, 0.0f});
             });
@@ -221,7 +220,8 @@ TEST_CASE("AE 11 rotation_per_character 16x9 f00") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_11_rotation_per_character_16x9_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 11 rotation_per_character 16x9 f15") {
@@ -231,7 +231,8 @@ TEST_CASE("AE 11 rotation_per_character 16x9 f15") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_11_rotation_per_character_16x9_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 11 rotation_per_character 16x9 f30") {
@@ -241,7 +242,8 @@ TEST_CASE("AE 11 rotation_per_character 16x9 f30") {
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
     auto r = verify_golden(*fb, "ae_11_rotation_per_character_16x9_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 // ─── 9:16 lifecycle snapshots ────────────────────────────────────────────────
@@ -253,7 +255,8 @@ TEST_CASE("AE 11 rotation_per_character 9x16 f00") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_11_rotation_per_character_9x16_f00", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 11 rotation_per_character 9x16 f15") {
@@ -263,7 +266,8 @@ TEST_CASE("AE 11 rotation_per_character 9x16 f15") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_11_rotation_per_character_9x16_f15", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 TEST_CASE("AE 11 rotation_per_character 9x16 f30") {
@@ -273,5 +277,6 @@ TEST_CASE("AE 11 rotation_per_character 9x16 f30") {
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
     auto r = verify_golden(*fb, "ae_11_rotation_per_character_9x16_f30", make_config());
-    REQUIRE_GOLDEN_PASSED(r);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

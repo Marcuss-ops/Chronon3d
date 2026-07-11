@@ -107,6 +107,11 @@ public:
     const ::chronon3d::RenderNode& render_node() const { return m_render_ref; }
     const std::shared_ptr<TextRunShape>& shape() const { return m_shape; }
 
+    /// Resolved placement (world matrix) computed by the graph builder.
+    /// Exposed so that diagnostic/inspection tools can reconstruct the
+    /// canvas-space bbox without re-evaluating the scene.
+    const TextRunPlacement& placement() const { return m_placement; }
+
 private:
     std::string m_name;
     std::shared_ptr<TextRunShape> m_shape;
