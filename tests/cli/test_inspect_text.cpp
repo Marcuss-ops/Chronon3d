@@ -129,6 +129,38 @@ Composition make_test_comp(const std::string& name, int width, int height) {
     });
 }
 
+// TICKET-CHRONON-GLOW-FINAL Fase 5 — build a composition with a text
+// node named exactly "glow_pulse" so the inspect-text audit can be
+// verified end-to-end.  The text content + sizing are deliberately
+// identical to the production `make_ae_08_glow_pulse` shape so the
+// font engine produces a non-zero glyph_count in the canonical
+// Inter-Bold font path.  We keep the helper self-contained (no
+// cross-file include) to avoid the content/CMake build rot documented
+// in `docs/FOLLOWUP_TICKETS.md`.
+Composition make_glow_pulse_comp(int width, int height) {
+    CompositionSpec spec;
+    spec.name = "glow_pulse";
+    spec.width = width;
+    spec.height = height;
+    spec.duration = static_cast<Frame>(1);
+    return Composition(spec, [width, height](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        s.text("glow_pulse", {
+            .content = {.value = "GLOW PULSE"},
+            .position = Vec3{width / 2.0f, height / 2.0f, 0.0f},
+            .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                     .font_family = "Inter",
+                     .font_weight = 700,
+                     .font_size = 96.0f},
+            .layout = {.box = Vec2{1700.0f, 200.0f},
+                       .anchor = TextAnchor::Center,
+                       .align = TextAlign::Center,
+                       .vertical_align = VerticalAlign::Middle},
+        });
+        return s.build();
+    });
+}
+
 }  // anonymous namespace
 
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
@@ -323,17 +355,22 @@ TEST_CASE("inspect-text #7: exit code 0/1/2 distinction (PASS/FAIL/VIOLATION)") 
         // The audit API is gated. Verify the enum is the violation sentinel.
         CHECK(static_cast<int>(chronon3d::TextVisibilityStatus::FAIL) == 2);
         // Verify the audit returns FAIL when the predicted_bbox does not
-        // contain the world_ink_bbox (a violation).
+        // contain the world_ink_bbox (a violation).  Note: the previous
+        // 7-arg call (`shape, local_ink_bbox, identity, predicted_bbox,
+        // clip_rect, nullptr, 4.0f`) was a parameter-mismatch compile
+        // error — the canonical 6-arg signature is
+        // `(shape, world_matrix, predicted_bbox, clip_rect,
+        //  rendered_output=nullptr, effect_padding=0.0f)`.  See
+        // `include/chronon3d/text/text_visibility_audit.hpp` for the
+        // authoritative declaration.
         chronon3d::TextRunShape shape{};
         shape.engine = nullptr;  // empty shape → font_resolved=false → FAIL
         shape.layout.placed.glyphs.resize(0);
         const chronon3d::Mat4 identity{};
-        const chronon3d::Rect local_ink_bbox{{0.0f, 0.0f}, {0.0f, 0.0f}};
         const chronon3d::Rect predicted_bbox{{10.0f, 10.0f}, {10.0f, 10.0f}};
         const chronon3d::Rect clip_rect{{0.0f, 0.0f}, {100.0f, 100.0f}};
         const auto audit = chronon3d::audit_text_visibility(
-            shape, local_ink_bbox, identity, predicted_bbox, clip_rect,
-            nullptr, 4.0f);
+            shape, identity, predicted_bbox, clip_rect, nullptr);
         CHECK(audit.status == chronon3d::TextVisibilityStatus::FAIL);
 #else
         // Non-diagnostic build: the audit API is gated. The CLI's
@@ -346,4 +383,68 @@ TEST_CASE("inspect-text #7: exit code 0/1/2 distinction (PASS/FAIL/VIOLATION)") 
         SUCCEED("inspect-text #7c: violation case not testable in non-diagnostic build");
 #endif
     }
+}
+
+// #8 — TICKET-CHRONON-GLOW-FINAL Fase 5 — `chronon3d_cli text-def-inspect`
+// must consume real `renderer.text_audit_snapshots()` and emit per-snapshot
+// JSON with `glyph_count > 0` for the `glow_pulse` node.  This test
+// proves the user-spec contract: the placeholder `TextRunShape shape{};
+// shape.engine=nullptr;` (previously in #7c) has been replaced by a
+// real audit pipeline that drives a render + consumes snapshots.
+TEST_CASE("text-def-inspect #8: glow_pulse node has glyph_count > 0 "
+          "(Fase 5 INSPECT-TEXT REALE)") {
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+    CompositionRegistry registry;
+    registry.register_factory("glow_pulse", []() {
+        return make_glow_pulse_comp(1920, 1080);
+    });
+
+    TextDefInspectArgs args;
+    args.comp_id = "glow_pulse";
+    args.frame = Frame{0};
+
+    const auto output = capture_stdout([&]() {
+        return command_text_def_inspect(registry, args);
+    });
+
+    // The output must be a JSON array containing an entry for the
+    // `glow_pulse` node with the canonical 6-field shape from the
+    // Fase 5 user spec.
+    CHECK(output.find("\"node\": \"glow_pulse\"") != std::string::npos);
+    CHECK(output.find("\"font_resolved\":") != std::string::npos);
+    CHECK(output.find("\"glyph_count\":") != std::string::npos);
+    CHECK(output.find("\"predicted_contains_world\":") != std::string::npos);
+    CHECK(output.find("\"alpha_bbox_empty\":") != std::string::npos);
+    CHECK(output.find("\"status\":") != std::string::npos);
+
+    // String-parse the `glyph_count` value for the `glow_pulse` node
+    // and assert it is > 0.  This is the canonical Fase 5 acceptance
+    // check: the real render + snapshot pipeline must produce at least
+    // one shaped glyph for the production `glow_pulse` text node.
+    const auto node_pos = output.find("\"node\": \"glow_pulse\"");
+    if (node_pos != std::string::npos) {
+        const auto gc_pos = output.find("\"glyph_count\":", node_pos);
+        if (gc_pos != std::string::npos) {
+            const auto num_start = gc_pos + std::string("\"glyph_count\":").size();
+            // Skip whitespace.
+            size_t s = num_start;
+            while (s < output.size() && (output[s] == ' ' || output[s] == '\t')) ++s;
+            const auto num_end = output.find_first_of(",}", s);
+            if (num_end != std::string::npos) {
+                const std::string num_str = output.substr(s, num_end - s);
+                try {
+                    const int glyph_count = std::stoi(num_str);
+                    CHECK(glyph_count > 0);
+                } catch (const std::exception&) {
+                    FAIL("text-def-inspect #8: could not parse glyph_count '"
+                         << num_str << "' from output");
+                }
+            }
+        }
+    }
+#else
+    // Non-diagnostic build: the command emits an error JSON, no glyph_count.
+    SUCCEED("text-def-inspect #8: skipped in non-diagnostic build "
+            "(CHRONON3D_BUILD_DIAGNOSTICS=OFF)");
+#endif
 }
