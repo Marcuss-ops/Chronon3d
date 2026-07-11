@@ -62,20 +62,21 @@ static inline std::size_t snapshot_bucket_for(const FrameContext& ctx) {
 // matching how CertTitle and other content compositions work.
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Scene 08: glow_pulse — TICKET-CHRONON-GLOW-FINAL Phase 1 thin-wrapper.
+// Scene 08: glow_pulse — TICKET-CHRONON-GLOW-FINAL Phase 1+2 canonical emit.
 //
-// Backward-compatible alias: delegates to the unified
-// glow_final::make_chronon_glow_final() helper with glow_enabled=false and
-// enable_scale_breath=false so the existing ae_08 CLI render remains
-// pixel-equivalent to origin/main (no cinematic glow, no scale breath).
-// Phase 2 will re-bake the goldens against the cinematic-glow pipeline
-// + scale breath, at which point both flags flip back to true.
+// Phase 2 (CHRONON-GLOW-FINAL): the canonical CinematicGlowPreset
+// (inner_radius=4, mid_radius=14, bloom_radius=34, intensities
+// 0.55/0.22/0.08, micro_shadow=true) is NOW applied via the canonical
+// resolver/effect-stack — apply_cinematic_glow → l.glow(GlowParams) →
+// MultiLayer 3-pass blur + additive compositing.  Replaces the legacy
+// opacity-only envelope.  Per-frame opacity 0.40/0.85/0.50 + scale
+// breath 0.96/1.05/0.98 still modulate the layer as the cinematic
+// envelope (the 5th additive layer is the canonical glow itself).
 // ─────────────────────────────────────────────────────────────────────────────
 Composition make_ae_08_glow_pulse(const CompositionProps& /*props*/) {
     ChrononGlowProps p = chronon3d::test::glow_final::default_landscape_props();
-    // Back-compat: keep CLI render pixel-equivalent to origin/main.
-    p.glow_enabled        = false;  // legacy ae_08 had no cinematic glow
-    p.enable_scale_breath = false;  // legacy ae_08 deferred the scale breath
+    p.glow_enabled        = true;   // Phase 2: canonical cinematic additive glow
+    p.enable_scale_breath = true;   // Phase 2: 0.96/1.05/0.98 scale envelope
     return chronon3d::test::glow_final::make_chronon_glow_final(p);
 }
 
