@@ -173,6 +173,69 @@ Quando lo stesso commit SHA deve apparire in una sezione (es. §References) o ne
 
 > - Risolto nel commit `1a2b3c4d` (correzione del regression-lock ripristinando il bounding box).
 
+### INFO-level diagnostic style (gates)
+
+Per i gate CI (`tools/check_*.sh`) che emettono un singolo messaggio informativo addizionale sullo stato clean (in aggiunta al canonico `GATE_PASS` o `OK:` finale), adottare il formato:
+
+```
+[INFO] <gate-name>: <message>
+```
+
+dove:
+- `<gate-name>` = basename dello script senza estensione `.sh` (es. `check_test_suite_registration` per `tools/check_test_suite_registration.sh`); raccomandata la dichiarazione come variabile bash `GATE_NAME=...` in cima allo script per grep-discoverability;
+- `<message>` = una sola riga, ≤ 200 caratteri, semanticamente ancorata allo stato del gate (no duplicato del `GATE_PASS` finale);
+- **emissione**: una sola volta sullo stato clean (PASS), come riga **addizionale** rispetto al canonico `GATE_PASS` / `OK:` finale — MAI sul FAIL (il FAIL path resta invariato, emette `GATE_FAIL:` con la lista dei colpevoli).
+
+**Perché**: esiste un gap semantico tra `OK:` (stato PASS canonico) e `WARN:` (stato advisory): mancava un livello "informativo addizionale" per audit signal one-shot sul clean state. La convenzione `[INFO] <gate-name>:` risolve il gap introducendo un prefisso grep-discoverabile + un self-identifier che localizza l'origine del messaggio senza ambiguità (a differenza di `OK:` che richiede contesto esterno per sapere da quale gate proviene). La 14-entry sibling-gate audit di `tools/check_doc_sync.sh` ha confermato il gap: 14 gate usano `OK:` / `GATE_PASS` / `HYGIENE_PASS [N/M]:` / `WARN:` / `FAIL:` ma nessuno usa `[INFO]` come livello intermedio.
+
+**Origine**: regola dedotta dal commit di chiusura del forward-point 0j+ amendment (parte del 5-commit lineage TICKET-LAYER-IMAGE-MANIFEST-CLEAN + 0j+ + 0k+ su `tools/check_test_suite_registration.sh`). Il pattern è stato introdotto nel gate come riga aggiuntiva al `GATE_PASS` canonico per segnalare il clean state in modo audit-friendly senza dover grep-are `0 raw` nel flusso di output. Questa è la **seconda** rule del bucket `## Regole di lint documentale` (la prima è `### SHA cite pattern (inline-only rule)`), soddisfacendo il closure criterion `2+ rule aggregate` del ticket [TICKET-FOLLOWUP-PRECEDENT-DOCS](docs/tickets/TICKET-FOLLOWUP-PRECEDENT-DOCS.md) (vedi §Recently Closed in `docs/FOLLOWUP_TICKETS.md`).
+
+**Scope**: la regola si applica ai gate **NUOVI** (introdotti dopo questo commit). I 14 gate esistenti che usano `OK:` / `GATE_PASS` / `HYGIENE_PASS [N/M]:` / `WARN:` / `FAIL:` restano invariati (nessun churn retroattivo — AGENTS.md v0.1 §regole "Fare PR piccole e mirate"). Il pattern è **raccomandato** (non mandatorio) per le future aggiunte di audit INFO one-liner; gate esistenti mantengono il loro prefisso storico.
+
+#### Anti-esempio — INFO-level diagnostic style
+
+**VIETATO (prefisso inconsistente con la famiglia)**
+
+```bash
+# Prefisso senza square brackets (NON grep-discoverabile come famiglia):
+echo "INFO: check_test_suite_registration: clean state"
+
+# Prefisso senza gate-name self-identifier (richiede contesto esterno):
+echo "[INFO] 0 raw matches found — clean state"
+
+# Emissione sul FAIL path (confonde il ruolo semantico):
+if [ "$raw_count" -gt 0 ]; then
+    echo "[INFO] check_test_suite_registration: $raw_count raw add_executable remain"  # SBAGLIATO
+    exit 1
+fi
+
+# Multi-linea (rompe grep-discoverability one-liner):
+echo "[INFO] check_test_suite_registration:"
+echo "  clean state across $N test cmake files"
+echo "  with $suite_count suite invocations verified"
+```
+
+**CORRETTO (formato canonico)**
+
+```bash
+# In cima allo script:
+GATE_NAME=check_test_suite_registration
+
+# ... loop di audit ...
+
+if [ "$raw_count" -gt 0 ]; then
+    echo "GATE_FAIL: $raw_count raw add_executable call(s) remain in:"  # FAIL path invariato
+    ...
+    exit 1
+fi
+
+echo "GATE_PASS: 0 raw add_executable — all $total test targets use chronon3d_add_test_suite()"  # PASS canonico
+echo "[INFO] ${GATE_NAME}: 0 raw matches found — clean state (all $suite_count suite invocations verified)"  # INFO addizionale
+exit 0
+```
+
+**Lint-checkability (forward-point)**: un futuro `tools/check_info_diagnostic_style.sh` (gate opzionale, NON ancora implementato) potrebbe verificare che ogni emissione `[INFO] ...` in `tools/check_*.sh` rispetti il pattern `[INFO] ${GATE_NAME}: ...` + sia seguita dal canonico `GATE_PASS` / `OK:`. L'implementazione è deferred a un ticket separato (AGENTS.md v0.1 §regole "Fare PR piccole e mirate" + Cat-3 anti-duplication: il rule documentation precede il lint tooling).
+
 ## Workflow Git obbligatorio
 
 ```bash
