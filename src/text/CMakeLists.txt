@@ -5,6 +5,13 @@ add_library(chronon3d_text_core OBJECT
     animated_text_document.cpp
     animation/glyph_instance_state.cpp
     animation/text_animator_evaluator.cpp
+    # §5.0a + §5.0e — TextAnimatorSpec::compile() + is_valid() chain methods.
+    # Zero-new-public-SDK-symbols per AGENTS.md v0.1 Cat-3 (only adds two
+    # methods on the existing struct). Implementation lives in
+    # src/text/animation/text_animator_compile.cpp; tests in
+    # tests/text/test_text_definition.cpp group 21. Closes the user-spec
+    # `resolve().compile().is_valid()` gap documented in docs/CHANGELOG.md §5.
+    animation/text_animator_compile.cpp
     animation/text_animator_stack.cpp
     animation/text_property_applier.cpp
     animation/text_tracking_evaluator.cpp
