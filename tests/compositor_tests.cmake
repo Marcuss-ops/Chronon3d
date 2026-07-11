@@ -5,7 +5,7 @@
 chronon3d_add_test_suite(
     NAME chronon3d_compositor_tests
     TIER INTEGRATION
-    LINK_TARGETS chronon3d_sdk chronon3d_backend_software chronon3d_scene
+    LINK_TARGETS chronon3d_sdk chronon3d_backend_software chronon3d_scene chronon3d::content
     SOURCES render_graph/pipeline/test_composite_origin_regression.cpp
             compositor/test_blend_reference.cpp
             compositor/test_blend_simd_equivalence.cpp

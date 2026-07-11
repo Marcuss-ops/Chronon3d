@@ -20,10 +20,9 @@
 # is intentionally NOT searched — historical references are part of the
 # audit trail.
 #
-# Pre-existing usages in `content/` are accepted as pre-migration debt
-# (M1.8 §2D `TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS` will sweep them over
-# subsequent commits).  This gate is a forward-only blast barrier: any NEW
-# introduction of these patterns in non-whitelisted paths is FAIL.
+# No path whitelists remain for [3/4]: pre-existing usages in `content/`
+# are now treated the same as any other path.  This gate is a forward-only
+# blast barrier: any introduction of these patterns is FAIL.
 #
 # EXIT CODES:
 #   0 = no NEW violations detected (PASS)
@@ -157,22 +156,20 @@ fi
 # default-initialized field; assignments happen in callers).
 
 echo -n "  [3/4] TextSpec.position non-migrated assignment ... "
-raw=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
-    '\bTextSpec\b' $SCAN_PATHS 2>/dev/null || true)
 hits=""
-if [ -n "$raw" ]; then
-    code_only=$(echo "$raw" | filter_code_only '\bTextSpec\b' || true)
-    # On lines referencing TextSpec, find `.position` assignments.
-    pos_hits=$(echo "$code_only" \
-        | grep -E '\.position[[:space:]]*[={]' \
-        | grep -Ev 'include/chronon3d/scene/builders/builder_params\.hpp:' \
-        || true)
-    # Pre-existing migration debt path whitelist (content/ pre-F2.A sites):
-    pos_hits=$(echo "$pos_hits" \
-        | grep -Ev '^content/' \
-        || true)
-    hits="$pos_hits"
-fi
+while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    case "$f" in
+        include/chronon3d/scene/builders/builder_params.hpp) continue ;;
+    esac
+    # grep -P: \s matches newlines, so this detects multi-line assignments.
+    file_hits=$(grep -Pon '\.position(?=\s*[={])' "$f" 2>/dev/null || true)
+    if [ -n "$file_hits" ]; then
+        hits="${hits}$(echo "$file_hits" | sed "s|^|$f:|")"$'\n'
+    fi
+done < <(grep -Rl --include='*.hpp' --include='*.cpp' --include='*.h' \
+         '\bTextSpec\b' $SCAN_PATHS 2>/dev/null || true)
+hits=$(echo "$hits" | grep -v '^$' || true)
 if [ -n "$hits" ]; then
     echo "FAIL"
     echo "  NEW TextSpec.position raw assignment(s) outside migration target scope:"

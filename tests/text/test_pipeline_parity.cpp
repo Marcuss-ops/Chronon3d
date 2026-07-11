@@ -50,12 +50,15 @@
 #include <chronon3d/text/text_placement.hpp>
 #include <chronon3d/text/resolve_text_placement.hpp>
 #include <chronon3d/text/text_run.hpp>
+#include <chronon3d/text/text_run_geometry.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/time.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/runtime/renderer_warmup.hpp>
 
 #include <tests/helpers/test_utils.hpp>
 
@@ -91,11 +94,11 @@ struct PipelineResult {
 ///   - diagnostic_on:        on/off (mirrors text_layout_debug flag)
 ///   - multi_frame:          on/off (mirrors chronon3d_cli video loop)
 struct PipelineConfig {
-    bool warmup{false};
-    bool disable_tile_pruning{false};
-    bool serial_scheduler{false};
-    bool diagnostic_on{false};
-    bool multi_frame{false};
+    bool warmup{false};                // wired via runtime::warmup_renderer
+    bool disable_tile_pruning{false};  // wired via RenderSettings::dirty
+    bool serial_scheduler{false};      // scaffold: not yet wired
+    bool diagnostic_on{false};         // scaffold: not yet wired (would change output)
+    bool multi_frame{false};           // wired via multi-frame render loop
 };
 
 /// Tolerance per the user spec ("max ±2px differenza" for bboxes).
@@ -131,7 +134,7 @@ static constexpr std::size_t kClipVariantCount = 5;
 static const char* kClipVariantNames[kClipVariantCount] = {
     "baseline", "expanded", "conservative", "full", "off"
 };
-static const Rect kClipRects[kClipVariantCount] = {
+static constexpr Rect kClipRects[kClipVariantCount] = {
     Rect{{0.0f,    0.0f},    {1920.0f, 1080.0f}},  // Baseline
     Rect{{-100.0f, -100.0f}, {2120.0f, 1280.0f}},  // Expanded (FU04 violation response)
     Rect{{96.0f,   54.0f},   {1824.0f, 1026.0f}},  // Conservative (5% safe-area)
@@ -144,8 +147,7 @@ static const Rect kClipRects[kClipVariantCount] = {
 static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
                                            const Rect& clip_rect =
                                                Rect{{0.0f, 0.0f}, {1920.0f, 1080.0f}}) {
-    auto renderer = test::make_renderer();
-    RenderSettings settings;
+    auto renderer = test::make_renderer_shared();
     // No modular graph toggle — uses the canonical in-process pipeline.
 
     PipelineResult out{};
@@ -153,18 +155,35 @@ static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
     // Build the canary composition inline (no file I/O).
     LayerBuilder lb("canary_layer", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
-    lb.text("canary_text", TextSpec{.content = {.value = std::string(kCanaryText)}, .font = {.font_size = 96.0f}, .layout = {.box = Vec2{900.0f, 200.0f},
+    lb.font_engine(&renderer->font_engine());
+    lb.font("assets/fonts/Inter-Bold.ttf");
+    lb.text("canary_text", TextSpec{.content = {.value = std::string(kCanaryText)},
+        .font = {.font_path = "assets/fonts/Inter-Bold.ttf", .font_size = 96.0f},
+        .layout = {.box = Vec2{900.0f, 200.0f},
                        .anchor = TextAnchor::Center,
                        .align  = TextAlign::Center,
                        .vertical_align = VerticalAlign::Middle}});
     auto layer = lb.build();
+
+    // Wrap the layer in a Composition so the renderer can consume it.
     Composition comp = composition(
         CompositionSpec{.name = "canary", .width = 1920, .height = 1080},
-        [layer = std::move(layer)](const FrameContext&) mutable {
-            Scene scene;
-            scene.add_layer(std::move(layer));
-            return scene;
+        [layer](const FrameContext&) mutable {
+            Scene s;
+            s.add_layer(layer);
+            return s;
         });
+
+    // Apply pipeline-specific renderer settings.
+    if (cfg.disable_tile_pruning) {
+        RenderSettings settings = renderer->render_settings();
+        settings.dirty.enabled = false;
+        settings.dirty.use_tiles = false;
+        renderer->set_settings(settings);
+    }
+    if (cfg.warmup) {
+        runtime::warmup_renderer(*renderer, comp, runtime::RendererWarmupOptions{});
+    }
 
     // Render frame 0 (or multi-frame loop for pipeline_video).
     std::shared_ptr<Framebuffer> fb;
@@ -173,37 +192,65 @@ static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
         // for the parity check (mirrors chronon3d_cli video loop).
         std::shared_ptr<Framebuffer> last;
         for (Frame f{0}; f.integral() < 5; ++f) {
-            last = renderer.render(comp, f);
+            last = renderer->render(comp, f);
         }
         fb = last;
     } else {
-        fb = renderer.render(comp, Frame{0});
+        fb = renderer->render(comp, Frame{0});
     }
 
     out.frame = cfg.multi_frame ? Frame{4} : Frame{0};
     REQUIRE(fb != nullptr);
-    out.hash = chronon3d::test::framebuffer_hash(*fb);
+    out.hash = test::framebuffer_hash(*fb);
 
     // Audit the visibility contract (mirrors chronon3d_cli inspect-text).
-    // Note: this is a test-side approximation; the real `inspect-text` path
-    // uses `text_audit_engine.cpp` which builds the same `TextVisibilityAudit`
-    // struct. We re-use the public audit API to avoid coupling the test to
-    // the CLI's private `text_audit_engine.cpp` impl.
-    TextRunShape shape{};
-    const Rect local_ink_bbox{{0.0f, 0.0f}, {0.0f, 0.0f}};
+    // Extract the real TextRunShape from the built layer so we do not
+    // rely on hardcoded glyph counts or placeholder bboxes.
+    const RenderNode* text_node = nullptr;
+    for (const auto& node : layer.nodes) {
+        if (node.shape.type() == ShapeType::TextRun) {
+            text_node = &node;
+            break;
+        }
+    }
+    REQUIRE(text_node != nullptr);
+    const auto shape_ptr = text_node->shape.text_run_shape_handle().value;
+    REQUIRE(shape_ptr != nullptr);
+
+    const Mat4 world_matrix = text_node->world_transform.to_mat4();
+
+    // Canonical local-space visual bounds (no model transform).
+    // We compute these directly because audit_text_visibility still
+    // carries a placeholder local_ink_bbox internally (FU04 scaffold).
+    const auto local_bounds = renderer::compute_text_run_visual_bounds(*shape_ptr);
+    REQUIRE(local_bounds.has_value());
+    const Rect local_ink_bbox{
+        {local_bounds->min_x, local_bounds->min_y},
+        {local_bounds->max_x - local_bounds->min_x,
+         local_bounds->max_y - local_bounds->min_y}};
+
+    // World-space bbox from the canonical geometry helper.
+    // With spread == 0 this is identical to the predicted bbox used by
+    // the renderer; the test keeps both fields to match the §11 contract.
+    const raster::BBox world_bbox_px =
+        renderer::compute_text_run_world_bbox(*shape_ptr, world_matrix, 0.0f);
+    const Rect world_bbox{
+        {static_cast<f32>(world_bbox_px.x0), static_cast<f32>(world_bbox_px.y0)},
+        {static_cast<f32>(world_bbox_px.x1 - world_bbox_px.x0),
+         static_cast<f32>(world_bbox_px.y1 - world_bbox_px.y0)}};
+
     TextVisibilityAudit audit = audit_text_visibility(
-        shape,
-        local_ink_bbox, // canonical local ink bbox (placeholder: real pipeline computes this)
-        Mat4{},         // identity world matrix (canary at origin)
-        Rect{},         // predicted_bbox placeholder
-        clip_rect,      // §11 Fase 4 — clip_rect from the 5-variant matrix
+        *shape_ptr,
+        world_matrix,
+        world_bbox,  // predicted bbox == world-space ink bbox for parity
+        clip_rect,
         fb.get()
     );
     out.glyph_count     = audit.glyph_count;
-    out.layout_bbox      = audit.world_ink_bbox;  // approximation: layout ≈ world for canary
-    out.world_bbox       = audit.world_ink_bbox;
-    out.predicted_bbox   = audit.predicted_bbox;
-    out.alpha_bbox       = audit.rendered_alpha_bbox;
+    out.layout_bbox     = local_ink_bbox;
+    out.world_bbox      = world_bbox;
+    out.predicted_bbox  = audit.predicted_bbox;
+    out.alpha_bbox      = audit.rendered_alpha_bbox;
     return out;
 }
 
