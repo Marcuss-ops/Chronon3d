@@ -56,6 +56,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/sdk_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/debug/CMakeLists.txt
     ${CMAKE_CURRENT_SOURCE_DIR}/showcase/CMakeLists.txt
+    ${CMAKE_CURRENT_SOURCE_DIR}/acceptance/CMakeLists.txt  # TICKET-ACCEPTANCE-FORENSIC-SURFACE — forward-point 0c wiring
 )
 
 find_package(doctest CONFIG REQUIRED)
@@ -271,6 +272,15 @@ endif()
 # every preset that turns on CHRONON3D_BUILD_TESTS.
 include(${CMAKE_CURRENT_SOURCE_DIR}/sdk_tests.cmake)
 
+# TICKET-ACCEPTANCE-FORENSIC-SURFACE — forward-point 0c wiring.
+# Registers the new forensic-surface acceptance test (forward-points
+# 0a/0b/0c — see tests/acceptance/CHANGELOG.md for the canonical
+# forward-point lineage). Place: here, immediately after the
+# `chronon3d_add_test_suite` helper is include()'d above and before
+# the per-area `.cmake` includes. Cat-3 freeze compliance: zero new
+# SDK API (helpers live in tests/helpers/, NOT include/chronon3d/).
+include(${CMAKE_CURRENT_SOURCE_DIR}/acceptance/CMakeLists.txt)
+
 # ── Aggregate targets: build test executables grouped by cost/speed ──
 # Note: benchmarks are conditional; included only when TARGET chronon3d_benchmarks exists
 if(TARGET chronon3d_benchmarks)
@@ -397,6 +407,15 @@ add_custom_target(chronon3d_tests
 
 if(TARGET chronon3d_media_video_tests)
     add_dependencies(chronon3d_tests chronon3d_media_video_tests)
+endif()
+
+# TICKET-ACCEPTANCE-FORENSIC-SURFACE — forward-point 0c: wire the
+# new forensic-surface test into the `chronon3d_acceptance` aggregate
+# so every `ctest -L acceptance` execution emits the uniform forensic
+# surface (forward-points 0a + 0b). Defensive guards: only if BOTH
+# targets exist (forward-compat for slim builds removing one).
+if(TARGET chronon3d_acceptance AND TARGET chronon3d_acceptance_forensic_surface_tests)
+    add_dependencies(chronon3d_acceptance chronon3d_acceptance_forensic_surface_tests)
 endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/architecture_tests.cmake)
 endif()
