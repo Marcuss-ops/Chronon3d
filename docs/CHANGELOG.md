@@ -1,3 +1,40 @@
+## Luglio 2026 — TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0f+ — Consolidate the asset_path-wins forwarding logic into a single canonical `chronon3d::detail::image_params_resolve_path` helper (4 dispatch sites → 1 source of truth) (2026-07-11, atomic commit)
+
+### refactor(scene-builders): TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0f+ — extract `chronon3d::detail::image_params_resolve_path` helper
+
+- **Scope**: closes forward-point 0f+ of TICKET-LAYER-IMAGE-MANIFEST-CLEAN.  After forward-point 0e (commit `8fa1cb44`) added the `ImageParams::asset_path` field + the asset_path-wins ternary at 4 dispatch sites, this commit collapses the duplication into a single source-of-truth helper.  This is the (C) recommendation from the forward-point 0e post-commit code-reviewer-minimax-m3 PASS.
+- **Cat-3 (new SDK symbol conditional)** SATISFIED: 1 new symbol `chronon3d::detail::image_params_resolve_path` lives in the `detail::` namespace (NOT public SDK surface; OPP-internal helper convention per `resolve_text_placement.hpp` precedent); zero new public SDK symbols in the root `chronon3d::` namespace.  The helper IS umbrella-reachable through `<chronon3d/scene/builders/layer_builder.hpp>` line 73 → `<chronon3d/scene/builders/builder_params.hpp>`, but the `detail::` namespace convention signals "OPP-internal opt-in" — not a public API contract.
+- **Cat-5 (3-doc same-commit alignment)** SATISFIED: this CHANGELOG entry (prepended at TOP above TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e) + `docs/FOLLOWUP_TICKETS.md` `## Recently Closed` row + `docs/CURRENT_STATUS.md` `§Stato per area` mention all updated in this same atomic commit.
+- **Gate 5 deny-everywhere** N/A: no `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` introduced; pure refactor only.
+- **Forward-point 0f+ — helper extraction** — `include/chronon3d/scene/builders/builder_params.hpp` adds the canonical `image_params_resolve_path` helper in `chronon3d::detail` namespace, immediately after the `struct ImageParams` block (~30 LoC doc-block explaining AGENTS.md v0.1 Cat-3 freeze compliance, the 4 dispatch site consolidation, and the precondition for `noexcept` correctness under default allocator).  Helper signature: `[[nodiscard]] inline std::string image_params_resolve_path(const ImageParams& p) noexcept;`.  Body: `return !p.asset_path.empty() ? p.asset_path : p.path;` (1 line — the canonical forwarding priority locked at forward-point 0e).
+- **Forward-point 0f+ — site replacements**:
+  - `src/scene/builders/commands/shape_commands.cpp` (2 sites: `LayerBuilder::image()` + `tiled_image()` bodies): `const std::string effective_path = !p.asset_path.empty() ? p.asset_path : p.path;` → `const std::string effective_path = chronon3d::detail::image_params_resolve_path(p);`.  Downstream `m_layer.asset_manifest.add_image(effective_path, ...)` call site preserved verbatim.
+  - `src/scene/model/render_node_factory.cpp` (2 sites: `RenderNodeFactory::image()` + `tiled_image()` factory functions): `node.shape.image().path = !p.asset_path.empty() ? std::move(p.asset_path) : std::move(p.path);` → `node.shape.image().path = chronon3d::detail::image_params_resolve_path(p);`.  Return-by-value rvalue fits `std::string::operator=(std::string&&)` move-assignment cleanly (zero extra heap allocation beyond the small-string-optimization scope).
+  - All 4 call sites use fully-qualified `chronon3d::detail::image_params_resolve_path(p)` form for cross-file grep-discoverability (per the forward-point 0f+ code-reviewer-minimax-m3 PASS note (2) recommendation).
+- **Forward-point 0f+ — `noexcept` precondition guarded by helper doc-block** — the helper is `noexcept` because `std::string`'s basic operations are noexcept-by-default under `std::allocator`'s default `is_nothrow_copy_constructible` semantic.  The doc-block inside the helper body explicitly notes this contract and warns about custom throwing allocators (where `std::bad_alloc` would surface via `std::terminate` due to the `noexcept` violation).  This is the forward-point 0f+ code-reviewer-minimax-m3 PASS note (1) recommendation.
+- **Single source of truth**: any future field-add to `struct ImageParams` (e.g. a hypothetical `relative_to_assets_root: bool` field for finer-grained resolution semantics) now mutates ONE place (`builder_params.hpp`'s helper body) instead of 4 dispatch sites.  This is the DRY win that the code-reviewer pre-flagged at forward-point 0e.
+- **Anti-duplication honoured**: zero new singleton / registry / cache / resolver / service-locator introduced.  The helper is a 1-line inline function (header-only, ODR-safe via inline keyword) with no internal state.
+- **AGENTS.md v0.1 freeze compliance (revoked 2026-07-06)**:
+  - **Cat-1 commit-discipline**: single atomic commit (forward-point 0f+ closure only); no mixed refactors; "Fare PR piccole e mirate" honoured.
+  - **Cat-2 honest-doc-sync**: this CHANGELOG entry + FOLLOWUP row + CURRENT_STATUS mention all updated in same commit.
+  - **Cat-3 new SDK symbol conditional** JUSTIFIED above: 1 new symbol in `detail::` namespace (NOT public); zero new symbols in root `chronon3d::` namespace.
+  - **Cat-4 install-pipeline-plumbing** N/A: no install_consumer shader/spec change.
+  - **Cat-5 3-doc same-commit alignment** SATISFIED.
+  - **Gate 5 deny-everywhere** N/A.
+  - **GATE-MNT-01 fail-on-dirty** invariant: post-commit smoke-test run before push (per the closure protocol — push auth-blocked on this VPS per AGENTS.md §honesty; a `tools/wrap_push.sh origin main` attempt is recorded verbatim in the session for tracking).
+- **Honest gap block** (forward-points 0g+ still PLANNED, not blocking):
+  - The helper itself has zero dedicated unit tests.  A small `tests/scene/builders/test_image_params_resolve_path.cpp` (5 TEST_CASEs covering empty-empty → empty; asset-only → asset; path-only → path; both-set → asset wins; pre-deprecated path → asset when set) would lock the helper's canonical contract.  Catalogued as forward-point 0g+ in `docs/FOLLOWUP_TICKETS.md` for a future dedicated commit.
+  - Other primitives (RectParams, CircleParams, RoundedRectParams, LineParams, PathParams, GridBackgroundParams, ContactShadowParams, FakeBox3DParams, GridPlaneParams, DarkGridBgParams) remain deferred for forward-points 0h+ per AGENTS.md Cat-1 forward-only invariant (same honest-gap mentioned in forward-point 0e CHANGELOG entry).
+- **Files changed (3)**:
+  - `include/chronon3d/scene/builders/builder_params.hpp` EDIT (~34 LoC: helper-function definition + doc-block + `noexcept` precondition comment)
+  - `src/scene/builders/commands/shape_commands.cpp` EDIT (~6 LoC: 2 ternary → helper invocations in `LayerBuilder::image()` + `tiled_image()`)
+  - `src/scene/model/render_node_factory.cpp` EDIT (~10 LoC: 2 ternary → helper invocations in `RenderNodeFactory::image()` + `tiled_image()`)
+  - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+  - `docs/FOLLOWUP_TICKETS.md` EDIT (new TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0f+ CLOSURE row + forward-point 0g+ PLANNED row for helper unit-test coverage)
+  - `docs/CURRENT_STATUS.md` EDIT (SDK Product V1 paragraph extension noting the helper consolidation)
+
+---
+
 ## Luglio 2026 — TICKET-LAYER-IMAGE-MANIFEST-CLEAN — Close the STEP 3 impedance of `l.image()` on LayerBuilder (forward-point 0e, manifest-clean `ImageParams::asset_path` field, 2026-07-11, atomic commit)
 
 ### feat(sdk): TICKET-LAYER-IMAGE-MANIFEST-CLEAN — Land forward-point 0e (`ImageParams::asset_path` field + LayerBuilder::image forwarding + umbrella narrative update + install_consumer composition exercise)

@@ -122,6 +122,53 @@ struct ImageParams {
     f32 radius{0.0f};
 };
 
+// ── Forward-point 0f+ — canonical `image_params_resolve_path` helper ──
+//
+// Consolidates the asset_path-wins forwarding logic that was previously
+// duplicated across 4 dispatch sites (locked at forward-point 0e commit
+// `8fa1cb44`):
+//   - `src/scene/builders/commands/shape_commands.cpp` (LayerBuilder::image
+//     and tiled_image bodies — asset_manifest.add_image() call site)
+//   - `src/scene/model/render_node_factory.cpp` (RenderNodeFactory::image
+//     and tiled_image factory functions — node.shape.image().path
+//     assignment site)
+//
+// AGENTS.md v0.1 Cat-3 freeze compliance: 1 new inline helper in
+// `chronon3d::detail` namespace; zero public SDK symbols (helper is in
+// `detail::` namespace, not exported in any manifest header); justified
+// per the code-reviewer-minimax-m3 (C) recommendation from the
+// forward-point 0e post-commit review PASS.
+//
+// Forwarding priority (canonical, locked at forward-point 0e):
+//   - If `p.asset_path` is non-empty, return it (manifest-clean field).
+//   - Else, return `p.path` (legacy deprecated field, preserved for
+//     backward-compat with the ~70 pre-0e call sites).
+//
+// Returns a (possibly empty) std::string by value — the rvalue fits
+// `std::string::operator=(std::string&&)` move-assignment at sites 3+4
+// (render_node_factory.cpp), and a local value-copy at sites 1+2
+// (shape_commands.cpp where the result feeds `asset_manifest.add_image`,
+// a `const std::string&` taking function).  Equality on empty input
+// (both fields empty) propagates the empty value to the caller; each
+// caller MUST guard with `if (!effective_path.empty())` as today.
+//
+// Cross-link: see the field-order invariant comment directly above
+// `struct ImageParams` (forward-point 0e, locked by code-reviewer).
+namespace detail {
+
+[[nodiscard]] inline std::string
+image_params_resolve_path(const ImageParams& p) noexcept {
+    // Precondition: default `std::allocator` (per OPP `std::string`
+    // convention).  Under the default allocator `std::string`'s basic
+    // operations are noexcept, so the single ternary below does not
+    // throw — the `noexcept` qualifier above is correct for OPP usage.
+    // Custom throwing allocators break this invariant (`std::bad_alloc`
+    // → `std::terminate` via `noexcept`).
+    return !p.asset_path.empty() ? p.asset_path : p.path;
+}
+
+} // namespace detail
+
 struct GridBackgroundParams {
     Vec2 size{1920.0f, 1080.0f};
     Vec2 offset{0.0f, 0.0f};
