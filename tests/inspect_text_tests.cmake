@@ -36,8 +36,3 @@ chronon3d_add_test_suite(
 # return above; only append the target to the FAST aggregator when the
 # executable exists.
 list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_inspect_text_tests)
-
-doctest_discover_tests(chronon3d_inspect_text_tests
-    PROPERTIES
-        TIMEOUT 30
-)
