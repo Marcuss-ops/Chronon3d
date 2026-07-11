@@ -24,6 +24,10 @@
 // up in the telemetry dashboard.  Source: tests/text_golden/ae_parity/* +
 // tests/text_golden/motion_blur_text/* (landed in commits 3ddbbdff/45be2b40).
 #include "tests/visual/ae_parity/ae_parity_compositions.hpp"
+// TICKET-CHRONON-GLOW-FINAL — Phase 1 unified cinematic glow helper
+// (header-only; no link-time surface).  Registered as
+// `chronon-glow-final` and `chronon-glow-final-portrait` below.
+#include "tests/visual/ae_parity/glow_final_compositions.hpp"
 // BUG 2 / TICKET-TEXT-GLOW-DARKENING — Step 3 A/B test (sibling composition
 // with glow_intensity=0.0, registered here as a 1-line additive include so
 // the experiment can render via `chronon3d_cli render AnimTypewriterGlowNoGlow`).
@@ -172,6 +176,25 @@ inline void init_compositions(CompositionRegistry& registry, AssetRegistry& asse
     // Registers the no-glow sibling composition used as the A/B control.
     // The production AnimTypewriterGlow is untouched.
     test::glow_ab::register_glow_ab_compositions(registry);
+
+    // TICKET-CHRONON-GLOW-FINAL — Phase 1 unified cinematic-glow
+    // factory (16:9 + 9:16).  Routes through the canonical helper with
+    // default properties: glow_enabled=true (Phase 2 §spec), strength=
+    // 0.55, the Phase 2 cinematic-glow preset (radii 4/14/34, intensities
+    // 0.55/0.22/0.08, micro_shadow=true).  Use these when cinematic
+    // glow is the explicit intent; for the legacy no-glow baseline use
+    // `ae_08_glow_pulse` above (pixel-equivalent to the captured golden
+    // baseline until Phase 2 re-bake).
+    registry.add("chronon-glow-final",
+        [](const CompositionProps&) -> Composition {
+            ChrononGlowProps p = chronon3d::test::glow_final::default_landscape_props();
+            return chronon3d::test::glow_final::make_chronon_glow_final(p);
+        });
+    registry.add("chronon-glow-final-portrait",
+        [](const CompositionProps&) -> Composition {
+            ChrononGlowProps p = chronon3d::test::glow_final::default_portrait_props();
+            return chronon3d::test::glow_final::make_chronon_glow_final(p);
+        });
 }
 
 } // namespace chronon3d::cli

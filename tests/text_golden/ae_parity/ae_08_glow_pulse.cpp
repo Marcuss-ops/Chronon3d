@@ -53,8 +53,13 @@
 #include <tests/helpers/test_utils.hpp>
 #include <tests/text_golden/text_clip/test_helpers.hpp>
 
+// TICKET-CHRONON-GLOW-FINAL — Phase 1: thin-wrapper via the canonical
+// helper.  build_landscape() / build_portrait() become 1-line delegates.
+#include "tests/visual/ae_parity/glow_final_compositions.hpp"
+
 using namespace chronon3d;
 using namespace chronon3d::test;
+using chronon3d::test::glow_final::ChrononGlowProps;
 
 namespace {
 
@@ -71,82 +76,33 @@ GoldenTestConfig make_config() {
     return cfg;
 }
 
-// Per-frame opacity for the pulse envelope.
-static float opacity_for(std::size_t f) {
-    if (f == 0)  return 0.40f;
-    if (f <= 15) return 0.85f;
-    return 0.50f;
+// Per-frame envelope constants now live in the unified helper
+// (glow_final::opacity_for_frame / glow_final::scale_for_frame).  The
+// local opacity_for() and scale_for() helpers were removed to avoid
+// drift between the golden test and the CLI factory.
+
+Composition build_landscape(SoftwareRenderer& renderer, std::size_t /*frame_idx*/) {
+    ChrononGlowProps props = chronon3d::test::glow_final::default_landscape_props();
+    // Back-compat: the existing ae_08 golden baseline was captured
+    // WITHOUT cinematic glow but WITH the scale breath (the original
+    // build_landscape path called l.scale({0.96|1.05|0.98,…,1.0})).
+    // Phase 2 will rebake against the glow-enabled render once the
+    // Pixel-Match contract is updated; for now both flags match the
+    // Phase-0 PNG baseline.
+    props.glow_enabled        = false;  // no cinematic glow at Phase-0
+    props.enable_scale_breath = true;   // scale breath was present in PNG
+    return chronon3d::test::glow_final::make_chronon_glow_final_for_test(
+        props, renderer.font_engine());
 }
 
-// Per-frame uniform scale for the subtle breath.
-static Vec3 scale_for(std::size_t f) {
-    if (f == 0)  return Vec3{0.96f, 0.96f, 1.0f};
-    if (f <= 15) return Vec3{1.05f, 1.05f, 1.0f};
-    return         Vec3{0.98f, 0.98f, 1.0f};
-}
-
-Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
-    return composition(
-        {.name = "AE/08/glow_pulse/16x9",
-         .width = 1920, .height = 1080,
-         .frame_rate = FrameRate{30, 1},
-         .duration = 60},
-        [&renderer, frame_idx](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            s.font_engine(&renderer.font_engine());
-            s.layer("hero", [frame_idx, &renderer](LayerBuilder& l) {
-                l.font_engine(&renderer.font_engine());
-                l.text_run("glow_pulse", TextRunSpec{
-                    .text = {
-                        .content = {.value = "PULSE GLOW"},
-                        .position = {960.0f, 540.0f, 0.0f},
-                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                                 .font_family = "Inter",
-                                 .font_weight = 700,
-                                 .font_size = 230.0f},
-                        .layout = {.box = {1700.0f, 360.0f},
-                                   .align = TextAlign::Center,
-                                   .vertical_align = VerticalAlign::Middle},
-                        .appearance = {.color = Color::white()}
-                    }
-                }).commit();
-                l.opacity(opacity_for(frame_idx));
-                l.scale(scale_for(frame_idx));
-            });
-            return s.build();
-        });
-}
-
-Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
-    return composition(
-        {.name = "AE/08/glow_pulse/9x16",
-         .width = 1080, .height = 1920,
-         .frame_rate = FrameRate{30, 1},
-         .duration = 60},
-        [&renderer, frame_idx](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            s.font_engine(&renderer.font_engine());
-            s.layer("hero", [frame_idx, &renderer](LayerBuilder& l) {
-                l.font_engine(&renderer.font_engine());
-                l.text_run("glow_pulse", TextRunSpec{
-                    .text = {
-                        .content = {.value = "PULSE GLOW"},
-                        .position = {540.0f, 960.0f, 0.0f},
-                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                                 .font_family = "Inter",
-                                 .font_weight = 700,
-                                 .font_size = 160.0f},
-                        .layout = {.box = {1000.0f, 280.0f},
-                                   .align = TextAlign::Center,
-                                   .vertical_align = VerticalAlign::Middle},
-                        .appearance = {.color = Color::white()}
-                    }
-                }).commit();
-                l.opacity(opacity_for(frame_idx));
-                l.scale(scale_for(frame_idx));
-            });
-            return s.build();
-        });
+Composition build_portrait(SoftwareRenderer& renderer, std::size_t /*frame_idx*/) {
+    ChrononGlowProps props = chronon3d::test::glow_final::default_portrait_props();
+    // Same back-compat rationale as build_landscape (no cinematic glow,
+    // WITH scale breath — matches Phase-0 PNG baseline).
+    props.glow_enabled        = false;
+    props.enable_scale_breath = true;
+    return chronon3d::test::glow_final::make_chronon_glow_final_for_test(
+        props, renderer.font_engine());
 }
 
 } // namespace
