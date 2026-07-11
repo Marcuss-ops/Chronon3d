@@ -39,7 +39,7 @@ static std::shared_ptr<Framebuffer> render_frame(
 // to internal engine implementation details and test ordering in unity
 // builds. The counters produce non-deterministic values across test runs.
 // TODO: investigate cache counter semantics and re-enable.
-// TICKET-120 — redundant metadata marker inside G9 3-line audit radius (test_architectural.sh)
+// TICKET-120 | Issue: graph-cache-counter-non-determinism | Owner: scene-camera-team | Motivation: counter order-sensitivity in unity builds (DISABLED above) | Data introduzione: 2026-05 | Deadline rimozione: TICKET-120
 TEST_CASE("GraphCache - cache hit on structurally identical frames" * doctest::skip()) {
     SceneBuilder builder;
     builder.rect("r", {.size={50.0f, 50.0f}, .color=Color::red(), .pos={0.0f, 0.0f, 0.0f}});
