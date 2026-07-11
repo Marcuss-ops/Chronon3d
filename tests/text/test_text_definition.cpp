@@ -1818,3 +1818,246 @@ TEST_CASE("F3.D: helper-site centered_text + animation augmentation flows throug
     CHECK(run.text.placement.offset.x == doctest::Approx(500.0f));
     CHECK(run.text.placement.offset.y == doctest::Approx(300.0f));
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 21. TICKET-TEXT-ANIMATOR-COMPILE-ISVALID — §5.0a + §5.0e chain methods
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// REQ-1..REQ-5 inspector-driven assertions on TextAnimatorSpec::compile() +
+// TextAnimatorSpec::is_valid().  The chain-method pair (compile + is_valid)
+// closes the user-spec `resolve().compile().is_valid()` gap explicitly
+// documented in docs/CHANGELOG.md §5 (the event "the .hpp had the typing
+// surface but no compile()/is_valid() implementation; the authoring chain
+// was effectively '(compile()?) (is_valid()?) — silent fallthrough'").
+//
+// Inspector macro REQ_VALID_ANIMATOR_REQUIRE(spec) — short-circuit-style
+// assertion: if spec is invalid, the assertion fires with the violation
+// details (which REQ-N failed + the offending property).  Pattern matches
+// the prior `STATE-EFFECT` inspector in tests/presets/test_presets.cpp
+// ("BUILDER STATE-EFFECT — lb.text(name, spec) actually adds a node").
+//
+// The chain-method pair is tested via both the direct call
+// `spec.is_valid()` AND the fluent `spec.compile().is_valid()` form — the
+// compile() call is a no-op (header-docblock §5.0a) but returning
+// TextAnimatorSpec& must NOT mask the underlying invariant check.
+//
+// 4 Invariants under test (matches docs/CHANGELOG.md §5.0e spec + the
+// post-code-reviewer-fix collapse from 5 → 4 invariants — see Inv 2
+// dedicated below).  Post-recorrection: only the 4 invariants carry
+// meaningful weight beyond the membership predicate (`!empty/!empty`
+// empty-check); the original "Inv 2 LENIENT" was a tautology
+// (`size >= 0` always-true) and was dropped per code-reviewer verdict.
+//   Inv 1 — Non-empty predicates (selectors AND properties).
+//   Inv 2 — Strict monotonicity (no duplicate keyframe frames).
+//   Inv 3 — Value integrity (no NaN/Inf in keyframe values or static fields).
+//   Inv 4 — Blend-mode coverage (transform_mode + color_mode in {Add, Replace, Multiply}).
+
+#include <cmath>  // std::nanf
+
+TEST_CASE("§5.0a+§5.0e Inv 1: empty spec fails is_valid (both selectors AND properties empty)") {
+    TextAnimatorSpec empty_spec;
+    CHECK(empty_spec.selectors.empty());
+    CHECK(empty_spec.properties.empty());
+    CHECK_FALSE(empty_spec.is_valid());  // Inv 1 — both empty
+    CHECK_FALSE(empty_spec.compile().is_valid());  // chain-form SAME
+}
+
+TEST_CASE("§5.0a+§5.0e Inv 1: non-empty selectors + empty properties fails is_valid") {
+    TextAnimatorSpec spec;
+    spec.id = "selectors_only";
+    GlyphSelectorSpec sel;
+    sel.id = "every_glyph";
+    spec.selectors.push_back(sel);
+    CHECK_FALSE(spec.is_valid());  // Inv 1 — properties empty
+}
+
+TEST_CASE("§5.0a+§5.0e Inv 1: empty selectors + non-empty properties fails is_valid") {
+    TextAnimatorSpec spec;
+    spec.id = "properties_only";
+    spec.properties.push_back(RotationProperty{Vec3{45.0f, 0.0f, 0.0f}});
+    CHECK_FALSE(spec.is_valid());  // Inv 1 — selectors empty
+}
+
+// (Code-reviewer pass removed the REQ-2 LENIENT test case as a tautology
+// invariant — see src/text/animation/text_animator_compile.cpp header
+// comment for why Inv 2 (strict monotonicity) is the cleanest "beyond
+// membership" invariant when §5.0e is collapsed to 4 invariants.)
+
+TEST_CASE("§5.0a+§5.0e Inv 2: animated OpacityProperty with monotonic keyframes PASS (N=2, trivial monotonic)") {
+    // The "rich" authoring case: OpacityProperty has 2 keyframes at frames
+    // 0 and 60 with non-NaN values — the canonical "fade in" animator.
+    // N=2 exercises the lower-bound path — `if (kfs.size() < 2) return true`
+    // short-circuits the helper at N<2, so N=2 still hits the strict-
+    // monotonicity comparator on a single pair.
+    TextAnimatorSpec spec;
+    spec.id = "fade_in";
+    GlyphSelectorSpec sel;
+    sel.id = "all_glyphs";
+    spec.selectors.push_back(sel);
+    OpacityProperty op{0.0f};
+    op.value.add_keyframe(Frame{0},   0.0f);
+    op.value.add_keyframe(Frame{60},  1.0f);
+    spec.properties.push_back(op);
+    CHECK(spec.is_valid());  // Inv 2 — strictly monotonic
+    CHECK(spec.compile().is_valid());  // chain-form
+}
+
+TEST_CASE("§5.0a+§5.0e Inv 2: animated OpacityProperty with monotonic curve N=3 (real curve monotonic)") {
+    // The N≥3 case is the meaningful Inv 2 test — exercises the strict
+    // monotonicity comparator over a real 3-keyframe curve (N=2 trivially
+    // short-circuits the helper).  Without this test, the Inv 2 helper
+    // `check_monotonic_av` is never actually walked past its first entry
+    // on a populated time-curve.
+    TextAnimatorSpec spec;
+    spec.id = "fade_in_3_keyframes";
+    GlyphSelectorSpec sel;
+    sel.id = "all_glyphs";
+    spec.selectors.push_back(sel);
+    OpacityProperty op{0.0f};
+    op.value.add_keyframe(Frame{0},   0.0f);
+    op.value.add_keyframe(Frame{30},  0.5f);
+    op.value.add_keyframe(Frame{60},  1.0f);
+    spec.properties.push_back(op);
+    CHECK(spec.is_valid());  // Inv 2 — 3 keyframes, all strictly increasing
+}
+
+TEST_CASE("§5.0a+§5.0e Inv 2: animated OpacityProperty with DUPLICATE keyframe frames fails") {
+    // Locks Inv 2 against the "add_keyframe twice at frame N" footgun.
+    // AnimatorValue::add_keyframe does NOT reject duplicates (it just
+    // std::sorts which preserves equal keys).  The chain's compile() +
+    // is_valid() check catches the violation explicitly.
+    TextAnimatorSpec spec;
+    spec.id = "duplicate_frames_anti_lock";
+    GlyphSelectorSpec sel;
+    sel.id = "all_glyphs";
+    spec.selectors.push_back(sel);
+    OpacityProperty op{0.0f};
+    op.value.add_keyframe(Frame{30},  0.5f);
+    op.value.add_keyframe(Frame{30},  0.6f);  // SAME FRAME — breaks Inv 2
+    spec.properties.push_back(op);
+    CHECK_FALSE(spec.is_valid());  // Inv 2 — duplicate frames
+}
+
+TEST_CASE("§5.0a+§5.0e Inv 3: animated OpacityProperty with NaN keyframe value fails") {
+    // Locks Inv 3 against the "0/0 normalized fade-in" footgun.  AnimatedValue
+    // does NOT reject NaN at insertion; the chain catches it.
+    TextAnimatorSpec spec;
+    spec.id = "nan_keyframe_anti_lock";
+    GlyphSelectorSpec sel;
+    sel.id = "all_glyphs";
+    spec.selectors.push_back(sel);
+    OpacityProperty op{0.0f};
+    const float nan_val = std::nanf("");
+    op.value.add_keyframe(Frame{0},  0.0f);
+    op.value.add_keyframe(Frame{30}, nan_val);  // NaN — breaks Inv 3
+    spec.properties.push_back(op);
+    CHECK_FALSE(spec.is_valid());  // Inv 3 — NaN keyframe
+}
+
+TEST_CASE("§5.0a+§5.0e Inv 3: static RotationProperty with NaN degrees fails (RotationProperty::degrees lock)") {
+    // Inv 3 also covers static-value properties.  Locks the §5.0e rotation
+    // dispatch: RotationProperty has `degrees` (NOT `value`) — the code-
+    // reviewer NEEDS-FIX iteration caught that lumping Rotation+Anchor on
+    // `p.value` would be a compile error since RotationProperty has no value
+    // field.  This test exercise the correct `p.degrees` path.
+    TextAnimatorSpec spec;
+    spec.id = "nan_static_rot_anti_lock";
+    GlyphSelectorSpec sel;
+    sel.id = "all_glyphs";
+    spec.selectors.push_back(sel);
+    RotationProperty rp;
+    rp.degrees.x = std::nanf("");
+    rp.degrees.y = 0.0f;
+    rp.degrees.z = 0.0f;
+    spec.properties.push_back(rp);
+    CHECK_FALSE(spec.is_valid());  // Inv 3 — NaN in RotationProperty.degrees
+}
+
+TEST_CASE("§5.0a+§5.0e Inv 3: static AnchorProperty with NaN value fails (AnchorProperty::value lock)") {
+    // Companion to the RotationProperty anti-lock: AnchorProperty uses
+    // `p.value` (Vec3).  Both static-value Vec3 properties are now correctly
+    // dispatched (separate is_same_v branches) per the §5.0e code-reviewer
+    // fix.
+    TextAnimatorSpec spec;
+    spec.id = "nan_static_anchor_anti_lock";
+    GlyphSelectorSpec sel;
+    sel.id = "all_glyphs";
+    spec.selectors.push_back(sel);
+    AnchorProperty ap;
+    ap.value.x = std::nanf("");
+    ap.value.y = 0.0f;
+    ap.value.z = 0.0f;
+    spec.properties.push_back(ap);
+    CHECK_FALSE(spec.is_valid());  // Inv 3 — NaN in AnchorProperty.value
+}
+
+TEST_CASE("§5.0a+§5.0e Inv 4: blend_mode coverage (default Add + Replace pass)") {
+    // The default-constructed transform_mode=Add + color_mode=Replace is
+    // the canonical valid blend-mode setting.  Both must pass Inv 4.
+    TextAnimatorSpec spec;
+    spec.id = "default_blend_modes";
+    GlyphSelectorSpec sel;
+    sel.id = "all_glyphs";
+    spec.selectors.push_back(sel);
+    spec.properties.push_back(ScaleProperty{Vec3{1.5f, 1.5f, 1.5f}});
+    CHECK(spec.transform_mode == TextPropertyBlendMode::Add);
+    CHECK(spec.color_mode == TextPropertyBlendMode::Replace);
+    CHECK(spec.is_valid());  // Inv 4 — default blend modes present
+}
+
+TEST_CASE("§5.0a+§5.0e Inv 4: blend-mode invariant on Multiply (explicit non-default enum)") {
+    // Locks Inv 4 covers all 3 enum members, not just default Add + Replace.
+    // Without this test, a future constriction of the Inv 4 check (e.g.
+    // dropping Multiply from the explicit value-comparison) would not be
+    // caught.
+    TextAnimatorSpec spec;
+    spec.id = "multiply_blend_modes";
+    GlyphSelectorSpec sel;
+    sel.id = "all_glyphs";
+    spec.selectors.push_back(sel);
+    spec.properties.push_back(ScaleProperty{Vec3{0.5f, 0.5f, 0.5f}});
+    spec.transform_mode = TextPropertyBlendMode::Multiply;
+    spec.color_mode = TextPropertyBlendMode::Multiply;
+    CHECK(spec.is_valid());  // Inv 4 — Multiply (the third enum member) is also valid
+}
+
+TEST_CASE("§5.0a+§5.0e: compile() returns self-reference enabling fluent chain") {
+    // Locks the §5.0a contract: compile() returns TextAnimatorSpec& (a
+    // from-this reference) so the chain `spec.compile().is_valid()` is
+    // a single fluent expression.  Verifies both the reference identity
+    // (same struct, same fields) AND the chain execution.
+    TextAnimatorSpec spec;
+    spec.id = "chain_test";
+    GlyphSelectorSpec sel;
+    sel.id = "all_glyphs";
+    spec.selectors.push_back(sel);
+    spec.properties.push_back(ScaleProperty{Vec3{1.0f, 1.0f, 1.0f}});
+
+    TextAnimatorSpec& chained = spec.compile();
+    CHECK(&chained == &spec);  // self-reference identity lock
+    CHECK(chained.id == spec.id);
+    CHECK(chained.is_valid() == spec.is_valid());
+    CHECK(chained.compile().is_valid() == spec.compile().is_valid());
+}
+
+TEST_CASE("§5.0a+§5.0e: chain-form == direct-form over 100 repeated calls (agreement sanity)") {
+    // Sanity check: 100 calls of `spec.compile().is_valid()` (chain-form)
+    // agree with `spec.is_valid()` (direct-form) on the same struct.
+    // Locks §5.0a's "the SelfRef return must NOT mask the underlying
+    // invariant check" contract under repeated invocation.
+    TextAnimatorSpec spec;
+    spec.id = "chain_repeat_100";
+    GlyphSelectorSpec sel;
+    sel.id = "all_glyphs";
+    spec.selectors.push_back(sel);
+    spec.properties.push_back(OpacityProperty{1.0f});
+    spec.properties.push_back(ScaleProperty{Vec3{2.0f, 2.0f, 2.0f}});
+
+    // Capture the direct-form boolean so each iteration can compare
+    // against the chain-form.
+    const bool direct = spec.is_valid();
+    for (int i = 0; i < 100; ++i) {
+        CHECK(spec.compile().is_valid() == direct);
+    }
+    CHECK(spec.is_valid() == direct);  // one final pass-through after the loop
+}
