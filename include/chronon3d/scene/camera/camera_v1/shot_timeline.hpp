@@ -138,9 +138,20 @@ public:
     /// SampleTime arithmetic; this evaluate() forwards the same contract
     /// at the timeline-evaluate boundary so DampedFollow + HandheldNoise
     /// modifiers see the project FPS the upstream pass declared.
-    Camera2_5D evaluate(int frame,
-                         ShotTimelineSession& timeline_session,
-                         FrameRate             fps) const;
+    ///
+    /// Phase 1.C (TICKET-120 Sub-commit E lineage): the return type was
+    /// promoted from `Camera2_5D` to
+    /// `chronon3d::Result<EvaluatedCamera, CameraEvaluationError>` so
+    /// transition-evaluation failures are observable via
+    /// `CameraErrorCode::TransitionEvaluationFailed` instead of being
+    /// silently masked as a default `Camera2_5D{}`.  Empty timeline +
+    /// out-of-range frames now return `EvaluatedCamera{Camera2_5D{}, {}}`
+    /// (a valid success with all-default values) so the call site can
+    /// distinguish "no shot here" from "shot evaluation failed".
+    chronon3d::Result<EvaluatedCamera, CameraEvaluationError>
+    evaluate(int frame,
+             ShotTimelineSession& timeline_session,
+             FrameRate             fps) const;
 
     /// Set the transition for a specific kind.
     void set_transition(CameraTransitionKind kind,
