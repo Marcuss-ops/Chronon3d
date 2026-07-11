@@ -181,7 +181,15 @@ Layer LayerBuilder::build() {
             node.font_engine = m_font_engine;
 
             // F2 — TextSpec now carries the resolved position directly.
-            node.world_transform.position = spec.params.text.position;
+            // TICKET-TEXT-LEGACY-POSITION-ROT: legacy .position Vec3 read removed
+        // upstream; reconstruct Vec3 from TextPlacement 2D offset (Z=0, M1.8 §5A).
+        // Mirrors the canonical pattern in src/scene/model/render_node_factory.cpp:290
+        // and src/text/text_definition.cpp:110.
+        node.world_transform.position = Vec3{
+            spec.params.text.placement.offset.x,
+            spec.params.text.placement.offset.y,
+            0.0f
+        };
             node.world_transform.anchor = resolve_text_anchor(
                 spec.params.text.layout.anchor,
                 spec.params.text.layout.box);
