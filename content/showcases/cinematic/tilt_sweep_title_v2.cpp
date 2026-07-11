@@ -125,7 +125,7 @@ Composition tilt_sweep_title_v2() {
                 .content = {.value = "LIL DIRK"},
                 .style = {.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Poppins", .font_weight = 700, .font_size = 132.0f},
                           .color = Color{0.0f, 0.0f, 0.0f, 1.0f}},
-                .frame = {.size = {1280.0f, 180.0f}, .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .wrap = TextWrap::None, .tracking = 1.15f},
+                .frame = {.size = {1280.0f, 180.0f}, .anchor = TextAnchor::Center, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .wrap = TextWrap::None, .centering_mode = TextCenteringMode::PixelInk, .line_height = 1.2f, .tracking = 1.15f},
             });
         });
 
@@ -200,7 +200,7 @@ Composition tilt_sweep_title_v2() {
                 .content = {.value = "LIL DIRK"},
                 .style = {.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Poppins", .font_weight = 700, .font_size = 132.0f},
                           .color = Color{1.0f, 1.0f, 1.0f, 1.0f}},
-                .frame = {.size = {1280.0f, 180.0f}, .anchor = TextAnchor::Center, .centering_mode = TextCenteringMode::PixelInk, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .wrap = TextWrap::None, .tracking = 1.15f},
+                .frame = {.size = {1280.0f, 180.0f}, .anchor = TextAnchor::Center, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .wrap = TextWrap::None, .centering_mode = TextCenteringMode::PixelInk, .line_height = 1.2f, .tracking = 1.15f},
             });
         });
 
