@@ -146,6 +146,11 @@ fi
 LOCAL_REF="$(git rev-parse HEAD)"
 REMOTE_COMMIT="$(git rev-parse "$REMOTE_REF" 2>/dev/null || echo "")"
 
+AUTO_FF_SETTING="${CHRONON3D_WRAP_PUSH_AUTO_FF:-true}"
+if [ "$AUTO_FF_SETTING" != "true" ]; then
+    echo "wrap_push.sh: auto-FF skipped (CHRONON3D_WRAP_PUSH_AUTO_FF=${AUTO_FF_SETTING})"
+elif 
+
 if [ -n "$REMOTE_COMMIT" ] \
    && [ "$LOCAL_REF" != "$REMOTE_COMMIT" ] \
    && git merge-base --is-ancestor "$LOCAL_REF" "$REMOTE_COMMIT"; then
