@@ -40,15 +40,35 @@ namespace chronon3d::camera_v1 {
 // COMPILED EVALUATION PATH
 // =============================================================================
 
+namespace {
+    // TICKET-CAM-QUAT-PRIMARY: look-ahead delta for OrientAlongPath's
+    // Step 1b fallback. 1/60 s = 1 frame at 60 fps; short enough to
+    // track real scene motion, long enough to anticipate a single-frame
+    // tangent degeneracy. File-local constant (not in public header)
+    // because the delta is an internal implementation detail of the
+    // Step 1b wiring; future callers wanting a different delta can
+    // thread it through as a parameter.
+    constexpr float kOrientAlongPathLookAheadDeltaSeconds = 1.0f / 60.0f;
+}
+
 // ── Free helpers for compiled source dispatch (no header declarations needed) ──
 
 /// Apply orientation from an OrientationSpec variant (free function).
 /// Returns an optional diagnostic (e.g. warning for degenerate tangent fallback).
+///
+/// TICKET-CAM-QUAT-PRIMARY concern 2 closure: `look_ahead_tangent` parameter
+/// is the look-ahead tangent computed by the caller (the member overload
+/// below) via `look_ahead_tangent(descriptor_.source, ctx, delta_seconds)`.
+/// The free function uses it in Step 1b when the current tangent is
+/// degenerate. The free function is intentionally source-agnostic (it only
+/// reads the OrientationSpec variant); the member overload is the source-aware
+/// controller that threads the look-ahead through.
 static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
     const void* orient_variant,
     const CameraEvalContext& ctx,
     Camera2_5D& cam,
     const std::optional<Vec3>& tangent,
+    const std::optional<Vec3>& look_ahead_tangent,
     const std::optional<float>& roll_deg,
     CameraSession& session) {
     const auto& orient = *static_cast<const OrientationSpec*>(orient_variant);
@@ -153,12 +173,25 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
             have_tangent = true;
             session.last_tangent = fwd;  // preserve for future degenerate frames
         }
-        // Step 1b: look-ahead (TICKET-CAM-QUAT-PRIMARY).  Only available
-        // when the caller threads a `descriptor_source` pointer.  Here we
-        // gracefully degrade (the free function is invoked from the
-        // member which can read `descriptor_.source`).
-        // (No-op in the free function; the member overload below performs
-        //  the look-ahead via `look_ahead_tangent`.)
+        // Step 1b: look-ahead (TICKET-CAM-QUAT-PRIMARY concern 2 closure).
+        // The caller (member overload) computes the look-ahead tangent by
+        // sampling the trajectory at ctx.sample_time + Δ and threads it
+        // through this `look_ahead_tangent` parameter.  When the current
+        // tangent is degenerate, we substitute the look-ahead tangent if
+        // it is non-degenerate; this gives the camera a brief future-aware
+        // anticipation window before falling back to last_tangent (Step 2).
+        else if (look_ahead_tangent && glm::length(*look_ahead_tangent) > 1e-6f) {
+            fwd = glm::normalize(*look_ahead_tangent);
+            have_tangent = true;
+            used_look_ahead = true;
+            // `last_tangent` is the most recent successful tangent (Step 1
+            // OR Step 1b look-ahead), NOT strictly the previous frame. This
+            // dual-write semantic lets a subsequent degenerate frame skip
+            // the look-ahead and recover the look-ahead-derived tangent
+            // directly via Step 2 (no new field, no API change).
+            session.last_tangent = fwd;
+            fallback_reason = "OrientAlongPath: current tangent degenerate, using look-ahead tangent (t+Δ)";
+        }
         // Step 2: session's last_tangent.
         else if (session.last_tangent && glm::length(*session.last_tangent) > 1e-6f) {
             fwd = glm::normalize(*session.last_tangent);
@@ -224,16 +257,18 @@ static std::optional<CameraProgramDiagnostic> apply_orientation_spec_free(
             cam.rotation.z = *roll_deg;
         }
 
+        if (used_look_ahead) {
+            return CameraProgramDiagnostic{
+                CameraProgramDiagnostic::Severity::Info,
+                fallback_reason.empty()
+                    ? std::string("OrientAlongPath: current tangent degenerate, using look-ahead tangent (t+Δ)")
+                    : fallback_reason
+            };
+        }
         if (!fallback_reason.empty()) {
             return CameraProgramDiagnostic{
                 CameraProgramDiagnostic::Severity::Warning,
                 fallback_reason
-            };
-        }
-        if (used_look_ahead) {
-            return CameraProgramDiagnostic{
-                CameraProgramDiagnostic::Severity::Info,
-                "OrientAlongPath: current tangent degenerate, using look-ahead tangent (t+Δ)"
             };
         }
         return std::nullopt;
@@ -336,7 +371,24 @@ std::optional<CameraProgramDiagnostic> CameraProgram::apply_orientation_spec(
     const std::optional<Vec3>& tangent,
     const std::optional<float>& roll_deg,
     CameraSession& session) const {
-    return apply_orientation_spec_free(orient_variant, ctx, cam, tangent, roll_deg, session);
+    // TICKET-CAM-QUAT-PRIMARY concern 2 closure: compute the look-ahead
+    // tangent ONLY when the descriptor orientation is `OrientAlongPath` (the
+    // only case where look-ahead is meaningful — it is a TrajectoryMotion
+    // concept).  The helper returns `used=false` for non-trajectory sources,
+    // so this is a safe no-op for PoseTracksSource / OrbitMotion / Static
+    // / RegisteredMotionRef.  Default delta = 1/60 s = 1 frame at 60 fps
+    // (short enough to track real scene motion; long enough to anticipate
+    // a single-frame tangent degeneracy).
+    std::optional<Vec3> look_ahead;
+    if (std::holds_alternative<OrientAlongPath>(descriptor_.orientation)) {
+        const LookAheadResult la =
+            look_ahead_tangent(descriptor_.source, ctx, kOrientAlongPathLookAheadDeltaSeconds);
+        if (la.used) {
+            look_ahead = la.tangent;
+        }
+    }
+    return apply_orientation_spec_free(
+        orient_variant, ctx, cam, tangent, look_ahead, roll_deg, session);
 }
 
 // TICKET-022 / DOC 02 — apply_orientation_spec_free() has exactly ONE real
