@@ -34,17 +34,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>
-#include <chronon3d/sdk/render_engine.hpp>
-#include <chronon3d/sdk/render_output.hpp>
-#include <chronon3d/sdk/render_error.hpp>
-#include <chronon3d/sdk/render_request.hpp>
-#include <chronon3d/sdk/render_settings.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/text/text_run_shape.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/backends/image/image_writer.hpp>
+
+#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
@@ -126,6 +117,7 @@ Composition build_clip_composition(
                 l.text_run("title", TextRunSpec{
                     .text = {
                         .content = {.value = "HAMBURGER"},
+                        .position = {960.0f, 540.0f, 0.0f},
                         .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
@@ -141,7 +133,6 @@ Composition build_clip_composition(
                             .color = Color::white(),
                             .shadows = shadows
                         },
-                        .position = {960.0f, 540.0f, 0.0f}
                     }
                 }).commit();
             });
@@ -177,11 +168,17 @@ TEST_CASE("Clip 01 TextClip AscentNotCut 1920x1080") {
     // FontEngine), the rendered height is ~68px at 180pt.
     CHECK(bbox.x1 <= static_cast<int>(fb->width()) - 1);
 
+    // No-skip golden check (canonical text_completeness.cpp pattern).
+    // CHECK_FALSE(r.golden_missing) BEFORE the optional CHECK(r.passed)
+    // makes the test fail-loud if the golden PNG is missing — the test
+    // never silently passes when a golden is absent.
     auto r = verify_golden(*fb, "text_clip_01_ascent_not_cut",
                            make_clip_config("clip_01"));
-    REQUIRE_FALSE(r.golden_missing);
-    INFO("Golden: ", r.message);
-    CHECK(r.passed);
+    CHECK_FALSE(r.golden_missing);
+    if (!r.golden_missing) {
+        INFO("Golden: ", r.message);
+        CHECK(r.passed);
+    }
 }
 
 // ═══ Test 2 — RightEdgeNotCut ═══════════════════════════════════════════
@@ -202,6 +199,15 @@ TEST_CASE("Clip 02 TextClip RightEdgeNotCut 1920x1080") {
     INFO("bbox.x1=", bbox.x1, " fb.width()=", fb->width());
     CHECK_FALSE(bbox.empty());
     CHECK(bbox.x1 <= static_cast<int>(fb->width()) - 1);
+
+    // No-skip golden check (canonical text_completeness.cpp pattern).
+    auto r = verify_golden(*fb, "text_clip_02_right_edge_not_cut",
+                           make_clip_config("clip_02"));
+    CHECK_FALSE(r.golden_missing);
+    if (!r.golden_missing) {
+        INFO("Golden: ", r.message);
+        CHECK(r.passed);
+    }
 }
 
 // ═══ Test 3 — Scale130NotCut ═══════════════════════════════════════════
@@ -222,10 +228,23 @@ TEST_CASE("Clip 03 TextClip Scale130NotCut 1920x1080") {
          " x0=", bbox.x0, " y0=", bbox.y0,
          " x1=", bbox.x1, " y1=", bbox.y1);
 
+    // No-skip golden check FIRST (canonical text_completeness.cpp pattern).
+    // Placed BEFORE the empty-bbox soft-skip so the no-skip rule is enforced
+    // regardless of bbox state: a missing golden is a test failure even when
+    // the known renderer limitation produces an empty bbox.
+    auto r = verify_golden(*fb, "text_clip_03_scale130_not_cut",
+                           make_clip_config("clip_03"));
+    CHECK_FALSE(r.golden_missing);
+    if (!r.golden_missing) {
+        INFO("Golden: ", r.message);
+        CHECK(r.passed);
+    }
+
     // Scaled-up bbox should be visible.
     // NOTE: layer-level scale 1.3× can shift the text outside the
     // visible framebuffer region depending on the world_matrix computation.
-    // If the bbox is empty, this is a known rendering limitation.
+    // If the bbox is empty, this is a known rendering limitation — soft-skip
+    // the numerical assertions but the golden check above still fired.
     if (bbox.empty()) {
         MESSAGE("Scale 1.3× produced empty bbox — known renderer limitation with layer-level scale.");
         return;
@@ -279,11 +298,14 @@ TEST_CASE("Clip 04 TextClip ShadowNotCut 1920x1080") {
     // Shadow extends the bbox downward (offset.y = 40, blur = 30 => ~70 px).
     CHECK(bbox.y1 >= bbox_no_shadow.y1);
 
+    // No-skip golden check (canonical text_completeness.cpp pattern).
     auto r = verify_golden(*fb, "text_clip_04_shadow_not_cut",
                            make_clip_config("clip_04"));
-    REQUIRE_FALSE(r.golden_missing);
-    INFO("Golden: ", r.message);
-    CHECK(r.passed);
+    CHECK_FALSE(r.golden_missing);
+    if (!r.golden_missing) {
+        INFO("Golden: ", r.message);
+        CHECK(r.passed);
+    }
 }
 
 // ═══ Test 5 — GlowNotCut ═════════════════════════════════════════════════
@@ -327,11 +349,14 @@ TEST_CASE("Clip 05 TextClip GlowNotCut 1920x1080") {
     CHECK(bbox.height() >= bbox_no_glow.height());
     CHECK(bbox.width()  >= bbox_no_glow.width());
 
+    // No-skip golden check (canonical text_completeness.cpp pattern).
     auto r = verify_golden(*fb, "text_clip_05_glow_not_cut",
                            make_clip_config("clip_05"));
-    REQUIRE_FALSE(r.golden_missing);
-    INFO("Golden: ", r.message);
-    CHECK(r.passed);
+    CHECK_FALSE(r.golden_missing);
+    if (!r.golden_missing) {
+        INFO("Golden: ", r.message);
+        CHECK(r.passed);
+    }
 }
 
 // ═══ Test A — DebugLayout Diagnostic ═════════════════════════════════════
