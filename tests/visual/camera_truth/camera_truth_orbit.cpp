@@ -123,32 +123,18 @@ Composition make_camera_truth_orbit() {
             s.layer("hud", [f](LayerBuilder& l) {
                 l.pin_to(chronon3d::Anchor::TopLeft, 12.0f);
                 l.opacity(0.85f);
-                // Build the label string outside the designated-initializer
-                // so the `+` concatenation has a clean LHS/RHS (the previous
-                // inline form had a dangling `+,` at line 127 which broke
-                // the build).  `f` is captured by value above.
-                const int yaw_deg_int = static_cast<int>(std::round(
-                    static_cast<float>(static_cast<int>(f)) / 60.0f * 90.0f));
-                const std::string hud_label = std::string("ORBIT  |  yaw=")
-                    + std::to_string(yaw_deg_int) + "\u00B0";
+                // TICKET-TEXT-LEGACY-POSITION-ROT (sub-area test fixtures, site 2/N):
+                // legacy .position Vec3 removed upstream; migrate to .placement.
+                // Z=0 explicit in legacy code, safe-drop per M1.8 §5A.
                 l.text("hud_label", chronon3d::TextSpec{
-<<<<<<< HEAD
                     .content = {.value = std::string("ORBIT  |  yaw=") +
                         std::to_string(static_cast<int>(std::round(
                             static_cast<float>(static_cast<int>(f)) / 60.0f * 90.0f))) + "\u00B0"},
-                    .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+                    .placement = chronon3d::TextPlacement{chronon3d::TextPlacementKind::Absolute, {0.0f, 0.0f}},
                     .font = {.font_family = "Inter", .font_weight = 700, .font_size = 18.0f},
                     .layout = {.box = {500.0f, 24.0f}, .align = chronon3d::TextAlign::Left,
                                .line_height = 1.20f, .tracking = 2.0f},
                     .appearance = {.color = chronon3d::Color{1.0f, 0.70f, 0.30f, 1.0f}}
-=======
-                    .content    = {.value = hud_label},
-                    .position   = {0.0f, 0.0f, 0.0f},
-                    .font       = {.font_family = "Inter", .font_weight = 700, .font_size = 18.0f},
-                    .layout     = {.box = {500.0f, 24.0f}, .align = chronon3d::TextAlign::Left,
-                                    .line_height = 1.20f, .tracking = 2.0f},
-                    .appearance = {.color = chronon3d::Color{1.0f, 0.70f, 0.30f, 1.0f}},
->>>>>>> dc7127aa (fix(tests): close dangling `+,` syntax in camera_truth_orbit TextSpec initializer)
                 });
             });
 
