@@ -32,8 +32,7 @@ bash "$SCRIPT_DIR/check_determinism_matrix.sh"
 bash "$SCRIPT_DIR/check_first_principles_legacy_grep.sh"
 
 echo "== Product demo =="
-# TODO: wire `chronon render ProductLaunch --props examples/product_launch.json \
-#       --output /tmp/chronon-product-proof.mp4` + ffprobe (Test #1)
+bash "$SCRIPT_DIR/check_product_launch_demo.sh"
 
 echo "== Camera brutal =="               # TODO (Test #9)
 echo "== Multilingual text =="           # TODO (Test #8)
@@ -46,4 +45,4 @@ echo "== Feature usefulness gate =="     # TODO (Test #14 — docs gate)
 echo "== Weekly scorecard =="            # TODO (Track-13 — output terr.)
 
 echo "FIRST_PRINCIPLES_PRODUCT_PASS"
-echo "[INFO] ${GATE_NAME}: 4/5 sections have ≥1 wired sub-gate (Determinism: Test #6 + Test #10 fully wired); 1/5 still empty (Product demo); 9 stub headers pending"
+echo "[INFO] ${GATE_NAME}: 4/5 sections have ≥1 wired sub-gate (Determinism: Test #6 + Test #10 fully wired; Product demo: Test #1 wired-but-§honesty-PARTIAL until build-host verifies); 1/5 still empty (Product demo); 9 stub headers pending"

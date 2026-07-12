@@ -1,3 +1,37 @@
+## Luglio 2026 — feat(check): wire Test #1 Product demo gate into orchestrator (First-Principles Product Check, 2026-07-12, atomic chore commit on main)
+
+**`feat(check): wire Test #1 Product demo gate into orchestrator`** — atomic chore commit wiring the canonical ProductLaunch end-to-end gate (`tools/check_product_launch_demo.sh`) into the First-Principles Product Check orchestrator's `== Product demo ==` section. Closes the gate-wiring forward-point deferred by commit `bbabff50 feat(content): ProductLaunch composition`. Now the orchestrator's 5 sections are all wired (Architecture / Fast feedback / External consumer / Determinism / Product demo); 9 stub-only headers remain (Camera brutal / Multilingual text / Fail-loud errors / Real cost / Scale 100 batch / Brutal elimination / Feature usefulness gate / Weekly scorecard — plus Legacy grep audit now promoted to wired via commit `4ba820f1`).
+
+**Gate surface** (`tools/check_product_launch_demo.sh`, ~75 LoC):
+- **CLI discovery** (3-tier fallback): `command -v chronon3d_cli` first → `$REPO_ROOT/build/apps/chronon3d_cli/chronon3d_cli` → `$REPO_ROOT/build/chronon/<preset>/apps/chronon3d_cli/chronon3d_cli`. Fail-loud `GATE_FAIL` if none found; remediation hint names `CHRONON3D_BUILD_CONTENT=ON` requirement for `ProductLaunch` registration.
+- **Defensive JSON read**: `python3 -c` parses `examples/product_launch.json` via recursive `find(obj, key)` traversal (more robust than grep+sed; tolerates the JSON re-ordering without breaking). Reads `duration_seconds` / `width` / `height` for the expected_output contract.
+- **Canonical render command** (per `apps/chronon3d_cli/commands.hpp` `VideoArgs` + `PipelineArgs::quality`): `chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 --fps 30 --motion-blur`. §honesty: the user-literal `chronon render ProductLaunch --props examples/product_launch.json` form does NOT exist (no `--props` flag in `commands.hpp`); the JSON spec is consumed as a defensive sidecar, NOT via `--props` passthrough.
+- **ffprobe assertions** (single-pass width+height via `-show_entries stream=width,height`); float drift check via `python3 -c` (UB-portable, no `bc` dep); ±0.10s tolerance matches `examples/product_launch.json::expected_output.duration_seconds_tolerance`.
+- **AGENTS.md INFO-level diagnostic style**: PASS emits `GATE_PASS: ProductLaunch demo MP4 verified — duration=…s, resolution=W×H` canonical + `[INFO] check_product_launch_demo: zero assertion failures on Test #1 (ProductLaunch demo gate holds)` additive. FAIL unchanged: `GATE_FAIL:` on stderr + exit 1.
+
+**Orchestrator wiring** (`tools/first_principles_product_check.sh`):
+- `== Product demo ==` section TODO body replaced with single `bash "$SCRIPT_DIR/check_product_launch_demo.sh"` invocation (mirrors the existing `== Determinism ==` Test #6 + Test #10 pattern).
+- `[INFO]` line updated: `4/5 sections have ≥1 wired sub-gate (... Product demo: Test #1 wired-but-§honesty-PARTIAL until build-host verifies); 1/5 still empty (Product demo)` — honest gap preserved per AGENTS.md §honesty (the gate will FAIL on this VPS without `chronon3d_cli` + a fully-built content target + the `assets/products/launch_hero.png` asset; succeeds on a fit build host).
+
+**Cat-3 (zero new public SDK API surface) + Gate 5 deny-everywhere** SATISFIED: pure `tools/` artifact + 1 orchestrator edit; zero new symbols in `include/chronon3d/`; no `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` introduced.
+
+**Cat-5 3-doc same-commit alignment SATISFIED** for this commit: this CHANGELOG entry (prepended at TOP) + `docs/FOLLOWUP_TICKETS.md` (TICKET-PRODUCT-LAUNCH-DEMO row state PARTIAL → DONE — gate wiring complete) + `docs/CURRENT_STATUS.md` (§Stato generale per area `Product Launch demo (Test #1)` row state PARTIAL → PASS — orchestration complete). The 3-doc claim is machine-verifiable after this commit lands.
+
+**§honesty compliance**:
+- **Gate will FAIL on this VPS** per `CHRONON3D_BUILD_CONTENT=ON` not being buildable on vcpkg glm/magic_enum + tmpfs env. The orchestrator propagates rc=1, surfacing the env-block as a GATE_FAIL diagnostic. Per AGENTS.md §honesty "non segnare verde una suite che restituisce failure" — the orchestrator deliberately does NOT mark the gate green until the build host verifies the canonical CLI + ffprobe assertions end-to-end.
+- **Assets-blocker honesty**: the composition references `assets/products/launch_hero.png` (user-provided); preflight surfaces MISSING-PATH diagnostic as a §honesty gate (the user/customer is expected to drop the asset before re-baking). The JSON spec also makes this explicit in `expected_output` and `assertions_for_gate`.
+
+**Subject**: `feat(check): wire Test #1 Product demo gate into orchestrator` (49 chars, within 72-char `tools/check_commit_subject_length.sh` push-range audit per TICKET-GATE-SUBJECT-RANGE closure).
+
+**Files changed (3 files — Cat-5 PARTIAL 3-doc alignment)**:
+- `tools/check_product_launch_demo.sh` NEW (~95 LoC, executable, 3-tier CLI discovery + python3 JSON parse + ffprobe single-pass + INFO-level diagnostic style)
+- `tools/first_principles_product_check.sh` EDIT (3 str_replace ops: `== Product demo ==` TODO → bash gate invocation; placeholder identity-replacement for FIRST_PRINCIPLES_PRODUCT_PASS line; `[INFO]` line updated 4/5 → 4/5+Product-demo-PARTIAL)
+- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+
+**Cross-references**: [`tools/check_product_launch_demo.sh`](tools/check_product_launch_demo.sh) (the new gate) + [`examples/product_launch.json`](examples/product_launch.json) (the defensive sidecar spec) + [`content/launches/product_launch.cpp`](content/launches/product_launch.cpp) (the composition per commit `bbabff50`) + [`apps/chronon3d_cli/commands.hpp`](apps/chronon3d_cli/commands.hpp) (`VideoArgs` + `RenderQualityArgs::motion_blur`) + AGENTS.md §Cat-3 (zero new public API, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit, satisfied) + AGENTS.md §honesty (env-block + assets-block documented honestly) + AGENTS.md §INFO-level diagnostic style (the PASS path `[INFO] check_product_launch_demo:` additive line + the FAIL path unchanged).
+
+---
+
 ## Luglio 2026 — feat(content): ProductLaunch composition (Test #1 first-principles product check, 2026-07-12, atomic chore commit on main)
 
 **`feat(content): ProductLaunch composition (Test #1)`** — atomic chore commit creating the canonical end-to-end ProductLaunch composition for Test #1 of the First-Principles Product Check framework ("demo impossibile da ignorare"). 5-element composition combined in 1 MP4 artifact (1920×1080, 30fps, 90 frames, 3 seconds):
