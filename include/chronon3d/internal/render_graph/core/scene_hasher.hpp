@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <string>
 
 namespace chronon3d::graph {
