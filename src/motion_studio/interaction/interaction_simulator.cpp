@@ -140,7 +140,7 @@ void CursorBuilder::emit() {
             chronon3d::TextSpec tp;
             tp.content.value = t.text;
             tp.layout.box      = {320.0f, 28.0f};
-            tp.position       = {0.0f, 0.0f, 0.0f};
+            tp.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}};
             tp.font.font_size = 16.0f;
             tp.appearance.color     = {1.0f, 1.0f, 1.0f, 1.0f};
             tp.layout.align     = chronon3d::TextAlign::Center;
