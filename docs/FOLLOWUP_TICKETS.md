@@ -9,6 +9,8 @@
 
 Solo ticket realmente aperti (PLANNED / PARTIAL / OPEN).
 
+| TICKET-VIDEO-CONTRACTS-BULK       | P1 | new | Video Completeness Matrix §14+§15+§17+§18+§19 regression lock contract (start/end off-by-one SUBCASEs + portrait 1080×1920 via JSON sidecar + thread-parity 60 PNG raw byte-exact + encoder-failure `.partial` atomic-rename cleanup + long 900-frame `/usr/bin/time -v` no-leak no-slowdown no-black). CLI binary = `chronon3d_cli` (canonical; user-spec used `cli` shorthand, documented per AGENTS.md §honesty). `--props` is NOT canonical; §15 uses JSON sidecar per CHANGELOG line 1145. Pre-ctest binary staleness check forward-pointed to working build host. | landed-as-chore in 31cdfba |
+
 | TICKET-VIDEO-ANTI-FLICKER         | P1 | new | §8 anti-flicker regression lock (BT.709 central-crop luminance |Δ| < 20.0 across adjacent decoded-MP4 frames from pre-baked `output/text_video_acceptance/decoded_frames/`) | landed-as-chore in f3b10c6 |
 | TICKET-VIDEO-MULTI-FPS-EQUIVALENCE| P1 | new | §13 multi-fps regression lock (4 rates × 4 times, `frame_at=lround(t*r)`, 30↔60 centroid distance < 2.0 px at same wall-clock time) | landed-as-chore in f3b10c6 |
 
