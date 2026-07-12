@@ -25,3 +25,8 @@
 - First-run caveat: the founder MUST run the aggregator at least once to seed the SQLite cache; the sample entries + sample tables in the dashboard template are FILL-IN-THE-BLANK commitments, not synthetic real-data.
 - macchina-verifica of the 8 metrics end-to-end with a populated DB is DEFERRED to a working build host per AGENTS.md §honesty (this VPS lacks chronon3d_cli binary + populated telemetry).
 - Per AGENTS.md §"Regole di lint documentale" the aggregator emits one <code>[INFO] ${GATE_NAME}: ...</code> line on run completion (PASS addizionale al output markdown).
+
+
+## honu refresh (2026-07-12)
+
+This ticket honu was refreshed to **PARTIAL-VPS-LIMITED-DRY-RUN-CAPTURED** after the first-seed dry-run capture on a non-build-host VPS. See `docs/product-tests/TEST-18-2026-W28.md` for the verbatim capture + honu Metrics Snapshot placeholders + honu Narrative Greps. Populated baseline still requires a real working build host.
