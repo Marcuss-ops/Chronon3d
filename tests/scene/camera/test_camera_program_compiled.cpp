@@ -701,16 +701,16 @@ TEST_CASE("compiled_orient_along_path_straight_line — "
     CameraSession session;
     auto cam = eval_at_or_die_cam01(program, session, Frame{45});
 
-    // With tangent = (0,0,1), the camera should look along +Z.
-    // quat_look_along((0,0,1)) should produce near-identity rotation
-    // (the camera's default forward is +Z in LH convention).
-    // We check that the rotation is small (not a no-op sentinel, but the
-    // correct orientation for a +Z look direction).
-    const float rot_l2 = std::sqrt(cam.rotation.x * cam.rotation.x
-                                   + cam.rotation.y * cam.rotation.y
-                                   + cam.rotation.z * cam.rotation.z);
+    // Chronon3D coordinate convention (spatial_bezier_path.hpp:272):
+    // left-handed Y-up, forward = -Z.
+    // quat_look_along((0,0,1)) orients the camera to look along +Z,
+    // which is the OPPOSITE direction from the default -Z forward.
+    // This produces a ~180° yaw rotation (rotation.y ≈ 180).
+    // The camera position is unchanged (still on the trajectory line).
     CAPTURE(cam.rotation.x); CAPTURE(cam.rotation.y); CAPTURE(cam.rotation.z);
-    CHECK(rot_l2 < 5.0f);  // should be near-zero for a +Z look
+    CHECK(std::abs(cam.rotation.y - 180.0f) < 5.0f);  // ~180° yaw for -Z→+Z flip
+    CHECK(std::abs(cam.rotation.x) < 1.0f);            // no pitch change
+    CHECK(std::abs(cam.rotation.z) < 1.0f);            // no roll change
 }
 
 TEST_CASE("compiled_orient_along_path_off_axis — "
