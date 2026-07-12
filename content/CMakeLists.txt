@@ -61,6 +61,9 @@ add_library(chronon3d_content OBJECT
     certification/cert_long_text.cpp
     certification/cert_multilingual.cpp
 
+    # ── Render runtime & framebuffer certification (P0, TICKET-RENDER-RUNTIME-CERT) ──
+    certification/cert_render_runtime.cpp
+
     # ── Sequence V2 migrated compositions (SequenceBuilder-only) ──
     showcases/sequence-v2/sequence_v2_compositions.cpp
 

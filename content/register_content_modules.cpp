@@ -34,7 +34,8 @@ namespace chronon3d::content::sequence_v2 { void register_sequence_v2_compositio
 namespace chronon3d::content::certification { void register_cert_title_compositions(CompositionRegistry&);
                                                void register_cert_lower_third_compositions(CompositionRegistry&);
                                                void register_cert_long_text_compositions(CompositionRegistry&);
-                                               void register_cert_multilingual_compositions(CompositionRegistry&); }
+                                               void register_cert_multilingual_compositions(CompositionRegistry&);
+                                               void register_cert_render_runtime_compositions(CompositionRegistry&); }
 namespace chronon3d::content::launches    { void register_launches_compositions(CompositionRegistry&); }
 
 namespace chronon3d {
@@ -67,6 +68,7 @@ public:
         content::certification::register_cert_lower_third_compositions(ctx.compositions);
         content::certification::register_cert_long_text_compositions(ctx.compositions);
         content::certification::register_cert_multilingual_compositions(ctx.compositions);
+        content::certification::register_cert_render_runtime_compositions(ctx.compositions);
         content::text_placement::register_text_placement_compositions(ctx.compositions);
         content::sequence_v2::register_sequence_v2_compositions(ctx.compositions);
         content::launches::register_launches_compositions(ctx.compositions);
