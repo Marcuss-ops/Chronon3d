@@ -100,7 +100,7 @@ Composition make_typewriter_class(test::HarnessRenderer& r, FrameRate rate) {
                 l.text_run("title", TextRunParams{
                     .text = {
                         .content = {.value = "FPS_TEST"},
-                        .position = {cx, cy, 0.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{cx, cy}},
                         .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",

@@ -103,7 +103,7 @@ Composition make_ae_10_scale_pop(const CompositionProps& /*props*/) {
             s.layer("hero", [opacity](LayerBuilder& l) {
                 l.text("scale_pop", {
                     .content = {.value = "POP IN"},
-                    .position = {960.0f, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -142,7 +142,7 @@ Composition make_ae_12_random_character_jitter(const CompositionProps& /*props*/
             s.layer("hero", [jitter, opacity](LayerBuilder& l) {
                 l.text("random_jitter", {
                     .content = {.value = "JITTER"},
-                    .position = {960.0f, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -182,7 +182,7 @@ Composition make_ae_14_multiline_landscape(const CompositionProps& /*props*/) {
             s.layer("hero", [dy, opacity](LayerBuilder& l) {
                 l.text("multiline", {
                     .content = {.value = "LINE ONE\nLINE TWO\nLINE THREE"},
-                    .position = {960.0f, 540.0f + dy, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f + dy}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -221,7 +221,7 @@ Composition make_motion_blur_text(const CompositionProps& /*props*/) {
             s.layer("hero", [dx](LayerBuilder& l) {
                 l.text("motion_blur", {
                     .content = {.value = "MOTION BLUR"},
-                    .position = {640.0f + dx, 360.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{640.0f + dx, 360.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
