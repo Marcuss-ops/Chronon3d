@@ -70,6 +70,9 @@ add_library(chronon3d_content OBJECT
     # ── Timeline & sequence certification (P1, TICKET-TIMELINE-CERT) ──
     certification/cert_timeline.cpp
 
+    # ── Compositing & effects certification (P1, TICKET-COMPOSITING-CERT) ──
+    certification/cert_compositing.cpp
+
     # ── Sequence V2 migrated compositions (SequenceBuilder-only) ──
     showcases/sequence-v2/sequence_v2_compositions.cpp
 
