@@ -359,7 +359,7 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {1, 1, 1, 1}, .width = 2.0f};
             l.path("shape", p);
             
-            l.text("t", TextSpec{.content = {.value = "NEWS"},.position = {0.0f, -14.0f, 0.0f},.font = {.font_size = 13.0f},.layout = {.box = {120.0f, 20.0f}, .align = TextAlign::Center},.appearance = {.color = {1,1,1,1}},});
+            l.text("t", TextSpec{.content = {.value = "NEWS"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -14.0f}},.font = {.font_size = 13.0f},.layout = {.box = {120.0f, 20.0f}, .align = TextAlign::Center},.appearance = {.color = {1,1,1,1}},});
         });
 
         // 4,1: Warning Badge
@@ -375,7 +375,7 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {0.1f, 0.1f, 0.1f, 1.0f}, .width = 3.5f, .join = LineJoin::Round};
             l.path("shape", p);
 
-            l.text("t", TextSpec{.content = {.value = "!"},.position = {0.0f, -22.0f, 0.0f},.font = {.font_size = 18.0f},.layout = {.box = {30.0f, 30.0f}, .align = TextAlign::Center},.appearance = {.color = {0,0,0,1}},});
+            l.text("t", TextSpec{.content = {.value = "!"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -22.0f}},.font = {.font_size = 18.0f},.layout = {.box = {30.0f, 30.0f}, .align = TextAlign::Center},.appearance = {.color = {0,0,0,1}},});
         });
 
         // 4,2: Number Badge
@@ -388,7 +388,7 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {0.95f, 0.35f, 0.1f, 1.0f}, .width = 3.0f};
             l.path("shape", p);
 
-            l.text("t", TextSpec{.content = {.value = "10"},.position = {0.0f, -14.0f, 0.0f},.font = {.font_size = 14.0f},.layout = {.box = {48.0f, 24.0f}, .align = TextAlign::Center},.appearance = {.color = {1,1,1,1}},});
+            l.text("t", TextSpec{.content = {.value = "10"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -14.0f}},.font = {.font_size = 14.0f},.layout = {.box = {48.0f, 24.0f}, .align = TextAlign::Center},.appearance = {.color = {1,1,1,1}},});
         });
 
         // 4,3: Star Badge
@@ -415,7 +415,7 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {1, 1, 1, 1}, .width = 2.0f};
             l.path("shape", p);
 
-            l.text("t", TextSpec{.content = {.value = "SUBSCRIBE"},.position = {0.0f, -13.0f, 0.0f},.font = {.font_size = 10.0f},.layout = {.box = {110.0f, 20.0f}, .align = TextAlign::Center},.appearance = {.color = {1,1,1,1}},});
+            l.text("t", TextSpec{.content = {.value = "SUBSCRIBE"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -13.0f}},.font = {.font_size = 10.0f},.layout = {.box = {110.0f, 20.0f}, .align = TextAlign::Center},.appearance = {.color = {1,1,1,1}},});
         });
 
         // ── RIGA 6: Progress / Timeline ──

@@ -61,8 +61,8 @@ Composition camera_parent_null_rig_test() {
         s.null_layer("camera_rig_null", [ctx](NullBuilder& n) { n.position({0.0f, 0.0f, 0.0f}); n.rotation({0.0f, ctx.progress() * 20.0f, 0.0f}); });
         s.null_layer("card_null", [](NullBuilder& n) { n.position({0.0f, 0.0f, -100.0f}); n.parent("camera_rig_null"); });
         s.null_layer("camera_target", [](NullBuilder& n) { n.position({0.0f, 0.0f, 0.0f}); n.parent("camera_rig_null"); });
-        s.layer("card_a", [](LayerBuilder& l) { l.enable_3d().position({80.0f, 0.0f, 0.0f}).parent("card_null"); l.rounded_rect("rect_a", {.size = {200.0f, 150.0f}, .radius = 8.0f, .color = Color{0.25f, 0.52f, 1.0f, 0.9f}}); l.text("lbl_a", TextSpec{.content = {.value = "A"}, .position = {20.0f, 0.0f, 0.0f}}); });
-        s.layer("card_b", [](LayerBuilder& l) { l.enable_3d().position({-80.0f, 0.0f, 0.0f}).parent("card_null"); l.rounded_rect("rect_b", {.size = {200.0f, 150.0f}, .radius = 8.0f, .color = Color{0.99f, 0.44f, 0.82f, 0.9f}}); l.text("lbl_b", TextSpec{.content = {.value = "B"}, .position = {20.0f, 0.0f, 0.0f}}); });
+        s.layer("card_a", [](LayerBuilder& l) { l.enable_3d().position({80.0f, 0.0f, 0.0f}).parent("card_null"); l.rounded_rect("rect_a", {.size = {200.0f, 150.0f}, .radius = 8.0f, .color = Color{0.25f, 0.52f, 1.0f, 0.9f}}); l.text("lbl_a", TextSpec{.content = {.value = "A"}, .placement = TextPlacement{TextPlacementKind::Absolute, {20.0f, 0.0f}}}); });
+        s.layer("card_b", [](LayerBuilder& l) { l.enable_3d().position({-80.0f, 0.0f, 0.0f}).parent("card_null"); l.rounded_rect("rect_b", {.size = {200.0f, 150.0f}, .radius = 8.0f, .color = Color{0.99f, 0.44f, 0.82f, 0.9f}}); l.text("lbl_b", TextSpec{.content = {.value = "B"}, .placement = TextPlacement{TextPlacementKind::Absolute, {20.0f, 0.0f}}}); });
         CameraShotProfile shot;
         shot.rig.mode = CameraRigMode::TwoNode;
         shot.rig.target_name = "camera_target";
