@@ -142,7 +142,7 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
     node.shape.grid_background().major_thickness = p.major_thickness;
     node.shape.grid_background().major_every = p.major_every;
     node.shape.grid_background().centered = p.centered;
-    node.world_transform.position = {0.0f, 0.0f, 0.0f};
+    node.world_transform.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}};
     node.world_transform.anchor = {0.0f, 0.0f, 0.0f};
     node.color = p.bg_color;
     return node;
