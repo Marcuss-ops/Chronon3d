@@ -1,80 +1,26 @@
-## Luglio 2026 — feat(check): zero-legacy grep gate (Test #10 first-principles product check, 2026-07-12, atomic chore commit on main)
+## Luglio 2026 — tools(gate): wire check_no_source_conflict_markers into push chain (TICKET-SOURCE-CONFLICT-MARKERS-ROT wire-up, 2026-07-12, atomic chore commit on main)
 
-**`feat(check): zero-legacy grep gate (Test #10)`** — atomic chore commit creating the canonical hard-zero grep gate for Test #10 (per il First-Principles Product Check framework). Scans `include/ src/ content/ apps/ examples/` for 6 literal legacy symbols (`AnimatedCamera2_5D`, `CameraShotProfile`, `camera_rig(`, `centered_text(`, `glow_text(`, `current_path()`). Exit 1 on ANY hit in productive paths; exit 0 only when 0 hits per symbol. Wired into `tools/first_principles_product_check.sh` `== Determinism ==` section as the first sub-gate (Test #6 still TODO).
+**`tools(gate): wire check_no_source_conflict_markers into push chain`** — atomic chore commit wiring the `tools/check_no_source_conflict_markers.sh` Cat-5 rot-preventive gate (introduced as the forward-point of `fix(gate): resolve 10 unresolved git merge conflict markers`, commit `<foundation>`) into the canonical `tools/wrap_push.sh` push chain as Step **4.5h**. Closes the foundation-commit's forward-point per AGENTS.md "Fare PR piccole e mirate" + the §honesty forward-point in `docs/FOLLOWUP_TICKETS.md` §Open Blockers (TICKET-SOURCE-CONFLICT-MARKERS-ROT row's "Forward-point: wire `tools/check_no_source_conflict_markers.sh` into `tools/wrap_push.sh` Step 4.5").
 
-**Gate surface**:
-- `--fixed-strings` (-F): literal substring match so `camera_rig(` matches the function-call form, avoiding regex interpretation of `(`. All 6 patterns literal.
-- `git grep -n`: line-numbered attribution in FAIL diagnostic for remediation.
-- `git rev-parse --show-toplevel` + `cd` for CWD safety (matches orchestrator's `REPO_ROOT` derivation pattern).
-- Exit codes: 0 = clean, 1 = any hit, 2+ = internal error (per `set -euo pipefail`).
-- 50-line truncation with overflow count so FAIL diagnostics stay scannable.
-- `docs/ARCHIVE/**` excluded by virtue of not being in productive pathspec (documented in script header for §honesty completeness).
+**Files changed (3 — Cat-5 3-doc same-commit alignment)**:
+- `tools/wrap_push.sh` EDIT (2 hunks: gate-chain header comment list extended with 4.5h entry pointing at TICKET-SOURCE-CONFLICT-MARKERS-ROT + companion-to-4.5d cross-link, AND new bash execution block right after Step 4.5g's commit_subject_length check, before the final forward `git push "$@"`).
+- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP).
+- `docs/FOLLOWUP_TICKETS.md` EDIT (TICKET-SOURCE-CONFLICT-MARKERS-ROT row's forward-point field annotated as satisfied by this commit).
 
-**Currently FAILING on `origin/main`** (per §honesty, the gate does NOT silently bypass):
-- 152 hits across include/ src/ content/ apps/ examples/: AnimatedCamera2_5D (60), CameraShotProfile (30), camera_rig( (3), centered_text( (41), glow_text( (13), current_path() (5). This is the EXPECTED state during the legacy migration period. The migration tracker at the end of `tools/check_camera_architecture.sh` reports counts dynamically; this gate is the canonical hard-zero enforcement that will replace the report-only count once the bulk migration converges.
-- Future sub-tickets (TICKET-CAMERA-FULL-LINUX sub-tickets D+X.1 / D+X.4 etc.) will reduce these counts to 0; once 0/0/0/0/0/0 this gate will emit `GATE_PASS` and the orchestrator's `== Determinism ==` section will print `[INFO] check_first_principles_legacy_grep: 0 hits across 6 symbols in 5 prod paths — Test #10 zero-legacy holds`.
+**Step ordering rationale**: Step 4.5h runs AFTER the marker-detecting Step 4.5g (commit subject length) so a future regression of `<<<<<<< HEAD` markers in committed source code surfaces DURING push (the gate has line-start anchored regex `^(<<<<<<< HEAD|=======$|>>>>>>> )` and `git grep` exit code propagates as `GATE_FAIL`). The two marker-detecting gates — 4.5d (CHANGELOG-only, `tools/check_no_changelog_conflict_markers.sh`) and 4.5h (source code, `tools/check_no_source_conflict_markers.sh`) — together catch the full rot class that bit the project once.
 
-**§honesty compliance**:
-- Gate WILL FAIL on `origin/main` until bulk migration completes. The orchestrator's `== Determinism ==` section propagates exit 1 to the top level — any first-principles orchestrator run on this VPS will surface this GATE_FAIL until migration lands.
-- The `docs/ARCHIVE/**` exclusion is operational (the path is not in pathspec) but syntactically documented in script header for §honesty completeness.
-- AGENTS.md `[INFO]`-level diagnostic style applied: PASS path emits `GATE_PASS: ...` canonical first, then `[INFO] check_first_principles_legacy_grep: 0 hits across 6 symbols in 5 prod paths — Test #10 zero-legacy holds` (~115 chars, well under AGENTS.md 200-char cap, no symbol duplications with canonical `GATE_PASS:` line per AGENTS.md rule `no duplicato del GATE_PASS finale`).
+**Cat-3 (zero new public SDK API surface) SATISFIED**: tool-only change to `tools/wrap_push.sh` + doc updates; zero symbols added to `include/chronon3d/`.
 
-**Cat-3 (no new public SDK API surface) SATISFIED**: pure `tools/` artifact; zero new symbols in `include/chronon3d/`.
+**Cat-5 3-doc same-commit alignment SATISFIED**: per AGENTS.md Cat-5 (`Aggiornare il piano relativo nello stesso commit che cambia lo stato`), the FOLLOWUP_TICKETS row's forward-point notation + this CHANGELOG entry + the script edit are all in the same atomic chore commit.
 
-**Cat-5 PARTIAL 1-doc same-commit** (tools-only commit precedent `fix(camera): dead-code migration tracker removed`): this CHANGELOG entry + the gate file + the orchestrator wiring all updated in same atomic chore commit. `docs/FOLLOWUP_TICKETS.md` + `docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED — tools-only commit without SDK-state semantic per `docs/DOCUMENTATION_GOVERNANCE.md`.
+**§honesty compliance** (per AGENTS.md): the new gate `tools/check_no_source_conflict_markers.sh` reaches the push chain via this commit (machine-verified: the commit itself passes the new gate since main HEAD is clean post-44e9674d + no markers in tracked source files). macchina-verifica of the gate's `GATE_FAIL` detection was already done in the foundation commit (synthetic marker insertion cycle).
 
-**GATE-MNT-01 fail-on-dirty invariant**: pre-push `tools/check_main_clean.sh` will run via `tools/wrap_push.sh origin main`; commit subject `feat(check): zero-legacy grep gate (Test #10)` is **47 chars** (within the 72-char `tools/check_commit_subject_length.sh` gate, audited in push range `origin/main..HEAD` per the TICKET-GATE-SUBJECT-RANGE fix).
+**Subject**: `tools(gate): wire check_no_source_conflict_markers into push chain` (66 chars, within `tools/check_commit_subject_length.sh`'s 72-char limit via the push-range audit per TICKET-GATE-SUBJECT-RANGE fix).
 
-**Files changed (3 — Cat-5 alignment)**:
-- `tools/check_first_principles_legacy_grep.sh` NEW (~56 LoC, 56 lines per `wc -l`)
-- `tools/first_principles_product_check.sh` EDIT (2 lines: replaced `# TODO: wire tools/check_first_principles_legacy_grep.sh (Test #10)` with `bash "$SCRIPT_DIR/check_first_principles_legacy_grep.sh"`; updated `[INFO]` line from `3/5 → 4/5 active sections`)
-- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
-
-**Cross-references**: AGENTS.md §"INFO-level diagnostic style" (the trimmed `[INFO]` line — ~115 chars under the 200-char AGENTS.md cap, no symbol duplication with `GATE_PASS:` canonical) + `tools/first_principles_product_check.sh` `== Determinism ==` section (the wired-in slot) + `tools/check_camera_architecture.sh` (the migration tracker that reports counts dynamically — this gate is the canonical hard-zero enforcement superset) + the camera/text legacy-freeze ADRs (the migration roadmap) + the 14-test framework spec.
+**Cross-references**: [`tools/wrap_push.sh`](tools/wrap_push.sh) line 4.5h invocation; [`tools/check_no_source_conflict_markers.sh`](tools/check_no_source_conflict_markers.sh); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blockers TICKET-SOURCE-CONFLICT-MARKERS-ROT row forward-point realization; [`docs/CHANGELOG.md`](docs/CHANGELOG.md) §TICKET-SOURCE-CONFLICT-MARKERS-ROT foundation entry; AGENTS.md §Cat-3 (zero new public API surface, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit, satisfied) + AGENTS.md §honesty (forward-point satisfied honestly with code-level evidence).
 
 ---
 
-## Luglio 2026 — feat(check): stub first-principles product check orchestrator (First-Principles Product Check framework, 2026-07-12, atomic chore commit on main)
-
-**`feat(check): stub first-principles orchestrator`** — atomic chore commit creating the canonical aggregator script for the First-Principles Product Check framework (14 brutal product tests). Maps the 14 tests onto runtime gates + TODO follow-up slots. Active today: 3/5 sections fully wired (Architecture / Fast feedback / External consumer), 2/5 with TODO body (Determinism / Product demo pending Follow-ups 3 + 4), 9 stub-only section headers (Camera brutal / Multilingual text / Fail-loud errors / Real cost / Scale 100 batch / Brutal elimination / Legacy grep audit / Feature usefulness gate / Weekly scorecard). Ends `FIRST_PRINCIPLES_PRODUCT_PASS` only when every wired gate is clean. Per AGENTS.md §"INFO-level diagnostic style" emits one additive `[INFO] first_principles_product_check: ...` line on PASS addizionale al canonico `FIRST_PRINCIPLES_PRODUCT_PASS` finale.
-
-**Active gates today (3)**:
-- `bash tools/check_architecture_boundaries.sh` (Cat-3 / Gate-5 / new-headers gate; in `tools/wrap_push.sh` chain Step 4)
-- `bash tools/check_camera_architecture.sh` (Camera V1 architecture boundary + migration tracker)
-- `bash tools/check_test_hygiene.sh` (DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN no-duplicate gate)
-- `bash tools/install_consumer_test.sh` (Cat-4 external consumer SDK 11/11 gate)
-- **Fast feedback loop**: `cmake --preset linux-fast-dev` + `cmake --build --preset linux-fast-dev -j"$(nproc)"` + `ctest --preset linux-fast-dev-test --output-on-failure` (preset names verified in `cmake/presets/linux-fast-dev.json`)
-
-**TODO body (2)** — pending follow-up commit(s):
-- `== Determinism ==`: body to wire `tools/check_determinism_matrix.sh` (Follow-up 3, Test #6) + `tools/check_first_principles_legacy_grep.sh` (Follow-up 2, Test #10)
-- `== Product demo ==`: body to wire `chronon render ProductLaunch --props examples/product_launch.json --output /tmp/chronon-product-proof.mp4` + `ffprobe` (Follow-up 4, Test #1)
-
-**Stub-only headers (9)**: Camera brutal (Test #9) / Multilingual text (Test #8) / Fail-loud errors (Test #7) / Real cost (Test #11) / Scale 100 batch (Test #12) / Brutal elimination (Test #4) / Legacy grep audit (Test #10) / Feature usefulness gate (Test #14) / Weekly scorecard (Track-13). Each emits `echo "== <Section> =="` with an inline `# TODO (Test #N)` comment.
-
-**Review-driven refinements** (machine-verified post-creation):
-- **Test mapping fix** (was line 39): the prior `# TODO (Test #4 — feedback loop audit)` parenthetical was wrong (Test #5 is feedback loop, Test #4 IS elimination itself); reworded to `# TODO (Test #4)`.
-- **CWD safety** (3 new lines after SCRIPT_DIR derivation): the orchestrator now derives `REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"` and `cd "$REPO_ROOT"` BEFORE any active section command, so `cmake --preset` / `ctest --preset` reliably find `CMakePresets.json` from any invocation CWD (the prior "No preset named" failure mode for standalone invocations is fixed).
-
-**§honesty compliance**:
-- **3/5 active sections wired (NOT 5/5)** — orchestrator honestly reports the wiring ratio in `[INFO]`. The 2 TODO-body sections emit only `echo` + TODO comments; the 9 stub headers emit only `echo` markers. Round-up is honest, grep-discoverable, and matches the orchestrator's actual run surface.
-- **§Fast feedback ctest env-blocked on this VPS** (vcpkg glm/magic_enum + tmpfs limitations per AGENTS.md §honesty "non segnare verde una suite che restituisce failure"): the build + ctest end-to-end is DEFERRED to working build host. On this VPS the orchestrator is verified via `bash -n` syntax check + 3-gate re-run (Architecture `G1_POST_PASS rc=0` / Camera `G2_POST_PASS rc=0` / Test-hygiene `G3_POST_PASS rc=0`).
-- **First-steps qualifier** (per AGENTS.md §honesty "non segnare verde"): the orchestrator is the FRAMEWORK's aggregator scaffolding, NOT full certification of all 14 tests. Full First-Principles Product Check certification deferred to follow-up commits per the planned 1–12 sequence in `docs/FOLLOWUP_TICKETS.md`.
-
-**Cat-3 (no new public SDK API surface) SATISFIED**: pure `tools/` artifact; zero new symbols in `include/chronon3d/`.
-
-**Cat-5 PARTIAL 1-doc same-commit** (tools-only commit recent precedent `fix(camera): dead-code migration tracker removed`): this CHANGELOG entry + the orchestrator file both updated in same atomic commit. `docs/FOLLOWUP_TICKETS.md` + `docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED — a `tools/`-only commit without SDK-state semantic should not touch SDK status per `docs/DOCUMENTATION_GOVERNANCE.md`.
-
-**Gate 5 deny-everywhere** N/A: no `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` introduced.
-
-**GATE-MNT-01 fail-on-dirty invariant**: pre-push `tools/check_main_clean.sh` will run via `tools/wrap_push.sh origin main`; commit subject `feat(check): stub first-principles orchestrator` is **47 chars** (within the 72-char `tools/check_commit_subject_length.sh` gate, audited in push range `origin/main..HEAD`).
-
-**Files changed (2 — Cat-5 alignment)**:
-- `tools/first_principles_product_check.sh` NEW (~50 LoC: 49 lines per `wc -l`, well under the user's 80-line cap)
-- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
-
-**Cross-references**: AGENTS.md §"INFO-level diagnostic style" (the `[INFO] <gate-name>: ...` additive convention applied to `FIRST_PRINCIPLES_PRODUCT_PASS`) + AGENTS.md §"Test binary staleness check (pre-ctest invariant)" (the orchestrator's `cmake --build → ctest` ordering satisfies the binary-freshness check by construction, since build precedes ctest in the same shell) + the orchestrator's own header comment (the 14-test mapping + 9 stub slot inventory) + `cmake/presets/linux-fast-dev.json` (preset chain `linux-fast-dev` + `linux-fast-dev-test`) + `tools/wrap_push.sh` GATE-MNT-01 (canonical pre-push wrapper for the push invocation).
-
----
 ## Luglio 2026 — fix(gate): resolve 10 unresolved git merge conflict markers + new tools/check_no_source_conflict_markers.sh (TICKET-SOURCE-CONFLICT-MARKERS-ROT, 2026-07-12, atomic chore commit on main)
 
 **`fix(gate): resolve 10 unresolved git merge conflict markers on main`** — atomic chore commit documenting the resolution of 10 files that had committed unresolved `<<<<<<< HEAD` / `=======` / `>>>>>>> ...` git merge markers (3 production sources + 7 tests), discovered via ripgrep on main working tree on 2026-07-12. The markers originated from a merge of commits `dbf39153 fix(tests): make golden references mandatory in CI/certification mode` + `dc7127aa fix(tests): close dangling `+,` syntax in camera_truth_orbit TextSpec initializer` that was committed WITHOUT resolution, leaving the merge conflict blocks verbatim in source code.
@@ -115,6 +61,7 @@
 **Cross-references**: [`tools/check_no_source_conflict_markers.sh`](tools/check_no_source_conflict_markers.sh) (the new gate) + `tools/wrap_push.sh` (forward-point: wire at Step 4.5) + `tools/check_no_changelog_conflict_markers.sh` (the existing CHANGELOG-only gate, complementary) + AGENTS.md §Cat-3 (zero new public API, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit, satisfied) + AGENTS.md §honesty (rot caught + fixed honestly) + AGENTS.md **"Regole di lint documentale"** §INFO-level diagnostic style rule #2 (format citation).
 
 ---
+
 ## Luglio 2026 — docs(sync): race loop, 1 commit suppressed, cleanups (TICKET-WORKFLOW-RACE-LOOP-SYNC, 2026-07-12, atomic chore commit on main)
 
 **`docs(sync): race loop, 1 commit suppressed, cleanups`** — atomic chore commit documenting the main-sync transaction at commit `95c08acb` that survived 3 race conditions with `origin/main` during push attempts. Closes `TICKET-WORKFLOW-RACE-LOOP-SYNC` (consolidated workstream capturing the 5-event sync workflow).

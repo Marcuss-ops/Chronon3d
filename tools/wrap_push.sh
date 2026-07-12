@@ -19,6 +19,7 @@
 #   4.5e. tools/check_text_golden_sources_aligned.sh (TICKET-TEXT-GOLDEN-SOURCES-ALIGNED — text_multilingual add_test ↔ target_sources alignment)
 #   4.5f. tools/check_doc_sha_dedup.sh (TICKET-FOLLOWUP-DE-DUP-REFERENCES macchina-verifica gate -- dedup (file,sha7) pairs in `docs/adr/`; ADRs 015/016 EXEMPT). Exit 1 if non-EXEMPT count > 0.
 #   4.5g. tools/check_commit_subject_length.sh (AGENTS.md 'no cosmetic amend churn' gate -- last 10 commit subjects, 72-char envelope; char-count via awk length, NOT byte-count). Exit 1 if any over-limit.
+#   4.5h. tools/check_no_source_conflict_markers.sh (TICKET-SOURCE-CONFLICT-MARKERS-ROT -- source-conflict-marker invariant: line-start anchored scan of cpp/hpp/h/c/cmake scope, excludes intentional selftest .py + prose .md markers). Exit 1 on any unresolved marker. Companion to 4.5d (CHANGELOG-only): the pair catches the full rot class that bit the project once (10 files committed to main HEAD with `<<<<<<< HEAD` markers).
 #   5. exec git push "$@" atomically
 #
 # Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
@@ -250,6 +251,21 @@ bash "${SCRIPT_DIR}/check_doc_sha_dedup.sh" \
 echo "wrap_push.sh: checking commit subject length (last 10, max 72 chars)..."
 bash "${SCRIPT_DIR}/check_commit_subject_length.sh" origin/main \
     || { echo "wrap_push.sh: GATE_FAIL on check_commit_subject_length.sh (exit $?)" >&2; exit 1; }
+
+# ── Step 4.5h: SOURCE conflict-marker invariant (TICKET-SOURCE-CONFLICT-MARKERS-ROT) ──
+# Companion to Step 4.5d (CHANGELOG-only): the pair catches the full rot
+# class that bit the project once (10 files committed to main HEAD with
+# `<<<<<<< HEAD` markers: 3 production sources + 7 tests, per the prior
+# TICKET-SOURCE-CONFLICT-MARKERS-ROT closure). Line-start anchored scan
+# of cpp/hpp/h/c/cmake scope; .py + .md deliberately excluded because
+# tools/resolve_rebase_conflict.py + tests/helpers/selftest_resolve_rebase_conflict.py
+# intentionally contain marker examples per the canonical §honesty guide.
+# The header comment of check_no_source_conflict_markers.sh documents the
+# regex (`^(<<<<<<< HEAD|=======$|>>>>>>> )`) and the remediation hints.
+# No SKIP escape hatch -- matches GATE-MNT-01 "Hardblock always" convention.
+echo "wrap_push.sh: checking source conflict markers (TICKET-SOURCE-CONFLICT-MARKERS-ROT)..."
+bash "${SCRIPT_DIR}/check_no_source_conflict_markers.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_no_source_conflict_markers.sh (exit $?)" >&2; exit 1; }
 
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
 exec git push "$@"
