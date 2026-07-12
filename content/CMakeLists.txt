@@ -73,6 +73,9 @@ add_library(chronon3d_content OBJECT
     # ── Compositing & effects certification (P1, TICKET-COMPOSITING-CERT) ──
     certification/cert_compositing.cpp
 
+    # ── Determinism & cache certification (P1, TICKET-DETERMINISM-CERT) ──
+    certification/cert_determinism.cpp
+
     # ── Sequence V2 migrated compositions (SequenceBuilder-only) ──
     showcases/sequence-v2/sequence_v2_compositions.cpp
 
