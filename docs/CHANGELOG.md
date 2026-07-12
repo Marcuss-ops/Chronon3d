@@ -1,3 +1,23 @@
+## Luglio 2026 — feat(glow): glow certification suite (Azioni 1-4, atomic chore commits on main, HARNESS-COMPLETE 2026-07-12, machine-verification deferred to working build host)
+
+**`feat(glow): glow certification suite`** — 4-azione atomic chore lineage landing the complete glow certification per user spec verbatim (Test GLOW-CERT, First-Principles Product Check).
+
+**Azione 1** (`285b8cff`): NEW `tools/check_glow_ab.py` (Python luma + bbox A/B acceptance) + NEW `tests/visual/glow_ab/glow_ab_acceptance.cpp` (6 TEST_CASEs: intensity-zero, radius, additive, anti-clip, no-rect-edge, state-leak) + EDIT `apps/chronon3d_cli/cli_init.hpp` (register `ChrononGlowFinalAE_NoGlow`) + EDIT `tests/text_golden_tests.cmake` (wire + `GlowAcceptance` ctest alias).
+
+**Azione 2** (`53d8c59d` + `0cf982a2` fix SSIM): NEW `tools/check_glow_temporal.py` (frames 60-frame sweep + ssim sub-commands) + NEW `tests/visual/glow_ab/glow_temporal_tests.cpp` (3 TEST_CASEs: 60-frame sweep, pulse contracted, MP4 SSIM forward-point) + EDIT `tests/text_golden_tests.cmake` (wire + `GlowTemporal` ctest alias).
+
+**Azione 3** (`ec8042ef` + `0f549fd8` doc): NEW `tests/visual/glow_ab/glow_determinism_tests.cpp` (2 TEST_CASEs: 3-run hash identity, fresh-renderer; state-leak already in Azione 1) + EDIT `tests/text_golden_tests.cmake` (wire + `GlowDeterminism` ctest alias).
+
+**Azione 4** (`b9f71e73` + `b3464dab` fix): NEW `tools/check_glow_certification.sh` (5-phase gate: binary check → ctest → Python A/B → temporal → SSIM → determinism) + EDIT `tools/first_principles_product_check.sh` (wire `== Glow certification ==` section, bump 8/8→9/9).
+
+**Ctest aliases**: `GlowAcceptance` (6 tests) + `GlowTemporal` (3 tests) + `GlowDeterminism` (2 tests) + `TextGlowSmoke` (2 tests, pre-existing) = **13 glow TEST_CASEs total**.
+
+**Cat-3 SATISFIED** (zero new public SDK API surface — pure `tools/` + `tests/visual/glow_ab/` + `tests/text_golden_tests.cmake` tracking + 1 CLI registration edit). **Cat-5 3-doc same-commit**: this CHANGELOG entry + FOLLOWUP_TICKETS row + CURRENT_STATUS row atomically updated.
+
+**§honesty compliance**: machine-verification DEFERRED to working build host per AGENTS.md §honesty (vcpkg glm/magic_enum + tmpfs env on this VPS blocks `chronon3d_cli` binary + ctest execution). The 5-phase gate script `tools/check_glow_certification.sh` fail-loudly emits `GATE_FAIL` with canonical rebuild hint when binary is absent.
+
+---
+
 ## Luglio 2026 — tests(text): extend Fase 6 to 60-frame alpha bbox + centroid + CSV per spec §5 (atomic chore on main, HARNESS-COMPLETE 2026-07-12, machine-verification deferred to working build host)
 
 **`tests(pipeline): 60-frame alpha bbox + centroid + CSV per spec §5`** — atomic chore commit extending `tests/text/test_pipeline_parity_real.cpp::ChrononGlowFinalAE Fase 6` from a 3-frame sample (at f00/f15/f30 only) to a full 60-frame alpha bbox + centroid + max_alpha loop per user-spec verbatim §5: "misura alpha bbox (`a > 3` pixels), centro pesato alpha, larghezza/altezza bbox, max_alpha, e assert: bbox > 100×30 px, margine 8 px dai bordi, centro |cx-960|<110 e |cy-540|<110, salto centro tra frame adiacenti < 12 px (no flicker geometrico), nessun frame completamente vuoto, max_alpha > 64." Emits a canonical 12-column CSV at `output/text_video_acceptance/frame_metrics.csv` with the user-spec-verbatim schema (`frame,x0,y0,x1,y1,width,height,centroid_x,centroid_y,visible_pixels,alpha_sum,max_alpha`). Closes the §5 forward-point from the prior `docs(followup): register TICKET-VIDEO-COMPLETENESS-MATRIX` audit-only commit (2026-07-12, atomic doc-only chore).
