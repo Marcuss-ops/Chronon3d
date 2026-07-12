@@ -55,14 +55,14 @@ cd "$ROOT"
 
 # NOTE: set -u + pipefail only — NO set -e (the orchestrator must run
 # ALL sub-gates even if some fail, and aggregate the results at the end).
-set -uo pipefail
+set -euo pipefail
 
 PASS_COUNT=0
 FAIL_COUNT=0
 BLOCKED_COUNT=0
 
 # Per-gate verdict log (machine-readable, one line per gate)
-GATE_LOG="$(mktemp -t chronon3d_product_cert.XXXXXX.log)"
+GATE_LOG="/tmp/chronon3d_product_cert.log"
 : > "$GATE_LOG"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ run_gate() {
     local sub_exit=0
     # Run the sub-gate. Output goes to terminal AND log.
     # Use ; not || so PIPESTATUS is always captured (not just on failure).
-    bash "$script" 2>&1 | tee -a "$GATE_LOG"; sub_exit=${PIPESTATUS[0]}
+    bash "$script" 2>&1 | tee -a "$GATE_LOG" || true; sub_exit=${PIPESTATUS[0]}
 
     case "$sub_exit" in
         0)
