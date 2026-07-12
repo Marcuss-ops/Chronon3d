@@ -125,10 +125,10 @@ Composition card_flip() {
             if (scale_x > 0) {
                 l.rounded_rect("front", {.size = {400, 560}, .radius = 20, .color = {0.12f, 0.15f, 0.25f, 1}});
                 l.rect("header", {.size = {360, 80}, .color = {0.25f, 0.52f, 1, 0.3f}, .pos = {0, -200, 0.1f}});
-                l.text("label", TextSpec{.content    = {.value = "FLIP"},.position   = {0, 0, 0.2f},.font       = {.font_family = "Inter", .font_weight = 800, .font_size = 56.0f},.layout     = {.box = {320, 80}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 8.0f},.appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},});
+                l.text("label", TextSpec{.content    = {.value = "FLIP"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_family = "Inter", .font_weight = 800, .font_size = 56.0f},.layout     = {.box = {320, 80}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 8.0f},.appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},});
             } else {
                 l.rounded_rect("back", {.size = {400, 560}, .radius = 20, .color = {0.08f, 0.10f, 0.18f, 1}});
-                l.text("label", TextSpec{.content    = {.value = "2.5D"},.position   = {0, 0, 0.2f},.font       = {.font_family = "Inter", .font_weight = 800, .font_size = 56.0f},.layout     = {.box = {320, 80}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 8.0f},.appearance = {.color = Color{0.4f, 0.6f, 0.9f, 1}},});
+                l.text("label", TextSpec{.content    = {.value = "2.5D"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_family = "Inter", .font_weight = 800, .font_size = 56.0f},.layout     = {.box = {320, 80}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 8.0f},.appearance = {.color = Color{0.4f, 0.6f, 0.9f, 1}},});
             }
         });
 

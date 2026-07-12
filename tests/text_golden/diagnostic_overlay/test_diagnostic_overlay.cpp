@@ -228,7 +228,7 @@ OverlayResult render_with_overlay(SoftwareRenderer& renderer, ClipVariant varian
             // Text layer — canary at canvas center
             s.layer("text", [&renderer, clip_rect](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text("label", TextSpec{.content    = {.value = std::string(kCanaryText)},.position   = Vec3{960.0f, 540.0f, 0.0f},.font       = {.font_size = 96.0f},.layout     = {.box = Vec2{900.0f, 200.0f},
+                l.text("label", TextSpec{.content    = {.value = std::string(kCanaryText)},.placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},.font       = {.font_size = 96.0f},.layout     = {.box = Vec2{900.0f, 200.0f},
                                    .anchor = TextAnchor::Center,
                                    .align  = TextAlign::Center,
                                    .vertical_align = VerticalAlign::Middle},});

@@ -84,7 +84,7 @@ Composition shape_proofs() {
             l.path("card_bg", cp);
 
             // Draw label text
-            l.text("lbl", TextSpec{.content = {.value = text},.position = get_label_pos(col, row) - get_cell_pos(col, row),.font = {.font_size = 11.0f},.layout = {.box = {card_w - 20.0f, 20.0f}, .align = TextAlign::Center},.appearance = {.color = {0.55f, 0.65f, 0.8f, 0.85f}},});
+            l.text("lbl", TextSpec{.content = {.value = text},.placement = TextPlacement{TextPlacementKind::Absolute, {(get_label_pos(col, row) - get_cell_pos(col, row)).x, (get_label_pos(col, row) - get_cell_pos(col, row)).y}},.font = {.font_size = 11.0f},.layout = {.box = {card_w - 20.0f, 20.0f}, .align = TextAlign::Center},.appearance = {.color = {0.55f, 0.65f, 0.8f, 0.85f}},});
         };
 
         // Title
