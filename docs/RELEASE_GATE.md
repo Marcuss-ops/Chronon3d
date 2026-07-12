@@ -78,6 +78,36 @@ Tutti i punti seguenti devono essere veri:
    canonici per la copertura del simboli; il consumer manifest-clean
    è l'invariante pubblica della SDK.
 
+## Certificazione Globale Linux (21-item DoD)
+
+Il comando canonico per la certificazione prodotto end-to-end è:
+
+```bash
+bash tools/verify_chronon_product_linux.sh
+```
+
+Questo orchestratore (definito a `tools/verify_chronon_product_linux.sh`, ~306 LoC, `set -euo pipefail` + 3-way `CHRONON_PRODUCT_FUNCTIONAL_{PASS,FAIL,BLOCKED}` verdict + `[INFO] ${GATE_NAME}: ...` addizionale al canonico `PASS`) copre i **21 item DoD** dello spec utente (13 zero-require + 8 one-of) via 14 sub-gate eseguibili + 1 forward-pointed:
+
+| # | Sub-gate | Copertura DoD |
+|---|----------|----------------|
+| 1 | `verify_repository_baseline_linux` | 0 clean-build error + 0 test falliti + 0 test disabilitati (3 item) |
+| 2 | `verify_text_functional_linux` | 0 testo richiesto senza glifi + +1 pipeline testo (2 item) |
+| 3 | `verify_camera_functional_linux` | 0 camera ricompilata per frame + +1 pipeline camera (2 item) |
+| 4 | `verify_render_runtime_linux` | 0 frame neri silenziosi + +1 renderer canonico (2 item) |
+| 5 | `verify_video_pipeline_linux` | bonus gate |
+| 6 | `verify_asset_preflight_linux` | 0 asset mancanti ignorati + +1 asset preflight (2 item) |
+| 7 | `verify_timeline_functional_linux` | +1 timeline (1 item) |
+| 8 | `verify_compositing_effects_linux` | +1 RenderGraph (1 item) |
+| 9 | `verify_determinism_linux` | 0 divergenze seriale/parallelo + 0 differenze cache fredda/calda (2 item) |
+| 10 | `verify_error_handling_linux` | bonus gate (10 classi di errore) |
+| 11 | `install_consumer_test` | 0 header internal nel consumer + +1 SDK pubblico (2 item) |
+| 12 | `verify_packaging_linux` | 0 path assoluti nel pacchetto (1 item) |
+| 13 | `verify_performance_linux` | bonus gate |
+| 14 | `verify_sanitizer_linux` | 0 race rilevate + 0 leak ASan (2 item) |
+| 15 | `verify_diagnostics_linux` (forward-pointed) | bonus gate (forward-pointed) |
+
+L'output richiesto è **`CHRONON_PRODUCT_FUNCTIONAL_PASS`** (exit 0). Stato corrente osservato: **`CHRONON_PRODUCT_FUNCTIONAL_BLOCKED`** (exit 2) — 14/14 sub-gate eseguibili PASS + 1 forward-pointed. Dettaglio completo: [`docs/baselines/main-ef9c83f1-baseline.md`](docs/baselines/main-ef9c83f1-baseline.md). Conversion a PASS richiede l'implementazione del 15mo gate (`TICKET-VERIFY-DIAGNOSTICS-LINUX` + `TICKET-VERIFY-DIAGNOSTICS-ORCHESTRATOR-WIREIN`).
+
 ## Criterio di chiusura
 
 Un lavoro è chiuso soltanto quando:
