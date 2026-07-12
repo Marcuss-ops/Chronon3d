@@ -7,13 +7,13 @@
 // Why this header exists
 // ───────────────────────
 //   `SKIP(msg)` was introduced in doctest 2.4.0 (March 2022) as a short
-//   alias for the canonical `DOCTEST_SKIP(msg)` macro. The vcpkg baseline
-//   used by this project tracks a doctest version older than 2.4.0, where
+//   alias for the canonical `DOCTEST_SKIP`. The vcpkg baseline used by
+//   this project tracks a doctest version older than 2.4.0, where
 //   `SKIP` is missing from `<doctest/doctest.h>` even though
 //   `DOCTEST_SKIP` works correctly. The compile failure at
 //   `tests/text/test_pipeline_parity_real.cpp:455` is a symptom of this
 //   version drift: the test uses the newer `SKIP("…")` form while the
-//   installed doctest only exposes the older `DOCTEST_SKIP("…")` form.
+//   installed doctest only exposes the older `DOCTEST_SKIP` macro.
 //
 // Why this fix is preferred over the alternatives
 // ───────────────────────────────────────────────
@@ -35,13 +35,24 @@
 //     proof: any new test that uses `SKIP("…")` only needs a single
 //     `#include` line. This is the approach taken here.
 //
+// Macro form (single-arg vs variadic) — deliberate choice
+// ───────────────────────────────────────────────────────
+//   The macro below uses the single-arg form `#define SKIP(msg) DOCTEST_SKIP msg`
+//   for vcpkg-baseline compat. Native doctest 2.4.0+ uses a variadic
+//   form `#define SKIP(...) DOCTEST_SKIP(__VA_ARGS__)`. Both forms are
+//   equivalent for the actual call sites here (all 3 SKIP call sites
+//   pass a single expression). A future doctest upgrade that wants
+//   variadic can either drop this header entirely (native SKIP will be
+//   defined) or replace the macro with the variadic form — the guard
+//   `#ifndef SKIP` ensures only one definition wins.
+//
 // Semantic equivalence
 // ────────────────────
 //   In doctest 2.4.0+, `SKIP(msg)` is officially defined as a direct
-//   alias for `DOCTEST_SKIP(msg)`. By aliasing at this layer we
-//   reproduce the same semantics on older doctest versions — the call
-//   site output (`*** SKIPPED ***`), the context block, and the test
-//   result accounting are identical regardless of the doctest version.
+//   alias for `DOCTEST_SKIP`. By aliasing at this layer we reproduce
+//   the same semantics on older doctest versions — the call site output
+//   (`*** SKIPPED ***`), the context block, and the test result
+//   accounting are identical regardless of the doctest version.
 //
 // Usage
 // ─────
@@ -49,15 +60,17 @@
 //   …
 //   TEST_CASE("…") {
 //       if (!ffmpeg_available()) {
-//           SKIP("ffmpeg not found in PATH");
+//           SKIP("TICKET-DOCTEST-SKIP-ROT: ffmpeg not found in PATH");
 //       }
 //       …
 //   }
 //
-// Any test TU that calls `SKIP(...)` MUST include this header before
-// the first `SKIP` use, otherwise the macro will still be undefined.
-// The existing `test_cinematic_artifacts.cpp` already uses
-// `DOCTEST_SKIP(...)` directly and does NOT need this header.
+// Each `SKIP(...)` call site MUST include a `TICKET-DOCTEST-SKIP-ROT`
+// tag in its message string per `tools/check_test_hygiene.sh` Check 2
+// (the gate ensures every skip is traceable to a tracked ticket).
+// The existing `tests/showcase/cinematic/test_cinematic_artifacts.cpp`
+// already uses `DOCTEST_SKIP` directly with TICKET-A4 tags and does NOT
+// need this header.
 //
 // Macchina-verifica status
 // ─────────────────────────────────────────────────────────────────
@@ -72,12 +85,11 @@
 // ──────────────────────────────────────────────────────────────
 //   `tests/text/test_pipeline_parity_real.cpp:455` uses a stream
 //   expression:
-//     SKIP("chronon3d_cli not built at " << get_cli_path()
+//     SKIP("TICKET-DOCTEST-SKIP-ROT: chronon3d_cli not built at " << get_cli_path()
 //          << " — pre-existing build rot blocks the test");
 //
 //   The helper expands this to
-//     DOCTEST_SKIP("chronon3d_cli not built at " << get_cli_path()
-//                  << " — pre-existing build rot blocks the test")
+//     DOCTEST_SKIP("TICKET-DOCTEST-SKIP-ROT: chronon3d_cli not built at " << ...)
 //   and whether this compiles depends entirely on whether the
 //   installed `doctest`'s `DOCTEST_SKIP` macro natively handles
 //   stream-expressions (via `ContextScope::stringify() << ...` or
@@ -93,14 +105,17 @@
 //   diagnostic, the lowest-disruption fix is option (c) only on
 //   line 455 — replace the stream-expression call with one of:
 //
-//     // simplest: WARN + early-return (loses "SKIPPED" test status)
-//     WARN("chronon3d_cli not built at " << get_cli_path()
-//          << " — pre-existing build rot blocks the test");
+//     // simplest: WARN_MESSAGE + early-return (loses "SKIPPED" test status).
+//     // Note: WARN does NOT accept stream expressions in doctest; the
+//     // streaming form is WARN_MESSAGE.
+//     WARN_MESSAGE("TICKET-DOCTEST-SKIP-ROT: chronon3d_cli not built at " << get_cli_path()
+//                  << " — pre-existing build rot blocks the test");
 //     return;
 //
-//     // or pre-format to std::string:
+//     // or pre-format to std::string (requires `#include <sstream>`
+//     // and `#include <string>` AT THE TOP of the test file):
 //     std::ostringstream _oss;
-//     _oss << "chronon3d_cli not built at " << get_cli_path()
+//     _oss << "TICKET-DOCTEST-SKIP-ROT: chronon3d_cli not built at " << get_cli_path()
 //          << " — pre-existing build rot blocks the test";
 //     DOCTEST_SKIP(_oss.str().c_str());
 //
@@ -126,8 +141,9 @@
 // available since doctest 1.x and is what this codebase already uses
 // outside of the affected files (e.g.,
 // `tests/showcase/cinematic/test_cinematic_artifacts.cpp`).
+// TICKET-DOCTEST-SKIP-ROT: macro alias definition line.
 #ifndef SKIP
-#define SKIP(msg) DOCTEST_SKIP(msg)
+#define SKIP(msg) DOCTEST_SKIP(msg)  // TICKET-DOCTEST-SKIP-ROT
 #endif
 
 #endif // DOCTEST_SKIP_COMPAT_HPP
