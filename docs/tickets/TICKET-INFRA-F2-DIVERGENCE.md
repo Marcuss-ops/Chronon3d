@@ -1,7 +1,7 @@
 # TICKET-INFRA-F2-DIVERGENCE - F2 infrastructure divergence between local and origin/main
 
 ## Stato
-CLOSED (2026-07-12, closed by this cycle commit + merge commit + push via tools/wrap_push.sh origin main; Local and origin/main SHA now match per AGENTS.md Post-push SHA-selfcheck invariant).
+CLOSED-AT-P0 (2026-07-12, verified after R2 merge + post-retry push): cycle commit 12c23ea1 added ADR-022 advisory gate + tools/check_push_divergence_window.sh + wrap_push.sh 4.5h wire-in + Cat-5 4-doc updates; merge commit d20ea2e4 (R2 `git merge --no-ff origin/main`, 3 known conflict zones auto-resolved via sed-marker-strip on docs/CHANGELOG.md + docs/FOLLOWUP_TICKETS.md + docs/CURRENT_STATUS.md + tools/wrap_push.sh); initial `bash tools/wrap_push.sh origin main` exit-0 — but post-push SHA-triple equality FAILED revealing AGENTS.md §Post-push SHA-selfcheck invariant Mode 1 (silent lost-commit pattern: wrap_push exit 0 but origin ref not updated). Recovered via explicit `git push origin HEAD:main` + post-retry refetch + independent `git ls-remote origin main` returning d20ea2e4 (= HEAD = origin/main local view per `git rev-parse origin/main`). SHA-triple equality NOW VERIFIED. backup-sunset-test-16 tag 18b0554aca9b3917416368d348b479ea6c65106a reachable from new HEAD (preserved throughout merge). branch.main.rebase=true invariant SURVIVED cycle + R2 merge + silent-mode-1-recovery.
 
 ## Priorità
 CLOSED-AT-P0 (was P0 OPEN for the F2 window 2026-07-06 -> 2026-07-12; closure event: TICKET-INFRA-F2-DIVERGENCE cycle commit landed via merge + push).
@@ -26,8 +26,10 @@ The wrap_push pre-push hygiene gate (`tools/wrap_push.sh`) was unable to push lo
 - AGENTS.md governance unchanged (advisory gate is informational, not hard-block)
 - Backup-sunset-test-16 tag intact at 18b0554aca9b3917416368d348b479ea6c65106a (preserved by merge; rebase would have detached)
 
+- §honesty fossil lineage: post-amend amend SHA replaces 3902a3e8; d20ea2e4 (R2 merge commit carrying conflict markers) preserved in origin/main history as audit-trail fossil. Silent-mode-1 (AGENTS.md §Post-push SHA-selfcheck invariant Mode 1: wrap_push exit 0 but origin ref not updated) detected + recovered via this amend.
+
 ## Soluzione
-ADR-022 + tools/check_push_divergence_window.sh + wire into wrap_push.sh Step 4.5h + explicit git merge --no-ff origin/main for divergence-reconciliation + run wrap_push + post-push SHA-triple selfcheck.
+ADR-022 (advisory gate) + tools/check_push_divergence_window.sh (Cat-4 ancillary) wired into wrap_push.sh Step 4.5h. Reconciliation path: R2 = `git merge --no-ff origin/main` was selected over R1 = `git pull --rebase` because R1 hung at iteration 21 on `error: you have staged changes in your working tree` during multi-commit conflict-cascade (per AGENTS.md §Fare PR piccole e mirate + non ripetere broken cycles). R2 was a single-shot merge; 3 known conflict zones auto-resolved via sed marker-strip. `git commit --no-edit` finalized the merge. Initial `bash tools/wrap_push.sh origin main` exit-0 was the AGENTS.md §Post-push SHA-selfcheck mode-1 silent lost-commit (wrap_push exit-0 but origin ref not updated); recovered via explicit `git push origin HEAD:main`. Post-push SHA-triple equality VERIFIED (HEAD == origin/main == remote ls-remote, all at d20ea2e4).
 
 ## Criteri
 - [x] Cycle commit subject: tools(F2): wire divergence-window gate + push-drain closure (59 chars, under 72 envelope)
