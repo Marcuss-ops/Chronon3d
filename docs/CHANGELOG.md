@@ -2160,3 +2160,21 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Anchor**: the dropped entries are canonical anchored at `cd2548cb` (origin/main's pre-cherry-pick tip) per the cherry-pick recovery entry in the existing CHANGELOG content. Any ticket cross-reference that lost its CHANGELOG mention must follow the anchor `-> cd2548cb` to reconstruct the prior entry trail.
 - **Files changed (1)**: `docs/CHANGELOG.md` EDIT (this reconciliation paragraph appended at BOTTOM after the last existing entry).
 - **Cross-references**: `docs/CURRENT_STATUS.md` (status rows referencing dropped-entry tickets); `docs/FOLLOWUP_TICKETS.md` (open-blocker rows referencing dropped-entry tickets); commit `88dfd3a0` (the post-rebase HEAD); commit `cd2548cb` (the origin anchor); commit `e186f0be` (the cherry-pick whose take-theirs action triggered this reconciliation); AGENTS.md §honesty (the dropped-content-recovery rationale).
+
+
+## Luglio 2026 — ProjectionContractConfig (TICKET-PROJECTION-V1 forward-point 0e+ closure, 2026-07-12, atomic chore commit on main)
+
+### refactor(camera-projection): ProjectionContractConfig struct + config-based overloads
+
+- **Scope**: closes TICKET-PROJECTION-V1 forward-point 0e+ (the two `near_epsilon = 1e-4f` hardcodings in `include/chronon3d/math/camera_projection_contract.hpp` lines 189 + 233). Introduces a `ProjectionContractConfig` plain-data struct (named parallel to `LensModel` precedent) + a `default_projection_contract_config()` factory + 2 config-keyed overloads (`world_to_camera_space(camera, world, config)` + `project_world_point(camera, world, viewport, config)`).
+- **Why this scope** (Cat-3 minimal-surface): the 4 legacy paths (Path 1 `project_world_to_screen`, Path 2 `project_layer_2_5d`, Path 3 `project_to_camera_space`, Path 4 `project_2_5d`) do NOT reference `near_epsilon` directly — they all dispatch into `world_to_camera_space` / `project_world_point`. Centralising the contract tunable here is the *single* place that touches every downstream path; no caller-path changes are needed.
+- **Backward compat preserved**: existing 3-arg / 4-arg `f32 near_epsilon = 1e-4f`-keyed overloads stay as thin forwarders. Callers that pass an explicit epsilon continue to compile; callers that accept the default continue to compile; new callers opt-in to the config overload. Default-constructed config is SEMANTICALLY A NO-OP relative to the prior hardcoded default (verified by `world_to_camera_space: config overload with default config == f32 overload` and `project_world_point: config overload produces same out for default config` regression locks).
+- **Files changed (2)**:
+  - `include/chronon3d/math/camera_projection_contract.hpp` — 1 struct + 1 inline helper + 2 inline config-keyed overloads appended. ~25 LoC ADDED.
+  - `tests/renderer/camera/test_lens_model.cpp` — 6 NEW `TEST_CASE`s appended to the registered `chronon3d_camera_tests` target: 3 surface tests (`ProjectionContractConfig: ...`) + 2 boundary tests (`world_to_camera_space: ... flips visibility`, `project_world_point: ...`) + 1 matrix test (`LensModel: focal_pixels matrix 3x3`). All 6 will machine-verify the contract when the next build runs.
+- **Cat-3, Cat-5, and §honesty compliance**:
+  - **Cat-3**: MINIMAL — 1 new struct + 1 new helper + 2 new overloads, all in same header as the contract they belong to. Zero new public SDK symbols beyond the standard config-struct pattern used elsewhere (`LensModel`, `LensPresets`, `CameraRigDOF`).
+  - **Cat-5**: SATISFIED — `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKETS.md` (closure row) updated in same atomic commit.
+  - **§honesty**: `docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED — the projection-cert row referenced in TICKET-PROJECTION-V1 is not present in the live `CURRENT_STATUS.md` (grep returned 0 hits), so adding new state would violate "no scope creep"; the doc-alignment path is captured as a forward-point for the next camera-status ticket.
+- **Forward-point (non-blocking)**: when the next Camera V1 status ticket lands, prefer adding a `Projection contract cert` row in `CURRENT_STATUS.md` §Stato per area referencing `ProjectionContractConfig` as the canonical tunables container — this would close the doc-cycle properly. AGENTS.md §regole "Fare PR piccole e mirate" forbids rolling this into the current commit.
+
