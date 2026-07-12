@@ -163,14 +163,8 @@ bool render_and_verify_hangul(
             std::string{"multilingual_hangul_composition_"} + case_slug + "_1920x1080",
             make_hangul_config(std::string{case_slug} + "_1920x1080"));
         INFO("Golden (1920x1080): ", r.message);
-<<<<<<< HEAD
-        REQUIRE_FALSE(r.golden_missing); else {
-            if (!r.passed) return false;
-        }
-=======
         REQUIRE_FALSE(r.golden_missing);
         if (!r.passed) return false;
->>>>>>> dbf39153 (fix(tests): make golden references mandatory in CI/certification mode)
     }
     // 1080×1920 portrait golden
     {
@@ -184,14 +178,8 @@ bool render_and_verify_hangul(
             std::string{"multilingual_hangul_composition_"} + case_slug + "_1080x1920",
             make_hangul_config(std::string{case_slug} + "_1080x1920"));
         INFO("Golden (1080x1920): ", r.message);
-<<<<<<< HEAD
-        REQUIRE_FALSE(r.golden_missing); else {
-            if (!r.passed) return false;
-        }
-=======
         REQUIRE_FALSE(r.golden_missing);
         if (!r.passed) return false;
->>>>>>> dbf39153 (fix(tests): make golden references mandatory in CI/certification mode)
     }
     return true;
 }
