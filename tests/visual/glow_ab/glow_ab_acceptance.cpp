@@ -11,7 +11,7 @@
 //   6. State leak ON/OFF/ON: first ON == last ON, ON != OFF.
 //
 // Uses the canonical ChrononGlowFinalAE factory via
-// content/compositions/chronon_glow_final.hpp (ChrononGlowProps, make_chronon_glow_final_for_test)
+// content/compositions/chronon_glow_final.hpp (ChrononGlowProps, make_chronon_glow_final)
 // plus the existing test helpers (alpha_bbox, alpha_centroid, framebuffer_hash,
 // average_luma_rect) from tests/helpers and tests/text_golden/text_clip/.
 //
@@ -50,8 +50,7 @@ std::shared_ptr<Framebuffer> render_at(
     ChrononGlowProps props,
     Frame frame) {
     return renderer->render(
-        chronon3d::test::glow_final::make_chronon_glow_final_for_test(
-            props, renderer->font_engine()),
+        chronon3d::test::glow_final::make_chronon_glow_final(props),
         frame);
 }
 

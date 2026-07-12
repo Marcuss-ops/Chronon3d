@@ -52,8 +52,7 @@ u64 render_and_hash(
     ChrononGlowProps props,
     int frame_idx) {
     auto fb = renderer->render(
-        chronon3d::test::glow_final::make_chronon_glow_final_for_test(
-            props, renderer->font_engine()),
+        chronon3d::test::glow_final::make_chronon_glow_final(props),
         Frame{frame_idx});
     REQUIRE(fb != nullptr);
     return framebuffer_hash(*fb);

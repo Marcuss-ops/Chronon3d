@@ -47,8 +47,7 @@ std::shared_ptr<Framebuffer> render_at(
     ChrononGlowProps props,
     int frame_idx) {
     return renderer->render(
-        chronon3d::test::glow_final::make_chronon_glow_final_for_test(
-            props, renderer->font_engine()),
+        chronon3d::test::glow_final::make_chronon_glow_final(props),
         Frame{frame_idx});
 }
 

@@ -100,18 +100,16 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t /*frame_idx*
     ChrononGlowProps props = chronon3d::test::glow_final::default_landscape_props();
     // Phase 2 canonical emit: cinematic glow ON + scale breath ON.
     props.glow_enabled        = true;  // CinematicGlowPreset (r=4/14/34, i=0.55/0.22/0.08)
-    props.enable_scale_breath = true;  // 0.96/1.05/0.98 layer scale envelope
-    return chronon3d::test::glow_final::make_chronon_glow_final_for_test(
-        props, renderer.font_engine());
+    props.scale_breath = true;  // 0.96/1.05/0.98 layer scale envelope
+    return chronon3d::test::glow_final::make_chronon_glow_final(props);
 }
 
 Composition build_portrait(SoftwareRenderer& renderer, std::size_t /*frame_idx*/) {
     ChrononGlowProps props = chronon3d::test::glow_final::default_portrait_props();
     // Phase 2 canonical portrait emit (same canonical cinematic glow).
     props.glow_enabled        = true;
-    props.enable_scale_breath = true;
-    return chronon3d::test::glow_final::make_chronon_glow_final_for_test(
-        props, renderer.font_engine());
+    props.scale_breath = true;
+    return chronon3d::test::glow_final::make_chronon_glow_final(props);
 }
 
 } // namespace
