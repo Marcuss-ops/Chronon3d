@@ -106,7 +106,7 @@ Composition cert_image() {
                 l.image("cert_img", ImageParams{
                     .asset_path = kCertImageAsset,
                     .size = {kShapeW, kShapeH},
-                    .alpha = 1.0f,
+                    .opacity = 1.0f,
                 });
             });
             return s.build();
@@ -176,7 +176,7 @@ Composition cert_composite() {
                 l.image("cert_img", ImageParams{
                     .asset_path = kCertImageAsset,
                     .size = {200.0f, 150.0f},
-                    .alpha = 1.0f,
+                    .opacity = 1.0f,
                 });
             });
             // Layer 3: rectangle (offset bottom-right)
