@@ -56,6 +56,8 @@ Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 
 | SDK C++ installabile | PASS | gate #10: sub-blocks A+B PASS, sub-block C (FU5 mean-RGB) DONE. |
+
+**+1 cite-only (2026-07-12, this session)**: TICKET-VERIFY-SDK-CONSUMER-IMAGE-ASSET landed (real `LayerBuilder::image()` surface coverage: NEW `tests/install_consumer/assets/test_image.png` synthetic 8x8 PNG (89 bytes, 4 distinct colors in 2x2 grid) committed in-tree + `main_full.cpp` `image_rect` layer replaced with real `l.image("test_image", ImageParams{.asset_path = "test_image.png", ...})` (manifest-clean `asset_path` field per TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e) + `CMakeLists.txt` `add_custom_command(TARGET check_full POST_BUILD ...)` copies PNG to consumer build dir + `tools/verify_sdk_consumer_functional_linux.sh` Section 6 +2 audit checks (`image_surface` greps `l.image(` + `image_asset_present` verifies test_image.png non-empty), with §honest-limitation preserved (dry-run on this VPS FAIL-LOUDs on Section 1 dirty-tree; macchina-verifica DEFERRED to working build host). TICKET-VERIFY-SDK-CONSUMER-IMAGE-ASSET (P1) status upgraded from `PLANNED` → `WIRED` (real image() surface + 1 asset) — see [docs/FOLLOWUP_TICKETS.md](FOLLOWUP_TICKETS.md) §Open Blockers + [docs/CHANGELOG.md](CHANGELOG.md) prepended entry.
 | SDK cross-language | NOT RUN | C ABI e formato `.chronon` da progettare. |
 | Render runtime | PASS | ImageCache + RenderSession::layout_cache landed. |
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
