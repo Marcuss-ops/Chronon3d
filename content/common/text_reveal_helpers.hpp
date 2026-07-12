@@ -249,17 +249,17 @@ inline void build_text_reveal_line(SceneBuilder& s,
             // Opacity: invisible → visible → held
             {
                 auto& op = l.opacity_anim();
-                op.key(Frame{0},                                  0.0f, EasingCurve{Easing::Hold});
-                op.key(Frame{static_cast<Frame>(delay)},          0.0f, d.opacity_easing);
-                op.key(Frame{static_cast<Frame>(end_f)},          1.0f, EasingCurve{Easing::Hold});
+                op.add_keyframe(Frame{0},                                  0.0f, EasingCurve{Easing::Hold});
+                op.add_keyframe(Frame{static_cast<Frame>(delay)},          0.0f, d.opacity_easing);
+                op.add_keyframe(Frame{static_cast<Frame>(end_f)},          1.0f, EasingCurve{Easing::Hold});
             }
 
             // Optional slide-up
             if (d.slide_up) {
                 auto& pos = l.position_anim();
-                pos.key(Frame{0},     Vec3{cx, d.base_pos.y + d.slide_up_px, d.base_pos.z}, EasingCurve{Easing::Hold});
-                pos.key(Frame{static_cast<Frame>(delay)}, Vec3{cx, d.base_pos.y + d.slide_up_px, d.base_pos.z}, d.position_easing);
-                pos.key(Frame{static_cast<Frame>(end_f)}, Vec3{cx, d.base_pos.y, d.base_pos.z}, EasingCurve{Easing::Linear});
+                pos.add_keyframe(Frame{0},     Vec3{cx, d.base_pos.y + d.slide_up_px, d.base_pos.z}, EasingCurve{Easing::Hold});
+                pos.add_keyframe(Frame{static_cast<Frame>(delay)}, Vec3{cx, d.base_pos.y + d.slide_up_px, d.base_pos.z}, d.position_easing);
+                pos.add_keyframe(Frame{static_cast<Frame>(end_f)}, Vec3{cx, d.base_pos.y, d.base_pos.z}, EasingCurve{Easing::Linear});
             }
 
             // Optional drop shadow
@@ -297,6 +297,19 @@ inline void build_text_reveal_line(SceneBuilder& s,
             ts.layout.tracking         = 0.0f;
             ts.appearance.color        = d.color;
 
+            ts.layout.box           = {ch_w + pad, d.font_size * 1.8f};
+            ts.placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}};
+            ts.font.font_path      = d.font_spec.font_path;
+            ts.font.font_family    = d.font_spec.font_family;
+            ts.font.font_weight    = d.font_spec.font_weight;
+            ts.font.font_size      = d.font_size;
+            ts.appearance.color          = d.color;
+            ts.layout.anchor         = TextAnchor::Center;
+            ts.layout.align          = TextAlign::Center;
+            ts.layout.vertical_align = VerticalAlign::Middle;
+            ts.layout.line_height    = 1.10f;
+            ts.layout.tracking       = 0.0f;
+
             l.text("label", ts);
         });
     }
@@ -310,6 +323,57 @@ inline FontSpec font_bold() {
 
 inline FontSpec font_regular() {
     return FontSpec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// 4. build_2line_typewriter — shared 2-line per-glyph typewriter block
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Builds a centered 2-line typewriter reveal. Both lines share the same
+// left edge and use the production defaults (Poppins-Regular, 4 px tracking,
+// -50 px base-y, production text/shadow colors) unless overridden.
+//
+// Moved here from content/examples/text/text_animations.cpp so the A/B
+// test in tests/visual/glow_ab/ and the production compositions share
+// exactly one definition.
+
+inline void build_2line_typewriter(SceneBuilder& s,
+                                   const std::string& line1, f32 size1,
+                                   const std::string& line2, f32 size2,
+                                   f32 start_delay_2 = 36.0f,
+                                   f32 line_spacing = 85.0f,
+                                   bool slide_up = false,
+                                   f32 glow_intensity = 0.0f,
+                                   f32 base_y = -50.0f,
+                                   f32 tracking = 4.0f,
+                                   Color text_color = {0.92f, 0.93f, 0.97f, 1.0f},
+                                   Color shadow_color = {0.0f, 0.0f, 0.0f, 0.15f})
+{
+    auto spec = font_regular();
+    f32 w1 = measure_text_width(line1, size1, spec, tracking, *s.font_engine());
+    f32 w2 = measure_text_width(line2, size2, spec, tracking, *s.font_engine());
+    f32 max_w = std::max(w1, w2);
+    f32 ref_x = -max_w * 0.5f;
+
+    auto d1 = TextRevealDescriptor{
+        .text = line1, .font_size = size1, .font_spec = spec,
+        .tracking = tracking, .ref_offset_x = ref_x,
+        .base_pos = {0.0f, base_y - line_spacing * 0.5f, 0.0f},
+        .start_delay = 0.0f, .duration = 8.0f, .stagger = 2.0f,
+        .slide_up = slide_up, .pin_to_center = true,
+        .color = text_color, .add_shadow = true, .shadow_color = shadow_color,
+        .glow_intensity = glow_intensity,
+        .layer_prefix = "ch_0"
+    };
+    build_text_reveal_line(s, d1);
+
+    auto d2 = d1;
+    d2.text = line2;
+    d2.font_size = size2;
+    d2.base_pos = {0.0f, base_y + line_spacing * 0.5f, 0.0f};
+    d2.start_delay = start_delay_2;
+    d2.layer_prefix = "ch_1";
+    build_text_reveal_line(s, d2);
 }
 
 } // namespace chronon3d::content::text_reveal

@@ -43,13 +43,20 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/text/text_visibility_audit.hpp>
 #include <chronon3d/text/text_run_shape.hpp>
+#include <chronon3d/text/text_run_layout.hpp>
+#include <chronon3d/text/text_run_geometry.hpp>
+#include <chronon3d/scene/model/core/scene.hpp>
+#include <chronon3d/scene/model/layer/layer.hpp>
+#include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/math/raster_utils.hpp>
 #include <chronon3d/media/media_placement.hpp>
 
 #include <spdlog/spdlog.h>
 
 #include <cstdio>
 #include <cmath>
+#include <optional>
 #include <sstream>
 #include <iomanip>
 #include <string>
@@ -101,6 +108,13 @@ std::string json_bbox(const Rect& r) {
 ///   PASS    → "PASS"     → 0
 ///   FAIL    → "FAIL"     → 1
 ///   VIOLATION (predicted_contains_world=false) → "VIOLATION" → 2
+///
+/// Gated by `CHRONON3D_BUILD_DIAGNOSTICS` because the `TextVisibilityStatus`
+/// enum itself is gated by that macro in `<chronon3d/text/text_visibility_
+/// audit.hpp>` (the audit's entire header is `#ifdef`-gated per the FU02
+/// freeze contract).  Moving the mapping inside the guard keeps the
+/// non-diagnostic build from referencing an undeclared enum.
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
 struct StatusMapping {
     const char* json_status;
     int         exit_code;
@@ -126,6 +140,7 @@ StatusMapping map_status_for_node(TextVisibilityStatus s,
     }
     return {"FAIL", 1};
 }
+#endif // CHRONON3D_BUILD_DIAGNOSTICS
 
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 
@@ -134,13 +149,24 @@ StatusMapping map_status_for_node(TextVisibilityStatus s,
 /// `audit_text_visibility` and emit a JSON entry. Returns the aggregate
 /// exit code (worst-case across all nodes).
 ///
-/// Implementation note: this is a minimal version that demonstrates the
-/// §12 JSON schema + exit code mapping. It renders the composition in
-/// process (no CLI subprocess), walks the scene's render graph for
-/// TextRunNode instances, and emits one JSON object per node. The
-/// per-node `font` field reads `shape.engine->font_path()` if available
-/// (placeholder "<font>" otherwise); the per-node `glyph_count` reads
-/// `shape.layout.placed.glyphs.size()`.
+/// Implementation: renders the composition in process (no CLI subprocess),
+/// then evaluates the scene at the same frame to find every
+/// `ShapeType::TextRun` node (the `text_run_shape_handle().value` may be
+/// null if font resolution failed upstream).  For each node, builds a
+/// `TextRunSnapshot` with the real `TextRunShape`, the per-node
+/// `world_transform.to_mat4()`, and the canonical
+/// `renderer::compute_text_run_world_bbox()` / `compute_text_run_visual_
+/// bounds()` outputs.  Calls `audit_text_visibility()` with the real
+/// data and overrides the audit's `local_ink_bbox` + `world_ink_bbox`
+/// placeholders (the audit's TU-local scaffolding leaves them at
+/// zero-rect; see `text_visibility_audit.cpp` comment "PLACEHOLDER for
+/// FU04 contract fix").  Emits one JSON object per node.
+///
+/// The per-node `font` field reads `shape.layout->font.font_path` (the
+/// materialised layout's authoring-level font spec); the per-node
+/// `glyph_count` reads `shape.layout->placed.glyphs.size()`.  When the
+/// shape has no resolved layout (font resolution failed upstream), the
+/// `font` field falls back to "<unknown>" and `glyph_count` to 0.
 int run_inspect_text_impl(const CompositionRegistry& registry,
                           const InspectTextArgs& args) {
     if (!registry.contains(args.comp_id)) {
@@ -191,62 +217,186 @@ int run_inspect_text_impl(const CompositionRegistry& registry,
         return 1;
     }
 
-    // Walk the render graph to find TextRunNodes.
-    //
-    // §12 minimal scope: emit a single representative node entry (one
-    // per composition). Multi-node iteration over the render graph is
-    // a forward-point for FU10 — see `docs/CLI_REFERENCE.md`
-    // `inspect-text internals (forward-point)` section.
-    //
-    // The framebuffer is passed to the audit to enable the alpha-bbox
-    // scan (full 6-invariant cascade).
+    // Bind the renderer's FontEngine into the FrameContext so the
+    // M1.5#9 materializer (invoked via `comp.evaluate(ctx)` →
+    // `SceneBuilder(ctx).m_font_engine` → `LayerBuilder::text_run` →
+    // `materialize_text_run_shape`) populates `text_run_shape_handle
+    // ().value` with a non-null TextRunShape.  Without this binding
+    // every TextRun node would carry a null handle and the scene-walk
+    // would collapse to the "font missing" branch (full-canvas + FAIL
+    // for every entry).  The renderer's engine is the same one the
+    // render graph consumed, so the scene-walk snapshot data matches
+    // what was actually rendered.
+    ctx.font_engine = renderer.font_engine().get();
+
+    // Walk the scene at the requested frame to find every TextRun node.
+    // Each node provides the REAL TextRunShape + per-node world matrix
+    // that the render graph consumed; the audit operates on those real
+    // values instead of the §12 placeholder (empty shape, identity
+    // matrix, full-canvas predicted bbox).  Per FU10 (TICKET-SIMPLICITY-
+    // INSPECT-TEXT extension), the JSON array now has ONE entry per
+    // actual TextRun node found, populated with the real snapshot data
+    // (node name, font path, glyph count, local/world/predicted/alpha
+    // bboxes, status).
+    const Scene scene = comp.evaluate(ctx);
+
+    // Collect per-node snapshots: each entry pairs the real
+    // TextRunShape with the render-graph world matrix + bboxes.
+    struct TextRunSnapshot {
+        std::string                  node_name;
+        std::shared_ptr<TextRunShape> shape;          // may be null (font missing)
+        Mat4                         world_matrix;
+        raster::BBox                 world_bbox_raster;  // cached world bbox (i32)
+        Rect                         predicted_bbox; // canvas-space (float Rect)
+        Rect                         clip_rect;      // canvas-space (= predicted_bbox)
+        std::optional<Rect>          local_bbox;     // text-frame local-space
+    };
+    std::vector<TextRunSnapshot> snapshots;
+    snapshots.reserve(4);
+    for (const auto& layer : scene.layers()) {
+        for (const auto& node : layer.nodes) {
+            if (node.shape.type() != ShapeType::TextRun) continue;
+
+            const auto& handle = node.shape.text_run_shape_handle();
+
+            TextRunSnapshot snap;
+            snap.node_name    = std::string(node.name);
+            snap.shape        = handle.value;
+            // The render graph's per-node world matrix is the resolved
+            // layer→canvas transform baked onto the RenderNode (see
+            // `src/render_graph/layer_resolver.cpp::ResolvedNode::world_
+            // matrix`).  Using it here mirrors the audit invocation
+            // performed by TextRunNode at execute time.
+            snap.world_matrix = node.world_transform.to_mat4();
+            // Full-canvas fallback for nodes with no resolved shape —
+            // the audit's `font_resolved` flag will flag the missing
+            // font, but the predicted/clip rects still need *some*
+            // bounded value to evaluate the containment invariants.
+            const Rect canvas_rect{
+                {0.0f, 0.0f},
+                {static_cast<float>(ctx.width),
+                 static_cast<float>(ctx.height)}
+            };
+            snap.clip_rect = canvas_rect;
+
+            if (handle.value) {
+                const TextRunShape& s = *handle.value;
+                // Real predicted bbox: the canonical
+                // `compute_text_run_world_bbox(*shape, world_matrix, 0.0f)`
+                // mirrors `TextRunNode::predicted_bbox()` exactly (no
+                // spread: inspect-text reports the tight producer bbox;
+                // the FU04 violation response expansion is internal to
+                // the audit and doesn't change what we serialise).
+                // Cached in the snapshot to avoid a redundant compute
+                // when overriding `audit.world_ink_bbox` below.
+                snap.world_bbox_raster = renderer::compute_text_run_world_bbox(
+                    s, snap.world_matrix, /*spread=*/0.0f);
+                const float bw = static_cast<float>(snap.world_bbox_raster.x1
+                                                  - snap.world_bbox_raster.x0);
+                const float bh = static_cast<float>(snap.world_bbox_raster.y1
+                                                  - snap.world_bbox_raster.y0);
+                snap.predicted_bbox = Rect{
+                    {static_cast<float>(snap.world_bbox_raster.x0),
+                     static_cast<float>(snap.world_bbox_raster.y0)},
+                    {bw, bh}
+                };
+                // TextRunNode's compositor uses `predicted_bbox` as the
+                // clip rect (see `compute_dirty_clip`); match that here
+                // so the JSON clip_rect is what the GPU actually rasterised.
+                snap.clip_rect = snap.predicted_bbox;
+
+                // Real local bbox: the canonical per-glyph accumulator
+                // (matches what the audit's `local_ink_bbox` field
+                // semantically should hold — the audit's TU-local
+                // placeholder leaves it at zero-rect; we override it
+                // post-audit with this real value before serialising).
+                if (auto lb = renderer::compute_text_run_visual_bounds(s)) {
+                    snap.local_bbox = Rect{
+                        {lb->min_x, lb->min_y},
+                        {lb->max_x - lb->min_x,
+                         lb->max_y - lb->min_y}
+                    };
+                }
+            } else {
+                // No materialised TextRunShape ⇒ font resolution failed.
+                // Predicted bbox collapses to the full canvas; the audit
+                // reports FAIL (font_resolved=false) for this entry.
+                snap.predicted_bbox = canvas_rect;
+            }
+            snapshots.push_back(std::move(snap));
+        }
+    }
+
+    // Emit one JSON entry per snapshot with REAL snapshot data; the
+    // worst-case exit code across all nodes drives the process return
+    // value (VIOLATION(2) > FAIL(1) > PASS(0); default 0 if the scene
+    // had no TextRun nodes).
     std::ostringstream os;
     os << "[\n";
 
-    // TODO(FU10): placeholder TextRunShape for the §12 minimal
-    // implementation. The full implementation will iterate the render
-    // graph nodes and reconstruct the placed TextRunShape glyphs from
-    // each TextRunNode. For now we emit a default-constructed shape
-    // (empty placed.glyphs + null engine) so the JSON output exercises
-    // the FAIL-path (font_resolved=false, shaping_succeeded=false).
-    TextRunShape shape{};
-    shape.engine = nullptr;  // font_resolved will be false
-    // layout is a null SharedTextRunLayout by default; audit_text_visibility
-    // treats a null layout as empty → shaping_succeeded=false
+    int worst_exit_code = 0;
+    for (size_t i = 0; i < snapshots.size(); ++i) {
+        const auto& snap = snapshots[i];
 
-    // Identity world matrix for the §12 minimal. The real world_matrix
-    // is computed per-node from the TextRunNode's placement.
-    const Mat4 identity{};
+        // Audit call.  The audit takes a `const TextRunShape&`; for
+        // null handles we pass a default-constructed (empty) shape
+        // so `font_resolved` evaluates to false (FAIL → exit 1).
+        const TextRunShape* shape_ptr = snap.shape.get();
+        TextRunShape        empty_shape{};
+        const TextRunShape& shape = shape_ptr ? *shape_ptr : empty_shape;
 
-    // Predicted bbox = full canvas (1920x1080 default).
-    const Rect predicted_bbox{
-        {0.0f, 0.0f},
-        {static_cast<float>(ctx.width), static_cast<float>(ctx.height)}
-    };
-    const Rect clip_rect = predicted_bbox;
+        TextVisibilityAudit audit = audit_text_visibility(
+            shape, snap.world_matrix,
+            snap.predicted_bbox, snap.clip_rect,
+            fb.get(), /*effect_padding=*/0.0f);
+        // Override the audit's local_ink_bbox + world_ink_bbox
+        // placeholders (both zero-rect — see `text_visibility_audit.cpp`
+        // comment "PLACEHOLDER for FU04 contract fix") with the real
+        // values from the canonical per-glyph accumulator.  The
+        // world_ink_bbox override is `transform_aabb(local_ink_bbox,
+        // world_matrix)`, which equals `compute_text_run_world_bbox(
+        // *shape, world_matrix, 0.0f)` = `snap.predicted_bbox` in the
+        // nominal case (the audit uses the same matrix chain).
+        if (snap.local_bbox) {
+            audit.local_ink_bbox = *snap.local_bbox;
+            audit.world_ink_bbox = snap.predicted_bbox;
+        }
 
-    const auto audit = audit_text_visibility(
-        shape, identity, predicted_bbox, clip_rect, fb.get(),
-        /*effect_padding=*/0.0f);
+        const auto mapping = map_status_for_node(
+            audit.status, audit.predicted_contains_world);
+        if (mapping.exit_code > worst_exit_code) {
+            worst_exit_code = mapping.exit_code;
+        }
 
-    const auto mapping = map_status_for_node(audit.status,
-                                              audit.predicted_contains_world);
+        // Real font + glyph_count come from the materialised layout,
+        // not from a hard-coded placeholder.  Falls back to
+        // "<unknown>" / 0 when the shape has no resolved layout (i.e.
+        // the font resolution failed upstream).  `audit.glyph_count`
+        // is computed the same way inside the audit; we use the
+        // same source here so the JSON's `glyph_count` matches.
+        std::string  font_str = "<unknown>";
+        if (shape.layout && !shape.layout->font.font_path.empty()) {
+            font_str = shape.layout->font.font_path;
+        }
+        const std::size_t glyph_count = audit.glyph_count;
 
-    os << "  {\n";
-    os << "    \"node\": \"" << json_escape(args.comp_id) << "\",\n";
-    os << "    \"font\": \"<font>\",\n";
-    os << "    \"glyph_count\": " << audit.glyph_count << ",\n";
-    os << "    \"frame\": " << args.frame.integral() << ",\n";
-    os << "    \"local_bbox\": " << json_bbox(audit.local_ink_bbox) << ",\n";
-    os << "    \"world_bbox\": " << json_bbox(audit.world_ink_bbox) << ",\n";
-    os << "    \"predicted_bbox\": " << json_bbox(audit.predicted_bbox) << ",\n";
-    os << "    \"alpha_bbox\": " << json_bbox(audit.rendered_alpha_bbox) << ",\n";
-    os << "    \"status\": \"" << mapping.json_status << "\"\n";
-    os << "  }\n";
-    os << "]\n";
+        if (i > 0) os << ",\n";
+        os << "  {\n";
+        os << "    \"node\": \"" << json_escape(snap.node_name) << "\",\n";
+        os << "    \"font\": \"" << json_escape(font_str) << "\",\n";
+        os << "    \"glyph_count\": " << glyph_count << ",\n";
+        os << "    \"frame\": " << args.frame.integral() << ",\n";
+        os << "    \"local_bbox\": "  << json_bbox(audit.local_ink_bbox)  << ",\n";
+        os << "    \"world_bbox\": "  << json_bbox(audit.world_ink_bbox)  << ",\n";
+        os << "    \"predicted_bbox\": " << json_bbox(audit.predicted_bbox) << ",\n";
+        os << "    \"alpha_bbox\": "  << json_bbox(audit.rendered_alpha_bbox) << ",\n";
+        os << "    \"status\": \"" << mapping.json_status << "\"\n";
+        os << "  }";
+    }
+    os << "\n]\n";
 
     std::fputs(os.str().c_str(), stdout);
-    return mapping.exit_code;
+    return worst_exit_code;
 }
 
 #else  // !CHRONON3D_BUILD_DIAGNOSTICS

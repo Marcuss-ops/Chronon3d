@@ -19,7 +19,7 @@ set(_SAFE_AREA_PLACEMENT_TEST_SOURCES
 chronon3d_add_test_suite(
     NAME chronon3d_safe_area_placement_tests
     TIER UNIT
-    LINK_TARGETS chronon3d_text_core chronon3d_scene chronon3d_core
+    LINK_TARGETS chronon3d_text_core chronon3d_scene chronon3d_core chronon3d_sdk
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_safe_area_placement.cpp
 )
 
