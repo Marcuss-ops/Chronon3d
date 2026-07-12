@@ -76,9 +76,18 @@ add_library(chronon3d_content OBJECT
     # ── Sequence V2 migrated compositions (SequenceBuilder-only) ──
     showcases/sequence-v2/sequence_v2_compositions.cpp
 
-    # ── AE Parity camera scenes (10 visual comparison scenes as CLI compositions) ─
-    ae_parity/register_ae_parity_compositions.cpp
-    ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_scenes.cpp
+    # TICKET-CLI-ISOLATE-RUNTIME-DEV (2026-07-12) — AE Parity camera scenes
+    # (AE_CAM_01..10) are now DEV-only per the user-spec verbatim §3 (isola
+    # runtime/dev).  The `ae_parity/register_ae_parity_compositions.cpp`
+    # file + the `tests/visual/ae_parity/ae_parity_scenes.cpp` factory
+    # functions are NO LONGER compiled into chronon3d_content — they are
+    # compiled into chronon3d_cli_dev (when CHRONON3D_BUILD_CLI_DEV=ON) and
+    # registered via `apps/chronon3d_cli/register_dev_compositions.cpp`
+    # (DEV-gated).  Production CLI (CHRONON3D_BUILD_CLI_DEV=OFF) does not
+    # include AE_CAM_* at all.  Both files are retained here in source
+    # (dead-code; safe to delete in a follow-up chore) for backward compat
+    # with the existing test fixtures (tests/visual/ae_parity/ae_parity_tests.cpp
+    # still references the factory functions).
 )
 
 target_include_directories(chronon3d_content PRIVATE ${CMAKE_SOURCE_DIR})

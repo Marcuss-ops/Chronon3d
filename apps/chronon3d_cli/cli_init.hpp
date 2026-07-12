@@ -1,7 +1,7 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-// CLI Initialisation Hooks
+// CLI Initialisation Hooks — thin orchestrator (TICKET-CLI-ISOLATE-RUNTIME-DEV)
 //
 // PR 2: Explicit registration — compositions are added directly to the
 // CompositionRegistry via register_content_modules() and
@@ -9,42 +9,27 @@
 //
 // PR 4: AssetRegistry de-singletonized — thread-local pointer set
 // unconditionally so asset resolution works with or without content modules.
+//
+// TICKET-CLI-ISOLATE-RUNTIME-DEV: composition registration is now split into
+// 3 layers (see register_compositions.hpp):
+//   1. register_runtime_compositions — production runtime surface
+//   2. register_content_compositions — content module bridge
+//   3. register_dev_compositions     — DEV-only test/floor compositions
+// This file is now a thin orchestrator that calls those 3 functions in order.
+// It does NOT include any test/golden header (the production CLI must remain
+// free of tests/ source dependencies).
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
-#include <chronon3d/core/composition/register_builtin_compositions.hpp>
 
-// AE parity camera visual comparison scenes (10 compositions, always registered)
-#include "tests/visual/ae_parity/ae_parity_scenes.hpp"
-// TICKET-AE-PARITY-FLOOR-DASHBOARD — 5 new cinematic scene compositions
-// (ae_08_glow_pulse, ae_10_scale_pop, ae_12_random_character_jitter,
-//  ae_14_multiline_9_16, motion_blur_text) registered as CLI compositions
-// so they can be rendered via `chronon3d_cli render <comp_id>` and show
-// up in the telemetry dashboard.  Source: tests/text_golden/ae_parity/* +
-// tests/text_golden/motion_blur_text/* (landed in commits 3ddbbdff/45be2b40).
-#include "tests/visual/ae_parity/ae_parity_compositions.hpp"
-// TICKET-CHRONON-GLOW-FINAL — Phase 1 unified cinematic glow helper
-// (header-only; no link-time surface).  Registered as
-// `chronon-glow-final` and `chronon-glow-final-portrait` below.
-#include "content/compositions/chronon_glow_final.hpp"
-// BUG 2 / TICKET-TEXT-GLOW-DARKENING — Step 3 A/B test (sibling composition
-// with glow_intensity=0.0, registered here as a 1-line additive include so
-// the experiment can render via `chronon3d_cli render AnimTypewriterGlowNoGlow`).
-// The production `AnimTypewriterGlow` composition is NOT modified — only an
-// additive registration is added.  See docs/baselines/2026-07-10-glow-ab-result.md.
-#include "tests/visual/glow_ab/glow_ab_compositions.hpp"
-// Camera 3D projection truth test
-#include "tests/visual/camera_truth/camera_truth_test.hpp"
-// Camera orbit truth test (OrbitMotion via CameraDescriptor)
-#include "tests/visual/camera_truth/camera_truth_orbit.hpp"
-// Real pipeline parity canary (registered as a CLI built-in composition)
-#include "tests/text/pipeline_parity_canary.hpp"
-// AE Camera Text Parity — 360-frame multi-segment stress test
-#ifdef CHRONON3D_BUILD_DIAGNOSTICS
-#include "content/experimental/ae-parity/ae_camera_text_parity.hpp"
-#endif
+// The 3 composition registration layers (see register_compositions.hpp).
+#include "register_compositions.hpp"
 
+// StyleRegistry + MotionRegistry authoring helpers — content-module ambient
+// authoring accessors.  NOT composition registrations; kept here for the
+// legacy inline `cli_style_registry()` / `cli_motion_registry()` accessors
+// consumed by register_content_compositions (when CHRONON3D_BUILD_CONTENT).
 #if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
 #include <content/register_content_modules.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
@@ -72,13 +57,9 @@ namespace chronon3d::cli {
 /// Conditionally compiled: the inline definitions reference
 /// `authoring::StyleRegistry` / `authoring::MotionRegistry`, which are
 /// only forward-visible when `CHRONON3D_BUILD_CONTENT` or
-/// `CHRONON3D_BUILD_DIAGNOSTICS` is defined (the same #if that pulls in
-/// `style_registry.hpp` / `motion_registry.hpp` / `basic_registry.hpp`
-/// above).  Without the macros the type names are unknown and the
-/// pre-existing inline bodies fail to compile, so the definitions are
-/// guarded by the same #if.  The functions are unused on builds that
-/// don't define either macro (no caller path exists in those TUs), so
-/// the conditional definition is safe.
+/// `CHRONON3D_BUILD_DIAGNOSTICS` is defined.  Without the macros the type
+/// names are unknown and the pre-existing inline bodies fail to compile,
+/// so the definitions are guarded by the same #if.
 #if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
 inline authoring::StyleRegistry&  cli_style_registry() {
     static authoring::StyleRegistry  reg;
@@ -90,132 +71,31 @@ inline authoring::MotionRegistry& cli_motion_registry() {
 }
 #endif
 
-/// Register built-in content compositions and built-in compositions
-/// into the given registry.  Safe to call multiple times.
-inline void init_compositions(CompositionRegistry& registry, AssetRegistry& assets) {
+/// Register all compositions into the given registry.
+/// Per TICKET-CLI-ISOLATE-RUNTIME-DEV: 3-layer split
+///   1. register_runtime_compositions  (always)
+///   2. register_content_compositions  (always when content/diagnostics)
+///   3. register_dev_compositions      (only when CHRONON3D_BUILD_CLI_DEV)
+/// The `assets` parameter is accepted for backward compatibility with the
+/// caller's signature; composition registration does not need assets
+/// (asset resolution happens at render time, not at registration time).
+/// Safe to call multiple times.
+inline void init_compositions(CompositionRegistry& registry, AssetRegistry& /*assets*/) {
+    (void)0;  // assets retained for caller-compat; not used by register_*_compositions.
 
-#if defined(CHRONON3D_BUILD_CONTENT) || defined(CHRONON3D_BUILD_DIAGNOSTICS)
-    static ExtensionCatalog content_catalog;
-    // Build a minimal ExtensionContext — only compositions is used here.
-    // graph_nodes, effects, assets are not needed for composition registration.
-    // PR 3.5 — populate the ambient authoring registries so the CLI-wide
-    // chronon3d::authoring façades can resolve `.style(id)` / `.motion(id)`
-    // ambient.  Default-empty; composition packs (or test harnesses) can
-    // register their own style/motion ids via the cli_*_registry() handles.
-    static graph::GraphNodeCatalog             dummy_nodes;
-    static effects::EffectCatalog              dummy_effects;
-    static authoring::StyleRegistry&           styles  = cli_style_registry();
-    static authoring::MotionRegistry&          motions = cli_motion_registry();
-    ExtensionContext ctx{registry, dummy_nodes, dummy_effects, assets,
-                          &styles, &motions};
-    chronon3d::register_content_modules(content_catalog, ctx);
+    // Layer 1 — production runtime (ChrononGlowFinalAE + builtins).
+    register_runtime_compositions(registry);
+
+    // Layer 2 — content module bridge (cinematic showcases, examples,
+    // certifications, launches, text placement, etc.).
+    register_content_compositions(registry);
+
+#ifdef CHRONON3D_BUILD_CLI_DEV
+    // Layer 3 — DEV/test compositions (PipelineParityCanary, AE_CAM_*,
+    // CameraTruth*, AnimTypewriterGlowNoGlow, glow A/B siblings, etc.).
+    // Production CLI (CHRONON3D_BUILD_CLI_DEV=OFF) does NOT call this.
+    register_dev_compositions(registry);
 #endif
-    // Register non-content built-in compositions (DarkGridBackground,
-    // CameraImageClip).
-    chronon3d::register_builtin_compositions(registry);
-
-    // Register AE parity camera visual comparison scenes (AE_CAM_01–AE_CAM_10).
-    // Inlined here only when content is off — when CHRONON3D_BUILD_CONTENT=ON
-    // they arrive via register_content_modules() above (content/ae_parity
-    // is compiled into chronon3d_content, so manual registration would
-    // cause a duplicate).
-#ifndef CHRONON3D_BUILD_CONTENT
-    registry.add("AE_CAM_01_static_grid",   [](const CompositionProps&) { return test::make_ae_cam_01_static_grid(); });
-    registry.add("AE_CAM_02_zoom_fov",      [](const CompositionProps&) { return test::make_ae_cam_02_zoom_fov(); });
-    registry.add("AE_CAM_03_two_node_poi",  [](const CompositionProps&) { return test::make_ae_cam_03_two_node_poi(); });
-    registry.add("AE_CAM_04_parent_null",   [](const CompositionProps&) { return test::make_ae_cam_04_parent_null(); });
-    registry.add("AE_CAM_05_orbit",         [](const CompositionProps&) { return test::make_ae_cam_05_orbit(); });
-    registry.add("AE_CAM_06_dolly_zoom",    [](const CompositionProps&) { return test::make_ae_cam_06_dolly_zoom(); });
-    registry.add("AE_CAM_07_gatefit",       [](const CompositionProps&) { return test::make_ae_cam_07_gatefit(); });
-    registry.add("AE_CAM_08_dof",           [](const CompositionProps&) { return test::make_ae_cam_08_dof(); });
-    registry.add("AE_CAM_09_motion_blur",   [](const CompositionProps&) { return test::make_ae_cam_09_motion_blur(); });
-    registry.add("AE_CAM_10_near_clip",     [](const CompositionProps&) { return test::make_ae_cam_10_near_clip(); });
-#endif  // !CHRONON3D_BUILD_CONTENT
-
-    // Camera 3D projection truth test
-    registry.add("CameraTruthTest", [](const CompositionProps&) { return test::make_camera_truth_test(); });
-
-    // Camera orbit truth test (OrbitMotion via CameraDescriptor, yaw 0→90°)
-    registry.add("CameraTruthOrbit", [](const CompositionProps&) { return test::make_camera_truth_orbit(); });
-
-    // Real pipeline parity canary — simple centered text, used by
-    // tests/text/test_pipeline_parity_real.cpp to compare SDK/CLI/video.
-    registry.add("PipelineParityCanary", [](const CompositionProps& p) { return test::make_pipeline_parity_canary(p); });
-
-#ifndef CHRONON3D_BUILD_DIAGNOSTICS
-    // AE Camera Text Parity — 360-frame multi-segment stress test
-    // (static / dolly-zoom / orbit / rack-focus / whip-pan+motion-blur / stress)
-    // When CHRONON3D_BUILD_DIAGNOSTICS is ON, this composition is already
-    // registered via register_content_modules() → register_anim_compositions()
-    // in content/animation_compositions.cpp (guarded by the same macro).
-#ifdef CHRONON3D_BUILD_DIAGNOSTICS
-    registry.add("AECameraTextParity", [](const CompositionProps&) { return chronon3d::content::anims::ae_camera_text_parity(); });
-#endif
-#endif
-
-    // TICKET-AE-PARITY-FLOOR-DASHBOARD — 5 new cinematic scene
-    // compositions (Phase 1 scenes 08/10/12/14 + motion_blur_text).  Each
-    // derives per-frame state (opacity/scale/jitter/blur) from
-    // `ctx.frame.integral() % 30` inside the runtime lambda, matching the
-    // 0/15/30 snapshot buckets used by the test files.  CLI invocations:
-    //   chronon3d_cli render ae_08_glow_pulse -o /tmp/ae_08.png --frame 15
-    //   chronon3d_cli render ae_10_scale_pop -o /tmp/ae_10.png --frame 15
-    //   chronon3d_cli render ae_12_random_character_jitter -o /tmp/ae_12.png --frame 15
-    //   chronon3d_cli render ae_14_multiline_landscape -o /tmp/ae_14.png --frame 0
-    //   chronon3d_cli render motion_blur_text -o /tmp/mb.png --frame 10
-    // Each render produces 1 row in render_runs SQLite with
-    // git_commit_short = 3ddbbdff or 45be2b40 (the SHAs that landed the
-    // matching test code), visible in http://149.56.131.97:5173/.
-    registry.add("ae_08_glow_pulse",               [](const CompositionProps& p) { return test::make_ae_08_glow_pulse(p); });
-    registry.add("ae_10_scale_pop",                [](const CompositionProps& p) { return test::make_ae_10_scale_pop(p); });
-    registry.add("ae_12_random_character_jitter",  [](const CompositionProps& p) { return test::make_ae_12_random_character_jitter(p); });
-    registry.add("ae_14_multiline_landscape",     [](const CompositionProps& p) { return test::make_ae_14_multiline_landscape(p); });
-    registry.add("motion_blur_text",               [](const CompositionProps& p) { return test::make_motion_blur_text(p); });
-
-    // BUG 2 / TICKET-TEXT-GLOW-DARKENING — Step 3 A/B test (additive).
-    // Registers the no-glow sibling composition used as the A/B control.
-    // The production AnimTypewriterGlow is untouched.
-    test::glow_ab::register_glow_ab_compositions(registry);
-
-    // TICKET-CHRONON-GLOW-FINAL — Phase 1 unified cinematic-glow
-    // factory (16:9 + 9:16).  Routes through the canonical helper with
-    // default properties: glow_enabled=true (Phase 2 §spec), strength=
-    // 0.55, the Phase 2 cinematic-glow preset (radii 4/14/34, intensities
-    // 0.55/0.22/0.08, micro_shadow=true).  Use these when cinematic
-    // glow is the explicit intent; for the legacy no-glow baseline use
-    // `ae_08_glow_pulse` above (pixel-equivalent to the captured golden
-    // baseline until Phase 2 re-bake).
-    registry.add("chronon-glow-final",
-        [](const CompositionProps&) -> Composition {
-            ChrononGlowProps p = chronon3d::test::glow_final::default_landscape_props();
-            return chronon3d::test::glow_final::make_chronon_glow_final(p);
-        });
-    // TICKET-CHRONON-GLOW-FINAL Fase 6 — alias for the user-spec name
-    // `ChrononGlowFinalAE`.  Maps to the same landscape composition as
-    // `chronon-glow-final` (the Fase 1 unified cinematic-glow factory).
-    // The `AE` suffix matches the user-spec command line
-    // (`chronon3d_cli video ChrononGlowFinalAE ...`) and the existing
-    // `ae_*` composition naming convention (ae_08_glow_pulse etc.).
-    registry.add("ChrononGlowFinalAE",
-        [](const CompositionProps&) -> Composition {
-            ChrononGlowProps p = chronon3d::test::glow_final::default_landscape_props();
-            return chronon3d::test::glow_final::make_chronon_glow_final(p);
-        });
-    // TICKET-GLOW-CERTIFICATION — Azione 1: no-glow sibling for A/B acceptance.
-    // Identical to ChrononGlowFinalAE except glow_enabled=false.
-    // Used by tools/check_glow_ab.py + the 6 acceptance TEST_CASEs in
-    // tests/visual/glow_ab/glow_ab_acceptance.cpp.
-    registry.add("ChrononGlowFinalAE_NoGlow",
-        [](const CompositionProps&) -> Composition {
-            ChrononGlowProps p = chronon3d::test::glow_final::default_landscape_props();
-            p.glow_enabled = false;
-            return chronon3d::test::glow_final::make_chronon_glow_final(p);
-        });
-    registry.add("chronon-glow-final-portrait",
-        [](const CompositionProps&) -> Composition {
-            ChrononGlowProps p = chronon3d::test::glow_final::default_portrait_props();
-            return chronon3d::test::glow_final::make_chronon_glow_final(p);
-        });
 }
 
 } // namespace chronon3d::cli
