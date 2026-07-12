@@ -402,7 +402,11 @@ compile_camera(const CameraDescriptor& descriptor,
         const auto n_pts = traj->trajectory->points().size();
         for (std::size_t i = 0; i < segs.size(); ++i) {
             const auto& seg = segs[i];
-            if (seg.from_idx >= seg.to_idx ||
+            // TICKET-120: Hold segments have from_idx == to_idx (same
+            // point) — allowed. Other segment kinds must have
+            // from_idx < to_idx (forward direction).
+            const bool hold_segment = (seg.kind == SegmentKind::Hold);
+            if ((!hold_segment && seg.from_idx >= seg.to_idx) ||
                 seg.from_idx >= n_pts || seg.to_idx >= n_pts) {
                 leave_scope();
                 return CameraCompileError{
@@ -436,16 +440,15 @@ compile_camera(const CameraDescriptor& descriptor,
     }
 
     // ── 2g. Orientation consistency ───────────────────────────────────
-    if (std::holds_alternative<OrientAlongPath>(descriptor.orientation)) {
-        if (!std::holds_alternative<TrajectoryMotion>(program.descriptor_.source)) {
-            leave_scope();
-            return CameraCompileError{
-                CameraCompileErrorCode::InvalidDescriptor,
-                "OrientAlongPath orientation requires a TrajectoryMotion source, "
-                "but the descriptor source is not TrajectoryMotion"
-            };
-        }
-    }
+    // TICKET-120: OrientAlongPath works with any source type — when the
+    // source has no tangent (e.g. StaticCameraSource), the evaluator
+    // falls back through a 4-step chain at runtime:
+    //   1. current-frame tangent (TrajectoryMotion / PoseTracks)
+    //   2. session.last_tangent (persisted from a prior frame)
+    //   3. point-of-interest direction
+    //   4. base descriptor rotation
+    // The compile-time restriction that required a TrajectoryMotion
+    // source was overly restrictive (removed).
     if (auto* lal = std::get_if<LookAtLayer>(&descriptor.orientation)) {
         if (lal->target.empty()) {
             leave_scope();
