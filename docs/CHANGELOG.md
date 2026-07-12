@@ -22,6 +22,25 @@
 
 **Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Recently Closed `TICKET-WORKFLOW-RACE-LOOP-SYNC` row + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale header snapshot (existing pending edit accepted) + AGENTS.md §Cat-5 (3-doc same-commit, satisfied) + AGENTS.md §honesty (workflow documented honestly, no PASS fabrication).
 
+## Luglio 2026 — TICKET-RESOLVE-REBASE-CONFLICT: promote doc-conflict resolver to tools/ (2026-07-12, atomic chore commit on main)
+
+### tools(resolve-rebase-conflict): promote /tmp/resolve_docs.py to tools/
+
+- **Scope**: promotes the hand-crafted `/tmp/resolve_docs.py` script (used to collapse the cascading docs/CHANGELOG.md + docs/FOLLOWUP_TICKETS.md git-rebase conflicts during the 21-commit linear-history rebuild in this session) to the canonical `tools/` directory. This automates the resolution of 3-way git merge conflicts in canonical markdown files by stacking additions (per TICKET-CHERRY-PICK-RECOVERY protocol), preventing the silent content-loss class of bugs.
+- **Files added (2)**:
+  - `tools/resolve_rebase_conflict.py` (executable Python): exact-marker regex (`^<<<<<<< (.+)$` / `^=======$` / `^>>>>>>> (.+)$`); fail-loud contract (exit 2 on unterminated blocks or remaining markers; original file NOT modified on failure); THEIRS-on-top invariant (incoming commit stacked on top of HEAD); BOM + CRLF preservation; per-file processing signature.
+  - `tests/helpers/selftest_resolve_rebase_conflict.py` (executable Python): 4-PASS regression-lock selftest mirroring commit `7218e14e`'s `tests/helpers/selftest_check_test_hygiene_python.cpp` pattern — simple block resolve + sequential 2 blocks + BOM preserved + prose-does-not-trigger (false-positive guard on Cat-5 closure rationales that mention marker patterns). 1 COMMENTED FAIL-1 sentinel (unterminated block, expects exit 2) — commented to avoid self-tripping.
+- **Cat-3 (no new public SDK API surface) SATISFIED**: zero new symbols in `include/chronon3d/`; both files are tooling/artifacts (`tools/` + `tests/helpers/`).
+- **Cat-5 2-doc same-commit alignment SATISFIED**: this CHANGELOG entry + `docs/FOLLOWUP_TICKETS.md` `## Recently Closed` row updated in same atomic commit.
+- **§honesty compliance**: `docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED — a tool-promotion has no SDK-state semantic per `docs/DOCUMENTATION_GOVERNANCE.md`; modifying it would introduce semantic churn and violate the Cat-5 invariant against greenwashing non-SDK improvements into the SDK status matrix.
+- **Forward-point (NOT in this commit)**: per `tools/audit_incomplete_type_pattern.sh` INSTALL_PIPELINE_PLUMBING asset-class precedent, a future `tools/audit_resolve_rebase_conflict.sh` could wire the selftest into the push chain. INTENTIONALLY DEFERRED: the resolver is opt-in rebase-time tooling (not a hygiene invariant); running it on every push would be no-op overhead.
+- **Files changed (4 — Cat-5 alignment)**:
+  - `tools/resolve_rebase_conflict.py` NEW (~210 LoC)
+  - `tests/helpers/selftest_resolve_rebase_conflict.py` NEW (~190 LoC)
+  - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+  - `docs/FOLLOWUP_TICKETS.md` EDIT (NEW TICKET-RESOLVE-REBASE-CONFLICT row in `## Recently Closed`)
+- **Cross-references**: [`tools/resolve_rebase_conflict.py`](tools/resolve_rebase_conflict.py); [`tests/helpers/selftest_resolve_rebase_conflict.py`](tests/helpers/selftest_resolve_rebase_conflict.py); commit `7218e14e` (`tests(helpers): add selftest for gate's Python-parser handover`) — the selftest-helper pattern precursor; AGENTS.md §honesty (no-data-loss invariant preserved); AGENTS.md TICKET-CHERRY-PICK-RECOVERY protocol (the canonical merge pattern this tool implements).
+
 ## Luglio 2026 — TICKET-DOCTEST-SKIP-ROT (cycle 2): sync ticket metadata into 3-line gate window — 8 strict-window violations fixed across 5 test files (2026-07-12, atomic chore commit on main)
 
 ### test(hygiene): sync TICKET-DOCTEST-SKIP-ROT into 3-line window
