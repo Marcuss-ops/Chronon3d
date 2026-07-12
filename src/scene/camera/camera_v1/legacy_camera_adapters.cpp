@@ -148,7 +148,13 @@ camera_descriptor_from_animated(const AnimatedCamera2_5D& cam) {
     // Base state — lens model + DoF block copied verbatim (AnimatedCamera2_5D
     // carries both as flat fields; V1 expects them on CameraBaseSpec).
     d.base.enabled = cam.enabled;
-    d.base.lens = cam.lens;  // direct LensModel assignment (POD aggregate)
+    d.base.lens.focal_length  = cam.focal_length.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
+    d.base.lens.sensor_width  = cam.sensor_width.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
+    d.base.lens.sensor_height = cam.sensor_height.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
+    d.base.lens.f_stop        = cam.f_stop.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
+    d.base.lens.focus_distance = cam.focus_distance.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
+    d.base.lens.close_focus   = cam.close_focus.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
+    d.base.lens.gate_fit      = cam.gate_fit;
     d.base.dof.enabled            = cam.dof_enabled;
     d.base.dof.use_physical_model = cam.use_physical_model;
     // DoF numeric fields on d.base.dof stay at struct defaults (the legacy
