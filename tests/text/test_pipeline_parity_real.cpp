@@ -244,7 +244,7 @@ TEST_CASE("real pipeline parity: SDK still == CLI still") {
 // ═══════════════════════════════════════════════════════════════════════════
 TEST_CASE("real pipeline parity: SDK still == raw video frame") {
     if (!ffmpeg_available()) {
-        SKIP("ffmpeg not found in PATH");
+        SKIP("TICKET-DOCTEST-SKIP-ROT: ffmpeg not found in PATH");
     }
 
     const auto tmp = make_temp_dir();
@@ -455,7 +455,7 @@ TEST_CASE("real pipeline parity: diagnostic overlay ONLY") {
 TEST_CASE("real pipeline parity: ChrononGlowFinalAE temporal stability "
           "and still-video parity (Fase 6 TEST FINALI)") {
     if (!ffmpeg_available()) {
-        SKIP("ffmpeg not found in PATH");
+        SKIP("TICKET-DOCTEST-SKIP-ROT: ffmpeg not found in PATH");
     }
     if (!std::filesystem::exists(get_cli_path())) {
         SKIP("chronon3d_cli not built at " << get_cli_path()
