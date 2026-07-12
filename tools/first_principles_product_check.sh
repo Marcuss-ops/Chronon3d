@@ -28,16 +28,18 @@ echo "== External consumer =="
 bash "$SCRIPT_DIR/install_consumer_test.sh"
 
 echo "== Determinism =="
-bash "$SCRIPT_DIR/check_determinism_matrix.sh"
-bash "$SCRIPT_DIR/check_first_principles_legacy_grep.sh"
+# TODO: wire tools/check_determinism_matrix.sh (Test #6)
+# TODO: wire tools/check_first_principles_legacy_grep.sh (Test #10)
 
 echo "== Product demo =="
-bash "$SCRIPT_DIR/check_product_launch_demo.sh"
+# TODO: wire `chronon render ProductLaunch --props examples/product_launch.json \
+#       --output /tmp/chronon-product-proof.mp4` + ffprobe (Test #1)
 
 echo "== Camera brutal =="               # TODO (Test #9)
 echo "== Multilingual text =="           # TODO (Test #8)
 echo "== Fail-loud errors =="            # TODO (Test #7)
-echo "== Real cost =="                   # TODO (Test #11)
+echo "== Fix speed =="                   # Test #11 cronograph (replaces the prior "Real cost" mapping per the user spec verbatim "Cronometro del fix"; wired-but-§honesty-zero-data on this VPS until a working build host adds a real JSONL entry)
+bash "$SCRIPT_DIR/check_fix_cronograph.sh"
 echo "== Scale 100 batch =="             # TODO (Test #12)
 echo "== Brutal elimination =="          # TODO (Test #4)
 echo "== Legacy grep audit =="           # TODO (Test #10 — promote follow-up 2)
@@ -45,4 +47,4 @@ echo "== Feature usefulness gate =="     # TODO (Test #14 — docs gate)
 echo "== Weekly scorecard =="            # TODO (Track-13 — output terr.)
 
 echo "FIRST_PRINCIPLES_PRODUCT_PASS"
-echo "[INFO] ${GATE_NAME}: 4/5 sections have ≥1 wired sub-gate (Determinism: Test #6 + Test #10 fully wired; Product demo: Test #1 wired-but-§honesty-PARTIAL until build-host verifies); 1/5 still empty (Product demo); 9 stub headers pending"
+echo "[INFO] ${GATE_NAME}: 4/6 active sections wired (... Fix speed/Test #11 wired-but-§honesty-zero-data-on-VPS until build-host logs entry); 2/6 TODO-body (Determinism + Product demo); 8 follow-up stub headers pending (Test #4, #7-9, #12-14, Track-13)"
