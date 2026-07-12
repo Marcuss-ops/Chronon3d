@@ -126,6 +126,20 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+# TICKET-GLOW-CERTIFICATION — Azione 3: glow determinism tests
+# (3-run hash identity, fresh-renderer determinism; state leak already
+# covered in glow_ab_acceptance.cpp).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        visual/glow_ab/glow_determinism_tests.cpp
+)
+
+add_test(
+    NAME GlowDeterminism
+    COMMAND chronon3d_text_golden_tests --test-case="Glow determinism: *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # TICKET-AE-PARITY-CINEMATIC-10 — ae_scale_pop scene.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
