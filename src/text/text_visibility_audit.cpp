@@ -35,7 +35,14 @@
 #include <chronon3d/text/text_run_shape.hpp>  // full TextRunShape definition
                                                // (audit only reads engine +
                                                // layout.placed.glyphs.size())
-#include <chronon3d/text/text_run_geometry.hpp>  // compute_text_run_visual_bounds
+#include <chronon3d/text/text_run_geometry.hpp>  // canonical
+                                               // compute_text_run_visual_bounds
+                                               // (the single source of truth
+                                               // for per-glyph TRS bbox math
+                                               // — anti-duplication: the audit
+                                               // does NOT re-implement the
+                                               // per-glyph math; it delegates
+                                               // to the canonical helper).
 #include <chronon3d/core/memory/framebuffer.hpp>  // Framebuffer::width/height/pixel
 
 #include <spdlog/spdlog.h>                       // structured diagnostics
@@ -179,47 +186,33 @@ TextVisibilityAudit audit_text_visibility(
     const Rect&         predicted_bbox,
     const Rect&         clip_rect,
     const Framebuffer*  rendered_output,
-    float               effect_padding)
+    float               effect_padding) noexcept
 {
     TextVisibilityAudit audit{};
 
     // ── font + shaping stage ───────────────────────────────────────────
     audit.font_resolved        = (shape.engine != nullptr);
-    audit.shaping_succeeded    = (shape.layout->placed.glyphs.size() > 0);
-    audit.glyph_count          = shape.layout->placed.glyphs.size();
+    audit.shaping_succeeded    = (shape.layout && !shape.layout->placed.glyphs.empty());
+    audit.glyph_count          = shape.layout ? shape.layout->placed.glyphs.size() : 0;
 
-    // ── local_ink_bbox (canonical per-glyph visual bounds) ─────────────
-    // Use the same single-source-of-truth geometry function that the
-    // render graph and the software rasterizer use.  This replaces the
-    // previous zero-rect placeholder so the audit actually checks that
-    // the predicted bbox contains the real glyph ink.
-    auto local_bounds = renderer::compute_text_run_visual_bounds(shape);
-    if (!local_bounds && shape.layout && !shape.layout->placed.glyphs.empty()) {
-        // Fallback: the canonical geometry function needs per-glyph
-        // animated state. If the caller supplied a layout but no glyph
-        // instances (e.g. a test harness or a partially materialised
-        // shape), synthesise identity glyph states from the placed run
-        // and recompute the bounds.  Build a minimal temporary shape so we
-        // do not pay for copying shadows/animators/etc.
-        TextRunShape temp;
-        temp.layout = shape.layout;
-        temp.glyphs.reserve(shape.layout->placed.glyphs.size());
-        for (const auto& g : shape.layout->placed.glyphs) {
-            GlyphInstanceState state{};
-            state.layout_position = {g.x, g.y};
-            state.scale = {1.0f, 1.0f, 1.0f};
-            temp.glyphs.push_back(state);
-        }
-        local_bounds = renderer::compute_text_run_visual_bounds(temp);
-    }
-
-    if (local_bounds) {
+    // ── local_ink_bbox (canonical per-glyph TRS math) ────────────────────
+    // Delegate to the canonical `compute_text_run_visual_bounds()` from
+    // `src/text/text_run_geometry.cpp` (the SINGLE source of truth for
+    // per-glyph TRS bbox math — anti-duplicazione: the audit does NOT
+    // re-implement the per-glyph math). The function walks both active
+    // and crossfade glyph vectors + accounts for ascent/descent, real
+    // per-glyph advance, 2.5D depth scale, blur/stroke padding, and the
+    // TICKET-TEXT-CLIP-ASCENT ink-floor fix. Returns std::nullopt when
+    // the shape is empty (no glyphs) — we fall back to zero-rect in
+    // that case to preserve the legacy "point at world origin" semantics
+    // for unit tests that pass empty shapes.
+    if (auto local = renderer::compute_text_run_visual_bounds(shape)) {
         audit.local_ink_bbox = Rect{
-            {local_bounds->min_x, local_bounds->min_y},
-            {local_bounds->max_x - local_bounds->min_x,
-             local_bounds->max_y - local_bounds->min_y}};
+            {local->min_x, local->min_y},
+            {local->max_x - local->min_x, local->max_y - local->min_y}
+        };
     } else {
-        audit.local_ink_bbox = Rect{};
+        audit.local_ink_bbox = Rect{};  // empty shape fallback
     }
 
     // ── world_ink_bbox (transform pipeline) ────────────────────────────

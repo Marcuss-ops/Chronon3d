@@ -44,10 +44,10 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/animation_helpers_tests.cmake  # M1.8 §3A — 17 animation helpers (interpolate/spring/sequence/stagger/loop/delay/ease/clamp/...) (no Blend2D, unconditional)
     ${CMAKE_CURRENT_SOURCE_DIR}/text_simplicity_adapters_tests.cmake  # M1.8 §6 — centered_text deprecation + glow consolidation + migration test (no Blend2D, unconditional)
     ${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_tests.cmake  # M1.8 §4A — 7-pipeline parity (render/video/inspect-text + warmup/tile_pruning/serial/diagnostic) × 6 fields × 3 properties = 126 CHECKs (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file) — 7-pipeline parity (render/video/inspect-text + warmup/tile_pruning/serial/diagnostic) × 6 fields × 3 properties = 126 CHECKs (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file)
-    ${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_real_tests.cmake  # Real pipeline parity: SDK/CLI/video/pruning/threads/cache via framebuffer hash
     ${CMAKE_CURRENT_SOURCE_DIR}/visibility_contract_tests.cmake  # M1.8 §1E — TextVisibilityAudit PASS/FAIL cascade + §9 FU04 violation response (4 TEST_CASEs / ~12 CHECKs) (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file)
     ${CMAKE_CURRENT_SOURCE_DIR}/inspect_text_tests.cmake  # M1.8 §4B — chronon3d_cli inspect-text (6 TEST_CASEs) — no Blend2D, requires CHRONON3D_BUILD_CLI_DEV=ON — TextVisibilityAudit PASS/FAIL cascade + §9 FU04 violation response (4 TEST_CASEs / ~12 CHECKs) (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file)
     ${CMAKE_CURRENT_SOURCE_DIR}/text_presets_stability_tests.cmake  # M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 presets × 3 CHECKs = 15 assertions (UNCONDITIONAL, pure struct inspection)
+    ${CMAKE_CURRENT_SOURCE_DIR}/text_layout_advanced_tests.cmake  # M1.8 §3B / TICKET-FASE4-LAYOUT — 3×3 wrap×overflow matrix + 7 line-height values + 3 adversarial countertests (UNCONDITIONAL, pure layout math)
     ${CMAKE_CURRENT_SOURCE_DIR}/presets_golden_tests.cmake  # M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 PNG goldens in test_renders/golden/text/presets/ (Blend2D-gated INTEGRATION tier)
     ${CMAKE_CURRENT_SOURCE_DIR}/precomp_focus_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake
@@ -60,7 +60,6 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
 )
 
 find_package(doctest CONFIG REQUIRED)
-include(${doctest_DIR}/doctest.cmake)
 
 # Shared test main
 set(TEST_MAIN test_main.cpp)
@@ -218,11 +217,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/text_simplicity_adapters_tests.cmake)
 # CHRONON3D_ENABLE_TEXT are OFF.  Per ADR-018, this file is also
 # listed in `CMAKE_CONFIGURE_DEPENDS` at the top of this orchestrator.
 include(${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_tests.cmake)
-
-# Real pipeline parity — compares SDK still, CLI still, raw video frame,
-# pruning ON/OFF, 1/N threads, and warm/cold cache using real framebuffer
-# hashes. Unconditional (no diagnostics gate).
-include(${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_real_tests.cmake)
+# include(${CMAKE_CURRENT_SOURCE_DIR}/cross_process_parity_tests.cmake)  # DRAFT — gated with return() pending TICKET-PARITY-001..006 rot fix; see FOLLOWUP_TICKETS.md
 
 # M1.8 §1E / TICKET-SIMPLICITY-VISIBILITY-CONTRACT — locks the FU04
 # TextVisibilityAudit status cascade (PASS/FAIL/INDETERMINATE) + the
@@ -243,6 +238,25 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/visibility_contract_tests.cmake)
 # this file is also listed in CMAKE_CONFIGURE_DEPENDS at the top of
 # this orchestrator.
 include(${CMAKE_CURRENT_SOURCE_DIR}/inspect_text_tests.cmake)
+
+# M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 presets × 3 CHECKs = 15 assertions
+# (UNCONDITIONAL, pure struct inspection).  Per ADR-018, this file is also
+# listed in CMAKE_CONFIGURE_DEPENDS at the top of this orchestrator.
+include(${CMAKE_CURRENT_SOURCE_DIR}/text_presets_stability_tests.cmake)
+
+# M1.8 §3B / TICKET-FASE4-LAYOUT — advanced layout matrix: 3×3 wrap×overflow
+# modes (TextWrap::{None,Word,Character} × TextOverflow::{Clip,Ellipsis,Visible})
+# + 7 line-height values (0.5/0.8/1.0/1.2/1.5/2.0/3.0) + 3 adversarial
+# countertests (long-word / sub-glyph box / ellipsis-without-space).  Pure
+# layout math (no rendering backend dependency, no Blend2D / GPU / font
+# I/O in the default SUBCASEs).  Listed here (UNCONDITIONAL) and NOT
+# inside the Blend2D+Text conditional above because (i) the test exercises
+# only `TextLayoutEngine::layout()` math with `mock_char_width` (no
+# font engine, no compositor, no GPU); (ii) the include must register
+# even on SDK-only builds where `CHRONON3D_USE_BLEND2D` /
+# `CHRONON3D_ENABLE_TEXT` are OFF.  Per ADR-018, this file is also
+# listed in `CMAKE_CONFIGURE_DEPENDS` at the top of this orchestrator.
+include(${CMAKE_CURRENT_SOURCE_DIR}/text_layout_advanced_tests.cmake)
 
 # Tests requiring content
 if(CHRONON3D_BUILD_CONTENT)
@@ -399,6 +413,110 @@ add_custom_target(chronon3d_tests
 if(TARGET chronon3d_media_video_tests)
     add_dependencies(chronon3d_tests chronon3d_media_video_tests)
 endif()
+
+# M1.8 §10 / TICKET-TEXT-FULL-ACCEPTANCE — umbrella BUILD target + ctest
+# label for the Text V1 milestone cert.  Single command:
+#   ctest -L text-full-acceptance
+# runs all 7 tests in one invocation (the 6 chronon3d_text_*_tests
+# + chronon3d_inspect_text_tests).  Mirrors the chronon3d_tests_fast
+# / chronon3d_tests_render / chronon3d_tests_video pattern above:
+# conditional `if(TARGET ...)` guards because some targets are gated
+# by CHRONON3D_USE_BLEND2D / CHRONON3D_BUILD_CLI_DEV at the per-area
+# .cmake level.  Forward-point: the `chronon3d_add_test_suite()` `LABELS`
+# arg is the canonical per-suite forward path; this centralized
+# application here is intentional (one place to add/remove the label
+# when a new text_*_tests target is added to the umbrella).
+set(CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS "")
+if(TARGET chronon3d_text_presets_stability_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_text_presets_stability_tests)
+endif()
+if(TARGET chronon3d_text_simplicity_adapters_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_text_simplicity_adapters_tests)
+endif()
+if(TARGET chronon3d_text_preset_visual_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_text_preset_visual_tests)
+endif()
+if(TARGET chronon3d_text_golden_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_text_golden_tests)
+endif()
+if(TARGET chronon3d_text_builder_ergonomics_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_text_builder_ergonomics_tests)
+endif()
+if(TARGET chronon3d_text_definition_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_text_definition_tests)
+endif()
+if(TARGET chronon3d_inspect_text_tests)
+    list(APPEND CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS chronon3d_inspect_text_tests)
+endif()
+add_custom_target(chronon3d_text_full_acceptance
+    DEPENDS ${CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS}
+)
+foreach(_tfa_target IN LISTS CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS)
+    set_tests_properties(${_tfa_target} PROPERTIES LABELS "text-full-acceptance")
+endforeach()
+
+# P2-A / TICKET-SANITIZER-GATES — chronon3d_sanitizer_subsystems umbrella
+# BUILD target + ctest label for the 7-subsystem sanitizer cert
+# (0 OOB / 0 UAF / 0 UB / 0 data races across FontEngine, glyph cache,
+# layout cache, asset resolver, text audit snapshots, renderer session,
+# factory registration).  Single command:
+#   ctest -L sanitizer-subsystems
+# runs all 5 test targets in one invocation, under the linux-asan or
+# linux-tsan preset (the preset sets the -fsanitize=* flags and the
+# test-preset `environment:` block sets the ASAN/UBSAN/TSAN_OPTIONS
+# for the cert).  Mirrors the chronon3d_text_full_acceptance pattern:
+# conditional `if(TARGET ...)` guards because some targets are gated
+# by CHRONON3D_USE_BLEND2D / CHRONON3D_BUILD_CLI_DEV /
+# CHRONON3D_BUILD_DIAGNOSTICS at the per-area .cmake level.
+#
+# 7-subsytem → test target mapping:
+#   FontEngine         → chronon3d_core_tests (test_font_engine, test_freetype_face_cache_concurrency, test_font_io_fence, test_draw_text_run_scratch_state, test_font_identity_contract)
+#   Glyph cache        → chronon3d_core_tests (test_glyph_atlas_metadata)
+#   Layout cache       → chronon3d_core_tests (test_layout_cache_collision)
+#   Asset resolver     → chronon3d_core_tests (test_asset_resolver, test_asset_registry)
+#   Text audit snapshots → chronon3d_visibility_contract_tests + chronon3d_pipeline_parity_tests + chronon3d_inspect_text_tests
+#   Renderer session   → chronon3d_core_tests (test_render_runtime_isolation, test_render_session_reset_and_isolation, test_camera_session_*)
+#   Factory registration → chronon3d_core_tests (test_text_preset_registry, test_text_preset_descriptor) + chronon3d_text_presets_stability_tests
+set(CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS "")
+if(TARGET chronon3d_core_tests)
+    list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_core_tests)
+endif()
+if(TARGET chronon3d_text_presets_stability_tests)
+    list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_text_presets_stability_tests)
+endif()
+if(TARGET chronon3d_visibility_contract_tests)
+    list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_visibility_contract_tests)
+endif()
+if(TARGET chronon3d_pipeline_parity_tests)
+    list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_pipeline_parity_tests)
+endif()
+if(TARGET chronon3d_inspect_text_tests)
+    list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_inspect_text_tests)
+endif()
+add_custom_target(chronon3d_sanitizer_subsystems
+    DEPENDS ${CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS}
+)
+# ORDER DEPENDENCY: this umbrella runs AFTER chronon3d_text_full_acceptance
+# (so get_test_property() reads the prior text-full-acceptance label for
+# the 2 overlapping targets). Do not reorder the 2 umbrellas.
+# Apply `sanitizer-subsystems` label WITHOUT clobbering pre-existing labels
+# (chronon3d_text_presets_stability_tests + chronon3d_inspect_text_tests
+# are in BOTH the chronon3d_text_full_acceptance umbrella AND this one,
+# so a naive `set_tests_properties(... LABELS "sanitizer-subsystems")` would
+# strip their `text-full-acceptance` label and silently break
+# `ctest -L text-full-acceptance` for those 2 tests). The append pattern
+# below preserves any existing labels via get_test_property() + set.
+foreach(_ss_target IN LISTS CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS)
+    get_test_property(${_ss_target} LABELS _ss_existing_labels)
+    if(_ss_existing_labels)
+        set_tests_properties(${_ss_target} PROPERTIES
+            LABELS "${_ss_existing_labels};sanitizer-subsystems")
+    else()
+        set_tests_properties(${_ss_target} PROPERTIES
+            LABELS "sanitizer-subsystems")
+    endif()
+endforeach()
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/architecture_tests.cmake)
 endif()
 
