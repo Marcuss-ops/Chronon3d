@@ -366,6 +366,12 @@ void run_move_semantics_test(
         CHECK(j.first_frame == expected_first_frame);
         CHECK(j.last_frame  == expected_last_frame);
 
+        // use_count == 2 for self-move: shared_ptr self-move is a no-op
+        // per [util.smartptr.shared.const] (C++17+), so the refcount
+        // should be preserved.  Before self-move: j.comp + comp = 2 refs.
+        // After self-move: same, 2 refs.  Matches the move ctor/assign
+        // sections and extends the move-vs-copy discriminator here too.
+        CHECK(j.comp.use_count() == 2);
     }
 }
 
