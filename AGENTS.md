@@ -78,6 +78,38 @@ Per il contratto completo di ciascun ruolo, vedi [`docs/DOCUMENTATION_GOVERNANCE
 | Materiale storico (non operativo)  | `docs/ARCHIVE/`                                     |
 
 
+### Disciplina di aggiornamento dei canonici
+
+**Non tutti i commit richiedono modifiche ai documenti canonici.** La regola
+riduce i conflitti di rebase e il churn documentale imponendo update
+minimali e mirati:
+
+| Canonical            | Quando aggiornare                                                    |
+| -------------------- | -------------------------------------------------------------------- |
+| `CURRENT_STATUS.md`  | **Solo** quando cambia lo stato presente di un'area (PASS/FAIL/NOT RUN). |
+| `FOLLOWUP_TICKETS.md`| **Solo** per apertura, chiusura o cambio stato di un blocker.         |
+| `CHANGELOG.md`       | **Solo** per chiusure di milestone o cambiamenti visibili all'utente. |
+| `ROADMAP.md`         | **Solo** quando la direzione futura (milestone, gate) cambia.         |
+| `RELEASE_GATE.md`    | **Solo** quando un requisito permanente di release viene aggiunto, modificato o rimosso. |
+
+**Per i fix piccoli NON aggiornare i canonici.** Commit di tipo
+`fix:`, `chore:`, `refactor:` che non cambiano lo stato di un'area,
+non aprono/chiudono blocker e non costituiscono una milestone
+*non devono* toccare `CURRENT_STATUS.md`, `FOLLOWUP_TICKETS.md` o
+`CHANGELOG.md`. Esempi:
+
+- `fix(video): replace removed umbrella include` → non tocca canonici
+- `chore(git): install tracked repository hooks` → non tocca canonici
+- `refactor(glow): ChrononGlowProps dedup` → non tocca canonici
+- `fix(tests): migrate rotate_z to canonical rotate(Vec3)` → non tocca canonici
+
+**Per i dettagli tecnici** usa la scheda ticket specifica
+(`docs/tickets/TICKET-NNN.md`). Nei canonici conserva **soltanto
+una riga sintetica** (stato + riferimento al ticket).
+
+Questo riduce drasticamente i rebase conflittuali e mantiene i
+quattro canonici snelli e sempre aggiornati allo stato reale.
+
 
 ## ✅ Feature Freeze — REVOCATO (2026-07-06)
 
