@@ -62,8 +62,6 @@ LookAheadResult look_ahead_tangent(const CameraSourceSpec& source,
     return out;
 }
 
-namespace chronon3d::camera_v1 {
-
 // =============================================================================
 // source_is_time_dependent
 // =============================================================================
