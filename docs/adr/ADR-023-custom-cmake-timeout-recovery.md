@@ -25,7 +25,7 @@ TICKET-DOCTEST-DISCOVER-TESTS-ROT-FIX, GATE-MNT-01.
 
 ### The rot-fix that created the timeout gap
 
-The TICKET-DOCTEST-DISCOVER-TESTS-ROT-FIX chore commit (`88ad0d9`,
+The TICKET-DOCTEST-DISCOVER-TESTS-ROT-FIX chore commit (see SHA cited in §Context,
 2026-07-12) REMOVED 2 redundant `doctest_discover_tests(...)` blocks at:
 
 - `tests/pipeline_parity_tests.cmake:43-47`
@@ -208,7 +208,7 @@ for TICKET-DOCTEST-DISCOVER-TESTS-TIMEOUT-RECOVERY:
   that don't need per-TEST_CASE timeout recovery continue to use
   the existing helper.
 - **§Honest TIMEOUT loss documented + recovery path forward-pointed**:
-  the rot-fix at commit `88ad0d9` SILENTLY LOST the 30/120s per-
+  the rot-fix at commit cited in §Context SILENTLY LOST the 30/120s per-
   TEST_CASE bound; this ADR documents the loss + the recovery
   disposition. The CURRENT_STATUS row + the FOLLOWUP_TICKETS row
   reference this ADR for the recovery path.
@@ -379,10 +379,10 @@ ctest --test-dir build/chronon/linux-content-dev -R 'TextVisibleInk|TextNoClip|T
   per-target, not per-TEST_CASE)
 - `tests/pipeline_parity_tests.cmake:43-47` — the prior `doctest_discover_tests`
   block with TIMEOUT 30 (REMOVED in TICKET-DOCTEST-DISCOVER-TESTS-ROT-FIX
-  commit `88ad0d9`)
+  commit cited in §Context)
 - `tests/pipeline_parity_real_tests.cmake:27-31` — the prior
   `doctest_discover_tests` block with TIMEOUT 120 (REMOVED in
-  TICKET-DOCTEST-DISCOVER-TESTS-ROT-FIX commit `88ad0d9`)
+  TICKET-DOCTEST-DISCOVER-TESTS-ROT-FIX commit cited in §Context)
 - `tests/text/test_pipeline_parity.cpp` — the 7-pipeline × 18-CHECK matrix
   (forward-point for per-TEST_CASE TIMEOUT 30s recovery)
 - `tests/text/test_pipeline_parity_real.cpp` — the video-completeness matrix
