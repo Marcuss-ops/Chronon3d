@@ -49,7 +49,7 @@ namespace {
 // §8 central crop (350, 300, 1570, 780) → 1220×480 px; BT.709 luminance.
 struct CentralCrop { int x0 = 350, y0 = 300, x1 = 1570, y1 = 780; };
 
-inline float bt709_luma(const Framebuffer::Pixel& p) {
+inline float bt709_luma(const Color& p) {
     return 0.2126f * p.r + 0.7152f * p.g + 0.0722f * p.b;
 }
 
@@ -57,7 +57,7 @@ float mean_central_luma(const Framebuffer& fb, const CentralCrop& c) {
     double acc = 0.0; int n = 0;
     for (int y = c.y0; y < c.y1; ++y)
         for (int x = c.x0; x < c.x1; ++x) {
-            acc += static_cast<double>(bt709_luma(fb.pixel(x, y)));
+            acc += static_cast<double>(bt709_luma(fb.get_pixel(x, y)));
             ++n;
         }
     return static_cast<float>((n > 0) ? (acc / n) : 0.0);
@@ -65,7 +65,7 @@ float mean_central_luma(const Framebuffer& fb, const CentralCrop& c) {
 
 // §13 helpers: frame_at maps seconds+rate → frame index (user-spec verbatim).
 inline int frame_at(double seconds, FrameRate rate) {
-    return static_cast<int>(std::lround(seconds * rate.as_double()));
+    return static_cast<int>(std::lround(seconds * rate.fps()));
 }
 
 inline float centroid_distance(const Framebuffer& a, const Framebuffer& b) {
@@ -81,7 +81,7 @@ inline float centroid_distance(const Framebuffer& a, const Framebuffer& b) {
 // Composition.frame_rate so the renderer constructs a rate-aware
 // FrameContext, making frame_at = lround(t*rate) bit-exact equivalent
 // across rates at the same wall-clock time.
-Composition make_typewriter_class(test::HarnessRenderer& r, FrameRate rate) {
+Composition make_typewriter_class(SoftwareRenderer& r, FrameRate rate) {
     const float cx = 1920.0f * 0.5f;
     const float cy = 1080.0f * 0.5f;
     return Composition{
@@ -93,9 +93,10 @@ Composition make_typewriter_class(test::HarnessRenderer& r, FrameRate rate) {
             SceneBuilder s(ctx);
             s.font_engine(&r.font_engine());
             s.layer("typewriter_class", [cx, cy](LayerBuilder& l) {
-                l.opacity_timeline(motion::timeline(0.0f)
-                    .to(Frame{30}, 1.0f, EasingCurve{Easing::Linear})
-                    .to(Frame{90}, 1.0f, EasingCurve{Easing::Linear}));
+                auto& opacity = l.opacity_anim();
+                opacity.set(0.0f);
+                opacity.add_keyframe(Frame{30}, 1.0f, EasingCurve{Easing::Linear});
+                opacity.add_keyframe(Frame{90}, 1.0f, EasingCurve{Easing::Linear});
                 l.text_run("title", TextRunParams{
                     .text = {
                         .content = {.value = "FPS_TEST"},
@@ -133,7 +134,7 @@ TEST_CASE("VideoAntiFlicker.AdjacentFrames_MeanLumaDelta_LT_20p0_1920x1080") {
     std::vector<float> luma_series;
     for (auto& entry : std::filesystem::directory_iterator(frames_dir)) {
         if (entry.path().extension() != ".png") continue;
-        Framebuffer fb = Framebuffer::load_png(entry.path());
+        Framebuffer fb = *test::load_png_as_framebuffer(entry.path().string());
         luma_series.push_back(mean_central_luma(fb, crop));
     }
     REQUIRE(luma_series.size() >= 2);
@@ -154,7 +155,7 @@ TEST_CASE("VideoAnim.MultiFPS_SameWallClock_RendersEquivalentCentroid_1920x1080"
     const std::array<double, 4> times = {0.0, 0.5, 1.0, 1.5};
     for (double t : times) {
         CAPTURE(t);
-        std::array<Framebuffer, 4> frames;
+        std::array<std::shared_ptr<Framebuffer>, 4> frames;
         for (std::size_t i = 0; i < rates.size(); ++i) {
             const int fidx = frame_at(t, rates[i]);
             Composition comp = make_typewriter_class(renderer, rates[i]);
@@ -162,9 +163,9 @@ TEST_CASE("VideoAnim.MultiFPS_SameWallClock_RendersEquivalentCentroid_1920x1080"
             REQUIRE(frames[i] != nullptr);
         }
         // User-spec verbatim: dist(30fps, 60fps) < 2.0 px at same wall-clock.
-        CHECK(centroid_distance(frames[2], frames[3]) < 2.0f);
+        CHECK(centroid_distance(*frames[2], *frames[3]) < 2.0f);
         // Forward-point matrix completeness: 24↔30 + 25↔30 also < 2.0 px.
-        CHECK(centroid_distance(frames[0], frames[2]) < 2.0f);
-        CHECK(centroid_distance(frames[1], frames[2]) < 2.0f);
+        CHECK(centroid_distance(*frames[0], *frames[2]) < 2.0f);
+        CHECK(centroid_distance(*frames[1], *frames[2]) < 2.0f);
     }
 }

@@ -87,14 +87,9 @@ Composition build_anim_opacity_composition(
             s.font_engine(&renderer.font_engine());
             s.layer("fader", [cx, cy, canvas_w, canvas_h](LayerBuilder& l) {
                 // Linear opacity animation: 1.0 at frame 0, 0.1 at frame 30.
-                // The motion::timeline API is fluent: `timeline(initial)`
-                // creates a Timeline starting at the initial value, then
-                // `.to(end_frame, value, easing)` adds the second keyframe.
-                // (The 2-arg brace-init form `{FrameRange, ValueRange}` is
-                // NOT supported by `motion::timeline()` per the canonical
-                // signature in include/chronon3d/animation/motion/timeline.hpp.)
-                l.opacity_timeline(motion::timeline(1.0f)
-                    .to(Frame{30}, 0.1f, EasingCurve{Easing::Linear}));
+                auto& opacity = l.opacity_anim();
+                opacity.set(1.0f);
+                opacity.add_keyframe(Frame{30}, 0.1f, EasingCurve{Easing::Linear});
                 l.text_run("title", TextRunParams{
                     .text = {
                         .content = {.value = "FADE"},

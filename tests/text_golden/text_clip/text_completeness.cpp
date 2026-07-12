@@ -117,6 +117,7 @@ Composition build_completeness_composition(
                 l.text_run("title", TextRunSpec{
                     .text = {
                         .content = {.value = std::string{text}},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},
                         .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
@@ -132,8 +133,7 @@ Composition build_completeness_composition(
                         .appearance = {
                             .color = Color::white(),
                             .shadows = shadows
-                        },
-                        .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}}
+                        }
                     }
                 }).commit();
             });
@@ -169,6 +169,7 @@ Composition build_multifont_composition(SoftwareRenderer& renderer) {
                 l.text_run("regular", TextRunSpec{
                     .text = {
                         .content = {.value = "Regular "},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                         .font = {
                             .font_path = "assets/fonts/Inter-Regular.ttf",
                             .font_family = "Inter",
@@ -180,13 +181,13 @@ Composition build_multifont_composition(SoftwareRenderer& renderer) {
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
                         },
-                        .appearance = {.color = Color::white()},
-                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}}
+                        .appearance = {.color = Color::white()}
                     }
                 }).commit();
                 l.text_run("bold", TextRunSpec{
                     .text = {
                         .content = {.value = "BOLD Italic gyqp \u00C1\u00C9\u00CD"},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                         .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
@@ -198,8 +199,7 @@ Composition build_multifont_composition(SoftwareRenderer& renderer) {
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
                         },
-                        .appearance = {.color = Color::white()},
-                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}}
+                        .appearance = {.color = Color::white()}
                     }
                 }).commit();
             });
@@ -225,6 +225,7 @@ Composition build_trifont_composition(SoftwareRenderer& renderer) {
                 l.text_run("inter", TextRunSpec{
                     .text = {
                         .content = {.value = "HAMBURGER "},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                         .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
@@ -236,14 +237,14 @@ Composition build_trifont_composition(SoftwareRenderer& renderer) {
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
                         },
-                        .appearance = {.color = Color::white()},
-                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}}
+                        .appearance = {.color = Color::white()}
                     }
                 }).commit();
                 // Run 2: Poppins Regular
                 l.text_run("poppins", TextRunSpec{
                     .text = {
                         .content = {.value = "gyqp \u00C1\u00C9 "},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                         .font = {
                             .font_path = "assets/fonts/Poppins-Regular.ttf",
                             .font_family = "Poppins",
@@ -255,14 +256,14 @@ Composition build_trifont_composition(SoftwareRenderer& renderer) {
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
                         },
-                        .appearance = {.color = Color::white()},
-                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}}
+                        .appearance = {.color = Color::white()}
                     }
                 }).commit();
                 // Run 3: Poppins Bold
                 l.text_run("poppins-bold", TextRunSpec{
                     .text = {
                         .content = {.value = "\u00CD\u00D3\u00DA descenders"},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                         .font = {
                             .font_path = "assets/fonts/Poppins-Bold.ttf",
                             .font_family = "Poppins",
@@ -274,8 +275,7 @@ Composition build_trifont_composition(SoftwareRenderer& renderer) {
                             .align = TextAlign::Center,
                             .vertical_align = VerticalAlign::Middle
                         },
-                        .appearance = {.color = Color::white()},
-                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}}
+                        .appearance = {.color = Color::white()}
                     }
                 }).commit();
             });

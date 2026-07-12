@@ -184,9 +184,10 @@ Composition build_text_camera_dof(SoftwareRenderer& renderer, bool dof_on) {
 
             // Layer 2: out-of-focus text at z=-300 (farther from camera)
             s.layer("blurred", [](LayerBuilder& l) {
+                l.position({0.0f, 0.0f, -300.0f});
                 l.text("t1", {
                     .content = {.value = "BLUR"},
-                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 680.0f, -300.0f}},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 680.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,

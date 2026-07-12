@@ -175,30 +175,32 @@ bool render_and_verify_arabic(
 ) {
     // 1920×1080 landscape golden
     {
+        auto slug_1920 = std::string{case_slug} + "_1920x1080";
         auto comp = build_arabic_composition(renderer, arabic_text, 1920, 1080,
-                                              std::string{case_slug} + "_1920x1080");
+                                              slug_1920.c_str());
         auto fb = renderer.render(comp, Frame{0});
         REQUIRE(fb != nullptr);
 
         auto r = verify_golden(
             *fb,
             std::string{"multilingual_arabic_shaping_"} + case_slug + "_1920x1080",
-            make_arabic_config(std::string{case_slug} + "_1920x1080"));
+            make_arabic_config(slug_1920));
         INFO("Golden (1920x1080): ", r.message);
         REQUIRE_FALSE(r.golden_missing);
         if (!r.passed) return false;
     }
     // 1080×1920 portrait golden
     {
+        auto slug_1080 = std::string{case_slug} + "_1080x1920";
         auto comp = build_arabic_composition(renderer, arabic_text, 1080, 1920,
-                                              std::string{case_slug} + "_1080x1920");
+                                              slug_1080.c_str());
         auto fb = renderer.render(comp, Frame{0});
         REQUIRE(fb != nullptr);
 
         auto r = verify_golden(
             *fb,
             std::string{"multilingual_arabic_shaping_"} + case_slug + "_1080x1920",
-            make_arabic_config(std::string{case_slug} + "_1080x1920"));
+            make_arabic_config(slug_1080));
         INFO("Golden (1080x1920): ", r.message);
         REQUIRE_FALSE(r.golden_missing);
         if (!r.passed) return false;

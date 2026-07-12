@@ -154,7 +154,7 @@ bool render_and_verify_hangul(
     // 1920×1080 landscape golden
     {
         auto comp = build_hangul_composition(renderer, hangul_text, 1920, 1080,
-                                              std::string{case_slug} + "_1920x1080");
+                                              (std::string{case_slug} + "_1920x1080").c_str());
         auto fb = renderer.render(comp, Frame{0});
         REQUIRE(fb != nullptr);
 
@@ -169,7 +169,7 @@ bool render_and_verify_hangul(
     // 1080×1920 portrait golden
     {
         auto comp = build_hangul_composition(renderer, hangul_text, 1080, 1920,
-                                              std::string{case_slug} + "_1080x1920");
+                                              (std::string{case_slug} + "_1080x1920").c_str());
         auto fb = renderer.render(comp, Frame{0});
         REQUIRE(fb != nullptr);
 
