@@ -18,6 +18,12 @@
 // byte-exact when the pipelines are correct.
 
 #include <doctest/doctest.h>
+// TICKET-DOCTEST-SKIP-ROT: provide the SKIP() macro on doctest versions
+// (< 2.4.0) where it is not in the top-level <doctest/doctest.h> include.
+// The compat header aliases SKIP(msg) to the canonical DOCTEST_SKIP(msg)
+// so the 5 SKIP(...) call sites below compile unchanged. See
+// tests/helpers/doctest_skip_compat.hpp for the rationale + alternatives.
+#include <tests/helpers/doctest_skip_compat.hpp>
 
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
