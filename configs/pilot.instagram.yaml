@@ -1,0 +1,111 @@
+# configs/pilot.instagram.yaml
+# ─────────────────────────────────────────────────────────────────────
+# 7-day Instagram Reels pilot — canonical config consumed by tools/run_pilot.sh
+#
+# Created 2026-07-12 — Test 16 / First-Principles Product Check #16
+# (Pilot setup per user spec verbatim: "Setup 7-day pilot su canale reale
+# (scegli YT/IG/TT). Per 7gg produci video reali. Misura:
+# video_posted/discarded/manual_corrections/time_saved/cost/bugs.")
+#
+# Honest framing (per AGENTS.md §honesty "non inventare"):
+#   - This file is the CANONICAL CONFIG for a 7-day operational pilot
+#   - The framework (tools/run_pilot.sh + tools/pilot_metrics.py) is CODE-COMPLETE
+#   - The 7-day EXECUTION (rendering N videos/day, posting to Instagram,
+#     recording the 6 metrics into ~/.chronon3d/pilot.jsonl) is DEFERRED to
+#     human/runner execution
+#   - The pilot VERDICT (PASS/PARTIAL/FAIL) can only be filled after the
+#     7-day window completes; this commit delivers the HARNESS only
+#
+# Channel rationale (thinker-with-files-gemini verdict 2026-07-12):
+#   - Instagram Reels chosen over YouTube / TikTok because:
+#     (a) IG-Reels 9:16 vertical short-form is already a documented Chronon3D
+#         canonical use case (TICKET-AE-PARITY-CINEMATIC-14, "ae_multiline_9_16_safezone
+#         (TikTok/Reels safe-area)" + the cinematic_showcase.cpp width=1080,height=1920
+#         recipe).
+#     (b) IG-Reels renderds are short (15-90 s) → low per-video render cost
+#         → maximises "time_saved / cost" signal per-video.
+#     (c) IG-Reels algorithm is content-bias (not channel-bias) → manual_correction
+#         signal is meaningful (algorithm tolerates lower polish than YT).
+#     (d) NO channel API credentials in repo → framework-mandatory.
+#     YT/TT deferred to Test 17/18 followup tickets.
+# ─────────────────────────────────────────────────────────────────────
+
+pilot:
+  name: pilot-instagram-7d
+  channel: instagram-reels
+  start_date: 2026-07-13
+  end_date: 2026-07-19
+  duration_days: 7  # 7 days inclusive
+  runner: human     # NOT autonomous (no IG OAuth credentials in repo)
+  status: harness-complete  # §honesty: framework complete; verdict deferred
+
+# ── Render parameters (chronon3d_cli video command surface) ──────────
+render:
+  composition: cinematic_showcase  # canonical cinematic showcase (content/showcases/cinematic/)
+  format: mp4
+  width: 1080         # IG Reels vertical
+  height: 1920        # IG Reels vertical
+  fps: 30
+  duration_seconds_min: 15     # IG Reels minimum
+  duration_seconds_max: 90     # IG Reels maximum
+  motion_blur: true           # canonical --motion-blur CLI flag (per content/launches/product_launch.cpp)
+  preflight_required: true    # canonical preflight gate (per docs/CLI_REFERENCE.md)
+  golden_snapshot: ~/.chronon3d/pilot/golden/  # per-video golden PNG for visual cert
+  output_dir: ~/.chronon3d/pilot/videos/
+
+# ── Schedule (per-day quotas) ────────────────────────────────────────
+schedule:
+  videos_per_day_min: 1
+  videos_per_day_target: 2
+  videos_per_day_max: 3       # safety cap to prevent burst-render waste
+  post_window_local: "10:00-21:00"   # IG audience peak window (EU+US)
+  cadence: daily               # NOT batched; one render + one post per slot
+
+# ── Metric schema (appended to ~/.chronon3d/pilot.jsonl) ─────────────
+# User spec verbatim metric list:
+#   video_posted / discarded / manual_corrections / time_saved / cost / bugs
+metrics:
+  jsonl_log: ~/.chronon3d/pilot/pilot.jsonl       # append-only (NOT git-tracked)
+  schema:
+    - timestamp_iso       # recording wall-clock at log append
+    - day_index           # 0..6 (7-day window)
+    - composition_id
+    - output_path         # rendered MP4 path (relative to output_dir)
+    - duration_s
+    - render_ms           # from render_counters (existing dashboard surface)
+    - render_cost_usd     # on-prem CPU cost: ~$0 (canonical value per docs/PERFORMANCE_BOTTLENECKS.md)
+    - manual_corrections  # count of human re-export iterations per video
+    - time_saved_vs_baseline_min   # vs cloud AI alternative (per Test-15 one-pager TEMPO row anchor)
+    - bugs                # free-text observation: rendering glitch, command failure, etc.
+    - video_posted        # bool: was this video actually posted to IG within the day?
+    - discarded           # bool: was this rendered video intentionally discarded?
+    - notes               # free-text runner notes
+
+# ── Success criteria (PASS thresholds; populated POST-execution) ─────
+success_criteria:
+  videos_posted: "≥ 7 (≥1 per day over 7 days) + ≥13 total (#2/day target met)"
+  video_post_rate: "≥ 50% (videos_posted / videos_rendered × 100)"
+  manual_correction_median: "≤ 1 per video"
+  median_time_saved_per_video_min: "≥ 30"   # vs cloud AI baseline
+  bugs_critical: "0"
+  discarded_rate_max: "≤ 50%"                 # <50% discarded is OK; pilot is exploratory
+
+# ── Posting (MANUAL — NO OAuth) ──────────────────────────────────────
+# Per AGENTS.md §honesty: NO channel API credentials in repo. Posting is 100% manual.
+posting:
+  mode: manual
+  oauth_credentials_present: false   # any future "set true" requires OAuth + commit
+  manual_workflow:
+    - "open Instagram mobile app OR Instagram Creator Studio web"
+    - "upload rendered MP4 from ~/.chronon3d/pilot/videos/<slug>.mp4"
+    - "add captions from notes column in pilot.jsonl"
+    - "submit post; record `video_posted=true` in pilot.jsonl via tools/run_pilot.sh log"
+  observability:
+    - "post timestamp in pilot.jsonl via: `bash tools/run_pilot.sh log <slug> video_posted=true`"
+    - "discard timestamp in pilot.jsonl via: `bash tools/run_pilot.sh log <slug> discarded=true`"
+
+# ── Dashboard wiring (forward-point — see docs/pilots/2026-07-12-pilot-instagram.md §Dashboard wiring)
+dashboard:
+  url: http://localhost:5005            # canonical dev dashboard port (per docs/TELEMETRY_DASHBOARD.md §11)
+  endpoint_wireup_status: planned       # ¬ yet (forward-point TICKET-PILOT-IG-DASHBOARD-WIREUP)
+  one_off_summary_command: "python3 tools/pilot_metrics.py --json"

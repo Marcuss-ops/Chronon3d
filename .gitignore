@@ -159,6 +159,7 @@ trace*.json
 # untracked entry in `git status` that breaks tools/check_main_clean.sh's
 *.user
 vcpkg/
+vcpkg_bootstrap
 vcpkg_bootstrap/
 vcpkg_installed/
 *.vcxproj

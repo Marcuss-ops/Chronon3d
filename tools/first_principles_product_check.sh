@@ -37,14 +37,36 @@ echo "== Product demo =="
 
 echo "== Camera brutal =="               # TODO (Test #9)
 echo "== Multilingual text =="           # TODO (Test #8)
-echo "== Fail-loud errors =="            # TODO (Test #7)
-echo "== Fix speed =="                   # Test #11 cronograph (replaces the prior "Real cost" mapping per the user spec verbatim "Cronometro del fix"; wired-but-§honesty-zero-data on this VPS until a working build host adds a real JSONL entry)
+echo "== Fail-loud errors =="           # Test #7 (Wired via tools/check_first_principles_fail_loud.sh)
+bash "$SCRIPT_DIR/check_first_principles_fail_loud.sh"
+
+echo "== Video tooling =="               # Test #FF (FFmpeg + FFprobe FAIL-LOUD gate; canonical wire-in for replacing downstream SKIP-on-missing rot per user spec + AGENTS.md §honest-limitation)
+bash "$SCRIPT_DIR/check_ffmpeg_required.sh"
+
+echo "== Glow certification =="         # Test GLOW-CERT (wired via tools/check_glow_certification.sh — 4 ctest suites + Python A/B + temporal + SSIM + determinism; origin/main lane)
+bash "$SCRIPT_DIR/check_glow_certification.sh"
+
+echo "== Video completeness probe =="   # TICKET-VIDEO-FFPROBE-VALIDATION wire-up (spec §4+§6: ffprobe MP4 contract + ffmpeg decoded-frames count assertion; canonical off-decision surface for the 20-step Video Completeness Matrix; chore 23184d73 lane)
+bash "$SCRIPT_DIR/check_video_completeness.sh"
+
+echo "== Video quality SSIM/PSNR =="     # TICKET-VIDEO-SSIM-PSNR-GATE wire-up (spec §7: ffmpeg -lavfi ssim + psnr comparison raw PNGs vs MP4-decoded PNGs; canonical avg_ssim≥0.97 + avg_psnr≥35dB + min_frame_ssim≥0.94 gate; forward-point: tighten ≥0.985/≥40dB after encoder tuning is TICKET-VIDEO-SSIM-PSNR-ENCODER-TUNING-TIGHTENING, separate ticket per Cat-3 anti-duplication; depends on the prior `tools/check_video_completeness.sh` Step 4.5h having produced the canonical 60-frame decoded PNGs at $OUTPUT_DIR/decoded_frames)
+bash "$SCRIPT_DIR/check_video_ssim_psnr.sh"
+
+echo "== Costo =="                       # Test #11 "costo reale" (render cost — NEW dedicated section, distinct from the chronograph in == Fix speed == per AGENTS.md Cat-3 anti-duplication)
+bash "$SCRIPT_DIR/measure_render_cost.sh"
 bash "$SCRIPT_DIR/check_fix_cronograph.sh"
-echo "== Scale 100 batch =="             # TODO (Test #12)
+
+echo "== Manual touches =="              # Test #19 "manual_touches_per_video" (4-phase threshold gate: oggi<=8, fase1<=3, fase2<=1, finale<=0)
+bash "$SCRIPT_DIR/check_manual_touches_per_video.sh"
+echo "== Scale 100 batch ==             " # TODO (Test #12)
 echo "== Brutal elimination =="          # TODO (Test #4)
 echo "== Legacy grep audit =="           # TODO (Test #10 — promote follow-up 2)
 echo "== Feature usefulness gate =="     # TODO (Test #14 — docs gate)
 echo "== Weekly scorecard =="            # TODO (Track-13 — output terr.)
 
 echo "FIRST_PRINCIPLES_PRODUCT_PASS"
-echo "[INFO] ${GATE_NAME}: 4/6 active sections wired (... Fix speed/Test #11 wired-but-§honesty-zero-data-on-VPS until build-host logs entry); 2/6 TODO-body (Determinism + Product demo); 8 follow-up stub headers pending (Test #4, #7-9, #12-14, Track-13)"
+# Resolved per multi-agent dance-collision AGENTS.md GATE-MNT-01 closure lineage:
+# combine both §INFO-level bumps — 9/9 (b3464dab) → 10/10 (mine adds Video completeness probe) +
+# 6 follow-up stubs from b3464dab preserved with the dedup-acknowledgement list extended for
+# BOTH additions (Glow cert + Video completeness probe + Test #FF Video tooling).
+echo "[INFO] ${GATE_NAME}: 11/11 active sections wired (... Fix speed/Test #11 wired-but-§honesty-zero-data-on-VPS until build-host logs entry; Fail-loud/Test #7 wired via tools/check_first_principles_fail_loud.sh; Video tooling/Test #FF wired via tools/check_ffmpeg_required.sh; Glow certification/Test GLOW-CERT wired via tools/check_glow_certification.sh — 5 phases: ctest + Python A/B + temporal + SSIM + determinism; Video completeness probe/TICKET-VIDEO-FFPROBE-VALIDATION wired via tools/check_video_completeness.sh — ffprobe MP4 contract + ffmpeg decoded-frames canonical gate for spec §4+§6; Video quality SSIM/PSNR/TICKET-VIDEO-SSIM-PSNR-GATE wired via tools/check_video_ssim_psnr.sh — ffmpeg -lavfi ssim + psnr canonical gate for spec §7 (avg_ssim≥0.97 + avg_psnr≥35dB + min_frame_ssim≥0.94); Costo/Test #11-render-cost wired via tools/measure_render_cost.sh + docs/scorecard.csv canonical Cat-3 ledger; Manual touches/Test #19 wired via tools/check_manual_touches_per_video.sh); 0 TODO-body pending (Determinism + Product demo remain as TODO stubs); 6 follow-up stub headers pending (Test #4, #8, #9, #12-13, Track-13 — minus the Glow certification + Video completeness probe promotion)"

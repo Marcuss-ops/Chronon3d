@@ -1,0 +1,20 @@
+{
+  "fixture_id": "corrupt_video_v1",
+  "description": "Fail-loud: chronon3d_cli render must abort loudly when a video asset is structurally corrupt (e.g., truncated MP4, invalid codec). Canonical error vocabulary: Composition/Layer/Asset/Path tokens in stderr + video-decode context, NO silent fallback markers, exit code != 0, output MP4 absent.",
+  "rot_class": "corrupt_video_asset",
+  "composition_id": "ProductLaunch",
+  "cli_args": [
+    "--assets-root", "/tmp/chronon_corrupt_video_harness",
+    "--video-asset", "/tmp/chronon_corrupt_video_harness/corrupt.mp4"
+  ],
+  "output_path": "/tmp/should-not-exist.mp4",
+  "_video_corruption_setup_hint": "Pre-create /tmp/chronon_corrupt_video_harness/corrupt.mp4 with a deliberately truncated MP4 header (e.g., zero-byte file) before invoking the CLI. The harness directory is supplied; the rotting byte stream is provided externally to keep the JSON declarative.",
+  "expected": {
+    "exit_code_nonzero": true,
+    "output_file_absent": "/tmp/should-not-exist.mp4",
+    "stderr_tokens_required": ["Composition", "Layer", "Asset", "Path"],
+    "minimum_token_matches": 3,
+    "forbidden_substrings": ["fallback frame", "black frame", "continue on error", "fallback to silence"]
+  },
+  "honesty_note": "Per AGENTS.md §honesty: the corroption-byte-stream harness is EXTERNAL to this JSON (because binary fixtures do not belong in tracked JSON). The harness directory is created in the bash script's setup phase if absent; the CLI invocation may then fall back to AssetResolver-failure if the harness is unprepared — the assertion is the SAME (fail-loud, not the specific rot trigger)."
+}

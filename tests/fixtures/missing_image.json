@@ -1,0 +1,16 @@
+{
+  "fixture_id": "missing_image_v1",
+  "description": "Fail-loud: chronon3d_cli render must abort loudly when image assets are missing/unresolvable. Canonical error vocabulary: Composition/Layer/Asset/Path tokens in stderr, NO silent fallback markers, exit code != 0, output MP4 absent.",
+  "rot_class": "missing_image_asset",
+  "composition_id": "ProductLaunch",
+  "cli_args": ["--assets-root", "/tmp/chronon_missing_images_should_not_exist"],
+  "output_path": "/tmp/should-not-exist.mp4",
+  "expected": {
+    "exit_code_nonzero": true,
+    "output_file_absent": "/tmp/should-not-exist.mp4",
+    "stderr_tokens_required": ["Composition", "Layer", "Asset", "Path"],
+    "minimum_token_matches": 3,
+    "forbidden_substrings": ["fallback frame", "black frame", "continue on error", "fallback to silence"]
+  },
+  "honesty_note": "Variant of missing_font.json with image-specific rot_class; demonstrates diverse asset resolution FAIL paths. Per AGENTS.md Cat-3 anti-duplication: this JSON schema is shared across all 5 fixtures but the rot_class + cli_args differ per fixture — no duplicate schema files."
+}

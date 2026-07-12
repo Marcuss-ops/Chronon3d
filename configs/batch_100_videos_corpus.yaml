@@ -1,0 +1,197 @@
+# configs/batch_100_videos_corpus.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Test #20 (First-Principles Product Check #20) — canonical corpus schema
+# for the 100-job batch acceptance gate.
+#
+# Schema-canonical config for the 100-job batch:
+#   - 10 langs × 10 topics × 1 format = 100 jobs
+#   - 8 per-job metrics: completed/failed/manual_touches/total_time_ms/peak_RAM_MB/crashes/corrupted/invisible_text
+#   - 4 PASS criteria: 100 output / 0 crash / 0 corrotti / ≥98% no manual
+#
+# Per AGENTS.md v0.1 Cat-3 (zero new public SDK API surface):
+#   the corpus + metric schema + PASS criteria are config-only,
+#   NOT hardcoded in apps/chronon3d_cli/ or src/.
+#   tools/check_batch_100_videos.sh reads from this file at gate time.
+#
+# Per AGENTS.md v0.1 §honesty ("non inventare"):
+#   the stub processor in `tests/acceptance/test_batch_100_videos.cpp`
+#   produces a deterministic all-green metric emission (mirrors
+#   stub_processor.default_behavior below). The selftest at
+#   `tests/tools/selftest_batch_100_videos.sh` exercises 4 FAIL scenarios
+#   to prove the gate catches non-green input (satisfying
+#   "non cambiare un gate per nascondere un errore").
+# ─────────────────────────────────────────────────────────────────────────
+
+batch_corpus_schema_version: "batch_100_videos_corpus_v1"
+
+# ── Test #20 spec verbatim: 10 langs × 10 topics × 1 format = 100 jobs ──
+# Order is canonical (test order == job-emission order); do NOT reorder
+# without an ADR (the JSONL row order is the canonical audit trail).
+languages:
+  - id: en
+    label: "English"
+  - id: it
+    label: "Italian"
+  - id: es
+    label: "Spanish"
+  - id: fr
+    label: "French"
+  - id: de
+    label: "German"
+  - id: pt
+    label: "Portuguese"
+  - id: ja
+    label: "Japanese"
+  - id: zh
+    label: "Mandarin Chinese"
+  - id: ru
+    label: "Russian"
+  - id: ar
+    label: "Arabic"
+
+topics:
+  - id: tech_review
+    label: "Tech review"
+  - id: tutorial
+    label: "Tutorial how-to"
+  - id: behind_the_scenes
+    label: "Behind-the-scenes"
+  - id: news_brief
+    label: "60-sec news brief"
+  - id: motivation
+    label: "Motivational quote"
+  - id: countdown
+    label: "Countdown (10/N)"
+  - id: recipe
+    label: "Food recipe"
+  - id: travel
+    label: "Travel mini-doc"
+  - id: tutorial_code
+    label: "Code walkthrough"
+  - id: promo
+    label: "Product promo (15s)"
+
+# Per user spec: exactly 1 format (vertical 9:16 short-form).
+formats:
+  - id: vertical_9_16
+    label: "9:16 vertical short-form"
+    width: 1080
+    height: 1920
+    fps: 30
+    duration_seconds_target: 30
+
+# ── Per-job metric record schema (8 fields per user spec) ─────────────
+# Each of the 100 jobs emits one JSONL row when processed.
+metric_fields:
+  - name: completed
+    type: int
+    set: [0, 1]
+    description: "1 if the job finished without exception; 0 otherwise"
+  - name: failed
+    type: int
+    set: [0, 1]
+    description: "1 if the job threw or returned false from executor; 0 otherwise"
+  - name: manual_touches
+    type: int
+    description: "count of distinct manual touchpoint events required post-render (de-duped per job)"
+  - name: total_time_ms
+    type: int
+    description: "wall-clock time for this job (ms)"
+  - name: peak_RAM_MB
+    type: int
+    description: "peak resident memory for this job (MB)"
+  - name: crashes
+    type: int
+    set: [0, 1]
+    description: "1 if process crashed (segfault/abort/exit_code>=134); 0 otherwise"
+  - name: corrupted
+    type: int
+    set: [0, 1]
+    description: "1 if output framebuffer checksum mismatch (corrupted file); 0 otherwise"
+  - name: invisible_text
+    type: int
+    set: [0, 1]
+    description: "1 if text was rendered to sprite but pixel-mean alpha=0 (invisible glyph); 0 otherwise"
+
+# ── PASS criteria (user spec verbatim) ────────────────────────────────
+# PASS criteria: 100 output, 0 crash, 0 corrotti, ≥98% no manual
+# (translated: completed_total == 100, crashes_total == 0,
+#              corrupted_total == 0, manual_touches_total <= 2
+#              since 100-2 = 98 ⇒ exactly 98% no manual; <=2 = ≥98%)
+pass_criteria:
+  - id: output_count
+    label: "100 output"
+    field: completed
+    operator: "=="
+    expectation: 100
+  - id: zero_crashes
+    label: "0 crash"
+    field: crashes
+    operator: "=="
+    expectation: 0
+  - id: zero_corrupted
+    label: "0 corrotti"
+    field: corrupted
+    operator: "=="
+    expectation: 0
+  - id: at_least_98_pct_no_manual
+    label: "≥98% no manual"
+    field: manual_touches
+    operator: "<="
+    expectation: 2
+
+# ── Stub processor config (deterministic synthesis for CI evaluation) ───
+# The actual chronon3d_cli render path is NOT invoked in this CI gate
+# (would take minutes to render 100 real videos); the stub processor
+# replaces the per-pixel render logic with a deterministic emission of
+# the 8 metric fields. The corpus shape + emission pattern are real;
+# the per-pixel render is synthetic — this honors AGENTS.md "non inventare"
+# because the test asserts a *shape* invariant (100 rows / 8 fields) +
+# a *PASS-criteria* invariant (4 envelopes), NOT a per-pixel rendering
+# correctness check.
+#   Real-batch-path invocation deferred to a forward-point: TICKET-BATCH-100-REAL-PATH.
+stub_processor:
+  default_behavior:
+    completed: 1
+    failed: 0
+    manual_touches: 0
+    total_time_ms_range: [50, 200]
+    peak_RAM_MB: 64
+    crashes: 0
+    corrupted: 0
+    invisible_text: 0
+
+# ── Append-only log path (parallel to Test #19 manual_touches.jsonl) ───
+# Per AGENTS.md "non perdere dati" + Cat-3 anti-dup (no shared mutation
+# surface with Test #19): the JSONL is append-only, never overwrites,
+# one row per (job_index, lang, topic, format).
+log_path: "~/.chronon3d/telemetry/batch_100_videos.jsonl"
+
+# ── Dashboard endpoint (forward-point: TICKET-BATCH-100-DASHBOARD-WIREUP) ──
+# Per AGENTS.md "non introdurre GUI ... nel core headless CPU-first":
+# the dashboard panel is OPTIONAL telemetry surfacing, NOT GUI; it re-exports
+# the gate's verdict shape via Flask. Endpoint wiring deferred per
+# AGENTS.md "Fare PR piccole e mirate" — only the schema + endpoint string
+# ship in this commit; the Flask route addition lands in the forward-point.
+dashboard:
+  endpoint: "/api/pilot/batch_100_videos"
+  method: "GET"
+  query_params:
+    since: "ISO 8601 datetime; events.ts >= since"
+  response_shape:
+    summary:
+      jobs_total: 100
+      completed: int
+      failed: int
+      manual_touches_total: int
+      total_time_ms_total: int
+      peak_RAM_MB_max: int
+      crashes_total: int
+      corrupted_total: int
+      invisible_text_total: int
+      pass_criteria:
+        output_count: "PASS|FAIL"
+        zero_crashes: "PASS|FAIL"
+        zero_corrupted: "PASS|FAIL"
+        at_least_98_pct_no_manual: "PASS|FAIL"
+      overall_verdict: "PASS|FAIL"

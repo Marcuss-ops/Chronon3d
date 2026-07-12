@@ -100,6 +100,46 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+# TICKET-GLOW-CERTIFICATION — Azione 1: 6 glow acceptance TEST_CASEs
+# (intensity-zero, radius, additive, anti-clip, no-rect-edge, state-leak).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        visual/glow_ab/glow_ab_acceptance.cpp
+)
+
+add_test(
+    NAME GlowAcceptance
+    COMMAND chronon3d_text_golden_tests --test-case="Glow acceptance: *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# TICKET-GLOW-CERTIFICATION — Azione 2: temporal glow acceptance tests
+# (60-frame sweep, pulse timing, MP4 SSIM forward-point).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        visual/glow_ab/glow_temporal_tests.cpp
+)
+
+add_test(
+    NAME GlowTemporal
+    COMMAND chronon3d_text_golden_tests --test-case="Glow temporal: *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# TICKET-GLOW-CERTIFICATION — Azione 3: glow determinism tests
+# (3-run hash identity, fresh-renderer determinism; state leak already
+# covered in glow_ab_acceptance.cpp).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        visual/glow_ab/glow_determinism_tests.cpp
+)
+
+add_test(
+    NAME GlowDeterminism
+    COMMAND chronon3d_text_golden_tests --test-case="Glow determinism: *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # TICKET-AE-PARITY-CINEMATIC-10 — ae_scale_pop scene.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
@@ -122,6 +162,16 @@ target_sources(chronon3d_text_golden_tests
 target_sources(chronon3d_text_golden_tests
     PRIVATE
         text_golden/motion_blur_text/motion_blur_text_scene.cpp
+)
+
+# TICKET-VIDEO-ANTI-FLICKER §8 + TICKET-VIDEO-MULTI-FPS-EQUIVALENCE §13
+# Video Completeness Matrix §8 anti-flicker (BT.709 central-crop luminance
+# |Δ| < 20.0 across adjacent decoded-MP4 frames) + §13 multi-fps
+# equivalence (24/25/30/60 fps at same wall-clock time render visually
+# equivalent, centroid_distance < 2.0 px).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text/test_video_flicker_fps.cpp
 )
 
 # TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION — Phase 2 Killer 1.
