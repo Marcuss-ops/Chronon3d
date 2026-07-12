@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# pre-push — developer gate chain run before every git push.
+#
+# Delegates to tools/run_developer_gates.sh (the canonical single source
+# of truth for the 8 developer gates).  Receives remote name from git.
+#
+# Git passes the remote name as $1 and the remote URL as $2.
+# ═══════════════════════════════════════════════════════════════════════════
+
+set -euo pipefail
+
+REMOTE="${1:-origin}"
+SCRIPT_DIR="$(git rev-parse --show-toplevel)/tools"
+
+echo "pre-push: running developer gate chain (via run_developer_gates.sh ${REMOTE})..."
+bash "${SCRIPT_DIR}/run_developer_gates.sh" "${REMOTE}" \
+    || { echo "pre-push: GATE_FAIL — push aborted" >&2; exit 1; }
+
+echo "pre-push: developer gate chain PASSED"
+exit 0
