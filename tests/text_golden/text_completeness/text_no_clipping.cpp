@@ -197,3 +197,53 @@ TEST_CASE("NoClip 06: small font 24pt not clipped") {
     CHECK(bbox.x0 >= 0);
     CHECK(bbox.x1 <= fb->width() - 1);
 }
+
+// ═══ Test 7 — Glow extends around text near canvas edge ═══════════════════
+// TICKET-TEST-11-CRONOGRAPH — Phase 3 (scrittura test) of the Test 11 5-phase
+// exercise on the "glow clipped" bug class.  When text is positioned near a
+// canvas edge with a large glow radius, the cached-glow BLImage composite at
+// offset (raster.x_offset - padding) extends past fb.width.  Per the demo
+// fix in src/backends/software/processors/text/text_glow.cpp, the composite
+// is safe-clamped to canvas inside + a spdlog::warn fires.
+//
+// This test exercises the diagnosis by rendering a near-edge text+glow pair
+// and asserting the rendered canvas contains ink at the boundary (i.e. the
+// render did NOT crash + did NOT leave a hard-clip artifact visible to the
+// user).  The check intentionally does NOT assert on the spdlog warn line —
+// that is harness-dependent on the logging backend wiring (forward-point
+// to a working build host for the full WARN-line assertion per §honesty).
+TEST_CASE("NoClip 07: glow extends around text near canvas edge") {
+    auto renderer = test::make_renderer();
+    // Position near right edge (x=1860 on 1920 canvas — only ~60px clearance)
+    // + a moderately-sized font so the glow extent (radius * 4 + 8) reaches
+    // past the canvas.  The text itself is short so the bbox stays readable.
+    auto fb = renderer.render(
+        build_clip_test_composition(renderer, "BIG", 180.0f,
+                                    /*position=*/Vec3{1860.0f, 540.0f, 0.0f}),
+        Frame{0});
+    REQUIRE(fb != nullptr);
+
+    const AlphaBBox bbox = alpha_bbox(*fb);
+    INFO("edge-glow bbox: w=", bbox.width(), " h=", bbox.height(),
+         " x0=", bbox.x0, " x1=", bbox.x1);
+
+    CHECK_FALSE(bbox.empty());
+    // The render must NOT have crashed.
+    CHECK(fb->width() == 1920);
+    CHECK(fb->height() == 1080);
+    // The glyph ink should still be visible (centered around x=1860 ± half-width).
+    CHECK(bbox.width() > 80);
+    // The canvas edge must contain SOME ink near it (i.e. the canvas didn't
+    // hard-clip into a black/empty strip — the clamped composite yields a
+    // visible boundary even if the glyph ink itself is mid-glyph).
+    // We assert NON-empty alpha somewhere in the last 10 columns.
+    bool edge_has_ink = false;
+    for (int x = 1910; x < 1920; ++x) {
+        for (int y = 0; y < fb->height(); ++y) {
+            if (fb->get_pixel(x, y).a > 0.05f) { edge_has_ink = true; break; }
+        }
+        if (edge_has_ink) break;
+    }
+    INFO("edge_has_ink=", edge_has_ink);
+    CHECK(edge_has_ink);
+}
