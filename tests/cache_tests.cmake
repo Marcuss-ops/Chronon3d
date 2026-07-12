@@ -46,6 +46,11 @@ chronon3d_add_test_suite(
             # In-process cache reuse: same renderer, same frame, 5 iterations.
             # Verifies cache hits increase, no hash collisions, pixel consistency.
             cache/test_cache_reuse_identical_frame.cpp
+            # Cache invariance: cold/warm identical hash, 8 input dimensions
+            # produce distinct keys (text/font/glow/tracking/placement/
+            # transform/animation/frame), and A/B/A job-state restoration.
+            # Direct on main per user spec.
+            cache/test_cache_invariance.cpp
 )
 # Video-dependent test sources (require CHRONON3D_ENABLE_VIDEO)
 if(CHRONON3D_ENABLE_VIDEO)

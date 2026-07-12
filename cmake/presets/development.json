@@ -61,31 +61,41 @@
     {
       "name": "linux-asan",
       "inherits": "base-linux",
-      "displayName": "Linux ASan + UBSan (DEBUG)",
-      "description": "AddressSanitizer + UndefinedBehaviorSanitizer debug preset, tests on. Nightly schedule (P2-A). NOTE: asan-specific -fsanitize flags override base-linux diag-color+pipe flags.",
+      "displayName": "Linux ASan + UBSan (DEBUG, 7-subsystem gate)",
+      "description": "AddressSanitizer + UndefinedBehaviorSanitizer debug preset, tests on. Nightly schedule (P2-A). 7-subsystem cert: 0 OOB / 0 UAF / 0 UB across FontEngine, glyph cache, layout cache, asset resolver, text audit snapshots, renderer session, factory registration. CHRONON3D_ENABLE_TEXT + CHRONON3D_USE_BLEND2D + CHRONON3D_BUILD_CLI_DEV + CHRONON3D_BUILD_DIAGNOSTICS are ON so the 7 subsystems build. NOTE: asan-specific -fsanitize flags override base-linux diag-color+pipe flags.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined",
         "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address,undefined",
-        "VCPKG_MANIFEST_FEATURES": "tests",
-        "CHRONON3D_BUILD_TESTS": "ON"
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_CLI_DEV": "ON",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "ON",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
       }
     },
     {
       "name": "linux-tsan",
       "inherits": "base-linux",
-      "displayName": "Linux TSan (DEBUG, no unity build)",
-      "description": "ThreadSanitizer debug preset, tests on. Weekly schedule (P2-A). Unity build OFF to avoid false-positive cross-TU data races. TSan-specific -fsanitize=thread flags override base-linux diag-color+pipe flags.",
+      "displayName": "Linux TSan (DEBUG, 7-subsystem gate, no unity build)",
+      "description": "ThreadSanitizer debug preset, tests on. Weekly schedule (P2-A). 7-subsystem cert: 0 data races across FontEngine, glyph cache, layout cache, asset resolver, text audit snapshots, renderer session, factory registration. Unity build OFF to avoid false-positive cross-TU data races. CHRONON3D_ENABLE_TEXT + CHRONON3D_USE_BLEND2D + CHRONON3D_BUILD_CLI_DEV + CHRONON3D_BUILD_DIAGNOSTICS are ON so the 7 subsystems build. TSan-specific -fsanitize=thread flags override base-linux diag-color+pipe flags.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
         "CMAKE_CXX_FLAGS": "-fsanitize=thread -fno-omit-frame-pointer",
         "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=thread",
         "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=thread",
-        "VCPKG_MANIFEST_FEATURES": "tests",
-        "CHRONON3D_BUILD_TESTS": "ON"
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_CLI_DEV": "ON",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "ON",
+        "CHRONON3D_ENABLE_TEXT": "ON",
+        "CHRONON3D_USE_BLEND2D": "ON",
+        "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;tests"
       }
     },
     {
@@ -215,6 +225,10 @@
       "configurePreset": "linux-asan",
       "output": {
         "outputOnFailure": true
+      },
+      "environment": {
+        "ASAN_OPTIONS": "halt_on_error=1:abort_on_error=1:detect_leaks=1:print_summary=1:print_stacktrace=1:fast_unwind_on_fatal=0:check_initialization_order=1:strict_init_order=1:strict_string_checks=1:detect_stack_use_after_return=1:detect_odr_violation=2:malloc_context_size=20",
+        "UBSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:print_stacktrace=1:print_summary=1:report_error_type=1"
       }
     },
     {
@@ -222,6 +236,9 @@
       "configurePreset": "linux-tsan",
       "output": {
         "outputOnFailure": true
+      },
+      "environment": {
+        "TSAN_OPTIONS": "halt_on_error=1:abort_on_error=1:second_deadlock_stack=1:print_stacktrace=1:history_size=7:symbolize=1"
       }
     }
   ]

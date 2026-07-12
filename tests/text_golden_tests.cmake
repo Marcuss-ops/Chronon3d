@@ -364,6 +364,124 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+# TICKET-FASE2-TRANSFORMS-ANIMATION §10 — Scale transform tests.
+# 4 TEST_CASEs (uniform 0.5× / 1.5× / 2.0× + non-uniform 0.96×1.04) ×
+# 1 AR (1920×1080) = 4 PNG goldens in
+# `test_renders/golden/text/text_transforms_animation/scale/`.
+# Invariants: non-empty alpha_bbox + centroid near canvas center
+# (anchored) + bbox dimensions grow monotonically with scale.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_transforms_animation/02_scale.cpp
+)
+
+# TICKET-FASE2-TRANSFORMS-ANIMATION §10 — Anchor transform tests.
+# 4 TEST_CASEs (anchor TopLeft / TopRight / BottomLeft / BottomRight) ×
+# 1 AR (1920×1080) = 4 PNG goldens in
+# `test_renders/golden/text/text_transforms_animation/anchor/`.
+# Invariants: non-empty alpha_bbox + centroid in expected quadrant.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_transforms_animation/03_anchor.cpp
+)
+
+# TICKET-FASE2-TRANSFORMS-ANIMATION §10 — Parent transform tests.
+# 2 TEST_CASEs (parent at +500 X / parent at -300 X) × 1 AR (1920×1080)
+# = 2 PNG goldens in
+# `test_renders/golden/text/text_transforms_animation/parent_transform/`.
+# Invariants: non-empty alpha_bbox + centroid X offset by parent
+# position (both + and - offsets) + centroid Y near canvas center.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_transforms_animation/04_parent_transform.cpp
+)
+
+# TICKET-FASE2-TRANSFORMS-ANIMATION §10 — Extended rotation angle tests
+# (negative + zero, complementing 01_rotate_z_not_cut.cpp's +15°..+90°).
+# 4 TEST_CASEs (rotation -45° / -30° / -15° / 0°) × 1 AR (1920×1080) =
+# 4 PNG goldens in
+# `test_renders/golden/text/text_transforms_animation/rotation_extended/`.
+# Invariants: non-empty alpha_bbox + centroid near canvas center.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_transforms_animation/05_rotation_extended.cpp
+)
+
+# TICKET-FASE2-TRANSFORMS-ANIMATION §10 — 2.5D camera / 3D-enabled text.
+# 1 TEST_CASE × 1 AR (1920×1080) = 1 PNG golden in
+# `test_renders/golden/text/text_transforms_animation/two_point_five_d/`.
+# Invariants: non-empty alpha_bbox + centroid near canvas center
+# (depth doesn't translate X/Y) + bbox not collapsed to 0 by
+# perspective.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_transforms_animation/06_2_5d_camera.cpp
+)
+
+# TICKET-FASE2-TRANSFORMS-ANIMATION §10 ctest aliases for the
+# transforms subset.
+add_test(
+    NAME TextTransformsScale
+    COMMAND chronon3d_text_golden_tests --test-case="TextTransforms.Scale_*"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+add_test(
+    NAME TextTransformsAnchor
+    COMMAND chronon3d_text_golden_tests --test-case="TextTransforms.Anchor_*"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+add_test(
+    NAME TextTransformsParent
+    COMMAND chronon3d_text_golden_tests --test-case="TextTransforms.ParentTransform_*"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+add_test(
+    NAME TextTransformsRotationExt
+    COMMAND chronon3d_text_golden_tests --test-case="TextTransforms.RotateZ_m*"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+add_test(
+    NAME TextTransforms2_5D
+    COMMAND chronon3d_text_golden_tests --test-case="TextTransforms.TwoPointFiveD_*"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# TICKET-FASE2-TRANSFORMS-ANIMATION §10 — Position animation tests.
+# 3 TEST_CASEs (frame 0 / 15 / 30) × 1 AR (1920×1080) = 3 PNG goldens
+# in
+# `test_renders/golden/text/text_transforms_animation/anim_position/`.
+# Frame-by-frame invariants: non-empty alpha_bbox at every frame +
+# centroid X position INCREASES across frames (linear X translation) +
+# centroid Y stays roughly constant (X-only animation).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_transforms_animation/anim_01_position.cpp
+)
+
+# TICKET-FASE2-TRANSFORMS-ANIMATION §10 — Opacity animation tests.
+# 3 TEST_CASEs (frame 0 / 15 / 30) × 1 AR (1920×1080) = 3 PNG goldens
+# in
+# `test_renders/golden/text/text_transforms_animation/anim_opacity/`.
+# Frame-by-frame invariants: non-empty alpha_bbox + max_alpha CHANGES
+# monotonically (1.0 → 0.55 → 0.1).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_transforms_animation/anim_02_opacity.cpp
+)
+
+# TICKET-FASE2-TRANSFORMS-ANIMATION §10 ctest aliases for the
+# animations subset (first batch: position + opacity).
+add_test(
+    NAME TextAnimPosition
+    COMMAND chronon3d_text_golden_tests --test-case="TextAnim.Position_*"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+add_test(
+    NAME TextAnimOpacity
+    COMMAND chronon3d_text_golden_tests --test-case="TextAnim.Opacity_*"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # TICKET-FASE3-MULTILINGUAL §KerningPairs — first of the 3 genuinely new
 # multilingual text goldens.  3 PNG goldens in
 # `test_renders/golden/text/text_multilingual/kerning_pairs/`
@@ -491,6 +609,26 @@ add_test(
 add_test(
     NAME TextMultilingualHebrewNikud
     COMMAND chronon3d_text_golden_tests --test-case="Multilingual.HebrewNikud *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
+# TICKET-FASE3-MULTILINGUAL §FallbackMatrix — 10-case multilingual +
+# fallback golden matrix.  10 TEST_CASEs (ASCII, Latin accents, Arabic
+# RTL, Hebrew RTL, CJK, emoji, punctuation, numbers, combining marks,
+# ligatures) × 1 AR (1920×1080) = 10 PNG goldens in
+# `test_renders/golden/text/text_multilingual/fallback_matrix/`.  Each
+# test case asserts the conservative-bbox-fallback counter
+# (`text_bbox_contract_violations` in `RenderCounters`) is 0 in the
+# nominal case, which regression-locks the font fallback chain +
+# bbox computation for the 10 representative text categories.
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_multilingual/08_fallback_matrix.cpp
+)
+
+add_test(
+    NAME TextMultilingualFallbackMatrix
+    COMMAND chronon3d_text_golden_tests --test-case="Multilingual.FallbackMatrix *"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 

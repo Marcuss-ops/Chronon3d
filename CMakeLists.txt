@@ -202,6 +202,14 @@ if(TARGET chronon3d_content AND TARGET chronon3d_sdk_impl)
     target_sources(chronon3d_sdk_impl PRIVATE $<TARGET_OBJECTS:chronon3d_content>)
 endif()
 
+# Also wire content objects into chronon3d_pipeline so in-tree consumers
+# (tests, CLI via sdk→pipeline) that link only the pipeline target get
+# the register_content_modules symbol.  This mirrors the late-binding
+# pattern used for chronon3d_sdk_impl above.
+if(TARGET chronon3d_content AND TARGET chronon3d_pipeline)
+    target_sources(chronon3d_pipeline INTERFACE $<TARGET_OBJECTS:chronon3d_content>)
+endif()
+
 # --- Profiling & Condizionali di Build ---
 if(CHRONON3D_ENABLE_PROFILING AND Tracy_FOUND)
     target_link_libraries(chronon3d_scene PRIVATE Tracy::TracyClient)
