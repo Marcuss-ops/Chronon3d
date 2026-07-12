@@ -151,9 +151,9 @@ public:
 private:
     friend class CameraSessionCache;
     CameraSessionLease(CameraSessionCache* cache, int shot_idx,
-                       CameraSession* session, int target_frame)
+                       std::shared_ptr<CameraSession> session, int target_frame)
         : cache_(cache), shot_idx_(shot_idx),
-          session_(session), target_frame_(target_frame) {}
+          session_(std::move(session)), target_frame_(target_frame) {}
 
     CameraSessionCache*     cache_;
     int                     shot_idx_;
