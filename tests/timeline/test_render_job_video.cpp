@@ -53,6 +53,152 @@ std::shared_ptr<const Composition> make_test_composition() {
         [](const FrameContext&) { return Scene{}; });
 }
 
+// ── run_copy_semantics_test() — parameterization helper ──────────────
+// Locks the RenderJob copy-construction + copy-assignment contract for
+// ANY factory branch (Still / Sequence / Video).  The factory lambda
+// takes a shared_ptr<const Composition> and returns a RenderJob — the
+// helper then:
+//   1. Snapshots identity (comp_id, output) from the factory result.
+//   2. Mutates ALL 8 video_settings fields on the original (fps, crf,
+//      codec, encode_preset, tune, keep_frames, frames_dir, chunks) —
+//      this closes code-reviewer item 3 from the prior round (the
+//      previous tests only mutated fps + codec, leaving 6 fields
+//      unverified through the copy path).
+//   3. Copy-constructs `copy = original` and verifies every field
+//      (identity, mode, frame fields, output, all 8 video_settings
+//      fields) plus the shared_ptr<Composition> sharing contract.
+//   4. Mutates ALL 8 video_settings fields on the copy and verifies
+//      the original is unchanged (independence).
+//   5. Copy-assigns `assigned = original` and re-runs all 3 / 4
+//      verifications on the assigned copy.
+//
+// The 3 mode-parameterized tests below call this helper with different
+// factory lambdas and mode-specific frame values, centralizing ~150
+// lines of duplication that previously lived in each test.
+template <typename Factory>
+void run_copy_semantics_test(
+    Factory factory,
+    RenderMode expected_mode,
+    Frame     expected_still_frame,
+    Frame     expected_first_frame,
+    Frame     expected_last_frame)
+{
+    auto comp = make_test_composition();
+    RenderJob original = factory(comp);
+
+    // Snapshot identity (set by the factory).  The helper does not
+    // require the caller to pass these — the factory result is the
+    // ground truth.
+    const std::string expected_comp_id = original.comp_id;
+    const std::string expected_output  = original.output;
+
+    // ── Mutate ALL 8 video_settings fields on the original ──────
+    original.video_settings.fps           = 60;
+    original.video_settings.crf           = 23;
+    original.video_settings.codec         = "libx264";
+    original.video_settings.encode_preset = "fast";
+    original.video_settings.tune          = "zerolatency";
+    original.video_settings.keep_frames   = true;
+    original.video_settings.frames_dir    = "chronon_test";
+    original.video_settings.chunks        = 4;
+
+    // Snapshot the mutated values — single source of truth for the
+    // copy-construction and copy-assignment assertions below.  This
+    // removes 24 hardcoded literals (3 sets of 8 CHECKs now reference
+    // the snapshot instead of duplicating the mutated values).
+    const VideoSettings expected = original.video_settings;
+
+    // ── copy construction ────────────────────────────────────
+    RenderJob copy = original;
+
+    // Identity + composition + output.
+    CHECK(copy.comp_id == expected_comp_id);
+    CHECK(copy.comp    == comp);
+    CHECK(copy.output  == expected_output);
+
+    // Mode + frame fields (mode-specific).
+    CHECK(copy.mode        == expected_mode);
+    CHECK(copy.still_frame == expected_still_frame);
+    CHECK(copy.first_frame == expected_first_frame);
+    CHECK(copy.last_frame  == expected_last_frame);
+
+    // All 8 video_settings fields preserved (referenced via snapshot).
+    CHECK(copy.video_settings.fps           == expected.fps);
+    CHECK(copy.video_settings.crf           == expected.crf);
+    CHECK(copy.video_settings.codec         == expected.codec);
+    CHECK(copy.video_settings.encode_preset == expected.encode_preset);
+    CHECK(copy.video_settings.tune          == expected.tune);
+    CHECK(copy.video_settings.keep_frames   == expected.keep_frames);
+    CHECK(copy.video_settings.frames_dir    == expected.frames_dir);
+    CHECK(copy.video_settings.chunks        == expected.chunks);
+
+    // shared_ptr is shared (same underlying Composition).
+    CHECK(copy.comp == original.comp);
+
+    // Mutate ALL 8 video_settings on the copy; original is unaffected.
+    copy.video_settings.fps           = 30;
+    copy.video_settings.crf           = 18;
+    copy.video_settings.codec         = "auto";
+    copy.video_settings.encode_preset = "slow";
+    copy.video_settings.tune          = "";
+    copy.video_settings.keep_frames   = false;
+    copy.video_settings.frames_dir    = "";
+    copy.video_settings.chunks        = 1;
+
+    // original is unaffected (verified against the snapshot).
+    CHECK(original.video_settings.fps           == expected.fps);
+    CHECK(original.video_settings.crf           == expected.crf);
+    CHECK(original.video_settings.codec         == expected.codec);
+    CHECK(original.video_settings.encode_preset == expected.encode_preset);
+    CHECK(original.video_settings.tune          == expected.tune);
+    CHECK(original.video_settings.keep_frames   == expected.keep_frames);
+    CHECK(original.video_settings.frames_dir    == expected.frames_dir);
+    CHECK(original.video_settings.chunks        == expected.chunks);
+
+    // ── copy assignment ────────────────────────────────────
+    RenderJob assigned;
+    assigned = original;
+
+    CHECK(assigned.comp_id == expected_comp_id);
+    CHECK(assigned.comp    == comp);
+    CHECK(assigned.output  == expected_output);
+    CHECK(assigned.mode        == expected_mode);
+    CHECK(assigned.still_frame == expected_still_frame);
+    CHECK(assigned.first_frame == expected_first_frame);
+    CHECK(assigned.last_frame  == expected_last_frame);
+
+    CHECK(assigned.video_settings.fps           == 60);
+    CHECK(assigned.video_settings.crf           == 23);
+    CHECK(assigned.video_settings.codec         == "libx264");
+    CHECK(assigned.video_settings.encode_preset == "fast");
+    CHECK(assigned.video_settings.tune          == "zerolatency");
+    CHECK(assigned.video_settings.keep_frames   == true);
+    CHECK(assigned.video_settings.frames_dir    == "chronon_test");
+    CHECK(assigned.video_settings.chunks        == 4);
+    CHECK(assigned.comp == original.comp);
+
+    // Mutate ALL 8 video_settings on the assigned copy; original is
+    // unaffected.
+    assigned.video_settings.fps           = 24;
+    assigned.video_settings.crf           = 20;
+    assigned.video_settings.codec         = "hevc";
+    assigned.video_settings.encode_preset = "ultrafast";
+    assigned.video_settings.tune          = "animation";
+    assigned.video_settings.keep_frames   = false;
+    assigned.video_settings.frames_dir    = "other";
+    assigned.video_settings.chunks        = 8;
+
+    // original is unaffected (verified against the snapshot).
+    CHECK(original.video_settings.fps           == expected.fps);
+    CHECK(original.video_settings.crf           == expected.crf);
+    CHECK(original.video_settings.codec         == expected.codec);
+    CHECK(original.video_settings.encode_preset == expected.encode_preset);
+    CHECK(original.video_settings.tune          == expected.tune);
+    CHECK(original.video_settings.keep_frames   == expected.keep_frames);
+    CHECK(original.video_settings.frames_dir    == expected.frames_dir);
+    CHECK(original.video_settings.chunks        == expected.chunks);
+}
+
 } // namespace
 
 TEST_CASE("RenderJob::video_job: factory sets identity, mode, frames, output") {
@@ -248,206 +394,43 @@ TEST_CASE("RenderJob::video_job: factory accepts empty comp_id and empty output"
 // to avoid (per the previous code-review round).
 
 TEST_CASE("RenderJob: copy semantics (Still mode) — copy + assign preserve all fields") {
-    // Still factory sets mode=Still, still_frame=42, leaves
-    // first_frame/last_frame at 0.
-    auto comp = make_test_composition();
-    RenderJob original = RenderJob::still(
-        "comp_still_a", comp, Frame{42}, "still.png");
-    original.video_settings.fps   = 60;
-    original.video_settings.codec = "libx264";
-
-    // ── copy construction ──────────────────────────────────────────
-    RenderJob copy = original;
-
-    // Identity + composition + mode + frames + output.
-    CHECK(copy.comp_id            == original.comp_id);
-    CHECK(copy.comp               == original.comp);
-    CHECK(copy.mode               == original.mode);
-    CHECK(copy.still_frame        == original.still_frame);
-    CHECK(copy.first_frame        == original.first_frame);
-    CHECK(copy.last_frame         == original.last_frame);
-    CHECK(copy.output             == original.output);
-    CHECK(copy.video_settings.fps == 60);
-    CHECK(copy.video_settings.codec == "libx264");
-
-    // Mode-specific (Still branch): still_frame is the meaningful field.
-    CHECK(copy.still_frame.integral() == 42);
-    CHECK(copy.first_frame.integral() == 0);   // unused in Still
-    CHECK(copy.last_frame.integral()  == 0);   // unused in Still
-    CHECK(copy.mode == RenderMode::Still);
-
-    // shared_ptr is shared (same underlying Composition).
-    CHECK(copy.comp == original.comp);
-
-    // Mutate the copy; original is unaffected.
-    copy.video_settings.fps   = 30;
-    copy.video_settings.codec = "auto";
-    CHECK(copy.video_settings.fps   == 30);
-    CHECK(original.video_settings.fps   == 60);
-    CHECK(original.video_settings.codec == "libx264");
-
-    // ── copy assignment ───────────────────────────────────────────
-    RenderJob assigned;
-    assigned = original;
-
-    CHECK(assigned.comp_id            == original.comp_id);
-    CHECK(assigned.comp               == original.comp);
-    CHECK(assigned.mode               == original.mode);
-    CHECK(assigned.still_frame        == original.still_frame);
-    CHECK(assigned.first_frame        == original.first_frame);
-    CHECK(assigned.last_frame         == original.last_frame);
-    CHECK(assigned.output             == original.output);
-    CHECK(assigned.video_settings.fps == 60);
-    CHECK(assigned.video_settings.codec == "libx264");
-    CHECK(assigned.still_frame.integral() == 42);
-    CHECK(assigned.first_frame.integral() == 0);
-    CHECK(assigned.last_frame.integral()  == 0);
-    CHECK(assigned.mode == RenderMode::Still);
-    CHECK(assigned.comp == original.comp);
-
-    // Mutate the assigned copy; original is unaffected.
-    assigned.video_settings.fps   = 24;
-    assigned.video_settings.codec = "auto";
-    CHECK(assigned.video_settings.fps   == 24);
-    CHECK(assigned.video_settings.codec == "auto");
-    CHECK(original.video_settings.fps   == 60);
-    CHECK(original.video_settings.codec == "libx264");
+    // Still factory: mode=Still, still_frame=42, first/last=0 (unused).
+    run_copy_semantics_test(
+        [](std::shared_ptr<const Composition> c) {
+            return RenderJob::still("comp_still_a", c, Frame{42}, "still.png");
+        },
+        RenderMode::Still,
+        Frame{42},
+        Frame{0},
+        Frame{0});
 }
 
 TEST_CASE("RenderJob: copy semantics (Sequence mode) — copy + assign preserve all fields") {
-    // Sequence factory sets mode=Sequence, first_frame=10, last_frame=50,
-    // leaves still_frame at 0.
-    auto comp = make_test_composition();
-    RenderJob original = RenderJob::sequence(
-        "comp_seq_a", comp, Frame{10}, Frame{50}, "seq_%04d.png");
-    original.video_settings.fps   = 60;
-    original.video_settings.codec = "libx264";
-
-    // ── copy construction ──────────────────────────────────────────
-    RenderJob copy = original;
-
-    CHECK(copy.comp_id            == original.comp_id);
-    CHECK(copy.comp               == original.comp);
-    CHECK(copy.mode               == original.mode);
-    CHECK(copy.still_frame        == original.still_frame);
-    CHECK(copy.first_frame        == original.first_frame);
-    CHECK(copy.last_frame         == original.last_frame);
-    CHECK(copy.output             == original.output);
-    CHECK(copy.video_settings.fps == 60);
-    CHECK(copy.video_settings.codec == "libx264");
-
-    // Mode-specific (Sequence branch): first_frame + last_frame are the
-    // meaningful fields; still_frame is unused.
-    CHECK(copy.first_frame.integral() == 10);
-    CHECK(copy.last_frame.integral()  == 50);
-    CHECK(copy.still_frame.integral() == 0);   // unused in Sequence
-    CHECK(copy.mode == RenderMode::Sequence);
-
-    // shared_ptr is shared.
-    CHECK(copy.comp == original.comp);
-
-    // Mutate the copy; original is unaffected.
-    copy.video_settings.fps   = 30;
-    copy.video_settings.codec = "auto";
-    CHECK(copy.video_settings.fps   == 30);
-    CHECK(original.video_settings.fps   == 60);
-    CHECK(original.video_settings.codec == "libx264");
-
-    // ── copy assignment ───────────────────────────────────────────
-    RenderJob assigned;
-    assigned = original;
-
-    CHECK(assigned.comp_id            == original.comp_id);
-    CHECK(assigned.comp               == original.comp);
-    CHECK(assigned.mode               == original.mode);
-    CHECK(assigned.still_frame        == original.still_frame);
-    CHECK(assigned.first_frame        == original.first_frame);
-    CHECK(assigned.last_frame         == original.last_frame);
-    CHECK(assigned.output             == original.output);
-    CHECK(assigned.video_settings.fps == 60);
-    CHECK(assigned.video_settings.codec == "libx264");
-    CHECK(assigned.first_frame.integral() == 10);
-    CHECK(assigned.last_frame.integral()  == 50);
-    CHECK(assigned.still_frame.integral() == 0);
-    CHECK(assigned.mode == RenderMode::Sequence);
-    CHECK(assigned.comp == original.comp);
-
-    // Mutate the assigned copy; original is unaffected.
-    assigned.video_settings.fps   = 24;
-    assigned.video_settings.codec = "auto";
-    CHECK(assigned.video_settings.fps   == 24);
-    CHECK(assigned.video_settings.codec == "auto");
-    CHECK(original.video_settings.fps   == 60);
-    CHECK(original.video_settings.codec == "libx264");
+    // Sequence factory: mode=Sequence, first=10, last=50, still=0 (unused).
+    run_copy_semantics_test(
+        [](std::shared_ptr<const Composition> c) {
+            return RenderJob::sequence(
+                "comp_seq_a", c, Frame{10}, Frame{50}, "seq_%04d.png");
+        },
+        RenderMode::Sequence,
+        Frame{0},
+        Frame{10},
+        Frame{50});
 }
 
 TEST_CASE("RenderJob: copy semantics (Video mode) — copy + assign preserve all fields") {
-    // video_job factory sets mode=Video, first_frame=10, last_frame=50,
-    // leaves still_frame at 0.  Same frame fields as Sequence, but the
-    // mode enum is Video — the discriminator the future executor uses
-    // to pick the encode path.
-    auto comp = make_test_composition();
-    RenderJob original = RenderJob::video_job(
-        "comp_vid_a", comp, Frame{10}, Frame{50}, "out.mp4");
-    original.video_settings.fps   = 60;
-    original.video_settings.codec = "libx264";
-
-    // ── copy construction ──────────────────────────────────────────
-    RenderJob copy = original;
-
-    CHECK(copy.comp_id            == original.comp_id);
-    CHECK(copy.comp               == original.comp);
-    CHECK(copy.mode               == original.mode);
-    CHECK(copy.still_frame        == original.still_frame);
-    CHECK(copy.first_frame        == original.first_frame);
-    CHECK(copy.last_frame         == original.last_frame);
-    CHECK(copy.output             == original.output);
-    CHECK(copy.video_settings.fps == 60);
-    CHECK(copy.video_settings.codec == "libx264");
-
-    // Mode-specific (Video branch): first_frame + last_frame are the
-    // meaningful fields; still_frame is unused.
-    CHECK(copy.first_frame.integral() == 10);
-    CHECK(copy.last_frame.integral()  == 50);
-    CHECK(copy.still_frame.integral() == 0);   // unused in Video
-    CHECK(copy.mode == RenderMode::Video);
-
-    // shared_ptr is shared.
-    CHECK(copy.comp == original.comp);
-
-    // Mutate the copy; original is unaffected.
-    copy.video_settings.fps   = 30;
-    copy.video_settings.codec = "auto";
-    CHECK(copy.video_settings.fps   == 30);
-    CHECK(original.video_settings.fps   == 60);
-    CHECK(original.video_settings.codec == "libx264");
-
-    // ── copy assignment ───────────────────────────────────────────
-    RenderJob assigned;
-    assigned = original;
-
-    CHECK(assigned.comp_id            == original.comp_id);
-    CHECK(assigned.comp               == original.comp);
-    CHECK(assigned.mode               == original.mode);
-    CHECK(assigned.still_frame        == original.still_frame);
-    CHECK(assigned.first_frame        == original.first_frame);
-    CHECK(assigned.last_frame         == original.last_frame);
-    CHECK(assigned.output             == original.output);
-    CHECK(assigned.video_settings.fps == 60);
-    CHECK(assigned.video_settings.codec == "libx264");
-    CHECK(assigned.first_frame.integral() == 10);
-    CHECK(assigned.last_frame.integral()  == 50);
-    CHECK(assigned.still_frame.integral() == 0);
-    CHECK(assigned.mode == RenderMode::Video);
-    CHECK(assigned.comp == original.comp);
-
-    // Mutate the assigned copy; original is unaffected.
-    assigned.video_settings.fps   = 24;
-    assigned.video_settings.codec = "auto";
-    CHECK(assigned.video_settings.fps   == 24);
-    CHECK(assigned.video_settings.codec == "auto");
-    CHECK(original.video_settings.fps   == 60);
-    CHECK(original.video_settings.codec == "libx264");
+    // video_job factory: mode=Video, first=10, last=50, still=0 (unused).
+    // Same frame fields as Sequence, but the mode enum is Video — the
+    // discriminator the future executor uses to pick the encode path.
+    run_copy_semantics_test(
+        [](std::shared_ptr<const Composition> c) {
+            return RenderJob::video_job(
+                "comp_vid_a", c, Frame{10}, Frame{50}, "out.mp4");
+        },
+        RenderMode::Video,
+        Frame{0},
+        Frame{10},
+        Frame{50});
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
