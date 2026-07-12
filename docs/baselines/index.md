@@ -36,10 +36,12 @@
 | Total baselines | 15 |
 | green (PASS / validation) | 14 |
 | rot-state (rot-class OPEN) | 1 |
-| Certified canonical green | 1 (`main-7eb5c2ba`) |
 | Machine-verified (gate audit) | 12 |
+| &nbsp;&nbsp;&nbsp;&nbsp;↳ Certified canonical green (sub-class of machine-verified) | 1 (`main-7eb5c2ba`) |
 | Validation only (no gate score) | 2 |
 | Deferred to working build host | 1 |
+
+**Reconciliation**: 12 machine-verified (includes 1 certified canonical green as sub-class) + 2 validation only + 1 deferred (rot-state) = 15 total. The "certified" bucket is a sub-class of "machine-verified" (the canonical green baseline IS machine-verified — it has 5/5 smoke tests machine-verified per its self-doc), not a separate category.
 
 ## Cross-references
 
