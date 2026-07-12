@@ -4,7 +4,7 @@
 // text_visibility_audit.cpp — FU02 implementation (Step 9 §A slimmed)
 //
 // Step 9 §A — domain decomposition per user spec verbatim:
-//   - alpha-bbox scan → `src/text/alpha_bbox_scanner.{hpp,cpp}` (UNgated,
+//   - alpha-bbox scan → `include/chronon3d/text/alpha_bbox_scanner.hpp + src/text/alpha_bbox_scanner.cpp` (UNgated,
 //     reusable from inspect-text, pipeline parity, glow acceptance, video
 //     acceptance, and golden test C++/Python consumers without dragging
 //     in the diagnostic gating macro). See alpha_bbox_scanner.hpp for
