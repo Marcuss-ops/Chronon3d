@@ -71,7 +71,7 @@ Composition build_frame_comp(SoftwareRenderer& renderer,
             s.layer("det_layer", [&renderer, text, font_size](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("det_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = text},.position = {960.0f, 540.0f, 0.0f},.font = {
+                    .text = TextSpec{.content = {.value = text},.placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
@@ -100,7 +100,7 @@ Composition build_static_comp(SoftwareRenderer& renderer) {
             s.layer("static_layer", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("static_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "DETERMINISTIC"},.position = {960.0f, 540.0f, 0.0f},.font = {
+                    .text = TextSpec{.content = {.value = "DETERMINISTIC"},.placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
@@ -129,7 +129,7 @@ Composition build_alt_comp(SoftwareRenderer& renderer) {
             s.layer("alt_layer", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("alt_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = "DIFFERENT"},.position = {200.0f, 200.0f, 0.0f},.font = {
+                    .text = TextSpec{.content = {.value = "DIFFERENT"},.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, 200.0f}},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,

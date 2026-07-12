@@ -54,7 +54,7 @@ Composition build_wrap_composition(
             s.layer("wrap_layer", [&renderer, box_width, box_height, text](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("wrap_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = std::string{text}},.position = {box_width / 2.0f, box_height / 2.0f, 0.0f},.font = {
+                    .text = TextSpec{.content = {.value = std::string{text}},.placement = TextPlacement{TextPlacementKind::Absolute, {box_width / 2.0f, box_height / 2.0f}},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,

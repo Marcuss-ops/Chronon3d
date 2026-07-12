@@ -66,7 +66,7 @@ Composition build_text_comp(SoftwareRenderer& renderer,
                 l.text_run("afg_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = text},
-                        .position = {100.0f, 540.0f, 0.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {100.0f, 540.0f}},
                         .font = {
                             .font_path = font_path,
                             .font_family = "TestFont",
