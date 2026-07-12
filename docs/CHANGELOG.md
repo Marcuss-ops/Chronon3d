@@ -1,3 +1,13 @@
+## 2026-07-12 — Build rot cascade session: ~400 → 6 errori (20+ fix, camera V1 quasi-compilante)
+
+- **`fix(build)` — 14 commit atomici su `main`**: risolti ~394 errori di build nella cascata TICKET-BUILD-ROT-CASCADE-CAMERA. 6 rimanenti: `CameraSession` tipo incompleto (dipendenza circolare P3-H).
+  - **Phase 1 (6 fix)**: `scene.hpp` double-namespace, `text_layout_engine.hpp` const, `scene_hasher.hpp` include, `composition.hpp` metodo, `scene_hasher.hpp/.cpp` circolare, `render_node_factory.cpp` campo.
+  - **Phase 2 (7 fix)**: `camera_program_sources.hpp` LookAheadResult, `camera_program_sources.cpp` namespace, `camera_descriptor.hpp` membri, `legacy_camera_adapters.cpp` backslash, `camera_program.cpp` viewport, `camera_program_sources.cpp` frame_rate, `camera_session_cache.cpp` shared_ptr.
+  - **Phase 3 (8 fix)**: `legacy_camera_adapters.cpp` lens, position→placement (3 file), designator order, SUCCEED→CHECK, include path (9 test), costante circolare, inline bodies.
+  - **Phase 4 (WIP)**: 6 rimanenti — `CameraSession` incomplete, dipendenza circolare P3-H.
+
+**Stato**: BLOCKED (6 errori). Gate: 4/4 PASS. Test: 4/7 PASS (build vecchio). CTest + consumer: BLOCKED.
+
 ## 2026-07-12 - F2 push-drain closure verified (R2 merge commit + post-retry push + SHA-triple equality)
 
 - **`docs(F2): verified SHA-triple + 4-doc same-commit`**: post-retry confirmation that the F2 push-drain cycle actually landed on origin/main. The cycle commit 12c23ea1 added ADR-022 (advisory gate) + tools/check_push_divergence_window.sh + wrap_push.sh 4.5h edit + Cat-5 4-doc updates. The R2 path (chosen because R1 rebase hung on multi-commit cascade) executed `git merge --no-ff origin/main` (merge commit d20ea2e4, 3 known conflict zones auto-resolved via sed-marker-strip on docs/CHANGELOG.md + docs/FOLLOWUP_TICKETS.md + docs/CURRENT_STATUS.md + tools/wrap_push.sh) + `bash tools/wrap_push.sh origin main` (initial exit-0). Post-push SHA-triple equality check FAILED with LOCAL_AHEAD=8/REMOTE_AHEAD=0 revealing the AGENTS.md §Post-push SHA-selfcheck Mode 1 silent lost-commit pattern (wrap_push exit 0 but origin ref not updated). Recovered via explicit `git push origin HEAD:main` + post-retry refetch + independent `git ls-remote origin main` returning d20ea2e4 (= HEAD = origin/main local view). SHA-triple equality NOW VERIFIED. Backup-sunset-test-16 tag 18b0554aca9b3917416368d348b479ea6c65106a reachable from new HEAD. branch.main.rebase=true invariant SURVIVED. §honesty cert PARTIAL-PUSH-BLOCKED-F2 closes to PASS-verified-after-silent-mode-1-recovery.
