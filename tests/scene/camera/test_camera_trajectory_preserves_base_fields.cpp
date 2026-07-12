@@ -140,7 +140,7 @@ CameraProgram compile_or_die_traj_preserves(const CameraDescriptor& desc) {
         // Silent-on-success diagnostic.  INFO prints only on the next
         // FAIL, keeping green runs uncluttered.  Grep-friendly keys:
         //   "kind=" "compile_camera error message="
-        INFO("compile_camera error kind=" << static_cast<int>(result.error().code)
+        INFO("compile_camera error code=" << static_cast<int>(result.error().code)
              << " compile_camera error message=\"" << result.error().message << "\"");
     }
     REQUIRE(result.has_value());
