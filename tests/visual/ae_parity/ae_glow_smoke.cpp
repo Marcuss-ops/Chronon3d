@@ -26,7 +26,7 @@
 // secondary assertion catches NO-OP regressions.
 //
 // Render mechanism: the unified helper
-// glow_final::make_chronon_glow_final_for_test(props, font_engine)
+// glow_final::make_chronon_glow_final(props, font_engine)
 // provides the canonical scene builder.  Toggle `props.glow_enabled`
 // to compare with-glow vs without-glow without any other parameter
 // drift.  Per-frame opacity envelope is held identical (same
@@ -73,8 +73,7 @@ static std::shared_ptr<Framebuffer> render_at(
         ChrononGlowProps props,
         Frame frame) {
     return renderer->render(
-        chronon3d::test::glow_final::make_chronon_glow_final_for_test(
-            props, renderer->font_engine()),
+        chronon3d::test::glow_final::make_chronon_glow_final(props),
         frame);
 }
 
