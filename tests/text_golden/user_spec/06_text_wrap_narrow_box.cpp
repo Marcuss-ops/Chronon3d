@@ -61,7 +61,7 @@ Composition build_test06_composition(SoftwareRenderer& renderer) {
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "This is a long sentence that must wrap into multiple lines without cutting words."},
-                    .position = {200.0f, 100.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, 100.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,

@@ -5,6 +5,8 @@
 //
 // Uso: ./chronon3d_determinism_test
 
+#include <doctest/doctest.h>
+
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
@@ -81,11 +83,9 @@ Composition make_breathing_comp() {
 
 } // anonymous namespace
 
-int main() {
-    if (!std::filesystem::exists(IMAGE_PATH)) {
-        std::fprintf(stderr, "ERROR: Asset not found: %s\n", IMAGE_PATH.c_str());
-        return 1;
-    }
+TEST_CASE("Determinism: MinimalistImageTrackingBreathing frame 50 x5") {
+    REQUIRE_MESSAGE(std::filesystem::exists(IMAGE_PATH),
+                    "Asset not found: " << IMAGE_PATH);
 
     std::printf("=== Determinism Test: MinimalistImageTrackingBreathing frame 50 ===\n");
     std::printf("Rendering frame 50 five times...\n\n");
@@ -97,10 +97,8 @@ int main() {
     for (int run = 0; run < 5; ++run) {
         auto renderer = test::make_renderer();
         auto fb = renderer.render(comp, Frame{50});
-        if (!fb) {
-            std::fprintf(stderr, "ERROR: Run %d returned null framebuffer\n", run);
-            return 1;
-        }
+        REQUIRE_MESSAGE(fb != nullptr,
+                        "Run " << run << " returned null framebuffer");
         const u64 hash = XXH64(fb->pixels_row(0), fb->size_bytes(), 0);
         hashes.push_back(hash);
         std::printf("  Run %d: hash = 0x%016llx\n", run + 1,
@@ -190,5 +188,5 @@ int main() {
         }
     }
 
-    return (unique_count == 1) ? 0 : 1;
+    REQUIRE(unique_count == 1);
 }
