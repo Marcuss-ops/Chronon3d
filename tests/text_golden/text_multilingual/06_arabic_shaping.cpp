@@ -143,9 +143,8 @@ Composition build_arabic_composition(
                     // layout, appearance (C++20 designated-init order
                     // must match declaration order per spec).
                     .content = {.value = arabic_text},
-                    .position = {static_cast<float>(canvas_w) * 0.5f,
-                                 static_cast<float>(canvas_h) * 0.5f,
-                                 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(canvas_w) * 0.5f,
+                                 static_cast<float>(canvas_h) * 0.5f}},
                     .font = {
                         .font_path   = "assets/fonts/Inter-Bold.ttf",
                         .font_family = "Inter",

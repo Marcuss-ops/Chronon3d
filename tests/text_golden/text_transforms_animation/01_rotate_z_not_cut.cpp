@@ -123,7 +123,7 @@ Composition build_rotate_z_composition(
                         // layout, appearance (C++20 designated-init order
                         // must match declaration order per spec).
                         .content = {.value = "ROTATED TEXT"},
-                        .position = {cx, cy, 0.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},
                         .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",

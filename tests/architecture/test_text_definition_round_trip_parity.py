@@ -282,7 +282,7 @@ def parse_adapter_mappings(path: Path, textspec_fields: dict) -> dict:
     # TextSpec.position is a Vec3, but TextDefinition stores only the 2D
     # placement offset (x, y); z is intentionally dropped.  The regex
     # parser above does not understand inline aggregate initializers like
-    # `spec.position = {x, y, 0.0f};`, so we supply the mapping explicitly.
+    # `spec.placement = TextPlacement{TextPlacementKind::Absolute, {x, y}};`, so we supply the mapping explicitly.
     forward["position.x"] = "frame.placement.offset.x"
     forward["position.y"] = "frame.placement.offset.y"
     forward["position.z"] = "dropped_z"
