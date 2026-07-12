@@ -56,6 +56,11 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/media_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/architecture_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/sdk_tests.cmake
+    # Test #6 / TICKET-SABOTAGE-PRODUCTION-HOOKS — 9 fail-loud
+    # sabotage tests (designed-to-fail per AGENTS.md user spec);
+    # EXCLUDE_FROM_ALL opt-in, NOT routed through ctest 11/11
+    # baseline gate. ADR-018: appended here.
+    ${CMAKE_CURRENT_SOURCE_DIR}/sabotage_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/debug/CMakeLists.txt
     ${CMAKE_CURRENT_SOURCE_DIR}/showcase/CMakeLists.txt
 )
@@ -224,6 +229,18 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/text_simplicity_adapters_tests.cmake)
 # listed in `CMAKE_CONFIGURE_DEPENDS` at the top of this orchestrator.
 include(${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_tests.cmake)
 # include(${CMAKE_CURRENT_SOURCE_DIR}/cross_process_parity_tests.cmake)  # DRAFT — gated with return() pending TICKET-PARITY-001..006 rot fix; see FOLLOWUP_TICKETS.md
+
+# TICKET-SABOTAGE-PRODUCTION-HOOKS — 9 fail-loud sabotage tests
+# (Test #6).  UNCONDITIONAL within CHRONON3D_BUILD_TESTS (pure
+# doctest stubs, no Blend2D / GPU / font engine / encoder
+# dependency).  Bypasses `chronon3d_add_test_suite()` because the
+# tests are designed-to-fail by spec (the 11/11 ctest baseline gate
+# would be poisoned if these landed in `add_test()`); opt-in path
+# is `cmake --build .tmp/chronon-builds/linux-fast-dev --target
+# run_sabotage_tests` from a developer terminal per the file's
+# header comment.  Per ADR-018, this file is also listed in
+# CMAKE_CONFIGURE_DEPENDS at the top of this orchestrator.
+include(${CMAKE_CURRENT_SOURCE_DIR}/sabotage_tests.cmake)
 
 # M1.8 §1E / TICKET-SIMPLICITY-VISIBILITY-CONTRACT — locks the FU04
 # TextVisibilityAudit status cascade (PASS/FAIL/INDETERMINATE) + the
