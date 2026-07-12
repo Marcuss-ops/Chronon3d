@@ -38,10 +38,10 @@ The fix selection is per-site per AGENTS.md §Cat-3 (semantic change requires pe
 
 **Files changed (3 — Cat-5 alignment)**:
 - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
-- `docs/FOLLOWUP_TICKETS.md` EDIT (TICKET-CONTENT-TEXT-CAMERA-V1-ROT row updated with 21-error finding + scope-extension forward-point)
+- `docs/FOLLOWUP_TICKETS.md` EDIT (NEW TICKET-CONTENT-TEXT-CAMERA-V1-ROT row ADDED in §Open Blockers, 21-error finding + VERIFIED/PREDICTED split + scope-extension)
 - `docs/CURRENT_STATUS.md` EDIT (Text Production V1 row updated with the 21-error honest finding + the 6 upstream file paths)
 
-**Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blockers TICKET-CONTENT-TEXT-CAMERA-V1-ROT row (updated) + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale per area "Text Production V1" row (updated) + commit `2654fd2c` (the prior `docs(rebake-blocked)` commit) + commit `e507bc0d` (the prior `chore(tests): migrate Tests 17.4-17.8 .position to .placement` commit) + the `tools/wrap_push.sh` per-branch rebase gate + AGENTS.md §Cat-3 (no new public SDK API surface, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit alignment, satisfied) + AGENTS.md §honesty (honest 21-error finding documented, user prediction qualified).
+**Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blockers TICKET-CONTENT-TEXT-CAMERA-V1-ROT row (NEW) + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale per area "Text Production V1" row (updated) + commit `e507bc0d` (the prior `chore(tests): migrate Tests 17.4-17.8 .position to .placement` commit, 5-site sed + 1 include add) + commit `2654fd2c` (the prior `docs(rebake-blocked)` commit, 3-doc honest BLOCKED update) + the `tools/wrap_push.sh` per-branch rebase gate + AGENTS.md §Cat-3 (no new public SDK API surface, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit alignment, satisfied) + AGENTS.md §honesty (honest 21-error finding documented, user 300+ prediction qualified as PREDICTED not VERIFIED).
 
 ## Luglio 2026 — docs(rebake-blocked): 6 Text V1 goldens re-bake attempt BLOCKED by pre-existing TICKET-CONTENT-TEXT-CAMERA-V1-ROT (2026-07-12, atomic chore commit on main)
 
