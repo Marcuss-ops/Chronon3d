@@ -19,6 +19,29 @@ FRAME="${CHRONON_FRAME:-60}"
 OUT_DIR="${CHRONON_DETERMINISM_OUT:-/tmp/chronon-determinism-matrix}"
 NPROC_VAL="$(nproc 2>/dev/null || echo 1)"
 
+# ── Phase 0: binary presence check (canonical rebuild hint + §honesty) ──────
+BINARY_CANDIDATES=(
+    "$REPO_ROOT/build/chronon/linux-content-dev/apps/chronon3d_cli/chronon3d_cli"
+    "$REPO_ROOT/build/chronon/linux-fast-dev/apps/chronon3d_cli/chronon3d_cli"
+    "$REPO_ROOT/build/manual-test/apps/chronon3d_cli/chronon3d_cli"
+)
+CHRONON_CLI=""
+for cand in "${BINARY_CANDIDATES[@]}"; do
+    if [ -x "$cand" ]; then
+        CHRONON_CLI="$cand"
+        break
+    fi
+done
+
+if [ -z "$CHRONON_CLI" ]; then
+    echo "GATE_FAIL: chronon3d_cli binary not found in standard build paths" >&2
+    echo "  checked: ${BINARY_CANDIDATES[*]}" >&2
+    echo "  fix: cmake --preset linux-content-dev && cmake --build build/chronon/linux-content-dev -j\$(nproc)" >&2
+    echo "  Per AGENTS.md §honesty: macchina-verifica deferred to working build host" >&2
+    echo "  (this VPS lacks vcpkg glm/magic_enum + tmpfs quota for full project build)." >&2
+    exit 1
+fi
+
 mkdir -p "$OUT_DIR"
 
 # Echo first-existing cache dir (CHRONON_CACHE_DIR override > common defaults > empty).
@@ -37,9 +60,9 @@ render_pair() {
     local label="$1" env_prefix="$2"
     local P1="$OUT_DIR/${label}_a.png" P2="$OUT_DIR/${label}_b.png"
     # shellcheck disable=SC2086  # env_prefix intentionally word-split for VAR=VAL assignments
-    env $env_prefix chronon still "$COMPOSITION" "$P1" --frame "$FRAME" \
+    env $env_prefix "$CHRONON_CLI" still "$COMPOSITION" "$P1" --frame "$FRAME" \
         || { echo "  [${label}] render_a FAILED" >&2; return 2; }
-    env $env_prefix chronon still "$COMPOSITION" "$P2" --frame "$FRAME" \
+    env $env_prefix "$CHRONON_CLI" still "$COMPOSITION" "$P2" --frame "$FRAME" \
         || { echo "  [${label}] render_b FAILED" >&2; return 2; }
     local H1 H2 N
     H1=$(sha256sum "$P1" | awk '{print $1}')
