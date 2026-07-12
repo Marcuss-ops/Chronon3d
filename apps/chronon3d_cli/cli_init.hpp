@@ -201,6 +201,16 @@ inline void init_compositions(CompositionRegistry& registry, AssetRegistry& asse
             ChrononGlowProps p = chronon3d::test::glow_final::default_landscape_props();
             return chronon3d::test::glow_final::make_chronon_glow_final(p);
         });
+    // TICKET-GLOW-CERTIFICATION — Azione 1: no-glow sibling for A/B acceptance.
+    // Identical to ChrononGlowFinalAE except glow_enabled=false.
+    // Used by tools/check_glow_ab.py + the 6 acceptance TEST_CASEs in
+    // tests/visual/glow_ab/glow_ab_acceptance.cpp.
+    registry.add("ChrononGlowFinalAE_NoGlow",
+        [](const CompositionProps&) -> Composition {
+            ChrononGlowProps p = chronon3d::test::glow_final::default_landscape_props();
+            p.glow_enabled = false;
+            return chronon3d::test::glow_final::make_chronon_glow_final(p);
+        });
     registry.add("chronon-glow-final-portrait",
         [](const CompositionProps&) -> Composition {
             ChrononGlowProps p = chronon3d::test::glow_final::default_portrait_props();
