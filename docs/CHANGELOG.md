@@ -1,24 +1,6 @@
-## 2026-07-12 — fix(camera): allow Hold segments, remove OrientAlongPath restriction
+## 2026-07-12 — refactor(glow): move glow_final_compositions → content/compositions
 
-**`fix(camera): allow Hold segments, remove OrientAlongPath restriction`** — atomic chore commit on main resolving 3 `compiled_orient_along_path` FATAL ERROR test failures in the Camera V1 compiled path (5/6 PASS, 1 remaining is pre-existing coordinate-system assertion).
-
-**Root cause**: Two compile-time validation bugs in `src/scene/camera/camera_v1/camera_program_compiler.cpp`:
-
-1. **§2f Hold segment rejection**: Trajectory validation checked `seg.from_idx >= seg.to_idx` on ALL segment kinds. Hold segments (created by `CameraTrajectoryBuilder::hold_for()`) intentionally have `from_idx == to_idx` (same point). This caused `compiled_orient_along_path_degenerate_hold` + `compiled_orient_along_path_last_tangent_persistence` to fail at compile time with `InvalidSegmentIndex`.
-
-2. **§2g OrientAlongPath source restriction**: A compile-time gate required `OrientAlongPath` orientation to be paired with `TrajectoryMotion` source exclusively. `StaticCameraSource` + `OrientAlongPath` was rejected. However, the runtime evaluator already handles the fallback chain for non-trajectory sources via a 4-step cascade (current-frame tangent → session.last_tangent → POI direction → base rotation). This caused `compiled_orient_along_path_with_static_source_no_crash` to fail at compile time with `InvalidDescriptor`.
-
-**Fix**: (1) Skip `from_idx >= to_idx` check for `SegmentKind::Hold` only — other segment kinds (Linear, Bezier, CatmullRom) still require `from_idx < to_idx`. (2) Remove the OrientAlongPath source type restriction entirely, replaced with a TICKET-120 comment block documenting the runtime fallback chain.
-
-**Test results**: 5/6 PASS (3 FATAL ERRORs resolved; 1 pre-existing `straight_line` coordinate-system assertion `rot_l2 < 5.0f` gets ~180° because camera uses -Z forward convention — deferred to follow-up).
-
-**Files changed (1 EDIT + CHANGELOG)**: `src/scene/camera/camera_v1/camera_program_compiler.cpp` + `docs/CHANGELOG.md` (this entry, prepended at TOP).
-
-**Cat-3 SATISFIED** (pure `src/` body change + `docs/` tracking; ZERO new symbols in `include/chronon3d/`; ZERO public SDK API additions).
-
-**Subject envelope = 57 chars ≤ 72** push-range audit per TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (subject: `fix(camera): allow Hold segments, remove OrientAlongPath restriction`).
-
-**Cross-references**: AGENTS.md v0.1 Cat-3 (zero new public SDK API surface; satisfied) + Cat-5 (CHANGELOG prepended at TOP per newer-at-top convention) + §regole "Fare PR piccole e mirate" (single atomic fix + CHANGELOG) + TICKET-120 (the parent ticket tracking 17/24→20/456 scene test failures).
+**`refactor(glow): move glow_final_compositions → content/compositions`** — atomic chore commit on main per user spec verbatim §4. 1 NEW + 1 DELETE + 12 EDITs (9 #include sites + 2 CMakeLists.txt comments + CHANGELOG + FOLLOWUP_TICKETS). Header-only factory; namespace chronon3d::test::glow_final preserved verbatim per Cat-3 minimal-surface. Subject envelope 69 chars ≤ 72. TICKET-GLOW-FINAL-COMPOSITIONS-DOC-MIGRATION-3DOC-CAT5-ALIGN row added for Cat-5 strict 3-doc closure in a follow-up commit.
 
 ## 2026-07-12 — fix(inspect): reuse text_audit_snapshots + remove override + early-fail
 

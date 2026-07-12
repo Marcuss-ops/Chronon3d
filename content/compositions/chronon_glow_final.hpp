@@ -1,8 +1,16 @@
 #pragma once
 // ═══════════════════════════════════════════════════════════════════════════
-// tests/visual/ae_parity/glow_final_compositions.hpp
+// content/compositions/chronon_glow_final.hpp
 //
-// TICKET-CHRONON-GLOW-FINAL — Phase 1 unified factory.
+// TICKET-CHRONON-GLOW-FINAL — Phase 1 unified factory (production location).
+//
+// Originally landed at `tests/visual/ae_parity/glow_final_compositions.hpp`
+// (commit `cd42bc97` Fase 1 closure, 2026-07-11).  Re-homed to the canonical
+// `content/compositions/` production-content directory on 2026-07-12 per
+// the Step 7 refactor(glow) §4 cleanup mandate — the helper has graduated
+// from "test-only scaffolding used incidentally by the CLI" to "canonical
+// production cinematic-glow factory exposed as `chronon3d_cli render
+// ChrononGlowFinalAE`", and its physical location now reflects that role.
 //
 // Replaces three duplicated implementations of the ae_08 cinematic glow
 // composition:
@@ -24,8 +32,8 @@
 //   build_chronon_glow_scene(SB&, props, frame, Fe*) — shared inner composer
 //
 // AGENTS.md v0.1 freeze compliance: zero new public SDK API in include/.
-// All surface lives in tests/.
-// Header-only / inline (no link-time surface, no CMake target surface).
+// All surface lives in content/.  Header-only / inline (no link-time surface,
+// no CMake target surface).
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <cstddef>
