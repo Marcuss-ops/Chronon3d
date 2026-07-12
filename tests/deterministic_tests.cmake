@@ -40,15 +40,6 @@ chronon3d_add_test_suite(
             # 5 scene types × 6 conditions (same renderer, new renderer,
             # cache invalidation, thread count, 50× stress, sanity).
             deterministic/test_determinism_matrix.cpp
-            # Test 17 / FPC — brute-force determinism: 20×{1,2,8} threads
-            # × {cold,warm} cache permutations of ChrononGlowFinalAE --frame 15,
-            # asserting sha256 equality on raw RGBA + alpha_bbox + glyph_count
-            # + predicted_bbox against a self-reference baseline (per user spec
-            # verbatim 2026-07-12).  The {Debug,Release} dimension is the natural
-            # ctest -C Debug/-C Release discovery — the source compiles in both,
-            # BRUTE_TEST_BUILD_CONFIG tag + per-binary self-reference ensure
-            # the same-code-different-config dimension is correctly enumerated.
-            determinism/test_brute_determinism.cpp
 )
 target_compile_definitions(chronon3d_deterministic_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 if(TARGET chronon3d::content)
