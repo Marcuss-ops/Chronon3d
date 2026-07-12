@@ -1,28 +1,15 @@
 {
   "schema": "chronon3d.perf.dof_span.v1",
-  "status": "deferred_pending_ci_run",
-  "comment": "Placeholder produced by the perf(dof) atomic commit (drop 8 MiB depth copy in favour of std::span<const float>). The micro-benchmark that overwrites this file lives at tests/renderer/camera/test_per_pixel_dof.cpp::PerPixelDOF: 1920x1080 micro-benchmark - drop depth copy (delta report). Run with: ./build-fast.sh test \"*1920x1080*\" in any CMake 3.27+ environment. The bench reports both `after_ms` (kernel-only with span direct, zero copy) and `before_alloc_copy_ms` (simulated wasted copy cost) so the per-frame delta is observable on the CI host. The commit author intentionally did not commit fabricated measurements -- this file documents the bench contract instead.",
   "workload": {
     "width": 1920,
     "height": 1080,
     "depth_bytes": 8294400,
-    "depth_count_floats": 2073600,
     "runs": 20,
     "warmup": 2
   },
-  "expected_measurements": {
-    "after_ms": "kernel-only path (span direct, zero copy). Fill in from CI run.",
-    "before_alloc_copy_ms": "isolated wasted copy cost = std::vector<float>(depth.begin(), depth.end()) copy + dealloc, 8 MiB per call. Fill in from CI run.",
-    "before_total_ms": "after_ms + before_alloc_copy_ms (sum; the kernel work is identical in both paths so this is the legacy BEFORE-path total cost).",
-    "delta_per_frame_ms": "before_alloc_copy_ms (the wasted copy time saved -- the perf(dof) atomic commit drops this exact amount).",
-    "delta_pct": "delta_per_frame_ms / before_total_ms * 100"
-  },
-  "skip_env_var": "CHRONON3D_SKIP_DOF_BENCH=1",
-  "json_writer_call_site": "tests/renderer/camera/test_per_pixel_dof.cpp",
-  "writer_lookup_chain": [
-    "compile-time macro CHRONON3D_SOURCE_DIR (set by tests/renderer_tests.cmake via target_compile_definitions)",
-    "runtime env var CHRONON3D_SOURCE_DIR",
-    "walk-up from cwd looking for CMakeLists.txt",
-    "current_path() as last-resort fallback"
-  ]
+  "after_ms": 886.31,
+  "before_alloc_copy_ms": 1.47254,
+  "before_total_ms": 887.783,
+  "delta_per_frame_ms": 1.47254,
+  "delta_pct": 0.165867
 }
