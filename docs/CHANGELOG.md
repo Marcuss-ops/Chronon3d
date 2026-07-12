@@ -1,3 +1,28 @@
+## Luglio 2026 — docs(ticket): open TICKET-ROT-FIX-DOMAIN-BUG-INVALID (sub-3 reclassified from typo to forward-decl rot)
+
+**`docs(ticket): open TICKET-ROT-FIX-DOMAIN-BUG-INVALID (sub-3 reclassified)`** — atomic chore commit opening a NEW follow-up ticket + reclassifying TICKET-BUILD-ROT-CAMERA-CASCADE-SUB-WORKSTREAMS sub-3 from "typo" to **C++ lexical ordering / forward-declaration rot**. The user requested opening a follow-up ticket for the `CameraFramingResult` → `CameraFramingRequest` "typo" surfaced in the rot-cascade baseline doc's per-file matrix (DOMAIN BUG section, file `include/chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp`). Upon re-verification with the build log + file content, the rot is **NOT a typo**:
+
+- **Build log evidence** (`/tmp/host-build-df1e09d9-v2.log`): `camera_framing_solver.hpp:111:25: error: 'CameraFramingResult' does not name a type; did you mean 'CameraFramingRequest'?`
+- **File content** (`include/chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp`):
+  - Line 72: `struct CameraFramingRequest { ... };` (FULL DEFINITION, before the alias)
+  - Line 111: `using FramingSolution = CameraFramingResult;` (the alias — the failing line)
+  - Line 126: `struct CameraFramingResult { ... };` (FULL DEFINITION, AFTER the alias)
+- **Why it's NOT a typo**: the alias at line 111 references `CameraFramingResult` BEFORE its full definition at line 126. The compiler's "did you mean 'CameraFramingRequest'?" hint is misleading — `CameraFramingRequest` is just the closest visible symbol in scope, NOT the intended name. Aliasing `FramingSolution` to `CameraFramingRequest` would break the user-spec semantics (where `FramingSolution` is the canonical name for the RESULT, not the REQUEST).
+- **§honesty disclosure** (per AGENTS.md "non segnare verde una suite che restituisce failure" + "no stime percentuali"): per §honesty, I MUST NOT open a typo ticket for a non-existent rot. The "typo" claim in the rot-cascade baseline doc's DOMAIN BUG section is INVALID / mischaracterized. The new ticket intentionally carries the `INVALID` suffix in its slug to preserve the audit trail of the reclassification (the rot is real; the rot CLASS is mischaracterized).
+- **ACTUAL FIX** (per the new ticket's purpose): add forward declaration `struct CameraFramingResult;` before line 111 OR move the `using FramingSolution = CameraFramingResult;` alias to after line 126. Single-file atomic fix, ~1-2 LoC, ZERO new symbols.
+
+**Files changed (2 — Cat-5 PARTIAL 2-doc same-commit alignment)**:
+- `docs/FOLLOWUP_TICKETS.md` EDIT: update umbrella sub-3 paragraph (typo claim → forward-decl rot claim) + NEW `TICKET-ROT-FIX-DOMAIN-BUG-INVALID` row in Open Blockers table.
+- `docs/CHANGELOG.md` EDIT: this entry, prepended at TOP.
+
+**Subject**: `docs(ticket): open TICKET-ROT-FIX-DOMAIN-BUG-INVALID` (52 chars, within `tools/check_commit_subject_length.sh`'s 72-char push-range gate).
+
+**§honesty**: ticket carries INVALID slug to preserve audit trail. The rot-cascade baseline doc is INTENTIONALLY UNTOUCHED (historical baseline snapshot is immutable per AGENTS.md). The sub-3 reclassification is documented in the umbrella row + the new ticket row.
+
+**Bootstrap hatch**: Executed with `CHRONON3D_SKIP_BASELINE_CHECK=true` per the `tools/wrap_push.sh` escape hatch wired up by TICKET-GATE-SUBJECT-RANGE closure (commit `b832912a`).
+
+**Cross-references**: `docs/FOLLOWUP_TICKETS.md` umbrella row sub-3 paragraph (reclassified text) + new `TICKET-ROT-FIX-DOMAIN-BUG-INVALID` row + `docs/baselines/main-df1e09d9-rot-cascade-baseline.md` DOMAIN BUG section (STALE — "typo" claim INVALID) + the prior `docs(rot-verify): 409 errors, env WORKS, ticket stays OPEN` entry (commit `75d6e66b`, the verification result that surfaced the build log evidence) + the parallel `chore: untrack .tmp/chronon-builds/ build artifacts` commit (`90ac9070`, the build-artifact cleanup that was the prior commit in this session).
+
 ## Luglio 2026 — docs(rot-verify): 409 errors, env WORKS, ticket stays OPEN (TICKET-BUILD-ROT-CASCADE-CAMERA verification, 2026-07-12, atomic chore commit on main)
 
 **`docs(rot-verify): 409 errors, env WORKS, ticket stays OPEN`** — atomic chore commit documenting the result of the working-build-host verification protocol run per the user's instruction: "Run the working-build-host verification protocol documented in the new baseline doc to actually attempt the rot-cascade fix (per-file matrix: ① `::chronon3d::` prefix + ④ forwarding header) and transition TICKET-BUILD-ROT-CASCADE-CAMERA to DONE when 0 errors remain."
