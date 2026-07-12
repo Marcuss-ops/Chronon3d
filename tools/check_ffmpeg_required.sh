@@ -70,8 +70,17 @@ fi
 # Per AGENTS.md INFO-level diagnostic style rule: emit canonical GATE_PASS
 # first, then [INFO] line addizionale (grep-discoverable family `[INFO]
 # <gate-name>: ...`). The PASS line below is the canonical final; the [INFO]
-# line is the diagnostic sideband (one line, ≤ 200 chars).
+# line is the diagnostic sideband (one line, ≤ 200 chars per AGENTS.md
+# `## Regole di lint documentale` §INFO-level diagnostic style rule). The
+# raw `*-version | head -n1` output carries the FFmpeg copyright disclaimer
+# (~120 chars per binary) which would push the combined line over the
+# 200-char cap. Trim each binary's first-line output to the version
+# identifier token via `awk '{print $3; exit}'` (the third whitespace-
+# separated token of `ffmpeg version <ver>`) so the emitted line stays
+# under the cap.
+FFMPEG_VER_SHORT="$(printf '%s' "$FFMPEG_VERSION_LINE" | awk '{print $3; exit}')"
+FFPROBE_VER_SHORT="$(printf '%s' "$FFPROBE_VERSION_LINE" | awk '{print $3; exit}')"
 echo "GATE_PASS: ffmpeg + ffprobe present and self-test OK"
-echo "[INFO] ${GATE_NAME}: ffmpeg+ffprobe present at ${FFMPEG_VERSION_LINE} | ${FFPROBE_VERSION_LINE}"
+echo "[INFO] ${GATE_NAME}: ffmpeg+ffprobe present at ${FFMPEG_VER_SHORT} | ${FFPROBE_VER_SHORT}"
 
 exit 0
