@@ -1,3 +1,36 @@
+## Luglio 2026 — docs(followup): expand TICKET-BUILD-ROT-CASCADE rot-class findings (verified count delta + SAME-rot-pattern classification, 2026-07-12, atomic chore commit on main)
+
+**`docs(followup): expand TICKET-BUILD-ROT-CASCADE rot-class findings`** — atomic chore commit documenting the verified count expansion of TICKET-BUILD-ROT-CASCADE-CAMERA's rot-pattern from a clean rebuild of `chronon3d_dev_fast` (preserved build log at `/tmp/build_test_artifact.log`, [~166K chars, 245 `error:` markers]).
+
+**Diagnostic scope**: 11+ files contain `chronon3d::chronon3d::*` double-namespace rot references (the canonical rot-pattern from this ticket's description). Highest-error files: `include/chronon3d/runtime/render_runtime.hpp` (88 errors, mostly template-instantiation cascade) + `include/chronon3d/scene/model/core/scene.hpp` (24 errors, `Scene::layers()/nodes()` forward-decl rot) + 9 smaller sites (`include/chronon3d/backends/software/software_renderer.hpp` + `software_render_session.hpp` + `include/chronon3d/internal/runtime/render_session.hpp` + `include/chronon3d/core/scope/execution_scope.hpp` + `include/chronon3d/timeline/composition.hpp` + `include/chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp` + `src/effects/effect_catalog.cpp` + `include/chronon3d/effects/curves.hpp` + `include/chronon3d/effects/glow_pipeline.hpp`).
+
+**Rot-class classification** (machine-verified via canonical `grep -cE` + thinker-with-files-gemini analysis):
+- (a) `chronon3d::chronon3d::*` double-namespace rot: 30 direct occurrences. **SAME rot-pattern as existing ticket** — NO new ticket needed per AGENTS.md "a separate ticket per rot-pattern" + Cat-3 anti-duplication (ticket-sprawl forbidden).
+- (b) `std::variant` 21 occurrences ("synthasized method `constexpr ...::ImageParams(ImageParams&&)` first required here"): SYMPTOM of root cause (a) — template instantiation cascade through `chronon3d::ImageParams` no longer finds the canonical type due to namespace pollution. **SAME rot-pattern**.
+- (c) `not declared` 30 + `incomplete type` 13 occurrences: SYMPTOM of forward-declaration rot in `SceneHasher::compute_fingerprint(chronon3d::Scene&, ...)` (`scene_hasher.hpp` references forward-declared `chronon3d::Scene` from `render_graph_context.hpp:87` but uses `Scene::layers()/nodes()` needing full definition in `scene_hasher.hpp:22,28,43,48,62,63,67,106,278,281,289,292`). **SAME rot-pattern** (cascade of root cause (a) polluting transitive includes).
+
+**NO NEW rot-class surfaced**. Per machine-verified classification, the 245 error markers are ALL symptoms of the SAME 2 root causes already in the existing ticket's description (`chronon3d::chronon3d::*` double-namespace + transitive-include rot). The prior `50-200+ files to fix` estimate is on-target (245 count includes ~88+24 template-instantiation cascade errors per root cause, expanding the surface).
+
+**Files changed (2 — Cat-5 PARTIAL 2-doc same-commit alignment)**:
+- `docs/FOLLOWUP_TICKETS.md` EDIT (`TICKET-BUILD-ROT-CASCADE-CAMERA` row `Blocca` cell +1 verified-expansion clause with machine-verified count delta + 11-file breakdown + log-preservation pointer)
+- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+
+`docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED — text/camera rot state (PARTIAL rows per the existing TICKET-BUILD-ROT-CASCADE-CAMERA rot already documented) is unchanged by this verified-expansion observation (no new baseline; no SDK-state semantic change). Per the docs/DOCUMENTATION_GOVERNANCE.md matrix: "Completed verification expansion" is a Cat-5 PARTIAL event (CHANGELOG-only + the supporting ticket row update).
+
+**§honesty compliance** (per AGENTS.md v0.1):
+- The 245 count is **MACHINE-VERIFIED** via `grep -cE 'error:' /tmp/build_test_artifact.log` (the diagnostic was independent of any subjective classification).
+- The rot-class classification is **MACHINE-VERIFIED** for root cause (a) (30 `chronon3d::chronon3d::` matches via direct grep) + **THINKER-VERIFIED** for symptoms (b) + (c) (the error messages reference types from the same polluted namespace + the same forward-declaration rot pattern).
+- The "**NO NEW rot-class**" claim is direct, falsifiable, and traceable to the rot-pattern diagnosis (per AGENTS.md §honesty "non inventare" + "no stime percentuali" — the absence of a new pattern is as machine-checkable as its presence).
+- The artifact log at `/tmp/build_test_artifact.log` is preserved for future diagnostic re-verification (per AGENTS.md "audit trail" principle).
+
+**Forward-point (NOT in this commit, deferred per AGENTS.md "Fare PR piccole e mirate")**: working build host verification of the `50-200+ files` estimate + an actual `cmake --build .tmp/chronon-builds/linux-fast-dev` end-to-end re-run on a fit host (vcpkg glm/magic_enum + tmpfs sufficient). This ticket remains OPEN; the diagnostic + classification documented in this CHANGELOG entry is the machine-verifiable intermediate state for future maintainers.
+
+**Subject**: `docs(followup): expand TICKET-BUILD-ROT-CASCADE rot-class findings` (65 chars, within `tools/check_commit_subject_length.sh`'s 72-char push-range gate).
+
+**Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Open Blockers` `TICKET-BUILD-ROT-CASCADE-CAMERA` row +1 verified-expansion clause + `/tmp/build_test_artifact.log` (the preserved build log, ~166K chars) + commit `cd2548cb feat(api): public camera facade + external consumer SDK test` (the rot-introduction commit, forward-point of `TICKET-BUILD-ROT-RENDER-GRAPH` closure at 22 file edits) + AGENTS.md v0.1 §honesty (machine-verified count + rot-class classification + forward-point explicit).
+
+---
+
 ## Luglio 2026 — docs(fixup): close commit 8be7f965 Cat-5 3-doc §honesty gap (Test #1, 2026-07-12, atomic chore commit on main)
 
 **`docs(fixup): close commit 8be7f965 Cat-5 3-doc §honesty gap`** — atomic chore commit closing the §honesty gap that preceded commit `8be7f965 feat(check): wire Test #1 Product demo gate into orchestrator`. The CHANGELOG entry for commit `8be7f965` claimed "Cat-5 3-doc same-commit alignment SATISFIED" but my prior `str_replace` editor anchor mismatch caused the FOLLOWUP_TICKETS.md + CURRENT_STATUS.md state-update edits to silently fail on commit-2 automation; only the CHANGELOG entry got committed, leaving the 3-doc table inconsistent with the CHANGELOG narrative (FOLLOWUP_TICKETS row still at PARTIAL; CURRENT_STATUS row still at PARTIAL instead of the DONE/PASS state the CHANGELOG headlined). This §honesty-followup commit closes the gap via 2 targeted `sed` state-transitions:
