@@ -853,7 +853,27 @@ The summary emit writes `output/text_video_acceptance/ssim_psnr_summary.txt` (hu
 
 
 
+## Luglio 2026 — fix+docs(cert): Step 11 BLOCKED on this VPS per env-block pattern (atomic 3-doc + test-fix chore commit on main, 2026-07-12)
 
+**`fix+docs(cert): Step 11 BLOCKED on this VPS per env-block pattern`** — atomic 1-push-cycle chore BONDED with the locally-committed cat-1 source fix `e45ca40b` (TICKET-TEXT-GOLDEN-MISSING-FAIL-LOUD) + the Cat-5 3-doc state update. The Text V1 Cert Step 11 finale (`ctest -R 'TextVisibleInk|TextNoClip|TextClipBounds|TextCompleteness|TextAlign|TextWrapping|TextUnicode|TextGoldenGaps|TextStyleProps|TextTypewriter|TextDeterminism|TextLongText|TextEdgeCases|TextAntiFalseGreen|TextGlowSmoke|TextRotateZ|TextTransforms'`) is DEFERRED on this VPS due to environmental build-block.
+
+**Files changed (4 — bonded Cat-1 + Cat-5 3-doc atomic)**:
+
+1. `tests/text_golden/text_transforms_animation/{02_scale,03_anchor,04_parent_transform,05_rotation_extended,06_2_5d_camera}.cpp` (5 files: the locally ready cat-1 chore `e45ca40b`, TICKET-TEXT-GOLDEN-MISSING-FAIL-LOUD) — pattern replaced verbatim from canonical `tests/text_golden/text_clip/text_completeness.cpp:151` `INFO(...); REQUIRE_FALSE(r.golden_missing); CHECK(r.passed);` eliminating the silent-skip §honesty rot.
+2. `docs/FOLLOWUP_TICKETS.md` (NEW row prepended at TOP of §Open Blockers per new-row-at-top convention: TICKET-TEXT-V1-CERT-STEP11-DEFERRED with explicit 0/21 ctest verdict + 10/10 zero-conditions unverified + chore `e45ca40b` cross-link).
+3. `docs/CURRENT_STATUS.md` (NEW row added to §Stato generale per area: Text V1 Cert Step 11 (finale) DEFERRED state with binary-missing root cause + cross-link to FOLLOWUP_TICKETS row + CHANGELOG entry).
+4. `docs/CHANGELOG.md` (this entry, prepended at TOP per Cat-5 standard pattern).
+
+**§honesty compliance (verbatim per AGENTS.md v0.1)**: explicitly stating DEFERRED state + `0/21 Not Run` ctest verdict + binary missing root cause (`chronon3d_text_golden_tests` MISSING from `build/chronon/linux-dashboard-dev/tests/` per TICKET-BUILD-ROT-CASCADE-CAMERA). The 10/10 zero-conditions (0 fail + 0 Not Run + 0 missing goldens + 0 unresolved fonts + 0 glyph_count=0 + 0 empty alpha bbox + 0 involuntary clipping + 0 edge-touching + 0 render-repeat diff + 0 thread-diff + inspect-text PASS) are explicitly UNVERIFIED on this VPS — NO fabricated PASS claim. The 21 ctest entries (17 patterns, with TextTransforms sub-pattern registering 5 sub-cases) cannot execute here. Cat-1 chore `e45ca40b` is locally ready: 5 fail-loud `REQUIRE_FALSE(r.golden_missing)` inversions, replacing the prior canonical code from text_completeness.cpp:151 pattern. The chore is REBASED onto upstream `61693a7cbdc993352e1235973107ba2c4126441a` cleanly (no merge conflicts).
+
+**Subject envelope = 66 chars <= 72** push-range audit per TICKET-GATE-SUBJECT-RANGE closure 2026-07-12. **Cat-3 SATISFIED** (5 test-source files in `tests/` + 3 docs files; ZERO new symbols in `include/chronon3d/`, ZERO public SDK API additions, ZERO modifications to `src/`). **Cat-5 3-doc same-commit SATISFIED**: 3 docs files (FOLLOWUP_TICKETS + CURRENT_STATUS + CHANGELOG) updated atomically + the cat-1 source-fix chore `e45ca40b` referenced inline as the bonded state-change surface. Per-branch rebase invariant honored (`git config --local --get branch.main.rebase` = `true`).
+
+**Forward-points (NOT in this commit per AGENTS.md "Fare PR piccole e mirate")**:
+
+1. **Working build host macchina-verifica**: `apt install glm magic_enum + cmake --preset linux-fast-dev && cmake --build --preset linux-fast-dev -j"$(nproc)" --target chronon3d_text_golden_tests` + `ctest --test-dir build/chronon/linux-dashboard-dev --output-on-failure -R 'TextVisibleInk|TextNoClip|TextClipBounds|TextCompleteness|TextAlign|TextWrapping|TextUnicode|TextGoldenGaps|TextStyleProps|TextTypewriter|TextDeterminism|TextLongText|TextEdgeCases|TextAntiFalseGreen|TextGlowSmoke|TextRotateZ|TextTransforms'` post-rot-cascade-resolution. First green run on working build host transitions TICKET-TEXT-V1-CERT-STEP11-DEFERRED -> DONE.
+2. **TICKET-TEXT-LEGACY-POSITION-ROT verification gap closure**: the `ctest -R 'ChrononGlowFinalAE'` validation requested by the user is independently env-blocked by the same rot-cascade plus the same 409-error build rot. On working build host, after TICKET-BUILD-ROT-CASCADE-CAMERA + TICKET-TEXT-LEGACY-POSITION-ROT both close, the 11/11 baseline certification can be `git push`-verified.
+3. **§4+§6 macchina-verifica**: independent forward-point, deferred to working build host — `tests/text/test_pipeline_parity_real.cpp::Fase 6 §4+§6` produces the canonical MP4 at `output/text_video_acceptance/chronon_glow_final.mp4`; `tools/check_video_completeness.sh` then executes the §4+§6 ffprobe contract gate.
+4. **`AGENTS.md §Post-push SHA-selfcheck invariant` cleanup** (independent forward-point): the chore commit dance-collision recovery lineage from this session (multiple SHAs: 879dedd7 + 8d78f6d7 + 4cfceca9) is preserved in `git reflog` for forensic traceability per AGENTS.md §honesty "no silent partial fixes".
 
 ## Luglio 2026 — feat(check): wire video-completeness probe gate (canonical FAIL-LOUD gate for spec §4+§6 ffprobe MP4 contract + ffmpeg decoded-frames count, atomic chore commit on main, 2026-07-12)
 
