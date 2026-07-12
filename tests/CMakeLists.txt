@@ -50,6 +50,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/text_layout_advanced_tests.cmake  # M1.8 §3B / TICKET-FASE4-LAYOUT — 3×3 wrap×overflow matrix + 7 line-height values + 3 adversarial countertests (UNCONDITIONAL, pure layout math)
     ${CMAKE_CURRENT_SOURCE_DIR}/presets_golden_tests.cmake  # M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 PNG goldens in test_renders/golden/text/presets/ (Blend2D-gated INTEGRATION tier)
     ${CMAKE_CURRENT_SOURCE_DIR}/precomp_focus_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/timeline_tests.cmake  # post-rename RenderJob::video_job factory + VideoSettings defaults lock (TIER=UNIT, no Blend2D, unconditional)
     ${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/video_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/media_tests.cmake
@@ -149,6 +150,11 @@ endif()
 # Note: the .cmake file self-guards on CHRONON3D_USE_BLEND2D so the
 # include is unconditional here.
 include(${CMAKE_CURRENT_SOURCE_DIR}/precomp_focus_tests.cmake)
+
+# Timeline tests — RenderJob::video_job factory + VideoSettings
+# default-initialization contract (TIER=UNIT, no Blend2D / GPU /
+# FontEngine dependency, so the include is unconditional).
+include(${CMAKE_CURRENT_SOURCE_DIR}/timeline_tests.cmake)
 
 # M1.8 §3 / TICKET-SIMPLICITY-TEXTDEFINITION — pure struct + adapter
 # lock tests.  Listed here (UNCONDITIONAL) and NOT inside the
@@ -303,6 +309,7 @@ set(CHRONON3D_FAST_TEST_DEPS
     chronon3d_optimizer_tests
     chronon3d_cache_tests
     chronon3d_compositor_tests
+    chronon3d_timeline_tests
 )
 if(TARGET chronon3d_authoring_tests)
     list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_authoring_tests)
