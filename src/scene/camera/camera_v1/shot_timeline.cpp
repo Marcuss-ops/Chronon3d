@@ -15,8 +15,19 @@
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/shot_timeline.hpp>
 
+// P3-H + TICKET-CAMERA-FULL-LINUX sub-ticket C — the cache-controlled
+// evaluate() path uses `lease.session()` which returns `CameraSession&`.
+// The session type lives in the internal/ namespace (P3-H boundary
+// contract); we include the full type here at the implementation TU
+// because this is the only place where session fields are accessed.
+// Public headers (shot_timeline.hpp + camera_session_cache.hpp) keep
+// forward-declared CameraSession so the public manifest stays
+// compile-clean for downstream consumers.
+#include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
+
 #include <algorithm>
 #include <cmath>
+#include <cstdio>           // std::snprintf for derive_camera_id hex
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <stdexcept>
@@ -304,19 +315,105 @@ std::shared_ptr<CameraTransition> ShotTimelineResolver::get_transition(
     return default_cut();
 }
 
+// =============================================================================
+// P3-H + TICKET-CAMERA-FULL-LINUX sub-ticket C — 6-field ripple-through
+// diagnostic enrichment.
+//
+// `derive_camera_id(prog)` — returns the canonical id used by the
+// renderer-facing `CameraResolveDiagnostic.camera_id` field.  Falls back
+// to fingerprint hex when the descriptor has no id, and to "uncompiled"
+// when the program is not yet compiled (program-only standalone path).
+// =============================================================================
+namespace {
+inline std::string derive_camera_id(const CameraProgram& prog,
+                                     int shot_idx) {
+    if (const auto* d = prog.descriptor()) {
+        if (!d->id.empty()) return d->id;
+        if (prog.is_compiled()) {
+            char hex[24];
+            std::snprintf(hex, sizeof(hex),
+                          "shot%d-fp-%016llx",
+                          shot_idx,
+                          static_cast<unsigned long long>(prog.fingerprint()));
+            return std::string(hex);
+        }
+    }
+    return "uncompiled-shot" + std::to_string(shot_idx);
+}
+
+// Heuristic code-derivation.  Greps `d.message` for canonical substrings
+// so a serialised log can be filtered on `code == "Uncompiled"` etc.
+// These patterns match the failure-messages emitted by:
+inline std::string derive_code_from_message(const std::string& msg) {
+    if (msg.find("Uncompiled") != std::string::npos ||
+        msg.find("uncompiled") != std::string::npos ||
+        msg.find("compile_camera") != std::string::npos) {
+        return "Uncompiled";
+    }
+    if (msg.find("ConstraintFailure") != std::string::npos ||
+        msg.find("constraint") != std::string::npos) {
+        return "ConstraintFailure";
+    }
+    if (msg.find("LookAtLayer") != std::string::npos ||
+        msg.find("look-at") != std::string::npos ||
+        msg.find("MissingTransforms") != std::string::npos) {
+        return "LookAtLayerMissingTarget";
+    }
+    if (msg.find("TransitionEvaluationFailed") != std::string::npos) {
+        return "TransitionEvaluationFailed";
+    }
+    return "ProgramDiagnostic";
+}
+
+// In-place enrich `EvaluatedCamera::resolve_diagnostics` with the 6-field
+// sub-ticket C contract.  Reads from the program's pre-existing
+// `diagnostics` vector (program-level) and emits a parallel
+// `resolve_diagnostics` vector (timeline-level) with `shot_index` +
+// `sample_time_seconds` + `camera_id` populated.  Severity is bit-cast
+// from `CameraProgramDiagnostic::Severity` (the two enums share the same
+// 3 values — Info / Warning / Error).
+inline void enrich_resolve_diagnostics(EvaluatedCamera& eval,
+                                         const CameraProgram& prog,
+                                         int                shot_idx,
+                                         double             sample_time_s) {
+    if (eval.diagnostics.empty()) return;
+    eval.resolve_diagnostics.clear();
+    eval.resolve_diagnostics.reserve(eval.diagnostics.size());
+    for (const auto& d : eval.diagnostics) {
+        CameraResolveDiagnostic rd;
+        rd.camera_id           = derive_camera_id(prog, shot_idx);
+        rd.shot_index          = shot_idx;
+        rd.sample_time_seconds = sample_time_s;
+        rd.severity            = static_cast<CameraResolveDiagnostic::Severity>(
+            static_cast<int>(d.severity));
+        rd.code                = derive_code_from_message(d.message);
+        rd.message             = d.message;
+        eval.resolve_diagnostics.push_back(std::move(rd));
+    }
+}
+} // anonymous namespace
+
 chronon3d::Result<EvaluatedCamera, CameraEvaluationError>
 ShotTimelineResolver::evaluate(int frame,
                                 ShotTimelineSession& timeline_session,
                                 FrameRate             fps) const {
     if (!timeline_ || timeline_->empty())
-        return EvaluatedCamera{Camera2_5D{}, {}};
+        return EvaluatedCamera{Camera2_5D{}, {}, {}};
 
     auto pair = timeline_->find_pair(frame);
     if (!pair.current)
-        return EvaluatedCamera{Camera2_5D{}, {}};
+        return EvaluatedCamera{Camera2_5D{}, {}, {}};
 
     const CameraShot& shot = *pair.current;
     int local_frame = frame - shot.start_frame;  // local time
+
+    // P3-H + sub-ticket C — cache-controlled session acquisition so a
+    // direct frame-100 render pre-rolls state as if frames 0..99 had been
+    // committed sequentially.  The cache is private to this resolver
+    // (mutable CameraSessionCache cache_) so simultaneous render-jobs
+    // each own their own session state (WP-3 isolation per the test
+    // `random_access_two_simultaneous_render_jobs_isolated` in
+    // tests/scene/camera/test_shot_timeline_random_access.cpp).
 
     // Check if we're in a transition overlap with the next shot.
     if (pair.next && shot.transition_frames > 0 &&
@@ -341,17 +438,10 @@ ShotTimelineResolver::evaluate(int frame,
         int next_local = frame - pair.next->start_frame;
         auto ctx_to = CameraEvalContext::at(std::max(0, next_local), fps);
 
-        auto& s_from = timeline_session.session_for(pair.idx);
-        auto& s_to   = timeline_session.session_for(pair.idx + 1);
-
-        // Phase 1.C (TICKET-120 Sub-commit E lineage): structured-error
-        // propagation.  Unchecked `.value()` is replaced with explicit
-        // `if (!result)` guards that surface the program-evaluation
-        // failure as CameraErrorCode::TransitionEvaluationFailed rather
-        // than letting the canonical `Result<T,E>::value()` precondition
-        // assertion fire (the SIGABRT surface at TICKET-120 line 169 in
-        // tests/scene/camera/test_shot_timeline.cpp).
-        auto eval_from = shot.program.evaluate(ctx_from, s_from);
+        // P3-H + sub-ticket C — random-access parity for transition overlap.
+        auto lease_from = cache_.acquire(shot.program, pair.idx,
+                                          shot.start_frame, frame, fps);
+        auto  eval_from = shot.program.evaluate(ctx_from, lease_from.session());
         if (!eval_from) {
             return CameraEvaluationError{
                 .code    = CameraErrorCode::TransitionEvaluationFailed,
@@ -359,7 +449,11 @@ ShotTimelineResolver::evaluate(int frame,
                            "' evaluate failed: " + eval_from.error().message
             };
         }
-        auto eval_to = pair.next->program.evaluate(ctx_to, s_to);
+        lease_from.commit(eval_from.value().camera);
+
+        auto lease_to = cache_.acquire(pair.next->program, pair.idx + 1,
+                                        pair.next->start_frame, frame, fps);
+        auto  eval_to = pair.next->program.evaluate(ctx_to, lease_to.session());
         if (!eval_to) {
             return CameraEvaluationError{
                 .code    = CameraErrorCode::TransitionEvaluationFailed,
@@ -367,14 +461,29 @@ ShotTimelineResolver::evaluate(int frame,
                            "' evaluate failed: " + eval_to.error().message
             };
         }
+        lease_to.commit(eval_to.value().camera);
 
         Camera2_5D from_cam = eval_from.value().camera;
         Camera2_5D to_cam   = eval_to.value().camera;
         auto transition = get_transition(shot.transition_out);
-        return EvaluatedCamera{
-            .camera      = transition->evaluate(t, from_cam, to_cam),
-            .diagnostics = {}
-        };
+
+        // P3-H + sub-ticket C — merged ripple-through: both shots'
+        // resolve_diagnostics are concatenated with their respective
+        // shot_indices preserved (so a downstream dashboard can group
+        // diagnostics by shot_idx 0 / 1 + filter by code / severity).
+        EvaluatedCamera merged;
+        merged.camera = transition->evaluate(t, from_cam, to_cam);
+        EvaluatedCamera from_eval = eval_from.value();
+        EvaluatedCamera to_eval   = eval_to.value();
+        enrich_resolve_diagnostics(from_eval, shot.program, pair.idx,
+                                    ctx_from.sample_time.seconds());
+        enrich_resolve_diagnostics(to_eval, pair.next->program, pair.idx + 1,
+                                    ctx_to.sample_time.seconds());
+        merged.diagnostics.clear();
+        merged.resolve_diagnostics = std::move(from_eval.resolve_diagnostics);
+        auto tail = std::move(to_eval.resolve_diagnostics);
+        for (auto& rd : tail) merged.resolve_diagnostics.push_back(std::move(rd));
+        return merged;
     }
 
     // No transition — evaluate the current shot directly with local time.
@@ -384,8 +493,24 @@ ShotTimelineResolver::evaluate(int frame,
     // from the resolver caller (no 30 fps fixture inside the resolver).
     auto ctx = CameraEvalContext::at(local_frame, fps);
 
-    auto& shot_session = timeline_session.session_for(pair.idx);
-    auto eval_result = shot.program.evaluate(ctx, shot_session);
+    // P3-H + sub-ticket C — observe Cut transitions the first time the
+    // resolver enters frame shot.end_frame for a shot whose exit is Cut.
+    // (The cache.apply_cut_between is also called by the OPP integration
+    // before cross-shot acquisition; marking the observer pattern here
+    // keeps the lease-acquisition pre-roll consistent even when calls
+    // go directly through the public evaluate() path.)
+    if (pair.next && shot.transition_out == CameraTransitionKind::Cut &&
+        frame == shot.end_frame - 1) {
+        cache_.observe_cut_between(pair.idx, pair.idx + 1);
+    }
+
+    // P3-H + sub-ticket C — cache-controlled acquisition for the single-shot
+    // path.  The cache handles pre-roll walk (stateful programs) +
+    // fingerprint invalidation + Cut-reset so direct-frame-100 produces
+    // bit-exact state with sequential-0..100.
+    auto lease = cache_.acquire(shot.program, pair.idx,
+                                 shot.start_frame, frame, fps);
+    auto eval_result = shot.program.evaluate(ctx, lease.session());
     if (!eval_result) {
         return CameraEvaluationError{
             .code    = CameraErrorCode::TransitionEvaluationFailed,
@@ -393,10 +518,16 @@ ShotTimelineResolver::evaluate(int frame,
                        "': " + eval_result.error().message
         };
     }
-    return EvaluatedCamera{
-        .camera      = eval_result.value().camera,
-        .diagnostics = eval_result.value().diagnostics
-    };
+    // P3-H + sub-ticket C — lease-commit persists the working session
+    // back into the cache's checkpoint slot (this is the commit step that
+    // makes the next direct-frame-eval bit-exact with a sequential render).
+    lease.commit(eval_result.value().camera);
+
+    // P3-H + sub-ticket C — populate the 6-field ripple-through surface.
+    EvaluatedCamera enriched = eval_result.value();
+    enrich_resolve_diagnostics(enriched, shot.program, pair.idx,
+                                ctx.sample_time.seconds());
+    return enriched;
 }
 
 // =========================================================================
