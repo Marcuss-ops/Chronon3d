@@ -1,3 +1,7 @@
+## 2026-07-12 - Test 18 first-seed dry-run capture (PARTIAL-VPS-LIMITED)
+
+- **`docs(test-18): PARTIAL dry-run capture + push blocked F2 ticket`**: First-seed dry-run of `WEEKLY_COST_HOURLY_RATE=0.05 bash tools/run_weekly_scorecard.sh` on a non-build-host VPS into `docs/product-tests/TEST-18-2026-W28.md`. Result: 1-line `GATE_FAIL_INTERNAL: run_weekly_scorecard: sqlite3 not in PATH` (exit 2). Closing honu: PARTIAL-on-populated-DB NOT closed; new disclosure is `PARTIAL-VPS-LIMITED-DRY-RUN-CAPTURED`. Week-over-week delta for narrative line 7 (metrica migliorata) stays locked pending real working build host. Push LOCAL-ONLY per `TICKET-INFRA-F2-DIVERGENCE (P0)` honu Open Blocker.
+
 ## Luglio 2026 — tools(test-18): dashboard settimanale del fondatore (8 metric aggregator + template, First-Principles Product Check #18, atomic chore commit on main, LOCAL-ONLY cert per F2 push blocker)
 
 **`tools(test-18)` weekly founder dashboard landed** — Test 18 (Dashboard settimanale del fondatore) opens with 8 canonical metriche via 2 NEW artifacts: `tools/run_weekly_scorecard.sh` (~140 LoC bash+sqlite3+awk+date aggregator) + `docs/product-tests/TEST-18-WEEKLY-DASHBOARD.md` (~110 LoC template + sample weekly entry + 7 narrative lines + §honesty cert). Strict per AGENTS.md (no new public SDK API, observable metrics only, no percentual estimates).
