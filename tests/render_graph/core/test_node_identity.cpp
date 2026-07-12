@@ -34,7 +34,7 @@
 
 #include <chronon3d/render_graph/core/node_identity.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>

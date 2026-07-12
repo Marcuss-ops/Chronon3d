@@ -1,5 +1,5 @@
 #include <doctest/doctest.h>
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/render_graph/nodes/text_run_node.hpp>
 #include <chronon3d/text/text_run.hpp>
