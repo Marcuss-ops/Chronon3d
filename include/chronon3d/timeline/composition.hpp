@@ -164,53 +164,29 @@ public:
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // P3-H + feat(api) public camera facade — Composition::camera(p)
+    // P3-H + feat(api) public camera facade — Composition::camera_program(p)
     //
     // Mirror of the spec example:
     //   auto program  = compile_camera(descriptor).value();
-    //   composition.camera(program);
+    //   composition.camera_program(program);
     //   renderer.render(composition, Frame{30});
     //
     // Stores a pre-compiled `CameraProgram` on the Composition.  The OPP
     // renderer consumes the program on the per-frame evaluate path,
-    // skipping the `compile_camera(...)` step on the hot loop.  The
-    // existing `default_camera_descriptor(d)` setter is unaffected
-    // (and is the alternative authoring path when the consumer wants the
-    // compile to happen at render time, not at authoring time).
+    // skipping the `compile_camera(...)` step on the hot loop.
     //
-    // P3-F IMMUTABILITY POLICY (documented carve-out — code-review verdict):
-    // P3-F declared Composition "immutable on the camera side".  The new
-    // `camera(p)` setter is a SINGLE FIELD MUTATION: `m_camera_program`
-    // (value-typed, no cache, no lazy compile).  This is a controlled
-    // exception — the program is treated as immutable DOWNSTREAM
-    // (compile_camera produces an immutable program; the OPP consumes
-    // the program read-only at evaluate time).  The setter is allowed
-    // because authoring-time state is the legitimate exception to the
-    // P3-F invariant; the OPP runtime path remains read-only.
-    //
-    // PRECEDENCE POLICY (when BOTH setters are called): if the consumer
-    // calls BOTH `composition.camera(program)` AND
-    // `composition.default_camera_descriptor(d)` on the same Composition,
-    // the pre-compiled PROGRAM takes precedence at render time.  The
-    // descriptor is then unused for the OPP render path.  This matches
-    // the "program authored + stored, used directly" semantic of the
-    // spec example — the descriptor is the source-of-truth only when
-    // no program has been set.  An ADR for the P3-F carve-out is
-    // filed as a followup forward-point
-    // (TICKET-CAMERA-FULL-LINUX sub-ticket D followup).
+    // Renamed from `camera(p)` to `camera_program(p)` to resolve name
+    // conflict with the legacy `Camera camera` public data member
+    // (TICKET-BUILD-ROT-CASCADE-CAMERA surface D).
     // ══════════════════════════════════════════════════════════════════════
-    Composition& camera(chronon3d::camera_v1::CameraProgram program) {
+    Composition& camera_program(chronon3d::camera_v1::CameraProgram program) {
         m_camera_program = std::move(program);
         return *this;
     }
 
-    /// Read-only accessor for the pre-compiled camera program.  The
-    /// returned reference is valid until the next `camera(...)` call.
-    /// Returns the default-constructed (empty) program if no `camera(...)`
-    /// setter has been called — callers should check via
-    /// `has_camera_program()` before consuming.
+    /// Read-only accessor for the pre-compiled camera program.
     [[nodiscard]] const chronon3d::camera_v1::CameraProgram&
-    camera() const noexcept {
+    camera_program() const noexcept {
         return m_camera_program;
     }
 
