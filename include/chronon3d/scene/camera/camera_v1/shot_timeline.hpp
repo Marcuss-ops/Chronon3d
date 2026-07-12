@@ -30,6 +30,15 @@
 #include <chronon3d/math/camera_2_5d_projection.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 
+// P3-H + TICKET-CAMERA-FULL-LINUX sub-ticket C — random-access parity
+// requires the resolver to integrate with CameraSessionCache (TICKET-031).
+// The cache provides checkpoint + pre-roll + lease-commit semantics so
+// `render 0→1→…→100` and `render directly frame 100` produce the same
+// camera at the same frame (vital for stateful constraints such as
+// DampedFollowConstraint's EMA accumulator — see header comment on
+// the new `mutable CameraSessionCache cache_` private member below).
+#include <chronon3d/scene/camera/camera_v1/camera_session_cache.hpp>
+
 // Forward declaration of CameraSession — full type lives in
 // include/chronon3d/internal/scene/camera/v1/camera_session.hpp
 // (P3-H internal hide).  The ShotTimelineSession member below stores
@@ -207,6 +216,17 @@ private:
     std::shared_ptr<CameraTransition> get_transition(CameraTransitionKind kind) const;
 
     std::map<CameraTransitionKind, std::shared_ptr<CameraTransition>> transitions_;
+
+    // P3-H + TICKET-CAMERA-FULL-LINUX sub-ticket C — random-access parity.
+    // The cache is the SOURCE OF TRUTH for primed CameraSession instances
+    // keyed by (program, shot_idx).  The mutable keyword lets the `const
+    // evaluate()` thread the cache through without changing the public
+    // const contract (same pattern as CameraProgram::framing_solver_ at
+    // include/chronon3d/scene/camera/camera_v1/camera_program.hpp — adds
+    // ONE cache per resolver = ONE cache per worker = WP-3 isolation per
+    // `RenderSession`/`SceneHasher`).  The cache is BY VALUE; no
+    // singleton / global; honors the per-job ownership rule (DOC 03 §5).
+    mutable CameraSessionCache cache_;
 };
 
 // =========================================================================
