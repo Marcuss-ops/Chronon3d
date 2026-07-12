@@ -7,7 +7,7 @@
 # Invokes all 12 canonical cert gates in sequence and emits
 # `CHRONON_PRODUCT_FUNCTIONAL_PASS` only if ALL pass.
 #
-# Gate list (12 canonical + 2 forward-pointed = 14 total):
+# Gate list (14 canonical + 1 forward-pointed = 15 total):
 #   1.  verify_repository_baseline_linux  — repo health + clean build + 11/11 baseline
 #   2.  verify_text_functional_linux       — Text V1 golden + preset + kinetic
 #   3.  verify_camera_functional_linux     — Camera V1 runtime cert
@@ -20,8 +20,9 @@
 #   10. verify_error_handling_linux        — 10 error types (structured contract)
 #   11. install_consumer_test              — external consumer SDK (find_package + build + run)
 #   12. verify_packaging_linux             — relocatability (2 prefixes, mv, no abs paths)
-#   13. verify_sanitizer_linux             — [forward-pointed] ASan/UBSan/TSan cert
-#   14. verify_diagnostics_linux           — [forward-pointed] diagnostics pipeline cert
+#   13. verify_performance_linux           — 5 scenarios + 100-iter memory leak test
+#   14. verify_sanitizer_linux             — ASan+UBSan (all tests) + TSan (7 subsystems)
+#   15. verify_diagnostics_linux           — [forward-pointed] diagnostics pipeline cert
 #
 # Design (per AGENTS.md Cat-3 anti-dup):
 #   - 1 canonical orchestrator (this file) — no per-category stub scripts.
@@ -160,8 +161,8 @@ echo ""
 # 1–12. Canonical cert gates (sequential, all run regardless of prior failures)
 # ══════════════════════════════════════════════════════════════════════════════
 
-echo "== Orchestrating 12 canonical cert gates + 2 forward-pointed =="
-echo "   (11 user-spec + 1 bonus: verify_error_handling_linux)"
+echo "== Orchestrating 14 canonical cert gates + 1 forward-pointed =="
+echo "   (11 user-spec + 3 bonus: error_handling, performance, sanitizer)"
 echo "   (each gate runs to completion; aggregate verdict at end)"
 echo ""
 
@@ -213,21 +214,19 @@ run_gate "install_consumer_test" \
 run_gate "verify_packaging_linux" \
     "tools/verify_packaging_linux.sh"
 
+# 13 — Performance & memory benchmark
+run_gate "verify_performance_linux" \
+    "tools/verify_performance_linux.sh"
+
+# 14 — Sanitizer (ASan+UBSan+TSan)
+run_gate "verify_sanitizer_linux" \
+    "tools/verify_sanitizer_linux.sh"
+
 # ══════════════════════════════════════════════════════════════════════════════
-# 13–14. Forward-pointed gates (not yet implemented)
+# 15. Forward-pointed gate (not yet implemented)
 # ══════════════════════════════════════════════════════════════════════════════
 
-# 13 — Sanitizer (script exists as untracked; deferred until committed + verified)
-if [ -f "tools/verify_sanitizer_linux.sh" ]; then
-    run_gate "verify_sanitizer_linux" \
-        "tools/verify_sanitizer_linux.sh"
-else
-    forward_point_gate "verify_sanitizer_linux" \
-        "TICKET-VERIFY-SANITIZER-LINUX" \
-        "ASan/UBSan/TSan cert gate (0 OOB / 0 UAF / 0 UB / 0 data races)."
-fi
-
-# 14 — Diagnostics pipeline
+# 15 — Diagnostics pipeline
 forward_point_gate "verify_diagnostics_linux" \
     "TICKET-VERIFY-DIAGNOSTICS-LINUX" \
     "Diagnostics pipeline cert (text_visibility_audit + render_diagnostic + audit snapshot)."
