@@ -6,7 +6,6 @@
 
 chronon3d_add_test_suite(
     NAME chronon3d_preflight_tests
-    TIER SDK
-    LINK_TARGETS chronon3d_core chronon3d_runtime chronon3d_assets
+    TIER UNIT
     SOURCES preflight/test_path_existence_map.cpp
 )

@@ -25,7 +25,6 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
@@ -98,7 +97,7 @@ Composition build_anim_position_composition(
                 l.text_run("title", TextRunParams{
                     .text = {
                         .content = {.value = "MOVE"},
-                        .position = {static_cast<float>(canvas_w) * 0.5f, cy, 0.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(canvas_w) * 0.5f, cy}},
                         .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",

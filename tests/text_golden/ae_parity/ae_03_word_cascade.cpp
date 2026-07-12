@@ -75,7 +75,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("word_top", [cy](LayerBuilder& l) {
                 l.text("word_top", {
                     .content = {.value = "FRAMEWORK"},
-                    .position = {960.0f, cy.top * 1080.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, cy.top * 1080.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -89,7 +89,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("word_mid", [cy](LayerBuilder& l) {
                 l.text("word_mid", {
                     .content = {.value = "STUDIO"},
-                    .position = {960.0f, cy.mid * 1080.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, cy.mid * 1080.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -103,7 +103,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("word_bot", [cy](LayerBuilder& l) {
                 l.text("word_bot", {
                     .content = {.value = "MOTION"},
-                    .position = {960.0f, cy.bot * 1080.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, cy.bot * 1080.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -131,7 +131,7 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("word_top", [cy](LayerBuilder& l) {
                 l.text("word_top", {
                     .content = {.value = "FRAMEWORK"},
-                    .position = {540.0f, cy.top * 1920.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {540.0f, cy.top * 1920.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -145,7 +145,7 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("word_mid", [cy](LayerBuilder& l) {
                 l.text("word_mid", {
                     .content = {.value = "STUDIO"},
-                    .position = {540.0f, cy.mid * 1920.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {540.0f, cy.mid * 1920.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -159,7 +159,7 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("word_bot", [cy](LayerBuilder& l) {
                 l.text("word_bot", {
                     .content = {.value = "MOTION"},
-                    .position = {540.0f, cy.bot * 1920.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {540.0f, cy.bot * 1920.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
