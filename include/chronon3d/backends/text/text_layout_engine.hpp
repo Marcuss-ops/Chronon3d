@@ -75,7 +75,7 @@ public:
             // in the prior 8-iter version broke determinism: two
             // calls with identical input could nudge by different
             // amounts due to fp rounding, producing cache-key drift).
-            const float low  = std::max(1.0f, input.style.min_size);
+            float       low  = std::max(1.0f, input.style.min_size);
             float       high = std::max(low, input.style.size);
             if (input.style.max_size > 0.0f) {
                 high = std::min(high, input.style.max_size);
