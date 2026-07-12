@@ -24,8 +24,8 @@
 // inside the cache itself; thread safety is enforced by the WP-3
 // `RenderSession` ownership convention.
 // ==============================================================================
-#include <chronon3d/scene/camera/camera_v1/camera_session_cache.hpp>
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_session_cache.hpp>
 
 #include <algorithm>
 
@@ -134,13 +134,14 @@ CameraSessionLease CameraSessionCache::acquire(const CameraProgram& program,
         e.checkpoint->descriptor_fingerprint = dd_fp;
         e.checkpoint->shot_start_frame       = shot_start_frame;
         e.checkpoint->cut_seen               = false;  // consume marker
-        // return is informative only (primed? collapsed window?) — each
-        // repprime path guarantees the same outcome so acquire doesn't
-        // branch on it; discard the bool.
+        // Create a temporary shared_ptr copy for the pre-roll, then
+        // write the primed result back to checkpoint.
+        auto session_copy = std::make_shared<CameraSession>(e.checkpoint->session);
         (void)preroll_session_for_frame(program, shot_start_frame, target_frame,
                                         kCanonicalPrerollMaxFrames,
-                                        e.checkpoint->session,
+                                        session_copy,
                                         frame_rate);
+        e.checkpoint->session = *session_copy;
     }
     // CAM-05: last_evaluated_frame is now set by CameraSessionLease::commit(),
     // not eagerly here.  If the caller never calls commit() (exception,
@@ -154,12 +155,7 @@ CameraSessionLease CameraSessionCache::acquire(const CameraProgram& program,
     // lease.session() returns a reference to working_session; commit() copies
     // working_session back to checkpoint.session; uncommitted leases
     // implicitly rollback (no writeback — checkpoint.session is untouched).
-    // Use shared_ptr with no-op deleter: checkpoint owns the CameraSession
-    // value, working_session borrows it. This avoids make_shared which
-    // requires CameraSession to be a complete type at this point.
-    e.working_session = std::shared_ptr<CameraSession>(
-        &e.checkpoint->session,
-        [](CameraSession*) { /* no-op: checkpoint owns the session */ });
+    e.working_session = std::make_shared<CameraSession>(e.checkpoint->session);
     return CameraSessionLease(this, shot_idx,
                               e.working_session.get(), target_frame);
 }
