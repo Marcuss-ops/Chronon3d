@@ -221,6 +221,12 @@ target_sources(chronon3d_cli PRIVATE
 target_sources(chronon3d_cli PRIVATE
     ${CMAKE_SOURCE_DIR}/tests/visual/glow_ab/glow_ab_compositions.cpp
 )
+# glow_ab_compositions.cpp is ALWAYS compiled into the CLI because
+# cli_init.hpp unconditionally registers the glow A/B control composition.
+# Same internal-header dependency as ae_parity_compositions.cpp.
+target_sources(chronon3d_cli PRIVATE
+    ${CMAKE_SOURCE_DIR}/tests/visual/glow_ab/glow_ab_compositions.cpp
+)
 
 get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIES)
 
