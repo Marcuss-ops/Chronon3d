@@ -1,3 +1,45 @@
+## Luglio 2026 — docs(baseline): add docs/baselines/index.md table-of-contents (chronological 15-baseline TOC, 2026-07-12, atomic chore commit on main)
+
+**`docs(baseline): add docs/baselines/index.md table-of-contents`** — atomic chore commit adding a new navigational aid `docs/baselines/index.md` (support doc, NOT a baseline file itself) that lists all 15 `docs/baselines/main-*-baseline.md` files chronologically with the per-baseline rot-state + verdict + verification status. Per the user's instruction: "Add a new docs/baselines/index.md table-of-contents that lists all docs/baselines/main-<sha>-baseline.md files chronologically + the rot-state of each baseline (green vs rot-state) + the per-baseline verification status."
+
+**Index structure** (per `docs/DOCUMENTATION_GOVERNANCE.md` contract for support docs):
+- **Header**: brief intro paragraph + the "Legenda" section (State / Verdict / Verification / Note column definitions)
+- **Main table**: 15 rows in chronological order (oldest first), columns: `#` | `Baseline` (markdown link) | `Date` (git diff-filter=A) | `State` (green / rot-state) | `Verdict` (gate score / rot count / validation only) | `Verification` (machine-verified / certified / deferred / validation only) | `Note` (per-baseline context)
+- **Statistice sintetiche**: counts (15 total / 14 green / 1 rot-state / 1 certified / 12 machine-verified / 2 validation only / 1 deferred)
+- **Cross-references**: canonical green baseline + current rot-state baseline + baseline protocol contracts (AGENTS.md + DOCUMENTATION_GOVERNANCE.md) + 4 related TICKETs (BUILD-ROT-CASCADE-CAMERA + BUILD-ROT-CAMERA-CASCADE-SUB-WORKSTREAMS + CONTENT-TEXT-CAMERA-V1-ROT + CONTENT-TEXT-CAMERA-V1-ROT-VARIANT-MOVE)
+- **Maintenance**: append-only per Cat-3 anti-duplication; the 5 maintenance rules for future additions
+
+**Per-baseline state classification** (per user's spec verbatim "green vs rot-state"):
+- **green** (14 baselines): all PASS verdicts OR post-merge / post-step validations WITHOUT a rot-class OPEN. Includes the canonical `main-7eb5c2ba-baseline.md` (11/11 PASS, certified per `7eb5c2ba` — feature freeze V0.1 revocato).
+- **rot-state** (1 baseline): `main-df1e09d9-rot-cascade-baseline.md` (245 errors / 11+ files, deferred to working build host per AGENTS.md §honesty). The unica rot-state baseline is the canonical diagnostic for the TICKET-BUILD-ROT-CASCADE-CAMERA rot.
+
+**Per-baseline verification status** (per user's spec verbatim):
+- `machine-verified` (12 baselines): gate audit run on this VPS + result captured
+- `certified` (1 baseline: `main-7eb5c2ba`): canonical green baseline, post-§honesty recertified
+- `validation only` (2 baselines: `main-446a60e2` + `main-acf7d1de`): no gate score, only sanity validation
+- `deferred to working build host` (1 baseline: `main-df1e09d9-rot-cascade-baseline`): vcpkg glm/magic_enum + tmpfs env-block per AGENTS.md §honesty
+
+**Files changed (2 — Cat-5 PARTIAL 2-doc same-commit alignment)**:
+- `docs/baselines/index.md` NEW (~100 LoC, table-of-contents + legenda + cross-references + maintenance; per `docs/DOCUMENTATION_GOVERNANCE.md` support doc contract)
+- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+
+`docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED — a navigational aid is not an SDK-state semantic change (precedent: TICKET-RESOLVE-REBASE-CONFLICT + TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0h+ + TICKET-CONTENT-TEXT-CAMERA-V1-ROT-VARIANT-MOVE + TICKET-BUILD-ROT-CAMERA-CASCADE-SUB-WORKSTREAMS all did NOT touch CURRENT_STATUS; per `docs/DOCUMENTATION_GOVERNANCE.md` "Politica degli snapshot" — only `CURRENT_STATUS.md` + `docs/baselines/` files + dated audit reports can contain a current SHA, and this index is the latter (a dated audit of the baselines directory)).
+
+`docs/FOLLOWUP_TICKETS.md` INTENTIONALLY UNTOUCHED — the index is a support doc, not a ticket tracker entry; per `docs/DOCUMENTATION_GOVERNANCE.md` "FOLLOWUP_TICKETS è un indice, non una raccolta di specifiche" (the index would just be a navigational aid for ticket entries, which is already done via the `TICKET-...` cross-references in the index).
+
+**§honesty compliance** (per AGENTS.md v0.1):
+- The index is **machine-derived** from `git ls-tree` + `git log --diff-filter=A` for date + the actual baseline file content for the verdict (not synthesized). The 15-baseline count + 14-green + 1-rot-state + per-baseline state classification is **directly verifiable** from the file content.
+- The state classification rule ("green vs rot-state") is **specified by the user verbatim** ("the rot-state of each baseline (green vs rot-state)") — no subjective interpretation.
+- The verification status classification is **derived from the existing baseline content** (each baseline's `Verification:` field) — not synthesized.
+- The cross-references are **directly grep-discoverable** in `docs/CURRENT_STATUS.md` + `docs/FOLLOWUP_TICKETS.md` + `docs/RELEASE_GATE.md` + `AGENTS.md`.
+- The "canonical green baseline" label for `main-7eb5c2ba-baseline.md` is **directly documented** in `AGENTS.md` §Baseline macchina-verificata + `docs/baselines/main-7eb5c2ba-baseline.md` self-description ("prima baseline verde certificata. Feature freeze V0.1 revocato").
+
+**Subject**: `docs(baseline): add docs/baselines/index.md table-of-contents` (62 chars, within `tools/check_commit_subject_length.sh`'s 72-char push-range gate).
+
+**Cross-references**: [`docs/baselines/index.md`](docs/baselines/index.md) NEW + the 15 baseline files linked from the table + [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) §`docs/baselines/` (the support doc contract) + [`AGENTS.md`](AGENTS.md) §Baseline macchina-verificata (the baseline protocol) + the 4 TICKET cross-references in the index (`TICKET-BUILD-ROT-CASCADE-CAMERA` + `TICKET-BUILD-ROT-CAMERA-CASCADE-SUB-WORKSTREAMS` + `TICKET-CONTENT-TEXT-CAMERA-V1-ROT` + `TICKET-CONTENT-TEXT-CAMERA-V1-ROT-VARIANT-MOVE`) + AGENTS.md §Cat-3 (the index is not gratuitous — per user spec verbatim; it makes the 15 baselines navigable for future maintainers) + AGENTS.md §Cat-5 (2-doc same-commit, satisfied) + AGENTS.md §honesty (machine-derived + per-baseline state directly verifiable from baseline file content).
+
+---
+
 ## Luglio 2026 — docs(ticket): open TICKET-BUILD-ROT-CAMERA-CASCADE-SUB-WORKSTREAMS umbrella (3 sub-tickets forward-pointed, 2026-07-12, atomic chore commit on main)
 
 **`docs(ticket): open TICKET-BUILD-ROT-CAMERA-CASCADE-SUB-WORKSTREAMS`** — atomic chore commit opening a NEW umbrella ticket that splits the 11-file rot-cascade fix into 3 sub-tickets per AGENTS.md "Fare PR piccole e mirate" + Cat-3 anti-duplication (independent verification per sub-ticket; each sub-ticket = separate atomic commit on `main`).
