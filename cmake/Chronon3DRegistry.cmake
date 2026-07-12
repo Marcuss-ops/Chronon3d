@@ -149,6 +149,18 @@ set(CHRONON3D_REGISTRY_INTERFACE_LIBS
     # ── Conditional: FFmpeg shim targets ─────────────────────────────
     #       Guard: CHRONON3D_ENABLE_NATIVE_FFMPEG
     chronon3d_ffmpeg_light
+    # ── TICKET-PREFLIGHT-PATH-EXISTENCE-MAP-EXISTS-BODY: STATIC library for
+    # preflight/path_existence_map.cpp (O(1) path existence cache with TTL).
+    # Promoted out of chronon3d_graph_preflight DIAGNOSTICS-gated target_sources
+    # so both chronon3d_graph_preflight + chronon3d_assets can link it.  Lives
+    # in INTERFACE_LIBS (not OBJECT_LIBS) because it is STATIC u2014 the
+    # foreach(${{_reg_obj}} ... $<TARGET_OBJECTS:...>) propagation in
+    # src/CMakeLists.txt would fail on a STATIC target (no .o to reference).
+    # The install/export derivation consumes both OBJECT_LIBS and INTERFACE_LIBS
+    # lists; this entry ensures the install(EXPORT Chronon3DTargets ...) call
+    # does not fail with `target "chronon3d_assets" requires target
+    # "chronon3d_path_cache" that is not in any export set`.
+    chronon3d_path_cache
     chronon3d_ffmpeg_full
 )
 

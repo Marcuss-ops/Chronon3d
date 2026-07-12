@@ -147,20 +147,50 @@ target_precompile_headers(chronon3d_graph_executor PRIVATE
     <fmt/core.h>
 )
 
+# TICKET-PREFLIGHT-PATH-EXISTENCE-MAP-EXISTS-BODY: dedicated STATIC
+# library for preflight/path_existence_map.cpp (the O(1) path existence
+# cache with TTL + shared_lock/unique_lock + mutable-mutex idiom).
+# Promoted out of the chronon3d_graph_preflight DIAGNOSTICS-gated
+# target_sources block so BOTH chronon3d_graph_preflight (which uses
+# PathExistenceMap* in analysis_diagnostics.cpp:82) AND chronon3d_assets
+# (which uses PathExistenceMap* in render_preflight_validate.cpp's
+# cache->exists(...) call) can link to the .a archive without the
+# OBJECT-library multiple-definition anti-pattern.  STATIC (not OBJECT)
+# is the correct choice: the linker pulls in only the .o files actually
+# referenced, so the .a archive can safely appear in the link line of
+# multiple consumers without duplication.  Per AGENTS.md Cat-3
+# minimal-surface + the project's STATIC library convention
+# (chronon3d_cli_*, etc.).  Was previously buried inside the
+# DIAGNOSTICS-gated block, which was the actual rot: the consumer
+# render_preflight_validate.cpp doesn't gate on DIAGNOSTICS, so the
+# build always failed with `undefined reference to
+# PathExistenceMap::exists` in non-DIAGNOSTICS configurations.
+add_library(chronon3d_path_cache STATIC
+    preflight/path_existence_map.cpp
+)
+target_link_libraries(chronon3d_path_cache PUBLIC chronon3d)
+set_target_properties(chronon3d_path_cache PROPERTIES UNITY_BUILD OFF)
+
 # ── Preflight: validation & analysis before render ──────────────────────────
 add_library(chronon3d_graph_preflight OBJECT
     preflight/preflight.cpp
     preflight/analysis.cpp
     preflight/analysis_graph.cpp
 )
+# TICKET-PREFLIGHT-PATH-EXISTENCE-MAP-EXISTS-BODY: only analysis_diagnostics.cpp
+# is DIAGNOSTICS-gated here.  path_existence_map.cpp has been promoted to
+# the dedicated chronon3d_path_cache STATIC library (above) so it is
+# always available — render_preflight_validate.cpp in chronon3d_assets
+# consumes it unconditionally, NOT just under CHRONON3D_ENABLE_DIAGNOSTICS.
 if(CHRONON3D_ENABLE_DIAGNOSTICS)
-    target_sources(chronon3d_graph_preflight PRIVATE preflight/analysis_diagnostics.cpp preflight/path_existence_map.cpp)
+    target_sources(chronon3d_graph_preflight PRIVATE preflight/analysis_diagnostics.cpp)
 endif()
 set_target_properties(chronon3d_graph_preflight PROPERTIES UNITY_BUILD OFF)
 target_link_libraries(chronon3d_graph_preflight PUBLIC
     chronon3d_graph_core
     chronon3d_graph_builder
     chronon3d_graph_compiler
+    chronon3d_path_cache  # TICKET-PREFLIGHT-PATH-EXISTENCE-MAP-EXISTS-BODY: analysis_diagnostics.cpp:82 consumes PathExistenceMap*
 )
 
 # ── Cache: scene program cache + compiled graph cache ───────────────────────
