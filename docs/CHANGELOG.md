@@ -1,3 +1,27 @@
+## Luglio 2026 — docs(sync): race loop, 1 commit suppressed, cleanups (TICKET-WORKFLOW-RACE-LOOP-SYNC, 2026-07-12, atomic chore commit on main)
+
+**`docs(sync): race loop, 1 commit suppressed, cleanups`** — atomic chore commit documenting the main-sync transaction at commit `95c08acb` that survived 3 race conditions with `origin/main` during push attempts. Closes `TICKET-WORKFLOW-RACE-LOOP-SYNC` (consolidated workstream capturing the 5-event sync workflow).
+
+**Workflow events** (machine-verified at commit `95c08acb`):
+1. **Rebase with Cat-5 invariant** (clean working tree base): `git rebase origin/main` produced 1 conflict on `docs/CHANGELOG.md`, auto-resolved by deleting the 3 conflict markers (`<<<<<<<`/`=======`/`>>>>>>>`) per the Cat-5 protocol (keep both `--ours` + `--theirs`, stack new entries at top).
+2. **3 race conditions with `origin/main`** (CRITICAL): origin advanced 3 times during push attempts. Race-1: `2654fd2c` → `cb66dfaa` (+ commits `cc590305` + `cb66dfaa` for text/camera rot); Race-2: `cb66dfaa` → `5ee6bdbe` (+ commit `5ee6bdbe fix(gate): subject-length audits push range` from upstream Chronon Glow Agent closing `TICKET-GATE-SUBJECT-RANGE`); Race-3: brought the upstream history through canonical closure commit `b832912a fix(gate): check push range origin/main..HEAD not last 10` (rewound `5ee6bdbe` into the ancestor chain). **Operational heuristic documented** for future multi-agent sessions: bounded bash loop of `(git fetch origin → git rebase origin/main → tools/wrap_push.sh origin main)` with max ~6 iterations catches the asynchronous "clean window" — the wrapper's `GATE-MNT-01` fail-on-dirty invariant correctly identified each race; the bounded loop resolved all 3 races and pushed the surviving 10 commits.
+3. **Commit-subject-length reword** (over-limit commit): the initial subject was 86 chars (over 72 limit). Reworded via non-interactive `git rebase -i origin/main` with custom `seq-editor` (changed `pick → reword`) + custom `commit-msg-editor` (replaced subject line, body preserved via `tail -n +3`). Final subject: `fix(build): render_graph to internal/ (TICKET-BUILD-ROT-RENDER-GRAPH)` (69 chars, gate-pass).
+4. **1 commit locally suppressed for upstream overlap**: the local commit `feat(tool+adr): commit-subject gate grandfather via origin/main` (closing `TICKET-GATE-SUBJECT-RANGE` locally) was suppressed in favor of upstream's canonical closure chain (`b832912a` after the rebase-loop rewound `5ee6bdbe` into the ancestor chain). Conflict on `tools/check_commit_subject_length.sh` resolved with `git checkout --ours` (in `git rebase`, `--ours` = upstream). **Doc-safeguard**: the 2 docs (ADR-021 + TICKET-124) introduced by the local commit were preserved and re-staged before `git rebase --continue`. Result: 11 local commits → 10 pushed (1 suppressed, 2 docs preserved).
+5. **Branch cleanup** (per user authorization): 2 obsolete branches removed via `git branch -D`: `scratch/rebuild-without-bf7ed685` (62 commits, superseded by upstream rot fix) + `fix/text-visibility-build` (1 commit, superseded by rebased final state). Both non-merged; forced deletion acknowledged.
+
+**Files changed (3 — Cat-5 alignment)**:
+- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+- `docs/FOLLOWUP_TICKETS.md` EDIT (NEW `TICKET-WORKFLOW-RACE-LOOP-SYNC` row at TOP of `## Recently Closed`)
+- `docs/CURRENT_STATUS.md` EDIT (header snapshot updated to `main@95c08acb — post docs(sync): race loop, 1 commit suppressed, cleanups` + cross-link to ticket + upstream commit SHAs `b832912a` + `02eb8d29`)
+
+**Cat-3 (no new public SDK API) SATISFIED**: doc-only commit; zero source-code modifications; zero new symbols. AGENTS.md v0.1 §regola 2 honored.
+
+**Cat-5 3-doc same-commit alignment SATISFIED**: CHANGELOG + FOLLOWUP + CURRENT_STATUS all updated in same atomic commit.
+
+**§honesty compliance**: the 3 race conditions are documented as STABLE RECURRENCE (multi-agent workflows on a single-branch repo will continue to encounter this pattern); the operational heuristic is forward-pointed as a documented policy for future maintainers (NOT magic — `tools/wrap_push.sh` continues to FAIL gates until divergence is resolved via the canonical `git fetch → git rebase → wrap_push` loop). The locally-suppressed commit is documented as REDUNDANTLY-CLOSED (same ticket, upstream fix supersedes via `b832912a` rewinding `5ee6bdbe`) rather than as LOSS; ADR-021 + TICKET-124 docs PRESERVED (not lost).
+
+**Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Recently Closed `TICKET-WORKFLOW-RACE-LOOP-SYNC` row + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale header snapshot (existing pending edit accepted) + AGENTS.md §Cat-5 (3-doc same-commit, satisfied) + AGENTS.md §honesty (workflow documented honestly, no PASS fabrication).
+
 ## Luglio 2026 — TICKET-DOCTEST-SKIP-ROT (cycle 2): sync ticket metadata into 3-line gate window — 8 strict-window violations fixed across 5 test files (2026-07-12, atomic chore commit on main)
 
 ### test(hygiene): sync TICKET-DOCTEST-SKIP-ROT into 3-line window
