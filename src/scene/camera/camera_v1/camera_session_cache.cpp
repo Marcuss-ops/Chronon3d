@@ -103,6 +103,9 @@ CameraSessionLease CameraSessionCache::acquire(const CameraProgram& program,
         desc ? compute_camera_descriptor_fingerprint(*desc) : 0;
 
     Entry& e = entries_[shot_idx];  // default-constructs on first encounter
+    if (!e.checkpoint) {
+        e.checkpoint = std::make_shared<CameraStateCheckpoint>();
+    }
 
     // Forward-step reuse optimization: when target == last_evaluated_frame + 1
     // AND the descriptor fingerprint matches AND no Cut marker is pending

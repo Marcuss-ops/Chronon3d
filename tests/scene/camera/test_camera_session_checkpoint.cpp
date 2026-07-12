@@ -209,8 +209,9 @@ TEST_CASE("TICKET-031 §6 checkpoint restore: snapshot→mutate→restore ⇒ eq
     // directly so the test doesn't accidentally depend on the cache.
     CameraSession sess;
     sess.ensure_constraint_states(prog.descriptor()->constraints.size());
+    auto session_ptr = std::make_shared<CameraSession>(sess);
     preroll_session_for_frame(prog, /*shot_start=*/0, /*target=*/50,
-                              /*window=*/30, sess, kCkptFps);
+                              /*window=*/30, session_ptr, kCkptFps);
 
     CameraStateCheckpoint cp = CameraStateCheckpoint::capture(
         sess,
