@@ -87,34 +87,51 @@ content/             — Composition definitions
 ## Commit Subject Policy
 
 The pre-push CI gate [`tools/check_commit_subject_length.sh`](tools/check_commit_subject_length.sh)
-enforces a strict **72-character maximum** on commit subjects. The policy
-covers the most recent 10 commits on the branch you are pushing — called
-the "enforcement window."
+enforces a strict **72-character maximum** on commit subjects.
+The gate is *reachability-based*: it enumerates commits in
+`git log origin/main..HEAD` (i.e., commits you are about to push),
+excluding any commit already on `origin/main`. Pre-existing commits
+on `origin/main` are implicitly exempt via ancestor reachability and
+need not be retrofit with shorter subjects.
+
+For the canonical policy decision, see
+[`docs/adr/ADR-021-commit-subject-length-policy.md`](docs/adr/ADR-021-commit-subject-length-policy.md).
+This section is the contributor-facing summary; ADR-021 is the source of truth.
 
 ### Rules
 
 - **Limit**: Every commit subject must be ≤ 72 characters. UTF-8
-  multi-byte characters (em-dash, accented letters) count once each via
-  `awk length()`, so visual length matches the measurement.
-- **Scope**: Only the 10 most recent commits are checked. Older commits
-  on a branch are not retroactively rewritten when you push.
+  multi-byte characters (em-dash, accented letters) count once each
+  via `awk length()`, so visual length matches the measurement.
+  The per-character limit is overridable for tooling via the env var
+  `SUBJECT_LENGTH_LIMIT`.
+- **Scope (reachability-based)**: The gate enumerates
+  `git log origin/main..HEAD` — commits about to be pushed. Commits
+  already on `origin/main` are exempt by virtue of being ancestors of
+  the upstream HEAD; they are grandfathered implicitly. When
+  `origin/main` is unreachable (e.g., fresh clone with no upstream,
+  or `git remote remove origin`), the gate falls back to the last 10
+  local commits and emits a deprecation notice to stderr.
 - **Hard block**: The exit-on-violation gate is hard. There is no
   `--skip-gates` escape hatch. Violating subjects block the push.
-- **Window is invariant**: The N = 10 window and the 72-char limit are
-  not branch-configurable. Per-character overrides via the env var
-  `SUBJECT_LENGTH_LIMIT` exist for tooling; window-size changes
-  require an ADR (see [`docs/adr/ADR-021-commit-subject-length-policy.md`](docs/adr/ADR-021-commit-subject-length-policy.md)).
+- **Scope is invariant per ADR-021**: Reachability via `origin/main`
+  is the project's canonical enforcement boundary. Changes to the
+  enforcement semantics require an ADR (see ADR-021 §Decision).
 
 ### Pre-existing history (grandfathered)
 
-`origin/main` has accumulated approximately **1,698 commits** with
-subjects longer than 72 chars across its full history. These are an
-intentional pre-policy-era condition — the gate's firstactivation scope
-was the last-10 window, and wholesale retroactive rewrites are
-explicitly out of scope per AGENTS.md "no cosmetic amend churn unless
-enforceable in CI." Treat these commits as read-only historical
-artifacts; do not attempt to rewrite them. The full tally and
-rationale live in [`docs/tickets/TICKET-124-commit-subject-historical-ledger.md`](docs/tickets/TICKET-124-commit-subject-historical-ledger.md).
+`origin/main`'s full history contains **1,698 commits** with subjects
+longer than 72 chars (audited 2026-07-12 against `origin/main` HEAD
+using `git log --format='%h %s' origin/main | awk 'length > 72' | wc -l`).
+These are an intentional pre-policy-era condition. The gate is
+necessarily reachability-based on `origin/main` precisely so it does
+NOT re-fail on them on every push. Wholesale retroactive rewrites
+are explicitly out of scope per AGENTS.md "no cosmetic amend churn
+unless enforceable in CI" — enforcing the gate retroactively across
+full history would require rewriting ~50% of `origin/main`'s commits
+and breaking every external clone. Treat these commits as read-only
+historical artifacts. The full tally and rationale live in
+[`docs/tickets/TICKET-124-commit-subject-historical-ledger.md`](docs/tickets/TICKET-124-commit-subject-historical-ledger.md).
 
 ### Practical guidance
 
