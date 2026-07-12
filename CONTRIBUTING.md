@@ -82,6 +82,48 @@ content/             — Composition definitions
 - [ ] All existing tests pass
 - [ ] New tests added for changed/added code
 - [ ] CHANGELOG note added (if user-facing change)
+- [ ] Last 10 commits have subjects ≤ 72 chars (enforced by `wrap_push.sh`)
+
+## Commit Subject Policy
+
+The pre-push CI gate [`tools/check_commit_subject_length.sh`](tools/check_commit_subject_length.sh)
+enforces a strict **72-character maximum** on commit subjects. The policy
+covers the most recent 10 commits on the branch you are pushing — called
+the "enforcement window."
+
+### Rules
+
+- **Limit**: Every commit subject must be ≤ 72 characters. UTF-8
+  multi-byte characters (em-dash, accented letters) count once each via
+  `awk length()`, so visual length matches the measurement.
+- **Scope**: Only the 10 most recent commits are checked. Older commits
+  on a branch are not retroactively rewritten when you push.
+- **Hard block**: The exit-on-violation gate is hard. There is no
+  `--skip-gates` escape hatch. Violating subjects block the push.
+- **Window is invariant**: The N = 10 window and the 72-char limit are
+  not branch-configurable. Per-character overrides via the env var
+  `SUBJECT_LENGTH_LIMIT` exist for tooling; window-size changes
+  require an ADR (see [`docs/adr/ADR-021-commit-subject-length-policy.md`](docs/adr/ADR-021-commit-subject-length-policy.md)).
+
+### Pre-existing history (grandfathered)
+
+`origin/main` has accumulated approximately **1,698 commits** with
+subjects longer than 72 chars across its full history. These are an
+intentional pre-policy-era condition — the gate's firstactivation scope
+was the last-10 window, and wholesale retroactive rewrites are
+explicitly out of scope per AGENTS.md "no cosmetic amend churn unless
+enforceable in CI." Treat these commits as read-only historical
+artifacts; do not attempt to rewrite them. The full tally and
+rationale live in [`docs/tickets/TICKET-124-commit-subject-historical-ledger.md`](docs/tickets/TICKET-124-commit-subject-historical-ledger.md).
+
+### Practical guidance
+
+- Keep subject lines scannable: aim for ~50 characters and never more
+  than 72. Use the body for detail.
+- Use the same `type(scope): summary` convention you see elsewhere in
+  the log (e.g. `feat(text): …`, `fix(render_graph): …`, `docs(adr): …`).
+- A commit message body is preserved and not length-checked; only the
+  first line (subject) is in scope.
 
 ## Architecture
 
