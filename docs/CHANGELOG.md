@@ -414,6 +414,36 @@ Permissive on zero-data (missing/empty log → exit 0 with `[INFO] check_fix_cro
 ---
 ## Luglio 2026 — tools(test-12): single source of truth audit (First-Principles Product Check #5 — SSoT verifier for 8 concepts + 4 specific patterns, sibling gate wired as arch boundaries [24/24], 2026-07-12, atomic chore commit on main)
 
+### fix(determinism): widen kHardcodedBaselines_alpha [3][2]→[9][2] (OOB latent for threads=8)
+
+**`fix(determinism): widen kHardcodedBaselines_alpha [3][2]→[9][2] (OOB latent for threads=8)`** — atomic fix-forward chore commit (separate-bb per AGENTS.md "Fare PR piccole e mirate") addressing the BLOCKING latent UB flagged by code-reviewer-minimax-m3 on the just-shipped `test(determinism): §16 repeatability + full-frame matrix` chore (commit `ad9afb49`).
+
+**Files changed (3 — Cat-3 zero new public SDK API surface, pure `tests/` + `docs/` tracking)**:
+
+1. **EDIT `tests/determinism/test_brute_determinism.cpp`** (1-line fix): widen `static const char* kHardcodedBaselines_alpha[3][2]` → `kHardcodedBaselines_alpha[9][2]` to cover `threads \u2208 {1,2,8}` index space `{0,1,7}`, max index `7` \u2264 array size `9` (was `7` > array size `3` \u2192 UB latent). Comment block now explicitly documents the index space + the OOB-fix lineage (forward-point `TICKET-VIDEO-REPEATABILITY-BASELINE` still invokes this switch but no longer triggers OOB).
+
+2. **EDIT `docs/FOLLOWUP_TICKETS.md`**: TICKET-VIDEO-REPEATABILITY row's forward-points extended with `(a0) TICKET-VIDEO-REPEATABILITY-OOB-FIX CLOSED` clause (inserted BEFORE the existing `(a) TICKET-VIDEO-REPEATABILITY-BASELINE` forward-point) per AGENTS.md "Make a separate ticket per issue".
+
+3. **EDIT `docs/CHANGELOG.md`**: this entry prepended at TOP (above the parent `test(determinism)` chore entry at line 417) per Cat-5 2-doc same-commit.
+
+**Subject envelope = 76 chars \u2264 72?** No \u2014 actual subject: `fix(determinism): widen kHardcodedBaselines_alpha to [9][2]` = 60 chars \u2264 72 \u2713. The descriptive epithet "(OOB latent for threads=8)" is in the BODY of the commit message, not the subject.
+
+**Cat-3 SATISFIED** (zero new public SDK API symbols; 1-line TYPE-only fix; the array shape is the only change). **Cat-5 2-doc same-commit SATISFIED** (FOLLOWUP_TICKETS prepended clause + CHANGELOG prepended entry).
+
+**§honesty closure (per AGENTS.md v0.1)**: the BLOCKING latent UB was dormant (masked by `kUseHardcodedBaselines = false`); the fix-forward is preventive, NOT corrective. Per AGENTS.md \u00a7honesty "non segnare verde una suite che restituisce failure" + the post-`b0381b75` lost-commit fix-forward precedent (2026-07-12, prior session), a single atomic fix-forward chore on `main` is the canonical close-out pattern. macchina-verifica deferred to working build host (vcpkg glm/magic_enum + tmpfs env-blocked per TICKET-BUILD-ROT-CASCADE-CAMERA + TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV).
+
+**Forward-points (NOT in this commit per AGENTS.md \u00a7regole "Fare PR piccole e mirate")**:
+
+1. **`TICKET-VIDEO-REPEATABILITY-OOB-FIX`** — **CLOSED by this fix-forward chore commit** (the array shape `[9][2]` covers the index space). No remaining forward-point surfaced by code-reviewer BLOCKING issues.
+
+2. **`TICKET-VIDEO-REPEATABILITY-BASELINE`** — UNCHANGED (parent forward-point from `ad9afb49`). This fix-forward does NOT promote the flag or change the baseline hardcode procedure.
+
+3. **`TICKET-TESTS-CLI-UTILS-EXTRACT`** + **`TICKET-DETERMINISM-MATRIX-PILOT-EXT`** — UNCHANGED (forward-points from `ad9afb49` parent chore).
+
+**Cross-references**: AGENTS.md v0.1 \u00a7Cat-3 + \u00a7Cat-5 + \u00a7honesty "non segnare verde una suite che restituisce failure" + \u00a7regole "Fare PR piccole e mirate" (single atomic fix-forward chore; the OOB change + comment + 2-doc updates locked together per Cat-3 anti-duplication); commit `ad9afb49` (the parent `test(determinism)` chore that this fix-forward corrects); `tests/determinism/test_brute_determinism.cpp:478` (the original `[3][2]` array declaration) + the `(a) TICKET-VIDEO-REPEATABILITY-BASELINE` forward-point at FOLLOWUP_TICKETS.md line 12 (the existing forward-point that this fix-forward protects).
+
+---
+
 ### test(determinism): §16 repeatability + full-frame matrix
 
 **`test(determinism): §16 repeatability + full-frame matrix`** — atomic chore commit extending the Test 17 harness (`tests/determinism/test_brute_determinism.cpp`, commit `4c3687b5` baseline) with 2 NEW TEST_CASEs per user-spec verbatim Video Completeness Matrix **§16** (3-export repeatability) + **§17 extent** (full-frame 3×2×60 matrix per ADR-018 §Decision 2 self-reference baseline). Preserves commit `4c3687b5`'s Test 17.a (frame-15 self-ref 20-iter) + 17.b (1/2/8 × cold/warm frame-15-only) + 17.c (Debug/Release) for forward-compat. The 60-frame extension is ADDITIVE (existing single-frame-15 path remains exercised by 17.a/17.b/17.c; the new §17 full-frame path is exercised by 17.e).
