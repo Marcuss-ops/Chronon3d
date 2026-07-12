@@ -19,6 +19,7 @@
 #   4.5e. tools/check_text_golden_sources_aligned.sh (TICKET-TEXT-GOLDEN-SOURCES-ALIGNED — text_multilingual add_test ↔ target_sources alignment)
 #   4.5f. tools/check_doc_sha_dedup.sh (TICKET-FOLLOWUP-DE-DUP-REFERENCES macchina-verifica gate -- dedup (file,sha7) pairs in `docs/adr/`; ADRs 015/016 EXEMPT). Exit 1 if non-EXEMPT count > 0.
 #   4.5g. tools/check_commit_subject_length.sh (AGENTS.md 'no cosmetic amend churn' gate -- last 10 commit subjects, 72-char envelope; char-count via awk length, NOT byte-count). Exit 1 if any over-limit.
+#   4.5h. tools/check_video_completeness.sh (TICKET-VIDEO-FFPROBE-VALIDATION gate -- spec §4+§6 ffprobe MP4 contract + ffmpeg decoded-frames count assertion; reads $REPO_ROOT/output/text_video_acceptance/chronon_glow_final.mp4 + 7-field contract width=1920/height=1080/fps≈30/nb_read_frames=60/duration≈2±0.05/codec ∈ {h264,hevc,av1}/pix_fmt ∈ {yuv420p,...}). Exit 1 on any field breach; exit 2 on missing ffmpeg/ffprobe (fail-loud per AGENTS.md §honest-limitation).
 #   4.5j. tools/check_manual_touches_per_video.sh (Test #19 manual_touches_per_video gate -- 9 canonical ops + 4-phase thresholds `oggi<=8, fase1<=3, fase2<=1, finale<=0` from `configs/touchpoint_thresholds.yaml`). Exit 1 if any phase exceeds its threshold; exit 2 on missing python3/pyyaml/config (fail-loud per AGENTS.md §honest-limitation).
 #   4.5k. tools/check_batch_100_videos.sh (Test #20 batch_100_videos acceptance gate -- 10 lang × 10 topics × 1 format = 100 jobs, 8 metrics per job, 4 PASS-criteria envelopes `output_count=100 / zero_crashes=0 / zero_corrupted=0 / at_least_98_pct_no_manual<=2` from `configs/batch_100_videos_corpus.yaml`). Exit 1 if any of the 4 envelopes is breached; exit 2 on missing python3/pyyaml/config (fail-loud per AGENTS.md §honest-limitation).
 #   5. exec git push "$@" atomically
@@ -252,6 +253,24 @@ bash "${SCRIPT_DIR}/check_doc_sha_dedup.sh" \
 echo "wrap_push.sh: checking commit subject length (last 10, max 72 chars)..."
 bash "${SCRIPT_DIR}/check_commit_subject_length.sh" origin/main \
     || { echo "wrap_push.sh: GATE_FAIL on check_commit_subject_length.sh (exit $?)" >&2; exit 1; }
+
+# ── Step 4.5h: Video completeness probe (TICKET-VIDEO-FFPROBE-VALIDATION) ─────
+# Forward-only enforcement of spec §4+§6 ffprobe MP4 contract + ffmpeg
+# decoded-frames count assertion. Reads the canonical user-spec
+# ChrononGlowFinalAE MP4 at $REPO_ROOT/output/text_video_acceptance/
+# chronon_glow_final.mp4 (env-override via CHRONON3D_VIDEO_PROBE_INPUT)
+# and asserts the 7-field contract (width=1920 / height=1080 / fps≈30.0±0.05 /
+# nb_read_frames=60 / duration≈2.0±0.05 / codec ∈ {h264,hevc,av1} /
+# pix_fmt ∈ {yuv420p,yuv444p,yuv420p10le,yuv444p10le}) + the 60-frame decode
+# count via `ffmpeg -vsync 0`. Fail-loud per AGENTS.md §honest-limitation
+# (`GATE_FAIL` with canonical `apt install ffmpeg` install hint on missing
+# ffmpeg/ffprobe). Machine-verification of the actual MP4 is DEFERRED to
+# working build host per the established TICKET-BUILD-ROT-CASCADE-CAMERA
+# env-block pattern; on this VPS the gate emits the EXPECTED GATE_FAIL
+# (no MP4 artifact + canonical install hint) without spurious exit 0.
+echo "wrap_push.sh: checking video completeness probe (spec §4+§6 — ffprobe MP4 contract + 60-frame ffmpeg decode count)..."
+bash "${SCRIPT_DIR}/check_video_completeness.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_video_completeness.sh (exit $?)" >&2; exit 1; }
 
 echo "wrap_push.sh: checking fix-velocity cronograph (Test #11)..."
 bash "${SCRIPT_DIR}/check_fix_cronograph.sh" \
