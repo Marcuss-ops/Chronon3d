@@ -414,6 +414,57 @@ Permissive on zero-data (missing/empty log → exit 0 with `[INFO] check_fix_cro
 ---
 ## Luglio 2026 — tools(test-12): single source of truth audit (First-Principles Product Check #5 — SSoT verifier for 8 concepts + 4 specific patterns, sibling gate wired as arch boundaries [24/24], 2026-07-12, atomic chore commit on main)
 
+### tests(flicker-fps): §8 anti-flicker + §13 multi-fps
+
+User-spec verbatim Video Completeness Matrix §8 anti-flicker + §13 multi-fps
+regression lock test-only chore on `main`. ONE atomic chore commit
+(subject envelope ≤72 chars per TICKET-GATE-SUBJECT-RANGE closure).
+
+1. NEW `tests/text/test_video_flicker_fps.cpp` (~155 LoC canonical
+   doktest encoding spec §8 + §13 verbatim):
+   - §8.1 `VideoAntiFlicker.AdjacentFrames_MeanLumaDelta_LT_20p0_1920x1080`
+     — per adjacent decoded-MP4 pair: compute mean BT.709 luminance
+     `0.2126*r + 0.7152*g + 0.0722*b` of central crop (350,300,1570,780)
+     → 1220×480 px region, assert |current - previous| < 20.0. Reads
+     pre-baked PNGs from `output/text_video_acceptance/decoded_frames/`.
+     Graceful skip on env-blocked VPS (no upstream pipeline run).
+   - §13.1 `VideoAnim.MultiFPS_SameWallClock_RendersEquivalentCentroid_1920x1080`
+     — render same AnimTypewriterGlow-class composition at 4 frame rates
+     {24, 25, 30, 60} over 4 times {0.0, 0.5, 1.0, 1.5} s. Frame
+     mapping per user-spec verbatim:
+       `frame_at(seconds, rate) = lround(seconds * rate.as_double())`.
+     Canonical assertion: dist(30fps, 60fps) < 2.0 px at same wall-clock
+     time. Forward-point matrix completeness assertions:
+     24↔30, 25↔30 < 2.0 px.
+
+2. EXTENDED `tests/text_golden_tests.cmake` (SOURCES append on the
+   existing `chronon3d_text_golden_tests` target per AGENTS.md Cat-3
+   anti-dup — NO NEW `.cmake` file):
+   - `text/test_video_flicker_fps.cpp`.
+
+3. PREPENDED `docs/FOLLOWUP_TICKETS.md` §Open Blockers top
+   (newer-at-top convention):
+   - TICKET-VIDEO-ANTI-FLICKER (P1)
+   - TICKET-VIDEO-MULTI-FPS-EQUIVALENCE (P1)
+
+4. Pre-ctest binary staleness check (per AGENTS.md Post-push
+   SHA-selfcheck invariant): on env-blocked VPS, the canonical rule
+   does not run; forward-point ticket TICKET-VIDEO-ANTI-FLICKER-BUILD
+   documents the working build host verification step
+   (binary exists + mtime > source).
+
+§13 semantic fix vs prior broken draft: the corrected test routes the
+per-call frame rate through `CompositionBuilder::frame_rate(rate)`
+rather than relying on `comp.frame_rate` set at build time. Without
+this fix, `renderer.render(comp, Frame{...})` aliases to
+`comp.frame_rate = 30 fps` always, defeating the multi-fps assertion.
+Opacity timeline plateaus from f30 to f90 (no fade-out tail) so any
+time-point in the {0.0, 0.5, 1.0, 1.5} s grid renders within
+visible-ink regardless of frame rate. Removed dead
+`<content/animation_compositions.hpp>` include +
+`CHRONON3D_TEST_VIDEO_FLICKER_FPS_NO_MP4_DECODE_FALLBACK_SYNTHETIC`
+macro (per code-reviewer-minimax-m3 verdict).
+
 ### tools(test-12): single source of truth audit
 
 - **Scope**: Test 12 — Audit single source of truth. New `tools/check_single_source_of_truth.sh` (~290 LoC) + wire-in as gate [24/24] in `tools/check_architecture_boundaries.sh` (extending the sibling-gate pattern from gates [10/23] SoftwareRenderer + [15/23] legacy text pipeline). Closes TICKET-TEST-12-SSOT-AUDIT. User-spec verbatim: "per ogni concetto (Asset=AssetRef<T>, Placement=TextPlacement, Layout=compilatore canonico, Animation=sampler canonico, Composition=CompositionDescriptor, Render=RenderJob, Diagnostica=TextVisibilityAudit, Sequence=compilatore sequence unico) verifica che esista una sola autorità. FAIL se coesistono asset legacy+v2, offset+placement.offset, text effects+material glow, CLI render+SDK render con orchestrazioni diverse. Usa/estendi `tools/check_architecture_boundaries.sh`. Lavora su `main`, commit + push."
