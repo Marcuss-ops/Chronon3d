@@ -10,6 +10,7 @@
 #include <tests/visual/support/golden_test.hpp>
 #include <filesystem>
 #include <cmath>
+#include <chronon3d/text/text_placement.hpp>
 using namespace chronon3d;
 
 using namespace chronon3d::test;
@@ -137,7 +138,7 @@ TEST_CASE("Test 17.4 — Text layout alignment Center/Middle") {
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t1", {
                 .content = {.value = "Centered Middle"},
-                .position = {128.0f, 128.0f, 0.0f},
+                .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 128.0f}},
                 .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 24.0f},
@@ -164,7 +165,7 @@ TEST_CASE("Test 17.5 — Text auto-fit automatic sizing") {
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t2", {
                 .content = {.value = "This is a very long title that needs to fit inside a small box automatically without overflowing"},
-                .position = {128.0f, 64.0f, 0.0f},
+                .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 64.0f}},
                 .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 48.0f},
@@ -194,7 +195,7 @@ TEST_CASE("Test 17.6 — Text max-lines and ellipsis truncation") {
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t3", {
                 .content = {.value = "Line One Wordy\nLine Two Wordy\nLine Three Wordy\nLine Four Wordy"},
-                .position = {128.0f, 64.0f, 0.0f},
+                .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 64.0f}},
                 .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 20.0f},
@@ -223,7 +224,7 @@ TEST_CASE("Test 17.7 — Text style (Cyan neon-like coloring)") {
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t4", {
                 .content = {.value = "CYAN NEON"},
-                .position = {128.0f, 64.0f, 0.0f},
+                .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 64.0f}},
                 .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 28.0f},
@@ -250,7 +251,7 @@ TEST_CASE("Test 17.8 — Subtitle backing box rendering") {
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t5", {
                 .content = {.value = "Subtitle Box"},
-                .position = {128.0f, 64.0f, 0.0f},
+                .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 64.0f}},
                 .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 22.0f},
