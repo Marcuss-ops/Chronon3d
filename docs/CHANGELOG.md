@@ -5682,3 +5682,5 @@ EDIT `docs/CURRENT_STATUS.md` (cite-only per Cat-3 anti-duplication): +1 line ap
 
 
 
+
+**fix(text): alpha_bbox_scanner.hpp → public include path** — moves src/text/alpha_bbox_scanner.hpp → include/chronon3d/text/alpha_bbox_scanner.hpp. Resolves missing-include rot at text_visibility_audit.cpp:38 + alpha_bbox_scanner.cpp:16 (canonical <chronon3d/text/...> path now resolves).
