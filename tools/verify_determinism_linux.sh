@@ -4,11 +4,15 @@
 #
 # Canonical Determinism & Cache certification gate (P1).
 #
-# Verifies 4 determinism invariants per user spec verbatim:
+# Verifies 6 determinism invariants per user spec verbatim:
 #   1. Same frame × 5 runs same process   → all 5 sha256 identical
 #   2. 5 separate CLI processes           → all 5 sha256 identical
 #   3. Cache cold (1st run) vs warm (2nd) → both sha256 identical
 #   4. Sequential vs random frame order    → each frame pair sha256 identical
+#   5. Concurrency: 1 thread + 8 threads  → both sha256 identical
+#   6. In-process cache metrics           → first.pixel_hash == second.pixel_hash,
+#                                            second_render_cache_hits > 0, misses == 0
+#                                            (BLOCKED on missing CLI metrics output)
 #
 # Verdict contract:
 #   DETERMINISM_FUNCTIONAL_PASS — all 4 invariants hold
@@ -260,7 +264,91 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 7. Cleanup
+# 7. Invariant 5: concurrency — 1 thread + 8 threads
+# ══════════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "== 7. Concurrency — 1 thread + 8 threads =="
+
+if [ "$ENV_BLOCKED" = true ]; then
+    _gate_blocked "thread_concurrency" "env blocked"
+else
+    H_T1=""
+    H_T8=""
+    OUT_T1="${OUTPUT_DIR}/thread_1.png"
+    OUT_T8="${OUTPUT_DIR}/thread_8.png"
+    H_T1=$(CHRONON3D_THREADS=1 "$CLI_BIN" still "CertDeterminism" "$OUT_T1" --frame 0 >/dev/null 2>&1 && sha256sum "$OUT_T1" 2>/dev/null | awk '{print $1}')
+    H_T8=$(CHRONON3D_THREADS=8 "$CLI_BIN" still "CertDeterminism" "$OUT_T8" --frame 0 >/dev/null 2>&1 && sha256sum "$OUT_T8" 2>/dev/null | awk '{print $1}')
+    if [ -n "$H_T1" ] && [ -n "$H_T8" ]; then
+        if [ "$H_T1" = "$H_T8" ]; then
+            _gate_pass "thread_concurrency_1_eq_8 (hash=$H_T1)"
+        else
+            _gate_fail "thread_concurrency_1_eq_8" "t1=$H_T1, t8=$H_T8"
+        fi
+    else
+        _gate_fail "thread_concurrency" "render failed (t1='$H_T1', t8='$H_T8')"
+    fi
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 8. Invariant 6: in-process cache metrics
+# ══════════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "== 8. In-process cache metrics =="
+
+if [ "$ENV_BLOCKED" = true ]; then
+    _gate_blocked "cache_metrics" "env blocked"
+else
+    METRICS_OUT="${OUTPUT_DIR}/cache_metrics.log"
+    FIRST_OUT="${OUTPUT_DIR}/cache_first.png"
+    SECOND_OUT="${OUTPUT_DIR}/cache_second.png"
+    # Render twice; capture stderr+stdout for metrics
+    CHRONON3D_THREADS=1 "$CLI_BIN" still "CertDeterminism" "$FIRST_OUT" --frame 0 > "$METRICS_OUT.first" 2>&1
+    CHRONON3D_THREADS=1 "$CLI_BIN" still "CertDeterminism" "$SECOND_OUT" --frame 0 > "$METRICS_OUT.second" 2>&1
+    cat "$METRICS_OUT.first" "$METRICS_OUT.second" > "$METRICS_OUT"
+    rm -f "$METRICS_OUT.first" "$METRICS_OUT.second"
+
+    # Check first.pixel_hash == second.pixel_hash (file-based)
+    if [ -f "$FIRST_OUT" ] && [ -f "$SECOND_OUT" ]; then
+        H1=$(sha256sum "$FIRST_OUT" 2>/dev/null | awk '{print $1}')
+        H2=$(sha256sum "$SECOND_OUT" 2>/dev/null | awk '{print $1}')
+        if [ -n "$H1" ] && [ -n "$H2" ] && [ "$H1" = "$H2" ]; then
+            _gate_pass "cache_metrics_first_eq_second (first.pixel_hash == second.pixel_hash)"
+        else
+            _gate_fail "cache_metrics_first_eq_second" "first=$H1, second=$H2"
+        fi
+    else
+        _gate_fail "cache_metrics_files" "first or second output missing"
+    fi
+
+    # Check second_render_cache_hits > 0 (BLOCKED if CLI doesn't emit)
+    if grep -qiE 'second_render_cache_hits' "$METRICS_OUT" 2>/dev/null; then
+        HITS=$(grep -oiE 'second_render_cache_hits[ =:]+[0-9]+' "$METRICS_OUT" 2>/dev/null | head -1 | grep -oE '[0-9]+' | head -1)
+        if [ -n "$HITS" ] && [ "$HITS" -gt 0 ]; then
+            _gate_pass "cache_metrics_hits (second_render_cache_hits=$HITS > 0)"
+        else
+            _gate_fail "cache_metrics_hits" "second_render_cache_hits=$HITS (expected > 0)"
+        fi
+    else
+        _gate_blocked "cache_metrics_hits" "CLI does not emit 'second_render_cache_hits' metric — forward-point: add cache-metrics output to chronon3d_cli still command (TICKET-VERIFY-DETERMINISM-CLI-CACHE-METRICS)"
+    fi
+
+    # Check misses == 0 (BLOCKED if CLI doesn't emit)
+    if grep -qiE '\bmisses\b' "$METRICS_OUT" 2>/dev/null; then
+        MISSES=$(grep -oiE 'misses[ =:]+[0-9]+' "$METRICS_OUT" 2>/dev/null | head -1 | grep -oE '[0-9]+' | head -1)
+        if [ -n "$MISSES" ] && [ "$MISSES" -eq 0 ]; then
+            _gate_pass "cache_metrics_misses (misses=0)"
+        else
+            _gate_fail "cache_metrics_misses" "misses=$MISSES (expected == 0)"
+        fi
+    else
+        _gate_blocked "cache_metrics_misses" "CLI does not emit 'misses' metric — forward-point: add cache-metrics output to chronon3d_cli still command (TICKET-VERIFY-DETERMINISM-CLI-CACHE-METRICS)"
+    fi
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 9. Cleanup
 # ══════════════════════════════════════════════════════════════════════════════
 
 echo ""
@@ -275,7 +363,7 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 8. Final verdict
+# 10. Final verdict
 # ══════════════════════════════════════════════════════════════════════════════
 
 echo ""
@@ -300,6 +388,6 @@ elif [ "$FAIL_COUNT" -gt 0 ]; then
 else
     echo "DETERMINISM_FUNCTIONAL_PASS"
     echo "  All $PASS_COUNT gates passed. Determinism certified."
-    echo "[INFO] ${GATE_NAME}: 4/4 invariants verified (same-process + separate-process + cold-warm + frame-order)"
+    echo "[INFO] ${GATE_NAME}: 6/6 invariants verified (same-process + separate-process + cold-warm + frame-order + thread-concurrency + cache-metrics)"
     exit 0
 fi
