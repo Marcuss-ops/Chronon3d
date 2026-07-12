@@ -287,6 +287,29 @@ else
             _gate_fail "png_output" "sdk_full_consumer_output.png missing or empty"
         fi
 
+        # TICKET-VERIFY-SDK-CONSUMER-IMAGE-ASSET closure (code-reviewer NIT 1):
+        # the real `LayerBuilder::image()` surface must be exercised
+        # (not just the legacy `rect()` proxy).  Source-level audit
+        # catches a regression where the image() call site is silently
+        # replaced with rect() (the original gate chore gap).
+        if grep -qE '\bimage\s*\(' "$CONSUMER_SRC/main_full.cpp" 2>/dev/null; then
+            _gate_pass "image_surface (LayerBuilder::image() call site verified in source)"
+        else
+            _gate_fail "image_surface" \
+                "LayerBuilder::image() call site NOT found in main_full.cpp (rect() proxy still in use)"
+        fi
+
+        # Verify the synthetic test_image.png is present at the
+        # in-tree asset path (gate-time sanity check on the asset
+        # ship-through).  Runtime asset resolution is the consumer's
+        # job (verified by the consumer_run check above).
+        if [ -f "$CONSUMER_SRC/assets/test_image.png" ] && [ -s "$CONSUMER_SRC/assets/test_image.png" ]; then
+            _gate_pass "image_asset_present (tests/install_consumer/assets/test_image.png: $(stat -c%s "$CONSUMER_SRC/assets/test_image.png" 2>/dev/null || echo 0) bytes)"
+        else
+            _gate_fail "image_asset_present" \
+                "tests/install_consumer/assets/test_image.png missing or empty (TICKET-VERIFY-SDK-CONSUMER-IMAGE-ASSET closure incomplete)"
+        fi
+
         # nm symbol-level audit (TICKET-VERIFY-SDK-CONSUMER-NM-VERIFY code-reviewer NIT 4):
         # verifies the consumer binary ACTUALLY links against chronon3d::sdk:: symbols
         # (canonical anti-false-green check — catches a hypothetical case where the link
