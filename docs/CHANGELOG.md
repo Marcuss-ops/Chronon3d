@@ -414,6 +414,88 @@ Permissive on zero-data (missing/empty log → exit 0 with `[INFO] check_fix_cro
 ---
 ## Luglio 2026 — tools(test-12): single source of truth audit (First-Principles Product Check #5 — SSoT verifier for 8 concepts + 4 specific patterns, sibling gate wired as arch boundaries [24/24], 2026-07-12, atomic chore commit on main)
 
+### test(video): §14+§15+§17+§18+§19 contracts bulk
+
+User-spec verbatim Video Completeness Matrix §14+§15+§17+§18+§19
+regression lock test-only chore on `main`. ONE atomic chore commit
+(subject envelope ≤72 chars per TICKET-GATE-SUBJECT-RANGE closure).
+
+1. NEW `tests/video/test_video_contracts.cpp` (~260 LoC canonical
+   doktest encoding the 5 spec contracts verbatim):
+   - §14.1 `VideoContracts_§14.StartEnd_Frame_Count_And_Order`
+     — 2 SUBCASEs:
+       · A: `--start 15 --end 30` → ffprobe asserts 15 frames +
+         duration 0.5s + no `.partial` leftover
+       · B: `--start 30 --end 15` → exit != 0 + no MP4 produced
+         + no `.partial` leftover (signal exit cleanup)
+   - §15.1 `VideoContracts_§15.Portrait_1080x1920_SafeArea_Centroid`
+     — JSON sidecar `/tmp/chronon_video_contracts_portrait.json`
+     `{"id":"ChrononGlowFinalAE","props":{"format":"portrait",
+      "width":1080,"height":1920,...}}` (canonical — `--props` flag
+     is NOT in `commands.hpp` per CHANGELOG line 1145 §honesty note).
+     ffprobe asserts 1080×1920 + 60 frames + safe-area centroid
+     within 110 px from (540, 960).
+   - §17.1 `VideoContracts_§17.Serial_vs_Parallel_60RawPNG_ByteExact`
+     — two runs w/ `CHRONON3D_THREADS=1` vs `CHRONON3D_THREADS=8`
+     (canonical env var per `apps/chronon3d_cli/main.cpp:25`).
+     `cmp -s` per-frame across all 60 raw PNGs byte-exact equality.
+   - §18.1 `VideoContracts_§18.EncoderFailure_NoMP4_NoPartialLeftover`
+     — `PATH=/nonexistent cli video ...` → exit != 0 + no MP4 produced
+     + no `.partial` leftover. Validates the canonical
+     `.partial → ffprobe → atomic .mp4 rename` pattern documented in:
+       · `apps/chronon3d_cli/commands/video/exporters/pipe_export_session_setup.cpp:30-34`
+         (`session->opts.output.output += ".partial"`; cleanup on
+         failure path)
+       · `apps/chronon3d_cli/commands/video/exporters/pipe_export_result.cpp:45-81`
+         (3-phase: write to `.partial` → ffprobe validate → atomic
+         rename `.partial` → final `.mp4`)
+       · `apps/chronon3d_cli/commands/video/common/pipe_export_session.hpp:163`
+         (`original_output_path` member)
+   - §19.1 `VideoContracts_§19.Long_900Frame_NoLeak_NoSlowdown_NoBlack`
+     — `/usr/bin/time -v cli video AnimTypewriterGlow --start 0
+     --end 900 --fps 30`. Parses (`Maximum resident set size (kbytes):
+     N`) from `/usr/bin/time -v` stderr for no-leak verification +
+     `Elapsed (wall clock) time` for no-progressive-slowdown baseline.
+     Output non-empty (bad if > 0 byte) ensures no black frame.
+
+2. EXTENDED `tests/video_tests.cmake` — replaces the prior
+   `MOVED to media_tests.cmake` stub with a real `chronon3d_add_test_suite`
+   INTEGRATION-targeted new target `chronon3d_video_contracts_tests`.
+   Links canonical CLI targets per the precedent in
+   `tests/cli_tests.cmake` (the `if(TARGET chronon3d_cli_dev)`
+   append pattern + `target_include_directories(... PRIVATE apps/chrono3d_cli)`
+   for the production-source include dir).
+
+3. PREPENDED `docs/FOLLOWUP_TICKETS.md` §Open Blockers top
+   (newer-at-top): `TICKET-VIDEO-CONTRACTS-BULK` (P1).
+
+4. Pre-ctest binary staleness check (per AGENTS.md Post-push
+   SHA-selfcheck invariant): on env-blocked VPS the canonical rule
+   does not run (no `cmake --build build/manual-test` step on this
+   checkout); forward-pointed to working build host via
+   TICKET-VIDEO-CONTRACTS-BUILD (open separate-bb chore).
+
+§18 atomic-rename pattern is the canonical 3-phase CLI video
+export invariant: FFmpeg writes `<output>.partial`; on success
+ffprobe validates the `.partial` MP4 structure; on validation OK
+the canonical atomic rename `<output>.partial → <output>.mp4` fires.
+On failure (PATH=/nonexistent), both `.partial` AND final `.mp4`
+paths are cleaned up — the §18 SUBASSERTION confirms this canonical
+cleanup invariant holds end-to-end.
+
+CLI binary name: canonical `chronon3d_cli` per `apps/chronon3d_cli/`.
+User spec used `cli` shorthand; documented per AGENTS.md §honesty.
+
+Graceful skip pattern (per AGENTS.md §honest-limitation):
+each TEST_CASE preconditions via `ffmpeg_available()` (per the
+canonical precedent at `tests/cli/test_video_adapter_e2e.cpp:42`)
++ `discover_cli_binary()` (3 canonical build-path candidates per
+`tools/check_first_principles_fail_loud.sh` discovery pattern) +
+`gnu_time_v_available()` (per §19 /usr/bin/time hard-requirement
+canonical precedent at `tools/measure_render_cost.sh:38-41`).
+On availability failure, MESSAGE+RETURN without binary-check
+spurious skip.
+
 ### tests(flicker-fps): §8 anti-flicker + §13 multi-fps
 
 User-spec verbatim Video Completeness Matrix §8 anti-flicker + §13 multi-fps
