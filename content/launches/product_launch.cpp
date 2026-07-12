@@ -136,8 +136,8 @@ Composition product_launch() {
                 .key(Frame{90}, Vec3{0.96f, 0.96f, 1.0f}, EasingCurve{Easing::InSine});
             auto def = from_text_spec(TextSpec{
                 .content    = {.value = "CHRONON3D LAUNCH"},
-                .font       = {.font_size = 168.0f,
-                                 .font_weight = 700},
+                .font       = {.font_weight = 700,
+                                 .font_size = 168.0f},
                 .layout     = {.box        = {1600.0f, 280.0f},
                                .line_height = 1.05f,
                                .tracking    = 8.0f},

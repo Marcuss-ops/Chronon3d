@@ -25,6 +25,7 @@
 // `RenderSession` ownership convention.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_session_cache.hpp>
+#include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 
 #include <algorithm>
 
@@ -155,7 +156,7 @@ CameraSessionLease CameraSessionCache::acquire(const CameraProgram& program,
     // implicitly rollback (no writeback — checkpoint.session is untouched).
     e.working_session = std::make_shared<CameraSession>(e.checkpoint->session);
     return CameraSessionLease(this, shot_idx,
-                              &e.working_session, target_frame);
+                              e.working_session.get(), target_frame);
 }
 
 
@@ -233,6 +234,7 @@ void CameraSessionCache::observe_cut_between(int prior_idx, int next_idx) {
         // Insert a not-yet-valid marker so the next acquire() sees
         // `cut_seen == true` via the `must_reprime` rule above.
         Entry fresh;
+        fresh.checkpoint = std::make_shared<CameraStateCheckpoint>();
         fresh.checkpoint->valid    = false;
         fresh.checkpoint->cut_seen = true;
         entries_.emplace(next_idx, fresh);
