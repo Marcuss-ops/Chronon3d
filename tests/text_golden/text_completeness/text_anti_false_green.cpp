@@ -81,9 +81,9 @@ Composition build_text_comp(SoftwareRenderer& renderer,
                         .appearance = {.color = Color::white()}
                     }
                 }).commit();
-           }});
+            });
             return s.build();
-       }});
+        });
 }
 
 /// Typewriter composition with progressive text reveal via string slicing.

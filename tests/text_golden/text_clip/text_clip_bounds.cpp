@@ -131,9 +131,7 @@ Composition build_clip_composition(
                         .appearance = {
                             .color = Color::white(),
                             .shadows = shadows
-                        },
-                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}}
-
+                        }
                     }
                 }).commit();
             });
