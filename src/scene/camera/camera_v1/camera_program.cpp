@@ -635,7 +635,7 @@ CameraProgram::evaluate(const CameraEvalContext& ctx,
         req.targets = descriptor_.base.framing_targets;
         req.composition_point = descriptor_.base.composition_point;
         req.look_ahead = descriptor_.base.look_ahead;
-        req.viewport = ctx.viewport;
+        req.viewport = Viewport{static_cast<float>(ctx.viewport_width), static_cast<float>(ctx.viewport_height)};
         const CameraFramingResult framing_result =
             framing_solver_.solve(req, intermediate, session.framing_session);
         intermediate = framing_result.camera;

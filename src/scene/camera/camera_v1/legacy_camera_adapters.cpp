@@ -37,7 +37,7 @@ camera_descriptor_from_orbit_rig(const CameraRig& rig) {
     CameraDescriptor d;
     d.id = rig.name.empty()
                ? std::string{"adapter_orbit_rig"}
-               : std::string{"adapter_orbit_rig_\"} + rig.name + "\"";
+               : std::string{"adapter_orbit_rig_\""} + rig.name + "\"";
 
     // OrbitMotion variant — direct orbit channel map.  Unlike
     // camera_descriptor_from(CameraRig, RigBakeDensity) (in
