@@ -42,7 +42,7 @@ LookAheadResult look_ahead_tangent(const CameraSourceSpec& source,
     // Synthesise a sub-frame SampleTime at ctx.sample_time + delta_seconds.
     const double t_now = ctx.sample_time.seconds();
     const double t_la  = t_now + static_cast<double>(delta_seconds);
-    const SampleTime la_st = SampleTime::from_seconds(t_la, ctx.sample_time.frame_rate());
+    const SampleTime la_st = SampleTime::from_seconds(t_la, ctx.sample_time.frame_rate);
 
     // Build a synthetic CameraMotionContext for the trajectory sampler.
     // (We don't have the base here — but `trajectory->sample(ctx)` reads
