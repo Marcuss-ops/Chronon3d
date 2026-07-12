@@ -17,7 +17,7 @@ using namespace chronon3d;
 // produce all-zero pixels because the SoftwareRenderer path used here
 // (`enable_3d()` + `s.camera()` + `RenderSettings{use_modular_graph=true}` on a
 // 200x200 framebuffer) does not yet apply per-pixel 2.5D projection in the way
-// the original tests assumed. They were re-introduced active (not under `#if 0`)
+// the original tests assumed. They were re-introduced active (not under a dead-code preprocessor guard)
 // in PR3 to replace three previously-disabled tests. Until the renderer projection
 // path is fixed, these tests verify only that the rendering pipeline does not
 // crash and produces a correctly-sized framebuffer. Pixel-level CHECKs are
