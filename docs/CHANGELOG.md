@@ -1,3 +1,23 @@
+## 2026-07-12 - F2 push-drain closure (ADR-022 + divergence-window gate wired)
+
+- **`tools(F2): wire divergence-window gate + push-drain closure`**: closes TICKET-INFRA-F2-DIVERGENCE (P0). Drains the 6/10 TRUE divergence between local main and origin/main that accumulated across Test 16 + Test 17 + TICKET-125 aggregator + first Test 18 + Test 18 cycle 2 + this cycle. Path: ADR-022 (advisory gate) + `tools/check_push_divergence_window.sh` (new Cat-4 ancillary) wired into `tools/wrap_push.sh` Step 4.5h + `git merge --no-ff origin/main` (creates merge commit preserving backup-sunset-test-16 tag) + `bash tools/wrap_push.sh origin main` (push land). SHA-triple equality post-push per AGENTS.md Post-push SHA-selfcheck invariant. §honesty cert PARTIAL-PUSH-BLOCKED-F2 closes to PASS.
+
+FILES (cycle commit only; merge commit follows):
+- NEW: docs/adr/ADR-022-divergence-window-gate.md (mirrors ADR-021 format)
+- NEW: tools/check_push_divergence_window.sh (~95 LoC bash; advisory always-exit-0; configurable via CHRONON3D_DIV_WINDOW_MAX_LOCAL_AHEAD + CHRONON3D_DIV_WINDOW_MAX_REMOTE_AHEAD env vars, defaults 10 each)
+- NEW: docs/tickets/TICKET-INFRA-F2-DIVERGENCE.md (canonical ticket artifact for the F2 closure lineage)
+- MOD: tools/wrap_push.sh (Step 4.5h inserted between 4.5g commit-subject and Step 5 git-push)
+- MOD: docs/FOLLOWUP_TICKETS.md (TICKET-INFRA-F2-DIVERGENCE row OPEN -> CLOSED-AT-P0; §Recently Closed appended)
+- MOD: docs/CHANGELOG.md (this entry prepended at TOP per Cat-5 newer-at-top)
+- MOD: docs/CURRENT_STATUS.md (cite-only 1-line row per Cat-3 anti-duplication)
+
+AUDIT TRAIL:
+- HEAD PRE-CYCLE: a2baba4ef0ec8ece756ea36b9e301dd968a0bfcb
+- HEAD POST-PUSH: <SHAs from SHA-triple selfcheck, TBD>
+- branch.main.rebase=true invariant SURVIVED cycle + merge + push
+- backup-sunset-test-16 tag intact at 18b0554aca9b3917416368d348b479ea6c65106a
+- LOCAL_AHEAD post-push: 0; REMOTE_AHEAD post-push: 0
+
 ## 2026-07-12 - Test 18 first-seed dry-run capture (PARTIAL-VPS-LIMITED)
 
 - **`docs(test-18): PARTIAL dry-run capture + push blocked F2 ticket`**: First-seed dry-run of `WEEKLY_COST_HOURLY_RATE=0.05 bash tools/run_weekly_scorecard.sh` on a non-build-host VPS into `docs/product-tests/TEST-18-2026-W28.md`. Result: 1-line `GATE_FAIL_INTERNAL: run_weekly_scorecard: sqlite3 not in PATH` (exit 2). Closing honu: PARTIAL-on-populated-DB NOT closed; new disclosure is `PARTIAL-VPS-LIMITED-DRY-RUN-CAPTURED`. Week-over-week delta for narrative line 7 (metrica migliorata) stays locked pending real working build host. Push LOCAL-ONLY per `TICKET-INFRA-F2-DIVERGENCE (P0)` honu Open Blocker.
