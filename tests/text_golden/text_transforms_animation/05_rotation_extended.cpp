@@ -91,7 +91,7 @@ Composition build_rotation_ext_composition(
             s.font_engine(&renderer.font_engine());
             s.layer("hero", [rotate_z_deg, cx, cy, canvas_w, canvas_h]
                             (LayerBuilder& l) {
-                l.rotate_z(motion::timeline(rotate_z_deg));
+                l.rotate(Vec3{0.0f, 0.0f, rotate_z_deg});
                 l.text_run("title", TextRunParams{
                     .text = {
                         .content = {.value = "ROTATED"},
