@@ -1,0 +1,21 @@
+{
+  "fixture_id": "extension_mismatch_v1",
+  "description": "Fail-loud: chronon3d_cli render must abort loudly when an asset's file extension does not match its declared kind. Per user-spec verbatim 'estensione sbagliata', this fixture extends the Test #7 fail-loud contract to the ASSET-KIND-VALIDATION stage. Canonical error vocabulary: Composition/Layer/Asset/Path tokens in stderr + kind/extension mismatch context, NO silent fallback markers, exit code != 0, output MP4 absent, error message MUST mention the asset name + the owner layer name + the kind/extension mismatch (per user-spec 'errore che indica asset+owner/layer').",
+  "rot_class": "extension_mismatch_asset",
+  "composition_id": "ProductLaunch",
+  "cli_args": [
+    "--assets-root", "/tmp/chronon_extension_mismatch_harness",
+    "--image-asset", "/tmp/chronon_extension_mismatch_harness/wrong_kind.mp4"
+  ],
+  "output_path": "/tmp/should-not-exist.mp4",
+  "_extension_mismatch_setup_hint": "Pre-create /tmp/chronon_extension_mismatch_harness/wrong_kind.mp4 as a 1-byte file with the .mp4 extension but declared as an image asset (l.image('cert_image', ImageParams{.asset_path='.../wrong_kind.mp4'})). The CLI must reject the kind/extension mismatch at the preflight stage with the canonical error vocabulary.",
+  "expected": {
+    "exit_code_nonzero": true,
+    "output_file_absent": "/tmp/should-not-exist.mp4",
+    "stderr_tokens_required": ["Composition", "Layer", "Asset", "Path", "Extension", "Mismatch"],
+    "minimum_token_matches": 4,
+    "forbidden_substrings": ["fallback frame", "black frame", "continue on error", "fallback to silence", "skip image", "skip asset", "ignore extension"],
+    "error_must_mention": ["asset_name", "owner_layer_name", "extension"]
+  },
+  "honesty_note": "Per AGENTS.md §honesty: the harness is a 1-byte external file (binary content does not belong in tracked JSON). The CLI must fail-loud at the ASSET-KIND-VALIDATION stage with the canonical error vocabulary + the kind/extension mismatch context. Per AGENTS.md Cat-3 anti-duplication: this JSON schema is shared across all 5 Test #7 + 6 NEW asset preflight fixtures, with the rot_class + Extension/Mismatch-specific tokens differing per fixture — no duplicate schema files."
+}

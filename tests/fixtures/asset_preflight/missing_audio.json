@@ -1,0 +1,20 @@
+{
+  "fixture_id": "missing_audio_v1",
+  "description": "Fail-loud: chronon3d_cli render must abort loudly when an audio asset path does not exist on disk. Per user-spec verbatim 'audio inesistente', this fixture extends the Test #7 fail-loud contract to the AUDIO-load stage. Canonical error vocabulary: Composition/Layer/Asset/Path tokens in stderr + AudioDecoder-specific context, NO silent fallback markers, exit code != 0, output MP4 absent, error message MUST mention the asset name + the owner layer name (per user-spec 'errore che indica asset+owner/layer').",
+  "rot_class": "missing_audio_asset",
+  "composition_id": "ProductLaunch",
+  "cli_args": [
+    "--assets-root", "/tmp/chronon_missing_audio_harness_should_not_exist",
+    "--audio-asset", "/tmp/chronon_missing_audio_harness_should_not_exist/does_not_exist.wav"
+  ],
+  "output_path": "/tmp/should-not-exist.mp4",
+  "expected": {
+    "exit_code_nonzero": true,
+    "output_file_absent": "/tmp/should-not-exist.mp4",
+    "stderr_tokens_required": ["Composition", "Layer", "Asset", "Path", "AudioDecoder"],
+    "minimum_token_matches": 4,
+    "forbidden_substrings": ["fallback frame", "black frame", "continue on error", "fallback to silence", "skip audio", "skip asset"],
+    "error_must_mention": ["asset_name", "owner_layer_name"]
+  },
+  "honesty_note": "Per AGENTS.md §honesty: the missing-audio path is GUARANTEED not to exist (path is named '..._harness_should_not_exist'); the CLI must fail-loud at the AUDIO-load stage with the canonical error vocabulary + the missing asset name + the owner layer name. Per AGENTS.md Cat-3 anti-duplication: this JSON schema is shared across all 5 Test #7 + 6 NEW asset preflight fixtures, with the rot_class + AudioDecoder-specific token differing per fixture — no duplicate schema files."
+}

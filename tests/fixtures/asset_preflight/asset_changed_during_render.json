@@ -1,0 +1,23 @@
+{
+  "fixture_id": "asset_changed_during_render_v1",
+  "description": "Fail-loud: chronon3d_cli render must abort loudly when an asset's content changes between preflight resolution and actual render-time load. Per user-spec verbatim 'asset cambiato durante render', this fixture extends the Test #7 fail-loud contract to the RENDER-TIME-INTEGRITY stage. Canonical error vocabulary: Composition/Layer/Asset/Path tokens in stderr + ChangedDuringRender-specific context, NO silent fallback markers, exit code != 0, output MP4 absent, error message MUST mention the asset path + the owner layer name + the file-change timestamp (per user-spec 'errore che indica asset+owner/layer').",
+  "rot_class": "asset_changed_during_render",
+  "composition_id": "ProductLaunch",
+  "cli_args": [
+    "--assets-root", "/tmp/chronon_asset_changed_harness",
+    "--image-asset", "/tmp/chronon_asset_changed_harness/chaos.png",
+    "--preflight-mtime", "PRE_RENDER",
+    "--render-mtime", "POST_RENDER"
+  ],
+  "output_path": "/tmp/should-not-exist.mp4",
+  "_asset_changed_setup_hint": "Pre-create /tmp/chronon_asset_changed_harness/chaos.png as a 1-byte file. The CLI is invoked with --preflight-mtime=PRE_RENDER (the mtime at preflight time) and --render-mtime=POST_RENDER (a different mtime the CLI will observe at render time). The CLI must fail-loud at the RENDER-TIME-INTEGRITY stage with the canonical error vocabulary + the preflight-vs-render mtime delta. The actual harness-level change can be simulated by the gate by (a) creating the file with mtime1, (b) pre-flighting (which records the mtime), (c) modifying the file to have mtime2 > mtime1, (d) invoking the render — the CLI must fail at the integrity check.",
+  "expected": {
+    "exit_code_nonzero": true,
+    "output_file_absent": "/tmp/should-not-exist.mp4",
+    "stderr_tokens_required": ["Composition", "Layer", "Asset", "Path", "ChangedDuringRender", "MTime"],
+    "minimum_token_matches": 4,
+    "forbidden_substrings": ["fallback frame", "black frame", "continue on error", "fallback to silence", "skip changed", "use cached", "ignore mtime"],
+    "error_must_mention": ["asset_path", "owner_layer_name", "mtime_delta"]
+  },
+  "honesty_note": "Per AGENTS.md §honesty: this is the most complex fixture — it requires runtime asset modification between preflight and render. The gate cannot fully exercise this scenario on the BLOCKED VPS (no chronon3d_cli binary). The gate's Section 4 will run the chronon3d_cli invocation + observe exit code + stderr pattern; the gate's Section 5 will perform a SYNTHETIC asset-change simulation via a bash sidecar that creates/modifies the file between two sleep intervals. The macchina-verifica on the working build host is required for the FULL scenario (CLI handles the mtime delta in its actual render loop). Per AGENTS.md Cat-3 anti-duplication: this JSON schema is shared across all 5 Test #7 + 6 NEW asset preflight fixtures, with the rot_class + ChangedDuringRender/MTime-specific tokens differing per fixture — no duplicate schema files."
+}
