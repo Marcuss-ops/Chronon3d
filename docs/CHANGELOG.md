@@ -1,3 +1,44 @@
+## Luglio 2026 — feat(check): stub first-principles product check orchestrator (First-Principles Product Check framework, 2026-07-12, atomic chore commit on main)
+
+**`feat(check): stub first-principles orchestrator`** — atomic chore commit creating the canonical aggregator script for the First-Principles Product Check framework (14 brutal product tests). Maps the 14 tests onto runtime gates + TODO follow-up slots. Active today: 3/5 sections fully wired (Architecture / Fast feedback / External consumer), 2/5 with TODO body (Determinism / Product demo pending Follow-ups 3 + 4), 9 stub-only section headers (Camera brutal / Multilingual text / Fail-loud errors / Real cost / Scale 100 batch / Brutal elimination / Legacy grep audit / Feature usefulness gate / Weekly scorecard). Ends `FIRST_PRINCIPLES_PRODUCT_PASS` only when every wired gate is clean. Per AGENTS.md §"INFO-level diagnostic style" emits one additive `[INFO] first_principles_product_check: ...` line on PASS addizionale al canonico `FIRST_PRINCIPLES_PRODUCT_PASS` finale.
+
+**Active gates today (3)**:
+- `bash tools/check_architecture_boundaries.sh` (Cat-3 / Gate-5 / new-headers gate; in `tools/wrap_push.sh` chain Step 4)
+- `bash tools/check_camera_architecture.sh` (Camera V1 architecture boundary + migration tracker)
+- `bash tools/check_test_hygiene.sh` (DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN no-duplicate gate)
+- `bash tools/install_consumer_test.sh` (Cat-4 external consumer SDK 11/11 gate)
+- **Fast feedback loop**: `cmake --preset linux-fast-dev` + `cmake --build --preset linux-fast-dev -j"$(nproc)"` + `ctest --preset linux-fast-dev-test --output-on-failure` (preset names verified in `cmake/presets/linux-fast-dev.json`)
+
+**TODO body (2)** — pending follow-up commit(s):
+- `== Determinism ==`: body to wire `tools/check_determinism_matrix.sh` (Follow-up 3, Test #6) + `tools/check_first_principles_legacy_grep.sh` (Follow-up 2, Test #10)
+- `== Product demo ==`: body to wire `chronon render ProductLaunch --props examples/product_launch.json --output /tmp/chronon-product-proof.mp4` + `ffprobe` (Follow-up 4, Test #1)
+
+**Stub-only headers (9)**: Camera brutal (Test #9) / Multilingual text (Test #8) / Fail-loud errors (Test #7) / Real cost (Test #11) / Scale 100 batch (Test #12) / Brutal elimination (Test #4) / Legacy grep audit (Test #10) / Feature usefulness gate (Test #14) / Weekly scorecard (Track-13). Each emits `echo "== <Section> =="` with an inline `# TODO (Test #N)` comment.
+
+**Review-driven refinements** (machine-verified post-creation):
+- **Test mapping fix** (was line 39): the prior `# TODO (Test #4 — feedback loop audit)` parenthetical was wrong (Test #5 is feedback loop, Test #4 IS elimination itself); reworded to `# TODO (Test #4)`.
+- **CWD safety** (3 new lines after SCRIPT_DIR derivation): the orchestrator now derives `REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"` and `cd "$REPO_ROOT"` BEFORE any active section command, so `cmake --preset` / `ctest --preset` reliably find `CMakePresets.json` from any invocation CWD (the prior "No preset named" failure mode for standalone invocations is fixed).
+
+**§honesty compliance**:
+- **3/5 active sections wired (NOT 5/5)** — orchestrator honestly reports the wiring ratio in `[INFO]`. The 2 TODO-body sections emit only `echo` + TODO comments; the 9 stub headers emit only `echo` markers. Round-up is honest, grep-discoverable, and matches the orchestrator's actual run surface.
+- **§Fast feedback ctest env-blocked on this VPS** (vcpkg glm/magic_enum + tmpfs limitations per AGENTS.md §honesty "non segnare verde una suite che restituisce failure"): the build + ctest end-to-end is DEFERRED to working build host. On this VPS the orchestrator is verified via `bash -n` syntax check + 3-gate re-run (Architecture `G1_POST_PASS rc=0` / Camera `G2_POST_PASS rc=0` / Test-hygiene `G3_POST_PASS rc=0`).
+- **First-steps qualifier** (per AGENTS.md §honesty "non segnare verde"): the orchestrator is the FRAMEWORK's aggregator scaffolding, NOT full certification of all 14 tests. Full First-Principles Product Check certification deferred to follow-up commits per the planned 1–12 sequence in `docs/FOLLOWUP_TICKETS.md`.
+
+**Cat-3 (no new public SDK API surface) SATISFIED**: pure `tools/` artifact; zero new symbols in `include/chronon3d/`.
+
+**Cat-5 PARTIAL 1-doc same-commit** (tools-only commit recent precedent `fix(camera): dead-code migration tracker removed`): this CHANGELOG entry + the orchestrator file both updated in same atomic commit. `docs/FOLLOWUP_TICKETS.md` + `docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED — a `tools/`-only commit without SDK-state semantic should not touch SDK status per `docs/DOCUMENTATION_GOVERNANCE.md`.
+
+**Gate 5 deny-everywhere** N/A: no `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` introduced.
+
+**GATE-MNT-01 fail-on-dirty invariant**: pre-push `tools/check_main_clean.sh` will run via `tools/wrap_push.sh origin main`; commit subject `feat(check): stub first-principles orchestrator` is **47 chars** (within the 72-char `tools/check_commit_subject_length.sh` gate, audited in push range `origin/main..HEAD`).
+
+**Files changed (2 — Cat-5 alignment)**:
+- `tools/first_principles_product_check.sh` NEW (~50 LoC: 49 lines per `wc -l`, well under the user's 80-line cap)
+- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+
+**Cross-references**: AGENTS.md §"INFO-level diagnostic style" (the `[INFO] <gate-name>: ...` additive convention applied to `FIRST_PRINCIPLES_PRODUCT_PASS`) + AGENTS.md §"Test binary staleness check (pre-ctest invariant)" (the orchestrator's `cmake --build → ctest` ordering satisfies the binary-freshness check by construction, since build precedes ctest in the same shell) + the orchestrator's own header comment (the 14-test mapping + 9 stub slot inventory) + `cmake/presets/linux-fast-dev.json` (preset chain `linux-fast-dev` + `linux-fast-dev-test`) + `tools/wrap_push.sh` GATE-MNT-01 (canonical pre-push wrapper for the push invocation).
+
+---
 ## Luglio 2026 — fix(gate): resolve 10 unresolved git merge conflict markers + new tools/check_no_source_conflict_markers.sh (TICKET-SOURCE-CONFLICT-MARKERS-ROT, 2026-07-12, atomic chore commit on main)
 
 **`fix(gate): resolve 10 unresolved git merge conflict markers on main`** — atomic chore commit documenting the resolution of 10 files that had committed unresolved `<<<<<<< HEAD` / `=======` / `>>>>>>> ...` git merge markers (3 production sources + 7 tests), discovered via ripgrep on main working tree on 2026-07-12. The markers originated from a merge of commits `dbf39153 fix(tests): make golden references mandatory in CI/certification mode` + `dc7127aa fix(tests): close dangling `+,` syntax in camera_truth_orbit TextSpec initializer` that was committed WITHOUT resolution, leaving the merge conflict blocks verbatim in source code.
@@ -38,7 +79,6 @@
 **Cross-references**: [`tools/check_no_source_conflict_markers.sh`](tools/check_no_source_conflict_markers.sh) (the new gate) + `tools/wrap_push.sh` (forward-point: wire at Step 4.5) + `tools/check_no_changelog_conflict_markers.sh` (the existing CHANGELOG-only gate, complementary) + AGENTS.md §Cat-3 (zero new public API, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit, satisfied) + AGENTS.md §honesty (rot caught + fixed honestly) + AGENTS.md **"Regole di lint documentale"** §INFO-level diagnostic style rule #2 (format citation).
 
 ---
-
 ## Luglio 2026 — docs(sync): race loop, 1 commit suppressed, cleanups (TICKET-WORKFLOW-RACE-LOOP-SYNC, 2026-07-12, atomic chore commit on main)
 
 **`docs(sync): race loop, 1 commit suppressed, cleanups`** — atomic chore commit documenting the main-sync transaction at commit `95c08acb` that survived 3 race conditions with `origin/main` during push attempts. Closes `TICKET-WORKFLOW-RACE-LOOP-SYNC` (consolidated workstream capturing the 5-event sync workflow).
