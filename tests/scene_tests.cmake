@@ -85,6 +85,13 @@ chronon3d_add_test_suite(
         # apply_orientation_spec_free() on the same commit.
         scene/camera/test_camera_lookat_layer_missing_transforms.cpp
         scene/camera/test_shot_timeline.cpp
+        # P3-H + TICKET-CAMERA-FULL-LINUX sub-ticket C — random-access
+        # parity + 5 mandatory test categories + 6-field diagnostics
+        # contract probe.  Locks deterministic per-frame diagnostic
+        # surface (camera_id/shot_index/sample_time/severity/code/message)
+        # across sequential, direct, random-order, checkpoint-restore,
+        # retry, and two-render-job access patterns.
+        scene/camera/test_shot_timeline_random_access.cpp
         scene/camera/test_camera_trajectory.cpp
         # TICKET-A3-CTX-FRAMERATE (Agent3 mission DoD gate (e)) — locks the
         # public contract that camera_v1::*Context::at(Frame, FrameRate, ...)
