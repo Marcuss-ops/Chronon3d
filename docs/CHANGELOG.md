@@ -1,3 +1,26 @@
+## Luglio 2026 — docs(camera-text-rot): verify upstream 21-error rot RESOLVED (TICKET-CONTENT-TEXT-CAMERA-V1-ROT Phase 1, 2026-07-12, atomic 3-file DOC-ONLY verification commit on main)
+
+**`docs(camera-text-rot): verify upstream 21-error rot RESOLVED`** — atomic 3-file DOC-ONLY verification commit on main closing TICKET-CONTENT-TEXT-CAMERA-V1-ROT Phase 1 (the upstream rot-class 21-error sub-area per the prior-session diagnostic at commit `b589fdba`-era). Machine-verified evidence at HEAD `d851d6f9`: `grep -cE 'chronon3d::chronon3d::[a-zA-Z_]'` returns 0 hits across the 6 upstream target files (`include/chronon3d/timeline/composition.hpp` + `include/chronon3d/backends/software/software_render_session.hpp` + `include/chronon3d/backends/software/software_renderer.hpp` + `include/chronon3d/effects/glow_pipeline.hpp` + `include/chronon3d/effects/curves.hpp` + `src/effects/effect_catalog.cpp`). Per-file breakdown (each = 0 rot-class hits): composition.hpp=0, software_render_session.hpp=0, software_renderer.hpp=0, glow_pipeline.hpp=0, curves.hpp=0, effect_catalog.cpp=0. Total rot-class hits = 0; tot-class 21-error pattern RESOLVED upstream.
+
+**Files changed (3 — Cat-5 3-doc same-commit alignment)**:
+- `docs/FOLLOWUP_TICKETS.md` EDIT — `TICKET-CONTENT-TEXT-CAMERA-V1-ROT` row state column **PARTIAL → DONE for Phase 1** with explicit machine-verification citation (the `grep -cE` command + per-file returns + HEAD `d851d6f9`).
+- `docs/CURRENT_STATUS.md` EDIT — `Text Production V1` row state column **PARTIAL → PASS** with **§honest qualifier** (the text_helpers rot-class 300+ predicted errors NOT yet surfaceable on this VPS — forward-pointed to on-canonical-build-host compile verification per the prior `docs(camera-text-rot)` CHANGELOG entry "peel the onion" framing).
+- `docs/CHANGELOG.md` EDIT — this entry **PREPENDED at TOP** above the `docs(agents) post-push SHA-selfcheck invariant` codification entry.
+
+**§honesty compliance**:
+- **Traceable evidence**: the commit body cites the exact `grep -cE` command + per-file returns + HEAD `d851d6f9`; future readers can reproduce the verification.
+- **State rollback prohibition**: the §honest qualifier on `docs/CURRENT_STATUS.md` Text Production V1 row (PARTIAL→PASS-with-qualifier) explicitly DISAMBIGUATES Phase 1 (21-error rot RESOLVED) from Phase 2 (text_helpers rot-class 300+ predicted errors NOT surfaceable on this VPS, requires canonical build host).
+- AGENTS.md **§honesty "non segnare verde una suite che restituisce failure"** honored: we do NOT mark the entire text/camera pipeline as PASS — only the Phase 1 sub-area as RESOLVED state, with the cross-area forward-point preserved.
+- AGENTS.md **Cat-3 (zero new public SDK API)** SATISFIED: pure `docs/` artifact; zero new symbols in `include/chronon3d/`; zero source-code modifications in `include/chronon3d/src/`.
+
+**Subject**: `docs(camera-text-rot): verify upstream 21-error rot RESOLVED` (62 chars, within the 72-char `tools/check_commit_subject_length.sh` push-range envelope per TICKET-GATE-SUBJECT-RANGE fix).
+
+**Forward-point (NOT in this commit, deferred per AGENTS.md "Fare PR piccole e mimate" + Cat-3 anti-duplication)**: TICKET-CONTENT-TEXT-CAMERA-V1-ROT Phase 2 = the text_helpers rot-class 300+ predicted errors that would surface AFTER the upstream rot is fixed (the "peel the onion" cascading-effect framing in the prior `docs(camera-text-rot): 21 upstream errors mask text_helpers rot` CHANGELOG entry). Phase 2 is NOT a docs-only chore — it requires (a) `cmake --build` on a canonical build host with vcpkg glm/magic_enum + tmpfs quota + the rot-fix tree to surface the predicted 300+ errors + (b) per-site fix commits following the canonical `chronon3d::x → ::chronon3d::x` prefix or `namespace chronon3d` per-file judgment (the patterns from the prior `fix(render_graph): public forwarding header` commit precedent). Out of scope per Cat-1 + Cat-3.
+
+**Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blocker `TICKET-CONTENT-TEXT-CAMERA-V1-ROT` row Phase 1 closure + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato per area Text Production V1 row PASS with §honest qualifier + commit `d851d6f9` (HEAD at which the verification was machine-executed) + the prior `docs(camera-text-rot): 21 upstream errors mask text_helpers rot` CHANGELOG entry (the "peel the onion" framing cited above) + AGENTS.md §Cat-2 honest-doc-sync (CHANGELOG + FOLLOWUP_TICKETS + CURRENT_STATUS all updated in this same atomic chore) + AGENTS.md §Cat-5 3-doc same-commit alignment + AGENTS.md §honesty (PARTIAL → DONE-with-qualifier per the traceable evidence cited in the commit body).
+
+---
+
 ## Luglio 2026 — docs(agents): add post-push SHA-selfcheck invariant (lint rule #5, lost-commit prevention, 2026-07-12, atomic chore commit on main)
 
 **`docs(agents): add post-push SHA-selfcheck invariant (lint rule #5)`** — atomic chore commit codifying the SHA-triple equality invariant as the 5th permanent rule in AGENTS.md §Regole di lint documentale. After every `bash tools/wrap_push.sh origin main` invocation, the agent MUST verify `git rev-parse HEAD == git rev-parse '@{u}' == pre-push-captured SHA`. Closes the WRITE-side lost-commit failure mode that bit the `b589fdba` 3-attempt recovery session for TICKET-SOURCE-CONFLICT-MARKERS-ROT.
