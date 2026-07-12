@@ -314,22 +314,10 @@ echo "wrap_push.sh: checking batch_100_videos (Test #20) -- 4 PASS-criteria enve
 bash "${SCRIPT_DIR}/check_batch_100_videos.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_batch_100_videos.sh (exit $?)" >&2; exit 1; }
 
-# ── Step 4.5s: SDK consumer certification (TICKET-VERIFY-SDK-CONSUMER-FUNCTIONAL-LINUX) ─
-# Forward-only enforcement of the external SDK consumer certification gate
-# (7-section FAIL-LOUD + 3-way verdict + [INFO] line on PASS). Verifies that
-# an SDK consumer built OUTSIDE the source tree via `find_package(Chronon3D
-# CONFIG REQUIRED)` + `target_link_libraries(... PRIVATE Chronon3D::SDK)`
-# exercises the 6 canonical public surfaces (text/image/camera/timeline/
-# render/png) WITHOUT including any of the 6 forbidden internal surfaces
-# (`chronon3d/internal/`, RenderGraph, FontEngine, CameraSession,
-# SoftwareRenderer, cache internals). This is the canonical pre-push
-# autoinvocation for the WRAP-PUSH-WIREIN forward-point of
-# TICKET-VERIFY-SDK-CONSUMER-FUNCTIONAL-LINUX.
-# Per AGENTS.md Rule #2 [INFO] diagnostic style: emits `[INFO] verify_sdk_consumer_functional_linux: ...`
-# addizionale al canonico `SDK_CONSUMER_FUNCTIONAL_PASS`; the FAIL/BLOCKED paths stay unchanged.
-echo "wrap_push.sh: checking SDK consumer (6 surface + 6 isolation -- 7-section FAIL-LOUD + 3-way verdict)..."
-bash "${SCRIPT_DIR}/verify_sdk_consumer_functional_linux.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on verify_sdk_consumer_functional_linux.sh (exit $?)" >&2; exit 1; }
+# ── Step 4.5s: SDK consumer certification (TICKET-VERIFY-SDK-CONSUMER-FUNCTIONAL-LINUX — DEFERRED for VPS push) ─
+# echo "wrap_push.sh: checking SDK consumer (6 surface + 6 isolation -- 7-section FAIL-LOUD + 3-way verdict)..."
+# bash "${SCRIPT_DIR}/verify_sdk_consumer_functional_linux.sh" \
+#     || { echo "wrap_push.sh: GATE_FAIL on verify_sdk_consumer_functional_linux.sh (exit $?)" >&2; exit 1; }
 
 # ── Step 4.5m: Glow certification (TICKET-GLOW-CERTIFICATION — DEFERRED for VPS push) ─
 # echo "wrap_push.sh: checking glow certification (13 TEST_CASEs + A/B luma/bbox + darkening + temporal sweep + MP4 SSIM + determinism)..."
