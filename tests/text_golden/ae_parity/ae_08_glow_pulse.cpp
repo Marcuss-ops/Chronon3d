@@ -284,3 +284,64 @@ TEST_CASE("TICKET-TEXT-CLIP-ASCENT: ae_08 9x16 f15 alpha bbox is centered and no
     CHECK(centroid.y > 600.0f);
     CHECK(centroid.y < 1320.0f);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TICKET-CHRONON-GLOW-FINAL — DoD §9: 19px sliver regression lock.
+//
+// Locks the historical "19px sliver" regression permanently.  The
+// original bug produced a 19px-tall sliver at the right edge of the
+// canvas (x=974..1919, y=783..801) instead of the full 230pt
+// "PULSE GLOW" text — a font-size / safe-area origin miscalculation
+// that the existing geometry tests catch, but only when they reach the
+// right edge / height-fail assertions together.  This single test
+// fails immediately and unambiguously if the sliver ever returns (e.g.
+// due to a future migration that drops the font-size, shifts the
+// safe-area origin back to the right edge, or breaks the cinematic
+// glow bbox composition path).
+//
+// The four checks are intentionally minimal and strict — the smallest
+// set of assertions that pins the regression:
+//
+//   bbox.height() > 100  → kills the 19px sliver (sliver is 19px tall)
+//   bbox.width()  > 800  → kills any truncated-width variant
+//   bbox.x1 < 1910       → kills the right-edge contact (sliver touched x=1919)
+//   bbox.y1 < 1070       → belt-and-suspenders for any bottom-edge contact
+//
+// Frame 15 is used because it is the peak-pulse snapshot (opacity 0.85,
+// scale 1.05) — the frame where the sliver was historically most
+// reproducible (the right-edge contact appeared only when the scale
+// breath + glow additive compositing pushed the final pixel into the
+// safe-area boundary).  16:9 canvas (1920×1080) is the canonical
+// reference surface.
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("ChrononGlowFinalAE never regresses to the 19px sliver") {
+    auto renderer = test::make_renderer_shared();
+    {
+        RenderSettings diag_settings;
+        diag_settings.use_modular_graph = true;
+        diag_settings.diagnostics.enabled = true;
+        renderer->set_settings(diag_settings);
+    }
+    auto fb = renderer->render(build_landscape(*renderer, 15), Frame{15});
+    REQUIRE(fb != nullptr);
+    REQUIRE(fb->width()  == 1920);
+    REQUIRE(fb->height() == 1080);
+
+    const AlphaBBox bbox = alpha_bbox(*fb);
+    INFO("alpha bbox: x0=", bbox.x0, " y0=", bbox.y0,
+         " x1=", bbox.x1, " y1=", bbox.y1,
+         " width=", bbox.width(), " height=", bbox.height());
+
+    // DoD §9 — the 4 hard checks that pin the 19px sliver regression.
+    // All four are required: any single failure = the sliver is back.
+    CHECK(bbox.height() > 100);  // sliver was 19px tall (19 < 100) → fails
+    CHECK(bbox.x1      < 1910);  // sliver touched x=1919 (right edge) → fails
+    // The two checks below are defensive against future variants; they
+    // would NOT have caught the historical 19px sliver on their own
+    // (a 945px-wide bbox at y=783..801 passes both), but they pin the
+    // canonical 230pt text size and protect against future migrations
+    // that drop font-size or push text into the bottom safe-area.
+    CHECK(bbox.width()  > 800);  // pins 230pt full-width render
+    CHECK(bbox.y1      < 1070);  // belt-and-suspenders for any bottom contact
+}
