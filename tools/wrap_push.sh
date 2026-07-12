@@ -197,78 +197,13 @@ if ! "$GATE"; then
     exit 1
 fi
 
-# ── Step 4.5: Pre-push hygiene gates (TICKET-110 — this commit) ─────────
-# Atomic-commit contract: every test-related invariant must be verified
-# BEFORE git push executes.  All gates run LOCALLY (no network, no gh
-# API): they exit 1 on violation and emit a remediation hint pointing
-# to docs/CHANGELOG.md.  No `--skip-gates` escape hatch is provided
-# because: (a) duplicate DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN hardbreaks
-# the link, (b) raw add_executable bypasses the §11.1 source-registry
-# contract, and (c) deferring the failure to CI just pollutes the git
-# history with broken commits.  Hardblock always.
-#   Sequence (post-main-clean + post-auto-FF):
-#     1. check_test_hygiene.sh        (gate #10b doctest)
-#     2. check_test_suite_registration.sh (gate #10c test suite audit)
-#     3. check_frame_value_convention.sh (gate TICKET-110b Frame::value canonical-reading)
-#     (check_no_dual_text_api.sh was previously here at #4 but has been
-#      REMOVED — see gate chain header comment above for rationale)
-echo "wrap_push.sh: checking test hygiene (duplicate DOCTEST_CONFIG_IMPLEMENT)..."
-bash "${SCRIPT_DIR}/check_test_hygiene.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_test_hygiene.sh (exit $?)" >&2; exit 1; }
+# ── Run developer gates (delegated to canonical run_developer_gates.sh) ─
+# The 8 developer gates live in tools/run_developer_gates.sh — single
+# source of truth shared with .githooks/pre-push.  No duplication.
+echo "wrap_push.sh: running developer gate chain (via run_developer_gates.sh ${TARGET_REMOTE} ${TARGET_BRANCH})..."
+bash "${SCRIPT_DIR}/run_developer_gates.sh" "${TARGET_REMOTE}" "${TARGET_BRANCH}" \
+    || { echo "wrap_push.sh: GATE_FAIL on run_developer_gates.sh (exit $?)" >&2; exit 1; }
 
-echo "wrap_push.sh: checking test suite registration (raw add_executable)..."
-bash "${SCRIPT_DIR}/check_test_suite_registration.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_test_suite_registration.sh (exit $?)" >&2; exit 1; }
-
-echo "wrap_push.sh: checking Frame::value canonical-reading convention (TICKET-110b)..."
-bash "${SCRIPT_DIR}/check_frame_value_convention.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_frame_value_convention.sh (exit $?)" >&2; exit 1; }
-
-# ── Step 4.5d: CHANGELOG conflict-marker invariant (TICKET-CHANGELOG-CONFLICT-CLEANUP) ──
-# Forward-only enforcement of AGENTS.md §honesty + TICKET-CHANGELOG-CONFLICT-CLEANUP.
-# Detects git merge conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`) accidentally
-# committed to docs/CHANGELOG.md. The bug class bit the project once: commit
-# f5551a13 introduced 3 conflict markers that persisted in main for ~10 commits
-# before being resolved as a side effect of commit 5efcc301. This gate prevents
-# recurrence by hard-blocking any `git push` that would commit unresolved markers.
-# See tools/check_no_changelog_conflict_markers.sh for full spec.
-echo "wrap_push.sh: checking CHANGELOG conflict markers (TICKET-CHANGELOG-CONFLICT-CLEANUP)..."
-bash "${SCRIPT_DIR}/check_no_changelog_conflict_markers.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_no_changelog_conflict_markers.sh (exit $?)" >&2; exit 1; }
-
-# ── Step 4.5e: TextMultilingual source registration alignment (TICKET-TEXT-GOLDEN-SOURCES-ALIGNED) ──
-# Forward-only enforcement of TICKET-TEXT-GOLDEN-SOURCES-ALIGNED. Detects
-# "add_test without target_sources" misalignment in tests/text_golden_tests.cmake:
-# every `add_test(NAME TextMultilingual*)` entry MUST have a matching
-# `target_sources(... text_multilingual/NN_*.cpp)` entry, otherwise the build
-# silently skips the test file. The bug class bit the project twice in cycle 4
-# (missing 04_hangul_composition.cpp source + broken TextMultilingualMixedBaseline
-# add_test block). This gate hard-blocks any `git push` that introduces a
-# TextMultilingual add_test without a matching target_sources entry. See
-# tools/check_text_golden_sources_aligned.sh for full spec + matching algorithm.
-echo "wrap_push.sh: checking TextMultilingual source registration alignment (cycle 4/5/6 rot prevention)..."
-bash "${SCRIPT_DIR}/check_text_golden_sources_aligned.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_text_golden_sources_aligned.sh (exit $?)" >&2; exit 1; }
-
-# ── Step 5: forward to git push ───────────────────────────────────────────
-echo "wrap_push.sh: checking docs/adr SHA-cite dedup (TICKET-FOLLOWUP-DE-DUP-REFERENCES gate)..."
-bash "${SCRIPT_DIR}/check_doc_sha_dedup.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_doc_sha_dedup.sh (exit $?)" >&2; exit 1; }
-
-# ── Step 4.5g: 72-char commit-subject envelope (AGENTS.md "no cosmetic amend churn unless enforceable") ──
-# Last 10 commit subjects must be <=72 chars. Char-count via `awk length`
-# (NOT byte-count), so UTF-8 multi-byte chars (em-dash U+2014, accented
-# letters) count once each. No SKIP escape hatch — matches GATE-MNT-01
-# "Hardblock always" convention. On FAIL: prints offending (SHA, length,
-# subject) rows and remediation hint (per AGENTS.md Amend-only-via-rebase).
-echo "wrap_push.sh: checking commit subject length (last 10, max 72 chars)..."
-bash "${SCRIPT_DIR}/check_commit_subject_length.sh" origin/main \
-    || { echo "wrap_push.sh: GATE_FAIL on check_commit_subject_length.sh (exit $?)" >&2; exit 1; }
-
-# Step 4.5h: divergence-window advisory gate (ADR-022 / TICKET-INFRA-F2-DIVERGENCE)
-echo "wrap_push.sh: checking divergence-window advisory gate (ADR-022)..."
-bash "${SCRIPT_DIR}/check_push_divergence_window.sh" "${TARGET_REMOTE}" "${TARGET_BRANCH}" \
-    || { echo "wrap_push.sh: GATE_FAIL_INTERNAL on check_push_divergence_window.sh (exit $?)" >&2; exit 1; }
 # ── WBH-only gates (run only when CHRONON3D_GATE_PROFILE=wbh) ─────────────────
 # These gates require build artifacts (MP4, glow output, batch videos) that
 # only exist on a working build host.  On developer pushes they are skipped.
