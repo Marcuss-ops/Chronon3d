@@ -458,7 +458,7 @@ TEST_CASE("real pipeline parity: ChrononGlowFinalAE temporal stability "
         SKIP("TICKET-DOCTEST-SKIP-ROT: ffmpeg not found in PATH");
     }
     if (!std::filesystem::exists(get_cli_path())) {
-        SKIP("chronon3d_cli not built at " << get_cli_path()
+        SKIP("TICKET-DOCTEST-SKIP-ROT: chronon3d_cli not built at " << get_cli_path()
              << " — pre-existing build rot blocks the test");
     }
 
