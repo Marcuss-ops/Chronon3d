@@ -183,7 +183,7 @@ else
             --target chronon3d_camera_tests chronon3d_scene_tests \
             -j"$(nproc)" 2>&1) || true
 
-        ERROR_COUNT=$(echo "$BUILD_OUTPUT" | grep -c 'error:' || echo 0)
+        ERROR_COUNT=$(echo "$BUILD_OUTPUT" | grep 'error:' | wc -l)
 
         if [ "$ERROR_COUNT" -eq 0 ]; then
             _gate_pass "camera_build (0 errors)"
@@ -362,19 +362,8 @@ echo ""
 if [ "$BUILD_BLOCKED" = true ]; then
     echo "CAMERA_FUNCTIONAL_BLOCKED"
     echo ""
-    echo "  The camera build is blocked by pre-existing build rot"
-    echo "  (TICKET-BUILD-ROT-CASCADE-CAMERA). 6 fixes have been applied"
-    echo "  (~400 → ~199 errors). ~199 compilation errors remain in"
-    echo "  camera source files (camera_program.cpp, shot_timeline.hpp,"
-    echo "  camera_framing_solver.cpp, etc.)."
-    echo ""
-    echo "  Fixes applied this session:"
-    echo "    1. scene.hpp: removed nested namespace (double-namespace rot)"
-    echo "    2. text_layout_engine.hpp: removed const from float low"
-    echo "    3. scene_hasher.hpp: added camera_2_5d.hpp include"
-    echo "    4. composition.hpp: renamed camera() → camera_program()"
-    echo "    5. scene_hasher.hpp/.cpp: broke circular include dependency"
-    echo "    6. render_node_factory.cpp: .placement → .position migration"
+    echo "  The camera build is blocked by compilation errors."
+    echo "  See the build output above for details."
     echo ""
     echo "  Blocked by: TICKET-BUILD-ROT-CASCADE-CAMERA"
     exit 2
