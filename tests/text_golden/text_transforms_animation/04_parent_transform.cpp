@@ -115,9 +115,9 @@ Composition build_parent_transform_composition(
                 l.text_run("title", TextRunParams{
                     .text = {
                         .content = {.value = "CHILD"},
-                        .position = {static_cast<float>(canvas_w) * 0.5f,
-                                     static_cast<float>(canvas_h) * 0.5f,
-                                     0.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute,
+                                     Vec2{static_cast<float>(canvas_w) * 0.5f,
+                                          static_cast<float>(canvas_h) * 0.5f}},
                         .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
