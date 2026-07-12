@@ -18,6 +18,13 @@
 // contract at the PNG/MP4 file level, see the brute-determinism suite in
 // tests/determinism/test_brute_determinism.cpp (Test 17 / FPC).
 //
+// NOTE: renders only frame 15 (single-frame determinism smoke).
+// Full 60-frame cross-run determinism per user spec §13 requires
+// the working build host and is deferred to:
+//   - tools/check_glow_temporal.py (frame-by-frame sweep)
+//   - tests/determinism/test_brute_determinism.cpp (Test 17 / FPC,
+//     20× repetitions × thread × cache permutations)
+//
 // AGENTS.md Cat-2 freeze-compliant: zero new public SDK API.
 // ═══════════════════════════════════════════════════════════════════════════
 
