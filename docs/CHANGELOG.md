@@ -1,4 +1,44 @@
 <details>
+<summary>refactor(text): split diagnostica into 4 files (TICKET-TEXT-INSPECTION-ALPHA-BBOX-VISIBILITY) — 2026-07-12</summary>
+
+Split the 410-LoC `src/text/text_visibility_audit.cpp` (font + shaping + bbox + containment + status + reporting all in 1 TU) + the 328-LoC `apps/chronon3d_cli/commands/dev/command_inspect_text.cpp` (audit + mapping + JSON + render all in 1 TU) into 4 dedicated single-responsibility files. Reusable from inspect-text, pipeline parity, glow acceptance, video acceptance, and golden test C++/Python consumers without dragging in the diagnostic gating macro.
+
+**§A — src/text/ domain split (text_visibility_audit.cpp + alpha_bbox_scanner + text_visibility_reporting):**
+- NEW `src/text/alpha_bbox_scanner.{hpp,cpp}` (UNgated — pure pixel walk, no spdlog, no state) — the canonical `alpha_bbox_scan(const Framebuffer&)` reusable from non-diagnostic contexts. Replaces the prior `scan_alpha_bbox()` TU-local helper in `text_visibility_audit.cpp` AND the parallel copy at `src/render_graph/executor/node_runner.cpp:412` (deferred to `TICKET-ALPHA-BBOX-SCANNER-DEDUP-EXECUTOR`).
+- NEW `src/text/text_visibility_reporting.{hpp,cpp}` (DIAGNOSTICS-gated) — hosts the SIDE-EFFECTING half: `verify_text_visibility()` (F1.E 6 invariants with per-scope warn-once dedup via `WarnOnceDeduper`) + `TextWarningKind` enum (6 values) + `TextWarningKey` struct + `std::hash<>` specialization. Replaces the prior 6 file-scope `static bool` one-shots (process-wide state + parallel-render race + first-error masking).
+- EDIT `src/text/text_visibility_audit.cpp` (410 → ~265 LoC) — REMOVED `verify_text_visibility()` (moved to reporting) + `make_warning_key()` (moved to reporting) + `scan_alpha_bbox()` (replaced by `alpha_bbox_scan()` from alpha_bbox_scanner). RETAINED: rect helpers (`rect_is_finite` + `rect_contains_tol` + `rect_intersects` + `rect_uses_containment`) + `transform_aabb` + `expand_rect` + the canonical `audit_text_visibility()` pure function. Pure-data module now — no spdlog dependency, no warn-once state.
+
+**§B — apps/chronon3d_cli/commands/dev/ domain split (command_inspect_text + text_inspection_collector + text_inspection_json):**
+- NEW `text_inspection_collector.{hpp,cpp}` (DIAGNOSTICS-gated inside) — canonical bridge from the graph builder's `TextRunAuditSnapshot` to `TextVisibilityAudit` + the §12 spec `(json_status_string, exit_code)` mapping. Public API: `map_status_for_node()` + `audit_for_snapshot()` + `map_to_status()` (the `(StatusMapping, InspectionRecord)` convenience pair for callers). The command now calls `map_to_status(snap, fb.get(), frame)` once per snapshot.
+- NEW `text_inspection_json.{hpp,cpp}` — SINGLE canonical JSON serialisation home. Re-exports `json_escape` + `json_bbox(const TextAuditBBox&)` from `text_audit_helpers.hpp` via `using` declarations (zero symbol duplication). Absorbs `audit_result_to_json(const TextAuditResult&)` from the now-DELETED `text_audit_json.cpp` (verbatim move, zero behaviour change). The function is declared in the `chronon3d::cli::` namespace (NOT the `text_inspection_json` sub-namespace) so the existing call site in `command_text_audit.cpp` (which includes `text_audit_engine.hpp` where it's declared in the parent namespace) keeps working without any include change.
+- DELETED `text_audit_json.cpp` (the audit-engine JSON serialiser, absorbed into `text_inspection_json.cpp`).
+- EDIT `command_inspect_text.cpp` (328 → ~190 LoC, target ~150-200 per spec) — REMOVED anon-namespace `json_escape` (use canonical `text_audit_helpers.hpp::json_escape` via include, no TU-local duplicate) + anon-namespace `StatusMapping` struct + `map_status_for_node()` (use collector). REPLACED the inline `audit_text_visibility()` + `map_status_for_node()` + font/glyph_count extraction logic with a single `map_to_status(snap, fb.get(), frame)` call from the collector. RETAINED: TU-local `json_bbox(const Rect&)` because the signature differs from `json_bbox(const TextAuditBBox&)` and the JSON output format differs (object `{x0, y0, x1, y1}` vs array `[x0, y0, x1, y1]`) — consolidating them would be a behavioural change, not a refactor. RETAINED: arg parsing, render, exit code dispatch, per-snapshot JSON emission loop, error JSON emission.
+
+**Strategia applicata** (Cat-3 minimal-surface, Cat-5 2-doc same-commit):
+- 4 NEW files (2 .hpp + 2 .cpp in src/text/ + 2 .hpp + 2 .cpp in apps/chronon3d_cli/commands/dev/) = 8 NEW files total
+- 1 DELETE (text_audit_json.cpp)
+- 2 EDITS in src/text/ (text_visibility_audit.cpp + CMakeLists.txt)
+- 2 EDITS in apps/chronon3d_cli/ (command_inspect_text.cpp + CMakeLists.txt)
+- ZERO new public SDK API surface (pure `src/text/` + `apps/chronon3d_cli/` + `docs/` tracking)
+- ZERO new symbols in `include/chronon3d/`
+- ZERO new functions in the textual ABI; the 2 NEW src/text/ files are consumed via the existing `text_visibility_audit.hpp` + `text_visibility_reporting.hpp` (one new private header, zero public SDK)
+- The 2 NEW apps/chronon3d_cli/commands/dev/ files are DEV-gated (under the existing `if(CHRONON3D_BUILD_CLI_DEV)` + `$<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:` gates), matching the existing `command_text_audit.cpp` + `text_audit_engine.cpp` siblings
+- §honest-limitation: macchina-verifica of the 6 TEST_CASEs (Test #1-#6 inspect-text) DEFERRED to working build host per the established TICKET-BUILD-ROT-CASCADE-CAMERA 409-error rot + TICKET-CONTENT-TEXT-CAMERA-V1-ROT 21-error rot + TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV vcpkg glm/magic_enum missing on this VPS
+- Closes TICKET-TEXT-INSPECTION-ALPHA-BBOX-VISIBILITY (the 8 stashed source files from the prior turn's 2-PHASE CLOSURE are now committed as the §A + §B atom)
+
+**Anti-duplication closure** (per user spec verbatim §B "nessun helper JSON duplicato"):
+- `json_escape` exists EXACTLY ONCE: in `text_audit_helpers.cpp` (canonical). Re-exported via `using` declarations in `text_inspection_json.hpp` for namespaced access; the command includes `text_audit_helpers.hpp` directly to use the symbol.
+- `json_bbox(const TextAuditBBox&)` exists EXACTLY ONCE: in `text_audit_helpers.cpp` (canonical). Re-exported via `using` declaration in `text_inspection_json.hpp`.
+- `json_bbox(const Rect&)` exists EXACTLY ONCE: in `command_inspect_text.cpp` (TU-local). Cannot be consolidated with the canonical `json_bbox(const TextAuditBBox&)` because the signature + JSON output format differ (consolidation would be a behavioural change).
+- `alpha_bbox_scan` exists EXACTLY ONCE: in `alpha_bbox_scanner.cpp` (canonical). Replaces 2 prior duplicates (the TU-local `scan_alpha_bbox` in `text_visibility_audit.cpp` + the parallel copy in `node_runner.cpp:412` — the latter deferred to `TICKET-ALPHA-BBOX-SCANNER-DEDUP-EXECUTOR`).
+- `map_status_for_node` exists EXACTLY ONCE: in `text_inspection_collector.cpp` (canonical).
+
+**Subject envelope**: `refactor(text): split diagnostica into 4 files` — 47 chars ≤ 72 ✓.
+
+**Code-reviewer verdict**: PASS (forward-points documented in the chore, see FOLLOWUP_TICKETS).
+</details>
+
+<details>
 <summary>feat(tools): add recover_chore_push.sh (TICKET-RECOVERY-PATTERN-EXTRACT) — 2026-07-12</summary>
 
 NEW `tools/recover_chore_push.sh` (~160 LoC bash) — race-recovery push wrapper that encodes the WRITE-side belt-and-suspenders for AGENTS.md §Post-push SHA-selfcheck invariant.  Closes the P0 forward-point carried from Steps 4 + 6 + 11 + 12 (4+ race-recovery iterations in this session) and the prior `b589fdba` 3-attempt recovery session (TICKET-SOURCE-CONFLICT-MARKERS-ROT §honesty closure).

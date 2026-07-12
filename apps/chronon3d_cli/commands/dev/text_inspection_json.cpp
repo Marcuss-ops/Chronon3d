@@ -1,11 +1,33 @@
-#include "text_audit_types.hpp"
-#include "text_audit_helpers.hpp"
+// SPDX-License-Identifier: MIT
+
+// ═══════════════════════════════════════════════════════════════════════════
+// text_inspection_json.cpp — Step 9 §B implementation
+//
+// Absorbs `audit_result_to_json()` from the now-deleted `text_audit_json.cpp`.
+// The function body is a verbatim move: zero behavioural change. The new
+// file is the SINGLE canonical home for the audit-engine JSON dump.
+//
+// Anti-duplication:
+//   - `json_escape` + `json_bbox(const TextAuditBBox&)` are re-exported
+//     from `text_audit_helpers.hpp` via `using` declarations in the
+//     header. The implementations live in `text_audit_helpers.cpp` and
+//     are NOT duplicated here.
+//   - The command's `json_bbox(const Rect&)` STAYS TU-local in
+//     `command_inspect_text.cpp` because the signature differs (Rect vs
+//     TextAuditBBox) and the JSON output format differs (object vs
+//     array). The two functions are not interchangeable.
+// ═══════════════════════════════════════════════════════════════════════════
+
+#include "text_inspection_json.hpp"
 
 #include <cstdio>
 #include <sstream>
 #include <iomanip>
 #include <string>
 
+// `audit_result_to_json` lives in `chronon3d::cli::` namespace (matching
+// the declaration in `text_inspection_json.hpp` + the call site in
+// `command_text_audit.cpp` which uses the unqualified form).
 namespace chronon3d::cli {
 
 std::string audit_result_to_json(const TextAuditResult& r) {
