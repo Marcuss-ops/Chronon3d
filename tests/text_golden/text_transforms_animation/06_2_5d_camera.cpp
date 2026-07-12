@@ -18,7 +18,11 @@
 //   - Bbox dimensions reasonable (text not scaled to zero by perspective)
 //
 // Per AGENTS.md §honesty: 1 PNG re-bake requires a working build host;
-// the 1 test case gracefully skips on `result.golden_missing`.
+// missing goldens are now treated as HARD CI failures via
+// `REQUIRE_FALSE(r.golden_missing)` (the canonical
+// `text_completeness.cpp:151` pattern). A missing golden is an ERROR,
+// not a skip — tests that ran with `result.golden_missing = true`
+// previously silently passed (the §honesty rot).
 //
 // AGENTS.md v0.1 Cat-2 freeze-compliant: zero new public SDK API.  The
 // test uses the existing `LayerBuilder::enable_3d()` + `depth_offset()`
@@ -143,12 +147,12 @@ TEST_CASE("TextTransforms.TwoPointFiveD_Enabled_1920x1080") {
     CHECK(bbox.width()  > 100);
     CHECK(bbox.height() > 50);
 
-    // Golden check.
+    // TICKET-TEXT-GOLDEN-MISSING-FAIL-LOUD: a missing golden is a
+    // REQUIRE failure (NOT a soft-skip), per the canonical
+    // text_completeness.cpp:151 pattern + cert user spec.
     auto r = verify_golden(*fb, "two_point_five_d_enabled_1920x1080",
                            make_2_5d_config("two_point_five_d_enabled_1920x1080"));
-    CHECK_FALSE(r.golden_missing);
-    if (!r.golden_missing) {
-        INFO("Golden: ", r.message);
-        CHECK(r.passed);
-    }
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
