@@ -193,10 +193,12 @@ for run in 1 2 3; do
 done
 
 echo "--- Comparing run hashes ---"
+diff "$OUTPUT_DIR/run_1.hashes" "$OUTPUT_DIR/run_2.hashes" || true  # diagnostic: show which frames differ
 cmp "$OUTPUT_DIR/run_1.hashes" "$OUTPUT_DIR/run_2.hashes" || {
     echo "GATE_FAIL: run 1 != run 2 (non-deterministic render)" >&2
     exit 1
 }
+diff "$OUTPUT_DIR/run_1.hashes" "$OUTPUT_DIR/run_3.hashes" || true
 cmp "$OUTPUT_DIR/run_1.hashes" "$OUTPUT_DIR/run_3.hashes" || {
     echo "GATE_FAIL: run 1 != run 3 (non-deterministic render)" >&2
     exit 1
