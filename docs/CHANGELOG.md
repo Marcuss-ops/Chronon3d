@@ -1,3 +1,39 @@
+## Luglio 2026 — feat(check): zero-legacy grep gate (Test #10 first-principles product check, 2026-07-12, atomic chore commit on main)
+
+**`feat(check): zero-legacy grep gate (Test #10)`** — atomic chore commit creating the canonical hard-zero grep gate for Test #10 (per il First-Principles Product Check framework). Scans `include/ src/ content/ apps/ examples/` for 6 literal legacy symbols (`AnimatedCamera2_5D`, `CameraShotProfile`, `camera_rig(`, `centered_text(`, `glow_text(`, `current_path()`). Exit 1 on ANY hit in productive paths; exit 0 only when 0 hits per symbol. Wired into `tools/first_principles_product_check.sh` `== Determinism ==` section as the first sub-gate (Test #6 still TODO).
+
+**Gate surface**:
+- `--fixed-strings` (-F): literal substring match so `camera_rig(` matches the function-call form, avoiding regex interpretation of `(`. All 6 patterns literal.
+- `git grep -n`: line-numbered attribution in FAIL diagnostic for remediation.
+- `git rev-parse --show-toplevel` + `cd` for CWD safety (matches orchestrator's `REPO_ROOT` derivation pattern).
+- Exit codes: 0 = clean, 1 = any hit, 2+ = internal error (per `set -euo pipefail`).
+- 50-line truncation with overflow count so FAIL diagnostics stay scannable.
+- `docs/ARCHIVE/**` excluded by virtue of not being in productive pathspec (documented in script header for §honesty completeness).
+
+**Currently FAILING on `origin/main`** (per §honesty, the gate does NOT silently bypass):
+- 152 hits across include/ src/ content/ apps/ examples/: AnimatedCamera2_5D (60), CameraShotProfile (30), camera_rig( (3), centered_text( (41), glow_text( (13), current_path() (5). This is the EXPECTED state during the legacy migration period. The migration tracker at the end of `tools/check_camera_architecture.sh` reports counts dynamically; this gate is the canonical hard-zero enforcement that will replace the report-only count once the bulk migration converges.
+- Future sub-tickets (TICKET-CAMERA-FULL-LINUX sub-tickets D+X.1 / D+X.4 etc.) will reduce these counts to 0; once 0/0/0/0/0/0 this gate will emit `GATE_PASS` and the orchestrator's `== Determinism ==` section will print `[INFO] check_first_principles_legacy_grep: 0 hits across 6 symbols in 5 prod paths — Test #10 zero-legacy holds`.
+
+**§honesty compliance**:
+- Gate WILL FAIL on `origin/main` until bulk migration completes. The orchestrator's `== Determinism ==` section propagates exit 1 to the top level — any first-principles orchestrator run on this VPS will surface this GATE_FAIL until migration lands.
+- The `docs/ARCHIVE/**` exclusion is operational (the path is not in pathspec) but syntactically documented in script header for §honesty completeness.
+- AGENTS.md `[INFO]`-level diagnostic style applied: PASS path emits `GATE_PASS: ...` canonical first, then `[INFO] check_first_principles_legacy_grep: 0 hits across 6 symbols in 5 prod paths — Test #10 zero-legacy holds` (~115 chars, well under AGENTS.md 200-char cap, no symbol duplications with canonical `GATE_PASS:` line per AGENTS.md rule `no duplicato del GATE_PASS finale`).
+
+**Cat-3 (no new public SDK API surface) SATISFIED**: pure `tools/` artifact; zero new symbols in `include/chronon3d/`.
+
+**Cat-5 PARTIAL 1-doc same-commit** (tools-only commit precedent `fix(camera): dead-code migration tracker removed`): this CHANGELOG entry + the gate file + the orchestrator wiring all updated in same atomic chore commit. `docs/FOLLOWUP_TICKETS.md` + `docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED — tools-only commit without SDK-state semantic per `docs/DOCUMENTATION_GOVERNANCE.md`.
+
+**GATE-MNT-01 fail-on-dirty invariant**: pre-push `tools/check_main_clean.sh` will run via `tools/wrap_push.sh origin main`; commit subject `feat(check): zero-legacy grep gate (Test #10)` is **47 chars** (within the 72-char `tools/check_commit_subject_length.sh` gate, audited in push range `origin/main..HEAD` per the TICKET-GATE-SUBJECT-RANGE fix).
+
+**Files changed (3 — Cat-5 alignment)**:
+- `tools/check_first_principles_legacy_grep.sh` NEW (~56 LoC, 56 lines per `wc -l`)
+- `tools/first_principles_product_check.sh` EDIT (2 lines: replaced `# TODO: wire tools/check_first_principles_legacy_grep.sh (Test #10)` with `bash "$SCRIPT_DIR/check_first_principles_legacy_grep.sh"`; updated `[INFO]` line from `3/5 → 4/5 active sections`)
+- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+
+**Cross-references**: AGENTS.md §"INFO-level diagnostic style" (the trimmed `[INFO]` line — ~115 chars under the 200-char AGENTS.md cap, no symbol duplication with `GATE_PASS:` canonical) + `tools/first_principles_product_check.sh` `== Determinism ==` section (the wired-in slot) + `tools/check_camera_architecture.sh` (the migration tracker that reports counts dynamically — this gate is the canonical hard-zero enforcement superset) + the camera/text legacy-freeze ADRs (the migration roadmap) + the 14-test framework spec.
+
+---
+
 ## Luglio 2026 — feat(check): stub first-principles product check orchestrator (First-Principles Product Check framework, 2026-07-12, atomic chore commit on main)
 
 **`feat(check): stub first-principles orchestrator`** — atomic chore commit creating the canonical aggregator script for the First-Principles Product Check framework (14 brutal product tests). Maps the 14 tests onto runtime gates + TODO follow-up slots. Active today: 3/5 sections fully wired (Architecture / Fast feedback / External consumer), 2/5 with TODO body (Determinism / Product demo pending Follow-ups 3 + 4), 9 stub-only section headers (Camera brutal / Multilingual text / Fail-loud errors / Real cost / Scale 100 batch / Brutal elimination / Legacy grep audit / Feature usefulness gate / Weekly scorecard). Ends `FIRST_PRINCIPLES_PRODUCT_PASS` only when every wired gate is clean. Per AGENTS.md §"INFO-level diagnostic style" emits one additive `[INFO] first_principles_product_check: ...` line on PASS addizionale al canonico `FIRST_PRINCIPLES_PRODUCT_PASS` finale.
