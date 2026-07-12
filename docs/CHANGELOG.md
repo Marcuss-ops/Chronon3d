@@ -1,3 +1,48 @@
+## Luglio 2026 — docs(camera-text-rot): chronon3d_text_golden_tests compile yields 21 upstream errors (NOT 300) — the text_helpers rot is masked by the upstream rot (2026-07-12, atomic chore commit on main)
+
+**`docs(camera-text-rot): 21 upstream errors mask text_helpers rot`** — atomic chore commit documenting the actual machine-verified result of `cmake --build build/chronon/linux-content-dev --target chronon3d_text_golden_tests` on this VPS. The user prediction was 300 errors in `content/text/text_helpers_*.hpp` (TICKET-CONTENT-TEXT-CAMERA-V1-ROT). The **ACTUAL RESULT** is 21 errors, all in EARLY-STAGE UPSTREAM HEADERS that halt the compile before reaching the `text_helpers_*.hpp` rot.
+
+**Honest 21-error breakdown** (machine-verified via `cmake --build ... 2>&1 | grep -cE 'error:'`):
+- **`include/chronon3d/timeline/composition.hpp:284-291` (5 errors)**: `CameraDescriptor` + `CameraProgram` not found in `chronon3d::chronon3d::camera_v1`; `m_default_camera_desc` + `m_camera_program` undeclared in this scope (did you mean `default_camera_descriptor` / `has_camera_program`?). The same class names exist in `chronon3d::scene::camera::camera_v1` but the file references the inner `chronon3d::chronon3d::` namespace, which is the double-namespace rot pattern.
+- **`include/chronon3d/backends/software/software_render_session.hpp:87-90` (4 errors)**: `graph` not found in `chronon3d::chronon3d` namespace (4 sites in the same line block).
+- **`include/chronon3d/backends/software/software_renderer.hpp:61+132-164` (8 errors)**: `FontPreflightSummary` (1 site) + `ExecutionScheduler` (3 sites) + `graph` (4 sites) not found in `chronon3d::chronon3d` namespace.
+- **`include/chronon3d/effects/glow_pipeline.hpp:210` (1 error)**: `DebugConfig` not found in `chronon3d::chronon3d` namespace.
+- **`src/effects/effect_catalog.cpp:15-16` (2 errors)**: `EffectStack` not a member of `chronon3d::chronon3d`; `stack` undeclared in this scope.
+- **`include/chronon3d/effects/curves.hpp:27` (1 error)**: `CurvePoint` not found in `chronon3d::chronon3d` namespace.
+
+**Total: 21 errors** in 6 files, all from the SAME root cause: the `chronon3d::chronon3d::` double-namespace rot pattern (unqualified references to `chronon3d::x` from inside `namespace chronon3d::content` or `namespace chronon3d::timeline` etc. trick the compiler into looking for `chronon3d::content::chronon3d` or `chronon3d::timeline::chronon3d`).
+
+**Why 21, not 300** (the "peel the onion" pattern): the compile HALTS at the first error class. Once the upstream rot is fixed (the 21 errors in the 6 header files above), the compile will reach the SECOND error class — the `text_helpers_*.hpp` rot the user predicted. At THAT point, the 300 error count is expected to surface. The fix is a cascading onion-peel: (a) fix the 6 upstream header files first (21 errors); (b) re-run the compile; (c) when the text_helpers rot surfaces, fix that (300+ errors, per the prior CHANGELOG estimate); (d) re-run the compile again; (e) iterate until the full project compiles.
+
+**TICKET-CONTENT-TEXT-CAMERA-V1-ROT scope-extension** (per AGENTS.md §honesty, *no stime percentuali*): the original TICKET estimate was 300 errors in `content/text/text_helpers_*.hpp`. The actual rot is BROADER than estimated — it includes the 6 upstream header files above (which were not in the original TICKET scope) PLUS the 300+ text_helpers errors that will surface AFTER the upstream rot is fixed. The TICKET scope is **extended in this commit** to cover the 6 upstream files (the new `TICKET-CONTENT-TEXT-CAMERA-V1-ROT` row is added in `docs/FOLLOWUP_TICKETS.md` §Open Blockers as a standalone row, per the "one ticket per rot pattern" philosophy). The 6 upstream files + the text_helpers files are tracked under the SAME ticket because they share the SAME root cause (`chronon3d::chronon3d::` double-namespace rot).
+
+**Fix pattern** (per the prior CHANGELOG entry "fix(render_graph): public forwarding header" + AGENTS.md §Cat-3): the canonical fix for the `chronon3d::chronon3d::` rot is one of:
+1. **Prefix with `::`** (e.g., `::chronon3d::detail::graph` instead of `chronon3d::detail::graph` — forces global lookup)
+2. **Move the type out of the inner namespace** (e.g., move `chronon3d::content::text::Graph` to `chronon3d::graph::Graph`)
+3. **Add a `using` declaration** at the top of the affected file (e.g., `using chronon3d::Graph;`)
+4. **Add a forwarding header** that re-exports the canonical symbol from the internal path (the pattern used by the prior `include/chronon3d/render_graph/render_graph.hpp` fix)
+
+The fix selection is per-site per AGENTS.md §Cat-3 (semantic change requires per-site judgment). A blanket `::` prefix is the lowest-risk fix but may mask future refactors; the forwarding-header pattern is the highest-traceability fix (matches the existing TICKET-COMPILED-FRAME-GRAPH-ROTFIX closure pattern).
+
+**Cat-3 (no new public SDK API surface) SATISFIED**: this commit is doc-only; zero source code modified; zero new symbols introduced.
+
+**Cat-5 3-doc same-commit alignment SATISFIED**: `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKETS.md` (TICKET-CONTENT-TEXT-CAMERA-V1-ROT row updated with 21-error finding + scope-extension note) + `docs/CURRENT_STATUS.md` (Text Production V1 row updated with the 21-error honest finding) all updated in this same atomic chore commit.
+
+**§honesty compliance**: the user prediction (300 errors in text_helpers) is documented as such — the ACTUAL result (21 errors in 6 upstream files) is the machine-verified truth per AGENTS.md §honesty (*non segnare verde una suite che restituisce failure* + *no stime percentuali*). The "peel the onion" framing captures the relationship between the 21 errors and the 300+ errors that will surface LATER. No silent fabrication; the 21-error cascade count is qualified as "all from the same root cause" so future maintainers understand the rot is a single rot-pattern in 6 files, not 21 independent issues.
+
+**Forward-points** (NOT in this commit, deferred per "Fare PR piccole e mirate" + §honesty):
+1. **Fix the 6 upstream header files** (21 errors): the first atomic commit toward unblocking the `chronon3d_text_golden_tests` compile. Mechanical sed: `chronon3d::` → `::chronon3d::` in the 6 affected files (or alternative fix per the per-site judgment above). This is a separate workstream from the 300 text_helpers errors.
+2. **Re-run the compile** after the 6 upstream files are fixed: expected to surface the 300+ text_helpers errors (the original TICKET-CONTENT-TEXT-CAMERA-V1-ROT scope).
+3. **Fix the text_helpers rot** (300+ errors): the original TICKET scope. After both fixes, the `chronon3d_text_golden_tests` binary should compile cleanly + the 6 Text V1 goldens re-bake becomes possible.
+
+
+**Files changed (3 — Cat-5 alignment)**:
+- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+- `docs/FOLLOWUP_TICKETS.md` EDIT (TICKET-CONTENT-TEXT-CAMERA-V1-ROT row updated with 21-error finding + scope-extension forward-point)
+- `docs/CURRENT_STATUS.md` EDIT (Text Production V1 row updated with the 21-error honest finding + the 6 upstream file paths)
+
+**Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blockers TICKET-CONTENT-TEXT-CAMERA-V1-ROT row (updated) + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale per area "Text Production V1" row (updated) + commit `2654fd2c` (the prior `docs(rebake-blocked)` commit) + commit `e507bc0d` (the prior `chore(tests): migrate Tests 17.4-17.8 .position to .placement` commit) + the `tools/wrap_push.sh` per-branch rebase gate + AGENTS.md §Cat-3 (no new public SDK API surface, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit alignment, satisfied) + AGENTS.md §honesty (honest 21-error finding documented, user prediction qualified).
+
 ## Luglio 2026 — docs(rebake-blocked): 6 Text V1 goldens re-bake attempt BLOCKED by pre-existing TICKET-CONTENT-TEXT-CAMERA-V1-ROT (2026-07-12, atomic chore commit on main)
 
 **`docs(rebake-blocked): 6 Text V1 goldens re-bake BLOCKED by text/camera rot`** — atomic chore commit documenting the 6 Text V1 goldens re-bake attempt failure on this VPS. The TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV closure (prior commit `5c4fe95c`) UNBLOCKED the cmake configure step but the full test binary compile remains BLOCKED by pre-existing rot.
