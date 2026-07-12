@@ -235,7 +235,11 @@ void run_copy_semantics_test(
 //   4. Move-assigns `move_assigned = std::move(original)` on a FRESH
 //      original (the first move left it in an unspecified state) and
 //      re-runs the verifications.
-//   5. Self-moves `j = std::move(j)` and verifies only POD fields
+//   5. Asserts `use_count() == 2` after both moves to prove the
+//      shared_ptr was moved (not copied).  A copy would yield
+//      use_count == 3.  This catches a future refactor that
+//      accidentally makes RenderJob copy-only.
+//   6. Self-moves `j = std::move(j)` and verifies only POD fields
 //      (mode + frame fields) are preserved.  Non-POD fields are in
 //      unspecified state and must NOT be asserted.
 //
@@ -290,6 +294,14 @@ void run_move_semantics_test(
         CHECK(moved.video_settings.frames_dir    == expected.frames_dir);
         CHECK(moved.video_settings.chunks        == expected.chunks);
         CHECK(moved.comp == comp);  // shared_ptr shared (refcount unchanged)
+        // use_count == 2 proves the shared_ptr was moved (not copied):
+        //   - one reference in `comp` (the original in test scope)
+        //   - one reference in `moved.comp` (transferred from original)
+        // A copy would yield use_count == 3 (comp + original.comp + moved.comp).
+        // This catches a future refactor that accidentally makes RenderJob
+        // copy-only (e.g., by adding a user-defined dtor that suppresses
+        // the implicit move ctor).
+        CHECK(moved.comp.use_count() == 2);
     }
 
     // ── move assignment ────────────────────────────────────
@@ -330,6 +342,9 @@ void run_move_semantics_test(
         CHECK(move_assigned.video_settings.frames_dir    == expected.frames_dir);
         CHECK(move_assigned.video_settings.chunks        == expected.chunks);
         CHECK(move_assigned.comp == comp);
+        // use_count == 2 proves the shared_ptr was moved (not copied).
+        // See the move-construction section above for the full rationale.
+        CHECK(move_assigned.comp.use_count() == 2);
     }
 
     // ── self-move ──────────────────────────────────────────────
@@ -350,6 +365,7 @@ void run_move_semantics_test(
         CHECK(j.still_frame == expected_still_frame);
         CHECK(j.first_frame == expected_first_frame);
         CHECK(j.last_frame  == expected_last_frame);
+
     }
 }
 
