@@ -610,3 +610,7 @@ un'animazione in < 5 righe, diagnostica visuale con un comando CLI.
 - non aggiungere GUI/browser al core headless;
 - una PR deve risolvere un problema chiaro e avere test mirati;
 - **non aggiungere nuovi helper / builder paralleli / sistemi di positioning per il testo** (M1.8 §1, enforced by [`tools/check_no_dual_text_api.sh`](tools/check_no_dual_text_api.sh) gate wired into [`tools/wrap_push.sh`](tools/wrap_push.sh) Step 4.5d — 4 check categories: `LayerBuilder::text_*<variant>` / `centered_text`/`glow_text` definitions outside canonical preset registry / `TextSpec.position` non-migrated assignment / `pin_to + TextAnchor` co-occurrence per ADR-019 §3).
+
+## Global DoD Sign-off (21-item) — PARTIAL-BLOCKED @ `main@ef9c83f1` (2026-07-12)
+
+Il comando canonico di certificazione prodotto `tools/verify_chronon_product_linux.sh` orchestra 14 sub-gate eseguibili + 1 forward-pointed che coprono i **21 item DoD** dello spec utente (13 zero-require + 8 one-of). Stato corrente osservato: **`CHRONON_PRODUCT_FUNCTIONAL_BLOCKED`** (14/14 PASS + 1 forward-pointed `verify_diagnostics_linux`). Dettaglio: [`docs/baselines/main-ef9c83f1-baseline.md`](docs/baselines/main-ef9c83f1-baseline.md). Forward-point: `TICKET-VERIFY-DIAGNOSTICS-LINUX` + `TICKET-VERIFY-DIAGNOSTICS-ORCHESTRATOR-WIREIN` (separati per AGENTS.md "Fare PR piccole e mirate"). M0 §10 closes: l'orchestratore esiste + esegue + riporta verdict onesto.
