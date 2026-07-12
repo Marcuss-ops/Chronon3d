@@ -143,7 +143,7 @@ static PipelineResult render_with_pipeline(const PipelineConfig& cfg,
     lb.screen_dimensions(1920.0f, 1080.0f);
     lb.text("canary_text", TextSpec{
         .content    = {.value = std::string("PIPELINE PARITY")},
-        .position   = Vec3{960.0f, 540.0f, 0.0f},
+        .placement   = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f}},
         .font       = {.font_size = 96.0f},
         .layout     = {.box = Vec2{900.0f, 200.0f},
                        .anchor = TextAnchor::Center,
