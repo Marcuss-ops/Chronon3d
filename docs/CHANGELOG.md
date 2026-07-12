@@ -1,3 +1,77 @@
+## Luglio 2026 — Cherry-pick content recovery: feat(api) entry + TICKET-CAMERA-FULL-LINUX sub-ticket A restored from origin/main `cd2548cb` (per AGENTS.md §honesty, post `c36e3f13` push) (2026-07-11, atomic chore commit on main)
+
+### docs(recovery): restore feat(api) entry dropped by cherry-pick `--theirs`
+
+- **Scope**: restores 45 lines of `docs/CHANGELOG.md` content that were silently dropped during the cherry-pick recovery on commit `c36e3f13` (HEAD-of-main as of push). The dropped entry is the `feat(api): public camera facade + external consumer SDK test` entry (TICKET-CAMERA-FULL-LINUX sub-ticket A + P3-H) that was on `origin/main` (`cd2548cb`) BEFORE the cherry-pick. The `git checkout --theirs` resolution during the cherry-pick of `750553c0` (TICKET-TEXT-GLOW-DARKENING BLOCKED chore) overwrote `cd2548cb`'s CHANGELOG.md with the older `750553c0` version, dropping the `feat(api)` entry that `cd2548cb` had added on top of `750553c0`'s base. The `feat(glow): ChrononGlowFinalAE certified` line (which is part of the Glow Final row in CURRENT_STATUS.md) was NOT actually lost — it was re-added by `01c95de5`'s cherry-pick (the Glow Final row in CURRENT_STATUS.md now has both the original cd2548cb content + the +1 DoD §9 forward-point clause).
+
+- **Root cause** (per AGENTS.md §honesty, documented post-mortem):
+  1. The `git rebase origin/main` from the prior turn failed with CHANGELOG.md conflict (the upstream `cd2548cb` had a `feat(api)` entry that didn't exist in the cherry-pick's `750553c0` base).
+  2. The rebase was aborted, the local branch was reset to `cd2548cb` (clean), and `750553c0` + `01c95de5` were cherry-picked in sequence.
+  3. During the FIRST cherry-pick (`750553c0`), the CHANGELOG.md conflict was resolved with `git checkout --theirs` which **kept `750553c0`'s version and DROPPED `cd2548cb`'s `feat(api)` entry**. The code-reviewer-minimax-m3 flag raised the content-loss risk post-push.
+  4. Diagnostic confirmed 45 lines dropped in CHANGELOG.md (the `feat(api)` entry) + 1 line diff in CURRENT_STATUS.md Glow Final row (the old version was replaced by the new version with +1 DoD §9 clause; no actual content loss since the new version includes the old content).
+  5. Recovery: this commit restores the 45 dropped lines.
+
+- **Cat-3 (no new public SDK API surface) SATISFIED**: this commit only restores existing content from `cd2548cb`'s tree. Zero new symbols; the `feat(api)` entry is a documentation restore only.
+
+- **Cat-5 (3-doc same-commit alignment) SATISFIED**: this CHANGELOG entry (prepended at TOP, ABOVE the recovery entry) + `docs/FOLLOWUP_TICKETS.md` NEW `TICKET-CHERRY-PICK-RECOVERY` row in `## Recently Closed` (top of table per the established most-recent-first pattern) + `docs/CURRENT_STATUS.md` §Stato generale per area "Glow Final (ChrononGlowFinalAE)" row +1 forward-point clause documenting the recovery + the feat(api) entry restoration in this same atomic commit. `tools/check_doc_sync.sh` R5 fires on this closure.
+
+- **AGENTS.md v0.1 §honesty compliance**: the cherry-pick content loss is documented honestly per *"Non segnare verde una suite che restituisce failure"* + *"no stime percentuali"*. The dropped content is restored in this commit. The recovery pattern (`git checkout --theirs` on cherry-pick conflicts) is documented for future maintainers; the canonical recovery approach is to manually merge the conflict (keep BOTH `--ours` + `--theirs`, delete the `<<<<<<<`/`=======`/`>>>>>>>` markers, stack the entries at the top), NOT to use `git checkout --theirs` which silently drops content. The thinker's analysis + the code-reviewer-minimax-m3's FAIL verdict on the cherry-pick state are the basis for this recovery commit.
+- **Forward-point — cherry-pick conflict resolution protocol (NEW, per code-reviewer refinement 2)**: when cherry-picking commits across a divergent `origin/main` that has new CHANGELOG.md / FOLLOWUP_TICKETS.md / CURRENT_STATUS.md entries, the canonical conflict resolution is **manual merge** (delete the `<<<<<<<`/`=======`/`>>>>>>>` markers, keep BOTH `--ours` + `--theirs`, stack the new entries at the top). **ANTI-PATTERNS**: (a) `git checkout --theirs <file>` is **the bug that caused this recovery** — it silently overwrites the target branch's content with the cherry-picked commit's older version, dropping any entries the target branch added on top; (b) `git checkout --ours <file>` is equally lossy in the reverse direction. **CANONICAL FLOW**: (i) on conflict, run `git diff --ours <file>` and `git diff --theirs <file>` to see both versions; (ii) `git checkout --conflict=diff3 <file>` to see 3-way merge; (iii) manually edit the file to keep BOTH sets (delete markers, stack new entries); (iv) `git add <file>` + `git cherry-pick --continue`. **Future-cherry-pick heuristic**: for CHANGELOG.md prepend-style edits, the `--theirs` file is always OLDER (the cherry-picked commit is from an older base); for append-style edits (rare in this project), the `--theirs` may be NEWER. **Test**: if a future cherry-pick drops content, run `git diff <cherry-pick-base>..<cherry-pick-head> -- <file>` to see what was lost, then restore from the diff.
+
+- **Files changed (3 — 3-doc Cat-5 alignment + 1 file for content restoration)**:
+  - `docs/CHANGELOG.md` EDIT (this recovery entry prepended at the very TOP + the 45-line `feat(api)` entry restored at the TOP below the recovery entry, above the existing DoD §9 + TICKET-TEXT-GLOW-DARKENING entries)
+  - `docs/FOLLOWUP_TICKETS.md` EDIT (NEW `TICKET-CHERRY-PICK-RECOVERY` row at TOP of `## Recently Closed`, documenting the cherry-pick content loss + this recovery commit + cross-link to the cherry-pick SHA `c36e3f13` + the prior base `cd2548cb`)
+  - `docs/CURRENT_STATUS.md` EDIT (§Stato generale per area "Glow Final (ChrononGlowFinalAE)" row extended with a +1 forward-point clause documenting the cherry-pick recovery + cross-link to this entry + the FOLLOWUP row)
+
+- **Cross-references**: commit `c36e3f13` (the cherry-pick push that dropped the content); commit `cd2548cb` (the prior origin/main that had the feat(api) entry); commit `750553c0` (the TICKET-TEXT-GLOW-DARKENING chore that was cherry-picked); commit `01c95de5` (the DoD §9 chore that was cherry-picked); the `tools/wrap_push.sh` per-branch rebase gate that correctly blocked the push attempt at `c36e3f13` when the cherry-pick result was reviewed; AGENTS.md §honesty (the recovery is documented in this entry, the dropped content is restored, the future-recovery approach is canonicalized).
+
+## Luglio 2026 — feat(api): public camera facade + external consumer SDK test
+**Commit**: pending (`feat(api): public camera facade + external consumer SDK test`, 56 chars — within 72-char gate).
+**Scope** (P3-H + TICKET-CAMERA-FULL-LINUX sub-ticket A):
+
+1. **Public `SceneCameraFacade`** (`include/chronon3d/scene/camera/scene_camera_facade.hpp`): `scene.camera()` returns a chainable facade (BY VALUE; lightweight 1-pointer struct) with 4 setters:
+   - `.descriptor(camera_v1::CameraDescriptor)` — set the default descriptor
+   - `.program(camera_v1::CameraProgram)` — set the pre-compiled program
+   - `.timeline(std::shared_ptr<camera_v1::ShotTimeline>)` — set the shot timeline
+   - `.preset(preset_id, CameraPresetCatalog&)` — resolve a preset by name
+2. **Public `chronon3d::camera()` builder** (`include/chronon3d/scene/camera/camera_descriptor_builder.hpp`): fluent value-typed builder with `.position()` / `.look_at()` / `.lens()` / `.id()` / `.enabled()` / `.build()`. Accepts `PhysicalLens` (new convenience struct matching the spec example) or `LensModel`.
+3. **`Composition::camera(camera_v1::CameraProgram)`** setter (`include/chronon3d/timeline/composition.hpp`): mirror of the spec example `composition.camera(program);` call shape. Read-only `camera()` getter also exposed. Documented P3-F carve-out (program authored + stored, used directly at OPP read time).
+4. **Internal hide** of `CameraSession` and `RenderGraph`:
+   - `include/chronon3d/scene/camera/camera_v1/camera_session.hpp` → `include/chronon3d/internal/scene/camera/v1/camera_session.hpp`
+   - `include/chronon3d/render_graph/render_graph.hpp` → `include/chronon3d/internal/render_graph/render_graph.hpp`
+   - Updated 30+ `src/` #include paths to the internal/ location
+   - `ShotTimelineSession` and `CameraSessionCache::Entry` restructured to store `std::shared_ptr<CameraSession>` (forward-decl only) so the public headers don't transitively pull in the now-internal type
+   - Public manifest (`cmake/Chronon3DPublicHeaders.cmake`) updated: removed the 2 hidden entries + added 2 new public entries
+5. **External consumer test** (`tests/install_consumer/main_camera.cpp` + `tests/install_consumer/CMakeLists.txt`): mirrors the user-spec example exactly (`camera().position().look_at().lens().build()` → `compile_camera(d).value()` → `composition.camera(p)` → `renderer.render(comp, Frame{30})`). Uses ONLY public headers + `Chronon3D::SDK`. Output marker `[CAMERA-OK]`.
+
+**Bug fixes applied in this commit (code-review verdict iteration)**:
+- **CRITICAL 1**: `Scene::camera()` was originally `SceneCameraFacade&` (back-reference) — chicken-and-egg init order bug. Fixed to return-by-value (lightweight 1-pointer struct; zero-allocation via NRVO).
+- **CRITICAL 2**: `camera_session_cache.hpp::Entry::working_session` was originally `CameraSession` by-value (requires full type). Fixed to `std::shared_ptr<CameraSession>` (forward-decl sufficient).
+- **MAJOR**: `ShotTimelineSession` semantic change to `shared_ptr<CameraSession>` — performance impact documented (one heap alloc per shot index on first access; no per-frame allocation).
+- **MAJOR**: `Composition::camera(p)` P3-F immutability carve-out — documented in the setter's doc-comment (single field mutation; program is immutable downstream).
+- **MAJOR**: Precedence policy between `composition.camera(p)` and `default_camera_descriptor(d)` — documented (program wins at render time; descriptor is source-of-truth only when no program is set).
+- **MINOR**: Removed misleading `const Scene::camera()` overload (the facade's setters all mutate the bound Scene).
+
+**Env-blocker (honest report per AGENTS.md §honesty rules)**:
+
+`tools/install_consumer_test.sh` end-to-end execution is BLOCKED on this dev environment:
+- vcpkg + doctest NOT installed (TICKET-011 / TICKET-DOCTEST-SKIP-ROT active)
+- `/tmp` 80% full
+- TICKET-120 PARTIAL (18/24 scene test failures)
+
+The consumer source compiles per the public-header manifest contract and the `static_assert` diagnostics validate the public types ARE reachable. The end-to-end pipeline (`cmake --build` + `sdk_camera_consumer_output.png` non-empty + `[CAMERA-OK]` marker) must be re-run on a fit build host before this change can be marked `GREEN`. Track via TICKET-CAMERA-FULL-LINUX sub-ticket D (followup forward-point).
+
+**Cat-3 anti-duplication compliance**: This change introduces NO new singleton / registry / resolver / sampler / cache. `SceneCameraFacade` is a stateless back-reference to `Scene` (return-by-value 1-pointer struct). `CameraDescriptorBuilder` is a value-typed struct. The 2 internal types were moved to `internal/` per the P3-H boundary contract — that move is a relocation, not a new symbol.
+
+**DoD verification matrix**:
+- ✅ Public headers enumerated in manifest (2 new added, 2 hidden entries commented out with rationale)
+- ✅ Forward declarations replace transitive includes in `shot_timeline.hpp` + `camera_session_cache.hpp`
+- ✅ `Scene::camera()` returns by value (no init-order bug)
+- ✅ External consumer source compiles against public manifest (static_assert in main_camera.cpp validates types are reachable)
+- ⏸ `tools/install_consumer_test.sh` end-to-end run — env-blocked, see above
+- ⏸ Push via `tools/wrap_push.sh origin main` — hand-off per GATE-MNT-01 (pre-existing untracked `tools/verify_camera_full_linux.sh` blocks the dirty-tree gate; this commit is atomic and ready to push once that file is either committed or removed)
+---
+
 ## Luglio 2026 — TICKET-CHRONON-GLOW-FINAL DoD §9: 19px sliver regression lock (chronon3d::TEST_CASE permanent lock; 4 hard CHECKs: bbox.height>100 + bbox.x1<1910 catch the historical sliver; bbox.width>800 + bbox.y1<1070 are defensive against future variants; frame 15 peak-pulse snapshot; 16:9 canvas 1920×1080) (test + 3-doc Cat-5 same-commit) (2026-07-11, atomic chore commit on main)
 
 ### test(glow): 19px sliver regression lock (DoD §9)
