@@ -1,3 +1,24 @@
+## Luglio 2026 — tools(test-16): feature sunset registry + 5 deferred verdicts (First-Principles Product Check #16 — Registro sunset feature, 5 candidati DEFERRED per env-blocked VPS, 2026-07-12, atomic chore commit on main)
+
+**`tools(test-16)` registry creation** — nuovo artefatto canonico `docs/FEATURE_SUNSET.md` istituisce il "Registro Sunset Feature" con regola dei "Tre Non" (3-non: non usata-in-produzione + non misurata + non necessaria-al-cliente ⇒ sunset via `MOVE` a `content/experimental/` o `git rm`). Scadenza 30gg per ogni entry; escalation automatica da `DEFERRED` → `MOVE/DELETE` quando la riga soddisfa i tre non.
+
+**5 candidati identificati nel registry cycle 1** — basati su scansione statica di `content/` + `src/` + `tests/` + `tools/`:
+
+1. `content/common/` — **DEFERRED-VERIFY** (LIVE in 3 test files via `#include "content/common/..."`)
+2. `content/ae_parity/` — **DEFERRED-VERIFY** (registrata in `content/CMakeLists.txt`, 0 `#include` diretti in `src/`)
+3. `content/text_placement/` — **DEFERRED-VERIFY** (consumata da Text V1 pipeline)
+4. `content/backgrounds/` — **DEFERRED-VERIFY** (registrata come showcase background)
+5. `content/examples/` — **DEFERRED-VERIFY** (chiave educational obsoleta)
+
+**§honesty cert discipline** (AGENTS.md v0.1) — tutte le 5 entry `DEFERRED-VERIFY` con `verified="PARTIAL"` + `timing_basis="static cross-ref on env-blocked VPS"`. Zero eliminazioni concrete in cycle 1 (user spec gap, tracked as `TICKET-SUNSET-VERIFY` forward-point).
+
+**Cat-5 3-doc alignment** — questo entry precede (newer-at-top stacking) i due punti:
+- FOLLOWUP_TICKETS.md §Recently Closed: `TICKET-TEST-16-SUNSET-REGISTRY` row at top
+- CURRENT_STATUS.md: `**Test 16 — Registro sunset**` row post-Test 11
+
+**Cat-3 anti-duplication check** — `docs/FEATURE_SUNSET.md` è process documentation (ledger di curation), NON infrastruttura runtime. Nessuna ADR richiesta.
+
+**Persistent infra issue (F2 forward-point, ESCALATED)**: questo commit è arrivato al push boundary dopo 4+ sessioni consecutive con recurring divergence pattern. F2 forward-point (mantra da `code-reviewer-minimax-m3`) ha raggiunto il threshold per essere promosso da "future gate" a **active cat-4 ancillary chore**: implementare `tools/check_push_divergence_window.sh` come prima azione del prossimo ciclo per fixare l'infrastruttura push che causa persisting UU residue + detached HEAD state.
 ## Luglio 2026 — tools(test-11): cycle 2 measurement - text shifted 400px fix cronograph entry (First-Principles Product Check #13 continued - 2nd JSONL append-only entry on real baseline bug class, 2026-07-12, atomic chore commit on main)
 
 **`tools(test-11)` second cycle measurement** - second append-only entry to `docs/fix_cronograph_log.jsonl` covering a different real baseline bug class ("text shifted 400px") per AGENTS.md §Test 11 spec's "prendi un bug reale del baseline" requirement. This entry demonstrates the gate's actual measurement discipline on a second distinct bug class: `text_shifted_400px` from `src/scene/camera/overlay_diagnostic_panels.cpp` metrics panel block (panel_x/panel_y hardcoded at 10.0f using TextPlacementKind::Absolute that does not inherit parent LayerBuilder::translate), distinct from cycle 1's `glow_clipped_canvas_edge` from `src/backends/software/processors/text/text_glow.cpp` use_geo_transform branch.
