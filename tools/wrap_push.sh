@@ -22,6 +22,7 @@
 #   4.5h. tools/check_video_completeness.sh (TICKET-VIDEO-FFPROBE-VALIDATION gate -- spec §4+§6 ffprobe MP4 contract + ffmpeg decoded-frames count assertion; reads $REPO_ROOT/output/text_video_acceptance/chronon_glow_final.mp4 + 7-field contract width=1920/height=1080/fps≈30/nb_read_frames=60/duration≈2±0.05/codec ∈ {h264,hevc,av1}/pix_fmt ∈ {yuv420p,...}). Exit 1 on any field breach; exit 2 on missing ffmpeg/ffprobe (fail-loud per AGENTS.md §honest-limitation).
 #   4.5j. tools/check_manual_touches_per_video.sh (Test #19 manual_touches_per_video gate -- 9 canonical ops + 4-phase thresholds `oggi<=8, fase1<=3, fase2<=1, finale<=0` from `configs/touchpoint_thresholds.yaml`). Exit 1 if any phase exceeds its threshold; exit 2 on missing python3/pyyaml/config (fail-loud per AGENTS.md §honest-limitation).
 #   4.5k. tools/check_batch_100_videos.sh (Test #20 batch_100_videos acceptance gate -- 10 lang × 10 topics × 1 format = 100 jobs, 8 metrics per job, 4 PASS-criteria envelopes `output_count=100 / zero_crashes=0 / zero_corrupted=0 / at_least_98_pct_no_manual<=2` from `configs/batch_100_videos_corpus.yaml`). Exit 1 if any of the 4 envelopes is breached; exit 2 on missing python3/pyyaml/config (fail-loud per AGENTS.md §honest-limitation).
+#   4.5m. tools/check_glow_certification.sh (TICKET-GLOW-CERTIFICATION — 4 ctest suites GlowAcceptance/GlowTemporal/GlowDeterminism/TextGlowSmoke + Python A/B luma/bbox + darkening + 60-frame temporal sweep + MP4 SSIM + 3-run determinism). On VPS without chronon3d_cli binary: emits GATE_FAIL with canonical rebuild hint + §honesty disclosure; on working build host: all phases must PASS for exit 0.
 #   5. exec git push "$@" atomically
 #
 # Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
@@ -310,6 +311,18 @@ bash "${SCRIPT_DIR}/check_manual_touches_per_video.sh" \
 echo "wrap_push.sh: checking batch_100_videos (Test #20) -- 4 PASS-criteria envelopes (100 output / 0 crash / 0 corrotti / >=98% no manual)..."
 bash "${SCRIPT_DIR}/check_batch_100_videos.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_batch_100_videos.sh (exit $?)" >&2; exit 1; }
+
+# ── Step 4.5m: Glow certification (TICKET-GLOW-CERTIFICATION) ─────────────
+# Forward-only enforcement of the 13 glow TEST_CASEs across 4 ctest suites
+# (GlowAcceptance, GlowTemporal, GlowDeterminism, TextGlowSmoke) plus
+# Python A/B comparison (luma/bbox), darkening check, 60-frame temporal
+# sweep, MP4 SSIM, and 3-run determinism.  On VPS without chronon3d_cli
+# binary: emits GATE_FAIL with canonical rebuild hint + §honesty disclosure
+# per AGENTS.md "non segnare verde una suite che restituisce failure".
+# On working build host: all 5 phases must PASS for exit 0.
+echo "wrap_push.sh: checking glow certification (13 TEST_CASEs + A/B luma/bbox + darkening + temporal sweep + MP4 SSIM + determinism)..."
+bash "${SCRIPT_DIR}/check_glow_certification.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_glow_certification.sh (exit $?)" >&2; exit 1; }
 
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
 exec git push "$@"
