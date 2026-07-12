@@ -1,3 +1,26 @@
+## Luglio 2026 — AGENTS.md §honesty: Test binary staleness check (lint rule #3) added to "## Regole di lint documentale"; pre-ctest invariant to prevent stale-build false-negative verdicts (2026-07-11, atomic chore commit)
+
+### docs(agents): add test binary staleness check (lint rule #3)
+
+- **Scope**: adds the 3rd permanent rule under `AGENTS.md` "## Regole di lint documentale" (after the SHA cite + INFO-level diagnostic style rules). The rule codifies a pre-ctest invariant: before running `ctest -R <pattern>` on a test file added/modified in a recent commit, the test binary must exist in the build directory AND be newer than its source. This prevents 3 distinct misleading ctest signals on a stale build: (1) false "test file broken" verdict via "Unable to find executable"; (2) false "test passes" silent pass with zero matches; (3) false "old test still passes" rot-undetected via stale binary match.
+- **Why this fix**: ctest's `-R` regex matches test binary NAMES, not source files. A test added in commit `X` only exists in the build directory's binary after `cmake --build` re-runs. Without the pre-check, ctest can produce a misleading verdict in 3 different ways (see Anti-esempio block in AGENTS.md).
+- **Origine**: TICKET-DOCTEST-SKIP-ROT closure attempt (2026-07-11) ran `ctest -R chronon3d_pipeline_parity_real_tests --output-on-failure` on `build/manual-test` which was last built BEFORE commit `6bc43271` landed the test file. Result was "Unable to find executable" — a stale-build artefact that wasted a session before being correctly diagnosed as "build directory is stale, needs rebuild". The fix is a pre-ctest invariant that surfaces the build state BEFORE ctest produces a misleading signal.
+- **Scope**: applies to any post-source-commit ctest verification, including rot-fix verification, golden rebake, new-test smoke runs. Does NOT apply to long-running regression suites (build expected current at suite start) or ctest invocations on pre-existing test files where build state is known-good.
+- **Lint-checkability (forward-point)**: future `tools/check_stale_build_pre_ctest.sh` (not yet implemented) could auto-detect stale build state in CI by comparing each test binary's mtime against its source mtime. Implementation deferred per AGENTS.md v0.1 "Fare PR piccole e mirate" + the rule-documentation-precedes-lint-tooling pattern (see INFO-level diagnostic style rule's Lint-checkability forward-point for the precedent).
+- **Cat-3 (no new public API) SATISFIED**: pure docs change, zero new symbols in `include/chronon3d/`.
+- **Cat-5 (2-doc same-commit) SATISFIED**: this CHANGELOG entry + AGENTS.md new sub-section in the same atomic commit.
+- **AGENTS.md v0.1 freeze compliance** (revoked 2026-07-06, but Cat-3 + Cat-1 + §honesty rules permanent):
+  - **Cat-1 commit-discipline**: single atomic chore commit (rule docs only). "Fare PR piccole e mirate" honoured.
+  - **Cat-3**: SATISFIED (no code).
+  - **GATE-MNT-01 fail-on-dirty** invariant: post-commit smoke-test run before push.
+  - **§honesty compliance**: the rule itself IS a §honesty rule (codifies a §honesty concern that previously was implicit in code review). The new rule joins the 2 existing rules (SHA cite + INFO diagnostic) under the same lint-bucket that itself was a §honesty closure lineage.
+- **Files changed (2)**:
+  - `AGENTS.md` EDIT (NEW `### Test binary staleness check (honesty, pre-ctest invariant)` sub-section under "## Regole di lint documentale" between the INFO-level rule's Lint-checkability forward-point paragraph and "## Workflow Git obbligatorio" header — Perché + Origine + Scope + Anti-esempio + CORRETTO + Lint-checkability forward-point)
+  - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+- **Cross-references**: `AGENTS.md` "## Regole di lint documentale" (the rule bucket; 2nd + 3rd rule additions both follow the same Perché/Origine/Scope/Anti-esempio/CORRETTO pattern); commit `6bc43271` (the TICKET-DOCTEST-SKIP-ROT-rot-exposing commit where line 455's `SKIP()` first surfaced the missing macro); AGENTS.md v0.1 §honesty (the rule codifies a §honesty invariant); the TICKET-FOLLOWUP-PRECEDENT-DOCS 2+ rule aggregate closure pattern (this is the 3rd rule, extending the bucket further).
+
+---
+
 ## Luglio 2026 — TICKET-CAMERA-FULL-LINUX sub-ticket C — ShotTimeline transitions + random-access parity + 6-field diagnostics contract (atomic commit; cd2548cb → next; tests env-blocked on this dev box per AGENTS.md §honesty)
 ## Luglio 2026 — fix(gate): check commit subject length via push range origin/main..HEAD, not last 10 (TICKET-GATE-SUBJECT-RANGE, 2026-07-12, atomic fix commit on main)
 

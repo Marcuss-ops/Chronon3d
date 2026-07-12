@@ -236,6 +236,86 @@ exit 0
 
 **Lint-checkability (forward-point)**: un futuro `tools/check_info_diagnostic_style.sh` (gate opzionale, NON ancora implementato) potrebbe verificare che ogni emissione `[INFO] ...` in `tools/check_*.sh` rispetti il pattern `[INFO] ${GATE_NAME}: ...` + sia seguita dal canonico `GATE_PASS` / `OK:`. L'implementazione è deferred a un ticket separato (AGENTS.md v0.1 §regole "Fare PR piccole e mirate" + Cat-3 anti-duplication: il rule documentation precede il lint tooling).
 
+### Test binary staleness check (honesty, pre-ctest invariant)
+
+Before running `ctest -R <pattern>` on a test file that was added or
+modified in a recent commit, ALWAYS verify the corresponding test
+binary exists in the build directory AND is newer than its source.
+This prevents a stale-build false-negative: ctest's `-R` regex
+matches test binary NAMES (not source files), so a new test added
+in commit `X` only exists in the build directory's binary after
+`cmake --build` re-runs.
+
+**Perché**: ctest on a stale build directory can produce THREE
+distinct misleading signals that look like real test failures:
+  1. **"Unable to find executable"** — the binary doesn't exist yet →
+     false verdict "test file is broken / rot unfixed"
+  2. **Silent pass with zero matches** — ctest exits 0 but the test
+     was never run because the binary doesn't exist → false verdict
+     "test passes" (rot undetected)
+  3. **Match to a stale binary that has been since deleted from
+     source** — old test still passes, the new test never runs → false
+     verdict "old test still passes" (the actual rot is silent)
+All three are §honesty violations: the agent's reported status does
+not reflect reality. The pre-ctest staleness check prevents all
+three by surfacing the build state BEFORE the ctest invocation
+produces a misleading signal.
+
+**Origine**: the TICKET-DOCTEST-SKIP-ROT closure (2026-07-11) ran
+`ctest -R chronon3d_pipeline_parity_real_tests --output-on-failure`
+on `build/manual-test` which was last built BEFORE commit `6bc43271`
+landed the new test file. The result was "Unable to find executable"
+— a stale-build artefact that wasted a session before being
+correctly diagnosed as "build directory is stale, needs rebuild".
+The fix is a pre-ctest invariant: verify the binary exists + is
+fresher than its source BEFORE trusting ctest output. This rule
+codifies that fix as a permanent lint discipline.
+
+**Scope**: applies to ANY post-source-commit ctest verification,
+including rot-fix verification, golden rebake, new-test smoke runs.
+Does NOT apply to long-running regression suites (the build is
+expected to be current at suite start) or to ctest invocations on
+pre-existing test files where the build state is known-good (e.g.,
+the pre-existing 11/11 baseline suite after a clean checkout).
+
+#### Anti-esempio — ctest on stale build without check
+
+```bash
+# ❌ WRONG: ctest on a stale build without staleness check
+cd build/manual-test
+ctest -R chronon3d_pipeline_parity_real_tests --output-on-failure
+# Stale build (built before commit 6bc43271 added the test file) →
+# "Unable to find executable" → agent reports
+# "test rot unfixed" when the actual issue is "build needs rebuild"
+```
+
+#### CORRETTO — verify binary exists + is fresh, then ctest
+
+```bash
+# ✅ RIGHT: confirm binary exists + is fresher than source BEFORE ctest
+TEST_BIN="build/manual-test/tests/chronon3d_pipeline_parity_real_tests"
+SRC="tests/text/test_pipeline_parity_real.cpp"
+[ -x "$TEST_BIN" ] || {
+  echo "STALE BUILD: $TEST_BIN not found — run cmake --build first" >&2
+  exit 1
+}
+[ "$SRC" -nt "$TEST_BIN" ] && {
+  echo "STALE BUILD: $SRC is newer than $TEST_BIN — rebuild required" >&2
+  exit 1
+}
+cd build/manual-test
+ctest -R chronon3d_pipeline_parity_real_tests --output-on-failure
+```
+
+**Lint-checkability (forward-point)**: a future `tools/check_stale_build_pre_ctest.sh`
+(gate opzionale, NON ancora implementato) could auto-detect stale
+build state in CI by comparing each test binary's mtime against
+its source mtime. The implementation is deferred to a separate
+ticket per AGENTS.md v0.1 §regole "Fare PR piccole e mirate" + the
+established rule-documentation-precedes-lint-tooling pattern (see
+the INFO-level diagnostic style rule's Lint-checkability
+forward-point above for the precedent).
+
 ## Workflow Git obbligatorio
 
 ```bash
