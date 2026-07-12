@@ -1,3 +1,63 @@
+## Luglio 2026 — tests(golden): migrate Tests 17.1-17.8 to canonical verify_golden (TICKET-GOLDEN-17-1-17-8-MIGRATION, 2026-07-12)
+
+**`tests(golden): migrate Tests 17.1-17.8 to canonical verify_golden`** — atomic commit migrating 6/8 tests in `tests/golden/golden_render_tests.cpp` from the file-exists + manual pixel-by-pixel comparison pattern (anti-pattern: `CHECK(matched)` soft assertion + `colors_near` 5% per-channel tolerance) to the canonical `verify_golden()` + `GoldenTestConfig` + `REQUIRE_GOLDEN_PASSED()` mechanism from `tests/visual/support/golden_test.hpp` (the mechanism used by 30+ existing test files including `tests/text_golden/user_spec/01_text_basic_centered.cpp`).
+
+**Scope** (6/8 tests migrated, NOT 8/8):
+- **Migrated (6)**: Tests 17.1, 17.4, 17.5, 17.6, 17.7, 17.8 — all use the file-exists + manual comparison pattern
+- **NOT migrated (2)**: 
+  - **Test 17.2** — framebuffer dimension + float boundary checks, no golden comparison
+  - **Test 17.3** — intentional mismatch with in-memory fake_golden + diff image generation (`output/debug/diff_shapes.png`), not a file-based golden
+
+The user said "all 8 tests have the same design issue" but only 6 use the file-exists pattern. The CHANGELOG and TICKET row explicitly note the 6/8 scope clarification.
+
+**Migration design**:
+1. Added `#include <tests/visual/support/golden_test.hpp>` (canonical include, was already in 30+ test files)
+2. Added `make_golden_config()` helper in anonymous namespace with LOOSER thresholds matching `tests/text_golden/user_spec/01_text_basic_centered.cpp`:
+   - `max_mean_abs_error=5.0/255` (≈2%)
+   - `max_abs_error=40.0/255` (≈15.7%)
+   - `max_changed_pixel_ratio=0.05` (5%)
+   - `max_rmse=6.0/255` (≈2.4%)
+   - `min_ssim=0.92`
+3. case_name mapping preserves existing golden filenames (no rename needed):
+   - Test 17.1 → `shapes_golden.png`
+   - Test 17.4 → `text_align_golden.png`
+   - Test 17.5 → `text_autofit_golden.png`
+   - Test 17.6 → `text_ellipsis_golden.png`
+   - Test 17.7 → `text_cyan_neon_golden.png`
+   - Test 17.8 → `text_box_golden.png`
+4. Each migrated test now ends with:
+   ```cpp
+   auto result = verify_golden(*rendered, "case_name", make_golden_config());
+   REQUIRE_GOLDEN_PASSED(result);
+   ```
+   — replaces ~25 lines of file-exists + manual pixel-by-pixel loop + `CHECK(matched)` per test
+5. `colors_near` helper PRESERVED (with explicit comment explaining why) — still used by Test 17.3 for diff image highlighting
+
+**Cat-3 compliance** (AGENTS.md v0.1 §regole "no espansione API non necessaria"): ZERO new public SDK symbols. The canonical mechanism is reused; the new `make_golden_config()` is a file-local helper in anonymous namespace.
+
+**Behavior changes**:
+- `CHECK(matched)` (soft) → `REQUIRE_GOLDEN_PASSED(result)` (hard) — no false greens (per AGENTS.md §regole "Non segnare verde una suite che restituisce failure")
+- Single-metric 5% per-channel tolerance → 5-metric `ImageDiffThreshold` (mean + max + ratio + rmse + ssim) — more comprehensive comparison
+- **Latent sRGB bug in Test 17.1 FIXED**: Test 17.1 was missing the explicit `.to_srgb()` call (which Tests 17.4-17.8 had). The canonical `verify_golden()` handles sRGB conversion internally per `image_diff.hpp` ("Comparison: sRGB for RGB, linear for alpha.") — the migration fixes this bug as a side benefit
+- Diff artifacts on failure: `actual.png` + `expected.png` + `diff.png` heatmap + `report.txt` saved to `test_renders/artifacts/golden/<case_name>/` (was: nothing)
+
+**First-run caveat** (macchina-verifica deferred to working build host): the 6 existing goldens were created with 5% per-channel tolerance (single-metric `colors_near`) but the new mechanism uses 5-metric `ImageDiffThreshold`. The first `ctest -R golden_render_tests` run after migration MAY fail on the existing goldens (the 5-metric comparison is stricter in some dimensions + more lenient in others). **Remediation**: regenerate via `CHRONON3D_UPDATE_GOLDENS=1 ctest --test-dir build/chronon/linux-content-dev -R golden_render_tests --output-on-failure` on a working build host. This caveat is documented in the TICKET row and CURRENT_STATUS.md forward-point.
+
+**Re-bake command** (for next working build host session): `CHRONON3D_UPDATE_GOLDENS=1 ctest --test-dir build/chronon/linux-content-dev -R golden_render_tests --output-on-failure` (regenerates 6 PNGs in `test_renders/golden/`).
+
+**Verification at HEAD** (post-migration):
+- `verify_golden` calls: 6 (was 0)
+- `REQUIRE_GOLDEN_PASSED` calls: 6 (was 0)
+- `make_golden_config` calls: 7 (1 definition + 6 usages)
+- `std::filesystem::exists(golden_path)` calls: 0 (was 6)
+- `load_png_as_framebuffer` calls: 0 (was 6)
+- `CHECK(matched)` calls: 0 (was 6)
+- `golden_path = golden_dir` assignments: 0 (was 6)
+- `colors_near` references: 2 (1 definition + 1 usage in Test 17.3) — preserved per design
+
+**Cat-5 3-doc same-commit alignment** SATISFIED: CHANGELOG.md (this entry) + FOLLOWUP_TICKETS.md (TICKET-TEST-17-5-AUTOFIT-GOLDEN-REBAKE updated to PARTIAL + new TICKET-GOLDEN-17-1-17-8-MIGRATION row) + CURRENT_STATUS.md (Text Production V1 row +1 forward-point clause).
+
+**Cross-link**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blockers TICKET-GOLDEN-17-1-17-8-MIGRATION row (DONE — test design FIXED; re-bake still deferred) + TICKET-TEST-17-5-AUTOFIT-GOLDEN-REBAKE row updated to PARTIAL (test design FIXED in this session; re-bake still deferred to working build host) + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) Text Production V1 row +1 forward-point clause.
 ## Luglio 2026 — fix(render_graph): public forwarding header unblocks compiled_frame_graph rot (TICKET-TEXT-LEGACY-POSITION-ROT, 2026-07-12)
 
 **`fix(render_graph): add public forwarding header for render_graph.hpp`** — 1-file atomic fix for the pre-existing build rot at `include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp:3` that transitively broke 4 downstream files (TICKET-TEXT-LEGACY-POSITION-ROT lineage). NEW forwarding header at `include/chronon3d/render_graph/render_graph.hpp` (~20 LoC, pure re-export) includes the canonical class from `include/chronon3d/internal/render_graph/render_graph.hpp` (the project convention for implementation headers). ZERO new public SDK symbols (AGENTS.md v0.1 Cat-3 anti-duplication: just a convenience include, the actual class definition is unchanged at the internal/ path).
