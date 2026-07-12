@@ -10,7 +10,7 @@
 //       .lens(PhysicalLens{.focal_length_mm = 50.0f, .sensor_width_mm = 36.0f})
 //       .build();
 //   auto program = compile_camera(descriptor).value();
-//   composition.camera(program);
+//   composition.camera_program(program);
 //   renderer.render(composition, Frame{30});
 //
 // Contract (P3-H strict):
@@ -158,16 +158,16 @@ int main(int argc, char* argv[]) {
             // ── Public camera facade — attach the pre-compiled program.
             // P3-H + code-review round 2: pick ONE path.  We use the
             // new facade (the canonical entry for the spec example),
-            // not the redundant `composition.camera(...)` call.
+            // not the redundant `composition.camera_program(...)` call.
             scene.camera().program(program);
             return scene;
         });
 
     // Optional: also set on the composition so the OPP read path
-    // `comp.camera()` returns the same program (consistency probe
+    // `comp.camera_program()` returns the same program (consistency probe
     // for `has_camera_program()`).  This is a CONSUMER choice; the
     // spec example shows either path works.
-    comp.camera(std::move(program));
+    comp.camera_program(std::move(program));
 
     // ── 5. Render settings + engine ──────────────────────────────────
     c3d::sdk::RenderSettings settings{};
@@ -260,7 +260,7 @@ int main(int argc, char* argv[]) {
     const auto file_size = std::filesystem::file_size(output_path);
     std::printf("[CAMERA-OK] public camera facade consumer rendered %dx%d "
                 "PNG (%zu bytes, %zu/%zu pixels >5/255, "
-                "facade=scene.camera() + composition.camera(p), "
+                "facade=scene.camera() + composition.camera_program(p), "
                 "format=%s)\n",
                 out.width, out.height,
                 static_cast<std::size_t>(file_size),

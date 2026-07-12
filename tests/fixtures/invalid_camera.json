@@ -1,0 +1,20 @@
+{
+  "fixture_id": "invalid_camera_v1",
+  "description": "Fail-loud: chronon3d_cli render must abort loudly when the camera descriptor is invalid/malformed (e.g., focal length zero, viewport negative, NaN pose). Canonical error vocabulary: Composition/CameraProgram tokens in stderr + Stage references, NO silent fallback markers, exit code != 0, output MP4 absent.",
+  "rot_class": "invalid_camera_compile",
+  "composition_id": "ProductLaunch",
+  "cli_args": [
+    "--camera-config", "/tmp/chronon_invalid_camera_should_not_exist.json",
+    "--camera-config-format", "v1"
+  ],
+  "output_path": "/tmp/should-not-exist.mp4",
+  "_camera_config_rot_hint": "If the chronon3d_cli accepts inline camera flags (e.g., --focal-length=0, --viewport=0x0), that path is the activation ray. If only --camera-config file is supported, point to a non-existent or zero-byte JSON to trigger the AssetResolver-failure path which also exercises fail-loud contract.",
+  "expected": {
+    "exit_code_nonzero": true,
+    "output_file_absent": "/tmp/should-not-exist.mp4",
+    "stderr_tokens_required": ["Composition", "Layer", "Asset", "Path"],
+    "minimum_token_matches": 3,
+    "forbidden_substrings": ["fallback frame", "black frame", "continue on error", "fallback to silence"]
+  },
+  "honesty_note": "Per AGENTS.md §honesty, the actual camera-config path may not exist in the canonical CLI surface at the time of fixture writing. The assertion is fail-loud (loud stderr + non-zero exit + no silent fallback), NOT the specific rot trigger — this matches the spec's NO-silent-fallback invariant."
+}

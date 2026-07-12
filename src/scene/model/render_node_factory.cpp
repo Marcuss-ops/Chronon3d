@@ -142,7 +142,6 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
     node.shape.grid_background().major_thickness = p.major_thickness;
     node.shape.grid_background().major_every = p.major_every;
     node.shape.grid_background().centered = p.centered;
-    node.world_transform.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}};
     node.world_transform.anchor = {0.0f, 0.0f, 0.0f};
     node.color = p.bg_color;
     return node;
@@ -209,7 +208,7 @@ RenderNode RenderNodeFactory::text(
     // members would be moved-from by the time these reads happen).
     const TextAnchor   box_anchor = p.layout.anchor;
     const Vec2         box_size   = p.layout.box;
-    const Vec3         world_pos  = Vec3{p.placement.offset.x, p.placement.offset.y, 0.0f};
+    const Vec3         world_pos  = p.position;
     const Color        text_color = p.appearance.color;
 
     // Fallback: if the caller left font path empty, use the project
@@ -287,7 +286,7 @@ RenderNode RenderNodeFactory::text_run(
     node.font_engine = engine;
 
     // World transform from TextRunSpec (deep-nested field paths).
-    node.world_transform.position = Vec3{p.text.placement.offset.x, p.text.placement.offset.y, 0.0f};
+    node.world_transform.position = p.text.position;
     node.world_transform.anchor = resolve_text_anchor(
         p.text.layout.anchor, p.text.layout.box);
 

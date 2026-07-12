@@ -27,11 +27,9 @@ using Camera2_5DRuntime = Camera2_5D;
 // (defined in their own public headers).  Forward-declaring here keeps the
 // Scene header slim and avoids pulling `camera_v1::ShotTimeline`'s transitive
 // `CameraSession` include into every TU that touches a Scene.
-namespace chronon3d {
 class SceneCameraFacade;
 namespace camera_v1 { class ShotTimeline; }
 class CameraPresetCatalog;
-}
 
 class Scene {
 public:

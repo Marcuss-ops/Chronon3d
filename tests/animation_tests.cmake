@@ -4,7 +4,9 @@ chronon3d_add_test_suite(
     NAME chronon3d_animation_tests
     TIER UNIT
     LINK_TARGETS chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline
-    SOURCES animations/test_background_catalog.cpp
+    SOURCES
+        animations/test_background_catalog.cpp
+        text/test_video_animation_curves.cpp
 )
 # WHOLE_ARCHIVE removed: content targets are now small and explicitly registered
 if(CHRONON3D_BUILD_CONTENT)
