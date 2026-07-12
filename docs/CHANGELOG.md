@@ -3,7 +3,57 @@
 > Cronologia delle chiusure recenti. Per i blocchi aperti vedi [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Baseline verde certificata: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c2ba-baseline.md) (11/11 PASS).
 
 
+## 2026-07-12 — feat(cert): unified product cert command (14 sub-gates)
+
+**`feat(cert): unified product cert`** — atomic chore commit on main materializing the canonical unified Chronon3D product certification command per user spec verbatim "Componi il comando unico di certificazione prodotto: crea `tools/verify_chronon_product_linux.sh` con `set -euo pipefail` che chiama in sequenza: `verify_repository_baseline_linux`, `verify_text_functional_linux`, `verify_camera_functional_linux`, `verify_render_runtime_linux`, `verify_video_pipeline_linux`, `verify_asset_preflight_linux`, `verify_timeline_functional_linux`, `verify_compositing_effects_linux`, `verify_determinism_linux`, `install_consumer_test`, `verify_packaging_linux` (+ verifica_diagnostics/perf/sanitizer). Stampa `CHRONON_PRODUCT_FUNCTIONAL_PASS` solo se tutti PASS."
+
+NEW `tools/verify_chronon_product_linux.sh` (~306 LoC, executable bash + `chmod +x`, `bash -n` syntax-clean) — 1 canonical unified cert command with `set -euo pipefail` orchestrating **14 sub-gates** in sequence:
+
+- **8 existing sub-gates** (already canonical in the verify_*_linux.sh family):
+  1. `verify_repository_baseline_linux` (7-section FAIL-LOUD baseline + clean-build cert)
+  2. `verify_text_functional_linux` (20 TEST_CASEs + Text V1 cert)
+  3. `verify_camera_functional_linux` (Camera V1 cert)
+  4. `verify_render_runtime_linux` (4 stills + 4 sha256 distinct + 7 isolation tests per still)
+  5. `verify_video_pipeline_linux` (16 combinations + ffprobe + .partial + audio + memory + atomic)
+  6. `verify_asset_preflight_linux` (10 sabotage scenarios + per-fixture fail-loud contract)
+  7. `verify_timeline_functional_linux` (10 TEST_CASEs + 4 key boundary tests + 6 user-spec scenarios)
+  8. `install_consumer_test` (external SDK consumer test)
+
+- **6 forward-pointed sub-gates** (per Cat-3 anti-dup: forward-point in the unified gate only, no separate stub scripts):
+  9. `verify_compositing_effects_linux` (TICKET-VERIFY-COMPOSITING-EFFECTS-LINUX)
+  10. `verify_determinism_linux` (TICKET-VERIFY-DETERMINISM-LINUX)
+  11. `verify_packaging_linux` (TICKET-VERIFY-PACKAGING-LINUX)
+  12. `verify_diagnostics_linux` (TICKET-VERIFY-DIAGNOSTICS-LINUX)
+  13. `verify_perf_linux` (TICKET-VERIFY-PERF-LINUX)
+  14. `verify_sanitizer_linux` (TICKET-VERIFY-SANITIZER-LINUX)
+
+**Aggregator contract**:
+- Each sub-gate's exit code is captured (canonical 0/1/2 = PASS/FAIL/BLOCKED).
+- The aggregator does NOT abort on first failure (sequential per user spec "chiama in sequenza") — every sub-gate runs even if a prior one fails, so the aggregate report shows ALL 14 verdicts in one invocation.
+- **3-way unified verdict**:
+  - `CHRONON_PRODUCT_FUNCTIONAL_PASS` — ALL 14 sub-gates returned 0 (exit 0)
+  - `CHRONON_PRODUCT_FUNCTIONAL_FAIL` — at least 1 sub-gate returned 1 (exit 1)
+  - `CHRONON_PRODUCT_FUNCTIONAL_BLOCKED` — at least 1 sub-gate returned 2 + no FAILs (exit 2)
+- Per-gate verdict log emitted to `/tmp/chronon3d_product_cert.log` for grep-discoverability.
+
+**Design (per AGENTS.md Cat-3 anti-dup + the thinker's Option B recommendation)**:
+- 1 canonical unified gate (this file) — no per-sub-gate stub scripts
+- 6 missing sub-gates forward-pointed inside this gate with explicit BLOCKED + forward-point diagnostic
+- Cat-3 minimal-surface: 1 NEW file instead of 7 (1 unified + 6 stubs)
+
+**AGENTS.md `## Regole di lint documentale` Rule #2 INFO-level diagnostic style**: addizionale `[INFO] ${GATE_NAME}: 14/14 sub-gates verified on working build host (11 user-spec + 3 forward-pointed diagnostics/perf/sanitizer)` line on PASS addizionale al canonico `CHRONON_PRODUCT_FUNCTIONAL_PASS` (≤200 chars, grep-discoverable via `[INFO]` prefix + `verify_chronon_product_linux` self-identifier); **suppressed on FAIL/BLOCKED paths** per the rule "MAI sul FAIL".
+
+**Cat-3 SATISFIED** (pure `tools/` + `docs/` tracking; ZERO new symbols in `include/chronon3d/`; ZERO public SDK API additions; the unified gate consumes the existing `verify_*_linux.sh` family + `install_consumer_test.sh` + the canonical forward-point diagnostic pattern without adding any new public surface). **Cat-5 3-doc same-commit alignment** per user-spec verbatim (CHANGELOG + FOLLOWUP_TICKETS + CURRENT_STATUS atomically updated; CURRENT_STATUS cite-only row added per Cat-3 anti-duplication). **AGENTS.md §honest-limitation compliance**: the dry-run on this VPS emits the EXPECTED `CHRONON_PRODUCT_FUNCTIONAL_FAIL` (exit 1) on the env blocker mix (some sub-gates return FAIL=1, some return BLOCKED=2 per their individual §honest-limitation contracts; the aggregator correctly classifies the 14-gate mix as FAIL because at least one sub-gate returned 1) — the §honest fail-loud contract is preserved (NO spurious exit 0, NO silent SKIP-on-missing, NO silent fallback per the established `verify_*_linux.sh` family pattern). Per-gate log: `/tmp/chronon3d_product_cert.log` (one line per sub-gate, grep-discoverable via `PASS|FAIL|BLOCKED <gate-name>`).
+
+**Subject envelope = 60 chars ≤ 72** push-range audit per TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (subject: `feat(cert): unified product cert command (14 sub-gates)`).
+
+**Forward-points (NOT in this commit per AGENTS.md "Fare PR piccole e mirate" + Cat-3 anti-duplication)**: (a) `TICKET-CHRONON-PRODUCT-MACHINE-VERIFY` — working build host macchina-verifica: `bash tools/verify_chronon_product_linux.sh` expects 14/14 sub-gates PASS = `CHRONON_PRODUCT_FUNCTIONAL_PASS` exit 0 once the 6 forward-pointed sub-gates are implemented + the 8 existing sub-gates are fully resolved on working build host; (b) `TICKET-CHRONON-PRODUCT-WRAP-PUSH-WIREIN` — add `bash "${SCRIPT_DIR}/verify_chronon_product_linux.sh"` invocation to `tools/wrap_push.sh` Step 4.5r (parallelo a Step 4.5c camera + Step 4.5h video + Step 4.5i fix-velocity + Step 4.5j manual-touches + Step 4.5k batch-100 + Step 4.5l text-V1 + Step 4.5m baseline + Step 4.5n render-runtime + Step 4.5o video-pipeline + Step 4.5p asset-preflight + Step 4.5q timeline-functional); (c) `TICKET-CHRONON-PRODUCT-ORCHESTRATOR-WIREIN` — add `== Chronon3D product (14 sub-gates) ==` section to `tools/first_principles_product_check.sh` between the existing sections per Cat-3 distinct-section structure; (d) 6 forward-pointed sub-gate tickets: TICKET-VERIFY-COMPOSITING-EFFECTS-LINUX + TICKET-VERIFY-DETERMINISM-LINUX + TICKET-VERIFY-PACKAGING-LINUX + TICKET-VERIFY-DIAGNOSTICS-LINUX + TICKET-VERIFY-PERF-LINUX + TICKET-VERIFY-SANITIZER-LINUX (each a separate chore commit, each mirroring the verify_*_linux.sh 7-section FAIL-LOUD pattern).
+
+**Cross-references**: AGENTS.md v0.1 Cat-3 (zero new public SDK API surface; satisfied — pure `tools/` + `docs/` tracking) + Cat-5 (3-doc same-commit alignment; satisfied — CHANGELOG + FOLLOWUP_TICKETS + CURRENT_STATUS atomically updated, CURRENT_STATUS cite-only per Cat-3 anti-dup) + §honest-limitation (macchina-verifica DEFERRED to working build host per the established pattern; the gate `bash -n` clean + `chmod +x` applied; the dry-run on this VPS emits the EXPECTED `CHRONON_PRODUCT_FUNCTIONAL_FAIL` on env blockers mix, NO spurious exit 0) + `## Regole di lint documentale` Rule #2 INFO-level diagnostic style (addizionale `[INFO] ${GATE_NAME}: ...` line on PASS, ≤200 chars, grep-discoverable via `[INFO]` prefix + `verify_chronon_product_linux` self-identifier) + §regole "Fare PR piccole e mirate" (single atomic chore on the gate; the 1 NEW file + 3-doc updates locked together per Cat-3 anti-dup) + §regole "non committare `node_modules/`, directory di build, output, artefatti o file generati" (this commit adds 1 NEW file + 3 EDITs; ZERO build artifacts committed) + AGENTS.md TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (60-char subject envelope ≤ 72 push-range audit) + AGENTS.md GATE-MNT-01 closure lineage (`tools/wrap_push.sh` Step 4.5 auto-FF + `tools/check_main_clean.sh` pre-push verify); the canonical `tools/verify_text_functional_linux.sh` (the most recent 7-section cert-gate family sibling mirrored verbatim in the per-sub-gate invocation pattern) + `tools/verify_render_runtime_linux.sh` + `tools/verify_video_pipeline_linux.sh` + `tools/verify_asset_preflight_linux.sh` + `tools/verify_timeline_functional_linux.sh` + `tools/verify_repository_baseline_linux.sh` (the 7 existing cert gates the unified command orchestrates per Cat-3) + `tools/install_consumer_test.sh` (the external consumer gate the unified command invokes) + the canonical `tools/check_ffmpeg_required.sh` (the FAIL-LOUD + em-dash install-hint + [INFO] line family pattern mirrored in the env audit fail-loud contract) + the canonical `tools/check_main_clean.sh` (the GATE-MNT-01 pattern referenced in Section 1) + the canonical `tools/wrap_push.sh` (forward-pointed via TICKET-CHRONON-PRODUCT-WRAP-PUSH-WIREIN for Step 4.5r wire-in) + the canonical `tools/first_principles_product_check.sh` (forward-pointed via TICKET-CHRONON-PRODUCT-ORCHESTRATOR-WIREIN for section wire-in).
+
+
 ## 2026-07-12 — feat(cert): timeline functional cert (10 scenarios)
+
 
 **`feat(cert): timeline functional cert`** — atomic chore commit on main materializing the canonical Timeline & Sequence V1 functional certification gate per user spec verbatim "testa sequence_start/sequence_duration, global_frame/local_frame/source_frame/sample_time. Copri: sequence inizia/termina al frame esatto, frame precedente/successivo invisibili, animazione usa local_frame, freeze, reverse, nested sequence, overlap, transition. Test chiave: `resolve_local_frame(49).inactive()`, `(50).value()==0`, `(79).value()==29`, `(80).inactive()`. Crea `tools/verify_timeline_functional_linux.sh`."
 
