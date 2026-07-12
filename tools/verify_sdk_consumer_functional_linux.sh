@@ -286,6 +286,42 @@ else
         else
             _gate_fail "png_output" "sdk_full_consumer_output.png missing or empty"
         fi
+
+        # nm symbol-level audit (TICKET-VERIFY-SDK-CONSUMER-NM-VERIFY code-reviewer NIT 4):
+        # verifies the consumer binary ACTUALLY links against chronon3d::sdk:: symbols
+        # (canonical anti-false-green check — catches a hypothetical case where the link
+        # target was silently redirected to a different namespace). Per AGENTS.md
+        # Cat-3 zero new SDK API: this is a pure runtime/audit check, no public surface added.
+        if ! command -v nm >/dev/null 2>&1; then
+            _gate_blocked "nm_chronon_sdk_symbols" "nm not found, install: apt-get install binutils (or brew install binutils)"
+        else
+            NM_HITS="$(nm -C "$CONSUMER_BIN" 2>/dev/null | grep -E 'chronon3d::sdk::' | wc -l)"
+            if [ "$NM_HITS" -gt 0 ]; then
+                _gate_pass "nm_chronon_sdk_symbols ($NM_HITS chronon3d::sdk::* symbols resolved in binary)"
+            else
+                _gate_fail "nm_chronon_sdk_symbols" \
+                    "0 chronon3d::sdk::* symbols found in $CONSUMER_BIN (binary does NOT link against Chronon3D::SDK)"
+            fi
+        fi
+
+        # strings symbol-level audit (TICKET-VERIFY-SDK-CONSUMER-NM-VERIFY code-reviewer NIT 3+4):
+        # verifies the consumer binary's strings section does NOT contain forbidden
+        # internal surface symbols (RenderGraph, FontEngine, CameraSession, SoftwareRenderer).
+        # This is a stronger anti-false-green check than the source-only audit in Section 7
+        # (catches cases where the forbidden symbols are linked into the binary via
+        # transitive dependencies even if the source doesn't reference them directly).
+        if ! command -v strings >/dev/null 2>&1; then
+            _gate_blocked "no_forbidden_symbols_in_strings" "strings not found, install: apt-get install binutils (or brew install binutils)"
+        else
+            FORBIDDEN_HITS="$(strings "$CONSUMER_BIN" 2>/dev/null | grep -E 'RenderGraph|FontEngine|CameraSession|SoftwareRenderer' | wc -l)"
+            if [ "$FORBIDDEN_HITS" -eq 0 ]; then
+                _gate_pass "no_forbidden_symbols_in_strings (0 references to RenderGraph/FontEngine/CameraSession/SoftwareRenderer in binary strings)"
+            else
+                _gate_fail "no_forbidden_symbols_in_strings" \
+                    "$FORBIDDEN_HITS forbidden symbol reference(s) found in binary strings (boundary violation — consumer transitively links to internal SDK surfaces)"
+                strings "$CONSUMER_BIN" 2>/dev/null | grep -E 'RenderGraph|FontEngine|CameraSession|SoftwareRenderer' | head -3 | sed 's/^/    /'
+            fi
+        fi
     fi
 fi
 
