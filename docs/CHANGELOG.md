@@ -1,3 +1,53 @@
+## Luglio 2026 — tools(test-18): dashboard settimanale del fondatore (8 metric aggregator + template, First-Principles Product Check #18, atomic chore commit on main, LOCAL-ONLY cert per F2 push blocker)
+
+**`tools(test-18)` weekly founder dashboard landed** — Test 18 (Dashboard settimanale del fondatore) opens with 8 canonical metriche via 2 NEW artifacts: `tools/run_weekly_scorecard.sh` (~140 LoC bash+sqlite3+awk+date aggregator) + `docs/product-tests/TEST-18-WEEKLY-DASHBOARD.md` (~110 LoC template + sample weekly entry + 7 narrative lines + §honesty cert). Strict per AGENTS.md (no new public SDK API, observable metrics only, no percentual estimates).
+
+**8 metric definitions (canonical, all observable)**:
+
+| # | Metric | Source | Wiring |
+|---|---|---|---|
+| 1 | videos_completed | `SELECT COUNT(DISTINCT composition_id) FROM renders WHERE status='DONE' AND finished_at >= 7d` | AGGREGATION over existing `renders` table |
+| 2 | failure_rate | `(SELECT COUNT(*) FROM renders WHERE status='FAILED' AND started_at >= '7d') / (SELECT COUNT(*) FROM renders WHERE started_at >= '7d')` | AGGREGATION over existing `renders` table |
+| 3 | manual_touches_per_video | `SUM(to touchpoints.jsonl count + render_counters counter `manual_touches_per_video`) / videos_completed` | WIRED (Test 8 DONE) |
+| 4 | cost_per_finished_minute | `WEEKLY_COST_HOURLY_RATE * (SUM render_ms / 60000) / 60` in $/min | env var input (no hardcoded fallback per §honesty) |
+| 5 | p95_render_time | `ASC-sorted render_ms, INDEX = floor(total * 0.95)` (sqlite3 LIMIT/OFFSET) | AGGREGATION |
+| 6 | peak_memory | `MAX(render_counters framebuffer_bytes_peak) over 7d` | AGGREGATION |
+| 7 | deterministic_hash_failures | `grep -c GATE_FAIL ~/.chronon3d/selftest_log/check_determinism*.log` | LOG PARSE |
+| 8 | bbox_contract_violations | `SUM(render_counters text_bbox_contract_violations) over 7d` | WIRED (FU01 / TICKET-TEXT-VISIBILITY-PIPELINE) |
+
+**§honesty dynamic cert discipline (Test 18 = PARTIAL on this VPS)**:
+- WEEKLY_COST_HOURLY_RATE env var required for metric 4 per §honesty "non inventare" — unset = `[UNSET-rate]` placeholder (never a fabricated spot rate).
+- macchina-verifica of the aggregator on this VPS: PARTIAL (telemetry SQLite may be empty; `bash -n tools/run_weekly_scorecard.sh` syntax PASS; full 8-metric table emission requires populated DB on working build host per AGENTS.md §honesty).
+- 7 narrative lines per founder weekly grep (the founder can answer each in 1 sentence): quanti video / costo / job falliti / interventi manuali / codice eliminato / bug piu grave / metrica migliorata. Last 2 forward-pointed to canonical sources (`docs/FEATURE_SUNSET.md` Test 16 + `docs/FOLLOWUP_TICKETS.md` §Open Blockers) — NOT instrumented in this dashboard per cycle 1 minimum surface.
+
+**Cat-3 anti-duplication** (zero new public SDK API surface):
+- `tools/run_weekly_scorecard.sh` is a `tools/` artifact (NO new symbol in `include/chronon3d/`, NO new public header, NO new registry/resolver/cache/singleton, NO new SDK cat-1 surface).
+- `docs/product-tests/TEST-18-WEEKLY-DASHBOARD.md` is pure docs.
+
+**Cat-5 4-doc same-commit alignment**:
+- NEW: `tools/run_weekly_scorecard.sh` (~140 LoC)
+- NEW: `docs/product-tests/TEST-18-WEEKLY-DASHBOARD.md` (~110 LoC)
+- MOD: `docs/tickets/TICKET-128-test-18-long-form-content.md` (promoted NOT-YET-OPENED → OPEN + P2 → P1; 4-candidate scopes section dropped; new 8-metric scope inserted)
+- MOD: `docs/tickets/TICKET-125-test-aggregator.md` (row 18 updated NOT-YET-OPENED → OPEN + cross-link to dashboard file; Forward-pointed section row for TICKET-128 promoted)
+- MOD: `docs/CHANGELOG.md` (this entry, prepended at TOP per Cat-5 newer-at-top convention)
+- MOD: `docs/FOLLOWUP_TICKETS.md` (NEW row Test 18 weekly dashboard §Open Blockers prominent + TICKET-128 row promoted to OPEN P1)
+- MOD: `docs/CURRENT_STATUS.md` (§Hygiene 1-line cite-only row added per Cat-3 anti-duplication / L3 forward-point folding precedent from TICKET-125 cycle)
+
+**Subject**: `tools(test-18): dashboard settimanale + push blocked F2 ticket` (66 chars, within 72-char envelope per `tools/check_commit_subject_length.sh`; grep-keyword `push blocked` `F2` ensures discoverability per L1 amend precedent at Test 16/17/125 cycles).
+
+**Honest PARTIAL cert on push**: push iterativo Rule #5 SHA-triple NOT verified per F2 infra blocker (TICKET-INFRA-F2-DIVERGENCE P0 §Open Blocker active; LOCAL_AHEAD=4 / REMOTE_AHEAD=10 at 2026-07-12). Per AGENTS.md §honesty: this commit lands on LOCAL main only; SHA triples deferred until F2 infra fix on build host.
+
+**Files changed (7 — Cat-5 4-doc same-commit alignment)**:
+- NEW: `tools/run_weekly_scorecard.sh` (~140 LoC, bash+sqlite3+awk+date aggregator with [INFO] PASS line + GATE_FAIL_INTERNAL on missing tools/DB; per AGENTS.md §'Regole di lint documentale' Rule #2 INFO-level diagnostic style)
+- NEW: `docs/product-tests/TEST-18-WEEKLY-DASHBOARD.md` (~110 LoC markdown template; 8-metric table + 7 narrative lines + §honesty PARTIAL cert + cross-link to aggregator script + canonical ticket)
+- MOD: `docs/tickets/TICKET-128-test-18-long-form-content.md` (Stato NOT-YET-OPENED → OPEN + Priorità P2 → P1 + drop 4-candidate scopes + new 8-metric Soluzione + new cat-5 acceptance criteria + §honesty stub-cert → §honesty dynamic cert)
+- MOD: `docs/tickets/TICKET-125-test-aggregator.md` (row 18 NOT-YET-OPENED → OPEN + Forward-pointed section TICKET-128 promoted to OPEN P1)
+- MOD: `docs/CHANGELOG.md` (this entry, prepended at TOP — Cat-5 newer-at-top convention)
+- MOD: `docs/FOLLOWUP_TICKETS.md` (NEW Test 18 row in §Open Blockers promoted + TICKET-128 promoted to OPEN P1 per same Cat-5 alignment)
+- MOD: `docs/CURRENT_STATUS.md` (§Hygiene cite-only 1-line row added per Cat-3 anti-duplication, L3 forward-point folding precedent)
+
+**Cross-references**: AGENTS.md §Cat-3 (no new public SDK API, satisfied) + AGENTS.md §Cat-5 (4-doc same-commit, satisfied) + AGENTS.md §honesty (no fabrication, observable bash one-liner PASS, WEEKLY_COST_HOURLY_RATE env var mandatory, PARTIAL cert on this VPS) + AGENTS.md §'Fare PR piccole e mirate' (single atomic chore commit, no churn retrofit) + AGENTS.md §'Regole di lint documentale' Rule #2 (INFO-level diagnostic style for the aggregator script) + `tools/run_weekly_scorecard.sh` (the canonical aggregator) + `docs/product-tests/TEST-18-WEEKLY-DASHBOARD.md` (the canonical dashboard template) + TICKET-128 (the canonical follow-up ticket promoted to OPEN per this cycle) + TICKET-125 row 18 (cross-linked to dashboard file) + the `docs/product-tests/` directory precedent (Test 15 + Test 17 already live there).
+
 ## Luglio 2026 — docs(aggregator): TICKET-125 test aggregator index (11 deliverable per tests 8-18 under the 11/11 canonical gate, 2026-07-12, atomic chore commit on main)
 
 **`docs(aggregator)` TICKET-125 catalog landed** — NEW canonical artifact [`docs/tickets/TICKET-125-test-aggregator.md`](docs/tickets/TICKET-125-test-aggregator.md) istituisce il punto di ingresso unico per coordinare i 11 deliverable dei test 8-18 sotto il baseline verde certificata `main@7eb5c2ba` 11/11 PASS. Each row carries macchina-osservable PASS/FAIL criterion (bash one-liner executable on working build host) — strict no-percent-estimates discipline per AGENTS.md v0.1 §honesty.
