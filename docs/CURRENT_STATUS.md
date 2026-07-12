@@ -58,7 +58,7 @@ Baseline: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c
 
 AE parity golden checker: GATE_PASS (23/23 fresh). Suite AE_CAM: 35/35 PASS, 142/142 assertions.
 
-**Gate forward-point (TICKET-GATE-SUBJECT-RANGE, discovered 2026-07-11)**: the `check_commit_subject_length.sh` gate checks `git log -n ${N}` (default N=10) regardless of whether the commits are on origin/main, so it flags pre-existing over-limit commits like `44b5715c` (94 chars). This blocked the TICKET-TEXT-LEGACY-POSITION-ROT push (forced via direct `git push --force-with-lease origin main` to bypass the misfire). **Fix**: change the gate to check `git log origin/main..HEAD` instead of `git log -n 10`, so it only audits new commits in the push range. See [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blockers `TICKET-GATE-SUBJECT-RANGE` row.
+**Gate forward-point (TICKET-GATE-SUBJECT-RANGE, CLOSED 2026-07-12)**: the `check_commit_subject_length.sh` gate now audits the PUSH RANGE (`git log origin/main..HEAD` by default, configurable via the `BASE_REF` argument) instead of the last 10 commits. Historical rot no longer causes the gate to fire. The fix is in commit `2904835d` (`fix(gate): check push range origin/main..HEAD not last 10`); the `--force-with-lease` workaround is no longer needed for future pushes. See [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Recently Closed `TICKET-GATE-SUBJECT-RANGE` row + [`docs/CHANGELOG.md`](docs/CHANGELOG.md) `fix(gate): check push range origin/main..HEAD not last 10` entry.
 
 ## Come leggere gli stati
 
