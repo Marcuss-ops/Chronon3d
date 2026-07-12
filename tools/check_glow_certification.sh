@@ -114,6 +114,17 @@ python3 "$SCRIPT_DIR/check_glow_ab.py" bbox "$WITH_GLOW" "$NO_GLOW" || {
     exit 1
 }
 
+# ── Phase 2.5: Darkening check (TICKET-TEXT-GLOW-DARKENING) ───────────
+echo "=== Phase 2.5: darkening check ==="
+
+echo "--- measure_glow_darkening.py ---"
+python3 "$SCRIPT_DIR/measure_glow_darkening.py" \
+    "$WITH_GLOW" "$NO_GLOW" \
+    --threshold-pct 2.0 || {
+    echo "GATE_FAIL: glow darkening detected (with-glow darker by >=2.0%)" >&2
+    exit 1
+}
+
 # ── Phase 3: 60-frame temporal sweep ───────────────────────────────────
 echo "=== Phase 3: 60-frame temporal sweep ==="
 
@@ -205,6 +216,7 @@ cmp "$OUTPUT_DIR/run_1.hashes" "$OUTPUT_DIR/run_3.hashes" || {
 }
 
 # ── Gate PASS ───────────────────────────────────────────────────────────
-echo "GATE_PASS: glow certification — all 5 phases PASS"
-echo "[INFO] ${GATE_NAME}: 4 ctest suites + luma/bbox A/B + 60-frame temporal + MP4 SSIM + 3-run determinism ALL PASS"
+echo "GATE_PASS: glow certification — all 6 phases PASS"
+echo "[INFO] ${GATE_NAME}: 4 ctest suites + luma/bbox A/B + darkening + 60-frame temporal + MP4 SSIM + 3-run determinism ALL PASS"
+echo "[INFO] ${GATE_NAME}: glow pop detection (inter-frame luma delta < 25.0) already covered by checks in check_glow_temporal.py + glow_temporal_tests.cpp"
 exit 0
