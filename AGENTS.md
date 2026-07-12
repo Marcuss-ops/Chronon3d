@@ -246,7 +246,7 @@ matches test binary NAMES (not source files), so a new test added
 in commit `X` only exists in the build directory's binary after
 `cmake --build` re-runs.
 
-**Perché**: ctest on a stale build directory can produce THREE
+**Perché**: ctest on a stale build directory can produce FOUR
 distinct misleading signals that look like real test failures:
   1. **"Unable to find executable"** — the binary doesn't exist yet →
      false verdict "test file is broken / rot unfixed"
@@ -256,9 +256,16 @@ distinct misleading signals that look like real test failures:
   3. **Match to a stale binary that has been since deleted from
      source** — old test still passes, the new test never runs → false
      verdict "old test still passes" (the actual rot is silent)
-All three are §honesty violations: the agent's reported status does
+  4. **Stale binary from a failed/aborted `cmake --build`** — the
+     previous build errored out partway, leaving an executable but
+     stale binary that doesn't reflect the current source. The
+     `[ "$SRC" -nt "$TEST_BIN" ]` check catches this case (source
+     mtime > stale binary mtime); the agent's reported verdict is
+     "old test passes" but the actual rot is in the new code that
+     never compiled.
+All four are §honesty violations: the agent's reported status does
 not reflect reality. The pre-ctest staleness check prevents all
-three by surfacing the build state BEFORE the ctest invocation
+four by surfacing the build state BEFORE the ctest invocation
 produces a misleading signal.
 
 **Origine**: the TICKET-DOCTEST-SKIP-ROT closure (2026-07-11) ran
@@ -274,9 +281,12 @@ codifies that fix as a permanent lint discipline.
 **Scope**: applies to ANY post-source-commit ctest verification,
 including rot-fix verification, golden rebake, new-test smoke runs.
 Does NOT apply to long-running regression suites (the build is
-expected to be current at suite start) or to ctest invocations on
-pre-existing test files where the build state is known-good (e.g.,
-the pre-existing 11/11 baseline suite after a clean checkout).
+expected to be current at suite start) or to ctest invocations where
+the source mtime is already ≤ binary mtime (i.e., the CORRETTO
+check's `[ "$SRC" -nt "$TEST_BIN" ]` returns false — the rule's own
+gate is the machine-checkable definition of "build is current").
+The pre-existing 11/11 baseline suite after a clean checkout falls
+into this exemption.
 
 #### Anti-esempio — ctest on stale build without check
 
