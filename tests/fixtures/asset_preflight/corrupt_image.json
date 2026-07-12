@@ -1,0 +1,21 @@
+{
+  "fixture_id": "corrupt_image_v1",
+  "description": "Fail-loud: chronon3d_cli render must abort loudly when an image asset is structurally corrupt (e.g., truncated PNG, invalid magic bytes). Per user-spec verbatim 'PNG inesistente/corrotto', this fixture extends the Test #7 fail-loud contract to the IMAGE-decode stage. Canonical error vocabulary: Composition/Layer/Asset/Path tokens in stderr + ImageDecoder-specific context, NO silent fallback markers, exit code != 0, output MP4 absent, error message MUST mention the asset name + the owner layer name (per user-spec 'errore che indica asset+owner/layer').",
+  "rot_class": "corrupt_image_asset",
+  "composition_id": "ProductLaunch",
+  "cli_args": [
+    "--assets-root", "/tmp/chronon_corrupt_image_harness",
+    "--image-asset", "/tmp/chronon_corrupt_image_harness/corrupt.png"
+  ],
+  "output_path": "/tmp/should-not-exist.mp4",
+  "_image_corruption_setup_hint": "Pre-create /tmp/chronon_corrupt_image_harness/corrupt.png with a deliberately truncated PNG header (e.g., zero-byte file or partial 8-byte signature) before invoking the CLI. The harness directory is supplied; the rotting byte stream is provided externally to keep the JSON declarative.",
+  "expected": {
+    "exit_code_nonzero": true,
+    "output_file_absent": "/tmp/should-not-exist.mp4",
+    "stderr_tokens_required": ["Composition", "Layer", "Asset", "Path", "ImageDecoder"],
+    "minimum_token_matches": 4,
+    "forbidden_substrings": ["fallback frame", "black frame", "continue on error", "fallback to silence", "skip image", "skip asset"],
+    "error_must_mention": ["asset_name", "owner_layer_name"]
+  },
+  "honesty_note": "Per AGENTS.md §honesty: the corruption-byte-stream harness is EXTERNAL to this JSON (because binary fixtures do not belong in tracked JSON). The harness directory is created in the bash script's setup phase if absent; the CLI invocation may then fall back to AssetResolver-failure if the harness is unprepared — the assertion is the SAME (fail-loud, not the specific rot trigger). Per AGENTS.md Cat-3 anti-duplication: this JSON schema is shared across all 5 Test #7 + 6 NEW asset preflight fixtures, with the rot_class + ImageDecoder-specific token + error_must_mention differing per fixture — no duplicate schema files."
+}

@@ -1,0 +1,22 @@
+{
+  "fixture_id": "asset_duplicate_v1",
+  "description": "Fail-loud: chronon3d_cli render must abort loudly when the AssetManifest contains a duplicate entry (same path registered twice under different owner names). Per user-spec verbatim 'asset duplicato', this fixture extends the Test #7 fail-loud contract to the MANIFEST-VALIDATION stage. Canonical error vocabulary: Composition/Layer/Asset/Path tokens in stderr + Duplicate-specific context, NO silent fallback markers, exit code != 0, output MP4 absent, error message MUST mention the asset path + the duplicate owner names (per user-spec 'errore che indica asset+owner/layer').",
+  "rot_class": "duplicate_asset_in_manifest",
+  "composition_id": "ProductLaunch",
+  "cli_args": [
+    "--assets-root", "/tmp/chronon_asset_duplicate_harness",
+    "--image-asset", "/tmp/chronon_asset_duplicate_harness/sample.png",
+    "--duplicate-owner", "layer_logo", "--duplicate-owner", "layer_hero"
+  ],
+  "output_path": "/tmp/should-not-exist.mp4",
+  "_duplicate_setup_hint": "Pre-create /tmp/chronon_asset_duplicate_harness/sample.png as a 1-byte external file. The composition registers the same asset path under two different owner layer names (layer_logo + layer_hero). The CLI must fail-loud at the MANIFEST-VALIDATION stage with the canonical error vocabulary + the duplicate owner names.",
+  "expected": {
+    "exit_code_nonzero": true,
+    "output_file_absent": "/tmp/should-not-exist.mp4",
+    "stderr_tokens_required": ["Composition", "Layer", "Asset", "Path", "Duplicate"],
+    "minimum_token_matches": 4,
+    "forbidden_substrings": ["fallback frame", "black frame", "continue on error", "fallback to silence", "skip duplicate", "merge duplicates", "use first"],
+    "error_must_mention": ["asset_path", "owner_layer_name"]
+  },
+  "honesty_note": "Per AGENTS.md §honesty: the duplicate detection is at the AssetManifest::commit_layer() boundary (the canonical asset-manifest preservation point per ADR-017). The CLI must fail-loud with the duplicate owner names — NEVER silently pick the first one and discard the second. Per AGENTS.md Cat-3 anti-duplication: this JSON schema is shared across all 5 Test #7 + 6 NEW asset preflight fixtures, with the rot_class + Duplicate-specific token differing per fixture — no duplicate schema files."
+}
