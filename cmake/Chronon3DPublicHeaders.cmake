@@ -163,6 +163,9 @@ set(CHRONON3D_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_constraint.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_descriptor_adapters.hpp"
+    # TICKET-CAMERA-FULL-LINUX sub-ticket D — frozen legacy bridge (3 NEW.
+    # stateless adapters); slated for deletion post-migration in D+X.
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/legacy_camera_adapters.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/animations/camera_motion_params.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_descriptor_fingerprint.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp"
