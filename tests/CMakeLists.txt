@@ -53,6 +53,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/presets_golden_tests.cmake  # M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 PNG goldens in test_renders/golden/text/presets/ (Blend2D-gated INTEGRATION tier)
     ${CMAKE_CURRENT_SOURCE_DIR}/precomp_focus_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/timeline_tests.cmake  # post-rename RenderJob::video_job factory + VideoSettings defaults lock (TIER=UNIT, no Blend2D, unconditional)
+    ${CMAKE_CURRENT_SOURCE_DIR}/timeline_functional_v1_tests.cmake  # TICKET-TIMELINE-FUNCTIONAL-CERT — Timeline & Sequence V1 anti-false-green certification (10 TEST_CASEs: 4 key boundary tests + 6 user-spec scenarios) (TIER=UNIT, no Blend2D, unconditional)
     ${CMAKE_CURRENT_SOURCE_DIR}/content_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/video_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/media_tests.cmake
@@ -166,6 +167,18 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/precomp_focus_tests.cmake)
 # default-initialization contract (TIER=UNIT, no Blend2D / GPU /
 # FontEngine dependency, so the include is unconditional).
 include(${CMAKE_CURRENT_SOURCE_DIR}/timeline_tests.cmake)
+
+# TICKET-TIMELINE-FUNCTIONAL-CERT — Timeline & Sequence V1
+# anti-false-green certification.  10 TEST_CASEs (4 key boundary tests
+# + 6 user-spec scenarios: animation uses local_frame + freeze + reverse
+# + nested sequence + overlap + transition).  TIER=UNIT (no rendering
+# backend, no Blend2D, no FontEngine, no GPU), link contract
+# chronon3d_pipeline (the OBJECT aggregate of every per-subsystem .o)
+# per the default UNIT tier in cmake/Chronon3DTestSuite.cmake:25.
+# Mirrors the chronon3d_timeline_tests target pattern (TIER=UNIT
+# unconditional) per Cat-3 anti-duplication; macchina-verifica on
+# working build host per AGENTS.md §honest-limitation.
+include(${CMAKE_CURRENT_SOURCE_DIR}/timeline_functional_v1_tests.cmake)
 
 # M1.8 §3 / TICKET-SIMPLICITY-TEXTDEFINITION — pure struct + adapter
 # lock tests.  Listed here (UNCONDITIONAL) and NOT inside the
