@@ -127,7 +127,7 @@ Composition make_camera_truth_orbit() {
                     .content = {.value = std::string("ORBIT  |  yaw=") +
                         std::to_string(static_cast<int>(std::round(
                             static_cast<float>(static_cast<int>(f)) / 60.0f * 90.0f))) + "\u00B0"},
-                    .position = {0.0f, 0.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
                     .font = {.font_family = "Inter", .font_weight = 700, .font_size = 18.0f},
                     .layout = {.box = {500.0f, 24.0f}, .align = chronon3d::TextAlign::Left,
                                .line_height = 1.20f, .tracking = 2.0f},

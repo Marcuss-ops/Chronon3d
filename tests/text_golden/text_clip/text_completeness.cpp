@@ -133,7 +133,7 @@ Composition build_completeness_composition(
                             .color = Color::white(),
                             .shadows = shadows
                         },
-                        .position = {cx, cy, 0.0f}
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}}
                     }
                 }).commit();
             });
@@ -181,7 +181,7 @@ Composition build_multifont_composition(SoftwareRenderer& renderer) {
                             .vertical_align = VerticalAlign::Middle
                         },
                         .appearance = {.color = Color::white()},
-                        .position = {960.0f, 540.0f, 0.0f}
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}}
                     }
                 }).commit();
                 l.text_run("bold", TextRunSpec{
@@ -199,7 +199,7 @@ Composition build_multifont_composition(SoftwareRenderer& renderer) {
                             .vertical_align = VerticalAlign::Middle
                         },
                         .appearance = {.color = Color::white()},
-                        .position = {960.0f, 540.0f, 0.0f}
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}}
                     }
                 }).commit();
             });
@@ -237,7 +237,7 @@ Composition build_trifont_composition(SoftwareRenderer& renderer) {
                             .vertical_align = VerticalAlign::Middle
                         },
                         .appearance = {.color = Color::white()},
-                        .position = {960.0f, 540.0f, 0.0f}
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}}
                     }
                 }).commit();
                 // Run 2: Poppins Regular
@@ -256,7 +256,7 @@ Composition build_trifont_composition(SoftwareRenderer& renderer) {
                             .vertical_align = VerticalAlign::Middle
                         },
                         .appearance = {.color = Color::white()},
-                        .position = {960.0f, 540.0f, 0.0f}
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}}
                     }
                 }).commit();
                 // Run 3: Poppins Bold
@@ -275,7 +275,7 @@ Composition build_trifont_composition(SoftwareRenderer& renderer) {
                             .vertical_align = VerticalAlign::Middle
                         },
                         .appearance = {.color = Color::white()},
-                        .position = {960.0f, 540.0f, 0.0f}
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}}
                     }
                 }).commit();
             });

@@ -158,7 +158,7 @@ TEST_CASE("from_text_spec: layout.box mapped to frame.size") {
 
 TEST_CASE("from_text_spec: position mapped to frame.placement") {
     TextSpec spec;
-    spec.position = {960.0f, 540.0f, 0.0f};
+    spec.placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}};
     auto def = from_text_spec(spec);
     CHECK(def.frame.placement.offset.x == doctest::Approx(960.0f));
     CHECK(def.frame.placement.offset.y == doctest::Approx(540.0f));
@@ -242,7 +242,7 @@ TEST_CASE("from_text_run_spec: produces same result as from_text_spec on .text")
     run_spec.text.content.value = "Run text";
     run_spec.text.font.font_size = 48.0f;
     run_spec.text.layout.box = {800.0f, 200.0f};
-    run_spec.text.position = {100.0f, 200.0f, 0.0f};
+    run_spec.text.placement = TextPlacement{TextPlacementKind::Absolute, {100.0f, 200.0f}};
     run_spec.direction = TextDirection::RTL;
     run_spec.language = "ar";
 
@@ -544,7 +544,7 @@ TEST_CASE("round-trip: TextSpec → TextDefinition → TextSpec preserves all fi
     original.appearance.box_style.enabled = true;
     original.appearance.box_style.radius  = 12.0f;
     original.layout.paragraph.justification = TextJustification::Center;
-    original.position = {150.0f, 250.0f, 0.0f};
+    original.placement = TextPlacement{TextPlacementKind::Absolute, {150.0f, 250.0f}};
 
     // Single round-trip: forward + reverse
     auto def = from_text_spec(original);
@@ -675,7 +675,7 @@ TEST_CASE("no-data-loss: complex TextSpec round-trip through from_text_spec") {
     spec.appearance.paint.stroke_color   = Color{1.0f, 0.0f, 1.0f, 1.0f};
     spec.appearance.paint.stroke_width   = 5.0f;
     // Position
-    spec.position = {480.0f, 270.0f, 0.0f};
+    spec.placement = TextPlacement{TextPlacementKind::Absolute, {480.0f, 270.0f}};
 
     auto def = from_text_spec(spec);
 
@@ -1050,7 +1050,7 @@ TEST_CASE("full convergence: from_text_spec → to_text_document → TextDocumen
     spec.layout.box = {600.0f, 120.0f};
     spec.layout.anchor = TextAnchor::BottomCenter;
     spec.layout.tracking = 1.5f;
-    spec.appearance.color = Color{0.2f, 0.8f, 0.4f, 0.9f};spec.position = {100.0f, 200.0f, 0.0f};
+    spec.appearance.color = Color{0.2f, 0.8f, 0.4f, 0.9f};spec.placement = TextPlacement{TextPlacementKind::Absolute, {100.0f, 200.0f}};
 
     // Forward: TextSpec → TextDefinition → TextDocument
     auto def = from_text_spec(spec);

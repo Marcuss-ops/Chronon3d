@@ -74,7 +74,7 @@ Composition build_test08_composition(SoftwareRenderer& renderer) {
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("typewriter", {
                     .content = {.value = "TYPEWRITER TEST"},
-                    .position = {960.0f, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,

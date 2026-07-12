@@ -58,7 +58,7 @@ Composition build_position_composition(
                 [&renderer, position, h_align, v_align, text](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("align_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = std::string{text}},.position = position,.font = {
+                    .text = TextSpec{.content = {.value = std::string{text}},.placement = TextPlacement{TextPlacementKind::Absolute, {position.x, position.y}},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,

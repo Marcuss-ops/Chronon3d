@@ -57,7 +57,7 @@ Composition build_text_composition(
                     l.opacity(opacity);
                 }
                 l.text_run("ink_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = std::string{text}},.position = position,.font = {
+                    .text = TextSpec{.content = {.value = std::string{text}},.placement = TextPlacement{TextPlacementKind::Absolute, {position.x, position.y}},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
