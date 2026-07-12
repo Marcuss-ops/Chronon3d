@@ -37,7 +37,8 @@ echo "== Product demo =="
 
 echo "== Camera brutal =="               # TODO (Test #9)
 echo "== Multilingual text =="           # TODO (Test #8)
-echo "== Fail-loud errors =="            # TODO (Test #7)
+echo "== Fail-loud errors =="           # Test #7 (Wired via tools/check_first_principles_fail_loud.sh)
+bash "$SCRIPT_DIR/check_first_principles_fail_loud.sh"
 echo "== Fix speed =="                   # Test #11 cronograph (replaces the prior "Real cost" mapping per the user spec verbatim "Cronometro del fix"; wired-but-§honesty-zero-data on this VPS until a working build host adds a real JSONL entry)
 bash "$SCRIPT_DIR/check_fix_cronograph.sh"
 echo "== Scale 100 batch =="             # TODO (Test #12)
@@ -47,4 +48,4 @@ echo "== Feature usefulness gate =="     # TODO (Test #14 — docs gate)
 echo "== Weekly scorecard =="            # TODO (Track-13 — output terr.)
 
 echo "FIRST_PRINCIPLES_PRODUCT_PASS"
-echo "[INFO] ${GATE_NAME}: 4/6 active sections wired (... Fix speed/Test #11 wired-but-§honesty-zero-data-on-VPS until build-host logs entry); 2/6 TODO-body (Determinism + Product demo); 8 follow-up stub headers pending (Test #4, #7-9, #12-14, Track-13)"
+echo "[INFO] ${GATE_NAME}: 5/6 active sections wired (... Fix speed/Test #11 wired-but-§honesty-zero-data-on-VPS until build-host logs entry; Fail-loud/Test #7 NEWLY wired via tools/check_first_principles_fail_loud.sh); 1/6 TODO-body (Determinism + Product demo); 7 follow-up stub headers pending (Test #4, #8, #9, #12-14, Track-13)"
