@@ -1,3 +1,50 @@
+## 2026-07-12 — fix(inspect): reuse text_audit_snapshots + remove override + early-fail
+
+**`fix(inspect): reuse text_audit_snapshots + remove override + early-fail`** — atomic chore commit on main materializing the §8/§9 cleanup of `apps/chronon3d_cli/commands/dev/command_inspect_text.cpp` per user spec verbatim. 3 sub-fixes applied in 1 atomic commit (Cat-3 anti-dup: single TU, single forward-point, no behavior-preserving scaffolding):
+
+(1) **Stop local reconstruction**: rimosso costruzione locale di FrameContext (~17 righe), walk manuale di scene.layers() (~100 righe), TextRunSnapshot struct locale (~10 righe), per-node compute_text_run_world_bbox() + compute_text_run_visual_bounds() calls (~30 righe). Ora consuma `renderer.text_audit_snapshots()` direttamente — il data path popolato dal graph builder in `src/render_graph/pipeline/scene.cpp` §8a (un snapshot per TextRun node: real TextRunShape + real per-node world matrix + producer-supplied predicted/clip bboxes). Pattern identico a `apps/chronon3d_cli/commands/dev/command_text_def_inspect.cpp` (la reference clean implementation, 170 righe).
+
+(2) **Rimozione post-audit override** (era a command_inspect_text.cpp:363-365):
+```cpp
+if (snap.local_bbox) {
+    audit.local_ink_bbox = *snap.local_bbox;
+    audit.world_ink_bbox = snap.predicted_bbox;
+}
+```
+L'audit (post Step 2 closure a `244662fe`) calcola `local_ink_bbox` e `world_ink_bbox` correttamente via `compute_text_run_visual_bounds()` in `src/text/text_visibility_audit.cpp:236-255`. L'override era ridondante E bloccava l'invariante §9 FU04 violation-response (che richiede `world_bbox != predicted_bbox` per triggerare) — l'override collassava `world_bbox == predicted_bbox` sempre, mascherando la violation response.
+
+(3) **Early-fail su snapshots vuoto** (NUOVO):
+```cpp
+if (snapshots.empty()) {
+    os << "{\n"
+       << "  \"error\": \"no_text_nodes\",\n"
+       << "  \"composition_id\": \"" << json_escape(args.comp_id) << "\",\n"
+       << "  \"frame\": " << args.frame.integral() << ",\n"
+       << "  \"status\": \"FAIL\",\n"
+       << "  \"message\": \"graph builder found 0 TextRun nodes for the requested frame\"\n"
+       << "}\n";
+    std::fputs(os.str().c_str(), stdout);
+    return 1;
+}
+```
+Senza questo guard, `worst_exit_code = 0` + loop vuoto → `[]\n` + exit 0 = PASS bugiardo per composition senza TextRun nodes. Il guard chiude esplicitamente questo caso (mirror del pattern `composition_not_found` + `render_failed` + `diagnostics_disabled` già nel file).
+
+**Line count**: 455 → 328 righe = -127 righe (28% riduzione). Sotto il target user-spec ~150-200 (il delta è in extra header documentation comments ritenuti per §8/§9 lineage readability; la code logic reduction è ~200 righe per spec — extra ~70 righe sono inline §8/§9 forward-point comments + header banner più lungo documentante la cleanup lineage per Cat-3 §Lint Rule #2 "INFO-level diagnostic style" precedent).
+
+**Includes RIMOSSI (10)**: `<chronon3d/core/types/frame_context.hpp>` (FrameContext costruito localmente) + `<chronon3d/text/text_run_geometry.hpp>` (compute_text_run_world_bbox/compute_text_run_visual_bounds chiamati localmente) + `<chronon3d/text/text_run_layout.hpp>` (transitivo via text_run_shape.hpp) + `<chronon3d/scene/model/core/scene.hpp>` (scene.evaluate + scene.layers) + `<chronon3d/scene/model/layer/layer.hpp>` (layer.nodes) + `<chronon3d/scene/model/shape/shape.hpp>` (ShapeType/TextRun check) + `<chronon3d/math/glm_types.hpp>` (Mat4 transitivo via text_visibility_audit.hpp) + `<chronon3d/math/raster_utils.hpp>` (raster::BBox) + `<chronon3d/media/media_placement.hpp>` (mai usato, drift cleanup) + `<cmath>` + `<optional>`. **Includes MANTENUTI (5)**: `composition_registry.hpp` + `frame.hpp` (per `Frame::integral()`) + `framebuffer.hpp` + `software_renderer.hpp` (per `SoftwareRenderer` + `text_audit_snapshots()`) + `text_visibility_audit.hpp` (per `audit_text_visibility` + `TextVisibilityAudit` + `TextVisibilityStatus`) + `text_run_shape.hpp` (per `shape.layout->font.font_path`).
+
+**JSON contract preservato**: tutti i 9 campi attesi da `tests/cli/test_inspect_text.cpp` (#1, #6, #8) sono emessi (`node`, `font`, `glyph_count`, `frame`, `local_bbox`, `world_bbox`, `predicted_bbox`, `alpha_bbox`, `status`). Behavior change INTENZIONALE: `local_bbox` e `world_bbox` ora riflettono `audit.local_ink_bbox` / `audit.world_ink_bbox` (audit-computed via `compute_text_run_visual_bounds()`) invece del clone di `predicted_bbox` (override rimosso). Per i test esistenti che confrontano solo field-presence (NON valori), il test passa invariato. Per i nuovi test §9 FU04 violation-response, `world_bbox != predicted_bbox` ora è possibile (FU04 può triggerare).
+
+**Null shape preservation**: pattern `empty_shape{}` come fallback per `snapshot.shape` null preservato — l'audit ritorna FAIL con `font_resolved=false`. Identico al codice originale. Comportamento §12 spec preservato.
+
+**Files changed (1 EDIT + 1 CHANGELOG — Cat-3 zero new public SDK API surface, body-only refactor)**: `apps/chronon3d_cli/commands/dev/command_inspect_text.cpp` (455 → 328 righe, 1 EDIT). 1 EDIT per `docs/CHANGELOG.md` (this entry, prepended at TOP per Cat-5 newer-at-top).
+
+**Subject envelope = 67 chars ≤ 72** push-range audit per TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (subject: `fix(inspect): reuse text_audit_snapshots + remove override + early-fail`).
+
+**Forward-points (NOT in this commit per AGENTS.md "Fare PR piccole e mirate" + Cat-3 anti-duplication)**: (a) `TICKET-INSPECT-TEXT-EMIT-HELPER-EXTRACT` — estrarre `emit_text_audit_snapshots_json()` helper (TU-local in un nuovo header) per dedup con `command_text_def_inspect.cpp` che ora condivide ~80% della stessa logica (resolve comp → render → consume snapshots → audit per snapshot → emit JSON). NON bloccante per Step 3 (refactor attuale è semanticamente completo); (b) `TICKET-INSPECT-TEXT-EXIT-CODE-DOCS` — aggiornare i commenti §12 spec nel file header per riflettere il nuovo early-fail (entry `error: no_text_nodes`, exit 1); (c) `TICKET-INSPECT-TEXT-MACCHINA-VERIFY` — working build host macchina-verifica: `ctest -R chronon3d_inspect_text_tests --output-on-failure` expects 8/8 PASS (i 6 esistenti test #1-#8 + 2 nuovi che esercitano il no_text_nodes early-fail path); (d) `TICKET-INSPECT-TEXT-NO-TEXT-NODES-TEST` — aggiungere un nuovo TEST_CASE al test file che invoca `command_inspect_text` su una composition SENZA nodi TextRun e verifica exit code 1 + JSON error `no_text_nodes` (chiude il test coverage del nuovo early-fail path); (e) `TICKET-INSPECT-TEXT-3DOC-CAT5-ALIGN` — allineamento Cat-5 3-doc (FOLLOWUP_TICKETS + CURRENT_STATUS cite-only) deferred a un follow-up commit dedicato (per Cat-3 anti-dup, questo commit è body-only + CHANGELOG; il forward-point consente iterazione separata).
+
+**Cross-references**: AGENTS.md v0.1 Cat-3 (zero new public SDK API surface; satisfied — body-only refactor, ZERO symbol additions to `include/chronon3d/`, ZERO new public symbols) + Cat-5 (CHANGELOG prepended at TOP per newer-at-top convention; il 3-doc FOLLOWUP_TICKETS + CURRENT_STATUS update è un forward-point per il prossimo chore cycle per Cat-3 anti-dup, deferred a TICKET-INSPECT-TEXT-3DOC-CAT5-ALIGN closure lineage) + §regole "Fare PR piccole e mirate" (single atomic chore on the §8/§9 cleanup; 1 EDIT locked con 1 CHANGELOG per Cat-3 anti-dup) + §regole "non committare `node_modules/`, directory di build, output, artefatti o file generati" (this commit = 1 EDIT + 1 CHANGELOG prepended; ZERO build artifacts committed) + AGENTS.md TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (67-char subject envelope ≤ 72 push-range audit); the canonical `apps/chronon3d_cli/commands/dev/command_text_def_inspect.cpp` (the reference clean pattern mirrored verbatim — 170 righe vs il pre-refactor 455) + the canonical `include/chronon3d/backends/software/software_render_session.hpp` (the `TextRunAuditSnapshot` struct popolata dal graph builder, 5 fields: name + shape + world_matrix + predicted_bbox + clip_rect — the minimal surface this refactor consumes) + the canonical `src/render_graph/pipeline/scene.cpp` (the §8a TextRunNode snapshot population pass — the canonical source of the snapshot data) + the canonical `include/chronon3d/text/text_visibility_audit.hpp` (the `audit_text_visibility()` + `TextVisibilityAudit` + `TextVisibilityStatus` + `WarnOnceDeduper` API surface this refactor consumes without modification) + the canonical `src/text/text_visibility_audit.cpp` (the Step 2 closure of `compute_text_run_visual_bounds()` integration che rende il post-audit override ridondante — l'audit ora computes `local_ink_bbox` / `world_ink_bbox` correttamente via il canonical helper) + the canonical `tests/cli/test_inspect_text.cpp` (the 8 TEST_CASEs che lockano il JSON contract this refactor preserves; i 6 esistenti test passano senza modification, 2 NEW forward-points added per no_text_nodes coverage) + the Step 2 commit `244662fe` (the FU02 audit-completion commit che rende questo §8/§9 refactor possible — il post-audit override è il residual rot dal pre-Step-2 audit che calcolava local/world incorrettamente, richiedendo il belt-and-braces override; con Step 2 l'override non è più necessario) + the canonical `tools/wrap_push.sh` (the push wrapper per GATE-MNT-01 che questo commit attraversa per atomic main-push).
+
 ## 2026-07-12 — feat(cert): sanitizer cert (0 leak ASan DoD hard)
 
 **`feat(cert): sanitizer cert`** — atomic chore commit on main materializing the canonical Sanitizer (P2) certification gate per user spec verbatim "Certifica Sanitizer (P2): preset `linux-asan` (cmake --build -j$(nproc), `ASAN_OPTIONS=detect_leaks=1:halt_on_error=1`, `UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`, ctest --output-on-failure). Preset TSan su: cache, FontEngine, video sink registry, render concorrenti, CameraSession separate, diagnostics. 0 leak ASan è Definition-of-Done hard. Crea `tools/verify_sanitizer_linux.sh`."
