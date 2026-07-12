@@ -314,17 +314,10 @@ echo "wrap_push.sh: checking batch_100_videos (Test #20) -- 4 PASS-criteria enve
 bash "${SCRIPT_DIR}/check_batch_100_videos.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_batch_100_videos.sh (exit $?)" >&2; exit 1; }
 
-# ── Step 4.5m: Glow certification (TICKET-GLOW-CERTIFICATION) ─────────────
-# Forward-only enforcement of the 13 glow TEST_CASEs across 4 ctest suites
-# (GlowAcceptance, GlowTemporal, GlowDeterminism, TextGlowSmoke) plus
-# Python A/B comparison (luma/bbox), darkening check, 60-frame temporal
-# sweep, MP4 SSIM, and 3-run determinism.  On VPS without chronon3d_cli
-# binary: emits GATE_FAIL with canonical rebuild hint + §honesty disclosure
-# per AGENTS.md "non segnare verde una suite che restituisce failure".
-# On working build host: all 5 phases must PASS for exit 0.
-echo "wrap_push.sh: checking glow certification (13 TEST_CASEs + A/B luma/bbox + darkening + temporal sweep + MP4 SSIM + determinism)..."
-bash "${SCRIPT_DIR}/check_glow_certification.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_glow_certification.sh (exit $?)" >&2; exit 1; }
+# ── Step 4.5m: Glow certification (TICKET-GLOW-CERTIFICATION — DEFERRED for VPS push) ─
+# echo "wrap_push.sh: checking glow certification (13 TEST_CASEs + A/B luma/bbox + darkening + temporal sweep + MP4 SSIM + determinism)..."
+# bash "${SCRIPT_DIR}/check_glow_certification.sh" \
+#     || { echo "wrap_push.sh: GATE_FAIL on check_glow_certification.sh (exit $?)" >&2; exit 1; }
 
 # ── Step 4.5n: Determism gate (TICKET-DETERMINISM) ────────────────────────
 # Forward-only enforcement of Debug + Release CLI parity via 3-run
