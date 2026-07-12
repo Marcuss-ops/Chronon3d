@@ -105,7 +105,7 @@ TEST_CASE("motion_error::A.04 to_string is noexcept (static_assert)") {
     // breaks the build at compile time.
     static_assert(noexcept(to_string(MotionErrorCode::MotionPresetNotFound)),
                   "to_string(MotionErrorCode) MUST be noexcept");
-    SUCCEED("static_assert passed at compile time");
+    CHECK(true);  // static_assert passed at compile time
 }
 
 // ── Group B — exception semantics ────────────────────────────────────────
