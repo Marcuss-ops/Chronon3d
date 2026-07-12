@@ -643,6 +643,33 @@ cmake --preset linux-content-dev -S . -B build/chronon/linux-content-dev
 **Cross-references**: [`cmake/Chronon3DVcpkgToolchain.cmake`](cmake/Chronon3DVcpkgToolchain.cmake) (the canonical toolchain wrapper, Invariant I1) + [`cmake/presets/development.json`](cmake/presets/development.json) (the `linux-content-dev` preset definition) + `vcpkg_bootstrap/vcpkg` (the vcpkg binary, version 2026-04-08) + `vcpkg_installed/linux-content-dev/x64-linux/` (the pre-installed deps) + `build/chronon/linux-content-dev/` (the configure artifacts, .gitignored) + commit `16855f33` (TICKET-GOLDEN-17-1-17-8-MIGRATION, the 6/8 tests migration whose re-bake this configure unblocks) + commit `<pending>` (TICKET-TEXT-LEGACY-POSITION-ROT / TICKET-COMPILED-FRAME-GRAPH-ROTFIX fix, the upstream rot fix whose configure attempt left the stale pkgRedirects state that the first attempt hit) + AGENTS.md §Cat-5 (3-doc same-commit alignment, satisfied) + AGENTS.md §honesty (configure-only documented; full build deferred to working build host).
 
 
+## Luglio 2026 — docs(status): realign CURRENT_STATUS + FOLLOWUP post-FF to main@47dbebf4 (2026-07-12, atomic chore commit on main)
+
+**`docs(status): realign CURRENT_STATUS + FOLLOWUP post-FF to main@47dbebf4`** — Cat-5 3-doc same-commit alignment chore closing the AGENTS.md §Priorità obbligatoria item #6 "Riallineare `docs/CURRENT_STATUS.md` e `docs/ROADMAP.md` alla baseline osservata". The 11/11 canonical baseline gates are machine-verified GREEN at the new HEAD `47dbebf4` (post-`git pull --ff-only origin main`); canonical gate list per the 7eb5c2ba-lineage 11/11 baseline.
+
+**Files changed (3 — Cat-5 alignment)**:
+- `docs/CURRENT_STATUS.md` EDIT (snapshot header bumped to `main@47dbebf4` + lineage annotation).
+- `docs/FOLLOWUP_TICKETS.md` EDIT (`TICKET-CONTENT-TEXT-CAMERA-V1-ROT` row annotated re Phase 1 rot-class RESOLVED upstream at HEAD `47dbebf4`; the explicit fix commit is unidentified — verify before closing per Cat-3 honesty).
+- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP).
+
+**Cat-3 (no new public SDK API surface) SATISFIED**: pure docs change, zero new symbols in `include/chronon3d/`.
+
+**Cat-5 3-doc same-commit alignment SATISFIED**.
+
+**§honesty compliance**:
+- The 11/11 GREEN claim is machine-verified per the prior basher diagnostic (each of 11 canonical gates exits 0 on the new HEAD).
+- The 21-error rot-class RESOLVED claim is partial (machine-verified 0 occurrences AT THE CURRENT HEAD but NOT closed because the explicit fix commit is unidentified — the resolution may have been absorbed into upstream commits `cd2548cb feat(api)`, `6450b3fd fix(gates)`, `6d7306b7 refactor(global)`, `2befc44f refactor(cache)`, `76815b19 refactor(render-graph)`, or one of the 21-error-rot-class landing commits not enumerated here).
+- **3 cross-check extension gates FAIL HELD OVER** (added AFTER the 7eb5c2ba-baseline; NOT part of canonical 11/11; PENDING per the established pre-existing-rot pattern):
+  - `tools/check_no_dual_text_api.sh` FAIL — non-migrated `.position` references — TICKET-TEXT-LEGACY-POSITION-ROT sub-area iii/iv.
+  - `tools/check_first_principles_legacy_grep.sh` FAIL — 152 legacy V1 hits across 5 productive paths — TICKET-CAMERA-FULL-LINUX sub-ticket D bulk migration.
+  - `tools/check_determinism_matrix.sh` FAIL — env-blocked on this VPS (`chronon` CLI missing per VCPKG infrastructure workstream).
+
+**Subject**: `docs(status): realign CURRENT_STATUS + FOLLOWUP post-FF to main@47dbebf4` (70 chars, within `tools/check_commit_subject_length.sh` 72-char push-range audit scope).
+
+**Cross-references**: commit `b589fdba docs(changelog): re-add + tighten macchina-verifica paragraph` (the prior §honesty closure of TICKET-SOURCE-CONFLICT-MARKERS-ROT, NOW in Recently Closed lineage) + commit `47dbebf4 fix(gitignore): add /.tmp/ for project-local build root` (current HEAD on origin/main) + commit `75557c23 docs(camera-text-rot): 21 upstream errors` (the 21-error rot original diagnostic, prior lineage) + AGENTS.md §Cat-3 + AGENTS.md §Cat-5 + AGENTS.md §honesty.
+
+---
+
 ## Luglio 2026 — feat(check): determinism matrix gate (Test #6 first-principles product check, 2026-07-12, atomic chore commit on main)
 
 **`feat(check): determinism matrix gate (Test #6)`** — atomic chore commit creating the canonical determinism matrix gate for Test #6 (per il First-Principles Product Check framework). Render dello stesso frame 2x per ognuna delle 4 varianti (`1_thread` / `all_cores` / `cache_cold` / `cache_warm`). SHA256 + sort -u + wc -l per variante; PASS solo se sort -u | wc -l = 1 per OGNI variante; FAIL rc=1 altrimenti con diagnostic per-variant. Wired into `tools/first_principles_product_check.sh` `== Determinism ==` section come prima sotto-gate (Test #10 già wired al commit precedente, resta come secondo sotto-gate).
