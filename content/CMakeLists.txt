@@ -142,3 +142,10 @@ endif()
 if(NOT TARGET chronon3d::content)
     add_library(chronon3d::content ALIAS chronon3d_content)
 endif()
+
+# ── Production-location headers (no SOURCES entry — header-only, included transitively) ──
+# content/compositions/chronon_glow_final.hpp — moved from tests/visual/ae_parity/glow_final_compositions.hpp
+# on 2026-07-12 (TICKET-GLOW-FINAL-COMPOSITIONS-MOVE / refactor(glow) §4 cleanup).  Header-only
+# inline factory; consumed via #include by apps/chronon3d_cli + tests/.  No link-time surface,
+# no CMake target surface.  The CMAKE_SOURCE_DIR include dir already in effect above makes
+# the new path resolvable from every consumer.

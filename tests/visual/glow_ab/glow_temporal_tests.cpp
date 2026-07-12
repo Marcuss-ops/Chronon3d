@@ -8,7 +8,7 @@
 //   2. Pulse timing: frame 0→15→30 envelope — f15 halo > f0 halo,
 //      f15 halo > f30 halo, centroid stable within 3 px.
 //
-// Uses the canonical ChrononGlowFinalAE factory (glow_final_compositions.hpp)
+// Uses the canonical ChrononGlowFinalAE factory (content/compositions/chronon_glow_final.hpp)
 // plus existing test helpers (alpha_bbox, alpha_centroid, average_luma_rect,
 // framebuffer_hash) from tests/helpers and tests/text_golden/text_clip/.
 //
@@ -29,7 +29,7 @@
 
 #include <tests/helpers/test_utils.hpp>
 #include <tests/text_golden/text_clip/test_helpers.hpp>
-#include <tests/visual/ae_parity/glow_final_compositions.hpp>
+#include "content/compositions/chronon_glow_final.hpp"
 
 #include <cmath>
 #include <memory>

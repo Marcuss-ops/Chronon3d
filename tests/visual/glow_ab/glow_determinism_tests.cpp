@@ -9,7 +9,7 @@
 //      tests/visual/glow_ab/glow_ab_acceptance.cpp TEST_CASE
 //      "Glow acceptance: state does not leak between renders" (Azione 1).
 //
-// Uses the canonical ChrononGlowFinalAE factory (glow_final_compositions.hpp)
+// Uses the canonical ChrononGlowFinalAE factory (content/compositions/chronon_glow_final.hpp)
 // plus framebuffer_hash() from tests/helpers/test_utils.hpp.
 //
 // Per AGENTS.md §honesty: the user spec (§13) requires sha256sum across
@@ -35,7 +35,7 @@
 #include <chronon3d/timeline/composition.hpp>
 
 #include <tests/helpers/test_utils.hpp>
-#include <tests/visual/ae_parity/glow_final_compositions.hpp>
+#include "content/compositions/chronon_glow_final.hpp"
 
 #include <memory>
 
