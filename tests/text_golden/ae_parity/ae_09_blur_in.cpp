@@ -94,7 +94,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("hero", [frame_idx](LayerBuilder& l) {
                 l.text("title", {
                     .content = {.value = "CHRONON3D"},
-                    .position = {960.0f, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,

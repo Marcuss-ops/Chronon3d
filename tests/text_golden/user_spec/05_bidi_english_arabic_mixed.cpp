@@ -66,7 +66,7 @@ Composition build_test05_composition(SoftwareRenderer& renderer) {
                 l.text("t", {
                     // U+0633 U+0644 U+0627 U+0645 → "سلام" (Arabic for "peace")
                     .content = {.value = "Hello \xd8\xb3\xd9\x84\xd8\xa7\xd9\x85 World"},
-                    .position = {960.0f, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,

@@ -69,7 +69,7 @@ Composition build_hebrew_rtl(SoftwareRenderer& renderer) {
                 // "שלום עולם" — Hebrew for "Hello World"
                 l.text("t", {
                     .content = {.value = "\xd7\xa9\xd7\x9c\xd7\x95\xd7\x9d \xd7\xa2\xd7\x95\xd7\x9c\xd7\x9d"},
-                    .position = {960.0f, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -117,7 +117,7 @@ Composition build_text_gradient(SoftwareRenderer& renderer) {
             s.layer("gradient", [mat](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "GRADIENT"},
-                    .position = {960.0f, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -170,7 +170,7 @@ Composition build_text_camera_dof(SoftwareRenderer& renderer, bool dof_on) {
             s.layer("focused", [](LayerBuilder& l) {
                 l.text("t0", {
                     .content = {.value = "FOCUS"},
-                    .position = {960.0f, 400.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 400.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -186,7 +186,7 @@ Composition build_text_camera_dof(SoftwareRenderer& renderer, bool dof_on) {
             s.layer("blurred", [](LayerBuilder& l) {
                 l.text("t1", {
                     .content = {.value = "BLUR"},
-                    .position = {960.0f, 680.0f, -300.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 680.0f, -300.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,

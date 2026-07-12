@@ -80,7 +80,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                 const float alpha = lerp_alpha(frame_idx);
                 l.text("title", {
                     .content = {.value = "EPIC TITLE"},
-                    .position = {960.0f, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,

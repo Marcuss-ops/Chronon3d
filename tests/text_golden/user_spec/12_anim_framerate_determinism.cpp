@@ -71,7 +71,7 @@ Composition build_test12_composition(SoftwareRenderer& renderer, int fps, int sa
             s.layer("hero", [x_pos](LayerBuilder& l) {
                 l.text("rate", {
                     .content = {.value = "FRAME RATE TEST"},
-                    .position = {x_pos, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {x_pos, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,

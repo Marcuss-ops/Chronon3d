@@ -83,7 +83,7 @@ Composition build_composition(SoftwareRenderer& renderer, std::size_t frame_idx,
             s.layer("hero", [frame_idx, motion_blur_on](LayerBuilder& l) {
                 l.text("motion_blur", {
                     .content = {.value = "MOTION BLUR"},
-                    .position = {640.0f + x_offset_for(frame_idx), 360.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {640.0f + x_offset_for(frame_idx), 360.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,

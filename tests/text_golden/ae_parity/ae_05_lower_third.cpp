@@ -76,7 +76,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("title", [a](LayerBuilder& l) {
                 l.text("title", {
                     .content = {.value = "ALEX MORGAN"},
-                    .position = {120.0f, 880.0f, 0.0f},  // ~81% of 1080 (lower band start),
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {120.0f, 880.0f}},  // ~81% of 1080 (lower band start),
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -90,7 +90,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("subtitle", [a](LayerBuilder& l) {
                 l.text("subtitle", {
                     .content = {.value = "Senior Software Engineer"},
-                    .position = {120.0f, 950.0f, 0.0f},  // ~88% of 1080,
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {120.0f, 950.0f}},  // ~88% of 1080,
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,
@@ -105,7 +105,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("accent", [a](LayerBuilder& l) {
                 l.text("accent", {
                     .content = {.value = "|"},
-                    .position = {80.0f, 880.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {80.0f, 880.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -133,7 +133,7 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("title", [a](LayerBuilder& l) {
                 l.text("title", {
                     .content = {.value = "ALEX MORGAN"},
-                    .position = {120.0f, 1620.0f, 0.0f},  // ~84% of 1920 (lower band),
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {120.0f, 1620.0f}},  // ~84% of 1920 (lower band),
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -147,7 +147,7 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("subtitle", [a](LayerBuilder& l) {
                 l.text("subtitle", {
                     .content = {.value = "Senior Software Engineer"},
-                    .position = {120.0f, 1720.0f, 0.0f},  // ~90% of 1920,
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {120.0f, 1720.0f}},  // ~90% of 1920,
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,
@@ -161,7 +161,7 @@ Composition build_portrait(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("accent", [a](LayerBuilder& l) {
                 l.text("accent", {
                     .content = {.value = "|"},
-                    .position = {80.0f, 1620.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {80.0f, 1620.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,

@@ -63,7 +63,7 @@ Composition build_test07_composition(SoftwareRenderer& renderer) {
             s.layer("title", [](LayerBuilder& l) {
                 l.text("title", {
                     .content = {.value = "BREAKING NEWS"},
-                    .position = {540.0f, 280.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {540.0f, 280.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,

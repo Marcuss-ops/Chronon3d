@@ -140,7 +140,7 @@ Composition build_static_fill_stroke_composition(SoftwareRenderer& renderer,
             s.layer("hero", [fs, d](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "THE QUICK BROWN FOX"},
-                    .position = {d.width * 0.5f, d.height * 0.5f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {d.width * 0.5f, d.height * 0.5f}},
                     .font = {.font_path = "assets/fonts/Poppins-Bold.ttf",
                              .font_family = "Poppins",
                              .font_size = fs},

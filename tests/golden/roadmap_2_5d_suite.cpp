@@ -152,7 +152,7 @@ Composition make_hero_push_scene() {
             l.position({0.0f, -20.0f, 0.0f}).glow(GlowPresets::neon_blue(26.0f));
             l.text("hero", {
                 .content = {.value = "SaaS"},
-                .position = {0.0f, 0.0f, 0.0f},
+                .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
                 .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 96.0f},
@@ -167,7 +167,7 @@ Composition make_hero_push_scene() {
             l.position({0.0f, 110.0f, 0.0f});
             l.text("sub", {
                 .content = {.value = "BUILD • LAUNCH • SCALE"},
-                .position = {0.0f, 0.0f, 0.0f},
+                .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
                 .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                          .font_family = "Inter",
                          .font_size = 22.0f},
@@ -187,7 +187,7 @@ Composition make_hero_push_scene() {
             });
             l.text("cta_text", {
                 .content = {.value = "PART 1"},
-                .position = {0.0f, 0.0f, 0.0f},
+                .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
                 .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 34.0f},
@@ -225,7 +225,7 @@ Composition make_buttery_card_scene(f32 rotation_y) {
             l.position({0.0f, 0.0f, 0.0f});
             l.text("title", {
                 .content = {.value = "Buttery Smooth"},
-                .position = {0.0f, -10.0f, 0.0f},
+                .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -10.0f}},
                 .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 66.0f},
@@ -236,7 +236,7 @@ Composition make_buttery_card_scene(f32 rotation_y) {
             });
             l.text("subtitle", {
                 .content = {.value = "Motion design quality text with soft glow"},
-                .position = {0.0f, 100.0f, 0.0f},
+                .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 100.0f}},
                 .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                          .font_family = "Inter",
                          .font_size = 22.0f},
@@ -374,7 +374,7 @@ Composition make_depth_fog_scene() {
                 l.enable_3d().position({0.0f, 0.0f, z}).opacity(std::clamp(1.0f - z / 1800.0f, 0.22f, 1.0f));
                 l.text(label, {
                     .content = {.value = label},
-                    .position = {0.0f, 0.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_size = 62.0f},
@@ -421,7 +421,7 @@ Composition make_orbit_stability_scene(float yaw) {
             l.rounded_rect("card", {.size = {220.0f, 260.0f}, .radius = 24.0f, .color = Color{0.82f, 0.24f, 0.96f, 1.0f}});
             l.text("title", {
                 .content = {.value = "ORBIT"},
-                .position = {0.0f, -6.0f, 0.0f},
+                .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -6.0f}},
                 .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 48.0f},
@@ -456,7 +456,7 @@ Composition make_fake_extrusion_scene() {
             l.position({10.0f, 12.0f, -20.0f});
             l.text("back", {
                 .content = {.value = "SaaS"},
-                .position = {0.0f, 0.0f, 0.0f},
+                .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
                 .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 100.0f},
@@ -471,7 +471,7 @@ Composition make_fake_extrusion_scene() {
             l.position({0.0f, 0.0f, 0.0f}).glow(GlowPresets::soft_cyan(20.0f));
             l.text("front", {
                 .content = {.value = "SaaS"},
-                .position = {0.0f, 0.0f, 0.0f},
+                .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
                 .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 100.0f},

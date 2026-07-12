@@ -27,7 +27,6 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
@@ -93,7 +92,7 @@ Composition build_2_5d_composition(
                 l.text_run("title", TextRunParams{
                     .text = {
                         .content = {.value = "2.5D"},
-                        .position = {cx, cy, 0.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},
                         .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",

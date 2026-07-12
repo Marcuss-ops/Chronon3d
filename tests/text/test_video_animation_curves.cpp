@@ -40,7 +40,6 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
@@ -80,13 +79,13 @@ TEST_CASE("VideoAnim.Opacity_Keyframes_0p40_0p85_0p50_1920x1080") {
                 // 3-keyframe opacity chain per user-spec verbatim §9.1:
                 //   f0=0.40, f15=0.85, f30=0.50
                 // Linear interpolation between consecutive keyframes.
-                l.opacity_timeline(motion::timeline(0.40f)
-                    .to(Frame{15}, 0.85f, EasingCurve{Easing::Linear})
-                    .to(Frame{30}, 0.50f, EasingCurve{Easing::Linear}));
+                l.opacity_anim().set(0.40f);
+                l.opacity_anim().add_keyframe(Frame{15}, 0.85f, EasingCurve{Easing::Linear});
+                l.opacity_anim().add_keyframe(Frame{30}, 0.50f, EasingCurve{Easing::Linear});
                 l.text_run("title", TextRunParams{
                     .text = {
                         .content = {.value = "KEYFRAMES"},
-                        .position = {cx, cy, 0.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},
                         .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
@@ -183,13 +182,13 @@ TEST_CASE("VideoAnim.Scale_Peak_at_f15_1920x1080") {
                 // 3-keyframe scale chain per user-spec verbatim §9.2:
                 //   f0=1.0, f15=1.5 (peak), f30=1.0
                 // Bbox.width is monotonic-in-scale around canvas center.
-                l.scale_timeline(motion::timeline(1.0f)
-                    .to(Frame{15}, 1.5f, EasingCurve{Easing::Linear})
-                    .to(Frame{30}, 1.0f, EasingCurve{Easing::Linear}));
+                l.scale_anim().set(Vec3{1.0f, 1.0f, 1.0f});
+                l.scale_anim().add_keyframe(Frame{15}, Vec3{1.5f, 1.5f, 1.5f}, EasingCurve{Easing::Linear});
+                l.scale_anim().add_keyframe(Frame{30}, Vec3{1.0f, 1.0f, 1.0f}, EasingCurve{Easing::Linear});
                 l.text_run("title", TextRunParams{
                     .text = {
                         .content = {.value = "SCALE"},
-                        .position = {cx, cy, 0.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},
                         .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
@@ -262,13 +261,13 @@ TEST_CASE("VideoAnim.Position_Bounded_centroid_1920x1080") {
                 // 3-keyframe X position per user-spec verbatim §9.3:
                 //   f0=400, f15=1520 (peak), f30=400
                 // Pure X animation — Y axis strictly stays at canvas center.
-                l.position_x(motion::timeline(400.0f)
-                    .to(Frame{15}, 1520.0f, EasingCurve{Easing::Linear})
-                    .to(Frame{30}, 400.0f, EasingCurve{Easing::Linear}));
+                l.position_anim().set(Vec3{400.0f, 540.0f, 0.0f});
+                l.position_anim().add_keyframe(Frame{15}, Vec3{1520.0f, 540.0f, 0.0f}, EasingCurve{Easing::Linear});
+                l.position_anim().add_keyframe(Frame{30}, Vec3{400.0f, 540.0f, 0.0f}, EasingCurve{Easing::Linear});
                 l.text_run("title", TextRunParams{
                     .text = {
                         .content = {.value = "PATH"},
-                        .position = {960.0f, 540.0f, 0.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                         .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",

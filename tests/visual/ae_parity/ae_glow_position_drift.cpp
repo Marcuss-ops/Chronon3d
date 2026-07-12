@@ -97,7 +97,7 @@ TEST_CASE("FASE-3 SCALA: ae_08 16x9 f00 — scale=0.96, centroid stays at (960, 
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
 
-    const Vec2 c = alpha_centroid(*fb);
+    const auto c = alpha_centroid(*fb);
     INFO("f00 centroid: x=", c.x, " y=", c.y);
     // (a) center drift < 2 px (CanvasCenter bake)
     CHECK(c.x == doctest::Approx(960.0f).epsilon(kCentroidDriftTolerancePx));
@@ -133,7 +133,7 @@ TEST_CASE("FASE-3 SCALA: ae_08 16x9 f15 — scale=1.05, centroid stays at (960, 
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
 
-    const Vec2 c = alpha_centroid(*fb);
+    const auto c = alpha_centroid(*fb);
     INFO("f15 centroid: x=", c.x, " y=", c.y);
     CHECK(c.x == doctest::Approx(960.0f).epsilon(kCentroidDriftTolerancePx));
     CHECK(c.y == doctest::Approx(540.0f).epsilon(kCentroidDriftTolerancePx));
@@ -162,7 +162,7 @@ TEST_CASE("FASE-3 SCALA: ae_08 16x9 f30 — scale=0.98, centroid stays at (960, 
     REQUIRE(fb->width()  == 1920);
     REQUIRE(fb->height() == 1080);
 
-    const Vec2 c = alpha_centroid(*fb);
+    const auto c = alpha_centroid(*fb);
     INFO("f30 centroid: x=", c.x, " y=", c.y);
     CHECK(c.x == doctest::Approx(960.0f).epsilon(kCentroidDriftTolerancePx));
     CHECK(c.y == doctest::Approx(540.0f).epsilon(kCentroidDriftTolerancePx));
@@ -191,7 +191,7 @@ TEST_CASE("FASE-3 SCALA: ae_08 9x16 f00 — scale=0.96, centroid stays at (540, 
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
 
-    const Vec2 c = alpha_centroid(*fb);
+    const auto c = alpha_centroid(*fb);
     INFO("f00 centroid (9x16): x=", c.x, " y=", c.y);
     CHECK(c.x == doctest::Approx(540.0f).epsilon(kCentroidDriftTolerancePx));
     CHECK(c.y == doctest::Approx(960.0f).epsilon(kCentroidDriftTolerancePx));
@@ -220,7 +220,7 @@ TEST_CASE("FASE-3 SCALA: ae_08 9x16 f15 — scale=1.05, centroid stays at (540, 
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
 
-    const Vec2 c = alpha_centroid(*fb);
+    const auto c = alpha_centroid(*fb);
     INFO("f15 centroid (9x16): x=", c.x, " y=", c.y);
     CHECK(c.x == doctest::Approx(540.0f).epsilon(kCentroidDriftTolerancePx));
     CHECK(c.y == doctest::Approx(960.0f).epsilon(kCentroidDriftTolerancePx));
@@ -249,7 +249,7 @@ TEST_CASE("FASE-3 SCALA: ae_08 9x16 f30 — scale=0.98, centroid stays at (540, 
     REQUIRE(fb->width()  == 1080);
     REQUIRE(fb->height() == 1920);
 
-    const Vec2 c = alpha_centroid(*fb);
+    const auto c = alpha_centroid(*fb);
     INFO("f30 centroid (9x16): x=", c.x, " y=", c.y);
     CHECK(c.x == doctest::Approx(540.0f).epsilon(kCentroidDriftTolerancePx));
     CHECK(c.y == doctest::Approx(960.0f).epsilon(kCentroidDriftTolerancePx));

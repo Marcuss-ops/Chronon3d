@@ -61,7 +61,7 @@ Composition build_test03_composition(SoftwareRenderer& renderer) {
             s.layer("big", [](LayerBuilder& l) {
                 l.text("big", {
                     .content = {.value = "BIG "},
-                    .position = {200.0f, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
@@ -75,7 +75,7 @@ Composition build_test03_composition(SoftwareRenderer& renderer) {
             s.layer("small", [](LayerBuilder& l) {
                 l.text("small", {
                     .content = {.value = "small "},
-                    .position = {560.0f, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {560.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,
@@ -89,7 +89,7 @@ Composition build_test03_composition(SoftwareRenderer& renderer) {
             s.layer("bold", [](LayerBuilder& l) {
                 l.text("bold", {
                     .content = {.value = "BOLD"},
-                    .position = {820.0f, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {820.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,

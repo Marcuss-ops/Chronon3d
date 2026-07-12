@@ -162,7 +162,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                 const Color fill  = fill_color_for(frame_idx);
                 l.text("rotation_per_character", {
                     .content = {.value = "PER GLYPH 3D"},
-                    .position = {960.0f, 540.0f, z_pos},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
