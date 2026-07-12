@@ -111,7 +111,7 @@ Composition build_kerning_composition(
                         // layout, appearance (C++20 designated-init order
                         // must match declaration order per spec).
                         .content = {.value = "AV  TY  WA  We  Ya  To"},
-                        .position = {960.0f, 540.0f, 0.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                         .font = {
                             .font_path   = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",

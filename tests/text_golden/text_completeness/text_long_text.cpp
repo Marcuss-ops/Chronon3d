@@ -100,7 +100,7 @@ Composition build_long_text(SoftwareRenderer& renderer,
             s.layer("long_layer", [&](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.text_run("long_test", TextRunSpec{
-                    .text = TextSpec{.content = {.value = text},.position = {box_width / 2.0f, 540.0f, 0.0f},.font = {
+                    .text = TextSpec{.content = {.value = text},.placement = TextPlacement{TextPlacementKind::Absolute, {box_width / 2.0f, 540.0f}},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,

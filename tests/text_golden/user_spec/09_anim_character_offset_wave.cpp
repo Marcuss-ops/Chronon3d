@@ -76,7 +76,7 @@ Composition build_test09_composition(SoftwareRenderer& renderer) {
             s.layer("wave", [&, base_y](LayerBuilder& l) {
                 l.text("wave", {
                     .content = {.value = text},
-                    .position = {960.0f, base_y, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, base_y}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
