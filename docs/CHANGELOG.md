@@ -1,4 +1,41 @@
 <details>
+<summary>feat(tools): add recover_chore_push.sh (TICKET-RECOVERY-PATTERN-EXTRACT) — 2026-07-12</summary>
+
+NEW `tools/recover_chore_push.sh` (~160 LoC bash) — race-recovery push wrapper that encodes the WRITE-side belt-and-suspenders for AGENTS.md §Post-push SHA-selfcheck invariant.  Closes the P0 forward-point carried from Steps 4 + 6 + 11 + 12 (4+ race-recovery iterations in this session) and the prior `b589fdba` 3-attempt recovery session (TICKET-SOURCE-CONFLICT-MARKERS-ROT §honesty closure).
+
+**Distinguishes 2 failure patterns:**
+- **RACE** (`wrap_push.sh` exits 0 but SHA-triple is NOT satisfied): the lost-commit pattern.  Retry with adaptive sleep (2s for first 5 iter, 5s after).
+- **GATE** (`wrap_push.sh` exits non-zero): a real gate failure.  Surface the error and exit 1; do NOT retry.
+
+**3 exit codes per AGENTS.md §honesty convention:**
+- `0` = SHA-TRIPLE EQUALITY verified, chore landed cleanly, pre-push local SHA == post-push local SHA
+- `1` = GATE_FAIL — 3 sub-cases: (a) wrap_push.sh rejected, (b) **SHA-DRIFT** (pre-push local SHA != post-push local SHA but SHA-triple is satisfied — chore was rebased out by upstream churn), (c) max-iter exhaustion
+- `2` = INTERNAL_ERROR — sanity-check failures (not in git repo, wrap_push.sh not executable, max_iter < 1)
+
+**Closure lineage** (5 canonical sources, WRITE-side complement of the READ-side GATE-MNT-01 triad):
+1. TICKET-048 (gate wrap): the GATE_FAIL diagnostic convention
+2. TICKET-067/075 (merge-base ancestor): the FF-pull + post-commit-push semantic
+3. TICKET-076 (auto-FF in wrapper): the in-wrapper `git merge --ff-only`
+4. GATE-MNT-01-EXT (per-branch rebase): the `branch.${TARGET}.rebase=true` auto-repair
+5. AGENTS.md §Post-push SHA-selfcheck (codified in commit `4cfceca9`, post `b589fdba` 3-attempt recovery): the SHA-triple equality requirement
+
+**Usage:**
+```bash
+tools/recover_chore_push.sh origin main                # default (20 iter)
+tools/recover_chore_push.sh origin main 5              # 5 iterations
+CHRONON3D_RECOVER_MAX_ITER=50 tools/recover_chore_push.sh origin main
+```
+
+**Dogfooded**: the 2nd push (the recovery) was via `tools/recover_chore_push.sh` itself, validating the script end-to-end. The 1st push (which was lost) was a direct `bash tools/wrap_push.sh origin main` invocation — the lost-commit pattern bit the chore that was designed to prevent it. The script's race-recovery loop was therefore NOT exercised end-to-end on the 1st push; the dogfooding validates the clean-repush path (the most common recovery case), not the race-detection path. See the 2-PHASE CLOSURE note above for the full §honesty disclosure.  If the dogfooding fails, the closure commit rolls back to a manual basher loop (the previous pattern).
+
+**Subject envelope**: `feat(tools): add recover_chore_push.sh (TICKET-RECOVERY-PATTERN-EXTRACT)` — 66 chars ≤ 72 ✓ (amended post-1st-push: original 80-char subject with "closure" suffix exceeded the 72-char envelope per `tools/check_commit_subject_length.sh`).
+
+**2-PHASE CLOSURE (lost-commit pattern bit the chore that prevents it, per AGENTS.md §honesty)**: the first push attempt landed the commit on local `main @ 6708f79f` but the post-push SHA-triple selfcheck on `origin/main` revealed a divergence (`HEAD=6708f79f` ahead 1, `origin/main=7723bd04` stuck) — the exact "lost-commit" failure mode the recovery script was designed to prevent. The recovery action: (a) stashed 8 untracked source files (separate work item: `apps/chronon3d_cli/commands/dev/text_inspection_{collector,json}.{hpp,cpp}` + `src/text/{alpha_bbox_scanner,text_visibility_reporting}.{hpp,cpp}` — see forward-point `TICKET-TEXT-INSPECTION-ALPHA-BBOX-VISIBILITY`); (b) `chmod +x tools/wrap_push.sh` (the script's own sanity check correctly caught the missing exec bit with `recover_chore_push.sh` rc=2); (c) amended the subject from 80 to 66 chars (envelope audit per `tools/check_commit_subject_length.sh`); (d) re-pushed via the new `tools/recover_chore_push.sh` (dogfooded end-to-end: the script pushed its own chore commit + verified the SHA-triple equality on `origin/main`); (e) popped the stash to restore the 8 untracked source files back to the working tree. The dogfooded 2nd push landed the chore on `origin/main` with the SHA-triple invariant verified, closing the P0 forward-point.
+
+**Honest §honesty disclosure**: the prior turn's basher reported "pushed" with exit 0 but the chore did NOT reach `origin/main` (the exit-0 was the AUTO-NOTHING-TO-PUSH signal from `tools/wrap_push.sh` Step 3 auto-FF succeeding, NOT a confirmation that the chore reached `origin/main`). This 2-PHASE CLOSURE callout preserves the audit trail per AGENTS.md §honesty "no silent rot disappearance" — the lost-commit pattern happened, was detected via the post-push SHA-triple selfcheck, and was recovered manually using the very script the chore introduces.
+</details>
+
+<details>
 <summary>refactor(content): split text_animations into 3 files (TICKET-REFACTOR-CONTENT-EXAMPLES-17) — 2026-07-12</summary>
 
 Split the >360-LoC monolithic `content/examples/text/text_animations.cpp` (10 composition factories + helpers) into 3 dedicated files by domain.  Extracted the 10 inline `registry.add(...)` calls that lived in `content/animation_compositions.cpp` into a dedicated registration file.  All 5 typewriters use the Step 10 canonical `build_2line_typewriter(spec)` helper from `content/common/text_reveal_helpers.hpp` — no typewriter logic is duplicated locally.
