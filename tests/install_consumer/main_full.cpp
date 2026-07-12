@@ -120,17 +120,25 @@ int main(int argc, char* argv[]) {
                 });
             });
 
-            // SURFACE: image (rectangle layer — LayerBuilder::rect,
-            // the same surface as LayerBuilder::image, used here to
-            // avoid external asset dependencies).
-            s.layer("image_rect", [](c3d::LayerBuilder& l) {
+            // SURFACE: image (real LayerBuilder::image() surface —
+            // exercises the canonical image-layer pipeline via the
+            // manifest-clean `asset_path` field).  The PNG asset
+            // `assets/test_image.png` is shipped in-tree at
+            // `tests/install_consumer/assets/test_image.png` and copied
+            // to the consumer build dir by CMakeLists.txt's POST_BUILD
+            // custom_command.  Per the established TICKET-VERIFY-SDK-
+            // CONSUMER-IMAGE-ASSET closure (code-reviewer NIT 1 from
+            // the original gate chore), the previous `rect()` proxy
+            // was a gap in surface coverage; the gate now audits
+            // `l.image(` (not just `l.rect(`) to close it.
+            s.layer("test_image", [](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Shape);
-                l.rect("image_rect", c3d::RectParams{
+                l.image("test_image", c3d::ImageParams{
+                    .asset_path = "test_image.png",
                     .size  = {600.0f, 400.0f},
-                    .color = c3d::Color{0.8f, 0.2f, 0.4f, 1.0f},
                     .pos   = {660.0f, 340.0f, 0.0f},
-                    .fill  = c3d::FillStyle::solid(c3d::Color{0.8f, 0.2f, 0.4f, 1.0f}),
-                    .stroke = {},
+                    .fit   = c3d::FitMode::Cover,
+                    .opacity = 1.0f,
                 });
             });
 

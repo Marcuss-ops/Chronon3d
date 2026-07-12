@@ -1,4 +1,53 @@
+<<<<<<< Updated upstream
 ## 2026-07-12 — fix(glow): apply include + CMakeLists updates for glow move
+=======
+## 2026-07-12 — feat(cert): SDK consumer image asset (real image() surface)
+
+Closes TICKET-VERIFY-SDK-CONSUMER-IMAGE-ASSET (code-reviewer NIT 1 from the
+SDK consumer gate chore at `3f512212`).
+
+The `tests/install_consumer/main_full.cpp` consumer was using
+`LayerBuilder::rect()` as a proxy for the image surface (per the original
+comment: "the same surface as LayerBuilder::image, used here to avoid
+external asset dependencies"). This was a real gap in surface coverage —
+the gate's `[SURFACE:image]` audit passed only because the consumer's
+stdout mentioned "image" in the [FULL-OK] marker, but the actual
+`LayerBuilder::image()` code path was never exercised.
+
+**Materialised:**
+- NEW `tests/install_consumer/assets/test_image.png` — synthetic 8×8 PNG
+  (89 bytes, 4 distinct colors in a 2×2 grid: red/green/blue/yellow,
+  deterministic) committed in-tree at the canonical asset path.
+- `tests/install_consumer/main_full.cpp` — the `image_rect` layer
+  replaced with a real `l.image("test_image", ImageParams{.asset_path
+  = "test_image.png", ...})` call (manifest-clean `asset_path` field,
+  TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e contract).
+- `tests/install_consumer/CMakeLists.txt` — `add_custom_command(TARGET
+  check_full POST_BUILD ...)` copies the PNG from
+  `${CMAKE_CURRENT_SOURCE_DIR}/assets/test_image.png` to
+  `$<TARGET_FILE_DIR:check_full>/assets/test_image.png` so the runtime
+  `assets_root` resolution finds it.
+- `tools/verify_sdk_consumer_functional_linux.sh` Section 6 — 2 NEW
+  audit checks: `image_surface` (greps `l.image(` in the consumer
+  source, FAIL if not found) + `image_asset_present` (verifies the
+  test_image.png is present at the in-tree path with non-zero size,
+  FAIL if missing/empty).
+
+§honest-limitation preserved: the dry-run on this VPS emits the
+EXPECTED `SDK_CONSUMER_FUNCTIONAL_FAIL` (exit 1) on Section 1
+dirty-tree check before the new image-surface checks can run. macchina-
+verifica of the full cycle (Section 6 image-surface + image-asset audit
++ consumer render) is DEFERRED to working build host per the
+established TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV pattern.
+
+Cat-3 minimal-surface: zero new SDK API (just using the existing
+public `LayerBuilder::image()` + `ImageParams{.asset_path}`).
+[INFO] verify_sdk_consumer_functional_linux: ... count updates from
+`6 surfaces + 7 isolation + 2 nm/strings` to `6 surfaces + 7 isolation
++ 2 nm/strings + 2 image-asset` on the canonical PASS line.
+
+## 2026-07-12 — fix(camera): allow Hold segments, remove OrientAlongPath restriction
+>>>>>>> Stashed changes
 
 **`fix(glow): apply include + CMakeLists updates for glow move`** — fix-up commit for Step 7 refactor(glow) §4 (the previous chore commit 93cf6748 on origin/main was INCOMPLETE: contained only the file move + docs (CHANGELOG + TICKET) but missed the 9 #include path updates + 2 CMakeLists.txt comment blocks due to a recovery amend artifact — 5th recovery iteration in this session per AGENTS.md §Post-push SHA-selfcheck invariant). This fix-up commit re-applies all 11 file changes verbatim: 9 #include path updates (`tests/visual/ae_parity/glow_final_compositions.hpp` → `content/compositions/chronon_glow_final.hpp`) + 5 angle→quote style conversions per spec verbatim (2) + 4 comment refs updates + 2 CMakeLists.txt comment blocks (`TICKET-GLOW-FINAL-COMPOSITIONS-MOVE` confirm in both `content/CMakeLists.txt` + `apps/chronon3d_cli/CMakeLists.txt`). Subject envelope 52 chars ≤ 72. Cat-3 minimal-surface (pure #include path + style + comment updates; zero new public SDK API). Linear history (no merge commit). Per AGENTS.md §regole "Fare PR piccole e mirate" the fix-up is a separate commit (not an amend of the published 93cf6748) to preserve the SHA-triple selfcheck invariant + the existing chore entry's integrity.
 

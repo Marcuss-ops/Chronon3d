@@ -106,6 +106,25 @@ set_target_properties(check_full PROPERTIES
 )
 target_link_libraries(check_full PRIVATE Chronon3D::SDK)
 
+# ── TICKET-VERIFY-SDK-CONSUMER-IMAGE-ASSET closure (code-reviewer NIT 1) ──
+# Copy the synthetic 8x8 test PNG (4 distinct colors in a 2x2 grid) from
+# the in-tree source dir to the consumer's binary dir under `assets/`
+# so the runtime `assets_root` resolution finds it.  The consumer takes
+# `assets_root` as argv[1] (default "assets") and runs from the
+# consumer's build dir, so the PNG must be at
+# `$<TARGET_FILE_DIR:check_full>/assets/test_image.png` at runtime.
+# This is a pure build-time copy — no SDK API is added, no new
+# public surface is introduced (Cat-3 compliance).
+add_custom_command(TARGET check_full POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        $<TARGET_FILE_DIR:check_full>/assets
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_CURRENT_SOURCE_DIR}/assets/test_image.png
+        $<TARGET_FILE_DIR:check_full>/assets/test_image.png
+    COMMENT "[install_consumer] Copying test_image.png to assets/ for check_full runtime"
+    VERBATIM
+)
+
 # C++20 — must match the SDK's compile feature set so the consumer's
 # headers behave the same way as in-tree.
 set_target_properties(check_install PROPERTIES
