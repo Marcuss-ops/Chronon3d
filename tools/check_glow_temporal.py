@@ -148,9 +148,10 @@ def cmd_ssim(mp4_path: str, frames_dir: str = "") -> int:
         ssim_values: list[float] = []
         log_text = Path(ssim_log).read_text() if Path(ssim_log).exists() else ""
         for line in log_text.strip().split("\n"):
-            if line.startswith("n:") or not line.strip():
+            if not line.strip():
                 continue
             # Format: n:1 Y:0.987654 U:0.991234 V:0.992345 All:0.989012 (float)
+            # ffmpeg SSIM stats_file writes one line per frame, all starting with "n:".
             parts = line.split()
             for part in parts:
                 if part.startswith("All:"):
