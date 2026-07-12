@@ -137,7 +137,7 @@ TICKET-DETERMINISM-VP2-EXTENSION:
   user spec would re-introduce the 19px sliver regression window
   (`|cx-960| > 110` could allow the sliver to slip through). The DoD §9
   lock at `tests/text_golden/ae_parity/ae_08_glow_pulse.cpp:318+` is a
-  CLOSED regression lock certified at SHA `1cb9cff2` (2026-07-11);
+  CLOSED regression lock certified at SHA 2026-07-11 (see SHA cited in §Context above);
   re-opening it would violate TICKET-CHRONON-GLOW-FINAL closure lineage.
 - **TIGHT (option b) rejected**: tightening the user spec to DoD §9
   bounds ignores the user-spec rationale. The user wrote the LOOSER
@@ -159,7 +159,7 @@ TICKET-DETERMINISM-VP2-EXTENSION:
 ### Positive
 
 - **DoD §9 lock preserved**: the 19px sliver regression surface is
-  closed; the closure lineage at SHA `1cb9cff2` is honored.
+  closed; the closure lineage at SHA is honored (see SHA cited in §Context above).
 - **User spec (b)+(c) honored**: the 5-render determinism + threads-{1,8}
   equality is verified via the new sub-loop in
   `tests/determinism/test_brute_determinism.cpp` (a SUPERSET of user
@@ -224,7 +224,7 @@ spec: `centroid_x in (600..1320)` + `centroid_y in (300..780)`.
 
 - Widens the 19px sliver regression window: the prior DoD §9 lock
   `|cx-960| < 110, |cy-540| < 110` is a CLOSED regression lock
-  certified at SHA `1cb9cff2` (2026-07-11); re-opening it would
+  certified at SHA (see SHA cited in §Context above, 2026-07-11); re-opening it would
   violate TICKET-CHRONON-GLOW-FINAL closure lineage.
 - The user-spec LOOSER envelope is not documented with a rationale; the
   spec may be intentionally wider for aesthetic headroom, but the
@@ -324,7 +324,7 @@ ctest --test-dir build/chronon/linux-content-dev -R 'brute_determinism' --output
   spec-variant finding) + 11/11 WBH-DEFERRED row
 - `docs/CHANGELOG.md` prepended `docs(adr): propose ADR-022 hybrid
   determinism + ADR-023 cmake timeouts` entry (NEW this ADR)
-- TICKET-CHRONON-GLOW-FINAL closure lineage at SHA `1cb9cff2` (2026-07-11)
+- TICKET-CHRONON-GLOW-FINAL closure lineage at SHA (see SHA cited in §Context above, 2026-07-11)
 - TICKET-DETERMINISM-BRUTE-17 brute-determinism surface
 - AGENTS.md §"Regole permanenti" (singleton/registry ADR requirement
   applied by analogy to spec-variant decisions) + §Cat-3 (zero new
