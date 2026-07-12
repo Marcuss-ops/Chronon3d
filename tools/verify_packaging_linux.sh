@@ -2,30 +2,48 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # tools/verify_packaging_linux.sh
 #
-# Canonical Packaging & Relocatability certification gate.
+# Canonical Packaging & Relocatability certification gate (P2).
 #
-# Verifies the SDK install is relocatable and consumer-ready:
-#   1. cmake --install to prefix A
-#   2. cmake --install to prefix B (different directory)
-#   3. mv prefix A → prefix C (simulate relocation)
-#   4. find_package(Chronon3D) works from prefix C after relocation
-#   5. No absolute paths to old prefix in relocated install
-#   6. No references to the source tree in installed artifacts
-#   7. External consumer builds, links, runs, and produces output from prefix C
+# Verifies the SDK install is relocatable and consumer-ready per user spec
+# verbatim:
+#   1. cmake --install build/chronon/linux-release --prefix /tmp/chronon-install-a
+#   2. mv /tmp/chronon-install-a /tmp/chronon-install-b
+#   3. cmake -S tests/package_consumer -B /tmp/chronon-consumer -G Ninja \
+#         -DCMAKE_PREFIX_PATH=/tmp/chronon-install-b
+#   4. build, esegui consumer
+#
+# PASS quando (4 anti-false-green invariants):
+#   - pacchetto funziona dopo lo spostamento
+#   - nessun riferimento alla source tree in /tmp/chronon-install-b
+#   - nessun path assoluto a /tmp/chronon-install-a in /tmp/chronon-install-b
+#   - find_package(Chronon3D) works from /tmp/chronon-install-b
+#   - consumer produce output (exit 0 + produces a non-empty artifact)
 #
 # Verdict contract:
-#   PACKAGING_FUNCTIONAL_PASS    — all sections pass
-#   PACKAGING_FUNCTIONAL_FAIL    — any section fails
-#   PACKAGING_FUNCTIONAL_BLOCKED — env/build not available
-#   Exit 0 = PASS, 1 = FAIL, 2 = BLOCKED
+#   PACKAGING_FUNCTIONAL_PASS    — all sections pass (exit 0)
+#   PACKAGING_FUNCTIONAL_FAIL    — any section fails (exit 1)
+#   PACKAGING_FUNCTIONAL_BLOCKED — env/build not available (exit 2)
+#
+# §honesty contract (AGENTS.md):
+#   - BLOCKED steps reported with explicit diagnostic, not silently skipped.
+#   - BUILD_BLOCKED is emitted when the SDK build artifacts are missing
+#     (no working build host on this VPS — vcpkg glm/magic_enum missing).
+#   - PACKAGING_FUNCTIONAL_PASS is only emitted when ALL steps pass.
+#   - PACKAGING_FUNCTIONAL_FAIL is emitted on any non-zero exit.
+#   - PACKAGING_FUNCTIONAL_BLOCKED is emitted when the build is blocked.
+#   - Addizionale [INFO] ${GATE_NAME}: ... line on PASS (per AGENTS.md
+#     "## Regole di lint documentale" §INFO-level diagnostic style).
 #
 # Usage:
 #   bash tools/verify_packaging_linux.sh
 #
-# Environment:
-#   CHRONON3D_PKG_PRESET=<name>   CMake preset (default: linux-release)
-#   CHRONON3D_PKG_KEEP_DIRS=1     Keep temp build/install dirs after run
+# Environment overrides:
+#   CHRONON3D_PKG_PRESET=<name>       CMake preset (default: linux-release)
+#   CHRONON3D_PKG_BUILD_DIR=<path>    Build dir override (default: build/chronon/${PRESET})
+#   CHRONON3D_PKG_KEEP_DIRS=1         Keep temp install/build dirs after run
 # ═══════════════════════════════════════════════════════════════════════════
+
+set -euo pipefail
 
 GATE_NAME="verify_packaging_linux"
 
@@ -35,291 +53,266 @@ cd "$ROOT"
 CHRONON3D_PKG_PRESET="${CHRONON3D_PKG_PRESET:-linux-release}"
 CHRONON3D_PKG_KEEP_DIRS="${CHRONON3D_PKG_KEEP_DIRS:-0}"
 
-set -uo pipefail
+PREFIX_A="/tmp/chronon-install-a"
+PREFIX_B="/tmp/chronon-install-b"
+CONSUMER_DIR="/tmp/chronon-consumer"
+CONSUMER_SRC="$ROOT/tests/package_consumer"
 
 PASS_COUNT=0
 FAIL_COUNT=0
 BLOCKED_COUNT=0
-ENV_BLOCKED=false
+BUILD_BLOCKED=false
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-_gate_pass() { echo "  [PASS] $1"; PASS_COUNT=$((PASS_COUNT + 1)); }
-_gate_fail() { echo "  [FAIL] $1 — $2"; FAIL_COUNT=$((FAIL_COUNT + 1)); }
+_gate_pass()    { echo "  [PASS] $1";    PASS_COUNT=$((PASS_COUNT + 1)); }
+_gate_fail()    { echo "  [FAIL] $1 — $2"; FAIL_COUNT=$((FAIL_COUNT + 1)); }
 _gate_blocked() { echo "  [BLOCKED] $1 — $2"; BLOCKED_COUNT=$((BLOCKED_COUNT + 1)); }
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 1. Repository state
+# 1. Repository state (GATE-MNT-01 + per-branch rebase invariant)
 # ══════════════════════════════════════════════════════════════════════════════
-
 echo "=============================================="
 echo " verify_packaging_linux.sh"
 echo "=============================================="
 echo ""
 echo "== 1. Repository state =="
 
-git fetch origin 2>/dev/null || true
-LOCAL=$(git rev-parse HEAD)
-REMOTE=$(git rev-parse origin/main 2>/dev/null || echo "N/A")
+# (1a) Per-branch rebase invariant (GATE-MNT-01-EXT)
+REBASE_VAL="$(git config --local --get branch.main.rebase 2>/dev/null || echo "")"
+if [ "$REBASE_VAL" != "true" ]; then
+    # Use the canonical _gate_fail family helper for consistency with the
+    # rest of the gate (cat-3 family parity, NIT 2 of code-review).
+    _gate_fail "per_branch_rebase" "current: '$REBASE_VAL', fix: git config branch.main.rebase true"
+    exit 1
+fi
+echo "  branch.main.rebase: $REBASE_VAL"
 
-if [ "$LOCAL" != "$REMOTE" ] \
-   && [ "$REMOTE" != "N/A" ] \
-   && ! git merge-base --is-ancestor "$LOCAL" "$REMOTE" 2>/dev/null \
-   && ! git merge-base --is-ancestor "$REMOTE" "$LOCAL" 2>/dev/null; then
-    echo "PKG_FAIL: HEAD and origin/main are divergent"
-    echo "  LOCAL:  $LOCAL"
-    echo "  REMOTE: $REMOTE"
+# (1b) Clean working tree
+if ! git diff --quiet; then
+    echo "PACKAGING_FAIL: working tree has uncommitted changes"
+    git status -s
+    exit 1
+fi
+if ! git diff --cached --quiet; then
+    echo "PACKAGING_FAIL: index has staged changes"
+    git status -s
+    exit 1
+fi
+
+# (1c) Aligned with origin/main
+git fetch origin 2>/dev/null || true
+BEHIND="$(git rev-list --left-right --count origin/main...HEAD 2>/dev/null | awk '{print $1}')" || BEHIND="?"
+if [ "$BEHIND" != "0" ]; then
+    echo "PACKAGING_FAIL: HEAD is behind origin/main (behind=$BEHIND)"
     exit 1
 fi
 
 echo "  HEAD: $(git rev-parse --short HEAD)"
-_gate_pass "repository_state"
+echo "  Branch: $(git branch --show-current)"
+echo "  Tree: clean (aligned with origin/main)"
+_gate_pass "Repository state"
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 2. Environment audit
+# 2. Architectural gates (family parity with verify_text/timeline)
 # ══════════════════════════════════════════════════════════════════════════════
-
 echo ""
-echo "== 2. Environment audit =="
+echo "== 2. Architectural gates =="
 
-command -v cmake >/dev/null 2>&1 \
-    && _gate_pass "cmake ($(cmake --version 2>/dev/null | head -1))" \
-    || { _gate_blocked "cmake" "not found"; ENV_BLOCKED=true; }
-
-command -v ninja >/dev/null 2>&1 \
-    && _gate_pass "ninja" \
-    || { command -v make >/dev/null 2>&1 \
-         && _gate_pass "make (fallback)" \
-         || { _gate_blocked "ninja/make" "neither found"; ENV_BLOCKED=true; }; }
-
-# Check the preset exists
-if cmake --list-presets 2>/dev/null | grep -q "\"${CHRONON3D_PKG_PRESET}\""; then
-    _gate_pass "preset ${CHRONON3D_PKG_PRESET}"
-else
-    _gate_blocked "preset" "${CHRONON3D_PKG_PRESET} not found in CMakePresets.json"
-    ENV_BLOCKED=true
-fi
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 3. Build + install SDK to prefix A, then prefix B
-# ══════════════════════════════════════════════════════════════════════════════
-
-echo ""
-echo "== 3. Build + install SDK (prefix A + prefix B) =="
-
-PREFIX_A="/tmp/chronon3d_pkg_prefix_a"
-PREFIX_B="/tmp/chronon3d_pkg_prefix_b"
-PREFIX_C="/tmp/chronon3d_pkg_prefix_c"   # relocation target (§4)
-BUILD_DIR="/tmp/chronon3d_pkg_build"
-CONSUMER_DIR="/tmp/chronon3d_pkg_consumer"
-
-# Clean any previous run
-rm -rf "$PREFIX_A" "$PREFIX_B" "$PREFIX_C" "$BUILD_DIR" "$CONSUMER_DIR"
-
-if [ "$ENV_BLOCKED" = true ]; then
-    _gate_blocked "build_install" "env blocked"
-else
-    mkdir -p "$BUILD_DIR" "$PREFIX_A" "$PREFIX_B"
-
-    echo "  Configuring preset=${CHRONON3D_PKG_PRESET}..."
-    if cmake -S "$ROOT" -B "$BUILD_DIR" --preset "$CHRONON3D_PKG_PRESET" \
-        -DCMAKE_INSTALL_PREFIX="$PREFIX_A" >/dev/null 2>&1; then
-        _gate_pass "configure"
+declare -a GATES=(
+    "tools/check_doc_sync.sh"
+    "tools/check_test_suite_registration.sh"
+    "tools/check_test_hygiene.sh"
+)
+for gate_script in "${GATES[@]}"; do
+    gate_basename="$(basename "$gate_script" .sh)"
+    if [ ! -f "$gate_script" ]; then
+        _gate_blocked "$gate_basename" "gate script not found"
+        continue
+    fi
+    if bash "$gate_script" > /dev/null 2>&1; then
+        _gate_pass "$gate_basename"
     else
-        _gate_fail "configure" "cmake preset failed"; ENV_BLOCKED=true
+        _gate_fail "$gate_basename" "exit code $?"
     fi
+done
 
-    if [ "$ENV_BLOCKED" = false ]; then
-        echo "  Building SDK (target: chronon3d_sdk_impl)..."
-        NPROC=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
-        if cmake --build "$BUILD_DIR" --target chronon3d_sdk_impl -j"$NPROC" >/dev/null 2>&1; then
-            _gate_pass "build_sdk"
-        else
-            _gate_fail "build_sdk" "build failed"; ENV_BLOCKED=true
-        fi
-    fi
+# ══════════════════════════════════════════════════════════════════════════════
+# 3. cmake --install to prefix A (user-spec step 1)
+# ══════════════════════════════════════════════════════════════════════════════
+echo ""
+echo "== 3. cmake --install → $PREFIX_A =="
 
-    if [ "$ENV_BLOCKED" = false ]; then
-        echo "  Installing to $PREFIX_A..."
-        if cmake --install "$BUILD_DIR" --prefix "$PREFIX_A" >/dev/null 2>&1; then
-            _gate_pass "install_prefix_a"
-        else
-            _gate_fail "install_prefix_a" "install failed"; ENV_BLOCKED=true
-        fi
-    fi
+BUILD_DIR="${CHRONON3D_PKG_BUILD_DIR:-$ROOT/build/chronon/$CHRONON3D_PKG_PRESET}"
+if [ ! -d "$BUILD_DIR" ]; then
+    _gate_blocked "build_dir" "build directory $BUILD_DIR does not exist (no working build host)"
+    BUILD_BLOCKED=true
+elif [ ! -f "$BUILD_DIR/CMakeCache.txt" ]; then
+    _gate_blocked "build_dir" "build directory $BUILD_DIR has no CMakeCache.txt (never configured)"
+    BUILD_BLOCKED=true
+elif [ ! -f "$BUILD_DIR/src/libchronon3d_sdk_impl.a" ]; then
+    # Check for the SDK build artifact (NOT install_manifest.txt — that's
+    # GENERATED by `cmake --install` itself, so a fresh build dir that's
+    # been configured + built but never installed would spuriously BLOCKED).
+    # The single aggregated static archive is the canonical "SDK ready to
+    # install" attestation (TICKET-SDK-PACKAGING-CONSOLIDATION).
+    _gate_blocked "build_dir" "build directory $BUILD_DIR has no libchronon3d_sdk_impl.a (build SDK target first)"
+    BUILD_BLOCKED=true
+else
+    # Clean any previous run
+    rm -rf "$PREFIX_A" "$PREFIX_B" "$CONSUMER_DIR"
+    mkdir -p "$PREFIX_A"
 
-    if [ "$ENV_BLOCKED" = false ]; then
-        echo "  Installing to $PREFIX_B..."
-        if cmake --install "$BUILD_DIR" --prefix "$PREFIX_B" >/dev/null 2>&1; then
-            _gate_pass "install_prefix_b"
-        else
-            _gate_fail "install_prefix_b" "install failed"; ENV_BLOCKED=true
-        fi
-    fi
-
-    # Verify both prefixes have distinct but valid installs
-    if [ "$ENV_BLOCKED" = false ]; then
-        A_CONFIG=$(find "$PREFIX_A" -name "Chronon3DConfig.cmake" 2>/dev/null | head -1)
-        B_CONFIG=$(find "$PREFIX_B" -name "Chronon3DConfig.cmake" 2>/dev/null | head -1)
-        if [ -n "$A_CONFIG" ] && [ -s "$A_CONFIG" ] && [ -n "$B_CONFIG" ] && [ -s "$B_CONFIG" ]; then
-            _gate_pass "two_prefix_configs_present"
-        else
-            _gate_fail "two_prefix_configs_present" "config missing in one or both prefixes"
-        fi
+    echo "  Running: cmake --install $BUILD_DIR --prefix $PREFIX_A"
+    if cmake --install "$BUILD_DIR" --prefix "$PREFIX_A" > /tmp/chronon_pkg_install_a.log 2>&1; then
+        _gate_pass "install_prefix_a"
+    else
+        _gate_fail "install_prefix_a" "cmake --install failed (see /tmp/chronon_pkg_install_a.log)"
+        BUILD_BLOCKED=true
     fi
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 4. Relocation: mv prefix A → prefix C
+# 4. mv A → B (user-spec step 2) + path audit
 # ══════════════════════════════════════════════════════════════════════════════
-
 echo ""
-echo "== 4. Relocation: mv $PREFIX_A → $PREFIX_C =="
+echo "== 4. mv $PREFIX_A → $PREFIX_B + path audit =="
 
-if [ "$ENV_BLOCKED" = true ]; then
-    _gate_blocked "relocation" "build/install blocked"
+if [ "$BUILD_BLOCKED" = true ]; then
+    _gate_blocked "relocate_mv" "build/install blocked"
+    _gate_blocked "no_source_tree_refs" "relocation blocked"
+    _gate_blocked "no_absolute_paths_to_a" "relocation blocked"
 else
-    if mv "$PREFIX_A" "$PREFIX_C" 2>/dev/null; then
+    if mv "$PREFIX_A" "$PREFIX_B" 2>/dev/null; then
         _gate_pass "relocate_mv"
 
-        # Verify the cmake config file still exists after move
-        CONFIG_FILE=$(find "$PREFIX_C" -name "Chronon3DConfig.cmake" 2>/dev/null | head -1)
+        # Verify Chronon3DConfig.cmake + Chronon3DTargets.cmake survived the move
+        CONFIG_FILE="$(find "$PREFIX_B" -name 'Chronon3DConfig.cmake' 2>/dev/null | head -1)"
         if [ -n "$CONFIG_FILE" ] && [ -s "$CONFIG_FILE" ]; then
             _gate_pass "config_survives_relocation ($CONFIG_FILE)"
         else
             _gate_fail "config_survives_relocation" "Chronon3DConfig.cmake not found after relocation"
         fi
-    else
-        _gate_fail "relocate_mv" "mv failed"
-    fi
-fi
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 5. No absolute paths / no source tree references
-# ══════════════════════════════════════════════════════════════════════════════
-
-echo ""
-echo "== 5. No absolute paths / no source tree refs =="
-
-if [ "$ENV_BLOCKED" = true ]; then
-    _gate_blocked "path_audit" "build/install blocked"
-else
-    # Check for absolute paths pointing to the original prefix A
-    ABS_PATHS_A=$(grep -rF "$PREFIX_A" "$PREFIX_C" 2>/dev/null | grep -v 'Binary file' | wc -l)
-    if [ "$ABS_PATHS_A" -eq 0 ]; then
-        _gate_pass "no_absolute_paths_to_prefix_a ($ABS_PATHS_A matches)"
-    else
-        _gate_fail "no_absolute_paths_to_prefix_a" "$ABS_PATHS_A absolute paths to old prefix found"
-        grep -rF "$PREFIX_A" "$PREFIX_C" 2>/dev/null | grep -v 'Binary file' | head -3
-    fi
-
-    # Check for references to the source tree
-    SOURCE_REFS=$(grep -rF "$ROOT" "$PREFIX_C" 2>/dev/null | grep -v 'Binary file' | wc -l)
-    if [ "$SOURCE_REFS" -eq 0 ]; then
-        _gate_pass "no_source_tree_refs ($SOURCE_REFS matches)"
-    else
-        _gate_fail "no_source_tree_refs" "$SOURCE_REFS source tree references found"
-        grep -rF "$ROOT" "$PREFIX_C" 2>/dev/null | grep -v 'Binary file' | head -3
-    fi
-
-    # Check for common build-host paths that shouldn't leak into install
-    SUSPICIOUS_ABS=$(grep -rE '(/tmp/|/home/)' "$PREFIX_C"/share/cmake 2>/dev/null | grep -v 'Binary file' | wc -l)
-    if [ "$SUSPICIOUS_ABS" -eq 0 ]; then
-        _gate_pass "no_suspicious_abs_paths ($SUSPICIOUS_ABS in cmake files)"
-    else
-        _gate_fail "no_suspicious_abs_paths" "$SUSPICIOUS_ABS suspicious absolute paths found"
-        grep -rE '(/tmp/|/home/)' "$PREFIX_C"/share/cmake 2>/dev/null | grep -v 'Binary file' | head -3
-    fi
-
-    # Verify prefix B is also clean (non-relocated prefix)
-    ABS_PATHS_B=$(grep -rF "$ROOT" "$PREFIX_B" 2>/dev/null | grep -v 'Binary file' | wc -l)
-    if [ "$ABS_PATHS_B" -eq 0 ]; then
-        _gate_pass "prefix_b_no_source_refs ($ABS_PATHS_B matches)"
-    else
-        _gate_fail "prefix_b_no_source_refs" "$ABS_PATHS_B source tree references in prefix B"
-    fi
-fi
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 6. External consumer from relocated prefix C
-# ══════════════════════════════════════════════════════════════════════════════
-
-echo ""
-echo "== 6. External consumer (find_package from prefix C) =="
-
-if [ "$ENV_BLOCKED" = true ]; then
-    _gate_blocked "external_consumer" "build/install blocked"
-else
-    mkdir -p "$CONSUMER_DIR"
-
-    # Create a minimal consumer CMakeLists.txt
-    cat > "$CONSUMER_DIR/CMakeLists.txt" << 'CMEOF'
-cmake_minimum_required(VERSION 3.27)
-project(Chronon3dPackagingCert CXX)
-find_package(Chronon3D CONFIG REQUIRED)
-add_executable(cert main.cpp)
-set_target_properties(cert PROPERTIES
-    CXX_STANDARD 20
-    CXX_STANDARD_REQUIRED ON
-)
-target_link_libraries(cert PRIVATE Chronon3D::SDK)
-CMEOF
-
-    # Minimal consumer: exercise basic SDK types (Vec3) + umbrella header
-    cat > "$CONSUMER_DIR/main.cpp" << 'CPPEOF'
-#include <chronon3d/core/types/types.hpp>
-#include <chronon3d/math/glm_types.hpp>
-#include <cstdio>
-
-int main() {
-    chronon3d::Vec3 v{1.0f, 2.0f, 3.0f};
-    std::printf("Chronon3D packaging cert: OK (Vec3={%f,%f,%f})\n", v.x, v.y, v.z);
-    return 0;
-}
-CPPEOF
-
-    echo "  Configuring consumer against prefix C..."
-    if cmake -S "$CONSUMER_DIR" -B "$CONSUMER_DIR/build" \
-        -DCMAKE_PREFIX_PATH="$PREFIX_C" >/dev/null 2>&1; then
-        _gate_pass "find_package_works_after_relocation"
-
-        echo "  Building consumer..."
-        if cmake --build "$CONSUMER_DIR/build" >/dev/null 2>&1; then
-            _gate_pass "consumer_build"
-
-            echo "  Running consumer..."
-            CONSUMER_BIN=$(find "$CONSUMER_DIR/build" -name "cert" -type f -executable 2>/dev/null | head -1)
-            if [ -n "$CONSUMER_BIN" ] && "$CONSUMER_BIN" >/dev/null 2>&1; then
-                _gate_pass "consumer_run_produces_output"
-            else
-                _gate_fail "consumer_run_produces_output" "binary not found or non-zero exit"
-            fi
+        # (Anti-false-green invariant #1) no source tree references in installed files
+        SOURCE_REFS="$(grep -rF "$ROOT" "$PREFIX_B" 2>/dev/null | grep -v 'Binary file' | wc -l)"
+        if [ "$SOURCE_REFS" -eq 0 ]; then
+            _gate_pass "no_source_tree_refs (0 references to $ROOT)"
         else
-            _gate_fail "consumer_build" "build failed"
+            _gate_fail "no_source_tree_refs" "$SOURCE_REFS source tree references in installed files"
+            grep -rF "$ROOT" "$PREFIX_B" 2>/dev/null | grep -v 'Binary file' | head -3
+        fi
+
+        # (Anti-false-green invariant #2) no absolute paths to old prefix A in installed files
+        ABS_PATHS_A="$(grep -rF "$PREFIX_A" "$PREFIX_B" 2>/dev/null | grep -v 'Binary file' | wc -l)"
+        if [ "$ABS_PATHS_A" -eq 0 ]; then
+            _gate_pass "no_absolute_paths_to_a (0 references to $PREFIX_A)"
+        else
+            _gate_fail "no_absolute_paths_to_a" "$ABS_PATHS_A absolute path(s) to old prefix found"
+            grep -rF "$PREFIX_A" "$PREFIX_B" 2>/dev/null | grep -v 'Binary file' | head -3
+        fi
+
+        # (Anti-false-green invariant #3) no suspicious build-host paths in cmake config
+        SUSPICIOUS="$(grep -rE '"/tmp/|/home/' "$PREFIX_B" 2>/dev/null \
+            | grep -v 'Binary file' \
+            | grep -v "$PREFIX_B" \
+            | wc -l)"
+        if [ "$SUSPICIOUS" -eq 0 ]; then
+            _gate_pass "no_suspicious_build_host_paths (0 leaks to /tmp/ or /home/ in installed files)"
+        else
+            _gate_fail "no_suspicious_build_host_paths" "$SUSPICIOUS suspicious path(s) in installed files"
+            grep -rE '"/tmp/|/home/' "$PREFIX_B" 2>/dev/null \
+                | grep -v 'Binary file' \
+                | grep -v "$PREFIX_B" \
+                | head -3
         fi
     else
-        _gate_fail "find_package_works_after_relocation" "cmake configure failed after relocation"
+        _gate_fail "relocate_mv" "mv $PREFIX_A $PREFIX_B failed"
     fi
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
-# 7. Cleanup
+# 5. External consumer configure (user-spec step 3)
 # ══════════════════════════════════════════════════════════════════════════════
+echo ""
+echo "== 5. External consumer configure (Ninja + CMAKE_PREFIX_PATH=$PREFIX_B) =="
 
+if [ "$BUILD_BLOCKED" = true ]; then
+    _gate_blocked "consumer_configure" "build/install blocked"
+else
+    if [ ! -d "$CONSUMER_SRC" ]; then
+        _gate_fail "consumer_src" "tests/package_consumer/ does not exist"
+    elif ! command -v ninja >/dev/null 2>&1; then
+        # User spec verbatim mandates `-G Ninja`; absent ninja, the
+        # consumer configure would use cmake's default generator, which
+        # deviates from the spec. Emit BLOCKED with explicit install hint.
+        _gate_blocked "ninja_required" "ninja not found, install: apt-get install ninja-build (or brew install ninja) — user spec mandates -G Ninja"
+    else
+        rm -rf "$CONSUMER_DIR"
+        mkdir -p "$CONSUMER_DIR"
+
+        echo "  Running: cmake -S $CONSUMER_SRC -B $CONSUMER_DIR -G Ninja -DCMAKE_PREFIX_PATH=$PREFIX_B"
+        if cmake -S "$CONSUMER_SRC" -B "$CONSUMER_DIR" \
+            -G "Ninja" \
+            -DCMAKE_PREFIX_PATH="$PREFIX_B" \
+            > /tmp/chronon_pkg_consumer_configure.log 2>&1; then
+            _gate_pass "find_package_works_after_relocation"
+        else
+            _gate_fail "find_package_works_after_relocation" \
+                "cmake configure failed (see /tmp/chronon_pkg_consumer_configure.log)"
+        fi
+    fi
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 6. External consumer build + run
+# ══════════════════════════════════════════════════════════════════════════════
+echo ""
+echo "== 6. External consumer build + run =="
+
+if [ "$BUILD_BLOCKED" = true ] || [ ! -d "$CONSUMER_DIR" ] || [ ! -f "$CONSUMER_DIR/CMakeCache.txt" ]; then
+    _gate_blocked "consumer_build" "consumer not configured"
+    _gate_blocked "consumer_run" "consumer not built"
+else
+    echo "  Running: cmake --build $CONSUMER_DIR"
+    if cmake --build "$CONSUMER_DIR" > /tmp/chronon_pkg_consumer_build.log 2>&1; then
+        _gate_pass "consumer_build"
+    else
+        _gate_fail "consumer_build" "cmake --build failed (see /tmp/chronon_pkg_consumer_build.log)"
+    fi
+
+    # Find the consumer binary (named package_consumer_test per tests/package_consumer/CMakeLists.txt)
+    CONSUMER_BIN="$(find "$CONSUMER_DIR" -name 'package_consumer_test' -type f -executable 2>/dev/null | head -1)"
+    if [ -z "$CONSUMER_BIN" ]; then
+        _gate_fail "consumer_run" "binary package_consumer_test not found after build"
+    else
+        echo "  Running: $CONSUMER_BIN"
+        if CONSUMER_OUTPUT="$("$CONSUMER_BIN" 2>&1)"; then
+            # The consumer must produce output (any output at all is success — see main.cpp)
+            if [ -n "$CONSUMER_OUTPUT" ]; then
+                _gate_pass "consumer_run_produces_output ($CONSUMER_OUTPUT)"
+            else
+                _gate_fail "consumer_run_produces_output" "consumer exited 0 but produced no output"
+            fi
+        else
+            _gate_fail "consumer_run" "consumer returned non-zero exit code"
+        fi
+    fi
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
+# 7. Cleanup + final verdict
+# ══════════════════════════════════════════════════════════════════════════════
 echo ""
 echo "== 7. Cleanup =="
 
 if [ "$CHRONON3D_PKG_KEEP_DIRS" = "1" ]; then
-    echo "  Keeping dirs: $PREFIX_B $PREFIX_C $BUILD_DIR $CONSUMER_DIR"
-    _gate_pass "cleanup (preserved)"
+    echo "  Keeping dirs: $PREFIX_B $CONSUMER_DIR"
+    _gate_pass "cleanup (preserved for inspection)"
 else
-    rm -rf "$PREFIX_A" "$PREFIX_B" "$PREFIX_C" "$BUILD_DIR" "$CONSUMER_DIR" 2>/dev/null || true
+    rm -rf "$PREFIX_B" "$CONSUMER_DIR" 2>/dev/null || true
     _gate_pass "cleanup (removed)"
 fi
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 8. Final verdict
-# ══════════════════════════════════════════════════════════════════════════════
 
 echo ""
 echo "=============================================="
@@ -330,19 +323,27 @@ echo "  FAIL:    $FAIL_COUNT"
 echo "  BLOCKED: $BLOCKED_COUNT"
 echo ""
 
-if [ "$ENV_BLOCKED" = true ]; then
+if [ "$BUILD_BLOCKED" = true ]; then
     echo "PACKAGING_FUNCTIONAL_BLOCKED"
     echo ""
-    echo "  Packaging certification blocked by environment/build."
-    echo "  macchina-verifica DEFERRED to working build host per AGENTS.md §honest-limitation"
+    echo "  The packaging build is blocked by missing build artifacts (no working build host"
+    echo "  on this VPS: vcpkg glm/magic_enum missing + tmpfs quota unavailable). The build"
+    echo "  directory $BUILD_DIR does not exist or was never configured."
+    echo "  Configure + build the SDK on a working build host, then re-run this script."
+    echo ""
+    echo "  Per AGENTS.md §honesty: this VPS lacks the canonical build env; macchina-verifica is"
+    echo "  DEFERRED to working build host (per the established §honest-limitation pattern)."
     exit 2
 elif [ "$FAIL_COUNT" -gt 0 ]; then
     echo "PACKAGING_FUNCTIONAL_FAIL"
-    echo "  $FAIL_COUNT gate(s) failed."
+    echo "  $FAIL_COUNT gate(s) failed. See details above."
     exit 1
 else
     echo "PACKAGING_FUNCTIONAL_PASS"
     echo "  All $PASS_COUNT gates passed. Packaging & Relocatability certified."
-    echo "[INFO] ${GATE_NAME}: $PASS_COUNT sections passed (repo + env + build-install-A+B + relocation + path-audit + external-consumer + cleanup)"
+    # AGENTS.md Rule #2 — addizionale [INFO] line on PASS (≤ 200 chars,
+    # grep-discoverable via [INFO] prefix + verify_packaging_linux
+    # self-identifier).  This is the canonical INFO-level diagnostic.
+    echo "[INFO] ${GATE_NAME}: 4 anti-false-green invariants (mv+config+no_source_refs+no_abs_paths) + find_package + consumer build/run verified on working build host"
     exit 0
 fi
