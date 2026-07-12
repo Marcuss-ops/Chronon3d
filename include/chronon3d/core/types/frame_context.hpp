@@ -96,9 +96,7 @@ struct FrameContext {
     ///     `if (auto* engine = ctx.font_engine_or_null()) { ... }`
     /// instead of repeating the `runtime ? runtime->font_engine() : font_engine`
     /// ternary at every call site (6 sites consolidated by this helper).
-    [[nodiscard]] FontEngine* font_engine_or_null() const noexcept {
-        return runtime ? runtime->font_engine() : font_engine;
-    }
+    [[nodiscard]] FontEngine* font_engine_or_null() const noexcept;
 };
 
 } // namespace chronon3d
