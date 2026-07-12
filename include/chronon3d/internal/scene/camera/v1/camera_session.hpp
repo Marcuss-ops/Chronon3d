@@ -49,7 +49,7 @@
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_constraint.hpp>  // ConstraintSession, ConstraintState
 #include <chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp>  // TICKET-FRAMING-V1: FramingSession
-#include <chronon3d/math/camera_2_5d_projection.hpp>  // Camera2_5D, Quat for std::optional members
+#include <chronon3d/scene/model/camera/camera_2_5d.hpp>  // Camera2_5D for std::optional members
 #include <chronon3d/math/glm_types.hpp>   // Vec3
 
 #include <cstdint>
