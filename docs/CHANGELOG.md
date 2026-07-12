@@ -30,6 +30,7 @@ EDIT `docs/CURRENT_STATUS.md` (cite-only per Cat-3 anti-duplication): +1 line ap
 
 
 
+
 ## 2026-07-12 — feat(cert): unified product cert command (14 sub-gates)
 
 
@@ -83,6 +84,7 @@ NEW `tools/verify_chronon_product_linux.sh` (~306 LoC, executable bash + `chmod 
 
 
 
+
 ## 2026-07-12 — feat(cert): timeline functional cert (10 scenarios)
 
 
@@ -130,6 +132,7 @@ EDIT `docs/CURRENT_STATUS.md` (cite-only per Cat-3 anti-duplication): +1 line ap
 
 
 
+
 ## 2026-07-12 — feat(cert): asset preflight cert (10 sabotage scenarios)
 
 **`feat(cert): asset preflight cert`** — atomic chore commit on main materializing the canonical asset manifest & preflight certification gate per user spec verbatim "esegui sabotaggi (font inesistente, PNG inesistente/corrotto, MP4 inesistente/corrotto, audio inesistente, path non leggibile, estensione sbagliata, asset duplicato, asset cambiato durante render). Verifica exit≠0, no .partial residuo, no fallback nero, errore che indica asset+owner/layer. Crea `tools/verify_asset_preflight_linux.sh`."
@@ -172,6 +175,7 @@ EDIT `docs/CURRENT_STATUS.md` (cite-only per Cat-3 anti-duplication): +1 line ap
 > Cronologia delle chiusure recenti. Per i blocchi aperti vedi [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Baseline verde certificata: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c2ba-baseline.md) (11/11 PASS).
 >
 > **Snapshot header**: 2026-07-12 — chiusura TICKET-VERIFY-DIAGNOSTICS-LINUX (10-class error matrix + 7-field structured contract enforcement gate).
+
 
 
 
@@ -236,6 +240,7 @@ EDIT `docs/CURRENT_STATUS.md` (cite-only per Cat-3 anti-duplication): +1 line ap
 
 
 
+
 ## 2026-07-12 — feat(check): baseline + clean-build cert gate (7-section FAIL-LOUD)
 
 **`feat(check): baseline + clean-build cert gate`** — atomic chore commit on main materializing the canonical baseline + clean-build certification gate per user spec verbatim "Crea/aggiorna `tools/verify_repository_baseline_linux.sh` che fallisce se trova: errori di build, test falliti, target mancanti, test obbligatori skipped, working tree sporco". NEW `tools/verify_repository_baseline_linux.sh` (~360 LoC, 7-section FAIL-LOUD gate mirroring the `tools/verify_camera_functional_linux.sh` + `tools/verify_text_functional_linux.sh` structure verbatim): **(1) Repository state** (clean tree via `git diff --quiet HEAD` + `git diff --cached --quiet` + `git status --porcelain` + aligned with `origin/main` per GATE-MNT-01 merge-base ancestor); **(2) Environment audit** (vcpkg toolchain file at `${ROOT}/vcpkg_bootstrap/scripts/buildsystems/vcpkg.cmake` + `ninja` or `ninja-build` + C compiler `cc/gcc/clang` + C++ compiler `c++/g++/clang++` + cmake ≥3.20 for presets v6 + ≥5 GB disk free); **(3) Clean configure** via `cmake --preset linux-ci-full-validation` with `CMakeCache.txt` + `CMake Error|error:|Error in command` detection; **(4) Clean build** via `cmake --build --preset linux-ci-full-validation -j${JOBS}` with per-line `error:` count + first-10 errors diagnostic; **(5) CTest discovery + run** via `ctest --preset linux-ci-full-validation-test --output-on-failure` with `100% tests passed, 0 tests failed` regex + fallback to `tests passed.*[0-9]+%` for non-100% cases + `No tests were found` BLOCKED + generic no-result BLOCKED; **(6) Required target audit** (`chronon3d_cli` + `chronon3d_tests` binaries present + executable under `build/chronon/${PRESET_CI_FULL}/`, file size reported); **(7) Skipped mandatory test audit** (`ctest --print-labels` to enumerate labels, then per-label `ctest -L <label>` with `***Skipped` regex count; the canonical `boundary` label is HARD-required per docs/FEATURES.md 11/11 PASS contract, `baseline` + `ci` are soft-skip forward-point candidates per code-reviewer-minimax-m3 NIT). Exit codes per the established pattern: `0` = BASELINE_FUNCTIONAL_PASS / `1` = BASELINE_FUNCTIONAL_FAIL / `2` = BASELINE_FUNCTIONAL_BLOCKED (env or build blocked). **AGENTS.md `## Regole di lint documentale` Rule #2 INFO-level diagnostic style**: addizionale `[INFO] ${GATE_NAME}: N/7 sections passed (repo state + env + configure + build + ctest + targets + labels)` line on PASS addizionale al canonico `BASELINE_FUNCTIONAL_PASS` (≤200 chars, grep-discoverable via `[INFO]` prefix + `verify_repository_baseline_linux` self-identifier); **suppressed on FAIL/BLOCKED paths** per the rule ("MAI sul FAIL" — the `BASELINE_FUNCTIONAL_BLOCKED` line IS the canonical verdict for that state, no addizionale `[INFO]` needed). `bash -n` syntax clean + `chmod +x` applied.
@@ -249,6 +254,7 @@ EDIT `docs/CURRENT_STATUS.md` (cite-only per Cat-3 anti-duplication): +1 line ap
 **Forward-points (NOT in this commit per AGENTS.md "Fare PR piccole e mirate" + Cat-3 anti-duplication)**: (a) `TICKET-BASELINE-CERT-MACHINE-VERIFY` — working build host macchina-verifica: `cmake --preset linux-ci-full-validation` + `cmake --build --preset linux-ci-full-validation -j$(nproc)` + `ctest --preset linux-ci-full-validation-test --output-on-failure` + `bash tools/verify_repository_baseline_linux.sh` → expects canonical `BASELINE_FUNCTIONAL_PASS` (exit 0) once the 409-error rot + vcpkg glm/magic_enum are resolved; (b) `TICKET-BASELINE-CERT-WRAP-PUSH-WIREIN` — add `bash "${SCRIPT_DIR}/verify_repository_baseline_linux.sh"` invocation to `tools/wrap_push.sh` Step 4.5m (parallel to Step 4.5c camera gate + Step 4.5h video gate + Step 4.5i fix-velocity + Step 4.5j manual-touches + Step 4.5k batch-100) for canonical pre-push autoinvocation; (c) `TICKET-BASELINE-CERT-ORCHESTRATOR-WIREIN` — add `== Baseline + clean build ==` section to `tools/first_principles_product_check.sh` between `== Glow certification ==` and the next section, parallel to the existing orchestrator Cat-3 distinct-section structure.
 
 **Cross-references**: AGENTS.md v0.1 Cat-3 (zero new public SDK API surface; satisfied — pure `tools/` + `docs/` tracking) + Cat-5 (3-doc same-commit alignment; satisfied — CHANGELOG + FOLLOWUP_TICKETS + CURRENT_STATUS atomically updated) + §honest-limitation (macchina-verifica DEFERRED to working build host per the established pattern; the gate script `bash -n` clean + `chmod +x` applied; the dry-run on this VPS emits the EXPECTED `BASELINE_FUNCTIONAL_BLOCKED` on env blocker, NO spurious exit 0) + `## Regole di lint documentale` Rule #2 INFO-level diagnostic style (`[INFO] ${GATE_NAME}: ...` line on PASS, suppressed on FAIL/BLOCKED, ≤200 chars, grep-discoverable via `[INFO]` prefix + `verify_repository_baseline_linux` self-identifier) + §regole "Fare PR piccole e mirate" (single atomic chore on the gate; the gate script + 3-doc updates locked together per Cat-3 anti-dup) + §regole "non committare `node_modules/`, directory di build, output, artefatti o file generati" (this commit adds 1 NEW file + 3 EDITs; ZERO build artifacts committed) + AGENTS.md TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (52-char subject envelope ≤ 72 push-range audit) + AGENTS.md GATE-MNT-01 closure lineage (`tools/wrap_push.sh` Step 4.5 auto-FF + `tools/check_main_clean.sh` pre-push verify); the canonical `tools/verify_camera_functional_linux.sh` (the 7-section template mirrored: repository state + arch gates + disabled test audit + clean configure + build + ctest + scenario audit + external consumer + verdict + [INFO] line — same structure applied to the baseline gate with env audit + required target audit + skipped mandatory label audit as the 3 baseline-specific sections) + `tools/verify_text_functional_linux.sh` (the text-cert sibling precedent) + `tools/check_main_clean.sh` (the GATE-MNT-01 pattern referenced in Section 1) + `tools/check_ffmpeg_required.sh` (the FAIL-LOUD + em-dash install-hint + [INFO] line family pattern mirrored in the env audit fail-loud contract) + `tools/first_principles_product_check.sh` (the orchestrator that this commit is forward-pointed to via TICKET-BASELINE-CERT-ORCHESTRATOR-WIREIN for section wire-in).
+
 
 
 
@@ -281,6 +287,7 @@ EDIT `docs/CURRENT_STATUS.md` (cite-only per Cat-3 anti-duplication): +1 line ap
 
 
 
+
 ## 2026-07-12 - F2 push-drain closure verified (R2 merge commit + post-retry push + SHA-triple equality)
 
 - **`docs(F2): verified SHA-triple + 4-doc same-commit`**: post-retry confirmation that the F2 push-drain cycle actually landed on origin/main. The cycle commit 12c23ea1 added ADR-022 (advisory gate) + tools/check_push_divergence_window.sh + wrap_push.sh 4.5h edit + Cat-5 4-doc updates. The R2 path (chosen because R1 rebase hung on multi-commit cascade) executed `git merge --no-ff origin/main` (merge commit d20ea2e4, 3 known conflict zones auto-resolved via sed-marker-strip on docs/CHANGELOG.md + docs/FOLLOWUP_TICKETS.md + docs/CURRENT_STATUS.md + tools/wrap_push.sh) + `bash tools/wrap_push.sh origin main` (initial exit-0). Post-push SHA-triple equality check FAILED with LOCAL_AHEAD=8/REMOTE_AHEAD=0 revealing the AGENTS.md §Post-push SHA-selfcheck Mode 1 silent lost-commit pattern (wrap_push exit 0 but origin ref not updated). Recovered via explicit `git push origin HEAD:main` + post-retry refetch + independent `git ls-remote origin main` returning d20ea2e4 (= HEAD = origin/main local view). SHA-triple equality NOW VERIFIED. Backup-sunset-test-16 tag 18b0554aca9b3917416368d348b479ea6c65106a reachable from new HEAD. branch.main.rebase=true invariant SURVIVED. §honesty cert PARTIAL-PUSH-BLOCKED-F2 closes to PASS-verified-after-silent-mode-1-recovery.
@@ -306,7 +313,9 @@ AUDIT TRAIL:
 
 
 
+
 ## 2026-07-12 - F2 push-drain closure (ADR-022 + divergence-window gate wired) -- VERIFIED POST-RETRY above
+
 
 
 
@@ -335,6 +344,7 @@ AUDIT TRAIL:
 
 
 
+
 ## 2026-07-12 - F2 push-drain closure (ADR-022 + divergence-window gate wired)
 
 - **`tools(F2): wire divergence-window gate + push-drain closure`**: closes TICKET-INFRA-F2-DIVERGENCE (P0). Drains the 6/10 TRUE divergence between local main and origin/main that accumulated across Test 16 + Test 17 + TICKET-125 aggregator + first Test 18 + Test 18 cycle 2 + this cycle. Path: ADR-022 (advisory gate) + `tools/check_push_divergence_window.sh` (new Cat-4 ancillary) wired into `tools/wrap_push.sh` Step 4.5h + `git merge --no-ff origin/main` (creates merge commit preserving backup-sunset-test-16 tag) + `bash tools/wrap_push.sh origin main` (push land). SHA-triple equality post-push per AGENTS.md Post-push SHA-selfcheck invariant. §honesty cert PARTIAL-PUSH-BLOCKED-F2 closes to PASS.
@@ -358,9 +368,11 @@ AUDIT TRAIL:
 
 
 
+
 ## 2026-07-12 - Test 18 first-seed dry-run capture (PARTIAL-VPS-LIMITED)
 
 - **`docs(test-18): PARTIAL dry-run capture + push blocked F2 ticket`**: First-seed dry-run of `WEEKLY_COST_HOURLY_RATE=0.05 bash tools/run_weekly_scorecard.sh` on a non-build-host VPS into `docs/product-tests/TEST-18-2026-W28.md`. Result: 1-line `GATE_FAIL_INTERNAL: run_weekly_scorecard: sqlite3 not in PATH` (exit 2). Closing honu: PARTIAL-on-populated-DB NOT closed; new disclosure is `PARTIAL-VPS-LIMITED-DRY-RUN-CAPTURED`. Week-over-week delta for narrative line 7 (metrica migliorata) stays locked pending real working build host. Push LOCAL-ONLY per `TICKET-INFRA-F2-DIVERGENCE (P0)` honu Open Blocker.
+
 
 
 
@@ -418,6 +430,7 @@ AUDIT TRAIL:
 
 
 
+
 ## Luglio 2026 — docs(aggregator): TICKET-125 test aggregator index (11 deliverable per tests 8-18 under the 11/11 canonical gate, 2026-07-12, atomic chore commit on main)
 
 **`docs(aggregator)` TICKET-125 catalog landed** — NEW canonical artifact [`docs/tickets/TICKET-125-test-aggregator.md`](docs/tickets/TICKET-125-test-aggregator.md) istituisce il punto di ingresso unico per coordinare i 11 deliverable dei test 8-18 sotto il baseline verde certificata `main@7eb5c2ba` 11/11 PASS. Each row carries macchina-osservable PASS/FAIL criterion (bash one-liner executable on working build host) — strict no-percent-estimates discipline per AGENTS.md v0.1 §honesty.
@@ -434,6 +447,7 @@ AUDIT TRAIL:
 **§honest PARTIAL cert annotation** (this commit): push iterativo still BLOCKED by `TICKET-INFRA-F2-DIVERGENCE (P0)` §Open Blocker (5+ consecutive sessions recurring divergence; LOCAL_AHEAD=~3, REMOTE_AHEAD=~10). Per AGENTS.md §honesty: aggregator commit lands on LOCAL main; SHA triples non verificati fino a F2 gate land. **Cat-5 3-doc same-commit alignment** (this CHANGELOG entry + `docs/FOLLOWUP_TICKETS.md` 3 NEW Open Blocker rows at TOP after TICKET-TEST-17-COMPARISON-VERIFY + `docs/CURRENT_STATUS.md` Hygiene section 1-line cite-only row) + `docs/tickets/TICKET-125-test-aggregator.md` (the canonical primary artifact). Cat-3 minimal-surface (pure `docs/` artifact; zero modifications to `include/chronon3d/`; zero new SDK API; zero new registries/resolvers/caches/singletons).
 
 **Cross-link**: [`docs/tickets/TICKET-125-test-aggregator.md`](docs/tickets/TICKET-125-test-aggregator.md) (canonical primary) + `docs/FOLLOWUP_TICKETS.md` §Open Blocker rows: TICKET-125-TEST-AGGREGATOR + new TICKET-TEST-9-PILOT-7GG + TICKET-TEST-13-INDEXING + `docs/CURRENT_STATUS.md` §Hygiene + AGENTS.md §Fare PR piccole e mirate + AGENTS.md §Cat-3 + AGENTS.md §honesty + the Test 16 audit-chore at `6565d640` (precedent for `LOCAL-ONLY`/`push blocked`/`F2` subject keywords) + the Test 17 audit-chore at `b8088b6e` (precedent for ADR-sketch + path canonization + L1 amend).
+
 
 
 
@@ -460,6 +474,7 @@ AUDIT TRAIL:
 
 
 
+
 ## Luglio 2026 — tools(test-16): feature sunset registry + 5 deferred verdicts (First-Principles Product Check #16 — Registro sunset feature, 5 candidati DEFERRED per env-blocked VPS, 2026-07-12, atomic chore commit on main)
 
 **`tools(test-16)` registry creation** — nuovo artefatto canonico `docs/FEATURE_SUNSET.md` istituisce il "Registro Sunset Feature" con regola dei "Tre Non" (3-non: non usata-in-produzione + non misurata + non necessaria-al-cliente ⇒ sunset via `MOVE` a `content/experimental/` o `git rm`). Scadenza 30gg per ogni entry; escalation automatica da `DEFERRED` → `MOVE/DELETE` quando la riga soddisfa i tre non.
@@ -482,6 +497,7 @@ AUDIT TRAIL:
 
 **Persistent infra issue (F2 forward-point, ESCALATED)**: questo commit è arrivato al push boundary dopo 4+ sessioni consecutive con recurring divergence pattern. F2 forward-point (mantra da `code-reviewer-minimax-m3`) ha raggiunto il threshold per essere promosso da "future gate" a **active cat-4 ancillary chore**: implementare `tools/check_push_divergence_window.sh` come prima azione del prossimo ciclo per fixare l'infrastruttura push che causa persisting UU residue + detached HEAD state.
 **§honesty PARTIAL cert annotation** (audit-chore addendum): `verified="PARTIAL"` per Rule #5 SHA-triple FAIL a causa di `tools/check_push_divergence_window.sh` gate mancante → recurring origin divergence in 4+ consecutive sessions. Cycle 1 commit `0870cf78` vive solo su local main; `origin/main` ahead by 5 commits al 2026-07-12. Eliminazioni concrete (`git rm` / `git mv`) deferrate a `TICKET-SUNSET-VERIFY` workspace-level (working build host required = `cmake --build` + golden snapshot). See `## Open Blockers (≤10)` in `docs/FOLLOWUP_TICKETS.md` per `TICKET-INFRA-F2-DIVERGENCE` + `TICKET-SUNSET-GATE`.
+
 
 
 
@@ -532,6 +548,7 @@ The summary emit writes `output/text_video_acceptance/ssim_psnr_summary.txt` (hu
 
 
 
+
 ## Luglio 2026 — feat(check): wire video-completeness probe gate (canonical FAIL-LOUD gate for spec §4+§6 ffprobe MP4 contract + ffmpeg decoded-frames count, atomic chore commit on main, 2026-07-12)
 
 **`feat(check): wire video-completeness probe gate`** — atomic chore commit materializing the canonical FAIL-LOUD gate for spec §4+§6 of the 20-step Video Completeness Matrix, per user spec verbatim "(1) chiama `ffprobe ...` salvando in `output/text_video_acceptance/probe.json`; (2) assert Python-side: width=1920, height=1080, fps≈30.0, nb_read_frames=60, duration≈2.0±0.05, codec ∈ {h264,hevc,av1}, pix_fmt ∈ {yuv420p,yuv444p,yuv420p10le,yuv444p10le}; (3) decoda l'MP4 con ffmpeg e assert conteggio == 60." NEW `tools/check_video_completeness.sh` (~115 LoC executable bash + `chmod +x`, 4-step gate — exceeds user spec ~80 LoC target due to FAIL-LOUD contract + Python heredoc + [INFO] diagnostic line + em-dash canonical `apt install ffmpeg` precondition hint). Wire-in via `tools/first_principles_product_check.sh` `== Video completeness probe ==` section between `== Video tooling ==` and `== Costo ==` (canonical FFmpeg/FFprobe theme-grouping); orchestrator [INFO] summary line bumped from "8/8 active sections wired" / "1/8 TODO-body still pending" → "9/9 active sections wired" / "1/9 TODO-body still pending" + new "Video completeness probe/TICKET-VIDEO-FFPROBE-VALIDATION wired via tools/check_video_completeness.sh — ffprobe MP4 contract + ffmpeg decoded-frames canonical gate for spec §4+§6" clause appended to the §description list + "the Test #VC Video completeness probe" added to the existing dedup-acknowledgement list.
@@ -566,6 +583,7 @@ The summary emit writes `output/text_video_acceptance/ssim_psnr_summary.txt` (hu
 
 
 
+
 ## Luglio 2026 — feat(glow): glow certification suite (Azioni 1-4, atomic chore commits on main, HARNESS-COMPLETE 2026-07-12, machine-verification deferred to working build host)
 
 **`feat(glow): glow certification suite`** — 4-azione atomic chore lineage landing the complete glow certification per user spec verbatim (Test GLOW-CERT, First-Principles Product Check).
@@ -585,6 +603,7 @@ The summary emit writes `output/text_video_acceptance/ssim_psnr_summary.txt` (hu
 **§honesty compliance**: machine-verification DEFERRED to working build host per AGENTS.md §honesty (vcpkg glm/magic_enum + tmpfs env on this VPS blocks `chronon3d_cli` binary + ctest execution). The 5-phase gate script `tools/check_glow_certification.sh` fail-loudly emits `GATE_FAIL` with canonical rebuild hint when binary is absent.
 
 ---
+
 
 
 
@@ -616,6 +635,7 @@ The summary emit writes `output/text_video_acceptance/ssim_psnr_summary.txt` (hu
 
 
 
+
 ## Luglio 2026 — feat(acceptance): batch_100_videos acceptance test (Test #20)
 
 **`feat(acceptance): batch_100_videos`** — Test #20 (First-Principles Product Check #20). Adds `tests/acceptance/test_batch_100_videos.cpp` registering under the `chronon3d_acceptance` aggregate via `LABELS acceptance` (parallel to `test_acceptance_forensic_surface.cpp`). 10 langs × 10 topics × 1 format = **100 jobs**, 8 metrics per job (completed / failed / manual_touches / total_time_ms / peak_RAM_MB / crashes / corrupted / invisible_text). PASS criteria verbatim from user spec: **100 output, 0 crash, 0 corrotti, ≥98% no manual**. The canonical corpus schema lives in NEW `configs/batch_100_videos_corpus.yaml` (Test #19 sibling precedent at `touchpoint_thresholds.yaml`). The StubBatchRunner is LOCAL to the test TU (Cat-3 anti-dup: tests never link `apps/chronon3d_cli/utils`); the 8 fields + 4 PASS envelopes are enforced via doctest assertions. Append-only JSONL at `~/.chronon3d/telemetry/batch_100_videos.jsonl` (parallel to Test #19 manual_touches companion log). NEW gate `tools/check_batch_100_videos.sh` (Python yaml + JSONL evaluator + 4-envelope PASS check + `[INFO] ${GATE_NAME}: ...` addizionale al canonico `GATE_PASS` per AGENTS.md Rule #2) wired into the wrap_push gate chain at Step 4.5k. NEW selftest `tests/tools/selftest_batch_100_videos.sh` exercises 4/4 scenarios (PASS happy / FAIL_crash / FAIL_corrupt / FAIL_manual_3) — proves the gate catches non-green input (satisfies "non cambiare un gate per nascondere un errore").
@@ -629,11 +649,13 @@ Cat-5 3-doc same-commit: `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKE
 
 
 
+
 ## Luglio 2026 — fix(gate): trim check_ffmpeg_required [INFO] line under AGENTS.md 200-char cap (fix-forward chore on main, 2026-07-12, on top of commit 49205d27)
 
 **`fix(gate): trim [INFO] line under AGENTS.md 200-char cap`** — atomic fix-forward chore commit on top of the prior `feat(check): wire ffmpeg-required FAIL-LOUD gate` (commit `49205d27`, 2026-07-12). Per AGENTS.md `## Regole di lint documentale` §INFO-level diagnostic style rule: ``<message>` = one line, ≤ 200 caratteri``. The prior commit emitted the FULL `*-version | head -n1` output for both binaries (`ffmpeg version 4.4.2-0ubuntu0.22.04.1 Copyright (c) 2000-2021 the FFmpeg developers` style lines), producing a 232-char `[INFO]` line on PASS addizionale al canonico `GATE_PASS` — exceeding the 200-char ceiling. **Fix**: in `tools/check_ffmpeg_required.sh` Step 4, trim each binary's first-line output to the version-identifier token via `awk '{print $3; exit}'` (third whitespace-separated field of `ffmpeg version <ver>`/`ffprobe version <ver>`). **Dry-run result** (this VPS, ffmpeg 4.4.2 present): `[INFO] check_ffmpeg_required: ffmpeg+ffprobe present at 4.4.2-0ubuntu0.22.04.1 | 4.4.2-0ubuntu0.22.04.1` = **103 chars** (well under 200-cap, +50% headroom). Em-dash U+2014 byte consistency preserved (7 occurrences in gate file before + after the fix). `bash -n` syntax clean + `chmod +x` preserved + dry-run emits canonical GATE_PASS unchanged. **Subject envelope = 62 chars ≤ 72** push-range audit per TICKET-GATE-SUBJECT-RANGE closure 2026-07-12. **Cat-3** SATISFIED (pure `tools/` + `docs/` tracking, ZERO new SDK surface). **Cat-5** PARTIAL 1-doc same-commit (CHANGELOG only; no FOLLOWUP_TICKETS edit since the fix does not change ticket state — the original TICKET-FFMPEG-REQUIRED-FAIL-LOUD HARNESS-COMPLETE state stands). **Forward-points**: (a) Refactor other V0.1 release gates (`tools/check_determinism.sh`, `tools/check_linear_scaling.sh`, `tools/measure_render_cost.sh`) to invoke `tools/check_ffmpeg_required.sh` as precondition + ensure their own `[INFO]` lines stay under 200-char cap per AGENTS.md INFO-level style ; (b) Working build host macchina-verifica per AGENTS.md §honesty on the fixed `[INFO]` line emission (machine-verification DEFERRED to working build host per the §honest-limitation pattern established by TICKET-FFMPEG-REQUIRED-FAIL-LOUD). **Cross-references**: AGENTS.md `## Regole di lint documentale` §INFO-level diagnostic style rule (200-char ceiling) + AGENTS.md TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (subject envelope) + commit `49205d27` (the original paranoia chore) + the precedent patterns of `TICKET-CHANGELOG-CONFLICT-CLEANUP` (fix-forward vs amend) + the canonical `tools/check_first_principles_fail_loud.sh` Test #7 INFO-level reference precedence.
 
 ---
+
 
 
 
@@ -668,6 +690,7 @@ Cat-5 3-doc same-commit: `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKE
 
 
 
+
 ## Luglio 2026 — docs(followup): register TICKET-VIDEO-COMPLETENESS-MATRIX (20-step audit-only chore on main, 2026-07-12)
 
 **`docs(followup): register TICKET-VIDEO-COMPLETENESS-MATRIX`** — atomic doc-only chore commit auditing the 20-step "testi/animazioni/export MP4 completamente corretti" spec against existing test files (PARTIAL-WIRED on 8/20, DEFERRED on 10/20, BLOCKED-build on 2/20). 20 step mapping: (1) Build video completa `BLOCKED` (TICKET-BUILD-ROT-CASCADE-CAMERA 409-error build-rot ; vcpkg glm/magic_enum + chronon3d_cli unlinkable VPS); (2) Esegui ctest TextTypewriter-TextDeterminism-TextTransforms-MotionBlur-pipeline parity `BLOCKED` (build-dep on #1); (3) Esporta MP4 + 60-frame count contract `PARTIAL-WIRED` (`tests/text/test_pipeline_parity_real.cpp` Fase 6 CLI verb exports all 60 but extracts solo f00/f15/f30 + 2 SKIP-on-missing dovrebbero essere fail-loud); (4) ffprobe MP4 contract codec-dim-fps-duration-frames `DEFERRED`; (5) 60-frame alpha bbox CSV metrics `DEFERRED`; (6) Decodifica reale MP4 con ffmpeg vsync 0 `DEFERRED` (`--ffmpeg-mode png` bypasses actual .mp4 decode); (7) SSIM + PSNR raw-vs-decoded `DEFERRED`; (8) Anti-flicker luminance central-crop jump < 20.0 `DEFERRED`; (9) Animation curves opacity-0.40→0.85→0.50 / scale peak f15 / position `PARTIAL-WIRED` (`tests/text_golden/text_transforms_animation/anim_02_opacity.cpp` 3 TEST_CASEs monotonic+bbox-contains-ink ; no asserzione keyframe assoluti 0.85f forward-point); (10) Typewriter ink-monotonic + no-jitter + no-relayout `PARTIAL-WIRED` (`tests/text_golden/text_completeness/text_typewriter.cpp` 6 TEST_CASEs: ink-monotonic + ghost-glyphs + max-coverage + deterministic + first-char-ink ; no-jitter + no-relayout forward-points un-covered); (11) Tracking animato simmetrico + word cascade `DEFERRED`; (12) Motion blur 4 cases (shutter=0 hash-equiv / stationary / motion-follows-direction / luminance >= 90%) `PARTIAL-WIRED` (`tests/scene/camera/test_camera_motion_blur.cpp` 480 LoC + `test_motion_blur_torture_pr1.cpp` 600 LoC cover MotionBlurSettings struct fidelity + global mode + TICKET-026 mode duality ; i 4 specific spec §12 cases NOT in dettaglio); (13) Multi-framerate 24/25/30/60 stesso-tempo `PARTIAL-WIRED` (`tests/text_golden/user_spec/12_anim_framerate_determinism.cpp` covers 24/30/60 via verify_golden ; NOT 25fps ; NOT same-time centroid comparison); (14) start/end off-by-one `--start 15 --end 30` == 15 frame + `--start 30 --end 15` exit != 0 `DEFERRED`; (15) Portrait 1080×1920 safe-area + glow-clip `PARTIAL-WIRED` (`tests/text_golden/user_spec/11_aspect_ratio_layout.cpp` line 187 covers portrait via verify_golden ; NOT safe-area glow clipping check); (16) Repeatability 3×raw PNG hash `PARTIAL-WIRED` (`tests/determinism/test_brute_determinism.cpp` Test 17.a self-ref 20x scaffolding done HARNESS-COMPLETE ; full 3-export-repeatability NOT scaffolding yet); (17) Serial vs parallel CHRONON3D_THREADS=1 vs 8 `PARTIAL-WIRED` (`tests/determinism/test_brute_determinism.cpp` Test 17.b thread×cache matrix 1/2/8 × cold/warm HARNESS-COMPLETE ; BLOCKED machine-verifica VPS per chronon3d_cli unlinkable); (18) Encoder failure `.partial` atomic-rename + no-corrupt-leftover `DEFERRED`; (19) Long 900 frame RAM-leak + no-slowdown-progressivo `DEFERRED`; (20) Final unified gate ctest -R regex VideoCompleteness `DEFERRED`. Summary: 0/20 WIRED + 8/20 PARTIAL-WIRED + 2/20 BLOCKED-build + 10/20 DEFERRED = 20 spec step.
@@ -679,6 +702,7 @@ Cat-5 3-doc same-commit: `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKE
 **Cat-3 SATISFIED** (zero new public SDK API surface — pure `docs/` tracking ; no `include/chronon3d/` modified ; no `src/` modified ; no `tests/` modified ; no `tools/` modified) + **Cat-5 PARTIAL 2-doc same-commit** (FOLLOWUP_TICKETS.md + CHANGELOG.md) per user-spec verbatim ; CURRENT_STATUS.md update forward-pointed to the next chore commit that closes any video-completeness sub-ticket milestone. AGENTS.md §honesty: no claim of any test result that is not machine-verified on this VPS ; 2 SKIP-on-missing in the existing pipeline_parity_real.cpp are documented as a future fail-loud refactor (no silent partial-fix in this audit-only commit). Subject envelope : `docs(followup): register TICKET-VIDEO-COMPLETENESS-MATRIX` = 55 chars ≤ 72 (within `tools/check_commit_subject_length.sh` push-range audit per TICKET-GATE-SUBJECT-RANGE closure 2026-07-12).
 
 ---
+
 
 
 
@@ -704,6 +728,7 @@ Cat-5 3-doc same-commit: `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKE
 **Bootstrap hatch**: Executed with `CHRONON3D_SKIP_BASELINE_CHECK=true` per the `tools/wrap_push.sh` escape hatch wired up by TICKET-GATE-SUBJECT-RANGE closure (commit `b832912a`).
 
 **Cross-references**: TICKET-ROT-FIX-DOMAIN-BUG-INVALID row (NEW, OPEN + §honest qualifier) + TICKET-BUILD-ROT-CAMERA-CASCADE-SUB-WORKSTREAMS umbrella row sub-3 paragraph (FIX APPLIED + §honest qualifier clause) + the prior catastrophic commit `874b5b37` (the bad revert, preserved in history as audit trail) + `docs/baselines/main-df1e09d9-rot-cascade-baseline.md` (the canonical verification protocol) + the prior `docs(rot-verify)` entry (`75d6e66b`, the 409-error verification result that surfaced the build log evidence) + the prior `docs(ticket): open TICKET-ROT-FIX-DOMAIN-BUG-INVALID` entry (`b23c1b68`, the reclassification from typo to forward-decl rot) + the prior `docs(ticket): open TICKET-ROT-FIX-PREFIX` entry (`632888d3`, the sub-1 commit) + the prior `docs(ticket): open TICKET-ROT-FIX-FORWARDING-HEADERS` entry (`242befe4`, the sub-2 commit) + AGENTS.md §honesty (the rule requiring machine-verified evidence for state transitions to PARTIAL/DONE + the rule requiring audit trail preservation on recovery).
+
 
 
 
@@ -755,6 +780,7 @@ Cat-5 3-doc same-commit: `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKE
 
 
 
+
 ## Luglio 2026 — tools(pilot): 7-day TikTok pilot setup framework (Test #18 / First-Principles Product Check #18, sibling of Test #16 IG, atomic chore commit on main)
 
 **`tools(pilot): 7-day TikTok pilot setup framework (Test #18)`** — atomic chore commit materializing the canonical TikTok channel pilot setup, the explicit forward-point (a) "TikTok pilot config" referenced in the prior `TICKET-PILOT-IG-7D-SETUP` §Recently Closed row closure lineage (2026-07-12) + the parallel TICKET-PILOT-TT-DASHBOARD-WIREUP forward-point that this commit opens in §Open Blockers. Setup-only chore per AGENTS.md §honesty "non inventare": the 7-day execution requires a human runner on working build host (this VPS cannot post to TikTok Creator Studio + chronon3d_cli binary is env-blocked by pre-existing TICKET-BUILD-ROT-CASCADE-CAMERA + TICKET-TEXT-LEGACY-POSITION-ROT cascade).
@@ -794,6 +820,7 @@ Cat-5 3-doc same-commit: `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKE
 
 
 
+
 ## Luglio 2026 — feat(cost): wire Test #11 render-cost gate (`/usr/bin/time -v` wrapper + scorecard ledger, atomic chore commit on main)
 
 **`feat(cost): wire First-Principles Test #11 'costo reale'`** — atomic chore commit wiring Test #11 "costo reale" (render-cost measurement) into `tools/first_principles_product_check.sh` orchestrator. Per user spec verbatim: `/usr/bin/time -v` on `chronon render <comp_id> --output /tmp/benchmark.mp4`, parsa stderr, CSV/JSON emit con 5 campi canonici (`duration_seconds` + `cpu_percent` + `peak_rss_kb` + `output_bytes` + `frame_count`), formula canonica `cost_per_video_eur = (duration_seconds / 3600) * VPS_HOURLY_EUR` (default 0.05 per spec, env-overrideable). NEW **`tools/measure_render_cost.sh`** (~165 LoC, executable + `chmod +x`) — single canonical binder: discovers `/usr/bin/time` + `chronon3d_cli` binary in 3 standard build-path candidates (FAIL-LOUD + canonical `apt install time` / `cmake --build` hint per AGENTS.md §honest-limitation, mirrors `tools/check_first_principles_fail_loud.sh` discovery protocol); runs `/usr/bin/time -v $CHRONON_CLI render $COMP_ID --output /tmp/benchmark.mp4` (single pass, NOT redundant — the original draft had a redundant dual-run that wasted a chronon invocation); parses GNU time canonical labels (`Elapsed (wall clock) time` + `Percent of CPU this job got` + `Maximum resident set size`); converts `m:ss.cs` / `h:mm:ss.cs` formats to integer seconds via awk; derives `output_bytes` via `wc -c` + `frame_count` via `ffprobe -v error -select_streams v:0 -count_packets -show_entries stream=nb_read_packets` (zero when ffprobe absent); computes `cost_per_video_eur` via the literal user formula; emits JSON object on stdout + appends CSV row to the canonical ledger. NEW **`docs/scorecard.csv`** (canonical Cat-3 anti-duplication ledger: 1 file, append-mode, header `timestamp,composition_id,duration_seconds,cpu_percent,peak_rss_kb,output_bytes,frame_count,vps_hourly_eur,cost_per_video_eur` prepended). EDIT **`tools/first_principles_product_check.sh`** (NEW `== Costo ==` section between `== Fail-loud errors ==` and `== Fix speed ==` with `bash "$SCRIPT_DIR/measure_render_cost.sh"` invocation + bumps trailing `[INFO]` counter from "5/6 ... 7 follow-up stub headers pending" to "6/6 ... 6 follow-up stub headers pending"). Fail-loud contract per user spec: `/usr/bin/time` hard-required (FAIL-LOUD + canonical `apt install time` hint emitted); `chronon3d_cli` hard-required (FAIL-LOUD + canonical build hint); no silent fallback (WARN emitted on chronon non-zero exit + scorecard row persisted when stats WERE captured + exit 0 only on stat-success; exit 1 only on binary precondition failure per §honest-limitation). Cat-3 SATISFIED (1 canonical gate script + 1 canonical scorecard file, ZERO new public SDK API surface). Cat-5 3-doc same-commit alignment: this CHANGELOG entry + `docs/FOLLOWUP_TICKETS.md` `## Recently Closed` row + `docs/CURRENT_STATUS.md` §Stato generale per area row. §honest-qualifier: dry-run on this VPS emits the EXPECTED `GATE_FAIL: /usr/bin/time not found at /usr/bin/time` (canonical `apt install time` hint inline) + `GATE_FAIL: chronon3d_cli binary not found in standard build paths` (canonical build hint inline) — the script's two-pronged precondition check is honest about the missing binary paths; never emits a row + exit 0 spuriously (the user spec's "no exit 0 spurio" mandate honored); forward-pointed to working build host for the actual measurement run. Cross-link: `tools/check_first_principles_fail_loud.sh` (same `chronon3d_cli` discovery pattern + same FAIL-LOUD design) + `tools/check_fix_cronograph.sh` (canonical measurement idiom — *5-phase chronograph*, DISTINCT from *single-render cost* per AGENTS.md Cat-3 anti-duplication; the orchestrator has BOTH `== Fix speed ==` AND `== Costo ==` as separate concerns) + `docs/scorecard.csv` (the canonical weekly ledger file).
@@ -801,9 +828,11 @@ Cat-5 3-doc same-commit: `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKE
 
 
 
+
 ## Luglio 2026 — feat(check): wire Test #7 fail-loud gate (5 fixtures, canonical-gate-script, atomic chore commit on main; bash regex bug fix → `\\b${token}\\b`)
 
 **`feat(check): wire Test #7 fail-loud gate`** — atomic chore commit wiring First-Principles Product Check Test #7 ("errori violenti") into `tools/first_principles_product_check.sh` orchestrator. **Files changed (7 — Cat-5 3-doc same-commit + 1 orchestrator edit + 1 canonical gate + 5 declarative fixtures + 1 regex bug-fix)**: NEW `tools/check_first_principles_fail_loud.sh` (198 LoC, canonical fail-loud gate with `[INFO] check_first_principles_fail_loud: ...` line on PASS per AGENTS.md INFO-level diagnostic style rule); NEW `tests/fixtures/missing_font.json` + `tests/fixtures/missing_image.json` + `tests/fixtures/corrupt_video.json` + `tests/fixtures/invalid_camera.json` + `tests/fixtures/non_writable_dir.json` (5 declarative fixture manifests with `{composition_id, cli_args, output_path, expected.exit_code_nonzero, expected.output_file_absent, expected.stderr_tokens_required, expected.minimum_token_matches, expected.forbidden_substrings, rot_class, honesty_note}` schema — schema-canonical, differ ONLY in `rot_class` field per AGENTS.md Cat-3 anti-duplication); EDIT `tools/first_principles_product_check.sh` (replaces `echo "== Fail-loud errors ==" # TODO (Test #7)` single-line TODO stub with `bash "$SCRIPT_DIR/check_first_principles_fail_loud.sh"` canonical wire-in, AND bumps trailing `[INFO]` counter from "4/6 active sections wired" + "8 follow-up stub headers pending (Test #4, #7-9, #12-14, Track-13)" → "5/6 active sections wired" + "7 follow-up stub headers pending (Test #4, #8, #9, #12-14, Track-13)"). **Fail-loud contract** (canonical error vocabulary per AGENTS.md §honesty + `RenderErrorCode` enum + `TextErrorCode` enum): 5 fixtures collectively cover the canonical {composition|Composition, layer|Layer, asset|Asset, path|Path} tokens via DIFFERENT rot_class triggers (missing_font/missing_image → AssetResolver/Layer/Composition/Path; corrupt_video → VideoDecoder/Asset/Path; invalid_camera → CameraProgram/Composition/Path; non_writable_dir → Output/Write/Path); gate enforces per-fixture `exit_code_nonzero=true` + `output_file_absent` verified by `[ ! -e "$out_path" ]` + `minimum_token_matches` (default 3) tokens matched via the FIXED `grep -qiE "\\b${token}\\b"` (canonical whole-word match); `forbidden_substrings` checked via `grep -qiF` — NO silent-fallback markers (`fallback frame`, `black frame`, `continue on error`, `fallback to silence`). **REGEX BUG FIX (this commit)** — the prior version used `grep -qiE "[${token}]|[^a-zA-Z0-9]${token}[^a-zA-Z0-9]" 2>/dev/null` OR-ed with `grep -qiF "$token" 2>/dev/null`; the regex form contained a GARBAGE character class `[${token}]` (e.g., `[Composition]` matches ANY single char from {C,o,m,p,s,i,t,n}, NOT the token itself — would silently pass on false positives if the `|| grep -qiF` fallback were ever refactored away). Replaced with the canonical `grep -qiE "\\b${token}\\b"` (whole-word match, no character class trap, no dependency on the OR'd fallback). Per AGENTS.md Cat-3 anti-duplication: 1 canonical fail-loud gate script (NO per-fixture scripts); 5 small `tests/fixtures/*.json` files (schema-canonical, differ only in `rot_class` + `cli_args`). Per AGENTS.md §honest-limitation: when `chronon3d_cli` binary not built on host, gate FAIL-LOUD (does NOT pretend to pass) + emits GATE_FAIL with searched build paths + canonical rebuild command (`cmake --preset linux-content-dev && cmake --build --preset linux-content-dev -j"$(nproc)" --target chronon3d_cli`). **Files changed (7)**: NEW `tools/check_first_principles_fail_loud.sh` + NEW `tests/fixtures/{missing_font,missing_image,corrupt_video,invalid_camera,non_writable_dir}.json` (5 files) + EDIT `tools/first_principles_product_check.sh` + EDIT `docs/CHANGELOG.md` (this entry) + EDIT `docs/FOLLOWUP_TICKETS.md` (§Open Blockers TICKET-PRODUCTL-AUNCH-FAIL-LOUD-TEST-7 row) + EDIT `docs/CURRENT_STATUS.md` (§Stato generale per area Fail-loud errors (Test #7) row). **Cat-5 3-doc same-commit SATISFIED**: CHANGELOG (this entry) + FOLLOWUP_TICKETS (new row) + CURRENT_STATUS (new row) updated atomically. **§honest-qualifier**: dry-run on this VPS (where `chronon3d_cli` is not built) emits the EXPECTED `GATE_FAIL: chronon3d_cli binary not found in standard build paths` with canonical rebuild hint — VERIFIED 2026-07-12 by the basher's STEP 7 dry-run. **Following the TICKET-CHERRY-PICK-RECOVERY protocol**: the bash script's pre-existing `[$\{token}]` garbage regex was a forward-rot risk; this commit eliminates the rot pattern in the canonical gate script (the largest test orchestrator script the project has shipped). Cross-link: `docs/FOLLOWUP_TICKETS.md` §Open Blockers TICKET-PRODUCTL-AUNCH-FAIL-LOUD-TEST-7 row + `docs/CURRENT_STATUS.md` §Stato generale per area `Fail-loud errors (Test #7)` row + AGENTS.md Cat-5 3-doc same-commit rule + AGENTS.md §honest-limitation pattern for build-host-rot.
+
 
 
 
@@ -859,6 +888,7 @@ Cat-5 3-doc same-commit: `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKE
 
 
 
+
 ## Luglio 2026 — docs(fixup-2): recover 7f33b49e Cat-5 3-doc fix-forward via str_replace (sed patterns missed, this commit recovers; 2026-07-12, atomic chore commit on main)
 
 **`docs(fixup-2): recover 7f33b49e Cat-5 3-doc fixes via str_replace`** — atomic chore commit recovering the 3-doc fix-forward that the prior commit `7f33b49e` did not actually apply (its `sed` patterns silently missed the multi-line row text; the honest integer-part state was STILL PARTIAL at HEAD for the 2 affected rows, machine-verified via `grep -nE`). Per AGENTS.md §honesty, closing the ticket without recovering the actual state-transitions would violate the §honesty contract the prior entry claimed to honor. This commit recovers via `str_replace` (anchored exact-match, the canonical AGENTS.md editor), applying 4 corrective edits with Cat-5 3-doc same-commit alignment closure (see Files changed below):
@@ -885,6 +915,7 @@ Cat-5 3-doc same-commit: `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKE
 
 
 
+
 ## Luglio 2026 — tools(test-11): cycle 2 measurement - text shifted 400px fix cronograph entry (First-Principles Product Check #13 continued - 2nd JSONL append-only entry on real baseline bug class, 2026-07-12, atomic chore commit on main)
 
 **`tools(test-11)` second cycle measurement** - second append-only entry to `docs/fix_cronograph_log.jsonl` covering a different real baseline bug class ("text shifted 400px") per AGENTS.md §Test 11 spec's "prendi un bug reale del baseline" requirement. This entry demonstrates the gate's actual measurement discipline on a second distinct bug class: `text_shifted_400px` from `src/scene/camera/overlay_diagnostic_panels.cpp` metrics panel block (panel_x/panel_y hardcoded at 10.0f using TextPlacementKind::Absolute that does not inherit parent LayerBuilder::translate), distinct from cycle 1's `glow_clipped_canvas_edge` from `src/backends/software/processors/text/text_glow.cpp` use_geo_transform branch.
@@ -894,6 +925,7 @@ Cat-5 3-doc same-commit: `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKE
 **Honest-cert invariant (§honesty AGENTS.md v0.1)** - `verified="PARTIAL"` (NOT `"yes"`) + `timing_basis="self-reported post-hoc"` + `cert_blockers=["VPS env compile blocked per TICKET-BUILD-ROT-CASCADE-CAMERA", "Visual golden snapshot generation blocked on same env"]`. PARTIAL cert not full PASS because VPS cannot run `cmake --build` + the diagnostic-panel regression test needs visual-golden render to fully verify. Forward-point: when a working build host picks up the cycle, run a live 5-phase measurement and add a 3rd JSONL entry with `verified="yes"` to mark the full-pass certification.
 
 **Gate validation** - `tools/check_fix_cronograph.sh` now operates over 2 entries. Both rolling-mean targets PASS (repro mean ~13.5m < 30m; rca mean ~62.5m < 120m; fix+test mean ~37.5m < 1440m). Gate itself emits `GATE_PASS` + `[INFO] ${GATE_NAME}: ...` per AGENTS.md §"INFO-level diagnostic style" Rule #2 (gate-name self-identifier is grep-discoverable on PASS addizionale). Full pipeline still 25/25 (no regression on prior-tests gate suite).
+
 
 
 
@@ -947,6 +979,7 @@ Permissive on zero-data (missing/empty log → exit 0 with `[INFO] check_fix_cro
 **Cross-references**: AGENTS.md §Test 11 spec ("Cronometro del fix") + AGENTS.md §"Regole di lint documentale" rule #2 (INFO-level diagnostic style — `[INFO] ${GATE_NAME}` on PASS addizionale al canonico `GATE_PASS`) + AGENTS.md §honesty (PARTIAL cert on env-blocked VPS + `timing_basis` annotation per §honesty audit trail) + AGENTS.md §"Fare PR piccole e mirate" (single atomic chore commit, no churn retrofit per Cat-3 anti-duplication) + AGENTS.md §Cat-3 (zero new public SDK API surface — gate is `tools/`-only, fix is a 22-LoC production-code WARN + safe-clamp in a non-public-API function, test is a doctest case in the existing `text_no_clipping.cpp` family) + AGENTS.md §Cat-5 (3-doc same-commit alignment — CHANGELOG + FOLLOWUP_TICKETS + CURRENT_STATUS all updated in this same atomic chore) + the `tools/wrap_push.sh` Step 4.5i wire-up (the canonical pre-push gate-chain last-position) + the orchestrator's `== Fix speed ==` section (the canonical orchestrator section) + the `src/backends/software/processors/text/text_glow.cpp` use_geo_transform branch (the bug site) + `tests/text_golden/text_completeness/text_no_clipping.cpp` `NoClip 07` (Phase 3 scrittura test) + `docs/fix_cronograph_log.jsonl` first entry (Phase 1–5 timings).
 
 ---
+
 
 
 
@@ -1197,6 +1230,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 
 
 
+
 ## Luglio 2026 — docs(test-15): product one-pager + feedback form + pilot protocol + transcript template + dev-anchors companion (First-Principles Product Check #8 — non-developer value-evidence harness, 2026-07-12, atomic chore commit on main, v2+v3 post-review cleanups)
 
 ### docs(test-15): product one-pager + 3-question feedback harness
@@ -1237,6 +1271,7 @@ macro (per code-reviewer-minimax-m3 verdict).
   - `docs/FOLLOWUP_TICKETS.md` EDIT (NEW `TICKET-TEST-15-PRODUCT-ONE-PAGER` row in §Recently Closed, prepended above TICKET-TEST-14)
   - `docs/CURRENT_STATUS.md` EDIT (NEW "Test 15 — Test del prodotto" row in §Stato per area, prepended above Test 14)
 - **Cross-references**: [`docs/PERFORMANCE_BOTTLENECKS.md`](docs/PERFORMANCE_BOTTLENECKS.md) (the canonical performance anchor for the one-pager's TEMPO row) + [`docs/CLI_REFERENCE.md`](docs/CLI_REFERENCE.md) (the canonical CLI surface that the one-pager's COMANDO row references at non-dev language level) + AGENTS.md §Cat-3 (zero new public API surface, satisfied — pure `docs/` artifact) + AGENTS.md §Cat-5 (3-doc same-commit, satisfied) + AGENTS.md §honesty (harness-compete on disk + pilot-runtime deferred per §honesty "non inventare" on the human-execution requirement) + the established Test 14 / Test 10 / Test 8 entries as pattern templates for the 3-doc entry shape + Test 9 in `docs/FOLLOWUP_TICKETS.md` (the analogous human-execution-required pilot workstream, the parallel precedent that establishes this honest-degradation pattern).
+
 
 
 
@@ -1293,6 +1328,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 
 
 
+
 ## Luglio 2026 — tools(test-10): determinism gate (First-Principles Product Check #6 — sha256 + 3 structural invariants on 7×20=140 ChrononGlowFinalAE renders) (2026-07-12, atomic chore commit on main)
 
 ### tools(test-10): determinism gate
@@ -1329,6 +1365,7 @@ macro (per code-reviewer-minimax-m3 verdict).
   - `docs/FOLLOWUP_TICKETS.md` EDIT (NEW TICKET-TEST-10-DETERMINISMO-BRUTALE row in §Recently Closed)
   - `docs/CURRENT_STATUS.md` EDIT (§Stato per area "Test 10 — Determinismo brutale" row)
 - **Cross-references**: `chronon3d_cli --help` (existing surface) + `docs/CLI_REFERENCE.md` `inspect-text` (existing surface) + AGENTS.md §Cat-3 (zero new public SDK API, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit, satisfied) + AGENTS.md INFO-level diagnostic style rule #2 (PASS-line format) + AGENTS.md §honesty (env-blocked build hand-off documented in CHANGELOG) + the canonical test history (commit 1cb9cff2 TICKET-CHRONON-GLOW-FINAL Fase 6 closure) that establishes `ChrononGlowFinalAE` as the canonical test composition + Threshold tools precedent (`tools/measure_glow_darkening.py` for Fase 4 + `tools/compare_telemetry.py` for cross-run diff).
+
 
 
 
@@ -1373,6 +1410,7 @@ macro (per code-reviewer-minimax-m3 verdict).
   - `docs/FOLLOWUP_TICKETS.md` EDIT (Test 8 row in `## Recently Closed` with the canonical kinds + counter name + verification protocol)
   - `docs/CURRENT_STATUS.md` EDIT (§Stato per area "Test 8" row + canonical 8 kinds list + counter key + JSONL path)
 - **Cross-references**: canonical 8-kind list above; `apps/chronon3d_cli/utils/touchpoint/manual_touchpoint_log.hpp::kCounterName = "manual_touches_per_video"` (single source of truth); the dashboard backend already supports `render_counters` queries (`tools/telemetry_dashboard/telemetry_server/handler.py:api_runs`); AGENTS.md v0.1 §Cat-3 (zero new public SDK API surface, satisfied) + §Cat-5 (3-doc same-commit, satisfied) + §honesty (env-blocked build hand-off documented); Test 9 (real-client pilot) opened in `docs/FOLLOWUP_TICKETS.md` as the next industrial-readiness workstream.
+
 
 
 
@@ -1423,6 +1461,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 
 
 
+
 ## Luglio 2026 — docs(audit): camera_v1 SDK surface clean of double-namespace rot
 
 **`docs(audit): camera_v1 SDK surface clean of double-namespace rot`** — atomic chore commit documenting the +1 camera_v1 SDK-surface audit result on TICKET-BUILD-ROT-CASCADE-CAMERA. The user requested auditing the camera_v1 SDK surface for any `chronon3d::chronon3d::*` double-namespace leaks NOT YET captured in TICKET-BUILD-ROT-CASCADE-CAMERA's rot-class findings, using the rot-cascade baseline doc's per-file matrix as the search oracle.
@@ -1445,6 +1484,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 **Bootstrap hatch**: Executed with `CHRONON3D_SKIP_BASELINE_CHECK=true` per the `tools/wrap_push.sh` escape hatch wired up by TICKET-GATE-SUBJECT-RANGE closure (commit `b832912a`).
 
 **Cross-references**: `docs/FOLLOWUP_TICKETS.md` TICKET-BUILD-ROT-CASCADE-CAMERA row +1 audit clause + the per-file matrix in `docs/baselines/main-df1e09d9-rot-cascade-baseline.md` (the search oracle — 1 camera_v1 file in matrix, reclassified) + the prior `docs(rot-verify): 409 errors, env WORKS, ticket stays OPEN` entry (commit `75d6e66b`, the verification result that surfaced the build log evidence) + the prior `docs(ticket): open TICKET-ROT-FIX-DOMAIN-BUG-INVALID` entry (commit `b23c1b68`, the reclassification that confirmed sub-3 is forward-decl not typo) + `/tmp/host-build-df1e09d9-v2.log` (the build log preserving the cascade-generated `chronon3d::chronon3d` artifacts).
+
 
 
 
@@ -1473,6 +1513,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 **Bootstrap hatch**: Executed with `CHRONON3D_SKIP_BASELINE_CHECK=true` per the `tools/wrap_push.sh` escape hatch wired up by TICKET-GATE-SUBJECT-RANGE closure (commit `b832912a`).
 
 **Cross-references**: `docs/FOLLOWUP_TICKETS.md` umbrella row sub-3 paragraph (reclassified text) + new `TICKET-ROT-FIX-DOMAIN-BUG-INVALID` row + `docs/baselines/main-df1e09d9-rot-cascade-baseline.md` DOMAIN BUG section (STALE — "typo" claim INVALID) + the prior `docs(rot-verify): 409 errors, env WORKS, ticket stays OPEN` entry (commit `75d6e66b`, the verification result that surfaced the build log evidence) + the parallel `chore: untrack .tmp/chronon-builds/ build artifacts` commit (`90ac9070`, the build-artifact cleanup that was the prior commit in this session).
+
 
 
 
@@ -1523,6 +1564,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 
 
 
+
 ## Luglio 2026 — docs(baseline): add main-0947ce6a-baseline.md (post 2-push + post-`check_public_headers.py` invocation-fix state, 2026-07-12, atomic chore commit on main)
 
 **`docs(baseline): add main-0947ce6a-baseline.md`** — atomic chore commit creating the first post-wire-up baseline for HEAD `0947ce6a`. Per `docs/DOCUMENTATION_GOVERNANCE.md` §`docs/baselines/`: "Le baseline sono prove immutabili di uno SHA di `main`. Ogni file deve essere associato a un solo SHA e non deve essere aggiornato dopo che `main` è avanzato." This baseline documents the state after the gate-fix + docs-only 2-push strategy + the `check_public_headers.py` invocation fix.
@@ -1552,6 +1594,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 **Cross-references**: [`docs/baselines/main-0947ce6a-baseline.md`](docs/baselines/main-0947ce6a-baseline.md) (the new baseline) + [`docs/baselines/index.md`](docs/baselines/index.md) (the chronological TOC, +1 row at #16) + [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c2ba-baseline.md) (the canonical green baseline template) + [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) §`docs/baselines/` (the immutability + content contract) + [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `TICKET-BASELINE-FIRST-BASELINE` row (forward-point) + the 2-push strategy (commit `5ad5369f` gate-fix + commit `03466808` docs-only) + AGENTS.md §Cat-3 (zero new SDK API, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit, satisfied) + AGENTS.md §honesty (8 PASS + 1 FAIL honestly recorded + bypass disclosed + out-of-scope rot acknowledged).
 
 ---
+
 
 
 
@@ -1586,6 +1629,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 **Cross-references**: [`tools/check_public_headers.py`](tools/check_public_headers.py) (the fixed gate) + the 13th-pass code-reviewer's 3-step diagnostic + the 16th-pass code-reviewer's §honest disclosure precedent (bypass mechanism + rot-state acknowledgment) + AGENTS.md §Cat-3 (zero new SDK API surface, satisfied) + AGENTS.md §Cat-5 (2-doc same-commit, satisfied) + AGENTS.md §honesty (3-step diagnostic verified + push bypass disclosed + out-of-scope rot acknowledged) + AGENTS.md §"Fare PR piccole e mirate" (2 separate atomic commits, not 1 mega-commit).
 
 ---
+
 
 
 
@@ -1635,6 +1679,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 
 
 
+
 ## Luglio 2026 — docs(baseline): add docs/baselines/index.md table-of-contents (chronological 15-baseline TOC, 2026-07-12, atomic chore commit on main)
 
 **`docs(baseline): add docs/baselines/index.md table-of-contents`** — atomic chore commit adding a new navigational aid `docs/baselines/index.md` (support doc, NOT a baseline file itself) that lists all 15 `docs/baselines/main-*-baseline.md` files chronologically with the per-baseline rot-state + verdict + verification status. Per the user's instruction: "Add a new docs/baselines/index.md table-of-contents that lists all docs/baselines/main-<sha>-baseline.md files chronologically + the rot-state of each baseline (green vs rot-state) + the per-baseline verification status."
@@ -1676,6 +1721,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 **Cross-references**: [`docs/baselines/index.md`](docs/baselines/index.md) NEW + the 15 baseline files linked from the table + [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) §`docs/baselines/` (the support doc contract) + [`AGENTS.md`](AGENTS.md) §Baseline macchina-verificata (the baseline protocol) + the 4 TICKET cross-references in the index (`TICKET-BUILD-ROT-CASCADE-CAMERA` + `TICKET-BUILD-ROT-CAMERA-CASCADE-SUB-WORKSTREAMS` + `TICKET-CONTENT-TEXT-CAMERA-V1-ROT` + `TICKET-CONTENT-TEXT-CAMERA-V1-ROT-VARIANT-MOVE`) + AGENTS.md §Cat-3 (the index is not gratuitous — per user spec verbatim; it makes the 15 baselines navigable for future maintainers) + AGENTS.md §Cat-5 (2-doc same-commit, satisfied) + AGENTS.md §honesty (machine-derived + per-baseline state directly verifiable from baseline file content).
 
 ---
+
 
 
 
@@ -1723,6 +1769,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 
 
 
+
 ## Luglio 2026 — docs(camera-text-rot): verify upstream 21-error rot RESOLVED (TICKET-CONTENT-TEXT-CAMERA-V1-ROT Phase 1, 2026-07-12, atomic 3-file DOC-ONLY verification commit on main)
 
 **`docs(camera-text-rot): verify upstream 21-error rot RESOLVED`** — atomic 3-file DOC-ONLY verification commit on main closing TICKET-CONTENT-TEXT-CAMERA-V1-ROT Phase 1 (the upstream rot-class 21-error sub-area per the prior-session diagnostic at commit `b589fdba`-era). Machine-verified evidence at HEAD `d851d6f9`: `grep -cE 'chronon3d::chronon3d::[a-zA-Z_]'` returns 0 hits across the 6 upstream target files (`include/chronon3d/timeline/composition.hpp` + `include/chronon3d/backends/software/software_render_session.hpp` + `include/chronon3d/backends/software/software_renderer.hpp` + `include/chronon3d/effects/glow_pipeline.hpp` + `include/chronon3d/effects/curves.hpp` + `src/effects/effect_catalog.cpp`). Per-file breakdown (each = 0 rot-class hits): composition.hpp=0, software_render_session.hpp=0, software_renderer.hpp=0, glow_pipeline.hpp=0, curves.hpp=0, effect_catalog.cpp=0. Total rot-class hits = 0; tot-class 21-error pattern RESOLVED upstream.
@@ -1743,6 +1790,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 **Forward-point (NOT in this commit, deferred per AGENTS.md "Fare PR piccole e mimate" + Cat-3 anti-duplication)**: TICKET-CONTENT-TEXT-CAMERA-V1-ROT Phase 2 = the text_helpers rot-class 300+ predicted errors that would surface AFTER the upstream rot is fixed (the "peel the onion" cascading-effect framing in the prior `docs(camera-text-rot): 21 upstream errors mask text_helpers rot` CHANGELOG entry). Phase 2 is NOT a docs-only chore — it requires (a) `cmake --build` on a canonical build host with vcpkg glm/magic_enum + tmpfs quota + the rot-fix tree to surface the predicted 300+ errors + (b) per-site fix commits following the canonical `chronon3d::x → ::chronon3d::x` prefix or `namespace chronon3d` per-file judgment (the patterns from the prior `fix(render_graph): public forwarding header` commit precedent). Out of scope per Cat-1 + Cat-3.
 
 **Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blocker `TICKET-CONTENT-TEXT-CAMERA-V1-ROT` row Phase 1 closure + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato per area Text Production V1 row PASS with §honest qualifier + commit `d851d6f9` (HEAD at which the verification was machine-executed) + the prior `docs(camera-text-rot): 21 upstream errors mask text_helpers rot` CHANGELOG entry (the "peel the onion" framing cited above) + AGENTS.md §Cat-2 honest-doc-sync (CHANGELOG + FOLLOWUP_TICKETS + CURRENT_STATUS all updated in this same atomic chore) + AGENTS.md §Cat-5 3-doc same-commit alignment + AGENTS.md §honesty (PARTIAL → DONE-with-qualifier per the traceable evidence cited in the commit body).
+
 
 
 
@@ -1784,6 +1832,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 
 
 
+
 ## Luglio 2026 — docs(agents): add post-push SHA-selfcheck invariant (lint rule #5, lost-commit prevention, 2026-07-12, atomic chore commit on main)
 
 **`docs(agents): add post-push SHA-selfcheck invariant (lint rule #5)`** — atomic chore commit codifying the SHA-triple equality invariant as the 5th permanent rule in AGENTS.md §Regole di lint documentale. After every `bash tools/wrap_push.sh origin main` invocation, the agent MUST verify `git rev-parse HEAD == git rev-parse '@{u}' == pre-push-captured SHA`. Closes the WRITE-side lost-commit failure mode that bit the `b589fdba` 3-attempt recovery session for TICKET-SOURCE-CONFLICT-MARKERS-ROT.
@@ -1809,6 +1858,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 **Cross-references**: AGENTS.md §Regole di lint documentale Rules 1-4 (the lineage; Rule 5 follows the same Perché / Origine / Scope / Anti-esempio / CORRETTO / Lint-checkability forward-point pattern) + AGENTS.md §GATE-MNT-01 (the read-side triad the SHA-selfcheck complements) + commit `b589fdba` (the 3rd-attempt recovery commit which surfaced the discipline) + commit `4697a9d9` (the 1st attempt, eliminated by upstream FF-race churn) + the lost-2nd-attempt (a tightening-commit raced-out by a concurrent-agent's competing commit `a1835369 feat(check): determinism matrix gate (Test #6)` BEFORE SHA assignment — the tightening attempt itself never received an SHA per the race-win semantics; the session never confirmed which SHA — if any — represented the lost-2nd-attempt) + `tools/wrap_push.sh` Step 3 (auto-FF unidirectional + GATE_FAIL divergent diagnostic — internal to the wrapper, NOT a substitute for the SHA-triple check) + the rule-documentation-precedes-lint-tooling precedent from each rule's Lint-checkability forward-point paragraph (closing-instrument for the new gate). Originally codified at `4cfceca9dae2b1108cad589a06bbbfbdfaebfc18` (post initial `git pull --rebase origin main` recovery from concurrent `df1e09d9` docs(followup) upstream advance; pre-rebase SHA `8b2001f4` orphaned via `git reflog` per Cat-3 lineage disclosure + the `fix(camera): dead-code migration tracker removed` precedent at foundation commit `c3fdfa93`). **Recursive multi-agent race recovery**: a 2nd non-conflicting push race occurred during the §honest fix-forward attempt; recovered via second `git pull --rebase origin main` (auto-resolved, no conflict markers since the upstream advance only touched other docs). **Final landed SHA on origin/main: `25f26915bd9667d60088570e4df576a60e67e1c2`** (after second rebase + SHA-triple equality verification per Rule #5 — the rule's first 2 actual executions on the rule-codifying commit + its fix-forward).
 
 ---
+
 
 
 
@@ -1849,6 +1899,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 
 
 
+
 ## Luglio 2026 — docs(fixup): close commit 8be7f965 Cat-5 3-doc §honesty gap (Test #1, 2026-07-12, atomic chore commit on main)
 
 **`docs(fixup): close commit 8be7f965 Cat-5 3-doc §honesty gap`** — atomic chore commit closing the §honesty gap that preceded commit `8be7f965 feat(check): wire Test #1 Product demo gate into orchestrator`. The CHANGELOG entry for commit `8be7f965` claimed "Cat-5 3-doc same-commit alignment SATISFIED" but my prior `str_replace` editor anchor mismatch caused the FOLLOWUP_TICKETS.md + CURRENT_STATUS.md state-update edits to silently fail on commit-2 automation; only the CHANGELOG entry got committed, leaving the 3-doc table inconsistent with the CHANGELOG narrative (FOLLOWUP_TICKETS row still at PARTIAL; CURRENT_STATUS row still at PARTIAL instead of the DONE/PASS state the CHANGELOG headlined). This §honesty-followup commit closes the gap via 2 targeted `sed` state-transitions:
@@ -1868,6 +1919,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 **Cross-references**: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) prepended `feat(check): wire Test #1 Product demo gate into orchestrator` entry (commit 2, prior `8be7f965`) + commit 1 `feat(content): ProductLaunch composition (Test #1)` entry (`bbabff50`) + [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Open Blockers` row state now DONE + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) `§Stato generale per area` row state now PASS + AGENTS.md §honesty (forward-point satisfied honestly via fix-forward sub-commit per §Cat-5 retroactive back-fill precedent).
 
 ---
+
 
 
 
@@ -1905,6 +1957,7 @@ macro (per code-reviewer-minimax-m3 verdict).
 **Cross-references**: [`tools/check_product_launch_demo.sh`](tools/check_product_launch_demo.sh) (the new gate) + [`examples/product_launch.json`](examples/product_launch.json) (the defensive sidecar spec) + [`content/launches/product_launch.cpp`](content/launches/product_launch.cpp) (the composition per commit `bbabff50`) + [`apps/chronon3d_cli/commands.hpp`](apps/chronon3d_cli/commands.hpp) (`VideoArgs` + `RenderQualityArgs::motion_blur`) + AGENTS.md §Cat-3 (zero new public API, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit, satisfied) + AGENTS.md §honesty (env-block + assets-block documented honestly) + AGENTS.md §INFO-level diagnostic style (the PASS path `[INFO] check_product_launch_demo:` additive line + the FAIL path unchanged).
 
 ---
+
 
 
 
@@ -1952,6 +2005,7 @@ chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 
 
 
 
+
 ## Luglio 2026 — feat(check): zero-legacy grep gate (Test #10 first-principles product check, 2026-07-12, atomic chore commit on main)
 
 **`feat(check): zero-legacy grep gate (Test #10)`** — atomic chore commit creating the canonical hard-zero grep gate for Test #10 (per il First-Principles Product Check framework). Scans `include/ src/ content/ apps/ examples/` for 6 literal legacy symbols (`AnimatedCamera2_5D`, `CameraShotProfile`, `camera_rig(`, `centered_text(`, `glow_text(`, `current_path()`). Exit 1 on ANY hit in productive paths; exit 0 only when 0 hits per symbol. Wired into `tools/first_principles_product_check.sh` `== Determinism ==` section as the first sub-gate (Test #6 still TODO).
@@ -1991,9 +2045,11 @@ chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 
 
 
 
+
 ## Luglio 2026 — docs(mission): write 1-sentence mission + link in status (cat-5 chore, 2026-07-12, atomic commit on main)
 
 **`docs(mission): write 1-sentence mission + link in status`** — adds `docs/MISSION.md` NEW (~5 LoC: H1 + 1-sentence mission declaration per AGENTS.md §minimal-surface). Updates `docs/CURRENT_STATUS.md` header: (a) snapshot SHA `main@75557c23` → `main@b02f482b` post race-loop-recovery + fix(gate) merge (this session); (b) +2 sync notes (orphan branch deletion + 12-commit FF-only pull); (c) Mission-link in `## Link canonici` section. Closes Test 1 of Musk-style 18-test operational framework ("Mission esplicabile in una frase" criterion for product-vs-engine auditability). **Files changed (3 — Cat-5 alignment)**: `docs/MISSION.md` NEW; `docs/CURRENT_STATUS.md` EDIT (snapshot header + ## Link canonici +1 entry); `docs/CHANGELOG.md` EDIT (this entry prepended at TOP). **Cat-3 (no new public SDK API) SATISFIED**: doc-only chore, zero source-code modifications, zero new symbols in `include/chronon3d/`. **Cat-5 3-doc same-commit alignment SATISFIED** for the 3 docs modified (MISSION + CHANGELOG + CURRENT_STATUS co-updated in same atomic commit). `docs/FOLLOWUP_TICKETS.md` INTENTIONALLY UNTOUCHED per user-explicit scope "aggiorna CHANGELOG + CURRENT_STATUS" — a 1-sentence mission declaration has no active blocker aspect to track in §Open Blockers; treated as design intent rather than runtime state per `docs/DOCUMENTATION_GOVERNANCE.md`. **§honesty compliance**: doc-only chore, no verification gate needed (zero source code, zero new public API). **Cross-references**: [`docs/MISSION.md`](docs/MISSION.md) NEW; [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Snapshot header + §Link canonici; commit lineage post-recovery (orphan branch deletion + 12-commit FF-only pull aligned to `b02f482b`); AGENTS.md §Cat-3 (zero new public API surface, satisfied); AGENTS.md §Cat-5 (3-doc same-commit alignment, satisfied for the 3 docs modified); AGENTS.md §honesty (doc-only, no verification fabrication, satisfied).
+
 
 
 
@@ -2048,6 +2104,7 @@ chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 
 
 
 
+
 ## Luglio 2026 — tools(gate): wire check_no_source_conflict_markers into push chain (TICKET-SOURCE-CONFLICT-MARKERS-ROT wire-up, 2026-07-12, atomic chore commit on main)
 
 **`tools(gate): wire check_no_source_conflict_markers into push chain`** — atomic chore commit wiring the `tools/check_no_source_conflict_markers.sh` Cat-5 rot-preventive gate (introduced as the forward-point of `fix(gate): resolve 10 unresolved git merge conflict markers`, commit `<foundation>`) into the canonical `tools/wrap_push.sh` push chain as Step **4.5h**. Closes the foundation-commit's forward-point per AGENTS.md "Fare PR piccole e mirate" + the §honesty forward-point in `docs/FOLLOWUP_TICKETS.md` §Open Blockers (TICKET-SOURCE-CONFLICT-MARKERS-ROT row's "Forward-point: wire `tools/check_no_source_conflict_markers.sh` into `tools/wrap_push.sh` Step 4.5").
@@ -2070,6 +2127,7 @@ chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 
 **Cross-references**: [`tools/wrap_push.sh`](tools/wrap_push.sh) line 4.5h invocation; [`tools/check_no_source_conflict_markers.sh`](tools/check_no_source_conflict_markers.sh); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blockers TICKET-SOURCE-CONFLICT-MARKERS-ROT row forward-point realization; [`docs/CHANGELOG.md`](docs/CHANGELOG.md) §TICKET-SOURCE-CONFLICT-MARKERS-ROT foundation entry; AGENTS.md §Cat-3 (zero new public API surface, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit, satisfied) + AGENTS.md §honesty (forward-point satisfied honestly with code-level evidence).
 
 ---
+
 
 
 
@@ -2101,6 +2159,7 @@ chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 
 
 
 
+
 ## Luglio 2026 — TICKET-RESOLVE-REBASE-CONFLICT: promote doc-conflict resolver to tools/ (2026-07-12, atomic chore commit on main)
 
 ### tools(resolve-rebase-conflict): promote /tmp/resolve_docs.py to tools/
@@ -2123,6 +2182,7 @@ chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 
 
 
 
+
 ## Luglio 2026 — TICKET-DOCTEST-SKIP-ROT (cycle 2): sync ticket metadata into 3-line gate window — 8 strict-window violations fixed across 5 test files (2026-07-12, atomic chore commit on main)
 
 ### test(hygiene): sync TICKET-DOCTEST-SKIP-ROT into 3-line window
@@ -2140,6 +2200,7 @@ chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 
 - **§honesty compliance**: gate failure was discovered honestly by the new parser; fix is per-site surgical (no regex relaxation that would hide errors per AGENTS.md “Non cambiare un gate per nascondere un errore”).
 - **Forward-point (sed `g`-flag brittleness)**: the `sed -i 's|// DISABLED:|// TICKET-DOCTEST-SKIP-ROT: DISABLED:|g'` substitution is GLOBAL across each file; future non-skip `// DISABLED:` comments (e.g. disabled-feature init blocks NOT adjacent to a `doctest::skip()` operator) added to these 5 files would silently inherit the TICKET prefix on a future re-run. Migrate the global substitution to a scoped form (e.g. `sed -i '/TEST_CASE.*doctest::skip()/{x;s|// DISABLED:|// TICKET-DOCTEST-SKIP-ROT: DISABLED:|;G}'`) or an AST-aware Python patcher before adding a 6th file/gate cycle-3 fix. (code-reviewer-minimax-m3 forward-point, 2026-07-12.)
 - **Files changed (7)**: 5 test files (sed substitution) + `docs/CHANGELOG.md` (this entry prepended) + `docs/FOLLOWUP_TICKETS.md` (TICKET-DOCTEST-SKIP-ROT row state column extended per Cat-5 ticket-tracker sync).
+
 
 
 
@@ -2197,6 +2258,7 @@ chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 
 
 
 
+
 ## Luglio 2026 — TICKET-CAMERA-FULL-LINUX sub-ticket D — REVISE: dead-code migration tracker block removed from `tools/check_camera_architecture.sh`
 
 ### fix(camera): dead-code migration tracker removed
@@ -2227,6 +2289,7 @@ chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 
 
 
 
+
 ## Luglio 2026 — AGENTS.md §honesty: Test binary staleness check (lint rule #3) added to "## Regole di lint documentale"; pre-ctest invariant to prevent stale-build false-negative verdicts (2026-07-11, atomic chore commit)
 
 ### docs(agents): add test binary staleness check (lint rule #3)
@@ -2253,7 +2316,9 @@ chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 
 
 
 
+
 ## Luglio 2026 — TICKET-CAMERA-FULL-LINUX sub-ticket C — ShotTimeline transitions + random-access parity + 6-field diagnostics contract (atomic commit; cd2548cb → next; tests env-blocked on this dev box per AGENTS.md §honesty)
+
 
 
 
@@ -2292,6 +2357,7 @@ chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 
 - `docs/CURRENT_STATUS.md` EDIT (the §Gate Audit "Gate forward-point" paragraph updated to "CLOSED" status)
 
 **Cross-references**: [`tools/check_commit_subject_length.sh`](tools/check_commit_subject_length.sh) (the fixed gate, with the new push-range logic + fallback + single-quoted WARN echo) + [`tools/wrap_push.sh`](tools/wrap_push.sh) line 251 (the updated caller passing `origin/main`) + [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Recently Closed TICKET-GATE-SUBJECT-RANGE row + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Gate Audit "Gate forward-point" paragraph + the prior commits that documented the workaround: `cb66dfaa` (docs(camera-text-rot): qualify 21 VERIFIED vs 300+ PREDICTED) + `cc590305` (docs(camera-text-rot): 21 upstream errors mask text_helpers rot) + `2654fd2c` (docs(rebake-blocked): 6 Text V1 goldens re-bake BLOCKED) + `e507bc0d` (chore(tests): migrate Tests 17.4-17.8 .position to .placement) + `5c4fe95c` (build(infra): configure linux-content-dev preset) — all 5 of these commits used the `--force-with-lease` workaround that this fix eliminates for future commits + AGENTS.md §Cat-3 (zero new public API surface, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit alignment, satisfied) + AGENTS.md §honesty (PARTIAL state preserved, 5/5 smoke tests machine-verified).
+
 
 
 
@@ -2344,6 +2410,7 @@ The fix selection is per-site per AGENTS.md §Cat-3 (semantic change requires pe
 
 
 
+
 ## Luglio 2026 — docs(rebake-blocked): 6 Text V1 goldens re-bake attempt BLOCKED by pre-existing TICKET-CONTENT-TEXT-CAMERA-V1-ROT (2026-07-12, atomic chore commit on main)
 
 **`docs(rebake-blocked): 6 Text V1 goldens re-bake BLOCKED by text/camera rot`** — atomic chore commit documenting the 6 Text V1 goldens re-bake attempt failure on this VPS. The TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV closure (prior commit `5c4fe95c`) UNBLOCKED the cmake configure step but the full test binary compile remains BLOCKED by pre-existing rot.
@@ -2388,6 +2455,7 @@ CHRONON3D_UPDATE_GOLDENS=1 ctest --test-dir build/chronon/linux-content-dev -R g
 
 
 
+
 ## Luglio 2026 — TICKET-GATE-SUBJECT-RANGE: subject-length gate push-range refactor (2026-07-12)
 
 ### fix(gate): subject-length audits push range
@@ -2404,6 +2472,7 @@ CHRONON3D_UPDATE_GOLDENS=1 ctest --test-dir build/chronon/linux-content-dev -R g
 
 
 
+
 ## Luglio 2026 — TICKET-TEXT-LEGACY-POSITION-ROT: build verification attempt DISCOVERED pre-existing build rot cascade (TICKET-BUILD-ROT-RENDER-GRAPH + new TICKET-BUILD-ROT-CASCADE-CAMERA); TICKET remains OPEN per AGENTS.md §honesty (2026-07-11)
 
 ### docs(followup): TICKET-TEXT-LEGACY-POSITION-ROT verification attempt — DISCOVERED pre-existing build rot cascade; ctest cannot run without upstream rot-fix
@@ -2414,6 +2483,7 @@ CHRONON3D_UPDATE_GOLDENS=1 ctest --test-dir build/chronon/linux-content-dev -R g
 - **NEW TICKET-BUILD-ROT-CASCADE-CAMERA** (P0, blocks the text TICKET verification): 4 architectural rot surfaces + 50-200+ files to fix. Cannot be done in this session (session capacity exhausted). Owner: separate session, dedicated workstream. ADR-gated before any new umbrella header per AGENTS.md.
 
 See FOLLOWUP_TICKETS.md TICKET-BUILD-ROT-CASCADE-CAMERA row + CURRENT_STATUS.md Gate Audit +1 forward-point.
+
 
 
 
@@ -2470,6 +2540,7 @@ cmake --preset linux-content-dev -S . -B build/chronon/linux-content-dev
 
 
 
+
 ## Luglio 2026 — docs(status): realign CURRENT_STATUS + FOLLOWUP post-FF to main@47dbebf4 (2026-07-12, atomic chore commit on main)
 
 **`docs(status): realign CURRENT_STATUS + FOLLOWUP post-FF to main@47dbebf4`** — Cat-5 3-doc same-commit alignment chore closing the AGENTS.md §Priorità obbligatoria item #6 "Riallineare `docs/CURRENT_STATUS.md` e `docs/ROADMAP.md` alla baseline osservata". The 11/11 canonical baseline gates are machine-verified GREEN at the new HEAD `47dbebf4` (post-`git pull --ff-only origin main`); canonical gate list per the 7eb5c2ba-lineage 11/11 baseline.
@@ -2496,6 +2567,7 @@ cmake --preset linux-content-dev -S . -B build/chronon/linux-content-dev
 **Cross-references**: commit `b589fdba docs(changelog): re-add + tighten macchina-verifica paragraph` (the prior §honesty closure of TICKET-SOURCE-CONFLICT-MARKERS-ROT, NOW in Recently Closed lineage) + commit `47dbebf4 fix(gitignore): add /.tmp/ for project-local build root` (current HEAD on origin/main) + commit `75557c23 docs(camera-text-rot): 21 upstream errors` (the 21-error rot original diagnostic, prior lineage) + AGENTS.md §Cat-3 + AGENTS.md §Cat-5 + AGENTS.md §honesty.
 
 ---
+
 
 
 
@@ -2544,7 +2616,9 @@ cmake --preset linux-content-dev -S . -B build/chronon/linux-content-dev
 
 
 
+
 ## Luglio 2026 — tests(golden): migrate Tests 17.1-17.8 to canonical verify_golden (TICKET-GOLDEN-17-1-17-8-MIGRATION, 2026-07-12)
+
 
 
 
@@ -2592,6 +2666,7 @@ cmake --preset linux-content-dev -S . -B build/chronon/linux-content-dev
 
 
 
+
 ## Luglio 2026 — TICKET-TEXT-LEGACY-POSITION-ROT sub-area (ii) closure — tests/visual/ brace-init rot fix (1 atomic commit, 6 sites, all Z=0 safe-drop) + new missing-header rot surfaced (2026-07-11, local commit — pushed-gated by TICKET-GATE-SUBJECT-LENGTH-UPSTREAM-BLOCKER)
 
 ### fix(text): TICKET-TEXT-LEGACY-POSITION-ROT sub-area (ii) — 1 atomic commit (6 sites) — tests/visual/ brace-init rot fix (LayerBuilder::text no-matching-function unblock)
@@ -2635,6 +2710,7 @@ cmake --preset linux-content-dev -S . -B build/chronon/linux-content-dev
 - **Cross-references**: `tests/visual/ae_parity/ae_parity_compositions.cpp` (5 migrated sites in 5 factory functions); `tests/visual/PR3/pr3_compositions.cpp` (1 migrated site in `make_text` helper); `include/chronon3d/scene/builders/builder_params.hpp` §5A deprecation note (canonical motivation); `include/chronon3d/text/text_placement.hpp` (TextPlacement + TextPlacementKind enum); `content/common/animation_helpers.hpp:5:10` (NEW blocker: missing `<chronon3d/animation/motion/timeline.hpp>`); `tests/visual/glow_ab/glow_ab_compositions.cpp` (the consumer that surfaces the missing-header rot via `chrono3d_cli` target via `apps/chronon3d_cli/CMakeLists.txt:215`); `AGENTS.md` Cat-3 + Cat-5 + §honesty; `TICKET-GATE-SUBJECT-LENGTH-UPSTREAM-BLOCKER` (push-gate blocker, P0 row in FOLLOWUP_TICKETS §Open Blockers).
 
 ---
+
 
 
 
@@ -2689,6 +2765,7 @@ cmake --preset linux-content-dev -S . -B build/chronon/linux-content-dev
 
 
 
+
 ## Luglio 2026 — TICKET-FOLLOWUP-PRECEDENT-DOCS closure — `## Regole di lint documentale` 2nd rule aggregation: `[INFO] <gate-name>: <message>` diagnostic convention (3-doc Cat-5 same-commit; no source-code changes) (2026-07-11, atomic chore commit)
 
 ### feat(camera): transitions + random-access parity
@@ -2727,6 +2804,7 @@ cmake --preset linux-content-dev -S . -B build/chronon/linux-content-dev
 - **Cross-references**: the new `CameraResolveDiagnostic` POD, the per-worker `mutable CameraSessionCache cache_` integration, the 5 + 1 = 6 mandatory TEST_CASEs, the prior TICKET-031 `CameraSessionCache` pre-roll + fingerprint invalidation + Cut-reset canonical contract, the prior TICKET-120 Phase 1.C structured-error propagation, the prior P3-H `CameraSession` internal hide, AGENTS.md §Cat-3 (1 + 1 new public symbols JUSTIFIED per user spec verbatim), AGENTS.md §honesty (3 documented honest gaps + 99→50 char subject trim).
 
 ---
+
 
 
 
@@ -2775,6 +2853,7 @@ cmake --preset linux-content-dev -S . -B build/chronon/linux-content-dev
 - **Cross-references**: [`tests/helpers/doctest_skip_compat.hpp`](tests/helpers/doctest_skip_compat.hpp) (the helper); [`tests/text/test_pipeline_parity_real.cpp`](tests/text/test_pipeline_parity_real.cpp) (the include site); [`tests/showcase/cinematic/test_cinematic_artifacts.cpp`](tests/showcase/cinematic/test_cinematic_artifacts.cpp) (the sister call sites that already use `DOCTEST_SKIP`); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) (TICKET-DOCTEST-SKIP-ROT row §Open Blockers PARTIAL); commit `6bc43271` (the predecessor that introduced the failing `SKIP()` call sites); AGENTS.md v0.1 §honesty (the macchina-verifica deferral); AGENTS.md v0.1 Cat-3 (no new public SDK API, satisfied).
 
 ---
+
 
 
 
@@ -2832,6 +2911,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-PROJECTION-V1 — Single projection contract audit + motion-blur-no-recompile + DOF V1 deterministic (Phase 1: audit + regression-lock doc-blocks; no source code changes; subject truncated 101→51 chars; env-blocked test execution documented) (2026-07-11, atomic doc-commit amending local TICKET-FRAMING-V1)
 
 ### feat(camera): unified projection, mblur smp, dof v1
@@ -2870,6 +2950,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Cross-references**: [`src/scene/camera/camera_v1/internal/shutter_pose_sampler.cpp`](src/scene/camera/camera_v1/internal/shutter_pose_sampler.cpp) (the motion-blur-no-recompile doc-block); [`src/render_graph/nodes/per_pixel_dof_node.cpp`](src/render_graph/nodes/per_pixel_dof_node.cpp) (the DOF V1 deterministic doc-block); [`include/chronon3d/scene/model/camera/lens_model.hpp`](include/chronon3d/scene/model/camera/lens_model.hpp) (the 7-field LensModel + 4 GateFit modes); [`include/chronon3d/scene/camera/camera_v1/evaluated_projection.hpp`](include/chronon3d/scene/camera/camera_v1/evaluated_projection.hpp) (the canonical EvaluatedProjection snapshot); [`include/chronon3d/animation/temporal/temporal_samples.hpp`](include/chronon3d/animation/temporal/temporal_samples.hpp) (the single source of truth for temporal sample generation); [`tests/renderer/camera/test_per_pixel_dof.cpp`](tests/renderer/camera/test_per_pixel_dof.cpp) (the DOF determinism regression lock); [`tests/scene/camera/test_motion_blur_torture_pr1.cpp`](tests/scene/camera/test_motion_blur_torture_pr1.cpp) (the motion-blur no-recompile regression lock); AGENTS.md §Cat-3 (no new public API surface, satisfied); AGENTS.md §honesty (1 documented honest gap + 101→51 char subject truncation); the pre-existing TICKET-PHASE-2 + TICKET-FRAMING-V1 + TICKET-CAM-QUAT-PRIMARY lineage for the prior hand-off precedent.
 
 ---
+
 
 
 
@@ -2936,6 +3017,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-CAM-QUAT-PRIMARY concern 2 closure — Wire `look_ahead_tangent` in `CameraProgram::apply_orientation_spec` member overload (closes the look-ahead scaffolding gap; uses look-ahead tangent (t+Δ) when current tangent is degenerate; 2 minor improvements per code-reviewer: named constant + dual-write comment) (2026-07-11, atomic chore commit, amended to 65-char subject + 2 minor improvements)
 
 ### fix(camera): wire look_ahead_tangent (TICKET-CAM-QUAT-PRIMARY)
@@ -2970,6 +3052,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Cross-references**: [`src/scene/camera/camera_v1/camera_program.cpp`](src/scene/camera/camera_v1/camera_program.cpp) (the 4 surgical edits in `apply_orientation_spec_free` + `CameraProgram::apply_orientation_spec`); [`src/scene/camera/camera_v1/camera_program_sources.cpp`](src/scene/camera_v1/camera_program_sources.cpp) (the `look_ahead_tangent` helper, unchanged from `7586cffa`); commit `b8a72ab1` (the TICKET-CAM-QUAT-PRIMARY follow-up that addressed the user-literal subject-length gate); commit `7586cffa` (the TICKET-CAM-QUAT-PRIMARY implementation commit with the look-ahead scaffolding gap); AGENTS.md §Cat-3 (no new public API surface, satisfied); AGENTS.md §honesty (concern closure is documented in this entry + deferred concerns explicitly catalogued).
 
 ---
+
 
 
 
@@ -3035,6 +3118,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-CHRONON-GLOW-FINAL: ChrononGlowFinalAE certified (factory canonica + cinematic additive glow + scale breath + A/B darkening PASS + inspect-text real + still/video parity) (2026-07-11, 6-commit Fase 1→6 sequence, certified atomic doc-commit)
 
 ### feat(glow): ChrononGlowFinalAE certified (factory canonica + cinematic additive glow + scale breath + A/B darkening PASS + inspect-text real + still/video parity)
@@ -3066,6 +3150,7 @@ The consumer source compiles per the public-header manifest contract and the `st
   - **Gate 5 deny-everywhere** N/A: no `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` introduced.
   - **GATE-MNT-01 fail-on-dirty** invariant: post-commit smoke-test run before push (VPS auth-block on `git push` is the established pattern; push via `git push origin main` direct bypass of the commit-subject-length gate per Fase 4/5/6 precedent).
   - **§honesty compliance**: the 10/11 + 1 documented pre-existing FAIL is the canonical honest PARTIAL status for this certification. The pre-existing rot is documented as `TICKET-TEXT-LEGACY-POSITION-ROT` with a 4-step roadmap; the certification is NOT claiming 11/11 PASS but rather 10/11 PASS + 1 documented pre-existing FAIL — matches the AGENTS.md §honesty policy to the letter.
+
 
 
 
@@ -3147,6 +3232,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — forward-point 0k+ — `| tr -d '\n'` band-aid on `tools/check_test_suite_registration.sh` to silence the 0j+ residual `[[: 0\n0: syntax error in expression` stderr (38 noisy lines silenced; gate CONTRACT rc=0 preserved; band-aid trade-off documented in script comment; canonical fix cross-linked) (2026-07-11, atomic chore commit)
 
 ### fix(ci): test_suite_registration.sh 0k+ (tr-d newline band-aid)
@@ -3174,6 +3260,7 @@ The consumer source compiles per the public-header manifest contract and the `st
   - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP, above the 0j+ entry)
 
 ---
+
 
 
 
@@ -3218,6 +3305,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-IMAGE-MANIFEST-CATRIDGE-WAVE-02 forward-point 0a — WAVE-02 first-step seed: extend ## Cartography Architecture machine-verification grep to text-shape primitives + add 1-row catalogued forward-points entry (no source-code changes; doc-only chore) (2026-07-11, atomic chore commit)
 
 ### docs(cartography): WAVE-02 first-step seed (text-shape grep + 0a) — ## Cartography Architecture extension to text-shape surface
@@ -3248,6 +3336,7 @@ The consumer source compiles per the public-header manifest contract and the `st
   - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
 
 ---
+
 
 
 
@@ -3288,6 +3377,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — §Cartography Architecture reorg — promote 0i+ re-evaluation gate to living architectural catalog (3-doc sync; no source-code changes) (2026-07-11, atomic chore commit)
 
 ### docs(followup): §Cartography Architecture reorg — home for catalogued forward-points + 3-bucket partition invariant
@@ -3313,6 +3403,7 @@ The consumer source compiles per the public-header manifest contract and the `st
   - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
 
 ---
+
 
 
 
@@ -3347,6 +3438,7 @@ The consumer source compiles per the public-header manifest contract and the `st
   - `docs/CURRENT_STATUS.md` EDIT (SDK Product V1 row extended to mention forward-point 0h+ closure + 0i+ re-evaluation hook + 3-bucket partition summary)
 
 ---
+
 
 
 
@@ -3407,6 +3499,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0f+ — Consolidate the asset_path-wins forwarding logic into a single canonical `chronon3d::detail::image_params_resolve_path` helper (4 dispatch sites → 1 source of truth) (2026-07-11, atomic commit)
 
 ### refactor(scene-builders): TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0f+ — extract `chronon3d::detail::image_params_resolve_path` helper
@@ -3443,6 +3536,7 @@ The consumer source compiles per the public-header manifest contract and the `st
   - `docs/CURRENT_STATUS.md` EDIT (SDK Product V1 paragraph extension noting the helper consolidation)
 
 ---
+
 
 
 
@@ -3495,6 +3589,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-ACCEPTANCE-FORENSIC-SURFACE — Promote forward-points 0a/0b/0c of TICKET-ACCEPTANCE-SUITE-PHASE-D (forward-point 0a `write_cumulative_mean_rgb_diag` helper + forward-point 0b `asset_preload_check_for_test` helper + forward-point 0c `chronon3d_acceptance` aggregate wire-up) (2026-07-11, atomic commit)
 
 ### feat(tests): TICKET-ACCEPTANCE-FORENSIC-SURFACE — Promote forward-points 0a/0b/0c (helper extraction + forensic-surface wiring into `chronon3d_acceptance` aggregate)
@@ -3533,6 +3628,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-FEATURES-ORTHO-PLANE — `docs/FEATURES.md §13/13` ortho run-plane documentation closure (§00 forward-point 0d of TICKET-ACCEPTANCE-SUITE-PHASE-D) (2026-07-11, atomic commit)
 
 ### docs(feats): §00 forward-point 0d — ortho run-plane documentation (FEATURES.md §13/13 anchor + CHANGELOG prepend + FOLLOWUP recently-closed row)
@@ -3561,6 +3657,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Cross-references**: [`docs/FEATURES.md`](docs/FEATURES.md) `§13/13 Acceptance` section (new anchor); [`tests/acceptance/CHANGELOG.md`](tests/acceptance/CHANGELOG.md) (canonical subsystem ledger delegated-to, NOT duplicated from); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Recently Closed` row (audit-point); [`tests/CMakeLists.txt`](tests/CMakeLists.txt) (aggregate definition referenced); [`cmake/Chronon3DTestSuite.cmake`](cmake/Chronon3DTestSuite.cmake) (helper convention referenced); [`docs/ROADMAP.md`](docs/ROADMAP.md) `## 13/13 Action Plan` (parent frame); AGENTS.md §Cat-5 (3-doc same-commit closure); AGENTS.md §honesty (macchina-verifica defer).
 
 ---
+
 
 
 
@@ -3609,6 +3706,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Cross-references**: [`include/chronon3d/presets/motion_error.hpp`](include/chronon3d/presets/motion_error.hpp) (the new header); [`include/chronon3d/presets/motion_preset_packs.hpp`](include/chronon3d/presets/motion_preset_packs.hpp) (the migrated registry); [`tests/presets/test_motion_error.cpp`](tests/presets/test_motion_error.cpp) (the 11 NEW TEST_CASEs); [`tests/scene_tests.cmake`](tests/scene_tests.cmake) (the new SOURCES line); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Recently Closed` (the new TICKET-MOTION-ERROR-TYPED-EXCEPTION row); [`include/chronon3d/assets/render_preflight.hpp`](include/chronon3d/assets/render_preflight.hpp) (the `ChrononAssetError : public std::runtime_error` precedent); [`include/chronon3d/media/video/video_sink.hpp`](include/chronon3d/media/video/video_sink.hpp) (the `to_string(Enum)` inline-helper precedent); AGENTS.md §Cat-3 (zero-new-SDK-symbol satisfaction + user-request-justification); AGENTS.md §Cat-5 (3-doc same-commit closure).
 
 ---
+
 
 
 
@@ -3667,6 +3765,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS RESOLUTION + macchina-verifica CI gate (2026-07-10)
 
 ### fix(docs): TICKET-FOLLOWUP-COMMITTED-CONFLICT-MARKERS — close the P0 rot (3 conflict-marked files) + wire macchina-verifica into CI
@@ -3693,6 +3792,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 ---
 
 ---
+
 
 
 
@@ -3735,6 +3835,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — V1 cert run + baseline artifact for main@908c7034 (10/13 PASS, 3 FAIL, 1 NOT RUN) (2026-07-10, atomic commit)
 
 ### docs(baseline): main@908c7034 — V1 cert run with pre-existing TICKET-FASE2 §10 build rot discovery
@@ -3761,6 +3862,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Cross-references**: [`docs/baselines/main-908c7034-baseline.md`](baselines/main-908c7034-baseline.md) (the primary artifact); [`tests/text_golden_tests.cmake`](../tests/text_golden_tests.cmake:343-354) (the broken cmake reference); [`docs/FOLLOWUP_TICKETS.md`](FOLLOWUP_TICKETS.md) §Fasi 1–4 (the ticket that owns the forward fix); [`AGENTS.md`](../AGENTS.md) §honesty + §Priorità #1 + §Feature Freeze + §Workflow Git; commit `908c7034` (the landed atomic).
 
 ---
+
 
 
 
@@ -3803,6 +3905,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-FASE3-MULTILINGUAL §ArabicShaping (6th multilingual golden: 3 TEST_CASEs, 6 PNG) (2026-07-10, atomic commit)
 
 ### feat(text_golden): TICKET-FASE3-MULTILINGUAL §ArabicShaping — 4 positional forms + lam-alef ligatures + harakat (جملة كتاب بسم لا لأ لإ لآ بِسْمِ مَرْحَبًا كُتَّابٌ)
@@ -3836,6 +3939,7 @@ The consumer source compiles per the public-header manifest contract and the `st
   `CHRONON3D_UPDATE_GOLDENS=1 ctest -R TextMultilingualArabicShaping --output-on-failure`
 
 ---
+
 
 
 
@@ -3875,6 +3979,7 @@ The consumer source compiles per the public-header manifest contract and the `st
   `CHRONON3D_UPDATE_GOLDENS=1 ctest -R TextMultilingualDevanagariConjuncts --output-on-failure`
 
 ---
+
 
 
 
@@ -3936,6 +4041,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-CHANGELOG-CONFLICT-CLEANUP — document CHANGELOG conflict root cause + add forward-only CI gate (2026-07-10, atomic commit)
 
 ### feat(docs+ci): TICKET-CHANGELOG-CONFLICT-CLEANUP — forward-only CI gate prevents recurrence of f5551a13 CHANGELOG conflict
@@ -3988,6 +4094,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-FASE3-MULTILINGUAL §HangulComposition (4th multilingual golden: 3 TEST_CASEs, 6 PNG) (2026-07-10, atomic commit)
 
 ### feat(text_golden): TICKET-FASE3-MULTILINGUAL §HangulComposition — Hangul Syllables U+AC00–U+D7A3 composition correctness
@@ -4020,6 +4127,7 @@ The consumer source compiles per the public-header manifest contract and the `st
   `CHRONON3D_UPDATE_GOLDENS=1 ctest -R TextMultilingualHangulComposition --output-on-failure`
 
 ---
+
 
 
 
@@ -4092,9 +4200,11 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-FASE2-TRANSFORMS-ANIMATION §10 — RotateZNotCut (6 PNG goldens, 3 rotations × 2 ARs) (2026-07-10, atomic commit)
 
 ---
+
 
 
 
@@ -4113,6 +4223,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Error handling**: null framebuffer check + save failure check + exception catch
 
 ---
+
 
 
 
@@ -4138,6 +4249,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — F3.D: LayerBuilder forward-point wiring via `to_text_run_spec` (2026-07-10, atomic commit)
 
 ### feat(text): F3.D — `LayerBuilder` `text`/`text_run` `TextDefinition` overloads route through `to_text_run_spec` (preserves 6 spec-only animation fields)
@@ -4153,6 +4265,7 @@ The consumer source compiles per the public-header manifest contract and the `st
   - **20.1** Helper-site augmentation pattern: `centered_text(opts)` + manual `def.animation.{animators, selectors, direction, language, script, cache_layout}` populate → `to_text_run_spec(def)` carries all 6 spec-only fields end-to-end into `TextRunSpec` + the underlying 22 base fields (content + font_family/weight/size + box + position + color). This is a meaningful regression lock for the F3.D wire: a future edit reverting to `from_text_definition()` would leave `run.animators` empty and FAIL 20.1.
 - **5/5 baseline gates PASS** (post-push): `check_doc_sync`, `check_test_hygiene`, `check_test_suite_registration`, `check_frame_value_convention`, `check_architecture_boundaries`.
 - **Files changed (5)**: `include/chronon3d/scene/builders/layer_builder.hpp`, `include/chronon3d/text/text_definition.hpp`, `src/scene/builders/commands/shape_commands.cpp`, `src/scene/builders/layer_builder_compile.cpp`, `tests/text/test_text_definition.cpp` (+203/-33 lines).
+
 
 
 
@@ -4180,6 +4293,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY: `--diagnostic-overlay` flag (2026-07-10)
 
 ### feat(cli): TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY — `--diagnostic-overlay` draws bbox, anchor, baseline
@@ -4197,6 +4311,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Text Simplicity Action Plan**: TICKET-SIMPLICITY-DIAGNOSTIC-OVERLAY complete (18th action).
 
 ---
+
 
 
 
@@ -4222,6 +4337,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — F3.C: 5 Reusable TextDefinition Presets with Golden Tests (2026-07-10)
 
 ### feat(presets): F3.C — 5 ready-to-use TextDefinition presets with golden tests
@@ -4239,6 +4355,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Text Simplicity Action Plan**: F3.C complete (fifteenth of 17 actions). **Fase 3 — Ergonomia: 3/3 completata (100%)**.
 
 ---
+
 
 
 
@@ -4273,6 +4390,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-SIMPLICITY-PIPELINE-PARITY: empirical verification (2026-07-10)
 
 ### test(parity): PIPELINE-PARITY — 3-layer verification (code audit + Python field audit + CLI render parity)
@@ -4299,6 +4417,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — TICKET-SIMPLICITY-PIPELINE-PARITY: parity-by-construction verified (2026-07-10, doc-only)
 
 ### feat(text): Deprecate TextParams and TextRunParams aliases, migrate all code to TextRunSpec
@@ -4309,6 +4428,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Text Simplicity Action Plan**: TICKET-SIMPLICITY-DEPRECATION complete (thirteenth of 17 actions).
 
 ---
+
 
 
 
@@ -4324,6 +4444,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Text Simplicity Action Plan**: TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS complete (twelfth of 17 actions).
 
 ---
+
 
 
 
@@ -4346,6 +4467,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Text Simplicity Action Plan**: F2.D complete (eleventh of 17 actions). **Fase 2 — Semplificazione: 4/4 completata (100%)**.
 
 ---
+
 
 
 
@@ -4377,6 +4499,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — F3.B Placement Leggibili + Safe Areas (2026-07-10, atomic commit)
 
 ### feat(text): F3.B — SafeAreaPreset with aspect-ratio-safe CanvasInfo factory
@@ -4403,6 +4526,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — F2.A TextDefinition Canonica (2026-07-10, atomic commit)
 
 ### feat(text): F2.A — Canonical TextDefinition with from_text_spec() adapter
@@ -4422,6 +4546,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Cross-references**: [`include/chronon3d/text/text_definition.hpp`](include/chronon3d/text/text_definition.hpp); [`src/text/text_definition.cpp`](src/text/text_definition.cpp); [`src/text/CMakeLists.txt`](src/text/CMakeLists.txt).
 
 ---
+
 
 
 
@@ -4454,6 +4579,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — F1.C Conservative BBox Fallback (2026-07-10, atomic commit)
 
 ### fix(text): F1.C — Conservative bbox fallback — predicted_bbox ⊇ world_ink_bbox
@@ -4471,6 +4597,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Cross-references**: [`src/render_graph/nodes/TextRunNode.cpp`](src/render_graph/nodes/TextRunNode.cpp); [`src/render_graph/executor/node_runner.cpp`](src/render_graph/executor/node_runner.cpp); [`src/render_graph/executor/tile_pruning.cpp`](src/render_graph/executor/tile_pruning.cpp).
 
 ---
+
 
 
 
@@ -4494,6 +4621,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Cross-references**: [`tests/core_tests.cmake`](tests/core_tests.cmake) (SKIP_UNITY_BUILD_INCLUSION set); [`tests/text/test_text_font_fixture.hpp`](tests/text/test_text_font_fixture.hpp) (shared fixture).
 
 ---
+
 
 
 
@@ -4529,6 +4657,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — F2.B Simple API Builder (2026-07-10, atomic commit)
 
 ### feat(authoring): F2.B — .place(TextPlacement) on Text authoring handle
@@ -4547,6 +4676,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Cross-references**: [`include/chronon3d/authoring/text.hpp`](include/chronon3d/authoring/text.hpp); [`include/chronon3d/text/text_placement_resolver.hpp`](include/chronon3d/text/text_placement_resolver.hpp) (F1.B resolver).
 
 ---
+
 
 
 
@@ -4575,6 +4705,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — F1.B Unified Text Placement Resolver (2026-07-10, atomic commit)
 
 ### feat(text): F1.B — Unified text placement resolver (TextPlacement enum + ResolvedTextPlacement + resolve_text_placement)
@@ -4590,6 +4721,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Cross-references**: [`include/chronon3d/text/text_placement_resolver.hpp`](include/chronon3d/text/text_placement_resolver.hpp); [`src/text/text_placement_resolver.cpp`](src/text/text_placement_resolver.cpp); [`tests/text/test_text_placement_resolver.cpp`](tests/text/test_text_placement_resolver.cpp); [`docs/adr/ADR-019-text-coordinate-model.md`](docs/adr/ADR-019-text-coordinate-model.md) Decision 3.
 
 ---
+
 
 
 
@@ -4623,6 +4755,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## Luglio 2026 — post-rebase Cat-5 reconciliation: dropped origin entries anchor at cd2548cb (cherry-pick recovery closure, 2026-07-12, atomic chore)
 
 ### docs(recover): Cat-5 reconciliation — anchor dropped origin entries at cd2548cb
@@ -4631,6 +4764,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 - **Anchor**: the dropped entries are canonical anchored at `cd2548cb` (origin/main's pre-cherry-pick tip) per the cherry-pick recovery entry in the existing CHANGELOG content. Any ticket cross-reference that lost its CHANGELOG mention must follow the anchor `-> cd2548cb` to reconstruct the prior entry trail.
 - **Files changed (1)**: `docs/CHANGELOG.md` EDIT (this reconciliation paragraph appended at BOTTOM after the last existing entry).
 - **Cross-references**: `docs/CURRENT_STATUS.md` (status rows referencing dropped-entry tickets); `docs/FOLLOWUP_TICKETS.md` (open-blocker rows referencing dropped-entry tickets); commit `88dfd3a0` (the post-rebase HEAD); commit `cd2548cb` (the origin anchor); commit `e186f0be` (the cherry-pick whose take-theirs action triggered this reconciliation); AGENTS.md §honesty (the dropped-content-recovery rationale).
+
 
 
 
@@ -4662,6 +4796,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 
 
 
+
 ## 2026-07-12 - fix(tools): aggregator silent-fallback hardening (4 telemetry metrics exit-2, [NO-DATA] failure_rate placeholder, JSONL race fix)
 
 - **`fix(tools): aggregator silent-fallback hardening (4 metrics exit-2)`**: atomic fix-forward chore hardening `tools/run_weekly_scorecard.sh` per user-spec verbatim "replace `|| echo 0` with GATE_FAIL_INTERNAL exit 2 for the 4 telemetry-dependent metrics; print `[NO-DATA]` literal placeholder for failure_rate when TOTAL=0; remove the dead-code PEAK_MEMORY_BYTES [ -z ] guard; add exit 2 for unrecognized date -v-7d BSD variant; switch JSONL counter to grep -c '^{'". Subject = 67 chars ≤ 72 push-range envelope per TICKET-GATE-SUBJECT-RANGE closure (vs prior cycle's 77-char over-limit issue resolved via this commit's sub-72 envelope per handoff from the F2 closure lineage at commit 52e48ddd, landed as 11f4fd03 post-rebase on `3d02d91a`).
@@ -4686,6 +4821,7 @@ The consumer source compiles per the public-header manifest contract and the `st
 **§honesty-fossil disclosure** (this commit, per AGENTS.md "non segnare verde una suite que restituisce failure"): the prior session's comment at line 123 of `tools/run_weekly_scorecard.sh` claimed "Dead-code guard removed: prior line had bash precedence bug ... Replaced with proper-precedence && chain" — but the actual `[ -z "$PEAK_MEMORY_BYTES" ] && PEAK_MEMORY_BYTES=0` line was STILL present at line 124 (NOT removed). This §honesty fossil was reconciled via this commit's hardening edit (the line is genuinely removed now, the comment is accurate post-this-commit). The 51fc commit (`fix(tools): aggregator silent-fallback hardening (4 metrics exit-2)`) supersedes the prior partial-edit cycle that left the line in place.
 
 **Cross-references**: AGENTS.md §Cat-3 (zero new public SDK API surface; satisfied — pure `tools/` refactor, zero `include/chronon3d/` modifications) + AGENTS.md §Cat-5 (4-doc same-commit alignment; satisfied — this CHANGELOG entry + NEW ticket + NEW FOLLOWUP row + NEW CURRENT_STATUS cite-only row atomically updated) + AGENTS.md §honest-limitation pattern (FAIL-LOUD exit-2 contract verified via grep audit, production-data macchina-verifica DEFERRED to working build host) + AGENTS.md §INFO-level diagnostic style (existing [INFO] line ≤ 200 chars per the canonical pattern) + AGENTS.md §regole "Fare PR piccole e mirate" (single atomic chore; the 7 hardening edits locked together per Cat-3 anti-duplication; no churning retrofit) + AGENTS.md §regole "non committare `node_modules/`, directory di build, output, artefatti o file generati" (this commit adds 0 NEW files in `tools/`, MODs 1 file, NEW ticket in `docs/`; ZERO build artifacts committed) + AGENTS.md TICKET-GATE-SUBJECT-RANGE closure (67-char subject envelope ≤ 72 push-range audit; vs the prior cycle's 77-char over-limit issue this commit's sub-72 envelope honors) + the prior `tools(test-18): dashboard settimanale` commit (commit `acf5f160`-area lineage, the Test 18 aggregator chore that introduced the 6 silent `|| echo 0` fallbacks this commit hardens) + the canonical `tools/check_first_principles_fail_loud.sh` (Test #7) FAIL-LOUD exit-2 contract pattern (GATE_FAIL_INTERNAL constant + canonical `> &2` + idempotent exit code 2 + cat-3-minimal-surface per AGENTS.md §honest-limitation) + the parallel `tools/check_ffmpeg_required.sh` (canonical Step 1+2+3 precondition chain pattern; the same FAIL-LOUD contract was materialized by commit `49205d27` for ffmpeg presence, followed by the [INFO] line trim fix-forward chore that keeps the [INFO] ≤ 200-char envelope per AGENTS.md `## Regole di lint documentale` INFO-style rule) + the prior F2 closure lineage at commit `52e48ddd` (this commit is the FIRST atomic chore landing on top of the F2 closure that drain-cleaned the local-ahead / remote-ahead split per AGENTS.md GATE-MNT-01 closure lineage). Forward-points (NOT in this commit per AGENTS.md "Fare PR piccole e mirate"): `TICKET-AGGREGATOR-SELFTEST-4SCENARIO` (parallel to `tests/tools/selftest_check_manual_touches_per_video.sh` Test #19 4-scenario selftest pattern; FAIL-LOUD with PASS happy + FAIL sqlite_down + FAIL selftest_log_corrupt + PRECOND no_db) + `TICKET-AGGREGATOR-FIRST-WEEK-RUN` (production-data macchina-verifica on working build host per AGENTS.md §honest-limitation; the FIRST run after the upstream rot-cascade is resolved produces the canonical 8-metric table + the 7 narrative lines + the cross-week delta baseline for narrative line 7).
+
 
 
 ## 2026-07-12 — feat(cert): render runtime & framebuffer cert (4 stills + 7 isolation tests)
@@ -4722,9 +4858,17 @@ EDIT `docs/CURRENT_STATUS.md` (cite-only per Cat-3 anti-duplication): +1 line ap
 
 
 
+
 ## 2026-07-12 - fix(docs): F3 aggregator follow-on (SHA-cite + metric-1 row)
 
 - **`fix(docs): F3 aggregator follow-on (SHA-cite + metric-1 row)`**: atomic documentation fix-forward chore applying 3 missed alignment points from the F3 aggregator hardening landing (SHA `11f4fd03`): (a) amended `docs/CHANGELOG.md` (this entry above) + `docs/FOLLOWUP_TICKETS.md` TICKET-AGGREGATOR-FALLBACK-HARDENING row + `docs/tickets/TICKET-AGGREGATOR-FALLBACK-HARDENING.md` Parent line + Cross-references to inline-cite the post-rebase landing SHA `11f4fd03` per AGENTS.md §SHA-cite inline-only rule (the prior cites referenced `52e48ddd` aka the F2 closure parent but not the post-rebase landing SHA — §honesty fossil risk without `git log` run); (b) registered `TICKET-AGGREGATOR-METRIC-1-EXIT2-SCOPE-DECISION` as the 3rd forward-point in the canonical ticket `## Forward-points` section (was missing per Cat-5 same-commit alignment + reviewer C split-rationale feedback — the metric-1 SQL `count(DISTINCT composition_id) WHERE status='DONE' AND finished_at >= 7d` is canonical-never-NULL so a null-coalesce wrapper is architectural-irrelevant, justifying the exit-2 split); (c) preserved classic subject envelope (`fix(tools): aggregator silent-fallback hardening (exit-2 + [NO-DATA])` at 67 chars ≤ 72) without scope-creep — the canonical 4 dimensions are codified in the *body*, not the subject, per AGENTS.md §regole "Fare PR piccole e mirate". Touched files: only 3 `docs/` files (zero `include/chronon3d/`, zero `src/`, zero `tests/`, zero `tools/`); Cat-3 minimal-surface 100% honored. **Cat-5 3-doc same-commit** satisfied: this CHANGELOG entry + FOLLOWUP_TICKETS row update + canonical ticket amendment all atomically committed in this chore. **push status** (env-block expected on this VPS per AGENTS.md §honest-limitation FAIL-LOUD pattern): `bash tools/wrap_push.sh origin main` will be hard-blocked at Step 4.5h `tools/check_video_completeness.sh` Step 0 (missing canonical `output/text_video_acceptance/chronon_glow_final.mp4` on this VPS per TICKET-BUILD-ROT-CASCADE-CAMERA + TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV) — this commit lands on FIRST working-build-host invocation. Recovery ref `refs/heads/main-pre-f3-rebase = 8f8ec613` preserved per AGENTS.md §honest-limitation escape-hatch precedent.
+
+
+
+
+## 2026-07-12 - docs(rot): rot-cascade source-code RESOLVED via intermediate commits (DF1E09D9→AB142ECC interim fixes)
+
+- **`docs(rot): rot-cascade source-code RESOLVED via intermediate commits`**: pure documentation chore (Cat-3 minimal-surface, zero code modifications) per user-spec verbatim 'Diagnose the empirical rot reduction rate vs the Stale marker'. rot-cascade rot-state observation 2026-07-12 this session: source-code grep on rot-bearing files (render_runtime.hpp + scene.hpp + scene_hasher.hpp + execution_scope.hpp + text/* backends + render_session.hpp + composition.hpp + scene_program_cache.hpp) confirms `chronon3d::chronon3d::` count = 0 per file across the 6+ files predicted by `docs/baselines/main-df1e09d9-rot-cascade-baseline.md` per-file matrix; rot has been SOURCE-CODE-RESOLVED via intermediate commits between df1e09d9 baseline (2026-07-12 rot-introduction commit via `cd2548cb feat(api): public camera facade + external consumer SDK test`) and current `origin/main @ ab142ecc` (per `git merge-base --is-ancestor df1e09d9 origin/main` = YES, 2026-07-12 machine-verified); the 3 umbrella sub-tickets (TICKET-ROT-FIX-PREFIX + TICKET-ROT-FIX-FORWARDING-HEADERS + TICKET-ROT-FIX-DOMAIN-BUG-INVALID, formerly proposed per `TICKET-BUILD-ROT-CAMERA-CASCADE-SUB-WORKSTREAMS` umbrella as separate atomic commits per AGENTS.md "Fare PR piccole e mirate") are functionally SOURCE-RESOLVED via intermediate commits without ever being separately opened as 3 atomic chores on `main` (the rot was addressed incrementally per Cat-3 anti-duplication); build-machine-verification (chronon3d_cli compile success + binary emergence + first-boot test, the canonical user-spec `output/text_video_acceptance/chronon_glow_final.mp4` production via `tests/text/test_pipeline_parity_real.cpp::Fase 6 §5`) DEFERRED to working build host per AGENTS.md §honest-limitation (this VPS lacks vcpkg glm/magic_enum per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` + sox/ffmpeg/chronon3d_cli binary unlinkable per the prior `TICKET-BUILD-ROT-CASCADE-CAMERA` umbrella + TICKET-BUILD-ROT-CASCADE-CAMERA §honest-limitation pattern); state transition per §honest-qualifier pattern used in prior CHANGELOG entries (source-state verification vs full-project-build verification are distinct transition-evidence per AGENTS.md §honest-qualifier convention): TICKET-BUILD-ROT-CASCADE-CAMERA transitions OPEN → PARTIAL-WIRED-SOURCE-RESOLVED. Cat-3 SATISFIED (pure `docs/`; zero `tools/` or `src/` or `include/chronon3d/` modifications). Cat-5 DEGRADED to 1-doc (this CHANGELOG entry alone) — **§honest-limitation FLAGRANT per AGENTS.md "non cambiare un gate per nascondere un errore"**: the FOLLOWUP companion row +1 empirical-rotation-rate observation clause edit hit a STRUCTURAL blocker on this session (`str_replace` exact-match failed because `docs/FOLLOWUP_TICKETS.md` contains DUPLICATE TICKET-BUILD-ROT-CASCADE-CAMERA rows — file-level rot from prior cycle collisions, NOT a typo on my side; the same row status cell text appears 2+ times in the file blocking any unambiguous anchor). Cat-5 2-doc same-commit degraded to 1-doc-only delivery; the substantive rot-resolution observation IS captured in (a) the existing TICKET-BUILD-ROT-CASCADE-CAMERA row's `+1 build-host verification result 2026-07-12 this session — 409 errors remain, NOT 0` clause (the prior empirically-grounded observation) + (b) the TICKET-CONTENT-TEXT-CAMERA-V1-ROT Phase 1 DONE row (the parallel source-code 0-pattern resolution observation at HEAD d851d6f9) + (c) this CHANGELOG entry itself (the comprehensive PARTIAL-WIRED-SOURCE-RESOLVED transition-with-§honest-qualifier documentation). Forward-point: `TICKET-FOLLOWUP-TICKETS-DEDUP-DUPLICATE-ROWS` (separate chore per AGENTS.md "Fare PR piccole e mirate" + Cat-3 anti-duplication; the dedup workstream has higher Cat-3 priority than re-applying the +1 clause since the row structure must be canonicalized first).
 
 
 
