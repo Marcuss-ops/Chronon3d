@@ -20,6 +20,7 @@
 #   4.5f. tools/check_doc_sha_dedup.sh (TICKET-FOLLOWUP-DE-DUP-REFERENCES macchina-verifica gate -- dedup (file,sha7) pairs in `docs/adr/`; ADRs 015/016 EXEMPT). Exit 1 if non-EXEMPT count > 0.
 #   4.5g. tools/check_commit_subject_length.sh (AGENTS.md 'no cosmetic amend churn' gate -- last 10 commit subjects, 72-char envelope; char-count via awk length, NOT byte-count). Exit 1 if any over-limit.
 #   4.5j. tools/check_manual_touches_per_video.sh (Test #19 manual_touches_per_video gate -- 9 canonical ops + 4-phase thresholds `oggi<=8, fase1<=3, fase2<=1, finale<=0` from `configs/touchpoint_thresholds.yaml`). Exit 1 if any phase exceeds its threshold; exit 2 on missing python3/pyyaml/config (fail-loud per AGENTS.md §honest-limitation).
+#   4.5k. tools/check_batch_100_videos.sh (Test #20 batch_100_videos acceptance gate -- 10 lang × 10 topics × 1 format = 100 jobs, 8 metrics per job, 4 PASS-criteria envelopes `output_count=100 / zero_crashes=0 / zero_corrupted=0 / at_least_98_pct_no_manual<=2` from `configs/batch_100_videos_corpus.yaml`). Exit 1 if any of the 4 envelopes is breached; exit 2 on missing python3/pyyaml/config (fail-loud per AGENTS.md §honest-limitation).
 #   5. exec git push "$@" atomically
 #
 # Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
@@ -271,6 +272,21 @@ bash "${SCRIPT_DIR}/check_fix_cronograph.sh" \
 echo "wrap_push.sh: checking manual_touches_per_video (Test #19) -- 4-phase thresholds (oggi<=8, fase1<=3, fase2<=1, finale<=0)..."
 bash "${SCRIPT_DIR}/check_manual_touches_per_video.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_manual_touches_per_video.sh (exit $?)" >&2; exit 1; }
+
+# ── Step 4.5k: Batch 100 videos acceptance (Test #20) ─────────────────────
+# Forward-only enforcement of Test #20 (First-Principles Product Check #20 —
+# batch acceptance gate, 10 lang × 10 topic × 1 format = 100 jobs, 8 metrics
+# per job, PASS: 100 output / 0 crash / 0 corrotti / ≥98% no manual).
+# Reads the append-only JSONL at `~/.chronon3d/telemetry/batch_100_videos.jsonl`
+# + the canonical config at `configs/batch_100_videos_corpus.yaml` and emits
+# GATE_FAIL if any of the 4 PASS-criteria envelopes is breached.
+# Companion selftest at `tests/tools/selftest_batch_100_videos.sh`
+# exercises 4/4 scenarios (PASS happy / FAIL_crash / FAIL_corrupt / FAIL_manual_3).
+# Per AGENTS.md Rule #2 [INFO] diagnostic style: emits `[INFO] check_batch_100_videos: ...`
+# addizionale al canonico `GATE_PASS`; the FAIL path stays unchanged.
+echo "wrap_push.sh: checking batch_100_videos (Test #20) -- 4 PASS-criteria envelopes (100 output / 0 crash / 0 corrotti / >=98% no manual)..."
+bash "${SCRIPT_DIR}/check_batch_100_videos.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_batch_100_videos.sh (exit $?)" >&2; exit 1; }
 
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
 exec git push "$@"
