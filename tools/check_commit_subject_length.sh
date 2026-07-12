@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Per AGENTS.md honesty + Cat-5 1-doc: init N=1 default for SUBJECT_FAIL hint
+N=1
 # ============================================================================
 # tools/check_commit_subject_length.sh
 #
