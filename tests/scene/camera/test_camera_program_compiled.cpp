@@ -371,7 +371,7 @@ TEST_CASE("compiled_registered_motion_ref_missing — "
 
         auto result = compile_camera(desc, &catalog);
         REQUIRE_FALSE(result.has_value());
-        REQUIRE(result.error().kind == CameraCompileError::Kind::MotionNotFound);
+        REQUIRE(result.error().code == CameraCompileErrorCode::MissingPreset);
     }
 
     SUBCASE("without catalog and non-empty id: also MotionNotFound") {
@@ -381,7 +381,7 @@ TEST_CASE("compiled_registered_motion_ref_missing — "
 
         auto result = compile_camera(desc, /*catalog=*/nullptr);
         REQUIRE_FALSE(result.has_value());
-        REQUIRE(result.error().kind == CameraCompileError::Kind::MotionNotFound);
+        REQUIRE(result.error().code == CameraCompileErrorCode::MissingPreset);
     }
 }
 
@@ -513,7 +513,7 @@ TEST_CASE("compiled_invalid_trajectory_empty — "
 
     auto result = compile_camera(desc, /*catalog=*/nullptr);
     REQUIRE_FALSE(result.has_value());
-    REQUIRE(result.error().kind == CameraCompileError::Kind::TrajectoryEmpty);
+    REQUIRE(result.error().code == CameraCompileErrorCode::InvalidTrajectory);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1987,8 +1987,8 @@ TEST_CASE("compiled_cycle_detection_mutual_a_b — "
 
     auto result = compile_camera(top, &catalog);
     REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().kind
-          == CameraCompileError::Kind::CircularCatalogReference);
+    CHECK(result.error().code
+          == CameraCompileErrorCode::CircularPresetReference);
     // Diagnostic message must name at least one of the cyclic ids so the
     // operator can identify which chain is broken.
     CHECK(result.error().message.find("preset.A") != std::string::npos);
@@ -2008,8 +2008,8 @@ TEST_CASE("compiled_cycle_detection_self_loop — "
 
     auto result = compile_camera(top, &catalog);
     REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().kind
-          == CameraCompileError::Kind::CircularCatalogReference);
+    CHECK(result.error().code
+          == CameraCompileErrorCode::CircularPresetReference);
 }
 
 // ── §9.2 Deterministic fingerprint ───────────────────────────────────────
