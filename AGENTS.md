@@ -100,7 +100,7 @@ non aprono/chiudono blocker e non costituiscono una milestone
 
 - `fix(video): replace removed umbrella include` → non tocca canonici
 - `chore(git): install tracked repository hooks` → non tocca canonici
-- `refactor(glow): ChrononGlowProps dedup` → non tocca canonici
+- `refactor(glow): ChrononGlowProps dedup + single source of truth` → non tocca canonici
 - `fix(tests): migrate rotate_z to canonical rotate(Vec3)` → non tocca canonici
 
 **Per i dettagli tecnici** usa la scheda ticket specifica
