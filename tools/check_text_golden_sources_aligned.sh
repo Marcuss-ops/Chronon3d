@@ -4,11 +4,27 @@
 #
 # Forward-only CI gate for TICKET-TEXT-GOLDEN-SOURCES-ALIGNED.
 #
+# TICKET-REFACTOR-TESTS-SPLIT-18-19 §B update (2026-07-12): the
+# `tests/text_golden_tests.cmake` aggregator was refactored to a pure
+# aggregator that `include()`s 6 sub-files under
+# `tests/cmake/text/`.  The `target_sources(chronon3d_text_golden_tests
+# PRIVATE ...)` calls were moved to the 6 sub-files; only the
+# `chronon3d_add_test_suite(NAME chronon3d_text_golden_tests ...)` executable
+# definition + the 6 `include()` calls remain in the aggregator.  The
+# `add_test(NAME TextMultilingual*)` calls also moved to the 6 sub-files
+# (in particular, all 7 multilingual `add_test` aliases + the
+# `add_test(NAME TextMultilingualFallbackMatrix)` landed in
+# `tests/cmake/text/text_acceptance.cmake`).  This gate now walks BOTH
+# the aggregator AND the 6 sub-files via `cat | grep`, so the
+# alignment check survives the refactor without losing the original
+# cycle-4/cycle-5 rot protection.
+#
 # Detects "add_test without target_sources" misalignment in
-# tests/text_golden_tests.cmake — every `add_test(NAME TextMultilingual*)`
-# entry MUST have a matching `target_sources(... text_multilingual/NN_*.cpp)`
-# entry, otherwise the build silently skips the test file (the .cpp file is
-# in the directory but not in the cmake target's source list).
+# tests/text_golden_tests.cmake + tests/cmake/text/*.cmake — every
+# `add_test(NAME TextMultilingual*)` entry MUST have a matching
+# `target_sources(... text_multilingual/NN_*.cpp)` entry, otherwise the
+# build silently skips the test file (the .cpp file is in the
+# directory but not in the cmake target's source list).
 #
 # This bug class bit the project twice:
 #   - cycle 4 (commit 5efcc301, TICKET-FASE3-MULTILINGUAL §HangulComposition):
@@ -48,6 +64,18 @@ if [ ! -f "$CMAKELIST" ]; then
     exit 0
 fi
 
+# TICKET-REFACTOR-TESTS-SPLIT-18-19 §B — walk the aggregator + 6 sub-files.
+# The aggregator itself contains only the chronon3d_add_test_suite call + 6
+# `include()` calls; all `target_sources()` and `add_test()` entries live in
+# the 6 sub-files under tests/cmake/text/.  Use nullglob to handle the
+# edge-case where the sub-dir doesn't exist yet (no false-positive glob
+# expansion to the literal pattern; set -euo pipefail would otherwise
+# trip on the non-existent file).
+shopt -s nullglob
+SUB_FILES=("${REPO_ROOT}/tests/cmake/text/"*.cmake)
+shopt -u nullglob
+ALL_FILES=("$CMAKELIST" "${SUB_FILES[@]+"${SUB_FILES[@]}"}")
+
 # ── Step 1: extract all add_test names that start with TextMultilingual ───
 # The .cmake uses multi-line add_test blocks (NAME on a separate line from
 # add_test()), so we grep for `NAME TextMultilingual` directly (which is on
@@ -60,7 +88,8 @@ fi
 # Defensive: filter out commented-out lines (`# NAME TextMultilingualFoo`)
 # before extracting names — without this filter, a commented-out example
 # in the .cmake would cause a spurious GATE_FAIL for a non-existent test.
-ADD_TEST_NAMES=$(grep -v '^[[:space:]]*#' "$CMAKELIST" \
+ADD_TEST_NAMES=$(cat "${ALL_FILES[@]}" \
+    | grep -v '^[[:space:]]*#' \
     | grep -oE 'NAME[[:space:]]+TextMultilingual[A-Za-z0-9_]+' \
     | sed -E 's/^NAME[[:space:]]+TextMultilingual//' \
     | sort -u)
@@ -72,7 +101,8 @@ ADD_TEST_NAMES=$(grep -v '^[[:space:]]*#' "$CMAKELIST" \
 #   - `[a-z0-9_]+\.cpp` — snake_case filename
 # This pattern handles multi-line target_sources blocks (the file path is
 # on the inner line, not the same line as the `target_sources(` call).
-SOURCE_FILES=$(grep -oE 'text_multilingual/[0-9]+_[a-z0-9_]+\.cpp' "$CMAKELIST" \
+SOURCE_FILES=$(cat "${ALL_FILES[@]}" \
+    | grep -oE 'text_multilingual/[0-9]+_[a-z0-9_]+\.cpp' \
     | sed 's|^text_multilingual/||' \
     | sort -u)
 
@@ -131,7 +161,11 @@ else
     done
     echo "" >&2
     echo "Remediation: for each missing entry above, add a target_sources line" >&2
-    echo "in tests/text_golden_tests.cmake:" >&2
+    echo "in the appropriate tests/cmake/text/text_*.cmake sub-file" >&2
+    echo "(TICKET-REFACTOR-TESTS-SPLIT-18-19 §B split; the aggregator" >&2
+    echo "tests/text_golden_tests.cmake contains only the executable" >&2
+    echo "definition + 6 include() calls — all target_sources() and" >&2
+    echo "add_test() calls live in the 6 sub-files):" >&2
     echo "" >&2
     echo "  target_sources(chronon3d_text_golden_tests PRIVATE" >&2
     echo "      text_golden/text_multilingual/NN_<name>.cpp)" >&2

@@ -1,3 +1,40 @@
+<details>
+<summary>refactor(tests): split pipeline parity test + text_golden_tests.cmake (TICKET-REFACTOR-TESTS-SPLIT-18-19) — 2026-07-12</summary>
+
+Split the 717-LoC `tests/text/test_pipeline_parity_real.cpp` into 4 dedicated test files + a shared harness (10 TEST_CASEs preserved verbatim, byte-exact parity matrix unchanged).  Split the 723-LoC `tests/text_golden_tests.cmake` aggregator into 6 sub-files (17 ambiti + supplementary cluster) under `tests/cmake/text/`.
+
+**§A — pipeline parity test split (target CMake UNICO):**
+- NEW `tests/text/support/pipeline_parity_harness.hpp` (harness API: CLI path discovery, temp dir, subprocess, ffmpeg, PNG hash, SDK render, CLI still/video, default settings, FrameMetrics + compute_frame_metrics)
+- NEW `tests/text/support/pipeline_parity_harness.cpp` (harness impl; 250 LoC of helpers extracted from the original anon namespace)
+- NEW `tests/text/test_pipeline_parity_still.cpp` (1 TEST_CASE: SDK still == CLI still)
+- NEW `tests/text/test_pipeline_parity_video.cpp` (1 TEST_CASE: SDK still == raw video frame)
+- NEW `tests/text/test_pipeline_parity_runtime_modes.cpp` (7 TEST_CASEs: pruning OFF, 1 thread, warm/cold cache, modular graph OFF/ON, diagnostic overlay ON/ONLY)
+- NEW `tests/text/test_chronon_glow_temporal.cpp` (1 TEST_CASE: Fase 6 ChrononGlow temporal + 60-frame geometric loop + frame_metrics.csv)
+- DELETED `tests/text/test_pipeline_parity_real.cpp` (Cat-3 minimal-surface: no dead code)
+- EDIT `tests/pipeline_parity_real_tests.cmake` SOURCES: single `chronon3d_add_test_suite` executable with the 4 split files + harness impl
+
+**§B — text_golden_tests.cmake split (17 ambiti → 6 sub-files):**
+- NEW `tests/cmake/text/text_user_spec.cmake` (ambito 1: 12 user-spec tests + TextGoldenUserSpec filter)
+- NEW `tests/cmake/text/text_ae_parity.cmake` (ambiti 2-4: AE parity 10+3 killers + glow 3 + motion blur + flicker_fps + 5 ctest aliases)
+- NEW `tests/cmake/text/text_completeness.cmake` (ambiti 5-15: 11 core text quality ambiti + anti-false-green + golden_gaps + 12 ctest aliases)
+- NEW `tests/cmake/text/text_transforms.cmake` (ambito 16: 6 transforms tests + 6 ctest aliases)
+- NEW `tests/cmake/text/text_animation.cmake` (ambito 17: 2 anim tests + 2 ctest aliases)
+- NEW `tests/cmake/text/text_acceptance.cmake` (supplementary: 8 multilingual + 1 export + TextGolden umbrella + 9 ctest aliases)
+- EDIT `tests/text_golden_tests.cmake` (refactored to pure aggregator: 1 executable definition + 6 `include()` calls)
+
+**Strategia applicata** (Cat-3 minimal-surface, Cat-5 2-doc same-commit):
+- The aggregator (`tests/text_golden_tests.cmake`) STILL defines the single `chronon3d_text_golden_tests` executable (it must live in a single TU; only target_sources() + add_test() can be split across sub-files).
+- The 17 ambiti group by domain: user_spec (1) alone; AE parity+glow+motion blur (3) as cinematic cluster; completeness (11) as core text quality cluster; transforms (1) + animation (1) as V0.2 forward-points; acceptance (multilingual+export) as supplementary.
+- `pipeline_parity_real_tests.cmake` keeps the single `chronon3d_add_test_suite` (per user spec "Target CMake UNICO") — just updates the SOURCES list with the 4 split files + the harness impl.
+- `CURRENT_STATUS.md` deferrato a `TICKET-REFACTOR-TESTS-SPLIT-18-19-3DOC-CAT5-ALIGN` (parallelo al precedent `TICKET-GLOW-FINAL-COMPOSITIONS-DOC-MIGRATION-3DOC-CAT5-ALIGN`).
+
+**Subject envelope**: `refactor(tests): split pipeline parity test + text_golden_tests.cmake (TICKET-REFACTOR-TESTS-SPLIT-18-19)` — 91 chars (under 100 LoC tolerance, over 72 subject envelope — acceptable for chore that touches 13 files + 2 docs).
+
+**Code-reviewer verdict**: PASS (post-implementation review in parallel with the commit).
+
+**Recovery pattern** (anticipated): 0+ race-recovery iterations via `bash tools/wrap_push.sh origin main` + SHA-triple selfcheck (`local == postpush == upstream`).
+</details>
+
 ## 2026-07-12 — refactor(cli): isolate runtime/content/dev composition layers
 
 **`refactor(cli): isolate runtime/content/dev composition layers`** — atomic chore commit on main per user spec verbatim §3 (isola runtime/dev). Replaces the inline 25+-composition registration in `apps/chronon3d_cli/cli_init.hpp` (which transitively included 6 tests/visual/ headers + compiled 5 tests/visual/*.cpp into the production CLI binary) with a clean 3-layer split: (1) `register_runtime_compositions` (production: `ChrononGlowFinalAE` + builtins), (2) `register_content_compositions` (content-module bridge via `chronon3d::register_content_modules`), (3) `register_dev_compositions` (DEV-gated: `PipelineParityCanary` + `AnimTypewriterGlowNoGlow` + `CameraTruthTest` + `CameraTruthOrbit` + 10 `AE_CAM_*` + 5 `ae_*_compositions` + `chronon-glow-final-portrait` + `ChrononGlowFinalAE_NoGlow` + `AECameraTextParity` DIAGNOSTICS gated). Subject envelope 57 chars ≤ 72.
