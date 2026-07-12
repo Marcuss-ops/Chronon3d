@@ -39,14 +39,7 @@ void verify_cinematic_golden(const Framebuffer& fb, const std::string& case_name
     auto config = camera_golden_config(kGoldenDir, kArtifactDir, cinematic_motion_threshold());
     auto result = verify_golden(fb, case_name, config);
 
-<<<<<<< HEAD
     REQUIRE_FALSE(result.golden_missing);
-
-=======
->>>>>>> dbf39153 (fix(tests): make golden references mandatory in CI/certification mode)
-    INFO(result.message);
-    REQUIRE_FALSE(result.golden_missing);
-    CHECK(result.passed);
 }
 
 } // namespace
