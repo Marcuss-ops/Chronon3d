@@ -47,7 +47,7 @@ Composition image_proofs() {
         };
 
         auto draw_cell_label = [=](LayerBuilder& l, const std::string& text, int col, int row) {
-            l.text("lbl", TextSpec{.content = {.value = text},.position = get_label_pos(col, row),.font = {.font_size = 12.0f},.layout = {.box = {get_cell_box(col, row).x, 18.0f}, .align = TextAlign::Center},.appearance = {.color = {0.6f, 0.7f, 0.9f, 0.8f}},});
+            l.text("lbl", TextSpec{.content = {.value = text},.placement = TextPlacement{TextPlacementKind::Absolute, {get_label_pos(col, row).x, get_label_pos(col, row).y}},.font = {.font_size = 12.0f},.layout = {.box = {get_cell_box(col, row).x, 18.0f}, .align = TextAlign::Center},.appearance = {.color = {0.6f, 0.7f, 0.9f, 0.8f}},});
         };
 
         // ── ROW 0: Fitting Modes ──
