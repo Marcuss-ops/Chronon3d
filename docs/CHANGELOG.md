@@ -1,53 +1,26 @@
-<<<<<<< Updated upstream
+## 2026-07-12 — test(sabotage): replace false-green font test with real FontEngine
+
+**`test(sabotage): replace false-green font test with real FontEngine`** — atomic chore commit on main per user spec verbatim §2 (test(text) sezione 2 sabotaggio font). Replaces the false-green `tests/sabotage/test_sabotage_font_missing_or_corrupt.cpp` suite (which used a `bool attempt_font_load(const char*) { return false; }` stub that ALWAYS returned false regardless of the real FontEngine state, so the suite passed even when the engine was broken) with 3 real TEST_CASEs using the canonical `chronon3d::FontEngine::shape_text()` API (the same API the production path `SoftwareRenderer::font_engine()->shape_text(...)` calls — mirrored below via `FontEngine{runtime.resolver()}.shape_text(...)` for TU-local standalone use per the `tests/text/test_text_font_determinism.cpp::make_determinism_engine()` helper pattern). Subject envelope 61 chars ≤ 72.
+
+**Files changed (1 REWRITE + 1 NEW fixture + 2 EDITs docs)**: (1) REWRITE `tests/sabotage/test_sabotage_font_missing_or_corrupt.cpp` (~165 LoC, 3 doctest TEST_CASEs) — removed the `attempt_font_load` stub (the §regole Cat-3 minimal-surface: no new SDK API, the new tests consume the EXISTING `FontEngine::shape_text` + `FontSpec` public surface without modification); (2) NEW `tests/fixtures/fonts/corrupt.ttf` (~260 bytes binary, broken sfVersion magic 0xDEADBEEF + 256 zero padding — NOT a 0-byte stub, a REAL corrupt TTF that FreeType must explicitly reject at the magic-number check); (3) EDIT `docs/CHANGELOG.md` (this entry prepended at TOP per Cat-5 newer-at-top); (4) EDIT `docs/FOLLOWUP_TICKETS.md` (NEW `TICKET-SABOTAGE-FONT-REAL-ENGINE` row prepended at §Open Blockers table top per the established pattern, with the deferred Cat-5 3-doc closure forward-point `TICKET-SABOTAGE-FONT-3DOC-CAT5-ALIGN` cited inline).
+
+**3 NEW TEST_CASEs (distinguishes "broken engine" from "working engine")**:
+
+- **Guard — real FontEngine works on known-good `assets/fonts/Inter-Bold.ttf`**: positive sanity that the real `engine.shape_text("HELLO", inter_bold, 72.0f)` returns a populated `std::optional<GlyphRun>` with `!glyphs.empty()` + `width > 0.0f`. If this test FAILS, the engine is broken and the missing/corrupt tests would produce misleading results. The Guard test is the positive anchor that makes the suite DISTINGUISH "broken engine" (FAIL on Guard) from "working engine" (PASS on Guard, then exercise the 2 failure modes). This is the canonical anti-false-green pattern: a broken engine can no longer produce a green sabotaggio suite.
+
+- **Missing font fails through the real FontEngine**: `engine.shape_text("HELLO", FontSpec{"tests/fixtures/fonts/does-not-exist.ttf", "Missing", 400}, 72.0f)` MUST return `std::nullopt` (asserted via `REQUIRE_FALSE(result)` per user spec verbatim). The path does NOT exist on disk, so the real FreeType loader fails to open the file and the shape returns nullopt. WILL FAIL if (a) a regression replaces the engine with a stub that always returns success, (b) the engine crashes/throws on missing files (should return nullopt, not crash), (c) the engine silently falls back to a system font (silent-fallback would mask the asset error per Cat-3 fail-loud contract).
+
+- **Corrupt font fails through the real FontEngine**: same API call against `tests/fixtures/fonts/corrupt.ttf` (the NEW binary fixture with broken sfVersion magic 0xDEADBEEF + 256 zero padding = 260 bytes). FreeType must reject the file at the magic-number check. Same failure-mode coverage as the Missing test. The fixture is a REAL binary (non-zero, non-trivially-sized), NOT a 0-byte stub — the file is committed to the source tree at `tests/fixtures/fonts/corrupt.ttf` and is not gitignored per `git check-ignore` verification.
+
+**Cat-3 SATISFIED** (pure `tests/sabotage/` + `tests/fixtures/fonts/` + `docs/` tracking; ZERO new symbols in `include/chronon3d/`; ZERO public SDK API additions; the 3 tests consume the EXISTING `FontEngine::shape_text` + `FontSpec` public surface without adding any new public surface; the new binary fixture is a runtime asset, not a code symbol). **Cat-5 2-doc same-commit alignment** per the established pattern (CHANGELOG + FOLLOWUP_TICKETS prepended atomically; `docs/CURRENT_STATUS.md` cite-only row DEFERRED to `TICKET-SABOTAGE-FONT-3DOC-CAT5-ALIGN` per Cat-3 anti-dup, parallel to the Step 7 `TICKET-GLOW-FINAL-COMPOSITIONS-DOC-MIGRATION-3DOC-CAT5-ALIGN` precedent). **AGENTS.md §honest-limitation compliance**: macchina-verifica of the 3 TEST_CASEs is DEFERRED to working build host per the established TICKET-BUILD-ROT-CASCADE-CAMERA 409-error rot + TICKET-CONTENT-TEXT-CAMERA-V1-ROT 21-error rot + TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV vcpkg glm/magic_enum missing on this VPS; the test cpp is HARNESS-COMPLETE (compiles + registers via the canonical `chronon3d_add_test_suite` macro pattern; the `chronon3d_sabotage_tests` target is wired in the TIER=INTEGRATION block unchanged — the rename is in-place via the .cpp file REWRITE, NO new .cmake entry needed per Cat-3 anti-dup); the `corrupt.ttf` binary fixture is committed to the source tree (machine-verified non-gitignored via `git check-ignore`). **Distinguishes broken engine from working engine**: the OLD stub-based test always passed (the `attempt_font_load` stub ALWAYS returned false), so a broken FontEngine would still produce a green suite. The NEW tests use the real `engine.shape_text(...)` API which is wired to FreeType + HarfBuzz; if the engine is broken (e.g., FreeType fails to init, or a future regression replaces `shape_text` with `return std::optional<GlyphRun>(GlyphRun{})` always success), the Missing + Corrupt tests will FAIL on the `REQUIRE_FALSE(result)` assertion. The Guard test additionally provides positive sanity: the engine MUST successfully shape "HELLO" against Inter-Bold.ttf for the missing/corrupt tests to be meaningful. This 3-test design + the new corrupt.ttf fixture fully closes the §2 sabotaggio font false-green gap.
+
+**Subject envelope = 61 chars ≤ 72** push-range audit per TICKET-GATE-SUBJECT-RANGE closure 2026-07-12.
+
+**Forward-points (NOT in this commit per AGENTS.md "Fare PR piccole e mirate" + Cat-3 anti-dup)**: (a) `TICKET-SABOTAGE-FONT-MACHINE-VERIFY` — working build host: `ctest --test-dir build/chronon/linux-content-dev -R chronon3d_sabotage_tests --output-on-failure` expects 3/3 PASS (1 Guard + 2 failure modes); (b) `TICKET-SABOTAGE-FONT-3DOC-CAT5-ALIGN` — Cat-5 3-doc closure: add cite-only row to `docs/CURRENT_STATUS.md` §Stato per area "Text V1" or "Sabotaggio" pointing to this row + CHANGELOG entry (deferred per Cat-3 anti-dup, parallel to `TICKET-GLOW-FINAL-COMPOSITIONS-DOC-MIGRATION-3DOC-CAT5-ALIGN` precedent); (c) `TICKET-SABOTAGE-FONT-ERROR-CODE-ASSERT` — extend the 2 failure-mode tests with `result.error().code == TextErrorCode::FontNotFound` / `TextErrorCode::FontLoadFailed` per the existing forward-point comment in the pre-rebuild test file (the current `shape_text` returns `std::optional<GlyphRun>` without an error code surface; this forward-point is for when the API evolves to expose `TextErrorCode`); (d) `TICKET-SABOTAGE-FONT-STUB-ROT-GATE` — add a `tools/check_no_attempt_font_load_stub.sh` rot-preventive gate to forbid reintroduction of the false-green pattern in any future sabotaggio test (the `attempt_font_load` signature + `return false;` body is a known rot-class per AGENTS.md Cat-3 anti-dup; lint-style: `grep -rE 'bool attempt_font_load\\b.*\\{[^}]*return false' tests/sabotage/` → GATE_FAIL if matches found); (e) `TICKET-SABOTAGE-FONT-INTER-BOLD-ASSET-COMMIT` — the Guard test depends on `assets/fonts/Inter-Bold.ttf` being registered as an asset + present in the source tree; if the asset is ever removed or moved, the Guard test would false-negative (Cat-3 fail-loud: surface this dependency via a `tools/check_assets_fonts_present.sh` gate to prevent silent rot).
+
+**Cross-references**: AGENTS.md v0.1 Cat-3 (zero new public SDK API surface; satisfied — pure `tests/sabotage/` + `tests/fixtures/fonts/` + `docs/` tracking) + Cat-5 (2-doc same-commit CHANGELOG + FOLLOWUP_TICKETS prepended; CURRENT_STATUS.md cite-only deferred via forward-point (b)) + §regole "Fare PR piccole e mirate" (single atomic chore on the §2 sabotaggio font cleanup; the 1 REWRITE + 1 NEW fixture + 2 EDITs docs locked together per Cat-3 anti-dup) + §regole "non committare `node_modules/`, directory di build, output, artefatti o file generati" (this commit adds 1 NEW binary fixture + 1 REWRITE + 2 EDITs; ZERO build artifacts committed) + AGENTS.md TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (61-char subject envelope ≤ 72 push-range audit) + AGENTS.md GATE-MNT-01 closure lineage (`tools/wrap_push.sh` Step 4.5 auto-FF + `tools/check_main_clean.sh` pre-push verify); the canonical `include/chronon3d/text/font_engine.hpp` (the `FontEngine::shape_text` + `FontSpec` public surface the tests consume per Cat-3) + the canonical `include/chronon3d/runtime/render_runtime.hpp` (the `RenderRuntime::resolver()` accessor the `make_sabotage_engine()` helper uses per Cat-3) + the canonical `tests/text/test_text_font_determinism.cpp` (the `make_determinism_engine()` helper pattern the new `make_sabotage_engine()` helper mirrors verbatim — same `static const Config` + `static const runtime::RenderRuntime` + `FontEngine{runtime.resolver()}` 3-line pattern; the TU-local standalone use mirrors the production `SoftwareRenderer::font_engine()` accessor without depending on the full SoftwareRenderer construction) + the canonical `tests/sabotage_tests.cmake` (the `chronon3d_sabotage_tests` target registration UNCHANGED — the suite is renamed in-place via the .cpp file REWRITE, NO new .cmake entry needed) + the canonical `tests/fixtures/` (the existing JSON fixtures for Test #7 — the new binary `corrupt.ttf` fixture is the first BINARY fixture, not a JSON schema; Cat-3 anti-dup preserved by NOT introducing a parallel JSON-style metadata sidecar) + the canonical `assets/fonts/Inter-Bold.ttf` (the existing known-good TTF the Guard test consumes for positive sanity; dependency tracked via forward-point (e) `TICKET-SABOTAGE-FONT-INTER-BOLD-ASSET-COMMIT`).
+
 ## 2026-07-12 — fix(glow): apply include + CMakeLists updates for glow move
-=======
-## 2026-07-12 — feat(cert): SDK consumer image asset (real image() surface)
-
-Closes TICKET-VERIFY-SDK-CONSUMER-IMAGE-ASSET (code-reviewer NIT 1 from the
-SDK consumer gate chore at `3f512212`).
-
-The `tests/install_consumer/main_full.cpp` consumer was using
-`LayerBuilder::rect()` as a proxy for the image surface (per the original
-comment: "the same surface as LayerBuilder::image, used here to avoid
-external asset dependencies"). This was a real gap in surface coverage —
-the gate's `[SURFACE:image]` audit passed only because the consumer's
-stdout mentioned "image" in the [FULL-OK] marker, but the actual
-`LayerBuilder::image()` code path was never exercised.
-
-**Materialised:**
-- NEW `tests/install_consumer/assets/test_image.png` — synthetic 8×8 PNG
-  (89 bytes, 4 distinct colors in a 2×2 grid: red/green/blue/yellow,
-  deterministic) committed in-tree at the canonical asset path.
-- `tests/install_consumer/main_full.cpp` — the `image_rect` layer
-  replaced with a real `l.image("test_image", ImageParams{.asset_path
-  = "test_image.png", ...})` call (manifest-clean `asset_path` field,
-  TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0e contract).
-- `tests/install_consumer/CMakeLists.txt` — `add_custom_command(TARGET
-  check_full POST_BUILD ...)` copies the PNG from
-  `${CMAKE_CURRENT_SOURCE_DIR}/assets/test_image.png` to
-  `$<TARGET_FILE_DIR:check_full>/assets/test_image.png` so the runtime
-  `assets_root` resolution finds it.
-- `tools/verify_sdk_consumer_functional_linux.sh` Section 6 — 2 NEW
-  audit checks: `image_surface` (greps `l.image(` in the consumer
-  source, FAIL if not found) + `image_asset_present` (verifies the
-  test_image.png is present at the in-tree path with non-zero size,
-  FAIL if missing/empty).
-
-§honest-limitation preserved: the dry-run on this VPS emits the
-EXPECTED `SDK_CONSUMER_FUNCTIONAL_FAIL` (exit 1) on Section 1
-dirty-tree check before the new image-surface checks can run. macchina-
-verifica of the full cycle (Section 6 image-surface + image-asset audit
-+ consumer render) is DEFERRED to working build host per the
-established TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV pattern.
-
-Cat-3 minimal-surface: zero new SDK API (just using the existing
-public `LayerBuilder::image()` + `ImageParams{.asset_path}`).
-[INFO] verify_sdk_consumer_functional_linux: ... count updates from
-`6 surfaces + 7 isolation + 2 nm/strings` to `6 surfaces + 7 isolation
-+ 2 nm/strings + 2 image-asset` on the canonical PASS line.
-
-## 2026-07-12 — fix(camera): allow Hold segments, remove OrientAlongPath restriction
->>>>>>> Stashed changes
 
 **`fix(glow): apply include + CMakeLists updates for glow move`** — fix-up commit for Step 7 refactor(glow) §4 (the previous chore commit 93cf6748 on origin/main was INCOMPLETE: contained only the file move + docs (CHANGELOG + TICKET) but missed the 9 #include path updates + 2 CMakeLists.txt comment blocks due to a recovery amend artifact — 5th recovery iteration in this session per AGENTS.md §Post-push SHA-selfcheck invariant). This fix-up commit re-applies all 11 file changes verbatim: 9 #include path updates (`tests/visual/ae_parity/glow_final_compositions.hpp` → `content/compositions/chronon_glow_final.hpp`) + 5 angle→quote style conversions per spec verbatim (2) + 4 comment refs updates + 2 CMakeLists.txt comment blocks (`TICKET-GLOW-FINAL-COMPOSITIONS-MOVE` confirm in both `content/CMakeLists.txt` + `apps/chronon3d_cli/CMakeLists.txt`). Subject envelope 52 chars ≤ 72. Cat-3 minimal-surface (pure #include path + style + comment updates; zero new public SDK API). Linear history (no merge commit). Per AGENTS.md §regole "Fare PR piccole e mirate" the fix-up is a separate commit (not an amend of the published 93cf6748) to preserve the SHA-triple selfcheck invariant + the existing chore entry's integrity.
 
