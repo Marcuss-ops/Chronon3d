@@ -247,6 +247,4 @@ TEST_CASE("Glow temporal: MP4 decode SSIM (forward-point, deferred to working bu
 
     // Forward-point ticket: TICKET-GLOW-CERTIFICATION-MP4-SSIM
     // Opened in docs/FOLLOWUP_TICKETS.md §Open Blockers after this commit.
-
-    CHECK(true);  // placeholder assertion — real check runs on build host
 }
