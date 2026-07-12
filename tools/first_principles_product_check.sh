@@ -36,7 +36,8 @@ echo "== Product demo =="
 #       --output /tmp/chronon-product-proof.mp4` + ffprobe (Test #1)
 
 echo "== Camera brutal =="               # TODO (Test #9)
-echo "== Multilingual text =="           # TODO (Test #8)echo "== Fail-loud errors =="           # Test #7 (Wired via tools/check_first_principles_fail_loud.sh)
+echo "== Multilingual text =="           # TODO (Test #8)
+echo "== Fail-loud errors =="           # Test #7 (Wired via tools/check_first_principles_fail_loud.sh)
 bash "$SCRIPT_DIR/check_first_principles_fail_loud.sh"
 
 echo "== Video tooling =="               # Test #FF (FFmpeg + FFprobe FAIL-LOUD gate; canonical wire-in for replacing downstream SKIP-on-missing rot per user spec + AGENTS.md §honest-limitation)
