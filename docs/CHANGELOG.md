@@ -5688,3 +5688,5 @@ EDIT `docs/CURRENT_STATUS.md` (cite-only per Cat-3 anti-duplication): +1 line ap
 **fix(tests): wire chronon3d_text_clip_policy_tests target** — replaces stale chronon3d_pipeline_parity_tests registration (using deleted test_pipeline_parity.cpp) with new chronon3d_text_clip_policy_tests using test_text_clip_policy.cpp. TIER=INTEGRATION + LINK_TARGETS preserved. Closes TICKET-SIMPLICITY-PARITY-EXTRACT.
 
 **fix(text): text_visibility_reporting.hpp → public include path** — moves src/text/text_visibility_reporting.hpp → include/chronon3d/text/text_visibility_reporting.hpp. Same parallel rot pattern as alpha_bbox_scanner.hpp: text_visibility_reporting.cpp already used <chronon3d/text/...> canonical path. Required for FU02/FU03 cross-module visibility reporting API.
+
+**fix(text): terminate CHRONON3D_BUILD_DIAGNOSTICS ifdef macro** — adds missing #endif at end of src/text/text_visibility_audit.cpp (file opens #ifdef at line 40 but never close). Updates stale comment in line 7 to reference new include path. Compile-error "unterminated #ifdef" surfaced only after alpha_bbox_scanner.hpp relocation progressed the build.
