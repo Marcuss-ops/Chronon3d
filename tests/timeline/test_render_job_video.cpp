@@ -218,6 +218,141 @@ void run_copy_semantics_test(
     CHECK(original.video_settings.chunks        == expected.chunks);
 }
 
+
+
+// ── run_move_semantics_test() — move-parameterization helper ────────────
+// Locks the RenderJob move-construction + move-assignment contract for
+// ANY factory branch (Still / Sequence / Video).  The factory lambda
+// takes a shared_ptr<const Composition> and returns a RenderJob — the
+// helper then:
+//   1. Mutates ALL 8 video_settings fields on the original.
+//   2. Snapshots the mutated values into `expected` (same pattern as
+//      the copy helper).
+//   3. Move-constructs `moved = std::move(original)` and verifies every
+//      field is preserved.  The moved-from object is in a valid but
+//      unspecified state per [stmt.class.copy] in the C++ standard, so
+//      we cannot verify that the original is unchanged.
+//   4. Move-assigns `move_assigned = std::move(original)` on a FRESH
+//      original (the first move left it in an unspecified state) and
+//      re-runs the verifications.
+//   5. Self-moves `j = std::move(j)` and verifies only POD fields
+//      (mode + frame fields) are preserved.  Non-POD fields are in
+//      unspecified state and must NOT be asserted.
+//
+// No mutation independence check: after a move, the moved-from object
+// is in a valid but unspecified state, so we cannot verify it's
+// unchanged.  The copy helper's mutation independence check is the
+// counterpart for copy semantics.
+template <typename Factory>
+void run_move_semantics_test(
+    Factory factory,
+    RenderMode expected_mode,
+    Frame     expected_still_frame,
+    Frame     expected_first_frame,
+    Frame     expected_last_frame)
+{
+    CAPTURE(render_mode_name(expected_mode));
+
+    // ── move construction ────────────────────────────────────
+    {
+        auto comp = make_test_composition();
+        RenderJob original = factory(comp);
+
+        const std::string expected_comp_id = original.comp_id;
+        const std::string expected_output  = original.output;
+
+        original.video_settings.fps           = 60;
+        original.video_settings.crf           = 23;
+        original.video_settings.codec         = "libx264";
+        original.video_settings.encode_preset = "fast";
+        original.video_settings.tune          = "zerolatency";
+        original.video_settings.keep_frames   = true;
+        original.video_settings.frames_dir    = "chronon_test";
+        original.video_settings.chunks        = 4;
+
+        const VideoSettings expected = original.video_settings;
+
+        RenderJob moved = std::move(original);
+
+        CHECK(moved.comp_id == expected_comp_id);
+        CHECK(moved.comp    == comp);
+        CHECK(moved.output  == expected_output);
+        CHECK(moved.mode        == expected_mode);
+        CHECK(moved.still_frame == expected_still_frame);
+        CHECK(moved.first_frame == expected_first_frame);
+        CHECK(moved.last_frame  == expected_last_frame);
+        CHECK(moved.video_settings.fps           == expected.fps);
+        CHECK(moved.video_settings.crf           == expected.crf);
+        CHECK(moved.video_settings.codec         == expected.codec);
+        CHECK(moved.video_settings.encode_preset == expected.encode_preset);
+        CHECK(moved.video_settings.tune          == expected.tune);
+        CHECK(moved.video_settings.keep_frames   == expected.keep_frames);
+        CHECK(moved.video_settings.frames_dir    == expected.frames_dir);
+        CHECK(moved.video_settings.chunks        == expected.chunks);
+        CHECK(moved.comp == comp);  // shared_ptr shared (refcount unchanged)
+    }
+
+    // ── move assignment ────────────────────────────────────
+    {
+        auto comp = make_test_composition();
+        RenderJob original = factory(comp);
+
+        const std::string expected_comp_id = original.comp_id;
+        const std::string expected_output  = original.output;
+
+        original.video_settings.fps           = 60;
+        original.video_settings.crf           = 23;
+        original.video_settings.codec         = "libx264";
+        original.video_settings.encode_preset = "fast";
+        original.video_settings.tune          = "zerolatency";
+        original.video_settings.keep_frames   = true;
+        original.video_settings.frames_dir    = "chronon_test";
+        original.video_settings.chunks        = 4;
+
+        const VideoSettings expected = original.video_settings;
+
+        RenderJob move_assigned;
+        move_assigned = std::move(original);
+
+        CHECK(move_assigned.comp_id == expected_comp_id);
+        CHECK(move_assigned.comp    == comp);
+        CHECK(move_assigned.output  == expected_output);
+        CHECK(move_assigned.mode        == expected_mode);
+        CHECK(move_assigned.still_frame == expected_still_frame);
+        CHECK(move_assigned.first_frame == expected_first_frame);
+        CHECK(move_assigned.last_frame  == expected_last_frame);
+        CHECK(move_assigned.video_settings.fps           == expected.fps);
+        CHECK(move_assigned.video_settings.crf           == expected.crf);
+        CHECK(move_assigned.video_settings.codec         == expected.codec);
+        CHECK(move_assigned.video_settings.encode_preset == expected.encode_preset);
+        CHECK(move_assigned.video_settings.tune          == expected.tune);
+        CHECK(move_assigned.video_settings.keep_frames   == expected.keep_frames);
+        CHECK(move_assigned.video_settings.frames_dir    == expected.frames_dir);
+        CHECK(move_assigned.video_settings.chunks        == expected.chunks);
+        CHECK(move_assigned.comp == comp);
+    }
+
+    // ── self-move ──────────────────────────────────────────────
+    {
+        auto comp = make_test_composition();
+        RenderJob j = factory(comp);
+
+        // Self-move: C++17 makes this well-defined (object left in
+        // valid but unspecified state per [class.copy.assign]).  We
+        // only verify POD fields are preserved (mode + frame fields
+        // are POD — move is trivial copy).  Non-POD fields (strings,
+        // shared_ptr) are in unspecified state and must NOT be
+        // asserted.  This locks the std::vector reallocation and
+        // move-and-clear edge case where self-move can occur.
+        j = std::move(j);
+
+        CHECK(j.mode        == expected_mode);
+        CHECK(j.still_frame == expected_still_frame);
+        CHECK(j.first_frame == expected_first_frame);
+        CHECK(j.last_frame  == expected_last_frame);
+    }
+}
+
 } // namespace
 
 TEST_CASE("RenderJob::video_job: factory sets identity, mode, frames, output") {
@@ -442,6 +577,67 @@ TEST_CASE("RenderJob: copy semantics (Video mode) — copy + assign preserve all
     // Same frame fields as Sequence, but the mode enum is Video — the
     // discriminator the future executor uses to pick the encode path.
     run_copy_semantics_test(
+        [](std::shared_ptr<const Composition> c) {
+            return RenderJob::video_job(
+                "comp_vid_a", c, Frame{10}, Frame{50}, "out.mp4");
+        },
+        RenderMode::Video,
+        Frame{0},
+        Frame{10},
+        Frame{50});
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Move semantics parameterized by RenderMode (Still, Sequence, Video)
+// ══════════════════════════════════════════════════════════════════════════
+// The header declares RenderJob as a "Copyable value type" but move
+// semantics are not exercised anywhere.  These three tests form a
+// parameterization matrix that locks move-construction + move-assignment
+// for ALL three factory branches, reusing the same `expected` snapshot
+// pattern as the copy tests.
+//
+// Move semantics specifics:
+//   - The moved-from object is in a valid but unspecified state per
+//     [stmt.class.copy] in the C++ standard.  We cannot verify that
+//     the original is unchanged after a move.
+//   - The moved-to object has all the fields of the original (strings
+//     are transferred, shared_ptr is transferred with unchanged
+//     refcount, POD types are trivially copied).
+//   - No mutation independence check (the original is in an
+//     unspecified state after the move).
+//   - Self-move is well-defined in C++17 (object left in valid but
+//     unspecified state); only POD fields are asserted.
+
+TEST_CASE("RenderJob: move semantics (Still mode) — move + assign preserve all fields") {
+    // Still factory: mode=Still, still_frame=42, first/last=0 (unused).
+    run_move_semantics_test(
+        [](std::shared_ptr<const Composition> c) {
+            return RenderJob::still("comp_still_a", c, Frame{42}, "still.png");
+        },
+        RenderMode::Still,
+        Frame{42},
+        Frame{0},
+        Frame{0});
+}
+
+TEST_CASE("RenderJob: move semantics (Sequence mode) — move + assign preserve all fields") {
+    // Sequence factory: mode=Sequence, first=10, last=50, still=0 (unused).
+    run_move_semantics_test(
+        [](std::shared_ptr<const Composition> c) {
+            return RenderJob::sequence(
+                "comp_seq_a", c, Frame{10}, Frame{50}, "seq_%04d.png");
+        },
+        RenderMode::Sequence,
+        Frame{0},
+        Frame{10},
+        Frame{50});
+}
+
+TEST_CASE("RenderJob: move semantics (Video mode) — move + assign preserve all fields") {
+    // video_job factory: mode=Video, first=10, last=50, still=0 (unused).
+    // Same frame fields as Sequence, but the mode enum is Video — the
+    // discriminator the future executor uses to pick the encode path.
+    run_move_semantics_test(
         [](std::shared_ptr<const Composition> c) {
             return RenderJob::video_job(
                 "comp_vid_a", c, Frame{10}, Frame{50}, "out.mp4");
