@@ -28,7 +28,12 @@ namespace chronon3d::content::grid         { void register_grid_compositions(Com
 namespace chronon3d::content::two_point_five_d { void register_2d5_compositions(CompositionRegistry&); }
 #endif
 namespace chronon3d::content::backgrounds  { void register_grid_clean_background(CompositionRegistry&); }
-namespace chronon3d::content::ae_parity    { void register_ae_parity_compositions(CompositionRegistry&); }
+// TICKET-CLI-ISOLATE-RUNTIME-DEV — `register_ae_parity_compositions` is now
+// DEV-only (registered via `apps/chronon3d_cli/register_dev_compositions.cpp`
+// when CHRONON3D_BUILD_CLI_DEV=ON).  The content module no longer registers
+// AE_CAM_* per the user-spec verbatim §3 "AE_CAM_*" listed under DEV-only.
+// The `ae_parity/register_ae_parity_compositions.cpp` file is retained
+// (dead-code in production) for backward compat with test fixtures.
 namespace chronon3d::content::text_placement { void register_text_placement_compositions(CompositionRegistry&); }
 namespace chronon3d::content::sequence_v2 { void register_sequence_v2_compositions(CompositionRegistry&); }
 namespace chronon3d::content::certification { void register_cert_title_compositions(CompositionRegistry&);
@@ -66,7 +71,11 @@ public:
         content::two_point_five_d::register_2d5_compositions(ctx.compositions);
 #endif
         content::backgrounds::register_grid_clean_background(ctx.compositions);
-        content::ae_parity::register_ae_parity_compositions(ctx.compositions);
+        // TICKET-CLI-ISOLATE-RUNTIME-DEV — AE_CAM_* moved to DEV registration
+        // (apps/chronon3d_cli/register_dev_compositions.cpp).  See
+        // content/CMakeLists.txt for the matching factory-source relocation
+        // (tests/visual/ae_parity/ae_parity_scenes.cpp compiled into
+        // chronon3d_cli_dev only).
         content::certification::register_cert_title_compositions(ctx.compositions);
         content::certification::register_cert_lower_third_compositions(ctx.compositions);
         content::certification::register_cert_long_text_compositions(ctx.compositions);
