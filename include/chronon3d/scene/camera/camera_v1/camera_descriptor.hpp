@@ -125,6 +125,16 @@ struct CameraBaseSpec {
     // resolver) is catalogued as a follow-up forward-point in
     // `docs/FOLLOWUP_TICKETS.md` §Catalogued forward-points.
     std::vector<FramingBBox> framing_targets;
+
+    // TICKET-FRAMING-V1 — composition_point + look_ahead (user-spec verbatim).
+    // composition_point is the desired screen-space anchor for the centroid
+    // (normalised [0,1] coords; default 0.5/0.5 = centre; the RuleOfThirds
+    // strategy reuses this as the bias from the geometric centre).  look_ahead
+    // is the velocity look-ahead in seconds (default 0.0 = disabled; the
+    // solver projects the target's motion Δt seconds into the future before
+    // computing the camera aim).
+    Vec2  composition_point{0.5f, 0.5f};
+    float look_ahead{0.0f};
 };
 
 // =============================================================================

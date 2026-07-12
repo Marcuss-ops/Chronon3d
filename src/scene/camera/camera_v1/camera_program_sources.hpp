@@ -20,6 +20,19 @@
 
 namespace chronon3d::camera_v1 {
 
+// =============================================================================
+// LookAheadResult — returned by look_ahead_tangent() for OrientAlongPath.
+// =============================================================================
+struct LookAheadResult {
+    bool used{false};
+    Vec3 tangent{0.0f, 0.0f, 0.0f};
+};
+
+/// Sample the trajectory at t+Δ and return the look-ahead tangent if valid.
+LookAheadResult look_ahead_tangent(const CameraSourceSpec& source,
+                                   const CameraEvalContext& ctx,
+                                   float delta_seconds = 1.0f / 60.0f);
+
 // ── Source time-dependency check ──────────────────────────────────────────
 
 /// Check if a CameraSourceSpec variant is time-dependent.
