@@ -40,7 +40,7 @@ Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 ## Gate Audit — ultima verifica
 
-**`main@1115ad04dcfc9a1736a6477b198b3d2162a8a4ca` — 12/12 PASS** (2026-07-11, Phase C step 2/2 — pending first green ci-sanitizer.yml run). Feature freeze V0.1 revocato.  **Forward-point**: Phase D closure (`TICKET-ACCEPTANCE-SUITE-PHASE-D`) bumps the audit to **13/13 PASS** once `tools/check_performance_gate.sh` (forward-point 0c) wires into `tools/wrap_push.sh` Step 4.5e after stable_count≥3 promotion — at HEAD the gate-script exists standalone (`bash tools/check_performance_gate.sh` invocation supported) but is not yet hard-blocked pre-`git push`.
+**`main@47dbebf4` — 12/12 PASS** (2026-07-11, Phase C step 2/2 — pending first green ci-sanitizer.yml run). Feature freeze V0.1 revocato.  **Forward-point**: Phase D closure (`TICKET-ACCEPTANCE-SUITE-PHASE-D`) bumps the audit to **13/13 PASS** once `tools/check_performance_gate.sh` (forward-point 0c) wires into `tools/wrap_push.sh` Step 4.5e after stable_count≥3 promotion — at HEAD the gate-script exists standalone (`bash tools/check_performance_gate.sh` invocation supported) but is not yet hard-blocked pre-`git push`.
 
 **`main@7eb5c2ba` — 11/11 PASS** (2026-07-06, certificata, regression-line preserved as historical reference).
 Baseline: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c2ba-baseline.md).
