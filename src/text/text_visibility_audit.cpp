@@ -256,3 +256,5 @@ TextVisibilityAudit audit_text_visibility(
 
 
 } // namespace chronon3d
+
+#endif // CHRONON3D_BUILD_DIAGNOSTICS
