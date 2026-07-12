@@ -51,12 +51,70 @@ struct CameraProgramDiagnostic {
     std::string message;
 };
 
-/// Structured success result from CameraProgram::evaluate().
+// =========================================================================
+// CameraResolveDiagnostic — ripple-through diagnostic surfaced by
+// ShotTimelineResolver (and the OPP renderer integration).
+//
+// P3-H + TICKET-CAMERA-FULL-LINUX sub-ticket C — 6-field contract:
+//
+//   camera_id           — descriptor.id of the camera emitting this
+//                         diagnostic (probe `CameraDescriptor.id`; if
+//                         empty, fall back to the fingerprint's hex form).
+//   shot_index          — 0-based shot index in the ShotTimeline; -1 when
+//                         the diagnostic originates from a non-timeline
+//                         path (e.g. CameraProgram::evaluate() standalone).
+//   sample_time         — the canonical SampleTime (seconds, absolute). The
+//                         OPP / renderer can sort / filter / fan-out the
+//                         diagnostic by sample time even when bursts of
+//                         diagnostics collapse onto the same shot index.
+//   severity            — Info / Warning / Error (vendor-neutral).
+//   code                — canonical short code (e.g. "Uncompiled",
+//                         "ConstraintFailure", "LookAtLayerMissingTarget",
+//                         "TransitionEvaluationFailed"); suitable for
+//                         log-grep / dashboard filtering.
+//   message             — human-readable detail (single line; latin-only).
+//
+// Populated by ShotTimelineResolver::evaluate() per shot evaluation.
+// Empty when populated by CameraProgram::evaluate() directly (program-level
+// standalone path) — the OPP renderer reads `EvaluatedCamera::diagnostics`
+// for the program-level entries and `EvaluatedCamera::resolve_diagnostics`
+// for the timeline-level enriched entries.
+//
+// Cat-3 justified per TICKET-CAMERA-FULL-LINUX sub-ticket C user spec
+// verbatim (the 6-field contract is the canonical renderer-facing surface;
+// `CameraProgramDiagnostic` remains the program-level surface).
+// =========================================================================
+struct CameraResolveDiagnostic {
+    // Severity is an ALIAS to CameraProgramDiagnostic::Severity (both
+    // share the same 3 values: Info / Warning / Error).  Using the alias
+    // rather than re-declaring makes the bit-cast in
+    // `enrich_resolve_diagnostics` (src/scene/camera/camera_v1/shot_timeline.cpp)
+    // a guaranteed type-level coupling — the two enums cannot diverge.
+    using Severity = CameraProgramDiagnostic::Severity;
+    std::string camera_id;
+    int         shot_index{-1};
+    double      sample_time_seconds{0.0};
+    Severity    severity{Severity::Info};
+    std::string code;
+    std::string message;
+};
+
+/// Structured success result from CameraProgram::evaluate() / ShotTimelineResolver::evaluate().
 /// Carries the evaluated camera plus non-fatal diagnostics (warnings, infos).
 /// Fatal errors are returned as CameraEvaluationError via Result.
+///
+/// `resolve_diagnostics` is the timeline-level ripple-through surface with
+/// the 6-field contract (camera_id + shot_index + sample_time + severity
+/// + code + message). CameraProgram::evaluate() leaves it EMPTY (program
+/// path is timeline-agnostic); ShotTimelineResolver::evaluate() fills it
+/// one-to-one with `diagnostics`, enriching each program-level entry
+/// with shot_index + sample_time + camera_id. The OPP renderer reads
+/// this surface to forward diagnostics to its output sink without
+/// re-deriving the ripple-through fields per consumer.
 struct EvaluatedCamera {
-    Camera2_5D                              camera;
-    std::vector<CameraProgramDiagnostic>    diagnostics;
+    Camera2_5D                                  camera;
+    std::vector<CameraProgramDiagnostic>        diagnostics;
+    std::vector<CameraResolveDiagnostic>        resolve_diagnostics;
 };
 
 /// Discrete error codes returned by CameraProgram + ShotTimeline

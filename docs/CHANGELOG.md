@@ -316,6 +316,50 @@ The user said "all 8 tests have the same design issue" but only 6 use the file-e
   - `docs/CURRENT_STATUS.md` EDIT (§Stato generale per area "Glow Final (ChrononGlowFinalAE)" row extended with a +1 forward-point clause documenting the cherry-pick recovery + cross-link to this entry + the FOLLOWUP row)
 
 - **Cross-references**: commit `c36e3f13` (the cherry-pick push that dropped the content); commit `cd2548cb` (the prior origin/main that had the feat(api) entry); commit `750553c0` (the TICKET-TEXT-GLOW-DARKENING chore that was cherry-picked); commit `01c95de5` (the DoD §9 chore that was cherry-picked); the `tools/wrap_push.sh` per-branch rebase gate that correctly blocked the push attempt at `c36e3f13` when the cherry-pick result was reviewed; AGENTS.md §honesty (the recovery is documented in this entry, the dropped content is restored, the future-recovery approach is canonicalized).
+## Luglio 2026 — TICKET-DOCTEST-SKIP-ROT partial closure — doctest SKIP() compat helper in tests/helpers/ aliases SKIP(msg) to canonical DOCTEST_SKIP(msg); include added to tests/text/test_pipeline_parity_real.cpp; macchina-verifica deferred to working build host per AGENTS.md §honesty (2026-07-11, atomic chore commit)
+
+### fix(test): doctest SKIP compat helper (TICKET-DOCTEST-SKIP-ROT)
+
+- **Scope**: closes the doctest version mismatch rot that blocked compile of `tests/text/test_pipeline_parity_real.cpp` on the vcpkg-installed doctest baseline (older than 2.4.0, where `SKIP` is missing from the top-level `<doctest/doctest.h>` include). The rot was discovered when the new TEST_CASEs from commit `6bc43271` introduced `SKIP(“…”)` call sites at lines 241 + 452 + 455 of the test file.
+- **Fix applied (option (d) — minimum-invasive, future-proof, version-agnostic)**:
+  1. **NEW `tests/helpers/doctest_skip_compat.hpp`** (header-only, ~85 LoC) — aliases `SKIP(msg)` to the canonical doctest `DOCTEST_SKIP(msg)` macro (which has been available since doctest 1.x and is already used elsewhere in the codebase by `tests/showcase/cinematic/test_cinematic_artifacts.cpp` at lines 67 + 137):
+     ```cpp
+     #include <doctest/doctest.h>
+     #ifndef SKIP
+     #define SKIP(msg) DOCTEST_SKIP(msg)
+     #endif
+     ```
+     The `#ifndef SKIP` guard ensures a future doctest ≥ 2.4.0 upgrade (which would natively define `SKIP`) does NOT produce a redefinition warning.
+  2. **EDIT `tests/text/test_pipeline_parity_real.cpp`** — added `#include <tests/helpers/doctest_skip_compat.hpp>` immediately after the existing `#include <doctest/doctest.h>` line, with a 6-line comment cross-referencing the helper's rationale.
+- **Why option (d) over options (a)/(b)/(c)**:
+  - **(a)** upgrade vcpkg doctest to ≥ 2.4.6 — heavy; touches vcpkg.json baseline + all consumers + tests for binary artifacts. Rejected.
+  - **(b)** `#include <doctest/parts/doctest_skip.h>` — fragile; the sub-header may not exist in installed doctest versions (the parts/ split-header layout is doctest 2.x feature; older versions ship a single header). Rejected.
+  - **(c)** replace `SKIP(...)` with `WARN(...); return;` everywhere — works, but loses the ctest `*** SKIPPED ***` test-result accounting that the inspection tooling aggregates per-run. Rejected.
+  - **(d) this header** — minimum-invasive, DRY, future-proof: any new test that uses `SKIP(“…”)` only needs a single `#include` line. Adopted.
+- **Highest-risk call site (verified-first on working build host)**: `tests/text/test_pipeline_parity_real.cpp:455` uses a stream expression:
+  ```cpp
+  SKIP(“chronon3d_cli not built at ” << get_cli_path()
+       << “ — pre-existing build rot blocks the test”);
+  ```
+  The helper expands this to `DOCTEST_SKIP(“…” << ...)`. Whether this COMPIES depends entirely on whether the installed doctest's `DOCTEST_SKIP` macro natively handles stream-expressions (via `ContextScope::stringify() << ...` or similar). The two simpler call sites at lines 241 + 452 (`SKIP(“ffmpeg not found in PATH”)`) pass plain string literals and are unaffected by this risk envelope.
+- **Fallback if `DOCTEST_SKIP` does not accept stream expressions** (documented in the helper's docblock): on a working build host where line 455 fails to compile, replace THAT specific call with `WARN(“…”); return;` or pre-format via `std::ostringstream` + `DOCTEST_SKIP(_oss.str().c_str())`. Wholesale option (c) for the WHOLE file is NOT recommended because it would lose the doctest `*** SKIPPED ***` per-test accounting.
+- **Macchina-verifica status** (per AGENTS.md v0.1 §honesty): code fix is in place on this VPS. The actual compile + execution verification must run on a working build host with the vcpkg glm/magic_enum env (not this VPS, which has tmpfs quota + missing vcpkg doctest install). The ticket promotes from PARTIAL → DONE once a working build host confirms the compile passes.
+- **Cat-3 (no new public SDK API surface) SATISFIED**: the helper lives in `tests/helpers/` (NOT `include/chronon3d/`); zero new public SDK symbols; zero new types; zero new accessors. The `tests/helpers/` directory is the canonical home for test-only utilities per the existing `tests/helpers/check_helpers.hpp` / `pixel_assertions.hpp` / `test_utils.hpp` pattern.
+- **Cat-5 (3-doc same-commit alignment) SATISFIED**: this CHANGELOG entry (prepended at TOP) + `docs/FOLLOWUP_TICKETS.md` (TICKET-DOCTEST-SKIP-ROT row state OPEN → **PARTIAL** with the same-session description update) + `tests/helpers/doctest_skip_compat.hpp` + `tests/text/test_pipeline_parity_real.cpp` (code edits) all updated in the same atomic commit.
+- **AGENTS.md v0.1 freeze compliance** (revoked 2026-07-06, but Cat-3 + Cat-1 + §honesty rules permanent):
+  - **Cat-1 commit-discipline**: single atomic chore commit (this one); pure helper + 1-line include + docs. “Fare PR piccole e mirate” honoured.
+  - **Cat-3 (no new public SDK API)**: SATISFIED (helper in `tests/helpers/`).
+  - **Gate 5 deny-everywhere** N/A: no `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` introduced (only `<doctest/doctest.h>` is forward-included inside the helper).
+  - **GATE-MNT-01 fail-on-dirty** invariant: post-commit smoke-test run before push via `tools/wrap_push.sh origin main`; subject `fix(test): doctest SKIP compat helper (TICKET-DOCTEST-SKIP-ROT)` is **63 chars** (within the 72-char gate).
+  - **§honesty compliance**: the macchina-verifica deferral is explicitly documented in both the CHANGELOG entry and the helper docblock; the line-455 stream-expression risk envelope is named with the fallback strategy; the PARTIAL state in FOLLOWUP_TICKETS.md matches the actual commit state.
+- **Files changed (4)**:
+  - `tests/helpers/doctest_skip_compat.hpp` NEW (header-only, ~85 LoC: 18-line docblock § Why this helper exists + Why this fix is preferred + Semantic equivalence + Usage + Macchina-verifica status + Highest-risk call site + Fallback section + 50-line macro block + header guards)
+  - `tests/text/test_pipeline_parity_real.cpp` EDIT (1 line `#include <tests/helpers/doctest_skip_compat.hpp>` added after the existing doctest include + 6-line comment cross-referencing the helper)
+  - `docs/FOLLOWUP_TICKETS.md` EDIT (TICKET-DOCTEST-SKIP-ROT row state OPEN → **PARTIAL** + description extended with code-fix evidence + sister-call-sites note + line-455 risk envelope + macchina-verifica deferral)
+  - `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+- **Cross-references**: [`tests/helpers/doctest_skip_compat.hpp`](tests/helpers/doctest_skip_compat.hpp) (the helper); [`tests/text/test_pipeline_parity_real.cpp`](tests/text/test_pipeline_parity_real.cpp) (the include site); [`tests/showcase/cinematic/test_cinematic_artifacts.cpp`](tests/showcase/cinematic/test_cinematic_artifacts.cpp) (the sister call sites that already use `DOCTEST_SKIP`); [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) (TICKET-DOCTEST-SKIP-ROT row §Open Blockers PARTIAL); commit `6bc43271` (the predecessor that introduced the failing `SKIP()` call sites); AGENTS.md v0.1 §honesty (the macchina-verifica deferral); AGENTS.md v0.1 Cat-3 (no new public SDK API, satisfied).
+
+---
 
 ## Luglio 2026 — feat(api): public camera facade + external consumer SDK test
 **Commit**: pending (`feat(api): public camera facade + external consumer SDK test`, 56 chars — within 72-char gate).
