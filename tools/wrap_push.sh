@@ -23,6 +23,8 @@
 #   4.5j. tools/check_manual_touches_per_video.sh (Test #19 manual_touches_per_video gate -- 9 canonical ops + 4-phase thresholds `oggi<=8, fase1<=3, fase2<=1, finale<=0` from `configs/touchpoint_thresholds.yaml`). Exit 1 if any phase exceeds its threshold; exit 2 on missing python3/pyyaml/config (fail-loud per AGENTS.md §honest-limitation).
 #   4.5k. tools/check_batch_100_videos.sh (Test #20 batch_100_videos acceptance gate -- 10 lang × 10 topics × 1 format = 100 jobs, 8 metrics per job, 4 PASS-criteria envelopes `output_count=100 / zero_crashes=0 / zero_corrupted=0 / at_least_98_pct_no_manual<=2` from `configs/batch_100_videos_corpus.yaml`). Exit 1 if any of the 4 envelopes is breached; exit 2 on missing python3/pyyaml/config (fail-loud per AGENTS.md §honest-limitation).
 #   4.5m. tools/check_glow_certification.sh (TICKET-GLOW-CERTIFICATION — 4 ctest suites GlowAcceptance/GlowTemporal/GlowDeterminism/TextGlowSmoke + Python A/B luma/bbox + darkening + 60-frame temporal sweep + MP4 SSIM + 3-run determinism). On VPS without chronon3d_cli binary: emits GATE_FAIL with canonical rebuild hint + §honesty disclosure; on working build host: all phases must PASS for exit 0.
+#   4.5n. tools/check_determinism.sh (TICKET-DETERMINISM — Debug + Release CLI parity: 3-run ChrononGlowFinalAE per binary, bit-exact frame comparison). On VPS without chronon3d_cli binary: emits exit 2 (GATE_FAIL_INTERNAL) with canonical rebuild hint + §honesty disclosure; on working build host: both Debug and Release must PASS.
+#   4.5p. tools/check_determinism_matrix.sh (TICKET-DETERMINISM-MATRIX — 4-axis determinism matrix: Debug/Release × 2 compositions, 3 runs each, bit-exact per-axis). On VPS without chronon3d_cli binary: emits GATE_FAIL with canonical rebuild hint + §honesty disclosure (Phase 0 binary check); on working build host: all axes must PASS.
 #   5. exec git push "$@" atomically
 #
 # Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
@@ -323,6 +325,27 @@ bash "${SCRIPT_DIR}/check_batch_100_videos.sh" \
 echo "wrap_push.sh: checking glow certification (13 TEST_CASEs + A/B luma/bbox + darkening + temporal sweep + MP4 SSIM + determinism)..."
 bash "${SCRIPT_DIR}/check_glow_certification.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_glow_certification.sh (exit $?)" >&2; exit 1; }
+
+# ── Step 4.5n: Determism gate (TICKET-DETERMINISM) ────────────────────────
+# Forward-only enforcement of Debug + Release CLI parity via 3-run
+# ChrononGlowFinalAE per binary with bit-exact frame comparison.
+# On VPS without chronon3d_cli binary: emits exit 2 (GATE_FAIL_INTERNAL)
+# with canonical rebuild hint + §honesty disclosure per AGENTS.md
+# "non segnare verde una suite che restituisce failure".
+# On working build host: both Debug and Release must PASS for exit 0.
+echo "wrap_push.sh: checking determinism (Debug + Release CLI parity, 3-run ChrononGlowFinalAE)..."
+bash "${SCRIPT_DIR}/check_determinism.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_determinism.sh (exit $?)" >&2; exit 1; }
+
+# ── Step 4.5p: Determinism matrix gate (TICKET-DETERMINISM-MATRIX) ────────
+# Forward-only enforcement of 4-axis determinism: Debug/Release × 2
+# compositions, 3 runs each, bit-exact comparison per axis.  Phase 0
+# binary check scans 3 standard build paths and emits GATE_FAIL with
+# canonical rebuild hint + §honesty disclosure when binary absent.
+# On working build host: all axes must PASS for exit 0.
+echo "wrap_push.sh: checking determinism matrix (4-axis: Debug/Release × 2 comps, 3 runs each)..."
+bash "${SCRIPT_DIR}/check_determinism_matrix.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_determinism_matrix.sh (exit $?)" >&2; exit 1; }
 
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
 exec git push "$@"
