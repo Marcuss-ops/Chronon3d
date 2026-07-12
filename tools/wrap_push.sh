@@ -19,6 +19,7 @@
 #   4.5e. tools/check_text_golden_sources_aligned.sh (TICKET-TEXT-GOLDEN-SOURCES-ALIGNED — text_multilingual add_test ↔ target_sources alignment)
 #   4.5f. tools/check_doc_sha_dedup.sh (TICKET-FOLLOWUP-DE-DUP-REFERENCES macchina-verifica gate -- dedup (file,sha7) pairs in `docs/adr/`; ADRs 015/016 EXEMPT). Exit 1 if non-EXEMPT count > 0.
 #   4.5g. tools/check_commit_subject_length.sh (AGENTS.md 'no cosmetic amend churn' gate -- last 10 commit subjects, 72-char envelope; char-count via awk length, NOT byte-count). Exit 1 if any over-limit.
+#   4.5j. tools/check_manual_touches_per_video.sh (Test #19 manual_touches_per_video gate -- 9 canonical ops + 4-phase thresholds `oggi<=8, fase1<=3, fase2<=1, finale<=0` from `configs/touchpoint_thresholds.yaml`). Exit 1 if any phase exceeds its threshold; exit 2 on missing python3/pyyaml/config (fail-loud per AGENTS.md §honest-limitation).
 #   5. exec git push "$@" atomically
 #
 # Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
@@ -254,6 +255,22 @@ bash "${SCRIPT_DIR}/check_commit_subject_length.sh" origin/main \
 echo "wrap_push.sh: checking fix-velocity cronograph (Test #11)..."
 bash "${SCRIPT_DIR}/check_fix_cronograph.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_fix_cronograph.sh (exit $?)" >&2; exit 1; }
+
+# ── Step 4.5j: Manual touches per video (Test #19) ─────────────────────────
+# Forward-only enforcement of Test #19 (First-Principles Product Check #19 —
+# manual_touches_per_video).  Reads the append-only JSONL at
+# `~/.chronon3d/telemetry/manual_touches.jsonl` + the canonical config at
+# `configs/touchpoint_thresholds.yaml` and emits GATE_FAIL if any of the
+# 4 phases (oggi / fase1 / fase2 / finale) exceeds its threshold hpalette
+# (`<=8, <=3, <=1, <=0` per user-spec).  Companion selftest at
+# `tests/tools/selftest_check_manual_touches_per_video.sh` exercises 4/4
+# scenarios (PASS / FAIL_OGGI / FAIL_FINALE / PRECOND_NO_PYTHON) on this VPS
+# without requiring chronon3d_cli.  Zero-data forwarding when log absent
+# (first-install onboard is permissive per AGENTS.md §honesty); threshold
+# envelopes apply once ≥1 entry lands.
+echo "wrap_push.sh: checking manual_touches_per_video (Test #19) -- 4-phase thresholds (oggi<=8, fase1<=3, fase2<=1, finale<=0)..."
+bash "${SCRIPT_DIR}/check_manual_touches_per_video.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_manual_touches_per_video.sh (exit $?)" >&2; exit 1; }
 
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
 exec git push "$@"
