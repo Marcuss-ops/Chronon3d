@@ -30,7 +30,10 @@
 // Implementation note: the user spec mentions text/font/tracking
 // (text-typography properties). The test environment cannot load any
 // font (process-wide fallback fails, relative paths don't resolve —
-// see the test_pipeline_parity.cpp invariance tests #43+#44 for the
+// see the test_pipeline_parity_real.cpp::BruteDeterm-17 invariance tests
+// (forward-point TICKET-DETERMINISM-BRUTE-17, the source-file invariance
+// tests #43+#44 in the deleted test_pipeline_parity.cpp were a synthetic
+// near-clone superseded by the real-framebuffer BruteDeterm-17 path)
 // same issue, gated on CHRONON3D_BUILD_DIAGNOSTICS=ON and never
 // compiled in this build). We therefore test the 8 cache dimensions
 // via RECT-based compositions (the cache machinery — NodeCache,

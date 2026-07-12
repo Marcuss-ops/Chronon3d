@@ -44,7 +44,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/text_builder_ergonomics_tests.cmake  # M1.8 §5 — author handle chain + 1px-bbox invariant (no Blend2D, unconditional)
     ${CMAKE_CURRENT_SOURCE_DIR}/animation_helpers_tests.cmake  # M1.8 §3A — 17 animation helpers (interpolate/spring/sequence/stagger/loop/delay/ease/clamp/...) (no Blend2D, unconditional)
     ${CMAKE_CURRENT_SOURCE_DIR}/text_simplicity_adapters_tests.cmake  # M1.8 §6 — centered_text deprecation + glow consolidation + migration test (no Blend2D, unconditional)
-    ${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_tests.cmake  # M1.8 §4A — 7-pipeline parity (render/video/inspect-text + warmup/tile_pruning/serial/diagnostic) × 6 fields × 3 properties = 126 CHECKs (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file) — 7-pipeline parity (render/video/inspect-text + warmup/tile_pruning/serial/diagnostic) × 6 fields × 3 properties = 126 CHECKs (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file)
+    ${CMAKE_CURRENT_SOURCE_DIR}/text_clip_policy_tests.cmake  # M1.8 §4A-ext — 5 clip rect policy tests (extracted from test_pipeline_parity.cpp §4A Fase 4 matrix, 7 pipelines × 5 ClipVariant × 18 CHECKs = 630 CHECKs, conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file — replaces the deleted pipeline_parity_tests.cmake per TICKET-SIMPLICITY-PARITY-EXTRACT)
     ${CMAKE_CURRENT_SOURCE_DIR}/visibility_contract_tests.cmake  # M1.8 §1E — TextVisibilityAudit PASS/FAIL cascade + §9 FU04 violation response (4 TEST_CASEs / ~12 CHECKs) (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file)
     ${CMAKE_CURRENT_SOURCE_DIR}/inspect_text_tests.cmake  # M1.8 §4B — chronon3d_cli inspect-text (6 TEST_CASEs) — no Blend2D, requires CHRONON3D_BUILD_CLI_DEV=ON — TextVisibilityAudit PASS/FAIL cascade + §9 FU04 violation response (4 TEST_CASEs / ~12 CHECKs) (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file)
     ${CMAKE_CURRENT_SOURCE_DIR}/text_presets_stability_tests.cmake  # M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 presets × 3 CHECKs = 15 assertions (UNCONDITIONAL, pure struct inspection)
@@ -233,21 +233,26 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/animation_helpers_tests.cmake)
 # top of this orchestrator.
 include(${CMAKE_CURRENT_SOURCE_DIR}/text_simplicity_adapters_tests.cmake)
 
-# M1.8 §4A / TICKET-SIMPLICITY-PIPELINE-PARITY — locks the 7-pipeline
-# parity contract (chronon3d_cli render / video / inspect-text + warmup
-# on/off + tile_pruning on/off + serial/parallel + Debug/Release) that
-# produces the same `glyph_count`, `layout_bbox`, `world_bbox`,
-# `predicted_bbox`, `alpha_bbox`, hash (max ±2px differenza per bbox,
-# byte-exact per `glyph_count`/`hash`).  7 pipelines × 18 CHECKs = 126
-# assertions.  Listed here (UNCONDITIONAL) and NOT inside the
-# Blend2D+Text conditional above because: (i) the test exercises the
-# in-process SoftwareRenderer + text visibility audit harness +
-# canonical framebuffer_hash (pure math + harness, no Blend2D / GPU
-# dependency for the base identity checks); (ii) the include must
-# register even on SDK-only builds where CHRONON3D_USE_BLEND2D /
+# M1.8 §4A-ext / TICKET-SIMPLICITY-TEXT-CLIP-POLICY — locks the 5-clip-rect
+# matrix (7 pipeline variations × 5 `ClipVariant` Baseline/Expanded/
+# Conservative/Full/Off × 18 CHECKs = 630 CHECKs) of the §4A pipeline
+# parity contract.  Extracted from `tests/text/test_pipeline_parity.cpp`
+# per the §2 cleanup mandate (TICKET-SIMPLICITY-PARITY-EXTRACT) — the
+# deleted `pipeline_parity_tests.cmake` carried the 7 single-canary
+# tests + 2 invariance tests + the 35-test clip matrix in a single
+# file; the new `text_clip_policy_tests.cmake` carries ONLY the
+# clip-matrix (the unique 5-clip-rect subset per user spec).  The
+# 7-modulo real-framebuffer parity lock lives in
+# `tests/text/test_pipeline_parity_real.cpp` (UNCHANGED per spec §3).
+# Listed here (UNCONDITIONAL) and NOT inside the Blend2D+Text
+# conditional above because: (i) the test exercises the in-process
+# SoftwareRenderer + text visibility audit harness + canonical
+# framebuffer_hash (pure math + harness, no Blend2D / GPU dependency
+# for the base identity checks); (ii) the include must register even
+# on SDK-only builds where CHRONON3D_USE_BLEND2D /
 # CHRONON3D_ENABLE_TEXT are OFF.  Per ADR-018, this file is also
 # listed in `CMAKE_CONFIGURE_DEPENDS` at the top of this orchestrator.
-include(${CMAKE_CURRENT_SOURCE_DIR}/pipeline_parity_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/text_clip_policy_tests.cmake)
 # include(${CMAKE_CURRENT_SOURCE_DIR}/cross_process_parity_tests.cmake)  # DRAFT — gated with return() pending TICKET-PARITY-001..006 rot fix; see FOLLOWUP_TICKETS.md
 
 # M1.8 §1E / TICKET-SIMPLICITY-VISIBILITY-CONTRACT — locks the FU04
@@ -521,8 +526,8 @@ endif()
 if(TARGET chronon3d_visibility_contract_tests)
     list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_visibility_contract_tests)
 endif()
-if(TARGET chronon3d_pipeline_parity_tests)
-    list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_pipeline_parity_tests)
+if(TARGET chronon3d_text_clip_policy_tests)
+    list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_text_clip_policy_tests)
 endif()
 if(TARGET chronon3d_inspect_text_tests)
     list(APPEND CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS chronon3d_inspect_text_tests)
