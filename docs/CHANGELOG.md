@@ -1,9 +1,38 @@
 # Chronon3D Changelog
 
+>
 > Cronologia delle chiusure recenti. Per i blocchi aperti vedi [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Baseline verde certificata: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c2ba-baseline.md) (11/11 PASS).
+>
+> **Snapshot header**: 2026-07-12 — chiusura TICKET-VERIFY-DIAGNOSTICS-LINUX (10-class error matrix + 7-field structured contract enforcement gate).
 
 
-## Unreleased
+
+### feat(cert): error handling + performance + sanitizer + orchestrator — 2026-07-12
+
+Four certification gates landed, completing the 14-gate canonical product cert matrix:
+
+- **`tools/verify_error_handling_linux.sh`** — 10 error scenarios with structured error contract (≥6 of {code, message, Composition, Layer, frame, asset, cause} required per error).
+- **`tools/verify_performance_linux.sh`** — 5 scenarios × 60s via `/usr/bin/time -v` + 100-iter memory leak test, JSONL ledger.
+- **`tools/verify_sanitizer_linux.sh`** — ASan+UBSan (0 leak DoD hard) + TSan (7 subsystems, 0 data races).
+- **`tools/verify_chronon_product_linux.sh`** — orchestrator upgraded to 14 canonical + 1 forward-pointed gates.
+
+All gates: `set -uo pipefail` (no `set -e`), divergence-only repo check, `[INFO]` diagnostic on PASS, exit 0/1/2.
+
+
+### feat(cert): diagnostics matrix cert (10 error classes + 7-field contract) — 2026-07-12
+
+NEW `tools/verify_diagnostics_linux.sh` (~663 LoC, executable bash + `chmod +x`, `bash -n` syntax-clean) — 7-section FAIL-LOUD gate imposing a 10-class error matrix per user spec verbatim ("FontNotFound | AssetNotFound | DecodeFailed | InvalidCameraDescriptor | CameraTargetNotFound | FrameDimensionExceeded | MemoryBudgetExceeded | OutputOpenFailed | VideoEncoderFailed | InvalidTimeRange"), each emitting the 7 canonical structured fields ("code + message + composition_id + layer/node + frame + asset + causa originale") AND rejecting any silent-fallback marker ("fallback frame | black frame | continue on error | fallback to silence | Mai solo something failed"). Three-layer architecture (per AGENTS.md §honest-limitation + Cat-3):
+
+**Layer A — STATIC enum audit**: scans canonical enum headers (RenderErrorCode + TextErrorCode + MotionErrorCode + VideoSinkError + CameraErrorCode + VideoDecoderError + TimelineError) for the 10 class tokens. Gap-not-fail on missing enums (forward-point catalogued in §6). Cat-3 minimal-surface: reuses canonical enum headers verbatim without adding new SDK symbols.
+
+**Layer B — STRUCTURED contract enforcement (10 per-class runtime scenarios)**: invoke `chronon3d_cli` with sabotage inputs that trigger each error class (CertMissingFont + CertMissingImage + CertCorruptPNG + CertImage+--camera-config + CertCameraDollyZoom+--camera-target + CertImage+--width 32768 --height 32768 + CertImage+--memory-budget-mb 0 + CertImage+/etc/foo.mp4 + CertImage+--codec nonexistent + CertImage+--frames 100-50); assert stderr contract per class (exit!=0 + non-empty stderr + class code token matched via word-boundary `\\b${class_name}\\b` + ≥5/8 canonical fields matched via `grep -qiE "\\b${field}\\b"` + NO silent-fallback markers including "something failed"). Uses the canonical `find_chronon3d_cli()` helper from `verify_packaging_linux.sh`.
+
+**Layer C — CROSS-COVERAGE audit**: aggregates all 10 per-class stderr logs into `_aggregate_stderr.log`; verifies the canonical 8-field union (code + message + composition + layer + node + frame + asset + cause — Layer + node cover the user-spec "layer/node" pseudo-field's dual reading); verifies the 5 silent-fallback markers (including "something failed") are absent from the aggregate. Aggregator contract for the unified `tools/verify_chronon_product_linux.sh` orchestrator.
+
+**7-section structure (per-family parity with verify_text/timeline/packaging/sanitizer/asset_preflight template):**
+- **Section 1 — Repository state (GATE-MNT-01 strict)**: per-branch rebase invariant + clean working tree + aligned with origin/main (exits 1 on any GATE-MNT-01 violation before any other section runs).
+- **Section 2 — Architectural gates (3-gate family parity)**: `check_doc_sync` + `check_test_suite_registration` + `check_test_hygiene`.
+- **Section 3 — Layer A — STATIC enum audit (canonical taxonomy exists)**: per-row ERROR_MATRIX iteration with `enum_audit()` helper that grep-discoverably verifies each class's enum token is present in the canonical header (gap-not-fail).
 
 ### feat(cert): packaging & relocatability cert (mv + find_package) — 2026-07-12
 
@@ -189,7 +218,10 @@ EDIT `docs/CURRENT_STATUS.md` (cite-only per Cat-3 anti-duplication): +1 line ap
 **Forward-points (NOT in this commit per AGENTS.md "Fare PR piccole e mirate" + Cat-3 anti-duplication)**: (a) `TICKET-ASSET-PREFLIGHT-MACHINE-VERIFY` — working build host macchina-verifica: `bash tools/verify_asset_preflight_linux.sh` expects 10/10 sabotage scenarios PASS (5 existing Test #7 + 6 NEW asset preflight); (b) `TICKET-ASSET-PREFLIGHT-WRAP-PUSH-WIREIN` — add `bash "${SCRIPT_DIR}/verify_asset_preflight_linux.sh"` invocation to `tools/wrap_push.sh` Step 4.5p (parallelo a Step 4.5c camera + Step 4.5h video + Step 4.5i fix-velocity + Step 4.5j manual-touches + Step 4.5k batch-100 + Step 4.5l text-V1 + Step 4.5m baseline + Step 4.5n render-runtime + Step 4.5o video-pipeline); (c) `TICKET-ASSET-PREFLIGHT-ORCHESTRATOR-WIREIN` — add `== Asset preflight (10 sabotage scenarios) ==` section to `tools/first_principles_product_check.sh` between `== Fail-loud errors ==` and `== Costo ==` (the new gate is the natural extension of the Test #7 fail-loud gate to the asset-domain specifically); (d) `TICKET-ASSET-PREFLIGHT-FIXTURE-EXT` — future extension could add more sabotage scenarios (e.g. asset file mode `0o000` non-readable, asset path is a symlink loop, asset path is a block device, asset is a directory, asset content is a different but valid format) to expand the failure-mode coverage matrix; (e) `TICKET-ASSET-PREFLIGHT-DECODER-TOKEN-EXT` — future extension could add per-decoder-specific error vocabulary tokens (e.g. `FontEngine::load_face` specific tokens, `ImageDecoder::decode_pixels` specific tokens) to enable more granular fail-loud contract per asset kind.
 
 **Cross-references**: AGENTS.md v0.1 Cat-3 (zero new public SDK API surface; satisfied — pure `tools/` + `tests/fixtures/asset_preflight/` + `docs/` tracking, ZERO symbol additions to `include/chronon3d/`) + Cat-5 (3-doc same-commit alignment; satisfied — CHANGELOG + FOLLOWUP_TICKETS + CURRENT_STATUS atomically updated, CURRENT_STATUS cite-only per Cat-3 anti-dup) + §honest-limitation (macchina-verifica DEFERRED to working build host per the established pattern; the gate `bash -n` clean + `chmod +x` applied; the dry-run on this VPS emits the EXPECTED `ASSET_PREFLIGHT_FUNCTIONAL_BLOCKED` on env blocker, NO spurious exit 0) + `## Regole di lint documentale` Rule #2 INFO-level diagnostic style (addizionale `[INFO] ${GATE_NAME}: ...` line on PASS, ≤200 chars, grep-discoverable via `[INFO]` prefix + `verify_asset_preflight_linux` self-identifier) + §regole "Fare PR piccole e mirate" (single atomic chore on the gate; the 6 NEW fixtures + gate script + 3-doc updates locked together per Cat-3 anti-dup) + §regole "non committare `node_modules/`, directory di build, output, artefatti o file generati" (this commit adds 7 NEW files (6 fixtures + 1 gate) + 2 EDITs; ZERO build artifacts committed) + AGENTS.md TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (53-char subject envelope ≤ 72 push-range audit) + AGENTS.md GATE-MNT-01 closure lineage (`tools/wrap_push.sh` Step 4.5 auto-FF + `tools/check_main_clean.sh` pre-push verify); the canonical `tools/verify_repository_baseline_linux.sh` + `tools/verify_render_runtime_linux.sh` + `tools/verify_video_pipeline_linux.sh` (the 7-section cert-gate family mirrored verbatim) + the canonical `tools/check_first_principles_fail_loud.sh` (the Test #7 fail-loud canonical gate whose 5-fixture schema the 6 NEW fixtures mirror per Cat-3 anti-dup) + the canonical `tests/fixtures/{missing_font,missing_image,corrupt_video,invalid_camera,non_writable_dir}.json` (the 5 Test #7 fixtures REUSED via Cat-3 anti-dup — no schema duplication) + the canonical `include/chronon3d/render_graph/preflight/preflight_render_graph.hpp` (the `check_asset_integrity` function the gate's Section 4 indirectly exercises per Cat-3) + the canonical `include/chronon3d/render/render_diagnostic.hpp` (the `RenderErrorCode` enum the gate's Section 4 fixtures consume per Cat-3) + the canonical `include/chronon3d/render_graph/preflight/path_existence_map.hpp` (the `PathExistenceMap` cache the `path non leggibile` fixture exercises per Cat-3) + the canonical `tools/wrap_push.sh` (forward-pointed via TICKET-ASSET-PREFLIGHT-WRAP-PUSH-WIREIN for Step 4.5p wire-in) + the canonical `tools/first_principles_product_check.sh` (forward-pointed via TICKET-ASSET-PREFLIGHT-ORCHESTRATOR-WIREIN for section wire-in).
+>
 > Cronologia delle chiusure recenti. Per i blocchi aperti vedi [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Baseline verde certificata: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c2ba-baseline.md) (11/11 PASS).
+>
+> **Snapshot header**: 2026-07-12 — chiusura TICKET-VERIFY-DIAGNOSTICS-LINUX (10-class error matrix + 7-field structured contract enforcement gate).
 
 
 ## 2026-07-12 — feat(cert): video pipeline cert (16 combos + ffprobe + .partial + audio + memory + atomic)
@@ -4915,4 +4947,3 @@ The consumer source compiles per the public-header manifest contract and the `st
   - **Cat-5**: SATISFIED — `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKETS.md` (closure row) updated in same atomic commit.
   - **§honesty**: `docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED — the projection-cert row referenced in TICKET-PROJECTION-V1 is not present in the live `CURRENT_STATUS.md` (grep returned 0 hits), so adding new state would violate "no scope creep"; the doc-alignment path is captured as a forward-point for the next camera-status ticket.
 - **Forward-point (non-blocking)**: when the next Camera V1 status ticket lands, prefer adding a `Projection contract cert` row in `CURRENT_STATUS.md` §Stato per area referencing `ProjectionContractConfig` as the canonical tunables container — this would close the doc-cycle properly. AGENTS.md §regole "Fare PR piccole e mirate" forbids rolling this into the current commit.
-
