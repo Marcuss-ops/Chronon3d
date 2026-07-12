@@ -55,8 +55,8 @@ TEST_CASE("TextRunBuilder: empty document returns empty result") {
 //   Motivation: pre-existing rot; text run builder wrap-mode / paragraph count bug.
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — wrap mode returns != TextWrap::None and
-// multi-paragraph count assertion fails.  TODO(chronon3d): fix and re-enable.
+// TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — wrap mode returns != TextWrap::None and
+// multi-paragraph count assertion fails.  TODO(chronon3d): fix and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
 TEST_CASE("TextRunBuilder: single paragraph produces single layout" * doctest::skip()) {
     auto doc = make_doc("Hello world");
     chronon3d::Config cfg;
@@ -90,8 +90,8 @@ TEST_CASE("TextRunBuilder: single paragraph produces single layout" * doctest::s
 //   Motivation: pre-existing rot; text run builder multi-paragraph routing bug.
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — multi-paragraph count assertion fails.
-// TODO(chronon3d): fix text run builder and re-enable.
+// TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — multi-paragraph count assertion fails.
+// TODO(chronon3d): fix text run builder and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
 TEST_CASE("TextRunBuilder: multiple paragraphs produce multiple layouts" * doctest::skip()) {
     auto doc = make_doc("Line one\nLine two\nLine three");
     chronon3d::Config cfg;
@@ -113,8 +113,8 @@ TEST_CASE("TextRunBuilder: multiple paragraphs produce multiple layouts" * docte
 //   Motivation: pre-existing rot; text run builder consecutive-newline handling bug.
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — empty paragraph count assertion fails.
-// TODO(chronon3d): fix text run builder multi-paragraph handling and re-enable.
+// TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — empty paragraph count assertion fails.
+// TODO(chronon3d): fix text run builder multi-paragraph handling and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
 TEST_CASE("TextRunBuilder: empty paragraph produced by consecutive newlines" * doctest::skip()) {
     auto doc = make_doc("A\n\nC");
     chronon3d::Config cfg;
