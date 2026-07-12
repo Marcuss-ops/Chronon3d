@@ -39,13 +39,10 @@
 // the new `mutable CameraSessionCache cache_` private member below).
 #include <chronon3d/scene/camera/camera_v1/camera_session_cache.hpp>
 
-// Forward declaration of CameraSession — full type lives in
-// include/chronon3d/internal/scene/camera/v1/camera_session.hpp
-// (P3-H internal hide).  The ShotTimelineSession member below stores
-// shared_ptr<CameraSession> so the forward decl is sufficient.
-namespace chronon3d::camera_v1 {
-struct CameraSession;
-}
+// CameraSession full definition — required by ShotTimelineSession::session_for()
+// which calls std::make_shared<CameraSession>() inline.  shared_ptr works with
+// incomplete types but make_shared requires the complete type.
+#include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 
 #include <atomic>
 #include <cstdint>
