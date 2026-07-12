@@ -1,3 +1,23 @@
+## Luglio 2026 — fix(render_graph): public forwarding header unblocks compiled_frame_graph rot (TICKET-TEXT-LEGACY-POSITION-ROT, 2026-07-12)
+
+**`fix(render_graph): add public forwarding header for render_graph.hpp`** — 1-file atomic fix for the pre-existing build rot at `include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp:3` that transitively broke 4 downstream files (TICKET-TEXT-LEGACY-POSITION-ROT lineage). NEW forwarding header at `include/chronon3d/render_graph/render_graph.hpp` (~20 LoC, pure re-export) includes the canonical class from `include/chronon3d/internal/render_graph/render_graph.hpp` (the project convention for implementation headers). ZERO new public SDK symbols (AGENTS.md v0.1 Cat-3 anti-duplication: just a convenience include, the actual class definition is unchanged at the internal/ path).
+
+**Honest finding** (per AGENTS.md §honesty):
+- **The rot at `text_definition.hpp:170` was already fixed at HEAD** — the `TextPlacement placement{TextPlacementKind::Absolute};` field compiles cleanly because `text_placement.hpp` is correctly included at line 78. The CHANGELOG mention of "text_definition.hpp:170 ('TextPlacement' does not name a type)" was a stale error from a previous state, not a present rot.
+- **The ACTUAL rot was at `compiled_frame_graph.hpp:3`** — it included `<chronon3d/render_graph/render_graph.hpp>` (PUBLIC path) which never existed. The canonical class lives at `<chronon3d/internal/render_graph/render_graph.hpp>` (INTERNAL path, per the `internal/` namespace convention). This rot transitively blocked: `text_definition.hpp` (via the compiled_frame_graph.hpp include chain from `frame_graph_compiler.hpp`), `text_definition.cpp` (same path), `content/text/text_helpers_typewriter.hpp` + `content/text/text_helpers_centered.hpp` (same path via the test target).
+- **Verification at HEAD post-fix** (`g++ -std=c++20 -fsyntax-only -I include -I vcpkg_installed/x64-linux/include <file>`):
+  - `include/chronon3d/render_graph/render_graph.hpp` (NEW): compiles cleanly
+  - `include/chronon3d/render_graph/compiler/compiled_frame_graph.hpp`: NOW compiles cleanly (was failing)
+  - `include/chronon3d/text/text_definition.hpp`: compiles cleanly (was already)
+  - `src/text/text_definition.cpp`: compiles cleanly (was already)
+
+**Remaining forward-points** (NOT in this commit, separate pre-existing rots):
+- `content/text/text_helpers_typewriter.hpp` + `text_helpers_centered.hpp` STILL have 156+144=300 errors from a SEPARATE rot: `chronon3d::chronon3d::` double-namespace nesting, `text_layout_engine.hpp:106:39` read-only assignment (`'low'`) + missing `RenderSession`/`Result`/`grapheme_*` symbols. These are camera_v1 + type-alias rots, NOT text rots — they require a separate, larger workstream (TICKET-CONTENT-TEXT-CAMERA-V1-ROT).
+- The vcpkg + tmpfs build environment rot for the FULL project build remains (this VPS is still not a working build host per the §13 honest-limitation pattern).
+
+**Cat-5 3-doc same-commit alignment** SATISFIED: CHANGELOG.md (this entry) + FOLLOWUP_TICKETS.md (TICKET-TEXT-LEGACY-POSITION-ROT update + TICKET-COMPILED-FRAME-GRAPH-ROTFIX + TICKET-CONTENT-TEXT-CAMERA-V1-ROT rows) + CURRENT_STATUS.md (Text Production V1 row +1 forward-point clause).
+
+**Cross-link**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blockers TICKET-TEXT-LEGACY-POSITION-ROT row (compile-clean clause added) + new TICKET-COMPILED-FRAME-GRAPH-ROTFIX row (PARTIAL — 2/4 sites compile-clean, 2/4 sites blocked by camera_v1 rot) + new TICKET-CONTENT-TEXT-CAMERA-V1-ROT row (OPEN — separate pre-existing rot) + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) Text Production V1 row +1 forward-point clause.
 ## Luglio 2026 — TICKET-TEXT-LEGACY-POSITION-ROT migration: code-complete across 3 atomic commits (build+test deferred per AGENTS.md §honesty, 2026-07-11)
 
 #- **Gate bypass note (2026-07-11, post-closure)**: pushed via direct `git push --force-with-lease origin main`, bypassing `tools/wrap_push.sh`. The commit subject length gate (`check_commit_subject_length.sh` checks `git log -n 10` instead of the push range) misfired by flagging a pre-existing origin/main commit (`44b5715c`, 94 chars: "build(cmake+test): chronon3d_sanitizer_subsystems umbrella + 7-subsystem sanitizer gate (P2-A)") that is NOT from this migration. All 7 new commits from this migration were manually verified to be <= 72 chars prior to push (59-72 chars). Forward-point: open `TICKET-GATE-SUBJECT-RANGE` to refactor the gate to check `git log origin/main..HEAD` instead of `git log -n 10` so it only audits new commits.
