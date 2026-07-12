@@ -14,7 +14,7 @@
 //       the scan after the first ink row. The full framebuffer must be
 //       walked so multi-line, multi-TextRun, and vertically-separated-glyph
 //       compositions are measured correctly.
-//   (b) `audit_text_visibility()`: `clip_uses_containment` now applies the
+//   (b) `audit_text_visibility()`: `clip_contains_visible_ink` now applies the
 //       containment invariant `expand(clip, kTextAuditBBoxTolerance) ⊇
 //       rendered_alpha_bbox` instead of the prior `rect_intersects` (which
 //       produced false-positives on 1-pixel sliver clips — see
@@ -169,7 +169,7 @@ TextWarningKey make_warning_key(const char* node_name,
 // fix (a): a clip-of-1-pixel-strip composer, multi-line text runs
 // (title + subtitle), or two vertically-separated glyph rows all rely on
 // the full scan to be visible. The optimization shortcut was responsible
-// for the `clip_uses_containment` true-positive on silhouette text where
+// for the `clip_contains_visible_ink` true-positive on silhouette text where
 // the second line dropped below the early-exit threshold.
 //
 // Anti-duplication: TU-local helper. Cross-TU callers at
@@ -279,17 +279,17 @@ TextVisibilityAudit audit_text_visibility(
         // sub-pixel slack) instead of intersection. Closes the
         // TICKET-TEXT-CLIP-19-PIXEL-SLIVER regression: a clip that keeps
         // only 1 pixel of ink used to pass `rect_intersects`; only true
-        // containment earns `clip_uses_containment == true`.
+        // containment earns `clip_contains_visible_ink == true`.
         if (!rect_is_finite(audit.rendered_alpha_bbox)) {
-            audit.clip_uses_containment = false;
+            audit.clip_contains_visible_ink = false;
         } else {
-            audit.clip_uses_containment =
+            audit.clip_contains_visible_ink =
                 rect_uses_containment(clip_rect, audit.rendered_alpha_bbox,
                                      kTextAuditBBoxTolerance);
         }
     } else {
         // No framebuffer provided → alpha-bbox NOT measured. The contract
-        // sets `clip_uses_containment = false` as the safe default so
+        // sets `clip_contains_visible_ink = false` as the safe default so
         // callers honouring it MUST inspect `rendered_alpha_bbox` (still
         // zero-rect) before consuming this field. Used by tile-pruning and
         // the cross-pipeline parity tests (FU08) where the framebuffer is
@@ -297,19 +297,19 @@ TextVisibilityAudit audit_text_visibility(
         // (`finite`, `predicted_contains_world`) and explicitly skip the
         // pixel-side invariant (false-by-default for unscanned).
         audit.rendered_alpha_bbox  = Rect{};
-        audit.clip_uses_containment = false;
+        audit.clip_contains_visible_ink = false;
     }
 
     // §9 FU04 — status cascade + violation response
     // Status computation: PASS iff all 4 critical invariants hold AND
-    // (no framebuffer OR clip_uses_containment). FAIL otherwise.
+    // (no framebuffer OR clip_contains_visible_ink). FAIL otherwise.
     const bool critical_pass = audit.font_resolved
                             && audit.shaping_succeeded
                             && audit.finite
                             && audit.predicted_contains_world;
     if (!critical_pass) {
         audit.status = TextVisibilityStatus::FAIL;
-    } else if (framebuffer_supplied && !audit.clip_uses_containment) {
+    } else if (framebuffer_supplied && !audit.clip_contains_visible_ink) {
         audit.status = TextVisibilityStatus::FAIL;
     } else {
         audit.status = TextVisibilityStatus::PASS;
@@ -382,7 +382,7 @@ TextVisibilityAudit verify_text_visibility(
         }
     }
 
-    if (rendered_output && !audit.clip_uses_containment) {
+    if (rendered_output && !audit.clip_contains_visible_ink) {
         const TextWarningKey key = make_warning_key(nm, TextWarningKind::ClipDropsInk);
         if (deduper.mark_warned(key)) {
             spdlog::warn("[text-vis] CLIP_DROPS_INK node={}", nm);

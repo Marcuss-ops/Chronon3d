@@ -316,7 +316,7 @@ struct TextVisibilityAudit {
     const Rect&         clip_rect,
     const Framebuffer*  rendered_output = nullptr,
     float               effect_padding  = 0.0f
-);
+) noexcept;
 
 /// `verify_text_visibility()` — F1.E post-render visibility contract.
 ///
