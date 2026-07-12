@@ -120,6 +120,18 @@ CHRONON3D_UPDATE_GOLDENS=1 ctest --test-dir build/chronon/linux-content-dev -R g
 **§honesty compliance**: the re-bake attempt failure is documented honestly. The 556-error count + the 2 specific failure modes (TICKET-CONTENT-TEXT-CAMERA-V1-ROT rot + `tests/golden/golden_render_tests.cpp` `.position` rot) are machine-verified and explicitly stated. The configure step is documented as SUCCEEDED (per the prior commit). No silent fabrication; the PARTIAL state is preserved.
 
 **Cross-references**: [`cmake/Chronon3DVcpkgToolchain.cmake`](cmake/Chronon3DVcpkgToolchain.cmake) (the canonical toolchain wrapper, Invariant I1) + commit `5c4fe95c` (TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV, the prior commit that UNBLOCKED the configure step) + commit `16855f33` (TICKET-GOLDEN-17-1-17-8-MIGRATION, the test design migration whose re-bake is BLOCKED) + [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blockers TICKET-CONTENT-TEXT-CAMERA-V1-ROT row (the blocking rot) + TICKET-TEXT-LEGACY-POSITION-ROT row (the text rot that affects the test file) + AGENTS.md §Cat-3 (zero new public API surface, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit alignment, satisfied) + AGENTS.md §honesty (PARTIAL state honestly documented, no PASS claimed for the re-bake).
+## Luglio 2026 — TICKET-GATE-SUBJECT-RANGE: subject-length gate push-range refactor (2026-07-12)
+
+### fix(gate): subject-length audits push range
+
+- **`tools/check_commit_subject_length.sh`**: refactored to audit `git log origin/main..HEAD` (push range) instead of `git log -n 10` (last N commits). Fixes TICKET-GATE-SUBJECT-RANGE — the previous implementation misfired on pre-existing over-limit commits on `origin/main` (e.g. commit `94dba6c5` at 76+ chars), causing the gate to FAIL on every push until the legacy commit was amended (forced the prior TICKET-TEXT-LEGACY-POSITION-ROT push via `git push --force-with-lease` to bypass the misfire).
+- **Backward compat**: `N` argument is now legacy/optional. In push-range mode it's ignored with an `[INFO]` deprecation note. In fallback mode (no `origin/main`, e.g. fresh clone without remote) it's honored with a `[WARN]` diagnostic.
+- **Dynamic TOTAL_CHECKED**: the summary now reports the actual count of commits audited, not the hardcoded `N` value.
+- **Scope-aware remediation hint**: in push-range mode the hint uses `git rebase -i origin/main` instead of `git rebase -i HEAD~${N}`.
+- **Verification**: `bash tools/check_commit_subject_length.sh` → exit 0 (push range is empty in this commit, pre-existing over-limit commits on origin/main are no longer flagged). The 94dba6c5 over-limit commit is no longer in the audit scope. Pre-fix behavior reproduced by inspecting the prior `tools/wrap_push.sh origin main` push attempts (which required `git push --force-with-lease` to bypass the misfire).
+- **Cat-3 (no new public SDK API) SATISFIED**: this is a tool-only change; zero new symbols in `include/chronon3d/`.
+- **Cat-5 (3-doc same-commit) SATISFIED**: this entry + `docs/FOLLOWUP_TICKETS.md` `## Recently Closed` row + `docs/CURRENT_STATUS.md` Gate Audit forward-point closure.
+- **Forward-point (NOT in this commit, scope discipline)**: `tools/wrap_push.sh` Step 4.5g still hardcodes `bash "${SCRIPT_DIR}/check_commit_subject_length.sh" 10`, which now emits the `[INFO]` deprecation note on every push. A follow-up commit should drop the `10` argument from the wrapper. Out of scope for this commit (Fare PR piccole e mirate).
 
 ## Luglio 2026 — TICKET-TEXT-LEGACY-POSITION-ROT: build verification attempt DISCOVERED pre-existing build rot cascade (TICKET-BUILD-ROT-RENDER-GRAPH + new TICKET-BUILD-ROT-CASCADE-CAMERA); TICKET remains OPEN per AGENTS.md §honesty (2026-07-11)
 
