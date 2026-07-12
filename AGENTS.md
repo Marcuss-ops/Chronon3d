@@ -460,6 +460,87 @@ echo "pushed — chore SHA verified on origin/main"
 
 **Lint-checkability (forward-point)**: a future `tools/check_post_push_consistency.sh` (gate opzionale, NON ancora implementato) could auto-verify the discipline by scanning recent `git reflog` entries: if the last `push` reflog entry was preceded by a commit `C` whose SHA does NOT appear in the current `origin/main` reflog, emit `GATE_FAIL: post-push SHA-mismatch detected — chore <SHA> lost between local and upstream`. The gate would implement the SHA-triple equality check as a CI invariant that complements the agent-side discipline. Implementation deferred per AGENTS.md v0.1 §regole "Fare PR piccole e mirate" + the rule-documentation-precedes-lint-tooling pattern (see INFO-level diagnostic style rule's Lint-checkability forward-point above for the precedent). Per AGENTS.md §GATE-MNT-01 closure lineage, this future gate sits on the WRITE-side triad complement (per-branch rebase + `tools/wrap_push.sh` + `tools/check_main_clean.sh` are the READ-side triad; the SHA-selfcheck is the WRITE-side discipline that closes the lost-commit failure mode that bit the `b589fdba` recovery).
 
+### Docs canonical update discipline rule
+
+Ogni cronaca estesa di fix piccolo (`fix include`, `rename`, `initializer`, `cleanup di test`, `chore:` non-milestone) vive SOLO nella scheda ticket dedicata (`docs/tickets/TICKET-NNN.md`). I 4 file canonical (`CURRENT_STATUS.md`, `FOLLOWUP_TICKETS.md`, `CHANGELOG.md`, `ROADMAP.md`) conservano al massimo **una riga sintetica** (stato + riferimento al ticket). La tabella scope della sezione [### Disciplina di aggiornamento dei canonici](#disciplina-di-aggiornamento-dei-canonici) (sopra) è canonica; la presente rule la ESPLICITA in forma lint-discipline Cat-3 anti-dup.
+
+**Perché**: la cronaca estesa nei canonici causa quattro classi di rot §honesty-violation:
+  1. **Rebase rot-class**: narrative novel in `CHANGELOG.md` diverge a ogni `git pull --rebase`, generando conflict markers che mascherano la rot reale (precedent: `874b5b37` + `b589fdba` lost-commit pattern, vedi §Post-push SHA-selfcheck rule sopra).
+  2. **Cat-3 anti-duplication violation**: la stessa narrative in 3+ file canonical → nessuno `rg`-canonical → drift inevitabile al prossimo edit (la stessa informazione vive in 3 posti, nessuno canonico).
+  3. **Stato-trust degrado**: `CURRENT_STATUS.md` con narrative di commit invece di sintesi impedisce di distinguere "stato di main ORA" da "storia" → file non-`rg`-queryable per forward-state queries.
+  4. **`docs/FOLLOWUP_TICKETS.md` growth-class**: la policy `≤10 righe open` decade quando ogni riga contiene narrative multi-line dal ticket body; il fail-loud recede per inflazione.
+
+**Origine**: rule formalizzata per escalation della pre-esistente `### Disciplina di aggiornamento dei canonici` table — che già dichiara lo scope per canonical — in forma di lint-discipline rule esplicita con anti-esempi + Lint-checkability forward-point, onorando il principio Cat-3 anti-duplication (1 sede canonica per ogni informazione) e il ticket-home per i dettagli tecnici dei fix piccoli. La rule è il canonical enforcement-side dei 3-doc deferred obligations già in essere (paralleli a [TICKET-INSPECT-TEXT-3DOC-CAT5-ALIGN](docs/FOLLOWUP_TICKETS.md) + [TICKET-SABOTAGE-FONT-3DOC-CAT5-ALIGN](docs/FOLLOWUP_TICKETS.md) + [TICKET-GLOW-FINAL-COMPOSITIONS-DOC-MIGRATION-3DOC-CAT5-ALIGN](docs/FOLLOWUP_TICKETS.md)) che stabiliscono il pattern `body commit + CHANGELOG prepended + CURRENT_STATUS/FOLLOWUP deferred a dedicated Cat-5 ticket row`.
+
+**Scope**: si applica a OGNI commit chore su `main` (inclusi `fix:`, `chore:`, `refactor:`, `docs:`, `test:`, e `feat:` minori non-milestone). NON si applica a: schede ticket (`docs/tickets/TICKET-NNN.md` — la cronaca home permissive per ticket contract); ADR (`docs/adr/ADR-NNN-<titolo>.md` — decision rationale indipendente per `docs/DOCUMENTATION_GOVERNANCE.md` §adr); baseline (`docs/baselines/main-<sha>-baseline.md` — il macchina-verification artifact È il detail-content per definizione); CHANGELOG milestone entries che citano il ticket ma NON ne replicano il body (Cita-Only pattern). Specificamente: ogni chore commit DEVE verificare `git diff origin/main..HEAD -- docs/CURRENT_STATUS.md docs/FOLLOWUP_TICKETS.md docs/CHANGELOG.md docs/ROADMAP.md` per assenza di cronaca >1 riga sintetica — più-di-1-riga DEVE essere in `docs/tickets/TICKET-NNN.md`.
+
+#### Anti-esempio — cronaca lunga in 3 canonici
+
+**VIETATO (stesso diff replicato in 3 file = Cat-3 anti-dup violation)**:
+
+> `docs/CURRENT_STATUS.md`:
+> ```markdown
+> Camera V1: ...
+> - Il 2026-07-12 l'agente ha committato il fix rotate_z → rotate(Vec3) su
+>   tests/cache/test_cache_invariance.cpp:119 con subject `fix(cache): migrate
+>   rotate_z` (62 char). Cat-3 minimal-surface (no new SDK API). Test rebuild
+>   DEFERRED-WBH. Forward-point: TICKET-CACHE-ROTATE-Z-MACHINE-VERIFY.
+> ```
+> `docs/FOLLOWUP_TICKETS.md` (riga `TICKET-CACHE-ROTATE-Z-MIGRATION`):
+> ```markdown
+> ### TICKET-CACHE-ROTATE-Z-MIGRATION
+> Storia: il 2026-07-12 l'agente ha committato `fix(cache): migrate rotate_z`
+> su tests/cache/test_cache_invariance.cpp:119, rotate_z sostituito con
+> rotate(Vec3) (canonical API). Test rebuild DEFERRED-WBH. Subject envelope
+> 62 char ≤ 72. Forward-point: TICKET-CACHE-ROTATE-Z-MACHINE-VERIFY.
+> ```
+> `docs/CHANGELOG.md`:
+> ```markdown
+> ## 2026-07-12
+> ### fix(cache): migrate rotate_z
+> Cambiato tests/cache/test_cache_invariance.cpp:119 da `rotate_z()` (legacy
+> API) a `rotate(Vec3)` (canonical API). Cat-3 minimal-surface (no new SDK
+> API). Test rebuild DEFERRED-WBH. Subject envelope 62 char ≤ 72.
+> Forward-point: TICKET-CACHE-ROTATE-Z-MACHINE-VERIFY.
+> ```
+
+**CORRETTO — 1 canonical line + body in ticket scheda (cronaca nel ticket)**:
+
+> `docs/CHANGELOG.md`:
+> ```markdown
+> ## 2026-07-12
+> ### `fix(cache): migrate rotate_z`
+>   ([TICKET-CACHE-ROTATE-Z-MIGRATION](docs/tickets/TICKET-CACHE-ROTATE-Z-MIGRATION.md))
+> Migrate `rotate_z` → `rotate(Vec3)` su tests/cache/test_cache_invariance.cpp:119.
+> Cat-3 minimal-surface.
+> ```
+> `docs/tickets/TICKET-CACHE-ROTATE-Z-MIGRATION.md` (cronaca estesa libera):
+> ```markdown
+> # TICKET-CACHE-ROTATE-Z-MIGRATION — Migrate rotate_z to canonical API
+> 
+> ## Stato: DONE (2026-07-12, commit <sha>)
+> 
+> ## Problema
+> `lb.rotate_z()` chiamava API legacy rimossa; sostituzione con
+> `lb.rotate(Vec3)` (canonical API).
+> 
+> ## Evidenza
+> - File: tests/cache/test_cache_invariance.cpp:119 (1-line docstring update)
+> - Compilazione: invariata (no new SDK API)
+> - Strict-gate rg: `\.rotate_z\s*\(` tests content → 0 match post-commit
+> 
+> ## Criteri di accettazione
+> - Strict-gate 0 match (verified)
+> - 11/11 baseline suite verde post-commit (verified, see TICKET-VERIFY-...)
+> 
+> ## Forward-points
+> TICKET-CACHE-ROTATE-Z-MACHINE-VERIFY: working build host ctest run.
+> ```
+> `docs/CURRENT_STATUS.md` + `docs/FOLLOWUP_TICKETS.md` rimangono UNTOUCHED (no
+> canonical state change, no blocker, no milestone closure).
+
+**Lint-checkability (forward-point)**: un futuro `tools/check_docs_canonical_discipline.sh` (gate opzionale, NON ancora implementato) potrebbe verificare via `awk` + JSONL-grammar parse che ogni entry `## YYYY-MM-DD` di `docs/CHANGELOG.md` non superi la soglia di righe-per-entry (canonical config: ≤6 punti per ticket per `docs/DOCUMENTATION_GOVERNANCE.md` §CHANGELOG "Limite raccomandato: da tre a sei punti per ticket") + che ogni entry abbia al massimo 1 link a `docs/tickets/TICKET-NNN.md` come espansione canonica + che `git diff --numstat <prev-changelog-sha>..HEAD -- docs/CURRENT_STATUS.md docs/ROADMAP.md` non superi N righe per chore commit (canonical config: ≤4 righe/state-per-area). L'implementazione è deferred a un ticket separato (AGENTS.md v0.1 §regole "Fare PR piccole e mirate" + regola-documentation-precedes-lint-tooling pattern, come per i `Lint-checkability` forward-point delle altre 5 rules in `## Regole di lint documentale`).
+
 ## Workflow Git obbligatorio
 
 ```bash
