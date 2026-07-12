@@ -52,11 +52,11 @@ struct CameraSpacePoint {
 
 // ── Fully projected point (screen-space coordinates) ───────────────────────
 //
-// TICKET-035 — Validity/coordinate separation:
-//   * If `visible == false`, the `centered` and `screen` fields hold safe
-//     ZERO defaults (NOT numeric sentinels).  Callers MUST treat them as
-//     meaning-less "valid == false" territory and never project them as
-//     scene geometry.  The single source of truth is `visible`.
+/// TICKET-035 — Validity/coordinate separation:
+    //   * If `visible == false`, the `centered` and `screen` fields hold safe
+    //     ZERO defaults (NOT numeric sentinels).  Callers MUST treat them as
+    //     meaning-less "valid == false" territory and never project them as
+    //     scene geometry.  The single source of truth is `visible`.
 //   * If `visible == true`, `centered` is relative to canvas centre, `screen`
 //     has the canvas-centre offset applied, and `perspective_scale` is the
 //     Y-axis reference (focal_y_px / depth).
@@ -82,6 +82,38 @@ struct FocalPx {
     f32 x{0.0f};   // horizontal focal length in pixels
     f32 y{0.0f};   // vertical focal length in pixels (canonical reference)
 };
+
+// ── Projection contract config (TICKET-PROJECTION-V1 forward-point 0e+) ─────
+//
+// Centralises the mutable tunables of the unified projection contract so a
+// caller can override the visibility/near-plane epsilon (or any future
+// contract constant) at call time WITHOUT having to thread an extra `f32`
+// parameter.  The struct is plain-data (mirrors the `LensModel` precedent —
+// default-value member initialisation + aggregate-initialisation-friendly)
+// and the existing `near_epsilon`-keyed overloads stay as thin forwarders
+// so ABI / call-site compat is preserved.
+//
+//   ProjectionContractConfig cfg{};                          // canonical defaults
+//   ProjectionContractConfig cfg{ProjectionContractConfig{1e-3f}};  // custom near
+//   world_to_camera_space(camera, world, cfg);               // config overload
+//
+// All defaults match the previous hardcoded values (1e-4f near_epsilon), so
+// switching an existing call site from the f32-keyed overload to the config
+// overload with a default-constructed config is semantically a no-op.
+struct ProjectionContractConfig {
+    /// Below this depth a camera-space point is considered "behind" or
+    /// "on the camera plane" and `visible == false`.  Default `1e-4f`
+    /// matches the pre-existing Path 1 convention.  Override only if the
+    /// caller needs a coarser near-plane (e.g. depth-precision-limited
+    /// software backends or test scenarios probing the boundary).
+    f32 near_epsilon{1e-4f};
+};
+
+/// Canonical default factory — trivial wrapper, kept for symmetry with the
+/// `LensPresets` namespace so authoring code can use a uniform style.
+[[nodiscard]] inline ProjectionContractConfig default_projection_contract_config() noexcept {
+    return {};
+}
 
 // ── Contract: focal length (x and y, per axis) ─────────────────────────────
 //
@@ -198,6 +230,20 @@ inline CameraSpacePoint world_to_camera_space(
     return out;
 }
 
+// TICKET-PROJECTION-V1 forward-point 0e+ — config-based overload.  This is
+// the canonical going-forward signature: callers that want to override
+// `near_epsilon` (or any future contract constant) without an extra f32
+// parameter pass a `ProjectionContractConfig`.  Semantically a no-op when
+// the config is default-constructed (forwards to the f32 overload with
+// `near_epsilon = cfg.near_epsilon`).
+inline CameraSpacePoint world_to_camera_space(
+    const CameraProjectionSource& camera,
+    const Vec3& world,
+    ProjectionContractConfig cfg
+) {
+    return world_to_camera_space(camera, world, cfg.near_epsilon);
+}
+
 // ── Contract: world → screen (full projection) ─────────────────────────────
 //
 // One-stop function: transforms a world-space point through camera space into
@@ -268,6 +314,18 @@ inline ProjectedPoint project_world_point(
     };
 
     return out;
+}
+
+// TICKET-PROJECTION-V1 forward-point 0e+ — config-based overload of the
+// full projection.  Symmetric with the `world_to_camera_space` config
+// overload above; default-constructed config is semantically a no-op.
+inline ProjectedPoint project_world_point(
+    const CameraProjectionSource& camera,
+    const Vec3& world,
+    Viewport2D viewport,
+    ProjectionContractConfig cfg
+) {
+    return project_world_point(camera, world, viewport, cfg.near_epsilon);
 }
 
 } // namespace chronon3d::camera_math
