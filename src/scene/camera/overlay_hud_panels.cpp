@@ -86,11 +86,10 @@ void draw_camera_to_target_line(const OverlayContext& ctx, const ScreenPoint& sp
     if (dist > 1.0f) {
         l.text("target_deviation_text", TextSpec{
             .content = {.value = std::to_string(static_cast<int>(dist)) + "px error"},
-            .position = {
+            .placement = {TextPlacementKind::Absolute, {
                 (ctx.viewport.width * 0.5f + sp.position.x) * 0.5f + 10.0f,
-                (ctx.viewport.height * 0.5f + sp.position.y) * 0.5f + 10.0f,
-                0.0f
-            },
+                (ctx.viewport.height * 0.5f + sp.position.y) * 0.5f + 10.0f
+            }},
             .font = {.font_size = 12.0f},
             .appearance = {.color = target_color}
         });
