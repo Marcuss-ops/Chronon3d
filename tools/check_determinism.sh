@@ -96,8 +96,20 @@ release_default="$REPO_ROOT/build/chronon/linux-release/apps/chronon3d_cli/chron
 CLI_DEBUG_PATH="${CLI_DEBUG_PATH:-${CHRONON3D_CLI_DEBUG_PATH:-$debug_default}}"
 CLI_RELEASE_PATH="${CLI_RELEASE_PATH:-${CHRONON3D_CLI_RELEASE_PATH:-$release_default}}"
 
-[ -x "$CLI_DEBUG_PATH" ]    || { echo "GATE_FAIL_INTERNAL: Debug CLI not found: $CLI_DEBUG_PATH (set CLI_DEBUG_PATH)" >&2; exit 2; }
-[ -x "$CLI_RELEASE_PATH" ]  || { echo "GATE_FAIL_INTERNAL: Release CLI not found: $CLI_RELEASE_PATH (set CLI_RELEASE_PATH)" >&2; exit 2; }
+[ -x "$CLI_DEBUG_PATH" ]    || {
+    echo "GATE_FAIL_INTERNAL: Debug CLI not found: $CLI_DEBUG_PATH (set CLI_DEBUG_PATH)" >&2
+    echo "  fix: cmake --preset linux-fast-dev && cmake --build build/chronon/linux-fast-dev -j\$(nproc)" >&2
+    echo "  Per AGENTS.md §honesty: macchina-verifica deferred to working build host" >&2
+    echo "  (this VPS lacks vcpkg glm/magic_enum + tmpfs quota for full project build)." >&2
+    exit 2
+}
+[ -x "$CLI_RELEASE_PATH" ]  || {
+    echo "GATE_FAIL_INTERNAL: Release CLI not found: $CLI_RELEASE_PATH (set CLI_RELEASE_PATH)" >&2
+    echo "  fix: cmake --preset linux-release && cmake --build build/chronon/linux-release -j\$(nproc)" >&2
+    echo "  Per AGENTS.md §honesty: macchina-verifica deferred to working build host" >&2
+    echo "  (this VPS lacks vcpkg glm/magic_enum + tmpfs quota for full project build)." >&2
+    exit 2
+}
 
 # ── Working scratch dir (auto-cleanup on EXIT) ───────────────────────────
 OUT_DIR="$(mktemp -d -t chronon3d_determinism.XXXXXX)"
