@@ -80,6 +80,17 @@ inline void apply_cinematic_glow(LayerBuilder& l, const CinematicGlowPreset& opt
 // so callers control whether to use Poppins-Bold, Poppins-Regular, etc.
 //
 
+// ── Shared font engine accessor ─────────────────────────────────────────
+// WP-8 PR 8.0 — takes the AssetResolver explicitly; caller-supplied.
+// Process-global fallbacks REMOVED in PR 8.0.  Function-local static
+// re-creates the engine when the resolver pointer changes; safe because
+// AssetResolver is engine-local so the pointer identity is stable for
+// the runtime lifetime.
+inline FontEngine& shared_glyph_engine(
+    FontEngine& engine) {
+    return engine;
+}
+
 // ── Per-glyph position result ───────────────────────────────────────────
 struct GlyphPos {
     std::string ch;
@@ -285,6 +296,19 @@ inline void build_text_reveal_line(SceneBuilder& s,
             ts.layout.line_height      = 1.10f;
             ts.layout.tracking         = 0.0f;
             ts.appearance.color        = d.color;
+
+            ts.layout.box           = {ch_w + pad, d.font_size * 1.8f};
+            ts.placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}};
+            ts.font.font_path      = d.font_spec.font_path;
+            ts.font.font_family    = d.font_spec.font_family;
+            ts.font.font_weight    = d.font_spec.font_weight;
+            ts.font.font_size      = d.font_size;
+            ts.appearance.color          = d.color;
+            ts.layout.anchor         = TextAnchor::Center;
+            ts.layout.align          = TextAlign::Center;
+            ts.layout.vertical_align = VerticalAlign::Middle;
+            ts.layout.line_height    = 1.10f;
+            ts.layout.tracking       = 0.0f;
 
             l.text("label", ts);
         });
