@@ -11,20 +11,22 @@
 # (forwards all args including --force / --no-verify / refspec forms).
 #
 # Gate chain (post-auto-FF, in order):
+#   ── Always-run developer gates ──
 #   1. tools/check_main_clean.sh            (GATE-MNT-01 rebase-clean invariant)
 #   2. tools/check_test_hygiene.sh          (gate #10b doctest no-duplicate-main)
 #   3. tools/check_test_suite_registration.sh (gate #10c raw add_executable audit)
-#   4. tools/check_frame_value_convention.sh (TICKET-110b gate — Frame::value canonical-reading invariant)
-#   4.5d. tools/check_no_changelog_conflict_markers.sh (TICKET-CHANGELOG-CONFLICT-CLEANUP — docs/CHANGELOG.md conflict-marker invariant)
-#   4.5e. tools/check_text_golden_sources_aligned.sh (TICKET-TEXT-GOLDEN-SOURCES-ALIGNED — text_multilingual add_test ↔ target_sources alignment)
-#   4.5f. tools/check_doc_sha_dedup.sh (TICKET-FOLLOWUP-DE-DUP-REFERENCES macchina-verifica gate -- dedup (file,sha7) pairs in `docs/adr/`; ADRs 015/016 EXEMPT). Exit 1 if non-EXEMPT count > 0.
-#   4.5g. tools/check_commit_subject_length.sh (AGENTS.md 'no cosmetic amend churn' gate -- last 10 commit subjects, 72-char envelope; char-count via awk length, NOT byte-count). Exit 1 if any over-limit.
-#   4.5h. tools/check_video_completeness.sh (TICKET-VIDEO-FFPROBE-VALIDATION gate -- spec §4+§6 ffprobe MP4 contract + ffmpeg decoded-frames count assertion; reads $REPO_ROOT/output/text_video_acceptance/chronon_glow_final.mp4 + 7-field contract width=1920/height=1080/fps≈30/nb_read_frames=60/duration≈2±0.05/codec ∈ {h264,hevc,av1}/pix_fmt ∈ {yuv420p,...}). Exit 1 on any field breach; exit 2 on missing ffmpeg/ffprobe (fail-loud per AGENTS.md §honest-limitation).
-#   4.5j. tools/check_manual_touches_per_video.sh (Test #19 manual_touches_per_video gate -- 9 canonical ops + 4-phase thresholds `oggi<=8, fase1<=3, fase2<=1, finale<=0` from `configs/touchpoint_thresholds.yaml`). Exit 1 if any phase exceeds its threshold; exit 2 on missing python3/pyyaml/config (fail-loud per AGENTS.md §honest-limitation).
-#   4.5k. tools/check_batch_100_videos.sh (Test #20 batch_100_videos acceptance gate -- 10 lang × 10 topics × 1 format = 100 jobs, 8 metrics per job, 4 PASS-criteria envelopes `output_count=100 / zero_crashes=0 / zero_corrupted=0 / at_least_98_pct_no_manual<=2` from `configs/batch_100_videos_corpus.yaml`). Exit 1 if any of the 4 envelopes is breached; exit 2 on missing python3/pyyaml/config (fail-loud per AGENTS.md §honest-limitation).
-#   4.5m. tools/check_glow_certification.sh (TICKET-GLOW-CERTIFICATION — 4 ctest suites GlowAcceptance/GlowTemporal/GlowDeterminism/TextGlowSmoke + Python A/B luma/bbox + darkening + 60-frame temporal sweep + MP4 SSIM + 3-run determinism). On VPS without chronon3d_cli binary: emits GATE_FAIL with canonical rebuild hint + §honesty disclosure; on working build host: all phases must PASS for exit 0.
-#   4.5n. tools/check_determinism.sh (TICKET-DETERMINISM — Debug + Release CLI parity: 3-run ChrononGlowFinalAE per binary, bit-exact frame comparison). On VPS without chronon3d_cli binary: emits exit 2 (GATE_FAIL_INTERNAL) with canonical rebuild hint + §honesty disclosure; on working build host: both Debug and Release must PASS.
-#   4.5p. tools/check_determinism_matrix.sh (TICKET-DETERMINISM-MATRIX — 4-axis determinism matrix: Debug/Release × 2 compositions, 3 runs each, bit-exact per-axis). On VPS without chronon3d_cli binary: emits GATE_FAIL with canonical rebuild hint + §honesty disclosure (Phase 0 binary check); on working build host: all axes must PASS.
+#   4. tools/check_frame_value_convention.sh (TICKET-110b gate)
+#   4.5d. tools/check_no_changelog_conflict_markers.sh
+#   4.5e. tools/check_text_golden_sources_aligned.sh
+#   4.5f. tools/check_doc_sha_dedup.sh
+#   4.5g. tools/check_commit_subject_length.sh (72-char envelope)
+#   ── WBH-only gates (CHRONON3D_GATE_PROFILE=wbh) ──
+#   4.5h. tools/check_video_completeness.sh (needs MP4 artifact)
+#   4.5j. tools/check_manual_touches_per_video.sh (Test #19)
+#   4.5k. tools/check_batch_100_videos.sh (Test #20)
+#   4.5m. tools/check_glow_certification.sh
+#   4.5n. tools/check_determinism.sh
+#   4.5p. tools/check_determinism_matrix.sh
 #   5. exec git push "$@" atomically
 #
 # Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
