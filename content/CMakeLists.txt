@@ -45,7 +45,20 @@ add_library(chronon3d_content OBJECT
     experimental/effects-gateway/effect_diagnostics_gateway.cpp
 
     # ── Examples ────────────────────────────────────────────────────────────
-    examples/text/text_animations.cpp  # drift-allow: stale-ref
+    # TICKET-REFACTOR-CONTENT-EXAMPLES-17 (2026-07-12) — the monolithic
+    # `examples/text/text_animations.cpp` (>360 LoC) has been split into 3
+    # dedicated files by domain:
+    #   - examples/text/easy_text_animations.cpp  (5 easy anims + helpers)
+    #   - examples/text/typewriter_animations.cpp (5 typewriters using
+    #     Step 10 `build_2line_typewriter(spec)` from text_reveal_helpers.hpp)
+    #   - examples/text/text_animation_registration.cpp (10
+    #     `registry.add(...)` calls consolidated)
+    # The 10 inline `registry.add(...)` calls in animation_compositions.cpp
+    # have been REMOVED; the new file's `register_text_animation_compositions`
+    # is called from `register_anim_compositions` instead.
+    examples/text/easy_text_animations.cpp
+    examples/text/typewriter_animations.cpp
+    examples/text/text_animation_registration.cpp
     examples/light/light_text_animations.cpp  # drift-allow: stale-ref
     examples/image/image_animated_reveals.cpp  # drift-allow: stale-ref
 

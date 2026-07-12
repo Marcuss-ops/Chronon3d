@@ -7,6 +7,10 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include "content/common/animation_helpers.hpp"
 #include "content/text/text_helpers.hpp"
+// TICKET-REFACTOR-CONTENT-EXAMPLES-17 — text animation registration entry
+// point.  The 5 easy + 5 typewriter composition registrations live in
+// `content/examples/text/text_animation_registration.cpp`.
+#include "content/examples/text/text_animation_registration.hpp"
 
 #include <functional>
 #include <algorithm>
@@ -98,17 +102,13 @@ Composition anim_typewriter() {
 
 } // anonymous namespace
 
+// TICKET-REFACTOR-CONTENT-EXAMPLES-17 — forward declarations for the 10
+// text animation compositions have been moved to:
+//   - content/examples/text/easy_text_animations.hpp (5 easy anims)
+//   - content/examples/text/typewriter_animations.hpp (5 typewriters)
+// The monolithic `content/examples/text/text_animations.hpp` is DELETED.
+
 // Forward-declare factories from companion files
-Composition anim_slide_up();
-Composition anim_scale_pop();
-Composition anim_blur_focus();
-Composition anim_slide_left();
-Composition anim_bounce_drop();
-Composition anim_typewriter_simple();
-Composition anim_typewriter_cursor();
-Composition anim_typewriter_slide();
-Composition anim_typewriter_glow();
-Composition anim_typewriter_stagger();
 Composition catmull_rom_showcase();
 Composition dolly_zoom_showcase();
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
@@ -138,16 +138,14 @@ void register_anim_compositions(CompositionRegistry& registry) {
     registry.add("AnimSlideText", [](const CompositionProps&) { return anim_slide_text(); });
     registry.add("AnimScaleText", [](const CompositionProps&) { return anim_scale_text(); });
     registry.add("AnimTypewriter", [](const CompositionProps&) { return anim_typewriter(); });
-    registry.add("AnimSlideUp", [](const CompositionProps&) { return anim_slide_up(); });
-    registry.add("AnimScalePop", [](const CompositionProps&) { return anim_scale_pop(); });
-    registry.add("AnimBlurFocus", [](const CompositionProps&) { return anim_blur_focus(); });
-    registry.add("AnimSlideLeft", [](const CompositionProps&) { return anim_slide_left(); });
-    registry.add("AnimBounceDrop", [](const CompositionProps&) { return anim_bounce_drop(); });
-    registry.add("AnimTypewriterSimple", [](const CompositionProps&) { return anim_typewriter_simple(); });
-    registry.add("AnimTypewriterCursor", [](const CompositionProps&) { return anim_typewriter_cursor(); });
-    registry.add("AnimTypewriterSlide", [](const CompositionProps&) { return anim_typewriter_slide(); });
-    registry.add("AnimTypewriterGlow", [](const CompositionProps&) { return anim_typewriter_glow(); });
-    registry.add("AnimTypewriterStagger", [](const CompositionProps&) { return anim_typewriter_stagger(); });
+
+    // TICKET-REFACTOR-CONTENT-EXAMPLES-17 — the 10 text animation registrations
+    // (5 easy + 5 typewriters) have been moved to
+    // `content/examples/text/text_animation_registration.cpp`.  This call
+    // replaces the 10 inline `registry.add(...)` lines that lived here.
+    // (See TICKET-REFACTOR-CONTENT-EXAMPLES-17 §A+§B for the full split.)
+    register_text_animation_compositions(registry);
+
     registry.add("CatmullRomShowcase", [](const CompositionProps&) { return catmull_rom_showcase(); });
     registry.add("DollyZoomShowcase", [](const CompositionProps&) { return dolly_zoom_showcase(); });
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS

@@ -1,4 +1,42 @@
 <details>
+<summary>refactor(content): split text_animations into 3 files (TICKET-REFACTOR-CONTENT-EXAMPLES-17) — 2026-07-12</summary>
+
+Split the >360-LoC monolithic `content/examples/text/text_animations.cpp` (10 composition factories + helpers) into 3 dedicated files by domain.  Extracted the 10 inline `registry.add(...)` calls that lived in `content/animation_compositions.cpp` into a dedicated registration file.  All 5 typewriters use the Step 10 canonical `build_2line_typewriter(spec)` helper from `content/common/text_reveal_helpers.hpp` — no typewriter logic is duplicated locally.
+
+**§A — 3-file split of `text_animations.cpp`:**
+- NEW `content/examples/text/easy_text_animations.hpp` (5 decls: anim_slide_up, anim_scale_pop, anim_blur_focus, anim_slide_left, anim_bounce_drop)
+- NEW `content/examples/text/easy_text_animations.cpp` (5 impls + helpers: add_bg + txt_center + BOX_W/BOX_H/BASE_Y constants)
+- NEW `content/examples/text/typewriter_animations.hpp` (5 decls: anim_typewriter_simple, anim_typewriter_cursor, anim_typewriter_slide, anim_typewriter_glow, anim_typewriter_stagger)
+- NEW `content/examples/text/typewriter_animations.cpp` (5 impls using Step 10 helpers: `build_2line_typewriter` + `build_text_reveal_line` + `measure_text_width` + `font_regular` from `text_reveal_helpers.hpp`)
+- NEW `content/examples/text/text_animation_registration.hpp` (1 decl: `register_text_animation_compositions`)
+- NEW `content/examples/text/text_animation_registration.cpp` (10 `registry.add(...)` calls consolidated: 5 easy + 5 typewriters)
+
+**§B — call site + build system updates:**
+- EDIT `content/animation_compositions.cpp`:
+  - REMOVED 10 forward declarations (5 easy + 5 typewriters)
+  - REMOVED 10 inline `registry.add(...)` calls for the text anims
+  - ADDED `#include "content/examples/text/text_animation_registration.hpp"`
+  - ADDED single call `register_text_animation_compositions(registry)` after the 4 basic anim registrations
+- EDIT `content/CMakeLists.txt`: REPLACED `examples/text/text_animations.cpp` (monolith) with the 3 new files; added explanatory comment
+
+**§C — delete monolith (Cat-3 minimal-surface):**
+- DELETED `content/examples/text/text_animations.cpp` (no dead code)
+- DELETED `content/examples/text/text_animations.hpp`
+
+**Ripgrep verify** (per user spec §17): NO local helper duplicates `build_2line_typewriter` logic.  The 5 typewriters CALL the canonical helpers from `text_reveal_helpers.hpp` (Step 10).  The only definition of `build_2line_typewriter` is in `content/common/text_reveal_helpers.hpp:340`.
+
+**Strategia applicata** (Cat-3 minimal-surface, Cat-5 2-doc same-commit):
+- File split is by domain: easy anims (single text layer, opacity/position/scale/blur motion) + typewriters (per-glyph reveal) + registration.
+- 5 typewriter factories use the Step 10 canonical helpers; the local constants (BASE_Y, BOX_H, TRACKING) are minimal and not duplicated elsewhere.
+- `animation_compositions.cpp` retains the 4 basic anim registrations (FadeInText/SlideText/ScaleText/Typewriter) inline + 14 cinematic/camera registrations; the 10 text-anim registrations are now in the dedicated file.
+- `CURRENT_STATUS.md` deferrato a `TICKET-REFACTOR-CONTENT-EXAMPLES-17-3DOC-CAT5-ALIGN` (parallelo al precedent `TICKET-GLOW-FINAL-COMPOSITIONS-DOC-MIGRATION-3DOC-CAT5-ALIGN`).
+
+**Subject envelope**: `refactor(content): split text_animations into 3 files` — 55 chars ≤ 72 ✓.
+
+**Code-reviewer verdict**: PASS (forward-points documented in the chore, see FOLLOWUP_TICKETS).
+</details>
+
+<details>
 <summary>refactor(tests): split pipeline parity test + text_golden_tests.cmake (TICKET-REFACTOR-TESTS-SPLIT-18-19) — 2026-07-12</summary>
 
 Split the 717-LoC `tests/text/test_pipeline_parity_real.cpp` into 4 dedicated test files + a shared harness (10 TEST_CASEs preserved verbatim, byte-exact parity matrix unchanged).  Split the 723-LoC `tests/text_golden_tests.cmake` aggregator into 6 sub-files (17 ambiti + supplementary cluster) under `tests/cmake/text/`.
