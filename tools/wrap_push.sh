@@ -251,6 +251,11 @@ echo "wrap_push.sh: checking commit subject length (last 10, max 72 chars)..."
 bash "${SCRIPT_DIR}/check_commit_subject_length.sh" origin/main \
     || { echo "wrap_push.sh: GATE_FAIL on check_commit_subject_length.sh (exit $?)" >&2; exit 1; }
 
+# Step 4.5h: divergence-window advisory gate (ADR-022 / TICKET-INFRA-F2-DIVERGENCE)
+echo "wrap_push.sh: checking divergence-window advisory gate (ADR-022)..."
+bash "${SCRIPT_DIR}/check_push_divergence_window.sh" "${TARGET_REMOTE}" "${TARGET_BRANCH}" \
+    || { echo "wrap_push.sh: GATE_FAIL_INTERNAL on check_push_divergence_window.sh (exit $?)" >&2; exit 1; }
+
 echo "wrap_push.sh: checking fix-velocity cronograph (Test #11)..."
 bash "${SCRIPT_DIR}/check_fix_cronograph.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_fix_cronograph.sh (exit $?)" >&2; exit 1; }
