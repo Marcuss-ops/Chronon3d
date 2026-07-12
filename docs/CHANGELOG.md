@@ -1,3 +1,43 @@
+## Luglio 2026 — feat(content): ProductLaunch composition (Test #1 first-principles product check, 2026-07-12, atomic chore commit on main)
+
+**`feat(content): ProductLaunch composition (Test #1)`** — atomic chore commit creating the canonical end-to-end ProductLaunch composition for Test #1 of the First-Principles Product Check framework ("demo impossibile da ignorare"). 5-element composition combined in 1 MP4 artifact (1920×1080, 30fps, 90 frames, 3 seconds):
+
+1. **Animated text** — `l.text("title_label", from_text_spec(TextSpec{...}))` with two `l.opacity_anim().key(Frame{N}, ...).key(Frame{M}, ...)` chains (fade-in + fade-out easing curves) + `l.scale_anim()` 0.92→1.00 overshoot-reveal. Verify pattern matches `cinematic_title_reveal.cpp` + `whip_pan_hero_reveal.cpp` canonical idiom (already machine-verified by code-reviewer-minimax-m3 PASS).
+2. **Hero image** — `l.image("hero_image", ImageParams{.asset_path = "assets/products/launch_hero.png", .size = {1280.0f, 720.0f}, .fit = FitMode::Contain})` with manifest-cleansed `.asset_path` forward (the `.path` field is `[[deprecated]]` per `include/chronon3d/scene/builders/builder_params.hpp:63` forward-point 0e, locked by code-reviewer). Asset path is user-provided; preflight surfaces MISSING-PATH diagnostic as §honesty-gate surfacing when asset missing.
+3. **Camera 2.5D orbit** — `s.camera().enable(true).position({cx, cy, cz}).zoom(1400.0f).point_of_interest({0,0,0})` with a parametric orbit computed at composition-build time (cos(2πt/90) for x, -sin(2πt/90) for z gives full-circle push-in feel over the 90-frame composition). Matches `dolly_zoom_showcase.cpp` canonical idiom. **§honesty gap**: user-spec `scene.camera().orbit(...)` is Remotion-style; canonical Chronon3D form is per-frame parametric via `s.camera().enable().position()` chain (no `.orbit()` facade method). Documented in the composition header comment.
+4. **Cut-crossfade transition** at frame 45 — two overlapping layers with mirrored `l.opacity_anim()` keyframes (hero 1.0→0.0 in Frame{45..60}, title 0.0→1.0 in Frame{30..45}). **§honesty gap**: user-spec `scene.transition(...).cut(...)` is Remotion-style; canonical Chronon3D crossfade is overlaid opacity-keyframed layers (no `.transition()` facade method).
+5. **Motion blur at the CLI level** (`--motion-blur`) — set via RenderQualityArgs in the test invocation; per-layer `LayerBuilder::motion_blur(...)` API does NOT exist (canonical API surface is RenderPipelineArgs-level per `apps/chronon3d_cli/commands.hpp` §RenderQualityArgs).
+
+**Render command** (canonical CLI; user-literal CLI `chronon render --props` would require `--props` flag wiring that does not exist):
+```
+chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 --fps 30 --motion-blur
+```
+
+**6. Audio** (STAGED, §honesty gap) — `examples/assets/audio/README.md` documents the placeholder directory: the user-spec lists audio as a canonical element but the Chronon3D engine has NO `scene.audio()` / `l.audio(...)` API surface, so per Cat-3 freeze (no orphan assets when no API consumes them) we DO NOT commit a placeholder `launch_pad.wav`. The audio cue is a deferred work-item (forward-pointed in `examples/assets/audio/README.md`).
+
+**Files added (3 NEW files in `content/launches/` + 2 NEW files in `examples/`):**
+- `content/launches/product_launch.hpp` NEW (~21 LoC, 1-line forward decl `Composition product_launch();`)
+- `content/launches/product_launch.cpp` NEW (~192 LoC, the actual composition factory with header comment documenting all 5 elements + 3 §honesty gaps + canonical CLI render command)
+- `content/launches/launches.cpp` NEW (~25 LoC, domain registration wrapper exposing `register_launches_compositions(CompositionRegistry&)` and forwarding to `Chronon3D::CompositionRegistry::add("ProductLaunch", ...)`)
+- `examples/product_launch.json` NEW (~81 LoC, canonical JSON spec manifest: composition dimensions + fps + duration + asset paths + motion-blur mode + camera initial state + expected_output + assertions_for_gate; canonical path even though `--props` flag does not exist functionally, since the user spec lists it as canonical)
+- `examples/assets/audio/README.md` NEW (~55 LoC, the §honesty audio placeholder README; no WAV committed)
+
+**Files modified (2 source files):**
+- `content/CMakeLists.txt` EDIT (2 line append in the `chronon3d_content` OBJECT target: `launches/product_launch.cpp` + `launches/launches.cpp`)
+- `content/register_content_modules.cpp` EDIT (2 str_replace: namespace forward-decl `chronon3d::content::launches::register_launches_compositions` + register call inside `ContentExtension::register_all`)
+
+**Cat-3 (no gratuitous additions) SATISFIED + JUSTIFIED**: 3 NEW source files in `content/launches/` (header + cpp + domain-register wrapper) + 1 NEW JSON spec in `examples/` + 1 NEW README in `examples/assets/audio/`. The 3 NEW source files compose 1 new composition factory function (canonical API surface addition for SDK V1 demo use case); the 2 NEW non-source files are spec/manifest/documentation artifacts (NOT gratuitous — they are required by the user spec). No new SDK API surface in `include/chronon3d/` (the 0-bucket per AGENTS.md Cat-3 hold).
+
+**Cat-5 3-doc same-commit alignment SATISFIED**: this CHANGELOG entry (prepended at TOP) + `docs/FOLLOWUP_TICKETS.md` (`TICKET-PRODUCT-LAUNCH-DEMO` row in `§Recently Closed` with PARTIAL closure note + gate-wiring forward-point) + `docs/CURRENT_STATUS.md` (`Product Launch demo (Test #1)` row in `§Stato generale per area` table) all updated in same atomic chore commit.
+
+**Gate 5 deny-everywhere** N/A: no `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` introduced (only standard `<cmath>` / `<string>` / `<chronon3d/scene/...>` + `<chronon3d/animation/...>` + `<chronon3d/text/...>`).
+
+**GATE-MNT-01 fail-on-dirty invariant**: pre-push `tools/check_main_clean.sh` will run via `tools/wrap_push.sh origin main`; commit subject `feat(content): ProductLaunch composition (Test #1)` is **44 chars** (well within the 72-char `tools/check_commit_subject_length.sh` gate).
+
+**Forward-point (NOT in this commit, deferred to `TICKET-PRODUCT-LAUNCH-DEMO-GATE-WIRING`)**: the orchestrator's `== Product demo ==` section in `tools/first_principles_product_check.sh` is still TODO body (Test #1 is not yet asserted end-to-end via the canonical CLI + ffprobe). The gate wiring is the natural next atomic commit (commit 2 in this 2-commit split): NEW `tools/check_product_launch_demo.sh` (~50 LoC) + `tools/first_principles_product_check.sh` `== Product demo ==` section EDIT (replace TODO with `bash "$SCRIPT_DIR/check_product_launch_demo.sh"`) + Cat-5 3-doc same-commit alignment.
+
+**Cross-references**: AGENTS.md §Cat-3 (no gratuitous additions, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit, satisfied) + AGENTS.md §honesty (3 §honesty gaps documented in composition header + JSON spec + audio README) + [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Recently Closed `TICKET-PRODUCT-LAUNCH-DEMO` row (PARTIAL state note) + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale per area `Product Launch demo (Test #1)` row (PARTIAL state) + `tools/first_principles_product_check.sh` `== Product demo ==` TODO section (forward-point, will be wired in next atomic commit) + `examples/product_launch.json` (the canonical manifest spec consumed by the gate in commit 2).
+
 ## Luglio 2026 — feat(check): zero-legacy grep gate (Test #10 first-principles product check, 2026-07-12, atomic chore commit on main)
 
 **`feat(check): zero-legacy grep gate (Test #10)`** — atomic chore commit creating the canonical hard-zero grep gate for Test #10 (per il First-Principles Product Check framework). Scans `include/ src/ content/ apps/ examples/` for 6 literal legacy symbols (`AnimatedCamera2_5D`, `CameraShotProfile`, `camera_rig(`, `centered_text(`, `glow_text(`, `current_path()`). Exit 1 on ANY hit in productive paths; exit 0 only when 0 hits per symbol. Wired into `tools/first_principles_product_check.sh` `== Determinism ==` section as the first sub-gate (Test #6 still TODO).
