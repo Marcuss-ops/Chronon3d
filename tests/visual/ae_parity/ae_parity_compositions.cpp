@@ -34,7 +34,7 @@
 
 // TICKET-CHRONON-GLOW-FINAL — Phase 1 unified factory.  Thin-wraps
 // make_ae_08_glow_pulse() into the canonical helper.
-#include "tests/visual/ae_parity/glow_final_compositions.hpp"
+#include "content/compositions/chronon_glow_final.hpp"
 
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>

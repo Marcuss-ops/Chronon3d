@@ -27,7 +27,7 @@
 // TICKET-CHRONON-GLOW-FINAL — Phase 1 unified cinematic glow helper
 // (header-only; no link-time surface).  Registered as
 // `chronon-glow-final` and `chronon-glow-final-portrait` below.
-#include "tests/visual/ae_parity/glow_final_compositions.hpp"
+#include "content/compositions/chronon_glow_final.hpp"
 // BUG 2 / TICKET-TEXT-GLOW-DARKENING — Step 3 A/B test (sibling composition
 // with glow_intensity=0.0, registered here as a 1-line additive include so
 // the experiment can render via `chronon3d_cli render AnimTypewriterGlowNoGlow`).
