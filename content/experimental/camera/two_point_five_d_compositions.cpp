@@ -57,7 +57,7 @@ Composition parallax_simple() {
 
         s.layer("label", [&](auto& l) {
             l.opacity(0.7f).pin_to(Anchor::BottomLeft, 40.0f);
-            l.text("txt", TextSpec{.content    = {.value = "Parallax Demo  |  Far(0.2x)  Mid(0.5x)  FG(1.0x)"},.position   = {0.0f, 0.0f, 0.0f},.font       = {.font_family = "Inter", .font_weight = 800, .font_size = 22.0f},.layout     = {.box = {W*0.5f, 30}, .align = TextAlign::Left, .line_height = 1.2f, .tracking = 1.5f},.appearance = {.color = Color{0.6f, 0.7f, 0.9f, 1}},});
+            l.text("txt", TextSpec{.content    = {.value = "Parallax Demo  |  Far(0.2x)  Mid(0.5x)  FG(1.0x)"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_family = "Inter", .font_weight = 800, .font_size = 22.0f},.layout     = {.box = {W*0.5f, 30}, .align = TextAlign::Left, .line_height = 1.2f, .tracking = 1.5f},.appearance = {.color = Color{0.6f, 0.7f, 0.9f, 1}},});
         });
 
         return s.build();
@@ -103,7 +103,7 @@ Composition depth_scene() {
 
         s.layer("info", [&](auto& l) {
             l.pin_to(Anchor::BottomRight, 40.0f);
-            l.text("txt", TextSpec{.content    = {.value = "Depth: " + std::to_string(static_cast<i32>(cam_z))},.position   = {0.0f, 0.0f, 0.0f},.font       = {.font_family = "Inter", .font_weight = 800, .font_size = 20.0f},.layout     = {.box = {200, 30}, .align = TextAlign::Right, .line_height = 1.2f, .tracking = 0.0f},.appearance = {.color = Color{0.6f, 0.7f, 0.9f, 0.5f}},});
+            l.text("txt", TextSpec{.content    = {.value = "Depth: " + std::to_string(static_cast<i32>(cam_z))},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_family = "Inter", .font_weight = 800, .font_size = 20.0f},.layout     = {.box = {200, 30}, .align = TextAlign::Right, .line_height = 1.2f, .tracking = 0.0f},.appearance = {.color = Color{0.6f, 0.7f, 0.9f, 0.5f}},});
         });
 
         return s.build();
@@ -192,12 +192,12 @@ Composition dof_showcase() {
 
         s.layer("subject_title", [&](auto& l) {
             l.enable_3d().position({0, 20, 1});
-            l.text("title", TextSpec{.content    = {.value = "DEPTH OF FIELD"},.position   = {0.0f, 0.0f, 0.0f},.font       = {.font_family = "Inter", .font_weight = 800, .font_size = 44.0f},.layout     = {.box = {440, 60}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 6.0f},.appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},});
+            l.text("title", TextSpec{.content    = {.value = "DEPTH OF FIELD"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_family = "Inter", .font_weight = 800, .font_size = 44.0f},.layout     = {.box = {440, 60}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 6.0f},.appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},});
         });
 
         s.layer("subject_sub", [&](auto& l) {
             l.enable_3d().position({0, -40, 1});
-            l.text("sub", TextSpec{.content    = {.value = "Subject sharp \u2022 Depth blur"},.position   = {0.0f, 0.0f, 0.0f},.font       = {.font_family = "Inter", .font_weight = 600, .font_size = 20.0f},.layout     = {.box = {400, 40}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 1.0f},.appearance = {.color = Color{0.6f, 0.7f, 0.9f, 0.8f}},});
+            l.text("sub", TextSpec{.content    = {.value = "Subject sharp \u2022 Depth blur"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_family = "Inter", .font_weight = 600, .font_size = 20.0f},.layout     = {.box = {400, 40}, .align = TextAlign::Center, .line_height = 1.2f, .tracking = 1.0f},.appearance = {.color = Color{0.6f, 0.7f, 0.9f, 0.8f}},});
         });
 
         // ── Near foreground layer (z=-250) — slightly blurred ───────────
@@ -222,7 +222,7 @@ Composition dof_showcase() {
         // ── HUD label ──────────────────────────────────────────────────
         s.layer("hud", [&](auto& l) {
             l.opacity(0.6f).pin_to(Anchor::BottomLeft, 40.0f);
-            l.text("info", TextSpec{.content    = {.value = "DOF Showcase  |  focus_z=0  aperture=0.015  max_blur=18"},.position   = {0.0f, 0.0f, 0.0f},.font       = {.font_family = "Inter", .font_weight = 800, .font_size = 18.0f},.layout     = {.box = {W * 0.55f, 30}, .align = TextAlign::Left, .line_height = 1.2f, .tracking = 1.5f},.appearance = {.color = Color{0.5f, 0.6f, 0.85f, 1}},});
+            l.text("info", TextSpec{.content    = {.value = "DOF Showcase  |  focus_z=0  aperture=0.015  max_blur=18"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_family = "Inter", .font_weight = 800, .font_size = 18.0f},.layout     = {.box = {W * 0.55f, 30}, .align = TextAlign::Left, .line_height = 1.2f, .tracking = 1.5f},.appearance = {.color = Color{0.5f, 0.6f, 0.85f, 1}},});
         });
 
         return s.build();

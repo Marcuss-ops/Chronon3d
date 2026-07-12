@@ -388,14 +388,14 @@ void add_hud(SceneBuilder& s, const FrameContext& ctx) {
     s.layer("hud_seg", [seg_name](LayerBuilder& l) {
         l.pin_to(chronon3d::Anchor::TopLeft, 24.0f);
         l.opacity(0.85f);
-        l.text("hud_label", chronon3d::TextSpec{.content    = {.value = std::string("AE-CAMERA PARITY  |  segment: ") + seg_name},.position   = {0.0f, 0.0f, 0.0f},.font       = {.font_family = "Inter", .font_weight = 700, .font_size = 22.0f},.layout     = {.box = {900.0f, 32.0f}, .align = chronon3d::TextAlign::Left,
+        l.text("hud_label", chronon3d::TextSpec{.content    = {.value = std::string("AE-CAMERA PARITY  |  segment: ") + seg_name},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_family = "Inter", .font_weight = 700, .font_size = 22.0f},.layout     = {.box = {900.0f, 32.0f}, .align = chronon3d::TextAlign::Left,
                             .line_height = 1.20f, .tracking = 3.0f},.appearance = {.color = chronon3d::Color{0.85f, 0.90f, 1.00f, 1.0f}},});
     });
 
     s.layer("hud_frame", [f](LayerBuilder& l) {
         l.pin_to(chronon3d::Anchor::TopRight, 24.0f);
         l.opacity(0.65f);
-        l.text("hud_f", chronon3d::TextSpec{.content    = {.value = "frame=" + std::to_string(static_cast<int>(f))},.position   = {0.0f, 0.0f, 0.0f},.font       = {.font_family = "Inter", .font_weight = 600, .font_size = 18.0f},.layout     = {.box = {260.0f, 24.0f}, .align = chronon3d::TextAlign::Right,
+        l.text("hud_f", chronon3d::TextSpec{.content    = {.value = "frame=" + std::to_string(static_cast<int>(f))},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_family = "Inter", .font_weight = 600, .font_size = 18.0f},.layout     = {.box = {260.0f, 24.0f}, .align = chronon3d::TextAlign::Right,
                             .line_height = 1.20f, .tracking = 2.0f},.appearance = {.color = chronon3d::Color{0.75f, 0.78f, 0.95f, 1.0f}},});
     });
 }
