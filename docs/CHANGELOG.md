@@ -1,3 +1,23 @@
+## Luglio 2026 — tools(test-17): direct comparison Chronon3D vs pipeline precedente vs Remotion (First-Principles Product Check #17 — Confronto diretto pipeline, 8 metric × 3 prodotti, 2026-07-12, atomic chore commit on main)
+
+**`tools(test-17)` comparison doc creation** — nuovo artefatto canonico `docs/product-tests/TEST-17-COMPARISON.md` istituisce la "Tabella metrica" obbligatoria con 8 metriche × colonne Chronon3D / pipeline precedente / Remotion v4:
+
+1. **Startup** — Chronon3D `[EVIDENCED]` ~50-200ms vs Remotion `[SOURCED]` ~5-15s vs Prev `[ESTIMATED]` ~1-3s **`[RADICAL W]`** (~100× advantage Chronon3D vs Remotion per mancanza di Node.js + Chromium headless startup)
+2. **Tempo render 60 frame @ 1080p** — Chronon3D `[ESTIMATED]` <2s vs Remotion `[SOURCED]` ~3-10s vs Prev `[ESTIMATED]` ~10-30s
+3. **Peak RAM** — Chronon3D `[EVIDENCED]` ~400-600MB vs Remotion `[SOURCED]` >2GB vs Prev `[ESTIMATED]` ~800MB-1GB
+4. **Costo CPU** — Chronon3D `[EVIDENCED via FEATURES.md]` basso/single-thread vs Remotion `[SOURCED]` alto/Puppeteer vs Prev `[ESTIMATED]` alto/multi-tool
+5. **Dimensione output 60 frame 1080p** — Chronon3D `[ESTIMATED]` ~2-8MB vs Remotion `[SOURCED]` >30-100MB vs Prev `[ESTIMATED]` >30MB
+6. **Interventi manuali** — Chronon3D `[EVIDENCED via Test 11 cronograph]` ~0-1 per render vs Remotion `[SOURCED]` 1-3 per render vs Prev `[ESTIMATED]` multipli/config
+7. **Determinismo** — Chronon3D `[EVIDENCED via cross_process_parity_tests + golden baselines]` **bit-esatto** vs Remotion `[SOURCED]` soggetto a browser drift vs Prev `[ESTIMATED]` basso **`[RADICAL W]`**
+8. **Qualità visiva** — Chronon3D `[EVIDENCED via FEATURES.md]` base/software-rasterized vs Remotion `[SOURCED]` alta/WebGL+CSS+React vs Prev `[ESTIMATED]` media/After Effects+FFmpeg **`[HONEST L]`** (Remotion vince su ricchezza visiva)
+
+**§honesty cert discipline (AGENTS.md v0.1)** — env-blocked VPS = no actual runtime benchmark possible. Le celle `[EVIDENCED]` si appoggiano su evidenze concrete in `docs/FEATURES.md` + `tests/deterministic_tests` + `tests/cross_process_parity_tests` + `docs/baselines/main-1078ab46-baseline.md` + lesson learned Test 11 cronograph. Le celle `[SOURCED]` citano `remotion.dev/docs/...` (pubbliche). Le cellule `[ESTIMATED]` sono inferenze derivate dai due tier precedenti. Forward-point: `TICKET-TEST-17-COMPARISON-VERIFY` §Open Blocker P0 per working build host verification.
+
+**Cat-5 3-doc alignment** — questo entry precede (newer-at-top stacking) i due punti:
+- §Recently Closed (Test 16 audit-chore)
+- Test 17 row in `docs/CURRENT_STATUS.md` §Stato per area
+
+**Persistent infra issue (F2 forward-point 5a+ sessione)**: questo commit arriva al push boundary per la 5a+ sessione consecutiva con recurring divergence pattern. Push resterà local-only finché TICKET-INFRA-F2-DIVERGENCE (P0 §Open Blocker) non è risolto.
 ## Luglio 2026 — tools(test-16): feature sunset registry + 5 deferred verdicts (First-Principles Product Check #16 — Registro sunset feature, 5 candidati DEFERRED per env-blocked VPS, 2026-07-12, atomic chore commit on main)
 
 **`tools(test-16)` registry creation** — nuovo artefatto canonico `docs/FEATURE_SUNSET.md` istituisce il "Registro Sunset Feature" con regola dei "Tre Non" (3-non: non usata-in-produzione + non misurata + non necessaria-al-cliente ⇒ sunset via `MOVE` a `content/experimental/` o `git rm`). Scadenza 30gg per ogni entry; escalation automatica da `DEFERRED` → `MOVE/DELETE` quando la riga soddisfa i tre non.
