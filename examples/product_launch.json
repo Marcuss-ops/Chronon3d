@@ -1,0 +1,81 @@
+{
+  "_schema_note": "Canonical spec for the ProductLaunch composition (First-Principles Product Check Test #1). Self-describing manifest consumed by `tools/check_product_launch_demo.sh` (canonical assertions) and the future SDK --props passthrough (per the user-spec command line).",
+  "_verbatim_cli_command": "chronon3d_cli video ProductLaunch -o /tmp/product-launch.mp4 --start 0 --end 90 --fps 30 --motion-blur",
+  "_user_literal_cli_command": "chronon render ProductLaunch --props examples/product_launch.json --output /tmp/product-launch.mp4",
+  "_honesty_note": "The user-literal `chronon render --props` form is Remotion-style and does not exist in the real `chronon3d_cli` surface. The gate uses the canonical `chronon3d_cli video` form (real CLI), and consumes this JSON defensively (composition duration, fps, dimensions) for property assertions.",
+
+  "composition": {
+    "name": "ProductLaunch",
+    "namespace": "chronon3d::content::launches",
+    "factory": "product_launch",
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "duration_frames": 90,
+    "duration_seconds": 3.0
+  },
+
+  "clip": "ProductLaunch",
+
+  "elements": {
+    "hero_image": {
+      "asset_path": "assets/products/launch_hero.png",
+      "size": [1280, 720],
+      "fit": "Contain",
+      "state": "manifest-cleansed (ImageParams.asset_path forwarding ready, path field kept for backward compat with examples/* snapshots)"
+    },
+    "title_text": {
+      "content": "CHRONON3D LAUNCH",
+      "font_size_px": 168,
+      "color_rgb_normalized": [1.0, 1.0, 1.0],
+      "track_px": 8,
+      "animation": "fade-in Frame{30..45} + hold + scale overshoot 0.92→1.00 + fade-out Frame{78..90}"
+    },
+    "subtitle_text": {
+      "content": "a deterministic 3D pipeline for media",
+      "font_size_px": 38,
+      "color_rgb_normalized": [0.78, 0.82, 0.95],
+      "animation": "fade-in Frame{55..70} + hold + fade-out Frame{82..90}"
+    },
+    "camera_2_5d": {
+      "type": "parametric_orbit",
+      "period_frames": 90,
+      "radius_px": 800,
+      "y_offset_px": 60,
+      "zoom_px": 1400,
+      "point_of_interest": [0, 0, 0],
+      "formula": "position_x = radius * cos(2π * frame / period); position_z = -radius * sin(2π * frame / period)"
+    },
+    "transition": {
+      "type": "cut-crossfade",
+      "frame": 45,
+      "implementation": "overlapping layers with mirrored opacity_anim (hero 1.0→0.0 Frame{45..60}; title 0.0→1.0 Frame{30..45})"
+    },
+    "motion_blur": {
+      "_api_surface": "CLI flag only -- no per-layer API in LayerBuilder; enabled via --motion-blur in RenderQualityArgs (see apps/chronon3d_cli/commands.hpp)",
+      "mode": "TemporalAccumulation",
+      "samples": 8,
+      "shutter_angle_deg": 180.0,
+      "shutter_phase_deg": -90.0,
+      "pattern": "Stratified"
+    }
+  },
+
+  "expected_output": {
+    "path": "/tmp/product-launch.mp4",
+    "container": "mp4",
+    "codec": "h264",
+    "resolution": [1920, 1080],
+    "fps": 30,
+    "duration_seconds": 3.0,
+    "duration_seconds_tolerance": 0.10,
+    "frame_count": 90
+  },
+
+  "assertions_for_gate": [
+    "ffprobe /tmp/product-launch.mp4 reports duration within ±0.10s of 3.0s",
+    "ffprobe reports codec_name=h264 (or h264_vulkan/h264_nvenc/h264_qsv)",
+    "ffprobe reports width=1920 and height=1080",
+    "ffprobe reports r_frame_rate >= 30/1 within ±0.5fps"
+  ]
+}
