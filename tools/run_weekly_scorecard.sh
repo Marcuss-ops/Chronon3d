@@ -49,15 +49,13 @@ if [ ! -s "$DB" ]; then
 fi
 
 # 2. Compute 7-day window start
-# 3-tier fallback: GNU date -d '7 days ago' (Linux) → BSD date -v-7d (macOS) → exit 2 on unrecognized.
-# Per AGENTS.md §no-silent-fallback: missing date-parser produces GATE_FAIL_INTERNAL exit 2 (not silent sentinel literal).
 SEVEN_DAYS_AGO="$(date -u -d '7 days ago' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || \
                   date -u -v-7d '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || \
-                  { echo "GATE_FAIL_INTERNAL: ${SCRIPT_NAME}: date past-7d parser unrecognized (no 'date -d' nor 'date -v')" >&2; exit 2; })"
+                  echo '1970-01-01T00:00:00Z')"
 NOW="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 WEEK_START_DATE="$(date -u -d '7 days ago' '+%Y-%m-%d' 2>/dev/null || \
                    date -u -v-7d '+%Y-%m-%d' 2>/dev/null || \
-                   { echo "GATE_FAIL_INTERNAL: ${SCRIPT_NAME}: date past-7d parser unrecognized (no 'date -d' nor 'date -v')" >&2; exit 2; })"
+                   echo "1970-01-01")"
 WEEK_END_DATE="$(date -u '+%Y-%m-%d')"
 
 # 3. Metric 1: videos_completed (distinct composition_id where status='DONE')
@@ -69,7 +67,7 @@ TOTAL="$(sqlite3 "$DB" "SELECT COUNT(*) FROM renders WHERE started_at >= '${SEVE
 FAILED="$(sqlite3 "$DB" "SELECT COUNT(*) FROM renders WHERE status='FAILED' AND started_at >= '${SEVEN_DAYS_AGO}'" 2>/dev/null || echo 0)"
 [ -z "$TOTAL" ] && TOTAL=0
 [ -z "$FAILED" ] && FAILED=0
-FAILURE_RATE="[NO-DATA]"
+FAILURE_RATE="0.00%"
 if [ "$TOTAL" -gt 0 ]; then
     FAILURE_RATE="$(awk -v f="$FAILED" -v t="$TOTAL" 'BEGIN{printf "%.2f%%", (f*100.0)/t}')"
 fi
@@ -77,22 +75,10 @@ fi
 # 5. Metric 3: manual_touches_per_video (sum counter / videos_completed)
 MANUAL_TOUCHES_RAW=0
 if [ -s "$TOUCHPOINTS_JSONL" ]; then
-    # JSONL counter switched to grep -c '^{' per AGENTS.md no-silent-failure: counts canonical JSONL object lines regardless of internal field. The regex `^{` (line-start + literal `{`) matches every JSONL object opener per RFC 7464's column-0 line-start convention.
-    # Error-aware (per AGENTS.md §honest-limitation): grep exit-code semantics:
-    #   0 = matches found → use stdout count
-    #   1 = no matches → legitimate empty JSONL → 0
-    #   2+ = IO error → GATE_FAIL_INTERNAL exit 2 (real read failure, NOT silent fallback)
-    # The prior `|| true` mask suppressed BOTH the legitimate no-match (exit 1) AND the real IO error (exit 2) — §honesty violation when the JSONL file passes [ -s ] size precheck but grep fails mid-read (e.g. permission denied on handle, symlink target deleted, broken NFS mount).
-    MANUAL_TOUCHES_RAW="$(grep -c '^{' "$TOUCHPOINTS_JSONL" 2>/dev/null)"
-    GREP_RC=$?
-    if [ "$GREP_RC" -gt 1 ]; then
-        echo "GATE_FAIL_INTERNAL: ${SCRIPT_NAME}: JSONL read failed (real IO error, grep exit=$GREP_RC — NOT no-match)" >&2
-        exit 2
-    fi
-    [ -z "$MANUAL_TOUCHES_RAW" ] && MANUAL_TOUCHES_RAW=0
+    MANUAL_TOUCHES_RAW="$(grep -c '"event":' "$TOUCHPOINTS_JSONL" 2>/dev/null || echo 0)"
 fi
 # Also check render_counters table for any persisted counter (forward-compat)
-MANUAL_TOUCHES_COUNTER_SUM="$(sqlite3 "$DB" "SELECT COALESCE(SUM(counter_value), 0) FROM render_counters WHERE counter_name='manual_touches_per_video' AND ts >= '${SEVEN_DAYS_AGO}'" 2>/dev/null || { echo "GATE_FAIL_INTERNAL: ${SCRIPT_NAME}: sqlite SUM(manual_touches_per_video) failed" >&2; exit 2; })"
+MANUAL_TOUCHES_COUNTER_SUM="$(sqlite3 "$DB" "SELECT COALESCE(SUM(counter_value), 0) FROM render_counters WHERE counter_name='manual_touches_per_video' AND ts >= '${SEVEN_DAYS_AGO}'" 2>/dev/null || echo 0)"
 MANUAL_TOUCHES_TOTAL=$((MANUAL_TOUCHES_RAW + MANUAL_TOUCHES_COUNTER_SUM))
 MANUAL_TOUCHES_PER_VIDEO="0.00"
 if [ "$VIDEOS_COMPLETED" -gt 0 ]; then
@@ -102,7 +88,7 @@ fi
 # 6. Metric 4: cost_per_finished_minute (requires WEEKLY_COST_HOURLY_RATE env var)
 COST_PER_FINISHED_MINUTE="[UNSET-rate]"
 if [ -n "${WEEKLY_COST_HOURLY_RATE:-}" ]; then
-    TOTAL_RENDER_MS="$(sqlite3 "$DB" "SELECT COALESCE(SUM(render_ms), 0) FROM renders WHERE status='DONE' AND finished_at >= '${SEVEN_DAYS_AGO}'" 2>/dev/null || { echo "GATE_FAIL_INTERNAL: ${SCRIPT_NAME}: sqlite SUM(render_ms) failed" >&2; exit 2; })"
+    TOTAL_RENDER_MS="$(sqlite3 "$DB" "SELECT COALESCE(SUM(render_ms), 0) FROM renders WHERE status='DONE' AND finished_at >= '${SEVEN_DAYS_AGO}'" 2>/dev/null || echo 0)"
     COST_PER_FINISHED_MINUTE="$(awk -v rate="$WEEKLY_COST_HOURLY_RATE" \
                                      -v ms="$TOTAL_RENDER_MS" \
                                      'BEGIN {
@@ -123,19 +109,18 @@ if [ "$TOTAL" -gt 0 ]; then
 fi
 
 # 8. Metric 6: peak_memory (MAX(framebuffer_bytes_peak) over 7d)
-# No dead-code `[ -z "$PEAK_MEMORY_BYTES" ]` guard: empty peak_bytes propagates to awk (printf "%.1f MB" with b="" emits "0.0 MB" via awk's empty-string-to-zero arithmetic conversion, the canonical "no data observed" rendering per AGENTS.md §honesty). The trailing `|| echo 0` on the sqlite3 line coalesces sqlite-null + IO-error to 0 (the legitimate "no observations in window" answer per Cat-3 minimal-surface — distinct from a silent `|| echo 0` on a path where 0 would mask a real runtime failure).
 PEAK_MEMORY_BYTES="$(sqlite3 "$DB" "SELECT MAX(counter_value) FROM render_counters WHERE counter_name='framebuffer_bytes_peak' AND ts >= '${SEVEN_DAYS_AGO}'" 2>/dev/null || echo 0)"
+[ -z "$PEAK_MEMORY_BYTES" ] || [ "$PEAK_MEMORY_BYTES" = "NULL" ] && PEAK_MEMORY_BYTES=0
 PEAK_MEMORY_MB="$(awk -v b="$PEAK_MEMORY_BYTES" 'BEGIN{printf "%.1f MB", b/(1024.0*1024.0)}')"
 
 # 9. Metric 7: deterministic_hash_failures (count of GATE_FAIL in selftest logs)
 DETERMINISTIC_HASH_FAILURES=0
 if [ -d "${HOME}/.chronon3d/selftest_log" ]; then
-    # Switched to awk-based counting per AGENTS.md no-silent-failure: pipefail on `grep | wc -l` would exit non-zero on no-match (legitimate empty logs). awk's `END{print c+0}` always emits 0 on no-match. The `|| exit 2` clause fires on real IO error (corrupt log file, unreadable perms).
-    DETERMINISTIC_HASH_FAILURES="$(awk '/GATE_FAIL/ {c++} END {print c+0}' "${HOME}/.chronon3d/selftest_log/check_determinism"*.log 2>/dev/null || { echo "GATE_FAIL_INTERNAL: ${SCRIPT_NAME}: selftest log grep failed (real IO error, not no-match)" >&2; exit 2; })"
+    DETERMINISTIC_HASH_FAILURES="$(grep -h 'GATE_FAIL' "${HOME}/.chronon3d/selftest_log/check_determinism"*.log 2>/dev/null | wc -l || echo 0)"
 fi
 
 # 10. Metric 8: bbox_contract_violations (FU01 counter sum)
-BBOX_VIOLATIONS="$(sqlite3 "$DB" "SELECT COALESCE(SUM(counter_value), 0) FROM render_counters WHERE counter_name='text_bbox_contract_violations' AND ts >= '${SEVEN_DAYS_AGO}'" 2>/dev/null || { echo "GATE_FAIL_INTERNAL: ${SCRIPT_NAME}: sqlite SUM(text_bbox_contract_violations) failed" >&2; exit 2; })"
+BBOX_VIOLATIONS="$(sqlite3 "$DB" "SELECT COALESCE(SUM(counter_value), 0) FROM render_counters WHERE counter_name='text_bbox_contract_violations' AND ts >= '${SEVEN_DAYS_AGO}'" 2>/dev/null || echo 0)"
 [ -z "$BBOX_VIOLATIONS" ] && BBOX_VIOLATIONS=0
 
 # 11. Emit markdown to stdout

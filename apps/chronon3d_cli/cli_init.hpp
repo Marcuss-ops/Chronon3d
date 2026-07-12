@@ -148,7 +148,9 @@ inline void init_compositions(CompositionRegistry& registry, AssetRegistry& asse
     // When CHRONON3D_BUILD_DIAGNOSTICS is ON, this composition is already
     // registered via register_content_modules() → register_anim_compositions()
     // in content/animation_compositions.cpp (guarded by the same macro).
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
     registry.add("AECameraTextParity", [](const CompositionProps&) { return chronon3d::content::anims::ae_camera_text_parity(); });
+#endif
 #endif
 
     // TICKET-AE-PARITY-FLOOR-DASHBOARD — 5 new cinematic scene

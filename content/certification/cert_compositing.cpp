@@ -327,6 +327,147 @@ Composition cert_precomp() {
         });
 }
 
+// ── CertPlain (no-op baseline for glow pixel_hash contract) ──────────────
+
+Composition cert_plain() {
+    return composition(
+        {.name = "CertPlain", .width = kCompW, .height = kCompH,
+         .frame_rate = FrameRate{30, 1}, .duration = 1},
+        [](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            add_dark_bg(s);
+            // Plain white rect, no effects — used as baseline for the
+            // glow no-op contract: sha256(CertPlain) must equal sha256(CertGlowDisabled).
+            s.layer("plain_rect", [](LayerBuilder& l) {
+                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
+                l.rect("r", RectParams{
+                    .size = {kCompRectW, kCompRectH},
+                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                    .pos = {0.0f, 0.0f, 0.0f},
+                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
+                    .stroke = {},
+                });
+            });
+            return s.build();
+        });
+}
+
+// ── CertClip (rect mask = clip rect) ──────────────────────────────────────
+
+Composition cert_clip() {
+    return composition(
+        {.name = "CertClip", .width = kCompW, .height = kCompH,
+         .frame_rate = FrameRate{30, 1}, .duration = 1},
+        [](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            add_dark_bg(s);
+            // White rect clipped to a smaller inner rect (rect mask = clip path).
+            // Pixels outside the clip rect should be dark (background).
+            s.layer("clipped", [](LayerBuilder& l) {
+                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
+                l.mask_rect(RectMaskParams{
+                    .size = {kCompRectW * 0.5f, kCompRectH * 0.5f},
+                    .pos = {kCompRectW * 0.25f, kCompRectH * 0.25f, 0.0f},
+                    .inverted = false,
+                });
+                l.rect("r", RectParams{
+                    .size = {kCompRectW, kCompRectH},
+                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                    .pos = {0.0f, 0.0f, 0.0f},
+                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
+                    .stroke = {},
+                });
+            });
+            return s.build();
+        });
+}
+
+// ── CertBlendNormal (no blending — source over) ───────────────────────────
+
+Composition cert_blend_normal() {
+    return composition(
+        {.name = "CertBlendNormal", .width = kCompW, .height = kCompH,
+         .frame_rate = FrameRate{30, 1}, .duration = 1},
+        [](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            add_dark_bg(s);
+            // Red rect with default blend (no l.blend() call) — source over.
+            // Center pixel should be the source red, not blended.
+            s.layer("normal", [](LayerBuilder& l) {
+                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
+                l.rect("r", RectParams{
+                    .size = {kCompRectW, kCompRectH},
+                    .color = {1.0f, 0.0f, 0.0f, 1.0f},
+                    .pos = {0.0f, 0.0f, 0.0f},
+                    .fill = FillStyle::solid(Color{1.0f, 0.0f, 0.0f, 1.0f}),
+                    .stroke = {},
+                });
+            });
+            return s.build();
+        });
+}
+
+// ── CertBlendScreen (1 - (1-a)(1-b)) ────────────────────────────────────
+
+Composition cert_blend_screen() {
+    return composition(
+        {.name = "CertBlendScreen", .width = kCompW, .height = kCompH,
+         .frame_rate = FrameRate{30, 1}, .duration = 1},
+        [](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            // Mid-gray background
+            s.layer("bg", [](LayerBuilder& l) {
+                l.fullscreen_rect("bg", Color{0.3f, 0.3f, 0.3f, 1.0f});
+            });
+            // White rect with screen blend — should brighten background.
+            // screen(0.3, 1.0) = 1 - 0.7*0.0 = 1.0 (saturated to white)
+            s.layer("screen", [](LayerBuilder& l) {
+                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
+                l.blend(BlendMode::Screen);
+                l.rect("r", RectParams{
+                    .size = {kCompRectW, kCompRectH},
+                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                    .pos = {0.0f, 0.0f, 0.0f},
+                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
+                    .stroke = {},
+                });
+            });
+            return s.build();
+        });
+}
+
+// ── CertNested (glow + blur on one layer) ────────────────────────────────
+
+Composition cert_nested() {
+    return composition(
+        {.name = "CertNested", .width = kCompW, .height = kCompH,
+         .frame_rate = FrameRate{30, 1}, .duration = 1},
+        [](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            add_dark_bg(s);
+            // White rect with BOTH glow + blur applied to the same layer.
+            // Verifies the effect stack can compose multiple effects.
+            s.layer("nested_rect", [](LayerBuilder& l) {
+                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
+                l.glow(GlowParams{
+                    .radius = 16.0f,
+                    .intensity = 0.8f,
+                    .color = Color{0.3f, 0.6f, 1.0f, 1.0f},
+                    .preserve_source = true,
+                });
+                l.blur(4.0f);
+                l.rect("r", RectParams{
+                    .size = {kCompRectW, kCompRectH},
+                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                    .pos = {0.0f, 0.0f, 0.0f},
+                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
+                    .stroke = {},
+                });
+            });
+            return s.build();
+        });
+}
+
 // ── Registration ──────────────────────────────────────────────────────────
 
 void register_cert_compositing_compositions(CompositionRegistry& registry) {
@@ -359,6 +500,21 @@ void register_cert_compositing_compositions(CompositionRegistry& registry) {
     });
     registry.add("CertPrecomp", [](const CompositionProps&) {
         return cert_precomp();
+    });
+    registry.add("CertPlain", [](const CompositionProps&) {
+        return cert_plain();
+    });
+    registry.add("CertClip", [](const CompositionProps&) {
+        return cert_clip();
+    });
+    registry.add("CertBlendNormal", [](const CompositionProps&) {
+        return cert_blend_normal();
+    });
+    registry.add("CertBlendScreen", [](const CompositionProps&) {
+        return cert_blend_screen();
+    });
+    registry.add("CertNested", [](const CompositionProps&) {
+        return cert_nested();
     });
 }
 

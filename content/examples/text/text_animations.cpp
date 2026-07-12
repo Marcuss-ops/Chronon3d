@@ -77,6 +77,8 @@ void add_bg(SceneBuilder& s) {
 
 // Centered text params (for easy animations)
 TextSpec txt_center(std::string text, f32 font_size = 72.0f) {
+    return TextSpec{.content = {.value = std::move(text)},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font = {.font_path = FONT_REGULAR, .font_size = font_size},.layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 1.22f, .tracking = 4.0f},.appearance = {.color = TEXT_COLOR},};
+
     return TextSpec{
         .content = {.value = std::move(text)},
         .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}},
@@ -265,6 +267,7 @@ Composition anim_typewriter_cursor() {
             ts.layout.box = {20.0f, BOX_H};
             ts.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}};
 
+            ts.placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}};
             ts.font.font_path = FONT_REGULAR;
             ts.font.font_size = 76.0f;
             ts.appearance.color = TEXT_COLOR;
