@@ -64,9 +64,6 @@ add_library(chronon3d_content OBJECT
     # ── Render runtime & framebuffer certification (P0, TICKET-RENDER-RUNTIME-CERT) ──
     certification/cert_render_runtime.cpp
 
-    # ── Asset manifest & preflight certification (P0, TICKET-ASSET-PREFLIGHT-CERT) ──
-    certification/cert_asset_preflight.cpp
-
     # ── Timeline & sequence certification (P1, TICKET-TIMELINE-CERT) ──
     certification/cert_timeline.cpp
 

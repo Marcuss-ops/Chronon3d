@@ -36,7 +36,6 @@ namespace chronon3d::content::certification { void register_cert_title_compositi
                                                void register_cert_long_text_compositions(CompositionRegistry&);
                                                void register_cert_multilingual_compositions(CompositionRegistry&);
                                                void register_cert_render_runtime_compositions(CompositionRegistry&);
-                                               void register_cert_asset_preflight_compositions(CompositionRegistry&);
                                                void register_cert_timeline_compositions(CompositionRegistry&);
                                                void register_cert_compositing_compositions(CompositionRegistry&);
                                                void register_cert_determinism_compositions(CompositionRegistry&); }
@@ -73,7 +72,6 @@ public:
         content::certification::register_cert_long_text_compositions(ctx.compositions);
         content::certification::register_cert_multilingual_compositions(ctx.compositions);
         content::certification::register_cert_render_runtime_compositions(ctx.compositions);
-        content::certification::register_cert_asset_preflight_compositions(ctx.compositions);
         content::certification::register_cert_timeline_compositions(ctx.compositions);
         content::certification::register_cert_compositing_compositions(ctx.compositions);
         content::certification::register_cert_determinism_compositions(ctx.compositions);
