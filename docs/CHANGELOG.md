@@ -1,3 +1,21 @@
+## Luglio 2026 — TICKET-DOCTEST-SKIP-ROT (cycle 2): sync ticket metadata into 3-line gate window — 8 strict-window violations fixed across 5 test files (2026-07-12, atomic chore commit on main)
+
+### test(hygiene): sync TICKET-DOCTEST-SKIP-ROT into 3-line window
+
+- **Scope**: closes the 8 NEW `HYGIENE_FAIL [2/3]` violations discovered by the just-landed Python parser gate. Each violation was a `TEST_CASE(...) * doctest::skip()` declaration whose adjacent `// DISABLED:` comment had NO TICKET- reference in the parser’s ±3-line context window. The cycle-1 fix on `tests/text/test_pipeline_parity_real.cpp` only closed the `SKIP()`/`DOCTEST_SKIP()` form macro; this cycle-2 closes the remaining 5 files via the same `TICKET-DOCTEST-SKIP-ROT` umbrella ticket.
+- **Files changed (5)**:
+  - `tests/render_graph/nodes/test_mask_node_rg_integration.cpp` (2 sites: 65 + 105): `// DISABLED:` → `// TICKET-DOCTEST-SKIP-ROT: DISABLED:`
+  - `tests/scene/camera/test_temporal_samples_pr1.cpp` (1 site: 76): same
+  - `tests/scene/transform_hierarchy_tests.cpp` (1 site: 167): same
+  - `tests/text/test_text_run_builder.cpp` (3 sites: 60 + 95 + 118): same
+  - `tests/text/test_text_unit_map.cpp` (1 site: 186): same
+- **Why `TICKET-DOCTEST-SKIP-ROT` (not per-site tickets)**: the per-site `TICKET-007.{a..p}` IDs a previous-turn thinker proposed do NOT exist in `docs/FOLLOWUP_TICKETS.md` (machine-verified: 0 occurrences). The umbrella `TICKET-DOCTEST-SKIP-ROT` IS canonical (14 occurrences in FOLLOWUP_TICKETS + 5 in CHANGELOG) and is the proper single ticket for the doctest-version-mismatch rot pattern. Per AGENTS.md Cat-3 (no gratuitous edits) + §honesty (no invented metadata).
+- **Cat-3 SATISFIED**: zero new public symbols. Pure comment-prefix edits.
+- **Gate verification**: `bash tools/check_test_hygiene.sh` exits 0 (was exit 1) with all 3 HYGIENE_PASS + 0 violations (was 8).
+- **§honesty compliance**: gate failure was discovered honestly by the new parser; fix is per-site surgical (no regex relaxation that would hide errors per AGENTS.md “Non cambiare un gate per nascondere un errore”).
+- **Forward-point (sed `g`-flag brittleness)**: the `sed -i 's|// DISABLED:|// TICKET-DOCTEST-SKIP-ROT: DISABLED:|g'` substitution is GLOBAL across each file; future non-skip `// DISABLED:` comments (e.g. disabled-feature init blocks NOT adjacent to a `doctest::skip()` operator) added to these 5 files would silently inherit the TICKET prefix on a future re-run. Migrate the global substitution to a scoped form (e.g. `sed -i '/TEST_CASE.*doctest::skip()/{x;s|// DISABLED:|// TICKET-DOCTEST-SKIP-ROT: DISABLED:|;G}'`) or an AST-aware Python patcher before adding a 6th file/gate cycle-3 fix. (code-reviewer-minimax-m3 forward-point, 2026-07-12.)
+- **Files changed (7)**: 5 test files (sed substitution) + `docs/CHANGELOG.md` (this entry prepended) + `docs/FOLLOWUP_TICKETS.md` (TICKET-DOCTEST-SKIP-ROT row state column extended per Cat-5 ticket-tracker sync).
+
 ## Luglio 2026 — TICKET-CAMERA-FULL-LINUX sub-ticket D — legacy-freeze FOUNDATION: 3 NEW stateless adapters + migration tracker in `tools/check_camera_architecture.sh` +12 source-file edits (test execution env-blocked on this dev box per AGENTS.md §honesty)
 
 ### refactor(camera): legacy freeze + adapters + tracker
