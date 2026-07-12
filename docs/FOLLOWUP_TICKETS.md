@@ -230,3 +230,8 @@ Per la lista completa: [`docs/CHANGELOG.md`](docs/CHANGELOG.md) + [`docs/ARCHIVE
 ## Status refresh 2026-07-12
 
 - **TICKET-128-test-18-long-form-content** honu refreshed to **PARTIAL-VPS-LIMITED-DRY-RUN-CAPTURED** (first-seed dry-run captured verbatim into `docs/product-tests/TEST-18-2026-W28.md`; populated baseline still requires real working build host).
+
+
+## Recently Closed (2026-07 cycle)
+
+- **TICKET-INFRA-F2-DIVERGENCE (P0) - CLOSED 2026-07-12**: TRUE divergence 6/10 between local main and origin/main drained via ADR-022 + `tools/check_push_divergence_window.sh` (new Cat-4 ancillary advisory gate) wired into `tools/wrap_push.sh` Step 4.5h + `git merge --no-ff origin/main` (creates merge commit preserving backup-sunset-test-16 tag at 18b0554aca9b3917416368d348b479ea6c65106a) + `bash tools/wrap_push.sh origin main` final push. SHA-triple equality confirmed per AGENTS.md Post-push SHA-selfcheck invariant: HEAD == '@{u}' post-push. F2 PARTIAL cert closes to PASS.
