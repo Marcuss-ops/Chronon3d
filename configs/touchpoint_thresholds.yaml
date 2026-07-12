@@ -1,0 +1,120 @@
+# ────────────────────────────────────────────────────────────────────────
+# touchpoint_thresholds.yaml — manual_touches_per_video config (Test #19)
+# ────────────────────────────────────────────────────────────────────────
+#
+# Schema-canonical config for the First-Principles Product Check Test #19:
+# `manual_touches_per_video` counter with per-phase thresholds.
+#
+# This file is the SINGLE SOURCE OF TRUTH for:
+#   - the 9 canonical touchpoint operation kinds
+#   - the 4 production-phase thresholds (oggi / fase1 / fase2 / finale)
+#   - the JSONL append-only event log path
+#
+# Per AGENTS.md v0.1 Cat-3 (zero new public SDK API surface):
+#   the kind list + thresholds are config-only, NOT hardcoded in apps/chronon3d_cli/.
+#   CLI11 IsMember validator reads from this file at startup.
+#   tools/check_manual_touches_per_video.sh reads from this file at gate time.
+#
+# Per AGENTS.md v0.1 §honesty:
+#   the 9-op canonical list replaces the prior phantom Test #8 kebab-case list
+#   (rename-file / clip-selected / text-corrected / timing-fixed / font-changed
+#   / job-rerun / output-checked / manual-upload) which was claimed in
+#   CHANGELOG line 355 but NEVER landed on disk or origin/main. The phantom-
+#   claim is audited retroactively; this config ships the canonical schema.
+#
+# Per AGENTS.md v0.1 §regole ("non espandere API non necessaria"):
+#   exactly the 9 user-spec ops; no more, no less. Adding a 10th kind requires
+#   an ADR + a per-kind dashboard panel + a per-kind threshold derivation.
+
+# ── Channel (parallel pattern to configs/pilot.tiktok.yaml) ──────────────
+channel: "manual_touches"
+
+# ── Canonical 9 touchpoint operation kinds (snake_case canonical) ────────
+# Order is canonical (test order = render order); do NOT reorder without
+# an ADR. The order doubles as the "favorite op" default hint in the
+# dashboard panel.
+ops:
+  - rename        # filename rename for output.mp4 variants
+  - copy          # intermediate file copy between pipeline stages
+  - clip          # source clip trim/select from raw footage
+  - text_fix      # text layer content correction post-render
+  - timing        # frame timing offset / trim
+  - font          # font fallback or font-change on visible glyphs
+  - relaunch      # full renderer re-launch (delete + rebuild + reattempt)
+  - output_check  # manual visual review of output.mp4 / PNG
+  - upload        # manual upload to platform (YouTube/IG/TT/etc.)
+
+# ── 4 production phases with hard thresholds (user-spec verbatim) ───────
+# Each phase has a MAX_ALLOWED count of distinct-touch-kind events per
+# video (de-duplicated across runs of the same video). The thresholds
+# encode the production-readiness funnel:
+#   oggi   = today baseline (~8 manual touches is "normal")
+#   fase1  = first cleanup pass (~3 manual touches)
+#   fase2  = second cleanup pass (~1 manual touch)
+#   finale = production-grade (0 manual touches = perfect)
+#
+# Per AGENTS.md "no stime percentuali", thresholds are EXACT integers
+# (not ranges, not estimates). The `comparison` field standardizes the
+# gate's verdict logic.
+phases:
+  - id: oggi
+    label: "Oggi baseline"
+    max_allowed: 8
+    comparison: "<="
+  - id: fase1
+    label: "Fase 1 — prima pass pulizia"
+    max_allowed: 3
+    comparison: "<="
+  - id: fase2
+    label: "Fase 2 — seconda pass pulizia"
+    max_allowed: 1
+    comparison: "<="
+  - id: finale
+    label: "Finale — produzione"
+    max_allowed: 0
+    comparison: "<="
+
+# ── Append-only event log path (mirrors ~/.chronon3d/pilot/tiktok/pilot.jsonl) ──
+log_path: "~/.chronon3d/telemetry/manual_touches.jsonl"
+
+# ── Event schema (one JSONL line per distinct-kind event per run) ──────
+# Fields:
+#   ts              ISO 8601 UTC, when the event was recorded
+#   run_id          the chronon3d_cli render run_id (matches render_runs.run_id)
+#   composition_id  the composition name
+#   phase           one of {oggi, fase1, fase2, finale}
+#   op              one of the 9 canonical ops above
+#   actor           "human" (manual touchpoint) | "agent" (auto-recorded by agent)
+#   note            free-text optional (≤200 chars)
+event_schema:
+  required_fields: [ts, run_id, composition_id, phase, op, actor]
+  optional_fields: [note]
+  phase_enum: [oggi, fase1, fase2, finale]
+  op_enum_source: "this file's `ops` list"
+
+# ── De-duplication rule (canonical, single source of truth) ────────────
+# Per (run_id, op) pair: only the FIRST event counts toward the per-phase
+# total. A 2nd `relaunch` event on the same run_id is ignored. This honors
+# the "one touchpoint per kind per render" semantic from Test #16 IG pilot
+# precedent — the runner SHOULD resolve the root cause rather than retouch.
+dedup_key: "(run_id, op)"
+dedup_strategy: "keep first; ignore subsequent"
+
+# ── Dashboard panel endpoint (extension of /api/runs pattern) ──────────
+# Per AGENTS.md "non introdurre GUI ... nel core headless CPU-first":
+# the dashboard panel is OPTIONAL telemetry surfacing, NOT GUI; it re-exports
+# the gate's verdict shape via Flask. Host = telemetry-dashboard backend.
+dashboard:
+  endpoint: "/api/pilot/manual_touches"
+  method: "GET"
+  query_params:
+    phase: "one of oggi|fase1|fase2|finale (default: returns all phases)"
+    since: "ISO 8601 datetime; events.ts >= since"
+  response_shape:
+    phase_totals:
+      phase_id: "string"
+      max_allowed: "int"
+      actual: "int (de-duplicated counts)"
+      status: "PASS | FAIL | NO-DATA"
+    per_op: "dict<op → count across all filtered events>"
+    violating_ops: "list<op> where actual > max_allowed"
