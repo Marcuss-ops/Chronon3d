@@ -100,6 +100,19 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+# TICKET-GLOW-CERTIFICATION — Azione 1: 6 glow acceptance TEST_CASEs
+# (intensity-zero, radius, additive, anti-clip, no-rect-edge, state-leak).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        visual/glow_ab/glow_ab_acceptance.cpp
+)
+
+add_test(
+    NAME GlowAcceptance
+    COMMAND chronon3d_text_golden_tests --test-case="Glow acceptance: *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # TICKET-AE-PARITY-CINEMATIC-10 — ae_scale_pop scene.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
