@@ -34,6 +34,13 @@ add_library(chronon3d_content OBJECT
     showcases/cinematic/dolly_zoom_showcase.cpp
     showcases/cinematic/tilt_sweep_title_v2.cpp
 
+    # ── Product launches (end-to-end demo compositions for first-principles
+    # product check Test #1) — additive to cinematic showcases; the
+    # factory function exposes `product_launch()` (see hpp) and is
+    # registered into the CLI registry by the launches block below.
+    launches/product_launch.cpp
+    launches/launches.cpp
+
     # ── Experimental gateway (only registers diagnostics when enabled) ─────
     experimental/effects-gateway/effect_diagnostics_gateway.cpp
 
