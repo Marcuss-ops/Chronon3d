@@ -26,7 +26,7 @@
 // locks the contract with this regression suite.
 //
 // Render mechanism: the unified helper
-// glow_final::make_chronon_glow_final_for_test(props, font_engine)
+// glow_final::make_chronon_glow_final(props, font_engine)
 // always emits the canvas-centering placement; frame_idx drives both
 // the per-frame opacity envelope AND the per-frame scale envelope
 // inside the helper's `build_chronon_glow_scene`.
@@ -83,8 +83,7 @@ static std::shared_ptr<Framebuffer> render_ae_08(
         ChrononGlowProps props,
         Frame frame) {
     return renderer->render(
-        chronon3d::test::glow_final::make_chronon_glow_final_for_test(
-            props, renderer->font_engine()),
+        chronon3d::test::glow_final::make_chronon_glow_final(props),
         frame);
 }
 

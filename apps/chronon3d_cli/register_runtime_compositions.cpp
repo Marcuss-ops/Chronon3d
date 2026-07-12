@@ -7,8 +7,10 @@
 // Registers:
 //   1. chronon3d::register_builtin_compositions(registry) — DarkGridBackground,
 //      CameraImageClip (the canonical "always available" production surfaces).
-//   2. ChrononGlowFinalAE — the canonical user-spec cinematic-glow
-//      composition (production name; alias for `chronon-glow-final`).
+//   2. ChrononGlowFinalAE + ChrononGlowFinalAEPortrait — the canonical
+//      user-spec cinematic-glow compositions (landscape + portrait).
+//      Plus the legacy alias `chronon-glow-final` (shares the landscape
+//      factory lambda — no duplicate lambdas).
 //
 // Cat-3 minimal-surface: consumes the existing
 // register_builtin_compositions.hpp public surface + the header-only
@@ -36,12 +38,30 @@ void register_runtime_compositions(CompositionRegistry& registry) {
     // (2) ChrononGlowFinalAE — the canonical user-spec name for the
     // cinematic-glow landscape composition.  Routes through the Phase 1
     // unified helper (header-only; no link-time surface).  This is the
-    // PRODUCTION entry point; the no-glow + portrait siblings live in
-    // register_dev_compositions (DEV-gated, A/B acceptance + portrait).
-    registry.add("ChrononGlowFinalAE",
+    // PRODUCTION entry point; the NoGlow sibling lives in
+    // register_dev_compositions (DEV-gated, A/B acceptance).
+    //
+    // Step 8 §A: 2 production entries + 1 legacy alias.
+    //   - ChrononGlowFinalAE         (canonical landscape, new)
+    //   - ChrononGlowFinalAEPortrait (canonical portrait, NEW — moved from DEV)
+    //   - chronon-glow-final         (legacy alias, SHARED lambda with landscape)
+    //
+    // The portrait variant uses a SEPARATE lambda (different default props)
+    // — the user spec says "non due factory lambda identiche" is about the
+    // alias-vs-canonical pair, not the landscape-vs-portrait pair.
+    auto make_landscape_comp = [](const CompositionProps&) -> Composition {
+        return chronon3d::test::glow_final::make_chronon_glow_final(
+            chronon3d::test::glow_final::default_landscape_props());
+    };
+    registry.add("ChrononGlowFinalAE", make_landscape_comp);
+    // Step 8 §A: UN alias nel registry condiviso — chronon-glow-final
+    // points to the SAME factory lambda as ChrononGlowFinalAE (no
+    // duplicate factory lambdas).
+    registry.add("chronon-glow-final", make_landscape_comp);
+    registry.add("ChrononGlowFinalAEPortrait",
         [](const CompositionProps&) -> Composition {
-            ChrononGlowProps p = chronon3d::test::glow_final::default_landscape_props();
-            return chronon3d::test::glow_final::make_chronon_glow_final(p);
+            return chronon3d::test::glow_final::make_chronon_glow_final(
+                chronon3d::test::glow_final::default_portrait_props());
         });
 }
 
