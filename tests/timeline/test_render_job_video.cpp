@@ -40,6 +40,20 @@ namespace {
 // avoid an extra move through the `composition()` factory.  Scene{} is
 // sufficient — the test never invokes evaluate(), only inspects the
 // factory output.
+// ── render_mode_name() — human-readable name for the RenderMode enum ──
+// Used by `CAPTURE()` in `run_copy_semantics_test()` below so doctest
+// failure output names which of the 3 modes triggered the failure,
+// not just the helper line number.  Kept in the anonymous namespace
+// so it does not leak to the textual ABI.
+const char* render_mode_name(RenderMode m) noexcept {
+    switch (m) {
+        case RenderMode::Still:    return "Still";
+        case RenderMode::Sequence: return "Sequence";
+        case RenderMode::Video:    return "Video";
+    }
+    return "Unknown";
+}
+
 std::shared_ptr<const Composition> make_test_composition() {
     CompositionSpec spec;
     spec.name        = "test_comp";
@@ -83,6 +97,11 @@ void run_copy_semantics_test(
     Frame     expected_first_frame,
     Frame     expected_last_frame)
 {
+    // CAPTURE the mode so doctest failure output names which of the 3
+    // modes triggered the failure (not just the helper line number).
+    // The CAPTURE is a no-op on success — it only prints on failure.
+    CAPTURE(render_mode_name(expected_mode));
+
     auto comp = make_test_composition();
     RenderJob original = factory(comp);
 
