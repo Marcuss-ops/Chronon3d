@@ -34,15 +34,6 @@ chronon3d::Rect local_bounds_to_rect(
     return chronon3d::renderer::to_rect(*bounds);
 }
 
-// TU-scoped warn-once deduper for `verify_text_visibility()` (Step 2
-// fix (c)). Replaces the implicit process-wide static-bool pattern that
-// previously existed inside the audit; behaviorally equivalent
-// (one-shot per `(node_id, TextWarningKind)` for the entire node's
-// lifetime) while closing the §honesty defects (data race on parallel
-// render; first-error masking later invocations). The deduper is
-// TU-private by virtue of the anonymous namespace; render-graph and
-// CLI sub-targets each have their own static instance.
-chronon3d::WarnOnceDeduper s_warn_deduper;
 }  // anonymous namespace
 // M1.5#1 — internal helpers under src/render_graph/nodes/text_run/
 // (NOT under include/chronon3d/).  Same-directory-relative include
@@ -59,6 +50,18 @@ chronon3d::WarnOnceDeduper s_warn_deduper;
 #include <chronon3d/core/profiling/profiling.hpp>
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 #include <chronon3d/text/text_visibility_audit.hpp>
+
+namespace {
+// TU-scoped warn-once deduper for `verify_text_visibility()` (Step 2
+// fix (c)). Replaces the implicit process-wide static-bool pattern that
+// previously existed inside the audit; behaviorally equivalent
+// (one-shot per `(node_id, TextWarningKind)` for the entire node's
+// lifetime) while closing the §honesty defects (data race on parallel
+// render; first-error masking later invocations). The deduper is
+// TU-private by virtue of the anonymous namespace; render-graph and
+// CLI sub-targets each have their own static instance.
+chronon3d::WarnOnceDeduper s_warn_deduper;
+}  // anonymous namespace
 #endif
 #include <spdlog/spdlog.h>
 
