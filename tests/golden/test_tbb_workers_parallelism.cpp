@@ -5,6 +5,8 @@
 //
 // Uso: ./chronon3d_tbb_workers_test
 
+#include <doctest/doctest.h>
+
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
@@ -81,11 +83,9 @@ Composition make_breathing_comp() {
 
 } // anonymous namespace
 
-int main() {
-    if (!std::filesystem::exists(IMAGE_PATH)) {
-        std::fprintf(stderr, "ERROR: Asset not found: %s\n", IMAGE_PATH.c_str());
-        return 1;
-    }
+TEST_CASE("TBB: workers parallelism test") {
+    REQUIRE_MESSAGE(std::filesystem::exists(IMAGE_PATH),
+                    "Asset not found: " << IMAGE_PATH);
 
     std::printf("=== TBB Workers Parallelism Test ===\n");
     std::printf("Rendering MinimalistImageTrackingBreathing frame 50...\n\n");
@@ -103,17 +103,13 @@ int main() {
     for (int frame_num = 0; frame_num < 3; ++frame_num) {
         auto renderer = test::make_renderer();
         auto* counters = renderer.counters();
-        if (!counters) {
-            std::fprintf(stderr, "ERROR: No counters available\n");
-            return 1;
-        }
+        REQUIRE_MESSAGE(counters != nullptr,
+                        "No counters available");
 
         // Render frame at frame 50 + frame_num (breathing animation changes slightly)
         auto fb = renderer.render(make_breathing_comp(), Frame{50 + frame_num});
-        if (!fb) {
-            std::fprintf(stderr, "ERROR: Frame %d returned null framebuffer\n", frame_num);
-            return 1;
-        }
+        REQUIRE_MESSAGE(fb != nullptr,
+                        "Frame " << frame_num << " returned null framebuffer");
 
         const uint64_t p = counters->tbb_active_workers_peak.load(std::memory_order_relaxed);
         const int64_t s = counters->tbb_active_workers_avg_sum.load(std::memory_order_relaxed);
@@ -179,5 +175,5 @@ int main() {
                     static_cast<unsigned long>(sequential_levels));
     }
 
-    return pass ? 0 : 1;
+    REQUIRE(pass);
 }

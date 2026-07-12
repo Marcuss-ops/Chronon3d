@@ -35,7 +35,6 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
@@ -117,7 +116,7 @@ Composition build_clip_composition(
                 l.text_run("title", TextRunSpec{
                     .text = {
                         .content = {.value = "HAMBURGER"},
-                        .position = {960.0f, 540.0f, 0.0f},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                         .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",

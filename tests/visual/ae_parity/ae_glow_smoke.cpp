@@ -114,8 +114,8 @@ TEST_CASE("PHASE-2: ae_08 cinematic additive glow preserves source at f15 16x9 c
     REQUIRE(glow_fb->height() == 1080);
 
     // ── Centroid anchor (shape-fragile: positions MUST agree) ────
-    const Vec2 src_centre  = alpha_centroid(*src_fb);
-    const Vec2 glow_centre = alpha_centroid(*glow_fb);
+    const auto src_centre  = alpha_centroid(*src_fb);
+    const auto glow_centre = alpha_centroid(*glow_fb);
     INFO("source centroid: x=", src_centre.x,  " y=", src_centre.y);
     INFO("glow   centroid: x=", glow_centre.x, " y=", glow_centre.y);
     // The two centroids must align (both renders anchor at canvas
@@ -127,16 +127,16 @@ TEST_CASE("PHASE-2: ae_08 cinematic additive glow preserves source at f15 16x9 c
 
     // ── Primary contract: source pixel preservation ≥98% ────
     constexpr int kHalfW = 4;  // 9×9 sample window
-    const float src_luma  = sample_offset_luma(*src_fb,  src_centre,  /*offsetX=*/0, kHalfW);
-    const float glow_luma = sample_offset_luma(*glow_fb, glow_centre, /*offsetX=*/0, kHalfW);
+    const float src_luma  = sample_offset_luma(*src_fb,  Vec2{src_centre.x, src_centre.y},  /*offsetX=*/0, kHalfW);
+    const float glow_luma = sample_offset_luma(*glow_fb, Vec2{glow_centre.x, glow_centre.y}, /*offsetX=*/0, kHalfW);
     INFO("source luma = ", src_luma,  " glow luma = ", glow_luma);
     INFO("ratio (glow / source) = ", (src_luma > 1e-6f) ? (glow_luma / src_luma) : -1.0f);
     REQUIRE(src_luma > 1e-6f);  // source must be lit at the centroid
     CHECK(glow_luma >= 0.98f * src_luma);
 
     // ── Secondary contract: halo-region added-energy ≥ kHaloAddFloor ────
-    const float src_halo  = sample_offset_luma(*src_fb,  src_centre,  kHaloSampleOffsetX16x9, kHalfW);
-    const float glow_halo = sample_offset_luma(*glow_fb, glow_centre, kHaloSampleOffsetX16x9, kHalfW);
+    const float src_halo  = sample_offset_luma(*src_fb,  Vec2{src_centre.x, src_centre.y},  kHaloSampleOffsetX16x9, kHalfW);
+    const float glow_halo = sample_offset_luma(*glow_fb, Vec2{glow_centre.x, glow_centre.y}, kHaloSampleOffsetX16x9, kHalfW);
     INFO("halo luma at +", kHaloSampleOffsetX16x9,
          "px: src=", src_halo, " glow=", glow_halo);
     CHECK(glow_halo >= src_halo + kHaloAddFloor);
@@ -161,24 +161,24 @@ TEST_CASE("PHASE-2: ae_08 cinematic additive glow preserves source at f15 9x16 c
     REQUIRE(glow_fb->width()  == 1080);
     REQUIRE(glow_fb->height() == 1920);
 
-    const Vec2 src_centre  = alpha_centroid(*src_fb);
-    const Vec2 glow_centre = alpha_centroid(*glow_fb);
+    const auto src_centre  = alpha_centroid(*src_fb);
+    const auto glow_centre = alpha_centroid(*glow_fb);
     INFO("source centroid: x=", src_centre.x,  " y=", src_centre.y);
     INFO("glow   centroid: x=", glow_centre.x, " y=", glow_centre.y);
     REQUIRE(glow_centre.x == doctest::Approx(src_centre.x).epsilon(3.0f));
     REQUIRE(glow_centre.y == doctest::Approx(src_centre.y).epsilon(3.0f));
 
     constexpr int kHalfW = 4;
-    const float src_luma  = sample_offset_luma(*src_fb,  src_centre,  /*offsetX=*/0, kHalfW);
-    const float glow_luma = sample_offset_luma(*glow_fb, glow_centre, /*offsetX=*/0, kHalfW);
+    const float src_luma  = sample_offset_luma(*src_fb,  Vec2{src_centre.x, src_centre.y},  /*offsetX=*/0, kHalfW);
+    const float glow_luma = sample_offset_luma(*glow_fb, Vec2{glow_centre.x, glow_centre.y}, /*offsetX=*/0, kHalfW);
     INFO("source luma = ", src_luma,  " glow luma = ", glow_luma);
     REQUIRE(src_luma > 1e-6f);
     CHECK(glow_luma >= 0.98f * src_luma);
 
     // Halo region (slightly narrower on 9:16 — offset 40 < 60 to keep
     // the sample inside the 1080×1920 canvas with margin).
-    const float src_halo  = sample_offset_luma(*src_fb,  src_centre,  kHaloSampleOffsetX9x16, kHalfW);
-    const float glow_halo = sample_offset_luma(*glow_fb, glow_centre, kHaloSampleOffsetX9x16, kHalfW);
+    const float src_halo  = sample_offset_luma(*src_fb,  Vec2{src_centre.x, src_centre.y},  kHaloSampleOffsetX9x16, kHalfW);
+    const float glow_halo = sample_offset_luma(*glow_fb, Vec2{glow_centre.x, glow_centre.y}, kHaloSampleOffsetX9x16, kHalfW);
     INFO("halo luma at +", kHaloSampleOffsetX9x16,
          "px: src=", src_halo, " glow=", glow_halo);
     CHECK(glow_halo >= src_halo + kHaloAddFloor);

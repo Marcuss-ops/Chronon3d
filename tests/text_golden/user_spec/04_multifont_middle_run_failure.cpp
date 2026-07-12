@@ -80,7 +80,7 @@ TEST_CASE("UserSpec 04: multi-font middle run failure — healthy baseline + str
             s.layer("hero", [](LayerBuilder& l) {
                 l.text("t", {
                     .content = {.value = "LEFT BROKEN RIGHT"},
-                    .position = {960.0f, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,

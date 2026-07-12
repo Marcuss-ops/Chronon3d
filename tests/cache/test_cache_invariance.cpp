@@ -71,7 +71,6 @@
 
 #include <doctest/doctest.h>
 
-#include <chronon3d/chronon3d.hpp>
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
@@ -156,14 +155,14 @@ Composition build_comp(const CompSpec& spec) {
                     // Static Z-rotation via motion::timeline (LayerBuilder
                     // takes a Timeline, not a raw float). 1-segment
                     // timeline holds the constant rotation value.
-                    l.rotate_z(motion::timeline(spec.rotation_z));
+                    l.rotate(Vec3{0.0f, 0.0f, spec.rotation_z});
                 }
                 if (spec.animated) {
                     // Linear X translation 400 → 1520 over frames 0..30.
                     // Guarantees a distinct framebuffer at any frame in
                     // [0, 30].
-                    l.position_x(motion::timeline(400.0f)
-                        .to(Frame{30}, 1520.0f, EasingCurve{Easing::Linear}));
+                    l.position_anim().set(Vec3{400.0f, 0.0f, 0.0f});
+                    l.position_anim().add_keyframe(Frame{30}, Vec3{1520.0f, 0.0f, 0.0f}, EasingCurve{Easing::Linear});
                 }
             });
             return s.build();

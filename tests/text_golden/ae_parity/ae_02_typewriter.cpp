@@ -75,7 +75,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.layer("typewriter", [frame_idx](LayerBuilder& l) {
                 l.text("text", {
                     .content = {.value = typewriter_text(frame_idx)},
-                    .position = {200.0f, 540.0f, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, 540.0f}},
                     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                              .font_family = "Inter",
                              .font_weight = 400,

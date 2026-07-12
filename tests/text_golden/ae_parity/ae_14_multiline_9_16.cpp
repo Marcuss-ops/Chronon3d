@@ -98,7 +98,7 @@ Composition build_landscape(SoftwareRenderer& renderer, std::size_t frame_idx) {
                 const float dy = translate_y_for(frame_idx);
                 l.text("multiline", {
                     .content = {.value = "LINE ONE\nLINE TWO\nLINE THREE"},
-                    .position = {960.0f, 540.0f + dy, 0.0f},
+                    .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f + dy}},
                     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,

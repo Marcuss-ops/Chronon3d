@@ -95,7 +95,8 @@ std::vector<FrameMetrics> collect_frame_metrics(
         FrameMetrics m;
         m.frame      = f;
         m.bbox       = alpha_bbox(*fb, 0.01f);
-        m.centroid   = alpha_centroid(*fb);
+        auto c = alpha_centroid(*fb);
+        m.centroid = Vec2{c.x, c.y};
         m.core_luma  = sample_luma(*fb, m.centroid.x, m.centroid.y, kHalfW);
         m.halo_luma  = sample_luma(*fb,
                          m.centroid.x + static_cast<float>(halo_offset_x),
@@ -179,7 +180,8 @@ TEST_CASE("Glow temporal: pulse reaches expected peak at frame 15 (contracted)")
         FrameMetrics m;
         m.frame    = frame_idx;
         m.bbox     = alpha_bbox(*fb, 0.01f);
-        m.centroid = alpha_centroid(*fb);
+        auto c = alpha_centroid(*fb);
+        m.centroid = Vec2{c.x, c.y};
         m.core_luma = sample_luma(*fb, m.centroid.x, m.centroid.y, kHalfW);
         m.halo_luma = sample_luma(*fb,
                          m.centroid.x + static_cast<float>(kHaloOffset16x9),

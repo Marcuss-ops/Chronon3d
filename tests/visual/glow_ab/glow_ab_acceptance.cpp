@@ -212,7 +212,7 @@ TEST_CASE("Glow acceptance: additive glow never reduces source pixels") {
     REQUIRE(fb_with != nullptr);
 
     // Use the source (no-glow) alpha centroid + core mask.
-    const Vec2 centre = alpha_centroid(*fb_no);
+    const auto centre = alpha_centroid(*fb_no);
     REQUIRE(centre.x > 0.0f);
     REQUIRE(centre.y > 0.0f);
 
