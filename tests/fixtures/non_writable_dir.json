@@ -1,0 +1,18 @@
+{
+  "fixture_id": "non_writable_dir_v1",
+  "description": "Fail-loud: chronon3d_cli render must abort loudly when the output path is non-writable (e.g., /root/ for a normal user, /etc/shadow.mp4). Canonical error vocabulary: Composition/Path/Output/Write tokens in stderr, NO silent fallback markers, exit code != 0, output MP4 absent.",
+  "rot_class": "non_writable_output_target",
+  "composition_id": "ProductLaunch",
+  "cli_args": [
+    "--output", "/etc/passwd_should_not_be_overwritable_via_chronon_test.mp4"
+  ],
+  "output_path": "/etc/passwd_should_not_be_overwritable_via_chronon_test.mp4",
+  "expected": {
+    "exit_code_nonzero": true,
+    "output_file_absent": "/etc/passwd_should_not_be_overwritable_via_chronon_test.mp4",
+    "stderr_tokens_required": ["Composition", "Layer", "Asset", "Path"],
+    "minimum_token_matches": 3,
+    "forbidden_substrings": ["fallback frame", "black frame", "continue on error", "fallback to silence"]
+  },
+  "honesty_note": "Tested on POSIX systems where /etc/passwd is read-only for the running user. On Windows the path collapses to the system root. Per AGENTS.md §honesty: the bash script must NOT silently fall back if the output path disappears for OS-level reasons (e.g., sandbox without /etc/) — if the path is not writable for ANY reason, the CLI should exit non-zero with stderr explaining the write failure."
+}
