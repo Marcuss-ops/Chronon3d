@@ -1,3 +1,43 @@
+## Luglio 2026 — docs(ticket): open TICKET-BUILD-ROT-CAMERA-CASCADE-SUB-WORKSTREAMS umbrella (3 sub-tickets forward-pointed, 2026-07-12, atomic chore commit on main)
+
+**`docs(ticket): open TICKET-BUILD-ROT-CAMERA-CASCADE-SUB-WORKSTREAMS`** — atomic chore commit opening a NEW umbrella ticket that splits the 11-file rot-cascade fix into 3 sub-tickets per AGENTS.md "Fare PR piccole e mirate" + Cat-3 anti-duplication (independent verification per sub-ticket; each sub-ticket = separate atomic commit on `main`).
+
+**Why umbrella ticket** (per AGENTS.md scope discipline): the rot-cascade fix is a multi-file workstream with 3 distinct fix patterns (① `::chronon3d::` prefix / ④ forwarding header / DOMAIN BUG). The umbrella ticket:
+1. **Formalizes the workstream split** — converts the per-file matrix in `docs/baselines/main-df1e09d9-rot-cascade-baseline.md` from "ad-hoc documentation" to "ticket-tracked workstream"
+2. **Enables per-sub-ticket verification** — each sub-ticket is a self-contained atomic commit that can be verified independently (per Cat-3 anti-duplication, no single mega-commit that hides regressions)
+3. **Preserves the audit trail** — the parent TICKET-BUILD-ROT-CASCADE-CAMERA row gets +1 umbrella cross-link; the umbrella references the baseline doc as the canonical source for the per-file matrix
+4. **Honors user spec verbatim** — the user explicitly named the 3 sub-tickets (TICKET-ROT-FIX-PREFIX + TICKET-ROT-FIX-FORWARDING-HEADERS + TICKET-ROT-FIX-DOMAIN-BUG) and the per-sub-ticket commit discipline
+
+**3 sub-tickets** (forward-pointed, NOT opened in this commit):
+- **(sub-1) `TICKET-ROT-FIX-PREFIX`** — ① `::chronon3d::` prefix at 9 files (`render_runtime.hpp` + `scene.hpp` + `text/{blend2d_glyph_conversion,text_rasterizer_render,font_engine}.cpp` + `execution_scope.hpp` + `composition.hpp` + `scene_program_cache.hpp` + `render_session.hpp`); ~50 LoC
+- **(sub-2) `TICKET-ROT-FIX-FORWARDING-HEADERS`** — ④ 3 NEW forwarding headers (NEW `include/chronon3d/runtime/render_runtime_fwd.hpp` + NEW `include/chronon3d/scene/model/core/scene_fwd.hpp` + NEW `include/chronon3d/render_graph/cache/scene_program_cache_fwd.hpp`); ~60 LoC
+- **(sub-3) `TICKET-ROT-FIX-DOMAIN-BUG`** — `CameraFramingResult` → `CameraFramingRequest` typo in `include/chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp` (DOMAIN BUG per compiler hint, NOT a namespace rot); forward to TICKET-FRAMING-V1 §G for proper classification + 4-character fix
+
+**Total estimated fix LoC**: ~110 LoC across 13 files (10 file edits + 3 NEW forwarding headers).
+
+**Context** (per the multi-agent race-loop state at this commit):
+- The Phase 1 rot (TICKET-CONTENT-TEXT-CAMERA-V1-ROT, 21 machine-verified errors in 6 upstream headers) was **verified RESOLVED** by a parallel agent (per the `docs(camera-text-rot): verify upstream 21-error rot RESOLVED` CHANGELOG entry that prepended at TOP in the prior session). This means the rot-cascade is now isolated to TICKET-BUILD-ROT-CASCADE-CAMERA's 245 errors across 11+ files (the cascade downstream of the 21 upstream errors).
+- The variant rot-class (`std::variant` synthesized methods for `chronon3d::ImageParams`) was promoted to a sub-ticket `TICKET-CONTENT-TEXT-CAMERA-V1-ROT-VARIANT-MOVE` (DORMANT, see prior commit `561c52a9`).
+- The umbrella ticket is the THIRD ticket addition related to the rot-cascade (after the variant sub-ticket + the Phase 1 rot verification). The 3 sub-tickets are the next atomic workstream.
+
+**Files changed (2 — Cat-5 PARTIAL 2-doc same-commit alignment)**:
+- `docs/FOLLOWUP_TICKETS.md` EDIT (2 changes: NEW umbrella row in §Open Blockers + TICKET-BUILD-ROT-CASCADE-CAMERA parent row +1 umbrella cross-link)
+- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+
+`docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED — a ticket addition is not an SDK-state semantic change (precedent: TICKET-RESOLVE-REBASE-CONFLICT + TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0h+ closures + TICKET-CONTENT-TEXT-CAMERA-V1-ROT-VARIANT-MOVE prior turn all did NOT touch CURRENT_STATUS; per `docs/DOCUMENTATION_GOVERNANCE.md`, ticket tracker updates are Cat-5 PARTIAL events, not state-snapshot events).
+
+**§honesty compliance** (per AGENTS.md v0.1):
+- The 3 sub-tickets are **forward-pointed** (NOT opened in this commit) per user spec verbatim: "Each sub-ticket should be a separate atomic commit on main". The umbrella ticket is the planning artifact; the sub-tickets are the actual fixes.
+- The sub-tickets' file lists + LoC estimates are **derived from the per-file matrix** in `docs/baselines/main-df1e09d9-rot-cascade-baseline.md` (the canonical source for the fix decisions).
+- The DOMAIN BUG sub-ticket is **forwarded to TICKET-FRAMING-V1 §G** for proper classification (not a namespace rot; the typo `CameraFramingResult` → `CameraFramingRequest` is a separate domain issue).
+- macchina-verifica of all 3 sub-tickets is **deferred to working build host** per AGENTS.md §honesty (vcpkg glm/magic_enum + tmpfs env on this VPS).
+
+**Subject**: `docs(ticket): open TICKET-BUILD-ROT-CAMERA-CASCADE-SUB-WORKSTREAMS` (67 chars, within `tools/check_commit_subject_length.sh`'s 72-char push-range gate).
+
+**Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Open Blockers` NEW `TICKET-BUILD-ROT-CAMERA-CASCADE-SUB-WORKSTREAMS` row + TICKET-BUILD-ROT-CASCADE-CAMERA parent row +1 umbrella cross-link + [`docs/baselines/main-df1e09d9-rot-cascade-baseline.md`](docs/baselines/main-df1e09d9-rot-cascade-baseline.md) (per-file canonical-fix decision matrix; canonical source for the 3 sub-tickets' file lists + fix patterns) + the prior turn's `TICKET-CONTENT-TEXT-CAMERA-V1-ROT-VARIANT-MOVE` sub-ticket (commit `561c52a9`) + the parallel agent's `docs(camera-text-rot): verify upstream 21-error rot RESOLVED` (TICKET-CONTENT-TEXT-CAMERA-V1-ROT Phase 1 closure) + AGENTS.md §Cat-3 (umbrella ticket is not gratuitous — per user spec verbatim; sub-tickets will be separate atomic commits for independent verification) + AGENTS.md §Cat-5 (2-doc same-commit, satisfied) + AGENTS.md §honesty (sub-tickets forward-pointed + DOMAIN BUG forwarded to TICKET-FRAMING-V1 §G + macchina-verifica deferred to working build host).
+
+---
+
 ## Luglio 2026 — docs(camera-text-rot): verify upstream 21-error rot RESOLVED (TICKET-CONTENT-TEXT-CAMERA-V1-ROT Phase 1, 2026-07-12, atomic 3-file DOC-ONLY verification commit on main)
 
 **`docs(camera-text-rot): verify upstream 21-error rot RESOLVED`** — atomic 3-file DOC-ONLY verification commit on main closing TICKET-CONTENT-TEXT-CAMERA-V1-ROT Phase 1 (the upstream rot-class 21-error sub-area per the prior-session diagnostic at commit `b589fdba`-era). Machine-verified evidence at HEAD `d851d6f9`: `grep -cE 'chronon3d::chronon3d::[a-zA-Z_]'` returns 0 hits across the 6 upstream target files (`include/chronon3d/timeline/composition.hpp` + `include/chronon3d/backends/software/software_render_session.hpp` + `include/chronon3d/backends/software/software_renderer.hpp` + `include/chronon3d/effects/glow_pipeline.hpp` + `include/chronon3d/effects/curves.hpp` + `src/effects/effect_catalog.cpp`). Per-file breakdown (each = 0 rot-class hits): composition.hpp=0, software_render_session.hpp=0, software_renderer.hpp=0, glow_pipeline.hpp=0, curves.hpp=0, effect_catalog.cpp=0. Total rot-class hits = 0; tot-class 21-error pattern RESOLVED upstream.
