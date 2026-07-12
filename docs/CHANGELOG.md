@@ -1,3 +1,19 @@
+## Luglio 2026 — docs(aggregator): TICKET-125 test aggregator index (11 deliverable per tests 8-18 under the 11/11 canonical gate, 2026-07-12, atomic chore commit on main)
+
+**`docs(aggregator)` TICKET-125 catalog landed** — NEW canonical artifact [`docs/tickets/TICKET-125-test-aggregator.md`](docs/tickets/TICKET-125-test-aggregator.md) istituisce il punto di ingresso unico per coordinare i 11 deliverable dei test 8-18 sotto il baseline verde certificata `main@7eb5c2ba` 11/11 PASS. Each row carries macchina-osservable PASS/FAIL criterion (bash one-liner executable on working build host) — strict no-percent-estimates discipline per AGENTS.md v0.1 §honesty.
+
+**11 deliverable summary (canonical)**: Test 8 DONE+PARTIAL VPS / Test 9 HARNESS-MISSING+forward-point=TICKET-TEST-9-PILOT-7GG / Test 10 GATE-WIRED+selftest+PARTIAL VPS / Test 11 GATE-WIRED+§honesty PARTIAL / Test 12 GATE-WIRED+EXERCISABLE on VPS / Test 13 EVIDENCE-GAP+forward-point=TICKET-TEST-13-INDEXING (2 interpretazioni: (a) orchestrator's-alias-for-Test-11 OR (b) separate-framework-slot) / Test 14 GATE-WIRED+selftest+PARTIAL VPS / Test 15 HARNESS-COMPLETE+pilot-runtime-deferred / Test 16 REGISTRY-COMPLETE+5 DEFERRED-VERIFY cycle-1+zero eliminazioni concrete / Test 17 TABLE-COMPLETE+24 cells+2 `[RADICAL W]` startup+determinismo+1 `[HONEST L]` qualità visiva Remotion wins / Test 18 NOT-YET-OPENED+forward-point=TICKET-TEST-18-LONG-FORM-CONTENT.
+
+**L1+L2+L3 forward-point folding audit** (per code-reviewer-minimax-m3 final verdict):
+- L1 (Test 13 EVIDENCE-GAP reconciliation): row 13 carries 2-interpretation note + forward-point = TICKET-TEST-13-INDEXING (P0).
+- L2 (Test 9 forward-point propagation): §Forward-pointed tickets (P0/P1/P2) section dedicated listing TICKET-TEST-9-PILOT-7GG + TICKET-TEST-13-INDEXING + TICKET-TEST-18-LONG-FORM-CONTENT.
+- L3 (CURRENT_STATUS row Cat-3 anti-duplication tighten): 1-line cite-only row (no 11-row re-summary).
+
+**Honest-gap markers** (per AGENTS.md §honesty 'non inventare'): Test 9 HARNESS-MISSING + Test 13 EVIDENCE-GAP + Test 18 NOT-YET-OPENED sono marker onesti, no fabrication.
+
+**§honest PARTIAL cert annotation** (this commit): push iterativo still BLOCKED by `TICKET-INFRA-F2-DIVERGENCE (P0)` §Open Blocker (5+ consecutive sessions recurring divergence; LOCAL_AHEAD=~3, REMOTE_AHEAD=~10). Per AGENTS.md §honesty: aggregator commit lands on LOCAL main; SHA triples non verificati fino a F2 gate land. **Cat-5 3-doc same-commit alignment** (this CHANGELOG entry + `docs/FOLLOWUP_TICKETS.md` 3 NEW Open Blocker rows at TOP after TICKET-TEST-17-COMPARISON-VERIFY + `docs/CURRENT_STATUS.md` Hygiene section 1-line cite-only row) + `docs/tickets/TICKET-125-test-aggregator.md` (the canonical primary artifact). Cat-3 minimal-surface (pure `docs/` artifact; zero modifications to `include/chronon3d/`; zero new SDK API; zero new registries/resolvers/caches/singletons).
+
+**Cross-link**: [`docs/tickets/TICKET-125-test-aggregator.md`](docs/tickets/TICKET-125-test-aggregator.md) (canonical primary) + `docs/FOLLOWUP_TICKETS.md` §Open Blocker rows: TICKET-125-TEST-AGGREGATOR + new TICKET-TEST-9-PILOT-7GG + TICKET-TEST-13-INDEXING + `docs/CURRENT_STATUS.md` §Hygiene + AGENTS.md §Fare PR piccole e mirate + AGENTS.md §Cat-3 + AGENTS.md §honesty + the Test 16 audit-chore at `6565d640` (precedent for `LOCAL-ONLY`/`push blocked`/`F2` subject keywords) + the Test 17 audit-chore at `b8088b6e` (precedent for ADR-sketch + path canonization + L1 amend).
 ## Luglio 2026 — tools(test-17): direct comparison Chronon3D vs pipeline precedente vs Remotion (First-Principles Product Check #17 — Confronto diretto pipeline, 8 metric × 3 prodotti, 2026-07-12, atomic chore commit on main)
 
 **`tools(test-17)` comparison doc creation** — nuovo artefatto canonico `docs/product-tests/TEST-17-COMPARISON.md` istituisce la "Tabella metrica" obbligatoria con 8 metriche × colonne Chronon3D / pipeline precedente / Remotion v4:
