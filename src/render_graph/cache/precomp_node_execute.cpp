@@ -297,3 +297,21 @@ NodeExecResult PrecompNode::execute_with_scope(
 }
 
 } // namespace chronon3d::graph
+
+// ── FrameContext::font_engine_or_null() body ──────────────────────────────
+// Defined here to break circular include: frame_context.hpp includes
+// render_runtime.hpp, but render_runtime.hpp → graph_executor.hpp →
+// scene_hasher.hpp creates a chain that makes RenderRuntime incomplete
+// when the inline body in the header is compiled.  The declaration in
+// frame_context.hpp is non-inline; the body lives here where both
+// FrameContext and RenderRuntime are fully defined.
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
+
+namespace chronon3d {
+
+FontEngine* FrameContext::font_engine_or_null() const noexcept {
+    return runtime ? runtime->font_engine() : font_engine;
+}
+
+} // namespace chronon3d
