@@ -35,6 +35,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/gradient_visual_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/rounded_rect_visual_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/deterministic_tests.cmake
+    ${CMAKE_CURRENT_SOURCE_DIR}/sabotage_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/text_preset_visual_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/text_golden_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/diagnostic_overlay_tests.cmake  # M1.8 §4C — diagnostic overlay
@@ -291,6 +292,8 @@ endif()
 # installed Chronon3D package (umbrella include), so it compiles in
 # every preset that turns on CHRONON3D_BUILD_TESTS.
 include(${CMAKE_CURRENT_SOURCE_DIR}/sdk_tests.cmake)
+
+include(${CMAKE_CURRENT_SOURCE_DIR}/sabotage_tests.cmake)
 
 # ── Aggregate targets: build test executables grouped by cost/speed ──
 # Note: benchmarks are conditional; included only when TARGET chronon3d_benchmarks exists
