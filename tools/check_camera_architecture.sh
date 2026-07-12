@@ -291,19 +291,5 @@ fi
 echo "=== All CAM-DOC 04 architecture boundary checks PASSED! ==="
 exit 0
 
-# ── 7. MIGRATION TRACKER (informational; reports current usage of legacy symbols) ─
-# TICKET-CAMERA-FULL-LINUX sub-ticket D — visibility for the bulk migration
-# toward zero legacy-usage.  This section is currently REPORT-ONLY (does not
-# affect the gate's PASS/FAIL verdict) and exists so the audit team can see
-# progress without invoking external tooling.  When the counts reach zero
-# across all 6 dimensions, a separate commit promotes these checks to the
-# hard-zero gate per the user spec ("niente allowlist produttive").
-echo ""
-echo "=== TICKET-CAMERA-FULL-LINUX sub-ticket D — Migration Tracker (current) ==="
-printf "  %-30s %5d references (target: 0)\n" "AnimatedCamera2_5D" "$(grep -rE '\bAnimatedCamera2_5D\b' include src tests apps content examples 2>/dev/null | wc -l)"
-printf "  %-30s %5d references (target: 0)\n" "CameraRig (modern)" "$(grep -rE '\bCameraRig\b' include src tests apps content examples 2>/dev/null | wc -l)"
-printf "  %-30s %5d call sites (target: 0)\n" "animated_camera()" "$(grep -rE 'animated_camera\(' include src tests apps content examples 2>/dev/null | wc -l)"
-printf "  %-30s %5d call sites (target: 0)\n" "camera_rig()" "$(grep -rE 'camera_rig\(' include src tests apps content examples 2>/dev/null | wc -l)"
-printf "  %-30s %5d call sites (target: 0)\n" "Camera2_5DProjectionMode" "$(grep -rE 'Camera2_5DProjectionMode' include src tests apps content examples 2>/dev/null | wc -l)"
-printf "  %-30s %5d references (target: 0)\n" "camera_descriptor_adapters" "$(grep -rE 'camera_descriptor_adapters' include src tests apps content examples 2>/dev/null | wc -l)"
-echo ""
+# Migration audit has been removed from this gate (was dead code after exit 0).
+# Followup: stand-alone `tools/check_legacy_camera_trends.sh` script — see D+X.6.
