@@ -42,7 +42,7 @@ struct CenterTextOptions {
 /// F2.C — canonical authoring helper.  Returns TextDefinition, the single
 /// canonical authoring DTO.  Composes directly with LayerBuilder::text().
 inline TextDefinition centered_text(CenterTextOptions o) {
-    return from_text_spec(TextSpec{.content    = {.value = std::move(o.text)},.position = {o.pos.x, o.pos.y, 0.0f},.font       = {.font_path   = std::move(o.font_asset),
+    return from_text_spec(TextSpec{.content    = {.value = std::move(o.text)},.placement = TextPlacement{TextPlacementKind::Absolute, {o.pos.x, o.pos.y}},.font       = {.font_path   = std::move(o.font_asset),
                        .font_family = std::move(o.font_family),
                        .font_weight = o.font_weight,
                        .font_style  = std::move(o.font_style),

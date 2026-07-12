@@ -160,7 +160,7 @@ Composition abyss_freefall_stagger() {
 
         Camera2_5D cam;
         cam.enabled = true;
-        cam.position = {0.0f, 0.0f, 0.0f};
+        cam.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}};
         cam.zoom = 1100.0f;
         cam.fov_deg = 55.0f;
         cam.rotation = cam_rot.evaluate(ctx.frame);

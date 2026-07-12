@@ -76,7 +76,7 @@ Composition cert_multilingual() {
 
             // ── Title header ────────────────────────────────────────
             s.layer("header", [](LayerBuilder& l) {
-                l.text("header", from_text_spec(TextSpec{.content    = {.value = "Multilingual Text Certification — FASE 3.5-3.6"},.position   = {static_cast<float>(kWidth) * 0.5f, 64.0f, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                l.text("header", from_text_spec(TextSpec{.content    = {.value = "Multilingual Text Certification — FASE 3.5-3.6"},.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f, 64.0f}},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                    .font_family = "Inter",
                                    .font_weight = 700,
                                    .font_size   = 30.0f},.layout     = {.box            = {static_cast<float>(kWidth) - kMargin * 2.0f, 56.0f},
@@ -94,7 +94,7 @@ Composition cert_multilingual() {
             {
                 constexpr float y = kStartY;
                 s.layer("row1", [y](LayerBuilder& l) {
-                    l.text("row1_label", from_text_spec(TextSpec{.content    = {.value = "LATIN+Accents →"},.position   = {200.0f, y, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                    l.text("row1_label", from_text_spec(TextSpec{.content    = {.value = "LATIN+Accents →"},.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},.font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 400,
                                        .font_size   = 22.0f},.layout     = {.box            = {200.0f, 48.0f},
@@ -106,7 +106,7 @@ Composition cert_multilingual() {
                                        .overflow       = TextOverflow::Clip,
                                        .line_height    = 0.95f,
                                        .max_lines      = 1},.appearance = {.color = Color{0.5f, 0.8f, 0.5f, 1.0f}},}));
-                    l.text("row1_text", from_text_spec(TextSpec{.content    = {.value = "Café naïve — São Paulo, João"},.position   = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                    l.text("row1_text", from_text_spec(TextSpec{.content    = {.value = "Café naïve — São Paulo, João"},.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
                                        .font_size   = kFontSize},.layout     = {.box            = {static_cast<float>(kWidth) - 500.0f, kRowH},
@@ -125,7 +125,7 @@ Composition cert_multilingual() {
             {
                 constexpr float y = kStartY + kRowH + kGap;
                 s.layer("row2", [y](LayerBuilder& l) {
-                    l.text("row2_label", from_text_spec(TextSpec{.content    = {.value = "CJK →"},.position   = {200.0f, y, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                    l.text("row2_label", from_text_spec(TextSpec{.content    = {.value = "CJK →"},.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},.font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 400,
                                        .font_size   = 22.0f},.layout     = {.box            = {200.0f, 48.0f},
@@ -137,7 +137,7 @@ Composition cert_multilingual() {
                                        .overflow       = TextOverflow::Clip,
                                        .line_height    = 0.95f,
                                        .max_lines      = 1},.appearance = {.color = Color{0.5f, 0.8f, 0.5f, 1.0f}},}));
-                    l.text("row2_text", from_text_spec(TextSpec{.content    = {.value = "こんにちは世界 — 你好世界 中文测试"},.position   = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                    l.text("row2_text", from_text_spec(TextSpec{.content    = {.value = "こんにちは世界 — 你好世界 中文测试"},.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
                                        .font_size   = kFontSize},.layout     = {.box            = {static_cast<float>(kWidth) - 500.0f, kRowH},
@@ -156,7 +156,7 @@ Composition cert_multilingual() {
             {
                 constexpr float y = kStartY + (kRowH + kGap) * 2.0f;
                 s.layer("row3", [y](LayerBuilder& l) {
-                    l.text("row3_label", from_text_spec(TextSpec{.content    = {.value = "Arabic RTL (EXPECTED FAIL) →"},.position   = {200.0f, y, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                    l.text("row3_label", from_text_spec(TextSpec{.content    = {.value = "Arabic RTL (EXPECTED FAIL) →"},.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},.font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 400,
                                        .font_size   = 20.0f},.layout     = {.box            = {280.0f, 48.0f},
@@ -168,7 +168,7 @@ Composition cert_multilingual() {
                                        .overflow       = TextOverflow::Clip,
                                        .line_height    = 0.95f,
                                        .max_lines      = 1},.appearance = {.color = Color{0.9f, 0.6f, 0.3f, 1.0f}},}));
-                    l.text("row3_text", from_text_spec(TextSpec{.content    = {.value = "مرحبا بالعالم"},.position   = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                    l.text("row3_text", from_text_spec(TextSpec{.content    = {.value = "مرحبا بالعالم"},.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
                                        .font_size   = kFontSize},.layout     = {.box            = {static_cast<float>(kWidth) - 500.0f, kRowH},
@@ -187,7 +187,7 @@ Composition cert_multilingual() {
             {
                 constexpr float y = kStartY + (kRowH + kGap) * 3.0f;
                 s.layer("row4", [y](LayerBuilder& l) {
-                    l.text("row4_label", from_text_spec(TextSpec{.content    = {.value = "Hebrew RTL (EXPECTED FAIL) →"},.position   = {200.0f, y, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                    l.text("row4_label", from_text_spec(TextSpec{.content    = {.value = "Hebrew RTL (EXPECTED FAIL) →"},.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},.font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 400,
                                        .font_size   = 20.0f},.layout     = {.box            = {280.0f, 48.0f},
@@ -199,7 +199,7 @@ Composition cert_multilingual() {
                                        .overflow       = TextOverflow::Clip,
                                        .line_height    = 0.95f,
                                        .max_lines      = 1},.appearance = {.color = Color{0.9f, 0.6f, 0.3f, 1.0f}},}));
-                    l.text("row4_text", from_text_spec(TextSpec{.content    = {.value = "שלום עולם"},.position   = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                    l.text("row4_text", from_text_spec(TextSpec{.content    = {.value = "שלום עולם"},.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
                                        .font_size   = kFontSize},.layout     = {.box            = {static_cast<float>(kWidth) - 500.0f, kRowH},
@@ -218,7 +218,7 @@ Composition cert_multilingual() {
             {
                 constexpr float y = kStartY + (kRowH + kGap) * 4.0f;
                 s.layer("row5", [y](LayerBuilder& l) {
-                    l.text("row5_label", from_text_spec(TextSpec{.content    = {.value = "Emoji (EXPECTED FAIL) →"},.position   = {200.0f, y, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                    l.text("row5_label", from_text_spec(TextSpec{.content    = {.value = "Emoji (EXPECTED FAIL) →"},.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},.font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 400,
                                        .font_size   = 20.0f},.layout     = {.box            = {280.0f, 48.0f},
@@ -230,7 +230,7 @@ Composition cert_multilingual() {
                                        .overflow       = TextOverflow::Clip,
                                        .line_height    = 0.95f,
                                        .max_lines      = 1},.appearance = {.color = Color{0.9f, 0.5f, 0.5f, 1.0f}},}));
-                    l.text("row5_text", from_text_spec(TextSpec{.content    = {.value = "🔥 🎉 🚀"},.position   = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                    l.text("row5_text", from_text_spec(TextSpec{.content    = {.value = "🔥 🎉 🚀"},.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
                                        .font_size   = 48.0f},.layout     = {.box            = {static_cast<float>(kWidth) - 500.0f, kRowH},
@@ -249,7 +249,7 @@ Composition cert_multilingual() {
             {
                 constexpr float y = kStartY + (kRowH + kGap) * 5.0f;
                 s.layer("row6", [y](LayerBuilder& l) {
-                    l.text("row6_label", from_text_spec(TextSpec{.content    = {.value = "Mixed →"},.position   = {200.0f, y, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
+                    l.text("row6_label", from_text_spec(TextSpec{.content    = {.value = "Mixed →"},.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},.font       = {.font_path   = "assets/fonts/Inter-Regular.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 400,
                                        .font_size   = 22.0f},.layout     = {.box            = {200.0f, 48.0f},
@@ -261,7 +261,7 @@ Composition cert_multilingual() {
                                        .overflow       = TextOverflow::Clip,
                                        .line_height    = 0.95f,
                                        .max_lines      = 1},.appearance = {.color = Color{0.5f, 0.8f, 0.5f, 1.0f}},}));
-                    l.text("row6_text", from_text_spec(TextSpec{.content    = {.value = "Café 你好 مرحبا 🔥"},.position   = {static_cast<float>(kWidth) * 0.5f + 100.0f, y, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                    l.text("row6_text", from_text_spec(TextSpec{.content    = {.value = "Café 你好 مرحبا 🔥"},.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
                                        .font_size   = kFontSize},.layout     = {.box            = {static_cast<float>(kWidth) - 500.0f, kRowH},

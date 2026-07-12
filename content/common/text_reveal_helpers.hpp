@@ -284,7 +284,7 @@ inline void build_text_reveal_line(SceneBuilder& s,
             const f32 pad = d.glow_intensity > 0.01f ? 40.0f : 12.0f;
             TextSpec ts;
             ts.content.value           = ch;
-            ts.position                = {0.0f, 0.0f, 0.0f};
+            ts.placement                = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}};
             ts.font.font_path          = d.font_spec.font_path;
             ts.font.font_family        = d.font_spec.font_family;
             ts.font.font_weight        = d.font_spec.font_weight;

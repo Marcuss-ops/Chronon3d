@@ -246,7 +246,7 @@ Composition make_multisource_text_plus_shape() {
                     .pos = {0.0f, 48.0f, 0.0f},
                 });
                 // Centered text above the underline
-                l.text("title", from_text_spec(TextSpec{.content    = {.value = "MULTISOURCE"},.position   = {0.0f, 0.0f, 0.0f},.font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+                l.text("title", from_text_spec(TextSpec{.content    = {.value = "MULTISOURCE"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
                                    .font_family = "Poppins",
                                    .font_weight = 700,
                                    .font_style  = "normal",
@@ -339,7 +339,7 @@ Composition make_box_alignment() {
                     .color = {0.0f, 0.0f, 1.0f, 0.12f},
                 });
                 // Text inside the same box dimensions
-                l.text("label", from_text_spec(TextSpec{.content    = {.value = "CENTER"},.position   = {0.0f, 0.0f, 0.0f},.font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+                l.text("label", from_text_spec(TextSpec{.content    = {.value = "CENTER"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
                                    .font_family = "Poppins",
                                    .font_weight = 700,
                                    .font_style  = "normal",
@@ -476,7 +476,7 @@ Composition make_cache_invalidation() {
             add_dark_background(s);
             s.layer("text", [word](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
-                l.text("label", from_text_spec(TextSpec{.content    = {.value = word},.position   = {0.0f, 0.0f, 0.0f},.font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+                l.text("label", from_text_spec(TextSpec{.content    = {.value = word},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
                                    .font_family = "Poppins",
                                    .font_weight = 700,
                                    .font_style  = "normal",

@@ -83,7 +83,7 @@ inline TextDefinition typewriter_text(CenterTextOptions o,
     auto make_base = [&](std::string value, Color c) -> TextDefinition {
         return from_text_spec(TextSpec{
             .content    = {.value = std::move(value)},
-            .position   = {o.pos.x, o.pos.y, 0.0f},
+            .placement = TextPlacement{TextPlacementKind::Absolute, {o.pos.x, o.pos.y}},
             .font       = {.font_path   = std::move(o.font_asset),
                            .font_family = std::move(o.font_family),
                            .font_weight = o.font_weight,

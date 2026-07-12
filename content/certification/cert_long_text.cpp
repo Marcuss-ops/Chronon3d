@@ -57,9 +57,8 @@ Composition cert_long_text() {
                                             "Chronon3D text engine for production-ready "
                                             "subtitle and body text rendering. Every word "
                                             "should remain intact without being cut or "
-                                            "hyphenated mid-character."},.position   = {static_cast<float>(kWidth) * 0.5f,
-                                   kMargin + kBoxH * 0.5f,
-                                   0.0f},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                                            "hyphenated mid-character."},.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f,
+                                   kMargin + kBoxH * 0.5f}},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                    .font_family = "Inter",
                                    .font_weight = 400,
                                    .font_size   = 36.0f},.layout     = {.box            = {kBoxW, kBoxH},
