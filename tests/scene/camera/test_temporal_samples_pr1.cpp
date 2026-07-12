@@ -73,7 +73,7 @@ TEST_CASE("PR1: temporal::generate_temporal_samples — deterministic across two
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — Stratified jitter doesn't differ across frames.
 // TODO(chronon3d): fix frame-keyed jitter generation and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
-TEST_CASE("PR1: temporal::generate_temporal_samples — frame-keyed jitter differs" * doctest::skip()) {
+TEST_CASE("PR1: temporal::generate_temporal_samples — frame-keyed jitter differs" * doctest::skip()) {  // TICKET-007.i / TICKET-DOCTEST-SKIP-ROT
     // Different seed / same frame → different output.  Different frame / same
     // seed → ALSO different output (the Stratified pattern is frame-keyed).
     chronon3d::temporal::TemporalSampleParams p;
