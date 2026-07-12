@@ -154,8 +154,12 @@ CameraSessionLease CameraSessionCache::acquire(const CameraProgram& program,
     // lease.session() returns a reference to working_session; commit() copies
     // working_session back to checkpoint.session; uncommitted leases
     // implicitly rollback (no writeback — checkpoint.session is untouched).
-    e.working_session = std::make_shared<CameraSession>();
-    *e.working_session = e.checkpoint->session;
+    // Use shared_ptr with no-op deleter: checkpoint owns the CameraSession
+    // value, working_session borrows it. This avoids make_shared which
+    // requires CameraSession to be a complete type at this point.
+    e.working_session = std::shared_ptr<CameraSession>(
+        &e.checkpoint->session,
+        [](CameraSession*) { /* no-op: checkpoint owns the session */ });
     return CameraSessionLease(this, shot_idx,
                               e.working_session.get(), target_frame);
 }
