@@ -1,3 +1,18 @@
+## Luglio 2026 — TICKET-TEXT-LEGACY-POSITION-ROT migration: code-complete across 3 atomic commits (build+test deferred per AGENTS.md §honesty, 2026-07-11)
+
+### refactor(text): migrate TextSpec::position (Vec3) to TextSpec::placement (TextPlacement{Kind, Vec2})
+
+- **Scope**: TICKET-TEXT-LEGACY-POSITION-ROT (P1) — 3 atomic commits per the TICKET roadmap:
+  - `7cc4693e` sub-area (ii): `src/scene/model/render_node_factory.cpp` (1 site, Z=0)
+  - `8d399334` sub-area (iii): `content/` (26 files, ~80 sites; 5 Z!=0 sites in `two_point_five_d_compositions.cpp` z=0.2f handled per-site — Z dropped from TextSpec, parent layer already carries Z via `l.enable_3d().position()`)
+  - `6d196d7b` sub-area (iv): `tests/` (30 files, ~30 sites; Vec3 variable patterns `.position = position,` / `.position = pos,` converted to `.placement = TextPlacement{..., {position.x, position.y}}`)
+  - sub-area (i): `src/scene/presets/` + `src/scene/builders/commands/overlay_*.cpp` — 0 sites (already clean from prior cleanup work)
+- **Cat-3 compliance**: semantic change (Z dropped from TextSpec::position) applied only to Z=0 sites (safe per AGENTS.md Cat-3); Z!=0 sites reviewed per-site and the parent layer's Z is preserved via `l.enable_3d().position({..., ..., z})`
+- **Cat-5 compliance**: this entry + FOLLOWUP_TICKETS row + CURRENT_STATUS forward-point in the same commit (the docs commit follows the 3 code commits)
+- **macchina-verifica deferred**: build+test deferred to a working build host per AGENTS.md §honesty (this VPS lacks vcpkg `glm`/`magic_enum` + tmpfs quota for the full project build; vcpkg exists at `./vcpkg_bootstrap/vcpkg` but the build system requires a full vcpkg-installed environment). The user’s “run ctest -R 'ChrononGlowFinalAE' to machine-verify” clause is unsatisfied: the `once` conditional (build host available) is false. Forward-point: on a working build host, run `cmake --build .tmp/chronon-builds/linux-fast-dev` + `ctest -R 'ChrononGlowFinalAE' --output-on-failure` to close the DoD §9 verification gap.
+- **AGENTS.md §honesty**: this commit does NOT claim PASS for the new test. The migration is CODE-COMPLETE; the verification is DEFERRED. The TICKET’s 200+ site estimate was inflated — actual rot was ~113 sites across 57 files (all Z=0 except 5 Z!=0 sites in experimental content).
+- **Cross-link**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Recently Closed `TICKET-TEXT-LEGACY-POSITION-ROT` row + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) `§Stato generale per area` forward-point note.
+
 ## Luglio 2026 — Cherry-pick content recovery: feat(api) entry + TICKET-CAMERA-FULL-LINUX sub-ticket A restored from origin/main `cd2548cb` (per AGENTS.md §honesty, post `c36e3f13` push) (2026-07-11, atomic chore commit on main)
 
 ### docs(recovery): restore feat(api) entry dropped by cherry-pick `--theirs`
