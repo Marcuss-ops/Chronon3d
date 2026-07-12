@@ -3,7 +3,7 @@
 **ID**: `TICKET-AGGREGATOR-FALLBACK-HARDENING`
 **Priorità**: P1
 **Area**: aggregator hardening / telemetry fail-loud contract
-**Parent**: 2026-07-12 hardening follow-on chore landed on top of F2 closure commit `52e48ddd`
+**Parent**: 2026-07-12 hardening follow-on chore landed as `11f4fd03` on top of F2 closure commit `52e48ddd` (post-rebase replay on `3d02d91a` per AGENTS.md linear-history invariant)
 
 ## Stato
 
@@ -51,6 +51,8 @@ ALL healthy on this checkout (no IO failure surfaces to exercise the new exit-2 
    build host per AGENTS.md §honest-limitation. The first 7-day run after upstream
    rot-cascade resolved produces the canonical 8-metric table + 7 narrative lines +
    the cross-week delta baseline for narrative line 7 (metrica migliorata).
+
+3. `TICKET-AGGREGATOR-METRIC-1-EXIT2-SCOPE-DECISION` — Cat-5 forward-point registered post-F3-landing per reviewer C's split-rationale feedback (this commit `11f4fd03`'s code-review verdict CV-A flagged the 4-metric exit-2 vs 4-metric null-coalesce split rationale as undocumented): formally document the metric-1 `videos_completed` SQL `count(DISTINCT composition_id) WHERE status='DONE' AND finished_at >= 7d` is canonical-never-NULL on the canonical SQL surface (no row-set can produce a SQL NULL count for a `status='DONE'` filter — the count is either 0 or a positive integer), so a null-coalesce wrapper for metric 1 is architectural-irrelevant, justifying the exit-2 split for the 4-telemetry-dependent metrics (3 manual_touches_per_video DB + 4 cost_per_finished_minute DB + 7 deterministic_hash_failures selftest_log + 8 bbox_contract_violations) and the null-coalesce retention for metrics 1+2+5+6. Also co-decides whether the metric 2 `failure_rate` TOTAL=0 boundary should ALSO be silently handled via `[NO-DATA]` (current F3 choice, replaces prior fabricated `0.00%`) OR exit 2 on TOTAL==0 (alternative that harmonizes with the 4-telemetry-dependent exit-2 surface). Resolution will lock the design invariant in AGENTS.md §honest-limitation Cat-3 anti-duplication rule. See TICKET-AGGREGATOR-FALLBACK-HARDENING §Forward-points in `docs/FOLLOWUP_TICKETS.md` for parallel context.
 
 ## Cross-references
 
