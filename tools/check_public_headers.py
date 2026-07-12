@@ -1,6 +1,20 @@
 #!/usr/bin/env python3
+""":"
+exec python3 "$0" "$@"
+"""
 # ==============================================================================
 # tools/check_public_headers.py — Gate driven by Chronon3DPublicHeaders.cmake
+#
+# Invocation (3 valid forms, post-fix):
+#   1. python3 tools/check_public_headers.py --compile-commands <path> --manifest <path> --out <path>  (canonical)
+#   2. tools/check_public_headers.py --compile-commands <path> --manifest <path> --out <path>  (direct, chmod +x applied)
+#   3. bash tools/check_public_headers.py ...  (polyglot: auto-routes to python3 via the """:" + exec magic)
+#
+# All 3 forms invoke the Python code below. The polyglot header (lines 1-4)
+# makes the script bash-callable (the prior rot: `bash <script>` failed with
+# Python-syntax parse errors). Per the 13th-pass code-reviewer's 3-step
+# diagnostic, the script body is valid Python; the rot was strictly the
+# invocation pattern + lack of execute permission.
 # ==============================================================================
 #
 # Single source of truth for the V0.1 SDK public-header surface is the
