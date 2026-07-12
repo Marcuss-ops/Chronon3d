@@ -85,10 +85,7 @@ bool render_and_verify(Composition& comp, Frame frame,
     REQUIRE(fb != nullptr);
 
     auto result = verify_golden(*fb, case_name, cfg);
-<<<<<<< HEAD
     REQUIRE_FALSE(result.golden_missing);
-=======
->>>>>>> dbf39153 (fix(tests): make golden references mandatory in CI/certification mode)
     INFO(result.message);
     REQUIRE_FALSE(result.golden_missing);
     CHECK(result.passed);

@@ -1,3 +1,44 @@
+## Luglio 2026 — fix(gate): resolve 10 unresolved git merge conflict markers + new tools/check_no_source_conflict_markers.sh (TICKET-SOURCE-CONFLICT-MARKERS-ROT, 2026-07-12, atomic chore commit on main)
+
+**`fix(gate): resolve 10 unresolved git merge conflict markers on main`** — atomic chore commit documenting the resolution of 10 files that had committed unresolved `<<<<<<< HEAD` / `=======` / `>>>>>>> ...` git merge markers (3 production sources + 7 tests), discovered via ripgrep on main working tree on 2026-07-12. The markers originated from a merge of commits `dbf39153 fix(tests): make golden references mandatory in CI/certification mode` + `dc7127aa fix(tests): close dangling `+,` syntax in camera_truth_orbit TextSpec initializer` that was committed WITHOUT resolution, leaving the merge conflict blocks verbatim in source code.
+
+**Pre-existing rot discovered aggressively**: `tools/check_no_changelog_conflict_markers.sh` (the existing conflict-marker gate) only scans `docs/CHANGELOG.md` — NOT source files. The `11/11 PASS` claim was misleading: 10 source files contained committed rot that no gate catches. Per the thinker's per-file resolution table, applied atomically:
+
+| File | Resolution | Why |
+|---|---|---|
+| `content/showcases/cinematic/cinematic_title_helpers.hpp` | **edit** | Combine `line_height` (HEAD) with `overflow = TextOverflow::Clip` (other) — preserves both new fields |
+| `content/showcases/cinematic/tilt_sweep_title_v2.cpp` | **edit** (×2 blocks) | Same EDIT pattern: line_height + overflow |
+| `content/experimental/camera/two_point_five_d_compositions.cpp` | `<<<` stay | HEAD intentionally added `.position = {0.0f, 0.0f, -1000.0f}` — dbf39153 erased it; restore |
+| `tests/visual/camera/camera_visual_compare.cpp` | `<<<` stay | HEAD already has the single correct `REQUIRE_FALSE` line |
+| `tests/visual/PR3/pr3_compositions.cpp` | `<<<` stay | Same |
+| `tests/visual/cinematic_motion/cinematic_motion_tests.cpp` | `<<<` stay | Same |
+| `tests/visual/ae_parity/ae_parity_tests.cpp` | `<<<` stay | Same |
+| `tests/visual/camera_truth/camera_truth_orbit.cpp` | **edit** | Combine `hud_label` variable (dc7127aa) with `.placement` API (HEAD) |
+| `tests/text_golden/text_transforms_animation/01_rotate_z_not_cut.cpp` | `<<<` stay | HEAD's documentation comment is more concise |
+| `tests/text_golden/text_multilingual/04_hangul_composition.cpp` | `>>>>` stay (×2) | HEAD has invalid C++ syntax (`REQUIRE_FALSE(...); else {`); dbf39153 side is valid C++ |
+
+**NEW `tools/check_no_source_conflict_markers.sh`** (Cat-5 rot-preventive gate) — hard-blocks any future push that re-introduces unresolved conflict markers in SOURCE code. Scope: `.cpp`, `.hpp`, `.h`, `.c`, `.cmake` (deliberately excludes `.py` for intentional selftest markers + `.md` for prose mentions). Line-start anchored regex `^(<<<<<<< HEAD|=======$|>>>>>>> )` avoids false positives from comments. Custom exit codes (0=PASS, 1=FAIL, 2=internal error). INFO-level diagnostic style per AGENTS.md **"Regole di lint documentale"** §INFO-level diagnostic style (Lint rule #2): `[INFO] ${GATE_NAME}` line on PASS.
+
+**Cat-3 (zero new public SDK API) SATISFIED**: tool-only addition; zero new symbols in `include/chronon3d/`.
+
+**Cat-5 3-doc same-commit alignment SATISFIED**: this CHANGELOG entry (prepended at TOP) + `docs/FOLLOWUP_TICKETS.md` (NEW `TICKET-SOURCE-CONFLICT-MARKERS-ROT` row in `## Open Blockers` → `DONE` after atomic commit lands) + the 10 source/test files (all markers resolved) + the new gate file all updated in the same atomic commit.
+
+**§honesty compliance**: the markers were on main HEAD for an undetermined period (likely since the dbf39153 merge in 2026-07-12 morning per `git log --merges` lineage). The fix is strictly per the thinker's per-file resolution table — no silent partial fixes, no rushed decisions. The new gate is PASS-ONLY-when-clean, so a future regression is caught at push time (when wired into `tools/wrap_push.sh` per the forward-point).
+
+**Forward-point (NOT in this commit, deferred per AGENTS.md "Fare PR piccole e mirate")**: wire `tools/check_no_source_conflict_markers.sh` into `tools/wrap_push.sh` Step 4.5 (post-`check_main_clean.sh`, pre-commit-subject-length). A separate one-line addition to `tools/wrap_push.sh` is the natural next atomic commit.
+
+**Files changed (12 files, all in same atomic commit)**:
+- 10 source/test files: marker resolution per the table above
+- `tools/check_no_source_conflict_markers.sh` (NEW, ~100 LoC)
+- `docs/FOLLOWUP_TICKETS.md` (NEW TICKET row)
+- `docs/CHANGELOG.md` (this entry prepended)
+
+**Commit subject**: `fix(gate): resolve 10 source conflict markers + add gate tool` (62 chars, within the 72-char `tools/check_commit_subject_length.sh` `origin/main..HEAD` push-range scope).
+
+**Cross-references**: [`tools/check_no_source_conflict_markers.sh`](tools/check_no_source_conflict_markers.sh) (the new gate) + `tools/wrap_push.sh` (forward-point: wire at Step 4.5) + `tools/check_no_changelog_conflict_markers.sh` (the existing CHANGELOG-only gate, complementary) + AGENTS.md §Cat-3 (zero new public API, satisfied) + AGENTS.md §Cat-5 (3-doc same-commit, satisfied) + AGENTS.md §honesty (rot caught + fixed honestly) + AGENTS.md **"Regole di lint documentale"** §INFO-level diagnostic style rule #2 (format citation).
+
+---
+
 ## Luglio 2026 — docs(sync): race loop, 1 commit suppressed, cleanups (TICKET-WORKFLOW-RACE-LOOP-SYNC, 2026-07-12, atomic chore commit on main)
 
 **`docs(sync): race loop, 1 commit suppressed, cleanups`** — atomic chore commit documenting the main-sync transaction at commit `95c08acb` that survived 3 race conditions with `origin/main` during push attempts. Closes `TICKET-WORKFLOW-RACE-LOOP-SYNC` (consolidated workstream capturing the 5-event sync workflow).
