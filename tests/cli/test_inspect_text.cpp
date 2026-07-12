@@ -120,6 +120,7 @@ Composition make_test_comp(const std::string& name, int width, int height) {
         SceneBuilder s(ctx);
         s.text(name + "_text", {
             .content = {.value = "Hello"},
+            .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{width / 2.0f, height / 2.0f}},
             .font = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                      .font_family = "Inter",
                      .font_weight = 700,
@@ -128,7 +129,6 @@ Composition make_test_comp(const std::string& name, int width, int height) {
                        .anchor = TextAnchor::Center,
                        .align = TextAlign::Center,
                        .vertical_align = VerticalAlign::Middle},
-            .position = Vec3{width / 2.0f, height / 2.0f, 0.0f},
         });
         return s.build();
     });
@@ -147,6 +147,7 @@ Composition make_multi_node_comp(const std::string& name, int width, int height)
         SceneBuilder s(ctx);
         s.text(name + "_title", {
             .content = {.value = "Title"},
+            .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{width / 2.0f, height * 0.25f}},
             .font = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                      .font_family = "Inter",
                      .font_weight = 700,
@@ -155,10 +156,10 @@ Composition make_multi_node_comp(const std::string& name, int width, int height)
                        .anchor = TextAnchor::Center,
                        .align = TextAlign::Center,
                        .vertical_align = VerticalAlign::Middle},
-            .position = Vec3{width / 2.0f, height * 0.25f, 0.0f},
         });
         s.text(name + "_subtitle", {
             .content = {.value = "Subtitle"},
+            .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{width / 2.0f, height * 0.75f}},
             .font = {.font_path   = "assets/fonts/Inter-Regular.ttf",
                      .font_family = "Inter",
                      .font_weight = 400,
@@ -167,7 +168,6 @@ Composition make_multi_node_comp(const std::string& name, int width, int height)
                        .anchor = TextAnchor::Center,
                        .align = TextAlign::Center,
                        .vertical_align = VerticalAlign::Middle},
-            .position = Vec3{width / 2.0f, height * 0.75f, 0.0f},
         });
         return s.build();
     });
