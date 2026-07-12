@@ -25,7 +25,7 @@
 //       .build();
 //   auto program = chronon3d::compile_camera(descriptor).value();
 //
-//   composition.camera(program);
+//   composition.camera_program(program);
 //   renderer.render(composition, Frame{30});
 //
 // Cat-3 compliance: this header introduces NO new singleton / registry /
