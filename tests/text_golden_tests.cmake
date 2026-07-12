@@ -113,6 +113,19 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+# TICKET-GLOW-CERTIFICATION — Azione 2: temporal glow acceptance tests
+# (60-frame sweep, pulse timing, MP4 SSIM forward-point).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        visual/glow_ab/glow_temporal_tests.cpp
+)
+
+add_test(
+    NAME GlowTemporal
+    COMMAND chronon3d_text_golden_tests --test-case="Glow temporal: *"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 # TICKET-AE-PARITY-CINEMATIC-10 — ae_scale_pop scene.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
