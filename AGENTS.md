@@ -377,6 +377,57 @@ Il C++ standard (C++23 §11.5.1/2 [dcl.fct.default]/2, equivalente al C++20 §11
 
 **Lint-checkability (forward-point)**: Un futuro gate CI (`tools/check_duplicate_default_arg.sh`, opzionale e non ancora implementato) potrebbe verificare via grep + parse-AST che nessun parametro riceva `= <value>` due volte nella stessa TU tra la dichiarazione primaria di una funzione e una sua ridefinizione inline (es. `inline` stub sotto `#ifndef CHRONON3D_ENABLE_DIAGNOSTICS`). Il pattern, se implementato, deve seguire la convenzione **INFO-level diagnostic style** (`[INFO] <gate-name>: <message>` su PASS addizionale al canonico `GATE_PASS`) già documentata sopra. L'implementazione è deferred a un ticket separato (AGENTS.md v0.1 §regole "Fare PR piccole e mirate" + Cat-3 anti-duplication: il rule documentation precede il lint tooling).
 
+### Post-push SHA-selfcheck invariant (lost-commit prevention)
+
+After every `bash tools/wrap_push.sh origin main` invocation that exits 0, the agent MUST verify a **SHA-triple equality**: `git rev-parse HEAD` (post-push) equals `git rev-parse '@{u}'` (upstream tracking) equals the local SHA captured BEFORE the push invocation. This invariant closes the WRITE-side lost-commit failure mode that bit the project in the `b589fdba` 3-attempt recovery session (TICKET-SOURCE-CONFLICT-MARKERS-ROT §honesty closure).
+
+**Perché**: `tools/wrap_push.sh` returning exit 0 is a NECESSARY but NOT SUFFICIENT signal that the chore landed on `origin/main`. Four distinct failure modes can present an exit-0 verdict while a commit is effectively lost or diverged:
+  1. **Auto-FF divergence** (the lost-2nd-attempt pattern): a concurrent agent pushes between `tools/wrap_push.sh` Step 3 (auto-FF unidirectional) and Step 5 (final `git push "$@"`). The local chore commit is rebased OUT by the upstream churn; `git push` exits 0 because there is nothing new to push. The agent reports "pushed" but the chore never reached `origin/main`.
+  2. **Stale `@{u}` resolution** after a rebase: `git rev-parse '@{u}'` may transiently resolve to a stale commit SHA (origin's previous HEAD before the upstream churn); equality check returns false-positively, masking the divergence until a later inspection.
+  3. **`tools/wrap_push.sh` GATE_FAIL misfire** (rare): Step 4's `check_main_clean.sh` can return exit 0 even when upstream has advanced past the local HEAD because the gate accepts `FF-pull + post-commit-push + uguaglianza` as PASS conditions. The wrapper exit 0 is not a definitive "the commit I just made is now at `origin/main` HEAD" signal.
+  4. **Multi-agent race window** (§honesty closure lineage): two agents push concurrently to `origin/main`. The first one's push succeeds; the second one's auto-FF pulls in new commits; the second one's push then exits 0 but the chore is appended AFTER the first's. Without the SHA-triple check, the second agent cannot detect that its chore is one or more commits downstream of where they thought they pushed.
+All four are §honesty violations: the agent's reported "pushed to main" does not match reality. The SHA-triple equality invariant surfaces the divergence BEFORE the agent reports completion.
+
+**Origine**: rule synthesized after the `b589fdba` 3-attempt recovery session (2026-07-12) which closed the AGENTS.md §honesty closure of TICKET-SOURCE-CONFLICT-MARKERS-ROT via the macchina-verifica paragraph (`b589fdba` re-insert + tightening after `4697a9d9` first attempt was wiped by upstream FF-merge churn between `4697a9d9` and `origin/main HEAD` + the lost-2nd-attempt tightening attempt hit a Python heredoc em-dash encoding mismatch + a concurrent agent raced a divergent SHA `a1835369` to a different feature). The rule codifies the discipline that prevented the 4th attempt from being lost: capture local SHA pre-push + push via the canonical wrapper + verify SHA-triple equality post-push. Cross-link: the pre-existing **GATE-MNT-01 closure lineage** (`TICKET-048` + `TICKET-067`/`TICKET-075` + `TICKET-076` + `GATE-MNT-01-EXT`) documente in §GATE-MNT-01 in fondo a questo file — that triad is the READ-side complement (per-branch rebase + `tools/wrap_push.sh` + `tools/check_main_clean.sh`); the SHA-selfcheck is the WRITE-side gate that closes the lost-commit failure mode.
+
+**Scope**: applies to EVERY `git push` invocation on `main` (and to all branches where `@{u}` resolves to a remote-tracked branch). Does NOT apply to:
+  - Pushes during a rebase troubleshooting cycle: capture `git rev-parse HEAD@{1}` (the pre-rebase SHA) instead of the canonical `git rev-parse HEAD`.
+  - The auto-FF unidirectional path inside `tools/wrap_push.sh` itself (Step 3): the wrapper has its own SHA capture mechanism + GATE_FAIL diagnostic on non-FF-able divergence. The rule applies AFTER the wrapper returns; the wrapper's internal exit codes are NOT a substitute for the SHA-triple check.
+  - Local amendments before the very first push of a chore (when there's no upstream tracking yet); the post-push equality check is vacuously true (`HEAD == @{u}` trivially).
+Specifically: every `bash tools/wrap_push.sh origin main` invocation MUST be followed by the SHA-triple equality check before the agent reports "pushed".
+
+#### Anti-esempio — trust exit-0 without SHA selfcheck
+
+```bash
+# ❌ WRONG: trust exit-0 without SHA selfcheck
+git commit -m "docs(state): post-FF 11/11 green + Phase 1 rot resolved" -m "..."
+bash tools/wrap_push.sh origin main    # exit 0 ⇒ assumes push succeeded
+echo "pushed — done"                  # ← SBAGLIATO: exit 0 alone is INSUFFICIENT
+# Lost-commit pattern: a concurrent agent pushed between auto-FF and final push.
+# The chore was rebased-out; the wrapper exit 0 is the AUTO-NOTHING-TO-PUSH
+# signal, NOT a confirmation that the chore reached origin/main.
+```
+
+#### CORRETTO — SHA-triple equality post-push
+
+```bash
+# ✅ RIGHT: capture pre-push + push + SHA-triple equality verify
+LOCAL_SHA="$(git rev-parse HEAD)"                              # capture pre-push
+bash tools/wrap_push.sh origin main                           # forward push via wrapper
+POSTPUSH_SHA="$(git rev-parse HEAD)"
+UPSTREAM_SHA="$(git rev-parse '@{u}')"
+[ "$LOCAL_SHA" = "$POSTPUSH_SHA" ] \
+  && [ "$POSTPUSH_SHA" = "$UPSTREAM_SHA" ] \
+  || { echo "SHA MISMATCH: lost-commit pattern detected" >&2; \
+       echo "  local    = $LOCAL_SHA" >&2; \
+       echo "  postpush = $POSTPUSH_SHA" >&2; \
+       echo "  upstream = $UPSTREAM_SHA" >&2; \
+       exit 1; }
+echo "pushed — chore SHA verified on origin/main"
+```
+
+**Lint-checkability (forward-point)**: a future `tools/check_post_push_consistency.sh` (gate opzionale, NON ancora implementato) could auto-verify the discipline by scanning recent `git reflog` entries: if the last `push` reflog entry was preceded by a commit `C` whose SHA does NOT appear in the current `origin/main` reflog, emit `GATE_FAIL: post-push SHA-mismatch detected — chore <SHA> lost between local and upstream`. The gate would implement the SHA-triple equality check as a CI invariant that complements the agent-side discipline. Implementation deferred per AGENTS.md v0.1 §regole "Fare PR piccole e mirate" + the rule-documentation-precedes-lint-tooling pattern (see INFO-level diagnostic style rule's Lint-checkability forward-point above for the precedent). Per AGENTS.md §GATE-MNT-01 closure lineage, this future gate sits on the WRITE-side triad complement (per-branch rebase + `tools/wrap_push.sh` + `tools/check_main_clean.sh` are the READ-side triad; the SHA-selfcheck is the WRITE-side discipline that closes the lost-commit failure mode that bit the `b589fdba` recovery).
+
 ## Workflow Git obbligatorio
 
 ```bash

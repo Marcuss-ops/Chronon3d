@@ -1,3 +1,29 @@
+## Luglio 2026 — docs(agents): add post-push SHA-selfcheck invariant (lint rule #5, lost-commit prevention, 2026-07-12, atomic chore commit on main)
+
+**`docs(agents): add post-push SHA-selfcheck invariant (lint rule #5)`** — atomic chore commit codifying the SHA-triple equality invariant as the 5th permanent rule in AGENTS.md §Regole di lint documentale. After every `bash tools/wrap_push.sh origin main` invocation, the agent MUST verify `git rev-parse HEAD == git rev-parse '@{u}' == pre-push-captured SHA`. Closes the WRITE-side lost-commit failure mode that bit the `b589fdba` 3-attempt recovery session for TICKET-SOURCE-CONFLICT-MARKERS-ROT.
+
+**Rule surface** (matches Rules 1-4 pattern verbatim):
+- **Perché** — 4 distinct failure modes that present an exit-0 verdict while the chore is effectively lost: (1) auto-FF divergence (the lost-2nd-attempt pattern: concurrent agent push between Step 3 and Step 5 → rebased-out), (2) stale `@{u}` resolution after rebase, (3) `tools/wrap_push.sh` GATE_FAIL misfire (gate accepts FF-pull + post-commit-push + uguaglianza per `check_main_clean.sh`), (4) multi-agent race window where the chore lands downstream of where the agent thought.
+- **Origine** — synthesized after the `b589fdba` 3-attempt recovery session (2026-07-12). The recovery's discipline (capture local SHA pre-push + push + SHA-triple equality post-push) prevented the 4th attempt from being lost. Cross-link: GATE-MNT-01 read-side triad (per-branch rebase + `tools/wrap_push.sh` + `check_main_clean.sh` — closure lineage TICKET-048 + TICKET-067/TICKET-075 + TICKET-076 + GATE-MNT-01-EXT). The SHA-selfcheck is the WRITE-side gate complement.
+- **Scope** — applies to every `git push` invocation on `main` (and to all branches where `@{u}` resolves to a remote-tracked branch). Does NOT apply to: rebase troubleshooting (capture `HEAD@{1}` instead), the auto-FF path inside `tools/wrap_push.sh` itself (Step 3 has its own discipline), local pre-first-push amendments.
+- **Anti-esempio** — `bash tools/wrap_push.sh origin main; echo done` (trust exit-0 alone).
+- **CORRETTO** — `LOCAL_SHA=$(git rev-parse HEAD); bash tools/wrap_push.sh origin main; [ "$LOCAL_SHA" = "$(git rev-parse HEAD)" ] && [ "$(git rev-parse HEAD)" = "$(git rev-parse '@{u}')" ] || exit 1`.
+- **Lint-checkability (forward-point)** — proposed `tools/check_post_push_consistency.sh` (deferred, per AGENTS.md rule-documentation-precedes-lint-tooling precedent). The gate scans recent `git reflog` entries for SHA divergence.
+
+**Files changed (2 — Cat-5 2-doc same-commit alignment)**:
+- `AGENTS.md` EDIT (NEW `### Post-push SHA-selfcheck invariant (lost-commit prevention)` rule inserted between Rule #4 closing line and `## Workflow Git obbligatorio` section header, separated by exactly one blank line)
+- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+
+**§honesty compliance**: the rule itself IS a §honesty rule (codifies the write-side invariant that the `b589fdba` recovery surfaced). No source code modified; no new symbols; no SDK-state semantic touched (`docs/CURRENT_STATUS.md` + `docs/FOLLOWUP_TICKETS.md` INTENTIONALLY UNTOUCHED per AGENTS.md Cat-3 anti-duplication — a docs-only chore does not produce SDK-state changes).
+
+**Subject**: `docs(agents): add post-push SHA-selfcheck invariant (lint rule #5)` (65 chars, within the 72-char `tools/check_commit_subject_length.sh` `origin/main..HEAD` push-range audit per TICKET-GATE-SUBJECT-RANGE fix).
+
+**GATE-MNT-01 fail-on-dirty invariant**: pre-push SHA-triple equality check (this rule itself) + `tools/wrap_push.sh origin main` will run the canonical chain (`check_main_clean` + 4.5b hygiene + 4.5c suite-registration + 4.5d CHANGELOG-conflict + 4.5e golden-sources + 4.5f doc-sha-dedup + 4.5g commit-subject + 4.5h source-conflict) per §GATE-MNT-01 closure lineage.
+
+**Cross-references**: AGENTS.md §Regole di lint documentale Rules 1-4 (the lineage; Rule 5 follows the same Perché / Origine / Scope / Anti-esempio / CORRETTO / Lint-checkability forward-point pattern) + AGENTS.md §GATE-MNT-01 (the read-side triad the SHA-selfcheck complements) + commit `b589fdba` (the 3rd-attempt recovery commit which surfaced the discipline) + commit `4697a9d9` (the 1st attempt, eliminated by upstream FF-race churn) + the lost-2nd-attempt (the tightening-commit attempt that landed as divergent SHA `a1835369` to a different feature) + `tools/wrap_push.sh` Step 3 (auto-FF unidirectional + GATE_FAIL divergent diagnostic — internal to the wrapper, NOT a substitute for the SHA-triple check) + the rule-documentation-precedes-lint-tooling precedent from each rule's Lint-checkability forward-point paragraph (closing-instrument for the new gate).
+
+---
+
 ## Luglio 2026 — docs(followup): expand TICKET-BUILD-ROT-CASCADE rot-class findings (verified count delta + SAME-rot-pattern classification, 2026-07-12, atomic chore commit on main)
 
 **`docs(followup): expand TICKET-BUILD-ROT-CASCADE rot-class findings`** — atomic chore commit documenting the verified count expansion of TICKET-BUILD-ROT-CASCADE-CAMERA's rot-pattern from a clean rebuild of `chronon3d_dev_fast` (preserved build log at `/tmp/build_test_artifact.log`, [~166K chars, 245 `error:` markers]).
