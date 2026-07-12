@@ -545,3 +545,130 @@ TEST_CASE("LensModel: different gate fits give different focal lengths") {
     // For this case both should be the same
     CHECK(fp_fill == doctest::Approx(fp_overscan).epsilon(0.01f));
 }
+
+
+// =========================================================================
+// ProjectionContractConfig — TICKET-PROJECTION-V1 forward-point 0e+ closure
+// =========================================================================
+
+TEST_CASE("ProjectionContractConfig: default construction matches Path 1 convention") {
+    chronon3d::camera_math::ProjectionContractConfig cfg{};
+    CHECK(cfg.near_epsilon == doctest::Approx(1e-4f));
+}
+
+TEST_CASE("ProjectionContractConfig: aggregate-initialisable custom near_epsilon") {
+    chronon3d::camera_math::ProjectionContractConfig cfg{1e-3f};
+    CHECK(cfg.near_epsilon == doctest::Approx(1e-3f));
+}
+
+TEST_CASE("ProjectionContractConfig: default factory returns canonical defaults") {
+    auto cfg = chronon3d::camera_math::default_projection_contract_config();
+    CHECK(cfg.near_epsilon == doctest::Approx(1e-4f));
+}
+
+// ── Config-based overload (forward-point 0e+ regression lock) ───────
+
+TEST_CASE("world_to_camera_space: config overload with default config == f32 overload") {
+    Camera2_5D cam;
+    cam.optics_mode = CameraOpticsMode::Zoom;
+    cam.zoom = 1000.0f;
+    Vec3 world{0.0f, 0.0f, 5.0f};  // 5 units in front of the camera
+
+    auto via_eps = chronon3d::camera_math::world_to_camera_space(
+        cam, world, 1e-4f);
+    auto via_cfg = chronon3d::camera_math::world_to_camera_space(
+        cam, world, chronon3d::camera_math::default_projection_contract_config());
+
+    CHECK(via_cfg.visible == via_eps.visible);
+    CHECK(via_cfg.depth   == doctest::Approx(via_eps.depth).epsilon(0.001f));
+}
+
+TEST_CASE("world_to_camera_space: config overload with higher near_epsilon flips visibility") {
+    Camera2_5D cam;
+    cam.optics_mode = CameraOpticsMode::Zoom;
+    cam.zoom = 1000.0f;
+
+    // Point at z=5e-4f: visible under default 1e-4f boundary
+    Vec3 world{0.0f, 0.0f, 5e-4f};
+    auto default_cfg_v = chronon3d::camera_math::world_to_camera_space(
+        cam, world, chronon3d::camera_math::default_projection_contract_config());
+    CHECK(default_cfg_v.visible == true);
+
+    // Invisible when the contract is configured with a stricter 1e-3f cutoff
+    chronon3d::camera_math::ProjectionContractConfig strict{1e-3f};
+    auto strict_v = chronon3d::camera_math::world_to_camera_space(cam, world, strict);
+    CHECK(strict_v.visible == false);
+}
+
+TEST_CASE("project_world_point: config overload produces same out for default config") {
+    Camera2_5D cam;
+    cam.optics_mode = CameraOpticsMode::Zoom;
+    cam.zoom = 2000.0f;
+    using chronon3d::camera_math::Viewport2D;
+    Vec3 world{0.0f, 0.0f, 50.0f};
+    Viewport2D vp{1920.0f, 1080.0f};
+
+    auto via_eps = chronon3d::camera_math::project_world_point(cam, world, vp, 1e-4f);
+    auto via_cfg = chronon3d::camera_math::project_world_point(
+        cam, world, vp, chronon3d::camera_math::default_projection_contract_config());
+
+    CHECK(via_cfg.visible == via_eps.visible);
+    CHECK(via_cfg.depth   == doctest::Approx(via_eps.depth).epsilon(0.001f));
+    CHECK(via_cfg.perspective_scale
+          == doctest::Approx(via_eps.perspective_scale).epsilon(0.001f));
+}
+
+// ── GateFit matrix coverage x viewport aspect ──────────────────────
+// Verifies the 3 GateFit modes (Fill / Overscan / Stretch) against 3
+// viewport aspects (16:9, 21:9, 4:3) for the focal_pixels contract that
+// feeds the projection pipeline.  Locks the TICKET-035 per-axis invariant.
+
+TEST_CASE("LensModel: focal_pixels matrix 3x3 (gate_fit x viewport_aspect)") {
+    struct AspectCase {
+        const char* label;
+        float w;
+        float h;
+    };
+    const AspectCase aspects[] = {
+        {"16:9", 1920.0f, 1080.0f},   // vp_aspect  1.78
+        {"21:9", 2560.0f, 1080.0f},   // vp_aspect  2.37
+        {"4:3",  1440.0f, 1080.0f},   // vp_aspect  1.33 (vp narrower than sensor)
+    };
+
+    LensModel base;
+    base.focal_length  = 50.0f;
+    base.sensor_width  = 36.0f;
+    base.sensor_height = 24.0f;  // FF sensor -> sensor_aspect = 1.5
+
+    for (const auto& a : aspects) {
+        LensModel lens_fill     = base; lens_fill.gate_fit     = GateFit::Fill;
+        LensModel lens_overscan = base; lens_overscan.gate_fit = GateFit::Overscan;
+        LensModel lens_stretch  = base; lens_stretch.gate_fit  = GateFit::Stretch;
+
+        f32 fp_fill     = lens_fill.focal_pixels(a.w, a.h);
+        f32 fp_overscan = lens_overscan.focal_pixels(a.w, a.h);
+        f32 fp_stretch  = lens_stretch.focal_pixels(a.w, a.h);
+
+        // Fill and Overscan must produce the spec-derived focal for each cell.
+        // Anchor TICKET-035 contract (anchor cell = 16:9 viewport).
+        if (a.w == 1920.0f && a.h == 1080.0f) {
+            CHECK(fp_fill     == doctest::Approx(2666.67f).epsilon(5.0f));
+            CHECK(fp_overscan == doctest::Approx(2666.67f).epsilon(5.0f));
+        } else if (a.w == 2560.0f && a.h == 1080.0f) {
+            // 21:9 viewport + FF: eff_w = 1080 * 1.5 = 1620 (pillarbox),
+            // focal = 50 * 1620/36 = 2250.
+            CHECK(fp_fill     == doctest::Approx(2250.0f).epsilon(5.0f));
+            CHECK(fp_overscan == doctest::Approx(2250.0f).epsilon(5.0f));
+        } else {
+            // 4:3 viewport + FF: vp narrower than sensor.
+            // For Fill: sensor width fills vp width, focal = 50 * 1440/36 = 2000.
+            CHECK(fp_fill     == doctest::Approx(2000.0f).epsilon(5.0f));
+            CHECK(fp_overscan == doctest::Approx(2000.0f).epsilon(5.0f));
+        }
+
+        // Stretch is viewport-aspect-dependent (intentional distortion
+        // of proportions — must consume viewport directly).
+        f32 fp_stretch_ref = 50.0f * (a.w / base.sensor_width);
+        CHECK(fp_stretch == doctest::Approx(fp_stretch_ref).epsilon(5.0f));
+    }
+}
