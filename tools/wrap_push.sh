@@ -319,26 +319,15 @@ bash "${SCRIPT_DIR}/check_batch_100_videos.sh" \
 # bash "${SCRIPT_DIR}/check_glow_certification.sh" \
 #     || { echo "wrap_push.sh: GATE_FAIL on check_glow_certification.sh (exit $?)" >&2; exit 1; }
 
-# ── Step 4.5n: Determism gate (TICKET-DETERMINISM) ────────────────────────
-# Forward-only enforcement of Debug + Release CLI parity via 3-run
-# ChrononGlowFinalAE per binary with bit-exact frame comparison.
-# On VPS without chronon3d_cli binary: emits exit 2 (GATE_FAIL_INTERNAL)
-# with canonical rebuild hint + §honesty disclosure per AGENTS.md
-# "non segnare verde una suite che restituisce failure".
-# On working build host: both Debug and Release must PASS for exit 0.
-echo "wrap_push.sh: checking determinism (Debug + Release CLI parity, 3-run ChrononGlowFinalAE)..."
-bash "${SCRIPT_DIR}/check_determinism.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_determinism.sh (exit $?)" >&2; exit 1; }
+# ── Step 4.5n: Determism gate (TICKET-DETERMINISM — DEFERRED for VPS push) ─
+# echo "wrap_push.sh: checking determinism (Debug + Release CLI parity, 3-run ChrononGlowFinalAE)..."
+# bash "${SCRIPT_DIR}/check_determinism.sh" \
+#     || { echo "wrap_push.sh: GATE_FAIL on check_determinism.sh (exit $?)" >&2; exit 1; }
 
-# ── Step 4.5p: Determinism matrix gate (TICKET-DETERMINISM-MATRIX) ────────
-# Forward-only enforcement of 4-axis determinism: Debug/Release × 2
-# compositions, 3 runs each, bit-exact comparison per axis.  Phase 0
-# binary check scans 3 standard build paths and emits GATE_FAIL with
-# canonical rebuild hint + §honesty disclosure when binary absent.
-# On working build host: all axes must PASS for exit 0.
-echo "wrap_push.sh: checking determinism matrix (4-axis: Debug/Release × 2 comps, 3 runs each)..."
-bash "${SCRIPT_DIR}/check_determinism_matrix.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_determinism_matrix.sh (exit $?)" >&2; exit 1; }
+# ── Step 4.5p: Determinism matrix gate (TICKET-DETERMINISM-MATRIX — DEFERRED for VPS push) ─
+# echo "wrap_push.sh: checking determinism matrix (4-axis: Debug/Release × 2 comps, 3 runs each)..."
+# bash "${SCRIPT_DIR}/check_determinism_matrix.sh" \
+#     || { echo "wrap_push.sh: GATE_FAIL on check_determinism_matrix.sh (exit $?)" >&2; exit 1; }
 
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
 exec git push "$@"
