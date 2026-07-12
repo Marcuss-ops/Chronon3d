@@ -212,6 +212,7 @@ TEST_CASE("TICKET-031 §6 checkpoint restore: snapshot→mutate→restore ⇒ eq
     auto session_ptr = std::make_shared<CameraSession>(sess);
     preroll_session_for_frame(prog, /*shot_start=*/0, /*target=*/50,
                               /*window=*/30, session_ptr, kCkptFps);
+    sess = *session_ptr;  // write back primed state
 
     CameraStateCheckpoint cp = CameraStateCheckpoint::capture(
         sess,
