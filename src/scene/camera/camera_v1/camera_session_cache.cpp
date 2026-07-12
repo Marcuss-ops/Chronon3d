@@ -37,7 +37,7 @@ bool preroll_session_for_frame(const CameraProgram& program,
                                int shot_start_frame,
                                int target_frame,
                                int preroll_max_frames,
-                               CameraSession& session,
+                               std::shared_ptr<CameraSession> session,
                                FrameRate frame_rate) {
     if (target_frame < shot_start_frame) {
         // Caller has supplied a target before the shot starts; treat as
@@ -59,8 +59,8 @@ bool preroll_session_for_frame(const CameraProgram& program,
     // Ensure constraint slots are sized — the program evaluates against
     // the descriptor's constraint count on the first call.  Sizing here
     // eliminates per-frame reallocations across the pre-roll loop.
-    session.ensure_constraint_states(program.descriptor()->constraints.size());
-    session.reset();
+    session->ensure_constraint_states(program.descriptor()->constraints.size());
+    session->reset();
 
     // First frame of the shot is always adjacent to shot.start_frame; the
     // hi (target-1) < lo (max(shot_start, target-30)) window becomes
@@ -78,7 +78,7 @@ bool preroll_session_for_frame(const CameraProgram& program,
     // CAM-05: FrameRate is explicit from the caller (no hardcoded 30 fps).
     for (int f = lo; f <= hi; ++f) {
         CameraEvalContext ctx = CameraEvalContext::at(Frame{f}, frame_rate);
-        (void)program.evaluate(ctx, session);
+        (void)program.evaluate(ctx, *session);
     }
     return true;
 }
@@ -89,7 +89,7 @@ bool preroll_session_for_frame(const CameraProgram& program,
 
 CameraStateCheckpoint* CameraSessionCache::find(int shot_idx) {
     auto it = entries_.find(shot_idx);
-    return it != entries_.end() ? &it->second.checkpoint : nullptr;
+    return it != entries_.end() ? it->second.checkpoint.get() : nullptr;
 }
 
 CameraSessionLease CameraSessionCache::acquire(const CameraProgram& program,
@@ -121,24 +121,24 @@ CameraSessionLease CameraSessionCache::acquire(const CameraProgram& program,
     //   - target != last+1 : retry, random back-access, sub-frame repeat,
     //                         skip-ahead, etc.
     const bool forward_step =
-        e.checkpoint.valid
-        && e.checkpoint.descriptor_fingerprint == dd_fp
-        && !e.checkpoint.cut_seen
-        && target_frame == e.checkpoint.last_evaluated_frame + 1;
+        e.checkpoint->valid
+        && e.checkpoint->descriptor_fingerprint == dd_fp
+        && !e.checkpoint->cut_seen
+        && target_frame == e.checkpoint->last_evaluated_frame + 1;
     const bool must_reprime = !forward_step;
 
     if (must_reprime) {
-        e.checkpoint.session.reset();
-        e.checkpoint.valid                  = true;
-        e.checkpoint.descriptor_fingerprint = dd_fp;
-        e.checkpoint.shot_start_frame       = shot_start_frame;
-        e.checkpoint.cut_seen               = false;  // consume marker
+        e.checkpoint->session.reset();
+        e.checkpoint->valid                  = true;
+        e.checkpoint->descriptor_fingerprint = dd_fp;
+        e.checkpoint->shot_start_frame       = shot_start_frame;
+        e.checkpoint->cut_seen               = false;  // consume marker
         // return is informative only (primed? collapsed window?) — each
         // repprime path guarantees the same outcome so acquire doesn't
         // branch on it; discard the bool.
         (void)preroll_session_for_frame(program, shot_start_frame, target_frame,
                                         kCanonicalPrerollMaxFrames,
-                                        e.checkpoint.session,
+                                        e.checkpoint->session,
                                         frame_rate);
     }
     // CAM-05: last_evaluated_frame is now set by CameraSessionLease::commit(),
@@ -153,7 +153,7 @@ CameraSessionLease CameraSessionCache::acquire(const CameraProgram& program,
     // lease.session() returns a reference to working_session; commit() copies
     // working_session back to checkpoint.session; uncommitted leases
     // implicitly rollback (no writeback — checkpoint.session is untouched).
-    e.working_session = e.checkpoint.session;
+    e.working_session = std::make_shared<CameraSession>(e.checkpoint->session);
     return CameraSessionLease(this, shot_idx,
                               &e.working_session, target_frame);
 }
@@ -212,8 +212,8 @@ void CameraSessionCache::commit_lease(int shot_idx,
                                        int target_frame) {
     auto it = entries_.find(shot_idx);
     if (it == entries_.end()) return;
-    it->second.checkpoint.session = session;
-    it->second.checkpoint.last_evaluated_frame = target_frame;
+    it->second.checkpoint->session = session;
+    it->second.checkpoint->last_evaluated_frame = target_frame;
 }
 
 void CameraSessionCache::observe_cut_between(int prior_idx, int next_idx) {
@@ -223,18 +223,18 @@ void CameraSessionCache::observe_cut_between(int prior_idx, int next_idx) {
     // reaches the prior-shot entry on the overlap window edge, so the
     // marker is mostly defensive.
     if (auto it = entries_.find(prior_idx); it != entries_.end()) {
-        it->second.checkpoint.cut_seen = true;
+        it->second.checkpoint->cut_seen = true;
     }
     // Mark the next-shot entry: its first evaluate after the Cut must
     // re-pre-roll even if the descriptor fingerprint is unchanged.
     if (auto it = entries_.find(next_idx); it != entries_.end()) {
-        it->second.checkpoint.cut_seen = true;
+        it->second.checkpoint->cut_seen = true;
     } else {
         // Insert a not-yet-valid marker so the next acquire() sees
         // `cut_seen == true` via the `must_reprime` rule above.
         Entry fresh;
-        fresh.checkpoint.valid    = false;
-        fresh.checkpoint.cut_seen = true;
+        fresh.checkpoint->valid    = false;
+        fresh.checkpoint->cut_seen = true;
         entries_.emplace(next_idx, fresh);
     }
 }

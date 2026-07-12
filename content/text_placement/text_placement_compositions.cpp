@@ -80,7 +80,7 @@ using TextLayerSetup = std::function<void(LayerBuilder&)>;
 /// path.  Field mapping is byte-equivalent to the centered_text() body
 /// in `content/text/text_helpers_centered.hpp`.
 inline TextDefinition options_to_definition(const CenterTextOptions& opts) {
-    return from_text_spec(TextSpec{.content    = {.value = opts.text},.position   = opts.pos,.font       = {.font_path   = opts.font_asset,
+    return from_text_spec(TextSpec{.content    = {.value = opts.text},.placement   = {TextPlacementKind::Absolute, opts.pos},.font       = {.font_path   = opts.font_asset,
                        .font_family = opts.font_family,
                        .font_weight = opts.font_weight,
                        .font_style  = opts.font_style,
