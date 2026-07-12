@@ -136,7 +136,7 @@ std::shared_ptr<Framebuffer> render_with_mb(
 //   this test once the rendering pipeline is byte-exact between N=1
 //   (mode=Off) and N=16 (TemporalAccumulation) for static compositions.
 // TICKET-007.j — see metadata block 7 lines above.
-TEST_CASE("PR1-Torture: static framebuffer identical between 1 and 16 samples" * doctest::skip()) {
+TEST_CASE("PR1-Torture: static framebuffer identical between 1 and 16 samples" * doctest::skip()) {  // TICKET-007.j
     auto comp = make_static_composition();
 
     // Reference: motion blur disabled
@@ -179,7 +179,7 @@ TEST_CASE("PR1-Torture: static framebuffer identical between 1 and 16 samples" *
 // layer accumulation.  TODO(chronon3d): fix premul alpha edge handling
 // in TemporalAccumulation and re-enable.
 // TICKET-007.k (compliance metadata — see docs/FOLLOWUP_TICKETS.md). Issue: motion-blur premul-alpha edge accumulation bug. Owner: chronon3d-owners. Motivation: pre-existing rot. Data introduzione: 2026-06-20. Deadline rimozione: 2026-09-30.
-TEST_CASE("PR1-Torture: semi-transparent layer no dark borders after accumulation" * doctest::skip()) {
+TEST_CASE("PR1-Torture: semi-transparent layer no dark borders after accumulation" * doctest::skip()) {  // TICKET-007.k
     // A 50%-alpha red rect on a black background.  Weighted accumulation with
     // Box + N=8 samples should NOT produce any dark-bordered artefacts at the
     // edges (only the centre of the rect, not its silhouette, varies between
@@ -298,7 +298,7 @@ TEST_CASE("PR1-Torture: deterministic motion blur across two consecutive runs") 
 // TODO(chronon3d): fix sub-frame edge clipping in TemporalAccumulation
 // and re-enable.
 // TICKET-007.l (compliance metadata — see docs/FOLLOWUP_TICKETS.md). Issue: motion-blur sub-frame edge clipping on fast objects. Owner: chronon3d-owners. Motivation: pre-existing rot. Data introduzione: 2026-06-20. Deadline rimozione: 2026-09-30.
-TEST_CASE("PR1-Torture: no clipping of fast objects across shutter window" * doctest::skip()) {
+TEST_CASE("PR1-Torture: no clipping of fast objects across shutter window" * doctest::skip()) {  // TICKET-007.l
     // A 20×20 rect moving 100 px/frame.  With samples=16 across a 360° shutter
     // (= full-frame exposure window centred on frame), the rect should appear
     // as a continuous horizontal smear from x = 0 - 32 to x = 0 + 32 with NO

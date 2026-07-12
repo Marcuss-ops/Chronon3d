@@ -245,7 +245,7 @@ TEST_CASE("OrientAlongPath (b) — tangent valid + keep_horizon=false + "
 // the validator is fixed in a separate ADR/TICKET.
 // TICKET-120 | Issue: trajectory-validator-size-vs-points-coordinates | Owner: scene-camera-team | Motivation: camera_program_compiler.cpp regression (DISABLED above) | Data introduzione: 2026-05 | Deadline rimozione: TICKET-120
 TEST_CASE("OrientAlongPath (c) — degenerate tangent falls back to "
-          "session.last_tangent AND emits Warning \"previous frame tangent\"" * doctest::skip()) {
+          "session.last_tangent AND emits Warning \"previous frame tangent\"" * doctest::skip()) {  // TICKET-120
     // Two-segment trajectory:
     //   segment 0 (moveto-bezier) — non-degenerate, sets session.last_tangent
     //                                to a +Z direction
@@ -333,7 +333,7 @@ TEST_CASE("OrientAlongPath (c) — degenerate tangent falls back to "
 // TICKET-120 | Issue: static-camera-source-orientalongpath-rejected | Owner: scene-camera-team | Motivation: missing TrajectoryMotion source required (DISABLED above) | Data introduzione: 2026-05 | Deadline rimozione: TICKET-120
 TEST_CASE("OrientAlongPath (d) — fully degenerate (StaticCameraSource, "
           "no last_tangent, POI active) falls back to POI direction "
-          "AND emits Warning, never invoking keep-rotation step 4" * doctest::skip()) {
+          "AND emits Warning, never invoking keep-rotation step 4" * doctest::skip()) {  // TICKET-120
     CameraDescriptor desc;
     desc.id = "test.oap.d";
     desc.base.enabled = true;
@@ -397,7 +397,7 @@ TEST_CASE("OrientAlongPath (d) — fully degenerate (StaticCameraSource, "
 // TICKET-120 | Issue: same-as-d-static-camera-source-orientalongpath-rejected | Owner: scene-camera-team | Motivation: same as (DISABLED above) | Data introduzione: 2026-05 | Deadline rimozione: TICKET-120
 TEST_CASE("OrientAlongPath (e) — fully degenerate (no tangent, "
           "no last_tangent, POI disabled) falls back to step 4: "
-          "keep base rotation AND emit Warning 'keeping base rotation'" * doctest::skip()) {
+          "keep base rotation AND emit Warning 'keeping base rotation'" * doctest::skip()) {  // TICKET-120
     CameraDescriptor desc;
     desc.id = "test.oap.e";
     desc.base.enabled = true;
