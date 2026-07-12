@@ -38,7 +38,7 @@
 // `apps/chronon3d_cli/cli_init.hpp`).  The test renders the exact
 // composition the CLI video subprocess renders, so the SDK stills
 // must be byte-exact with the extracted video frames.
-#include <tests/visual/ae_parity/glow_final_compositions.hpp>
+#include "content/compositions/chronon_glow_final.hpp"
 
 #include <tbb/global_control.h>
 
@@ -546,7 +546,7 @@ TEST_CASE("real pipeline parity: ChrononGlowFinalAE temporal stability "
     // ── (1) Render SDK stills at frames 0/15/30 using the exact same
     //       composition the CLI video subprocess renders.  The factory
     //       is the header-only `make_chronon_glow_final` from
-    //       `tests/visual/ae_parity/glow_final_compositions.hpp` —
+    //       `content/compositions/chronon_glow_final.hpp` —
     //       the same helper the CLI registration in cli_init.hpp uses,
     //       so SDK == CLI by construction.
     auto comp = chronon3d::test::glow_final::make_chronon_glow_final(
@@ -703,7 +703,7 @@ TEST_CASE("real pipeline parity: ChrononGlowFinalAE temporal stability "
 
     // ── (6) No-glow-pop: the per-frame opacity envelope
     //       (0.40→0.85→0.50 at f00/f15/f30 per
-    //       `opacity_for_frame` in glow_final_compositions.hpp) must
+    //       `opacity_for_frame` in content/compositions/chronon_glow_final.hpp) must
     //       produce distinct per-frame hashes.  If the envelope is
     //       broken (e.g. opacity=1.0 for all frames), all 3 hashes
     //       would collapse to the same value.  Kept verbatim from

@@ -45,7 +45,7 @@
 
 #include <tests/helpers/test_utils.hpp>
 #include <tests/text_golden/text_clip/test_helpers.hpp>
-#include <tests/visual/ae_parity/glow_final_compositions.hpp>
+#include "content/compositions/chronon_glow_final.hpp"
 
 using namespace chronon3d;
 using namespace chronon3d::test;

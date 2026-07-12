@@ -55,7 +55,7 @@
 
 // TICKET-CHRONON-GLOW-FINAL — Phase 1: thin-wrapper via the canonical
 // helper.  build_landscape() / build_portrait() become 1-line delegates.
-#include "tests/visual/ae_parity/glow_final_compositions.hpp"
+#include "content/compositions/chronon_glow_final.hpp"
 
 using namespace chronon3d;
 using namespace chronon3d::test;
