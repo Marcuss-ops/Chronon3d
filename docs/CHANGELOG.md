@@ -72,6 +72,24 @@ Atomic chore on main per user spec verbatim §5+§6+§7 (TICKET-CHRONON-GLOW-FIN
 
 
 <details>
+<summary>docs(followup): cat-5 R5 amend for TICKET-129 hygiene — 2026-07-12</summary>
+
+Closes the `[WARN] R5: commit chiude ticket ma docs/CHANGELOG.md non aggiornato` trace from `tools/check_doc_sync.sh` triggered by the prior turn's TICKET-129 hygiene amend (see `b30cf266` post-rebase of `f0c9e0b9`). The amend landed 3 cat-3 minimal-surface child hygiene edits on `docs/tickets/TICKET-129-text-clip-policy-cmake-rewrite.md` (drop `:529` line-cite per AGENTS.md §SHA-cite inline-only rule + annotate ADR-023 as Proposed per §honesty + slim redundant Subject envelope section) but left CHANGELOG unstale per the canonical 4-doc gate §honesty contract. Single docs-only chore per Cat-3.
+
+**Subject envelope = 56 chars ≤ 72** push-range audit per AGENTS.md TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (subject: `docs(followup): cat-5 R5 amend for TICKET-129 hygiene`).
+
+**Files touched**: 1 EDIT (`docs/CHANGELOG.md` — this entry prepended per Cat-5 newer-at-top AFTER the `refactor(glow): dedup compositions + simplify ChrononGlowProps — 2026-07-12` first entry + BEFORE the `refactor(text): split diagnostica into 4 files (TICKET-TEXT-INSPECTION-ALPHA-BBOX-VISIBILITY) — 2026-07-12` 2nd entry). ZERO new files. ZERO new SDK symbols. ZERO new symbols in `include/chronon3d/`.
+
+**§honest-limitation**: the prior `b30cf266` TICKET-129 hygiene amend was HARNESS-COMPLETE-only on this VPS — no `ctest -R chronon3d_text_clip_policy_tests --output-on-failure` real run succeeded because of the established `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum env blocker on this host. Macchina-verifica of the 35 TEST_CASEs (5 clip variants × 7 pipelines in DIAGNOSTICS build) forward-pointed to `TICKET-129-MACHINE-VERIFY` (parallelo a `TICKET-SABOTAGE-FONT-MACHINE-VERIFY` + `TICKET-INSPECT-TEXT-MACCHINA-VERIFY` precedent per the same vcpkg env blocker lineage).
+
+**Forward-points (NOT in this commit per AGENTS.md "Fare PR piccole e mirate" + Cat-3 anti-dup)**: (a) `TICKET-129-MACHINE-VERIFY` — macchina-verifica on working build host per §honest-limitation above; (b) `TICKET-129-3DOC-CAT5-ALIGN` — deferred 3rd-doc (CURRENT_STATUS cite-only row pointing to this CHANGELOG entry + the prior `b30cf266` TICKET-129 amend) per the established Cat-5 3-doc pattern (parallelo a `TICKET-GLOW-FINAL-COMPOSITIONS-DOC-MIGRATION-3DOC-CAT5-ALIGN` precedent); (c) pre-existing `TICKET-CHRONON-LINUX-SCRIPT-PRESET-MISMATCH` + `TICKET-PREFLIGHT-PATH-EXISTENCE-MAP-EXISTS-BODY` (forwarded from `TICKET-TEXT-HEADER-CMAKE-REWIRE-ROT` registered at the prior turn's `f7a265b6` amend).
+
+**Cross-references**: AGENTS.md v0.1 Cat-3 (zero new public SDK API surface; satisfied — pure `docs/` tracking, this is a docs-only chore commit) + Cat-5 (CHANGELOG prepended at TOP per Cat-5 newer-at-top; the cat-5 3-doc closure for `TICKET-TEXT-HEADER-CMAKE-REWIRE-ROT` is FOLLOWUP_TICKETS + CHANGELOG = 2-of-3, deferred 3rd = CURRENT_STATUS cite-only per forward-point (b)); AGENTS.md `## Regole di lint documentale` Rule `SHA cite pattern (inline-only rule)` (applied in the prior `b30cf266` TICKET-129 amend: dropped `tests/CMakeLists.txt:529` line-cite suffix per the `builder_params.hpp:257` removal precedent — single inline cite, no separate catalog row); the canonical `docs/FOLLOWUP_TICKETS.md` `TICKET-TEXT-HEADER-CMAKE-REWIRE-ROT` DONE row (the parent forward-point of TICKET-129) + the previously-registered `docs/tickets/TICKET-129-text-clip-policy-cmake-rewrite.md` closure-trace ticket + the canonical `tools/check_doc_sync.sh` R5 warn contract (the gate that triggered this amend).
+</details>
+
+
+
+<details>
 <summary>refactor(text): split diagnostica into 4 files (TICKET-TEXT-INSPECTION-ALPHA-BBOX-VISIBILITY) — 2026-07-12</summary>
 
 Split the 410-LoC `src/text/text_visibility_audit.cpp` (font + shaping + bbox + containment + status + reporting all in 1 TU) + the 328-LoC `apps/chronon3d_cli/commands/dev/command_inspect_text.cpp` (audit + mapping + JSON + render all in 1 TU) into 4 dedicated single-responsibility files. Reusable from inspect-text, pipeline parity, glow acceptance, video acceptance, and golden test C++/Python consumers without dragging in the diagnostic gating macro.
