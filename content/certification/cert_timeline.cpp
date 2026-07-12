@@ -35,16 +35,16 @@ namespace chronon3d::content::certification {
 
 using namespace chronon3d;
 
-static constexpr int   kWidth   = 1920;
-static constexpr int   kHeight  = 1080;
+static constexpr int   kTLW   = 1920;
+static constexpr int   kTLH   = 1080;
 
 // ── CertTimelineBoundary ──────────────────────────────────────────────────
 
 Composition cert_timeline_boundary() {
     return composition(
         {.name = "CertTimelineBoundary",
-         .width = kWidth,
-         .height = kHeight,
+         .width = kTLW,
+         .height = kTLH,
          .frame_rate = FrameRate{30, 1},
          .duration = Frame{100}},
         [](const FrameContext& ctx) -> Scene {
@@ -62,7 +62,7 @@ Composition cert_timeline_boundary() {
                 [](SequenceBuilder& seq) {
                     // Solid green rect — visible only when sequence is active
                     seq.rect("seq_bg", RectParams{
-                        .size = {static_cast<float>(kWidth), static_cast<float>(kHeight)},
+                        .size = {static_cast<float>(kTLW), static_cast<float>(kTLH)},
                         .color = {0.0f, 0.8f, 0.2f, 1.0f},
                         .pos = {0.0f, 0.0f, 0.0f},
                         .fill = FillStyle::solid(Color{0.0f, 0.8f, 0.2f, 1.0f}),
@@ -76,8 +76,8 @@ Composition cert_timeline_boundary() {
                             static_cast<float>(local_val) / 30.0f,
                             1.0f - static_cast<float>(local_val) / 30.0f,
                             0.0f, 1.0f},
-                        .pos = {static_cast<float>(kWidth) / 2.0f - 100.0f,
-                                static_cast<float>(kHeight) / 2.0f - 30.0f,
+                        .pos = {static_cast<float>(kTLW) / 2.0f - 100.0f,
+                                static_cast<float>(kTLH) / 2.0f - 30.0f,
                                 0.0f},
                         .fill = FillStyle::solid(Color{
                             static_cast<float>(local_val) / 30.0f,
@@ -96,8 +96,8 @@ Composition cert_timeline_boundary() {
 Composition cert_timeline_local_frame() {
     return composition(
         {.name = "CertTimelineLocalFrame",
-         .width = kWidth,
-         .height = kHeight,
+         .width = kTLW,
+         .height = kTLH,
          .frame_rate = FrameRate{30, 1},
          .duration = Frame{100}},
         [](const FrameContext& ctx) -> Scene {
@@ -115,8 +115,8 @@ Composition cert_timeline_local_frame() {
                     seq.rect("enc", RectParams{
                         .size = {400.0f, 300.0f},
                         .color = {clamped, clamped, clamped, 1.0f},
-                        .pos = {static_cast<float>(kWidth) / 2.0f - 200.0f,
-                                static_cast<float>(kHeight) / 2.0f - 150.0f,
+                        .pos = {static_cast<float>(kTLW) / 2.0f - 200.0f,
+                                static_cast<float>(kTLH) / 2.0f - 150.0f,
                                 0.0f},
                         .fill = FillStyle::solid(Color{clamped, clamped, clamped, 1.0f}),
                         .stroke = {},
@@ -132,8 +132,8 @@ Composition cert_timeline_local_frame() {
 Composition cert_timeline_nested() {
     return composition(
         {.name = "CertTimelineNested",
-         .width = kWidth,
-         .height = kHeight,
+         .width = kTLW,
+         .height = kTLH,
          .frame_rate = FrameRate{30, 1},
          .duration = Frame{200}},
         [](const FrameContext& ctx) -> Scene {
@@ -153,7 +153,7 @@ Composition cert_timeline_nested() {
                         {.from = Frame{20}, .duration = Frame{30}},
                         [](SequenceBuilder& title) {
                             title.rect("nested_bg", RectParams{
-                                .size = {static_cast<float>(kWidth), static_cast<float>(kHeight)},
+                                .size = {static_cast<float>(kTLW), static_cast<float>(kTLH)},
                                 .color = {0.9f, 0.75f, 0.1f, 1.0f},
                                 .pos = {0.0f, 0.0f, 0.0f},
                                 .fill = FillStyle::solid(Color{0.9f, 0.75f, 0.1f, 1.0f}),
@@ -171,8 +171,8 @@ Composition cert_timeline_nested() {
 Composition cert_timeline_overlap() {
     return composition(
         {.name = "CertTimelineOverlap",
-         .width = kWidth,
-         .height = kHeight,
+         .width = kTLW,
+         .height = kTLH,
          .frame_rate = FrameRate{30, 1},
          .duration = Frame{100}},
         [](const FrameContext& ctx) -> Scene {
@@ -187,7 +187,7 @@ Composition cert_timeline_overlap() {
                     seq.rect("red", RectParams{
                         .size = {600.0f, 350.0f},
                         .color = {0.9f, 0.1f, 0.1f, 1.0f},
-                        .pos = {100.0f, static_cast<float>(kHeight) / 2.0f - 175.0f, 0.0f},
+                        .pos = {100.0f, static_cast<float>(kTLH) / 2.0f - 175.0f, 0.0f},
                         .fill = FillStyle::solid(Color{0.9f, 0.1f, 0.1f, 1.0f}),
                         .stroke = {},
                     });
@@ -199,8 +199,8 @@ Composition cert_timeline_overlap() {
                     seq.rect("green", RectParams{
                         .size = {600.0f, 350.0f},
                         .color = {0.1f, 0.9f, 0.1f, 1.0f},
-                        .pos = {static_cast<float>(kWidth) / 2.0f - 300.0f,
-                                static_cast<float>(kHeight) / 2.0f - 175.0f, 0.0f},
+                        .pos = {static_cast<float>(kTLW) / 2.0f - 300.0f,
+                                static_cast<float>(kTLH) / 2.0f - 175.0f, 0.0f},
                         .fill = FillStyle::solid(Color{0.1f, 0.9f, 0.1f, 1.0f}),
                         .stroke = {},
                     });
@@ -212,8 +212,8 @@ Composition cert_timeline_overlap() {
                     seq.rect("blue", RectParams{
                         .size = {600.0f, 350.0f},
                         .color = {0.1f, 0.1f, 0.9f, 1.0f},
-                        .pos = {static_cast<float>(kWidth) - 700.0f,
-                                static_cast<float>(kHeight) / 2.0f - 175.0f, 0.0f},
+                        .pos = {static_cast<float>(kTLW) - 700.0f,
+                                static_cast<float>(kTLH) / 2.0f - 175.0f, 0.0f},
                         .fill = FillStyle::solid(Color{0.1f, 0.1f, 0.9f, 1.0f}),
                         .stroke = {},
                     });
@@ -228,8 +228,8 @@ Composition cert_timeline_overlap() {
 Composition cert_timeline_animation() {
     return composition(
         {.name = "CertTimelineAnimation",
-         .width = kWidth,
-         .height = kHeight,
+         .width = kTLW,
+         .height = kTLH,
          .frame_rate = FrameRate{30, 1},
          .duration = Frame{100}},
         [](const FrameContext& ctx) -> Scene {
@@ -246,8 +246,8 @@ Composition cert_timeline_animation() {
                     seq.rect("fade", RectParams{
                         .size = {400.0f, 200.0f},
                         .color = {1.0f, 1.0f, 1.0f, opacity},
-                        .pos = {static_cast<float>(kWidth) / 2.0f - 200.0f,
-                                static_cast<float>(kHeight) / 2.0f - 100.0f,
+                        .pos = {static_cast<float>(kTLW) / 2.0f - 200.0f,
+                                static_cast<float>(kTLH) / 2.0f - 100.0f,
                                 0.0f},
                         .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, opacity}),
                         .stroke = {},
