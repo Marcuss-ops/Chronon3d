@@ -248,7 +248,7 @@ bash "${SCRIPT_DIR}/check_doc_sha_dedup.sh" \
 # "Hardblock always" convention. On FAIL: prints offending (SHA, length,
 # subject) rows and remediation hint (per AGENTS.md Amend-only-via-rebase).
 echo "wrap_push.sh: checking commit subject length (last 10, max 72 chars)..."
-bash "${SCRIPT_DIR}/check_commit_subject_length.sh" 10 \
+bash "${SCRIPT_DIR}/check_commit_subject_length.sh" origin/main \
     || { echo "wrap_push.sh: GATE_FAIL on check_commit_subject_length.sh (exit $?)" >&2; exit 1; }
 
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
