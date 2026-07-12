@@ -33,7 +33,7 @@
 #include <glm/gtx/quaternion.hpp>
 #include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>
 #include <chronon3d/render_graph/compiler/scene_binding.hpp>
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
 #include <chronon3d/render_graph/nodes/transform_node.hpp>

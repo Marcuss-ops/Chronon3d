@@ -3,7 +3,7 @@
 #include <type_traits>
 #include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/compositor/composite_operator.hpp>
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/render_graph/compiler/frame_graph_compiler.hpp>

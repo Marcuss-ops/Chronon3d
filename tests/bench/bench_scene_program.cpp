@@ -21,7 +21,7 @@
 #include <chronon3d/render_graph/compiler/compiled_scene_program.hpp>
 #include <chronon3d/render_graph/compiler/scene_binding.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_block.hpp>
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/internal/render_graph/core/scene_hasher.hpp>
 #include <chronon3d/render_graph/nodes/source_node.hpp>
