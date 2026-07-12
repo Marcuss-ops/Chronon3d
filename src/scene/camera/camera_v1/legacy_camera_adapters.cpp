@@ -152,7 +152,6 @@ camera_descriptor_from_animated(const AnimatedCamera2_5D& cam) {
     d.base.lens.sensor_width  = cam.sensor_width.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
     d.base.lens.sensor_height = cam.sensor_height.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
     d.base.lens.f_stop        = cam.f_stop.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
-    d.base.lens.focus_distance = cam.focus_distance.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
     d.base.lens.close_focus   = cam.close_focus.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
     d.base.lens.gate_fit      = cam.gate_fit;
     d.base.dof.enabled            = cam.dof_enabled;
