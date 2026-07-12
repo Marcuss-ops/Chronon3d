@@ -22,7 +22,11 @@
 //     the actual centroid vs the expected one).
 //
 // Per AGENTS.md §honesty: 2 PNG re-bake requires a working build host;
-// the 2 test cases gracefully skip on `result.golden_missing`.
+// missing goldens are now treated as HARD CI failures via
+// `REQUIRE_FALSE(r.golden_missing)` (the canonical
+// `text_completeness.cpp:151` pattern). A missing golden is an ERROR,
+// not a skip — tests that ran with `result.golden_missing = true`
+// previously silently passed (the §honesty rot).
 //
 // AGENTS.md v0.1 Cat-2 freeze-compliant: zero new public SDK API.  The
 // test uses the existing `LayerBuilder::parent()` + `text_run()` +
@@ -165,11 +169,12 @@ TEST_CASE("TextTransforms.ParentTransform_Plus500X_1920x1080") {
 
     auto r = verify_golden(*fb, "parent_transform_p500_1920x1080",
                            make_parent_config("parent_transform_p500_1920x1080"));
-    CHECK_FALSE(r.golden_missing);
-    if (!r.golden_missing) {
-        INFO("Golden: ", r.message);
-        CHECK(r.passed);
-    }
+    // TICKET-TEXT-GOLDEN-MISSING-FAIL-LOUD: a missing golden is a
+    // REQUIRE failure (NOT a soft-skip), per the canonical
+    // text_completeness.cpp:151 pattern + cert user spec.
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 // ── Case (b): parent at -300 X → centroid at 960 - 300 = 660 X ──────────
@@ -200,9 +205,10 @@ TEST_CASE("TextTransforms.ParentTransform_Minus300X_1920x1080") {
 
     auto r = verify_golden(*fb, "parent_transform_m300_1920x1080",
                            make_parent_config("parent_transform_m300_1920x1080"));
-    CHECK_FALSE(r.golden_missing);
-    if (!r.golden_missing) {
-        INFO("Golden: ", r.message);
-        CHECK(r.passed);
-    }
+    // TICKET-TEXT-GOLDEN-MISSING-FAIL-LOUD: a missing golden is a
+    // REQUIRE failure (NOT a soft-skip), per the canonical
+    // text_completeness.cpp:151 pattern + cert user spec.
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }

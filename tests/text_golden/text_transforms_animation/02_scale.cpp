@@ -16,8 +16,11 @@
 //   - bbox dimensions grow monotonically with uniform scale factor
 //
 // Per AGENTS.md §honesty: 4 PNG re-bake requires a working build host
-// (vcpkg-installed includes + tmpfs quota); the 4 test cases gracefully
-// skip on `result.golden_missing`.
+// (vcpkg-installed includes + tmpfs quota); missing goldens are now
+// treated as HARD CI failures via `REQUIRE_FALSE(r.golden_missing)` (the
+// canonical `text_completeness.cpp:151` pattern). A missing golden is
+// an ERROR, not a skip — tests that ran with `result.golden_missing =
+// true` previously silently passed (the §honesty rot).
 //
 // AGENTS.md v0.1 Cat-2 freeze-compliant: zero new public SDK API.  The
 // test uses the existing `LayerBuilder::scale()` + `text_run()` + the
@@ -148,13 +151,17 @@ RenderedScale render_scale(SoftwareRenderer& renderer, f32 scale_uniform,
 }
 
 // ── Golden verification helper (canonical pattern) ─────────────────────
+// TICKET-TEXT-GOLDEN-MISSING-FAIL-LOUD: a missing golden is a FAIL,
+// not a SKIP.  Per the canonical `text_completeness.cpp:151` pattern
+// + the user spec for the cert, the canonical pattern is:
+//   INFO("Golden: ", r.message);            // capture message for failure
+//   REQUIRE_FALSE(r.golden_missing);        // FAILLOUD if reference absent
+//   CHECK(r.passed);                         // soft-assert on the actual
 void verify_scale_golden(Framebuffer& fb, std::string_view case_slug) {
     auto r = verify_golden(fb, std::string{case_slug}, make_scale_config(case_slug));
-    CHECK_FALSE(r.golden_missing);
-    if (!r.golden_missing) {
-        INFO("Golden: ", r.message);
-        CHECK(r.passed);
-    }
+    INFO("Golden: ", r.message);
+    REQUIRE_FALSE(r.golden_missing);
+    CHECK(r.passed);
 }
 
 } // namespace
