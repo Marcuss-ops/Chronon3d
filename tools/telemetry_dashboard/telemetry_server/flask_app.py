@@ -490,6 +490,119 @@ def _find_cli() -> Path | None:
     return None
 
 
+@app.route('/api/pilot/manual_touches')
+@require_auth
+def get_manual_touches_panel():
+    """Test #19 dashboard panel — manual_touches_per_video per-phase threshold verdict.
+
+    Surfaces the canonical verdict shape produced by
+    `tools/check_manual_touches_per_video.sh` over the canonical config at
+    `configs/touchpoint_thresholds.yaml` + the append-only JSONL log at
+    `~/.chronon3d/telemetry/manual_touches.jsonl`.
+
+    Query parameters (all optional):
+      phase    str    one of oggi|fase1|fase2|finale (default: omit = all phases)
+      since    str    ISO 8601 datetime; events.ts >= since
+
+    Response shape (canonical, mirrors configs/touchpoint_thresholds.yaml
+    `dashboard.response_shape` declaration):
+      {
+        "phase_totals": [
+          { "phase_id": "oggi", "label": "...", "max_allowed": 8,
+            "actual": <N>, "status": "PASS|FAIL|NO-DATA",
+            "per_op": { "rename": 1, "copy": 2, ... } },
+          ...
+        ],
+        "violating_ops": [ "rename", "copy", ... ],
+        "events_total": <raw count>,
+        "events_deduped": <de-duped (run_id, op) count>,
+        "zero_data": false
+      }
+    """
+    import yaml
+    import sys as _sys
+    from datetime import datetime as _dt
+    from collections import OrderedDict, defaultdict
+
+    project_root = PROJECT_ROOT
+    config_path = project_root / 'configs' / 'touchpoint_thresholds.yaml'
+    log_path = Path(os.path.expanduser('~/.chronon3d/telemetry/manual_touches.jsonl'))
+
+    if not config_path.is_file():
+        return jsonify({"error": f"config not found at {config_path}"}), 500
+
+    with config_path.open('r', encoding='utf-8') as f:
+        cfg = yaml.safe_load(f)
+
+    phase_filter = (request.args.get('phase', type=str) or '').strip() or None
+    since_raw = (request.args.get('since', type=str) or '').strip() or None
+
+    events = []
+    if log_path.is_file():
+        with log_path.open('r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    events.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+
+    # Honor `since` filter (ISO 8601 lexicographic comparison works since
+    # the timestamps include alphabetical sort ordering).
+    if since_raw is not None:
+        events = [e for e in events if e.get('ts', '') >= since_raw]
+
+    # De-duplicate (run_id, op) per configs/touchpoint_thresholds.yaml
+    # canonical dedup_key.
+    seen = set()
+    deduped = []
+    for e in events:
+        k = (e.get('run_id', ''), e.get('op', ''))
+        if not k[0] or not k[1] or k in seen:
+            continue
+        seen.add(k)
+        deduped.append(e)
+
+    phase_totals = []
+    violating_ops = set()
+    any_fail = False
+    for p in cfg['phases']:
+        pid = p['id']
+        if phase_filter is not None and pid != phase_filter:
+            continue
+        op_counts = defaultdict(int)
+        for e in deduped:
+            if e.get('phase') == pid:
+                op_counts[e['op']] += 1
+        actual = sum(op_counts.values())
+        status = 'PASS' if actual <= p['max_allowed'] else 'FAIL'
+        if status == 'FAIL':
+            any_fail = True
+            violating_ops.update(op_counts.keys())
+        phase_totals.append({
+            "phase_id": pid,
+            "label": p['label'],
+            "max_allowed": p['max_allowed'],
+            "actual": actual,
+            "status": status,
+            "per_op": dict(sorted(op_counts.items())),
+        })
+
+    response = jsonify({
+        "phase_totals": phase_totals,
+        "violating_ops": sorted(violating_ops),
+        "events_total": len(events),
+        "events_deduped": len(deduped),
+        "zero_data": len(events) == 0,
+        "phase_filter": phase_filter,
+        "since_filter": since_raw,
+    })
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    return response
+
+
 @app.route('/api/graph/<composition_id>')
 @require_auth
 def get_graph(composition_id):

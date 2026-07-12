@@ -45,6 +45,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -185,7 +186,7 @@ VideoRenderResult run_cli_video_chronon_glow_final(
     std::filesystem::path wd(work_dir);
     std::filesystem::create_directories(wd);
     std::string mp4_out = (wd / "chronon_glow_final.mp4").string();
-    std::string frames_dir = (wd / "frames").string();
+    std::string frames_dir = (wd / "raw_frames").string();
     std::filesystem::create_directories(frames_dir);
 
     std::ostringstream cmd;
@@ -212,6 +213,68 @@ VideoRenderResult run_cli_video_chronon_glow_final(
         r.video_path.clear();
     }
     return r;
+}
+
+// ── Per-frame alpha bbox + centroid + max_alpha metrics (spec §5) ────────
+//
+// Spec §5 metrics — per-frame alpha-weighted geometric + brightness
+// validation.  No downsample (unlike the legacy 4x-downsample lambda in
+// the Fase 6 test); each pixel contributes to bbox + centroid + max_alpha
+// per user-spec verbatim "a > 3 pixels".  Returns a single FrameMetrics
+// struct that the 60-frame loop in the test case appends to the CSV
+// and asserts against per spec §5 thresholds.
+struct FrameMetrics {
+    int frame = 0;
+    int x0 = 0, y0 = 0, x1 = 0, y1 = 0;          // alpha bbox (a > 3/255)
+    int width = 0, height = 0;                    // bbox width / height
+    double centroid_x = 0.0, centroid_y = 0.0;    // alpha-weighted centroid
+    int visible_pixels = 0;                       // count of a > 3/255
+    double alpha_sum = 0.0;                       // sum of a in [0, 1]
+    int max_alpha = 0;                            // max a in [0, 255]
+};
+
+FrameMetrics compute_frame_metrics(const Framebuffer& fb, int frame_num) {
+    constexpr int   kVisibleAlphaThreshold = 3;     // "a > 3 pixels" → a > 3/255
+    constexpr float kCentroidEpsilon      = 1e-6f;
+    FrameMetrics m;
+    m.frame = frame_num;
+    const int w = static_cast<int>(fb.width());
+    const int h = static_cast<int>(fb.height());
+    int min_x = w, min_y = h, max_x = -1, max_y = -1;
+    double sx = 0.0, sy = 0.0, sa = 0.0;
+    double sum_a = 0.0;
+    int max_a = 0;
+    int vis = 0;
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            const float a = fb.get_pixel(x, y).a;
+            const int   a_int = static_cast<int>(a * 255.0f);
+            sum_a += static_cast<double>(a);
+            if (a_int > max_a) max_a = a_int;
+            if (a_int > kVisibleAlphaThreshold) {
+                ++vis;
+                if (x < min_x) min_x = x;
+                if (x > max_x) max_x = x;
+                if (y < min_y) min_y = y;
+                if (y > max_y) max_y = y;
+                sx += static_cast<double>(x) * static_cast<double>(a);
+                sy += static_cast<double>(y) * static_cast<double>(a);
+                sa += static_cast<double>(a);
+            }
+        }
+    }
+    if (min_x < w) m.x0 = min_x;
+    if (min_y < h) m.y0 = min_y;
+    if (max_x >= 0) m.x1 = max_x;
+    if (max_y >= 0) m.y1 = max_y;
+    m.width        = (m.x1 > m.x0) ? (m.x1 - m.x0 + 1) : 0;
+    m.height       = (m.y1 > m.y0) ? (m.y1 - m.y0 + 1) : 0;
+    m.centroid_x   = sa > static_cast<double>(kCentroidEpsilon) ? (sx / sa) : 0.0;
+    m.centroid_y   = sa > static_cast<double>(kCentroidEpsilon) ? (sy / sa) : 0.0;
+    m.visible_pixels = vis;
+    m.alpha_sum    = sum_a;
+    m.max_alpha    = max_a;
+    return m;
 }
 
 // ── Default render settings ─────────────────────────────────────────────────
@@ -462,6 +525,22 @@ TEST_CASE("real pipeline parity: ChrononGlowFinalAE temporal stability "
              << " — pre-existing build rot blocks the test");
     }
 
+    // Resolve spec §5 canonical output root (override-able via env var
+    // for CI / cross-host tests where std::filesystem::current_path()
+    // is not the project root).  Default: output/text_video_acceptance/
+    // relative to the cwd, where the CLI renders the .mp4 + raw_frames/
+    // and the new (5) loop emits frame_metrics.csv.
+    std::filesystem::path output_root;
+    {
+        const char* env = std::getenv("CHRONON3D_TEST_VIDEO_OUTPUT_DIR");
+        if (env != nullptr && env[0] != '\0') {
+            output_root = std::filesystem::path(env);
+        } else {
+            output_root = std::filesystem::current_path()
+                          / "output" / "text_video_acceptance";
+        }
+    }
+
     const auto tmp = make_temp_dir();
 
     // ── (1) Render SDK stills at frames 0/15/30 using the exact same
@@ -495,11 +574,15 @@ TEST_CASE("real pipeline parity: ChrononGlowFinalAE temporal stability "
     const u64 hash_sdk_f30 = hash_from_png(sdk_f30);
 
     // ── (2) Render the full 60-frame video via the user-spec CLI
-    //       command.  Uses --ffmpeg-mode png + --keep-frames so the
-    //       per-frame PNGs land in `frames/frame_NNNNNN.png` — the
-    //       exact pixels the ffmpeg step would mux into the .mp4.
+    //       command.  Writes the .mp4 + per-frame PNGs to the spec §5
+    //       canonical output tree at output_root/ (= the canonical
+    //       output/text_video_acceptance/ path resolved above, or the
+    //       CHRONON3D_TEST_VIDEO_OUTPUT_DIR env override).  The CLI
+    //       uses --ffmpeg-mode png + --keep-frames so the per-frame
+    //       PNGs land in output_root/raw_frames/frame_NNNNNN.png —
+    //       the exact pixels the ffmpeg step would mux into the .mp4.
     const auto vid = run_cli_video_chronon_glow_final(
-        tmp / "video", /*start=*/0, /*end=*/60);
+        output_root.string(), /*start=*/0, /*end=*/60);
     REQUIRE(!vid.video_path.empty());
 
     // ── (3) Extract frames 0/15/30 from the video output directory.
@@ -519,100 +602,116 @@ TEST_CASE("real pipeline parity: ChrononGlowFinalAE temporal stability "
     CHECK(hash_sdk_f15 == hash_vid_f15);
     CHECK(hash_sdk_f30 == hash_vid_f30);
 
-    // ── (5) Temporal stability (c) — no-flicker: all 3 SDK still
-    //       framebuffers must have non-zero alpha content.  The
-    //       `hash != 0` sentinel is vacuous because
-    //       `test::framebuffer_hash()` uses a non-zero seed/offset
-    //       (an empty framebuffer hashes to a non-zero value
-    //       determined by the seed).  Use the actual alpha sum
-    //       instead — an empty frame has sum ≈ 0, an inked frame
-    //       has sum > 0.  This is the canonical "is the rasterizer
-    //       producing ink?" check.
-    auto alpha_sum = [](const Framebuffer& fb) -> double {
-        double sum = 0;
-        const int w = static_cast<int>(fb.width());
-        const int h = static_cast<int>(fb.height());
-        for (int y = 0; y < h; y += 4) {  // 4x downsample for speed
-            for (int x = 0; x < w; x += 4) {
-                sum += fb.get_pixel(x, y).a;
-            }
+    // ── (5) Spec §5 video-completeness — full 60-frame alpha bbox +
+    //       centroid + max_alpha loop.  Replaces the prior 3-frame
+    //       sample (at f00/f15/f30 only) with a per-frame geometric
+    //       + brightness validation, per user-spec verbatim:
+    //
+    //         bbox > 100×30 px, margine 8 px dai bordi,
+    //         centro |cx-960|<110 e |cy-540|<110,
+    //         salto centro tra frame adiacenti < 12 px
+    //           (no flicker geometrico),
+    //         nessun frame completamente vuoto,
+    //         max_alpha > 64.
+    //
+    //       Emits a 12-column CSV at the canonical spec §5 path
+    //         output_root/frame_metrics.csv
+    //       with columns:
+    //         frame,x0,y0,x1,y1,width,height,centroid_x,
+    //         centroid_y,visible_pixels,alpha_sum,max_alpha
+    //
+    //       The CSV is written even on partial failure — every per-
+    //       frame assertion is a CHECK (not REQUIRE) so the loop
+    //       completes and the diagnostic file survives on working
+    //       build host first runs per AGENTS.md §honesty.  Per-frame
+    //       file existence + load_png_as_framebuffer non-null are
+    //       REQUIRE (fail-loud on missing per the canonical Fase 6
+    //       helper invariant `r.video_path.empty()`).
+
+    constexpr int    kFrameCount              = 60;
+    constexpr int    kMaxAlphaFloor           = 64;
+    constexpr int    kBboxMinWidth            = 100;
+    constexpr int    kBboxMinHeight           = 30;
+    constexpr int    kEdgeMargin              = 8;     // 8 px from canvas edge
+    constexpr int    kCanvasWidth             = 1920;
+    constexpr int    kCanvasHeight            = 1080;
+    constexpr int    kCanvasCenterX           = kCanvasWidth / 2;   // 960
+    constexpr int    kCanvasCenterY           = kCanvasHeight / 2;  // 540
+    constexpr double kCentroidAbsTolerance    = 110.0; // |cx-960|<110, |cy-540|<110
+    constexpr double kInterFrameJumpMax       = 12.0;  // no flicker geometrico
+
+    std::error_code ec;
+    std::filesystem::create_directories(output_root, ec);
+    REQUIRE(!ec);  // fail-loud if output tree cannot be created
+    const std::filesystem::path csv_path = output_root / "frame_metrics.csv";
+    std::ofstream csv(csv_path.string());
+    REQUIRE(csv.is_open());  // fail-loud on permission / IO failure
+    csv << "frame,x0,y0,x1,y1,width,height,centroid_x,"
+           "centroid_y,visible_pixels,alpha_sum,max_alpha\n";
+
+    int frames_loaded = 0;
+    FrameMetrics prev{};
+    bool have_prev = false;
+
+    for (int f = 0; f < kFrameCount; ++f) {
+        std::ostringstream fname;
+        fname << "frame_" << std::setw(6) << std::setfill('0') << f << ".png";
+        const std::string path =
+            (std::filesystem::path(vid.frames_dir) / fname.str()).string();
+        REQUIRE(std::filesystem::exists(path));  // fail-loud on per-frame missing
+
+        auto fb_v = test::load_png_as_framebuffer(path);
+        REQUIRE(fb_v != nullptr);
+        REQUIRE(fb_v->width()  >= static_cast<size_t>(kCanvasWidth));
+        REQUIRE(fb_v->height() >= static_cast<size_t>(kCanvasHeight));
+
+        const FrameMetrics m = compute_frame_metrics(*fb_v, f);
+        ++frames_loaded;
+
+        csv << m.frame << ',' << m.x0 << ',' << m.y0 << ',' << m.x1 << ','
+            << m.y1 << ',' << m.width << ',' << m.height << ','
+            << std::fixed << std::setprecision(2) << m.centroid_x << ','
+            << std::setprecision(2) << m.centroid_y << ','
+            << m.visible_pixels << ',' << std::setprecision(6) << m.alpha_sum
+            << ',' << m.max_alpha << '\n';
+
+        // Per-frame assertions — all CHECK (not REQUIRE): the loop
+        // must complete and emit the full CSV even on partial failure,
+        // so the surviving diagnostic file is the working-build-host
+        // operator's grep-discoverable post-mortem per AGENTS.md §honesty.
+        CHECK(m.visible_pixels > 0);                        // no empty frame
+        CHECK(m.max_alpha    > kMaxAlphaFloor);             // max_alpha > 64
+        CHECK(m.width        > kBboxMinWidth);              // bbox > 100 px wide
+        CHECK(m.height       > kBboxMinHeight);             // bbox > 30 px tall
+        CHECK(m.x0 >= kEdgeMargin);                         // 8 px from left
+        CHECK(m.y0 >= kEdgeMargin);                         // 8 px from top
+        CHECK(m.x1 <  kCanvasWidth  - kEdgeMargin);         // 8 px from right
+        CHECK(m.y1 <  kCanvasHeight - kEdgeMargin);         // 8 px from bottom
+        CHECK(std::abs(m.centroid_x - kCanvasCenterX) < kCentroidAbsTolerance);
+        CHECK(std::abs(m.centroid_y - kCanvasCenterY) < kCentroidAbsTolerance);
+        if (have_prev) {
+            CHECK(std::abs(m.centroid_x - prev.centroid_x) < kInterFrameJumpMax);
+            CHECK(std::abs(m.centroid_y - prev.centroid_y) < kInterFrameJumpMax);
         }
-        return sum;
-    };
-    const double sum_f00 = alpha_sum(*fb0);
-    const double sum_f15 = alpha_sum(*fb15);
-    const double sum_f30 = alpha_sum(*fb30);
-    CHECK(sum_f00 > 0.0);
-    CHECK(sum_f15 > 0.0);
-    CHECK(sum_f30 > 0.0);
+        prev = m;
+        have_prev = true;
+    }
+    csv.close();
+    CHECK(frames_loaded == kFrameCount);
+    INFO("CSV metrics emitted to " << csv_path.string()
+         << " (" << frames_loaded << " frames)");
 
     // ── (6) No-glow-pop: the per-frame opacity envelope
     //       (0.40→0.85→0.50 at f00/f15/f30 per
     //       `opacity_for_frame` in glow_final_compositions.hpp) must
     //       produce distinct per-frame hashes.  If the envelope is
     //       broken (e.g. opacity=1.0 for all frames), all 3 hashes
-    //       would collapse to the same value.
+    //       would collapse to the same value.  Kept verbatim from
+    //       the prior 3-frame sample — structurally different from
+    //       the spec §5 60-frame geometric loop above (hash-based
+    //       temporal variation vs metric-based geometric stability);
+    //       both are kept.
     CHECK(hash_sdk_f00 != hash_sdk_f15);
     CHECK(hash_sdk_f15 != hash_sdk_f30);
     CHECK(hash_sdk_f00 != hash_sdk_f30);
-
-    // ── (7) Center-stability: the per-frame ink centroid must stay
-    //       within ±100px of the canvas center (960, 540) for all 3
-    //       snapshot buckets.  The test loads each PNG as a
-    //       Framebuffer and computes the alpha-weighted centroid via
-    //       the same `framebuffer_hash` / `load_png_as_framebuffer`
-    //       helpers used by the other parity tests.  The ±100px
-    //       tolerance matches the existing `ae_08_glow_pulse.cpp`
-    //       geometry lock (centroid within ~5% of canvas radius).
-    auto fb_v0 = test::load_png_as_framebuffer(vid_f00);
-    auto fb_v15 = test::load_png_as_framebuffer(vid_f15);
-    auto fb_v30 = test::load_png_as_framebuffer(vid_f30);
-    REQUIRE(fb_v0 != nullptr);
-    REQUIRE(fb_v15 != nullptr);
-    REQUIRE(fb_v30 != nullptr);
-
-    // ── (5b) N5 gap — no-flicker on the VIDEO frames too.  The
-    //       parity check passes vacuously if BOTH SDK and video
-    //       produce empty (zero-alpha) output (e.g. a missing font
-    //       atlas, a broken content module, the pre-existing build
-    //       rot).  Check the actual alpha content of the video
-    //       frames so a regression that produces empty output from
-    //       both paths cannot slip through.
-    CHECK(alpha_sum(*fb_v0)  > 0.0);
-    CHECK(alpha_sum(*fb_v15) > 0.0);
-    CHECK(alpha_sum(*fb_v30) > 0.0);
-
-    // Crude centroid estimate: average of non-zero pixel positions
-    // weighted by alpha.  This is a lightweight check — the full
-    // alpha_bbox/centroid geometry verification (width>800, no-edge-
-    // contact, etc.) is already covered by the 6 golden static tests
-    // in `tests/text_golden/ae_parity/ae_08_glow_pulse.cpp` which
-    // are part of the same `chronon3d_text_golden_tests` target.
-    auto centroid = [](const Framebuffer& fb) -> std::pair<float, float> {
-        double sx = 0, sy = 0, sa = 0;
-        const int w = static_cast<int>(fb.width());
-        const int h = static_cast<int>(fb.height());
-        for (int y = 0; y < h; y += 4) {  // 4x downsample for speed
-            for (int x = 0; x < w; x += 4) {
-                auto px = fb.get_pixel(x, y);
-                const float a = px.a;
-                if (a > 0.01f) {
-                    sx += x * a;
-                    sy += y * a;
-                    sa += a;
-                }
-            }
-        }
-        if (sa < 1e-3) return {0.0f, 0.0f};
-        return {static_cast<float>(sx / sa), static_cast<float>(sy / sa)};
-    };
-    const auto c0  = centroid(*fb_v0);
-    const auto c15 = centroid(*fb_v15);
-    const auto c30 = centroid(*fb_v30);
-    CHECK(std::abs(c0.first  - 960.0f) < 100.0f);
-    CHECK(std::abs(c0.second - 540.0f) < 100.0f);
-    CHECK(std::abs(c15.first - 960.0f) < 100.0f);
-    CHECK(std::abs(c15.second - 540.0f) < 100.0f);
-    CHECK(std::abs(c30.first - 960.0f) < 100.0f);
-    CHECK(std::abs(c30.second - 540.0f) < 100.0f);
 }
