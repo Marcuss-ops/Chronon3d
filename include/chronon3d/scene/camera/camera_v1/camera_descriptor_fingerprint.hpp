@@ -14,7 +14,13 @@
 // iteration order of fields.  Identical descriptors ⇒ identical hash.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_program.hpp>  // TICKET-PHASE-2: kCameraProgramSchemaVersion
+
+// TICKET-PHASE-2: schema version constant lives HERE (moved from
+// camera_program.hpp to break the circular include chain:
+//   camera_program.hpp -> camera_descriptor.hpp -> camera_descriptor_fingerprint.hpp -> camera_program.hpp).
+// Both camera_program.hpp and this file need it; placing it here makes it
+// available to both via the existing include chain without circularity.
+inline constexpr std::uint64_t kCameraProgramSchemaVersion = 2;
 
 #include <cstdint>
 #include <cstring>

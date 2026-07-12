@@ -232,13 +232,11 @@ enum class CameraCompileErrorCode : std::uint8_t {
     NonFiniteValue          = 10,
 };
 
-// TICKET-PHASE-2 — schema version baked into the program fingerprint so
-// that pre-Phase-2 fingerprints (which did not hash schema_version,
-// pixel_aspect, anamorphic_squeeze, full motion blur, HandheldNoise) are
-// rejected by the cache invalidation contract.  Bump this when the
-// fingerprint contract changes (any new field, any new error code, any
-// reordering of the hasher mix sequence).
-inline constexpr std::uint64_t kCameraProgramSchemaVersion = 2;
+// kCameraProgramSchemaVersion is now defined in
+// <chronon3d/scene/camera/camera_v1/camera_descriptor_fingerprint.hpp>
+// to break a circular include chain.  It is available here via the
+// transitive include: camera_program.hpp -> camera_descriptor.hpp ->
+// camera_descriptor_fingerprint.hpp.
 
 // =========================================================================
 // CameraProgram
