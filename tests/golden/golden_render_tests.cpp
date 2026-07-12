@@ -7,6 +7,7 @@
 #include <chronon3d/api/renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <tests/helpers/test_utils.hpp>
+#include <tests/visual/support/golden_test.hpp>
 #include <filesystem>
 #include <cmath>
 using namespace chronon3d;
@@ -15,11 +16,33 @@ using namespace chronon3d::test;
 
 namespace {
 
+// colors_near is preserved (NOT a candidate for removal as dead code) because
+// Test 17.3 still uses it for intentional-mismatch diff image highlighting
+// (the in-memory fake_golden + diff.set_pixel highlight loop). The 6 tests
+// migrated to the canonical verify_golden() mechanism in this commit do NOT
+// use it anymore — verify_golden() handles pixel comparison internally via
+// compare_framebuffers() (5-metric ImageDiffThreshold).
 bool colors_near(const Color& c1, const Color& c2, float tolerance = 0.05f) {
     return std::abs(c1.r - c2.r) <= tolerance &&
            std::abs(c1.g - c2.g) <= tolerance &&
            std::abs(c1.b - c2.b) <= tolerance &&
            std::abs(c1.a - c2.a) <= tolerance;
+}
+
+// Canonical GoldenTestConfig for the Tests 17.1-17.8 surface.
+// Threshold values mirror tests/text_golden/user_spec/01_text_basic_centered.cpp
+// (text rendering can have minor pixel-level variations across host/compiler).
+GoldenTestConfig make_golden_config() {
+    GoldenTestConfig cfg;
+    cfg.golden_directory   = "test_renders/golden";
+    cfg.artifact_directory = "test_renders/artifacts/golden";
+    cfg.mode               = golden_mode_from_environment();
+    cfg.threshold.max_mean_abs_error     = 5.0f / 255.0f;
+    cfg.threshold.max_abs_error          = 40.0f / 255.0f;
+    cfg.threshold.max_changed_pixel_ratio = 0.05f;
+    cfg.threshold.max_rmse               = 6.0f / 255.0f;
+    cfg.threshold.min_ssim               = 0.92f;
+    return cfg;
 }
 
 } // namespace
@@ -36,31 +59,8 @@ TEST_CASE("Test 17.1 — Golden image baseline and pixel-by-pixel validation") {
     auto rendered = renderer.render(comp, 0);
     REQUIRE(rendered != nullptr);
 
-    const std::filesystem::path golden_dir = "test_renders/golden";
-    std::filesystem::create_directories(golden_dir);
-    const std::filesystem::path golden_path = golden_dir / "shapes_golden.png";
-
-    // 1. Generate golden baseline if it does not exist
-    if (!std::filesystem::exists(golden_path)) {
-        REQUIRE(save_png(*rendered, golden_path.string()));
-    }
-
-    // 2. Load golden image and compare pixel-by-pixel with tolerance
-    auto golden = load_png_as_framebuffer(golden_path.string());
-    REQUIRE(golden != nullptr);
-    REQUIRE(golden->width() == rendered->width());
-    REQUIRE(golden->height() == rendered->height());
-
-    bool matched = true;
-    for (int y = 0; y < rendered->height(); ++y) {
-        for (int x = 0; x < rendered->width(); ++x) {
-            if (!colors_near(rendered->get_pixel(x, y), golden->get_pixel(x, y))) {
-                matched = false;
-                break;
-            }
-        }
-    }
-    CHECK(matched);
+    auto result = verify_golden(*rendered, "shapes_golden", make_golden_config());
+    REQUIRE_GOLDEN_PASSED(result);
 }
 
 TEST_CASE("Test 17.2 — Framebuffer dimension and float boundary comparisons") {
@@ -153,29 +153,8 @@ TEST_CASE("Test 17.4 — Text layout alignment Center/Middle") {
     auto rendered = renderer.render(comp, 0);
     REQUIRE(rendered != nullptr);
 
-    const std::filesystem::path golden_dir = "test_renders/golden";
-    std::filesystem::create_directories(golden_dir);
-    const std::filesystem::path golden_path = golden_dir / "text_align_golden.png";
-
-    if (!std::filesystem::exists(golden_path)) {
-        REQUIRE(save_png(*rendered, golden_path.string()));
-    }
-
-    auto golden = load_png_as_framebuffer(golden_path.string());
-    REQUIRE(golden != nullptr);
-    REQUIRE(golden->width() == rendered->width());
-    REQUIRE(golden->height() == rendered->height());
-
-    bool matched = true;
-    for (int y = 0; y < rendered->height(); ++y) {
-        for (int x = 0; x < rendered->width(); ++x) {
-            if (!colors_near(rendered->get_pixel(x, y).to_srgb(), golden->get_pixel(x, y))) {
-                matched = false;
-                break;
-            }
-        }
-    }
-    CHECK(matched);
+    auto result = verify_golden(*rendered, "text_align_golden", make_golden_config());
+    REQUIRE_GOLDEN_PASSED(result);
 }
 
 TEST_CASE("Test 17.5 — Text auto-fit automatic sizing") {
@@ -204,27 +183,8 @@ TEST_CASE("Test 17.5 — Text auto-fit automatic sizing") {
     auto rendered = renderer.render(comp, 0);
     REQUIRE(rendered != nullptr);
 
-    const std::filesystem::path golden_dir = "test_renders/golden";
-    std::filesystem::create_directories(golden_dir);
-    const std::filesystem::path golden_path = golden_dir / "text_autofit_golden.png";
-
-    if (!std::filesystem::exists(golden_path)) {
-        REQUIRE(save_png(*rendered, golden_path.string()));
-    }
-
-    auto golden = load_png_as_framebuffer(golden_path.string());
-    REQUIRE(golden != nullptr);
-
-    bool matched = true;
-    for (int y = 0; y < rendered->height(); ++y) {
-        for (int x = 0; x < rendered->width(); ++x) {
-            if (!colors_near(rendered->get_pixel(x, y).to_srgb(), golden->get_pixel(x, y))) {
-                matched = false;
-                break;
-            }
-        }
-    }
-    CHECK(matched);
+    auto result = verify_golden(*rendered, "text_autofit_golden", make_golden_config());
+    REQUIRE_GOLDEN_PASSED(result);
 }
 
 TEST_CASE("Test 17.6 — Text max-lines and ellipsis truncation") {
@@ -252,27 +212,8 @@ TEST_CASE("Test 17.6 — Text max-lines and ellipsis truncation") {
     auto rendered = renderer.render(comp, 0);
     REQUIRE(rendered != nullptr);
 
-    const std::filesystem::path golden_dir = "test_renders/golden";
-    std::filesystem::create_directories(golden_dir);
-    const std::filesystem::path golden_path = golden_dir / "text_ellipsis_golden.png";
-
-    if (!std::filesystem::exists(golden_path)) {
-        REQUIRE(save_png(*rendered, golden_path.string()));
-    }
-
-    auto golden = load_png_as_framebuffer(golden_path.string());
-    REQUIRE(golden != nullptr);
-
-    bool matched = true;
-    for (int y = 0; y < rendered->height(); ++y) {
-        for (int x = 0; x < rendered->width(); ++x) {
-            if (!colors_near(rendered->get_pixel(x, y).to_srgb(), golden->get_pixel(x, y))) {
-                matched = false;
-                break;
-            }
-        }
-    }
-    CHECK(matched);
+    auto result = verify_golden(*rendered, "text_ellipsis_golden", make_golden_config());
+    REQUIRE_GOLDEN_PASSED(result);
 }
 
 TEST_CASE("Test 17.7 — Text style (Cyan neon-like coloring)") {
@@ -298,27 +239,8 @@ TEST_CASE("Test 17.7 — Text style (Cyan neon-like coloring)") {
     auto rendered = renderer.render(comp, 0);
     REQUIRE(rendered != nullptr);
 
-    const std::filesystem::path golden_dir = "test_renders/golden";
-    std::filesystem::create_directories(golden_dir);
-    const std::filesystem::path golden_path = golden_dir / "text_cyan_neon_golden.png";
-
-    if (!std::filesystem::exists(golden_path)) {
-        REQUIRE(save_png(*rendered, golden_path.string()));
-    }
-
-    auto golden = load_png_as_framebuffer(golden_path.string());
-    REQUIRE(golden != nullptr);
-
-    bool matched = true;
-    for (int y = 0; y < rendered->height(); ++y) {
-        for (int x = 0; x < rendered->width(); ++x) {
-            if (!colors_near(rendered->get_pixel(x, y).to_srgb(), golden->get_pixel(x, y))) {
-                matched = false;
-                break;
-            }
-        }
-    }
-    CHECK(matched);
+    auto result = verify_golden(*rendered, "text_cyan_neon_golden", make_golden_config());
+    REQUIRE_GOLDEN_PASSED(result);
 }
 
 TEST_CASE("Test 17.8 — Subtitle backing box rendering") {
@@ -348,25 +270,6 @@ TEST_CASE("Test 17.8 — Subtitle backing box rendering") {
     auto rendered = renderer.render(comp, 0);
     REQUIRE(rendered != nullptr);
 
-    const std::filesystem::path golden_dir = "test_renders/golden";
-    std::filesystem::create_directories(golden_dir);
-    const std::filesystem::path golden_path = golden_dir / "text_box_golden.png";
-
-    if (!std::filesystem::exists(golden_path)) {
-        REQUIRE(save_png(*rendered, golden_path.string()));
-    }
-
-    auto golden = load_png_as_framebuffer(golden_path.string());
-    REQUIRE(golden != nullptr);
-
-    bool matched = true;
-    for (int y = 0; y < rendered->height(); ++y) {
-        for (int x = 0; x < rendered->width(); ++x) {
-            if (!colors_near(rendered->get_pixel(x, y).to_srgb(), golden->get_pixel(x, y))) {
-                matched = false;
-                break;
-            }
-        }
-    }
-    CHECK(matched);
+    auto result = verify_golden(*rendered, "text_box_golden", make_golden_config());
+    REQUIRE_GOLDEN_PASSED(result);
 }
