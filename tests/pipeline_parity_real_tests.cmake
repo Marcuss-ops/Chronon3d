@@ -14,7 +14,16 @@ chronon3d_add_test_suite(
         chronon3d_scene
         chronon3d_text_core
         TBB::tbb
-    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_pipeline_parity_real.cpp
+    # TICKET-REFACTOR-TESTS-SPLIT-18-19 §A — single executable with 4 split
+    # test files + the shared harness impl.  doctest_discover_tests at the
+    # bottom picks up all TEST_CASEs across the 4 sources (still: 1,
+    # video: 1, runtime_modes: 7, chronon_glow_temporal: 1 = 10 total).
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/text/support/pipeline_parity_harness.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/text/test_pipeline_parity_still.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/text/test_pipeline_parity_video.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/text/test_pipeline_parity_runtime_modes.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/text/test_chronon_glow_temporal.cpp
 )
 
 # The test invokes the CLI binary as a subprocess; make sure it is built
