@@ -22,7 +22,18 @@ set -uo pipefail
 
 GATE_SCRIPT="${GATE_SCRIPT:-$(cd "$(dirname "$0")/../.." && pwd)/tools/check_resource_limits.sh}"
 SELFTEST_NAME="selftest_check_resource_limits"
-WORK="$(mktemp -d -t "${SELFTEST_NAME}.XXXXXX")"
+# §honest-rot-fix (2026-07-12, Test #13 wireup chore): this VPS has /tmp mounted
+# `noexec` (per the TICKET-BUILD-ROT-CASCADE-CAMERA env-block pattern), so the
+# prior `WORK=$(mktemp -d -t ...)` (defaulting to /tmp) staged the mock CLI in a
+# non-executable mount — chmod +x succeeded on the metadata but `[ -x ]` checks
+# returned false, and the gate's precondition exited 2 with GATE_FAIL_INTERNAL.
+# Fix: stage WORK in the repo-local `.tmp/` (on a normal exec-mount filesystem),
+# keeping the .tmp/ directory scope consistent with the project's build-artifact
+# convention (the gate's own OUT_DIR still uses mktemp /tmp since it only holds
+# TSV output, not executables).
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+WORK="${REPO_ROOT}/.tmp/${SELFTEST_NAME}.$$.$(date +%s)"
+mkdir -p "$WORK"
 
 # Mock CLI template: parameterized via env vars per scenario.
 #   MOCK_PEAK_KB              : allocate this many KB of memory (sets VmHWM)
@@ -124,7 +135,15 @@ run_scenario() {
 
     # Run the gate with the per-scenario mock + env
     local out
-    out="$(cd "$sc_dir" && eval "$mock_env_setup" bash "$GATE_SCRIPT" 2>&1; echo "EXITCODE=$?")"
+    # §honest-rot-fix (2026-07-12, Test #13 wireup chore): the prior `eval
+    # "$mock_env_setup" bash "$GATE_SCRIPT"` form parses as one giant eval string
+    # where the last `export TMPDIR=...` line gets `bash $GATE_SCRIPT` appended
+    # as command-prefix args (so TMPDIR is set in the gate's env but other env
+    # vars are eval'd then lost when the gate forks). Fix: separate the eval
+    # (which exports env vars in the parent shell) from the bash invocation
+    # (which inherits them via fork+exec) using `;` — gates bash always running
+    # regardless of eval's return code.
+    out="$(cd "$sc_dir" && eval "$mock_env_setup" ; bash "$GATE_SCRIPT" 2>&1; echo "EXITCODE=$?")"
     local actual_ec
     actual_ec="$(printf '%s' "$out" | awk -F'=' '/^EXITCODE=/{print $2; exit}' || echo 1)"
 
@@ -177,7 +196,7 @@ mkdir -p "$TMPDIR"
 # still exercises the leak-detection logic (VmHWM stability + cache bounded)
 # but uses fewer invocations.
 
-run_scenario "scen1_pass" 0 "GATE_PASS" "$MOCK_SETUP_PASS" || exit 1
+run_scenario "scen1" 0 "GATE_PASS" "$MOCK_SETUP_PASS" || exit 1
 
 # ── Scenario 2: FAIL_PEAK_RAM ───────────────────────────────────────────
 # MOCK_PEAK_KB=600000 (600 MB) — exceeds the 512 MB budget
@@ -196,7 +215,7 @@ export MOCK_EXIT_CODE=0
 export TMPDIR='"${WORK}"'/scen2_tmp
 mkdir -p "$TMPDIR"
 '
-run_scenario "scen2_fail_peak_ram" 1 "PEAK RAM" "$MOCK_SETUP_FAIL_PEAK" || exit 1
+run_scenario "scen2" 1 "PEAK RAM" "$MOCK_SETUP_FAIL_PEAK" || exit 1
 
 # ── Scenario 3: FAIL_FRAME_P95 ──────────────────────────────────────────
 # 5 frames: first 4 with MOCK_WALL_MS=50; 5th with MOCK_WALL_MS=500 (10× baseline)
@@ -223,7 +242,7 @@ mkdir -p "$TMPDIR"
 # normal frames dominate the P95 (idx=19 → 50ms); max=500ms; ratio=10× → violation.
 echo 0 > '"${WORK}"'/scen3/frame_counter
 '
-run_scenario "scen3_fail_frame_p95" 1 "FRAME P95" "$MOCK_SETUP_FAIL_P95" || exit 1
+run_scenario "scen3" 1 "FRAME P95" "$MOCK_SETUP_FAIL_P95" || exit 1
 
 # ── Scenario 4: FAIL_LEAK ──────────────────────────────────────────────
 # 20 jobs with MOCK_LEAK_PER_INV_KB=500 (increment 500 KB per invocation)
@@ -243,7 +262,7 @@ export MOCK_EXIT_CODE=0
 export TMPDIR='"${WORK}"'/scen4_tmp
 mkdir -p "$TMPDIR"
 '
-run_scenario "scen4_fail_leak" 1 "LEAK delta" "$MOCK_SETUP_FAIL_LEAK" || exit 1
+run_scenario "scen4" 1 "LEAK delta" "$MOCK_SETUP_FAIL_LEAK" || exit 1
 
 # ── Scenario 5: PRECOND (PATH stripped of `jq`) ─────────────────────────
 # The gate's precondition check fails because `jq` is not in PATH.
@@ -273,7 +292,7 @@ echo "SCEN_PASS scen5_precond (exit=${PRECOND_EC})"
 # ── Aggregate selftest verdict ──────────────────────────────────────────
 echo ""
 echo "=== AGGREGATE SELFTEST VERDICT ==="
-echo "5/5 scenarios PASS: scen1_pass + scen2_fail_peak_ram + scen3_fail_frame_p95 + scen4_fail_leak + scen5_precond"
+echo "5/5 scenarios PASS: scen1 + scen2 + scen3 + scen4 + scen5_precond"
 echo "GATE_PASS: 5/5 selftest scenarios — gate's verdict logic is correct across all 4 invariants + PRECOND contract"
 echo "[INFO] ${SELFTEST_NAME}: 5/5 selftest scenarios verified — gate ready for production use (calibration to working build host per the §honesty 'valori da ricalibrare' rule)"
 exit 0
