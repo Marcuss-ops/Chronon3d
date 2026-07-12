@@ -39,6 +39,9 @@ echo "== Camera brutal =="               # TODO (Test #9)
 echo "== Multilingual text =="           # TODO (Test #8)echo "== Fail-loud errors =="           # Test #7 (Wired via tools/check_first_principles_fail_loud.sh)
 bash "$SCRIPT_DIR/check_first_principles_fail_loud.sh"
 
+echo "== Video tooling =="               # Test #FF (FFmpeg + FFprobe FAIL-LOUD gate; canonical wire-in for replacing downstream SKIP-on-missing rot per user spec + AGENTS.md §honest-limitation)
+bash "$SCRIPT_DIR/check_ffmpeg_required.sh"
+
 echo "== Costo =="                       # Test #11 "costo reale" (render cost — NEW dedicated section, distinct from the chronograph in == Fix speed == per AGENTS.md Cat-3 anti-duplication)
 bash "$SCRIPT_DIR/measure_render_cost.sh"
 bash "$SCRIPT_DIR/check_fix_cronograph.sh"
@@ -52,4 +55,4 @@ echo "== Feature usefulness gate =="     # TODO (Test #14 — docs gate)
 echo "== Weekly scorecard =="            # TODO (Track-13 — output terr.)
 
 echo "FIRST_PRINCIPLES_PRODUCT_PASS"
-echo "[INFO] ${GATE_NAME}: 7/7 active sections wired (... Fix speed/Test #11 wired-but-§honesty-zero-data-on-VPS until build-host logs entry; Fail-loud/Test #7 wired via tools/check_first_principles_fail_loud.sh; Costo/Test #11-render-cost wired via tools/measure_render_cost.sh + docs/scorecard.csv canonical Cat-3 ledger; Manual touches/Test #19 wired via tools/check_manual_touches_per_video.sh + configs/touchpoint_thresholds.yaml canonical 9-op + 4-phase schema); 1/7 TODO-body still pending (Determinism + Product demo); 5 follow-up stub headers pending (Test #4, #9, #12-13, Track-13 — minus the Test #18 TikTok pilot sibling + the Test #19 Manual touches + the Test #11 Costo + the Test #7 Fail-loud dedup)"
+echo "[INFO] ${GATE_NAME}: 8/8 active sections wired (... Fix speed/Test #11 wired-but-§honesty-zero-data-on-VPS until build-host logs entry; Fail-loud/Test #7 wired via tools/check_first_principles_fail_loud.sh; Video tooling/Test #FF wired via tools/check_ffmpeg_required.sh — replaces downstream SKIP-on-missing rot per AGENTS.md §honest-limitation; Costo/Test #11-render-cost wired via tools/measure_render_cost.sh + docs/scorecard.csv canonical Cat-3 ledger; Manual touches/Test #19 wired via tools/check_manual_touches_per_video.sh + configs/touchpoint_thresholds.yaml canonical 9-op + 4-phase schema); 1/8 TODO-body still pending (Determinism + Product demo); 5 follow-up stub headers pending (Test #4, #9, #12-13, Track-13 — minus the Test #18 TikTok pilot sibling + the Test #19 Manual touches + the Test #11 Costo + the Test #7 Fail-loud + the Test #FF Video tooling dedup)"
