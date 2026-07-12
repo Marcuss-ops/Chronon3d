@@ -64,6 +64,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
 )
 
 find_package(doctest CONFIG REQUIRED)
+include(doctest)
 
 # Shared test main
 set(TEST_MAIN test_main.cpp)
