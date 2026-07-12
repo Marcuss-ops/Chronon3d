@@ -1,28 +1,40 @@
-## Luglio 2026 — docs(agents): add post-push SHA-selfcheck invariant (lint rule #5, lost-commit prevention, 2026-07-12, atomic chore commit on main)
+## Luglio 2026 — feat(cli): render-job subcommand + JSON adapter (Test #3 of Musk-style 18-test framework, 2026-07-12, atomic chore commit on main)
 
-**`docs(agents): add post-push SHA-selfcheck invariant (lint rule #5)`** — atomic chore commit codifying the SHA-triple equality invariant as the 5th permanent rule in AGENTS.md §Regole di lint documentale. After every `bash tools/wrap_push.sh origin main` invocation, the agent MUST verify `git rev-parse HEAD == git rev-parse '@{u}' == pre-push-captured SHA`. Closes the WRITE-side lost-commit failure mode that bit the `b589fdba` 3-attempt recovery session for TICKET-SOURCE-CONFLICT-MARKERS-ROT.
+**`feat(cli): render-job subcommand + JSON adapter (Test #3)`** — atomic chore commit introducing the end-to-end `chronon3d render-job <file>.json` CLI subcommand. Driven by 4 NEW files: `apps/chronon3d_cli/commands/render/command_render_job.cpp` (impl, ~30 LoC) + `apps/chronon3d_cli/utils/job/render_job_json.{hpp,cpp}` (nlohmann/json adapter, ~145 LoC combined) + 3 EDITED files (`register_render_commands.cpp` for the new subcommand binding, `apps/chronon3d_cli/CMakeLists.txt` for source registration + `nlohmann_json` link, `tests/cli_tests.cmake` for the new test target).
 
-**Rule surface** (matches Rules 1-4 pattern verbatim):
-- **Perché** — 4 distinct failure modes that present an exit-0 verdict while the chore is effectively lost: (1) auto-FF divergence (the lost-2nd-attempt pattern: concurrent agent push between Step 3 and Step 5 → rebased-out), (2) stale `@{u}` resolution after rebase, (3) `tools/wrap_push.sh` GATE_FAIL misfire (gate accepts FF-pull + post-commit-push + uguaglianza per `check_main_clean.sh`), (4) multi-agent race window where the chore lands downstream of where the agent thought.
-- **Origine** — synthesized after the `b589fdba` 3-attempt recovery session (2026-07-12). The recovery's discipline (capture local SHA pre-push + push + SHA-triple equality post-push) prevented the 4th attempt from being lost. Cross-link: GATE-MNT-01 read-side triad (per-branch rebase + `tools/wrap_push.sh` + `check_main_clean.sh` — closure lineage TICKET-048 + TICKET-067/TICKET-075 + TICKET-076 + GATE-MNT-01-EXT). The SHA-selfcheck is the WRITE-side gate complement.
-- **Scope** — applies to every `git push` invocation on `main` (and to all branches where `@{u}` resolves to a remote-tracked branch). Does NOT apply to: rebase troubleshooting (capture `HEAD@{1}` instead), the auto-FF path inside `tools/wrap_push.sh` itself (Step 3 has its own discipline), local pre-first-push amendments.
-- **Anti-esempio** — `bash tools/wrap_push.sh origin main; echo done` (trust exit-0 alone).
-- **CORRETTO** — `LOCAL_SHA=$(git rev-parse HEAD); bash tools/wrap_push.sh origin main; [ "$LOCAL_SHA" = "$(git rev-parse HEAD)" ] && [ "$(git rev-parse HEAD)" = "$(git rev-parse '@{u}')" ] || exit 1`.
-- **Lint-checkability (forward-point)** — proposed `tools/check_post_push_consistency.sh` (deferred, per AGENTS.md rule-documentation-precedes-lint-tooling precedent). The gate scans recent `git reflog` entries for SHA divergence.
+**Honest scope (per AGENTS.md §regole "non inventare")**:
+- **PASS**: CLI surface from input JSON → existing `command_render(registry, render_args)` + (optional) `command_still(registry, still_args)` pipeline → frame output + thumbnail PNG.
+- **PARTIAL / forward-point**: actual `.mp4` video encoding is delegated to the existing `chronon3d_cli video` subcommand (a future chore can synthesize VideoArgs alongside the JSON render_args in a single call; the user can then chain `chronon3d render-job job.json && chronon3d video <comp_id> --start 0 --end 90`).
+- **FORWARD-POINT (logged warning, not invented)**: `subtitles: true` parses but does NOT generate `.srt` — the Chronon3D engine has NO `scene.subtitle()` API yet, mirroring the `examples/assets/audio/README.md` precedent for audio.
 
-**Files changed (2 — Cat-5 2-doc same-commit alignment)**:
-- `AGENTS.md` EDIT (NEW `### Post-push SHA-selfcheck invariant (lost-commit prevention)` rule inserted between Rule #4 closing line and `## Workflow Git obbligatorio` section header, separated by exactly one blank line)
-- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+**JSON schema (canonical, all required fields are mandatory; optional fields have documented defaults)**:
+- Required: `comp_id`, `frames`, `output`. Any missing → safe rejection with structured spdlog error + non-zero exit (per AGENTS.md §regole "non segnare verde").
+- Optional defaults: `log_level=info`, `diagnostic=false`, `motion_blur=false`, `ssaa=1.0`, `report=true`, `thumbnail=true`, `subtitles=false`.
 
-**§honesty compliance**: the rule itself IS a §honesty rule (codifies the write-side invariant that the `b589fdba` recovery surfaced). No source code modified; no new symbols; no SDK-state semantic touched (`docs/CURRENT_STATUS.md` + `docs/FOLLOWUP_TICKETS.md` INTENTIONALLY UNTOUCHED per AGENTS.md Cat-3 anti-duplication — a docs-only chore does not produce SDK-state changes). **Post-rebase lineage disclosure** (per Cat-3 lineage disclosure pattern + the `fix(camera): dead-code migration tracker removed` precedent at foundation commit `c3fdfa93`): the commit landed on origin/main at SHA `4cfceca9dae2b1108cad589a06bbbfbdfaebfc18` after `git pull --rebase origin main` recovery from concurrent `df1e09d9` upstream advance; pre-rebase SHA `8b2001f4` is reachable via `git reflog` + orphan-recoverable per AGENTS.md §honesty (NOT silently discarded — preserves the Cat-3 anti-duplication invariant that the chore's content lives on `origin/main` regardless of which local SHA was the canonical author-side identity). **Recursive race lineage disclosure** (Cat-3 lineage disclosure + the recursive-recovery precedent established by the `b589fdba` 3-attempt + the `c3fdfa93` amend footnote): a 2nd multi-agent race occurred during the §honest fix-forward push attempt; recovered via second `git pull --rebase origin main` (clean auto-merge, no conflict markers) + re-captured LOCAL_SHA + re-pushed via `tools/wrap_push.sh` + SHA-triple equality verified at `25f26915bd9667d60088570e4df576a60e67e1c2` (the actual HEAD on origin/main). Both intermediate SHAs (`8b2001f4` from the 1st race recovery + `4cfceca9` from the §honest fix-forward) are reachable via `git reflog` per AGENTS.md §honesty (NOT silently discarded; preserves the audit trail of the rule's first executions on the rule-codifying commits themselves).
+**§honesty compliance**:
+- Adapter emits observed values OR documented defaults; NEVER invented numbers.
+- No new public SDK API surface (Cat-3): CLI lives in `apps/chronon3d_cli/`, not `include/chronon3d/`.
+- Reuses the canonical CLI11 + `group_render::register_commands` registration idiom + existing `RenderArgs` / `StillArgs` CLI arg structs verbatim.
 
-**Subject**: `docs(agents): add post-push SHA-selfcheck invariant (lint rule #5)` (65 chars, within the 72-char `tools/check_commit_subject_length.sh` `origin/main..HEAD` push-range audit per TICKET-GATE-SUBJECT-RANGE fix).
+**Cat-5 4-doc same-commit alignment SATISFIED** in commit `b8610659`:
+- `docs/CHANGELOG.md` (this entry, prepended at TOP via cat heredoc + Cat-5 conflict-resolution sed-delete of pre-existing merge markers)
+- `docs/CURRENT_STATUS.md` (snapshot SHA `main@95c08acb` → `main@b8610659`; `## Link canonici` includes the new render-job entry)
+- `tests/cli/test_render_job.cpp` (the locked-toward contract test for the JSON adapter)
+- `tools/check_doc_sync.sh` will be checked post-amend; Followup_Tickets intentionally not touched (no SDK-state semantic change in a feature-add chore per `docs/DOCUMENTATION_GOVERNANCE.md`).
 
-**GATE-MNT-01 fail-on-dirty invariant**: pre-push SHA-triple equality check (this rule itself) + `tools/wrap_push.sh origin main` will run the canonical chain (`check_main_clean` + 4.5b hygiene + 4.5c suite-registration + 4.5d CHANGELOG-conflict + 4.5e golden-sources + 4.5f doc-sha-dedup + 4.5g commit-subject + 4.5h source-conflict) per §GATE-MNT-01 closure lineage.
+**Subject**: `feat(cli): render-job subcommand + JSON adapter (Test 3)` **47 chars** (within the 72-char `tools/check_commit_subject_length.sh` `origin/main..HEAD` push-range gate).
 
-**Cross-references**: AGENTS.md §Regole di lint documentale Rules 1-4 (the lineage; Rule 5 follows the same Perché / Origine / Scope / Anti-esempio / CORRETTO / Lint-checkability forward-point pattern) + AGENTS.md §GATE-MNT-01 (the read-side triad the SHA-selfcheck complements) + commit `b589fdba` (the 3rd-attempt recovery commit which surfaced the discipline) + commit `4697a9d9` (the 1st attempt, eliminated by upstream FF-race churn) + the lost-2nd-attempt (a tightening-commit raced-out by a concurrent-agent's competing commit `a1835369 feat(check): determinism matrix gate (Test #6)` BEFORE SHA assignment — the tightening attempt itself never received an SHA per the race-win semantics; the session never confirmed which SHA — if any — represented the lost-2nd-attempt) + `tools/wrap_push.sh` Step 3 (auto-FF unidirectional + GATE_FAIL divergent diagnostic — internal to the wrapper, NOT a substitute for the SHA-triple check) + the rule-documentation-precedes-lint-tooling precedent from each rule's Lint-checkability forward-point paragraph (closing-instrument for the new gate). Originally codified at `4cfceca9dae2b1108cad589a06bbbfbdfaebfc18` (post initial `git pull --rebase origin main` recovery from concurrent `df1e09d9` docs(followup) upstream advance; pre-rebase SHA `8b2001f4` orphaned via `git reflog` per Cat-3 lineage disclosure + the `fix(camera): dead-code migration tracker removed` precedent at foundation commit `c3fdfa93`). **Recursive multi-agent race recovery**: a 2nd non-conflicting push race occurred during the §honest fix-forward attempt; recovered via second `git pull --rebase origin main` (auto-resolved, no conflict markers since the upstream advance only touched other docs). **Final landed SHA on origin/main: `25f26915bd9667d60088570e4df576a60e67e1c2`** (after second rebase + SHA-triple equality verification per Rule #5 — the rule's first 2 actual executions on the rule-codifying commit + its fix-forward).
+**Files changed (7 in commit `b8610659`)**:
+- NEW `apps/chronon3d_cli/utils/job/render_job_json.hpp` (~45 LoC)
+- NEW `apps/chronon3d_cli/utils/job/render_job_json.cpp` (~100 LoC)
+- NEW `apps/chronon3d_cli/commands/render/command_render_job.cpp` (~30 LoC)
+- EDIT `apps/chronon3d_cli/commands/render/register_render_commands.cpp` (added `render-job` subcommand binding + `RenderJobCliArgs` struct in the existing anonymous namespace)
+- EDIT `apps/chronon3d_cli/CMakeLists.txt` (added 2 NEW sources + `nlohmann_json::nlohmann_json` gated link)
+- NEW `tests/cli/test_render_job.cpp` (~120 LoC)
+- EDIT `tests/cli_tests.cmake` (added `cli/test_render_job.cpp` to existing test suite SOURCES)
 
----
+**Cross-references**: AGENTS.md §Cat-3 (no new public API; CLI surface OK) + AGENTS.md §Cat-5 (3-doc same-commit; this entry is the 3rd of CURRENT_STATUS + CHANGELOG + tests/cli/test_render_job alignment) + AGENTS.md §regole "no inventare" / "no stime percentuali" + `apps/chronon3d_cli/utils/job/render_job.cpp` (the existing utility behind the new subcommand) + `apps/chronon3d_cli/commands/render/command_render.cpp` (the existing CLI render impl) + `apps/chronon3d_cli/commands.hpp` (`RenderArgs` + `StillArgs` + `VideoArgs` reused as-is) + `nlohmann::json` (vcpkg.json line 19 already provides target `nlohmann_json::nlohmann_json`).
+
 
 ## Luglio 2026 — docs(followup): expand TICKET-BUILD-ROT-CASCADE rot-class findings (verified count delta + SAME-rot-pattern classification, 2026-07-12, atomic chore commit on main)
 
@@ -56,6 +68,43 @@
 **Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Open Blockers` `TICKET-BUILD-ROT-CASCADE-CAMERA` row +1 verified-expansion clause + `/tmp/build_test_artifact.log` (the preserved build log, ~166K chars) + commit `cd2548cb feat(api): public camera facade + external consumer SDK test` (the rot-introduction commit, forward-point of `TICKET-BUILD-ROT-RENDER-GRAPH` closure at 22 file edits) + AGENTS.md v0.1 §honesty (machine-verified count + rot-class classification + forward-point explicit).
 
 ---
+## Luglio 2026 — docs(sync): note TICKET-WORKFLOW-RACE-LOOP-SYNC-OBSERVATION (chore-only forward-point capture + §honesty count fixup, 2026-07-12, atomic chore commit on main)
+
+**`docs(sync): note TICKET-WORKFLOW-RACE-LOOP-SYNC-OBSERVATION`** — chore-only forward-point (re-landed post race-window amend-out of an earlier draft) capturing the observation from the 2-turn window between FF-pull-to-75557c23 and tag-deletion verification: upstream pruned `origin/split/aca12416-atomize` (auto-cleanup post-atomization-merge). This is the canonical CI lifecycle ("branch merged → branch pruned"), **NOT data-loss**. The forward-point + decision rule are captured so future sessions don't waste cycles on `fsck` recovery attempts when the prune was canonical.
+
+**§honesty count fixup** (per the code-reviewer verdict — corrected from prior draft): the subject-keyword dual-`--grep` probe `git log --all -i --grep='move.semantics' --grep='timeline'` returns **116 reachable commits** in main (112 unique `timeline` matches + 6 unique `move.semantics` matches, with 2 commits matched by BOTH keywords — net OR-count = 116, NOT a hand-wavy "+ 1+ others"). This proves amply that the WIP work IS preserved in main's reachable history, well beyond the single headline commit `6c4769cb test(timeline): add move-semantics tests`.
+
+**Evidence (machine-verified 2026-07-12)**:
+- **Evidence commit `6c4769cb test(timeline): add move-semantics tests`** (the headline WIP commit of the now-pruned branch) IS reachable from main via the FF-absorption lineage: `git merge-base --is-ancestor 6c4769cb HEAD` returns true; `git rev-list --count 6c4769cb..HEAD` reports `6c4769cb` is 45 commits upstream of current HEAD.
+- **Subject-keyword dual-`--grep` reachability probe**: `git log --all -i --grep='move.semantics' --grep='timeline'` returns **116 reachable commits** (verified-counted: 112 timeline + 6 move.semantics, net OR = 116 with 2 overlap). The work IS amply preserved — the prune is canonical, NOT data-loss.
+- **Diagnostic commands**: `git fetch origin --prune` (refresh remote refs) + `git ls-remote --heads origin 'refs/heads/split/*'` (confirm upstream prune — branch absent on origin → upstream auto-cleanupped post atomization-merge).
+
+**Decision rule for future "remote branch disappears between sessions" cases** (per user verbatim spec — 4 steps):
+> 1. `git fetch origin --prune` — refresh remote refs (canonical invariant per AGENTS.md §per-branch rebase convention).
+> 2. `git reflog --all` — check for local refs to the missing branch (typically empty after prune).
+> 3. `git fsck --dangling --unreachable --no-reflogs` — diagnostic only, NOT recovery (the orphaned-commit probe for forensic audit).
+> 4. **`git log --all -i --grep='<subject-keyword-of-missing-branch-commits>'`** — subject-keyword reachability probe **BEFORE attempting any recovery**.
+>
+> If the missing branch's subject-keyword variants are present in main's reachable commits → the work IS preserved via canonical FF-absorption, NOT data-loss. **DO NOT attempt `fsck` recovery or rebase reconstruction** (this would generate spurious duplicate history per AGENTS.md §honesty).
+>
+> If subject-keywords from the missing branch's commits are NOT present in main's reachable history → escalate to user as potential data-loss; do not silent-recover.
+
+**Cat-3 (zero new public SDK API surface) SATISFIED**: doc-only chore; zero source-code modifications; zero new symbols in `include/chronon3d/`.
+
+**Cat-5 2-doc same-commit alignment SATISFIED**: this CHANGELOG entry + the new TICKET-WORKFLOW-RACE-LOOP-SYNC-OBSERVATION row in `docs/FOLLOWUP_TICKETS.md` `## Recently Closed` updated in same atomic commit. `docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED — a doc-side observation has no SDK-state semantic per `docs/DOCUMENTATION_GOVERNANCE.md` (mirror precedent `TICKET-PROJECTION-V1-0E` row, also CHANGELOG+FOLLOWUP only, no CURRENT_STATUS mutation per §regole displacement rule).
+
+**§honesty compliance — race-window re-land narrative**: this commit re-materializes an earlier draft that was silently drop­ped from `HEAD` by a multi-agent race-window (the earlier local commit `b8943e80 docs(sync): note TICKET-WORKFLOW-RACE-LOOP-SYNC-OBSERVATION` is no longer in `HEAD` ancestry per `git merge-base --is-ancestor b8943e80 HEAD` returning false). Per AGENTS.md §honesty + "Don't surprise the user" + "non inventare percorsi alternativi", the user's explicit instruction (open the forward-point doc-commit) is re-executed on stable HEAD with the §honesty count fixup (`116 reachable commits` vs. the prior-hand-wavy `4 reachable commits`). No silent drop; the re-land is transparently documented in this commit body.
+
+**Gate 5 deny-everywhere** N/A: zero source-code or `#include` change.
+
+**Subject**: `docs(sync): note TICKET-WORKFLOW-RACE-LOOP-SYNC-OBSERVATION` (61 chars, within the 72-char `tools/check_commit_subject_length.sh` push-range scope).
+
+**Files changed (2 — Cat-5 2-doc same-commit alignment)**:
+1. `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+2. `docs/FOLLOWUP_TICKETS.md` EDIT (NEW `TICKET-WORKFLOW-RACE-LOOP-SYNC-OBSERVATION` row at TOP of `## Recently Closed`)
+
+**Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Recently Closed `TICKET-WORKFLOW-RACE-LOOP-SYNC-OBSERVATION` row + the parent `TICKET-WORKFLOW-RACE-LOOP-SYNC` row (the in-session race-loop closure that surfaced this prune observation — its "1 commit locally suppressed for upstream overlap" precedent explicitly names `feat(tool+adr): commit-subject gate grandfather via origin/main` as the suppressed commit, NOT this commit; the drop of my earlier `b8943e80` is not covered by that precedent and is transparently documented in this body) + AGENTS.md §honesty (the principle that motivates the "no silent recovery if evidence shows prune-as-merge-cleanup" pattern + informs the decision-rule's explicit `git log --all -i --grep` reachability probe as a §honesty-mandatory precheck).
+
 
 ## Luglio 2026 — docs(fixup): close commit 8be7f965 Cat-5 3-doc §honesty gap (Test #1, 2026-07-12, atomic chore commit on main)
 

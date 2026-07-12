@@ -8,6 +8,9 @@ namespace chronon3d::cli {
 
 namespace {
 struct RenderState { std::shared_ptr<RenderArgs> args{std::make_shared<RenderArgs>()}; };
+// TICKET-MUSK-TEST-3 — minimal CLI binding struct (only job_path; the
+// rest of the per-frame knobs live in the JSON document).
+struct RenderJobCliArgs { std::string job_path; };
 }
 
 void register_render_commands(CLI::App& app, CliContext& ctx) {
@@ -134,6 +137,39 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             spdlog::set_level(spdlog::level::err);
         }
         ctx.exit_code = command_still(ctx.registry, **still_state);
+    });
+
+    // ── render-job: JSON-driven end-to-end render pipeline (Test #3) ──
+    // CLI binding: parses a job.json file via utils/job/render_job_json.hpp
+    // and delegates to the existing command_render + command_still pair.
+    // The CLI surface here is intentionally minimal (just --input); all
+    // per-frame knobs live in the JSON document so a render operator can
+    // express a job declaratively instead of via a long flag soup.
+    auto job_state = std::make_shared<std::shared_ptr<RenderJobCliArgs>>(
+        std::make_shared<RenderJobCliArgs>());
+    auto& job_args = **job_state;
+
+    auto* job = app.add_subcommand("render-job",
+        "Render end-to-end from a job.json (comp_id + frames + output, "
+        "optional report / thumbnail)");
+    job->add_option("input", job_args.job_path,
+                    "Path to job.json (e.g. job.json)")->required();
+    job->allow_windows_style_options();
+    job->callback([job_state, &ctx]() {
+        const auto& j = **job_state;
+        if (!looks_like_job_json(j.job_path)) {
+            spdlog::error("render-job: '{}' is not a readable .json file",
+                          j.job_path);
+            ctx.exit_code = 2;
+            return;
+        }
+        auto parsed = parse_render_job_json(j.job_path);
+        if (!parsed) {
+            spdlog::error("render-job: failed to parse '{}'", j.job_path);
+            ctx.exit_code = 2;
+            return;
+        }
+        ctx.exit_code = command_render_job(ctx.registry, *parsed);
     });
 }
 

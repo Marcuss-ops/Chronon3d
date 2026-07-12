@@ -37,6 +37,8 @@ chronon3d_add_test_suite(
             # TICKET-RENDER-PIPELINE-INTEGRITY layer 1 — pre-write framebuffer
             # sanity scan (alpha-zero > 0.85, NaN/Inf > 0.05).
             cli/test_render_job_write_frame_sanity.cpp
+            # TICKET-MUSK-TEST-3 — end-to-end render-job JSON adapter contract.
+            cli/test_render_job.cpp
 )
 # CLI tests have a non-standard include dir for the chrono3d_cli
 # production sources; explicit add on top of the helper's default.

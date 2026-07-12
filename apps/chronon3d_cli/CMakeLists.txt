@@ -59,11 +59,13 @@ add_library(chronon3d_cli_render STATIC
     commands/group_render.cpp
     commands/render/register_render_commands.cpp
     commands/render/command_render.cpp
+    commands/render/command_render_job.cpp     # TICKET-MUSK-TEST-3: JSON-driven render-job subcommand impl
     commands/render/command_preflight.cpp
     commands/render/command_still.cpp
     commands/render/command_bake_layer.cpp
     commands/render/command_graph.cpp
     utils/job/render_job.cpp
+    utils/job/render_job_json.cpp              # TICKET-MUSK-TEST-3: JSON adapter (nlohmann/json)
     utils/job/render_job_setup.cpp
     utils/job/render_job_finalize.cpp
     utils/job/render_job_execute.cpp
@@ -74,6 +76,12 @@ add_library(chronon3d_cli_render STATIC
 )
 target_include_directories(chronon3d_cli_render PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
 target_link_libraries(chronon3d_cli_render PRIVATE chronon3d_cli_core chronon3d_pipeline chronon3d_backend_image CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)
+# TICKET-MUSK-TEST-3: nlohmann_json used by utils/job/render_job_json.cpp.
+# Target is provided by vcpkg (vcpkg.json line 19); gate the link on target
+# presence so a hand-rolled CMake configure without vcpkg still configures.
+if(TARGET nlohmann_json::nlohmann_json)
+    target_link_libraries(chronon3d_cli_render PRIVATE nlohmann_json::nlohmann_json)
+endif()
 endif()  # CHRONON3D_BUILD_CLI_RENDER
 
 # Group: Video (video, ffmpeg_pipe)
