@@ -89,6 +89,23 @@ set_target_properties(check_camera PROPERTIES
 )
 target_link_libraries(check_camera PRIVATE Chronon3D::SDK)
 
+# ── TICKET-VERIFY-SDK-CONSUMER-FUNCTIONAL — full surface coverage ──
+#
+# The `check_full` consumer exercises ALL 6 SDK public surface areas
+# in ONE program: text + image + camera + timeline + render + PNG-save.
+# The output marker `[FULL-OK]` is consumed by
+# `tools/verify_sdk_consumer_functional_linux.sh`.  Boundary contract
+# is the same as `check_camera`: MUST NOT see `chronon3d/internal/`,
+# `RenderGraph`, `FontEngine`, `CameraSession`, `SoftwareRenderer`, or
+# any cache internals.  Includes ONLY public headers listed in
+# `cmake/Chronon3DPublicHeaders.cmake`.
+add_executable(check_full main_full.cpp)
+set_target_properties(check_full PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+)
+target_link_libraries(check_full PRIVATE Chronon3D::SDK)
+
 # C++20 — must match the SDK's compile feature set so the consumer's
 # headers behave the same way as in-tree.
 set_target_properties(check_install PROPERTIES
