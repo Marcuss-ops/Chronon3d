@@ -320,3 +320,13 @@ foreach(_cli_target IN ITEMS chronon3d_cli_render chronon3d_cli_dev chronon3d_cl
         set_target_properties(${_cli_target} PROPERTIES UNITY_BUILD OFF)
     endif()
 endforeach()
+
+# ── TICKET-GLOW-FINAL-COMPOSITIONS-MOVE (2026-07-12) — confirm no tests/visual reference ──
+# The header `tests/visual/ae_parity/glow_final_compositions.hpp` was moved to
+# `content/compositions/chronon_glow_final.hpp` on 2026-07-12.  It is NOT in this
+# CMakeLists.txt's SOURCES list (it never was — the file is header-only, included
+# transitively by cli_init.hpp:30 from the CMAKE_SOURCE_DIR include dir).
+# No SOURCES / target_sources entry needed here.  This comment is the canonical
+# record that the file was previously at tests/visual/ and is now at
+# content/compositions/, satisfying the user-spec verbatim "NON includa più
+# quel file da tests/visual" mandate.
