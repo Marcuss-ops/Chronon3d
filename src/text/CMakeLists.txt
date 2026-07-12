@@ -91,6 +91,14 @@ add_library(chronon3d_text_core OBJECT
     # zero-surface invariant). When diagnostics=ON, exports the canonical
     # `audit_text_visibility()` pure function with no globals.
     text_visibility_audit.cpp
+    # Step 9 §A — extracted reusable alpha-bbox scanner. UNgated (reusable
+    # from non-diagnostic contexts). See alpha_bbox_scanner.hpp doc.
+    alpha_bbox_scanner.cpp
+    # Step 9 §A — extracted side-effecting reporting layer
+    # (verify_text_visibility + WarnOnceDeduper + TextWarningKind). The
+    # .cpp body is gated by #ifdef CHRONON3D_BUILD_DIAGNOSTICS (same as
+    # the audit file). See text_visibility_reporting.hpp doc.
+    text_visibility_reporting.cpp
     # F2.A — TextDefinition Canonica adapter implementations
     # (from_text_spec / from_text_run_spec)
     text_definition.cpp

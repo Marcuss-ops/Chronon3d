@@ -157,9 +157,17 @@ add_library(chronon3d_cli_dev STATIC
     commands/dev/command_text_def_inspect.cpp  # TICKET-CHRONON-GLOW-FINAL Fase 5 — real text_audit_snapshots() consumption
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/command_text_audit.cpp>
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_engine.cpp>
-    $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_json.cpp>
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_helpers.cpp>
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_typewriter.cpp>
+    # Step 9 §B — extracted collector (snapshots → TextVisibilityAudit
+    # + status mapping). Bridges command_inspect_text.cpp to
+    # audit_text_visibility(). DIAGNOSTICS-gated inside.
+    $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_inspection_collector.cpp>
+    # Step 9 §B — extracted JSON serialisation. SINGLE canonical home
+    # for `audit_result_to_json` (absorbed from the now-deleted
+    # `text_audit_json.cpp`). Re-exports json_escape + json_bbox from
+    # text_audit_helpers.hpp via using-declarations (anti-dup).
+    $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_inspection_json.cpp>
     utils/batch/batch_job_spec.cpp
     utils/batch/batch_runner.cpp
     # TICKET-CLI-ISOLATE-RUNTIME-DEV — tests/visual/*.cpp are compiled into

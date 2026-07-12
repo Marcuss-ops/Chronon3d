@@ -1,42 +1,41 @@
 // SPDX-License-Identifier: MIT
 
 // ═══════════════════════════════════════════════════════════════════════════
-// text_visibility_audit.cpp — FU02 implementation (Step 2 update)
+// text_visibility_audit.cpp — FU02 implementation (Step 9 §A slimmed)
 //
-// GATING: The entire body is gated by `#ifdef CHRONON3D_BUILD_DIAGNOSTICS`.
+// Step 9 §A — domain decomposition per user spec verbatim:
+//   - alpha-bbox scan → `src/text/alpha_bbox_scanner.{hpp,cpp}` (UNgated,
+//     reusable from inspect-text, pipeline parity, glow acceptance, video
+//     acceptance, and golden test C++/Python consumers without dragging
+//     in the diagnostic gating macro). See alpha_bbox_scanner.hpp for
+//     the canonical pixel-walk implementation.
+//   - reporting (verify_text_visibility + WarnOnceDeduper + TextWarningKind)
+//     → `src/text/text_visibility_reporting.{hpp,cpp}` (DIAGNOSTICS-gated).
+//   - this file retains ONLY: font, shaping, bbox (local/world), containment,
+//     and status computation. Pure data module — no spdlog dependency, no
+//     warn-once state, no hash-table storage.
+//
+// Step 2 (FA §10 / TICKET-TEXT-VISIBILITY-CONTRACT) deltas (preserved):
+//   (b) `clip_contains_visible_ink` uses containment invariant
+//       `expand(clip, kTextAuditBBoxTolerance) ⊇ rendered_alpha_bbox` instead
+//       of the prior `rect_intersects` (closes TICKET-TEXT-CLIP-19-PIXEL-SLIVER).
+//   The early-exit fix (a) is now in `alpha_bbox_scanner.cpp`.
+//   The WarnOnceDeduper fix (c) is now in `text_visibility_reporting.cpp`.
+//
+// GATING: entire body is gated by `#ifdef CHRONON3D_BUILD_DIAGNOSTICS`.
 // When OFF (production SDK build): the file pre-processes to a no-op TU with
 // zero symbols, no link impact, and full Cat-3 / Cat-5 compliance.
-// When ON (debug / test / inspect builds): exports the canonical
-// `audit_text_visibility()` + `verify_text_visibility()` + dedup helpers.
-//
-// Step 2 (FA §10 / TICKET-TEXT-VISIBILITY-CONTRACT) deltas:
-//   (a) `scan_alpha_bbox()`: removed the early-exit `break` that truncated
-//       the scan after the first ink row. The full framebuffer must be
-//       walked so multi-line, multi-TextRun, and vertically-separated-glyph
-//       compositions are measured correctly.
-//   (b) `audit_text_visibility()`: `clip_contains_visible_ink` now applies the
-//       containment invariant `expand(clip, kTextAuditBBoxTolerance) ⊇
-//       rendered_alpha_bbox` instead of the prior `rect_intersects` (which
-//       produced false-positives on 1-pixel sliver clips — see
-//       TICKET-TEXT-CLIP-19-PIXEL-SLIVER).
-//   (c) `verify_text_visibility()`: replaces 6 file-scope `static bool`
-//       one-shots with a per-scope `WarnOnceDeduper` parameter. Closes
-//       §honesty defects (process-wide state, parallel-render race,
-//       first-error masking later nodes) without introducing singletons.
-//   (d) "FU07 forward-point" + "conservative placeholder" comments inside
-//       `scan_alpha_bbox()` removed (the scanner is canonical, no longer a
-//       placeholder). Forward-point for the parallel copy at
-//       `src/render_graph/executor/node_runner.cpp:412` is documented for a
-//       subsequent Step 11 dedup.
+// When ON: exports the canonical `audit_text_visibility()` pure function.
 //
 // Anti-duplication:
-//   - Local `rect_*` helpers + `scan_alpha_bbox` + `make_warning_key` live
-//     in an anonymous namespace inside this TU so they do not leak to the
+//   - Local `rect_*` helpers + `transform_aabb` + `expand_rect` live in an
+//     anonymous namespace inside this TU so they do not leak to the
 //     textual ABI. The library → tests include dependency is forbidden
 //     per AGENTS.md Cat-3 / Cat-5.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/text/text_visibility_audit.hpp>
+#include <chronon3d/text/alpha_bbox_scanner.hpp>   // canonical alpha-bbox scan (Step 9 §A)
 
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 
@@ -138,82 +137,7 @@ Rect expand_rect(const Rect& r, float padding) noexcept {
     };
 }
 
-// `make_warning_key()` — canonical helper that builds a `TextWarningKey`
-// from a node_name + a `TextWarningKind`. node_name is hashed via
-// `std::hash<std::string_view>` so the deduper key is stable across calls.
-// Unnamed nodes (null OR empty string) collapse to a sentinel
-// `node_id = -1` so they share one slot per kind (the canonical "any
-// unnamed node warns once" pattern).
-//
-// Fold-to-int: 2^31 distinct names hash to distinct ids; birthday collision
-// ~46k. The deduper is a diagnostic aid, not a security boundary.
-TextWarningKey make_warning_key(const char* node_name,
-                                TextWarningKind kind) noexcept {
-    int id;
-    if (!node_name || !*node_name) {
-        id = -1;
-    } else {
-        const std::size_t h = std::hash<std::string_view>{}(
-            std::string_view(node_name,
-                             std::strlen(node_name)));
-        id = static_cast<int>(h & 0x7fffffff);
-    }
-    return TextWarningKey{id, kind};
-}
 
-// `scan_alpha_bbox()` — canonical alpha-scanner (FU07 promoted).
-//
-// Walks the entire framebuffer top-to-bottom + left-to-right and returns
-// the AABB of every pixel above the alpha threshold (0.01f). The previous
-// "early exit after last ink row" optimization was removed in Step 2
-// fix (a): a clip-of-1-pixel-strip composer, multi-line text runs
-// (title + subtitle), or two vertically-separated glyph rows all rely on
-// the full scan to be visible. The optimization shortcut was responsible
-// for the `clip_contains_visible_ink` true-positive on silhouette text where
-// the second line dropped below the early-exit threshold.
-//
-// Anti-duplication: TU-local helper. Cross-TU callers at
-// `src/render_graph/executor/node_runner.cpp:412` (the
-// TICKET-SIMPLICITY-CONSERVATIVE-BBOX post-render alpha scan) carry a
-// local copy with the same pattern. The Step 11 domain-decomposition
-// refactor will consolidate both into `src/text/internal/alpha_scanner.hpp`.
-//
-// Returns an empty `Rect{}` ONLY when the framebuffer has no visible ink
-// above the threshold — a legitimate empty-result signal, not a
-// sentinel placeholder.
-Rect scan_alpha_bbox(const Framebuffer& fb) noexcept {
-    const int fb_w = static_cast<int>(fb.width());
-    const int fb_h = static_cast<int>(fb.height());
-    if (fb_w <= 0 || fb_h <= 0) return Rect{};
-
-    int alpha_x0 = fb_w, alpha_y0 = fb_h;
-    int alpha_x1 = -1, alpha_y1 = -1;
-
-    for (int y = 0; y < fb_h; ++y) {
-        const Color* row = fb.pixels_row(y);
-        bool row_has_ink = false;
-        for (int x = 0; x < fb_w; ++x) {
-            if (row[x].a > 0.01f) {
-                row_has_ink = true;
-                if (x < alpha_x0) alpha_x0 = x;
-                if (x > alpha_x1) alpha_x1 = x;
-            }
-        }
-        if (row_has_ink) {
-            if (y < alpha_y0) alpha_y0 = y;
-            alpha_y1 = y;
-        }
-    }
-
-    if (alpha_x0 > alpha_x1 || alpha_y0 > alpha_y1) {
-        return Rect{};  // no visible ink found
-    }
-    return Rect{
-        {static_cast<float>(alpha_x0), static_cast<float>(alpha_y0)},
-        {static_cast<float>(alpha_x1 - alpha_x0 + 1),
-         static_cast<float>(alpha_y1 - alpha_y0 + 1)}
-    };
-}
 
 } // namespace (TU-private helpers)
 
@@ -274,7 +198,7 @@ TextVisibilityAudit audit_text_visibility(
          && rendered_output->width() > 0
          && rendered_output->height() > 0);
     if (framebuffer_supplied) {
-        audit.rendered_alpha_bbox = scan_alpha_bbox(*rendered_output);
+        audit.rendered_alpha_bbox = alpha_bbox_scan(*rendered_output);  // canonical scanner (Step 9 §A)
         // Step 2 fix (b): CONTAINMENT check (with `kTextAuditBBoxTolerance`
         // sub-pixel slack) instead of intersection. Closes the
         // TICKET-TEXT-CLIP-19-PIXEL-SLIVER regression: a clip that keeps
@@ -330,81 +254,5 @@ TextVisibilityAudit audit_text_visibility(
     return audit;
 }
 
-TextVisibilityAudit verify_text_visibility(
-    const TextRunShape& shape,
-    const Mat4&         world_matrix,
-    const Rect&         predicted_bbox,
-    const Rect&         clip_rect,
-    const Framebuffer*  rendered_output,
-    const char*         node_name,
-    WarnOnceDeduper&    deduper,
-    float               effect_padding
-) {
-    const auto audit = audit_text_visibility(
-        shape, world_matrix, predicted_bbox, clip_rect, rendered_output,
-        effect_padding);
-
-    // ── F1.E — 6 invariants with per-scope warn-once dedup ────────
-    // Replaces the prior 6 file-scope `static bool` one-shots
-    // (process-wide state, data race in parallel render, first-error
-    // masked later per-invocation diagnostics). Each warning fires at
-    // most once per `(node_id, TextWarningKind)` pair per `deduper`
-    // lifetime — see `WarnOnceDeduper` doc for the per-instance scoping
-    // contract (Cat-5 anti-singleton compliance).
-    const char* nm = node_name ? node_name : "<unnamed>";
-
-    if (!audit.font_resolved) {
-        const TextWarningKey key = make_warning_key(nm, TextWarningKind::FontUnresolved);
-        if (deduper.mark_warned(key)) {
-            spdlog::warn("[text-vis] FONT_UNRESOLVED node={} engine=nullptr", nm);
-        }
-    }
-
-    if (!audit.shaping_succeeded) {
-        const TextWarningKey key = make_warning_key(nm, TextWarningKind::ShapingFailed);
-        if (deduper.mark_warned(key)) {
-            spdlog::warn("[text-vis] SHAPING_FAILED node={} glyph_count={}",
-                         nm, audit.glyph_count);
-        }
-    }
-
-    if (!audit.finite) {
-        const TextWarningKey key = make_warning_key(nm, TextWarningKind::BboxNonFinite);
-        if (deduper.mark_warned(key)) {
-            spdlog::warn("[text-vis] BBOX_NON_FINITE node={}", nm);
-        }
-    }
-
-    if (!audit.predicted_contains_world) {
-        const TextWarningKey key = make_warning_key(nm, TextWarningKind::PredictedTooSmall);
-        if (deduper.mark_warned(key)) {
-            spdlog::warn("[text-vis] PREDICTED_TOO_SMALL node={}", nm);
-        }
-    }
-
-    if (rendered_output && !audit.clip_contains_visible_ink) {
-        const TextWarningKey key = make_warning_key(nm, TextWarningKind::ClipDropsInk);
-        if (deduper.mark_warned(key)) {
-            spdlog::warn("[text-vis] CLIP_DROPS_INK node={}", nm);
-        }
-    }
-
-    if (rendered_output && audit.shaping_succeeded) {
-        const bool alpha_empty =
-            audit.rendered_alpha_bbox.size.x <= 0.0f ||
-            audit.rendered_alpha_bbox.size.y <= 0.0f;
-        if (alpha_empty) {
-            const TextWarningKey key = make_warning_key(nm, TextWarningKind::NoInkRendered);
-            if (deduper.mark_warned(key)) {
-                spdlog::warn("[text-vis] NO_INK_RENDERED node={} glyph_count={}",
-                             nm, audit.glyph_count);
-            }
-        }
-    }
-
-    return audit;
-}
 
 } // namespace chronon3d
-
-#endif // CHRONON3D_BUILD_DIAGNOSTICS
