@@ -162,8 +162,8 @@ TEST_CASE("HierarchyResolver: selective inheritance") {
 //   Motivation: pre-existing rot; underlying HierarchyResolver cycle-detection bug.
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// DISABLED: pre-existing bug — cycle_detected returns false for A⇄B cycle.
-// TODO(chronon3d): fix HierarchyResolver cycle detection and re-enable.
+// TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — cycle_detected returns false for A⇄B cycle.
+// TODO(chronon3d): fix HierarchyResolver cycle detection and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
 TEST_CASE("HierarchyResolver: cycle detection" * doctest::skip()) {
     std::vector<TestNode> nodes;
     Transform3D a;
