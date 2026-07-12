@@ -275,7 +275,6 @@ bash "${SCRIPT_DIR}/check_push_divergence_window.sh" "${TARGET_REMOTE}" "${TARGE
 echo "wrap_push.sh: checking video completeness probe (spec §4+§6 — ffprobe MP4 contract + 60-frame ffmpeg decode count)..."
 bash "${SCRIPT_DIR}/check_video_completeness.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_video_completeness.sh (exit $?)" >&2; exit 1; }
->>>>>>> origin/main
 
 echo "wrap_push.sh: checking fix-velocity cronograph (Test #11)..."
 bash "${SCRIPT_DIR}/check_fix_cronograph.sh" \
