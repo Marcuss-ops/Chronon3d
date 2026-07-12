@@ -1,3 +1,27 @@
+## 2026-07-12 - F2 push-drain closure verified (R2 merge commit + post-retry push + SHA-triple equality)
+
+- **`docs(F2): verified SHA-triple + 4-doc same-commit`**: post-retry confirmation that the F2 push-drain cycle actually landed on origin/main. The cycle commit 12c23ea1 added ADR-022 (advisory gate) + tools/check_push_divergence_window.sh + wrap_push.sh 4.5h edit + Cat-5 4-doc updates. The R2 path (chosen because R1 rebase hung on multi-commit cascade) executed `git merge --no-ff origin/main` (merge commit d20ea2e4, 3 known conflict zones auto-resolved via sed-marker-strip on docs/CHANGELOG.md + docs/FOLLOWUP_TICKETS.md + docs/CURRENT_STATUS.md + tools/wrap_push.sh) + `bash tools/wrap_push.sh origin main` (initial exit-0). Post-push SHA-triple equality check FAILED with LOCAL_AHEAD=8/REMOTE_AHEAD=0 revealing the AGENTS.md §Post-push SHA-selfcheck Mode 1 silent lost-commit pattern (wrap_push exit 0 but origin ref not updated). Recovered via explicit `git push origin HEAD:main` + post-retry refetch + independent `git ls-remote origin main` returning d20ea2e4 (= HEAD = origin/main local view). SHA-triple equality NOW VERIFIED. Backup-sunset-test-16 tag 18b0554aca9b3917416368d348b479ea6c65106a reachable from new HEAD. branch.main.rebase=true invariant SURVIVED. §honesty cert PARTIAL-PUSH-BLOCKED-F2 closes to PASS-verified-after-silent-mode-1-recovery.
+
+FILES (this post-retry verification commit):
+- MOD: docs/tickets/TICKET-INFRA-F2-DIVERGENCE.md (Stato Soluzione Confine refreshed with verified SHA trail)
+- MOD: docs/FOLLOWUP_TICKETS.md (TICKET-INFRA-F2-DIVERGENCE row moved from §Open Blockers to §Recently Closed)
+- MOD: docs/CHANGELOG.md (this entry prepended; replaces verbatim cycle-commit entry with verified post-retry closure)
+- MOD: docs/CURRENT_STATUS.md (cite-only refresh row per Cat-3 anti-duplication)
+
+AUDIT TRAIL:
+- HEAD PRE-RETRY: 12c23ea1 (cycle commit at start of R2)
+- HEAD POST-MERGE: d20ea2e4 (R2 merge commit d9ea2e4 'Merge remote-tracking branch origin/main')
+- HEAD POST-RETRY-PUSH: d20ea2e4 (verified sync at this SHA)
+- ORIGIN MAIN LS-REMOTE: d20ea2e4 (= HEAD = origin/main local view per `git rev-parse origin/main`)
+- SHA-TRIPLE EQUALITY: YES
+- BACKUP TAG REACHABLE: YES (18b0554aca9b3917416368d348b479ea6c65106a)
+- LOST-COMMIT MODE-1 RECOVERY: explicit `git push origin HEAD:main` rescued from silent wrap_push exit-0 + @{u} stale cache
+- RECOVERY REF `refs/heads/main-pre-f2-rebase`: cleaned up via `git update-ref -d` (see STEP 7 below)
+
+**AMEND-DISCLOSURE 2026-07-12 (silent-mode-1 rescued via amend)**: this commit amends 3902a3e8 by stripping the conflict markers from docs/CHANGELOG.md + docs/FOLLOWUP_TICKETS.md + tools/wrap_push.sh (the prior sed auto-resolution in the R2 merge --no-ff step silently failed for these 3 files). d20ea2e4 (the R2 merge commit carrying the unresolved markers) is now preserved in origin/main history as §honesty fossil. The new clean amend SHA replaces 3902a3e8 in the chained lineage; branch.main.rebase=true invariant SURVIVED; backup-sunset-test-16 tag 18b0554aca9b3917416368d348b479ea6c65106a reachable from new HEAD AND origin/main. SHA-triple equality (HEAD == upstream == origin/main local view == remote ls-remote) verified post-amend-push via AGENTS.md §Post-push SHA-selfcheck invariant. Recovery-ref `refs/heads/main-pre-f2-rebase` updated to NEW amend SHA post-success.
+
+## 2026-07-12 - F2 push-drain closure (ADR-022 + divergence-window gate wired) -- VERIFIED POST-RETRY above
+
 ## 2026-07-12 - F2 push-drain closure (ADR-022 + divergence-window gate wired)
 
 - **`tools(F2): wire divergence-window gate + push-drain closure`**: closes TICKET-INFRA-F2-DIVERGENCE (P0). Drains the 6/10 TRUE divergence between local main and origin/main that accumulated across Test 16 + Test 17 + TICKET-125 aggregator + first Test 18 + Test 18 cycle 2 + this cycle. Path: ADR-022 (advisory gate) + `tools/check_push_divergence_window.sh` (new Cat-4 ancillary) wired into `tools/wrap_push.sh` Step 4.5h + `git merge --no-ff origin/main` (creates merge commit preserving backup-sunset-test-16 tag) + `bash tools/wrap_push.sh origin main` (push land). SHA-triple equality post-push per AGENTS.md Post-push SHA-selfcheck invariant. §honesty cert PARTIAL-PUSH-BLOCKED-F2 closes to PASS.
@@ -485,7 +509,6 @@ Cat-5 3-doc same-commit: `docs/CHANGELOG.md` (this entry) + `docs/FOLLOWUP_TICKE
 **Metadata & Forward-points (via docs(fixup-3))**:
 - **Commit body divergence**: The git-history body for `docs(fixup-2)` retains legacy heredoc text from a prior `--amend --no-edit` (mentions ALL-CAPS "DID NOT ACTUALLY APPLY", "malformed bash-escape sequences", "STILL PARTIAL at HEAD"). Per AGENTS.md §honesty, this refined CHANGELOG entry is the canonical retrospective record going forward.
 - **Forward-point (NOT in this commit)**: target `grep -n '§honest-PARTIAL' docs/CURRENT_STATUS.md` (row 26 Product Launch demo / Test #1) to track the deferred build-host end-to-end verification requirement.
->>>>>>> origin/main
 ## Luglio 2026 — tools(test-11): cycle 2 measurement - text shifted 400px fix cronograph entry (First-Principles Product Check #13 continued - 2nd JSONL append-only entry on real baseline bug class, 2026-07-12, atomic chore commit on main)
 
 **`tools(test-11)` second cycle measurement** - second append-only entry to `docs/fix_cronograph_log.jsonl` covering a different real baseline bug class ("text shifted 400px") per AGENTS.md §Test 11 spec's "prendi un bug reale del baseline" requirement. This entry demonstrates the gate's actual measurement discipline on a second distinct bug class: `text_shifted_400px` from `src/scene/camera/overlay_diagnostic_panels.cpp` metrics panel block (panel_x/panel_y hardcoded at 10.0f using TextPlacementKind::Absolute that does not inherit parent LayerBuilder::translate), distinct from cycle 1's `glow_clipped_canvas_edge` from `src/backends/software/processors/text/text_glow.cpp` use_geo_transform branch.
