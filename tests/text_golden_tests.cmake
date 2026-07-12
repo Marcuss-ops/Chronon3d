@@ -164,6 +164,16 @@ target_sources(chronon3d_text_golden_tests
         text_golden/motion_blur_text/motion_blur_text_scene.cpp
 )
 
+# TICKET-VIDEO-ANTI-FLICKER §8 + TICKET-VIDEO-MULTI-FPS-EQUIVALENCE §13
+# Video Completeness Matrix §8 anti-flicker (BT.709 central-crop luminance
+# |Δ| < 20.0 across adjacent decoded-MP4 frames) + §13 multi-fps
+# equivalence (24/25/30/60 fps at same wall-clock time render visually
+# equivalent, centroid_distance < 2.0 px).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text/test_video_flicker_fps.cpp
+)
+
 # TICKET-AE-PARITY-KILLER-WIGGLY-WAVE-EXPRESSION — Phase 2 Killer 1.
 target_sources(chronon3d_text_golden_tests
     PRIVATE
