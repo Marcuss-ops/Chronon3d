@@ -10,7 +10,7 @@
 4. `content/backgrounds/` — **DEFERRED-VERIFY** (registrata come showcase background)
 5. `content/examples/` — **DEFERRED-VERIFY** (chiave educational obsoleta)
 
-**§honesty cert discipline** (AGENTS.md v0.1) — tutte le 5 entry `DEFERRED-VERIFY` con `verified="PARTIAL"` + `timing_basis="static cross-ref on env-blocked VPS"`. Zero eliminazioni concrete in cycle 1 (user spec gap, tracked as `TICKET-SUNSET-VERIFY` forward-point).
+**§honesty cert discipline** (AGENTS.md v0.1) — tutte le 5 entry `DEFERRED-VERIFY` con `verified="PARTIAL"` + `timing_basis="static cross-ref on env-blocked VPS"`. Zero eliminazioni concrete in cycle 1 (user spec gap, tracked as `TICKET-SUNSET-VERIFY (P0)` active §Open Blocker).
 
 **Cat-5 3-doc alignment** — questo entry precede (newer-at-top stacking) i due punti:
 - FOLLOWUP_TICKETS.md §Recently Closed: `TICKET-TEST-16-SUNSET-REGISTRY` row at top
@@ -19,6 +19,7 @@
 **Cat-3 anti-duplication check** — `docs/FEATURE_SUNSET.md` è process documentation (ledger di curation), NON infrastruttura runtime. Nessuna ADR richiesta.
 
 **Persistent infra issue (F2 forward-point, ESCALATED)**: questo commit è arrivato al push boundary dopo 4+ sessioni consecutive con recurring divergence pattern. F2 forward-point (mantra da `code-reviewer-minimax-m3`) ha raggiunto il threshold per essere promosso da "future gate" a **active cat-4 ancillary chore**: implementare `tools/check_push_divergence_window.sh` come prima azione del prossimo ciclo per fixare l'infrastruttura push che causa persisting UU residue + detached HEAD state.
+**§honesty PARTIAL cert annotation** (audit-chore addendum): `verified="PARTIAL"` per Rule #5 SHA-triple FAIL a causa di `tools/check_push_divergence_window.sh` gate mancante → recurring origin divergence in 4+ consecutive sessions. Cycle 1 commit `0870cf78` vive solo su local main; `origin/main` ahead by 5 commits al 2026-07-12. Eliminazioni concrete (`git rm` / `git mv`) deferrate a `TICKET-SUNSET-VERIFY` workspace-level (working build host required = `cmake --build` + golden snapshot). See `## Open Blockers (≤10)` in `docs/FOLLOWUP_TICKETS.md` per `TICKET-INFRA-F2-DIVERGENCE` + `TICKET-SUNSET-GATE`.
 ## Luglio 2026 — tools(test-11): cycle 2 measurement - text shifted 400px fix cronograph entry (First-Principles Product Check #13 continued - 2nd JSONL append-only entry on real baseline bug class, 2026-07-12, atomic chore commit on main)
 
 **`tools(test-11)` second cycle measurement** - second append-only entry to `docs/fix_cronograph_log.jsonl` covering a different real baseline bug class ("text shifted 400px") per AGENTS.md §Test 11 spec's "prendi un bug reale del baseline" requirement. This entry demonstrates the gate's actual measurement discipline on a second distinct bug class: `text_shifted_400px` from `src/scene/camera/overlay_diagnostic_panels.cpp` metrics panel block (panel_x/panel_y hardcoded at 10.0f using TextPlacementKind::Absolute that does not inherit parent LayerBuilder::translate), distinct from cycle 1's `glow_clipped_canvas_edge` from `src/backends/software/processors/text/text_glow.cpp` use_geo_transform branch.
