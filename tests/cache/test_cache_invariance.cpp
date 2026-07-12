@@ -116,7 +116,7 @@ struct CompSpec {
 /// `SceneBuilder s(ctx.resource)` + `s.layer(name, [&](LayerBuilder& l) { ... })`
 /// pattern from `tests/cache/test_cache_reuse_identical_frame.cpp`.
 /// This is the only pattern verified to compile + pass in the current
-/// build environment. The `lb.glow()` / `lb.rotate_z()` / `lb.position_x()`
+/// build environment. The `lb.glow()` / `lb.rotate()` / `lb.position_x()`
 /// calls inside the LayerBuilder closure work for rect layers the same
 /// way they work for text layers.
 Composition build_comp(const CompSpec& spec) {
