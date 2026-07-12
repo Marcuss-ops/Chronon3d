@@ -162,6 +162,19 @@ add_library(chronon3d_cli_dev STATIC
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_typewriter.cpp>
     utils/batch/batch_job_spec.cpp
     utils/batch/batch_runner.cpp
+    # TICKET-CLI-ISOLATE-RUNTIME-DEV — tests/visual/*.cpp are compiled into
+    # the DEV sub-target (NOT into the production chronon3d_cli executable).
+    # This satisfies the user-spec verbatim "Nella produzione il CLI non
+    # compila più sorgenti da tests/" + "tests/visual/ resta solo come
+    # cartella di golden/fixture — nessuna factory registrata da qui
+    # direttamente" mandates.  The DEV register_dev_compositions.cpp (in
+    # apps/chronon3d_cli/) is the canonical registration site for the
+    # DEV-only compositions (PipelineParityCanary, AE_CAM_*, etc.).
+    ${CMAKE_SOURCE_DIR}/tests/visual/camera_truth/camera_truth_test.cpp
+    ${CMAKE_SOURCE_DIR}/tests/visual/camera_truth/camera_truth_orbit.cpp
+    ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_scenes.cpp
+    ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_compositions.cpp
+    ${CMAKE_SOURCE_DIR}/tests/visual/glow_ab/glow_ab_compositions.cpp
 )
 target_include_directories(chronon3d_cli_dev PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
 target_link_libraries(chronon3d_cli_dev PRIVATE chronon3d_cli_core chronon3d_cli_render chronon3d_pipeline CLI11::CLI11 spdlog::spdlog_header_only fmt::fmt)
@@ -192,40 +205,19 @@ endif()  # CHRONON3D_BUILD_CLI_BENCH
 # ==============================================================================
 add_executable(chronon3d_cli
     main.cpp
-    # TICKET-CAMERA-LINK-DEDUP — visual/ae_parity/ae_parity_scenes.cpp is
-    # normally compiled into chronon3d_content (content/CMakeLists.txt).
-    # CONTENT=OFF fallback: inject the .cpp locally so cli_init.hpp's
-    # direct calls stay resolvable and the file is compiled exactly ONCE.
-    ${CMAKE_SOURCE_DIR}/tests/visual/camera_truth/camera_truth_test.cpp
-    ${CMAKE_SOURCE_DIR}/tests/visual/camera_truth/camera_truth_orbit.cpp
-)
-if(NOT TARGET chronon3d_content)
-    target_sources(chronon3d_cli PRIVATE
-        ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_scenes.cpp
-    )
-endif()
-# ae_parity_compositions.cpp is ALWAYS compiled into the CLI because
-# cli_init.hpp unconditionally registers the 5 cinematic compositions
-# and this file defines their factory functions.  It depends on
-# test_utils.hpp → internal/software_processor_services.hpp which is
-# reachable from the CLI via the transitive chronon3d_backend_software
-# PUBLIC include directory.  Cannot be compiled into chronon3d_content
-# (the content OBJECT target lacks the internal header dependency).
-target_sources(chronon3d_cli PRIVATE
-    ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_compositions.cpp
-    ${CMAKE_SOURCE_DIR}/tests/visual/glow_ab/glow_ab_compositions.cpp
-)
-# glow_ab_compositions.cpp is ALWAYS compiled into the CLI because
-# cli_init.hpp unconditionally registers the glow A/B control composition.
-# Same internal-header dependency as ae_parity_compositions.cpp.
-target_sources(chronon3d_cli PRIVATE
-    ${CMAKE_SOURCE_DIR}/tests/visual/glow_ab/glow_ab_compositions.cpp
-)
-# glow_ab_compositions.cpp is ALWAYS compiled into the CLI because
-# cli_init.hpp unconditionally registers the glow A/B control composition.
-# Same internal-header dependency as ae_parity_compositions.cpp.
-target_sources(chronon3d_cli PRIVATE
-    ${CMAKE_SOURCE_DIR}/tests/visual/glow_ab/glow_ab_compositions.cpp
+    # TICKET-CLI-ISOLATE-RUNTIME-DEV — composition registration split into
+    # 3 layers (see register_compositions.hpp).  The 3 register_*.cpp files
+    # are compiled UNCONDITIONALLY into the CLI (they are tiny thin
+    # orchestrators; register_dev_compositions.cpp is empty when
+    # CHRONON3D_BUILD_CLI_DEV=OFF, guarded by the canonical #ifdef at
+    # the top of the file).
+    register_runtime_compositions.cpp
+    register_content_compositions.cpp
+    register_dev_compositions.cpp
+    # NO tests/visual/*.cpp here — production CLI does not compile tests/
+    # sources (user-spec verbatim "Nella produzione il CLI non compila più
+    # sorgenti da tests/").  tests/visual/*.cpp are compiled into the
+    # chronon3d_cli_dev sub-target when CHRONON3D_BUILD_CLI_DEV=ON (below).
 )
 
 get_target_property(CLI11_INCLUDE_DIRS CLI11::CLI11 INTERFACE_INCLUDE_DIRECTORIES)
@@ -321,12 +313,18 @@ foreach(_cli_target IN ITEMS chronon3d_cli_render chronon3d_cli_dev chronon3d_cl
     endif()
 endforeach()
 
-# ── TICKET-GLOW-FINAL-COMPOSITIONS-MOVE (2026-07-12) — confirm no tests/visual reference ──
-# The header `tests/visual/ae_parity/glow_final_compositions.hpp` was moved to
-# `content/compositions/chronon_glow_final.hpp` on 2026-07-12.  It is NOT in this
-# CMakeLists.txt's SOURCES list (it never was — the file is header-only, included
-# transitively by cli_init.hpp:30 from the CMAKE_SOURCE_DIR include dir).
-# No SOURCES / target_sources entry needed here.  This comment is the canonical
-# record that the file was previously at tests/visual/ and is now at
-# content/compositions/, satisfying the user-spec verbatim "NON includa più
-# quel file da tests/visual" mandate.
+# ── TICKET-CLI-ISOLATE-RUNTIME-DEV (2026-07-12) — confirm no tests/visual reference in production CLI ──
+# The production CLI no longer compiles any tests/visual/*.cpp.  The
+# composition registration is split into 3 layers (register_runtime/
+# content/dev_compositions.cpp) — see register_compositions.hpp.  The
+# register_dev_compositions.cpp file is empty when CHRONON3D_BUILD_CLI_DEV=OFF
+# (production default); tests/visual/*.cpp are compiled only into the
+# chronon3d_cli_dev sub-target (see the DEV group above).  The header
+# `tests/visual/ae_parity/glow_final_compositions.hpp` was moved to
+# `content/compositions/chronon_glow_final.hpp` on 2026-07-12 (predecessor
+# refactor(glow) §4 chore) and remains header-only + transitively included
+# from CMAKE_SOURCE_DIR for both production runtime + DEV registration.
+# This comment is the canonical record satisfying the user-spec verbatim
+# "Nella produzione il CLI non compila più sorgenti da tests/" + "tests/visual/
+# resta solo come cartella di golden/fixture — nessuna factory registrata da qui
+# direttamente" mandates.
