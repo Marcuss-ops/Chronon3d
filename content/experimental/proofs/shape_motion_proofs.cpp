@@ -45,7 +45,7 @@ Composition shape_motion_proofs() {
             l.path("card_bg", cp);
 
             // Draw label text (in bottom)
-            l.text("lbl", TextSpec{.content = {.value = text},.position = {0.0f, -95.0f, 0.0f},.font = {.font_size = 14.0f},.layout = {.box = {CELL_W - 30.0f, 24.0f}, .align = TextAlign::Center},.appearance = {.color = {0.6f, 0.7f, 0.9f, 0.9f}},});
+            l.text("lbl", TextSpec{.content = {.value = text},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -95.0f}},.font = {.font_size = 14.0f},.layout = {.box = {CELL_W - 30.0f, 24.0f}, .align = TextAlign::Center},.appearance = {.color = {0.6f, 0.7f, 0.9f, 0.9f}},});
         };
 
         // Title

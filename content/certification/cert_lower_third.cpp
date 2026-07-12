@@ -65,7 +65,7 @@ Composition cert_lower_third() {
             // the pin point with 52px gap from subtitle, inside the box.
             s.layer("title_line", [](LayerBuilder& l) {
                 l.pin_to(Anchor::BottomCenter, kMargin);
-                l.text("title", from_text_spec(TextSpec{.content    = {.value = "BREAKING NEWS"},.position   = {0.0f, -20.0f, 0.0f},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                l.text("title", from_text_spec(TextSpec{.content    = {.value = "BREAKING NEWS"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -20.0f}},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                    .font_family = "Inter",
                                    .font_weight = 700,
                                    .font_size   = 42.0f},.layout     = {.box            = {static_cast<float>(kWidth) - kMargin * 2.0f, 60.0f},
