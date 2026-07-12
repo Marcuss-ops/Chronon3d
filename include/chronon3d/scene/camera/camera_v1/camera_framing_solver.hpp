@@ -108,10 +108,6 @@ struct CameraFramingRequest {
 // Aliases live in the same header so callers can `using namespace` either
 // spelling; no public symbol is duplicated (no new struct definition).
 using FramingRequest = CameraFramingRequest;
-
-// TICKET-ROT-FIX-DOMAIN-BUG-INVALID: forward-decl for `CameraFramingResult`
-// (defined at line 126, AFTER this alias) — C++ lexical ordering fix.
-struct CameraFramingResult;
 using FramingSolution = CameraFramingResult;
 
 // =========================================================================
