@@ -158,9 +158,12 @@ StatusMapping map_status_for_node(TextVisibilityStatus s,
 /// `renderer::compute_text_run_world_bbox()` / `compute_text_run_visual_
 /// bounds()` outputs.  Calls `audit_text_visibility()` with the real
 /// data and overrides the audit's `local_ink_bbox` + `world_ink_bbox`
-/// placeholders (the audit's TU-local scaffolding leaves them at
-/// zero-rect; see `text_visibility_audit.cpp` comment "PLACEHOLDER for
-/// FU04 contract fix").  Emits one JSON object per node.
+/// with the canonical per-glyph accumulator values (the audit itself
+/// now also computes these correctly via `compute_text_run_visual_bounds`
+/// — the override below remains as belt-and-braces for any caller that
+/// supplies a non-canonical audit path; see TICKET-VISIBILITY-OVERRIDE-
+/// DEDUP forward-point for the Step 8 cleanup).  Emits one JSON object
+/// per node.
 ///
 /// The per-node `font` field reads `shape.layout->font.font_path` (the
 /// materialised layout's authoring-level font spec); the per-node
@@ -305,11 +308,11 @@ int run_inspect_text_impl(const CompositionRegistry& registry,
                 // so the JSON clip_rect is what the GPU actually rasterised.
                 snap.clip_rect = snap.predicted_bbox;
 
-                // Real local bbox: the canonical per-glyph accumulator
-                // (matches what the audit's `local_ink_bbox` field
-                // semantically should hold — the audit's TU-local
-                // placeholder leaves it at zero-rect; we override it
-                // post-audit with this real value before serialising).
+                // Real local bbox: the canonical per-glyph accumulator.
+                // The audit (post Step 2) calls the same helper internally
+                // and would compute an identical value; the post-audit
+                // override below remains as forward-compatibility
+                // (TICKET-VISIBILITY-OVERRIDE-DEDUP for Step 8 dedup).
                 if (auto lb = renderer::compute_text_run_visual_bounds(s)) {
                     snap.local_bbox = Rect{
                         {lb->min_x, lb->min_y},
@@ -349,14 +352,14 @@ int run_inspect_text_impl(const CompositionRegistry& registry,
             shape, snap.world_matrix,
             snap.predicted_bbox, snap.clip_rect,
             fb.get(), /*effect_padding=*/0.0f);
-        // Override the audit's local_ink_bbox + world_ink_bbox
-        // placeholders (both zero-rect — see `text_visibility_audit.cpp`
-        // comment "PLACEHOLDER for FU04 contract fix") with the real
-        // values from the canonical per-glyph accumulator.  The
-        // world_ink_bbox override is `transform_aabb(local_ink_bbox,
-        // world_matrix)`, which equals `compute_text_run_world_bbox(
-        // *shape, world_matrix, 0.0f)` = `snap.predicted_bbox` in the
-        // nominal case (the audit uses the same matrix chain).
+        // Belt-and-braces override (Step 2 fix (d) docs note): the
+        // audit now computes `local_ink_bbox` via the canonical
+        // `renderer::compute_text_run_visual_bounds` internally, so
+        // the override is redundant for the canonical path.  Kept
+        // here to defend against future audit simplification that
+        // could regress the public contract.  Forward-point:
+        // TICKET-VISIBILITY-OVERRIDE-DEDUP consolidates both paths
+        // in a Step 8 refactor.
         if (snap.local_bbox) {
             audit.local_ink_bbox = *snap.local_bbox;
             audit.world_ink_bbox = snap.predicted_bbox;
