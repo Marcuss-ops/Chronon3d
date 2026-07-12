@@ -20,9 +20,12 @@
 //     ae_12_random_character_jitter /
 //     ae_14_multiline_landscape /
 //     motion_blur_text
-//   - chronon-glow-final-portrait           (content/compositions/chronon_glow_final.hpp)
 //   - ChrononGlowFinalAE_NoGlow             (content/compositions/chronon_glow_final.hpp)
 //   - AECameraTextParity                    (content/experimental/ae-parity/, DIAGNOSTICS gated)
+//
+// Step 8 §A: `chronon-glow-final-portrait` was MOVED to PRODUCTION as
+// `ChrononGlowFinalAEPortrait` (the canonical name) — see
+// apps/chronon3d_cli/register_runtime_compositions.cpp.
 // ============================================================================
 
 #ifdef CHRONON3D_BUILD_CLI_DEV
@@ -111,13 +114,11 @@ void register_dev_compositions(CompositionRegistry& registry) {
     // (which is in content/ and unchanged).  DEV-only per user spec.
     test::glow_ab::register_glow_ab_compositions(registry);
 
-    // (6) chronon-glow-final-portrait — 9:16 variant.  Production factory
-    // (header-only); registration is DEV-only per user spec.
-    registry.add("chronon-glow-final-portrait",
-        [](const CompositionProps&) -> Composition {
-            ChrononGlowProps p = chronon3d::test::glow_final::default_portrait_props();
-            return chronon3d::test::glow_final::make_chronon_glow_final(p);
-        });
+    // (6) Step 8 §A: REMOVED `chronon-glow-final-portrait` from DEV.
+    // The portrait variant is now `ChrononGlowFinalAEPortrait` in PRODUCTION
+    // (registered via register_runtime_compositions.cpp).  The DEV-only
+    // alias was removed per Cat-3 anti-dup (single source of truth: the
+    // canonical name lives in the production registry).
 
     // (7) ChrononGlowFinalAE_NoGlow — A/B acceptance sibling
     // (TICKET-GLOW-CERTIFICATION Azione 1).  Identical to ChrononGlowFinalAE

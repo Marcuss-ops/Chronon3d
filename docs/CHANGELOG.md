@@ -1,4 +1,43 @@
 <details>
+<summary>refactor(glow): dedup compositions + simplify ChrononGlowProps — 2026-07-12</summary>
+
+Atomic chore on main per user spec verbatim §5+§6+§7 (TICKET-CHRONON-GLOW-FINAL-DEDUP-PROPS). 3 sub-fixes in 1 atomic commit (Cat-3 anti-dup: single TU + single registry surface + no behavior-preserving scaffolding):
+
+**§A — Registry dedup (production + DEV):**
+- **EDIT** `apps/chronon3d_cli/register_runtime_compositions.cpp` — registers 2 canonical + 1 alias: `ChrononGlowFinalAE` (landscape) + `ChrononGlowFinalAEPortrait` (portrait, NEW — moved from DEV) + `chronon-glow-final` (legacy alias, **shares the SAME factory lambda** as `ChrononGlowFinalAE` — per user spec verbatim "non due factory lambda identiche"). The landscape lambda is captured in a local variable `make_landscape_comp` and passed to BOTH `registry.add("ChrononGlowFinalAE", ...)` and `registry.add("chronon-glow-final", ...)` — no duplicate factory lambdas.
+- **EDIT** `apps/chronon3d_cli/register_dev_compositions.cpp` — REMOVED `chronon-glow-final-portrait` (the legacy DEV-only portrait alias). `ChrononGlowFinalAE_NoGlow` stays under `#ifdef CHRONON3D_BUILD_CLI_DEV`.
+- Production `chronon3d list` now shows: `DarkGridBackground` + `CameraImageClip` + `ChrononGlowFinalAE` + `chronon-glow-final` + `ChrononGlowFinalAEPortrait` + all content-module compositions + all dev/test compositions (when `CHRONON3D_BUILD_CLI_DEV=ON`).
+
+**§B — Simplify `ChrononGlowProps` (single source of truth):**
+- **EDIT** `content/compositions/chronon_glow_final.hpp` — 5-field struct: `{ text, format, glow_enabled, glow_strength, scale_breath }`. REMOVED `portrait` flag, `enable_scale_breath` (renamed to `scale_breath`), `font_size`, `box`, `canvas_size` (all derived from `format` via the new internal resolver).
+- **NEW** `enum class GlowFormat { Landscape, Portrait }` (in `chronon3d::test::glow_final` namespace, TU-local — no new SDK API).
+- **NEW** `struct GlowLayout { Vec2 canvas_size; f32 font_size; Vec2 box; }` + `inline GlowLayout resolve_layout(GlowFormat format)` (TU-local, single source of truth). **Impossibile costruire `portrait=true, canvas_size={1920,1080}`** because `canvas_size` is derived from `format`, not stored in the props.
+- `default_landscape_props()` and `default_portrait_props()` updated: 5 fields, `scale_breath = true` (new default — the Phase 3 SCALA `CanvasCenter` fix makes the cinematic breath safe by default; the legacy `enable_scale_breath = false` was a Fase 1 workaround).
+
+**§C — One factory (test factory removed):**
+- **REMOVED** `make_chronon_glow_final_for_test(props, engine)` from `content/compositions/chronon_glow_final.hpp`. The test harness already mounts the real `FontEngine` via `make_renderer_shared()` + `attach_software_backend(renderer)` (canonical pipeline path) — the explicit engine injection was redundant scaffolding.
+- **EDIT** 6 test files — switch from `make_chronon_glow_final_for_test(props, renderer->font_engine())` to `make_chronon_glow_final(props)`:
+  1. `tests/visual/glow_ab/glow_temporal_tests.cpp`
+  2. `tests/visual/glow_ab/glow_determinism_tests.cpp`
+  3. `tests/visual/glow_ab/glow_ab_acceptance.cpp`
+  4. `tests/text_golden/ae_parity/ae_08_glow_pulse.cpp` (also `enable_scale_breath` → `scale_breath`)
+  5. `tests/visual/ae_parity/ae_glow_smoke.cpp`
+  6. `tests/visual/ae_parity/ae_glow_position_drift.cpp`
+
+**Strategia applicata** (Cat-3 minimal-surface, Cat-5 2-doc same-commit):
+- File ops: 9 file edits (1 header refactor + 2 registry + 6 test migrations) + 2 docs (CHANGELOG prepended + FOLLOWUP_TICKETS row opened). ZERO new files (the `GlowLayout` struct + `resolve_layout` function are TU-local in the existing header). ZERO new symbols in `include/chronon3d/`. ZERO new public SDK API.
+- §honest-limitation: macchina-verifica of the 6 migrated tests DEFERRED to working build host per the established pattern (vcpkg glm/magic_enum + tmpfs env-blocked VPS).
+
+**Subject envelope**: `refactor(glow): ChrononGlowProps dedup + single source of truth` — 60 chars ≤ 72 ✓.
+
+**Forward-points (NOT in this commit per AGENTS.md "Fare PR piccole e mirate" + Cat-3 anti-dup)**: (a) `TICKET-CHRONON-GLOW-FINAL-MACHINE-VERIFY` — working build host: `ctest -R chronon3d_glow_ab_tests --output-on-failure` expects all 13 TEST_CASEs to PASS post-migration; (b) `TICKET-CHRONON-GLOW-FINAL-ALIAS-DEPRECATION` — consider removing the `chronon-glow-final` legacy alias in a future minor version bump; (c) `TICKET-CHRONON-GLOW-FINAL-LIST-VERIFY` — manual `chronon3d list` CLI verification on working build host to confirm the production + DEV lists match the spec verbatim.
+
+**Cross-references**: AGENTS.md v0.1 Cat-3 + Cat-5 + §regole "Fare PR piccole e mirate" + TICKET-GATE-SUBJECT-RANGE closure + GATE-MNT-01 closure lineage + the canonical `content/compositions/chronon_glow_final.hpp` + the canonical `apps/chronon3d_cli/register_runtime_compositions.cpp` + the canonical `apps/chronon3d_cli/register_dev_compositions.cpp` + the canonical `tests/helpers/test_utils.hpp::make_renderer_shared()` (the test harness that mounts the real `FontEngine` via `attach_software_backend(renderer)`, enabling the production factory to work in tests) + the prior TICKET-CHRONON-GLOW-FINAL closure lineage (Phase 1 unified factory `cd42bc97` + Phase 2 cinematic-glow `e2b600d7` + Phase 3 SCALA CanvasCenter fix + the Step 7 refactor(glow) §4 file move `93cf6748` + the Step 7 fix-up `bf02ac0`).
+
+</details>
+
+
+<details>
 <summary>refactor(text): split diagnostica into 4 files (TICKET-TEXT-INSPECTION-ALPHA-BBOX-VISIBILITY) — 2026-07-12</summary>
 
 Split the 410-LoC `src/text/text_visibility_audit.cpp` (font + shaping + bbox + containment + status + reporting all in 1 TU) + the 328-LoC `apps/chronon3d_cli/commands/dev/command_inspect_text.cpp` (audit + mapping + JSON + render all in 1 TU) into 4 dedicated single-responsibility files. Reusable from inspect-text, pipeline parity, glow acceptance, video acceptance, and golden test C++/Python consumers without dragging in the diagnostic gating macro.
