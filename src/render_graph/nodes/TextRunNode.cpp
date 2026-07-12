@@ -33,6 +33,16 @@ chronon3d::Rect local_bounds_to_rect(
     }
     return chronon3d::renderer::to_rect(*bounds);
 }
+
+// TU-scoped warn-once deduper for `verify_text_visibility()` (Step 2
+// fix (c)). Replaces the implicit process-wide static-bool pattern that
+// previously existed inside the audit; behaviorally equivalent
+// (one-shot per `(node_id, TextWarningKind)` for the entire node's
+// lifetime) while closing the §honesty defects (data race on parallel
+// render; first-error masking later invocations). The deduper is
+// TU-private by virtue of the anonymous namespace; render-graph and
+// CLI sub-targets each have their own static instance.
+chronon3d::WarnOnceDeduper s_warn_deduper;
 }  // anonymous namespace
 // M1.5#1 — internal helpers under src/render_graph/nodes/text_run/
 // (NOT under include/chronon3d/).  Same-directory-relative include
@@ -270,8 +280,13 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
         };
         const Rect local_ink_bbox = local_bounds_to_rect(
             renderer::compute_text_run_visual_bounds(*m_shape));
+        (void)local_ink_bbox;  // post Step 2 fix (d), audit populates
+                                // local_ink_bbox internally; the unused
+                                // local is kept as belt-and-braces for
+                                // future FU04 / FU11 work that re-reads
+                                // the canonical accumulator result.
         const auto audit = audit_text_visibility(
-            *m_shape, local_ink_bbox, matrix, predicted_r, predicted_r,
+            *m_shape, matrix, predicted_r, predicted_r,
             nullptr, spread);
         if (audit.should_disable_tile_pruning) {
             if (ctx.node_exec.counters) {
@@ -469,9 +484,12 @@ NodeExecResult TextRunNode::execute(
         Rect clip_r = predicted_r;
         const Rect local_ink_bbox = local_bounds_to_rect(
             renderer::compute_text_run_visual_bounds(*m_shape));
+        (void)local_ink_bbox;  // audit now reads it internally; see
+                                // TICKET-VISIBILITY-OVERRIDE-DEDUP.
         verify_text_visibility(
-            *m_shape, local_ink_bbox, world_matrix, predicted_r, clip_r,
-            fb.get(), m_name.c_str());
+            *m_shape, world_matrix, predicted_r, clip_r,
+            fb.get(), m_name.c_str(),
+            /*deduper=*/s_warn_deduper);
     }
 #endif
 
