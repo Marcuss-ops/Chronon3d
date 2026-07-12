@@ -24,7 +24,7 @@
 
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>

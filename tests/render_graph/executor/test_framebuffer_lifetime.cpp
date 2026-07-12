@@ -6,7 +6,7 @@
 #include <chronon3d/core/framebuffer_arena.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/math/color.hpp>
-#include <chronon3d/render_graph/render_graph.hpp>
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 
