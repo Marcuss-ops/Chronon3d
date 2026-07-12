@@ -28,7 +28,7 @@ echo "== External consumer =="
 bash "$SCRIPT_DIR/install_consumer_test.sh"
 
 echo "== Determinism =="
-# TODO: wire tools/check_determinism_matrix.sh (Test #6)
+bash "$SCRIPT_DIR/check_determinism_matrix.sh"
 bash "$SCRIPT_DIR/check_first_principles_legacy_grep.sh"
 
 echo "== Product demo =="
@@ -46,4 +46,4 @@ echo "== Feature usefulness gate =="     # TODO (Test #14 — docs gate)
 echo "== Weekly scorecard =="            # TODO (Track-13 — output terr.)
 
 echo "FIRST_PRINCIPLES_PRODUCT_PASS"
-echo "[INFO] ${GATE_NAME}: 4/5 sections have ≥1 wired sub-gate (Determinism + Test #10 zero-legacy grep); 1/5 still empty (Product demo); Test #6 still TODO; 9 stub headers pending"
+echo "[INFO] ${GATE_NAME}: 4/5 sections have ≥1 wired sub-gate (Determinism: Test #6 + Test #10 fully wired); 1/5 still empty (Product demo); 9 stub headers pending"
