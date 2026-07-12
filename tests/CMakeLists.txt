@@ -49,6 +49,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/inspect_text_tests.cmake  # M1.8 §4B — chronon3d_cli inspect-text (6 TEST_CASEs) — no Blend2D, requires CHRONON3D_BUILD_CLI_DEV=ON — TextVisibilityAudit PASS/FAIL cascade + §9 FU04 violation response (4 TEST_CASEs / ~12 CHECKs) (conditional on CHRONON3D_BUILD_DIAGNOSTICS via early-return in the .cmake file)
     ${CMAKE_CURRENT_SOURCE_DIR}/text_presets_stability_tests.cmake  # M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 presets × 3 CHECKs = 15 assertions (UNCONDITIONAL, pure struct inspection)
     ${CMAKE_CURRENT_SOURCE_DIR}/text_layout_advanced_tests.cmake  # M1.8 §3B / TICKET-FASE4-LAYOUT — 3×3 wrap×overflow matrix + 7 line-height values + 3 adversarial countertests (UNCONDITIONAL, pure layout math)
+    ${CMAKE_CURRENT_SOURCE_DIR}/text_production_v1_tests.cmake  # TICKET-TEXT-V1-FUNCTIONAL-CERT — Text Production V1 anti-false-green certification (20 TEST_CASEs: 4 user-spec invariants + 16 user-spec scenarios) (INTEGRATION tier, Blend2D-gated)
     ${CMAKE_CURRENT_SOURCE_DIR}/presets_golden_tests.cmake  # M1.8 §3C / TICKET-SIMPLICITY-PRESETS — 5 PNG goldens in test_renders/golden/text/presets/ (Blend2D-gated INTEGRATION tier)
     ${CMAKE_CURRENT_SOURCE_DIR}/precomp_focus_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/timeline_tests.cmake  # post-rename RenderJob::video_job factory + VideoSettings defaults lock (TIER=UNIT, no Blend2D, unconditional)
@@ -131,6 +132,15 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
 
 # ── TXT-QA-01 — Real Golden Text Harness (standalone, UNITY_BUILD OFF)
 include(${CMAKE_CURRENT_SOURCE_DIR}/text_golden_tests.cmake)
+# TICKET-TEXT-V1-FUNCTIONAL-CERT — Text Production V1 anti-false-green
+# certification.  20 TEST_CASEs (4 user-spec invariants + 16 user-spec
+# scenarios: font valid/missing/corrupt, UTF-8, fallback, wrapping,
+# auto-fit, alignment, placement, glow, shadow, typewriter, long text,
+# 16:9/9:16, animation, clipping, alpha threshold >100).  Inside the
+# Blend2D+Text conditional (the test materialises Composition +
+# SoftwareRenderer + TextRunSpec, all of which require text + software
+# backend; SDK-only builds skip per the established gating pattern).
+include(${CMAKE_CURRENT_SOURCE_DIR}/text_production_v1_tests.cmake)
 # ── M1.8 §4C — Diagnostic overlay golden test (Blend2D-gated INTEGRATION tier).
 # Self-guards on CHRONON3D_USE_BLEND2D + CHRONON3D_ENABLE_TEXT (no-op in
 # SDK-only builds).  Same pattern as `text_presets_visual_tests.cmake`.
