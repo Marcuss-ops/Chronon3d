@@ -14,7 +14,7 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 echo "install_git_hooks.sh: setting core.hooksPath = .githooks"
-git config core.hooksPath .githooks
+git config --local core.hooksPath .githooks
 
 echo "install_git_hooks.sh: verifying..."
 CURRENT="$(git config --local --get core.hooksPath || echo 'UNSET')"
