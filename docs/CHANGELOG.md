@@ -19,6 +19,38 @@
 
 **Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) §Open Blocker `TICKET-CONTENT-TEXT-CAMERA-V1-ROT` row Phase 1 closure + [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato per area Text Production V1 row PASS with §honest qualifier + commit `d851d6f9` (HEAD at which the verification was machine-executed) + the prior `docs(camera-text-rot): 21 upstream errors mask text_helpers rot` CHANGELOG entry (the "peel the onion" framing cited above) + AGENTS.md §Cat-2 honest-doc-sync (CHANGELOG + FOLLOWUP_TICKETS + CURRENT_STATUS all updated in this same atomic chore) + AGENTS.md §Cat-5 3-doc same-commit alignment + AGENTS.md §honesty (PARTIAL → DONE-with-qualifier per the traceable evidence cited in the commit body).
 
+## Luglio 2026 — docs(ticket): open TICKET-CONTENT-TEXT-CAMERA-V1-ROT-VARIANT-MOVE sub-ticket (variant rot-class split, 2026-07-12, atomic chore commit on main)
+
+**`docs(ticket): open TICKET-CONTENT-TEXT-CAMERA-V1-ROT-VARIANT-MOVE sub-ticket`** — atomic chore commit opening a NEW sub-ticket for the variant move-constructor rot-class (20+ `std::variant` mentions + 3 synthesized `chronon3d::ImageParams` ctors/dtor in `/tmp/build_test_artifact.log`). Per AGENTS.md "a separate ticket per rot-pattern" interpretation (a) (user-explicit choice over interpretation (b) SAME-rot-pattern), the variant rot is now tracked as a SEPARATE rot-class with potential independent workstream if the rot persists after the parent rot (`chronon3d::chronon3d::` double-namespace) is fixed.
+
+**Diagnostic scope** (machine-verified from `/tmp/build_test_artifact.log`):
+- 20+ `std::variant` mentions across the build log
+- Synthesized method `constexpr chronon3d::ImageParams::ImageParams(chronon3d::ImageParams&&)` first required in `/usr/include/c++/15/variant:229:11` (move-ctor)
+- Synthesized method `constexpr chronon3d::ImageParams::ImageParams(const chronon3d::ImageParams&)` first required at `src/registry/shape_registry.cpp:85:44` (copy-ctor)
+- Synthesized method `constexpr chronon3d::ImageParams::~ImageParams()` first required at `src/registry/shape_registry.cpp:85:44` (dtor)
+- `chronon3d::ImageParams` defined in `include/chronon3d/registry/shape_params.hpp` + used by 10+ consumers (`include/chronon3d/scene/builders/builder_params.hpp` + `layer_builder.hpp` + `scene_builder.hpp` + `sequence_builder.hpp` + `scene/model/render/render_node_factory.hpp` + `authoring/layer.hpp` + 4+ cpp files)
+
+**Why sub-ticket** (per AGENTS.md interpretation (a)): the prior classification in TICKET-BUILD-ROT-CASCADE-CAMERA claimed `**NO NEW rot-class surfaced**` (all 245 errors are symptoms of the SAME 2 root causes: `chronon3d::chronon3d::*` double-namespace + transitive-include rot). Interpretation (a) prefers to track each rot-pattern in its own ticket; interpretation (b) prefers to fold them into the parent. The user-explicit choice is interpretation (a) — the variant rot is promoted to a sub-ticket of TICKET-CONTENT-TEXT-CAMERA-V1-ROT (the user-literal naming: "TICKET-CONTENT-TEXT-CAMERA-V1-ROT sub-ticket"). This honors the more literal reading of AGENTS.md "a separate ticket per rot-pattern".
+
+**Files changed (2 — Cat-5 PARTIAL 2-doc same-commit alignment)**:
+- `docs/FOLLOWUP_TICKETS.md` EDIT (3 changes: NEW sub-ticket row in §Open Blockers + parent TICKET-CONTENT-TEXT-CAMERA-V1-ROT row +1 sub-ticket cross-link clause + TICKET-BUILD-ROT-CASCADE-CAMERA row reclassification: prior "NO NEW rot-class" claim replaced with "VARIANT rot-class PROMOTED to sub-ticket" override note)
+- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+
+`docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED — a ticket split is NOT an SDK-state semantic change (precedent: TICKET-RESOLVE-REBASE-CONFLICT + TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0h+ closures both did NOT touch CURRENT_STATUS; per `docs/DOCUMENTATION_GOVERNANCE.md`, ticket tracker updates are Cat-5 PARTIAL events, not state-snapshot events).
+
+**§honesty compliance** (per AGENTS.md v0.1):
+- The diagnostic is **MACHINE-VERIFIED** from `/tmp/build_test_artifact.log` (`grep -cE 'variant'` + `grep -E 'ImageParams.*first required here'`).
+- The "promoted to sub-ticket" decision is a SCOPE-DECISION change, NOT a fact-change about the rot itself (the synthesized methods still exist in the build log; the question is whether to track them in a separate ticket or fold into the parent).
+- The TICKET-BUILD-ROT-CASCADE-CAMERA row's reclassification preserves the audit trail (the prior "NO NEW rot-class" claim is replaced, not silently deleted; the original claim is documented as superseded by interpretation (a)).
+- The forward-point explicitly defers verification to a working build host per AGENTS.md §honesty — DORMANT sub-ticket status until parent rot fix verified.
+
+**Forward-point (NOT in this commit, deferred per AGENTS.md "Fare PR piccole e mirate")**: the new sub-ticket's promotion criteria (DORMANT → ACTIVE if rot persists post-parent-fix) requires working build host verification. On a fit build host: (a) fix the parent rot's 21 machine-verified errors via the per-file matrix in `docs/baselines/main-df1e09d9-rot-cascade-baseline.md`; (b) re-run `cmake --build .tmp/chronon-builds/linux-fast-dev --target chronon3d_dev_fast > /tmp/host-build-df1e09d9.log 2>&1`; (c) re-grep `error:.*ImageParams.*first required here` and `variant`; (d) IF 3 synthesized methods still triggered, promote the sub-ticket to ACTIVE + open a `src/registry/shape_registry.cpp` ImageParams move-ctor story (canonical fix: `= default` since ImageParams is a plain-data struct); (e) IF variant rot is gone, close the sub-ticket as DORMANT per the interpretation (a) "peel the onion" decision.
+
+**Subject**: `docs(ticket): open TICKET-CONTENT-TEXT-CAMERA-V1-ROT-VARIANT-MOVE sub-ticket` (70 chars, within `tools/check_commit_subject_length.sh`'s 72-char push-range gate).
+
+**Cross-references**: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Open Blockers` (NEW sub-ticket row + parent TICKET-CONTENT-TEXT-CAMERA-V1-ROT row +1 cross-link + TICKET-BUILD-ROT-CASCADE-CAMERA row reclassification) + [`docs/baselines/main-df1e09d9-rot-cascade-baseline.md`](docs/baselines/main-df1e09d9-rot-cascade-baseline.md) (the rot-cascade diagnostic baseline + per-file fix matrix; the new sub-ticket's potential independent workstream is a downstream of the parent fix) + `/tmp/build_test_artifact.log` (preserved diagnostic, ~166K chars, 20+ `std::variant` mentions + 3 synthesized `ImageParams` ctors/dtor lines) + AGENTS.md §Cat-3 (ticket split is not gratuitous — it tracks a distinct rot-pattern per user spec verbatim) + AGENTS.md §Cat-5 (2-doc same-commit, satisfied) + AGENTS.md §honesty (DORMANT sub-ticket with forward-point for verification).
+
+
 ---
 
 ## Luglio 2026 — docs(agents): add post-push SHA-selfcheck invariant (lint rule #5, lost-commit prevention, 2026-07-12, atomic chore commit on main)
