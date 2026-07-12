@@ -1,0 +1,111 @@
+# configs/pilot.tiktok.yaml — TICKET-PILOT-TT-7D-SETUP (Test #18 / First-Principles Product Check)
+# Status: HARNESS-COMPLETE, 7-day execution DEFERRED to human runner per AGENTS.md §honesty ("non inventare").
+# ─────────────────────────────────────────────────────────────────────────────
+# Channel:                   TikTok (ForYou feed + square / 9:16 vertical video)
+# Companion:                 TICKET-PILOT-TT-7D-SETUP row in docs/FOLLOWUP_TICKETS.md §Recently Closed
+# Forward-points (NOT this commit, per "Fare PR piccole e mirate"):
+#   - TICKET-PILOT-TT-DASHBOARD-WIREUP: /api/pilot/tiktok endpoint in flask_app.py
+#   - TICKET-PILOT-TT-OAUTH: OAuth credential storage + auto-post mode (Cat-3 gated)
+#   - Macchina-verifica of the 7-day execution: working build host per AGENTS.md §honesty §13 honest-limitation
+# ─────────────────────────────────────────────────────────────────────────────
+pilot:
+  channel: tiktok
+  test_id: "Test #18"
+  pilot_window:
+    duration_days: 7
+    videos_per_day: 1
+    start_window: "2026-07-13 (Monday) — 2026-07-19 (Sunday)"
+    cadence: "1 video rendered per day at 09:00 UTC, posted within 1h window"
+  composition:
+    engine_render_command: "chronon3d_cli video <composition_id> -o <output_path> --start 0 --end 60 --fps 30 --width 1080 --height 1920 --motion-blur"
+    canonical_composition_id: "ChrononGlowFinalAE"  # the canonical cinematic-glow composition per commit 1cb9cff2 (TICKET-CHRONON-GLOW-FINAL Fase 6)
+    fallback_composition_ids: ["KineticTitleReveal", "Anchor3DShowcase"]
+    duration_seconds:
+      min: 15
+      target: 30
+      max: 60   # TikTok hard cap (vs IG 90s)
+    canvas:
+      width: 1080
+      height: 1920  # 9:16 vertical (TikTok native)
+      allow_square: true
+      square_size: 1080
+  posting:
+    workflow: "manual"  # NO OAuth (AGENTS.md §honesty non-inventare; per TICKET-PILOT-IG-7D-SETUP forward-point b)
+    steps:
+      - "Render cron-job completes with --output at $TIMESTAMP.mp4"
+      - "Human runner uploads the MP4 to TikTok Creator Studio (https://www.tiktok.com/upload) — MANUAL step (no auto-post)"
+      - "Records video_posted=true in ~/.chronon3d/pilot/tiktok/pilot.jsonl after upload confirms success"
+      - "If upload fails or content needs revision: records discarded=true OR bugs=<error_code>"
+    record_to_log_command_pattern: "tools/run_pilot.sh --channel tiktok log --row '{day,composition_id,render_ms,video_posted,discarded,manual_corrections,time_saved_min,cost_eur,bugs}'"
+  metrics:
+    metric_schema_version: "tiktok-7d-v1"
+    fields:
+      - name: video_posted
+        type: integer
+        unit: count
+        target: "7 (one per day)"
+        floor: 5  # below = pilot FAIL
+      - name: discarded
+        type: integer
+        unit: count
+        target: "≤ 1"
+      - name: manual_corrections
+        type: integer
+        unit: count
+        target: "≤ 3 across all 7 days (representing routine caption / hashtag edits)"
+      - name: time_saved
+        type: float
+        unit: minutes_per_video
+        target: "≥ 15"  # minutes saved vs manual editing baseline
+      - name: cost
+        type: float
+        unit: eur_per_video
+        target: "≤ 0.10"
+        formula: "(render_duration_seconds / 3600) * VPS_HOURLY_EUR"
+        vps_hourly_eur_default: 0.05
+      - name: bugs
+        type: integer
+        unit: count
+        target: "≤ 2 (any 1-day > 0 is acceptable; > 5 across the week = pilot FAIL)"
+  log:
+    jsonl_path: "~/.chronon3d/pilot/tiktok/pilot.jsonl"
+    jsonl_append_mode: true  # append-only, never overwrite prior days
+    schema_per_row:
+      - "ts_iso: ISO 8601 timestamp at row append"
+      - "day: int 1..7 (day-of-pilot-window)"
+      - "channel: tiktok (constant)"
+      - "composition_id: str"
+      - "render_ms: float"
+      - "video_posted: bool (true after manual upload confirms)"
+      - "discarded: bool"
+      - "manual_corrections: int"
+      - "time_saved_min: float"
+      - "cost_eur: float"
+      - "bugs: int"
+      - "notes: str (free-form, max 500 chars)"
+  success_criteria:
+    pilot_pass:
+      all_of:
+        - "video_posted >= 5"
+        - "discarded <= 1"
+        - "manual_corrections <= 3"
+        - "time_saved_min >= 15"
+        - "cost_eur <= 0.10"
+        - "bugs <= 2"
+    pilot_fail:
+      any_of:
+        - "video_posted < 3"
+        - "bugs >= 5"  # catastrophic envelope
+  dashboard:
+    forward_point: "/api/pilot/tiktok endpoint deferred per TICKET-PILOT-TT-DASHBOARD-WIREUP"
+    ad_hoc_summary: "python3 tools/pilot_metrics.py --log ~/.chronon3d/pilot/tiktok/pilot.jsonl --table"
+    format_options: ["--table", "--json", "--row"]
+  race_loop_audit:
+    sibling_test_id: "Test #16"  # IG pilot setup precedent
+    sibling_ticket: "TICKET-PILOT-IG-7D-RECOVERY (per docs/FOLLOWUP_TICKETS.md)"
+    runner_lifeline: "If the 7-day execution delivers bug_rate > 30% (catastrophic envelope), escalate to TICKET-PILOT-TT-FAILURE-RCA + freeze the TT channel pending post-mortem"
+  cat_3_minimal_surface:
+    new_public_sdk_api_symbols_added: 0
+    new_files_added: 1   # just configs/pilot.tiktok.yaml
+    include_chronon3d_modified: false
+    src_modified: false
