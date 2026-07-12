@@ -82,7 +82,7 @@ content/             — Composition definitions
 - [ ] All existing tests pass
 - [ ] New tests added for changed/added code
 - [ ] CHANGELOG note added (if user-facing change)
-- [ ] Last 10 commits have subjects ≤ 72 chars (enforced by `wrap_push.sh`)
+- [ ] All commits in `git log origin/main..HEAD` have subjects ≤ 72 chars (enforced by `wrap_push.sh`)
 
 ## Commit Subject Policy
 
