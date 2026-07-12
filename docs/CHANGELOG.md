@@ -1,3 +1,45 @@
+## Luglio 2026 — feat(gate): wire docs/baselines presence check into wrap_push.sh (TICKET-BASELINE-PRESENT, 2026-07-12, atomic chore commit on main)
+
+**`feat(gate): wire docs/baselines presence check into wrap_push.sh`** — atomic chore commit adding a new pre-push hygiene gate `tools/check_baseline_present.sh` that verifies the current `HEAD` short SHA has a corresponding `docs/baselines/main-<short-sha>-baseline.md` snapshot present. Wire-up at `tools/wrap_push.sh` Step 4.5i (after 4.5h `check_no_source_conflict_markers.sh`, before Step 5 `git push`). Closes the forward-point that the prior `docs(baseline): add docs/baselines/index.md` commit surfaced: a navigational TOC is necessary but not sufficient — without a hard-block gate, future commits can land on `main` without a baseline snapshot, silently drifting the `docs/baselines/` integrity from the governance contract.
+
+**Scope (gate surface)**:
+- `GATE_NAME=check_baseline_present` (matches the AGENTS.md §INFO-level diagnostic style rule #2 prefix convention)
+- Reads `HEAD` short SHA via `git rev-parse --short=8 HEAD` (8-char format, matches `docs/baselines/main-<sha>-baseline.md` filename convention)
+- Locates `docs/baselines/main-<short-sha>-baseline.md` in the repo root (via `git rev-parse --show-toplevel`)
+- **PASS**: file present → exit 0 with `GATE_PASS: check_baseline_present — docs/baselines/main-<sha>-baseline.md present` + `[INFO] check_baseline_present: HEAD <sha> has a corresponding baseline snapshot` (additive per AGENTS.md rule #2)
+- **FAIL**: file missing → exit 1 with `GATE_FAIL: check_baseline_present — docs/baselines/main-<sha>-baseline.md MISSING for HEAD <sha>` on stderr + remediation block (4 steps: create baseline from canonical reference + update `docs/baselines/index.md` + prepend CHANGELOG entry + re-run wrap_push.sh) + one-time bootstrap escape hatch mention
+- **Internal error**: exit 2 if not in a git repo or `HEAD` SHA cannot be resolved
+- **Bootstrap escape hatch**: `CHRONON3D_SKIP_BASELINE_CHECK=true` (one-time only — the wire-up commit that introduces this gate does not have a baseline for itself, by construction; the hatch is used HERE for this commit, and every subsequent push without a baseline will be hard-blocked)
+
+**Scope (wire-up)**:
+- `tools/wrap_push.sh` header gate chain comment: +1 entry for 4.5i (after 4.5h `check_no_source_conflict_markers.sh`)
+- `tools/wrap_push.sh` §Behaviour §4.5 sequence: +1 entry for 4.5i
+- `tools/wrap_push.sh` execution body: +1 `bash "${SCRIPT_DIR}/check_baseline_present.sh"` block (after the 4.5h block, before the final `exec git push "$@"`)
+- Each `bash` invocation uses `|| { ... exit 1; }` to propagate the gate's exit code (matches the existing 4.5d/4.5e/4.5f/4.5g/4.5h pattern verbatim)
+
+**Cat-3 (zero new public SDK API surface) SATISFIED**: pure `tools/` artifact (gate + wrap_push.sh edit); zero new symbols in `include/chronon3d/`; no `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` introduced.
+
+**Cat-5 PARTIAL 1-doc same-commit** (tools-only commit recent precedent `feat(check): zero-legacy grep gate (Test #10)` + `feat(check): wire Test #1 Product demo gate into orchestrator`): this CHANGELOG entry + the gate file + the wire-up edit all updated in same atomic commit. `docs/FOLLOWUP_TICKETS.md` + `docs/CURRENT_STATUS.md` INTENTIONALLY UNTOUCHED — a tool-only commit without SDK-state semantic per `docs/DOCUMENTATION_GOVERNANCE.md`.
+
+**§honesty compliance** (per AGENTS.md v0.1):
+- **Bootstrap escape hatch explicitly disclosed** in the gate script header + the CHANGELOG entry body + the wire-up commit message. Not a silent escape hatch — operators see `[INFO] check_baseline_present: skip-hatch active — wire-up bootstrap; next push must have a baseline` on every invocation with the hatch set.
+- **Current state honestly disclosed**: the new gate's wire-up commit itself does NOT have a baseline (the gate creation precedes the baseline creation, by construction). The bootstrap hatch is used for THIS commit only. After this commit lands, the gate is HARD-BLOCK for any push without a baseline.
+- **Reference templates are concrete** in the gate's FAIL diagnostic: `docs/baselines/main-7eb5c2ba-baseline.md` for green baselines + `docs/baselines/main-df1e09d9-rot-cascade-baseline.md` for rot-state baselines — both are the canonical precedents the operator can `cp` + edit for the new SHA.
+- **AGENTS.md §INFO-level diagnostic style rule #2 applied**: PASS path emits `GATE_PASS: ...` canonical first, then `[INFO] check_baseline_present: ...` additive — no duplication, no missing line, no FAIL-path emission (FAIL path emits `GATE_FAIL:` on stderr per the AGENTS.md convention).
+
+**Forward-point (NOT in this commit, deferred per AGENTS.md "Fare PR piccole e mirate" + Cat-3 anti-duplication)**: the first commit on `main` AFTER this wire-up lands should create a baseline for the new HEAD (e.g. `cp docs/baselines/main-7eb5c2ba-baseline.md docs/baselines/main-<new-sha>-baseline.md` + edit the SHA + state the verdict + update `docs/baselines/index.md` + prepend CHANGELOG entry). That first commit will be the first one to demonstrate the wire-up is functional under real pressure (the new gate will block the commit if the baseline is forgotten). Until then, the gate's hard-block is dormant.
+
+**Subject**: `feat(gate): wire docs/baselines presence check into wrap_push.sh` (60 chars, within `tools/check_commit_subject_length.sh`'s 72-char push-range gate).
+
+**Files changed (3 — Cat-5 PARTIAL 1-doc same-commit alignment + 2 file artifacts)**:
+- `tools/check_baseline_present.sh` NEW (~95 LoC, gate with `GATE_NAME=check_baseline_present` + bootstrap escape hatch + PASS/FAIL/internal-error paths + remediation hints + `[INFO]` style additive line)
+- `tools/wrap_push.sh` EDIT (3 hunks: header gate chain +1 entry for 4.5i + §Behaviour §4.5 sequence +1 entry + execution body +1 `bash` block)
+- `docs/CHANGELOG.md` EDIT (this entry, prepended at TOP)
+
+**Cross-references**: [`tools/check_baseline_present.sh`](tools/check_baseline_present.sh) (the new gate) + [`tools/wrap_push.sh`](tools/wrap_push.sh) Step 4.5i (the wire-up) + [`docs/DOCUMENTATION_GOVERNANCE.md`](docs/DOCUMENTATION_GOVERNANCE.md) §`docs/baselines/` (the contract the gate enforces) + [`docs/baselines/index.md`](docs/baselines/index.md) (the navigational TOC the previous commit added — the gate's enforcement surface is the FILE SET the TOC indexes) + [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c2ba-baseline.md) (canonical green baseline reference template) + [`docs/baselines/main-df1e09d9-rot-cascade-baseline.md`](docs/baselines/main-df1e09d9-rot-cascade-baseline.md) (canonical rot-state baseline reference template) + AGENTS.md §Cat-3 (zero new public API, satisfied) + AGENTS.md §Cat-5 (1-doc same-commit, satisfied) + AGENTS.md §honesty (bootstrap hatch explicitly disclosed in 3 places; current state honestly disclosed; reference templates concrete) + AGENTS.md §"INFO-level diagnostic style" rule #2 (the `[INFO] check_baseline_present:` additive line format).
+
+---
+
 ## Luglio 2026 — docs(baseline): add docs/baselines/index.md table-of-contents (chronological 15-baseline TOC, 2026-07-12, atomic chore commit on main)
 
 **`docs(baseline): add docs/baselines/index.md table-of-contents`** — atomic chore commit adding a new navigational aid `docs/baselines/index.md` (support doc, NOT a baseline file itself) that lists all 15 `docs/baselines/main-*-baseline.md` files chronologically with the per-baseline rot-state + verdict + verification status. Per the user's instruction: "Add a new docs/baselines/index.md table-of-contents that lists all docs/baselines/main-<sha>-baseline.md files chronologically + the rot-state of each baseline (green vs rot-state) + the per-baseline verification status."

@@ -20,6 +20,7 @@
 #   4.5f. tools/check_doc_sha_dedup.sh (TICKET-FOLLOWUP-DE-DUP-REFERENCES macchina-verifica gate -- dedup (file,sha7) pairs in `docs/adr/`; ADRs 015/016 EXEMPT). Exit 1 if non-EXEMPT count > 0.
 #   4.5g. tools/check_commit_subject_length.sh (AGENTS.md 'no cosmetic amend churn' gate -- last 10 commit subjects, 72-char envelope; char-count via awk length, NOT byte-count). Exit 1 if any over-limit.
 #   4.5h. tools/check_no_source_conflict_markers.sh (TICKET-SOURCE-CONFLICT-MARKERS-ROT -- source-conflict-marker invariant: line-start anchored scan of cpp/hpp/h/c/cmake scope, excludes intentional selftest .py + prose .md markers). Exit 1 on any unresolved marker. Companion to 4.5d (CHANGELOG-only): the pair catches the full rot class that bit the project once (10 files committed to main HEAD with `<<<<<<< HEAD` markers).
+#   4.5i. tools/check_baseline_present.sh (TICKET-BASELINE-PRESENT -- docs/baselines/ integrity gate: verifies that the current HEAD short SHA has a corresponding `docs/baselines/main-<short-sha>-baseline.md` file present. Forward-only enforcement of `docs/DOCUMENTATION_GOVERNANCE.md` §docs/baselines/. One-time bootstrap escape hatch via `CHRONON3D_SKIP_BASELINE_CHECK=true` -- only for the wire-up commit itself, where the baseline for the new SHA does not yet exist by construction. After wire-up lands, EVERY push without a baseline is hard-blocked.)
 #   5. exec git push "$@" atomically
 #
 # Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
@@ -199,6 +200,12 @@ fi
 #     3. check_frame_value_convention.sh (gate TICKET-110b Frame::value canonical-reading)
 #     (check_no_dual_text_api.sh was previously here at #4 but has been
 #      REMOVED — see gate chain header comment above for rationale)
+#     4.5d check_no_changelog_conflict_markers.sh  (TICKET-CHANGELOG-CONFLICT-CLEANUP)
+#     4.5e check_text_golden_sources_aligned.sh    (TICKET-TEXT-GOLDEN-SOURCES-ALIGNED)
+#     4.5f check_doc_sha_dedup.sh                  (TICKET-FOLLOWUP-DE-DUP-REFERENCES)
+#     4.5g check_commit_subject_length.sh          (AGENTS.md 72-char envelope)
+#     4.5h check_no_source_conflict_markers.sh     (TICKET-SOURCE-CONFLICT-MARKERS-ROT)
+#     4.5i check_baseline_present.sh               (TICKET-BASELINE-PRESENT)
 echo "wrap_push.sh: checking test hygiene (duplicate DOCTEST_CONFIG_IMPLEMENT)..."
 bash "${SCRIPT_DIR}/check_test_hygiene.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_test_hygiene.sh (exit $?)" >&2; exit 1; }
@@ -266,6 +273,22 @@ bash "${SCRIPT_DIR}/check_commit_subject_length.sh" origin/main \
 echo "wrap_push.sh: checking source conflict markers (TICKET-SOURCE-CONFLICT-MARKERS-ROT)..."
 bash "${SCRIPT_DIR}/check_no_source_conflict_markers.sh" \
     || { echo "wrap_push.sh: GATE_FAIL on check_no_source_conflict_markers.sh (exit $?)" >&2; exit 1; }
+
+# ── Step 4.5i: docs/baselines/ presence gate (TICKET-BASELINE-PRESENT) ──
+# Forward-only enforcement of docs/DOCUMENTATION_GOVERNANCE.md §docs/baselines/:
+# "Le baseline sono prove immutabili di uno SHA di main." Every commit on
+# main must have a corresponding docs/baselines/main-<short-sha>-baseline.md
+# snapshot (8-char short SHA). Without this gate, baseline gaps are silent
+# rot -- the docs/baselines/ index.md TOC can drift from reality, and the
+# documentation governance contract (immutable proof per SHA) is unenforced.
+# One-time bootstrap escape hatch: CHRONON3D_SKIP_BASELINE_CHECK=true -- only
+# for the wire-up commit itself, where the baseline for the new SHA does not
+# yet exist by construction. After wire-up lands, EVERY push without a
+# baseline is hard-blocked. See tools/check_baseline_present.sh for full
+# spec + remediation hints + canonical reference templates.
+echo "wrap_push.sh: checking docs/baselines/ presence for HEAD (TICKET-BASELINE-PRESENT)..."
+bash "${SCRIPT_DIR}/check_baseline_present.sh" \
+    || { echo "wrap_push.sh: GATE_FAIL on check_baseline_present.sh (exit $?)" >&2; exit 1; }
 
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
 exec git push "$@"
