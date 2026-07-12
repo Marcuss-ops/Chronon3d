@@ -52,12 +52,12 @@ namespace {
 
 using chronon3d::content::animation_helpers::FONT_REGULAR;
 
-constexpr f32 BASE_Y = -50.0f;
-constexpr f32 BOX_H = 130.0f;
-constexpr f32 TRACKING = 4.0f;
+constexpr f32 TW_BASE_Y = -50.0f;
+constexpr f32 TW_BOX_H = 130.0f;
+constexpr f32 TW_TRACKING = 4.0f;
 
 // MinimalistGrid background for the typewriters.
-void add_bg(SceneBuilder& s) {
+void tw_add_bg(SceneBuilder& s) {
     chronon3d::content::backgrounds::add_common_background(
         s, chronon3d::content::backgrounds::BackgroundStyles::Minimalist());
 }
@@ -77,20 +77,20 @@ Composition anim_typewriter_simple() {
     return composition({.name = "AnimTypewriterSimple", .width = 1920, .height = 1080, .duration = 100},
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_bg(s);
+        tw_add_bg(s);
         s.font_engine(ctx.font_engine_or_null());
 
         // Precompute widths FIRST, then use inline build_text_reveal_line calls
         auto spec = font_regular();
-        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING, *s.font_engine());
-        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TRACKING, *s.font_engine());
+        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TW_TRACKING, *s.font_engine());
+        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TW_TRACKING, *s.font_engine());
         f32 max_w = std::max(w1, w2);
         f32 ref_x = -max_w * 0.5f;
 
         build_text_reveal_line(s, TextRevealDescriptor{
             .text = "THIS TEXT APPEARS", .font_size = 64.0f, .font_spec = spec,
-            .tracking = TRACKING, .ref_offset_x = ref_x,
-            .base_pos = {0.0f, BASE_Y - 42.5f, 0.0f},
+            .tracking = TW_TRACKING, .ref_offset_x = ref_x,
+            .base_pos = {0.0f, TW_BASE_Y - 42.5f, 0.0f},
             .start_delay = 0.0f, .duration = 8.0f, .stagger = 2.0f,
             .pin_to_center = true,
             .color = TEXT_COLOR, .add_shadow = true, .shadow_color = SHADOW_COLOR,
@@ -98,8 +98,8 @@ Composition anim_typewriter_simple() {
         });
         build_text_reveal_line(s, TextRevealDescriptor{
             .text = "ONE LETTER AT A TIME", .font_size = 76.0f, .font_spec = spec,
-            .tracking = TRACKING, .ref_offset_x = ref_x,
-            .base_pos = {0.0f, BASE_Y + 42.5f, 0.0f},
+            .tracking = TW_TRACKING, .ref_offset_x = ref_x,
+            .base_pos = {0.0f, TW_BASE_Y + 42.5f, 0.0f},
             .start_delay = 36.0f, .duration = 8.0f, .stagger = 2.0f,
             .pin_to_center = true,
             .color = TEXT_COLOR, .add_shadow = true, .shadow_color = SHADOW_COLOR,
@@ -115,13 +115,13 @@ Composition anim_typewriter_cursor() {
     return composition({.name = "AnimTypewriterCursor", .width = 1920, .height = 1080, .duration = 110},
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_bg(s);
+        tw_add_bg(s);
         s.font_engine(ctx.font_engine_or_null());
 
         // Precompute needed values BEFORE build_2line_typewriter
         auto spec = font_regular();
-        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING, *s.font_engine());
-        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TRACKING, *s.font_engine());
+        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TW_TRACKING, *s.font_engine());
+        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TW_TRACKING, *s.font_engine());
         f32 max_w = std::max(w1, w2);
         f32 ref_x = -max_w * 0.5f;
         f32 cursor_x = ref_x + w2 + 6.0f;
@@ -137,7 +137,7 @@ Composition anim_typewriter_cursor() {
 
         s.layer("cursor", [cursor_x, cursor_delay](LayerBuilder& l) {
             l.pin_to(Anchor::Center)
-             .position({cursor_x, BASE_Y + 42.0f, 0.0f});
+             .position({cursor_x, TW_BASE_Y + 42.0f, 0.0f});
 
             // Blink: 6 frames on, 6 frames off, starting after cursor_delay
             auto& op = l.opacity_anim();
@@ -151,8 +151,7 @@ Composition anim_typewriter_cursor() {
 
             TextSpec ts;
             ts.content.value = "|";
-            ts.layout.box = {20.0f, BOX_H};
-            ts.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}};
+            ts.layout.box = {20.0f, TW_BOX_H};
             ts.placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}};
             ts.font.font_path = FONT_REGULAR;
             ts.font.font_size = 76.0f;
@@ -173,19 +172,19 @@ Composition anim_typewriter_slide() {
     return composition({.name = "AnimTypewriterSlide", .width = 1920, .height = 1080, .duration = 100},
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_bg(s);
+        tw_add_bg(s);
         s.font_engine(ctx.font_engine_or_null());
 
         auto spec = font_regular();
-        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TRACKING, *s.font_engine());
-        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TRACKING, *s.font_engine());
+        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TW_TRACKING, *s.font_engine());
+        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TW_TRACKING, *s.font_engine());
         f32 max_w = std::max(w1, w2);
         f32 ref_x = -max_w * 0.5f;
 
         build_text_reveal_line(s, TextRevealDescriptor{
             .text = "THIS TEXT APPEARS", .font_size = 64.0f, .font_spec = spec,
-            .tracking = TRACKING, .ref_offset_x = ref_x,
-            .base_pos = {0.0f, BASE_Y - 42.5f, 0.0f},
+            .tracking = TW_TRACKING, .ref_offset_x = ref_x,
+            .base_pos = {0.0f, TW_BASE_Y - 42.5f, 0.0f},
             .start_delay = 0.0f, .duration = 8.0f, .stagger = 2.0f,
             .slide_up = true, .pin_to_center = true,
             .color = TEXT_COLOR, .add_shadow = true, .shadow_color = SHADOW_COLOR,
@@ -193,8 +192,8 @@ Composition anim_typewriter_slide() {
         });
         build_text_reveal_line(s, TextRevealDescriptor{
             .text = "ONE LETTER AT A TIME", .font_size = 76.0f, .font_spec = spec,
-            .tracking = TRACKING, .ref_offset_x = ref_x,
-            .base_pos = {0.0f, BASE_Y + 42.5f, 0.0f},
+            .tracking = TW_TRACKING, .ref_offset_x = ref_x,
+            .base_pos = {0.0f, TW_BASE_Y + 42.5f, 0.0f},
             .start_delay = 36.0f, .duration = 8.0f, .stagger = 2.0f,
             .slide_up = true, .pin_to_center = true,
             .color = TEXT_COLOR, .add_shadow = true, .shadow_color = SHADOW_COLOR,
@@ -215,7 +214,7 @@ Composition anim_typewriter_glow() {
     return composition({.name = "AnimTypewriterGlow", .width = 1920, .height = 1080, .duration = 160},
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_bg(s);
+        tw_add_bg(s);
         s.font_engine(ctx.font_engine_or_null());
 
         // Stable per-glyph typewriter with glow on revealed characters
@@ -236,7 +235,7 @@ Composition anim_typewriter_stagger() {
     return composition({.name = "AnimTypewriterStagger", .width = 1920, .height = 1080, .duration = 120},
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        add_bg(s);
+        tw_add_bg(s);
         s.font_engine(ctx.font_engine_or_null());
 
         const struct { const char* text; f32 size; f32 delay; } lines[] = {
@@ -250,18 +249,18 @@ Composition anim_typewriter_stagger() {
         auto spec = font_regular();
         f32 max_w = 0.0f;
         for (int i = 0; i < 4; ++i) {
-            f32 w = measure_text_width(lines[i].text, lines[i].size, spec, TRACKING, *s.font_engine());
+            f32 w = measure_text_width(lines[i].text, lines[i].size, spec, TW_TRACKING, *s.font_engine());
             if (w > max_w) max_w = w;
         }
         f32 ref_x = -max_w * 0.5f;
 
-        const f32 start_y = BASE_Y - 108.0f;
+        const f32 start_y = TW_BASE_Y - 108.0f;
         const f32 step_y = 72.0f;
 
         for (int i = 0; i < 4; ++i) {
             build_text_reveal_line(s, TextRevealDescriptor{
                 .text = lines[i].text, .font_size = lines[i].size, .font_spec = spec,
-                .tracking = TRACKING, .ref_offset_x = ref_x,
+                .tracking = TW_TRACKING, .ref_offset_x = ref_x,
                 .base_pos = {0.0f, start_y + static_cast<f32>(i) * step_y, 0.0f},
                 .start_delay = lines[i].delay, .duration = 8.0f, .stagger = 3.0f,
                 .pin_to_center = true,
