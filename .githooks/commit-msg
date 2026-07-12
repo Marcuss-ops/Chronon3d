@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# commit-msg — enforce 72-char subject length on every commit.
+#
+# Called by git automatically after the commit message is composed.
+# $1 = path to the temporary file containing the commit message.
+#
+# Per AGENTS.md 'no cosmetic amend churn' rule: subjects exceeding 72 chars
+# are hard-blocked. Char-count via ${#var} (NOT byte-count via wc -c).
+# ═══════════════════════════════════════════════════════════════════════════
+
+set -euo pipefail
+
+subject="$(head -n1 "$1")"
+length="${#subject}"
+
+if (( length > 72 )); then
+    echo "COMMIT_MSG_FAIL: subject is ${length} chars, maximum is 72" >&2
+    echo "  subject: ${subject}" >&2
+    echo "  fix: shorten the first line of the commit message" >&2
+    exit 1
+fi
