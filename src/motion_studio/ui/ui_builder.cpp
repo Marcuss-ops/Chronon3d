@@ -210,7 +210,7 @@ void UiBuilder::emit(chronon3d::SceneBuilder& s) {
                         chronon3d::TextSpec tp;
                         tp.content.value      = n.text_value;
                         tp.layout.box      = {n.resolved_size.x, n.resolved_size.y};
-                        tp.position       = {0.0f, 0.0f, 0.0f};
+                        tp.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}};
                         tp.font.font_size = std::min(20.0f, n.resolved_size.y * 0.55f);
                         tp.appearance.color     = n.fg_color;
                         tp.layout.align     = chronon3d::TextAlign::Center;
@@ -243,8 +243,8 @@ void UiBuilder::emit(chronon3d::SceneBuilder& s) {
                     chronon3d::TextSpec title;
                     title.content.value      = n.text_value;
                     title.layout.box      = {n.resolved_size.x - 24.0f, 28.0f};
-                    title.position       = {-n.resolved_size.x * 0.5f + 12.0f,
-                                        -n.resolved_size.y * 0.5f + 32.0f, 0.0f};
+                    title.placement = TextPlacement{TextPlacementKind::Absolute, {-n.resolved_size.x * 0.5f + 12.0f,
+                                        -n.resolved_size.y * 0.5f + 32.0f}};
                     title.font.font_size = 14.0f;
                     title.appearance.color     = {0.65f, 0.69f, 0.78f, 1.0f};
                     title.layout.align     = chronon3d::TextAlign::Left;
@@ -259,7 +259,7 @@ void UiBuilder::emit(chronon3d::SceneBuilder& s) {
                     chronon3d::TextSpec value;
                     value.content.value      = n.subtext_value;
                     value.layout.box      = {n.resolved_size.x - 24.0f, 48.0f};
-                    value.position       = {0.0f, 4.0f, 0.0f};
+                    value.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 4.0f}};
                     value.font.font_size = 32.0f;
                     value.appearance.color     = n.fg_color;
                     value.layout.align     = chronon3d::TextAlign::Center;
@@ -275,8 +275,8 @@ void UiBuilder::emit(chronon3d::SceneBuilder& s) {
                     chronon3d::TextSpec trend;
                     trend.content.value      = arrow + std::to_string(static_cast<int>(std::abs(n.trend_value))) + "%";
                     trend.layout.box      = {n.resolved_size.x - 24.0f, 24.0f};
-                    trend.position       = {-n.resolved_size.x * 0.5f + 12.0f,
-                                       n.resolved_size.y * 0.5f - 24.0f, 0.0f};
+                    trend.placement = TextPlacement{TextPlacementKind::Absolute, {-n.resolved_size.x * 0.5f + 12.0f,
+                                       n.resolved_size.y * 0.5f - 24.0f}};
                     trend.font.font_size = 13.0f;
                     trend.appearance.color     = n.trend_positive
                         ? chronon3d::Color{0.30f, 0.85f, 0.50f, 1.0f}
@@ -315,7 +315,7 @@ void UiBuilder::emit(chronon3d::SceneBuilder& s) {
                     chronon3d::TextSpec tp;
                     tp.content.value      = shown;
                     tp.layout.box      = {n.resolved_size.x - 24.0f, n.resolved_size.y};
-                    tp.position       = {-n.resolved_size.x * 0.5f + 14.0f, 0.0f, 0.0f};
+                    tp.placement = TextPlacement{TextPlacementKind::Absolute, {-n.resolved_size.x * 0.5f + 14.0f, 0.0f}};
                     tp.font.font_size = 16.0f;
                     tp.appearance.color     = shown_color;
                     tp.layout.align     = chronon3d::TextAlign::Left;
