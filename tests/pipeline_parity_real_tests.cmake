@@ -33,8 +33,14 @@ target_compile_definitions(chronon3d_pipeline_parity_real_tests PRIVATE
     CHRONON3D_CLI_PATH="$<TARGET_FILE:chronon3d_cli>"
 )
 
-doctest_discover_tests(chronon3d_pipeline_parity_real_tests
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    PROPERTIES
-        TIMEOUT 120
-)
+# NOTE (TICKET-DOCTEST-DISCOVER-TESTS-ROT-FIX): redundant `doctest_discover_tests`
+# REMOVED — canonical `chronon3d_add_test_suite(...)` helper already emits
+# WORKING_DIRECTORY + ctest registration (see `cmake/Chronon3DTestSuite.cmake:146`).
+# Pre-ADR-018 stale remnant, removed per AGENTS.md Cat-3 anti-duplication.
+# §honest semantic loss: per-TEST_CASE TIMEOUT 120 (set via the removed
+# `PROPERTIES TIMEOUT 120` on `doctest_discover_tests`) cannot be safely
+# translated to a target-level `set_tests_properties(... TIMEOUT 120)`
+# because the helper uses a single cumulative `add_test` wrapper (line 194) —
+# that would apply 120s to the entire executable's cumulative runtime (CI
+# flake risk for the video-completeness matrix + thread×cache variants).
+# Per-TEST_CASE timeout recovery deferred to TICKET-DOCTEST-DISCOVER-TESTS-TIMEOUT-RECOVERY.
