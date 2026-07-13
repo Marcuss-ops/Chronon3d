@@ -1,5 +1,13 @@
 <details>
-<summary>feat(simd): registry canonical scaffold (SIMD-REGISTRY-V1) — 2026-07-13</summary>
+<summary>chore(core): unified CpuBudget + bounded queue (CPU-BUDGET-UNIFIED-V1) — 2026-07-13</summary>
+
+<!-- F4.2-entry-marker -->
+
+Atomic cat-3 chore on `main` per FASE 4.2 (TICKET-CPU-BUDGET-UNIFIED-V1). Refactors `include/chronon3d/core/cpu_budget.hpp` to user-spec verbatim 4-field shape `[total_threads, render_threads, decode_threads, encode_threads]` + adds 3 `*_max_inflight` bounded-frame-queue depth fields (Desktop 2/2/4 + Server 2/4/4 + Laptop 2/2/2 + Embedded 2/1/1) + `enum class BudgetMode { Static, Dynamic }` (default `Static`). Subject envelope 66 chars OK. 16/Desktop yields 12/2/2 per user-spec verbatim example. Existing positional `CpuBudget{12, 2, 2}` test inits migrate to C++20 designated initializers (mandatory; `total_threads` is now 1st field). 3 NEW doctest TEST_CASEs added (total_threads anchor + max_inflight class-conditional + BudgetMode roundtrip). `CHRONON3D_CPU_BUDGET_MODE` env var honored (opt-in dynamic mode forward-pointed). macchina-verifica DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` + `TICKET-P1E-CPU-BUDGET-MEASUREMENT` precedent (this VPS lacks vcpkg glm/magic_enum bootstrap + chronon3d_cli link). Full cronaca + 4 forward-points in `docs/tickets/TICKET-CPU-BUDGET-UNIFIED-V1.md` per AGENTS.md ticket-home rule. Pre-existing ADR-024 double-file collision (`deprecate-persistent-framebuffer-cache` vs `composite-node-counter`) is OUT-OF-SCOPE + DEFERRED to separate ADR-renumber chore per AGENTS.md "Fare PR piccole e mirate".
+
+</details>
+
+- feat(simd): registry canonical scaffold (SIMD-REGISTRY-V1) — 2026-07-13
 
 <!-- F5.1-entry-marker -->
 

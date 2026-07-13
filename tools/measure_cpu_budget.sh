@@ -28,6 +28,8 @@
 #     CHRONON3D_CPU_RENDER_THREADS=12
 #     CHRONON3D_CPU_DECODE_THREADS=2
 #     CHRONON3D_CPU_ENCODE_THREADS=2
+#     CHRONON3D_CPU_BUDGET_MODE=static         (F4.2 NEW; default)
+#     CHRONON3D_CPU_BUDGET_MODE=dynamic        (opt-in; forward-pointed impl TICKET-CPU-BUDGET-UNIFIED-DYNAMIC-V1)
 #     CHRONON3D_CPU_MACHINE_CLASS=desktop|laptop|server|embedded
 
 set -euo pipefail
@@ -171,8 +173,9 @@ fi
 
 # ── Summary table ──────────────────────────────────────────────────
 echo ""
-echo "========================================"
-echo "  CpuBudget Measurement Summary"
+echo "========================================"echo "  CpuBudget Measurement Summary"
+echo "  B06-corpus: configs/benchmarks/corpus/b06_video_overlay_1080p.yaml (VideoOverlay1080p)"
+echo "  B06 RSS assertion: rss_after < rss_before (expect memory ceiling from bounded max_inflight)"
 echo "========================================"
 echo "  Composition:      $COMPOSITION"
 echo "  Frames:           $FRAMES"
