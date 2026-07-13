@@ -129,6 +129,14 @@ std::vector<GlyphPos> ShapedGlyphLine::layout() const {
     //
     // For the rare non-monotonic input (defensive), we fall back to an
     // O(n log n) sort+sweep that preserves the same "first by index" semantics.
+    //
+    // Decision: KEEP the fallback. HarfBuzz guarantees monotonic cluster
+    // arrays within a single shaped run, so this path should never trigger
+    // in practice. Removing it would save a small amount of code, but the
+    // fallback is the only thing that keeps the function correct if a
+    // caller ever constructs a ShapedGlyphLine from a manually-built
+    // GlyphRun or if a future shaping backend relaxes the monotonicity
+    // invariant. The cost is paid only when non-monotonic input occurs.
 
     // Detect monotonicity direction.
     bool non_decreasing = true;
@@ -255,6 +263,10 @@ size_t ShapedGlyphLine::reveal_count(f32 progress) const noexcept {
     if (progress <= 0.0f) return 0;
     if (progress >= 1.0f) return m_run->glyphs.size();
     return static_cast<size_t>(static_cast<f32>(m_run->glyphs.size()) * progress);
+}
+
+const std::optional<GlyphRun>& ShapedGlyphLine::raw_run() const noexcept {
+    return m_run;
 }
 
 // ── try_shape static factory (Point 8 fail-soft entry point) ────────────
