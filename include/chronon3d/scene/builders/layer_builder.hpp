@@ -401,6 +401,12 @@ public:
     LayerBuilder& text(std::string name, const TextDefinition& def);
     LayerBuilder& text(std::string name, const TextSpec& spec);   // F3.D — TextSpec→TextDefinition forwarder (impl in shape_commands.cpp); used by overlay panels and legacy scripts.
 
+    /// Legacy TextSpec forwarder. Maps the legacy substructs into a
+    /// TextDefinition and routes through the canonical animated_text
+    /// pipeline. Kept for existing hero-overlay / debug-overlay call
+    /// sites until they migrate to TextDefinition.
+    LayerBuilder& text(std::string name, const TextSpec& spec);
+
     // ── TextRunBuilder (PR 4 — TextAnimator V2) ──────────────────────────
     /// Push a new animated text-run entry into the layer's pending specs
     /// and return a `TextRunBuilder&` for fluent chaining.  The text-run

@@ -1,6 +1,7 @@
-// Layer property method implementations for LayerBuilder.
-// Mask, track matte, transitions, and video/precomp methods.
-// Extracted from layer_builder.cpp to reduce file size.
+// LayerBuilder masks-domain methods.
+// Contains mask, track matte, and transition method implementations.
+// Extracted from commands/layer_property_commands.cpp as part of the
+// domain split (core, transform, layout, text, shapes, effects, media, masks).
 
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/model/layer/track_matte.hpp>
@@ -38,7 +39,7 @@ LayerBuilder& LayerBuilder::mask_circle(CircleMaskParams p) {
     return *this;
 }
 
-// ── Track Matte ───────────────────────────────────────────────────────
+// ── Track matte ───────────────────────────────────────────────────────
 
 LayerBuilder& LayerBuilder::track_matte_alpha(std::string src) {
     m_layer.track_matte.type = TrackMatteType::Alpha;
@@ -73,37 +74,6 @@ LayerBuilder& LayerBuilder::transition_in(LayerTransitionSpec spec) {
 
 LayerBuilder& LayerBuilder::transition_out(LayerTransitionSpec spec) {
     m_layer.transition_out = std::move(spec);
-    return *this;
-}
-
-// ── Video / Precomp ───────────────────────────────────────────────────
-
-LayerBuilder& LayerBuilder::video(video::VideoSource source) {
-    // Sequence V2: collect video asset reference
-    if (!source.path.empty()) {
-        m_layer.asset_manifest.add_video(source.path, std::string(m_layer.name) + "/video");
-    }
-    m_layer.kind = LayerKind::Video;
-    m_layer.video_source = std::make_unique<video::VideoSource>(std::move(source));
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::precomp(std::string comp_name) {
-    m_layer.kind = LayerKind::Precomp;
-    m_layer.precomp_composition_name = std::pmr::string{std::move(comp_name), resource()};
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::video(std::string path) {
-    video::VideoSource source;
-    source.path = std::move(path);
-    return video(std::move(source));
-}
-
-LayerBuilder& LayerBuilder::video_size(Vec2 size) {
-    if (m_layer.video_source) {
-        m_layer.video_source->size = size;
-    }
     return *this;
 }
 
