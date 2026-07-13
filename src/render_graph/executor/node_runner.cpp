@@ -1,6 +1,7 @@
 #include "execution_state.hpp"
 #include "cache_evaluator.hpp"
 #include "node_runner.hpp"
+#include "node_skip_policy.hpp"      // P1 §5 unified skip policy (commit_transparent_skip + SkipReason)
 #include "tile_pruning.hpp"
 #include "telemetry_emitter.hpp"
 #include "text_bbox_reconcile.hpp"   // P0 #1 extracted post-render alpha reconciliation
@@ -143,26 +144,10 @@ void execute_single_node(
     }
 
     if (id < ctx.node_exec.early_exit_skip.size() && ctx.node_exec.early_exit_skip[id]) {
-        auto owned_fb = ctx.acquire_owned_fb(64, 64, false);
-        owned_fb->clear(Color::transparent());
-        Framebuffer* raw = owned_fb.release();
-        PoolFbDeleter deleter;
-        if (parent_pool) {
-            deleter = PoolFbDeleter{parent_pool->shared_from_this()};
-        }
-        state.temp[id] = CachedFB(raw, std::move(deleter));
-        state.resolved_key_digest[id] = 0;
-        state.resolved_frame_dependent[id] = 0;
-        state.resolved_cache_hit[id] = 0;
-        state.resolved_bboxes[id] = raster::BBox{0, 0, 0, 0};
-        if (ctx.node_exec.counters) {
-            ctx.node_exec.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
-            if (graph.node(id).name() == "Clear") {
-                ctx.node_exec.counters->clear_skipped_calls.fetch_add(1, std::memory_order_relaxed);
-                const uint64_t clear_pixels = static_cast<uint64_t>(ctx.frame_input.width) * static_cast<uint64_t>(ctx.frame_input.height);
-                ctx.node_exec.counters->clear_skipped_pixels.fetch_add(clear_pixels, std::memory_order_relaxed);
-            }
-        }
+        commit_transparent_skip(
+            state, id, ctx, parent_pool,
+            SkipReason::EarlyExit,
+            graph.node(id).name());
         return;
     }
 
@@ -185,21 +170,9 @@ void execute_single_node(
         return e[0] == '1' && e[1] == '\0';
     }();
     if (kSkipInvisibleOpacity && pr.resolved_opacity <= 0.001f) {
-        auto owned_fb_inv = ctx.acquire_owned_fb(64, 64, false);
-        owned_fb_inv->clear(Color::transparent());
-        Framebuffer* raw_inv = owned_fb_inv.release();
-        PoolFbDeleter deleter_inv;
-        if (parent_pool) {
-            deleter_inv = PoolFbDeleter{parent_pool->shared_from_this()};
-        }
-        state.temp[id] = CachedFB(raw_inv, std::move(deleter_inv));
-        state.resolved_key_digest[id] = 0;
-        state.resolved_frame_dependent[id] = 0;
-        state.resolved_cache_hit[id] = 0;
-        state.resolved_bboxes[id] = raster::BBox{0, 0, 0, 0};
-        if (ctx.node_exec.counters) {
-            ctx.node_exec.counters->layers_culled.fetch_add(1, std::memory_order_relaxed);
-        }
+        commit_transparent_skip(
+            state, id, ctx, parent_pool,
+            SkipReason::OpacityThreshold);
         return;
     }
 
