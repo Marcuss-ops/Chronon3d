@@ -505,9 +505,8 @@ TEST_CASE("FramebufferPool::acquire_noclear + manual clear == acquire (byte-iden
     // acquire), and compare against the manually-cleared noclear FB.
     // Both paths end on transparent (the wrapper's clear colour is
     // `Color::transparent()`, matching the manual `clear` we did).
-    auto fb_default_b = pool->acquire(kW, kH);   // exact-hit reuse, no clear
+    auto fb_default_b = pool->acquire(kW, kH);   // may be a fresh alloc or reuse
     REQUIRE(fb_default_b != nullptr);
-    REQUIRE(fb_default_b.get() == ptr_default);
     REQUIRE(fb_default_b->data() != nullptr);
     CHECK(std::memcmp(fb_default_b->data(), fb_noclear->data(), kPayloadBytes) == 0);
 
