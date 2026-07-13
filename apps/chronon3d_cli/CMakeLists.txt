@@ -231,6 +231,19 @@ add_executable(chronon3d_cli
     register_runtime_compositions.cpp
     register_content_compositions.cpp
     register_dev_compositions.cpp
+    # TICKET-BENCH-CORPUS-V1 — 12-scene benchmark corpus (B00-B11) + 3
+    # B07 inner precomps. GATED under BOTH CHRONON3D_ENABLE_TEXT AND
+    # CHRONON3D_USE_BLEND2D (the same condition as
+    # commands/dev/command_text_audit.cpp + command_inspect_text.cpp).
+    # Rationale: the corpus depends on text-gated canonical surfaces
+    # (scene_presets.hpp → text/text_animator.hpp + content/compositions/
+    # chronon_glow_final.hpp text pipeline). In minimal/headless builds
+    # (text disabled) the bench corpus is intentionally absent from
+    # `chronon3d_cli info` — this is a pre-existing parallel precedent
+    # (command_text_audit.cpp is absent in headless). Cat-3 acceptable
+    # trade-off: bench corpus is OPTIONAL tooling, not SDK surface;
+    # gated consistently with the rest of the text-required path.
+    $<$<AND:$<BOOL:${CHRONON3D_ENABLE_TEXT}>,$<BOOL:${CHRONON3D_USE_BLEND2D}>>:${CMAKE_SOURCE_DIR}/examples/bench_corpus/bench_corpus_scenes.cpp>
     # NO tests/visual/*.cpp here — production CLI does not compile tests/
     # sources (user-spec verbatim "Nella produzione il CLI non compila più
     # sorgenti da tests/").  tests/visual/*.cpp are compiled into the
