@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chronon3d.dev/schemas/stats_report.v1.json",
+  "title": "Chronon3D Per-Node Stats Report v1",
+  "description": "Canonical schema for the --stats-json output of `chronon3d_cli render` and `chronon3d_cli bench` (parallel precedent: docs/schemas/chronon3d.bench.v3.schema.json). Emitted by NodeStatsReporter per the spec of TICKET-PERF-COUNTERS-NODE-MEMORY-V1; structured as a per-session aggregate of per-node NodeMemoryMetrics snapshots.",
+  "type": "object",
+  "required": [
+    "schema",
+    "session_id",
+    "scene_id",
+    "frame_count",
+    "nodes"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "chronon3d.stats.v1",
+      "description": "Schema identifier. Must be 'chronon3d.stats.v1'."
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Unique per-session identifier (UUIDv4 recommended) so concurrent sessions in CI logs do not collide."
+    },
+    "scene_id": {
+      "type": "string",
+      "description": "Composition/scene identifier (e.g. 'BenchB03_CinematicGlow1080p')."
+    },
+    "frame_count": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of frames aggregated into this report (the per-node totals span frame_count sessions of execute_single_node())."
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp at the moment the NodeStatsReporter was snapshotted (i.e. session end for serialize-to-file mode)."
+    },
+    "machine_class": {
+      "type": "string",
+      "enum": ["cpu-low", "cpu-mid", "cpu-high"],
+      "description": "Optional. Reference machine class (per configs/benchmark_machines.yaml); useful when the stats report is committed alongside bench baselines for cross-machine comparison."
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 0,
+      "description": "Per-node aggregate of NodeMemoryMetrics.  Each entry is identified by node_id (the node name as exposed by chronon3d::graph::RenderGraphNode::name()).",
+      "items": {
+        "type": "object",
+        "required": [
+          "node_id",
+          "pixels_read",
+          "pixels_written",
+          "bytes_read",
+          "bytes_written",
+          "framebuffer_copies",
+          "framebuffer_clears",
+          "allocations",
+          "temporary_buffers"
+        ],
+        "properties": {
+          "node_id":           { "type": "string", "description": "Node identifier (matches RenderGraphNode::name())." },
+          "pixels_read":       { "type": "integer", "minimum": 0, "description": "Total pixels read by this node across the session (frame_count frames)." },
+          "pixels_written":    { "type": "integer", "minimum": 0, "description": "Total pixels written by this node across the session." },
+          "bytes_read":        { "type": "integer", "minimum": 0, "description": "Total bytes read by this node across the session." },
+          "bytes_written":     { "type": "integer", "minimum": 0, "description": "Total bytes written by this node across the session." },
+          "framebuffer_copies":{ "type": "integer", "minimum": 0, "description": "Total framebuffer copy operations (incl. partial-tile copies) emitted by this node." },
+          "framebuffer_clears":{ "type": "integer", "minimum": 0, "description": "Total framebuffer clear operations emitted by this node." },
+          "allocations":       { "type": "integer", "minimum": 0, "description": "Total bytes allocated by this node." },
+          "temporary_buffers": { "type": "integer", "minimum": 0, "description": "Total temporary framebuffer-shaped buffers allocated/released by this node." }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
