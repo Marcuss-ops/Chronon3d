@@ -2,10 +2,14 @@
 
 #include <algorithm>
 #include <atomic>
+#include <functional>
 #include <limits>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace chronon3d::content::text_reveal {
 
@@ -108,20 +112,68 @@ std::vector<GlyphPos> ShapedGlyphLine::layout() const {
     std::vector<GlyphPos> out;
     if (!m_run) return out;
 
-    out.reserve(m_run->glyphs.size());
+    const auto& glyphs = m_run->glyphs;
+    const size_t n = glyphs.size();
+    out.reserve(n);
+
+    // O(n log n) cluster-boundary precomputation (replaces O(n²) inner scan).
+    //
+    // The original inner loop scanned ALL glyphs for each glyph to find the
+    // first one (by iteration index) whose cluster value is strictly greater
+    // than the current glyph's cluster. This is O(n²) total.
+    //
+    // Optimization: for each unique cluster value, find the cluster of the
+    // first glyph (by original index) with a strictly greater cluster value.
+    // This is done with a single sort + sweep in O(n log n) time.
+    //
+    // Why this preserves the original behavior exactly:
+    //   - The inner loop finds the FIRST glyph (by index) with cluster > start.
+    //   - Sorting unique clusters descending and tracking the minimum original
+    //     index among all higher clusters gives exactly that first glyph.
+    //   - For LTR (monotonically increasing clusters), this is the next cluster.
+    //   - For RTL (reversed glyph order), this is the first glyph in the array,
+    //     which has the highest cluster — matching the inner loop.
+    //
+    // Step 1: minimum original index for each unique cluster value.
+    std::unordered_map<u32, size_t> cluster_min_idx;
+    cluster_min_idx.reserve(n);
+    for (size_t i = 0; i < n; ++i) {
+        auto [it, inserted] = cluster_min_idx.try_emplace(glyphs[i].cluster, i);
+        if (!inserted) {
+            it->second = std::min(it->second, i);
+        }
+    }
+
+    // Step 2: sort unique cluster values descending.
+    std::vector<u32> unique_clusters;
+    unique_clusters.reserve(cluster_min_idx.size());
+    for (const auto& [cl, idx] : cluster_min_idx) {
+        unique_clusters.push_back(cl);
+    }
+    std::sort(unique_clusters.begin(), unique_clusters.end(), std::greater<u32>{});
+
+    // Step 3: sweep descending, building map: cluster_value → end_value.
+    // For each cluster, the end is the cluster of the first glyph (by index)
+    // with a strictly greater cluster. min_idx tracks the minimum original
+    // index among all clusters processed so far (i.e., all higher clusters).
+    std::unordered_map<u32, size_t> next_cluster_end;
+    next_cluster_end.reserve(cluster_min_idx.size());
+    size_t min_idx = n; // sentinel: no higher cluster found
+    for (u32 cl : unique_clusters) {
+        if (min_idx < n) {
+            next_cluster_end[cl] = static_cast<size_t>(glyphs[min_idx].cluster);
+        }
+        min_idx = std::min(min_idx, cluster_min_idx[cl]);
+    }
 
     f32 cursor = m_ref_offset_x;
-    for (size_t gi = 0; gi < m_run->glyphs.size(); ++gi) {
-        const auto& g = m_run->glyphs[gi];
+    for (size_t gi = 0; gi < n; ++gi) {
+        const auto& g = glyphs[gi];
         size_t start = g.cluster;
         size_t end = m_text.size();
-        // Inner O(n²) cluster-boundary scan; preserved verbatim from
-        // upstream.  Future optimization opportunity: replace with single-pass
-        // O(n) groupBy (Point 9 perf) in a follow-up refactor — orthogonal
-        // to the current Point 8 single-shape efficiency.
-        for (size_t i = 0; i < m_run->glyphs.size(); ++i) {
-            const auto& o = m_run->glyphs[i];
-            if (o.cluster > start) { end = o.cluster; break; }
+        auto it = next_cluster_end.find(static_cast<u32>(start));
+        if (it != next_cluster_end.end()) {
+            end = it->second;
         }
         std::string ch = m_text.substr(start, end - start);
         if (ch.empty()) continue;
