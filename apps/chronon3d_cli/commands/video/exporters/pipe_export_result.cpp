@@ -33,9 +33,6 @@ PipeExportResult make_pipe_export_result(
         result.success = false;
     }
 
-    // frames_written is the raw count from the render loop (status.frames_written),
-    // but we report 0 on final failure (encoders close failure overrides render success)
-    result.frames_written = result.success ? status.frames_written : 0;
     result.frames_rendered = status.frames_rendered;
     result.frames_enqueued = status.frames_enqueued;
     result.frames_encoded = status.frames_encoded;
