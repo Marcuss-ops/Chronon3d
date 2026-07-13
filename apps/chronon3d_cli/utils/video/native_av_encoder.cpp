@@ -110,10 +110,17 @@ bool NativeAvEncoder::open(const FfmpegPipeOptions& options) {
         snprintf(crf_str, sizeof(crf_str), "%d", options_.crf);
         av_opt_set(codec_->priv_data, "crf", crf_str, 0);
     }
-    // Enable x264 multi-threading for maximum throughput on multi-core machines.
+    // Apply the unified CPU budget to x264.  encode_threads == 0 keeps the
+    // legacy "auto" behaviour for backwards compatibility.
     const std::string codec_name = resolve_encoder_name(options_);
     if (codec_name == "libx264" || codec_name == "libx264rgb") {
-        av_opt_set(codec_->priv_data, "threads", "auto", 0);
+        if (options_.encode_threads > 0) {
+            char threads_str[16];
+            snprintf(threads_str, sizeof(threads_str), "%d", options_.encode_threads);
+            av_opt_set(codec_->priv_data, "threads", threads_str, 0);
+        } else {
+            av_opt_set(codec_->priv_data, "threads", "auto", 0);
+        }
         av_opt_set(codec_->priv_data, "thread_type", "frame", 0);
     }
     // tune: default empty for batch export (faster), use "zerolatency" only for streaming

@@ -9,33 +9,34 @@
 #include <tbb/global_control.h>
 
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/cpu_budget.hpp>
 #include "cli_context.hpp"
 #include "cli_init.hpp"
 #include "commands/cli_groups.hpp"
 
 int main(int argc, char** argv) {
-    // Ensure TBB uses all available hardware cores for maximum parallelism.
-    // Without this, TBB's default thread count may be limited by the task_arena
-    // or environment constraints, leading to underutilized cores.
+    // Unified CPU budget: render/decode/encode thread counts are derived
+    // from the hardware and the CHRONON3D_CPU_* environment variables.
+    // TBB is capped to the render pool so that decode/encode threads do
+    // not contend with the renderer.
     //
-    // Tests can override this via the CHRONON3D_THREADS environment variable
-    // (e.g. CHRONON3D_THREADS=1) to verify bit-exact output regardless of
-    // parallelism.
-    std::size_t thread_limit = std::thread::hardware_concurrency();
+    // CHRONON3D_THREADS is preserved as a legacy override for the total
+    // budget input (and therefore the render pool / TBB global limit).
+    std::size_t total_threads = std::thread::hardware_concurrency();
     if (const char* env_threads = std::getenv("CHRONON3D_THREADS")) {
-        try {
-            const long parsed = std::strtol(env_threads, nullptr, 10);
-            if (parsed > 0) {
-                thread_limit = static_cast<std::size_t>(parsed);
-            }
-        } catch (...) {
-            // Ignore malformed env var; fall back to hardware concurrency.
+        char* end = nullptr;
+        const long parsed = std::strtol(env_threads, &end, 10);
+        if (parsed > 0 && end != env_threads && *end == '\0') {
+            total_threads = static_cast<std::size_t>(parsed);
         }
     }
 
+    const chronon3d::CpuBudget cpu_budget = chronon3d::cpu_budget_from_environment(
+        static_cast<int>(total_threads));
+
     tbb::global_control tbb_control(
         tbb::global_control::max_allowed_parallelism,
-        thread_limit
+        static_cast<std::size_t>(cpu_budget.render_threads)
     );
 
     // Reconstruct command line into CliContext

@@ -28,6 +28,7 @@
 #include <string>
 
 #include <chronon3d/core/scheduler/scheduler_mode.hpp>
+#include <chronon3d/core/cpu_budget.hpp>
 
 namespace chronon3d {
 
@@ -170,6 +171,7 @@ public:
     [[nodiscard]] const CacheConfig&     cache()     const noexcept { return cache_; }
     [[nodiscard]] const SchedulerConfig& scheduler() const noexcept { return scheduler_; }
     [[nodiscard]] const PathConfig&      paths()     const noexcept { return paths_; }
+    [[nodiscard]] const CpuBudget&       cpu_budget() const noexcept { return cpu_budget_; }
 
     // ── Utility (kept public, unchanged) ──────────────────────────────
 
@@ -191,6 +193,7 @@ private:
     CacheConfig     cache_;
     SchedulerConfig scheduler_;
     PathConfig      paths_;
+    CpuBudget       cpu_budget_;
 };
 
 } // namespace chronon3d

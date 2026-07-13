@@ -1,10 +1,12 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/scheduler/scheduler_mode.hpp>
+#include <chronon3d/core/cpu_budget.hpp>
 #include <cstdlib>
 #include <cstring>
 #include <charconv>
 #include <string_view>
 #include <spdlog/spdlog.h>
+#include <thread>
 
 namespace chronon3d {
 
@@ -166,6 +168,30 @@ Config::Config() {
     //  CacheConfig — policy
     // ═══════════════════════════════════════════════════════════════════
     cache_.disable_persistent_framebuffer_cache_ = env_bool("CHRONON_DISABLE_PERSISTENT_FB_CACHE");
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  CpuBudget
+    // ═══════════════════════════════════════════════════════════════════
+    cpu_budget_ = cpu_budget_from_environment(
+        static_cast<int>(std::thread::hardware_concurrency()));
+
+    // Legacy override: CHRONON3D_SCHEDULER_WORKERS sets the render pool.
+    {
+        const char* workers_env = std::getenv("CHRONON3D_SCHEDULER_WORKERS");
+        if (workers_env && *workers_env) {
+            const std::size_t len = std::strlen(workers_env);
+            int n = 0;
+            const auto [ptr, ec] = std::from_chars(workers_env, workers_env + len, n);
+            if (ec == std::errc{} && ptr == workers_env + len && n > 0) {
+                const int total = static_cast<int>(std::thread::hardware_concurrency());
+                cpu_budget_.render_threads = std::min(n, total);
+            } else {
+                spdlog::warn(
+                    "Invalid CHRONON3D_SCHEDULER_WORKERS='{}'; using CpuBudget render threads",
+                    workers_env);
+            }
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     //  PathConfig
