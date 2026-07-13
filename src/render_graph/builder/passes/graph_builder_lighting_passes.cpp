@@ -18,7 +18,8 @@ using namespace chronon3d::graph;
 
 void append_lighting_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
                                     const LayerGraphItem& item,
-                                    const RenderGraphContext& ctx) {
+                                    const RenderGraphContext& ctx,
+                                    const BuilderContext& node_ctx) {
     const Layer& layer = *item.layer;
 
     if (!item.projected) {
@@ -35,7 +36,7 @@ void append_lighting_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outpu
     }
 
     auto lighting_node = graph.add_node(
-        LightingNode::create(std::string(layer.name), item.world_matrix, layer.material()));
+        LightingNode::create(std::string(layer.name), item.world_matrix, layer.material()), node_ctx);
     graph.connect(layer_output, lighting_node);
     layer_output = lighting_node;
 }
@@ -45,13 +46,14 @@ void append_lighting_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outpu
 void append_depth_grade_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
                                        const LayerGraphItem& item,
                                        const RenderGraphContext& ctx,
-                                       const rendering::DepthGrade& grade) {
+                                       const rendering::DepthGrade& grade,
+                                       const BuilderContext& node_ctx) {
     if (!grade.enabled) return;
     if (!item.projected) return;
     if (!ctx.frame_input.light_context.enabled) return;
 
     auto grade_node = graph.add_node(
-        DepthGradeNode::create(grade, item.world_z, item.layer->material().accepts_lights));
+        DepthGradeNode::create(grade, item.world_z, item.layer->material().accepts_lights), node_ctx);
     graph.connect(layer_output, grade_node);
     layer_output = grade_node;
 }
@@ -63,7 +65,8 @@ void append_shadow_passes_if_needed(
     GraphNodeId& receiver_output,
     const LayerGraphItem& receiver_item,
     std::span<const ShadowCasterInfo> casters,
-    const RenderGraphContext& ctx)
+    const RenderGraphContext& ctx,
+    const BuilderContext& node_ctx)
 {
     if (!receiver_item.layer->material().accepts_shadows) return;
     if (!ctx.frame_input.light_context.enabled || !ctx.frame_input.light_context.directional_enabled) return;
@@ -84,9 +87,10 @@ void append_shadow_passes_if_needed(
             .projected         = caster.projected,
         };
 
-        GraphNodeId caster_out = append_source_pass(graph, caster_item, ctx);
+        BuilderContext caster_ctx{.layer_id = std::string(caster.layer->name)};
+        GraphNodeId caster_out = append_source_pass(graph, caster_item, ctx, caster_ctx);
         if (caster_out == k_invalid_node) continue;
-        append_transform_pass_if_needed(graph, caster_out, caster_item, ctx);
+        append_transform_pass_if_needed(graph, caster_out, caster_item, ctx, caster_ctx);
 
         // ShadowNode: translates + blurs the caster silhouette
         auto shadow_id = graph.add_node(ShadowNode::create(
@@ -95,12 +99,12 @@ void append_shadow_passes_if_needed(
             receiver_item.world_z,
             ctx.frame_input.light_context.direction,
             ctx.frame_input.light_context.shadows
-        ));
+        ), node_ctx);
         graph.connect(caster_out, shadow_id);
 
         // Composite shadow (dark transparent) over receiver
         auto composite_id = graph.add_node(
-            std::make_unique<CompositeNode>(graph.next_composite_id(), BlendMode::Normal));
+            std::make_unique<CompositeNode>(graph.next_composite_id(), BlendMode::Normal), node_ctx);
         graph.connect(receiver_output, composite_id);
         graph.connect(shadow_id,       composite_id);
         receiver_output = composite_id;

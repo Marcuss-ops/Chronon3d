@@ -90,7 +90,6 @@ add_library(chronon3d_graph_builder OBJECT
     builder/passes/graph_builder_output_pass.cpp
     builder/passes/graph_builder_validation_pass.cpp
     builder/graph_build_registry.cpp
-    builder/builder_layer_id.cpp
     builder/precomp_builder_service.cpp
 )
 set_target_properties(chronon3d_graph_builder PROPERTIES UNITY_BUILD OFF)

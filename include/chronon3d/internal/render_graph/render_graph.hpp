@@ -18,8 +18,10 @@ struct RenderGraphEdge {
 
 static constexpr GraphNodeId k_invalid_node = static_cast<GraphNodeId>(-1);
 
-extern thread_local std::string g_current_builder_layer_id;
-extern thread_local RenderGraphNode::OpacityEvaluator g_current_builder_opacity_evaluator;
+struct BuilderContext {
+    std::string layer_id;
+    RenderGraphNode::OpacityEvaluator opacity_evaluator;
+};
 
 // ── RenderGraph lifecycle ─────────────────────────────────────────────────
 //
@@ -60,13 +62,14 @@ public:
 
     // ── Mutation (Building phase only) ──────────────────────────────────
 
-    GraphNodeId add_node(std::unique_ptr<RenderGraphNode> node) {
+    GraphNodeId add_node(std::unique_ptr<RenderGraphNode> node,
+                         const BuilderContext& ctx = {}) {
         require_building("add_node");
         if (!node) {
             throw std::invalid_argument("RenderGraph::add_node: node must not be null");
         }
-        node->set_layer_id(g_current_builder_layer_id);
-        node->set_opacity_evaluator(g_current_builder_opacity_evaluator);
+        node->set_layer_id(ctx.layer_id);
+        node->set_opacity_evaluator(ctx.opacity_evaluator);
         GraphNodeId id = static_cast<GraphNodeId>(m_nodes.size());
         m_nodes.push_back(std::move(node));
         m_inputs.emplace_back();
