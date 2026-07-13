@@ -47,6 +47,8 @@
 | TICKET-TEST-13-INDEXING | P0 | OPEN | Test 13 reconciliation: alias-for-Test-11 OR separate framework slot. |
 | TICKET-SUNSET-VERIFY | P0 | OPEN | Test 16: workspace-level safe deletion of `content/examples/` + `content/ae_parity/`. |
 | TICKET-SUNSET-GATE | P2 | PLANNED | Cat-4 gate `tools/check_feature_sunset.sh`; requires ADR for markdown AST-parse in bash. |
+| TICKET-MOTIONTIMELINE-MIGRATION | P2 | NEW | Re-add [[deprecated]] on `AnimatedValue<T>::key()` + migrate ~660 call sites to `MotionTimeline<T>::compile()` / `AnimationTrack<T>::compile()`. Forward-point of recovery-chore deprecation reversal. [ticket](docs/tickets/TICKET-MOTIONTIMELINE-MIGRATION.md) |
+| TICKET-COMPOSITIONDESCRIPTOR-MIGRATION | P2 | NEW | Re-add [[deprecated]] on `CompositionRegistry::add(name, factory)` + migrate ~265 call sites to `add(CompositionDescriptor{.id, .factory, ...})`. Forward-point of recovery-chore deprecation reversal. [ticket](docs/tickets/TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.md) |
 
 ## Recently Closed
 

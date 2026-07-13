@@ -55,8 +55,8 @@ TextDefinition txt_center(std::string text, f32 font_size = 72.0f) {
         .color = TEXT_COLOR
     },
     .frame = {
-        .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {BOX_W, BOX_H},
+        .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle,
         .line_height = 1.22f,

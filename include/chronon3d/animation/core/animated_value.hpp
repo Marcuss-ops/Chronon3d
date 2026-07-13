@@ -149,18 +149,18 @@ public:
         if (interp == InterpMode::AutoBezier) m_auto_bezier_dirty = true;
     }
 
-    // Fluent alias for add_keyframe — enables chaining.
-    // C1 — [[deprecated]]: prefer add_keyframe() or
-    // MotionTimeline<T>::compile() for declarative animation building.
-    [[deprecated("Use add_keyframe() or MotionTimeline<T>::compile() from animation/motion/motion.hpp")]]
+    // Canonical fluent form for adding a keyframe — returns *this to
+    // enable chaining (e.g. `lb.position_anim().key(0, ...).key(30, ...)`).
+    // The void-returning `add_keyframe()` overloads above remain available
+    // for non-chaining call sites; both share the same insertion semantics.
     AnimatedValue& key(Frame frame, const T& value, EasingCurve easing = EasingCurve{Easing::Linear}) {
         add_keyframe(frame, value, easing);
         return *this;
     }
 
-    /// C1 — [[deprecated]]: prefer add_keyframe() or
-    /// MotionTimeline<T>::compile() for declarative animation building.
-    [[deprecated("Use add_keyframe() or MotionTimeline<T>::compile() from animation/motion/motion.hpp")]]
+    /// Canonical fluent form for adding a keyframe with bezier handles —
+    /// returns *this to enable chaining. Companion to the 3-arg `key()`
+    /// overload immediately above.
     AnimatedValue& key(Frame frame, const T& value, EasingCurve easing,
                         T out_handle, T in_handle) {
         m_keyframes.emplace_back(frame, value, easing, false);

@@ -142,7 +142,7 @@ Composition img_corner_smoothing() {
         .align = TextAlign::Center,
         .line_height = 1.3f
     }
-};
+});
         });
 
         return s.build();

@@ -399,6 +399,7 @@ public:
 /// (RECOMMENDED entry point for new compositions; centered_text() / glow_text() / typewriter_text() all return TextDefinition + compose directly).
 /// For SIMPLE text (no TextAnimator/GlyphSelector/script/language), prefer this over `animated_text(name, TextRunSpec)`. See ADR-019 §A.2.
     LayerBuilder& text(std::string name, const TextDefinition& def);
+    LayerBuilder& text(std::string name, const TextSpec& spec);   // F3.D — TextSpec→TextDefinition forwarder (impl in shape_commands.cpp); used by overlay panels and legacy scripts.
 
     // ── TextRunBuilder (PR 4 — TextAnimator V2) ──────────────────────────
     /// Push a new animated text-run entry into the layer's pending specs
