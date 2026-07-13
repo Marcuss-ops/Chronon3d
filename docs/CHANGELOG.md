@@ -1,4 +1,13 @@
 <details>
+<summary>feat(bench): benchmark JSON schema v1 (TICKET-BENCH-SCHEMA-V1) — 2026-07-13</summary>
+
+<!-- F1.2-entry-marker -->
+
+Atomic cat-3 chore on `main` per FASE 1.2 (TICKET-BENCH-SCHEMA-V1). Lands 4 NEW files: `bench/benchmark_schema.json` (JSON Schema Draft 2020-12 con 16 required field flat user-facing verbatim: commit/cpu/scene/threads/cold_first_frame_ms/frame_p50_ms/frame_p95_ms/frame_p99_ms/peak_rss_mb/allocations_per_frame/full_frame_copies/cache_hit_ratio/output_hash/governor/kernel/compiler_preset, `additionalProperties: false` sealed, type+min/max+pattern per field) + `tools/validate_benchmark_json.sh` (bash+python3 hybrid; legge `required` array dallo schema come SSoT per Cat-3 anti-dup; 3-state exit 0/1/2 = GATE_PASS/GATE_FAIL/GATE_BLOCKED; per-field issue list grep-discoverabile) + `bench/example_report.json` (B00 EmptyFrame su CPU-Mid 8-thread realistic) + `tools/selftest_validate_benchmark_json.sh` (5 TEST_CASEs: schema-parses-Draft-2020-12 + example-PASS + missing-field-FAIL + type-mismatch-FAIL + unreadable-BLOCKED) + EDIT `docs/tickets/TICKET-BENCH-SCHEMA-V1.md` (canonical ticket con field-mapping table F1.2↔v3). Subject envelope 60 chars OK. Coexists con `docs/schemas/chronon3d.bench.v3.schema.json` (C++ SSoT sealed) tramite mapping esplicito a `tools/lib_perf_regression.py::FIELD_MAP`; nessun ADR per `chronon3d.bench.v4` (Cat-2 sealed-schema rispettato). Cat-3 minimal-surface: zero new SDK API, zero new CLI flag, zero pip deps (python3 stdlib only), zero `#include <msdfgen>/<libtess2>/<unicode[/...]>`. macchina-verifica end-to-end (`chronon3d_cli bench` produces flat report + validator exits 0) DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` precedent. Full cronaca + 4 forward-points in `docs/tickets/TICKET-BENCH-SCHEMA-V1.md` per AGENTS.md ticket-home rule.
+
+</details>
+
+<details>
 <summary>feat(scheduler): for_each_tile kernel-level tiling (KERNEL-TILING-V1) — 2026-07-13</summary>
 
 <!-- F4.3-entry-marker -->

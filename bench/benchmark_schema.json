@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chronon3d.dev/schemas/benchmark_report.flat.v1.json",
+  "title": "Chronon3D Benchmark Report (flat, v1)",
+  "description": "Canonical user-facing flat JSON schema for Chronon3D benchmark reports.  All 16 fields are REQUIRED.  Coexists with `docs/schemas/chronon3d.bench.v3.schema.json` (which remains the C++ SSoT); see `tools/lib_perf_regression.py` FIELD_MAP for the v3 ↔ flat field mapping.  The validator at `tools/validate_benchmark_json.sh` reads the `required` array of THIS schema as the SSoT for which fields are mandatory (no Cat-3 anti-dup between schema and validator).",
+  "type": "object",
+  "required": [
+    "commit",
+    "cpu",
+    "scene",
+    "threads",
+    "cold_first_frame_ms",
+    "frame_p50_ms",
+    "frame_p95_ms",
+    "frame_p99_ms",
+    "peak_rss_mb",
+    "allocations_per_frame",
+    "full_frame_copies",
+    "cache_hit_ratio",
+    "output_hash",
+    "governor",
+    "kernel",
+    "compiler_preset"
+  ],
+  "properties": {
+    "commit": {
+      "type": "string",
+      "minLength": 7,
+      "maxLength": 40,
+      "pattern": "^[0-9a-f]+$",
+      "description": "Git commit SHA at which the benchmark was executed (short SHA 7+ hex chars or full 40-char SHA)."
+    },
+    "cpu": {
+      "type": "string",
+      "minLength": 1,
+      "description": "CPU model identifier, e.g. 'Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz' or 'AMD EPYC 7763 64-Core Processor'.  Mirrors `tools/benchmark_host_info.sh::get_cpu_model`."
+    },
+    "scene": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Scene / comp_id under benchmark, e.g. 'BenchB00_EmptyFrame' or 'product_launch'.  Mirrors `chronon3d.bench.v3::comp_id`."
+    },
+    "threads": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Number of TBB worker threads used during the run; mirrors `scheduler.concurrency()`."
+    },
+    "cold_first_frame_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Wall time (ms) from render start to the FIRST frame completion (excludes warmup).  Maps to `chronon3d.bench.v3::metrics.time_to_first_frame_ms`."
+    },
+    "frame_p50_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "50th-percentile steady-state frame time in ms (post-warmup).  Maps to `chronon3d.bench.v3::metrics.p50_frame_ms` and `metrics.median_frame_ms`."
+    },
+    "frame_p95_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "95th-percentile steady-state frame time in ms.  Maps to `chronon3d.bench.v3::metrics.p95_frame_ms`."
+    },
+    "frame_p99_ms": {
+      "type": "number",
+      "minimum": 0,
+      "description": "99th-percentile steady-state frame time in ms.  Maps to `chronon3d.bench.v3::metrics.p99_frame_ms`."
+    },
+    "peak_rss_mb": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Peak resident set size in megabytes.  Maps to `chronon3d.bench.v3::memory.peak_rss_mb`."
+    },
+    "allocations_per_frame": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Average heap allocations per frame (post-warmup).  Maps to `chronon3d.bench.v3::memory.allocations_per_frame`."
+    },
+    "full_frame_copies": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of full-frame passes / copies during the run.  SEMANTIC MAPPING (not 1:1 identity) to `chronon3d.bench.v3::counters.full_frame_passes` — see TICKET-BENCH-SCHEMA-V1 for the disambiguation note."
+    },
+    "cache_hit_ratio": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Ratio of cache hits over total cache lookups (0.0 - 1.0).  SEMANTIC MAPPING to `chronon3d.bench.v3::counters.cache_hit_rate`."
+    },
+    "output_hash": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128,
+      "pattern": "^[0-9a-f]+$",
+      "description": "Hexadecimal deterministic hash of the rendered output (16-128 hex chars).  Maps to `chronon3d.bench.v3::quality.deterministic_hash`."
+    },
+    "governor": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Effective CPU frequency governor at run start.  Typical values: 'performance', 'powersave', 'ondemand', 'schedutil', 'conservative', 'userspace', 'unknown'.  Mirrors `tools/benchmark_host_info.sh::get_cpu_governor`."
+    },
+    "kernel": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Kernel release identifier, e.g. '5.15.0-91-generic' or '6.1.0-18-amd64'.  Mirrors `uname -r` and `tools/benchmark_host_info.sh::get_kernel`."
+    },
+    "compiler_preset": {
+      "type": "string",
+      "minLength": 1,
+      "description": "CMake preset used for the build, e.g. 'linux-fast-dev', 'linux-fast-bench', 'linux-vcpkg-dev', 'linux-vcpkg-bench'.  Mirrors `tools/benchmark_host_info.sh::get_cmake_preset` (env var `CHRONON3D_BENCHMARK_PRESET`)."
+    }
+  },
+  "additionalProperties": false
+}

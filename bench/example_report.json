@@ -1,0 +1,18 @@
+{
+  "commit": "01464e03e74acc417032c48244d3cc3940466f57",
+  "cpu": "Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz",
+  "scene": "BenchB00_EmptyFrame",
+  "threads": 8,
+  "cold_first_frame_ms": 142.3,
+  "frame_p50_ms": 12.4,
+  "frame_p95_ms": 15.8,
+  "frame_p99_ms": 18.1,
+  "peak_rss_mb": 438.5,
+  "allocations_per_frame": 0.0,
+  "full_frame_copies": 1,
+  "cache_hit_ratio": 0.95,
+  "output_hash": "aabbccddeeff00112233445566778899",
+  "governor": "performance",
+  "kernel": "5.15.0-91-generic",
+  "compiler_preset": "linux-fast-bench"
+}
