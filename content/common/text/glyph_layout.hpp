@@ -95,6 +95,11 @@ public:
     // Number of glyphs to reveal for a progress in [0, 1].
     [[nodiscard]] size_t reveal_count(f32 progress) const noexcept;
 
+    // Raw shaped GlyphRun (cached result of engine.shape_text()).
+    // Exposed primarily for tests and diagnostics so callers can avoid
+    // double-shaping the same text.
+    [[nodiscard]] const std::optional<GlyphRun>& raw_run() const noexcept;
+
     // ── Public fail-loud ctor (the primary constructor used by 5 showcases) ──
     // Shapes the text. Throws std::runtime_error on shaping failure
     // (zero glyphs / missing font) — same fail-loud contract as
