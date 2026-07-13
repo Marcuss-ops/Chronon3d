@@ -92,16 +92,9 @@ struct RenderEngine::Impl {
     ~Impl() = default;
 
     void set_assets_root(const std::filesystem::path& root) {
-        const std::string root_str = root.string();
-        m_assets.mount(root);                                         // legacy AssetRegistry mount (for non-resolver consumers)
         m_runtime.resolver().mount(root);                             // WP-8 PR 8.0 sibling resolver, mounted inside the runtime
-        // P1 #7 — intentionally call deprecated function as backward-compat mirror
-        // for deep code without a runtime in scope.  Suppress the deprecation
-        // warning since this is the canonical bridge site.
-#if defined(__GNUC__) || defined(__clang__)
-#endif
-#if defined(__GNUC__) || defined(__clang__)
-#endif
+        // AssetRegistry no longer holds a mount root; path resolution
+        // is the resolver's job.
     }
 
     // P1-F Pass D — `create_session()` (private helper for the legacy

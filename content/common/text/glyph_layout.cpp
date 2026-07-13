@@ -132,100 +132,60 @@ f32 ShapedGlyphLine::width() const noexcept {
     return m_run->width + m_tracking * static_cast<f32>(n > 1 ? n - 1 : 0);
 }
 
+// Build per-glyph cluster spans in O(n) using a next-greater-element stack
+// over HarfBuzz cluster values.  The legacy O(n²) inner scan found, for
+// each glyph, the first glyph (by index) whose cluster value is strictly
+// greater.  The stack-based next-greater-element algorithm computes the
+// same "first by index" result in a single right-to-left pass.
+/*static*/ std::vector<GlyphClusterSpan> GlyphClusterSpan::build(
+    const std::vector<GlyphPosition>& glyphs,
+    std::string_view text,
+    f32 tracking)
+{
+    const size_t n = glyphs.size();
+    std::vector<GlyphClusterSpan> spans;
+    spans.reserve(n);
+
+    // next_greater[i] = smallest j > i with glyphs[j].cluster > glyphs[i].cluster,
+    // or n if no such glyph exists.
+    std::vector<size_t> next_greater(n, n);
+    std::vector<size_t> stack;
+    stack.reserve(n);
+    for (size_t i = n; i-- > 0; ) {
+        while (!stack.empty()
+               && glyphs[stack.back()].cluster <= glyphs[i].cluster) {
+            stack.pop_back();
+        }
+        next_greater[i] = stack.empty() ? n : stack.back();
+        stack.push_back(i);
+    }
+
+    for (size_t i = 0; i < n; ++i) {
+        const size_t start = glyphs[i].cluster;
+        const size_t end = (next_greater[i] < n)
+                               ? static_cast<size_t>(glyphs[next_greater[i]].cluster)
+                               : text.size();
+        spans.push_back({i, i + 1, start, end - start,
+                         glyphs[i].advance_x + tracking});
+    }
+    return spans;
+}
+
 std::vector<GlyphPos> ShapedGlyphLine::layout() const {
     std::vector<GlyphPos> out;
     if (!m_run) return out;
 
     const auto& glyphs = m_run->glyphs;
-    const size_t n = glyphs.size();
-    out.reserve(n);
+    const auto spans = GlyphClusterSpan::build(glyphs, m_text, m_tracking);
+    out.reserve(spans.size());
 
-    // O(n) cluster-boundary precomputation (replaces O(n²) inner scan).
-    //
-    // The original inner loop scanned ALL glyphs for each glyph to find the
-    // first one (by iteration index) whose cluster value is strictly greater
-    // than the current glyph's cluster. This is O(n²) total.
-    //
-    // HarfBuzz produces monotonic cluster arrays within a shaped run:
-    //   - LTR text: clusters are non-decreasing (0, 1, 2, ... or 0, 0, 3, ...)
-    //   - RTL text: clusters are non-increasing (8, 6, 4, 2, 0)
-    // We exploit this to compute cluster ends in O(n) with a single pass.
-    //
-    // For the rare non-monotonic input (defensive), we fall back to an
-    // O(n log n) sort+sweep that preserves the same "first by index" semantics.
-    //
-    // Decision: KEEP the fallback. HarfBuzz guarantees monotonic cluster
-    // arrays within a single shaped run, so this path should never trigger
-    // in practice. Removing it would save a small amount of code, but the
-    // fallback is the only thing that keeps the function correct if a
-    // caller ever constructs a ShapedGlyphLine from a manually-built
-    // GlyphRun or if a future shaping backend relaxes the monotonicity
-    // invariant. The cost is paid only when non-monotonic input occurs.
-
-    // Detect monotonicity direction.
-    bool non_decreasing = true;
-    bool non_increasing = true;
-    for (size_t i = 1; i < n; ++i) {
-        if (glyphs[i].cluster < glyphs[i - 1].cluster) non_decreasing = false;
-        if (glyphs[i].cluster > glyphs[i - 1].cluster) non_increasing = false;
-        if (!non_decreasing && !non_increasing) break;
-    }
-
-    // Precompute the cluster end for each glyph index.
-    std::vector<size_t> cluster_end(n, m_text.size());
-
-    if (non_decreasing) {
-        // LTR: backward pass. The end for glyph i is the next glyph's cluster
-        // if it is greater; otherwise it inherits the next glyph's end.
-        for (size_t i = n; i-- > 0; ) {
-            if (i + 1 < n) {
-                if (glyphs[i + 1].cluster > glyphs[i].cluster) {
-                    cluster_end[i] = static_cast<size_t>(glyphs[i + 1].cluster);
-                } else {
-                    cluster_end[i] = cluster_end[i + 1];
-                }
-            }
-        }
-    } else if (non_increasing) {
-        // RTL: the first glyph has the maximum cluster. All other glyphs have
-        // end = glyphs[0].cluster; the first glyph has end = m_text.size().
-        for (size_t i = 1; i < n; ++i) {
-            cluster_end[i] = static_cast<size_t>(glyphs[0].cluster);
-        }
-    } else {
-        // Fallback O(n log n) for non-monotonic inputs.
-        std::unordered_map<u32, size_t> cluster_min_idx;
-        cluster_min_idx.reserve(n);
-        for (size_t i = 0; i < n; ++i) {
-            auto [it, inserted] = cluster_min_idx.try_emplace(glyphs[i].cluster, i);
-            if (!inserted) it->second = std::min(it->second, i);
-        }
-        std::vector<u32> unique_clusters;
-        unique_clusters.reserve(cluster_min_idx.size());
-        for (const auto& [cl, idx] : cluster_min_idx) unique_clusters.push_back(cl);
-        std::sort(unique_clusters.begin(), unique_clusters.end(), std::greater<u32>{});
-        std::unordered_map<u32, size_t> next_cluster_end;
-        next_cluster_end.reserve(cluster_min_idx.size());
-        size_t min_idx = n;
-        for (u32 cl : unique_clusters) {
-            if (min_idx < n) next_cluster_end[cl] = static_cast<size_t>(glyphs[min_idx].cluster);
-            min_idx = std::min(min_idx, cluster_min_idx[cl]);
-        }
-        for (size_t i = 0; i < n; ++i) {
-            auto it = next_cluster_end.find(glyphs[i].cluster);
-            if (it != next_cluster_end.end()) cluster_end[i] = it->second;
-        }
-    }
-
-    f32 cursor = m_ref_offset_x;
-    for (size_t gi = 0; gi < n; ++gi) {
-        const auto& g = glyphs[gi];
-        size_t start = g.cluster;
-        size_t end = cluster_end[gi];
-        std::string ch = m_text.substr(start, end - start);
+    for (size_t gi = 0; gi < spans.size(); ++gi) {
+        const auto& span = spans[gi];
+        std::string ch = m_text.substr(span.byte_offset, span.byte_len);
         if (ch.empty()) continue;
+        const auto& g = glyphs[gi];
+        const f32 cursor = m_prefix_advances[gi];
         out.push_back({ch, cursor + g.advance_x * 0.5f, g.advance_x});
-        cursor += g.advance_x + m_tracking;
     }
     return out;
 }

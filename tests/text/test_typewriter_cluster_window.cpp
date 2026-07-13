@@ -15,6 +15,8 @@
 using namespace chronon3d;
 using namespace chronon3d::content::text;
 
+namespace text_detail = chronon3d::content::text::detail;
+
 // ── Synthetic cluster builder ───────────────────────────────────────────────
 static std::vector<PlacedGlyphRun::Cluster> make_clusters(
     const std::vector<std::pair<size_t, size_t>>& ranges)
@@ -58,19 +60,19 @@ TEST_CASE("typewriter cluster window: LTR one-to-one") {
     size_t first_cl = 0;
     size_t end_cl = 0;
 
-    detail::advance_cluster_window(clusters, 0, 1, first_cl, end_cl);
+    text_detail::advance_cluster_window(clusters, 0, 1, first_cl, end_cl);
     CHECK(first_cl == 0);
     CHECK(end_cl == 1);
 
-    detail::advance_cluster_window(clusters, 1, 2, first_cl, end_cl);
+    text_detail::advance_cluster_window(clusters, 1, 2, first_cl, end_cl);
     CHECK(first_cl == 1);
     CHECK(end_cl == 2);
 
-    detail::advance_cluster_window(clusters, 2, 3, first_cl, end_cl);
+    text_detail::advance_cluster_window(clusters, 2, 3, first_cl, end_cl);
     CHECK(first_cl == 2);
     CHECK(end_cl == 3);
 
-    detail::advance_cluster_window(clusters, 3, 4, first_cl, end_cl);
+    text_detail::advance_cluster_window(clusters, 3, 4, first_cl, end_cl);
     CHECK(first_cl == 3);
     CHECK(end_cl == 4);
 }
@@ -82,15 +84,15 @@ TEST_CASE("typewriter cluster window: ligature spans multiple bytes") {
     size_t first_cl = 0;
     size_t end_cl = 0;
 
-    detail::advance_cluster_window(clusters, 0, 1, first_cl, end_cl);
+    text_detail::advance_cluster_window(clusters, 0, 1, first_cl, end_cl);
     CHECK(first_cl == 0);
     CHECK(end_cl == 1);
 
-    detail::advance_cluster_window(clusters, 2, 3, first_cl, end_cl);
+    text_detail::advance_cluster_window(clusters, 2, 3, first_cl, end_cl);
     CHECK(first_cl == 0);
     CHECK(end_cl == 1);
 
-    detail::advance_cluster_window(clusters, 3, 4, first_cl, end_cl);
+    text_detail::advance_cluster_window(clusters, 3, 4, first_cl, end_cl);
     CHECK(first_cl == 1);
     CHECK(end_cl == 2);
 }
@@ -101,7 +103,7 @@ TEST_CASE("typewriter cluster window: empty overlap") {
     size_t first_cl = 0;
     size_t end_cl = 0;
 
-    detail::advance_cluster_window(clusters, 1, 2, first_cl, end_cl);
+    text_detail::advance_cluster_window(clusters, 1, 2, first_cl, end_cl);
     CHECK(first_cl == 1);
     CHECK(end_cl == 1);
 }
@@ -119,7 +121,7 @@ TEST_CASE("typewriter cluster window: golden equivalence vs brute-force") {
     };
 
     for (const auto& [char_start, char_end] : chars) {
-        detail::advance_cluster_window(clusters, char_start, char_end,
+        text_detail::advance_cluster_window(clusters, char_start, char_end,
                                       first_cl, end_cl);
 
         auto ref = reference_overlapping_clusters(clusters, char_start, char_end);
@@ -143,7 +145,7 @@ TEST_CASE("typewriter cluster window: monotonic variable-length characters") {
     };
 
     for (const auto& [char_start, char_end] : chars) {
-        detail::advance_cluster_window(clusters, char_start, char_end,
+        text_detail::advance_cluster_window(clusters, char_start, char_end,
                                       first_cl, end_cl);
 
         auto ref = reference_overlapping_clusters(clusters, char_start, char_end);

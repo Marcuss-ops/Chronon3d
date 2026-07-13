@@ -83,7 +83,6 @@ RenderRuntime::create(RuntimeConfig cfg) {
 
         if (cfg.assets_root.has_value()) {
             runtime->resolver().mount(*cfg.assets_root);
-            runtime->assets().mount(*cfg.assets_root);
         }
 
         return runtime;  // implicit Result(unique_ptr&&)
@@ -161,10 +160,9 @@ void RenderRuntime::populate() {
     // construction lives in RenderEngine::Impl after SoftwareRenderer
     // is ready.  See header comment.
 
-    // ── Mount default assets into the runtime's AssetRegistry + the
-    //    typed AssetResolver (PR 8.0 sibling that PR 8.1 routes
-    //    consumers to) ───────────────────────────────────────────────
-    m_assets.mount(std::filesystem::path{});
+    // ── Unmount the runtime's typed AssetResolver by default.
+    //    AssetRegistry no longer holds a mount root; path resolution
+    //    is the resolver's job. ─────────────────────────────────────
     m_resolver.mount(std::filesystem::path{});
 
     m_populated = true;

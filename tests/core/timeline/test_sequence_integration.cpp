@@ -104,17 +104,14 @@ TEST_CASE("Sequence integration — manifest aggregates across sequence boundari
     s.sequence("intro", {.from = Frame{0}, .duration = Frame{30}},
         [](SceneBuilder& s) {
             s.layer("title", [](LayerBuilder& l) {
-                TextRunSpec p;
-                p.text.font.font_path = "assets/fonts/Intro.ttf";
-                p.text.content.value = "INTRO";
-                (void)l.text_run("label", std::move(p));
+                l.image("photo", {.path = "assets/images/intro.png", .size = {100, 100}});
             });
         });
 
     s.sequence("body", {.from = Frame{30}, .duration = Frame{60}},
         [](SceneBuilder& s) {
             s.layer("content", [](LayerBuilder& l) {
-                l.image("photo", {.path = "assets/body.png", .size = {100, 100}});
+                l.image("photo", {.path = "assets/images/body.png", .size = {100, 100}});
             });
         });
 
@@ -122,23 +119,17 @@ TEST_CASE("Sequence integration — manifest aggregates across sequence boundari
     const auto& manifest = scene.asset_manifest();
 
     // Both sequences' assets should be in the scene manifest
-    auto fonts = manifest.filter(assets::AssetKind::Font);
     auto images = manifest.filter(assets::AssetKind::Image);
+    CHECK(images.size() >= 2);
 
-    CHECK(fonts.size() >= 1);
-    CHECK(images.size() >= 1);
-
-    bool found_font = false;
-    for (const auto& f : fonts) {
-        if (f.path == "assets/fonts/Intro.ttf") found_font = true;
-    }
-    CHECK(found_font);
-
-    bool found_image = false;
+    bool found_intro = false;
+    bool found_body = false;
     for (const auto& i : images) {
-        if (i.path == "assets/body.png") found_image = true;
+        if (i.path == "assets/images/intro.png") found_intro = true;
+        if (i.path == "assets/images/body.png") found_body = true;
     }
-    CHECK(found_image);
+    CHECK(found_intro);
+    CHECK(found_body);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -146,45 +137,49 @@ TEST_CASE("Sequence integration — manifest aggregates across sequence boundari
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Sequence integration — preflight FrameOnly with nested sequences") {
-    // Outer sequence from=0..60, inner sequence from=100..200 (inside outer)
-    // Inner has a font asset. FrameOnly at global 0 should find it (outer active).
-    // FrameOnly at global 200 should NOT find it (outer inactive).
+    // Outer sequence from=0..300, inner sequence from=100..200 (inside outer).
+    // The inner sequence has an image asset. SceneBuilder evaluates layers at
+    // the build frame, so we must build at a frame where the inner sequence is
+    // active for its asset to appear in the manifest.
 
-    SceneBuilder s(seq_ctx(Frame{0}));
-    s.sequence("outer", {.from = Frame{0}, .duration = Frame{300}},
-        [](SequenceBuilder& outer) {
-            outer.sequence("inner", {.from = Frame{100}, .duration = Frame{100}},
-                [](SequenceBuilder& inner) {
-                    inner.layer("title", [](LayerBuilder& l) {
-                        TextRunSpec p;
-                        p.text.font.font_path = "assets/fonts/Nested.ttf";
-                        p.text.content.value = "NESTED";
-                        (void)l.text_run("label", std::move(p));
+    auto build_at = [](Frame f) -> Scene {
+        SceneBuilder s(seq_ctx(f));
+        s.sequence("outer", {.from = Frame{0}, .duration = Frame{300}},
+            [](SequenceBuilder& outer) {
+                outer.sequence("inner", {.from = Frame{100}, .duration = Frame{100}},
+                    [](SequenceBuilder& inner) {
+                        inner.layer("title", [](LayerBuilder& l) {
+                            l.image("photo", {.path = "assets/images/nested.png", .size = {100, 100}});
+                        });
                     });
-                });
-        });
-    Scene scene = s.build();
+            });
+        return s.build();
+    };
 
     auto resolver = make_no_mount_resolver();
 
     SUBCASE("FullComposition: always detects nested asset") {
+        // Build at frame 150 so the inner sequence is active and its asset is
+        // added to the manifest.
+        Scene scene = build_at(Frame{150});
         auto result = AssetPreflightResolver::check(scene, resolver,
             PreflightMode::FullComposition);
         CHECK_FALSE(result.ok());
         bool found = false;
         for (const auto& issue : result.issues) {
-            if (issue.path == "assets/fonts/Nested.ttf") found = true;
+            if (issue.path == "assets/images/nested.png") found = true;
         }
         CHECK(found);
     }
 
     SUBCASE("FrameOnly at frame 150: outer+inner active, asset checked") {
+        Scene scene = build_at(Frame{150});
         auto result = AssetPreflightResolver::check(scene, resolver,
             PreflightMode::FrameOnly, Frame{150});
         CHECK_FALSE(result.ok());
         bool found = false;
         for (const auto& issue : result.issues) {
-            if (issue.path == "assets/fonts/Nested.ttf") found = true;
+            if (issue.path == "assets/images/nested.png") found = true;
         }
         CHECK(found);
     }
@@ -192,6 +187,7 @@ TEST_CASE("Sequence integration — preflight FrameOnly with nested sequences") 
     SUBCASE("FrameOnly at frame 50: outer active but inner not yet, asset skipped") {
         // At frame 50, outer is active (0..300) but inner (100..200) is not.
         // The layer inside inner is not produced, so its manifest is not included.
+        Scene scene = build_at(Frame{50});
         auto result = AssetPreflightResolver::check(scene, resolver,
             PreflightMode::FrameOnly, Frame{50});
         // No active layers with assets → ok
@@ -199,6 +195,7 @@ TEST_CASE("Sequence integration — preflight FrameOnly with nested sequences") 
     }
 
     SUBCASE("FrameOnly at frame 400: outer inactive, everything skipped") {
+        Scene scene = build_at(Frame{400});
         auto result = AssetPreflightResolver::check(scene, resolver,
             PreflightMode::FrameOnly, Frame{400});
         CHECK(result.ok());

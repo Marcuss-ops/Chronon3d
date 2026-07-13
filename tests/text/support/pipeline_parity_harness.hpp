@@ -25,8 +25,8 @@
 //
 // Asset mounting is a no-op here (the original tests do NOT mount assets —
 // the canary composition uses only Inter-Bold.ttf which is resolved at the
-// project root by the canonical AssetRegistry).  The forward-point to add
-// explicit `runtime.assets().mount(work_dir)` calls is in
+// project root by the canonical AssetResolver).  The forward-point to add
+// explicit `runtime.resolver().mount(work_dir)` calls is in
 // TICKET-PARITY-HARNESS-ASSET-MOUNT-EXPLICIT.
 // ============================================================================
 
