@@ -16,6 +16,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
+#include <chronon3d/core/profiling/render_counter_types.hpp>   // F3.2 — thread_local_counters for std::copy instrumentation
 #include <algorithm>
 #include <atomic>
 
@@ -225,12 +226,32 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Frame
             std::copy(other.data(),
                       other.data() + static_cast<size_t>(other.width()) * static_cast<size_t>(other.height()),
                       out->data());
+            // F3.2 (TICKET-GLOW-FULLFRAME-AUDIT-V1) — explicit full-frame
+            // std::copy from pool reuse path. This is the canonical
+            // avoidable-copy site: when the pool returns a re-used
+            // allocation with a different data ptr, the entire
+            // framebuffer is memcpy'd. Increment BOTH counters here:
+            //   - full_frame_copies (byte-level full-FB memcpy)
+            //   - full_frame_passes  (every pixel touched)
+            // Per-frame gate (B03 CinematicGlow1080p) depends on this
+            // counter reaching full_frame_copies_per_frame == 0 in steady
+            // state because the swap_contents placeholder pattern dominates
+            // (use_count() == 1 path above).
+            auto& tls = chronon3d::thread_local_counters();
+            tls.full_frame_copies.fetch_add(1, std::memory_order_relaxed);
+            tls.full_frame_passes.fetch_add(1, std::memory_order_relaxed);
         }
     } else {
         out = std::make_shared<Framebuffer>(other.width(), other.height(), false);
         std::copy(other.data(),
                   other.data() + static_cast<size_t>(other.width()) * static_cast<size_t>(other.height()),
                   out->data());
+        // F3.2 — same increment as above for the no-pool fallback. The
+        // no-pool path lacks the swap_contents optimization entirely, so
+        // every call results in an std::copy (count for Gate 1 awareness).
+        auto& tls = chronon3d::thread_local_counters();
+        tls.full_frame_copies.fetch_add(1, std::memory_order_relaxed);
+        tls.full_frame_passes.fetch_add(1, std::memory_order_relaxed);
     }
     return out;
 }
