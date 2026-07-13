@@ -588,8 +588,10 @@ TEST_CASE("world_to_camera_space: config overload with higher near_epsilon flips
     cam.optics_mode = CameraOpticsMode::Zoom;
     cam.zoom = 1000.0f;
 
-    // Point at z=5e-4f: visible under default 1e-4f boundary
-    Vec3 world{0.0f, 0.0f, 5e-4f};
+    // Point 5e-4 units in front of the camera.  The default camera
+    // position is {0, 0, -1000}, so the world-space Z must be
+    // cam.position.z + 5e-4f for the view-transform depth to be 5e-4f.
+    Vec3 world{0.0f, 0.0f, cam.position.z + 5e-4f};
     auto default_cfg_v = chronon3d::camera_math::world_to_camera_space(
         cam, world, chronon3d::camera_math::default_projection_contract_config());
     CHECK(default_cfg_v.visible == true);
