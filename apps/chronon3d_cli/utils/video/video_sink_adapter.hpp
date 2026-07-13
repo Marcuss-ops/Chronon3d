@@ -116,7 +116,7 @@ private:
     VideoSinkType sink_type_{VideoSinkType::Ffmpeg};
     std::unique_ptr<chronon3d::media::video::VideoSink> sink_;
     std::vector<uint8_t> staging_buffer_;
-    chronon3d::video::FrameConversionService conv_svc_{8};
+    chronon3d::video::FrameConversionService conv_svc_{0};  // 0 → policy default (128 MiB)
 
     uint64_t frames_written_{0};
     double   write_blocked_ms_{0.0};

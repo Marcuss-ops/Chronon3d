@@ -72,7 +72,7 @@ public:
     // ── Entry-count limits ────────────────────────────────────────────
     [[nodiscard]] std::size_t frame_cache_max_entries()           const noexcept { return frame_cache_max_entries_; }
     [[nodiscard]] std::size_t video_frame_max_entries()           const noexcept { return video_frame_max_entries_; }
-    [[nodiscard]] std::size_t converted_frame_cache_max_entries() const noexcept { return converted_frame_cache_max_entries_; }
+    [[nodiscard]] std::size_t converted_frame_cache_max_bytes() const noexcept { return converted_frame_cache_max_bytes_; }
     [[nodiscard]] std::size_t scene_program_cache_max_entries()   const noexcept { return scene_program_cache_max_entries_; }
 
     // ── Policy ───────────────────────────────────────────────────────
@@ -96,7 +96,7 @@ private:
     // entry-count limits (0 = use hardcoded default)
     std::size_t frame_cache_max_entries_           = 0;
     std::size_t video_frame_max_entries_           = 0;
-    std::size_t converted_frame_cache_max_entries_ = 0;
+    std::size_t converted_frame_cache_max_bytes_ = 0;
     std::size_t scene_program_cache_max_entries_   = 0;
 
     // policy
