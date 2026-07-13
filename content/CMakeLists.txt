@@ -13,6 +13,16 @@ add_library(chronon3d_content OBJECT
     # Registration orchestrator
     register_content_modules.cpp
 
+    # ── Common Text Modules (P1 refactor — split from text_reveal_helpers.hpp) ──
+    # The 381-LoC header-only `content/common/text_reveal_helpers.hpp` was
+    # split into 4 single-responsibility TUs (single flat namespace
+    # `chronon3d::content::text_reveal` per Cat-3 minimal-surface).  The
+    # original is now a forward-header shim at the old path.
+    common/text/cinematic_glow.cpp
+    common/text/glyph_layout.cpp
+    common/text/text_reveal.cpp
+    common/text/typewriter_block.cpp
+
     # ── Showcases ──────────────────────────────────────────────────────────
     showcases/minimalist/minimalist_animations.cpp
     showcases/minimalist/minimalist_image_presets.cpp
