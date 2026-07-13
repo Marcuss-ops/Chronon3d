@@ -211,6 +211,8 @@ target_link_libraries(chronon3d_graph_cache PUBLIC
 # ── Pipeline: scene orchestration, dirty rects, tile execution ───────────────
 add_library(chronon3d_graph_pipeline OBJECT
     pipeline/scene.cpp
+    pipeline/scene_context_setup.cpp    # Azione 19 - Phase 0 helper extracted
+    pipeline/scene_reuse_coordinator.cpp # Azione 19 - Phases 1+2+3 coordinator extracted
     pipeline/scene_dirty.cpp
     pipeline/dirty/scroll_optimization.cpp
     pipeline/dirty/layer_bbox_collector.cpp
