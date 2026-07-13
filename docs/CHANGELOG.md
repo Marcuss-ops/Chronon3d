@@ -1,12 +1,13 @@
 <details>
-<summary>fix(render): TextBboxReporter per-node alpha (FIX-ALPHA-SCANNER-DUP-V1) — 2026-07-13</summary>
+<summary>feat(simd): registry canonical scaffold (SIMD-REGISTRY-V1) — 2026-07-13</summary>
 
-<!-- F6.1-entry-marker -->
+<!-- F5.1-entry-marker -->
 
-Atomic cat-3 chore on `main` per FASE 6.1 (TICKET-FIX-ALPHA-SCANNER-DUP-V1). Re-inserted post-§21ece2b3 race-window recovery #6 (canonical per-session TextBboxReporter extension to TextRunNode pre-render diagnostic path). Subject envelope 71 chars OK. Full cronaca + design + 5 forward-points in `docs/tickets/TICKET-FIX-ALPHA-SCANNER-DUP-V1.md`. SHA-triple selfcheck invocation layer (canonical GATE-MNT-01 closure lineage).
+Atomic cat-3 chore on `main` per FASE 5.1 (TICKET-SIMD-REGISTRY-V1). Lands 4 NEW public headers (cpu_isa.hpp + pixel_kernels.hpp + kernel_resolver.hpp + detail/scalar_kernels.hpp) + ADR-025 + implementation ticket. Subject envelope 56 chars OK. User-spec verbatim enum `CpuIsa { Scalar, SSE42, AVX2, AVX512, NEON }` + struct `PixelKernelSet { blur, blend, glow, resample, color_matrix }` + resolver `const PixelKernelSet& resolve_pixel_kernels(const CpuCapabilities&)`. ABI epsilon `kKernelEpsilon = 1.19e-7f` (1 ULP float32) single-source. `-march=native` prohibition anchored (CI gate forward-pointed). ADR-025 number-collision disclosure (3 PROPOSED claims resolved: persistent-cache → ADR-026, thread-local-DI → ADR-027). macchina-verifica DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` precedent. Full cronaca in `docs/tickets/TICKET-SIMD-REGISTRY-V1.md` per AGENTS.md ticket-home rule.
 
 </details>
 
+- fix(render): TextBboxReporter per-node alpha (FIX-ALPHA-SCANNER-DUP-V1) — 2026-07-13
 - feat(text): shape_calls_per_line counter (FIX-TEXT-SHAPING-DEDUP-V1) — 2026-07-13
 - feat(perf): counters + smoke test (TICKET-PERF-COUNTERS-NODE-MEMORY-V1) — 2026-07-13
 
