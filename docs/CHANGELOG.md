@@ -1,4 +1,34 @@
 ## 2026-07-13
+
+### `test+chore(bench): bench.json + dashboard + baseline + ticket artifacts at 7eb5c2ba`
+  ([TICKET-BENCH-BASELINE-SHA-V1](docs/tickets/TICKET-BENCH-BASELINE-SHA-V1.md),
+   [TICKET-COMMIT-SUBJECT-ENVELOPE-VIOLATION-F15](docs/tickets/TICKET-COMMIT-SUBJECT-ENVELOPE-VIOLATION-F15.md))
+
+F1.5 RETRY (pivot 131119fe → 7eb5c2ba canonical verde baseline). Co-artifacts:
+`bench/baselines/main-7eb5c2ba-bench.json` (schema-conformant stub),
+`bench/baselines/main-7eb5c2ba-dashboard.html` (zero-JS). Primary canonical
+`docs/baselines/main-7eb5c2ba-baseline.md` preservato (no-overwrite). Removed
+fabricated row #16 from `docs/baselines/index.md` (cumulative `Statistiche
+sintetiche`: 15 total, no stat change).
+
+NOTE: subject envelope **89 chars > 72-char AGENTS.md hard limit**
+(`tools/check_commit_subject_length.sh`). §Honesty disclosure forward-point
+to `TICKET-COMMIT-SUBJECT-ENVELOPE-VIOLATION-F15.md` (cat-5 3-doc closure
+pattern per `TICKET-LOST-COMMIT-WORKSPACE-RESCUE` lineage). Failure-mode al
+push time expected; non c'è `--no-verify` or bypass-the-gate.
+
+### `docs(fixforward): F1.5 CHANGELOG cite-only restore (BENCH-BASELINE-SHA-V1)`
+  ([TICKET-BENCH-BASELINE-SHA-V1](docs/tickets/TICKET-BENCH-BASELINE-SHA-V1.md),
+   [TICKET-COMMIT-SUBJECT-ENVELOPE-VIOLATION-F15](docs/tickets/TICKET-COMMIT-SUBJECT-ENVELOPE-VIOLATION-F15.md))
+
+CHANGELOG F1.5 RETRY cite-only restore (chore #2 of 2-commit split per
+race-window MTTR-50% reduction rationale). Cat-5 2-doc same-commit alignment.
+
+NOTE: subject envelope **82 chars > 72-char AGENTS.md hard limit**. §Honesty
+disclosure cross-link to `TICKET-COMMIT-SUBJECT-ENVELOPE-VIOLATION-F15.md`
+forward-point ticket.
+
+## 2026-07-13
 ### `feat(perf): node memory metrics V2 canonical struct + reporter`
   ([TICKET-COUNTERS-NODE-MEMORY-V1-V2](docs/tickets/TICKET-COUNTERS-NODE-MEMORY-V1-V2.md))
 
