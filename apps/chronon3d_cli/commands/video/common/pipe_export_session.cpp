@@ -20,35 +20,21 @@ void run_writer_thread(const WriterThreadContext& ctx) {
     for (;;) {
         RenderFramePackage package;
         const auto pop_t0 = profiling::now();
-        bool was_idle = false;
 
-        while (!ctx.queue.try_dequeue(package)) {
-            if (ctx.writer_done.load()) {
-                if (!ctx.queue.try_dequeue(package)) break;
-            } else if (ctx.writer_failed.load()) {
-                break;
-            } else {
-                was_idle = true;
-                std::this_thread::yield();
-                continue;
-            }
-        }
-
-        if (ctx.writer_failed.load() ||
-            (ctx.writer_done.load() && !package.framebuffer))
-            break;
+        bool popped = ctx.queue.pop(package);
 
         const auto pop_t1 = profiling::now();
         const uint64_t dequeue_ms = static_cast<uint64_t>(
             profiling::duration_ms(pop_t0, pop_t1));
 
+        if (!popped) {
+            // Queue closed and empty — writer exits cleanly.
+            break;
+        }
+
         if (ctx.renderer.counters()) {
             ctx.renderer.counters()->io_queue_pop_wait_ms.fetch_add(
                 dequeue_ms, std::memory_order_relaxed);
-            if (was_idle) {
-                ctx.renderer.counters()->io_writer_idle_wait_ms.fetch_add(
-                    dequeue_ms, std::memory_order_relaxed);
-            }
         }
 
         if (package.framebuffer) {
@@ -64,8 +50,10 @@ void run_writer_thread(const WriterThreadContext& ctx) {
             if (!ctx.encoder.write_frame_async(fb_ref,
                                                 std::move(package.framebuffer))) {
                 ctx.writer_failed.store(true);
+                ctx.queue.close();
                 return;
             }
+            ++ctx.frames_encoded;
             const auto enc_t1 = profiling::now();
             const uint64_t enc_us = static_cast<uint64_t>(
                 profiling::duration_us(enc_t0, enc_t1));
@@ -118,6 +106,8 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             if (ctx.sw_renderer) {
                 ctx.sw_renderer->framebuffer_pool()->set_arena(current_arena);
             }
+
+            const auto node_cache_hits_before = ctx.node_cache.stats().hits;
 
             const auto frame_t0 = profiling::now();
             auto fb = graph::render_composition_frame(
@@ -172,7 +162,8 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 }
             }
 
-            // High-throughput enqueue
+            // Bounded blocking enqueue: back-pressure is now handled by the
+            // queue itself instead of a busy-yield loop.
             const auto wait_t0 = profiling::now();
             const auto q_size = ctx.queue.size_approx();
 
@@ -185,24 +176,13 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                 }
             }
 
-            // Back-pressure: yield while the queue is saturated.
-            while (ctx.queue.size_approx() > kMaxRenderQueueDepth) {
-                if (ctx.writer_failed.load()) {
-                    mark_pipe_writer_failed(status, current_frame);
-                    break;
-                }
-                std::this_thread::yield();
-            }
+            RenderFramePackage package{
+                .frame_number = current_frame,
+                .framebuffer = std::move(fb),
+                .arena = std::move(current_arena)};
+            ++status.frames_rendered;
 
-            if (status.cancelled || status.writer_error || status.render_failed) {
-                ctx.triple_arena.release(current_arena);
-                break;
-            }
-
-            ctx.queue.enqueue(
-                RenderFramePackage{.frame_number = current_frame,
-                                   .framebuffer = std::move(fb),
-                                   .arena = std::move(current_arena)});
+            bool pushed = ctx.queue.push(package, ctx.opts.cancellation_token);
 
             const auto wait_t1 = profiling::now();
             const double wait_ms =
@@ -214,12 +194,31 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
                     static_cast<uint64_t>(wait_ms), std::memory_order_relaxed);
             }
 
+            if (!pushed) {
+                // Recover the arena so it can be released back to the pool.
+                auto arena = std::move(package.arena);
+                if (ctx.writer_failed.load()) {
+                    mark_pipe_writer_failed(status, current_frame);
+                } else if (ctx.opts.cancellation_token &&
+                           ctx.opts.cancellation_token->is_cancelled()) {
+                    mark_pipe_cancelled(status, current_frame);
+                }
+                ctx.triple_arena.release(arena);
+                break;
+            }
+
+            ++status.frames_enqueued;
             ++status.frames_written;
+
+            // Real cache-hit signal: fast-path reuse or at least one NodeCache hit.
+            const auto node_cache_hits_after = ctx.node_cache.stats().hits;
+            const bool cache_hit = fast_path_reused ||
+                (node_cache_hits_after > node_cache_hits_before);
 
             ctx.telemetry_frames.push_back({
                 .frame_number = static_cast<int>(current_frame),
                 .duration_ms = frame_ms + wait_ms,
-                .cache_hit = true,
+                .cache_hit = cache_hit,
                 .dirty_area_ratio = dirty_ratio,
                 .graph_eval_ms = frame_ms,
                 .queue_wait_ms = wait_ms,
