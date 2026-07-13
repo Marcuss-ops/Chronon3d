@@ -491,3 +491,72 @@ offset, alignment, rotate, anchor) MUST be cross-checked against.
 - `docs/FOLLOWUP_TICKETS.md` `TICKET-TEXT-CLIP-PREDICTED-BBOX` — predicted_bbox divergence bug
 - `tools/wrap_push.sh` — GATE-MNT-01 push-side wrapper
 - `tools/check_doc_sync.sh` — gate #7
+
+## Historical Notes
+
+> Cronaca archiviate dai public headers `text_definition.hpp` e
+`layer_builder.hpp` durante lo slim I4-PHASE-1. Ciascuna sezione
+specifica la source-file + i blocchi rimossi + il payload originale
+(per future regression lookups, ADR-traceback, o rot-rotation).
+
+### §A.1 text_definition.hpp (I4-SLIM)
+
+Original cronaca archived per Cat-3 anti-duplication. Full content of the
+three slimmed comment blocks (T1/T2/T3) preserved below for traceback.
+
+**T1** — top-of-file F2.A lifecycle mega-block (baseline lines 3-75, 73 lines)
+- `TextDefinition` is the SINGLE canonical representation for text authoring.
+  Every text API (layer.text(), text_run(), centered_text(), presets) produces
+  a TextDefinition. No duplicate representations for font size, position,
+  anchor, alignment, box, overflow, color, or stroke.
+- LIFECYCLE progression:
+  - F2.A: reuse TextContent from builder_params.hpp + TextStyle + TextFrame
+    with real fields mapped from TextSpec.
+  - Phase A.3: TextAnimation fields (animators + selectors + run-control
+    + Frame envelope). from_text_run_spec now routes the 6 spec-only fields
+    into TextAnimation (replaces prior (void)silence).
+  - F2.D: to_text_run_spec closes the adapter gap. The 6 spec-only fields
+    (direction/language/script/animators/selectors) are now carried back to
+    a TextRunSpec from a TextDefinition. ADDITIONAL LOSSY DROP (per-run
+    Frame envelope): TextAnimation.start_delay + .duration are NOT
+    representable in TextRunSpec and are silently dropped during
+    to_text_run_spec. Roundtrip TextDefinition → TextRunSpec → TextDefinition
+    re-initialises the Frame envelope to Frame{0}. Documented tested behaviour.
+  - F3.D: LayerBuilder overloads (text(name, TextDefinition) in
+    commands/shape_commands.cpp + text_run(name, TextDefinition) in
+    commands/layer_builder_compile.cpp) now route via to_text_run_spec()
+    instead of the F2.C lossy from_text_definition() path. End-to-end
+    lossless for 17 helper-site call sites. F3.D also ADDS the symmetric
+    `text(name, TextRunSpec)` overload (Frame envelope drop identical).
+  - Phase B: to_text_document(const TextDefinition&) lowers this DTO into
+    the canonical TextDocument pipeline model consumed by compile_text_layout().
+- DO NOT USE TextDefinition IN THE RUNTIME PIPELINE (TextDocument is the
+  canonical pipeline model; TextDefinition = authoring surface only).
+- Per AGENTS.md "Non duplicare": TextDefinition complements (does not
+  duplicate) TextDocument.
+- ANTI-DUPLICATION: TextDefinition is now the SOLE canonical authoring DTO.
+
+**T2** — TextAnimation struct contract comment (baseline lines 217-241, 25 lines)
+- Per-run animation contract mirroring TextRunSpec (builder_params.hpp).
+- Fields: animators (TextAnimatorSpec[]), selectors (GlyphSelectorSpec[]),
+  direction (TextDirection, default Auto), language (BCP-47, empty=auto),
+  script (OpenType tag, 0=auto, 0x4C61746E Latin, 0x41726162 Arabic),
+  cache_layout (hint), start_delay (Frame{0}=immediate, GLOBAL envelope),
+  duration (Frame{0}=use per-animator timeline, GLOBAL envelope length).
+- Sibling naming: `TextAnimation` — verified no collision (TextAnimationSpec
+  doesn't exist; animation types live under chronon3d::text::animation).
+
+**T3** — to_text_run_spec reverse adapter doc-comment (baseline lines 305-323, 19 lines)
+- F2.D reverse adapter from TextDefinition → TextRunSpec (carries animators,
+  selectors, run-control fields, cache_layout — fields NOT in TextSpec).
+- LOSSY DROP (documented): TextRunSpec does NOT represent the Frame envelope
+  (TextAnimation.start_delay + .duration); roundtrip → Frame{0}. Documented
+  tested behaviour (test_text_definition.cpp group 19).
+- Base fields (style, frame, paragraph) reuse from_text_definition() so the
+  two reverse adapters (`from_text_definition` for TextSpec and
+  `to_text_run_spec` for TextRunSpec) cannot drift out of sync — per
+  Phase B risk register "Duplicating the Base TextSpec Conversion".
+- Parallel naming pattern to `to_text_document` (Phase B) — both
+  lowerers consume TextDefinition into a downstream model. Name chosen
+  over the user-suggested `from_run_spec_definition` for symmetry with
+  `to_text_document`.

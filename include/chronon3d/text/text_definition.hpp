@@ -1,78 +1,7 @@
 #pragma once
 
-// ═══════════════════════════════════════════════════════════════════════════
-// text_definition.hpp — F2.A canonical text authoring DTO
-//
-// TextDefinition is the SINGLE canonical representation for text authoring.
-// Every text API (layer.text(), text_run(), centered_text(), presets)
-// produces a TextDefinition. No duplicated representations for font size,
-// position, anchor, alignment, box, or overflow.
-//
-// LIFECYCLE:
-//
-//   F2.A                    — reuse TextContent from builder_params.hpp +
-//                              fill in TextStyle + TextFrame with real fields
-//                              mapped from TextSpec
-//   Phase A.3                  — fill in TextAnimation (animators +
-//                              selectors + run-control + Frame envelope).
-//                              from_text_run_spec now routes the 6 spec-only
-//                              fields into TextAnimation (replaces prior
-//                              (void)silence).
-//                              LOSSY REVERSE: from_text_definition returns
-//                              TextSpec only — direction/language/script/
-//                              animators/selectors are NOT carried back.
-//   F2.D                         — to_text_run_spec closes the adapter gap.
-//                              The 6 spec-only fields above are now carried
-//                              back to a TextRunSpec from a TextDefinition.
-//                              ADDITIONAL LOSSY DROP (per-run Frame envelope):
-//                              TextAnimation.start_delay + .duration are
-//                              NOT representable in TextRunSpec and are
-//                              silently dropped during to_text_run_spec.
-//                              Roundtrip TextDefinition → TextRunSpec →
-//                              TextDefinition therefore re-initialises the
-//                              Frame envelope to Frame{0}.  This is the
-//                              documented, tested behaviour.
-//   F3.D                         — LayerBuilder overloads
-//                              (`text(name, TextDefinition)`
-//                              in commands/shape_commands.cpp +
-//                              `text_run(name, TextDefinition)`
-//                              in commands/layer_builder_compile.cpp)
-//                              now route via to_text_run_spec() instead of
-//                              the F2.C lossy `from_text_definition()`
-//                              path.  This makes the 17 helper-site
-//                              call sites (`centered_text()` /
-//                              `glow_text()` / `typewriter_text()` /
-//                              presets) end-to-end lossless: animation
-//                              fields populated in TextDefinition reach
-//                              TextRunSpec + materialize_text_run_shape()
-//                              instead of being silently dropped.
-//                              F3.D also ADDs a forward-point overload
-//                              `text(name, TextRunSpec)` — the symmetric
-//                              counterpart of the existing
-//                              `text_run(name, TextRunSpec)` — letting
-//                              callers fully migrated to TextRunSpec
-//                              authoring use the short-form
-//                              `layer.text("id", run_spec).commit()`.
-//                              Frame envelope drop (start_delay + duration)
-//                              is identical to F2.D contract.
-//   Phase B (implemented)   — to_text_document(const TextDefinition&) lowers
-//                            this DTO into the canonical TextDocument pipeline
-//                            model consumed by compile_text_layout()
-//
-// DO NOT USE TextDefinition IN THE RUNTIME PIPELINE.
-// The runtime pipeline consumes TextDocument (text_document.hpp), not this
-// authoring DTO.  TextDefinition is purely for authoring / deserialization.
-//
-// Per AGENTS.md "Non duplicare registry, resolver, sampler, cache, service
-// locator o checklist": TextDefinition complements (does not duplicate)
-// TextDocument.  TextDocument is the canonical pipeline model; this DTO is
-// the authoring surface that lowers into it.
-//
-// ANTI-DUPLICATION: TextDefinition is now the SOLE canonical authoring DTO.
-// All text APIs (TextSpec, centered_text(), glow_text(), presets) produce
-// TextDefinition.  No duplicate representations for font size, position,
-// anchor, alignment, box, overflow, color, or stroke.
-// ═══════════════════════════════════════════════════════════════════════════
+// text_definition.hpp — F2.A canonical text authoring DTO.
+// (Lifecycle / Phase A.3 / F2.D / F3.D / Phase B narrative archived to ADR-019 §A.1.)
 
 #include <chronon3d/math/glm_types.hpp>         // Vec2, Vec3
 #include <chronon3d/math/color.hpp>              // Color
@@ -214,31 +143,7 @@ struct TextFrame {
 // TextAnimation — runtime animation contracts (Phase A.3)
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// TextAnimation holds the per-text-run animation contract.  The fields mirror
-// the top-level editor surface carried by `TextRunSpec` (builder_params.hpp),
-// lifted here so the canonical `TextDefinition` DTO carries the full authoring
-// state without leaking through the adapter boundary.
-//
-//   animators    — per-property animator specs (opacity, typewriter, etc.)
-//                  Managed by evaluate_animator_stack() at runtime.
-//   selectors    — glyph-targeting predicates (matches GlyphSelectorSpec enum
-//                  surface in shape.hpp).
-//   direction    — HarfBuzz shaping direction (default = Auto → engine
-//                  auto-detects via hb_buffer_guess_segment_properties()).
-//   language     — BCP-47 tag (empty = engine auto-detect).
-//   script       — OpenType script tag (HB_SCRIPT_*).
-//                  0 = auto, 0x4C61746E (Latin), 0x41726162 (Arabic), etc.
-//   cache_layout — hint: cache the compiled layout for repeated playback.
-//
-//   start_delay  — GLOBAL envelope start frame;
-//                  Frame{0} (default) = animations start immediately.
-//                  Animator-internal properties[].frame are unaffected.
-//   duration     — GLOBAL envelope length frame;
-//                  Frame{0} (default) = use per-animator timeline length.
-//
-// Sibling naming: `TextAnimation` — verified no collision with existing types
-// in shape.hpp or builder_params.hpp (TextAnimationSpec doesn't exist;
-// animation-related types live under chronon3d::text::animation).
+// TextAnimation — runtime animation contract (Phase A.3). Sibling naming + field semantics archived in ADR-019 §A.1.
 
 struct TextAnimation {
     std::vector<TextAnimatorSpec>  animators{};
@@ -302,25 +207,9 @@ struct TextDefinition {
 /// Full implementation in src/text/text_definition.cpp.
 [[nodiscard]] TextSpec from_text_definition(const TextDefinition& def);
 
-/// F2.D — Reverse adapter: convert the canonical TextDefinition back to
-/// TextRunSpec (the editor / authoring spec that carries animators, selectors,
-/// run-control fields, and cache_layout — the fields NOT present in TextSpec).
-///
-/// LOSSY DROP (documented): TextRunSpec does NOT represent the Frame envelope
-/// (TextAnimation.start_delay + .duration); these fields are silently dropped
-/// during the conversion.  Roundtrip TextDefinition → TextRunSpec →
-/// TextDefinition therefore yields Frame{0} for both envelope fields — this
-/// is the canonical, tested behaviour (see test_text_definition.cpp group 19).
-///
-/// Base fields (style, frame, paragraph) reuse from_text_definition() so the
-/// two reverse adapters (`from_text_definition` for TextSpec and
-/// `to_text_run_spec` for TextRunSpec) cannot drift out of sync — per Phase B
-/// risk register "Duplicating the Base TextSpec Conversion".
-///
-/// Parallel naming pattern to `to_text_document` (Phase B) — both lowerers
-/// consume TextDefinition into a downstream model.  Name chosen over the
-/// user-suggested `from_run_spec_definition` for symmetry with
-/// `to_text_document`.
+/// F2.D — Reverse adapter (canonical TextDefinition → TextRunSpec).
+/// Documented LOSSY DROP: TextAnimation.start_delay + .duration are not representable in TextRunSpec.
+/// See ADR-019 §A.1 + test_text_definition.cpp group 19.
 [[nodiscard]] TextRunSpec to_text_run_spec(const TextDefinition& def);
 
 /// Phase B — lower the canonical TextDefinition into a TextDocument
