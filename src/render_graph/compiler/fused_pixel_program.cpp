@@ -237,12 +237,11 @@ FusionStats fuse_color_opacity_blend(
         // forward-pointed to TICKET-FUSION-PASS-EFFECT-INTROSPECTION-V1.
         program.operations.reserve(3);
         {
-            // ColorMatrix: identity 3x4 (rows 0..3 of an identity-like transform)
+            // ColorMatrix: identity 3x4 (rows R, G, B; alpha is passthrough)
             std::array<float, 12> identity_cm = {
-                1, 0, 0, 0,   // row 0: R = R + 0
-                0, 1, 0, 0,   // row 1: G = G + 0
-                0, 0, 1, 0,   // row 2: B = B + 0
-                0, 0, 0, 1,   // row 3: A = A + 0
+                1, 0, 0, 0,   // row 0: R = R
+                0, 1, 0, 0,   // row 1: G = G
+                0, 0, 1, 0,   // row 2: B = B
             };
             (void)cm_node;  // suppress unused warning; future commit extracts real params
             program.operations.push_back(PixelOperation::color_matrix(identity_cm));
@@ -301,15 +300,9 @@ void emit_fusion_counters(
     std::size_t bytes_saved_by_fusion) noexcept
 {
     auto& c = chronon3d::thread_local_counters();
-    c.pixel_fusion_passes_before.fetch_add(
-        static_cast<std::uint64_t>(passes_before_fusion),
-        std::memory_order_relaxed);
-    c.pixel_fusion_passes_after.fetch_add(
-        static_cast<std::uint64_t>(passes_after_fusion),
-        std::memory_order_relaxed);
-    c.pixel_fusion_bytes_saved.fetch_add(
-        static_cast<std::uint64_t>(bytes_saved_by_fusion),
-        std::memory_order_relaxed);
+    c.pixel_fusion_passes_before += static_cast<std::uint64_t>(passes_before_fusion);
+    c.pixel_fusion_passes_after += static_cast<std::uint64_t>(passes_after_fusion);
+    c.pixel_fusion_bytes_saved += static_cast<std::uint64_t>(bytes_saved_by_fusion);
 }
 
 } // namespace chronon3d::graph::fusion

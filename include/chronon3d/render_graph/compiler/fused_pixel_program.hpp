@@ -46,6 +46,11 @@
 
 #include <chronon3d/simd/pixel_kernels.hpp>   // F5.1 ABI (kKernelEpsilon SSoT)
 
+namespace chronon3d::graph {
+class RenderGraph;
+struct RenderGraphContext;
+} // namespace chronon3d::graph
+
 namespace chronon3d::graph::fusion {
 
 // ── PixelOperation — the individual op in a fused chain ──────────────────
@@ -262,4 +267,14 @@ namespace chronon3d::graph::fusion {
         std::size_t passes_before_fusion,
         std::size_t passes_after_fusion,
         std::size_t bytes_saved_by_fusion) noexcept;
+
+    /// F3.1 fusion pass entry point. Detects ColorMatrix → Opacity → Blend
+    /// 3-node triples in `graph`, checks the 4 fusion guards, and emits
+    /// FusedPixelProgram descriptors into `out_programs`. Returns the
+    /// aggregated FusionStats counters.
+    [[nodiscard]] FusionStats fuse_color_opacity_blend(
+        const graph::RenderGraph& graph,
+        const graph::RenderGraphContext& ctx,
+        const chronon3d::simd::PixelKernelSet& kernels,
+        std::vector<FusedPixelProgram>& out_programs) noexcept;
 } // namespace chronon3d::graph::fusion
