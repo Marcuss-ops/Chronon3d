@@ -14,11 +14,13 @@
 #include <chronon3d/text/text_error.hpp>  // F0.3 — TextErrorCode + TextError
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 
+// Per-runtime typewriter layout cache (replaces process-wide static globals)
+#include <chronon3d/text/typewriter_layout_cache.hpp>
+
 // Needed for complete CenterTextOptions type used by-value in typewriter_text()
 #include "text_helpers_centered.hpp"
 #include <chronon3d/text/text_definition.hpp>  // F2.C — canonical DTO
 
-#include <mutex>
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -162,19 +164,7 @@ struct TypewriterBuildOptions {
     Frame fade_duration{10};
 };
 
-struct TypewriterCharPos {
-    size_t byte_offset;
-    size_t byte_len;
-    f32 x;
-    f32 y;
-    f32 advance;
-};
-
-struct TypewriterLayout {
-    std::vector<TypewriterCharPos> chars;
-    f32 total_width{0.0f};
-    f32 total_height{0.0f};
-};
+// TypewriterCharPos and TypewriterLayout are defined in typewriter_layout_cache.hpp
 
 // F0.3 — silent returns replaced by Result<…, TextError>.
 // Forward-declare: full implementation lives in this header.
@@ -462,55 +452,34 @@ inline Result<bool, TextError> typewriter_build(
     font_spec.font_family = opts.font_family;
     font_spec.font_weight = opts.font_weight;
 
-    static std::mutex s_cache_mutex;
-    static TypewriterLayout cached_layout;
-    static PlacedGlyphRun cached_placed;
-    static std::string cached_text;
-    static f32         cached_font_size{0.0f};
-    static f32         cached_tracking{0.0f};
-    static Vec2        cached_box{0.0f, 0.0f};
-    static f32         cached_line_height{0.0f};
-    static FontSpec    cached_font_spec;
-    // F0.2b — cached_resolver (pointer-identity) cache key tier replaced
-    // by FontEngine* identity; same lifetime guarantee.
-    static const FontEngine* cached_engine{nullptr};
+    TypewriterLayoutKey key;
+    key.text = opts.text;
+    key.font = font_identity_of(font_spec);
+    key.font_size = opts.font_size;
+    key.tracking = opts.tracking;
+    key.box = opts.box;
+    key.line_height = opts.line_height;
 
-    std::lock_guard<std::mutex> lock(s_cache_mutex);
+    auto& cache = engine.typewriter_layout_cache();
+    std::shared_ptr<const TypewriterLayoutEntry> entry = cache.get(key);
 
-    bool cache_hit = (cached_engine == &engine &&
-                      cached_text == opts.text &&
-                      cached_font_size == opts.font_size &&
-                      cached_tracking == opts.tracking &&
-                      cached_box.x == opts.box.x &&
-                      cached_box.y == opts.box.y &&
-                      cached_line_height == opts.line_height &&
-                      cached_font_spec.font_path == font_spec.font_path &&
-                      cached_font_spec.font_family == font_spec.font_family &&
-                      cached_font_spec.font_weight == font_spec.font_weight);
-
-    if (!cache_hit) {
-        cached_placed = PlacedGlyphRun{};
+    if (!entry) {
+        PlacedGlyphRun placed;
         auto layout_result = compute_typewriter_layout(
             opts.text, opts.font_size, opts.tracking,
             opts.box, opts.line_height, font_spec,
             engine,
-            &cached_placed);
+            &placed);
         // F0.3 — propagate structured error from compute_typewriter_layout
         if (!layout_result) return layout_result.error();
-        cached_layout = std::move(*layout_result);
-        cached_text = opts.text;
-        cached_font_size = opts.font_size;
-        cached_tracking = opts.tracking;
-        cached_box = opts.box;
-        cached_line_height = opts.line_height;
-        cached_font_spec = font_spec;
 
-        // F0.2b — FontEngine pointer-identity replaces AssetResolver
-        // pointer-identity as the cache key tier.
-        cached_engine = &engine;
+        entry = std::make_shared<TypewriterLayoutEntry>(TypewriterLayoutEntry{
+            std::move(*layout_result), std::move(placed)});
+        cache.put(key, entry);
     }
 
-    auto& layout = cached_layout;
+    const TypewriterLayout& layout = entry->layout;
+    const PlacedGlyphRun& cached_placed = entry->placed;
 
     if (layout.chars.empty()) return TextError{
         TextErrorCode::NoLayoutChars,

@@ -4,6 +4,7 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
+#include <chronon3d/text/typewriter_layout_cache.hpp>
 #include <spdlog/spdlog.h>
 
 #ifdef CHRONON3D_ENABLE_TEXT
@@ -84,6 +85,7 @@ struct FontEngine::Impl {
     mutable std::unordered_map<FontSpec, FaceEntry, std::hash<FontSpec>> face_cache;
     mutable std::shared_mutex face_cache_mutex;
     mutable cache::LruCache<GlyphBBoxCacheKey, GlyphBBoxCacheEntry, std::hash<GlyphBBoxCacheKey>> glyph_bbox_cache{8192, 2};
+    std::unique_ptr<chronon3d::content::text::TypewriterLayoutCache> typewriter_layout_cache; // per-runtime
 
     // FASE 4 (TICKET-088) — HarfBuzz buffer pool.
     // `hb_buffer_create()` + `hb_buffer_destroy()` is a per-shape-call
@@ -134,6 +136,7 @@ struct FontEngine::Impl {
             spdlog::error("FontEngine: FT_Init_FreeType failed (error={})", err);
             ft_library = nullptr;
         }
+        typewriter_layout_cache = std::make_unique<chronon3d::content::text::TypewriterLayoutCache>();
     }
 
     explicit Impl(const chronon3d::assets::AssetResolver* resolver)
@@ -143,6 +146,7 @@ struct FontEngine::Impl {
             spdlog::error("FontEngine: FT_Init_FreeType failed (error={})", err);
             ft_library = nullptr;
         }
+        typewriter_layout_cache = std::make_unique<chronon3d::content::text::TypewriterLayoutCache>();
     }
 
     ~Impl() {
@@ -154,6 +158,9 @@ struct FontEngine::Impl {
     }
 
     void clear_cache_unlocked() {
+        if (typewriter_layout_cache) {
+            typewriter_layout_cache->clear();
+        }
         for (auto& [spec, entry] : face_cache) {
             if (entry.hb_font) {
                 hb_font_destroy(entry.hb_font);
@@ -407,6 +414,13 @@ size_t FontEngine::glyph_bbox_cache_size() const {
     return m_impl->glyph_bbox_cache.stats().current_size;
 }
 
+chronon3d::content::text::TypewriterLayoutCache& FontEngine::typewriter_layout_cache() {
+    if (!m_impl || !m_impl->typewriter_layout_cache) {
+        throw std::runtime_error("FontEngine::typewriter_layout_cache() called on an invalid engine");
+    }
+    return *m_impl->typewriter_layout_cache;
+}
+
 bool FontEngine::can_load(const FontSpec& spec) {
     if (!m_impl || !m_impl->ft_library) return false;
     {
@@ -434,10 +448,13 @@ bool FontEngine::can_load(const FontSpec& spec) {
 
 struct FontEngine::Impl {
     const chronon3d::assets::AssetResolver* m_resolver{nullptr};
+    std::unique_ptr<chronon3d::content::text::TypewriterLayoutCache> typewriter_layout_cache;
     ~Impl() = default;
 
     explicit Impl(const chronon3d::assets::AssetResolver* resolver)
-        : m_resolver(resolver) {}
+        : m_resolver(resolver) {
+        typewriter_layout_cache = std::make_unique<chronon3d::content::text::TypewriterLayoutCache>();
+    }
 };
 
 FontEngine::FontEngine(const chronon3d::assets::AssetResolver& resolver)
