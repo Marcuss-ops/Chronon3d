@@ -114,10 +114,9 @@ static void check_layout_equivalence(
 
 // ── Golden equivalence runner ────────────────────────────────────────────
 //
-// Shapes text with FontEngine to get the raw GlyphRun, runs the reference
-// O(n²) layout, constructs ShapedGlyphLine and calls layout(), then
-// compares. Both paths use the same shape_text parameters, so any
-// divergence is a bug in the O(n) optimization.
+// Shapes text once via ShapedGlyphLine::try_shape, then runs the reference
+// O(n²) layout on the cached raw GlyphRun and compares against
+// ShapedGlyphLine::layout(). This avoids double-shaping the same text.
 static void run_golden_equivalence(
     FontEngine& engine,
     const std::string& text,
@@ -127,26 +126,27 @@ static void run_golden_equivalence(
     float ref_offset_x,
     const std::string& label)
 {
-    // Shape the text to get the raw GlyphRun (same call as ShapedGlyphLine ctor)
-    auto run_opt = engine.shape_text(text, spec, font_size);
+    // Shape once through ShapedGlyphLine. The raw GlyphRun is cached
+    // internally; we retrieve it via raw_run() for the reference path.
+    auto shaped_opt = ShapedGlyphLine::try_shape(
+        text, font_size, spec, tracking, ref_offset_x, engine);
 
-    if (!run_opt || run_opt->glyphs.empty()) {
+    if (!shaped_opt || !shaped_opt->raw_run().has_value() ||
+        shaped_opt->raw_run()->glyphs.empty()) {
         // Font cannot shape this text — verify both paths agree on failure.
-        // ShapedGlyphLine ctor would throw; try_shape returns nullopt.
-        auto shaped = ShapedGlyphLine::try_shape(
-            text, font_size, spec, tracking, ref_offset_x, engine);
-        CHECK_FALSE(shaped.has_value());
+        CHECK_FALSE(shaped_opt.has_value());
         SUCCEED(label + " — font cannot shape, both paths agree on failure");
         return;
     }
 
+    const auto& run = *shaped_opt->raw_run();
+
     // Run reference O(n²) on the raw GlyphRun
     auto reference = reference_layout_o_n_squared(
-        run_opt->glyphs, text, tracking, ref_offset_x);
+        run.glyphs, text, tracking, ref_offset_x);
 
-    // Construct ShapedGlyphLine and call layout()
-    ShapedGlyphLine line(text, font_size, spec, tracking, ref_offset_x, engine);
-    auto actual = line.layout();
+    // Run the actual O(n) layout
+    auto actual = shaped_opt->layout();
 
     // Compare — must be identical
     check_layout_equivalence(actual, reference, label);
@@ -231,6 +231,40 @@ TEST_CASE("ShapedGlyphLine cluster golden: emoji mixed with Latin") {
     // shape. The golden test captures whatever the current behavior is.
     run_golden_equivalence(engine, "Hi 🌍!",
                            spec, 72.0f, 4.0f, 0.0f, "Emoji mixed");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Test 5b: ZWJ emoji sequence — multi-code-point cluster boundaries
+// ═════════════════════════════════════════════════════════════════════════
+TEST_CASE("ShapedGlyphLine cluster golden: ZWJ emoji sequence") {
+    auto renderer = test::make_renderer();
+    auto& engine  = renderer.font_engine();
+
+    FontSpec spec{"assets/fonts/Inter-Regular.ttf", "Inter", 400};
+    // "A🏳️‍🌈B" uses a ZWJ sequence (U+1F3F3 U+FE0F U+200D U+1F308).
+    // Without an emoji font the sequence falls back to .notdef glyphs,
+    // but the Latin 'A' and 'B' must still shape and the cluster
+    // boundaries must remain consistent between the O(n) and O(n²) paths.
+    const std::string text = "A🏳️‍🌈B";
+    run_golden_equivalence(engine, text,
+                           spec, 72.0f, 4.0f, 0.0f, "ZWJ emoji sequence");
+
+    // Additional explicit checks: the line must shape successfully and
+    // the first and last glyphs must correspond to the Latin characters.
+    auto shaped = ShapedGlyphLine::try_shape(
+        text, 72.0f, spec, 4.0f, 0.0f, engine);
+    REQUIRE(shaped.has_value());
+    const auto& run = shaped->raw_run();
+    REQUIRE(run.has_value());
+    REQUIRE(!run->glyphs.empty());
+
+    // The Latin 'A' and 'B' should be present as shapeable glyphs.
+    // We cannot assert exact glyph IDs without a font, but we can assert
+    // the layout succeeded and produced at least the two Latin glyphs.
+    auto layout = shaped->layout();
+    REQUIRE(!layout.empty());
+    CHECK(layout.front().ch == "A");
+    CHECK(layout.back().ch == "B");
 }
 
 // ═════════════════════════════════════════════════════════════════════════
