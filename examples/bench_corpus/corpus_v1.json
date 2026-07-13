@@ -1,0 +1,209 @@
+{
+  "_schema_note": "Canonical manifest for the Chronon3D benchmark corpus v1. Defines the 12-scene B00-B11 ranking used for the CPU-only performance program. Consumed by tools/run_bench_corpus.sh for orchestration (iterates scene_id × preset × threads × resolution — fps dimension is metadata-only, NOT iterated because frame-time metrics are fps-independent) and by tools/validate_corpus_v1.sh (1-line gate). Authoritative scene implementations live in examples/bench_corpus/bench_corpus_scenes.cpp (C++ Composition factories registered via register_bench_corpus_compositions in apps/chronon3d_cli/register_content_compositions.cpp).",
+
+  "version": "1.0",
+  "ticket": "TICKET-BENCH-CORPUS-V1",
+  "scene_ids": [
+    "BenchB00_EmptyFrame",
+    "BenchB01_StaticText1080p",
+    "BenchB02_Typewriter200Glyphs",
+    "BenchB03_CinematicGlow1080p",
+    "BenchB04_Layers100",
+    "BenchB05_Blur4K",
+    "BenchB06_VideoOverlay1080p",
+    "BenchB07_NestedPrecomps",
+    "BenchB08_DirtyRectSmallMotion",
+    "BenchB09_LongForm10Minutes",
+    "BenchB10_RandomFrameAccess",
+    "BenchB11_Portrait1080x1920"
+  ],
+
+  "_grid_note": "The bench runner iterates (presets cold/warm) × (threads 1,2,4,8,16) per scene. fps is metadata declared per-scene (canonical 30 with optional 60 where applicable) — frame-time metrics (p50/p95/p99) are fps-independent because rendering time scales with frame index, not playback rate. End-to-end fps-dependent metrics (costo_per_minuto_output) are routed to a future per-scene video runner (forward-pointed to TICKET-BENCH-MARKET-V1).",
+
+  "scenes": [
+    {
+      "id": "BenchB00_EmptyFrame",
+      "category": "baseline",
+      "width": 1920,
+      "height": 1080,
+      "fps": [30, 60],
+      "duration_frames": 1,
+      "stress_target": "framework_overhead",
+      "expected_p50_ms_max": 5.0,
+      "expected_p95_ms_max": 12.0,
+      "presets": ["cold", "warm"],
+      "threads": [1, 2, 4, 8, 16]
+    },
+    {
+      "id": "BenchB01_StaticText1080p",
+      "category": "text",
+      "width": 1920,
+      "height": 1080,
+      "fps": [30, 60],
+      "duration_frames": 90,
+      "stress_target": "shaping_and_raster_cache",
+      "expected_p50_ms_max": 18.0,
+      "expected_p95_ms_max": 24.0,
+      "presets": ["cold", "warm"],
+      "threads": [1, 2, 4, 8, 16]
+    },
+    {
+      "id": "BenchB02_Typewriter200Glyphs",
+      "category": "text",
+      "width": 1920,
+      "height": 1080,
+      "fps": [30, 60],
+      "duration_frames": 90,
+      "stress_target": "per_character_animation_cost",
+      "expected_p50_ms_max": 35.0,
+      "expected_p95_ms_max": 60.0,
+      "presets": ["cold", "warm"],
+      "threads": [1, 2, 4, 8, 16]
+    },
+    {
+      "id": "BenchB03_CinematicGlow1080p",
+      "category": "glow",
+      "width": 1920,
+      "height": 1080,
+      "fps": [30, 60],
+      "duration_frames": 90,
+      "stress_target": "glow_pipeline_memory",
+      "expected_p50_ms_max": 50.0,
+      "expected_p95_ms_max": 75.0,
+      "presets": ["cold", "warm"],
+      "threads": [1, 2, 4, 8, 16]
+    },
+    {
+      "id": "BenchB04_Layers100",
+      "category": "layers",
+      "width": 1920,
+      "height": 1080,
+      "fps": [30, 60],
+      "duration_frames": 90,
+      "stress_target": "layer_list_dirtyrect_aggregation",
+      "expected_p50_ms_max": 40.0,
+      "expected_p95_ms_max": 60.0,
+      "presets": ["cold", "warm"],
+      "threads": [1, 2, 4, 8, 16]
+    },
+    {
+      "id": "BenchB05_Blur4K",
+      "category": "memory",
+      "width": 3840,
+      "height": 2160,
+      "fps": [30, 60],
+      "duration_frames": 90,
+      "stress_target": "memory_bandwidth_kernel_cache",
+      "expected_p50_ms_max": 80.0,
+      "expected_p95_ms_max": 120.0,
+      "presets": ["cold", "warm"],
+      "threads": [1, 2, 4, 8, 16]
+    },
+    {
+      "id": "BenchB06_VideoOverlay1080p",
+      "category": "asset",
+      "width": 1920,
+      "height": 1080,
+      "fps": [30, 60],
+      "duration_frames": 90,
+      "stress_target": "decode_composite_encode_joint",
+      "expected_p50_ms_max": 30.0,
+      "expected_p95_ms_max": 45.0,
+      "presets": ["cold", "warm"],
+      "threads": [1, 2, 4, 8, 16]
+    },
+    {
+      "id": "BenchB07_NestedPrecomps",
+      "category": "graph",
+      "width": 1920,
+      "height": 1080,
+      "fps": [30, 60],
+      "duration_frames": 90,
+      "stress_target": "graph_dependency_compile_cache",
+      "expected_p50_ms_max": 60.0,
+      "expected_p95_ms_max": 90.0,
+      "presets": ["cold", "warm"],
+      "threads": [1, 2, 4, 8, 16]
+    },
+    {
+      "id": "BenchB08_DirtyRectSmallMotion",
+      "category": "dirtyrect",
+      "width": 1920,
+      "height": 1080,
+      "fps": [30, 60],
+      "duration_frames": 90,
+      "stress_target": "dirtyrect_efficiency_ratio",
+      "expected_p50_ms_max": 12.0,
+      "expected_p95_ms_max": 20.0,
+      "presets": ["cold", "warm"],
+      "threads": [1, 2, 4, 8, 16]
+    },
+    {
+      "id": "BenchB09_LongForm10Minutes",
+      "category": "stability",
+      "width": 1920,
+      "height": 1080,
+      "fps": [30, 60],
+      "duration_frames": 18000,
+      "stress_target": "leak_allocator_pressure",
+      "expected_p50_ms_max": 8.0,
+      "expected_p95_ms_max": 15.0,
+      "presets": ["warm"],
+      "warm_only_rationale": "cold preset intentionally SKIPPED — the scene's purpose is steady-state leak/allocator pressure detection; a cold run of 18000 frames would burn unnecessary cold-cache budget without providing the canonical long-form signal. warm-only is the canonical measurement per the user spec verbatim.",
+      "threads": [1, 2, 4, 8, 16]
+    },
+    {
+      "id": "BenchB10_RandomFrameAccess",
+      "category": "cache",
+      "width": 1920,
+      "height": 1080,
+      "fps": [30, 60],
+      "duration_frames": 360,
+      "stress_target": "non_contiguous_cache_coherence",
+      "expected_p50_ms_max": 20.0,
+      "expected_p95_ms_max": 30.0,
+      "presets": ["cold"],
+      "frames_invocation": "0,17,42,99,180,271,360",
+      "threads": [1, 2, 4, 8, 16]
+    },
+    {
+      "id": "BenchB11_Portrait1080x1920",
+      "category": "portrait",
+      "width": 1080,
+      "height": 1920,
+      "fps": [30, 60],
+      "duration_frames": 90,
+      "stress_target": "portrait_vertical_pipeline",
+      "expected_p50_ms_max": 50.0,
+      "expected_p95_ms_max": 75.0,
+      "presets": ["cold", "warm"],
+      "threads": [1, 2, 4, 8, 16]
+    }
+  ],
+
+  "registration": {
+    "source_files": [
+      "examples/bench_corpus/bench_corpus_scenes.hpp",
+      "examples/bench_corpus/bench_corpus_scenes.cpp"
+    ],
+    "registry_bridge": "chronon3d::bench_corpus::register_bench_corpus_compositions (defined in examples/bench_corpus/bench_corpus_scenes.cpp; invoked from apps/chronon3d_cli/register_content_compositions.cpp)",
+    "invoked_from": "apps/chronon3d_cli/register_content_compositions.cpp",
+    "gate": "CHRONON3D_BUILD_CONTENT (production content build; same gate as runtime compositions)"
+  },
+
+  "cli_invocations": {
+    "bench_runner": "bash examples/bench_corpus/run_corpus_v1.sh",
+    "single_scene_render": "chronon3d_cli render BenchB03_CinematicGlow1080p --frames 0-90 --output /tmp/bench_b03.png",
+    "single_scene_video": "chronon3d_cli video BenchB03_CinematicGlow1080p -o /tmp/bench_b03.mp4 --start 0 --end 90 --fps 30",
+    "single_scene_bench": "chronon3d_cli bench BenchB03_CinematicGlow1080p --frames 100 --warmup 10 --json-file /tmp/bench_b03.json",
+    "threading_env": "CHRONON3D_THREADS=N wrapper (per bench runner; CLI does not expose --threads directly because TBB is gated by env per apps/chronon3d_cli/main.cpp)"
+  },
+
+  "assertions_for_pipeline_consumers": [
+    "All 12 scene_ids resolve in `chronon3d_cli info BenchB00_EmptyFrame` output",
+    "All 12 BenchB07Inner* precomps also registered (15 registry entries total: 12 main + 3 inner)",
+    "All 12 scenes render to ffmpeg-valid MP4 at the target fps + resolution",
+    "Frame hashes match the locked corpus baselines (TICKET-BENCH-BASELINE-SHA-V1 forward-point)",
+    "Composition factory lambdas are bit-identical across warm restarts (deterministic scene graph)"
+  ]
+}
