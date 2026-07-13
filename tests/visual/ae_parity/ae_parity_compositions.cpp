@@ -41,7 +41,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 
 using namespace chronon3d;
-using chronon3d::test::glow_final::ChrononGlowProps;
+using chronon3d::content::glow_final::ChrononGlowProps;
 
 namespace chronon3d::test {
 
@@ -74,10 +74,10 @@ static inline std::size_t snapshot_bucket_for(const FrameContext& ctx) {
 // envelope (the 5th additive layer is the canonical glow itself).
 // ─────────────────────────────────────────────────────────────────────────────
 Composition make_ae_08_glow_pulse(const CompositionProps& /*props*/) {
-    ChrononGlowProps p = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps p = chronon3d::content::glow_final::default_landscape_props();
     p.glow_enabled        = true;   // Phase 2: canonical cinematic additive glow
     p.enable_scale_breath = true;   // Phase 2: 0.96/1.05/0.98 scale envelope
-    return chronon3d::test::glow_final::make_chronon_glow_final(p);
+    return chronon3d::content::glow_final::make_chronon_glow_final(p);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

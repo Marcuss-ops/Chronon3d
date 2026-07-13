@@ -37,7 +37,7 @@
 
 using namespace chronon3d;
 using namespace chronon3d::test;
-using chronon3d::test::glow_final::ChrononGlowProps;
+using chronon3d::content::glow_final::ChrononGlowProps;
 
 namespace {
 
@@ -47,7 +47,7 @@ std::shared_ptr<Framebuffer> render_at(
     ChrononGlowProps props,
     int frame_idx) {
     return renderer->render(
-        chronon3d::test::glow_final::make_chronon_glow_final(props),
+        chronon3d::content::glow_final::make_chronon_glow_final(props),
         Frame{frame_idx});
 }
 
@@ -114,7 +114,7 @@ std::vector<FrameMetrics> collect_frame_metrics(
 TEST_CASE("Glow temporal: 60-frame sweep — no empty frame, no glow pop, pulse peak at f15") {
     auto renderer = make_renderer_shared();
 
-    ChrononGlowProps props = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps props = chronon3d::content::glow_final::default_landscape_props();
     props.glow_enabled = true;
 
     constexpr int kFrameCount    = 60;
@@ -167,7 +167,7 @@ TEST_CASE("Glow temporal: 60-frame sweep — no empty frame, no glow pop, pulse 
 TEST_CASE("Glow temporal: pulse reaches expected peak at frame 15 (contracted)") {
     auto renderer = make_renderer_shared();
 
-    ChrononGlowProps props = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps props = chronon3d::content::glow_final::default_landscape_props();
     props.glow_enabled = true;
 
     constexpr int kHaloOffset16x9 = 60;

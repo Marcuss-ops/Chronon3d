@@ -77,8 +77,8 @@ TEST_CASE("real pipeline parity: ChrononGlowFinalAE temporal stability "
 
     // ── (1) Render SDK stills at frames 0/15/30 using the exact same
     //       composition the CLI video subprocess renders.
-    auto comp = chronon3d::test::glow_final::make_chronon_glow_final(
-        chronon3d::test::glow_final::default_landscape_props());
+    auto comp = chronon3d::content::glow_final::make_chronon_glow_final(
+        chronon3d::content::glow_final::default_landscape_props());
     auto renderer = chronon3d::test::make_renderer_shared();
     renderer->set_settings(ph::default_settings());
 

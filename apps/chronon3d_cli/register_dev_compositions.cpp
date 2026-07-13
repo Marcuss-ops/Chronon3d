@@ -127,9 +127,9 @@ void register_dev_compositions(CompositionRegistry& registry) {
     // Production factory (header-only); registration is DEV-only per user spec.
     registry.add("ChrononGlowFinalAE_NoGlow",
         [](const CompositionProps&) -> Composition {
-            ChrononGlowProps p = chronon3d::test::glow_final::default_landscape_props();
+            ChrononGlowProps p = chronon3d::content::glow_final::default_landscape_props();
             p.glow_enabled = false;
-            return chronon3d::test::glow_final::make_chronon_glow_final(p);
+            return chronon3d::content::glow_final::make_chronon_glow_final(p);
         });
 
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
