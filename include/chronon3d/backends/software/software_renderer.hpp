@@ -171,6 +171,14 @@ public:
 
     // ── Graph pipeline orchestration ───────────────────────────────────
     void mark_fast_path_reused(Frame frame, const Camera2_5D& cam, uint64_t combined_fp);
+    // Azione 20 — public-SDK ABI forwarder to commit_prev_frame_state.
+    //   The implementation in software_renderer.cpp is a pure 1-line
+    //   forwarder; in-tree call sites all go through commit_prev_frame_state
+    //   directly.  This declaration is preserved as a public-SDK ABI
+    //   commitment for out-of-tree consumers that may have linked against
+    //   this signature; removing it would be an ABI break.
+    //   See user-spec verbatim §4: "ABI/header pubblico ➜ documenta il
+    //   vincolo con commento, NON toccare."
     void commit_frame_state(Frame, const Camera2_5D&, uint64_t, uint64_t, uint64_t, uint64_t,
                             std::unordered_map<std::string, LayerBBoxState>&&);
     void commit_prev_frame_state(Frame, const Camera2_5D&, uint64_t, uint64_t, uint64_t, uint64_t,
