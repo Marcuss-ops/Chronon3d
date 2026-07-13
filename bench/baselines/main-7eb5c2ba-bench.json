@@ -1,0 +1,22 @@
+{
+  "stub": true,
+  "_stub_note": "STUB scaffold per F1.5 RETRY at SHA 7eb5c2ba. All 16 required fields populated per bench/benchmark_schema.json (Draft 2020-12, $id=chronon3d.dev/schemas/benchmark_report.flat.v1). Marker `stub: true` is the §honesty disclosure: bench metrics are placeholder zeros pending macchina-verifica DEFERRED-WBH per TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV env-block (cpupower/perf/chronon3d_cli non-privileged on this VPS). Validator `tools/validate_benchmark_json.sh` reads `required` from schema as SSoT; `additionalProperties:false` enforced. Forward-point to TICKET-BENCH-BASELINE-SHA-MACHINE-VERIFY.",
+  "commit": "7eb5c2ba",
+  "cpu": "unknown (DEFERRED-WBH: tools/benchmark_host_info.sh blocked on this VPS)",
+  "scene": "BenchB00_EmptyFrame",
+  "threads": 8,
+  "cold_first_frame_ms": 0.0,
+  "frame_p50_ms": 0.0,
+  "frame_p95_ms": 0.0,
+  "frame_p99_ms": 0.0,
+  "peak_rss_mb": 0.0,
+  "allocations_per_frame": 0.0,
+  "full_frame_copies": 0,
+  "cache_hit_ratio": 0.0,
+  "output_hash": "deadbeef00000000",
+  "governor": "unknown (DEFERRED-WBH)",
+  "kernel": "unknown (DEFERRED-WBH)",
+  "compiler_preset": "linux-fast-bench",
+  "_forward_point": "TICKET-BENCH-BASELINE-SHA-MACHINE-VERIFY (macchina-verify via chronon3d_cli bench at SHA 7eb5c2ba12-scene-substrate once vcpkg glm/magic_enum available)",
+  "_primary_artifact": "docs/baselines/main-7eb5c2ba-baseline.md (canonical verde baseline; 11/11 PASS 2026-07-06; primary artifact NOT this JSON stub)"
+}
