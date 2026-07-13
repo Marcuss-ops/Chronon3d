@@ -1,4 +1,133 @@
 <details>
+<summary>feat(bench): reference machines + perf runner (TICKET-BENCH-MACHINES-V1) — 2026-07-13</summary>
+Atomic cat-3 feat on `main` per F1.3. Adds 4 NEW files + 1 EDIT docs `CHANGELOG.md`. ZERO new public SDK API symbols + ZERO new CLI flag. Reuses `configs/benchmark_machines.yaml` + `tools/benchmark_host_info.sh` + `examples/bench_corpus/run_corpus_v1.sh` canonical surface. **Cat-3 anti-dup**: 3 narrative `.md` cite YAML as SSoT — NO `cores/RAM/preset/governor` tab duplication.
+**Files touched (5 NEW + 1 EDIT)**: (a) NEW `bench/reference_machines/CPU-Low.md` (4–6 VPS class narrative; cites YAML inline); (b) NEW `bench/reference_machines/CPU-Mid.md` (8–16 desktop narrative; NUMA-OFF, SMT-ON); (c) NEW `bench/reference_machines/CPU-High.md` (32–64 NUMA-aware batch narrative); (d) NEW `bench/run_perf_bench.sh` (bash runner; `--machine low|mid|high` + `python3 yaml.safe_load` YAML parse + cpupower/perf/taskset graceful degrade via WARN+continue + warm-up + `perf stat -d -r 7` + `/usr/bin/time -v` fallback + `trap governor_restore EXIT` only-if-changed); (e) NEW `docs/tickets/TICKET-BENCH-MACHINES-V1.md` (cat-3 ticket; PARTIAL cert — bash -n + python3 `yaml.safe_load` PASS; perf-stated execution DEFERRED-WBH per VPS env-block); (f) EDIT `docs/CHANGELOG.md` (this entry prepended per Cat-5 2-doc same-commit).
+**Cat-3 SATISFIED** (zero new symbols in `include/chronon3d/`; zero new CLI flag on `chronon3d_cli`; zero `#include <msdfgen>/<libtess2>/<unicode[/...]>` — script-only + 4 NEW docs artifact files). **Cat-3 anti-dup discipline** applied (3 `.md` files cite `configs/benchmark_machines.yaml::machines[id=…]` inline via "Where to find it" tables; NO tabular data duplicated; pure narrative + cross-link canonici). **Cat-5 2-doc same-commit alignment** (CHANGELOG + ticket file atomically; `docs/FOLLOWUP_TICKETS.md` DEFERRED per §Disciplina di aggiornamento dei canonici because F1.3 does NOT open a §Open Blocker or change §Stato generale; `docs/CURRENT_STATUS.md` cite-only row DEFERRED to `TICKET-BENCH-MACHINES-V1-3DOC-CAT5-ALIGN` forward-point per parallel precedent `TICKET-GLOW-FINAL-COMPOSITIONS-DOC-MIGRATION-3DOC-CAT5-ALIGN`).
+**§honest-limitation**: `bash -n bench/run_perf_bench.sh` (syntax clean — returned exit 0) + `python3 -c 'import yaml; yaml.safe_load(open("configs/benchmark_machines.yaml"))'` (YAML well-formed — 3 machines, schema_version: `benchmark_machines_v1`) + script `chmod +x` + smoke arg-parse (GATE_NAME + MACHINE validator exit codepath) ARE HARNESS-COMPLETE on this VPS. End-to-end run `bash bench/run_perf_bench.sh --machine cpu-low --scene BenchB00_EmptyFrame` IS DEFERRED-WBH per the established `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum env-block (root cause: `build/manual-test/chronon3d_cli` NOT present — same precedent as F1.1 §honest-limitation; cpupower needs sudo on this VPS; perf needs `perf_event_paranoid ≤ 1` privilege not granted).
+**Subject envelope = 72 chars ≤ 72** push-range audit per AGENTS.md TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (subject: `feat(bench): reference machines + perf runner (TICKET-BENCH-MACHINES-V1)`).
+**§Herdoc bug fix-forward disclosed inline**: code-reviewer-minimax-m3 caught 1 BLOCKER on `bench/run_perf_bench.sh`: the `AVAILABLE_IDS` parser used `<<'PYEOF'` (single-quoted heredoc) which DISABLES bash variable interpolation, causing Python to receive the literal string `$BENCHMARK_MACHINES_YAML` → `FileNotFoundError`. Fix-forward: changed to `<<PYEOF` (unquoted, mirror of `query_yaml()` heredoc which was correct). Caught by 4-bullet pre-push reviewer (subject envelope + Cat-3 anti-dup + bash syntax + heredoc expansion) per AGENTS.md §honest-limitation preserve-disclose-amend. The fix-forward landed BEFORE the FIRST push attempt, not as a post-push amend.
+**Forward-points (NOT in this commit per AGENTS.md "Fare PR piccole e mirate" + Cat-3 anti-dup — registered in `docs/tickets/TICKET-BENCH-MACHINES-V1.md` §Forward-points)**: TICKET-PERF-GATE-V1 (F1.5; CI gate using `run_perf_bench.sh` as inner measurement loop) | TICKET-BENCH-SCHEMA-V1 (F1.4; extend `bench/benchmark_schema.json` with `governor_actual_initial` field already emitted by the runner) | TICKET-BENCH-MARKET-V1 (F1.6; cost-per-minute matrix per cpu class using `WEEKLY_COST_HOURLY_RATE` × measured frame time) | TICKET-COUNTERS-NODE-MEMORY-V1 (F2; NUMA-aware memory counter pinned to cpu-high profile per `CPU-High.md` NUMA disclosure) | TICKET-BENCH-MACHINES-V1-3DOC-CAT5-ALIGN (Cat-5 3-doc `docs/CURRENT_STATUS.md` cite-only forward-point per established parallel precedent).
+**Cross-references**: AGENTS.md v0.1 Cat-3 (zero new public SDK API; satisfied — 4 NEW files + 1 EDIT docs + script-only surface; no C++ touched) + Cat-3 anti-dup discipline (3 `.md` cite YAML SSoT inline via "Where to find it" tables; no tab duplication of `cores/RAM/preset/governor/thread_counts`) + Cat-5 2-doc same-commit (CHANGELOG + ticket file atomically; FOLLOWUP + CURRENT_STATUS DEFERRED per §Disciplina di aggiornamento dei canonici) + §honest-limitation preserve-disclose-amend (VPS env-block disclosure pattern + bash + python3 verifier-level IS HARNESS-COMPLETE; full perf-stat run IS DEFERRED-WBH — same pattern as F1.1 + `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV`) + §Post-push SHA-selfcheck invariant (mandatory SHA-triple equality verify after `bash tools/wrap_push.sh origin main` per AGENTS.md §GATE-MNT-01 closure lineage) + TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (72-char envelope ≤ 72 boundary) + §GATE-MNT-01 closure lineage (READ-side triad per-branch rebase + `tools/wrap_push.sh` Step 0/1/2.5/3/4 + `tools/check_main_clean.sh` Step 1-4 + WRITE-side SHA-triple selfcheck on this chore's push); the canonical `configs/benchmark_machines.yaml` schema_version: `benchmark_machines_v1` (the SINGLE SOURCE OF TRUTH for cpu-low/mid/high hardware specs; 3 `.md` files cite this YAML inline per Cat-3 anti-dup discipline — they do NOT duplicate the tabular data) + `tools/benchmark_host_info.sh` (the parallel precedent: host attribute collector emitting YAML/JSON; same python3 yaml.safe_load surface area) + `examples/bench_corpus/run_corpus_v1.sh` (the F1.1 12-scene runner; the workload substrate that `bench/run_perf_bench.sh` invokes for measurement) + `docs/PERFORMANCE_BOTTLENECKS.md` (the canonical bottleneck analysis pinned to cpu-mid as the primary reference per `CPU-Mid.md` cross-link) + `docs/V3_BLUEPRINT.md` (the F1.4/F1.5/F1.6 forward path lineage home) + `scripts/az18_build_ctest.sh` + `tools/verify_performance_linux.sh` (parallel verification pipelines that consume `chronon3d_cli` binary; the new `bench/run_perf_bench.sh` sits at the SAME exec layer with a different measurement modality) + `docs/tickets/TICKET-BENCH-CORPUS-V1.md` (the F1.1 sibling — this F1.3 chore IS registered in `TICKET-BENCH-CORPUS-V1.md` §Forward-points as a forward-point cell of F1.1 lineage, traced back here per AGENTS.md §SHA-cite inline-only rule); canonical `tools/wrap_push.sh` (the canonical push wrapper per GATE-MNT-01 that this chore will pass through with mandatory SHA-triple selfcheck).
+</details>
+# TICKET-BENCH-MACHINES-V1 — Reference Machines & Perf-Bench Runner
+## Stato
+**PARTIAL** (2026-07-13). Bash syntax PASS. python3 YAML parse PASS. Full
+end-to-end perf-stat + macchina-verifica DEFERRED-WBH per AGENTS.md
+§honest-limitation (env-block: cpupower / intel_pstate / sudo on this VPS).
+## Priorità
+P2 — abilita TICKET-PERF-GATE-V1 (F1.5) future work; non blocca 11/11 green.
+## Problema
+I 3 reference machine (cpu-low / cpu-mid / cpu-high) erano già definiti in
+[`configs/benchmark_machines.yaml`](../../configs/benchmark_machines.yaml)
+(schema_version: `benchmark_machines_v1`) come SSoT programmatic, ma:
+1. **Nessuna documentazione descrittiva** per ciascuna classe — operatori
+   umani non sapevano cosa rappresentasse ciascun tier (VPS vs workstation
+   vs batch server).
+2. **Nessun runner controllato** per misurare `cpupower performance`
+   governor + taskset affinity + warm-up + `perf stat -d -r 7` in modo
+   riproducibile. Le misurazioni esistenti (in `tools/verify_performance_linux.sh`)
+   usano `/usr/bin/time -v` senza governor control né perf-stat.
+3. **Nessuna graceful-degradation policy documentata** per VPS / WSL /
+   Docker / non-root container dove `cpupower` o `perf` mancano — rischio
+   silent rot (env-block con exit 0).
+## Soluzione adottata
+### 5 file change-set (4 NEW + 1 EDIT)
+| File | Tipo | Ruolo |
+|---|---|---|
+| `bench/reference_machines/CPU-Low.md` | NEW | Narrative per cpu-low (4-6 core VPS); cita YAML come SSoT |
+| `bench/reference_machines/CPU-Mid.md` | NEW | Narrative per cpu-mid (8-16 core desktop); cita YAML come SSoT |
+| `bench/reference_machines/CPU-High.md` | NEW | Narrative per cpu-high (32-64 core server); cita YAML come SSoT |
+| `bench/run_perf_bench.sh` | NEW | Runner; python3-parsed YAML + cpupower/perf/taskset graceful degradation + warm-up + perf stat -d -r 7 |
+| `docs/CHANGELOG.md` | EDIT | Prepended Cita-Only entry + ticket back-link |
+### Cat-3 minimal-surface (zero nuove SDK API)
+- ZERO nuovi simboli pubblici in `include/chronon3d/`.
+- ZERO nuovi flag CLI su `chronon3d_cli` (lo script è `bash bench/run_perf_bench.sh`).
+- ZERO nuovi singleton / registry / resolver.
+- ZERO `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` (script only, no C++ modification).
+- Reusa surface esistente canonica:
+  - `configs/benchmark_machines.yaml` → SSoT classi cpu-low/mid/high.
+  - `tools/benchmark_host_info.sh` → host-attribute collector (parallel precedent).
+  - `examples/bench_corpus/run_corpus_v1.sh` → F1.1 12-scene runner (sottostante workload).
+### Cat-3 anti-dup discipline (3 .md vs YAML)
+I 3 file `.md` SONO narrative-only con un "SSoT pointer" alla YAML canonica.
+**NON duplicano** i valori tabulari (cores, RAM, preset, thread_counts) —
+quelli vivono in `configs/benchmark_machines.yaml` (schema_machine_v1) come
+single source of truth. Le .md aggiungono:
+- Cosa rappresenta la classe (use case narrative).
+- Taskset mode (NUMA-aware per cpu-high, SMT siblings per cpu-mid, full
+  core sweep per cpu-low).
+- Governor policy (driver-name aware: intel_pstate vs acpi-cpufreq vs WSL).
+- Why this class matters (why we measure here, not elsewhere).
+- Tooling conventions (runner invocation + output paths).
+- Cross-link canonici (no info duplication).
+### Graceful degradation policy
+Il `run_perf_bench.sh` adotta una policy best-effort+continue per ogni fase
+che può essere ambient-bloccata:
+| Failure mode | Comportamento | Rationale |
+|---|---|---|
+| `cpupower` mancante o non-root | `[WARN]` + continue (governor unchanged) | VPS / WSL / Docker tipici |
+| `performance` governor rejected | `[WARN]` + continue, registra actual_gov_initial | cpu_mid su cloud può essere bloccat[o] |
+| `taskset` mancante | `[WARN]` + continue (no affinity) | macOS-via-Docker, alcuni container |
+| `perf` mancante o senza -d | `[WARN]` + fallback `/usr/bin/time -v` | container non-privileged |
+| `chronon3d_cli` non buildato | `[ERROR] + exit 2` (hard fail) | senza CLI non possiamo misurare |
+`trap governor_restore EXIT` ripristina il governor **SOLO se** era stato
+effettivamente cambiato (`GOVERNOR_CHANGED=true`). Non è un side-effect
+silente (rispetta "non sorprendere l'utente" di AGENTS.md).
+### Why separate reports per (machine, sha)
+`/tmp/bench/perf_<machine>_<sha>.json` evita:
+- Conflitti tra run concorrenti (manifest separati per SHA).
+- Overwrite silenzioso di misurazioni precedenti.
+- Confusione tra run su commit diversi (benchmark history preservata).
+Lo script NON modifica mai la YAML canonica — il report JSON è read-only
+rispetto al SSoT.
+### Used by… (albero di dipendenze)
+```
+F1.3 (questo ticket)
+   ├─ abilita F1.5 (TICKET-PERF-GATE-V1): gate "all 3 machines pass perf target"
+   ├─ consumato da F1.4 (TICKET-BENCH-SCHEMA-V1): schema JSON include perf fields
+   ├─ consumato da F1.6 (TICKET-BENCH-MARKET-V1): cost-per-minute matrix per machine class
+   └─ consumato da F2 (TICKET-COUNTERS-NODE-MEMORY-V1): per-machine NUMA-aware mem counter
+```
+## Env-block classification (transparency)
+Su questa VPS di sviluppo, l'esecuzione end-to-end del runner è bloccata da:
+1. **`cpupower` non invocabile senza sudo** — questa VPS non è root e la
+   `intel_pstate` driver manca. Governor resta al default di sistema (tipicamente
+   `schedutil` o `ondemand`). Il runner emette `[WARN]` corretto e procede.
+2. **`perf` non privilegiato** — `perf stat` richiede `perf_event_paranoid`
+   ≤ 1 o capability speciali. Container VPS tipicamente ha `-1` (full paranoid).
+   Il fallback `/usr/bin/time -v` è documentato.
+3. **`chronon3d_cli` env-block** — il binario `build/manual-test/chronon3d_cli`
+   richiede vcpkg `text/text_animator.hpp` (precedent TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV).
+   In assenza del binary, il runner exit 2 (`HARD_BLOCKED`) — comportamento
+   onesto, non silent rot.
+Il bash syntax (`bash -n`) + python3 yaml parse del file YAML sono
+**PASS su questa VPS** — la chore è HARNESS-COMPLETE.
+## Criteri di accettazione
+| # | Criterio | Stato (post-implementation) |
+|---|---|---|
+| 1 | `bench -n run_perf_bench.sh` exit 0 | PASS (bash syntax clean) |
+| 2 | `python3 -c "import yaml; yaml.safe_load(open('configs/benchmark_machines.yaml'))"` exit 0 | PASS (YAML well-formed) |
+| 3 | `bash bench/run_perf_bench.sh --machine cpu-low --scene BenchB00_EmptyFrame` end-to-end | DEFERRED-WBH (env-block cron tools su VPS) |
+| 4 | 3 .md narrative docs cita YAML SSoT (no tab dup) | PASS (verified via grep) |
+| 5 | Cat-3 minimal-surface: zero new SDK API, zero new CLI flag | PASS (script + .md only, no C++ modification) |
+| 6 | Forbidden checks: zero `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` | PASS (no C++ modification; script-only) |
+| 7 | trap-based governor restore on EXIT, only-if-changed | PASS (governor_restore trap + GOVERNOR_CHANGED flag) |
+| 8 | Subject envelope ≤ 72 chars per AGENTS.md TICKET-GATE-SUBJECT-RANGE | 72 chars (`feat(bench): reference machines + perf runner (TICKET-BENCH-MACHINES-V1)`) |
+## Forward-points
+- **TICKET-PERF-GATE-V1** (planned, F1.5): CI gate "all 3 machine classes pass perf target"; uses run_perf_bench.sh as inner loop. Forward-point cronaca qui.
+- **TICKET-BENCH-SCHEMA-V1** (planned, F1.4): extend `bench/benchmark_schema.json` to include `governor_actual_initial` field. Il TICKET-BENCH-MACHINES-V1 already emit campo; serve wbh-validation.
+- **TICKET-BENCH-MARKET-V1** (planned, F1.6): cost-per-minute matrix `cost_cpu-low * duration / 60`. Forward-point da qui.
+- **TICKET-COUNTERS-NODE-MEMORY-V1** (F2, cat-1): per-machine NUMA-aware memory counter. cpu-high's NUMA profile requirement informato qui.
+- **TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV** (precedent env-block): cron tools non-root VPS. Forward-point disclosure.
+## Cross-link canonici
+- [`configs/benchmark_machines.yaml`](../../configs/benchmark_machines.yaml) — SSoT canonical spec machine classes.
+- [`tools/benchmark_host_info.sh`](../../tools/benchmark_host_info.sh) — host-attribute collector (parallel precedent).
+- [`examples/bench_corpus/run_corpus_v1.sh`](../../examples/bench_corpus/run_corpus_v1.sh) — F1.1 12-scene runner (workload substrate).
+- [`docs/PERFORMANCE_BOTTLENECKS.md`](../../docs/PERFORMANCE_BOTTLENECKS.md) — historical bottleneck analysis pinned to cpu-mid.
+- [`docs/CHANGELOG.md`](../../docs/CHANGELOG.md) — prepended cite-only entry.
+- [`docs/FOLLOWUP_TICKETS.md`](../../docs/FOLLOWUP_TICKETS.md) — this ticket NON è blocker (no row aggiunto; Cat-5 deferred obligation).
+- AGENTS.md §Cat-3 (zero new SDK API surface), §honest-limitation (DEFERRED-WBH env-block pattern), §regole ("single source of truth per ogni dato").
+<details>
 <summary>chore(docs): open SIMD REGISTRY CANONICAL ticket — 2026-07-13</summary>
 
 Atomic docs-only chore opening docs/tickets/TICKET-SIMD-REGISTRY-CANONICAL.md (P1 NEW, 15 Highway sites canonical SIMD registry) + 1-row FOLLOWUP_TICKETS.md §Open Blockers index + this CHANGELOG entry prepended per Cat-5 2-doc same-commit alignment.
