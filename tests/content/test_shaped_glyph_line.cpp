@@ -105,3 +105,61 @@ TEST_CASE("ShapedGlyphLine: throws on non-existent font path") {
         std::runtime_error
     );
 }
+
+// ── Counter test (TICKET-FIX-TEXT-SHAPING-DEDUP-V1) ─────────────────────
+//
+// Verifies that constructing a ShapedGlyphLine with a 200-glyph text
+// (B02 Typewriter200Glyphs equivalent) triggers EXACTLY ONE engine.shape_text
+// call — the Point-8 single-shape efficiency contract.  All accessor
+// methods (width/layout/bbox/cursor/reveal_count) MUST read from the
+// cached m_run; re-shaping on accessor invocation would re-introduce
+// the lag the F6.2 fix removed.
+//
+// If this test starts failing with counter > 1, it means a future
+// refactor re-introduced the redundant HarfBuzz bevel — re-open the
+// ticket and fix the new code path.
+TEST_CASE("ShapedGlyphLine: shape_calls_per_line counter == 1 on B02-equivalent 200-glyph line") {
+    auto renderer = test::make_renderer();
+    auto& engine  = renderer.font_engine();
+
+    FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
+
+    // B02 equivalent: 200 glyphs of repeating Latin text.
+    // Same shape complexity as bench_corpus_scenes.cpp::bench_b02_typewriter_200_glyphs().
+    std::string text_200;
+    text_200.reserve(200);
+    const std::string pangram_loop =
+        "THEQUICKBROWNFOXJUMPSOVERTHELAZYDOG";      // 35 chars
+    while (text_200.size() < 200) {
+        text_200 += pangram_loop;
+    }
+    text_200.resize(200);
+
+    // Reset before each measurement (counter is global).
+    content::text_reveal::reset_shape_call_counter();
+    REQUIRE(content::text_reveal::get_shape_call_count() == 0);
+
+    // Construct ShapedGlyphLine (Point 8: failing-fast ctor if text rejects font).
+    content::text_reveal::ShapedGlyphLine line(text_200, 72.0f, spec, 4.0f, 0.0f, engine);
+
+    // After construction, counter must be exactly 1 (single engine.shape_text call).
+    CHECK(content::text_reveal::get_shape_call_count() == 1);
+
+    // Accessor invocations must NOT trigger additional shaping calls
+    // (Point 8 single-shape efficiency contract holds across all accessors).
+    const f32 w        = line.width();
+    auto         glyphs = line.layout();
+    auto         box    = line.bbox();
+    const f32   cur_end = line.cursor_at_end();
+    const auto   count  = line.reveal_count(0.5f);
+
+    // Counter stays at 1 — accessors read from m_run, not re-shape.
+    CHECK(content::text_reveal::get_shape_call_count() == 1);
+
+    // Sanity: the accessor outputs are non-trivial (defensive guard against
+    // a future refactor that accidentally returns zeros without shaping).
+    CHECK(w > 0.0f);
+    CHECK(glyphs.size() > 0u);
+    CHECK(cur_end > 0.0f);
+    CHECK(count > 0u);
+}
