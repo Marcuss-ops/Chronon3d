@@ -283,11 +283,7 @@ Questo rende difficile stabilire:
 
 ### Shared pointer non proprietario
 
-`compile_composition()` conserva un `shared_ptr` non proprietario con deleter vuoto verso una reference fornita dal chiamante. Se il definition originale muore, il compiled object resta con un puntatore pendente.
-
 ### Fingerprint su memoria grezza
-
-Nello stesso file il fingerprint della composizione viene calcolato sulla memoria grezza di tipi non banali come `CompositionSpec` e `CameraDescriptor`, includendo potenzialmente puntatori, padding e layout della STL.
 
 ### Intervento proposto
 
