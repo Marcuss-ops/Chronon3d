@@ -8,6 +8,7 @@
 
 add_library(chronon3d_core_impl OBJECT
     config.cpp
+    cpu_budget.cpp
     profiling.cpp
     benchmark_report.cpp
     system_metrics.cpp
