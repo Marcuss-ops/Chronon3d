@@ -18,6 +18,11 @@
 //   7. Mixed text — "Hello مرحبا café 🌍" (Latin + Arabic + accented + emoji)
 //   8. Non-zero tracking + ref_offset_x
 //   9. 200-glyph stress (B02 equivalent)
+//  10. Empty text — both paths agree on failure
+//  11. Single glyph — one-character text
+//  12. All-same-cluster — ligature where all source chars map to one glyph
+//  13. Pure LTR — long Latin text
+//  14. Pure RTL — long Arabic text
 //
 // The reference O(n²) implementation is extracted VERBATIM from the
 // current ShapedGlyphLine::layout() and run on the same raw GlyphRun.
@@ -285,7 +290,7 @@ TEST_CASE("ShapedGlyphLine cluster golden: 200-glyph stress (B02 equivalent)") {
     FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
     // B02 equivalent: 200 glyphs of repeating Latin text.
     // The O(n²) inner loop does 200×200 = 40,000 comparisons.
-    // The O(n) fix does ~200×log₂(200) ≈ 1,500 — 26× fewer.
+    // The O(n) fix does ~200 — linear.
     // This test verifies equivalence at scale.
     std::string text_200;
     text_200.reserve(200);
@@ -295,4 +300,80 @@ TEST_CASE("ShapedGlyphLine cluster golden: 200-glyph stress (B02 equivalent)") {
 
     run_golden_equivalence(engine, text_200,
                            spec, 72.0f, 4.0f, 0.0f, "200-glyph stress");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Test 10: Empty text — both paths agree on failure
+// ═════════════════════════════════════════════════════════════════════════
+TEST_CASE("ShapedGlyphLine cluster golden: empty text") {
+    auto renderer = test::make_renderer();
+    auto& engine  = renderer.font_engine();
+
+    FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
+    // Empty text produces zero glyphs. ShapedGlyphLine ctor throws;
+    // try_shape returns nullopt. The runner already handles this by
+    // verifying both paths agree on the failure mode.
+    run_golden_equivalence(engine, "", spec, 72.0f, 4.0f, 0.0f, "Empty text");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Test 11: Single glyph — one-character text
+// ═════════════════════════════════════════════════════════════════════════
+TEST_CASE("ShapedGlyphLine cluster golden: single glyph") {
+    auto renderer = test::make_renderer();
+    auto& engine  = renderer.font_engine();
+
+    FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
+    // Single glyph: cluster_end is text.size(), no inner-loop match.
+    // Verifies the O(n) path handles n=1 correctly for both LTR and RTL.
+    run_golden_equivalence(engine, "A", spec, 72.0f, 4.0f, 0.0f, "Single glyph");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Test 12: All-same-cluster — ligature where multiple chars map to one glyph
+// ═════════════════════════════════════════════════════════════════════════
+TEST_CASE("ShapedGlyphLine cluster golden: all-same-cluster ligature") {
+    auto renderer = test::make_renderer();
+    auto& engine  = renderer.font_engine();
+
+    FontSpec spec{"assets/fonts/Inter-Regular.ttf", "Inter", 400};
+    // "ffi" may be shaped by HarfBuzz as a single ligature glyph with
+    // cluster=0 spanning all three source characters. In that case all
+    // glyphs (just one) share the same cluster and cluster_end=text.size().
+    // If HarfBuzz keeps them as separate glyphs, the test still verifies
+    // equivalence for whatever cluster assignment HarfBuzz chooses.
+    run_golden_equivalence(engine, "ffi",
+                           spec, 72.0f, 4.0f, 0.0f, "All-same-cluster ligature");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Test 13: Pure LTR — long Latin text
+// ═════════════════════════════════════════════════════════════════════════
+TEST_CASE("ShapedGlyphLine cluster golden: pure LTR") {
+    auto renderer = test::make_renderer();
+    auto& engine  = renderer.font_engine();
+
+    FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
+    // Pure LTR with many glyphs — clusters are monotonically non-decreasing.
+    // The O(n) backward-pass path must match the reference exactly.
+    run_golden_equivalence(engine,
+                           "The quick brown fox jumps over the lazy dog. "
+                           "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG.",
+                           spec, 72.0f, 4.0f, 0.0f, "Pure LTR");
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+// Test 14: Pure RTL — long Arabic text
+// ═════════════════════════════════════════════════════════════════════════
+TEST_CASE("ShapedGlyphLine cluster golden: pure RTL") {
+    auto renderer = test::make_renderer();
+    auto& engine  = renderer.font_engine();
+
+    FontSpec spec{"assets/fonts/NotoNaskhArabic-Regular.ttf", "Noto Naskh Arabic", 400};
+    // Pure RTL Arabic — clusters are monotonically non-increasing.
+    // The O(n) RTL path (first glyph holds max cluster) must match the
+    // reference inner loop, which for RTL always finds the max cluster first.
+    run_golden_equivalence(engine,
+                           "السلام عليكم ورحمة الله وبركاته",
+                           spec, 72.0f, 4.0f, 0.0f, "Pure RTL");
 }
