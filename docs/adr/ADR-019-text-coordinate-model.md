@@ -560,3 +560,72 @@ three slimmed comment blocks (T1/T2/T3) preserved below for traceback.
   lowerers consume TextDefinition into a downstream model. Name chosen
   over the user-suggested `from_run_spec_definition` for symmetry with
   `to_text_document`.
+
+### §A.2 layer_builder.hpp (I4-SLIM)
+
+Original cronaca archived per Cat-3 anti-duplication. Full content of
+the six slimmed comment blocks (L1/L7/L2/L5/L4/L8) preserved below for
+traceback.
+
+**L1** — Phase-3.3 includes-comment narrative (baseline lines 24-29, 6 lines)
+- Rationale for NOT re-adding <utility>, <vector>, <memory>
+  at top of file: text_run_builder.hpp transitively brings in
+  std::forward / std::vector / std::unique_ptr via PendingTextRun +
+  TextRunBuilder full types. Re-adding as top-of-file was a reviewer-
+  flagged redundancy (universal TU scan cost without benefit).
+
+**L7** — Inspector friend forward-decl narrative (baseline lines 41-47, 7 lines)
+- Forward-declare LayerBuilderInspector in the test-only namespace so
+  the `friend class` declaration below resolves correctly. Full
+  definition in <chronon3d/scene/builders/test/layer_builder_inspection.hpp>.
+- Production TUs not including the inspection header cannot trigger
+  the friend declaration (friendship is 1:1, does NOT propagate
+  transitively; strict test-only gating).
+
+**L2** — TextRunBuilder incomplete-type fix narrative (baseline lines 50-59, 10 lines)
+- Pre-existing build break: any TU that includes layer_builder.hpp
+  but not the full text_run_builder.hpp triggered `invalid application
+  of sizeof to incomplete type` in std::unique_ptr<TextRunBuilder>::
+  default_delete, cascading into a misleading `private constructor`
+  error at std::make_unique<TextRunBuilder>(this, *spec_ptr).
+- Root-cause: friend relationship was correct, but incomplete type
+  was masking the access check. Fix: pull in TextRunBuilder +
+  TextRunSpec fully via #include.
+
+**L5** — pin_to(Anchor) grandfathering narrative (baseline lines 156-176, 21 lines)
+- M1.8 §5A / TICKET-SIMPLICITY-DEPRECATION: pin_to(Anchor) operates
+  on LAYER coordinates (NOT canvas). For text layers (any layer calling
+  .text(...)), mixing pin_to(Anchor) with TextAnchor:: on inner
+  TextSpec/TextDefinition indicates a Canvas/Layer/Box coordinate-
+  level confusion per ADR-019 §3 (predicted_bbox vs world_ink_bbox
+  divergence that triggered TICKET-TEXT-CLIP-PREDICTED-BBOX).
+- For text layers, prefer canonical TextPlacement chain on TextDefinition:
+    layer.text("hello", chronon3d::presets::text::title_centered("HELLO"));
+  OR
+    auto def = from_text_spec(ts);
+    def.frame.placement = TextPlacement{TextPlacementKind::Absolute, Vec2{x, y}};
+- Enforcement: Gate #25 in tools/check_architecture_boundaries.sh [4/4]
+  (now blocking per §5A, folded per I1 audit remediation) flags files
+  where pin_to(...) co-occurs with TextAnchor:: and .text(...) in the
+  same TU. Grandfathered pre-existing files per the gate header.
+
+**L4** — text(name, TextDefinition) F2.C doc-comment narrative (baseline lines 448-451, 4 lines)
+- F2.C — canonical authoring overload accepting TextDefinition.
+  RECOMMENDED entry point for new compositions (centered_text,
+  glow_text, typewriter_text all return TextDefinition so they
+  compose directly with this overload).
+- For SIMPLE text (no TextAnimator/GlyphSelector/script/language),
+  prefer text(name, TextDefinition) — skips TextRunBuilder indirection
+  (animated_text reserves for cases needing TextAnimatorSpec / GlyphSelectorSpec).
+
+**L8** — Phase-3.3 mechanical split note (baseline lines 81-95, 15 lines)
+- Inline accessor bodies (screen_dimensions family, name, resource,
+  extension_context setter/getter) moved verbatim into
+  detail/layer_builder_inline.inl (bottom-included).
+- pending_text_runs() REMOVED — it returned std::vector<const PendingTextRun*>,
+  leaking the builder's internal m_text_runs storage layout.
+- Consumers that need pre-build enum of pending text-run entries go
+  through the test-only inspector at
+  <chronon3d/scene/builders/test/layer_builder_inspection.hpp>, which
+  returns a value-typed snapshot (std::vector<PendingRunSnapshot>)
+  via friend-mediated access.

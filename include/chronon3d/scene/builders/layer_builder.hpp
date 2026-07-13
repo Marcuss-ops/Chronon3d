@@ -21,12 +21,7 @@
 #include <string_view>
 #include <memory_resource>
 #include <optional>
-// NOTE: Phase-3.3 slim avoided adding <utility>, <vector>, <memory> —
-// text_run_builder.hpp (already included above) transitively brings
-// in std::forward / std::vector / std::unique_ptr via the full type
-// definitions of PendingTextRun and TextRunBuilder.  Re-adding them
-// as top-of-file includes was a reviewer-flagged redundancy (would
-// lengthen the compile unit without buying anything).
+// NOTE: Phase-3.3 mechanical split avoided re-adding <utility>, <vector>, <memory> — text_run_builder.hpp transitively brings them in. See ADR-019 §A.2.
 
 namespace chronon3d {
 
@@ -38,25 +33,10 @@ struct ExtensionContext;  // PR 3.5 — forward-decl (host-side ambient registri
 struct TextDefinition;  // F2.C — forward-decl for text(name, TextDefinition) overload.
                          // Full definition in <chronon3d/text/text_definition.hpp>.
 
-// Forward-declare the test-only inspector so its `friend class`
-// declaration below resolves correctly.  Full definition lives in
-// <chronon3d/scene/builders/test/layer_builder_inspection.hpp>.
-// Production TUs that do not include this inspection header cannot
-// trigger the friend declaration either — friendship is 1:1 and
-// does NOT propagate transitively, so this is a strict test-only
-// gating.
+// Forward-declare the test-only inspector for the `friend class LayerBuilderInspector` declaration below. See ADR-019 §A.2.
 namespace builders { namespace testing { class LayerBuilderInspector; } }
 
-// `TextRunBuilder` and `TextRunSpec` are now pulled in fully via
-// `#include <chronon3d/scene/builders/text_run_builder.hpp>` above.
-// Forward declarations of these types here caused the pre-existing
-// build break: any TU that includes this header but not the full
-// `text_run_builder.hpp` triggered `invalid application of sizeof to
-// incomplete type` in `std::unique_ptr<TextRunBuilder>::default_delete`,
-// which in turn cascaded into a misleading `private constructor` error
-// at the `std::make_unique<TextRunBuilder>(this, *spec_ptr)` call site
-// (the friend relationship was correct, but incomplete type was
-// masking the access check).
+// `TextRunBuilder` and `TextRunSpec` pulled in fully via `#include <chronon3d/scene/builders/text_run_builder.hpp>` above. See ADR-019 §A.2 for the sizeof-cascade incident.
 
 namespace layer_builder_internal {
 
@@ -78,19 +58,8 @@ public:
     static void add_grid_plane(Layer& layer, std::string name, GridPlaneParams p, FontEngine* font_engine);
 };
 
-// ── Phase-3.3 mechanical split note ──────────────────────────────────
-// Inline accessor bodies (screen_dimensions family, name, resource,
-// extension_context setter/getter) have moved verbatim into
-// detail/layer_builder_inline.inl (bottom-included).  The
-// `pending_text_runs()` method has been REMOVED from the public
-// surface — it returned `std::vector<const PendingTextRun*>`,
-// leaking the builder's internal `m_text_runs` storage layout.
-// Downstream consumers that need a pre-build enum of pending
-// text-run entries MUST go through the test-only inspector at
-// <chronon3d/scene/builders/test/layer_builder_inspection.hpp>.
-// The inspector returns a value-typed snapshot
-// (`std::vector<PendingRunSnapshot>`) and closes the access via
-// a `friend class` declaration below.
+// ── Phase-3.3 mechanical split ──
+// Inline accessor bodies (screen_dimensions / name / resource / extension_context) moved to detail/layer_builder_inline.inl. pending_text_runs() REMOVED — consumers use the test-only inspector (LayerBuilderInspector::pending_runs) via friend declaration below. See ADR-019 §A.2.
 
 class LayerBuilder {
 public:
@@ -153,27 +122,8 @@ public:
     LayerBuilder& depth_offset(f32 offset);
 
     // ── Layout ──
-    // M1.8 §5A / TICKET-SIMPLICITY-DEPRECATION — `pin_to(Anchor)` operates
-    // on LAYER coordinates, NOT canvas coordinates.  For text layers
-    // (any layer that calls `.text(...)` on this same LayerBuilder),
-    // mixing `pin_to(Anchor)` with `TextAnchor::` on the inner
-    // TextSpec/TextDefinition indicates a Canvas/Layer/Box coordinate-
-    // level confusion per ADR-019 §3 (the predicted_bbox vs world_ink_bbox
-    // divergence that triggered TICKET-TEXT-CLIP-PREDICTED-BBOX).
-    //
-    // For text layers, prefer the canonical `TextPlacement` chain on the
-    // TextDefinition:
-    //   layer.text("hello", chronon3d::presets::text::title_centered("HELLO"));
-    //   // OR
-    //   auto def = from_text_spec(ts);
-    //   def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
-    //                                       Vec2{x, y}};
-    //
-    // Enforcement: Gate #25 in `tools/check_architecture_boundaries.sh`
-    // [4/4] (now blocking per §5A — folded per the I1 audit remediation)
-    // flags files where `pin_to(...)` co-occurs with `TextAnchor::` and
-    // `.text(...)` in the same TU.  See the gate header for the full list
-    // of grandfathered pre-existing files.
+// ── Layout ──
+// pin_to(Anchor) operates on LAYER coords (NOT canvas). Mixing with TextAnchor:: / .text(...) indicates ADR-019 §3 coordinate-level confusion. Prefer TextPlacement chain on TextDefinition. Gate #25 in tools/check_architecture_boundaries.sh enforces this. See ADR-019 §A.2.
     LayerBuilder& pin_to(Anchor anchor, f32 margin = 0.0f);
     LayerBuilder& pin_to(AnchorPlacement placement, f32 margin = 0.0f);
     LayerBuilder& keep_in_safe_area(SafeArea area = {});
@@ -445,10 +395,9 @@ public:
     // See also: the class-level docstring at the top of `LayerBuilder`
     // for the canonical entry point to the new fluent surface.
     //
-    /// F2.C — canonical authoring overload accepting TextDefinition.
-    /// This is the RECOMMENDED entry point for new compositions;
-    /// centered_text() / glow_text() / typewriter_text() now all return
-    /// TextDefinition so they compose directly with this overload.
+/// F2.C — canonical authoring overload accepting TextDefinition
+/// (RECOMMENDED entry point for new compositions; centered_text() / glow_text() / typewriter_text() all return TextDefinition + compose directly).
+/// For SIMPLE text (no TextAnimator/GlyphSelector/script/language), prefer this over `animated_text(name, TextRunSpec)`. See ADR-019 §A.2.
     LayerBuilder& text(std::string name, const TextDefinition& def);
 
     // ── TextRunBuilder (PR 4 — TextAnimator V2) ──────────────────────────
