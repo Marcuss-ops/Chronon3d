@@ -85,17 +85,16 @@ Composition cert_multilingual() {
                                    .font_size   = 30.0f},
         .color = Color{0.7f, 0.7f, 0.75f, 1.0f}
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f, 64.0f}},
-        .size = {static_cast<float>(kWidth) - kMargin * 2.0f, 56.0f},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 1
+    .frame = {.size = {static_cast<float>(kWidth) - kMargin * 2.0f, 56.0f},
+.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f, 64.0f}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 1
     }
 });
             });
@@ -113,17 +112,16 @@ Composition cert_multilingual() {
                                        .font_size   = 22.0f},
         .color = Color{0.5f, 0.8f, 0.5f, 1.0f}
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},
-        .size = {200.0f, 48.0f},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 1
+    .frame = {.size = {200.0f, 48.0f},
+.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 1
     }
 });
                     l.text("row1_text", TextDefinition{
@@ -135,17 +133,16 @@ Composition cert_multilingual() {
                                        .font_size   = kFontSize},
         .color = Color::white()
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},
-        .size = {static_cast<float>(kWidth) - 500.0f, kRowH},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 2
+    .frame = {.size = {static_cast<float>(kWidth) - 500.0f, kRowH},
+.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 2
     }
 });
                 });
@@ -164,17 +161,16 @@ Composition cert_multilingual() {
                                        .font_size   = 22.0f},
         .color = Color{0.5f, 0.8f, 0.5f, 1.0f}
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},
-        .size = {200.0f, 48.0f},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 1
+    .frame = {.size = {200.0f, 48.0f},
+.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 1
     }
 });
                     l.text("row2_text", TextDefinition{
@@ -186,17 +182,16 @@ Composition cert_multilingual() {
                                        .font_size   = kFontSize},
         .color = Color::white()
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},
-        .size = {static_cast<float>(kWidth) - 500.0f, kRowH},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 2
+    .frame = {.size = {static_cast<float>(kWidth) - 500.0f, kRowH},
+.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 2
     }
 });
                 });
@@ -215,17 +210,16 @@ Composition cert_multilingual() {
                                        .font_size   = 20.0f},
         .color = Color{0.9f, 0.6f, 0.3f, 1.0f}
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},
-        .size = {280.0f, 48.0f},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 1
+    .frame = {.size = {280.0f, 48.0f},
+.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 1
     }
 });
                     l.text("row3_text", TextDefinition{
@@ -237,17 +231,16 @@ Composition cert_multilingual() {
                                        .font_size   = kFontSize},
         .color = Color{0.9f, 0.7f, 0.3f, 1.0f}
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},
-        .size = {static_cast<float>(kWidth) - 500.0f, kRowH},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 2
+    .frame = {.size = {static_cast<float>(kWidth) - 500.0f, kRowH},
+.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 2
     }
 });
                 });
@@ -266,17 +259,16 @@ Composition cert_multilingual() {
                                        .font_size   = 20.0f},
         .color = Color{0.9f, 0.6f, 0.3f, 1.0f}
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},
-        .size = {280.0f, 48.0f},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 1
+    .frame = {.size = {280.0f, 48.0f},
+.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 1
     }
 });
                     l.text("row4_text", TextDefinition{
@@ -288,17 +280,16 @@ Composition cert_multilingual() {
                                        .font_size   = kFontSize},
         .color = Color{0.9f, 0.7f, 0.3f, 1.0f}
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},
-        .size = {static_cast<float>(kWidth) - 500.0f, kRowH},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 2
+    .frame = {.size = {static_cast<float>(kWidth) - 500.0f, kRowH},
+.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 2
     }
 });
                 });
@@ -317,17 +308,16 @@ Composition cert_multilingual() {
                                        .font_size   = 20.0f},
         .color = Color{0.9f, 0.5f, 0.5f, 1.0f}
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},
-        .size = {280.0f, 48.0f},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 1
+    .frame = {.size = {280.0f, 48.0f},
+.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 1
     }
 });
                     l.text("row5_text", TextDefinition{
@@ -339,17 +329,16 @@ Composition cert_multilingual() {
                                        .font_size   = 48.0f},
         .color = Color{1.0f, 0.6f, 0.4f, 1.0f}
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},
-        .size = {static_cast<float>(kWidth) - 500.0f, kRowH},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 2
+    .frame = {.size = {static_cast<float>(kWidth) - 500.0f, kRowH},
+.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 2
     }
 });
                 });
@@ -368,17 +357,16 @@ Composition cert_multilingual() {
                                        .font_size   = 22.0f},
         .color = Color{0.5f, 0.8f, 0.5f, 1.0f}
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},
-        .size = {200.0f, 48.0f},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 1
+    .frame = {.size = {200.0f, 48.0f},
+.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, y}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 1
     }
 });
                     l.text("row6_text", TextDefinition{
@@ -390,17 +378,16 @@ Composition cert_multilingual() {
                                        .font_size   = kFontSize},
         .color = Color::white()
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},
-        .size = {static_cast<float>(kWidth) - 500.0f, kRowH},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 2
+    .frame = {.size = {static_cast<float>(kWidth) - 500.0f, kRowH},
+.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f + 100.0f, y}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 2
     }
 });
                 });

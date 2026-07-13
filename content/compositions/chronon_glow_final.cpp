@@ -183,14 +183,13 @@ void build_chronon_glow_scene(
                 },
         .color = chronon3d::Color::white()
     },
-    .frame = {
-        .placement = chronon3d::TextPlacement{
+    .frame = {.size = layout.box,
+.placement = chronon3d::TextPlacement{
                     chronon3d::TextPlacementKind::CanvasCenter,
                     {},
                 },
-        .size = layout.box,
-        .align = chronon3d::TextAlign::Center,
-        .vertical_align = chronon3d::VerticalAlign::Middle
+.align = chronon3d::TextAlign::Center,
+.vertical_align = chronon3d::VerticalAlign::Middle
     }
 },
         }).commit();
