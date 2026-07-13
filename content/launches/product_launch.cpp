@@ -134,15 +134,19 @@ Composition product_launch() {
                 .key(Frame{45}, Vec3{1.00f, 1.00f, 1.0f}, EasingCurve{Easing::OutCubic})
                 .key(Frame{78}, Vec3{1.00f, 1.00f, 1.0f}, EasingCurve{Easing::Hold})
                 .key(Frame{90}, Vec3{0.96f, 0.96f, 1.0f}, EasingCurve{Easing::InSine});
-            auto def = from_text_spec(TextSpec{
-                .content    = {.value = "CHRONON3D LAUNCH"},
-                .font       = {.font_weight = 700,
+            auto def = TextDefinition{
+    .content = {.value = "CHRONON3D LAUNCH"},
+    .style = {
+        .font = {.font_weight = 700,
                                  .font_size = 168.0f},
-                .layout     = {.box        = {1600.0f, 280.0f},
-                               .line_height = 1.05f,
-                               .tracking    = 8.0f},
-                .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},
-            });
+        .color = Color{1.0f, 1.0f, 1.0f, 1.0f}
+    },
+    .frame = {
+        .size = {1600.0f, 280.0f},
+        .line_height = 1.05f,
+        .tracking = 8.0f
+    }
+};
             l.text("title_label", def);
         });
 
@@ -156,14 +160,18 @@ Composition product_launch() {
                 .key(Frame{70},  1.0f, EasingCurve{Easing::OutCubic})
                 .key(Frame{82},  1.0f, EasingCurve{Easing::Hold})
                 .key(Frame{90},  0.0f, EasingCurve{Easing::InSine});
-            auto def = from_text_spec(TextSpec{
-                .content    = {.value = "a deterministic 3D pipeline for media"},
-                .font       = {.font_size = 38.0f},
-                .layout     = {.box        = {1400.0f, 80.0f},
-                               .line_height = 1.10f,
-                               .tracking    = 4.0f},
-                .appearance = {.color = Color{0.78f, 0.82f, 0.95f, 1.0f}},
-            });
+            auto def = TextDefinition{
+    .content = {.value = "a deterministic 3D pipeline for media"},
+    .style = {
+        .font = {.font_size = 38.0f},
+        .color = Color{0.78f, 0.82f, 0.95f, 1.0f}
+    },
+    .frame = {
+        .size = {1400.0f, 80.0f},
+        .line_height = 1.10f,
+        .tracking = 4.0f
+    }
+};
             l.text("subtitle_label", def);
         });
 

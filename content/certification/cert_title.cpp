@@ -9,7 +9,7 @@
 // M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (2026-07-10):
 //   - 1 `text::centered_text({...})` call site (in make_cert_title_comp
 //     helper, shared by CertTitle + CertTitleVertical) migrated to
-//     canonical `from_text_spec(TextSpec{...})` API (F2.C adapter).
+//     canonical `TextDefinition{}` API (F2.C adapter).
 //   - `text_helpers.hpp` include removed (no longer used).
 // ==============================================================================
 
@@ -50,20 +50,30 @@ static Composition make_cert_title_comp(const char* name,
             // (TICKET: pin_to + text-node interaction needs engine fix.)
             s.layer("title", [&](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
-                l.text("title_text", from_text_spec(TextSpec{.content    = {.value = text},.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(width) * 0.5f,
-                                   static_cast<float>(height) * 0.5f}},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                l.text("title_text", TextDefinition{
+    .content = {.value = text},
+    .style = {
+        .font = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                    .font_family = "Inter",
                                    .font_weight = 700,
-                                   .font_size   = font_size},.layout     = {.box            = {static_cast<float>(width),
+                                   .font_size   = font_size},
+        .color = Color::white()
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(width) * 0.5f,
+                                   static_cast<float>(height) * 0.5f}},
+        .size = {static_cast<float>(width),
                                                       static_cast<float>(height)},
-                                   .anchor         = TextAnchor::Center,
-                                   .centering_mode = TextCenteringMode::PixelInk,
-                                   .align          = TextAlign::Center,
-                                   .vertical_align = VerticalAlign::Middle,
-                                   .wrap           = TextWrap::Word,
-                                   .overflow       = TextOverflow::Clip,
-                                   .line_height    = 0.95f,
-                                   .max_lines      = 1},.appearance = {.color = Color::white()},}));
+        .anchor = TextAnchor::Center,
+        .centering_mode = TextCenteringMode::PixelInk,
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .wrap = TextWrap::Word,
+        .overflow = TextOverflow::Clip,
+        .line_height = 0.95f,
+        .max_lines = 1
+    }
+});
             });
             return s.build();
         });

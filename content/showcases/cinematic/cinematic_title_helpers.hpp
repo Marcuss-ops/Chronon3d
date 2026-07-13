@@ -14,7 +14,7 @@ namespace chronon3d::content::anims {
 // TiltSweepTitleV2 use Georgia Bold, 118pt, PixelInk centering, 1.0f
 // tracking in a 900×180 box.  The colour defaults to cinematic off-white;
 // V2 overrides it with pure white.
-/// F2.D — returns canonical TextDefinition instead of TextSpec.
+/// F2.D — returns canonical TextDefinition.
 inline TextDefinition make_artist_name_text(const char* name, Color color) {
     return TextDefinition{
         .content = {.value = name},

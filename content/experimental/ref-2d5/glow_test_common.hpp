@@ -4,6 +4,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <string>
+#include <chronon3d/text/text_definition.hpp>
 
 namespace chronon3d::content::effects {
 
@@ -26,7 +27,20 @@ inline void deep_bg(SceneBuilder& s, Color top, Color bot) {
 inline void bottom_label(SceneBuilder& s, const std::string& text, Color col = Color{0.55f,0.72f,0.90f,1.f}) {
     s.layer("_label", [=](LayerBuilder& l) {
         l.position({0, kHH - 60.f, 0});
-        l.text("t", TextSpec{.content = {.value = text},.placement = TextPlacement{TextPlacementKind::Absolute, {0, 0.0f}},.font = {.font_size = 18.f},.layout = {.box = {1200, 44}, .anchor = TextAnchor::Center, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},.appearance = {.color = col},});
+        l.text("t", TextDefinition{
+    .content = {.value = text},
+    .style = {
+        .font = {.font_size = 18.f},
+        .color = col
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0, 0.0f}},
+        .size = {1200, 44},
+        .anchor = TextAnchor::Center,
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle
+    }
+});
     });
 }
 

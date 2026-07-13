@@ -48,13 +48,21 @@ void add_bg(SceneBuilder& s) {
 
 // Centered text params for the 5 easy anims.
 TextDefinition txt_center(std::string text, f32 font_size = 72.0f) {
-    return from_text_spec(TextSpec{
-        .content = {.value = std::move(text)},
-        .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}},
+    return TextDefinition{
+    .content = {.value = std::move(text)},
+    .style = {
         .font = {.font_path = FONT_REGULAR, .font_size = font_size},
-        .layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 1.22f, .tracking = 4.0f},
-        .appearance = {.color = TEXT_COLOR},
-    });
+        .color = TEXT_COLOR
+    },
+    .frame = {
+        .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}},
+        .size = {BOX_W, BOX_H},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .line_height = 1.22f,
+        .tracking = 4.0f
+    }
+};
 }
 
 } // anonymous namespace

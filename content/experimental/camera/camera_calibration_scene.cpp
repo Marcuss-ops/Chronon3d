@@ -2,6 +2,7 @@
 #include <chronon3d/math/color.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <cmath>
+#include <chronon3d/text/text_definition.hpp>
 
 namespace chronon3d::content::two_point_five_d {
 
@@ -77,7 +78,18 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
             .thickness = 3.0f,
             .color = {1.0f, 0.2f, 0.2f, 0.85f}
         });
-        l.text("x_lbl", TextSpec{.content = {.value = "X"},.placement = TextPlacement{TextPlacementKind::Absolute, {208.0f, 0.0f}},.font = {.font_size = 18.0f},.layout = {.anchor = TextAnchor::TopLeft, .align = TextAlign::Left},.appearance = {.color = {1.0f, 0.2f, 0.2f, 0.85f}},});
+        l.text("x_lbl", TextDefinition{
+    .content = {.value = "X"},
+    .style = {
+        .font = {.font_size = 18.0f},
+        .color = {1.0f, 0.2f, 0.2f, 0.85f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {208.0f, 0.0f}},
+        .anchor = TextAnchor::TopLeft,
+        .align = TextAlign::Left
+    }
+});
     });
 
     s.layer("axis_y", [](LayerBuilder& l) {
@@ -88,7 +100,18 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
             .thickness = 3.0f,
             .color = {0.2f, 1.0f, 0.2f, 0.85f}
         });
-        l.text("y_lbl", TextSpec{.content = {.value = "Y"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font = {.font_size = 18.0f},.layout = {.anchor = TextAnchor::BottomCenter, .align = TextAlign::Center},.appearance = {.color = {0.2f, 1.0f, 0.2f, 0.85f}},});
+        l.text("y_lbl", TextDefinition{
+    .content = {.value = "Y"},
+    .style = {
+        .font = {.font_size = 18.0f},
+        .color = {0.2f, 1.0f, 0.2f, 0.85f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+        .anchor = TextAnchor::BottomCenter,
+        .align = TextAlign::Center
+    }
+});
     });
 
     s.layer("axis_z", [](LayerBuilder& l) {
@@ -99,7 +122,18 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
             .thickness = 3.0f,
             .color = {0.2f, 0.2f, 1.0f, 0.85f}
         });
-        l.text("z_lbl", TextSpec{.content = {.value = "Z"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font = {.font_size = 18.0f},.layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},.appearance = {.color = {0.2f, 0.2f, 1.0f, 0.85f}},});
+        l.text("z_lbl", TextDefinition{
+    .content = {.value = "Z"},
+    .style = {
+        .font = {.font_size = 18.0f},
+        .color = {0.2f, 0.2f, 1.0f, 0.85f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+        .anchor = TextAnchor::Center,
+        .align = TextAlign::Center
+    }
+});
     });
 
     // ── 7. World-space target cross at origin ───────────────────────────
@@ -123,7 +157,18 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
             .pos = {0.0f, 0.0f, 0.15f},
             .stroke = {.enabled = true, .color = {1.0f, 0.35f, 0.35f, 0.5f}, .width = 2.0f}
         });
-        l.text("lbl", TextSpec{.content = {.value = "TARGET"},.placement = TextPlacement{TextPlacementKind::Absolute, {30.0f, 0.0f}},.font = {.font_size = 11.0f},.layout = {.anchor = TextAnchor::TopLeft, .align = TextAlign::Left},.appearance = {.color = {1.0f, 0.45f, 0.45f, 0.75f}},});
+        l.text("lbl", TextDefinition{
+    .content = {.value = "TARGET"},
+    .style = {
+        .font = {.font_size = 11.0f},
+        .color = {1.0f, 0.45f, 0.45f, 0.75f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {30.0f, 0.0f}},
+        .anchor = TextAnchor::TopLeft,
+        .align = TextAlign::Left
+    }
+});
     });
 
     // ── 8. Three pillars at different Z depths ──────────────────────────
@@ -221,15 +266,70 @@ void add_camera_calibration_scene(SceneBuilder& s, bool include_pillars) {
 
         // Text labels — Y-down convention (positive Y = down on screen).
         // TOP is at NEGATIVE Y (above center), BOTTOM at POSITIVE Y (below center).
-        l.text("label_top", TextSpec{.content = {.value = "TOP"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font = {.font_size = 20.0f},.layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},.appearance = {.color = {0.75f, 0.85f, 1.0f, 0.85f}},});
+        l.text("label_top", TextDefinition{
+    .content = {.value = "TOP"},
+    .style = {
+        .font = {.font_size = 20.0f},
+        .color = {0.75f, 0.85f, 1.0f, 0.85f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+        .anchor = TextAnchor::Center,
+        .align = TextAlign::Center
+    }
+});
 
-        l.text("label_left", TextSpec{.content = {.value = "LEFT"},.placement = TextPlacement{TextPlacementKind::Absolute, {-kCardHalfW + 20.0f, 0.0f}},.font = {.font_size = 18.0f},.layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},.appearance = {.color = {0.75f, 0.85f, 1.0f, 0.75f}},});
+        l.text("label_left", TextDefinition{
+    .content = {.value = "LEFT"},
+    .style = {
+        .font = {.font_size = 18.0f},
+        .color = {0.75f, 0.85f, 1.0f, 0.75f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {-kCardHalfW + 20.0f, 0.0f}},
+        .anchor = TextAnchor::Center,
+        .align = TextAlign::Center
+    }
+});
 
-        l.text("label_front", TextSpec{.content = {.value = "FRONT →"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font = {.font_size = 28.0f},.layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},.appearance = {.color = {0.90f, 0.95f, 1.0f, 1.0f}},});
+        l.text("label_front", TextDefinition{
+    .content = {.value = "FRONT →"},
+    .style = {
+        .font = {.font_size = 28.0f},
+        .color = {0.90f, 0.95f, 1.0f, 1.0f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+        .anchor = TextAnchor::Center,
+        .align = TextAlign::Center
+    }
+});
 
-        l.text("label_right", TextSpec{.content = {.value = "RIGHT"},.placement = TextPlacement{TextPlacementKind::Absolute, {kCardHalfW - 22.0f, 0.0f}},.font = {.font_size = 18.0f},.layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},.appearance = {.color = {0.75f, 0.85f, 1.0f, 0.75f}},});
+        l.text("label_right", TextDefinition{
+    .content = {.value = "RIGHT"},
+    .style = {
+        .font = {.font_size = 18.0f},
+        .color = {0.75f, 0.85f, 1.0f, 0.75f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {kCardHalfW - 22.0f, 0.0f}},
+        .anchor = TextAnchor::Center,
+        .align = TextAlign::Center
+    }
+});
 
-        l.text("label_bottom", TextSpec{.content = {.value = "BOTTOM"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font = {.font_size = 20.0f},.layout = {.anchor = TextAnchor::Center, .align = TextAlign::Center},.appearance = {.color = {0.75f, 0.85f, 1.0f, 0.85f}},});
+        l.text("label_bottom", TextDefinition{
+    .content = {.value = "BOTTOM"},
+    .style = {
+        .font = {.font_size = 20.0f},
+        .color = {0.75f, 0.85f, 1.0f, 0.85f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+        .anchor = TextAnchor::Center,
+        .align = TextAlign::Center
+    }
+});
     });
 }
 
