@@ -26,7 +26,6 @@ static void ensure_content_registered_smoke(CompositionRegistry& registry) {
     graph::GraphNodeCatalog nodes;
     effects::EffectCatalog effects;
     AssetRegistry assets;
-    assets.mount(std::filesystem::current_path());
     ExtensionContext ctx{registry, nodes, effects, assets};
     register_content_modules(cat, ctx);
 }

@@ -46,8 +46,8 @@ namespace chronon3d::cli {
 // cli_asset_registry() REMOVED — the global mutable static AssetRegistry
 // was a concurrency hazard (daemon, watch mode, parallel render jobs).
 // AssetRegistry is now created in main() and threaded through CliContext.
-// Per-renderer asset mounting happens in create_renderer() via
-// renderer->runtime().assets().mount(cwd) + resolver().mount(cwd).
+// Per-renderer asset root mounting happens in create_renderer() via
+// renderer->runtime().resolver().mount(cwd).
 
 /// PR 3.5 — returns the CLI-wide static StyleRegistry + MotionRegistry.
 /// Created once, shared between authoring-time text builders. Host code

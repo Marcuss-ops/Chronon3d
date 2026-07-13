@@ -33,7 +33,6 @@
 // ===========================================================================
 
 #include <filesystem>
-#include <memory>
 #include <mutex>
 #include <optional>
 
@@ -46,8 +45,14 @@ public:
 
     AssetResolver(const AssetResolver&)            = delete;
     AssetResolver& operator=(const AssetResolver&) = delete;
-    AssetResolver(AssetResolver&&) noexcept            = default;
-    AssetResolver& operator=(AssetResolver&&) noexcept = default;
+    AssetResolver(AssetResolver&& other) noexcept
+        : m_root_path(std::move(other.m_root_path)) {}
+    AssetResolver& operator=(AssetResolver&& other) noexcept {
+        if (this != &other) {
+            m_root_path = std::move(other.m_root_path);
+        }
+        return *this;
+    }
 
     /// Set the engine-local mount root.  Subsequent resolve() calls
     /// use this root for relative paths.  Pass an empty path to
@@ -91,9 +96,7 @@ private:
     [[nodiscard]] std::optional<std::filesystem::path>
     resolve_locked_(const std::filesystem::path& path) const;
 
-    // Wrapped in unique_ptr: std::mutex is non-movable; AssetResolver
-    // must be movable for RenderRuntime::create() factory.
-    mutable std::unique_ptr<std::mutex> m_mutex{std::make_unique<std::mutex>()};
+    mutable std::mutex m_mutex;
     std::filesystem::path m_root_path;
 };
 

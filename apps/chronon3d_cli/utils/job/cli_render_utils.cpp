@@ -75,12 +75,7 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     // global mutable CWD read across the two mount() calls.
     const std::filesystem::path cwd = std::filesystem::current_path();
 
-    // Mount 1/2 — typed AssetRegistry.  Picked up by callers that go
-    // through `runtime().assets()` (mirrors `cli_asset_registry().mount()`
-    // in render_job_setup.cpp at the CLI-wide global level).
-    renderer->runtime().assets().mount(cwd);
-
-    // Mount 2/2 — per-engine Resolver.  WP-8 PR 8.0 split the runtime
+    // Mount the per-engine Resolver.  WP-8 PR 8.0 split the runtime
     // assets into TWO siblings: `assets()` (typed registry) and
     // `resolver()` (per-engine typed path resolver).  The FontEngine
     // is constructed in `SoftwareRenderer(Config{})` via
@@ -90,9 +85,8 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     // AssetPreflightResolver::check calls `resolver.resolve_lexical(ref.path)`
     // (include/chronon3d/assets/asset_preflight_resolver.hpp) and
     // SoftwareRenderer::preflight_fonts passes `m_runtime->resolver()` to
-    // `TextRenderResources::resolve_handle(...)`.  Mounting assets()
-    // alone is therefore insufficient — the resolver side stays empty
-    // and produces the same SEGV.  Mount both siblings.
+    // `TextRenderResources::resolve_handle(...)`.  AssetRegistry no longer
+    // holds a mount root; path resolution is the resolver's job.
     renderer->runtime().resolver().mount(cwd);
 
     // FIX (correctness — populate idempotency): the canonical

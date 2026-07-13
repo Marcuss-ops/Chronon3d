@@ -26,7 +26,6 @@ static void ensure_content_registered(CompositionRegistry& registry) {
     graph::GraphNodeCatalog nodes;
     effects::EffectCatalog effects;
     AssetRegistry assets;
-    assets.mount(std::filesystem::current_path());
     ExtensionContext ctx{registry, nodes, effects, assets};
     register_content_modules(cat, ctx);
 }
@@ -51,7 +50,6 @@ TEST_CASE("2D5 content: idempotent registration") {
     static graph::GraphNodeCatalog nodes;
     static effects::EffectCatalog effects;
     static AssetRegistry assets;
-    assets.mount(std::filesystem::current_path());
     ExtensionContext ctx{registry, nodes, effects, assets};
     // register_content_modules is idempotent — subsequent calls are no-ops
     // because the catalog contains the module after the first call.

@@ -44,6 +44,27 @@ struct GlyphPos {
     f32         width{0.0f};
 };
 
+// Source-text span for a shaped glyph.  Encapsulates the byte range in
+// the original text that corresponds to one glyph, plus the glyph's
+// advance (including tracking).  Used by ShapedGlyphLine::layout() to
+// replace the previous O(n²) inner scan with an O(n) next-greater-
+// element pass over cluster values.
+struct GlyphClusterSpan {
+    size_t start_glyph{0};   // index into GlyphRun::glyphs
+    size_t end_glyph{0};     // exclusive (currently always start_glyph+1)
+    size_t byte_offset{0};   // byte offset in source text
+    size_t byte_len{0};      // bytes in source text
+    f32    advance{0.0f};    // glyph advance_x + tracking
+
+    // Build per-glyph cluster spans in O(n) using a next-greater-element
+    // stack over the HarfBuzz cluster values.  Preserves the exact
+    // "first by index" semantics of the legacy O(n²) inner scan.
+    [[nodiscard]] static std::vector<GlyphClusterSpan> build(
+        const std::vector<GlyphPosition>& glyphs,
+        std::string_view text,
+        f32 tracking);
+};
+
 // Axis-aligned bounding box for a shaped line of text (pixels).
 struct GlyphLineBBox {
     f32 x0{0.0f};
