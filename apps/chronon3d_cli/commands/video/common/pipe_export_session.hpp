@@ -2,6 +2,7 @@
 
 #include "pipe_export_helpers.hpp"
 
+#include <chronon3d/core/cpu_budget.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
@@ -251,7 +252,8 @@ struct PipeExportSession {
     const RenderSettings& settings,
     const FfmpegExportOptions& opts,
     Frame start,
-    Frame end);
+    Frame end,
+    const chronon3d::CpuBudget& cpu_budget);
 
 /// Phase 5: Pre-warm the framebuffer pool (separate from warmup_pipe_renderer).
 void warmup_pipe_pool(PipeExportSession& session);
@@ -313,6 +315,7 @@ struct RenderLoopOutput {
     const RenderSettings& settings,
     Frame start,
     Frame end,
-    const FfmpegExportOptions& opts);
+    const FfmpegExportOptions& opts,
+    const chronon3d::CpuBudget& cpu_budget);
 
 } // namespace chronon3d::cli
