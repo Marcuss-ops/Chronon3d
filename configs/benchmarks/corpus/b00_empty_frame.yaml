@@ -1,0 +1,74 @@
+# configs/benchmarks/corpus/b00_empty_frame.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Benchmark corpus — Scene B00: EmptyFrame
+# ─────────────────────────────────────────────────────────────────────────
+# Purpose (user-spec §3 verbatim): "Misura solo overhead del motore."
+# Niente contenuto: solo scene initialization + clear + execute loop,
+# senza draw call significative. Stabilisce il floor di engine cost.
+#
+# Per AGENTS.md v0.1 Cat-3 (zero new public SDK API surface):
+#   the scene descriptor is config-only — no new header, no new CLI
+#   argument, no new composition registration. comp_id references the
+#   canonical canary composition already registered on main.
+#
+# Per AGENTS.md v0.1 §honesty ("non inventare"):
+#   the matrix below is the user-spec verbatim; actual measurements on a
+#   specific host are deferred to working-build-host runs (see forward
+#   points + TICKET-BENCHMARK-CORPUS-MACHINE-VERIFY).
+# ─────────────────────────────────────────────────────────────────────────
+
+schema_version: "benchmark_corpus_v1"
+
+# ── Identifier ────────────────────────────────────────────────────────────
+scene_id: "B00"
+display_name: "EmptyFrame"
+category: "engine_overhead"
+intent: |
+  Misura solo overhead del motore. Niente contenuto significativo: solo
+  scene initialization + clear + execute loop. Floor di engine cost.
+
+# ── Composition binding ────────────────────────────────────────────────────
+comp_id: "PipelineParityCanary"
+canonical_render:
+  command: "chronon3d_cli video PipelineParityCanary --start 0 --end 60 --fps 30"
+  output_path: "/tmp/benchmark_corpus_b00.mp4"
+
+# ── Test matrix (user-spec §3 verbatim subset, aligned with benchmark_machines.yaml) ──
+thread_matrix:
+  cpu-low:  [1, 2, 4]
+  cpu-mid:  [1, 2, 4, 8, 16]
+  cpu-high: [1, 4, 8, 16, 32, 64]
+frame_rates: [30, 60]
+resolution_options: [{ width: 1920, height: 1080 }, { width: 3840, height: 2160 }]
+duration_seconds_options: [2, 10, 60]
+# ── Variant matrix — full sweep over the (cache_state, media, output) axes ──
+variant_matrix:
+  - { cache_state: "cold", media: "mp4" }
+  - { cache_state: "warm", media: "mp4" }
+  - { cache_state: "cold", media: "still" }
+  - { cache_state: "warm", media: "still" }
+
+# ── Expected metrics (per-frame, per-render, per-host) ─────────────────────
+expected_metrics:
+  - time_to_first_frame_ms
+  - frame_p50_ms
+  - frame_p95_ms
+  - frame_p99_ms
+  - effective_fps
+  - peak_rss_mb
+  - allocations_per_frame
+  - full_frame_copies
+  - cache_hit_ratio
+  - output_hash_pixels
+  - video_per_minute_per_cpu_hour
+  - cost_per_minute_eur
+
+# ── Forward points (deferred to working-build-host) ────────────────────────
+forward_points:
+  - { name: "performance-gate JSON schema + check_performance_gate.sh wiring", ticket: "TICKET-PERFORMANCE-GATE-WIREIN" }
+
+# ── Cross-links ────────────────────────────────────────────────────────────
+cross_link:
+  - "configs/benchmark_machines.yaml (3-class reference machine spec)"
+  - "docs/PERFORMANCE_BOTTLENECKS.md §Riepilogo Performance"
+  - "docs/CHANGELOG.md prepended configs(corpus): benchmark corpus B00-B11 entry"

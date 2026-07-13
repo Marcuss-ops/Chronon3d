@@ -1,0 +1,60 @@
+# configs/benchmarks/corpus/b09_long_form_10min.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Benchmark corpus — Scene B09: LongForm10Minutes
+# ─────────────────────────────────────────────────────────────────────────
+# Purpose (user-spec §3 verbatim):
+#   "Stabilità, memoria e cache nel lungo periodo" — long-form video
+#   render to stress memory stability (no leaks), cache health over
+#   time (no unbounded growth), and thermal throttling detection.
+#
+# Per AGENTS.md v0.1 Cat-3 + §honesty: metadata-only; comp_id references
+# the canonical certified composition rendered for 10 minutes.
+# ─────────────────────────────────────────────────────────────────────────
+
+schema_version: "benchmark_corpus_v1"
+
+scene_id: "B09"
+display_name: "LongForm10Minutes"
+category: "stability_long_form"
+intent: |
+  Misura stabilità del renderer su un render di 10 minuti (18000 frame
+  @30fps). Verifica: RSS stabile (no leak), cache hit-rate costante,
+  nessun throttle termico, determinismo bit-esatto bit-per-bit per tutti
+  i 18000 frame.
+
+comp_id: "ChrononGlowFinalAE"
+canonical_render:
+  command: "chronon3d_cli video ChrononGlowFinalAE --start 0 --end 18000 --fps 30"
+  output_path: "/tmp/benchmark_corpus_b09.mp4"
+
+thread_matrix:
+  cpu-low:  [1, 2, 4]
+  cpu-mid:  [1, 2, 4, 8, 16]
+  cpu-high: [1, 4, 8, 16, 32, 64]
+frame_rates: [30]
+resolution_options: [{ width: 1920, height: 1080 }]
+duration_seconds_options: [60, 300, 600]   # 1min, 5min, 10min
+
+variant_matrix:
+  - { cache_state: "cold-then-warm", media: "mp4", duration_seconds: 600 }
+  - { cache_state: "warm",            media: "mp4", duration_seconds: 600 }
+
+expected_metrics:
+  - frame_p50_ms
+  - frame_p95_ms
+  - frame_p99_ms
+  - rss_drift_mb                 # (peak_rss - initial_rss) — expect ~0
+  - cache_hit_ratio_over_time    # 5 buckets @ 2min each
+  - thermal_throttle_count       # should be 0 under performance governor
+  - output_hash_pixels           # expect UNIQUE == 1 for replay
+  - allocations_per_frame        # 0 expected post-warm-up
+  - cost_per_minute_eur          # commercial: 10min @ VPS rate
+
+forward_points:
+  - { name: "thermal-throttle regression test",    ticket: "TICKET-THERMAL-REGRESSION" }
+
+cross_link:
+  - "tools/benchmark_host_info.sh (host attributes incl. governor)"
+  - "configs/benchmark_machines.yaml::machines[].cpu_governor=performance"
+  - "tests/determinism/test_brute_determinism.cpp (§16 repeatability)"
+  - "ChrononGlowFinalAE (certified at 1cb9cff2)"

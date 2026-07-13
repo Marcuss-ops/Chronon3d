@@ -1,0 +1,66 @@
+# configs/benchmarks/corpus/b05_blur_4k.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Benchmark corpus — Scene B05: Blur4K
+# ─────────────────────────────────────────────────────────────────────────
+# Purpose (user-spec §3 verbatim):
+#   "Effetto memory-bandwidth intensive" — large-radius blur at 4K
+#   resolution to stress the memory subsystem (bandwidth-bound kernel).
+#
+# Per AGENTS.md v0.1 Cat-3 + §honesty: metadata-only; comp_id is
+# FORWARD-POINTED. The current canonical production space lacks a
+# dedicated blur-4k scene; the proxy is a per-pixel-DOF test
+# composition (see include/chronon3d/backends/software/utils/effects/per_pixel_dof.hpp
+# for the canonical blur kernel).
+# ─────────────────────────────────────────────────────────────────────────
+
+schema_version: "benchmark_corpus_v1"
+
+scene_id: "B05"
+display_name: "Blur4K"
+category: "memory_bandwidth"
+intent: |
+  Misura un large-radius blur (separable) a 3840x2160 per stressare
+  la bandwidth di memoria (kernel memory-bound, non compute-bound).
+
+comp_id: "TBD"
+# The proxy renders only the canary baseline; the target_spec applies ONCE
+# TICKET-BENCH-B05-COMPOSITION ships a dedicated Blur4K composition.
+comp_id_proxy: "PipelineParityCanary"
+comp_id_target_spec:
+  resolution: "3840x2160"
+  blur_radius: 32        # ~32px large separable
+  blur_kernel: "gaussian"
+  execute_count_per_frame: 8   # 1 source + 8 effects layers blurred
+canonical_render:
+  command: "chronon3d_cli video <PLACEHOLDER:Blur4K-comp> --start 0 --end 30 --fps 30 --skip-preflight"
+  output_path: "/tmp/benchmark_corpus_b05.mp4"
+
+thread_matrix:
+  cpu-low:  [1, 2, 4]
+  cpu-mid:  [1, 2, 4, 8, 16]
+  cpu-high: [1, 4, 8, 16, 32, 64]
+frame_rates: [30]
+resolution_options: [{ width: 3840, height: 2160 }]
+duration_seconds_options: [1, 5]
+variant_matrix:
+  - { cache_state: "cold", media: "mp4" }
+  - { cache_state: "warm", media: "mp4" }
+
+expected_metrics:
+  - memory_bandwidth_gbps        # primary; should be > 20 GB/s
+  - frame_p50_ms
+  - frame_p95_ms
+  - frame_p99_ms
+  - peak_rss_mb
+  - allocations_per_frame
+  - cache_hit_ratio
+  - cost_per_minute_eur
+
+forward_points:
+  - { name: "register Blur4K scene",    ticket: "TICKET-BENCH-B05-COMPOSITION" }
+  - { name: "gather SIMD metadata",    ticket: "TICKET-PIXEL-KERNEL-REGISTRY" }
+
+cross_link:
+  - "include/chronon3d/backends/software/utils/effects/per_pixel_dof.hpp"
+  - "src/backends/software/simd/highway_dof_kernels.cpp"
+  - "configs/benchmark_machines.yaml"

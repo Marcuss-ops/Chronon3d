@@ -1,0 +1,64 @@
+# configs/benchmarks/corpus/b11_portrait_1080x1920.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Benchmark corpus — Scene B11: Portrait1080x1920
+# ─────────────────────────────────────────────────────────────────────────
+# Purpose (user-spec §3 verbatim):
+#   "Pipeline verticale reale" — vertical 9:16 short-form pipeline
+#   (1080x1920) to validate production-readiness for IG Reels / TikTok
+#   / Shorts distribution (the canonical product pivot).
+#
+# Per AGENTS.md v0.1 Cat-3 + §honesty: metadata-only; comp_id references
+# the canonical portrait cinematic-glow composition (registered post
+# Step8 refactor in `content/compositions/chronon_glow_final.hpp`).
+# ─────────────────────────────────────────────────────────────────────────
+
+schema_version: "benchmark_corpus_v1"
+
+scene_id: "B11"
+display_name: "Portrait1080x1920"
+category: "vertical_short_form"
+intent: |
+  Misura il renderer verticale 9:16 (1080x1920) — pipeline di prodotto
+  reale per IG Reels / TikTok / Shorts. Verifica: stabilità del glow
+  pipeline a risoluzione portrait, perf-bit-equivalence portrait vs
+  landscape (ChrononGlowFinalAE_NoGlow baseline).
+
+comp_id: "chronon-glow-final-portrait"
+canonical_render:
+  command: "chronon3d_cli video chronon-glow-final-portrait --start 0 --end 60 --fps 30"
+  output_path: "/tmp/benchmark_corpus_b11.mp4"
+
+thread_matrix:
+  cpu-low:  [1, 2, 4]
+  cpu-mid:  [1, 2, 4, 8, 16]
+  cpu-high: [1, 4, 8, 16, 32, 64]
+frame_rates: [30, 60]
+resolution_options: [{ width: 1080, height: 1920 }]
+duration_seconds_options: [1, 5, 15, 30]   # typical short-form length
+
+variant_matrix:
+  - { cache_state: "cold",    media: "mp4" }
+  - { cache_state: "warm",    media: "mp4" }
+  - { cache_state: "cold",    media: "still", frame: 30 }
+
+expected_metrics:
+  - time_to_first_frame_ms
+  - frame_p50_ms
+  - frame_p95_ms
+  - frame_p99_ms
+  - peak_rss_mb
+  - allocations_per_frame
+  - full_frame_copies
+  - cache_hit_ratio
+  - output_hash_pixels         # landscape vs portrait expect DIFFERENT pre-output_hash
+  - cost_per_minute_eur
+
+forward_points:
+  - { name: "portrait landscape parity test",               ticket: "TICKET-PORTRAIT-LANDSCAPE-PARITY" }
+  - { name: "register batch_100 vertical+jit corpus on top of corpus", ticket: "TICKET-BENCH-B11-CORPUS-INTEGRATION" }
+
+cross_link:
+  - "content/compositions/chronon_glow_final.hpp (ChrononFormat enum, portrait variant)"
+  - "apps/chronon3d_cli/register_runtime_compositions.cpp (production registration)"
+  - "configs/batch_100_videos_corpus.yaml (vertical_9_16 short-form format)"
+  - "configs/benchmark_machines.yaml"

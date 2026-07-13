@@ -1,0 +1,56 @@
+# configs/benchmarks/corpus/b07_nested_precomps.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Benchmark corpus — Scene B07: NestedPrecomps
+# ─────────────────────────────────────────────────────────────────────────
+# Purpose (user-spec §3 verbatim):
+#   "Graph, cache e dependency handling" — nested sequences/
+#   precomps to stress graph dependency resolution + cache invalidation.
+#
+# Per AGENTS.md v0.1 Cat-3 + §honesty: metadata-only; comp_id references
+# the canonical sequence-v2 production composition.
+# ─────────────────────────────────────────────────────────────────────────
+
+schema_version: "benchmark_corpus_v1"
+
+scene_id: "B07"
+display_name: "NestedPrecomps"
+category: "graph_dependency_cache"
+intent: |
+  Misura una scena con sequenze annidate + precomp (intro/outro at
+  livello scene + sotto-sequenze). Stress sulla cache invalidation
+  per fingerprint modification + dependency graph walking.
+
+comp_id: "SeqV2IntroOutro"
+canonical_render:
+  command: "chronon3d_cli video SeqV2IntroOutro --start 0 --end 90 --fps 30"
+  output_path: "/tmp/benchmark_corpus_b07.mp4"
+
+thread_matrix:
+  cpu-low:  [1, 2, 4]
+  cpu-mid:  [1, 2, 4, 8, 16]
+  cpu-high: [1, 4, 8, 16, 32, 64]
+frame_rates: [30]
+resolution_options: [{ width: 1920, height: 1080 }]
+duration_seconds_options: [3, 15, 30]
+variant_matrix:
+  - { cache_state: "cold",                          media: "mp4" }       # 1st run: scene_program compiled
+  - { cache_state: "warm",                          media: "mp4" }       # 2nd run: scene_program cache hit
+  - { cache_state: "warm-fingerprint-modified",     media: "mp4" }       # 3rd run: cache invalidated by fingerprint drift (depends on TICKET-FINGERPRINT-PERF)
+
+expected_metrics:
+  - scene_program_compile_ms   # 1st run only
+  - frame_p50_ms
+  - frame_p95_ms
+  - cache_hit_ratio            # 2nd run: expect ≈ 1.0
+  - fingerprint_invalidation_count
+  - allocations_per_frame
+  - peak_rss_mb
+  - cost_per_minute_eur
+
+forward_points:
+  - { name: "fingerprint benchmarking", ticket: "TICKET-FINGERPRINT-PERF" }
+
+cross_link:
+  - "content/showcases/sequence-v2/sequence_v2_compositions.cpp"
+  - "include/chronon3d/timeline/compile_evaluate.hpp (fingerprint invalidation)"
+  - "configs/benchmark_machines.yaml"
