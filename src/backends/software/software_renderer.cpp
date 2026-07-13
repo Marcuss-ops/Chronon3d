@@ -208,6 +208,21 @@ void SoftwareRenderer::commit_frame_state(Frame frame, const Camera2_5D& cam,
                                           uint64_t combined_fp, uint64_t static_fp,
                                           uint64_t structure_fp, uint64_t active_at_fp,
                                           std::unordered_map<std::string, LayerBBoxState>&& layer_bboxes) {
+    // Azione 20 — public-SDK ABI forwarder to commit_prev_frame_state.
+    //
+    // This method is a pure 1-line forwarder; it has zero call sites inside
+    // the in-tree codebase (all in-tree calls go directly to
+    // commit_prev_frame_state).  It is preserved here because the
+    // declaration lives in the public SDK header
+    // `include/chronon3d/backends/software/software_renderer.hpp` — removing
+    // the declaration would be an ABI break for out-of-tree SDK consumers
+    // that may have linked against this method's signature.
+    //
+    // Per user-spec verbatim §4 ("Se serve davvero preservare entrambe
+    // (es. ABI/header pubblico) ➜ documenta il vincolo con commento, NON
+    // toccare"), the constraint is documented here.  Future ABI-revision
+    // tickets may deprecate this entry (mark [[deprecated]] in header)
+    // and remove in a major-version cycle.
     commit_prev_frame_state(frame, cam, combined_fp, static_fp, structure_fp, active_at_fp,
                             std::move(layer_bboxes));
 }
