@@ -1,3 +1,12 @@
+<details>
+<summary>fix(render): TextBboxReporter per-node alpha (FIX-ALPHA-SCANNER-DUP-V1) — 2026-07-13</summary>
+
+<!-- F6.1-entry-marker -->
+
+Atomic cat-3 chore on `main` per FASE 6.1 (TICKET-FIX-ALPHA-SCANNER-DUP-V1). Re-inserted post-§21ece2b3 race-window recovery #6 (canonical per-session TextBboxReporter extension to TextRunNode pre-render diagnostic path). Subject envelope 71 chars OK. Full cronaca + design + 5 forward-points in `docs/tickets/TICKET-FIX-ALPHA-SCANNER-DUP-V1.md`. SHA-triple selfcheck invocation layer (canonical GATE-MNT-01 closure lineage).
+
+</details>
+
 - feat(text): shape_calls_per_line counter (FIX-TEXT-SHAPING-DEDUP-V1) — 2026-07-13
 - feat(perf): counters + smoke test (TICKET-PERF-COUNTERS-NODE-MEMORY-V1) — 2026-07-13
 

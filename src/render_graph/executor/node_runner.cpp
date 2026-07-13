@@ -46,6 +46,17 @@ void execute_single_node(
     const auto& input_ids = graph.inputs(id);
     const auto& pr = level_resolved[level_index];
 
+    // ── TICKET-FIX-ALPHA-SCANNER-DUP-V1 — wire per-session reporter ─
+    // Forward `ExecutionState::text_bbox_reporter` into the per-node
+    // mutable workspace so node-level diagnostics (e.g. TextRunNode's
+    // pre-render `suspiciously_thin` + FU04 guards) can dedup their
+    // warn-once via the canonical per-session pattern instead of
+    // process-wide `static bool warned = false`.  Set once per
+    // execute_single_node call so parallel level processing shares
+    // the SAME reporter instance (intentional: the per-session
+    // guarantee is per-ExecutionState, not per-node).
+    ctx.node_exec.text_bbox_reporter = &state.text_bbox_reporter;
+
     // ── WP 4.3 — populate per-node identity ────────────────────────────────
     // Stamp `ctx.node_exec.current_identity` with this node's
     // `(graph_instance_id, stable_node_id)` BEFORE cloning the per-node
