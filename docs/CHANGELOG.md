@@ -1,4 +1,21 @@
 <details>
+<summary>chore(docs): open SIMD REGISTRY CANONICAL ticket — 2026-07-13</summary>
+
+Atomic docs-only chore opening docs/tickets/TICKET-SIMD-REGISTRY-CANONICAL.md (P1 NEW, 15 Highway sites canonical SIMD registry) + 1-row FOLLOWUP_TICKETS.md §Open Blockers index + this CHANGELOG entry prepended per Cat-5 2-doc same-commit alignment.
+
+Pre-requisito ADR-025 SIMD resolver canonical: AGENTS.md hard rule "No nuovi singleton/registry/resolver/cache senza ADR" cita esplicitamente questo ticket. ADR-025 obbligatorio precedent all implementazione. 15+ Highway sites (machine-verified 2026-07-13: 48 HWY_EXPORT + 6 AVX2 specialization + 4 inline using namespace + 5 preprocessor guard) migrano al resolver via RenderRuntime::m_simd_kernels instance-bound.
+
+Subject envelope 70 chars ≤72 (subject: chore(docs): open TICKET-SIMD-REGISTRY-CANONICAL (15 site unification)).
+
+Cat-3 SATISFIED (pure docs tracking, zero new SDK symbols). Cat-5 2-doc same-commit alignment. AGENTS.md compliance: §regole "no new singleton/resolver senza ADR" + §regole Cat-3 + §honest-limitation (macchina-verifica DEFERRED to working build host) + §Post-push SHA-selfcheck invariant + §SHA-cite inline-only rule.
+
+</details>
+
+
+
+
+<details>
+<summary>feat(bench): 12-scene benchmark corpus B00-B11 (TICKET-BENCH-CORPUS-V1) — 2026-07-13</summary><details>
 <summary>feat(bench): 12-scene benchmark corpus B00-B11 (TICKET-BENCH-CORPUS-V1) — 2026-07-13</summary>
 
 Atomic cat-3 feat on `main` per FASE 1.1 (misurazione). Adds 4 artifacts + 2 wiring edits; **ZERO** new public SDK API symbols. Riusa `chronon3d::Composition` + `SceneBuilder` + `LayerBuilder` + `CompositionRegistry::add(CompositionDescriptor{...})` + `scene_presets::detail::{default_font, text_preset}` canonical surface.
