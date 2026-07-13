@@ -29,7 +29,7 @@ namespace chronon3d::graph {
 
 class ExecutionState;
 class RenderGraphContext;
-namespace cache { class FramebufferPool; }
+using FramebufferPool = ::chronon3d::cache::FramebufferPool;
 
 // SkipReason — discriminante per commit_transparent_skip().
 //   EarlyExit        : ctx.node_exec.early_exit_skip[id] driven.
@@ -52,7 +52,7 @@ void commit_transparent_skip(
     ExecutionState& state,
     GraphNodeId id,
     RenderGraphContext& ctx,
-    cache::FramebufferPool* parent_pool,
+    FramebufferPool* parent_pool,
     SkipReason reason,
     std::string_view node_name = {}
 );

@@ -62,6 +62,9 @@
 
 namespace {
 
+using chronon3d::content::glow_final::ChrononGlowProps;
+using chronon3d::content::glow_final::GlowFormat;
+
 // ── Spec numeric constants (Phase 2 §spec — keep aligned, TU-local) ─────
 //
 // Lives in anonymous namespace so each TU has its own copy with internal
@@ -246,13 +249,13 @@ ChrononGlowProps default_portrait_props() {
     };
 }
 
-chrono3d::Composition make_chronon_glow_final(ChrononGlowProps props) {
+chronon3d::Composition make_chronon_glow_final(ChrononGlowProps props) {
     const GlowLayout layout = resolve_layout(props.format);
     const std::string name = (props.format == GlowFormat::Portrait)
         ? std::string{"ChrononGlowFinal/9x16"}
         : std::string{"ChrononGlowFinal/16x9"};
-    const unsigned w = static_cast<unsigned>(layout.canvas_size.x);
-    const unsigned h = static_cast<unsigned>(layout.canvas_size.y);
+    const chronon3d::i32 w = static_cast<chronon3d::i32>(layout.canvas_size.x);
+    const chronon3d::i32 h = static_cast<chronon3d::i32>(layout.canvas_size.y);
     return chronon3d::composition(
         {
             .name       = name,
