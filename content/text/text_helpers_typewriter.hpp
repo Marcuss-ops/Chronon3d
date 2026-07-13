@@ -93,20 +93,21 @@ inline TextDefinition typewriter_text(CenterTextOptions o,
                            .font_size   = o.font_size},
         .color = c
     },
-    .frame = {.size = o.box,
-.placement = TextPlacement{TextPlacementKind::Absolute, {o.pos.x, o.pos.y}},
-.anchor = TextAnchor::Center,
-.align = TextAlign::Center,
-.vertical_align = VerticalAlign::Middle,
-.wrap = TextWrap::Word,
-.overflow = TextOverflow::Clip,
-.centering_mode = TextCenteringMode::PixelInk,
-.line_height = o.line_height,
-.tracking = o.tracking,
-.auto_fit = o.auto_fit,
-.min_font_size = o.min_font_size,
-.max_font_size = o.max_font_size,
-.max_lines = o.max_lines
+    .frame = {
+        .size = o.box,
+        .placement = TextPlacement{TextPlacementKind::Absolute, {o.pos.x, o.pos.y}},
+        .anchor = TextAnchor::Center,
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .wrap = TextWrap::Word,
+        .overflow = TextOverflow::Clip,
+        .centering_mode = TextCenteringMode::PixelInk,
+        .line_height = o.line_height,
+        .tracking = o.tracking,
+        .auto_fit = o.auto_fit,
+        .min_font_size = o.min_font_size,
+        .max_font_size = o.max_font_size,
+        .max_lines = o.max_lines
     }
 };
     };
@@ -439,6 +440,93 @@ inline void advance_cluster_window(
 
 } // namespace detail
 
+// ── compile per-character glyphs during layout ─────────────────────────────
+//
+// Pre-build everything needed to render each visible character so the
+// per-frame loop does not allocate strings, shared_ptrs, or mini-runs.
+
+namespace detail {
+
+inline std::vector<CompiledTypewriterGlyph> compile_typewriter_glyphs(
+    const TypewriterLayout& layout,
+    const PlacedGlyphRun& placed,
+    const std::string& text,
+    std::string_view layer_prefix)
+{
+    std::vector<CompiledTypewriterGlyph> result;
+    result.reserve(layout.chars.size());
+
+    size_t first_cl = 0;
+    size_t end_cl = 0;
+
+    for (size_t i = 0; i < layout.chars.size(); ++i) {
+        const auto& cp = layout.chars[i];
+
+        if (cp.byte_len == 1 && text[cp.byte_offset] == ' ') continue;
+        if (cp.byte_len == 1 && text[cp.byte_offset] == '\n') continue;
+
+        CompiledTypewriterGlyph glyph;
+        glyph.original_index = i;
+        glyph.layer_name = std::string(layer_prefix) + "_c" + std::to_string(i);
+        glyph.text_slice = text.substr(cp.byte_offset, cp.byte_len);
+        glyph.placement = {cp.x, cp.y};
+
+        if (!placed.clusters.empty() && !placed.glyphs.empty()) {
+            const size_t char_start = cp.byte_offset;
+            const size_t char_end = cp.byte_offset + cp.byte_len;
+
+            advance_cluster_window(placed.clusters, char_start, char_end,
+                                   first_cl, end_cl);
+
+            if (first_cl < end_cl) {
+                const auto& first_cluster = placed.clusters[first_cl];
+                const auto& last_cluster = placed.clusters[end_cl - 1];
+                const size_t start_glyph = first_cluster.start_glyph;
+                const size_t end_glyph = last_cluster.end_glyph;
+
+                if (end_glyph > start_glyph && start_glyph < placed.glyphs.size()) {
+                    auto mini_run = std::make_shared<PlacedGlyphRun>();
+                    mini_run->ascent = placed.ascent;
+                    mini_run->descent = placed.descent;
+                    mini_run->baseline = placed.baseline;
+                    mini_run->font_size = placed.font_size;
+
+                    const float base_x = placed.glyphs[start_glyph].x;
+                    const float base_y = placed.glyphs[start_glyph].y;
+                    for (size_t gi = start_glyph; gi < end_glyph; ++gi) {
+                        const auto& src = placed.glyphs[gi];
+                        PlacedGlyph pg = src;
+                        pg.x = src.x - base_x;
+                        pg.y = src.y - base_y;
+                        mini_run->glyphs.push_back(pg);
+                        mini_run->total_width += src.advance_x;
+                    }
+
+                    PlacedGlyphRun::Cluster mini_cl;
+                    mini_cl.start_glyph = 0;
+                    mini_cl.end_glyph = mini_run->glyphs.size();
+                    mini_cl.byte_offset = cp.byte_offset;
+                    mini_cl.byte_len = cp.byte_len;
+                    for (const auto& pg : mini_run->glyphs) {
+                        mini_cl.advance += pg.advance_x;
+                        mini_cl.raw_advance += pg.raw_advance_x;
+                    }
+                    mini_run->clusters.push_back(mini_cl);
+                    mini_run->total_height = placed.total_height;
+
+                    glyph.run = std::move(mini_run);
+                }
+            }
+        }
+
+        result.push_back(std::move(glyph));
+    }
+
+    return result;
+}
+
+} // namespace detail
+
 // ── typewriter_build — implementation ─────────────────────────────────────
 
 inline Result<bool, TextError> typewriter_build(
@@ -472,19 +560,24 @@ inline Result<bool, TextError> typewriter_build(
         // F0.3 — propagate structured error from compute_typewriter_layout
         if (!layout_result) return layout_result.error();
 
-        entry = std::make_shared<TypewriterLayoutEntry>(TypewriterLayoutEntry{
-            std::move(*layout_result), std::move(placed)});
+        TypewriterLayoutEntry new_entry;
+        new_entry.layout = std::move(*layout_result);
+        new_entry.placed = std::move(placed);
+        new_entry.style = TypewriterStyle{
+            opts.font_asset, opts.font_family, opts.font_weight,
+            opts.font_size, opts.color, opts.line_height};
+        new_entry.glyphs = detail::compile_typewriter_glyphs(
+            new_entry.layout, new_entry.placed, opts.text, layer_prefix);
+
+        entry = std::make_shared<TypewriterLayoutEntry>(std::move(new_entry));
         cache.put(key, entry);
     }
 
-    const TypewriterLayout& layout = entry->layout;
-    const PlacedGlyphRun& cached_placed = entry->placed;
-
-    if (layout.chars.empty()) return TextError{
+    if (entry->layout.chars.empty()) return TextError{
         TextErrorCode::NoLayoutChars,
         "typewriter_build: layout has zero characters"};
 
-    const f32 total_chars = static_cast<f32>(layout.chars.size());
+    const f32 total_chars = static_cast<f32>(entry->layout.chars.size());
     const f32 raw_frame = static_cast<f32>(frame) - static_cast<f32>(opts.start_delay);
 
     // F0.3 — start-delay guard: not an error, normal operational state.
@@ -498,20 +591,13 @@ inline Result<bool, TextError> typewriter_build(
     const size_t revealed_count = static_cast<size_t>(revealed_exact);
     const f32 revealed_frac = revealed_exact - static_cast<f32>(revealed_count);
 
-    // See detail::advance_cluster_window above for the complexity argument.
-    size_t first_cl = 0;
-    size_t end_cl = 0;
-
-    for (size_t i = 0; i < layout.chars.size(); ++i) {
-        auto& cp = layout.chars[i];
-
-        if (cp.byte_len == 1 && opts.text[cp.byte_offset] == ' ') continue;
-        if (cp.byte_len == 1 && opts.text[cp.byte_offset] == '\n') continue;
+    for (size_t i = 0; i < entry->glyphs.size(); ++i) {
+        const auto& glyph = entry->glyphs[i];
 
         f32 opacity;
-        if (i < revealed_count) {
+        if (glyph.original_index < revealed_count) {
             opacity = 1.0f;
-        } else if (i == revealed_count) {
+        } else if (glyph.original_index == revealed_count) {
             opacity = opts.fade_easing.apply(revealed_frac);
         } else {
             break;
@@ -519,82 +605,31 @@ inline Result<bool, TextError> typewriter_build(
 
         if (opacity < 0.005f) continue;
 
-        std::shared_ptr<PlacedGlyphRun> char_placed;
-        if (!cached_placed.clusters.empty() && !cached_placed.glyphs.empty()) {
-            const size_t char_start = cp.byte_offset;
-            const size_t char_end = cp.byte_offset + cp.byte_len;
-
-            detail::advance_cluster_window(cached_placed.clusters,
-                                           char_start, char_end,
-                                           first_cl, end_cl);
-
-            if (first_cl < end_cl) {
-                const auto& first_cluster = cached_placed.clusters[first_cl];
-                const auto& last_cluster = cached_placed.clusters[end_cl - 1];
-                const size_t start_glyph = first_cluster.start_glyph;
-                const size_t end_glyph = last_cluster.end_glyph;
-
-                if (end_glyph > start_glyph && start_glyph < cached_placed.glyphs.size()) {
-                    auto mini_run = std::make_shared<PlacedGlyphRun>();
-                    mini_run->ascent = cached_placed.ascent;
-                    mini_run->descent = cached_placed.descent;
-                    mini_run->baseline = cached_placed.baseline;
-                    mini_run->font_size = cached_placed.font_size;
-
-                    const float base_x = cached_placed.glyphs[start_glyph].x;
-                    const float base_y = cached_placed.glyphs[start_glyph].y;
-                    for (size_t gi = start_glyph; gi < end_glyph; ++gi) {
-                        const auto& src = cached_placed.glyphs[gi];
-                        PlacedGlyph pg = src;
-                        pg.x = src.x - base_x;
-                        pg.y = src.y - base_y;
-                        mini_run->glyphs.push_back(pg);
-                        mini_run->total_width += src.advance_x;
-                    }
-
-                    PlacedGlyphRun::Cluster mini_cl;
-                    mini_cl.start_glyph = 0;
-                    mini_cl.end_glyph = mini_run->glyphs.size();
-                    mini_cl.byte_offset = cp.byte_offset;
-                    mini_cl.byte_len = cp.byte_len;
-                    for (const auto& pg : mini_run->glyphs) {
-                        mini_cl.advance += pg.advance_x;
-                        mini_cl.raw_advance += pg.raw_advance_x;
-                    }
-                    mini_run->clusters.push_back(mini_cl);
-                    mini_run->total_height = cached_placed.total_height;
-
-                    char_placed = std::move(mini_run);
-                }
-            }
-        }
-
-        std::string glyph = opts.text.substr(cp.byte_offset, cp.byte_len);
-        std::string lname = std::string(layer_prefix) + "_c" + std::to_string(i);
-
-        s.layer(lname, [cp, glyph, opacity, char_placed,
-                        fp = opts.font_asset, ff = opts.font_family,
-                        fw = opts.font_weight, fs = opts.font_size,
-                        col = opts.color, lh = opts.line_height](LayerBuilder& l) {
+        s.layer(glyph.layer_name, [entry, i, opacity](LayerBuilder& l) {
             l.pin_to(Anchor::Center);
             l.opacity(opacity);
 
+            const auto& g = entry->glyphs[i];
+            const auto& style = entry->style;
+
             // F2.D — canonical TextDefinition
             l.text("glyph", TextDefinition{
-                .content = {.value = glyph, .pre_shaped = char_placed},
-                .style = {.font = {.font_path = fp, .font_family = ff,
-                                   .font_weight = fw, .font_size = fs},
-                          .color = col},
-                .frame = {.size = {fs * 2.0f, fs * 2.0f},
-.placement = TextPlacement{TextPlacementKind::Absolute, {cp.x, cp.y}},
-.anchor = TextAnchor::Center,
-.align = TextAlign::Center,
-.vertical_align = VerticalAlign::Middle,
-.wrap = TextWrap::None,
-.overflow = TextOverflow::Clip,
-.centering_mode = TextCenteringMode::PixelInk,
-.line_height = lh,
-.tracking = 0.0f},
+                .content = {.value = g.text_slice, .pre_shaped = g.run},
+                .style = {.font = {.font_path = style.font_path,
+                                   .font_family = style.font_family,
+                                   .font_weight = style.font_weight,
+                                   .font_size = style.font_size},
+                          .color = style.color},
+                .frame = {.size = {style.font_size * 2.0f, style.font_size * 2.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, {g.placement.x, g.placement.y}},
+                          .anchor = TextAnchor::Center,
+                          .align = TextAlign::Center,
+                          .vertical_align = VerticalAlign::Middle,
+                          .wrap = TextWrap::None,
+                          .overflow = TextOverflow::Clip,
+                          .centering_mode = TextCenteringMode::PixelInk,
+                          .line_height = style.line_height,
+                          .tracking = 0.0f},
             });
         });
     }

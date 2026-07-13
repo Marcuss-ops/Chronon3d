@@ -47,9 +47,28 @@ struct TypewriterLayoutKey {
     }
 };
 
+struct TypewriterStyle {
+    std::string font_path;
+    std::string font_family;
+    int font_weight{400};
+    f32 font_size{72.0f};
+    Color color{1.0f, 1.0f, 1.0f, 1.0f};
+    f32 line_height{1.10f};
+};
+
+struct CompiledTypewriterGlyph {
+    size_t original_index{0};
+    std::string layer_name;
+    std::string text_slice;
+    std::shared_ptr<PlacedGlyphRun> run;
+    Vec2 placement{0.0f, 0.0f};
+};
+
 struct TypewriterLayoutEntry {
     TypewriterLayout layout;
     PlacedGlyphRun placed;
+    TypewriterStyle style;
+    std::vector<CompiledTypewriterGlyph> glyphs;
 };
 
 class TypewriterLayoutCache {
