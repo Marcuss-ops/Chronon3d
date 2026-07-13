@@ -2,11 +2,8 @@
 
 ## Stato
 
-**CLOSED** (2026-07-07) — L'infrastruttura di proiezione 2.5D è completamente esonerata dopo 5 fasi di diagnostica (10+ commit su main). Il root cause delle 2 collisioni hash residue (CAM_02, CAM_04) è:
 1. **Render-order bug**: il `grid_background` full-canvas viene disegnato DOPO le card e le copre
 2. **Geometria scena**: shape full-canvas + colori uniformi che producono lo stesso output a tutti gli zoom
-
-Il percorso `CameraProjectionResolver → proj.transform → state.matrix → processor.draw() → raster` è integralmente verificato e corretto. Vedi [`TICKET-ae-cam-hash-collision`](./TICKET-ae-cam-hash-collision.md) per il fix del render-order.
 
 ## Priorità
 
@@ -15,8 +12,6 @@ P1 → **CHIUSO** (root cause identificato: scene geometry + render-order, non p
 ## Problema
 
 I test di parità After Effects camera valutano correttamente la camera animata, ma diversi render finali restano identici tra frame diversi.
-
-Il sintomo osservabile è che i golden PNG cambiano in modo deterministico e vengono ricatturati correttamente, ma i test di parità camera falliscono quando richiedono che `frame0` e `frame60` producano output differenti.
 
 Failure class osservata:
 
@@ -28,8 +23,6 @@ AE_CAM_05 orbit yaw -60→+60  hash(frame0) == hash(frame60)
 AE_CAM_06 dolly zoom         hash(frame0) == hash(frame60)
 AE_CAM_09 motion blur        hash(frame0) == hash(frame60)
 ```
-
-Il problema non è più il vecchio top-left bug della layer projection. Quel bug era causato dal fatto che `MultiSourceNode` costruiva la matrice finale come `canvas_center * ssaa_scale * item.matrix`, quindi il layer world-space finiva renderizzato come se fosse un rettangolo canvas-space.
 
 Il nuovo problema è più a valle: la camera cambia nei log, ma il path finale di rasterizzazione non produce differenze visive.
 
@@ -49,8 +42,6 @@ Evidenza residua:
 Text golden tests: 60/60 PASS
 AE camera parity tests: 26/35 PASS, 9 FAIL
 ```
-
-I 9 fallimenti sono concentrati su test che richiedono output differente fra frame animati. Questo indica che la valutazione della camera avviene, ma il risultato della projection non entra nel draw finale in modo visivamente efficace.
 
 ## Impatto
 
@@ -105,8 +96,6 @@ La distinzione è fondamentale:
 1. `transform` è il risultato screen-space già compatibile con il backend 2D.
 2. `projection_matrix` è una matrice prospettica `proj * view * layer_matrix`.
 
-Il resolver proietta i corner del layer in camera-space, calcola `depth`, `perspective_scale`, corner screen-centered, centro e bbox proiettato. Questi dati vengono poi convertiti in `out.transform.position` e `out.transform.scale`.
-
 Il path corrente di `MultiSourceNode` usa invece la matrice prospettica:
 
 ```cpp
@@ -119,8 +108,6 @@ Lo stesso pattern compare anche in:
 matrix = canvas_center * ssaa_scale * proj.projection_matrix;
 world_matrix = canvas_center * ssaa_scale * proj.projection_matrix;
 ```
-
-Questo è sospetto perché il backend/shape processor 2D potrebbe usare solo la parte affine della matrice e ignorare il perspective divide. In quel caso la camera cambia numericamente, ma il raster finale resta identico.
 
 ## Soluzione accettabile
 
@@ -224,8 +211,6 @@ La fix deve rispettare questi vincoli:
 sha256sum test_renders/golden/ae_parity/*frame0*.png
 sha256sum test_renders/golden/ae_parity/*frame60*.png
 ```
-
-12. Se i PNG restano identici dopo questa sostituzione, fermarsi e ispezionare il backend/shape processor: il problema successivo è che il processor ignora `state.matrix` o usa `state.world_matrix` per la geometria finale.
 
 ## Check finale DONE
 
