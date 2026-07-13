@@ -20,16 +20,14 @@
 // P0 #1; follow-up ticket TICKET-TEXT-BBOX-EXPAND-DEDUP will consolidate.
 // ============================================================================
 
+#include <chronon3d/math/raster_utils.hpp>  // raster::BBox full def
+
 #include <optional>
 
 namespace chronon3d {
 
 class Framebuffer;           // fwd decl: `<chronon3d/core/memory/framebuffer.hpp>`
 struct RenderCounters;       // fwd decl: `<chronon3d/core/profiling/render_counter_types.hpp>`
-
-namespace raster {
-struct BBox;                 // fwd decl: `<chronon3d/math/raster_utils.hpp>`
-}
 
 namespace graph {
 
@@ -63,7 +61,8 @@ std::optional<raster::BBox> reconcile_text_bbox_after_render(
     const Framebuffer& framebuffer,
     const std::optional<raster::BBox>& predicted,
     RenderCounters* counters,
-    TextBboxReporter& reporter);
+    TextBboxReporter& reporter,
+    const std::optional<raster::BBox>& actual_ink_bbox = std::nullopt);
 
 } // namespace graph
 } // namespace chronon3d
