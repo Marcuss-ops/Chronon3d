@@ -72,6 +72,7 @@ struct FfmpegPipeOptions {
     color::OutputTransformOptions color_transform{};
     std::string tune;
     std::string pipe_writer{"classic"};
+    int encode_threads{0};  ///< 0 = use encoder default (legacy behaviour)
 };
 
 } // namespace chronon3d::cli

@@ -83,7 +83,7 @@ ExecutionScheduler make_execution_scheduler(ExecutionSchedulerConfig cfg) {
 ExecutionScheduler make_execution_scheduler(const Config& cfg) {
     return make_execution_scheduler(ExecutionSchedulerConfig{
         .mode               = cfg.scheduler().mode(),
-        .worker_count       = cfg.scheduler().worker_count(),
+        .worker_count       = cfg.cpu_budget().render_threads,
         .pin_calling_thread = cfg.scheduler().pin_calling_thread(),
     });
 }

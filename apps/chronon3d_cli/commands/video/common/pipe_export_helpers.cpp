@@ -2,6 +2,7 @@
 
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
+#include <chronon3d/core/cpu_budget.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -9,6 +10,7 @@
 #include <exception>
 #include <filesystem>
 #include <spdlog/spdlog.h>
+#include <thread>
 
 namespace chronon3d::cli {
 
@@ -89,6 +91,12 @@ FfmpegPipeOptions make_pipe_options(
         .pipe_writer = opts.pipe.pipe_writer,
     };
     pipe_options.output_pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
+
+    // Apply the unified CPU budget so the encoder respects the encode pool.
+    const auto cpu_budget = cpu_budget_from_environment(
+        static_cast<int>(std::thread::hardware_concurrency()));
+    pipe_options.encode_threads = cpu_budget.encode_threads;
+
     return pipe_options;
 }
 
