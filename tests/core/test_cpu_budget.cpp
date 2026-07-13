@@ -27,6 +27,7 @@
 
 using chronon3d::BudgetMode;
 using chronon3d::CpuBudget;
+using chronon3d::CpuMachineClass;
 using chronon3d::cpu_budget_for_class;
 using chronon3d::cpu_budget_from_environment;
 using chronon3d::parse_cpu_machine_class;
