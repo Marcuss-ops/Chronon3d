@@ -59,19 +59,18 @@ static Composition make_cert_title_comp(const char* name,
                                    .font_size   = font_size},
         .color = Color::white()
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(width) * 0.5f,
-                                   static_cast<float>(height) * 0.5f}},
-        .size = {static_cast<float>(width),
+    .frame = {.size = {static_cast<float>(width),
                                                       static_cast<float>(height)},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 1
+.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(width) * 0.5f,
+                                   static_cast<float>(height) * 0.5f}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 1
     }
 });
             });

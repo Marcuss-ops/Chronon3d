@@ -66,19 +66,18 @@ Composition cert_long_text() {
                                    .font_size   = 36.0f},
         .color = Color{0.92f, 0.92f, 0.95f, 1.0f}
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f,
+    .frame = {.size = {kBoxW, kBoxH},
+.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f,
                                    kMargin + kBoxH * 0.5f}},
-        .size = {kBoxW, kBoxH},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 1.5f,
-        .tracking = 0.5f,
-        .max_lines = 0
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 1.5f,
+.tracking = 0.5f,
+.max_lines = 0
     }
 });
             });

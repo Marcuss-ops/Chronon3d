@@ -74,17 +74,16 @@ Composition cert_lower_third() {
                                    .font_size   = 42.0f},
         .color = Color::white()
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -20.0f}},
-        .size = {static_cast<float>(kWidth) - kMargin * 2.0f, 60.0f},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 1
+    .frame = {.size = {static_cast<float>(kWidth) - kMargin * 2.0f, 60.0f},
+.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -20.0f}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 1
     }
 });
             });
@@ -103,16 +102,15 @@ Composition cert_lower_third() {
                                    .font_size   = 24.0f},
         .color = Color{0.85f, 0.85f, 0.9f, 1.0f}
     },
-    .frame = {
-        .size = {static_cast<float>(kWidth) - kMargin * 2.0f, 40.0f},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 1
+    .frame = {.size = {static_cast<float>(kWidth) - kMargin * 2.0f, 40.0f},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 1
     }
 });
             });

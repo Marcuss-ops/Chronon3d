@@ -54,13 +54,12 @@ inline TextDefinition make_text(const std::string& text, f32 font_size = 64.0f) 
         .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = font_size},
         .color = TEXT_COLOR
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
-        .size = {BOX_W, BOX_H},
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .line_height = 0.95f,
-        .tracking = 3.0f
+    .frame = {.size = {BOX_W, BOX_H},
+.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.line_height = 0.95f,
+.tracking = 3.0f
     }
 };
 }

@@ -191,6 +191,40 @@ LayerBuilder& LayerBuilder::text(std::string name, const TextDefinition& def) {
     return animated_text(std::move(name), to_text_run_spec(def)).commit();
 }
 
+// TextSpec → TextDefinition forwarder overload.
+// Keeps the legacy hero-overlay/debug-overlay call sites compiling until
+// they migrate to TextDefinition.  Maps the legacy substructs (content,
+// font, appearance, layout, placement) into the canonical TextDefinition
+// fields (content / style / frame / paragraph) so the animated_text
+// pipeline sees a uniform input.
+LayerBuilder& LayerBuilder::text(std::string name, const TextSpec& spec) {
+    TextDefinition def;
+    def.content               = spec.content;
+    def.style.font            = spec.font;
+    def.style.color           = spec.appearance.color;
+    def.style.paint           = spec.appearance.paint;
+    def.style.shadows         = spec.appearance.shadows;
+    def.style.material        = spec.appearance.material;
+    def.style.box_style       = spec.appearance.box_style;
+    def.frame.placement       = spec.placement;
+    def.frame.size            = spec.layout.box;
+    def.frame.anchor          = spec.layout.anchor;
+    def.frame.centering_mode  = spec.layout.centering_mode;
+    def.frame.align           = spec.layout.align;
+    def.frame.vertical_align  = spec.layout.vertical_align;
+    def.frame.wrap            = spec.layout.wrap;
+    def.frame.overflow        = spec.layout.overflow;
+    def.frame.line_height     = spec.layout.line_height;
+    def.frame.tracking        = spec.layout.tracking;
+    def.frame.max_lines       = spec.layout.max_lines;
+    def.frame.auto_fit        = spec.layout.auto_fit;
+    def.frame.min_font_size   = spec.layout.min_font_size;
+    def.frame.max_font_size   = spec.layout.max_font_size;
+    def.frame.ellipsis        = spec.layout.ellipsis;
+    def.paragraph             = spec.layout.paragraph;
+    return text(std::move(name), def);
+}
+
 LayerBuilder& LayerBuilder::shape(std::string_view id, std::string name, registry::ShapeParams params) {
     m_layer.nodes.push_back(m_shape_registry->create_node(
         id,

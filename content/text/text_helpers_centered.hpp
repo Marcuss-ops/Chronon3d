@@ -52,21 +52,20 @@ inline TextDefinition centered_text(CenterTextOptions o) {
                        .font_size   = o.font_size},
         .color = o.color
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {o.pos.x, o.pos.y}},
-        .size = o.box,
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = o.line_height,
-        .tracking = o.tracking,
-        .auto_fit = o.auto_fit,
-        .min_font_size = o.min_font_size,
-        .max_font_size = o.max_font_size,
-        .max_lines = o.max_lines
+    .frame = {.size = o.box,
+.placement = TextPlacement{TextPlacementKind::Absolute, {o.pos.x, o.pos.y}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = o.line_height,
+.tracking = o.tracking,
+.auto_fit = o.auto_fit,
+.min_font_size = o.min_font_size,
+.max_font_size = o.max_font_size,
+.max_lines = o.max_lines
     }
 };
 }
