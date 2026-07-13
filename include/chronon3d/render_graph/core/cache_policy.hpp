@@ -27,10 +27,6 @@ enum class CacheMode : std::uint8_t {
     /// Output is invariant across frames; entries live in memory only.
     /// Survives across frames within a single composition run.
     FrameInvariantMemory,
-
-    /// Output is invariant across frames AND persisted to durable storage.
-    /// Survives across process restarts (designed for precomputed bakes).
-    FrameInvariantPersistent,
 };
 
 // ---------------------------------------------------------------------------
@@ -59,12 +55,7 @@ struct RenderNodeCachePolicy {
     }
 
     [[nodiscard]] constexpr bool reusable_across_frames() const noexcept {
-        return mode == CacheMode::FrameInvariantMemory
-            || mode == CacheMode::FrameInvariantPersistent;
-    }
-
-    [[nodiscard]] constexpr bool persistent() const noexcept {
-        return mode == CacheMode::FrameInvariantPersistent;
+        return mode == CacheMode::FrameInvariantMemory;
     }
 };
 
@@ -90,14 +81,6 @@ constexpr RenderNodeCachePolicy frame_variant_cache(std::string_view reason) noe
 constexpr RenderNodeCachePolicy static_memory_cache(std::string_view reason) noexcept {
     return RenderNodeCachePolicy{
         .mode = CacheMode::FrameInvariantMemory,
-        .invalidation = CacheInvalidation::WhenParamsChange,
-        .reason = reason,
-    };
-}
-
-constexpr RenderNodeCachePolicy static_persistent_cache(std::string_view reason) noexcept {
-    return RenderNodeCachePolicy{
-        .mode = CacheMode::FrameInvariantPersistent,
         .invalidation = CacheInvalidation::WhenParamsChange,
         .reason = reason,
     };

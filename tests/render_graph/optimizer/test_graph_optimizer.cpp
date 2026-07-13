@@ -20,8 +20,8 @@ class TestNode final : public RenderGraphNode {
 public:
     // PR2-cleanup: cache policy is decided at construction. Use one of the
     // canonical helpers (`static_memory_cache`, `frame_variant_cache`,
-    // `no_cache`, `static_persistent_cache`) — the legacy `bool cache` /
-    // `bool frame_dep` ctor args and `m_cacheable` member were dropped.
+    // `no_cache`) — the legacy `bool cache` / `bool frame_dep` ctor args and
+    // `m_cacheable` member were dropped.
     explicit TestNode(std::string n,
                        RenderNodeCachePolicy policy = static_memory_cache("test"))
         : RenderGraphNode(policy), m_name(std::move(n)) {}
