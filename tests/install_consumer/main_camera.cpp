@@ -63,6 +63,7 @@ static_assert(sizeof(chronon3d::camera_v1::CameraProgram) > 0,
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
+#include <chronon3d/text/text_definition.hpp>
 
 namespace c3d = chronon3d;
 
@@ -139,18 +140,22 @@ int main(int argc, char* argv[]) {
             // Text layer — sanity for the perspective.
             s.layer("title", [&ctx](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Text);
-                l.text("title_text", c3d::TextSpec{
-                    .content = {.value = "PERSPECTIVE OK"},
-                    .font = {.font_path = "fonts/Inter-Bold.ttf",
+                l.text("title_text", c3d::TextDefinition{
+    .content = {.value = "PERSPECTIVE OK"},
+    .style = {
+        .font = {.font_path = "fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
                              .font_size = 64.0f},
-                    .layout = {.box = {static_cast<c3d::f32>(ctx.width),
+        .color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f}
+    },
+    .frame = {
+        .size = {static_cast<c3d::f32>(ctx.width),
                                        static_cast<c3d::f32>(ctx.height)},
-                               .align = c3d::TextAlign::Center,
-                               .vertical_align = c3d::VerticalAlign::Middle},
-                    .appearance = {.color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f}},
-                });
+        .align = c3d::TextAlign::Center,
+        .vertical_align = c3d::VerticalAlign::Middle
+    }
+});
             });
 
             c3d::Scene scene = s.build();

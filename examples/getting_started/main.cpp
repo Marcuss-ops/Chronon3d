@@ -21,6 +21,7 @@
 #include <chronon3d/project.hpp>
 
 #include <cstdio>
+#include <chronon3d/text/text_definition.hpp>
 
 namespace c3d = chronon3d;
 
@@ -46,9 +47,18 @@ int main() {
                 l.font("fonts/Inter-Bold.ttf")
                  .font_size(72.0f)
                  .center();
-                l.text_run("t", c3d::TextRunSpec{
-                    .text = c3d::TextSpec{.content = {.value = "Hello, Chronon3D!"},.font = {.font_family = "Inter", .font_weight = 700},.layout = {.box = {static_cast<float>(ctx.width),
-                                           static_cast<float>(ctx.height)}},.appearance = {.color = c3d::Color::white()}}
+                l.animated_text("t", c3d::TextRunSpec{
+                    .text = c3d::TextDefinition{
+    .content = {.value = "Hello, Chronon3D!"},
+    .style = {
+        .font = {.font_family = "Inter", .font_weight = 700},
+        .color = c3d::Color::white()
+    },
+    .frame = {
+        .size = {static_cast<float>(ctx.width),
+                                           static_cast<float>(ctx.height)}
+    }
+}
                 }).commit();
             });
 

@@ -39,7 +39,7 @@ inline void add_black_background(SceneBuilder& s) {
 // Standard centered text: 1200×240 box, Poppins-Bold, consistent tracking &
 // drop-shadow-ready color.  Designed for AnimFadeIn, AnimSlide, AnimScale.
 //
-// Standard centered text: bare TextSpec with only the fields the classic
+// Standard centered text: bare TextDefinition with only the fields the classic
 // renderer pipeline understands.  Avoids centered_text() which adds
 // TextAnchor/TextCenteringMode/TextWrap/TextOverflow fields that the
 // current scene compiler may not handle — causing 100%-transparent frames.
@@ -48,7 +48,21 @@ inline void add_black_background(SceneBuilder& s) {
 // fully supports the extended layout fields (TextAnchor::Center,
 // TextCenteringMode::PixelInk, TextWrap::Word, etc.).
 inline TextDefinition make_text(const std::string& text, f32 font_size = 64.0f) {
-    return from_text_spec(TextSpec{.content = {.value = text},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = font_size},.layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 0.95f, .tracking = 3.0f},.appearance = {.color = TEXT_COLOR},});
+    return TextDefinition{
+    .content = {.value = text},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = font_size},
+        .color = TEXT_COLOR
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+        .size = {BOX_W, BOX_H},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .line_height = 0.95f,
+        .tracking = 3.0f
+    }
+};
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -57,7 +71,7 @@ inline TextDefinition make_text(const std::string& text, f32 font_size = 64.0f) 
 // Replaces the previously-duplicated make_easy_anim (text_animations.cpp)
 // and make_basic_anim (animation_compositions.cpp), which differed only in
 // background style and font-size.  The caller supplies:
-//   - the TextSpec (so make_text() vs txt_center() variants stay available)
+//   - the TextDefinition (so make_text() vs txt_center() variants stay available)
 //   - the background style (TextAnimBg)
 //   - a setup lambda that wires position_anim / scale_anim / opacity_anim
 //     using motion::Timeline<T> for declarative easing.

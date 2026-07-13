@@ -31,6 +31,7 @@
 #include <filesystem>
 #include <memory>
 #include <vector>
+#include <chronon3d/text/text_definition.hpp>
 
 namespace c3d = chronon3d;
 
@@ -141,12 +142,21 @@ static c3d::Composition make_text_composition(const char* assets_root) {
             // Text layer
             s.layer("title", [](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Text);
-                l.text("hello", c3d::TextSpec{.content = {.value = "TEXT EXPORT V1"},.font = {.font_path = "fonts/Inter-Bold.ttf",
+                l.text("hello", c3d::TextDefinition{
+    .content = {.value = "TEXT EXPORT V1"},
+    .style = {
+        .font = {.font_path = "fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
-                             .font_size = 48.0f},.layout = {.box = {640.0f, 360.0f},
-                               .align = c3d::TextAlign::Center,
-                               .vertical_align = c3d::VerticalAlign::Middle},.appearance = {.color = c3d::Color::white()},});
+                             .font_size = 48.0f},
+        .color = c3d::Color::white()
+    },
+    .frame = {
+        .size = {640.0f, 360.0f},
+        .align = c3d::TextAlign::Center,
+        .vertical_align = c3d::VerticalAlign::Middle
+    }
+});
             });
             return s.build();
         });

@@ -4,7 +4,7 @@
 // P3-H + feat(api) — full SDK surface coverage consumer.
 //
 // Exercises ALL 6 SDK public surface areas in ONE consumer program:
-//   1. text       — TextRun via LayerBuilder::text() + TextSpec
+//   1. text       — TextRun via LayerBuilder::text() + TextDefinition
 //   2. image      — Rect (LayerBuilder::rect with distinctive color) +
 //                   GridBackground — same LayerBuilder surface as image()
 //   3. camera     — CameraDescriptorBuilder + compile_camera + scene.camera().program()
@@ -52,6 +52,7 @@ static_assert(sizeof(chronon3d::sdk::RenderEngine) > 0,
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
+#include <chronon3d/text/text_definition.hpp>
 
 namespace c3d = chronon3d;
 
@@ -142,21 +143,25 @@ int main(int argc, char* argv[]) {
                 });
             });
 
-            // SURFACE: text (TextRun via LayerBuilder::text + TextSpec).
+            // SURFACE: text (TextRun via LayerBuilder::text + TextDefinition).
             s.layer("title", [&ctx](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Text);
-                l.text("title_text", c3d::TextSpec{
-                    .content = {.value = "SDK CONSUMER FULL COVERAGE"},
-                    .font = {.font_path   = "fonts/Inter-Bold.ttf",
+                l.text("title_text", c3d::TextDefinition{
+    .content = {.value = "SDK CONSUMER FULL COVERAGE"},
+    .style = {
+        .font = {.font_path   = "fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
                              .font_size   = 56.0f},
-                    .layout = {.box = {static_cast<c3d::f32>(ctx.width),
+        .color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f}
+    },
+    .frame = {
+        .size = {static_cast<c3d::f32>(ctx.width),
                                        static_cast<c3d::f32>(ctx.height)},
-                               .align         = c3d::TextAlign::Center,
-                               .vertical_align = c3d::VerticalAlign::Top},
-                    .appearance = {.color = c3d::Color{1.0f, 1.0f, 1.0f, 1.0f}},
-                });
+        .align = c3d::TextAlign::Center,
+        .vertical_align = c3d::VerticalAlign::Top
+    }
+});
             });
 
             c3d::Scene scene = s.build();

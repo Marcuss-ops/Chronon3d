@@ -13,6 +13,7 @@
 #include "content/showcases/cinematic/cinematic_showcase_helpers.hpp"
 
 #include <string>
+#include <chronon3d/text/text_definition.hpp>
 
 namespace chronon3d::content::anims {
 
@@ -70,8 +71,17 @@ Composition camera_spline_comparison() {
 
         s.layer("hud", [ctx](LayerBuilder& l) {
             l.position({-560.0f, 320.0f, 0.0f});
-            l.text("frame_label", TextSpec{.content = {.value = "Catmull-Rom: t = " + std::to_string(static_cast<int>(ctx.frame))},.font = {.font_size = 18.0f},.layout = {.box = {1100, 40}, .align = TextAlign::Left},.appearance = {.color = {0.75f, 0.78f, 0.95f, 1.0f}}
-                                  });
+            l.text("frame_label", TextDefinition{
+    .content = {.value = "Catmull-Rom: t = " + std::to_string(static_cast<int>(ctx.frame))},
+    .style = {
+        .font = {.font_size = 18.0f},
+        .color = {0.75f, 0.78f, 0.95f, 1.0f}
+    },
+    .frame = {
+        .size = {1100, 40},
+        .align = TextAlign::Left
+    }
+});
         });
 
         return s.build();
