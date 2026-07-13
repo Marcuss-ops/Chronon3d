@@ -263,43 +263,45 @@ TEST_CASE("ConvertedFrameCache: miss on first lookup") {
     ConvertedFrameCache cache(4);
     ConvertedFrameCacheKey key{.framebuffer_digest=42, .width=4, .height=4,
                                .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
-    CHECK(cache.lookup(key) == nullptr);
+    CHECK_FALSE(cache.lookup(key));
     CHECK(cache.misses() == 1);
     CHECK(cache.hits()   == 0);
 }
 
-TEST_CASE("ConvertedFrameCache: sharded split does not lose capacity (4 entries across 2 shards)") {
-    // num_shards=2 with cap=4 yields 2 per shard → 4 total entries.
-    ConvertedFrameCache cache(4);
+TEST_CASE("ConvertedFrameCache: capacity holds 4 entries then evicts on 5th") {
+    // 4 entries × 4 bytes = 16 bytes; use a single shard so the
+    // capacity is not split and the eviction semantics are deterministic.
+    ConvertedFrameCache cache(/*capacity_bytes=*/16, /*num_shards=*/1);
     CHECK(cache.size() == 0);
 
     std::vector<uint8_t> payload{1, 2, 3, 4};
     for (uint64_t d = 1; d <= 4; ++d) {
         ConvertedFrameCacheKey k{.framebuffer_digest=d, .width=4, .height=4,
                                  .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
-        cache.insert(k, payload.data(), payload.size());
+        cache.insert(k, payload);
     }
     CHECK(cache.size() == 4);
 
     // Insert a 5th distinct key: at least one entry must be evicted.
     ConvertedFrameCacheKey k5{.framebuffer_digest=5, .width=4, .height=4,
                               .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
-    cache.insert(k5, payload.data(), payload.size());
+    cache.insert(k5, payload);
     CHECK(cache.size() == 4);
     CHECK(cache.stats().evictions >= 1);
 }
 
 TEST_CASE("ConvertedFrameCache: hit after insert") {
-    ConvertedFrameCache cache(4);
+    // 4-byte payload; use a single shard so the capacity is not split.
+    ConvertedFrameCache cache(/*capacity_bytes=*/4, /*num_shards=*/1);
     ConvertedFrameCacheKey key{.framebuffer_digest=100, .width=4, .height=4,
                                .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
     const std::vector<uint8_t> data = {10, 20, 30, 40};
-    cache.insert(key, data.data(), data.size());
+    cache.insert(key, data);
 
     const auto entry = cache.lookup(key);
-    REQUIRE(entry != nullptr);
-    CHECK(entry->data_size == 4);
-    CHECK(entry->data[0] == 10);
+    REQUIRE(entry);
+    CHECK(entry.data.size() == 4);
+    CHECK(entry.data[0] == 10);
     CHECK(cache.hits() == 1);
 }
 
@@ -310,9 +312,9 @@ TEST_CASE("ConvertedFrameCache: different digest is a miss") {
     ConvertedFrameCacheKey k2{.framebuffer_digest=2, .width=4, .height=4,
                               .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
     const std::vector<uint8_t> d = {1};
-    cache.insert(k1, d.data(), d.size());
+    cache.insert(k1, d);
 
-    CHECK(cache.lookup(k2) == nullptr);
+    CHECK_FALSE(cache.lookup(k2));
     CHECK(cache.misses() == 1);
 }
 
@@ -322,8 +324,8 @@ TEST_CASE("ConvertedFrameCache: different format is a miss") {
                                  .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
     ConvertedFrameCacheKey k_nv {.framebuffer_digest=7, .width=4, .height=4,                                  .format=EncoderPixelFormat::NV12,    .matrix=YuvMatrix::BT709, .range=ColorRange::Limited, .apply_gamma=true};
     const std::vector<uint8_t> d = {0,0,0};
-    cache.insert(k_yuv, d.data(), d.size());
-    CHECK(cache.lookup(k_nv) == nullptr);
+    cache.insert(k_yuv, d);
+    CHECK_FALSE(cache.lookup(k_nv));
 }
 
 TEST_CASE("ConvertedFrameCache: LRU eviction at capacity") {
@@ -337,39 +339,39 @@ TEST_CASE("ConvertedFrameCache: LRU eviction at capacity") {
         ConvertedFrameCacheKey k{.framebuffer_digest=i, .width=4, .height=4,
                                  .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited};
         const uint8_t val = static_cast<uint8_t>(i);
-        cache.insert(k, &val, 1);
+        cache.insert(k, std::vector<uint8_t>{val});
     }
 
     // Access digest 2 to make it recently used (digest 1 becomes LRU)
     ConvertedFrameCacheKey k2{.framebuffer_digest=2, .width=4, .height=4,
                                .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited};
-    REQUIRE(cache.lookup(k2) != nullptr);
+    REQUIRE(cache.lookup(k2));
 
     // Insert digest 4 — should evict digest 1 (the actual LRU after the lookup)
     ConvertedFrameCacheKey k4{.framebuffer_digest=4, .width=4, .height=4,
                                .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited};
     const uint8_t val4 = 4;
-    cache.insert(k4, &val4, 1);
+    cache.insert(k4, std::vector<uint8_t>{val4});
 
     // digest 1 evicted, 2 and 3 still present
     ConvertedFrameCacheKey k1{.framebuffer_digest=1, .width=4, .height=4,
                                .format=EncoderPixelFormat::YUV420P, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited};
-    CHECK(cache.lookup(k1) == nullptr);
-    CHECK(cache.lookup(k4) != nullptr);
+    CHECK_FALSE(cache.lookup(k1));
+    CHECK(cache.lookup(k4));
     CHECK(cache.size() == N);
 }
 
 TEST_CASE("ConvertedFrameCache: clear resets all state") {
     ConvertedFrameCache cache(4);
     ConvertedFrameCacheKey k{.framebuffer_digest=99, .width=2, .height=2,                                  .format=EncoderPixelFormat::NV12, .matrix=YuvMatrix::BT709, .range=ColorRange::Limited};
-    const uint8_t v = 1;
-    cache.insert(k, &v, 1);
-    REQUIRE(cache.lookup(k) != nullptr);
+    const std::vector<uint8_t> v{1};
+    cache.insert(k, v);
+    REQUIRE(cache.lookup(k));
 
     cache.clear();
 
     CHECK(cache.size()   == 0);
     CHECK(cache.hits()   == 0);
     CHECK(cache.misses() == 0);
-    CHECK(cache.lookup(k) == nullptr);
+    CHECK_FALSE(cache.lookup(k));
 }

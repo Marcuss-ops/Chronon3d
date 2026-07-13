@@ -8,8 +8,8 @@
 // aggregated telemetry automatically.
 //
 // Usage:
-//   FrameConversionService svc(8);        // 8-entry LRU cache
-//   auto frame = svc.convert(fb, opts);   // ← one call
+//   FrameConversionService svc;                 // byte-capacity LRU cache
+//   auto frame = svc.convert_into(fb, opts, dst, dst_size);  // ← one call
 //   if (frame) { /* frame.data is ready */ }
 //
 // Design:
@@ -28,7 +28,6 @@
 #include <chronon3d/media/frame_conversion/converted_frame_cache.hpp>
 #include <cstddef>
 #include <cstdint>
-#include <vector>
 
 namespace chronon3d::video {
 
@@ -59,32 +58,12 @@ struct ConversionOptions {
     bool use_cache{true};
 };
 
-/// Result of a single conversion — owned buffer + metadata.
-struct ConvertedFrame {
-    /// Tightly packed pixel data (no row padding).
-    /// For YUV420P: Y (w×h) + U (w/2×h/2) + V (w/2×h/2).
-    /// For NV12:    Y (w×h) + interleaved UV (w×h/2).
-    /// For RGB24:   packed RGB (w×h×3 bytes).
-    std::vector<uint8_t> data;
-
-    /// Number of valid bytes in data (may be < data.capacity()).
-    size_t data_size{0};
-
-    /// True if the result came from the cache (no conversion ran).
-    bool from_cache{false};
-
-    /// Concrete backend that produced the cached bytes.  Populated on
-    /// conversion; remains Unavailable for cache hits (kernel did not run).
-    FrameConversionBackend backend{FrameConversionBackend::Unavailable};
-
-    /// Wall-clock time spent inside the conversion kernel (nanoseconds).
-    uint64_t conversion_ns{0};
-
-    /// Implicitly convertible to bool: true when conversion succeeded.
-    explicit operator bool() const noexcept {
-        return data_size > 0;
-    }
-};
+/// Result of a single conversion — non-owning view + metadata.
+///
+/// On a cache hit `cache_entry` holds the cached entry and `data` spans
+/// its bytes.  On a cache miss `cache_entry` is null and `data` spans
+/// the caller-provided destination buffer that was passed to
+/// FrameConversionService::convert_into().
 
 /// Centralised frame conversion service.
 ///
@@ -95,23 +74,23 @@ struct ConvertedFrame {
 /// NOT thread-safe.  Create one service per encoding thread.
 class FrameConversionService {
 public:
-    /// Construct with an LRU cache of the given capacity.
+    /// Construct with an LRU cache of the given byte capacity.
     /// Capacity 0 disables caching entirely.
-    explicit FrameConversionService(size_t cache_capacity = 8);
+    explicit FrameConversionService(size_t cache_capacity_bytes = 0);
 
     // ── Conversion API ────────────────────────────────────────────────
 
-    /// Convert a Framebuffer to the target format.
-    /// Allocates an owned buffer and returns it as ConvertedFrame.
-    /// On failure, returns a ConvertedFrame with data_size == 0.
-    ConvertedFrame convert(const Framebuffer& fb, const ConversionOptions& opts);
-
-    /// Convert into a caller-provided buffer (zero-alloc for output).
-    /// `dst` must point to at least `dst_size` bytes.
-    /// The required size can be computed with frame_converter::encoded_size().
-    /// Returns true on success.
-    bool convert_to_buffer(const Framebuffer& fb, const ConversionOptions& opts,
-                           uint8_t* dst, size_t dst_size);
+    /// Convert a Framebuffer into a caller-provided buffer.
+    ///
+    /// On cache hit the returned ConvertedFrame spans the cached bytes
+    /// (no copy into `dst`).  On cache miss the conversion writes directly
+    /// into `dst` and the returned view spans `dst`.
+    ///
+    /// `dst` must point to at least `dst_size` bytes.  The required size
+    /// can be computed with FrameConversionService::encoded_size().
+    /// Returns an non-empty ConvertedFrame on success.
+    ConvertedFrame convert_into(const Framebuffer& fb, const ConversionOptions& opts,
+                                uint8_t* dst, size_t dst_size);
 
     // ── Cache control ─────────────────────────────────────────────────
 
@@ -134,7 +113,7 @@ public:
 
 private:
     ConvertedFrameCache cache_;
-    size_t cache_capacity_;
+    size_t cache_capacity_bytes_;
     Stats stats_;
 
     /// Build a ConvertedFrameCacheKey from a Framebuffer digest and options.

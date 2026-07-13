@@ -170,7 +170,7 @@ Config::Config() {
     // ═══════════════════════════════════════════════════════════════════
     cache_.frame_cache_max_entries_           = resolve_env_int("CHRONON3D_FRAME_CACHE_MAX_ENTRIES", 0);
     cache_.video_frame_max_entries_           = resolve_env_int("CHRONON3D_VIDEO_FRAME_MAX_ENTRIES", 0);
-    cache_.converted_frame_cache_max_entries_ = resolve_env_int("CHRONON3D_CONVERTED_FRAME_CACHE_MAX_ENTRIES", 0);
+    cache_.converted_frame_cache_max_bytes_ = resolve_env_int("CHRONON3D_CONVERTED_FRAME_CACHE_MAX_BYTES", 0);
     cache_.scene_program_cache_max_entries_   = resolve_env_int("CHRONON3D_SCENE_PROGRAM_CACHE_MAX_ENTRIES", 0);
 
     // ═══════════════════════════════════════════════════════════════════
