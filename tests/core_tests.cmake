@@ -259,6 +259,11 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         # Gated on Blend2D because it requires FontEngine + text_layout_engine.
         # Skips gracefully when system fonts are unavailable.
         text/test_anim_typewriter_error_path.cpp
+        # O(chars * clusters) -> O(chars + clusters) regression lock for the
+        # typewriter_build cluster-window helper. Synthetic clusters cover
+        # one-to-one LTR, ligature spans, empty overlap, and exhaustive
+        # golden equivalence against the brute-force scan.
+        text/test_typewriter_cluster_window.cpp
     )
 endif()
 
