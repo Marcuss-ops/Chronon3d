@@ -22,9 +22,6 @@ int main(int argc, char** argv) {
     // Create a static AssetRegistry for the entire test process.
     static chronon3d::AssetRegistry test_assets;
 
-    // Mount to current path so relative asset paths resolve correctly.
-    test_assets.mount(std::filesystem::current_path());
-
 #if defined(CHRONON3D_HAS_CONTENT_MINIMALIST) || defined(CHRONON3D_HAS_CONTENT_2D5)
     // Register content modules into a test registry via ExtensionContext.
     static chronon3d::ExtensionCatalog test_catalog;
@@ -36,9 +33,6 @@ int main(int argc, char** argv) {
     chronon3d::register_content_modules(test_catalog, test_ctx);
 #endif
 
-    // Mount AssetRegistry to current path so that relative paths work correctly
-    test_assets.mount(std::filesystem::current_path());
-    
     // Enable debug logging to see why assets might fail to load
     spdlog::set_level(spdlog::level::debug);
 

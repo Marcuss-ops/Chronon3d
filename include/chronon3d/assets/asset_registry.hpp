@@ -3,13 +3,12 @@
 #include <chronon3d/assets/asset_metadata.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <filesystem>
-#include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <mutex>
 
 #define XXH_INLINE_ALL
 #include <xxhash.h>
@@ -30,14 +29,14 @@ inline AssetId asset_id_from_path(const std::filesystem::path& path) {
 //
 // PR 4 (de-singletonization):
 //   Removed `static AssetRegistry& instance()`.  The host (CLI, test runner)
-//   creates an AssetRegistry and sets the default assets root via
-//   `chronon3d::detail::set_default_assets_root(root)` before any rendering.
+//   creates an AssetRegistry and passes it explicitly.
 //
-//   Deep rendering code calls the two-argument `resolve_asset_path(root, path)`
-//   (preferred) or the single-argument overload backed by the default root.
+//   Path resolution is delegated to chronon3d::assets::AssetResolver
+//   (owned by RenderRuntime as a sibling of AssetRegistry).  Use
+//   `runtime.resolver().resolve_lexical(path)` for deterministic,
+//   per-engine path resolution.
 //
-//   Thread-local storage has been removed — all state is either passed
-//   explicitly or stored in the process-wide default root.
+//   Thread-local storage has been removed — all state is passed explicitly.
 // ---------------------------------------------------------------------------
 class AssetRegistry {
 public:
@@ -47,43 +46,24 @@ public:
     ~AssetRegistry() = default;
     AssetRegistry(const AssetRegistry&) = delete;
     AssetRegistry& operator=(const AssetRegistry&) = delete;
-    AssetRegistry(AssetRegistry&&) noexcept = default;
-    AssetRegistry& operator=(AssetRegistry&&) noexcept = default;
-
-    // ── Mount / clear (non-static) ─────────────────────────────────────
-
-    /// Mount the default assets root.  Used as a fallback when no
-    /// explicit assets_root is available via resolve_asset_path().
-    void mount(const std::filesystem::path& root_path) {
-        std::lock_guard<std::mutex> lock(*m_mutex);
-        m_root_path = root_path;
+    AssetRegistry(AssetRegistry&& other) noexcept
+        : m_assets(std::move(other.m_assets))
+        , m_by_id(std::move(other.m_by_id)) {}
+    AssetRegistry& operator=(AssetRegistry&& other) noexcept {
+        if (this != &other) {
+            m_assets = std::move(other.m_assets);
+            m_by_id = std::move(other.m_by_id);
+        }
+        return *this;
     }
+
+    // ── Clear (non-static) ────────────────────────────────────────────
 
     void clear() {
-        std::lock_guard<std::mutex> lock(*m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         m_assets.clear();
         m_by_id.clear();
-        m_root_path.clear();
     }
-
-    // ── Non-static resolve (PREFERRED use from RenderContext) ────────
-    //
-    // WP-8 PR 8.2 — `AssetRegistry::resolve_path(relative_path)` has
-    // been REMOVED.  The typed sibling `chronon3d::assets::AssetResolver`
-    // (owned by RenderRuntime as a sibling of AssetRegistry; reachable
-    // via `runtime.resolver()` for direct access, or via
-    // `runtime.services().asset_resolver` when a per-frame ctx is in
-    // scope) is the canonical typed resolution path.  Pre-PR-8.2
-    // callers should migrate to:
-    //
-    //     auto& resolver = runtime.resolver();                 // primary
-    //                  OR chronon3d::runtime::detail::typed_resolver_for_deep_code();
-    //     auto opt = resolver.resolve_lexical(relative);   // optional<filesystem::path>
-    //     const std::string resolved = opt ? opt->string() : std::string{relative};
-    //
-    // For callers that hold an explicit `assets_root`, the two-argument
-    // free function `resolve_asset_path(assets_root, relative_path)`
-    // below is unchanged.
 
     // ── Import (non-static) ────────────────────────────────────────────
 
@@ -104,29 +84,29 @@ public:
     }
 
     AssetId import_image(const std::filesystem::path& path) {
-        std::lock_guard<std::mutex> lock(*m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         return register_asset_unlocked(path, AssetType::Image, ColorSpace::SRGB, AlphaMode::Straight);
     }
 
     AssetId import_font(const std::filesystem::path& path) {
-        std::lock_guard<std::mutex> lock(*m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         return register_asset_unlocked(path, AssetType::Font, ColorSpace::LinearSRGB, AlphaMode::None);
     }
 
     AssetId import_video(const std::filesystem::path& path) {
-        std::lock_guard<std::mutex> lock(*m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         return register_asset_unlocked(path, AssetType::Video, ColorSpace::SRGB, AlphaMode::Straight);
     }
 
     AssetId import_audio(const std::filesystem::path& path) {
-        std::lock_guard<std::mutex> lock(*m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         return register_asset_unlocked(path, AssetType::Audio, ColorSpace::LinearSRGB, AlphaMode::None);
     }
 
     // ── Metadata accessors (non-static) ────────────────────────────────
 
     [[nodiscard]] std::optional<AssetMetadata> try_metadata(AssetId id) const {
-        std::lock_guard<std::mutex> lock(*m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         const auto it = m_by_id.find(id);
         if (it == m_by_id.end())
             return std::nullopt;
@@ -145,24 +125,24 @@ public:
     }
 
     [[nodiscard]] std::optional<AssetId> find_by_path(const std::filesystem::path& path) const {
-        std::lock_guard<std::mutex> lock(*m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         const AssetId id = asset_id_from_path(path);
         if (m_by_id.contains(id)) return id;
         return std::nullopt;
     }
 
     [[nodiscard]] bool contains(AssetId id) const {
-        std::lock_guard<std::mutex> lock(*m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         return m_by_id.contains(id);
     }
 
     [[nodiscard]] usize size() const {
-        std::lock_guard<std::mutex> lock(*m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         return m_assets.size();
     }
 
     [[nodiscard]] std::vector<AssetMetadata> assets() const {
-        std::lock_guard<std::mutex> lock(*m_mutex);
+        std::lock_guard<std::mutex> lock(m_mutex);
         return m_assets;
     }
 
@@ -195,59 +175,9 @@ private:
         return id;
     }
 
-    // Wrapped in unique_ptr: std::mutex is non-movable; AssetRegistry
-    // must be movable for RenderRuntime::create() factory.
-    mutable std::unique_ptr<std::mutex> m_mutex{std::make_unique<std::mutex>()};
-    std::filesystem::path               m_root_path;
+    mutable std::mutex                  m_mutex;
     std::vector<AssetMetadata>          m_assets;
     std::unordered_map<AssetId, usize>  m_by_id;
 };
-
-// ── Per-render-job scoped asset resolution (non-TLS) ──────────────────
-//
-// Prefer the two-argument resolve_asset_path(root, path) to resolve against
-// an explicit assets root directory.  The single-argument overload uses the
-// process-wide default root set via detail::set_default_assets_root().
-
-/// Resolve a relative path against an assets root directory.
-/// Returns the relative_path unchanged if empty, absolute, or if assets_root is empty.
-[[nodiscard]] inline std::string resolve_asset_path(
-    const std::string& assets_root,
-    const std::string& relative_path)
-{
-    if (relative_path.empty() || std::filesystem::path(relative_path).is_absolute()) {
-        return relative_path;
-    }
-    if (assets_root.empty()) {
-        return relative_path;
-    }
-    return (std::filesystem::path(assets_root) / relative_path)
-        .lexically_normal().string();
-}
-
-// ── Default assets root for deep rendering code removed ────────────
-//
-// TICKET-011a follow-up #2 — the legacy single-argument
-// `resolve_asset_path(relative_path)` overload and the
-// `chronon3d::detail::g_default_assets_root` + `detail::set_default_assets_root`
-// pair that backed it have been deleted.
-//
-// WP-8 PR 8.2 — the single-argument `runtime::resolve_asset_path(relative)`
-// free function has ALSO been deleted (it was the runtime-layer sibling
-// of `AssetRegistry::resolve_path` and has now been replaced wholesale
-// by the typed resolver path, see `asset_resolver.hpp`).
-//
-// Current canonical resolution paths:
-//   1. `RenderRuntime::resolver()` — direct accessor on the engine
-//      instance; for long-lived callers (SoftwareRenderer, script APIs,
-//      plugins).
-//   2. `runtime.services().asset_resolver` (or
-//      `ctx.services.asset_resolver` in per-frame contexts) — service-
-//      locator where a `RenderServices` is already in scope.
-//   3. `chronon3d::runtime::detail::typed_resolver_for_deep_code()`
-//      — service-locator for callers that have no RenderRuntime in
-//      their call stack (font_engine, text_rasterizer, preflight, etc.).
-//   4. Two-argument `resolve_asset_path(assets_root, relative_path)`
-//      below — UNCHANGED for callers that already hold an explicit root.
 
 } // namespace chronon3d

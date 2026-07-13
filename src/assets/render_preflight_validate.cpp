@@ -45,7 +45,7 @@ void validate_file_exists(const PreflightRequirement& req,
         issue.composition_id = req.composition_id;
         issue.layer_id       = req.layer_id;
         issue.message        = std::string("Missing ") + asset_type_label(type) + ": '" + req.path + "'";
-        issue.recommendation = "Make sure the file exists, or mount the correct assets directory with AssetRegistry::mount().";
+        issue.recommendation = "Make sure the file exists, or mount the correct assets directory with AssetResolver::mount().";
         issues.push_back(issue);
     }
 }
