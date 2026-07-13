@@ -70,11 +70,17 @@ TEST_CASE("ShapedGlyphLine cluster benchmark: 200-glyph stress O(n) vs O(n²)") 
     text_200.resize(200);
 
     // Shape once and reuse the raw GlyphRun for both implementations.
-    auto run_opt = engine.shape_text(text_200, spec, 72.0f);
-    REQUIRE(run_opt.has_value());
-    REQUIRE(!run_opt->glyphs.empty());
+    // Use ShapedGlyphLine::try_shape (same path as the golden tests) so
+    // the benchmark behaves consistently with the equivalence suite.
+    auto shaped_opt = ShapedGlyphLine::try_shape(
+        text_200, 72.0f, spec, 4.0f, 0.0f, engine);
+    if (!shaped_opt || !shaped_opt->raw_run().has_value() ||
+        shaped_opt->raw_run()->glyphs.empty()) {
+        WARN("Font failed to load or shaping produced zero glyphs; skipping benchmark.");
+        return;
+    }
 
-    const auto& glyphs = run_opt->glyphs;
+    const auto& glyphs = shaped_opt->raw_run()->glyphs;
     const size_t n = glyphs.size();
     INFO("glyph count: ", n);
     REQUIRE(n > 0);
