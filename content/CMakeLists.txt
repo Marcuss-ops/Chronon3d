@@ -13,11 +13,12 @@ add_library(chronon3d_content OBJECT
     # Registration orchestrator
     register_content_modules.cpp
 
-    # ── Common Text Modules (P1 refactor — split from text_reveal_helpers.hpp) ──
+    # ── Common Text Modules (P1 refactor — split into 4 module TUs) ──
     # The 381-LoC header-only `content/common/text_reveal_helpers.hpp` was
     # split into 4 single-responsibility TUs (single flat namespace
-    # `chronon3d::content::text_reveal` per Cat-3 minimal-surface).  The
-    # original is now a forward-header shim at the old path.
+    # `chronon3d::content::text_reveal` per Cat-3 minimal-surface).  All
+    # 12 callers migrated to direct module includes + `text_reveal_helpers.hpp`
+    # removed (forward-point complete).
     common/text/cinematic_glow.cpp
     common/text/glyph_layout.cpp
     common/text/text_reveal.cpp
@@ -60,7 +61,8 @@ add_library(chronon3d_content OBJECT
     # dedicated files by domain:
     #   - examples/text/easy_text_animations.cpp  (5 easy anims + helpers)
     #   - examples/text/typewriter_animations.cpp (5 typewriters using
-    #     Step 10 `build_2line_typewriter(spec)` from text_reveal_helpers.hpp)
+    #     Step 11 `build_2line_typewriter(TwoLineTypewriterSpec&)` from
+    #     content/common/text/typewriter_block.hpp)
     #   - examples/text/text_animation_registration.cpp (10
     #     `registry.add(...)` calls consolidated)
     # The 10 inline `registry.add(...)` calls in animation_compositions.cpp

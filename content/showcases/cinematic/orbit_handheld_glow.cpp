@@ -33,7 +33,6 @@
 
 #include "content/showcases/cinematic/cinematic_showcase_helpers.hpp"
 #include "content/showcases/cinematic/cinematic_text_camera.hpp"
-#include "content/common/text_reveal_helpers.hpp"
 #include "content/text/text_theme.hpp"
 
 #include <cmath>

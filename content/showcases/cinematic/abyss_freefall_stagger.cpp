@@ -34,7 +34,8 @@
 
 #include "content/showcases/cinematic/cinematic_showcase_helpers.hpp"
 #include "content/showcases/cinematic/cinematic_text_camera.hpp"
-#include "content/common/text_reveal_helpers.hpp"
+#include "content/common/text/glyph_layout.hpp"  // measure_text_width, layout_glyphs
+#include "content/common/text/text_reveal.hpp"    // font_bold
 #include "content/text/text_theme.hpp"
 
 #include <cmath>
