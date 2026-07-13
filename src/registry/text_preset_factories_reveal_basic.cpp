@@ -7,6 +7,21 @@
 // live in `text_preset_factories_reveal_selectors.cpp`.  The parent
 // `text_preset_factories_reveal.cpp` is reduced to a thin aggregator.
 //
+// Action 12b (this chore): the per-entry boilerplate (PresetMetadata
+// construction + fixture string + builder lambda + animator factory pointer)
+// is now centralised through the TU-local helper `make_reveal_descriptor`
+// declared in the anonymous namespace below.  Per Cat-3 minimal-surface:
+// pure internal refactor, zero SDK surface expansion, zero API change
+// (the public factory functions `create_basic_reveal_presets()` and the
+// 6 entry() functions are bit-identical signature-wise and content-wise).
+//
+// Each of the 6 entry() invocations now reduces to a single
+// `make_reveal_descriptor(metadata, fixture, animator, builder)` call
+// with the per-preset values supplied via designated-initialiser
+// `PresetMetadata{.id, .display_name, .category, .description, .builtin}`
+// + string-literal fixture + named `compose_*` function pointer +
+// inline `TextPresetBuilder` lambda.
+//
 // ## Content (verbatim port from the pre-split file)
 //
 //   ── REVEAL · BASIC (6) ────────────────────────────────────────────────────
@@ -58,6 +73,35 @@ namespace chronon3d::registry::register_helpers_internal::factory_reveal {
 using LayerBuilderT  = chronon3d::registry::internal::LayerBuilderT;
 using SceneBuilderT  = chronon3d::registry::internal::SceneBuilderT;
 using TextSpecT      = chronon3d::registry::internal::TextSpecT;
+
+// ── TU-local helper (Action 12b) ────────────────────────────────────────────
+//
+// `make_reveal_descriptor(metadata, fixture, animator, builder)` builds a
+// `TextPresetDescriptor` from its 4 fields in a single call.  Pass-by-value
+// + `std::move` semantics: zero-copy in the typical caller site where the
+// args are rvalues (string-literal `fixture`, named `compose_*` function
+// pointer, lambda `TextPresetBuilder`).  Lvalue callers also safe (move).
+//
+// Lives in anonymous namespace INSIDE `factory_reveal` — each TU has its OWN
+// internal-linkage version, no ODR collision between TU siblings
+// (`text_preset_factories_reveal_selectors.cpp` defines an identical helper
+// under its own anonymous namespace).  Zero SDK surface exposure; pure
+// extraction-de-boilerplate.
+namespace {
+TextPresetDescriptor make_reveal_descriptor(
+        PresetMetadata metadata,
+        std::string fixture,
+        AnimatorFactory animator,
+        TextPresetBuilder builder) {
+    TextPresetDescriptor d;
+    d.id               = metadata.id;
+    d.metadata         = std::move(metadata);
+    d.fixture          = std::move(fixture);
+    d.builder          = std::move(builder);
+    d.animator_factory = std::move(animator);
+    return d;
+}
+} // namespace (TU-local helper)
 
 // ── STAGE 2 helpers — Reveal · BASIC (6) compositor bodies ─────────────────
 //
@@ -121,153 +165,135 @@ compose_scale_in(const PresetMetadata& /*meta*/) {
 
 // ── 1.  text_animations ───────────────────────────────────────────────────
 TextPresetDescriptor text_animations_entry() {
-    PresetMetadata meta;
-    meta.id           = "text_animations";
-    meta.display_name = "Text animations utility (typewriter + emphasis)";
-    meta.category     = TextPresetCategory::Reveal;
-    meta.description  = "Reveal-oriented text animation utilities — typewriter "
-                         "+ per-glyph emphasis (word pop, scale punch, gradient fill). "
-                         "fade_in + scale_drop entrance.";
-    meta.builtin      = true;
-
-    TextPresetDescriptor d;
-    d.id              = meta.id;
-    d.metadata        = meta;
-    d.fixture         = "tests/visual/PR3/pr3_compositions";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
-                          LayerBuilderT& lb,
-                          const TextSpecT& spec) {
-        chronon3d::registry::internal::wire_through_resolver(lb, "text_animations", spec)
-          .fade_in(Frame{20})
-          .scale_drop(0.95f, Frame{30});
-    };
-    d.animator_factory = compose_text_animations;
-    return d;
+    return make_reveal_descriptor(
+        PresetMetadata{
+            .id           = "text_animations",
+            .display_name = "Text animations utility (typewriter + emphasis)",
+            .category     = TextPresetCategory::Reveal,
+            .description  = "Reveal-oriented text animation utilities — typewriter "
+                             "+ per-glyph emphasis (word pop, scale punch, gradient fill). "
+                             "fade_in + scale_drop entrance.",
+            .builtin      = true,
+        },
+        "tests/visual/PR3/pr3_compositions",
+        compose_text_animations,
+        []([[maybe_unused]] SceneBuilderT& sb,
+           LayerBuilderT& lb,
+           const TextSpecT& spec) {
+            chronon3d::registry::internal::wire_through_resolver(lb, "text_animations", spec)
+              .fade_in(Frame{20})
+              .scale_drop(0.95f, Frame{30});
+        });
 }
 
 // ── 2.  fade_in ───────────────────────────────────────────────────────────
 TextPresetDescriptor fade_in_entry() {
-    PresetMetadata meta;
-    meta.id           = "fade_in";
-    meta.display_name = "FadeIn";
-    meta.category     = TextPresetCategory::Reveal;
-    meta.description  = "Pure opacity ramp over Frame{15}, no spatial motion. "
-                         "Canonical reveal for body copy / subtitle-level text.";
-    meta.builtin      = true;
-
-    TextPresetDescriptor d;
-    d.id              = meta.id;
-    d.metadata        = meta;
-    d.fixture         = "tests/visual/text/reveal_fade_in";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
-                          LayerBuilderT& lb,
-                          const TextSpecT& spec) {
-        chronon3d::registry::internal::wire_through_resolver(lb, "fade_in", spec)
-          .fade_in(Frame{15})
-          .soft_pop(Frame{10});
-    };
-    d.animator_factory = compose_fade_in;
-    return d;
+    return make_reveal_descriptor(
+        PresetMetadata{
+            .id           = "fade_in",
+            .display_name = "FadeIn",
+            .category     = TextPresetCategory::Reveal,
+            .description  = "Pure opacity ramp over Frame{15}, no spatial motion. "
+                             "Canonical reveal for body copy / subtitle-level text.",
+            .builtin      = true,
+        },
+        "tests/visual/text/reveal_fade_in",
+        compose_fade_in,
+        []([[maybe_unused]] SceneBuilderT& sb,
+           LayerBuilderT& lb,
+           const TextSpecT& spec) {
+            chronon3d::registry::internal::wire_through_resolver(lb, "fade_in", spec)
+              .fade_in(Frame{15})
+              .soft_pop(Frame{10});
+        });
 }
 
 // ── 3.  blur_in ───────────────────────────────────────────────────────────
 TextPresetDescriptor blur_in_entry() {
-    PresetMetadata meta;
-    meta.id           = "blur_in";
-    meta.display_name = "BlurIn";
-    meta.category     = TextPresetCategory::Reveal;
-    meta.description  = "Focus ramp (4.0 → 0.0 blur) over Frame{30}, paired with "
-                         "short fade_in.  Classic motion-graphic reveal pattern.";
-    meta.builtin      = true;
-
-    TextPresetDescriptor d;
-    d.id              = meta.id;
-    d.metadata        = meta;
-    d.fixture         = "tests/visual/text/reveal_blur_in";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
-                          LayerBuilderT& lb,
-                          const TextSpecT& spec) {
-        chronon3d::registry::internal::wire_through_resolver(lb, "blur_in", spec)
-          .focus_in(4.0f, Frame{30})
-          .fade_in(Frame{15});
-    };
-    d.animator_factory = compose_blur_in;
-    return d;
+    return make_reveal_descriptor(
+        PresetMetadata{
+            .id           = "blur_in",
+            .display_name = "BlurIn",
+            .category     = TextPresetCategory::Reveal,
+            .description  = "Focus ramp (4.0 → 0.0 blur) over Frame{30}, paired with "
+                             "short fade_in.  Classic motion-graphic reveal pattern.",
+            .builtin      = true,
+        },
+        "tests/visual/text/reveal_blur_in",
+        compose_blur_in,
+        []([[maybe_unused]] SceneBuilderT& sb,
+           LayerBuilderT& lb,
+           const TextSpecT& spec) {
+            chronon3d::registry::internal::wire_through_resolver(lb, "blur_in", spec)
+              .focus_in(4.0f, Frame{30})
+              .fade_in(Frame{15});
+        });
 }
 
 // ── 4.  slide_up ──────────────────────────────────────────────────────────
 TextPresetDescriptor slide_up_entry() {
-    PresetMetadata meta;
-    meta.id           = "slide_up";
-    meta.display_name = "SlideUp";
-    meta.category     = TextPresetCategory::Reveal;
-    meta.description  = "Vertical slide-up (from below, offset {0,200,0}) + "
-                         "fade_in over Frame{25}.  Eyebrow / section-header pattern.";
-    meta.builtin      = true;
-
-    TextPresetDescriptor d;
-    d.id              = meta.id;
-    d.metadata        = meta;
-    d.fixture         = "tests/visual/text/reveal_slide_up";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
-                          LayerBuilderT& lb,
-                          const TextSpecT& spec) {
-        chronon3d::registry::internal::wire_through_resolver(lb, "slide_up", spec)
-          .fade_shift_vertical(Vec3{0.0f, 200.0f, 0.0f}, Frame{25})
-          .fade_in(Frame{15});
-    };
-    d.animator_factory = compose_slide_up;
-    return d;
+    return make_reveal_descriptor(
+        PresetMetadata{
+            .id           = "slide_up",
+            .display_name = "SlideUp",
+            .category     = TextPresetCategory::Reveal,
+            .description  = "Vertical slide-up (from below, offset {0,200,0}) + "
+                             "fade_in over Frame{25}.  Eyebrow / section-header pattern.",
+            .builtin      = true,
+        },
+        "tests/visual/text/reveal_slide_up",
+        compose_slide_up,
+        []([[maybe_unused]] SceneBuilderT& sb,
+           LayerBuilderT& lb,
+           const TextSpecT& spec) {
+            chronon3d::registry::internal::wire_through_resolver(lb, "slide_up", spec)
+              .fade_shift_vertical(Vec3{0.0f, 200.0f, 0.0f}, Frame{25})
+              .fade_in(Frame{15});
+        });
 }
 
 // ── 5.  slide_down ────────────────────────────────────────────────────────
 TextPresetDescriptor slide_down_entry() {
-    PresetMetadata meta;
-    meta.id           = "slide_down";
-    meta.display_name = "SlideDown";
-    meta.category     = TextPresetCategory::Reveal;
-    meta.description  = "Vertical slide-down (from above, offset {0,-200,0}) + "
-                         "fade_in over Frame{25}.  Bottom-docked subtitle entry.";
-    meta.builtin      = true;
-
-    TextPresetDescriptor d;
-    d.id              = meta.id;
-    d.metadata        = meta;
-    d.fixture         = "tests/visual/text/reveal_slide_down";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
-                          LayerBuilderT& lb,
-                          const TextSpecT& spec) {
-        chronon3d::registry::internal::wire_through_resolver(lb, "slide_down", spec)
-          .fade_shift_vertical(Vec3{0.0f, -200.0f, 0.0f}, Frame{25})
-          .fade_in(Frame{15});
-    };
-    d.animator_factory = compose_slide_down;
-    return d;
+    return make_reveal_descriptor(
+        PresetMetadata{
+            .id           = "slide_down",
+            .display_name = "SlideDown",
+            .category     = TextPresetCategory::Reveal,
+            .description  = "Vertical slide-down (from above, offset {0,-200,0}) + "
+                             "fade_in over Frame{25}.  Bottom-docked subtitle entry.",
+            .builtin      = true,
+        },
+        "tests/visual/text/reveal_slide_down",
+        compose_slide_down,
+        []([[maybe_unused]] SceneBuilderT& sb,
+           LayerBuilderT& lb,
+           const TextSpecT& spec) {
+            chronon3d::registry::internal::wire_through_resolver(lb, "slide_down", spec)
+              .fade_shift_vertical(Vec3{0.0f, -200.0f, 0.0f}, Frame{25})
+              .fade_in(Frame{15});
+        });
 }
 
 // ── 6.  scale_in ──────────────────────────────────────────────────────────
 TextPresetDescriptor scale_in_entry() {
-    PresetMetadata meta;
-    meta.id           = "scale_in";
-    meta.display_name = "ScaleIn";
-    meta.category     = TextPresetCategory::Reveal;
-    meta.description  = "Scale drop (0.85 → 1.0) over Frame{25} + soft_pop "
-                         "settle.  Section-header crop pattern.";
-    meta.builtin      = true;
-
-    TextPresetDescriptor d;
-    d.id              = meta.id;
-    d.metadata        = meta;
-    d.fixture         = "tests/visual/text/reveal_scale_in";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
-                          LayerBuilderT& lb,
-                          const TextSpecT& spec) {
-        chronon3d::registry::internal::wire_through_resolver(lb, "scale_in", spec)
-          .scale_drop(0.85f, Frame{25})
-          .soft_pop(Frame{15});
-    };
-    d.animator_factory = compose_scale_in;
-    return d;
+    return make_reveal_descriptor(
+        PresetMetadata{
+            .id           = "scale_in",
+            .display_name = "ScaleIn",
+            .category     = TextPresetCategory::Reveal,
+            .description  = "Scale drop (0.85 → 1.0) over Frame{25} + soft_pop "
+                             "settle.  Section-header crop pattern.",
+            .builtin      = true,
+        },
+        "tests/visual/text/reveal_scale_in",
+        compose_scale_in,
+        []([[maybe_unused]] SceneBuilderT& sb,
+           LayerBuilderT& lb,
+           const TextSpecT& spec) {
+            chronon3d::registry::internal::wire_through_resolver(lb, "scale_in", spec)
+              .scale_drop(0.85f, Frame{25})
+              .soft_pop(Frame{15});
+        });
 }
 
 
