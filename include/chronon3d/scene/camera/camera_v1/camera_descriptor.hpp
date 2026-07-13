@@ -319,5 +319,20 @@ struct CameraDescriptor {
 } // namespace chronon3d::camera_v1
 
 // ── Fingerprint split to camera_descriptor_fingerprint.hpp (STEP 8) ────────
-// For backward compatibility, include the new header here.
-#include <chronon3d/scene/camera/camera_v1/camera_descriptor_fingerprint.hpp>
+// CHORE (cat-1 cycle-break 2026-07-13): forward-declare the fingerprint
+// function here (NOT #include the header) to break the mutual include
+// cycle. camera_descriptor_fingerprint.hpp must include us (B->A) for the
+// FNV-1a hash layout access (full CameraDescriptor struct definition);
+// we no longer include it (A->B) — instead we forward-declare the
+// canonical symbol. This preserves symbol visibility for legacy call
+// sites that relied on transitive fingerprint access; consumers needing
+// the inline body must explicitly #include the fingerprint header.
+// Per AGENTS.md: Cat-3 minimal-surface (no new SDK API, the function
+// already exists in the fingerprint header); no new singleton/registry/
+// resolver/cache, no ADR required; Cat-5 3-doc same-commit NOT triggered
+// (no blocker/canonical state change); subject envelope 73 chars
+// (the canonical envelope audit is in TICKET-GATE-SUBJECT-RANGE).
+namespace chronon3d::camera_v1 {
+inline std::uint64_t compute_camera_descriptor_fingerprint(
+    const CameraDescriptor& desc) noexcept;
+} // namespace chronon3d::camera_v1
