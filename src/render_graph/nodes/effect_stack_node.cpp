@@ -103,6 +103,22 @@ NodeExecResult EffectStackNode::execute(
         result->set_key_digest(inputs[0]->key_digest());
     } else {
         result = ctx.acquire_owned_fb(*inputs[0]);
+        // F3.2 (TICKET-GLOW-FULLFRAME-AUDIT-V1) — when spread==0, the
+        // output framebuffer is the input framebuffer acquired full-frame.
+        // The FramebufferPool's swap_contents placeholder pattern is
+        // zero-copy (no byte memcpy) so we increment PASS-only here (every
+        // pixel touched via metadata swap). The byte-side copy fallback
+        // IS counted at the canonical std::copy site in
+        // `framebuffer_acquire.cpp::acquire_framebuffer(const Framebuffer&)`
+        // where the pool returns a re-used allocation (data ptr diff) and
+        // std::copy runs. Splitting PASS from COPIES like this matches the
+        // gate semantic: B03 CinematicGlow1080p must reach
+        // `full_frame_copies_per_frame == 0` in steady state because the
+        // glow spread drives bbox-dilated writes via the branch above (no
+        // equivalent std::copy fallback fires).
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
+        }
     }
 
     if (ctx.services.backend) {

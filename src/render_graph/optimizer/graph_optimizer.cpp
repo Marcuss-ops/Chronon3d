@@ -2,9 +2,12 @@
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/adjustment_node.hpp>
+#include <chronon3d/render_graph/compiler/fused_pixel_program.hpp>
+#include <chronon3d/simd/kernel_resolver.hpp>
 #include <algorithm>
 #include <stack>
 #include <unordered_set>
+#include <vector>
 
 namespace chronon3d::graph::optimizer {
 
@@ -350,6 +353,25 @@ OptimizationResult optimize_graph(
 
     if (config.enable_branch_pruning) {
         result.nodes_pruned = prune_branches(graph, ctx);
+    }
+
+    // TICKET-FUSION-PASS-COMPILER-V1: ColorMatrix → Opacity → Blend
+    // 3-node fusion pass. The pass is non-mutating in the F3.1 first
+    // commit; it emits FusedPixelProgram descriptors via an OUT param
+    // and updates the FusionStats aggregator. The descriptors are
+    // consumed by the runtime executor (forward-pointed to
+    // TICKET-FUSION-PASS-RUNTIME-EXEC).
+    if (config.enable_pixel_fusion) {
+        std::vector<fusion::FusedPixelProgram> out_programs;
+        const auto& kernels = simd::resolve_pixel_kernels(
+            simd::CpuCapabilities{});  // default CpuCapabilities (scalar route)
+        const auto fusion_stats = fusion::fuse_color_opacity_blend(
+            graph, ctx, kernels, out_programs);
+        result.pixel_fusions = fusion_stats.passes_before_fusion / 3;
+        result.pixel_fusion_bytes_saved = fusion_stats.bytes_saved_by_fusion;
+        // The descriptors are emitted but not consumed in the F3.1
+        // first commit (runtime exec is forward-pointed). The
+        // graph is unchanged.
     }
 
     result.nodes_after = graph.live_count();
