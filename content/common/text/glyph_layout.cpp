@@ -116,65 +116,80 @@ std::vector<GlyphPos> ShapedGlyphLine::layout() const {
     const size_t n = glyphs.size();
     out.reserve(n);
 
-    // O(n log n) cluster-boundary precomputation (replaces O(n²) inner scan).
+    // O(n) cluster-boundary precomputation (replaces O(n²) inner scan).
     //
     // The original inner loop scanned ALL glyphs for each glyph to find the
     // first one (by iteration index) whose cluster value is strictly greater
     // than the current glyph's cluster. This is O(n²) total.
     //
-    // Optimization: for each unique cluster value, find the cluster of the
-    // first glyph (by original index) with a strictly greater cluster value.
-    // This is done with a single sort + sweep in O(n log n) time.
+    // HarfBuzz produces monotonic cluster arrays within a shaped run:
+    //   - LTR text: clusters are non-decreasing (0, 1, 2, ... or 0, 0, 3, ...)
+    //   - RTL text: clusters are non-increasing (8, 6, 4, 2, 0)
+    // We exploit this to compute cluster ends in O(n) with a single pass.
     //
-    // Why this preserves the original behavior exactly:
-    //   - The inner loop finds the FIRST glyph (by index) with cluster > start.
-    //   - Sorting unique clusters descending and tracking the minimum original
-    //     index among all higher clusters gives exactly that first glyph.
-    //   - For LTR (monotonically increasing clusters), this is the next cluster.
-    //   - For RTL (reversed glyph order), this is the first glyph in the array,
-    //     which has the highest cluster — matching the inner loop.
-    //
-    // Step 1: minimum original index for each unique cluster value.
-    std::unordered_map<u32, size_t> cluster_min_idx;
-    cluster_min_idx.reserve(n);
-    for (size_t i = 0; i < n; ++i) {
-        auto [it, inserted] = cluster_min_idx.try_emplace(glyphs[i].cluster, i);
-        if (!inserted) {
-            it->second = std::min(it->second, i);
-        }
+    // For the rare non-monotonic input (defensive), we fall back to an
+    // O(n log n) sort+sweep that preserves the same "first by index" semantics.
+
+    // Detect monotonicity direction.
+    bool non_decreasing = true;
+    bool non_increasing = true;
+    for (size_t i = 1; i < n; ++i) {
+        if (glyphs[i].cluster < glyphs[i - 1].cluster) non_decreasing = false;
+        if (glyphs[i].cluster > glyphs[i - 1].cluster) non_increasing = false;
+        if (!non_decreasing && !non_increasing) break;
     }
 
-    // Step 2: sort unique cluster values descending.
-    std::vector<u32> unique_clusters;
-    unique_clusters.reserve(cluster_min_idx.size());
-    for (const auto& [cl, idx] : cluster_min_idx) {
-        unique_clusters.push_back(cl);
-    }
-    std::sort(unique_clusters.begin(), unique_clusters.end(), std::greater<u32>{});
+    // Precompute the cluster end for each glyph index.
+    std::vector<size_t> cluster_end(n, m_text.size());
 
-    // Step 3: sweep descending, building map: cluster_value → end_value.
-    // For each cluster, the end is the cluster of the first glyph (by index)
-    // with a strictly greater cluster. min_idx tracks the minimum original
-    // index among all clusters processed so far (i.e., all higher clusters).
-    std::unordered_map<u32, size_t> next_cluster_end;
-    next_cluster_end.reserve(cluster_min_idx.size());
-    size_t min_idx = n; // sentinel: no higher cluster found
-    for (u32 cl : unique_clusters) {
-        if (min_idx < n) {
-            next_cluster_end[cl] = static_cast<size_t>(glyphs[min_idx].cluster);
+    if (non_decreasing) {
+        // LTR: backward pass. The end for glyph i is the next glyph's cluster
+        // if it is greater; otherwise it inherits the next glyph's end.
+        for (size_t i = n; i-- > 0; ) {
+            if (i + 1 < n) {
+                if (glyphs[i + 1].cluster > glyphs[i].cluster) {
+                    cluster_end[i] = static_cast<size_t>(glyphs[i + 1].cluster);
+                } else {
+                    cluster_end[i] = cluster_end[i + 1];
+                }
+            }
         }
-        min_idx = std::min(min_idx, cluster_min_idx[cl]);
+    } else if (non_increasing) {
+        // RTL: the first glyph has the maximum cluster. All other glyphs have
+        // end = glyphs[0].cluster; the first glyph has end = m_text.size().
+        for (size_t i = 1; i < n; ++i) {
+            cluster_end[i] = static_cast<size_t>(glyphs[0].cluster);
+        }
+    } else {
+        // Fallback O(n log n) for non-monotonic inputs.
+        std::unordered_map<u32, size_t> cluster_min_idx;
+        cluster_min_idx.reserve(n);
+        for (size_t i = 0; i < n; ++i) {
+            auto [it, inserted] = cluster_min_idx.try_emplace(glyphs[i].cluster, i);
+            if (!inserted) it->second = std::min(it->second, i);
+        }
+        std::vector<u32> unique_clusters;
+        unique_clusters.reserve(cluster_min_idx.size());
+        for (const auto& [cl, idx] : cluster_min_idx) unique_clusters.push_back(cl);
+        std::sort(unique_clusters.begin(), unique_clusters.end(), std::greater<u32>{});
+        std::unordered_map<u32, size_t> next_cluster_end;
+        next_cluster_end.reserve(cluster_min_idx.size());
+        size_t min_idx = n;
+        for (u32 cl : unique_clusters) {
+            if (min_idx < n) next_cluster_end[cl] = static_cast<size_t>(glyphs[min_idx].cluster);
+            min_idx = std::min(min_idx, cluster_min_idx[cl]);
+        }
+        for (size_t i = 0; i < n; ++i) {
+            auto it = next_cluster_end.find(glyphs[i].cluster);
+            if (it != next_cluster_end.end()) cluster_end[i] = it->second;
+        }
     }
 
     f32 cursor = m_ref_offset_x;
     for (size_t gi = 0; gi < n; ++gi) {
         const auto& g = glyphs[gi];
         size_t start = g.cluster;
-        size_t end = m_text.size();
-        auto it = next_cluster_end.find(static_cast<u32>(start));
-        if (it != next_cluster_end.end()) {
-            end = it->second;
-        }
+        size_t end = cluster_end[gi];
         std::string ch = m_text.substr(start, end - start);
         if (ch.empty()) continue;
         out.push_back({ch, cursor + g.advance_x * 0.5f, g.advance_x});
