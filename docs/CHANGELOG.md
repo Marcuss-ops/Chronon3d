@@ -1,4 +1,17 @@
 <details>
+<summary>docs(ticket): open TICKET-NODE-CACHE-KEY-COLLAPSE-ROT (P2 OPEN) — 2026-07-13</summary>
+
+Atomic docs-only chaser-chore opening `TICKET-NODE-CACHE-KEY-COLLAPSE-ROT` (P2 OPEN, rot CONTAINED) at `docs/tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md` + 1-row index in `docs/FOLLOWUP_TICKETS.md` §Open Blockers + this CHANGELOG entry prepended per Cat-5 2-doc same-commit alignment.
+
+Rot class: `NodeCacheKey` collapse in executor module; rot CONTAINED on `origin/main HEAD 5de88a96` (executor-module syntax-only compile exit 0 + 5+ active file:line consumers confirmed via grep). Pre-condition tracking for the next P1 step 2 atomic chore (`refactor(executor): extract run_node into node_executor module`). Macchina-verifica DEFERRED to working build host per AGENTS.md §honest-limitation. Cat-3 minimal-surface; Cat-5 2-doc same-commit (CHANGELOG + FOLLOWUP_TICKETS); CURRENT_STATUS deferred to TICKET-NODE-CACHE-KEY-COLLAPSE-ROT-3DOC-CAT5-ALIGN per Cat-3 anti-dup.
+
+**Subject envelope = 56 chars ≤ 72** push-range audit per AGENTS.md TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (subject: `docs(ticket): open TICKET-NODE-CACHE-KEY-COLLAPSE-ROT`).
+
+**Cross-references**: AGENTS.md v0.1 Cat-3 (zero new public SDK API surface; pure `docs/` tracking) + Cat-5 2-doc same-commit (CHANGELOG + FOLLOWUP_TICKETS prepended atomically; CURRENT_STATUS deferred per the 3-doc Cat-5 forward-point) + §regole "Fare PR piccole e mirate" (single atomic chore on the chaser-ticket-open; the 1 NEW ticket file + 2 EDITs docs locked together per Cat-3 anti-dup) + the canonical `5de88a96 refactor(executor): extract commit_node_state into node_state_commit` (the predecessor `executor` chore which left the rot CONTAINED) + the canonical `src/render_graph/pipeline/refresh/source.cpp:24,79` + `src/render_graph/nodes/TextRunNode.cpp:82,328` + `src/render_graph/nodes/source_node.cpp:183` + `src/render_graph/nodes/multi_source_node.cpp:21,119` + `src/render_graph/executor/telemetry_emitter.hpp:18,35` (the 5+ active NodeCacheKey consumers verified via grep 2026-07-13); AGENTS.md §Post-push SHA-selfcheck invariant (mandatory verify of `UPSTREAM_SHA == POSTPUSH_SHA` after `bash tools/wrap_push.sh origin main` per AGENTS.md §GATE-MNT-01 closure lineage).
+
+</details>
+
+<details>
 <summary>docs(followup): open TICKET-PUSH-CADENCE-OPTIMIZATION (P2 NEW) row — 2026-07-12</summary>
 
 Atomic docs-only chore opening `TICKET-PUSH-CADENCE-OPTIMIZATION` (P2 NEW) as §Open Blocker row in `docs/FOLLOWUP_TICKETS.md` + this CHANGELOG entry prepended per Cat-5 2-doc same-commit alignment.
