@@ -42,16 +42,11 @@ constexpr PolicyDefaults kDefaults[] = {
     // in PR 3 (byte budgets).
     { CacheDomain::RenderedFrames,  CacheCapacityUnit::Bytes,   512ULL * 1024ULL * 1024ULL, 2 },  // 512 MiB
     { CacheDomain::VideoFrames,     CacheCapacityUnit::Bytes,   256ULL * 1024ULL * 1024ULL, 2 },  // 256 MiB
-    // ── PR-C (TICKET-007.z/.aa) ──────────────────────────────────────────────
-    // ConvertedFrames was byte-weighted (Bytes) but the ConvertedFrameCache
-    // public API takes max_entries (count), so cap=5 meant 5 bytes — too
-    // small to admit any frame payload and caused every insert past the
-    // first to be rejected as oversized.  Switched to Count mode so the
-    // ctor's cap argument matches the LruCache CapacityMode contract used
-    // downstream.  Default bumped from 128 MiB to 256 entries (≈ one wave
-    // of freeze-frame replays + a handful of static-frame conversions —
-    // matches prior testing-suite expectation of 5–10 resident slots).
-    { CacheDomain::ConvertedFrames, CacheCapacityUnit::Entries, 256,                            2 },  // 256 entries
+    // ConvertedFrameCache is byte-weighted: capacity_bytes is the total
+    // number of bytes the cache may hold across all shards.  Default is
+    // 128 MiB, enough for several HD freeze frames without monopolising
+    // memory.
+    { CacheDomain::ConvertedFrames, CacheCapacityUnit::Bytes, 128ULL * 1024ULL * 1024ULL, 2 },  // 128 MiB
     { CacheDomain::ScenePrograms,   CacheCapacityUnit::Entries,   8,                             2 },
 };
 
@@ -72,7 +67,7 @@ static std::size_t config_value_from(CacheDomain domain,
         case CacheDomain::Nodes:           return cache_cfg.node_cache_max_bytes();
         case CacheDomain::RenderedFrames:  return cache_cfg.frame_cache_max_entries();
         case CacheDomain::VideoFrames:     return cache_cfg.video_frame_max_entries();
-        case CacheDomain::ConvertedFrames: return cache_cfg.converted_frame_cache_max_entries();
+        case CacheDomain::ConvertedFrames: return cache_cfg.converted_frame_cache_max_bytes();
         case CacheDomain::ScenePrograms:   return cache_cfg.scene_program_cache_max_entries();
         case CacheDomain::Images:          return cache_cfg.image_cache_max_bytes();
         case CacheDomain::GlyphAtlas:      return cache_cfg.glyph_atlas_max_bytes();

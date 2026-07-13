@@ -277,13 +277,13 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
         .use_cache   = false,  // caching across frames is encoder-level, not per-submit
     };
 
-    bool conv_ok = conv_svc_.convert_to_buffer(
+    auto converted = conv_svc_.convert_into(
         fb, copts, staging_buffer_.data(), expected_size);
 
     const auto conv_t1 = profiling::now();
     const double conv_ms = profiling::duration_ms(conv_t0, conv_t1);
 
-    if (!conv_ok) {
+    if (!converted) {
         spdlog::error("[video_adapter] Frame conversion failed");
         return false;
     }
@@ -306,7 +306,7 @@ bool VideoSinkEncoderAdapter::convert_and_submit(const Framebuffer& fb) {
     //   RGBA8:   RGBA(w×h×4) — contiguous
     // For the new sink, packed formats use submit(VideoFrameView) directly.
     chronon3d::media::video::VideoFrameView view;
-    view.data          = staging_buffer_.data();
+    view.data          = converted.data.data();
     view.stride_bytes  = 0;  // tight packing
     view.width         = width_;
     view.height        = height_;

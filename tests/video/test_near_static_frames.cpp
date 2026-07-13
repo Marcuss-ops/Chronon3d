@@ -16,7 +16,7 @@ TEST_CASE("Near-static frames: small color variations produce mostly cache hits"
     constexpr int kFrames = 50;
     constexpr int kChangeInterval = 10;
 
-    ConvertedFrameCache cache(16);
+    ConvertedFrameCache cache(64 * 1024);  // 64 KiB, enough for several 64x64 frames
     const size_t y_sz = static_cast<size_t>(w) * h;
     const size_t uv_sz = static_cast<size_t>(w / 2) * (h / 2);
 
@@ -61,7 +61,7 @@ TEST_CASE("Near-static frames: small color variations produce mostly cache hits"
             std::memcpy(packed.data(), y.data(), y_sz);
             std::memcpy(packed.data() + y_sz, u.data(), uv_sz);
             std::memcpy(packed.data() + y_sz + uv_sz, v.data(), uv_sz);
-            cache.insert(key, packed.data(), packed.size());
+            cache.insert(key, packed);
         }
     }
 
@@ -76,7 +76,7 @@ TEST_CASE("Near-static frames: single repeated frame hits cache 100%") {
     constexpr int w = 32, h = 32;
     constexpr int kFrames = 100;
 
-    ConvertedFrameCache cache(4);
+    ConvertedFrameCache cache(8 * 1024);  // 8 KiB, enough for a 32x32 frame
     const size_t y_sz = static_cast<size_t>(w) * h;
     const size_t uv_sz = static_cast<size_t>(w / 2) * (h / 2);
 
@@ -112,7 +112,7 @@ TEST_CASE("Near-static frames: single repeated frame hits cache 100%") {
             std::memcpy(packed.data(), y.data(), y_sz);
             std::memcpy(packed.data() + y_sz, u.data(), uv_sz);
             std::memcpy(packed.data() + y_sz + uv_sz, v.data(), uv_sz);
-            cache.insert(key, packed.data(), packed.size());
+            cache.insert(key, packed);
         }
     }
 
@@ -123,7 +123,7 @@ TEST_CASE("Near-static frames: single repeated frame hits cache 100%") {
 
 TEST_CASE("Near-static frames: format change between YUV420P and NV12 causes miss") {
     constexpr int w = 16, h = 16;
-    ConvertedFrameCache cache(4);
+    ConvertedFrameCache cache(4 * 1024);  // 4 KiB, enough for both 16x16 frames
     const size_t y_sz = static_cast<size_t>(w) * h;
     const size_t uv_sz_yuv = static_cast<size_t>(w / 2) * (h / 2);
     const size_t uv_sz_nv = y_sz / 2;
@@ -158,7 +158,7 @@ TEST_CASE("Near-static frames: format change between YUV420P and NV12 causes mis
     std::memcpy(packed_yuv.data(), y_yuv.data(), y_sz);
     std::memcpy(packed_yuv.data() + y_sz, u.data(), uv_sz_yuv);
     std::memcpy(packed_yuv.data() + y_sz + uv_sz_yuv, v.data(), uv_sz_yuv);
-    cache.insert(key_yuv, packed_yuv.data(), packed_yuv.size());
+    cache.insert(key_yuv, packed_yuv);
 
     std::vector<uint8_t> y_nv(y_sz), uv(uv_sz_nv);
     auto r2 = convert_frame_tight(*fb,
@@ -170,8 +170,8 @@ TEST_CASE("Near-static frames: format change between YUV420P and NV12 causes mis
     std::vector<uint8_t> packed_nv(y_sz + uv_sz_nv);
     std::memcpy(packed_nv.data(), y_nv.data(), y_sz);
     std::memcpy(packed_nv.data() + y_sz, uv.data(), uv_sz_nv);
-    cache.insert(key_nv, packed_nv.data(), packed_nv.size());
+    cache.insert(key_nv, packed_nv);
 
-    CHECK(cache.lookup(key_yuv) != nullptr);
-    CHECK(cache.lookup(key_nv) != nullptr);
+    CHECK(cache.lookup(key_yuv));
+    CHECK(cache.lookup(key_nv));
 }

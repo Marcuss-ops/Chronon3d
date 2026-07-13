@@ -44,51 +44,40 @@ ConvertedFrameCacheKey FrameConversionService::make_cache_key(
 //  Construction
 // ============================================================================
 
-FrameConversionService::FrameConversionService(size_t cache_capacity)
-    : cache_(cache_capacity)
-    , cache_capacity_(cache_capacity)
+FrameConversionService::FrameConversionService(size_t cache_capacity_bytes)
+    : cache_(cache_capacity_bytes)
+    , cache_capacity_bytes_(cache_capacity_bytes)
 {
 }
 
 // ============================================================================
-//  convert()
+//  convert_into()
 // ============================================================================
 
-ConvertedFrame FrameConversionService::convert(
-    const Framebuffer& fb, const ConversionOptions& opts)
+ConvertedFrame FrameConversionService::convert_into(
+    const Framebuffer& fb, const ConversionOptions& opts,
+    uint8_t* dst, size_t dst_size)
 {
+    const size_t need = encoded_size(opts.width, opts.height, opts.format);
+    if (need == 0 || dst_size < need || dst == nullptr) {
+        return ConvertedFrame{};
+    }
+
     const uint64_t digest = fb.key_digest();
-    const bool can_cache = opts.use_cache && cache_capacity_ > 0 && digest != 0;
+    const bool can_cache = opts.use_cache && cache_capacity_bytes_ > 0 && digest != 0;
 
     // ── Cache lookup ──────────────────────────────────────────────────
     if (can_cache) {
-        const auto hit = cache_.lookup(make_cache_key(digest, opts));
+        auto hit = cache_.lookup(make_cache_key(digest, opts));
         if (hit) {
             ++stats_.cache_hits;
-            ConvertedFrame result;
-            result.data.reserve(hit->data_size);
-            result.data.assign(hit->data.data(), hit->data.data() + hit->data_size);
-            result.data_size = hit->data_size;
-            result.from_cache = true;
-            result.backend = FrameConversionBackend::Unavailable;  // kernel didn't run on a hit
-            result.conversion_ns = 0;
-            return result;
+            return hit;
         }
         ++stats_.cache_misses;
     }
 
-    // ── Allocate output buffer ────────────────────────────────────────
-    const size_t need = encoded_size(opts.width, opts.height, opts.format);
-    if (need == 0) {
-        return ConvertedFrame{};  // invalid dimensions or format
-    }
-
-    ConvertedFrame result;
-    result.data.resize(need);
-    result.data_size = need;
-
-    // ── Build the conversion request ──────────────────────────────────
-    uint8_t* dst_y  = result.data.data();
+    // ── Build plane pointers ──────────────────────────────────────────
+    uint8_t* dst_y  = dst;
     uint8_t* dst_u  = nullptr;
     uint8_t* dst_v  = nullptr;
     uint8_t* dst_uv = nullptr;
@@ -131,104 +120,24 @@ ConvertedFrame FrameConversionService::convert(
         opts.apply_gamma);
 
     if (!conv_result.success) {
-        result.data.clear();
-        result.data_size = 0;
-        return result;
+        return ConvertedFrame{};
     }
 
-    result.backend = conv_result.backend;
-    result.conversion_ns = conv_result.conversion_ns;
     ++stats_.conversions;
     stats_.total_conversion_ns += conv_result.conversion_ns;
 
+    ConvertedFrame result;
+    result.data = std::span<const uint8_t>(dst, need);
+    result.backend = conv_result.backend;
+    result.conversion_ns = conv_result.conversion_ns;
+
     // ── Cache insert ─────────────────────────────────────────────────
     if (can_cache) {
-        cache_.insert(make_cache_key(digest, opts), result.data.data(), result.data_size);
+        std::vector<uint8_t> cached(dst, dst + need);
+        cache_.insert(make_cache_key(digest, opts), std::move(cached));
     }
 
     return result;
-}
-
-// ============================================================================
-//  convert_to_buffer()
-// ============================================================================
-
-bool FrameConversionService::convert_to_buffer(
-    const Framebuffer& fb, const ConversionOptions& opts,
-    uint8_t* dst, size_t dst_size)
-{
-    const size_t need = encoded_size(opts.width, opts.height, opts.format);
-    if (need == 0 || dst_size < need || dst == nullptr) {
-        return false;
-    }
-
-    const uint64_t digest = fb.key_digest();
-    const bool can_cache = opts.use_cache && cache_capacity_ > 0 && digest != 0;
-
-    // ── Cache lookup ──────────────────────────────────────────────────
-    if (can_cache) {
-        const auto hit = cache_.lookup(make_cache_key(digest, opts));
-        if (hit) {
-            std::memcpy(dst, hit->data.data(), std::min(hit->data_size, dst_size));
-            ++stats_.cache_hits;
-            return true;
-        }
-        ++stats_.cache_misses;
-    }
-
-    // ── Build plane pointers ──────────────────────────────────────────
-    uint8_t* dst_y  = dst;
-    uint8_t* dst_u  = nullptr;
-    uint8_t* dst_v  = nullptr;
-    uint8_t* dst_uv = nullptr;
-
-    switch (opts.format) {
-        case EncoderPixelFormat::YUV420P: {
-            const size_t y_size = static_cast<size_t>(opts.width) * opts.height;
-            const size_t uv_size = y_size / 4;
-            dst_u = dst_y + y_size;
-            dst_v = dst_u + uv_size;
-            break;
-        }
-        case EncoderPixelFormat::NV12: {
-            const size_t y_size = static_cast<size_t>(opts.width) * opts.height;
-            dst_uv = dst_y + y_size;
-            break;
-        }
-        case EncoderPixelFormat::RGB24:
-            break;
-    }
-
-    const auto conv_result = convert_frame_tight(
-        fb,
-        FramePlanes{
-            .y         = dst_y,
-            .u         = dst_u,
-            .v         = dst_v,
-            .uv        = dst_uv,
-            .stride_y  = opts.width,
-            .stride_u  = opts.width / 2,
-            .stride_v  = opts.width / 2,
-            .stride_uv = opts.width,
-        },
-        opts.width, opts.height,
-        opts.format,
-        opts.matrix, opts.range,
-        opts.apply_gamma);
-
-    if (!conv_result.success) {
-        return false;
-    }
-
-    ++stats_.conversions;
-    stats_.total_conversion_ns += conv_result.conversion_ns;
-
-    // ── Cache insert ─────────────────────────────────────────────────
-    if (can_cache) {
-        cache_.insert(make_cache_key(digest, opts), dst, need);
-    }
-
-    return true;
 }
 
 // ============================================================================
