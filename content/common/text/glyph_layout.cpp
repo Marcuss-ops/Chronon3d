@@ -3,12 +3,17 @@
 #include <algorithm>
 #include <limits>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 
 namespace chronon3d::content::text_reveal {
 
 namespace {
 
-// Build the diagnostic message used when shaping fails.
+// Build the diagnostic message used when shaping fails (layout_glyphs
+// fail-loud path).  The message preserves `font_path` + `font_size` +
+// 60-char text snippet + AssetResolver remediation hint (per pre-refactor
+// content + ADR-020 §fail-loud path).
 [[nodiscard]] std::string make_shape_error_message(
     const std::string& text,
     const FontSpec& spec,
@@ -26,6 +31,15 @@ namespace {
 
 } // anonymous namespace
 
+// ── ShapedGlyphLine fail-loud primary ctor (public) ────────────────────
+//
+// Throws on shaping failure (zero glyphs / missing font).  Same
+// fail-loud contract as `layout_glyphs` — preserved verbatim for
+// backward-compat with cinematic showcase callers that REQUIRE shape
+// result (e.g., `abyss_freefall_stagger.cpp`).
+//
+// Per AGENTS.md `### C++ default-arg uniqueness per TU`, no default
+// args here — declared ONLY in the .hpp.
 ShapedGlyphLine::ShapedGlyphLine(const std::string& text, f32 font_size,
                                  const FontSpec& spec, f32 tracking,
                                  f32 ref_offset_x, FontEngine& engine)
@@ -38,6 +52,23 @@ ShapedGlyphLine::ShapedGlyphLine(const std::string& text, f32 font_size,
     }
 }
 
+// ── ShapedGlyphLine private ctor (used by try_shape factory) ────────────
+//
+// Private ctor that populates fields from a valid GlyphRun directly —
+// does NOT throw.  Called by `try_shape` static factory only.
+ShapedGlyphLine::ShapedGlyphLine(GlyphRun run, std::string text, FontSpec spec,
+                                 f32 font_size, f32 tracking, f32 ref_offset_x) noexcept
+    : m_text(std::move(text)), m_spec(std::move(spec)),
+      m_font_size(font_size), m_tracking(tracking), m_ref_offset_x(ref_offset_x),
+      m_run(std::move(run))
+{}
+
+// ── ShapedGlyphLine read-only accessors (unchanged from upstream) ────────
+//
+// These methods read from `m_run` + `m_tracking` + `m_ref_offset_x`
+// (cached state populated by ctor / try_shape factory).  No re-shape
+// calls — single engine.shape_text invocation per ShapedGlyphLine
+// instance (Point 8 single-shape efficiency).
 f32 ShapedGlyphLine::width() const noexcept {
     if (!m_run) return 0.0f;
     const size_t n = m_run->glyphs.size();
@@ -55,6 +86,10 @@ std::vector<GlyphPos> ShapedGlyphLine::layout() const {
         const auto& g = m_run->glyphs[gi];
         size_t start = g.cluster;
         size_t end = m_text.size();
+        // Inner O(n²) cluster-boundary scan; preserved verbatim from
+        // upstream.  Future optimization opportunity: replace with single-pass
+        // O(n) groupBy (Point 9 perf) in a follow-up refactor — orthogonal
+        // to the current Point 8 single-shape efficiency.
         for (size_t i = 0; i < m_run->glyphs.size(); ++i) {
             const auto& o = m_run->glyphs[i];
             if (o.cluster > start) { end = o.cluster; break; }
@@ -126,28 +161,83 @@ size_t ShapedGlyphLine::reveal_count(f32 progress) const noexcept {
     return static_cast<size_t>(static_cast<f32>(m_run->glyphs.size()) * progress);
 }
 
-// measure_text_width — total advance width INCLUDING tracking, matching
-// layout_glyphs output.  Returns 0.0f on shaping failure (fail-soft at the
-// pre-split's choice — the caller is responsible for the engine + spec).
+// ── try_shape static factory (Point 8 fail-soft entry point) ────────────
+//
+// Returns `std::optional<ShapedGlyphLine>`:
+//   - engine.shape_text returned std::nullopt           → return std::nullopt
+//   - run->glyphs.empty()                                → return std::nullopt
+//   - otherwise                                          → populated instance
+//
+// Does NOT throw.  Forwarded by `shape_glyph_line` free function below.
+std::optional<ShapedGlyphLine> ShapedGlyphLine::try_shape(
+    std::string_view text, f32 font_size, const FontSpec& spec,
+    f32 tracking, f32 ref_offset_x, FontEngine& engine) noexcept
+{
+    auto run_opt = engine.shape_text(std::string(text), spec, font_size);
+    if (!run_opt || run_opt->glyphs.empty()) return std::nullopt;
+    return ShapedGlyphLine(
+        std::move(*run_opt),
+        std::string(text),
+        spec,
+        font_size,
+        tracking,
+        ref_offset_x);
+}
+
+// ── shape_glyph_line free function (Point 8 single-shape entry point) ─
+//
+// 1-line delegation to `ShapedGlyphLine::try_shape` with
+// `ref_offset_x = 0.0f` (the caller applies offset as a post-step in
+// `layout_glyphs`).  Fail-soft contract: `std::nullopt` on shaping
+// failure.
+[[nodiscard]] std::optional<ShapedGlyphLine> shape_glyph_line(
+    std::string_view text, f32 font_size, const FontSpec& font,
+    f32 tracking, FontEngine& engine) noexcept
+{
+    return ShapedGlyphLine::try_shape(text, font_size, font, tracking,
+                                      /*ref_offset_x=*/0.0f, engine);
+}
+
+// ── measure_text_width — thin-wrapper over shape_glyph_line (fail-soft) ──
+//
+// Returns 0.0f if shape_glyph_line returns std::nullopt (fail-soft —
+// pre-refactor semantics preserved verbatim).  Single engine.shape_text
+// call (shared with layout_glyphs when both are invoked consecutively).
 f32 measure_text_width(const std::string& text, f32 font_size,
                        const FontSpec& spec, f32 tracking,
                        FontEngine& engine) {
-    try {
-        return ShapedGlyphLine{text, font_size, spec, tracking, 0.0f, engine}.width();
-    } catch (const std::runtime_error&) {
-        return 0.0f;
-    }
+    auto shaped = shape_glyph_line(text, font_size, spec, tracking, engine);
+    if (!shaped) return 0.0f;
+    return shaped->width();
 }
 
-// layout_glyphs — per-glyph positions at FINAL locations.  Fail-loud
-// (std::runtime_error) on HarfBuzz shaping failure (zero glyphs) per
-// AGENTS.md §honesty.
+// ── layout_glyphs — thin-wrapper over shape_glyph_line (fail-loud) ──
+//
+// Throws std::runtime_error(make_shape_error_message(...)) on shaping
+// failure (fail-loud per AGENTS.md §honesty + ADR-020 §fail-loud path).
+// Post-step: applies `ref_offset_x` as a constant offset to each
+// glyph's `center_x` (byte-equivalent to pre-refactor cursor-init-at-
+// ref_offset_x math).
 std::vector<GlyphPos> layout_glyphs(
     const std::string& text, f32 font_size,
     const FontSpec& spec, f32 tracking,
     f32 ref_offset_x,
-    FontEngine& engine) {
-    return ShapedGlyphLine{text, font_size, spec, tracking, ref_offset_x, engine}.layout();
+    FontEngine& engine)
+{
+    auto shaped = shape_glyph_line(text, font_size, spec, tracking, engine);
+    if (!shaped) {
+        throw std::runtime_error(make_shape_error_message(text, spec, font_size));
+    }
+    auto positions = shaped->layout();
+    // Pre-refactor byte-equivalence: the cursor inside ShapedGlyphLine's
+    // `layout()` starts at `m_ref_offset_x`; we applied 0.0f via
+    // shape_glyph_line, so positions are RELATIVE to 0.  Adding the
+    // caller-provided `ref_offset_x` as a constant offset is
+    // mathematically equivalent to starting the cursor at `ref_offset_x`.
+    for (auto& p : positions) {
+        p.center_x += ref_offset_x;
+    }
+    return positions;
 }
 
 } // namespace chronon3d::content::text_reveal

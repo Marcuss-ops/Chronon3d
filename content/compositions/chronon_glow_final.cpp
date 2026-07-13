@@ -55,7 +55,7 @@
 // chronon3d::composition / chronon3d::Composition / Scene — return type
 // of the factory and the lambda return type used by composition(...).
 
-#include "content/common/text_reveal_helpers.hpp"
+#include "content/common/text/cinematic_glow.hpp"
 // chronon3d::content::text_reveal::apply_cinematic_glow +
 // CinematicGlowPreset — invoked inside build_chronon_glow_scene's
 // `s.layer("hero", ...)` lambda when `props.glow_enabled`.
