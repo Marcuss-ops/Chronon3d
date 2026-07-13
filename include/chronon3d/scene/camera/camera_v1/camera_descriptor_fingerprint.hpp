@@ -93,7 +93,7 @@ inline void hash_animated_value(Fnv1aHasher& h,
 // ============================================================================
 
 inline std::uint64_t compute_camera_descriptor_fingerprint(
-    const CameraDescriptor& desc) {
+    const CameraDescriptor& desc) noexcept {
     detail::Fnv1aHasher h;
 
     // ── TICKET-PHASE-2: schema-version sentinel ──────────────────────────

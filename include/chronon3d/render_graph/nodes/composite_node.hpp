@@ -10,13 +10,17 @@ namespace chronon3d::graph {
 class CompositeNode final : public RenderGraphNode {
 public:
 
-    CompositeNode(::chronon3d::BlendMode mode,
+    // Constructor now requires `instance_id` as the first parameter
+    // (refactor per ADR-024 DELETE+DI: removes the static-inline hidden singleton
+    // counter `s_counter`; ids are sourced from RenderGraph::next_composite_id()).
+    CompositeNode(u64 instance_id,
+                  ::chronon3d::BlendMode mode,
                   Frame cache_frame = Frame{-1},
                   float world_z = 0.0f,
                   ::chronon3d::CompositeOperator op = ::chronon3d::CompositeOperator::SourceOver,
                   RenderNodeCachePolicy policy = static_memory_cache("composite"))
         : RenderGraphNode(policy), m_mode(mode), m_cache_frame(cache_frame), m_world_z(world_z), m_operator(op),
-          m_unique_id(++s_counter) {}
+          m_unique_id(instance_id) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Composite; }
     std::string_view name() const noexcept override { return "Composite"; }
@@ -106,7 +110,6 @@ private:
     Frame                      m_cache_frame{-1};
     float                      m_world_z{0.0f};
     u64                        m_unique_id{0};
-    static inline std::atomic<u64> s_counter{0};
 };
 
 } // namespace chronon3d::graph

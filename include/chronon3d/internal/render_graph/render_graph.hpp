@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <atomic>
 
 namespace chronon3d::graph {
 
@@ -183,6 +184,16 @@ public:
         return count;
     }
 
+    /// Allocate a stable per-CompositeNode unique id (per-Graph scope).
+    /// Replaces the previous `static inline std::atomic<u64> s_counter` hidden
+    /// singleton in composite_node.hpp (refactor: ADR-024 DELETE+DI).
+    /// Returned ids are unique within this Graph instance; they may collide
+    /// across different Graph instances, which is fine because the cache-key
+    /// scope is already per-graph.
+    [[nodiscard]] u64 next_composite_id() noexcept {
+        return composite_id_counter_.fetch_add(1, std::memory_order_relaxed) + 1;
+    }
+
     [[nodiscard]] GraphNodeId output() const {
         if (m_output == k_invalid_node)
             throw std::logic_error("RenderGraph: output node not set");
@@ -229,6 +240,7 @@ private:
     std::vector<std::unique_ptr<RenderGraphNode>> m_nodes;
     std::vector<std::vector<GraphNodeId>> m_inputs;
     GraphNodeId m_output{k_invalid_node};
+    std::atomic<u64> composite_id_counter_{0};  // ADR-024: per-Graph CompositeNode id counter (DELETE+DI)
 };
 
 } // namespace chronon3d::graph

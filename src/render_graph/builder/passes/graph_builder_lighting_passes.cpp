@@ -100,7 +100,7 @@ void append_shadow_passes_if_needed(
 
         // Composite shadow (dark transparent) over receiver
         auto composite_id = graph.add_node(
-            std::make_unique<CompositeNode>(BlendMode::Normal));
+            std::make_unique<CompositeNode>(graph.next_composite_id(), BlendMode::Normal));
         graph.connect(receiver_output, composite_id);
         graph.connect(shadow_id,       composite_id);
         receiver_output = composite_id;

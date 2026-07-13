@@ -129,5 +129,5 @@ TEST_CASE("Azione 18: typewriter_build error is non-fatal (scene still buildable
 
     // Scene is still buildable after the error + recovery.
     auto scene = s.build();
-    CHECK(scene != nullptr);
+    CHECK_FALSE(scene.layers().empty());
 }

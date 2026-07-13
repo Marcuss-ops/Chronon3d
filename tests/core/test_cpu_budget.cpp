@@ -185,10 +185,12 @@ TEST_CASE("CpuBudget: CHRONON3D_SCHEDULER_WORKERS overrides render threads") {
     {
         EnvGuard g{old_sched, "CHRONON3D_SCHEDULER_WORKERS"};
         ::setenv("CHRONON3D_SCHEDULER_WORKERS", "7", 1);
-        chronon3d::Config cfg{};
-        // The constructor auto-applies the override; verify wiring:
-        CHECK(cfg.cpu_budget().render_threads >= 1);
-        CHECK(cfg.cpu_budget().render_threads <= cfg.cpu_budget().total_threads);
+        // CpuBudget is built once and injected into Config; the legacy
+        // env override is now folded into cpu_budget_from_environment().
+        auto budget = cpu_budget_from_environment(16);
+        CHECK(budget.render_threads == 7);
+        CHECK(budget.render_threads >= 1);
+        CHECK(budget.render_threads <= budget.total_threads);
     }
 }
 
@@ -239,4 +241,16 @@ TEST_CASE("CpuBudget: BudgetMode parses + names roundtrip") {
     CHECK(m == BudgetMode::Dynamic);
     CHECK(cpu_budget_mode_name(m) == "dynamic");
     CHECK_FALSE(parse_cpu_budget_mode("unknown", m));
+}
+
+TEST_CASE("CpuBudget: low-core overrides (3 and 4 threads)") {
+    auto b3 = cpu_budget_for_class(CpuMachineClass::Desktop, 3);
+    CHECK(b3.render_threads == 1);
+    CHECK(b3.decode_threads == 1);
+    CHECK(b3.encode_threads == 1);
+
+    auto b4 = cpu_budget_for_class(CpuMachineClass::Desktop, 4);
+    CHECK(b4.render_threads == 2);
+    CHECK(b4.decode_threads == 1);
+    CHECK(b4.encode_threads == 1);
 }

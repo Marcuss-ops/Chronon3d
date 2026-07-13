@@ -13,12 +13,13 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
     const RenderSettings& settings,
     Frame start,
     Frame end,
-    const FfmpegExportOptions& opts)
+    const FfmpegExportOptions& opts,
+    const chronon3d::CpuBudget& cpu_budget)
 {
     const auto wall_t0 = profiling::now();
 
     // Phase 1 — Setup
-    auto session = setup_pipe_export_session(registry, comp, settings, opts, start, end);
+    auto session = setup_pipe_export_session(registry, comp, settings, opts, start, end, cpu_budget);
     if (!session || !session->encoder || !session->renderer) {
         return PipeExportResult{};
     }
