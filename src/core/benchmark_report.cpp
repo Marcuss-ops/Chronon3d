@@ -22,9 +22,7 @@ nlohmann::json to_json(const BenchmarkReport& report, bool include_frame_times) 
     nlohmann::json js;
     js["schema"] = report.schema;
     js["comp_id"] = report.comp_id;
-    if (!report.timestamp_utc.empty()) {
-        js["timestamp_utc"] = report.timestamp_utc;
-    }
+    js["timestamp_utc"] = report.timestamp_utc;
     js["build_type"] = report.build_type;
     js["compiler_info"] = report.compiler_info;
     js["os"] = report.os;
@@ -38,13 +36,29 @@ nlohmann::json to_json(const BenchmarkReport& report, bool include_frame_times) 
     js["render"] = render;
 
     nlohmann::json metrics;
+    metrics["time_to_first_frame_ms"] = report.metrics.time_to_first_frame_ms;
     metrics["avg_frame_ms"] = report.metrics.avg_frame_ms;
     metrics["median_frame_ms"] = report.metrics.median_frame_ms;
     metrics["min_frame_ms"] = report.metrics.min_frame_ms;
     metrics["max_frame_ms"] = report.metrics.max_frame_ms;
+    metrics["p50_frame_ms"] = report.metrics.p50_frame_ms;
     metrics["p95_frame_ms"] = report.metrics.p95_frame_ms;
+    metrics["p99_frame_ms"] = report.metrics.p99_frame_ms;
     metrics["fps"] = report.metrics.fps;
+    metrics["fps_steady_state"] = report.metrics.fps_steady_state;
     js["metrics"] = metrics;
+
+    nlohmann::json memory;
+    memory["peak_rss_mb"] = report.memory.peak_rss_mb;
+    memory["peak_framebuffer_bytes"] = report.memory.peak_framebuffer_bytes;
+    memory["allocations_per_frame"] = report.memory.allocations_per_frame;
+    memory["bytes_copied_per_frame"] = report.memory.bytes_copied_per_frame;
+    js["memory"] = memory;
+
+    nlohmann::json quality;
+    quality["deterministic_hash"] = report.quality.deterministic_hash;
+    quality["ssim"] = report.quality.ssim;
+    js["quality"] = quality;
 
     nlohmann::json counters;
     counters["cache_hits"] = report.counters.cache_hits;
@@ -55,6 +69,9 @@ nlohmann::json to_json(const BenchmarkReport& report, bool include_frame_times) 
     counters["blur_pixels"] = report.counters.blur_pixels;
     counters["images_sampled"] = report.counters.images_sampled;
     counters["text_glyphs_rasterized"] = report.counters.text_glyphs_rasterized;
+    counters["framebuffer_copies"] = report.counters.framebuffer_copies;
+    counters["framebuffer_clears"] = report.counters.framebuffer_clears;
+    counters["full_frame_passes"] = report.counters.full_frame_passes;
     js["counters"] = counters;
 
     nlohmann::json cats = nlohmann::json::object();
@@ -98,12 +115,30 @@ BenchmarkReport benchmark_report_from_json(const nlohmann::json& js) {
 
     if (js.contains("metrics") && js["metrics"].is_object()) {
         const auto& metrics = js["metrics"];
+        report.metrics.time_to_first_frame_ms = metrics.value("time_to_first_frame_ms", 0.0);
         report.metrics.avg_frame_ms = metrics.value("avg_frame_ms", 0.0);
         report.metrics.median_frame_ms = metrics.value("median_frame_ms", 0.0);
         report.metrics.min_frame_ms = metrics.value("min_frame_ms", 0.0);
         report.metrics.max_frame_ms = metrics.value("max_frame_ms", 0.0);
+        report.metrics.p50_frame_ms = metrics.value("p50_frame_ms", 0.0);
         report.metrics.p95_frame_ms = metrics.value("p95_frame_ms", 0.0);
+        report.metrics.p99_frame_ms = metrics.value("p99_frame_ms", 0.0);
         report.metrics.fps = metrics.value("fps", 0.0);
+        report.metrics.fps_steady_state = metrics.value("fps_steady_state", 0.0);
+    }
+
+    if (js.contains("memory") && js["memory"].is_object()) {
+        const auto& memory = js["memory"];
+        report.memory.peak_rss_mb = memory.value("peak_rss_mb", 0.0);
+        report.memory.peak_framebuffer_bytes = memory.value("peak_framebuffer_bytes", 0.0);
+        report.memory.allocations_per_frame = memory.value("allocations_per_frame", 0.0);
+        report.memory.bytes_copied_per_frame = memory.value("bytes_copied_per_frame", 0.0);
+    }
+
+    if (js.contains("quality") && js["quality"].is_object()) {
+        const auto& quality = js["quality"];
+        report.quality.deterministic_hash = quality.value("deterministic_hash", std::string{});
+        report.quality.ssim = quality.value("ssim", 0.0);
     }
 
     if (js.contains("counters") && js["counters"].is_object()) {
@@ -116,6 +151,9 @@ BenchmarkReport benchmark_report_from_json(const nlohmann::json& js) {
         report.counters.blur_pixels = counters.value("blur_pixels", uint64_t{0});
         report.counters.images_sampled = counters.value("images_sampled", uint64_t{0});
         report.counters.text_glyphs_rasterized = counters.value("text_glyphs_rasterized", uint64_t{0});
+        report.counters.framebuffer_copies = counters.value("framebuffer_copies", uint64_t{0});
+        report.counters.framebuffer_clears = counters.value("framebuffer_clears", uint64_t{0});
+        report.counters.full_frame_passes = counters.value("full_frame_passes", uint64_t{0});
     }
 
     if (js.contains("categories_ms") && js["categories_ms"].is_object()) {
