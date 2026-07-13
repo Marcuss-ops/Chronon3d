@@ -12,6 +12,7 @@ add_library(chronon3d_backend_text OBJECT
     text_material.cpp
     font_engine.cpp
     font_engine_placed_run.cpp    # FASE 14 — resolve_placed_glyph_run extracted
+    typewriter_layout_cache.cpp   # per-runtime typewriter layout cache
     bidi_segmenter.cpp
     glyph_atlas.cpp                  # M1.5#7 stub — canonical impl in resources/glyph_atlas.cpp
     text_render_resources.cpp        # M1.5#7 slimmed — resolve_handle only    # No submodule hierarchy currently (M1.5#7 split deferred to a follow-up
