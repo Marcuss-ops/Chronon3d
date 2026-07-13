@@ -61,20 +61,29 @@ void execute_levels(
         // `scheduler.for_each_index`: Sequential mode runs serially inside
         // arena(1), TbbFixed(N) parallelises over N slots, TbbAutomatic
         // delegates to TBB's automatic slot allocation.
-        const bool use_parallel = level.size() > 0;
+        // P0 #2 — `level.size() > 0` was tautologically true (the outer
+        // for-loop iterates a non-empty `level` by construction); the gate
+        // now actually skips the parallel branch for tiny levels on
+        // small-slot schedulers, which is the originally-intended semantic.
+        // `> 1` (not >= 2): a 1-node level on any scheduler cannot benefit
+        // from parallel dispatch — the TBB/task-pool overhead exceeds the
+        // single-node work itself.
+        const bool use_parallel = level.size() > 1 && scheduler.concurrency() > 1;
 
+        // P0 #2 — Cat-3 minimal-surface: the previous two consecutive
+        // `if (parent_counters)` blocks gated both counter groups (parallel
+        // vs skipped; parallel vs sequential) with the exact same
+        // use_parallel condition; merged into a single branch test so the
+        // four fetches inside each arm are grouped + branch-tested once.
+        // NOTE: `parallel_regions_skipped_small_level` is now genuinely
+        // meaningful (was effectively always 0 under the old tautology);
+        // see TICKET-EXECUTOR-CI-COUNTER-REGRESSION-VERIFY.
         if (parent_counters) {
             if (use_parallel) {
                 parent_counters->parallel_regions_count.fetch_add(1, std::memory_order_relaxed);
-            } else {
-                parent_counters->parallel_regions_skipped_small_level.fetch_add(1, std::memory_order_relaxed);
-            }
-        }
-
-        if (parent_counters) {
-            if (use_parallel) {
                 parent_counters->level_parallel_count.fetch_add(1, std::memory_order_relaxed);
             } else {
+                parent_counters->parallel_regions_skipped_small_level.fetch_add(1, std::memory_order_relaxed);
                 parent_counters->level_sequential_count.fetch_add(1, std::memory_order_relaxed);
             }
         }
