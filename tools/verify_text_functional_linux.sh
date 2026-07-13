@@ -99,7 +99,8 @@ echo ""
 echo "== 2. Architectural gates =="
 
 declare -A GATES=(
-    ["text_simplicity_adapters"]="tools/check_no_dual_text_api.sh"
+    # text_simplicity_adapters RETIRED (I1 audit 2026-07-13): see
+    # Gate #25 in tools/check_architecture_boundaries.sh — canonical M1.8 §1 enforcement.
     ["test_hygiene"]="tools/check_test_hygiene.sh"
     ["test_suite_registration"]="tools/check_test_suite_registration.sh"
     ["doc_sync"]="tools/check_doc_sync.sh"

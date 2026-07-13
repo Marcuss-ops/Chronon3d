@@ -121,7 +121,7 @@ filter_symbol_in_code_only() {
     '
 }
 
-echo "=== Architecture boundary grep + semantic checks (WP-0 / F3.1 / P1-4 / Phase-A1 / Phase-A2 / Phase-A3 / Phase-A4 / Phase-A5 / Phase-A6 \u2014 23 gates) ==="
+echo "=== Architecture boundary grep + semantic checks (WP-0 / F3.1 / P1-4 / Phase-A1 / Phase-A2 / Phase-A3 / Phase-A4 / Phase-A5 / Phase-A6 \u2014 M1.8 §1 — 25 gates) ==="
 
 # ── 1. core/memory/render_session.hpp ─────────────────────────────────
 # Split into runtime/render_session.hpp + software_session_resources.hpp
@@ -768,6 +768,108 @@ if [ -x tools/check_single_source_of_truth.sh ]; then
 else
     echo "SKIP (tools/check_single_source_of_truth.sh not executable)"
 fi
+# Gate #25 — M1.8 §1 dual text API invariant (forward-only anti-duplication).
+# Folded from the previously-untracked local tools/check_no_dual_text_api.sh
+# (I1 audit remediation 2026-07-13). Enforces the Text Simplicity §1 rule via
+# 4 categories on the active source surface:
+#
+#   [1/4] LayerBuilder::text_<variant>           (canonical: text + text_run only)
+#   [2/4] centered_text / glow_text DEFINITION  (canonical preset registry only:
+#                                                  src/scene/presets/ + src/presets/ +
+#                                                  include/chronon3d/presets/ +
+#                                                  content/text/)
+#   [3/4] TextSpec.position non-migrated       (hard-cap 250 grandfathered sites
+#                                                  tracked by TICKET-TEXT-LEGACY-POSITION-ROT)
+#   [4/4] pin_to + TextAnchor + .text() co-occurrence per TU
+#                                                 (blocking per ADR-019 §3)
+#
+# VIOLATIONS bash array pattern (consistent with check_single_source_of_truth.sh
+# sibling-pattern + AGENTS.md §Regole di lint documentale INFO-level style).
+# Implementation note: regex patterns use PCRE (`grep -P`) which is GNU-grep only;
+# consistent with sibling gates #18 #19 #20 #22 #23 (the canonical grep surface
+# across check_architecture_boundaries.sh). macOS/BSD grep -P fails by design;
+# canonical build host is Linux per AGENTS.md §Regole di lavoro.
+#
+# Path scope is GATE25_SCAN_PATHS (content/ included on top of the gate-wide
+# SCRIPT_PATHS, because centered_text/glow_text definitions canonically live
+# in content/text/).
+GATE25_SCAN_PATHS='src include content apps tests'
+echo -n "  [25/25] M1.8 §1 dual text API invariant ... "
+VIOLATIONS=()
+
+# [1/4] LayerBuilder::text_* method variants (canonical: text + text_run).
+hits_1=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
+    '\bLayerBuilder::text_[a-zA-Z_]+\b' $SCRIPT_PATHS 2>/dev/null \
+    | grep -v 'LayerBuilder::text_run' \
+    | grep -oE 'LayerBuilder::text_[a-zA-Z_]+' \
+    | sort -u || true)
+if [ -n "$hits_1" ]; then
+    VIOLATIONS+=("[1/4] LayerBuilder::text_* variant: $(echo "$hits_1" | tr '\n' ' ')")
+fi
+
+# [2/4] centered_text / glow_text DEFINITION outside canonical preset scope.
+def_pat='(^[[:space:]]*#[[:space:]]*define[[:space:]]+(centered_text|glow_text)([[:space:]]|\()|(^[[:space:]]*(class|struct)[[:space:]]+(centered_text|glow_text)\b)|(^[[:space:]]*(template[[:space:]]*<[^>]*>[[:space:]]*)?(static|inline|const|void|int|bool|auto|Layer|std::string)[a-zA-Z0-9_:[:space:]*&]*\b(centered_text|glow_text)[[:space:]]*\()'
+hits_2=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' -E "$def_pat" $GATE25_SCAN_PATHS 2>/dev/null \
+    | filter_symbol_in_code_only '(centered_text|glow_text)' \
+    | grep -Ev '(src/scene/presets/|src/presets/|include/chronon3d/presets/|content/text/)' \
+    || true)
+if [ -n "$hits_2" ]; then
+    VIOLATIONS+=("[2/4] centered_text/glow_text outside canonical preset scope ($(echo "$hits_2" | wc -l) site(s))")
+fi
+
+# [3/4] TextSpec.position non-migrated ASSIGNMENT (HARD-CAP 250 grandfathered).
+# Cap matches SSoT Concept 2 ceiling for TICKET-TEXT-LEGACY-POSITION-ROT;
+# raising the cap requires TICKET-TEXT-LEGACY-POSITION-ROT forward-point
+# regime review (NOT a silent bump). include/chronon3d/scene/builders/
+# builder_params.hpp is exempt because it is the field-declaration site.
+# Path-safe iteration (handles whitespace-in-filenames, latent for future authors).
+hits_3_count=0
+file_count_3=0
+while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    case "$f" in
+        include/chronon3d/scene/builders/builder_params.hpp) continue ;;
+    esac
+    file_hits=$(grep -Pon '\.position(?=\s*[={])' "$f" 2>/dev/null | wc -l || true)
+    hits_3_count=$((hits_3_count + file_hits))
+    file_count_3=$((file_count_3 + 1))
+done < <(grep -Rl --include='*.hpp' --include='*.cpp' --include='*.h' \
+             '\bTextSpec\b' $SCRIPT_PATHS 2>/dev/null || true)
+# Cap = 76, calibrated to empirically-measured 26 + safety margin 50.
+# Raising the cap requires TICKET-TEXT-LEGACY-POSITION-ROT forward-point
+# regime review (NOT a silent bump). include/chronon3d/scene/builders/
+# builder_params.hpp is exempt because it is the field-declaration site.
+if [ "$hits_3_count" -gt 76 ]; then
+    VIOLATIONS+=("[3/4] TextSpec.position assignments ($hits_3_count > 76 hard-cap, TICKET-TEXT-LEGACY-POSITION-ROT forward-point)")
+fi
+
+# [4/4] pin_to + TextAnchor + .text() co-occurrence per TU (ADR-019 §3).
+suspect_files=""
+while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    if grep -lqE '\bTextAnchor::' "$f" 2>/dev/null \
+       && grep -lqE '\.text\(' "$f" 2>/dev/null; then
+        suspect_files="${suspect_files}${f}"$'\n'
+    fi
+done < <(grep -Rl --include='*.hpp' --include='*.cpp' --include='*.h' \
+             '\bpin_to\(' $SCRIPT_PATHS 2>/dev/null || true)
+suspect_files=$(echo "$suspect_files" | grep -v '^$' | sort -u || true)
+if [ -n "$suspect_files" ]; then
+    VIOLATIONS+=("[4/4] pin_to+TextAnchor+.text() co-occurrence ($(echo "$suspect_files" | wc -l) TU(s))")
+fi
+
+if [ "${#VIOLATIONS[@]}" -ne 0 ]; then
+    echo "FAIL"
+    for v in "${VIOLATIONS[@]}"; do
+        echo "    - $v"
+    done
+    FAILED=1
+else
+    echo "PASS"
+    echo "[INFO] check_architecture_boundaries: 4 M1.8 §1 dual text API categories clean (no parallel text API on the active source surface)"
+fi
+
+
 
 # ── Summary ───────────────────────────────────────────────────────────
 echo ""
