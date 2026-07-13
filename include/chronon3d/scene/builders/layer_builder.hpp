@@ -191,15 +191,15 @@ public:
         return *this;
     }
 
-    /// Set the default font path for all subsequent text_run() calls on
-    /// this layer.  Overridden by an explicit font_path in TextRunParams.
+    /// Set the default font path for all subsequent animated_text() calls on
+    /// this layer.  Overridden by an explicit font_path in TextRunSpec.
     LayerBuilder& font(std::string path) {
         m_default_font_path = std::move(path);
         return *this;
     }
 
-    /// Set the default font size for all subsequent text_run() calls on
-    /// this layer.  Overridden by an explicit font_size in TextRunParams.
+    /// Set the default font size for all subsequent animated_text() calls on
+    /// this layer.  Overridden by an explicit font_size in TextRunSpec.
     LayerBuilder& font_size(f32 size) {
         m_default_font_size = size;
         return *this;
@@ -445,28 +445,18 @@ public:
     // See also: the class-level docstring at the top of `LayerBuilder`
     // for the canonical entry point to the new fluent surface.
     //
-    LayerBuilder& text(std::string name, TextSpec p);
-
     /// F2.C — canonical authoring overload accepting TextDefinition.
-    /// Converts via from_text_definition() and delegates to text(name, TextSpec).
     /// This is the RECOMMENDED entry point for new compositions;
     /// centered_text() / glow_text() / typewriter_text() now all return
     /// TextDefinition so they compose directly with this overload.
     LayerBuilder& text(std::string name, const TextDefinition& def);
 
-    /// F3.D — forward-point overload: symmetric counterpart of
-    /// text_run(name, TextRunSpec).  Callers who fully migrate to TextRunSpec
-    /// authoring can use the short-form `layer.text("id", run_spec).commit()`
-    /// instead of the verbose `layer.text_run("id", run_spec).commit()`.
-    /// Sugar only — behaviourally identical to text_run(name, TextRunSpec).commit().
-    LayerBuilder& text(std::string name, TextRunSpec run);
-
     // ── TextRunBuilder (PR 4 — TextAnimator V2) ──────────────────────────
-    /// Push a new text-run entry into the layer's pending specs and
-    /// return a `TextRunBuilder&` for fluent chaining.  The text-run
+    /// Push a new animated text-run entry into the layer's pending specs
+    /// and return a `TextRunBuilder&` for fluent chaining.  The text-run
     /// entry is committed to a `RenderNode` (with `is_text_run_shape
     /// = true` and a populated `text_run_shape`) inside
-    /// `LayerBuilder::build()`.  Multiple `text_run(...)` calls per
+    /// `LayerBuilder::build()`.  Multiple `animated_text(...)` calls per
     /// layer are allowed — each spawns a separate RenderNode plus
     /// downstream TextRunNode at compose time.
     ///
@@ -475,42 +465,22 @@ public:
     /// next layer in the chain; calling `.commit()` explicitly hands
     /// control back to the layer-level builder.
     ///
-    /// ── M1.8 §3 / TICKET-SIMPLICITY-TEXTDEFINITION callout ──
-    /// `text_run(name, TextRunParams)` retains the legacy TextRunParams /
-    /// TextRunSpec entry point per AGENTS.md forward-only invariant
-    /// ("no code removal in atomic commits").  For new TextDefinition
-    /// compositions, use `text(name, const TextDefinition&)` — the
-    /// canonical authoring overload (F2.C) declared above — which
-    /// routes through `from_text_definition(def)` and produces the
-    /// same RenderNode shape via the canonical authoring DTO.  This
-    /// keeps `LayerBuilder::text_run()` available for direct animator
-    /// authoring while the TextDefinition lower lands cleanly in F3.
-    ///
-    /// ── M1.8 §5A / TICKET-SIMPLICITY-DEPRECATION callout ──
     /// For SIMPLE text cases (no TextAnimator, no GlyphSelector, no
     /// script/language override, no per-run cache_layout tweak), prefer
-    /// `text(name, const TextDefinition&)` over `text_run(name, TextRunParams)`.
+    /// `text(name, const TextDefinition&)` over `animated_text(name, TextRunSpec)`.
     /// The `text()` overload skips the `TextRunBuilder` indirection
     /// (which exists primarily to host animators/selectors) and goes
     /// directly through the canonical authoring DTO.  Reserve
-    /// `text_run()` for the case where you actually need a
+    /// `animated_text()` for the case where you actually need a
     /// `TextAnimatorSpec` / `GlyphSelectorSpec` array.
-    ///
-    /// Migration target:
-    ///   // OLD (simple static label, ANTI-PATTERN per §5A):
-    ///   layer.text_run("hello_id", TextRunParams{
-    ///       .text = TextSpec{.content = {.value = "HELLO"},},
-    ///   }).commit();
-    ///
-    ///   // NEW (canonical, fluent, ~4 method calls):
-    ///   layer.text("hello_id", chronon3d::presets::text::title_centered("HELLO"));
-    ///   // OR
-    ///   layer.text("hello_id", from_text_spec(my_text_spec));
-    [[nodiscard]] TextRunBuilder& text_run(std::string name, TextRunParams params);
+    [[nodiscard]] TextRunBuilder& animated_text(std::string name, TextRunSpec params);
 
-    /// F3.D — canonical authoring overload accepting TextDefinition.
-    /// Converts via to_text_run_spec(def) and delegates to text_run(name, TextRunSpec).
-    [[nodiscard]] TextRunBuilder& text_run(std::string name, const TextDefinition& def);
+    /// Deprecated alias for `animated_text(name, TextRunSpec)`.  Migrate to
+    /// `animated_text(name, spec)` and keep `.commit()` chain unchanged.
+    [[deprecated("Use animated_text(name, TextRunSpec) instead")]]
+    TextRunBuilder& text_run(std::string name, TextRunSpec params) {
+        return animated_text(std::move(name), std::move(params));
+    }
 
     LayerBuilder& shape(std::string_view id, std::string name, registry::ShapeParams params);
 
@@ -581,8 +551,8 @@ private:
     // call has occurred.  Defaults to false on construction so LayerBuilder
     // spawned without screen info can be detected by the authoring facade.
     bool m_screen_dimensions_explicit{false};
-    std::string m_default_font_path;          // layer-level default for text_run()
-    std::optional<f32> m_default_font_size;    // layer-level default for text_run()
+    std::string m_default_font_path;          // layer-level default for animated_text()
+    std::optional<f32> m_default_font_size;    // layer-level default for animated_text()
     FontEngine* m_font_engine{nullptr};
     registry::ShapeRegistry* m_shape_registry{nullptr};
     std::optional<registry::ShapeRegistry> m_own_shape_registry;

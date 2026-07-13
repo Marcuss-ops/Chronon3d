@@ -4,9 +4,9 @@
 //
 // FASE 22 split: this file owns the FINAL-COMPILE phase of LayerBuilder:
 //
-//   text_run(name, params)
+//   animated_text(name, params)
 //       Register a pending text-run spec with a TextRunBuilder that
-//       mutates the spec in place.  Multiple `.text_run(...)` calls
+//       mutates the spec in place.  Multiple `.animated_text(...)` calls
 //       per layer are allowed: each spawns a separate RenderNode +
 //       downstream TextRunNode at compose time.
 //
@@ -59,7 +59,7 @@ namespace chronon3d {
 // TextRunBuilder — PR 4 (TextAnimator V2)
 // ═══════════════════════════════════════════════════════════════════════════
 
-TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunSpec params) {
+TextRunBuilder& LayerBuilder::animated_text(std::string name, TextRunSpec params) {
     // Apply layer-level defaults for font path and font size.
     // Font path: only applied when the caller left it empty.
     // Font size: always applied when set (callers can override per-run
@@ -90,7 +90,7 @@ TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunSpec params) {
     // mutators write directly into the spec inside m_text_runs.
     // Pool storage means the returned reference stays
     // valid for the lifetime of the LayerBuilder — even across many
-    // `.text_run(...)` calls.
+    // `.animated_text(...)` calls.
     m_text_run_builders.push_back(
         std::make_unique<TextRunBuilder>(this, spec_ptr));
     return *m_text_run_builders.back();
@@ -146,7 +146,7 @@ Layer LayerBuilder::build() {
 
     // ── PR 4 — Materialize pending text-run specs ───────────────────
     //
-    // For each PendingTextRun pushed via `LayerBuilder::text_run(name,
+    // For each PendingTextRun pushed via `LayerBuilder::animated_text(name,
     // TextRunSpec)`, evaluate the animator stack at the layer's
     // current local time and append a corresponding RenderNode
     // flagged with ShapeType::TextRun.  The graph-builder
