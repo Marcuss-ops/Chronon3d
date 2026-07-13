@@ -1,6 +1,7 @@
 #include "execution_state.hpp"
 #include "cache_evaluator.hpp"
 #include "node_runner.hpp"
+#include "node_executor.hpp"         // P1 step 2 — run_node extraction (node.execute + OwnedFB→CachedFB + scratch/renderer/pool deleter + cache write)
 #include "node_skip_policy.hpp"      // P1 §5 unified skip policy (commit_transparent_skip + SkipReason)
 #include "node_state_commit.hpp"      // P1 step 3 — commit_node_state (5 state-slot commit helper; byte-equivalent to the inline Sites 1+3 pattern at lines 221-225 + 403-407)
 #include "tile_pruning.hpp"
@@ -17,90 +18,6 @@
 #include <cstdlib>
 
 namespace chronon3d::graph {
-
-double run_node(
-    RenderGraphNode& node,
-    RenderGraphContext& node_ctx,
-    std::span<const FramebufferRef> inputs,
-    std::span<const std::optional<raster::BBox>> input_bboxes,
-    bool use_cache,
-    const NodeCacheKey& key,
-    CachedFB& result,
-    const RenderGraphContext& ctx,
-    FramebufferPool* parent_pool
-) {
-    if (result) {
-        return 0.001;
-    }
-
-    const auto exec_t0 = profiling::now();
-    OwnedFB owned;
-    {
-        CHRONON_ZONE_C("node_execute", trace_category::kGraph);
-        auto exec_result = node.execute(node_ctx, inputs, input_bboxes);
-        if (!exec_result) {
-            // P0-1 — node execution failed; write error to the shared
-            // frame_error slot so the executor can propagate it to
-            // frame-level failure (GraphExecutor returns nullptr).
-            if (ctx.frame_error) {
-                *ctx.frame_error = exec_result.error();
-            }
-            if (ctx.node_exec.counters) {
-                ctx.node_exec.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
-            }
-            const auto exec_t1 = profiling::now();
-            return profiling::duration_ms(exec_t0, exec_t1);
-        }
-        owned = exec_result.take_value();
-    }
-    if (ctx.node_exec.counters) {
-        ctx.node_exec.counters->nodes_executed.fetch_add(1, std::memory_order_relaxed);
-    }
-    if (owned) {
-        owned->set_key_digest(key.digest());
-
-        // ── Transform scratch buffer: preserve the scratch_slot deleter ──
-        //    through the CachedFB so the buffer is restored to the scratch
-        //    slot (cleared) when all consumers finish, instead of being
-        //    released to the pool.  Also skip caching — caching the scratch
-        //    would allow stale content to survive past the frame boundary.
-        const bool is_scratch = std::holds_alternative<ReturnToScratch>(owned.get_deleter().policy);
-
-        if (is_scratch) {
-            // Preserve the scratch deleter with its scratch_slot pointer.
-            // This ensures the buffer is cleared and returned to the slot
-            // when the last shared_ptr reference is dropped (arena cleanup).
-            PoolFbDeleter scratch_deleter = std::move(owned.get_deleter());
-            Framebuffer* raw = owned.release();
-            result = CachedFB(raw, std::move(scratch_deleter));
-        } else if (std::holds_alternative<RendererOwned>(owned.get_deleter().policy)) {
-            // Renderer-owned FB (e.g., ping-pong buffer): preserve the no-op
-            // deleter so the buffer is neither deleted nor returned to the pool.
-            // The renderer manages lifetime explicitly via RendererBufferRing.
-            PoolFbDeleter noop;
-            noop.policy = RendererOwned{};
-            Framebuffer* raw = owned.release();
-            result = CachedFB(raw, std::move(noop));
-        } else {
-            Framebuffer* raw = owned.release();
-            PoolFbDeleter deleter;
-            if (parent_pool) {
-                deleter = PoolFbDeleter{parent_pool->shared_from_this()};
-            }
-            result = CachedFB(raw, std::move(deleter));
-        }
-
-        if (use_cache && ctx.services.node_cache && !is_scratch) {
-            ctx.services.node_cache->store(key, result);
-            // persistent framebuffer cache removed (framebuffer_store → framebuffer_pool)
-            if (node.cache_policy().persistent() && persistent_framebuffer_cache_enabled_for_current_run()) {
-                // ctx.services.framebuffer_pool->put() no longer exists
-            }
-        }
-    }
-    const auto exec_t1 = profiling::now();
-    return profiling::duration_ms(exec_t0, exec_t1);
-}
 
 void execute_single_node(
     ExecutionState& state,
