@@ -6,11 +6,10 @@
 // monolith (Step 1 of 4).  Single-responsibility: AE cinematic glow config
 // (CinematicGlowPreset struct + apply_cinematic_glow() helper).
 //
-// Forward-header shim: the original `content/common/text_reveal_helpers.hpp`
-// is reduced to `#pragma once` + 4 #include lines pointing to the new
-// `content/common/text/{cinematic_glow,glyph_layout,text_reveal,typewriter_block}.hpp`
-// modules.  When all 12 callers migrate to direct module includes, delete
-// the forward header (TICKET-TEXT-REVEAL-HELPERS-FORWARD-HEADER-DELETE).
+// Refactor lineage: this file (cinematic_glow) is one of 4 single-responsibility
+// TUs split from the original 381-LoC header-only `content/common/text_reveal_helpers.hpp`
+// (Step 1 of 4).  Sibling TUs: `glyph_layout` + `text_reveal` + `typewriter_block`,
+// all sharing the flat `chronon3d::content::text_reveal` namespace.
 //
 // Namespace: chronon3d::content::text_reveal (single flat namespace per
 // Cat-3 minimal-surface — preserves the 12 existing callers' `using`

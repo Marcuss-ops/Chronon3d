@@ -1,52 +1,95 @@
 #include "content/common/text/typewriter_block.hpp"
 
-#include "content/common/text/glyph_layout.hpp"  // measure_text_width
+#include "content/common/text/glyph_layout.hpp"  // shape_glyph_line (Post-Point-8 single-shape)
 #include "content/common/text/text_reveal.hpp"   // build_text_reveal_line, TextRevealDescriptor, font_regular
 
 #include <algorithm>  // std::max
+#include <cstddef>    // std::size_t
+#include <stdexcept>  // std::runtime_error
 
 namespace chronon3d::content::text_reveal {
 
 // build_2line_typewriter — implementation
 //
-// Per AGENTS.md `### C++ default-arg uniqueness per TU`, the default args
-// are declared ONLY in the .hpp; this .cpp definition is bare.
-void build_2line_typewriter(SceneBuilder& s,
-                             const std::string& line1, f32 size1,
-                             const std::string& line2, f32 size2,
-                             f32 start_delay_2,
-                             f32 line_spacing,
-                             bool slide_up,
-                             f32 glow_intensity,
-                             f32 base_y,
-                             f32 tracking,
-                             Color text_color,
-                             Color shadow_color) {
-    auto spec = font_regular();
-    ShapedGlyphLine shaped1(line1, size1, spec, tracking, 0.0f, *s.font_engine());
-    ShapedGlyphLine shaped2(line2, size2, spec, tracking, 0.0f, *s.font_engine());
-    f32 max_w = std::max(shaped1.width(), shaped2.width());
+// refactor(typewriter): TwoLineTypewriterSpec drives Anim* (Point 11).
+//
+// Post-Point-11 contract:
+//   1. Single-shape both lines (Point 8 single-shape efficiency —
+//      shape_glyph_line() returns std::optional<ShapedGlyphLine> with
+//      the engine.shape_text results cached in m_run; measure_text_width
+//      + layout_glyphs share the same instance when invoked consecutively
+//      via the ShapedGlyphLine class API).
+//   2. Returns TypewriterBlockResult with pre-computed geometry for
+//      downstream consumers (e.g., add_cursor on AnimTypewriterCursor).
+//
+// Fail-loud: throws std::runtime_error if either line fails to shape
+// (font resolution / AssetResolver-mount failures land here per ADR-020
+// §fail-loud path).
+TypewriterBlockResult build_2line_typewriter(
+    SceneBuilder& s,
+    const TwoLineTypewriterSpec& spec)
+{
+    auto font = font_regular();
+    auto& engine = *s.font_engine();
+
+    // Single-shape both lines (Point 8 — shape_glyph_line delegates to
+    // ShapedGlyphLine::try_shape factory, fail-soft contract).
+    auto shape1_opt = shape_glyph_line(
+        spec.first.text, spec.first.font_size, font, spec.tracking, engine);
+    auto shape2_opt = shape_glyph_line(
+        spec.second.text, spec.second.font_size, font, spec.tracking, engine);
+
+    if (!shape1_opt || !shape2_opt) {
+        throw std::runtime_error(
+            std::string{"build_2line_typewriter: HarfBuzz shaping produced "
+                        "zero glyphs for one or both text_reveal lines. "} +
+            "font_path='" + font.font_path + "'");
+    }
+    const auto& shape1 = *shape1_opt;
+    const auto& shape2 = *shape2_opt;
+
+    f32 max_w = std::max(shape1.width(), shape2.width());
     f32 ref_x = -max_w * 0.5f;
 
-    auto d1 = TextRevealDescriptor{
-        .text = line1, .font_size = size1, .font_spec = spec,
-        .tracking = tracking, .ref_offset_x = ref_x,
-        .base_pos = {0.0f, base_y - line_spacing * 0.5f, 0.0f},
-        .start_delay = 0.0f, .duration = 8.0f, .stagger = 2.0f,
-        .slide_up = slide_up, .pin_to_center = true,
-        .color = text_color, .add_shadow = true, .shadow_color = shadow_color,
-        .glow_intensity = glow_intensity,
-        .layer_prefix = "ch_0"
-    };
-    build_text_reveal_line(s, d1);
+    // build_text_reveal_line production defaults (verbatim from TextRevealDescriptor).
+    const f32 stagger  = 2.0f;
+    const f32 duration = 8.0f;
 
-    auto d2 = d1;
-    d2.text = line2;
-    d2.font_size = size2;
-    d2.base_pos = {0.0f, base_y + line_spacing * 0.5f, 0.0f};
-    d2.start_delay = start_delay_2;
-    d2.layer_prefix = "ch_1";
-    build_text_reveal_line(s, d2);
+    auto emit = [&](const TextLineSpec& line, f32 y_offset, f32 start_delay,
+                    const char* prefix) {
+        TextRevealDescriptor d{
+            .text = line.text, .font_size = line.font_size, .font_spec = font,
+            .tracking = spec.tracking, .ref_offset_x = ref_x,
+            .base_pos = {0.0f, spec.base_y + y_offset, 0.0f},
+            .start_delay = start_delay, .duration = duration, .stagger = stagger,
+            .slide_up = spec.slide_up, .pin_to_center = true,
+            .color = spec.text_color, .add_shadow = true, .shadow_color = spec.shadow_color,
+            .glow_intensity = spec.glow_intensity,
+            .layer_prefix = prefix
+        };
+        build_text_reveal_line(s, d);
+    };
+
+    // line 1 (y_offset = -line_spacing/2, starts at frame 0)
+    emit(spec.first,  -spec.line_spacing * 0.5f, 0.0f,             "ch_0");
+    // line 2 (y_offset = +line_spacing/2, starts at second_delay)
+    emit(spec.second,  spec.line_spacing * 0.5f, spec.second_delay, "ch_1");
+
+    // Per TypewriterBlockResult field formulas:
+    //   - second_line_right_edge = ref_x + shape2.width() (width includes tracking)
+    //   - second_line_reveal_end = Frame{second_delay + (n_glyphs-1)*2 + 8}
+    //     where 2.0f = stagger + 8.0f = duration (production defaults).
+    const std::size_t n_glyphs_2 = shape2.layout().size();
+    // 0-glyph defensive path (shape already fail-loud-checked above; this
+    // is a no-op safety net for downstream n_glyphs_2 introspection).
+    const f32 reveal_end_f = (n_glyphs_2 > 0)
+        ? spec.second_delay + static_cast<f32>(n_glyphs_2 - 1) * stagger + duration
+        : spec.second_delay + duration;
+
+    return TypewriterBlockResult{
+        .second_line_right_edge = ref_x + shape2.width(),
+        .second_line_reveal_end = Frame{static_cast<Frame>(reveal_end_f)}
+    };
 }
 
 } // namespace chronon3d::content::text_reveal
