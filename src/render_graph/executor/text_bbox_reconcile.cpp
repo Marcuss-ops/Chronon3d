@@ -44,7 +44,8 @@ std::optional<raster::BBox> reconcile_text_bbox_after_render(
     const Framebuffer& framebuffer,
     const std::optional<raster::BBox>& predicted,
     RenderCounters* counters,
-    TextBboxReporter& reporter)
+    TextBboxReporter& reporter,
+    const std::optional<raster::BBox>& actual_ink_bbox)
 {
     // ── Pre-conditions (caller should have guarded but we re-check for
     //    defensive consistency with the function contract). ───────────────
@@ -55,34 +56,35 @@ std::optional<raster::BBox> reconcile_text_bbox_after_render(
         return std::nullopt;
     }
 
-    // ── Canonical alpha-bbox scan (the SINGLE source of truth) ────────────
-    const Rect ink_rect = alpha_bbox_scan(framebuffer);
-    // Empty Rect ⇒ no visible ink ⇒ no expansion possible / needed.
-    // The canonical scanner returns `Rect{}` (default-constructed ⇒ origin
-    // {0,0}, size {0,0}) when no pixel exceeds `kAlphaBBoxScanThreshold`,
-    // OR when the framebuffer is zero-sized.  Both cases bail here.
-    if (ink_rect.size.x <= 0.0f || ink_rect.size.y <= 0.0f) {
-        return std::nullopt;
+    // ── Determine the actual ink bbox with a three-tier fallback ─────────
+    // 1. Prefer the intrinsic bbox produced by the rasterizer (no scan).
+    // 2. Fall back to the predicted bbox (already includes effect padding).
+    // 3. Last resort: canonical full-framebuffer alpha-bbox scan.
+    raster::BBox actual;
+    bool have_actual = false;
+
+    if (actual_ink_bbox && !actual_ink_bbox->is_empty()) {
+        actual = *actual_ink_bbox;
+        have_actual = true;
+    } else if (predicted && !predicted->is_empty()) {
+        actual = *predicted;
+        have_actual = true;
+    } else {
+        const Rect ink_rect = alpha_bbox_scan(framebuffer);
+        if (ink_rect.size.x > 0.0f && ink_rect.size.y > 0.0f) {
+            actual = raster::BBox{
+                static_cast<i32>(ink_rect.origin.x),
+                static_cast<i32>(ink_rect.origin.y),
+                static_cast<i32>(ink_rect.origin.x) + static_cast<i32>(ink_rect.size.x),
+                static_cast<i32>(ink_rect.origin.y) + static_cast<i32>(ink_rect.size.y),
+            };
+            have_actual = true;
+        }
     }
 
-    // ── Convert Rect → raster::BBox ────────────────────────────────────────
-    // The canonical scanner returns:
-    //   Rect{ origin = {alpha_x0, alpha_y0},
-    //         size   = {alpha_x1 - alpha_x0 + 1, alpha_y1 - alpha_y0 + 1} }
-    // The original (now removed) inline code returned the equivalent
-    //   raster::BBox actual{alpha_x0, alpha_y0, alpha_x1 + 1, alpha_y1 + 1};
-    // i.e. raster::BBox's x1/y1 are EXCLUSIVE (one past the last ink pixel).
-    // We restore that exact semantic via `x1_b = origin.x + size.x`.
-    // Float ↔ i32 rounding: `size.x` originates from integer arithmetic in
-    // alpha_bbox_scanner.cpp (so it is an exact float representable as
-    // a non-negative integer whenever the framebuffer dimensions fit in
-    // 2^24, which is true for any practical canvas).
-    const raster::BBox actual{
-        static_cast<i32>(ink_rect.origin.x),
-        static_cast<i32>(ink_rect.origin.y),
-        static_cast<i32>(ink_rect.origin.x) + static_cast<i32>(ink_rect.size.x),
-        static_cast<i32>(ink_rect.origin.y) + static_cast<i32>(ink_rect.size.y),
-    };
+    if (!have_actual) {
+        return std::nullopt;
+    }
 
     // ── Expand the predicted bbox if ink exceeded prediction on any side ──
     raster::BBox expanded = *predicted;

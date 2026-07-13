@@ -368,6 +368,12 @@ struct NodeExecutionContext {
     // Cat-2 compliant (forward-decl pattern, no new public API surface).
     TextBboxReporter* text_bbox_reporter{ nullptr };
 
+    // ── Intrinsic ink bbox produced by the rasterizer ─────────────────────
+    // Populated by TextRunNode/MultiSourceNode after a successful
+    // draw_text_run dispatch.  node_runner consumes this to avoid a
+    // full-framebuffer alpha scan when reconciling the predicted bbox.
+    std::optional<raster::BBox> actual_ink_bbox{};
+
     // ── TICKET-COUNTERS-NODE-MEMORY-V1-V2 — per-session stats reporter ────
     // Null-pointer typed access to the optional canonical
     // `NodeStatsReporter` (lives on a `std::unique_ptr` owned by the host
