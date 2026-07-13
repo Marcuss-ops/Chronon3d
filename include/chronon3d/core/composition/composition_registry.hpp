@@ -51,8 +51,13 @@ public:
         factories_[id] = descriptors_[id].factory;
     }
 
-    /// Legacy registration — [[deprecated]], use add(CompositionDescriptor{...}).
-    [[deprecated("Use add(CompositionDescriptor{.id = name, .factory = f, ...}) for metadata support")]]
+    /// Legacy registration — kept on the canonical surface (non-deprecated)
+    /// for backward compatibility with the 200+ call sites that pre-date the
+    /// B2 CompositionDescriptor migration. The `add(CompositionDescriptor{...})`
+    /// form above remains canonical for new code paths and is required when
+    /// metadata (width/height/duration/category) needs to be carried on the
+    /// descriptor. See docs/tickets/TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.md
+    /// for the forward-point to consolidate sites onto the B2 descriptor form.
     void add(std::string name, Factory factory) {
         if (factories_.contains(name)) {
              throw std::runtime_error("Duplicate composition: " + name);

@@ -13,8 +13,8 @@ TEST_CASE("AnimatedValue: value_at is alias for evaluate") {
     CHECK(v.value_at(0)   == doctest::Approx(v.evaluate(0)));
     CHECK(v.value_at(100) == doctest::Approx(v.evaluate(100)));
 
-    v.add_keyframe(0, 0.0f);
-    v.add_keyframe(60, 60.0f);
+    v.key(0, 0.0f);
+    v.key(60, 60.0f);
     CHECK(v.value_at(30) == doctest::Approx(v.evaluate(30)));
 }
 

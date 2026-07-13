@@ -27,7 +27,7 @@ namespace {
 // scoped definition keeps the two adapters from drifting to different
 // fps literals (which would be a confusing audit signal even though
 // the runtime value is identical).
-constexpr FrameRate kAdapterBaseFps{60, 1};
+constexpr FrameRate kLegacyAdapterBaseFps{60, 1};
 } // anonymous namespace
 
 // =========================================================================
@@ -77,11 +77,11 @@ camera_descriptor_from_animated(const AnimatedCamera2_5D& cam) {
     // Base state — lens model + DoF block copied verbatim (AnimatedCamera2_5D
     // carries both as flat fields; V1 expects them on CameraBaseSpec).
     d.base.enabled = cam.enabled;
-    d.base.lens.focal_length  = cam.focal_length.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
-    d.base.lens.sensor_width  = cam.sensor_width.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
-    d.base.lens.sensor_height = cam.sensor_height.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
-    d.base.lens.f_stop        = cam.f_stop.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
-    d.base.lens.close_focus   = cam.close_focus.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
+    d.base.lens.focal_length  = cam.focal_length.evaluate(SampleTime::from_frame(0.0, kLegacyAdapterBaseFps));
+    d.base.lens.sensor_width  = cam.sensor_width.evaluate(SampleTime::from_frame(0.0, kLegacyAdapterBaseFps));
+    d.base.lens.sensor_height = cam.sensor_height.evaluate(SampleTime::from_frame(0.0, kLegacyAdapterBaseFps));
+    d.base.lens.f_stop        = cam.f_stop.evaluate(SampleTime::from_frame(0.0, kLegacyAdapterBaseFps));
+    d.base.lens.close_focus   = cam.close_focus.evaluate(SampleTime::from_frame(0.0, kLegacyAdapterBaseFps));
     d.base.lens.gate_fit      = cam.gate_fit;
     d.base.dof.enabled            = cam.dof_enabled;
     d.base.dof.use_physical_model = cam.use_physical_model;
@@ -90,9 +90,9 @@ camera_descriptor_from_animated(const AnimatedCamera2_5D& cam) {
     // wait — it DOES carry focus_z + aperture + max_blur via the animated
     // channels.  Mirror those onto the base so the projection pipeline
     // sees a coherent snapshot when the descriptor is compiled.
-    d.base.dof.focus_z    = cam.focus_z.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
-    d.base.dof.aperture   = cam.aperture.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
-    d.base.dof.max_blur   = cam.max_blur.evaluate(SampleTime::from_frame(0.0, kAdapterBaseFps));
+    d.base.dof.focus_z    = cam.focus_z.evaluate(SampleTime::from_frame(0.0, kLegacyAdapterBaseFps));
+    d.base.dof.aperture   = cam.aperture.evaluate(SampleTime::from_frame(0.0, kLegacyAdapterBaseFps));
+    d.base.dof.max_blur   = cam.max_blur.evaluate(SampleTime::from_frame(0.0, kLegacyAdapterBaseFps));
 
     // Motion blur — AnimatedCamera2_5D does NOT surface a MotionBlurSettings
     // block (the legacy struct is older than TICKET-026); leave
