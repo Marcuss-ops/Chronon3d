@@ -2,6 +2,7 @@
 #include "cache_evaluator.hpp"
 #include "node_runner.hpp"
 #include "node_skip_policy.hpp"      // P1 §5 unified skip policy (commit_transparent_skip + SkipReason)
+#include "node_state_commit.hpp"      // P1 step 3 — commit_node_state (5 state-slot commit helper; byte-equivalent to the inline Sites 1+3 pattern at lines 221-225 + 403-407)
 #include "tile_pruning.hpp"
 #include "telemetry_emitter.hpp"
 #include "text_bbox_reconcile.hpp"   // P0 #1 extracted post-render alpha reconciliation
@@ -218,11 +219,7 @@ void execute_single_node(
     if (cache_hit_fast_path) {
         const auto t_fast0 = profiling::now();
 
-        state.temp[id] = cache_eval.result;
-        state.resolved_key_digest[id] = cache_eval.key.digest();
-        state.resolved_frame_dependent[id] = 0;
-        state.resolved_cache_hit[id] = 1;
-        state.resolved_bboxes[id] = predicted_bbox;
+        commit_node_state(state, id, cache_eval, predicted_bbox);
 
         const auto t_fast1 = profiling::now();
         const double fast_duration_ms = profiling::duration_ms(t_fast0, t_fast1);
@@ -400,11 +397,7 @@ void execute_single_node(
         *out_telemetry_ms = profiling::duration_ms(t_telemetry0, t_telemetry1);
     }
 
-    state.temp[id] = cache_eval.result;
-    state.resolved_key_digest[id] = cache_eval.key.digest();
-    state.resolved_frame_dependent[id] = cache_eval.node_frame_dependent ? 1 : 0;
-    state.resolved_cache_hit[id] = (cache_eval.cache_status == "hit") ? 1 : 0;
-    state.resolved_bboxes[id] = predicted_bbox;
+    commit_node_state(state, id, cache_eval, predicted_bbox);
 
     const auto t_state1 = profiling::now();
     if (out_state_assign_ms) {
