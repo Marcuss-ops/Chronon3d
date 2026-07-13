@@ -182,7 +182,7 @@ void build_chronon_glow_scene(
                 // centroid without drifting it.  This is the idiomatic
                 // fix — `pin_to(Anchor::Center)` would mix layer-coord
                 // anchoring with text authoring and is rejected by
-                // `tools/check_no_dual_text_api.sh`.
+                // Gate #25 in `tools/check_architecture_boundaries.sh`.
                 // Step 8 §B: scale_breath default is now `true` (Phase 3
                 // SCALA fix means the canvas-center bake ignores layer
                 // scale, so the breath is safe by default).
