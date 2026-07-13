@@ -181,15 +181,13 @@ if(NOT TARGET chronon3d::content)
     add_library(chronon3d::content ALIAS chronon3d_content)
 endif()
 
-# ── Production-location header + implementation companion (added on this chore) ──
-# content/compositions/chronon_glow_final.hpp — moved from tests/visual/ae_parity/glow_final_compositions.hpp
-# on 2026-07-12 (TICKET-GLOW-FINAL-COMPOSITIONS-MOVE / refactor(glow) §4 cleanup).  Originally
-# a header-only inline factory (287 LoC, all inline functions); SPLIT on this chore into:
-#   - chronon_glow_final.hpp  (slim, ~64 LoC, decl-only — the public surface contract)
-#   - chronon_glow_final.cpp  (NEW, implementation companion — bodies of the 3 public
-#     factories + TU-local helpers in anonymous namespace: GlowLayout, resolve_layout,
-#     CinematicGlowPreset, opacity_for_frame, scale_for_frame, build_chronon_glow_scene).
-# Both live in `chronon3d::content::glow_final` namespace.
-# `chronon3d_content` OBJECT library; consumers include the header only and resolve
-# the symbol at link time.  CMAKE_SOURCE_DIR include dir already covers the new path.
-compositions/chronon_glow_final.cpp
+target_sources(chronon3d_content PRIVATE
+    # ── Production-location composition ──
+    # content/compositions/chronon_glow_final.hpp — moved from tests/visual/ae_parity/glow_final_compositions.hpp
+    # on 2026-07-12 (TICKET-GLOW-FINAL-COMPOSITIONS-MOVE / refactor(glow) §4 cleanup).
+    # Originally a header-only inline factory; SPLIT into:
+    #   - chronon_glow_final.hpp  (slim, decl-only)
+    #   - chronon_glow_final.cpp  (implementation companion)
+    # Both live in chronon3d::content::glow_final namespace.
+    compositions/chronon_glow_final.cpp
+)

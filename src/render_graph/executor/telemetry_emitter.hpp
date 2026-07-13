@@ -15,7 +15,7 @@ namespace chronon3d::graph {
 void emit_node_records(
     const RenderGraphContext& ctx,
     const RenderGraphNode& node,
-    const cache::NodeCacheKey& key,
+    const chronon3d::cache::NodeCacheKey& key,
     const CachedFB& result,
     const std::optional<raster::BBox>& clip_rect,
     const std::string& cache_status,

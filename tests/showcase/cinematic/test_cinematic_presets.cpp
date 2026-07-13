@@ -40,8 +40,11 @@
 #include <string>
 #include <vector>
 
+using namespace chronon3d;
 using namespace chronon3d::testing::cinematic;
 using namespace chronon3d::testing::cinematic_cfg;
+using chronon3d::test::make_renderer;
+using namespace chronon3d::content::anims;
 
 // ─────────────────────────────────────────────────────────────────────
 //  A4.3 — Text motion per PRESET (TICKET-A2 followup #1).
