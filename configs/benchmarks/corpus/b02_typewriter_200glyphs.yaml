@@ -1,0 +1,60 @@
+# configs/benchmarks/corpus/b02_typewriter_200glyphs.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Benchmark corpus — Scene B02: Typewriter200Glyphs
+# ─────────────────────────────────────────────────────────────────────────
+# Purpose (user-spec §3 verbatim):
+#   "Molti TextRun e animazioni per-glyph" — high-glyph-density text
+#   animation to stress the reveal-driven shaping path and per-glyph
+#   animator dispatch. 200-glyph target approximated by 5 staggered
+#   text runs × ~40 glyphs across the full 5s window.
+#
+# Per AGENTS.md v0.1 Cat-3 + §honesty: metadata-only; comp_id references
+# the canonical typewriter production composition.
+# ─────────────────────────────────────────────────────────────────────────
+
+schema_version: "benchmark_corpus_v1"
+
+scene_id: "B02"
+display_name: "Typewriter200Glyphs"
+category: "text_animation_per_glyph"
+intent: |
+  Misura TextRun multipli con animazione per-glyph (opacity-by-cluster,
+  scale-by-cluster). Stress sulla cache di shaping reuse + dispatcher
+  di animator.
+
+comp_id: "AnimTypewriterGlow"
+canonical_render:
+  command: "chronon3d_cli video AnimTypewriterGlow --start 0 --end 150 --fps 30"
+  output_path: "/tmp/benchmark_corpus_b02.mp4"
+
+thread_matrix:
+  cpu-low:  [1, 2, 4]
+  cpu-mid:  [1, 2, 4, 8, 16]
+  cpu-high: [1, 4, 8, 16, 32, 64]
+frame_rates: [30, 60]
+resolution_options: [{ width: 1920, height: 1080 }]
+duration_seconds_options: [5, 15, 30]
+variant_matrix:
+  - { cache_state: "cold", media: "mp4" }
+  - { cache_state: "warm", media: "mp4" }
+
+expected_metrics:
+  - time_to_first_frame_ms
+  - frame_p50_ms
+  - frame_p95_ms
+  - frame_p99_ms
+  - glyph_count_per_frame
+  - cache_hit_ratio
+  - allocations_per_frame
+  - peak_rss_mb
+  - output_hash_pixels
+  - cost_per_minute_eur
+
+forward_points:
+  - { name: "200-glyph cluster reveal parity", ticket: "TICKET-TYPEWRIGHT-200-CLUSTER" }
+
+cross_link:
+  - "include/chronon3d/text/glyph_layout.hpp::ShapedGlyphLine"
+  - "content/examples/text/typewriter_animations.cpp"
+  - "include/chronon3d/scene/presets/motion_presets_reveal.cpp (TypewriterReveal)"
+  - "configs/benchmark_machines.yaml"

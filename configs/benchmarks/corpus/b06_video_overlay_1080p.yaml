@@ -1,0 +1,68 @@
+# configs/benchmarks/corpus/b06_video_overlay_1080p.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Benchmark corpus — Scene B06: VideoOverlay1080p
+# ─────────────────────────────────────────────────────────────────────────
+# Purpose (user-spec §3 verbatim):
+#   "Decode + compositing + testo + encode" — full-pipeline stress:
+#   video source decode + alpha-compositing + text overlay + MP4 encode.
+#
+# Per AGENTS.md v0.1 Cat-3 + §honesty: metadata-only; comp_id is
+# FORWARD-POINTED. The current canonical production space lacks a
+# dedicated video-overlay scene with text; forward-point creates one
+# or reuses ProductLaunch (which has hero_image text-overlay pattern).
+# ─────────────────────────────────────────────────────────────────────────
+
+schema_version: "benchmark_corpus_v1"
+
+scene_id: "B06"
+display_name: "VideoOverlay1080p"
+category: "full_pipeline_decode_compose_encode"
+intent: |
+  Misura il full pipeline: video decode + compositing alpha + testo
+  sovrapposto + encode H.264. Stress su CpuBudget tra decode, render
+  ed encode (vedi `cpu_budget.hpp` per il single-thread budget).
+
+comp_id: "TBD"
+comp_id_proxy: "ProductLaunch"        # has hero_image overlay + text
+comp_id_target_spec:
+  sources:
+    - { kind: "video", role: "background", path: "/tmp/bench_b06_bg.mp4" }
+    - { kind: "text",  role: "headline",   spec: "TextSpec{layout_id: title_centered}" }
+  composite_mode: "normal"
+  encode: { codec: "h264", target_bitrate_kbps: 4000 }
+canonical_render:
+  command: "chronon3d_cli video <PLACEHOLDER:VideoOverlay1080p-comp> --start 0 --end 60 --fps 30"
+  output_path: "/tmp/benchmark_corpus_b06.mp4"
+
+thread_matrix:
+  cpu-low:  [1, 2, 4]
+  cpu-mid:  [1, 2, 4, 8, 16]
+  cpu-high: [1, 4, 8, 16, 32, 64]
+frame_rates: [30]
+resolution_options: [{ width: 1920, height: 1080 }]
+duration_seconds_options: [2, 10, 30]
+variant_matrix:
+  - { cache_state: "cold", media: "mp4" }
+  - { cache_state: "warm", media: "mp4" }
+
+expected_metrics:
+  - decode_ms_per_frame
+  - render_ms_per_frame
+  - encode_ms_per_frame
+  - frame_p50_ms
+  - frame_p95_ms
+  - frame_p99_ms
+  - cpu_budget_utilization      # render_threads vs total_threads
+  - peak_rss_mb
+  - allocations_per_frame
+  - cost_per_minute_eur         # primary commercial metric on this scene
+
+forward_points:
+  - { name: "register VideoOverlay1080p",   ticket: "TICKET-BENCH-B06-COMPOSITION" }
+  - { name: "CpuBudget validation — render+decode+encode thread split", ticket: "TICKET-CPU-BUDGET-VIDEO-OVERLAY" }
+
+cross_link:
+  - "apps/chronon3d_cli/utils/video/ffmpeg_pipe_encoder.hpp"
+  - "include/chronon3d/core/cpu_budget.hpp (single budget for render/decode/encode)"
+  - "content/launches/product_launch.cpp (overlay proxy)"
+  - "configs/benchmark_machines.yaml"
