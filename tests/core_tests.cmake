@@ -284,6 +284,13 @@ chronon3d_add_test_suite(
     core/math/test_math.cpp
     core/math/test_output_transform.cpp
     simd/test_simd_kernels.cpp
+    # AVX2 ISA extension parity lock against the upstream SIMD-REGISTRY-V1
+    # resolver (ADR-025). Drives `resolve_pixel_kernels({Scalar})` vs
+    # `{AVX2}` for each ApplyFn slot (Blur/Blend/Glow/Resample/ColorMatrix)
+    # and asserts parity within `kKernelEpsilon` (FLT_EPSILON = 1 ULP f32).
+    # File is self-skipping under `#if defined(CHRONON3D_ISA_BACKEND_AVX2)`
+    # so non-AVX2 build hosts are not burdened with double-runtime.
+    simd/test_kernel_resolver_avx2_parity.cpp
     cache/test_lru_weight.cpp
     cache/test_lru_cache.cpp
     cache/test_framebuffer_pool.cpp
