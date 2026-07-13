@@ -8,14 +8,12 @@
 //   legacy.fixture  → legacy_pipeline(t)   → Camera2_5D legacy
 //   adapter.fd      → compile_camera()    → program.evaluate(ctx, session)
 //                                          → Camera2_5D v1
-//   For 100 SampleTime points t, |legacy − v1| < ε (in linear-interpolation
-//   tolerance).
+//   For 100 SampleTime points t, |legacy − v1| < ε.
 //
-// Strategy: the adapters BAKE legacy math into PoseTracksSource keyframes.
-// Linear interpolation between bake samples vs the direct legacy evaluation
-// diverges by at most the second-derivative of the underlying curve times
-// dt²/2 — bounded to ≤ 1e-2 by RigBakeDensity::Default (N=60) for smooth
-// camera curves, and ≤ 1e-4 for Dense (N=240) on typical camera motion.
+// CameraRig is mapped directly to OrbitMotion (canonical V1 source), so the
+// V1 runtime evaluates the orbit math natively (no bake interpolation loss).
+// CameraMotionParams is baked into a PoseTracksSource using the canonical
+// animation helpers from <chronon3d/animations/camera_motion_params.hpp>.
 // ==============================================================================
 #define DOCTEST_CONFIG_DISABLE_TEST_EXN_CATCH 0
 #include <doctest/doctest.h>
@@ -45,32 +43,8 @@ using namespace chronon3d::animation;
 namespace {
 
 // ── Local mirror of the legacy CameraMotionParams pipeline ────────────────
-// Inlined from src/scene/camera_motion_applier.cpp so the test is hermetic.
-// Kept intentionally tiny — the equivalence proof only needs the simplified
-// cases (no idle) to demonstrate the bake linear-interpolation guarantee.
-inline Vec3   lerp_v3(const Vec3& a, const Vec3& b, f32 t) { return a + (b - a) * t; }
-inline f32    lerp_f32(f32 a, f32 b, f32 t) { return a + (b - a) * t; }
-inline f32    smoothstep01(f32 t) {
-    t = std::clamp(t, 0.0f, 1.0f);
-    return t * t * (3.0f - 2.0f * t);
-}
-inline f32    normalized_time_mp(Frame local_frame, Frame duration) {
-    const Frame span = std::max<Frame>(1, duration - 1);
-    return smoothstep01(static_cast<f32>(local_frame) / static_cast<f32>(span));
-}
-inline f32    apply_mp_easing(Easing easing, f32 t) {
-    t = std::clamp(t, 0.0f, 1.0f);
-    switch (easing) {
-        case Easing::Linear:    return t;
-        case Easing::OutCubic:  { const f32 u = 1.0f - t; return 1.0f - u * u * u; }
-        case Easing::InOutCubic:
-            return (t < 0.5f) ? 4.0f * t * t * t
-                              : 1.0f - std::pow(-2.0f * t + 2.0f, 3.0f) / 2.0f;
-        case Easing::Smoothstep:
-        default:                return smoothstep01(t);
-    }
-}
-
+// Uses the canonical animation helpers from camera_motion_params.hpp so
+// the test stays in sync with the adapter implementation.
 Camera2_5D legacy_camera_motion_cam(const CameraMotionParams& p, Frame frame_at_st) {
     const Frame local_frame = (frame_at_st >= p.start_frame)
                                   ? (frame_at_st - p.start_frame)
@@ -82,20 +56,20 @@ Camera2_5D legacy_camera_motion_cam(const CameraMotionParams& p, Frame frame_at_
     cam.zoom = p.pose.zoom;
 
     if (p.primary.enabled && p.primary.duration > 0) {
-        const f32 t = apply_mp_easing(
+        const f32 t = easing_value(
             p.primary.easing,
-            normalized_time_mp(local_frame, p.primary.duration));
-        cam.position = lerp_v3(p.primary.from.position, p.primary.to.position, t);
-        cam.rotation = lerp_v3(p.primary.from.rotation, p.primary.to.rotation, t);
-        cam.zoom     = lerp_f32(p.primary.from.zoom,        p.primary.to.zoom,        t);
+            normalized_time(local_frame, p.primary.duration));
+        cam.position = lerp(p.primary.from.position, p.primary.to.position, t);
+        cam.rotation = lerp(p.primary.from.rotation, p.primary.to.rotation, t);
+        cam.zoom     = lerp(p.primary.from.zoom,        p.primary.to.zoom,        t);
     } else {
-        const f32 t = normalized_time_mp(local_frame, p.duration);
+        const f32 t = normalized_time(local_frame, p.duration);
         cam.position = p.position;
         cam.zoom = p.zoom;
         switch (p.axis) {
-            case MotionAxis::Tilt: cam.rotation.x = lerp_f32(p.start_deg, p.end_deg, t); break;
-            case MotionAxis::Pan:  cam.rotation.y = lerp_f32(p.start_deg, p.end_deg, t); break;
-            case MotionAxis::Roll: cam.rotation.z = lerp_f32(p.start_deg, p.end_deg, t); break;
+            case MotionAxis::Tilt: cam.rotation.x = lerp(p.start_deg, p.end_deg, t); break;
+            case MotionAxis::Pan:  cam.rotation.y = lerp(p.start_deg, p.end_deg, t); break;
+            case MotionAxis::Roll: cam.rotation.z = lerp(p.start_deg, p.end_deg, t); break;
         }
     }
     return cam;
@@ -210,19 +184,23 @@ TEST_CASE("camera_descriptor_from(CameraMotionParams): bake reproduces legacy at
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Test 2 — CameraRig adapter bake reproduces the rig's legacy evaluation.
+// Test 2 — CameraRig adapter maps to OrbitMotion and reproduces the rig's
+// legacy evaluation.
 // ════════════════════════════════════════════════════════════════════════════
-TEST_CASE("camera_descriptor_from(CameraRig): bake reproduces evaluate(SampleTime) at 100 SampleTime points") {
+TEST_CASE("camera_descriptor_from(CameraRig): OrbitMotion reproduces evaluate(SampleTime) at 100 SampleTime points") {
     Fixtures fx = build_fixtures();
 
-    CameraDescriptor desc = camera_descriptor_from(fx.rig, RigBakeDensity::Default);
+    CameraDescriptor desc = camera_descriptor_from(fx.rig);
+    REQUIRE(std::holds_alternative<OrbitMotion>(desc.source));
+
     auto compiled = compile_camera(desc, nullptr);
     REQUIRE(compiled.has_value());
     CameraProgram program = std::move(compiled).value();
     CameraSession session;
     REQUIRE(program.is_compiled());
+    REQUIRE(program.program_kind() == CameraProgramKind::Orbit);
 
-    constexpr float kEpsilon = 1e-2f;
+    constexpr float kEpsilon = 1e-4f;
     constexpr FrameRate kFps{60, 1};
     for (int i = 0; i <= 100; ++i) {
         const SampleTime st = SampleTime::from_seconds(
@@ -247,38 +225,5 @@ TEST_CASE("camera_descriptor_from(CameraRig): bake reproduces evaluate(SampleTim
         CHECK(v1.zoom       == doctest::Approx(legacy.zoom).epsilon(kEpsilon));
         CHECK(v1.dof.focus_distance ==
                   doctest::Approx(legacy.dof.focus_distance).epsilon(kEpsilon));
-    }
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-// Test 3 (was Test 4) — Densely baked rig matches the legacy to 1e-4 (RA interpolation
-// class tightens; useful as a smoke gate for downstream numerical consumers).
-// ════════════════════════════════════════════════════════════════════════════
-TEST_CASE("camera_descriptor_from(CameraRig, Dense): tighter identity for smooth orbits") {
-    Fixtures fx = build_fixtures();
-
-    CameraDescriptor desc = camera_descriptor_from(fx.rig, RigBakeDensity::Dense);
-    auto compiled = compile_camera(desc, nullptr);
-    REQUIRE(compiled.has_value());
-    CameraProgram program = std::move(compiled).value();
-    CameraSession session;
-
-    constexpr float kEpsilon = 1e-3f;
-    constexpr FrameRate kFps{60, 1};
-    for (int i = 0; i <= 50; ++i) {
-        const SampleTime st = SampleTime::from_seconds(
-            static_cast<f64>(i) / 50.0, kFps);
-        Camera2_5D legacy = fx.rig.evaluate(st, nullptr);
-
-        CameraEvalContext ctx;
-        ctx.frame = Frame{static_cast<int>(std::round(st.frame))};
-        ctx.sample_time = st;
-        auto result = program.evaluate(ctx, session);
-        REQUIRE(result.has_value());
-        Camera2_5D v1 = result.value().camera;
-
-        CHECK(v1.position.x == doctest::Approx(legacy.position.x).epsilon(kEpsilon));
-        CHECK(v1.position.z == doctest::Approx(legacy.position.z).epsilon(kEpsilon));
-        CHECK(v1.zoom       == doctest::Approx(legacy.zoom).epsilon(kEpsilon));
     }
 }
