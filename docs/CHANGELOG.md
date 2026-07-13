@@ -359,6 +359,10 @@ Split the 717-LoC `tests/text/test_pipeline_parity_real.cpp` into 4 dedicated te
 **`refactor(glow): move glow_final_compositions → content/compositions`** — atomic chore commit on main per user spec verbatim §4. 1 NEW + 1 DELETE + 12 EDITs (9 #include sites + 2 CMakeLists.txt comments + CHANGELOG + FOLLOWUP_TICKETS). Header-only factory; namespace chronon3d::test::glow_final preserved verbatim per Cat-3 minimal-surface. Subject envelope 69 chars ≤ 72. TICKET-GLOW-FINAL-COMPOSITIONS-DOC-MIGRATION-3DOC-CAT5-ALIGN row added for Cat-5 strict 3-doc closure in a follow-up commit.
 
 ## 2026-07-12 — fix(inspect): reuse text_audit_snapshots + remove override + early-fail
+### `feat(tools): add recover_workspace_rescue.sh`
+  (Closes TICKET-LOST-COMMIT-WORKSPACE-RESCUE forward-point from `0299a042`)
+NEW cat-4 ancillary gate (~120 LoC bash, executable, bash -n clean). 3 exit codes per AGENTS.md §honesty (0 OK, 1 GATE_FAIL, 2 INTERNAL_ERROR). Codifies 2 recovery patterns from AGENTS.md §Post-push SHA-selfcheck invariant 5° bullet: (1) silent-class lost-commit (b589fdba precedent), (2) unique-edit recovery (21ece2b3/cf673ecc/0299a042 precedent). Surface-only by default; CHRONON3D_RESCUE_AUTO=1 enables semi-auto via `git reset --hard @{u}` + `git checkout $CHORE -- <unique_files>`. Cat-4 parallel to 5 Lint-checkability forward-points. no-machine-verified on this VPS per AGENTS.md §honest-limitation.
+
 
 **`fix(inspect): reuse text_audit_snapshots + remove override + early-fail`** — atomic chore commit on main materializing the §8/§9 cleanup of `apps/chronon3d_cli/commands/dev/command_inspect_text.cpp` per user spec verbatim. 3 sub-fixes applied in 1 atomic commit (Cat-3 anti-dup: single TU, single forward-point, no behavior-preserving scaffolding):
 
