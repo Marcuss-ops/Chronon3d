@@ -11,8 +11,8 @@
 // Eviction   = LRU inside a sharded LruCache (Count mode, 2 shards by default).
 //
 // Backed by chronon3d::cache::LruCache<…, std::shared_ptr<Entry>> with
-// CapacityMode::Weight (byte-weighted via entry->data_size).  lookup()
-// returns shared_ptr<const Entry>; a null shared_ptr means miss.  When the
+// CapacityMode::Weight (byte-weighted via entry->data.size()).  lookup()
+// returns a ConvertedFrame view; an empty span means miss.  When the
 // cache evicts or is cleared an entry can still outlive eviction if the
 // caller holds its shared_ptr.
 //
@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <vector>
 
 namespace chronon3d::video {
@@ -60,15 +61,26 @@ struct ConvertedFrameCacheKey {
 
 /// A single resident cache entry.
 ///
-/// `data.size()` is the authoritative byte length; `data_size` is a
-/// synonym kept for backwards-compatibility with the pre-LruCache impl
-/// (the two were independent in the original: data.capacity held extra
-/// padding not exposed via data_size).  After the LruCache migration
-/// `data.size()` always equals `data_size`.
+/// `data.size()` is the authoritative byte length.
 struct ConvertedFrameCacheEntry {
     ConvertedFrameCacheKey key;
     std::vector<uint8_t>   data;
-    std::size_t            data_size{0};    ///< valid bytes in data (== data.size())
+};
+
+/// Non-owning view into a cached converted frame.
+///
+/// Holds a shared_ptr to the cache entry (keeps it alive even if the
+/// LRU evicts it) and a span over the valid bytes.  On a cache miss
+/// the shared_ptr may be null and the span points to caller-owned
+/// memory (e.g. the destination buffer passed to convert_into).
+struct ConvertedFrame {
+    std::shared_ptr<const ConvertedFrameCacheEntry> cache_entry;
+    std::span<const uint8_t>                        data;
+    bool                                              from_cache{false};
+    FrameConversionBackend                            backend{FrameConversionBackend::Unavailable};
+    uint64_t                                          conversion_ns{0};
+
+    explicit operator bool() const noexcept { return !data.empty(); }
 };
 
 /// Sharded LRU cache of converted encoder frames.
@@ -76,9 +88,9 @@ struct ConvertedFrameCacheEntry {
 /// Backed by LruCache<ConvertedFrameCacheKey,
 ///                   std::shared_ptr<ConvertedFrameCacheEntry>> in
 /// CapacityMode::Weight (byte-weighted).  lookup() returns a
-/// shared_ptr<const Entry>; a null shared_ptr means "miss".  Returned
-/// shared_ptrs keep the entry alive even if a subsequent insert would
-/// have evicted it.
+/// ConvertedFrame view; an empty span means "miss".  Returned views
+/// keep the entry alive even if a subsequent insert would have
+/// evicted it.
 ///
 /// Thread-safety: YES — sharded LRU with per-shard mutex.  Multiple
 /// encoder threads can call lookup/insert concurrently.
@@ -88,45 +100,34 @@ struct ConvertedFrameCacheEntry {
 class ConvertedFrameCache {
 public:
 
-    /// Construct with an explicit max-entries cap.  Pass 0 to defer to
+    /// Construct with an explicit byte-capacity cap.  Pass 0 to defer to
     /// resolve_cache_policy(CacheDomain::ConvertedFrames).
     /// `num_shards` defaults to 2; tests may pass 1 when the per-shard
     /// split would otherwise hide the expected eviction.
     explicit ConvertedFrameCache(
-        std::size_t max_entries = 0,
-        std::size_t num_shards  = 2);
+        std::size_t capacity_bytes = 0,
+        std::size_t num_shards     = 2);
 
-    /// Look up a key.  Returns nullptr-shared_ptr on miss.
-    /// On hit returns a shared_ptr<const Entry> that keeps the entry
+    /// Look up a key.  Returns an empty ConvertedFrame on miss.
+    /// On hit returns a ConvertedFrame view that keeps the entry
     /// alive even if the LRU later evicts it.
-    [[nodiscard]] std::shared_ptr<const ConvertedFrameCacheEntry>
-    lookup(const ConvertedFrameCacheKey& key);
+    [[nodiscard]] ConvertedFrame lookup(const ConvertedFrameCacheKey& key);
 
-    /// Store a newly converted frame, copying `data[0..data_size]` into
-    /// a freshly allocated Entry.  If the key already exists its payload
-    /// is replaced in place (the shared_ptr identity may change).  Evicts
-    /// the LRU entry if at capacity.
-    void insert(
-        const ConvertedFrameCacheKey& key,
-        const uint8_t* data,
-        std::size_t    data_size);
-
-    /// Move-in alternative: hand us the bytes we already allocated in
-    /// the caller (avoids a heap copy).  Returns a shared_ptr<const
-    /// Entry> referring to the stored entry (may be the same ptr that
-    /// was passed in, or a newly-allocated replacement).
-    std::shared_ptr<const ConvertedFrameCacheEntry>
-    put_entry(
+    /// Store a newly converted frame, moving `data` into a freshly
+    /// allocated Entry.  If the key already exists its payload is
+    /// replaced in place.  Evicts the LRU entry if at capacity.
+    /// Returns a ConvertedFrame view into the stored entry.
+    ConvertedFrame insert(
         ConvertedFrameCacheKey key,
-        std::vector<uint8_t>    data);
+        std::vector<uint8_t>   data);
 
     void clear();
 
 private:
-    /// Resolve the max entries: max_entries > 0 ? max_entries :
-    /// instance config cache().converted_frame_cache_max_entries() > 0 ? that : policy default.
+    /// Resolve the byte capacity: capacity_bytes > 0 ? capacity_bytes :
+    /// instance config cache().converted_frame_cache_max_bytes() > 0 ? that : policy default.
     /// Delegates to the centralized resolve_cache_policy(CacheDomain::ConvertedFrames).
-    static std::size_t resolve_max_entries(std::size_t caller_value);
+    static std::size_t resolve_capacity_bytes(std::size_t caller_value);
 
     chronon3d::cache::CacheDiagnostics::Handle m_diag_handle;
 

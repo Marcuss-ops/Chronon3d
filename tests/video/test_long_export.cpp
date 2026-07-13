@@ -16,9 +16,10 @@ using namespace chronon3d::cache;
 TEST_CASE("Long export: 1000 varying frames via frame converter + cache") {
     constexpr int w = 64, h = 64;
     constexpr int kFrames = 1000;
-    constexpr int kCacheSize = 128;
+    // 64x64 YUV420P ≈ 6 KiB per frame; keep a few frames resident.
+    constexpr int kCacheSizeBytes = 64 * 1024;
 
-    ConvertedFrameCache cache(kCacheSize);
+    ConvertedFrameCache cache(kCacheSizeBytes);
     const size_t y_sz = w * h;
     const size_t uv_sz = (w / 2) * (h / 2);
 
@@ -61,7 +62,7 @@ TEST_CASE("Long export: 1000 varying frames via frame converter + cache") {
             std::memcpy(packed.data(), y.data(), y_sz);
             std::memcpy(packed.data() + y_sz, u.data(), uv_sz);
             std::memcpy(packed.data() + y_sz + uv_sz, v.data(), uv_sz);
-            cache.insert(key, packed.data(), packed.size());
+            cache.insert(key, packed);
         }
 
         prev_digest = digest;
@@ -145,10 +146,11 @@ TEST_CASE("Long export: FramebufferPool memory does not grow after warmup") {
 
 TEST_CASE("Long export: near-duplicate frames hit converted frame cache") {
     constexpr int w = 32, h = 32;
-    constexpr int kCacheSize = 16;
+    // 32x32 NV12 ≈ 1.5 KiB per frame; keep a few frames resident.
+    constexpr int kCacheSizeBytes = 8 * 1024;
     constexpr int kFrames = 100;
 
-    ConvertedFrameCache cache(kCacheSize);
+    ConvertedFrameCache cache(kCacheSizeBytes);
     const size_t y_sz = w * h;
     const size_t uv_sz = (w / 2) * (h / 2);
 
@@ -184,7 +186,7 @@ TEST_CASE("Long export: near-duplicate frames hit converted frame cache") {
             std::vector<uint8_t> packed(y_sz + y_sz / 2);
             std::memcpy(packed.data(), y.data(), y_sz);
             std::memcpy(packed.data() + y_sz, uv.data(), y_sz / 2);
-            cache.insert(key, packed.data(), packed.size());
+            cache.insert(key, packed);
         }
     }
 

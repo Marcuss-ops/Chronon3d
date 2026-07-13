@@ -20,27 +20,16 @@ TEST_CASE("ConvertedFrameCache: defaulted ctor uses policy default (128 MiB)") {
     CHECK(cache.misses() == 0);
 }
 
-// TICKET-007.z (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; ConvertedFrameCache LRU bookkeeping bug.
-//
-//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// Re-enabled in PR-C after impl-side fix in
-// cache::capacity_mode_for(CacheDomain::ConvertedFrames): switch the
-// ConvertedFrames domain from Weight mode to Count mode so cap=5 means
-// "5 entries" (matching the ConvertedFrameCache(max_entries) constructor
-// API contract).  In Weight mode each entry's byte weight exceeded the
-// 5-unit cap and was rejected as oversized (logged via log_item_too_large).
-TEST_CASE("ConvertedFrameCache: explicit cap=5 with num_shards=1 keeps total=5") {
-    // num_shards=1 means capacity_per_shard = cap/1 = 5 (no rounding).
-    ConvertedFrameCache cache(5, /*num_shards=*/1);
+TEST_CASE("ConvertedFrameCache: explicit byte cap with num_shards=1 keeps total=5 entries") {
+    // Each payload is 4 bytes; capacity 20 bytes / 1 shard = 20 bytes per shard.
+    ConvertedFrameCache cache(/*capacity_bytes=*/20, /*num_shards=*/1);
 
     const std::vector<uint8_t> payload = {0xCA, 0xFE, 0xBA, 0xBE};
     for (uint64_t d = 1; d <= 5; ++d) {
         ConvertedFrameCacheKey k{.framebuffer_digest = d, .width = 4, .height = 4,
                                  .format = EncoderPixelFormat::YUV420P,
                                  .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
-        cache.insert(k, payload.data(), payload.size());
+        cache.insert(k, payload);
     }
     CHECK(cache.size() == 5);
     CHECK(cache.misses() == 0);  // inserts bypass the miss counter; only lookup() bumps it.
@@ -50,52 +39,46 @@ TEST_CASE("ConvertedFrameCache: explicit cap=5 with num_shards=1 keeps total=5")
         .format = EncoderPixelFormat::YUV420P,
         .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true,
     };
-    cache.insert(k_insert_6, payload.data(), payload.size());
+    cache.insert(k_insert_6, payload);
     CHECK(cache.size() == 5);                    // LRU evicted, remained at cap
     CHECK(cache.stats().evictions == 1);         // and we observed exactly 1
 }
 
-// TICKET-007.aa (gate-compliance metadata — see docs/FOLLOWUP_TICKETS.md).
-//   Owner: chronon3d-owners.
-//   Motivation: pre-existing rot; ConvertedFrameCache LRU promotion-on-hit bug.
-//
-//   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
-// Re-enabled in PR-C alongside TICKET-007.z (see above).  Count-mode LRU
-// correctly promotes the hit key to the front and evicts the tail on the
-// 4th insert (was previously rejected as oversized in Weight mode).
 TEST_CASE("ConvertedFrameCache: LRU promotion on hit (weight-mode)") {
-    ConvertedFrameCache cache(3, /*num_shards=*/1);
+    // 3 entries × 1 byte = 3 bytes capacity.
+    ConvertedFrameCache cache(/*capacity_bytes=*/3, /*num_shards=*/1);
 
     const std::vector<uint8_t> payload{0x01};
     for (uint64_t d = 1; d <= 3; ++d) {
         ConvertedFrameCacheKey k{.framebuffer_digest = d, .width = 4, .height = 4,
                                  .format = EncoderPixelFormat::YUV420P,
                                  .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
-        cache.insert(k, payload.data(), payload.size());
+        cache.insert(k, payload);
     }
     // Hit on d=1 promotes it. LRU becomes d=2.
     ConvertedFrameCacheKey k_promote{.framebuffer_digest = 1, .width = 4, .height = 4,
                                      .format = EncoderPixelFormat::YUV420P,
                                      .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
-    REQUIRE(cache.lookup(k_promote) != nullptr);
+    REQUIRE(cache.lookup(k_promote));
     CHECK(cache.hits() == 1);
 
     // Inserting d=4 should evict d=2 (the actual LRU tail after the promotion).
     ConvertedFrameCacheKey k_new{.framebuffer_digest = 4, .width = 4, .height = 4,
                                  .format = EncoderPixelFormat::YUV420P,
                                  .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
-    cache.insert(k_new, payload.data(), payload.size());
+    cache.insert(k_new, payload);
 
     ConvertedFrameCacheKey k2_check{.framebuffer_digest = 2, .width = 4, .height = 4,
                                     .format = EncoderPixelFormat::YUV420P,
                                     .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
-    CHECK(cache.lookup(k2_check) == nullptr);
-    CHECK(cache.lookup(k_new) != nullptr);          // still resident
-    CHECK(cache.lookup(k_promote) != nullptr);      // d=1 also resident (promoted)
+    CHECK_FALSE(cache.lookup(k2_check));
+    CHECK(cache.lookup(k_new));          // still resident
+    CHECK(cache.lookup(k_promote));      // d=1 also resident (promoted)
 }
 
 TEST_CASE("ConvertedFrameCache: stats() reflects hits/misses/evictions") {
-    ConvertedFrameCache cache(2, /*num_shards=*/1);
+    // 2 entries × 1 byte = 2 bytes capacity.
+    ConvertedFrameCache cache(/*capacity_bytes=*/2, /*num_shards=*/1);
 
     const std::vector<uint8_t> payload{0xAB};
     ConvertedFrameCacheKey k1{.framebuffer_digest = 10, .width = 4, .height = 4,
@@ -105,15 +88,15 @@ TEST_CASE("ConvertedFrameCache: stats() reflects hits/misses/evictions") {
                               .format = EncoderPixelFormat::YUV420P,
                               .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
 
-    cache.insert(k1, payload.data(), payload.size());
-    cache.insert(k2, payload.data(), payload.size());
+    cache.insert(k1, payload);
+    cache.insert(k2, payload);
 
     // Pre-lookup: no hits, no misses yet (inserts do not touch the miss counter).
     CHECK(cache.hits() == 0);
     CHECK(cache.misses() == 0);
     // 1 hit on k1, 1 hit on k2.
-    REQUIRE(cache.lookup(k1) != nullptr);
-    REQUIRE(cache.lookup(k2) != nullptr);
+    REQUIRE(cache.lookup(k1));
+    REQUIRE(cache.lookup(k2));
 
     CHECK(cache.hits() == 2);
     CHECK(cache.size() == 2);
@@ -122,68 +105,68 @@ TEST_CASE("ConvertedFrameCache: stats() reflects hits/misses/evictions") {
 }
 
 TEST_CASE("ConvertedFrameCache: clear() resets hits/misses/size") {
-    ConvertedFrameCache cache(4);
+    ConvertedFrameCache cache(/*capacity_bytes=*/4);
     ConvertedFrameCacheKey k{.framebuffer_digest = 99, .width = 2, .height = 2,
                              .format = EncoderPixelFormat::NV12,
                              .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
     const std::vector<uint8_t> v{0x42};
-    cache.insert(k, v.data(), v.size());
-    REQUIRE(cache.lookup(k) != nullptr);
+    cache.insert(k, v);
+    REQUIRE(cache.lookup(k));
 
     cache.clear();
 
     CHECK(cache.size() == 0);
     CHECK(cache.hits() == 0);
     CHECK(cache.misses() == 0);
-    CHECK(cache.lookup(k) == nullptr);
+    CHECK_FALSE(cache.lookup(k));
 }
 
-TEST_CASE("ConvertedFrameCache: shared_ptr lookup survives eviction") {
-    // Returned shared_ptr<const Entry> must keep the entry alive even
-    // after a subsequent insert evicts it.  This is the key bullet of
-    // the Commit 3 API-change commit message.
-    ConvertedFrameCache cache(2, /*num_shards=*/1);
+TEST_CASE("ConvertedFrameCache: view lookup survives eviction") {
+    // Returned ConvertedFrame view must keep the entry alive even
+    // after a subsequent insert evicts it.
+    // First payload is 3 bytes; capacity 3 bytes lets it fit exactly.
+    ConvertedFrameCache cache(/*capacity_bytes=*/3, /*num_shards=*/1);
 
     const std::vector<uint8_t> payload{0xA0, 0xB0, 0xC0};
     ConvertedFrameCacheKey k1{.framebuffer_digest = 1, .width = 4, .height = 4,
                               .format = EncoderPixelFormat::YUV420P,
                               .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
-    cache.insert(k1, payload.data(), payload.size());
-    (void)payload;
+    cache.insert(k1, payload);
 
     auto entry = cache.lookup(k1);
-    REQUIRE(entry != nullptr);
-    REQUIRE(entry->data.size() == 3);
-    CHECK(entry->data[0] == 0xA0);
-    CHECK(entry->data[2] == 0xC0);
+    REQUIRE(entry);
+    REQUIRE(entry.data.size() == 3);
+    CHECK(entry.data[0] == 0xA0);
+    CHECK(entry.data[2] == 0xC0);
 
-    // Force eviction: insert 3 distinct keys.
+    // Force eviction: insert 3 distinct 1-byte keys.  The 3-byte
+    // original entry is evicted once to make room.
     for (uint64_t d : {2ULL, 3ULL, 4ULL}) {
         ConvertedFrameCacheKey k{.framebuffer_digest = d, .width = 4, .height = 4,
                                  .format = EncoderPixelFormat::YUV420P,
                                  .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
         const std::vector<uint8_t> p{0xFF};
-        cache.insert(k, p.data(), p.size());
+        cache.insert(k, p);
     }
-    CHECK(cache.size() == 2);
-    CHECK(cache.stats().evictions >= 3);
+    CHECK(cache.size() == 3);
+    CHECK(cache.stats().evictions == 1);
 
-    // The originally-held shared_ptr must still hold the live bytes.
-    CHECK(entry->data.size() == 3);
-    CHECK(entry->data[0] == 0xA0);
-    CHECK(entry->data[2] == 0xC0);
+    // The originally-held view must still hold the live bytes.
+    CHECK(entry.data.size() == 3);
+    CHECK(entry.data[0] == 0xA0);
+    CHECK(entry.data[2] == 0xC0);
 }
 
 TEST_CASE("ConvertedFrameCache: concurrent lookup on same key does not crash") {
     // Smoke test: spawn N threads that all hit the same key. The
     // sharded-per-shard-mutex impl must serialise cleanly without UB;
     // expected hit count equals N * kHitsPerThread.
-    ConvertedFrameCache cache(4);
+    ConvertedFrameCache cache(/*capacity_bytes=*/4);
     const std::vector<uint8_t> payload{0xFD};
     ConvertedFrameCacheKey k{.framebuffer_digest = 777, .width = 4, .height = 4,
                              .format = EncoderPixelFormat::YUV420P,
                              .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
-    cache.insert(k, payload.data(), payload.size());
+    cache.insert(k, payload);
 
     constexpr int kThreads = 4;
     constexpr int kHitsPerThread = 1000;
@@ -193,9 +176,9 @@ TEST_CASE("ConvertedFrameCache: concurrent lookup on same key does not crash") {
         workers.emplace_back([&] {
             for (int i = 0; i < kHitsPerThread; ++i) {
                 auto e = cache.lookup(k);
-                REQUIRE(e != nullptr);
-                CHECK(e->data.size() == 1);
-                CHECK(e->data[0] == 0xFD);
+                REQUIRE(e);
+                CHECK(e.data.size() == 1);
+                CHECK(e.data[0] == 0xFD);
             }
         });
     }
@@ -206,8 +189,9 @@ TEST_CASE("ConvertedFrameCache: concurrent lookup on same key does not crash") {
 }
 
 TEST_CASE("ConvertedFrameCache: concurrent lookup on distinct keys hits multiple shards") {
-    // Expose both shards by sprinkling keys across the hash space.
-    ConvertedFrameCache cache(8);
+    // Use a single shard and a capacity large enough for all keys so
+    // the test is deterministic regardless of hash distribution.
+    ConvertedFrameCache cache(/*capacity_bytes=*/16, /*num_shards=*/1);
     const std::vector<uint8_t> payload{0xAB};
     constexpr int kKeys = 8;
     std::vector<ConvertedFrameCacheKey> keys;
@@ -217,7 +201,7 @@ TEST_CASE("ConvertedFrameCache: concurrent lookup on distinct keys hits multiple
                                  .width = 4, .height = 4,
                                  .format = EncoderPixelFormat::YUV420P,
                                  .matrix = YuvMatrix::BT709, .range = ColorRange::Limited, .apply_gamma = true};
-        cache.insert(k, payload.data(), payload.size());
+        cache.insert(k, payload);
         keys.push_back(k);
     }
     CHECK(cache.size() == static_cast<std::size_t>(kKeys));
@@ -233,9 +217,9 @@ TEST_CASE("ConvertedFrameCache: concurrent lookup on distinct keys hits multiple
             for (int i = 0; i < kHitsPerThread; ++i) {
                 const auto& k = keys[(t + i) % kKeys];
                 auto e = cache.lookup(k);
-                REQUIRE(e != nullptr);
-                CHECK(e->data.size() == 1);
-                CHECK(e->data[0] == 0xAB);
+                REQUIRE(e);
+                CHECK(e.data.size() == 1);
+                CHECK(e.data[0] == 0xAB);
             }
         });
     }
