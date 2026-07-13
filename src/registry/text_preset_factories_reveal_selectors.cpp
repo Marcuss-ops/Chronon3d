@@ -128,9 +128,9 @@ compose_masked_line_reveal(const PresetMetadata& /*meta*/) {
     line_sel.unit   = TextSelectorUnit::Line;
     line_sel.shape  = TextSelectorShape::Square;
     line_sel.start  = AnimatedValue<f32>{0.0f};
-    line_sel.end    = AnimatedValue<f32>{
-        {{Frame{0},  0.0f,  eo_line},
-         {Frame{30}, 100.0f, eo_line}};
+    line_sel.end    = AnimatedValue<f32>{0.0f};
+    line_sel.end.add_keyframe(Frame{0},  0.0f,  eo_line);
+    line_sel.end.add_keyframe(Frame{30}, 100.0f, eo_line);
     line_sel.amount = AnimatedValue<f32>{100.0f};
     a.selectors.push_back(line_sel);
 
@@ -165,9 +165,9 @@ compose_word_cascade(const PresetMetadata& /*meta*/) {
     word_sel.unit   = TextSelectorUnit::Word;
     word_sel.shape  = TextSelectorShape::Square;
     word_sel.start  = AnimatedValue<f32>{0.0f};
-    word_sel.end    = AnimatedValue<f32>{
-        {{Frame{0},  0.0f,   eo_words},
-         {Frame{48}, 100.0f, eo_words}};
+    word_sel.end    = AnimatedValue<f32>{0.0f};
+    word_sel.end.add_keyframe(Frame{0},  0.0f,   eo_words);
+    word_sel.end.add_keyframe(Frame{48}, 100.0f, eo_words);
     word_sel.amount = AnimatedValue<f32>{100.0f};
     a.selectors.push_back(word_sel);
 
@@ -202,9 +202,9 @@ compose_character_cascade(const PresetMetadata& /*meta*/) {
     grapheme_sel.unit   = TextSelectorUnit::Grapheme;
     grapheme_sel.shape  = TextSelectorShape::Square;
     grapheme_sel.start  = AnimatedValue<f32>{0.0f};
-    grapheme_sel.end    = AnimatedValue<f32>{
-        {{Frame{0},  0.0f,  eo_char},
-         {Frame{24}, 100.0f, eo_char}};
+    grapheme_sel.end    = AnimatedValue<f32>{0.0f};
+    grapheme_sel.end.add_keyframe(Frame{0},  0.0f,  eo_char);
+    grapheme_sel.end.add_keyframe(Frame{24}, 100.0f, eo_char);
     grapheme_sel.amount = AnimatedValue<f32>{100.0f};
     a.selectors.push_back(grapheme_sel);
 

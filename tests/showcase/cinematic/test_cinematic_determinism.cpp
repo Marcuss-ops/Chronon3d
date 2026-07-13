@@ -29,7 +29,10 @@
 // sub-directory survived).
 #include "content/showcases/cinematic/cinematic_text_camera.hpp"
 
+using namespace chronon3d;
 using namespace chronon3d::testing::cinematic;
+using chronon3d::test::make_renderer;
+using namespace chronon3d::content::anims;
 
 // ─────────────────────────────────────────────────────────────────────
 //  A4.4 — Determinism: re-render and assert byte-exact hashes.

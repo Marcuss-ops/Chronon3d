@@ -11,6 +11,7 @@
 #include <vector>
 
 namespace chronon3d::graph {
+using NodeCacheKey = ::chronon3d::cache::NodeCacheKey;
 
 // ── Binding metadata ───────────────────────────────────────────────────
 // Attached to CompiledNodeInfo during graph build/compilation.
@@ -35,7 +36,7 @@ struct CompiledNodeInfo {
     std::vector<GraphNodeId> inputs;
     std::vector<GraphNodeId> consumers;
 
-    cache::NodeCacheKey static_key{};
+    NodeCacheKey static_key{};
     /// Canonical cache contract (replaces the deleted `frame_dependent` /
     /// `cacheable` / `disk_cacheable` derived bools — do not re-introduce).
     RenderNodeCachePolicy cache_policy{};

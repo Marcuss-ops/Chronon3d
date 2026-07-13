@@ -74,6 +74,6 @@ ChrononGlowProps default_portrait_props();
 
 /// Production factory.  Single canonical entry point (Step 8 §C; the
 /// legacy `make_chronon_glow_final_for_test(props, Fe&)` has been REMOVED).
-chrono3d::Composition make_chronon_glow_final(ChrononGlowProps props);
+chronon3d::Composition make_chronon_glow_final(ChrononGlowProps props);
 
 } // namespace chronon3d::content::glow_final
