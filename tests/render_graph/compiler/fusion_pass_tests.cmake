@@ -12,5 +12,5 @@
 chronon3d_add_test_suite(
     NAME chronon3d_fusion_pass_tests
     TIER UNIT
-    SOURCES compiler/test_fusion_pass.cpp
+    SOURCES render_graph/compiler/test_fusion_pass.cpp
 )

@@ -41,7 +41,6 @@
 // pattern.
 // ============================================================================
 
-#define DOCTEST_CONFIG_DISABLE_TEST_SUMMARIZING 1
 #include <doctest/doctest.h>
 
 #include <atomic>
@@ -105,7 +104,7 @@ TEST_CASE("contract: F3.2 atomic counters are std::atomic<uint64_t> per CHRONON_
                   "dirty_full_fallbacks must be std::atomic<std::uint64_t> (existing counter, contract unchanged)");
     static_assert(std::is_same_v<decltype(N::format_conversions),     std::atomic<std::uint64_t>>,
                   "format_conversions must be std::atomic<std::uint64_t> (F3.2 audit metric)");
-    SUCCEED("4 named std::atomic<std::uint64_t> fields verified — contract locked");
+    CHECK(true);
 }
 
 TEST_CASE("contract: per-frame rate derivation matches graph_total_ms / graph_executed_frames precedent") {
@@ -126,7 +125,7 @@ TEST_CASE("contract: per-frame rate derivation matches graph_total_ms / graph_ex
     // Zero-frame safe: division-by-zero returns 0.0
     CHECK(per_frame_rate(100, 0) == doctest::Approx(0.0));
 
-    SUCCEED("per-frame rate derivation math verified — graph_total_ms precedent matches");
+    CHECK(true);
 }
 
 TEST_CASE("gate: F3.2 B03 gate 1 — avoidable full-frame copies == 0 per frame (CinematicGlow1080p)") {
@@ -158,7 +157,7 @@ TEST_CASE("gate: F3.2 B03 gate 1 — avoidable full-frame copies == 0 per frame 
     CHECK(avoidable_per_frame == doctest::Approx(0.0));
     CHECK(counters.full_frame_copies.load() == 2);  // cold start + frame 1 only
 
-    SUCCEED("F3.2 B03 gate 1 PASS — avoidable full-frame copies per frame = 0.0 in steady state");
+    CHECK(true);
 }
 
 TEST_CASE("gate: F3.2 B03 gate 2 — redundant full-frame clears == 0 per frame") {
@@ -192,7 +191,7 @@ TEST_CASE("gate: F3.2 B03 gate 2 — redundant full-frame clears == 0 per frame"
     CHECK(redundant_per_frame == doctest::Approx(0.0));
     CHECK(counters.full_frame_passes.load() == 2);
 
-    SUCCEED("F3.2 B03 gate 2 PASS — redundant full-frame clears per frame = 0.0 in steady state");
+    CHECK(true);
 }
 
 TEST_CASE("gate: F3.2 B03 gate 3 — dirty rect respected by all effects (dirty_full_fallbacks == 0)") {
@@ -217,7 +216,7 @@ TEST_CASE("gate: F3.2 B03 gate 3 — dirty rect respected by all effects (dirty_
     CHECK(counters.dirty_full_fallbacks.load() == 0);
     CHECK(counters.dirty_full_fallbacks.load() < kFrameCount);
 
-    SUCCEED("F3.2 B03 gate 3 PASS — dirty rect respected across 90 frames (0 full-frame fallbacks)");
+    CHECK(true);
 }
 
 TEST_CASE("gate: F3.2 B03 gate 4 — no duplicate format conversions (format_conversions == 0)") {
@@ -238,7 +237,7 @@ TEST_CASE("gate: F3.2 B03 gate 4 — no duplicate format conversions (format_con
     // GATE 4
     CHECK(counters.format_conversions.load() == 0);
 
-    SUCCEED("F3.2 B03 gate 4 PASS — no duplicate format conversions across 90 frames");
+    CHECK(true);
 }
 
 TEST_CASE("contract: TLS merge is monotonic (anti-false-sharing discipline)") {
@@ -254,7 +253,7 @@ TEST_CASE("contract: TLS merge is monotonic (anti-false-sharing discipline)") {
     }
 
     CHECK(counters.full_frame_passes.load() == kPerObs * kObservations);
-    SUCCEED("TLS merge monotonic across 8 observations — anti-false-sharing verified");
+    CHECK(true);
 }
 
 TEST_CASE("cat-3: zero forbidden includes in F3.2 contract test") {
@@ -262,5 +261,5 @@ TEST_CASE("cat-3: zero forbidden includes in F3.2 contract test") {
     // <msdfgen>, <libtess2>, <unicode[/...]> in source.
     const bool self_check_passed = true;
     CHECK(self_check_passed);
-    SUCCEED("F3.2 cat-3 forbidden-include self-check PASS");
+    CHECK(true);
 }
