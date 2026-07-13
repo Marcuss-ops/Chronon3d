@@ -124,12 +124,10 @@ private:
         for (const auto& ref : manifest.assets()) {
             if (ref.path.empty()) continue;
 
-            auto resolved = resolver.resolve_lexical(ref.path);
+            auto resolved = resolver.resolve(ref.path);
             if (!resolved.has_value()) {
                 PreflightIssue issue;
-                issue.severity = ref.required
-                    ? PreflightSeverity::Error
-                    : PreflightSeverity::Warning;
+                issue.severity = ref.required ? PreflightSeverity::Error : PreflightSeverity::Warning;
                 issue.type = to_preflight_type(ref.kind);
                 issue.code = "ASSET_NOT_FOUND";
                 issue.message = "Asset not found: " + ref.path;
