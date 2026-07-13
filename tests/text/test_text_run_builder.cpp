@@ -23,7 +23,7 @@ namespace {
 TextDocument make_doc(const std::string& utf8) {
     TextDocument doc;
     doc.utf8 = utf8;
-    doc.defaults.font.font_family = "DejaVu Sans";
+    doc.defaults.font.font_path = "assets/fonts/Inter-Bold.ttf";
     doc.defaults.font.font_size   = 32.0f;
     doc.split_paragraphs();
     return doc;
@@ -142,16 +142,16 @@ TEST_CASE("TextRunBuilder: empty paragraph produced by consecutive newlines" * d
 TEST_CASE("TextRunBuilder: font-override spans produce concatenated runs") {
     TextDocument doc;
     doc.utf8 = "AAABBB";
-    doc.defaults.font.font_family = "DejaVu Sans";
+    doc.defaults.font.font_path = "assets/fonts/Inter-Bold.ttf";
     doc.defaults.font.font_size   = 32.0f;
 
-    // Override [3,6) with a different font (still DejaVu Sans for testability).
+    // Override [3,6) with the same font (same path + weight so FontIdentity matches).
     TextStyleSpan span;
     span.byte_start = 3;
     span.byte_end   = 6;
     span.font = FontSpec{};
-    span.font->font_family = "DejaVu Sans";
-    span.font->font_weight = 700;  // bold
+    span.font->font_path = "assets/fonts/Inter-Bold.ttf";
+    span.font->font_weight = 400;  // same weight as default (FontIdentity must match for build_text_run)
     doc.spans.push_back(span);
 
     doc.split_paragraphs();
@@ -179,7 +179,7 @@ TEST_CASE("TextRunBuilder: font-override spans produce concatenated runs") {
 TEST_CASE("TextRunBuilder: paragraph style flows through to cache key") {
     TextDocument doc;
     doc.utf8 = "Centered text";
-    doc.defaults.font.font_family = "DejaVu Sans";
+    doc.defaults.font.font_path = "assets/fonts/Inter-Bold.ttf";
     doc.defaults.font.font_size   = 32.0f;
 
     ParagraphRange pr;
