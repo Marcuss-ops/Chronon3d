@@ -123,7 +123,7 @@ chronon3d_add_test_suite(
     TIER INTEGRATION
     SOURCES
             visual/ae_parity/ae_parity_tests.cpp
-        visual/ae_parity/ae_parity_scenes.cpp
+        ${CMAKE_SOURCE_DIR}/content/ae_parity/ae_cam_scenes.cpp
         # TICKET-CHRONON-GLOW-FINAL — Phase 3 SCALA regression:
         # 6 TEST_CASEs (3 frames × 2 ARs) asserting alpha-bbox centroid
         # stays within 2 px of canvas center despite per-frame scale
