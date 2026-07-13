@@ -5,11 +5,6 @@
 
 namespace chronon3d::graph {
 
-// persistent framebuffer cache removed (framebuffer_store → framebuffer_pool)
-bool persistent_framebuffer_cache_enabled_for_current_run() {
-    return false;
-}
-
 CacheEvalResult evaluate_cache(
     const RenderGraphNode& node,
     const RenderGraphContext& ctx,
@@ -72,9 +67,6 @@ CacheEvalResult evaluate_cache(
 
     if (cr.use_cache) {
         cr.result = ctx.services.node_cache->get(cr.key);
-        
-        // persistent framebuffer cache removed (framebuffer_store → framebuffer_pool)
-        (void)policy.persistent();
 
         if (ctx.node_exec.counters) {
             if (cr.result) {
