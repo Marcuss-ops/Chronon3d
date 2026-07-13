@@ -1,0 +1,154 @@
+{
+  "version": 6,
+  "include": [
+    "release.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "__release-pgo-base",
+      "hidden": true,
+      "inherits": "__release-base",
+      "displayName": "V0.1 release-optimization base (hidden helper for PGO/ThinLTO/BOLT)",
+      "description": "Shared hidden base for the F6.3 release-optimization presets (PGO + ThinLTO + BOLT). Forces Release buildType, disables experimental / telemetry / profiling / benchmarks / diagnostics. **EXPLICITLY DISABLES `-ffast-math`** per user spec verbatim 'NON abilitare -ffast-math globalmente finché non provato che preserva determinismo + alpha + colori + golden + cross-CPU parity'. The training corpus is the real Chronon corpus (B00-B11 documented in `examples/bench_corpus/corpus_v1.json` + per-scene YAML corpus configs), NOT a microbenchmark. Forward-point: ADR for the 5-condition determinism proof.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CHRONON3D_BUILD_EXPERIMENTAL": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
+        "CHRONON3D_ENABLE_PROFILING": "OFF",
+        "CHRONON3D_BUILD_BENCHMARKS": "OFF",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_DIAGNOSTICS": "OFF",
+        "CHRONON3D_PROFILE_DATA_PATH": "${sourceDir}/build/chronon/${presetName}/merged.profdata",
+        "CHRONON3D_BOLT_DATA_PATH": "${sourceDir}/build/chronon/${presetName}/perf.fdata",
+        "CHRONON3D_PGO_TRAINING_CORPUS": "${sourceDir}/examples/bench_corpus/corpus_v1.json",
+        "VCPKG_MANIFEST_FEATURES": "tests"
+      }
+    },
+    {
+      "name": "release-pgo",
+      "inherits": "__release-pgo-base",
+      "displayName": "Linux Release PGO (uses pre-collected .profdata)",
+      "description": "PGO profile-use build. Requires a pre-collected `merged.profdata` at the path printed by `cmake --preset release-pgo` (default `${binaryDir}/merged.profdata`; override via `-DCHRONON3D_PROFILE_DATA_PATH=...`). Profile is collected by running the instrumented build against the B00-B11 corpus (see `docs/PERFORMANCE_BOTTLENECKS.md` §F6.3 for the 3-step collection recipe). NO `-ffast-math`. Speedup expected: 5-15% on hot loops (Clang/PGO typical).",
+      "cacheVariables": {
+        "CMAKE_PROFILE_GENERATE": "OFF",
+        "CMAKE_PROFILE_USE": "${sourceDir}/build/chronon/release-pgo/merged.profdata",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_BUILD_INSTALL_CONSUMER_TEST": "ON"
+      }
+    },
+    {
+      "name": "release-thinlto",
+      "inherits": "__release-pgo-base",
+      "displayName": "Linux Release ThinLTO (no profile)",
+      "description": "ThinLTO without PGO. Link-time optimization in scalable multi-threaded mode via `-flto=thin`. No profile collection required. NO `-ffast-math`. Speedup expected: 3-8% on cross-TU inlining (Clang/ThinLTO typical).",
+      "cacheVariables": {
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE_ARGS": "-flto=thin",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_BUILD_INSTALL_CONSUMER_TEST": "ON"
+      }
+    },
+    {
+      "name": "release-pgo-thinlto",
+      "inherits": "__release-pgo-base",
+      "displayName": "Linux Release PGO + ThinLTO (combined)",
+      "description": "PGO profile-use + ThinLTO combined. Maximum multiplicative optimization: profile-guided branch-prediction weights + cross-TU inlining. Requires a pre-collected `merged.profdata` (default `${binaryDir}/merged.profdata`). NO `-ffast-math`. Speedup expected: 8-20% (PGO × ThinLTO typical).",
+      "cacheVariables": {
+        "CMAKE_PROFILE_GENERATE": "OFF",
+        "CMAKE_PROFILE_USE": "${sourceDir}/build/chronon/release-pgo-thinlto/merged.profdata",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE_ARGS": "-flto=thin",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_BUILD_INSTALL_CONSUMER_TEST": "ON"
+      }
+    },
+    {
+      "name": "release-pgo-thinlto-bolt",
+      "inherits": "__release-pgo-base",
+      "displayName": "Linux Release PGO + ThinLTO + BOLT (max optimization)",
+      "description": "PGO + ThinLTO + BOLT. Maximum optimization: profile-guided branch prediction + cross-TU inlining + BOLT post-link binary re-layout. Requires BOTH a PGO `merged.profdata` (for PGO/ThinLTO compilation) AND a BOLT `perf.fdata` (for BOLT post-processing; collected via `perf record` on the PGO-optimized binary). NO `-ffast-math`. Speedup expected: 12-25% (PGO × ThinLTO × BOLT typical). See `cmake/bolt_postprocess.cmake` for the post-link BOLT wiring; invoke via `cmake --build --target bolt-postprocess` after the main build.",
+      "cacheVariables": {
+        "CMAKE_PROFILE_GENERATE": "OFF",
+        "CMAKE_PROFILE_USE": "${sourceDir}/build/chronon/release-pgo-thinlto-bolt/merged.profdata",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE_ARGS": "-flto=thin",
+        "CHRONON3D_BOLT_POSTPROCESS": "ON",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_CONTENT": "ON",
+        "CHRONON3D_BUILD_INSTALL_CONSUMER_TEST": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "release-pgo-build",
+      "configurePreset": "release-pgo",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests",
+        "chronon3d_sdk_impl"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "release-thinlto-build",
+      "configurePreset": "release-thinlto",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests",
+        "chronon3d_sdk_impl"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "release-pgo-thinlto-build",
+      "configurePreset": "release-pgo-thinlto",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests",
+        "chronon3d_sdk_impl"
+      ],
+      "jobs": 16
+    },
+    {
+      "name": "release-pgo-thinlto-bolt-build",
+      "configurePreset": "release-pgo-thinlto-bolt",
+      "targets": [
+        "chronon3d_cli",
+        "chronon3d_tests",
+        "chronon3d_sdk_impl",
+        "bolt-postprocess"
+      ],
+      "jobs": 16
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "release-pgo-test",
+      "configurePreset": "release-pgo",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "release-thinlto-test",
+      "configurePreset": "release-thinlto",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "release-pgo-thinlto-test",
+      "configurePreset": "release-pgo-thinlto",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "release-pgo-thinlto-bolt-test",
+      "configurePreset": "release-pgo-thinlto-bolt",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

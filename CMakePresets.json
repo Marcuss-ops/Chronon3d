@@ -7,7 +7,8 @@
     "cmake/presets/release.json",
     "cmake/presets/experimental.json",
     "cmake/presets/profiling.json",
-    "cmake/presets/linux-fast-dev.json"
+    "cmake/presets/linux-fast-dev.json",
+    "cmake/presets/optimizations.json"
   ],
   "configurePresets": [],
   "buildPresets": [],
