@@ -2,6 +2,7 @@
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/animation/motion/timeline.hpp>
 #include <functional>
 #include <string>
@@ -46,8 +47,8 @@ inline void add_black_background(SceneBuilder& s) {
 // TODO: migrate to centered_text() once the M1.5 text compiler pipeline
 // fully supports the extended layout fields (TextAnchor::Center,
 // TextCenteringMode::PixelInk, TextWrap::Word, etc.).
-inline TextSpec make_text(const std::string& text, f32 font_size = 64.0f) {
-    return TextSpec{.content = {.value = text},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = font_size},.layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 0.95f, .tracking = 3.0f},.appearance = {.color = TEXT_COLOR},};
+inline TextDefinition make_text(const std::string& text, f32 font_size = 64.0f) {
+    return from_text_spec(TextSpec{.content = {.value = text},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_size = font_size},.layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 0.95f, .tracking = 3.0f},.appearance = {.color = TEXT_COLOR},});
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -76,7 +77,7 @@ using MakeTextAnimFn = std::function<void(LayerBuilder& l)>;
 // Builds a Composition with the shared skeleton + per-composition animation.
 inline Composition make_text_anim(
     const char* name,
-    const TextSpec& text_spec,
+    const TextDefinition& text_spec,
     Frame duration,
     TextAnimBg bg_kind,
     MakeTextAnimFn setup)

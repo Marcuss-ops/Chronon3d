@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include "content/common/background_helpers.hpp"
 
@@ -76,7 +77,7 @@ inline void add_image_card(LayerBuilder& l, const char* path, Vec2 size, f32 rad
 inline void add_badge(LayerBuilder& l, const std::string& badge_text, Vec2 size,
                       f32 radius, Color bg_color, f32 font_size) {
     l.rounded_rect("bg", {.size = size, .radius = radius, .color = bg_color});
-    l.text("label", TextSpec{.content    = {.value = badge_text},.font       = {.font_path = TEXT_FONT_PATH, .font_size = font_size},.layout     = {.box = size, .anchor = TextAnchor::Center, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .tracking = 8.0f},.appearance = {.color = BADGE_TEXT_COLOR},});
+    l.text("label", from_text_spec(TextSpec{.content    = {.value = badge_text},.font       = {.font_path = TEXT_FONT_PATH, .font_size = font_size},.layout     = {.box = size, .anchor = TextAnchor::Center, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .tracking = 8.0f},.appearance = {.color = BADGE_TEXT_COLOR},}));
 }
 
 } // namespace chronon3d::content::text
