@@ -1,33 +1,14 @@
 // ============================================================================
-// layer_builder_compile.cpp — TextRun registration + Layer materialization
+// layer_builder_text.cpp — TextRun registration + Layer materialization
 // ============================================================================
 //
-// FASE 22 split: this file owns the FINAL-COMPILE phase of LayerBuilder:
+// Contains text-related LayerBuilder methods: animated_text(), the text()
+// overloads, and the final Layer::build() materialization (which resolves
+// timing, bakes animated transforms/effects, and materialises pending
+// text-run specs into RenderNodes).
 //
-//   animated_text(name, params)
-//       Register a pending text-run spec with a TextRunBuilder that
-//       mutates the spec in place.  Multiple `.animated_text(...)` calls
-//       per layer are allowed: each spawns a separate RenderNode +
-//       downstream TextRunNode at compose time.
-//
-//   build()
-//       Finalise the layer:
-//         1. Resolve `until_frame`-driven duration into `m_layer.duration`.
-//         2. Apply depth_role Z-offset (if not None).
-//         3. Bind the layer-level FontEngine pointer.
-//         4. Bake time-dependent transform (position / rotation / scale /
-//            anchor / opacity) from `anim_transform` at the layer's
-//            current local time.
-//         5. Bake time-dependent blur into either the existing Blur
-//            effect slot (if any) or a freshly-pushed Blur effect.
-//         6. Materialise pending text-run specs → RenderNodes flagged
-//            with ShapeType::TextRun, then mark each spec consumed via
-//            the canonical `text_internal::mark_consumed` counter
-//            (TICKET-104 contract).
-//
-// Stage-creation setters stay in layer_builder.cpp (and partially in
-// commands/*.cpp under src/scene/builders/).  This file is the atomic
-// composition surface only.
+// Extracted from layer_builder_compile.cpp as part of the domain split
+// (core, transform, layout, text, shapes, effects, media, masks).
 // ============================================================================
 
 #include <chronon3d/scene/builders/layer_builder.hpp>

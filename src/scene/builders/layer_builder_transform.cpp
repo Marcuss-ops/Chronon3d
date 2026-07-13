@@ -1,16 +1,121 @@
-#include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/effects/effect_ids.hpp>
+// Node transform and internal helper implementations for LayerBuilder.
+// Extracted from layer_builder.cpp to reduce file size.
+//
+// A4 — suppressed deprecation warnings: the .at()/.scale_node()/etc.
+// implementations are the canonical bodies for the deprecated methods.
+// Call sites see the deprecation; the implementation does not.
 
-#include <algorithm>
-#include <cmath>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4996)
+#endif
 
 namespace chronon3d {
 
+namespace layer_builder_internal {
+
+RenderNode* last_node(Layer& layer) {
+    if (layer.nodes.empty()) {
+        return nullptr;
+    }
+    return &layer.nodes.back();
+}
+
+void set_last_shadow(Layer& layer, DropShadow shadow) {
+    if (auto* node = last_node(layer)) {
+        node->shadow = shadow;
+    }
+}
+
+void set_last_glow(Layer& layer, Glow glow) {
+    if (auto* node = last_node(layer)) {
+        node->glow = glow;
+    }
+}
+
+void set_last_position(Layer& layer, Vec3 pos) {
+    if (auto* node = last_node(layer)) {
+        node->world_transform.position = pos;
+    }
+}
+
+void set_last_rotation(Layer& layer, Vec3 euler_deg) {
+    if (auto* node = last_node(layer)) {
+        node->world_transform.rotation = glm::quat(glm::radians(euler_deg));
+    }
+}
+
+void set_last_scale(Layer& layer, Vec3 s) {
+    if (auto* node = last_node(layer)) {
+        node->world_transform.scale = s;
+    }
+}
+
+void set_last_anchor(Layer& layer, Vec3 a) {
+    if (auto* node = last_node(layer)) {
+        node->world_transform.anchor = a;
+    }
+}
+
+void set_last_opacity(Layer& layer, f32 opacity) {
+    if (auto* node = last_node(layer)) {
+        node->world_transform.opacity = opacity;
+    }
+}
+
+} // namespace layer_builder_internal
+
+// ── Node Transform ────────────────────────────────────────────────────
+
+LayerBuilder& LayerBuilder::at(Vec3 pos) {
+    layer_builder_internal::set_last_position(m_layer, pos);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::rotate_node(Vec3 euler_deg) {
+    layer_builder_internal::set_last_rotation(m_layer, euler_deg);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::scale_node(Vec3 s) {
+    layer_builder_internal::set_last_scale(m_layer, s);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::anchor_node(Vec3 a) {
+    layer_builder_internal::set_last_anchor(m_layer, a);
+    return *this;
+}
+
+LayerBuilder& LayerBuilder::node_opacity(f32 a) {
+    layer_builder_internal::set_last_opacity(m_layer, a);
+    return *this;
+}
+
+// ── A4 — Explicit node handle accessor ───────────────────────────
+
+NodeHandle LayerBuilder::last_node_handle() {
+    // Return a handle to the last node.  When the node list is empty,
+    // return a handle to a static sentinel RenderNode — mutations are
+    // harmless no-ops and the caller can check .node_count() == 0 on
+    // the layer if they want to guard against this edge case.
+    if (m_layer.nodes.empty()) {
+        static RenderNode sentinel;
+        return NodeHandle(sentinel);
+    }
+    return NodeHandle(m_layer.nodes.back());
+}
+
 // ── Motion Presets ────────────────────────────────────────────────────
-// Extracted from layer_builder.cpp in Phase 6 to reduce file size.
-// These are the original LayerBuilder methods with full parameter support.
-// The registry-based commands in motion_preset_commands.cpp provide
-// parameterless versions for extension modules.
+// These methods animate transforms (position, rotation, scale) and
+// opacity/blur over time. They were previously in
+// commands/motion_preset_methods.cpp and have been folded into the
+// transform domain as part of the LayerBuilder domain split.
 
 LayerBuilder& LayerBuilder::slide_in(Vec3 from, Frame duration, EasingCurve easing) {
     auto& pos = position_anim();
@@ -50,14 +155,6 @@ LayerBuilder& LayerBuilder::float_idle(f32 amplitude_y, Frame cycle) {
 
 LayerBuilder& LayerBuilder::depth_reveal(f32 depth_z, Frame duration) {
     m_layer.uses_2_5d_projection = true;
-    // Initialise depth_offset to the configured z so callers (tests,
-    // downstream consumers like tests/test_text_preset_registry.cpp
-    // Sub-cases 9 + 29) can probe the directional `depth_offset > 0.0f`
-    // invariant without depending on the position_anim evaluation
-    // order inside `LayerBuilder::build()`.  This was previously missing,
-    // making Sub-cases 9 + 29 silently fail once the FAIL_TEST compile
-    // block was unblocked.  Pre-existing rot surfaced during the P1
-    // emergency-cleanup pass; fixed here as a 1-line contract restoration.
     m_layer.depth_offset = depth_z;
 
     auto& pos = position_anim();
@@ -136,8 +233,6 @@ LayerBuilder& LayerBuilder::focus_in(f32 start_blur, Frame duration, EasingCurve
     op.key(duration, m_layer.transform.opacity);
     return *this;
 }
-
-
 
 LayerBuilder& LayerBuilder::scale_drop(f32 start_scale, Frame duration, EasingCurve easing) {
     auto& sc = scale_anim();
@@ -270,3 +365,9 @@ LayerBuilder& LayerBuilder::curtain_close(Frame duration, EasingCurve easing) {
 }
 
 } // namespace chronon3d
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
