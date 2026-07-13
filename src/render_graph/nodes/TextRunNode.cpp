@@ -34,6 +34,40 @@ chronon3d::Rect local_bounds_to_rect(
     return chronon3d::renderer::to_rect(*bounds);
 }
 
+// ------------------------------------------------------------------
+// TICKET-FIX-ALPHA-SCANNER-DUP-V1 — per-session warn-once (TU-local).
+//
+// Consolidates the dedup-decision pattern that previously appeared
+// inlined at both the CONSERVATIVE_EXPAND and FU04_EXPAND sites in
+// `predicted_bbox()` below.  Replaces the inline duplication with a
+// single canonical helper (Cat-3 anti-dup: dedup logic declared
+// ONCE; the message strings still live at the call sites so
+// `rg '\bCONSERVATIVE_EXPAND\b'` / `rg '\bFU04_EXPAND\b'` continues
+// to discover them).
+//
+// Behaviour preserved from the original inlined pattern:
+//   - null reporter → suppress dedup (always emit; standalone test
+//     paths drive `predicted_bbox()` without an executor and need
+//     every warning to surface);
+//   - wired reporter → exactly-once per session via the atomic
+//     `TextBboxReporter::has_warned()` + `mark_warned()` pair
+//     (closes §honesty defects: data race on parallel render and
+//     first-error-masking later invocations).
+// ------------------------------------------------------------------
+template <typename... Args>
+inline void text_bbox_warn_once(
+    chronon3d::graph::TextBboxReporter* reporter,
+    std::string_view fmt_str, Args&&... args)
+{
+    if (reporter && reporter->has_warned()) {
+        return;
+    }
+    spdlog::warn(fmt::runtime(fmt_str.data()), std::forward<Args>(args)...);
+    if (reporter) {
+        reporter->mark_warned();
+    }
+}
+
 }  // anonymous namespace
 // M1.5#1 — internal helpers under src/render_graph/nodes/text_run/
 // (NOT under include/chronon3d/).  Same-directory-relative include
@@ -48,6 +82,14 @@ chronon3d::Rect local_bounds_to_rect(
 #include <chronon3d/render_graph/nodes/detail/bbox_projection.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
+// TICKET-FIX-ALPHA-SCANNER-DUP-V1 — private include for per-session
+// TextBboxReporter dereference. Sibling-relative path (matches the
+// text_run/* sub-directory include convention used elsewhere in this
+// file: `text_run/text_run_execution.hpp` etc.).  Lives in
+// `src/render_graph/executor/text_bbox_reporter.hpp` (NOT in
+// `include/chronon3d/`); matches the AssetResolver + TextBboxReporter
+// forward-decl pattern in the public SDK header NodeExecutionContext.
+#include "../executor/text_bbox_reporter.hpp"
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
 #include <chronon3d/text/text_visibility_audit.hpp>
 
@@ -239,15 +281,22 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
                 ctx.node_exec.counters->text_bbox_contract_violations.fetch_add(
                     1, std::memory_order_relaxed);
             }
-            static bool warned = false;
-            if (!warned) {
-                spdlog::warn(
-                    "[text-bbox] CONSERVATIVE_EXPAND node={} predicted=({}, {}, {}, {}) "
-                    "w={} h={} min=({}, {}) font_size={:.0f}",
-                    m_name, bbox.x0, bbox.y0, bbox.x1, bbox.y1,
-                    bbox_w, bbox_h, min_w, min_h, font_size);
-                warned = true;
-            }
+            // TICKET-FIX-ALPHA-SCANNER-DUP-V1 — per-session warn-once
+            // delegated to the canonical TU-local helper
+            // `text_bbox_warn_once(...)` (declared in the anonymous
+            // namespace at the top of this TU; Cat-3 anti-dup
+            // consolidated: dedup logic declared ONCE).  No
+            // `static bool` rot; no data race on parallel render; no
+            // first-error-mask later invocations.  No string
+            // duplication: the message format string is declared ONCE
+            // at THIS call site (the grep-discoverable anchor); only
+            // the dedup logic is shared via the helper.
+            text_bbox_warn_once(
+                ctx.node_exec.text_bbox_reporter,
+                "[text-bbox] CONSERVATIVE_EXPAND node={} predicted=({}, {}, {}, {}) "
+                "w={} h={} min=({}, {}) font_size={:.0f}",
+                m_name, bbox.x0, bbox.y0, bbox.x1, bbox.y1,
+                bbox_w, bbox_h, min_w, min_h, font_size);
             const int canvas_w = ctx.frame_input.width;
             const int canvas_h = ctx.frame_input.height;
             return raster::BBox{0, 0, canvas_w, canvas_h};
@@ -297,17 +346,23 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
                     1, std::memory_order_relaxed);
             }
             const auto& exp = audit.expanded_predicted_bbox;
-            static bool warn_fu04 = false;
-            if (!warn_fu04) {
-                spdlog::warn(
-                    "[text-bbox] FU04_EXPAND node={} tight=({}, {}, {}, {}) "
-                    "expanded=({}, {}, {}, {}) effect_padding={:.1f}",
-                    m_name, bbox.x0, bbox.y0, bbox.x1, bbox.y1,
-                    exp.origin.x, exp.origin.y,
-                    exp.origin.x + exp.size.x, exp.origin.y + exp.size.y,
-                    spread);
-                warn_fu04 = true;
-            }
+            // TICKET-FIX-ALPHA-SCANNER-DUP-V1 — per-session warn-once
+            // delegated to the canonical TU-local helper
+            // `text_bbox_warn_once(...)` (declared in the anonymous
+            // namespace at the top of this TU; one `warned` flag per
+            // session is correct semantics since CONSERVATIVE_EXPAND
+            // and FU04_EXPAND are mutually exclusive per-frame).
+            // Cat-3 anti-dup consolidated: dedup logic shared via the
+            // helper, message format string declared ONCE at THIS
+            // call site (the grep-discoverable anchor).
+            text_bbox_warn_once(
+                ctx.node_exec.text_bbox_reporter,
+                "[text-bbox] FU04_EXPAND node={} tight=({}, {}, {}, {}) "
+                "expanded=({}, {}, {}, {}) effect_padding={:.1f}",
+                m_name, bbox.x0, bbox.y0, bbox.x1, bbox.y1,
+                exp.origin.x, exp.origin.y,
+                exp.origin.x + exp.size.x, exp.origin.y + exp.size.y,
+                spread);
             return raster::BBox{
                 static_cast<int>(exp.origin.x),
                 static_cast<int>(exp.origin.y),
