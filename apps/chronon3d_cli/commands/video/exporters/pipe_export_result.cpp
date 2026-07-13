@@ -36,6 +36,9 @@ PipeExportResult make_pipe_export_result(
     // frames_written is the raw count from the render loop (status.frames_written),
     // but we report 0 on final failure (encoders close failure overrides render success)
     result.frames_written = result.success ? status.frames_written : 0;
+    result.frames_rendered = status.frames_rendered;
+    result.frames_enqueued = status.frames_enqueued;
+    result.frames_encoded = status.frames_encoded;
     result.wall_time_ms = wall_time_ms;
     result.render_ms = render_ms;
     result.encode_ms = encode_ms;
@@ -89,6 +92,7 @@ PipeExportResult make_pipe_export_result(
             // Clean up partial on rename failure too
             std::filesystem::remove(partial_path, ec);
         } else {
+            result.output_published = true;
             spdlog::info("[video] Wrote {}", session.original_output_path);
         }
     }

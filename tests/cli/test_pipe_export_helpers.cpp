@@ -15,9 +15,9 @@ TEST_CASE("PipeExportHelpers: progress logs at ten percent intervals and final f
 
 TEST_CASE("PipeExportHelpers: encoded frame count is zero on failure") {
     PipeExportStatus status;
-    status.frames_written = 42;
+    status.frames_encoded = 42;
 
-    // success defaults to false — frames_written returned only on explicit success
+    // success defaults to false — frames_encoded returned only on explicit success
     CHECK(pipe_encoded_frame_count(status) == 0);
 
     status.success = true;

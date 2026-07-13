@@ -18,7 +18,10 @@ struct PipeExportStatus {
     bool render_failed{false};
     bool writer_error{false};
     bool exception_error{false};
-    int frames_written{0};
+    int frames_written{0};   // legacy alias for frames_enqueued (kept for test compatibility)
+    int frames_rendered{0};
+    int frames_enqueued{0};
+    int frames_encoded{0};
 };
 
 [[nodiscard]] bool should_log_pipe_progress(int done_count, int total);

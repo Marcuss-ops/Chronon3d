@@ -5,10 +5,12 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/triple_buffer_arena.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <queue>
@@ -16,40 +18,92 @@
 
 namespace chronon3d::cli {
 
-/// Maximum queue depth before back-pressure yields the render thread.
-inline constexpr size_t kMaxRenderQueueDepth = 128;
-
-// ── RenderFrameQueue — thread-safe queue replacing moodycamel::ConcurrentQueue ─
-// Wraps std::queue + std::mutex.  Exposes try_dequeue / enqueue / size_approx
-// so existing callers (run_render_loop, drain_queue_consumer, tests) require
-// zero logic changes beyond the type name.
+// ── RenderFrameQueue — bounded blocking queue replacing moodycamel::ConcurrentQueue ─
+// Wraps std::queue + std::mutex + condition_variables.  Exposes blocking
+// push/pop for the video pipeline and non-blocking try_dequeue/enqueue for
+// tests and legacy callers.
 
 template <typename T>
 class RenderFrameQueue {
 public:
-    RenderFrameQueue() = default;
+    explicit RenderFrameQueue(size_t capacity = 0)
+        : capacity_(capacity)
+        , mutex_(std::make_unique<std::mutex>())
+        , not_empty_(std::make_unique<std::condition_variable>())
+        , not_full_(std::make_unique<std::condition_variable>()) {}
 
     bool try_dequeue(T& item) {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(*mutex_);
         if (queue_.empty()) return false;
         item = std::move(queue_.front());
         queue_.pop();
+        not_full_->notify_one();
         return true;
     }
 
     void enqueue(T item) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        queue_.push(std::move(item));
+        {
+            std::lock_guard<std::mutex> lock(*mutex_);
+            queue_.push(std::move(item));
+        }
+        not_empty_->notify_one();
     }
 
     size_t size_approx() const {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(*mutex_);
         return queue_.size();
+    }
+
+    /// Blocking push.  Returns false if the queue is closed or the token is
+    /// cancelled before the item can be enqueued.  On success the item is
+    /// moved into the queue; on failure the caller retains ownership.
+    bool push(T& item, const CancellationToken* token = nullptr) {
+        std::unique_lock<std::mutex> lock(*mutex_);
+        if (capacity_ > 0) {
+            not_full_->wait(lock, [this, token]() {
+                if (token && token->is_cancelled()) return true;
+                return closed_ || queue_.size() < capacity_;
+            });
+        }
+        if (closed_) return false;
+        if (token && token->is_cancelled()) return false;
+        queue_.push(std::move(item));
+        not_empty_->notify_one();
+        return true;
+    }
+
+    /// Blocking pop.  Returns false when the queue is closed and empty, or
+    /// when the token is cancelled.
+    bool pop(T& item, const CancellationToken* token = nullptr) {
+        std::unique_lock<std::mutex> lock(*mutex_);
+        not_empty_->wait(lock, [this, token]() {
+            if (token && token->is_cancelled()) return true;
+            return closed_ || !queue_.empty();
+        });
+        if (closed_ && queue_.empty()) return false;
+        item = std::move(queue_.front());
+        queue_.pop();
+        not_full_->notify_one();
+        return true;
+    }
+
+    /// Close the queue, waking all blocked producers and consumers.
+    void close() {
+        {
+            std::lock_guard<std::mutex> lock(*mutex_);
+            closed_ = true;
+        }
+        not_empty_->notify_all();
+        not_full_->notify_all();
     }
 
 private:
     std::queue<T> queue_;
-    mutable std::mutex mutex_;
+    size_t capacity_{0};
+    std::unique_ptr<std::mutex> mutex_;
+    std::unique_ptr<std::condition_variable> not_empty_;
+    std::unique_ptr<std::condition_variable> not_full_;
+    bool closed_{false};
 };
 
 // ── Shared frame package ────────────────────────────────────────────────────
@@ -81,7 +135,11 @@ struct PipeExportResult {
     bool writer_error{false};
     bool exception_error{false};
     bool encoder_close_failed{false};
+    bool output_published{false};
     int frames_written{0};
+    int frames_rendered{0};
+    int frames_enqueued{0};
+    int frames_encoded{0};
     double wall_time_ms{0.0};
     double render_ms{0.0};
     double encode_ms{0.0};
@@ -111,6 +169,7 @@ struct WriterThreadContext {
     IVideoEncoder& encoder;
     SoftwareRenderer & renderer;
     std::atomic<uint64_t>& writer_encode_us_total;
+    std::atomic<int>& frames_encoded;
     std::vector<FrameEncoderTelemetryRecord>& frame_encoder_telemetry;
 };
 
@@ -177,6 +236,7 @@ struct PipeExportSession {
     std::unique_ptr<WriterThreadContext> writer_ctx;  // outlives the thread (stored in session)
     std::thread writer_thread;
     std::atomic<uint64_t> writer_encode_us_total{0};
+    std::atomic<int> frames_encoded{0};
 
     // Telemetry
     std::vector<FrameEncoderTelemetryRecord> frame_encoder_telemetry;
