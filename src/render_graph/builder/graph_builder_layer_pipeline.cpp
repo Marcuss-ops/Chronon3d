@@ -63,15 +63,14 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
                            const Camera2_5DRuntime& cam25d,
                            std::span<const ShadowCasterInfo> casters,
                            const rendering::DepthGrade& depth_grade) {
-    std::string prev_layer = g_current_builder_layer_id;
-    g_current_builder_layer_id = std::string(item.layer->name);
-
-    auto prev_eval = std::move(g_current_builder_opacity_evaluator);
-    g_current_builder_opacity_evaluator = [opacity = item.layer->anim_transform.opacity](const RenderFrameInfo& info) -> float {
-        return opacity.evaluate(info.sample_time);
+    BuilderContext node_ctx{
+        .layer_id = std::string(item.layer->name),
+        .opacity_evaluator = [opacity = item.layer->anim_transform.opacity](const RenderFrameInfo& info) -> float {
+            return opacity.evaluate(info.sample_time);
+        }
     };
 
-    GraphNodeId layer_output = append_source_pass(graph, item, ctx);
+    GraphNodeId layer_output = append_source_pass(graph, item, ctx, node_ctx);
     const Layer& layer = *item.layer;
 
     if (!ctx.policy.skip_initial_clear && layer_output != k_invalid_node) {
@@ -101,12 +100,10 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
         for (const auto& eff : layer.effects()) {
             chronon3d::EffectStack stack;
             stack.push_back(eff);
-            GraphNodeId adj_id = graph.add_node(std::make_unique<AdjustmentNode>(std::move(stack), policy));
+            GraphNodeId adj_id = graph.add_node(std::make_unique<AdjustmentNode>(std::move(stack), policy), node_ctx);
             graph.connect(current, adj_id);
             current = adj_id;
         }
-        g_current_builder_layer_id = prev_layer;
-        g_current_builder_opacity_evaluator = std::move(prev_eval);
         return;
     }
 
@@ -118,19 +115,19 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
         layer.kind == LayerKind::Video;
 
     if (mask_before_transform) {
-        append_mask_pass_if_needed(graph, layer_output, item, ctx);
+        append_mask_pass_if_needed(graph, layer_output, item, ctx, node_ctx);
     }
 
-    append_transform_pass_if_needed(graph, layer_output, item, ctx);
+    append_transform_pass_if_needed(graph, layer_output, item, ctx, node_ctx);
 
     if (!mask_before_transform) {
-        append_mask_pass_if_needed(graph, layer_output, item, ctx);
+        append_mask_pass_if_needed(graph, layer_output, item, ctx, node_ctx);
     }
 
-    append_lighting_pass_if_needed(graph, layer_output, item, ctx);
-    append_shadow_passes_if_needed(graph, layer_output, item, casters, ctx);
-    append_depth_grade_pass_if_needed(graph, layer_output, item, ctx, depth_grade);
-    append_effect_pass_if_needed(graph, layer_output, *item.layer, item, cam25d, ctx);
+    append_lighting_pass_if_needed(graph, layer_output, item, ctx, node_ctx);
+    append_shadow_passes_if_needed(graph, layer_output, item, casters, ctx, node_ctx);
+    append_depth_grade_pass_if_needed(graph, layer_output, item, ctx, depth_grade, node_ctx);
+    append_effect_pass_if_needed(graph, layer_output, *item.layer, item, cam25d, ctx, node_ctx);
 
     if (layer.track_matte.active() && item.matte_node != k_invalid_node) {
         cache::NodeCacheKey matte_key{
@@ -156,7 +153,7 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
         // PR2-cleanup: TrackMatteNode carries its policy in `m_cache_policy` (ctor-time).
         {
             GraphNodeId matte_node = graph.add_node(std::make_unique<TrackMatteNode>(
-                layer.track_matte.type, std::string(layer.name), matte_key));
+                layer.track_matte.type, std::string(layer.name), matte_key), node_ctx);
             graph.connect(layer_output, matte_node);
             graph.connect(item.matte_node, matte_node);
             layer_output = matte_node;
@@ -185,16 +182,14 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
             // PR2-cleanup: TransitionNode is intrinsically frame-variant via its ctor.
             {
                 GraphNodeId trans_node = graph.add_node(std::make_unique<TransitionNode>(
-                    std::string(layer.name), active_spec, is_out, layer.from, layer.duration));
+                    std::string(layer.name), active_spec, is_out, layer.from, layer.duration), node_ctx);
                 graph.connect(layer_output, trans_node);
                 layer_output = trans_node;
             }
         }
     }
 
-    append_composite_pass(graph, current, layer_output, *item.layer, (layer.cache_static || item.is_static), ctx, item.world_z);
-    g_current_builder_layer_id = prev_layer;
-    g_current_builder_opacity_evaluator = std::move(prev_eval);
+    append_composite_pass(graph, current, layer_output, *item.layer, (layer.cache_static || item.is_static), ctx, item.world_z, node_ctx);
 }
 
 void sort_camera25d_layers(std::vector<LayerGraphItem>& items) {
