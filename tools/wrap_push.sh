@@ -87,6 +87,10 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 SCRIPT_DIR="${REPO_ROOT}/tools"
 GATE="${SCRIPT_DIR}/check_main_clean.sh"
 
+# Load the canonical gate manifest (DEVELOPER_GATES, CI_GATES, WBH_GATES, WBH_ONLY_GATES).
+# shellcheck source=gates/manifest.sh
+source "${SCRIPT_DIR}/gates/manifest.sh"
+
 # ── Gate profile: developer (default) vs wbh (working build host) ──────────
 # `developer` — fast local checks safe on any push (no MP4/build artifacts).
 # `wbh`       — full video/glow/determinism/batch validation (needs build host).
@@ -206,42 +210,11 @@ bash "${SCRIPT_DIR}/run_developer_gates.sh" "${TARGET_REMOTE}" "${TARGET_BRANCH}
 # These gates require build artifacts (MP4, glow output, batch videos) that
 # only exist on a working build host.  On developer pushes they are skipped.
 if [[ "$GATE_PROFILE" == "wbh" ]]; then
-
-# Step 4.5h: Video completeness probe (TICKET-VIDEO-FFPROBE-VALIDATION)
-echo "wrap_push.sh: checking video completeness probe (spec §4+§6 — ffprobe MP4 contract + 60-frame ffmpeg decode count)..."
-bash "${SCRIPT_DIR}/check_video_completeness.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_video_completeness.sh (exit $?)" >&2; exit 1; }
-
-echo "wrap_push.sh: checking fix-velocity cronograph (Test #11)..."
-bash "${SCRIPT_DIR}/check_fix_cronograph.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_fix_cronograph.sh (exit $?)" >&2; exit 1; }
-
-# Step 4.5j: Manual touches per video (Test #19)
-echo "wrap_push.sh: checking manual_touches_per_video (Test #19) -- 4-phase thresholds (oggi<=8, fase1<=3, fase2<=1, finale<=0)..."
-bash "${SCRIPT_DIR}/check_manual_touches_per_video.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_manual_touches_per_video.sh (exit $?)" >&2; exit 1; }
-
-# Step 4.5k: Batch 100 videos acceptance (Test #20)
-echo "wrap_push.sh: checking batch_100_videos (Test #20) -- 4 PASS-criteria envelopes (100 output / 0 crash / 0 corrotti / >=98% no manual)..."
-bash "${SCRIPT_DIR}/check_batch_100_videos.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_batch_100_videos.sh (exit $?)" >&2; exit 1; }
-
-# Step 4.5s: SDK consumer certification (TICKET-VERIFY-SDK-CONSUMER-FUNCTIONAL-LINUX)
-bash "${SCRIPT_DIR}/verify_sdk_consumer_functional_linux.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on verify_sdk_consumer_functional_linux.sh (exit $?)" >&2; exit 1; }
-
-# Step 4.5m: Glow certification (TICKET-GLOW-CERTIFICATION)
-bash "${SCRIPT_DIR}/check_glow_certification.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_glow_certification.sh (exit $?)" >&2; exit 1; }
-
-# Step 4.5n: Determinism gate (TICKET-DETERMINISM)
-bash "${SCRIPT_DIR}/check_determinism.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_determinism.sh (exit $?)" >&2; exit 1; }
-
-# Step 4.5p: Determinism matrix gate (TICKET-DETERMINISM-MATRIX)
-bash "${SCRIPT_DIR}/check_determinism_matrix.sh" \
-    || { echo "wrap_push.sh: GATE_FAIL on check_determinism_matrix.sh (exit $?)" >&2; exit 1; }
-
+    for gate in "${WBH_ONLY_GATES[@]}"; do
+        echo "wrap_push.sh: running WBH gate: ${gate}"
+        bash "${SCRIPT_DIR}/${gate}" \
+            || { echo "wrap_push.sh: GATE_FAIL on ${gate} (exit $?)" >&2; exit 1; }
+    done
 else
     echo "wrap_push.sh: GATE_PROFILE=${GATE_PROFILE} — skipping WBH-only gates (video/glow/determinism/batch/SDK)"
 fi
