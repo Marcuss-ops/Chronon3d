@@ -38,7 +38,10 @@
 // Header-only inline factory — no .cpp needed.
 #include "tests/text/pipeline_parity_canary.hpp"
 // .cpp-compiled factories (compiled into chronon3d_cli_dev per CMakeLists).
-#include "tests/visual/ae_parity/ae_parity_scenes.hpp"
+// Azione 17 — `make_ae_cam_01..10_*()` factory functions relocated from
+// tests/visual/ae_parity/ae_parity_scenes.hpp to content/ae_parity/ae_cam_scenes.hpp
+// (production-side namespace, DEV-only gating per TICKET-CLI-ISOLATE-RUNTIME-DEV).
+#include "content/ae_parity/ae_cam_scenes.hpp"
 #include "tests/visual/ae_parity/ae_parity_compositions.hpp"
 #include "tests/visual/glow_ab/glow_ab_compositions.hpp"
 #include "tests/visual/camera_truth/camera_truth_test.hpp"
@@ -75,25 +78,25 @@ void register_dev_compositions(CompositionRegistry& registry) {
     // call in content/register_content_modules.cpp was REMOVED in this
     // chore; these are now registered exclusively here in DEV.
     registry.add("AE_CAM_01_static_grid",
-        [](const CompositionProps&) { return test::make_ae_cam_01_static_grid(); });
+        [](const CompositionProps&) { return chronon3d::content::ae_parity::ae_cam_scenes::make_ae_cam_01_static_grid(); });
     registry.add("AE_CAM_02_zoom_fov",
-        [](const CompositionProps&) { return test::make_ae_cam_02_zoom_fov(); });
+        [](const CompositionProps&) { return chronon3d::content::ae_parity::ae_cam_scenes::make_ae_cam_02_zoom_fov(); });
     registry.add("AE_CAM_03_two_node_poi",
-        [](const CompositionProps&) { return test::make_ae_cam_03_two_node_poi(); });
+        [](const CompositionProps&) { return chronon3d::content::ae_parity::ae_cam_scenes::make_ae_cam_03_two_node_poi(); });
     registry.add("AE_CAM_04_parent_null",
-        [](const CompositionProps&) { return test::make_ae_cam_04_parent_null(); });
+        [](const CompositionProps&) { return chronon3d::content::ae_parity::ae_cam_scenes::make_ae_cam_04_parent_null(); });
     registry.add("AE_CAM_05_orbit",
-        [](const CompositionProps&) { return test::make_ae_cam_05_orbit(); });
+        [](const CompositionProps&) { return chronon3d::content::ae_parity::ae_cam_scenes::make_ae_cam_05_orbit(); });
     registry.add("AE_CAM_06_dolly_zoom",
-        [](const CompositionProps&) { return test::make_ae_cam_06_dolly_zoom(); });
+        [](const CompositionProps&) { return chronon3d::content::ae_parity::ae_cam_scenes::make_ae_cam_06_dolly_zoom(); });
     registry.add("AE_CAM_07_gatefit",
-        [](const CompositionProps&) { return test::make_ae_cam_07_gatefit(); });
+        [](const CompositionProps&) { return chronon3d::content::ae_parity::ae_cam_scenes::make_ae_cam_07_gatefit(); });
     registry.add("AE_CAM_08_dof",
-        [](const CompositionProps&) { return test::make_ae_cam_08_dof(); });
+        [](const CompositionProps&) { return chronon3d::content::ae_parity::ae_cam_scenes::make_ae_cam_08_dof(); });
     registry.add("AE_CAM_09_motion_blur",
-        [](const CompositionProps&) { return test::make_ae_cam_09_motion_blur(); });
+        [](const CompositionProps&) { return chronon3d::content::ae_parity::ae_cam_scenes::make_ae_cam_09_motion_blur(); });
     registry.add("AE_CAM_10_near_clip",
-        [](const CompositionProps&) { return test::make_ae_cam_10_near_clip(); });
+        [](const CompositionProps&) { return chronon3d::content::ae_parity::ae_cam_scenes::make_ae_cam_10_near_clip(); });
 
     // (4) TICKET-AE-PARITY-FLOOR-DASHBOARD — 5 cinematic scene compositions
     // (ae_08_glow_pulse / ae_10_scale_pop / ae_12 / ae_14 / motion_blur_text).

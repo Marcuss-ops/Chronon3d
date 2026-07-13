@@ -1,20 +1,30 @@
+// ==============================================================================
+// content/ae_parity/ae_cam_scenes.hpp
+//
+// Azione 17 — relocated from tests/visual/ae_parity/ae_parity_scenes.hpp
+// on the chore closure path.  The 10 AE_CAM_* factory functions now live
+// under `chronon3d::content::ae_parity::ae_cam_scenes::` (production
+// namespace) and are compiled into the `chronon3d_cli_dev` target.
+//
+// DEV-only per TICKET-CLI-ISOLATE-RUNTIME-DEV (2026-07-12): production
+// CLI (CHRONON3D_BUILD_CLI_DEV=OFF) does NOT link this header.  The
+// ae_parity_scenes.cpp that lived in tests/visual/ae_parity/ is gone
+// (Azione 17 deleted it; all 10 factory bodies + 2 anonymous-namespace
+// helpers moved to content/ae_parity/ae_cam_scenes.cpp).
+//
+// Consumers:
+//   - apps/chronon3d_cli/register_dev_compositions.cpp (registry wiring)
+//   - tests/visual/ae_parity/ae_parity_tests.cpp (golden / fixture / asserts)
+// ==============================================================================
+
 #pragma once
-// ==============================================================================
-// tests/visual/ae_parity/ae_parity_scenes.hpp
-//
-// AE Parity Camera Visual Scenes — 10 scene factory functions for
-// visual comparison Chronon3D ↔ After Effects.
-//
-// Each scene isolates one AE parity camera category as defined in
-// docs/CAMERA_FEATURE_MATRIX.md §2–§6.
-// ==============================================================================
 
 #include <chronon3d/timeline/composition.hpp>
 
 #include <cstdint>
 #include <string>
 
-namespace chronon3d::test {
+namespace chronon3d::content::ae_parity::ae_cam_scenes {
 
 /// Default AE parity composition dimensions.
 inline constexpr int kAeParityWidth  = 960;
@@ -89,4 +99,4 @@ Composition make_ae_cam_09_motion_blur();
 // Verifies: no explosion, no NaN, no degenerate triangles, stable output.
 Composition make_ae_cam_10_near_clip();
 
-} // namespace chronon3d::test
+} // namespace chronon3d::content::ae_parity::ae_cam_scenes
