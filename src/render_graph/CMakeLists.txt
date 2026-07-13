@@ -124,6 +124,7 @@ add_library(chronon3d_graph_executor OBJECT
     executor/cache_evaluator.cpp
     executor/tile_pruning.cpp
     executor/node_runner.cpp
+    executor/text_bbox_reconcile.cpp   # P0 #1 — extracted post-render alpha_bbox reconciliation helper (replaces duplicate TU-local scan in node_runner.cpp + closes static-bool race)
     executor/executor_levels.cpp
     executor/framebuffer_lifetime.cpp
     # ── TICKET-009 close-out (post-RenderGraphContext OBJECT-lift) —
