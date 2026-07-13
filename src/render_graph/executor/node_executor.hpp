@@ -62,7 +62,7 @@ double run_node(
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes,
     bool use_cache,
-    const NodeCacheKey& key,
+    const ::chronon3d::cache::NodeCacheKey& key,
     CachedFB& result,
     const RenderGraphContext& ctx,
     FramebufferPool* parent_pool
