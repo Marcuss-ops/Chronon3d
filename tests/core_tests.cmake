@@ -29,6 +29,10 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         #   (4) bidi run-count regression (FriBidi active -> multi-run).
         # See docs/tickets/TICKET-P1-ACTION-PLAN.md §P1 #2.
         text/test_text_font_determinism.cpp
+        # O(n*k) → O(n+k) cluster aggregation golden equivalence for
+        # resolve_placed_glyph_run(). Synthetic GlyphRuns cover LTR, RTL,
+        # ligature, duplicate clusters, empty inputs, and tracking.
+        text/test_resolve_placed_glyph_run_cluster_golden.cpp
         # M1.5#8 — golden test for FontResolver + resolve_text_run_tree
         # determinism (FNV-1a hash snapshot + FriBidi env override sanity).
         text/test_text_font_resolver_golden.cpp

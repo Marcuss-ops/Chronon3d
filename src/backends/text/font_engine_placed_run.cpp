@@ -11,6 +11,8 @@
 #include <chronon3d/text/font_engine.hpp>
 
 #include <algorithm>
+#include <cstddef>
+#include <unordered_map>
 #include <vector>
 
 namespace chronon3d {
@@ -84,17 +86,42 @@ PlacedGlyphRun resolve_placed_glyph_run(
         sorted_clusters.erase(std::unique(sorted_clusters.begin(), sorted_clusters.end()),
                               sorted_clusters.end());
 
+        // ── Pass 1b: O(n) cluster → glyph-range aggregation ─────────────
+        //
+        // The original Pass 2 nested loop scanned ALL glyphs for each unique
+        // cluster (O(n*k)). We replace it with a single linear pass that
+        // builds a hash map from cluster value to its glyph range and
+        // advance sums. This preserves the exact output (start_glyph is the
+        // first glyph index with that cluster, matching the original
+        // left-to-right scan).
+        struct ClusterAccum {
+            size_t start_glyph{0};
+            size_t end_glyph{0};
+            float  advance{0.0f};
+            float  raw_advance{0.0f};
+        };
+        std::unordered_map<u32, ClusterAccum> cluster_map;
+        cluster_map.reserve(result.glyphs.size());
+        for (size_t gi = 0; gi < result.glyphs.size(); ++gi) {
+            const u32 c = result.glyphs[gi].cluster;
+            auto [it, inserted] = cluster_map.emplace(c, ClusterAccum{});
+            ClusterAccum& acc = it->second;
+            if (inserted) {
+                acc.start_glyph = gi;
+            }
+            acc.end_glyph = gi + 1;
+            acc.advance += result.glyphs[gi].advance_x;
+            acc.raw_advance += result.glyphs[gi].raw_advance_x;
+        }
+
         // ── Pass 2: build result.clusters + populate per-glyph byte fields ─
         //
-        // Replaces the previous 3rd pass (separate loop over result.clusters
-        // + per-glyph fill).  Because `sorted_clusters` is already deduped
-        // and sorted ascending, `sorted_clusters[k]` and `sorted_clusters[k+1]`
-        // directly form the open-end byte range of cluster k — the prior
-        // `<unordered_map>` cluster_to_range was redundant.  Per-glyph
-        // `byte_offset` / `byte_len` fill is merged inline at the end of
-        // each cluster-build step, collapsing the original 4-pass dance
-        // (set-insert / map-zip / cluster-build / per-glyph-fill) to 2
-        // passes total.
+        // Because `sorted_clusters` is already deduped and sorted ascending,
+        // `sorted_clusters[k]` and `sorted_clusters[k+1]` directly form the
+        // open-end byte range of cluster k. The per-cluster glyph range is
+        // looked up in O(1) from the hash map built above, collapsing the
+        // original 4-pass dance (set-insert / map-zip / cluster-build /
+        // per-glyph-fill) to 2 passes total.
         result.clusters.reserve(sorted_clusters.size() - 1);
         for (size_t k = 0; k + 1 < sorted_clusters.size(); ++k) {
             const u32 c = sorted_clusters[k];
@@ -104,20 +131,17 @@ PlacedGlyphRun resolve_placed_glyph_run(
             // Preserve the original degenerate-case skip conditions.
             if (end_byte <= start_byte || start_byte >= source_text.size()) continue;
 
-            PlacedGlyphRun::Cluster cl;
-            cl.byte_offset = start_byte;
-            cl.byte_len    = end_byte - start_byte;
+            auto it = cluster_map.find(c);
+            if (it == cluster_map.end()) continue;
+            const ClusterAccum& acc = it->second;
 
-            for (size_t gi = 0; gi < result.glyphs.size(); ++gi) {
-                if (result.glyphs[gi].cluster == c) {
-                    if (cl.start_glyph == 0 && cl.end_glyph == 0) {
-                        cl.start_glyph = gi;
-                    }
-                    cl.end_glyph   = gi + 1;
-                    cl.advance    += result.glyphs[gi].advance_x;
-                    cl.raw_advance += result.glyphs[gi].raw_advance_x;
-                }
-            }
+            PlacedGlyphRun::Cluster cl;
+            cl.byte_offset  = start_byte;
+            cl.byte_len     = end_byte - start_byte;
+            cl.start_glyph  = acc.start_glyph;
+            cl.end_glyph    = acc.end_glyph;
+            cl.advance      = acc.advance;
+            cl.raw_advance  = acc.raw_advance;
 
             result.clusters.push_back(cl);
 
