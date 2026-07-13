@@ -114,6 +114,7 @@ std::optional<VideoJobPlan> plan_video_job(
         .sink           = sink_opts,
         .start          = args.start,
         .end_exclusive  = end,
+        .cpu_budget     = args.cpu_budget,
         .dry_run        = args.dry_run,
     };
 }

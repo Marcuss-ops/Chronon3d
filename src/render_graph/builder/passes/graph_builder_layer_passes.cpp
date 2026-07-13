@@ -30,13 +30,14 @@ void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
         return;
     }
 
-    auto composite = graph.add_node(std::make_unique<CompositeNode>(
-        layer.blend_mode,
-        is_static ? Frame{0} : Frame{-1},
-        world_z,
-        ::chronon3d::CompositeOperator::SourceOver,
-        is_static ? static_memory_cache("composite") : frame_variant_cache("composite")
-    ));
+auto composite = graph.add_node(std::make_unique<CompositeNode>(
+    graph.next_composite_id(),
+    layer.blend_mode,
+    is_static ? Frame{0} : Frame{-1},
+    world_z,
+    ::chronon3d::CompositeOperator::SourceOver,
+    is_static ? static_memory_cache("composite") : frame_variant_cache("composite")
+));
     graph.connect(current, composite);
     graph.connect(layer_output, composite);
     current = composite;

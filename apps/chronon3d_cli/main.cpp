@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
     chronon3d::AssetRegistry assets;
     chronon3d::cli::init_compositions(registry, assets);
     int exit_code = 0;
-    chronon3d::cli::CliContext ctx{registry, exit_code, std::move(cmd_line), assets};
+    chronon3d::cli::CliContext ctx{registry, exit_code, std::move(cmd_line), assets, cpu_budget};
 
     // Explicit group registration — only linked groups get registered.
     // Build profiles control which groups are compiled/linked:

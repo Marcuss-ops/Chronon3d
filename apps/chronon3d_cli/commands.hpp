@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/cpu_budget.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
 #include <string>
@@ -89,6 +90,7 @@ struct RenderArgs {
     bool benchmark_all{false};
     bool report{false};
     std::string command_line; // reconstructed from argv
+    chronon3d::CpuBudget cpu_budget;
 
     // Quick-preview batch count: when > 0, dev preview renders frames 0..count-1
     // as sequential PNGs instead of a single frame.  This avoids the full render
@@ -127,6 +129,7 @@ struct VideoArgs {
     std::string sink_type{"ffmpeg"};
 
     bool dry_run{false};
+    chronon3d::CpuBudget cpu_budget;
 };
 
 struct VideoCameraArgs {

@@ -28,12 +28,13 @@ std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry
     plan.warmup_framebuffers = args.pipeline.warmup_framebuffers;
     plan.warmup_dummy_frame = args.pipeline.warmup_dummy_frame;
 
-    // Build a per-instance Config when CLI budget override is requested.
+    // Build a per-instance Config that carries the single CLI CpuBudget.
+    Config cfg;  // reads env vars once
+    cfg.set_cpu_budget(args.cpu_budget);
     if (args.pipeline.fb_pool_budget_mb > 0) {
-        Config cfg;  // default-constructs from environment
         cfg.set_fb_pool_budget(args.pipeline.fb_pool_budget_mb * 1024ULL * 1024ULL);
-        plan.config = std::move(cfg);
     }
+    plan.config = std::move(cfg);
 
     return plan;
 }
