@@ -61,6 +61,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/sdk_tests.cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/debug/CMakeLists.txt
     ${CMAKE_CURRENT_SOURCE_DIR}/showcase/CMakeLists.txt
+    ${CMAKE_CURRENT_SOURCE_DIR}/simd/simd_parity_blend_tests.cmake  # F5.2 (TICKET-SIMD-VECTORIZE-KERNEL-SET-V1) first-kernel: scalar vs AVX2 blend parity (TIER=UNIT unconditional)
 )
 
 find_package(doctest CONFIG REQUIRED)
@@ -321,6 +322,17 @@ endif()
 # installed Chronon3D package (umbrella include), so it compiles in
 # every preset that turns on CHRONON3D_BUILD_TESTS.
 include(${CMAKE_CURRENT_SOURCE_DIR}/sdk_tests.cmake)
+
+# F5.2 (TICKET-SIMD-VECTORIZE-KERNEL-SET-V1) first-kernel: scalar vs
+# AVX2 blend parity test.  TIER=UNIT, UNCONDITIONAL registration (the
+# test exercises only the SIMD registry ABI surface — no rendering
+# backend, no Blend2D, no GPU, no FontEngine dependency).  The
+# unconditional include is required for SDK-only builds where
+# CHRONON3D_USE_BLEND2D / CHRONON3D_ENABLE_TEXT are OFF (mirrors the
+# `text_definition_tests.cmake` + `safe_area_placement_tests.cmake`
+# UNCONDITIONAL pattern).  Per ADR-018, this file is also listed in
+# CMAKE_CONFIGURE_DEPENDS at the top of this orchestrator.
+include(${CMAKE_CURRENT_SOURCE_DIR}/simd/simd_parity_blend_tests.cmake)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/sabotage_tests.cmake)
 
