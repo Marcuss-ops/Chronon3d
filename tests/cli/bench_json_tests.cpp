@@ -38,7 +38,13 @@ TEST_CASE("benchmark_report to_json produces correct schema") {
     report.counters.text_glyphs_rasterized = 100;
     report.counters.framebuffer_copies = 12;
     report.counters.framebuffer_clears = 7;
+    // F3.2 (TICKET-GLOW-FULLFRAME-AUDIT-V1) — extend with the 4 new fields.
     report.counters.full_frame_passes = 3;
+    report.counters.full_frame_copies = 5;
+    // Per-frame rates derived as `value / frames` (matches graph_total_ms
+    // precedent; bench report is the canonical snapshot location).
+    report.counters.full_frame_passes_per_frame = 3.0 / 120.0;
+    report.counters.full_frame_copies_per_frame = 5.0 / 120.0;
     report.categories_ms["graph"] = 120.0;
     report.categories_ms["raster"] = 900.0;
 
@@ -70,6 +76,11 @@ TEST_CASE("benchmark_report to_json produces correct schema") {
 
     CHECK(js["quality"]["deterministic_hash"] == "aabbccdd");
     CHECK(js["quality"]["ssim"] == doctest::Approx(0.9985));
+    // F3.2 — verify the 4 JSON fields round-trip cleanly.
+    CHECK(js["counters"]["full_frame_passes"] == 3);
+    CHECK(js["counters"]["full_frame_copies"] == 5);
+    CHECK(js["counters"]["full_frame_passes_per_frame"] == doctest::Approx(3.0 / 120.0));
+    CHECK(js["counters"]["full_frame_copies_per_frame"] == doctest::Approx(5.0 / 120.0));
 
     CHECK(js["counters"]["cache_hits"] == 1000);
     CHECK(js["counters"]["cache_misses"] == 50);
@@ -118,7 +129,11 @@ TEST_CASE("benchmark_report roundtrip from_json") {
     original.counters.cache_misses = 25;
     original.counters.framebuffer_copies = 5;
     original.counters.framebuffer_clears = 2;
+    // F3.2 — extend roundtrip test with the 4 new fields.
     original.counters.full_frame_passes = 1;
+    original.counters.full_frame_copies = 4;
+    original.counters.full_frame_passes_per_frame = 1.0 / 60.0;
+    original.counters.full_frame_copies_per_frame = 4.0 / 60.0;
     original.categories_ms["composite"] = 300.0;
     original.frame_times_ms = {15.0, 16.0, 17.0};
 
@@ -146,7 +161,11 @@ TEST_CASE("benchmark_report roundtrip from_json") {
     CHECK(loaded.counters.cache_misses == 25);
     CHECK(loaded.counters.framebuffer_copies == 5);
     CHECK(loaded.counters.framebuffer_clears == 2);
+    // F3.2 — verify the 4 new fields round-trip cleanly.
     CHECK(loaded.counters.full_frame_passes == 1);
+    CHECK(loaded.counters.full_frame_copies == 4);
+    CHECK(loaded.counters.full_frame_passes_per_frame == doctest::Approx(1.0 / 60.0));
+    CHECK(loaded.counters.full_frame_copies_per_frame == doctest::Approx(4.0 / 60.0));
     CHECK(loaded.categories_ms["composite"] == doctest::Approx(300.0));
     REQUIRE(loaded.frame_times_ms.size() == 3);
     CHECK(loaded.frame_times_ms[0] == doctest::Approx(15.0));
@@ -178,6 +197,10 @@ TEST_CASE("benchmark_report_from_json handles missing optional fields") {
     CHECK(loaded.counters.framebuffer_copies == 0);
     CHECK(loaded.counters.framebuffer_clears == 0);
     CHECK(loaded.counters.full_frame_passes == 0);
+    // F3.2 — verify the 4 new fields default to zero on missing fields.
+    CHECK(loaded.counters.full_frame_copies == 0);
+    CHECK(loaded.counters.full_frame_passes_per_frame == doctest::Approx(0.0));
+    CHECK(loaded.counters.full_frame_copies_per_frame == doctest::Approx(0.0));
     CHECK(loaded.categories_ms.empty());
     CHECK(loaded.frame_times_ms.empty());
 }

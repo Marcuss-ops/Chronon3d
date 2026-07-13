@@ -169,6 +169,7 @@ struct BenchArgs {
 
     std::string json_file;
     std::string compare_file;
+    std::string stats_json_file;  // F3.1 --stats-json: emits 3 fusion counters (passes_before_fusion/passes_after_fusion/bytes_saved_by_fusion) as a separate JSON file
 
     bool quiet{false};
     bool include_frame_times{false};

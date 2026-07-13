@@ -53,11 +53,20 @@ NodeExecResult CompositeNode::execute(
                     ctx.node_exec.counters->composite_calls.fetch_add(1, std::memory_order_relaxed);
                     const uint64_t area = static_cast<uint64_t>(ctx.frame_input.width) * static_cast<uint64_t>(ctx.frame_input.height);
                     ctx.node_exec.counters->composite_copy_pixels.fetch_add(area, std::memory_order_relaxed);
+                    // F3.2 (TICKET-GLOW-FULLFRAME-AUDIT-V1) — skip-opaque
+                    // optimization is a full-frame pass (swap_contents
+                    // touches every pixel; the byte cost stays zero).
+                    ctx.node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
                 }
                 auto result = ctx.acquire_owned_fb(top->width(), top->height(), false);
                 result->set_origin(top->origin_x(), top->origin_y());
                 result->set_opaque(true);
                 result->swap_contents(*top);
+                // F3.2 — swap_contents is zero-copy (no byte duplication),
+                // but it IS a full-frame pass (every pixel reassigned via
+                // metadata swap). Already counted above for the counter
+                // branch; on no-counters path, no-op (counters are an
+                // invariant here).
                 return NodeExecResult{std::move(result)};
             }
         }
@@ -84,6 +93,13 @@ NodeExecResult CompositeNode::execute(
         result = ctx.acquire_owned_fb(ctx.frame_input.width, ctx.frame_input.height, true);
         if (ctx.services.backend) {
             ctx.services.backend->composite_layer(*result, *bottom, BlendMode::Normal);
+        }
+        // F3.2 — size mismatch forces a full-canvas composite_layer
+        // (every pixel touched). Surface as a full-frame pass. The byte
+        // side-cost is captured separately by framebuffer_copy_ms when the
+        // pool returns a re-used allocation that demands std::copy.
+        if (ctx.node_exec.counters) {
+            ctx.node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
         }
     }
     const auto t_acquire1 = profiling::now();

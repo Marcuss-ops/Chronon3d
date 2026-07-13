@@ -74,6 +74,13 @@ NodeExecResult ClearNode::execute(
                     if (clip_fraction > 0.5f) {
                         const auto t_clear0 = profiling::now();
                         chronon3d::framebuffer_clear_parallel(*write_fb, Color::transparent(), std::nullopt);
+                        // F3.2 (TICKET-GLOW-FULLFRAME-AUDIT-V1) — full-frame
+                        // redundant clear (clip > 50% of frame, full clear+zero
+                        // is cheaper than per-row clears). Counted as 1
+                        // full_frame_pass.
+                        if (ctx.node_exec.counters) {
+                            ctx.node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
+                        }
                         const auto t_clear1 = profiling::now();
                         if (ctx.node_exec.counters) {
                             const auto elapsed = static_cast<uint64_t>(
@@ -159,6 +166,11 @@ NodeExecResult ClearNode::execute(
                     // Full clip: clear everything (no restore needed).
                     const auto t_clear0 = profiling::now();
                     chronon3d::framebuffer_clear_parallel(*write_fb, Color::transparent(), std::nullopt);
+                    // F3.2 — full-frame redundant clear (clip covers full
+                    // frame; the clear is the only work).
+                    if (ctx.node_exec.counters) {
+                        ctx.node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
+                    }
                     const auto t_clear1 = profiling::now();
                     if (ctx.node_exec.counters) {
                         const auto elapsed = static_cast<uint64_t>(
@@ -182,6 +194,11 @@ NodeExecResult ClearNode::execute(
                 if (!is_empty) {
                     const auto t0 = profiling::now();
                     chronon3d::framebuffer_clear_parallel(*write_fb, Color::transparent(), std::nullopt);
+                    // F3.2 — full-frame redundant clear (null clip → entire
+                    // frame is cleared).
+                    if (ctx.node_exec.counters) {
+                        ctx.node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
+                    }
                     const auto t1 = profiling::now();
                     if (ctx.node_exec.counters) {
                         const auto elapsed = static_cast<uint64_t>(
@@ -346,6 +363,10 @@ NodeExecResult ClearNode::execute(
                 // Prev FB reused without copy: effectively a full-frame restore at zero cost.
                 ctx.node_exec.counters->clearnode_restore_full_frame_count.fetch_add(1, std::memory_order_relaxed);
                 ctx.node_exec.counters->clearnode_restore_noop_count.fetch_add(1, std::memory_order_relaxed);
+                // F3.2 — the prev-FB reuse path touches every pixel
+                // (full-frame restore). Surface in per-frame gate; the byte
+                // win is captured by clearnode_bytes_avoided.
+                ctx.node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
             }
         }
         {
