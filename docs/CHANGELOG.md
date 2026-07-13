@@ -1,4 +1,13 @@
 <details>
+<summary>feat(simd): avx2 blend kernel (KERNEL-SET-V1 first) — 2026-07-13</summary>
+
+<!-- F5.2-entry-marker -->
+
+Atomic cat-3 chore on `main` per FASE 5.2 (TICKET-SIMD-VECTORIZE-KERNEL-SET-V1) first-kernel incremental commit. Lands 4 NEW + 2 EDIT + 1 DELETE: 1) `include/chronon3d/simd/detail/avx2_kernels.hpp` (NEW, header-only inline pattern matching `scalar_kernels.hpp` precedent; 2-pixel AVX2 batch (8 floats per `__m256`) + `scalar_blend` fallback for the 1-pixel tail; `#if defined(__AVX2__)` compile-time guard; `<immintrin.h>` included only when AVX2 is available) + 2) `tests/simd/test_simd_parity_blend.cpp` (NEW, 7 doctest TEST_CASEs: scalar identity alpha=0 + scalar replace alpha=1 + scalar midpoint alpha=0.5 + scalar 9-size invariant + AVX2 vs scalar 7-power-of-2 parity + AVX2 vs scalar 6-odd-size tail parity + resolver dispatch) + 3) `tests/simd/simd_parity_blend_tests.cmake` (NEW, `chronon3d_add_test_suite(NAME chronon3d_simd_parity_blend_tests TIER UNIT SOURCES simd/test_simd_parity_blend.cpp)` — pure ABI contract test, no Blend2D/GPU/FontEngine) + 4) `docs/tickets/TICKET-SIMD-VECTORIZE-KERNEL-SET-V1.md` (NEW, canonical ticket con 11 §Criteri di accettazione + 9 forward-points per il rimanente set 9-10 kernel) + 5) `include/chronon3d/simd/kernel_resolver.hpp` (EDIT: add `kAvx2Set` `inline constexpr` aggregator gated on `__AVX2__`; update `resolve_pixel_kernels` to route `target.has_avx2 → kAvx2Set` else `kScalarSet` — first per-ISA static bound dopo F5.1 SCAFFOLD) + 6) `tests/CMakeLists.txt` (EDIT per ADR-018: add `simd_parity_blend_tests.cmake` a `CMAKE_CONFIGURE_DEPENDS` + unconditional `include()` per SDK-only build compatibility) + DELETE `src/backends/software/simd/avx2_kernels.cpp` (replaced by header-only pattern; Cat-3 minimal-surface). Subject envelope 53 chars OK. AVX2 blend ABI matches `pixel_kernels.hpp::BlendKernel::ApplyFn` SSoT; parity entro `kKernelEpsilon` (1 ULP float32, IEEE-754 esatto via `FLT_EPSILON`) per ADR-025 §Decision 3. Cross-ISA parity (SSE42/NEON) forward-pointed a `<h>` del ticket. macchina-verifica end-to-end (`cmake --build` + `ctest -R chronon3d_simd_parity_blend_tests`) DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` precedent. Full cronaca + 9 forward-points in `docs/tickets/TICKET-SIMD-VECTORIZE-KERNEL-SET-V1.md` per AGENTS.md ticket-home rule.
+
+</details>
+
+<details>
 <summary>feat(bench): benchmark JSON schema v1 (TICKET-BENCH-SCHEMA-V1) — 2026-07-13</summary>
 
 <!-- F1.2-entry-marker -->
