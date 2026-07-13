@@ -69,6 +69,12 @@ struct RenderOpOutcome {
     /// shapes drawn).  Zero is a valid outcome when there is nothing to do
     /// (e.g. layout is empty, safe-bbox clip rejects the layer).
     std::size_t items_drawn{0};
+
+    /// Intrinsic ink bounding box produced by the rasterizer (currently
+    /// populated by the text-run processor).  When present, node_runner
+    /// uses this instead of scanning the entire framebuffer to reconcile
+    /// the predicted bbox.
+    std::optional<raster::BBox> actual_ink_bbox{};
 };
 
 /// Minimal Result type for backend operations.

@@ -303,7 +303,8 @@ void execute_single_node(
                     reconcile_text_bbox_after_render(
                         node, *fb_ptr, predicted_bbox,
                         ctx.node_exec.counters,
-                        state.text_bbox_reporter))
+                        state.text_bbox_reporter,
+                        node_ctx.node_exec.actual_ink_bbox))
             {
                 predicted_bbox = *expanded_bbox;
             }
