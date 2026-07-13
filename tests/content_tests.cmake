@@ -6,6 +6,7 @@ chronon3d_add_test_suite(
     LINK_TARGETS chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline chronon3d_scene chronon3d_backend_software
     SOURCES content/test_content_module_contract.cpp
             content/test_content_composition_smoke.cpp
+            content/test_shaped_glyph_line.cpp
             certification/test_cert_text_bbox.cpp
             certification/test_cert_text_invariants.cpp
 )

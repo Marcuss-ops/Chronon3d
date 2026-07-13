@@ -45,7 +45,7 @@ using chronon3d::content::animation_helpers::SHADOW_COLOR;
 using chronon3d::content::text_reveal::TextRevealDescriptor;
 using chronon3d::content::text_reveal::build_2line_typewriter;
 using chronon3d::content::text_reveal::build_text_reveal_line;
-using chronon3d::content::text_reveal::measure_text_width;
+using chronon3d::content::text_reveal::ShapedGlyphLine;
 using chronon3d::content::text_reveal::font_regular;
 
 namespace {
@@ -82,9 +82,9 @@ Composition anim_typewriter_simple() {
 
         // Precompute widths FIRST, then use inline build_text_reveal_line calls
         auto spec = font_regular();
-        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TW_TRACKING, *s.font_engine());
-        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TW_TRACKING, *s.font_engine());
-        f32 max_w = std::max(w1, w2);
+        ShapedGlyphLine line1("THIS TEXT APPEARS", 64.0f, spec, TW_TRACKING, 0.0f, *s.font_engine());
+        ShapedGlyphLine line2("ONE LETTER AT A TIME", 76.0f, spec, TW_TRACKING, 0.0f, *s.font_engine());
+        f32 max_w = std::max(line1.width(), line2.width());
         f32 ref_x = -max_w * 0.5f;
 
         build_text_reveal_line(s, TextRevealDescriptor{
@@ -120,11 +120,11 @@ Composition anim_typewriter_cursor() {
 
         // Precompute needed values BEFORE build_2line_typewriter
         auto spec = font_regular();
-        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TW_TRACKING, *s.font_engine());
-        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TW_TRACKING, *s.font_engine());
-        f32 max_w = std::max(w1, w2);
+        ShapedGlyphLine line1("THIS TEXT APPEARS", 64.0f, spec, TW_TRACKING, 0.0f, *s.font_engine());
+        ShapedGlyphLine line2("ONE LETTER AT A TIME", 76.0f, spec, TW_TRACKING, 0.0f, *s.font_engine());
+        f32 max_w = std::max(line1.width(), line2.width());
         f32 ref_x = -max_w * 0.5f;
-        f32 cursor_x = ref_x + w2 + 6.0f;
+        f32 cursor_x = ref_x + line2.width() + 6.0f;
 
         // Use the same build_2line_typewriter as Simple (proven stable)
         build_2line_typewriter(s,
@@ -176,9 +176,9 @@ Composition anim_typewriter_slide() {
         s.font_engine(ctx.font_engine_or_null());
 
         auto spec = font_regular();
-        f32 w1 = measure_text_width("THIS TEXT APPEARS", 64.0f, spec, TW_TRACKING, *s.font_engine());
-        f32 w2 = measure_text_width("ONE LETTER AT A TIME", 76.0f, spec, TW_TRACKING, *s.font_engine());
-        f32 max_w = std::max(w1, w2);
+        ShapedGlyphLine line1("THIS TEXT APPEARS", 64.0f, spec, TW_TRACKING, 0.0f, *s.font_engine());
+        ShapedGlyphLine line2("ONE LETTER AT A TIME", 76.0f, spec, TW_TRACKING, 0.0f, *s.font_engine());
+        f32 max_w = std::max(line1.width(), line2.width());
         f32 ref_x = -max_w * 0.5f;
 
         build_text_reveal_line(s, TextRevealDescriptor{
@@ -249,8 +249,8 @@ Composition anim_typewriter_stagger() {
         auto spec = font_regular();
         f32 max_w = 0.0f;
         for (int i = 0; i < 4; ++i) {
-            f32 w = measure_text_width(lines[i].text, lines[i].size, spec, TW_TRACKING, *s.font_engine());
-            if (w > max_w) max_w = w;
+            ShapedGlyphLine line(lines[i].text, lines[i].size, spec, TW_TRACKING, 0.0f, *s.font_engine());
+            if (line.width() > max_w) max_w = line.width();
         }
         f32 ref_x = -max_w * 0.5f;
 
