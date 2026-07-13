@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
+#include <filesystem>
 #include <iterator>
 #include <utility>
 #include <spdlog/spdlog.h>
@@ -331,11 +332,12 @@ namespace text_run_materialize_detail {
 /// nodes, text audit, or any path without a SoftwareRenderer), falls back
 /// to a lazy process-wide FontEngine backed by a default AssetResolver.
 ///
-/// The fallback resolver is UNMOUNTED (no assets root), so only absolute
-/// font paths or system-installed fonts resolve.  Callers that need
-/// relative-path resolution must supply a FontEngine* bound to an
-/// explicit AssetResolver via PendingTextRun.font_engine or
-/// LayerBuilder::m_font_engine.  This fallback prevents the hard
+/// The fallback resolver is mounted with the process CWD so relative
+/// font paths (e.g. "assets/fonts/Inter-Bold.ttf") resolve when the
+/// working directory is the project root (typical ctest invocation).
+/// Callers that need a custom assets root must supply a FontEngine*
+/// bound to an explicit AssetResolver via PendingTextRun.font_engine
+/// or LayerBuilder::m_font_engine.  This fallback prevents the hard
 /// "no FontEngine available → renders blank" failure mode.
 [[nodiscard]] FontEngine* resolve_engine(FontEngine* preferred) {
     if (preferred) return preferred;
@@ -346,6 +348,14 @@ namespace text_run_materialize_detail {
     // fonts work; relative paths under an assets_root do not (callers
     // needing that must wire an explicit FontEngine).
     static assets::AssetResolver s_fallback_resolver;
+    // Mount the fallback resolver with the current working directory so
+    // relative font paths (e.g. "assets/fonts/Inter-Bold.ttf") resolve
+    // when ctest runs from the project root (CMAKE_SOURCE_DIR).
+    static bool s_resolver_mounted = []() {
+        s_fallback_resolver.mount(std::filesystem::current_path());
+        return true;
+    }();
+    (void)s_resolver_mounted;  // suppress unused-variable warning
     static FontEngine s_fallback_engine(s_fallback_resolver);
 
     // One-shot warning: log once per process lifetime to avoid spamming
@@ -356,7 +366,8 @@ namespace text_run_materialize_detail {
         s_warned = true;
         spdlog::warn(
             "resolve_engine: no FontEngine provided — using process-wide "
-            "fallback (unmounted resolver; only absolute font paths work). "
+            "fallback (CWD-mounted resolver; relative font paths resolve "
+            "from the working directory). "
             "Wire a FontEngine* via SceneBuilder::font_engine() or "
             "LayerBuilder::font_engine() for full asset resolution.");
     }
@@ -422,8 +433,19 @@ namespace {
     }
 
     const std::string&    text       = params.text.content.value;
-    const FontSpec&       font_spec  = params.text.font;
+    FontSpec              font_spec  = params.text.font;
     const TextLayoutSpec& layout     = params.text.layout;
+
+    // Default to Inter-Bold when no font_path or font_family is set.
+    // Prevents "failed to load font '' (error=1)" downstream when the
+    // TextRunSpec was authored without a font (e.g. scene tests that
+    // don't wire a FontEngine or set a default font_path on the layer).
+    // This matches the longstanding default in
+    // src/scene/model/render_node_factory.cpp and
+    // include/chronon3d/presets/scene_presets.hpp.
+    if (font_spec.font_path.empty() && font_spec.font_family.empty()) {
+        font_spec.font_path = "assets/fonts/Inter-Bold.ttf";
+    }
 
     // TICKET-TEXT-CLEANUP-6: replaced legacy 10-field cache key with
     // canonical key that includes ALL visual-affecting fields.
