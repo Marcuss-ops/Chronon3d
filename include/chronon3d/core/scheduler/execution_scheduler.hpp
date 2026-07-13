@@ -29,6 +29,8 @@
 #include <utility>
 
 #include <chronon3d/core/scheduler/scheduler_mode.hpp>
+#include <chronon3d/core/scheduler/for_each_tile.hpp>
+#include <chronon3d/raster/bbox.hpp>
 
 namespace chronon3d {
 
@@ -80,6 +82,19 @@ public:
     template <typename Fn>
     void for_each_index(std::size_t count, Fn&& fn);
 
+    /// Parallel tile-loop dispatched through the scheduler arena
+    /// (F4.3 — TICKET-KERNEL-TILING-V1).  Routes through `m_arena`
+    /// so Sequential mode caps nested parallel_for calls; the actual
+    /// tiling math lives in the canonical free function
+    /// `chronon3d::scheduler::for_each_tile` (see
+    /// `include/chronon3d/core/scheduler/for_each_tile.hpp`).
+    ///
+    /// Tile-coverage invariant: union of `body(Tile)` invocations
+    /// covers `bbox` exactly (no overlap, no gaps), edge tiles may be
+    /// smaller than `ts.width`/`ts.height` at right/bottom.
+    template <typename Fn>
+    void for_each_tile(const raster::BBox& bbox, scheduler::TileSize ts, Fn&& fn);
+
     /// Maximum concurrency of the underlying task arena (== arena size).
     [[nodiscard]] int concurrency() const noexcept {
         return m_arena.max_concurrency();
@@ -129,6 +144,21 @@ inline void ExecutionScheduler::for_each_index(std::size_t count, Fn&& fn) {
                 }
             }
         );
+    });
+}
+
+// ── Tile-tiling dispatch (F4.3 — TICKET-KERNEL-TILING-V1) ─────────────
+//
+// Routed via m_arena.execute so Sequential mode caps nested parallel_for
+// (mirroring the existing for_each_index pattern).  The free function
+// `chronon3d::scheduler::for_each_tile` (in for_each_tile.hpp) owns the
+// tile-coverage math + parallel_for_tracked telemetry recording.
+template <typename Fn>
+inline void ExecutionScheduler::for_each_tile(
+    const raster::BBox& bbox, scheduler::TileSize ts, Fn&& fn
+) {
+    m_arena.execute([&]() {
+        chronon3d::scheduler::for_each_tile(bbox, ts, std::forward<Fn>(fn));
     });
 }
 
