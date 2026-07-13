@@ -11,10 +11,11 @@
 
 namespace chronon3d {
     struct RenderCounters;
-    namespace cache { class FramebufferPool; }
 }
 
 namespace chronon3d::graph {
+using FramebufferPool = ::chronon3d::cache::FramebufferPool;
+
 struct CompiledFrameGraph;  // Forward declaration — the live identity
                             // for each compiled node is read from this
                             // so we can populate ctx.node_exec.current_identity.
@@ -42,7 +43,7 @@ void execute_levels(
     const std::vector<std::vector<GraphNodeId>>& levels,
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
     RenderCounters* parent_counters,
-    cache::FramebufferPool* parent_pool,
+    FramebufferPool* parent_pool,
     std::pmr::memory_resource* res,
     const CompiledFrameGraph& compiled
 );

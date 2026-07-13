@@ -15,6 +15,8 @@ namespace chronon3d {
 }
 
 namespace chronon3d::graph {
+using ::chronon3d::cache::FramebufferPool;
+using ::chronon3d::cache::NodeCacheKey;
 
 // ── contains_index helper ───────────────────────────────────────────
 
@@ -56,7 +58,7 @@ struct PreResolvedNode {
 
 struct CacheEvalResult {
     CachedFB result;
-    cache::NodeCacheKey key;
+    NodeCacheKey key;
     std::string cache_status;
     bool node_frame_dependent = false;
     bool use_cache = false;

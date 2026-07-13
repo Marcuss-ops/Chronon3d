@@ -28,6 +28,7 @@ namespace chronon3d {
 }
 
 namespace chronon3d::graph {
+using FramebufferPool = ::chronon3d::cache::FramebufferPool;
 
 struct ExecutionState;
 struct PreResolvedNode;
@@ -41,7 +42,7 @@ void execute_single_node(
     GraphNodeId id,
     size_t level_index,
     RenderCounters* parent_counters,
-    cache::FramebufferPool* parent_pool,
+    FramebufferPool* parent_pool,
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
     double* out_cache_ms,
     double* out_dirty_ms,

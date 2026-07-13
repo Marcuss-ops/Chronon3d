@@ -23,10 +23,10 @@ double run_node(
     std::span<const FramebufferRef> inputs,
     std::span<const std::optional<raster::BBox>> input_bboxes,
     bool use_cache,
-    const cache::NodeCacheKey& key,
+    const NodeCacheKey& key,
     CachedFB& result,
     const RenderGraphContext& ctx,
-    cache::FramebufferPool* parent_pool
+    FramebufferPool* parent_pool
 ) {
     if (result) {
         return 0.001;
@@ -109,7 +109,7 @@ void execute_single_node(
     GraphNodeId id,
     size_t level_index,
     RenderCounters* parent_counters,
-    cache::FramebufferPool* parent_pool,
+    FramebufferPool* parent_pool,
     std::pmr::vector<std::atomic_size_t>& consumer_remaining,
     double* out_cache_ms,
     double* out_dirty_ms,

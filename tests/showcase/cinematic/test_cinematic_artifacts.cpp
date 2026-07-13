@@ -43,19 +43,15 @@
 #include <utility>
 #include <vector>
 
-#ifdef DOCTEST_VERSION_MAJOR
-#  if DOCTEST_VERSION_MAJOR > 2 \
-   || (DOCTEST_VERSION_MAJOR == 2 && DOCTEST_VERSION_MINOR >= 3)
-#    define AGENT4_HAS_DOCTEST_SKIP 1
-#  else
-#    define AGENT4_HAS_DOCTEST_SKIP 0
-#  endif
-#else
-#  define AGENT4_HAS_DOCTEST_SKIP 1  // modern doctest upstream expected.
-#endif
+// DOCTEST_SKIP is not available in the vcpkg-port doctest 2.5.0.
+// Use the `return;` early-exit fallback unconditionally.
+#define AGENT4_HAS_DOCTEST_SKIP 0
 
+using namespace chronon3d;
 using namespace chronon3d::testing::cinematic;
 using namespace chronon3d::testing::cinematic_cfg;
+using chronon3d::test::make_renderer;
+using namespace chronon3d::content::anims;
 
 // ─────────────────────────────────────────────────────────────────────
 //  A4.5 — Contact sheet (FULL mode only).  DOCTEST_SKIP in smoke so no

@@ -31,7 +31,10 @@
 // sub-directory survived).
 #include "content/showcases/cinematic/cinematic_text_camera.hpp"
 
+using namespace chronon3d;
 using namespace chronon3d::testing::cinematic;
+using chronon3d::test::make_renderer;
+using namespace chronon3d::content::anims;
 
 // ─────────────────────────────────────────────────────────────────────
 //  A4.1 — Every key frame is non-empty: visible ink + valid alpha + no NaN.
