@@ -44,7 +44,7 @@ RenderLoopOutput run_pipe_export_loop(
         .start = start,
         .end = end,
         .opts = opts,
-        .sw_renderer = session.sw_renderer,
+        .sw_renderer = session.renderer.get(),
         .queue = session.queue,
         .writer_failed = session.writer_failed,
         .triple_arena = *session.triple_arena,
@@ -55,9 +55,8 @@ RenderLoopOutput run_pipe_export_loop(
 
     const auto render_t1 = profiling::now();
 
-    // Close the queue to unblock the writer, then signal done and join.
+    // Close the queue to unblock the writer, then join.
     session.queue.close();
-    session.writer_done.store(true);
     if (session.writer_thread.joinable()) {
         session.writer_thread.join();
     }
@@ -70,8 +69,8 @@ RenderLoopOutput run_pipe_export_loop(
     // Release pool framebuffers after render — reduces peak memory
     // from ~900 MB to ~400 MB for VPS-friendly operation.
     // The pool will reallocate on the next render if needed.
-    if (session.sw_renderer && session.sw_renderer->framebuffer_pool()) {
-        session.sw_renderer->framebuffer_pool()->clear();
+    if (session.renderer && session.renderer->framebuffer_pool()) {
+        session.renderer->framebuffer_pool()->clear();
         spdlog::info("[video] Released framebuffer pool — memory trimmed");
     }
 

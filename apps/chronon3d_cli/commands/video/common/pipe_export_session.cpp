@@ -208,7 +208,6 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             }
 
             ++status.frames_enqueued;
-            ++status.frames_written;
 
             // Real cache-hit signal: fast-path reuse or at least one NodeCache hit.
             const auto node_cache_hits_after = ctx.node_cache.stats().hits;
