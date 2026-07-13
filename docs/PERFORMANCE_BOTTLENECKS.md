@@ -540,3 +540,5 @@ Pushare insieme al branch locale, poi procedere con il populate step
 | `apps/chronon3d_cli/utils/job/render_job_execute.cpp` | Render loop — double-buffering candidato |
 | `apps/chronon3d_cli/utils/job/render_job_write_frame.cpp` | Frame write — conversione + pipe |
 | `include/chronon3d/render_graph/nodes/clear_node.hpp` | ClearNode — COW logic |
+| `configs/benchmark_machines.yaml` | Reference CPU classes for performance certification |
+| `tools/benchmark_host_info.sh` | Host attribute collector for benchmark reports |
