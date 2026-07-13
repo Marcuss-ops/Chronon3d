@@ -17,7 +17,7 @@
 #include <chronon3d/assets/asset_resolver.hpp>
 
 #include "content/common/background_helpers.hpp"
-#include "content/common/text_reveal_helpers.hpp"
+#include "content/common/text/typewriter_block.hpp"
 
 #include <filesystem>
 
