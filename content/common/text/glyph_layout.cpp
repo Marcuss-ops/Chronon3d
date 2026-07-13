@@ -132,11 +132,24 @@ f32 ShapedGlyphLine::width() const noexcept {
     return m_run->width + m_tracking * static_cast<f32>(n > 1 ? n - 1 : 0);
 }
 
-// Build per-glyph cluster spans in O(n) using a next-greater-element stack
-// over HarfBuzz cluster values.  The legacy O(n²) inner scan found, for
-// each glyph, the first glyph (by index) whose cluster value is strictly
-// greater.  The stack-based next-greater-element algorithm computes the
-// same "first by index" result in a single right-to-left pass.
+// Build per-glyph cluster spans in O(text_size) by finding, for each glyph,
+// the leftmost glyph (by index) whose cluster value is strictly greater.
+// The legacy O(n²) inner scan iterated j = 0..n-1 and took the cluster value
+// of the first glyph with cluster > start.  That leftmost-greater semantics
+// is direction-agnostic (it is NOT the same as next-greater-to-the-right),
+// so a single monotonic stack is insufficient for RTL runs where clusters
+// decrease along visual order.
+//
+// Algorithm:
+//   1. first_index[c] = smallest index j with glyphs[j].cluster == c.
+//   2. Scan cluster values from max_cluster down to 0, maintaining the
+//      cluster value whose first_index is smallest — that is the cluster
+//      value of the leftmost glyph strictly greater than the current value.
+//   3. For each glyph, end = leftmost_greater[glyphs[i].cluster].
+//
+// The scan is O(max_cluster) and max_cluster <= text.size(), so the whole
+// build is O(text_size) = O(n) for UTF-8 where text bytes are bounded by
+// a constant multiple of glyph count.
 /*static*/ std::vector<GlyphClusterSpan> GlyphClusterSpan::build(
     const std::vector<GlyphPosition>& glyphs,
     std::string_view text,
@@ -146,24 +159,42 @@ f32 ShapedGlyphLine::width() const noexcept {
     std::vector<GlyphClusterSpan> spans;
     spans.reserve(n);
 
-    // next_greater[i] = smallest j > i with glyphs[j].cluster > glyphs[i].cluster,
-    // or n if no such glyph exists.
-    std::vector<size_t> next_greater(n, n);
-    std::vector<size_t> stack;
-    stack.reserve(n);
-    for (size_t i = n; i-- > 0; ) {
-        while (!stack.empty()
-               && glyphs[stack.back()].cluster <= glyphs[i].cluster) {
-            stack.pop_back();
+    if (n == 0) return spans;
+
+    size_t max_cluster = 0;
+    for (const auto& g : glyphs) {
+        if (g.cluster > max_cluster) max_cluster = g.cluster;
+    }
+
+    constexpr size_t kNoIndex = std::numeric_limits<size_t>::max();
+    constexpr size_t kNoGreater = std::numeric_limits<size_t>::max();
+
+    // first_index[c] = smallest glyph index with cluster == c, or kNoIndex.
+    std::vector<size_t> first_index(max_cluster + 1, kNoIndex);
+    for (size_t i = 0; i < n; ++i) {
+        const size_t c = glyphs[i].cluster;
+        if (c <= max_cluster && first_index[c] == kNoIndex) {
+            first_index[c] = i;
         }
-        next_greater[i] = stack.empty() ? n : stack.back();
-        stack.push_back(i);
+    }
+
+    // leftmost_greater[c] = cluster value of the leftmost glyph with
+    // cluster > c, or kNoGreater if none exists.
+    std::vector<size_t> leftmost_greater(max_cluster + 1, kNoGreater);
+    size_t min_first_index = kNoIndex;
+    size_t min_first_cluster = kNoGreater;
+    for (size_t c = max_cluster + 1; c-- > 0; ) {
+        leftmost_greater[c] = min_first_cluster;
+        if (first_index[c] < min_first_index) {
+            min_first_index = first_index[c];
+            min_first_cluster = c;
+        }
     }
 
     for (size_t i = 0; i < n; ++i) {
         const size_t start = glyphs[i].cluster;
-        const size_t end = (next_greater[i] < n)
-                               ? static_cast<size_t>(glyphs[next_greater[i]].cluster)
+        const size_t end = (start <= max_cluster && leftmost_greater[start] != kNoGreater)
+                               ? leftmost_greater[start]
                                : text.size();
         spans.push_back({i, i + 1, start, end - start,
                          glyphs[i].advance_x + tracking});
