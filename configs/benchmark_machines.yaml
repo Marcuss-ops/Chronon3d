@@ -1,0 +1,98 @@
+# configs/benchmark_machines.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Benchmark reference machines — canonical CPU classes for Chronon3D
+# performance certification.
+#
+# This file is the SINGLE SOURCE OF TRUTH for:
+#   - the three canonical benchmark host classes (CPU-Low / CPU-Mid / CPU-High)
+#   - the minimum hardware, OS, compiler and CMake preset used for each class
+#   - the thread budget and thermal/governor assumptions used by the
+#     regression gates and the competitor matrix.
+#
+# Per AGENTS.md v0.1 Cat-3 (zero new public SDK API surface):
+#   the machine definitions are config-only; no new public header or CLI
+#   argument is introduced.  tools/benchmark_host_info.sh reads this file
+#   to classify the current host and emit a YAML/JSON host attribs record.
+#
+# Per AGENTS.md v0.1 §honesty ("non inventare"):
+#   the values below are REFERENCE SPECIFICATIONS, not live measurements.
+#   A concrete host may differ; the runner MUST record the actual values
+#   in the benchmark report (see docs/schemas/chronon3d.bench.v3.schema.json).
+# ─────────────────────────────────────────────────────────────────────────
+
+schema_version: "benchmark_machines_v1"
+
+# ── Common assumptions for every reference run ─────────────────────────
+common:
+  # Thermal guard: stop or throttle if any core exceeds this temperature (°C).
+  target_temperature_c: 80
+
+  # Warm-up policy before measurement.
+  warmup:
+    frames: 10
+    discard_first_frame: true
+
+  # Resolutions tested for each scene.
+  resolutions:
+    - { width: 1920, height: 1080, label: "1080p" }
+    - { width: 3840, height: 2160, label: "4K" }
+
+  # Frame rates tested for each scene.
+  frame_rates: [30, 60]
+
+# ── Reference machine classes ──────────────────────────────────────────
+machines:
+  - id: cpu-low
+    label: "CPU-Low"
+    description: "4–6 core VPS economical — represents entry-level cloud compute."
+    cpu:
+      model: "Intel Xeon / AMD EPYC (entry-level VPS)"
+      physical_cores: 4
+      logical_cores: 4
+    ram_gb: 8
+    os: "Ubuntu 22.04 LTS (or equivalent Linux)"
+    kernel: "5.15+"
+    compiler: "Clang 16 / GCC 13"
+    cmake_preset: "linux-fast-dev"
+    cpu_governor: "performance"
+    operating_temperature_c: 70
+    notes: "Use for cost-per-minute and CPU-Low competitor matrix row."
+
+  - id: cpu-mid
+    label: "CPU-Mid"
+    description: "8–16 core desktop/server common — represents typical developer workstation."
+    cpu:
+      model: "Intel Core i7/i9 or AMD Ryzen 7/9"
+      physical_cores: 8
+      logical_cores: 16
+    ram_gb: 32
+    os: "Ubuntu 22.04 LTS / Fedora 39"
+    kernel: "6.2+"
+    compiler: "Clang 16 / GCC 13"
+    cmake_preset: "linux-fast-dev"
+    cpu_governor: "performance"
+    operating_temperature_c: 75
+    notes: "Primary reference machine for regression gates and public reports."
+
+  - id: cpu-high
+    label: "CPU-High"
+    description: "32–64 core server batch — represents high-throughput batch rendering."
+    cpu:
+      model: "AMD EPYC / Intel Xeon Scalable"
+      physical_cores: 32
+      logical_cores: 64
+    ram_gb: 128
+    os: "Ubuntu 22.04 LTS"
+    kernel: "6.5+"
+    compiler: "Clang 16 / GCC 13"
+    cmake_preset: "linux-fast-dev-release"
+    cpu_governor: "performance"
+    operating_temperature_c: 80
+    notes: "Use for scaling ceiling and NUMA-aware scheduler validation."
+
+# Thread counts are per-class: each entry must be <= logical_cores and
+# should include 1, logical_cores, and a few intermediate points.
+thread_counts:
+  cpu-low:  [1, 2, 4]
+  cpu-mid:  [1, 2, 4, 8, 16]
+  cpu-high: [1, 4, 8, 16, 32, 64]
