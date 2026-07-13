@@ -52,7 +52,12 @@ fi
 
 # ── Configure + Build ─────────────────────────────────────────────────────────
 # vcpkg.json drives dependency installation automatically.
-PRESET="${CHRONON_PRESET:-linux-release}"
+# Azione 21 — `linux-release` was NOT registered in CMakePresets.json, causing
+# `cmake --preset linux-release` to fail with "preset not found".  Switch the
+# default to `linux-release-validation` (defined in cmake/presets/release.json
+# as the canonical release-validation preset, also referenced by
+# tools/verify_*_linux.sh gates).
+PRESET="${CHRONON_PRESET:-linux-release-validation}"
 cmake --preset "$PRESET"
 cmake --build "build/chronon/$PRESET" -j"${CHRONON_JOBS:-$(nproc)}"
 
