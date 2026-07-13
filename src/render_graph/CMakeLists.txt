@@ -126,6 +126,7 @@ add_library(chronon3d_graph_executor OBJECT
     executor/node_runner.cpp
     executor/text_bbox_reconcile.cpp   # P0 #1 — extracted post-render alpha_bbox reconciliation helper (replaces duplicate TU-local scan in node_runner.cpp + closes static-bool race)
     executor/node_skip_policy.cpp      # P1 step 1/3 — unified commit_transparent_skip (replaces 2 duplicate 64×10 transparent skip blocks in node_runner.cpp; SkipReason enum drives the Clear-name branch)
+    executor/level_timings.cpp          # P1 refactor — per-level metrics accumulator + roll_up() helper (replaces 7-vector declaration + 60-line if-block in executor_levels.cpp; forward-declared RenderCounters, src-local header)
     executor/executor_levels.cpp
     executor/framebuffer_lifetime.cpp
     # ── TICKET-009 close-out (post-RenderGraphContext OBJECT-lift) —

@@ -2,6 +2,7 @@
 
 #include "framebuffer_lifetime.hpp"
 #include "input_resolver.hpp"
+#include "level_timings.hpp"
 #include "node_runner.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
@@ -48,13 +49,13 @@ void execute_levels(
 
         const auto t_schedule1 = profiling::now();
 
-        std::vector<double> level_cache_ms(level.size(), 0.0);
-        std::vector<double> level_dirty_ms(level.size(), 0.0);
-        std::vector<double> level_telemetry_ms(level.size(), 0.0);
-        std::vector<double> level_execute_ms(level.size(), 0.0);
-        std::vector<double> level_pred_bbox_ms(level.size(), 0.0);
-        std::vector<double> level_clone_ctx_ms(level.size(), 0.0);
-        std::vector<double> level_state_ms(level.size(), 0.0);
+        // P1 — replaced the 7 parallel per-node accumulator vectors with
+        // a single `LevelTimings` struct instance.  The struct's `resize(n)`
+        // zero-inits all 7 internal vectors; execute_single_node() writes
+        // per-node ms values through `&timings.<field>[level_index]` exactly
+        // as it did through `&level_*_ms[level_index]`.
+        LevelTimings timings;
+        timings.resize(level.size());
 
         // ── PR-B: thread-pool authority === scheduler ────────────────────
         // The previous direct `tbb::parallel_for` call is replaced by
@@ -139,13 +140,13 @@ void execute_levels(
                     parent_counters,
                     parent_pool,
                     consumer_remaining,
-                    &level_cache_ms[level_index],
-                    &level_dirty_ms[level_index],
-                    &level_telemetry_ms[level_index],
-                    &level_execute_ms[level_index],
-                    &level_pred_bbox_ms[level_index],
-                    &level_clone_ctx_ms[level_index],
-                    &level_state_ms[level_index],
+                    &timings.cache[level_index],
+                    &timings.dirty[level_index],
+                    &timings.telemetry[level_index],
+                    &timings.execute[level_index],
+                    &timings.predicted_bbox[level_index],
+                    &timings.clone_context[level_index],
+                    &timings.state[level_index],
                     compiled
                 );
 
@@ -177,13 +178,13 @@ void execute_levels(
                     parent_counters,
                     parent_pool,
                     consumer_remaining,
-                    &level_cache_ms[level_index],
-                    &level_dirty_ms[level_index],
-                    &level_telemetry_ms[level_index],
-                    &level_execute_ms[level_index],
-                    &level_pred_bbox_ms[level_index],
-                    &level_clone_ctx_ms[level_index],
-                    &level_state_ms[level_index],
+                    &timings.cache[level_index],
+                    &timings.dirty[level_index],
+                    &timings.telemetry[level_index],
+                    &timings.execute[level_index],
+                    &timings.predicted_bbox[level_index],
+                    &timings.clone_context[level_index],
+                    &timings.state[level_index],
                     compiled
                 );
             }
@@ -201,60 +202,18 @@ void execute_levels(
         release_consumed_framebuffers(state, graph, level, consumer_remaining);
         const auto t_fb1 = profiling::now();
 
+        // P1 — the 60-line pre-P1 if-block (sum-of-vectors + overhead derive +
+        // 12 fetch_add) is absorbed into LevelTimings::roll_up(); the caller
+        // is responsible for the null-check on `parent_counters` (executor
+        // runs counter-less for non-telemetry callers — same as pre-P1).
         if (parent_counters) {
-            double cache_sum = 0.0, dirty_sum = 0.0, telemetry_sum = 0.0, execute_sum = 0.0;
-            double pred_bbox_sum = 0.0, clone_ctx_sum = 0.0, state_sum = 0.0;
-            for (size_t i = 0; i < level.size(); ++i) {
-                cache_sum += level_cache_ms[i];
-                dirty_sum += level_dirty_ms[i];
-                telemetry_sum += level_telemetry_ms[i];
-                execute_sum += level_execute_ms[i];
-                pred_bbox_sum += level_pred_bbox_ms[i];
-                clone_ctx_sum += level_clone_ctx_ms[i];
-                state_sum += level_state_ms[i];
-            }
-
-            const double dispatch_ms = profiling::duration_ms(t_schedule1, t_dispatch1);
-            double overhead_ms = dispatch_ms - execute_sum - cache_sum - dirty_sum - telemetry_sum
-                                 - pred_bbox_sum - clone_ctx_sum - state_sum;
-            if (overhead_ms < 0.0) overhead_ms = 0.0;
-
-            parent_counters->input_resolve_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(profiling::duration_ms(t_input0, t_input1))),
-                std::memory_order_relaxed);
-            parent_counters->node_schedule_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(profiling::duration_ms(t_schedule0, t_schedule1))),
-                std::memory_order_relaxed);
-            parent_counters->node_dispatch_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(dispatch_ms)),
-                std::memory_order_relaxed);
-            parent_counters->framebuffer_lifetime_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(profiling::duration_ms(t_fb0, t_fb1))),
-                std::memory_order_relaxed);
-            parent_counters->cache_eval_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(cache_sum)),
-                std::memory_order_relaxed);
-            parent_counters->dirty_eval_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(dirty_sum)),
-                std::memory_order_relaxed);
-            parent_counters->telemetry_emit_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(telemetry_sum)),
-                std::memory_order_relaxed);
-            parent_counters->node_execute_actual_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(execute_sum)),
-                std::memory_order_relaxed);
-            parent_counters->predicted_bbox_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(pred_bbox_sum)),
-                std::memory_order_relaxed);
-            parent_counters->clone_context_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(clone_ctx_sum)),
-                std::memory_order_relaxed);
-            parent_counters->state_assign_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(state_sum)),
-                std::memory_order_relaxed);
-            parent_counters->node_overhead_ms.fetch_add(
-                static_cast<uint64_t>(std::llround(overhead_ms)),
-                std::memory_order_relaxed);
+            timings.roll_up(
+                *parent_counters,
+                /* dispatch_ms    */ profiling::duration_ms(t_schedule1, t_dispatch1),
+                /* input_ms       */ profiling::duration_ms(t_input0, t_input1),
+                /* schedule_ms    */ profiling::duration_ms(t_schedule0, t_schedule1),
+                /* framebuffer_ms */ profiling::duration_ms(t_fb0, t_fb1)
+            );
         }
     }
 }
