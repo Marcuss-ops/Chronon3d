@@ -55,8 +55,7 @@ namespace {
 // the original block live in deep_parallax_cascade / whip_pan_ /
 // orbit_ / rack_focus / and are not needed here).
 using chronon3d::content::text_reveal::font_bold;
-using chronon3d::content::text_reveal::measure_text_width;
-using chronon3d::content::text_reveal::layout_glyphs;
+using chronon3d::content::text_reveal::ShapedGlyphLine;
 
 } // anonymous namespace
 
@@ -102,9 +101,10 @@ Composition abyss_freefall_stagger() {
         const std::string phrase = "LET  FALL";
         const f32 fs = 220.0f;
         auto spec = font_bold();
-        f32 w = measure_text_width(phrase, fs, spec, 4.0f, *ctx.font_engine);
+        ShapedGlyphLine line(phrase, fs, spec, 4.0f, 0.0f, *ctx.font_engine);
+        f32 w = line.width();
         f32 ref_x = -w * 0.5f;
-        auto chars = layout_glyphs(phrase, fs, spec, 4.0f, ref_x, *ctx.font_engine);
+        auto chars = line.layout();
         for (size_t i = 0; i < chars.size(); ++i) {
             if (chars[i].ch == " ") continue;
             const f32 delay = 8.0f + static_cast<f32>(i) * 6.0f;

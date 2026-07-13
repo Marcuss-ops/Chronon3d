@@ -23,9 +23,9 @@ void build_2line_typewriter(SceneBuilder& s,
                              Color text_color,
                              Color shadow_color) {
     auto spec = font_regular();
-    f32 w1 = measure_text_width(line1, size1, spec, tracking, *s.font_engine());
-    f32 w2 = measure_text_width(line2, size2, spec, tracking, *s.font_engine());
-    f32 max_w = std::max(w1, w2);
+    ShapedGlyphLine shaped1(line1, size1, spec, tracking, 0.0f, *s.font_engine());
+    ShapedGlyphLine shaped2(line2, size2, spec, tracking, 0.0f, *s.font_engine());
+    f32 max_w = std::max(shaped1.width(), shaped2.width());
     f32 ref_x = -max_w * 0.5f;
 
     auto d1 = TextRevealDescriptor{

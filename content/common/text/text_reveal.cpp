@@ -28,8 +28,9 @@ void build_text_reveal_line(SceneBuilder& s, const TextRevealDescriptor& d) {
             // truncate text to 60 chars (intentional, no ellipsis — keeps log lines bounded)
             "Text: '" + d.text.substr(0, 60) + "'");
     }
-    auto chars = layout_glyphs(d.text, d.font_size, d.font_spec,
-                               d.tracking, d.ref_offset_x, *engine);
+    ShapedGlyphLine line(d.text, d.font_size, d.font_spec,
+                         d.tracking, d.ref_offset_x, *engine);
+    auto chars = line.layout();
 
     for (size_t i = 0; i < chars.size(); ++i) {
         const auto& gc = chars[i];
