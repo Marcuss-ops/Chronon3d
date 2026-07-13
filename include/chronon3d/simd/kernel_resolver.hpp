@@ -26,6 +26,7 @@
 
 #include <chronon3d/simd/cpu_isa.hpp>
 #include <chronon3d/simd/pixel_kernels.hpp>
+#include <chronon3d/simd/detail/scalar_kernels.hpp>
 
 #if defined(__AVX2__)
 // F5.2 (TICKET-SIMD-VECTORIZE-KERNEL-SET-V1) first-kernel: AVX2

@@ -45,11 +45,11 @@ TEST_CASE("FusedPixelProgram: PixelOperation ctors populate payload") {
         1, 0, 0, 0,
         0, 1, 0, 0,
         0, 0, 1, 0,
-        0, 0, 0, 1,
     });
     CHECK(cm.kind == cg::PixelOperation::Kind::ColorMatrix);
     CHECK(cm.params[0] == doctest::Approx(1.0f));
-    CHECK(cm.params[15 % 12] == doctest::Approx(1.0f));
+    CHECK(cm.params[5] == doctest::Approx(1.0f));
+    CHECK(cm.params[10] == doctest::Approx(1.0f));
 
     cg::PixelOperation op = cg::PixelOperation::opacity(0.5f);
     CHECK(op.kind == cg::PixelOperation::Kind::Opacity);
