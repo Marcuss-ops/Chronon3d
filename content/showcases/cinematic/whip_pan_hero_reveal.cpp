@@ -145,7 +145,18 @@ Composition whip_pan_hero_reveal() {
                 pos.key(Frame{55}, Vec3{ 0.0f, 230.0f, 0.0f}, EasingCurve{Easing::OutCubic});
                 pos.key(Frame{68}, Vec3{ 0.0f, 200.0f, 0.0f}, EasingCurve{Easing::Linear});
             }
-            auto def = from_text_spec(TextSpec{.content    = {.value = "MOTION BY CAMERA"},.font       = {.font_size = 38.0f},.layout     = {.box = {1100.0f, 80.0f}, .line_height = 1.10f, .tracking = 12.0f},.appearance = {.color = {1.0f, 0.55f, 0.75f, 1.0f}},});
+            auto def = TextDefinition{
+    .content = {.value = "MOTION BY CAMERA"},
+    .style = {
+        .font = {.font_size = 38.0f},
+        .color = {1.0f, 0.55f, 0.75f, 1.0f}
+    },
+    .frame = {
+        .size = {1100.0f, 80.0f},
+        .line_height = 1.10f,
+        .tracking = 12.0f
+    }
+};
             l.text("subtitle_label", def);
         });
 

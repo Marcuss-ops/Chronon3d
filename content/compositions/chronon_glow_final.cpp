@@ -38,7 +38,7 @@
 // chronon3d::FrameContext — captured-by-value in the composition lambda.
 
 #include <chronon3d/scene/builders/builder_params.hpp>
-// TextSpec / TextRunSpec / TextPlacementKind::CanvasCenter /
+// TextDefinition / TextRunSpec / TextPlacementKind::CanvasCenter /
 // TextAlign / VerticalAlign / Vec2 / Vec3 / Color — used by the inner
 // scene composer (build_chronon_glow_scene below).
 
@@ -56,6 +56,7 @@
 // of the factory and the lambda return type used by composition(...).
 
 #include "content/common/text/cinematic_glow.hpp"
+#include <chronon3d/text/text_definition.hpp>
 // chronon3d::content::text_reveal::apply_cinematic_glow +
 // CinematicGlowPreset — invoked inside build_chronon_glow_scene's
 // `s.layer("hero", ...)` lambda when `props.glow_enabled`.
@@ -170,39 +171,28 @@ void build_chronon_glow_scene(
     const bool apply_breath = props.scale_breath;
 
     s.layer("hero", [&, opacity, scale, apply_breath](chronon3d::LayerBuilder& l) {
-        l.text_run("glow_pulse", chronon3d::TextRunSpec{
-            .text = chronon3d::TextSpec{
-                .content    = {.value = props.text},
-                // TICKET-CHRONON-GLOW-FINAL — Phase 3 SCALA:
-                // `CanvasCenter` makes the text resolver bake the box
-                // absolutely at the canvas centroid at compose time, so
-                // subsequent non-identity layer transforms (e.g.
-                // `l.scale(Vec3{0.96, 0.96, 1.0})` for the cinematic breath)
-                // scale the text AND glow uniformly around the canvas
-                // centroid without drifting it.  This is the idiomatic
-                // fix — `pin_to(Anchor::Center)` would mix layer-coord
-                // anchoring with text authoring and is rejected by
-                // Gate #25 in `tools/check_architecture_boundaries.sh`.
-                // Step 8 §B: scale_breath default is now `true` (Phase 3
-                // SCALA fix means the canvas-center bake ignores layer
-                // scale, so the breath is safe by default).
-                .placement  = chronon3d::TextPlacement{
-                    chronon3d::TextPlacementKind::CanvasCenter,
-                    {},
-                },
-                .font = {
+        l.animated_text("glow_pulse", chronon3d::TextRunSpec{
+            .text = chronon3d::TextDefinition{
+    .content = {.value = props.text},
+    .style = {
+        .font = {
                     .font_path   = "assets/fonts/Inter-Bold.ttf",
                     .font_family = "Inter",
                     .font_weight = 700,
                     .font_size   = layout.font_size,
                 },
-                .layout = {
-                    .box            = layout.box,
-                    .align          = chronon3d::TextAlign::Center,
-                    .vertical_align = chronon3d::VerticalAlign::Middle,
+        .color = chronon3d::Color::white()
+    },
+    .frame = {
+        .placement = chronon3d::TextPlacement{
+                    chronon3d::TextPlacementKind::CanvasCenter,
+                    {},
                 },
-                .appearance = {.color = chronon3d::Color::white()},
-            },
+        .size = layout.box,
+        .align = chronon3d::TextAlign::Center,
+        .vertical_align = chronon3d::VerticalAlign::Middle
+    }
+},
         }).commit();
         // Per-frame envelope: opacity always; scale gated by the
         // scale_breath flag (Phase 3 SCALA fix means non-identity scale

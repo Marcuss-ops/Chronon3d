@@ -136,7 +136,18 @@ void add_pedestal_cards(SceneBuilder& s) {
 // Helper: identical text label at a given depth with a chosen font size.
 // Each layer shows its own depth-tag so the test is legibly interpretable.
 auto text_label(const std::string& word, f32 font_size) {
-    return from_text_spec(TextSpec{.content    = {.value = word},.font       = {.font_size = font_size},.layout     = {.box = {1400.0f, 200.0f}, .line_height = 1.10f, .tracking = 6.0f},.appearance = {.color = {1.0f, 1.0f, 1.0f, 1.0f}},});
+    return TextDefinition{
+    .content = {.value = word},
+    .style = {
+        .font = {.font_size = font_size},
+        .color = {1.0f, 1.0f, 1.0f, 1.0f}
+    },
+    .frame = {
+        .size = {1400.0f, 200.0f},
+        .line_height = 1.10f,
+        .tracking = 6.0f
+    }
+};
 }
 
 void add_text_stack(SceneBuilder& s, const FrameContext& ctx) {
@@ -388,15 +399,39 @@ void add_hud(SceneBuilder& s, const FrameContext& ctx) {
     s.layer("hud_seg", [seg_name](LayerBuilder& l) {
         l.pin_to(chronon3d::Anchor::TopLeft, 24.0f);
         l.opacity(0.85f);
-        l.text("hud_label", chronon3d::TextSpec{.content    = {.value = std::string("AE-CAMERA PARITY  |  segment: ") + seg_name},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_family = "Inter", .font_weight = 700, .font_size = 22.0f},.layout     = {.box = {900.0f, 32.0f}, .align = chronon3d::TextAlign::Left,
-                            .line_height = 1.20f, .tracking = 3.0f},.appearance = {.color = chronon3d::Color{0.85f, 0.90f, 1.00f, 1.0f}},});
+        l.text("hud_label", chronon3d::TextDefinition{
+    .content = {.value = std::string("AE-CAMERA PARITY  |  segment: ") + seg_name},
+    .style = {
+        .font = {.font_family = "Inter", .font_weight = 700, .font_size = 22.0f},
+        .color = chronon3d::Color{0.85f, 0.90f, 1.00f, 1.0f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+        .size = {900.0f, 32.0f},
+        .align = chronon3d::TextAlign::Left,
+        .line_height = 1.20f,
+        .tracking = 3.0f
+    }
+});
     });
 
     s.layer("hud_frame", [f](LayerBuilder& l) {
         l.pin_to(chronon3d::Anchor::TopRight, 24.0f);
         l.opacity(0.65f);
-        l.text("hud_f", chronon3d::TextSpec{.content    = {.value = "frame=" + std::to_string(static_cast<int>(f))},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font       = {.font_family = "Inter", .font_weight = 600, .font_size = 18.0f},.layout     = {.box = {260.0f, 24.0f}, .align = chronon3d::TextAlign::Right,
-                            .line_height = 1.20f, .tracking = 2.0f},.appearance = {.color = chronon3d::Color{0.75f, 0.78f, 0.95f, 1.0f}},});
+        l.text("hud_f", chronon3d::TextDefinition{
+    .content = {.value = "frame=" + std::to_string(static_cast<int>(f))},
+    .style = {
+        .font = {.font_family = "Inter", .font_weight = 600, .font_size = 18.0f},
+        .color = chronon3d::Color{0.75f, 0.78f, 0.95f, 1.0f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+        .size = {260.0f, 24.0f},
+        .align = chronon3d::TextAlign::Right,
+        .line_height = 1.20f,
+        .tracking = 2.0f
+    }
+});
     });
 }
 

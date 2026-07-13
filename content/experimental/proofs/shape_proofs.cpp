@@ -2,6 +2,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/vector/path_factories.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/text/text_definition.hpp>
 
 
 namespace chronon3d::content::shapes {
@@ -84,13 +85,34 @@ Composition shape_proofs() {
             l.path("card_bg", cp);
 
             // Draw label text
-            l.text("lbl", TextSpec{.content = {.value = text},.placement = TextPlacement{TextPlacementKind::Absolute, {(get_label_pos(col, row) - get_cell_pos(col, row)).x, (get_label_pos(col, row) - get_cell_pos(col, row)).y}},.font = {.font_size = 11.0f},.layout = {.box = {card_w - 20.0f, 20.0f}, .align = TextAlign::Center},.appearance = {.color = {0.55f, 0.65f, 0.8f, 0.85f}},});
+            l.text("lbl", TextDefinition{
+    .content = {.value = text},
+    .style = {
+        .font = {.font_size = 11.0f},
+        .color = {0.55f, 0.65f, 0.8f, 0.85f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {(get_label_pos(col, row) - get_cell_pos(col, row)).x, (get_label_pos(col, row) - get_cell_pos(col, row)).y}},
+        .size = {card_w - 20.0f, 20.0f},
+        .align = TextAlign::Center
+    }
+});
         };
 
         // Title
         s.layer("title", [](auto& l) {
             l.pin_to(Anchor::TopCenter, 48.0f);
-            l.text("t", TextSpec{.content = {.value = "SHAPE / VECTOR SYSTEM PROOFS"},.font = {.font_size = 28.0f},.layout = {.box = {800.0f, 40.0f}, .align = TextAlign::Center},.appearance = {.color = {0.9f, 0.95f, 1.0f, 1.0f}},});
+            l.text("t", TextDefinition{
+    .content = {.value = "SHAPE / VECTOR SYSTEM PROOFS"},
+    .style = {
+        .font = {.font_size = 28.0f},
+        .color = {0.9f, 0.95f, 1.0f, 1.0f}
+    },
+    .frame = {
+        .size = {800.0f, 40.0f},
+        .align = TextAlign::Center
+    }
+});
         });
 
         // ── RIGA 1: Basic Shapes ──
@@ -359,7 +381,18 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {1, 1, 1, 1}, .width = 2.0f};
             l.path("shape", p);
             
-            l.text("t", TextSpec{.content = {.value = "NEWS"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -14.0f}},.font = {.font_size = 13.0f},.layout = {.box = {120.0f, 20.0f}, .align = TextAlign::Center},.appearance = {.color = {1,1,1,1}},});
+            l.text("t", TextDefinition{
+    .content = {.value = "NEWS"},
+    .style = {
+        .font = {.font_size = 13.0f},
+        .color = {1,1,1,1}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -14.0f}},
+        .size = {120.0f, 20.0f},
+        .align = TextAlign::Center
+    }
+});
         });
 
         // 4,1: Warning Badge
@@ -375,7 +408,18 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {0.1f, 0.1f, 0.1f, 1.0f}, .width = 3.5f, .join = LineJoin::Round};
             l.path("shape", p);
 
-            l.text("t", TextSpec{.content = {.value = "!"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -22.0f}},.font = {.font_size = 18.0f},.layout = {.box = {30.0f, 30.0f}, .align = TextAlign::Center},.appearance = {.color = {0,0,0,1}},});
+            l.text("t", TextDefinition{
+    .content = {.value = "!"},
+    .style = {
+        .font = {.font_size = 18.0f},
+        .color = {0,0,0,1}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -22.0f}},
+        .size = {30.0f, 30.0f},
+        .align = TextAlign::Center
+    }
+});
         });
 
         // 4,2: Number Badge
@@ -388,7 +432,18 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {0.95f, 0.35f, 0.1f, 1.0f}, .width = 3.0f};
             l.path("shape", p);
 
-            l.text("t", TextSpec{.content = {.value = "10"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -14.0f}},.font = {.font_size = 14.0f},.layout = {.box = {48.0f, 24.0f}, .align = TextAlign::Center},.appearance = {.color = {1,1,1,1}},});
+            l.text("t", TextDefinition{
+    .content = {.value = "10"},
+    .style = {
+        .font = {.font_size = 14.0f},
+        .color = {1,1,1,1}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -14.0f}},
+        .size = {48.0f, 24.0f},
+        .align = TextAlign::Center
+    }
+});
         });
 
         // 4,3: Star Badge
@@ -415,7 +470,18 @@ Composition shape_proofs() {
             p.stroke = PathStroke{.enabled = true, .color = {1, 1, 1, 1}, .width = 2.0f};
             l.path("shape", p);
 
-            l.text("t", TextSpec{.content = {.value = "SUBSCRIBE"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -13.0f}},.font = {.font_size = 10.0f},.layout = {.box = {110.0f, 20.0f}, .align = TextAlign::Center},.appearance = {.color = {1,1,1,1}},});
+            l.text("t", TextDefinition{
+    .content = {.value = "SUBSCRIBE"},
+    .style = {
+        .font = {.font_size = 10.0f},
+        .color = {1,1,1,1}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -13.0f}},
+        .size = {110.0f, 20.0f},
+        .align = TextAlign::Center
+    }
+});
         });
 
         // ── RIGA 6: Progress / Timeline ──

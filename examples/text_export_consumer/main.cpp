@@ -30,6 +30,7 @@
 
 #include <cstdio>
 #include <filesystem>
+#include <chronon3d/text/text_definition.hpp>
 
 namespace c3d = chronon3d;
 
@@ -63,12 +64,21 @@ int main() {
             // Title text — centered white text
             s.layer("title", [](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Text);
-                l.text("title", c3d::TextSpec{.content = {.value = "Hello, Chronon3D!"},.font = {.font_path = "fonts/Inter-Bold.ttf",
+                l.text("title", c3d::TextDefinition{
+    .content = {.value = "Hello, Chronon3D!"},
+    .style = {
+        .font = {.font_path = "fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
-                             .font_size = 72.0f},.layout = {.box = {1280.0f, 720.0f},
-                               .align = c3d::TextAlign::Center,
-                               .vertical_align = c3d::VerticalAlign::Middle},.appearance = {.color = c3d::Color::white()},});
+                             .font_size = 72.0f},
+        .color = c3d::Color::white()
+    },
+    .frame = {
+        .size = {1280.0f, 720.0f},
+        .align = c3d::TextAlign::Center,
+        .vertical_align = c3d::VerticalAlign::Middle
+    }
+});
             });
 
             return s.build();

@@ -36,7 +36,15 @@ Composition make_minimalist_comp(const char* name, const char* text,
                 l.pin_to(Anchor::Center);
                 setup(l);
                 l.glow(TextGlowPresets::ae_cinematic_white().to_glow_params());
-                l.text("phrase", from_text_spec(TextSpec{.content = {.value = text},.font    = {.font_size = font_size},.layout  = {.tracking = tracking},}));
+                l.text("phrase", TextDefinition{
+    .content = {.value = text},
+    .style = {
+        .font = {.font_size = font_size}
+    },
+    .frame = {
+        .tracking = tracking
+    }
+});
             });
             return s.build();
         });
@@ -58,7 +66,15 @@ Composition make_minimalist_comp_no_glow(const char* name, const char* text,
                 l.pin_to(Anchor::Center);
                 setup(l);
                 // NO glow — diagnostic variant for BUG 2 isolation
-                l.text("phrase", from_text_spec(TextSpec{.content = {.value = text},.font    = {.font_size = font_size},.layout  = {.tracking = tracking},}));
+                l.text("phrase", TextDefinition{
+    .content = {.value = text},
+    .style = {
+        .font = {.font_size = font_size}
+    },
+    .frame = {
+        .tracking = tracking
+    }
+});
             });
             return s.build();
         });

@@ -126,24 +126,28 @@ Composition cert_text() {
             backgrounds::add_common_background(
                 s, backgrounds::BackgroundStyles::Minimalist());
             s.layer("text_layer", [](LayerBuilder& l) {
-                l.text("cert_text", from_text_spec(TextSpec{
-                    .content = {.value = "RUNTIME CERT"},
-                    .placement = TextPlacement{TextPlacementKind::Absolute, {kCenterX, kCenterY}},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                l.text("cert_text", TextDefinition{
+    .content = {.value = "RUNTIME CERT"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
                              .font_size = 96.0f},
-                    .layout = {.box = {kShapeW, kShapeH},
-                               .anchor = TextAnchor::Center,
-                               .centering_mode = TextCenteringMode::PixelInk,
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle,
-                               .wrap = TextWrap::Word,
-                               .overflow = TextOverflow::Clip,
-                               .line_height = 0.95f,
-                               .max_lines = 1},
-                    .appearance = {.color = Color::white()},
-                }));
+        .color = Color::white()
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {kCenterX, kCenterY}},
+        .size = {kShapeW, kShapeH},
+        .anchor = TextAnchor::Center,
+        .centering_mode = TextCenteringMode::PixelInk,
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .wrap = TextWrap::Word,
+        .overflow = TextOverflow::Clip,
+        .line_height = 0.95f,
+        .max_lines = 1
+    }
+});
             });
             return s.build();
         });
@@ -192,24 +196,28 @@ Composition cert_composite() {
             });
             // Layer 4 (top): text overlay
             s.layer("text_overlay", [](LayerBuilder& l) {
-                l.text("cert_text", from_text_spec(TextSpec{
-                    .content = {.value = "COMPOSITE"},
-                    .placement = TextPlacement{TextPlacementKind::Absolute, {kCenterX, kCenterY}},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                l.text("cert_text", TextDefinition{
+    .content = {.value = "COMPOSITE"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_weight = 700,
                              .font_size = 72.0f},
-                    .layout = {.box = {kShapeW, kShapeH},
-                               .anchor = TextAnchor::Center,
-                               .centering_mode = TextCenteringMode::PixelInk,
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle,
-                               .wrap = TextWrap::Word,
-                               .overflow = TextOverflow::Clip,
-                               .line_height = 0.95f,
-                               .max_lines = 1},
-                    .appearance = {.color = Color{1.0f, 1.0f, 0.0f, 1.0f}},  // yellow on dark
-                }));
+        .color = Color{1.0f, 1.0f, 0.0f, 1.0f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {kCenterX, kCenterY}},
+        .size = {kShapeW, kShapeH},
+        .anchor = TextAnchor::Center,
+        .centering_mode = TextCenteringMode::PixelInk,
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .wrap = TextWrap::Word,
+        .overflow = TextOverflow::Clip,
+        .line_height = 0.95f,
+        .max_lines = 1
+    }
+});
             });
             return s.build();
         });
