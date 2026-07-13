@@ -490,6 +490,9 @@ NodeExecResult TextRunNode::execute(
         }
 
         items_drawn = dispatch.value().items_drawn;
+        if (dispatch.value().actual_ink_bbox) {
+            ctx.node_exec.actual_ink_bbox = *dispatch.value().actual_ink_bbox;
+        }
 
         // ── 5. Per-frame debug diagnostic (opt-in via ctx.policy.diagnostics_enabled). ──
         if (ctx.policy.diagnostics_enabled) {

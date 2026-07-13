@@ -256,6 +256,10 @@ NodeExecResult MultiSourceNode::execute(
                     }};
                 }
 
+                if (result.value().actual_ink_bbox) {
+                    ctx.node_exec.actual_ink_bbox = *result.value().actual_ink_bbox;
+                }
+
                 if (ctx.policy.diagnostics_enabled) {
                     spdlog::info(
                         "[AE_CAM] frame={} node='{}' item#{} world=({},{},{}) opacity={:.3f}",
