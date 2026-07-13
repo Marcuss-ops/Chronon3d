@@ -8,9 +8,11 @@
 #include "../../utils/common/cli_utils.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
 #include "../../utils/video/video_job_plan.hpp"
+#include <chronon3d/core/cpu_budget.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
 #include <chronon3d/scene/utils/dark_grid_background.hpp>
 #include <spdlog/spdlog.h>
+#include <thread>
 
 namespace chronon3d::cli {
 
@@ -93,8 +95,12 @@ int command_video_camera(const CompositionRegistry& registry,
     opts.sink.ffmpeg_mode       = "png";
     opts.pipe.ffmpeg_verbose    = false;
 
+    const chronon3d::CpuBudget cpu_budget = chronon3d::cpu_budget_from_environment(
+        static_cast<int>(std::thread::hardware_concurrency()));
+
     return render_and_encode_ffmpeg(registry, comp, comp.name(),
-                                    settings, args.start, cam_end, opts);
+                                    settings, args.start, cam_end, opts,
+                                    cpu_budget);
 }
 
 } // namespace chronon3d::cli
