@@ -178,9 +178,18 @@ add_library(chronon3d_cli_dev STATIC
     # direttamente" mandates.  The DEV register_dev_compositions.cpp (in
     # apps/chronon3d_cli/) is the canonical registration site for the
     # DEV-only compositions (PipelineParityCanary, AE_CAM_*, etc.).
+    # Azione 17 — AE_CAM_01..10 factory bodies RELOCATED from
+    #   tests/visual/ae_parity/ae_parity_scenes.cpp
+    # to
+    #   content/ae_parity/ae_cam_scenes.cpp
+    # (production-side namespace `chronon3d::content::ae_parity::ae_cam_scenes`,
+    #  DEV-only gating preserved via this source list).  tests/visual/ae_parity/
+    #  keeps only ae_parity_compositions.cpp (the 5 ae_08_glow_pulse / ae_10_scale_pop
+    #  / ae_12 / ae_14 / motion_blur_text floor-dashboard compositions) +
+    #  ae_parity_tests.cpp (golden / fixture / asserts, NOT a CLI consumer).
+    ${CMAKE_SOURCE_DIR}/content/ae_parity/ae_cam_scenes.cpp
     ${CMAKE_SOURCE_DIR}/tests/visual/camera_truth/camera_truth_test.cpp
     ${CMAKE_SOURCE_DIR}/tests/visual/camera_truth/camera_truth_orbit.cpp
-    ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_scenes.cpp
     ${CMAKE_SOURCE_DIR}/tests/visual/ae_parity/ae_parity_compositions.cpp
     ${CMAKE_SOURCE_DIR}/tests/visual/glow_ab/glow_ab_compositions.cpp
 )

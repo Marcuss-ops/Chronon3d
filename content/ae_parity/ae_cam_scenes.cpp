@@ -1,12 +1,17 @@
 // ==============================================================================
-// tests/visual/ae_parity/ae_parity_scenes.cpp
+// content/ae_parity/ae_cam_scenes.cpp
 //
-// 10 AE parity camera visual scene factories.
-// Each scene isolates one AE parity camera category for visual comparison
-// Chronon3D ↔ After Effects.
+// Azione 17 — implementations of the 10 AE_CAM_* factory functions
+// relocated from tests/visual/ae_parity/ae_parity_scenes.cpp on the
+// chore closure path.  Bodies are bit-identical to the original; only
+// the namespace changed (chronon3d::test → chronon3d::content::ae_parity::ae_cam_scenes).
+//
+// Two anonymous-namespace helpers (`add_grid_background` + `add_depth_card`)
+// travel with the factory bodies — they are exclusive intrinsics for
+// setting up the 3D scene cards used by every AE_CAM_NN factory.
 // ==============================================================================
 
-#include "ae_parity_scenes.hpp"
+#include "ae_cam_scenes.hpp"
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
@@ -16,7 +21,7 @@
 
 using namespace chronon3d;
 
-namespace chronon3d::test {
+namespace chronon3d::content::ae_parity::ae_cam_scenes {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // Helpers
@@ -532,4 +537,4 @@ Composition make_ae_cam_10_near_clip() {
     );
 }
 
-} // namespace chronon3d::test
+} // namespace chronon3d::content::ae_parity::ae_cam_scenes
