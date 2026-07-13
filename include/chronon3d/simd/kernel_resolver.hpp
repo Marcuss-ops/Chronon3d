@@ -27,6 +27,16 @@
 #include <chronon3d/simd/cpu_isa.hpp>
 #include <chronon3d/simd/pixel_kernels.hpp>
 
+#if defined(__AVX2__)
+// F5.2 (TICKET-SIMD-VECTORIZE-KERNEL-SET-V1) first-kernel: AVX2
+// premultiplied-alpha blend. The header-only inline pattern
+// matches `scalar_kernels.hpp`; `kAvx2Set` below references
+// `&detail::avx2_composite_normal_premul` directly. Future SIMD
+// per-ISA headers (SSE42 / NEON / AVX512) follow the same pattern
+// (forward-points b/h in the canonical ticket).
+#include <chronon3d/simd/detail/avx2_kernels.hpp>
+#endif
+
 namespace chronon3d {
 namespace simd {
 
@@ -55,6 +65,31 @@ inline constexpr PixelKernelSet kScalarSet = PixelKernelSet{
     ColorMatrixKernel{&detail::scalar_color_matrix},
 };
 
+#if defined(__AVX2__)
+// ── kAvx2Set — AVX2-bound PixelKernelSet (F5.2 first-kernel) ──────────
+//
+// `inline constexpr` `PixelKernelSet` bound to:
+//   - blend       → `&detail::avx2_composite_normal_premul` (AVX2)
+//   - blur        → `&detail::scalar_blur`                  (fallback, F5.2 forward-point c)
+//   - glow        → `&detail::scalar_glow`                  (fallback, forward-point d+e)
+//   - resample    → `&detail::scalar_resample`              (fallback, forward-point e)
+//   - color_matrix→ `&detail::scalar_color_matrix`          (fallback, forward-point e)
+//
+// ABI contract: AVX2 blend is bit-identical or within `kKernelEpsilon`
+// (1 ULP float32) per `pixel_kernels.hpp::kKernelEpsilon` SSoT. The
+// 4 fallback slots use the SAME scalar fn-pointers as `kScalarSet`,
+// guaranteeing bit-identical output (so the parity test
+// `tests/simd/test_simd_parity_blend.cpp` can detect AVX2-specific
+// divergences ONLY on the blend slot).
+inline constexpr PixelKernelSet kAvx2Set = PixelKernelSet{
+    BlurKernel{&detail::scalar_blur},
+    BlendKernel{&detail::avx2_composite_normal_premul},
+    GlowKernel{&detail::scalar_glow},
+    ResampleKernel{&detail::scalar_resample},
+    ColorMatrixKernel{&detail::scalar_color_matrix},
+};
+#endif // __AVX2__
+
 /// Resolve the canonical `PixelKernelSet` for the given CPU capabilities.
 ///
 /// SCAFFOLD BEHAVIOR (F5.1 commit): routes ALL `CpuIsa` requests to
@@ -78,9 +113,16 @@ inline constexpr PixelKernelSet kScalarSet = PixelKernelSet{
 ///
 /// Thread-safety: const-ref to immutable statics → global-lock-free.
 [[nodiscard]] inline const PixelKernelSet&
-resolve_pixel_kernels(const CpuCapabilities& /*target*/) noexcept {
-    // SCAFFOLD: unconditional Scalar route. Per-ISA switch landed by
-    // TICKET-SIMD-REGISTRY-IMPLEMENTATION §Step 1.
+resolve_pixel_kernels(const CpuCapabilities& target) noexcept {
+    // F5.2 (TICKET-SIMD-VECTORIZE-KERNEL-SET-V1) first-kernel: route
+    // AVX2-capable hosts to `kAvx2Set` (which has the AVX2 blend +
+    // scalar fallbacks for the other 4 slots). All non-AVX2 hosts
+    // route to `kScalarSet` (the always-available reference).
+    // Per-ISA expansion (SSE42 / AVX512 / NEON) lands in forward-point h
+    // (TICKET-SIMD-VECTORIZE-SSE42-NEON-V1).
+#if defined(__AVX2__)
+    if (target.has_avx2) return kAvx2Set;
+#endif
     return kScalarSet;
 }
 
