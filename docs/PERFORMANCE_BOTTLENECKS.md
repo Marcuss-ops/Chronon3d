@@ -500,6 +500,144 @@ dirty_eval_ms:  0
 
 ---
 
+## 🆕 F6.3 — Pipeline PGO + ThinLTO + BOLT (forward-point ADR per `-ffast-math`)
+
+> **Data commit**: 2026-07-13 (F6.3 first-commit, TICKET-BUILD-PGO-PIPELINE-V1)
+> **Presets landed** (`cmake/presets/optimizations.json`): `release-pgo`, `release-thinlto`, `release-pgo-thinlto`, `release-pgo-thinlto-bolt`
+> **Macchina-verifica end-to-end**: DEFERRED-WBH (this VPS lacks vcpkg glm/magic_enum + chronon3d_cli linkable per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` precedent)
+
+### Perché serve
+
+Il release pipeline V0.1 (`linux-release-validation` preset) usa build `Release` vanilla senza PGO / ThinLTO / BOLT. Le 3 ottimizzazioni sono road-map-lockate ma mai wirate per il release path:
+
+| Combinazione | Speedup atteso (Clang/LLVM tipici) | Note |
+|---|---:|---|
+| `release-pgo` (PGO solo) | **5-15%** hot-loop | richiede `.profdata` pre-collezionato via `tools/run_pgo_training.sh` (forward-point c) |
+| `release-thinlto` (ThinLTO solo) | **3-8%** cross-TU inlining | nessun profile richiesto |
+| `release-pgo-thinlto` (PGO + ThinLTO) | **8-20%** moltiplicativo | richiede `.profdata` + `-flto=thin` |
+| `release-pgo-thinlto-bolt` (PGO + ThinLTO + BOLT) | **12-25%** | richiede `.profdata` PGO + `.fdata` BOLT (raccolta via `perf record`) |
+
+### 3-step collection recipe (PGO + BOLT)
+
+```bash
+# STEP 1 — Build instrumented binary (PGO collect)
+cmake --preset release-linux-instrumented        # hidden helper, forward-point c
+cmake --build build/chronon/release-pgo --target chronon3d_cli -j$(nproc)
+
+# STEP 2 — Run training corpus on instrumented binary
+# (B00-B11 canonical corpus, NOT microbench — `examples/bench_corpus/run_corpus_v1.sh`)
+for scene in B0{0..9} B1{0..1}; do
+    CHRONON3D_THREADS=8 chronon3d_cli render Bench${scene}_* --frames 60 --output /tmp/pgo_train_${scene} || echo "scene ${scene} fail-loud tolerated per corpus run"
+done
+# Concat all .profraw accumulated under ~/.chronon3d/pgo/*.profraw
+llvm-profdata merge -output=build/chronon/release-pgo/merged.profdata ~/.chronon3d/pgo/*.profraw
+# BOLT profile (separate sampling): `perf record -e cycles:u ./chronon3d_cli bench B03_CinematicGlow1080p --frames 100`
+# then `perf2bolt -p perf.data -o build/chronon/release-pgo-thinlto-bolt/perf.fdata build/chronon/release-pgo/chronon3d_cli`
+
+# STEP 3 — Rebuild optimized binaries (PGO + ThinLTO + BOLT consume merged.profdata + perf.fdata)
+cmake --preset release-pgo-thinlto-bolt
+cmake --build build/chronon/release-pgo-thinlto-bolt --target bolt-postprocess -j$(nproc)
+```
+
+### `-ffast-math` prohibition + 5-condition determinism gate (forward-point ADR)
+
+Per user spec verbatim _"NON abilitare `-ffast-math` globalmente finché non provato che preserva determinismo + alpha + colori + golden + cross-CPU parity"_, i 4 preset **NON abilitano `-ffast-math`** (verify via `grep -nE '\-ffast-math|fast-math|ffp-contract' cmake/presets/optimizations.json CMakePresets.json cmake/bolt_postprocess.cmake` → atteso **0 matches**).
+
+Le 5 condition (vedi forward-point ADR b nel ticket):
+1. **determinismo** — `tests/text/test_pipeline_parity_real.cpp::BruteDeterm-17` 100-iteration self-reference PASS
+2. **alpha** — `tests/text/test_text_visibility_audit.cpp::alpha_bbox_scan` + `TextBboxReporter` per-session isolation PASS
+3. **colori** — golden PNGs `test_renders/golden/text/presets/` (5 file, Blend2D-gated) byte-identical
+4. **golden** — `tests/visual/camera_truth/` + `tests/visual/glow_ab/` + `tests/visual/ae_parity/` regression golden suite PASS
+5. **cross-CPU parity** — `configs/benchmark_machines.yaml::machines[]` matrix (cpu-low/cpu-mid/cpu-high) frame_p50 within ±5%
+
+### File Chiave (F6.3)
+
+| File | Ruolo |
+|---|---|
+| `cmake/presets/optimizations.json` | 4 configure + 4 build + 4 test presets + 1 hidden `__release-pgo-base` helper |
+| `cmake/bolt_postprocess.cmake` | Custom_target `bolt-postprocess` via `llvm-bolt <binary> -data <perf.fdata> -o <binary>.bolt -relocs` |
+| `docs/tickets/TICKET-BUILD-PGO-PIPELINE-V1.md` | Canonical ticket con 9 criteri accettazione + 8 forward-points (a-h) |
+| `CMakePresets.json` (1-riga EDIT) | `include` array aggiunto `"cmake/presets/optimizations.json"` tra i 7 sub-preset |
+
+### Training corpus — CORPUS REALE Chronon, non microbench
+
+Per user spec verbatim _"training corpus = corpus Chronon reale (B00-B11), non microbench"_, il corpus canonico è:
+- `examples/bench_corpus/corpus_v1.json` (12 scene B00-B11 con per-scene threads × resolutions × fps)
+- `configs/benchmarks/corpus/b{00..11}_*.yaml` (per-scene stress_target + expected_p50/p95 ceilings)
+- `examples/bench_corpus/run_corpus_v1.sh` (orchestrator)
+- `examples/bench_corpus/bench_corpus_scenes.cpp/hpp` (12 Composition factories registered via `register_bench_corpus_compositions` in `apps/chronon3d_cli/register_content_compositions.cpp`)
+
+**NON** usare `google/benchmark` framework loops (sono microbenchmark — useless per PGO collection perché non riflettono il call-graph reale del CLI).
+
+## 🆕 F6.3 — Pipeline PGO + ThinLTO + BOLT (forward-point ADR per `-ffast-math`)
+
+> **Data commit**: 2026-07-13 (F6.3 first-commit, TICKET-BUILD-PGO-PIPELINE-V1)
+> **Presets landed** (`cmake/presets/optimizations.json`): `release-pgo`, `release-thinlto`, `release-pgo-thinlto`, `release-pgo-thinlto-bolt`
+> **Macchina-verifica end-to-end**: DEFERRED-WBH (this VPS lacks vcpkg glm/magic_enum + chronon3d_cli linkable per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` precedent)
+
+### Perché serve
+
+Il release pipeline V0.1 (`linux-release-validation` preset) usa build `Release` vanilla senza PGO / ThinLTO / BOLT. Le 3 ottimizzazioni sono road-map-lockate ma mai wirate per il release path:
+
+| Combinazione | Speedup atteso (Clang/LLVM tipici) | Note |
+|---|---:|---|
+| `release-pgo` (PGO solo) | **5-15%** hot-loop | richiede `.profdata` pre-collezionato via `tools/run_pgo_training.sh` (forward-point c) |
+| `release-thinlto` (ThinLTO solo) | **3-8%** cross-TU inlining | nessun profile richiesto |
+| `release-pgo-thinlto` (PGO + ThinLTO) | **8-20%** moltiplicativo | richiede `.profdata` + `-flto=thin` |
+| `release-pgo-thinlto-bolt` (PGO + ThinLTO + BOLT) | **12-25%** | richiede `.profdata` PGO + `.fdata` BOLT (raccolta via `perf record`) |
+
+### 3-step collection recipe (PGO + BOLT)
+
+```bash
+# STEP 1 — Build instrumented binary (PGO collect)
+cmake --preset release-linux-instrumented        # hidden helper, forward-point c
+cmake --build build/chronon/release-pgo --target chronon3d_cli -j$(nproc)
+
+# STEP 2 — Run training corpus on instrumented binary
+# (B00-B11 canonical corpus, NOT microbench — `examples/bench_corpus/run_corpus_v1.sh`)
+for scene in B0{0..9} B1{0..1}; do
+    CHRONON3D_THREADS=8 chronon3d_cli render Bench${scene}_* --frames 60 --output /tmp/pgo_train_${scene} || echo "scene ${scene} fail-loud tolerated per corpus run"
+done
+# Concat all .profraw accumulated under ~/.chronon3d/pgo/*.profraw
+llvm-profdata merge -output=build/chronon/release-pgo/merged.profdata ~/.chronon3d/pgo/*.profraw
+# BOLT profile (separate sampling): `perf record -e cycles:u ./chronon3d_cli bench B03_CinematicGlow1080p --frames 100`
+# then `perf2bolt -p perf.data -o build/chronon/release-pgo-thinlto-bolt/perf.fdata build/chronon/release-pgo/chronon3d_cli`
+
+# STEP 3 — Rebuild optimized binaries (PGO + ThinLTO + BOLT consume merged.profdata + perf.fdata)
+cmake --preset release-pgo-thinlto-bolt
+cmake --build build/chronon/release-pgo-thinlto-bolt --target bolt-postprocess -j$(nproc)
+```
+
+### `-ffast-math` prohibition + 5-condition determinism gate (forward-point ADR)
+
+Per user spec verbatim _"NON abilitare `-ffast-math` globalmente finché non provato che preserva determinismo + alpha + colori + golden + cross-CPU parity"_, i 4 preset **NON abilitano `-ffast-math`** (verify via `grep -nE '\-ffast-math|fast-math|ffp-contract' cmake/presets/optimizations.json CMakePresets.json cmake/bolt_postprocess.cmake` → atteso **0 matches**).
+
+Le 5 condition (vedi forward-point ADR b nel ticket):
+1. **determinismo** — `tests/text/test_pipeline_parity_real.cpp::BruteDeterm-17` 100-iteration self-reference PASS
+2. **alpha** — `tests/text/test_text_visibility_audit.cpp::alpha_bbox_scan` + `TextBboxReporter` per-session isolation PASS
+3. **colori** — golden PNGs `test_renders/golden/text/presets/` (5 file, Blend2D-gated) byte-identical
+4. **golden** — `tests/visual/camera_truth/` + `tests/visual/glow_ab/` + `tests/visual/ae_parity/` regression golden suite PASS
+5. **cross-CPU parity** — `configs/benchmark_machines.yaml::machines[]` matrix (cpu-low/cpu-mid/cpu-high) frame_p50 within ±5%
+
+### File Chiave (F6.3)
+
+| File | Ruolo |
+|---|---|
+| `cmake/presets/optimizations.json` | 4 configure + 4 build + 4 test presets + 1 hidden `__release-pgo-base` helper |
+| `cmake/bolt_postprocess.cmake` | Custom_target `bolt-postprocess` via `llvm-bolt <binary> -data <perf.fdata> -o <binary>.bolt -relocs` |
+| `docs/tickets/TICKET-BUILD-PGO-PIPELINE-V1.md` | Canonical ticket con 9 criteri accettazione + 8 forward-points (a-h) |
+| `CMakePresets.json` (1-riga EDIT) | `include` array aggiunto `"cmake/presets/optimizations.json"` tra i 7 sub-preset |
+
+### Training corpus — CORPUS REALE Chronon, non microbench
+
+Per user spec verbatim _"training corpus = corpus Chronon reale (B00-B11), non microbench"_, il corpus canonico è:
+- `examples/bench_corpus/corpus_v1.json` (12 scene B00-B11 con per-scene threads × resolutions × fps)
+- `configs/benchmarks/corpus/b{00..11}_*.yaml` (per-scene stress_target + expected_p50/p95 ceilings)
+- `examples/bench_corpus/run_corpus_v1.sh` (orchestrator)
+- `examples/bench_corpus/bench_corpus_scenes.cpp/hpp` (12 Composition factories registered via `register_bench_corpus_compositions` in `apps/chronon3d_cli/register_content_compositions.cpp`)
+
+**NON** usare `google/benchmark` framework loops (sono microbenchmark — useless per PGO collection perché non riflettono il call-graph reale del CLI).
+
 ## ⚠️ Stato Working Tree (sessione corrente)
 
 > Flag non-codice: serve per agganciarsi al prossimo commit dell'utente, non
