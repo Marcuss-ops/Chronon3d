@@ -32,7 +32,8 @@ int render_and_encode_ffmpeg(
     const RenderSettings& settings,
     Frame start,
     Frame end,
-    const FfmpegExportOptions& opts)
+    const FfmpegExportOptions& opts,
+    const chronon3d::CpuBudget& cpu_budget)
 {
     // Safety-net validation for direct callers (e.g. command_video_camera)
     // that bypass validate_video_job().
@@ -62,13 +63,13 @@ int render_and_encode_ffmpeg(
     if (opts.sink.ffmpeg_mode == "pipe") {
         auto result = render_and_encode_ffmpeg_pipe(
             registry, comp, composition_id,
-            settings, start, end, opts);
+            settings, start, end, opts, cpu_budget);
         return result.return_code;
     }
     if (opts.sink.ffmpeg_mode == "png") {
         auto result = render_and_encode_ffmpeg_chunked(
             registry, comp, composition_id,
-            settings, start, end, opts);
+            settings, start, end, opts, cpu_budget);
         return result.return_code;
     }
 
@@ -102,7 +103,8 @@ int execute_video_job(const VideoJobPlan& plan) {
         plan.settings,
         plan.start,
         plan.end_exclusive,
-        opts);
+        opts,
+        plan.cpu_budget);
 }
 
 } // namespace chronon3d::cli

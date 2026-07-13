@@ -32,7 +32,7 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     std::optional<Config> config) {
     auto renderer = config.has_value()
         ? std::make_shared<SoftwareRenderer>(std::move(*config))
-        : std::make_shared<SoftwareRenderer>(Config{});
+        : std::make_shared<SoftwareRenderer>(Config::from_environment());
     renderer->set_composition_registry(&registry);
     renderer->set_settings(settings);
 

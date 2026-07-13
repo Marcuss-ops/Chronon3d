@@ -61,7 +61,16 @@ std::size_t Config::resolve_env_int(const char* env_name, std::size_t default_in
 // ── Factory ────────────────────────────────────────────────────────────────
 
 Config Config::from_environment() {
-    return Config{};
+    Config cfg;
+    cfg.set_cpu_budget(cpu_budget_from_environment(
+        static_cast<int>(std::thread::hardware_concurrency())));
+    return cfg;
+}
+
+Config Config::from_environment(const CpuBudget& budget) {
+    Config cfg;
+    cfg.set_cpu_budget(budget);
+    return cfg;
 }
 
 // ── Mutation path (non-static) ─────────────────────────────────────────────
@@ -168,30 +177,6 @@ Config::Config() {
     //  CacheConfig — policy
     // ═══════════════════════════════════════════════════════════════════
     cache_.disable_persistent_framebuffer_cache_ = env_bool("CHRONON_DISABLE_PERSISTENT_FB_CACHE");
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  CpuBudget
-    // ═══════════════════════════════════════════════════════════════════
-    cpu_budget_ = cpu_budget_from_environment(
-        static_cast<int>(std::thread::hardware_concurrency()));
-
-    // Legacy override: CHRONON3D_SCHEDULER_WORKERS sets the render pool.
-    {
-        const char* workers_env = std::getenv("CHRONON3D_SCHEDULER_WORKERS");
-        if (workers_env && *workers_env) {
-            const std::size_t len = std::strlen(workers_env);
-            int n = 0;
-            const auto [ptr, ec] = std::from_chars(workers_env, workers_env + len, n);
-            if (ec == std::errc{} && ptr == workers_env + len && n > 0) {
-                const int total = static_cast<int>(std::thread::hardware_concurrency());
-                cpu_budget_.render_threads = std::min(n, total);
-            } else {
-                spdlog::warn(
-                    "Invalid CHRONON3D_SCHEDULER_WORKERS='{}'; using CpuBudget render threads",
-                    workers_env);
-            }
-        }
-    }
 
     // ═══════════════════════════════════════════════════════════════════
     //  PathConfig

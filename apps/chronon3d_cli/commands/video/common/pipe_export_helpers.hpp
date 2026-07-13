@@ -2,6 +2,7 @@
 
 #include "video_export_common.hpp"
 
+#include <chronon3d/core/cpu_budget.hpp>
 #include <chronon3d/core/system_metrics.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/types/frame.hpp>
@@ -38,7 +39,8 @@ void mark_pipe_exception(PipeExportStatus& status, Frame frame, const std::excep
 [[nodiscard]] FfmpegPipeOptions make_pipe_options(
     const Composition& comp,
     const FfmpegExportOptions& opts,
-    const std::string& codec);
+    const std::string& codec,
+    const chronon3d::CpuBudget& cpu_budget);
 
 [[nodiscard]] bool ensure_output_directory_exists(const std::string& output_path);
 

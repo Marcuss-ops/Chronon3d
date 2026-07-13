@@ -71,7 +71,8 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
     const RenderSettings& settings,
     Frame start,
     Frame end,
-    const FfmpegExportOptions& opts);
+    const FfmpegExportOptions& opts,
+    const chronon3d::CpuBudget& cpu_budget);
 
 /// Canonical video-pipeline evaluate: threads the renderer's FontEngine
 /// into the composition evaluation so text shapes materialize correctly.

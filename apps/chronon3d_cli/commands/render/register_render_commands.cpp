@@ -72,6 +72,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->allow_windows_style_options();
     cmd->callback([state, &ctx]() {
         state->args->command_line = ctx.command_line;
+        state->args->cpu_budget = ctx.cpu_budget;
         // fb_pool_budget_mb is handled in plan_render_job() via Config::set_fb_pool_budget()
         if (state->args->output.empty()) {
             // Default output path: <project_root>/output/<comp_id_basename>.png

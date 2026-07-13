@@ -7,7 +7,7 @@
 #include <chronon3d/scene/model/camera/camera_rig.hpp>
 #include <chronon3d/scene/camera/camera_rig_animated_presets.hpp>
 #include <chronon3d/animation/stagger.hpp>
-#include <chronon3d/text/text_animator.hpp>
+#include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/text_material.hpp>
 #include <chronon3d/rendering/lighting_rig.hpp>
 #include <chronon3d/rendering/depth_grade.hpp>

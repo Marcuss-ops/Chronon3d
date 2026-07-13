@@ -23,7 +23,8 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     const RenderSettings& settings,
     const FfmpegExportOptions& opts,
     Frame start,
-    Frame end)
+    Frame end,
+    const chronon3d::CpuBudget& cpu_budget)
 {
     auto session = std::make_unique<PipeExportSession>();
     session->opts = opts;
@@ -70,7 +71,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         }
     }
 
-    auto pipe_options = make_pipe_options(comp, session->opts, codec);
+    auto pipe_options = make_pipe_options(comp, session->opts, codec, cpu_budget);
     if (!session->encoder->open(pipe_options)) {
         spdlog::error("[video] Failed to open encoder");
         return session;
@@ -89,7 +90,9 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
     // ── Create renderer ──────────────────────────────────────────────────
     const auto renderer_t0 = profiling::now();
-    session->renderer = create_renderer(registry, settings);
+    // Inject the single CLI CpuBudget so the runtime does not recompute it.
+    Config renderer_cfg = Config::from_environment(cpu_budget);
+    session->renderer = create_renderer(registry, settings, std::move(renderer_cfg));
     const auto renderer_t1 = profiling::now();
 
     if (session->renderer->counters()) {

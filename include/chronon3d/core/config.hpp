@@ -162,8 +162,17 @@ public:
     /// This is the preferred creation path for per-instance configuration.
     [[nodiscard]] static Config from_environment();
 
+    /// Factory: construct a Config using a pre-built CpuBudget.
+    /// This guarantees the same immutable budget is shared by the
+    /// scheduler, decoder, encoder and writer pipeline.
+    [[nodiscard]] static Config from_environment(const CpuBudget& budget);
+
     /// Set the framebuffer pool budget on this instance (non-static).
     void set_fb_pool_budget(std::size_t bytes);
+
+    /// Inject the CPU budget so the same immutable instance is used by
+    /// the scheduler, decoder, encoder and writer pipeline.
+    void set_cpu_budget(const CpuBudget& budget) { cpu_budget_ = budget; }
 
     // ── Domain accessors ──────────────────────────────────────────────
 
