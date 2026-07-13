@@ -114,14 +114,30 @@ OwnedFB RenderGraphContext::acquire_owned_fb(const Framebuffer& other) {
 }
 
 OwnedFB RenderGraphContext::acquire_owned_fb(std::shared_ptr<Framebuffer>&& src) {
+    if (src && src.use_count() == 1) {
+        // Uniquely referenced source: perform a zero-copy ownership transfer
+        // via a 1×1 placeholder swap. The placeholder assumes the source's
+        // pixel storage; the source keeps a tiny 1×1 buffer that is cheap to
+        // destroy. Works whether or not a pool is present — if a pool exists,
+        // the placeholder returns to it on destruction; otherwise it is deleted
+        // directly.
+        auto* placeholder = new Framebuffer(1, 1, false);
+        placeholder->swap_contents(*src);
+        PoolFbDeleter placeholder_deleter;
+        if (services.framebuffer_pool) {
+            placeholder_deleter = PoolFbDeleter{services.framebuffer_pool};
+        }
+        return OwnedFB(placeholder, std::move(placeholder_deleter));
+    }
+
     OwnedFB out;
     auto* pool = services.framebuffer_pool.get();
     if (pool) {
         out = pool->adopt_owned(std::move(src));
     } else {
-        // No pool — adopt as a plain OwnedFB with no-op deleter.  The
-        // shared_ptr retains its own refcount on the source FB; the
-        // returned OwnedFB owns a deep copy decoupled from src.
+        // No pool and the source is shared: we must deep-copy because the
+        // caller expects an independent OwnedFB. Use the helper that copies
+        // pixels into a fresh allocation.
         out = make_owned_fb_from_shared(std::move(src));
     }
     return out;
@@ -178,6 +194,25 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(
 }
 
 std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Framebuffer& other) const {
+    // Zero-copy ownership transfer when the source is the uniquely-owned
+    // reusable bottom input. A 1×1 placeholder swaps pixel storage with
+    // the source; the placeholder is returned as a shared_ptr and will be
+    // released back to the pool on destruction.
+    if (node_exec.reusable_bottom.get() == &other &&
+        node_exec.reusable_bottom.use_count() == 1)
+    {
+        auto* placeholder = new Framebuffer(1, 1, false);
+        placeholder->swap_contents(const_cast<Framebuffer&>(other));
+        auto pool_ptr = services.framebuffer_pool;
+        return std::shared_ptr<Framebuffer>(placeholder, [pool_ptr](Framebuffer* ptr) noexcept {
+            if (pool_ptr) {
+                pool_ptr->release(ptr);
+            } else {
+                delete ptr;
+            }
+        });
+    }
+
     std::shared_ptr<Framebuffer> out;
     auto* pool = services.framebuffer_pool.get();
     if (pool) {

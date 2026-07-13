@@ -61,6 +61,9 @@ public:
     [[nodiscard]] std::shared_ptr<Framebuffer>& prev_framebuffer() noexcept { return m_prev_framebuffer; }
     [[nodiscard]] const std::shared_ptr<Framebuffer>& prev_framebuffer() const noexcept { return m_prev_framebuffer; }
 
+    /// Access the attached FramebufferPool (may be null).
+    [[nodiscard]] cache::FramebufferPool* pool() const noexcept { return m_pool; }
+
     /// Deallocate all buffers and reset indices.
     void reset();
 
