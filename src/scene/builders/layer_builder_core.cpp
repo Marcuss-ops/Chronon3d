@@ -150,31 +150,7 @@ LayerBuilder& LayerBuilder::depth_offset(f32 offset)   { m_layer.depth_offset = 
 
 LayerBuilder& LayerBuilder::blend(BlendMode mode) { m_layer.blend_mode = mode; return *this; }
 
-LayerBuilder& LayerBuilder::pin_to(Anchor anchor, f32 margin) {
-    return pin_to(AnchorPlacement{anchor}, margin);
-}
-
-LayerBuilder& LayerBuilder::pin_to(AnchorPlacement placement, f32 margin) {
-    m_layer.layout.enabled = true;
-    m_layer.layout.pin     = placement;
-    m_layer.layout.margin  = margin;
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::keep_in_safe_area(SafeArea area) {
-    m_layer.layout.enabled           = true;
-    m_layer.layout.keep_in_safe_area = true;
-    m_layer.layout.safe_area         = area;
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::fit_text() {
-    m_layer.layout.enabled  = true;
-    m_layer.layout.fit_text = true;
-    return *this;
-}
-
-// Shape methods → shape_commands.cpp
+// Layout methods → layer_builder_layout.cpp
 // Node transform + internal helpers → node_transform_commands.cpp
 // Mask, track_matte, transitions, video → layer_property_commands.cpp
 
