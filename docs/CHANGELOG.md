@@ -1,5 +1,13 @@
 <details>
-<summary>chore(core): unified CpuBudget + bounded queue (CPU-BUDGET-UNIFIED-V1) — 2026-07-13</summary>
+<summary>feat(scheduler): for_each_tile kernel-level tiling (KERNEL-TILING-V1) — 2026-07-13</summary>
+
+<!-- F4.3-entry-marker -->
+
+Atomic cat-3 chore on `main` per FASE 4.3 (TICKET-KERNEL-TILING-V1). Lands 2 NEW public headers (`include/chronon3d/core/scheduler/tile_size.hpp` con `struct TileSize { int width; int height; }` + `struct Tile { int x, y, w, h; std::size_t index; }` + `constexpr compute_tile_count` + `constexpr compute_tile` row-major tile-coverage math + `include/chronon3d/core/scheduler/for_each_tile.hpp` con `template <typename Fn> inline void for_each_tile(BBox, TileSize, Fn)` free-function usante `parallel_for_tracked` esistente) + 1 EDIT su `execution_scheduler.hpp` per aggiungere `ExecutionScheduler::for_each_tile` delegator che wrappa `m_arena.execute(...)` per Sequential-mode isolation. 1 NEW unit test `tests/kernel/test_kernel_tiling.cpp` con 9 TEST_CASEs che verificano tile-coverage EXACTNESS invariant (union-of-tiles == bbox exactly, no overlap no gaps, edge tiles correctly smaller at right/bottom). Subject envelope 64 chars OK per user-spec `feat(scheduler): for_each_tile kernel-level tiling (KERNEL-TILING-V1)`. Routing automatico: bbox empty → no-op; `tile_count() == 1` → serial fast-path (B00 EmptyFrame stays serial per AGENTS.md 'NON imporre scaling uniformemente'); `tile_count() >= 2` → `tbb::parallel_for` wrappato da `parallel_for_tracked` (mantiene `tbb_active_workers_peak` telemetry invariata). Cat-3 minimal-surface: 2 NEW ABI structs + 1 NEW free-function template + 1 NEW delegator method. No new singleton/registry/resolver/cache — AGENTS.md ADR rule NOT triggered. macchina-verifica B03/B05 speedup gates (1→2 ≥1.7x, 1→4 ≥3.0x, 1→8 ≥5.5x) DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` precedent (VPS lacks vcpkg glm/magic_enum bootstrap + chronon3d_cli not linkable). Full cronaca + 6 forward-points (kernel migration, machine-verify, deterministic-hash, cache-coherence, determinism-matrix, cat-5 chaser) in `docs/tickets/TICKET-KERNEL-TILING-V1.md` per AGENTS.md ticket-home rule.
+
+</details>
+
+- chore(core): unified CpuBudget + bounded queue (CPU-BUDGET-UNIFIED-V1) — 2026-07-13
 
 <!-- F4.2-entry-marker -->
 
