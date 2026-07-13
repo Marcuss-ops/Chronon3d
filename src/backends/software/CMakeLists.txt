@@ -111,3 +111,46 @@ add_subdirectory(diagnostics)
 add_subdirectory(simd)
 add_subdirectory(kernels)
 add_subdirectory(specialized)
+
+# ── AVX2 backend for the SIMD registry (ADR-025 kAvx2Set) ────────────────
+# Per-file compile gate via a CMake try-compile so the binary never
+# contains AVX2 instructions on toolchains/hosts that cannot produce
+# them (avoiding illegal-instruction faults on pre-Haswell deployment
+# hosts). Compiler-aware: MSVC uses /arch:AVX2, GCC/Clang use -mavx2/-mfma.
+include(CheckCXXSourceCompiles)
+set(_CRON_ISA_AVX2_TMP "${CMAKE_REQUIRED_FLAGS}")
+unset(_cron_avx2_flags)
+if(MSVC)
+    set(CMAKE_REQUIRED_FLAGS "/arch:AVX2")
+    set(_cron_avx2_flags /arch:AVX2)
+else()
+    set(CMAKE_REQUIRED_FLAGS "-mavx2;-mfma")
+    set(_cron_avx2_flags "-mavx2" "-mfma")
+endif()
+check_cxx_source_compiles(
+    "
+#include <immintrin.h>
+int main() { __m256 v = _mm256_setzero_ps(); (void)v; return 0; }
+"
+    CHRONON3D_ISA_HAVE_AVX2
+)
+set(CMAKE_REQUIRED_FLAGS "${_CRON_ISA_AVX2_TMP}")
+if(CHRONON3D_ISA_HAVE_AVX2)
+    message(STATUS "Enabling AVX2 backend for chronon3d_backend_software (kAvx2Set wired)")
+    target_compile_definitions(chronon3d_backend_software PUBLIC CHRONON3D_ISA_BACKEND_AVX2)
+    # Per-source-file flags: ONLY the AVX2 TU emits -mavx2/-mfma code. The
+    # rest of `chronon3d_backend_software` stays portable so the binary
+    # can ship to pre-Haswell deployment hosts without an illegal-
+    # instruction fault (dispatch never reaches AVX2 if
+    # CpuCapabilities::has_avx2 is false, but the static instructions
+    # would otherwise be present in any TU that consumed the same flag).
+    set_source_files_properties(
+        ${CMAKE_CURRENT_SOURCE_DIR}/simd/avx2_pixel_kernels.cpp
+        PROPERTIES COMPILE_OPTIONS "${_cron_avx2_flags}"
+    )
+    target_sources(chronon3d_backend_software PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/simd/avx2_pixel_kernels.cpp
+    )
+endif()
+unset(_CRON_ISA_AVX2_TMP)
+unset(_cron_avx2_flags)
