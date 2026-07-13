@@ -54,7 +54,7 @@ const chronon3d::assets::InternalAssetRef kPlaceholderImage{
 
 constexpr Color kTextColor{0.94f, 0.95f, 0.98f, 1.0f};
 
-/// F2.D — returns canonical TextDefinition instead of TextSpec.
+/// F2.D — returns canonical TextDefinition.
 TextDefinition title_text(const char* text, f32 size = 80.0f) {
     return TextDefinition{
         .content = {.value = text},
@@ -66,7 +66,7 @@ TextDefinition title_text(const char* text, f32 size = 80.0f) {
     };
 }
 
-/// F2.D — returns canonical TextDefinition instead of TextSpec.
+/// F2.D — returns canonical TextDefinition.
 TextDefinition body_text(const char* text, f32 size = 48.0f) {
     return TextDefinition{
         .content = {.value = text},

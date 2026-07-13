@@ -48,7 +48,15 @@ Composition make_special_name_comp(const char* name, AnimSetup setup) {
                     .aura_strength = 0.0f,   // skip aura pass
                     .bloom_strength = 0.80f, // compensate for skipped core+aura
                 });
-                l.text("name", from_text_spec(TextSpec{.content = {.value = DEMO_NAME},.font    = {.font_size = 110.0f},.layout  = {.tracking = 14.0f},}));
+                l.text("name", TextDefinition{
+    .content = {.value = DEMO_NAME},
+    .style = {
+        .font = {.font_size = 110.0f}
+    },
+    .frame = {
+        .tracking = 14.0f
+    }
+});
             });
             return s.build();
         });

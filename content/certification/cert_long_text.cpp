@@ -8,7 +8,7 @@
 //
 // M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (2026-07-10):
 //   - 1 `text::centered_text({...})` call site migrated to
-//     canonical `from_text_spec(TextSpec{...})` API (F2.C adapter).
+//     canonical `TextDefinition{}` API (F2.C adapter).
 //   - `text_helpers.hpp` include removed (no longer used).
 // ==============================================================================
 
@@ -51,26 +51,36 @@ Composition cert_long_text() {
             const float kBoxH = static_cast<float>(kHeight) - kMargin * 2.0f;
 
             s.layer("long_text", [kBoxW, kBoxH](LayerBuilder& l) {
-                l.text("body", from_text_spec(TextSpec{.content    = {.value = "This is a very long sentence that must wrap "
+                l.text("body", TextDefinition{
+    .content = {.value = "This is a very long sentence that must wrap "
                                             "correctly across multiple lines, demonstrating "
                                             "proper word wrapping and line spacing in the "
                                             "Chronon3D text engine for production-ready "
                                             "subtitle and body text rendering. Every word "
                                             "should remain intact without being cut or "
-                                            "hyphenated mid-character."},.placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f,
-                                   kMargin + kBoxH * 0.5f}},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                                            "hyphenated mid-character."},
+    .style = {
+        .font = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                    .font_family = "Inter",
                                    .font_weight = 400,
-                                   .font_size   = 36.0f},.layout     = {.box            = {kBoxW, kBoxH},
-                                   .anchor         = TextAnchor::Center,
-                                   .centering_mode = TextCenteringMode::PixelInk,
-                                   .align          = TextAlign::Center,
-                                   .vertical_align = VerticalAlign::Middle,
-                                   .wrap           = TextWrap::Word,
-                                   .overflow       = TextOverflow::Clip,
-                                   .line_height    = 1.5f,
-                                   .tracking       = 0.5f,
-                                   .max_lines      = 0},.appearance = {.color = Color{0.92f, 0.92f, 0.95f, 1.0f}},}));
+                                   .font_size   = 36.0f},
+        .color = Color{0.92f, 0.92f, 0.95f, 1.0f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(kWidth) * 0.5f,
+                                   kMargin + kBoxH * 0.5f}},
+        .size = {kBoxW, kBoxH},
+        .anchor = TextAnchor::Center,
+        .centering_mode = TextCenteringMode::PixelInk,
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .wrap = TextWrap::Word,
+        .overflow = TextOverflow::Clip,
+        .line_height = 1.5f,
+        .tracking = 0.5f,
+        .max_lines = 0
+    }
+});
             });
 
             return s.build();

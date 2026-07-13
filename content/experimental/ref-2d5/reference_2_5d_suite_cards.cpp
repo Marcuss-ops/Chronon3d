@@ -2,6 +2,7 @@
 #include "reference_2_5d_suite.hpp"
 #include <chronon3d/scene/camera/camera_motion_presets.hpp>
 #include <cmath>
+#include <chronon3d/text/text_definition.hpp>
 
 namespace chronon3d::content::effects {
 
@@ -51,18 +52,117 @@ Composition floating_cards_test() {
         add_card(s, "analytics", {-320.0f, 30.0f, 95.0f}, {0.0f, -10.0f, 0.0f}, {280.0f, 300.0f}, 22.0f, {0.06f, 0.22f, 0.44f, 0.94f}, {0.12f, 0.52f, 1.0f, 1.0f}, 20.0f);
         add_card(s, "performance", {0.0f, 0.0f, -36.0f}, {0.0f, 0.0f, 0.0f}, {340.0f, 390.0f}, 24.0f, {0.18f, 0.08f, 0.34f, 0.95f}, {0.76f, 0.34f, 1.0f, 1.0f}, 26.0f);
         add_card(s, "users", {310.0f, 18.0f, 80.0f}, {0.0f, 10.0f, 0.0f}, {250.0f, 300.0f}, 22.0f, {0.10f, 0.10f, 0.22f, 0.94f}, {0.32f, 0.42f, 1.0f, 1.0f}, 18.0f);
-        s.layer("analytics_content", [=](LayerBuilder& l) { l.enable_3d().position({-320.0f, 30.0f, 80.0f}).rotate({0.0f, -10.0f, 0.0f}); apply_depth_material(l, false, true, 0.88f, 0.16f, 42.0f, 0.84f); l.text("title", TextSpec{.content = {.value = "Analytics"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -108.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 24.0f},
-                                                                                                                                                                                                                            .layout = {.box = {220.0f, 40.0f}, .align = TextAlign::Left, .vertical_align = VerticalAlign::Middle},.appearance = {.color = kWhite},}); l.text("sub", TextSpec{.content = {.value = "Real-time data"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -70.0f}},.font = {.font_path = "assets/fonts/Poppins-Regular.ttf", .font_family = "Inter", .font_weight = 400, .font_size = 15.0f},
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           .layout = {.box = {220.0f, 28.0f}, .align = TextAlign::Left, .vertical_align = VerticalAlign::Middle},.appearance = {.color = {0.72f, 0.82f, 0.96f, 1.0f}},}); add_bar_graph(l, {-98.0f, 72.0f}, 170.0f, 120.0f, {0.28f, 0.72f, 1.0f, 0.88f}); });
-        s.layer("performance_content", [=](LayerBuilder& l) { l.enable_3d().position({0.0f, 0.0f, 0.0f}); apply_depth_material(l, false, true, 0.90f, 0.18f, 48.0f, 0.82f); l.text("title", TextSpec{.content = {.value = "Performance"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -120.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 28.0f},
-                                                                                                                                                                                            .layout = {.box = {260.0f, 44.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},.appearance = {.color = kWhite},}); l.text("pct", TextSpec{.content = {.value = "98.6%"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -24.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 56.0f},
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               .layout = {.box = {260.0f, 80.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},.appearance = {.color = kWhite},}); l.text("small", TextSpec{.content = {.value = "Successful"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 34.0f}},.font = {.font_path = "assets/fonts/Poppins-Regular.ttf", .font_family = "Inter", .font_weight = 400, .font_size = 18.0f},
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             .layout = {.box = {260.0f, 30.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},.appearance = {.color = {0.82f, 0.80f, 0.98f, 1.0f}},}); add_bar_graph(l, {-115.0f, 112.0f}, 220.0f, 152.0f, {0.72f, 0.40f, 1.0f, 0.92f}); l.rounded_rect("btn", {.size = {122.0f, 34.0f}, .radius = 16.0f, .color = {0.42f, 0.14f, 0.72f, 1.0f}, .pos = {0.0f, 130.0f, 0.0f}, .fill = FillStyle::linear({0.0f, 0.0f}, {1.0f, 0.0f}, {{0.0f, {0.40f, 0.14f, 0.72f, 1.0f}}, {1.0f, {0.68f, 0.26f, 0.95f, 1.0f}}})}); l.text("btn_txt", TextSpec{.content = {.value = "View Report"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 130.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 800, .font_size = 14.0f},
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    .layout = {.box = {122.0f, 34.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},.appearance = {.color = kWhite},}); });
-        s.layer("users_content", [=](LayerBuilder& l) { l.enable_3d().position({310.0f, 18.0f, 75.0f}).rotate({0.0f, 10.0f, 0.0f}); apply_depth_material(l, false, true, 0.86f, 0.16f, 40.0f, 0.82f); l.text("title", TextSpec{.content = {.value = "Users"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -110.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 22.0f},
-                                                                                                                                                                                                                      .layout = {.box = {190.0f, 36.0f}, .align = TextAlign::Left, .vertical_align = VerticalAlign::Middle},.appearance = {.color = {0.92f, 0.94f, 1.0f, 1.0f}},}); l.text("count", TextSpec{.content = {.value = "12.6K"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -58.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 38.0f},
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       .layout = {.box = {190.0f, 56.0f}, .align = TextAlign::Left, .vertical_align = VerticalAlign::Middle},.appearance = {.color = kWhite},}); l.text("delta", TextSpec{.content = {.value = "+18.2%"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -12.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 800, .font_size = 16.0f},
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   .layout = {.box = {190.0f, 28.0f}, .align = TextAlign::Left, .vertical_align = VerticalAlign::Middle},.appearance = {.color = {0.22f, 0.92f, 0.76f, 1.0f}},}); add_bar_graph(l, {-82.0f, 76.0f}, 155.0f, 108.0f, {0.22f, 0.62f, 1.0f, 0.78f}); });
+        s.layer("analytics_content", [=](LayerBuilder& l) { l.enable_3d().position({-320.0f, 30.0f, 80.0f}).rotate({0.0f, -10.0f, 0.0f}); apply_depth_material(l, false, true, 0.88f, 0.16f, 42.0f, 0.84f); l.text("title", TextDefinition{
+    .content = {.value = "Analytics"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 24.0f},
+        .color = kWhite
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -108.0f}},
+        .size = {220.0f, 40.0f},
+        .align = TextAlign::Left,
+        .vertical_align = VerticalAlign::Middle
+    }
+}); l.text("sub", TextDefinition{
+    .content = {.value = "Real-time data"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Regular.ttf", .font_family = "Inter", .font_weight = 400, .font_size = 15.0f},
+        .color = {0.72f, 0.82f, 0.96f, 1.0f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -70.0f}},
+        .size = {220.0f, 28.0f},
+        .align = TextAlign::Left,
+        .vertical_align = VerticalAlign::Middle
+    }
+}); add_bar_graph(l, {-98.0f, 72.0f}, 170.0f, 120.0f, {0.28f, 0.72f, 1.0f, 0.88f}); });
+        s.layer("performance_content", [=](LayerBuilder& l) { l.enable_3d().position({0.0f, 0.0f, 0.0f}); apply_depth_material(l, false, true, 0.90f, 0.18f, 48.0f, 0.82f); l.text("title", TextDefinition{
+    .content = {.value = "Performance"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 28.0f},
+        .color = kWhite
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -120.0f}},
+        .size = {260.0f, 44.0f},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle
+    }
+}); l.text("pct", TextDefinition{
+    .content = {.value = "98.6%"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 56.0f},
+        .color = kWhite
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -24.0f}},
+        .size = {260.0f, 80.0f},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle
+    }
+}); l.text("small", TextDefinition{
+    .content = {.value = "Successful"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Regular.ttf", .font_family = "Inter", .font_weight = 400, .font_size = 18.0f},
+        .color = {0.82f, 0.80f, 0.98f, 1.0f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 34.0f}},
+        .size = {260.0f, 30.0f},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle
+    }
+}); add_bar_graph(l, {-115.0f, 112.0f}, 220.0f, 152.0f, {0.72f, 0.40f, 1.0f, 0.92f}); l.rounded_rect("btn", {.size = {122.0f, 34.0f}, .radius = 16.0f, .color = {0.42f, 0.14f, 0.72f, 1.0f}, .pos = {0.0f, 130.0f, 0.0f}, .fill = FillStyle::linear({0.0f, 0.0f}, {1.0f, 0.0f}, {{0.0f, {0.40f, 0.14f, 0.72f, 1.0f}}, {1.0f, {0.68f, 0.26f, 0.95f, 1.0f}}})}); l.text("btn_txt", TextDefinition{
+    .content = {.value = "View Report"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 800, .font_size = 14.0f},
+        .color = kWhite
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 130.0f}},
+        .size = {122.0f, 34.0f},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle
+    }
+}); });
+        s.layer("users_content", [=](LayerBuilder& l) { l.enable_3d().position({310.0f, 18.0f, 75.0f}).rotate({0.0f, 10.0f, 0.0f}); apply_depth_material(l, false, true, 0.86f, 0.16f, 40.0f, 0.82f); l.text("title", TextDefinition{
+    .content = {.value = "Users"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 22.0f},
+        .color = {0.92f, 0.94f, 1.0f, 1.0f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -110.0f}},
+        .size = {190.0f, 36.0f},
+        .align = TextAlign::Left,
+        .vertical_align = VerticalAlign::Middle
+    }
+}); l.text("count", TextDefinition{
+    .content = {.value = "12.6K"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 38.0f},
+        .color = kWhite
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -58.0f}},
+        .size = {190.0f, 56.0f},
+        .align = TextAlign::Left,
+        .vertical_align = VerticalAlign::Middle
+    }
+}); l.text("delta", TextDefinition{
+    .content = {.value = "+18.2%"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 800, .font_size = 16.0f},
+        .color = {0.22f, 0.92f, 0.76f, 1.0f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -12.0f}},
+        .size = {190.0f, 28.0f},
+        .align = TextAlign::Left,
+        .vertical_align = VerticalAlign::Middle
+    }
+}); add_bar_graph(l, {-82.0f, 76.0f}, 155.0f, 108.0f, {0.22f, 0.62f, 1.0f, 0.78f}); });
         return s.build();
     });
 }
@@ -80,9 +180,35 @@ Composition orbit_camera_test() {
         s.layer("top_light", [](LayerBuilder& l) { l.position({0.0f, -220.0f, 0.0f}); l.glow(GlowParams{.radius = 260.0f, .intensity = 0.85f, .color = {0.18f, 0.60f, 1.0f, 1.0f}}); l.circle("c", {.radius = 220.0f, .color = {0.18f, 0.60f, 1.0f, 0.22f}, .pos = {0.0f, 0.0f, 0.0f}}); });
         s.layer("stage", [](LayerBuilder& l) { l.position({0.0f, 190.0f, 0.0f}); l.drop_shadow({0.0f, 18.0f}, {0.04f, 0.02f, 0.16f, 0.50f}, 24.0f); l.glow(GlowParams{.radius = 24.0f, .intensity = 0.56f, .color = {0.60f, 0.26f, 1.0f, 1.0f}}); l.rounded_rect("base", {.size = {480.0f, 62.0f}, .radius = 31.0f, .color = {0.22f, 0.09f, 0.40f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::linear({0.0f, 0.0f}, {1.0f, 0.0f}, {{0.0f, {0.48f, 0.14f, 0.86f, 1.0f}}, {0.5f, {0.72f, 0.24f, 1.0f, 1.0f}}, {1.0f, {0.28f, 0.10f, 0.52f, 1.0f}}})}); });
         s.layer("orbits", [=](LayerBuilder& l) { l.position({0.0f, -28.0f, 0.0f}); for (int i = 0; i < 8; ++i) { const f32 a = p * 6.28318f + i * 0.785398f; const f32 x = std::cos(a) * 320.0f; const f32 y = std::sin(a) * 110.0f; l.enable_3d().position({x, y, 180.0f + std::sin(a * 1.5f) * 20.0f}).rotate({0.0f, a * 10.0f, 0.0f}); apply_depth_material(l, false, true, 0.72f, 0.20f, 32.0f, 0.78f); l.circle("orb_" + std::to_string(i), {.radius = 20.0f + (i % 3) * 3.0f, .color = {0.52f, 0.42f + 0.06f * (f32)i, 1.0f, 0.92f}, .pos = {0.0f, 0.0f, 0.0f}}); l.glow(GlowParams{.radius = 12.0f, .intensity = 0.85f, .color = {0.60f, 0.44f, 1.0f, 1.0f}}); } });
-        s.layer("title", [=](LayerBuilder& l) { l.position({0.0f, -30.0f, 0.0f}); l.enable_3d().rotate({4.0f, 0.0f, 0.0f}); apply_depth_material(l, false, true, 0.92f, 0.20f, 58.0f, 0.72f); l.glow(GlowParams{.radius = 28.0f, .intensity = 0.74f, .color = {0.78f, 0.62f, 1.0f, 1.0f}}); l.drop_shadow({0.0f, 20.0f}, {0.06f, 0.00f, 0.22f, 0.76f}, 22.0f); l.text("create", TextSpec{.content = {.value = "CREATE"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 112.0f},
-                                                                                                                                                                                                                                                                                                                                                                                .layout = {.box = {1080.0f, 140.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .tracking = 1.0f},.appearance = {.color = {0.98f, 0.95f, 1.0f, 1.0f}, .paint = {.fill = {0.98f, 0.95f, 1.0f, 1.0f}, .fill_style = Fill::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {1.0f, 1.0f, 1.0f, 1.0f}}, {0.55f, {0.80f, 0.88f, 1.0f, 1.0f}}, {1.0f, {0.56f, 0.70f, 1.0f, 1.0f}}}), .stroke_enabled = true, .stroke_color = {0.10f, 0.22f, 0.50f, 0.72f}, .stroke_width = 2.0f}},}); l.text("sub", TextSpec{.content = {.value = "WITHOUT LIMITS"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 94.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 800, .font_size = 28.0f},
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    .layout = {.box = {720.0f, 48.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .tracking = 8.0f},.appearance = {.color = {0.76f, 0.74f, 0.98f, 0.92f}, .paint = {.fill = {0.76f, 0.74f, 0.98f, 0.92f}, .stroke_enabled = true, .stroke_color = {0.10f, 0.10f, 0.22f, 0.28f}, .stroke_width = 1.5f}},}); });
+        s.layer("title", [=](LayerBuilder& l) { l.position({0.0f, -30.0f, 0.0f}); l.enable_3d().rotate({4.0f, 0.0f, 0.0f}); apply_depth_material(l, false, true, 0.92f, 0.20f, 58.0f, 0.72f); l.glow(GlowParams{.radius = 28.0f, .intensity = 0.74f, .color = {0.78f, 0.62f, 1.0f, 1.0f}}); l.drop_shadow({0.0f, 20.0f}, {0.06f, 0.00f, 0.22f, 0.76f}, 22.0f); l.text("create", TextDefinition{
+    .content = {.value = "CREATE"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 112.0f},
+        .color = {0.98f, 0.95f, 1.0f, 1.0f},
+        .paint = {.fill = {0.98f, 0.95f, 1.0f, 1.0f}, .fill_style = Fill::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {1.0f, 1.0f, 1.0f, 1.0f}}, {0.55f, {0.80f, 0.88f, 1.0f, 1.0f}}, {1.0f, {0.56f, 0.70f, 1.0f, 1.0f}}}), .stroke_enabled = true, .stroke_color = {0.10f, 0.22f, 0.50f, 0.72f}, .stroke_width = 2.0f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+        .size = {1080.0f, 140.0f},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .tracking = 1.0f
+    }
+}); l.text("sub", TextDefinition{
+    .content = {.value = "WITHOUT LIMITS"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 800, .font_size = 28.0f},
+        .color = {0.76f, 0.74f, 0.98f, 0.92f},
+        .paint = {.fill = {0.76f, 0.74f, 0.98f, 0.92f}, .stroke_enabled = true, .stroke_color = {0.10f, 0.10f, 0.22f, 0.28f}, .stroke_width = 1.5f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 94.0f}},
+        .size = {720.0f, 48.0f},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .tracking = 8.0f
+    }
+}); });
         return s.build();
     });
 }
@@ -98,9 +224,31 @@ Composition z_stack_parallax_test() {
         add_header(s, "04", "Z-STACK PARALLAX TEST", "Più layer su profondità diverse.");
         add_neon_floor(s, {0.22f, 0.72f, 1.0f, 0.10f}, 76.0f);
         auto card = [&](const std::string& id, Vec3 pos, Vec3 rot, Vec2 size, Color fill, Color glow, const std::string& label, const std::string& ztxt) {
-            s.layer("card_" + id, [=](LayerBuilder& l) { l.enable_3d().position(pos).rotate(rot); apply_depth_material(l, true, true, 0.80f, 0.16f, 46.0f, 0.72f); l.drop_shadow({0.0f, 20.0f}, {0.03f, 0.03f, 0.08f, 0.28f}, 18.0f); l.glow(GlowParams{.radius = 16.0f, .intensity = 0.34f, .color = glow}); l.rounded_rect("bg", {.size = size, .radius = 18.0f, .color = fill, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {fill.r + 0.05f, fill.g + 0.05f, fill.b + 0.08f, 1.0f}}, {1.0f, {fill.r - 0.04f, fill.g - 0.02f, fill.b + 0.02f, 1.0f}}})}); l.text("label", TextSpec{.content = {.value = label},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -18.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 30.0f},
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        .layout = {.box = {size.x, 54.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},.appearance = {.color = kWhite},}); l.text("z", TextSpec{.content = {.value = ztxt},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 32.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 800, .font_size = 18.0f},
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                .layout = {.box = {size.x, 42.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},.appearance = {.color = {0.82f, 0.88f, 1.0f, 0.80f}},}); });
+            s.layer("card_" + id, [=](LayerBuilder& l) { l.enable_3d().position(pos).rotate(rot); apply_depth_material(l, true, true, 0.80f, 0.16f, 46.0f, 0.72f); l.drop_shadow({0.0f, 20.0f}, {0.03f, 0.03f, 0.08f, 0.28f}, 18.0f); l.glow(GlowParams{.radius = 16.0f, .intensity = 0.34f, .color = glow}); l.rounded_rect("bg", {.size = size, .radius = 18.0f, .color = fill, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {fill.r + 0.05f, fill.g + 0.05f, fill.b + 0.08f, 1.0f}}, {1.0f, {fill.r - 0.04f, fill.g - 0.02f, fill.b + 0.02f, 1.0f}}})}); l.text("label", TextDefinition{
+    .content = {.value = label},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 30.0f},
+        .color = kWhite
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -18.0f}},
+        .size = {size.x, 54.0f},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle
+    }
+}); l.text("z", TextDefinition{
+    .content = {.value = ztxt},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 800, .font_size = 18.0f},
+        .color = {0.82f, 0.88f, 1.0f, 0.80f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 32.0f}},
+        .size = {size.x, 42.0f},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle
+    }
+}); });
         };
         card("back", {-300.0f, 8.0f, 150.0f}, {0.0f, -8.0f, 0.0f}, {280.0f, 320.0f}, {0.05f, 0.10f, 0.26f, 0.90f}, {0.18f, 0.30f, 1.0f, 1.0f}, "BACK", "Z -400");
         card("mid", {0.0f, -6.0f, 20.0f}, {0.0f, 0.0f, 0.0f}, {320.0f, 360.0f}, {0.08f, 0.14f, 0.34f, 0.94f}, {0.42f, 0.64f, 1.0f, 1.0f}, "MID", "Z 0");
@@ -120,11 +268,49 @@ Composition shadow_glow_consistency_test() {
         add_header(s, "09", "SHADOW + GLOW CONSISTENCY TEST", "Verifica coerenza ombre e glow in movimento.");
         add_neon_floor(s, {0.72f, 0.18f, 1.0f, 0.16f}, 84.0f);
         s.layer("panel", [](LayerBuilder& l) { l.position({0.0f, 70.0f, 0.0f}); apply_depth_material(l, true, true, 0.80f, 0.18f, 44.0f, 0.64f); l.rounded_rect("bg", {.size = {1060.0f, 420.0f}, .radius = 28.0f, .color = {0.10f, 0.06f, 0.18f, 0.82f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {0.16f, 0.06f, 0.24f, 0.92f}}, {1.0f, {0.06f, 0.03f, 0.12f, 0.86f}}})}); l.drop_shadow({0.0f, 30.0f}, {0.0f, 0.0f, 0.0f, 0.40f}, 32.0f); l.glow(GlowParams{.radius = 14.0f, .intensity = 0.28f, .color = {0.82f, 0.20f, 1.0f, 1.0f}}); });
-        s.layer("left_card", [](LayerBuilder& l) { l.position({-330.0f, 60.0f, 40.0f}).rotate({0.0f, -8.0f, 0.0f}); apply_depth_material(l, true, true, 0.78f, 0.14f, 40.0f, 0.70f); l.rounded_rect("bg", {.size = {220.0f, 300.0f}, .radius = 18.0f, .color = {0.12f, 0.10f, 0.20f, 0.94f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {0.16f, 0.12f, 0.26f, 0.98f}}, {1.0f, {0.06f, 0.05f, 0.12f, 0.96f}}})}); l.drop_shadow({0.0f, 20.0f}, {0.04f, 0.02f, 0.08f, 0.40f}, 18.0f); l.glow(GlowParams{.radius = 10.0f, .intensity = 0.20f, .color = {0.82f, 0.20f, 1.0f, 1.0f}}); l.text("title", TextSpec{.content = {.value = "Automate\\nWorkflows"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -70.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 28.0f},
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                .layout = {.box = {180.0f, 120.0f}, .align = TextAlign::Left, .vertical_align = VerticalAlign::Middle, .line_height = 1.0f},.appearance = {.color = kWhite, .paint = {.fill = {1.0f, 0.96f, 1.0f, 1.0f}, .stroke_enabled = true, .stroke_color = {0.10f, 0.02f, 0.20f, 0.35f}, .stroke_width = 1.25f}},}); l.rounded_rect("btn", {.size = {118.0f, 30.0f}, .radius = 14.0f, .color = {0.32f, 0.14f, 0.72f, 1.0f}, .pos = {0.0f, 104.0f, 0.0f}}); l.text("btn_txt", TextSpec{.content = {.value = "Get Started"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 104.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 800, .font_size = 14.0f},
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    .layout = {.box = {118.0f, 30.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},.appearance = {.color = kWhite},}); });
-        s.layer("hero_text", [](LayerBuilder& l) { l.position({300.0f, -8.0f, -40.0f}).rotate({3.0f, -4.0f, 0.0f}); apply_depth_material(l, false, true, 0.88f, 0.22f, 52.0f, 0.78f); l.glow(GlowParams{.radius = 18.0f, .intensity = 0.42f, .color = {0.82f, 0.42f, 1.0f, 1.0f}}); l.drop_shadow({0.0f, 20.0f}, {0.06f, 0.02f, 0.18f, 0.58f}, 18.0f); l.accepts_lights(false); l.text("text", TextSpec{.content = {.value = "FASTER\\nSMARTER\\nBETTER"},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 70.0f},
-                                                                                                                                                                                                                                                                                                                                                                                               .layout = {.box = {520.0f, 360.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 0.92f, .tracking = 0.5f},.appearance = {.color = {0.98f, 0.92f, 1.0f, 1.0f}, .paint = {.fill = {0.98f, 0.92f, 1.0f, 1.0f}, .fill_style = Fill::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {1.0f, 0.98f, 1.0f, 1.0f}}, {0.60f, {0.88f, 0.72f, 1.0f, 1.0f}}, {1.0f, {0.72f, 0.40f, 1.0f, 1.0f}}}), .stroke_enabled = true, .stroke_color = {0.22f, 0.02f, 0.34f, 0.62f}, .stroke_width = 1.8f}},}); });
+        s.layer("left_card", [](LayerBuilder& l) { l.position({-330.0f, 60.0f, 40.0f}).rotate({0.0f, -8.0f, 0.0f}); apply_depth_material(l, true, true, 0.78f, 0.14f, 40.0f, 0.70f); l.rounded_rect("bg", {.size = {220.0f, 300.0f}, .radius = 18.0f, .color = {0.12f, 0.10f, 0.20f, 0.94f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {0.16f, 0.12f, 0.26f, 0.98f}}, {1.0f, {0.06f, 0.05f, 0.12f, 0.96f}}})}); l.drop_shadow({0.0f, 20.0f}, {0.04f, 0.02f, 0.08f, 0.40f}, 18.0f); l.glow(GlowParams{.radius = 10.0f, .intensity = 0.20f, .color = {0.82f, 0.20f, 1.0f, 1.0f}}); l.text("title", TextDefinition{
+    .content = {.value = "Automate\\nWorkflows"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 28.0f},
+        .color = kWhite,
+        .paint = {.fill = {1.0f, 0.96f, 1.0f, 1.0f}, .stroke_enabled = true, .stroke_color = {0.10f, 0.02f, 0.20f, 0.35f}, .stroke_width = 1.25f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -70.0f}},
+        .size = {180.0f, 120.0f},
+        .align = TextAlign::Left,
+        .vertical_align = VerticalAlign::Middle,
+        .line_height = 1.0f
+    }
+}); l.rounded_rect("btn", {.size = {118.0f, 30.0f}, .radius = 14.0f, .color = {0.32f, 0.14f, 0.72f, 1.0f}, .pos = {0.0f, 104.0f, 0.0f}}); l.text("btn_txt", TextDefinition{
+    .content = {.value = "Get Started"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 800, .font_size = 14.0f},
+        .color = kWhite
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 104.0f}},
+        .size = {118.0f, 30.0f},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle
+    }
+}); });
+        s.layer("hero_text", [](LayerBuilder& l) { l.position({300.0f, -8.0f, -40.0f}).rotate({3.0f, -4.0f, 0.0f}); apply_depth_material(l, false, true, 0.88f, 0.22f, 52.0f, 0.78f); l.glow(GlowParams{.radius = 18.0f, .intensity = 0.42f, .color = {0.82f, 0.42f, 1.0f, 1.0f}}); l.drop_shadow({0.0f, 20.0f}, {0.06f, 0.02f, 0.18f, 0.58f}, 18.0f); l.accepts_lights(false); l.text("text", TextDefinition{
+    .content = {.value = "FASTER\\nSMARTER\\nBETTER"},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_size = 70.0f},
+        .color = {0.98f, 0.92f, 1.0f, 1.0f},
+        .paint = {.fill = {0.98f, 0.92f, 1.0f, 1.0f}, .fill_style = Fill::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {1.0f, 0.98f, 1.0f, 1.0f}}, {0.60f, {0.88f, 0.72f, 1.0f, 1.0f}}, {1.0f, {0.72f, 0.40f, 1.0f, 1.0f}}}), .stroke_enabled = true, .stroke_color = {0.22f, 0.02f, 0.34f, 0.62f}, .stroke_width = 1.8f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+        .size = {520.0f, 360.0f},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .line_height = 0.92f,
+        .tracking = 0.5f
+    }
+}); });
         return s.build();
     });
 }

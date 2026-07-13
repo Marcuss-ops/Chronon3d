@@ -102,18 +102,18 @@ void add_cursor(SceneBuilder& s, f32 right_edge, Frame reveal_end,
             op.add_keyframe(Frame{static_cast<Frame>(t + 6.0f)}, 1.0f, EasingCurve{Easing::Linear});
         }
 
-        TextSpec ts;
-        ts.content.value = "|";
-        ts.layout.box = {20.0f, TW_BOX_H};
-        ts.placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}};
-        ts.font.font_path = FONT_REGULAR;
-        ts.font.font_size = size;
-        ts.appearance.color = TEXT_COLOR;
-        ts.layout.align = TextAlign::Center;
-        ts.layout.vertical_align = VerticalAlign::Middle;
-        ts.layout.line_height = 1.22f;
+        TextDefinition def;
+        def.content.value = "|";
+        def.frame.size = {20.0f, TW_BOX_H};
+        def.frame.placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}};
+        def.style.font.font_path = FONT_REGULAR;
+        def.style.font.font_size = size;
+        def.style.color = TEXT_COLOR;
+        def.frame.align = TextAlign::Center;
+        def.frame.vertical_align = VerticalAlign::Middle;
+        def.frame.line_height = 1.22f;
 
-        l.text("cursor_label", from_text_spec(ts));
+        l.text("cursor_label", def);
     });
 }
 

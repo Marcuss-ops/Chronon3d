@@ -81,29 +81,33 @@ inline TextDefinition typewriter_text(CenterTextOptions o,
     const f32 total_chars_f = static_cast<f32>(grapheme_cluster_count(o.text));
 
     auto make_base = [&](std::string value, Color c) -> TextDefinition {
-        return from_text_spec(TextSpec{
-            .content    = {.value = std::move(value)},
-            .placement = TextPlacement{TextPlacementKind::Absolute, {o.pos.x, o.pos.y}},
-            .font       = {.font_path   = std::move(o.font_asset),
+        return TextDefinition{
+    .content = {.value = std::move(value)},
+    .style = {
+        .font = {.font_path   = std::move(o.font_asset),
                            .font_family = std::move(o.font_family),
                            .font_weight = o.font_weight,
                            .font_style  = std::move(o.font_style),
                            .font_size   = o.font_size},
-            .layout     = {.box            = o.box,
-                           .anchor         = TextAnchor::Center,
-                           .centering_mode = TextCenteringMode::PixelInk,
-                           .align          = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle,
-                           .wrap           = TextWrap::Word,
-                           .overflow       = TextOverflow::Clip,
-                           .line_height    = o.line_height,
-                           .tracking       = o.tracking,
-                           .auto_fit       = o.auto_fit,
-                           .min_font_size  = o.min_font_size,
-                           .max_font_size  = o.max_font_size,
-                           .max_lines      = o.max_lines},
-            .appearance = {.color = c},
-        });
+        .color = c
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {o.pos.x, o.pos.y}},
+        .size = o.box,
+        .anchor = TextAnchor::Center,
+        .centering_mode = TextCenteringMode::PixelInk,
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .wrap = TextWrap::Word,
+        .overflow = TextOverflow::Clip,
+        .line_height = o.line_height,
+        .tracking = o.tracking,
+        .auto_fit = o.auto_fit,
+        .min_font_size = o.min_font_size,
+        .max_font_size = o.max_font_size,
+        .max_lines = o.max_lines
+    }
+};
     };
 
     if (raw_frame < 0.0f || total_chars_f <= 0.0f) {
@@ -607,7 +611,7 @@ inline Result<bool, TextError> typewriter_build(
             l.pin_to(Anchor::Center);
             l.opacity(opacity);
 
-            // F2.D — canonical TextDefinition instead of TextSpec
+            // F2.D — canonical TextDefinition
             l.text("glyph", TextDefinition{
                 .content = {.value = glyph, .pre_shaped = char_placed},
                 .style = {.font = {.font_path = fp, .font_family = ff,

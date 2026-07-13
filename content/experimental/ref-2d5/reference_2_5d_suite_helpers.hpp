@@ -8,6 +8,7 @@
 
 #include "glow_test_common.hpp"
 #include <chronon3d/effects/effect_params.hpp>
+#include <chronon3d/text/text_definition.hpp>
 
 namespace chronon3d::content::effects {
 namespace ref_2_5d_helpers {
@@ -20,9 +21,45 @@ inline void add_header(SceneBuilder& s, const std::string& id, const std::string
     s.layer("header_" + id, [=](LayerBuilder& l) {
         l.position({-kHW + 42.0f, -kHH + 42.0f, 0.0f});
         l.rounded_rect("badge", {.size = {52.0f, 52.0f}, .radius = 12.0f, .color = {0.34f, 0.38f, 0.78f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {0.55f, 0.34f, 0.98f, 1.0f}}, {1.0f, {0.18f, 0.14f, 0.62f, 1.0f}}})});
-        l.text("badge_txt", TextSpec{.content = {.value = id},.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_style = "normal", .font_size = 24.0f},.layout = {.box = {52.0f, 52.0f}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle},.appearance = {.color = kWhite},});
-        l.text("title", TextSpec{.content = {.value = title},.placement = TextPlacement{TextPlacementKind::Absolute, {84.0f, 0.0f}},.font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_style = "normal", .font_size = title_font_size},.layout = {.box = {1060.0f, 36.0f}, .align = TextAlign::Left, .vertical_align = VerticalAlign::Middle},.appearance = {.color = kWhite},});
-        l.text("subtitle", TextSpec{.content = {.value = subtitle},.placement = TextPlacement{TextPlacementKind::Absolute, {84.0f, 0.0f}},.font = {.font_path = "assets/fonts/Poppins-Regular.ttf", .font_family = "Inter", .font_weight = 400, .font_style = "normal", .font_size = subtitle_font_size},.layout = {.box = {1060.0f, 24.0f}, .align = TextAlign::Left, .vertical_align = VerticalAlign::Middle},.appearance = {.color = {0.78f, 0.82f, 0.92f, 1.0f}},});
+        l.text("badge_txt", TextDefinition{
+    .content = {.value = id},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_style = "normal", .font_size = 24.0f},
+        .color = kWhite
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+        .size = {52.0f, 52.0f},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle
+    }
+});
+        l.text("title", TextDefinition{
+    .content = {.value = title},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf", .font_family = "Inter", .font_weight = 900, .font_style = "normal", .font_size = title_font_size},
+        .color = kWhite
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {84.0f, 0.0f}},
+        .size = {1060.0f, 36.0f},
+        .align = TextAlign::Left,
+        .vertical_align = VerticalAlign::Middle
+    }
+});
+        l.text("subtitle", TextDefinition{
+    .content = {.value = subtitle},
+    .style = {
+        .font = {.font_path = "assets/fonts/Poppins-Regular.ttf", .font_family = "Inter", .font_weight = 400, .font_style = "normal", .font_size = subtitle_font_size},
+        .color = {0.78f, 0.82f, 0.92f, 1.0f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {84.0f, 0.0f}},
+        .size = {1060.0f, 24.0f},
+        .align = TextAlign::Left,
+        .vertical_align = VerticalAlign::Middle
+    }
+});
     });
 }
 
