@@ -25,3 +25,7 @@ Rewrite `tests/text/text_clip_policy_tests.cmake`'s target registration from the
 
 `docs/FOLLOWUP_TICKETS.md` `TICKET-TEXT-HEADER-CMAKE-REWIRE-ROT` (DONE row) + `docs/CHANGELOG.md` `fix(tests): wire chronon3d_text_clip_policy_tests target` entry + the canonical `tests/text/test_text_clip_policy.cpp` (the 7-pipeline × 5-clip × 18-CHECK matrix binary that the new cmake target compiles).
 
+
+## Doc role reference
+
+AGENTS.md Doc role table: **Scheda ticket specifico** → `docs/tickets/TICKET-NNN-<titolo>.md` (canonical traceability home per doc-role table). This ticket file is the canonical home of the doc-role-table reference for TICKET-129 closure-trace cites. The FOLLOWUP_TICKETS.md `TICKET-TEXT-HEADER-CMAKE-REWIRE-ROT` Closure lineage cell cites `(closure-trace ticket for \`a00b9d2f\` target rewire)` (chore `a00b9d2f` per §SHA-cite inline-only rule) — the doc-role-table reference is canonicalized HERE per AGENTS.md governance, NOT in the FOLLOWUP cite. Round-trip closure-trace cite canonicalized by chore `e9d1c8d6 docs(followup): wire TICKET-129 closure-trace cite into TICKET-TEXT-HEADER-CMAKE-REWIRE-ROT` (50 chars ≤ 72 ✓).
