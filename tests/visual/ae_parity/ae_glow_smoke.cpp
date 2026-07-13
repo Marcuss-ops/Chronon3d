@@ -50,7 +50,7 @@
 
 using namespace chronon3d;
 using namespace chronon3d::test;
-using chronon3d::test::glow_final::ChrononGlowProps;
+using chronon3d::content::glow_final::ChrononGlowProps;
 
 // Halo-region sampling offset from the alpha centroid (pixels).  Chosen
 // to fall well inside the bloom=34 px soft-halo envelope but outside
@@ -73,7 +73,7 @@ static std::shared_ptr<Framebuffer> render_at(
         ChrononGlowProps props,
         Frame frame) {
     return renderer->render(
-        chronon3d::test::glow_final::make_chronon_glow_final(props),
+        chronon3d::content::glow_final::make_chronon_glow_final(props),
         frame);
 }
 
@@ -96,10 +96,10 @@ TEST_CASE("PHASE-2: ae_08 cinematic additive glow preserves source at f15 16x9 c
     // canonical cinematic-glow render (glow_enabled=true).  Same canvas,
     // same frame, same per-frame opacity envelope — the only delta is
     // the cinematic-glow pipeline.
-    ChrononGlowProps src_props = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps src_props = chronon3d::content::glow_final::default_landscape_props();
     src_props.glow_enabled = false;
 
-    ChrononGlowProps glow_props = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps glow_props = chronon3d::content::glow_final::default_landscape_props();
     glow_props.glow_enabled = true;
 
     auto src_fb  = render_at(renderer, src_props,  Frame{15});
@@ -144,10 +144,10 @@ TEST_CASE("PHASE-2: ae_08 cinematic additive glow preserves source at f15 16x9 c
 TEST_CASE("PHASE-2: ae_08 cinematic additive glow preserves source at f15 9x16 center-bbox (≥98%)") {
     auto renderer = make_renderer_shared();
 
-    ChrononGlowProps src_props = chronon3d::test::glow_final::default_portrait_props();
+    ChrononGlowProps src_props = chronon3d::content::glow_final::default_portrait_props();
     src_props.glow_enabled = false;
 
-    ChrononGlowProps glow_props = chronon3d::test::glow_final::default_portrait_props();
+    ChrononGlowProps glow_props = chronon3d::content::glow_final::default_portrait_props();
     glow_props.glow_enabled = true;
 
     auto src_fb  = render_at(renderer, src_props,  Frame{15});
