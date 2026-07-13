@@ -20,6 +20,20 @@ struct CompiledFrameGraph;  // Forward declaration — the live identity
                             // for each compiled node is read from this
                             // so we can populate ctx.node_exec.current_identity.
 
+/// Decide whether a render-graph level should be dispatched in parallel.
+/// Parallel execution is enabled only when both conditions hold:
+///   1. The level contains more than one node (a single node cannot be
+///      split across workers).
+///   2. The scheduler can run more than one worker concurrently.
+/// This helper is exposed so unit tests can lock the predicate without
+/// driving the full executor.
+[[nodiscard]] inline bool should_execute_level_in_parallel(
+    std::size_t level_size,
+    int scheduler_concurrency) noexcept
+{
+    return level_size > 1 && scheduler_concurrency > 1;
+}
+
 /// Execute all DAG levels (PR-B: routed through the supplied scheduler).
 ///
 /// @param scheduler   Thread-pool authority for the entire render process.
