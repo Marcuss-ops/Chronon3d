@@ -340,6 +340,7 @@ chronon3d_add_test_suite(
     # invariants + parent chain + recursion guard + child-arena
     # independence.  Header-only type under test: no .cpp pairing.
     core/test_execution_scope.cpp
+    core/test_cpu_budget.cpp
     core/math/test_expression.cpp
     core/math/test_expression_extended.cpp
     test_text_preset_registry.cpp
