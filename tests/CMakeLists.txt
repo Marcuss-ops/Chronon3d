@@ -62,7 +62,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/debug/CMakeLists.txt
     ${CMAKE_CURRENT_SOURCE_DIR}/showcase/CMakeLists.txt
     ${CMAKE_CURRENT_SOURCE_DIR}/simd/simd_parity_blend_tests.cmake  # F5.2 (TICKET-SIMD-VECTORIZE-KERNEL-SET-V1) first-kernel: scalar vs AVX2 blend parity (TIER=UNIT unconditional)
-    ${CMAKE_CURRENT_SOURCE_DIR}/compiler/fusion_pass_tests.cmake  # F3.1 (TICKET-FUSION-PASS-COMPILER-V1) FusedPixelProgram ABI + 4-guard fusion test (TIER=UNIT unconditional)
+    ${CMAKE_CURRENT_SOURCE_DIR}/render_graph/compiler/fusion_pass_tests.cmake  # F3.1 (TICKET-FUSION-PASS-COMPILER-V1) FusedPixelProgram ABI + 4-guard fusion test (TIER=UNIT unconditional)
     ${CMAKE_CURRENT_SOURCE_DIR}/render_graph/pipeline/glow_fullframe_audit_tests.cmake  # F3.2 (TICKET-GLOW-FULLFRAME-AUDIT-V1) B03 CinematicGlow1080p gate: 4 sub-gates (zero avoidable copies / zero redundant clears / dirty rect respected / no duplicate format conversions) + per-frame derivation contract (TIER=UNIT unconditional; synthetic NodeMemoryMetrics-style stand-in mirroring F3.1/TICKET-PERF-COUNTERS-NODE-MEMORY-V1 convention)
 )
 
@@ -346,7 +346,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/simd/simd_parity_blend_tests.cmake)
 # UNCONDITIONAL pattern documented above).  Per ADR-018, this file
 # is also listed in CMAKE_CONFIGURE_DEPENDS at the top of this
 # orchestrator.
-include(${CMAKE_CURRENT_SOURCE_DIR}/compiler/fusion_pass_tests.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/render_graph/compiler/fusion_pass_tests.cmake)
 
 # F3.2 (TICKET-GLOW-FULLFRAME-AUDIT-V1) B03 CinematicGlow1080p gate.
 # TIER=UNIT, UNCONDITIONAL registration. Mirrors the F3.1 / F5.2 pattern:
