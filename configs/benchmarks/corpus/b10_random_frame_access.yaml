@@ -1,0 +1,66 @@
+# configs/benchmarks/corpus/b10_random_frame_access.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Benchmark corpus — Scene B10: RandomFrameAccess
+# ─────────────────────────────────────────────────────────────────────────
+# Purpose (user-spec §3 verbatim):
+#   "Render di frame non consecutivi" — verify the renderer handles
+#   sparse frame requests (e.g. seeking) without losing cache locality
+#   or determinism.
+#
+# Per AGENTS.md v0.1 Cat-3 + §honesty: metadata-only; comp_id references
+# the canonical certified composition. The "random access" pattern is
+# expressed via per-frame CLI invocation, NOT a single 10-minute run.
+# ─────────────────────────────────────────────────────────────────────────
+
+schema_version: "benchmark_corpus_v1"
+
+scene_id: "B10"
+display_name: "RandomFrameAccess"
+category: "sparse_frame_seek"
+intent: |
+  Misura il renderer quando si chiedono frame sparsi non consecutivi.
+  Verifica: nessuna penalizzazione nel seek (cache locality preservata),
+  determinismo bit-esatto per ogni frame richiesto, indipendentemente
+  dall'ordine di richiesta.
+
+comp_id: "ChrononGlowFinalAE"
+canonical_render:
+  pattern: "60 sparse still requests over random frame indices [0..300]"
+  command_batch:
+    - "chronon3d_cli still ChrononGlowFinalAE --frame 17  -o /tmp/b10_f017.png"
+    - "chronon3d_cli still ChrononGlowFinalAE --frame 233 -o /tmp/b10_f233.png"
+    - "chronon3d_cli still ChrononGlowFinalAE --frame 9   -o /tmp/b10_f009.png"
+    - "chronon3d_cli still ChrononGlowFinalAE --frame 121 -o /tmp/b10_f121.png"
+    - "chronon3d_cli still ChrononGlowFinalAE --frame 287 -o /tmp/b10_f287.png"
+  note: "60 such invocations, frame indices pre-shuffled deterministically per host seed"
+
+thread_matrix:
+  cpu-low:  [1, 2, 4]
+  cpu-mid:  [1, 2, 4, 8, 16]
+  cpu-high: [1, 4, 8, 16, 32, 64]
+frame_rates: [30]
+resolution_options: [{ width: 1920, height: 1080 }]
+duration_seconds_options: [0]   # zero — only stills, no video
+
+variant_matrix:
+  - { cache_state: "cold",   seek_pattern: "random_permutation_60" }
+  - { cache_state: "warm",   seek_pattern: "random_permutation_60" }
+  - { cache_state: "warm",   seek_pattern: "reverse_lifo_60" }
+
+expected_metrics:
+  - per_still_p50_ms
+  - per_still_p95_ms
+  - first_render_ms             # cold
+  - cache_hit_ratio_after_first # expect ~ high after 1st render
+  - output_hash_pixels          # UNIQUE across all 60 invocations == 60
+  - allocations_per_still
+  - peak_rss_mb
+  - cost_per_minute_eur
+
+forward_points:
+  - { name: "60-frame sparse timeline harness",      ticket: "TICKET-BENCH-B10-HARNESS" }
+
+cross_link:
+  - "tests/determinism/test_brute_determinism.cpp (sparse seek pattern similar)"
+  - "docs/CLI_REFERENCE.md (chronon3d_cli still subcommand)"
+  - "configs/benchmark_machines.yaml"

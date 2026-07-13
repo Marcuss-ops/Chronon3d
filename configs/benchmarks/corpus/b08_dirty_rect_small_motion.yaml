@@ -1,0 +1,60 @@
+# configs/benchmarks/corpus/b08_dirty_rect_small_motion.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Benchmark corpus — Scene B08: DirtyRectSmallMotion
+# ─────────────────────────────────────────────────────────────────────────
+# Purpose (user-spec §3 verbatim):
+#   "Solo una piccola regione cambia" — minimal motion scene that
+#   demonstrates dirty-rect effectiveness: a single pixel-region
+#   update should keep frame work proportional to that region, not
+#   the full canvas.
+#
+# Per AGENTS.md v0.1 Cat-3 + §honesty: metadata-only; comp_id references
+# the canonical breath-motion production composition (small region).
+# ─────────────────────────────────────────────────────────────────────────
+
+schema_version: "benchmark_corpus_v1"
+
+scene_id: "B08"
+display_name: "DirtyRectSmallMotion"
+category: "dirty_rect_effectiveness"
+intent: |
+  Misura l'efficacia del dirty-rect: una piccola regione (single
+  breathe-in/out breath cycle) cambia mentre il resto del frame resta
+  statico. Atteso: render_ms proporzionale all'area dirty, non al frame.
+
+comp_id: "MinimalistFocusQuote"   # proxy: breath-motion breathing
+canonical_render:
+  command: "chronon3d_cli video MinimalistFocusQuote --start 0 --end 30 --fps 30"
+  output_path: "/tmp/benchmark_corpus_b08.mp4"
+
+thread_matrix:
+  cpu-low:  [1, 2, 4]
+  cpu-mid:  [1, 2, 4, 8, 16]
+  cpu-high: [1, 4, 8, 16, 32, 64]
+frame_rates: [30]
+resolution_options: [{ width: 1920, height: 1080 }]
+duration_seconds_options: [1, 5, 15]
+variant_matrix:
+  - { cache_state: "cold", dirty_rect: "OFF" }    # full-frame render
+  - { cache_state: "cold", dirty_rect: "ON"  }    # expected fast path
+  - { cache_state: "warm", dirty_rect: "ON"  }    # expected ≈ cold-on
+
+expected_metrics:
+  - dirty_pixels
+  - dirty_rect_count
+  - dirty_union_area_pixels
+  - frame_p50_ms                # cold-on expected ~1/4 of cold-off
+  - frame_p95_ms
+  - cache_hit_ratio
+  - allocations_per_frame
+  - peak_rss_mb
+  - cost_per_minute_eur
+
+forward_points:
+  - { name: "dirty rect per-node counter (NodeMemoryMetrics per-nodo)", ticket: "TICKET-NODE-MEMORY-METRICS" }
+
+cross_link:
+  - "include/chronon3d/runtime/dirty_history.hpp"
+  - "include/chronon3d/backends/software/render_settings.hpp::dirty_rects (V1/V2)"
+  - "apps/chronon3d_cli/commands.hpp::no_dirty_rects (CLI flag)"
+  - "configs/benchmark_machines.yaml"
