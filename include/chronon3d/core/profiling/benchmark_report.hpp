@@ -9,12 +9,28 @@
 namespace chronon3d {
 
 struct BenchmarkMetrics {
+    double time_to_first_frame_ms{};
     double avg_frame_ms{};
     double median_frame_ms{};
     double min_frame_ms{};
     double max_frame_ms{};
+    double p50_frame_ms{};
     double p95_frame_ms{};
+    double p99_frame_ms{};
     double fps{};
+    double fps_steady_state{};
+};
+
+struct BenchmarkMemoryMetrics {
+    double peak_rss_mb{};
+    double peak_framebuffer_bytes{};
+    double allocations_per_frame{};
+    double bytes_copied_per_frame{};
+};
+
+struct BenchmarkQualityMetrics {
+    std::string deterministic_hash;
+    double ssim{};
 };
 
 struct BenchmarkCountersSnapshot {
@@ -26,12 +42,18 @@ struct BenchmarkCountersSnapshot {
     uint64_t blur_pixels{};
     uint64_t images_sampled{};
     uint64_t text_glyphs_rasterized{};
+    uint64_t framebuffer_copies{};
+    uint64_t framebuffer_clears{};
+    uint64_t full_frame_passes{};
 };
 
+/// Returns current UTC time formatted as ISO 8601 (e.g. "2026-05-21T12:00:00Z").
+std::string current_utc_timestamp_iso();
+
 struct BenchmarkReport {
-    std::string schema{"chronon3d.bench.v2"};
+    std::string schema{"chronon3d.bench.v3"};
     std::string comp_id;
-    std::string timestamp_utc;
+    std::string timestamp_utc{current_utc_timestamp_iso()};
     std::string build_type;
     std::string compiler_info;
     std::string os;
@@ -41,6 +63,8 @@ struct BenchmarkReport {
     int warmup{};
     bool modular_graph{};
     BenchmarkMetrics metrics{};
+    BenchmarkMemoryMetrics memory{};
+    BenchmarkQualityMetrics quality{};
     BenchmarkCountersSnapshot counters{};
     std::map<std::string, double> categories_ms;
     std::map<std::string, double> node_durations_ms;
@@ -53,9 +77,6 @@ BenchmarkReport benchmark_report_from_json(const nlohmann::json& js);
 /// Compute regression percentage: ((current - baseline) / baseline) * 100.0
 /// Returns 0.0 if baseline value is zero.
 double compute_regression_pct(double baseline, double current);
-
-/// Returns current UTC time formatted as ISO 8601 (e.g. "2026-05-21T12:00:00Z").
-std::string current_utc_timestamp_iso();
 
 /// Returns a short OS identifier (e.g. "Linux", "Windows", "macOS").
 constexpr const char* detect_os() {
