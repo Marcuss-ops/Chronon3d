@@ -1,6 +1,7 @@
 #include "content/common/text/glyph_layout.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -29,7 +30,29 @@ namespace {
     return msg;
 }
 
+// ── Shape-call counter (TICKET-FIX-TEXT-SHAPING-DEDUP-V1) ────────────
+//
+// File-static atomic so the counter survives across ShapedGlyphLine
+// instances.  Tests reset before each measurement (see reset_shape_call_counter).
+//
+// Memory ordering: relaxed is sufficient — the only consumer is the
+// per-test assertion; no producer/consumer ordering required.
+// std::atomic<int>> per C++20 std (earlier std::atomic<int>).
+std::atomic<int> s_shape_calls_per_line{0};
+
 } // anonymous namespace
+
+// ── Free-function accessors for the diagnostic counter ────────────────
+//
+// Surface exposed via glyph_layout.hpp.  reset zero-outs the counter;
+// get returns its current accumulated value.
+void reset_shape_call_counter() noexcept {
+    s_shape_calls_per_line.store(0, std::memory_order_relaxed);
+}
+
+int get_shape_call_count() noexcept {
+    return s_shape_calls_per_line.load(std::memory_order_relaxed);
+}
 
 // ── ShapedGlyphLine fail-loud primary ctor (public) ────────────────────
 //
@@ -47,6 +70,12 @@ ShapedGlyphLine::ShapedGlyphLine(const std::string& text, f32 font_size,
       m_tracking(tracking), m_ref_offset_x(ref_offset_x)
 {
     m_run = engine.shape_text(text, spec, font_size);
+    // Increment the per-line shape-call counter exactly once per ctor
+    // invocation.  TICKET-FIX-TEXT-SHAPING-DEDUP-V1 contract:
+    //   - One ctor = at most ONE shape_text call (Point 8 single-shape cache).
+    //   - Failure path still increments (we WANT to see accidental
+    //     re-shape calls inside the ctor if a future refactor regresses).
+    s_shape_calls_per_line.fetch_add(1, std::memory_order_relaxed);
     if (!m_run || m_run->glyphs.empty()) {
         throw std::runtime_error(make_shape_error_message(text, spec, font_size));
     }
@@ -174,6 +203,10 @@ std::optional<ShapedGlyphLine> ShapedGlyphLine::try_shape(
     f32 tracking, f32 ref_offset_x, FontEngine& engine) noexcept
 {
     auto run_opt = engine.shape_text(std::string(text), spec, font_size);
+    // Increment the per-line shape-call counter exactly once per try_shape
+    // invocation (one engine.shape_text call per ShapedGlyphLine instance
+    // lifetime — Point 8 single-shape efficiency contract).
+    s_shape_calls_per_line.fetch_add(1, std::memory_order_relaxed);
     if (!run_opt || run_opt->glyphs.empty()) return std::nullopt;
     return ShapedGlyphLine(
         std::move(*run_opt),
