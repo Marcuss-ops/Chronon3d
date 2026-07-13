@@ -69,7 +69,8 @@ void execute_levels(
         // `> 1` (not >= 2): a 1-node level on any scheduler cannot benefit
         // from parallel dispatch — the TBB/task-pool overhead exceeds the
         // single-node work itself.
-        const bool use_parallel = level.size() > 1 && scheduler.concurrency() > 1;
+        const bool use_parallel = should_execute_level_in_parallel(
+            level.size(), scheduler.concurrency());
 
         // P0 #2 — Cat-3 minimal-surface: the previous two consecutive
         // `if (parent_counters)` blocks gated both counter groups (parallel
