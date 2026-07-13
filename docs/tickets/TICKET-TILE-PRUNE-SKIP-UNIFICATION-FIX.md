@@ -202,3 +202,71 @@ Machine-verified via `read_files` this session on `origin/main HEAD eedfc4b42e84
 ## Periodicità
 
 OPEN-ARCHIVAL — the FIX-ticket remains `OPEN` until the actual C++ refactor lands (subject `refactor(executor): unify tile_prune into commit_transparent_skip`). Once the FIX lands + macchina-verifies per (a) + 3-doc Cat-5 closure per (b), this ticket can transition to `DONE` status via a sibling close-chore (parallel precedent `TICKET-EXECUTOR-SKIP-POLICY-PUSH-BLOCKED-CLOSE`). Periodicidad is OPEN-EXECUTE — the gut content (the 7 MUST criteria + 4 SHOULD cleanliness items) remains valuable per AGENTS.md "Fare PR piccole e mirate" + the canonical 4-doc gate §honesty contract.
+
+## Machine-verifica cells (WBH-deferred)
+
+Per AGENTS.md §honest-limitation (preserve-disclose-amend contract for unverifiable locals) + the canonical WBH-deferred forward-point pattern, the macchina-verifica for the FIX-chore (future subject `refactor(executor): unify tile_prune into commit_transparent_skip`, 60 chars ≤72 ✓) is registered here as 4 cells to be executed on a working build host (WBH) once the vcpkg `glm` / `magic_enum` bootstrap is unblocked per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` + `TICKET-BUILD-ROT-CASCADE-CAMERA`. The cells enumerate the canonical 4-step cert sequence per `docs/cert_sequence_wbh_protocol.md` (Pre-0..Pre-4 + Step 1-6 alignment) adapted to the executor skip-policy FIX-chore surface area. This section is APPENDED (not a new dedicated ticket file) per AGENTS.md "Non inventare percorsi alternativi e non ricreare copie dei documenti" + the canonical drill-down precedent `ac5ba95f chore(ticket): NODE-CACHE-KEY-COLLAPSE-ROT drill-down + recipe` (66 chars ✓) which appended 4 sections (`## Compile Rot Evidence` + `## Signature Anchors` + `## macchina-verifica cells (WBH-deferred)` + `## Origine`) to `docs/tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md`. The forward-point CELL `TICKET-TILE-PRUNE-SKIP-UNIFICATION-FIX-MACHINE-VERIFY` already exists in the parent §Forward-points (a) cell — materialising the commands here eliminates the future-orphan forward-point CELL risk without violating Cat-3 anti-duplication (the 4 commands are NOT duplicated from §Forward-points (a)'s textual description; §Forward-points (a) is the one-line pointer + this section is the executable detail).
+
+### §honest-limitation (this VPS env-blocked)
+
+This VPS (the agent's working environment) lacks `vcpkg` + `pkg-config glm` + `pkg-config magic_enum` per the diagnostic at this chore: `which vcpkg` returned no binary; `pkg-config --modversion glm` returned `(pkg-config glm unavailable — env-block confirmed)`; `pkg-config --modversion magic_enum` returned `(pkg-config magic_enum unavailable — env-block confirmed)`; `build/manual-test/tests/chronon3d_executor_tests` is NOT present in this build directory (binary fresher-than-source check failed per AGENTS.md "Test binary staleness check (honesty, pre-ctest invariant)" rule). The standard pattern per `docs/cert_sequence_wbh_protocol.md` is to forward-point the macchina-verifica execution to a working build host (WBH) session. This obeys AGENTS.md §honest-limitation "preserve-disclose-amend" contract: the unverifiable local state is **preserved** (this section stays APPENDED in the working tree), **disclosed** (the §honest-limitation + WBH-deferred labels signal the deferred-execution state to all downstream agents), and **amended** (when the FIX-chore lands + the WBH session macchina-verifies PASS, this section's §Stato per cell transitions from DEFERRED to VERIFIED via the forward-chore's commit message + a sibling close-chore per `TICKET-EXECUTOR-SKIP-POLICY-PUSH-BLOCKED-CLOSE` precedent).
+
+### Cell 1 — `ctest -R chronon3d_executor_tests --output-on-failure`
+
+**Status**: DEFERRED-WBH.
+**Command** (per user spec verbatim):
+```bash
+ctest -R chronon3d_executor_tests --output-on-failure
+```
+**Pre-ctest invariant** (per AGENTS.md "Test binary staleness check (honesty, pre-ctest invariant)" rule):
+```bash
+TEST_BIN="build/manual-test/tests/chronon3d_executor_tests"
+SRC="tests/render_graph/executor/test_skip_policy.cpp"
+[ -x "$TEST_BIN" ] || { echo "STALE BUILD: $TEST_BIN not found — run cmake --build first" >&2; exit 1; }
+[ "$SRC" -nt "$TEST_BIN" ] && { echo "STALE BUILD: $SRC is newer than $TEST_BIN — rebuild required" >&2; exit 1; }
+```
+**Expected output**: `chronon3d_executor_tests` binary PASS (the new TilePruned TEST_CASE + the preserved EarlyExit + OpacityThreshold TEST_CASES all green; 0 failures; 0 expected failures with `[!throws]` mismatch).
+**Pass criteria**: exit 0 + test summary line `100% tests passed, 0 tests failed out of N` (where N = number of TEST_CASEs in `tests/render_graph/executor/test_skip_policy.cpp` post-FIX).
+**Fail-loud protocol**: if any TilePruned assertion fails → cite `tests/render_graph/executor/test_skip_policy.cpp:<line>` + `src/render_graph/executor/node_runner.cpp:<line>` + the `commit_transparent_skip` generalized signature mismatch in the WBH-session report.
+
+### Cell 2 — `g++ -std=c++23 -fsyntax-only -c src/render_graph/executor/node_runner.cpp $(pkg-config --cflags ...)`
+
+**Status**: DEFERRED-WBH.
+**Command** (per user spec verbatim):
+```bash
+g++ -std=c++23 -fsyntax-only -c src/render_graph/executor/node_runner.cpp $(pkg-config --cflags glm magic_enum)
+```
+**Pass criteria**: exit 0 (no C++23 syntax errors + no template-instantiation errors from the new `std::optional<raster::BBox>` parameter + no unresolved `magic_enum::enum_names<SkipReason>(SkipReason::TilePruned)` reference if the FIX author adds stringification in the inline asserts).
+**Additional invariant** (defer to the FIX-chore's WBH-session broader compilation gate): the generalized `commit_transparent_skip` signature must compile in ALL 3 callers (Site-2 at `node_runner.cpp:272-279` + any future Site-X adopters + the unit-test invocation in `tests/render_graph/executor/test_skip_policy.cpp`).
+
+### Cell 3 — Verify forward-points (FIX chore ctest green)
+
+**Status**: DEFERRED-WBH.
+**Pass criteria**: the FIX-chore (future subject `refactor(executor): unify tile_prune into commit_transparent_skip`, 60 chars ≤72 ✓) lands on origin/main + the Cell-1 ctest invocation PASSes + Cells 1+2 cumulatively certify the 7 MUST criteria from §Criteri di accettazione (the `SkipReason::TilePruned` third enum value generalizes the signature + the `commit_transparent_skip` generalized signature + all 3 callers delegate correctly + the `state.shared_transparent` reuse invariant from `framebuffer.hpp:232` `m_content_cleared` thread-safety is preserved + `nodes_skipped` counter bumps via `commit_transparent_skip`'s internal call to the shared `_bump_skip_counter` helper + `predicted_bbox` parameter is correctly passed via `std::optional<raster::BBox>` + the new TilePruned TEST_CASE PASSes).
+**Tie-back to Cat-5 2-doc same-commit discipline**: when the FIX-chore lands, the chaser-chore updates `docs/CHANGELOG.md` (the FIX-chore entry) + may transition `docs/FOLLOWUP_TICKETS.md` (if the FIX closes a Forward-point CELL — the present (a) cell transitions from DEFERRED-WBH to VERIFIED-IN-COMMIT per the cat-2 close-chore pattern) per the canonical 4-doc gate §honesty contract.
+
+### Cell 4 — Regression-test `commit_node_state` site (the `5de88a96` chore hasn't been disturbed)
+
+**Status**: DEFERRED-WBH.
+**Context**: the chore `5de88a96 refactor(executor): extract commit_node_state into node_state_commit` extracted Sites 1+3 (cache_hit_fast_path:221-225 + main tail:403-407) into the centralized helper `commit_node_state` in `src/render_graph/executor/node_state_commit.hpp` — but Site 2 (tile-skip path at `node_runner.cpp:275-279`) stayed INLINE per the §SCOPE comment which states "Site 2 (tile-skip path at `node_runner.cpp:275-279`) stays INLINE". The present FIX-chore advances Site 3: extract Site 2 via the 3rd `SkipReason` enum value + generalized `commit_transparent_skip` signature. The regression-test ensures the Sites 1+3 extraction (the `5de88a96` chore's invariant) is preserved by the FIX-chore's Site-2 refactor.
+**Pass criteria**:
+1. `grep -nE "state\.temp\[id\]\s*=\s*state\.cache_hit_temp\[id\]" src/render_graph/executor/node_runner.cpp` → STILL 0 matches (Site 1 delegation to `commit_node_state` preserved).
+2. `grep -nE "ctx\.node_exec\.commit_node_state\(" src/render_graph/executor/node_runner.cpp` → STILL N matches (the Site 1+3 call sites unchanged; Site 2 added by FIX-chore).
+3. `grep -nE "ctx\.node_exec\.commit_transparent_skip\(" src/render_graph/executor/node_runner.cpp` → 1 NEW match (the Site 2 delegation landing).
+4. `grep -nE "state\.resolved_(key_digest|frame_dependent|cache_hit|bboxes)\[id\]\s*=" src/render_graph/executor/node_runner.cpp` → exactly 0 matches post-FIX (all 4 `state.resolved_*` slot writes delegate to `commit_node_state` / `commit_transparent_skip`).
+5. `grep -nE "ctx\.node_exec\.counters->nodes_skipped\.fetch_add\(" src/render_graph/executor/node_runner.cpp` → 0 matches post-FIX (the counter bump is now inside `commit_transparent_skip` per the shared `_bump_skip_counter` helper); OR if the FIX-chore author chose to leave the counter bump inline (for site-isolation), still 1 match AT a Site OTHER than `node_runner.cpp:272-279`.
+
+### Origin (WBH-deferred forward-point register, 2026-07-13 session)
+
+Per user instruction verbatim: *"Run WBH macchina-verifica on a working build host once vcpkg glm/magic_enum bootstrap is unblocked: invoke ctest -R chronon3d_executor_tests --output-on-failure plus g++ -std=c++23 -fsyntax-only -c src/render_graph/executor/node_runner.cpp $(pkg-config --cflags ...) plus verify forward-points (FIX chore ctest green) plus regression-test that commit_node_state site (the 5de88a96 chore) hasn't been disturbed. AGENTS.md section honest-limitation: the macchina-verifica cannot run on this VPS — the standard pattern is to forward-point execution to the WBH session via the cert_sequence_wbh_protocol.md protocol."*
+
+Canonical protocol cite: `docs/cert_sequence_wbh_protocol.md` Pre-0..Pre-4 + Step 1-6 alignment (Pre-0 env-readiness-marker; Pre-1 sibling-ticket-readiness; Pre-2 macchina-verifica command inventory; Pre-3 Cell+command annotation; Pre-4 commit-message file write with bulletproof shell-escape; Step 1 atomic-commit via `git commit -F <msg-file>`; Step 2 wrap-push via `bash tools/wrap_push.sh origin main`; Step 3 SHA-triple equality verify per AGENTS.md §Post-push SHA-selfcheck invariant; Step 4 `tools/check_main_clean.sh` smoke; Step 5 chaser-chore FOLLOWUP+CHANGELOG update per Cat-5 3-doc same-commit if applicable; Step 6 WBH macchina-verifica invocation window). The 4 Cells in this section correspond to Pre-2's command inventory + the WBH-session invocation window per Step 6.
+
+### Cross-link (WBH-deferred forward-point register)
+
+- **Canonical drill-down precedent** — chore `ac5ba95f chore(ticket): NODE-CACHE-KEY-COLLAPSE-ROT drill-down + recipe` (the immediately-prior chore on origin/main HEAD before this register chore; APPENDED the §macchina-verifica cells (WBH-deferred) pattern to `docs/tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md` as the canon for this section's structure).
+- **WBH-protocol canonical cite** — [`docs/cert_sequence_wbh_protocol.md`](docs/cert_sequence_wbh_protocol.md) (the canonical 6-step Pre-0..Pre-4 + Step 1-6 cert sequence; required cite per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` env-block pattern).
+- **Sibling compile-rot ticket (parallel UNIT-TEST scope)** — `docs/tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md` (parallel pattern: cache_key collapse XXH3 hash collision rot + macchina-verifica cells at `ac5ba95f`; the executor-skip-policy FIX surfaces at the boundary of TEST_CASE + g++ syntax-only, parallel to cache_key collapse's TEST_CASE + chrono gate).
+- **WBH-deferred forward-point env-block ticket** — `docs/tickets/TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV.md` (the upstream env-block context; opens with the `vcpkg glm/magic_enum` bootstrap gap that this chore's §honest-limitation discloses).
+- **Direct predecessor chore (just landed, cat-5 3-doc closure)** — `2c688901 docs(followup): Cat-5 3-doc closure TICKET-TILE-PRUNE-SKIP-UNIFICATION` (the prior chaser-chore that opened `TICKET-TILE-PRUNE-SKIP-UNIFICATION-3DOC-CAT5-ALIGN.md` and updated CHANGELOG.md + docs/FOLLOWUP_TICKETS.md + docs/CURRENT_STATUS.md per Cat-5 3-doc same-commit discipline; this chore is the parallel chaser-chore for the WBH-deferred macchina-verifica cells).
+- **AGENTS.md**: §honest-limitation (preserve-disclose-amend contract) + §Post-push SHA-selfcheck invariant + §Test binary staleness check (honesty, pre-ctest invariant) (the Cell-1 pre-ctest gate) + "Fare PR piccole e mirate" (this chore is a single-purpose forward-point register; it does NOT bundle with the FIX-chore per non-bundling discipline) + "Non inventare percorsi alternativi e non ricreare copie dei documenti" (this section is APPENDED to the existing FIX-ticket per canonical precedent; NO new `TICKET-TILE-PRUNE-SKIP-UNIFICATION-FIX-MACHINE-VERIFY.md` file is created; the forward-point CELL `TICKET-TILE-PRUNE-SKIP-UNIFICATION-FIX-MACHINE-VERIFY` is materialised here as the §Machine-verifica cells (WBH-deferred) section).
