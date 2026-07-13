@@ -41,7 +41,7 @@
 
 using namespace chronon3d;
 using namespace chronon3d::test;
-using chronon3d::test::glow_final::ChrononGlowProps;
+using chronon3d::content::glow_final::ChrononGlowProps;
 
 namespace {
 
@@ -52,7 +52,7 @@ u64 render_and_hash(
     ChrononGlowProps props,
     int frame_idx) {
     auto fb = renderer->render(
-        chronon3d::test::glow_final::make_chronon_glow_final(props),
+        chronon3d::content::glow_final::make_chronon_glow_final(props),
         Frame{frame_idx});
     REQUIRE(fb != nullptr);
     return framebuffer_hash(*fb);
@@ -67,7 +67,7 @@ u64 render_and_hash(
 TEST_CASE("Glow determinism: 3 consecutive renders produce identical framebuffer hash") {
     auto renderer = make_renderer_shared();
 
-    ChrononGlowProps props = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps props = chronon3d::content::glow_final::default_landscape_props();
     props.glow_enabled = true;
 
     constexpr int kFrame = 15;
@@ -89,7 +89,7 @@ TEST_CASE("Glow determinism: 3 consecutive renders produce identical framebuffer
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Glow determinism: fresh renderer per run still produces identical hash") {
-    ChrononGlowProps props = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps props = chronon3d::content::glow_final::default_landscape_props();
     props.glow_enabled = true;
 
     constexpr int kFrame = 15;

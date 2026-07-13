@@ -173,8 +173,7 @@ endif()
 #   - chronon_glow_final.cpp  (NEW, implementation companion — bodies of the 3 public
 #     factories + TU-local helpers in anonymous namespace: GlowLayout, resolve_layout,
 #     CinematicGlowPreset, opacity_for_frame, scale_for_frame, build_chronon_glow_scene).
-# Both live in `chronon3d::test::glow_final` namespace (Action 14 will rename to
-# `chronon3d::content::glow_final` in a separate chore commit).  Compiled into the
+# Both live in `chronon3d::content::glow_final` namespace.
 # `chronon3d_content` OBJECT library; consumers include the header only and resolve
 # the symbol at link time.  CMAKE_SOURCE_DIR include dir already covers the new path.
 compositions/chronon_glow_final.cpp

@@ -49,7 +49,7 @@
 
 using namespace chronon3d;
 using namespace chronon3d::test;
-using chronon3d::test::glow_final::ChrononGlowProps;
+using chronon3d::content::glow_final::ChrononGlowProps;
 
 // ── Phase 3 SCALA contract constants ──────────────────────────────────
 namespace phase3_constants {
@@ -83,14 +83,14 @@ static std::shared_ptr<Framebuffer> render_ae_08(
         ChrononGlowProps props,
         Frame frame) {
     return renderer->render(
-        chronon3d::test::glow_final::make_chronon_glow_final(props),
+        chronon3d::content::glow_final::make_chronon_glow_final(props),
         frame);
 }
 
 TEST_CASE("FASE-3 SCALA: ae_08 16x9 f00 — scale=0.96, centroid stays at (960, 540) within 2 px") {
     using namespace phase3_constants;
     auto renderer = make_renderer_shared();
-    ChrononGlowProps props = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps props = chronon3d::content::glow_final::default_landscape_props();
     auto fb = render_ae_08(renderer, props, Frame{0});
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == 1920);
@@ -126,7 +126,7 @@ TEST_CASE("FASE-3 SCALA: ae_08 16x9 f00 — scale=0.96, centroid stays at (960, 
 TEST_CASE("FASE-3 SCALA: ae_08 16x9 f15 — scale=1.05, centroid stays at (960, 540) within 2 px") {
     using namespace phase3_constants;
     auto renderer = make_renderer_shared();
-    ChrononGlowProps props = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps props = chronon3d::content::glow_final::default_landscape_props();
     auto fb = render_ae_08(renderer, props, Frame{15});
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == 1920);
@@ -155,7 +155,7 @@ TEST_CASE("FASE-3 SCALA: ae_08 16x9 f15 — scale=1.05, centroid stays at (960, 
 TEST_CASE("FASE-3 SCALA: ae_08 16x9 f30 — scale=0.98, centroid stays at (960, 540) within 2 px") {
     using namespace phase3_constants;
     auto renderer = make_renderer_shared();
-    ChrononGlowProps props = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps props = chronon3d::content::glow_final::default_landscape_props();
     auto fb = render_ae_08(renderer, props, Frame{30});
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == 1920);
@@ -184,7 +184,7 @@ TEST_CASE("FASE-3 SCALA: ae_08 16x9 f30 — scale=0.98, centroid stays at (960, 
 TEST_CASE("FASE-3 SCALA: ae_08 9x16 f00 — scale=0.96, centroid stays at (540, 960) within 2 px") {
     using namespace phase3_constants;
     auto renderer = make_renderer_shared();
-    ChrononGlowProps props = chronon3d::test::glow_final::default_portrait_props();
+    ChrononGlowProps props = chronon3d::content::glow_final::default_portrait_props();
     auto fb = render_ae_08(renderer, props, Frame{0});
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == 1080);
@@ -213,7 +213,7 @@ TEST_CASE("FASE-3 SCALA: ae_08 9x16 f00 — scale=0.96, centroid stays at (540, 
 TEST_CASE("FASE-3 SCALA: ae_08 9x16 f15 — scale=1.05, centroid stays at (540, 960) within 2 px") {
     using namespace phase3_constants;
     auto renderer = make_renderer_shared();
-    ChrononGlowProps props = chronon3d::test::glow_final::default_portrait_props();
+    ChrononGlowProps props = chronon3d::content::glow_final::default_portrait_props();
     auto fb = render_ae_08(renderer, props, Frame{15});
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == 1080);
@@ -242,7 +242,7 @@ TEST_CASE("FASE-3 SCALA: ae_08 9x16 f15 — scale=1.05, centroid stays at (540, 
 TEST_CASE("FASE-3 SCALA: ae_08 9x16 f30 — scale=0.98, centroid stays at (540, 960) within 2 px") {
     using namespace phase3_constants;
     auto renderer = make_renderer_shared();
-    ChrononGlowProps props = chronon3d::test::glow_final::default_portrait_props();
+    ChrononGlowProps props = chronon3d::content::glow_final::default_portrait_props();
     auto fb = render_ae_08(renderer, props, Frame{30});
     REQUIRE(fb != nullptr);
     REQUIRE(fb->width()  == 1080);

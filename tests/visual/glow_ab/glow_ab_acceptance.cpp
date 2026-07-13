@@ -37,7 +37,7 @@
 
 using namespace chronon3d;
 using namespace chronon3d::test;
-using chronon3d::test::glow_final::ChrononGlowProps;
+using chronon3d::content::glow_final::ChrononGlowProps;
 
 // ── Shared renderer factory (one per TEST_CASE, cheap) ────────────────────
 
@@ -50,7 +50,7 @@ std::shared_ptr<Framebuffer> render_at(
     ChrononGlowProps props,
     Frame frame) {
     return renderer->render(
-        chronon3d::test::glow_final::make_chronon_glow_final(props),
+        chronon3d::content::glow_final::make_chronon_glow_final(props),
         frame);
 }
 
@@ -112,11 +112,11 @@ TEST_CASE("Glow acceptance: intensity zero is identical to disabled glow") {
     auto renderer = make_renderer_shared();
 
     // Disabled
-    ChrononGlowProps disabled = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps disabled = chronon3d::content::glow_final::default_landscape_props();
     disabled.glow_enabled = false;
 
     // Enabled but intensity zero
-    ChrononGlowProps zero = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps zero = chronon3d::content::glow_final::default_landscape_props();
     zero.glow_enabled = true;
     zero.glow_strength = 0.0f;
 
@@ -197,11 +197,11 @@ TEST_CASE("Glow acceptance: additive glow never reduces source pixels") {
     auto renderer = make_renderer_shared();
 
     // Without glow (source baseline)
-    ChrononGlowProps no_glow = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps no_glow = chronon3d::content::glow_final::default_landscape_props();
     no_glow.glow_enabled = false;
 
     // With glow
-    ChrononGlowProps with_glow = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps with_glow = chronon3d::content::glow_final::default_landscape_props();
     with_glow.glow_enabled = true;
 
     auto fb_no   = render_at(renderer, no_glow,   Frame{15});
@@ -239,7 +239,7 @@ TEST_CASE("Glow acceptance: additive glow never reduces source pixels") {
 TEST_CASE("Glow acceptance: alpha bbox inside canvas, no edge clipping") {
     auto renderer = make_renderer_shared();
 
-    ChrononGlowProps props = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps props = chronon3d::content::glow_final::default_landscape_props();
     props.glow_enabled = true;
 
     auto fb = render_at(renderer, props, Frame{15});
@@ -273,7 +273,7 @@ TEST_CASE("Glow acceptance: alpha bbox inside canvas, no edge clipping") {
 TEST_CASE("Glow acceptance: no visible rectangular layer edge") {
     auto renderer = make_renderer_shared();
 
-    ChrononGlowProps props = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps props = chronon3d::content::glow_final::default_landscape_props();
     props.glow_enabled = true;
 
     auto fb = render_at(renderer, props, Frame{15});
@@ -324,10 +324,10 @@ TEST_CASE("Glow acceptance: no visible rectangular layer edge") {
 TEST_CASE("Glow acceptance: state does not leak between renders") {
     auto renderer = make_renderer_shared();
 
-    ChrononGlowProps on_props = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps on_props = chronon3d::content::glow_final::default_landscape_props();
     on_props.glow_enabled = true;
 
-    ChrononGlowProps off_props = chronon3d::test::glow_final::default_landscape_props();
+    ChrononGlowProps off_props = chronon3d::content::glow_final::default_landscape_props();
     off_props.glow_enabled = false;
 
     // Sequence: ON → OFF → ON

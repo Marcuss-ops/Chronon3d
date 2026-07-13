@@ -21,10 +21,6 @@
 // time adds the corresponding .so/.o target surface on the
 // `chronon3d_content` OBJECT library.
 //
-// Future rename (Action 14 — separate chore commit): the namespace
-// `chronon3d::test::glow_final` will become `chronon3d::content::glow_final`.
-// ═══════════════════════════════════════════════════════════════════════════
-
 #include <string>
 
 #include <chronon3d/core/types/frame.hpp>
@@ -36,7 +32,7 @@
 // must be able to construct/decompose the returned Composition without
 // explicitly including this header themselves.
 
-namespace chronon3d::test::glow_final {
+namespace chronon3d::content::glow_final {
 
 // ── Public default-strength constant ────────────────────────────────────
 //
@@ -80,4 +76,4 @@ ChrononGlowProps default_portrait_props();
 /// legacy `make_chronon_glow_final_for_test(props, Fe&)` has been REMOVED).
 chrono3d::Composition make_chronon_glow_final(ChrononGlowProps props);
 
-} // namespace chronon3d::test::glow_final
+} // namespace chronon3d::content::glow_final
