@@ -3,6 +3,7 @@
 #include "content/common/text/glyph_layout.hpp"  // layout_glyphs()
 
 #include <chronon3d/runtime/render_runtime.hpp>   // Anchor, GlowParams
+#include <chronon3d/text/text_definition.hpp>     // from_text_spec
 
 #include <algorithm>  // std::max
 #include <stdexcept>
@@ -112,7 +113,7 @@ void build_text_reveal_line(SceneBuilder& s, const TextRevealDescriptor& d) {
             ts.layout.line_height    = 1.10f;
             ts.layout.tracking       = 0.0f;
 
-            l.text("label", ts);
+            l.text("label", from_text_spec(ts));
         });
     }
 }

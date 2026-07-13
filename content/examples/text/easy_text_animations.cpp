@@ -24,6 +24,7 @@
 
 #include "content/common/animation_helpers.hpp"
 #include "content/common/background_helpers.hpp"
+#include <chronon3d/text/text_definition.hpp>
 
 namespace chronon3d::content::anims {
 
@@ -46,14 +47,14 @@ void add_bg(SceneBuilder& s) {
 }
 
 // Centered text params for the 5 easy anims.
-TextSpec txt_center(std::string text, f32 font_size = 72.0f) {
-    return TextSpec{
+TextDefinition txt_center(std::string text, f32 font_size = 72.0f) {
+    return from_text_spec(TextSpec{
         .content = {.value = std::move(text)},
         .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .font = {.font_path = FONT_REGULAR, .font_size = font_size},
         .layout = {.box = {BOX_W, BOX_H}, .align = TextAlign::Center, .vertical_align = VerticalAlign::Middle, .line_height = 1.22f, .tracking = 4.0f},
         .appearance = {.color = TEXT_COLOR},
-    };
+    });
 }
 
 } // anonymous namespace
