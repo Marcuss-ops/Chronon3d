@@ -103,7 +103,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // 06 R3b — `create_renderer` returns `std::shared_ptr<SoftwareRenderer>`
     // (the CLI-side type contract is now SoftwareRenderer-direct).  No
     // dynamic_cast required; the renderer pointer IS the right type.
-    session->sw_renderer = session->renderer.get();
+    SoftwareRenderer* sw_renderer = session->renderer.get();
 
     // ── Font preflight (P0 video/text — Fase 1) ────────────────────────────
     // Check fonts referenced by the composition before rendering starts.
@@ -115,9 +115,9 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // engine, materialize_text_run_shape logs "no FontEngine available"
     // and returns nullptr, causing text shapes to be missing.
     {
-        Scene scene = evaluate_video_scene(comp, start, *session->renderer);
+        Scene scene = evaluate_video_scene(comp, start, *sw_renderer);
         auto preflight_result = AssetPreflightResolver::check(
-            scene, session->renderer->runtime().resolver(),
+            scene, sw_renderer->runtime().resolver(),
             PreflightMode::FullComposition);
         if (!preflight_result.ok()) {
             std::string text = format_preflight_issues_text(preflight_result.issues);
@@ -127,11 +127,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     }
 
     // ── Wire counters into encoder so async converter thread can report telemetry ──
-    if (session->sw_renderer && session->sw_renderer->counters()) {
-        session->encoder->set_counters(session->sw_renderer->counters());
+    if (sw_renderer && sw_renderer->counters()) {
+        session->encoder->set_counters(sw_renderer->counters());
 
         // Record the sink type in telemetry counters (renderer must exist first)
-        session->sw_renderer->counters()->video_sink_type_id.store(
+        sw_renderer->counters()->video_sink_type_id.store(
             static_cast<uint64_t>(session->opts.sink.sink_type), std::memory_order_relaxed);
     }
 
@@ -148,10 +148,9 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
         new WriterThreadContext{
             .queue = session->queue,
             .writer_failed = session->writer_failed,
-            .writer_done = session->writer_done,
             .triple_arena = *session->triple_arena,
             .encoder = *session->encoder,
-            .renderer = *session->sw_renderer,
+            .renderer = *sw_renderer,
             .writer_encode_us_total = session->writer_encode_us_total,
             .frames_encoded = session->frames_encoded,
             .frame_encoder_telemetry = session->frame_encoder_telemetry,

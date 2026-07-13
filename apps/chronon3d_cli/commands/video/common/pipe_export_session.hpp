@@ -28,30 +28,27 @@ template <typename T>
 class RenderFrameQueue {
 public:
     explicit RenderFrameQueue(size_t capacity = 0)
-        : capacity_(capacity)
-        , mutex_(std::make_unique<std::mutex>())
-        , not_empty_(std::make_unique<std::condition_variable>())
-        , not_full_(std::make_unique<std::condition_variable>()) {}
+        : capacity_(capacity) {}
 
     bool try_dequeue(T& item) {
-        std::lock_guard<std::mutex> lock(*mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         if (queue_.empty()) return false;
         item = std::move(queue_.front());
         queue_.pop();
-        not_full_->notify_one();
+        not_full_.notify_one();
         return true;
     }
 
     void enqueue(T item) {
         {
-            std::lock_guard<std::mutex> lock(*mutex_);
+            std::lock_guard<std::mutex> lock(mutex_);
             queue_.push(std::move(item));
         }
-        not_empty_->notify_one();
+        not_empty_.notify_one();
     }
 
     size_t size_approx() const {
-        std::lock_guard<std::mutex> lock(*mutex_);
+        std::lock_guard<std::mutex> lock(mutex_);
         return queue_.size();
     }
 
@@ -59,9 +56,9 @@ public:
     /// cancelled before the item can be enqueued.  On success the item is
     /// moved into the queue; on failure the caller retains ownership.
     bool push(T& item, const CancellationToken* token = nullptr) {
-        std::unique_lock<std::mutex> lock(*mutex_);
+        std::unique_lock<std::mutex> lock(mutex_);
         if (capacity_ > 0) {
-            not_full_->wait(lock, [this, token]() {
+            not_full_.wait(lock, [this, token]() {
                 if (token && token->is_cancelled()) return true;
                 return closed_ || queue_.size() < capacity_;
             });
@@ -69,41 +66,41 @@ public:
         if (closed_) return false;
         if (token && token->is_cancelled()) return false;
         queue_.push(std::move(item));
-        not_empty_->notify_one();
+        not_empty_.notify_one();
         return true;
     }
 
     /// Blocking pop.  Returns false when the queue is closed and empty, or
     /// when the token is cancelled.
     bool pop(T& item, const CancellationToken* token = nullptr) {
-        std::unique_lock<std::mutex> lock(*mutex_);
-        not_empty_->wait(lock, [this, token]() {
+        std::unique_lock<std::mutex> lock(mutex_);
+        not_empty_.wait(lock, [this, token]() {
             if (token && token->is_cancelled()) return true;
             return closed_ || !queue_.empty();
         });
         if (closed_ && queue_.empty()) return false;
         item = std::move(queue_.front());
         queue_.pop();
-        not_full_->notify_one();
+        not_full_.notify_one();
         return true;
     }
 
     /// Close the queue, waking all blocked producers and consumers.
     void close() {
         {
-            std::lock_guard<std::mutex> lock(*mutex_);
+            std::lock_guard<std::mutex> lock(mutex_);
             closed_ = true;
         }
-        not_empty_->notify_all();
-        not_full_->notify_all();
+        not_empty_.notify_all();
+        not_full_.notify_all();
     }
 
 private:
     std::queue<T> queue_;
     size_t capacity_{0};
-    std::unique_ptr<std::mutex> mutex_;
-    std::unique_ptr<std::condition_variable> not_empty_;
-    std::unique_ptr<std::condition_variable> not_full_;
+    mutable std::mutex mutex_;
+    std::condition_variable not_empty_;
+    std::condition_variable not_full_;
     bool closed_{false};
 };
 
@@ -137,7 +134,6 @@ struct PipeExportResult {
     bool exception_error{false};
     bool encoder_close_failed{false};
     bool output_published{false};
-    int frames_written{0};
     int frames_rendered{0};
     int frames_enqueued{0};
     int frames_encoded{0};
@@ -165,7 +161,6 @@ struct PipeExportTelemetry {
 struct WriterThreadContext {
     RenderFrameQueue<RenderFramePackage>& queue;
     std::atomic<bool>& writer_failed;
-    std::atomic<bool>& writer_done;
     TripleBufferArena& triple_arena;
     IVideoEncoder& encoder;
     SoftwareRenderer & renderer;
@@ -216,7 +211,6 @@ struct PipeExportSession {
 
     // Renderer
     std::shared_ptr<SoftwareRenderer> renderer;
-    SoftwareRenderer* sw_renderer{nullptr};
 
     // State
     FfmpegExportOptions opts;
@@ -232,7 +226,6 @@ struct PipeExportSession {
     // Queue + async writer
     RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
-    std::atomic<bool> writer_done{false};
     std::unique_ptr<TripleBufferArena> triple_arena;
     std::unique_ptr<WriterThreadContext> writer_ctx;  // outlives the thread (stored in session)
     std::thread writer_thread;
