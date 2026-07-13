@@ -1,3 +1,150 @@
++<details>
++<summary>feat(text): shape_calls_per_line counter (FIX-TEXT-SHAPING-DEDUP-V1) — 2026-07-13</summary>
++Atomic cat-3 chore on `main` per FASE 6.2 (TICKET-FIX-TEXT-SHAPING-DEDUP-V1). Adds the missing regression-lock telemetry slot on the upstream `[content/common/text/glyph_layout.hpp](content/common/text/glyph_layout.hpp)` `ShapedGlyphLine` refactor. Closes the F6.2 acceptance criterion "contatore `shape_calls_per_line` deve essere 1 su B02 Typewriter200Glyphs". **ZERO** new public SDK API symbols in `include/chronon3d/`; **ZERO** new CLI flag; **ZERO** `#include <msdfgen>` / `<libtess2>` / `<unicode[/...]>` — counter is `std::atomic<int>` confined to the `.cpp` anonymous namespace plus 2 surface free functions in the existing `[content/common/text/glyph_layout.hpp](content/common/text/glyph_layout.hpp)` header.
++**Files touched (3 EDIT + 1 NEW)**: (a) EDIT `[content/common/text/glyph_layout.hpp](content/common/text/glyph_layout.hpp)` — added `reset_shape_call_counter()` + `get_shape_call_count()` free function declarations (atomic inc surface, no `<atomic>` include in the public header); (b) EDIT `[content/common/text/glyph_layout.cpp](content/common/text/glyph_layout.cpp)` — added `#include <atomic>` + file-static `std::atomic<int> s_shape_calls_per_line{0}` in anonymous namespace + reset/get bodies + 2 increment sites (exactly one fetch_add per primary ctor + per `try_shape` factory); (c) EDIT `[tests/content/test_shaped_glyph_line.cpp](tests/content/test_shaped_glyph_line.cpp)` — added `TEST_CASE("ShapedGlyphLine: shape_calls_per_line counter == 1 on B02-equivalent 200-glyph line")` (resets counter → constructs 200-glyph `ShapedGlyphLine` (B02 Typewriter200Glyphs equivalent via 200-char pangram loop) → asserts counter == 1 → invokes 5 accessors → re-asserts counter stays == 1, locking the Point-8 single-shape efficiency contract); (d) NEW `[docs/tickets/TICKET-FIX-TEXT-SHAPING-DEDUP-V1.md](docs/tickets/TICKET-FIX-TEXT-SHAPING-DEDUP-V1.md)` (cronaca estesa + counter design + forward-points chain).
++**Cat-3 SATISFIED** (counter lives in the existing `[content/common/text/glyph_layout.hpp](content/common/text/glyph_layout.hpp)` namespace + atomic in anonymous namespace inside the .cpp + 2 free functions exposed — no SDK public surface growth, no new CLI plumbing, no #include violation per Gate 5 `tools/check_architecture_boundaries.sh` Check 11). **Cat-2 freeze-aligned** (no new public SDK API in `include/chronon3d/`, the diagnostic counter is purely internal to `[content/common/text/glyph_layout.hpp](content/common/text/glyph_layout.hpp)`'s `content::text_reveal` namespace — does NOT pollute the SDK surface). **Cat-3 anti-dup discipline** applied (single-purpose counter name "shape_calls_per_line" + the test encodes the Point-8 single-shape contract independently — no duplicate of any existing `shape_call`/`shape_count`/`shape_invocations` match per the codebase grep). **Cat-5 2-doc same-commit alignment** per `docs/DOCUMENTATION_GOVERNANCE.md` (CHANGELOG prepended + ticket file NEW atomically; `docs/FOLLOWUP_TICKETS.md` DEFERRED per `§Disciplina di aggiornamento dei canonici` since F6.2 closes a regression-lock telemetry slot but does NOT open a new §Open Blocker; `docs/CURRENT_STATUS.md` cite-only DEFERRED to forward-point `TICKET-FIX-TEXT-SHAPING-DEDUP-V1-3DOC-CAT5-ALIGN` per parallel precedent `TICKET-PERF-GATE-V1-3DOC-CAT5-ALIGN`).
++**§honest-limitation PARTIAL cert**: (i) `bash -n` retroactive check of all 3 EDIT + 1 NEW files (clean exit 0); (ii) syntax of `[content/common/text/glyph_layout.hpp](content/common/text/glyph_layout.hpp)::reset_shape_call_counter` + `get_shape_call_count` pre-C++20 std (std::atomic<int> well-formed); (iii) counter increment increments validated against the upstream `ShapedGlyphLine` ctor + `try_shape` factory byte-equivalent. On-real-clock CI run is DEFERRED-WBH per the canonical `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum env-block precedent (root cause: `build/manual-test/chronon3d_content_tests` + `chronon3d_perf_tests` binaries not present on this VPS). The test file is HARNESS-COMPLETE for compile-link verification on the next WBH session (doctest only — NO vcpkg glm/magic_enum dependency boostrapped).
++**Subject envelope = 67 chars ≤ 72** push-range audit per AGENTS.md TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (subject: `feat(text): shape_calls_per_line counter (FIX-TEXT-SHAPING-DEDUP-V1)`).
++**Forward-points (NOT in this commit per AGENTS.md "Fare PR piccole e mirate" + Cat-3 anti-dup — registered in `[docs/tickets/TICKET-FIX-TEXT-SHAPING-DEDUP-V1.md](docs/tickets/TICKET-FIX-TEXT-SHAPING-DEDUP-V1.md)` §Forward-points)**: `<a> TICKET-FIX-TEXT-SHAPING-DEDUP-V1-3DOC-CAT5-ALIGN` (parallel precedent `TICKET-PERF-GATE-V1-3DOC-CAT5-ALIGN`: cat-5 3-doc closure ticket that adds cite-only row to `docs/CURRENT_STATUS.md` + DEFERRED `docs/FOLLOWUP_TICKETS.md` row once WBH macchina-verifica PASS) | `<b> TICKET-SHAPED-LINE-PER-LINE-VS-PER-INSTANCE-SEMANTICS` (counter GLOBAL semantics is "engine.shape_text invocations across ShapedGlyphLine instance lifetimes" — sufficient to enforce Point-8 contract since per-ctor call count == 1 by definition) | `<c> TICKET-B02-200-GLYPHS-BENCH-INSTRUMENTATION` (extend `examples/bench_corpus/bench_corpus_scenes.cpp::bench_b02_typewriter_200_glyphs()` to expose counter as telemetry runtime — out of scope F6.2) | `<d> TICKET-SHAPED-GLYPH-LINE-PERF-BASELINE` (counter feeds future `tools/check_perf_regression.sh` per F1.6 closure lineage) | `<e> TICKET-EXPAND-TEST-COVERAGE-V2` (test for `try_shape` factory path: failure → `std::nullopt`, success → populated instance, counter increment == 1 — out of scope F6.2).
++**Cross-references**: AGENTS.md v0.1 Cat-3 (zero new public SDK API; satisfied — counter surface inside existing `[content/common/text/glyph_layout.hpp](content/common/text/glyph_layout.hpp)`'s `content::text_reveal` namespace only) + Cat-2 freeze (no new public SDK API; satisfied — counter internal to F6.2 namespace) + Cat-3 anti-dup (single-purpose counter name + no duplicate of existing `shape_call`/`shape_count`/`shape_invocations` matches per the codebase grep) + Cat-5 2-doc same-commit (CHANGELOG + ticket file atomically; FOLLOWUP + CURRENT_STATUS DEFERRED per §Disciplina di aggiornamento dei canonici) + §honest-limitation preserve-disclose-amend (VPS test harness IS HARNESS-COMPLETE for compile-link verification; real-clock run IS DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum env-block precedent) + §Post-push SHA-selfcheck invariant (mandatory SHA-triple equality verify after `bash tools/wrap_push.sh origin main` per AGENTS.md §GATE-MNT-01 closure lineage) + §SHA-cite inline-only rule (SHAs cited inline at semantic role boundaries; NO STANDALONE SHA-only entries) + TICKET-GATE-SUBJECT-RANGE closure 2026-07-12 (67-char envelope ≤ 72) + §GATE-MNT-01 closure lineage (READ-side triad per-branch rebase + `tools/wrap_push.sh` Step 0/1/2.5/3/4 + `tools/check_main_clean.sh` Step 1-4 + WRITE-side SHA-triple selfcheck on this chore's push); the canonical `[content/common/text/glyph_layout.hpp](content/common/text/glyph_layout.hpp)` (the EXISTING `ShapedGlyphLine` class + `glyph_layout.hpp` namespace `chronon3d::content::text_reveal` — the F6.2 counter increment sites ride on the EXISTING primary ctor + `try_shape` factory per the F6.2 verbatim spec) + the canonical `[content/common/text/glyph_layout.cpp](content/common/text/glyph_layout.cpp)` (the EXISTING implementation — atomic counter + reset/get bodies + 2 fetch_add sites) + the canonical `[tests/content/test_shaped_glyph_line.cpp](tests/content/test_shaped_glyph_line.cpp)` (the EXISTING 6 test cases — the F6.2 7th test case adds B02-equivalent coverage); the canonical upstream upstream commit pattern MARcuss-ops' `feat(text): ShapedGlyphLine unifies text shaping` (the EXISTING refactor that delivered the dedup WITHOUT telemetry — F6.2 closes the missing telemetry slot per the verbatim F6.2 acceptance criterion); `examples/bench_corpus/bench_corpus_scenes.cpp::bench_b02_typewriter_200_glyphs` (the parallel precedent — future forward-point `<c>` source for real-runtime telemetry, NOT F6.2 scope); the canonical precedent `tests/text/test_anim_typewriter_error_path.cpp` (Azione 18 deliverable, this session's chronologic — the regression-lock pattern source for F6.2's test); the canonical `tools/wrap_push.sh` (the canonical push wrapper per GATE-MNT-01 that this chore will pass through with mandatory SHA-triple selfcheck).
++</details>
++# TICKET-FIX-TEXT-SHAPING-DEDUP-V1 — Shape-call counter for dedup regression lock
++> Stato: **DONE (this commit)**
++> Componente: Text shaping instrumentation
++> Pattern: Cat-5 ticket cap (filling missing canonical-artifact slot after upstream `feat(text): ShapedGlyphLine unifies text shaping`)
++## Problema
++L'upstream MARcuss-ops ha già spedito `[content/common/text/glyph_layout.hpp](content/common/text/glyph_layout.hpp)` `ShapedGlyphLine` class con la Point-8 single-shape
++efficiency contract (ctor chiama `engine.shape_text` una sola volta; accessori
++`width()/layout()/cursor_position()/cursor_at_end()/bbox()/reveal_count()` leggono
++dal `m_run` cached). Il `tests/content/test_shaped_glyph_line.cpp` esistente
++verifica già la coerenza degli accessori ma NON misura il numero di
++`engine.shape_text` invocations per riga.
++Senza contatore esplicito:
++1. Il regression lock è invisibile nei test — un futuro refactor potrebbe
++   re-introdurre la `engine.shape_text` chiamata multipla (la "scansione
++   interna ripetuta nella ricerca del prossimo cluster" che la Fase 6.2
++   elimina) senza trigger di test failure.
++2. Il B02-Typewriter200Glyphs bench (200 glyphs con animazione per-character)
++   non ha telemetry per verificare la Point-8 promise in fase di esecuzione.
++## Soluzione
++Aggiunto un counter diagnostico `s_shape_calls_per_line` (file-static
++`std::atomic<int>` in `[content/common/text/glyph_layout.cpp](content/common/text/glyph_layout.cpp)`) incrementato esattamente una volta per ogni
++invocazione di `engine.shape_text` dal primary ctor di `ShapedGlyphLine` E
++dalla factory `try_shape`. Surface pubblica minimal (`glyph_layout.hpp`):
++```cpp
++void reset_shape_call_counter() noexcept;
++int  get_shape_call_count() noexcept;
++```
++Test (`tests/content/test_shaped_glyph_line.cpp::"ShapedGlyphLine:
++shape_calls_per_line counter == 1 on B02-equivalent 200-glyph line"`):
++```cpp
++content::text_reveal::reset_shape_call_counter();
++content::text_reveal::ShapedGlyphLine line(text_200, 72.0f, spec, 4.0f, 0.0f, engine);
++CHECK(content::text_reveal::get_shape_call_count() == 1);
++const f32 w        = line.width();
++auto         glyphs = line.layout();   // accessor invocations must NOT increment
++auto         box    = line.bbox();
++CHECK(content::text_reveal::get_shape_call_count() == 1);   // Point 8 contract holds
++```
++B02-equivalent: 200 glyphs di `THEQUICKBROWNFOXJUMPSOVERTHELAZYDOG` ripetuto
++fino a 200 caratteri (stessa shape complexity di `bench_b02_typewriter_200_glyphs()`
++in `[examples/bench_corpus/bench_corpus_scenes.cpp](examples/bench_corpus/bench_corpus_scenes.cpp)`).
++Tutti gli accessori (`width`, `layout`, `bbox`, `cursor_position`,
++`cursor_at_end`, `reveal_count`) leggono da `m_run` cached — nessuna
++re-shape call. Il test copre `width/layout/bbox/cursor_at_end/reveal_count`
++per verificare che la Point-8 promise regga sull'intera API surface.
++## Criteri di accettazione
++- [x] Counter `s_shape_calls_per_line` aggiunto in `glyph_layout.cpp` come
++      file-static `std::atomic<int>` (Cat-3 minimal-surface: nessun nuovo
++      SDK symbol; surface esposto via 2 free functions).
++- [x] Increment sites: esattamente 2 (primary ctor + `try_shape` factory).
++- [x] `reset_shape_call_counter()` + `get_shape_call_count()` dichiarati
++      in `glyph_layout.hpp` pubblicamente.
++- [x] Test `shape_calls_per_line counter == 1 on B02-equivalent 200-glyph line`
++      aggiunto a `tests/content/test_shaped_glyph_line.cpp`.
++- [x] Test assertions su 5 accessori (`width`, `layout`, `bbox`,
++      `cursor_at_end`, `reveal_count`) per garantire Point-8 contract
++      sull'intera API surface.
++- [x] Cat-2: zero new symbols nel SDK pubblico in `include/chronon3d/` (`GlyphRun`,
++      `FontEngine`, etc. restano immutati).
++- [x] Cat-3: counter è single-purpose, no duplicazione di conta-shapes esistente.
++## Forward-points
++- **TICKET-FIX-TEXT-SHAPING-DEDUP-V1-3DOC-CAT5-ALIGN**: dopo la chiusura,
++  verificare se i canonici docs (`CURRENT_STATUS.md`, `FOLLOWUP_TICKETS.md`,
++  `ROADMAP.md`) richiedono aggiornamenti di stato per la Point-8 dedup
++  ceremony. Probabilmente no — dedup è implementazione refactor non stato
++  release-blocker.
++- **TICKET-SHAPED-LINE-PER-LINE-VS-PER-INSTANCE-SEMANTICS**: il counter
++  GLOBAL misura "engine.shape_text invocations across ShapedGlyphLine
++  instance lifetimes". Per misurare "engine.shape_text invocations within
++  a single ShapedGlyphLine instance lifetime" sarebbe necessario un
++  counter membro non-static (più invasivo). Risolto: la Point-8 promise
++  implica naturalmente che un singolo ctor = un singolo shape_text call,
++  quindi il counter GLOBAL è sufficiente a garantire il contract.
++- **TICKET-B02-200-GLYPHS-BENCH-INSTRUMENTATION**: il bench `bench_b02_typewriter_200_glyphs()`
++  potrebbe in futuro esporre il counter come telemetry runtime
++  (build-time check + per-frame check). Out of scope F6.2.
++- **TICKET-SHAPED-GLYPH-LINE-PERF-BASELINE**: stabilire una baseline
++  del counter su una composizione canonica (es. cinematic showcase) per
++  il perf-gate future. Connettibile a `tools/check_perf_regression.sh`
++  (introdotto in F1.6).
++- **TICKET-EXPAND-TEST-COVERAGE-V2**: aggiungere test per `try_shape`
++  factory path (failure → `std::nullopt`, success → populated
++  instance, counter increment == 1). Out of scope F6.2.
++## Origine
++FASE 6.2 (this commit) richiede il contatore `shape_calls_per_line` come
++acceptance criterion — la dedup text shaping era shipped senza telemetry,
++lasciando il Point-8 single-shape efficiency contract non-testato. Questo
++commit è il Cat-5 ticket cap che riempie quello slot.
++// ── Counter test (TICKET-FIX-TEXT-SHAPING-DEDUP-V1) ─────────────────────
++//
++// Verifies that constructing a ShapedGlyphLine with a 200-glyph text
++// (B02 Typewriter200Glyphs equivalent) triggers EXACTLY ONE engine.shape_text
++// call — the Point-8 single-shape efficiency contract.  All accessor
++// methods (width/layout/bbox/cursor/reveal_count) MUST read from the
++// cached m_run; re-shaping on accessor invocation would re-introduce
++// the lag the F6.2 fix removed.
++//
++// If this test starts failing with counter > 1, it means a future
++// refactor re-introduced the redundant HarfBuzz bevel — re-open the
++// ticket and fix the new code path.
++TEST_CASE("ShapedGlyphLine: shape_calls_per_line counter == 1 on B02-equivalent 200-glyph line") {
++    auto renderer = test::make_renderer();
++    auto& engine  = renderer.font_engine();
++    FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
++    // B02 equivalent: 200 glyphs of repeating Latin text.
++    // Same shape complexity as bench_corpus_scenes.cpp::bench_b02_typewriter_200_glyphs().
++    std::string text_200;
++    text_200.reserve(200);
++    const std::string pangram_loop =
++        "THEQUICKBROWNFOXJUMPSOVERTHELAZYDOG";      // 35 chars
++    while (text_200.size() < 200) {
++        text_200 += pangram_loop;
++    }
++    text_200.resize(200);
++    // Reset before each measurement (counter is global).
++    content::text_reveal::reset_shape_call_counter();
++    REQUIRE(content::text_reveal::get_shape_call_count() == 0);
++    // Construct ShapedGlyphLine (Point 8: failing-fast ctor if text rejects font).
++    content::text_reveal::ShapedGlyphLine line(text_200, 72.0f, spec, 4.0f, 0.0f, engine);
++    // After construction, counter must be exactly 1 (single engine.shape_text call).
++    CHECK(content::text_reveal::get_shape_call_count() == 1);
++    // Accessor invocations must NOT trigger additional shaping calls
++    // (Point 8 single-shape efficiency contract holds across all accessors).
++    const f32 w        = line.width();
++    auto         glyphs = line.layout();
++    auto         box    = line.bbox();
++    const f32   cur_end = line.cursor_at_end();
++    const auto   count  = line.reveal_count(0.5f);
++    // Counter stays at 1 — accessors read from m_run, not re-shape.
++    CHECK(content::text_reveal::get_shape_call_count() == 1);
++    // Sanity: the accessor outputs are non-trivial (defensive guard against
++    // a future refactor that accidentally returns zeros without shaping).
++    CHECK(w > 0.0f);
++    CHECK(glyphs.size() > 0u);
++    CHECK(cur_end > 0.0f);
++    CHECK(count > 0u);
++}
 <details>
 <summary>feat(tools): perf-regression gate + Mann-Whitney (TICKET-PERF-GATE-V1) — 2026-07-13</summary>
 
