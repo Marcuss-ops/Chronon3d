@@ -35,7 +35,7 @@
 | TICKET-TILE-PRUNE-SKIP-UNIFICATION-FIX | P2 | OPEN | Forward-point FIX: extend SkipReason + generalize `commit_transparent_skip`. [ticket](docs/tickets/TICKET-TILE-PRUNE-SKIP-UNIFICATION-FIX.md) |
 | TICKET-TILE-PRUNE-SKIP-UNIFICATION-3DOC-CAT5-ALIGN | P2 | OPEN | Cat-5 3-doc closure chaser-chore. [ticket](docs/tickets/TICKET-TILE-PRUNE-SKIP-UNIFICATION-3DOC-CAT5-ALIGN.md) |
 | TICKET-129-CLOSURE-TRACE-PATTERN-SWEEP | P2 | NEW | Bidir round-trip closure-trace pattern sweep for DONE/OPEN rows with ticket files. |
-| TICKET-CLI-ISOLATE-RUNTIME-DEV | P1 | DONE | CLI 3-layer split: production + content bridge + DEV-gated. Macchina-verifica DEFERRED-WBH. |
+| TICKET-CLI-ISOLATE-RUNTIME-DEV | CLI 3-layer split: production + content bridge + DEV-gated. |
 | TICKET-GLOW-FINAL-COMPOSITIONS-DOC-MIGRATION-3DOC-CAT5-ALIGN | P2 | OPEN | Cat-5 3-doc deferred for Step 7 glow file move. |
 | TICKET-GLOW-FINAL-COMPOSITIONS-MOVE-LOST-EDGES | P2 | OPEN | Recovery race artifact from `93cf6748` glow move; fix-up `bf02ac0` landed. |
 | TICKET-INSPECT-TEXT-3DOC-CAT5-ALIGN | P2 | OPEN | Cat-5 3-doc deferred for Step 3 inspect refactor. |
