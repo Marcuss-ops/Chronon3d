@@ -177,4 +177,22 @@ private:
     f32 ref_offset_x,
     FontEngine& engine);
 
+// ── Shape-call counter (TICKET-FIX-TEXT-SHAPING-DEDUP-V1) ────────────
+//
+// Diagnostic counter that measures engine.shape_text() invocations
+// across the lifetime of one or more ShapedGlyphLine instances.
+// Tests reset before each measurement to assert "1 shape per line"
+// (B02 Typewriter200Glyphs: counter == 1 after one ShapedGlyphLine
+// construction, regardless of how many accessors are called).
+//
+// Per AGENTS.md `#### C++ default-arg uniqueness per TU` — pure
+// diagnostic surface, no behaviour gating on the counter.
+//
+// Counter is an atomic int so worker-thread parallel builds cannot
+// race the increment; memory_order_relaxed is sufficient because
+// the only consumer is the per-test assertion (no producer/consumer
+// ordering required).
+void reset_shape_call_counter() noexcept;
+int  get_shape_call_count() noexcept;
+
 } // namespace chronon3d::content::text_reveal
