@@ -6,12 +6,6 @@
 // (Step 2 of 4).  Single-responsibility: shaping (HarfBuzz) and
 // per-glyph layout (positioning).
 //
-// DEAD CODE REMOVED: the pre-split `shared_glyph_engine(FontEngine&)`
-// pass-through (a literal no-op returning its input) had zero callers
-// (per code-search of the codebase); removed per AGENTS.md Cat-3
-// anti-duplication.  The new module exposes only the genuinely-used
-// layout primitives.
-//
 // Namespace: chronon3d::content::text_reveal (single flat namespace per
 // Cat-3 minimal-surface — preserves the 12 existing callers' `using`
 // declarations).
