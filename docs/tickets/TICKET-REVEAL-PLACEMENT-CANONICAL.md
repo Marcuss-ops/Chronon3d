@@ -62,9 +62,6 @@ l.position({cx, d.base_pos.y, d.base_pos.z});
 
 ### Existing `TextPlacementKind::CanvasCenter` usage (canonical target precedent)
 
-**`content/compositions/chronon_glow_final.cpp:190`**: `chronon3d::TextPlacementKind::CanvasCenter` + comment "this file (cinematic_glow) is one of 4 single-responsibility TUs that REPLACES pin_to-center via TextPlacement resolver" (Phase 3 SCALA fix inheritance).
-**`include/chronon3d/scene/builders/builder_params.hpp`** + cert_* / content/certification / content/text_placement: 49+ canonical consumer sites already use `TextPlacement{TextPlacementKind::CanvasCenter, {}}` for the same semantic (center the text on the canvas).
-
 ### Test surfaces affected (golden byte-equivalence is the constraint)
 
 | Test surface | File | Reason affected |
