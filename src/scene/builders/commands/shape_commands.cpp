@@ -182,37 +182,13 @@ LayerBuilder& LayerBuilder::grid_background(std::string name, GridBackgroundPara
     return shape(registry::shape_ids::GridBackground, std::move(name), std::move(p));
 }
 
-LayerBuilder& LayerBuilder::text(std::string name, TextSpec p) {
-    // P1 — single canonical text pipeline
-    // (docs/MIGRATION_TEXT_SPEC.md §9 acceptance: "rimuovi la shape diretta
-    // Text dal registry, conserva solo TextRun. Anche quando animators è
-    // vuoto, materializza TextRunNode").
-    //
-    // The legacy `Text` ShapeDescriptor was REMOVED from
-    // chronon3d::registry::ShapeRegistry (only `TextRun` remains). To keep
-    // the existing `LayerBuilder::text(name, TextSpec)` ergonomic — used by
-    // 59+ content/ call sites — this method is now a transitional shim that
-    // maps the flat TextSpec into a TextRunSpec (with .text = std::move(p))
-    // and routes through `text_run(name, params).commit()`. The downstream
-    // RenderNode is flagged ShapeType::TextRun in both cases; empty animators
-    // still produce a valid TextRunShape via `materialize_text_run_shape`.
-    TextRunSpec run;
-    run.text = std::move(p);
-    return text_run(std::move(name), std::move(run)).commit();
-}
-
 LayerBuilder& LayerBuilder::text(std::string name, const TextDefinition& def) {
-    // F3.D — forward-point wiring: route via text_run(to_text_run_spec(def))
-    // (the F2.D lossless reverse adapter) instead of the F2.C path that
-    // routed through `from_text_definition` + text(name, TextSpec) and dropped
-    // the 6 spec-only animation fields (animators, selectors, direction,
-    // language, script, cache_layout).
-    //
-    // Symmetric with text_run(name, TextDefinition) (F3.D — same overload
-    // family).  Both routes now preserve any animation populated in
-    // TextDefinition.  Frame envelope drop behaviour is identical (text_run
-    // chain — see text_definition.hpp F2.D LIFECYCLE).
-    return text_run(std::move(name), to_text_run_spec(def)).commit();
+    // F3.D — route the canonical authoring DTO through the lossless reverse
+    // adapter `to_text_run_spec()` and commit the resulting TextRunSpec via
+    // the animated-text pipeline.  This preserves the 6 spec-only animation
+    // fields (animators, selectors, direction, language, script, cache_layout)
+    // that would be dropped by the older from_text_definition() path.
+    return animated_text(std::move(name), to_text_run_spec(def)).commit();
 }
 
 LayerBuilder& LayerBuilder::shape(std::string_view id, std::string name, registry::ShapeParams params) {
