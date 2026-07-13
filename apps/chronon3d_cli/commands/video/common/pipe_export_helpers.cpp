@@ -63,7 +63,8 @@ size_t compute_pipe_arena_size(int width, int height) {
 FfmpegPipeOptions make_pipe_options(
     const Composition& comp,
     const FfmpegExportOptions& opts,
-    const std::string& codec)
+    const std::string& codec,
+    const chronon3d::CpuBudget& cpu_budget)
 {
     const std::string effective_preset =
         (opts.encoder.encoder_backend == "native" && opts.encoder.encode_preset == "superfast")
@@ -93,9 +94,9 @@ FfmpegPipeOptions make_pipe_options(
     pipe_options.output_pix_fmt = resolve_cli_ffmpeg_output_pix_fmt(codec);
 
     // Apply the unified CPU budget so the encoder respects the encode pool.
-    const auto cpu_budget = cpu_budget_from_environment(
-        static_cast<int>(std::thread::hardware_concurrency()));
-    pipe_options.encode_threads = cpu_budget.encode_threads;
+    // The writer thread itself is part of this pool, so reserve one thread
+    // for it and give the remainder to the encoder internal thread pool.
+    pipe_options.encode_threads = std::max(1, cpu_budget.encode_threads - 1);
 
     return pipe_options;
 }

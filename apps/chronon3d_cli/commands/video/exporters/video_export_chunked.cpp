@@ -28,7 +28,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     const RenderSettings& settings,
     Frame start,
     Frame end,
-    const FfmpegExportOptions& opts)
+    const FfmpegExportOptions& opts,
+    const chronon3d::CpuBudget& cpu_budget)
 {
     ChunkedExportResult result;
     result.frames_total = static_cast<int>(end - start);
@@ -62,7 +63,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     // Font preflight uses the canonical evaluate_video_scene() which
     // threads FontEngine into composition evaluation.
     {
-        auto preflight_renderer = create_renderer(registry, settings);
+        Config preflight_cfg = Config::from_environment(cpu_budget);
+        auto preflight_renderer = create_renderer(registry, settings, std::move(preflight_cfg));
         Scene scene = evaluate_video_scene(comp, start, *preflight_renderer);
         auto preflight_result = AssetPreflightResolver::check(
             scene, preflight_renderer->runtime().resolver(),
@@ -101,7 +103,8 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
         workers.emplace_back([&, chunk]() {
             try {
                 const auto renderer_t0 = profiling::now();
-                auto renderer = create_renderer(registry, settings);
+                Config chunk_cfg = Config::from_environment(cpu_budget);
+                auto renderer = create_renderer(registry, settings, std::move(chunk_cfg));
                 const auto renderer_t1 = profiling::now();
                 if (renderer->counters()) {
                     const auto setup_ms = static_cast<uint64_t>(

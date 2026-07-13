@@ -49,7 +49,7 @@ GraphNodeId append_root_sources(RenderGraph& graph, const Scene& scene,
             first_root_source = false;
         }
 
-        auto composite = graph.add_node(std::make_unique<CompositeNode>(chronon3d::BlendMode::Normal));
+        auto composite = graph.add_node(std::make_unique<CompositeNode>(graph.next_composite_id(), chronon3d::BlendMode::Normal));
         graph.connect(current, composite);
         graph.connect(source, composite);
         current = composite;

@@ -93,7 +93,10 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
                     "Maximum capacity when up-tuning (default 128)");
 
     // ── Sink type selection (extends --ffmpeg-mode) ────────────────────
-    cmd->callback([state, &ctx]() { ctx.exit_code = command_video(ctx.registry, *state->args); });
+    cmd->callback([state, &ctx]() {
+        state->args->cpu_budget = ctx.cpu_budget;
+        ctx.exit_code = command_video(ctx.registry, *state->args);
+    });
 }
 
 } // namespace chronon3d::cli

@@ -148,6 +148,26 @@ CpuBudget cpu_budget_for_class(CpuMachineClass c, int total_threads) noexcept {
     }
 
     if (render < 1) render = 1;
+
+    // Low-core override: keep at least one thread per pool whenever possible.
+    if (total_threads == 1) {
+        render = 1;
+        decode = 0;
+        encode = 0;
+    } else if (total_threads == 2) {
+        render = 1;
+        decode = 0;
+        encode = 1;
+    } else if (total_threads == 3) {
+        render = 1;
+        decode = 1;
+        encode = 1;
+    } else if (total_threads == 4) {
+        render = 2;
+        decode = 1;
+        encode = 1;
+    }
+
     b.render_threads = render;
     b.decode_threads = decode;
     b.encode_threads = encode;
@@ -174,6 +194,25 @@ CpuBudget cpu_budget_from_environment(int total_threads) {
         if (!parse_cpu_budget_mode(mode_env, budget.mode)) {
             spdlog::warn("Invalid CHRONON3D_CPU_BUDGET_MODE='{}'; defaulting to static", mode_env);
             budget.mode = BudgetMode::Static;
+        }
+    }
+
+    // Legacy override: CHRONON3D_SCHEDULER_WORKERS sets the render pool.
+    // It is folded into the unified budget so the same immutable instance
+    // is used by TBB, scheduler, decoder and encoder.
+    {
+        const char* workers_env = std::getenv("CHRONON3D_SCHEDULER_WORKERS");
+        if (workers_env && *workers_env) {
+            std::string_view sv(workers_env);
+            int n = 0;
+            const auto [ptr, ec] = std::from_chars(sv.data(), sv.data() + sv.size(), n);
+            if (ec == std::errc{} && ptr == sv.data() + sv.size() && n > 0) {
+                budget.render_threads = std::min(n, total_threads);
+            } else {
+                spdlog::warn(
+                    "Invalid CHRONON3D_SCHEDULER_WORKERS='{}'; using CpuBudget render threads",
+                    workers_env);
+            }
         }
     }
 

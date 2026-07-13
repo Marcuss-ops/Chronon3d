@@ -9,6 +9,7 @@
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/cpu_budget.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
 #include "../../commands/video/common/video_export_common.hpp"
@@ -43,6 +44,8 @@ struct VideoJobPlan {
 
     Frame start{0};
     Frame end_exclusive{0};
+
+    chronon3d::CpuBudget cpu_budget;
 
     bool dry_run{false};
 };
@@ -86,6 +89,7 @@ struct VideoJobPlan {
     const RenderSettings& settings,
     Frame start,
     Frame end,
-    const FfmpegExportOptions& opts);
+    const FfmpegExportOptions& opts,
+    const chronon3d::CpuBudget& cpu_budget);
 
 } // namespace chronon3d::cli
