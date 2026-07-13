@@ -39,6 +39,7 @@
 //       in typewriter_block, never directly (Point 8 clean separation).
 #include "content/common/text/text_reveal.hpp"
 #include "content/common/text/typewriter_block.hpp"
+#include <chronon3d/text/text_definition.hpp>
 
 #include <string>
 #include <vector>
@@ -112,7 +113,7 @@ void add_cursor(SceneBuilder& s, f32 right_edge, Frame reveal_end,
         ts.layout.vertical_align = VerticalAlign::Middle;
         ts.layout.line_height = 1.22f;
 
-        l.text("cursor_label", ts);
+        l.text("cursor_label", from_text_spec(ts));
     });
 }
 
