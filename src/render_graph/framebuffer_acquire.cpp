@@ -203,9 +203,9 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Frame
     {
         auto* placeholder = new Framebuffer(1, 1, false);
         placeholder->swap_contents(const_cast<Framebuffer&>(other));
-        auto pool_ptr = services.framebuffer_pool;
-        return std::shared_ptr<Framebuffer>(placeholder, [pool_ptr](Framebuffer* ptr) noexcept {
-            if (pool_ptr) {
+        std::weak_ptr<cache::FramebufferPool> weak_pool = services.framebuffer_pool;
+        return std::shared_ptr<Framebuffer>(placeholder, [weak_pool](Framebuffer* ptr) noexcept {
+            if (auto pool_ptr = weak_pool.lock()) {
                 pool_ptr->release(ptr);
             } else {
                 delete ptr;
