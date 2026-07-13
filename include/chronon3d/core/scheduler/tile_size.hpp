@@ -51,12 +51,14 @@ struct Tile {
 /// `ceil(bbox.w / ts.width) × ceil(bbox.h / ts.height)`.
 [[nodiscard]] constexpr std::size_t
 compute_tile_count(const raster::BBox& bbox, TileSize ts) noexcept {
+    const int bbox_w = bbox.x1 - bbox.x0;
+    const int bbox_h = bbox.y1 - bbox.y0;
     if (ts.width <= 0 || ts.height <= 0) return std::size_t{0};
-    if (bbox.w <= 0 || bbox.h <= 0)      return std::size_t{0};
+    if (bbox_w <= 0 || bbox_h <= 0)      return std::size_t{0};
     const std::size_t nx = static_cast<std::size_t>(
-        (static_cast<int>(bbox.w) + ts.width  - 1) / ts.width);
+        (bbox_w + ts.width  - 1) / ts.width);
     const std::size_t ny = static_cast<std::size_t>(
-        (static_cast<int>(bbox.h) + ts.height - 1) / ts.height);
+        (bbox_h + ts.height - 1) / ts.height);
     return nx * ny;
 }
 
@@ -67,16 +69,18 @@ compute_tile_count(const raster::BBox& bbox, TileSize ts) noexcept {
 /// of an uneven split).
 [[nodiscard]] constexpr Tile
 compute_tile(const raster::BBox& bbox, TileSize ts, std::size_t i) noexcept {
+    const int bbox_w = bbox.x1 - bbox.x0;
+    const int bbox_h = bbox.y1 - bbox.y0;
     const std::size_t nx = static_cast<std::size_t>(
-        (static_cast<int>(bbox.w) + ts.width  - 1) / ts.width);
+        (bbox_w + ts.width  - 1) / ts.width);
     const std::size_t ny = static_cast<std::size_t>(
-        (static_cast<int>(bbox.h) + ts.height - 1) / ts.height);
+        (bbox_h + ts.height - 1) / ts.height);
     const std::size_t tx = (nx > 0) ? (i % nx) : std::size_t{0};
     const std::size_t ty = (nx > 0) ? (i / nx) : std::size_t{0};
-    const int x = bbox.x + static_cast<int>(tx) * ts.width;
-    const int y = bbox.y + static_cast<int>(ty) * ts.height;
-    const int xmax = bbox.x + bbox.w;
-    const int ymax = bbox.y + bbox.h;
+    const int x = bbox.x0 + static_cast<int>(tx) * ts.width;
+    const int y = bbox.y0 + static_cast<int>(ty) * ts.height;
+    const int xmax = bbox.x0 + bbox_w;
+    const int ymax = bbox.y0 + bbox_h;
     const int w = (x + ts.width <= xmax) ? ts.width  : (xmax - x);
     const int h = (y + ts.height <= ymax) ? ts.height : (ymax - y);
     return Tile{x, y, w, h, i};
