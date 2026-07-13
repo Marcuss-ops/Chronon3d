@@ -1,4 +1,15 @@
 <details>
+<summary>chore(docs): cat-5 AVX2 + blockers closure (3doc sync) — 2026-07-13 [TICKET-AVX2-DEFER-NEXT-SESSION]</summary>
+
+<!-- cat-5-AVX2-blockers-entry-marker -->
+
+[Post-push SHA: `commit <pending>` — amended next-session per AGENTS.md §Post-push SHA-selfcheck]
+3-doc Cat-5 closure: `TICKET-AVX2-DEFER-NEXT-SESSION` → DONE; `TICKET-SCENE-OPNEQ-TEST-FIX` sealed (`dcc87b25`); `TICKET-KERNEL-TILING-MISSING-BBOX` sealed (`c83d8527`).
+Pre-flight all-clear (4 AVX2-IMPL files preserved uncommitted; F5.3-F5.5 supplementary per ADR-025 vs upstream `53f5c4ee` F5.2 schema).
+3 Followup rows removed per AGENTS.md §Disciplina; SHA-triple verify on next-session push.
+
+</details>
+<details>
 <summary>feat(simd): avx2 blend kernel (KERNEL-SET-V1 first) — 2026-07-13</summary>
 
 <!-- F5.2-entry-marker -->
