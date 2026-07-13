@@ -91,16 +91,16 @@ add_library(chronon3d_content OBJECT
 
     # TICKET-CLI-ISOLATE-RUNTIME-DEV (2026-07-12) — AE Parity camera scenes
     # (AE_CAM_01..10) are now DEV-only per the user-spec verbatim §3 (isola
-    # runtime/dev).  The `ae_parity/register_ae_parity_compositions.cpp`
-    # file + the `tests/visual/ae_parity/ae_parity_scenes.cpp` factory
-    # functions are NO LONGER compiled into chronon3d_content — they are
-    # compiled into chronon3d_cli_dev (when CHRONON3D_BUILD_CLI_DEV=ON) and
-    # registered via `apps/chronon3d_cli/register_dev_compositions.cpp`
+    # runtime/dev).  The `tests/visual/ae_parity/ae_parity_scenes.cpp` factory
+    # functions are compiled into chronon3d_cli_dev (when CHRONON3D_BUILD_CLI_DEV=ON)
+    # and registered via `apps/chronon3d_cli/register_dev_compositions.cpp`
     # (DEV-gated).  Production CLI (CHRONON3D_BUILD_CLI_DEV=OFF) does not
-    # include AE_CAM_* at all.  Both files are retained here in source
-    # (dead-code; safe to delete in a follow-up chore) for backward compat
-    # with the existing test fixtures (tests/visual/ae_parity/ae_parity_tests.cpp
-    # still references the factory functions).
+    # include AE_CAM_* at all.  Action 16 (forward-point (b) of
+    # TICKET-CLI-ISOLATE-RUNTIME-DEV closure, 2026-07-13) DELETED the
+    # dead-code `content/ae_parity/register_ae_parity_compositions.{cpp,hpp}`
+    # files — they had zero callers upstream (orchestrator already removed
+    # in the original 2026-07-12 chore).  Test fixtures continue to
+    # reference the AE_CAM_* factory functions via the DEV-only path.
 )
 
 target_include_directories(chronon3d_content PRIVATE ${CMAKE_SOURCE_DIR})
