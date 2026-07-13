@@ -384,6 +384,7 @@ chronon3d_add_test_suite(
     core/test_scene_hasher_camera.cpp
     render_graph/executor/test_cache_key_contract.cpp
     render_graph/executor/test_framebuffer_lifetime.cpp
+    render_graph/executor/test_text_bbox_reconcile.cpp
     render_graph/builder/test_graph_build_pass_order.cpp
     # WP-3 PR 3.0 + PR 3.3 — render-session noexcept-throw guards and
     # multi-session isolation tests live in tests/runtime/ alongside the

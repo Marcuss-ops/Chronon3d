@@ -24,7 +24,6 @@
 
 namespace chronon3d {
 
-class RenderGraphNode;       // fwd decl: full def in `<chronon3d/render_graph/...>`
 class Framebuffer;           // fwd decl: `<chronon3d/core/memory/framebuffer.hpp>`
 struct RenderCounters;       // fwd decl: `<chronon3d/core/profiling/render_counter_types.hpp>`
 
@@ -34,14 +33,16 @@ struct BBox;                 // fwd decl: `<chronon3d/math/raster_utils.hpp>`
 
 namespace graph {
 
+class RenderGraphNode;       // fwd decl: `<chronon3d/render_graph/nodes/render_graph_node.hpp>`
+struct TextBboxReporter;     // per-session reporter (text_bbox_reporter.hpp)
+
 // ── reconcile_text_bbox_after_render ────────────────────────────────────────
 // After a TextRun node renders, scan the rendered framebuffer's alpha channel
 // via the canonical `alpha_bbox_scan()` and expand `predicted` if the actual
 // ink extends beyond it.  Counter `text_bbox_contract_violations` is
 // incremented (when `counters != nullptr`) on expansion; a single warn-once
-// diagnostic is emitted for the process lifetime via a function-local
-// `std::atomic<bool>` (thread-safe; closes the original `static bool`
-// data-race defect that suppressed warnings across parallel render paths).
+// diagnostic is emitted per session via the provided `TextBboxReporter`
+// (thread-safe; no static/process-wide state).
 //
 // Contract:
 //   - `framebuffer` MUST be a valid reference to a sized framebuffer.
@@ -49,6 +50,7 @@ namespace graph {
 //     the original guard pattern in node_runner.cpp).
 //   - `predicted` MUST be non-empty (caller-guarded).  An empty optional
 //     yields a no-op return.
+//   - `reporter` MUST outlive the function call.
 //   - Returns std::optional<raster::BBox> carrying the EXPANDED bbox iff
 //     expansion was needed.  std::nullopt on no-op paths (no ink found,
 //     non-expanding match, or empty input).
@@ -60,7 +62,8 @@ std::optional<raster::BBox> reconcile_text_bbox_after_render(
     const RenderGraphNode& node,
     const Framebuffer& framebuffer,
     const std::optional<raster::BBox>& predicted,
-    RenderCounters* counters);
+    RenderCounters* counters,
+    TextBboxReporter& reporter);
 
 } // namespace graph
 } // namespace chronon3d
