@@ -409,6 +409,43 @@ inline Result<TypewriterLayout, TextError> compute_typewriter_layout(
     return std::move(result);
 }
 
+// ── cluster-window helper for typewriter_build ──────────────────────────────
+//
+// Both the character list (layout.chars) and the shaped cluster list
+// (cached_placed.clusters) are sorted by byte offset and each forms a
+// non-overlapping partition of the source text.  We can therefore find
+// the overlapping cluster range for each character with a two-pointer
+// scan that only moves forward: O(chars + clusters) instead of
+// O(chars * clusters).
+
+namespace detail {
+
+inline void advance_cluster_window(
+    const std::vector<PlacedGlyphRun::Cluster>& clusters,
+    size_t char_start,
+    size_t char_end,
+    size_t& first_cl,
+    size_t& end_cl)
+{
+    // Advance first_cl past clusters that end before or at char_start.
+    while (first_cl < clusters.size() &&
+           clusters[first_cl].byte_offset + clusters[first_cl].byte_len <= char_start) {
+        ++first_cl;
+    }
+
+    // end_cl must not fall behind first_cl when first_cl advanced.
+    if (end_cl < first_cl) {
+        end_cl = first_cl;
+    }
+
+    // Advance end_cl past clusters that start before char_end.
+    while (end_cl < clusters.size() && clusters[end_cl].byte_offset < char_end) {
+        ++end_cl;
+    }
+}
+
+} // namespace detail
+
 // ── typewriter_build — implementation ─────────────────────────────────────
 
 inline Result<bool, TextError> typewriter_build(
@@ -489,6 +526,10 @@ inline Result<bool, TextError> typewriter_build(
     const size_t revealed_count = static_cast<size_t>(revealed_exact);
     const f32 revealed_frac = revealed_exact - static_cast<f32>(revealed_count);
 
+    // See detail::advance_cluster_window above for the complexity argument.
+    size_t first_cl = 0;
+    size_t end_cl = 0;
+
     for (size_t i = 0; i < layout.chars.size(); ++i) {
         auto& cp = layout.chars[i];
 
@@ -511,21 +552,13 @@ inline Result<bool, TextError> typewriter_build(
             const size_t char_start = cp.byte_offset;
             const size_t char_end = cp.byte_offset + cp.byte_len;
 
-            size_t first_cl = cached_placed.clusters.size();
-            size_t last_cl = 0;
-            for (size_t ci = 0; ci < cached_placed.clusters.size(); ++ci) {
-                const auto& cl = cached_placed.clusters[ci];
-                const size_t cl_start = cl.byte_offset;
-                const size_t cl_end = cl.byte_offset + cl.byte_len;
-                if (cl_start < char_end && cl_end > char_start) {
-                    if (ci < first_cl) first_cl = ci;
-                    if (ci > last_cl) last_cl = ci;
-                }
-            }
+            detail::advance_cluster_window(cached_placed.clusters,
+                                           char_start, char_end,
+                                           first_cl, end_cl);
 
-            if (last_cl >= first_cl && first_cl < cached_placed.clusters.size()) {
+            if (first_cl < end_cl) {
                 const auto& first_cluster = cached_placed.clusters[first_cl];
-                const auto& last_cluster = cached_placed.clusters[last_cl];
+                const auto& last_cluster = cached_placed.clusters[end_cl - 1];
                 const size_t start_glyph = first_cluster.start_glyph;
                 const size_t end_glyph = last_cluster.end_glyph;
 
