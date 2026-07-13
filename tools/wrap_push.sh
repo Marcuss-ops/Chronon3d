@@ -248,5 +248,62 @@ else
     echo "wrap_push.sh: GATE_PROFILE=${GATE_PROFILE} — skipping WBH-only gates (video/glow/determinism/batch/SDK)"
 fi
 
+# ── Step 4.5q: PERF_GATE pre-flight (F1.6 / TICKET-PERF-GATE-V1) ──────────────────
+# Optional perf-regression gate executed when the env var `PERF_GATE=enabled`
+# is set.  Default OFF (backward compat with the existing wrap_push.sh invocation
+# surface).  When enabled:
+#   - current  bench.v3 JSON path: ${CHRONON3D_PERF_CURRENT_REPORT:-""}
+#   - baseline bench.v3 JSON path: ${CHRONON3D_PERF_BASELINE:-$REPO_ROOT/bench/baselines/main-HEAD-perf.json}
+# Both paths must resolve (the gate is GATE_BLOCKED if either is missing); both
+# paths must be valid bench.v3 JSON (the gate validates via tools/lib_perf_regression.py
+# parse_bench()).
+# Exit codes (mirror the verify_*_linux.sh family 3-state envelope):
+#   0 = GATE_PASS  — proceed to git push.
+#   1 = GATE_FAIL  — block push; emit remediation hint (src-side fix / regenerate
+#                    baseline / widen threshold via forward-point ADR).
+#   2 = GATE_BLOCKED — the gate cannot proceed (env-block on this VPS per
+#                    TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV).  Default closure:
+#                    when PERF_GATE=enabled and binary is missing, abort with
+#                    remediation hint (operator explicitly opted in; closing
+#                    BLOCKED would defeat the gate's purpose).  Forward-point:
+#                    macchina-verifica on WBH per TICKET-PERF-GATE-V1-WBH-MACHINE-VERIFY.
+if [[ "${PERF_GATE:-disabled}" == "enabled" ]]; then
+    CURRENT_REPORT="${CHRONON3D_PERF_CURRENT_REPORT:-build/manual-test/perf_latest.json}"
+    BASELINE_REPORT="${CHRONON3D_PERF_BASELINE:-$REPO_ROOT/bench/baselines/main-HEAD-perf.json}"
+    if [[ ! -s "$CURRENT_REPORT" ]]; then
+        echo "wrap_push.sh: PERF_GATE=enabled but CHRONON3D_PERF_CURRENT_REPORT unresolved: $CURRENT_REPORT" >&2
+        echo "  fix: run 'chronon3d_cli bench <scene> --json-file $CURRENT_REPORT' first" >&2
+        echo "  fix: or set CHRONON3D_PERF_CURRENT_REPORT=/path/to/bench-v3.json explicitly" >&2
+        echo "GATE_FAIL"
+        exit 1
+    fi
+    if [[ ! -s "$BASELINE_REPORT" ]]; then
+        echo "wrap_push.sh: PERF_GATE=enabled but CHRONON3D_PERF_BASELINE unresolved: $BASELINE_REPORT" >&2
+        echo "  fix: set CHRONON3D_PERF_BASELINE=/path/to/bench-v3-baseline.json" >&2
+        echo "  fix: or place a default baseline at $BASELINE_REPORT (forward-point forward-ops)" >&2
+        echo "GATE_FAIL"
+        exit 1
+    fi
+    echo "wrap_push.sh: PERF_GATE pre-flight (current=$CURRENT_REPORT baseline=$BASELINE_REPORT)..."
+    bash "${SCRIPT_DIR}/check_perf_regression.sh" \
+        --current  "$CURRENT_REPORT" \
+        --baseline "$BASELINE_REPORT"
+    gate_rc=$?
+    case $gate_rc in
+        0) echo "wrap_push.sh: PERF_GATE PASSED — proceeding to git push"; ;;
+        1) echo "wrap_push.sh: GATE_FAIL on check_perf_regression.sh — push aborted" >&2
+           echo "  fix: see tools/check_perf_regression.sh diagnostic for offending metric(s)" >&2
+           echo "  fix-forward paths: (a) src-side fix; (b) regenerate baseline; (c) widen threshold (ADR)" >&2
+           exit 1 ;;
+        2) echo "wrap_push.sh: GATE_BLOCKED on check_perf_regression.sh — push aborted (env-block on this VPS)" >&2
+           echo "  fix: macchina-verifica DEFERRED-WBH per TICKET-PERF-GATE-V1-WBH-MACHINE-VERIFY" >&2
+           echo "  fix: when PERF_GATE=enabled and binary is missing locally, gate reports BLOCKED" >&2
+           echo "  fix: either set PERF_GATE=disabled to skip OR build chronon3d_cli locally first" >&2
+           exit 1 ;;
+        *) echo "wrap_push.sh: check_perf_regression.sh exited with unrecognized code $gate_rc — aborting" >&2
+           exit 2 ;;
+    esac
+fi
+
 echo "wrap_push.sh: gate PASSED — invoking: git push $*"
 exec git push "$@"

@@ -118,3 +118,97 @@ dashboard:
       status: "PASS | FAIL | NO-DATA"
     per_op: "dict<op → count across all filtered events>"
     violating_ops: "list<op> where actual > max_allowed"
+
+# ─────────────────────────────────────────────────────────────────────────
+# perf_regression_gate — automatic perf-regression gate (F1.6 / TICKET-PERF-GATE-V1)
+# ─────────────────────────────────────────────────────────────────────────
+# Schema-canonical config for tools/check_perf_regression.sh.
+# This block is the SINGLE SOURCE OF TRUTH for:
+#   - the 6 metric-failure thresholds (3 multiplicative + 3 absolute-increase)
+#   - the burst-rerun retry policy (min/max attempts)
+#   - the Mann-Whitney alpha significance level
+#   - the close-call guardband width (within X% of threshold → retry)
+#
+# Per AGENTS.md v0.1 Cat-3 (zero new public SDK API surface):
+#   the threshold values are config-only, NOT hardcoded in tools/check_perf_regression.sh
+#   (the script reads them via python3 yaml.safe_load OR falls back to defaults below
+#    if pyyaml is missing from the venv — the bench runner tools/benchmark_host_info.sh
+#    is the canonical yaml parser elsewhere in the project).
+#   tools/check_perf_regression.sh reads from this block at gate time.
+#
+# Per AGENTS.md v0.1 §honesty:
+#   thresholds are EXACT numeric multipliers (not ranges, not estimates) per the
+#   "no stime percentuali" rule. Each multiplier below carries the user-spec verbatim
+#   value: median_pct=1.03 (3% regression budget), p95_pct=1.05 (5% regression budget),
+#   peak_rss_pct=1.05 (5% regression budget).
+# Per AGENTS.md v0.1 §regole ("non espandere API non necessaria"):
+#   exactly the 6 user-spec metrics mapped to bench.v3 schema fields (see §Field
+#   mapping in docs/tickets/TICKET-PERF-GATE-V1.md for the verbatim mapping); no
+#   more, no less. Adding a 7th metric requires an ADR + bench.v4 schema amendment.
+#
+# Companion to: tools/lib_perf_regression.py (python3 stdlib Mann-Whitney U test)
+#                tools/check_perf_regression.sh (3-exit-codes bash wrapper)
+#                tools/wrap_push.sh Step 4.5q (optional PERF_GATE=enabled pre-flight hook)
+perf_regression_gate:
+  version: "perf_gate_v1"
+  channel: "perf_regression_gate"
+
+  # ── 6 metric thresholds (numeric multiplicative + absolute-increase) ─────────
+  # The 3 multiplicative thresholds compare current/baseline > threshold.
+  #   median:        metrics.median_frame_ms (alias p50 in bench.v3)
+  #   p95:           metrics.p95_frame_ms
+  #   peak_rss:      memory.peak_rss_mb
+  # The 3 absolute-increase thresholds compare current > baseline (any strict
+  # increase counts as regression per user spec verbatim "se aumentano"):
+  #   full_frame_copies:           counters.full_frame_passes (semantic mapping in
+  #                                docs/tickets/TICKET-PERF-GATE-V1.md §Field mapping)
+  #   allocations_per_frame:       memory.allocations_per_frame (per bench.v3)
+  #   output_hash:                  quality.deterministic_hash (per bench.v3)
+  thresholds:
+    median_pct: 1.03               # 3 % regression budget on median frame time
+    p95_pct: 1.05                  # 5 % regression budget on p95 frame time
+    peak_rss_pct: 1.05             # 5 % regression budget on peak RSS memory
+
+  # ── Close-call guardband width ─────────────────────────────────────────────────
+  # A measure is "close-call" iff ratio > threshold * (1 - close_call_band_pct).
+  # Within this band, the gate invokes the burst-rerun resolver (Mann-Whitney U
+  # test on 10-20 fresh samples vs baseline) per user spec verbatim "Per misure
+  # vicine alla soglia: riesegui 10-20 volte e usa mediane con test Mann-Whitney
+  # semplice". 0.20 default = "within 20% of the regression cliff".
+  close_call_band_pct: 0.20
+
+  # ── Burst-rerun retry policy ──────────────────────────────────────────────────
+  # Number of additional samples to collect when a metric enters close-call.
+  # Spec verbatim: "10-20 volte". Capped at retry_attempts_max to prevent
+  # runaway-rebuild cycles; floor at retry_attempts_min per spec.
+  retry_attempts_min: 10
+  retry_attempts_max: 20
+
+  # ── Mann-Whitney U test significance level ──────────────────────────────────
+  # Two-sided p-value threshold. p <= alpha → reject null hypothesis
+  # (distributions differ) → escalate close-call to hard FAIL.
+  # alpha=0.05 is the standard CI default; widen via forward-point ADR if needed.
+  mann_whitney_alpha: 0.05
+
+  # ── Bypass flag for deterministic hash mismatch ───────────────────────────────
+  # The `--allow-golden-change` CLI flag on tools/check_perf_regression.sh
+  # bypasses the output_hash hard-FAIL only. All other metrics remain gated.
+  # Rationale (per user spec verbatim "o se cambia output_hash senza flag"):
+  # some commits legitimately change the rendered output (e.g. text-color fix);
+  # the operator explicitly opts in via the flag instead of being silently passed.
+  allow_golden_change_flag: "--allow-golden-change"
+
+  # ── Output format (parallel to verify_*_linux.sh family) ──────────────────────
+  # Emitted per the canonical AGENTS.md §Lint-checkability INFO-level diagnostic
+  # pattern: GATE_NAME → canonical basename, [INFO]/[WARN]/GATE_FAIL as prefixes.
+  diagnostic_style: "aggressive_info"   # verbose PASS line per metric verified
+
+  # ── Companion scripts (SSoT cross-link) ──────────────────────────────────────
+  # Each threshold key is consumed by exactly one downstream script; this map is
+  # the lineage cross-link (per docs/DOCUMENTATION_GOVERNANCE §ADR lineage).
+  # No threshold is hardcoded downstream — the gate script reads from THIS block.
+  lineage:
+    metric_to_script: "tools/lib_perf_regression.py::compare_to_baseline"
+    decision_policy:  "tools/lib_perf_regression.py::decide"
+    burst_resolver:   "tools/lib_perf_regression.py::mann_whitney_u + imperative rerun in tools/check_perf_regression.sh"
+    wrap_push_hook:   "tools/wrap_push.sh Step 4.5q (PERF_GATE=enabled optional)"
