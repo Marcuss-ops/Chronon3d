@@ -143,7 +143,8 @@ namespace chronon3d {
     X(dirty_rect_count) \
     X(dirty_pixels) \
     X(dirty_union_area_pixels) \
-    X(dirty_full_fallbacks)
+    X(dirty_full_fallbacks) \
+    X(scroll_opt_copy_ms)
 
 #define CHRONON_COUNTERS_LAYER(X) \
     X(layer_culling_tests) \
