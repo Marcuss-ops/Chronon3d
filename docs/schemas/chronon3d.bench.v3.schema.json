@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chronon3d.dev/schemas/benchmark_report.v3.json",
+  "title": "Chronon3D Benchmark Report v3",
+  "description": "Official schema for Chronon3D headless CPU renderer benchmark reports.",
+  "type": "object",
+  "required": [
+    "schema",
+    "comp_id",
+    "timestamp_utc",
+    "build_type",
+    "compiler_info",
+    "os",
+    "render",
+    "metrics",
+    "memory",
+    "quality",
+    "counters"
+  ],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "chronon3d.bench.v3",
+      "description": "Schema identifier. Must be 'chronon3d.bench.v3'."
+    },
+    "comp_id": {
+      "type": "string",
+      "description": "Composition or scene identifier used for the benchmark run."
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp when the benchmark was executed."
+    },
+    "build_type": {
+      "type": "string",
+      "description": "Build configuration, e.g. 'Release' or 'Debug'."
+    },
+    "compiler_info": {
+      "type": "string",
+      "description": "Compiler identification string."
+    },
+    "os": {
+      "type": "string",
+      "description": "Operating system identifier, e.g. 'Linux', 'macOS', 'Windows'."
+    },
+    "render": {
+      "type": "object",
+      "required": ["width", "height", "frames", "warmup", "modular_graph"],
+      "properties": {
+        "width": { "type": "integer", "minimum": 0, "description": "Output width in pixels." },
+        "height": { "type": "integer", "minimum": 0, "description": "Output height in pixels." },
+        "frames": { "type": "integer", "minimum": 0, "description": "Number of rendered frames." },
+        "warmup": { "type": "integer", "minimum": 0, "description": "Number of warmup frames before measurement." },
+        "modular_graph": { "type": "boolean", "description": "Whether the modular render graph path was used." }
+      },
+      "additionalProperties": false
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "time_to_first_frame_ms",
+        "avg_frame_ms",
+        "median_frame_ms",
+        "min_frame_ms",
+        "max_frame_ms",
+        "p50_frame_ms",
+        "p95_frame_ms",
+        "p99_frame_ms",
+        "fps",
+        "fps_steady_state"
+      ],
+      "properties": {
+        "time_to_first_frame_ms": { "type": "number", "minimum": 0, "description": "Wall time from render start to first frame completion." },
+        "avg_frame_ms": { "type": "number", "minimum": 0, "description": "Average frame time over the measured frames." },
+        "median_frame_ms": { "type": "number", "minimum": 0, "description": "Median (p50) frame time." },
+        "min_frame_ms": { "type": "number", "minimum": 0, "description": "Minimum frame time." },
+        "max_frame_ms": { "type": "number", "minimum": 0, "description": "Maximum frame time." },
+        "p50_frame_ms": { "type": "number", "minimum": 0, "description": "50th percentile frame time." },
+        "p95_frame_ms": { "type": "number", "minimum": 0, "description": "95th percentile frame time." },
+        "p99_frame_ms": { "type": "number", "minimum": 0, "description": "99th percentile frame time." },
+        "fps": { "type": "number", "minimum": 0, "description": "Average frames per second." },
+        "fps_steady_state": { "type": "number", "minimum": 0, "description": "Frames per second after warmup, excluding first-frame effects." }
+      },
+      "additionalProperties": false
+    },
+    "memory": {
+      "type": "object",
+      "required": [
+        "peak_rss_mb",
+        "peak_framebuffer_bytes",
+        "allocations_per_frame",
+        "bytes_copied_per_frame"
+      ],
+      "properties": {
+        "peak_rss_mb": { "type": "number", "minimum": 0, "description": "Peak resident set size in megabytes." },
+        "peak_framebuffer_bytes": { "type": "number", "minimum": 0, "description": "Peak framebuffer memory allocated in bytes." },
+        "allocations_per_frame": { "type": "number", "minimum": 0, "description": "Average heap allocations per frame." },
+        "bytes_copied_per_frame": { "type": "number", "minimum": 0, "description": "Average bytes copied per frame." }
+      },
+      "additionalProperties": false
+    },
+    "quality": {
+      "type": "object",
+      "required": ["deterministic_hash", "ssim"],
+      "properties": {
+        "deterministic_hash": { "type": "string", "description": "Hexadecimal hash of the rendered output for determinism verification." },
+        "ssim": { "type": "number", "minimum": 0, "maximum": 1, "description": "Structural Similarity Index between output and golden reference." }
+      },
+      "additionalProperties": false
+    },
+    "counters": {
+      "type": "object",
+      "required": [
+        "cache_hits",
+        "cache_misses",
+        "cache_hit_rate",
+        "nodes_executed",
+        "pixels_touched",
+        "blur_pixels",
+        "images_sampled",
+        "text_glyphs_rasterized",
+        "framebuffer_copies",
+        "framebuffer_clears",
+        "full_frame_passes"
+      ],
+      "properties": {
+        "cache_hits": { "type": "integer", "minimum": 0, "description": "Number of node cache hits." },
+        "cache_misses": { "type": "integer", "minimum": 0, "description": "Number of node cache misses." },
+        "cache_hit_rate": { "type": "number", "minimum": 0, "maximum": 1, "description": "Ratio of cache hits over total cache lookups." },
+        "nodes_executed": { "type": "integer", "minimum": 0, "description": "Total render nodes executed." },
+        "pixels_touched": { "type": "integer", "minimum": 0, "description": "Total pixels written by the renderer." },
+        "blur_pixels": { "type": "integer", "minimum": 0, "description": "Pixels processed by blur kernels." },
+        "images_sampled": { "type": "integer", "minimum": 0, "description": "Image sampling operations." },
+        "text_glyphs_rasterized": { "type": "integer", "minimum": 0, "description": "Glyphs rasterized during text rendering." },
+        "framebuffer_copies": { "type": "integer", "minimum": 0, "description": "Full or partial framebuffer copies." },
+        "framebuffer_clears": { "type": "integer", "minimum": 0, "description": "Framebuffer clear operations." },
+        "full_frame_passes": { "type": "integer", "minimum": 0, "description": "Number of full-frame passes executed." }
+      },
+      "additionalProperties": false
+    },
+    "categories_ms": {
+      "type": "object",
+      "description": "Optional per-category timing breakdown in milliseconds.",
+      "additionalProperties": { "type": "number", "minimum": 0 }
+    },
+    "node_durations_ms": {
+      "type": "object",
+      "description": "Optional per-node duration breakdown in milliseconds.",
+      "additionalProperties": { "type": "number", "minimum": 0 }
+    },
+    "frame_times_ms": {
+      "type": "array",
+      "description": "Optional per-frame wall times in milliseconds.",
+      "items": { "type": "number", "minimum": 0 }
+    }
+  },
+  "additionalProperties": false
+}
