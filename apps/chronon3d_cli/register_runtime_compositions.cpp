@@ -50,14 +50,14 @@ void register_runtime_compositions(CompositionRegistry& registry) {
     // different id (Action 15 forward-point of TICKET-CHRONON-GLOW-FINAL-
     // DEDUP-PROPS closure lineage).
     auto make_landscape_comp = [](const CompositionProps&) -> Composition {
-        return chronon3d::test::glow_final::make_chronon_glow_final(
-            chronon3d::test::glow_final::default_landscape_props());
+        return chronon3d::content::glow_final::make_chronon_glow_final(
+            chronon3d::content::glow_final::default_landscape_props());
     };
     registry.add("ChrononGlowFinalAE", make_landscape_comp);
     registry.add("ChrononGlowFinalAEPortrait",
         [](const CompositionProps&) -> Composition {
-            return chronon3d::test::glow_final::make_chronon_glow_final(
-                chronon3d::test::glow_final::default_portrait_props());
+            return chronon3d::content::glow_final::make_chronon_glow_final(
+                chronon3d::content::glow_final::default_portrait_props());
         });
 }
 

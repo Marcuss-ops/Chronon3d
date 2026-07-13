@@ -6,7 +6,7 @@
 //
 // All body that previously lived `inline` in the old header has been moved
 // here.  The 3 public symbols are defined out-of-line in the
-// `chronon3d::test::glow_final` namespace (matching the header decls):
+// `chronon3d::content::glow_final` namespace (matching the header decls):
 //
 //   default_landscape_props()
 //   default_portrait_props()
@@ -23,10 +23,6 @@
 // surface is added by `content/CMakeLists.txt` registering this file in
 // the `chronon3d_content` OBJECT library.
 //
-// Future rename (Action 14 — separate chore commit): the namespace
-// `chronon3d::test::glow_final` will become `chronon3d::content::glow_final`.
-// ═══════════════════════════════════════════════════════════════════════════
-
 #include "content/compositions/chronon_glow_final.hpp"
 // Header brings: kDefaultGlowStrength, GlowFormat, ChrononGlowProps, and
 // 3 public-function decls (default_landscape_props, default_portrait_props,
@@ -168,7 +164,6 @@ void build_chronon_glow_scene(
     const GlowLayout layout = resolve_layout(props.format);
     const chronon3d::f32 opacity = opacity_for_frame(frame_idx);
     const chronon3d::Vec3 scale  = scale_for_frame(frame_idx);
-    const chronon3d::Vec2 center = layout.canvas_size * 0.5f;
     const bool apply_breath = props.scale_breath;
 
     s.layer("hero", [&, opacity, scale, apply_breath](chronon3d::LayerBuilder& l) {
@@ -229,7 +224,7 @@ void build_chronon_glow_scene(
 // `content/compositions/chronon_glow_final.hpp`.
 // ═══════════════════════════════════════════════════════════════════════════
 
-namespace chronon3d::test::glow_final {
+namespace chronon3d::content::glow_final {
 
 ChrononGlowProps default_landscape_props() {
     return ChrononGlowProps{
@@ -274,4 +269,4 @@ chrono3d::Composition make_chronon_glow_final(ChrononGlowProps props) {
         });
 }
 
-} // namespace chronon3d::test::glow_final
+} // namespace chronon3d::content::glow_final
