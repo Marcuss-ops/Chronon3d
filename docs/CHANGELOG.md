@@ -1,3 +1,8 @@
+## 2026-07-13
+### `feat(bench): competitor matrix scaffold + 4 commercial gates`
+  ([TICKET-BENCH-MARKET-V1](docs/tickets/TICKET-BENCH-MARKET-V1.md))
+
+Author `bench/competitor_matrix.md` (NEW) per FASE 7.1 user-spec verbatim.  Lands 1 NEW + 1 EDIT: 1) `bench/competitor_matrix.md` (NEW — methodology + 12-scene template B00–B11 + cost formula `costo_per_minuto_output = costo_orario_macchina × secondi_render / 3600 / minuti_generati` unit-correct + competitor identity A=After Effects / B=Remotion v4 / C=Pipeline Precedente + 4 commercial gates + reproducibility CLI commands per competitor + cross-refs canonical machine/manifest/schema sources); 2) `docs/CHANGELOG.md` (EDIT: questo entry prepended at TOP). Canonical ticket `docs/tickets/TICKET-BENCH-MARKET-V1.md` carries 8 criteri accettazione + 5 forward-points (a-e: macchina-verifica WBH + AE runner + Remotion runner + Pipeline runner + Pubblica report dopo F1-F6 PASS). Subject envelope 60 chars OK. Cat-3 minimal-surface (zero new SDK API, zero new CLI flag, zero new schema). Real commercial metric values forward-pointed to TICKET-BENCH-MARKET-V1-MEASURE per `DEFERRED-WBH` + `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` precedent (this VPS lacks vcpkg glm/magic_enum bootstrap + `chronon3d_cli` link). Per-row `[DEFERRED-WBH]` markers are deliberate empty cells (NOT zero-guesses) per `AGENTS.md v0.1 §honesty` discipline. Full cronaca + 5 forward-points in `docs/tickets/TICKET-BENCH-MARKET-V1.md` per AGENTS.md ticket-home rule.
 
 <details><summary>feat(build): PGO + ThinLTO + BOLT cmake presets (4 release variants) — 2026-07-13</summary>
 
