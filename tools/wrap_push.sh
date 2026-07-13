@@ -33,15 +33,13 @@
 # always; no --skip-gates escape hatch.  Documented in
 # `docs/AGENT_WORKFLOW.md` §6 (Pre-push hygiene gates).
 #
-# Note: TICKET-SIMPLICITY-NO-DUAL-API's check_no_dual_text_api.sh was
-# previously wired at Step 4.5d but is now untracked in the repo (the script
-# exists locally as a developer-tool but was never committed to git history);
-# it has been REMOVED from this gate chain entirely to avoid intermittent
-# GATE_FAIL on stale local scripts. The M1.8 §1 invariant is still enforced
-# by `bash tools/check_no_dual_text_api.sh` runs in CI / local dev (the
-# script is still discoverable + executable when present), but the pre-push
-# wire-up is intentionally omitted. See docs/CHANGELOG.md entry
-# "TICKET-TEXT-GOLDEN-SOURCES-ALIGNED" for full rationale.
+# Note (I1 audit remediation 2026-07-13): the M1.8 §1 "no parallel text
+# API" invariant is structurally enforced by Gate #25 in
+# `tools/check_architecture_boundaries.sh`. The wrapper no longer
+# references any standalone script for this invariant; Gate #25 is the
+# single canonical enforcement surface (4 categories:
+# LayerBuilder::text_<variant>, centered_text/glow_text definitions,
+# TextSpec.position assignments, pin_to+TextAnchor co-occurrence).
 #
 # Behaviour (post TICKET-076 closure, 2026-06-30, + GATE-MNT-01-EXT
 # closure 2026-07-04 — auto-repair of per-branch rebase on push):

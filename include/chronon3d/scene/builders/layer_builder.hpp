@@ -169,10 +169,11 @@ public:
     //   def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
     //                                       Vec2{x, y}};
     //
-    // Enforcement: `tools/check_no_dual_text_api.sh` [4/4] (now blocking
-    // per §5A) flags files where `pin_to(...)` co-occurs with
-    // `TextAnchor::` and `.text(...)` in the same TU.  See the gate
-    // header for the full list of grandfathered pre-existing files.
+    // Enforcement: Gate #25 in `tools/check_architecture_boundaries.sh`
+    // [4/4] (now blocking per §5A — folded per the I1 audit remediation)
+    // flags files where `pin_to(...)` co-occurs with `TextAnchor::` and
+    // `.text(...)` in the same TU.  See the gate header for the full list
+    // of grandfathered pre-existing files.
     LayerBuilder& pin_to(Anchor anchor, f32 margin = 0.0f);
     LayerBuilder& pin_to(AnchorPlacement placement, f32 margin = 0.0f);
     LayerBuilder& keep_in_safe_area(SafeArea area = {});
