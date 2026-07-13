@@ -1,5 +1,7 @@
 #pragma once
 
+#include "text_bbox_reporter.hpp"
+
 #include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
@@ -34,6 +36,10 @@ struct ExecutionState {
     std::pmr::vector<char> resolved_cache_hit;
     std::pmr::vector<std::optional<raster::BBox>> resolved_bboxes;
     CachedFB shared_transparent;
+
+    // Per-session reporter for text-bbox expansion warnings.  Lives for the
+    // duration of a single graph execution; no static/process-wide state.
+    TextBboxReporter text_bbox_reporter;
 
     explicit ExecutionState(std::pmr::memory_resource* res)
         : temp(res), resolved_key_digest(res), resolved_frame_dependent(res),

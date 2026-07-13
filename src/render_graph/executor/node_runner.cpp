@@ -374,7 +374,8 @@ void execute_single_node(
             if (auto expanded_bbox =
                     reconcile_text_bbox_after_render(
                         node, *fb_ptr, predicted_bbox,
-                        ctx.node_exec.counters))
+                        ctx.node_exec.counters,
+                        state.text_bbox_reporter))
             {
                 predicted_bbox = *expanded_bbox;
             }

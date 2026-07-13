@@ -10,9 +10,9 @@
 //   (a) Duplicate alpha scan (closed by delegating to the canonical
 //       `chrono3d::alpha_bbox_scan()` in `<chronon3d/text/alpha_bbox_scanner.hpp>`).
 //   (b) `static bool warned = false;` race / suppression
-//       (closed via a function-local `std::atomic<bool>` with single
-//       `exchange(true)` semantics — exactly-once across all threads,
-//       lock-free, no process-wide hidden state).
+//       (closed via the per-session `TextBboxReporter` with a single
+//       `std::atomic<bool>` `exchange(true)` semantics — exactly-once
+//       across all threads, lock-free, no process-wide hidden state).
 //
 // GATING: NONE.  No `#ifdef CHRONON3D_BUILD_DIAGNOSTICS` gate.  The bbox
 // expansion logic is correctness-critical and must run in production.
@@ -24,6 +24,7 @@
 // ============================================================================
 
 #include "text_bbox_reconcile.hpp"
+#include "text_bbox_reporter.hpp"
 
 #include <chronon3d/text/alpha_bbox_scanner.hpp>           // canonical alpha-bbox scan (UNgated)
 #include <chronon3d/media/media_placement.hpp>              // chronon3d::Rect (alpha_bbox_scan return type)
@@ -34,40 +35,16 @@
 
 #include <spdlog/spdlog.h>
 
-#include <atomic>
 #include <optional>
 
 namespace chronon3d::graph {
-
-namespace {
-
-// ── Thread-safe warn-once flag (TU-private) ─────────────────────────────────
-// Replaces the prior data-race-prone `static bool warned = false;` (which had
-// two §honesty defects: process-wide hidden state + data race on parallel
-// render that suppressed warnings on subsequent nodes).  The function-local
-// `std::atomic<bool>` is constructed once via C++11 magic-statics semantics;
-// `exchange(true, acquire/release)` is a single atomic op that awards the
-// "first caller" win to exactly one thread across the entire process lifetime.
-// AGENTS.md Cat-3 / Cat-5 compliance: NOT a singleton (function-local scope
-// limits visibility to this TU), NOT a process-wide global outside the
-// explicit instance, NOT a hidden cross-call state carrier.
-bool try_mark_warned_once() noexcept {
-    static std::atomic<bool> warned{false};
-    // exchange(previous) returns the value observed BEFORE the write.  If
-    // it was `false`, this call is the unique first-call across all threads
-    // and wins the right to emit the warning.  `memory_order_acquire` is
-    // sufficient (we only need subsequent reads — the `spdlog::warn` call
-    // — to see the new value; no later writes depend on this flag).
-    return warned.exchange(true, std::memory_order_acquire) == false;
-}
-
-} // namespace
 
 std::optional<raster::BBox> reconcile_text_bbox_after_render(
     const RenderGraphNode& node,
     const Framebuffer& framebuffer,
     const std::optional<raster::BBox>& predicted,
-    RenderCounters* counters)
+    RenderCounters* counters,
+    TextBboxReporter& reporter)
 {
     // ── Pre-conditions (caller should have guarded but we re-check for
     //    defensive consistency with the function contract). ───────────────
@@ -126,7 +103,7 @@ std::optional<raster::BBox> reconcile_text_bbox_after_render(
             1, std::memory_order_relaxed);
     }
 
-    // ── Warn-once diagnostic (thread-safe; closes `static bool` race) ─────
+    // ── Warn-once diagnostic (per-session; no static state) ────────────────
     // Logged values: ORIGINAL predicted (semantically: what the producer
     // claimed), ACTUAL ink bbox (what the scanner measured), and EXPANDED
     // bbox (the conservative union used downstream).  Previous TU-local
@@ -135,7 +112,7 @@ std::optional<raster::BBox> reconcile_text_bbox_after_render(
     // destructively mutated the variable before the message assembly).
     // That confused output is now correct — the original prediction is
     // preserved in the function-local `*predicted` reference.
-    if (try_mark_warned_once()) {
+    if (reporter.mark_warned()) {
         spdlog::warn(
             "[text-bbox] POST_RENDER_EXPAND node={} "
             "predicted=({}, {}, {}, {}) "
