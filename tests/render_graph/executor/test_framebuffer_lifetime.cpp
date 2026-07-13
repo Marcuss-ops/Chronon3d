@@ -456,6 +456,76 @@ TEST_CASE("InputLifetime: contains_index validates bounds") {
     CHECK_FALSE(contains_index(vec, -1));  // unsigned wrap
 }
 
+// =============================================================================
+// Zero-copy ownership transfer via 1×1 placeholder swap
+// =============================================================================
+
+TEST_CASE("RenderGraphContext::acquire_owned_fb(const Framebuffer&) reuses reusable_bottom without copy") {
+    auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
+
+    RenderGraphContext ctx;
+    ctx.services.framebuffer_pool = pool;
+
+    // Acquire a uniquely-owned source framebuffer and write a marker pixel.
+    auto src = pool->acquire_shared(64, 64, true);
+    src->set_pixel(7, 7, Color::red());
+    const Color* src_data = src->data();
+
+    // Wire it as the reusable bottom input (use_count == 1).
+    ctx.node_exec.reusable_bottom = std::move(src);
+    REQUIRE(ctx.node_exec.reusable_bottom.use_count() == 1);
+
+    // Snapshot allocation count before the zero-copy transfer.
+    const auto allocs_before = pool->stats().total_allocations;
+
+    // Acquiring from the reusable bottom should transfer ownership via the
+    // 1×1 placeholder swap, not via a pixel copy.
+    auto owned = ctx.acquire_owned_fb(*ctx.node_exec.reusable_bottom);
+    REQUIRE(owned != nullptr);
+
+    // Pixel storage should be the same (zero-copy).
+    CHECK(owned->data() == src_data);
+    CHECK(owned->get_pixel(7, 7).r == Color::red().r);
+
+    // The source shared_ptr should now hold the tiny placeholder.
+    CHECK(ctx.node_exec.reusable_bottom->width() == 1);
+    CHECK(ctx.node_exec.reusable_bottom->height() == 1);
+
+    // No new OS allocation should have happened for the transfer.
+    CHECK(pool->stats().total_allocations == allocs_before);
+}
+
+TEST_CASE("RenderGraphContext::acquire_framebuffer(const Framebuffer&) reuses reusable_bottom without copy") {
+    auto pool = FramebufferPool::create_shared(256 * 1024 * 1024);
+
+    RenderGraphContext ctx;
+    ctx.services.framebuffer_pool = pool;
+
+    auto src = pool->acquire_shared(64, 64, true);
+    src->set_pixel(5, 5, Color::blue());
+    const Color* src_data = src->data();
+
+    ctx.node_exec.reusable_bottom = std::move(src);
+    REQUIRE(ctx.node_exec.reusable_bottom.use_count() == 1);
+
+    // Snapshot allocation count before the zero-copy transfer.
+    const auto allocs_before = pool->stats().total_allocations;
+
+    auto shared = ctx.acquire_framebuffer(*ctx.node_exec.reusable_bottom);
+    REQUIRE(shared != nullptr);
+
+    // Pixel storage should be the same (zero-copy).
+    CHECK(shared->data() == src_data);
+    CHECK(shared->get_pixel(5, 5).b == Color::blue().b);
+
+    // The source shared_ptr should now hold the tiny placeholder.
+    CHECK(ctx.node_exec.reusable_bottom->width() == 1);
+    CHECK(ctx.node_exec.reusable_bottom->height() == 1);
+
+    // No new OS allocation should have happened for the transfer.
+    CHECK(pool->stats().total_allocations == allocs_before);
+}
+
 TEST_CASE("InputLifetime: state metadata is reset on release") {
     // When a framebuffer is released, all associated metadata
     // (resolved_key_digest, resolved_frame_dependent, resolved_cache_hit)
