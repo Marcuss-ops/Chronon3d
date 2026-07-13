@@ -247,6 +247,14 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         # Gated on Blend2D because content/text/text_helpers_centered.hpp
         # transitively includes backends/text/text_layout_engine.hpp.
         text/test_text_definition.cpp
+        # Azione 18 — AnimTypewriter silent-failure P0 #3 regression lock.
+        # RUNTIME test: exercises typewriter_build() with valid text (Ok),
+        # empty text (Err(EmptyText)), and error-recovery (non-fatal contract).
+        # Replaces the prior cat-2 static-source grep test with a proper
+        # runtime behavioral test that locks the F0.3 structured-error contract.
+        # Gated on Blend2D because it requires FontEngine + text_layout_engine.
+        # Skips gracefully when system fonts are unavailable.
+        text/test_anim_typewriter_error_path.cpp
     )
 endif()
 
@@ -483,34 +491,6 @@ if(CHRONON3D_BUILD_CONTENT AND TARGET chronon3d_content)
     target_link_libraries(chronon3d_core_tests PRIVATE chronon3d_content)
 endif()
 
-# Azione 18 — AnimTypewriter silent-failure P0 #3 regression lock.
-# Pure static-source grep test: fails loud if the canonical
-# `[AnimTypewriter]` spdlog::error tag disappears from
-# content/animation_compositions.cpp OR if the silent-degrade
-# pattern re-emerges.  No runtime deps (no font engine, no
-# SoftwareRenderer, no threads, no time, no PRNG) — pure
-# cat-2 freeze-friendly source-text sniff.  See
-# content/animation_compositions.cpp:98-103 for the canonical
-# emit that this test guards.
-#
-# Gating rules (defensive): the test is registered only when
-# (a) chronon3d test-suite targets are enabled AND
-# (b) the production source file exists on disk.
-# Rationale: the test does NOT link against the content module
-# (it reads the source via fstream).  So `CHRONON3D_BUILD_CONTENT`
-# is unnecessarily restrictive — the test is runnable on any
-# preset that has tests enabled.  The source-file existence check
-# avoids adding the test in trimmed-down source distributions
-# where the content directory is absent.
-#
-# Compile-time path injection: CONTENT_ANIMATION_COMPOSITIONS_PATH
-# makes the test CWD-independent (ctest may run from the build dir,
-# not the project root).
-if(CHRONON3D_BUILD_TESTS AND EXISTS "${CMAKE_SOURCE_DIR}/content/animation_compositions.cpp")
-    target_sources(chronon3d_core_tests PRIVATE text/test_anim_typewriter_error_path.cpp)
-    target_compile_definitions(chronon3d_core_tests PRIVATE
-        CONTENT_ANIMATION_COMPOSITIONS_PATH="${CMAKE_SOURCE_DIR}/content/animation_compositions.cpp"
-    )
-endif()
+
 
 
