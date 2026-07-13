@@ -129,6 +129,7 @@ class CompiledGraphCache;
 class CompiledSceneProgram;
 class RenderGraphNode;
 class PrecompBuilderService;
+class TextBboxReporter;   // TICKET-FIX-ALPHA-SCANNER-DUP-V1 — per-session reporter (full def in src/render_graph/executor/text_bbox_reporter.hpp); forward-declared here so the SDK header stays lightweight (mirrors the AssetResolver pattern below).
 
 // ── Per-frame input: frame id, time, dimensions, camera, projection ─────────
 // Engine-generic, immutable-ish per frame.  Replaces the 7-substruct pair
@@ -342,6 +343,29 @@ struct NodeExecutionContext {
     // relaxed for test paths that drive a PrecompNode without first
     // running it through the full GraphExecutor).
     NodeIdentity current_identity{kInvalidGraphInstanceId, kInvalidStableNodeId};
+
+    // ── TICKET-FIX-ALPHA-SCANNER-DUP-V1 — per-session text-bbox reporter ────
+    // Null-pointer typed access to the executor's per-session
+    // `TextBboxReporter` (lives in `ExecutionState::text_bbox_reporter`,
+    // forwarded by `node_runner.cpp::execute_single_node`).  Replaces
+    // the previous process-wide `static bool warned = false` warn-once
+    // pattern that lived in `TextRunNode.cpp::predicted_bbox()` (data
+    // race on parallel render; first-error masking later invocations).
+    //
+    // Consumer pattern in TextRunNode.cpp:
+    //     if (ctx.node_exec.text_bbox_reporter &&
+    //         !ctx.node_exec.text_bbox_reporter->has_warned()) {
+    //         spdlog::warn(...);
+    //         ctx.node_exec.text_bbox_reporter->mark_warned();
+    //     }
+    //
+    // Nullable so test paths that drive `predicted_bbox()` standalone
+    // (without an executor) don't pay an SDK-symbol cost; the include
+    // of `text_bbox_reporter.hpp` is still necessary to dereference.
+    // Mirrors the existing null-pointer pattern (`counters`, `profiler`,
+    // `asset_resolver`, `scheduler`, `session`, etc.) — additive field,
+    // Cat-2 compliant (forward-decl pattern, no new public API surface).
+    TextBboxReporter* text_bbox_reporter{ nullptr };
 };
 
 // Forward-declared for use in RenderServices callback signatures.
