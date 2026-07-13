@@ -9,6 +9,7 @@
 // for the bridge contract + mapping tables.
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/legacy_camera_adapters.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_descriptor_adapters.hpp>
 
 #include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 #include <chronon3d/scene/model/camera/camera_rig.hpp>
@@ -34,86 +35,14 @@ constexpr FrameRate kAdapterBaseFps{60, 1};
 // =========================================================================
 CameraDescriptor
 camera_descriptor_from_orbit_rig(const CameraRig& rig) {
-    CameraDescriptor d;
-    d.id = rig.name.empty()
-               ? std::string{"adapter_orbit_rig"}
-               : std::string{"adapter_orbit_rig_\""} + rig.name + "\"";
-
-    // OrbitMotion variant — direct orbit channel map.  Unlike
-    // camera_descriptor_from(CameraRig, RigBakeDensity) (in
-    // camera_descriptor_adapters.cpp) which BAKES the same orbit math
-    // into 60 PoseTracksSource keyframes to side-step sign-convention
-    // uncertainty, this adapter USES the V1 runtime's native orbit
-    // evaluator — no sampling loss, no bake-load cost.
-    //
-    // Belt-and-braces: AnimatedValue<float> is constructed from the rig's
-    // f32-typed AnimatedValue explicitly so the conversion survives any
-    // future redefinition of `f32` (defensive against a downstream
-    // `using f32 = double` refactor — unlikely but the cast is free).
-    OrbitMotion orb;
-    orb.target = rig.target;
-    orb.yaw    = AnimatedValue<float>(rig.orbit_yaw);
-    orb.pitch  = AnimatedValue<float>(rig.orbit_pitch);
-    orb.radius = AnimatedValue<float>(rig.orbit_radius);
-    orb.track  = rig.track;
-    orb.dolly  = AnimatedValue<float>(rig.dolly);
-    orb.roll   = AnimatedValue<float>(rig.roll);
-
-    d.source       = orb;
-    d.orientation  = FixedOrientation{};
-
-    // Base state — non-motion channels live in CameraBaseSpec.
-    d.base.enabled  = true;
-    d.base.parent_name              = rig.parent_name;
-
-    // The modern CameraRig doesn't carry a position keyframe (the orbit
-    // math produces it from target+radius+yaw+pitch); when the rig has
-    // a parent + target, keep base.position at the orbital start so the
-    // evaluate()-time orbit math has a sensible seed.
-    d.base.rotation.x = 0.0f;  // orbit math owns rotation
-    d.base.rotation.y = 0.0f;
-    d.base.rotation.z = 0.0f;
-    d.base.orientation = Quat{1.0f, 0.0f, 0.0f, 0.0f};  // identity (orbit math fills it)
-
-    // Lens model — copy from the rig's DOF physical-model fields
-    // (the rig carries them in CameraRigDOF so it can animate them;
-    // V1 CameraBaseSpec::lens is a flat struct, so we use the rig's
-    // t=0 frame as the canonical static value).
-    const SampleTime kBase   = SampleTime::from_frame(0.0, kAdapterBaseFps);
-    d.base.lens.focal_length   = rig.dof.focal_length.evaluate(kBase);
-    d.base.lens.sensor_width   = rig.dof.sensor_width.evaluate(kBase);
-    d.base.lens.sensor_height  = rig.dof.sensor_height.evaluate(kBase);
-    d.base.lens.f_stop         = rig.dof.f_stop.evaluate(kBase);
-    d.base.lens.close_focus    = rig.dof.close_focus.evaluate(kBase);
-    d.base.lens.gate_fit       = rig.dof.gate_fit;
-
-    // DoF settings — copy from the rig's DOF block.
-    d.base.dof.enabled            = rig.dof.enabled;
-    d.base.dof.use_physical_model = rig.dof.use_physical_model;
-    d.base.dof.aperture           = rig.dof.aperture.evaluate(kBase);
-    d.base.dof.max_blur           = rig.dof.max_blur.evaluate(kBase);
-    d.base.dof.focus_distance     = rig.dof.focus_distance.evaluate(kBase);
-    d.base.dof.focus_z            = rig.dof.focus_z.evaluate(kBase);
-
-    // Motion blur (TICKET-026 — `enabled` removed; mode is the canonical
-    // "active?" indicator).  CameraRigMotionBlur is the rig-side struct,
-    // MotionBlurSettings is the descriptor-side struct.
-    d.base.motion_blur.mode              = rig.motion_blur.mode;
-    d.base.motion_blur.samples           = rig.motion_blur.samples;
-    d.base.motion_blur.shutter_angle_deg = rig.motion_blur.shutter_angle_deg;
-    d.base.motion_blur.shutter_phase_deg = rig.motion_blur.shutter_phase_deg;
-    d.base.motion_blur.pattern           = rig.motion_blur.pattern;
-    d.base.motion_blur.filter            = rig.motion_blur.filter;
-    d.base.motion_blur.jitter_seed       = rig.motion_blur.jitter_seed;
-
-    // LookAt target — convert target_name to a layer-lookat when the rig
-    // is in TwoNode mode AND target_name is non-empty.  In OneNode mode,
-    // the orbit math does NOT have a look-at target (the camera orbits
-    // around `target`) so the orientation stays FixedOrientation and the
-    // orbit math drives the camera orientation implicitly via the basis
-    // construction in OrbitMotion::evaluate().
-    if (rig.mode == CameraRigMode::TwoNode && !rig.target_name.empty()) {
-        d.orientation = LookAtLayer{rig.target_name};
+    // Delegate to the canonical CameraRig → OrbitMotion adapter.
+    // This keeps the migration bridge in sync with the canonical V1 path
+    // and avoids duplicating the orbit mapping logic.
+    CameraDescriptor d = camera_descriptor_from(rig);
+    if (rig.name.empty()) {
+        d.id = "adapter_orbit_rig";
+    } else {
+        d.id = std::string{"adapter_orbit_rig_\""} + rig.name + "\"";
     }
     return d;
 }
