@@ -25,7 +25,6 @@
 | Ticket | Pri | Status | Description |
 |---|---|---|---|
 | TICKET-CHRONON-LINUX-SCRIPT-PRESET-MISMATCH | P2 | OPEN | `tools/chronon-linux.sh` hardcodes `linux-release` preset which doesn't exist. |
-| TICKET-ALPHA-BBOX-SCANNER-DEDUP-EXECUTOR | P2 | OPEN | Deduplicate parallel `alpha_bbox_scan` copy in `node_runner.cpp:412` against canonical scanner. |
 | TICKET-CONCURRENT-AGENT-RACE-LIFECYCLE | P2 | OPEN | Process-ticket documenting concurrent-agent race windows (3+ upstream advancements per chore cycle). |
 | TICKET-PUSH-CADENCE-OPTIMIZATION | P2 | NEW | Monitor if 4-attempt race-cycle pattern recurs; decision rule: >3 iterations → escalate. |
 | TICKET-PUSH-DEFERRED-96-BEHIND | P2 | OPEN | 5 un-pushed commits on local main; deferred per WBH session. |
@@ -53,6 +52,7 @@
 
 | Ticket | Description |
 |---|---|
+| TICKET-ALPHA-BBOX-SCANNER-DEDUP-EXECUTOR | **OBSOLETE** — executor bbox path canonically routes via `reconcile_text_bbox_after_render()` (node_runner.cpp:303) → canonical `chrono3d::alpha_bbox_scan()` (text_bbox_reconcile.cpp:59); zero inline legacy scanners. Closure witness: `TICKET-FIX-ALPHA-SCANNER-DUP-V1` (resolution of the scanner-side rot at commit `4791e98b`). |
 | TICKET-PIPELINE-FAST-BUILD-RFC-2026-06-22 | Fast-build CMake hygiene gates; close-out via `docs/FAST_BUILD.md` + tooling pipeline. |
 | TICKET-091 | disassembler-decomposition refactor merged; surgical closure link to commit `5649a2bf`. |
 | TICKET-TEXT-PRESET-REGISTRY-PARITY | TextPresetDescriptor resolver/registrar equivalence lock; pure resolve contract verified at HEAD `main`. |
