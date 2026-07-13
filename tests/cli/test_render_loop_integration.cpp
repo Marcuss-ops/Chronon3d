@@ -157,6 +157,8 @@ TEST_CASE("RenderLoop Integration: multi-frame render produces all frames") {
     CHECK_FALSE(result.status.writer_error);
     CHECK_FALSE(result.status.exception_error);
     CHECK(result.status.frames_written == FRAMES);
+    CHECK(result.status.frames_rendered == FRAMES);
+    CHECK(result.status.frames_enqueued == FRAMES);
     CHECK(telemetry_frames.size() == static_cast<size_t>(FRAMES));
     CHECK(result.render_graph_eval_ms > 0.0);
     CHECK(consumed.load() == FRAMES);
@@ -188,6 +190,8 @@ TEST_CASE("RenderLoop Integration: single frame renders correctly") {
 
     CHECK(result.status.success);
     CHECK(result.status.frames_written == 1);
+    CHECK(result.status.frames_rendered == 1);
+    CHECK(result.status.frames_enqueued == 1);
     CHECK(telemetry_frames.size() == 1);
     CHECK(telemetry_frames[0].frame_number == 0);
 
@@ -232,6 +236,8 @@ TEST_CASE("RenderLoop Integration: cancellation stops render loop early") {
     CHECK_FALSE(result.status.success);
     CHECK(result.status.cancelled);
     CHECK(result.status.frames_written == 0);
+    CHECK(result.status.frames_rendered == 0);
+    CHECK(result.status.frames_enqueued == 0);
     CHECK(telemetry_frames.empty());
 
     RenderFramePackage pkg;
@@ -266,6 +272,8 @@ TEST_CASE("RenderLoop Integration: pre-set writer failure stops loop") {
     CHECK_FALSE(result.status.cancelled);
     CHECK_FALSE(result.status.render_failed);
     CHECK(result.status.frames_written == 0);
+    CHECK(result.status.frames_rendered == 0);
+    CHECK(result.status.frames_enqueued == 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -347,6 +355,8 @@ TEST_CASE("RenderLoop Integration: partial frame range [3, 7)") {
 
     CHECK(result.status.success);
     CHECK(result.status.frames_written == static_cast<int>(END - START));
+    CHECK(result.status.frames_rendered == static_cast<int>(END - START));
+    CHECK(result.status.frames_enqueued == static_cast<int>(END - START));
     CHECK(telemetry_frames.size() == static_cast<size_t>(END - START));
 
     for (int i = 0; i < static_cast<int>(END - START); ++i) {
@@ -448,6 +458,8 @@ TEST_CASE("RenderLoop Integration: empty frame range produces no frames") {
 
     CHECK(result.status.success);
     CHECK(result.status.frames_written == 0);
+    CHECK(result.status.frames_rendered == 0);
+    CHECK(result.status.frames_enqueued == 0);
     CHECK(telemetry_frames.empty());
 
     RenderFramePackage pkg;

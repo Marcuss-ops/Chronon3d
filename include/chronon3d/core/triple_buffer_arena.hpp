@@ -62,6 +62,11 @@ public:
     }
 
     /**
+     * @brief Returns the number of arenas in the pool.
+     */
+    [[nodiscard]] size_t pool_count() const noexcept { return m_arenas.size(); }
+
+    /**
      * @brief Releases an arena back to the pool.
      */
     void release(const std::shared_ptr<FramebufferArena>& arena) {

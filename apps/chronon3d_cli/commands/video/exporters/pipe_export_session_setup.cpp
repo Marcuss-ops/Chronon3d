@@ -134,7 +134,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
 
     // ── Arena, queue ──────────────────────────────────────────────────────
     const size_t arena_size = compute_pipe_arena_size(comp.width(), comp.height());
-    session->triple_arena = std::make_unique<TripleBufferArena>(4, arena_size);
+    constexpr size_t kArenaPoolCount = 4;
+    session->triple_arena = std::make_unique<TripleBufferArena>(kArenaPoolCount, arena_size);
+    // Bounded queue capacity matches the number of in-flight arenas so the
+    // render thread blocks instead of busy-waiting when all arenas are queued.
+    session->queue = RenderFrameQueue<RenderFramePackage>(kArenaPoolCount);
 
     // ── Writer thread (context stored in session so it outlives the thread) ─
     auto writer_ctx = std::unique_ptr<WriterThreadContext>(
@@ -146,6 +150,7 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             .encoder = *session->encoder,
             .renderer = *session->sw_renderer,
             .writer_encode_us_total = session->writer_encode_us_total,
+            .frames_encoded = session->frames_encoded,
             .frame_encoder_telemetry = session->frame_encoder_telemetry,
         });
     session->writer_thread = std::thread(run_writer_thread, std::ref(*writer_ctx));
