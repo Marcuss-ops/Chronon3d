@@ -53,6 +53,11 @@
 
 | Ticket | Description |
 |---|---|
+| TICKET-PIPELINE-FAST-BUILD-RFC-2026-06-22 | Fast-build CMake hygiene gates; close-out via `docs/FAST_BUILD.md` + tooling pipeline. |
+| TICKET-091 | disassembler-decomposition refactor merged; surgical closure link to commit `5649a2bf`. |
+| TICKET-TEXT-PRESET-REGISTRY-PARITY | TextPresetDescriptor resolver/registrar equivalence lock; pure resolve contract verified at HEAD `main`. |
+| TICKET-077 | golden-state RG gate (lock-grep discipline) survives `.md` recursion; diagnostic threshold detected. |
+| TICKET-KERNEL-TILING-V1-F4.3-SCAFFOLD | Upstream scaffold landed F4.3 (tile_size/for_each_tile/execution_scheduler); the implied `bbox.hpp` provider landed in the next upstream commit (now `c83d8527`); scaffold-debt closure line. |
 | TICKET-TEXT-HEADER-CMAKE-REWIRE-ROT | rot-fix cascade: alpha_bbox_scanner + CMake rewire + visibility headers. 4 atomic commits. |
 | TICKET-PREFLIGHT-PATH-EXISTENCE-MAP-EXISTS-BODY | Implemented `PathExistenceMap::exists()` body — link rot fix. |
 | TICKET-TEXT-INSPECTION-ALPHA-BBOX-VISIBILITY | 8 NEW files: alpha_bbox_scanner + text_visibility_reporting + text_inspection. |
