@@ -52,10 +52,6 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 // chronon3d::LayerBuilder — the inner lambda receives one of these.
 
-#include <chronon3d/text/font_engine.hpp>
-// chronon3d::FontEngine — parameter of `build_chronon_glow_scene`; nullptr
-// is the canonical path post-Step-8-§C (production factory).
-
 #include <chronon3d/text/text_run_shape.hpp>
 // chronon3d::TextRunSpec — used in the composer below.
 
@@ -149,23 +145,25 @@ chronon3d::Vec3 scale_for_frame(long frame_idx) {
 //
 // Builds a single named layer "hero" with the text animated via
 // `opacity_for_frame()` + `scale_for_frame()` and optionally wrapped in
-// the Phase 2 cinematic glow pipeline.  Centred on `layout.canvas_size / 2`.
+// the Phase 2 cinematic glow pipeline.  Centred on `layout.canvas_size / 2`
+// via `TextPlacementKind::CanvasCenter` placement (Phase 3 SCALA fix).
 //
 // `frame_idx` is Frame::integral(); passes 0/15/30 directly for snapshot
 // tests, or the live ctx.frame.integral() for CLI runtime.
 //
-// `engine` may be nullptr — SceneBuilder auto-forwards the pipeline
-// FontEngine in that case.  When non-null, both SceneBuilder and the
-// pushed layer receive the engine pointer explicitly (matches the
-// golden-test pattern: l.font_engine(&renderer.font_engine())).
+// Action 14/2 (closed on this commit): the prior `FontEngine* engine`
+// parameter has been REMOVED — the Sole canonical call site
+// (`make_chronon_glow_final` lambda below) was always passing
+// `/*engine=*/nullptr`, which means SceneBuilder was always auto-
+// forwarding the pipeline FontEngine (Step 8 §C path).  No real caller
+// passed a non-null engine after the test factory
+// `make_chronon_glow_final_for_test` was retired in Step 8 §C.  The
+// two `if (engine) { ... }` guards are therefore dead-branches and
+// have been removed alongside the parameter.
 void build_chronon_glow_scene(
         chronon3d::SceneBuilder& s,
         const ChrononGlowProps& props,
-        long frame_idx,
-        chronon3d::FontEngine* engine) {
-    if (engine) {
-        s.font_engine(engine);
-    }
+        long frame_idx) {
     // Step 8 §B: single source of truth for layout (derived from format).
     const GlowLayout layout = resolve_layout(props.format);
     const chronon3d::f32 opacity = opacity_for_frame(frame_idx);
@@ -174,9 +172,6 @@ void build_chronon_glow_scene(
     const bool apply_breath = props.scale_breath;
 
     s.layer("hero", [&, opacity, scale, apply_breath](chronon3d::LayerBuilder& l) {
-        if (engine) {
-            l.font_engine(engine);
-        }
         l.text_run("glow_pulse", chronon3d::TextRunSpec{
             .text = chronon3d::TextSpec{
                 .content    = {.value = props.text},
@@ -274,7 +269,7 @@ chrono3d::Composition make_chronon_glow_final(ChrononGlowProps props) {
         [props](const chronon3d::FrameContext& ctx) -> chronon3d::Scene {
             chronon3d::SceneBuilder s(ctx);
             build_chronon_glow_scene(
-                s, props, ctx.frame.integral(), /*engine=*/nullptr);
+                s, props, ctx.frame.integral());
             return s.build();
         });
 }
