@@ -16,7 +16,8 @@ namespace chronon3d::graph::detail {
 using namespace chronon3d::graph;
 
 GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
-                               const RenderGraphContext& ctx) {
+                               const RenderGraphContext& ctx,
+                               const BuilderContext& node_ctx) {
     const Layer& layer = *item.layer;
     const bool is_static = layer.cache_static || item.is_static;
 
@@ -26,7 +27,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
     if (layer.kind == LayerKind::Normal || layer.kind == LayerKind::Shape || layer.kind == LayerKind::Text) {
         if (layer.nodes.empty()) {
-            return graph.add_node(std::make_unique<ClearNode>());
+            return graph.add_node(std::make_unique<ClearNode>(), node_ctx);
         }
 
         const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
@@ -100,7 +101,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     placement,
                     std::optional<f32>(resolved_opacity),
                     source_is_static ? static_memory_cache("text_run") : frame_variant_cache("text_run")
-                ));
+                ), node_ctx);
 
                 if (ctx.policy.diagnostics_enabled) {
                     spdlog::info(
@@ -162,7 +163,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     ctx.policy.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::optional<Mat4>(resolved_source_matrix),
                     ctx.policy.modular_coordinates ? std::optional<f32>(shape_opacity) : std::optional<f32>(resolved_source_opacity),
                     source_is_static ? static_memory_cache("source") : frame_variant_cache("source")
-                ));
+                ), node_ctx);
             }
             return source;
         }
@@ -261,7 +262,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             std::move(items),
             source_key,
             source_is_static ? static_memory_cache("multi_source") : frame_variant_cache("multi_source")
-        ));
+        ), node_ctx);
         return multi_source;
     }
 
@@ -310,7 +311,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
 
         // PR2-cleanup: precomp cache policy is fixed at the catalog factory
         // (PrecompNode is catalog-constructed, no in-place mutation path).
-        return graph.add_node(std::move(node));
+        return graph.add_node(std::move(node), node_ctx);
     }
 
     if (layer.kind == LayerKind::Video && layer.video_source) {
@@ -318,10 +319,10 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // the cache policy is baked in by the factory.
         return graph.add_node(std::make_unique<VideoNode>(
             *layer.video_source, ctx.services.video_decoder, layer.from
-        ));
+        ), node_ctx);
     }
 
-    return graph.add_node(std::make_unique<ClearNode>());
+    return graph.add_node(std::make_unique<ClearNode>(), node_ctx);
 }
 
 } // namespace chronon3d::graph::detail

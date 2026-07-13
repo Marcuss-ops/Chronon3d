@@ -10,15 +10,12 @@ namespace chronon3d::graph::detail {
 GraphNodeId build_matte_sub_pipeline(
     RenderGraph& graph, const LayerGraphItem& item, const RenderGraphContext& ctx)
 {
-    std::string prev_layer = g_current_builder_layer_id;
-    g_current_builder_layer_id = std::string(item.layer->name);
-    GraphNodeId out = append_source_pass(graph, item, ctx);
+    BuilderContext node_ctx{.layer_id = std::string(item.layer->name)};
+    GraphNodeId out = append_source_pass(graph, item, ctx, node_ctx);
     if (out == k_invalid_node) {
-        g_current_builder_layer_id = prev_layer;
         return k_invalid_node;
     }
-    append_transform_pass_if_needed(graph, out, item, ctx);
-    g_current_builder_layer_id = prev_layer;
+    append_transform_pass_if_needed(graph, out, item, ctx, node_ctx);
     return out;
 }
 

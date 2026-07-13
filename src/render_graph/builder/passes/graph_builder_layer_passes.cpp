@@ -17,7 +17,8 @@ using namespace chronon3d::graph;
 void append_composite_pass(RenderGraph& graph, GraphNodeId& current,
                            GraphNodeId layer_output, const Layer& layer,
                            bool is_static, const RenderGraphContext& ctx,
-                           float world_z) {
+                           float world_z,
+                           const BuilderContext& node_ctx) {
     if (layer_output == k_invalid_node || layer_output == current) return;
 
     if (!ctx.policy.dirty_rects_enabled &&
@@ -37,7 +38,7 @@ auto composite = graph.add_node(std::make_unique<CompositeNode>(
     world_z,
     ::chronon3d::CompositeOperator::SourceOver,
     is_static ? static_memory_cache("composite") : frame_variant_cache("composite")
-));
+), node_ctx);
     graph.connect(current, composite);
     graph.connect(layer_output, composite);
     current = composite;
@@ -48,7 +49,8 @@ auto composite = graph.add_node(std::make_unique<CompositeNode>(
 void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
                                   const Layer& layer, const LayerGraphItem& item,
                                   const Camera2_5DRuntime& cam25d,
-                                  const RenderGraphContext& ctx) {
+                                  const RenderGraphContext& ctx,
+                                  const BuilderContext& node_ctx) {
     const bool is_static = layer.cache_static || item.is_static;
 
     // Layer effects — the EffectCatalog factory bakes cache policy into
@@ -56,7 +58,7 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
     for (const auto& effect : layer.effects()) {
         if (!effect.enabled) continue;
         const auto* ec = ctx.services.effect_catalog;
-        GraphNodeId effect_id = graph.add_node(ec->create_node(effect));
+        GraphNodeId effect_id = graph.add_node(ec->create_node(effect), node_ctx);
         graph.connect(layer_output, effect_id);
         layer_output = effect_id;
     }
@@ -73,7 +75,7 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
             // built-in `static_memory_cache` default; the legacy `!is_static`
             // distinction was removed. Single node, taken as id.
             {
-                GraphNodeId dof_node = graph.add_node(DofEffectNode::create(cam25d, item.world_z));
+                GraphNodeId dof_node = graph.add_node(DofEffectNode::create(cam25d, item.world_z), node_ctx);
                 graph.connect(layer_output, dof_node);
                 layer_output = dof_node;
             }
@@ -85,7 +87,8 @@ void append_effect_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
 
 void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
                                 const LayerGraphItem& item,
-                                const RenderGraphContext& ctx) {
+                                const RenderGraphContext& ctx,
+                                const BuilderContext& node_ctx) {
     const Layer& layer = *item.layer;
     if (!layer.mask.enabled()) return;
 
@@ -93,7 +96,7 @@ void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
     // PR2-cleanup: MaskNode defaults to `static_memory_cache`; the legacy
     // `!is_static` A/B distinction was removed. Single node, taken as id.
     {
-        GraphNodeId masked = graph.add_node(std::make_unique<MaskNode>(layer.mask, is_static ? Frame{0} : Frame{-1}));
+        GraphNodeId masked = graph.add_node(std::make_unique<MaskNode>(layer.mask, is_static ? Frame{0} : Frame{-1}), node_ctx);
         graph.connect(layer_output, masked);
         layer_output = masked;
     }
@@ -102,7 +105,8 @@ void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
 // ── transform pass ────────────────────────────────────────────────
 
 void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
-                                     const LayerGraphItem& item, const RenderGraphContext& ctx) {
+                                     const LayerGraphItem& item, const RenderGraphContext& ctx,
+                                     const BuilderContext& node_ctx) {
     const Layer& layer = *item.layer;
 
     const bool needs_transform = layer_needs_render_transform(item, ctx);
@@ -144,7 +148,7 @@ void append_transform_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_outp
 
     // PR2-cleanup: TransformNode carries its policy in `m_cache_policy` (ctor-time).
     {
-        GraphNodeId transform = graph.add_node(std::move(transform_node));
+        GraphNodeId transform = graph.add_node(std::move(transform_node), node_ctx);
         graph.connect(layer_output, transform);
         layer_output = transform;
     }

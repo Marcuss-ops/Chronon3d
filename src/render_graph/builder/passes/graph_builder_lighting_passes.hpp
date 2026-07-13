@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/internal/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
 #include <chronon3d/math/glm_types.hpp>
 #include <span>
@@ -26,7 +27,8 @@ namespace chronon3d::graph::detail {
 /// Append a lighting node for projected 2.5D layers with lit materials.
 void append_lighting_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
                                     const LayerGraphItem& item,
-                                    const RenderGraphContext& ctx);
+                                    const RenderGraphContext& ctx,
+                                    const BuilderContext& node_ctx = {});
 
 /// Append shadow passes from casters onto the receiver layer (V1 trade-off).
 void append_shadow_passes_if_needed(
@@ -34,7 +36,8 @@ void append_shadow_passes_if_needed(
     GraphNodeId& receiver_output,
     const LayerGraphItem& receiver_item,
     std::span<const ShadowCasterInfo> casters,
-    const RenderGraphContext& ctx);
+    const RenderGraphContext& ctx,
+    const BuilderContext& node_ctx = {});
 
 /// Append a depth-grade node for projected layers when a DepthGrade is active.
 void append_depth_grade_pass_if_needed(
@@ -42,6 +45,7 @@ void append_depth_grade_pass_if_needed(
     GraphNodeId& layer_output,
     const LayerGraphItem& item,
     const RenderGraphContext& ctx,
-    const rendering::DepthGrade& grade);
+    const rendering::DepthGrade& grade,
+    const BuilderContext& node_ctx = {});
 
 } // namespace chronon3d::graph::detail
