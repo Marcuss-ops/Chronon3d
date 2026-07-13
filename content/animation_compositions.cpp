@@ -7,6 +7,8 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include "content/common/animation_helpers.hpp"
 #include "content/text/text_helpers.hpp"
+
+#include <spdlog/spdlog.h>   // P0 #3 — eliminate silent failure in AnimTypewriter
 // TICKET-REFACTOR-CONTENT-EXAMPLES-17 — text animation registration entry
 // point.  The 5 easy + 5 typewriter composition registrations live in
 // `content/examples/text/text_animation_registration.cpp`.
@@ -85,15 +87,19 @@ Composition anim_typewriter() {
                 .chars_per_frame = 0.3f,
                 .easing = EasingCurve{Easing::OutCubic},
             }, ctx.frame, *engine);
-            // F0.3 — structured error: log and continue (best-effort render).
-            // Non-fatal — the scene still builds with other layers intact.
-            // TODO: wire spdlog or telemetry when content/ gains logging.
-            // TICKET-FOLLOWUP-LOG-EMPTY-ERRORS (origin's F0.3): the
-            // silent-degrade handler ships empty; observability wiring
-            // deferred to a followup cycle.  Same behaviour as the
-            // previous void-return path.
+            // P0 #3 — structured error logged via spdlog (frame + message).
+            // Non-fatal (best-effort): other layers of the scene still render.
+            // Propagating the error up to the render job when text is REQUIRED
+            // is a deferred followup (see docs/FOLLOWUP_TICKETS.md — no
+            // dedicated ticket yet; tracked as F0.4 in this file's history).
+            // NB: result.error().code (TextErrorCode) is intentionally NOT
+            // logged here — the enum has no fmt::formatter<> specialization,
+            // which would trip fmt::v12::type_is_unformattable_for.
             if (!result) {
-                // silent degrade: same behaviour as the previous void-return path
+                spdlog::error(
+                    "[AnimTypewriter] typewriter_build failed: frame={} message=\"{}\"",
+                    ctx.frame.integral(),
+                    result.error().message);
             }
         }
         return s.build();
