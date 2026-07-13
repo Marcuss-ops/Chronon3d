@@ -130,6 +130,7 @@ class CompiledSceneProgram;
 class RenderGraphNode;
 class PrecompBuilderService;
 class TextBboxReporter;   // TICKET-FIX-ALPHA-SCANNER-DUP-V1 — per-session reporter (full def in src/render_graph/executor/text_bbox_reporter.hpp); forward-declared here so the SDK header stays lightweight (mirrors the AssetResolver pattern below).
+class NodeStatsReporter;  // TICKET-COUNTERS-NODE-MEMORY-V1-V2 — canonical per-session reporter (full def in <chronon3d/render_graph/executor/node_memory_metrics.hpp>); forward-declared here so the SDK header stays lightweight (parallel TextBboxReporter pattern).
 
 // ── Per-frame input: frame id, time, dimensions, camera, projection ─────────
 // Engine-generic, immutable-ish per frame.  Replaces the 7-substruct pair
@@ -366,6 +367,23 @@ struct NodeExecutionContext {
     // `asset_resolver`, `scheduler`, `session`, etc.) — additive field,
     // Cat-2 compliant (forward-decl pattern, no new public API surface).
     TextBboxReporter* text_bbox_reporter{ nullptr };
+
+    // ── TICKET-COUNTERS-NODE-MEMORY-V1-V2 — per-session stats reporter ────
+    // Null-pointer typed access to the optional canonical
+    // `NodeStatsReporter` (lives on a `std::unique_ptr` owned by the host
+    // `RenderSession`, wired at `RenderSession` init by a future V2.1 chore).
+    //
+    // Default nullptr (zero-static-state invariant preserved when no reporter
+    // is constructed); forward-declared above so the SDK header stays
+    // lightweight.  When non-null, per-session observe_node + snapshot + reset
+    // are exposed (full def in
+    // `<chronon3d/render_graph/executor/node_memory_metrics.hpp>`).
+    //
+    // Mirrors the existing null-pointer pattern (`counters`, `profiler`,
+    // `text_bbox_reporter`, `asset_resolver`, `scheduler`, `session`, etc.)
+    // — additive field, Cat-2 compliant (forward-decl pattern, no new ABI
+    // surface for non-`#include`-ing callers).
+    NodeStatsReporter* node_stats_reporter{ nullptr };
 };
 
 // Forward-declared for use in RenderServices callback signatures.
