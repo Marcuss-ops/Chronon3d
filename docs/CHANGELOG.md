@@ -1,4 +1,24 @@
 <details>
+<summary>docs(ticket): open TICKET-129 macchina-verifica cells — 2026-07-12</summary>
+
+Open the 3 macchina-verifica cells for `docs/tickets/TICKET-129-text-clip-policy-cmake-rewrite.md` as forward-point WBH-only items per AGENTS.md §honest-limitation. The 3 cells are:
+1. `grep -c 'chronon3d_pipeline_parity_tests' tests/text/text_clip_policy_tests.cmake` → expect `0` (legacy target-name erasure per chore `a00b9d2f` drop-then-extract pattern);
+2. `grep -c 'chronon3d_text_clip_policy_tests' tests/text/text_clip_policy_tests.cmake` → expect `≥1` (new target-name presence per chore `a00b9d2f`);
+3. `ctest --test-dir build/chronon/<preset> -L sanitizer-subsystems --show-only=json-v1 | jq` audit per ADR-023 (currently Proposed; will promote to Accepted after first green run per AGENTS.md §honesty).
+
+VPS is env-blocked per the established `TICKET-BUILD-ROT-CASCADE-CAMERA` + `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` pattern; macchina-verifica MUST execute on working build host (§honest-limitation). Forward-point `TICKET-129-MACHINE-VERIFY` per the parallel precedent `TICKET-SABOTAGE-FONT-MACHINE-VERIFY` + `TICKET-INSPECT-TEXT-MACCHINA-VERIFY`. **Subject envelope = 51 chars ≤ 72** push-range audit per AGENTS.md TICKET-GATE-SUBJECT-RANGE closure 2026-07-12.
+
+**Files touched (post-amend)**: 1 EDIT `docs/tickets/TICKET-129-text-clip-policy-cmake-rewrite.md` (`## Machine-verifica cells` section refined per code-reviewer-minimax-m3 5-bullet feedback: defensive `2>/dev/null || echo 0` on grep cells (a) + (b) + cell (c) reworded as audit pre-condition vs ADR-023 promotion gate + `-L text-clip-policy` fallback for ADR-023-Proposed state + `jq`-less portability via `grep -c` + `python3 -m json.tool`; section header renamed `working-build-host-deferred` → `WBH-deferred` per the canonical `docs/cert_sequence_wbh_protocol.md` abbreviation) + 1 EDIT `docs/FOLLOWUP_TICKETS.md` (new TICKET-129-MACHINE-VERIFY §Open Blocker row registered per AGENTS.md canonical-update-discipline, parallelo `TICKET-SABOTAGE-FONT-MACHINE-VERIFY` + `TICKET-INSPECT-TEXT-MACCHINA-VERIFY` precedent) + 1 EDIT `docs/CHANGELOG.md` (this entry prepended per Cat-5 newer-at-top; Files-touched line amended to disclose the post-amend expanded scope). ZERO source files touched; ZERO new SDK symbols; ZERO public API impact.
+
+**Cat-3 SATISFIED** (pure `docs/` tracking; zero new symbols in `include/chronon3d/`; the macchina-verifica cells are forward-point audit hooks; the actual build-host execution is forward-pointed to `TICKET-129-MACHINE-VERIFY`). **Cat-5 2-doc same-commit alignment** per the established pattern.
+
+**Cross-references**: AGENTS.md v0.1 Cat-3 + Cat-5 + §honest-limitation + §SHA-cite inline-only rule applied (chore SHA `a00b9d2f` cited inline; canonicalizing chore `0e5de3b2 docs(followup): slim TICKET-129 cite context per Cat-3` cited inline per the post-amend §21ece2b3 lineage pattern) + ADR-023 (`docs/adr/ADR-023-custom-cmake-timeout-recovery.md` — the canonical sanitizer-subsystems audit gate) + the canonical `docs/tickets/TICKET-129-text-clip-policy-cmake-rewrite.md` (the macchina-verifica-cells home per this chore).
+
+</details>
+
+
+
+<details>
 <summary>docs(followup): slim TICKET-129 cite context per Cat-3 — 2026-07-12</summary>
 
 Slim the per-ticket context inside the new TICKET-129 closure-trace cite parens in `docs/FOLLOWUP_TICKETS.md` TICKET-TEXT-HEADER-CMAKE-REWIRE-ROT Closure lineage cell, per Cat-3 minimal-surface. The 30+ word verbose context `round-trip closure-trace cite for chore \`a00b9d2f\`'s \`chronon3d_pipeline_parity_tests → chronon3d_text_clip_policy_tests\` target rewire per AGENTS.md doc-role table "Scheda ticket specifico"` reduced to 6 words `closure-trace ticket for \`a00b9d2f\` target rewire`. The ticket file `docs/tickets/TICKET-129-text-clip-policy-cmake-rewrite.md` already documents the doc-role-table reference in its own Cross-link section, so duplicating it in FOLLOWUP is over-spec per Cat-3 anti-dup. **Subject envelope = 53 chars ≤ 72** push-range audit per AGENTS.md TICKET-GATE-SUBJECT-RANGE closure 2026-07-12.
