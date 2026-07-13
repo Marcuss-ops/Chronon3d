@@ -83,6 +83,7 @@ ShapedGlyphLine::ShapedGlyphLine(const std::string& text, f32 font_size,
     if (!m_run || m_run->glyphs.empty()) {
         throw std::runtime_error(make_shape_error_message(text, spec, font_size));
     }
+    rebuild_prefix_advances();
 }
 
 // ── ShapedGlyphLine private ctor (used by try_shape factory) ────────────
@@ -95,6 +96,29 @@ ShapedGlyphLine::ShapedGlyphLine(GlyphRun run, std::string text, FontSpec spec,
       m_font_size(font_size), m_tracking(tracking), m_ref_offset_x(ref_offset_x),
       m_run(std::move(run))
 {}
+
+// ── ShapedGlyphLine prefix-advances cache ───────────────────────────────
+//
+// Rebuilds the m_prefix_advances vector so that cursor_position(i) and
+// cursor_at_end() are O(1).  m_prefix_advances[0] == m_ref_offset_x and
+// m_prefix_advances[i+1] == m_prefix_advances[i] + advance_x + tracking.
+// Called once from each constructor; kept const-noexcept because the
+// cursor accessors are const-noexcept and the vector is mutable.
+void ShapedGlyphLine::rebuild_prefix_advances() noexcept {
+    if (!m_run) {
+        m_prefix_advances.clear();
+        m_prefix_advances.push_back(m_ref_offset_x);
+        return;
+    }
+    const size_t n = m_run->glyphs.size();
+    m_prefix_advances.resize(n + 1);
+    m_prefix_advances[0] = m_ref_offset_x;
+    for (size_t i = 0; i < n; ++i) {
+        m_prefix_advances[i + 1] = m_prefix_advances[i]
+                                   + m_run->glyphs[i].advance_x
+                                   + m_tracking;
+    }
+}
 
 // ── ShapedGlyphLine read-only accessors (unchanged from upstream) ────────
 //
@@ -207,19 +231,18 @@ std::vector<GlyphPos> ShapedGlyphLine::layout() const {
 }
 
 f32 ShapedGlyphLine::cursor_position(size_t index) const noexcept {
-    if (!m_run) return m_ref_offset_x;
-    f32 x = m_ref_offset_x;
-    const size_t n = m_run->glyphs.size();
-    const size_t limit = std::min(index, n);
-    for (size_t i = 0; i < limit; ++i) {
-        x += m_run->glyphs[i].advance_x + m_tracking;
+    if (m_prefix_advances.empty()) {
+        return m_ref_offset_x;
     }
-    return x;
+    const size_t n = m_prefix_advances.size() - 1;
+    return m_prefix_advances[std::min(index, n)];
 }
 
 f32 ShapedGlyphLine::cursor_at_end() const noexcept {
-    if (!m_run) return m_ref_offset_x;
-    return cursor_position(m_run->glyphs.size());
+    if (m_prefix_advances.empty()) {
+        return m_ref_offset_x;
+    }
+    return m_prefix_advances.back();
 }
 
 GlyphLineBBox ShapedGlyphLine::bbox() const noexcept {
@@ -287,13 +310,15 @@ std::optional<ShapedGlyphLine> ShapedGlyphLine::try_shape(
     // lifetime — Point 8 single-shape efficiency contract).
     s_shape_calls_per_line.fetch_add(1, std::memory_order_relaxed);
     if (!run_opt || run_opt->glyphs.empty()) return std::nullopt;
-    return ShapedGlyphLine(
+    ShapedGlyphLine line(
         std::move(*run_opt),
         std::string(text),
         spec,
         font_size,
         tracking,
         ref_offset_x);
+    line.rebuild_prefix_advances();
+    return line;
 }
 
 // ── shape_glyph_line free function (Point 8 single-shape entry point) ─

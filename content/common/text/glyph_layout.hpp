@@ -124,6 +124,17 @@ private:
     f32         m_ref_offset_x{0.0f};
     std::optional<GlyphRun> m_run;
 
+    // Precalculated prefix sums of (advance_x + tracking) for O(1)
+    // cursor queries.  m_prefix_advances[i] = cursor before glyph i,
+    // with m_prefix_advances[0] = m_ref_offset_x.
+    std::vector<float> m_prefix_advances;
+
+    // Rebuild m_prefix_advances from m_run + m_tracking + m_ref_offset_x.
+    // Called from both constructors.  The private try_shape ctor is
+    // noexcept, so a bad_alloc here terminates — same as any noexcept
+    // function that allocates.
+    void rebuild_prefix_advances() noexcept;
+
     // Private ctor used by try_shape factory — populate from a valid
     // GlyphRun directly (does NOT throw).
     ShapedGlyphLine(GlyphRun run, std::string text, FontSpec spec,
