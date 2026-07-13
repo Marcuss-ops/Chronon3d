@@ -135,17 +135,16 @@ Composition cert_text() {
                              .font_size = 96.0f},
         .color = Color::white()
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {kCenterX, kCenterY}},
-        .size = {kShapeW, kShapeH},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 1
+    .frame = {.size = {kShapeW, kShapeH},
+.placement = TextPlacement{TextPlacementKind::Absolute, {kCenterX, kCenterY}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 1
     }
 });
             });
@@ -205,17 +204,16 @@ Composition cert_composite() {
                              .font_size = 72.0f},
         .color = Color{1.0f, 1.0f, 0.0f, 1.0f}
     },
-    .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {kCenterX, kCenterY}},
-        .size = {kShapeW, kShapeH},
-        .anchor = TextAnchor::Center,
-        .centering_mode = TextCenteringMode::PixelInk,
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .wrap = TextWrap::Word,
-        .overflow = TextOverflow::Clip,
-        .line_height = 0.95f,
-        .max_lines = 1
+    .frame = {.size = {kShapeW, kShapeH},
+.placement = TextPlacement{TextPlacementKind::Absolute, {kCenterX, kCenterY}},
+.anchor = TextAnchor::Center,
+.align = TextAlign::Center,
+.vertical_align = VerticalAlign::Middle,
+.wrap = TextWrap::Word,
+.overflow = TextOverflow::Clip,
+.centering_mode = TextCenteringMode::PixelInk,
+.line_height = 0.95f,
+.max_lines = 1
     }
 });
             });
