@@ -29,8 +29,6 @@
 | 14 | [main-acf7d1de-baseline.md](main-acf7d1de-baseline.md) | 2026-07-10 | green | post-Step 2 Assets | validation only | |
 | 15 | [main-df1e09d9-rot-cascade-baseline.md](main-df1e09d9-rot-cascade-baseline.md) | 2026-07-12 | **rot-state** | 245 errors / 11+ files | **deferred to working build host** | rot-cascade diagnostic — unica rot-state baseline (canonical per TICKET-BUILD-ROT-CASCADE-CAMERA) |
 
-| 16 | [main-131119fe-baseline.md](main-131119fe-baseline.md) | 2026-07-13 | green (scaffold WBH-pending) | perf-baseline cpu-mid 8-thread | **deferred to working build host** | FASE 1.5 perf-baseline - canonical "stato iniziale" del programma CPU-only (12 scene B00-B11 schema-conformant a `chronon3d.bench.v3`); valori numerici zero placeholder; real-data macchina-verifica DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` env-block (forward-point `TICKET-BENCH-BASELINE-SHA-MACHINE-VERIFY`) |
-
 ## Statistiche sintetiche
 
 | Metric | Count |
