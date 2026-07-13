@@ -1,0 +1,62 @@
+# configs/benchmarks/corpus/b03_cinematic_glow_1080p.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Benchmark corpus — Scene B03: CinematicGlow1080p
+# ─────────────────────────────────────────────────────────────────────────
+# Purpose (user-spec §3 verbatim):
+#   "Glow 4/14/34, shadow, blend additivo" — stress the cinematic glow
+#   pipeline (3 falloffs + shadow + additive blend layer) at the
+#   reference `ChrononGlowFinalAE` composition (certified at 1cb9cff2
+#   per CURRENT_STATUS).
+#
+# Per AGENTS.md v0.1 Cat-3 + §honesty: metadata-only; comp_id references
+# the canonical certified composition already on §ona main.
+# ─────────────────────────────────────────────────────────────────────────
+
+schema_version: "benchmark_corpus_v1"
+
+scene_id: "B03"
+display_name: "CinematicGlow1080p"
+category: "cinematic_effect_pipeline"
+intent: |
+  Misura il cinematic glow pipeline con 3 falloffs (4/14/34),
+  drop shadow + additive blend. Stress su full-frame memory bandwidth
+  e sui cinque pass glow consecutivi.
+
+comp_id: "ChrononGlowFinalAE"
+canonical_render:
+  command: "chronon3d_cli video ChrononGlowFinalAE --start 0 --end 90 --fps 30"
+  output_path: "/tmp/benchmark_corpus_b03.mp4"
+
+thread_matrix:
+  cpu-low:  [1, 2, 4]
+  cpu-mid:  [1, 2, 4, 8, 16]
+  cpu-high: [1, 4, 8, 16, 32, 64]
+frame_rates: [30, 60]
+resolution_options: [{ width: 1920, height: 1080 }]
+duration_seconds_options: [3, 15, 60]
+variant_matrix:
+  - { cache_state: "cold", media: "mp4" }
+  - { cache_state: "warm", media: "mp4" }
+  - { cache_state: "cold", media: "still", frame: 45 }   # single still
+
+expected_metrics:
+  - time_to_first_frame_ms
+  - frame_p50_ms
+  - frame_p95_ms
+  - frame_p99_ms
+  - peak_rss_mb
+  - allocations_per_frame
+  - full_frame_copies        # glow cost: 1 per falloff
+  - cache_hit_ratio
+  - output_hash_pixels
+  - cost_per_minute_eur
+
+forward_points:
+  - { name: "glow 5 pass bbox-limited reduction (Fusion target)", ticket: "TICKET-GLOW-FUSION" }
+
+cross_link:
+  - "content/compositions/chronon_glow_final.cpp (5-falloff glow factory)"
+  - "include/chronon3d/effects/glow_pipeline.hpp"
+  - "content/common/text/cinematic_glow.cpp (CinematicGlowPreset)"
+  - "configs/benchmark_machines.yaml"
+  - "docs/CURRENT_STATUS.md §Glow Final (ChrononGlowFinalAE) row"

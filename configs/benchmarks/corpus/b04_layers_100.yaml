@@ -1,0 +1,67 @@
+# configs/benchmarks/corpus/b04_layers_100.yaml
+# ─────────────────────────────────────────────────────────────────────────
+# Benchmark corpus — Scene B04: Layers100
+# ─────────────────────────────────────────────────────────────────────────
+# Purpose (user-spec §3 verbatim):
+#   "100 livelli con opacity, position e scale" — high-layer-count
+#   stress to inspect graph-composite overhead and opacity/position/
+#   scale animators without the cost of visible content.
+#
+# Per AGENTS.md v0.1 Cat-3 + §honesty: metadata-only; comp_id is
+# FORWARD-POINTED. The current canonical production space lacks a
+# 100-layer scene; the proxy `AECameraTextParity` is a 5-layer subset
+# for partial coverage. A dedicated scene lands in TICKET-BENCH-B04-COMPOSITION.
+# ─────────────────────────────────────────────────────────────────────────
+
+schema_version: "benchmark_corpus_v1"
+
+scene_id: "B04"
+display_name: "Layers100"
+category: "graph_composite_overhead"
+intent: |
+  Misura 100 livelli simultanei con opacity/position/scale animators.
+  Stress su graph executor overhead (composite fan-in per livello).
+
+# comp_id intentionally TBD: a dedicated Layers100 scene is not yet
+# registered. The corridor to machine-verify goes via:
+#   (a) creating the canonical 100-layer composition (forward-point),
+#   (b) using `AECameraTextParity` as a 5-layer proxy for partial coverage.
+comp_id: "TBD"
+comp_id_proxy: "AECameraTextParity"   # partial-coverage proxy
+comp_id_target_spec:
+  layer_count: 100
+  per_layer_animators: ["opacity_timeline", "position_timeline", "scale_timeline"]
+  compose_mode: "normal"
+canonical_render:
+  command: "chronon3d_cli video <PLACEHOLDER:Layers100-comp> --start 0 --end 30 --fps 30 --skip-preflight"
+  output_path: "/tmp/benchmark_corpus_b04.mp4"
+
+thread_matrix:
+  cpu-low:  [1, 2, 4]
+  cpu-mid:  [1, 2, 4, 8, 16]
+  cpu-high: [1, 4, 8, 16, 32, 64]
+frame_rates: [30]
+resolution_options: [{ width: 1920, height: 1080 }]
+duration_seconds_options: [1, 5]
+variant_matrix:
+  - { cache_state: "cold", media: "mp4" }
+  - { cache_state: "warm", media: "mp4" }
+
+expected_metrics:
+  - time_to_first_frame_ms
+  - frame_p50_ms
+  - frame_p95_ms
+  - frame_p99_ms
+  - composite_fan_in_count      # per-frame // of composite calls
+  - allocations_per_frame
+  - peak_rss_mb
+  - cache_hit_ratio
+  - cost_per_minute_eur
+
+forward_points:
+  - { name: "register Layers100 scene", ticket: "TICKET-BENCH-B04-COMPOSITION" }
+  - { name: "kernel-level tile parallelism API", ticket: "TICKET-KERNEL-TILE-PARALLELISM" }
+
+cross_link:
+  - "content/showcases/cinematic/aec_camera_text_parity.cpp (5-layer proxy)"
+  - "configs/benchmark_machines.yaml"
