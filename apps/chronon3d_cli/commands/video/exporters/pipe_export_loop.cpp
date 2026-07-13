@@ -18,7 +18,10 @@ RenderLoopOutput run_pipe_export_loop(
     Frame end,
     const FfmpegExportOptions& opts)
 {
-    cache::NodeCache node_cache;
+    // Reuse the renderer/runtime's canonical NodeCache instead of creating a
+    // second local cache.  This keeps still and video renders consistent and
+    // avoids split statistics / capacity / clear behaviour.
+    cache::NodeCache& node_cache = session.renderer->node_cache();
     media::MediaFrameProvider* video_decoder = nullptr;
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
@@ -52,7 +55,8 @@ RenderLoopOutput run_pipe_export_loop(
 
     const auto render_t1 = profiling::now();
 
-    // Signal writer done and join
+    // Close the queue to unblock the writer, then signal done and join.
+    session.queue.close();
     session.writer_done.store(true);
     if (session.writer_thread.joinable()) {
         session.writer_thread.join();

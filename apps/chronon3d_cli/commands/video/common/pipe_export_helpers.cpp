@@ -27,7 +27,7 @@ bool should_log_pipe_progress(int done_count, int total) {
 }
 
 int pipe_encoded_frame_count(const PipeExportStatus& status) {
-    return status.success ? status.frames_written : 0;
+    return status.success ? status.frames_encoded : 0;
 }
 
 void mark_pipe_cancelled(PipeExportStatus& status, Frame frame) {
