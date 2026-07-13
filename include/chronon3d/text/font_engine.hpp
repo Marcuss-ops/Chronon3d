@@ -25,6 +25,8 @@
 // the resolver pointer MUST include that header themselves.
 namespace chronon3d::assets { class AssetResolver; }
 
+namespace chronon3d::content::text { class TypewriterLayoutCache; }
+
 namespace chronon3d {
 // ── GlyphPosition
 // Coordinates are in logical (unscaled) font units; multiply by
@@ -390,6 +392,9 @@ public:
 
     /// Clear the internal face cache (useful after font file changes).
     void clear_cache();
+
+    /// Per-runtime cache for typewriter text layouts.
+    [[nodiscard]] chronon3d::content::text::TypewriterLayoutCache& typewriter_layout_cache();
 
     /// Return true if the given font file can be loaded.
     [[nodiscard]] bool can_load(const FontSpec& spec);
