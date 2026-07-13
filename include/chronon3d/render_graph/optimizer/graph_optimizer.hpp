@@ -23,6 +23,13 @@ struct OptimizationConfig {
     /// Remove graph nodes that are not reachable from the output node.
     /// Run first so subsequent passes operate on a minimal graph.
     bool enable_dead_node_elimination = true;
+
+    /// TICKET-FUSION-PASS-COMPILER-V1: fuse ColorMatrix → Opacity → Blend
+    /// 3-node patterns into a single FusedPixelProgram descriptor.
+    /// The pass is non-mutating in the F3.1 first commit; it emits
+    /// descriptors via an OUT parameter. The runtime executor
+    /// consumes the descriptors.
+    bool enable_pixel_fusion         = true;
 };
 
 // ── Optimization result ─────────────────────────────────────────────────
@@ -35,6 +42,14 @@ struct OptimizationResult {
     size_t dead_nodes_removed = 0;  // unreachable nodes eliminated
 
     size_t static_bakes      = 0;   // subgraphs eligible for static bake
+
+    // TICKET-FUSION-PASS-COMPILER-V1: pixel-fusion pass counters.
+    // The FusionStats struct is the canonical aggregator for
+    // passes_before_fusion / passes_after_fusion / bytes_saved_by_fusion
+    // (emitted via --stats-json per F3.1 user-spec verbatim).
+    // For OptimizationResult we surface the most-relevant scalars:
+    size_t pixel_fusions     = 0;   // # of 3-node triples that fused
+    size_t pixel_fusion_bytes_saved = 0;  // bytes saved by all fusions
 };
 
 // ── Main optimization entry point ───────────────────────────────────────

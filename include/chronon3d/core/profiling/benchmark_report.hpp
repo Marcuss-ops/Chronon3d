@@ -45,6 +45,14 @@ struct BenchmarkCountersSnapshot {
     uint64_t framebuffer_copies{};
     uint64_t framebuffer_clears{};
     uint64_t full_frame_passes{};
+    // F3.2 (TICKET-GLOW-FULLFRAME-AUDIT-V1) — cumulative atomic raw +
+    // dashboard per-frame rates. The raw counters come from
+    // CHRONON_COUNTERS_GRAPH (`full_frame_passes` + `full_frame_copies`).
+    // The *per_frame rates are derived at snapshot time as
+    // `value / graph_executed_frames` (matching the graph_total_ms precedent).
+    uint64_t full_frame_copies{};
+    double full_frame_passes_per_frame{};
+    double full_frame_copies_per_frame{};
 };
 
 /// Returns current UTC time formatted as ISO 8601 (e.g. "2026-05-21T12:00:00Z").

@@ -68,10 +68,16 @@ nlohmann::json to_json(const BenchmarkReport& report, bool include_frame_times) 
     counters["pixels_touched"] = report.counters.pixels_touched;
     counters["blur_pixels"] = report.counters.blur_pixels;
     counters["images_sampled"] = report.counters.images_sampled;
-    counters["text_glyphs_rasterized"] = report.counters.text_glyphs_rasterized;
-    counters["framebuffer_copies"] = report.counters.framebuffer_copies;
-    counters["framebuffer_clears"] = report.counters.framebuffer_clears;
-    counters["full_frame_passes"] = report.counters.full_frame_passes;
+    counters["text_glyphs_rasterized"] = report.counters.text_glyphs_rasterized;    counters["framebuffer_copies"] = report.counters.framebuffer_copies;
+        counters["framebuffer_clears"] = report.counters.framebuffer_clears;
+        // F3.2 (TICKET-GLOW-FULLFRAME-AUDIT-V1) — emit 2 raw cumulative
+        // counters (CHRONON_COUNTERS_GRAPH) + 2 dashboard *per_frame rates
+        // (derived as value / frames_rendered; matches graph_total_ms
+        // precedent established for graph_total_ms / graph_executed_frames).
+        counters["full_frame_passes"] = report.counters.full_frame_passes;
+        counters["full_frame_copies"] = report.counters.full_frame_copies;
+        counters["full_frame_passes_per_frame"] = report.counters.full_frame_passes_per_frame;
+        counters["full_frame_copies_per_frame"] = report.counters.full_frame_copies_per_frame;
     js["counters"] = counters;
 
     nlohmann::json cats = nlohmann::json::object();
@@ -153,7 +159,13 @@ BenchmarkReport benchmark_report_from_json(const nlohmann::json& js) {
         report.counters.text_glyphs_rasterized = counters.value("text_glyphs_rasterized", uint64_t{0});
         report.counters.framebuffer_copies = counters.value("framebuffer_copies", uint64_t{0});
         report.counters.framebuffer_clears = counters.value("framebuffer_clears", uint64_t{0});
+        // F3.2 — symmetric to the emitter side: read the 4 fields with
+        // forward-compatible defaults (all zero) so older JSON snapshots
+        // continue to deserialize cleanly.
         report.counters.full_frame_passes = counters.value("full_frame_passes", uint64_t{0});
+        report.counters.full_frame_copies = counters.value("full_frame_copies", uint64_t{0});
+        report.counters.full_frame_passes_per_frame = counters.value("full_frame_passes_per_frame", 0.0);
+        report.counters.full_frame_copies_per_frame = counters.value("full_frame_copies_per_frame", 0.0);
     }
 
     if (js.contains("categories_ms") && js["categories_ms"].is_object()) {

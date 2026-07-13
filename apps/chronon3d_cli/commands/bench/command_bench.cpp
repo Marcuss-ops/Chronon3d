@@ -425,6 +425,41 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
         std::filesystem::remove(*temp_json_path, ec);
     }
 
+    // F3.1 (TICKET-FUSION-PASS-COMPILER-V1) --stats-json wire-up: emit
+    // the 3 fusion counters (passes_before_fusion, passes_after_fusion,
+    // bytes_saved_by_fusion) to a separate JSON file. The F3.1 pass
+    // populates these via the canonical render counters (see
+    // fused_pixel_program.cpp::emit_fusion_counters); the bench command
+    // reads them via the standard `renderer->counters()` accessor
+    // (matching the existing cache_hits / cache_misses / nodes_executed
+    // pattern at run_render_benchmark:201-208). Must be read BEFORE
+    // g_bench_context is cleared (which destroys the renderer).
+    if (!args.stats_json_file.empty() && context.renderer && context.renderer->counters()) {
+        const auto* rc = context.renderer->counters();
+        nlohmann::json stats_js;
+        stats_js["comp_id"] = args.comp_id;
+        stats_js["passes_before_fusion"] = static_cast<std::uint64_t>(
+            rc->pixel_fusion_passes_before.load(std::memory_order_relaxed));
+        stats_js["passes_after_fusion"] = static_cast<std::uint64_t>(
+            rc->pixel_fusion_passes_after.load(std::memory_order_relaxed));
+        stats_js["bytes_saved_by_fusion"] = static_cast<std::uint64_t>(
+            rc->pixel_fusion_bytes_saved.load(std::memory_order_relaxed));
+        std::ofstream stats_out(args.stats_json_file);
+        if (stats_out.is_open()) {
+            stats_out << stats_js.dump(2) << '\n';
+            stats_out.close();
+            if (!args.quiet) {
+                spdlog::info("F3.1 fusion stats JSON written to {} (passes_before={}, passes_after={}, bytes_saved={})",
+                             args.stats_json_file,
+                             stats_js["passes_before_fusion"].get<std::uint64_t>(),
+                             stats_js["passes_after_fusion"].get<std::uint64_t>(),
+                             stats_js["bytes_saved_by_fusion"].get<std::uint64_t>());
+            }
+        } else {
+            spdlog::error("Failed to open F3.1 --stats-json output file: {}", args.stats_json_file);
+        }
+    }
+
     g_bench_context = nullptr;
     return exit_code;
 }

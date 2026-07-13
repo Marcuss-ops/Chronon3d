@@ -159,6 +159,11 @@ namespace chronon3d {
     X(graph_build_ms) \
     X(graph_execute_ms) \
     X(graph_total_ms) \
+    X(pixel_fusion_passes_before) \
+    X(pixel_fusion_passes_after) \
+    X(pixel_fusion_bytes_saved) \
+    X(full_frame_passes) \
+    X(full_frame_copies) \
     X(compiled_graph_refresh_ms) \
     X(cache_eval_ms) \
     X(dirty_eval_ms) \
