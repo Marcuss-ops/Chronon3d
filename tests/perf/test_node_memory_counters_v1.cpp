@@ -22,7 +22,8 @@
 //
 // Pattern precedent:
 //   - tests/text/test_anim_typewriter_error_path.cpp (Azione 18 deliverable,
-//     this session's chronologic) — static-source regression lock pattern.
+//     this session's chronologic) — runtime typewriter_build error-path
+//     regression lock pattern (replaced prior static-source grep test).
 //   - tests/core/test_cache_eval_dirty_counters.cpp — counter-thread-safety
 //     pattern (merge_tls no-records-lost over 8 thread × 1000 fetch_add).
 //
