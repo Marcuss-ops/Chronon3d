@@ -51,6 +51,29 @@ std::pmr::vector<ResolvedLayer> resolve_layer_hierarchy(
     // Build name→index
     auto name_to_index = build_name_index(layers);
 
+    // Short-circuit: if the scene has already resolved its hierarchy, the
+    // layer.transform fields are already in world space. Re-running the
+    // resolver would double-apply parent transforms. Keep the baked world
+    // transform and only re-derive the diagnostic parent_missing /
+    // cycle_detected flags from the surviving parent_name metadata.
+    if (!layers.empty() && layers[0].hierarchy_resolved) {
+        out.resize(layers.size());
+        for (std::size_t i = 0; i < layers.size(); ++i) {
+            const auto& layer = layers[i];
+            out[i].layer = &layer;
+            out[i].world_transform = layer.transform;
+            out[i].world_matrix = layer.transform.to_mat4();
+            out[i].insertion_index = i;
+            out[i].has_parent = !layer.parent_name.empty();
+            if (!layer.parent_name.empty()) {
+                auto it = name_to_index.find(std::string_view(layer.parent_name));
+                out[i].parent_missing = (it == name_to_index.end());
+                out[i].cycle_detected = (layer.parent_name == layer.name);
+            }
+        }
+        return out;
+    }
+
     // Build node views
     std::vector<HierarchyNodeView> views;
     views.reserve(layers.size());
@@ -62,6 +85,7 @@ std::pmr::vector<ResolvedLayer> resolve_layer_hierarchy(
         v.local_opacity = layer.transform.opacity;
 
         if (!layer.parent_name.empty()) {
+            v.parent_declared = true;
             auto it = name_to_index.find(std::string_view(layer.parent_name));
             if (it != name_to_index.end()) v.parent = it->second;
         }
@@ -117,6 +141,7 @@ ResolvedCamera resolve_camera_hierarchy(
         v.local_opacity = layer.transform.opacity;
 
         if (!layer.parent_name.empty()) {
+            v.parent_declared = true;
             auto it = name_to_index.find(std::string_view(layer.parent_name));
             if (it != name_to_index.end()) v.parent = it->second;
         }
