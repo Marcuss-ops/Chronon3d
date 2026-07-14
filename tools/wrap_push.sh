@@ -87,10 +87,6 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 SCRIPT_DIR="${REPO_ROOT}/tools"
 GATE="${SCRIPT_DIR}/check_main_clean.sh"
 
-# Load the canonical gate manifest (DEVELOPER_GATES, CI_GATES, WBH_GATES, WBH_ONLY_GATES).
-# shellcheck source=gates/manifest.sh
-source "${SCRIPT_DIR}/gates/manifest.sh"
-
 # ── Gate profile: developer (default) vs wbh (working build host) ──────────
 # `developer` — fast local checks safe on any push (no MP4/build artifacts).
 # `wbh`       — full video/glow/determinism/batch validation (needs build host).
@@ -199,25 +195,39 @@ if ! "$GATE"; then
     exit 1
 fi
 
-# ── Run developer gates (delegated to canonical run_developer_gates.sh) ─
-# The 8 developer gates live in tools/run_developer_gates.sh — single
-# source of truth shared with .githooks/pre-push.  No duplication.
-echo "wrap_push.sh: running developer gate chain (via run_developer_gates.sh ${TARGET_REMOTE} ${TARGET_BRANCH})..."
-bash "${SCRIPT_DIR}/run_developer_gates.sh" "${TARGET_REMOTE}" "${TARGET_BRANCH}" \
-    || { echo "wrap_push.sh: GATE_FAIL on run_developer_gates.sh (exit $?)" >&2; exit 1; }
-
-# ── WBH-only gates (run only when CHRONON3D_GATE_PROFILE=wbh) ─────────────────
-# These gates require build artifacts (MP4, glow output, batch videos) that
-# only exist on a working build host.  On developer pushes they are skipped.
-if [[ "$GATE_PROFILE" == "wbh" ]]; then
-    for gate in "${WBH_ONLY_GATES[@]}"; do
-        echo "wrap_push.sh: running WBH gate: ${gate}"
-        bash "${SCRIPT_DIR}/${gate}" \
-            || { echo "wrap_push.sh: GATE_FAIL on ${gate} (exit $?)" >&2; exit 1; }
-    done
-else
-    echo "wrap_push.sh: GATE_PROFILE=${GATE_PROFILE} — skipping WBH-only gates (video/glow/determinism/batch/SDK)"
-fi
+# ── Gate execution per profile (developer|wbh, single case statement) ──
+# Per chore(tools) simplify wrap_push device gate chain: collapse the
+# previous inline developer + WBH gate invocations into a single
+# `case "$GATE_PROFILE" in developer|wbh ...) esac` statement.  Each
+# profile delegates to its canonical runner:
+#   - developer  → tools/run_developer_gates.sh (9-gate chain; same
+#                  script .githooks/pre-push invokes for local parity).
+#   - wbh        → developer gates + tools/run_wbh_gates.sh (7-gate
+#                  chain on a Working Build Host; DEFERRED-WBH per
+#                  AGENTS.md §honest-limitation pattern).
+# Single source of truth: the gate lists live in the runner scripts, NOT
+# inline in this wrapper.  This eliminates the historical duplication
+# risk when adding / removing a gate (§honesty forward-point TICKET-WRAP-
+# PUSH-DEVICE-GATE-CHAIN).
+case "$GATE_PROFILE" in
+    developer)
+        echo "wrap_push.sh: GATE_PROFILE=${GATE_PROFILE} — running developer gate chain (via run_developer_gates.sh ${TARGET_REMOTE} ${TARGET_BRANCH})..."
+        bash "${SCRIPT_DIR}/run_developer_gates.sh" "${TARGET_REMOTE}" "${TARGET_BRANCH}" \
+            || { echo "wrap_push.sh: GATE_FAIL on run_developer_gates.sh (exit $?)" >&2; exit 1; }
+        ;;
+    wbh)
+        echo "wrap_push.sh: GATE_PROFILE=${GATE_PROFILE} — running developer gates + WBH chain (via run_developer_gates.sh + run_wbh_gates.sh)..."
+        bash "${SCRIPT_DIR}/run_developer_gates.sh" "${TARGET_REMOTE}" "${TARGET_BRANCH}" \
+            || { echo "wrap_push.sh: GATE_FAIL on run_developer_gates.sh (exit $?)" >&2; exit 1; }
+        bash "${SCRIPT_DIR}/run_wbh_gates.sh" \
+            || { echo "wrap_push.sh: GATE_FAIL on run_wbh_gates.sh (exit $?)" >&2; exit 1; }
+        ;;
+    *)
+        echo "wrap_push.sh: unknown GATE_PROFILE=${GATE_PROFILE}" >&2
+        echo "  fix: set CHRONON3D_GATE_PROFILE=developer (default) or wbh" >&2
+        exit 1
+        ;;
+esac
 
 # ── Step 4.5q: PERF_GATE pre-flight (F1.6 / TICKET-PERF-GATE-V1) ──────────────────
 # Optional perf-regression gate executed when the env var `PERF_GATE=enabled`
