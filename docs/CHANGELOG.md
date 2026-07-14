@@ -6,6 +6,16 @@ PHASE-3 (overload REMOVAL) split into Chore A (5-file bounded migration, DONE at
 ### `fix(cli): chronon create post code-reviewer critical issues` ([TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE](docs/tickets/TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE.md))
 Per code-reviewer-minimax-m3 cycle after Commit 2 (`fdfe0e5e`): 3 fixes applied. CRITICAL: `apps/chronon3d_cli/CMakeLists.txt` — added `set(CHRONON3D_TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates")` BEFORE the `configure_file(...)` call. Without this, the `@CHRONON3D_TEMPLATES_DIR@` substitution would have produced `#define CHRONON3D_BAKED_TEMPLATES_DIR ""` (empty), causing runtime failure on every install where the env var was unset. MINOR: `apps/chronon3d_cli/commands/create/register_create_commands.cpp` — replaced `constexpr std::size_t kProjectNamePlaceholderLen = 15;` (fragile magic number) with `constexpr std::size_t kProjectNamePlaceholderLen = std::string_view(kProjectNamePlaceholder).size();` (compile-time derivation from the literal — no manual sync needed if the placeholder text changes); added `#include <string_view>`. MINOR: same file — added `std::filesystem::remove_all(dst, rollback_ec);` in the `catch (const std::exception& e)` block: on partial-copy failure, the half-populated target directory is rolled back so the next `chronon create <name>` (without `--force`) does not refuse on leftover junk. Rollback failure is non-fatal (the original copy error is still surfaced to the user). Cat-3 minimal-surface: 2 file EDIT (CMakeLists.txt ~3 LoC + register_create_commands.cpp ~12 LoC); ZERO source in `src/`, `include/`, `apps/chronon3d_cli/` outside the create command; ZERO new SDK API; ZERO new singleton/registry/resolver/cache. Subject envelope 57 chars <= 72 per `tools/check_commit_subject_length.sh`. macchina-verifica DEFERRED-WBH per TICKET-VCPKG-REMAINING-CODE-ROT-1SHOT-FIX (env-block glm/magic_enum + build rot on this VPS). Cronaca estesa nel canonical ticket-home per AGENTS.md Cat-3 anti-dup.
 
+### `chore(text): deprecate legacy TextSpec overloads (Blocco 5.1)`
+  ([TICKET-TEXT-SPEC-MIGRATION](docs/tickets/TICKET-TEXT-SPEC-MIGRATION.md))
+Mark `[[deprecated]]` su `LayerBuilder::text(name, TextSpec)` + su
+`from_text_spec()` (entrambi ora emettono compile warning).  Forward-point
+tickets aperti: `TICKET-TEXT-SPEC-MIGRATION` (P1, 124+ callers) +
+`TICKET-CENTERED-TEXT-MIGRATION` (P2, 100+ `centered_text`/`glow_text`
+callers).  Asset side (audit §10: process-wide asset root ripout) è
+già completo da lineage precedenti (F0.2 + Fase B2) — nessuna azione
+richiesta in questo commit.
+
 ### `feat(cli): chronon preview --contact-sheet (audit Blocco 4.1)`
   ([TICKET-PREVIEW-CONTACT-SHEET](docs/tickets/TICKET-PREVIEW-CONTACT-SHEET.md))
 Add `--contact-sheet sheet.png` to `chronon preview`: composes the

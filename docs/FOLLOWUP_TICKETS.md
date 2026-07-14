@@ -13,6 +13,8 @@
 | TICKET-WATCH-PROPS-FILE | P2 | CLI | OPEN | dev | `docs/tickets/TICKET-WATCH-PROPS-FILE.md` |
 | TICKET-PREVIEW-CONTACT-SHEET | P2 | CLI | OPEN | dev | `docs/tickets/TICKET-PREVIEW-CONTACT-SHEET.md` |
 | TICKET-PREVIEW-CELL-LABELS | P3 | CLI | OPEN | dev | `docs/tickets/TICKET-PREVIEW-CELL-LABELS.md` |
+| TICKET-TEXT-SPEC-MIGRATION | P1 | Text | OPEN | dev | `docs/tickets/TICKET-TEXT-SPEC-MIGRATION.md` |
+| TICKET-CENTERED-TEXT-MIGRATION | P2 | Text | OPEN | dev | `docs/tickets/TICKET-CENTERED-TEXT-MIGRATION.md` |
 | TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE | P2 | NEW | Audit §19 — templates/basic/ versionato + `chronon create <name>` (Blocco 4.2): 7 file template (CMakeLists.txt + chronon.json + src/root.cpp + src/hello_world.cpp + assets/.gitkeep + props/.gitkeep + README.md) + command_create subcommand. Forward-point di TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3. | [ticket](docs/tickets/TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE.md) |
 | TICKET-TOOLS-ORPHAN-AUDIT | P2 | NEW | tools/ script audit: 95 classified, 0 removed. Removals deferred to 4 forward-points per Cat-3 minimal surface. | [ticket](docs/tickets/TICKET-TOOLS-ORPHAN-AUDIT.md) |
 | TICKET-TEXT-SPEC-FORWARDER-REMOVAL | P2 | FORWARD-POINT REGISTER | 2×-in-one-chore orphan-intent register: LayerBuilder::text(name,TextSpec) overload REMOVED; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-TEXT-SPEC-FORWARDER-REMOVAL.md) |
