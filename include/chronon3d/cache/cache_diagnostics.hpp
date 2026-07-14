@@ -142,11 +142,15 @@ private:
     // (register_cache / unregister / clear_by_domain / clear_all) take
     // the exclusive path. Public API surface unchanged (Cat-2 freeze).
     mutable std::shared_mutex                       m_mutex;
-    // TICKET-O(n)-audit — storage switched from std::vector<Entry*> to
-    // std::unordered_set<Entry*> so CacheDiagnostics::unregister performs
-    // an O(1) lookup instead of an O(n) std::find linear scan.
-    // Public API surface is unchanged (only the private m_entries type
-    // changes; no new public symbols introduced — AGENTS.md Cat-2 OK).
+    // P1-10 sealed — `CacheDomain` is now encoded in `Handle`, so
+    // `unregister(domain, entry)` performs a single O(1) lookup path
+    // (map-find + set-find + set-erase) WITHOUT iterating the outer
+    // map. Storage remains `std::unordered_map<CacheDomain,
+    // std::unordered_set<Entry*>>` (per-domain sharded set used by
+    // `clear_by_domain` / `snapshot_by_domain` for O(per-domain)
+    // iteration). Public API surface unchanged (Handle is opaque
+    // from the caller side; only its constructor signature changed
+    // internally — AGENTS.md Cat-2 OK).
     std::unordered_map<CacheDomain, std::unordered_set<Entry*>> m_entries;
     std::atomic<bool>                               m_enabled{true};
 
@@ -160,23 +164,28 @@ class CacheDiagnostics::Handle {
 public:
     Handle() = default;
 
-    Handle(CacheDiagnostics* owner, Entry* entry)
-        : m_owner(owner), m_entry(entry) {}
+    // P1-10 — constructor now takes the `CacheDomain` so the Handle
+    // can perform an O(1) direct lookup in `unregister` (no outer-map
+    // scan). `CacheDomain` is a value-type enum, so storing it by
+    // value inside the Handle is lifetime-safe.
+    Handle(CacheDiagnostics* owner, CacheDomain domain, Entry* entry)
+        : m_owner(owner), m_domain(domain), m_entry(entry) {}
 
     ~Handle() {
-        if (m_owner && m_entry) m_owner->unregister(m_entry);
+        if (m_owner && m_entry) m_owner->unregister(m_domain, m_entry);
     }
 
     Handle(Handle&& other) noexcept
-        : m_owner(other.m_owner), m_entry(other.m_entry) {
+        : m_owner(other.m_owner), m_domain(other.m_domain), m_entry(other.m_entry) {
         other.m_owner = nullptr;
         other.m_entry = nullptr;
     }
 
     Handle& operator=(Handle&& other) noexcept {
         if (this != &other) {
-            if (m_owner && m_entry) m_owner->unregister(m_entry);
+            if (m_owner && m_entry) m_owner->unregister(m_domain, m_entry);
             m_owner = other.m_owner;
+            m_domain = other.m_domain;
             m_entry = other.m_entry;
             other.m_owner = nullptr;
             other.m_entry = nullptr;
@@ -191,6 +200,7 @@ public:
 
 private:
     CacheDiagnostics* m_owner{nullptr};
+    CacheDomain       m_domain{CacheDomain::Nodes};
     Entry*            m_entry{nullptr};
 };
 
@@ -217,7 +227,7 @@ inline CacheDiagnostics::Handle CacheDiagnostics::register_cache(
     return Handle{};
 }
 
-inline void CacheDiagnostics::unregister(Entry*) {}
+inline void CacheDiagnostics::unregister(CacheDomain, Entry*) {}
 
 inline std::vector<CacheSnapshot> CacheDiagnostics::snapshot() const { return {}; }
 inline DomainSnapshot CacheDiagnostics::snapshot_by_domain(CacheDomain domain) const {
