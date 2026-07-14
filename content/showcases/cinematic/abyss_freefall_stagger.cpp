@@ -101,7 +101,7 @@ Composition abyss_freefall_stagger() {
         // fade-out at the tail.
         const std::string phrase = "LET  FALL";
         const f32 fs = 220.0f;
-        auto spec = font_bold();            ShapedGlyphLine line(phrase, fs, spec, 4.0f, 0.0f, *ctx.runtime->font_engine());
+        auto spec = font_bold();            ShapedGlyphLine line = ShapedGlyphLine::try_shape(phrase, fs, spec, 4.0f, 0.0f, *ctx.runtime->font_engine()).value();
         f32 w = line.width();
         f32 ref_x = -w * 0.5f;
         auto chars = line.layout();
