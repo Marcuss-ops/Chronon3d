@@ -155,19 +155,28 @@ add_library(chronon3d_cli_dev STATIC
     commands/dev/command_camera_path.cpp
     commands/dev/command_inspect_text.cpp
     commands/dev/command_text_def_inspect.cpp  # TICKET-CHRONON-GLOW-FINAL Fase 5 — real text_audit_snapshots() consumption
-    $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/command_text_audit.cpp>
-    $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_engine.cpp>
+    # P1-7 Chore 1 (commit B) — DELETED 4 legacy text-audit sources wholesale:
+    #   commands/dev/command_text_audit.cpp
+    #   commands/dev/text_audit_engine.cpp
+    #   commands/dev/text_audit_typewriter.cpp
+    # plus the audit_result_to_json shim:
+    #   commands/dev/text_inspection_json.{hpp,cpp}
+    # Reason: these were the only callers of `rasterize_text_to_bl_image()` in
+    # active code (Commit A deleted the production caller; CLI + test
+    # callers now also retired).  text_audit_helpers.{hpp,cpp} stays —
+    # still used by command_inspect_text.cpp for json_escape/json_bbox.
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_helpers.cpp>
-    $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_typewriter.cpp>
     # Step 9 §B — extracted collector (snapshots → TextVisibilityAudit
     # + status mapping). Bridges command_inspect_text.cpp to
     # audit_text_visibility(). DIAGNOSTICS-gated inside.
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_inspection_collector.cpp>
-    # Step 9 §B — extracted JSON serialisation. SINGLE canonical home
-    # for `audit_result_to_json` (absorbed from the now-deleted
-    # `text_audit_json.cpp`). Re-exports json_escape + json_bbox from
-    # text_audit_helpers.hpp via using-declarations (anti-dup).
-    $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_inspection_json.cpp>
+    # P1-7 Chore 1 (commit B) — REMOVED `text_inspection_json.cpp` (the
+    # Step-9-§B thin shim whose SOLE purpose was hosting `audit_result_to_json`).
+    # With audit_result_to_json deleted wholesale along with the legacy
+    # text-audit engine, the .cpp body became empty; deleted it entirely
+    # per Cat-3 minimal-surface (no dead code).  Callers that need
+    # `json_escape`/`json_bbox` include `text_audit_helpers.hpp` directly
+    # (text_inspection_json.{hpp,cpp} re-fetch was an unused façade).
     utils/batch/batch_job_spec.cpp
     utils/batch/batch_runner.cpp
     # TICKET-CLI-ISOLATE-RUNTIME-DEV — tests/visual/*.cpp are compiled into
@@ -234,13 +243,14 @@ add_executable(chronon3d_cli
     # TICKET-BENCH-CORPUS-V1 — 12-scene benchmark corpus (B00-B11) + 3
     # B07 inner precomps. GATED under BOTH CHRONON3D_ENABLE_TEXT AND
     # CHRONON3D_USE_BLEND2D (the same condition as
-    # commands/dev/command_text_audit.cpp + command_inspect_text.cpp).
+    # command_inspect_text.cpp).
     # Rationale: the corpus depends on text-gated canonical surfaces
     # (scene_presets.hpp → text/text_animator.hpp + content/compositions/
     # chronon_glow_final.hpp text pipeline). In minimal/headless builds
     # (text disabled) the bench corpus is intentionally absent from
-    # `chronon3d_cli info` — this is a pre-existing parallel precedent
-    # (command_text_audit.cpp is absent in headless). Cat-3 acceptable
+    # `chronon3d_cli info`.  P1-7 Chore 1 (commit B) — removed
+    # `command_text_audit.cpp` from this comparative list since the
+    # file has been deleted wholesale. Cat-3 acceptable
     # trade-off: bench corpus is OPTIONAL tooling, not SDK surface;
     # gated consistently with the rest of the text-required path.
     $<$<AND:$<BOOL:${CHRONON3D_ENABLE_TEXT}>,$<BOOL:${CHRONON3D_USE_BLEND2D}>>:${CMAKE_SOURCE_DIR}/examples/bench_corpus/bench_corpus_scenes.cpp>

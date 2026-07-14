@@ -1,72 +1,35 @@
 // SPDX-License-Identifier: MIT
 
 // ═══════════════════════════════════════════════════════════════════════════
-// text_inspection_json.hpp — Step 9 §B JSON serialisation layer
+// text_inspection_json.hpp — JSON helper re-exports (Step 9 §B, P1-7 slimmed)
 //
-// SINGLE canonical JSON serialisation entry-point for both:
-//   - the per-snapshot inspect-text JSON output
-//   - the audit-engine `TextAuditResult` JSON dump (formerly `text_audit_json.cpp`)
+// P1-7 Chore 1 (commit B): this header is RE-EXPORTING the canonical JSON
+// helpers `json_escape` + `json_bbox(const TextAuditBBox&)` from
+// `text_audit_helpers.hpp` (single canonical home).  The previously-hosted
+// `audit_result_to_json()` function was deleted wholesale along with
+// the legacy text-audit engine (Commit B scope) — the function is now
+// orphaned with no callers and no consumers.  This header's raison d'être
+// is now the `using`-declaration re-exports for callers that prefer the
+// namespaced qualification (no behavioral change vs direct include).
 //
-// Extracted/merged from:
-//   - `text_audit_json.cpp`    (absorbed `audit_result_to_json` here)
-//   - `command_inspect_text.cpp` (anon-namespace `json_escape` + `json_bbox` for
-//                                 the per-node output — different signatures,
-//                                 kept TU-local in the command)
+// Callers that need `json_escape`/`json_bbox` can:
+//   1. include `text_audit_helpers.hpp` directly (canonical path), OR
+//   2. include this header + use `text_inspection_json::json_escape(...)`.
 //
-// Anti-duplication strategy (per user spec §B "nessun helper JSON duplicato"):
-//   1. `json_escape(const std::string&)` — canonical home is
-//      `text_audit_helpers.{hpp,cpp}`. This header re-exports the symbol
-//      via `using` so callers can write `text_inspection_json::json_escape(...)`
-//      OR continue to include `text_audit_helpers.hpp` directly. Zero
-//      duplicate definitions: the function is implemented exactly once
-//      in `text_audit_helpers.cpp` and re-exported here.
-//   2. `json_bbox(const TextAuditBBox&)` — same pattern: canonical home is
-//      `text_audit_helpers.{hpp,cpp}`, re-exported here.
-//   3. The command's `json_bbox(const Rect&)` STAYS TU-local in
-//      `command_inspect_text.cpp` because the signature differs (Rect vs
-//      TextAuditBBox) and the JSON output format differs (object vs
-//      array). The two functions are not interchangeable; consolidating
-//      them would be a behavioural change, not a refactor.
-//
-// `audit_result_to_json(const TextAuditResult&)` — the audit-engine
-// JSON dump. Absorbed from `text_audit_json.cpp` (which has been
-// DELETED in Step 9). The single canonical home is this header; the
-// call site in `command_text_audit.cpp` updates its include to point
-// here (no namespace change, so the call signature is preserved).
+// Anti-duplication invariant: zero duplicate definitions in the codebase.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #pragma once
 
-#include "text_audit_types.hpp"     // TextAuditResult
 #include "text_audit_helpers.hpp"   // canonical json_escape + json_bbox(BBox)
-
-// ── Re-export the audit-engine JSON helpers (anti-duplication) ────────
-//
-// `using` declarations: zero cost, zero symbol duplication. The single
-// implementation lives in `text_audit_helpers.cpp`. Callers that include
-// this header gain access via the `text_inspection_json::` namespace
-// prefix without having to add a second `#include`.
 
 #include <string>
 
-// `audit_result_to_json()` is declared in the `chronon3d::cli::` namespace
-// (NOT in the `text_inspection_json` sub-namespace) so the existing call
-// sites in `command_text_audit.cpp` (which include `text_audit_engine.hpp`
-// where the function is declared in the parent `chronon3d::cli::` namespace)
-// keep working without any include change. The function body lives in
-// `text_inspection_json.cpp` (the SINGLE canonical home after the
-// `text_audit_json.cpp` absorption). The function is behaviour-preserving
-// from the now-deleted `text_audit_json.cpp` (zero change in the JSON
-// schema; the function body was moved verbatim).
-
 namespace chronon3d::cli {
 
-// Re-exported audit-engine JSON helpers (anti-duplication strategy per
-// user spec §B "nessun helper JSON duplicato"). The single implementation
-// lives in `text_audit_helpers.cpp`; these `using` declarations expose the
-// symbols under the `text_inspection_json` sub-namespace for callers that
-// prefer the namespaced qualification `text_inspection_json::json_escape(...)`.
-// Callers that include `text_audit_helpers.hpp` directly continue to work.
+// Re-exported JSON helpers (single implementation lives in
+// `text_audit_helpers.cpp`; these `using` declarations expose the symbols
+// under the `text_inspection_json` sub-namespace for namespaced callers).
 namespace text_inspection_json {
 
 using ::chronon3d::cli::json_escape;
