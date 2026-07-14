@@ -75,3 +75,66 @@ This ticket exists to **document the B2 migration intent** across the recovery-c
 ## Effective date for migration
 
 Migration SHOULD land before `docs/RELEASE_GATE.md` Camera V1 reaches release-complete, because the OPP renderer's per-preset identifier logging (`adapter_legacy_preset_<name>`) currently can't be populated for legacy `add(name, factory)` calls (`descriptors_` map is empty for those entries).
+
+## Phase 1 — Factories_ map consolidation (2026-07-14, DONE)
+
+Per user-directive verbatim 2026-07-14 P2 item #31 ("Eliminare CompositionRegistry::add(name, factory) → add(CompositionDescriptor{...}) ... A quel punto si può anche eliminare la duplicazione factories_: la factory può vivere direttamente nel descriptor").
+
+**Scope applied (this chore, minimal-surface per AGENTS.md §"Fare PR piccole e mirate" + Cat-3 anti-dup)**
+
+- 1 EDIT canonical header `include/chronon3d/core/composition/composition_registry.hpp` (130 LoC). ZERO caller migration in this chore — the legacy `add(name, factory)` overload is preserved as 1-line forward to canonical `add(CompositionDescriptor{.id, .factory})`, so all 200+ pre-B2 call sites in `content/showcases/cinematic/` + `content/examples/` + `content/showcases/minimalist/` + `content/showcases/` + `tests/` + `apps/`... continue to compile unchanged.
+
+**Soluzione Confine**
+
+The previous `CompositionRegistry` carried TWO duplicate maps:
+
+| Storage | Purpose | After Phase-1 |
+|---|---|---|
+| `factories_: std::map<string, Factory>` | factory callable by id | **REMOVED** |
+| `descriptors_: std::map<string, CompositionDescriptor>` | metadata + factory + id | **SSoT** |
+
+Phase-1 migrates the internal queries to the SSoT:
+
+| Query (before) | Query (after) |
+|---|---|
+| `factories_.contains(name)` | `descriptors_.contains(name)` |
+| `factories_.find(name)` (in `create`) | `descriptors_.find(name)->second.factory(props)` |
+| `for [name, _] : factories_` (in `available`) | `for [_, desc] : descriptors_; push desc.id` |
+| `factories_.clear()` (in `clear`) | `descriptors_.clear()` |
+
+The canonical `add(CompositionDescriptor)` was simplified:
+- BEFORE: `descriptors_[id] = std::move(d); factories_[id] = descriptors_[id].factory;`
+- AFTER: `descriptors_[std::move(d.id)] = std::move(d);`
+
+The legacy `add(name, factory)` was simplified:
+- BEFORE: `factories_[std::move(name)] = std::move(factory);`
+- AFTER: `add(CompositionDescriptor{.id = std::move(name), .factory = std::move(factory)});` (1-line forward)
+
+**Class doc comment updated** to record the Phase-1 elimination + forward-point to `[[deprecated]]` re-add (Phase-2) + REMOVAL post V0.1 + ADR (Phase-3).
+
+## Forward-points
+
+| Forward-point | Status | Chiude quando |
+|---|---|---|
+| `PHASE-1-FACTORIES-MAP` | **DONE 2026-07-14** (this session) | `factories_` map REMOVED + queries consolidated into `descriptors_` (verified `rg factories_ include/` returns 0 + chaser macchina-verifica) |
+| `PHASE-2-DEPRECATED-MARKER` + BUILD-FLAG ESCAPE HATCH | OPEN | `[[deprecated(\"Use add(CompositionDescriptor{...})\")]]` re-added on legacy overload with `-DCHRONON3D_REQUIRES_DESCRIPTOR_REGISTRATION=ON` build-flag escape hatch (AGENTS.md §`### 2×-in-one-chore` deprecation-reversal rule). PR blocca build di `chronon3d_core_tests` finché la migration delle 200+ caller sites non è completa. |
+| `PHASE-3-OVERLOAD-REMOVAL` + ADR | OPEN | legacy `add(name, factory)` overload REMOVED + ABI-stability ADR CREATED (Cat-2 freeze source-removal gate) post V0.1 (per AGENTS.md §Disciplina). PR blocca build di `chronon3d_core_tests` finché i 200+ callers sono migrati. |
+| `PHASE-4-AUDIT-DESCRIPTOR-OF` | OPEN | `registry.descriptor_of(id)` returns non-null `CompositionDescriptor` for every registered composition (currently nullopt for the 200+ legacy registrations BECAUSE they had no descriptor entry pre-Phase-1; Phase-1 didn't migrate callers, just consolidated storage — descriptor_of() still returns nullopt for legacy-registered compositions UNTIL Phase-2/3 caller migration). |
+
+## macchina-verifica (this session)
+
+VPS-only (vcpkg glm/magic_enum env-block per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV`):
+
+- `rg -n 'factories_' include/chronon3d/core/composition/composition_registry.hpp` → 0 matches (orphan map field eliminated)
+- `rg -nE '\.factories_\[|factories_\.find|factories_\.contains|factories_\.clear' include/ src/ apps/ content/ examples/ tests/` → 0 matches (no orphan usages)
+- `rg -n 'add\(CompositionDescriptor' include/ src/ apps/ content/ examples/ tests/` → multiple matches (canonical form used in tests + canonical examples)
+- `rg -n 'add\("[A-Za-z0-9_]+",\s*\[' include/ src/ apps/ content/ examples/ tests/` → ~260 matches in pre-B2 callers (the 200+ sites which continue using legacy `add(name, factory)` form unchanged — 1-line forward handles them)
+- `cmake --build build/chronon/linux-content-dev --target chronon3d_core_tests` DEFERRED-WBH (VPS lacks vcpkg glm/magic_enum)
+
+## Cross-link (this session)
+
+- AGENTS.md §`### Docs canonical update discipline rule` (Cat-3 anti-dup codification source)
+- AGENTS.md §`### 2×-in-one-chore: deprecation reversal bundles forward-point tickets` (Phase-2 + Phase-3 bundling rule)
+- AGENTS.md §Post-push SHA-selfcheck invariant (SHA-triple verify post-push)
+- Sibling ticket `TICKET-PROCESS-WIDE-STATE-MIGRATION` (Vacuous-truth-state precedence — not applicable to this ticket because SOME 200+ legacy callers remain productive, not vacuous)
+- Sibling ticket `TICKET-MOTIONTIMELINE-MIGRATION` (Sibling 2×-in-one-chore migration precedent — `[[deprecated]]` re-added + caller migration plan)
