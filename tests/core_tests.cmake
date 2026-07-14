@@ -20,7 +20,13 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         # produces ONE TextRunShape RenderNode, not N per-char layers.
         # Staggered reveal coverage lives in
         # tests/test_text_preset_registry.cpp Sub-cases 11-27 + 30-32.
-        text/test_text_material.cpp
+        # P1-7 Chore 1 (commit C) — DELETED `text/test_text_material.cpp`
+        # wholesale.  That file was one of the 3 remaining callers of the
+        # legacy `rasterize_text_to_bl_image()` ABI-stable entry point;
+        # tests for the modern `TextMaterial` (gradient / bevel / glow /
+        # shadow / neon / glass presets) are routed through
+        # tests/text_production_v1_tests.cmake + tests/text/test_text_style_presets.cpp
+        # + the certification suite.
         text/test_text_style_presets.cpp
         text/test_font_engine.cpp
         text/test_text_quality_glyph.cpp
