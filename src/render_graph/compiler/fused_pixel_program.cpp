@@ -193,7 +193,7 @@ FusionStats fuse_color_opacity_blend(
     const graph::RenderGraph& graph,
     const graph::RenderGraphContext& ctx,
     const chronon3d::simd::PixelKernelSet& kernels,
-    std::vector<FusedPixelProgram>& out_programs) noexcept
+    std::vector<FusedPixelProgram>& out_programs)
 {
     FusionStats stats;
     const auto candidates = find_candidate_triples(graph);
@@ -259,7 +259,7 @@ FusionStats fuse_color_opacity_blend(
         // when available, else scalar)
         program.resolved_kernel = kernels.blend.apply;
         program.pixel_count = pixel_count;
-        program.bytes_per_pixel = 4;  // RGBA float32
+        program.bytes_per_pixel = 16;  // RGBA float32 (4 channels × 4 bytes)
 
         // Update stats: 1 fused program replaces 3 passes (3 nodes → 1 node)
         stats.passes_after_fusion -= 2;
@@ -277,6 +277,7 @@ FusionStats fuse_color_opacity_blend(
     // existing telemetry pipeline (kCounterNames + the render_counters
     // table in src/runtime/telemetry/sqlite/sqlite_telemetry_store.cpp).
     emit_fusion_counters(
+        ctx.node_exec.counters,
         stats.passes_before_fusion,
         stats.passes_after_fusion,
         stats.bytes_saved_by_fusion);
@@ -295,14 +296,18 @@ FusionStats fuse_color_opacity_blend(
 // The fields are `uint64_t` (atomic-safe); the FusionStats fields are
 // `std::size_t` (usually 64-bit on x64). The cast is safe + non-narrowing.
 void emit_fusion_counters(
+    chronon3d::RenderCounters* counters,
     std::size_t passes_before_fusion,
     std::size_t passes_after_fusion,
     std::size_t bytes_saved_by_fusion) noexcept
 {
-    auto& c = chronon3d::thread_local_counters();
-    c.pixel_fusion_passes_before += static_cast<std::uint64_t>(passes_before_fusion);
-    c.pixel_fusion_passes_after += static_cast<std::uint64_t>(passes_after_fusion);
-    c.pixel_fusion_bytes_saved += static_cast<std::uint64_t>(bytes_saved_by_fusion);
+    if (!counters) return;
+    counters->pixel_fusion_passes_before.fetch_add(
+        static_cast<std::uint64_t>(passes_before_fusion), std::memory_order_relaxed);
+    counters->pixel_fusion_passes_after.fetch_add(
+        static_cast<std::uint64_t>(passes_after_fusion), std::memory_order_relaxed);
+    counters->pixel_fusion_bytes_saved.fetch_add(
+        static_cast<std::uint64_t>(bytes_saved_by_fusion), std::memory_order_relaxed);
 }
 
 } // namespace chronon3d::graph::fusion

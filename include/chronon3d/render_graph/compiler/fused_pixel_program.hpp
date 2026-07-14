@@ -46,6 +46,10 @@
 
 #include <chronon3d/simd/pixel_kernels.hpp>   // F5.1 ABI (kKernelEpsilon SSoT)
 
+namespace chronon3d {
+struct RenderCounters;
+} // namespace chronon3d
+
 namespace chronon3d::graph {
 class RenderGraph;
 struct RenderGraphContext;
@@ -178,7 +182,7 @@ struct FusedPixelProgram {
     /// bytes that the runtime would have written for the 3 unfused
     /// passes minus bytes written by the 1 fused pass (= 2 extra
     /// passes × pixel_count × bytes_per_pixel).
-    std::size_t bytes_per_pixel{4};  // RGBA float32 (16 bytes/pixel)
+    std::size_t bytes_per_pixel{16};  // RGBA float32 (4 channels × 4 bytes = 16 bytes/pixel)
     std::size_t pixel_count{0};
 
     /// Convenience: total bytes that WOULD have been written by the
@@ -210,9 +214,9 @@ struct FusedPixelProgram {
     /// `--stats-json` output. NB: the "savings" here are memory-write
     /// traffic, not wall-clock — the wall-clock benefit comes from
     /// kernel fusion (separate metric in ADR-025).
-    /// For B03 CinematicGlow1080p (1920×1080 × 4 bytes/pixel × 3
-    /// unfused passes): bytes_saved = 6 - 3 = 3 × 1920 × 1080 × 4
-    /// = 24,883,200 bytes (> 0 ✓).
+    /// For B03 CinematicGlow1080p (1920×1080 × 16 bytes/pixel × 3
+    /// unfused passes): bytes_saved = 6 - 3 = 3 × 1920 × 1080 × 16
+    /// = 99,532,800 bytes (> 0 ✓).
     [[nodiscard]] std::size_t bytes_saved() const noexcept {
         return bytes_unfused() - bytes_fused();
     }
@@ -264,6 +268,7 @@ namespace chronon3d::graph::fusion {
     /// `RenderCountersRaw` does NOT carry the F3.1 fields (older ABI).
     /// Implementation is in the .cpp file (forward-declared above).
     void emit_fusion_counters(
+        chronon3d::RenderCounters* counters,
         std::size_t passes_before_fusion,
         std::size_t passes_after_fusion,
         std::size_t bytes_saved_by_fusion) noexcept;
@@ -276,5 +281,5 @@ namespace chronon3d::graph::fusion {
         const graph::RenderGraph& graph,
         const graph::RenderGraphContext& ctx,
         const chronon3d::simd::PixelKernelSet& kernels,
-        std::vector<FusedPixelProgram>& out_programs) noexcept;
+        std::vector<FusedPixelProgram>& out_programs);
 } // namespace chronon3d::graph::fusion
