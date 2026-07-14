@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/cache/framebuffer_pool.hpp>
+#include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <cstring>
