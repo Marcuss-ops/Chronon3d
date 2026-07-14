@@ -1,6 +1,6 @@
 # TICKET-RENDER-SERVICES-FULL-ELIMINATION — Fully remove RenderServices from runtime header surface
 
-> Stato: **OPEN (2026-07-14)** — forward-point from [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (2nd item). Cat-3 minimal-surface.
+> Stato: **DONE (2026-07-14, vacuous-truth audit)** — implementation landed via [TICKET-RENDER-SERVICES-FULL-ELIMINATION-IMPL](docs/tickets/TICKET-RENDER-SERVICES-FULL-ELIMINATION-IMPL.md). No source commit needed: the ticket's premise was false — the runtime `RenderServices` (struct + `services()` accessor + `m_services` field) was already REMOVED in P1-15. The `graph::RenderServices` in `include/chronon3d/render_graph/render_graph_context.hpp:218` is a DISTINCT per-frame bundle (out of scope). Forward-point from [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (2nd item) CLOSED via vacuous-truth audit. Cat-3 minimal-surface preserved.
 
 ## Problema
 
