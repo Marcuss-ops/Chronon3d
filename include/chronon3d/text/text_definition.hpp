@@ -190,7 +190,7 @@ struct TextDefinition {
 /// Convert a TextSpec to the canonical TextDefinition.
 /// Full implementation in src/text/text_definition.cpp.
 ///
-/// TICKET-BLOCLO-5-1-FROM-TEXT-SPEC-DEPRECATION (2026-07-14):
+/// TICKET-TEXT-SPEC-MIGRATION (2026-07-14, P1 OPEN):
 /// marked `[[deprecated]]` per audit Blocco 5.1 verbatim "Elimina
 /// `TextSpec` dai contenuti".  Callers MUST migrate to direct
 /// `TextDefinition` construction (all `TextSpec` fields map 1:1 to
@@ -198,7 +198,7 @@ struct TextDefinition {
 /// `.style.font`, `.layout` → `.frame`, `.appearance` → `.style.*`).
 /// The 56+ test files + 1 production caller
 /// (`src/scene/builders/layer_builder_shapes.cpp:197`) are tracked in
-/// TICKET-TEXT-SPEC-MIGRATION (P1, OPEN).
+/// this ticket (P1, OPEN).
 [[deprecated("Use direct TextDefinition construction — see "
              "TICKET-TEXT-SPEC-MIGRATION (Blocco 5.1). "
              "This adapter is removed after the migration lands.")]]
