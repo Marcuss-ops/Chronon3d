@@ -1,5 +1,15 @@
 ## 2026-07-14
 
+### `docs(text): phase-2 cinematic inventory (0 indirect callers)`
+  ([TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL](docs/tickets/TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL.md))
+
+- Per user-directive verbatim 2026-07-14: 'migra i 4 indirect-callers `shape_glyph_line()`/`layout_glyphs()`/`measure_text_width()` free-functions in cinematic showcases a try_shape factory o equivalente API no-{{deprecated}}'. **§HONEST-discipline-bounded finding**: inventory ha confermato **ZERO residual migration targets** in `content/showcases/cinematic/{deep_parallax_cascade,orbit_handheld_glow,rack_focus_title_swap,tilt_sweep_title_v2,whip_pan_hero_reveal}.{cpp,hpp}` per `rg -nE 'ShapedGlyphLine|shape_glyph_line|layout_glyphs|measure_text_width|try_shape'` returning **0 hits** (basher-confirmed questa sessione). `abyss_freefall_stagger.cpp` già migrato a `try_shape` line 104 per prior chore `4f7ff2bead56d5d1219997222a578001884e3603` (TRACKED → on-try_shape via strategy A Phase-1).
+- Header inspection corroboration su `content/common/text/glyph_layout.hpp:204,215,231`: `shape_glyph_line` + `measure_text_width` + `layout_glyphs` sono canonical Point 8 free-functions, **NON** marcati `[[deprecated]]`. Migration a `try_shape` sarebbe Cat-3 anti-dup violation + ABI break (le 3 free-functions sono SDK-public). NO migration performed (honesty over compliance).
+- Cat-5 3-doc same-commit atomic per AGENTS.md §Disciplina di aggiornamento dei canonici: 1 EDIT (canonical-ticket §Fase 2 — Inventory + §Forward-points close-loop) + 1 EDIT (questo CHANGELOG cite-only) + ZERO source touched. Cronaca estesa lives in canonical-ticket-home per cat-3 anti-dup.
+- Forward-points close-loop nel canonical-ticket §Forward-points: (CLOSE) `PHASE-2-CINEMATIC-INDIRECT` obsoletizzato per ZERO outcome; (OPEN) `PHASE-3-NON-CINEMATIC` registrato per residual callers fuori da cinematic/ (e.g., `content/examples/text/typewriter_animations.cpp:218 measure_text_width`), out of scope per questo chore.
+- macchina-verifica: VPS-only inventory (questa sessione). WBH macchina-verifica DEFERRED per AGENTS.md §honest-limitation + `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` precedent (no vcpkg glm/magic_enum su VPS).
+- Subject envelope 59 chars ≤ 72 per `tools/check_commit_subject_length.sh`. Cross-link: AGENTS.md §HONEST-discipline rule + §Disciplina di aggiornamento dei canonici + §Docs canonical update discipline rule Cat-3 anti-dup codification; ticket catena Phase 2 + Phase 3 forward-points.
+
 ### `docs(followup): §Open Blockers DEDUP + 2 PREMULT migrations`
   ([TICKET-FOLLOWUP-TICKETS-REDUCTION-AUDIT-2026-07-14](docs/tickets/TICKET-FOLLOWUP-TICKETS-REDUCTION-AUDIT-2026-07-14.md))
 
