@@ -30,12 +30,6 @@ target_sources(chronon3d_scene PRIVATE
     # PR1 — pure adapters from legacy authoring types (CameraMotionParams /
     #        CameraRig / CameraShotProfile) to CameraDescriptor.
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_descriptor_adapters.cpp
-# TICKET-CAMERA-FULL-LINUX sub-ticket D — frozen legacy bridge.
-# 3 NEW stateless migration adapters (CameraRig → OrbitMotion /
-# AnimatedCamera2_5D → PoseTracksSource / preset-fn → CameraDescriptor)
-# slated for deletion once the bulk migration reaches count = 0 + the
-# gate moves to hard-zero + the legacy types are physically removed.
-${CMAKE_CURRENT_SOURCE_DIR}/legacy_camera_adapters.cpp
     # TICKET-031 — canonical stateful-constraint pre-roll + fingerprint
     # invalidation + Cut reset + per-worker session isolation.
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_session_cache.cpp
