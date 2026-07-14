@@ -20,6 +20,7 @@
 #   4.5e. tools/check_text_golden_sources_aligned.sh
 #   4.5f. tools/check_doc_sha_dedup.sh
 #   4.5g. tools/check_commit_subject_length.sh (72-char envelope)
+#   4.5i. tools/check_post_push_consistency.sh (AGENTS.md §Post-push SHA-selfcheck Cat-4 gate)
 #   ── WBH-only gates (CHRONON3D_GATE_PROFILE=wbh) ──
 #   4.5h. tools/check_video_completeness.sh (needs MP4 artifact)
 #   4.5j. tools/check_manual_touches_per_video.sh (Test #19)
@@ -68,6 +69,11 @@
 #              fail=exit 1 with remediation hint + frame.hpp cross-link.
 #          All local, all exit 1 on violation, all emit remediation
 #          hints via the canonical CHANGELOG/AGENT_WORKFLOW surface.
+#          (d) check_post_push_consistency.sh — CI-side companion to the
+#              AGENTS.md §Post-push SHA-selfcheck invariant; reflog-based
+#              lost-commit detect (closes the silent-class failure mode
+#              that bit the b589fdba 3-attempt recovery session).  Cheap,
+#              local-only; runs ALWAYS (not opt-in like check_clean_rebuild).
 #   5. Forward `git push "$@"` on success.
 #
 # Rationale for the wrapper vs `.git/hooks/pre-push`:
@@ -86,6 +92,10 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 SCRIPT_DIR="${REPO_ROOT}/tools"
 GATE="${SCRIPT_DIR}/check_main_clean.sh"
+
+# Load the canonical gate manifest (DEVELOPER_GATES, CI_GATES, WBH_GATES, WBH_ONLY_GATES).
+# shellcheck source=gates/manifest.sh
+source "${SCRIPT_DIR}/gates/manifest.sh"
 
 # ── Gate profile: developer (default) vs wbh (working build host) ──────────
 # `developer` — fast local checks safe on any push (no MP4/build artifacts).
@@ -195,39 +205,25 @@ if ! "$GATE"; then
     exit 1
 fi
 
-# ── Gate execution per profile (developer|wbh, single case statement) ──
-# Per chore(tools) simplify wrap_push device gate chain: collapse the
-# previous inline developer + WBH gate invocations into a single
-# `case "$GATE_PROFILE" in developer|wbh ...) esac` statement.  Each
-# profile delegates to its canonical runner:
-#   - developer  → tools/run_developer_gates.sh (9-gate chain; same
-#                  script .githooks/pre-push invokes for local parity).
-#   - wbh        → developer gates + tools/run_wbh_gates.sh (7-gate
-#                  chain on a Working Build Host; DEFERRED-WBH per
-#                  AGENTS.md §honest-limitation pattern).
-# Single source of truth: the gate lists live in the runner scripts, NOT
-# inline in this wrapper.  This eliminates the historical duplication
-# risk when adding / removing a gate (§honesty forward-point TICKET-WRAP-
-# PUSH-DEVICE-GATE-CHAIN).
-case "$GATE_PROFILE" in
-    developer)
-        echo "wrap_push.sh: GATE_PROFILE=${GATE_PROFILE} — running developer gate chain (via run_developer_gates.sh ${TARGET_REMOTE} ${TARGET_BRANCH})..."
-        bash "${SCRIPT_DIR}/run_developer_gates.sh" "${TARGET_REMOTE}" "${TARGET_BRANCH}" \
-            || { echo "wrap_push.sh: GATE_FAIL on run_developer_gates.sh (exit $?)" >&2; exit 1; }
-        ;;
-    wbh)
-        echo "wrap_push.sh: GATE_PROFILE=${GATE_PROFILE} — running developer gates + WBH chain (via run_developer_gates.sh + run_wbh_gates.sh)..."
-        bash "${SCRIPT_DIR}/run_developer_gates.sh" "${TARGET_REMOTE}" "${TARGET_BRANCH}" \
-            || { echo "wrap_push.sh: GATE_FAIL on run_developer_gates.sh (exit $?)" >&2; exit 1; }
-        bash "${SCRIPT_DIR}/run_wbh_gates.sh" \
-            || { echo "wrap_push.sh: GATE_FAIL on run_wbh_gates.sh (exit $?)" >&2; exit 1; }
-        ;;
-    *)
-        echo "wrap_push.sh: unknown GATE_PROFILE=${GATE_PROFILE}" >&2
-        echo "  fix: set CHRONON3D_GATE_PROFILE=developer (default) or wbh" >&2
-        exit 1
-        ;;
-esac
+# ── Run developer gates (delegated to canonical run_developer_gates.sh) ─
+# The 8 developer gates live in tools/run_developer_gates.sh — single
+# source of truth shared with .githooks/pre-push.  No duplication.
+echo "wrap_push.sh: running developer gate chain (via run_developer_gates.sh ${TARGET_REMOTE} ${TARGET_BRANCH})..."
+bash "${SCRIPT_DIR}/run_developer_gates.sh" "${TARGET_REMOTE}" "${TARGET_BRANCH}" \
+    || { echo "wrap_push.sh: GATE_FAIL on run_developer_gates.sh (exit $?)" >&2; exit 1; }
+
+# ── WBH-only gates (run only when CHRONON3D_GATE_PROFILE=wbh) ─────────────────
+# These gates require build artifacts (MP4, glow output, batch videos) that
+# only exist on a working build host.  On developer pushes they are skipped.
+if [[ "$GATE_PROFILE" == "wbh" ]]; then
+    for gate in "${WBH_ONLY_GATES[@]}"; do
+        echo "wrap_push.sh: running WBH gate: ${gate}"
+        bash "${SCRIPT_DIR}/${gate}" \
+            || { echo "wrap_push.sh: GATE_FAIL on ${gate} (exit $?)" >&2; exit 1; }
+    done
+else
+    echo "wrap_push.sh: GATE_PROFILE=${GATE_PROFILE} — skipping WBH-only gates (video/glow/determinism/batch/SDK)"
+fi
 
 # ── Step 4.5q: PERF_GATE pre-flight (F1.6 / TICKET-PERF-GATE-V1) ──────────────────
 # Optional perf-regression gate executed when the env var `PERF_GATE=enabled`
@@ -286,5 +282,73 @@ if [[ "${PERF_GATE:-disabled}" == "enabled" ]]; then
     esac
 fi
 
-echo "wrap_push.sh: gate PASSED — invoking: git push $*"
-exec git push "$@"
+# ── Step 5: post-push SHA-triple self-check (canonical in-script companion to
+# AGENTS.md §Post-push SHA-selfcheck invariant).  The wrapper now drops `exec`
+# so the post-push SHA-triple logic can run.
+#
+# The invariant for the post-push state is:
+#   POSTPUSH_SHA == UPSTREAM_SHA
+# with `LOCAL_SHA_PRE_PUSH` captured RIGHT BEFORE the `git push "$@"` (this is
+# the "BEFORE the push invocation" snapshot the AGENTS.md rule refers to):
+#   LOCAL_SHA_PRE_PUSH == git rev-parse HEAD  (captured after all gates + auto-FF,
+#                                              immediately before git push)
+#   POSTPUSH_SHA       == git rev-parse HEAD  (after git push completes)
+#   UPSTREAM_SHA       == git rev-parse '@{u}' (upstream tracking SHA)
+#
+# In the HAPPY path (b16ad302-line prior commit case):
+#   - LOCAL_SHA_PRE_PUSH == POSTPUSH_SHA == UPSTREAM_SHA == <chore SHA>
+# In the AUTO-FF rodeo (upstream churn advanced local HEAD past our chore):
+#   - LOCAL_SHA_PRE_PUSH != POSTPUSH_SHA (auto-FF advanced HEAD).
+#   - POSTPUSH_SHA == UPSTREAM_SHA == <current upstream tip>.
+#   - PASS: the chore was FFed into upstream; this is benign.
+# In the LOST-COMMIT pattern (the b589fdba 3-attempt recovery session mode):
+#   - LOCAL_SHA_PRE_PUSH == chore SHA.
+#   - POSTPUSH_SHA != UPSTREAM_SHA (chore was rebased out by concurrent agent).
+#   - GATE_FAIL: chore <local_sha_pre_push> lost between local and upstream.
+#
+# Why drop `exec`?  Per AGENTS.md §Post-push SHA-selfcheck invariant's §Origine
+# paragraph: "the wrapper's internal exit codes are NOT a substitute for the
+# SHA-triple check".  Dropping `exec` lets the in-script triple-check run as the
+# belt-and-suspenders complement to the agent-side discipline documented in
+# AGENTS.md.  The check itself is at-most-free (3 subshell calls); the cost of
+# dropping `exec` is minimal vs the §honesty-violation cost of skipping the
+# triple-check on a silent-class failure mode.
+LOCAL_SHA_PRE_PUSH="$(git rev-parse HEAD)"
+echo "wrap_push.sh: LOCAL_SHA_PRE_PUSH=$LOCAL_SHA_PRE_PUSH — invoking: git push $*"
+
+# Push (NO `exec` — post-push self-check needs the wrapper shell alive).
+git push "$@"
+PUSH_RC=$?
+if [ "$PUSH_RC" -ne 0 ]; then
+    echo "wrap_push.sh: GATE_FAIL: git push exited $PUSH_RC — push aborted" >&2
+    echo "GATE_FAIL"
+    exit 1
+fi
+
+# Post-push SHA-triple verification.
+POSTPUSH_SHA="$(git rev-parse HEAD)"
+# Upstream-resolve guard: per code-reviewer-minimax-m3 MINOR-FIX on the cat-5
+# 3-doc chore lineage — refuse to emit a misleading "lost-commit" GATE_FAIL
+# diagnostic when the actual root cause is an upstream ref misconfiguration
+# (misconfigured clone / remote renamed / @{u} set-but-stale).
+if ! git rev-parse '@{u}' >/dev/null 2>&1; then
+    echo "wrap_push.sh: GATE_INTERNAL_ERROR: post-push @{u} resolution failed" >&2
+    echo "  fix: verify remote tracking: git branch --set-upstream-to=$TARGET_REMOTE/$TARGET_BRANCH $TARGET_BRANCH" >&2
+    echo "GATE_FAIL"
+    exit 2
+fi
+UPSTREAM_SHA="$(git rev-parse '@{u}')"
+
+if [ "$POSTPUSH_SHA" != "$UPSTREAM_SHA" ]; then
+    echo "wrap_push.sh: GATE_FAIL: post-push SHA mismatch — lost-commit pattern detected" >&2
+    echo "  pre_push_SHA   = $LOCAL_SHA_PRE_PUSH" >&2
+    echo "  post_push_SHA  = $POSTPUSH_SHA" >&2
+    echo "  upstream_SHA   = $UPSTREAM_SHA" >&2
+    echo "  fix: chore <$LOCAL_SHA_PRE_PUSH> may be lost between local and upstream (race window)." >&2
+    echo "  fix: see AGENTS.md §Post-push SHA-selfcheck invariant '21ece2b3 unique-edit recovery variant' for the reset+re-apply template." >&2
+    echo "GATE_FAIL"
+    exit 1
+fi
+
+echo "wrap_push.sh: post-push SHA-triple VERIFIED — chore $POSTPUSH_SHA == origin/$TARGET_BRANCH == @{u}"
+exit 0
