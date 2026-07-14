@@ -1,6 +1,6 @@
 # TICKET-LEGACY-QUEUE-METHODS-FOLLOWUP — Audit external consumers for deleted `try_dequeue()` / `enqueue()`
 
-> Stato: **OPEN (2026-07-14)** — forward-point from [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (5th item). Cat-3 minimal-surface.
+> Stato: **DONE (2026-07-14, source commit `d62c044c10bd3af1bc3a86591254e43870d069a2`, chaser-chore `616d8c5afe03e52bee40ad0c3e4aebadfaeb5481`)** — vacuous-truth audit: 0 productive external-consumer call sites found in `examples/` + `tests/install_consumer/` + `tests/package_consumer/` + `docs/`. Implementation landed via [TICKET-LEGACY-QUEUE-METHODS-FOLLOWUP-IMPL](docs/tickets/TICKET-LEGACY-QUEUE-METHODS-FOLLOWUP-IMPL.md). 0 source modifications; audit-only deliverable. The 5 forward-points of TICKET-ARCH-CLEANUP-V0 are now ALL DONE.
 
 ## Problema
 
