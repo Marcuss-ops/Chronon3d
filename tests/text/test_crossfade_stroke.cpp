@@ -36,6 +36,7 @@
 //     substring will fail review by code-reviewer-minimax-m3.
 // ═══════════════════════════════════════════════════════════════════════════
 
+#include <optional>
 #include <chronon3d/text/animated_text_document.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
@@ -137,8 +138,9 @@ std::shared_ptr<AnimatedTextDocument> make_crossfade_longer_outgoing_doc(
 
 TEST_CASE("TICKET-068: crossfade shape with longer outgoing text establishes OOB-precondition without crash") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     const FontSpec font = test_text_fixture::inter_bold();
@@ -206,10 +208,12 @@ TEST_CASE("TICKET-068: crossfade shape with longer outgoing text establishes OOB
 // data.  This guards a separate Bug #5-class failure mode: post-gap
 // strokes that mistakenly read a stale crossfade_layout slot.
 
-TEST_CASE("TICKET-068: crossfade post-gap clears slots; longer outgoing data doesn't leak forward") {
+TEST_CASE("TICKET-068: crossfade post-gap clears    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
     const FontSpec font = test_text_fixture::inter_bold();
