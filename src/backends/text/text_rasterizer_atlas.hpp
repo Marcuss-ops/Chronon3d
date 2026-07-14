@@ -85,7 +85,7 @@ inline bool try_atlas_blit(
     std::vector<GlyphAtlasEntry> entries;
     entries.reserve(run.glyphs.size());
     for (const auto& pg : run.glyphs) {
-        auto e = glyph_atlas_lookup(*res, font_path, pg.glyph_id, fsu);
+        auto e = res->lookup_glyph_atlas(font_path, pg.glyph_id, fsu);
         if (!e || e->fill_color_rgba != fill_rgba) return false;
         entries.push_back(std::move(*e));
     }
@@ -112,8 +112,7 @@ inline void store_pending_glyphs(
 {
     if (!res) return;  // legacy bypass — no-op
     for (const auto& ps : pending) {
-        glyph_atlas_store_from_placed_run(
-            *res,
+        res->store_glyph_atlas_from_placed_run(
             ps.font_path, rendered_image, ps.placed, ps.font,
             ps.origin_x, ps.origin_y, ps.font_size, ps.fill_rgba);
     }

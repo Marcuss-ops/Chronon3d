@@ -25,6 +25,7 @@
 
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>  // P1-8: TextRasterization return type for lookup_raster_cache
 #include <chronon3d/core/types/types.hpp>
+#include <mutex>      // P1-9: std::call_once + std::once_flag for lazy materialization
 #include <optional>  // P1-9: lookup_glyph_atlas return type
 
 #include <atomic>
@@ -580,6 +581,20 @@ struct TextRenderResources {
     /// Returns current stats: (entry_count, total_weight, hits, misses).
     /// No-op if un-materialized (returns zeroed stats).
     GlyphAtlasStats glyph_atlas_stats() const;
+
+private:
+    /// P1-9 fix-up: thread-safe lazy materialization of the glyph atlas
+    /// with the 32 MiB fallback (matches the legacy `resolve_atlas_max_bytes()`
+    /// default in the deleted `glyph_atlas.cpp`).  Called from the
+    /// lookup/store/clear methods when `glyph_atlas` is null, so the
+    /// atlas is auto-materialized on first use even if the renderer ctor
+    /// never called `set_glyph_atlas_capacity` (which was the BLOCKING-1
+    /// issue in the P1-9 code review: without this, every lookup
+    /// returned nullopt in production because no caller injected the
+    /// capacity).  Uses `std::call_once` for thread-safety under
+    /// concurrent first-access from multiple render threads.
+    void ensure_glyph_atlas_materialized();
+    std::once_flag glyph_atlas_init_flag;
 };
 
 // ── Cat-2 font preflight summary ──────────────────────────────────────────
