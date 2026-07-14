@@ -61,6 +61,8 @@ add_library(chronon3d_cli_core STATIC
     commands/create/register_create_commands.cpp
     # TICKET-V3-CLI-UNIFICATION-WATCH-SUPERVISOR (Blocco 4.1, Commit 1 of 3) - `chronon watch <comp> --frame N -o <output>` supervisor
     commands/watch/register_watch_commands.cpp
+    # TICKET-V3-CLI-UNIFICATION-PREVIEW (Blocco 4.1, Commit 3a of 3) - `chronon preview <comp> --frames 0,30,60,90 -o preview/`
+    commands/preview/register_preview_commands.cpp
     commands/basic/command_list.cpp
     commands/basic/command_info.cpp
     commands/daemon/command_daemon.cpp
