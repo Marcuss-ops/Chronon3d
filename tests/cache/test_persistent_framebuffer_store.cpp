@@ -51,7 +51,7 @@ NodeCacheKey make_test_key(uint64_t digest) {
 
 TEST_CASE("PersistentFramebufferStore - roundtrip bit-identical") {
     auto dir = make_temp_cache_dir();
-    auto& store = PersistentFramebufferStore::instance();
+    PersistentFramebufferStore store;          // P1-13: per-TEST_CASE instance (no singleton)
     store.set_cache_dir(dir);
     store.clear();
 
@@ -96,7 +96,7 @@ TEST_CASE("PersistentFramebufferStore - roundtrip bit-identical") {
 
 TEST_CASE("PersistentFramebufferStore - path sharding creates subdirectories") {
     auto dir = make_temp_cache_dir();
-    auto& store = PersistentFramebufferStore::instance();
+    PersistentFramebufferStore store;          // P1-13: per-TEST_CASE instance
     store.set_cache_dir(dir);
     store.clear();
 
@@ -132,7 +132,7 @@ TEST_CASE("PersistentFramebufferStore - path sharding creates subdirectories") {
 
 TEST_CASE("PersistentFramebufferStore - corrupted payload detected and deleted") {
     auto dir = make_temp_cache_dir();
-    auto& store = PersistentFramebufferStore::instance();
+    PersistentFramebufferStore store;          // P1-13: per-TEST_CASE instance
     store.set_cache_dir(dir);
     store.clear();
 
@@ -183,7 +183,7 @@ TEST_CASE("PersistentFramebufferStore - corrupted payload detected and deleted")
 
 TEST_CASE("PersistentFramebufferStore - truncated file detected and deleted") {
     auto dir = make_temp_cache_dir();
-    auto& store = PersistentFramebufferStore::instance();
+    PersistentFramebufferStore store;          // P1-13: per-TEST_CASE instance
     store.set_cache_dir(dir);
     store.clear();
 
@@ -218,7 +218,7 @@ TEST_CASE("PersistentFramebufferStore - truncated file detected and deleted") {
 
 TEST_CASE("PersistentFramebufferStore - bad magic detected and deleted") {
     auto dir = make_temp_cache_dir();
-    auto& store = PersistentFramebufferStore::instance();
+    PersistentFramebufferStore store;          // P1-13: per-TEST_CASE instance
     store.set_cache_dir(dir);
     store.clear();
 
@@ -259,7 +259,7 @@ TEST_CASE("PersistentFramebufferStore - bad magic detected and deleted") {
 
 TEST_CASE("PersistentFramebufferStore - miss for non-existent key") {
     auto dir = make_temp_cache_dir();
-    auto& store = PersistentFramebufferStore::instance();
+    PersistentFramebufferStore store;          // P1-13: per-TEST_CASE instance
     store.set_cache_dir(dir);
     store.clear();
 
@@ -277,7 +277,7 @@ TEST_CASE("PersistentFramebufferStore - miss for non-existent key") {
 
 TEST_CASE("PersistentFramebufferStore - stride-safe roundtrip non-aligned") {
     auto dir = make_temp_cache_dir();
-    auto& store = PersistentFramebufferStore::instance();
+    PersistentFramebufferStore store;          // P1-13: per-TEST_CASE instance
     store.set_cache_dir(dir);
     store.clear();
 
@@ -313,7 +313,7 @@ TEST_CASE("PersistentFramebufferStore - stride-safe roundtrip non-aligned") {
 
 TEST_CASE("PersistentFramebufferStore - multiple entries") {
     auto dir = make_temp_cache_dir();
-    auto& store = PersistentFramebufferStore::instance();
+    PersistentFramebufferStore store;          // P1-13: per-TEST_CASE instance
     store.set_cache_dir(dir);
     store.clear();
 
@@ -338,7 +338,7 @@ TEST_CASE("PersistentFramebufferStore - multiple entries") {
 
 TEST_CASE("PersistentFramebufferStore - only .cfb4 files present") {
     auto dir = make_temp_cache_dir();
-    auto& store = PersistentFramebufferStore::instance();
+    PersistentFramebufferStore store;          // P1-13: per-TEST_CASE instance
     store.set_cache_dir(dir);
     store.clear();
 
@@ -365,7 +365,7 @@ TEST_CASE("PersistentFramebufferStore - only .cfb4 files present") {
 
 TEST_CASE("PersistentFramebufferStore - opaque flag preserved") {
     auto dir = make_temp_cache_dir();
-    auto& store = PersistentFramebufferStore::instance();
+    PersistentFramebufferStore store;          // P1-13: per-TEST_CASE instance
     store.set_cache_dir(dir);
     store.clear();
 
@@ -387,7 +387,7 @@ TEST_CASE("PersistentFramebufferStore - opaque flag preserved") {
 
 TEST_CASE("PersistentFramebufferStore - erase removes entry") {
     auto dir = make_temp_cache_dir();
-    auto& store = PersistentFramebufferStore::instance();
+    PersistentFramebufferStore store;          // P1-13: per-TEST_CASE instance
     store.set_cache_dir(dir);
     store.clear();
 

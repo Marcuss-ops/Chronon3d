@@ -283,6 +283,22 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
     constexpr int kFrames         = 16;
     constexpr int kBytesPerFrame  = kFrameW * kFrameH * static_cast<int>(sizeof(chronon3d::Color));
 
+    // P1-13 lift: single source-of-truth for the bench's cache root.
+    // Originally each function (build_fixture + the read_all_keys side)
+    // computed `cache_root` independently via a static-local
+    // `steady_clock::now().time_since_epoch().count()` value, which is
+    // race-vulnerable if either function is invoked from a separate
+    // thread / after a clock-tick boundary.  Hoisting to a single
+    // namespace-scope static eliminates the dual-computation hazard:
+    // both build_fixture() and read_all_keys() read the same path
+    // object.  Meyers-singleton lazy init is thread-safe (C++11 §6.7).
+    static const std::filesystem::path kBenchCacheRoot = []() {
+        namespace fs = std::filesystem;
+        return fs::temp_directory_path() /
+            ("chronon3d_bench_persistentfb_" +
+             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    }();
+
     /// Build the 16-frame fixture under a fresh temp directory.  Lazy-init
     /// via static — runs ONCE per process; both bench variants share the
     /// same in-memory + on-disk fixture (writes complete on first call,
@@ -291,18 +307,21 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
         using namespace chronon3d;
         namespace fs = std::filesystem;
 
-        // Unique-per-run dir under tmp to avoid colliding with leftover
-        // state from prior runs (and to keep distinct bench-process dirs
-        // separate if two bench runs overlap).
-        static const fs::path cache_root = fs::temp_directory_path() /
-            ("chronon3d_bench_persistentfb_" +
-             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+        const fs::path& cache_root = kBenchCacheRoot;
         std::error_code ec;
         fs::remove_all(cache_root, ec);            // start clean
         fs::create_directories(cache_root, ec);
 
-        auto& store = cache::PersistentFramebufferStore::instance();
-        store.set_cache_dir(cache_root);
+        // P1-13 — per-bench-fresh instance (no singleton).  The store
+        // shares the on-disk fixture (cache_root) with all bench iterations
+        // so subsequent iterations hit the existing .cfb4 files; the
+        // persistent framebuffer_store field on RenderRuntime would be
+        // the production path but the micro-benchmark harness
+        // intentionally avoids plumbing in a full RenderRuntime (the
+        // schedule/asset/runtime pool would skew the timed-loop signal).
+        static cache::PersistentFramebufferStore bench_store;
+        bench_store.set_cache_dir(cache_root);
+        auto& store = bench_store;
 
         std::vector<cache::NodeCacheKey> keys;
         keys.reserve(kFrames);
@@ -352,7 +371,13 @@ static void BM_GlowLayerPass(benchmark::State& state, float falloff) {
 
     void read_all_keys() {
         using namespace chronon3d;
-        auto& store = cache::PersistentFramebufferStore::instance();
+        // P1-13 — per-bench-fresh instance (no singleton).  The store
+        // shares the cache_root pre-populated by build_fixture(); we
+        // build a one-shot instance here so the bench path mirrors the
+        // test harness pattern (no global state).
+        static cache::PersistentFramebufferStore read_store;
+        read_store.set_cache_dir(kBenchCacheRoot);
+        auto& store = read_store;
         for (const auto& key : fixture_keys()) {
             auto fb = store.get(key);
             benchmark::DoNotOptimize(fb);
