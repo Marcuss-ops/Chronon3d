@@ -532,3 +532,81 @@ TEST_CASE("FramebufferPool::acquire_noclear + manual clear == acquire (byte-iden
     auto stats = pool->stats();
     CHECK(stats.total_clears == 0);
 }
+
+// ═════════════════════════════════════════════════════════════════════════
+// P1-21: FramebufferPoolClearPolicy + trim_after_job() regression tests
+// ═════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("FramebufferPool: trim_after_job honors FramebufferPoolClearPolicy") {
+    using chronon3d::cache::FramebufferPool;
+    using chronon3d::cache::FramebufferPoolClearPolicy;
+
+    SUBCASE("KeepWarm: trim_after_job is a no-op") {
+        FramebufferPool pool(64ULL * 1024ULL * 1024ULL);
+        pool.set_clear_policy(FramebufferPoolClearPolicy::KeepWarm);
+
+        // Acquire and release a framebuffer to populate the pool.
+        auto fb = pool.acquire(64, 64);
+        pool.release(fb.get());
+        REQUIRE(pool.available_count() >= 1);
+
+        // trim_after_job must NOT clear (KeepWarm preserves warm state).
+        pool.trim_after_job();
+        CHECK(pool.available_count() >= 1);
+    }
+
+    SUBCASE("TrimAfterJob: trim_after_job calls clear()") {
+        FramebufferPool pool(64ULL * 1024ULL * 1024ULL);
+        pool.set_clear_policy(FramebufferPoolClearPolicy::TrimAfterJob);
+
+        auto fb = pool.acquire(64, 64);
+        pool.release(fb.get());
+        REQUIRE(pool.available_count() >= 1);
+
+        // trim_after_job MUST clear (TrimAfterJob drops all pooled FBs).
+        pool.trim_after_job();
+        CHECK(pool.available_count() == 0);
+    }
+
+    SUBCASE("TrimOnMemoryPressure: trim_after_job is a no-op (LRU handles it)") {
+        FramebufferPool pool(64ULL * 1024ULL * 1024ULL);
+        pool.set_clear_policy(FramebufferPoolClearPolicy::TrimOnMemoryPressure);
+
+        auto fb = pool.acquire(64, 64);
+        pool.release(fb.get());
+        REQUIRE(pool.available_count() >= 1);
+
+        // trim_after_job must NOT clear (TrimOnMemoryPressure relies on
+        // automatic LRU eviction when max_retained_bytes is exceeded).
+        pool.trim_after_job();
+        CHECK(pool.available_count() >= 1);
+    }
+
+    SUBCASE("set_clear_policy / clear_policy round-trip") {
+        FramebufferPool pool(64ULL * 1024ULL * 1024ULL);
+        REQUIRE(pool.clear_policy() == FramebufferPoolClearPolicy::TrimOnMemoryPressure);  // default
+
+        pool.set_clear_policy(FramebufferPoolClearPolicy::KeepWarm);
+        CHECK(pool.clear_policy() == FramebufferPoolClearPolicy::KeepWarm);
+
+        pool.set_clear_policy(FramebufferPoolClearPolicy::TrimAfterJob);
+        CHECK(pool.clear_policy() == FramebufferPoolClearPolicy::TrimAfterJob);
+    }
+}
+
+TEST_CASE("Config: framebuffer_pool_clear_policy accessor + setter") {
+    auto cfg = chronon3d::Config::from_environment();
+
+    // Default is TrimOnMemoryPressure (preserves pre-P1-21 behavior).
+    CHECK(cfg.cache().framebuffer_pool_clear_policy() ==
+          chronon3d::cache::FramebufferPoolClearPolicy::TrimOnMemoryPressure);
+
+    // set_fb_pool_clear_policy overrides the default.
+    cfg.set_fb_pool_clear_policy(chronon3d::cache::FramebufferPoolClearPolicy::KeepWarm);
+    CHECK(cfg.cache().framebuffer_pool_clear_policy() ==
+          chronon3d::cache::FramebufferPoolClearPolicy::KeepWarm);
+
+    cfg.set_fb_pool_clear_policy(chronon3d::cache::FramebufferPoolClearPolicy::TrimAfterJob);
+    CHECK(cfg.cache().framebuffer_pool_clear_policy() ==
+          chronon3d::cache::FramebufferPoolClearPolicy::TrimAfterJob);
+}

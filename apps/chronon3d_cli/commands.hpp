@@ -54,6 +54,11 @@ struct RenderPipelineArgs {
     // Framebuffer pool retention budget (MB). 0 = use default / env var.
     size_t fb_pool_budget_mb{0};
 
+    // P1-21: framebuffer pool clear policy.  Values: "keep-warm" |
+    // "trim-after-job" | "trim-on-memory-pressure".  Empty = use default
+    // (TrimOnMemoryPressure, preserves pre-P1-21 engine behavior).
+    std::string fb_pool_clear_policy;
+
     // SceneProgramCache capacity per Precomp node. 0 = use default (8).
     size_t program_cache_capacity{0};
 
