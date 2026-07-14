@@ -1,4 +1,12 @@
 # Software Renderer Backend
+# P1-7 Chore 1 (commit A) — Dropped the 5 stale `software_text_processor_*.cpp`
+# rows (the directory `src/backends/software/processors/text/` has been
+# deleted wholesale along with M1.5#9 step 4 closure).  These rows
+# referenced a pre-fork file layout that never landed on `main`; keeping
+# them in the canonical source-of-truth list would have generated stale
+# `file not found in manifest` warnings from
+# `tools/test_software_renderer_boundary_consistency.cpp` if/when the
+# list is ever compiled into a CONSUMER guard.
 set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/primitive_renderer.cpp
     src/backends/software/processors/builtin_processors.cpp
@@ -9,11 +17,6 @@ set(CHRONON3D_BACKEND_SOFTWARE_SOURCES
     src/backends/software/processors/software_mesh_processor.cpp
     src/backends/software/processors/software_line_processor.cpp
     src/backends/software/processors/software_shape_processor.cpp
-    src/backends/software/processors/software_text_processor.cpp
-    src/backends/software/processors/software_text_processor_hash.cpp
-    src/backends/software/processors/software_text_processor_cache.cpp
-    src/backends/software/processors/software_text_processor_shadow.cpp
-    src/backends/software/processors/software_text_processor_glow.cpp
     src/backends/software/processors/software_utility_processors.cpp
     src/backends/text/text_rasterizer_utils.cpp
     src/backends/software/rasterizers/line_rasterizer.cpp

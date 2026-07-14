@@ -17,15 +17,23 @@ std::unique_ptr<ShapeProcessor> create_path_processor();
 #endif
 std::unique_ptr<ShapeProcessor> create_fake_box3d_processor();
 std::unique_ptr<ShapeProcessor> create_grid_plane_processor();
-// M1.5#9 (3/5) — `create_text_processor()` factory + forward-declaration
-// REMOVED.  The orphan `ShapeType::Text` dispatch ladder is no longer registered
-// with the SoftwareRegistry; the canonical text pipeline is exclusively
-// `ShapeType::TextRun` → `SoftwareBackend::draw_text_run` via
-// `multi_source_node` / `TextRunNode`.  Step 4 (M1.5#9 4/5) will delete the
-// orphan definition in `src/backends/software/processors/text/software_text_processor.cpp`
-// along with the rest of the `processors/text/` directory tree.  See
-// `docs/FOLLOWUP_TICKETS.md` §TICKET-M1.5#9-SEQUENCE for the canonical 5-step
-// plan; this comment + the registration removal closes step 3.
+// ─── P1-7 Chore 1 (commit A) ─────────────────────────────────────────────
+// M1.5#9 steps 3 + 4 — DONE.
+//   • Step 3 (commit pending this session): `create_text_processor()` factory
+//     forward-declaration + `registry.register_shape(ShapeType::Text, ...)`
+//     REMOVED above and below (orphan dispatch ladder).
+//   • Step 4 (this commit): the orphan `create_text_processor()` definition +
+//     the `src/backends/software/processors/text/` directory tree (7 source
+//     files + CMakeLists.txt = 8 in total) deleted wholesale.
+// Canonical text pipeline is exclusively `ShapeType::TextRun` →
+// `SoftwareBackend::draw_text_run` via `multi_source_node` / `TextRunNode`.
+// The `ShapeType::Text` enum value (~15 downstream consumer files still key
+// off it: `shape_rasterizer.cpp`, `render_graph_hashing.hpp`,
+// `graph_builder_source_pass.cpp`, `analysis_helpers.hpp`,
+// `test_shape_model.cpp`, etc.) is preserved for the upcoming
+// `ShapeType::Text` enum-retirement ticket (separate scope).
+// See `docs/tickets/TICKET-M1.5#9-SEQUENCE.md` for the canonical 5-step
+// plan; steps 3 + 4 closed by commit A.
 
 // Forward declarations for effect processors
 std::unique_ptr<EffectProcessor> create_blur_effect_processor();
@@ -55,21 +63,17 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     registry.register_shape(ShapeType::Image, create_image_processor());
     registry.register_shape(ShapeType::TiledImage, create_tiled_image_processor());
     registry.register_shape(ShapeType::GridBackground, create_grid_background_processor());
-    // M1.5#9 (3/5) — orphan `registry.register_shape(ShapeType::Text, create_text_processor())`
-    // removed.  The factory is no longer exposed via SoftwareRegistry.  Note
-    // the orphan `create_text_processor()` definition in
-    // `src/backends/software/processors/text/software_text_processor.cpp:314`
-    // remains compile-clean (exported symbol, no callers post-this-commit;
-    // will be deleted wholesale with the rest of the `processors/text/`
-    // directory tree in step 4).  This change closes M1.5#9 step 3 with
-    // zero ABI impact (factory symbol was non-public) + zero source-side
-    // regression (no caller sites to mutate).  The orphan `ShapeType::Text`
-    // enum entry + the cascade in shape_rasterizer.cpp/shape_rasterizer_helpers.hpp/
-    // render_graph_hashing.hpp/graph_builder_source_pass.cpp/analysis_helpers.hpp
-    // remain intact via direct `Shape::set_type(ShapeType::Text)` callers
-    // (chiefly test_fixtures that test the Shape data model without going
-    // through SoftwareRegistry) — those will be cleaned in M1.5#9 step 4 +
-    // a separate `ShapeType::Text` enum-retirement ticket.
+    // P1-7 Chore 1 (commit A) — M1.5#9 steps 3 + 4 BOTH done.
+    //   • Step 3 (prior commit): `registry.register_shape(ShapeType::Text,
+    //     create_text_processor())` removed.  No new registration line.
+    //   • Step 4 (this commit): the orphan `create_text_processor()`
+    //     definition + the entire `src/backends/software/processors/text/`
+    //     directory tree deleted wholesale (8 files: software_text_processor.cpp,
+    //     software_text_effects.{cpp,hpp}, text_glow.cpp, text_shadow.cpp,
+    //     text_effects.hpp, text_processor_helpers.hpp, CMakeLists.txt).
+    // Net ABI impact: zero (factory was non-public; deletion is in-tree only).
+    // The `ShapeType::Text` enum entry remains intact (separate
+    // enum-retirement ticket, ~15 downstream consumers still key off it).
     registry.register_shape(ShapeType::Mesh, create_mesh_processor());
     registry.register_shape(ShapeType::FakeBox3D, create_fake_box3d_processor());
     registry.register_shape(ShapeType::GridPlane, create_grid_plane_processor());

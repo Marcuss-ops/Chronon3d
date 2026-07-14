@@ -62,18 +62,14 @@
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/cache/persistent_framebuffer_store.hpp>
-#ifdef CHRONON3D_HAS_BACKEND_TEXT
-// 06 R5b — text-effect cache clear functions (clear_text_glow_cache /
-// clear_text_shadow_cache) live exclusively in the text-effect TU.  Pulling
-// the software_text_effects.hpp header here keeps `clear_caches()`'s
-// HAS_BACKEND_TEXT block self-contained without polluting the SDK header.
-// NOTE: software_text_effects.hpp transitively brings in
-// `chronon3d::renderer::apply_blur / apply_color_effects / apply_effect_stack`
-// (software-text-effects dispatches into the renderer's effect stack); the
-// explicit forward-decl block previously in this TU was redundant and has
-// been removed (code-review round-2 nits).
-#include "processors/text/software_text_effects.hpp"
-#endif
+// P1-7 Chore 1 (commit A) — REMOVED the `#include
+// "processors/text/software_text_effects.hpp"` block that previously
+// lived here to expose `clear_text_glow_cache()` / `clear_text_shadow_cache()`.
+// The orphan text-shadow + text-glow caches have been deleted wholesale
+// along with the legacy `software_text_processor` tree (M1.5#9 step 4).
+// `SoftwareRenderer::clear_caches()` no longer touches the legacy
+// text-effect caches; the modern GlowPipeline / EffectStack owns its own
+// cache lifecycle via the per-renderer `TextRenderResources`.
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <utility>
 
@@ -166,10 +162,11 @@ void SoftwareRenderer::reset_counters() {
 
 void SoftwareRenderer::clear_caches() {
     m_image_renderer.clear_cache();
-#ifdef CHRONON3D_HAS_BACKEND_TEXT
-    renderer::clear_text_glow_cache();
-    renderer::clear_text_shadow_cache();
-#endif
+    // P1-7 Chore 1 (commit A) — REMOVED the legacy `clear_text_glow_cache()`
+    // + `clear_text_shadow_cache()` calls.  The orphan glow/shadow caches
+    // were deleted wholesale with the `software_text_processor` tree
+    // (M1.5#9 step 4).  Modern text effects are routed through the
+    // per-renderer `TextRenderResources` and the canonical EffectStack.
     node_cache().clear();
     if (auto* pool = m_runtime->framebuffer_pool_shared().get()) {
         pool->clear();

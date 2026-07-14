@@ -2,18 +2,23 @@
 
 // ──────────────────────────────────────────────────────────────────────
 // blend2d_paint.hpp — PR3 single source-of-truth for color & gradient →
-// Blend2D paint state.  Replaces 4 copies of `to_bl_rgba(Color)` and 6
-// copies of `BLGradient gradient(values, BL_EXTEND_MODE_PAD,
-//                                stops.data(), stops.size())`
-// that were previously scattered across:
-//   - src/backends/software/processors/text/text_processor_helpers.hpp
-//   - src/backends/software/processors/text/software_text_effects.cpp
-//   - src/backends/software/processors/text_run/text_run_processor.cpp
-//   - src/backends/text/text_rasterizer_render.cpp            (×6 BLGradient)
+// Blend2D paint state.  Single canonical `inline` `to_bl_rgba(Color)` +
+// single canonical `build_bl_gradient(Fill, ...)` helper, deduped out of
+// 4 prior copies scattered across the legacy `text_processor_helpers.hpp`,
+// `software_text_effects.cpp`, `text_run_processor.cpp`, and
+// `text_rasterizer_render.cpp` (the last surviving reference to text
+// rasterization will be removed wholesale in P1-7 Chore 2).
 //
 // Lives next to the existing `blend2d_bridge` family so future path
 // stroking (PR4+ `BackendPolicy::kBlend2D`) can include this header
-// transitively and get identical behavior to text.
+// transitively and get identical behavior.
+//
+// P1-7 Chore 1 (commit A): the two text sources (`text_processor_helpers.hpp`
+// + `software_text_effects.cpp`) have been DELETED wholesale.  Remaining
+// reference contracts:
+//   - `text_run_processor.cpp`  (modern, `draw_text_run` path)
+//   - `text_rasterizer_render.cpp`  (LEGACY; last surviving call site
+//     of `BLGradient gradient(values, ...)`; Chore 2 deletes this TU)
 // ──────────────────────────────────────────────────────────────────────
 
 #include <blend2d.h>

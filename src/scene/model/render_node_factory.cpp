@@ -151,7 +151,7 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
 // include/chronon3d/scene/model/render/render_node_factory.hpp
 // and shared with LayerBuilder::build() and RenderNodeFactory::text_run().
 
-// ── M1.5#9 step 2 — RenderNodeFactory::text() ─────────────────────────
+// ── M1.5#9 steps 2-4 — RenderNodeFactory::text() (DONE) ─────────────────
 //
 // Refactor: `text(...)` now wraps the supplied `TextSpec` into a
 // `TextRunSpec` and delegates to `materialize_text_run_shape(...)`,
@@ -159,10 +159,12 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
 // `LayerBuilder::build()`.  The legacy `ShapeType::Text` code path
 // that built a `TextShape` (paint / shadows / material / font fields /
 // style.{...}/ box.{...}) is REMOVED from this factory.  Step 3
-// (M1.5#9) will drop the orphan `create_text_processor()` + factory
-// registration in builtin_processors.cpp; step 4 deletes the legacy
-// software_text_processor tree; step 5 deletes the legacy rasterizer
-// infra.
+// (M1.5#9) dropped the orphan `create_text_processor()` + factory
+// registration in builtin_processors.cpp; step 4 (P1-7 Chore 1
+// commit A) deleted the legacy `software_text_processor` directory
+// tree wholesale (8 files).  Step 5 (next chore) deletes the legacy
+// rasterizer infrastructure (`src/backends/text/text_rasterizer_render.cpp`
+// + `Blend2DResources` + `FtGlyphPathBuilder` + `rasterize_text_to_bl_image`).
 //
 // Back-compat: existing 3-arg callers `text(res, name, TextSpec)`
 // still compile and behave identically for non-materialization
