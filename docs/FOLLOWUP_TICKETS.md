@@ -9,6 +9,8 @@
 
 | Ticket | Pri | Status | Description |
 |---|---|---|---|
+| TICKET-PREMULT-TEST-SWEEP | P2 | OPEN | Uniform Premult-invariant canonicalization across the 4 other currently-passing TEST_CASEs (`alpha=1` + `midpoint` + `pixel counts {0..1024}` + AVX2 parity) in `tests/simd/test_simd_parity_blend.cpp`. [ticket](docs/tickets/TICKET-PREMULT-TEST-SWEEP.md) |
+| TICKET-PREMULT-CALLER-AUDIT | P2 | OPEN | Production-side Premult invariant audit in `src/backends/software/*` + `src/render_graph/nodes/*` callers of `scalar_blend` + composite_normal_premul. FORWARD-POINT from `b16ad302` per code-reviewer-minimax-m3 MINOR #3. [ticket](docs/tickets/TICKET-PREMULT-CALLER-AUDIT.md) |
 | TICKET-NODE-CACHE-KEY-COLLAPSE-ROT | P2 | OPEN | NodeCacheKey not recognized in node_executor.cpp — build rot blocking macchina-verifica. [ticket](docs/tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |
 | TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX | P0 | OPEN | Audit-trail: upstream conflict markers in CHANGELOG resolved by `52e48ddd`; forward-point: extend check to `.md` prose. |
 | TICKET-COMPLETENESS-GATE-V2-FIX-FORWARD | P1 | OPEN | Re-apply §20 unified video gate wire-chore post-rot-fix; 3 BLOCKING issues from prior `dd37f28e` push-block. |
