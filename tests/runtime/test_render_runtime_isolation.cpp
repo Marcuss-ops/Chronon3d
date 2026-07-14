@@ -115,19 +115,14 @@ TEST_CASE("RenderRuntime isolation: two runtimes do not share state") {
         CHECK(&exec_a != &exec_b);
     }
 
-    // ── §7: populate() is idempotent ───────────────────────────────
-    SUBCASE("populate() is idempotent and does not re-create services") {
-        const auto* nc_before   = &runtime_a->node_cache();
-        const auto* pool_before = &runtime_a->framebuffer_pool();
-
-        runtime_a->populate();  // second call — must be a no-op
-        runtime_b->populate();
-
-        CHECK(&runtime_a->node_cache() == nc_before);
-        CHECK(&runtime_a->framebuffer_pool() == pool_before);
-    }
-
-    // ── §8: Backends start unattached ──────────────────────────────
+    // ── §7: Backends start unattached ──────────────────────────────
+    // P1-14 — the previous `populate() is idempotent` SUBCASE was
+    // REMOVED.  `populate()` is now PRIVATE; the canonical factory
+    // `RenderRuntime::create(RuntimeConfig)` produces a fully-populated
+    // runtime, and the test for re-populate idempotency was testing
+    // implementation detail (the idempotency check is now an internal
+    // contract of the factory + 1-arg ctor, not externally observable
+    // behavior).
     SUBCASE("backends start unattached") {
         CHECK_FALSE(runtime_a->backend_attached());
         CHECK_FALSE(runtime_b->backend_attached());
