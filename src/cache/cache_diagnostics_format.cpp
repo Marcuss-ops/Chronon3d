@@ -12,8 +12,12 @@
 
 namespace chronon3d::cache {
 
-std::string format_cache_snapshot() {
-    auto domains = CacheDiagnostics::instance().snapshot_all_domains();
+std::string format_cache_snapshot(CacheDiagnostics& diag) {
+    // P1-10 — `diag` is the per-runtime (or per-test) diagnostics
+    // instance.  The previous `instance()` singleton was REMOVED in
+    // P1-10; the caller (CLI / log handler) provides the diagnostics
+    // reference explicitly.
+    auto domains = diag.snapshot_all_domains();
 
     if (domains.empty()) {
         return "[cache] No caches registered.\n";

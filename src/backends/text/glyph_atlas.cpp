@@ -1,143 +1,47 @@
 #include <chronon3d/text/glyph_atlas.hpp>
 #include <chronon3d/text/font_engine.hpp>
-#include <chronon3d/cache/lru_cache.hpp>
-#include <chronon3d/core/profiling/counters.hpp>
-#include <chronon3d/core/profiling/profiling.hpp>
+#include <chronon3d/backends/text/text_render_resources.hpp>
 #include <blend2d.h>
-#include <spdlog/spdlog.h>
 
-#include <atomic>
-#include <cstdlib>
-#include <mutex>
-#include <shared_mutex>
 #include <string>
 
 namespace chronon3d {
 
-namespace {
-
-// ── Glyph cache key ────────────────────────────────────────────────────
-struct GlyphAtlasKey {
-    std::string font_path;
-    u32         glyph_id{0};
-    u32         font_size{0};
-
-    bool operator==(const GlyphAtlasKey& o) const noexcept {
-        return font_path == o.font_path &&
-               glyph_id == o.glyph_id &&
-               font_size == o.font_size;
-    }
-};
-
-struct GlyphAtlasKeyHash {
-    [[nodiscard]] size_t operator()(const GlyphAtlasKey& k) const noexcept {
-        size_t h = std::hash<std::string>{}(k.font_path);
-        h ^= std::hash<u32>{}(k.glyph_id) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        h ^= std::hash<u32>{}(k.font_size) + 0x9e3779b9 + (h << 6) + (h >> 2);
-        return h;
-    }
-};
-
-// ── LRU cache with 8 shards ──────────────────────────────────────────
-// Fase 1.3 (verdetto Issue #4): the cache now stores the COMPLETE
-// GlyphAtlasEntry — image + x_offset + y_offset + advance_x +
-// fill_color_rgba — so that callers (e.g. text_rasterizer_render.cpp
-// line 626-635) see the original rasterization metadata on cache hits
-// instead of zero-initialized placeholders.  Shared_ptr<BLImage> is
-// ref-counted by the cache put, no deep-copy required.
-using GlyphAtlasCache = cache::LruCache<GlyphAtlasKey, GlyphAtlasEntry,
-                                         GlyphAtlasKeyHash>;
-
-// FASE 3 (TICKET-079) — Injected capacity, set once at startup by SoftwareRenderer.
-// First-call-wins via atomic CAS; eliminates std::once_flag + std::call_once (per
-// AGENTS.md pattern `is serialised + idempotent without an external std::once_flag`).
-namespace {
-    size_t            s_glyph_atlas_capacity = 0;
-    std::atomic<bool> s_glyph_atlas_capacity_set{false};
-} // namespace
-} // anonymous namespace
-
-void set_glyph_atlas_capacity(size_t max_bytes) {
-    bool expected = false;
-    if (s_glyph_atlas_capacity_set.compare_exchange_strong(
-            expected, true,
-            std::memory_order_acq_rel, std::memory_order_relaxed)) {
-        s_glyph_atlas_capacity = max_bytes;
-    }
-}
-
-namespace {
-static size_t resolve_atlas_max_bytes() {
-    constexpr size_t kFallback = 32ULL * 1024ULL * 1024ULL;
-    return s_glyph_atlas_capacity > 0 ? s_glyph_atlas_capacity : kFallback;
-}
-
-GlyphAtlasCache& get_glyph_atlas() {
-    static GlyphAtlasCache atlas(resolve_atlas_max_bytes(), 8);
-    return atlas;
-}
-
-std::shared_mutex& get_glyph_atlas_mutex() {
-    static std::shared_mutex mtx;
-    return mtx;
-}
-
-} // anonymous namespace
-
-// ── Public API ──────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// P1-9 — GlyphAtlas free functions are now THIN WRAPPERS around
+// `TextRenderResources` member functions.  The static state (cache,
+// capacity, atomic first-call-wins, shared_mutex) and the 4 global
+// accessors (`set_glyph_atlas_capacity`, `get_glyph_atlas`,
+// `get_glyph_atlas_mutex`, `glyph_atlas_clear`) are GONE — the atlas
+// now lives per-instance on `TextRenderResources::glyph_atlas`.
+// See `text_render_resources.hpp` for the canonical surface.
+// ═══════════════════════════════════════════════════════════════════════════
 
 std::optional<GlyphAtlasEntry> glyph_atlas_lookup(
+    TextRenderResources& res,
     const std::string& font_path,
     u32 glyph_id,
     u32 font_size
 ) {
-    GlyphAtlasKey key{font_path, glyph_id, font_size};
-    std::shared_lock lock(get_glyph_atlas_mutex());
-    // Fase 1.3: cache.get() now returns the COMPLETE GlyphAtlasEntry
-    // (image + all rasterization metadata).  Previously the cache held
-    // only the BLImage and lookups returned a reconstructed entry with
-    // x_offset/y_offset/advance_x/fill_color_rgba all zeroed — closing
-    // verdict Issue #4 (colore/offset persi su store/lookup).
-    return get_glyph_atlas().get(key);
+    return res.lookup_glyph_atlas(font_path, glyph_id, font_size);
 }
 
 void glyph_atlas_store(
+    TextRenderResources& res,
     const std::string& font_path,
     u32 glyph_id,
     u32 font_size,
     const GlyphAtlasEntry& entry
 ) {
-    GlyphAtlasKey key{font_path, glyph_id, font_size};
-    // Weight is unchanged: only the BLImage bytes count toward capacity.
-    // Metadata struct is ~24 bytes (3*int + u32 + shared_ptr control)
-    // and is amortized over the image bytes — counting it would distort
-    // cache pressure for negligible gain.
-    size_t weight = static_cast<size_t>(entry.image->width()) *
-                    static_cast<size_t>(entry.image->height()) * 4;
-    std::unique_lock lock(get_glyph_atlas_mutex());
-    // Pass entry by value: the std::shared_ptr<BLImage> inside gets its
-    // ref-count incremented (cheap, atomic) and the cache owns the new
-    // instance until eviction.  Eliminates the previous deep-copy of the
-    // bitmap via std::make_shared<BLImage>(*entry.image).
-    get_glyph_atlas().put(key, entry, weight);
+    res.store_glyph_atlas(font_path, glyph_id, font_size, entry);
 }
 
-void glyph_atlas_clear() {
-    std::unique_lock lock(get_glyph_atlas_mutex());
-    get_glyph_atlas().clear();
+GlyphAtlasStats glyph_atlas_stats(const TextRenderResources& res) {
+    return res.glyph_atlas_stats();
 }
 
-GlyphAtlasStats glyph_atlas_stats() {
-    GlyphAtlasStats s;
-    std::shared_lock lock(get_glyph_atlas_mutex());
-    auto st = get_glyph_atlas().stats();
-    s.entry_count  = st.current_size;
-    s.total_weight = st.current_weight;
-    s.hits         = st.hits;
-    s.misses       = st.misses;
-    return s;
-}// ── glyph_atlas_store_from_placed_run — Store from a shaped PlacedGlyphRun ──
 void glyph_atlas_store_from_placed_run(
+    TextRenderResources& res,
     const std::string& font_path,
     const BLImage& rendered_text,
     const PlacedGlyphRun& placed,
@@ -147,55 +51,9 @@ void glyph_atlas_store_from_placed_run(
     float font_size,
     u32 fill_color_rgba
 ) {
-    BLImageData img_data;
-    if (rendered_text.getData(&img_data) != BL_SUCCESS) return;
-    if (!img_data.pixelData || img_data.size.w <= 0 || img_data.size.h <= 0) return;
-
-    const int img_w = img_data.size.w;
-    const int img_h = img_data.size.h;
-    const int stride = static_cast<int>(img_data.stride / sizeof(uint32_t));
-    const auto* src = static_cast<const uint32_t*>(img_data.pixelData);
-    const u32 fs = static_cast<u32>(std::ceil(font_size));
-
-    for (const auto& pg : placed.glyphs) {
-        if (pg.glyph_id == 0) continue;
-
-        auto existing = glyph_atlas_lookup(font_path, pg.glyph_id, fs);
-        if (existing && existing->fill_color_rgba == fill_color_rgba) continue;
-
-        BLBoxI bbox_i;
-        const u32 gid = pg.glyph_id;
-        if (font.getGlyphBounds(&gid, intptr_t{0}, &bbox_i, 1) != 1) continue;
-
-        const int gx = static_cast<int>(std::floor(origin_x + pg.x + bbox_i.x0));
-        const int gy = static_cast<int>(std::floor(origin_y + pg.y + bbox_i.y0));
-        const int gw = static_cast<int>(std::ceil(bbox_i.x1 - bbox_i.x0));
-        const int gh = static_cast<int>(std::ceil(bbox_i.y1 - bbox_i.y0));
-        if (gw <= 0 || gh <= 0) continue;
-        if (gx < 0 || gy < 0 || gx + gw > img_w || gy + gh > img_h) continue;
-
-        auto glyph_img = std::make_shared<BLImage>(gw, gh, BL_FORMAT_PRGB32);
-        {
-            BLImageData glyph_data;
-            if (glyph_img->getData(&glyph_data) != BL_SUCCESS) continue;
-            auto* dst = static_cast<uint32_t*>(glyph_data.pixelData);
-            const int gs = static_cast<int>(glyph_data.stride / sizeof(uint32_t));
-            for (int y = 0; y < gh; ++y)
-                for (int x = 0; x < gw; ++x)
-                    dst[y * gs + x] = src[(gy + y) * stride + (gx + x)];
-        }
-
-        GlyphAtlasEntry entry;
-        entry.image     = glyph_img;
-        entry.x_offset  = static_cast<int>(bbox_i.x0);
-        entry.y_offset  = static_cast<int>(bbox_i.y0);
-        entry.advance_x = pg.advance_x;
-        entry.fill_color_rgba = fill_color_rgba;
-        glyph_atlas_store(font_path, pg.glyph_id, fs, entry);
-
-        if (profiling::g_current_counters)
-            profiling::g_current_counters->glyph_atlas_stored.fetch_add(1, std::memory_order_relaxed);
-    }
+    res.store_glyph_atlas_from_placed_run(
+        font_path, rendered_text, placed, font,
+        origin_x, origin_y, font_size, fill_color_rgba);
 }
 
 } // namespace chronon3d

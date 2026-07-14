@@ -36,6 +36,7 @@
 
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/backends/text/text_render_resources.hpp>  // P1-9: TextRenderResources owner
 
 namespace chronon3d {
 
@@ -77,6 +78,7 @@ public:
     /// consistent with the previous inlined logic.
     static Path render_placed(
         BLContext&                                ctx,
+        TextRenderResources*                      res,
         const std::optional<PlacedGlyphRun>&      placed_opt,
         const BLFontFace&                         face,
         const BLFont&                             font,
