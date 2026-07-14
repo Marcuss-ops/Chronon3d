@@ -40,8 +40,6 @@ class CacheDiagnostics;
 /// `instance()` singleton was REMOVED in P1-10; callers must pass a
 /// diagnostics reference (typically `runtime.diagnostics()` or a
 /// per-test local instance).
-class CacheDiagnostics;
-
 [[nodiscard]] std::string format_cache_snapshot(CacheDiagnostics& diag);
 
 // ── GenericCacheStats — type-erased LruCache::Stats mirror ────────────────

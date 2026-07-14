@@ -11,6 +11,24 @@
 
 namespace chronon3d::content::text {
 
+// TICKET-VCPKG-REMAINING-CODE-ROT-1SHOT-FIX — explicit parent-namespace
+// imports.  These types live in `chronon3d::` (per builder_params.hpp +
+// text_definition.hpp + frame_context.hpp + animation/easing/interpolate.hpp);
+// the `using` declarations below lock the dependency at compile time so
+// a parent-namespace rename is caught immediately.
+using chronon3d::f32;
+using chronon3d::Vec2;
+using chronon3d::Color;
+using chronon3d::Frame;
+using chronon3d::LayerBuilder;
+using chronon3d::SceneBuilder;
+using chronon3d::TextDefinition;
+using chronon3d::TextAnchor;
+using chronon3d::TextAlign;
+using chronon3d::VerticalAlign;
+using chronon3d::Easing;
+using chronon3d::interpolate;
+
 // ═════════════════════════════════════════════════════════════════════════════
 // Text Theme — shared constants & helpers for text/simple-grid compositions
 // ═════════════════════════════════════════════════════════════════════════════

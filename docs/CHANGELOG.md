@@ -1,5 +1,8 @@
 ## 2026-07-14
 
+### `fix(cache,text): close upstream dup-fwd-decl + 4-file namespace rot` ([TICKET-VCPKG-REMAINING-CODE-ROT-1SHOT-FIX](docs/tickets/TICKET-VCPKG-REMAINING-CODE-ROT-1SHOT-FIX.md))
+Cat-3 minimal-surface rot-pattern closure per user-spec verbatim unblock: 1-line deletion of redundant `class CacheDiagnostics;` fwd-decl at `include/chronon3d/cache/cache_diagnostics.hpp:43` (Duplicate-FWD-DECL rot-class, doc-comment P1-10 preserved verbatim — legal in C++ per ISO C++ [basic.scope.pdecl] but rot-pattern hygiene violation -Wredundant-decls) + 4 explicit `using chronon3d::X;` declaration blocks added atop the existing `namespace` blocks in `content/text/text_helpers_centered.hpp` + `text_helpers_typewriter.hpp` + `text_glow_helpers.hpp` + `text_theme.hpp` per the established `content/text/typewriter_build.cpp` precedent (canonical fix-pattern mirroring: `using chronon3d::detail::*` in-scope import pattern). Closes the 2 upstream rot sources per user-spec; macchina-verifica DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` (vcpkg glm/magic_enum CMAKE_PREFIX_PATH per-session export pattern on this VPS — cmake-configure re-rejected the chaser-chore `f58d04220c` (TICKET-CAMERA-LEGACY-ADAPTER-REMOVAL) for the same env-block reason). 5 source files modified, 1 ticket-home NEW, 67 additions + 2 deletions across the atomic chore. Cronaca estesa in canonical ticket-home per AGENTS.md Cat-3 anti-dup.
+
 ### `refactor(camera): delete unused legacy_camera_adapters pair`
   ([TICKET-CAMERA-LEGACY-ADAPTER-REMOVAL](docs/tickets/TICKET-CAMERA-LEGACY-ADAPTER-REMOVAL.md))
 

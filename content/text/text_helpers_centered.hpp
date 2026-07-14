@@ -13,6 +13,28 @@
 
 namespace chronon3d::content::text {
 
+// TICKET-VCPKG-REMAINING-CODE-ROT-1SHOT-FIX — explicit parent-namespace
+// imports.  These types live in `chronon3d::` (per builder_params.hpp +
+// text_definition.hpp + frame_context.hpp); the deeper
+// `chronon3d::content::text` namespace relies on basic.lookup.unqual to
+// find them, but the explicit `using` declarations below lock the
+// dependency at compile time (vs relying on lookup cascading) so a
+// parent-namespace rename is caught immediately.
+using chronon3d::f32;
+using chronon3d::u32;
+using chronon3d::Vec2;
+using chronon3d::Vec3;
+using chronon3d::Color;
+using chronon3d::TextDefinition;
+using chronon3d::TextPlacement;
+using chronon3d::TextPlacementKind;
+using chronon3d::TextAnchor;
+using chronon3d::TextAlign;
+using chronon3d::VerticalAlign;
+using chronon3d::TextWrap;
+using chronon3d::TextOverflow;
+using chronon3d::TextCenteringMode;
+
 // ═════════════════════════════════════════════════════════════════════════════
 // CenterTextOptions — unified options struct for all text helpers
 // ═════════════════════════════════════════════════════════════════════════════
