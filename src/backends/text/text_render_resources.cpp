@@ -607,8 +607,25 @@ void TextRenderResources::set_glyph_atlas_capacity(size_t max_bytes) {
     // ctor comment for the rationale (legacy first-call-wins semantics).
 }
 
+void TextRenderResources::ensure_glyph_atlas_materialized() {
+    // P1-9 fix-up: thread-safe lazy materialization with the 32 MiB
+    // fallback (matches the legacy `resolve_atlas_max_bytes()` default
+    // in the deleted `glyph_atlas.cpp`).  Without this, every lookup
+    // returns nullopt in production because the renderer ctor never
+    // called `set_glyph_atlas_capacity` (BLOCKING-1 in P1-9 review).
+    // `std::call_once` is thread-safe under concurrent first-access
+    // from multiple render threads; the per-instance `once_flag`
+    // ensures each `TextRenderResources` has its own materialization
+    // state.  Idempotent: post-materialization calls are no-ops.
+    std::call_once(glyph_atlas_init_flag, [this]() {
+        if (!glyph_atlas) {
+            glyph_atlas = std::make_unique<detail::GlyphAtlasCache>(0);
+        }
+    });
+}
+
 void TextRenderResources::clear_glyph_atlas() {
-    if (!glyph_atlas) return;
+    ensure_glyph_atlas_materialized();
     std::unique_lock lock(glyph_atlas->mutex);
     glyph_atlas->cache.clear();
 }
@@ -618,7 +635,7 @@ std::optional<GlyphAtlasEntry> TextRenderResources::lookup_glyph_atlas(
     u32 glyph_id,
     u32 font_size
 ) {
-    if (!glyph_atlas) return std::nullopt;
+    ensure_glyph_atlas_materialized();
     detail::GlyphAtlasKey key{font_path, glyph_id, font_size};
     std::shared_lock lock(glyph_atlas->mutex);
     return glyph_atlas->cache.get(key);
@@ -630,7 +647,7 @@ void TextRenderResources::store_glyph_atlas(
     u32 font_size,
     const GlyphAtlasEntry& entry
 ) {
-    if (!glyph_atlas) return;
+    ensure_glyph_atlas_materialized();
     // Weight is the image byte size (width × height × 4 for PRGB32);
     // the metadata struct is ~24 bytes and is amortized over the image
     // bytes — counting it would distort cache pressure for negligible
@@ -654,7 +671,7 @@ void TextRenderResources::store_glyph_atlas_from_placed_run(
     float font_size,
     u32 fill_color_rgba
 ) {
-    if (!glyph_atlas) return;
+    ensure_glyph_atlas_materialized();
     BLImageData img_data;
     if (rendered_text.getData(&img_data) != BL_SUCCESS) return;
     if (!img_data.pixelData || img_data.size.w <= 0 || img_data.size.h <= 0) return;
