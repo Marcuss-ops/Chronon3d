@@ -83,8 +83,8 @@ public:
 
     /// P1-21: explicit post-job clear policy for the framebuffer pool.
     /// Replaces the legacy implicit-clear-after-job pattern.  Default is
-    /// `TrimOnMemoryPressure` (preserves pre-P1-21 engine behavior; LRU
-    /// eviction handles trimming when the budget fills).
+    /// `TrimAfterJob` (matches pre-P1-21 production behavior: pipe_export_loop
+    /// unconditionally called clear() at the end of every job).
     [[nodiscard]] chronon3d::cache::FramebufferPoolClearPolicy
     framebuffer_pool_clear_policy() const noexcept {
         return framebuffer_pool_clear_policy_;
@@ -113,7 +113,7 @@ private:
     bool disable_persistent_framebuffer_cache_ = false;
     chronon3d::cache::FramebufferPoolClearPolicy
         framebuffer_pool_clear_policy_{
-            chronon3d::cache::FramebufferPoolClearPolicy::TrimOnMemoryPressure};
+            chronon3d::cache::FramebufferPoolClearPolicy::TrimAfterJob};
 };
 
 // ═════════════════════════════════════════════════════════════════════════
