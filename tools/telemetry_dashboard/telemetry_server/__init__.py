@@ -1,5 +1,5 @@
 # Chronon3D Telemetry Server Package
-# Submodules: config, jsonl_loader, database, handler
+# Submodules: config, jsonl_loader, database
 
 from .config import (
     TELEMETRY_DIR, DB_PATH, JSONL_PATH,
@@ -10,7 +10,6 @@ from .config import (
 )
 from .jsonl_loader import load_jsonl_records, jsonl_runs_by_id, jsonl_run_detail
 from .database import create_merged_connection
-from .handler import TelemetryAPIHandler
 
 __all__ = [
     'TELEMETRY_DIR', 'DB_PATH', 'JSONL_PATH',
@@ -19,5 +18,5 @@ __all__ = [
     'NODE_COLUMNS', 'LAYER_COLUMNS', 'CACHE_COLUMNS', 'CULLING_COLUMNS',
     'TEXT_COLUMNS', 'IMAGE_COLUMNS', 'TILE_COLUMNS',
     'load_jsonl_records', 'jsonl_runs_by_id', 'jsonl_run_detail',
-    'create_merged_connection', 'TelemetryAPIHandler',
+    'create_merged_connection',
 ]
