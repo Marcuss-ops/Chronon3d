@@ -1,5 +1,27 @@
 ## 2026-07-13
 
+### `chore(docs): codify 2x-in-one-chore deprecation reversal rule`
+
+Lands 1 file: `AGENTS.md` (new rule #7 in `## Regole di lint documentale`).
+Rule: when a chore removes `[[deprecated]]` markers (deprecation reversal),
+it MUST atomically bundle (in the same commit) the forward-point ticket
+for the original migration intent, without escalating to changelog narrative
+(delegated to the ticket-home for Cat-3 anti-dup). Codifies the
+**21ece2b3 unique-edit recovery variant** precedent (cross-linked
+inline per §SHA cite pattern rule) as a Cat-3 anti-dup discipline
+for orphan-intent rot-class (3-class rationale: orphan-intent +
+race-window ticket-open + Cat-5 3-doc alignment break). Subject
+envelope 60 chars OK ≤ 72. Cat-3 minimal-surface (1 docs file +
+1 obsolete count reconciliation in §Docs canonical update discipline
+rule's forward-point; zero new SDK API surface; zero new CODE/HDR
+touched). macchina-verifica N/A (docs-only chore). Forward-points
+canonical cross-link to §Docs canonical update discipline rule
+(stessa famiglia Cat-3). Full cronaca nel diff stesso per
+AGENTS.md in-file rule home (no ticket file needed; rule IS the
+ticket-home for the principle). Per `## Disciplina di aggiornamento
+dei canonici` la cronaca estesa sulla regola vive nella scheda
+AGENTS.md stessa, NON in un ticket file separato.
+
 ### `refactor(motion): migrate 11 presets to AnimationTrack<T>`
 
 Per user-spec "12 remaining motion-timeline sites" execution. 11 migrated (8
