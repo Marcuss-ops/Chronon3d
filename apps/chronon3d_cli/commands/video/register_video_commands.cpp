@@ -14,7 +14,7 @@ void register_video_commands(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<VideoState>();
     auto& args = *state->args;
 
-    auto* cmd = app.add_subcommand("video", "Render a composition to MP4 via ffmpeg");
+    auto* cmd = app.add_subcommand("video", "[DEPRECATED] Render a composition to MP4 via ffmpeg (use 'render' instead — TTL until V0.2)");
     cmd->add_option("id", args.comp_id, "Composition name")->required();
     cmd->add_option("-o,--output", args.output, "Output .mp4 path");
     cmd->add_option("--start", args.start, "Start frame (inclusive, default 0)");

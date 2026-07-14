@@ -8,6 +8,7 @@
 ## Open Blockers (≤10)
 
 | Ticket | Pri | Status | Description |
+| TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3 | P2 | NEW | Audit §13 Phase 3 — deprecate `chronon still` + `chronon video` as alias TTL until V0.2; `chronon render` canonical. 5 forward-points registered (REMOVE-STILL + VIDEO-MODE + REMOVE-VIDEO + DRY-RUN-MIGRATION + PREFLIGHT-VS-INSPECT). | [ticket](docs/tickets/TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3.md) |
 | TICKET-TOOLS-ORPHAN-AUDIT | P2 | NEW | tools/ script audit: 95 classified, 0 removed. Removals deferred to 4 forward-points per Cat-3 minimal surface. | [ticket](docs/tickets/TICKET-TOOLS-ORPHAN-AUDIT.md) |
 | TICKET-TEXT-SPEC-FORWARDER-REMOVAL | P2 | FORWARD-POINT REGISTER | 2×-in-one-chore orphan-intent register: LayerBuilder::text(name,TextSpec) overload REMOVED; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-TEXT-SPEC-FORWARDER-REMOVAL.md) |
 | TICKET-NODE-CACHE-KEY-COLLAPSE-ROT | P2 | OPEN | NodeCacheKey not recognized in node_executor.cpp — build rot blocking macchina-verifica. [ticket](docs/tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |
