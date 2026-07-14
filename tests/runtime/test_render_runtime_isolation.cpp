@@ -14,6 +14,7 @@
 // dependencies beyond the runtime itself).
 // ===========================================================================
 
+#include <optional>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 

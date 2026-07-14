@@ -11,6 +11,7 @@
 //   4. PendingTextRun.animated_doc defaults to nullptr when not set.
 // ═══════════════════════════════════════════════════════════════════════════
 
+#include <optional>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
@@ -61,8 +62,9 @@ TextRunSpec make_spec(const std::string& literal_text) {
 
 TEST_CASE("TextRunBuilder+PendingDoc: static path keeps initial text") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     TextRunSpec spec = make_spec("Static initial text");
 
     auto shape = materialize_text_run_shape(
@@ -86,10 +88,12 @@ TEST_CASE("TextRunBuilder+PendingDoc: static path keeps initial text") {
 // Runs cleanly even on CI machines without DejaVu Sans installed.
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("TextRunBuilder+PendingDoc: animated_doc drives layout content + per-frame resample") {
+TEST_CASE("TextRunBuilder+PendingDoc: animat    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     AnimatedTextDocument doc;
     SourceTextKeyframe kf0;
     kf0.frame = Frame{0};

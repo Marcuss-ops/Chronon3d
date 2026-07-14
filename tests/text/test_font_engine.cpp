@@ -1,3 +1,4 @@
+#include <optional>
 #include <doctest/doctest.h>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
@@ -32,8 +33,9 @@ TEST_CASE("FontEngine: HarfBuzz linear proportionality across font sizes") {
     // coincidental passing from a single glyph.
 
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     const FontSpec font = poppins_bold();
 
     struct TestCase { std::string text; };
@@ -71,11 +73,13 @@ TEST_CASE("FontEngine: HarfBuzz linear proportionality across font sizes") {
 TEST_CASE("FontEngine: HarfBuzz glyph advance is pixel-correct at known size") {
     // Sanity check: at 100px, a capital 'M' (typically widest glyph)
     // should have advance between 50-120px on Poppins-Bold.
-    // This guards against orders-of-magnitude errors in the scale factor.
+    // This guards aga    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();.
 
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     const FontSpec font = poppins_bold();
 
     auto run = engine.shape_text("M", font, 100.0f);
@@ -93,76 +97,78 @@ TEST_CASE("FontEngine: HarfBuzz glyph advance is pixel-correct at known size") {
     float advance_50 = run2->glyphs[0].advance_x;
 
     float ratio = advance / advance_50;
-    INFO("M advance ratio 100/50: ", ratio);
-    CHECK(ratio == doctest::Approx(2.0f).epsilon(0.05));
+    INFO("M advan    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();est::Approx(2.0f).epsilon(0.05));
 }
 
 TEST_CASE("FontEngine: can load Inter-Bold") {
-    chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+       auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();derRuntime runtime(cfg);
+    FontEngine engine{runtime->resolver()};
     CHECK(engine.can_load(inter_bold()));
 }
 
 TEST_CASE("FontEngine: cannot load missing font") {
-    chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    chronon3d::Con    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ime(cfg);
+    FontEngine engine{runtime->resolver()};
     FontSpec missing{.font_path = "nonexistent_font.ttf", .font_family = "Missing"};
     CHECK_FALSE(engine.can_load(missing));
 }
 
 TEST_CASE("FontEngine: shape_text returns glyph positions") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    chrono    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ngine engine{runtime->resolver()};
     auto run = engine.shape_text("Hi", inter_bold(), 32.0f);
     REQUIRE(run.has_value());
-    CHECK(run->glyphs.size() > 0);
-    CHECK(run->width > 0.0f);
-    CHECK(run->ascent > 0.0f);
+    CHECK(run->glyphs.size()    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();>ascent > 0.0f);
     CHECK(run->line_height > 0.0f);
 }
 
 TEST_CASE("FontEngine: shape_text empty string returns nullopt") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
-    auto run = engine.shape_text("", inter_bold(), 32.0f);
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{r    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();t("", inter_bold(), 32.0f);
     CHECK_FALSE(run.has_value());
 }
 
 TEST_CASE("FontEngine: shape_text invalid font returns nullopt") {
-    chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    chronon3d::Confi    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();e(cfg);
+    FontEngine engine{runtime->resolver()};
     FontSpec missing{.font_path = "missing.ttf", .font_family = "X"};
     auto run = engine.shape_text("Hi", missing, 32.0f);
-    CHECK_FALSE(run.has_value());
-}
-
-TEST_CASE("FontEngine: measure_text returns positive width for text") {
+    CHECK_FALSE(run.has_value()    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ositive width for text") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     float w = engine.measure_text("Hello World", inter_bold(), 32.0f);
     CHECK(w > 0.0f);
 }
 
 TEST_CASE("FontEngine: measure_text returns 0 for missing font") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
-    FontSpec missing{.font_path = "missing.ttf", .font_family = "X"};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runti    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();missing.ttf", .font_family = "X"};
     float w = engine.measure_text("Hello", missing, 32.0f);
     CHECK(w == 0.0f);
 }
 
 TEST_CASE("FontEngine: larger font size gives larger width") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
-    float w16 = engine.measure_text("Hello", inter_bold(), 16.0f);
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+    f    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();), 16.0f);
     float w32 = engine.measure_text("Hello", inter_bold(), 32.0f);
     float w64 = engine.measure_text("Hello", inter_bold(), 64.0f);
     REQUIRE(w16 > 0.0f);
@@ -172,10 +178,11 @@ TEST_CASE("FontEngine: larger font size gives larger width") {
     CHECK(w64 > w32 * 1.5f);
 }
 
-TEST_CASE("FontEngine: get_font_metrics returns valid values") {
-    chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+TEST_CASE("FontEngine    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();onon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     auto metrics = engine.get_font_metrics(inter_bold(), 32.0f);
     CHECK(metrics.ascent > 0.0f);
     CHECK(metrics.descent >= 0.0f);
@@ -186,12 +193,13 @@ TEST_CASE("FontEngine: get_font_metrics returns valid values") {
 
 TEST_CASE("FontEngine: glyph run width equals sum of advances") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     auto run = engine.shape_text("AB", inter_bold(), 32.0f);
     REQUIRE(run.has_value());
-    float sum_adv = 0.0f;
-    for (const auto& g : run->glyphs) {
+    float sum    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();{
         sum_adv += g.advance_x;
     }
     CHECK(run->width == doctest::Approx(sum_adv).epsilon(0.5f));
@@ -199,9 +207,8 @@ TEST_CASE("FontEngine: glyph run width equals sum of advances") {
 
 TEST_CASE("FontEngine: shape_text kerning differs from unshaped width") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
-    // "AV" is a classic kerning pair in many fonts
+    chronon3d::runtime::RenderRuntime runtim    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();    // "AV" is a classic kerning pair in many fonts
     auto run_av = engine.shape_text("AV", inter_bold(), 32.0f);
     auto run_a = engine.shape_text("A", inter_bold(), 32.0f);
     auto run_v = engine.shape_text("V", inter_bold(), 32.0f);
@@ -213,14 +220,16 @@ TEST_CASE("FontEngine: shape_text kerning differs from unshaped width") {
     float separate = run_a->width + run_v->width;
     float together = run_av->width;
 
-    // With proper HarfBuzz shaping, AV together should be <= separate (kerning reduces width)
+    // With proper HarfBuzz shaping    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();s width)
     // Some fonts may not kern AV strongly; allow equality.
     CHECK(together <= separate);
 }
 TEST_CASE("FontEngine: cache persists across calls") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     auto m1 = engine.get_font_metrics(inter_bold(), 32.0f);
     auto m2 = engine.get_font_metrics(inter_bold(), 32.0f);
     CHECK(m1.ascent == m2.ascent);
@@ -229,9 +238,10 @@ TEST_CASE("FontEngine: cache persists across calls") {
 
 TEST_CASE("FontEngine: glyph bbox cache populates on shape_text") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
-    CHECK(engine.glyph_bbox_cache_size() == 0);
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine eng    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();x_cache_size() == 0);
 
     auto run = engine.shape_text("AB", inter_bold(), 32.0f);
     REQUIRE(run.has_value());
@@ -246,8 +256,9 @@ TEST_CASE("FontEngine: glyph bbox cache populates on shape_text") {
 
 TEST_CASE("FontEngine: glyph bbox cache grows with unique glyphs") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     auto run1 = engine.shape_text("ABC", inter_bold(), 32.0f);
     REQUIRE(run1.has_value());
     size_t after_first = engine.glyph_bbox_cache_size();
@@ -266,8 +277,9 @@ TEST_CASE("FontEngine: glyph bbox cache grows with unique glyphs") {
 
 TEST_CASE("FontEngine: glyph bbox cache cleared with clear_cache") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     auto run = engine.shape_text("X", inter_bold(), 32.0f);
     REQUIRE(run.has_value());
     CHECK(engine.glyph_bbox_cache_size() > 0);
