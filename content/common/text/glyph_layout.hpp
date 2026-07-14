@@ -37,6 +37,13 @@
 
 namespace chronon3d::content::text_reveal {
 
+// Forward declarations.
+class ShapedGlyphLine;
+
+namespace test_support {
+    [[nodiscard]] const std::optional<GlyphRun>& get_raw_run(const ShapedGlyphLine&) noexcept;
+}
+
 // Per-glyph position result (centre-X + advance width, post-shaping).
 struct GlyphPos {
     std::string ch;
@@ -116,11 +123,6 @@ public:
     // Number of glyphs to reveal for a progress in [0, 1].
     [[nodiscard]] size_t reveal_count(f32 progress) const noexcept;
 
-    // Raw shaped GlyphRun (cached result of engine.shape_text()).
-    // Exposed primarily for tests and diagnostics so callers can avoid
-    // double-shaping the same text.
-    [[nodiscard]] const std::optional<GlyphRun>& raw_run() const noexcept;
-
     // ── Public fail-loud ctor (the primary constructor used by 5 showcases) ──
     // Shapes the text. Throws std::runtime_error on shaping failure
     // (zero glyphs / missing font) — same fail-loud contract as
@@ -139,8 +141,6 @@ public:
 
 private:
     std::string m_text;
-    FontSpec    m_spec;
-    f32         m_font_size{0.0f};
     f32         m_tracking{0.0f};
     f32         m_ref_offset_x{0.0f};
     std::optional<GlyphRun> m_run;
@@ -158,8 +158,8 @@ private:
 
     // Private ctor used by try_shape factory — populate from a valid
     // GlyphRun directly (does NOT throw).
-    ShapedGlyphLine(GlyphRun run, std::string text, FontSpec spec,
-                    f32 font_size, f32 tracking, f32 ref_offset_x);
+    ShapedGlyphLine(GlyphRun run, std::string text,
+                    f32 tracking, f32 ref_offset_x);
 
     // Friend declaration allows shape_glyph_line free function to be
     // declared in the .hpp file and defined in the .cpp file without
@@ -167,6 +167,9 @@ private:
     friend std::optional<ShapedGlyphLine> shape_glyph_line(
         std::string_view text, f32 font_size, const FontSpec& spec,
         f32 tracking, FontEngine& engine);
+
+    // Test/internal support needs access to the cached GlyphRun.
+    friend const std::optional<GlyphRun>& test_support::get_raw_run(const ShapedGlyphLine&) noexcept;
 };
 
 // shape_glyph_line — fail-soft free-function entry point (Point 8 mirror).
@@ -213,23 +216,5 @@ private:
     const FontSpec& spec, f32 tracking,
     f32 ref_offset_x,
     FontEngine& engine);
-
-// ── Shape-call counter (TICKET-FIX-TEXT-SHAPING-DEDUP-V1) ────────────
-//
-// Diagnostic counter that measures engine.shape_text() invocations
-// across the lifetime of one or more ShapedGlyphLine instances.
-// Tests reset before each measurement to assert "1 shape per line"
-// (B02 Typewriter200Glyphs: counter == 1 after one ShapedGlyphLine
-// construction, regardless of how many accessors are called).
-//
-// Per AGENTS.md `#### C++ default-arg uniqueness per TU` — pure
-// diagnostic surface, no behaviour gating on the counter.
-//
-// Counter is an atomic int so worker-thread parallel builds cannot
-// race the increment; memory_order_relaxed is sufficient because
-// the only consumer is the per-test assertion (no producer/consumer
-// ordering required).
-void reset_shape_call_counter() noexcept;
-int  get_shape_call_count() noexcept;
 
 } // namespace chronon3d::content::text_reveal

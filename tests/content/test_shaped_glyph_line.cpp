@@ -12,6 +12,7 @@
 #include <tests/helpers/test_utils.hpp>
 
 #include "content/common/text/glyph_layout.hpp"
+#include "content/common/text/glyph_layout_test_support.hpp"
 
 #include <stdexcept>
 #include <string>
@@ -136,14 +137,14 @@ TEST_CASE("ShapedGlyphLine: shape_calls_per_line counter == 1 on B02-equivalent 
     text_200.resize(200);
 
     // Reset before each measurement (counter is global).
-    content::text_reveal::reset_shape_call_counter();
-    REQUIRE(content::text_reveal::get_shape_call_count() == 0);
+    content::text_reveal::test_support::reset_shape_call_counter();
+    REQUIRE(content::text_reveal::test_support::get_shape_call_count() == 0);
 
     // Construct ShapedGlyphLine (Point 8: failing-fast ctor if text rejects font).
     content::text_reveal::ShapedGlyphLine line(text_200, 72.0f, spec, 4.0f, 0.0f, engine);
 
     // After construction, counter must be exactly 1 (single engine.shape_text call).
-    CHECK(content::text_reveal::get_shape_call_count() == 1);
+    CHECK(content::text_reveal::test_support::get_shape_call_count() == 1);
 
     // Accessor invocations must NOT trigger additional shaping calls
     // (Point 8 single-shape efficiency contract holds across all accessors).
@@ -154,7 +155,7 @@ TEST_CASE("ShapedGlyphLine: shape_calls_per_line counter == 1 on B02-equivalent 
     const auto   count  = line.reveal_count(0.5f);
 
     // Counter stays at 1 — accessors read from m_run, not re-shape.
-    CHECK(content::text_reveal::get_shape_call_count() == 1);
+    CHECK(content::text_reveal::test_support::get_shape_call_count() == 1);
 
     // Sanity: the accessor outputs are non-trivial (defensive guard against
     // a future refactor that accidentally returns zeros without shaping).

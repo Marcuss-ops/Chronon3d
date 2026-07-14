@@ -450,7 +450,6 @@ FontFaceHandle TextRenderResources::resolve_handle(
 // ABI-frozen TU bypasses the cache (Cat-5 ABI stability constraint); the
 // per-renderer cache is used by non-legacy renderer paths.
 
-namespace chronon3d {
 namespace detail {
 
 struct TextRasterCache {
@@ -735,5 +734,8 @@ GlyphAtlasStats TextRenderResources::glyph_atlas_stats() const {
     s.misses       = st.misses;
     return s;
 }
+// PIMPL'd ctor/dtor — defined here where detail::TextRasterCache is complete.
+TextRenderResources::TextRenderResources() = default;
+TextRenderResources::~TextRenderResources() = default;
 
 } // namespace chronon3d
