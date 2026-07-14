@@ -123,11 +123,28 @@ public:
     // Number of glyphs to reveal for a progress in [0, 1].
     [[nodiscard]] size_t reveal_count(f32 progress) const noexcept;
 
-    // ── Public fail-loud ctor (the primary constructor used by 5 showcases) ──
-    // Shapes the text. Throws std::runtime_error on shaping failure
-    // (zero glyphs / missing font) — same fail-loud contract as
-    // layout_glyphs (preserved for backward compat with cinematic showcase
-    // callers that REQUIRE shape result).
+    // ── Public fail-loud ctor (DEPRECATED, one release-cycle bridge) ──
+    // TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL — marked `[[deprecated]]`
+    // for V0.2 removal. The `font_size` + `FontSpec` arguments are
+    // write-only since the upstream landed the test-only production-
+    // surface removal (commit TICKET refactor). Use
+    // `ShapedGlyphLine::try_shape(...)` (the canonical factory) or
+    // `shape_glyph_line(...)` (the canonical free function) instead —
+    // both accept the same semantic args.
+    // Kept for ONE release cycle as a smooth migration bridge; will be
+    // REMOVED in V0.2 per TICKET-PUB-DEPRECATE-REMOVAL.
+    //
+    // Note (Cat-3 minimal-surface discipline): a 4-arg canonical bridge
+    // ctor was prototyped during this chore but ultimately removed —
+    // its `font_size` + `FontSpec` parameters would have been placeholders
+    // that always misshape. Per reviewer critique, adding a public ABI
+    // symbol that exists only to fail is dead-code debt; the
+    // `[[deprecated]]` markers above + the documented contract to use
+    // `try_shape(...)` / `shape_glyph_line(...)` are sufficient.
+    [[deprecated(
+        "Use ShapedGlyphLine::try_shape(text, font_size, spec, tracking, "
+        "ref_offset_x, engine) or shape_glyph_line(...) free function. "
+        "The 6-arg ctor will be REMOVED in V0.2 per TICKET-PUB-DEPRECATE-REMOVAL.")]]
     ShapedGlyphLine(const std::string& text, f32 font_size,
                     const FontSpec& spec, f32 tracking,
                     f32 ref_offset_x, FontEngine& engine);

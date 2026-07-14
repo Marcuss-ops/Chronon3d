@@ -25,7 +25,7 @@ TEST_CASE("ShapedGlyphLine: width matches legacy measure_text_width") {
     auto& engine  = renderer.font_engine();
 
     FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
-    content::text_reveal::ShapedGlyphLine line("Hello", 72.0f, spec, 4.0f, 0.0f, engine);
+    content::text_reveal::ShapedGlyphLine line = content::text_reveal::ShapedGlyphLine::try_shape("Hello", 72.0f, spec, 4.0f, 0.0f, engine).value();
 
     f32 expected = content::text_reveal::measure_text_width("Hello", 72.0f, spec, 4.0f, engine);
     CHECK(line.width() == expected);
@@ -37,7 +37,7 @@ TEST_CASE("ShapedGlyphLine: layout matches legacy layout_glyphs") {
     auto& engine  = renderer.font_engine();
 
     FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
-    content::text_reveal::ShapedGlyphLine line("Hello", 72.0f, spec, 4.0f, 0.0f, engine);
+    content::text_reveal::ShapedGlyphLine line = content::text_reveal::ShapedGlyphLine::try_shape("Hello", 72.0f, spec, 4.0f, 0.0f, engine).value();
 
     auto glyphs = line.layout();
     auto expected = content::text_reveal::layout_glyphs("Hello", 72.0f, spec, 4.0f, 0.0f, engine);
@@ -55,7 +55,7 @@ TEST_CASE("ShapedGlyphLine: cursor positions are monotonic and span the line") {
     auto& engine  = renderer.font_engine();
 
     FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
-    content::text_reveal::ShapedGlyphLine line("ABC", 72.0f, spec, 4.0f, 10.0f, engine);
+    content::text_reveal::ShapedGlyphLine line = content::text_reveal::ShapedGlyphLine::try_shape("ABC", 72.0f, spec, 4.0f, 10.0f, engine).value();
 
     CHECK(line.cursor_position(0) == 10.0f);
     CHECK(line.cursor_position(0) < line.cursor_position(1));
@@ -69,7 +69,7 @@ TEST_CASE("ShapedGlyphLine: bbox has non-negative width and height") {
     auto& engine  = renderer.font_engine();
 
     FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
-    content::text_reveal::ShapedGlyphLine line("Hello", 72.0f, spec, 4.0f, 0.0f, engine);
+    content::text_reveal::ShapedGlyphLine line = content::text_reveal::ShapedGlyphLine::try_shape("Hello", 72.0f, spec, 4.0f, 0.0f, engine).value();
 
     auto box = line.bbox();
     CHECK(box.width() >= 0.0f);
@@ -83,7 +83,7 @@ TEST_CASE("ShapedGlyphLine: reveal_count is clamped to [0, glyph_count]") {
     auto& engine  = renderer.font_engine();
 
     FontSpec spec{"assets/fonts/Poppins-Regular.ttf", "Poppins", 400};
-    content::text_reveal::ShapedGlyphLine line("Hello", 72.0f, spec, 4.0f, 0.0f, engine);
+    content::text_reveal::ShapedGlyphLine line = content::text_reveal::ShapedGlyphLine::try_shape("Hello", 72.0f, spec, 4.0f, 0.0f, engine).value();
 
     CHECK(line.reveal_count(-0.5f) == 0);
     CHECK(line.reveal_count(0.0f) == 0);
@@ -95,14 +95,19 @@ TEST_CASE("ShapedGlyphLine: reveal_count is clamped to [0, glyph_count]") {
     CHECK(mid <= line.layout().size());
 }
 
-TEST_CASE("ShapedGlyphLine: throws on non-existent font path") {
+TEST_CASE("ShapedGlyphLine: layout_glyphs throws std::runtime_error on non-existent font path (fail-loud contract)") {
+    // TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL — the historical 6-arg
+    // fail-loud ctor (`std::runtime_error` on bad spec) was [[deprecated]]
+    // during this chore. The fail-loud contract is preserved via the
+    // canonical free function `layout_glyphs(...)` which throws
+    // `std::runtime_error(make_shape_error_message(...))` when shaping fails.
     auto renderer = test::make_renderer();
     auto& engine  = renderer.font_engine();
 
     FontSpec bad_spec{"assets/fonts/NonExistentFont.ttf", "Unknown", 400};
 
     CHECK_THROWS_AS(
-        content::text_reveal::ShapedGlyphLine("Hello", 72.0f, bad_spec, 4.0f, 0.0f, engine),
+        content::text_reveal::layout_glyphs("Hello", 72.0f, bad_spec, 4.0f, 0.0f, engine),
         std::runtime_error
     );
 }
@@ -140,8 +145,11 @@ TEST_CASE("ShapedGlyphLine: shape_calls_per_line counter == 1 on B02-equivalent 
     content::text_reveal::test_support::reset_shape_call_counter();
     REQUIRE(content::text_reveal::test_support::get_shape_call_count() == 0);
 
-    // Construct ShapedGlyphLine (Point 8: failing-fast ctor if text rejects font).
-    content::text_reveal::ShapedGlyphLine line(text_200, 72.0f, spec, 4.0f, 0.0f, engine);
+    // Construct ShapedGlyphLine via canonical factory (Point 8 fail-soft).
+    // TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL: migrated off the [[deprecated]]
+    // 6-arg ctor onto `try_shape(...).value()` — same single-shape call + fail-loud
+    // semantic, no deprecation warning.
+    content::text_reveal::ShapedGlyphLine line = content::text_reveal::ShapedGlyphLine::try_shape(text_200, 72.0f, spec, 4.0f, 0.0f, engine).value();
 
     // After construction, counter must be exactly 1 (single engine.shape_text call).
     CHECK(content::text_reveal::test_support::get_shape_call_count() == 1);

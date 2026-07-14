@@ -66,7 +66,11 @@ const std::optional<GlyphRun>& get_raw_run(const ShapedGlyphLine& line) noexcept
 
 } // namespace test_support
 
-// ── ShapedGlyphLine fail-loud primary ctor (public) ────────────────────
+// ── ShapedGlyphLine fail-loud primary ctor (public, DEPRECATED) ─────────
+//
+// TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL — marked [[deprecated]] in the
+// .hpp. Kept for ONE release cycle (V0.1 → V0.2) as a smooth migration
+// bridge; will be REMOVED in V0.2 per TICKET-PUB-DEPRECATE-REMOVAL.
 //
 // Throws on shaping failure (zero glyphs / missing font).  Same
 // fail-loud contract as `layout_glyphs` — preserved verbatim for
@@ -92,6 +96,18 @@ ShapedGlyphLine::ShapedGlyphLine(const std::string& text, f32 font_size,
     }
     rebuild_prefix_advances();
 }
+
+// ── ShapedGlyphLine 4-arg canonical ctor (REMOVED) ─────────────
+//
+// Removed during the TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL chore.
+// Originally prototyped as a TICKET-migration bridge for callers that
+// structurally required the old 6-arg signature, but it would have been
+// a useless public ABI symbol that always failed shaping (placeholder
+// FontSpec cannot load a font). Per Cat-3 minimal-surface discipline
+// and reviewer critique, dead-code public ABI symbols are removed
+// rather than deprecated. The `[[deprecated]]` 6-arg ctor above +
+// the documented contract to use `try_shape(...)` / `shape_glyph_line(...)`
+// are sufficient as the V0.1 → V0.2 migration bridge.
 
 // ── ShapedGlyphLine private ctor (used by try_shape factory) ────────────
 //
