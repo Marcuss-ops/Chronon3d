@@ -1,6 +1,6 @@
 # TICKET-V3-CLI-UNIFICATION-PROFILE-HELP — `--profile` + `--help-advanced` (Audit §13 final phase)
 
-Stato: DONE 2026-07-14 (chore SHA: 1f9ef651 + post-reviewer-fix chore SHA: <chore-hash>)
+Stato: DONE 2026-07-14 (chore SHA: 1f9ef651 + post-reviewer-fix chore SHA: 01701d55)
 
 ## Problema
 
@@ -128,5 +128,5 @@ fuori scope: TICKET-V3-CLI-UNIFICATION-VIDEO-MODE è separato da questo ticket).
 
 - `a15ec42d`: feat(cli): render --help-advanced section for advanced flags (Commit 1 of 2)
 - `1f9ef651`: feat(cli): render --profile draft|preview|production|maximum (Commit 2 of 2)
-- `<chore-hash>`: fix(cli): post code-reviewer critical issues for --profile (post-reviewer fix-cycle)
-- `<chore-hash>`: docs(ticket): create TICKET-V3-CLI-UNIFICATION-PROFILE-HELP.md (ticket-home orphan-fix)
+- `01701d55`: fix(cli): post code-reviewer critical issues for --profile (post-reviewer fix-cycle)
+- `01701d55`: docs(ticket): create TICKET-V3-CLI-UNIFICATION-PROFILE-HELP.md (ticket-home orphan-fix)
