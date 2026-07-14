@@ -34,7 +34,7 @@ std::size_t SceneProgramCache::resolve_max_entries(std::size_t caller_value) {
 SceneProgramCache::SceneProgramCache(
     std::size_t capacity,
     std::size_t num_shards,
-    CacheDiagnostics* diag)
+    chronon3d::cache::CacheDiagnostics* diag)
     : m_cache(
         /*capacity_weight=*/resolve_max_entries(capacity),
         /*num_shards=*/num_shards,
@@ -64,44 +64,14 @@ SceneProgramCache::SceneProgramCache(
         m_diag_handle = diag->register_cache(
             CacheDomain::ScenePrograms,
             [this]() -> GenericCacheStats {
-                if (!m_diag_alive.load(std::memory_order_acquire)) return {};
                 auto s = stats();
                 return {s.hits, s.misses, s.evictions, s.current_size,
                         s.current_size /* weight == size in Count mode */};
             },
-            [this] {
-                if (!m_diag_alive.load(std::memory_order_acquire)) return;
-                clear();
-            },
-            [this] {
-                if (!m_diag_alive.load(std::memory_order_acquire)) return CapacityMode::Count;
-                return m_cache.capacity_mode();
-            },
+            [this] { clear(); },
+            [this] { return m_cache.capacity_mode(); },
             m_capacity);
     }
-}
-
-void SceneProgramCache::set_diagnostics(CacheDiagnostics& diag) {
-    m_diag_alive.store(false, std::memory_order_release);
-    m_diag_handle = {};
-    m_diag_alive.store(true, std::memory_order_release);
-    m_diag_handle = diag.register_cache(
-        CacheDomain::ScenePrograms,
-        [this]() -> GenericCacheStats {
-            if (!m_diag_alive.load(std::memory_order_acquire)) return {};
-            auto s = stats();
-            return {s.hits, s.misses, s.evictions, s.current_size,
-                    s.current_size /* weight == size in Count mode */};
-        },
-        [this] {
-            if (!m_diag_alive.load(std::memory_order_acquire)) return;
-            clear();
-        },
-        [this] {
-            if (!m_diag_alive.load(std::memory_order_acquire)) return CapacityMode::Count;
-            return m_cache.capacity_mode();
-        },
-        m_capacity);
 }
 
 // ── find ────────────────────────────────────────────────────────────────────

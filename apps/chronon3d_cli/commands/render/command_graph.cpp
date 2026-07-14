@@ -231,7 +231,8 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
             static_cast<float>(comp.frame_rate().fps()),
             /*execute=*/true, /*include_dot=*/need_dot
         );
-        fmt::print("{}", format_summary(args.comp_id, args.frame, comp.width(), comp.height(), stats, renderer->runtime().diagnostics()));
+        fmt::print("{}", format_summary(args.comp_id, args.frame, comp.width(), comp.height(), stats,
+                                         renderer->runtime().diagnostics()));
         if (need_dot && !write_dot(stats.dot, args.output)) return 1;
         return 0;
     }

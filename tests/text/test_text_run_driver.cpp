@@ -1,3 +1,4 @@
+#include <optional>
 static chronon3d::TextLayoutCache s_text_cache;
 // ═══════════════════════════════════════════════════════════════════════════
 // test_text_run_driver.cpp — Per-frame TextRun driver tests (PR 8)
@@ -11,7 +12,6 @@ static chronon3d::TextLayoutCache s_text_cache;
 //   5. Determinism: same shape+animators produce same glyph state
 // ═══════════════════════════════════════════════════════════════════════════
 
-#include <optional>
 #include <chronon3d/text/text_run_builder.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
@@ -94,8 +94,7 @@ TEST_CASE("TextRunDriver: no-op when layout is null") {
 
 TEST_CASE("TextRunDriver: no-op when animators empty, but seeds glyphs") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -115,11 +114,9 @@ TEST_CASE("TextRunDriver: no-op when animators empty, but seeds glyphs") {
 // 2. Per-frame animator evaluation
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("TextRu    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); {
+TEST_CASE("TextRunDriver: Position animator moves glyphs per frame") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -136,14 +133,12 @@ TEST_CASE("TextRu    auto runtime = chronon3d::runtime::RenderRuntime::create(
     update_text_run_shape_per_frame(*shape, SampleTime{});
     CHECK(shape->glyphs[0].position.x == doctest::Approx(40.0f));
     CHECK(shape->glyphs[0].position.y == doctest::Approx(0.0f));
-     auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();prox(0.0f));
+    CHECK(shape->glyphs[0].position.z == doctest::Approx(0.0f));
 }
 
 TEST_CASE("TextRunDriver: Opacity animator sets per-glyph alpha") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -152,15 +147,17 @@ TEST_CASE("TextRunDriver: Opacity animator sets per-glyph alpha") {
         make_global_spec("trb_op", OpacityProperty{0.5f})
     });
 
-    if (shape->layout->placed.glyphs.empty())     auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();per_frame(*shape, SampleTime{});
+    if (shape->layout->placed.glyphs.empty()) {
+        return;
+    }
+
+    update_text_run_shape_per_frame(*shape, SampleTime{});
     CHECK(shape->glyphs[0].opacity == doctest::Approx(0.5f));
 }
 
 TEST_CASE("TextRunDriver: deterministic between repeated calls") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -186,15 +183,13 @@ TEST_CASE("TextRunDriver: deterministic between repeated calls") {
     }
 }
 
-// ═════════    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();═══════════════
+// ═══════════════════════════════════════════════════════════════════════════
 // 3. Animator stack via evaluate_animator_stack_into (in-place path)
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextRunDriver: evaluate_animator_stack_into writes back in place") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -218,8 +213,8 @@ TEST_CASE("TextRunDriver: evaluate_animator_stack_into writes back in place") {
         SampleTime{}
     );
 
-    CHECK(states.size() == layout_ptr->placed.glyphs.si    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();pprox(10.0f));
+    CHECK(states.size() == layout_ptr->placed.glyphs.size());
+    CHECK(states[0].position.x == doctest::Approx(10.0f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -228,8 +223,7 @@ TEST_CASE("TextRunDriver: evaluate_animator_stack_into writes back in place") {
 
 TEST_CASE("TextRunDriver: Hold transition renders active document (no-op return)") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -239,8 +233,9 @@ TEST_CASE("TextRunDriver: Hold transition renders active document (no-op return)
     SourceTextKeyframe kf;
     kf.frame = Frame{0};
     kf.document.utf8 = "Hello";
-      auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();e_at(Frame{30});
+    doc.add_keyframe(kf);
+
+    auto state = doc.sample_at(Frame{30});
     REQUIRE(state.transition == SourceTextTransition::Hold);
     REQUIRE(state.active != nullptr);
 
@@ -251,8 +246,7 @@ TEST_CASE("TextRunDriver: Hold transition renders active document (no-op return)
 
 TEST_CASE("TextRunDriver: Hold with different active text rebuilds layout") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -274,8 +268,7 @@ TEST_CASE("TextRunDriver: Hold with different active text rebuilds layout") {
     doc.add_keyframe(kf_scr);
 
     auto state = doc.sample_at(Frame{0});
-    REQU    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();;
+    REQUIRE(state.transition == SourceTextTransition::Hold);
     REQUIRE(state.active != nullptr);
 
     bool changed = apply_active_state_to_text_run_shape(*shape, state, engine, layout);
@@ -289,8 +282,7 @@ TEST_CASE("TextRunDriver: Hold with different active text rebuilds layout") {
 
 TEST_CASE("TextRunDriver: Scramble transition rebuilds layout with transition_text") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -305,8 +297,9 @@ TEST_CASE("TextRunDriver: Scramble transition rebuilds layout with transition_te
     // Scramble across frames 0–60 we set kf0.transition (the origin),
     // not kf60.transition (the destination).
     kf0.transition = SourceTextTransition::Scramble;
-    doc.add_keyframe(kf    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();rame{60};
+    doc.add_keyframe(kf0);
+    SourceTextKeyframe kf60;
+    kf60.frame = Frame{60};
     kf60.document.utf8 = "World";
     doc.add_keyframe(kf60);
 
@@ -322,8 +315,7 @@ TEST_CASE("TextRunDriver: Scramble transition rebuilds layout with transition_te
 
 TEST_CASE("TextRunDriver: Morph transition rebuilds layout with transition_text") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -341,8 +333,9 @@ TEST_CASE("TextRunDriver: Morph transition rebuilds layout with transition_text"
     SourceTextKeyframe kf60;
     kf60.frame = Frame{60};
     kf60.document.utf8 = "CD";
-    doc.add_key    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();30});
+    doc.add_keyframe(kf60);
+
+    auto state = doc.sample_at(Frame{30});
     REQUIRE(state.transition == SourceTextTransition::Morph);
     REQUIRE_FALSE(state.transition_text.empty());
 
@@ -358,8 +351,7 @@ TEST_CASE("TextRunDriver: Morph transition rebuilds layout with transition_text"
 
 TEST_CASE("TextRunDriver: animators preserved across layout swap") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};

@@ -46,7 +46,9 @@ Composition make_anim_typewriter_glow_no_glow() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_bg(s);
-        s.font_engine(ctx.font_engine);
+        if (ctx.runtime && ctx.runtime->font_engine()) {
+            s.font_engine(ctx.runtime->font_engine());
+        }
 
         // Same scene as anim_typewriter_glow() but glow_intensity=0.0f.
         // All other parameters (text, sizes, line_spacing, start_delay_2,

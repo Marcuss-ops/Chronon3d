@@ -120,8 +120,7 @@ TEST_CASE("BidiSegmenter: explicit RTL base direction") {
 
 TEST_CASE("TextLayout: bidi with pure Latin text") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutInput input;
     input.text = "Hello World";
@@ -137,11 +136,9 @@ TEST_CASE("TextLayout: bidi with pure Latin text") {
     CHECK(result.lines[0].width > 0.0f);
 }
 
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); {
+TEST_CASE("TextLayout: bidi with pure Arabic text") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutInput input;
     input.text = "\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7";  // "مرحبا"
@@ -152,14 +149,13 @@ TEST_CASE("TextLayout: bidi with pure Latin text") {
     input.style.shaping.direction = TextDirection::Auto;
 
     const auto result = TextLayoutEngine::layout(input);
-     auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ines[0].width > 0.0f);
+    CHECK(!result.lines.empty());
+    CHECK(result.lines[0].width > 0.0f);
 }
 
 TEST_CASE("TextLayout: bidi with mixed Arabic+English") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutInput input;
     input.text = "Hello \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 World";
@@ -178,8 +174,7 @@ TEST_CASE("TextLayout: bidi with mixed Arabic+English") {
     for (const auto& line : result.lines) {
         for (const auto& run : line.runs) {
             if (run.style.shaping.direction == TextDirection::LTR) has_ltr = true;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();Direction::RTL) has_rtl = true;
+            if (run.style.shaping.direction == TextDirection::RTL) has_rtl = true;
         }
     }
     CHECK(has_ltr);
@@ -188,8 +183,7 @@ TEST_CASE("TextLayout: bidi with mixed Arabic+English") {
 
 TEST_CASE("TextLayout: explicit LTR direction skips bidi segmentation") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutInput input;
     input.text = "Hello \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 World";
@@ -199,8 +193,9 @@ TEST_CASE("TextLayout: explicit LTR direction skips bidi segmentation") {
     input.style.size = 32.0f;
     input.style.shaping.direction = TextDirection::LTR;
 
-    const auto result = TextLayoutEngine::    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();  for (const auto& line : result.lines) {
+    const auto result = TextLayoutEngine::layout(input);
+    CHECK(!result.lines.empty());
+    for (const auto& line : result.lines) {
         for (const auto& run : line.runs) {
             CHECK(run.style.shaping.direction == TextDirection::LTR);
         }
@@ -209,8 +204,7 @@ TEST_CASE("TextLayout: explicit LTR direction skips bidi segmentation") {
 
 TEST_CASE("TextLayout: explicit RTL direction preserves single run") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutInput input;
     input.text = "\xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 English";  // Arabic + English
@@ -218,8 +212,7 @@ TEST_CASE("TextLayout: explicit RTL direction preserves single run") {
     input.font_spec = test_text_fixture::inter_bold();
     input.style.font_path = "assets/fonts/Inter-Bold.ttf";
     input.style.size = 32.0f;
-       auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();;
+    input.style.shaping.direction = TextDirection::RTL;
 
     const auto result = TextLayoutEngine::layout(input);
     CHECK(!result.lines.empty());
@@ -232,8 +225,7 @@ TEST_CASE("TextLayout: explicit RTL direction preserves single run") {
 
 TEST_CASE("TextLayout: bidi run widths are non-zero") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutInput input;
     input.text = "Hello \xD9\x85\xD8\xB1\xD8\xAD\xD8\xA8\xD8\xA7 World";
@@ -241,8 +233,7 @@ TEST_CASE("TextLayout: bidi run widths are non-zero") {
     input.font_spec = test_text_fixture::inter_bold();
     input.style.font_path = "assets/fonts/Inter-Bold.ttf";
     input.style.size = 32.0f;
-    i    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    input.style.shaping.direction = TextDirection::Auto;
 
     const auto result = TextLayoutEngine::layout(input);
     CHECK(!result.lines.empty());
@@ -257,8 +248,8 @@ TEST_CASE("TextLayout: bidi run widths are non-zero") {
 // ── FontEngine shaping with bidi directions ────────────────────────────
 
 TEST_CASE("FontEngine: shaping Arabic with explicit RTL") {
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    chronon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextShaping rtl_shaping;
     rtl_shaping.direction = TextDirection::RTL;
@@ -275,8 +266,7 @@ TEST_CASE("FontEngine: shaping Arabic with explicit RTL") {
 
 TEST_CASE("FontEngine: shaping Arabic+English with Auto") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextShaping auto_shaping;
     auto_shaping.direction = TextDirection::Auto;

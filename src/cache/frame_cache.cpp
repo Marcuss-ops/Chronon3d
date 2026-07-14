@@ -24,8 +24,7 @@ size_t FrameCacheKeyHash::operator()(const FrameCacheKey& key) const noexcept {
     return static_cast<size_t>(key.digest());
 }
 
-FrameCache::FrameCache(size_t max_entries, size_t num_shards,
-                       CacheDiagnostics* diag)
+FrameCache::FrameCache(size_t max_entries, size_t num_shards, CacheDiagnostics* diag)
     : m_cache(
           [&] {
               auto p = resolve_cache_policy(CacheDomain::RenderedFrames,
@@ -34,18 +33,11 @@ FrameCache::FrameCache(size_t max_entries, size_t num_shards,
                   m_diag_handle = diag->register_cache(
                       CacheDomain::RenderedFrames,
                       [this]() -> GenericCacheStats {
-                          if (!m_diag_alive.load(std::memory_order_acquire)) return {};
                           auto s = m_cache.stats();
                           return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
                       },
-                      [this] {
-                          if (!m_diag_alive.load(std::memory_order_acquire)) return;
-                          m_cache.clear();
-                      },
-                      [this] {
-                          if (!m_diag_alive.load(std::memory_order_acquire)) return CapacityMode::Weight;
-                          return m_cache.capacity_mode();
-                      },
+                      [this] { m_cache.clear(); },
+                      [this] { return m_cache.capacity_mode(); },
                       p.capacity);
               }
               return p;

@@ -78,8 +78,7 @@ TEST_CASE("LayerBuilder: animations resolve in layer-local time") {
 
 TEST_CASE("LayerBuilder: font_engine setter and getter") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     LayerBuilder b("layer");
     CHECK(b.font_engine() == nullptr);

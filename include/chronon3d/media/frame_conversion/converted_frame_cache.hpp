@@ -105,12 +105,12 @@ public:
     /// resolve_cache_policy(CacheDomain::ConvertedFrames).
     /// `num_shards` defaults to 2; tests may pass 1 when the per-shard
     /// split would otherwise hide the expected eviction.
+    /// P1-10 — `diag` is the nullable observer (defaults to nullptr =
+    /// no-op registration).
     explicit ConvertedFrameCache(
         std::size_t capacity_bytes = 0,
         std::size_t num_shards     = 2,
         chronon3d::cache::CacheDiagnostics* diag = nullptr);
-    void set_diagnostics(chronon3d::cache::CacheDiagnostics& diag);
-    ~ConvertedFrameCache() { m_diag_alive.store(false, std::memory_order_release); }
 
     /// Look up a key.  Returns an empty ConvertedFrame on miss.
     /// On hit returns a ConvertedFrame view that keeps the entry

@@ -30,6 +30,9 @@ namespace chronon3d::cache {
 
 // ── Free function: human-readable cache snapshot dump ──────────────────
 
+// Forward declaration for the free function below.
+class CacheDiagnostics;
+
 /// Query CacheDiagnostics and format a multi-line cache snapshot.
 /// Suitable for spdlog::info or CLI output.
 ///
@@ -93,11 +96,6 @@ public:
     // constructor injection (nullable observer pattern — nullptr = no-op
     // registration).  See TICKET-LOG-REDUCE-GLOBAL-STATE-01 closure.
 
-    // P1-10 — ctor now PUBLIC.  The previous `private` + `friend class
-    // RenderRuntime` was needed because only the runtime constructed a
-    // diagnostics (the old process-wide singleton).  After DI migration,
-    // external code (tests, runtime adapters) constructs its own
-    // `CacheDiagnostics` instance and passes a pointer to the caches.
     CacheDiagnostics() = default;
 
     CacheDiagnostics(const CacheDiagnostics&)            = delete;

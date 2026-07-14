@@ -8,7 +8,9 @@
 #include <chronon3d/scene/camera/camera_rig_animated_presets.hpp>
 #include <chronon3d/animation/effects/stagger.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
+#include <chronon3d/text/text_placement.hpp>
 #include <chronon3d/presets/motion_presets.hpp>
+#include <chronon3d/presets/scenes/legacy_text_animator.hpp>
 
 namespace chronon3d::scene_presets {
 
@@ -69,7 +71,7 @@ inline TextSpec text_preset(
     TextSpec tp;
     tp.content.value = std::move(text);
     tp.layout.box = size;
-    tp.position = pos;
+    tp.placement = TextPlacement{TextPlacementKind::Absolute, {pos.x, pos.y}};
     tp.font.font_path = std::move(font_path);
     tp.font.font_family = std::move(font_family);
     tp.font.font_weight = font_weight;
@@ -78,6 +80,7 @@ inline TextSpec text_preset(
     tp.appearance.color = color;
     tp.layout.align = align;
     tp.layout.vertical_align = VerticalAlign::Middle;
+    tp.placement = TextPlacement{TextPlacementKind::Absolute, {pos.x, pos.y}};
     return tp;
 }
 

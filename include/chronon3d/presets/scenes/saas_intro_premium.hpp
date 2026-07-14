@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/presets/scenes/legacy_text_animator.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
@@ -116,7 +117,7 @@ inline Composition saas_intro_premium() {
                 .mode = TextAnimMode::ByCharacter,
                 .duration = Frame{25},
                 .delay_per_unit = Frame{3},
-                .easing = EasingCurve{Easing::OutCubic},
+                .easing = Easing::OutCubic,
                 .animate_opacity = true,
                 .animate_slide = true,
                 .slide_from = {0.0f, 50.0f, 0.0f},
@@ -206,7 +207,7 @@ inline Composition saas_intro_premium() {
                 l.drop_shadow({0.0f, 16.0f}, {0.0f, 0.0f, 0.0f, 0.30f}, 32.0f);
 
                 // Glow accent
-                l.glow(14.0f, 0.20f, cards[i].accent, 0.0f);
+                l.glow(GlowParams{.radius = 14.0f, .intensity = 0.20f, .color = cards[i].accent, .threshold = 0.0f});
 
                 // Animate: depth reveal from behind
                 l.depth_reveal(200.0f + static_cast<f32>(i) * 40.0f, Frame{40});
@@ -216,7 +217,7 @@ inline Composition saas_intro_premium() {
         // Stagger cards by depth (near to far)
         s.stagger({"card_0", "card_1", "card_2"}, StaggerConfig{
             .delay_per_unit = Frame{8},
-            .easing = EasingCurve{Easing::OutCubic},
+            .easing = Easing::OutCubic,
         }, StaggerOrder::DepthNearToFar);
 
         // ── CTA button with settle animation ─────────────────────
@@ -236,7 +237,7 @@ inline Composition saas_intro_premium() {
                 "Get Started", 18.0f, 700, {1.0f, 1.0f, 1.0f, 1.0f},
                 TextAlign::Center, {240.0f, 56.0f}
             ));
-            l.glow(10.0f, 0.25f, Color{0.3f, 0.6f, 1.0f, 1.0f}, 0.0f);
+            l.glow(GlowParams{.radius = 10.0f, .intensity = 0.25f, .color = Color{0.3f, 0.6f, 1.0f, 1.0f}, .threshold = 0.0f});
             l.settle(0.06f, Frame{25});
         });
 
