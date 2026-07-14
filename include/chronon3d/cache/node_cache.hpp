@@ -117,8 +117,22 @@ class NodeCache {
 public:
     using Value = std::shared_ptr<Framebuffer>;
 
-    explicit NodeCache(size_t capacity_bytes = 2048ULL * 1024 * 1024);
+    /// P1-10 — `diag` is the nullable observer (defaults to nullptr =
+    /// no-op registration).  Positioned LAST so existing call sites that
+    /// pass `capacity_bytes` continue to work unchanged.  The runtime
+    /// passes `&m_diagnostics` via `set_diagnostics()` after default
+    /// construction (the value-member caches are default-constructed
+    /// before `m_diagnostics` is wired into the init list).
+    explicit NodeCache(size_t capacity_bytes   = 2048ULL * 1024 * 1024,
+                       CacheDiagnostics* diag = nullptr);
     ~NodeCache();
+    /// P1-10 — re-registers with the new diagnostics.  Used by
+    /// `RenderRuntime` to wire its per-instance diagnostics into the
+    /// value-member caches after default construction.  Replaces the
+    /// no-op handle (the old handle is RAII-destroyed; since the old
+    /// handle was default-constructed with no entry, the destroy is a
+    /// no-op).
+    void set_diagnostics(CacheDiagnostics& diag);
     NodeCache(NodeCache&&) noexcept = default;
     NodeCache& operator=(NodeCache&&) noexcept = default;
 

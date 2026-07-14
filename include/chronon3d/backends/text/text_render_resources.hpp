@@ -25,6 +25,7 @@
 
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>  // P1-8: TextRasterization return type for lookup_raster_cache
 #include <chronon3d/core/types/types.hpp>
+#include <optional>  // P1-9: lookup_glyph_atlas return type
 
 #include <atomic>
 #include <cstddef>
@@ -50,6 +51,9 @@ namespace chronon3d {
 // Forward declarations
 namespace assets { class AssetResolver; }
 namespace detail { struct TextRasterCache; }  // P1-8: forward decl; full def in text_render_resources.cpp
+struct GlyphAtlasEntry;                       // P1-9: forward decl from text/glyph_atlas.hpp
+struct GlyphAtlasStats;                       // P1-9: forward decl from text/glyph_atlas.hpp
+struct PlacedGlyphRun;                        // P1-9: forward decl from text/font_engine.hpp
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BLFontFaceCache — thread-safe cache of BLFontFace objects
@@ -506,6 +510,76 @@ struct TextRenderResources {
     /// Insert a rasterization.  Weight = `image.width * image.height * 4`.
     /// Materializes the cache lazily on first call.
     void store_raster_cache(uint64_t key, std::shared_ptr<TextRasterization> result);
+
+    // ── P1-9: GlyphAtlas owner (migrated from `src/backends/text/glyph_atlas.cpp`) ──
+    // The 4 free functions `set_glyph_atlas_capacity` / `get_glyph_atlas` /
+    // `get_glyph_atlas_mutex` / `glyph_atlas_clear` are GONE (deleted).
+    // The atlas now lives on `TextRenderResources::glyph_atlas` — PIMPL'd
+    // in the cpp so the LruCache internals + shared_mutex don't leak
+    // beyond what is already exposed in the public SDK header.
+    //
+    // Production callers access via:
+    //   sw_renderer->text_render_resources()->lookup_glyph_atlas(p, gid, sz);
+    //   sw_renderer->text_render_resources()->store_glyph_atlas(p, gid, sz, e);
+    //   sw_renderer->text_render_resources()->set_glyph_atlas_capacity(N);
+    //   sw_renderer->text_render_resources()->clear_glyph_atlas();
+    //   sw_renderer->text_render_resources()->glyph_atlas_stats();
+    //
+    // The legacy `rasterize_text_to_bl_image` ABI-frozen TU bypasses the
+    // atlas (Cat-5 ABI stability constraint, matches the P1-8 raster
+    // cache bypass); the per-renderer atlas is used by non-legacy paths.
+    std::unique_ptr<detail::GlyphAtlasCache> glyph_atlas;
+
+    /// Inject the glyph atlas capacity at renderer construction.
+    /// Equivalent to the deprecated process-global
+    /// `set_glyph_atlas_capacity(size_t)`, but the value is per-instance
+    /// (no first-call-wins atomic CAS — single renderer OWNS this struct).
+    /// Idempotent: first call materializes the cache; subsequent calls
+    /// are silently ignored (post-init capacity updates are no-ops to
+    /// match the legacy first-call-wins semantics).
+    void set_glyph_atlas_capacity(size_t max_bytes);
+
+    /// Drop every cached glyph entry.  Equivalent to the deprecated
+    /// process-global `glyph_atlas_clear()`.  No-op if un-materialized.
+    void clear_glyph_atlas();
+
+    /// Look up a glyph entry by (font_path, glyph_id, font_size).  Returns
+    /// the cached entry on hit, std::nullopt on miss.  Materializes the
+    /// cache lazily on first call (with the configured capacity, or
+    /// 32 MiB fallback if `set_glyph_atlas_capacity` was never called).
+    std::optional<GlyphAtlasEntry> lookup_glyph_atlas(
+        const std::string& font_path,
+        u32 glyph_id,
+        u32 font_size
+    );
+
+    /// Insert a glyph entry.  Weight = `image.width * image.height * 4`.
+    /// Materializes the cache lazily on first call.
+    void store_glyph_atlas(
+        const std::string& font_path,
+        u32 glyph_id,
+        u32 font_size,
+        const GlyphAtlasEntry& entry
+    );
+
+    /// Store individual glyph bitmaps from a HarfBuzz-shaped
+    /// PlacedGlyphRun.  Uses pg.x/pg.y + font.getGlyphBounds() to locate
+    /// each glyph in the rendered image.  Skips glyphs already cached
+    /// with the same fill_color_rgba.  Materializes the cache lazily.
+    void store_glyph_atlas_from_placed_run(
+        const std::string& font_path,
+        const BLImage& rendered_text,
+        const PlacedGlyphRun& placed,
+        const BLFont& font,
+        float origin_x,
+        float origin_y,
+        float font_size,
+        u32 fill_color_rgba
+    );
+
+    /// Returns current stats: (entry_count, total_weight, hits, misses).
+    /// No-op if un-materialized (returns zeroed stats).
+    GlyphAtlasStats glyph_atlas_stats() const;
 };
 
 // ── Cat-2 font preflight summary ──────────────────────────────────────────
