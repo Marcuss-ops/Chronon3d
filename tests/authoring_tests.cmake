@@ -19,6 +19,13 @@ chronon3d_add_test_suite(
     # + ImageRef/FontRef overloads on `Layer::image`/`Text::font`.
     SOURCES authoring/test_animator_dsl.cpp
             authoring/test_asset_api.cpp
+            # B2.2 — Scene::sequence(name, spec, builder) thin forwarder.
+            # Verifies dual-surface dispatch (SequenceBuilder& OR SceneBuilder&,
+            # compile-time enforced via static_assert), nested local-frame
+            # inheritance, fluent Scene& return, and the A1 spatial-skipped
+            # contract from compile_sequence().  No new SDK symbols — pure
+            # public-API routing test (Cat-3 minimal-surface).
+            authoring/test_scene_sequence.cpp
 )
 # Same guard as core_tests.cmake: authoring tests share test_main.cpp
 # which conditionally links against content/extension/text symbols.
