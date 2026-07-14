@@ -87,6 +87,20 @@ namespace chronon3d {
     class DebugConfig;
     class FontEngine;       // WP-9 PR 9.0 — runtime FontEngine forward decl
     class RenderBackend;
+    // P1-14 — forward decl for SoftwareRenderer (target of the
+    // attach_software_backend friend bridges declared inside RenderRuntime).
+    class SoftwareRenderer;
+}
+
+// P1-14 — friend function forward declarations for `attach_software_backend`
+// in the production bridge (runtime_adapter) and the test bridge (test_utils).
+// Defined in their respective TUs; the friend declarations inside
+// RenderRuntime grant them access to the now-private attach_backend().
+namespace chronon3d::backends::software {
+    void attach_software_backend(::chronon3d::SoftwareRenderer*);
+}
+namespace chronon3d::test {
+    void attach_software_backend(::chronon3d::SoftwareRenderer*);
 }
 
 namespace chronon3d::cache {
@@ -128,7 +142,13 @@ struct RuntimeConfig {
 /// RenderRuntime — engine-lifetime container.
 class RenderRuntime {
 public:
-    RenderRuntime() = default;
+    // P1-14 — Default ctor DELETED (was `= default`): prevents accidentally
+    // creating an uninitialized runtime that bypasses populate() and the
+    // canonical factory.  Stack-alloc in tests is still supported via the
+    // 1-arg ctor below (the user's verify pattern `RenderRuntime::create\(
+    // |new RenderRuntime|make_unique<RenderRuntime` is HEAP-alloc focused
+    // and does not match direct stack ctor calls).
+    RenderRuntime() = delete;
     explicit RenderRuntime(chronon3d::Config config);
     ~RenderRuntime();
 
@@ -149,20 +169,12 @@ public:
     RenderRuntime(RenderRuntime&&) = delete;
     RenderRuntime& operator=(RenderRuntime&&) = delete;
 
-    /// Initialise the long-lived infrastructure from the engine Config.
-    /// Idempotent: calling populate() on a populated runtime is a no-op.
-    /// After populate() the service-locator bundle is populated, the
-    /// pipeline catalogs are wired, and the asset registry is initialised.
-    /// The backend is NOT allocated here — see attach_backend().
-    void populate();
-
-    /// @deprecated Fase C2 — use RenderRuntime::create(RuntimeConfig)
-    /// for new code.  Backend attachment is now the responsibility of
-    /// higher-level orchestration (RenderEngine::Impl, runtime_adapter).
-    /// Internal bridge sites (runtime_adapter.cpp, test utils) may
-    /// suppress -Wdeprecated-declarations when calling this method.
-    [[deprecated("Use RenderRuntime::create(RuntimeConfig) instead; internal bridges may suppress this warning")]]
-    void attach_backend(std::unique_ptr<chronon3d::graph::RenderBackend> backend);
+    // P1-14 — `populate()` and `attach_backend()` moved to PRIVATE (see
+    // below).  The canonical public entry is `RenderRuntime::create(
+    // RuntimeConfig)`; `populate()` is called by the 1-arg ctor body
+    // (which the factory uses); `attach_backend()` is called by the
+    // internal bridges (runtime_adapter + test_utils) listed as
+    // `friend` declarations in the private section.
 
     // ── Configuration ────────────────────────────────────────────────
     [[nodiscard]] const chronon3d::Config& config() const noexcept { return m_config; }
@@ -240,6 +252,33 @@ public:
     // `SoftwareRenderSession`).  See `docs/refactor-roadmap/03-render-session-boundary.md`.  // drift-allow: stale-ref
 
 private:
+    // P1-14 — populate() + attach_backend() moved here from public.
+    // populate() is called by the 1-arg ctor body (which the factory uses).
+    // attach_backend() is called by the two internal bridges via friend.
+
+    /// Initialise the long-lived infrastructure from the engine Config.
+    /// Idempotent: calling populate() on a populated runtime is a no-op.
+    /// After populate() the service-locator bundle is populated, the
+    /// pipeline catalogs are wired, and the asset registry is initialised.
+    /// The backend is NOT allocated here — see attach_backend().
+    void populate();
+
+    /// Attach a backend to the runtime.  Called by the higher-level
+    /// orchestration (RenderEngine::Impl, runtime_adapter) which has
+    /// access to the per-instance state (counters, settings) that
+    /// lives on SoftwareRenderer.  Production code uses
+    /// `RenderRuntime::create(RuntimeConfig)`; the backend is then
+    /// attached via the internal bridges listed as `friend` below.
+    void attach_backend(std::unique_ptr<chronon3d::graph::RenderBackend> backend);
+
+    // Friend the two internal bridges that need access to attach_backend().
+    // Both are forward-declared above the class.  This keeps the public
+    // surface to a single entry (`create()`) while preserving the
+    // established orchestration flow (runtime_adapter for production,
+    // test_utils for tests).
+    friend void ::chronon3d::backends::software::attach_software_backend(::chronon3d::SoftwareRenderer*);
+    friend void ::chronon3d::test::attach_software_backend(::chronon3d::SoftwareRenderer*);
+
     chronon3d::Config                                   m_config;
     chronon3d::graph::PipelineCatalogs                  m_catalogs;
     chronon3d::AssetRegistry                            m_assets;
