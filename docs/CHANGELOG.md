@@ -1,5 +1,13 @@
 ## 2026-07-14
 
+### `feat(diagnostics): camera overlay panel layout helper`
+  ([TICKET-CAMERA-OVERLAY-PANEL-CONSTRAINTS](docs/tickets/TICKET-CAMERA-OVERLAY-PANEL-CONSTRAINTS.md))
+
+- Cat-3 minimal-surface (1 NEW struct + 1 NEW inline function, 0 source modifications): adds `OverlayCanvasBounds` + `compute_overlay_panel_constraints(...)` pure helper to `include/chronon3d/scene/camera/camera_debug_overlay.hpp`. Picks up Camera V1 §8 diagnostic work (CAMERA_FEATURE_MATRIX.md §8 Diagnostics 🟡 → partial-✅); supports TICKET-027 forward-point contract (camera_debug_overlay plan/emit seam separation).
+- `OverlayCanvasBounds` struct (4 floats, default 320×240 panel size, data-only POD) computed by a pure function over `CameraDebugOverlayOptions` + `Viewport` honouring `options.anchor` (TopLeft/TopRight/BottomLeft/BottomRight) + `options.panel_offset_x/y`. NO `#ifdef CHRONON3D_ENABLE_DIAGNOSTICS` guard — production builds benefit equally from layout queries (the function has no diagnostic-internals dependency, no SceneBuilder mutation, no side-effect).
+- AGENTS.md v0.1 §regole compliance: NO new SDK ABI break (struct is data-only POD; pure function over already-public types); NO new singleton/registry/resolver/cache; Cat-3 anti-duplication honoured (no SECOND anchor-position math — downstream consumers can call `compute_overlay_panel_constraints` directly without forking the math).
+- Forward-points (NOT in this chore, deferred per AGENTS.md "Fare PR piccole e mirate"): regression lock `tests/scene/camera/test_camera_overlay_panel_constraints.cpp` (4 SUBCASEs — 1 per anchor + 1 offset interaction) + `chronon3d_cli inspect-camera` CLI subcommand per CAMERA_FEATURE_MATRIX §8 CLI path report + TICKET-027 follow-up to extend the plan/emit separation pattern to the shot-timeline diagnostic surface. Macchina-verifica DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum env-block pattern. Subject envelope 49 chars OK ≤ 72 per `tools/check_commit_subject_length.sh`. Cronaca estesa + 4 forward-points nel ticket-home per AGENTS.md "Docs canonical update discipline rule" Cat-3 anti-dup.
+
 ### `chore(tools): SHA-triple fix + check_post_push_consistency.sh Cat-4 gate`
   ([AGENTS.md](AGENTS.md) §Post-push SHA-selfcheck Lint-checkability forward-point, closed in this chore)
 
