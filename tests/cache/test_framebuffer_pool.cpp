@@ -584,7 +584,7 @@ TEST_CASE("FramebufferPool: trim_after_job honors FramebufferPoolClearPolicy") {
 
     SUBCASE("set_clear_policy / clear_policy round-trip") {
         FramebufferPool pool(64ULL * 1024ULL * 1024ULL);
-        REQUIRE(pool.clear_policy() == FramebufferPoolClearPolicy::TrimOnMemoryPressure);  // default
+        REQUIRE(pool.clear_policy() == FramebufferPoolClearPolicy::TrimAfterJob);  // default (matches pre-P1-21 hardcoded clear() behavior)
 
         pool.set_clear_policy(FramebufferPoolClearPolicy::KeepWarm);
         CHECK(pool.clear_policy() == FramebufferPoolClearPolicy::KeepWarm);
@@ -597,9 +597,10 @@ TEST_CASE("FramebufferPool: trim_after_job honors FramebufferPoolClearPolicy") {
 TEST_CASE("Config: framebuffer_pool_clear_policy accessor + setter") {
     auto cfg = chronon3d::Config::from_environment();
 
-    // Default is TrimOnMemoryPressure (preserves pre-P1-21 behavior).
+    // Default is TrimAfterJob (matches pre-P1-21 production behavior:
+    // pipe_export_loop unconditionally called clear() at the end of every job).
     CHECK(cfg.cache().framebuffer_pool_clear_policy() ==
-          chronon3d::cache::FramebufferPoolClearPolicy::TrimOnMemoryPressure);
+          chronon3d::cache::FramebufferPoolClearPolicy::TrimAfterJob);
 
     // set_fb_pool_clear_policy overrides the default.
     cfg.set_fb_pool_clear_policy(chronon3d::cache::FramebufferPoolClearPolicy::KeepWarm);

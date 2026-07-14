@@ -94,10 +94,11 @@ enum class FramebufferAcquireHint {
 //                          is not reused.
 //   TrimOnMemoryPressure — never call clear() explicitly; rely entirely
 //                          on the LRU eviction triggered by
-//                          `max_retained_bytes`.  Default (preserves
-//                          pre-P1-21 engine behavior).
+//                          `max_retained_bytes`.  Use this for
+//                          memory-constrained runs where LRU handles
+//                          trimming.
 //
-// Default: TrimOnMemoryPressure.  Override via
+// Default: TrimAfterJob.  Override via
 // `Config::cache().framebuffer_pool_clear_policy()` or the CLI flag
 // `--fb-pool-clear-policy <policy>`.
 enum class FramebufferPoolClearPolicy {
@@ -315,10 +316,11 @@ private:
     size_t m_current_bytes{0};
     uint64_t m_tick{0};  // monotonic LRU tick
     std::shared_ptr<chronon3d::FramebufferArena> m_arena;
-    // P1-21: clear policy (default TrimOnMemoryPressure preserves
-    // pre-P1-21 engine behavior; LRU eviction handles trimming when
-    // max_retained_bytes is exceeded).
-    FramebufferPoolClearPolicy m_clear_policy{FramebufferPoolClearPolicy::TrimOnMemoryPressure};
+    // P1-21: clear policy (default TrimAfterJob matches pre-P1-21
+    // production behavior: pipe_export_loop.cpp unconditionally
+    // called clear() at the end of every job.  LRU eviction handles
+    // trimming when max_retained_bytes is exceeded).
+    FramebufferPoolClearPolicy m_clear_policy{FramebufferPoolClearPolicy::TrimAfterJob};
 
     // Eviction counters (lifetime)
     std::atomic<size_t> m_evicted_count{0};

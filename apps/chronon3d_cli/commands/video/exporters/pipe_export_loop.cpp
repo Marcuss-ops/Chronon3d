@@ -66,12 +66,16 @@ RenderLoopOutput run_pipe_export_loop(
         loop_result.status.writer_error = true;
     }
 
-    // Release pool framebuffers after render — reduces peak memory
-    // from ~900 MB to ~400 MB for VPS-friendly operation.
-    // The pool will reallocate on the next render if needed.
+    // TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE: wire trim_after_job() into the
+    // production job executor.  Replaces the legacy unconditional clear() with
+    // a policy-driven dispatch: the configured FramebufferPoolClearPolicy
+    // decides whether trim_after_job() actually clears the pool or is a
+    // no-op (KeepWarm / TrimOnMemoryPressure preserve warm state for batch
+    // jobs; TrimAfterJob — the new default — matches the pre-P1-21 hardcoded
+    // clear() behavior for single-job-on-VPS operation).
     if (session.renderer && session.renderer->framebuffer_pool()) {
-        session.renderer->framebuffer_pool()->clear();
-        spdlog::info("[video] Released framebuffer pool — memory trimmed");
+        session.renderer->framebuffer_pool()->trim_after_job();
+        spdlog::info("[video] framebuffer pool trim_after_job() complete (policy-driven)");
     }
 
     RenderLoopOutput output;
