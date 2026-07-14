@@ -543,39 +543,62 @@ Composition make_cache_invalidation() {
 
 void register_text_placement_compositions(CompositionRegistry& registry) {
     // Group A — Dashboard
-    registry.add("TextPlaceStaticCenter",     [](const CompositionProps&) { return make_static_center_no_pos(); });
-    registry.add("TextPlaceAnimatedCenter",   [](const CompositionProps&) { return make_animated_center_no_pos(); });
-    registry.add("TextPlaceScale130",         [](const CompositionProps&) { return make_scale_130_center_no_pos(); });
-    registry.add("TextPlaceGlowShadow",       [](const CompositionProps&) { return make_glow_shadow_center_no_pos(); });
-    registry.add("TextPlaceMultiline",        [](const CompositionProps&) { return make_multiline_center_middle(); });
-    registry.add("TextPlaceSmallBox",         [](const CompositionProps&) { return make_small_box_overflow_clip(); });
-    registry.add("TextPlaceMultisource",      [](const CompositionProps&) { return make_multisource_text_plus_shape(); });
-    registry.add("TextPlacePortrait",         [](const CompositionProps&) { return make_portrait_1080x1920_center(); });
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceStaticCenter",     .factory = [](const CompositionProps&) { return make_static_center_no_pos(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceAnimatedCenter",   .factory = [](const CompositionProps&) { return make_animated_center_no_pos(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceScale130",         .factory = [](const CompositionProps&) { return make_scale_130_center_no_pos(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceGlowShadow",       .factory = [](const CompositionProps&) { return make_glow_shadow_center_no_pos(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceMultiline",        .factory = [](const CompositionProps&) { return make_multiline_center_middle(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceSmallBox",         .factory = [](const CompositionProps&) { return make_small_box_overflow_clip(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceMultisource",      .factory = [](const CompositionProps&) { return make_multisource_text_plus_shape(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlacePortrait",         .factory = [](const CompositionProps&) { return make_portrait_1080x1920_center(); }});
 
     // Group B — Anti-double-translation
-    registry.add("TextPlaceAntiDoubleStatic",   [](const CompositionProps&) { return make_antidouble_static(); });
-    registry.add("TextPlaceAntiDoubleAnimated", [](const CompositionProps&) { return make_antidouble_animated(); });
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceAntiDoubleStatic",   .factory = [](const CompositionProps&) { return make_antidouble_static(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceAntiDoubleAnimated", .factory = [](const CompositionProps&) { return make_antidouble_animated(); }});
 
     // Group C — Layout box
-    registry.add("TextPlaceBoxAlign",          [](const CompositionProps&) { return make_box_alignment(); });
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceBoxAlign",          .factory = [](const CompositionProps&) { return make_box_alignment(); }});
 
     // Group D — Clipping
-    registry.add("TextPlaceClipBlur0",         [](const CompositionProps&) { return make_clip_blur_0(); });
-    registry.add("TextPlaceClipBlur7",         [](const CompositionProps&) { return make_clip_blur_7(); });
-    registry.add("TextPlaceClipBlur20",        [](const CompositionProps&) { return make_clip_blur_20(); });
-    registry.add("TextPlaceClipGlow40",        [](const CompositionProps&) { return make_clip_glow_40(); });
-    registry.add("TextPlaceClipShadow80",      [](const CompositionProps&) { return make_clip_shadow_80(); });
-    registry.add("TextPlaceClipScale130",      [](const CompositionProps&) { return make_clip_scale_130(); });
-    registry.add("TextPlaceClipScale200",      [](const CompositionProps&) { return make_clip_scale_200(); });
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceClipBlur0",         .factory = [](const CompositionProps&) { return make_clip_blur_0(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceClipBlur7",         .factory = [](const CompositionProps&) { return make_clip_blur_7(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceClipBlur20",        .factory = [](const CompositionProps&) { return make_clip_blur_20(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceClipGlow40",        .factory = [](const CompositionProps&) { return make_clip_glow_40(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceClipShadow80",      .factory = [](const CompositionProps&) { return make_clip_shadow_80(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceClipScale130",      .factory = [](const CompositionProps&) { return make_clip_scale_130(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceClipScale200",      .factory = [](const CompositionProps&) { return make_clip_scale_200(); }});
 
     // Group E — Multi-resolution
-    registry.add("TextPlaceMultiRes1920x1080", [](const CompositionProps&) { return make_multires_1920x1080(); });
-    registry.add("TextPlaceMultiRes1280x720",  [](const CompositionProps&) { return make_multires_1280x720(); });
-    registry.add("TextPlaceMultiRes1080x1920", [](const CompositionProps&) { return make_multires_1080x1920(); });
-    registry.add("TextPlaceMultiRes3840x2160", [](const CompositionProps&) { return make_multires_3840x2160(); });
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceMultiRes1920x1080", .factory = [](const CompositionProps&) { return make_multires_1920x1080(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceMultiRes1280x720",  .factory = [](const CompositionProps&) { return make_multires_1280x720(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceMultiRes1080x1920", .factory = [](const CompositionProps&) { return make_multires_1080x1920(); }});
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceMultiRes3840x2160", .factory = [](const CompositionProps&) { return make_multires_3840x2160(); }});
 
     // Group F — Cache invalidation
-    registry.add("TextPlaceCacheInvalidation", [](const CompositionProps&) { return make_cache_invalidation(); });
+    registry.add(CompositionDescriptor{
+        .id = "TextPlaceCacheInvalidation", .factory = [](const CompositionProps&) { return make_cache_invalidation(); }});
 }
 
 } // namespace chronon3d::content::text_placement
