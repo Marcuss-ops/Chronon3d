@@ -66,11 +66,11 @@ void apply_text_material(BLImage& img, const TextMaterial& mat);
 
 #endif // CHRONON3D_USE_BLEND2D
 
-/// Inject the text raster cache capacity at startup (called once by
-/// SoftwareRenderer).  Must be called before first rasterize_text_to_bl_image().
-void set_text_cache_capacity(size_t max_bytes);
-
-void clear_text_raster_cache();
+// P1-8: `set_text_cache_capacity` + `clear_text_raster_cache` are DELETED.
+// Their state moved to `TextRenderResources::raster_cache` (see
+// `text_render_resources.{hpp,cpp}`); production callers inject + clear
+// via `sw_renderer->text_render_resources()->set_raster_cache_capacity(N)`
+// / `clear_raster_cache()`.
 
 uint64_t hash_text_style(
     const TextShape& t,

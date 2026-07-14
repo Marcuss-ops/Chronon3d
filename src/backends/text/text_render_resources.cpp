@@ -1,9 +1,13 @@
 #include <chronon3d/backends/text/text_render_resources.hpp>
 
 #include <chronon3d/assets/asset_resolver.hpp>
+// P1-8: per-renderer text-raster cache state + `hash_text_style` impl relocation.
+#include <chronon3d/backends/text/text_rasterizer_utils.hpp>
+#include <chronon3d/cache/lru_cache.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 
 #include <spdlog/spdlog.h>
-
+#include <shared_mutex>  // P1-8: TextRasterCache PIMPL uses std::shared_mutex
 #include <algorithm>
 #include <cmath>
 
@@ -432,6 +436,94 @@ FontFaceHandle TextRenderResources::resolve_handle(
 #endif
 
     return handle;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P1-8 — TextRasterCache PIMPL + `hash_text_style` impl + raster cache API
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The cache state that USED to live in `src/backends/text/text_rasterizer_cache.cpp`
+// is now co-located with TextRenderResources.  The 4 free functions
+// (`set/lookup/store_text_cache` + `clear_text_raster_cache`) are deleted.
+// Production callers access via the TextRenderResources members declared
+// in `text_render_resources.hpp`.  The legacy `rasterize_text_to_bl_image`
+// ABI-frozen TU bypasses the cache (Cat-5 ABI stability constraint); the
+// per-renderer cache is used by non-legacy renderer paths.
+
+namespace chronon3d {
+namespace detail {
+
+struct TextRasterCache {
+    using CacheKey = u64;
+    using CacheValue = std::shared_ptr<TextRasterization>;
+    using TextCache = cache::LruCache<CacheKey, CacheValue>;
+
+    /// 32 MiB fallback — matches the legacy
+    /// `text_rasterizer_cache.cpp::kFallback` (TICKET-079).  Used when a
+    /// caller passes `0` to the ctor.
+    static constexpr size_t kFallbackBytes = 32ULL * 1024ULL * 1024ULL;
+
+    std::shared_mutex mutex;
+    TextCache cache;
+
+    /// Ctor MATERIALIZES the cache eagerly with the requested capacity
+    /// (or fallback if 0).  Eager-init mirrors the legacy first-call-wins
+    /// semantics in `text_rasterizer_cache.cpp::resolve_text_cache_capacity()`:
+    /// capacity is locked at materialization; post-init capacity updates
+    /// are silently ignored.  The renderer MUST call
+    /// `TextRenderResources::set_raster_cache_capacity(N)` from its ctor
+    /// BEFORE the first cache touch for the injected capacity to apply.
+    explicit TextRasterCache(size_t capacity_in)
+        : cache(capacity_in > 0 ? capacity_in : kFallbackBytes, 8) {}
+};
+
+} // namespace detail
+
+// `chronon3d::hash_text_style` — relocated from `text_rasterizer_cache.cpp`.
+// Public ABI: declared in `<chronon3d/backends/text/text_rasterizer_utils.hpp>`
+// (test_text_cache_key.cpp compiles unchanged because only the implementation
+// moved; the declaration is preserved verbatim).
+uint64_t hash_text_style(
+    const TextShape& t,
+    float effective_size,
+    int padding,
+    const Mat4* transform
+) {
+    return graph::hash_text_style_full(t, effective_size, padding, transform);
+}
+
+// Per-instance cache API on TextRenderResources.  `raster_cache` is
+// allocated lazily on the first `set_raster_cache_capacity` call (called
+// by SoftwareRenderer ctor).  Subsequent lookups/store/clear no-op on an
+// un-materialized instance.
+
+void TextRenderResources::set_raster_cache_capacity(size_t max_bytes) {
+    if (!raster_cache) {
+        raster_cache = std::make_unique<detail::TextRasterCache>(max_bytes);
+    }
+    // Post-materialization calls are silently ignored — see TextRasterCache
+    // ctor comment for the rationale (legacy first-call-wins semantics).
+}
+
+void TextRenderResources::clear_raster_cache() {
+    if (!raster_cache) return;
+    std::unique_lock lock(raster_cache->mutex);
+    raster_cache->cache.clear();
+}
+
+std::shared_ptr<TextRasterization> TextRenderResources::lookup_raster_cache(uint64_t key) {
+    if (!raster_cache) return nullptr;
+    std::shared_lock lock(raster_cache->mutex);
+    auto cached = raster_cache->cache.get(key);
+    return cached ? *cached : nullptr;
+}
+
+void TextRenderResources::store_raster_cache(uint64_t key, std::shared_ptr<TextRasterization> result) {
+    if (!raster_cache) return;
+    size_t weight = static_cast<size_t>(result->image.width()) *
+                    static_cast<size_t>(result->image.height()) * 4;
+    std::unique_lock lock(raster_cache->mutex);
+    raster_cache->cache.put(key, result, weight);
 }
 
 } // namespace chronon3d
