@@ -3,8 +3,8 @@
 # ==============================================================================
 
 # Top-level processor sources
-# Image and text sub-processors are added via add_subdirectory(image) and
-# add_subdirectory(text) below.
+# Image sub-processors are added via add_subdirectory(image) below.
+# Text-run sub-processors live under text_run/.
 target_sources(chronon3d_backend_software PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/builtin_processors.cpp
 )
@@ -23,6 +23,5 @@ target_sources(chronon3d_backend_software PRIVATE
 )
 
 add_subdirectory(image)
-add_subdirectory(text)
 add_subdirectory(text_run)
 add_subdirectory(effects)

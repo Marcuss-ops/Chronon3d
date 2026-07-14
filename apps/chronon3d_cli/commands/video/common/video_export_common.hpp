@@ -93,7 +93,7 @@ inline Scene evaluate_video_scene(
 {
     return comp.evaluate(time.integral_frame(),
                          static_cast<f32>(time.fraction()),
-                         &renderer.font_engine());
+                         &renderer.runtime());
 }
 
 /// Convenience overload for callers that only have a discrete Frame

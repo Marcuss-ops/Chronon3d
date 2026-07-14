@@ -104,26 +104,26 @@ public:
                                m_spec.frame_rate, res);
     }
 
-    // codex/agent2-font-bind-fixes — engine-aware evaluate overload.
+    // WP-9 / P1-16 — engine-aware evaluate overload.
     // Same semantics as the 3-arg version above, but additionally threads
-    // the per-frame FontEngine from the render pipeline
-    // (SoftwareRenderer::font_engine()) into FrameContext::font_engine,
-    // which is then auto-forwarded by SceneBuilder(ctx) onto every
-    // LayerBuilder.  Without this overload the WP-8 PR 8.0 strict
-    // binding in `materialize_text_run_shape` rejects the resolve_engine
-    // lookup (engine=nullptr if no other binding path) and text layers
-    // render blank.  Existing 1/2/3-arg overloads continue to default
-    // engine=nullptr for backwards compatibility.
+    // the per-frame RenderRuntime from the render pipeline into
+    // FrameContext::runtime, which is the SOLE canonical source for the
+    // font engine (ctx.runtime->font_engine()).  SceneBuilder(ctx) forwards
+    // the runtime onto every LayerBuilder.  Without this overload the
+    // WP-8 PR 8.0 strict binding in `materialize_text_run_shape` rejects
+    // the resolve_engine lookup and text layers render blank.  Existing
+    // 1/2/3-arg overloads continue to default runtime=nullptr for backwards
+    // compatibility.
     //
-    // Parameter ordering: engine BEFORE memres (engine is the more
+    // Parameter ordering: runtime BEFORE memres (runtime is the more
     // semantically important binding; memres is defaulted so callers
     // don't need to write `get_default_resource()` everywhere).
     [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]
     [[nodiscard]] Scene evaluate(Frame frame, f32 frame_time,
-                                 FontEngine* engine,
+                                 const chronon3d::runtime::RenderRuntime* runtime,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
         return evaluate_double(static_cast<double>(frame) + static_cast<double>(frame_time),
-                               m_spec.frame_rate, res, engine);
+                               m_spec.frame_rate, res, runtime);
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -230,7 +230,7 @@ public:
 private:
     [[nodiscard]] Scene evaluate_double(double frame, FrameRate rate,
                                         std::pmr::memory_resource* res,
-                                        FontEngine* engine = nullptr) const {
+                                        const chronon3d::runtime::RenderRuntime* runtime = nullptr) const {
         const Frame integral = static_cast<Frame>(std::floor(frame));
         FrameContext ctx{
             .frame      = integral,
@@ -241,9 +241,15 @@ private:
             .width      = m_spec.width,
             .height     = m_spec.height,
             .assets_root = m_spec.assets_root,
-            .resource   = res,
-            .font_engine = engine,  // codex/agent2-font-bind-fixes
+            .resource    = res,
+            .runtime     = runtime,  // WP-9 / P1-16
         };
+        // Backward-compat: populate the legacy font_engine field from the
+        // runtime so existing composition lambdas that read ctx.font_engine
+        // continue to work during the migration.
+        if (runtime) {
+            ctx.font_engine = runtime->font_engine();
+        }
         // No longer calling AssetRegistry::mount() globally — the assets root
         // is threaded through FrameContext → Scene → RenderGraphContext →
         // thread-local guard, so concurrent render jobs don't interfere.
