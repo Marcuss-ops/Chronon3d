@@ -63,10 +63,13 @@ Per pre-existing code (`command_still.cpp:96-102`), `command_still` already buil
 
 - [ ] **TICKET-V3-CLI-UNIFICATION-REMOVE-STILL**: V0.2 chore — fully DELETE the `still` sub-command block from `register_render_commands.cpp:113` + DELETE `command_still.cpp` + delete `StillArgs` from `commands.hpp:281` + dependent reference cleanup. Prerequisite: all internal `chronon still` callers migrated to `chronon render --frame=N`.
 
-- [ ] **TICKET-V3-CLI-UNIFICATION-VIDEO-MODE** (P1, absorbs DRY-RUN-MIGRATION + PREFLIGHT-VS-INSPECT per forward-points fold Cat-3 anti-dup, this commit): V0.2 chore — extend `command_render` body to support `RenderMode::Video` (MP4 ffmpeg-encode path inside the canonical render dispatcher). Requires: (a) extending RenderJob dispatcher to handle Video mode + output .mp4 + ffmpeg-mode flag; (b) extending `plan_render_job` to handle the encode pipeline + chunking + ffmpeg-related options; (c) extending `execute_render_job` to encode the rendered sequence to MP4; (d) folding `--dry-run` flag from video sub-command into render canonical (mode-aware dry-run switch, composition validate via `command_render ... --dry-run`, similar to TICKET-FFMPEG-PIPE-SINK-SPLIT lineage; replaces `dry_run_video_job` helper in `command_video.cpp` with canonical dispatcher path); (e) integrating `AssetPreflightResolver::check(PreflightMode::FrameOnly, frame)` into canonical dispatcher (currently lives only in `command_still` body at command_still.cpp:35-46; cross-link [TICKET-PREFLIGHT-INTEGRATION](TICKET-PREFLIGHT-INTEGRATION.md)). After this chore: `command_render <id> -o <id>.mp4` works end-to-end WITHOUT the video alias; `chronon render --dry-run` validates composition + settings; `chronon render --frame=N` triggers FrameOnly preflight.
+- [ ] **TICKET-V3-CLI-UNIFICATION-VIDEO-MODE**: V0.2 chore — extend `command_render` body to support `RenderMode::Video` (MP4 ffmpeg-encode path inside the canonical render dispatcher). Requires: (a) extending RenderJob dispatcher to handle Video mode + output .mp4 + ffmpeg-mode flag; (b) extending `plan_render_job` to handle the encode pipeline + chunking + ffmpeg-related options; (c) extending `execute_render_job` to encode the rendered sequence to MP4. After this chore: `command_render <id> -o <id>.mp4` works end-to-end WITHOUT the video alias.
 
 - [ ] **TICKET-V3-CLI-UNIFICATION-REMOVE-VIDEO**: V0.2 chore (after VIDEO-MODE lands) — fully DELETE `register_video_commands.cpp` + `command_video.cpp` + `command_video_camera.cpp` + `utils/video/*` (entire video job plan/execute/dry_run/validate pipeline) + `VideoArgs` from `commands.hpp` + `apps/chronon3d_cli/utils/video/` directory + `group_video.cpp`. Prerequisite: VIDEO-MODE chore D-30 + macchina-verifica via `bash tools/verify_video_pipeline_linux.sh` + `bash tools/verify_cinematic_showcase.sh`.
 
+- [ ] **TICKET-V3-CLI-UNIFICATION-DRY-RUN-MIGRATION**: V0.2 chore (paired with VIDEO-MODE) — the `--dry-run` flag currently lives only on `video` sub-command (calls `dry_run_video_job`). When VIDEO-MODE lands, the dry-run path must be folded into the render path (similar to other audit chore `TICKET-FFMPEG-PIPE-SINK-SPLIT` lineage): mode-aware dry-run switch + composition validate via `command_render ... --dry-run`.
+
+- [ ] **TICKET-V3-CLI-UNIFICATION-PREFLIGHT-VS-INSPECT**: V0.2 chore (paired with VIDEO-MODE) — the `chronon still` body currently calls `AssetPreflightResolver::check(..., PreflightMode::FrameOnly, args.frame)` at lines 35-46. When VIDEO-MODE lands, `chronon render --frame=N` should ALSO trigger the FrameOnly preflight via the canonical dispatcher (currently NOT present in command_render body). Macro-chore `TICKET-PREFLIGHT-INTEGRATION` already open in §Inline-block-of-document-redirects lineage.
 
 ## Criteri di accettazione (verified this commit)
 
@@ -115,11 +118,13 @@ Trade-offs accettati:
 
 ## Forward-points close-loop check (Cat-5 ticket-home integrity)
 
-Subsection §Forward-points lists 3 forward-tickets (down from 5 via forward-points fold Cat-3 anti-dup, this commit), each linked to a PRECISE next-release chore:
+Subsection §Forward-points lists 5 forward-tickets, each linked to a PRECISE next-release chore:
 1. `REMOVE-STILL` (P2, this ticket)
-2. `VIDEO-MODE` (P1, this ticket) — most impactful; absorbs `DRY-RUN-MIGRATION` + `PREFLIGHT-VS-INSPECT` (former separate P2 forward-points now consolidated per §forward-points-fold discipline into VIDEO-MODE sub-bullets (d) + (e))
+2. `VIDEO-MODE` (P1, this ticket) — most impactful
 3. `REMOVE-VIDEO` (P2, this ticket)
+4. `DRY-RUN-MIGRATION` (P2, this ticket)
+5. `PREFLIGHT-VS-INSPECT` (P2, this ticket)
 
-Each forward-point is GREP-DISCOVERABLE inside the ticket-home per AGENTS.md §Cat-3 anti-dup integrity rule. The 2 absorbed forward-points' content is preserved verbatim in the expanded VIDEO-MODE entry sub-bullets (d) + (e) per Cat-5 anti-dup integrity requirement (no semantic loss during fold).
+Each forward-point is GREP-DISCOVERABLE inside the ticket-home per AGENTS.md §Cat-3 anti-dup.
 
 Cronaca estesa lives here, NOT in catena canonical (CHANGELOG.md + FOLLOWUP_TICKETS.md have cite-only entries per entry).
