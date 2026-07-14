@@ -1,5 +1,22 @@
 ## 2026-07-13
 
+### `chore(tools): add check_clean_rebuild.sh opt-in periodic gate`
+
+Cat-4 INSTALL_PIPELINE_PLUMBING ancillare. Per-build-dir pipeline: `rm -rf`
+→ `cmake -B configure -DCMAKE_BUILD_TYPE=$type` → `cmake --build
+--target chronon3d_core_tests` (multi-config-aware via auto-detected
+`--config` flag from CMakeCache.txt for Ninja Multi-Config / VS / Xcode;
+single-config generators ignore `--config` gracefully) → `ctest
+--timeout 30 -R ^chronon3d_` smoke. Opt-in via
+`CHRONON3D_CLEAN_REBUILD=1`; default = no-op + `[INFO]` diagnostic
+(reserves `[INFO]` prefix for clean-state per AGENTS.md §Lint discipline
+Rule #2). NOT in `tools/wrap_push.sh` standard chain (opt-in discipline
+preserves fast incremental flow). Configurable
+build-dirs/target/build-type/regex/dry-run via env. Exit codes 0/1/2
+(clean/rot/internal-error). Subject envelope 56 chars OK ≤ 72. Closes
+the silent-class "rotted artifacts" failure mode that incremental ninja's
+mtime-bit-flip exit-0 cannot detect.
+
 ### `test+chore(bench): bench.json + dashboard + baseline + ticket artifacts at 7eb5c2ba`
   ([TICKET-BENCH-BASELINE-SHA-V1](docs/tickets/TICKET-BENCH-BASELINE-SHA-V1.md),
    [TICKET-COMMIT-SUBJECT-ENVELOPE-VIOLATION-F15](docs/tickets/TICKET-COMMIT-SUBJECT-ENVELOPE-VIOLATION-F15.md))
