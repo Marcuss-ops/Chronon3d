@@ -1,6 +1,19 @@
 ## 2026-07-13
 
-### `chore(docs): codify 2x-in-one-chore deprecation reversal rule`
+### `fix(builder): remove duplicate text() overload declaration`
+  ([TICKET-RESIDUAL-BUILD-ROT-RECOVERY](docs/tickets/TICKET-RESIDUAL-BUILD-ROT-RECOVERY.md))
+
+- Removed duplicate `LayerBuilder& text(std::string name, const TextSpec& spec);` declaration introduced by upstream commit `ee90cb23` (refactor(builders): split LayerBuilder into domain files) which added line 408 /// docstring'd without removing legacy line 402 F3.D inline-commented.
+- Restored parser-clean inclusion of `layer_builder.hpp` across all TUs; collapses the parse-fail cascade that was masking 4 content/* designator-order + 1 syntax + 1 type-conversion rot plus SIMD-binary-missing symptom.
+- Cat-3 minimal-surface (1 file, -1 line; SDK ABI surface unchanged because the orphan was an INVALID C++ declaration producing no symbol). Subject envelope 62 chars OK ≤ 72.
+
+### `docs(followup): macchina-verifica PARTIAL + TICKET-SIMD-PRECISION-DRIFT`
+  ([TICKET-RESIDUAL-BUILD-ROT-RECOVERY](docs/tickets/TICKET-RESIDUAL-BUILD-ROT-RECOVERY.md),
+   [TICKET-SIMD-PRECISION-DRIFT](docs/tickets/TICKET-SIMD-PRECISION-DRIFT.md))
+
+- TICKET-RESIDUAL-BUILD-ROT-RECOVERY macchina-verificato PARTIAL: 3 build targets BUILD SUCCESS (chronon3d_core_tests + chronon3d_content + chronon3d_simd_parity_blend_tests) + SIMD binary produced (564MB); 5 originally-listed forward-points reclassified N/A red-herring per load-bearing single-header-dedup.
+- TICKET-SIMD-PRECISION-DRIFT (NEW cat-5 ticket, P1 OPEN): scalar_blend alpha=0 identity rot in `tests/simd/test_simd_parity_blend.cpp:51` (TEST_CASE) + line 58 (3 CHECK failures: 0.6↔0.5 + 0.8↔0.6 + 1.0↔0.7). Forward-pointed to WBH-FIX per TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV.
+- FOLLOWUP_TICKETS.md updated: 2 new rows at §Open Blockers top (Cat-5 newer-at-top convention).
 
 Lands 1 file: `AGENTS.md` (new rule #7 in `## Regole di lint documentale`).
 Rule: when a chore removes `[[deprecated]]` markers (deprecation reversal),
