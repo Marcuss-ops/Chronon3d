@@ -112,6 +112,38 @@ The legacy `add(name, factory)` was simplified:
 
 **Class doc comment updated** to record the Phase-1 elimination + forward-point to `[[deprecated]]` re-add (Phase-2) + REMOVAL post V0.1 + ADR (Phase-3).
 
+## Phase 3 — Implementation History (2026-07-14, PARTIAL)
+
+Per user-directive verbatim 2026-07-14 P2 item #30 ("Elimina CompositionRegistry::add(name, factory) ... A quel punto si può anche eliminare la duplicazione factories_"). PHASE-3 was scoped as the legacy `add(name, factory)` overload REMOVAL — Cat-2 freeze source-removal gate per AGENTS.md, requires an ADR before any source-level breaking change.
+
+### §1. ADR-028 pushed (commit `68fc1f8a`, DRAFT status)
+
+The Cat-2 freeze source-removal gate was honored: [ADR-028 `CompositionRegistry legacy add(name, factory) overload REMOVAL (ABI-breaking)`](../adr/ADR-028-compositiondescriptor-removal.md) was drafted and pushed at commit `68fc1f8a` (DRAFT status, ~330 LoC) **before** any source-level breaking change was attempted. The ADR §Implementation Status section explicitly documents that the REMOVAL was DEFERRED in this session due to scope overflow (200+ sites too large for a single atomic chore); §Forward-points lists Chore A (5-file bounded) + Chore B (200+ bulk) as separate forward-points.
+
+### §2. Implementation attempted + reverted (2 failed attempts)
+
+The legacy overload REMOVAL was attempted in this session. **Both attempts failed** and were reverted via `git restore` (no source-level breaking change landed on `main`):
+
+- **Attempt 1** (non-greedy regex): A Python script using `re.compile(r'((?:\w+->|\w+\.)?)add\(\s*("(?:[^"\\]|\\.)*")\s*,\s*([\s\S]*?)\s*\)\s*;')` was run on the entire content/ + apps/ + tests/ tree. The non-greedy `[\s\S]*?` matched too greedily, terminating at the first inner `);` inside multi-line factories (e.g., `return make_xxx();`), producing broken C++ in 33 files + 209 call sites. Caught by code-reviewer-minimax-m3 RED-MAJOR verdict + basher build error (`ninja: build stopped: subcommand failed`).
+- **Attempt 2** (paren-counting): A Python script using proper paren-counting (not non-greedy regex) was authored. The script's logic was incomplete — produced 0 changes when run.
+
+Both attempts were REVERTED via `git restore` (4 source files: `composition_registry.hpp` + `project.hpp` + `extension_module.hpp` + `composition_props.hpp`). The codebase was restored to pre-session state. **ZERO source-level breaking changes landed on `main`.**
+
+### §3. Chore A (5-file bounded migration) — follow-up, DONE
+
+Per the path-B recovery decision (per code-reviewer-minimax-m3 RED-MAJOR verdict on the original Chore A: build would break with 148+ un-migrated callers after REMOVAL), the work was RE-SCOPED into 2 atomic sub-chores:
+
+- **Chore A (THIS CHORE) = preparation: 5 in-tree files MIGRATED to canonical `add(CompositionDescriptor{...})` form (`grid_clean.cpp`, `animation_compositions.cpp`, `register_dev_compositions.cpp`, `register_runtime_compositions.cpp`, `text_placement_compositions.cpp` = ~60 sites).** The 4 breaking source changes (composition_registry.hpp + project.hpp + CMakeLists.txt + tests/CMakeLists.txt) were REVERTED via `git restore` to preserve the legacy `add(name, factory)` overload + CMake `CHRONON3D_REQUIRES_DESCRIPTOR_REGISTRATION` flag (still required since overload still exists). **DONE at commit `11409c38` (this session, 2026-07-14).** See §Forward-points table row `PHASE-3-OVERLOAD-REMOVAL (preparation, this chore)` for the canonical status.
+
+### §4. Chore B (200+ bulk migration) — follow-up, OPEN
+
+The 200+ callers identified in §Scope (~200 call sites) table above remain on the legacy `add(name, factory)` form. The canonical migration recipe (per call site) is:
+
+- **BEFORE**: `registry.add("Name", factory);`
+- **AFTER**: `registry.add(CompositionDescriptor{.id = "Name", .factory = factory, ...});`
+
+The bulk migration must complete BEFORE the legacy overload can be removed. Per AGENTS.md §21ece2b3 path-A recovery template, the bulk migration should be per-AREA incremental (one area per chore, with `cat-5 3-doc atomic` per chore) to avoid the lost-commit pattern observed in the 2 failed attempts. **OPEN, see §Forward-points table row `PHASE-3-OVERLOAD-REMOVAL + ADR (Chore B: bulk migration)`.** The ADR-028 DRAFT status will be updated to "Accepted" once Chore B lands and the legacy overload is REMOVED.
+
 ## Forward-points
 
 | Forward-point | Status | Chiude quando |
