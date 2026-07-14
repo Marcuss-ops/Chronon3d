@@ -28,6 +28,18 @@ richiesta in questo commit.
   a `include/chronon3d/authoring/asset.hpp` (audit §10 già 100% completo da
   lineage F0.2 + Fase B2 — nessuna azione richiesta).
 
+### `chore(text): deprecate centered_text + glow_text (Blocco 5.1)`
+  ([TICKET-CENTERED-TEXT-MIGRATION](docs/tickets/TICKET-CENTERED-TEXT-MIGRATION.md))
+2 marker corrections in `content/text/text_helpers_centered.hpp`:
+(1) `centered_text()` — Aggiunto `[[deprecated]]` (era privo di marker;
+emetteva compile warning silente). (2) `glow_text()` — Aggiornato il
+messaggio del marker esistente per puntare a `TICKET-CENTERED-TEXT-MIGRATION`
+invece di `centered_text()` (che ora è anch'esso deprecato, evita la
+routing-ciclica). Entrambi ora emettono compile warning verso il
+forward-point P2 ticket. Cat-3 minimal-surface (1 file EDIT, 2 LoC
+in net additions; ZERO source in `src/`/`include/`/`apps/`; ZERO new
+SDK API). Subject envelope 53 chars <= 72. macchina-verifica DEFERRED-WBH.
+
 ### `feat(cli): chronon preview --contact-sheet (audit Blocco 4.1)`
   ([TICKET-PREVIEW-CONTACT-SHEET](docs/tickets/TICKET-PREVIEW-CONTACT-SHEET.md))
 Add `--contact-sheet sheet.png` to `chronon preview`: composes the

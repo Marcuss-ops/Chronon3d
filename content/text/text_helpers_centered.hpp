@@ -63,6 +63,8 @@ struct CenterTextOptions {
 
 /// F2.C — canonical authoring helper.  Returns TextDefinition, the single
 /// canonical authoring DTO.  Composes directly with LayerBuilder::text().
+[[deprecated("Use direct TextDefinition construction (this helper is removed after the migration lands) — "
+             "see TICKET-CENTERED-TEXT-MIGRATION (Blocco 5.1).")]]
 inline TextDefinition centered_text(CenterTextOptions o) {
     return TextDefinition{
     .content = {.value = std::move(o.text)},
@@ -116,8 +118,8 @@ inline TextDefinition centered_text(CenterTextOptions o) {
 /// TextMaterial.glow_{color,radius,intensity} on the returned TextDefinition.
 /// `TextMaterial` is the single canonical compositor surface; the prior
 /// `TextEffects` duplicate struct was eliminated in Phase A5 close-out.
-[[deprecated("Use centered_text() + set .style.material.{use_material_glow,glow_*} "
-             "on TextDefinition instead (Phase A5 canonical seam)")]]
+[[deprecated("Use direct TextDefinition construction + set .style.material.{use_material_glow,glow_*} — "
+             "see TICKET-CENTERED-TEXT-MIGRATION (Blocco 5.1). The helper is removed after migration lands.")]]
 inline TextDefinition glow_text(CenterTextOptions o,
                             Color glow_color = {1.0f, 1.0f, 1.0f, 1.0f},
                             f32 radius = 24.0f,
