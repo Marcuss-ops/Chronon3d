@@ -1,5 +1,12 @@
 ## 2026-07-14
 
+### `chore(tests): OPEN PREMULT forward-point tickets (cat-5 3-doc scaffold)`
+  ([TICKET-PREMULT-TEST-SWEEP](docs/tickets/TICKET-PREMULT-TEST-SWEEP.md),
+   [TICKET-PREMULT-CALLER-AUDIT](docs/tickets/TICKET-PREMULT-CALLER-AUDIT.md))
+
+- Cat-5 3-doc same-atomic scaffold: opens 2 NEW cat-5 forward-point tickets surfaced from code-reviewer-minimax-m3 MINOR #2 (symmetric-Premult-strictness) + MINOR #3 (production-caller audit) on prior commit `b16ad302`.
+- Cat-3 minimal-surface (4 file touches across 2 ticket scaffolds + 2 canonical docs): new `docs/tickets/TICKET-PREMULT-TEST-SWEEP.md` + `docs/tickets/TICKET-PREMULT-CALLER-AUDIT.md` + 2 new rows in `docs/FOLLOWUP_TICKETS.md` §Open Blockers top (Cat-5 newer-at-top) + this CHANGELOG entry prepended per Cat-5 newer-at-top. NO SDK API surface change; NO production source touched.
+
 ### `fix(simd): Premult alpha=0 fixture + SweepN + macchina-verifica PASS`
   ([TICKET-SIMD-PRECISION-DRIFT](docs/tickets/TICKET-SIMD-PRECISION-DRIFT.md),
    [TICKET-RESIDUAL-BUILD-ROT-RECOVERY](docs/tickets/TICKET-RESIDUAL-BUILD-ROT-RECOVERY.md))
