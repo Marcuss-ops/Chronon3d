@@ -42,6 +42,12 @@ option(CHRONON3D_BUILD_CLI_BENCH     "Build the chronon3d_cli_bench sub-target (
 # templates/ directory.  At runtime, CHRONON3D_TEMPLATES_DIR env var
 # overrides this baked path.  See templates_dir.hpp.in for the
 # @-substitution template.
+# TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE (Commit 3 of 3) — set
+# the baked templates dir to the repo-root `templates/` so the
+# generated header has a non-empty CHRONON3D_BAKED_TEMPLATES_DIR
+# (the configure_file() below substitutes @CHRONON3D_TEMPLATES_DIR@).
+set(CHRONON3D_TEMPLATES_DIR "${CMAKE_SOURCE_DIR}/templates")
+
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/templates_dir.hpp.in
     ${CMAKE_CURRENT_BINARY_DIR}/generated/templates_dir.hpp
