@@ -46,11 +46,9 @@ struct StressEntry {
 
 TEST_CASE("CacheDiagnostics - shared_mutex concurrent stress"
           * doctest::test_suite("stress")) {
-    auto& diag = CacheDiagnostics::instance();
+    CacheDiagnostics diag;
     diag.set_enabled(true);
-    // Drain any residual state from prior test cases (regression guard for
-    // the cross-test singleton).
-    diag.clear_all();
+    // No residual state to drain — diag is a fresh local instance (P1-10 DI).
 
     REQUIRE(diag.registered_count() == 0);
 

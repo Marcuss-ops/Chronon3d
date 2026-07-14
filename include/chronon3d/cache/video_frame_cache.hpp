@@ -19,6 +19,7 @@
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/core/types/types.hpp>
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -95,6 +96,7 @@ public:
     void set_diagnostics(CacheDiagnostics& diag);
     VideoFrameCache(VideoFrameCache&&) noexcept = default;
     VideoFrameCache& operator=(VideoFrameCache&&) noexcept = default;
+    ~VideoFrameCache() { m_diag_alive.store(false, std::memory_order_release); }
 
     [[nodiscard]] bool contains(const VideoFrameKey& key) const;
     /// Look up a key. Promotes the entry to MRU on hit, so this method is
@@ -109,6 +111,7 @@ public:
 private:
     CacheDiagnostics::Handle m_diag_handle;
     LruCache<VideoFrameKey, Value, VideoFrameKeyHash> m_cache;
+    std::atomic<bool> m_diag_alive{true};
 };
 
 } // namespace chronon3d::cache

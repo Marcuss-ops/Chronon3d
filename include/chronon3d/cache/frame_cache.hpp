@@ -21,6 +21,7 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <atomic>
 #include <memory>
 #include <string>
 
@@ -54,9 +55,12 @@ public:
     /// Construct a cache with up to `max_entries` entries split across
     /// `num_shards` shards.  When `max_entries == 0` the cap is resolved
     /// centrally via resolve_cache_policy(CacheDomain::RenderedFrames).
-    explicit FrameCache(size_t max_entries = 0, size_t num_shards = 2);
+    explicit FrameCache(size_t max_entries = 0, size_t num_shards = 2,
+                        CacheDiagnostics* diag = nullptr);
     FrameCache(FrameCache&&) noexcept = default;
     FrameCache& operator=(FrameCache&&) noexcept = default;
+    ~FrameCache() { m_diag_alive.store(false, std::memory_order_release); }
+    void set_diagnostics(CacheDiagnostics& diag);
 
     [[nodiscard]] bool contains(const FrameCacheKey& key) const;
 
@@ -78,6 +82,7 @@ public:
 private:
     CacheDiagnostics::Handle m_diag_handle;
     LruCache<FrameCacheKey, Value, FrameCacheKeyHash> m_cache;
+    std::atomic<bool> m_diag_alive{true};
 };
 
 } // namespace chronon3d::cache

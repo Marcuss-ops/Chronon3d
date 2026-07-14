@@ -37,6 +37,8 @@ namespace chronon3d::cache {
 /// `instance()` singleton was REMOVED in P1-10; callers must pass a
 /// diagnostics reference (typically `runtime.diagnostics()` or a
 /// per-test local instance).
+class CacheDiagnostics;
+
 [[nodiscard]] std::string format_cache_snapshot(CacheDiagnostics& diag);
 
 // ── GenericCacheStats — type-erased LruCache::Stats mirror ────────────────
@@ -140,8 +142,6 @@ public:
     [[nodiscard]] bool is_enabled() const noexcept;
 
 private:
-    CacheDiagnostics() = default;
-
     struct Entry {
         std::function<GenericCacheStats()> stats_fn;
         std::function<void()>              clear_fn;

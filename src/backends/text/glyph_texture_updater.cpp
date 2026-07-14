@@ -18,7 +18,7 @@ namespace chronon3d {
 
 GlyphTextureUpdater::Path GlyphTextureUpdater::render_placed(
     BLContext&                                ctx,
-    TextRenderResources&                      res,
+    TextRenderResources*                      res,
     const std::optional<PlacedGlyphRun>&      placed_opt,
     const BLFontFace&                         face,
     const BLFont&                             font,
