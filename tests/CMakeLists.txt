@@ -130,6 +130,21 @@ endforeach()
 # ONLY feature gate left in this orchestrator by design.
 if(CHRONON3D_BUILD_TESTS)
 
+# TICKET-COMPOSITIONDESCRIPTOR-MIGRATION PHASE-2.5-BUILD-FLAG-WIRING (2026-07-14).
+# Target-private promotion: -Werror=deprecated-declarations appended AFTER the
+# global -Wno-error=... (CMakeLists.txt:28) on the compile command line, so it
+# correctly overrides the directory-level suppression for chronon3d_core_tests only.
+if(CHRONON3D_REQUIRES_DESCRIPTOR_REGISTRATION AND TARGET chronon3d_core_tests)
+    target_compile_options(chronon3d_core_tests PRIVATE -Werror=deprecated-declarations)
+endif()
+
+# 1 test: verifies the CMake option is defined and discoverable via cmake -L.
+add_test(
+    NAME verify_descriptor_registration_flag
+    COMMAND bash -c "${CMAKE_COMMAND} -L ${CMAKE_BINARY_DIR} 2>/dev/null | grep -q 'CHRONON3D_REQUIRES_DESCRIPTOR_REGISTRATION'"
+)
+set_tests_properties(verify_descriptor_registration_flag PROPERTIES LABELS "build-flag")
+
 # Note: benchmarks are conditional; included only when TARGET chronon3d_benchmarks exists
 if(TARGET chronon3d_benchmarks)
     set(CHRONON3D_BENCHMARK_DEP
