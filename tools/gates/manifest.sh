@@ -30,6 +30,12 @@ DEVELOPER_GATES=(
     check_commit_subject_length.sh
     check_push_divergence_window.sh
     check_architecture_boundaries.sh
+)
+
+# Post-push gates: run only after a successful push (not in the pre-push
+# developer chain).  These gates verify that the chore actually landed on
+# the remote and was not silently rebased out by concurrent-agent churn.
+POST_PUSH_GATES=(
     check_post_push_consistency.sh
 )
 
