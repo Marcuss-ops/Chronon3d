@@ -59,6 +59,8 @@ add_library(chronon3d_cli_core STATIC
     # TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE (Blocco 4.2) -
     # `chronon create <name>` scaffolds a new project from templates/.
     commands/create/register_create_commands.cpp
+    # TICKET-V3-CLI-UNIFICATION-WATCH-SUPERVISOR (Blocco 4.1, Commit 1 of 3) - `chronon watch <comp> --frame N -o <output>` supervisor
+    commands/watch/register_watch_commands.cpp
     commands/basic/command_list.cpp
     commands/basic/command_info.cpp
     commands/daemon/command_daemon.cpp

@@ -21,6 +21,9 @@ void register_dev_commands(CLI::App& app, CliContext& ctx);
 void register_inspect_commands(CLI::App& app, CliContext& ctx);
 // TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE (Blocco 4.2)
 void register_create_commands(CLI::App& app, CliContext& ctx);
+// TICKET-V3-CLI-UNIFICATION-WATCH-SUPERVISOR (Blocco 4.1)
+void register_watch_commands(CLI::App& app, CliContext& ctx);
+
 #ifdef CHRONON3D_BUILD_BENCHMARKS
 void register_bench_commands(CLI::App& app, CliContext& ctx);
 #endif
