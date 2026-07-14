@@ -8,7 +8,7 @@
 ## Open Blockers (≤10)
 
 | Ticket | Pri | Status | Description |
-| TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3 | P2 | NEW | Audit §13 Phase 3 — deprecate `chronon still` + `chronon video` as alias TTL until V0.2; `chronon render` canonical. 3 forward-points registered (REMOVE-STILL + VIDEO-MODE [absorbs DRY-RUN + PREFLIGHT per forward-points fold] + REMOVE-VIDEO). | [ticket](docs/tickets/TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3.md) |
+| TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3 | P2 | NEW | Audit §13 Phase 3 — deprecate `chronon still` + `chronon video` as alias TTL until V0.2; `chronon render` canonical. 5 forward-points registered (REMOVE-STILL + VIDEO-MODE + REMOVE-VIDEO + DRY-RUN-MIGRATION + PREFLIGHT-VS-INSPECT). | [ticket](docs/tickets/TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3.md) |
 | TICKET-TOOLS-ORPHAN-AUDIT | P2 | NEW | tools/ script audit: 95 classified, 0 removed. Removals deferred to 4 forward-points per Cat-3 minimal surface. | [ticket](docs/tickets/TICKET-TOOLS-ORPHAN-AUDIT.md) |
 | TICKET-TEXT-SPEC-FORWARDER-REMOVAL | P2 | FORWARD-POINT REGISTER | 2×-in-one-chore orphan-intent register: LayerBuilder::text(name,TextSpec) overload REMOVED; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-TEXT-SPEC-FORWARDER-REMOVAL.md) |
 | TICKET-NODE-CACHE-KEY-COLLAPSE-ROT | P2 | OPEN | NodeCacheKey not recognized in node_executor.cpp — build rot blocking macchina-verifica. [ticket](docs/tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |
@@ -22,6 +22,7 @@
 | TICKET-BENCHMARK-CORPUS-OFFICIAL | P1 | OPEN | 12 YAML scene descriptors (B00-B11) in `configs/benchmarks/corpus/`. Cat-3 minimal-surface. |
 | TICKET-P1E-CPU-BUDGET-MEASUREMENT | P1 | HARNESS-COMPLETE | CpuBudget render/encode timing script. Macchina-verifica DEFERRED-WBH. [ticket](docs/tickets/TICKET-P1E-CPU-BUDGET-MEASUREMENT.md) |
 | TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL | P2 | TRACKED | Refactor(text): `ShapedGlyphLine` 6-arg ctor marked `[[deprecated]]` for V0.2 removal; 1/5 cinematic callers migrated to `try_shape` factory (basis: ≥10/12 SDK consumer tests compat senza il bridge 6-arg al V1 cut). Forward-point: TICKET-PUB-DEPRECATE-REMOVAL. | [ticket](docs/tickets/TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL.md) |
+| TICKET-TEST-FONT-ASSET-PATH | P1 | OPEN | Test harness cannot load `assets/fonts/Poppins-Regular.ttf` at expected path; 7/8 ShapedGlyphLine tests fail with `FontEngine HarfBuzz shaping produced zero glyphs`; blocks 30+ test files that need the font asset. Forward-point from TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV forward-point (g) PARTIAL macchina-verifica (2026-07-14 this session). | [ticket](docs/tickets/TICKET-TEST-FONT-ASSET-PATH.md) |
 | TICKET-PUB-DEPRECATE-REMOVAL | P2 | TRACKED | Refactor(text): V0.2 removal of the `[[deprecated]]` `ShapedGlyphLine` 6-arg ctor once `TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL` deprecation bridge is aged out; basis: ≥10/12 SDK consumer tests pass senza il bridge 6-arg al V1 cut. Forward-point: TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL. | [ticket](docs/tickets/TICKET-PUB-DEPRECATE-REMOVAL.md) |
 | TICKET-V3-LEGACY-EXEC-CLOSURE | P1 | DEFERRED-STRATEGY-X | Audit §17+§12 closure — Strategy Y (safe cosmetic) DONE: command_watch + WatchService orphan deleted + if(false) counter pane + stale ABI compat comment. Strategy X (full unified executor rewrite for RenderJobPlan/VideoJobPlan + 4 caller migrations + ~20 file deletions) pending. | [ticket](docs/tickets/TICKET-V3-LEGACY-EXEC-CLOSURE.md) |
 
@@ -56,6 +57,8 @@
 | TICKET-SUNSET-GATE | P2 | PLANNED | Cat-4 gate `tools/check_feature_sunset.sh`; requires ADR for markdown AST-parse in bash. |
 | TICKET-MOTIONTIMELINE-MIGRATION | P2 | IN-PROGRESS | Phase 1 DONE 2026-07-14; 11 motion presets migrated to AnimationTrack\<T\>; Phase 2+3 deferred; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-MOTIONTIMELINE-MIGRATION.md) |
 | TICKET-COMPOSITIONDESCRIPTOR-MIGRATION | P2 | NEW | Re-add [[deprecated]] on `CompositionRegistry::add(name, factory)` + migrate ~265 call sites to `add(CompositionDescriptor{.id, .factory, ...})`. Forward-point of recovery-chore deprecation reversal. [ticket](docs/tickets/TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.md) |
+| TICKET-CTEST-PER-TESTCASE-REGISTRATION | P2 | OPEN | ctest only registers test binary as a single test, not individual TEST_CASE entries; `ctest -R ShapedGlyphLine` returns 0 matches despite 23 ShapedGlyphLine test cases in the binary. Forward-point from TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV forward-point (g) PARTIAL macchina-verifica (2026-07-14 this session). | [ticket](docs/tickets/TICKET-CTEST-PER-TESTCASE-REGISTRATION.md) |
+| TICKET-TEST-CLUSTER-BENCHMARK-CRASH | P2 | OPEN | test_shaped_glyph_line_cluster_benchmark.cpp crashes with `std::optional::operator*()` assertion failure (SIGABRT); P1-19 migration residual. Forward-point from TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV forward-point (g) PARTIAL macchina-verifica (2026-07-14 this session). | [ticket](docs/tickets/TICKET-TEST-CLUSTER-BENCHMARK-CRASH.md) |
 
 ## Recently Closed
 
