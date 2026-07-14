@@ -234,6 +234,15 @@ struct PipeExportSession {
 
     // Telemetry
     std::vector<FrameEncoderTelemetryRecord> frame_encoder_telemetry;
+
+    // P0-1 fix(pipe): RenderFrameQueue holds std::mutex + std::condition_variable
+    // so it is neither movable nor assignable (copy/move ctors are =delete'd on
+    // those types).  Constructing it here in the member-init-list avoids the rot
+    // of late-assigning to a default-constructed PipeExportSession in setup.
+    // Transitively: PipeExportSession's implicit copy/move ops are deleted (the
+    // queue's mutex/cv forbid them), tolerated by unique_ptr-holding + reference-only call sites.
+    explicit PipeExportSession(size_t queue_capacity)
+        : queue(queue_capacity) {}
 };
 
 // ── Pipeline phases (each extracted into its own .cpp file) ─────────────────
