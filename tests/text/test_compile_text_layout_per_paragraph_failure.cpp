@@ -1,5 +1,5 @@
-#include <memory>
 #include <optional>
+#include <memory>
 // ═══════════════════════════════════════════════════════════════════════════
 // test_compile_text_layout_per_paragraph_failure.cpp
 //
@@ -68,13 +68,13 @@ namespace {
 /// Same fixture pattern as test_compile_text_layout_errors.cpp +
 /// test_rich_text_paragraph_preservation.cpp.
 struct LocalEngine {
-    chronon3d::Config                cfg{};
+    chronon3d::Config cfg{};
     std::unique_ptr<chronon3d::runtime::RenderRuntime> runtime;
-    FontEngine                        engine;
+    FontEngine engine;
 
     LocalEngine()
         : runtime(chronon3d::runtime::RenderRuntime::create(
-              chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value()),
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value()),
           engine{runtime->resolver()}
     {}
 };

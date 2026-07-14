@@ -62,7 +62,8 @@ TextDocument make_doc(const std::string& utf8) {
 /// construct its own FontEngine directly instead of using this helper.
 FontEngine make_determinism_engine() {
     static const Config cfg;
-    static const auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    static const auto runtime = runtime::RenderRuntime::create(
+        runtime::RuntimeConfig{cfg, std::nullopt}).value();
     return FontEngine{runtime->resolver()};
 }
 

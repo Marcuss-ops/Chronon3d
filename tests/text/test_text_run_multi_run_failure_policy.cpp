@@ -28,7 +28,7 @@
 //   - empty paragraph short-circuit via consecutive \n (Fase 1.1 invariant).
 //
 // Fixtures: uses the canonical `LocalEngine` pattern (Config +
-// RenderRuntime + FontEngine constructed via `runtime->resolver()`),
+// RenderRuntime + FontEngine constructed via `runtime.resolver()`),
 // matching tests/text/test_compile_text_layout_errors.cpp and
 // tests/text/test_compile_text_layout_per_paragraph_failure.cpp.
 //
@@ -49,6 +49,7 @@
 
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <string>
 
 using namespace chronon3d;
@@ -62,13 +63,13 @@ namespace {
 /// test_compile_text_layout_errors.cpp and
 /// test_compile_text_layout_per_paragraph_failure.cpp.
 struct LocalEngine {
-    chronon3d::Config                cfg{};
+    chronon3d::Config cfg{};
     std::unique_ptr<chronon3d::runtime::RenderRuntime> runtime;
-    FontEngine                        engine;
+    FontEngine engine;
 
     LocalEngine()
         : runtime(chronon3d::runtime::RenderRuntime::create(
-              chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value()),
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value()),
           engine{runtime->resolver()}
     {}
 };
