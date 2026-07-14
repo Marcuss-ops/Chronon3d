@@ -80,3 +80,6 @@ futura quando sarà disponibile un build host.
 - `LayerBuilder::text(name, TextSpec)` overload rimosso.
 - `from_text_spec()` adapter rimosso.
 - macchina-verifica: build + ctest 11/11 verde post-migrazione.
+
+## See also
+- [TICKET-CENTERED-TEXT-MIGRATION](TICKET-CENTERED-TEXT-MIGRATION.md) (P2) — i 100+ call sites di `centered_text` / `glow_text` tipicamente wrappano `TextSpec`; questo ticket DEVE essere completato DOPO TICKET-TEXT-SPEC-MIGRATION (P1) per non rompere i callers.
