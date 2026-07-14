@@ -61,27 +61,24 @@ static std::shared_ptr<SoftwareRenderer> make_integration_renderer() {
 
 /// Background consumer that drains the queue and releases arena buffers.
 /// Prevents the render loop from blocking on TripleBufferArena::acquire().
+///
+/// P1-19 — switched from busy-yield (try_dequeue + std::this_thread::yield)
+/// to blocking `pop` + `queue.close()` pattern.  The test calls
+/// `queue.close()` after `run_render_loop` returns; the consumer drains
+/// any remaining items and exits when `pop` returns false (queue
+/// closed + empty).
 static void drain_queue_consumer(
     RenderFrameQueue<RenderFramePackage>& queue,
     TripleBufferArena& arena,
-    std::atomic<bool>& stop,
     std::atomic<int>& consumed_count)
 {
     for (;;) {
         RenderFramePackage pkg;
-        if (queue.try_dequeue(pkg)) {
-            arena.release(pkg.arena);
-            ++consumed_count;
-        } else if (stop.load(std::memory_order_relaxed)) {
-            // Final drain after producer is done
-            while (queue.try_dequeue(pkg)) {
-                arena.release(pkg.arena);
-                ++consumed_count;
-            }
-            return;
-        } else {
-            std::this_thread::yield();
+        if (!queue.pop(pkg)) {
+            return;  // queue closed and empty
         }
+        arena.release(pkg.arena);
+        ++consumed_count;
     }
 }
 
@@ -132,14 +129,12 @@ TEST_CASE("RenderLoop Integration: multi-frame render produces all frames") {
     FfmpegExportOptions opts;
     RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
-    std::atomic<bool> stop_consumer{false};
     std::atomic<int> consumed{0};
     TripleBufferArena triple_arena(4, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
     // Background consumer prevents arena acquire deadlock
     std::thread consumer(drain_queue_consumer,
-        std::ref(queue), std::ref(triple_arena),
-        std::ref(stop_consumer), std::ref(consumed));
+        std::ref(queue), std::ref(triple_arena), std::ref(consumed));
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
@@ -148,7 +143,7 @@ TEST_CASE("RenderLoop Integration: multi-frame render produces all frames") {
 
     auto result = run_render_loop(loop_ctx);
 
-    stop_consumer.store(true);
+    queue.close();
     consumer.join();
 
     CHECK(result.status.success);
@@ -193,14 +188,17 @@ TEST_CASE("RenderLoop Integration: single frame renders correctly") {
     CHECK(telemetry_frames.size() == 1);
     CHECK(telemetry_frames[0].frame_number == 0);
 
-    // Drain
+    // P1-19 — close + pop pattern.  First pop returns the enqueued item
+    // (queue is non-empty at this point), second pop returns false because
+    // the queue is closed AND empty.
+    queue.close();
     RenderFramePackage pkg;
-    REQUIRE(queue.try_dequeue(pkg));
+    REQUIRE(queue.pop(pkg));
     CHECK(pkg.framebuffer != nullptr);
     CHECK(pkg.framebuffer->width() == W);
     CHECK(pkg.framebuffer->height() == H);
     triple_arena.release(pkg.arena);
-    CHECK_FALSE(queue.try_dequeue(pkg));
+    CHECK_FALSE(queue.pop(pkg));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -237,8 +235,11 @@ TEST_CASE("RenderLoop Integration: cancellation stops render loop early") {
     CHECK(result.status.frames_rendered == 0);
     CHECK(telemetry_frames.empty());
 
+    // P1-19 — close + pop pattern; queue is empty after cancellation
+    // (render loop checked the token and broke before any push).
+    queue.close();
     RenderFramePackage pkg;
-    CHECK_FALSE(queue.try_dequeue(pkg));
+    CHECK_FALSE(queue.pop(pkg));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -286,14 +287,12 @@ TEST_CASE("RenderLoop Integration: telemetry frames are in display order") {
     FfmpegExportOptions opts;
     RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
-    std::atomic<bool> stop_consumer{false};
     std::atomic<int> consumed{0};
     TripleBufferArena triple_arena(4, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
     // 8 frames with 4 arenas — need a consumer to avoid deadlock
     std::thread consumer(drain_queue_consumer,
-        std::ref(queue), std::ref(triple_arena),
-        std::ref(stop_consumer), std::ref(consumed));
+        std::ref(queue), std::ref(triple_arena), std::ref(consumed));
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
@@ -302,7 +301,7 @@ TEST_CASE("RenderLoop Integration: telemetry frames are in display order") {
 
     auto result = run_render_loop(loop_ctx);
 
-    stop_consumer.store(true);
+    queue.close();
     consumer.join();
 
     CHECK(result.status.success);
@@ -330,14 +329,12 @@ TEST_CASE("RenderLoop Integration: partial frame range [3, 7)") {
     FfmpegExportOptions opts;
     RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
-    std::atomic<bool> stop_consumer{false};
     std::atomic<int> consumed{0};
     // 4 arenas for 4 frames — just at the limit, use consumer to be safe
     TripleBufferArena triple_arena(4, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
     std::thread consumer(drain_queue_consumer,
-        std::ref(queue), std::ref(triple_arena),
-        std::ref(stop_consumer), std::ref(consumed));
+        std::ref(queue), std::ref(triple_arena), std::ref(consumed));
 
     std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
     auto loop_ctx = make_loop_context(
@@ -346,7 +343,7 @@ TEST_CASE("RenderLoop Integration: partial frame range [3, 7)") {
 
     auto result = run_render_loop(loop_ctx);
 
-    stop_consumer.store(true);
+    queue.close();
     consumer.join();
 
     CHECK(result.status.success);
@@ -374,40 +371,29 @@ TEST_CASE("RenderLoop Integration: writer failure during render stops loop") {
     FfmpegExportOptions opts;
     RenderFrameQueue<RenderFramePackage> queue;
     std::atomic<bool> writer_failed{false};
-    std::atomic<bool> writer_done_signal{false};
     std::atomic<int> consumed{0};
     TripleBufferArena triple_arena(4, static_cast<size_t>(W) * H * sizeof(Color) * 8);
 
-    // Consumer: after 3 frames, signal writer failure. Non-deterministic —
-    // the exact frame count where the render loop stops depends on timing.
+    // P1-19 — switched from busy-yield (try_dequeue + yield) to blocking
+    // pop + queue.close() pattern.  Consumer pops items, sets writer_failed
+    // after 3 items, then continues popping (to release arenas for the
+    // render loop, since push is non-blocking on an unbounded queue) until
+    // the test calls queue.close() to signal end-of-stream.
     std::thread consumer([&]() {
         int count = 0;
         for (;;) {
             RenderFramePackage pkg;
-            if (queue.try_dequeue(pkg)) {
-                triple_arena.release(pkg.arena);
-                ++count;
-                if (count >= 3) {
-                    writer_failed.store(true, std::memory_order_release);
-                    // Drain remaining items so the render loop can finish
-                    // releasing its arenas and exit
-                    std::this_thread::yield();
-                    while (queue.try_dequeue(pkg)) {
-                        triple_arena.release(pkg.arena);
-                        ++count;
-                    }
-                    consumed.store(count);
-                    return;
-                }
-            } else if (writer_done_signal.load(std::memory_order_relaxed)) {
-                while (queue.try_dequeue(pkg)) {
-                    triple_arena.release(pkg.arena);
-                    ++count;
-                }
+            if (!queue.pop(pkg)) {
                 consumed.store(count);
-                return;
-            } else {
-                std::this_thread::yield();
+                return;  // queue closed and empty
+            }
+            triple_arena.release(pkg.arena);
+            ++count;
+            if (count >= 3) {
+                writer_failed.store(true, std::memory_order_release);
+                // Continue popping — render loop's push is non-blocking
+                // (unbounded queue), but the consumer must release arenas
+                // so the render loop can continue acquiring.
             }
         }
     });
@@ -419,7 +405,7 @@ TEST_CASE("RenderLoop Integration: writer failure during render stops loop") {
 
     auto result = run_render_loop(loop_ctx);
 
-    writer_done_signal.store(true);
+    queue.close();
     consumer.join();
 
     CHECK_FALSE(result.status.success);
@@ -456,6 +442,9 @@ TEST_CASE("RenderLoop Integration: empty frame range produces no frames") {
     CHECK(result.status.frames_rendered == 0);
     CHECK(telemetry_frames.empty());
 
+    // P1-19 — close + pop pattern; queue is empty after empty range
+    // (start == end, render loop body never entered).
+    queue.close();
     RenderFramePackage pkg;
-    CHECK_FALSE(queue.try_dequeue(pkg));
+    CHECK_FALSE(queue.pop(pkg));
 }
