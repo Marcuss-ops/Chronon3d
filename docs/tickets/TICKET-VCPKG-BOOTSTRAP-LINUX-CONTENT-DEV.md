@@ -110,7 +110,7 @@ export CMAKE_TOOLCHAIN_FILE="$HOME/vcpkg-clone/scripts/buildsystems/vcpkg.cmake"
 # wrapper env-var honours it).
 ```
 
-## Forward points (5)
+## Forward points (6)
 
 | #  | Description                                                                                                                  | Tracked in                                  |
 |----|------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------|
