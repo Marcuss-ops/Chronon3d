@@ -149,7 +149,7 @@ private:
         std::size_t                        capacity{0};
     };
 
-    void unregister(Entry* entry);
+    void unregister(CacheDomain domain, Entry* entry);
 
     // TICKET-lock-free-shared_mutex — std::shared_mutex lets concurrent
     // readers (snapshot / snapshot_by_domain / snapshot_all_domains /

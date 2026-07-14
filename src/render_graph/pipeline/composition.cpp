@@ -98,15 +98,15 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     Frame frame,
     chronon3d::SoftwareRenderer* sw_sidecar
 ) {
-    // Materialise the FontEngine* once at the entry point so both the
+    // Materialise the RenderRuntime* once at the entry point so both the
     // single-frame and the motion-blur sub-frame evaluation paths below
     // share the same pointer.  Primary source: sw_sidecar (the
-    // SoftwareRenderer that owns the per-instance FontEngine).
-    // When sw_sidecar is nullptr (CLI dry-run, test paths), frame_engine
+    // SoftwareRenderer that owns the per-instance runtime).
+    // When sw_sidecar is nullptr (CLI dry-run, test paths), frame_runtime
     // is null — the materializer's resolve_engine() provides a process-wide
     // fallback (F1.D) so text still renders.
-    FontEngine* frame_engine =
-        (sw_sidecar != nullptr) ? &sw_sidecar->font_engine() : nullptr;
+    const chronon3d::runtime::RenderRuntime* frame_runtime =
+        (sw_sidecar != nullptr) ? &sw_sidecar->runtime() : nullptr;
     const auto hits_before = node_cache.stats().hits;
     const float ssaa = std::max(1.0f, settings.ssaa_factor);
     const int w = comp.width();
@@ -222,7 +222,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         Scene scene;
         {
             CHRONON_ZONE_C("evaluate_composition", trace_category::kTimeline);
-            scene = comp.evaluate(frame, 0.0f, frame_engine);
+            scene = comp.evaluate(frame, 0.0f, frame_runtime);
         }
         evaluate_ms = profiling::duration_ms(t_eval0, profiling::now());
         layer_count = static_cast<int>(scene.layers().size());
@@ -271,7 +271,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                 const float t = sample_times[s];
                 const float w = samples.normalized_weights[s];
                 actual_weight_sum += w;
-                Scene sub = comp.evaluate(frame, t, frame_engine);
+                Scene sub = comp.evaluate(frame, t, frame_runtime);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
 
                 // Apply the default camera to each sub-frame scene.
