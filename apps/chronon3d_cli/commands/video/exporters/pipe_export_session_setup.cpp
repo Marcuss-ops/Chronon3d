@@ -26,7 +26,13 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     Frame end,
     const chronon3d::CpuBudget& cpu_budget)
 {
-    auto session = std::make_unique<PipeExportSession>();
+    // P0-1 fix(pipe): construct queue in PipeExportSession ctor.  RenderFrameQueue
+    // holds std::mutex + std::condition_variable internally so it is neither
+    // movable nor assignable — a late `session->queue = …` would be a build rot.
+    // Queue capacity matches the in-flight arena count (4) so the render thread
+    // blocks instead of busy-waiting when all arenas are queued.
+    constexpr size_t kArenaPoolCount = 4;
+    auto session = std::make_unique<PipeExportSession>(kArenaPoolCount);
     session->opts = opts;
     // P1-B: atomic output — FFmpeg writes to a .partial temp file.
     // On success, make_pipe_export_result() renames it to the final path.
@@ -135,13 +141,11 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
             static_cast<uint64_t>(session->opts.sink.sink_type), std::memory_order_relaxed);
     }
 
-    // ── Arena, queue ──────────────────────────────────────────────────────
+    // ── Arena ──────────────────────────────────────────────────────────────
+    // Note: the queue itself is owned by PipeExportSession (constructed above
+    // with kArenaPoolCount as capacity).  We only allocate the arena pool here.
     const size_t arena_size = compute_pipe_arena_size(comp.width(), comp.height());
-    constexpr size_t kArenaPoolCount = 4;
     session->triple_arena = std::make_unique<TripleBufferArena>(kArenaPoolCount, arena_size);
-    // Bounded queue capacity matches the number of in-flight arenas so the
-    // render thread blocks instead of busy-waiting when all arenas are queued.
-    session->queue = RenderFrameQueue<RenderFramePackage>(kArenaPoolCount);
 
     // ── Writer thread (context stored in session so it outlives the thread) ─
     auto writer_ctx = std::unique_ptr<WriterThreadContext>(
