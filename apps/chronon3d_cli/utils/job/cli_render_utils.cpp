@@ -89,16 +89,12 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     // holds a mount root; path resolution is the resolver's job.
     renderer->runtime().resolver().mount(cwd);
 
-    // FIX (correctness — populate idempotency): the canonical
+    // P1-14 — the vestigial `populate()` call was REMOVED.  The canonical
     // `RenderRuntime::create()` factory auto-pops the runtime via
-    // `populate()`, but the deprecated `SoftwareRenderer(Config{})` ctor
-    // path may leave m_populated=false until first attach_backend.  The
-    // header guarantees `populate()` idempotent ("calling populate() on
-    // a populated runtime is a no-op"), so calling it here after
-    // attach_software_backend() is safe and guards against any internal
-    // ctor-ordering surprises.  Renamed from "safety" to "correctness":
-    // this is in fact a correctness fix, not just defensive.
-    renderer->runtime().populate();
+    // `populate()` (and the 1-arg `RenderRuntime(Config)` ctor does the
+    // same in its body).  `populate()` is now PRIVATE on RenderRuntime;
+    // this call site was vestigial (the runtime is already populated by
+    // the time we reach this point in `create_renderer`).
 
     return renderer;
 }
