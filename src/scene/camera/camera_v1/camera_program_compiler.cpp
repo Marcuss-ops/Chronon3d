@@ -491,6 +491,7 @@ compile_camera(const CameraDescriptor& descriptor,
         if (std::holds_alternative<PoseTracksSource>(s))     return CameraProgramKind::PoseTracks;
         if (std::holds_alternative<OrbitMotion>(s))          return CameraProgramKind::Orbit;
         if (std::holds_alternative<TrajectoryMotion>(s))     return CameraProgramKind::Trajectory;
+        if (std::holds_alternative<CameraMotionParamsSource>(s)) return CameraProgramKind::CameraMotionParams;
         return CameraProgramKind::Ref;  // RegisteredMotionRef (only on failure paths)
     }(program.descriptor_.source);
 
