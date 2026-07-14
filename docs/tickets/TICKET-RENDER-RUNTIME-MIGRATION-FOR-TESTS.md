@@ -1,6 +1,6 @@
 # TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS — Migrate ~12 test sites to `RenderRuntime::create(RuntimeConfig)`
 
-> Stato: **OPEN (2026-07-14)** — forward-point from [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (3rd item). Cat-3 minimal-surface.
+> Stato: **DONE (2026-07-14, commit `4faf81b4`)** — implementation landed via [TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS-IMPL](docs/tickets/TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS-IMPL.md). Actual scope was 19 test files / ~228 ctor sites (vs the ticket's ~12 estimate). Cat-3 minimal-surface preserved. Forward-point from [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (3rd item) CLOSED.
 
 ## Problema
 
