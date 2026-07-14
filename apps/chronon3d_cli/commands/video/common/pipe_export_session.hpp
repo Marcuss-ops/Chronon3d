@@ -185,7 +185,7 @@ struct RenderLoopContext {
     Frame start;
     Frame end;
     const FfmpegExportOptions& opts;
-    SoftwareRenderer* sw_renderer;
+    SoftwareRenderer& sw_renderer;  // P1-20 — non-nullable; renderer is mandatory on this path
     RenderFrameQueue<RenderFramePackage>& queue;
     std::atomic<bool>& writer_failed;
     TripleBufferArena& triple_arena;

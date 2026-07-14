@@ -52,13 +52,13 @@ void warmup_text_size_classes(cache::FramebufferPool& pool) {
 } // namespace
 
 void warmup_pipe_pool(PipeExportSession& session) {
-    if (!session.sw_renderer || !session.sw_renderer->framebuffer_pool()) {
+    if (!session.renderer || !session.renderer->framebuffer_pool()) {
         return;
     }
 
     const auto [bw, bh] = cache::FramebufferPool::round_to_bucket(
         session.canvas_width, session.canvas_height);
-    const auto prealloced = session.sw_renderer->framebuffer_pool()->preallocate(
+    const auto prealloced = session.renderer->framebuffer_pool()->preallocate(
         cache::FramebufferPoolPreallocOptions{
             .width = bw,
             .height = bh,
@@ -72,7 +72,7 @@ void warmup_pipe_pool(PipeExportSession& session) {
     }
 
     // Pre-warm the text-composition ROI + downsample size classes.
-    warmup_text_size_classes(*session.sw_renderer->framebuffer_pool());
+    warmup_text_size_classes(*session.renderer->framebuffer_pool());
 }
 
 } // namespace chronon3d::cli
