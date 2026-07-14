@@ -45,7 +45,8 @@ using test_text_quality::require_font;
 
 TEST_CASE("Azione 18: typewriter_build with valid text returns Ok(true)") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -70,7 +71,8 @@ TEST_CASE("Azione 18: typewriter_build with valid text returns Ok(true)") {
 
 TEST_CASE("Azione 18: typewriter_build with empty text returns Err(EmptyText)") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -97,7 +99,8 @@ TEST_CASE("Azione 18: typewriter_build with empty text returns Err(EmptyText)") 
 
 TEST_CASE("Azione 18: typewriter_build error is non-fatal (scene still buildable)") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 

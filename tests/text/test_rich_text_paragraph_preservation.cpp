@@ -1,5 +1,5 @@
-#include <memory>
 #include <optional>
+#include <memory>
 // ═══════════════════════════════════════════════════════════════════════════
 // test_rich_text_paragraph_preservation.cpp
 //
@@ -61,13 +61,13 @@ namespace {
 /// RAII-owned engine stack: do NOT use shared singletons across tests.
 /// Each TEST_CASE gets a fresh Config + RenderRuntime + FontEngine.
 struct LocalEngine {
-    chronon3d::Config                cfg{};
+    chronon3d::Config cfg{};
     std::unique_ptr<chronon3d::runtime::RenderRuntime> runtime;
-    FontEngine                        engine;
+    FontEngine engine;
 
     LocalEngine()
         : runtime(chronon3d::runtime::RenderRuntime::create(
-              chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value()),
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value()),
           engine{runtime->resolver()}
     {}
 };

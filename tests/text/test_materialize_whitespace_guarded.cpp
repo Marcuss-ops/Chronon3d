@@ -106,7 +106,8 @@ TEST_CASE("materialize_text_run_shape: real FontEngine + whitespace text still r
     // could have shaped content — is the test that proves the
     // guard fires.
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 
     auto spec = make_text_spec("   ");
@@ -130,7 +131,8 @@ TEST_CASE("materialize_text_run_shape: control — non-whitespace text is NOT sh
     // shape).  This test exists so the broadened guard is symmetric:
     // whitespace returns nullptr, real text is processed.
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
 
     auto spec = make_text_spec("Hello");
