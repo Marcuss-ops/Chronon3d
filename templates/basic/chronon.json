@@ -1,0 +1,9 @@
+{
+  "name": "${PROJECT_NAME}",
+  "version": "0.0.1",
+  "assets_root": "assets",
+  "main": "src/root.cpp",
+  "compositions": [
+    "HelloWorld"
+  ]
+}
