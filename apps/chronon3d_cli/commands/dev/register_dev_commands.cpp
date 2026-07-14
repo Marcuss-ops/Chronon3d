@@ -10,25 +10,11 @@ namespace chronon3d::cli {
 
 namespace {
 
-struct DevState {
-    std::shared_ptr<std::string> watch_id{std::make_shared<std::string>()};
-    std::shared_ptr<std::string> output_dir{std::make_shared<std::string>(chronon_artifact_path("verify", "").string())};
-};
-
 struct BatchState {
     std::shared_ptr<std::vector<std::string>> jobs{std::make_shared<std::vector<std::string>>()};
 };
 
 struct RenderState { std::shared_ptr<RenderArgs> args{std::make_shared<RenderArgs>()}; };
-
-void register_watch(CLI::App& app, CliContext& ctx) {
-    auto watch_id = std::make_shared<std::string>();
-    auto* watch = app.add_subcommand("watch", "Watch for changes and re-render");
-    watch->add_option("id", *watch_id, "Composition name")->required();
-    watch->callback([watch_id, &ctx]() {
-        ctx.exit_code = command_watch(ctx.registry, *watch_id);
-    });
-}
 
 void register_render_all(CLI::App& app, CliContext& ctx) {
     auto output_dir = std::make_shared<std::string>(chronon_artifact_path("verify", "").string());
@@ -83,7 +69,6 @@ void register_cache_stats(CLI::App& app, CliContext& ctx) {
 }
 
 void register_dev_commands(CLI::App& app, CliContext& ctx) {
-    register_watch(app, ctx);
     register_render_all(app, ctx);
     register_batch(app, ctx);
 #ifdef CHRONON3D_HAS_CLI_VIDEO
