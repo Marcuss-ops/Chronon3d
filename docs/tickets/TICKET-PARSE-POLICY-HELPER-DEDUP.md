@@ -14,38 +14,32 @@ This is a Cat-3 anti-duplication violation: 3 places must be kept in sync if a n
 
 ## Soluzione Confine
 
-Extract a single canonical helper:
+**SINGLE OUTCOME**: extract ONE canonical parse helper (stricter user-spec adherence — user only asked for `parse_framebuffer_pool_clear_policy(name)`; the optional `name()` round-trip helper is OUT OF SCOPE for this ticket and deferred to a future forward-point if a concrete caller emerges).
 
 ```cpp
 // include/chronon3d/cache/framebuffer_pool.hpp (or new tools/ header)
 namespace chronon3d::cache {
     [[nodiscard]] std::optional<FramebufferPoolClearPolicy>
     parse_framebuffer_pool_clear_policy(std::string_view name);
-
-    [[nodiscard]] std::string_view
-    framebuffer_pool_clear_policy_name(FramebufferPoolClearPolicy p);  // canonical round-trip
 }
 ```
 
 Then:
 - `src/core/config.cpp` env var resolution calls `parse_framebuffer_pool_clear_policy(getenv(...))`
 - `apps/chronon3d_cli/utils/job/render_job.cpp` CLI flag resolution calls the same helper
-- `register_render_commands.cpp` CLI description string is built from the helper's accepted-values list (or a static constexpr array of `policy_name()` results)
-
-The `name()` round-trip function ensures the enum → string conversion is single-source too.
+- `register_render_commands.cpp` CLI description string is left as a hardcoded list of accepted values (matching the current implementation per `apps/chronon3d_cli/commands/render/register_render_commands.cpp:62-65`); a future `name()` round-trip helper could derive this list dynamically, but that is deferred to a separate forward-point ticket.
 
 ## Criteri di accettazione
 
 - [ ] `parse_framebuffer_pool_clear_policy("keep-warm")` returns `FramebufferPoolClearPolicy::KeepWarm`
 - [ ] `parse_framebuffer_pool_clear_policy("trim-after-job")` returns `FramebufferPoolClearPolicy::TrimAfterJob`
 - [ ] `parse_framebuffer_pool_clear_policy("trim-on-memory-pressure")` returns `FramebufferPoolClearPolicy::TrimOnMemoryPressure`
-- [ ] `parse_framebuffer_pool_clear_policy("invalid")` returns `std::nullopt` (and the caller falls back to the default policy)
-- [ ] `framebuffer_pool_clear_policy_name(FramebufferPoolClearPolicy::TrimAfterJob) == "trim-after-job"` (round-trip)
-- [ ] 0 new public SDK symbol beyond the 2 functions (Cat-3 minimal-surface)
+- [ ] Case-insensitive variant: parse_framebuffer_pool_clear_policy accepts BOTH lowercase ("keep-warm" / "trim-after-job" / "trim-on-memory-pressure") AND PascalCase ("KeepWarm" / "TrimAfterJob" / "TrimOnMemoryPressure") (per current implementation in config.cpp:193-201 and render_job.cpp:46-50)
+- [ ] 0 new public SDK symbol beyond the 1 helper (Cat-3 minimal-surface)
 - [ ] 0 new singleton/registry/resolver/cache (per AGENTS.md deny-everywhere)
 - [ ] 0 `#include <msdfgen>/<libtess2>/<unicode[/...]>` (Gate 5 Check 11 deny-everywhere preserved)
 - [ ] All 3 prior call sites migrated to the new helper
-- [ ] Test coverage: 1 TEST_CASE per accepted value + 1 for invalid input + 1 for round-trip
+- [ ] Test coverage: 1 TEST_CASE per accepted value + 1 for invalid input + 1 for case-insensitive variant (4 TEST_CASEs total, no round-trip — deferred to future forward-point if a concrete caller emerges)
 
 ## macchina-verifica
 
@@ -53,17 +47,17 @@ DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum
 
 ## Cat-3 minimal-surface
 
-- 2 NEW functions in canonical header (`include/chronon3d/cache/framebuffer_pool.hpp` or new tools/ header)
+- 1 NEW function in canonical header (`include/chronon3d/cache/framebuffer_pool.hpp` or new tools/ header)
 - 3 EDIT call sites: `src/core/config.cpp` + `apps/chronon3d_cli/utils/job/render_job.cpp` + `apps/chronon3d_cli/commands/render/register_render_commands.cpp`
-- 1 NEW test file: `tests/cache/test_parse_framebuffer_pool_clear_policy.cpp` (~5 TEST_CASEs)
+- 1 NEW test file: `tests/cache/test_parse_framebuffer_pool_clear_policy.cpp` (~4 TEST_CASEs)
 
-NO new public SDK symbol beyond the 2 helpers (both `[[nodiscard]]` pure functions over the existing enum). NO new singleton/registry/resolver/cache. NO deny-everywhere include.
+NO new public SDK symbol beyond the 1 helper (a single `[[nodiscard]]` pure function over the existing enum). NO new singleton/registry/resolver/cache. NO deny-everywhere include.
 
 ## Cross-link
 
 - **Parent ticket**: [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (5th item)
 - **Related chore**: [TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE](docs/tickets/TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE.md) (companion forward-point: wire the policy into the job executor)
-- **Cat-3 anti-dup discipline**: 1 helper + 1 round-trip + 3 call sites + 1 test = 5 file touches total
+- **Cat-3 anti-dup discipline**: 1 helper + 3 call sites + 1 test = 4 file touches total (the optional `name()` round-trip helper is deferred to a future forward-point if a concrete caller emerges — e.g., if `register_render_commands.cpp` CLI help text is migrated to dynamic generation)
 - **Sibling forward-points from TICKET-ARCH-CLEANUP-V0**:
   - [TICKET-RENDER-SERVICES-FULL-ELIMINATION](docs/tickets/TICKET-RENDER-SERVICES-FULL-ELIMINATION.md)
   - [TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS](docs/tickets/TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS.md)
