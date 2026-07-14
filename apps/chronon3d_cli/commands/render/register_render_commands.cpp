@@ -1,10 +1,8 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
 #include <spdlog/spdlog.h>
-#include <cctype>
 #include <filesystem>
 #include <memory>
-#include <set>
 
 namespace chronon3d::cli {
 
@@ -73,79 +71,9 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     "Minimum capacity when down-tuning (default 2)");
     cmd->add_option("--program-cache-tune-max", args.pipeline.program_cache_tune_max_capacity,
                     "Maximum capacity when up-tuning (default 128)");
-
-    // TICKET-V3-CLI-UNIFICATION-PROFILE-HELP — Register `--profile` enum.
-    // Apply curated render defaults: draft|preview|production|maximum.
-    // Identity map for "" and "production" (current default behavior).
-    // Parse-time validation via CLI::IsMember rejects unknown values BEFORE
-    // the callback fires. Case-insensitive via inline std::tolower transform.
-    // Per post-reviewer fix-cycle: std::set<std::string> for version resilience
-    // (CLI::IsMember(std::initializer_list) is not portable across all 2.x).
-    cmd->add_option("--profile", args.profile,
-        "Apply curated render defaults: draft|preview|production|maximum. "
-        "Explicitly-set per-flag values will always override profile defaults. "
-        "draft = fast preview (large tile, no motion blur); "
-        "preview = balanced (small motion blur); "
-        "production = current default behavior (identity map); "
-        "maximum = high quality (large motion blur samples, diagnostics on).")
-        ->transform([](std::string s) {
-            for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-            return s;
-        })
-        ->check(CLI::IsMember(std::set<std::string>{"", "draft", "preview", "production", "maximum"},
-                              CLI::ignore_case));
     cmd->allow_windows_style_options();
-    cmd->callback([state, &ctx, cmd]() {
+    cmd->callback([state, &ctx]() {
         state->args->command_line = ctx.command_line;
-
-        // TICKET-V3-CLI-UNIFICATION-PROFILE-HELP — Apply profile defaults.
-        // Identity map for "" and "production" (both = current default behavior).
-        // Explicit per-flag values always win via get_option_no_throw()->count() check.
-        // Per post-reviewer fix-cycle: use get_option_no_throw (no-throw variant) +
-        // motion-blur dual-flag check (Option ii) honors users who set --motion-blur=true
-        // legacy shortcut alongside --profile=draft.
-        const std::string& profile = state->args->profile;
-        if (!profile.empty() && profile != "production") {
-            auto apply_if_unset = [&cmd](const char* flag, auto setter) {
-                const auto* opt = cmd->get_option_no_throw(flag);
-                if (opt && opt->count() == 0) setter();
-            };
-            // Motion blur has dual user-facing flags (PR1 canonical --motion-blur-mode +
-            // legacy --motion-blur boolean shortcut). Skip profile override if EITHER
-            // flag was explicitly set by the user — preserves `--profile=draft --motion-blur=true`
-            // intent.
-            auto motion_blur_unset = [&]() -> bool {
-                const auto* opt_mode = cmd->get_option_no_throw("--motion-blur-mode");
-                const auto* opt_legacy = cmd->get_option_no_throw("--motion-blur");
-                bool mode_set = opt_mode && opt_mode->count() > 0;
-                bool legacy_set = opt_legacy && opt_legacy->count() > 0;
-                return !mode_set && !legacy_set;
-            };
-            auto& p = state->args->pipeline;
-            auto& q = p.quality;
-            if (profile == "draft") {
-                apply_if_unset("--tile-size",                [&]{ p.tile_size = 256; });
-                if (motion_blur_unset())                      q.motion_blur_mode = 0;
-                apply_if_unset("--motion-blur-samples",       [&]{ q.motion_blur_samples = 2; });
-                apply_if_unset("--warmup-framebuffers",       [&]{ p.warmup_framebuffers = 1; });
-                apply_if_unset("--no-dirty-rects",            [&]{ p.no_dirty_rects = true; });
-                apply_if_unset("--diagnostic",                [&]{ p.diagnostic = false; });
-                apply_if_unset("--program-cache-tune",        [&]{ p.program_cache_tune = false; });
-            } else if (profile == "preview") {
-                apply_if_unset("--tile-size",                [&]{ p.tile_size = 128; });
-                if (motion_blur_unset())                      q.motion_blur_mode = 1;
-                apply_if_unset("--motion-blur-samples",       [&]{ q.motion_blur_samples = 4; });
-                apply_if_unset("--warmup-framebuffers",       [&]{ p.warmup_framebuffers = 2; });
-                apply_if_unset("--no-dirty-rects",            [&]{ p.no_dirty_rects = false; });
-            } else if (profile == "maximum") {
-                apply_if_unset("--tile-size",                [&]{ p.tile_size = 0; });
-                if (motion_blur_unset())                      q.motion_blur_mode = 1;
-                apply_if_unset("--motion-blur-samples",       [&]{ q.motion_blur_samples = 16; });
-                apply_if_unset("--warmup-framebuffers",       [&]{ p.warmup_framebuffers = 4; });
-                apply_if_unset("--diagnostic",                [&]{ p.diagnostic = true; });
-                apply_if_unset("--program-cache-tune",        [&]{ p.program_cache_tune = true; });
-            }
-        }
         state->args->cpu_budget = ctx.cpu_budget;
         // fb_pool_budget_mb is handled in plan_render_job() via Config::set_fb_pool_budget()
         if (state->args->output.empty()) {
