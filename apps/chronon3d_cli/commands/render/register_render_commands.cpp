@@ -59,6 +59,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                   "Render a dummy frame 0 to prime all caches");
     cmd->add_option("--fb-pool-budget-mb", args.pipeline.fb_pool_budget_mb,
                     "Framebuffer pool retention budget in MB (0=unlimited, default 384)");
+    cmd->add_option("--fb-pool-clear-policy", args.pipeline.fb_pool_clear_policy,
+                    "Framebuffer pool clear policy: keep-warm | trim-after-job | trim-on-memory-pressure (default: trim-on-memory-pressure)");
     cmd->add_option("--program-cache-capacity", args.pipeline.program_cache_capacity,
                     "SceneProgramCache entries per Precomp node (0=default 8)");
     cmd->add_flag("--program-cache-tune", args.pipeline.program_cache_tune,

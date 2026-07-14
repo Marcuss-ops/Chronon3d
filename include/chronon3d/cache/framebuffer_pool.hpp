@@ -77,6 +77,36 @@ enum class FramebufferAcquireHint {
 };
 
 // ---------------------------------------------------------------------------
+// FramebufferPoolClearPolicy — explicit post-job lifecycle policy (P1-21)
+// ---------------------------------------------------------------------------
+// Replaces the legacy implicit-clear-after-job pattern (which destroyed
+// warm state in batch workloads) with an explicit, configurable policy.
+// The CLI / job executor should call `trim_after_job()` at the end of
+// each job; the policy decides whether that call actually clears the
+// pool or is a no-op.
+//
+//   KeepWarm            — never call clear(); rely on automatic LRU
+//                          eviction to drop cold entries as the budget
+//                          fills.  Best for batch jobs that benefit from
+//                          warm cache reuse across iterations.
+//   TrimAfterJob        — call clear() at the end of every job.  Best
+//                          for VPS / single-shot jobs where warm state
+//                          is not reused.
+//   TrimOnMemoryPressure — never call clear() explicitly; rely entirely
+//                          on the LRU eviction triggered by
+//                          `max_retained_bytes`.  Default (preserves
+//                          pre-P1-21 engine behavior).
+//
+// Default: TrimOnMemoryPressure.  Override via
+// `Config::cache().framebuffer_pool_clear_policy()` or the CLI flag
+// `--fb-pool-clear-policy <policy>`.
+enum class FramebufferPoolClearPolicy {
+    KeepWarm,
+    TrimAfterJob,
+    TrimOnMemoryPressure,
+};
+
+// ---------------------------------------------------------------------------
 // FramebufferPoolStats
 // ---------------------------------------------------------------------------
 struct FramebufferPoolStats {
@@ -209,6 +239,31 @@ public:
     /// Release all pooled framebuffers.
     void clear();
 
+    /// P1-21: explicit post-job lifecycle hook.  Honors the configured
+    /// `FramebufferPoolClearPolicy`:
+    ///   * KeepWarm            — no-op (LRU handles eviction).
+    ///   * TrimAfterJob        — calls clear() (drops all pooled FBs).
+    ///   * TrimOnMemoryPressure — no-op (LRU handles eviction).
+    ///
+    /// Callers (CLI / job executor) should invoke this at the end of
+    /// each job instead of calling `clear()` directly.  Replaces the
+    /// legacy implicit-clear-after-job pattern that destroyed warm
+    /// state in batch workloads.
+    void trim_after_job();
+
+    /// P1-21: get the current clear policy.
+    [[nodiscard]] FramebufferPoolClearPolicy clear_policy() const noexcept {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return m_clear_policy;
+    }
+
+    /// P1-21: set the clear policy (thread-safe, takes effect on the
+    /// next `trim_after_job()` call).
+    void set_clear_policy(FramebufferPoolClearPolicy policy) noexcept {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_clear_policy = policy;
+    }
+
     /// Preallocate framebuffers of a given size into the pool.
     /// Returns the number of framebuffers actually created (may be less than
     /// requested if the pool size limit is reached).
@@ -260,6 +315,10 @@ private:
     size_t m_current_bytes{0};
     uint64_t m_tick{0};  // monotonic LRU tick
     std::shared_ptr<chronon3d::FramebufferArena> m_arena;
+    // P1-21: clear policy (default TrimOnMemoryPressure preserves
+    // pre-P1-21 engine behavior; LRU eviction handles trimming when
+    // max_retained_bytes is exceeded).
+    FramebufferPoolClearPolicy m_clear_policy{FramebufferPoolClearPolicy::TrimOnMemoryPressure};
 
     // Eviction counters (lifetime)
     std::atomic<size_t> m_evicted_count{0};

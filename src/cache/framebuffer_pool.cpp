@@ -346,6 +346,42 @@ void FramebufferPool::clear() {
     m_current_bytes = 0;
 }
 
+// P1-21: explicit post-job lifecycle hook.  Honors the configured
+// `FramebufferPoolClearPolicy` instead of hardcoding a clear().  The
+// CLI / job executor should call this at the end of each job.  This
+// replaces the legacy implicit-clear-after-job pattern that destroyed
+// warm state in batch workloads.
+//
+//   * KeepWarm            — no-op (LRU handles eviction).
+//   * TrimAfterJob        — calls clear() (drops all pooled FBs).
+//   * TrimOnMemoryPressure — no-op (LRU handles eviction via
+//                              max_retained_bytes).
+//
+// The policy is read under the same lock as `clear()` to avoid a
+// torn-read race on `m_clear_policy`; the read is a single word so
+// the cost is negligible.
+void FramebufferPool::trim_after_job() {
+    FramebufferPoolClearPolicy policy;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        policy = m_clear_policy;
+    }
+    switch (policy) {
+        case FramebufferPoolClearPolicy::KeepWarm:
+            // No-op: preserve warm state for next job (LRU will trim
+            // when the budget fills).
+            return;
+        case FramebufferPoolClearPolicy::TrimAfterJob:
+            // Drop all pooled FBs to release memory for the next job.
+            clear();
+            return;
+        case FramebufferPoolClearPolicy::TrimOnMemoryPressure:
+            // No-op: LRU eviction handles trimming when
+            // max_retained_bytes is exceeded.
+            return;
+    }
+}
+
 size_t FramebufferPool::current_bytes() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_current_bytes;
