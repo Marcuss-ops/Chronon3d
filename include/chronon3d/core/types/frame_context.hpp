@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/types/time.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>  // WP-9 PR 9.0 — full def for font_engine_or_null()
+#include <chronon3d/runtime/render_runtime.hpp>  // WP-9 PR 9.0 — full def for runtime->font_engine()
 #include <algorithm>
 #include <memory_resource>
 #include <string>
@@ -26,36 +26,17 @@ struct FrameContext {
     std::string assets_root;
     AssetRegistry* assets{nullptr};  // PR 2 — migration path: prefer this over TLS AssetRegistry API
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
-    FontEngine* font_engine{nullptr};  // codex/agent2-font-bind-fixes:
-                                       // render pipeline populates from
-                                       // SoftwareRenderer::font_engine().
-                                       // Composition lambdas may bind this
-                                       // onto the SceneBuilder via
-                                       // SceneBuilder(ctx) ctor OR explicit
-                                       // s.font_engine(ctx.font_engine).
-                                       // nullptr = legacy path (engine must
-                                       // be supplied via SceneBuilder-level
-                                       // setter); backwards-compatible with
-                                       // any tests that build FrameContext
-                                       // by hand without an engine.
-                                       //
-                                       // WP-9 PR 9.0 (deprecated, prefer):
-                                       // composition lambdas should now
-                                       // read `ctx.runtime->font_engine()`
-                                       // when available and fall back to
-                                       // this direct field otherwise.
-
     // ── WP-9 PR 9.0 — Runtime accessor threaded into composition ctx ─
-    /// Non-owning pointer to the per-runtime RenderRuntime.  Render-time
-    /// injection point: Composition's evaluate(Frame, f32, RenderRuntime&,
-    /// FontEngine*, ...) overload sets ctx.runtime = &runtime.  The
-    /// render pipeline may also populate this when SoftwareRenderer
-    /// constructs the per-frame FrameContext for graph execution.
-    ///
-    /// Composition lambdas should prefer `ctx.runtime->font_engine()`
-    /// over `ctx.font_engine` when ctx.runtime is non-null.  Null-safe
-    /// default keeps legacy callers (e.g. hand-built FrameContext in
-    /// tests) compiling without a runtime.
+    // P1-16: the legacy `ctx.font_engine` direct field has been REMOVED
+    // in favour of the canonical `ctx.runtime->font_engine()` accessor
+    // (one owner, one access path).  Composition lambdas should now
+    // read the font engine EXCLUSIVELY through the runtime:
+    //     `if (ctx.runtime && ctx.runtime->font_engine()) ...`
+    // `ctx.runtime` may be null in standalone test scenarios
+    // (hand-built FrameContext without a runtime); the null-check is
+    // the caller's responsibility.
+    // P1-16: `ctx.runtime->font_engine()` is the SOLE canonical access
+    // path.  See the field doc above for the migration contract.
     const chronon3d::runtime::RenderRuntime* runtime{nullptr};
 
     [[nodiscard]] double fps() const { return frame_rate.fps(); }
@@ -83,20 +64,6 @@ struct FrameContext {
     [[nodiscard]] bool is_first_frame() const { return frame == 0; }
     [[nodiscard]] bool is_last_frame() const { return duration > 0 && frame >= duration - 1; }
 
-    // ── WP-9 PR 9.0 — Runtime-aware FontEngine accessor helper ────────
-    /// AGENTS.md §5 anti-duplication helper.  Returns the
-    /// runtime-supplied FontEngine when ctx.runtime is wired (preferred
-    /// path per ADR-020 migration), or the legacy direct ctx.font_engine
-    /// field when no runtime is available.  Null-safe default allows
-    /// hand-built FrameContext (e.g. tests, install_consumer examples)
-    /// to call this without allocating a RenderRuntime.
-    ///
-    /// Composition lambdas should call this method directly:
-    ///     `s.font_engine(ctx.font_engine_or_null())` ; or
-    ///     `if (auto* engine = ctx.font_engine_or_null()) { ... }`
-    /// instead of repeating the `runtime ? runtime->font_engine() : font_engine`
-    /// ternary at every call site (6 sites consolidated by this helper).
-    [[nodiscard]] FontEngine* font_engine_or_null() const noexcept;
 };
 
 } // namespace chronon3d

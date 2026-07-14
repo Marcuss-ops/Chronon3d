@@ -74,7 +74,7 @@ Composition rack_focus_title_swap() {
         SceneBuilder s(ctx);
         // codex/agent2-font-bind-fixes — same single-bind scene-build
         // pattern as deep_parallax_cascade(); see header comment.
-        if (ctx.font_engine) s.font_engine(ctx.font_engine);
+        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
 
         // ── Bokeh-ish background: radial purple-to-black ──────────────
         s.layer("bg", [](LayerBuilder& l) {
