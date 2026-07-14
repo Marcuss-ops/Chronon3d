@@ -23,6 +23,7 @@
 #include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/media/frame_conversion/frame_converter.hpp>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -106,7 +107,10 @@ public:
     /// split would otherwise hide the expected eviction.
     explicit ConvertedFrameCache(
         std::size_t capacity_bytes = 0,
-        std::size_t num_shards     = 2);
+        std::size_t num_shards     = 2,
+        chronon3d::cache::CacheDiagnostics* diag = nullptr);
+    void set_diagnostics(chronon3d::cache::CacheDiagnostics& diag);
+    ~ConvertedFrameCache() { m_diag_alive.store(false, std::memory_order_release); }
 
     /// Look up a key.  Returns an empty ConvertedFrame on miss.
     /// On hit returns a ConvertedFrame view that keeps the entry
@@ -130,6 +134,7 @@ private:
     static std::size_t resolve_capacity_bytes(std::size_t caller_value);
 
     chronon3d::cache::CacheDiagnostics::Handle m_diag_handle;
+    std::atomic<bool> m_diag_alive{true};
 
     chronon3d::cache::LruCache<
         ConvertedFrameCacheKey,

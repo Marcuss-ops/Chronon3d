@@ -43,26 +43,59 @@ std::size_t ConvertedFrameCache::resolve_capacity_bytes(std::size_t caller_value
 
 ConvertedFrameCache::ConvertedFrameCache(
     std::size_t capacity_bytes,
-    std::size_t num_shards)
+    std::size_t num_shards,
+    chronon3d::cache::CacheDiagnostics* diag)
     : m_cache(
         [&] {
             auto cap = resolve_capacity_bytes(capacity_bytes);
             using namespace chronon3d::cache;
-            m_diag_handle = CacheDiagnostics::instance().register_cache(
-                CacheDomain::ConvertedFrames,
-                [this]() -> GenericCacheStats {
-                    auto s = m_cache.stats();
-                    return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
-                },
-                [this] { m_cache.clear(); },
-                [this] { return m_cache.capacity_mode(); },
-                cap);
+            if (diag) {
+                m_diag_handle = diag->register_cache(
+                    CacheDomain::ConvertedFrames,
+                    [this]() -> GenericCacheStats {
+                        if (!m_diag_alive.load(std::memory_order_acquire)) return {};
+                        auto s = m_cache.stats();
+                        return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+                    },
+                    [this] {
+                        if (!m_diag_alive.load(std::memory_order_acquire)) return;
+                        m_cache.clear();
+                    },
+                    [this] {
+                        if (!m_diag_alive.load(std::memory_order_acquire)) return CapacityMode::Weight;
+                        return m_cache.capacity_mode();
+                    },
+                    cap);
+            }
             return cap;
         }(),
         /*num_shards=*/num_shards,
         /*mode=*/cache::capacity_mode_for(cache::CacheDomain::ConvertedFrames),
         /*on_evict=*/{})
 {
+}
+
+void ConvertedFrameCache::set_diagnostics(chronon3d::cache::CacheDiagnostics& diag) {
+    m_diag_alive.store(false, std::memory_order_release);
+    m_diag_handle = {};
+    m_diag_alive.store(true, std::memory_order_release);
+    using namespace chronon3d::cache;
+    m_diag_handle = diag.register_cache(
+        CacheDomain::ConvertedFrames,
+        [this]() -> GenericCacheStats {
+            if (!m_diag_alive.load(std::memory_order_acquire)) return {};
+            auto s = m_cache.stats();
+            return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+        },
+        [this] {
+            if (!m_diag_alive.load(std::memory_order_acquire)) return;
+            m_cache.clear();
+        },
+        [this] {
+            if (!m_diag_alive.load(std::memory_order_acquire)) return CapacityMode::Weight;
+            return m_cache.capacity_mode();
+        },
+        resolve_capacity_bytes(0));
 }
 
 // ---------------------------------------------------------------------------

@@ -102,13 +102,16 @@ public:
     /// `num_shards` defaults to 2 (preserves pre-Commit-4 behaviour).
     explicit SceneProgramCache(
         std::size_t capacity  = 0,
-        std::size_t num_shards = 2);
+        std::size_t num_shards = 2,
+        CacheDiagnostics* diag = nullptr);
+    void set_diagnostics(CacheDiagnostics& diag);
 
     // Non-copyable, non-movable.  Same as before (the legacy impl was the
     // same).  We need to hold a stable address because pointer-stability
     // on CompiledSceneProgram* is what callers (PrecompNode) rely on.
     SceneProgramCache(const SceneProgramCache&)            = delete;
     SceneProgramCache& operator=(const SceneProgramCache&) = delete;
+    ~SceneProgramCache() { m_diag_alive.store(false, std::memory_order_release); }
 
     /// Look up the cache.  Returns a (possibly null) shared_ptr; converters
     /// to a raw pointer via .get() for callers that need one.  On hit the
@@ -231,6 +234,7 @@ private:
         m_cache;
 
     chronon3d::cache::CacheDiagnostics::Handle m_diag_handle;
+    std::atomic<bool> m_diag_alive{true};
 
     /// Cache-side facade atomic counters (so auto_tune doesn't have to
     /// lock the shard to read them).  Kept in sync with m_cache.stats().
