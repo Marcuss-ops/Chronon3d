@@ -63,6 +63,7 @@ Per dettaglio: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Cronologi
 | Error handling cert | WIRED | `verify_error_handling_linux.sh` 10 scenarios. |
 | Performance cert | WIRED | `verify_performance_linux.sh` 5 scenarios + leak test. |
 | Sanitizer cert | WIRED | `verify_sanitizer_linux.sh` 0 OOB + 0 UAF + 0 UB + 0 data races. |
+| TICKET-125 (Test aggregator Tests 8-18) | PARTIAL | 11-row index Tests 8-18 con PASS/FAIL criterion. Vedi [TICKET-125](tickets/TICKET-125-test-aggregator.md) + forward-points TICKET-TEST-9-PILOT-7GG + TICKET-TEST-13-INDEXING + TICKET-TEST-18-LONG-FORM-CONTENT. |
 | Test 18 founder dashboard | OPEN | Weekly scorecard aggregator + 8 metriche. |
 
 ## Gate Audit — ultima verifica
