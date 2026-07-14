@@ -234,21 +234,6 @@ struct CameraPathArgs {
     std::string format{"auto"}; // "json", "csv", or "auto" (detect from -o extension)
 };
 
-struct TextAuditArgs {
-    std::string comp_id;
-    std::string frames;            // e.g. "0,19,20,40,80,160,299" or "0-300x10"
-    std::string json_output;       // --json output path
-    std::string render_dir;        // --render-dir for frame PNGs
-    float safe_margin_x{0.05f};    // fraction of canvas width
-    float safe_margin_y{0.05f};    // fraction of canvas height
-    float max_center_error_px{2.0f};
-    int   max_border_alpha_pixels{0};
-    float glyph_tolerance{0.01f};
-    int   alpha_threshold{8};
-    bool  diagnostic_overlay{false};
-    bool  diagnostic_overlay_only{false};
-};
-
 // §12 FU09 — TICKET-SIMPLICITY-INSPECT-TEXT: per-node TextRun audit
 // with structured JSON output + exit code (0=PASS, 1=FAIL, 2=VIOLATION).
 struct InspectTextArgs {
@@ -290,7 +275,6 @@ int command_preflight(const CompositionRegistry& registry, const PreflightArgs& 
 int command_still(const CompositionRegistry& registry, const StillArgs& args);
 int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args);
 int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);
-int command_text_audit(const CompositionRegistry& registry, const TextAuditArgs& args);
 int command_inspect_text(const CompositionRegistry& registry, const InspectTextArgs& args);
 int command_text_def_inspect(const CompositionRegistry& registry, const TextDefInspectArgs& args);
 
