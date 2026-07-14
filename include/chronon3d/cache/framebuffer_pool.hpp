@@ -5,6 +5,8 @@
 #include <atomic>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -106,6 +108,29 @@ enum class FramebufferPoolClearPolicy {
     TrimAfterJob,
     TrimOnMemoryPressure,
 };
+
+// TICKET-PARSE-POLICY-HELPER-DEDUP — canonical string-to-enum parser.
+// Accepts BOTH lowercase ("keep-warm") and PascalCase ("KeepWarm") forms
+// to preserve the existing behavior in src/core/config.cpp:193-201 and
+// apps/chronon3d_cli/utils/job/render_job.cpp:46-50. Returns std::nullopt
+// for empty strings, unknown values, whitespace, or underscores (strict
+// matching; no auto-trimming or auto-conversion). The optional name()
+// round-trip helper is deferred to a future forward-point if a concrete
+// caller emerges (e.g., register_render_commands.cpp CLI help text
+// migrated to dynamic generation).
+[[nodiscard]] inline std::optional<FramebufferPoolClearPolicy>
+parse_framebuffer_pool_clear_policy(std::string_view name) noexcept {
+    if (name == "keep-warm" || name == "KeepWarm") {
+        return FramebufferPoolClearPolicy::KeepWarm;
+    }
+    if (name == "trim-after-job" || name == "TrimAfterJob") {
+        return FramebufferPoolClearPolicy::TrimAfterJob;
+    }
+    if (name == "trim-on-memory-pressure" || name == "TrimOnMemoryPressure") {
+        return FramebufferPoolClearPolicy::TrimOnMemoryPressure;
+    }
+    return std::nullopt;
+}
 
 // ---------------------------------------------------------------------------
 // FramebufferPoolStats
