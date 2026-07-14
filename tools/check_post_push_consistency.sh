@@ -46,8 +46,11 @@
 #   bash tools/check_post_push_consistency.sh --strict  # exit 1 on empty reflog
 #
 # Invoked by:
-#   - tools/run_developer_gates.sh (in the canonical 9-gate developer chain)
-#   - .githooks/pre-push (defence-in-depth on raw `git push`)
+#   - Stand-alone / CI post-push verification (NOT in the pre-push developer
+#     chain, because a commit not yet pushed cannot be an ancestor of
+#     origin/main).
+#   - Can be wired into a CI pipeline after the push stage to detect the
+#     lost-commit pattern described in AGENTS.md §Post-push SHA-selfcheck.
 # ============================================================================
 
 set -euo pipefail
