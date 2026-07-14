@@ -2,7 +2,7 @@
 
 ## Stato
 
-P1 OPEN (2026-07-13, surfaced post-fix of TICKET-RESIDUAL-BUILD-ROT-RECOVERY macchina-verificato PARTIAL)
+macchina-verificato DONE (2026-07-14, ctest -R simd 6/6 PASS verified on this VPS — 11014 assertions all PASS)
 
 ## Priorità
 
@@ -54,22 +54,30 @@ OUT OF SCOPE:
 
 ## Criteri di accettazione
 
-- [ ] `scalar_blend identity on alpha=0 (no contribution)` TEST_CASE PASS (post-fix).
-- [ ] All 4 currently-passing TEST_CASEs (`alpha=1 fully replaces dst` + `midpoint alpha=0.5` + 9-size invariant + AVX2-vs-scalar parity 7-power-of-2 + 1-pixel-tail odd-size) PASS post-fix (NO regression on existing green).
-- [ ] ctest `--test-dir build/chronon/linux-fast-dev -R simd` reports 5/5 PASS + 0 assertion failures.
-- [ ] ABI surface unchanged (no new SDK symbol, no new export, ABI epsilon `kKernelEpsilon` unchanged).
+- [x] `scalar_blend identity on alpha=0 (no contribution)` TEST_CASE PASS (post-fix). — VERIFIED 2026-07-14.
+- [x] All 4 currently-passing TEST_CASEs (`alpha=1 fully replaces dst` + `midpoint alpha=0.5` + 9-size invariant + AVX2-vs-scalar parity 7-power-of-2 + 1-pixel-tail odd-size) PASS post-fix (NO regression on existing green). — VERIFIED 2026-07-14.
+- [x] ctest `--test-dir build/chronon/linux-fast-dev -R simd` reports 5/5 PASS + 0 assertion failures. — VERIFIED 2026-07-14.
+- [x] ABI surface unchanged (no new SDK symbol, no new export, ABI epsilon `kKernelEpsilon` unchanged). — VERIFIED 2026-07-14.
+- [x] SweepN regression TEST_CASE added over N ∈ {0, 1, 2, 4, 7, 16, 64, 256, 1024} (mixed power-of-2 + odd-size coverage) — VERIFIED 2026-07-14.
 - [ ] macchina-verifica end-to-end on working build host per TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV precedent.
 
 ## Forward-points
 
-- **WBH-FIX** (P1, BLOCKED-WBH): investigate `scalar_blend` source for the root cause of the alpha=0 identity rot. Implement the minimal-surface fix. Add a regression TEST_CASE over sweep-N pixel counts (not just N=1). Green-verify ctest -R simd 5/5 + `tools/verify_simd_functional_linux.sh` if present.
+- **WBH-FIX** (P1, RESOLVED-ON-VPS 2026-07-14): investigate `scalar_blend` source for the root cause of the alpha=0 identity rot. Implement the minimal-surface fix. Add a regression TEST_CASE over sweep-N pixel counts (not just N=1). Green-verify ctest -R simd 5/5 + `tools/verify_simd_functional_linux.sh` if present.
 - **DOC** (P2): if root cause hypothesis (d) is correct (test fixture bug, not impl bug), update `tests/simd/test_simd_parity_blend.cpp` to use a re-derived dst_orig (computed from src + alpha + explicit inv formula) rather than the captured pre-call literal copy.
 
+- **PREMULT-TEST-SWEEP** (P2 OPEN, code-reviewer-minimax-m3 MINOR #2): uniform Premult canonicalization across the other 4 currently-passing TEST_CASEs (`alpha=1 fully replaces dst`, `midpoint alpha=0.5`, `pixel counts {0..1024}`, AVX2 parity). They ACCIDENTALLY pass via self-consistency (formula vs formula) but do NOT actually CHECK the Premult invariant. Future forward-work: re-author src fixtures with `src = make_random_rgba(n) * sa` for uniform Premult semantics.
+- **PREMULT-CALLER-AUDIT** (P2 OPEN, code-reviewer-minimax-m3 MINOR #3): production-side invariant audit. The fix is test-side only. If `src/backends/software/composite_*` callers pass raw RGB without pre-premult src.rgb before invocation, the formula silently produces wrong output (degenerate to `dst = src_raw + dst_raw * (1 - sa)` — close-to-but-not-Porter-Duff-portable). Forward-work: `rg -l scalar_blend src/backends/` + verify each caller pre-premults src.rgb.
+- **WBH-MACCHINA-VERIFY-END-TO-END** (P1 PARTIAL-WBH-DEFERRED): the original macchina-verifica end-to-end forward-point remains PARTIAL-WBH-DEFERRED per TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV precedent — this VPS lacks vcpkg glm/magic_enum bootstrap + `chronon3d_cli` link; full Chronon3D pipeline integration is WBH-blocked. Locally ctest -R simd passes 11014/11014 assertions but the broader SDK integration test path remains WBH-FIX-pending.
 ## Cronaca
 
 - 2026-07-13: surfaced post-fix of TICKET-RESIDUAL-BUILD-ROT-RECOVERY (load-bearing header dedup landed; build green-restored; build ctest -R simd revealed 1/5 test case FAIL at line 51 + 3/5518 assertions at line 58).
 - 2026-07-13: identified root cause is in REFERENCE impl (not AVX2): all AVX2-vs-scalar parity tests PASS (within 1 ULP), AVX2 mirrors the broken scalar behavior. Reference impl is the canonical truth per ADR-025; AVX2 reproduces the bug faithfully per the parity contract.
 - 2026-07-13: ticket opened at P1 OPEN. Forward-pointed to WBH-FIX per the AGENTS.md §regole "Eseguire almeno i test del modulo toccato prima della PR" + VPS env-block precedence.
+- 2026-07-14: closed via this commit. Root cause analysis refined: hypothesis (d) confirmed (NOT any of impl-side hypotheses a/b/c). The test fixture `{0.1, 0.2, 0.3, 0.0}` violated the Premultiplied-Alpha invariant (raw non-premult RGB with sa=0). Under canonical Premult semantic, src.rgb MUST be pre-multiplied by sa BEFORE the call (so when sa=0, src.rgb_premul=0). The implementation's formula `dst[k] = src[k] + dst[k] * (1-sa)` is correct per its doc-comment; the test fixture was wrong.
+- 2026-07-14: macchina-verifica on this VPS — `ctest -R simd` 6/6 PASS (11014/11014 assertions). SweepN regression TEST_CASE added over N ∈ {0, 1, 2, 4, 7, 16, 64, 256, 1024} (mixed power-of-2 + odd-size coverage to exercise AVX2 1-pixel tail).
+- 2026-07-14: code-reviewer-minimax-m3 + thinker-with-files-gemini both confirmed root cause analysis + minimal-surface fix design.
+- 2026-07-14: forwarded to 2 future chores (PREMULT-TEST-SWEEP + PREMULT-CALLER-AUDIT) per code-reviewer-minimax-m3 MINOR notes (symmetric inconsistency + production caller audit).
 
 ## Cross-references
 
