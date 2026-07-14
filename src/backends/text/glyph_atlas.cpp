@@ -136,31 +136,7 @@ GlyphAtlasStats glyph_atlas_stats() {
     s.hits         = st.hits;
     s.misses       = st.misses;
     return s;
-}
-
-// ── glyph_atlas_store_from_text — Extract glyphs from a rendered text image ──
-void glyph_atlas_store_from_text(
-    const std::string& font_path,
-    const BLImage& rendered_text,
-    const BLGlyphBuffer& gb,
-    const BLFont& font,
-    float text_origin_x,
-    float text_origin_y,
-    float font_size
-) {
-    // Deprecated: uses removed Blend2D v0.12+ APIs (getGlyphRun, getGlyphPlacement,
-    // 2-arg getGlyphBounds). The per-glyph atlas hot-path uses
-    // glyph_atlas_store_from_placed_run (HarfBuzz-shaped runs) instead.
-    (void)font_path;
-    (void)rendered_text;
-    (void)gb;
-    (void)font;
-    (void)text_origin_x;
-    (void)text_origin_y;
-    (void)font_size;
-}
-
-// ── glyph_atlas_store_from_placed_run — Store from a shaped PlacedGlyphRun ──
+}// ── glyph_atlas_store_from_placed_run — Store from a shaped PlacedGlyphRun ──
 void glyph_atlas_store_from_placed_run(
     const std::string& font_path,
     const BLImage& rendered_text,
