@@ -299,10 +299,3 @@ NodeExecResult PrecompNode::execute_with_scope(
 }
 
 } // namespace chronon3d::graph
-
-// P1-16: FrameContext::font_engine_or_null() has been REMOVED.  Callers
-// must read `ctx.runtime->font_engine()` directly (with their own
-// null-check on ctx.runtime).  The legacy body lived here to break a
-// circular include chain (frame_context.hpp → render_runtime.hpp →
-// graph_executor.hpp → scene_hasher.hpp); with the helper gone, the
-// chain is no longer required at this site.
