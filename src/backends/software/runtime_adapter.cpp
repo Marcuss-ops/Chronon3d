@@ -26,8 +26,13 @@ chronon3d::SoftwareRenderSession make_session(
     chronon3d::runtime::RenderRuntime& runtime
 ) {
     chronon3d::SoftwareRenderSession session;
-    // Fase 5 — use direct typed accessors instead of the
-    // runtime.services() bundle (TICKET-P1-09 surface reduction).
+    // P1-15 — use RenderRuntime's typed direct accessors (canonical
+    // surface; the `RenderServices` pointer bundle + `services()`
+    // accessor have been REMOVED wholesale from RenderRuntime).
+    // NOTE: the graph-context `SessionServices` type populated here
+    // is distinct from the (now-deleted) runtime `RenderServices`
+    // bundle — `SessionServices` is the per-`RenderSession` bridge,
+    // not the per-`RenderRuntime` pointer collection.
     session.common.services = chronon3d::runtime::SessionServices{
         .executor            = &runtime.executor(),
         .node_cache          = &runtime.node_cache(),

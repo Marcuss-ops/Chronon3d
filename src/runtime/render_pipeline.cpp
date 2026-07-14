@@ -6,9 +6,10 @@
 // The facade exists for type safety + forward-compat with the TICKET-011
 // final-stage split.
 //
-// All paths read the shared services from `m_runtime.services()` and
-// per-instance state from `m_renderer` (SoftwareRenderer counts as the
-// RenderBackend for graph dispatch).
+// All paths read the shared typed accessors on `m_runtime` (P1-15
+// canonical surface: `runtime.node_cache()`, `runtime.backend()`, etc.)
+// and per-instance state from `m_renderer` (SoftwareRenderer counts as
+// the RenderBackend for graph dispatch).
 // ===========================================================================
 
 #include <chronon3d/runtime/render_pipeline.hpp>
