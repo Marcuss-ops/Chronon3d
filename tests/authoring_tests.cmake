@@ -14,7 +14,11 @@ chronon3d_add_test_suite(
     NAME chronon3d_authoring_tests
     TIER UNIT
     LINK_TARGETS chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline
+    # Audit §10 — process-wide asset root ripout.  Four pure
+    # header-only tests for the thin `authoring::asset(...)` family
+    # + ImageRef/FontRef overloads on `Layer::image`/`Text::font`.
     SOURCES authoring/test_animator_dsl.cpp
+            authoring/test_asset_api.cpp
 )
 # Same guard as core_tests.cmake: authoring tests share test_main.cpp
 # which conditionally links against content/extension/text symbols.

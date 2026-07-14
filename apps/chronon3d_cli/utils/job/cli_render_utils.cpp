@@ -5,8 +5,11 @@
 #include <chronon3d/backends/software/runtime_adapter.hpp>  // Fase A2 — attach_software_backend factory
 #include <chronon3d/runtime/render_runtime.hpp>
 
+// Audit §10 — `<filesystem>` include was REMOVED (the unconditional
+// `cwd = current_path()` mount line that consumed `std::filesystem`
+// was deleted).  If a future caller re-introduces an EXPLICIT
+// `--assets-root` CLI flag wiring, restore the include here.
 #include <cassert>
-#include <filesystem>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {
@@ -73,21 +76,30 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     // command and the crashing `video` command), so mounting here covers
     // every code path.  Capturing cwd into a local avoids the racy
     // global mutable CWD read across the two mount() calls.
-    const std::filesystem::path cwd = std::filesystem::current_path();
-
-    // Mount the per-engine Resolver.  WP-8 PR 8.0 split the runtime
-    // assets into TWO siblings: `assets()` (typed registry) and
-    // `resolver()` (per-engine typed path resolver).  The FontEngine
-    // is constructed in `SoftwareRenderer(Config{})` via
-    // `make_unique<FontEngine>(m_runtime->resolver())`
-    // (src/backends/software/software_renderer.cpp), so font lookup goes
-    // through the resolver — NOT the registry.  Likewise
-    // AssetPreflightResolver::check calls `resolver.resolve_lexical(ref.path)`
-    // (include/chronon3d/assets/asset_preflight_resolver.hpp) and
-    // SoftwareRenderer::preflight_fonts passes `m_runtime->resolver()` to
-    // `TextRenderResources::resolve_handle(...)`.  AssetRegistry no longer
-    // holds a mount root; path resolution is the resolver's job.
-    renderer->runtime().resolver().mount(cwd);
+    // Audit §10 — the previous `cwd = current_path()` unconditional
+    // mount on `renderer->runtime().resolver()` was REMOVED.  That mount
+    // was a process-wide asset root in disguise (every CLI invocation —
+    // `render`, `video`, `bench_convert`, preflight — silently snapshotted
+    // the working directory and made it the per-runtime resolver mount).
+    // Composition tests under `cd /tmp/test-runner` would resolve
+    // `assets/fonts/Inter.ttf` from PROJECT ROOT regardless of the
+    // test's effective cwd — a silent cross-test drift surface.
+    //
+    // After removal: callers that need the resolver mounted must
+    //   (a) construct `SoftwareRenderer` with an explicit `Config`
+    //       whose `assets_root` field is populated — this routes
+    //       through `RenderRuntime::create()`'s
+    //       `runtime->resolver().mount(*cfg.assets_root)` canonical
+    //       wiring (see src/runtime/render_runtime.cpp:85), OR
+    //   (b) bridge through `sdk::RenderEngine` and call
+    //       `engine.set_assets_root(path)` before invoking
+    //       `create_renderer` — this routes through `RenderEngine::Impl`
+    //       which calls `m_runtime.resolver().mount(root)`
+    //       (see src/runtime/render_engine.cpp:95).
+    // If neither (a) nor (b) is set, the resolver is un-mounted at
+    // construction time and preflight surfaces the missing mount as
+    // a hard FAIL — the desired behaviour per audit §10 ("fallback
+    // CWD" delisting).  No silent drift.
 
     // P1-14 — the vestigial `populate()` call was REMOVED.  The canonical
     // `RenderRuntime::create()` factory auto-pops the runtime via
