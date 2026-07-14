@@ -195,6 +195,7 @@ enum class CameraProgramKind : std::uint8_t {
     Orbit       = 2,  // resolved to OrbitMotion
     Trajectory  = 3,  // resolved to TrajectoryMotion
     Ref         = 4,  // UNRESOLVED RegisteredMotionRef (only valid on failure)
+    CameraMotionParams = 5,  // TICKET-P2-29: resolved to CameraMotionParamsSource
 };
 
 // =========================================================================

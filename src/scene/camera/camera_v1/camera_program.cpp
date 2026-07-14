@@ -344,6 +344,30 @@ EvaluatedCameraSource CameraProgram::evaluate_compiled_source(const CameraEvalCo
         }
     }
 
+    if (auto* cmps = std::get_if<CameraMotionParamsSource>(&source)) {
+        // TICKET-P2-29: continuous-time evaluation.  The 60-sample discrete
+        // bake (constexpr int n = 60; for (...) bake) is GONE — the V1
+        // runtime evaluates the motion math natively via sample_at() at the
+        // given frame.  Mathematically equivalent within ε to the prior
+        // bake (61 keyframes via linear interpolation between samples).
+        Camera2_5D cam;
+        cam.enabled = base.enabled;
+        cam.is_animated = true;
+        // sample_at() returns the FULL pose for ctx_frame.
+        cam = cmps->sample_at(ctx.frame);
+        // Carry forward base fields (lens, DOF, motion blur, parent_name).
+        cam.lens = base.lens;
+        cam.dof = base.dof;
+        cam.motion_blur = base.motion_blur;
+        cam.parent_name = base.parent_name;
+        // Central projection dispatch.
+        apply_projection_spec(base.projection, ctx, cam);
+        // No trajectory tangent / roll — CameraMotionParamsSource is not
+        // a trajectory; the orientation stage handles its own fallbacks
+        // (Fixed / LookAt / etc.).
+        return EvaluatedCameraSource{cam, std::nullopt, std::nullopt};
+    }
+
     // StaticCameraSource or unknown: use base.
     Camera2_5D cam;
     cam.enabled = base.enabled;

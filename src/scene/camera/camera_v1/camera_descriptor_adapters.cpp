@@ -9,8 +9,12 @@
 //
 // CameraRig is mapped directly to the OrbitMotion source (canonical V1),
 // so the V1 runtime evaluates the orbit math natively.  CameraMotionParams
-// is baked into a PoseTracksSource using the canonical animation helpers
-// from <chronon3d/animations/camera_motion_params.hpp>.
+// is mapped to the new CameraMotionParamsSource variant (TICKET-P2-29):
+// the V1 runtime evaluates the motion math continuously via
+// CameraMotionParamsSource::sample_at() at any frame, eliminating the
+// prior 60-sample discrete-time bake (constexpr int n = 60; for (...) bake).
+// Mathematically equivalent to the prior bake within ε (61 keyframes via
+// linear interpolation between samples).
 // ==============================================================================
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor_adapters.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
@@ -26,9 +30,11 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/math/glm_types.hpp>
 
-#include <algorithm>
-#include <cmath>
-#include <vector>
+// TICKET-P2-29: <algorithm> + <cmath> + <vector> removed — the prior 60-sample
+// bake (constexpr int n = 60; for (...) bake) used std::max + std::round
+// (from <algorithm> + <cmath>); <vector> was pulled in transitively.  The
+// continuous-time evaluation in CameraMotionParamsSource::sample_at() uses
+// only inline math + chronon3d::animation::{lerp, easing_value, normalized_time}.
 
 namespace chronon3d::camera_v1 {
 
@@ -37,51 +43,60 @@ namespace {
 // Single canonical base fps for the adapters' t=0 snapshot reads.
 constexpr FrameRate kAdapterBaseFps{60, 1};
 
-// Evaluate CameraMotionParams using the canonical animation helpers.
-// This mirrors animation::apply_camera_motion() but is side-effect-free
-// and returns a Camera2_5D instead of mutating a SceneBuilder.
-Camera2_5D eval_camera_motion_params(
-    const chronon3d::animation::CameraMotionParams& p,
-    Frame ctx_frame)
-{
+// TICKET-P2-29: local eval_camera_motion_params() REMOVED.  The body is
+// now CameraMotionParamsSource::sample_at() (defined just below the
+// anonymous namespace).  See TICKET-P2-29 for the migration lineage; the
+// 60-sample discrete-time bake (constexpr int n = 60; for (...) bake) is
+// gone — the V1 runtime evaluates the motion math natively at any frame
+// via sample_at().
+
+} // anonymous namespace
+
+// ────────────────────────────────────────────────────────────────────────
+// CameraMotionParamsSource::sample_at (TICKET-P2-29)
+// ────────────────────────────────────────────────────────────────────────
+// Continuous-time evaluation: returns the Camera2_5D pose at the given
+// frame per the canonical animation helpers from
+// <chronon3d/animations/camera_motion_params.hpp>.  Body was lifted
+// verbatim from the (now-removed) local eval_camera_motion_params() free
+// function; the only change is `p.X` → `params.X` (now a member field).
+Camera2_5D CameraMotionParamsSource::sample_at(Frame ctx_frame) const {
     using namespace chronon3d::animation;
 
-    const Frame local_frame = (ctx_frame >= p.start_frame)
-                                  ? (ctx_frame - p.start_frame)
+    const Frame local_frame = (ctx_frame >= params.start_frame)
+                                  ? (ctx_frame - params.start_frame)
                                   : Frame{0};
 
     Camera2_5D cam;
     cam.enabled = true;
-    cam.position = p.pose.position;
-    cam.rotation = p.pose.rotation;
-    cam.zoom = p.pose.zoom;
+    cam.position = params.pose.position;
+    cam.rotation = params.pose.rotation;
+    cam.zoom = params.pose.zoom;
 
-    if (p.primary.enabled && p.primary.duration > 0) {
+    if (params.primary.enabled && params.primary.duration > 0) {
         const f32 t = easing_value(
-            p.primary.easing,
-            normalized_time(local_frame, p.primary.duration));
-        cam.position = lerp(p.primary.from.position, p.primary.to.position, t);
-        cam.rotation = lerp(p.primary.from.rotation, p.primary.to.rotation, t);
-        cam.zoom     = lerp(p.primary.from.zoom,        p.primary.to.zoom,        t);
+            params.primary.easing,
+            normalized_time(local_frame, params.primary.duration));
+        cam.position = lerp(params.primary.from.position, params.primary.to.position, t);
+        cam.rotation = lerp(params.primary.from.rotation, params.primary.to.rotation, t);
+        cam.zoom     = lerp(params.primary.from.zoom,        params.primary.to.zoom,        t);
     } else {
-        const f32 t = normalized_time(local_frame, p.duration);
-        cam.position = p.position;
-        cam.zoom = p.zoom;
-        switch (p.axis) {
+        const f32 t = normalized_time(local_frame, params.duration);
+        cam.position = params.position;
+        cam.zoom = params.zoom;
+        switch (params.axis) {
             case MotionAxis::Tilt:
-                cam.rotation.x = lerp(p.start_deg, p.end_deg, t); break;
+                cam.rotation.x = lerp(params.start_deg, params.end_deg, t); break;
             case MotionAxis::Pan:
-                cam.rotation.y = lerp(p.start_deg, p.end_deg, t); break;
+                cam.rotation.y = lerp(params.start_deg, params.end_deg, t); break;
             case MotionAxis::Roll:
-                cam.rotation.z = lerp(p.start_deg, p.end_deg, t); break;
+                cam.rotation.z = lerp(params.start_deg, params.end_deg, t); break;
         }
     }
     // Idle is applied as an IdleOscillation modifier at the descriptor level,
     // not baked into the source keys.
     return cam;
 }
-
-} // anonymous namespace
 
 // ───────────────────────────────────────────────────────────────────────────
 // Adapter 1: CameraMotionParams → CameraDescriptor
@@ -91,32 +106,11 @@ camera_descriptor_from(const chronon3d::animation::CameraMotionParams& p) {
     CameraDescriptor d;
     d.id = "adapter_camera_motion_params";
 
-    PoseTracksSource pts;
-    pts.fov_deg.set(50.0f);
-    pts.use_target = false;
-    pts.aperture.set(0.015f);
-    pts.max_blur.set(24.0f);
-    pts.focus_distance.set(0.0f);
-
-    // Bake covers [0, start_frame + max(p.duration, primary.duration)].
-    const int primary_dur = p.primary.enabled
-                                ? static_cast<int>(p.primary.duration)
-                                : static_cast<int>(p.duration);
-    const int active_dur   = std::max(1, primary_dur);
-    const int start_frame  = static_cast<int>(p.start_frame);
-    const int total_frames = start_frame + active_dur;
-    constexpr int n = 60;
-
-    for (int i = 0; i <= n; ++i) {
-        const double t = static_cast<double>(i) / static_cast<double>(n);
-        const int frame_at_st = static_cast<int>(std::round(t * total_frames));
-
-        Camera2_5D cam = eval_camera_motion_params(p, Frame{frame_at_st});
-
-        pts.position.key(Frame{frame_at_st}, cam.position);
-        pts.rotation.key(Frame{frame_at_st}, cam.rotation);
-        pts.zoom.key(Frame{frame_at_st}, cam.zoom);
-    }
+    // TICKET-P2-29: the 60-sample discrete-time bake (constexpr int n = 60;
+    // for (...) bake) is GONE.  CameraMotionParams is now held verbatim in
+    // the new CameraMotionParamsSource variant; the V1 runtime evaluates
+    // sample_at() at any frame (no 61-keyframe discretization, no
+    // constexpr n = 60 constant, no std::round call).
 
     if (p.idle.enabled) {
         IdleOscillation idle;
@@ -128,7 +122,10 @@ camera_descriptor_from(const chronon3d::animation::CameraMotionParams& p) {
         d.modifiers.push_back(idle);
     }
 
-    d.source = pts;
+    // TICKET-P2-29: continuous-time source.  The CameraMotionParams struct is
+    // embedded verbatim; sample_at() is called by CameraProgram::evaluate()
+    // (see camera_program.cpp: get_if<CameraMotionParamsSource> branch).
+    d.source = CameraMotionParamsSource{p};
     d.base.position = (p.primary.enabled ? p.primary.from.position : p.position);
     d.base.rotation = p.pose.rotation;
     d.base.projection = ZoomProjection{AnimatedValue<float>{p.zoom}};
