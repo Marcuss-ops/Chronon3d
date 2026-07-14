@@ -28,7 +28,8 @@
 #   4.5m. tools/check_glow_certification.sh
 #   4.5n. tools/check_determinism.sh
 #   4.5p. tools/check_determinism_matrix.sh
-#   5. exec git push "$@" atomically
+#   5. git push "$@" + post-push SHA-triple self-check (drop exec; canonical
+#      in-script companion to AGENTS.md §Post-push SHA-selfcheck invariant).
 #
 # Each gate exits 0 (pass) / 1 (fail) / 2 (internal-script-error).  Hardblock
 # always; no --skip-gates escape hatch.  Documented in
