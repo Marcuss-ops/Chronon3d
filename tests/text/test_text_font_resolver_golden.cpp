@@ -72,7 +72,8 @@ TextDocument make_golden_doc() {
 /// Build a FontEngine bound to a RenderRuntime.
 FontEngine make_golden_engine() {
     static const Config cfg;
-    static const auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    static const auto runtime = runtime::RenderRuntime::create(
+        runtime::RuntimeConfig{cfg, std::nullopt}).value();
     return FontEngine{runtime->resolver()};
 }
 

@@ -1,5 +1,5 @@
-#include <memory>
 #include <optional>
+#include <memory>
 // \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
 // test_compile_text_layout_errors.cpp
 //
@@ -42,20 +42,20 @@ namespace {
 /// RAII-owned engine stack: do NOT use shared singletons across tests.
 /// Each TEST_CASE gets a fresh Config + RenderRuntime + FontEngine.
 ///
-/// Note: `runtime->resolver()` is a process-level singleton.  Residuals
+/// Note: `runtime.resolver()` is a process-level singleton.  Residuals
 /// from one TEST_CASE's font registration MAY survive into the next,
 /// which is acceptable because the four tests in this TU assert on
 /// STRUCTURE of inputs (geometry, byte ranges) rather than on
 /// font-engine behaviour.  Tests that read font-engine state directly
 /// would need a different fixture (e.g. a mock resolver).
 struct LocalEngine {
-    chronon3d::Config                cfg{};
+    chronon3d::Config cfg{};
     std::unique_ptr<chronon3d::runtime::RenderRuntime> runtime;
-    FontEngine                        engine;
+    FontEngine engine;
 
     LocalEngine()
         : runtime(chronon3d::runtime::RenderRuntime::create(
-              chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value()),
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value()),
           engine{runtime->resolver()}
     {}
 };

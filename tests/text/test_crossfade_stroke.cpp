@@ -138,7 +138,8 @@ std::shared_ptr<AnimatedTextDocument> make_crossfade_longer_outgoing_doc(
 
 TEST_CASE("TICKET-068: crossfade shape with longer outgoing text establishes OOB-precondition without crash") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -209,7 +210,8 @@ TEST_CASE("TICKET-068: crossfade shape with longer outgoing text establishes OOB
 
 TEST_CASE("TICKET-068: crossfade post-gap clears slots; longer outgoing data doesn't leak forward") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -234,7 +236,7 @@ TEST_CASE("TICKET-068: crossfade post-gap clears slots; longer outgoing data doe
     // Post-gap (frame 90).  Per PR 11, slots must be cleared.
     const auto post = shape->animated_doc->sample_at(Frame{90});
     CHECK(post.transition == SourceTextTransition::Hold);
-    [[maybe_unused]] bool applied = apply_active_state_to_text_run_shape(*shape, post, engine, layout);
+    apply_active_state_to_text_run_shape(*shape, post, engine, layout);
     CHECK(shape->crossfade_layout == nullptr);
     CHECK(shape->crossfade_glyphs.empty());
     CHECK(shape->crossfade_mix == 0.0f);
