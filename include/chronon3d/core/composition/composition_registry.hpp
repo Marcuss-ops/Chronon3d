@@ -30,11 +30,12 @@ namespace chronon3d {
  * The former `factories_` map (formerly duplicate storage) has been
  * eliminated in TICKET-COMPOSITIONDESCRIPTOR-MIGRATION Phase-1 (2026-07-14).
  *
- * Forward-point: re-introduce a `[[deprecated]]` marker on the legacy
- * overload (with build-flag escape hatch per AGENTS.md §`### 2×-in-one-chore`
- * rule), and REMOVE the legacy overload post V0.1 (subject to
- * ABI-stability ADR per Cat-2 freeze).
- * See docs/tickets/TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.md.
+ * The legacy `add(name, factory)` overload is marked `[[deprecated]]`
+ * per TICKET-COMPOSITIONDESCRIPTOR-MIGRATION Phase 2 (2026-07-14) with
+ * build-flag escape hatch per AGENTS.md §`### 2×-in-one-chore` rule.
+ * Will be REMOVED post V0.1 (subject to ABI-stability ADR per Cat-2
+ * freeze — see docs/adr/ADR-027-compositiondescriptor-migration.md and
+ * docs/tickets/TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.md).
  *
  * Starts empty — compositions are added explicitly via add() during
  * startup (ExtensionModule::register_all) or directly by the host.
@@ -67,9 +68,11 @@ public:
     /// `add(CompositionDescriptor{.id, .factory})` so the `factories_`
     /// map (formerly duplicate) has been eliminated.
     ///
-    /// Forward-point: re-introduce a `[[deprecated]]` marker (with
-    /// build-flag escape hatch), and REMOVE the overload post V0.1:
-    /// docs/tickets/TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.md
+    /// **Deprecated** since TICKET-COMPOSITIONDESCRIPTOR-MIGRATION Phase 2
+    /// (2026-07-14) per ADR-027 — REMOVAL is forward-pointed post V0.1
+    /// (Cat-2 freeze). Use the canonical `add(CompositionDescriptor{...})`
+    /// form instead. See docs/tickets/TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.md.
+    [[deprecated("Use add(CompositionDescriptor{.id = name, .factory = f, ...}) for metadata support")]]
     void add(std::string name, Factory factory) {
         add(CompositionDescriptor{.id = std::move(name), .factory = std::move(factory)});
     }
