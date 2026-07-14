@@ -10,11 +10,6 @@
 | Ticket | Pri | Status | Description |
 | TICKET-TOOLS-ORPHAN-AUDIT | P2 | NEW | tools/ script audit: 95 classified, 0 removed. Removals deferred to 4 forward-points per Cat-3 minimal surface. | [ticket](docs/tickets/TICKET-TOOLS-ORPHAN-AUDIT.md) |
 | TICKET-TEXT-SPEC-FORWARDER-REMOVAL | P2 | FORWARD-POINT REGISTER | 2×-in-one-chore orphan-intent register: LayerBuilder::text(name,TextSpec) overload REMOVED; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-TEXT-SPEC-FORWARDER-REMOVAL.md) |
-|---|---|---|---|
-| TICKET-TOOLS-ORPHAN-AUDIT | P2 | NEW | tools/ script audit: 95 classified, 0 removed. Removals deferred to 4 forward-points per Cat-3 minimal surface. | [ticket](docs/tickets/TICKET-TOOLS-ORPHAN-AUDIT.md) |
-| TICKET-TEXT-SPEC-FORWARDER-REMOVAL | P2 | FORWARD-POINT REGISTER | 2×-in-one-chore orphan-intent register: LayerBuilder::text(name,TextSpec) overload REMOVED; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-TEXT-SPEC-FORWARDER-REMOVAL.md) |
-| TICKET-PREMULT-TEST-SWEEP | P2 | OPEN | Uniform Premult-invariant canonicalization across the 4 other currently-passing TEST_CASEs (`alpha=1` + `midpoint` + `pixel counts {0..1024}` + AVX2 parity) in `tests/simd/test_simd_parity_blend.cpp`. [ticket](docs/tickets/TICKET-PREMULT-TEST-SWEEP.md) |
-| TICKET-PREMULT-CALLER-AUDIT | P2 | OPEN | Production-side Premult invariant audit in `src/backends/software/*` + `src/render_graph/nodes/*` callers of `scalar_blend` + composite_normal_premul. FORWARD-POINT from `b16ad302` per code-reviewer-minimax-m3 MINOR #3. [ticket](docs/tickets/TICKET-PREMULT-CALLER-AUDIT.md) |
 | TICKET-NODE-CACHE-KEY-COLLAPSE-ROT | P2 | OPEN | NodeCacheKey not recognized in node_executor.cpp — build rot blocking macchina-verifica. [ticket](docs/tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |
 | TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX | P0 | OPEN | Audit-trail: upstream conflict markers in CHANGELOG resolved by `52e48ddd`; forward-point: extend check to `.md` prose. |
 | TICKET-COMPLETENESS-GATE-V2-FIX-FORWARD | P1 | OPEN | Re-apply §20 unified video gate wire-chore post-rot-fix; 3 BLOCKING issues from prior `dd37f28e` push-block. |
@@ -32,6 +27,8 @@
 
 | Ticket | Pri | Status | Description |
 |---|---|---|---|
+| TICKET-PREMULT-TEST-SWEEP | P2 | OPEN | Status-preserving migration (this chore, `7e53791`+): Premult-invariant canonicalization across 4 currently-passing TEST_CASEs (alpha=1 + midpoint + pixel counts {0..1024} + AVX2 parity) in `tests/simd/test_simd_parity_blend.cpp` — forward-point from `b16ad302` per code-reviewer-minimax-m3 MINOR #2, deferred to macchina-verifica-WBH per TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV pattern. Cronaca estesa in canonical ticket-home (forward-pointed: docs/tickets/TICKET-PREMULT-TEST-SWEEP.md). | [ticket](docs/tickets/TICKET-PREMULT-TEST-SWEEP.md) |
+| TICKET-PREMULT-CALLER-AUDIT | P2 | OPEN | Status-preserving migration (this chore, `7e53791`+): Production-side Premult invariant audit in `src/backends/software/*` + `src/render_graph/nodes/*` callers of `scalar_blend` + composite_normal_premul. FORWARD-POINT from `b16ad302` per code-reviewer-minimax-m3 MINOR #3, deferred to macchina-verifica-WBH (per same vcpkg env-block pattern). Cronaca estesa in canonical ticket-home (forward-pointed). | [ticket](docs/tickets/TICKET-PREMULT-CALLER-AUDIT.md) |
 | TICKET-TEST-GREP-TO-FUNCTIONAL-MIGRATION | P2 | NEW | Test(text)+(tools): 92+ functional-test sites baseline; 4-Phase migration plan per cat-5 3-doc; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-TEST-GREP-TO-FUNCTIONAL-MIGRATION.md) |
 | TICKET-PROCESS-WIDE-STATE-MIGRATION | P2 | NEW | Refactor(session): Fase B2+B3 already-completed migration; vacuous-truth audit; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-PROCESS-WIDE-STATE-MIGRATION.md) |
 | TICKET-GRAPH-EXECUTION-REQUEST-REFACTOR | P2 | NEW | Refactor(render_graph): spec-vs-reality audit + 5-Phase migration; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-GRAPH-EXECUTION-REQUEST-REFACTOR.md) |
