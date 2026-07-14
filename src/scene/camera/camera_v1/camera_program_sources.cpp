@@ -92,6 +92,15 @@ bool source_is_time_dependent(const CameraSourceSpec& source) {
     if (auto* traj = std::get_if<TrajectoryMotion>(&source)) {
         return traj->trajectory != nullptr;
     }
+    if (auto* cmps = std::get_if<CameraMotionParamsSource>(&source)) {
+        // TICKET-P2-29: CameraMotionParamsSource is always time-dependent
+        // (the params carry a duration / primary.duration axis that varies
+        // by frame).  Even if duration == 0, the function is still
+        // time-dependent — the V1 runtime must call sample_at() at every
+        // frame to honour the static pose fields.
+        (void)cmps;
+        return true;
+    }
     return true;
 }
 

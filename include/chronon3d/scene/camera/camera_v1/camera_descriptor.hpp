@@ -29,6 +29,7 @@
 // includes this header instead.
 // ==============================================================================
 #include <chronon3d/animation/core/animated_value.hpp>
+#include <chronon3d/animations/camera_motion_params.hpp>             // TICKET-P2-29: CameraMotionParamsSource
 #include <chronon3d/scene/camera/camera_v1/camera_trajectory.hpp>    // CameraTrajectory
 #include <chronon3d/scene/camera/camera_v1/camera_framing_solver.hpp>  // TICKET-FRAMING-V1: FramingBBox
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>             // Camera2_5D, DepthOfFieldSettings, MotionBlurSettings, LensModel
@@ -203,12 +204,36 @@ struct RegisteredMotionRef {
     std::string id;
 };
 
+/// Continuous-time evaluation source for animation::CameraMotionParams.
+/// TICKET-P2-29-CAMERA-MOTION-PARAMS-CONTINUOUS (DONE 2026-07-14):
+/// replaces the 60-sample discrete-time bake (constexpr int n = 60; for (...) bake)
+/// previously present in the CameraMotionParams adapter.  The V1 runtime now
+/// evaluates the motion math natively at any frame via sample_at(), eliminating
+/// the 61-keyframe discretization.  Mathematically equivalent to the prior bake
+/// within ε (linear interpolation between samples).
+///
+/// Body of sample_at() is defined in camera_descriptor_adapters.cpp to keep
+/// the header lean (the impl uses chronon3d::animation::lerp + easing_value
+/// + normalized_time which live in <chronon3d/animations/camera_motion_params.hpp>).
+struct CameraMotionParamsSource {
+    chronon3d::animation::CameraMotionParams params{};
+
+    /// Side-effect-free evaluation: given a ctx_frame, return the Camera2_5D
+    /// pose per the canonical animation helpers.  Mirrors the body of the
+    /// (now-removed) local eval_camera_motion_params() in
+    /// camera_descriptor_adapters.cpp; see TICKET-P2-29 for the migration
+    /// lineage.  Mathematically equivalent to the prior 60-sample bake
+    /// (61 keyframes via linear interpolation between samples) within ε.
+    Camera2_5D sample_at(Frame ctx_frame) const;
+};
+
 using CameraSourceSpec = std::variant<
     StaticCameraSource,
     PoseTracksSource,
     OrbitMotion,
     TrajectoryMotion,
-    RegisteredMotionRef
+    RegisteredMotionRef,
+    CameraMotionParamsSource  // TICKET-P2-29 (added 2026-07-14)
 >;
 
 // =============================================================================
