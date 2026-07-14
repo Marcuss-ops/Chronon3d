@@ -9,6 +9,7 @@
 
 | Ticket | Pri | Status | Description |
 |---|---|---|---|
+| TICKET-PARSE-POLICY-HELPER-DEDUP | P3 | OPEN | Extract `parse_framebuffer_pool_clear_policy(std::string_view) -> std::optional<...>` helper to dedup the 3-place string parsing (config.cpp + render_job.cpp + register_render_commands.cpp). [ticket](docs/tickets/TICKET-PARSE-POLICY-HELPER-DEDUP.md) |
 | TICKET-PREMULT-TEST-SWEEP | P2 | OPEN | Uniform Premult-invariant canonicalization across the 4 other currently-passing TEST_CASEs (`alpha=1` + `midpoint` + `pixel counts {0..1024}` + AVX2 parity) in `tests/simd/test_simd_parity_blend.cpp`. [ticket](docs/tickets/TICKET-PREMULT-TEST-SWEEP.md) |
 | TICKET-PREMULT-CALLER-AUDIT | P2 | OPEN | Production-side Premult invariant audit in `src/backends/software/*` + `src/render_graph/nodes/*` callers of `scalar_blend` + composite_normal_premul. FORWARD-POINT from `b16ad302` per code-reviewer-minimax-m3 MINOR #3. [ticket](docs/tickets/TICKET-PREMULT-CALLER-AUDIT.md) |
 | TICKET-NODE-CACHE-KEY-COLLAPSE-ROT | P2 | OPEN | NodeCacheKey not recognized in node_executor.cpp — build rot blocking macchina-verifica. [ticket](docs/tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |

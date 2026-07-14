@@ -1,5 +1,13 @@
 ## 2026-07-14
 
+### `docs(ticket): TICKET-PARSE-POLICY-HELPER-DEDUP chaser-chore`
+  ([TICKET-PARSE-POLICY-HELPER-DEDUP](docs/tickets/TICKET-PARSE-POLICY-HELPER-DEDUP.md))
+
+- **Cat-5 3-doc chaser-chore** opening a NEW forward-point from [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (5th item). Extract `parse_framebuffer_pool_clear_policy(std::string_view) -> std::optional<...>` helper to dedup the 3-place string parsing in `src/core/config.cpp` + `apps/chronon3d_cli/utils/job/render_job.cpp` + `apps/chronon3d_cli/commands/render/register_render_commands.cpp`. Companion `framebuffer_pool_clear_policy_name(p)` for the enum→string round-trip.
+- **Cat-3 minimal-surface**: 2 NEW functions (parse + round-trip) + 3 EDIT call sites + 1 NEW test file (`tests/cache/test_parse_framebuffer_pool_clear_policy.cpp`, ~5 TEST_CASEs: per accepted value + invalid input + round-trip). 0 new public SDK symbol beyond the 2 helpers + 0 new singleton/registry/resolver/cache + 0 `#include <msdfgen>/<libtess2>/<unicode[/...]>` (Gate 5 Check 11 deny-everywhere preserved).
+- **CURRENT_STATUS.md UNTOUCHED** (no area state transition per AGENTS.md "Disciplina di aggiornamento dei canonici"). ROADMAP.md UNTOUCHED (P3 cosmetic forward-point, not milestone shift). Sibling Cat-5 chaser-chore pattern: `TICKET-PRE-PUSH-IO-EXCLUSIONS` + `TICKET-ARCH-CLEANUP-V0` + `TICKET-CAMERA-OVERLAY-PANEL-CONSTRAINTS` + TILE-PRUNE-SKIP-UNIFICATION lineage.
+- macchina-verifica DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum env-block pattern. VPS-only verification: `rg -n 'parse_framebuffer_pool_clear_policy|trim-after-job|keep-warm|trim-on-memory-pressure' src/ apps/` confirms 3 call sites + 0 pre-existing helper. Subject envelope 59 chars ≤ 72 per `tools/check_commit_subject_length.sh` push-range audit. Cross-link: parent [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points + companion [TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE](docs/tickets/TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE.md).
+
 ### `perf(gates): IO exclusions in 3 slow gates + --no-verify`
   ([TICKET-PRE-PUSH-IO-EXCLUSIONS](docs/tickets/TICKET-PRE-PUSH-IO-EXCLUSIONS.md))
 
