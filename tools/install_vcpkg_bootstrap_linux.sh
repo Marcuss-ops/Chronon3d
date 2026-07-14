@@ -172,10 +172,27 @@ done
 for pkg in "${PACKAGES[@]}"; do
     if [[ "${NEED_INSTALL[$pkg]}" -ne 1 ]]; then continue; fi
     log "P3: INSTALL ${pkg} (≈1–3 min per pkg; vcpkg exits on install error by default)"
-    "${VCPKG_ROOT}/vcpkg" install "${pkg}" \
-        --triplet "${TRIPLET}" 1>&2 \
+    # MANIFEST-MODE ESCAPE: vcpkg auto-enables manifest mode when a
+    # vcpkg.json exists in CWD (the repo root contains vcpkg.json),
+    # rejecting per-package install with: "In manifest mode, vcpkg
+    # install does not support individual package arguments".  We cd
+    # into /tmp before invoking vcpkg to bypass manifest auto-detect;
+    # the package-install inputs are NOT affected by the CWD swap (vcpkg
+    # resolves the install target via VCPKG_ROOT + the triplet flag).
+    # This is the canonical, version-independent escape (works across
+    # vcpkg CLI revisions: --no-manifest flag name, --classic flag name,
+    # etc., differ across releases).
+    (cd /tmp && "${VCPKG_ROOT}/vcpkg" install "${pkg}" \
+        --triplet "${TRIPLET}") 1>&2 \
         || fail "vcpkg install ${pkg} failed — inspect ${VCPKG_ROOT}/vcpkg config.log + retry"
-    log "P3: INSTALLED ${pkg} — marker ${MARKER[$pkg]} should now be present"
+    # Defensive `:-` on MARKER[$pkg] — for catch2, the canonical key
+    # `MARKER[catch2]` is populated by the fall-through block below
+    # (lines ~191-197) AFTER this loop iteration completes, so during
+    # the loop iteration `MARKER[catch2]` is temporarily unbound.  The
+    # `:-` default-empty preserves set -u semantics (nounset) without
+    # crashing the script.  See commit context for the manifest-mode
+    # + nounset bug-fix lineage.
+    log "P3: INSTALLED ${pkg} — marker ${MARKER[$pkg]:-} should now be present"
 done
 
 # catch2 fall-through: detect which marker (v2 vs v3) is actually present.
