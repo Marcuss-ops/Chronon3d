@@ -16,7 +16,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/cache/framebuffer_pool.hpp>
-#include <chronon3d/core/profiling/render_counter_types.hpp>   // F3.2 — thread_local_counters for std::copy instrumentation
+#include <chronon3d/core/profiling/render_counter_types.hpp>   // F3.2 — RenderCounters for full-frame copy/pass instrumentation
 #include <algorithm>
 #include <atomic>
 
@@ -237,9 +237,10 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Frame
             // counter reaching full_frame_copies_per_frame == 0 in steady
             // state because the swap_contents placeholder pattern dominates
             // (use_count() == 1 path above).
-            auto& tls = chronon3d::thread_local_counters();
-            tls.full_frame_copies += 1;
-            tls.full_frame_passes += 1;
+            if (node_exec.counters) {
+                node_exec.counters->full_frame_copies.fetch_add(1, std::memory_order_relaxed);
+                node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
+            }
         }
     } else {
         out = std::make_shared<Framebuffer>(other.width(), other.height(), false);
@@ -249,9 +250,10 @@ std::shared_ptr<Framebuffer> RenderGraphContext::acquire_framebuffer(const Frame
         // F3.2 — same increment as above for the no-pool fallback. The
         // no-pool path lacks the swap_contents optimization entirely, so
         // every call results in an std::copy (count for Gate 1 awareness).
-        auto& tls = chronon3d::thread_local_counters();
-        tls.full_frame_copies += 1;
-        tls.full_frame_passes += 1;
+        if (node_exec.counters) {
+            node_exec.counters->full_frame_copies.fetch_add(1, std::memory_order_relaxed);
+            node_exec.counters->full_frame_passes.fetch_add(1, std::memory_order_relaxed);
+        }
     }
     return out;
 }
