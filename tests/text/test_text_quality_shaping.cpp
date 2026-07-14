@@ -11,8 +11,7 @@ using namespace test_text_quality;
 
 TEST_CASE("TextQuality: RTL — Arabic text shapes correctly") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -34,11 +33,9 @@ TEST_CASE("TextQuality: RTL — Arabic text shapes correctly") {
     CHECK(run->width > 0.0f);
 }
 
-TEST_CASE    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); {
+TEST_CASE("TextQuality: RTL — Hebrew text shapes correctly") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -54,11 +51,14 @@ TEST_CASE    auto runtime = chronon3d::runtime::RenderRuntime::create(
 
     auto run = engine.shape_text(hebrew, inter_bold_quality(), 32.0f, hebrew_shaping);
     REQUIRE(run.has_value());
-    REQUIRE_FALSE(run->    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();TEST_CASE("TextQuality: RTL — LTR text shapes correctly with explicit direction") {
+    REQUIRE_FALSE(run->glyphs.empty());
+
+    CHECK(run->width > 0.0f);
+}
+
+TEST_CASE("TextQuality: RTL — LTR text shapes correctly with explicit direction") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -68,15 +68,15 @@ TEST_CASE    auto runtime = chronon3d::runtime::RenderRuntime::create(
 
     auto run = engine.shape_text("ABC", inter_bold_quality(), 32.0f, ltr_shaping);
     REQUIRE(run.has_value());
-    REQUIRE(run-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); run->glyphs[1].x);
+    REQUIRE(run->glyphs.size() == 3);
+
+    CHECK(run->glyphs[0].x < run->glyphs[1].x);
     CHECK(run->glyphs[1].x < run->glyphs[2].x);
 }
 
 TEST_CASE("TextQuality: RTL — multi-glyph cluster (ligature) has correct is_cluster_start") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -90,8 +90,9 @@ TEST_CASE("TextQuality: RTL — multi-glyph cluster (ligature) has correct is_cl
 
     auto run = engine.shape_text(lam_alef, inter_bold_quality(), 32.0f, arabic_shaping);
     REQUIRE(run.has_value());
-    REQUIRE_FA    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();.is_cluster_start);
+    REQUIRE_FALSE(run->glyphs.empty());
+
+    CHECK(run->glyphs[0].is_cluster_start);
 
     for (size_t i = 1; i < run->glyphs.size(); ++i) {
         INFO("Glyph ", i);
@@ -101,8 +102,7 @@ TEST_CASE("TextQuality: RTL — multi-glyph cluster (ligature) has correct is_cl
 
 TEST_CASE("TextQuality: RTL — Arabic positions are in visual (right-to-left) order") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -117,8 +117,7 @@ TEST_CASE("TextQuality: RTL — Arabic positions are in visual (right-to-left) o
     rtl_shaping.direction = TextDirection::RTL;
     rtl_shaping.language = "ar";
 
-    a    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ity(), 32.0f, rtl_shaping);
+    auto run = engine.shape_text(arabic, inter_bold_quality(), 32.0f, rtl_shaping);
     REQUIRE(run.has_value());
     REQUIRE_FALSE(run->glyphs.empty());
 
@@ -130,8 +129,7 @@ TEST_CASE("TextQuality: RTL — Arabic positions are in visual (right-to-left) o
 
 TEST_CASE("TextQuality: RTL — LTR and RTL produce different glyph orders") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -151,8 +149,8 @@ TEST_CASE("TextQuality: RTL — LTR and RTL produce different glyph orders") {
     rtl.language = "ar";
 
     auto run_ltr = engine.shape_text(arabic, inter_bold_quality(), 32.0f, ltr);
-    auto run_rtl = engine.shape_text(arabic, inter_bold_qual    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(););
+    auto run_rtl = engine.shape_text(arabic, inter_bold_quality(), 32.0f, rtl);
+    REQUIRE(run_ltr.has_value());
     REQUIRE(run_rtl.has_value());
 
     CHECK(run_ltr->glyphs.size() > 0);
@@ -161,11 +159,11 @@ TEST_CASE("TextQuality: RTL — LTR and RTL produce different glyph orders") {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 5. Stroke vs Fill — Shared Shaping Glyphs
-// ════════════════════════════════════════════════════════    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); vs fill — glyph IDs match between fill and stroke") {
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("TextQuality: stroke vs fill — glyph IDs match between fill and stroke") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -178,11 +176,9 @@ TEST_CASE("TextQuality: RTL — LTR and RTL produce different glyph orders") {
     }
 }
 
-TEST_    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();nsistent per glyph") {
+TEST_CASE("TextQuality: stroke vs fill — advances are consistent per glyph") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -192,15 +188,14 @@ TEST_    auto runtime = chronon3d::runtime::RenderRuntime::create(
 
     for (const auto& g : run->glyphs) {
         CHECK(g.advance_x > 0.0f);
-        float glyph_ink_w = g.    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();.advance_x * 1.2f);
+        float glyph_ink_w = g.bbox_x1 - g.bbox_x0;
+        CHECK(glyph_ink_w <= g.advance_x * 1.2f);
     }
 }
 
 TEST_CASE("TextQuality: stroke vs fill — same shaped text produces same glyph count") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -209,14 +204,13 @@ TEST_CASE("TextQuality: stroke vs fill — same shaped text produces same glyph 
     REQUIRE(run1.has_value());
     REQUIRE(run2.has_value());
 
-    CHECK(run1    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();run1->width == doctest::Approx(run2->width).epsilon(0.01f));
+    CHECK(run1->glyphs.size() == run2->glyphs.size());
+    CHECK(run1->width == doctest::Approx(run2->width).epsilon(0.01f));
 }
 
 TEST_CASE("TextQuality: stroke vs fill — text with tracking preserves glyph count") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -233,8 +227,8 @@ TEST_CASE("TextQuality: stroke vs fill — text with tracking preserves glyph co
 
 TEST_CASE("TextQuality: conicTo — glyph bboxes scale linearly with font size") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime run    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
     auto run16 = shape(engine, "O", 16.0f);
@@ -246,8 +240,8 @@ TEST_CASE("TextQuality: conicTo — glyph bboxes scale linearly with font size")
 
     float w16 = run16->glyphs[0].bbox_x1 - run16->glyphs[0].bbox_x0;
     float h16 = run16->glyphs[0].bbox_y0 - run16->glyphs[0].bbox_y1;
-    float w64 = run64->glyphs[0].bbox    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();64->glyphs[0].bbox_y0 - run64->glyphs[0].bbox_y1;
+    float w64 = run64->glyphs[0].bbox_x1 - run64->glyphs[0].bbox_x0;
+    float h64 = run64->glyphs[0].bbox_y0 - run64->glyphs[0].bbox_y1;
 
     float w_ratio = w64 / w16;
     float h_ratio = h64 / h16;
@@ -257,8 +251,7 @@ TEST_CASE("TextQuality: conicTo — glyph bboxes scale linearly with font size")
 
 TEST_CASE("TextQuality: conicTo — round glyph 'O' has near-square bbox") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -270,14 +263,13 @@ TEST_CASE("TextQuality: conicTo — round glyph 'O' has near-square bbox") {
     float glyph_w = g.bbox_x1 - g.bbox_x0;
     float glyph_h = g.bbox_y0 - g.bbox_y1;
 
-    float aspect     auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();pprox(1.0f).epsilon(0.15f));
+    float aspect = glyph_w / glyph_h;
+    CHECK(aspect == doctest::Approx(1.0f).epsilon(0.15f));
 }
 
 TEST_CASE("TextQuality: conicTo — serif glyphs ('S') have correct bbox proportions") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -299,11 +291,11 @@ TEST_CASE("TextQuality: conicTo — serif glyphs ('S') have correct bbox proport
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 9. Stroke GPOS Offsets — Kerning, Mark Positioning, Diacritics
-// ═════════════════════════════════════════════════════════════════════    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ng pair 'AV' has correct offsets") {
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("TextQuality: stroke GPOS — kerning pair 'AV' has correct offsets") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -315,8 +307,8 @@ TEST_CASE("TextQuality: conicTo — serif glyphs ('S') have correct bbox proport
     const auto& g1 = run->glyphs[1];
 
     INFO("g0 (A): advance_x=", g0.advance_x, " x_offset=", g0.x_offset,
-            auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();vance_x, " x_offset=", g1.x_offset,
+         " x=", g0.x);
+    INFO("g1 (V): advance_x=", g1.advance_x, " x_offset=", g1.x_offset,
          " x=", g1.x, " cluster=", g1.cluster);
 
     CHECK(g0.glyph_id > 0);
@@ -333,11 +325,11 @@ TEST_CASE("TextQuality: conicTo — serif glyphs ('S') have correct bbox proport
 
 TEST_CASE("TextQuality: stroke GPOS — offsets do not accumulate across 3 glyphs") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    if (!requ    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ine, "AVA", 72.0f);
+    if (!require_font(engine)) return;
+
+    auto run = shape(engine, "AVA", 72.0f);
     REQUIRE(run.has_value());
     REQUIRE(run->glyphs.size() == 3);
 
@@ -352,8 +344,7 @@ TEST_CASE("TextQuality: stroke GPOS — offsets do not accumulate across 3 glyph
 
 TEST_CASE("TextQuality: stroke GPOS — combining accent has y_offset") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -366,8 +357,8 @@ TEST_CASE("TextQuality: stroke GPOS — combining accent has y_offset") {
     bool found_accent = false;
     for (size_t i = 0; i < run->glyphs.size(); ++i) {
         const auto& g = run->glyphs[i];
-        if (i    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();found_accent = true;
+        if (i > 0 && std::abs(g.y_offset) > 0.5f) {
+            found_accent = true;
         }
     }
     if (!found_accent && run->glyphs.size() == 1) {
@@ -379,8 +370,7 @@ TEST_CASE("TextQuality: stroke GPOS — combining accent has y_offset") {
 
 TEST_CASE("TextQuality: stroke GPOS — offsets small relative to advance") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -401,13 +391,12 @@ TEST_CASE("TextQuality: stroke GPOS — offsets small relative to advance") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 10. Complex Scripts — Arabic GPOS, Clus    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();══════════════════════════════════════════════════
+// 10. Complex Scripts — Arabic GPOS, Cluster Mapping, Glyph IDs
+// ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextQuality: complex — Arabic 'hello' has consistent glyph IDs") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -434,8 +423,7 @@ TEST_CASE("TextQuality: complex — Arabic 'hello' has consistent glyph IDs") {
         if (run->glyphs[i].glyph_id == 0) { all_glyphs_valid = false; break; }
     }
     if (!all_glyphs_valid) {
-        MESSAGE("I    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();— this is expected");
+        MESSAGE("Inter-Bold does not appear to contain Arabic glyphs — this is expected");
         return;
     }
 
@@ -450,8 +438,7 @@ TEST_CASE("TextQuality: complex — Arabic 'hello' has consistent glyph IDs") {
 
 TEST_CASE("TextQuality: complex — same Arabic text shapes identically twice") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -462,8 +449,8 @@ TEST_CASE("TextQuality: complex — same Arabic text shapes identically twice") 
     ar.direction = TextDirection::RTL;
     ar.language = "ar";
 
-    auto r1 = engine.shape    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); auto r2 = engine.shape_text(arabic, inter_bold_quality(), 48.0f, ar);
+    auto r1 = engine.shape_text(arabic, inter_bold_quality(), 48.0f, ar);
+    auto r2 = engine.shape_text(arabic, inter_bold_quality(), 48.0f, ar);
     REQUIRE(r1.has_value());
     REQUIRE(r2.has_value());
 
@@ -480,8 +467,7 @@ TEST_CASE("TextQuality: complex — same Arabic text shapes identically twice") 
 
 TEST_CASE("TextQuality: complex — Hebrew has consistent cluster mapping") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -497,8 +483,11 @@ TEST_CASE("TextQuality: complex — Hebrew has consistent cluster mapping") {
 
     auto run = engine.shape_text(hebrew, inter_bold_quality(), 36.0f, he);
     REQUIRE(run.has_value());
-    REQUIRE_FALSE(run->gl    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();for (const auto& g : run->glyphs) {
+    REQUIRE_FALSE(run->glyphs.empty());
+
+    CHECK(run->width > 0.0f);
+
+    for (const auto& g : run->glyphs) {
         CHECK_UNARY(g.cluster <= hebrew.size());
     }
 
@@ -510,8 +499,7 @@ TEST_CASE("TextQuality: complex — Hebrew has consistent cluster mapping") {
 
 TEST_CASE("TextQuality: complex — Devanagari does not crash or produce empty glyphs") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -555,8 +543,7 @@ TEST_CASE("TextQuality: complex — Devanagari does not crash or produce empty g
 
 TEST_CASE("TextQuality: complex — CJK has valid glyph IDs and advances") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 

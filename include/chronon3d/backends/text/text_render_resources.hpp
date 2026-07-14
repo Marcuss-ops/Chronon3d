@@ -51,8 +51,10 @@ namespace chronon3d {
 
 // Forward declarations
 namespace assets { class AssetResolver; }
-namespace detail { struct TextRasterCache; }  // P1-8: forward decl; full def in text_render_resources.cpp
-namespace detail { struct GlyphAtlasCache; }  // P1-9: forward decl; full def in text_render_resources.cpp
+namespace detail {
+    struct TextRasterCache;  // P1-8: forward decl; full def in text_render_resources.cpp
+    class GlyphAtlasCache;   // P1-9: forward decl; full def in text/glyph_atlas.hpp
+}
 struct GlyphAtlasEntry;                       // P1-9: forward decl from text/glyph_atlas.hpp
 struct GlyphAtlasStats;                       // P1-9: forward decl from text/glyph_atlas.hpp
 struct PlacedGlyphRun;                        // P1-9: forward decl from text/font_engine.hpp
@@ -404,9 +406,6 @@ private:
 // stops the throw path atomically.
 
 struct TextRenderResources {
-    // PIMPL'd ctor/dtor — defined in the .cpp where detail::TextRasterCache
-    // is complete, so std::unique_ptr<detail::TextRasterCache> can be destroyed
-    // without leaking the incomplete type to TUs that only include this header.
     TextRenderResources();
     ~TextRenderResources();
 

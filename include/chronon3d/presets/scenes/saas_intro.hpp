@@ -82,7 +82,7 @@ inline Composition saas_intro() {
                 .mode = TextAnimMode::ByCharacter,
                 .duration = Frame{25},
                 .delay_per_unit = Frame{3},
-                .easing = EasingCurve{Easing::OutCubic},
+                .easing = Easing::OutCubic,
                 .animate_opacity = true,
                 .animate_slide = true,
                 .slide_from = {0.0f, 50.0f, 0.0f},

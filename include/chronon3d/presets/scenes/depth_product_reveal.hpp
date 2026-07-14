@@ -112,7 +112,7 @@ inline Composition depth_product_reveal() {
             .font_weight(400).color({0.55f, 0.60f, 0.75f, 1.0f})
             .align(TextAlign::Center)
             .config({.mode = TextAnimMode::ByWord, .duration = Frame{20},
-                     .delay_per_unit = Frame{6}, .easing = EasingCurve{Easing::OutCubic},
+                     .delay_per_unit = Frame{6}, .easing = Easing::OutCubic,
                      .animate_opacity = true, .animate_slide = true,
                      .slide_from = {0.0f, 20.0f, 0.0f}});
         tagline.build(s, "tagline");

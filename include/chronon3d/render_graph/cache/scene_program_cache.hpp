@@ -100,11 +100,12 @@ public:
 
     /// Construct with an explicit cap.  Pass 0 to defer to Config+env.
     /// `num_shards` defaults to 2 (preserves pre-Commit-4 behaviour).
+    /// P1-10 — `diag` is the nullable observer (defaults to nullptr =
+    /// no-op registration).
     explicit SceneProgramCache(
         std::size_t capacity  = 0,
         std::size_t num_shards = 2,
-        CacheDiagnostics* diag = nullptr);
-    void set_diagnostics(CacheDiagnostics& diag);
+        chronon3d::cache::CacheDiagnostics* diag = nullptr);
 
     // Non-copyable, non-movable.  Same as before (the legacy impl was the
     // same).  We need to hold a stable address because pointer-stability

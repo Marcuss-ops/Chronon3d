@@ -14,6 +14,7 @@
 
 #include "bench_corpus_scenes.hpp"
 
+#include <chronon3d/presets/scenes/legacy_text_animator.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/timeline/composition_descriptor.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -137,7 +138,7 @@ Composition bench_b02_typewriter_200_glyphs() {
               .mode = TextAnimMode::ByCharacter,
               .duration = Frame{20},
               .delay_per_unit = Frame{2},
-              .easing = EasingCurve{Easing::OutCubic},
+              .easing = Easing::OutCubic,
               .animate_opacity = true,
               .animate_slide = false,
               .slide_from = {0.0f, 0.0f, 0.0f},
@@ -157,11 +158,11 @@ Composition bench_b03_cinematic_glow_1080p() {
         .width = 1920, .height = 1080,
         .frame_rate = {30, 1},
         .duration = 90,
-    }, [](const FrameContext&) -> Scene {
+    }, [](const FrameContext& ctx) -> Scene {
         // Reuse the canonical production glow factory (header-only,
         // no duplicated timeline / scene / text logic — Cat-3 anti-dup).
         auto p = chronon3d::content::glow_final::default_landscape_props();
-        return chronon3d::content::glow_final::make_chronon_glow_final(p);
+        return chronon3d::content::glow_final::make_chronon_glow_final(p).evaluate(ctx);
     });
 }
 
@@ -366,7 +367,10 @@ Composition inner_c() {
                             static_cast<f32>(i) * 120.0f - 240.0f, 0.0f});
                 l.opacity(static_cast<f32>(5 - i) / 5.0f);
                 l.star("star", {
-                    .size = {80.0f, 80.0f},
+                    .center = {0.0f, 0.0f},
+                    .points = 5,
+                    .inner_radius = 20.0f,
+                    .outer_radius = 50.0f,
                     .color = {1.0f, 1.0f, 0.5f, 0.7f},
                 });
             });
@@ -535,12 +539,12 @@ Composition bench_b11_portrait_1080x1920() {
         .width = 1080, .height = 1920,
         .frame_rate = {30, 1},
         .duration = 90,
-    }, [](const FrameContext&) -> Scene {
+    }, [](const FrameContext& ctx) -> Scene {
         // Reuse the canonical portrait glow factory. The portrait
         // factory uses the SAME make_chronon_glow_final() entry
         // point as the landscape — only the default props differ.
         auto p = chronon3d::content::glow_final::default_portrait_props();
-        return chronon3d::content::glow_final::make_chronon_glow_final(p);
+        return chronon3d::content::glow_final::make_chronon_glow_final(p).evaluate(ctx);
     });
 }
 
@@ -554,87 +558,87 @@ void register_bench_corpus_compositions(CompositionRegistry& registry) {
 
     registry.add(Desc{
         .id          = "BenchB00_EmptyFrame",
+        .category    = "bench/baseline",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b00_empty_frame();
         },
-        .category    = "bench/baseline",
     });
     registry.add(Desc{
         .id          = "BenchB01_StaticText1080p",
+        .category    = "bench/text",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b01_static_text_1080p();
         },
-        .category    = "bench/text",
     });
     registry.add(Desc{
         .id          = "BenchB02_Typewriter200Glyphs",
+        .category    = "bench/text",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b02_typewriter_200_glyphs();
         },
-        .category    = "bench/text",
     });
     registry.add(Desc{
         .id          = "BenchB03_CinematicGlow1080p",
+        .category    = "bench/glow",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b03_cinematic_glow_1080p();
         },
-        .category    = "bench/glow",
     });
     registry.add(Desc{
         .id          = "BenchB04_Layers100",
+        .category    = "bench/layers",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b04_layers_100();
         },
-        .category    = "bench/layers",
     });
     registry.add(Desc{
         .id          = "BenchB05_Blur4K",
+        .category    = "bench/memory",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b05_blur_4k();
         },
-        .category    = "bench/memory",
     });
     registry.add(Desc{
         .id          = "BenchB06_VideoOverlay1080p",
+        .category    = "bench/asset",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b06_video_overlay_1080p();
         },
-        .category    = "bench/asset",
     });
     registry.add(Desc{
         .id          = "BenchB07_NestedPrecomps",
+        .category    = "bench/graph",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b07_nested_precomps();
         },
-        .category    = "bench/graph",
     });
     registry.add(Desc{
         .id          = "BenchB08_DirtyRectSmallMotion",
+        .category    = "bench/dirtyrect",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b08_dirty_rect_small_motion();
         },
-        .category    = "bench/dirtyrect",
     });
     registry.add(Desc{
         .id          = "BenchB09_LongForm10Minutes",
+        .category    = "bench/stability",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b09_long_form_10_minutes();
         },
-        .category    = "bench/stability",
     });
     registry.add(Desc{
         .id          = "BenchB10_RandomFrameAccess",
+        .category    = "bench/cache",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b10_random_frame_access();
         },
-        .category    = "bench/cache",
     });
     registry.add(Desc{
         .id          = "BenchB11_Portrait1080x1920",
+        .category    = "bench/portrait",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b11_portrait_1080x1920();
         },
-        .category    = "bench/portrait",
     });
 
     // ── B07 inner precomps — registered so outer composition's precomp()
@@ -642,24 +646,24 @@ void register_bench_corpus_compositions(CompositionRegistry& registry) {
     // canonical 12-scene corpus; they are composition-graph dependencies.
     registry.add(Desc{
         .id          = "BenchB07InnerA",
+        .category    = "bench/internal",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b07_inner::inner_a();
         },
-        .category    = "bench/internal",
     });
     registry.add(Desc{
         .id          = "BenchB07InnerB",
+        .category    = "bench/internal",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b07_inner::inner_b();
         },
-        .category    = "bench/internal",
     });
     registry.add(Desc{
         .id          = "BenchB07InnerC",
+        .category    = "bench/internal",
         .factory     = [](const chronon3d::CompositionProps&) {
             return bench_b07_inner::inner_c();
         },
-        .category    = "bench/internal",
     });
 }
 
