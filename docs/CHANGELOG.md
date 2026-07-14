@@ -1,5 +1,13 @@
 ## 2026-07-14
 
+### `docs(ticket): TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE chaser-chore`
+  ([TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE](docs/tickets/TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE.md))
+
+- **Cat-5 3-doc chaser-chore** opening a NEW forward-point from [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (4th item). Wire the configured `FramebufferPoolClearPolicy` into the production job executor. P1-21 introduced the policy infrastructure (enum + `trim_after_job()` + env var + CLI flag + Config + 3 policy tests) but the production call site still uses the unconditional `framebuffer_pool()->clear()` (the P0-21 anti-pattern). This ticket closes the policy-as-no-op gap.
+- **Cat-3 minimal-surface**: 1 EDIT production call site (unconditional `clear()` → policy-driven dispatch via `framebuffer_pool()->trim_per_policy(config.fb_pool_clear_policy)` or equivalent). 0 new public SDK symbol + 0 new singleton/registry/resolver/cache + 0 `#include <msdfgen>/<libtess2>/<unicode[/...]>` (Gate 5 Check 11 deny-everywhere preserved). Companion to [TICKET-PARSE-POLICY-HELPER-DEDUP](docs/tickets/TICKET-PARSE-POLICY-HELPER-DEDUP.md) which extracts the parse helper for the same 3 places.
+- **CURRENT_STATUS.md UNTOUCHED** (no area state transition per AGENTS.md "Disciplina di aggiornamento dei canonici"). ROADMAP.md UNTOUCHED (P2 forward-point, not milestone shift). Sibling Cat-5 chaser-chore pattern: `TICKET-PRE-PUSH-IO-EXCLUSIONS` + `TICKET-ARCH-CLEANUP-V0` + `TICKET-CAMERA-OVERLAY-PANEL-CONSTRAINTS` + TILE-PRUNE-SKIP-UNIFICATION lineage.
+- macchina-verifica DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum env-block pattern. VPS-only verification: `rg "framebuffer_pool\\(\\)->clear\\(\\)" src/ apps/` → 0 matches; `rg "trim_after_job\\(\\)" src/ apps/` → ≥ 1 match. Subject envelope 61 chars ≤ 72 per `tools/check_commit_subject_length.sh` push-range audit. Cross-link: parent [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points + prior P1-21 chore `feat(fb-pool): add FramebufferPoolClearPolicy + trim_after_job`.
+
 ### `docs(ticket): TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS chaser-chore`
   ([TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS](docs/tickets/TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS.md))
 
