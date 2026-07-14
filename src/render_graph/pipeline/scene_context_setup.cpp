@@ -66,7 +66,8 @@ SoftwareRenderer* setup_render_graph_context(
     // When the backend is a non-SoftwareRenderer render backend,
     // debug_cfg remains nullptr and overlays are skipped -
     // the safe default for non-software backends and matches the
-    // pre-existing test contract (e.g. tests/text/test_text_material.cpp).
+    // pre-existing test contract (e.g. tests/test_text_preset_registry.cpp
+    // for the modern TextRun path).
     if (sw_renderer) {
         ctx.policy.debug_config = &sw_renderer->config().debug();
     }
