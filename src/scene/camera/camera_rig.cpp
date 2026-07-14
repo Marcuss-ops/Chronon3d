@@ -171,6 +171,7 @@ Camera2_5D CameraRig::evaluate(
     // Any sample that re-evaluates the manual AnimatedValue here would
     // silently overwrite the focused values: that is the bug being fixed.
 
+    cam.dof.enabled = dof.enabled;
     cam.dof.aperture = dof.aperture.evaluate(time);
     cam.dof.max_blur = dof.max_blur.evaluate(time);
 
