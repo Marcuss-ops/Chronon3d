@@ -544,7 +544,80 @@ Ogni cronaca estesa di fix piccolo (`fix include`, `rename`, `initializer`, `cle
 > `docs/CURRENT_STATUS.md` + `docs/FOLLOWUP_TICKETS.md` rimangono UNTOUCHED (no
 > canonical state change, no blocker, no milestone closure).
 
-**Lint-checkability (forward-point)**: un futuro `tools/check_docs_canonical_discipline.sh` (gate opzionale, NON ancora implementato) potrebbe verificare via `awk` + JSONL-grammar parse che ogni entry `## YYYY-MM-DD` di `docs/CHANGELOG.md` non superi la soglia di righe-per-entry (canonical config: ≤6 punti per ticket per `docs/DOCUMENTATION_GOVERNANCE.md` §CHANGELOG "Limite raccomandato: da tre a sei punti per ticket") + che ogni entry abbia al massimo 1 link a `docs/tickets/TICKET-NNN.md` come espansione canonica + che `git diff --numstat <prev-changelog-sha>..HEAD -- docs/CURRENT_STATUS.md docs/ROADMAP.md` non superi N righe per chore commit (canonical config: ≤4 righe/state-per-area). L'implementazione è deferred a un ticket separato (AGENTS.md v0.1 §regole "Fare PR piccole e mirate" + regola-documentation-precedes-lint-tooling pattern, come per i `Lint-checkability` forward-point delle altre 5 rules in `## Regole di lint documentale`).
+**Lint-checkability (forward-point)**: un futuro `tools/check_docs_canonical_discipline.sh` (gate opzionale, NON ancora implementato) potrebbe verificare via `awk` + JSONL-grammar parse che ogni entry `## YYYY-MM-DD` di `docs/CHANGELOG.md` non superi la soglia di righe-per-entry (canonical config: ≤6 punti per ticket per `docs/DOCUMENTATION_GOVERNANCE.md` §CHANGELOG "Limite raccomandato: da tre a sei punti per ticket") + che ogni entry abbia al massimo 1 link a `docs/tickets/TICKET-NNN.md` come espansione canonica + che `git diff --numstat <prev-changelog-sha>..HEAD -- docs/CURRENT_STATUS.md docs/ROADMAP.md` non superi N righe per chore commit (canonical config: ≤4 righe/state-per-area). L'implementazione è deferred a un ticket separato (AGENTS.md v0.1 §regole "Fare PR piccole e mirate" + regola-documentation-precedes-lint-tooling pattern, come per i `Lint-checkability` forward-point delle altre rules in `## Regole di lint documentale`).
+
+### 2×-in-one-chore: deprecation reversal bundles forward-point tickets (Cat-3 anti-dup)
+
+Quando un chore rimuove un marcatore `[[deprecated]]` dal codice sorgente (deprecation reversal), DEVE raggruppare atomicamente nello stesso commit l'apertura del forward-point ticket che preserva l'originale migration intent, senza espandere la cronaca narrativa in CHANGELOG (delegata al ticket-home per Cat-3 anti-dup).
+
+**Perché**: il disaccoppiamento in più commit o canonicals apre tre classi di rot §honesty-violation:
+  1. **Orphan-intent rot**: se il reversal non è supportato da un blocker canonico permanente, l'originale migration intent (es. "migrare a `rotate(Vec3)`") si riduce a footnote nel git history e i futuri agenti ri-litigano la legacy API senza traccia canonica.
+  2. **Race-window ticket-open**: un pattern a due step (commit 1 = source dead-reversal + commit 2 = ticket open successivo) istituisce una dipendenza insicura. Se il secondo commit viene raced-out da un upstream churn in auto-FF (analogo al lost-2nd-attempt pattern documentato nel sub-paragrafo `**21ece2b3 unique-edit recovery variant**` di §Post-push SHA-selfcheck invariant), l'intento decade silenziosamente.
+  3. **Cat-5 3-doc alignment break**: il chore DEVE contestualmente aprire la riga in `docs/FOLLOWUP_TICKETS.md` §Open Blockers + creare `docs/tickets/TICKET-NNN.md` (cronaca home) + aggiungere ≤1 riga sintetica in CHANGELOG via singolo commit atomico. L'omissione di una qualsiasi di queste tre modifiche viola il pattern Cat-5 stabilito in §`### Docs canonical update discipline rule`. Contestualmente, l'espansione della spiegazione in CHANGELOG costituisce una flagrante Cat-3 anti-dup violation (stessa famiglia): la cronaca estesa appartiene al ticket-home, non al canonico scopribile §catena.
+
+**Origine**: regola codificata partendo dalla **21ece2b3 unique-edit recovery variant (this session, 2026-07-12)** documentata nel sub-paragrafo `**21ece2b3 unique-edit recovery variant**` di §Post-push SHA-selfcheck invariant (vedi cross-link SHA `21ece2b3` al ruolo semantico-boundary inline per §SHA cite pattern). Come il pattern `21ece2b3` isola in un edit unico la ritenzione dell'API canonica preservandola dal drop del rebase (unica-fix-in-chore), la presente regola codifica l'estrazione + commit simultaneo dell'intento (bundle forward-ticket) come protezione contro il decadimento silente del fine-migrazione. Cross-link canonico: `docs/FOLLOWUP_TICKETS.md` §Open Blockers + `docs/tickets/TICKET-NNN.md` (cronaca home) per Cat-3 anti-dup.
+
+**Scope**: si applica a OGNI commit pre-push su `main` che esegue rimozioni di marcatori `[[deprecated]]` in `include/chronon3d/`, `src/`, `tests/` e correlati. NON si applica a:
+  - **Forward-add** di marcatori `[[deprecated]]` (nessun reversal in gioco).
+  - **Reversal idempotente** dove l'originale migration intent ha già un blocker row in `docs/FOLLOWUP_TICKETS.md` §Open Blockers (verificabile via `rg -q '^### TICKET-<ticket-id>'`); il reversal può essere atomico minimale senza riapertura.
+  - **Test-internal rename** protetti da `#ifdef CHRONON3D_BUILD_DIAGNOSTICS` (TU-locali, non-exportable).
+  - **ADR-only reversal** su documenti design rationale (no source code change).
+  - **Documentation-only reversal** (es. menzione di deprecation status aggiornata in `README.md` — non in `include/chronon3d/`).
+
+#### Anti-esempio — orphan-intent via decoupling
+
+**VIETATO (two-step pattern + race-window loss)**:
+
+> **Commit 1 (source-only dead-reversal)**:
+> ```diff
+> // include/chronon3d/rotation.hpp
+> - [[deprecated("Use rotate(Vec3)")]]
+>   void rotate_z(float rad);
+> + void rotate_z(float rad);
+> ```
+> *(Nessuna modifica a `docs/FOLLOWUP_TICKETS.md`, nessun file `docs/tickets/TICKET-CACHE-ROTATE-Z-MIGRATION.md` creato, nessuna riga in CHANGELOG).*
+>
+> **Commit 2 (previsto, raced-out da un upstream FF-merge churn)**:
+> *(droppato, ticket mai registrato → orphan-intent rot)*
+
+**CORRETTO (single-step 3-doc atomic bundle 2×-in-one-chore)**:
+
+> **Singolo commit `chore(api): revert deprecation bundle`**:
+>
+> *Sorgente (`include/chronon3d/rotation.hpp`)*:
+> ```diff
+> - [[deprecated("Use rotate(Vec3)")]]
+>   void rotate_z(float rad);
+> + void rotate_z(float rad); // vedi TICKET-CACHE-ROTATE-Z-MIGRATION
+> ```
+>
+> *`docs/FOLLOWUP_TICKETS.md` (+1 row in §Open Blockers, NEW P1 OPEN)*:
+> ```markdown
+> | TICKET-CACHE-ROTATE-Z-MIGRATION | P1 | Cache | OPEN | API | `docs/tickets/TICKET-CACHE-ROTATE-Z-MIGRATION.md` |
+> ```
+>
+> *`docs/tickets/TICKET-CACHE-ROTATE-Z-MIGRATION.md` (NEW cronaca home)*:
+> ```markdown
+> # TICKET-CACHE-ROTATE-Z-MIGRATION — rotate_z deprecation reversal (build-fix)
+>
+> ## Stato: OPEN (reverted il deprecation, forward-point attivo)
+>
+> ## Problema
+> Il marcatore `[[deprecated("Use rotate(Vec3)")]]` su `rotate_z` in
+> `include/chronon3d/rotation.hpp` è stato rimosso in un chore di build-fix
+> (vedi commit). L'originale migration intent ("preferire `rotate(Vec3)`")
+> resta canonico: questo ticket ne tiene traccia.
+>
+> ## Soluzione accettabile
+> Re-application del `[[deprecated]]` non appena i blockers risolti +
+> completamento della migration 660-site `.key()` forward-point da
+> TICKET-MOTIONTIMELINE-MIGRATION.
+>
+> ## Forward-points
+> (vedi TICKET-MOTIONTIMELINE-MIGRATION per la sweep completa).
+> ```
+
+**Lint-checkability (forward-point)**: un futuro gate `tools/check_deprecation_reversal_bundle.sh` (opzionale, NON ancora implementato) potrebbe validare via `git diff <prev>..HEAD` che ogni commit che rimuove marcatori `[[deprecated]]` da `include/chronon3d/`, `src/`, `tests/` introduca anche almeno 1 riga `+` in `docs/FOLLOWUP_TICKETS.md` §Open Blockers nella stessa atomic chore (verifica minima Cat-5 same-commit). Implementazione deferred a un ticket separato per AGENTS.md v0.1 §regole "Fare PR piccole e mirate" + regola-documentation-precedes-lint-tooling pattern (vedi Lint-checkability forward-point delle altre rules in `## Regole di lint documentale`).
 
 ## Workflow Git obbligatorio
 
