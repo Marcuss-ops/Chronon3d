@@ -1,3 +1,4 @@
+#include <optional>
 #include <doctest/doctest.h>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
@@ -306,8 +307,9 @@ TEST_CASE("TextLayoutEngine bounds: per-line metrics") {
 
 TEST_CASE("TextLayoutEngine bounds: FontEngine real metrics") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
         MESSAGE("Skipping: Inter-Bold.ttf not available");
         return;
@@ -419,10 +421,12 @@ TEST_CASE("TextLayoutEngine bounds: edge cases") {
 // 11. FontEngine Glyph Bounds
 // ═════════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("FontEngine glyph bounds: per-glyph bbox correctness") {
+TEST_CASE("Fo    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
         MESSAGE("Skipping: Inter-Bold.ttf not available");
         return;

@@ -1,3 +1,4 @@
+#include <optional>
 #include "test_text_quality_helpers.hpp"
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
@@ -10,8 +11,9 @@ using namespace test_text_quality;
 
 TEST_CASE("TextQuality: glyph placement — relative offsets used") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
     auto run = shape(engine, "ABC", 32.0f);
@@ -33,10 +35,12 @@ TEST_CASE("TextQuality: glyph placement — relative offsets used") {
     CHECK(run->width == doctest::Approx(sum_advances).epsilon(0.02f));
 }
 
-TEST_CASE("TextQuality: glyph placement — no double-counting") {
+TEST_CASE("    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
     auto run = shape(engine, "AV", 32.0f);
@@ -47,13 +51,15 @@ TEST_CASE("TextQuality: glyph placement — no double-counting") {
     const auto& g1 = run->glyphs[1];
 
     float expected_x = g0.x_offset + g0.advance_x + g1.x_offset;
-    CHECK(g1.x == doctest::Approx(expected_x).epsilon(0.5f));
+    CH    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();f));
 }
 
 TEST_CASE("TextQuality: glyph placement — single glyph has correct bbox") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
     auto run = shape(engine, "M", 100.0f);
@@ -67,14 +73,15 @@ TEST_CASE("TextQuality: glyph placement — single glyph has correct bbox") {
     CHECK(g.bbox_y1 < g.bbox_y0);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 2. Tracking — Per-Cluster, Not Per-Glyph
+// ═════════════════════════════════════════════════════════════    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();r-Glyph
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextQuality: tracking 0/5/20 — increases width proportionally") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
@@ -90,8 +97,8 @@ TEST_CASE("TextQuality: tracking 0/5/20 — increases width proportionally") {
     auto res5 = TextLayoutEngine::layout(li);
     float w5 = res5.size.x;
 
-    li.style.tracking = 20.0f;
-    auto res20 = TextLayoutEngine::layout(li);
+    li.s    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ngine::layout(li);
     float w20 = res20.size.x;
 
     CHECK(w5 == doctest::Approx(w0 + 10.0f).epsilon(0.2f));
@@ -100,15 +107,16 @@ TEST_CASE("TextQuality: tracking 0/5/20 — increases width proportionally") {
 
 TEST_CASE("TextQuality: tracking — single character gets 0 tracking") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;
     li.text = "A";
     li.style.size = 32.0f;
-    li.font_engine = &engine;
-    li.font_spec = inter_bold_quality();
+      auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();r_bold_quality();
 
     auto res0 = TextLayoutEngine::layout(li);
     float w0 = res0.size.x;
@@ -122,8 +130,9 @@ TEST_CASE("TextQuality: tracking — single character gets 0 tracking") {
 
 TEST_CASE("TextQuality: tracking — empty string has zero width") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
     TextLayoutInput li;

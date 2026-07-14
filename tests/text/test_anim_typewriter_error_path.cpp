@@ -24,6 +24,7 @@
 // Skips gracefully when system fonts are unavailable.
 // ===========================================================================
 
+#include <optional>
 #include <doctest/doctest.h>
 
 #include "test_text_quality_helpers.hpp"  // require_font, inter_bold_quality
@@ -44,8 +45,9 @@ using test_text_quality::require_font;
 
 TEST_CASE("Azione 18: typewriter_build with valid text returns Ok(true)") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
     FrameContext ctx{.frame = Frame{0}, .width = 1920, .height = 1080};
@@ -67,10 +69,12 @@ TEST_CASE("Azione 18: typewriter_build with valid text returns Ok(true)") {
     CHECK(result.value() == true);
 }
 
-TEST_CASE("Azione 18: typewriter_build with empty text returns Err(EmptyText)") {
+TEST_CASE("Azione 18: typewr    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
     FrameContext ctx{.frame = Frame{0}, .width = 1920, .height = 1080};
@@ -91,13 +95,12 @@ TEST_CASE("Azione 18: typewriter_build with empty text returns Err(EmptyText)") 
     // re-emerges, result would be Ok(true) and this CHECK fails.
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == TextErrorCode::EmptyText);
-    CHECK_FALSE(result.error().message.empty());
-}
-
-TEST_CASE("Azione 18: typewriter_build error is non-fatal (scene still buildable)") {
+       auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ST_CASE("Azione 18: typewriter_build error is non-fatal (scene still buildable)") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
     FrameContext ctx{.frame = Frame{0}, .width = 1920, .height = 1080};

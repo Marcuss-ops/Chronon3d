@@ -1,3 +1,4 @@
+#include <optional>
 #include "test_text_quality_helpers.hpp"
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
@@ -10,8 +11,9 @@ using namespace test_text_quality;
 
 TEST_CASE("TextQuality: Arabic — contextual vs isolated Meem glyph IDs differ") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!require_font(engine, noto_naskh_arabic_quality())) {
         if (!require_font(engine)) return;
         MESSAGE("Using Inter-Bold instead of Noto Naskh Arabic — positional variants may not exist");
@@ -67,10 +69,12 @@ TEST_CASE("TextQuality: Arabic — contextual vs isolated Meem glyph IDs differ"
     }
 }
 
-TEST_CASE("TextQuality: Arabic — pre-shaped extraction preserves contextual forms") {
+TEST_CASE("TextQuality: Arabic —    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!require_font(engine, noto_naskh_arabic_quality())) {
         if (!require_font(engine)) return;
     }
@@ -156,15 +160,14 @@ TEST_CASE("TextQuality: Arabic — pre-shaped extraction preserves contextual fo
                     break;
                 }
             }
-        }
-        CHECK(extracted_gid == full_gid);
-    }
-}
+           auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();}
 
 TEST_CASE("TextQuality: Arabic — three positional forms use different glyphs") {
     chronon3d::Config cfg;
-    chronon3d::runtime::RenderRuntime runtime(cfg);
-    FontEngine engine{runtime.resolver()};
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
     if (!require_font(engine, noto_naskh_arabic_quality())) {
         if (!require_font(engine)) return;
     }
