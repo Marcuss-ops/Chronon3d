@@ -135,7 +135,7 @@ public:
     // Forwarded by `shape_glyph_line` free function.
     [[nodiscard]] static std::optional<ShapedGlyphLine> try_shape(
         std::string_view text, f32 font_size, const FontSpec& spec,
-        f32 tracking, f32 ref_offset_x, FontEngine& engine) noexcept;
+        f32 tracking, f32 ref_offset_x, FontEngine& engine);
 
 private:
     std::string m_text;
@@ -154,19 +154,19 @@ private:
     // Called from both constructors.  The private try_shape ctor is
     // noexcept, so a bad_alloc here terminates — same as any noexcept
     // function that allocates.
-    void rebuild_prefix_advances() noexcept;
+    void rebuild_prefix_advances();
 
     // Private ctor used by try_shape factory — populate from a valid
     // GlyphRun directly (does NOT throw).
     ShapedGlyphLine(GlyphRun run, std::string text, FontSpec spec,
-                    f32 font_size, f32 tracking, f32 ref_offset_x) noexcept;
+                    f32 font_size, f32 tracking, f32 ref_offset_x);
 
     // Friend declaration allows shape_glyph_line free function to be
     // declared in the .hpp file and defined in the .cpp file without
     // the namespace pollution of "friend free function bodies".
     friend std::optional<ShapedGlyphLine> shape_glyph_line(
         std::string_view text, f32 font_size, const FontSpec& spec,
-        f32 tracking, FontEngine& engine) noexcept;
+        f32 tracking, FontEngine& engine);
 };
 
 // shape_glyph_line — fail-soft free-function entry point (Point 8 mirror).
@@ -183,7 +183,7 @@ private:
 // class ctor logic (engine.shape_text + cached m_run) is unchanged.
 [[nodiscard]] std::optional<ShapedGlyphLine> shape_glyph_line(
     std::string_view text, f32 font_size, const FontSpec& font,
-    f32 tracking, FontEngine& engine) noexcept;
+    f32 tracking, FontEngine& engine);
 
 // measure_text_width — total advance width INCLUDING tracking, matching
 // layout_glyphs output.  Returns 0.0f if shaping fails (fail-soft; layout_glyphs
