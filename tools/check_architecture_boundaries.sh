@@ -65,6 +65,14 @@
 # ─────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
+# Cat-3 IO exclusion wrapper (TICKET-PRE-PUSH-IO-EXCLUSIONS).
+# Skips vcpkg_installed/ + build/ + .cache/ + node_modules/ from grep -Rn
+# scans. These dirs are gitignored but `grep -R` does NOT respect .gitignore
+# by default, so unscoped scans become IO-bound on a populated vcpkg_installed
+# (hundreds of thousands of headers). Per-gate apply (not central) to keep
+# the wrapper local; only this gate's grep calls pick it up.
+grep() { command grep --exclude-dir=vcpkg_installed --exclude-dir=build --exclude-dir=.cache --exclude-dir=node_modules "$@"; }
+
 if [ -n "${BOUNDARY_CHECK_ROOT:-}" ]; then
     REPO_ROOT="$BOUNDARY_CHECK_ROOT"
 else

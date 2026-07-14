@@ -62,6 +62,9 @@
 
 set -euo pipefail
 
+# Cat-3 IO exclusion wrapper (TICKET-PRE-PUSH-IO-EXCLUSIONS).
+grep() { command grep --exclude-dir=vcpkg_installed --exclude-dir=build --exclude-dir=.cache --exclude-dir=node_modules "$@"; }
+
 # Commit 1 default: WARN; commit 2 promotes this to FAIL.
 : "${FRAME_VALUE_GATE_MODE:=FAIL}"
 MODE="$(printf '%s' "${FRAME_VALUE_GATE_MODE}" | tr '[:lower:]' '[:upper:]')"
