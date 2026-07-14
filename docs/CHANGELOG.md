@@ -1,5 +1,61 @@
 ## 2026-07-13
 
+### `refactor(motion): migrate 11 presets to AnimationTrack<T>`
+
+Per user-spec "12 remaining motion-timeline sites" execution. 11 migrated (8
+`chronon3d-motion-basic`: slide_in / soft_pop / fade_in / focus_in / scale_drop
+/ reveal_from_bottom / fade_shift_vertical / fade_shift_horizontal + 3
+`cinematic`: depth_reveal / card_flip_2_5d / settle) + 1 preserved
+(`float_idle`, sin-wave per-frame loop CANNOT be expressed as 2-keyframe
+linear interpolation; `AnimationTrack<T>` model ignores intermediate
+mid-stream mutations — forward-point TICKET-FLOAT-IDLE-MOTIONTIMELINE-MIGRATION-DEFER)
++ 9 `text-kinetic` pack UNCHANGED (out of scope per user spec, defer to a
+separate TextV1 session).
+
+Canonical recipe (declarative builder + apply_track, replacing legacy
+roving-aware direct chain):
+```cpp
+chronon3d::AnimationTrack<Vec3> pos_track;
+pos_track.from(Frame{0},  Vec3{-200.0f, 0.0f, 0.0f}, Easing::OutCubic)
+         .to(Frame{30},   Vec3{0.0f, 0.0f, 0.0f});
+lb.position_anim().apply_track(pos_track);
+```
+
+API signatures verified against headers:
+`include/chronon3d/animation/core/animation_track.hpp:46,52`
+(`from(Frame,T,Easing=Linear) → *this` + `to(Frame,T,Easing=Linear) → *this` chainable);
+`include/chronon3d/animation/core/animated_value.hpp:387`
+(`apply_track(const AnimationTrack<T>&)` bakes keys + sorts by Frame).
+
+Lands 1 file: `include/chronon3d/presets/motion_preset_packs.hpp` (110/72
+diff stat: canonical builder scaffolding adds a few LoC vs the 2-line
+`add_keyframe()` direct calls but is declarative-replay-friendly + the
+prerequisite for the ADR-024 persistent-cache-aware Motion migration phase
+that comes after this). NEW `#include <chronon3d/animation/core/animation_track.hpp>`
+(pre-existing canonical header). ZERO new SDK API symbols, ZERO new
+registry/resolver/singleton. Cat-3 minimal-surface (recipe-substitution,
+not surface-additive).
+
+Subject envelope 53 chars OK ≤ 72 per AGENTS.md
+`tools/check_commit_subject_length.sh`.
+
+macchina-verifica end-to-end (`cmake --build build/chronon/linux-release-validation
+--target chronon3d_core_tests` + 12-preset render smoke via `chronon3d_cli
+compositions enumerate --pack chronon3d-motion-basic + cinematic`) DEFERRED-WBH
+per TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV precedent + the pre-existing
+`include/chronon3d/scene/builders/layer_builder.hpp:408` text-overload rot in
+`src/registry/` (last touched at `ee90cb23 refactor(builders): split
+LayerBuilder into domain files`, well before this commit; this commit
+modifies ONE file exclusively — `motion_preset_packs.hpp`). The migration's
+API-correctness is verified by static analysis + canonical header review on
+this VPS.
+
+Forward-points: TICKET-FLOAT-IDLE-MOTIONTIMELINE-MIGRATION-DEFER (sin-wave
+migration once ADR-024 runtime lands) + canonical ticket
+[`docs/tickets/TICKET-MOTIONTIMELINE-MIGRATION.md`](docs/tickets/TICKET-MOTIONTIMELINE-MIGRATION.md)
+(recipe home + 660-site `.key()` mechanical migration forward-point). Full
+cronaca in canonical ticket per AGENTS.md ticket-home rule.
+
 ### `chore(tools): add check_clean_rebuild.sh opt-in periodic gate`
 
 Cat-4 INSTALL_PIPELINE_PLUMBING ancillare. Per-build-dir pipeline: `rm -rf`

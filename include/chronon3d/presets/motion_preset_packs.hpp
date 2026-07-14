@@ -26,6 +26,7 @@
 
 #pragma once
 
+#include <chronon3d/animation/core/animation_track.hpp>
 #include <chronon3d/presets/motion_error.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 
@@ -141,86 +142,108 @@ inline void seed_builtin_presets(MotionPresetPackRegistry& reg) {
     reg.register_preset({.id = "slide_in", .display_name = "Slide In",
         .pack = std::string(kPackBasic),
         .apply = [](LayerBuilder& lb) {
-            auto& pos = lb.position_anim();
-            pos.add_keyframe(Frame{0}, Vec3{-200.0f, 0.0f, 0.0f}, EasingCurve{Easing::OutCubic});
-            pos.add_keyframe(Frame{30}, Vec3{0.0f, 0.0f, 0.0f});
-            auto& op = lb.opacity_anim();
-            op.add_keyframe(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
-            op.add_keyframe(Frame{30}, 1.0f);
+            AnimationTrack<Vec3> pos_track;
+            pos_track.from(Frame{0},  Vec3{-200.0f, 0.0f, 0.0f}, Easing::OutCubic)
+                     .to(Frame{30},   Vec3{0.0f, 0.0f, 0.0f});
+            lb.position_anim().apply_track(pos_track);
+
+            AnimationTrack<f32> op_track;
+            op_track.from(Frame{0},  0.0f, Easing::OutCubic)
+                    .to(Frame{30},   1.0f);
+            lb.opacity_anim().apply_track(op_track);
         }});
 
     reg.register_preset({.id = "soft_pop", .display_name = "Soft Pop",
         .pack = std::string(kPackBasic),
         .apply = [](LayerBuilder& lb) {
-            auto& sc = lb.scale_anim();
-            sc.add_keyframe(Frame{0}, Vec3{0.90f, 0.90f, 1.0f}, EasingCurve{Easing::OutBack});
-            sc.add_keyframe(Frame{30}, Vec3{1.0f, 1.0f, 1.0f});
-            auto& op = lb.opacity_anim();
-            op.add_keyframe(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
-            op.add_keyframe(Frame{30}, 1.0f);
+            AnimationTrack<Vec3> sc_track;
+            sc_track.from(Frame{0},  Vec3{0.90f, 0.90f, 1.0f}, Easing::OutBack)
+                    .to(Frame{30},   Vec3{1.0f, 1.0f, 1.0f});
+            lb.scale_anim().apply_track(sc_track);
+
+            AnimationTrack<f32> op_track;
+            op_track.from(Frame{0},  0.0f, Easing::OutCubic)
+                    .to(Frame{30},   1.0f);
+            lb.opacity_anim().apply_track(op_track);
         }});
 
     reg.register_preset({.id = "fade_in", .display_name = "Fade In",
         .pack = std::string(kPackBasic),
         .apply = [](LayerBuilder& lb) {
-            auto& op = lb.opacity_anim();
-            op.add_keyframe(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
-            op.add_keyframe(Frame{30}, 1.0f);
+            AnimationTrack<f32> op_track;
+            op_track.from(Frame{0},  0.0f, Easing::OutCubic)
+                    .to(Frame{30},   1.0f);
+            lb.opacity_anim().apply_track(op_track);
         }});
 
     reg.register_preset({.id = "focus_in", .display_name = "Focus In",
         .pack = std::string(kPackBasic),
         .apply = [](LayerBuilder& lb) {
-            auto& bl = lb.blur_anim();
-            bl.add_keyframe(Frame{0}, 20.0f, EasingCurve{Easing::OutCubic});
-            bl.add_keyframe(Frame{30}, 0.0f);
-            auto& op = lb.opacity_anim();
-            op.add_keyframe(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
-            op.add_keyframe(Frame{30}, 1.0f);
+            AnimationTrack<f32> bl_track;
+            bl_track.from(Frame{0},  20.0f, Easing::OutCubic)
+                    .to(Frame{30},   0.0f);
+            lb.blur_anim().apply_track(bl_track);
+
+            AnimationTrack<f32> op_track;
+            op_track.from(Frame{0},  0.0f, Easing::OutCubic)
+                    .to(Frame{30},   1.0f);
+            lb.opacity_anim().apply_track(op_track);
         }});
 
     reg.register_preset({.id = "scale_drop", .display_name = "Scale Drop",
         .pack = std::string(kPackBasic),
         .apply = [](LayerBuilder& lb) {
-            auto& sc = lb.scale_anim();
-            sc.add_keyframe(Frame{0}, Vec3{1.5f, 1.5f, 1.0f}, EasingCurve{Easing::OutCubic});
-            sc.add_keyframe(Frame{30}, Vec3{1.0f, 1.0f, 1.0f});
-            auto& op = lb.opacity_anim();
-            op.add_keyframe(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
-            op.add_keyframe(Frame{30}, 1.0f);
+            AnimationTrack<Vec3> sc_track;
+            sc_track.from(Frame{0},  Vec3{1.5f, 1.5f, 1.0f}, Easing::OutCubic)
+                    .to(Frame{30},   Vec3{1.0f, 1.0f, 1.0f});
+            lb.scale_anim().apply_track(sc_track);
+
+            AnimationTrack<f32> op_track;
+            op_track.from(Frame{0},  0.0f, Easing::OutCubic)
+                    .to(Frame{30},   1.0f);
+            lb.opacity_anim().apply_track(op_track);
         }});
 
     reg.register_preset({.id = "reveal_from_bottom", .display_name = "Reveal From Bottom",
         .pack = std::string(kPackBasic),
         .apply = [](LayerBuilder& lb) {
-            auto& pos = lb.position_anim();
-            pos.add_keyframe(Frame{0}, Vec3{0.0f, 100.0f, 0.0f}, EasingCurve{Easing::OutCubic});
-            pos.add_keyframe(Frame{30}, Vec3{0.0f, 0.0f, 0.0f});
-            auto& op = lb.opacity_anim();
-            op.add_keyframe(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
-            op.add_keyframe(Frame{30}, 1.0f);
+            AnimationTrack<Vec3> pos_track;
+            pos_track.from(Frame{0},  Vec3{0.0f, 100.0f, 0.0f}, Easing::OutCubic)
+                     .to(Frame{30},   Vec3{0.0f, 0.0f, 0.0f});
+            lb.position_anim().apply_track(pos_track);
+
+            AnimationTrack<f32> op_track;
+            op_track.from(Frame{0},  0.0f, Easing::OutCubic)
+                    .to(Frame{30},   1.0f);
+            lb.opacity_anim().apply_track(op_track);
         }});
 
     reg.register_preset({.id = "fade_shift_vertical", .display_name = "Fade Shift Vertical",
         .pack = std::string(kPackBasic),
         .apply = [](LayerBuilder& lb) {
-            auto& pos = lb.position_anim();
-            pos.add_keyframe(Frame{0}, Vec3{0.0f, 40.0f, 0.0f}, EasingCurve{Easing::OutCubic});
-            pos.add_keyframe(Frame{30}, Vec3{0.0f, 0.0f, 0.0f});
-            auto& op = lb.opacity_anim();
-            op.add_keyframe(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
-            op.add_keyframe(Frame{30}, 1.0f);
+            AnimationTrack<Vec3> pos_track;
+            pos_track.from(Frame{0},  Vec3{0.0f, 40.0f, 0.0f}, Easing::OutCubic)
+                     .to(Frame{30},   Vec3{0.0f, 0.0f, 0.0f});
+            lb.position_anim().apply_track(pos_track);
+
+            AnimationTrack<f32> op_track;
+            op_track.from(Frame{0},  0.0f, Easing::OutCubic)
+                    .to(Frame{30},   1.0f);
+            lb.opacity_anim().apply_track(op_track);
         }});
 
     reg.register_preset({.id = "fade_shift_horizontal", .display_name = "Fade Shift Horizontal",
         .pack = std::string(kPackBasic),
         .apply = [](LayerBuilder& lb) {
-            auto& pos = lb.position_anim();
-            pos.add_keyframe(Frame{0}, Vec3{-60.0f, 0.0f, 0.0f}, EasingCurve{Easing::OutCubic});
-            pos.add_keyframe(Frame{30}, Vec3{0.0f, 0.0f, 0.0f});
-            auto& op = lb.opacity_anim();
-            op.add_keyframe(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
-            op.add_keyframe(Frame{30}, 1.0f);
+            AnimationTrack<Vec3> pos_track;
+            pos_track.from(Frame{0},  Vec3{-60.0f, 0.0f, 0.0f}, Easing::OutCubic)
+                     .to(Frame{30},   Vec3{0.0f, 0.0f, 0.0f});
+            lb.position_anim().apply_track(pos_track);
+
+            AnimationTrack<f32> op_track;
+            op_track.from(Frame{0},  0.0f, Easing::OutCubic)
+                    .to(Frame{30},   1.0f);
+            lb.opacity_anim().apply_track(op_track);
         }});
 
     // ══════════════════════════════════════════════════════════════════
@@ -231,30 +254,40 @@ inline void seed_builtin_presets(MotionPresetPackRegistry& reg) {
         .pack = std::string(kPackCinematic),
         .apply = [](LayerBuilder& lb) {
             lb.enable_3d();
-            auto& pos = lb.position_anim();
-            pos.add_keyframe(Frame{0}, Vec3{0.0f, 0.0f, 260.0f}, EasingCurve{Easing::OutCubic});
-            pos.add_keyframe(Frame{45}, Vec3{0.0f, 0.0f, 0.0f});
-            auto& sc = lb.scale_anim();
-            sc.add_keyframe(Frame{0}, Vec3{0.94f, 0.94f, 1.0f}, EasingCurve{Easing::OutCubic});
-            sc.add_keyframe(Frame{45}, Vec3{1.0f, 1.0f, 1.0f});
-            auto& op = lb.opacity_anim();
-            op.add_keyframe(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
-            op.add_keyframe(Frame{45}, 1.0f);
+            AnimationTrack<Vec3> pos_track;
+            pos_track.from(Frame{0},  Vec3{0.0f, 0.0f, 260.0f}, Easing::OutCubic)
+                     .to(Frame{45},   Vec3{0.0f, 0.0f, 0.0f});
+            lb.position_anim().apply_track(pos_track);
+
+            AnimationTrack<Vec3> sc_track;
+            sc_track.from(Frame{0},  Vec3{0.94f, 0.94f, 1.0f}, Easing::OutCubic)
+                    .to(Frame{45},   Vec3{1.0f, 1.0f, 1.0f});
+            lb.scale_anim().apply_track(sc_track);
+
+            AnimationTrack<f32> op_track;
+            op_track.from(Frame{0},  0.0f, Easing::OutCubic)
+                    .to(Frame{45},   1.0f);
+            lb.opacity_anim().apply_track(op_track);
         }});
 
     reg.register_preset({.id = "card_flip_2_5d", .display_name = "Card Flip 2.5D",
         .pack = std::string(kPackCinematic),
         .apply = [](LayerBuilder& lb) {
             lb.enable_3d();
-            auto& rot = lb.rotate_anim();
-            rot.add_keyframe(Frame{0}, Vec3{0.0f, -90.0f, 0.0f}, EasingCurve{Easing::OutCubic});
-            rot.add_keyframe(Frame{60}, Vec3{0.0f, 0.0f, 0.0f});
-            auto& pos = lb.position_anim();
-            pos.add_keyframe(Frame{0}, Vec3{0.0f, 0.0f, 240.0f}, EasingCurve{Easing::OutCubic});
-            pos.add_keyframe(Frame{60}, Vec3{0.0f, 0.0f, 0.0f});
-            auto& op = lb.opacity_anim();
-            op.add_keyframe(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic});
-            op.add_keyframe(Frame{36}, 1.0f);
+            AnimationTrack<Vec3> rot_track;
+            rot_track.from(Frame{0},  Vec3{0.0f, -90.0f, 0.0f}, Easing::OutCubic)
+                     .to(Frame{60},   Vec3{0.0f, 0.0f, 0.0f});
+            lb.rotate_anim().apply_track(rot_track);
+
+            AnimationTrack<Vec3> pos_track;
+            pos_track.from(Frame{0},  Vec3{0.0f, 0.0f, 240.0f}, Easing::OutCubic)
+                     .to(Frame{60},   Vec3{0.0f, 0.0f, 0.0f});
+            lb.position_anim().apply_track(pos_track);
+
+            AnimationTrack<f32> op_track;
+            op_track.from(Frame{0},  0.0f, Easing::OutCubic)
+                    .to(Frame{36},   1.0f);
+            lb.opacity_anim().apply_track(op_track);
         }});
 
     reg.register_preset({.id = "float_idle", .display_name = "Float Idle",
@@ -274,15 +307,20 @@ inline void seed_builtin_presets(MotionPresetPackRegistry& reg) {
     reg.register_preset({.id = "settle", .display_name = "Settle",
         .pack = std::string(kPackCinematic),
         .apply = [](LayerBuilder& lb) {
-            auto& sc = lb.scale_anim();
-            sc.add_keyframe(Frame{0}, Vec3{1.08f, 1.08f, 1.0f}, EasingCurve{Easing::OutBack});
-            sc.add_keyframe(Frame{20}, Vec3{1.0f, 1.0f, 1.0f});
-            auto& rot = lb.rotate_anim();
-            rot.add_keyframe(Frame{0}, Vec3{0.0f, 0.0f, 2.0f}, EasingCurve{Easing::OutBack});
-            rot.add_keyframe(Frame{20}, Vec3{0.0f, 0.0f, 0.0f});
-            auto& pos = lb.position_anim();
-            pos.add_keyframe(Frame{0}, Vec3{0.0f, 8.0f, 0.0f}, EasingCurve{Easing::OutBack});
-            pos.add_keyframe(Frame{20}, Vec3{0.0f, 0.0f, 0.0f});
+            AnimationTrack<Vec3> sc_track;
+            sc_track.from(Frame{0},  Vec3{1.08f, 1.08f, 1.0f}, Easing::OutBack)
+                    .to(Frame{20},   Vec3{1.0f, 1.0f, 1.0f});
+            lb.scale_anim().apply_track(sc_track);
+
+            AnimationTrack<Vec3> rot_track;
+            rot_track.from(Frame{0},  Vec3{0.0f, 0.0f, 2.0f}, Easing::OutBack)
+                     .to(Frame{20},   Vec3{0.0f, 0.0f, 0.0f});
+            lb.rotate_anim().apply_track(rot_track);
+
+            AnimationTrack<Vec3> pos_track;
+            pos_track.from(Frame{0},  Vec3{0.0f, 8.0f, 0.0f}, Easing::OutBack)
+                     .to(Frame{20},   Vec3{0.0f, 0.0f, 0.0f});
+            lb.position_anim().apply_track(pos_track);
         }});
 
     // ══════════════════════════════════════════════════════════════════
