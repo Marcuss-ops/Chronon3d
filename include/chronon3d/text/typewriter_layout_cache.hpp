@@ -47,27 +47,29 @@ struct TypewriterLayoutKey {
     }
 };
 
-struct TypewriterStyle {
-    std::string font_path;
-    std::string font_family;
-    int font_weight{400};
-    f32 font_size{72.0f};
-    Color color{1.0f, 1.0f, 1.0f, 1.0f};
-    f32 line_height{1.10f};
-};
+// P0-3 fix(text/cache): remove TypewriterStyle struct entirely.  Style is
+// caller-derived (per typewriter_build() opts / FontSpec) and must NEVER be
+// cached alongside the geometric layout — otherwise hits reuse old color /
+// old font / old line-height from a previous composition.  layout_key KEEP
+// the canonical 6 fields above (text/font/font_size/tracking/box/line_height)
+// unchanged; layout_entry V dropped presentation fields; they are
+// re-applied at emit time from the current call's opts.
 
 struct CompiledTypewriterGlyph {
     size_t original_index{0};
-    std::string layer_name;
-    std::string text_slice;
-    std::shared_ptr<PlacedGlyphRun> run;
-    Vec2 placement{0.0f, 0.0f};
+    std::shared_ptr<PlacedGlyphRun> run;     // mini-run precompilated by structure o' shape
+    Vec2 placement{0.0f, 0.0f};             // world-relative pixel position (already includes ref_offset)
+    // P0-3: layer_name and text_slice INTENTIONALLY removed.  Both are derived
+    // at emit time from the current call's opts.text + opts.layer_prefix;
+    // caching them caused cross-composition reuse of stale presentation.
+    // text_slice = opts.text.substr(layout.chars[original_index].byte_offset,
+    //                               layout.chars[original_index].byte_len);
+    // layer_name = current_layer_prefix + "_c" + std::to_string(original_index);
 };
 
 struct TypewriterLayoutEntry {
     TypewriterLayout layout;
     PlacedGlyphRun placed;
-    TypewriterStyle style;
     std::vector<CompiledTypewriterGlyph> glyphs;
 };
 
