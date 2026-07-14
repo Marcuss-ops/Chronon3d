@@ -1,5 +1,13 @@
 ## 2026-07-14
 
+### `docs(ticket): TICKET-LEGACY-QUEUE-METHODS-FOLLOWUP chaser-chore`
+  ([TICKET-LEGACY-QUEUE-METHODS-FOLLOWUP](docs/tickets/TICKET-LEGACY-QUEUE-METHODS-FOLLOWUP.md))
+
+- **Cat-5 3-doc chaser-chore** opening a NEW forward-point from [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (5th item). Audit `examples/` + downstream-consumer paths (`tests/install_consumer/`, `tests/package_consumer/`) + `docs/` for any lingering reference to the deleted `try_dequeue()` / `enqueue()` methods. P1-19 cleanup migrated the in-tree call sites; the cross-cutting external-consumer audit was deferred to this ticket (Cat-3 SDK ABI break risk if a downstream consumer still references the deleted methods).
+- **Cat-3 minimal-surface**: 0–N EDIT external consumer files (where N is the number of found references; expected N=0). 0 new files + 0 new public SDK symbol + 0 new singleton/registry/resolver/cache + 0 `#include <msdfgen>/<libtess2>/<unicode[/...]>` (Gate 5 Check 11 deny-everywhere preserved). Audit + possible-migration, no surface-additive change.
+- **CURRENT_STATUS.md UNTOUCHED** (no area state transition per AGENTS.md "Disciplina di aggiornamento dei canonici"). ROADMAP.md UNTOUCHED (P3 cosmetic forward-point, not milestone shift). Sibling Cat-5 chaser-chore pattern: `TICKET-PRE-PUSH-IO-EXCLUSIONS` + `TICKET-ARCH-CLEANUP-V0` + `TICKET-CAMERA-OVERLAY-PANEL-CONSTRAINTS` + TILE-PRUNE-SKIP-UNIFICATION lineage.
+- macchina-verifica DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum env-block pattern. VPS-only verification: `rg "\\.try_dequeue\\(|\\.enqueue\\(" examples/ tests/install_consumer/ tests/package_consumer/ docs/` → 0 matches (excluding CHANGELOG P1-19 entry + ticket-home). Subject envelope 62 chars ≤ 72 per `tools/check_commit_subject_length.sh` push-range audit. Cross-link: parent [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points + prior P1-19 chore `chore(queue): remove legacy try_dequeue/enqueue methods`.
+
 ### `docs(ticket): TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE chaser-chore`
   ([TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE](docs/tickets/TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE.md))
 
