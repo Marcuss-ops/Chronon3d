@@ -72,43 +72,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("--program-cache-tune-max", args.pipeline.program_cache_tune_max_capacity,
                     "Maximum capacity when up-tuning (default 128)");
     cmd->allow_windows_style_options();
-    cmd->callback([state, &ctx, cmd]() {
+    cmd->callback([state, &ctx]() {
         state->args->command_line = ctx.command_line;
-
-        // TICKET-V3-CLI-UNIFICATION-PROFILE-HELP — Apply profile defaults.
-        // Identity map for "" and "production" (both = current default behavior).
-        // Explicit per-flag values always win via cmd->get_option()->count() check.
-        const std::string& profile = state->args->profile;
-        if (!profile.empty() && profile != "production") {
-            auto apply_if_unset = [cmd](const char* flag, auto setter) {
-                const auto* opt = cmd->get_option(flag);
-                if (opt && opt->count() == 0) setter();
-            };
-            auto& p = state->args->pipeline;
-            auto& q = p.quality;
-            if (profile == "draft") {
-                apply_if_unset("--tile-size",                [&]{ p.tile_size = 256; });
-                apply_if_unset("--motion-blur",               [&]{ q.motion_blur = false; });
-                apply_if_unset("--motion-blur-samples",       [&]{ q.motion_blur_samples = 2; });
-                apply_if_unset("--warmup-framebuffers",       [&]{ p.warmup_framebuffers = 1; });
-                apply_if_unset("--no-dirty-rects",            [&]{ p.no_dirty_rects = true; });
-                apply_if_unset("--diagnostic",                [&]{ p.diagnostic = false; });
-                apply_if_unset("--program-cache-tune",        [&]{ p.program_cache_tune = false; });
-            } else if (profile == "preview") {
-                apply_if_unset("--tile-size",                [&]{ p.tile_size = 128; });
-                apply_if_unset("--motion-blur",               [&]{ q.motion_blur = true; });
-                apply_if_unset("--motion-blur-samples",       [&]{ q.motion_blur_samples = 4; });
-                apply_if_unset("--warmup-framebuffers",       [&]{ p.warmup_framebuffers = 2; });
-                apply_if_unset("--no-dirty-rects",            [&]{ p.no_dirty_rects = false; });
-            } else if (profile == "maximum") {
-                apply_if_unset("--tile-size",                [&]{ p.tile_size = 0; });
-                apply_if_unset("--motion-blur",               [&]{ q.motion_blur = true; });
-                apply_if_unset("--motion-blur-samples",       [&]{ q.motion_blur_samples = 16; });
-                apply_if_unset("--warmup-framebuffers",       [&]{ p.warmup_framebuffers = 4; });
-                apply_if_unset("--diagnostic",                [&]{ p.diagnostic = true; });
-                apply_if_unset("--program-cache-tune",        [&]{ p.program_cache_tune = true; });
-            }
-        }
         state->args->cpu_budget = ctx.cpu_budget;
         // fb_pool_budget_mb is handled in plan_render_job() via Config::set_fb_pool_budget()
         if (state->args->output.empty()) {
