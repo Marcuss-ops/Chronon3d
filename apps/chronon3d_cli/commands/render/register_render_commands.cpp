@@ -110,7 +110,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     auto still_state = std::make_shared<std::shared_ptr<StillArgs>>(std::make_shared<StillArgs>());
     auto& still_args = **still_state;
 
-    auto* still = app.add_subcommand("still", "Render a single frame with asset preflight");
+    auto* still = app.add_subcommand("still", "[DEPRECATED] Render a single frame (use 'render' instead — TTL until V0.2)");
     still->add_option("input", still_args.comp_id, "Composition name or .specscene path")->required();
     still->add_option("--frame", still_args.frame, "Frame number to render")->default_val(0);
     still->add_option("-o,--output", still_args.output, "Output PNG path");
