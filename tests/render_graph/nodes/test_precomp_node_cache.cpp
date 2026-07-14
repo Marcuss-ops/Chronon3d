@@ -30,6 +30,7 @@
 #include <chronon3d/internal/render_graph/cache/scene_program_store.hpp>
 #include <chronon3d/render_graph/cache/scene_program_cache.hpp>
 #include <chronon3d/render_graph/pipeline/frame_parameter_block.hpp>
+#include <chronon3d/render_graph/builder/precomp_builder_service.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/render_graph/executor/graph_executor.hpp>
@@ -72,6 +73,7 @@ struct TestContext {
     NodeCache                   node_cache;
     CompositionRegistry         registry;
     GraphExecutor               local_executor;
+    DefaultPrecompBuilder       precomp_builder_service;
     RenderSession               session;
     ExecutionScheduler          scheduler;
     RenderGraphContext          ctx;
@@ -92,6 +94,10 @@ struct TestContext {
         ctx.services.registry        = &registry;
         ctx.services.session         = &session;
         ctx.services.scheduler       = &scheduler;
+        // TICKET-010 — PrecompNode delegates compilation to the typed
+        // PrecompBuilderService. Without this pointer the cache-miss
+        // path returns nullptr and the program never gets stored.
+        ctx.services.precomp_builder = &precomp_builder_service;
 
         ctx.frame_input.frame        = Frame{0};
         ctx.frame_input.width        = w;
