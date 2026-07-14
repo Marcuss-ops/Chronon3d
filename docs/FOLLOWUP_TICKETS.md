@@ -9,6 +9,8 @@
 
 | Ticket | Pri | Status | Description |
 |---|---|---|---|
+| TICKET-RESIDUAL-BUILD-ROT-RECOVERY | P0 | macchina-verificato PARTIAL | Header dedup landed build-green; SIMD residual forward-point. [ticket](docs/tickets/TICKET-RESIDUAL-BUILD-ROT-RECOVERY.md) |
+| TICKET-SIMD-PRECISION-DRIFT | P1 | OPEN | scalar_blend alpha=0 darkens dst (simd_parity_blend_tests 4/5); WBH-FIX. [ticket](docs/tickets/TICKET-SIMD-PRECISION-DRIFT.md) |
 | TICKET-NODE-CACHE-KEY-COLLAPSE-ROT | P2 | OPEN | NodeCacheKey not recognized in node_executor.cpp — build rot blocking macchina-verifica. [ticket](docs/tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |
 | TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX | P0 | OPEN | Audit-trail: upstream conflict markers in CHANGELOG resolved by `52e48ddd`; forward-point: extend check to `.md` prose. |
 | TICKET-COMPLETENESS-GATE-V2-FIX-FORWARD | P1 | OPEN | Re-apply §20 unified video gate wire-chore post-rot-fix; 3 BLOCKING issues from prior `dd37f28e` push-block. |
