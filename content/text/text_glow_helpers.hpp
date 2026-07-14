@@ -29,6 +29,16 @@
 
 namespace chronon3d::content::text::glow {
 
+// TICKET-VCPKG-REMAINING-CODE-ROT-1SHOT-FIX — explicit parent-namespace
+// imports for the deeper `text::glow` namespace (qualified lookup must
+// descend 4 levels: content::text::glow → content::text → content →
+// chronon3d, so an explicit `using` block is preferred over unqualified
+// cascading for rot-pattern hygiene).
+using chronon3d::f32;
+using chronon3d::Vec2;
+using chronon3d::Color;
+using chronon3d::LayerBuilder;
+
 struct AeGlowOptions {
     f32 inner_radius{4.0f};
     f32 mid_radius{14.0f};

@@ -21,6 +21,22 @@ namespace chronon3d { class SceneBuilder; }
 
 namespace chronon3d::content::text {
 
+// TICKET-VCPKG-REMAINING-CODE-ROT-1SHOT-FIX — explicit parent-namespace
+// imports (canonical fix-pattern mirrored from content/text/typewriter_build.cpp).
+// These types live in `chronon3d::` (per `core/types/result.hpp` + `text/...`);
+// the `using` declarations lock the dependency at compile time.
+using chronon3d::f32;
+using chronon3d::Vec2;
+using chronon3d::FontSpec;
+using chronon3d::FontEngine;
+using chronon3d::Frame;
+using chronon3d::TextDefinition;
+using chronon3d::Result;
+using chronon3d::TextError;
+using chronon3d::TypewriterLayout;
+using chronon3d::PlacedGlyphRun;
+using chronon3d::CompiledTypewriterGlyph;
+
 // F0.3 — silent returns replaced by Result<…, TextError>.
 [[nodiscard]] Result<TypewriterLayout, TextError> compute_typewriter_layout(
     const std::string& text, f32 font_size, f32 tracking,
