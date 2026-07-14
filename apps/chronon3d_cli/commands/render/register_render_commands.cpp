@@ -1,14 +1,70 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
+#include <CLI/Exceptions.hpp>
 #include <spdlog/spdlog.h>
 #include <filesystem>
+#include <iostream>
 #include <memory>
 
 namespace chronon3d::cli {
 
 namespace {
-struct RenderState { std::shared_ptr<RenderArgs> args{std::make_shared<RenderArgs>()}; };
+
+// TICKET-V3-CLI-UNIFICATION-PROFILE-HELP — Advanced help printer.
+// Pure-text output (no CLI::App introspection) to keep the surface stable
+// across CLI11 minor versions. Groups 16 advanced flags into 3 sections
+// (renderer pipeline / memory / diagnostics) per audit §13 verbatim spec.
+void print_advanced_render_help(std::ostream& out) {
+    out <<
+        "Chronon3D 'render' advanced options\n"
+        "====================================\n\n"
+        "Renderer pipeline:\n"
+        "  --tile-size <int>             Tile size for dirty-rect tile execution\n"
+        "                                (e.g. 64). 0 = disabled.\n"
+        "  --no-dirty-rects              Disable dirty-rect invalidation (ON by default).\n"
+        "  --graph / --no-graph          Modular RenderGraph path (default on).\n"
+        "  --motion-blur                 Enable temporal motion blur.\n"
+        "  --motion-blur-samples <int>   Subframe samples (default 8).\n"
+        "  --motion-blur-pattern <int>   0=Uniform, 1=Stratified, 2=Halton.\n"
+        "  --motion-blur-filter <int>    0=Box, 1=Triangle, 2=Gaussian.\n"
+        "  --shutter-angle <float>       Shutter angle in degrees (default 180).\n"
+        "  --shutter-phase <float>       Shutter phase in degrees (default -90).\n"
+        "  --ssaa <float>                Super-sampling factor (default 1.0).\n"
+        "\n"
+        "Memory:\n"
+        "  --warmup-renderer             Preallocate framebuffers + prime caches.\n"
+        "  --warmup-framebuffers <N>     Framebuffers to preallocate (default 8).\n"
+        "  --warmup-dummy-frame          Render a dummy frame 0 to prime caches.\n"
+        "  --fb-pool-budget-mb <int>     Framebuffer pool retention budget in MB\n"
+        "                                (0=unlimited, default 384).\n"
+        "  --fb-pool-clear-policy <str>  keep-warm | trim-after-job |\n"
+        "                                trim-on-memory-pressure\n"
+        "                                (default trim-after-job).\n"
+        "  --program-cache-capacity <N>  SceneProgramCache entries per Precomp\n"
+        "                                node (0=default 8).\n"
+        "  --program-cache-tune          Auto-tune SceneProgramCache capacity.\n"
+        "  --program-cache-tune-interval Frames between auto-tune checks (default 30).\n"
+        "  --program-cache-tune-min      Min capacity when down-tuning (default 2).\n"
+        "  --program-cache-tune-max      Max capacity when up-tuning (default 128).\n"
+        "\n"
+        "Diagnostics:\n"
+        "  --diagnostic / --layout-preview  Enable layout preview overlays.\n"
+        "  --diagnostic-plan               Log graph preflight diagnostics before\n"
+        "                                  each frame.\n"
+        "  --diagnostic-plan-output        Write graph preflight report to file.\n"
+        "  --diagnostic-overlay            Draw bbox/anchor/baseline overlay on text.\n"
+        "  --diagnostic-overlay-only       Like --diagnostic-overlay on transparent bg.\n"
+        "  --debug-text-layout             Draw text layout debug overlay + log.\n"
+        "  --debug-text-layout-json <path> Write per-TextRun bounds JSON.\n"
+        "  --force-scalar-normal-blend     Force scalar non-SIMD Normal blend\n"
+        "                                  (regression diagnostic).\n"
+        "\n"
+        "Use 'chronon render --profile=draft|preview|production|maximum' to apply\n"
+        "a curated set of these defaults. Per-flag explicit values always win.\n";
 }
+
+struct RenderState { std::shared_ptr<RenderArgs> args{std::make_shared<RenderArgs>()}; }
+} // namespace
 
 void register_render_commands(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<RenderState>();
@@ -71,6 +127,24 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                     "Minimum capacity when down-tuning (default 2)");
     cmd->add_option("--program-cache-tune-max", args.pipeline.program_cache_tune_max_capacity,
                     "Maximum capacity when up-tuning (default 128)");
+
+    // TICKET-V3-CLI-UNIFICATION-PROFILE-HELP — extended advanced help.
+    // `--help-advanced` is a probe-only flag: it prints the 16 advanced
+    // flags grouped into 3 sections and exits 0 via CLI11's `Success()`
+    // exception. The callback is attached to the FLAG itself (not via
+    // the subcommand's main callback) so the early exit BYPASSES any
+    // required-arg validation (e.g. `input` is required → would otherwise
+    // block the help on no-arg invocations).
+    cmd->add_flag_callback(
+        "--help-advanced",
+        []() {
+            print_advanced_render_help(std::cout);
+            throw CLI::Success(); // CLI11 idiom: exit 0 immediately.
+        },
+        "Print advanced render options (--motion-blur*, --tile-size, --warmup*, "
+        "--fb-pool*, --program-cache*, --diagnostic-overlay*, --force-scalar-*) "
+        "grouped by section and exit");
+
     cmd->allow_windows_style_options();
     cmd->callback([state, &ctx]() {
         state->args->command_line = ctx.command_line;
