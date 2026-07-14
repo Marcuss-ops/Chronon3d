@@ -95,6 +95,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     # CHRONON3D_BUILD_CONTENT-gated
     content_tests.cmake
     showcase/CMakeLists.txt
+    bench_corpus/CMakeLists.txt
     # CHRONON3D_ENABLE_VIDEO-gated (single block in the old orchestrator;
     # the duplicate `if(CHRONON3D_ENABLE_VIDEO)` for media_tests.cmake is
     # folded here so both files share the same per-file early-return gate)

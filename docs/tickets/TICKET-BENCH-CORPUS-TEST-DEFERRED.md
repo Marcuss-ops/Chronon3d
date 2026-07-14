@@ -1,6 +1,8 @@
 # TICKET-BENCH-CORPUS-TEST-DEFERRED — bench corpus 12-scene sanity test (deferred after 3-iter lost-commit cycle)
 
-## Stato: DEFERRED (2026-07-14)
+## Stato: DONE (2026-07-14)
+
+Closes via companion impl chore [TICKET-BENCH-CORPUS-TEST-DEFERRED-IMPL.md](docs/tickets/TICKET-BENCH-CORPUS-TEST-DEFERRED-IMPL.md) (this chore = `feat(tests): bench corpus 12-scene sanity test`) + antecedent rot-fix commit `7461c70b fix(text): close TypewriterLayout/CompiledTypewriterGlyph namespace rot` (resolved the content/ build chain rot-pattern che bloccava `cmake --build --target chronon3d_content`). macchina-verifica DEFERRED-WBH per [TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV](docs/tickets/TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV.md); pre-push local-build verification PASS this session.
 
 ## Problema
 
