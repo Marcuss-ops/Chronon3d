@@ -165,11 +165,13 @@ struct GlowAccumResult {
     source_fb->clear({0,0,0,0});
     // ── Source extraction with alpha threshold ──────────────────────────
     // Copy source pixels into the temp buffer, applying an alpha floor:
-    // any pixel with 0 < alpha < 16/255 is zeroed out.  Text rasterisers
-    // can leave sub-pixel alpha (~1-3/255) in the padding area around
-    // glyph bounding boxes, which the blur would amplify into a visible
-    // rectangular fog.  This threshold eliminates that without affecting
-    // legitimate anti-aliased edges (≥ 32/255 at the glyph boundary).
+    // any pixel with 0 < alpha < 8/255 is zeroed out.  Text rasterisers
+    // (legacy `text_rasterizer_render.cpp` sole remaining call site post
+    // P1-7 Chore 1) can leave sub-pixel alpha (~1-7/255) in the padding
+    // area around glyph bounding boxes, which the blur would amplify
+    // into a visible rectangular fog.  This threshold eliminates that
+    // without affecting legitimate anti-aliased edges (≥ 32/255 at
+    // the glyph boundary).
     static constexpr float kAlphaFloor = 8.0f / 255.0f;
     tbb::parallel_for(tbb::blocked_range<int>(0, roi_h, kGlowTbbGrain),
                       [&](const tbb::blocked_range<int>& range) {
