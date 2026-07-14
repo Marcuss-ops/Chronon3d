@@ -56,7 +56,9 @@ struct RenderPipelineArgs {
 
     // P1-21: framebuffer pool clear policy.  Values: "keep-warm" |
     // "trim-after-job" | "trim-on-memory-pressure".  Empty = use default
-    // (TrimOnMemoryPressure, preserves pre-P1-21 engine behavior).
+    // (TrimAfterJob, matches pre-P1-21 production behavior: pipe_export_loop
+    // unconditionally called clear() at end of every job).  Default aligned
+    // per TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE-IMPL (commit f1d8cc34).
     std::string fb_pool_clear_policy;
 
     // SceneProgramCache capacity per Precomp node. 0 = use default (8).
