@@ -142,6 +142,7 @@ Asset category: **`INSTALL_PIPELINE_PLUMBING`**.
 | Script                                          | Asset Category              | Function |
 |-------------------------------------------------|-----------------------------|----------|
 | `tools/audit_incomplete_type_pattern.sh`        | INSTALL_PIPELINE_PLUMBING   | std::make_shared\<T\> umbrella-header full-def probe. Emette **`BROKEN`** se l'header canonico del tipo T in `include/chronon3d/` contiene solo `class T;` (forward declaration) invece di `struct T { ... }` (full definition).  FU4 rot preventive (TICKET-GATE-10-PHASE-4-BLACK-FU4 closure lineage). |
+| `tools/check_clean_rebuild.sh`                  | INSTALL_PIPELINE_PLUMBING   | Opt-in periodic gate: `rm -rf` + `cmake -B configure` + `cmake --build --target` + `ctest --timeout 30 -R <regex>` smoke pipeline (per build dir). Default **no-op + `[INFO]` diagnostic**; opt-in via `CHRONON3D_CLEAN_REBUILD=1`. NOT in standard `tools/wrap_push.sh` pre-push chain (opt-in discipline preserves fast incremental flow; the gate would cost 5-15 min per build dir). Closes the silent-class "rotted artifacts" failure mode that incremental ninja's mtime-bit-flip exit-0 cannot detect (complements AGENTS.md §Post-push SHA-selfcheck invariant by surfacing rot before trust is placed in incremental PASS). |
 
 Stand-alone usage:
 
