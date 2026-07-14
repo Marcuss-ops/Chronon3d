@@ -450,8 +450,7 @@ namespace detail {
 inline std::vector<CompiledTypewriterGlyph> compile_typewriter_glyphs(
     const TypewriterLayout& layout,
     const PlacedGlyphRun& placed,
-    const std::string& text,
-    std::string_view layer_prefix)
+    const std::string& text)
 {
     std::vector<CompiledTypewriterGlyph> result;
     result.reserve(layout.chars.size());
@@ -467,8 +466,8 @@ inline std::vector<CompiledTypewriterGlyph> compile_typewriter_glyphs(
 
         CompiledTypewriterGlyph glyph;
         glyph.original_index = i;
-        glyph.layer_name = std::string(layer_prefix) + "_c" + std::to_string(i);
-        glyph.text_slice = text.substr(cp.byte_offset, cp.byte_len);
+        // P0-3 fix(text/cache): layer_name and text_slice are derived per-call in typewriter_build;
+        // do NOT cache them.
         glyph.placement = {cp.x, cp.y};
 
         if (!placed.clusters.empty() && !placed.glyphs.empty()) {
@@ -563,11 +562,12 @@ inline Result<bool, TextError> typewriter_build(
         TypewriterLayoutEntry new_entry;
         new_entry.layout = std::move(*layout_result);
         new_entry.placed = std::move(placed);
-        new_entry.style = TypewriterStyle{
-            opts.font_asset, opts.font_family, opts.font_weight,
-            opts.font_size, opts.color, opts.line_height};
+        // P0-3 fix(text/cache): do NOT cache TypewriterStyle alongside the
+        // geometry.  Style is applied at emit time from current opts.text
+        // (used to derive text_slice) and the typewriter_build() caller
+        // layer_prefix (used to derive layer_name).
         new_entry.glyphs = detail::compile_typewriter_glyphs(
-            new_entry.layout, new_entry.placed, opts.text, layer_prefix);
+            new_entry.layout, new_entry.placed, opts.text);
 
         entry = std::make_shared<TypewriterLayoutEntry>(std::move(new_entry));
         cache.put(key, entry);
@@ -605,33 +605,61 @@ inline Result<bool, TextError> typewriter_build(
 
         if (opacity < 0.005f) continue;
 
-        s.layer(glyph.layer_name, [entry, i, opacity](LayerBuilder& l) {
-            l.pin_to(Anchor::Center);
-            l.opacity(opacity);
+        // P0-3 fix(text/cache): derive layer_name per-call so cache hits
+        // do NOT reuse stale prefixes (cross-composition).
+        const std::string computed_layer_name =
+            std::string(layer_prefix) + "_c" + std::to_string(glyph.original_index);
 
-            const auto& g = entry->glyphs[i];
-            const auto& style = entry->style;
+        // P0-3 SAFETY fix(text/cache): hoist all per-call options into scope-
+        // local values BEFORE s.layer() so the closure is fully self-contained
+        // (no capture-by-ref of opts).  Init-capture with std::move transfers
+        // ownership of the std::string heap buffers INTO the closure at
+        // lambda construction time, so SceneBuilder can defer lambda
+        // execution indefinitely without dangling against typewriter_build()'s
+        // `opts`.  Mirrors text_reveal.cpp pattern (which captures `d` by-value
+        // for the same reason).  Per-call, string count is reduced to 3
+        // std::moves (text_slice + font_asset + font_family) instead of N copies.
+        const auto& g_outer = entry->glyphs[i];
+        const auto& cp_outer = entry->layout.chars[g_outer.original_index];
+        std::string  text_slice  = opts.text.substr(cp_outer.byte_offset, cp_outer.byte_len);
+        std::string  font_asset  = opts.font_asset;
+        std::string  font_family = opts.font_family;
+        int          font_weight = opts.font_weight;
+        f32          font_size_v = opts.font_size;
+        Color        color       = opts.color;
+        f32          line_height = opts.line_height;
 
-            // F2.D — canonical TextDefinition
-            l.text("glyph", TextDefinition{
-                .content = {.value = g.text_slice, .pre_shaped = g.run},
-                .style = {.font = {.font_path = style.font_path,
-                                   .font_family = style.font_family,
-                                   .font_weight = style.font_weight,
-                                   .font_size = style.font_size},
-                          .color = style.color},
-                .frame = {.size = {style.font_size * 2.0f, style.font_size * 2.0f},
-                          .placement = TextPlacement{TextPlacementKind::Absolute, {g.placement.x, g.placement.y}},
-                          .anchor = TextAnchor::Center,
-                          .align = TextAlign::Center,
-                          .vertical_align = VerticalAlign::Middle,
-                          .wrap = TextWrap::None,
-                          .overflow = TextOverflow::Clip,
-                          .centering_mode = TextCenteringMode::PixelInk,
-                          .line_height = style.line_height,
-                          .tracking = 0.0f},
+        s.layer(computed_layer_name,
+            [entry, i, opacity,
+             text_slice  = std::move(text_slice),
+             font_asset  = std::move(font_asset),
+             font_family = std::move(font_family),
+             font_weight, font_size_v, color, line_height](LayerBuilder& l) {
+                l.pin_to(Anchor::Center);
+                l.opacity(opacity);
+
+                const auto& g = entry->glyphs[i];
+                // F2.D — canonical TextDefinition; style fields come from
+                // per-call captured values (NOT cached entry.style).
+                l.text("glyph", TextDefinition{
+                    .content = {.value = text_slice, .pre_shaped = g.run},
+                    .style = {.font = {.font_path   = font_asset,
+                                       .font_family = font_family,
+                                       .font_weight = font_weight,
+                                       .font_size   = font_size_v},
+                              .color = color},
+                    .frame = {.size = {font_size_v * 2.0f, font_size_v * 2.0f},
+                              .placement = TextPlacement{TextPlacementKind::Absolute, {g.placement.x, g.placement.y}},
+                              .anchor = TextAnchor::Center,
+                              .align = TextAlign::Center,
+                              .vertical_align = VerticalAlign::Middle,
+                              .wrap = TextWrap::None,
+                              .overflow = TextOverflow::Clip,
+                              .centering_mode = TextCenteringMode::PixelInk,
+                              .line_height = line_height,
+                              .tracking = 0.0f},
+                });
             });
-        });
     }
     return true;
 }
