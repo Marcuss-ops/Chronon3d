@@ -33,9 +33,12 @@ using chronon3d::Frame;
 using chronon3d::TextDefinition;
 using chronon3d::Result;
 using chronon3d::TextError;
-using chronon3d::TypewriterLayout;
+// Namespace-correction rotation — `TypewriterLayout` and `CompiledTypewriterGlyph`
+// moved to `namespace chronon3d::content::text` by upstream `266048bf`; consumer
+// using-declarations below track the new site (per typewriter_layout_cache.hpp:16/26/58).
+using chronon3d::content::text::TypewriterLayout;
 using chronon3d::PlacedGlyphRun;
-using chronon3d::CompiledTypewriterGlyph;
+using chronon3d::content::text::CompiledTypewriterGlyph;
 
 // F0.3 — silent returns replaced by Result<…, TextError>.
 [[nodiscard]] Result<TypewriterLayout, TextError> compute_typewriter_layout(
