@@ -44,7 +44,7 @@ RenderLoopOutput run_pipe_export_loop(
         .start = start,
         .end = end,
         .opts = opts,
-        .sw_renderer = session.renderer.get(),
+        .sw_renderer = *session.renderer,  // P1-20 — dereference shared_ptr to bind reference.
         .queue = session.queue,
         .writer_failed = session.writer_failed,
         .triple_arena = *session.triple_arena,

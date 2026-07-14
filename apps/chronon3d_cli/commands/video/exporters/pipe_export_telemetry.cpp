@@ -120,8 +120,8 @@ void record_pipe_telemetry(
     resolved_counters.push_back({"ffmpeg_queue_wait_duration_ms",
         static_cast<uint64_t>(std::llround(loop_result.queue_wait_ms))});
 
-    if (session.sw_renderer && session.sw_renderer->framebuffer_pool()) {
-        auto pool_stats = session.sw_renderer->framebuffer_pool()->stats();
+    if (session.renderer && session.renderer->framebuffer_pool()) {
+        auto pool_stats = session.renderer->framebuffer_pool()->stats();
         resolved_counters.push_back({"framebuffer_pool_capacity", pool_stats.max_bytes});
         resolved_counters.push_back({"framebuffer_pool_available_count", pool_stats.available_count});
         resolved_counters.push_back({"framebuffer_pool_current_bytes", pool_stats.current_bytes});

@@ -109,7 +109,7 @@ static RenderLoopContext make_loop_context(
         .start = start,
         .end = end,
         .opts = opts,
-        .sw_renderer = &renderer,
+        .sw_renderer = renderer,  // P1-20 — bind reference (renderer is SoftwareRenderer&).
         .queue = queue,
         .writer_failed = writer_failed,
         .triple_arena = triple_arena,
