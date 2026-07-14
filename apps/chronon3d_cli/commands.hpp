@@ -220,6 +220,24 @@ struct StillArgs {
     bool skip_preflight{false};
 };
 
+
+// TICKET-V3-CLI-UNIFICATION-WATCH-SUPERVISOR (Blocco 4.1, Commit 1 of 3)
+// `chronon watch <comp> --frame N -o /tmp/preview.png` supervisor args.
+// See apps/chronon3d_cli/commands/watch/register_watch_commands.cpp.
+struct WatchArgs {
+    std::string comp_id;             // <comp_id> (positional, required)
+    int frame{0};                    // --frame N
+    std::filesystem::path output{"/tmp/preview.png"};  // -o / --output
+    std::vector<std::filesystem::path> watch_dirs;     // --watch-dirs (default: src include apps)
+    std::string build_command{"bash build-fast.sh"};   // --build
+    int poll_ms{500};                // --poll-ms
+    std::string chronon_binary;      // --chronon-binary (empty = /proc/self/exe on Linux)
+    bool no_build{false};            // --no-build
+    // TICKET-WATCH-PROPS-FILE (V0 forward-point) — accepted, not yet applied
+    // to subprocess RenderJob (awaiting TICKET-ADD-LOADER-FOR-CHRONON-JSON).
+    std::string props_file;          // --props-file
+};
+
 struct BakeLayerArgs {
     std::string comp_id;
     std::string layer_id;
@@ -279,6 +297,8 @@ int command_batch(const CompositionRegistry& registry, const std::vector<std::st
 int command_telemetry(const TelemetryArgs& args);
 int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args, AssetRegistry& assets);
 int command_still(const CompositionRegistry& registry, const StillArgs& args);
+int command_watch(const CompositionRegistry& registry, const WatchArgs& args);
+
 int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args);
 int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);
 int command_inspect_text(const CompositionRegistry& registry, const InspectTextArgs& args);
