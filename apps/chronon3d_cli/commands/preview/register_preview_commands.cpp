@@ -38,11 +38,17 @@
 #include "../../commands.hpp"
 
 #include <CLI/CLI.hpp>
+#include <chronon3d/backends/image/image_loader.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
+#include <cmath>
+#include <cstdio>
 #include <chrono>
 #include <filesystem>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <system_error>
@@ -82,6 +88,101 @@ std::string frame_suffix(int frame) {
     return std::string(buf);
 }
 
+// TICKET-PREVIEW-CONTACT-SHEET (Commit 3b of Blocco 4.1) —
+// compose N per-frame PNGs into a single grid PNG.
+//
+// Algorithm (thin facade over the canonical load_image_as_framebuffer +
+// Framebuffer::blit + save_png APIs; no new public SDK surface):
+//   1. Load each PNG via chronon3d::io::load_image_as_framebuffer(path,
+//      cell_width, -1) — downscales to cell_width, aspect-preserving.
+//   2. Grid layout: cols = ceil(sqrt(N)), rows = ceil(N / cols).
+//   3. Cell dimensions: use the FIRST frame's post-resize width/height
+//      (homogeneous grid — all frames in the sheet share the same cell
+//      size because they were all downscaled to the same cell_width).
+//   4. Destination Framebuffer size:
+//        dst_w = cols * cell_w + (cols + 1) * cell_padding
+//        dst_h = rows * cell_h + (rows + 1) * cell_padding
+//      Cleared to opaque black (RGBA 0,0,0,255).
+//   5. For each source frame at (col, row), blit it into the destination
+//      via the canonical Framebuffer::blit method (which clips to bounds
+//      automatically per the existing public API contract).
+//   6. save_png the destination to `output_path`.
+//
+// Continue-on-failure: any frame that fails to load is skipped (warning
+// emitted); the contact sheet is composed only from the successful
+// frames.  If NO frames load, returns false and no file is written.
+bool compose_contact_sheet(const std::vector<std::string>& png_paths,
+                           const std::string& output_path,
+                           int cell_width, int cell_padding) {
+    using namespace chronon3d;
+
+    if (png_paths.empty()) {
+        spdlog::warn("compose_contact_sheet: empty input list");
+        return false;
+    }
+
+    // 1. Load all PNGs, downscaled to cell_width (aspect-preserving).
+    std::vector<std::shared_ptr<Framebuffer>> frames;
+    frames.reserve(png_paths.size());
+    for (const auto& p : png_paths) {
+        auto fb = io::load_image_as_framebuffer(p, cell_width, /*h*/-1);
+        if (!fb) {
+            spdlog::warn("compose_contact_sheet: failed to load '{}'", p);
+            continue;
+        }
+        frames.push_back(std::move(fb));
+    }
+    if (frames.empty()) {
+        spdlog::error("compose_contact_sheet: no frames loaded successfully");
+        return false;
+    }
+
+    // 2. Grid layout.
+    const int N = static_cast<int>(frames.size());
+    const int cols = static_cast<int>(
+        std::ceil(std::sqrt(static_cast<double>(N))));
+    const int rows = static_cast<int>(
+        std::ceil(static_cast<double>(N) / static_cast<double>(cols)));
+    if (cols <= 0 || rows <= 0) return false;
+
+    // 3. Cell dimensions from the first frame (all frames share these
+    //    because they were all downscaled to the same cell_width).
+    const int cell_w = frames[0]->width();
+    const int cell_h = frames[0]->height();
+    if (cell_w <= 0 || cell_h <= 0) {
+        spdlog::error("compose_contact_sheet: invalid cell size {}x{}",
+                      cell_w, cell_h);
+        return false;
+    }
+
+    // 4. Destination Framebuffer.
+    const int dst_w = cols * cell_w + (cols + 1) * cell_padding;
+    const int dst_h = rows * cell_h + (rows + 1) * cell_padding;
+    auto dst = std::make_shared<Framebuffer>(dst_w, dst_h);
+    dst->clear(Color{0.0f, 0.0f, 0.0f, 1.0f});  // opaque black background
+
+    // 5. Blit each frame into its grid cell.  Framebuffer::blit clips
+    //    pixels outside the destination bounds, so no manual clamping.
+    for (int i = 0; i < N; ++i) {
+        const int col = i % cols;
+        const int row = i / cols;
+        const int x = cell_padding + col * (cell_w + cell_padding);
+        const int y = cell_padding + row * (cell_h + cell_padding);
+        dst->blit(*frames[i], x, y);
+    }
+
+    // 6. Save.
+    if (!save_png(*dst, output_path)) {
+        spdlog::error("compose_contact_sheet: save_png failed for '{}'",
+                      output_path);
+        return false;
+    }
+    spdlog::info("compose_contact_sheet: {} frame(s) → {} ({}x{} grid, "
+                 "sheet size {}x{})",
+                 N, output_path, cols, rows, dst_w, dst_h);
+    return true;
+}
+
 }  // namespace
 
 void register_preview_commands(CLI::App& app, CliContext& ctx) {
@@ -115,16 +216,10 @@ void register_preview_commands(CLI::App& app, CliContext& ctx) {
     cmd->callback([state, &ctx]() {
         const auto& a = *state;
 
-        // TICKET-PREVIEW-CONTACT-SHEET (Commit 3b forward-point) — close
-        // the UX trap: --contact-sheet is accepted but not yet applied.
-        // Print a one-time warning so users are not silently misled.
-        if (!a.contact_sheet.empty()) {
-            spdlog::warn("--contact-sheet is a forward-point "
-                         "(TICKET-PREVIEW-CONTACT-SHEET, Commit 3b): accepted "
-                         "but not yet applied in this commit.  Per-frame "
-                         "PNGs are still written to '{}'.",
-                         a.output_dir.string());
-        }
+        // TICKET-PREVIEW-CONTACT-SHEET (Commit 3b) is now IMPLEMENTED:
+        // the --contact-sheet flag invokes compose_contact_sheet after
+        // the per-frame render loop completes (see below).  No
+        // forward-point warning needed.
 
         // Parse the frame list.
         const auto frames = parse_frames_string(a.frames);
@@ -158,6 +253,7 @@ void register_preview_commands(CLI::App& app, CliContext& ctx) {
         // canonical plan_render_job dispatches to RenderMode::Still.
         int rendered = 0;
         int failed = 0;
+        std::vector<std::string> rendered_paths;  // for contact sheet
         const auto t_loop_start = std::chrono::steady_clock::now();
         for (const int frame : frames) {
             RenderArgs r;
@@ -190,6 +286,7 @@ void register_preview_commands(CLI::App& app, CliContext& ctx) {
             spdlog::info("  ✓ frame {} → {} ({:.1f} ms)",
                          frame, r.output, ms);
             ++rendered;
+            rendered_paths.push_back(r.output);
         }
         const auto t_loop_end = std::chrono::steady_clock::now();
         const double total_ms =
@@ -200,6 +297,29 @@ void register_preview_commands(CLI::App& app, CliContext& ctx) {
                      "(output dir: {})",
                      rendered, frames.size(), total_ms,
                      a.output_dir.string());
+
+        // TICKET-PREVIEW-CONTACT-SHEET (Commit 3b) — compose all
+        // successfully-rendered per-frame PNGs into a single grid PNG.
+        // Best-effort: a failure here does not fail the preview (the
+        // per-frame PNGs are still on disk); it logs a warning instead.
+        if (!a.contact_sheet.empty() && rendered > 0) {
+            const auto t_cs0 = std::chrono::steady_clock::now();
+            const bool ok = compose_contact_sheet(
+                rendered_paths, a.contact_sheet,
+                a.cell_width, a.cell_padding);
+            const auto t_cs1 = std::chrono::steady_clock::now();
+            const double cs_ms =
+                std::chrono::duration<double, std::milli>(t_cs1 - t_cs0)
+                    .count();
+            if (ok) {
+                spdlog::info("Contact sheet written in {:.1f} ms", cs_ms);
+            } else {
+                spdlog::warn("Contact sheet generation failed (per-frame "
+                             "PNGs are still in '{}').",
+                             a.output_dir.string());
+            }
+        }
+
         if (failed > 0) {
             spdlog::warn("Preview: {} frame(s) failed.", failed);
             ctx.exit_code = 1;
