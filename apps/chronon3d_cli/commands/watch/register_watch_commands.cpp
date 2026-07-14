@@ -207,6 +207,17 @@ void register_watch_commands(CLI::App& app, CliContext& ctx) {
                           std::filesystem::path("apps")};
         }
 
+        // TICKET-WATCH-PROPS-FILE (V0 forward-point) — close the UX trap:
+        // --props-file is accepted but NOT yet applied to the subprocess
+        // RenderJob.  Print a one-time warning so users who pass it are
+        // not silently misled.  Wait until TICKET-ADD-LOADER-FOR-CHRONON-JSON
+        // (P1) lands the per-composition props decoder.
+        if (!a.props_file.empty()) {
+            spdlog::warn("--props-file is a V0 forward-point "
+                         "(TICKET-WATCH-PROPS-FILE): accepted but not yet "
+                         "applied to subprocess render.");
+        }
+
         // Banner.
         spdlog::info("👁  Chronon3D Watch — comp={} frame={} output={}",
                      a.comp_id, a.frame, a.output.string());
