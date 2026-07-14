@@ -85,10 +85,10 @@ TEST_CASE("FusedPixelProgram: 4-guard tag() reflects each guard's state") {
     CHECK(tag_partial[1] == 'b');
 }
 
-TEST_CASE("FusedPixelProgram: bytes_saved = (3 - 3) * pixel * 4 = 0 for empty program") {
+TEST_CASE("FusedPixelProgram: bytes_saved = (3 - 3) * pixel * 16 = 0 for empty program") {
     cg::FusedPixelProgram program;
     program.pixel_count = 0;
-    program.bytes_per_pixel = 4;
+    program.bytes_per_pixel = 16;
     CHECK(program.bytes_saved() == 0);
     CHECK(program.bytes_unfused() == 0);
     CHECK(program.bytes_fused() == 0);
@@ -114,12 +114,12 @@ TEST_CASE("F3.1 B03 smoke test: bytes_saved > 0 for CinematicGlow1080p fusion") 
     };
     program.resolved_kernel = &cs::detail::scalar_blend;
     program.pixel_count = 1920 * 1080;     // B03 CinematicGlow1080p
-    program.bytes_per_pixel = 4;            // RGBA float32
+    program.bytes_per_pixel = 16;            // RGBA float32 (4 channels × 4 bytes)
 
-    // Math: unfused = 3 passes × 2 transactions × 4 bytes/pixel = 24 bpp
-    //       fused   = 1 pass   × 3 transactions × 4 bytes/pixel = 12 bpp
-    //       saved   = 12 bpp = 3 × 1920 × 1080 × 4 = 24,883,200 bytes
-    constexpr std::size_t expected_saved = 3 * 1920 * 1080 * 4;
+    // Math: unfused = 3 passes × 2 transactions × 16 bytes/pixel = 96 bpp
+    //       fused   = 1 pass   × 3 transactions × 16 bytes/pixel = 48 bpp
+    //       saved   = 48 bpp = 3 × 1920 × 1080 × 16 = 99,532,800 bytes
+    constexpr std::size_t expected_saved = 3 * 1920 * 1080 * 16;
     CHECK(program.bytes_saved() == expected_saved);
     CHECK(program.bytes_saved() > 0);
     // Sanity: bytes_unfused > bytes_fused (the savings is meaningful)
@@ -138,18 +138,18 @@ TEST_CASE("F3.1 B03 smoke test: bytes_saved > 0 for CinematicGlow1080p fusion (v
     // linear function of (pixel_count × bytes_per_pixel). Validates
     // the proportionality constant (3 × bpp) for 3 common resolutions.
     cg::FusedPixelProgram program;
-    program.bytes_per_pixel = 4;
+    program.bytes_per_pixel = 16;   // RGBA float32 (4 channels × 4 bytes)
     program.resolved_kernel = &cs::detail::scalar_blend;
     program.operations = {cg::PixelOperation::color_matrix({1,0,0,0,0,1,0,0,0,0,1,0}), cg::PixelOperation::opacity(1.0f), cg::PixelOperation::blend(0)};
 
     program.pixel_count = 1920 * 1080;   // B03 CinematicGlow1080p
-    CHECK(program.bytes_saved() == 3u * 1920u * 1080u * 4u);
+    CHECK(program.bytes_saved() == 3u * 1920u * 1080u * 16u);
 
     program.pixel_count = 1280 * 720;
-    CHECK(program.bytes_saved() == 3u * 1280u * 720u * 4u);
+    CHECK(program.bytes_saved() == 3u * 1280u * 720u * 16u);
 
     program.pixel_count = 3840 * 2160;   // 4K
-    CHECK(program.bytes_saved() == 3u * 3840u * 2160u * 4u);
+    CHECK(program.bytes_saved() == 3u * 3840u * 2160u * 16u);
 }
 
 // ── 2. ABI contract: resolved_kernel binds to F5.1 scalar blend ─────────
