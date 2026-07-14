@@ -30,6 +30,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <system_error>
 
 #ifdef CHRONON3D_HAS_TEMPLATES_DIR_BAKED
@@ -44,7 +45,11 @@ namespace {
 // placeholder substituted in each text file at copy-time.  Single pass,
 // no template-engine recursion (audit verbatim: "solo copia file").
 constexpr const char* kProjectNamePlaceholder = "${PROJECT_NAME}";
-constexpr std::size_t kProjectNamePlaceholderLen = 15;  // std::strlen("${PROJECT_NAME}")
+// TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE (Commit 3 of 3) - derive
+// the placeholder length from the literal at compile time, so a
+// future rename of the placeholder text stays in sync automatically.
+constexpr std::size_t kProjectNamePlaceholderLen =
+    std::string_view(kProjectNamePlaceholder).size();
 
 struct CreateState {
     std::shared_ptr<CreateArgs> args{std::make_shared<CreateArgs>()};
@@ -200,6 +205,14 @@ void register_create_commands(CLI::App& app, CliContext& ctx) {
             copy_with_substitution(src, dst, a.name);
         } catch (const std::exception& e) {
             fmt::print(stderr, "Error: copy failed: {}\n", e.what());
+            // TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE (Commit 3 of 3) -
+            // roll back the partial copy so the next `chronon create <name>`
+            // (without --force) does not refuse on a half-populated dir.
+            std::error_code rollback_ec;
+            std::filesystem::remove_all(dst, rollback_ec);
+            // rollback failure is non-fatal: we still surface the original
+            // copy error to the user.  The leftover directory is named
+            // after the failed target and can be cleaned by hand.
             ctx.exit_code = 1;
             return;
         }
