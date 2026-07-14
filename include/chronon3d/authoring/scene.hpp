@@ -99,6 +99,48 @@ public:
         return *this;
     }
 
+    /// B2.2 — `Sequence` forwarder.  Mirrors `SceneBuilder::sequence`'s
+    /// dual-surface contract: the closure may take either
+    /// `SequenceBuilder&` (PR 4 authoring facade, recommended — gives
+    /// the lambda access to `local_frame()` / `duration()` / `progress()`
+    /// context accessors + a sequenced layer API) or `SceneBuilder&`
+    /// (engine surface, passthrough, equivalent to the pre-PR-4 path).
+    ///
+    /// Internal dispatch (the `if constexpr` inside `compile_sequence()`
+    /// at `detail/scene_builder_sequences.inl`) auto-detects the closure
+    /// surface and constructs the appropriate builder; this wrapper
+    /// simply forwards the call unchanged and lets the compile-sequence
+    /// plumbing own the routing.
+    ///
+    /// Example (forward-point audit):
+    /// ```cpp
+    /// scene.sequence("intro",
+    ///                { .from = Frame{0}, .duration = Frame{60} },
+    ///                [](SequenceBuilder& seq) {
+    ///                    seq.layer("title", [](LayerBuilder& l) { /* ... */ });
+    ///                });
+    /// ```
+    ///
+    /// Scope: B2.2 — Refactor-block-2 thin forwarder.  No new timeline
+    /// compiler, no override of `compile_sequence()`.  Delegates verbatim
+    /// to `SceneBuilder::sequence(name, spec, fn)` which — per the canonical
+    /// SSoT recorded in `tools/check_single_source_of_truth.sh` Concept 8
+    /// — ultimately invokes the single canonical `compile_sequence()`.
+    template <class Fn>
+    Scene& sequence(std::string name,
+                    SceneBuilder::SequenceSpec spec,
+                    Fn&& fn) & {
+        using NakedFn = std::remove_cv_t<std::remove_reference_t<Fn>>;
+        static_assert(
+            std::is_invocable_v<NakedFn, SequenceBuilder&>
+         || std::is_invocable_v<NakedFn, SceneBuilder&>,
+            "Scene::sequence(): closure must take SequenceBuilder& or SceneBuilder&");
+        builder_->sequence(std::move(name),
+                           std::move(spec),
+                           std::forward<Fn>(fn));
+        return *this;
+    }
+
     // ── Escape hatch ────────────────────────────────────────────────────
     /// Pass a lambda that mutates the underlying SceneBuilder.  Use for
     /// fields the fluent surface doesn't expose yet (camera wiring,
