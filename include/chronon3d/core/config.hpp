@@ -27,6 +27,7 @@
 #include <cstdint>
 #include <string>
 
+#include <chronon3d/cache/framebuffer_pool.hpp>  // P1-21: FramebufferPoolClearPolicy
 #include <chronon3d/core/scheduler/scheduler_mode.hpp>
 #include <chronon3d/core/cpu_budget.hpp>
 
@@ -80,6 +81,15 @@ public:
         return disable_persistent_framebuffer_cache_;
     }
 
+    /// P1-21: explicit post-job clear policy for the framebuffer pool.
+    /// Replaces the legacy implicit-clear-after-job pattern.  Default is
+    /// `TrimOnMemoryPressure` (preserves pre-P1-21 engine behavior; LRU
+    /// eviction handles trimming when the budget fills).
+    [[nodiscard]] chronon3d::cache::FramebufferPoolClearPolicy
+    framebuffer_pool_clear_policy() const noexcept {
+        return framebuffer_pool_clear_policy_;
+    }
+
 private:
     friend class Config;
 
@@ -101,6 +111,9 @@ private:
 
     // policy
     bool disable_persistent_framebuffer_cache_ = false;
+    chronon3d::cache::FramebufferPoolClearPolicy
+        framebuffer_pool_clear_policy_{
+            chronon3d::cache::FramebufferPoolClearPolicy::TrimOnMemoryPressure};
 };
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -169,6 +182,12 @@ public:
 
     /// Set the framebuffer pool budget on this instance (non-static).
     void set_fb_pool_budget(std::size_t bytes);
+
+    /// P1-21: set the framebuffer pool clear policy on this instance
+    /// (non-static).  Overrides the env-resolved default
+    /// (CHRONON3D_FB_POOL_CLEAR_POLICY).  The CLI flag
+    /// `--fb-pool-clear-policy` calls this on the per-job Config.
+    void set_fb_pool_clear_policy(chronon3d::cache::FramebufferPoolClearPolicy policy);
 
     /// Inject the CPU budget so the same immutable instance is used by
     /// the scheduler, decoder, encoder and writer pipeline.
