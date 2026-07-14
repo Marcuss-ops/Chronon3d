@@ -54,7 +54,7 @@ inline Composition apple_style_hero() {
             .font_weight(800).color({0.05f, 0.05f, 0.08f, 1.0f})
             .align(TextAlign::Center)
             .config({.mode = TextAnimMode::ByWord, .duration = Frame{25},
-                     .delay_per_unit = Frame{10}, .easing = EasingCurve{Easing::OutCubic},
+                     .delay_per_unit = Frame{10}, .easing = Easing::OutCubic,
                      .animate_opacity = true, .animate_slide = true,
                      .slide_from = {0.0f, 30.0f, 0.0f},
                      .animate_scale = true, .scale_from = {0.92f, 0.92f, 1.0f}});

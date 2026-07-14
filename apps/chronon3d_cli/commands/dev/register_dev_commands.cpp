@@ -75,10 +75,9 @@ void register_bench_convert(CLI::App& app, CliContext& ctx) {
 void register_cache_stats(CLI::App& app, CliContext& ctx) {
     auto* cmd = app.add_subcommand("cache-stats", "Print live cache diagnostics snapshot");
     cmd->callback([&ctx]() {
-        // cache-stats is a standalone dev command without a live renderer.
-        // Use an empty local diagnostics — shows "No caches registered".
-        chronon3d::cache::CacheDiagnostics local_diag;
-        fmt::print("{}", chronon3d::cache::format_cache_snapshot(local_diag));
+        (void)ctx;
+        chronon3d::cache::CacheDiagnostics diag;
+        fmt::print("{}", chronon3d::cache::format_cache_snapshot(diag));
         ctx.exit_code = 0;
     });
 }

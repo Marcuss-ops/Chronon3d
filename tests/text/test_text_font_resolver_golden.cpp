@@ -1,3 +1,4 @@
+#include <optional>
 // SPDX-License-Identifier: MIT
 // ═══════════════════════════════════════════════════════════════════════════
 // test_text_font_resolver_golden.cpp — M1.5#8 determinism lock
@@ -20,7 +21,6 @@
 // the test will fail loudly — that's the regression-gate we want.
 // ═══════════════════════════════════════════════════════════════════════════
 
-#include <optional>
 #include <chronon3d/text/text_resolver.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
@@ -72,8 +72,7 @@ TextDocument make_golden_doc() {
 /// Build a FontEngine bound to a RenderRuntime.
 FontEngine make_golden_engine() {
     static const Config cfg;
-    static const auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    static const auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     return FontEngine{runtime->resolver()};
 }
 

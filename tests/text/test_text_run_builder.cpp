@@ -1,3 +1,4 @@
+#include <optional>
 // ═══════════════════════════════════════════════════════════════════════════
 // test_text_run_builder.cpp — Full-pipeline text run builder tests
 //
@@ -11,7 +12,6 @@
 //   7. Determinism
 // ═══════════════════════════════════════════════════════════════════════════
 
-#include <optional>
 #include <chronon3d/text/text_run_builder.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
@@ -39,8 +39,7 @@ TextDocument make_doc(const std::string& utf8) {
 TEST_CASE("TextRunBuilder: empty document returns empty result") {
     TextDocument doc;
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
 
@@ -59,11 +58,10 @@ TEST_CASE("TextRunBuilder: empty document returns empty result") {
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — wrap mode returns != TextWrap::None and
 // multi-paragraph count assertion fails.  TODO(chronon3d): fix and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
-TEST_CASE("TextRunBuilder: single paragraph produces single layout" * docte    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(););
+TEST_CASE("TextRunBuilder: single paragraph produces single layout" * doctest::skip()) {
+    auto doc = make_doc("Hello world");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -95,12 +93,10 @@ TEST_CASE("TextRunBuilder: single paragraph produces single layout" * docte    a
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — multi-paragraph count assertion fails.
 // TODO(chronon3d): fix text run builder and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
-TEST_CASE("TextRun    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ts" * doctest::skip()) {
+TEST_CASE("TextRunBuilder: multiple paragraphs produce multiple layouts" * doctest::skip()) {
     auto doc = make_doc("Line one\nLine two\nLine three");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 600.0f};
@@ -119,13 +115,11 @@ TEST_CASE("TextRun    auto runtime = chronon3d::runtime::RenderRuntime::create(
 //
 //   Data introduzione: 2026-06-20.  Deadline rimozione: 2026-09-30.
 // TICKET-DOCTEST-SKIP-ROT: DISABLED: pre-existing bug — empty paragraph count assertion fails.
-// TODO(chronon3d): fix text run builder multi-paragraph ha    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();/ within gate's ±3-line context
+// TODO(chronon3d): fix text run builder multi-paragraph handling and re-enable.  [TICKET-DOCTEST-SKIP-ROT]  // within gate's ±3-line context
 TEST_CASE("TextRunBuilder: empty paragraph produced by consecutive newlines" * doctest::skip()) {
     auto doc = make_doc("A\n\nC");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 400.0f};
@@ -154,8 +148,9 @@ TEST_CASE("TextRunBuilder: font-override spans produce concatenated runs") {
 
     // Override [3,6) with the same font (same path + weight so FontIdentity matches).
     TextStyleSpan span;
-    sp    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();n.font = FontSpec{};
+    span.byte_start = 3;
+    span.byte_end   = 6;
+    span.font = FontSpec{};
     span.font->font_path = "assets/fonts/Inter-Bold.ttf";
     span.font->font_weight = 400;  // same weight as default (FontIdentity must match for build_text_run)
     doc.spans.push_back(span);
@@ -163,8 +158,7 @@ TEST_CASE("TextRunBuilder: font-override spans produce concatenated runs") {
     doc.split_paragraphs();
 
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -184,8 +178,9 @@ TEST_CASE("TextRunBuilder: font-override spans produce concatenated runs") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TextRunBuilder: paragraph style flows through to cache key") {
-    TextDocum    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();faults.font.font_path = "assets/fonts/Inter-Bold.ttf";
+    TextDocument doc;
+    doc.utf8 = "Centered text";
+    doc.defaults.font.font_path = "assets/fonts/Inter-Bold.ttf";
     doc.defaults.font.font_size   = 32.0f;
 
     ParagraphRange pr;
@@ -196,14 +191,13 @@ TEST_CASE("TextRunBuilder: paragraph style flows through to cache key") {
     doc.paragraphs.push_back(pr);
 
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 
-    auto result = build_text_run    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); 1);
+    auto result = build_text_run(doc, engine, layout);
+    REQUIRE(result.size() == 1);
     // Should not crash — composer handles EveryLine.
     CHECK(result.paragraphs[0]->source_text == "Centered text");
 }
@@ -215,16 +209,15 @@ TEST_CASE("TextRunBuilder: paragraph style flows through to cache key") {
 TEST_CASE("TextRunBuilder: cache hit returns same layout pointer") {
     auto doc = make_doc("Cache test");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
 
     TextLayoutCache cache(64 * 1024 * 1024);
 
-    auto r1 =     auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();QUIRE(r1.size() == 1);
+    auto r1 = build_text_run(doc, engine, layout, &cache);
+    REQUIRE(r1.size() == 1);
 
     auto r2 = build_text_run(doc, engine, layout, &cache);
     REQUIRE(r2.size() == 1);
@@ -240,8 +233,7 @@ TEST_CASE("TextRunBuilder: cache hit returns same layout pointer") {
 TEST_CASE("TextRunBuilder: same input produces same output") {
     auto doc = make_doc("Deterministic");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};

@@ -53,18 +53,11 @@ ConvertedFrameCache::ConvertedFrameCache(
                 m_diag_handle = diag->register_cache(
                     CacheDomain::ConvertedFrames,
                     [this]() -> GenericCacheStats {
-                        if (!m_diag_alive.load(std::memory_order_acquire)) return {};
                         auto s = m_cache.stats();
                         return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
                     },
-                    [this] {
-                        if (!m_diag_alive.load(std::memory_order_acquire)) return;
-                        m_cache.clear();
-                    },
-                    [this] {
-                        if (!m_diag_alive.load(std::memory_order_acquire)) return CapacityMode::Weight;
-                        return m_cache.capacity_mode();
-                    },
+                    [this] { m_cache.clear(); },
+                    [this] { return m_cache.capacity_mode(); },
                     cap);
             }
             return cap;

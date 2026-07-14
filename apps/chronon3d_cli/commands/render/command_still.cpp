@@ -37,7 +37,6 @@ int command_still(const CompositionRegistry& registry, const StillArgs& args) {
             .height = comp.height(),
             .assets_root = comp.assets_root(),
             .resource = std::pmr::get_default_resource(),
-            .font_engine = nullptr,
         };
         auto scene = comp.evaluate(still_ctx);
 

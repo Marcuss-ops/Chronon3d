@@ -55,7 +55,10 @@ public:
     /// Construct a cache with up to `max_entries` entries split across
     /// `num_shards` shards.  When `max_entries == 0` the cap is resolved
     /// centrally via resolve_cache_policy(CacheDomain::RenderedFrames).
-    explicit FrameCache(size_t max_entries = 0, size_t num_shards = 2,
+    /// P1-10 — `diag` is the nullable observer (defaults to nullptr =
+    /// no-op registration).
+    explicit FrameCache(size_t max_entries = 0,
+                        size_t num_shards = 2,
                         CacheDiagnostics* diag = nullptr);
     FrameCache(FrameCache&&) noexcept = default;
     FrameCache& operator=(FrameCache&&) noexcept = default;

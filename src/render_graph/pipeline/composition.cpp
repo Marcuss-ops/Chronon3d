@@ -222,7 +222,19 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         Scene scene;
         {
             CHRONON_ZONE_C("evaluate_composition", trace_category::kTimeline);
-            scene = comp.evaluate(frame, 0.0f, frame_runtime);
+            const FrameContext ctx{
+            .frame = frame,
+            .local_frame = frame,
+            .frame_time = 0.0f,
+            .duration = comp.duration(),
+            .frame_rate = comp.frame_rate(),
+            .width = comp.width(),
+            .height = comp.height(),
+            .assets_root = comp.assets_root(),
+            .font_engine = frame_runtime ? frame_runtime->font_engine() : nullptr,
+            .runtime = frame_runtime,
+        };
+        scene = comp.evaluate(ctx);
         }
         evaluate_ms = profiling::duration_ms(t_eval0, profiling::now());
         layer_count = static_cast<int>(scene.layers().size());
@@ -271,7 +283,19 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                 const float t = sample_times[s];
                 const float w = samples.normalized_weights[s];
                 actual_weight_sum += w;
-                Scene sub = comp.evaluate(frame, t, frame_runtime);
+                const FrameContext sub_ctx{
+                    .frame = frame,
+                    .local_frame = frame,
+                    .frame_time = t,
+                    .duration = comp.duration(),
+                    .frame_rate = comp.frame_rate(),
+                    .width = comp.width(),
+                    .height = comp.height(),
+                    .assets_root = comp.assets_root(),
+                    .font_engine = frame_runtime ? frame_runtime->font_engine() : nullptr,
+                    .runtime = frame_runtime,
+                };
+                Scene sub = comp.evaluate(sub_ctx);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
 
                 // Apply the default camera to each sub-frame scene.

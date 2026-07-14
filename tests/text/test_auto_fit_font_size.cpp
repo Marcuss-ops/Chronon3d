@@ -1,3 +1,5 @@
+#include <memory>
+#include <optional>
 // ============================================================================
 // test_auto_fit_font_size.cpp
 //
@@ -31,12 +33,13 @@ namespace {
 
 struct LocalEngine {
     chronon3d::Config                cfg{};
-    chronon3d::runtime::RenderRuntime runtime;
+    std::unique_ptr<chronon3d::runtime::RenderRuntime> runtime;
     FontEngine                        engine;
 
     LocalEngine()
-        : runtime(cfg),
-          engine{runtime.resolver()}
+        : runtime(chronon3d::runtime::RenderRuntime::create(
+              chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value()),
+          engine{runtime->resolver()}
     {}
 };
 

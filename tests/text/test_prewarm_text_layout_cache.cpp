@@ -1,3 +1,4 @@
+#include <optional>
 static chronon3d::TextLayoutCache s_text_cache;
 // ═══════════════════════════════════════════════════════════════════════════
 // test_prewarm_text_layout_cache.cpp — Success-path coverage for PR 10's
@@ -18,7 +19,6 @@ static chronon3d::TextLayoutCache s_text_cache;
 // with other tests sharing the process-wide cache.
 // ═══════════════════════════════════════════════════════════════════════════
 
-#include <optional>
 #include <chronon3d/text/animated_text_document.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
@@ -135,8 +135,7 @@ std::shared_ptr<AnimatedTextDocument> make_scramble_doc() {
 
 TEST_CASE("Prewarm PR11: tests/fixtures/Inter-Bold.ttf fixture is loadable") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     const FontSpec spec = test_text_fixture::inter_bold();
     REQUIRE(engine.can_load(spec));
@@ -146,11 +145,9 @@ TEST_CASE("Prewarm PR11: tests/fixtures/Inter-Bold.ttf fixture is loadable") {
 // 2. Static (Hold) prewarm — populates the cache for one text
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("Prewarm PR11: static    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); {
+TEST_CASE("Prewarm PR11: static (Hold) prewarm populates cache with active->utf8") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -182,11 +179,11 @@ TEST_CASE("Prewarm PR11: static    auto runtime = chronon3d::runtime::RenderRunt
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 3. Scramble prewarm — populates cache with transition_text, not active->utf8
-// ═══════════════════════════════    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();CASE("Prewarm PR11: Scramble prewarm populates cache with transition_text bytes") {
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("Prewarm PR11: Scramble prewarm populates cache with transition_text bytes") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -227,14 +224,12 @@ TEST_CASE("Prewarm PR11: static    auto runtime = chronon3d::runtime::RenderRunt
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 4. Idempotency — tw    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();sh
+// 4. Idempotency — two consecutive prewarms for the same frame don't crash
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Prewarm PR11: prewarming the same frame twice is safe (idempotent)") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -259,14 +254,13 @@ TEST_CASE("Prewarm PR11: prewarming the same frame twice is safe (idempotent)") 
     CHECK(cache.contains(key));
 }
 
-// ════════════════════════════════    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ifferent frames → different cache entries (Scramble's per-frame text)
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. Different frames → different cache entries (Scramble's per-frame text)
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Prewarm PR11: Scramble prewarm at different frames writes distinct cache entries") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -301,15 +295,17 @@ TEST_CASE("Prewarm PR11: Scramble prewarm at different frames writes distinct ca
     CHECK(cache.contains(key31));
     auto f30 = cache.find(key30); REQUIRE(f30 != nullptr);
     auto f31 = cache.find(key31); REQUIRE(f31 != nullptr);
-    CHECK(f30->source_text     auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();═══════════════════════════════════════════════════════════════════════════
+    CHECK(f30->source_text == s30);
+    CHECK(f31->source_text == s31);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 6. Settled tail — prewarm at frame 120 (post-boundary) caches active->utf8
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Prewarm PR11: post-boundary prewarm caches active->utf8 (not transition_text)") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -373,8 +369,8 @@ TEST_CASE("Prewarm PR11: post-boundary prewarm caches active->utf8 (not transiti
 /// "PR11CFSrc" to "PR11CFDst" between frames 0 and 60, with the
 /// CrossfadeLayouts transition type set on the outgoing keyframe.
 static std::shared_ptr<AnimatedTextDocument> make_crossfade_doc() {
-    auto doc = std::make_s    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();me kf0;
+    auto doc = std::make_shared<AnimatedTextDocument>();
+    SourceTextKeyframe kf0;
     kf0.frame = Frame{0};
     kf0.document.utf8 = "PR11CFSrc";
     kf0.transition = SourceTextTransition::CrossfadeLayouts;
@@ -388,8 +384,7 @@ static std::shared_ptr<AnimatedTextDocument> make_crossfade_doc() {
 
 TEST_CASE("Prewarm PR11 CF: CrossfadeLayouts prewarm populates BOTH active and crossfade_from caches") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -422,8 +417,7 @@ TEST_CASE("Prewarm PR11 CF: CrossfadeLayouts prewarm populates BOTH active and c
 
     CHECK(cache.contains(key_active));
     CHECK(cache.contains(key_from));
-    /    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ikely different
+    // Distinct cache entries (different source_text + likely different
     // font).
     CHECK(key_active.digest() != key_from.digest());
 
@@ -437,8 +431,7 @@ TEST_CASE("Prewarm PR11 CF: CrossfadeLayouts prewarm populates BOTH active and c
 
 TEST_CASE("Prewarm PR11 CF: apply_active_state populates crossfade_* slots inside the gap, clears outside") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -497,8 +490,8 @@ TEST_CASE("Prewarm PR11 CF: apply_active_state populates crossfade_* slots insid
 // 9. CrossfadeLayouts fallback — Hold→Hold doc never populates crossfade slot
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// When the source keyf    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ade_from is null for any other reason), apply_active must NOT
+// When the source keyframe's transition != CrossfadeLayouts (or
+// crossfade_from is null for any other reason), apply_active must NOT
 // populate the crossfade slot.  The compositor's `if
 // (shape.crossfade_layout && !shape.crossfade_glyphs.empty())`
 // short-circuit then makes the second tier loop a no-op.  We verify
@@ -509,8 +502,7 @@ TEST_CASE("Prewarm PR11 CF: apply_active_state populates crossfade_* slots insid
 
 TEST_CASE("Prewarm PR11 CF: fallback — Hold→Hold doc never populates crossfade slot") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};

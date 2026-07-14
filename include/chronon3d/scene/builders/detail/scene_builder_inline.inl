@@ -73,23 +73,14 @@ inline SceneBuilder::SceneBuilder(const FrameContext& ctx,
         m_own_shape_registry.emplace(registry::make_default_shape_registry());
         m_shape_registry = &*m_own_shape_registry;
     }
-    // codex/agent2-font-bind-fixes — auto-forward the per-frame
-    // FontEngine from the FrameContext to the builder's
-    // m_font_engine slot.  Explicit override guarantee: a
-    // composition lambda that calls `s.font_engine(X)` later
-    // REPLACES this auto-bind with its own pointer (the setter
-    // assignment is unconditional), so per-composition overrides
-    // continue to work without modification.  Composition
-    // lambdas that do nothing with `ctx.font_engine`
-    // therefore get the engine bound transparently — fixing
-    // the WP-8 PR 8.0 strict-binding "no FontEngine available"
-    // failure path that `materialize_text_run_shape` reports
-    // when the SceneBuilder has no engine.  If
-    // `ctx.font_engine` is nullptr, this branch is a no-op and
-    // the legacy path (callers set `m_font_engine`
-    // themselves) is preserved.
-    if (ctx.font_engine) {
-        m_font_engine = ctx.font_engine;
+    // WP-9 PR 9.0 / P1-16 — auto-forward the per-frame FontEngine from
+    // the FrameContext's runtime to the builder's m_font_engine slot.
+    // The canonical access path is `ctx.runtime->font_engine()`.
+    // Explicit override guarantee: a composition lambda that calls
+    // `s.font_engine(X)` later REPLACES this auto-bind with its own
+    // pointer, so per-composition overrides continue to work.
+    if (ctx.runtime && ctx.runtime->font_engine()) {
+        m_font_engine = ctx.runtime->font_engine();
     }
 }
 

@@ -1,3 +1,4 @@
+#include <optional>
 // ═══════════════════════════════════════════════════════════════════════════
 // test_text_font_determinism.cpp — P1 #2 deterministic tests
 //
@@ -16,7 +17,6 @@
 //   6. Bidi run count regression (FriBidi presente → run multipli)
 // ═══════════════════════════════════════════════════════════════════════════
 
-#include <optional>
 #include <chronon3d/text/text_resolver.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
@@ -62,8 +62,7 @@ TextDocument make_doc(const std::string& utf8) {
 /// construct its own FontEngine directly instead of using this helper.
 FontEngine make_determinism_engine() {
     static const Config cfg;
-    static const auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    static const auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     return FontEngine{runtime->resolver()};
 }
 
