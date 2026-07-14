@@ -1,5 +1,17 @@
 ## 2026-07-14
 
+### `refactor(tests): migrate RenderRuntime ctor to create() factory`
+  ([TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS-IMPL](docs/tickets/TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS-IMPL.md))
+
+- Cat-3 minimal-surface recipe-substitution (20 EDIT test files, 0 NEW files, 0 NEW public SDK symbol). Migrates 19 test files / ~228 ctor sites from `RenderRuntime(Config)` direct ctor to `RenderRuntime::create(RuntimeConfig{cfg, std::nullopt}).value()` canonical pattern. Closes the test-surface asymmetry (production = `create()` only; tests = `create()` + legacy 1-arg ctor) introduced by the partial P1-14 cleanup.
+- Migration pattern: `chronon3d::runtime::RenderRuntime runtime(cfg);` → `auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();` + cascade `runtime.X` → `runtime->X` (required because `create()` returns `unique_ptr<RenderRuntime>`, so value-semantics `.` becomes pointer-semantics `->`).
+- NO new helper function (no `make_test_runtime()` per Cat-3 minimal-surface and IWYU discipline — each site calls `create()` directly). The `.value()` on the `Result` will safely assert/throw if creation fails, which is exactly the behavior tests expect.
+- Explicit `#include <optional>` added to all 20 migrated files (IWYU principle — include what you use, since `std::nullopt` is now used directly in test code). Note: `<optional>` is also transitively included via `render_runtime.hpp:81`, but the explicit include follows modern C++ best practices and is grep-discoverable.
+- NO EDIT `docs/CURRENT_STATUS.md` (Text V1 area state invariant — was PASS, stays PASS; macchina-verifica DEFERRED-WBH precludes area state transition). NO EDIT `docs/ROADMAP.md` (V0.1 forward direction unchanged — recipe-substitution fix, not milestone shift).
+- Cat-3 minimal-surface verified: ZERO new public SDK symbol; ZERO new singleton/registry/resolver/cache; ZERO `#include <msdfgen>/<libtess2>/<unicode[/...]>` (Gate 5 Check 11 deny-everywhere preserved); 0 NEW helper function; 0 NEW files.
+- macchina-verifica DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum env-block pattern. VPS-only verification: `rg "RenderRuntime::create" tests/ -l | wc -l` = 20 files; `rg "RenderRuntime::create" tests/ | wc -l` = 231 sites; `rg "RenderRuntime\s+[a-zA-Z_]+\s*\(" tests/` = 0 matches (all legacy sites migrated); SHA-triple equality verify post-push.
+- Cross-link: AGENTS.md §`### Docs canonical update discipline rule` (Cat-3 anti-dup codification); AGENTS.md §Post-push SHA-selfcheck invariant (SHA-triple verify post-push); parent forward-point [TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS](docs/tickets/TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS.md); sibling Cat-5 3-doc chaser-chore tickets at `TICKET-FIX-TEXT-SHAPING-DEDUP-V1-3DOC-CAT5-ALIGN` + `TICKET-CAMERA-OVERLAY-PANEL-CONSTRAINTS` + TILE-PRUNE-SKIP-UNIFICATION lineage.
+
 ### `docs(fb-pool): wire trim_after_job chaser-chore (TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE)`
   ([TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE-IMPL](docs/tickets/TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE-IMPL.md))
 
