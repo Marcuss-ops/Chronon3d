@@ -1,8 +1,16 @@
 # ── Determinism Tests ──
 # Tests for pixel-perfect determinism, semantic comparison, and cache state effects.
 # Requires Blend2D for software backend path rendering.
+#
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+# The pre-refactor body-wrap `if(CHRONON3D_USE_BLEND2D) ... endif()` is
+# replaced by an early-return at the top that matches the outer
+# orchestrator's gate (`if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)`)
+# for behavioral parity (visible ink tests are gated on text too).
+if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
+    return()
+endif()
 
-if(CHRONON3D_USE_BLEND2D)
 chronon3d_add_test_suite(
     NAME chronon3d_deterministic_tests
     TIER INTEGRATION
@@ -53,5 +61,4 @@ chronon3d_add_test_suite(
 target_compile_definitions(chronon3d_deterministic_tests PRIVATE CHRONON3D_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 if(TARGET chronon3d::content)
     target_link_libraries(chronon3d_deterministic_tests PRIVATE chronon3d::content)
-endif()
 endif()

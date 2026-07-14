@@ -1,4 +1,12 @@
 # ── Visual Test Support Library ──
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+# `chronon3d_visual_test_support` is a STATIC library PUBLIC-linkined to
+# chronon3d_backend_software + chronon3d_backend_image (both Blend2D-bearing).
+# Self-guarding here keeps SDK-only builds free of the visual test
+# dependency surface (no `chronon3d_visual_test_support` target requested).
+if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
+    return()
+endif()
 # Shared golden-image and image-diff framework for all visual tests.
 
 add_library(chronon3d_visual_test_support STATIC
