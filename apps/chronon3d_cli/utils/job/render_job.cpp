@@ -1,5 +1,7 @@
 #include "render_job.hpp"
 
+#include <spdlog/spdlog.h>
+
 #include <optional>
 
 namespace chronon3d::cli {
