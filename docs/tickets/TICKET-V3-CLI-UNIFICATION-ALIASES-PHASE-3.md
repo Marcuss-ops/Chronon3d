@@ -9,7 +9,27 @@ Per user-spec verbatim 2026-07-14:
 
 ## Stato
 
-DONE-PARTIAL (2026-07-14, this commit) — alias TTL deprecation warning wired, CLI::App sub-command surface preserved with `[DEPRECATED]` flag, canonical delegation path documented.
+DONE-WITH-WORD-LITERAL-COMPLIANCE (2026-07-14, committed `2e1e3201f` + chaser-fix-forward for word-literal-compliance) — alias TTL deprecation warning NOW strictly per audit §13 verbatim spec example form (single-line, `Deprecated:` prefix). CLI::App sub-command surface preserved with `[DEPRECATED]` flag. Canonical delegation path documented.
+
+## §Word-Literal-Compliance-Revision 2026-07-14 (fix-forward chaser-chore)
+
+After initial Phase-3 chore commit `2e1e3201f`, code-reviewer-minimax-m3 flagged an actionable (verdict MINOR FOLLOW-UPS, item #1): the 4-line multi-line `WARNING:` + `Use ... instead` + `See ...` warning block diverged from audit §13 verbatim spec example form `Deprecated: use chronon render Hero -o Hero.mp4` (single-line, `Deprecated:` prefix).
+
+**Fix-forward commit applied**: replaced the 4-line block in BOTH `command_still.cpp` AND `command_video.cpp` with strict single-line form per audit verbatim spec example:
+
+For `chronon still <id> --frame N`:
+```
+Deprecated: use chronon render <id> --frame <N>
+```
+
+For `chronon video <id>`:
+```
+Deprecated: use chronon render <id> -o <id>.mp4
+```
+
+These match the audit spec example EXACTLY (single-line, `Deprecated:H:` prefix, no quotes around command name, no `.` after `instead`).
+
+**Lesson codified**: per AGENTS.md §`### Docs canonical update discipline rule` + the audit-text verbatim principle in AGENTS.md §Mission / ORIENTATION ("when the user writes verbatim, the implementation matches verbatim"), all CLI user-facing messaging text MUST match the audit verbatim spec form even at the cost of information density. Multi-line verbose warnings are an anti-pattern when the spec specifies literal-form.
 
 ## Soluzione Confine (Phase 3 alias TTL pattern, per audit §13 verbatim)
 

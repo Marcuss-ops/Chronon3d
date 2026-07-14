@@ -12,15 +12,11 @@
 namespace chronon3d::cli {
 
 int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
-    // Audit §13 Phase 3: alias-TTL deprecation warning.
+    // Audit §13 Phase 3 verbatim alias-TTL deprecation warning.
+    // Single-line form per audit spec example `Deprecated: use chronon render Hero -o Hero.mp4`.
     // Will be REMOVED in V0.2 (TICKET-V3-CLI-UNIFICATION-REMOVE-VIDEO) once
     // `chronon render` natively supports MP4 (RenderMode::Video).
-    // Canonical equivalent: `chronon render <id> -o <id>.mp4`
-    fmt::print(stderr,
-        "WARNING: 'chronon video' is DEPRECATED and will be removed in the next release.\n"
-        "         Use 'chronon render {} -o {}.mp4' instead.\n"
-        "         See TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3.\n\n",
-        args.comp_id, args.comp_id);
+    fmt::print(stderr, "Deprecated: use chronon render {} -o {}.mp4\n", args.comp_id, args.comp_id);
     auto plan = plan_video_job(registry, args);
     (void)args.cpu_budget;
     if (!plan) return 1;
