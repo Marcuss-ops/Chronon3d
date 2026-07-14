@@ -22,6 +22,7 @@
 | TICKET-P1E-CPU-BUDGET-MEASUREMENT | P1 | HARNESS-COMPLETE | CpuBudget render/encode timing script. Macchina-verifica DEFERRED-WBH. [ticket](docs/tickets/TICKET-P1E-CPU-BUDGET-MEASUREMENT.md) |
 | TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL | P2 | TRACKED | Refactor(text): `ShapedGlyphLine` 6-arg ctor marked `[[deprecated]]` for V0.2 removal; 1/5 cinematic callers migrated to `try_shape` factory (basis: ≥10/12 SDK consumer tests compat senza il bridge 6-arg al V1 cut). Forward-point: TICKET-PUB-DEPRECATE-REMOVAL. | [ticket](docs/tickets/TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL.md) |
 | TICKET-PUB-DEPRECATE-REMOVAL | P2 | TRACKED | Refactor(text): V0.2 removal of the `[[deprecated]]` `ShapedGlyphLine` 6-arg ctor once `TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL` deprecation bridge is aged out; basis: ≥10/12 SDK consumer tests pass senza il bridge 6-arg al V1 cut. Forward-point: TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL. | [ticket](docs/tickets/TICKET-PUB-DEPRECATE-REMOVAL.md) |
+| TICKET-V3-LEGACY-EXEC-CLOSURE | P1 | DEFERRED-STRATEGY-X | Audit §17+§12 closure — Strategy Y (safe cosmetic) DONE: command_watch + WatchService orphan deleted + if(false) counter pane + stale ABI compat comment. Strategy X (full unified executor rewrite for RenderJobPlan/VideoJobPlan + 4 caller migrations + ~20 file deletions) pending. | [ticket](docs/tickets/TICKET-V3-LEGACY-EXEC-CLOSURE.md) |
 
 ## Deferred / Lower Priority
 

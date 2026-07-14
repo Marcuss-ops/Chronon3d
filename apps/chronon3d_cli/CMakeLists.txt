@@ -13,21 +13,20 @@
 # configure time (canonical idiom: `if(TARGET <sub>)` guards, NOT option-name
 # string references — keeps the link closure self-documenting).
 # --------------------------------------------------------------------------
-option(CHRONON3D_BUILD_CLI_CORE      "Build the chronon3d_cli_core sub-target (always ON; list/info/doctor/verify + daemon/watch sources)" ON)
+option(CHRONON3D_BUILD_CLI_CORE      "Build the chronon3d_cli_core sub-target (always ON; list/info/doctor/verify + daemon sources)" ON)
 option(CHRONON3D_BUILD_CLI_RENDER    "Build the chronon3d_cli_render sub-target (render/preflight/proofs/bake_layer/graph commands)" ON)
 option(CHRONON3D_BUILD_CLI_VIDEO     "Build the chronon3d_cli_video sub-target (video/ffmpeg-pipe commands; also requires CHRONON3D_ENABLE_VIDEO)" ON)
 option(CHRONON3D_BUILD_CLI_TELEMETRY "Build the chronon3d_cli_telemetry sub-target (telemetry summary/report; also requires CHRONON3D_ENABLE_TELEMETRY)" ON)
 option(CHRONON3D_BUILD_CLI_DEV       "Build the chronon3d_cli_dev sub-target (batch/studio/inspect/camera_path/dev-tools)" OFF)
 option(CHRONON3D_BUILD_CLI_BENCH     "Build the chronon3d_cli_bench sub-target (benchmark commands; also requires CHRONON3D_BUILD_BENCHMARKS)" OFF)
 # --------------------------------------------------------------------------
-# Forward-compat placeholders: daemon + watch commands currently live inside
+# Forward-compat placeholders: daemon commands currently live inside
 # chronon3d_cli_core (sources: commands/daemon/command_daemon.cpp,
-# daemon/daemon_service.cpp + commands/basic/command_watch.cpp,
-# utils/watch/watch_service.cpp). The flags below document the future
-# extraction intent without modifying any compilation today; flipping them
-# OFF once the dedicated sub-targets exist will prune daemon/watch code from
+# daemon/daemon_service.cpp). The flag below documents the future
+# extraction intent without modifying any compilation today; flipping it
+# OFF once the dedicated sub-target exists will prune daemon code from
 # _core as a single-bot follow-up PR.
-# cron daemon/watch extraction deferred to follow-up PR
+# cron daemon extraction deferred to follow-up PR
 # --------------------------------------------------------------------------
 
 # Group: Core (list, info, doctor, verify) — always included.
@@ -42,11 +41,9 @@ add_library(chronon3d_cli_core STATIC
     commands/group_core.cpp
     commands/basic/command_list.cpp
     commands/basic/command_info.cpp
-    commands/basic/command_watch.cpp
     commands/daemon/command_daemon.cpp
     daemon/daemon_service.cpp
     utils/common/cli_utils.cpp
-    utils/watch/watch_service.cpp
     commands/dev/command_doctor_verify.cpp
 )
 target_include_directories(chronon3d_cli_core PRIVATE ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)

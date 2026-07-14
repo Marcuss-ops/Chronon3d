@@ -111,9 +111,9 @@ struct ResolvedComposition {
     std::shared_ptr<Composition> comp;
 
     /// Legacy flag reflecting whether the composition was loaded via the
-    /// (removed) specscene compiler pipeline. Default false. Kept for
-    /// ABI compatibility with downstream plan types (VideoJobPlan,
-    /// RenderJobPlan) that still mirror this field.
+    /// (removed) specscene compiler pipeline.  Default false; reserved
+    /// for future composition resolvers that need to disambiguate
+    /// specscene-loaded vs descriptor-loaded cases.  No active consumer.
     bool from_specscene{false};
 
     /// True if the composition was successfully resolved.

@@ -239,12 +239,6 @@ void DaemonService::cmd_status() {
         spdlog::info("  Avg render ms   : {:.1f}",
                      m_total_render_ms / m_render_count);
     }
-    if (false) {
-        // P1-F Pass D — counters panel removed (was: the four counters lines
-        // printed below).  Kept as a deliberately-false branch only to preserve
-        // the surrounding spdlog::info formatting if/when SDK stats come back.
-        spdlog::info("  FB allocs       : (counters not exposed publicly in V0.1 SDK)");
-    }
     spdlog::info("");
 }
 
