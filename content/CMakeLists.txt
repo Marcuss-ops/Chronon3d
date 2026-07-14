@@ -24,6 +24,11 @@ add_library(chronon3d_content OBJECT
     common/text/text_reveal.cpp
     common/text/typewriter_block.cpp
 
+    # ── Typewriter helpers (P2 refactor — split header-only helpers into TUs) ──
+    text/typewriter_layout.cpp
+    text/typewriter_compile.cpp
+    text/typewriter_build.cpp
+
     # ── Showcases ──────────────────────────────────────────────────────────
     showcases/minimalist/minimalist_animations.cpp
     showcases/minimalist/minimalist_image_presets.cpp
