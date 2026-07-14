@@ -1,3 +1,14 @@
+## 2026-07-14
+
+### `fix(simd): Premult alpha=0 fixture + SweepN + macchina-verifica PASS`
+  ([TICKET-SIMD-PRECISION-DRIFT](docs/tickets/TICKET-SIMD-PRECISION-DRIFT.md),
+   [TICKET-RESIDUAL-BUILD-ROT-RECOVERY](docs/tickets/TICKET-RESIDUAL-BUILD-ROT-RECOVERY.md))
+
+- Fixed `TEST_CASE("scalar_blend: identity on alpha=0 (no contribution)")` invalid fixture (`src = {0.1, 0.2, 0.3, 0.0}` violated Premult invariant: raw non-premultiplied rgb with sa=0). Implementation correctly applies formula `dst[k] = src[k] + dst[k] * (1 - sa)` per doc-comment Premult SRC_OVER contract; hypothesis (d) from ticket cronaca confirmed.
+- Added `TEST_CASE("scalar_blend: identity on alpha=0 SweepN regression")` over N ∈ {0, 1, 2, 4, 7, 16, 64, 256, 1024} (mixed power-of-2 + odd-size coverage that exercises AVX2's 1-pixel tail fallback path).
+- Cat-3 minimal-surface: `tests/simd/test_simd_parity_blend.cpp` edits only (1 line modified + 1 new TEST_CASE + 1 inline TU-local constant `kSeedSweepAlpha0Identity` extracted per code-reviewer-minimax-m3 NIT #4). Production source unchanged; SDK ABI surface unchanged (no new register, no vtable mutation, no header touched beyond test file).
+- macchina-verifica end-to-end verified on this VPS (`build/chronon/linux-fast-dev`): `ctest -R simd` 6/6 PASS (11014/11014 assertions). TICKET-SIMD-PRECISION-DRIFT state OPEN → DONE; TICKET-RESIDUAL-BUILD-ROT-RECOVERY state PARTIAL → DONE.
+
 ## 2026-07-13
 
 ### `fix(builder): remove duplicate text() overload declaration`
@@ -12,7 +23,7 @@
    [TICKET-SIMD-PRECISION-DRIFT](docs/tickets/TICKET-SIMD-PRECISION-DRIFT.md))
 
 - TICKET-RESIDUAL-BUILD-ROT-RECOVERY macchina-verificato PARTIAL: 3 build targets BUILD SUCCESS (chronon3d_core_tests + chronon3d_content + chronon3d_simd_parity_blend_tests) + SIMD binary produced (564MB); 5 originally-listed forward-points reclassified N/A red-herring per load-bearing single-header-dedup.
-- TICKET-SIMD-PRECISION-DRIFT (NEW cat-5 ticket, P1 OPEN): scalar_blend alpha=0 identity rot in `tests/simd/test_simd_parity_blend.cpp:51` (TEST_CASE) + line 58 (3 CHECK failures: 0.6↔0.5 + 0.8↔0.6 + 1.0↔0.7). Forward-pointed to WBH-FIX per TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV.
+- TICKET-SIMD-PRECISION-DRIFT (NEW cat-5 ticket, P1 OPEN): scalar_blend alpha=0 identity rot in `tests/simd/test_simd_parity_blend.cpp:51` (TEST_CASE) + line 58 (3 CHECK failures: 0.6↔0.5 + 0.8↔0.6 + 1.0↔0.7). Forward-pointed to WBH-FIX per [TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV](docs/tickets/TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV.md).
 - FOLLOWUP_TICKETS.md updated: 2 new rows at §Open Blockers top (Cat-5 newer-at-top convention).
 
 Lands 1 file: `AGENTS.md` (new rule #7 in `## Regole di lint documentale`).
