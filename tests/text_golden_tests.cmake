@@ -1,6 +1,10 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # tests/text_golden_tests.cmake — TXT-QA-01 Real Golden Text Harness
 #
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
+    return()
+endif()
 # TICKET-REFACTOR-TESTS-SPLIT-18-19 §B — refactored to pure aggregator.
 #
 # The test executable (chronon3d_text_golden_tests) is still defined HERE

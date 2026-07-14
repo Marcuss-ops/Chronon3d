@@ -1,4 +1,10 @@
 # ── Core Tests (Math, Geometry, Animation, Timeline, Cache, SIMD, Assets, Text, Media, Extension, Architecture) ──
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+# The orchestrator iterates CHRONON3D_TEST_DEFINITIONS unconditionally;
+# the per-file feature gate lives HERE so the file is rpoperly self-contained.
+if(NOT CHRONON3D_BUILD_TESTS)
+    return()
+endif()
 
 # Blend2D/Text-dependent test sources (only compiled when both are available)
 set(CORE_BLEND2D_TESTS "")

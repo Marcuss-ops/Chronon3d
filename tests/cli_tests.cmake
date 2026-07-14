@@ -1,5 +1,10 @@
 # -- CLI Tests --
-if(CHRONON3D_BUILD_CLI AND CHRONON3D_ENABLE_VIDEO)
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+# CHRONON3D_BUILD_CLI AND CHRONON3D_ENABLE_VIDEO matches the pre-existing
+# compile-time guard that was previously inside a body-wrap below.
+if(NOT (CHRONON3D_BUILD_CLI AND CHRONON3D_ENABLE_VIDEO))
+    return()
+endif()
 
 # chronon3d_cli_dev is gated by `option(CHRONON3D_BUILD_CLI_DEV ... OFF)` in
 # apps/chronon3d_cli/CMakeLists.txt:20 — the target is registered only when
@@ -41,5 +46,3 @@ chronon3d_add_test_suite(
 # CLI tests have a non-standard include dir for the chrono3d_cli
 # production sources; explicit add on top of the helper's default.
 target_include_directories(chronon3d_cli_tests PRIVATE ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli)
-
-endif()

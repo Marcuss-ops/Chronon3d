@@ -26,15 +26,21 @@
 #       COMP_COUNT, CHRONON3D_CINEMATIC_PERF accept-list).  Single
 #       inline const source-of-truth shared across TUs.
 #   cinematic/test_cinematic_smoke.cpp
-#       TEST_CASE A4.1 (every keyframe non-empty) + A4.2 (camera motion).
-#   cinematic/test_cinematic_presets.cpp
-#       TEST_CASE A4.3 (text motion per preset, 5/5 strict) +
-#       TEST_CASE A4.3-strict (>= 5 cinematic compositions contract).
-#   cinematic/test_cinematic_determinism.cpp
-#       TEST_CASE A4.4 (run A == run B byte-exact).
-#   cinematic/test_cinematic_artifacts.cpp
-#       TEST_CASE A4.5 (3×2 contact sheet PNG) +
-#       TEST_CASE A4.6 (perf telemetry, TICKET-053 envelope).
+#       TEST_CASE A4.1 (every keyframe non-empty) + A4.2 (camera motion).# cinematic/test_cinematic_presets.cpp
+#   TEST_CASE A4.3 (text motion per preset, 5/5 strict) +
+#   TEST_CASE A4.3-strict (>= 5 cinematic compositions contract).
+# cinematic/test_cinematic_determinism.cpp
+#   TEST_CASE A4.4 (run A == run B byte-exact).
+# cinematic/test_cinematic_artifacts.cpp
+#   TEST_CASE A4.5 (3×2 contact sheet PNG) +
+#   TEST_CASE A4.6 (perf telemetry, TICKET-053 envelope).
+#
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+# Compiled only when CHRONON3D_BUILD_CONTENT is on (matches the
+# pre-refactor orchestrator's `if(CHRONON3D_BUILD_CONTENT)` block).
+if(NOT CHRONON3D_BUILD_CONTENT)
+    return()
+endif()
 
 # ── Showcase end-to-end verification test binary ──────────────────────
 # Path note: `include(${CMAKE_CURRENT_SOURCE_DIR}/showcase/CMakeLists.txt)`

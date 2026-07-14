@@ -1,4 +1,8 @@
 # ── Rounded Rect Visual Golden Tests ──────────────────────────────────────
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
+    return()
+endif()
 # Golden image regression tests for rounded_rect shapes with various
 # stroke alignments and gradient fills.  Uses the shared
 # chronon3d_visual_test_support framework.

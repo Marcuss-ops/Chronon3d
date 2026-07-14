@@ -1,4 +1,8 @@
 # ── Compositor Regression Tests ──
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+if(NOT CHRONON3D_BUILD_TESTS)
+    return()
+endif()
 # Small, fast unit tests for the software compositor.
 # Kept separate from chronon3d_renderer_tests to avoid linker OOM.
 

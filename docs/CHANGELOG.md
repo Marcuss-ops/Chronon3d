@@ -16,6 +16,11 @@
 - Cat-3 minimal-surface: `tests/simd/test_simd_parity_blend.cpp` edits only (1 line modified + 1 new TEST_CASE + 1 inline TU-local constant `kSeedSweepAlpha0Identity` extracted per code-reviewer-minimax-m3 NIT #4). Production source unchanged; SDK ABI surface unchanged (no new register, no vtable mutation, no header touched beyond test file).
 - macchina-verifica end-to-end verified on this VPS (`build/chronon/linux-fast-dev`): `ctest -R simd` 6/6 PASS (11014/11014 assertions). TICKET-SIMD-PRECISION-DRIFT state OPEN → DONE; TICKET-RESIDUAL-BUILD-ROT-RECOVERY state PARTIAL → DONE.
 
+### `refactor(tests): unify CMake test manifest`
+  ([TICKET-CMAKE-TEST-MANIFEST-UNIFICATION](docs/tickets/TICKET-CMAKE-TEST-MANIFEST-UNIFICATION.md))
+
+`tests/CMakeLists.txt` dual-list manuale (CMAKE_CONFIGURE_DEPENDS + `include()`) collassato in unico `set(CHRONON3D_TEST_DEFINITIONS) foreach`. Per-area .cmake self-guard with early-return. Path `text/text_clip_policy_tests.cmake` corretto. Duplicate `if(CHRONON3D_ENABLE_VIDEO)` rimosso. `benchmarks.cmake` double-gate collassato. 119/119 chronon3d_* targets preservati. macchina-verifica DEFERRED-WBH.
+
 ## 2026-07-13
 
 ### `fix(builder): remove duplicate text() overload declaration`

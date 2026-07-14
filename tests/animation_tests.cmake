@@ -1,4 +1,8 @@
 # ── Animation Catalog Tests ──
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
+    return()
+endif()
 
 chronon3d_add_test_suite(
     NAME chronon3d_animation_tests
