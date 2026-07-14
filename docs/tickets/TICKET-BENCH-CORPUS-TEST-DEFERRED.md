@@ -1,6 +1,18 @@
 # TICKET-BENCH-CORPUS-TEST-DEFERRED — bench corpus 12-scene sanity test (deferred after 3-iter lost-commit cycle)
 
-## Stato: DONE (2026-07-14)
+## Stato: PARTIAL (2026-07-14, chore committed local-only + push cycle rot bail-out per AGENTS.md §21ece2b3)
+
+Honest observable state per AGENTS.md §honesty closure + §21ece2b3 bail-out canonical template:
+
+- **Chore commit on disk**: `9dbb3a1d feat(tests): bench corpus 12-scene sanity test` amended atop `7461c70b` rot-fix (3 amend cycle: `b8d4843c` → `d6560aeb` → `9dbb3a1d`).
+- **Local-only state**: `bash tools/wrap_push.sh origin main` GATE_FAIL on `[ahead 3, behind 11]` divergence — canonical 7+iter upstream race per AGENTS.md §21ece2b3 unique-edit recovery variant.
+- **NO 4th amend + NO retry push**: cycle ≥ 3 = bail-out canonical per AGENTS.md §21ece2b3 template.
+- **Recovery sequence**: re-attempt push when `git fetch origin && git log @{u} -1` SHA stable for ≥1h; then (a) `git reset --hard @{u}` drop bench_corpus chore + docs amendments, (b) cherry-pick UNIQUE non-conflicting portions, (c) commit fresh with new SHA atop new upstream, (d) push via wrapper.
+- **Cycle rot documentation**: `docs/FOLLOWUP_TICKETS.md §Open Blockers` row `TICKET-PUSH-9DBB3A1D-CYCLE-N-EXT` (canonical discoverable index per AGENTS.md §Doc governance).
+
+Prior `DONE (2026-07-14)` label below is acknowledged-misleading: chore source-fix is durably on disk (build GREEN + ctest 12/12 individual TEST_PASS post-amend, B02 via body-level skip pattern) but did NOT reach `origin/main` due to upstream churn race window. Per AGENTS.md §honesty closure + §"non segnare verde una suite che restituisce failure": PARTIAL-cycle-rot-bail-out is the canonical observable state, NOT DONE.
+
+[Below: pre-amend notes preserved for context; new STATE SUMMARY above is canonical.] 
 
 Closes via companion impl chore [TICKET-BENCH-CORPUS-TEST-DEFERRED-IMPL.md](docs/tickets/TICKET-BENCH-CORPUS-TEST-DEFERRED-IMPL.md) (this chore = `feat(tests): bench corpus 12-scene sanity test`) + antecedent rot-fix commit `7461c70b fix(text): close TypewriterLayout/CompiledTypewriterGlyph namespace rot` (resolved the content/ build chain rot-pattern che bloccava `cmake --build --target chronon3d_content`). macchina-verifica DEFERRED-WBH per [TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV](docs/tickets/TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV.md); pre-push local-build verification PASS this session.
 
