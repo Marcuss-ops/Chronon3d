@@ -16,20 +16,17 @@ callers).  Asset side (audit §10: process-wide asset root ripout) è
 già completo da lineage precedenti (F0.2 + Fase B2) — nessuna azione
 richiesta in questo commit.
 
-### `chore(text): fix deprecation ticket refs + add §25 record (Blocco 5.1)`
+### `chore(text): fix deprecation ticket refs + add §10 record (Blocco 5.1)`
   ([TICKET-TEXT-SPEC-MIGRATION](docs/tickets/TICKET-TEXT-SPEC-MIGRATION.md))
-3 mechanical corrections atop the deprecation commit: (1) `layer_builder.hpp`
-+ `text_definition.hpp` — rinominato il ticket-reference interno
-`TICKET-BLOCLO-5-1-*` nel comment-header a `TICKET-TEXT-SPEC-MIGRATION` (il
-vero ticket file, grep-discoverable); l'attributo `[[deprecated]]` +
-body del commento già citavano il ticket giusto. (2) `TICKET-TEXT-SPEC-MIGRATION`
-+1 `## See also: TICKET-CENTERED-TEXT-MIGRATION` (cross-link P1→P2
-dependency). (3) **Audit §25 verification record**: `process_wide_assets_root`
-+ `process-wide.*assets_root` hanno 0 source-code hits in `include/`,
-`src/`, `apps/` (basher-rg this session); `authoring::asset()` helper
-exists at `include/chronon3d/authoring/asset.hpp`. Cat-3 minimal-surface
-(2 source files + 1 ticket + 1 changelog). macchina-verifica DEFERRED-WBH
-per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV`.
+- (1) Deprecation comment-headers in `layer_builder.hpp` + `text_definition.hpp`:
+  rinominato `TICKET-BLOCLO-5-1-*` → `TICKET-TEXT-SPEC-MIGRATION` (grep-discoverable;
+  l'attributo `[[deprecated]]` + body commento già citavano il ticket giusto).
+- (2) `TICKET-TEXT-SPEC-MIGRATION` +1 `## See also: TICKET-CENTERED-TEXT-MIGRATION`
+  (cross-link P1→P2 dependency, allineato con la numbering §10 dell'entry originale).
+- (3) **Audit §10 verification record**: `process_wide_assets_root` = 0 source-code
+  hits in `include/`+`src/`+`apps/`; `authoring::asset()` helper esiste
+  a `include/chronon3d/authoring/asset.hpp` (audit §10 già 100% completo da
+  lineage F0.2 + Fase B2 — nessuna azione richiesta).
 
 ### `feat(cli): chronon preview --contact-sheet (audit Blocco 4.1)`
   ([TICKET-PREVIEW-CONTACT-SHEET](docs/tickets/TICKET-PREVIEW-CONTACT-SHEET.md))
