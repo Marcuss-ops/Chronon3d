@@ -191,15 +191,8 @@ Config::Config() {
         const char* policy_env = std::getenv("CHRONON3D_FB_POOL_CLEAR_POLICY");
         if (policy_env && *policy_env) {
             std::string_view sv(policy_env);
-            if (sv == "keep-warm" || sv == "KeepWarm") {
-                cache_.framebuffer_pool_clear_policy_ =
-                    chronon3d::cache::FramebufferPoolClearPolicy::KeepWarm;
-            } else if (sv == "trim-after-job" || sv == "TrimAfterJob") {
-                cache_.framebuffer_pool_clear_policy_ =
-                    chronon3d::cache::FramebufferPoolClearPolicy::TrimAfterJob;
-            } else if (sv == "trim-on-memory-pressure" || sv == "TrimOnMemoryPressure") {
-                cache_.framebuffer_pool_clear_policy_ =
-                    chronon3d::cache::FramebufferPoolClearPolicy::TrimOnMemoryPressure;
+            if (auto parsed = chronon3d::cache::parse_framebuffer_pool_clear_policy(sv)) {
+                cache_.framebuffer_pool_clear_policy_ = *parsed;
             } else {
                 spdlog::warn(
                     "Invalid CHRONON3D_FB_POOL_CLEAR_POLICY='{}'; "
