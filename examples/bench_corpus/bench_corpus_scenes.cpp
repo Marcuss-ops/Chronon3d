@@ -84,7 +84,7 @@ Composition bench_b01_static_text_1080p() {
         .duration = 90,
     }, [](const FrameContext& ctx) -> Scene {
         SceneBuilder s(ctx);
-        if (ctx.font_engine) s.font_engine(ctx.font_engine);
+        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
 
         add_dark_canvas_background(s);
 
@@ -109,7 +109,7 @@ Composition bench_b02_typewriter_200_glyphs() {
         .duration = 90,
     }, [](const FrameContext& ctx) -> Scene {
         SceneBuilder s(ctx);
-        if (ctx.font_engine) s.font_engine(ctx.font_engine);
+        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
 
         add_dark_canvas_background(s);
 
@@ -249,7 +249,7 @@ Composition bench_b06_video_overlay_1080p() {
         .duration = 90,
     }, [](const FrameContext& ctx) -> Scene {
         SceneBuilder s(ctx);
-        if (ctx.font_engine) s.font_engine(ctx.font_engine);
+        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
 
         // Base image layer (the "video" surrogate for offline CI runs).
         s.layer("video_layer", [](LayerBuilder& l) {
@@ -297,7 +297,7 @@ Composition inner_a() {
         .duration = 90,
     }, [](const FrameContext& ctx) -> Scene {
         SceneBuilder s(ctx);
-        if (ctx.font_engine) s.font_engine(ctx.font_engine);
+        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
         s.screen_layer("bg_a", [](LayerBuilder& l) {
             l.fill(Color{0.10f, 0.10f, 0.20f, 1.0f});
         });
@@ -324,7 +324,7 @@ Composition inner_b() {
         .duration = 90,
     }, [](const FrameContext& ctx) -> Scene {
         SceneBuilder s(ctx);
-        if (ctx.font_engine) s.font_engine(ctx.font_engine);
+        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
         s.screen_layer("bg_b", [](LayerBuilder& l) {
             l.fill(Color{0.20f, 0.10f, 0.10f, 1.0f});
         });
@@ -356,7 +356,7 @@ Composition inner_c() {
         .duration = 90,
     }, [](const FrameContext& ctx) -> Scene {
         SceneBuilder s(ctx);
-        if (ctx.font_engine) s.font_engine(ctx.font_engine);
+        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
         s.screen_layer("bg_c", [](LayerBuilder& l) {
             l.fill(Color{0.05f, 0.20f, 0.10f, 1.0f});
         });
@@ -414,7 +414,7 @@ Composition bench_b08_dirty_rect_small_motion() {
         .duration = 90,
     }, [](const FrameContext& ctx) -> Scene {
         SceneBuilder s(ctx);
-        if (ctx.font_engine) s.font_engine(ctx.font_engine);
+        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
 
         add_dark_canvas_background(s);
 
@@ -468,7 +468,7 @@ Composition bench_b09_long_form_10_minutes() {
         .duration = 18000,  // 10 minutes @ 30 fps
     }, [](const FrameContext& ctx) -> Scene {
         SceneBuilder s(ctx);
-        if (ctx.font_engine) s.font_engine(ctx.font_engine);
+        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
 
         // Pure static background; the long-form test is about LEAK
         // detection + ALLOCATOR FRAGMENTATION in the kernel hot path
@@ -499,7 +499,7 @@ Composition bench_b10_random_frame_access() {
         .duration = 360,
     }, [](const FrameContext& ctx) -> Scene {
         SceneBuilder s(ctx);
-        if (ctx.font_engine) s.font_engine(ctx.font_engine);
+        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
 
         add_dark_canvas_background(s);
 
