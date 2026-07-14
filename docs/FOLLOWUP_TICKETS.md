@@ -61,6 +61,7 @@
 
 | Ticket | Description |
 |---|---|
+| TICKET-RENDER-SERVICES-FULL-ELIMINATION-IMPL | P3 | CLOSED 2026-07-14 | vacuous-truth audit: runtime RenderServices already removed in P1-15; graph::RenderServices is distinct per-frame bundle (out of scope); cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-RENDER-SERVICES-FULL-ELIMINATION-IMPL.md) |
 | TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS-IMPL | P3 | CLOSED 2026-07-14 | refactor(tests): migrate RenderRuntime ctor to create factory at 4faf81b4; 19 test files / ~228 sites; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS-IMPL.md) |
 | TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE-IMPL | P2 | CLOSED 2026-07-14 | feat(fb-pool): wire trim_after_job (default TrimAfterJob) at f1d8cc34; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE-IMPL.md) |
 | TICKET-RENDERGRAPH-CACHE-PERSISTENT-DEAD-FLAG-SCOPE-REALIGNMENT | P2 | CLOSED 2026-07-14 | chore(cache): scope-realignment audit; 3 target files already-clean per PR2-cleanup; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-RENDERGRAPH-CACHE-PERSISTENT-DEAD-FLAG-SCOPE-REALIGNMENT.md) |
