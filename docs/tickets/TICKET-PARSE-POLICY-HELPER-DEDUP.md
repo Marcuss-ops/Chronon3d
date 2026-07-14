@@ -1,6 +1,6 @@
 # TICKET-PARSE-POLICY-HELPER-DEDUP — Extract `parse_framebuffer_pool_clear_policy(name)` helper
 
-> Stato: **OPEN (2026-07-14)** — forward-point from [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (P3 cosmetic). Cat-3 minimal-surface.
+> Stato: **DONE (2026-07-14, source commit `12af1063b33b8bdad38d53849d4f5a6fb71d0e5b`)** — implementation landed via [TICKET-PARSE-POLICY-HELPER-DEDUP-IMPL](docs/tickets/TICKET-PARSE-POLICY-HELPER-DEDUP-IMPL.md). 1 EDIT header + 2 EDIT call sites (config.cpp + render_job.cpp) + 1 NEW test file + 1 NEW cmake file + 1 EDIT tests/CMakeLists.txt. register_render_commands.cpp:63 CLI description string left as hardcoded list (out of scope per ticket Criteri di accettazione; the round-trip name() helper is deferred to a future forward-point). Forward-point from [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (5th item) CLOSED. Cat-3 minimal-surface preserved. from [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (P3 cosmetic). Cat-3 minimal-surface.
 
 ## Problema
 
