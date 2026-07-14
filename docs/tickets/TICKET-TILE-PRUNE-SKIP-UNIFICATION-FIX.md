@@ -2,7 +2,7 @@
 
 ## Stato
 
-OPEN (forward-point register; NOT a NEW rot identification — the rot-class evidence is INHERITED from the sibling ticket [`docs/tickets/TICKET-EXECUTOR-TILE-PRUNE-SKIP-UNIFICATION.md`](docs/tickets/TICKET-EXECUTOR-TILE-PRUNE-SKIP-UNIFICATION.md) per `docs/DOCUMENTATION_GOVERNANCE.md` "Regole di duplicazione" / Cat-3 single-source-of-truth / AGENTS.md "Non inventare percorsi alternativi e non ricreare copie dei documenti"). The actual C++ refactor lives in a separate atomic future chore with subject `refactor(executor): unify tile_prune into commit_transparent_skip` (60 chars ≤ 72 ✓).
+DONE (2026-07-14, atomic chore `refactor(executor): unify tile_prune into commit_transparent_skip` 57 chars; forward-point FIX register realizzato: SkipReason enum esteso con `TilePruned` (tail-extension ABI-safe), `commit_transparent_skip` signature generalizzata con `std::optional<raster::BBox> bbox_override = std::nullopt`, manual block `node_runner.cpp:272-279` rimosso in favore di delegation call).
 
 ## Priorità
 

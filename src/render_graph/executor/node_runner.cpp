@@ -197,15 +197,13 @@ void execute_single_node(
             bbox.x0 < tile.x1 && bbox.x1 > tile.x0 &&
             bbox.y0 < tile.y1 && bbox.y1 > tile.y0;
         if (!bbox_intersects_tile) {
-            state.temp[id] = state.shared_transparent;
-            state.resolved_key_digest[id] = 0;
-            state.resolved_frame_dependent[id] = 0;
-            state.resolved_cache_hit[id] = 0;
-            state.resolved_bboxes[id] = predicted_bbox;
-
-            if (ctx.node_exec.counters) {
-                ctx.node_exec.counters->nodes_skipped.fetch_add(1, std::memory_order_relaxed);
-            }
+            // TICKET-TILE-PRUNE-SKIP-UNIFICATION-FIX: instrada attraverso la skip-policy
+            // unificata invece del blocco manuale (saved Cat-3 single SSoT:
+            // riusa state.shared_transparent, no fresh 64×64 alloc, bump
+            // `nodes_skipped` invece di duplicare il pattern).
+            commit_transparent_skip(
+                state, id, ctx, parent_pool, SkipReason::TilePruned,
+                /*node_name=*/{}, /*bbox_override=*/predicted_bbox);
             return;
         }
     }
