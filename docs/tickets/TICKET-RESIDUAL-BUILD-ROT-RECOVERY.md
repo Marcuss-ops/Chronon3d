@@ -2,7 +2,7 @@
 
 ## Stato
 
-macchina-verificato PARTIAL (2026-07-13, post-commit `e423fa72` fast-forward pull)
+macchina-verificato DONE (2026-07-14, ctest -R simd 6/6 PASS verified on this VPS via TICKET-SIMD-PRECISION-DRIFT closure, 11014/11014 assertions)
 
 ## Priorità
 
@@ -56,7 +56,7 @@ Single-line header dedup per Cat-3 minimal-surface: delete the F3.D inline-comme
 - [x] SIMD binary produced (`build/chronon/linux-fast-dev/tests/chronon3d_simd_parity_blend_tests` 564MB) — VERIFIED 2026-07-13.
 - [x] Red-herring correction narrative recorded in this ticket body — VERIFIED 2026-07-13.
 - [x] Cat-3 minimal-surface contract honored (1 file, -1 line, -1 character of comment; zero new SDK symbol) — VERIFIED 2026-07-13.
-- [ ] `*simd*` ctest 5/5 PASS — DEFERRED to TICKET-SIMD-PRECISION-DRIFT (functional rot, not build rot; not resolvable in this VPS scope).
+- [x] `*simd*` ctest 6/6 PASS — VERIFIED 2026-07-14 (post-closure of TICKET-SIMD-PRECISION-DRIFT via hypothesis-(d) test-fixture fix + SweepN regression test added; 11014/11014 assertions PASS).
 
 ## Forward-points (reclassified from original 6)
 
@@ -68,7 +68,7 @@ Single-line header dedup per Cat-3 minimal-surface: delete the F3.D inline-comme
 | `[SIMD-bin]` (chronon3d_simd_parity_blend_tests binary missing) | macchina-verificato — binary produced post-dedup |
 | `[LOAD-BEARING-fix]` (header dedup) | macchina-verificato — single-line Cat-3 fix landed |
 | `[HONESTY]` (state disclosure + cat-5 ledger) | macchina-verificato — this ticket + CHANGELOG Cita-Only + FOLLOWUP row |
-| **NEW: `[SIMD-PARITY-DRIFT]` (scalar_blend alpha=0)** | ACTIVE forward-point — see TICKET-SIMD-PRECISION-DRIFT |
+| **NEW: `[SIMD-PARITY-DRIFT]` (scalar_blend alpha=0)** | RESOLVED-ON-VPS 2026-07-14 via TICKET-SIMD-PRECISION-DRIFT closure (hypothesis-(d) test-fixture fix); PARTIAL-WBH-DEFERRED for full Chronon3D pipeline integration |
 
 ## Cronaca
 
@@ -77,6 +77,7 @@ Single-line header dedup per Cat-3 minimal-surface: delete the F3.D inline-comme
 - 2026-07-13: dropped partial-applied `stash@{0}` (containing pre-pull chore version) + re-applied chore FRESH on post-pull tree. The drop was deliberate: `stash pop` would have triggered a CHANGELOG 78-line rebase conflict against upstream `e423fa72` + `6254e451`; the drop+reapply-fresh path is the canonical Cat-3 anti-dup choreography. Stash list pre/post: `stash@{0}` was the new `c58d0bd6 refactor(content)` entry (preserved from prior session); `stash@{1}` was the older AVX2 stack (preserved).
 - 2026-07-13: applied Cat-3 minimal-surface fix — single Python `text.replace(old, new, 1)` on `layer_builder.hpp:402-407` (verbatim exact-match check + sys.exit(1) on miss-provenance).
 - 2026-07-13: macchina-verificated — all 3 build targets BUILD SUCCESS + SIMD binary produced + 5 listed forward-points reclassified N/A per red-herring correction + 1 NEW forward-point opened (TICKET-SIMD-PRECISION-DRIFT).
+- 2026-07-14: SIMD closure fully resolved on VPS via TICKET-SIMD-PRECISION-DRIFT commit (hypothesis-(d) test-fixture fix + SweepN regression). State promoted macchina-verificato PARTIAL → DONE. 11/11 baseline verde rule now honored for this baseline.
 
 ## Cross-references (SHA cites inline per AGENTS.md §SHA cite pattern)
 

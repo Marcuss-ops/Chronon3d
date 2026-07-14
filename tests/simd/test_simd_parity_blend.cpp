@@ -46,16 +46,54 @@ bool within_1ulp(float a, float b) {
     return diff <= cs::kKernelEpsilon * mag + cs::kKernelEpsilon;
 }
 
+// ── constants: per-N test seeds for cross-N SweepN tests ─────────────
+//
+// `kSeedSweepAlpha0Identity` drives the seed-offsets in the
+// `scalar_blend: identity on alpha=0 SweepN regression` SweepN test
+// (per TICKET-SIMD-PRECISION-DRIFT §Forward-points). Extracted from
+// inline literal per code-reviewer-minimax-m3 NIT #4.
+constexpr std::uint32_t kSeedSweepAlpha0Identity = 0x1D17D17Eu;
+
 } // namespace
 
 TEST_CASE("scalar_blend: identity on alpha=0 (no contribution)") {
-    std::vector<float> src = {0.1f, 0.2f, 0.3f, 0.0f}; // sa = 0
+    // FIX (TICKET-SIMD-PRECISION-DRIFT macchina-verifica 2026-07-13):
+    // Premultiplied-alpha invariant per `include/chronon3d/simd/detail/scalar_kernels.hpp::scalar_blend` doc-comment:
+    //   `src.rgb` is ALREADY premultiplied by `src.a` BEFORE the call.
+    // Therefore a valid premult color with sa=0 MUST have src.rgb=0.
+    // The original fixture {0.1, 0.2, 0.3, 0.0} is an INVALID premult color
+    // (rgb not pre-multiplied by alpha=0). Using valid premult, the formula
+    // `dst[k] = src[k] + dst[k] * (1 - sa)` → `dst[k] = 0 + dst[k] * 1 = dst[k]`
+    // (identity holds).
+    std::vector<float> src = {0.0f, 0.0f, 0.0f, 0.0f}; // sa = 0, valid premult (rgb=0)
     std::vector<float> dst = {0.5f, 0.6f, 0.7f, 0.4f};
     const std::vector<float> dst_orig = dst;
     cs::detail::scalar_blend(dst.data(), src.data(), 1);
-    // dst untouched (sa=0 → inv=1 → dst * 1; src contributes 0)
+    // dst untouched (sa=0 → inv=1 → dst = 0 + dst*1 = dst_orig)
     for (std::size_t i = 0; i < 4; ++i) {
         CHECK(dst[i] == doctest::Approx(dst_orig[i]));
+    }
+}
+
+TEST_CASE("scalar_blend: identity on alpha=0 SweepN regression") {
+    // Per TICKET-SIMD-PRECISION-DRIFT §Forward-points: regression-prevent SweepN
+    // for the alpha=0 identity case over {0, 1, 2, 4, 7, 16, 64, 256, 1024} pixels
+    // (mix of powers-of-2 AND 7 odd-size to exercise tail behavior at non-batch sizes).
+    for (std::size_t n :
+         {std::size_t{0}, std::size_t{1}, std::size_t{2}, std::size_t{4},
+          std::size_t{7}, std::size_t{16}, std::size_t{64}, std::size_t{256},
+          std::size_t{1024}}) {
+        // src MUST be 0 for valid premultiplied alpha=0 across N pixels.
+        std::vector<float> src(n * 4, 0.0f);
+        std::vector<float> dst = make_random_rgba(n, /*seed=*/kSeedSweepAlpha0Identity + static_cast<std::uint32_t>(n));
+        const std::vector<float> dst_orig = dst;
+
+        cs::detail::scalar_blend(dst.data(), src.data(), n);
+
+        for (std::size_t i = 0; i < n * 4; ++i) {
+            INFO("pixel_count=" << n << " i=" << i);
+            CHECK(dst[i] == doctest::Approx(dst_orig[i]));
+        }
     }
 }
 
