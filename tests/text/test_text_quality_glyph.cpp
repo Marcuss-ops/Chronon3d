@@ -11,7 +11,8 @@ using namespace test_text_quality;
 
 TEST_CASE("TextQuality: glyph placement — relative offsets used") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -36,7 +37,8 @@ TEST_CASE("TextQuality: glyph placement — relative offsets used") {
 
 TEST_CASE("TextQuality: glyph placement — no double-counting") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -53,7 +55,8 @@ TEST_CASE("TextQuality: glyph placement — no double-counting") {
 
 TEST_CASE("TextQuality: glyph placement — single glyph has correct bbox") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -74,7 +77,8 @@ TEST_CASE("TextQuality: glyph placement — single glyph has correct bbox") {
 
 TEST_CASE("TextQuality: tracking 0/5/20 — increases width proportionally") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -101,7 +105,8 @@ TEST_CASE("TextQuality: tracking 0/5/20 — increases width proportionally") {
 
 TEST_CASE("TextQuality: tracking — single character gets 0 tracking") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
@@ -123,7 +128,8 @@ TEST_CASE("TextQuality: tracking — single character gets 0 tracking") {
 
 TEST_CASE("TextQuality: tracking — empty string has zero width") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 

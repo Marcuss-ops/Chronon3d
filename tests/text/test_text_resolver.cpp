@@ -43,7 +43,8 @@ TEST_CASE("TextResolver: empty document returns empty tree") {
     // Don't call split_paragraphs — the resolver will return empty tree
     // for documents without paragraphs.
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     auto tree = resolve_text_run_tree(doc, engine);
     CHECK(tree.paragraphs.empty());
@@ -57,7 +58,8 @@ TEST_CASE("TextResolver: empty document returns empty tree") {
 TEST_CASE("TextResolver: single paragraph produces single LTR run") {
     auto doc = make_doc("Hello world");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     auto tree = resolve_text_run_tree(doc, engine);
     REQUIRE(tree.paragraphs.size() == 1);
@@ -92,7 +94,8 @@ TEST_CASE("TextResolver: font-override span creates separate run") {
     doc.split_paragraphs();
 
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     auto tree = resolve_text_run_tree(doc, engine);
 
@@ -121,7 +124,8 @@ TEST_CASE("TextResolver: mixed LTR/RTL text produces directional runs") {
     std::string mixed = "Hello \xD8\xB3\xD9\x84\xD8\xA7\xD9\x85 World";
     auto doc = make_doc(mixed);
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     auto tree = resolve_text_run_tree(doc, engine);
     REQUIRE(tree.paragraphs.size() == 1);
@@ -157,7 +161,8 @@ TEST_CASE("TextResolver: mixed LTR/RTL text produces directional runs") {
 
 TEST_CASE("TextResolver: resolve_fallback_fonts returns primary if loadable") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     FontSpec spec;
     spec.font_family = "DejaVu Sans";
@@ -178,7 +183,8 @@ TEST_CASE("TextResolver: resolve_fallback_fonts returns primary if loadable") {
 TEST_CASE("TextResolver: newline creates separate paragraphs") {
     auto doc = make_doc("Line one\nLine two\nLine three");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     auto tree = resolve_text_run_tree(doc, engine);
     REQUIRE(tree.paragraphs.size() == 3);
@@ -191,7 +197,8 @@ TEST_CASE("TextResolver: newline creates separate paragraphs") {
 TEST_CASE("TextResolver: consecutive newlines produce empty paragraph") {
     auto doc = make_doc("Para A\n\nPara C");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     auto tree = resolve_text_run_tree(doc, engine);
     REQUIRE(tree.paragraphs.size() == 3);
@@ -220,7 +227,8 @@ TEST_CASE("TextResolver: paragraph style propagates to runs") {
     doc.paragraphs.push_back(pr);
 
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     auto tree = resolve_text_run_tree(doc, engine);
     REQUIRE(tree.paragraphs.size() == 1);
@@ -239,7 +247,8 @@ TEST_CASE("TextResolver: paragraph style propagates to runs") {
 TEST_CASE("TextResolver: same input produces same output") {
     auto doc = make_doc("Hello world\nSecond paragraph");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     auto a = resolve_text_run_tree(doc, engine);
     auto b = resolve_text_run_tree(doc, engine);
@@ -274,7 +283,8 @@ TEST_CASE("TextResolver: BCP-47 language tag is canonicalized at source (TICKET-
     doc.paragraphs.push_back(pr);
 
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     auto tree = resolve_text_run_tree(doc, engine);
     REQUIRE(tree.paragraphs.size() == 1);

@@ -39,7 +39,8 @@ TextDocument make_doc(const std::string& utf8) {
 TEST_CASE("TextRunBuilder: empty document returns empty result") {
     TextDocument doc;
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
 
@@ -61,7 +62,8 @@ TEST_CASE("TextRunBuilder: empty document returns empty result") {
 TEST_CASE("TextRunBuilder: single paragraph produces single layout" * doctest::skip()) {
     auto doc = make_doc("Hello world");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -96,7 +98,8 @@ TEST_CASE("TextRunBuilder: single paragraph produces single layout" * doctest::s
 TEST_CASE("TextRunBuilder: multiple paragraphs produce multiple layouts" * doctest::skip()) {
     auto doc = make_doc("Line one\nLine two\nLine three");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 600.0f};
@@ -119,7 +122,8 @@ TEST_CASE("TextRunBuilder: multiple paragraphs produce multiple layouts" * docte
 TEST_CASE("TextRunBuilder: empty paragraph produced by consecutive newlines" * doctest::skip()) {
     auto doc = make_doc("A\n\nC");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 400.0f};
@@ -158,7 +162,8 @@ TEST_CASE("TextRunBuilder: font-override spans produce concatenated runs") {
     doc.split_paragraphs();
 
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -191,7 +196,8 @@ TEST_CASE("TextRunBuilder: paragraph style flows through to cache key") {
     doc.paragraphs.push_back(pr);
 
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -209,7 +215,8 @@ TEST_CASE("TextRunBuilder: paragraph style flows through to cache key") {
 TEST_CASE("TextRunBuilder: cache hit returns same layout pointer") {
     auto doc = make_doc("Cache test");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -233,7 +240,8 @@ TEST_CASE("TextRunBuilder: cache hit returns same layout pointer") {
 TEST_CASE("TextRunBuilder: same input produces same output") {
     auto doc = make_doc("Deterministic");
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
