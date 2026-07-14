@@ -37,8 +37,22 @@ option(CHRONON3D_BUILD_CLI_BENCH     "Build the chronon3d_cli_bench sub-target (
 # that file are compile-defined on _core when the respective group is
 # built, preserving the live-video and live-render paths without
 # unconditionally dragging in the render/video sub-targets.
+# TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE (Blocco 4.2) -
+# Generate templates_dir.hpp with the baked-in absolute path to the
+# templates/ directory.  At runtime, CHRONON3D_TEMPLATES_DIR env var
+# overrides this baked path.  See templates_dir.hpp.in for the
+# @-substitution template.
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/templates_dir.hpp.in
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/templates_dir.hpp
+    @ONLY
+)
+
 add_library(chronon3d_cli_core STATIC
     commands/group_core.cpp
+    # TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE (Blocco 4.2) -
+    # `chronon create <name>` scaffolds a new project from templates/.
+    commands/create/register_create_commands.cpp
     commands/basic/command_list.cpp
     commands/basic/command_info.cpp
     commands/daemon/command_daemon.cpp

@@ -285,4 +285,15 @@ int command_inspect_text(const CompositionRegistry& registry, const InspectTextA
 int command_text_def_inspect(const CompositionRegistry& registry, const TextDefInspectArgs& args);
 
 } // namespace cli
+
+// TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE (Blocco 4.2) - "chronon create <name>" argument struct.
+// See apps/chronon3d_cli/commands/create/register_create_commands.cpp
+// for the implementation.  The struct is intentionally minimal per
+// audit 19 verbatim "Cosa non aggiungere" (no project registry, no
+// template engine, no package manager).
+struct CreateArgs {
+    std::string name;
+    std::string template_name{"basic"};
+    bool force{false};
+};
 } // namespace chronon3d
