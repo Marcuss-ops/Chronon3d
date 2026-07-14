@@ -1,5 +1,8 @@
 #include "ffmpeg_pipe_sink.hpp"
 
+// Phase-2 (TICKET-FFMPEG-PIPE-SINK-SPLIT): include the internal access shim.
+#include "ffmpeg_pipe_sink_internal.hpp"
+
 #include <chronon3d/media/video/video_frame.hpp>
 
 #include <chrono>
@@ -14,17 +17,19 @@ namespace chronon3d::media::video {
 // ============================================================================
 //  launch_ffmpeg() — spawn via ProcessRunner (posix_spawnp, no shell)
 //
-//  Moved into this TU per P2 item #26: lifecycle/state orchestrator TU
-//  (owns the ProcessRunner process_ member and the state_ state machine).
+//  Phase-2 migration: moved from FfmpegPipeSink::launch_ffmpeg (private
+//  member) to FfmpegPipeSinkInternal::launch_ffmpeg (static friend-struct
+//  method).  Mutates self.process_ + self.last_error_ + self.last_error_msg_
+//  + self.state_.
 // ============================================================================
 
-bool FfmpegPipeSink::launch_ffmpeg(const std::vector<std::string>& argv) {
+bool FfmpegPipeSinkInternal::launch_ffmpeg(FfmpegPipeSink& self, const std::vector<std::string>& argv) {
     // argv[0] is "ffmpeg" — use as both executable name and argv[0].
-    const bool ok = process_.launch(argv[0], argv);
+    const bool ok = self.process_.launch(argv[0], argv);
     if (!ok) {
-        last_error_ = VideoSinkError::FfmpegNotFound;
-        last_error_msg_ = "failed to launch '" + argv[0] + "' — is ffmpeg on PATH?";
-        state_ = VideoSinkState::Failed;
+        self.last_error_ = VideoSinkError::FfmpegNotFound;
+        self.last_error_msg_ = "failed to launch '" + argv[0] + "' — is ffmpeg on PATH?";
+        self.state_ = VideoSinkState::Failed;
         return false;
     }
     return true;
@@ -32,10 +37,16 @@ bool FfmpegPipeSink::launch_ffmpeg(const std::vector<std::string>& argv) {
 
 // ============================================================================
 //  write_to_pipe() — write raw bytes, track telemetry
+//
+//  Phase-2 migration: moved from FfmpegPipeSink::write_to_pipe (private
+//  member) to FfmpegPipeSinkInternal::write_to_pipe (static friend-struct
+//  method).  Mutates self.pipe_failed_ + self.stats_.bytes_written +
+//  self.total_write_blocked_ms_ + self.last_error_ + self.last_error_msg_
+//  + self.state_.
 // ============================================================================
 
-bool FfmpegPipeSink::write_to_pipe(const uint8_t* data, size_t size) {
-    if (pipe_failed_) {
+bool FfmpegPipeSinkInternal::write_to_pipe(FfmpegPipeSink& self, const uint8_t* data, size_t size) {
+    if (self.pipe_failed_) {
         return false;
     }
 
@@ -45,22 +56,22 @@ bool FfmpegPipeSink::write_to_pipe(const uint8_t* data, size_t size) {
     // When write_timeout is 0 (no deadline), write_for() substitutes a
     // large default internally so the write never spuriously fails on
     // EAGAIN.
-    const bool ok = process_.write_for(data, size, write_timeout_);
+    const bool ok = self.process_.write_for(data, size, self.write_timeout_);
 
     const auto t1 = std::chrono::steady_clock::now();
 
     const double elapsed = std::chrono::duration<double, std::milli>(t1 - t0).count();
-    total_write_blocked_ms_ += elapsed;
+    self.total_write_blocked_ms_ += elapsed;
 
     if (!ok) {
-        pipe_failed_ = true;
-        last_error_ = VideoSinkError::PipeBroken;
-        last_error_msg_ = "write_for() failed — pipe broken or child exited";
-        state_ = VideoSinkState::Failed;
+        self.pipe_failed_ = true;
+        self.last_error_ = VideoSinkError::PipeBroken;
+        self.last_error_msg_ = "write_for() failed — pipe broken or child exited";
+        self.state_ = VideoSinkState::Failed;
         return false;
     }
 
-    stats_.bytes_written += size;
+    self.stats_.bytes_written += size;
     return true;
 }
 
@@ -106,8 +117,8 @@ bool FfmpegPipeSink::open(const VideoSinkConfig& config) {
     tight_frame_size_ = frame_buffer_size(fmt, stream.width, stream.height);
 
     // Build argv and launch ffmpeg.
-    const auto argv = build_argv(config);
-    if (!launch_ffmpeg(argv)) {
+    const auto argv = FfmpegPipeSinkInternal::build_argv(config);
+    if (!FfmpegPipeSinkInternal::launch_ffmpeg(*this, argv)) {
         return false;
     }
 

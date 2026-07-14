@@ -1,5 +1,8 @@
 #include "ffmpeg_pipe_sink.hpp"
 
+// Phase-2 (TICKET-FFMPEG-PIPE-SINK-SPLIT): include the internal access shim.
+#include "ffmpeg_pipe_sink_internal.hpp"
+
 #include <algorithm>
 #include <filesystem>
 #include <string>
@@ -48,11 +51,13 @@ namespace {
 // ============================================================================
 //  build_argv() — construct ffmpeg argv vector (executable + arguments)
 //
-//  Pulled out of ffmpeg_pipe_sink.cpp per P2 item #26 split: pure argument
-//  construction (no subprocess launch, no pipe I/O, no state mutation).
+//  Phase-2 migration: moved from FfmpegPipeSink::build_argv (private member)
+//  to FfmpegPipeSinkInternal::build_argv (static friend-struct method).
+//  Pure argument construction — no subprocess launch, no pipe I/O, no
+//  state mutation.  No self parameter needed (data → data).
 // ============================================================================
 
-std::vector<std::string> FfmpegPipeSink::build_argv(const VideoSinkConfig& config) {
+std::vector<std::string> FfmpegPipeSinkInternal::build_argv(const VideoSinkConfig& config) {
     std::vector<std::string> argv;
     argv.reserve(32);
 
