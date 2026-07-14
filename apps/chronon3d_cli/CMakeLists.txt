@@ -86,12 +86,8 @@ add_library(chronon3d_cli_video STATIC
     commands/video/common/video_export_common.cpp
     commands/video/common/pipe_export_helpers.cpp
     commands/video/exporters/video_export_pipe.cpp
-    commands/video/exporters/pipe_export_session_setup.cpp
-    commands/video/exporters/pipe_export_pool_warmup.cpp
-    commands/video/exporters/pipe_export_loop.cpp
-    commands/video/exporters/pipe_export_encoder_close.cpp
-    commands/video/exporters/pipe_export_telemetry.cpp
-    commands/video/exporters/pipe_export_result.cpp
+    commands/video/exporters/pipe_export_pipeline.cpp
+    commands/video/exporters/pipe_export_finalize.cpp
     commands/video/common/pipe_export_session.cpp
     commands/video/exporters/video_export_chunked.cpp
 

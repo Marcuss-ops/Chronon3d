@@ -45,7 +45,7 @@ struct FfmpegExportOptions {
     chronon3d::CancellationToken* cancellation_token{nullptr};
 };
 
-// render_and_encode_ffmpeg_pipe() is declared in pipe_export_session.hpp
+// render_and_encode_ffmpeg_pipe() is declared in pipe_export_pipeline.hpp
 // and returns PipeExportResult (boundary model with all status/timing data).
 
 /// Result boundary model for chunked export (PNG frames → ffmpeg encode).

@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 
 #include "video_job_plan.hpp"
-#include "../../commands/video/common/pipe_export_session.hpp"
+#include "../../commands/video/common/pipe_export_pipeline.hpp"
 #include "../../commands/video/common/video_export_common.hpp"
 #include <chronon3d/core/cancellation_token.hpp>
 #include <spdlog/spdlog.h>
