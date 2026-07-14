@@ -131,29 +131,48 @@ std::vector<DomainSnapshot> CacheDiagnostics::snapshot_all_domains() const {
 std::size_t CacheDiagnostics::clear_by_domain(CacheDomain domain) {
     if (!m_enabled.load(std::memory_order_relaxed)) return 0;
 
-    std::unique_lock lock(m_mutex);
-    auto it = m_entries.find(domain);
-    if (it == m_entries.end()) return 0;
-
-    std::size_t count = it->second.size();
-    for (auto* entry : it->second) {
-        entry->clear_fn();
+    // P1-12 (lock-ordering): copy each `clear_fn` (a `std::function<void()>`
+    // owning its own captured state) under `m_mutex`, then release the lock
+    // BEFORE invoking the callbacks.  The previous implementation invoked the
+    // callbacks while still holding the exclusive lock, which could deadlock
+    // against any `clear_fn` that (a) takes other locks, (b) unregisters a
+    // cache (via the same `m_mutex`), or (c) re-enters the diagnostics
+    // (snapshot / register / another clear_*). Copying the `std::function`
+    // decouples our local copy from the registry `Entry` lifetime (the
+    // `clear_fn` inside the Entry can be destroyed by a concurrent
+    // `unregister()` without affecting our copy — the lambda body still
+    // holds the original captured state).
+    std::vector<std::function<void()>> to_invoke;
+    {
+        std::unique_lock lock(m_mutex);
+        auto it = m_entries.find(domain);
+        if (it == m_entries.end()) return 0;
+        to_invoke.reserve(it->second.size());
+        for (const Entry* entry : it->second) {
+            to_invoke.push_back(entry->clear_fn);
+        }
     }
-    return count;
+    for (auto& fn : to_invoke) fn();
+    return to_invoke.size();
 }
 
 std::size_t CacheDiagnostics::clear_all() {
     if (!m_enabled.load(std::memory_order_relaxed)) return 0;
 
-    std::unique_lock lock(m_mutex);
-    std::size_t total = 0;
-    for (auto& [domain, set] : m_entries) {
-        total += set.size();
-        for (auto* entry : set) {
-            entry->clear_fn();
+    // P1-12 (lock-ordering): see `clear_by_domain()` above. Same pattern:
+    // collect callback copies under the lock, release, then invoke.
+    std::vector<std::function<void()>> to_invoke;
+    {
+        std::unique_lock lock(m_mutex);
+        for (const auto& [domain, set] : m_entries) {
+            to_invoke.reserve(to_invoke.size() + set.size());
+            for (const Entry* entry : set) {
+                to_invoke.push_back(entry->clear_fn);
+            }
         }
     }
-    return total;
+    for (auto& fn : to_invoke) fn();
+    return to_invoke.size();
 }
 
 // ── Introspection ─────────────────────────────────────────────────────────
