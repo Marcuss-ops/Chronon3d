@@ -224,11 +224,11 @@ struct FtGlyphPathBuilder {
 
 } // anonymous namespace
 
-using CacheKey = u64;
-
-CacheKey hash_text_style(const TextShape& t, float effective_size, int padding, const Mat4* transform);
-bool lookup_text_cache(const CacheKey& key, std::shared_ptr<TextRasterization>& out);
-void store_text_cache(const CacheKey& key, const std::shared_ptr<TextRasterization>& result);
+// P1-8: cache free functions (`hash_text_style` / `lookup_text_cache` /
+// `store_text_cache`) were relocated to `TextRenderResources`
+// (see `text_render_resources.cpp`).  The legacy rasterizer path no longer
+// keys a local cache (Cat-5 ABI stability mandates a bypass until the whole
+// TU deletes in M1.5#9 Step 5).
 
 /// `resolver` is the explicit AssetResolver sourced by the caller
 /// (WP-8 PR 8.0).  In production this is `sw_renderer->runtime().resolver()`
@@ -256,22 +256,12 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     std::string font_path = t.style.font_path;
     if (t.text.empty() || font_path.empty()) return std::nullopt;
 
-    const CacheKey key = hash_text_style(t, effective_size, padding, transform);
-    {
-        std::shared_ptr<TextRasterization> cached;
-        if (lookup_text_cache(key, cached)) {
-            if (cache_hit) *cache_hit = true;
-            if (profiling::g_current_counters) {
-                profiling::g_current_counters->text_cache_hits.fetch_add(1, std::memory_order_relaxed);
-            }
-            return *cached;
-        }
-    }
-
+    // P1-8: legacy ABI-frozen path bypasses the per-renderer raster
+    // cache.  The cache state now lives on `TextRenderResources::raster_cache`
+    // (see `text_render_resources.cpp::TextRasterCache`).  This TU is scheduled
+    // for wholesale deletion in M1.5#9 Step 5; cache calls were removed with
+    // the migration (Cat-3 anti-duplication: the 4 free functions are gone).
     if (cache_hit) *cache_hit = false;
-    if (profiling::g_current_counters) {
-        profiling::g_current_counters->text_cache_misses.fetch_add(1, std::memory_order_relaxed);
-    }
 
     BLFontFace face = blend2d_resources().get_face(font_path, resolver);
     if (face.empty()) return std::nullopt;
@@ -780,7 +770,11 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     result->metrics = metrics;
     result->font = font;
 
-    store_text_cache(key, result);
+    // P1-8: legacy ABI-frozen path bypasses the per-renderer raster cache;
+    // the call to `store_text_cache` was deleted with the migration.  The
+    // cache state now lives on `TextRenderResources::raster_cache`
+    // (see `text_render_resources.cpp::TextRasterCache`); production
+    // callers use `sw_renderer->text_render_resources()->store_raster_cache(...)`.
 
     return *result;
 #else

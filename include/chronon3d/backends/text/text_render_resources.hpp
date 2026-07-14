@@ -23,6 +23,7 @@
 #include <blend2d/font.h>
 #include <blend2d/path.h>
 
+#include <chronon3d/backends/text/text_rasterizer_utils.hpp>  // P1-8: TextRasterization return type for lookup_raster_cache
 #include <chronon3d/core/types/types.hpp>
 
 #include <atomic>
@@ -48,6 +49,7 @@ namespace chronon3d {
 
 // Forward declarations
 namespace assets { class AssetResolver; }
+namespace detail { struct TextRasterCache; }  // P1-8: forward decl; full def in text_render_resources.cpp
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BLFontFaceCache — thread-safe cache of BLFontFace objects
@@ -463,10 +465,47 @@ struct TextRenderResources {
     // → LayoutCache" is flattened for this reason: LayoutCache sits
     // alongside TextRenderResources on RenderSession, not inside it.
     //
-    // Post-baseline, the GlyphAtlas and raster cache (currently
-    // process-wide singletons in glyph_atlas.cpp and
-    // text_rasterizer_render.cpp) will migrate into this struct
-    // to complete the hierarchy.
+    // Post-baseline, the GlyphAtlas will migrate into this struct to
+    // complete the hierarchy.  The legacy text-raster cache migrated in
+    // P1-8 into the `raster_cache` member below.
+    //
+    // ── P1-8: TextRasterCache owner (migrated from
+    // `src/backends/text/text_rasterizer_cache.cpp`) ──────────────────
+    // The 4 free functions `set_text_cache_capacity` / `lookup_text_cache` /
+    // `store_text_cache` / `clear_text_raster_cache` are GONE (deleted).
+    // The cache now lives on `TextRenderResources::raster_cache` —
+    // PIMPL'd in the cpp so `TextRasterization` types do not leak beyond
+    // what is already exposed in the public SDK header.
+    //
+    // Production callers access via:
+    //   sw_renderer->text_render_resources()->lookup_raster_cache(key);
+    //   sw_renderer->text_render_resources()->store_raster_cache(key, result);
+    //   sw_renderer->text_render_resources()->set_raster_cache_capacity(N);
+    //   sw_renderer->text_render_resources()->clear_raster_cache();
+    //
+    // The legacy `rasterize_text_to_bl_image` ABI-frozen TU bypasses the
+    // cache (Cat-5 ABI stability constraint); the per-renderer cache is
+    // used by non-legacy renderer paths.
+    std::unique_ptr<detail::TextRasterCache> raster_cache;
+
+    /// Inject the text cache capacity at renderer construction.  Equivalent
+    /// to the deprecated process-global `set_text_cache_capacity(size_t)`,
+    /// but the value is per-instance (no first-call-wins race — single
+    /// renderer OWNS this struct).  Idempotent: last call wins; first call
+    /// materializes the cache.
+    void set_raster_cache_capacity(size_t max_bytes);
+
+    /// Drop every cached `TextRasterization`.  Equivalent to the deprecated
+    /// process-global `clear_text_raster_cache()`.  No-op if un-materialized.
+    void clear_raster_cache();
+
+    /// Look up a rasterization by hash key.  Returns the cached shared_ptr
+    /// on hit, nullptr on miss.  Materializes the cache lazily on first call.
+    std::shared_ptr<TextRasterization> lookup_raster_cache(uint64_t key);
+
+    /// Insert a rasterization.  Weight = `image.width * image.height * 4`.
+    /// Materializes the cache lazily on first call.
+    void store_raster_cache(uint64_t key, std::shared_ptr<TextRasterization> result);
 };
 
 // ── Cat-2 font preflight summary ──────────────────────────────────────────
