@@ -113,17 +113,10 @@ private:
     std::string stderr_buffer_;  // accumulated stderr output
     int  cached_exit_status_{0};  // stored by is_running() if child exited
     bool exit_cached_{false};     // true when cached_exit_status_ is valid
-
-    // ── Internal helpers ───────────────────────────────────────────────
-
-    /// Reap the child with waitpid(), retrying on EINTR.
-    /// Returns exit code (0–255), negative on error.
-    /// On success, sets child_pid_ = -1.
-    int reap_child();
-
-    /// Drain any available stderr data from the child's stderr pipe into
-    /// stderr_buffer_.  Non-blocking read — does not block if no data.
-    void drain_stderr();
+    // NOTE: helpers (reap_child, drain_stderr) were eliminated as 1-line
+    // trampolines per TICKET-P2-25-PROCESSRUNNER-TRAMPOLINES (DONE 2026-07-14).
+    // The implementations now live as free functions in the anonymous namespace
+    // of process_runner_posix.cpp, taking their state via reference parameters.
 };
 
 } // namespace chronon3d::media::video

@@ -32,6 +32,63 @@ void close_fd(int& fd) {
     }
 }
 
+// TICKET-P2-25-PROCESSRUNNER-TRAMPOLINES (2026-07-14):
+// 1-line member-method trampolines (reap_child + drain_stderr) eliminated;
+// the implementations now live as free functions in this anonymous namespace.
+// State is passed via reference parameters; the helpers do not touch any
+// ProcessRunner member state directly (the class is NOT a public SDK symbol
+// — see src/media/video/, no include/chronon3d/ entry — so removing the
+// member-method ABI shape is permitted by the cat-2 freeze source-removal rule).
+void drain_stderr(int& stderr_fd, std::string& stderr_buffer) {
+    if (stderr_fd < 0) return;
+
+    char buf[kStderrReadChunk];
+    for (;;) {
+        const ssize_t n = ::read(stderr_fd, buf, sizeof(buf));
+        if (n > 0) {
+            stderr_buffer.append(buf, static_cast<std::size_t>(n));
+            if (stderr_buffer.size() > ProcessRunner::kMaxStderrBytes) {
+                stderr_buffer.erase(0, stderr_buffer.size() - ProcessRunner::kMaxStderrBytes);
+            }
+        } else if (n == 0) {
+            break;
+        } else {
+            if (errno == EINTR) continue;
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                break;
+            }
+            break;
+        }
+    }
+}
+
+int reap_child(int& child_pid, int& stderr_fd, std::string& stderr_buffer) {
+    if (child_pid <= 0) {
+        drain_stderr(stderr_fd, stderr_buffer);
+        return -1;
+    }
+
+    int status;
+    pid_t result;
+    do {
+        result = ::waitpid(child_pid, &status, 0);
+    } while (result < 0 && errno == EINTR);
+
+    child_pid = -1;
+
+    drain_stderr(stderr_fd, stderr_buffer);
+
+    if (stderr_fd >= 0) {
+        ::close(stderr_fd);
+        stderr_fd = -1;
+    }
+
+    if (result < 0) return -1;
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) return -WTERMSIG(status);
+    return -1;
+}
+
 } // namespace
 
 // ── launch ──────────────────────────────────────────────────────────────────
@@ -187,7 +244,7 @@ bool ProcessRunner::write_for(const std::uint8_t* data, std::size_t size,
         }
 
         if (nfds > 1 && (fds[1].revents & (POLLIN | POLLERR | POLLHUP))) {
-            drain_stderr();
+            drain_stderr(stderr_fd_, stderr_buffer_);
         }
 
         if (fds[0].revents & POLLOUT) {
@@ -223,12 +280,12 @@ void ProcessRunner::close_stdin() {
 
 int ProcessRunner::wait() {
     if (child_pid_ <= 0) {
-        drain_stderr();
+        drain_stderr(stderr_fd_, stderr_buffer_);
         return -1;
     }
 
     if (exit_cached_) {
-        drain_stderr();
+        drain_stderr(stderr_fd_, stderr_buffer_);
         const int rc = cached_exit_status_;
         child_pid_ = -1;
         exit_cached_ = false;
@@ -236,20 +293,20 @@ int ProcessRunner::wait() {
     }
 
     close_fd(stdin_fd_);
-    drain_stderr();
-    return reap_child();
+    drain_stderr(stderr_fd_, stderr_buffer_);
+    return reap_child(child_pid_, stderr_fd_, stderr_buffer_);
 }
 
 // ── wait_for ─────────────────────────────────────────────────────────────────
 
 int ProcessRunner::wait_for(std::chrono::milliseconds timeout) {
     if (child_pid_ <= 0) {
-        drain_stderr();
+        drain_stderr(stderr_fd_, stderr_buffer_);
         return -1;
     }
 
     if (exit_cached_) {
-        drain_stderr();
+        drain_stderr(stderr_fd_, stderr_buffer_);
         const int rc = cached_exit_status_;
         child_pid_ = -1;
         exit_cached_ = false;
@@ -259,7 +316,7 @@ int ProcessRunner::wait_for(std::chrono::milliseconds timeout) {
     close_fd(stdin_fd_);
 
     if (timeout.count() <= 0) {
-        drain_stderr();
+        drain_stderr(stderr_fd_, stderr_buffer_);
         int status;
         const pid_t result = ::waitpid(child_pid_, &status, WNOHANG);
         if (result == 0) return -2;
@@ -278,11 +335,11 @@ int ProcessRunner::wait_for(std::chrono::milliseconds timeout) {
     int status;
     pid_t result;
     do {
-        drain_stderr();
+        drain_stderr(stderr_fd_, stderr_buffer_);
         result = ::waitpid(child_pid_, &status, WNOHANG);
         if (result > 0) {
             child_pid_ = -1;
-            drain_stderr();
+            drain_stderr(stderr_fd_, stderr_buffer_);
             if (WIFEXITED(status)) return WEXITSTATUS(status);
             if (WIFSIGNALED(status)) return -WTERMSIG(status);
             return -1;
@@ -290,11 +347,11 @@ int ProcessRunner::wait_for(std::chrono::milliseconds timeout) {
         if (result < 0) {
             if (errno == EINTR) continue;
             child_pid_ = -1;
-            drain_stderr();
+            drain_stderr(stderr_fd_, stderr_buffer_);
             return -1;
         }
         if (std::chrono::steady_clock::now() >= deadline) {
-            drain_stderr();
+            drain_stderr(stderr_fd_, stderr_buffer_);
             return -2;
         }
         std::this_thread::sleep_for(kPollInterval);
@@ -313,12 +370,12 @@ void ProcessRunner::terminate() {
 
 int ProcessRunner::terminate_and_wait(std::chrono::milliseconds graceful_timeout) {
     if (child_pid_ <= 0) {
-        drain_stderr();
+        drain_stderr(stderr_fd_, stderr_buffer_);
         return -1;
     }
 
     if (exit_cached_) {
-        drain_stderr();
+        drain_stderr(stderr_fd_, stderr_buffer_);
         const int rc = cached_exit_status_;
         child_pid_ = -1;
         exit_cached_ = false;
@@ -329,12 +386,12 @@ int ProcessRunner::terminate_and_wait(std::chrono::milliseconds graceful_timeout
 
     int rc = wait_for(graceful_timeout);
     if (rc != -2) {
-        drain_stderr();
+        drain_stderr(stderr_fd_, stderr_buffer_);
         return rc;
     }
 
     ::kill(child_pid_, SIGKILL);
-    return reap_child();
+    return reap_child(child_pid_, stderr_fd_, stderr_buffer_);
 }
 
 // ── is_running ───────────────────────────────────────────────────────────────
@@ -363,64 +420,16 @@ bool ProcessRunner::is_running() {
 // ── consume_stderr ──────────────────────────────────────────────────────────
 
 std::string ProcessRunner::consume_stderr() noexcept {
-    drain_stderr();
+    drain_stderr(stderr_fd_, stderr_buffer_);
     std::string result;
     result.swap(stderr_buffer_);
     return result;
 }
 
-// ── drain_stderr ────────────────────────────────────────────────────────────
-
-void ProcessRunner::drain_stderr() {
-    if (stderr_fd_ < 0) return;
-
-    char buf[kStderrReadChunk];
-    for (;;) {
-        const ssize_t n = ::read(stderr_fd_, buf, sizeof(buf));
-        if (n > 0) {
-            stderr_buffer_.append(buf, static_cast<std::size_t>(n));
-            if (stderr_buffer_.size() > kMaxStderrBytes) {
-                stderr_buffer_.erase(0, stderr_buffer_.size() - kMaxStderrBytes);
-            }
-        } else if (n == 0) {
-            break;
-        } else {
-            if (errno == EINTR) continue;
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                break;
-            }
-            break;
-        }
-    }
-}
-
-// ── reap_child ───────────────────────────────────────────────────────────────
-
-int ProcessRunner::reap_child() {
-    if (child_pid_ <= 0) {
-        drain_stderr();
-        return -1;
-    }
-
-    int status;
-    pid_t result;
-    do {
-        result = ::waitpid(child_pid_, &status, 0);
-    } while (result < 0 && errno == EINTR);
-
-    child_pid_ = -1;
-
-    drain_stderr();
-
-    if (stderr_fd_ >= 0) {
-        ::close(stderr_fd_);
-        stderr_fd_ = -1;
-    }
-
-    if (result < 0) return -1;
-    if (WIFEXITED(status)) return WEXITSTATUS(status);
-    if (WIFSIGNALED(status)) return -WTERMSIG(status);
-    return -1;
-}
+// ── drain_stderr / reap_child ────────────────────────────────────────────────
+// Eliminated as 1-line member-method trampolines per
+// TICKET-P2-25-PROCESSRUNNER-TRAMPOLINES (DONE 2026-07-14).
+// The implementations now live as free functions in the anonymous namespace
+// at the top of this TU, taking their state via reference parameters.
 
 } // namespace chronon3d::media::video
