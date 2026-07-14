@@ -1,5 +1,8 @@
 #include "ffmpeg_pipe_sink.hpp"
 
+// Phase-2 (TICKET-FFMPEG-PIPE-SINK-SPLIT): include the internal access shim.
+#include "ffmpeg_pipe_sink_internal.hpp"
+
 #include <chronon3d/media/video/video_frame.hpp>
 
 #include <chrono>
@@ -12,15 +15,16 @@ namespace chronon3d::media::video {
 // ============================================================================
 //  validate_format() — check frame format against session contract
 //
-//  Per-instance method.  Moved out of ffmpeg_pipe_sink.cpp per P2 item #26
-//  (lives with the submit family in this TU for cohesion).
+//  Phase-2 migration: moved from FfmpegPipeSink::validate_format to
+//  FfmpegPipeSinkInternal::validate_format. Reads self.session_format_ +
+//  self.width_ + self.height_ via the friend-struct access.
 // ============================================================================
 
-bool FfmpegPipeSink::validate_format(const VideoFrameView& frame) const noexcept {
-    if (frame.pixel_format != session_format_) {
+bool FfmpegPipeSinkInternal::validate_format(const FfmpegPipeSink& self, const VideoFrameView& frame) noexcept {
+    if (frame.pixel_format != self.session_format_) {
         return false;
     }
-    if (frame.width != width_ || frame.height != height_) {
+    if (frame.width != self.width_ || frame.height != self.height_) {
         return false;
     }
     return true;
@@ -35,7 +39,7 @@ bool FfmpegPipeSink::submit(const VideoFrameView& frame) {
         return false;
     }
 
-    if (!frame.data || !validate_format(frame)) {
+    if (!frame.data || !FfmpegPipeSinkInternal::validate_format(*this, frame)) {
         last_error_ = VideoSinkError::InvalidFrame;
         last_error_msg_ = "frame format/dimensions don't match session contract";
         state_ = VideoSinkState::Failed;
@@ -62,12 +66,12 @@ bool FfmpegPipeSink::submit(const VideoFrameView& frame) {
     bool ok;
     if (actual_stride == tight_row_bytes) {
         // Tight packing.
-        ok = write_to_pipe(data, tight_frame_size_);
+        ok = FfmpegPipeSinkInternal::write_to_pipe(*this, data, tight_frame_size_);
     } else {
         // Row padding: strip stride row-by-row.
         const auto* row = data;
         for (int y = 0; y < frame.height; ++y) {
-            ok = write_to_pipe(row, tight_row_bytes);
+            ok = FfmpegPipeSinkInternal::write_to_pipe(*this, row, tight_row_bytes);
             if (!ok) break;
             row += actual_stride;
         }
@@ -170,7 +174,7 @@ bool FfmpegPipeSink::submit_planar(const PlanarVideoFrameView& frame) {
     }
 
     const auto t0 = std::chrono::steady_clock::now();
-    const bool ok = write_to_pipe(staging_.data(), total);
+    const bool ok = FfmpegPipeSinkInternal::write_to_pipe(*this, staging_.data(), total);
     if (!ok) {
         state_ = VideoSinkState::Failed;
         return false;
@@ -253,7 +257,7 @@ bool FfmpegPipeSink::submit_biplanar(const BiplanarVideoFrameView& frame) {
     }
 
     const auto t0 = std::chrono::steady_clock::now();
-    const bool ok = write_to_pipe(staging_.data(), total);
+    const bool ok = FfmpegPipeSinkInternal::write_to_pipe(*this, staging_.data(), total);
     if (!ok) {
         state_ = VideoSinkState::Failed;
         return false;
