@@ -307,9 +307,11 @@ private:
     // The friend declaration in cache_diagnostics.hpp gives RenderRuntime access to the
     // private default ctor.)
     chronon3d::cache::CacheDiagnostics                  m_diagnostics{};
-    // framebuffer_store accessor: per-runtime PersistentFramebufferStore (value member); note that
-    // the static config helpers set_store_config / enabled_for_current_run remain process-wide
-    // bootstrap state and continue to use the singleton via the now-deprecated instance().
+    // framebuffer_store accessor: per-runtime PersistentFramebufferStore (value member); the
+    // P1-13 closure migrated the class to pure instance ownership (no singleton, no
+    // process-wide static config).  All configuration is per-instance (`m_cache_dir` initialised
+    // JSON-default to `output/cache/framebuffers`, `m_disabled=false`) and routed through the
+    // `RenderServices::framebuffer_store` pointer field which is non-owning.
     chronon3d::cache::PersistentFramebufferStore                  m_framebuffer_store{};
 
     std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
