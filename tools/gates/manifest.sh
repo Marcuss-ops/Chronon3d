@@ -30,6 +30,7 @@ DEVELOPER_GATES=(
     check_commit_subject_length.sh
     check_push_divergence_window.sh
     check_architecture_boundaries.sh
+    check_post_push_consistency.sh
 )
 
 # CI-only phases (not executable gate scripts; handled by the CI driver).
