@@ -39,7 +39,7 @@ Then:
 - [ ] 0 new singleton/registry/resolver/cache (per AGENTS.md deny-everywhere)
 - [ ] 0 `#include <msdfgen>/<libtess2>/<unicode[/...]>` (Gate 5 Check 11 deny-everywhere preserved)
 - [ ] All 3 prior call sites migrated to the new helper
-- [ ] Test coverage: 1 TEST_CASE per accepted value + 1 for invalid input + 1 for case-insensitive variant (4 TEST_CASEs total, no round-trip — deferred to future forward-point if a concrete caller emerges)
+- [ ] Test coverage: 1 TEST_CASE with 5 SUBCASEs (3 accepted values + 1 invalid input + 1 case-insensitive variant) = 1 TEST_CASE total (matches the established SUBCASE pattern in `tests/cache/test_framebuffer_pool.cpp:540-594` for the trim_after_job policy tests; the case-insensitive SUBCASE iterates the 3 accepted values in PascalCase form; no round-trip — deferred to future forward-point if a concrete caller emerges)
 
 ## macchina-verifica
 
@@ -49,7 +49,7 @@ DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum
 
 - 1 NEW function in canonical header (`include/chronon3d/cache/framebuffer_pool.hpp` or new tools/ header)
 - 3 EDIT call sites: `src/core/config.cpp` + `apps/chronon3d_cli/utils/job/render_job.cpp` + `apps/chronon3d_cli/commands/render/register_render_commands.cpp`
-- 1 NEW test file: `tests/cache/test_parse_framebuffer_pool_clear_policy.cpp` (~4 TEST_CASEs)
+- 1 NEW test file: `tests/cache/test_parse_framebuffer_pool_clear_policy.cpp` (1 TEST_CASE with 5 SUBCASEs)
 
 NO new public SDK symbol beyond the 1 helper (a single `[[nodiscard]]` pure function over the existing enum). NO new singleton/registry/resolver/cache. NO deny-everywhere include.
 
