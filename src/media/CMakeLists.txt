@@ -37,6 +37,8 @@ if(CHRONON3D_ENABLE_VIDEO)
     add_library(chronon3d_media_video OBJECT
         video/raw_video_sink.cpp
         video/ffmpeg_pipe_sink.cpp
+        video/ffmpeg_pipe_args.cpp
+        video/ffmpeg_frame_submit.cpp
         video/process_runner.cpp
         video/process_runner_posix.cpp
         video/video_sink_factory.cpp
