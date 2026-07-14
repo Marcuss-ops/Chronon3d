@@ -99,10 +99,6 @@ struct RenderArgs {
     std::string command_line; // reconstructed from argv
     chronon3d::CpuBudget cpu_budget;
 
-    // Quick-preview batch count: when > 0, dev preview renders frames 0..count-1
-    // as sequential PNGs instead of a single frame.  This avoids the full render
-    // or video-encode path, giving a sub-second feedback loop for timing checks.
-    int quick_frames{0};
 };
 
 struct VideoArgs {
@@ -238,6 +234,23 @@ struct WatchArgs {
     std::string props_file;          // --props-file
 };
 
+
+// TICKET-V3-CLI-UNIFICATION-PREVIEW (Blocco 4.1, Commit 3a of 3)
+// `chronon preview <comp> --frames 0,30,60,90 -o preview/` args.
+// Per audit §18 verbatim "Deve usare lo stesso RenderJob e lo stesso
+// renderer, non una preview pipeline."  This struct reuses the canonical
+// RenderArgs path via plan_render_job/execute_render_job (no new pipeline).
+struct PreviewArgs {
+    std::string comp_id;                          // <comp_id> (positional, required)
+    std::string frames{"0,30,60,90"};            // --frames (comma-separated)
+    std::filesystem::path output_dir{"./preview"};  // -o / --output-dir
+    std::string contact_sheet;                    // --contact-sheet (Commit 3b forward-point)
+    int cell_width{640};                          // --cell-width (used by --contact-sheet)
+    int cell_padding{8};                          // --cell-padding (used by --contact-sheet)
+    RenderPipelineArgs pipeline{};                // reuse canonical pipeline args
+    std::string log_level{"info"};
+};
+
 struct BakeLayerArgs {
     std::string comp_id;
     std::string layer_id;
@@ -298,6 +311,8 @@ int command_telemetry(const TelemetryArgs& args);
 int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args, AssetRegistry& assets);
 int command_still(const CompositionRegistry& registry, const StillArgs& args);
 int command_watch(const CompositionRegistry& registry, const WatchArgs& args);
+int command_preview(const CompositionRegistry& registry, const PreviewArgs& args);
+
 
 int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args);
 int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);
