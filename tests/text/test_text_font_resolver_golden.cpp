@@ -20,6 +20,7 @@
 // the test will fail loudly — that's the regression-gate we want.
 // ═══════════════════════════════════════════════════════════════════════════
 
+#include <optional>
 #include <chronon3d/text/text_resolver.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
@@ -71,8 +72,9 @@ TextDocument make_golden_doc() {
 /// Build a FontEngine bound to a RenderRuntime.
 FontEngine make_golden_engine() {
     static const Config cfg;
-    static const runtime::RenderRuntime runtime(cfg);
-    return FontEngine{runtime.resolver()};
+    static const auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    return FontEngine{runtime->resolver()};
 }
 
 /// FNV-1a 64-bit hash over the textual content of a ResolvedTextTree.
