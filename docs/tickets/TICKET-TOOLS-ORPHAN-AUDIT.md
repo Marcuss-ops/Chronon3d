@@ -1,6 +1,6 @@
 # TICKET-TOOLS-ORPHAN-AUDIT — Orphan-Script Removal Audit (95 scripts classified)
 
-## Stato: AUDITED (2026-07-14, commit <pending-push>)
+## Stato: AUDITED (2026-07-14, commit assigned at push-time)
 
 ## Problema
 
@@ -82,6 +82,18 @@ This audit-only chore is Cat-3 minimal-surface: ZERO source modifications.
 - NEW: `docs/tickets/TICKET-TOOLS-ORPHAN-AUDIT.md` (this file, cronaca home)
 - EDIT: `docs/FOLLOWUP_TICKETS.md` (1 NEW §Open Blockers row prepended)
 - EDIT: `docs/CHANGELOG.md` (cite-only entry prepended at TOP of ## 2026-07-14 per Cat-5 newer-at-top)
+
+## Criterio di landing stabile
+
+Uno script `tools/` può essere rimosso solo quando **tutte** le condizioni seguenti sono soddisfatte in modo stabile (non dipendente dallo stato temporaneo di una singola sessione):
+
+1. **Non è cat-4 PERMANENT**: non compare in `AGENTS.md §Install Pipeline Plumbing` né nella lineage FU4 dei `recover_*.sh` (§GATE-MNT-01 / §Post-push SHA-selfcheck).
+2. **Owning ticket chiuso**: la riga in `docs/FOLLOWUP_TICKETS.md` è in §Recently Closed (o il ticket-home riporta `Stato: DONE`).
+3. **Nessun trasferino a domain-keeper**: nessuno script permanente dello stesso dominio (`verify_<feature>_functional_linux.sh`, `check_clean_rebuild.sh`, `run_developer_gates.sh`, ecc.) ha già assorbito la funzionalità.
+4. **Nessun wiring attivo**: `rg -l <script-name> tools/` restituisce insieme vuoto (nessun orchestrator lo invoca).
+5. **Apertura di ticket per-script**: esiste `docs/tickets/TICKET-TOOLS-<NOME>-ORPHAN-V1.md` con il protocolto di verifica sopra e la rimozione viene committata come Cat-5 3-doc atomic chore (NEW ticket-home + EDIT `FOLLOWUP_TICKETS.md` + EDIT `CHANGELOG.md`).
+
+**Anti-pattern**: rimuovere uno script solo perché "sembra orfano" senza ticket per-specifico e senza verifica del trasferimento — questo è lo stato temporale che diventa obsoleto al primo riallineamento upstream.
 
 ## Forward-Points
 
