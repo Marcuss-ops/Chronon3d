@@ -26,6 +26,17 @@ chronon3d_add_test_suite(
             # contract from compile_sequence().  No new SDK symbols — pure
             # public-API routing test (Cat-3 minimal-surface).
             authoring/test_scene_sequence.cpp
+            # B2.3 — Scene::camera(), Scene::background(), Scene::image(),
+            # Scene::screen_layer(), Scene::precomp() thin forwarders.
+            # Verifies Scene::camera() returns a value-typed CameraApi
+            # sub-builder (terminal verb), the 4 Scene&-returning verbs
+            # chain fluently on top of B2.2 verbs, screen_layer & precomp
+            # preserve dual-surface SFINAE (Layer& ↔ LayerBuilder&) for
+            # authoring DSL closures + engine passthroughs, and the B2.3
+            # forwarders compose with B2.2's sequence in single chained
+            # expressions.  No new SDK symbols — pure public-API routing
+            # test (Cat-3 minimal-surface).
+            authoring/test_scene_forwarders.cpp
 )
 # Same guard as core_tests.cmake: authoring tests share test_main.cpp
 # which conditionally links against content/extension/text symbols.
