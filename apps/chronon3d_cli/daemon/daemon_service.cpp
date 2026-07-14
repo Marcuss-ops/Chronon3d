@@ -209,7 +209,9 @@ void DaemonService::cmd_reload() {
         return;
     }
 
-    spdlog::info("✅ Build OK ({:.1f}s).  Restart daemon to pick up new binary.",
+    spdlog::info("✅ Build OK ({:.1f}s).  New binary built.  Use "
+                 "`chronon watch <comp>` for hot-reload, or restart this "
+                 "daemon to pick up the new binary.",
                  profiling::duration_ms(t0, t1) / 1000.0);
 }
 
