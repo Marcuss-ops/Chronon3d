@@ -15,14 +15,10 @@ namespace chronon3d {
 namespace cli {
 
 int command_still(const CompositionRegistry& registry, const StillArgs& args) {
-    // Audit §13 Phase 3: alias-TTL deprecation warning.
+    // Audit §13 Phase 3 verbatim alias-TTL deprecation warning.
+    // Single-line form per audit spec example `Deprecated: use chronon render Hero -o Hero.mp4`.
     // Will be REMOVED in V0.2 (TICKET-V3-CLI-UNIFICATION-REMOVE-STILL).
-    // Canonical equivalent: `chronon render <id> --frame=<N> -o <output>`
-    fmt::print(stderr,
-        "WARNING: 'chronon still' is DEPRECATED and will be removed in the next release.\n"
-        "         Use 'chronon render {} --frame {}' instead.\n"
-        "         See TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3.\n\n",
-        args.comp_id, args.frame.integral());
+    fmt::print(stderr, "Deprecated: use chronon render {} --frame {}\n", args.comp_id, args.frame.integral());
 
     if (!registry.contains(args.comp_id)) {
         spdlog::error("Unknown composition: {}", args.comp_id);
