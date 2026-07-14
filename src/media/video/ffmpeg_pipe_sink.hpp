@@ -12,6 +12,15 @@
 // subprocess execution with real PID tracking and exit code collection.
 //
 // Thread-safety: NOT thread-safe.  The caller must serialise access.
+//
+// Phase-2 (TICKET-FFMPEG-PIPE-SINK-SPLIT): the 4 private member methods
+// (build_argv/launch_ffmpeg/write_to_pipe/validate_format) are extracted
+// to the friend struct FfmpegPipeSinkInternal declared below.  External
+// callers continue to use ONLY the public VideoSink interface (open/
+// submit/submit_planar/submit_biplanar/flush/close + diagnostics +
+// structured error reporting); the internal helper functions are
+// accessible only via -internal.hpp opt-in from within the sibling
+// implementation cpps.
 // ---------------------------------------------------------------------------
 
 #include <chronon3d/media/video/video_sink.hpp>
@@ -25,6 +34,14 @@
 #include <vector>
 
 namespace chronon3d::media::video {
+
+// Forward declaration of the friend-struct access shim.  Defined in
+// `ffmpeg_pipe_sink_internal.hpp`.  This PUBLIC header does NOT include
+// -internal.hpp (preserves the SDK PUBLIC surface from leaking internal
+// implementation signatures to external consumers); instead the friend
+// declaration below grants the 4 private-member methods access to
+// FfmpegPipeSink as friend access.
+struct FfmpegPipeSinkInternal;
 
 /// Pipes raw video frames to an external FFmpeg subprocess for encoding.
 ///
@@ -76,27 +93,23 @@ public:
         };
     }
 
-    // ── Structured error reporting (P1-C) ──────────────────────────
+    // ── Structured error reporting (P1-C) ──────────────────────────────
     [[nodiscard]] VideoSinkError last_error() const noexcept override { return last_error_; }
     [[nodiscard]] std::string last_error_message() const noexcept override { return last_error_msg_; }
 
 private:
-    // ── Subprocess management ──────────────────────────────────────────
-
-    /// Build the ffmpeg argument vector from config.
-    /// Returns {executable, arg0, arg1, ...}.
-    static std::vector<std::string> build_argv(const VideoSinkConfig& config);
-
-    /// Launch the ffmpeg subprocess via ProcessRunner.
-    bool launch_ffmpeg(const std::vector<std::string>& argv);
-
-    /// Write raw bytes to the child's stdin, blocking until complete.
-    bool write_to_pipe(const uint8_t* data, size_t size);
-
-    // ── Conversion ──────────────────────────────────────────────────────
-
-    /// Validate that the frame format matches the session contract.
-    bool validate_format(const VideoFrameView& frame) const noexcept;
+    // ── Friend-struct access shim (Phase-2) ──────────────────────────────
+    //
+    // Per Phase-2 of TICKET-FFMPEG-PIPE-SINK-SPLIT: the 4 formerly-private
+    // member methods (build_argv/launch_ffmpeg/write_to_pipe/validate_format)
+    // are extracted to FfmpegPipeSinkInternal in `ffmpeg_pipe_sink_internal.hpp`.
+    // The friend struct has access to FfmpegPipeSink's private members, so
+    // the 4 methods can operate on `self.process_`/`self.state_`/etc. via the
+    // friend decl below.
+    //
+    // ABI preserved: no public method removed, no signature changed, class
+    // data layout IDENTICAL.  Per AGENTS.md §Cat-2 freeze: NO ADR required.
+    friend struct FfmpegPipeSinkInternal;
 
     // ── State ───────────────────────────────────────────────────────────
 
