@@ -85,6 +85,8 @@ Il `friend const std::optional<GlyphRun>& test_support::get_raw_run(...)` è gi�
   - P1-10 / `TICKET-LOG-REDUCE-GLOBAL-STATE-01` (DI singleton removal) — riferimento icona per Cat-3 minimal-surface
   - P1-8 / `TICKET-TEXT-RASTER-CACHE-PIMPL` — predecessore per il pattern PIMPL adottato nel `TextRenderResources` out-of-line ctor/dtor fixup
   - P1-9 / `TICKET-GLYPH-ATLAS-OWNER` — gemello per `GlyphAtlasCache` PIMPL (vedi `docs/FOLLOWUP_TICKETS.md` rot-pattern)
+- **[CLOSE 2026-07-14]** `TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL-PHASE-2-CINEMATIC-INDIRECT` — implicit Phase-2 forward-point per user-directive verbatim 'migra i 4 indirect-callers `shape_glyph_line()`/`layout_glyphs()`/`measure_text_width()` free-functions in cinematic showcases a try_shape factory o equivalente API no-{{deprecated}}'. Inventory 2026-07-14 (questa sessione) ha confermato **ZERO residual migration targets** in `content/showcases/cinematic/{deep_parallax_cascade,orbit_handheld_glow,rack_focus_title_swap,tilt_sweep_title_v2,whip_pan_hero_reveal}.{cpp,hpp}` per `rg -nE 'ShapedGlyphLine|shape_glyph_line|layout_glyphs|measure_text_width|try_shape'` returning 0 hits. `abyss_freefall_stagger.cpp` è già migrato a `try_shape` line 104 per prior chore `4f7ff2bead56d5d1219997222a578001884e3603`. Cronaca completa in §Fase 2 — Inventory sopra. Forward-point obsoletizzato per ZERO outcome; **§HONEST-discipline-bound** (no fabrication of work per AGENTS.md §regole di lavoro).
+- **[OPEN 2026-07-14]** `TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL-PHASE-3-NON-CINEMATIC` — explicit Phase-3 forward-point per residual callers FUORI da `content/showcases/cinematic/`. Survey parziale (questa sessione, OUT OF SCOPE per questo chore) ha identificato: (a) `content/examples/text/typewriter_animations.cpp:218` chiama `chronon3d::content::text_reveal::measure_text_width` (legacy Point 8 fall-through); (b) `content/common/text/typewriter_block.cpp:37,39` chiama `shape_glyph_line` (canonical Point 8 NON `[[deprecated]]`, reference per future-consolidation). Decision: out of scope per user-directive literal scope ('cinematic showcases' singular scope, NON 'all callers in content/'); forward-point registra il residual scope per future migration cycle fuori da questo chore (NON touching source in this commit).
 
 ## Note
 
@@ -99,3 +101,52 @@ Durante l'attuazione della strategia A (deprecate + canonical 4-arg bridge) è s
 - **Decisione**: il 4-arg canonical ctor è stato **RIMOSSO** dal codepath di hpp/cpp invece di essere marcato `[[deprecated]]`. Motivo: aggiungere un public ABI symbol che lifetimes 1 release cycle e che ha body fail-loud su ogni chiamata (placeholder `FontSpec{}` non può caricare un font) costituirebbe dead-code debt in violazione di Cat-3 minimal-surface discipline, anche se marcato `[[deprecated]]`. Code-reviewer feedback (su questo commit) ha confermato la rimozione come Cat-3 pure trade-off.
 - **Recovery commit SHAs**: il refactor surface-removed è su `origin/main` come `4f7cfb91 refactor(text): remove test-only production surface from ShapedGlyphLine` (canonical recovery upstream SHA). Il commit locale storico `036d7344` semanticamente identico è confluito in `4f7cfb91` via il `git reset --hard origin/main` recovery flow documentato in §Recovery lineage sopra.
 - **Forward-points (unchanged)**: TICKET-PUB-DEPRECATE-REMOVAL (per V0.2 cleanup) è ora di scope minimale — solo rimozione del ctor 6-arg `[[deprecated]]` dopo 1 release cycle. La rimozione del 4-arg bridge non è più necessaria perché il bridge non è mai stato mergiato.
+
+## Fase 2 — Inventory 2026-07-14 (cinematic-showcase indirect-callers)
+
+Per user-directive verbatim 2026-07-14: 'migra i 4 indirect-callers `shape_glyph_line()`/`layout_glyphs()`/`measure_text_width()` free-functions in cinematic showcases a try_shape factory o equivalente API no-{{deprecated}}'.
+
+### Metodologia (VPS-only inventory)
+
+Diretta `awk`/`sed`/ripgrep audit su `content/showcases/cinematic/*.cpp|.hpp` (5 file attesi: `abyss_freefall_stagger` + `deep_parallax_cascade` + `orbit_handheld_glow` + `rack_focus_title_swap` + `tilt_sweep_title_v2` + `whip_pan_hero_reveal`):
+
+```bash
+for f in abyss_freefall_stagger deep_parallax_cascade orbit_handheld_glow rack_focus_title_swap tilt_sweep_title_v2 whip_pan_hero_reveal; do
+  rg -nE 'ShapedGlyphLine|shape_glyph_line|layout_glyphs|measure_text_width|try_shape' \
+     "content/showcases/cinematic/${f}.{cpp,hpp}"
+done
+```
+
+### Risultato inventory
+
+| Showcase file | ShapedGlyphLine-family hits | Status |
+|---|---|---|
+| `abyss_freefall_stagger.cpp` | 4 (1× `try_shape` line 104 migrated in prior chore `4f7ff2bead56d5d1219997222a578001884e3603`; 1× `#include` line 37; 2× comment refs) | **ALREADY MIGRATED** (TRACKED → on-try_shape via strategy A Phase-1) |
+| `deep_parallax_cascade.cpp/.hpp` | **0** | NO ACTION (no ShapedGlyphLine-family usage) |
+| `orbit_handheld_glow.cpp/.hpp` | **0** | NO ACTION |
+| `rack_focus_title_swap.cpp/.hpp` | **0** | NO ACTION |
+| `tilt_sweep_title_v2.cpp` | **0** | NO ACTION |
+| `whip_pan_hero_reveal.cpp/.hpp` | **0** | NO ACTION |
+
+### Header inspection corroboration
+
+Cross-check via direct file read su `content/common/text/glyph_layout.hpp`:
+
+- `shape_glyph_line(...)` dichiarato a linea 204 — **NON** marcato `[[deprecated]]` (canonical Point 8 single-shape entry).
+- `measure_text_width(...)` dichiarato a linea 215 — **NON** marcato `[[deprecated]]` (Point 8 fail-soft thin-wrapper).
+- `layout_glyphs(...)` dichiarato a linea 231 — **NON** marcato `[[deprecated]]` (Point 8 fail-loud thin-wrapper).
+
+Questi 3 free-functions sono **canonical Point 8 entry points**, **non** rot-classic al surface-removal target. Migrare a `try_shape` sarebbe Cat-3 anti-dup violation + ABI break (le 3 free-functions sono SDK-public).
+
+### Conclusione Fase 2
+
+**ZERO migration targets** in `cinematic/` fuori da `abyss_freefall_stagger.cpp` (già migrato in prior chore). Inventario chiuso. Subsequent `try_shape` consolidation sui 3 free-functions è **fuori scope Cat-3** (implica rimozione di 3 entry points — ABI break).
+
+### macchina-verifica chain documentation
+
+- **VPS-only inventory** (questa sessione): ripgrep has 0 hits per `shape_glyph_line|layout_glyphs|measure_text_width|ShapedGlyphLine|try_shape` nei 4 file non-abyss. ✓
+- **WBH macchina-verifica**: `cmake --build $BUILD_DIR/chronon/linux-content-dev --target chronon3d_content_tests` + `ctest --test-dir $BUILD_DIR --test-case "ShapedGlyphLine*"` DEFERRED per AGENTS.md §honest-limitation + `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` precedent (no vcpkg glm/magic_enum su VPS). Forward-point: WBH macchina-verifica chiusura del ciclo Phase 1 + 2.
+
+### Cat-3 anti-dup cronaca-discipline
+
+Cronaca estesa lives qui (canonical-ticket) per AGENTS.md `### Docs canonical update discipline rule`. **NO** narrative duplication in `docs/CURRENT_STATUS.md` / `docs/FOLLOWUP_TICKETS.md` / `docs/CHANGELOG.md` (canonical docs cronaca-free). `docs/CHANGELOG.md` Cat-5 cite-only entry prepended at TOP di `## 2026-07-14` per Cat-5 newer-at-top convention.
