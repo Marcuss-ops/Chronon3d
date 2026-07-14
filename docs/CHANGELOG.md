@@ -1,5 +1,13 @@
 ## 2026-07-14
 
+### `docs(ticket): TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS chaser-chore`
+  ([TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS](docs/tickets/TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS.md))
+
+- **Cat-5 3-doc chaser-chore** opening a NEW forward-point from [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (3rd item). Migrate the ~12 test sites that still call `RenderRuntime(Config)` directly (or `make_unique<RenderRuntime>(...)` / `new RenderRuntime{...}`) to the canonical `RenderRuntime::create(RuntimeConfig)` factory. P1-14 collapsed the public surface to a single entry — this ticket completes the consumer-side cleanup so the now-private ctors are no longer reachable from test code.
+- **Cat-3 minimal-surface**: 12+ EDIT test files (per-site migration from ctor-arg-list / `RenderRuntime::Config{}` → `RuntimeConfig` + `RenderRuntime::create(...)`) + 1 NEW test helper if a parametrized factory proves necessary (Cat-3 deferred; default = direct site-by-site). 0 new public SDK symbol + 0 new singleton/registry/resolver/cache + 0 `#include <msdfgen>/<libtess2>/<unicode[/...]>` (Gate 5 Check 11 deny-everywhere preserved).
+- **CURRENT_STATUS.md UNTOUCHED** (no area state transition per AGENTS.md "Disciplina di aggiornamento dei canonici"). ROADMAP.md UNTOUCHED (P3 cosmetic forward-point, not milestone shift). Sibling Cat-5 chaser-chore pattern: `TICKET-PRE-PUSH-IO-EXCLUSIONS` + `TICKET-ARCH-CLEANUP-V0` + `TICKET-CAMERA-OVERLAY-PANEL-CONSTRAINTS` + TILE-PRUNE-SKIP-UNIFICATION lineage.
+- macchina-verifica DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum env-block pattern. VPS-only verification: `rg -nE 'RenderRuntime\s*\(\s*Config|new RenderRuntime|make_unique<RenderRuntime>' tests/` enumerates the 12 candidate call sites pre-migration + confirms 0 matches post-migration. Subject envelope 64 chars ≤ 72 per `tools/check_commit_subject_length.sh` push-range audit. Cross-link: parent [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points + prior P1-14 chore `refactor(runtime): collapse RenderRuntime public surface to create(RuntimeConfig)`.
+
 ### `docs(ticket): TICKET-RENDER-SERVICES-FULL-ELIMINATION chaser-chore`
   ([TICKET-RENDER-SERVICES-FULL-ELIMINATION](docs/tickets/TICKET-RENDER-SERVICES-FULL-ELIMINATION.md))
 

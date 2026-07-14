@@ -9,6 +9,7 @@
 
 | Ticket | Pri | Status | Description |
 |---|---|---|---|
+| TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS | P3 | OPEN | Migrate the ~12 test sites still calling `RenderRuntime(Config)` / `make_unique<RenderRuntime>(...)` to canonical `RenderRuntime::create(RuntimeConfig)`. P1-14 collapsed the public surface; this ticket completes the consumer-side cleanup. [ticket](docs/tickets/TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS.md) |
 | TICKET-RENDER-SERVICES-FULL-ELIMINATION | P3 | OPEN | Fully remove `RenderServices` from runtime header surface: delete `[[deprecated]] services()` accessor + the `RenderServices` struct + `m_services` field. Per the P1-15 partial fix (currently internal struct with `[[deprecated]]` backward-compat). [ticket](docs/tickets/TICKET-RENDER-SERVICES-FULL-ELIMINATION.md) |
 | TICKET-PARSE-POLICY-HELPER-DEDUP | P3 | OPEN | Extract `parse_framebuffer_pool_clear_policy(std::string_view) -> std::optional<...>` helper to dedup the 3-place string parsing (config.cpp + render_job.cpp + register_render_commands.cpp). [ticket](docs/tickets/TICKET-PARSE-POLICY-HELPER-DEDUP.md) |
 | TICKET-PREMULT-TEST-SWEEP | P2 | OPEN | Uniform Premult-invariant canonicalization across the 4 other currently-passing TEST_CASEs (`alpha=1` + `midpoint` + `pixel counts {0..1024}` + AVX2 parity) in `tests/simd/test_simd_parity_blend.cpp`. [ticket](docs/tickets/TICKET-PREMULT-TEST-SWEEP.md) |
