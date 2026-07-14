@@ -41,13 +41,8 @@
 //                                                    SoftwareRenderer)
 //
 // WP-3 PR 3.1 — `SceneHasher` and `SceneProgramStore` are no longer
-// runtime-owned.  They were relocated from RenderSession to RenderRuntime
-// in WP-8 (see prior revisions of this header) and are now BACK per-
-// session-owned.  Each `RenderSession` carries its own `scene_hasher`
-// (by-value) and `program_store` (unique_ptr).  The runtime therefore
-// no longer populates them in `populate()`, no longer assigns them into
-// the `RenderServices` bundle, and no longer wires them into the
-// `SessionServices` table via `make_session()`.  See
+// runtime-owned.  Each `RenderSession` carries its own `scene_hasher`
+// (by-value) and `program_store` (unique_ptr).  See
 // `docs/refactor-roadmap/03-render-session-boundary.md` PR 3.1 + the  // drift-allow: stale-ref
 // PR 3.0 doc-comment in `<chronon3d/internal/runtime/render_session.hpp>` for
 // the migration rationale and the per-session ownership spec.
@@ -124,38 +119,11 @@ struct RuntimeConfig {
     std::optional<std::filesystem::path>        assets_root;
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-/// Engine-generic service-locator bundle owned by RenderRuntime.
-///
-/// HUD: flat pointer bundle so that sessions / per-call contexts
-/// can read registries and caches via `runtime.services()` rather than
-/// reaching into SoftwareRenderer's private members.  Pointers are
-/// non-owning; lifetime is the runtime's responsibility.
-///
-/// NOTE: distinct from `chronon3d::graph::RenderServices` (per-
-/// `RenderGraphContext` service locator; per-frame rather than per-
-/// engine).
-struct RenderServices {
-    chronon3d::AssetRegistry*                asset_registry{nullptr};
-    /// WP-8 PR 8.0 — typed engine-local asset path resolver.  Sibling
-    /// of asset_registry; PR 8.1 routes deep asset consumers here.
-    chronon3d::assets::AssetResolver*        asset_resolver{nullptr};
-    chronon3d::cache::NodeCache*              node_cache{nullptr};
-    chronon3d::cache::FramebufferPool*        framebuffer_pool{nullptr};
-    chronon3d::graph::CompiledGraphCache*     graph_cache{nullptr};
-    chronon3d::ExecutionScheduler*            scheduler{nullptr};
-    chronon3d::graph::GraphExecutor*          executor{nullptr};
-    chronon3d::graph::GraphNodeCatalog*       graph_node_registry{nullptr};
-    chronon3d::effects::EffectCatalog*        effect_catalog{nullptr};
-    chronon3d::cache::CacheDiagnostics*          diagnostics{nullptr};
-    chronon3d::cache::PersistentFramebufferStore* framebuffer_store{nullptr};
-    // WP-3 PR 3.1 — `scene_hasher` and `program_store` pointer fields
-    // were REMOVED here.  Both state engines are now per-session owned
-    // (see `RenderSession::scene_hasher` / `RenderSession::program_store`).
-    // Callers that previously read `runtime.services().scene_hasher` /
-    // `runtime.services().program_store` must now read the session
-    // directly: `session.scene_hasher()` / `session.program_store()`.
-};
+// P1-15 (DONE) — the `RenderServices` pointer bundle (struct +
+// `services()` accessor + `m_services` member) has been REMOVED
+// wholesale.  The typed direct accessors below are the canonical
+// surface.  (graph::RenderServices in render_graph_context.hpp is
+// a distinct per-frame bundle — unaffected.)
 
 /// RenderRuntime — engine-lifetime container.
 class RenderRuntime {
@@ -219,18 +187,13 @@ public:
     [[nodiscard]] chronon3d::graph::PipelineCatalogs& catalogs() noexcept { return m_catalogs; }
     [[nodiscard]] const chronon3d::graph::PipelineCatalogs& catalogs() const noexcept { return m_catalogs; }
 
-    // ── Service-locator bundle (Fase 5 — const-only read access) ──────
-    // The RenderServices bundle is the canonical wiring point for
-    // internal bridges (runtime_adapter, test_utils).  External
-    // consumers should use the typed direct accessors below
-    // (node_cache(), executor(), framebuffer_pool(), etc.).
-    // The mutable overload was REMOVED in Fase 5 (TICKET-P1-09)
-    // — services are configured once in populate() and must not
-    // be mutated externally.
-    [[nodiscard]] const RenderServices& services() const noexcept { return m_services; }
-
-    // ── Direct accessors used by SoftwareRenderer (forwarders for
-    //    caller convenience; primary access is via services()) ───────
+    // ── Typed direct accessors (P1-15 canonical surface) ───────────
+    // The legacy `Runtime::services()` accessor + `RenderServices`
+    // service-locator bundle was REMOVED in P1-15.  External
+    // consumers use these typed accessors (each returns the canonical
+    // reference / pointer / shared_ptr for that subsystem).  Internal
+    // bridges (runtime_adapter, test_utils) do the same — there is no
+    // longer a service-locator alternative.
     [[nodiscard]] chronon3d::AssetRegistry&               assets()         noexcept { return m_assets; }
     // ── WP-8 PR 8.0 typed asset resolver (sibling of m_assets) ───────
     [[nodiscard]] chronon3d::assets::AssetResolver&       resolver()       noexcept { return m_resolver; }
@@ -283,7 +246,6 @@ private:
     /// WP-8 PR 8.0 — typed asset resolver, sibling of m_assets; value
     /// member so lifetime is the runtime's, deterministic per engine.
     chronon3d::assets::AssetResolver                    m_resolver;
-    RenderServices                                      m_services{{}};
 
     chronon3d::cache::NodeCache                         m_owned_node_cache{};
     std::shared_ptr<chronon3d::cache::FramebufferPool> m_owned_framebuffer_pool;
@@ -311,7 +273,8 @@ private:
     // P1-13 closure migrated the class to pure instance ownership (no singleton, no
     // process-wide static config).  All configuration is per-instance (`m_cache_dir` initialised
     // JSON-default to `output/cache/framebuffers`, `m_disabled=false`) and routed through the
-    // `RenderServices::framebuffer_store` pointer field which is non-owning.
+    // `runtime.framebuffer_store()` typed accessor (P1-15: was the non-owning
+    // `RenderServices::framebuffer_store` pointer field; the pointer-bundle was deleted).
     chronon3d::cache::PersistentFramebufferStore                  m_framebuffer_store{};
 
     std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;

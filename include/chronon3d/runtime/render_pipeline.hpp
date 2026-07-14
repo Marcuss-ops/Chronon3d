@@ -12,9 +12,12 @@
 // existing free functions in `<chronon3d/render_graph/pipeline/
 // render_pipeline.hpp>` (`graph::render_scene_via_graph`,
 // `graph::render_composition_frame`, `graph::debug_scene_graph`),
-// but read node cache / framebuffer pool / plan cache / scheduler
-// from the runtime via `m_runtime->services()` so callers do not
-// have to thread all four pointers on every call.
+// but read node cache / framebuffer pool / graph cache from the
+// runtime via its typed direct accessors (`runtime.node_cache()`,
+// `runtime.framebuffer_pool()`, `runtime.graph_cache()` — canonical
+// P1-15 surface; the legacy `runtime.services()` pointer bundle
+// has been REMOVED wholesale) so callers do not have to thread
+// all those pointers on every call.
 //
 // Why a class and not a free function:
 //   - Encapsulates the (renderer, runtime) pair wiring so callers

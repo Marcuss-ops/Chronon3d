@@ -124,24 +124,6 @@ void RenderRuntime::populate() {
     // m_owned_program_store here: both are per-session owned in the
     // WP-3 PR 3.1 architecture.
 
-    // ── Service bundle: typed pointer view of long-lived state ───────
-    m_services = RenderServices{
-        .asset_registry      = &m_assets,
-        .asset_resolver      = &m_resolver,
-        .node_cache          = &m_owned_node_cache,
-        .framebuffer_pool    = m_owned_framebuffer_pool.get(),
-        .graph_cache         = &m_owned_graph_cache,
-        .scheduler           = m_scheduler.get(),
-        .executor            = m_owned_executor.get(),
-        .graph_node_registry = m_owned_graph_node_registry.get(),
-        .effect_catalog      = m_owned_effect_catalog.get(),
-        .diagnostics         = &m_diagnostics,
-        .framebuffer_store       = &m_framebuffer_store,
-        // WP-3 PR 3.1 — .scene_hasher and .program_store fields are
-        // gone from RenderServices (per-session ownership).  This is
-        // the canonical PR 3.1 service-bundle table.
-    };
-
     // ── Populate builtin processors/effects + freeze the catalogs ───
     // TICKET-011 — these registrations previously lived in
     // SoftwareRenderer's ctor body.  They are engine-lifetime state so
