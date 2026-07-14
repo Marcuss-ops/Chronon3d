@@ -60,10 +60,14 @@ struct ConversionOptions {
 
 /// Result of a single conversion — non-owning view + metadata.
 ///
-/// On a cache hit `cache_entry` holds the cached entry and `data` spans
-/// its bytes.  On a cache miss `cache_entry` is null and `data` spans
-/// the caller-provided destination buffer that was passed to
-/// FrameConversionService::convert_into().
+/// On a cache hit `cache_entry` holds the cached entry and `data` spans its
+/// bytes (no copy was performed).  On a cache miss with `use_cache = true`,
+/// the conversion wrote directly into cache-owned bytes and `cache_entry`
+/// holds a shared_ptr to the just-inserted entry — `data` spans those same
+/// bytes (zero extra full-frame copy).  On a cache miss with caching
+/// disabled (`use_cache = false` or zero cache capacity), `cache_entry` is
+/// null and `data` spans the caller-provided destination buffer that was
+/// passed to FrameConversionService::convert_into().
 
 /// Centralised frame conversion service.
 ///
@@ -80,15 +84,24 @@ public:
 
     // ── Conversion API ────────────────────────────────────────────────
 
-    /// Convert a Framebuffer into a caller-provided buffer.
+    /// Convert a Framebuffer into a destination buffer.
     ///
-    /// On cache hit the returned ConvertedFrame spans the cached bytes
-    /// (no copy into `dst`).  On cache miss the conversion writes directly
-    /// into `dst` and the returned view spans `dst`.
+    /// Three ownership paths:
+    ///   • Cache hit → returned ConvertedFrame spans the cached bytes
+    ///     (`cache_entry` non-null, no allocation, no copy).
+    ///   • Cache miss + `use_cache=true` → a cache-owned buffer is
+    ///     allocated, the conversion writes directly into it, the
+    ///     bytes are moved into a freshly inserted cache entry, and
+    ///     the returned ConvertedFrame spans those same bytes via
+    ///     `cache_entry` (zero extra full-frame copy on miss — the
+    ///     encoder reads the very buffer the cache now owns).
+    ///   • Cache miss + caching disabled → conversion writes into
+    ///     `dst`; the returned view spans `dst` (`cache_entry` null).
     ///
-    /// `dst` must point to at least `dst_size` bytes.  The required size
-    /// can be computed with FrameConversionService::encoded_size().
-    /// Returns an non-empty ConvertedFrame on success.
+    /// `dst` must point to at least `dst_size` bytes (required by the
+    /// no-cache path; unused on the cache-enabled path).  The required
+    /// size can be computed with FrameConversionService::encoded_size().
+    /// Returns a non-empty ConvertedFrame on success.
     ConvertedFrame convert_into(const Framebuffer& fb, const ConversionOptions& opts,
                                 uint8_t* dst, size_t dst_size);
 
