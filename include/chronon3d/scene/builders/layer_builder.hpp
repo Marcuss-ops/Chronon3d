@@ -400,10 +400,10 @@ public:
 /// For SIMPLE text (no TextAnimator/GlyphSelector/script/language), prefer this over `animated_text(name, TextRunSpec)`. See ADR-019 §A.2.
     LayerBuilder& text(std::string name, const TextDefinition& def);
 
-    /// Legacy TextSpec forwarder. Maps the legacy substructs into a
-    /// TextDefinition and routes through the canonical animated_text
-    /// pipeline. Kept for existing hero-overlay / debug-overlay call
-    /// sites until they migrate to TextDefinition.
+    /// Backward-compatible overload accepting the legacy TextSpec.
+    /// Converts to TextDefinition via from_text_spec() and forwards to
+    /// the canonical TextDefinition overload.  Preserved per Phase A.5
+    /// "old API is NOT removed yet".
     LayerBuilder& text(std::string name, const TextSpec& spec);
 
     // ── TextRunBuilder (PR 4 — TextAnimator V2) ──────────────────────────

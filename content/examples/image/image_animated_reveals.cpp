@@ -123,26 +123,26 @@ Composition img_corner_smoothing() {
         s.layer("text_layer", [radius](auto& l) {
             l.position({450, 0, 0});
             l.text("txt", TextDefinition{
-    .content = {.value = "SMOOTH\nCORNERS"},
-    .style = {
-        .font = {.font_family = "Inter", .font_weight = 800, .font_size = 32.0f},
-        .color = Color{1, 1, 1, 1},
-        .box_style = {
-                    .enabled = true,
-                    .padding = {20, 110},
-                    .radius = radius,
-                    .background = Color{0.08f, 0.08f, 0.1f, 0.9f},
-                    .border_enabled = true,
-                    .border_color = Color{0.3f, 0.6f, 1.0f, 0.4f},
-                    .border_width = 2.0f
+                .content = {.value = "SMOOTH\nCORNERS"},
+                .style = {
+                    .font = {.font_family = "Inter", .font_weight = 800, .font_size = 32.0f},
+                    .color = Color{1, 1, 1, 1},
+                    .box_style = {
+                        .enabled = true,
+                        .padding = {20, 110},
+                        .radius = radius,
+                        .background = Color{0.08f, 0.08f, 0.1f, 0.9f},
+                        .border_enabled = true,
+                        .border_color = Color{0.3f, 0.6f, 1.0f, 0.4f},
+                        .border_width = 2.0f
+                    }
+                },
+                .frame = {
+                    .size = {320, 320},
+                    .align = TextAlign::Center,
+                    .line_height = 1.3f
                 }
-    },
-    .frame = {
-        .size = {320, 320},
-        .align = TextAlign::Center,
-        .line_height = 1.3f
-    }
-});
+            });
         });
 
         return s.build();
