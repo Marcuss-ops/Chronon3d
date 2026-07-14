@@ -1,5 +1,13 @@
 ## 2026-07-14
 
+### `docs(ticket): TICKET-RENDER-SERVICES-FULL-ELIMINATION chaser-chore`
+  ([TICKET-RENDER-SERVICES-FULL-ELIMINATION](docs/tickets/TICKET-RENDER-SERVICES-FULL-ELIMINATION.md))
+
+- **Cat-5 3-doc chaser-chore** opening a NEW forward-point from [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points (2nd item). Fully remove `RenderServices` from the runtime header surface: delete the `[[deprecated]] services()` accessor + the `RenderServices` struct + the `m_services` field (per the P1-15 chore, currently `RenderServices` is reduced to an internal struct with a `[[deprecated]]` accessor for backward-compat; this ticket completes the removal).
+- **Cat-3 minimal-surface**: 1 DELETE public accessor + 1 DELETE public struct + 1 DELETE field + 1 EDIT include statements. 0 new public SDK symbol (pure deletion per Cat-3 anti-dup rule "non introdurre nuovi singleton/registry/resolver/cache senza ADR") + 0 new singleton/registry/resolver/cache + 0 `#include <msdfgen>/<libtess2>/<unicode[/...]>`.
+- **CURRENT_STATUS.md UNTOUCHED** (no area state transition per AGENTS.md "Disciplina di aggiornamento dei canonici"). ROADMAP.md UNTOUCHED (P3 cosmetic forward-point, not milestone shift). Sibling Cat-5 chaser-chore pattern: `TICKET-PARSE-POLICY-HELPER-DEDUP` + `TICKET-PRE-PUSH-IO-EXCLUSIONS` + `TICKET-ARCH-CLEANUP-V0` + `TICKET-CAMERA-OVERLAY-PANEL-CONSTRAINTS` + TILE-PRUNE-SKIP-UNIFICATION lineage.
+- macchina-verifica DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum env-block pattern. VPS-only verification: `rg "RenderServices" include/` → confirm 0 matches (or only `detail::RenderServices` if still used); `rg "runtime\.services\(\)\." src/ apps/ tests/` → confirm 0 matches. Subject envelope 66 chars ≤ 72 per `tools/check_commit_subject_length.sh` push-range audit. Cross-link: parent [TICKET-ARCH-CLEANUP-V0](docs/tickets/TICKET-ARCH-CLEANUP-V0.md) §Forward-points + prior P1-15 chore `refactor(services): reduce RenderServices to internal struct`.
+
 ### `docs(ticket): TICKET-PARSE-POLICY-HELPER-DEDUP chaser-chore`
   ([TICKET-PARSE-POLICY-HELPER-DEDUP](docs/tickets/TICKET-PARSE-POLICY-HELPER-DEDUP.md))
 
