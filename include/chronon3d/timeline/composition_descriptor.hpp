@@ -19,8 +19,11 @@
 // Two tiers:
 //   CompositionDescriptor        — non-templated base, storeable in registry
 //   TypedCompositionDescriptor<Props> — templated with typed defaults,
-//                                  validation, and dynamic metadata resolution.
-//                                  Converts to CompositionDescriptor via
+//                                  validation, dynamic metadata resolution,
+//                                  and OPTIONAL decode() that merges external
+//                                  ValueMap overrides into typed Props before
+//                                  the factory runs.  Converts to the
+//                                  non-templated CompositionDescriptor via
 //                                  .to_descriptor().
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -29,6 +32,7 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/timeline/composition_props.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/types.hpp>
 
 #include <functional>
@@ -91,6 +95,17 @@ struct CompositionDescriptor {
 ///       .id = "news-intro",
 ///       .category = "News",
 ///       .defaults = { .title = "Breaking News", .duration_frames = 150 },
+///       .decode = [](const ValueMap& vals,
+///                    const NewsIntroProps& defs) -> Result<NewsIntroProps, PropsError> {
+///           NewsIntroProps p = defs;
+///           try {
+///               if (vals.contains("title"))        p.title            = vals.get_string("title");
+///               if (vals.contains("duration"))      p.duration_frames  = vals.get_int("duration");
+///           } catch (const std::exception& e) {
+///               return PropsError{"duration", PropsErrorReason::BadType, e.what()};
+///           }
+///           return p;
+///       },
 ///       .validate = [](const NewsIntroProps& p) -> std::optional<std::string> {
 ///           if (p.title.empty()) return "title is required";
 ///           return std::nullopt;
@@ -122,22 +137,46 @@ struct TypedCompositionDescriptor {
     Props defaults{};
 
     /// Validate typed props.  Returns std::nullopt on success, or an
-    /// error message string on failure.  Called before the factory.
+    /// error message string on failure.  Called after the decode step
+    /// (when one is present) on the merged Props, BEFORE the factory.
     std::function<std::optional<std::string>(const Props&)> validate;
 
     /// Compute static metadata from typed props.  Called before the
     /// factory so dimensions/fps/duration are known without evaluating
-    /// the composition.
+    /// the composition.  Operates on the typed Props, NOT the
+    /// CLI/JSON-supplied ValueMap.
     std::function<CompositionMetadata(const Props&)> resolve_metadata;
 
-    /// Factory that receives the fully-constructed typed Props struct.
-    /// The TypedCompositionDescriptor wraps this into a
-    /// CompositionProps-accepting factory for registry compatibility.
+    /// Decode CLI/JSON overrides (CompositionProps::values) into the
+    /// typed `Props` struct.  When present, `to_descriptor()` invokes
+    /// this BEFORE `validate()` AND `factory()`; the typed_defaults act
+    /// as the bootstrap values the user mutates inside the lambda.
+    /// Returns a structed `PropsError` on missing/bad/out-of-range input
+    /// (see `composition_props.hpp`).  Forwarded via the canonical
+    /// `chronon3d::Result<Props, PropsError>` shape (NOT a custom
+    /// Result variant).  When left empty, `to_descriptor()` falls back
+    /// to the historical behavior of using typed_defaults only (CLI/JSON
+    /// overrides are silently ignored, as the legacy `TICKET-TO-DO`
+    /// block documented before this commit implemented the merge).
+    std::function<chronon3d::Result<Props, PropsError>(
+        const ValueMap&, const Props&)> decode;
+
+    /// Factory that receives the fully-constructed typed Props struct
+    /// (after decode + validate have run).  The TypedCompositionDescriptor
+    /// wraps this into a CompositionProps-accepting factory for registry
+    /// compatibility.
     std::function<Composition(const Props&)> factory;
 
     /// Convert to the non-templated CompositionDescriptor for registry storage.
-    /// The factory is wrapped to convert CompositionProps → Props by merging
-    /// .defaults with ValueMap entries, then validating and resolving metadata.
+    /// The factory is wrapped to convert CompositionProps → Props by:
+    ///   1. Starting with `.defaults` as the bootstrap Props,
+    ///   2. Invoking `.decode(cprops.values, defaults)` IF supplied — this is
+    ///      the ValueMap → typed Props merge that the legacy TODO block
+    ///      deferred; it allows CLI/JSON overrides to flow through,
+    ///   3. Calling `.validate(merged_props)` if a validator is present,
+    ///   4. Invoking `.factory(merged_props)`.
+    /// Resolve_metadata runs on `defaults` (pre-merge) so the registry can
+    /// report dimensions/fps/duration BEFORE the factory is invoked.
     [[nodiscard]] CompositionDescriptor to_descriptor() && {
         CompositionDescriptor desc;
 
@@ -148,13 +187,15 @@ struct TypedCompositionDescriptor {
         desc.category = std::move(category);
 
         // Capture typed fields by move into the factory wrapper.
-        // The factory converts CompositionProps (ValueMap) → Props (typed),
-        // validates, resolves metadata for the descriptor, and calls the
-        // typed factory.
         auto typed_factory   = std::move(factory);
         auto typed_defaults  = std::move(defaults);
         auto typed_validate  = std::move(validate);
         auto typed_metadata  = std::move(resolve_metadata);
+        // Implemented 2026-07-14 via TICKET-V2-VALUEMAP-PROPS-MERGE:
+        // captures the user-supplied decode callback (may be empty, in
+        // which case the wrap falls through to defaults to preserve the
+        // historical behavior of pre-decode compositions).
+        auto typed_decode    = std::move(decode);
 
         // Compute and store metadata from defaults (pre-CLI-override).
         if (typed_metadata) {
@@ -170,19 +211,33 @@ struct TypedCompositionDescriptor {
             typed_factory   = std::move(typed_factory),
             typed_defaults  = std::move(typed_defaults),
             typed_validate  = std::move(typed_validate),
-            typed_metadata  = std::move(typed_metadata),
+            typed_decode    = std::move(typed_decode),
             comp_id         = std::move(comp_id)
         ](const CompositionProps& cprops) -> Composition {
-            // Start with defaults.
-            // TICKET-TO-DO — ValueMap → Props merge:
-            // ValueMap is the CLI/C-ABI bridge (see AGENTS.md § ValueMap).
-            // Currently CLI/JSON overrides in cprops.values are ignored;
-            // only typed_defaults reach the factory.  Merge logic (JSON
-            // schema or structured-binding walk) is deferred to a follow-up
-            // ticket — the descriptor scaffolding is the priority for B2.
+            // Begin with the bootstrap defaults so the user's decode
+            // callback can mutate them in place via the `defs` reference.
             Props props = typed_defaults;
 
-            // Validate if a validator was provided.
+            // 1. Optional decode step (ValueMap → Props merge).  When
+            //    decode is NULLOPT the historical behavior is preserved:
+            //    CLI/JSON overrides in cprops.values are silently ignored
+            //    and only typed_defaults reach validate/factory.  This
+            //    guards the forward-compat property for existing call sites
+            //    that adopt TypedCompositionDescriptor<Props> WITHOUT
+            //    providing a decode callback (e.g. composition scaffolding
+            //    work that predates this ticket).
+            if (typed_decode) {
+                auto decoded = typed_decode(cprops.values, typed_defaults);
+                if (!decoded) {
+                    const PropsError& err = decoded.error();
+                    throw std::runtime_error(
+                        "Composition '" + comp_id +
+                        "' decode failed: [" + err.key + "] " + err.message);
+                }
+                props = std::move(decoded).value();
+            }
+
+            // 2. Validate if a validator was provided.
             if (typed_validate) {
                 if (auto err = typed_validate(props)) {
                     throw std::runtime_error(
@@ -190,6 +245,7 @@ struct TypedCompositionDescriptor {
                 }
             }
 
+            // 3. Invoke the typed factory with the merged Props.
             return typed_factory(props);
         };
 
