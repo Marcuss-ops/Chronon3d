@@ -716,7 +716,6 @@ setsid python3 -m http.server 8888 --bind 0.0.0.0 \
 |---|---|
 | `tools/telemetry_dashboard/server.py` | Entry point, parses port arg |
 | `telemetry_server/flask_app.py` | Flask app, routes, auth, artifact serving |
-| `telemetry_server/handler.py` | Legacy HTTP handler (not used if Flask is running) |
 | `telemetry_server/config.py` | Paths, MIME types, DB column definitions |
 | `telemetry_server/database.py` | In-memory SQLite cache, JSONL merge |
 | `telemetry_server/jsonl_loader.py` | JSONL file reader |
