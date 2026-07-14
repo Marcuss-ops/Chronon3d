@@ -12,13 +12,13 @@ The 3 policy tests in `tests/cache/` (per P1-21) verify the policy enum + the `t
 
 ## Soluzione Confine
 
-**SINGLE OUTCOME**: wire the configured `FramebufferPoolClearPolicy` into the production job executor so the policy is actually consumed. Default = `KeepWarm` (preserves warm state for batch jobs); VPS-mode override = `TrimAfterJob` (matches the prior single-job-on-VPS behavior); opt-in `TrimOnMemoryPressure` available via env var.
+**SINGLE OUTCOME**: wire the configured `FramebufferPoolClearPolicy` into the production job executor so the policy is actually consumed. **Default = `TrimAfterJob`** (single-job-on-VPS default, matches prior hardcoded clear behavior per P1-21 user-spec verbatim "Default VPS: TrimAfterJob"); **batch users override** via `CHRONON3D_FB_POOL_CLEAR_POLICY=keep-warm` env var or `--fb-pool-clear-policy=keep-warm` CLI flag; opt-in `TrimOnMemoryPressure` available via the same env var / CLI flag for memory-constrained runs.
 
 Steps:
 1. **Audit** the production call site: `rg "framebuffer_pool\\(\\)->clear\\(\\)"` → find the unconditional clear
 2. **Replace** with policy-driven: `framebuffer_pool()->trim_per_policy(config.fb_pool_clear_policy)` (or equivalent method)
 3. **Test** all 3 policies end-to-end: a 2-job batch on a warm pool must NOT clear between jobs (KeepWarm) and must clear after the LAST job (TrimAfterJob)
-4. **Verify** the env var `CHRONON3D_FB_POOL_CLEAR_POLICY=trim-after-job` overrides the Config default
+4. **Verify** the env var `CHRONON3D_FB_POOL_CLEAR_POLICY=keep-warm` overrides the `TrimAfterJob` default (the batch-override path) — and analogously `--fb-pool-clear-policy=keep-warm` CLI flag overrides the default
 
 If the production call site is in the CLI command (per user spec P1-21 "Rimuovi il clear() incondizionato dal comando"), the wiring lives in `apps/chronon3d_cli/commands/render/register_render_commands.cpp` (or the per-job executor helper).
 
@@ -28,8 +28,10 @@ If the production call site is in the CLI command (per user spec P1-21 "Rimuovi 
 - [ ] `rg "trim_after_job\\(\\)"` in production code → ≥ 1 match (the wired call site)
 - [ ] `rg "KeepWarm"` / `"TrimAfterJob"` / `"TrimOnMemoryPressure"` → ≥ 1 match in production code (the policy is actually used)
 - [ ] Batch test: 2-job batch on warm pool does NOT clear between jobs when policy = `KeepWarm`
-- [ ] VPS-mode test: single-job run on cold pool clears after job when policy = `TrimAfterJob`
+- [ ] VPS-mode test: single-job run on cold pool clears after job when policy = `TrimAfterJob` (explicit override)
+- [ ] **Default test**: single-job run on cold pool with NO policy override (no env var, no CLI flag) clears after job — verifies the new `TrimAfterJob` default is wired into production (per P1-21 verbatim)
 - [ ] Env var override: `CHRONON3D_FB_POOL_CLEAR_POLICY=trim-on-memory-pressure` is honored
+- [ ] **Memory-pressure test**: pool clears mid-batch when policy = `TrimOnMemoryPressure` even on a warm pool (the memory-pressure override clears unconditionally, bypassing the batch-warm invariant — distinct from the KeepWarm batch-override path)
 - [ ] Config-driven: the configured policy in `RuntimeConfig::fb_pool_clear_policy` is consumed
 - [ ] 0 new public SDK symbol (wiring is recipe-substitution, not surface-additive)
 - [ ] 0 new singleton/registry/resolver/cache
