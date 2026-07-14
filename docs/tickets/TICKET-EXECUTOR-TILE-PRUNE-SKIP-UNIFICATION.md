@@ -2,7 +2,7 @@
 
 ## Stato
 
-OPEN (rot CONTAINED on `origin/main HEAD acfe9f97`)
+DONE (2026-07-14, atomic chore `refactor(executor): unify tile_prune into commit_transparent_skip` 57 chars; 3-site skip-block rot-pattern unified into single `commit_transparent_skip(...)` via SkipReason::TilePruned + bbox_override default-nullopt + state.shared_transparent reuse + nodes_skipped counter bump).
 
 ## Priorità
 
@@ -99,7 +99,7 @@ Estendere l'unificazione del P1 step 1 completando l'estrazione del Site 2:
 
 ## §honest-limitation
 
-Per AGENTS.md §honest-limitation + il pattern WBH-deferred stabilito, l'effettivo refactor C++ è DEFERRED a working build host macchina-verifica. Questo chore APRE formalmente il ticket (= unifica il rot-pattern identificato) così che il prossimo chore `TICKET-TILE-PRUNE-SKIP-UNIFICATION-FIX` possa essere committed con il rot-pattern già tracciato in `docs/FOLLOWUP_TICKETS.md` + ticket file. Verdetto: OPEN/ON-TRACK ma defer-fix-WBH per §honest-limitation.
+macchina-verifica della chore `refactor(executor): unify tile_prune into commit_transparent_skip` (3 file changed: `node_skip_policy.hpp` tail-extension enum + signature; `node_skip_policy.cpp` body con TilePruned branch; `node_runner.cpp` TilePruned path via `commit_transparent_skip(SkipReason::TilePruned, {}, predicted_bbox)`) DEFERRED-WBH per AGENTS.md §honest-limitation pattern (vcpkg glm/magic_enum env-blocked on this VPS per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV`). Forward-point: `TICKET-TILE-PRUNE-SKIP-UNIFICATION-FIX-MACHINE-VERIFY` (working build host `ctest -R chronon3d_executor_tests --output-on-failure` + `cmake --build build/<preset>`). Scheda cronaca chiusura completata via 3-doc Cat-5 same-commit (`docs/FOLLOWUP_TICKETS.md` §Recently Closed consolidate row + questa sezione DONE + `docs/CHANGELOG.md` 1-line entry). Body cronaca storica preservato per AGENTS.md Cat-3 anti-dup + ticket-home rule.
 
 ## Origine
 
