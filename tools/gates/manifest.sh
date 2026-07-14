@@ -32,13 +32,6 @@ DEVELOPER_GATES=(
     check_architecture_boundaries.sh
 )
 
-# Post-push gates: run only after a successful push (not in the pre-push
-# developer chain).  These gates verify that the chore actually landed on
-# the remote and was not silently rebased out by concurrent-agent churn.
-POST_PUSH_GATES=(
-    check_post_push_consistency.sh
-)
-
 # CI-only phases (not executable gate scripts; handled by the CI driver).
 CI_PHASES=(
     build_fast

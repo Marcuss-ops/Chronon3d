@@ -20,7 +20,6 @@
 #   4.5e. tools/check_text_golden_sources_aligned.sh
 #   4.5f. tools/check_doc_sha_dedup.sh
 #   4.5g. tools/check_commit_subject_length.sh (72-char envelope)
-#   4.5i. tools/check_post_push_consistency.sh (AGENTS.md §Post-push SHA-selfcheck Cat-4 gate)
 #   ── WBH-only gates (CHRONON3D_GATE_PROFILE=wbh) ──
 #   4.5h. tools/check_video_completeness.sh (needs MP4 artifact)
 #   4.5j. tools/check_manual_touches_per_video.sh (Test #19)
@@ -70,11 +69,12 @@
 #              fail=exit 1 with remediation hint + frame.hpp cross-link.
 #          All local, all exit 1 on violation, all emit remediation
 #          hints via the canonical CHANGELOG/AGENT_WORKFLOW surface.
-#          (d) check_post_push_consistency.sh — CI-side companion to the
-#              AGENTS.md §Post-push SHA-selfcheck invariant; reflog-based
-#              lost-commit detect (closes the silent-class failure mode
-#              that bit the b589fdba 3-attempt recovery session).  Cheap,
-#              local-only; runs ALWAYS (not opt-in like check_clean_rebuild).
+#   5. Forward `git push "$@"` on success, then perform an in-script
+#      post-push SHA-triple self-check (AGENTS.md §Post-push SHA-selfcheck
+#      invariant).  The separate `tools/check_post_push_consistency.sh`
+#      script is available for stand-alone / CI post-push verification but
+#      is NOT part of the pre-push developer chain (a commit not yet pushed
+#      cannot be an ancestor of origin/main).
 #   5. Forward `git push "$@"` on success.
 #
 # Rationale for the wrapper vs `.git/hooks/pre-push`:
