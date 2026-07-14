@@ -46,10 +46,12 @@ std::atomic<int> s_shape_calls_per_line{0};
 
 } // anonymous namespace
 
-// ── Free-function accessors for the diagnostic counter ────────────────
+// ── Test/internal support (exposed via glyph_layout_test_support.hpp) ───
 //
-// Surface exposed via glyph_layout.hpp.  reset zero-outs the counter;
-// get returns its current accumulated value.
+// Surface removed from the public header; kept here so tests can verify
+// the single-shape-call contract and inspect the cached GlyphRun.
+namespace test_support {
+
 void reset_shape_call_counter() noexcept {
     s_shape_calls_per_line.store(0, std::memory_order_relaxed);
 }
@@ -57,6 +59,12 @@ void reset_shape_call_counter() noexcept {
 int get_shape_call_count() noexcept {
     return s_shape_calls_per_line.load(std::memory_order_relaxed);
 }
+
+const std::optional<GlyphRun>& get_raw_run(const ShapedGlyphLine& line) noexcept {
+    return line.m_run;
+}
+
+} // namespace test_support
 
 // ── ShapedGlyphLine fail-loud primary ctor (public) ────────────────────
 //
@@ -70,8 +78,7 @@ int get_shape_call_count() noexcept {
 ShapedGlyphLine::ShapedGlyphLine(const std::string& text, f32 font_size,
                                  const FontSpec& spec, f32 tracking,
                                  f32 ref_offset_x, FontEngine& engine)
-    : m_text(text), m_spec(spec), m_font_size(font_size),
-      m_tracking(tracking), m_ref_offset_x(ref_offset_x)
+    : m_text(text), m_tracking(tracking), m_ref_offset_x(ref_offset_x)
 {
     m_run = engine.shape_text(text, spec, font_size);
     // Increment the per-line shape-call counter exactly once per ctor
@@ -90,10 +97,9 @@ ShapedGlyphLine::ShapedGlyphLine(const std::string& text, f32 font_size,
 //
 // Private ctor that populates fields from a valid GlyphRun directly —
 // does NOT throw.  Called by `try_shape` static factory only.
-ShapedGlyphLine::ShapedGlyphLine(GlyphRun run, std::string text, FontSpec spec,
-                                 f32 font_size, f32 tracking, f32 ref_offset_x)
-    : m_text(std::move(text)), m_spec(std::move(spec)),
-      m_font_size(font_size), m_tracking(tracking), m_ref_offset_x(ref_offset_x),
+ShapedGlyphLine::ShapedGlyphLine(GlyphRun run, std::string text,
+                                 f32 tracking, f32 ref_offset_x)
+    : m_text(std::move(text)), m_tracking(tracking), m_ref_offset_x(ref_offset_x),
       m_run(std::move(run))
 {}
 
@@ -279,10 +285,6 @@ size_t ShapedGlyphLine::reveal_count(f32 progress) const noexcept {
     return static_cast<size_t>(static_cast<f32>(m_run->glyphs.size()) * progress);
 }
 
-const std::optional<GlyphRun>& ShapedGlyphLine::raw_run() const noexcept {
-    return m_run;
-}
-
 // ── try_shape static factory (Point 8 fail-soft entry point) ────────────
 //
 // Returns `std::optional<ShapedGlyphLine>`:
@@ -304,8 +306,6 @@ std::optional<ShapedGlyphLine> ShapedGlyphLine::try_shape(
     ShapedGlyphLine line(
         std::move(*run_opt),
         std::string(text),
-        spec,
-        font_size,
         tracking,
         ref_offset_x);
     line.rebuild_prefix_advances();

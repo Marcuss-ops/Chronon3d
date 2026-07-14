@@ -403,6 +403,12 @@ private:
 // stops the throw path atomically.
 
 struct TextRenderResources {
+    // PIMPL'd ctor/dtor — defined in the .cpp where detail::TextRasterCache
+    // is complete, so std::unique_ptr<detail::TextRasterCache> can be destroyed
+    // without leaking the incomplete type to TUs that only include this header.
+    TextRenderResources();
+    ~TextRenderResources();
+
     BLFontFaceCache bl_faces;
 
 #ifdef CHRONON3D_ENABLE_TEXT

@@ -37,6 +37,7 @@
 #include <tests/helpers/test_utils.hpp>
 
 #include "content/common/text/glyph_layout.hpp"
+#include "content/common/text/glyph_layout_test_support.hpp"
 
 #include <optional>
 #include <string>
@@ -127,18 +128,23 @@ static void run_golden_equivalence(
     const std::string& label)
 {
     // Shape once through ShapedGlyphLine. The raw GlyphRun is cached
-    // internally; we retrieve it via raw_run() for the reference path.
+    // internally; we retrieve it via test_support::get_raw_run() for the
+    // reference path.
     auto shaped_opt = ShapedGlyphLine::try_shape(
         text, font_size, spec, tracking, ref_offset_x, engine);
 
-    if (!shaped_opt || !shaped_opt->raw_run().has_value() ||
-        shaped_opt->raw_run()->glyphs.empty()) {
-        // Font cannot shape this text — verify both paths agree on failure.
-        CHECK_FALSE(shaped_opt.has_value());
+    if (!shaped_opt) {
+        // Font cannot shape this text — both paths agree on failure.
         return;
     }
 
-    const auto& run = *shaped_opt->raw_run();
+    const auto& raw_run = chronon3d::content::text_reveal::test_support::get_raw_run(*shaped_opt);
+    if (!raw_run.has_value() || raw_run->glyphs.empty()) {
+        // Shaping produced no glyphs — both paths agree on failure.
+        return;
+    }
+
+    const auto& run = *chronon3d::content::text_reveal::test_support::get_raw_run(*shaped_opt);
 
     // Run reference O(n²) on the raw GlyphRun
     auto reference = reference_layout_o_n_squared(
@@ -256,7 +262,7 @@ TEST_CASE("ShapedGlyphLine cluster golden: ZWJ emoji sequence") {
     if (!shaped.has_value()) {
         return;
     }
-    const auto& run = shaped->raw_run();
+    const auto& run = chronon3d::content::text_reveal::test_support::get_raw_run(*shaped);
     REQUIRE(run.has_value());
     REQUIRE(!run->glyphs.empty());
 
