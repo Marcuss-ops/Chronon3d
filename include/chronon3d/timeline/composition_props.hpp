@@ -41,6 +41,31 @@ class AssetRegistry;
 /// All values are stored as strings.  Typed accessors (get_float, get_int)
 /// parse on read.  This keeps the type system simple and serialisation
 /// (JSON → ValueMap, Python dict → ValueMap) trivial.
+///
+/// ── PropsError (decode failure surface) ───────────────────────────────────
+///
+/// `TypedCompositionDescriptor<Props>::decode` (declared in
+/// `composition_descriptor.hpp`) returns `chronon3d::Result<Props, PropsError>`
+/// so callers can produce structured errors when CLI/JSON overrides cannot
+/// be coerced into typed Props.  The `PropsErrorReason` enum covers the
+/// supported v1 reasons per audit §2: string/integer/float/boolean/color/
+/// asset path.  Adding reflection-free support for nested arrays/objects
+/// is explicitly out of scope (audit §2).
+enum class PropsErrorReason {
+    MissingRequired,   // key absent in ValueMap
+    BadType,           // value present but cannot be parsed to expected type
+    OutOfRange,        // value parsed but lies outside the typed field's domain
+    InvalidFormat      // asset path / color / other structured-format check failed
+};
+
+/// Structured error produced by `TypedCompositionDescriptor::decode` when
+/// it cannot merge `CompositionProps::values` into the typed `Props`.
+struct PropsError {
+    std::string         key;       // offending ValueMap key (empty if general)
+    PropsErrorReason    reason;    // reason class
+    std::string         message;   // human-readable detail
+};
+
 class ValueMap {
 public:
     ValueMap() = default;
