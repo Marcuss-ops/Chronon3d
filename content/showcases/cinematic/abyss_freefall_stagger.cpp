@@ -77,7 +77,7 @@ Composition abyss_freefall_stagger() {
         SceneBuilder s(ctx);
         // codex/agent2-font-bind-fixes — same single-bind scene-build
         // pattern as deep_parallax_cascade(); see header comment.
-        if (ctx.font_engine) s.font_engine(ctx.font_engine);
+        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
 
         // Pure black background with a single blue point-light at the
         // far end so the eye has something to fall toward.
@@ -101,8 +101,7 @@ Composition abyss_freefall_stagger() {
         // fade-out at the tail.
         const std::string phrase = "LET  FALL";
         const f32 fs = 220.0f;
-        auto spec = font_bold();
-        ShapedGlyphLine line(phrase, fs, spec, 4.0f, 0.0f, *ctx.font_engine);
+        auto spec = font_bold();            ShapedGlyphLine line(phrase, fs, spec, 4.0f, 0.0f, *ctx.runtime->font_engine());
         f32 w = line.width();
         f32 ref_x = -w * 0.5f;
         auto chars = line.layout();

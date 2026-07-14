@@ -186,8 +186,11 @@ NodeExecResult PrecompNode::execute_with_scope(
     nested_ctx.frame_input.camera = comp.camera;
     nested_ctx.node_exec.current_identity.graph = static_cast<GraphInstanceId>(precomp_key.graph);
 
-    // F1.D: FrameContext::font_engine is nullptr — the materializer's
-    // resolve_engine() provides a process-wide fallback FontEngine.
+    // F1.D: P1-16 — the legacy `FrameContext::font_engine` field is REMOVED;
+    // the materializer's `resolve_engine()` provides a process-wide fallback
+    // FontEngine via `ctx.runtime->font_engine()` when `ctx.runtime` is wired
+    // (the standard rendering path).  Hand-built FrameContext (e.g. in tests
+    // without a runtime) must read the engine through their own fallback path.
     const FrameContext nested_frame_ctx{
         .frame = nested_frame,
         .local_frame = nested_frame,
@@ -198,7 +201,6 @@ NodeExecResult PrecompNode::execute_with_scope(
         .height = comp.height(),
         .assets_root = comp.assets_root(),
         .resource = std::pmr::get_default_resource(),
-        .font_engine = nullptr,
     };
     const Scene nested_scene = comp.evaluate(nested_frame_ctx);
 
@@ -298,20 +300,9 @@ NodeExecResult PrecompNode::execute_with_scope(
 
 } // namespace chronon3d::graph
 
-// ── FrameContext::font_engine_or_null() body ──────────────────────────────
-// Defined here to break circular include: frame_context.hpp includes
-// render_runtime.hpp, but render_runtime.hpp → graph_executor.hpp →
-// scene_hasher.hpp creates a chain that makes RenderRuntime incomplete
-// when the inline body in the header is compiled.  The declaration in
-// frame_context.hpp is non-inline; the body lives here where both
-// FrameContext and RenderRuntime are fully defined.
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
-
-namespace chronon3d {
-
-FontEngine* FrameContext::font_engine_or_null() const noexcept {
-    return runtime ? runtime->font_engine() : font_engine;
-}
-
-} // namespace chronon3d
+// P1-16: FrameContext::font_engine_or_null() has been REMOVED.  Callers
+// must read `ctx.runtime->font_engine()` directly (with their own
+// null-check on ctx.runtime).  The legacy body lived here to break a
+// circular include chain (frame_context.hpp → render_runtime.hpp →
+// graph_executor.hpp → scene_hasher.hpp); with the helper gone, the
+// chain is no longer required at this site.

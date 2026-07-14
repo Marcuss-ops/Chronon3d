@@ -75,7 +75,7 @@ Composition product_launch() {
         .duration = 90,
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        if (ctx.font_engine) s.font_engine(ctx.font_engine);
+        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
 
         const f32 t   = static_cast<f32>(ctx.frame.integral());
         const f32 fps = static_cast<f32>(ctx.frame_rate.numerator)
