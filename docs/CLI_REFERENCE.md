@@ -25,7 +25,6 @@ chronon3d_cli <subcommand> [options]
 | `camera-path <id>` | Export camera path as JSON/CSV | Dev (inspect) |
 | `preflight <id>` | Validate assets and requirements before rendering | Dev (inspect) |
 | `inspect-text <id>` | Per-node TextRun audit with structured JSON output | Dev (inspect) |
-| `text-audit <id>` | Multi-frame text layout audit (legacy) | Dev |
 
 ---
 
@@ -149,8 +148,6 @@ $ echo $?
 
 ### See also
 
-- [`text-audit`](CURRENT_STATUS.md) — multi-frame text layout audit
-  (legacy, batch-mode with JSON file output)
 - [ADR-019 §6 — Text Coordinate Model Numerical Examples](adr/ADR-019-text-coordinate-model.md#6-numerical-examples-19201080-canonical-canvas)
   — coordinate-level invariants
 - [`docs/CHANGELOG.md` §12 entry](CHANGELOG.md) — atomic commit notes
