@@ -21,18 +21,21 @@
 namespace chronon3d::content::backgrounds {
 
 void register_grid_clean_background(CompositionRegistry& registry) {
-    registry.add("GridCleanBackground", [](const CompositionProps&) {
-        return composition({.name = "GridCleanBackground", .duration = 90},
-            [](const FrameContext& ctx) {
-                SceneBuilder s(ctx);
-                auto path = scene::utils::detail::ensure_dark_grid_background_image(
-                    ctx.width, ctx.height,
-                    {.bg_color = Color::black(), .grid_color = {1, 1, 1, 0.9f}, .spacing = 160, .extent = 4000, .centered = true});
-                s.screen_layer("grid_clean", [path, w = ctx.width, h = ctx.height](auto& l) {
-                    l.cache_static().image("img", {.path = path.string(), .size = {static_cast<f32>(w), static_cast<f32>(h)}});
+    registry.add(CompositionDescriptor{
+        .id = "GridCleanBackground",
+        .factory = [](const CompositionProps&) {
+            return composition({.name = "GridCleanBackground", .duration = 90},
+                [](const FrameContext& ctx) {
+                    SceneBuilder s(ctx);
+                    auto path = scene::utils::detail::ensure_dark_grid_background_image(
+                        ctx.width, ctx.height,
+                        {.bg_color = Color::black(), .grid_color = {1, 1, 1, 0.9f}, .spacing = 160, .extent = 4000, .centered = true});
+                    s.screen_layer("grid_clean", [path, w = ctx.width, h = ctx.height](auto& l) {
+                        l.cache_static().image("img", {.path = path.string(), .size = {static_cast<f32>(w), static_cast<f32>(h)}});
+                    });
+                    return s.build();
                 });
-                return s.build();
-            });
+        },
     });
 }
 
