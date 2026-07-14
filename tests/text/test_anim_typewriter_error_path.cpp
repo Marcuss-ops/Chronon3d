@@ -123,7 +123,7 @@ TEST_CASE("Azione 18: typewriter_build error is non-fatal (scene still buildable
         .font_size      = 64.0f,
         .chars_per_frame = 0.3f,
     };
-    auto good_result = typewriter_build(s, "tw_good", good_opts, Frame{0}, engine);
+    auto good_result = typewriter_build(s, "tw_good", good_opts, Frame{10}, engine);
     REQUIRE(good_result.has_value());
     CHECK(good_result.value() == true);
 

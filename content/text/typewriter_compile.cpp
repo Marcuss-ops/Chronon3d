@@ -41,8 +41,7 @@ void advance_cluster_window(
 std::vector<CompiledTypewriterGlyph> compile_typewriter_glyphs(
     const TypewriterLayout& layout,
     const PlacedGlyphRun& placed,
-    const std::string& text,
-    std::string_view layer_prefix)
+    const std::string& text)
 {
     std::vector<CompiledTypewriterGlyph> result;
     result.reserve(layout.chars.size());
@@ -58,8 +57,8 @@ std::vector<CompiledTypewriterGlyph> compile_typewriter_glyphs(
 
         CompiledTypewriterGlyph glyph;
         glyph.original_index = i;
-        glyph.layer_name = std::string(layer_prefix) + "_c" + std::to_string(i);
-        glyph.text_slice = text.substr(cp.byte_offset, cp.byte_len);
+        // P0-3 fix(text/cache): layer_name and text_slice are derived per-call in typewriter_build;
+        // do NOT cache them.
         glyph.placement = {cp.x, cp.y};
 
         if (!placed.clusters.empty() && !placed.glyphs.empty()) {
