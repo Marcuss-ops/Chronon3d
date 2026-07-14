@@ -404,13 +404,12 @@ public:
     /// Converts to TextDefinition via from_text_spec() and forwards to
     /// the canonical TextDefinition overload.
     ///
-    /// TICKET-BLOCLO-5-1-TEXT-SPEC-OVERLOAD-DEPRECATION (2026-07-14):
+    /// TICKET-TEXT-SPEC-MIGRATION (2026-07-14, P1 OPEN):
     /// marked `[[deprecated]]` per audit Blocco 5.1 verbatim "Elimina
     /// `TextSpec` dai contenuti".  Callers MUST migrate to
     /// `text(name, const TextDefinition&)` above.  The 124+ call sites
-    /// (production + tests) are tracked in TICKET-TEXT-SPEC-MIGRATION
-    /// (P1, OPEN); after the migration lands, this overload is
-    /// removed wholesale (TICKET-TEXT-SPEC-OVERLOAD-REMOVAL).
+    /// (production + tests) are tracked in this ticket (P1, OPEN);
+    /// after the migration lands, this overload is removed wholesale.
     [[deprecated("Use text(name, const TextDefinition&) — see "
                  "TICKET-TEXT-SPEC-MIGRATION (Blocco 5.1). "
                  "This overload is removed after the migration lands.")]]
