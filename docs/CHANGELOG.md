@@ -1,5 +1,19 @@
 ## 2026-07-14
 
+### `docs(text): shape-dedup counter 3-doc closure`
+  ([TICKET-FIX-TEXT-SHAPING-DEDUP-V1-3DOC-CAT5-ALIGN](docs/tickets/TICKET-FIX-TEXT-SHAPING-DEDUP-V1-3DOC-CAT5-ALIGN.md))
+
+- Cat-5 3-doc same-atomic chaser-chore (NO source touched): closes the forward-point `TICKET-FIX-TEXT-SHAPING-DEDUP-V1-3DOC-CAT5-ALIGN` named explicitly in the parent ticket `TICKET-FIX-TEXT-SHAPING-DEDUP-V1` (DONE 2026-07-13 at commit `eccbdfca feat(text): shape_calls_per_line counter`). Parent ticket asked: "verificare se i canonici docs richiedono aggiornamenti per la Point-8 dedup ceremony — probabilmente no" — this chaser-cycle confirms they DO (counter lands as a Cat-3 test-coverage-matrix entry INSIDE the existing Text V1 PASS boundary, with regression lock against silent-re-introduction pattern) and surfaces it 3-doc-discoverable.
+- 1 NEW + 2 EDIT, zero source:
+  1. `docs/tickets/TICKET-FIX-TEXT-SHAPING-DEDUP-V1-3DOC-CAT5-ALIGN.md` (NEW canonical ticket-home with cronaca estesa — this chore's narrative + parent-ticket cross-link + acceptance criteria; subject envelope 45 chars OK ≤ 72 per `tools/check_commit_subject_length.sh` push-range audit).
+  2. `docs/CHANGELOG.md` (this entry, prepended at TOP per Cat-5 newer-at-top convention).
+  3. `docs/FOLLOWUP_TICKETS.md` (§Recently Closed row append at top — Cat-5 3-doc anti-dup: NO §Open Blockers OPEN row; the ticket atomic opens + closes via the Cita-Only row in §Recently Closed).
+- NO EDIT `docs/CURRENT_STATUS.md`: Text Production V1 area state unchanged — was PASS, stays PASS (counter lands as a regression lock INSIDE the existing Text V1 PASS boundary; §Recently Closed row in FOLLOWUP_TICKETS is the canonical state-tracking mechanism per AGENTS.md "Disciplina di aggiornamento dei canonici" — `CURRENT_STATUS.md` updated "Solo quando cambia lo stato presente di un'area (PASS/FAIL/PARTIAL/NOT RUN)", and the counter does NOT transit area state).
+- NO EDIT `docs/ROADMAP.md`: Text V1 forward direction unchanged — counter è implementation regression lock, non milestone shift; per AGENTS.md "Disciplina di aggiornamento dei canonici" `ROADMAP.md` updated "Solo quando la direzione futura (milestone, gate) cambia" and the counter doesn't shift milestone direction.
+- Cat-3 minimal-surface verified: ZERO new SDK symbol in `include/chronon3d/` (Cat-2 freeze compliant); ZERO new singleton/registry/resolver/cache (AGENTS.md deny-everywhere preserved); ZERO `#include <msdfgen>/<libtess2>/<unicode[/...]>` (Gate 5 Check 11 deny-everywhere preserved); ZERO source file modification (pure markdown surgical update).
+- macchina-verifica DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum env-block pattern (this VPS lacks the toolchain). VPS-only verification: `rg -nE 's_shape_calls_per_line|reset_shape_call_counter|get_shape_call_count' content/common/text/ tests/content/` returns 6+ matches (2 declarations in `glyph_layout.hpp` + 2 definitions in `glyph_layout.cpp` + 2 test sites in `test_shaped_glyph_line.cpp`) — counter + regression-lock invariants exist on origin/main per the parent commit `eccbdfca`. This is a grep-discoverable inventory check, NOT a green-PASS surrogate.
+- Cross-link: parent ticket [`TICKET-FIX-TEXT-SHAPING-DEDUP-V1`](docs/tickets/TICKET-FIX-TEXT-SHAPING-DEDUP-V1.md) (DONE — source of the forward-point) + text pipeline parity tests split (`test_pipeline_parity_still.cpp` + `test_pipeline_parity_video.cpp` + `test_pipeline_parity_runtime_modes.cpp` — the canonical canary composition in `tests/text/pipeline_parity_canary.hpp::kPipelineParityText` = "PIPELINE PARITY" is unaffected by this chaser-cycle). Cronaca estesa nella scheda ticket-home per AGENTS.md "Docs canonical update discipline rule" Cat-3 anti-dup.
+
 ### `feat(diagnostics): camera overlay panel layout helper`
   ([TICKET-CAMERA-OVERLAY-PANEL-CONSTRAINTS](docs/tickets/TICKET-CAMERA-OVERLAY-PANEL-CONSTRAINTS.md))
 
