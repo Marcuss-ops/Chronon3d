@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/backends/text/text_render_resources.hpp>  // P1-9: TextRenderResources owner
 #include <chronon3d/core/types/types.hpp>
 #include <memory>
 #include <optional>
@@ -22,7 +23,20 @@ struct PlacedGlyphRun;  // forward-declare (font_engine.hpp)
 // Enables reuse of glyph images across different text strings using the same
 // font, reducing redundant rasterization and shaping for repeated glyphs.
 //
-// Thread-safe via internal std::shared_mutex.
+// P1-9 migration: the cache state, capacity, and external shared_mutex
+// are GONE from this TU.  The atlas now lives on `TextRenderResources`
+// (per-renderer ownership).  The 4 free functions below are THIN WRAPPERS
+// that delegate to the `TextRenderResources` member functions, taking
+// `TextRenderResources&` as their FIRST parameter.
+//
+// The 4 deleted globals (set_glyph_atlas_capacity, get_glyph_atlas,
+// get_glyph_atlas_mutex, glyph_atlas_clear) are GONE.  Callers must use:
+//   res.set_glyph_atlas_capacity(N)   // (was set_glyph_atlas_capacity)
+//   res.clear_glyph_atlas()           // (was glyph_atlas_clear)
+//   res.lookup_glyph_atlas(...)       // (was glyph_atlas_lookup)
+//   res.store_glyph_atlas(...)        // (was glyph_atlas_store)
+//   res.store_glyph_atlas_from_placed_run(...)  // (was glyph_atlas_store_from_placed_run)
+//   res.glyph_atlas_stats()           // (was glyph_atlas_stats)
 
 struct GlyphAtlasEntry {
     std::shared_ptr<BLImage> image;
@@ -34,6 +48,7 @@ struct GlyphAtlasEntry {
 
 // Returns a cached glyph entry or std::nullopt on miss.
 [[nodiscard]] std::optional<GlyphAtlasEntry> glyph_atlas_lookup(
+    TextRenderResources& res,
     const std::string& font_path,
     u32 glyph_id,
     u32 font_size
@@ -41,18 +56,12 @@ struct GlyphAtlasEntry {
 
 // Stores a glyph in the atlas. Weight is image width × height × 4 bytes.
 void glyph_atlas_store(
+    TextRenderResources& res,
     const std::string& font_path,
     u32 glyph_id,
     u32 font_size,
     const GlyphAtlasEntry& entry
 );
-
-/// Inject the glyph atlas capacity at startup (called once by
-/// SoftwareRenderer).  Must be called before first glyph_atlas_lookup().
-void set_glyph_atlas_capacity(size_t max_bytes);
-
-// Clears the glyph atlas.
-void glyph_atlas_clear();
 
 // Returns current stats: (entry_count, total_weight_bytes, hits, misses).
 struct GlyphAtlasStats {
@@ -61,24 +70,15 @@ struct GlyphAtlasStats {
     size_t hits{0};
     size_t misses{0};
 };
-[[nodiscard]] GlyphAtlasStats glyph_atlas_stats();
-
-// Store individual glyph bitmaps from a HarfBuzz-shaped PlacedGlyphRun.// Uses pg.x/pg.y + font.getGlyphBounds() to locate each glyph in the
-// rendered image.  Skips glyphs already cached with the same fill_color_rgba.
-void glyph_atlas_store_from_placed_run(
-    const std::string& font_path,
-    const BLImage& rendered_text,
-    const PlacedGlyphRun& placed,
-    const BLFont& font,
-    float origin_x,
-    float origin_y,
-    float font_size,
-    u32 fill_color_rgba
+[[nodiscard]] GlyphAtlasStats glyph_atlas_stats(
+    const TextRenderResources& res
 );
 
-// Store individual glyph bitmaps from a HarfBuzz-shaped PlacedGlyphRun.// Uses pg.x/pg.y + font.getGlyphBounds() to locate each glyph in the
+// Store individual glyph bitmaps from a HarfBuzz-shaped PlacedGlyphRun.
+// Uses pg.x/pg.y + font.getGlyphBounds() to locate each glyph in the
 // rendered image.  Skips glyphs already cached with the same fill_color_rgba.
 void glyph_atlas_store_from_placed_run(
+    TextRenderResources& res,
     const std::string& font_path,
     const BLImage& rendered_text,
     const PlacedGlyphRun& placed,
