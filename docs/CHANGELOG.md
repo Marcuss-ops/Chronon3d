@@ -1,5 +1,13 @@
 ## 2026-07-14
 
+### `refactor(executor): unify tile_prune into commit_transparent_skip`
+  ([TICKET-EXECUTOR-TILE-PRUNE-SKIP-UNIFICATION](docs/tickets/TICKET-EXECUTOR-TILE-PRUNE-SKIP-UNIFICATION.md))
+
+- SkipReason enum extended `EarlyExit` + `OpacityThreshold` + **`TilePruned`** (tail-extension, ABI-safe). `commit_transparent_skip` signature accepts `std::optional<raster::BBox> bbox_override = std::nullopt` (default preserves byte-equivalent behavior for EarlyExit/OpacityThreshold callers). TilePruned branch reuses `state.shared_transparent` (no fresh 64×64 alloc), bumps `nodes_skipped` (NOT `layers_culled`), preserves `predicted_bbox`.
+- `node_runner.cpp` TilePruned path replaces manual 5-slot block (rows ~272-279 before refactor) with single `commit_transparent_skip(state, id, ctx, parent_pool, SkipReason::TilePruned, {}, predicted_bbox); return;` delegation call.
+- 3 source changed: `node_skip_policy.hpp` + `node_skip_policy.cpp` + `node_runner.cpp`. Cat-3 minimal-surface (zero new SDK API). 4 ticket cronoche DONE + §Recently Closed consolidated row + this CHANGELOG entry — all atomic 3-doc Cat-5 same-commit.
+- macchina-verifica `ctest -R chronon3d_executor_tests --output-on-failure` + `cmake --build build/<preset>` DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` + AGENTS.md §honest-limitation.
+
 ### `chore(tests): OPEN PREMULT forward-point tickets (cat-5 3-doc scaffold)`
   ([TICKET-PREMULT-TEST-SWEEP](docs/tickets/TICKET-PREMULT-TEST-SWEEP.md),
    [TICKET-PREMULT-CALLER-AUDIT](docs/tickets/TICKET-PREMULT-CALLER-AUDIT.md))

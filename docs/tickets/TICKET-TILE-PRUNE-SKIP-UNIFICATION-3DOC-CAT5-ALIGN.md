@@ -2,7 +2,7 @@
 
 ## Stato
 
-OPEN (forward-point register; pure docs-only chaser-chore to complete the Cat-5 3-doc closure obligation for the tile-prune skip-unification ticket lineage; per AGENTS.md "Fare PR piccole e mirate" non-bundling discipline + Cat-3 minimal-surface).
+DONE (2026-07-14, atomic chore `refactor(executor): unify tile_prune into commit_transparent_skip` 57 chars; cat-5 3-doc closure chiusura: questa scheda cronaca aggiornata + `docs/FOLLOWUP_TICKETS.md` §Recently Closed consolidated row + `docs/CHANGELOG.md` 1-line entry prepended at top, tutti nello stesso atomic commit per AGENTS.md "Fare PR piccole e mirate" + Cat-5 3-doc same-commit discipline).
 
 ## Priorità
 

@@ -2,7 +2,7 @@
 
 ## Stato
 
-OPEN (`origin/main HEAD ac5ba95f43f3b49a0360138867219784b43c568a` per parent agent diagnostic 2026-07-13; **deferral classified as DEFERRED-then-RESOLVED per §Cronaca below**; ticket remains OPEN for cronaca archival + cross-link with the prior TICKET-NODE-CACHE-KEY-COLLAPSE-ROT ticket's §Compile Rot Evidence + the parallel TILE-PRUNE-UNIFICATION ticket).
+DONE (2026-07-14, atomic chore `refactor(executor): unify tile_prune into commit_transparent_skip` 57 chars; cronaca TILE-PRUNE-SKIP-UNIFICATION lineage chiusura atomic 3-doc Cat-5 same-commit. Forward-point subject `refactor(executor): unify skip policy into commit_transparent_skip` (cita resolution witness `4be8d513` in §Cronaca) is the historical predecessor della chore corrente — la push-block deferral di `53feb8be` era già risolta upstream via `4be8d513`, e questa chore completa la chiusura cronaca della unificazione della SkipPolicy attraverso la 3doc lineage; macchina-verifica DEFERRED-WBH).
 
 ## Priorità
 
