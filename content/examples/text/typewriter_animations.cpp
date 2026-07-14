@@ -129,7 +129,7 @@ Composition anim_typewriter_simple() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         tw_add_bg(s);
-        s.font_engine(ctx.font_engine_or_null());
+        s.font_engine(ctx.runtime ? ctx.runtime->font_engine() : nullptr);
         build_2line_typewriter(s, {
             .first  = {.text = "THIS TEXT APPEARS",    .font_size = 64.0f},
             .second = {.text = "ONE LETTER AT A TIME", .font_size = 76.0f}
@@ -149,7 +149,7 @@ Composition anim_typewriter_cursor() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         tw_add_bg(s);
-        s.font_engine(ctx.font_engine_or_null());
+        s.font_engine(ctx.runtime ? ctx.runtime->font_engine() : nullptr);
         auto block = build_2line_typewriter(s, {
             .first  = {.text = "THIS TEXT APPEARS",    .font_size = 64.0f},
             .second = {.text = "ONE LETTER AT A TIME", .font_size = 76.0f}
@@ -165,7 +165,7 @@ Composition anim_typewriter_slide() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         tw_add_bg(s);
-        s.font_engine(ctx.font_engine_or_null());
+        s.font_engine(ctx.runtime ? ctx.runtime->font_engine() : nullptr);
         build_2line_typewriter(s, {
             .first  = {.text = "THIS TEXT APPEARS",    .font_size = 64.0f},
             .second = {.text = "ONE LETTER AT A TIME", .font_size = 76.0f},
@@ -181,7 +181,7 @@ Composition anim_typewriter_glow() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         tw_add_bg(s);
-        s.font_engine(ctx.font_engine_or_null());
+        s.font_engine(ctx.runtime ? ctx.runtime->font_engine() : nullptr);
         build_2line_typewriter(s, {
             .first  = {.text = "THIS TEXT APPEARS",    .font_size = 88.0f},
             .second = {.text = "ONE LETTER AT A TIME", .font_size = 104.0f},
@@ -203,7 +203,7 @@ Composition anim_typewriter_stagger() {
     [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         tw_add_bg(s);
-        s.font_engine(ctx.font_engine_or_null());
+        s.font_engine(ctx.runtime ? ctx.runtime->font_engine() : nullptr);
 
         const struct { const char* text; f32 size; f32 delay; } lines[] = {
             {"THIS TEXT",  60.0f,  0.0f},
