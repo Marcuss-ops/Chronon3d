@@ -24,25 +24,57 @@ size_t FrameCacheKeyHash::operator()(const FrameCacheKey& key) const noexcept {
     return static_cast<size_t>(key.digest());
 }
 
-FrameCache::FrameCache(size_t max_entries, size_t num_shards)
+FrameCache::FrameCache(size_t max_entries, size_t num_shards,
+                       CacheDiagnostics* diag)
     : m_cache(
           [&] {
               auto p = resolve_cache_policy(CacheDomain::RenderedFrames,
                   max_entries > 0 ? std::optional<std::size_t>(max_entries) : std::nullopt);
-              m_diag_handle = CacheDiagnostics::instance().register_cache(
-                  CacheDomain::RenderedFrames,
-                  [this]() -> GenericCacheStats {
-                      auto s = m_cache.stats();
-                      return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
-                  },
-                  [this] { m_cache.clear(); },
-                  [this] { return m_cache.capacity_mode(); },
-                  p.capacity);
+              if (diag) {
+                  m_diag_handle = diag->register_cache(
+                      CacheDomain::RenderedFrames,
+                      [this]() -> GenericCacheStats {
+                          if (!m_diag_alive.load(std::memory_order_acquire)) return {};
+                          auto s = m_cache.stats();
+                          return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+                      },
+                      [this] {
+                          if (!m_diag_alive.load(std::memory_order_acquire)) return;
+                          m_cache.clear();
+                      },
+                      [this] {
+                          if (!m_diag_alive.load(std::memory_order_acquire)) return CapacityMode::Weight;
+                          return m_cache.capacity_mode();
+                      },
+                      p.capacity);
+              }
               return p;
           }().capacity,
           num_shards,
           capacity_mode_for(CacheDomain::RenderedFrames))
 {}
+
+void FrameCache::set_diagnostics(CacheDiagnostics& diag) {
+    m_diag_alive.store(false, std::memory_order_release);
+    m_diag_handle = {};
+    m_diag_alive.store(true, std::memory_order_release);
+    m_diag_handle = diag.register_cache(
+        CacheDomain::RenderedFrames,
+        [this]() -> GenericCacheStats {
+            if (!m_diag_alive.load(std::memory_order_acquire)) return {};
+            auto s = m_cache.stats();
+            return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+        },
+        [this] {
+            if (!m_diag_alive.load(std::memory_order_acquire)) return;
+            m_cache.clear();
+        },
+        [this] {
+            if (!m_diag_alive.load(std::memory_order_acquire)) return CapacityMode::Weight;
+            return m_cache.capacity_mode();
+        },
+        resolve_cache_policy(CacheDomain::RenderedFrames, std::nullopt).capacity);
+}
 
 bool FrameCache::contains(const FrameCacheKey& key) const {
     return m_cache.contains(key);

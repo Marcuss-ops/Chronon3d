@@ -30,7 +30,7 @@ struct FakeCache {
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("CacheDiagnostics - register and snapshot") {
-    auto& diag = CacheDiagnostics::instance();
+    CacheDiagnostics diag;
     diag.set_enabled(true);
 
     FakeCache fake;
@@ -74,7 +74,7 @@ TEST_CASE("CacheDiagnostics - register and snapshot") {
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("CacheDiagnostics - multiple domains") {
-    auto& diag = CacheDiagnostics::instance();
+    CacheDiagnostics diag;
     diag.set_enabled(true);
 
     FakeCache fb_cache;
@@ -135,7 +135,7 @@ TEST_CASE("CacheDiagnostics - multiple domains") {
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("CacheDiagnostics - clear by domain") {
-    auto& diag = CacheDiagnostics::instance();
+    CacheDiagnostics diag;
     diag.set_enabled(true);
 
     FakeCache a, b, c;
@@ -172,7 +172,7 @@ TEST_CASE("CacheDiagnostics - clear by domain") {
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("CacheDiagnostics - clear all") {
-    auto& diag = CacheDiagnostics::instance();
+    CacheDiagnostics diag;
     diag.set_enabled(true);
 
     FakeCache a, b;
@@ -198,7 +198,7 @@ TEST_CASE("CacheDiagnostics - clear all") {
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("CacheDiagnostics - unregister on handle destruction") {
-    auto& diag = CacheDiagnostics::instance();
+    CacheDiagnostics diag;
     diag.set_enabled(true);
 
     FakeCache fake;
@@ -219,7 +219,7 @@ TEST_CASE("CacheDiagnostics - unregister on handle destruction") {
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("CacheDiagnostics - handle move semantics") {
-    auto& diag = CacheDiagnostics::instance();
+    CacheDiagnostics diag;
     diag.set_enabled(true);
 
     FakeCache fake;
@@ -242,7 +242,7 @@ TEST_CASE("CacheDiagnostics - handle move semantics") {
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("CacheDiagnostics - disabled mode") {
-    auto& diag = CacheDiagnostics::instance();
+    CacheDiagnostics diag;
     diag.set_enabled(false);
 
     FakeCache fake;
@@ -262,7 +262,7 @@ TEST_CASE("CacheDiagnostics - disabled mode") {
     CHECK(diag.clear_all() == 0);
     CHECK(fake.clear_count == 0);
 
-    diag.set_enabled(true);  // restore for other tests
+    // diag is local — no need to restore for other tests
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -270,7 +270,7 @@ TEST_CASE("CacheDiagnostics - disabled mode") {
 // ═════════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("CacheDiagnostics - DomainSnapshot aggregation") {
-    auto& diag = CacheDiagnostics::instance();
+    CacheDiagnostics diag;
     diag.set_enabled(true);
 
     FakeCache a, b;

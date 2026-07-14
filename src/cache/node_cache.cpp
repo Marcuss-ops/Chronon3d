@@ -27,27 +27,29 @@ u64 NodeCacheKey::digest() const {
         .finish();
 }
 
-NodeCache::NodeCache(size_t capacity_bytes)
+NodeCache::NodeCache(size_t capacity_bytes, CacheDiagnostics* diag)
     : m_cache(
           [&] {
               auto p = resolve_cache_policy(CacheDomain::Nodes,
                   capacity_bytes > 0 ? std::optional<std::size_t>(capacity_bytes) : std::nullopt);
-              m_diag_handle = CacheDiagnostics::instance().register_cache(
-                  CacheDomain::Nodes,
-                  [this]() -> GenericCacheStats {
-                      if (!m_diag_alive.load(std::memory_order_acquire)) return {};
-                      auto s = m_cache.stats();
-                      return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
-                  },
-                  [this] {
-                      if (!m_diag_alive.load(std::memory_order_acquire)) return;
-                      m_cache.clear();
-                  },
-                  [this] {
-                      if (!m_diag_alive.load(std::memory_order_acquire)) return CapacityMode::Weight;
-                      return m_cache.capacity_mode();
-                  },
-                  p.capacity);
+              if (diag) {
+                  m_diag_handle = diag->register_cache(
+                      CacheDomain::Nodes,
+                      [this]() -> GenericCacheStats {
+                          if (!m_diag_alive.load(std::memory_order_acquire)) return {};
+                          auto s = m_cache.stats();
+                          return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+                      },
+                      [this] {
+                          if (!m_diag_alive.load(std::memory_order_acquire)) return;
+                          m_cache.clear();
+                      },
+                      [this] {
+                          if (!m_diag_alive.load(std::memory_order_acquire)) return CapacityMode::Weight;
+                          return m_cache.capacity_mode();
+                      },
+                      p.capacity);
+              }
               return p;
           }().capacity,
           2,
@@ -56,6 +58,28 @@ NodeCache::NodeCache(size_t capacity_bytes)
 
 NodeCache::~NodeCache() {
     m_diag_alive.store(false, std::memory_order_release);
+}
+
+void NodeCache::set_diagnostics(CacheDiagnostics& diag) {
+    m_diag_alive.store(false, std::memory_order_release);
+    m_diag_handle = {};  // RAII-drop old handle (no-op if was default-constructed)
+    m_diag_alive.store(true, std::memory_order_release);
+    m_diag_handle = diag.register_cache(
+        CacheDomain::Nodes,
+        [this]() -> GenericCacheStats {
+            if (!m_diag_alive.load(std::memory_order_acquire)) return {};
+            auto s = m_cache.stats();
+            return {s.hits, s.misses, s.evictions, s.current_size, s.current_weight};
+        },
+        [this] {
+            if (!m_diag_alive.load(std::memory_order_acquire)) return;
+            m_cache.clear();
+        },
+        [this] {
+            if (!m_diag_alive.load(std::memory_order_acquire)) return CapacityMode::Weight;
+            return m_cache.capacity_mode();
+        },
+        resolve_cache_policy(CacheDomain::Nodes, std::nullopt).capacity);
 }
 
 std::shared_ptr<Framebuffer> NodeCache::get(const NodeCacheKey& key) {

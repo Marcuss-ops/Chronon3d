@@ -22,7 +22,8 @@ namespace {
 
 std::string format_summary(const std::string& comp_id, Frame frame,
                             int width, int height,
-                            const graph::SceneGraphStats& s) {
+                            const graph::SceneGraphStats& s,
+                            chronon3d::cache::CacheDiagnostics& diag) {
     std::string out;
     out += fmt::format("Graph summary: {} frame {}\n", comp_id, frame);
     out += fmt::format("Scene:\n");
@@ -47,7 +48,7 @@ std::string format_summary(const std::string& comp_id, Frame frame,
 
     if (s.execute_ms > 0.0) {
         out += "\nCache (all domains):\n";
-        out += chronon3d::cache::format_cache_snapshot();
+        out += chronon3d::cache::format_cache_snapshot(diag);
     }
 
     out += "\nTiming:\n";
@@ -230,7 +231,7 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
             static_cast<float>(comp.frame_rate().fps()),
             /*execute=*/true, /*include_dot=*/need_dot
         );
-        fmt::print("{}", format_summary(args.comp_id, args.frame, comp.width(), comp.height(), stats));
+        fmt::print("{}", format_summary(args.comp_id, args.frame, comp.width(), comp.height(), stats, renderer->runtime().diagnostics()));
         if (need_dot && !write_dot(stats.dot, args.output)) return 1;
         return 0;
     }
