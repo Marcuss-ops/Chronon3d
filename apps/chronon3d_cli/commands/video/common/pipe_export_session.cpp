@@ -105,7 +105,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
 
             auto current_arena = ctx.triple_arena.acquire();
             // P1-20 — sw_renderer is a non-nullable reference; no null check.
-            ctx.sw_renderer.framebuffer_pool()->set_arena(current_arena);
+            ctx.sw_renderer->framebuffer_pool()->set_arena(current_arena);
 
             const auto node_cache_hits_before = ctx.node_cache.stats().hits;
 
@@ -113,7 +113,7 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
             auto fb = graph::render_composition_frame(
                 ctx.backend, ctx.node_cache, ctx.settings, &ctx.registry,
                 ctx.video_decoder, ctx.comp, current_frame,
-                &ctx.sw_renderer);  // P1-20 — Cat-3 minimal: pass address-of-reference to graph::render_composition_frame (which still takes SoftwareRenderer*).
+                ctx.sw_renderer);  // sw_renderer is already SoftwareRenderer*
             const auto frame_t1 = profiling::now();
             const double frame_ms =
                 profiling::duration_ms(frame_t0, frame_t1);
@@ -126,17 +126,17 @@ RenderLoopResult run_render_loop(const RenderLoopContext& ctx) {
 
             // P1-20 — direct method calls; no null check (reference is mandatory).
             const double dirty_ratio =
-                ctx.sw_renderer.last_dirty_area_ratio();
+                ctx.sw_renderer->last_dirty_area_ratio();
             const bool dirty_rect_enabled =
-                ctx.sw_renderer.last_dirty_rect_enabled();
+                ctx.sw_renderer->last_dirty_rect_enabled();
             const auto dirty_rect =
-                ctx.sw_renderer.last_dirty_rect();
+                ctx.sw_renderer->last_dirty_rect();
             const bool tile_execution_used =
-                ctx.sw_renderer.last_tile_execution_used();
+                ctx.sw_renderer->last_tile_execution_used();
             const bool fast_path_reused =
-                ctx.sw_renderer.last_fast_path_reused();
+                ctx.sw_renderer->last_fast_path_reused();
             const bool graph_reused =
-                ctx.sw_renderer.last_graph_reused();
+                ctx.sw_renderer->last_graph_reused();
 
             if (!fb) {
                 ctx.triple_arena.release(current_arena);

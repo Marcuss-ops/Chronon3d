@@ -139,7 +139,7 @@ bool finalize_render_job(
     // mode to avoid the crash; the cache stats are still available in
     // the telemetry counters written to the DB.
     if (!plan.report) {
-        spdlog::info("\n{}", chronon3d::cache::format_cache_snapshot());
+        spdlog::info("\n{}", chronon3d::cache::format_cache_snapshot(setup.renderer->runtime().diagnostics()));
     }
 
     const auto wall_t1 = profiling::now();
