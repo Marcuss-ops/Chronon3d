@@ -61,6 +61,7 @@
 
 | Ticket | Description |
 |---|---|
+| TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE-IMPL | P2 | CLOSED 2026-07-14 | feat(fb-pool): wire trim_after_job (default TrimAfterJob) at f1d8cc34; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE-IMPL.md) |
 | TICKET-RENDERGRAPH-CACHE-PERSISTENT-DEAD-FLAG-SCOPE-REALIGNMENT | P2 | CLOSED 2026-07-14 | chore(cache): scope-realignment audit; 3 target files already-clean per PR2-cleanup; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-RENDERGRAPH-CACHE-PERSISTENT-DEAD-FLAG-SCOPE-REALIGNMENT.md) |
 | TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV-VPS-3DOC-CAT5-ALIGN | P2 | CLOSED 2026-07-14 | chore docs(ticket): vcpkg bootstrap honesty 3-doc alignment; VPS env-block audit; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV-VPS-3DOC-CAT5-ALIGN.md) |
 | TICKET-FIX-TEXT-SHAPING-DEDUP-V1-3DOC-CAT5-ALIGN | P2 | CLOSED 2026-07-14 | chore docs(text): shape-dedup counter 3-doc closure; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-FIX-TEXT-SHAPING-DEDUP-V1-3DOC-CAT5-ALIGN.md) |
