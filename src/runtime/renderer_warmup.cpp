@@ -51,10 +51,10 @@ RendererWarmupResult warmup_renderer(
     // 2. Optionally render dummy frame(s) to prime all caches.
     // Run it twice so the second pass exercises the fully warmed pool and cache.
     if (options.render_dummy_frame) {
-        // codex/agent2-font-bind-fixes — wire FontEngine into warmup
-        // evaluation so text compositions don't crash with
-        // "no FontEngine available" during the dummy-frame passes.
-        FontEngine* engine = &renderer.font_engine();
+        // WP-9 / P1-16 — wire the renderer's RenderRuntime into warmup
+        // evaluation so text compositions can access the font engine via
+        // ctx.runtime->font_engine() during the dummy-frame passes.
+        const chronon3d::runtime::RenderRuntime* runtime = &renderer.runtime();
         for (int pass = 0; pass < 2; ++pass) {
             FrameContext warmup_ctx{
                 .frame = options.dummy_frame,
@@ -66,7 +66,7 @@ RendererWarmupResult warmup_renderer(
                 .height = composition.height(),
                 .assets_root = composition.assets_root(),
                 .resource = std::pmr::get_default_resource(),
-                .font_engine = engine,
+                .runtime = runtime,
             };
             auto scene = composition.evaluate(warmup_ctx);
             auto fb = renderer.render_scene(

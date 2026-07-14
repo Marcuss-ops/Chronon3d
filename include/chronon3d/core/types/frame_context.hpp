@@ -27,16 +27,13 @@ struct FrameContext {
     AssetRegistry* assets{nullptr};  // PR 2 — migration path: prefer this over TLS AssetRegistry API
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
     // ── WP-9 PR 9.0 — Runtime accessor threaded into composition ctx ─
-    // P1-16: the legacy `ctx.font_engine` direct field has been REMOVED
-    // in favour of the canonical `ctx.runtime->font_engine()` accessor
-    // (one owner, one access path).  Composition lambdas should now
-    // read the font engine EXCLUSIVELY through the runtime:
-    //     `if (ctx.runtime && ctx.runtime->font_engine()) ...`
-    // `ctx.runtime` may be null in standalone test scenarios
-    // (hand-built FrameContext without a runtime); the null-check is
-    // the caller's responsibility.
-    // P1-16: `ctx.runtime->font_engine()` is the SOLE canonical access
-    // path.  See the field doc above for the migration contract.
+    // P1-16: the canonical access path is `ctx.runtime->font_engine()`.
+    // The legacy `ctx.font_engine` direct field is kept for backward
+    // compatibility during the migration; it is populated automatically
+    // by Composition::evaluate_double when a runtime is supplied, and
+    // callers may still set it directly in hand-built FrameContext.
+    // New code should prefer `ctx.runtime->font_engine()`.
+    FontEngine* font_engine{nullptr};
     const chronon3d::runtime::RenderRuntime* runtime{nullptr};
 
     [[nodiscard]] double fps() const { return frame_rate.fps(); }
