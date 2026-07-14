@@ -8,6 +8,14 @@
 // GlyphAtlasEntry e tutti i 5 metadata vengono preservati attraverso
 // store + lookup.
 //
+// P1-9 migration: the global free functions (glyph_atlas_clear,
+// glyph_atlas_lookup, glyph_atlas_store, glyph_atlas_stats) are now
+// thin wrappers around TextRenderResources member functions.  Tests
+// construct a local `TextRenderResources` and call the member methods
+// directly (cleaner than threading the instance through free function
+// wrappers — the test is internal to the design, not an external API
+// contract).
+//
 // Test cases (Catch2):
 //   1. lookup di un glyph_id MAI memorizzato → std::nullopt.
 //   2. store di un entry con TUTTI i 5 campi popolati (image allocata,
@@ -20,6 +28,7 @@
 //   4. cache stats: entry_count increment dopo store, azzerato dopo clear.
 // ═══════════════════════════════════════════════════════════════════════════
 
+#include <chronon3d/backends/text/text_render_resources.hpp>
 #include <chronon3d/text/glyph_atlas.hpp>
 
 #include <blend2d.h>
@@ -49,23 +58,25 @@ constexpr std::uint32_t kTestFillRgba = 0xAABBCCDDu;
 } // namespace
 
 TEST_CASE("glyph_atlas: empty cache lookup returns nullopt") {
+    chronon3d::TextRenderResources res;
     const std::string font_path = "/nonexistent/font/path.ttf";
     const std::uint32_t glyph_id = 0xDEADBEEFu;
     const std::uint32_t font_size = 24;
 
     // Force-clear first so we know state.
-    chronon3d::glyph_atlas_clear();
+    res.clear_glyph_atlas();
 
-    auto hit = chronon3d::glyph_atlas_lookup(font_path, glyph_id, font_size);
+    auto hit = res.lookup_glyph_atlas(font_path, glyph_id, font_size);
     REQUIRE_FALSE(hit.has_value());
 }
 
 TEST_CASE("glyph_atlas: lookup preserves x_offset / y_offset / advance_x / fill_color_rgba") {
+    chronon3d::TextRenderResources res;
     const std::string font_path = "/test/store/roundtrip.ttf";
     const std::uint32_t glyph_id = 0xC0FFEEu;
     const std::uint32_t font_size = 32;
 
-    chronon3d::glyph_atlas_clear();
+    res.clear_glyph_atlas();
 
     // ── Store an entry with FULL metadata (all non-default) ─────────────
     chronon3d::GlyphAtlasEntry entry_in;
@@ -78,10 +89,10 @@ TEST_CASE("glyph_atlas: lookup preserves x_offset / y_offset / advance_x / fill_
     REQUIRE(entry_in.image->width() == 4);
     REQUIRE(entry_in.image->height() == 4);
 
-    chronon3d::glyph_atlas_store(font_path, glyph_id, font_size, entry_in);
+    res.store_glyph_atlas(font_path, glyph_id, font_size, entry_in);
 
     // ── Lookup: every metadata field MUST round-trip ────────────────
-    auto hit = chronon3d::glyph_atlas_lookup(font_path, glyph_id, font_size);
+    auto hit = res.lookup_glyph_atlas(font_path, glyph_id, font_size);
     REQUIRE(hit.has_value());
 
     const chronon3d::GlyphAtlasEntry& entry_out = *hit;
@@ -99,6 +110,7 @@ TEST_CASE("glyph_atlas: lookup preserves x_offset / y_offset / advance_x / fill_
 }
 
 TEST_CASE("glyph_atlas: clear resets cache, subsequent lookup misses") {
+    chronon3d::TextRenderResources res;
     const std::string font_path = "/test/clear/path.ttf";
     const std::uint32_t glyph_id = 0xFEEDFACEu;
     const std::uint32_t font_size = 48;
@@ -110,30 +122,31 @@ TEST_CASE("glyph_atlas: clear resets cache, subsequent lookup misses") {
     entry_in.advance_x        = 3.0f;
     entry_in.fill_color_rgba  = 0x01020304u;
 
-    chronon3d::glyph_atlas_store(font_path, glyph_id, font_size, entry_in);
+    res.store_glyph_atlas(font_path, glyph_id, font_size, entry_in);
 
-    REQUIRE(chronon3d::glyph_atlas_lookup(font_path, glyph_id, font_size).has_value());
+    REQUIRE(res.lookup_glyph_atlas(font_path, glyph_id, font_size).has_value());
 
-    chronon3d::glyph_atlas_clear();
+    res.clear_glyph_atlas();
 
-    auto miss = chronon3d::glyph_atlas_lookup(font_path, glyph_id, font_size);
+    auto miss = res.lookup_glyph_atlas(font_path, glyph_id, font_size);
     REQUIRE_FALSE(miss.has_value());
 
-    auto stats_after = chronon3d::glyph_atlas_stats();
+    auto stats_after = res.glyph_atlas_stats();
     CHECK(stats_after.entry_count == 0);
     CHECK(stats_after.total_weight == 0);
 }
 
 TEST_CASE("glyph_atlas: lookup is empty after no store") {
     // Sanity: a freshly cleared cache stays empty for unknown keys.
+    chronon3d::TextRenderResources res;
     const std::string font_path = "/t/unfilled/path.ttf";
     const std::uint32_t glyph_id = 0x00FACADEu;
     const std::uint32_t font_size = 16;
 
-    chronon3d::glyph_atlas_clear();
-    REQUIRE_FALSE(chronon3d::glyph_atlas_lookup(font_path, glyph_id, font_size).has_value());
+    res.clear_glyph_atlas();
+    REQUIRE_FALSE(res.lookup_glyph_atlas(font_path, glyph_id, font_size).has_value());
 
-    auto stats_empty = chronon3d::glyph_atlas_stats();
+    auto stats_empty = res.glyph_atlas_stats();
     CHECK(stats_empty.entry_count == 0);
     CHECK(stats_empty.total_weight == 0);
 }

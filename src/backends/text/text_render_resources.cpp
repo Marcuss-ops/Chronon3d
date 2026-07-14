@@ -477,6 +477,69 @@ struct TextRasterCache {
         : cache(capacity_in > 0 ? capacity_in : kFallbackBytes, 8) {}
 };
 
+// ── P1-9 — GlyphAtlasCache PIMPL ─────────────────────────────────────
+//
+// The cache state that USED to live in `src/backends/text/glyph_atlas.cpp`
+// is now co-located with TextRenderResources.  The 4 free functions
+// (`set/get_glyph_atlas` + `get_glyph_atlas_mutex` + `glyph_atlas_clear`)
+// are deleted.  Production callers access via the TextRenderResources
+// members declared in `text_render_resources.hpp`.  The legacy
+// `rasterize_text_to_bl_image` ABI-frozen TU bypasses the atlas (Cat-5
+// ABI stability constraint, matches the P1-8 raster cache bypass); the
+// per-renderer atlas is used by non-legacy paths.
+
+struct GlyphAtlasKey {
+    std::string font_path;
+    u32         glyph_id{0};
+    u32         font_size{0};
+
+    bool operator==(const GlyphAtlasKey& o) const noexcept {
+        return font_path == o.font_path
+            && glyph_id == o.glyph_id
+            && font_size == o.font_size;
+    }
+};
+
+struct GlyphAtlasKeyHash {
+    [[nodiscard]] std::size_t operator()(const GlyphAtlasKey& k) const noexcept {
+        std::size_t h = std::hash<std::string>{}(k.font_path);
+        h ^= std::hash<u32>{}(k.glyph_id) + 0x9e3779b97f4a7c15ULL
+             + (h << 6) + (h >> 2);
+        h ^= std::hash<u32>{}(k.font_size) + 0x9e3779b97f4a7c15ULL
+             + (h << 6) + (h >> 2);
+        return h;
+    }
+};
+
+struct GlyphAtlasCache {
+    using Cache = cache::LruCache<GlyphAtlasKey, GlyphAtlasEntry, GlyphAtlasKeyHash>;
+
+    /// 32 MiB fallback — matches the legacy
+    /// `glyph_atlas.cpp::kFallback` (TICKET-079).  Used when a caller
+    /// passes `0` to the ctor.
+    static constexpr size_t kFallbackBytes = 32ULL * 1024ULL * 1024ULL;
+
+    /// External shared_mutex: coordinates cross-shard put/lookup atomicity
+    /// (the LruCache's per-shard mutexes protect per-shard access, but
+    /// the put+get independent operations need cross-shard coordination
+    /// to prevent the "lookup → on-miss-store" test-and-set race).  The
+    /// legacy `get_glyph_atlas_mutex()` accessor was REMOVED; callers
+    /// that needed cross-instance synchronization no longer exist (the
+    /// atlas is now per-instance, owned by ONE TextRenderResources).
+    mutable std::shared_mutex mutex;
+    Cache cache;
+
+    /// Ctor MATERIALIZES the cache eagerly with the requested capacity
+    /// (or fallback if 0).  Eager-init mirrors the legacy first-call-wins
+    /// semantics in `glyph_atlas.cpp::resolve_atlas_max_bytes()`: capacity
+    /// is locked at materialization; post-init capacity updates are
+    /// silently ignored.  The renderer MUST call
+    /// `TextRenderResources::set_glyph_atlas_capacity(N)` from its ctor
+    /// BEFORE the first cache touch for the injected capacity to apply.
+    explicit GlyphAtlasCache(size_t capacity_in)
+        : cache(capacity_in > 0 ? capacity_in : kFallbackBytes, 8) {}
+};
+
 } // namespace detail
 
 // `chronon3d::hash_text_style` — relocated from `text_rasterizer_cache.cpp`.
@@ -524,6 +587,136 @@ void TextRenderResources::store_raster_cache(uint64_t key, std::shared_ptr<TextR
                     static_cast<size_t>(result->image.height()) * 4;
     std::unique_lock lock(raster_cache->mutex);
     raster_cache->cache.put(key, result, weight);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// P1-9 — GlyphAtlas per-instance API
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// `glyph_atlas` is allocated lazily on the first `set_glyph_atlas_capacity`
+// call (called by SoftwareRenderer ctor).  Subsequent lookups/store/clear
+// no-op on an un-materialized instance.  The 4 free functions
+// (`set/get_glyph_atlas` + `get_glyph_atlas_mutex` + `glyph_atlas_clear`)
+// are deleted; callers must use these member functions.
+
+void TextRenderResources::set_glyph_atlas_capacity(size_t max_bytes) {
+    if (!glyph_atlas) {
+        glyph_atlas = std::make_unique<detail::GlyphAtlasCache>(max_bytes);
+    }
+    // Post-materialization calls are silently ignored — see GlyphAtlasCache
+    // ctor comment for the rationale (legacy first-call-wins semantics).
+}
+
+void TextRenderResources::clear_glyph_atlas() {
+    if (!glyph_atlas) return;
+    std::unique_lock lock(glyph_atlas->mutex);
+    glyph_atlas->cache.clear();
+}
+
+std::optional<GlyphAtlasEntry> TextRenderResources::lookup_glyph_atlas(
+    const std::string& font_path,
+    u32 glyph_id,
+    u32 font_size
+) {
+    if (!glyph_atlas) return std::nullopt;
+    detail::GlyphAtlasKey key{font_path, glyph_id, font_size};
+    std::shared_lock lock(glyph_atlas->mutex);
+    return glyph_atlas->cache.get(key);
+}
+
+void TextRenderResources::store_glyph_atlas(
+    const std::string& font_path,
+    u32 glyph_id,
+    u32 font_size,
+    const GlyphAtlasEntry& entry
+) {
+    if (!glyph_atlas) return;
+    // Weight is the image byte size (width × height × 4 for PRGB32);
+    // the metadata struct is ~24 bytes and is amortized over the image
+    // bytes — counting it would distort cache pressure for negligible
+    // gain.  The shared_ptr<BLImage> inside the entry gets its ref-count
+    // incremented (cheap, atomic) so the cache owns the new instance
+    // until eviction.
+    size_t weight = static_cast<size_t>(entry.image->width()) *
+                    static_cast<size_t>(entry.image->height()) * 4;
+    detail::GlyphAtlasKey key{font_path, glyph_id, font_size};
+    std::unique_lock lock(glyph_atlas->mutex);
+    glyph_atlas->cache.put(key, entry, weight);
+}
+
+void TextRenderResources::store_glyph_atlas_from_placed_run(
+    const std::string& font_path,
+    const BLImage& rendered_text,
+    const PlacedGlyphRun& placed,
+    const BLFont& font,
+    float origin_x,
+    float origin_y,
+    float font_size,
+    u32 fill_color_rgba
+) {
+    if (!glyph_atlas) return;
+    BLImageData img_data;
+    if (rendered_text.getData(&img_data) != BL_SUCCESS) return;
+    if (!img_data.pixelData || img_data.size.w <= 0 || img_data.size.h <= 0) return;
+
+    const int img_w = img_data.size.w;
+    const int img_h = img_data.size.h;
+    const int stride = static_cast<int>(img_data.stride / sizeof(uint32_t));
+    const auto* src = static_cast<const uint32_t*>(img_data.pixelData);
+    const u32 fs = static_cast<u32>(std::ceil(font_size));
+
+    for (const auto& pg : placed.glyphs) {
+        if (pg.glyph_id == 0) continue;
+
+        auto existing = lookup_glyph_atlas(font_path, pg.glyph_id, fs);
+        if (existing && existing->fill_color_rgba == fill_color_rgba) continue;
+
+        BLBoxI bbox_i;
+        const u32 gid = pg.glyph_id;
+        if (font.getGlyphBounds(&gid, intptr_t{0}, &bbox_i, 1) != 1) continue;
+
+        const int gx = static_cast<int>(std::floor(origin_x + pg.x + bbox_i.x0));
+        const int gy = static_cast<int>(std::floor(origin_y + pg.y + bbox_i.y0));
+        const int gw = static_cast<int>(std::ceil(bbox_i.x1 - bbox_i.x0));
+        const int gh = static_cast<int>(std::ceil(bbox_i.y1 - bbox_i.y0));
+        if (gw <= 0 || gh <= 0) continue;
+        if (gx < 0 || gy < 0 || gx + gw > img_w || gy + gh > img_h) continue;
+
+        auto glyph_img = std::make_shared<BLImage>(gw, gh, BL_FORMAT_PRGB32);
+        {
+            BLImageData glyph_data;
+            if (glyph_img->getData(&glyph_data) != BL_SUCCESS) continue;
+            auto* dst = static_cast<uint32_t*>(glyph_data.pixelData);
+            const int gs = static_cast<int>(glyph_data.stride / sizeof(uint32_t));
+            for (int y = 0; y < gh; ++y)
+                for (int x = 0; x < gw; ++x)
+                    dst[y * gs + x] = src[(gy + y) * stride + (gx + x)];
+        }
+
+        GlyphAtlasEntry entry;
+        entry.image            = glyph_img;
+        entry.x_offset         = static_cast<int>(bbox_i.x0);
+        entry.y_offset         = static_cast<int>(bbox_i.y0);
+        entry.advance_x        = pg.advance_x;
+        entry.fill_color_rgba  = fill_color_rgba;
+        store_glyph_atlas(font_path, pg.glyph_id, fs, entry);
+
+        if (profiling::g_current_counters) {
+            profiling::g_current_counters->glyph_atlas_stored.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+}
+
+GlyphAtlasStats TextRenderResources::glyph_atlas_stats() const {
+    GlyphAtlasStats s;
+    if (!glyph_atlas) return s;
+    std::shared_lock lock(glyph_atlas->mutex);
+    auto st = glyph_atlas->cache.stats();
+    s.entry_count  = st.current_size;
+    s.total_weight = st.current_weight;
+    s.hits         = st.hits;
+    s.misses       = st.misses;
+    return s;
 }
 
 } // namespace chronon3d

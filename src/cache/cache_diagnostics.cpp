@@ -9,10 +9,10 @@
 
 namespace chronon3d::cache {
 
-CacheDiagnostics& CacheDiagnostics::instance() {
-    static CacheDiagnostics s_instance;
-    return s_instance;
-}
+// P1-10 — `CacheDiagnostics::instance()` REMOVED.  Per-runtime
+// diagnostics are owned by `RenderRuntime::m_diagnostics` and accessed
+// via `runtime.diagnostics()`.  External callers (CLI, tests) construct
+// their own local `CacheDiagnostics` and pass a pointer to the caches.
 
 // ── Registration ──────────────────────────────────────────────────────────
 

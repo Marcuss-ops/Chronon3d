@@ -85,7 +85,14 @@ public:
     /// See FrameCache ctor for Config-driven fallback semantics.
     /// When `max_entries == 0` the cap is resolved centrally via
     /// resolve_cache_policy(CacheDomain::VideoFrames).
-    explicit VideoFrameCache(size_t max_entries = 0, size_t num_shards = 2);
+    /// P1-10 — `diag` is the nullable observer (defaults to nullptr =
+    /// no-op registration).  Positioned LAST so existing call sites that
+    /// pass `max_entries` + `num_shards` continue to work unchanged.
+    explicit VideoFrameCache(size_t max_entries = 0,
+                             size_t num_shards  = 2,
+                             CacheDiagnostics* diag = nullptr);
+    /// P1-10 — re-registers with the new diagnostics.  See NodeCache.
+    void set_diagnostics(CacheDiagnostics& diag);
     VideoFrameCache(VideoFrameCache&&) noexcept = default;
     VideoFrameCache& operator=(VideoFrameCache&&) noexcept = default;
 

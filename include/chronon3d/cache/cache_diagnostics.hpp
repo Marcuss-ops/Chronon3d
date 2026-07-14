@@ -32,7 +32,12 @@ namespace chronon3d::cache {
 
 /// Query CacheDiagnostics and format a multi-line cache snapshot.
 /// Suitable for spdlog::info or CLI output.
-[[nodiscard]] std::string format_cache_snapshot();
+///
+/// P1-10 — `diag` is the per-runtime diagnostics to query.  The
+/// `instance()` singleton was REMOVED in P1-10; callers must pass a
+/// diagnostics reference (typically `runtime.diagnostics()` or a
+/// per-test local instance).
+[[nodiscard]] std::string format_cache_snapshot(CacheDiagnostics& diag);
 
 // ── GenericCacheStats — type-erased LruCache::Stats mirror ────────────────
 //
@@ -80,8 +85,18 @@ struct DomainSnapshot {
 
 class CacheDiagnostics {
 public:
-    [[deprecated("Use runtime().diagnostics() where a RenderRuntime& is in scope; instance() is the singleton bootstrap fallback only")]]
-    static CacheDiagnostics& instance();
+    // P1-10 — `instance()` singleton REMOVED.  Each `RenderRuntime` owns
+    // its own per-instance `CacheDiagnostics` (`runtime.diagnostics()`).
+    // Caches that need diagnostics receive a `CacheDiagnostics*` via
+    // constructor injection (nullable observer pattern — nullptr = no-op
+    // registration).  See TICKET-LOG-REDUCE-GLOBAL-STATE-01 closure.
+
+    // P1-10 — ctor now PUBLIC.  The previous `private` + `friend class
+    // RenderRuntime` was needed because only the runtime constructed a
+    // diagnostics (the old process-wide singleton).  After DI migration,
+    // external code (tests, runtime adapters) constructs its own
+    // `CacheDiagnostics` instance and passes a pointer to the caches.
+    CacheDiagnostics() = default;
 
     CacheDiagnostics(const CacheDiagnostics&)            = delete;
     CacheDiagnostics& operator=(const CacheDiagnostics&) = delete;
@@ -155,7 +170,6 @@ private:
     std::atomic<bool>                               m_enabled{true};
 
     friend class Handle;
-    friend class chronon3d::runtime::RenderRuntime;
 };
 
 // ── Handle — RAII registration token ──────────────────────────────────────
@@ -206,45 +220,10 @@ private:
 
 } // namespace chronon3d::cache
 
-#ifndef CHRONON3D_ENABLE_DIAGNOSTICS
-
-// ── No-op stubs when engine-level diagnostics are disabled at compile time ──
-
-namespace chronon3d::cache {
-
-inline CacheDiagnostics& CacheDiagnostics::instance() {
-    static CacheDiagnostics s_instance;
-    return s_instance;
-}
-
-inline CacheDiagnostics::Handle CacheDiagnostics::register_cache(
-    CacheDomain /*domain*/,
-    std::function<GenericCacheStats()> /*stats_fn*/,
-    std::function<void()> /*clear_fn*/,
-    std::function<CapacityMode()> /*mode_fn*/,
-    std::size_t /*capacity*/)
-{
-    return Handle{};
-}
-
-inline void CacheDiagnostics::unregister(CacheDomain, Entry*) {}
-
-inline std::vector<CacheSnapshot> CacheDiagnostics::snapshot() const { return {}; }
-inline DomainSnapshot CacheDiagnostics::snapshot_by_domain(CacheDomain domain) const {
-    return DomainSnapshot{.domain = domain};
-}
-inline std::vector<DomainSnapshot> CacheDiagnostics::snapshot_all_domains() const { return {}; }
-inline std::size_t CacheDiagnostics::clear_by_domain(CacheDomain) { return 0; }
-inline std::size_t CacheDiagnostics::clear_all() { return 0; }
-inline std::size_t CacheDiagnostics::registered_count() const { return 0; }
-inline std::size_t CacheDiagnostics::registered_count(CacheDomain) const { return 0; }
-inline void CacheDiagnostics::set_enabled(bool) noexcept {}
-inline bool CacheDiagnostics::is_enabled() const noexcept { return false; }
-
-inline std::string format_cache_snapshot() {
-    return "[cache] Diagnostics disabled at compile time (CHRONON3D_ENABLE_DIAGNOSTICS=OFF).\n";
-}
-
-} // namespace chronon3d::cache
-
-#endif // CHRONON3D_ENABLE_DIAGNOSTICS
+// P1-10 — the entire `#ifndef CHRONON3D_ENABLE_DIAGNOSTICS` no-op stub
+// block was REMOVED.  The macro was never defined in the codebase (0
+// matches), so the block was INERT dead code.  The user spec required
+// removing the stub singleton and the surrounding no-op stubs;
+// `CacheDiagnostics` is now ALWAYS compiled in.  Per-runtime ownership
+// (P1-15) + DI (P1-10) means the diagnostics service is always
+// available via `runtime.diagnostics()` without a compile-time toggle.

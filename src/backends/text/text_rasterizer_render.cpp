@@ -569,7 +569,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         const u32 run_frgba = detail::resolve_atlas_fill_rgba(
             run_style.paint.fill_style, to_bl_rgba(run_fill).value);
         switch (GlyphTextureUpdater::render_placed(
-                ctx, placed, run_face, run_font, lx, baseline_y,
+                ctx, nullptr, placed, run_face, run_font, lx, baseline_y,
                 run_style.font_path, run_shape_size, run_frgba,
                 use_geometric_transform, t.style.box_style.enabled,
                 run_has_stroke, run_style.paint.fill_style)) {
@@ -677,7 +677,7 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
         const u32 line_frgba = detail::resolve_atlas_fill_rgba(
             t.style.paint.fill_style, to_bl_rgba(line_fill).value);
         switch (GlyphTextureUpdater::render_placed(
-                ctx, placed, face, font, lx, ly,
+                ctx, nullptr, placed, face, font, lx, ly,
                 t.style.font_path, layout_res.font_size, line_frgba,
                 use_geometric_transform, t.style.box_style.enabled,
                 line_has_stroke, t.style.paint.fill_style)) {
@@ -697,7 +697,10 @@ std::optional<TextRasterization> rasterize_text_to_bl_image(
     ctx.end();
 
     // ── GlyphAtlas: store individual glyphs for future reuse ────────
-    detail::store_pending_glyphs(pending_glyph_stores, img);
+    // P1-9: legacy TU bypasses the per-renderer atlas (nullptr = no-op,
+    // matches P1-8 raster cache bypass).  The new renderer path will
+    // thread the actual TextRenderResources* through.
+    detail::store_pending_glyphs(nullptr, pending_glyph_stores, img);
 
     // ── Trim trailing rows AND compute ink-bounds for centering ───────
     auto ink_trim = detail::trim_and_compute_ink_bounds(img, layout_res.font_size, t.box.enabled);

@@ -12,6 +12,7 @@
 #pragma once
 
 #include <chronon3d/text/glyph_atlas.hpp>
+#include <chronon3d/backends/text/text_render_resources.hpp>  // P1-9: TextRenderResources owner
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include "../software/utils/blend2d_paint.hpp"
 #include <blend2d.h>
@@ -64,8 +65,13 @@ inline u32 resolve_atlas_fill_rgba(
 
 /// Try to blit all glyphs from the atlas cache.  Returns false on the
 /// first miss (caller falls back to fillGlyphRun + pending store).
+///
+/// P1-9: `res` is the per-renderer `TextRenderResources*` that owns the
+/// glyph atlas (was a process-global before P1-9 migration).  Pass
+/// `nullptr` to bypass the atlas (legacy ABI path, matches P1-8 pattern).
 inline bool try_atlas_blit(
     BLContext& ctx,
+    TextRenderResources* res,
     const PlacedGlyphRun& run,
     const std::string& font_path,
     float font_size,
@@ -73,12 +79,13 @@ inline bool try_atlas_blit(
     float origin_x,
     float origin_y)
 {
+    if (!res) return false;  // legacy bypass — caller falls back to fillGlyphRun
     if (run.glyphs.empty()) return false;
     const u32 fsu = static_cast<u32>(std::ceil(font_size));
     std::vector<GlyphAtlasEntry> entries;
     entries.reserve(run.glyphs.size());
     for (const auto& pg : run.glyphs) {
-        auto e = glyph_atlas_lookup(font_path, pg.glyph_id, fsu);
+        auto e = glyph_atlas_lookup(*res, font_path, pg.glyph_id, fsu);
         if (!e || e->fill_color_rgba != fill_rgba) return false;
         entries.push_back(std::move(*e));
     }
@@ -94,12 +101,19 @@ inline bool try_atlas_blit(
 }
 
 /// Post-render: store collected glyphs into the atlas for future reuse.
+///
+/// P1-9: `res` is the per-renderer `TextRenderResources*` that owns the
+/// glyph atlas (was a process-global before P1-9 migration).  Pass
+/// `nullptr` to bypass the atlas (legacy ABI path, matches P1-8 pattern).
 inline void store_pending_glyphs(
+    TextRenderResources* res,
     const std::vector<PendingGlyphStore>& pending,
     const BLImage& rendered_image)
 {
+    if (!res) return;  // legacy bypass — no-op
     for (const auto& ps : pending) {
         glyph_atlas_store_from_placed_run(
+            *res,
             ps.font_path, rendered_image, ps.placed, ps.font,
             ps.origin_x, ps.origin_y, ps.font_size, ps.fill_rgba);
     }

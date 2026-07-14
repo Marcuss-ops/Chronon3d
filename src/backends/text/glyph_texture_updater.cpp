@@ -18,6 +18,7 @@ namespace chronon3d {
 
 GlyphTextureUpdater::Path GlyphTextureUpdater::render_placed(
     BLContext&                                ctx,
+    TextRenderResources&                      res,
     const std::optional<PlacedGlyphRun>&      placed_opt,
     const BLFontFace&                         face,
     const BLFont&                             font,
@@ -40,7 +41,7 @@ GlyphTextureUpdater::Path GlyphTextureUpdater::render_placed(
         return Path::NoPlaced;
     }
 
-    if (!detail::can_use_glyph_atlas(use_geometric_transform,
+    if (!res || !detail::can_use_glyph_atlas(use_geometric_transform,
                                     box_style_enabled,
                                     has_stroke,
                                     fill_style)) {
@@ -51,7 +52,7 @@ GlyphTextureUpdater::Path GlyphTextureUpdater::render_placed(
         return Path::Miss;
     }
 
-    if (detail::try_atlas_blit(ctx, *placed_opt, font_path, font_size,
+    if (detail::try_atlas_blit(ctx, res, *placed_opt, font_path, font_size,
                                fill_rgba, origin_x, origin_y)) {
         if (profiling::g_current_counters) {
             profiling::g_current_counters->glyph_atlas_hits
