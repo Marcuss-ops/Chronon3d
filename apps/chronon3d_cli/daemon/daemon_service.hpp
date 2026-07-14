@@ -25,16 +25,23 @@ struct DaemonOptions {
 };
 
 /**
- * DaemonService — persistent rendering daemon with hot-reload.
+ * DaemonService — persistent rendering daemon (warm render shell).
  *
  * Keeps a RenderEngine alive across renders so that framebuffer pools,
  * font engines, glyph atlases, image caches, and node caches stay warm.
+ *
+ * NOTE: the daemon does NOT perform hot-reload of its own binary (it
+ * cannot reload its own code while running).  For genuine hot-reload
+ * use `chronon watch <comp>` (TICKET-V3-CLI-UNIFICATION-WATCH-SUPERVISOR,
+ * Blocco 4.1) which re-execs the freshly-built CLI as a subprocess and
+ * renders the selected frame on each source change.
  *
  * Accepts commands via stdin:
  *   render <comp> <frame> [out]   Render a frame
  *   status / st                   Show engine stats
  *   clear  / cc                   Clear all caches
- *   reload / rl                   Rebuild project
+ *   reload / rl                   Rebuild project (new binary requires
+ *                                 manual restart; see NOTE above)
  *   help   / h                    Show help
  *   quit   / q                    Shutdown
  */
