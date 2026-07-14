@@ -24,6 +24,14 @@
 
 namespace chronon3d::content::text_reveal {
 
+// P0-2 forward declaration: 3-arg overload of build_text_reveal_line below
+// takes a `const ShapedGlyphLine&` parameter.  ShapedGlyphLine is fully
+// defined in content/common/text/glyph_layout.hpp; we forward-declare it
+// here to keep this header from pulling glyph_layout.hpp into every TU that
+// only needs the 2-arg overload, while still allowing the 3-arg declaration
+// to compile (const-ref parameter types require only a forward declaration).
+class ShapedGlyphLine;
+
 // TextRevealDescriptor — per-glyph reveal parameters
 //
 // Replaces both build_stagger_line (cinematic_text_camera.cpp) and
@@ -82,6 +90,23 @@ struct TextRevealDescriptor {
 //   cinematic_text_camera.cpp: build_stagger_line(...)
 //   text_animations.cpp:       build_typewriter_line(...)
 void build_text_reveal_line(SceneBuilder& s, const TextRevealDescriptor& d);
+
+// build_text_reveal_line (P0-2 perf overload) — same effect as the 2-arg
+// form, but with the ShapedGlyphLine pre-shaped by the caller.  The
+// pre_shaped instance MUST have been constructed with ref_offset_x=0.0f
+// (the canonical raw-shape pattern: shape_glyph_line() and
+// ShapedGlyphLine::try_shape() both default to a zero ref-offset).  The
+// reveal emitter adds d.ref_offset_x to each glyph center at layer-build
+// time, preserving byte-equivalence with the 2-arg path.  No engine
+// check is required: pre_shaped was already produced via a successful
+// engine.shape_text call.
+//
+// Use this overload from sites that already shape the same text once for
+// layout/width computation (in particular build_2line_typewriter, which
+// shapes both lines to derive a center-aligned ref_x).  Avoids re-shaping
+// the same text twice (4 shape calls → 2 per build_2line_typewriter
+// invocation).
+void build_text_reveal_line(SceneBuilder& s, const TextRevealDescriptor& d, const ShapedGlyphLine& pre_shaped);
 
 // font_bold — quick factory for the production Poppins-Bold FontSpec
 // (lives in text_reveal because callers that build reveal text use it as

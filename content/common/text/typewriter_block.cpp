@@ -56,7 +56,7 @@ TypewriterBlockResult build_2line_typewriter(
     const f32 duration = 8.0f;
 
     auto emit = [&](const TextLineSpec& line, f32 y_offset, f32 start_delay,
-                    const char* prefix) {
+                    const char* prefix, const ShapedGlyphLine& pre_shaped) {
         TextRevealDescriptor d{
             .text = line.text, .font_size = line.font_size, .font_spec = font,
             .tracking = spec.tracking, .ref_offset_x = ref_x,
@@ -67,13 +67,17 @@ TypewriterBlockResult build_2line_typewriter(
             .glow_intensity = spec.glow_intensity,
             .layer_prefix = prefix
         };
-        build_text_reveal_line(s, d);
+        // P0-2 fix(perf/text): pass already-shaped ShapedGlyphLine so the
+        // reveal layer emitter doesn't re-shape the same text (single-shape
+        // contract: shape1, shape2 are computed once above to derive ref_x
+        // and per-line widths; build_text_reveal_line 3-arg uses them as-is).
+        build_text_reveal_line(s, d, pre_shaped);
     };
 
     // line 1 (y_offset = -line_spacing/2, starts at frame 0)
-    emit(spec.first,  -spec.line_spacing * 0.5f, 0.0f,             "ch_0");
+    emit(spec.first,  -spec.line_spacing * 0.5f, 0.0f,             "ch_0", shape1);
     // line 2 (y_offset = +line_spacing/2, starts at second_delay)
-    emit(spec.second,  spec.line_spacing * 0.5f, spec.second_delay, "ch_1");
+    emit(spec.second,  spec.line_spacing * 0.5f, spec.second_delay, "ch_1", shape2);
 
     // Per TypewriterBlockResult field formulas:
     //   - second_line_right_edge = ref_x + shape2.width() (width includes tracking)

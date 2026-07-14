@@ -12,13 +12,16 @@
 
 namespace chronon3d::content::text_reveal {
 
-// build_text_reveal_line — implementation
+// build_text_reveal_line (2-arg) — implementation
 //
 // Materialises one layer per character at its final pre-computed position
-// (positions are pre-computed by layout_glyphs at scene-build time, so the
-// text block is visually stable while only opacity / position animate per
-// frame).  Fail-loud (std::runtime_error) on missing FontEngine per
-// AGENTS.md §honesty.
+// (positions are pre-computed by ShapedGlyphLine::layout() at scene-build
+// time, so the text block is visually stable while only opacity / position
+// animate per frame).  Fail-loud (std::runtime_error) on missing
+// FontEngine per AGENTS.md §honesty.  Constructs the ShapedGlyphLine with
+// ref_offset_x=0.0f and delegates to the 3-arg overload so the offset is
+// applied in exactly one place (the layout-to-position bridge inside the
+// for-loop); this preserves byte-equivalence with the pre-P0-2 path.
 void build_text_reveal_line(SceneBuilder& s, const TextRevealDescriptor& d) {
     FontEngine* engine = s.font_engine();
     if (!engine) {
@@ -29,9 +32,26 @@ void build_text_reveal_line(SceneBuilder& s, const TextRevealDescriptor& d) {
             // truncate text to 60 chars (intentional, no ellipsis — keeps log lines bounded)
             "Text: '" + d.text.substr(0, 60) + "'");
     }
+    // P0-2 fix(perf/text): construct ShapedGlyphLine with ref_offset_x=0.0f
+    // so the 3-arg overload applies d.ref_offset_x exactly once.  This keeps
+    // the 2-arg path byte-equivalent with the pre-P0-2 implementation (which
+    // passed d.ref_offset_x into the ctor and read gc.center_x directly).
     ShapedGlyphLine line(d.text, d.font_size, d.font_spec,
-                         d.tracking, d.ref_offset_x, *engine);
-    auto chars = line.layout();
+                         d.tracking, 0.0f /*ref_offset_x*/, *engine);
+    build_text_reveal_line(s, d, line);
+}
+
+// build_text_reveal_line (3-arg overload) — P0-2 single-shape path.
+//
+// Layer-emission contract identical to the 2-arg form; the only difference
+// is that the caller supplies a pre-shaped ShapedGlyphLine (constructed
+// with ref_offset_x=0.0f, the canonical raw-shape pattern).  d.ref_offset_x
+// is then added to each glyph center here in the for-loop, so the final
+// layer position is the same as the 2-arg path.  No engine check: the
+// pre-shaped instance is its own proof that engine.shape_text succeeded.
+void build_text_reveal_line(SceneBuilder& s, const TextRevealDescriptor& d,
+                            const ShapedGlyphLine& pre_shaped) {
+    auto chars = pre_shaped.layout();
 
     for (size_t i = 0; i < chars.size(); ++i) {
         const auto& gc = chars[i];
@@ -39,7 +59,9 @@ void build_text_reveal_line(SceneBuilder& s, const TextRevealDescriptor& d) {
 
         const f32 delay = d.start_delay + static_cast<f32>(i) * d.stagger;
         const f32 end_f = delay + d.duration;
-        const f32 cx = gc.center_x;
+        // P0-2: pre_shaped was shaped with ref_offset_x=0.0f so center_x is
+        // raw; add d.ref_offset_x here at emit time (matches the 2-arg path).
+        const f32 cx = gc.center_x + d.ref_offset_x;
 
         s.layer(d.layer_prefix + "_" + std::to_string(i),
                 [cx, d, delay, end_f, ch = gc.ch, ch_w = gc.width]
