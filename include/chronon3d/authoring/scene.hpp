@@ -29,14 +29,21 @@
 // excluded — they live on the engine FrameContext propagated by the
 // composition render function, not on the authoring handle.
 //
-// ── Surface boundary (PR 4) ───────────────────────────────────────────
+// ── Surface boundary (PR 4 + B2.2 + B2.3) ──────────────────────────────
 //
-// Only `.layer(...)` is exposed as a verb-rich method.  Everything else
-// (camera / stagger / sequence / apply_lighting_rig / shape primitives)
-// is reachable via `.configure_core([&](SceneBuilder& core){ ... })` —
-// the Level-3 escape hatch consistent with PR 3 Layer.  Future PRs may
-// expose more verbs once a clear demand pattern emerges; the surface
-// ships narrow on purpose.
+// Verbs exposed by the Authoring facade:
+//   * `.layer(...)`                — PR 4
+//   * `.sequence(name, spec, ...)` — B2.2
+//   * `.camera()`                  — B2.3 (returns CameraApi)
+//   * `.background(name, p)`       — B2.3
+//   * `.screen_layer(name, ...)`   — B2.3
+//   * `.precomp(name, comp, ...)`  — B2.3
+//   * `.image(name, p)`            — B2.3
+// Everything else (stagger / apply_lighting_rig / shape primitives /
+// edit_camera) is reachable via `.configure_core([&](SceneBuilder&
+// core){ ... })` — the Level-3 escape hatch consistent with PR 3
+// Layer.  Future PRs may expose more verbs once a clear demand pattern
+// emerges; the surface ships narrow on purpose.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -138,6 +145,88 @@ public:
         builder_->sequence(std::move(name),
                            std::move(spec),
                            std::forward<Fn>(fn));
+        return *this;
+    }
+
+    // ── B2.3 — camera(), background(), image(), screen_layer(), precomp()
+    //
+    // Five thin forwarders to existing SceneBuilder surfaces.  All
+    // delegates are verbatim (no transformation, no adapter) — the
+    // pattern is "thin facade → existing canonical system", per
+    // AGENTS.md Cat-3 anti-duplication.  Each forwarder preserves a
+    // distinct surface contract documented inline below.
+
+    /// B2.3 — `CameraApi` forwarder.  `SceneBuilder::camera()` returns a
+    /// value-typed sub-builder (`CameraApi`) that the caller uses to
+    /// configure the scene's camera through a fluent chain
+    /// (`scene.camera().position({0,0,5}).zoom(2.0)`).  This forwarder
+    /// intentionally returns `CameraApi` by value — NOT `Scene&` —
+    /// mirroring the underlying SceneBuilder contract verbatim.
+    /// Callers do NOT chain further Scene methods on `camera()`; the
+    /// CameraApi handles its own fluent surface (`camera()` is a
+    /// terminal sub-builder getter, by design).
+    [[nodiscard]] CameraApi camera() {
+        return builder_->camera();
+    }
+
+    /// B2.3 — `grid_background` forwarder.  Thin delegate to
+    /// `SceneBuilder::grid_background(name, p)`.  Returns `Scene&` to
+    /// preserve the fluent surface for chained verbs (camera, layer,
+    /// sequence, …).
+    Scene& background(std::string name, GridBackgroundParams p) & {
+        builder_->grid_background(std::move(name), std::move(p));
+        return *this;
+    }
+
+    /// B2.3 — `image` forwarder.  Thin delegate to
+    /// `SceneBuilder::image(name, p)`.  Returns `Scene&` for fluent
+    /// chaining.
+    Scene& image(std::string name, ImageParams p) & {
+        builder_->image(std::move(name), std::move(p));
+        return *this;
+    }
+
+    /// B2.3 — `screen_layer` forwarder with dual-surface SFINAE
+    /// dispatch (mirrors `Scene::layer` Surface-A / Surface-B
+    /// contract):
+    ///   (a) `fn(Layer&)`         — PR 3 authoring facade (recommended)
+    ///   (b) `fn(LayerBuilder&)`  — engine passthrough
+    /// No new timeline / no override of any underlying engine method.
+    /// The dispatch is `if constexpr` — the compiler instantiates only
+    /// the matching branch.
+    template <class Fn>
+    Scene& screen_layer(std::string name, Fn&& fn) & {
+        using NakedFn = std::remove_cv_t<std::remove_reference_t<Fn>>;
+        if constexpr (std::is_invocable_v<NakedFn, Layer&>) {
+            builder_->screen_layer(std::move(name),
+                [this, fn = std::forward<Fn>(fn)](LayerBuilder& lb) {
+                    Layer layer_handle(lb, context_);
+                    fn(layer_handle);
+                });
+        } else {
+            builder_->screen_layer(std::move(name), std::forward<Fn>(fn));
+        }
+        return *this;
+    }
+
+    /// B2.3 — `precomp_layer` forwarder with dual-surface SFINAE
+    /// dispatch (mirrors `Scene::layer` Surface-A / Surface-B
+    /// contract).  The underlying `SceneBuilder::precomp_layer(name,
+    /// comp_name, fn)` references a named precomp composition; this
+    /// wrapper preserves that exact arity.
+    template <class Fn>
+    Scene& precomp(std::string name, std::string comp_name, Fn&& fn) & {
+        using NakedFn = std::remove_cv_t<std::remove_reference_t<Fn>>;
+        if constexpr (std::is_invocable_v<NakedFn, Layer&>) {
+            builder_->precomp_layer(std::move(name), std::move(comp_name),
+                [this, fn = std::forward<Fn>(fn)](LayerBuilder& lb) {
+                    Layer layer_handle(lb, context_);
+                    fn(layer_handle);
+                });
+        } else {
+            builder_->precomp_layer(std::move(name), std::move(comp_name),
+                                    std::forward<Fn>(fn));
+        }
         return *this;
     }
 
