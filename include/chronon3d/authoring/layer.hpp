@@ -39,6 +39,13 @@
 #include <chronon3d/extension/extension_context.hpp>  // PR 3.5 — needed to read style_registry/motion_registry pointers from the host-side ExtensionContext.
 #include <chronon3d/text/font_engine.hpp>             // FontEngine — transitive via layer_builder.hpp -> text_run_builder.hpp; explicit here so the surface can document `FontEngine` in the doc-comment without an include-graph lookup
 #include <chronon3d/authoring/text.hpp>
+// Audit §10 — typed `assets::ImageRef` overload accepts the thin authoring
+// helper `authoring::asset("images/logo.png")`.  Bridge delegates to the
+// existing `image(name, ImageParams)` overload by extracting the canonical
+// manifest-clean field `asset_path`.  No new resolver or factory is
+// introduced; the per-runtime resolver still resolves the path at
+// materialization time (see builder_params.hpp::detail::image_params_resolve_path).
+#include <chronon3d/authoring/asset.hpp>
 
 #include <cassert>
 #include <cstddef>
@@ -230,6 +237,21 @@ public:
     [[nodiscard]] NodeHandle image(std::string name, ImageParams p) {
         builder_->image(std::move(name), std::move(p));
         return builder_->last_node_handle();
+    }
+
+    // Audit §10 — typed `assets::ImageRef` overload so that
+    //   `layer.image("logo", authoring::asset("images/logo.png"))`
+    // compiles.  Bridge: extract the canonical `asset_path` field on
+    // `ImageParams` (manifest-clean alternative to the deprecated
+    // `path` field — see builder_params.hpp forward-point 0e) and
+    // forward to the existing `image(name, ImageParams)`.  No new
+    // resolver/factory/singleton — the canonical per-runtime
+    // AssetResolver (mounted via `engine.set_assets_root()`) still
+    // resolves the path at materialization.
+    [[nodiscard]] NodeHandle image(std::string name, assets::ImageRef ref) {
+        ImageParams p;
+        p.asset_path = ref.path();
+        return image(std::move(name), std::move(p));
     }
 
     /// Create a rounded rectangle and return a NodeHandle.
