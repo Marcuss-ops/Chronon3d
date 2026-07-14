@@ -12,19 +12,18 @@
 #include <utility>
 #include <vector>
 
-using namespace chronon3d;
 using namespace chronon3d::content::text;
 
 namespace text_detail = chronon3d::content::text::detail;
 
 // ── Synthetic cluster builder ───────────────────────────────────────────────
-static std::vector<PlacedGlyphRun::Cluster> make_clusters(
+static std::vector<chronon3d::PlacedGlyphRun::Cluster> make_clusters(
     const std::vector<std::pair<size_t, size_t>>& ranges)
 {
-    std::vector<PlacedGlyphRun::Cluster> clusters;
+    std::vector<chronon3d::PlacedGlyphRun::Cluster> clusters;
     clusters.reserve(ranges.size());
     for (const auto& [off, len] : ranges) {
-        PlacedGlyphRun::Cluster cl;
+        chronon3d::PlacedGlyphRun::Cluster cl;
         cl.byte_offset = off;
         cl.byte_len = len;
         cl.start_glyph = 0;
@@ -38,7 +37,7 @@ static std::vector<PlacedGlyphRun::Cluster> make_clusters(
 
 // ── Reference brute-force scan: returns the list of overlapping cluster indices
 static std::vector<size_t> reference_overlapping_clusters(
-    const std::vector<PlacedGlyphRun::Cluster>& clusters,
+    const std::vector<chronon3d::PlacedGlyphRun::Cluster>& clusters,
     size_t char_start,
     size_t char_end)
 {
