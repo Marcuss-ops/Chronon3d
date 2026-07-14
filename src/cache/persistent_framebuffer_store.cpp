@@ -113,46 +113,33 @@ std::filesystem::path PersistentFramebufferStore::file_path(
     return m_cache_dir / sub1 / sub2 / filename;
 }
 
-// ── Static config state (injected by SoftwareRenderer at startup) ────────
+// ── Per-instance configuration (P1-13) ────────────────────────────────────
 
-// FASE 3 (TICKET-079) — Static config (disabled + cache_dir) set once at startup
-// by SoftwareRenderer.  First-call-wins via atomic CAS; eliminates std::once_flag
-// + std::call_once (per AGENTS.md pattern `is serialised + idempotent without an
-// external std::once_flag`).
-namespace {
-    bool              s_disabled  = false;
-    std::string       s_cache_dir;
-    std::atomic<bool> s_config_set{false};
-} // namespace
-
-// ── Singleton / config ────────────────────────────────────────────────────
-
-PersistentFramebufferStore& PersistentFramebufferStore::instance() {
-    static PersistentFramebufferStore s_instance;
-    return s_instance;
-}
-
-void PersistentFramebufferStore::set_store_config(bool disabled, std::string cache_dir) {
-    bool expected = false;
-    if (s_config_set.compare_exchange_strong(
-            expected, true,
-            std::memory_order_acq_rel, std::memory_order_relaxed)) {
-        s_disabled  = disabled;
-        s_cache_dir = std::move(cache_dir);
-    }
-}
-
-bool PersistentFramebufferStore::enabled_for_current_run() {
-    return !s_disabled;
-}
-
-PersistentFramebufferStore::PersistentFramebufferStore() {
-    if (!s_cache_dir.empty()) {
-        m_cache_dir = s_cache_dir;
-    } else {
-        m_cache_dir = std::filesystem::path("output") / "cache" / "framebuffers";
-    }
-}
+// P1-13 — REMOVED process-wide static config state (spawn of
+// `s_disabled`/`s_cache_dir`/`s_config_set`/the singleton
+// `s_instance`) + the 3 cross-runtime configuration helpers
+// (`PersistentFramebufferStore::instance()`,
+// `set_store_config(bool, std::string)`,
+// `enabled_for_current_run()`).  All state is now per-instance on
+// `m_cache_dir` (initialized JSON-default via header in-class
+// initializer) + `m_disabled` (default `false`).
+//
+// Migration matrix:
+//   * OLD: `runtime()->framebuffer_store().set_legacy_config(...)`
+//          via `static set_store_config(bool, std::string)` from any
+//          injection site → NEW: `runtime()->framebuffer_store()
+//          .set_disabled(...)` + `set_cache_dir(...)` per instance.
+//   * OLD: `if (!PersistentFramebufferStore::enabled_for_current_run())`
+//          → NEW: `if (!store.is_enabled())` (instance method).
+//   * OLD: `auto& s = PersistentFramebufferStore::instance();`
+//          → NEW: per-call stack-allocate a
+//          `PersistentFramebufferStore store;` (test-only path) or
+//          read `runtime()->framebuffer_store()` (production path).
+//
+// The runtime-owned `m_framebuffer_store` value-member (initialized
+// default in its own header) IS the canonical engine-lifetime store;
+// its default `cache_dir` resolves identically to the previous
+// hard-coded `output/cache/framebuffers`.
 
 void PersistentFramebufferStore::set_cache_dir(const std::filesystem::path& path) {
     m_cache_dir = path;
@@ -160,6 +147,14 @@ void PersistentFramebufferStore::set_cache_dir(const std::filesystem::path& path
 
 std::filesystem::path PersistentFramebufferStore::cache_dir() const {
     return m_cache_dir;
+}
+
+void PersistentFramebufferStore::set_disabled(bool disabled) {
+    m_disabled = disabled;
+}
+
+bool PersistentFramebufferStore::is_enabled() const noexcept {
+    return !m_disabled;
 }
 
 // ── Read helpers (extracted from the legacy monolithic load()) ────────────
@@ -431,7 +426,7 @@ std::shared_ptr<Framebuffer> PersistentFramebufferStore::get(
 StoreLoadResult PersistentFramebufferStore::load(const NodeCacheKey& key) {
     CHRONON_ZONE_C("persistent_fb_load", trace_category::kPipeline);
 
-    if (!enabled_for_current_run()) {
+    if (!is_enabled()) {
         StoreLoadResult result{};
         result.status = StoreLoadStatus::NotFound;
         return result;
@@ -464,7 +459,7 @@ StoreWriteResult PersistentFramebufferStore::store(
     CHRONON_ZONE_C("persistent_fb_store", trace_category::kPipeline);
 
     StoreWriteResult result{};
-    if (!enabled_for_current_run()) {
+    if (!is_enabled()) {
         return result;
     }
 
@@ -568,7 +563,7 @@ void PersistentFramebufferStore::put_batch(
 }
 
 bool PersistentFramebufferStore::contains(const NodeCacheKey& key) const {
-    if (!enabled_for_current_run()) return false;
+    if (!is_enabled()) return false;
     return std::filesystem::exists(file_path(key));
 }
 

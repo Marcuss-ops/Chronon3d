@@ -101,23 +101,58 @@ struct PersistentStoreStats {
 };
 
 // ── PersistentFramebufferStore ────────────────────────────────────────────
+//
+// P1-13 — Pure instance ownership (no singleton, no process-wide static).
+// The class is owned by:
+//   - `runtime::RenderRuntime` per-engine (via `m_framebuffer_store`
+//     value member + `framebuffer_store()` accessor AND the non-owning
+//     `RenderServices::framebuffer_store` pointer field, both populated
+//     in `RenderRuntime::populate()`),
+//   - Stack/heap on a per-call-site basis for tests + benchmarks
+//     (the test harness instantiates a fresh `PersistentFramebufferStore`
+//     with a temp cache_dir per `TEST_CASE`; the micro-benchmark does
+//     the same per fixture build).
+//
+// The legacy `instance()`/`set_store_config()`/`enabled_for_current_run()`
+// singleton + static-config helpers were DELETED wholesale:
+//   - `instance()`  — `[[deprecated]]` since 2026-07-12 (commit
+//     `refactor(cache): mark PersistentFramebufferStore::instance()
+//     @deprecated`); per AGENTS.md §GATE-MNT-01 the @deprecated
+//     transition is closed by this commit (zero instant callers remain).
+//   - `set_store_config()` — process-wide static config block removed;
+//     replacement is `set_cache_dir(...)` per instance + an instance
+//     `set_disabled(bool)` toggle (see below).
+//   - `enabled_for_current_run()` — static-gated flag removed;
+//     replacement is an instance `is_enabled()` accessor backed by a
+//     private `m_disabled` field, defaulting to `false`.
+//
+// Cat-3 invariant preserved: zero new singletons/registries/caches; the
+// per-instance runtime field IS the single source of truth (one store
+// per engine). Public SDK ABI surface UNCHANGED at the cpp-symbol level
+// for out-of-tree consumers that already use `framebuffer_store()` or
+// the runtime accessor — only the 3 singleton/config symbols are gone.
 
 class PersistentFramebufferStore {
 public:
-    [[deprecated("Use runtime().framebuffer_store() where a RenderRuntime& is in scope; instance() is the singleton bootstrap fallback only")]]
+    // ── Construction ────────────────────────────────────────────────────
+    // Default-constructed with a JSON-stable default `cache_dir`
+    // (`output/cache/framebuffers`).  Previously private (only reachable
+    // via `instance()`); P1-13 makes it public so per-TEST_CASE /
+    // per-benchmark instances can stack-allocate directly.  No-op
+    // side effects; use `set_cache_dir(...)` to override, `set_disabled(...)`
+    // to gate I/O.
+    PersistentFramebufferStore() = default;
 
-    static PersistentFramebufferStore& instance();
-    friend class chronon3d::runtime::RenderRuntime;
-
-    /// Feature-flag gate (checked by load/store internally; callers can
-    /// short-circuit before key generation for hot-path avoidance).
-    [[nodiscard]] static bool enabled_for_current_run();
-
-    // ── Configuration ─────────────────────────────────────────────────
-    static void set_store_config(bool disabled, std::string cache_dir);
-
+    // ── Per-instance configuration ──────────────────────────────────────
     void set_cache_dir(const std::filesystem::path& path);
     [[nodiscard]] std::filesystem::path cache_dir() const;
+
+    /// Disable this instance from performing on-disk I/O (load/store are
+    /// no-ops).  Per-instance replacement for the deleted process-wide
+    /// `set_store_config(bool, ...)` static helper.  Default `false`
+    /// (feature enabled).
+    void set_disabled(bool disabled);
+    [[nodiscard]] bool is_enabled() const noexcept;
 
     // ── Read / Write ──────────────────────────────────────────────────
     /// Load a framebuffer from disk.  Returns nullptr on miss/corruption.
@@ -152,10 +187,10 @@ public:
     [[nodiscard]] std::size_t total_bytes() const  { return stats().total_bytes; }
 
 private:
-    PersistentFramebufferStore();
     std::filesystem::path file_path(const NodeCacheKey& key) const;
 
-    std::filesystem::path m_cache_dir;
+    std::filesystem::path m_cache_dir{"output/cache/framebuffers"};
+    bool                  m_disabled{false};
 };
 
 } // namespace chronon3d::cache
