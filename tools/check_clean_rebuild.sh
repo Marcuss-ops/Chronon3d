@@ -187,7 +187,12 @@ for d in $BUILD_DIRS; do
     abs="$REPO_ROOT/$d"
     echo "STEP: ${GATE_NAME}: configure + build for $abs (target=$TARGET, type=$BUILD_TYPE)"
     if [ "$DRY_RUN" != "1" ]; then
-        if ! cmake -S . -B "$abs" -DCMAKE_BUILD_TYPE="$BUILD_TYPE"; then
+        if ! cmake -S . -B "$abs" \
+            -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
+            -DCMAKE_TOOLCHAIN_FILE="${REPO_ROOT}/cmake/Chronon3DVcpkgToolchain.cmake" \
+            -DVCPKG_MANIFEST_FEATURES="tests" \
+            -DCHRONON3D_BUILD_TESTS=ON \
+            -G Ninja; then
             echo "GATE_FAIL: cmake configure failed for $abs" >&2
             BUILD_FAIL=1
             continue
