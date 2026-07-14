@@ -185,7 +185,8 @@ Config::Config() {
     // P1-21: framebuffer pool clear policy.  Parses
     // CHRONON3D_FB_POOL_CLEAR_POLICY env var (values: "keep-warm",
     // "trim-after-job", "trim-on-memory-pressure").  Default is
-    // TrimOnMemoryPressure (preserves pre-P1-21 engine behavior).
+    // TrimAfterJob (matches pre-P1-21 production behavior: pipe_export_loop
+    // unconditionally called clear() at the end of every job).
     {
         const char* policy_env = std::getenv("CHRONON3D_FB_POOL_CLEAR_POLICY");
         if (policy_env && *policy_env) {
@@ -203,7 +204,7 @@ Config::Config() {
                 spdlog::warn(
                     "Invalid CHRONON3D_FB_POOL_CLEAR_POLICY='{}'; "
                     "valid values: keep-warm, trim-after-job, trim-on-memory-pressure. "
-                    "Defaulting to trim-on-memory-pressure.",
+                    "Defaulting to trim-after-job.",
                     policy_env);
             }
         }
