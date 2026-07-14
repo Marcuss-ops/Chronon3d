@@ -21,31 +21,14 @@ namespace chronon3d::cli {
 
 // ── RenderFrameQueue — bounded blocking queue replacing moodycamel::ConcurrentQueue ─
 // Wraps std::queue + std::mutex + condition_variables.  Exposes blocking
-// push/pop for the video pipeline and non-blocking try_dequeue/enqueue for
-// tests and legacy callers.
+// push/pop/close for the video pipeline (P1-19: legacy try_dequeue/enqueue
+// removed; the public surface is now exclusively the production API).
 
 template <typename T>
 class RenderFrameQueue {
 public:
     explicit RenderFrameQueue(size_t capacity = 0)
         : capacity_(capacity) {}
-
-    bool try_dequeue(T& item) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (queue_.empty()) return false;
-        item = std::move(queue_.front());
-        queue_.pop();
-        not_full_.notify_one();
-        return true;
-    }
-
-    void enqueue(T item) {
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            queue_.push(std::move(item));
-        }
-        not_empty_.notify_one();
-    }
 
     size_t size_approx() const {
         std::lock_guard<std::mutex> lock(mutex_);
