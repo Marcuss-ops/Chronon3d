@@ -80,6 +80,12 @@
 #include <chronon3d/authoring/style_registry.hpp>
 #include <chronon3d/authoring/motion_registry.hpp>
 #include <chronon3d/authoring/resolution_outcome.hpp>
+// Audit §10 — overload for `assets::FontRef` so `asset("...")` can be
+// passed directly to `.font(...)`.  The typed `AssetRef<K>` is already
+// canonical (see asset_ref.hpp).  Delegating to the std::string overload
+// preserves the field-map contract (font_path + font_size set on
+// `spec.text.font.*`).
+#include <chronon3d/assets/asset_ref.hpp>
 
 #include <memory>
 #include <string>
@@ -161,6 +167,13 @@ public:
         pending_->params.text.font.font_path = std::move(font_path);
         pending_->params.text.font.font_size = size;
         return *this;
+    }
+    // Audit §10 — typed `assets::FontRef` overload for the thin authoring
+    // helper `authoring::asset<AssetKind::Font>("fonts/Inter-Bold.ttf")`.
+    // Delegates to the std::string overload; the path travels intact and
+    // the per-runtime resolver resolves it at materialization time.
+    Text& font(assets::FontRef ref, f32 size) {
+        return font(ref.path(), size);
     }
     Text& font_family(std::string family) {
         pending_->params.text.font.font_family = std::move(family);
