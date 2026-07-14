@@ -9,8 +9,6 @@
 
 | Ticket | Pri | Status | Description |
 |---|---|---|---|
-| TICKET-RESIDUAL-BUILD-ROT-RECOVERY | P0 | macchina-verificato PARTIAL | Header dedup landed build-green; SIMD residual forward-point. [ticket](docs/tickets/TICKET-RESIDUAL-BUILD-ROT-RECOVERY.md) |
-| TICKET-SIMD-PRECISION-DRIFT | P1 | OPEN | scalar_blend alpha=0 darkens dst (simd_parity_blend_tests 4/5); WBH-FIX. [ticket](docs/tickets/TICKET-SIMD-PRECISION-DRIFT.md) |
 | TICKET-NODE-CACHE-KEY-COLLAPSE-ROT | P2 | OPEN | NodeCacheKey not recognized in node_executor.cpp — build rot blocking macchina-verifica. [ticket](docs/tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |
 | TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX | P0 | OPEN | Audit-trail: upstream conflict markers in CHANGELOG resolved by `52e48ddd`; forward-point: extend check to `.md` prose. |
 | TICKET-COMPLETENESS-GATE-V2-FIX-FORWARD | P1 | OPEN | Re-apply §20 unified video gate wire-chore post-rot-fix; 3 BLOCKING issues from prior `dd37f28e` push-block. |
@@ -56,6 +54,8 @@
 
 | Ticket | Description |
 |---|---|
+| TICKET-RESIDUAL-BUILD-ROT-RECOVERY | CLOSED 2026-07-14: chore lineage `988e6c26` (load-bearing `layer_builder.hpp` dedup) + `fix(simd): Premult alpha=0 fixture + SweepN + macchina-verifica PASS` (= 11/11 baseline verde restored for the SIMD-test caries via TICKET-SIMD closure). Cat-3 minimal-surface (1 file -1 line header dedup + 1 new TEST_CASE + 4 docs ledger files). PARTIAL-WBH-DEFERRED for full Chronon3D SDK integration per [TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV](docs/tickets/TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV.md). |
+| TICKET-SIMD-PRECISION-DRIFT | CLOSED 2026-07-14: hypothesis-(d) test-fixture Premult-invariant fix (`src = {0.0, 0.0, 0.0, 0.0}` valid-Premult) + SweepN regression over N ∈ {0, 1, 2, 4, 7, 16, 64, 256, 1024}. `ctest -R simd` 6/6 PASS (11014/11014 assertions on this VPS). Implementation correct per doc-comment Premult SRC_OVER contract; the original test fixture was invalid (raw non-premultiplied RGB with sa=0). Forward-points: [TICKET-PREMULT-TEST-SWEEP](docs/tickets/TICKET-PREMULT-TEST-SWEEP.md) (uniform Premult canonicalization across the other 4 currently-passing TEST_CASEs) + [TICKET-PREMULT-CALLER-AUDIT](docs/tickets/TICKET-PREMULT-CALLER-AUDIT.md) (production-side `src/backends/software/*` invariant audit). |
 | TICKET-ALPHA-BBOX-SCANNER-DEDUP-EXECUTOR | **OBSOLETE** — executor bbox path canonically routes via `reconcile_text_bbox_after_render()` (node_runner.cpp:303) → canonical `chrono3d::alpha_bbox_scan()` (text_bbox_reconcile.cpp:59); zero inline legacy scanners. Closure witness: `TICKET-FIX-ALPHA-SCANNER-DUP-V1` (resolution of the scanner-side rot at commit `4791e98b`). |
 | TICKET-PIPELINE-FAST-BUILD-RFC-2026-06-22 | Fast-build CMake hygiene gates; close-out via `docs/FAST_BUILD.md` + tooling pipeline. |
 | TICKET-091 | disassembler-decomposition refactor merged; surgical closure link to commit `5649a2bf`. |
