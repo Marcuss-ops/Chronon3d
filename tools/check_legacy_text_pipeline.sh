@@ -141,15 +141,23 @@ fi
 
 # ── Check 3: Census sanity cross-verify ───────────────────────────────
 echo -n "  [3/3] Census cross-verify (tests+apps)     ... "
-
+# FIX: `set -e` + `set -o pipefail` (top of file) make the bare `grep |
+# wc -l` pipelines fail with exit 1 whenever grep returns 0 matches —
+# which is the canonical post-P1-7-Chore-1 state (all test callers
+# retired).  The Census cross-verify is INFORMATIONAL only (the FAIL
+# is decided by [1/3] and [2/3] above); the bug manifested as a
+# false-FAIL of the whole script.  Append `|| true` to swallow
+# pipefail-induced exit-1 on 0-match grep, preserving the count of
+# matching files (it goes through `$(... | wc -l)` which still
+# substitutes the numeric count regardless of the pipeline exit).
 t_r2bi=$(grep -Rl --include='*.hpp' --include='*.cpp' --include='*.h' \
-    '\brasterize_text_to_bl_image\b' tests/ 2>/dev/null | wc -l)
+    '\brasterize_text_to_bl_image\b' tests/ 2>/dev/null | wc -l || true)
 a_r2bi=$(grep -Rl --include='*.hpp' --include='*.cpp' --include='*.h' \
-    '\brasterize_text_to_bl_image\b' apps/ 2>/dev/null | wc -l)
+    '\brasterize_text_to_bl_image\b' apps/ 2>/dev/null | wc -l || true)
 t_tle=$(grep -Rl --include='*.hpp' --include='*.cpp' --include='*.h' \
-    '\bTextLayoutEngine::layout\b' tests/ 2>/dev/null | wc -l)
+    '\bTextLayoutEngine::layout\b' tests/ 2>/dev/null | wc -l || true)
 a_tle=$(grep -Rl --include='*.hpp' --include='*.cpp' --include='*.h' \
-    '\bTextLayoutEngine::layout\b' apps/ 2>/dev/null | wc -l)
+    '\bTextLayoutEngine::layout\b' apps/ 2>/dev/null | wc -l || true)
 
 echo "PASS (r2bi:${t_r2bi}t/${a_r2bi}a  tle:${t_tle}t/${a_tle}a)"
 
