@@ -103,6 +103,16 @@ struct RenderArgs {
     // as sequential PNGs instead of a single frame.  This avoids the full render
     // or video-encode path, giving a sub-second feedback loop for timing checks.
     int quick_frames{0};
+
+    // TICKET-V3-CLI-UNIFICATION-PROFILE-HELP — `--profile` UX ergonomics.
+    // Maps to a curated set of pipeline defaults (tile_size, motion_blur,
+    // warmup, fb_pool_budget).  Empty string = no profile (current behavior,
+    // `production` headroom preserved).  Valid values per CLI11 IsMember
+    // constraint: "" (none) | "draft" | "preview" | "production" | "maximum".
+    // Applied in the render callback ONLY for fields the user did not set
+    // explicitly (CLI11 `cmd->get_option(name).count() > 0` detection);
+    // explicit per-flag values always win over profile defaults.
+    std::string profile{};
 };
 
 struct VideoArgs {
