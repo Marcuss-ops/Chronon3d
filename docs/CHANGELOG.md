@@ -1,5 +1,17 @@
 ## 2026-07-14
 
+### `refactor(cache): extract parse_framebuffer_pool_clear_policy helper`
+  ([TICKET-PARSE-POLICY-HELPER-DEDUP-IMPL](docs/tickets/TICKET-PARSE-POLICY-HELPER-DEDUP-IMPL.md))
+
+- Cat-3 minimal-surface (2 EDIT call sites + 1 EDIT header + 1 NEW test file + 1 NEW cmake file + 1 EDIT `tests/CMakeLists.txt`). Extracts `parse_framebuffer_pool_clear_policy(std::string_view) -> std::optional<FramebufferPoolClearPolicy>` canonical helper from the duplicated 3-branch if/else parsing in `src/core/config.cpp:193-201` and `apps/chronon3d_cli/utils/job/render_job.cpp:46-50`. Closes the Cat-3 anti-dup violation (2 places must be kept in sync if a new policy is added; a typo in either place would silently fall through to the default policy).
+- Helper placed in `include/chronon3d/cache/framebuffer_pool.hpp` next to the enum (canonical, single-header). `[[nodiscard]]` pure function, `noexcept`, accepts BOTH lowercase ("keep-warm" / "trim-after-job" / "trim-on-memory-pressure") AND PascalCase ("KeepWarm" / "TrimAfterJob" / "TrimOnMemoryPressure") forms to preserve the existing behavior (no breaking change). Returns `std::nullopt` for empty strings, unknown values, whitespace, or underscores (strict matching; no auto-trimming or auto-conversion).
+- `apps/chronon3d_cli/commands/render/register_render_commands.cpp:63` CLI description string left as hardcoded list (out of scope per ticket Criteri di accettazione; the round-trip `name()` helper that would derive the description dynamically is deferred to a future forward-point if a concrete caller emerges).
+- Test coverage: 1 TEST_CASE with 5 SUBCASEs in `tests/cache/test_parse_framebuffer_pool_clear_policy.cpp` (3 accepted values + 1 invalid + 1 case-insensitive variant) = 1 TEST_CASE total. Matches the established SUBCASE pattern in `tests/cache/test_framebuffer_pool.cpp:540-594` for the `trim_after_job` policy tests.
+- 0 new public SDK symbol beyond the 1 helper (a single `[[nodiscard]]` pure function over the existing enum). 0 new singleton/registry/resolver/cache. 0 `#include <msdfgen>/<libtess2>/<unicode[/...]>` (Gate 5 Check 11 deny-everywhere preserved).
+- NO EDIT `docs/CURRENT_STATUS.md` (Cache V1 area state invariant — was PASS, stays PASS; macchina-verifica DEFERRED-WBH precludes area state transition). NO EDIT `docs/ROADMAP.md` (V0.1 forward direction unchanged — helper extraction, not milestone shift).
+- macchina-verifica DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` vcpkg glm/magic_enum env-block pattern. VPS-only verification: `rg "parse_framebuffer_pool_clear_policy"` returns helper + 2 call sites + 1 test file; `rg "policy_str == \"keep-warm\"|sv == \"keep-warm\""` returns 0 (both call sites migrated); SHA-triple equality verify post-push.
+- Cross-link: AGENTS.md §`### Docs canonical update discipline rule` (Cat-3 anti-dup codification); parent forward-point [TICKET-PARSE-POLICY-HELPER-DEDUP](docs/tickets/TICKET-PARSE-POLICY-HELPER-DEDUP.md); companion [TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE](docs/tickets/TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE.md); sibling Cat-5 3-doc chaser-chore tickets at `TICKET-FIX-TEXT-SHAPING-DEDUP-V1-3DOC-CAT5-ALIGN` + `TICKET-CAMERA-OVERLAY-PANEL-CONSTRAINTS` + TILE-PRUNE-SKIP-UNIFICATION lineage.
+
 ### `docs(services): vacuous-truth audit closes RenderServices ticket`
   ([TICKET-RENDER-SERVICES-FULL-ELIMINATION-IMPL](docs/tickets/TICKET-RENDER-SERVICES-FULL-ELIMINATION-IMPL.md))
 

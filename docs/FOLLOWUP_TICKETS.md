@@ -61,6 +61,7 @@
 
 | Ticket | Description |
 |---|---|
+| TICKET-PARSE-POLICY-HELPER-DEDUP-IMPL | P3 | CLOSED 2026-07-14 | refactor(cache): extract parse_framebuffer_pool_clear_policy helper; 2-place dedup (config.cpp + render_job.cpp); cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-PARSE-POLICY-HELPER-DEDUP-IMPL.md) |
 | TICKET-RENDER-SERVICES-FULL-ELIMINATION-IMPL | P3 | CLOSED 2026-07-14 | vacuous-truth audit: runtime RenderServices already removed in P1-15; graph::RenderServices is distinct per-frame bundle (out of scope); cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-RENDER-SERVICES-FULL-ELIMINATION-IMPL.md) |
 | TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS-IMPL | P3 | CLOSED 2026-07-14 | refactor(tests): migrate RenderRuntime ctor to create factory at 4faf81b4; 19 test files / ~228 sites; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-RENDER-RUNTIME-MIGRATION-FOR-TESTS-IMPL.md) |
 | TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE-IMPL | P2 | CLOSED 2026-07-14 | feat(fb-pool): wire trim_after_job (default TrimAfterJob) at f1d8cc34; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE-IMPL.md) |
