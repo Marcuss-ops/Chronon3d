@@ -1,6 +1,16 @@
 # ============================================================================
 # tests/renderer_tests.cmake — Renderer test suite split (§13)
 #
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+# The 6 chronon3d_renderer_*_tests executables in this file all transitively
+# pull `chronon3d_scene` (which itself requires the Blend2D backend + text
+# subsystem for the camera / DOF / 2.5D / video card sources).  Compiled
+# only when both Blend2D AND text are on (matches the pre-refactor
+# orchestrator's outer `if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)` wrap).
+if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
+    return()
+endif()
+#
 # The monolithic chronon3d_renderer_tests executable (85 sources) is split
 # into 6 per-area targets.  The old name becomes a custom target aggregator
 # that DEPENDS on all six.  Source inventory is canonically recorded in

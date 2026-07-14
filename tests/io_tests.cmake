@@ -1,4 +1,12 @@
 # ── IO Tests ──
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+# IO tests use the chronon3d_backend_image OBJECT library which technically
+# only requires the image backend (not all of Blend2D), but for the
+# pre-refactor orchestrator's intent we preserve the Blend2D+Text gate
+# so any SDK-only build that disables Blend2D is unaffected.
+if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
+    return()
+endif()
 
 chronon3d_add_test_suite(
     NAME chronon3d_io_tests

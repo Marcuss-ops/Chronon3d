@@ -1,4 +1,8 @@
 # ── Gradient Visual Golden Tests ──────────────────────────────────────────
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
+    return()
+endif()
 # Golden image regression tests for gradient fills and the GradientDefinition
 # sampler.  Uses the shared chronon3d_visual_test_support framework.
 

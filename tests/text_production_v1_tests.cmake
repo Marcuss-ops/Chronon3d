@@ -1,6 +1,10 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # tests/text_production_v1_tests.cmake
 #
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
+    return()
+endif()
 # Text Production V1 — anti-false-green certification test target.
 #
 # Materialises the 20-TEST_CASE file `tests/certification/

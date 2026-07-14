@@ -1,6 +1,10 @@
 # ═══════════════════════════════════════════════════════════════════════════
 # tests/text_preset_visual_tests.cmake — PR-A4 (Blocco A, Fase 1 followup)
 #
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
+    return()
+endif()
 # Migrated to chronon3d_add_test_suite(TIER INTEGRATION) (this commit,
 # closing the §11.1 migration backlog).
 #

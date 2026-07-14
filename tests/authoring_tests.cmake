@@ -1,4 +1,11 @@
 # ── Authoring DSL Tests ─────────────────────────────────────────────────
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+# Authoring tests require the text subsystem (glyph_selector, evaluate_selector, etc.)
+# so they are gated by the same Blend2D+Text guard as the body of the
+# pre-refactor orchestrator's nested `if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)`.
+if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
+    return()
+endif()
 # Equivalence tests for the fluent authoring façade
 # (chronon3d::authoring::Animator / Selector). Pure header-only logic,
 # no render backend / asset I/O — fits in the fast-tests bucket.
