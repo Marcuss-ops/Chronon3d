@@ -79,6 +79,10 @@ void Config::set_fb_pool_budget(std::size_t bytes) {
     cache_.fb_pool_budget_bytes_ = bytes;
 }
 
+void Config::set_fb_pool_clear_policy(chronon3d::cache::FramebufferPoolClearPolicy policy) {
+    cache_.framebuffer_pool_clear_policy_ = policy;
+}
+
 // ── Private helpers ────────────────────────────────────────────────────────
 
 static bool env_bool(const char* name) {
@@ -177,6 +181,33 @@ Config::Config() {
     //  CacheConfig — policy
     // ═══════════════════════════════════════════════════════════════════
     cache_.disable_persistent_framebuffer_cache_ = env_bool("CHRONON_DISABLE_PERSISTENT_FB_CACHE");
+
+    // P1-21: framebuffer pool clear policy.  Parses
+    // CHRONON3D_FB_POOL_CLEAR_POLICY env var (values: "keep-warm",
+    // "trim-after-job", "trim-on-memory-pressure").  Default is
+    // TrimOnMemoryPressure (preserves pre-P1-21 engine behavior).
+    {
+        const char* policy_env = std::getenv("CHRONON3D_FB_POOL_CLEAR_POLICY");
+        if (policy_env && *policy_env) {
+            std::string_view sv(policy_env);
+            if (sv == "keep-warm" || sv == "KeepWarm") {
+                cache_.framebuffer_pool_clear_policy_ =
+                    chronon3d::cache::FramebufferPoolClearPolicy::KeepWarm;
+            } else if (sv == "trim-after-job" || sv == "TrimAfterJob") {
+                cache_.framebuffer_pool_clear_policy_ =
+                    chronon3d::cache::FramebufferPoolClearPolicy::TrimAfterJob;
+            } else if (sv == "trim-on-memory-pressure" || sv == "TrimOnMemoryPressure") {
+                cache_.framebuffer_pool_clear_policy_ =
+                    chronon3d::cache::FramebufferPoolClearPolicy::TrimOnMemoryPressure;
+            } else {
+                spdlog::warn(
+                    "Invalid CHRONON3D_FB_POOL_CLEAR_POLICY='{}'; "
+                    "valid values: keep-warm, trim-after-job, trim-on-memory-pressure. "
+                    "Defaulting to trim-on-memory-pressure.",
+                    policy_env);
+            }
+        }
+    }
 
     // ═══════════════════════════════════════════════════════════════════
     //  PathConfig
