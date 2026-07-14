@@ -76,8 +76,23 @@ ConvertedFrame FrameConversionService::convert_into(
         ++stats_.cache_misses;
     }
 
-    // ── Build plane pointers ──────────────────────────────────────────
-    uint8_t* dst_y  = dst;
+    // ── Pick output buffer ─────────────────────────────────────────────
+    // On the cache-enabled path we allocate cache-owned bytes so the
+    // conversion writes directly into the buffer the cache will own:
+    //   conversion → cache buffer → move-into entry → encoder reads
+    //   the same span → zero extra full-frame copy on miss.
+    // On the no-cache path the caller's `dst` remains the destination.
+    std::vector<uint8_t> cache_owned;
+    uint8_t* out;
+    if (can_cache) {
+        cache_owned.resize(need);     // exact fit, no realloc churn
+        out = cache_owned.data();
+    } else {
+        out = dst;
+    }
+
+    // ── Build plane pointers (cheap, no allocation) ────────────────────
+    uint8_t* dst_y  = out;
     uint8_t* dst_u  = nullptr;
     uint8_t* dst_v  = nullptr;
     uint8_t* dst_uv = nullptr;
@@ -126,17 +141,32 @@ ConvertedFrame FrameConversionService::convert_into(
     ++stats_.conversions;
     stats_.total_conversion_ns += conv_result.conversion_ns;
 
-    ConvertedFrame result;
-    result.data = std::span<const uint8_t>(dst, need);
-    result.backend = conv_result.backend;
-    result.conversion_ns = conv_result.conversion_ns;
-
-    // ── Cache insert ─────────────────────────────────────────────────
+    // ── Cache insert (zero-copy on miss) ───────────────────────────────
     if (can_cache) {
-        std::vector<uint8_t> cached(dst, dst + need);
-        cache_.insert(make_cache_key(digest, opts), std::move(cached));
+        // `cache_owned` is moved into the freshly minted cache entry.
+        // The returned ConvertedFrame's `data` span and `cache_entry`
+        // shared_ptr reference the SAME bytes the converter just wrote —
+        // the encoder reads the exact bytes the cache now owns.
+        auto inserted = cache_.insert(
+            make_cache_key(digest, opts), std::move(cache_owned));
+        ConvertedFrame result;
+        result.backend      = conv_result.backend;
+        result.conversion_ns = conv_result.conversion_ns;
+        if (inserted) {
+            result.cache_entry = inserted.cache_entry;
+            result.data        = inserted.data;
+            result.from_cache  = true;
+        }
+        // If insert returned empty (defensive — currently does not),
+        // fall through with a zero-length span: caller treats it as miss.
+        return result;
     }
 
+    // ── No-cache path: span over the caller's `dst` ────────────────────
+    ConvertedFrame result;
+    result.data          = std::span<const uint8_t>(dst, need);
+    result.backend       = conv_result.backend;
+    result.conversion_ns = conv_result.conversion_ns;
     return result;
 }
 
