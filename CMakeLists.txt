@@ -60,6 +60,12 @@ endif()
 # --- Opzioni del Progetto --
 option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" OFF)
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" OFF)
+# TICKET-COMPOSITIONDESCRIPTOR-MIGRATION PHASE-2.5-BUILD-FLAG-WIRING (2026-07-14).
+# When ON, promote -Wdeprecated-declarations to error for chronon3d_core_tests only
+# (escape hatch for SDK-consumer builds with -Werror OR the future posture that
+# reverts the global -Wno-error=deprecated-declarations suppression at line 28).
+# Default OFF preserves the current 200+ legacy-caller build posture.
+option(CHRONON3D_REQUIRES_DESCRIPTOR_REGISTRATION "Promote -Wdeprecated-declarations to error for chronon3d_core_tests (gates SDK-consumer builds until 200+ legacy add(name, factory) callers are migrated per ADR-027)" OFF)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
 option(CHRONON3D_BUILD_BENCHMARKS "Build Chronon3d benchmarks" OFF)
 option(CHRONON3D_BUILD_CONTENT "Build bundled content compositions (proofs, demos)" OFF)
