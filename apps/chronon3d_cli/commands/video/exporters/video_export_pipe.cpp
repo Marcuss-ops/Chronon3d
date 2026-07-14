@@ -1,4 +1,4 @@
-#include "../common/pipe_export_session.hpp"
+#include "../common/pipe_export_pipeline.hpp"
 #include "../common/pipe_export_helpers.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>

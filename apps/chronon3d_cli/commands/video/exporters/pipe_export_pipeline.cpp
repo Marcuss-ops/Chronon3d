@@ -1,4 +1,4 @@
-#include "../common/pipe_export_session.hpp"
+#include "../common/pipe_export_pipeline.hpp"
 #include "../common/pipe_export_helpers.hpp"
 
 #include <chronon3d/core/memory/framebuffer.hpp>
@@ -9,11 +9,11 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/assets/asset_preflight_resolver.hpp>
 
-
 #include <spdlog/spdlog.h>
 #include <filesystem>
-#include <thread>
+#include <functional>
 #include <memory>
+#include <thread>
 
 namespace chronon3d::cli {
 
@@ -115,11 +115,6 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // Check fonts referenced by the composition before rendering starts.
     // Missing fonts fail early with a clear error instead of crashing or
     // producing black frames.
-    //
-    // Font preflight uses the canonical evaluate_video_scene() which
-    // threads FontEngine into composition evaluation.  Without the
-    // engine, materialize_text_run_shape logs "no FontEngine available"
-    // and returns nullptr, causing text shapes to be missing.
     {
         Scene scene = evaluate_video_scene(comp, start, *sw_renderer);
         auto preflight_result = AssetPreflightResolver::check(
@@ -163,6 +158,149 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     session->writer_ctx = std::move(writer_ctx);
 
     return session;
+}
+
+RenderLoopOutput run_pipe_export_loop(
+    PipeExportSession& session,
+    const CompositionRegistry& registry,
+    const Composition& comp,
+    const RenderSettings& settings,
+    Frame start,
+    Frame end,
+    const FfmpegExportOptions& opts)
+{
+    // Reuse the renderer/runtime's canonical NodeCache instead of creating a
+    // second local cache.  This keeps still and video renders consistent and
+    // avoids split statistics / capacity / clear behaviour.
+    cache::NodeCache& node_cache = session.renderer->node_cache();
+    media::MediaFrameProvider* video_decoder = nullptr;
+
+    std::vector<chronon3d::telemetry::FrameTelemetryRecord> telemetry_frames;
+    telemetry_frames.reserve(session.total_frames > 0
+        ? static_cast<size_t>(session.total_frames) : 0);
+
+    const auto render_t0 = profiling::now();
+
+    RenderLoopContext loop_ctx{
+        // 06 R3b boundary refactor: `SoftwareRenderer` no longer derives
+        // from `graph::RenderBackend` — the backend is reachable via the
+        // `->backend()` accessor (a domain-aware forwarder into the
+        // runtime-owned backend slot, NOT an implicit IS-A upcast).
+        .backend = session.renderer->backend(),
+        .node_cache = node_cache,
+        .settings = settings,
+        .registry = registry,
+        .video_decoder = video_decoder,
+        .comp = comp,
+        .start = start,
+        .end = end,
+        .opts = opts,
+        .sw_renderer = session.renderer.get(),
+        .queue = session.queue,
+        .writer_failed = session.writer_failed,
+        .triple_arena = *session.triple_arena,
+        .counters = session.renderer->counters(),
+        .telemetry_frames = telemetry_frames,
+    };
+    auto loop_result = run_render_loop(loop_ctx);
+
+    const auto render_t1 = profiling::now();
+
+    // Close the queue to unblock the writer, then join.
+    session.queue.close();
+    if (session.writer_thread.joinable()) {
+        session.writer_thread.join();
+    }
+
+    if (session.writer_failed.load()) {
+        loop_result.status.success = false;
+        loop_result.status.writer_error = true;
+    }
+
+    // Release pool framebuffers after render — reduces peak memory
+    // from ~900 MB to ~400 MB for VPS-friendly operation.
+    // The pool will reallocate on the next render if needed.
+    if (session.renderer && session.renderer->framebuffer_pool()) {
+        session.renderer->framebuffer_pool()->clear();
+        spdlog::info("[video] Released framebuffer pool — memory trimmed");
+    }
+
+    RenderLoopOutput output;
+    output.loop_result = std::move(loop_result);
+    output.telemetry_frames = std::move(telemetry_frames);
+    output.render_ms = profiling::duration_ms(render_t0, render_t1);
+    output.render_end = render_t1;
+    return output;
+}
+
+namespace {
+
+// Text composition warm-up bundles — pre-allocates size classes used by the
+// MinimalistText family so the first frames don't stall on allocation and
+// pool exact-hit rate climbs from ~55% to >80% on text-heavy pipelines.
+//
+//   1920x900  — text-bbox ROI with glow padding (cinem-white radius ~50px).
+//               Used by `apply_downsample_blur` clip-bounded regions and by
+//               the GlowPipeline ROI accumulator in `build_glow_accumulator`.
+//   480x270   — downsample-half heuristic at 4× scale (1920/4 × 1080/4).
+//               Used by `BlurStrategy::DownsampleQuarter` for radius > 24.
+//
+// Both are best-fit reuse candidates when the geometric bbox is small (e.g.
+// "FADE UP" centered in a 1920×1080 canvas → ROI is ~1920×900 with side
+// margins). Pre-warming them gives exact-hit + best-fit reuse instead of
+// fresh allocations on the hot EffectStack path.
+void warmup_text_size_classes(cache::FramebufferPool& pool) {
+    struct TextSizeClass { int w; int h; size_t count; const char* label; };
+    // Counts tuned against the FramebufferPool default budget (384 MB) so the
+    // total preallocation stays well under the cap. Color is float4 = 16 B/px,
+    // so e.g. the canvas bucket (1920×1152) costs ~35 MB per buffer. The
+    // chosen counts deliver ~273 MB pre-warmed and leave headroom for free
+    // allocations during the actual render.
+    const TextSizeClass layout[] = {
+        {.w = 1920, .h = 900,  .count = 3, .label = "text-bbox+glow-pad"},
+        {.w = 960,  .h = 540,  .count = 3, .label = "downsample-half"},
+        {.w = 480,  .h = 270,  .count = 3, .label = "downsample-quarter"},
+    };
+    for (const auto& cls : layout) {
+        const auto [bw, bh] = cache::FramebufferPool::round_to_bucket(cls.w, cls.h);
+        const auto n = pool.preallocate(cache::FramebufferPoolPreallocOptions{
+            .width = bw,
+            .height = bh,
+            .count = cls.count,
+            .clear = true,
+            .touch_memory = false,
+        });
+        if (n > 0) {
+            spdlog::info("[pool-warm] Pre-allocated {} buffers ({}) bucket {}x{} at startup",
+                         n, cls.label, bw, bh);
+        }
+    }
+}
+
+} // namespace
+
+void warmup_pipe_pool(PipeExportSession& session) {
+    if (!session.renderer || !session.renderer->framebuffer_pool()) {
+        return;
+    }
+
+    const auto [bw, bh] = cache::FramebufferPool::round_to_bucket(
+        session.canvas_width, session.canvas_height);
+    const auto prealloced = session.renderer->framebuffer_pool()->preallocate(
+        cache::FramebufferPoolPreallocOptions{
+            .width = bw,
+            .height = bh,
+            .count = 4,
+            .clear = true,
+            .touch_memory = false,
+        });
+    if (prealloced > 0) {
+        spdlog::info("[pool-warm] Pre-allocated {} canvas buffers ({}x{} bucket) at startup",
+                     prealloced, bw, bh);
+    }
+
+    // Pre-warm the text-composition ROI + downsample size classes.
+    warmup_text_size_classes(*session.renderer->framebuffer_pool());
 }
 
 } // namespace chronon3d::cli
