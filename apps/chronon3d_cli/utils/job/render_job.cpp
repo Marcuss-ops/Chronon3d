@@ -43,12 +43,8 @@ std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry
     if (!args.pipeline.fb_pool_clear_policy.empty()) {
         const auto& policy_str = args.pipeline.fb_pool_clear_policy;
         using CachePolicy = chronon3d::cache::FramebufferPoolClearPolicy;
-        if (policy_str == "keep-warm" || policy_str == "KeepWarm") {
-            cfg.set_fb_pool_clear_policy(CachePolicy::KeepWarm);
-        } else if (policy_str == "trim-after-job" || policy_str == "TrimAfterJob") {
-            cfg.set_fb_pool_clear_policy(CachePolicy::TrimAfterJob);
-        } else if (policy_str == "trim-on-memory-pressure" || policy_str == "TrimOnMemoryPressure") {
-            cfg.set_fb_pool_clear_policy(CachePolicy::TrimOnMemoryPressure);
+        if (auto parsed = chronon3d::cache::parse_framebuffer_pool_clear_policy(policy_str)) {
+            cfg.set_fb_pool_clear_policy(*parsed);
         } else {
             spdlog::warn(
                 "Invalid --fb-pool-clear-policy='{}'; valid values: "
