@@ -1,3 +1,5 @@
+#include <memory>
+#include <optional>
 // ============================================================================
 // test_compile_text_layout_identity.cpp
 //
@@ -57,17 +59,18 @@ static chronon3d::TextLayoutCache s_text_cache;
 namespace {
 
 /// RAII-owned engine stack (same pattern as test_compile_text_layout_errors.cpp).
-/// `runtime.resolver()` is process-wide; font registrations persist across
+/// `runtime->resolver()` is process-wide; font registrations persist across
 /// tests but the four cases below assert on STRUCTURE of inputs (no
 /// direct font-engine state reads), so cross-test residuals are safe.
 struct LocalEngine {
     chronon3d::Config                cfg{};
-    chronon3d::runtime::RenderRuntime runtime;
+    std::unique_ptr<chronon3d::runtime::RenderRuntime> runtime;
     FontEngine                        engine;
 
     LocalEngine()
-        : runtime(cfg),
-          engine{runtime.resolver()}
+        : runtime(chronon3d::runtime::RenderRuntime::create(
+              chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value()),
+          engine{runtime->resolver()}
     {}
 };
 

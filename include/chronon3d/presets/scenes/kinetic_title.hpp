@@ -55,7 +55,7 @@ inline Composition kinetic_title() {
                 .mode = TextAnimMode::ByCharacter,
                 .duration = Frame{20},
                 .delay_per_unit = Frame{2},
-                .easing = EasingCurve{Easing::OutBack},
+                .easing = Easing::OutBack,
                 .animate_opacity = true,
                 .animate_slide = false,
                 .slide_from = {0.0f, 40.0f, 0.0f},

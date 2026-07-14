@@ -1,3 +1,4 @@
+#include <optional>
 // ═══════════════════════════════════════════════════════════════════════════
 // test_crossfade_stroke.cpp — TICKET-068 regression test for Bug #5 / Fase 1#5
 // ═══════════════════════════════════════════════════════════════════════════
@@ -36,7 +37,6 @@
 //     substring will fail review by code-reviewer-minimax-m3.
 // ═══════════════════════════════════════════════════════════════════════════
 
-#include <optional>
 #include <chronon3d/text/animated_text_document.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
@@ -138,8 +138,7 @@ std::shared_ptr<AnimatedTextDocument> make_crossfade_longer_outgoing_doc(
 
 TEST_CASE("TICKET-068: crossfade shape with longer outgoing text establishes OOB-precondition without crash") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -208,11 +207,9 @@ TEST_CASE("TICKET-068: crossfade shape with longer outgoing text establishes OOB
 // data.  This guards a separate Bug #5-class failure mode: post-gap
 // strokes that mistakenly read a stale crossfade_layout slot.
 
-TEST_CASE("TICKET-068: crossfade post-gap clears    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); {
+TEST_CASE("TICKET-068: crossfade post-gap clears slots; longer outgoing data doesn't leak forward") {
     chronon3d::Config cfg;
-    auto runtime = chronon3d::runtime::RenderRuntime::create(
-        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
     TextLayoutSpec layout;
     layout.box = {800.0f, 200.0f};
@@ -237,7 +234,7 @@ TEST_CASE("TICKET-068: crossfade post-gap clears    auto runtime = chronon3d::ru
     // Post-gap (frame 90).  Per PR 11, slots must be cleared.
     const auto post = shape->animated_doc->sample_at(Frame{90});
     CHECK(post.transition == SourceTextTransition::Hold);
-    apply_active_state_to_text_run_shape(*shape, post, engine, layout);
+    [[maybe_unused]] bool applied = apply_active_state_to_text_run_shape(*shape, post, engine, layout);
     CHECK(shape->crossfade_layout == nullptr);
     CHECK(shape->crossfade_glyphs.empty());
     CHECK(shape->crossfade_mix == 0.0f);

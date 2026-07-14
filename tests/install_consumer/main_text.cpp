@@ -102,7 +102,9 @@ static c3d::Composition make_bg_composition(const char* assets_root) {
          .assets_root = assets_root},
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
-            if (ctx.font_engine) s.font_engine(ctx.font_engine);
+            if (ctx.runtime && ctx.runtime->font_engine()) {
+                s.font_engine(ctx.runtime->font_engine());
+            }
 
             // Background layer only
             s.layer("bg", [](c3d::LayerBuilder& l) {
@@ -127,7 +129,9 @@ static c3d::Composition make_text_composition(const char* assets_root) {
          .assets_root = assets_root},
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
-            if (ctx.font_engine) s.font_engine(ctx.font_engine);
+            if (ctx.runtime && ctx.runtime->font_engine()) {
+                s.font_engine(ctx.runtime->font_engine());
+            }
 
             // Background layer
             s.layer("bg", [](c3d::LayerBuilder& l) {

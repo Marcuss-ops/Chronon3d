@@ -1,3 +1,4 @@
+#include <optional>
 // SPDX-License-Identifier: MIT
 //
 // test_text_run_multi_run_failure_policy.cpp — M1.5#5 regression lock.
@@ -27,7 +28,7 @@
 //   - empty paragraph short-circuit via consecutive \n (Fase 1.1 invariant).
 //
 // Fixtures: uses the canonical `LocalEngine` pattern (Config +
-// RenderRuntime + FontEngine constructed via `runtime.resolver()`),
+// RenderRuntime + FontEngine constructed via `runtime->resolver()`),
 // matching tests/text/test_compile_text_layout_errors.cpp and
 // tests/text/test_compile_text_layout_per_paragraph_failure.cpp.
 //
@@ -62,12 +63,13 @@ namespace {
 /// test_compile_text_layout_per_paragraph_failure.cpp.
 struct LocalEngine {
     chronon3d::Config                cfg{};
-    chronon3d::runtime::RenderRuntime runtime;
+    std::unique_ptr<chronon3d::runtime::RenderRuntime> runtime;
     FontEngine                        engine;
 
     LocalEngine()
-        : runtime(cfg),
-          engine{runtime.resolver()}
+        : runtime(chronon3d::runtime::RenderRuntime::create(
+              chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value()),
+          engine{runtime->resolver()}
     {}
 };
 

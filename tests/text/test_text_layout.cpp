@@ -216,8 +216,7 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
 
     SUBCASE("FontEngine: real metrics produce wider width than mock for 'AV' kerning") {
         chronon3d::Config cfg;
-        auto runtime = chronon3d::runtime::RenderRuntime::create(
-            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+        auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
         FontEngine engine{runtime->resolver()};
         if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
             MESSAGE("Skipping: Inter-Bold.ttf not available");
@@ -241,10 +240,9 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
         CHECK(res.size.x != doctest::Approx(mock_w).scale(1.0));
     }
 
-           auto runtime = chronon3d::runtime::RenderRuntime::create(
-            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();       chronon3d::Config cfg;
-        auto runtime = chronon3d::runtime::RenderRuntime::create(
-            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    SUBCASE("FontEngine: word wrap with real metrics") {
+        chronon3d::Config cfg;
+        auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
         FontEngine engine{runtime->resolver()};
         if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
             MESSAGE("Skipping: Inter-Bold.ttf not available");
@@ -262,14 +260,12 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
 
         auto res = TextLayoutEngine::layout(input);
         CHECK(res.lines.size() > 1); // Should wrap into multiple lines
-          auto runtime = chronon3d::runtime::RenderRuntime::create(
-            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();ceed box width
+        CHECK(res.size.x <= 100.0f); // No line should exceed box width
     }
 
     SUBCASE("FontEngine: character wrap with real metrics") {
         chronon3d::Config cfg;
-        auto runtime = chronon3d::runtime::RenderRuntime::create(
-            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+        auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
         FontEngine engine{runtime->resolver()};
         if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
             MESSAGE("Skipping: Inter-Bold.ttf not available");
@@ -283,16 +279,16 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
         input.box.enabled = true;
         input.box.size = {60.0f, 400.0f};
         input.font_engine = &engine;
-        input.font_spec = {"assets/font        auto runtime = chronon3d::runtime::RenderRuntime::create(
-            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();extLayoutEngine::layout(input);
+        input.font_spec = {"assets/fonts/Inter-Bold.ttf", "Inter", 700};
+
+        auto res = TextLayoutEngine::layout(input);
         CHECK(res.lines.size() > 1);
         CHECK(res.size.x <= 60.0f);
     }
 
     SUBCASE("FontEngine: tracking is added correctly") {
         chronon3d::Config cfg;
-        auto runtime = chronon3d::runtime::RenderRuntime::create(
-            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+        auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
         FontEngine engine{runtime->resolver()};
         if (!engine.can_load({"assets/fonts/Inter-Bold.ttf", "Inter", 700})) {
             MESSAGE("Skipping: Inter-Bold.ttf not available");
@@ -303,8 +299,9 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
         input.text = "ABC";
         input.style.size = 20.0f;
         input.font_engine = &engine;
-        input.font_spec = {"assets/fonts/I        auto runtime = chronon3d::runtime::RenderRuntime::create(
-            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value(); TextLayoutEngine::layout(input);
+        input.font_spec = {"assets/fonts/Inter-Bold.ttf", "Inter", 700};
+
+        auto no_track = TextLayoutEngine::layout(input);
 
         input.style.tracking = 10.0f;
         auto with_track = TextLayoutEngine::layout(input);
@@ -314,8 +311,7 @@ TEST_CASE("TextLayoutEngine layout V2 specifications") {
 
     SUBCASE("FontEngine: empty string returns safe result") {
         chronon3d::Config cfg;
-        auto runtime = chronon3d::runtime::RenderRuntime::create(
-            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+        auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
         FontEngine engine{runtime->resolver()};
         TextLayoutInput input;
         input.text = "";
