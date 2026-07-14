@@ -175,8 +175,8 @@ TEST_CASE("Cache reuse: diagnostics snapshot covers registered cache domains") {
     // Cold render to populate all caches.
     renderer.render(comp, Frame{120});
 
-    // Caches register with the per-runtime CacheDiagnostics instance.
-    // Query the runtime's diagnostics for registered cache domains.
+    // P1-10 — CacheDiagnostics is now per-runtime (DI, no singleton).
+    // Query the renderer's runtime diagnostics for registered cache domains.
     auto& diag = renderer.runtime().diagnostics();
     diag.set_enabled(true);
 

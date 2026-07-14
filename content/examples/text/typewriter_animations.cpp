@@ -39,6 +39,7 @@
 //       in typewriter_block, never directly (Point 8 clean separation).
 #include "content/common/text/text_reveal.hpp"
 #include "content/common/text/typewriter_block.hpp"
+#include "content/common/text/glyph_layout.hpp"
 #include <chronon3d/text/text_definition.hpp>
 
 #include <string>
