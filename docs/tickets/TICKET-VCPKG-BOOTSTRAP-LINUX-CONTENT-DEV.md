@@ -120,6 +120,8 @@ export CMAKE_TOOLCHAIN_FILE="$HOME/vcpkg-clone/scripts/buildsystems/vcpkg.cmake"
 | d  | TICKET-VCPKG-DOCSYNC — canonically register this chore in `docs/CHANGELOG.md` + `docs/FOLLOWUP_TICKETS.md` §Recently Closed (DONE → reuse-precedent for future bootstrap-tickets) | `docs/FOLLOWUP_TICKETS.md` (this commit)    |
 | e  | Lint discipline: a future `tools/check_incomplete_type_pattern.sh` may want to also verify this script's package names round-trip through `vcpkg.json` (sanity check that the `magic-enum` ↔ `magic_enum` mapping is correctly applied to install _vs_ include _)                                                                | forward-point (no current ticket)           |
 
+| f  | **§ VPS-side env-block audit (2026-07-14)** — direct basher scan this session proves the 10/10 PASS machine-verified evidence block above is NOT reproducibly corroborated on this VPS (vcpkg bin NOT in PATH; `VCPKG_ROOT` unset; `/usr/include/{glm,doctest,magic_enum}` empty; `chronon3d_cli` binary absent from all 3 build dirs). See [TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV-VPS-3DOC-CAT5-ALIGN](docs/tickets/TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV-VPS-3DOC-CAT5-ALIGN.md) for the full §honesty-correction chaser-chore cronaca. The 30+ "DEFERRED-WBH per TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV" references throughout `docs/CURRENT_STATUS.md` remain canonically correct — this audit corroborates them as ON-VPS env-block rather than asymptotic WBH-blocking from an already-installed VPS. | forward-point (chaser-ticket at FYI link)    |
+
 ## Riferimenti canonical (per SHA cite-pattern AGENTS.md §Regole di lint documentale)
 
 - Origine user-spec: ticket prompt FASE 1.5 (this session, 2026-07-13)
