@@ -91,7 +91,7 @@ ShapedGlyphLine::ShapedGlyphLine(const std::string& text, f32 font_size,
 // Private ctor that populates fields from a valid GlyphRun directly —
 // does NOT throw.  Called by `try_shape` static factory only.
 ShapedGlyphLine::ShapedGlyphLine(GlyphRun run, std::string text, FontSpec spec,
-                                 f32 font_size, f32 tracking, f32 ref_offset_x) noexcept
+                                 f32 font_size, f32 tracking, f32 ref_offset_x)
     : m_text(std::move(text)), m_spec(std::move(spec)),
       m_font_size(font_size), m_tracking(tracking), m_ref_offset_x(ref_offset_x),
       m_run(std::move(run))
@@ -104,7 +104,7 @@ ShapedGlyphLine::ShapedGlyphLine(GlyphRun run, std::string text, FontSpec spec,
 // m_prefix_advances[i+1] == m_prefix_advances[i] + advance_x + tracking.
 // Called once from each constructor; kept const-noexcept because the
 // cursor accessors are const-noexcept and the vector is mutable.
-void ShapedGlyphLine::rebuild_prefix_advances() noexcept {
+void ShapedGlyphLine::rebuild_prefix_advances() {
     if (!m_run) {
         m_prefix_advances.clear();
         m_prefix_advances.push_back(m_ref_offset_x);
@@ -293,7 +293,7 @@ const std::optional<GlyphRun>& ShapedGlyphLine::raw_run() const noexcept {
 // Does NOT throw.  Forwarded by `shape_glyph_line` free function below.
 std::optional<ShapedGlyphLine> ShapedGlyphLine::try_shape(
     std::string_view text, f32 font_size, const FontSpec& spec,
-    f32 tracking, f32 ref_offset_x, FontEngine& engine) noexcept
+    f32 tracking, f32 ref_offset_x, FontEngine& engine)
 {
     auto run_opt = engine.shape_text(std::string(text), spec, font_size);
     // Increment the per-line shape-call counter exactly once per try_shape
@@ -320,7 +320,7 @@ std::optional<ShapedGlyphLine> ShapedGlyphLine::try_shape(
 // failure.
 [[nodiscard]] std::optional<ShapedGlyphLine> shape_glyph_line(
     std::string_view text, f32 font_size, const FontSpec& font,
-    f32 tracking, FontEngine& engine) noexcept
+    f32 tracking, FontEngine& engine)
 {
     return ShapedGlyphLine::try_shape(text, font_size, font, tracking,
                                       /*ref_offset_x=*/0.0f, engine);
