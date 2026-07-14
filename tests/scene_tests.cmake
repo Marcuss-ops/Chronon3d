@@ -1,4 +1,8 @@
 # ── Scene Tests ──
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+if(NOT CHRONON3D_BUILD_TESTS)
+    return()
+endif()
 
 # ── TICKET-LAYER-IMAGE-MANIFEST-CLEAN forward-point 0g+ ──
 # Helper-specific UNIT-tier test coverage for

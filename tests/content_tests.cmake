@@ -1,4 +1,10 @@
 # ── Content Module Tests (registration contracts + composition smoke) ──
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+# Compiled only when CHRONON3D_BUILD_CONTENT is on (matches the
+# pre-refactor orchestrator's `if(CHRONON3D_BUILD_CONTENT)` block).
+if(NOT CHRONON3D_BUILD_CONTENT)
+    return()
+endif()
 
 chronon3d_add_test_suite(
     NAME chronon3d_content_tests

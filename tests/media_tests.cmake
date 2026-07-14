@@ -3,6 +3,11 @@
 # These tests exercise chronon3d_media_video, chronon3d_backend_video,
 # and the video_sink_adapter from the CLI.
 #
+# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
+if(NOT CHRONON3D_ENABLE_VIDEO)
+    return()
+endif()
+#
 # NOTE: chronon3d_backend_software is an OBJECT library whose transitive
 # dependencies (chronon3d, chronon3d_graph, chronon3d_cache, chronon3d_effects,
 # blend2d, backend_text) do NOT propagate via target_link_libraries.
