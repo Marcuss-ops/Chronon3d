@@ -34,26 +34,31 @@ CacheDiagnostics::Handle CacheDiagnostics::register_cache(
         // have surfaced them in snapshot(); callers must verify they
         // register each Entry exactly once).
     }
-    return Handle{this, entry};
+    return Handle{this, domain, entry};
 }
 
-void CacheDiagnostics::unregister(Entry* entry) {
+void CacheDiagnostics::unregister(CacheDomain domain, Entry* entry) {
+    // P1-10 sealed — single O(1) lookup path. The Handle carries the
+    // `domain` field set at registration time, so we never iterate the
+    // outer `m_entries` map. Old implementation was O(D) where D =
+    // number of distinct domains (~7–10 CacheDomain enum values);
+    // new implementation is O(1) average (unordered_map::find +
+    // unordered_set::find + unordered_set::erase).
     std::unique_lock lock(m_mutex);
-    for (auto& [domain, set] : m_entries) {
-        // TICKET-O(n)-audit — O(1) lookup in unordered_set replaces the
-        // previous O(n) std::find linear scan.
-        auto it = set.find(entry);
-        if (it != set.end()) {
-            set.erase(it);
-            delete entry;
-            if (set.empty()) {
-                // Don't erase from the map mid-iteration; cleanup happens
-                // lazily during snapshot/clear which only reads values.
-            }
-            return;
+    auto dom_it = m_entries.find(domain);
+    if (dom_it != m_entries.end()) {
+        if (auto set_it = dom_it->second.find(entry); set_it != dom_it->second.end()) {
+            dom_it->second.erase(set_it);
+            // Empty per-domain sets accumulate harmlessly (Cat-3
+            // minimal-surface; read paths iterate values which are
+            // empty sets, no-op). The map-level erase is deferred to
+            // future register_cache calls.
         }
     }
-    // Entry not found — already unregistered or never registered.
+    // Handle's RAII contract: destroying the handle MUST free the
+    // entry, regardless of whether the entry was found in the
+    // registry (it may have been unregistered concurrently, or
+    // registered against a stale domain in edge cases).
     delete entry;
 }
 
