@@ -19,7 +19,10 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
-#include <filesystem>
+// `<filesystem>` REMOVED per audit §10 (the `current_path()` mount
+// line that consumed it in `text_run_materialize_detail::resolve_engine`
+// was deleted).  If a future caller needs filesystem operations,
+// restore the include at this site.
 #include <iterator>
 #include <utility>
 #include <spdlog/spdlog.h>
@@ -326,36 +329,40 @@ LayerBuilder& TextRunBuilder::commit() {
 
 namespace text_run_materialize_detail {
 
-/// F1.D — FontEngine Automatico: process-wide fallback.
+/// F1.D → Audit §10 — FontEngine Automatico: process-wide fallback.
 ///
 /// Returns `preferred` if non-null.  When null (CLI still render, precomp
 /// nodes, text audit, or any path without a SoftwareRenderer), falls back
-/// to a lazy process-wide FontEngine backed by a default AssetResolver.
+/// to a process-wide FontEngine backed by a DEFAULT-CONSTRUCTED
+/// AssetResolver (intentionally UN-mounted — the historical
+/// `mount(current_path())` wiring was REMOVED per audit §10).
 ///
-/// The fallback resolver is mounted with the process CWD so relative
-/// font paths (e.g. "assets/fonts/Inter-Bold.ttf") resolve when the
-/// working directory is the project root (typical ctest invocation).
-/// Callers that need a custom assets root must supply a FontEngine*
-/// bound to an explicit AssetResolver via PendingTextRun.font_engine
-/// or LayerBuilder::m_font_engine.  This fallback prevents the hard
-/// "no FontEngine available → renders blank" failure mode.
+/// Behaviour after the unmount:
+///   - Absolute font paths (e.g. "/usr/share/fonts/Inter.ttf") still
+///     resolve via system-font fallback.
+///   - Relative paths (e.g. "assets/fonts/Inter.ttf") intentionally
+///     do NOT resolve — callers must wire an explicit FontEngine via
+///     `PendingTextRun.font_engine`, `LayerBuilder::m_font_engine`, or
+///     `sdk::RenderEngine::set_assets_root(path)` to make relative
+///     resolution work.  This is the desired hard-fail behaviour per
+///     audit §10 ("fallback CWD" delisting).
+///   - The process-wide fallback remains as a SAFETY NET for absolute
+///     paths + system fonts so pre-existing convenience compositions
+///     that don't wire a font engine don't immediately regress on
+///     shapes that don't depend on `assets/fonts/Inter.ttf`.
+///
+/// Cat-3 minimal-surface: the resolver remains a per-TU function-local
+/// static (no new public symbols introduced).  The previous `mount(
+/// current_path())` wiring becomes a no-op mount-then-unmount dance
+/// removed entirely per audit §10.
+///
+/// Thread safety: the C++11 magic-statics rule guarantees the
+/// initialisation runs exactly once across threads on first call.
+/// Subsequent calls keep returning the same `&s_fallback_engine`.
 [[nodiscard]] FontEngine* resolve_engine(FontEngine* preferred) {
     if (preferred) return preferred;
 
-    // Lazy process-wide fallback: one FontEngine + AssetResolver per
-    // process, constructed on first use.  Thread-safe via C++11 magic
-    // statics.  The resolver is unmounted — absolute paths and system
-    // fonts work; relative paths under an assets_root do not (callers
-    // needing that must wire an explicit FontEngine).
-    static assets::AssetResolver s_fallback_resolver;
-    // Mount the fallback resolver with the current working directory so
-    // relative font paths (e.g. "assets/fonts/Inter-Bold.ttf") resolve
-    // when ctest runs from the project root (CMAKE_SOURCE_DIR).
-    static bool s_resolver_mounted = []() {
-        s_fallback_resolver.mount(std::filesystem::current_path());
-        return true;
-    }();
-    (void)s_resolver_mounted;  // suppress unused-variable warning
+    static assets::AssetResolver s_fallback_resolver;  // intentionally UN-mounted (audit §10)
     static FontEngine s_fallback_engine(s_fallback_resolver);
 
     // One-shot warning: log once per process lifetime to avoid spamming
@@ -366,10 +373,12 @@ namespace text_run_materialize_detail {
         s_warned = true;
         spdlog::warn(
             "resolve_engine: no FontEngine provided — using process-wide "
-            "fallback (CWD-mounted resolver; relative font paths resolve "
-            "from the working directory). "
-            "Wire a FontEngine* via SceneBuilder::font_engine() or "
-            "LayerBuilder::font_engine() for full asset resolution.");
+            "fallback (UN-MOUNTED resolver; only absolute paths + system "
+            "fonts resolve). "
+            "Wire a FontEngine* via PendingTextRun.font_engine / "
+            "LayerBuilder::m_font_engine, or call "
+            "engine.set_assets_root(path), to enable relative-path "
+            "asset resolution (audit §10: process-wide asset root ripout).");
     }
     return &s_fallback_engine;
 }
