@@ -25,6 +25,7 @@
 | TICKET-SIMD-REGISTRY-CANONICAL | P1 | NEW | SIMD registry SSoT: enum CpuIsa + PixelKernelSet vtable + resolve_pixel_kernels. ADR-025 prerequisite. [ticket](docs/tickets/TICKET-SIMD-REGISTRY-CANONICAL.md) |
 | TICKET-BENCHMARK-CORPUS-OFFICIAL | P1 | OPEN | 12 YAML scene descriptors (B00-B11) in `configs/benchmarks/corpus/`. Cat-3 minimal-surface. |
 | TICKET-P1E-CPU-BUDGET-MEASUREMENT | P1 | HARNESS-COMPLETE | CpuBudget render/encode timing script. Macchina-verifica DEFERRED-WBH. [ticket](docs/tickets/TICKET-P1E-CPU-BUDGET-MEASUREMENT.md) |
+| TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL | P2 | TRACKED | Refactor(text): `ShapedGlyphLine` 6-arg ctor marked `[[deprecated]]` for V0.2 removal; 1/5 cinematic callers migrated to `try_shape` factory (basis: ≥10/12 SDK consumer tests compat senza il bridge 6-arg al V1 cut). Forward-point: TICKET-PUB-DEPRECATE-REMOVAL. | [ticket](docs/tickets/TICKET-SHAPEDGLYPHLINE-PUB-SURFACE-REMOVAL.md) |
 
 ## Deferred / Lower Priority
 
