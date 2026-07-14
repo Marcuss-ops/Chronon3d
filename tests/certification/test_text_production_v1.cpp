@@ -150,9 +150,9 @@ Composition build_text_only_comp(SoftwareRenderer& renderer,
                                    .anchor = anchor,
                                    .align = align,
                                    .vertical_align = VerticalAlign::Middle,
-                                   .auto_fit = auto_fit,
                                    .wrap = TextWrap::Word,
-                                   .overflow = TextOverflow::Clip},
+                                   .overflow = TextOverflow::Clip,
+                                   .auto_fit = auto_fit},
                         .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}}
                     }
                 }).commit();
@@ -236,7 +236,7 @@ TEST_CASE("Missing font → glyph_count == 0 (audit.font_resolved == false)") {
     // We do NOT require visible ink for a missing font — the spec is
     // "fail-loud on missing", and a non-null empty framebuffer is
     // acceptable as long as the audit semantics are correct.
-    CHECK(bbox.empty() || visible_px < 100);
+    CHECK((bbox.empty() || visible_px < 100));
 }
 
 TEST_CASE("Corrupt font (non-font file) → fail-loud or zero ink") {
@@ -252,7 +252,7 @@ TEST_CASE("Corrupt font (non-font file) → fail-loud or zero ink") {
     }
     const auto bbox = completeness::alpha_bbox(*fb);
     const int visible_px = completeness::count_visible_pixels(*fb);
-    CHECK(bbox.empty() || visible_px < 100);
+    CHECK((bbox.empty() || visible_px < 100));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
