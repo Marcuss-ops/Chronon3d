@@ -1,5 +1,8 @@
 ## 2026-07-14
 
+### `feat(cmake): wire composition descriptor registration flag` ([TICKET-COMPOSITIONDESCRIPTOR-MIGRATION](docs/tickets/TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.md))
+- Wired `-DCHRONON3D_REQUIRES_DESCRIPTOR_REGISTRATION=ON` build flag escape hatch into `tests/CMakeLists.txt` for `chronon3d_core_tests` private option promotion. Added `verify_descriptor_registration_flag` test (build-flag label). Closes Phase 2.5 of TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.
+
 ### `chore(vcpkg): VPS install + macchina-verifica PARTIAL` ([TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV](docs/tickets/TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV.md))
 - env-block CLOSED: `bash tools/install_vcpkg_bootstrap_linux.sh` SUCCEEDED (5/5 markers glm/magic_enum/gtest/doctest/catch2 + 4 .a libs; vcpkg 2026-07-14; actual install at `$HOME/vcpkg-clone/` per script, user-spec docs/typo)
 - `cmake --build` REAL-GREEN-PASS (exit 0): [[deprecated]] marker from TICKET-COMPOSITIONDESCRIPTOR-MIGRATION Phase 2 (commit 36dc215f) verified-working; -Wdeprecated-declarations warnings on 200+ pre-B2 callers suppressed by global `add_compile_options(-Wno-error=deprecated-declarations)` at `CMakeLists.txt:28` (M1.5#8)
