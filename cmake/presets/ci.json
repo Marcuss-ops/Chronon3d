@@ -8,7 +8,7 @@
       "name": "linux-ci",
       "inherits": "base-linux",
       "displayName": "Linux CI (daily install-consumer gate)",
-      "description": "Daily CI preset: CLI + content + tests + install_consumer_ci, no benchmarks/profiling/experimental. BuildType Debug, unity OFF. Wires `tools/install_consumer_test.sh` via `CHRONON3D_BUILD_INSTALL_CONSUMER_TEST=ON`.",
+      "description": "Daily CI preset: CLI + content + tests + install_consumer_ci, no benchmarks/profiling/experimental. BuildType Debug, unity OFF. Wires `tools/install_consumer_test.sh` via `CHRONON3D_BUILD_INSTALL_CONSUMER_TEST=ON` and checksum-pinned font fixtures via `CHRONON3D_BOOTSTRAP_TEST_FONTS=ON`.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
@@ -16,7 +16,8 @@
         "CHRONON3D_BUILD_CONTENT": "ON",
         "VCPKG_MANIFEST_FEATURES": "tests",
         "CHRONON3D_BUILD_TESTS": "ON",
-        "CHRONON3D_BUILD_INSTALL_CONSUMER_TEST": "ON"
+        "CHRONON3D_BUILD_INSTALL_CONSUMER_TEST": "ON",
+        "CHRONON3D_BOOTSTRAP_TEST_FONTS": "ON"
       }
     },
     {
@@ -26,7 +27,8 @@
       "displayName": "Linux CI no-content (legacy)",
       "description": "Legacy CI variant — hidden. Content off.",
       "cacheVariables": {
-        "CHRONON3D_BUILD_CONTENT": "OFF"
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_BOOTSTRAP_TEST_FONTS": "OFF"
       }
     },
     {
@@ -65,6 +67,7 @@
         "CHRONON3D_ENABLE_TELEMETRY": "ON",
         "CHRONON3D_ENABLE_PROFILING": "OFF",
         "CHRONON3D_UNITY_BUILD": "OFF",
+        "CHRONON3D_BOOTSTRAP_TEST_FONTS": "ON",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks"
       }
     }
