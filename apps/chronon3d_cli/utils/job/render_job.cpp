@@ -19,6 +19,36 @@ bool is_video_output(const std::string& output) {
            ext == ".webm";
 }
 
+void finalize_video_settings(RenderJob& job) {
+    if (job.video_settings.frames_dir.empty()) {
+        job.video_settings.frames_dir =
+            "chronon_" + std::filesystem::path(job.comp_id).filename().string();
+    }
+
+    if (job.video_settings.tune.empty() &&
+        job.video_settings.codec == "libx264") {
+        job.video_settings.tune = "zerolatency";
+        spdlog::info(
+            "[video] Auto-selecting x264 tune=zerolatency for low-latency pipe export");
+    }
+
+#if defined(__linux__)
+    if (job.video_settings.pipe_pixfmt == "rgba" &&
+        job.comp->width() % 2 == 0 && job.comp->height() % 2 == 0 &&
+        job.video_settings.codec != "libx264rgb") {
+        job.video_settings.pipe_pixfmt = "yuv420p";
+        spdlog::info(
+            "[video] Auto-selecting yuv420p pipe pixel format for {}x{} output",
+            job.comp->width(), job.comp->height());
+    }
+
+    if (job.video_settings.pipe_writer == "io_uring") {
+        spdlog::warn(
+            "[video] io_uring pipe writer is experimental; use classic for stable exports");
+    }
+#endif
+}
+
 } // namespace
 
 std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
@@ -48,17 +78,20 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
         job.mode = RenderMode::Video;
         job.first_frame = Frame{range.start};
 
-        // `render Comp -o out.mp4` keeps RenderArgs' historical default
-        // frames="0" but means the full composition for Video mode. An
-        // explicit non-zero single frame remains a valid one-frame video.
+        // `render Comp -o out.mp4` keeps RenderArgs' default frames="0" but
+        // means the full composition. An explicit non-zero single frame remains
+        // a valid one-frame video.
         const auto duration_last = std::max<std::int64_t>(
             range.start, job.comp->duration().integral() - 1);
         job.last_frame = (range.start == 0 && range.end == 0)
             ? Frame{duration_last}
             : Frame{range.end};
 
-        job.video_settings.frames_dir =
-            "chronon_" + std::filesystem::path(args.comp_id).filename().string();
+        // Preserve all encoder/export controls on the same canonical value.
+        // RenderArgs intentionally reuses VideoSettings instead of maintaining
+        // a CLI-only VideoArgs mirror.
+        job.video_settings = args.video_settings;
+        finalize_video_settings(job);
     } else if (range.start == range.end) {
         job.mode = RenderMode::Still;
         job.still_frame = Frame{range.start};
@@ -74,10 +107,12 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
     job.execution.command_line = args.command_line;
     job.execution.diagnostic_plan = args.pipeline.diagnostic_plan;
     job.execution.warmup_renderer =
-        args.pipeline.warmup_renderer || job.mode == RenderMode::Video;
+        args.pipeline.warmup_renderer ||
+        (job.mode == RenderMode::Video && job.video_settings.ffmpeg_mode == "pipe");
     job.execution.warmup_framebuffers = args.pipeline.warmup_framebuffers;
     job.execution.warmup_dummy_frame =
-        args.pipeline.warmup_dummy_frame || job.mode == RenderMode::Video;
+        args.pipeline.warmup_dummy_frame ||
+        (job.mode == RenderMode::Video && job.video_settings.ffmpeg_mode == "pipe");
     job.execution.cpu_budget = args.cpu_budget;
 
     Config cfg;
