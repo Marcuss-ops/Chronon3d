@@ -11,6 +11,7 @@
 #include <chronon3d/timeline/composition_props.hpp>
 
 #include <exception>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <utility>
@@ -21,6 +22,7 @@ namespace {
 
 struct PreparedProps {
     int duration_frames{90};
+    std::string image_path{"images/default.png"};
 };
 
 Composition stub_composition(const PreparedProps& props) {
@@ -34,7 +36,9 @@ Composition stub_composition(const PreparedProps& props) {
                        [](const FrameContext&) { return Scene{}; });
 }
 
-TypedCompositionDescriptor<PreparedProps> make_descriptor(int* factory_calls) {
+TypedCompositionDescriptor<PreparedProps> make_descriptor(
+    int* decode_calls,
+    int* factory_calls) {
     PropsCodec<PreparedProps> codec;
     codec.schema = PropsSchema{.fields = {
         PropField{
@@ -43,15 +47,26 @@ TypedCompositionDescriptor<PreparedProps> make_descriptor(int* factory_calls) {
             .required = false,
             .description = "Composition duration.",
             .default_value = "90"
+        },
+        PropField{
+            .name = "image_path",
+            .type = PropType::Path,
+            .required = false,
+            .description = "Required image.",
+            .default_value = "images/default.png"
         }
     }};
-    codec.decode = [](const ValueMap& values,
-                      const PreparedProps& defaults)
+    codec.decode = [decode_calls](const ValueMap& values,
+                                  const PreparedProps& defaults)
         -> Result<PreparedProps, PropsError> {
+        ++*decode_calls;
         PreparedProps props = defaults;
         try {
             if (values.contains("duration_frames")) {
-                props.duration_frames = values.get_int("duration_frames");
+                props.duration_frames = values.require_int("duration_frames");
+            }
+            if (values.contains("image_path")) {
+                props.image_path = values.require_string("image_path");
             }
         } catch (const std::exception& error) {
             return PropsError{
@@ -81,6 +96,14 @@ TypedCompositionDescriptor<PreparedProps> make_descriptor(int* factory_calls) {
                 Frame{props.duration_frames}
             };
         },
+        .resolve_assets = [](const PreparedProps& props) {
+            assets::AssetManifest manifest;
+            manifest.add_image(props.image_path, "PreparedComposition/image");
+            return manifest;
+        },
+        .resolve_assets_root = [](const PreparedProps&) {
+            return std::filesystem::path{"assets"};
+        },
         .factory = [factory_calls](const PreparedProps& props) {
             ++*factory_calls;
             return stub_composition(props);
@@ -91,28 +114,47 @@ TypedCompositionDescriptor<PreparedProps> make_descriptor(int* factory_calls) {
 
 } // namespace
 
-TEST_CASE("CompositionDescriptor: prepare_props resolves metadata without factory") {
+TEST_CASE("CompositionDescriptor: preparation resolves metadata and assets without factory") {
+    int decode_calls = 0;
     int factory_calls = 0;
-    auto descriptor = make_descriptor(&factory_calls).to_descriptor();
+    auto descriptor = make_descriptor(&decode_calls, &factory_calls).to_descriptor();
 
     CompositionProps props;
     props.values.set("duration_frames", "240");
+    props.values.set("image_path", "images/hero.png");
 
     REQUIRE(descriptor.prepare_props);
-    auto prepared = descriptor.prepare_props(props);
-    REQUIRE(prepared);
-    REQUIRE(prepared->has_value());
-    CHECK((*prepared)->width == 1920);
-    CHECK((*prepared)->height == 1080);
-    CHECK((*prepared)->fps.numerator == 30);
-    CHECK((*prepared)->fps.denominator == 1);
-    CHECK((*prepared)->duration == Frame{240});
+    auto result = descriptor.prepare_props(props);
+    REQUIRE(result);
+
+    PreparedComposition prepared = std::move(result).value();
+    REQUIRE(prepared.metadata.has_value());
+    CHECK(prepared.metadata->width == 1920);
+    CHECK(prepared.metadata->height == 1080);
+    CHECK(prepared.metadata->fps.numerator == 30);
+    CHECK(prepared.metadata->fps.denominator == 1);
+    CHECK(prepared.metadata->duration == Frame{240});
+
+    REQUIRE(prepared.asset_manifest.has_value());
+    REQUIRE(prepared.asset_manifest->size() == 1);
+    CHECK(prepared.asset_manifest->assets()[0].path == "images/hero.png");
+    REQUIRE(prepared.assets_root.has_value());
+    CHECK(*prepared.assets_root == std::filesystem::path{"assets"});
+
+    CHECK(decode_calls == 1);
     CHECK(factory_calls == 0);
+    REQUIRE(prepared.construct);
+
+    const Composition composition = prepared.construct();
+    CHECK(composition.duration() == Frame{240});
+    CHECK(decode_calls == 1);
+    CHECK(factory_calls == 1);
 }
 
-TEST_CASE("CompositionDescriptor: prepare_props rejects invalid props before factory") {
+TEST_CASE("CompositionDescriptor: preparation rejects invalid props before factory") {
+    int decode_calls = 0;
     int factory_calls = 0;
-    auto descriptor = make_descriptor(&factory_calls).to_descriptor();
+    auto descriptor = make_descriptor(&decode_calls, &factory_calls).to_descriptor();
 
     CompositionProps props;
     props.values.set("duration_frames", "0");
@@ -120,30 +162,35 @@ TEST_CASE("CompositionDescriptor: prepare_props rejects invalid props before fac
     auto prepared = descriptor.prepare_props(props);
     REQUIRE_FALSE(prepared);
     CHECK(prepared.error().message == "duration_frames must be positive");
+    CHECK(decode_calls == 1);
     CHECK(factory_calls == 0);
 }
 
-TEST_CASE("CompositionRegistry: invalid typed props never reach factory") {
+TEST_CASE("CompositionRegistry: valid typed props decode and construct once") {
+    int decode_calls = 0;
     int factory_calls = 0;
     CompositionRegistry registry;
-    registry.add(make_descriptor(&factory_calls).to_descriptor());
-
-    CompositionProps props;
-    props.values.set("duration_frames", "-5");
-
-    CHECK_THROWS(registry.create("PreparedComposition", props));
-    CHECK(factory_calls == 0);
-}
-
-TEST_CASE("CompositionRegistry: valid typed props reach construction once") {
-    int factory_calls = 0;
-    CompositionRegistry registry;
-    registry.add(make_descriptor(&factory_calls).to_descriptor());
+    registry.add(make_descriptor(&decode_calls, &factory_calls).to_descriptor());
 
     CompositionProps props;
     props.values.set("duration_frames", "120");
 
     const Composition composition = registry.create("PreparedComposition", props);
     CHECK(composition.duration() == Frame{120});
+    CHECK(decode_calls == 1);
     CHECK(factory_calls == 1);
+}
+
+TEST_CASE("CompositionRegistry: invalid typed props never reach construction") {
+    int decode_calls = 0;
+    int factory_calls = 0;
+    CompositionRegistry registry;
+    registry.add(make_descriptor(&decode_calls, &factory_calls).to_descriptor());
+
+    CompositionProps props;
+    props.values.set("duration_frames", "-5");
+
+    CHECK_THROWS(registry.create("PreparedComposition", props));
+    CHECK(decode_calls == 1);
+    CHECK(factory_calls == 0);
 }
