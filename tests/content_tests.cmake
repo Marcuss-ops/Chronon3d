@@ -1,16 +1,15 @@
 # ── Content Module Tests (registration contracts + composition smoke) ──
-# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
-# Compiled only when CHRONON3D_BUILD_CONTENT is on (matches the
-# pre-refactor orchestrator's `if(CHRONON3D_BUILD_CONTENT)` block).
 if(NOT CHRONON3D_BUILD_CONTENT)
     return()
 endif()
 
-# Test font fixtures are downloaded only when explicitly enabled.  The helper
-# fetches pinned GitHub blob objects and verifies their Git object checksums;
-# normal offline/local configurations remain network-free.
+# These legacy shaping tests still pass a literal source-relative font path and
+# the canonical test helper runs suites with WORKING_DIRECTORY=CMAKE_SOURCE_DIR.
+# The explicit bootstrap therefore installs into the disposable checkout's
+# assets/fonts directory. Normal local builds remain network-free because the
+# option defaults OFF.
 option(CHRONON3D_BOOTSTRAP_TEST_FONTS
-    "Fetch checksum-pinned Poppins test fixtures into the build asset root"
+    "Fetch checksum-pinned Poppins fixtures into source-relative assets/fonts"
     OFF)
 
 chronon3d_add_test_suite(
@@ -31,25 +30,22 @@ if(CHRONON3D_BOOTSTRAP_TEST_FONTS)
     add_custom_target(chronon3d_bootstrap_test_fonts
         COMMAND ${Python3_EXECUTABLE}
                 ${CMAKE_SOURCE_DIR}/tools/bootstrap_test_fonts.py
-                --output-root ${CMAKE_BINARY_DIR}
+                --output-root ${CMAKE_SOURCE_DIR}
         BYPRODUCTS
-            ${CMAKE_BINARY_DIR}/assets/fonts/Poppins-Regular.ttf
-            ${CMAKE_BINARY_DIR}/assets/fonts/Poppins-OFL.txt
-        COMMENT "[Chronon3D] Fetching checksum-pinned Poppins test fixtures"
+            ${CMAKE_SOURCE_DIR}/assets/fonts/Poppins-Regular.ttf
+            ${CMAKE_SOURCE_DIR}/assets/fonts/Poppins-OFL.txt
+        COMMENT "[Chronon3D] Fetching checksum-pinned source-relative Poppins fixtures"
         VERBATIM
     )
     add_dependencies(chronon3d_content_tests chronon3d_bootstrap_test_fonts)
 endif()
 
-# WHOLE_ARCHIVE removed — content uses explicit ExtensionRegistry registration
 if(CHRONON3D_BUILD_CONTENT)
     target_sources(chronon3d_content_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/core/timeline/test_sequence_v2_compositions.cpp
     )
     target_link_libraries(chronon3d_content_tests PRIVATE chronon3d_content)
     target_compile_definitions(chronon3d_content_tests PRIVATE CHRONON3D_HAS_CONTENT_MINIMALIST CHRONON3D_HAS_CONTENT_2D5)
-    # Unity-build exclusion: forward-declared content symbols + doctest
-    # main() would collide in unity batches.
     set_source_files_properties(
         ${CMAKE_CURRENT_SOURCE_DIR}/core/timeline/test_sequence_v2_compositions.cpp
         PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON
