@@ -10,8 +10,9 @@
 
 namespace chronon3d::cli {
 
-/// Compatibility name only: there is no longer a second job-plan structure.
-using RenderJobPlan [[deprecated("Use chronon3d::RenderJob")]] = chronon3d::RenderJob;
+/// Source-compatible name only: there is no second job-plan structure.
+/// Remove after all internal callers use RenderJob directly.
+using RenderJobPlan = chronon3d::RenderJob;
 
 /// Convert CLI render arguments into the canonical RenderJob value.
 std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
@@ -23,12 +24,9 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
                                          const RenderArgs& args,
                                          const CompositionProps& props);
 
-/// Transitional source-compatible name used by preview and older callers.
-[[deprecated("Use make_render_job()")]]
+/// One-release compatibility names used by older internal callers.
 std::optional<RenderJob> plan_render_job(const CompositionRegistry& registry,
                                          const RenderArgs& args);
-
-[[deprecated("Use make_render_job()")]]
 std::optional<RenderJob> plan_render_job(const CompositionRegistry& registry,
                                          const RenderArgs& args,
                                          const CompositionProps& props);
@@ -37,7 +35,6 @@ std::optional<RenderJob> plan_render_job(const CompositionRegistry& registry,
 Result<RenderJobOutput, RenderJobError> execute_render_job(RenderJob& job);
 
 /// One-release compatibility adapter for old two-argument call sites.
-[[deprecated("Pin job.registry and call execute_render_job(job)")]]
 bool execute_render_job(const CompositionRegistry& registry, RenderJob& job);
 
 } // namespace chronon3d::cli
