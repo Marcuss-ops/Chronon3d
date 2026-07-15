@@ -8,14 +8,12 @@
 // 1 otherwise.  Validates against the canonical PropsCodec pipeline (NOT a
 // local re-implementation of any codec/validator).
 //
-// Props input shared contract (per Increment E/F cat-3 design):
-//   --props-file <path>    → reuses canonical `load_props_file()`
-//                            (apps/chronon3d_cli/utils/common/props_file.hpp)
-//   --props-json <inline>  → TU-local `parse_props_json_string()`
-//                            helper (per Cat-3 anti-dup, duplicated
-//                            in command_resolve.cpp at the same TU-local
-//                            interface).
-//   (no flag)              → empty input = canonical defaults.
+// Props input wired via canonical `load_props_input()`
+// (apps/chronon3d_cli/utils/common/props_inline.hpp) which enforces
+// mutual-exclusion between `--props-file` and `--props-json` + dispatches
+// to `load_props_file` (path) or `load_props_inline` (string) per flag.
+// Shared by `chronon render` and `chronon resolve` (AGENTS.md Cat-3
+// anti-dup: NO per-command helper duplication).
 //
 // Exit codes:
 //   0 = PASS (decode + validate clean).
@@ -26,6 +24,7 @@
 
 #include "../../commands.hpp"
 #include "../../utils/common/props_file.hpp"
+#include "../../utils/common/props_inline.hpp"
 
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/timeline/composition_props.hpp>
@@ -40,67 +39,6 @@ namespace chronon3d {
 namespace cli {
 
 namespace {
-
-/// Parse an inline JSON object string into a ValueMap.  Matches the
-/// scalar semantics of `load_props_file` (string | bool | number); nested
-/// objects + arrays + null are rejected (per the PropsCodec authority
-/// boundary).  Returns: `ok=true` + populated ValueMap on success;
-/// `ok=false` + `error` string otherwise.  TU-local helper duplicated
-/// in command_resolve.cpp (per AGENTS.md Cat-3 anti-dup — no new shared
-/// utility for 2 callsites).
-inline std::pair<bool, std::string>
-parse_props_json_string(const std::string& json_text, ValueMap& out) {
-    nlohmann::json root;
-    try {
-        root = nlohmann::json::parse(json_text);
-    } catch (const std::exception& e) {
-        return {false, std::string("invalid JSON: ") + e.what()};
-    }
-    if (!root.is_object()) {
-        return {false, std::string("props JSON must be a flat object")};
-    }
-    for (auto it = root.begin(); it != root.end(); ++it) {
-        const auto& v = it.value();
-        if (v.is_string()) {
-            out.set(it.key(), v.get<std::string>());
-        } else if (v.is_boolean()) {
-            out.set(it.key(), v.get<bool>() ? "true" : "false");
-        } else if (v.is_number()) {
-            out.set(it.key(), v.dump());
-        } else {
-            return {false, std::string("prop '") + it.key() +
-                    "' must be a scalar string / boolean / number"};
-        }
-    }
-    return {true, std::string{}};
-}
-
-/// Fill `input` from args (--props-file OR --props-json OR empty).
-/// Returns `ok=true` on success; `ok=false` + populated `error` otherwise.
-/// Enforces mutual-exclusion: only one of `--props-file` or `--props-json`
-/// can be set; passing both is a CLI input error (NOT silent fallback).
-inline std::pair<bool, std::string>
-build_composition_input(const ValidateArgs& args, CompositionInput& input) {
-    if (!args.props_file.empty() && !args.props_json.empty()) {
-        return {false,
-                std::string("--props-file and --props-json are mutually exclusive; pass only one")};
-    }
-    if (!args.props_file.empty()) {
-        const auto loaded = load_props_file(args.props_file);
-        if (!loaded.ok) {
-            return {false, loaded.error};
-        }
-        input.values        = std::move(loaded.props.values);
-        input.project_root  = std::move(loaded.props.project_root);
-    } else if (!args.props_json.empty()) {
-        auto result = parse_props_json_string(args.props_json, input.values);
-        if (!result.first) {
-            return result;
-        }
-    }
-    // (else) input remains empty = canonical defaults.
-    return {true, std::string{}};
-}
 
 /// Emit a structured FAIL JSON envelope and return 1.
 inline int emit_validate_fail(const std::string& error_code,
@@ -120,12 +58,14 @@ inline int emit_validate_fail(const std::string& error_code,
 int command_validate(const CompositionRegistry& registry,
                      const ValidateArgs& args) {
     CompositionInput input;
-    const auto input_ok = build_composition_input(args, input);
-    if (!input_ok.first) {
-        spdlog::error("validate: {}", input_ok.second);
+    const auto loaded = load_props_input(args.props_file, args.props_json);
+    if (!loaded.ok) {
+        spdlog::error("validate: {}", loaded.error);
         return emit_validate_fail("invalid_props_input", args.comp_id,
-                                  input_ok.second);
+                                  loaded.error);
     }
+    input.values       = std::move(loaded.props.values);
+    input.project_root = std::move(loaded.props.project_root);
 
     auto result = registry.resolve(args.comp_id, input);
     if (!result) {

@@ -16,13 +16,15 @@
 //   0 = PASS (decode + validate clean; resolved JSON emitted).
 //   1 = FAIL (composition unknown | PropsError | CLI input parse error).
 //
-// Props input shared contract (mirrors Increment E validate sub-command):
-//   --props-file / --props-json / empty  → same TU-local pipeline.
-//   Mutual-exclusion enforced (--props-file and --props-json together
-//   is a CLI input error, NOT silent fallback).
+// Props input wired via canonical `load_props_input()`
+// (apps/chronon3d_cli/utils/common/props_inline.hpp) — same mutual-exclusion
+// dispatch as `chronon validate` and `chronon render`.  AGENTS.md Cat-3
+// anti-dup: NO per-command helper duplication (refactored in Phase 1c
+// Increment B alongside render's `--props-json` flag).
 
 #include "../../commands.hpp"
 #include "../../utils/common/props_file.hpp"
+#include "../../utils/common/props_inline.hpp"
 
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/timeline/composition_descriptor.hpp>
@@ -38,59 +40,6 @@ namespace chronon3d {
 namespace cli {
 
 namespace {
-
-/// Parse an inline JSON object string into a ValueMap.  Identical to
-/// `command_validate.cpp` (TU-local duplicate per AGENTS.md Cat-3 anti-dup).
-inline std::pair<bool, std::string>
-parse_props_json_string(const std::string& json_text, ValueMap& out) {
-    nlohmann::json root;
-    try {
-        root = nlohmann::json::parse(json_text);
-    } catch (const std::exception& e) {
-        return {false, std::string("invalid JSON: ") + e.what()};
-    }
-    if (!root.is_object()) {
-        return {false, std::string("props JSON must be a flat object")};
-    }
-    for (auto it = root.begin(); it != root.end(); ++it) {
-        const auto& v = it.value();
-        if (v.is_string()) {
-            out.set(it.key(), v.get<std::string>());
-        } else if (v.is_boolean()) {
-            out.set(it.key(), v.get<bool>() ? "true" : "false");
-        } else if (v.is_number()) {
-            out.set(it.key(), v.dump());
-        } else {
-            return {false, std::string("prop '") + it.key() +
-                    "' must be a scalar string / boolean / number"};
-        }
-    }
-    return {true, std::string{}};
-}
-
-/// Fill `input` from args (--props-file OR --props-json OR empty).
-/// Enforces mutual-exclusion (mirrors Increment E validate).
-inline std::pair<bool, std::string>
-build_composition_input(const ResolveArgs& args, CompositionInput& input) {
-    if (!args.props_file.empty() && !args.props_json.empty()) {
-        return {false,
-                std::string("--props-file and --props-json are mutually exclusive; pass only one")};
-    }
-    if (!args.props_file.empty()) {
-        const auto loaded = load_props_file(args.props_file);
-        if (!loaded.ok) {
-            return {false, loaded.error};
-        }
-        input.values        = std::move(loaded.props.values);
-        input.project_root  = std::move(loaded.props.project_root);
-    } else if (!args.props_json.empty()) {
-        auto result = parse_props_json_string(args.props_json, input.values);
-        if (!result.first) {
-            return result;
-        }
-    }
-    return {true, std::string{}};
-}
 
 /// Serialize CompositionMetadata to JSON (when present in resolved spec).
 inline nlohmann::json metadata_to_json(const CompositionMetadata& md) {
@@ -132,17 +81,19 @@ inline nlohmann::json props_to_json(
 int command_resolve(const CompositionRegistry& registry,
                     const ResolveArgs& args) {
     CompositionInput input;
-    const auto input_ok = build_composition_input(args, input);
-    if (!input_ok.first) {
-        spdlog::error("resolve: {}", input_ok.second);
+    const auto loaded = load_props_input(args.props_file, args.props_json);
+    if (!loaded.ok) {
+        spdlog::error("resolve: {}", loaded.error);
         nlohmann::json err;
         err["error"]         = "invalid_props_input";
         err["composition_id"] = args.comp_id;
         err["status"]        = "FAIL";
-        err["message"]       = input_ok.second;
+        err["message"]       = loaded.error;
         std::cout << err.dump(2) << "\n";
         return 1;
     }
+    input.values       = std::move(loaded.props.values);
+    input.project_root = std::move(loaded.props.project_root);
 
     auto result = registry.resolve(args.comp_id, input);
     if (!result) {
