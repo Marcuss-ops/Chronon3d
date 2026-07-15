@@ -102,14 +102,14 @@ Per AGENTS.md §honest-discipline + precedent vacuous-truth catena (8+ sibling t
 
 | # | Status | Description |
 |---|--------|-------------|
-| (e)-hygiene §Criteri row dedup+flip | OPEN (P3, future chore) | Hygiene ticket for parent bulk-migration §Criteri rows (d)+(e) rot-class: (d) duplicate row × 2 → × 1 + cronaca cross-link; (e) status flip `[ ]` → `[x] DONE (vacuous, 2026-07-14)` + chaser-ticket cross-link. Forward-point to NEW TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER (this 2nd chaser-chore cleanup rider-4). Cross-link: [TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER](TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER.md). |
+| (e)-hygiene §Criteri row dedup+flip | OPEN (P3, future chore) | Hygiene ticket for parent bulk-migration §Criteri rows (d)+(e) rot-class: (d) duplicate row × 2 → × 1 + cronaca cross-link; (e) status flip `[ ]` → `[x] DONE (vacuous, 2026-07-14)` + chaser-ticket cross-link. Forward-point to NEW TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER (2nd chaser-chore cleanup rider-4, hygiene ticket cronaca home). Cross-link: [TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER](TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER.md). |
 
 ## Numeric char-fence macchina-verifica (cleanup rider-2 per code-reviewer round-1)
 
 | Metric (this 2nd chaser-chore, post-write) | Estimated value | AGENTS.md rule-bound |
 |---|---|---|
-| chaser-ticket-home LoC delta | est. +~12 LoC (3 section replacements/inserts atop 83 LoC baseline = ~95 LoC) | Cat-3 anti-dup free home (canonical cronaca, NOT canonical-doc char-fence bound) |
-| chaser-ticket-home bytes delta | est. +~1,400 bytes (~8,800 bytes total post-edit) | N/A (cronaca home, NOT canonical-doc char-fence bound) |
+| chaser-ticket-home LoC (post-write actual) | 142 LoC | Cat-3 anti-dup free home (canonical cronaca, NOT canonical-doc char-fence bound) |
+| chaser-ticket-home bytes (post-write actual) | 14782 bytes | N/A (cronaca home, NOT canonical-doc char-fence bound) |
 | `rg -P` rg-probes preserving | 0 matches across all 3 helpers (centered_text, glow_text, compute_single_line_glyph_layout) | macchina-verifica rigorosa PASS (this session) |
 | §Forward-points table docs-vs-source drift | 0 (post-write insert preserves canonical forward-points pattern + adds hygiene-ticket row) | Cat-3 anti-dup |
 | FOLLOWUP_TICKETS row description (post-edit `§Recently Closed` new top row) | ~150 chars (1-line) | ≤200 chars rule per AGENTS.md §Docs canonical update discipline rule |
@@ -119,14 +119,18 @@ Per AGENTS.md §honest-discipline + precedent vacuous-truth catena (8+ sibling t
 
 > **Verification rigore**: post-write basher macchina-verifica (VPS-side this session, 2026-07-14) verifiable via `wc -c docs/tickets/TICKET-CENTERED-TEXT-OTHER-AREA-VACUOUS-VERIFY.md` + `rg -P 'centered_text\(|glow_text\(' docs/` + `awk '{print length}' < FOLLOWUP_TICKETS §Recently Closed new top row`.
 
-## Old forward-points section (preserved for Cat-3 anti-dup cronaca ext)
+## Race-window recovery lineage (§honest-discipline)
 
-(*closed per Cronologia Chiusura (e)* — sub-chore move-forward a (f)/(g)/(h) ancora OPEN per parent forward-points table)
+The 2nd cat-5 3-doc cleanup-chore per sub-chore (e) was applied via commit `db3e088b` (subject envelope: `chore(text): cleanup sub-chore (e) Blocco 5.2 per reviewer findings`, 56 chars ≤72). Per AGENTS.md §honest-discipline + §Post-push SHA-selfcheck invariant, the recovery lineage is auditable:
+
+- **Ancestor commit `db3e088b`**: current HEAD (`79f14875` sub-chore (f) audit commit at the time of macchina-verifica) has `db3e088b` as a verified ancestor (`git merge-base --is-ancestor db3e088b HEAD` returned exit 0).
+- **Blob identity**: the post-cleanup chaser-ticket-home on disk is byte-identical to the `db3e088b` version (`git hash-object` matches the blob hash from `git show db3e088b:...`).
+- **No race-window recovery needed**: unlike the (f) sub-chore cycle (4-attempt push recovery per `69a05b73` → `4eb39448` → `458f6a83` → `79f14875`), the (e) cleanup-chore landed cleanly on the first push attempt per SHA-triple equality verify.
 
 ## Cronologia chiusura (per SHA cite-pattern AGENTS.md §Regole di lint documentale)
 
 - Parent bulk-migration catena: [TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION](TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION.md) (NEW this session; sub-chore (e) → DONE vacuous per this chaser)
-- Sibling chaser-ticket precedent (vacuous-truth + audit chaser pattern this catena): [TICKET-CENTERED-TEXT-CERTIFICATION-AREA-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-CERTIFICATION-AREA-VACUOUS-VERIFY.md) + [TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY.md) + [TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY.md) + [TICKET-VCPKG-ACTUAL-VPS-CLOSURE](TICKET-VCPKG-ACTUAL-VPS-CLOSURE.md) + [TICKET-SHAPEDGLYPHLINE-P2-23-VERIFICATION](TICKET-SHAPEDGLYPHLINE-P2-23-VERIFICATION.md) + [TICKET-PIPE-EXPORT-SESSION-P2-24-VERIFICATION](TICKET-PIPE-EXPORT-SESSION-P2-24-VERIFICATION.md) + [TICKET-CONTENT-TEXT-CAMERA-V1-ROT-PHASE-2-AUDIT](TICKET-CONTENT-TEXT-CAMERA-V1-ROT-PHASE-2-AUDIT.md)
+- Sibling chaser-ticket precedent (vacuous-truth + audit chaser pattern this catena): [TICKET-CENTERED-TEXT-CERTIFICATION-AREA-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-CERTIFICATION-AREA-VACUOUS-VERIFY.md) + [TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY.md) + [TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY.md) + [TICKET-VCPKG-ACTUAL-VPS-CLOSURE](TICKET-VCPKG-ACTUAL-VPS-CLOSURE.md) + [TICKET-SHAPEDGLYPHLINE-P2-23-VERIFICATION](TICKET-SHAPEDGLYPHLINE-P2-23-VERIFICATION.md) + [TICKET-PIPE-EXPORT-SESSION-P2-24-VERIFICATION](TICKET-PIPE-EXPORT-SESSION-P2-24-VERIFICATION.md) + [TICKET-CONTENT-TEXT-CAMERA-V1-ROT-PHASE-2-AUDIT](TICKET-CONTENT-TEXT-CAMERA-V1-ROT-PHASE-2-AUDIT.md) + [TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER](TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER.md) (forward-point target rider-4, hygiene ticket cronaca home)
 - AGENTS.md governance rules invoked: `§honest-discipline` (vacuous-truth MUST be documented, NOT executed as duplicate work) + `§Cat-3 anti-dup` (cronaca NOT in canonical docs) + `§Docs canonical update discipline rule` (Cat-5 3-doc discipline chore framing)
 
 ## Lessons learned (per Cat-5 chaser-chore precedent lineage)
