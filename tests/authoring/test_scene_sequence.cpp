@@ -149,3 +149,174 @@ TEST_CASE("Authoring / Scene is move-only") {
     CHECK(std::is_move_constructible_v<chronon3d::authoring::Scene>);
     CHECK(std::is_move_assignable_v<chronon3d::authoring::Scene>);
 }
+
+TEST_CASE("Authoring / Scene::series / stacks sequences with cumulative from") {
+    chronon3d::SceneBuilder builder{engine_ctx(chronon3d::Frame{0})};
+    chronon3d::authoring::Scene scene{builder, author_canvas()};
+
+    std::vector<int> layer_counts;
+    scene.series("main")
+        .add("intro", chronon3d::Frame{30},
+             [&](chronon3d::SequenceBuilder& seq) {
+                 seq.layer("intro_layer", [](chronon3d::LayerBuilder& layer) {
+                     layer.rect("r", {.size = {10.0f, 10.0f},
+                                      .color = chronon3d::Color::white()});
+                 });
+             })
+        .add("body", chronon3d::Frame{60},
+             [&](chronon3d::SequenceBuilder& seq) {
+                 seq.layer("body_layer", [](chronon3d::LayerBuilder& layer) {
+                     layer.rect("r", {.size = {20.0f, 20.0f},
+                                      .color = chronon3d::Color::white()});
+                 });
+             })
+        .add("outro", chronon3d::Frame{45},
+             [&](chronon3d::SequenceBuilder& seq) {
+                 seq.layer("outro_layer", [](chronon3d::LayerBuilder& layer) {
+                     layer.rect("r", {.size = {30.0f, 30.0f},
+                                      .color = chronon3d::Color::white()});
+                 });
+             });
+
+    // Evaluate at the middle of each segment.
+    {
+        chronon3d::SceneBuilder eval_builder{engine_ctx(chronon3d::Frame{15})};
+        chronon3d::authoring::Scene eval_scene{eval_builder, author_canvas()};
+        eval_builder = std::move(builder);
+        // Rebuild not needed; layers are already in eval_builder's scene.
+        // Instead, build directly from the original builder.
+    }
+
+    // Build at frame 15 -> only intro_layer active.
+    {
+        chronon3d::SceneBuilder b{engine_ctx(chronon3d::Frame{15})};
+        chronon3d::authoring::Scene s{b, author_canvas()};
+        s.series("main")
+            .add("intro", chronon3d::Frame{30},
+                 [](chronon3d::SequenceBuilder& seq) {
+                     seq.layer("intro_layer", [](chronon3d::LayerBuilder& layer) {
+                         layer.rect("r", {.size = {10.0f, 10.0f},
+                                          .color = chronon3d::Color::white()});
+                     });
+                 })
+            .add("body", chronon3d::Frame{60},
+                 [](chronon3d::SequenceBuilder& seq) {
+                     seq.layer("body_layer", [](chronon3d::LayerBuilder& layer) {
+                         layer.rect("r", {.size = {20.0f, 20.0f},
+                                          .color = chronon3d::Color::white()});
+                     });
+                 });
+        chronon3d::Scene evaluated = b.build();
+        REQUIRE(evaluated.layers().size() == 1);
+        CHECK(evaluated.layers()[0].name == "intro_layer");
+    }
+
+    // Build at frame 45 -> body_layer active (intro ended at 30).
+    {
+        chronon3d::SceneBuilder b{engine_ctx(chronon3d::Frame{45})};
+        chronon3d::authoring::Scene s{b, author_canvas()};
+        s.series("main")
+            .add("intro", chronon3d::Frame{30},
+                 [](chronon3d::SequenceBuilder& seq) {
+                     seq.layer("intro_layer", [](chronon3d::LayerBuilder& layer) {
+                         layer.rect("r", {.size = {10.0f, 10.0f},
+                                          .color = chronon3d::Color::white()});
+                     });
+                 })
+            .add("body", chronon3d::Frame{60},
+                 [](chronon3d::SequenceBuilder& seq) {
+                     seq.layer("body_layer", [](chronon3d::LayerBuilder& layer) {
+                         layer.rect("r", {.size = {20.0f, 20.0f},
+                                          .color = chronon3d::Color::white()});
+                     });
+                 });
+        chronon3d::Scene evaluated = b.build();
+        REQUIRE(evaluated.layers().size() == 1);
+        CHECK(evaluated.layers()[0].name == "body_layer");
+    }
+}
+
+TEST_CASE("Authoring / Scene::sequence / premount and postmount extend active range") {
+    chronon3d::SceneBuilder builder{engine_ctx(chronon3d::Frame{5})};
+    chronon3d::authoring::Scene scene{builder, author_canvas()};
+
+    scene.sequence(
+        "with_mounts",
+        {.from = chronon3d::Frame{10},
+         .duration = chronon3d::Frame{20},
+         .premount = chronon3d::Frame{5},
+         .postmount = chronon3d::Frame{5}},
+        [](chronon3d::SequenceBuilder& seq) {
+            seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
+                layer.rect("r", {.size = {10.0f, 10.0f},
+                                 .color = chronon3d::Color::white()});
+            });
+        });
+
+    chronon3d::Scene evaluated = builder.build();
+    CHECK(evaluated.layers().size() == 1);
+}
+
+TEST_CASE("Authoring / Scene::sequence / loop_duration repeats content") {
+    chronon3d::SceneBuilder builder{engine_ctx(chronon3d::Frame{40})};
+    chronon3d::authoring::Scene scene{builder, author_canvas()};
+
+    std::vector<chronon3d::Frame> captured_locals;
+    scene.sequence(
+        "looped",
+        {.from = chronon3d::Frame{0},
+         .duration = chronon3d::Frame{60},
+         .loop_duration = chronon3d::Frame{30}},
+        [&](chronon3d::SequenceBuilder& seq) {
+            captured_locals.push_back(seq.local_frame());
+            seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
+                layer.rect("r", {.size = {10.0f, 10.0f},
+                                 .color = chronon3d::Color::white()});
+            });
+        });
+
+    REQUIRE(captured_locals.size() == 1);
+    CHECK(captured_locals[0] == chronon3d::Frame{10}); // 40 % 30 == 10
+}
+
+TEST_CASE("Authoring / Scene::sequence / freeze_at locks local frame") {
+    chronon3d::SceneBuilder builder{engine_ctx(chronon3d::Frame{50})};
+    chronon3d::authoring::Scene scene{builder, author_canvas()};
+
+    std::vector<chronon3d::Frame> captured_locals;
+    scene.sequence(
+        "frozen",
+        {.from = chronon3d::Frame{0},
+         .duration = chronon3d::Frame{60},
+         .freeze_at = chronon3d::Frame{7}},
+        [&](chronon3d::SequenceBuilder& seq) {
+            captured_locals.push_back(seq.local_frame());
+            seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
+                layer.rect("r", {.size = {10.0f, 10.0f},
+                                 .color = chronon3d::Color::white()});
+            });
+        });
+
+    REQUIRE(captured_locals.size() == 1);
+    CHECK(captured_locals[0] == chronon3d::Frame{7});
+}
+
+TEST_CASE("Authoring / Scene::sequence / trim_after extends active duration") {
+    chronon3d::SceneBuilder builder{engine_ctx(chronon3d::Frame{75})};
+    chronon3d::authoring::Scene scene{builder, author_canvas()};
+
+    scene.sequence(
+        "trimmed",
+        {.from = chronon3d::Frame{0},
+         .duration = chronon3d::Frame{60},
+         .trim_after = chronon3d::Frame{30}},
+        [](chronon3d::SequenceBuilder& seq) {
+            seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
+                layer.rect("r", {.size = {10.0f, 10.0f},
+                                 .color = chronon3d::Color::white()});
+            });
+        });
+
+    chronon3d::Scene evaluated = builder.build();
+    CHECK(evaluated.layers().size() == 1);
+}
