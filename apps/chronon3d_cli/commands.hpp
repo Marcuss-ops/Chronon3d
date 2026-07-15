@@ -14,16 +14,12 @@ namespace cli {
 
 struct RenderQualityArgs {
     // PR1 — motion blur is now a tri-state (Off | TemporalAccumulation |
-    // VelocityApproximation).  The legacy `motion_blur` boolean is kept as a
-    // backward-compat shortcut: when set to true, mode is inferred to
-    // TemporalAccumulation so callers that used `--motion-blur` pre-PR1 behave
-    // identically.  New code should set `motion_blur_mode` explicitly.
-    //   motion_blur_mode:  0=Off, 1=TemporalAccumulation, 2=VelocityApproximation
-    //
-    // Out-of-range ints are mapped to Off in cli_render_utils.hpp so the
-    // renderer never sees an undefined enum value.
-    bool   motion_blur{false};              // legacy shortcut
-    int    motion_blur_mode{0};             // PR1: 0=Off,1=Temporal,2=Velocity
+    // VelocityApproximation). The `motion_blur` boolean is the convenient CLI
+    // switch for TemporalAccumulation; `motion_blur_mode` selects an explicit
+    // mode when finer control is required.
+    //   motion_blur_mode: 0=Off, 1=TemporalAccumulation, 2=VelocityApproximation
+    bool   motion_blur{false};
+    int    motion_blur_mode{0};
     int    motion_blur_samples{8};
     float  shutter_angle_deg{180.0f};
     float  shutter_phase_deg{-90.0f};
@@ -40,7 +36,6 @@ struct RenderPipelineArgs {
     int    tile_size{0};
     RenderQualityArgs quality{};
 
-    // Renderer warmup (preallocation + optional dummy frame)
     bool   no_dirty_rects{false};
 
     // Renderer warmup (preallocation + optional dummy frame)
@@ -54,11 +49,8 @@ struct RenderPipelineArgs {
     // Framebuffer pool retention budget (MB). 0 = use default / env var.
     size_t fb_pool_budget_mb{0};
 
-    // P1-21: framebuffer pool clear policy.  Values: "keep-warm" |
-    // "trim-after-job" | "trim-on-memory-pressure".  Empty = use default
-    // (TrimAfterJob, matches pre-P1-21 production behavior: pipe_export_loop
-    // unconditionally called clear() at end of every job).  Default aligned
-    // per TICKET-FB-POOL-CLEAR-POLICY-CALL-SITE-IMPL (commit f1d8cc34).
+    // P1-21: framebuffer pool clear policy. Values: "keep-warm" |
+    // "trim-after-job" | "trim-on-memory-pressure". Empty = use default.
     std::string fb_pool_clear_policy;
 
     // SceneProgramCache capacity per Precomp node. 0 = use default (8).
@@ -66,11 +58,8 @@ struct RenderPipelineArgs {
 
     // Auto-tune SceneProgramCache capacity based on hit/eviction ratio.
     bool program_cache_tune{false};
-    // How many frames between auto-tune checks (default 30).
     size_t program_cache_tune_interval{30};
-    // Minimum capacity when auto-tuning down (default 2).
     size_t program_cache_tune_min_capacity{2};
-    // Maximum capacity when auto-tuning up (default 128).
     size_t program_cache_tune_max_capacity{128};
 
     // Text layout debug overlay + structured log per TextRun.
@@ -78,82 +67,24 @@ struct RenderPipelineArgs {
 
     // Diagnostic overlay on text layers (bbox, anchor, baseline).
     bool diagnostic_overlay{false};
-    // Diagnostic overlay only (transparent background, no scene content).
     bool diagnostic_overlay_only{false};
 
-    // Text layout debug JSON export path.
-    // When non-empty and text_layout_debug is true, writes a JSON file
-    // with per-TextRun bounds data (alpha_bounds, layout_bounds,
-    // scratch_bounds, ascent, descent).  Append mode (JSONL).
+    // Text layout debug JSON export path. Append mode (JSONL).
     std::string text_layout_debug_json_path;
 };
 
+/// Canonical CLI render input for stills, sequences and video output.
 struct RenderArgs {
     std::string comp_id;
     std::string frames{"0"}; // Supports "0", "0-90", "0-90x5"
-    std::string output;      // No default
+    std::string output;      // Output extension selects image or video mode
     RenderPipelineArgs pipeline{};
     std::string log_level{"info"};
     bool benchmark_all{false};
     bool report{false};
     std::string command_line; // reconstructed from argv
     chronon3d::CpuBudget cpu_budget;
-
 };
-
-struct VideoArgs {
-    std::string comp_id;
-    std::string output;
-    Frame start{0};
-    Frame end{0};
-    int fps{30};
-    int crf{16};                       // Production-clean: 16 is the sweet spot for text/glow at 1080p
-    std::string codec{"auto"};
-    std::string encode_preset{"slow"}; // Production-clean: 'medium' for prototypes, 'slow' for finals
-    std::string tune;
-    bool keep_frames{false};
-    RenderPipelineArgs pipeline{};
-    std::string frames_dir;
-    std::string hardware_encoder{"none"};
-    int chunks{1};
-
-    std::string ffmpeg_mode{"pipe"};
-    bool ffmpeg_verbose{false};
-    std::string pipe_pixfmt{"rgba"};
-    std::string color_output{"srgb"};
-    std::string pipe_writer{"classic"};
-#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
-    std::string encoder_backend{"native"};
-#else
-    std::string encoder_backend{"pipe"};
-#endif
-
-    // Sink type selection: "ffmpeg", "null-render", "null-convert"
-    std::string sink_type{"ffmpeg"};
-
-    bool dry_run{false};
-    chronon3d::CpuBudget cpu_budget;
-};
-
-struct VideoCameraArgs {
-    std::string axis{"Tilt"};
-    std::string reference_image{"assets/images/camera_reference.jpg"};
-    std::string output;
-    Frame start{0};
-    Frame end{60};
-    float roll_start_deg{-4.0f};
-    float roll_end_deg{0.0f};
-    int width{1280};
-    int height{720};
-    int fps{30};
-    int crf{18};
-    std::string codec{"auto"};
-    std::string encode_preset{"medium"};
-    std::string tune;
-    RenderPipelineArgs pipeline{};
-    std::string hardware_encoder{"none"};
-};
-
 
 struct BenchConvertArgs {
     std::string comp_id;
@@ -172,13 +103,12 @@ struct BenchArgs {
 
     std::string json_file;
     std::string compare_file;
-    std::string stats_json_file;  // F3.1 --stats-json: emits 3 fusion counters (passes_before_fusion/passes_after_fusion/bytes_saved_by_fusion) as a separate JSON file
+    std::string stats_json_file;
 
     bool quiet{false};
     bool include_frame_times{false};
     double fail_if_avg_slower_pct{0.0};
 
-    // Renderer warmup (preallocation + optional dummy frame)
     bool   warmup_renderer{false};
     size_t warmup_framebuffers{2};
     bool   warmup_dummy_frame{false};
@@ -187,9 +117,9 @@ struct BenchArgs {
 struct GraphArgs {
     std::string comp_id;
     Frame frame{0};
-    std::string output;   // optional .dot output path
-    bool summary{false};  // print node/cache/timing diagnostics
-    bool plan{false};     // print layer/frame placement before execution
+    std::string output;
+    bool summary{false};
+    bool plan{false};
 };
 
 struct TelemetryArgs {
@@ -204,50 +134,31 @@ struct PreflightArgs {
     int sample_step{1};
     std::string output;
     std::string json_file;
-    bool legacy_preflight{false};  // FIX 8: legacy RenderPreflight behind flag
+    bool legacy_preflight{false};
 };
-
-struct StillArgs {
-    std::string comp_id;
-    Frame frame{0};
-    std::string output;
-    RenderPipelineArgs pipeline{};
-    std::string log_level{"info"};
-    bool skip_preflight{false};
-};
-
 
 // TICKET-V3-CLI-UNIFICATION-WATCH-SUPERVISOR (Blocco 4.1, Commit 1 of 3)
-// `chronon watch <comp> --frame N -o /tmp/preview.png` supervisor args.
-// See apps/chronon3d_cli/commands/watch/register_watch_commands.cpp.
 struct WatchArgs {
-    std::string comp_id;             // <comp_id> (positional, required)
-    int frame{0};                    // --frame N
-    std::filesystem::path output{"/tmp/preview.png"};  // -o / --output
-    std::vector<std::filesystem::path> watch_dirs;     // --watch-dirs (default: src include apps)
-    std::string build_command{"bash build-fast.sh"};   // --build
-    int poll_ms{500};                // --poll-ms
-    std::string chronon_binary;      // --chronon-binary (empty = /proc/self/exe on Linux)
-    bool no_build{false};            // --no-build
-    // TICKET-WATCH-PROPS-FILE (V0 forward-point) — accepted, not yet applied
-    // to subprocess RenderJob (awaiting TICKET-ADD-LOADER-FOR-CHRONON-JSON).
-    std::string props_file;          // --props-file
+    std::string comp_id;
+    int frame{0};
+    std::filesystem::path output{"/tmp/preview.png"};
+    std::vector<std::filesystem::path> watch_dirs;
+    std::string build_command{"bash build-fast.sh"};
+    int poll_ms{500};
+    std::string chronon_binary;
+    bool no_build{false};
+    std::string props_file;
 };
 
-
-// TICKET-V3-CLI-UNIFICATION-PREVIEW (Blocco 4.1, Commit 3a of 3)
-// `chronon preview <comp> --frames 0,30,60,90 -o preview/` args.
-// Per audit §18 verbatim "Deve usare lo stesso RenderJob e lo stesso
-// renderer, non una preview pipeline."  This struct reuses the canonical
-// RenderArgs path via plan_render_job/execute_render_job (no new pipeline).
+// Preview reuses RenderArgs → make_render_job → execute_render_job.
 struct PreviewArgs {
-    std::string comp_id;                          // <comp_id> (positional, required)
-    std::string frames{"0,30,60,90"};            // --frames (comma-separated)
-    std::filesystem::path output_dir{"./preview"};  // -o / --output-dir
-    std::string contact_sheet;                    // --contact-sheet (Commit 3b forward-point)
-    int cell_width{640};                          // --cell-width (used by --contact-sheet)
-    int cell_padding{8};                          // --cell-padding (used by --contact-sheet)
-    RenderPipelineArgs pipeline{};                // reuse canonical pipeline args
+    std::string comp_id;
+    std::string frames{"0,30,60,90"};
+    std::filesystem::path output_dir{"./preview"};
+    std::string contact_sheet;
+    int cell_width{640};
+    int cell_padding{8};
+    RenderPipelineArgs pipeline{};
     std::string log_level{"info"};
 };
 
@@ -268,29 +179,20 @@ struct CameraPathArgs {
     Frame start{0};
     Frame end{0};
     int step{1};
-    std::string output;          // output file path (auto-detects json/csv from extension)
-    std::string format{"auto"}; // "json", "csv", or "auto" (detect from -o extension)
+    std::string output;
+    std::string format{"auto"};
 };
 
-// §12 FU09 — TICKET-SIMPLICITY-INSPECT-TEXT: per-node TextRun audit
-// with structured JSON output + exit code (0=PASS, 1=FAIL, 2=VIOLATION).
 struct InspectTextArgs {
-    std::string comp_id;          // Composition name (required)
-    Frame       frame{0};          // --frame N (required)
-    bool        json{true};        // --json: emit JSON to stdout (default on)
+    std::string comp_id;
+    Frame frame{0};
+    bool json{true};
 };
 
-// TICKET-CHRONON-GLOW-FINAL Fase 5 — `chronon3d_cli text-def-inspect`:
-// after the render, consume `renderer.text_audit_snapshots()` and call
-// `audit_text_visibility()` per snapshot.  Output: JSON array of
-// per-snapshot objects (node/font_resolved/glyph_count/
-// predicted_contains_world/alpha_bbox_empty/status).  Gated by
-// `CHRONON3D_BUILD_DIAGNOSTICS` — in non-diagnostic builds the command
-// emits an error JSON and returns exit 1.
 struct TextDefInspectArgs {
-    std::string comp_id;          // Composition name (required)
-    Frame       frame{0};          // --frame N (default 0)
-    std::string json_output;      // --json-output path (empty = stdout)
+    std::string comp_id;
+    Frame frame{0};
+    std::string json_output;
 };
 
 int command_list(const CompositionRegistry& registry);
@@ -301,19 +203,14 @@ int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry);
 int command_verify(const CompositionRegistry& registry, const std::string& output_dir);
 int command_render(const CompositionRegistry& registry, const RenderArgs& args);
-int command_video(const CompositionRegistry& registry, const VideoArgs& args);
-int command_video_camera(const CompositionRegistry& registry, const VideoCameraArgs& args);
 int command_bench_convert(const CompositionRegistry& registry, const BenchConvertArgs& args);
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
 int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::vector<std::string>& job_specs);
 int command_telemetry(const TelemetryArgs& args);
 int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args, AssetRegistry& assets);
-int command_still(const CompositionRegistry& registry, const StillArgs& args);
 int command_watch(const CompositionRegistry& registry, const WatchArgs& args);
 int command_preview(const CompositionRegistry& registry, const PreviewArgs& args);
-
-
 int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args);
 int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);
 int command_inspect_text(const CompositionRegistry& registry, const InspectTextArgs& args);
@@ -321,14 +218,10 @@ int command_text_def_inspect(const CompositionRegistry& registry, const TextDefI
 
 } // namespace cli
 
-// TICKET-V3-CLI-UNIFICATION-STARTER-TEMPLATE (Blocco 4.2) - "chronon create <name>" argument struct.
-// See apps/chronon3d_cli/commands/create/register_create_commands.cpp
-// for the implementation.  The struct is intentionally minimal per
-// audit 19 verbatim "Cosa non aggiungere" (no project registry, no
-// template engine, no package manager).
 struct CreateArgs {
     std::string name;
     std::string template_name{"basic"};
     bool force{false};
 };
+
 } // namespace chronon3d
