@@ -1,82 +1,32 @@
 # ==============================================================================
 # cmake/Chronon3DSdkTargets.cmake — SDK consumer-facing targets
 #
-# PURPOSE
-#   Single source of truth for the *target definitions* of the SDK's
-#   consumer-facing surface:
-#
-#     • chronon3d_sdk_impl        — STATIC archive bundling every per-subsystem
-#                                    OBJECT into `libchronon3d_sdk_impl.a`
-#                                    (manifest, POST_BUILD merge, install-code
-#                                    hook all live in `cmake/Chronon3DSdkArchive.cmake`)
-#     • chronon3d_sdk (INTERFACE) — in-tree + install link closure for the
-#                                    consumer.  $<BUILD_INTERFACE:…> consumes
-#                                    `chronon3d_pipeline` (which pulls .o
-#                                    files via $<TARGET_OBJECTS:…>); the
-#                                    $<INSTALL_INTERFACE:…> side replaces it
-#                                    with `chronon3d_sdk_impl`.
-#     • Chronon3D::SDK alias        — the ONLY namespace-aliased public target.
-#
-# PRECONDITIONS  (enforced by the caller)
-#   • cmake/Chronon3DRegistry.cmake has been included → CHRONON3D_REGISTRY_OBJECT_LIBS
-#     is populated.
-#   • All per-subsystem `add_subdirectory()` calls in src/CMakeLists.txt have
-#     run, so every target listed in the registry either exists OR is gated
-#     out by a feature option.  The `if(TARGET …)` guards below handle both
-#     cases via the foreach-if-TARGET idiom (TICKET-011 cmake-boundary).
-#
-# INCLUDED FROM
-#   src/CMakeLists.txt (after every add_subdirectory(src/<subsystem>) call,
-#   because target_link_libraries(target_sources) requires the targets
-#   to exist on the graph).
-#
-# CONTRACT  (TICKET-011 cmake-boundary — SINGLE aggregated archive)
-#   The export walker must register exactly one .a file under
-#   <prefix>/<libdir>: `libchronon3d_sdk_impl.a`.  Per-subsystem OBJECT
-#   targets are listed in the export set so that `install(EXPORT …)` does
-#   not flag them as missing, but they have no ARCHIVE/LIBRARY output of
-#   their own (they are OBJECT).
+# Single source of truth for the consumer-facing target graph:
+#   chronon3d_sdk_impl — one aggregated static archive
+#   chronon3d_sdk      — build/install interface closure
+#   Chronon3D::SDK     — only namespace-aliased public target
 # ==============================================================================
 
 # ==============================================================================
 # chronon3d_sdk_impl — the single aggregated STATIC archive
 # ==============================================================================
-# CMake ≥3.27 natively aggregates OBJECT .o files into STATIC archives
-# via target_link_libraries(STATIC PRIVATE objlib).  The former manual
-# `ar crs` workaround (sdk_archive_merge custom target + sdk_archive_merge.cmake)
-# has been removed (TICKET-P1-PART2, P1 #12).
-#
-# The canary catalog guard lives in `cmake/Chronon3DSdkArchive.cmake`.
 add_library(chronon3d_sdk_impl STATIC
     ${CMAKE_SOURCE_DIR}/src/sdk_impl_marker.cpp
 )
 
-# ── Archive aggregation — derived from central registry ──────────────
-# Every OBJECT library registered in cmake/Chronon3DRegistry.cmake is
-# automatically linked into the single libchronon3d_sdk_impl.a archive.
-# The foreach-if-TARGET loop handles conditional subsystems (targets not
-# created in this configuration are silently skipped).
+# Every registered OBJECT library is folded into the single SDK archive.
 foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
     if(TARGET ${_reg_obj})
         target_link_libraries(chronon3d_sdk_impl PRIVATE ${_reg_obj})
     endif()
 endforeach()
 
-# Archive mechanics (manifest + POST_BUILD merge + install-code hook).
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DSdkArchive.cmake)
-
 set_target_properties(chronon3d_sdk_impl PROPERTIES EXPORT_NAME SDKImpl)
 
 # ==============================================================================
 # chronon3d_sdk + Chronon3D::SDK alias
 # ==============================================================================
-# Two-stage link closure (TICKET-011 cmake-boundary):
-#   * BUILD_INTERFACE: chronon3d_pipeline — resolves raw .o files for in-tree
-#     consumers (CLI, tests) via INTERFACE → OBJECT propagation.  No archive
-#     needed; the linker pulls .o files directly.
-#   * INSTALL_INTERFACE: chronon3d_sdk_impl — resolves the single installed
-#     archive for downstream `find_package(Chronon3D)` consumers.  This is
-#     the only file artifact in `<prefix>/<libdir>`.
 add_library(chronon3d_sdk INTERFACE)
 target_include_directories(chronon3d_sdk INTERFACE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
@@ -87,18 +37,26 @@ target_link_libraries(chronon3d_sdk INTERFACE
     $<INSTALL_INTERFACE:chronon3d_sdk_impl>
 )
 
-# ── Public third-party link deps — derived from central registry ──────────
-# The STATIC archive (chronon3d_sdk_impl) bundles all .o files but does
-# NOT propagate PUBLIC link deps from the aggregated OBJECT libraries
-# (PRIVATE link).  We iterate CHRONON3D_SDK_PUBLIC_DEPS so downstream
-# find_package() consumers get the include dirs and link flags for all
-# publicly-exposed third-party targets.  Each foreach call APPENDS to
-# the target's INTERFACE_LINK_LIBRARIES — the canonical multi-call
-# pattern in CMake.
+# `authoring/text.hpp` includes these implementation fragments inside the
+# existing Text class. Register them on the SAME public_headers FILE_SET that
+# Chronon3DSdkInstall.cmake later extends with the canonical manifest and
+# installs once. No second install rule or parallel SDK surface is introduced.
+target_sources(chronon3d_sdk INTERFACE
+    FILE_SET public_headers
+    TYPE HEADERS
+    BASE_DIRS "${CMAKE_SOURCE_DIR}/include"
+    FILES
+        "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_content_font.hpp"
+        "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_placement_layout.hpp"
+        "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_appearance_animation.hpp"
+        "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_registry_access.hpp"
+        "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_private.hpp"
+)
+
+# The static archive bundles object code but does not propagate public third-
+# party dependencies. Re-expose the central dependency registry to installed
+# consumers through the SDK interface.
 foreach(_entry IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)
-    # entry is "Target::alias|package_name"; CMake does NOT treat "|" as a
-    # list delimiter, so each entry survives as ONE string.  Inline split
-    # via string(REPLACE) then list(GET ...) to recover the 2 fields.
     string(REPLACE "|" ";" _pair "${_entry}")
     list(GET _pair 0 _target_alias)
     target_link_libraries(chronon3d_sdk INTERFACE
@@ -106,11 +64,6 @@ foreach(_entry IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)
     )
 endforeach()
 
-# ── In-tree link closure ──────────────────────────────────────────────
-# OBJECT .o files are now propagated by chronon3d_pipeline (see
-# src/CMakeLists.txt).  Since chronon3d_sdk links chronon3d_pipeline at
-# BUILD_INTERFACE time, the objects flow transitively to all in-tree sdk
-# consumers (CLI, tests).  No separate target_sources loop needed here.
-
+# Object propagation for in-tree consumers is owned by chronon3d_pipeline.
 set_target_properties(chronon3d_sdk PROPERTIES EXPORT_NAME SDK)
 add_library(Chronon3D::SDK ALIAS chronon3d_sdk)
