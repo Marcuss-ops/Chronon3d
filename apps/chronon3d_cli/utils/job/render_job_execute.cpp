@@ -19,7 +19,8 @@
 
 namespace chronon3d::cli {
 
-Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job) {
+Result<RenderJobOutput, RenderJobError> execute_render_job(
+    const RenderJob& job) {
     if (!job.registry) {
         return RenderJobError{
             RenderJobErrorCode::InvalidJob,
@@ -35,15 +36,17 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
         if (!job.selected_frames.empty()) {
             return RenderJobError{
                 RenderJobErrorCode::InvalidJob,
-                "InvalidRange: video RenderJob cannot use non-contiguous selected_frames"};
+                "InvalidRange: video RenderJob cannot use "
+                "non-contiguous selected_frames"};
         }
 #ifdef CHRONON3D_HAS_CLI_VIDEO_EXPORT
         if (!validate_video_job(job)) {
             return RenderJobError{
                 RenderJobErrorCode::ValidationFailed,
                 "EncoderFailed: video export validation failed for composition '" +
-                    job.comp_id + "' using codec '" + job.video_settings.codec +
-                    "' output '" + job.output + "'"};
+                    job.comp_id + "' using codec '" +
+                    job.video_settings.codec + "' output '" +
+                    job.output + "'"};
         }
 
         int rc = 0;
@@ -70,8 +73,9 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
             return RenderJobError{
                 RenderJobErrorCode::RenderFailed,
                 "EncoderFailed: video encoder failed for composition '" +
-                    job.comp_id + "' using codec '" + job.video_settings.codec +
-                    "' output '" + job.output + "'"};
+                    job.comp_id + "' using codec '" +
+                    job.video_settings.codec + "' output '" +
+                    job.output + "'"};
         }
 
         const int frames = static_cast<int>(
@@ -94,7 +98,8 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
         if (!setup.renderer) {
             return RenderJobError{
                 RenderJobErrorCode::SetupFailed,
-                "Failed to create renderer for composition '" + job.comp_id + "'"};
+                "Failed to create renderer for composition '" +
+                    job.comp_id + "'"};
         }
 
         const auto motion_blur_suffix =
@@ -110,8 +115,10 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
 
         if (!job.selected_frames.empty()) {
             spdlog::info("Rendering {} [{} selected frames]{}{}...",
-                         job.comp_id, job.selected_frames.size(),
-                         motion_blur_suffix, ssaa_suffix);
+                         job.comp_id,
+                         job.selected_frames.size(),
+                         motion_blur_suffix,
+                         ssaa_suffix);
         } else {
             const Frame start = job.mode == RenderMode::Still
                 ? job.still_frame
@@ -123,17 +130,27 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
                 1, job.frame_step.integral())};
 
             spdlog::info("Rendering {} [{} -> {} step {}]{}{}...",
-                         job.comp_id, start, end, step,
-                         motion_blur_suffix, ssaa_suffix);
+                         job.comp_id,
+                         start,
+                         end,
+                         step,
+                         motion_blur_suffix,
+                         ssaa_suffix);
         }
 
         setup.sys_metrics.sample_cpu_start();
         auto loop = run_render_job_loop(job, *setup.renderer);
 
         const bool ok = finalize_render_job(
-            job, setup, loop.telemetry_frames,
-            loop.total_render_ms, loop.total_encode_ms, loop.frames_written,
-            loop.ok, loop.loop_start, loop.loop_end);
+            job,
+            setup,
+            loop.telemetry_frames,
+            loop.total_render_ms,
+            loop.total_encode_ms,
+            loop.frames_written,
+            loop.ok,
+            loop.loop_start,
+            loop.loop_end);
         if (!ok) {
             return RenderJobError{
                 RenderJobErrorCode::RenderFailed,
@@ -145,14 +162,11 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
             .output = job.output,
             .frames_written = loop.frames_written,
         };
-    } catch (const std::exception& e) {
+    } catch (const std::exception& error) {
         return RenderJobError{
             RenderJobErrorCode::RenderFailed,
-            e.what()};
+            error.what()};
     }
 }
 
-Result<RenderJobOutput, RenderJobError> execute_render_job(const ResolvedRenderJob& job) {
-    return execute_render_job(job.to_legacy_job());
-}
 } // namespace chronon3d::cli
