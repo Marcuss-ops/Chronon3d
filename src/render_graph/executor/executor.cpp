@@ -32,10 +32,33 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <spdlog/spdlog.h>                                // PR 6.5 — deterministic overflow log
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdlib>
 
 namespace chronon3d::graph {
+
+namespace {
+
+// Publish the first structured error observed by a render invocation.
+// Tile/precomp executors can run concurrently against one RenderSession;
+// atomic shared_ptr compare-exchange avoids a race and preserves the first
+// actionable failure instead of letting later fallback errors overwrite it.
+void publish_session_error(
+    RenderSession& session,
+    const NodeExecutionError& error)
+{
+    auto candidate = std::make_shared<const NodeExecutionError>(error);
+    std::shared_ptr<const NodeExecutionError> expected;
+    (void)std::atomic_compare_exchange_strong_explicit(
+        &session.last_frame_error,
+        &expected,
+        std::move(candidate),
+        std::memory_order_release,
+        std::memory_order_relaxed);
+}
+
+} // namespace
 
 // ──────────────────────────────────────────────────────────────────────
 // GraphExecutor public API
@@ -65,18 +88,13 @@ namespace chronon3d::graph {
     const auto& consumer_counts = compiled.consumer_counts;
     const auto output = compiled.output;
 
-    // Never let a previous failed frame leak into the next invocation.
-    // The session is the canonical job-owned storage that survives after
-    // RenderGraphContext goes out of scope and is therefore the correct
-    // hand-off point for CLI/daemon diagnostics.
-    session.last_frame_error.reset();
-
     if (compiled.empty()) {
-        session.last_frame_error = NodeExecutionError{
+        const NodeExecutionError error{
             RenderBackendErrorCode::InvalidInput,
             "frame_graph",
             "compiled frame graph is empty"
         };
+        publish_session_error(session, error);
         return nullptr;
     }
 
@@ -118,13 +136,12 @@ namespace chronon3d::graph {
     execute_levels(graph, ctx, state, scheduler, levels, consumer_remaining, parent_counters, parent_pool, res, compiled);
 
     // P0-1 / Fase A5 — after all nodes have executed, check whether any
-    // node surfaced a backend failure.  The structured NodeExecutionError
-    // is stored in `ctx.frame_error` and copied into the job-owned session
-    // before returning nullptr.  CLI and daemon callers can therefore format
-    // the original error after the per-frame context has been destroyed.
+    // node surfaced a backend failure. The original NodeExecutionError is
+    // kept on ctx.frame_error for direct callers and atomically published
+    // to the job-owned session for CLI/daemon consumers.
     if (ctx.frame_error && ctx.frame_error->has_value()) {
         const auto& err = ctx.frame_error->value();
-        session.last_frame_error = err;
+        publish_session_error(session, err);
         spdlog::error(
             "[executor] frame {} failed: node '{}' error [{}] {}",
             static_cast<int>(ctx.frame_input.frame),
