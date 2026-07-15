@@ -102,7 +102,8 @@ TEST_CASE("CompositionDescriptor: prepare_props resolves metadata without factor
     REQUIRE(prepared->has_value());
     CHECK((*prepared)->width == 1920);
     CHECK((*prepared)->height == 1080);
-    CHECK((*prepared)->fps == FrameRate{30, 1});
+    CHECK((*prepared)->fps.numerator == 30);
+    CHECK((*prepared)->fps.denominator == 1);
     CHECK((*prepared)->duration == Frame{240});
     CHECK(factory_calls == 0);
 }
