@@ -1,61 +1,94 @@
 #include "render_job_detail.hpp"
-#include "render_job_setup.hpp"
 #include "render_job_finalize.hpp"
 #include "render_job_loop.hpp"
+#include "render_job_setup.hpp"
 
-#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
-#include <chronon3d/core/system_metrics.hpp>
 
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+#include <exception>
+
 namespace chronon3d::cli {
 
-bool execute_render_job(const CompositionRegistry& registry, RenderJobPlan& plan) {
-    // setup_render_job consumes (moves-from) the plan's config, so the
-    // caller must pass a mutable plan.  After this call `plan.config`
-    // has been moved into the renderer and is in a moved-from state.
-
-    // ═══════════════════════════════════════════════════════════════════
-    // PHASE 1 — Setup:  asset mount, renderer creation, warmup,
-    //                    counter reset, telemetry-store clear
-    // ═══════════════════════════════════════════════════════════════════
-    RenderJobSetupResult setup;
-    setup_render_job(registry, plan, setup);
-    if (!setup.renderer) {
-        spdlog::error("Failed to create renderer for composition '{}'", plan.comp_id);
-        return false;
+Result<RenderJobOutput, RenderJobError> execute_render_job(RenderJob& job) {
+    if (!job.registry) {
+        return RenderJobError{
+            RenderJobErrorCode::InvalidJob,
+            "RenderJob has no CompositionRegistry"};
+    }
+    if (!job.comp) {
+        return RenderJobError{
+            RenderJobErrorCode::InvalidJob,
+            "RenderJob has no resolved Composition"};
+    }
+    if (job.mode == RenderMode::Video) {
+        return RenderJobError{
+            RenderJobErrorCode::UnsupportedMode,
+            "Video mode is not wired into the canonical executor yet"};
     }
 
-    auto& renderer = setup.renderer;
+    try {
+        RenderJobSetupResult setup;
+        setup_render_job(*job.registry, job, setup);
+        if (!setup.renderer) {
+            return RenderJobError{
+                RenderJobErrorCode::SetupFailed,
+                "Failed to create renderer for composition '" + job.comp_id + "'"};
+        }
 
-    spdlog::info("Rendering {} [{} -> {} step {}]{}{}...",
-                 plan.comp_id, plan.range.start, plan.range.end, plan.range.step,
-                 chronon3d::is_motion_blur_active(plan.settings.motion_blur)
-                     ? fmt::format(" [MB {}smp {:.0f}°/{:.0f}°]",
-                                   plan.settings.motion_blur.samples,
-                                   plan.settings.motion_blur.shutter_angle_deg,
-                                   plan.settings.motion_blur.shutter_phase_deg)
-                     : "",
-                 plan.settings.ssaa_factor > 1.0f
-                     ? fmt::format(" [SSAA {:.1f}x]", plan.settings.ssaa_factor)
-                     : "");
+        const Frame start = job.mode == RenderMode::Still
+            ? job.still_frame
+            : job.first_frame;
+        const Frame end = job.mode == RenderMode::Still
+            ? job.still_frame
+            : job.last_frame;
+        const Frame step = Frame{std::max<std::int64_t>(
+            1, job.frame_step.integral())};
 
-    // ═══════════════════════════════════════════════════════════════════
-    // PHASE 2 — Render Loop:  double-buffered or single-frame fallback
-    // ═══════════════════════════════════════════════════════════════════
-    // Capture CPU baseline before the render loop
-    setup.sys_metrics.sample_cpu_start();
+        spdlog::info("Rendering {} [{} -> {} step {}]{}{}...",
+                     job.comp_id, start, end, step,
+                     chronon3d::is_motion_blur_active(job.settings.motion_blur)
+                         ? fmt::format(" [MB {}smp {:.0f}°/{:.0f}°]",
+                                       job.settings.motion_blur.samples,
+                                       job.settings.motion_blur.shutter_angle_deg,
+                                       job.settings.motion_blur.shutter_phase_deg)
+                         : "",
+                     job.settings.ssaa_factor > 1.0f
+                         ? fmt::format(" [SSAA {:.1f}x]", job.settings.ssaa_factor)
+                         : "");
 
-    auto loop = run_render_job_loop(plan, *renderer);
+        setup.sys_metrics.sample_cpu_start();
+        auto loop = run_render_job_loop(job, *setup.renderer);
 
-    // ═══════════════════════════════════════════════════════════════════
-    // PHASE 3 — Finalize:  telemetry collection, report generation
-    // ═══════════════════════════════════════════════════════════════════
-    return finalize_render_job(plan, setup, loop.telemetry_frames,
-                               loop.total_render_ms, loop.total_encode_ms, loop.frames_written,
-                               loop.ok, loop.loop_start, loop.loop_end);
+        const bool ok = finalize_render_job(
+            job, setup, loop.telemetry_frames,
+            loop.total_render_ms, loop.total_encode_ms, loop.frames_written,
+            loop.ok, loop.loop_start, loop.loop_end);
+
+        if (!ok) {
+            return RenderJobError{
+                RenderJobErrorCode::RenderFailed,
+                "Render failed for composition '" + job.comp_id + "'"};
+        }
+
+        return RenderJobOutput{
+            .mode = job.mode,
+            .output = job.output,
+            .frames_written = loop.frames_written,
+        };
+    } catch (const std::exception& e) {
+        return RenderJobError{
+            RenderJobErrorCode::RenderFailed,
+            e.what()};
+    }
+}
+
+bool execute_render_job(const CompositionRegistry& registry, RenderJob& job) {
+    job.registry = &registry;
+    return static_cast<bool>(execute_render_job(job));
 }
 
 } // namespace chronon3d::cli
