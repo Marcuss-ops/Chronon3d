@@ -6,43 +6,49 @@
 
 namespace chronon3d::cli {
 
-std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry,
-                                             const RenderArgs& args) {
-    auto range = parse_frames(args.frames);
+std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
+                                         const RenderArgs& args) {
+    const auto range = parse_frames(args.frames);
     auto resolved = resolve_composition(registry, args.comp_id);
     if (!resolved) {
         return std::nullopt;
     }
 
-    RenderJobPlan plan;
-    plan.range = range;
-    plan.comp = std::move(resolved.comp);
-    plan.comp_id = args.comp_id;
-    plan.output = args.output;
-    plan.settings = settings_from_args(args, true, args.pipeline.diagnostic);
-    plan.log_level = args.log_level;
-    plan.benchmark_all = args.benchmark_all;
-    plan.report = args.report;
-    plan.command_line = args.command_line;
-    plan.diagnostic_plan = args.pipeline.diagnostic_plan;
-    plan.settings.diagnostics.plan_output = args.pipeline.diagnostic_plan_output;
-    plan.warmup_renderer = args.pipeline.warmup_renderer;
-    plan.warmup_framebuffers = args.pipeline.warmup_framebuffers;
-    plan.warmup_dummy_frame = args.pipeline.warmup_dummy_frame;
+    RenderJob job;
+    job.registry = &registry;
+    job.comp = std::move(resolved.comp);
+    job.comp_id = args.comp_id;
+    job.output = args.output;
+    job.settings = settings_from_args(args, true, args.pipeline.diagnostic);
+    job.settings.diagnostics.plan_output = args.pipeline.diagnostic_plan_output;
+    job.frame_step = Frame{range.step};
 
-    // Build a per-instance Config that carries the single CLI CpuBudget.
-    Config cfg;  // reads env vars once
+    if (range.start == range.end) {
+        job.mode = RenderMode::Still;
+        job.still_frame = Frame{range.start};
+    } else {
+        job.mode = RenderMode::Sequence;
+        job.first_frame = Frame{range.start};
+        job.last_frame = Frame{range.end};
+    }
+
+    job.execution.log_level = args.log_level;
+    job.execution.benchmark_all = args.benchmark_all;
+    job.execution.report = args.report;
+    job.execution.command_line = args.command_line;
+    job.execution.diagnostic_plan = args.pipeline.diagnostic_plan;
+    job.execution.warmup_renderer = args.pipeline.warmup_renderer;
+    job.execution.warmup_framebuffers = args.pipeline.warmup_framebuffers;
+    job.execution.warmup_dummy_frame = args.pipeline.warmup_dummy_frame;
+    job.execution.cpu_budget = args.cpu_budget;
+
+    Config cfg;
     cfg.set_cpu_budget(args.cpu_budget);
     if (args.pipeline.fb_pool_budget_mb > 0) {
         cfg.set_fb_pool_budget(args.pipeline.fb_pool_budget_mb * 1024ULL * 1024ULL);
     }
-    // P1-21: propagate the framebuffer pool clear policy to the per-job
-    // Config.  The CLI flag accepts "keep-warm" | "trim-after-job" |
-    // "trim-on-memory-pressure" (case-insensitive).  Empty = use the
-    // env-resolved default (CHRONON3D_FB_POOL_CLEAR_POLICY).
     if (!args.pipeline.fb_pool_clear_policy.empty()) {
         const auto& policy_str = args.pipeline.fb_pool_clear_policy;
-        using CachePolicy = chronon3d::cache::FramebufferPoolClearPolicy;
         if (auto parsed = chronon3d::cache::parse_framebuffer_pool_clear_policy(policy_str)) {
             cfg.set_fb_pool_clear_policy(*parsed);
         } else {
@@ -53,9 +59,14 @@ std::optional<RenderJobPlan> plan_render_job(const CompositionRegistry& registry
                 policy_str);
         }
     }
-    plan.config = std::move(cfg);
+    job.execution.config = std::move(cfg);
 
-    return plan;
+    return job;
+}
+
+std::optional<RenderJob> plan_render_job(const CompositionRegistry& registry,
+                                         const RenderArgs& args) {
+    return make_render_job(registry, args);
 }
 
 } // namespace chronon3d::cli
