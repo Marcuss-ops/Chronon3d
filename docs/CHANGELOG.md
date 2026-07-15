@@ -1,5 +1,8 @@
 ## 2026-07-14
 
+### `chore(text): vacate Blocco 5.2.A examples-area vacuous-truth verify` ([TICKET-CENTERED-TEXT-EXAMPLES-AREA-VACUOUS-VERIFY](docs/tickets/TICKET-CENTERED-TEXT-EXAMPLES-AREA-VACUOUS-VERIFY.md))
+Vacuous-truth audit: 1 caller stimato in light_text_animations.cpp GIÀ comment-only (line 6 design comment) + 8 light_text compositions pre-migrate a TextDefinition canonical (l.text("label", TextDefinition{...})). Sub-chore (a) chiuso. Cat-5 3-doc atomic, ZERO source questo turno. Cronaca canonical ticket-home.
+
 ### `chore(text): audit sub-chore (f) Blocco 5.2 — non-vacuous` ([TICKET-CENTERED-TEXT-TESTS-DETERMINISTIC-AREA-NON-VACUOUS-AUDIT](docs/tickets/TICKET-CENTERED-TEXT-TESTS-DETERMINISTIC-AREA-NON-VACUOUS-AUDIT.md))
 Cat-5 3-doc audit: 9 rg matches (8 code-only + 1 comment) in test_visual_regression_scenarios.cpp + 2nd file FILE_NOT_FOUND. NON-VACUOUS (diverges from catena (c)/(d)/(e)/(i) all vacuous). ZERO source. Migration forward-pointed. Cronaca canonical.
 

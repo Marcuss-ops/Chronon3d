@@ -52,7 +52,7 @@ Mapping `glow_text(CenterTextOptions, glow_color, radius, intensity) → TextDef
 ## Criteri di accettazione (verifiable machine-verification)
 
 - [ ] **Per-AREA inventory basato-su fatti**: `rg -c 'centered_text\(' src/ include/ content/ tests/ apps/` ritorna distribuzione categorized per-file
-- [ ] **Sub-chore Blocco 5.2.A: CONTENT-EXAMPLES-AREA** DONE — `content/examples/light/light_text_animations.cpp` migration
+- [x] **Sub-chore Blocco 5.2.A: CONTENT-EXAMPLES-AREA** DONE (vacuous, 2026-07-14) — `content/examples/light/light_text_animations.cpp` audit-only (1 comment-only match line 6 design comment; 8 light_text compositions pre-migrated to TextDefinition canonical `l.text("label", TextDefinition{...})`). Cronaca: [TICKET-CENTERED-TEXT-EXAMPLES-AREA-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-EXAMPLES-AREA-VACUOUS-VERIFY.md).
 - [ ] **Sub-chore Blocco 5.2.B: CONTENT-COMMON-AREA** DONE — `content/common/animation_helpers.hpp` migration + TODO comment cleanup
 - [x] **Sub-chore Blocco 5.2.C: CONTENT-TEXT-PLACEMENT-AREA** DONE (vacuous-truth, 2026-07-14) — `content/text_placement/text_placement_compositions.cpp` migration pre-completed via M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (cronologia chiusura: [TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY.md)).
 
@@ -73,7 +73,7 @@ Mapping `glow_text(CenterTextOptions, glow_color, radius, intensity) → TextDef
 
 | # | Sub-chore                          | Area                                                                        | Estimated callsites | Status |
 |---|------------------------------------|-----------------------------------------------------------------------------|--------------------:|--------|
-| a | CONTENT-EXAMPLES-AREA              | `content/examples/light/light_text_animations.cpp`                          |                   1 | OPEN   |
+| a | CONTENT-EXAMPLES-AREA              | `content/examples/light/light_text_animations.cpp`                          |                   1 | DONE (vacuous, 2026-07-14, comment-only match line 6 + 8 compositions pre-migrated to TextDefinition canonical) |
 | b | CONTENT-COMMON-AREA                | `content/common/animation_helpers.hpp` (1 forward-decl + 1 TODO impl references) | 2 | OPEN   |
 | c | CONTENT-TEXT-PLACEMENT-AREA        | `content/text_placement/text_placement_compositions.cpp` (3 inline + 4 helper) | ~12 | DONE (vacuous, 2026-07-14, M1.8 §2D pre-existing) |
 | d | CONTENT-CERTIFICATION-AREA         | `content/certification/cert_*.cpp` (multilingual + lower_third + long_text + title) | ~16 | DONE (vacuous, 2026-07-14, callers already pre-migrated M1.8 §2D) |
@@ -89,7 +89,7 @@ Total target: ~91 callsites + 3 helper functions. Counts approximated basato-su 
 
 | # | Status | Description |
 |---|--------|-------------|
-| a | OPEN (P2) | Sub-chore Blocco 5.2.A: CONTENT-EXAMPLES-AREA migration. Cat-3 minimal-surface; ZERO new SDK API. macchina-verifica: `light_text_animations.cpp` non più references centered_text/glow_text. |
+| a | DONE (vacuous, 2026-07-14) | Sub-chore Blocco 5.2.A: CONTENT-EXAMPLES-AREA audit (1 comment-only match line 6 + 0 code callers across content/examples/). Cat-3 minimal-surface; ZERO source touched. macchina-verifica: `rg -c 'centered_text\(\|glow_text\(' content/examples/` = 0 code-only. Cronologia chiusura: [TICKET-CENTERED-TEXT-EXAMPLES-AREA-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-EXAMPLES-AREA-VACUOUS-VERIFY.md). |
 | b | OPEN (P2) | Sub-chore Blocco 5.2.B: CONTENT-COMMON-AREA migration. animation_helpers.hpp TODO comment cleanup (`TODO: migrate to centered_text()...` → `TODO: migrate to canonical`). |
 | c | DONE (vacuous, 2026-07-14) | Sub-chore Blocco 5.2.C: CONTENT-TEXT-PLACEMENT-AREA migration pre-completed via M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (cronologia chiusura: [TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY.md)). ZERO source modification this session (cat-3 minimal-surface). NO macchina-verifica additional work needed. |
 | d | DONE (vacuous, 2026-07-14) | Sub-chore Blocco 5.2.D: CONTENT-CERTIFICATION-AREA migration pre-completed pre-this-session (cronologia chiusura: [TICKET-CENTERED-TEXT-CERTIFICATION-AREA-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-CERTIFICATION-AREA-VACUOUS-VERIFY.md)). ZERO source questo turno (cat-3 minimal-surface). 0 code-only callers across 4 cert_*.cpp files post comment-strip filter. NO macchina-verifica additional work needed. |
