@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@425f4662` — post `refactor(video): delete legacy video job plan header` (observed HEAD, 2026-07-15). Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
+> **Snapshot:** `main@a5afcbcd` — current origin/main HEAD (2026-07-15). Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. **Current HEAD non certificato**: le run GitHub Actions sui commit recenti mostrano multipli gate in fallimento (core-build, sdk-build, architecture-check, install-consumer, full-validation, Linux/Windows). Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
 
 
 ## Active Blockers (top 3)
@@ -9,9 +9,9 @@
 |---|---|---|---|
 | TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX | docs | OPEN | [TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX](tickets/TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX.md) |
 | TICKET-125-TEST-AGGREGATOR | testing | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
-| TICKET-TEST-FONT-ASSET-PATH | assets | OPEN | [TICKET-TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) |
+| TICKET-TEXT-SPEC-MIGRATION | text | OPEN | [TICKET-TEXT-SPEC-MIGRATION](tickets/TICKET-TEXT-SPEC-MIGRATION.md) |
 
-Per dettaglio: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 ## Stato generale per area
 
@@ -40,7 +40,7 @@ Per dettaglio: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Cronologi
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
 | CompositionDescriptor migration | PARTIAL | `add(name, factory)` deprecated (ADR-027); 200+ legacy callers remain; Chore B bulk migration OPEN. |
 | Video pipeline | PASS | Structured error reporting (13 codes); atomic output; 98 video tests pass. |
-| CI infrastructure | PASS | Sanitizers nightly/weekly; renderer-boundary gate; test-hygiene 3 invariants; CI status JSON artifact. |
+| CI infrastructure | FAIL | Sanitizers nightly/weekly; renderer-boundary gate; test-hygiene 3 invariants; **recent runs multi-gate failure su `main@0682937e`** (core-build, sdk-build, architecture-check, install-consumer, full-validation, Linux/Windows). |
 | Test coverage | PASS | 5×5 deterministic matrix; 5×5 SafeArea matrix; 5 layout TEST_CASEs. |
 | Benchmark corpus | WIRED | 12-scene YAML corpus B00-B11 + sanity test harness landed; macchina-verifica DEFERRED-WBH. |
 | Auto-fit (ADR-018) | PARTIAL | engine-level DONE; canonical wrapper forward-pointed (ADR-gated). |
