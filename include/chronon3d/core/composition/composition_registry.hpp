@@ -130,7 +130,7 @@ public:
         if (!prepared.construct) {
             return PropsError{
                 "",
-                PropsErrorReason::InvalidValue,
+                PropsErrorReason::InvalidFormat,
                 "Composition '" + descriptor.id +
                     "' preparation returned no constructor"
             };
