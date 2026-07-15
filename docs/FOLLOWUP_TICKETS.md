@@ -24,3 +24,7 @@
 ---
 
 Debiti differiti e cronologia dei ticket chiusi sono stati spostati in [`ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`](ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md) per rispettare il contratto documentale di ~10 righe sintetiche.
+
+## Recently Closed
+
+- TICKET-PROFILING-INCLUDE-MISSING (rot-class: profiling/extern symbol missing); TICKET-FMT-PATH-JOIN-INCOMPLETE-TYPE (rot-class: fmt::v12 metafunction); atomic Duh-chore; cat-3 minimal surface 2-file source patch; broader 11/11 macchina-verifica PARTIAL → DEFERRED-WBH.

@@ -6,7 +6,7 @@
 
 ## Stato
 
-DONE (canonical-reset per AGENTS.md §21ece2b3 unique-edit recovery variant, 2026-07-15); 11/11 macchina-verifica DEFERRED-WBH per §honesty + rot-class-protection threshold (iter 10+); rot #8 (vcpkg fmt v12 env-block) forward-pointed a TICKET-FMT-PATH-JOIN-INCOMPLETE-TYPE; cascade envelope CLOSED on this branch.
+DONE-ON-THIS-BRANCH (canonical-reset per AGENTS.md §21ece2b3; macchina-verifica local attempted 2026-07-15 returned RED — DEFERRED-WBH per §honesty to actual working-build-host VPS for 11/11 baseline verde confirmation; rot #8 env-block forward-pointed TICKET-FMT-PATH-JOIN-INCOMPLETE-TYPE).
 
 ## Cross-references
 

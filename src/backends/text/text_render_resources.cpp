@@ -5,6 +5,7 @@
 // P1-8: per-renderer text-raster cache state + `hash_text_style` impl relocation.
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>  // rot profiling: g_current_counters at line 721
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 
 #include <spdlog/spdlog.h>

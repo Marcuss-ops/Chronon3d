@@ -197,14 +197,17 @@ void register_watch_commands(CLI::App& app, CliContext& ctx) {
             }
         }
 
+        // rot #8: pre-convert vector<path> → vector<string> before fmt::join — fmt v12.1.0's
+        // join_view metafunction has incomplete-type bug for path iterators (forward-compat).
+        std::vector<std::string> watch_paths_str;
+        watch_paths_str.reserve(watch_paths.size());
+        std::transform(watch_paths.begin(), watch_paths.end(),
+                       std::back_inserter(watch_paths_str),
+                       [](const std::filesystem::path& p) { return p.string(); });
+
         spdlog::info("👁  Chronon3D Watch — comp={} frame={} output={}",
                      watch.comp_id, watch.frame, watch.output.string());
-        std::vector<std::string> watch_path_strings;
-        watch_path_strings.reserve(watch_paths.size());
-        for (const auto& p : watch_paths) {
-            watch_path_strings.push_back(p.string());
-        }
-        spdlog::info("   watch paths: [{}]", fmt::join(watch_path_strings, ", "));
+        spdlog::info("   watch paths: [{}]", fmt::join(watch_paths_str, ", "));
         spdlog::info("   build:       {}", watch.no_build ? "(skipped)" : build_command);
         spdlog::info("   binary:      {}", binary.string());
         spdlog::info("   press Ctrl+C to stop");
