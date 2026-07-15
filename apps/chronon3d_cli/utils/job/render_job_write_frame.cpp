@@ -8,7 +8,6 @@
 
 #include <spdlog/spdlog.h>
 
-#include <atomic>
 #include <cmath>
 #include <filesystem>
 
@@ -39,9 +38,7 @@ bool write_render_frame(const Composition& comp,
     const double dirty_ratio = renderer.last_dirty_area_ratio();
 
     if (!fb) {
-        const auto structured = std::atomic_load_explicit(
-            &renderer.session().last_frame_error,
-            std::memory_order_acquire);
+        const auto structured = renderer.session().last_frame_error();
         if (structured) {
             print_render_error(*structured, comp.name(), frame);
         } else {
