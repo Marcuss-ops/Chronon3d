@@ -27,7 +27,6 @@
 #include <vector>
 
 namespace chronon3d::cli {
-
 namespace {
 
 struct ValidateState {
@@ -61,7 +60,7 @@ bool validate_schema_surface(const CompositionDescriptor& descriptor,
                              const PropsFileResult& loaded) {
     if (!descriptor.schema) return true;
 
-    bool ok = true;
+    bool valid = true;
     std::unordered_set<std::string> declared;
     declared.reserve(descriptor.schema->fields.size());
 
@@ -71,25 +70,26 @@ bool validate_schema_surface(const CompositionDescriptor& descriptor,
             !loaded.props.values.contains(field.name)) {
             spdlog::error("Missing required prop '{}' ({})",
                           field.name, prop_type_name(field.type));
-            ok = false;
+            valid = false;
         }
     }
 
     for (const auto& key : loaded.keys) {
         if (!declared.contains(key)) {
             spdlog::error("Unknown prop '{}' for composition '{}'", key, descriptor.id);
-            ok = false;
+            valid = false;
         }
     }
-    return ok;
+    return valid;
 }
 
-void print_props_error(const std::string& comp_id, const PropsError& error) {
+void print_props_error(const std::string& composition_id,
+                       const PropsError& error) {
     const std::string key = error.key.empty()
         ? std::string{}
         : " [" + error.key + "]";
     spdlog::error("Props validation failed for '{}'{}: {}",
-                  comp_id, key, error.message);
+                  composition_id, key, error.message);
 }
 
 int run_validate(CliContext& ctx, const ValidateState& args) {
@@ -108,49 +108,37 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
     loaded.props.assets = &ctx.assets;
     if (!validate_schema_surface(*descriptor, loaded)) return 1;
 
-    std::optional<CompositionMetadata> resolved_metadata;
-    if (descriptor->prepare_props) {
-        auto prepared = descriptor->prepare_props(loaded.props);
-        if (!prepared) {
-            print_props_error(args.comp_id, prepared.error());
-            return 1;
-        }
-        resolved_metadata = std::move(prepared).value();
-        fmt::print("[2/6] props decoded: {} value(s)\n", loaded.props.values.size());
-        fmt::print("[3/6] props valid\n");
-    } else {
-        fmt::print("[2/6] props loaded: {} value(s) (legacy descriptor)\n",
-                   loaded.props.values.size());
-    }
-
-    std::optional<Composition> comp;
-    try {
-        // Typed descriptors have already passed prepare_props, so invoke the
-        // construction-only wrapper directly. Legacy descriptors retain the
-        // historical registry.create path because they expose no preparation.
-        comp.emplace(descriptor->prepare_props
-            ? descriptor->factory(loaded.props)
-            : ctx.registry.create(args.comp_id, loaded.props));
-    } catch (const std::exception& e) {
-        spdlog::error("Composition construction failed for '{}': {}", args.comp_id, e.what());
+    auto prepared = descriptor->prepare_props(loaded.props);
+    if (!prepared) {
+        print_props_error(args.comp_id, prepared.error());
         return 1;
     }
-    if (!descriptor->prepare_props) {
-        fmt::print("[3/6] legacy factory accepted props\n");
+    const std::optional<CompositionMetadata> resolved_metadata =
+        std::move(prepared).value();
+    fmt::print("[2/6] props decoded: {} value(s)\n", loaded.props.values.size());
+    fmt::print("[3/6] props valid\n");
+
+    std::optional<Composition> composition;
+    try {
+        composition.emplace(descriptor->factory(loaded.props));
+    } catch (const std::exception& error) {
+        spdlog::error("Composition construction failed for '{}': {}",
+                      args.comp_id, error.what());
+        return 1;
     }
 
-    const auto rate = resolved_metadata
+    const FrameRate rate = resolved_metadata
         ? resolved_metadata->fps
-        : comp->frame_rate();
+        : composition->frame_rate();
     const i32 width = resolved_metadata
         ? resolved_metadata->width
-        : comp->width();
+        : composition->width();
     const i32 height = resolved_metadata
         ? resolved_metadata->height
-        : comp->height();
+        : composition->height();
     const Frame duration = resolved_metadata
         ? resolved_metadata->duration
-        : comp->duration();
+        : composition->duration();
     fmt::print("[4/6] metadata: {}x{}  {}/{} fps  {} frames\n",
                width, height, rate.numerator, rate.denominator,
                duration.integral());
@@ -159,7 +147,7 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
     const Frame last = duration > Frame{0} ? duration - Frame{1} : Frame{0};
     try {
         for (Frame frame = Frame{0}; frame <= last; frame += Frame{1}) {
-            const FrameContext frame_ctx{
+            const FrameContext frame_context{
                 .frame = frame,
                 .local_frame = frame,
                 .frame_time = 0.0f,
@@ -167,17 +155,17 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
                 .frame_rate = rate,
                 .width = width,
                 .height = height,
-                .assets_root = comp->assets_root(),
+                .assets_root = composition->assets_root(),
                 .assets = &ctx.assets
             };
-            manifest.merge(comp->evaluate(frame_ctx).asset_manifest());
+            manifest.merge(composition->evaluate(frame_context).asset_manifest());
         }
-    } catch (const std::exception& e) {
-        spdlog::error("Asset manifest resolution failed: {}", e.what());
+    } catch (const std::exception& error) {
+        spdlog::error("Asset manifest resolution failed: {}", error.what());
         return 1;
     }
 
-    auto resolver = make_cli_resolver(comp->assets_root());
+    auto resolver = make_cli_resolver(composition->assets_root());
     auto asset_result = AssetPreflightResolver::check_manifest(manifest, resolver);
     std::vector<PreflightIssue> issues = std::move(asset_result.issues);
     fmt::print("[5/6] asset manifest/preflight: {} asset(s), {} issue(s)\n",
@@ -187,8 +175,8 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
     settings_args.comp_id = args.comp_id;
     apply_render_profile(settings_args, args.profile,
                          [](std::string_view) { return false; });
-    const auto settings = settings_from_args(settings_args, true,
-                                              settings_args.pipeline.diagnostic);
+    const auto settings = settings_from_args(
+        settings_args, true, settings_args.pipeline.diagnostic);
     (void)settings;
 
     if (!args.output.empty()) {
@@ -201,7 +189,9 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
     }
     fmt::print("[6/6] output/settings valid: profile={}{}\n",
                args.profile,
-               args.output.empty() ? std::string{} : fmt::format(" output={}", args.output));
+               args.output.empty()
+                   ? std::string{}
+                   : fmt::format(" output={}", args.output));
 
     if (!issues.empty()) {
         const auto text = format_preflight_issues_text(issues);
@@ -220,22 +210,22 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
 
 void register_validate_commands(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<ValidateState>();
-    auto* cmd = app.add_subcommand(
+    auto* command = app.add_subcommand(
         "validate",
         "Validate composition props, metadata, assets and output settings without rendering");
-    cmd->add_option("input", state->comp_id, "Composition name")->required();
-    cmd->add_option("--props-file", state->props_file,
-                    "Flat JSON object containing composition props");
-    cmd->add_option("-o,--output", state->output,
-                    "Optional output path to validate");
-    cmd->add_option("--profile", state->profile,
-                    "Render settings profile: draft | preview | production | maximum")
+    command->add_option("input", state->comp_id, "Composition name")->required();
+    command->add_option("--props-file", state->props_file,
+                        "Flat JSON object containing composition props");
+    command->add_option("-o,--output", state->output,
+                        "Optional output path to validate");
+    command->add_option("--profile", state->profile,
+                        "Render settings profile: draft | preview | production | maximum")
         ->default_val("production")
         ->transform([](std::string value) { return lower_copy(std::move(value)); })
         ->check(CLI::IsMember(
             std::set<std::string>{"draft", "preview", "production", "maximum"},
             CLI::ignore_case));
-    cmd->callback([state, &ctx]() {
+    command->callback([state, &ctx]() {
         try {
             ctx.exit_code = run_validate(ctx, *state);
         } catch (const std::exception& error) {
@@ -248,12 +238,9 @@ void register_validate_commands(CLI::App& app, CliContext& ctx) {
 } // namespace chronon3d::cli
 
 namespace chronon3d::cli::group_render {
-
 void register_commands(CLI::App& app, CliContext& ctx) {
     register_render_commands(app, ctx);
     register_validate_commands(app, ctx);
     register_bake_layer_commands(app, ctx);
-    // graph is registered by dev group but depends on render infrastructure
 }
-
 } // namespace chronon3d::cli::group_render
