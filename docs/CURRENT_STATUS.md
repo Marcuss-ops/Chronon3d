@@ -73,6 +73,7 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 | Sanitizer cert | WIRED | `verify_sanitizer_linux.sh` 0 OOB + 0 UAF + 0 UB + 0 data races. |
 | TICKET-125 (Test aggregator Tests 8-18) | PARTIAL | 11-row index Tests 8-18 con PASS/FAIL criterion. Vedi [TICKET-125](tickets/TICKET-125-test-aggregator.md) + forward-points TICKET-TEST-9-PILOT-7GG + TICKET-TEST-13-INDEXING + TICKET-TEST-18-LONG-FORM-CONTENT. |
 | Test 18 founder dashboard | OPEN | Weekly scorecard aggregator + 8 metriche. |
+| Build (4346d7f068cb11ab26598417b13b5277b7e55ad6) | PARTIAL | chronon3d_cli verde post rebase-21ece2b3 (upstream rot #8 for-loop fix merged at apps/chronon3d_cli/commands/watch/register_watch_commands.cpp; our profiling.hpp include at src/backends/text/text_render_resources.cpp preserved); broader 11/11 macchina-verifica DEFERRED-WBH per AGENTS.md §rot-class-protection threshold (post-2nd-rebase [ahead 4, behind 0] vs upstream 4e203dde (chaser-chaser close cat-5 deferred)). |
 
 ## Gate Audit — ultima verifica
 
