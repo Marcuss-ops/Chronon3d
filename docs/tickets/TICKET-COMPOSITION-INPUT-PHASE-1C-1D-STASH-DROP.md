@@ -178,12 +178,11 @@ interno non-milestone, non MVG pivot).
   tightly coupled al retired `SceneBuilder::series()` authoring sugar;
   un future re-introduction DEVE usare il canonical `SequenceSpec`
   extension pattern documented in
-  `docs/tickets/TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3.md`
-  §Forward-points (vedi [TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3](TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3.md) §Forward-points per il canonical SequenceSpec extension pattern).
+  `docs/tickets/TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3.md`.
 
 ## Historical notes
 
-(Session 2026-07-15, pomeriggio. WIP pre-esistente, 377 commit dietro
+(Session 2026-07-15; WIP pre-esistente, 377 commit dietro
 current `origin/main@253a178d` al momento del drop. Sequenza:
 
 1. First-attempt a FF-pull + `git stash pop` ha rivelato la profondità
