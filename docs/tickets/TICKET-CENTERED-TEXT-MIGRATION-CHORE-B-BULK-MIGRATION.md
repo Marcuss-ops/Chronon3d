@@ -62,7 +62,7 @@ Mapping `glow_text(CenterTextOptions, glow_color, radius, intensity) → TextDef
 - [ ] **Sub-chore Blocco 5.2.F: TESTS-DETERMINISTIC-AREA** DONE — `tests/deterministic/test_visual_regression_scenarios.cpp` 5 callsites + `tests/text/test_visual_regression_scenarios.cpp` migration (regression lock preservation CRITICAL)
 - [ ] **Sub-chore Blocco 5.2.G: TESTS-TEXT-AREA** DONE — ~30 callsites test_text_simplicity_adapters + test_text_production_v1 + test_cert_text_bbox + test_text_definition_round_trip migration
 - [ ] **Sub-chore Blocco 5.2.H: CONTENT-SCENE-AREA** DONE — `src/scene/builders/layer_builder_text.cpp` + camera overlay panels (CenterTextOptions indirect ~20 references) audit + migration
-- [ ] **Sub-chore Blocco 5.2.I-FINAL: HELPER-REMOVAL-FINAL** DONE — `centered_text()` + `glow_text()` + `compute_single_line_glyph_layout()` rimosse dai headers
+- [x] **Sub-chore Blocco 5.2.I-FINAL: HELPER-REMOVAL-FINAL** DONE (vacuous-truth, 2026-07-14) — `centered_text()` + `glow_text()` + `compute_single_line_glyph_layout()` rimosse dai headers in pre-session lineage (cronologia chiusura: [TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY.md)). Cat-5 3-doc same-atomic per AGENTS.md §Honest-discipline + vacant-truth chaser-chore precedent (8+ sibling tickets).
 - [ ] macchina-verifica finale: `rg -c 'centered_text\(' src/ include/ content/ tests/ apps/` = 0
 - [ ] macchina-verifica finale: `rg -c 'glow_text\(' src/ include/ content/ tests/ apps/` = 0
 - [ ] macchina-verifica finale: `rg -c 'compute_single_line_glyph_layout\(' src/ include/ content/ tests/ apps/` = 0
@@ -81,7 +81,7 @@ Mapping `glow_text(CenterTextOptions, glow_color, radius, intensity) → TextDef
 | f | TESTS-DETERMINISTIC-AREA           | `tests/deterministic/test_visual_regression_scenarios.cpp` 5 callsites + `tests/text/test_visual_regression_scenarios.cpp` | ~5 | OPEN |
 | g | TESTS-TEXT-AREA                    | `tests/text/test_text_simplicity_adapters.cpp` (~12 callsites) + `tests/certification/test_text_production_v1.cpp` + `tests/certification/test_cert_text_bbox.cpp` + `tests/architecture/test_text_definition_round_trip.cpp` | ~30 | OPEN |
 | h | CONTENT-SCENE-AREA                 | `src/scene/builders/layer_builder_text.cpp` + camera overlay panels CenterTextOptions indirect references (~20 panels) | ~20 | OPEN |
-| i | HELPER-REMOVAL-FINAL (Blocco 5.2.I) | Rimozione `centered_text()` + `glow_text()` + `compute_single_line_glyph_layout()` da `include/chronon3d/text/text_helpers_centered.hpp` + `content/text/text_glow_helpers.hpp` | 3 functions | OPEN |
+| i | HELPER-REMOVAL-FINAL (Blocco 5.2.I) | Rimozione `centered_text()` + `glow_text()` + `compute_single_line_glyph_layout()` da `include/chronon3d/text/text_helpers_centered.hpp` + `content/text/text_glow_helpers.hpp` | 3 functions | DONE (vacuous, 2026-07-14, helpers already absent pre-session + zero callers) |
 
 Total target: ~91 callsites + 3 helper functions. Counts approximated basato-su prior basher-scan (this session, 2026-07-14); precision verification via `rg -c 'centered_text\(|glow_text\(|compute_single_line_glyph_layout\(' src/ include/ content/ tests/ apps/` at start of each sub-chore.
 
@@ -97,7 +97,7 @@ Total target: ~91 callsites + 3 helper functions. Counts approximated basato-su 
 | f | OPEN (P2) | Sub-chore Blocco 5.2.F: TESTS-DETERMINISTIC-AREA migration. ~5 callsites in test_visual_regression_scenarios.cpp (CenterTextOptions regression lock). **CRITICAL**: regression lock preservation obbligatorio (CenterTextOptions ↔ TextDefinition byte-equivalence test). |
 | g | OPEN (P2) | Sub-chore Blocco 5.2.G: TESTS-TEXT-AREA migration. ~~30 callsites distribuiti su 4 test files. Tests highest blast radius (reproducibility regression suite) — execute LAST post-F+K+H verde. |
 | h | OPEN (P2) | Sub-chore Blocco 5.2.H: CONTENT-SCENE-AREA migration. ~20 CenterTextOptions indirect references in `src/scene/builders/layer_builder_text.cpp` + camera overlay panels. Audit richiesto: 1 callsite per panel × ~20 panels. Per AGENTS.md "PR piccole e mirate", questo sub-chore può richiedere split per-layer (1 chore per panel-batch). |
-| i | OPEN (P1) | Sub-chore Blocco 5.2.I-FINAL: HELPER-REMOVAL-FINAL. Rimuove `centered_text()` + `glow_text()` + `compute_single_line_glyph_layout()` da `include/chronon3d/text/text_helpers_centered.hpp` + `content/text/text_glow_helpers.hpp`. macchina-verifica: helper non più risolvibile (compile error su callsite residuo = fail-loud guarantee). **P1 priority post-tutti-gli-altri-sub-chori-verde**. |
+| i | DONE (vacuous, 2026-07-14) | Sub-chore Blocco 5.2.I-FINAL: HELPER-REMOVAL-FINAL pre-completed pre-this-session (cronologia chiusura: [TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY.md)). 3 helpers + header file already absent, zero prod callers via rg-probe. ZERO source questo turno (cat-3 minimal-surface). NO macchina-verifica additional work needed. |
 
 ## Cross-link canonical (per SHA cite-pattern AGENTS.md §Regole di lint documentale)
 
