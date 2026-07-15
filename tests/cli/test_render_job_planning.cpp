@@ -115,6 +115,49 @@ TEST_CASE("RenderJob planner selects Video from a case-insensitive extension") {
     }
 }
 
+TEST_CASE("RenderJob planner preserves canonical video settings") {
+    auto registry = make_registry();
+    auto args = args_for("0-30", "hero.mp4");
+    args.video_settings.fps = 60;
+    args.video_settings.crf = 20;
+    args.video_settings.codec = "custom_codec";
+    args.video_settings.encode_preset = "medium";
+    args.video_settings.tune = "film";
+    args.video_settings.keep_frames = true;
+    args.video_settings.frames_dir = "custom_frames";
+    args.video_settings.chunks = 4;
+    args.video_settings.hardware_encoder = "none";
+    args.video_settings.ffmpeg_mode = "png";
+    args.video_settings.ffmpeg_verbose = true;
+    args.video_settings.pipe_pixfmt = "nv12";
+    args.video_settings.color_output = "rec709";
+    args.video_settings.pipe_writer = "classic";
+    args.video_settings.encoder_backend = "pipe";
+    args.video_settings.dry_run = true;
+
+    auto job = cli::make_render_job(registry, args);
+
+    REQUIRE(job.has_value());
+    REQUIRE(job->mode == c3d::RenderMode::Video);
+    CHECK(job->video_settings.fps == 60);
+    CHECK(job->video_settings.crf == 20);
+    CHECK(job->video_settings.codec == "custom_codec");
+    CHECK(job->video_settings.encode_preset == "medium");
+    CHECK(job->video_settings.tune == "film");
+    CHECK(job->video_settings.keep_frames);
+    CHECK(job->video_settings.frames_dir == "custom_frames");
+    CHECK(job->video_settings.chunks == 4);
+    CHECK(job->video_settings.ffmpeg_mode == "png");
+    CHECK(job->video_settings.ffmpeg_verbose);
+    CHECK(job->video_settings.pipe_pixfmt == "nv12");
+    CHECK(job->video_settings.color_output == "rec709");
+    CHECK(job->video_settings.pipe_writer == "classic");
+    CHECK(job->video_settings.encoder_backend == "pipe");
+    CHECK(job->video_settings.dry_run);
+    CHECK_FALSE(job->execution.warmup_renderer);
+    CHECK_FALSE(job->execution.warmup_dummy_frame);
+}
+
 TEST_CASE("RenderJob planner keeps non-video uppercase extensions on image modes") {
     auto registry = make_registry();
     auto job = cli::make_render_job(registry, args_for("8", "hero.PNG"));
