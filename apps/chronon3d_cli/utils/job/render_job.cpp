@@ -2,9 +2,24 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
+#include <cctype>
+#include <filesystem>
 #include <optional>
 
 namespace chronon3d::cli {
+
+namespace {
+
+bool is_video_output(const std::string& output) {
+    std::string ext = std::filesystem::path(output).extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return ext == ".mp4" || ext == ".mov" || ext == ".mkv" ||
+           ext == ".webm";
+}
+
+} // namespace
 
 std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
                                          const RenderArgs& args) {
@@ -29,7 +44,22 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
     job.settings.diagnostics.plan_output = args.pipeline.diagnostic_plan_output;
     job.frame_step = Frame{range.step};
 
-    if (range.start == range.end) {
+    if (is_video_output(args.output)) {
+        job.mode = RenderMode::Video;
+        job.first_frame = Frame{range.start};
+
+        // `render Comp -o out.mp4` keeps RenderArgs' historical default
+        // frames="0" but means the full composition for Video mode.  An
+        // explicit non-zero single frame remains a valid one-frame video.
+        const auto duration_last = std::max<std::int64_t>(
+            range.start, job.comp->duration().integral() - 1);
+        job.last_frame = (range.start == 0 && range.end == 0)
+            ? Frame{duration_last}
+            : Frame{range.end};
+
+        job.video_settings.frames_dir =
+            "chronon_" + std::filesystem::path(args.comp_id).filename().string();
+    } else if (range.start == range.end) {
         job.mode = RenderMode::Still;
         job.still_frame = Frame{range.start};
     } else {
@@ -43,9 +73,11 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
     job.execution.report = args.report;
     job.execution.command_line = args.command_line;
     job.execution.diagnostic_plan = args.pipeline.diagnostic_plan;
-    job.execution.warmup_renderer = args.pipeline.warmup_renderer;
+    job.execution.warmup_renderer =
+        args.pipeline.warmup_renderer || job.mode == RenderMode::Video;
     job.execution.warmup_framebuffers = args.pipeline.warmup_framebuffers;
-    job.execution.warmup_dummy_frame = args.pipeline.warmup_dummy_frame;
+    job.execution.warmup_dummy_frame =
+        args.pipeline.warmup_dummy_frame || job.mode == RenderMode::Video;
     job.execution.cpu_budget = args.cpu_budget;
 
     Config cfg;
