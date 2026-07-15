@@ -1,42 +1,49 @@
 #include "render_job_loop.hpp"
 #include "render_job_detail.hpp"
 
-#include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 
 #include <spdlog/spdlog.h>
-#include <fmt/format.h>
+
+#include <algorithm>
+#include <cstdint>
 
 namespace chronon3d::cli {
 
 RenderLoopResult run_render_job_loop(
-    const RenderJobPlan& plan,
-    SoftwareRenderer & renderer)
+    const RenderJob& job,
+    SoftwareRenderer& renderer)
 {
     RenderLoopResult result;
 
-    const int64_t effective_end = (plan.range.start == plan.range.end)
-                                      ? plan.range.start + 1
-                                      : plan.range.end;
-    const int64_t total_frames = (effective_end - plan.range.start + plan.range.step - 1) / plan.range.step;
+    if (job.mode == RenderMode::Video) {
+        spdlog::error("run_render_job_loop cannot execute Video mode");
+        result.ok = false;
+        return result;
+    }
 
+    const std::int64_t start = job.mode == RenderMode::Still
+        ? job.still_frame.integral()
+        : job.first_frame.integral();
+    const std::int64_t end = job.mode == RenderMode::Still
+        ? job.still_frame.integral()
+        : job.last_frame.integral();
+    const std::int64_t step = std::max<std::int64_t>(
+        1, job.frame_step.integral());
+
+    const FrameRange range{start, end, step};
     result.loop_start = profiling::now();
 
-    // ── Sequential render / write loop ─────────────────────────────────
-    // The previous WritePool-based double buffering has been removed in
-    // favour of the unified CpuBudget.  Encode work is now accounted for
-    // in the encode_threads budget and runs synchronously in the render
-    // thread, eliminating the nested std::thread pool.
-    for (int64_t f = plan.range.start; f < effective_end; f += plan.range.step) {
-        if (!write_render_frame(*plan.comp, renderer, static_cast<Frame>(f), plan.range, plan.output,
-                                result.ok, result.telemetry_frames, result.total_render_ms,
-                                result.total_encode_ms, result.frames_written)) {
-            // keep going to report all failures, but preserve false
+    for (std::int64_t f = start; f <= end; f += step) {
+        if (!write_render_frame(*job.comp, renderer, Frame{f}, range, job.output,
+                                result.ok, result.telemetry_frames,
+                                result.total_render_ms, result.total_encode_ms,
+                                result.frames_written)) {
+            // Continue to surface all frame failures while preserving false.
         }
     }
 
     result.loop_end = profiling::now();
-
     return result;
 }
 
