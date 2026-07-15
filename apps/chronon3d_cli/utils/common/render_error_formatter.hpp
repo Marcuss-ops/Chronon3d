@@ -68,21 +68,9 @@ namespace render_error_detail {
     }
 
     constexpr std::string_view quoted_markers[] = {
-        "asset '",
-        "asset \"",
-        "file '",
-        "file \"",
-        "path '",
-        "path \"",
-        "image '",
-        "image \"",
-        "video '",
-        "video \"",
-        "audio '",
-        "audio \"",
-        "font '",
-        "font \"",
-        "output '",
+        "asset '", "asset \"", "file '", "file \"", "path '",
+        "path \"", "image '", "image \"", "video '", "video \"",
+        "audio '", "audio \"", "font '", "font \"", "output '",
         "output \"",
     };
 
@@ -127,8 +115,8 @@ namespace render_error_detail {
         "missing asset",
         "failed to resolve asset",
         "asset resolution failed",
+        "asset path does not exist",
         "image not found",
-        "No such file or directory",
     });
 }
 
@@ -255,6 +243,14 @@ namespace render_error_detail {
     if (is_invalid_camera_descriptor(error)) {
         return "INVALID_CAMERA_DESCRIPTOR";
     }
+    // Output/encoder failures are checked before generic asset/decode matching
+    // so OS-level file errors do not get mislabeled as missing project assets.
+    if (is_output_open_failed(error)) {
+        return "OUTPUT_OPEN_FAILED";
+    }
+    if (is_video_encoder_failed(error)) {
+        return "VIDEO_ENCODER_FAILED";
+    }
     if (is_decode_failed(error)) {
         return "DECODE_FAILED";
     }
@@ -266,12 +262,6 @@ namespace render_error_detail {
     }
     if (is_memory_budget_exceeded(error)) {
         return "MEMORY_BUDGET_EXCEEDED";
-    }
-    if (is_output_open_failed(error)) {
-        return "OUTPUT_OPEN_FAILED";
-    }
-    if (is_video_encoder_failed(error)) {
-        return "VIDEO_ENCODER_FAILED";
     }
     if (is_invalid_time_range(error)) {
         return "INVALID_TIME_RANGE";
@@ -301,6 +291,14 @@ namespace render_error_detail {
     if (is_composition_create_failure(error)) {
         return "Check the composition props and factory inputs, then retry the command.";
     }
+    if (is_output_open_failed(error)) {
+        return "Choose a writable output path\n"
+               "and create its parent directory if required.";
+    }
+    if (is_video_encoder_failed(error)) {
+        return "Use an available codec/encoder and verify FFmpeg configuration\n"
+               "before retrying the video render.";
+    }
     if (is_asset_not_found(error)) {
         return "Place the asset under the project asset root\n"
                "or update the layer asset path.";
@@ -324,14 +322,6 @@ namespace render_error_detail {
     if (is_memory_budget_exceeded(error)) {
         return "Reduce resolution, SSAA, motion-blur samples or cache budgets\n"
                "or increase the configured render memory budget.";
-    }
-    if (is_output_open_failed(error)) {
-        return "Choose a writable output path\n"
-               "and create its parent directory if required.";
-    }
-    if (is_video_encoder_failed(error)) {
-        return "Use an available codec/encoder and verify FFmpeg configuration\n"
-               "before retrying the video render.";
     }
     if (is_invalid_time_range(error)) {
         return "Use a frame range whose start is not greater than its end.";
