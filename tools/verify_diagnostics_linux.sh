@@ -1,621 +1,262 @@
 #!/usr/bin/env bash
-# ═══════════════════════════════════════════════════════════════════════════
-# tools/verify_diagnostics_linux.sh
+# Canonical Chronon3D diagnostics certification gate.
 #
-# Canonical Error Handling & Diagnostics certification gate (P2).
+# This gate consumes the existing engine/SDK error channels through the single
+# `chronon render` command. It intentionally rejects deprecated still/video
+# aliases and generic parser/runtime messages as substitutes for structured
+# render diagnostics.
 #
-# Imposes a 10-class error matrix per user spec verbatim:
-#   1.  FontNotFound            — font file missing or unresolvable
-#   2.  AssetNotFound           — image/video/audio asset missing
-#   3.  DecodeFailed            — corrupt or un-decodable media file
-#   4.  InvalidCameraDescriptor — malformed or missing camera config
-#   5.  CameraTargetNotFound    — camera references nonexistent target
-#   6.  FrameDimensionExceeded  — requested frame exceeds dimension limit
-#   7.  MemoryBudgetExceeded    — render exceeds memory budget
-#   8.  OutputOpenFailed        — output path not writable
-#   9.  VideoEncoderFailed      — video codec/encoder failure
-#  10.  InvalidTimeRange         — sequence time range invalid (from > to)
-#
-# 7-field structured error contract per user spec verbatim — every error
-# MUST report:
-#   - code             (e.g., "FontNotFound", "AssetNotFound")
-#   - message          (human-readable diagnostic; NEVER just "something failed")
-#   - composition_id   (which composition was being rendered)
-#   - layer/node       (which layer or node triggered the failure)
-#   - frame            (at which frame the error occurred)
-#   - asset            (which asset file caused the failure)
-#   - causa originale  (underlying OS/library error string)
-#
-# Three-layer architecture (per AGENTS.md §honest-limitation + Cat-3):
-#   Layer A — STATIC enum audit: scan the canonical error enums (RenderErrorCode,
-#             TextErrorCode, MotionErrorCode, VideoSinkError, CameraErrorCode)
-#             and verify each of the 10 classes has at least one canonical
-#             enum entry that maps to it. Cheap, no CLI binary needed.
-#   Layer B — STRUCTURED contract enforcement: per-class token check on stderr
-#             (word-boundary grep on code+message+composition+layer+frame+asset
-#             + cause tokens), `something failed`-rejection, NO silent-fallback
-#             markers (fallback frame|black frame|continue on error|fallback
-#             to silence). gate emits BLOCKED when chronon3d_cli not built.
-#   Layer C — CROSS-COVERAGE audit: aggregate all per-class stderr + verify
-#             the 7 canonical fields are PRESENT in the union across the suite.
-#
-# Verdict contract:
-#   DIAGNOSTICS_FUNCTIONAL_PASS    — all 10 classes emit structured 7-field
-#                                    errors + 7 canonical fields covered
-#   DIAGNOSTICS_FUNCTIONAL_FAIL    — any class fails the 7-field contract or
-#                                    emits "something failed"
-#   DIAGNOSTICS_FUNCTIONAL_BLOCKED — env/binary/build not available
-#   Exit 0 = PASS, 1 = FAIL, 2 = BLOCKED
-#
-# §honesty contract (AGENTS.md):
-#   - Blocked steps reported with explicit diagnostic, NOT silently skipped.
-#   - DIAGNOSTICS_FUNCTIONAL_BLOCKED is emitted ONLY when Layer A enum audit
-#     fails OR chronon3d_cli binary is missing AND enum audit also fails.
-#   - Enums-audit Layer A is the §honest fallback: it confirms the canonical
-#     taxonomy EXISTS even without working build host.
-#   - DIAGNOSTICS_FUNCTIONAL_PASS is only emitted when ALL Layer A + Layer B
-#     (when runnable) + Layer C checks pass.
-#   - DIAGNOSTICS_FUNCTIONAL_FAIL is emitted on any contract violation.
-#   - [INFO] ${GATE_NAME}: ... line on PASS addizionale al canonico (per
-#     AGENTS.md "## Regole di lint documentale" §INFO-level diagnostic style).
-#
-# Usage:
-#   bash tools/verify_diagnostics_linux.sh
-#
-# Environment overrides:
-#   CHRONON3D_DIAG_CLI_BIN=<path>        Override CLI binary path
-#   CHRONON3D_DIAG_SKIP_RUNTIME=1        Skip Layer B/C runtime testing
-#                                         (use ONLY when no chronon3d_cli binary
-#                                          — defaults to skip on this VPS;
-#                                          Layer A still runs)
-#   CHRONON3D_DIAG_KEEP_LOGS=1           Keep per-scenario stderr logs
-# ═══════════════════════════════════════════════════════════════════════════
+# Exit codes:
+#   0 = DIAGNOSTICS_FUNCTIONAL_PASS
+#   1 = DIAGNOSTICS_FUNCTIONAL_FAIL
+#   2 = DIAGNOSTICS_FUNCTIONAL_BLOCKED
 
-set -euo pipefail
+set -uo pipefail
 
 GATE_NAME="verify_diagnostics_linux"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$ROOT" || {
+    echo "DIAGNOSTICS_FUNCTIONAL_BLOCKED"
+    echo "  cannot enter repository root: $ROOT"
+    exit 2
+}
 
-ROOT="$(git rev-parse --show-toplevel)"
-cd "$ROOT"
-
-CHRONON3D_DIAG_CLI_BIN="${CHRONON3D_DIAG_CLI_BIN:-}"
-CHRONON3D_DIAG_SKIP_RUNTIME="${CHRONON3D_DIAG_SKIP_RUNTIME:-}"
-CHRONON3D_DIAG_KEEP_LOGS="${CHRONON3D_DIAG_KEEP_LOGS:-0}"
-
-# ── Canonical 10-class error matrix (user spec verbatim) ────────────────────
-# Order is the spec order from the task prompt; do NOT reorder (docs cite
-# these positions: §0–§9).  Each row maps to (expected_code_token,
-# [enums_to_audit_in_Layer_A], canonical_composition_for_runtime).
-#
-# Layer A enum audit verifies that the canonical enum(s) in each row's
-# `enums[]` contain the `code_token` string returned by their `to_string()`
-# helper (or the literal name in the enum class definition).  This makes
-# the static audit machine-checkable AND grep-discoverable.
-declare -a ERROR_MATRIX=(
-    #  1. FontNotFound            (TextErrorCode::MissingFontEngine          + RenderErrorCode::MissingFontEngine)
-    "FontNotFound            |MissingFontEngine    |TextErrorCode:MissingFontEngine,RenderErrorCode:MissingFontEngine|CertMissingFont"
-    #  2. AssetNotFound           (RenderErrorCode::AssetResolutionFailure  + VideoSinkError)
-    "AssetNotFound           |AssetResolution      |RenderErrorCode:AssetResolutionFailure,VideoSinkError|AssetNotFound"
-    #  3. DecodeFailed            (decoder layer — to_string emitted by TextErrorCode::ShapingFailed + VideoDecoderError)
-    "DecodeFailed            |DecodeFailed         |TextErrorCode:ShapingFailed,VideoDecoderError:DecodeFailed|CertCorruptPNG"
-    #  4. InvalidCameraDescriptor (RenderErrorCode::InvalidCameraProgram)
-    "InvalidCameraDescriptor |InvalidCameraProgram |RenderErrorCode:InvalidCameraProgram,CameraErrorCode|CertInvalidCamera"
-    #  5. CameraTargetNotFound    (RenderErrorCode::AssetResolutionFailure proxy / CameraErrorCode)
-    "CameraTargetNotFound    |CameraTarget         |CameraErrorCode:TargetNotFound|CertCameraTargetMissing"
-    #  6. FrameDimensionExceeded  (VideoSinkError::MaxDimensionExceeded)
-    "FrameDimensionExceeded  |MaxDimensionExceed   |VideoSinkError:MaxDimensionExceeded|DimensionCheck"
-    #  7. MemoryBudgetExceeded    (VideoSinkError::InsufficientMemory)
-    "MemoryBudgetExceeded    |MemoryBudget         |VideoSinkError:InsufficientMemory|MemoryBudgetCheck"
-    #  8. OutputOpenFailed        (VideoSinkError::DirectoryNotWritable  +  OutputOpenFailed)
-    "OutputOpenFailed        |OutputOpenFailed     |VideoSinkError:DirectoryNotWritable,VideoSinkError:OutputExists|OutputCheck"
-    #  9. VideoEncoderFailed      (VideoSinkError::CodecNotFound  +  EncoderFailed)
-    "VideoEncoderFailed      |VideoEncoder         |VideoSinkError:CodecNotFound,VideoSinkError:EncoderFailed|CodecCheck"
-    # 10. InvalidTimeRange        (timeline validation layer)
-    "InvalidTimeRange        |InvalidTimeRange     |TimelineError:InvalidRange|SequenceTimeRangeCheck"
-)
-
-# ── 7 canonical structured fields per user spec verbatim ────────────────────
-# Order matches user spec field order: code, message, composition_id,
-# layer/node, frame, asset, causa originale.
-CANONICAL_FIELDS=("code" "message" "composition" "layer" "node" "frame" "asset" "cause")
-
-# ── NO silent-fallback markers (the "Mai solo something failed" mandate) ────
-SILENT_FALLBACK_MARKERS=("fallback frame" "black frame" "continue on error" "fallback to silence" "something failed")
-
-# ── Temp dirs ───────────────────────────────────────────────────────────────
-TMP_DIR="/tmp/chronon3d_diagnostics_cert"
-OUTPUT_DIR="${TMP_DIR}/output"
-LOG_DIR="${TMP_DIR}/logs"
-ASSETS_DIR="${TMP_DIR}/assets"
-rm -rf "$TMP_DIR"
-mkdir -p "$OUTPUT_DIR" "$LOG_DIR" "$ASSETS_DIR"
+TMP_DIR="$(mktemp -d /tmp/chronon3d_diagnostics.XXXXXX)"
+LOG_DIR="$TMP_DIR/logs"
+OUT_DIR="$TMP_DIR/output"
+mkdir -p "$LOG_DIR" "$OUT_DIR"
+trap 'if [ "${CHRONON3D_DIAG_KEEP_LOGS:-0}" != "1" ]; then rm -rf "$TMP_DIR"; else echo "  logs kept at: $TMP_DIR"; fi' EXIT
 
 PASS_COUNT=0
 FAIL_COUNT=0
 BLOCKED_COUNT=0
-GAP_COUNT=0
-RUNTIME_BLOCKED=false
-ENV_BLOCKED=false
 
-# ── Helpers ────────────────────────────────────────────────────────────────
-_gate_pass()    { echo "  [PASS]    $1";    PASS_COUNT=$((PASS_COUNT + 1));    }
-_gate_fail()    { echo "  [FAIL]    $1 — $2"; FAIL_COUNT=$((FAIL_COUNT + 1)); }
-_gate_blocked() { echo "  [BLOCKED] $1 — $2"; BLOCKED_COUNT=$((BLOCKED_COUNT + 1)); }
-_gate_gap()     { echo "  [GAP]     $1 — $2"; GAP_COUNT=$((GAP_COUNT + 1));     }
+pass() {
+    echo "  [PASS] $1"
+    PASS_COUNT=$((PASS_COUNT + 1))
+}
 
-# Locate chronon3d_cli binary (canonical search paths)
-find_chronon3d_cli() {
-    if [ -n "$CHRONON3D_DIAG_CLI_BIN" ] && [ -x "$CHRONON3D_DIAG_CLI_BIN" ]; then
-        echo "$CHRONON3D_DIAG_CLI_BIN"
+fail() {
+    echo "  [FAIL] $1 — $2"
+    FAIL_COUNT=$((FAIL_COUNT + 1))
+}
+
+blocked() {
+    echo "  [BLOCKED] $1 — $2"
+    BLOCKED_COUNT=$((BLOCKED_COUNT + 1))
+}
+
+find_cli() {
+    if [ -n "${CHRONON3D_DIAG_CLI_BIN:-}" ] && [ -x "${CHRONON3D_DIAG_CLI_BIN}" ]; then
+        printf '%s\n' "${CHRONON3D_DIAG_CLI_BIN}"
         return 0
     fi
+    if [ -n "${CHRONON3D_CLI_BIN:-}" ] && [ -x "${CHRONON3D_CLI_BIN}" ]; then
+        printf '%s\n' "${CHRONON3D_CLI_BIN}"
+        return 0
+    fi
+
+    local candidate
     for candidate in \
-        "${ROOT}/build/chronon/linux-content-dev/chronon3d_cli" \
-        "${ROOT}/build/chronon/linux-ci/chronon3d_cli" \
-        "${ROOT}/build/chronon/linux-ci-full-validation/chronon3d_cli" \
-        "${ROOT}/build/chronon/linux-fast-dev/chronon3d_cli" \
-        "${ROOT}/build/manual-test/chronon3d_cli" \
-        "$(command -v chronon3d_cli 2>/dev/null)"; do
+        "$ROOT/build/chronon/linux-content-dev/chronon3d_cli" \
+        "$ROOT/build/chronon/linux-ci/chronon3d_cli" \
+        "$ROOT/build/chronon/linux-ci-full-validation/chronon3d_cli" \
+        "$ROOT/build/chronon/linux-fast-dev/chronon3d_cli" \
+        "$ROOT/build/manual-test/chronon3d_cli" \
+        "$(command -v chronon3d_cli 2>/dev/null || true)"; do
         if [ -n "$candidate" ] && [ -x "$candidate" ]; then
-            echo "$candidate"
+            printf '%s\n' "$candidate"
             return 0
         fi
     done
     return 1
 }
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 1. Repository state (GATE-MNT-01 + per-branch rebase invariant)
-# ══════════════════════════════════════════════════════════════════════════════
+# Existing taxonomy tokens. These are not a second error hierarchy: the gate
+# merely proves that each required class maps to an engine/SDK error already
+# present in the source tree.
+STATIC_MATRIX=(
+    'FontNotFound|MissingFontEngine|TEXT_FONT_NOT_FOUND'
+    'AssetNotFound|AssetResolutionFailure|ASSET_NOT_FOUND'
+    'DecodeFailed|DecodeFailed|DECODE_FAILED'
+    'InvalidCameraDescriptor|InvalidCameraProgram|INVALID_CAMERA_DESCRIPTOR'
+    'CameraTargetNotFound|TargetNotFound|CAMERA_TARGET_NOT_FOUND'
+    'FrameDimensionExceeded|MaxDimensionExceeded|FRAME_DIMENSION_EXCEEDED'
+    'MemoryBudgetExceeded|InsufficientMemory|MEMORY_BUDGET_EXCEEDED'
+    'OutputOpenFailed|OutputOpenFailed|OUTPUT_OPEN_FAILED'
+    'VideoEncoderFailed|EncoderFailed|VIDEO_ENCODER_FAILED'
+    'InvalidTimeRange|InvalidRange|INVALID_TIME_RANGE'
+)
+
+SCAN_PATHS=()
+for path in include src apps tests; do
+    [ -e "$path" ] && SCAN_PATHS+=("$path")
+done
+
 echo "=============================================="
 echo " verify_diagnostics_linux.sh"
+echo " canonical render error certification"
 echo "=============================================="
 echo ""
-echo "== 1. Repository state =="
 
-# Per-branch rebase invariant (GATE-MNT-01-EXT)
-REBASE_VAL="$(git config --local --get branch.main.rebase 2>/dev/null || echo "")"
-if [ "$REBASE_VAL" != "true" ]; then
-    _gate_fail "per_branch_rebase" "current: '$REBASE_VAL', fix: git config branch.main.rebase true"
-    exit 1
-fi
-echo "  branch.main.rebase: $REBASE_VAL"
-
-# Clean working tree
-if ! git diff --quiet; then
-    echo "DIAG_FAIL: working tree has uncommitted changes"
-    git status -s
-    exit 1
-fi
-if ! git diff --cached --quiet; then
-    echo "DIAG_FAIL: index has staged changes"
-    git status -s
-    exit 1
-fi
-
-# Aligned with origin/main
-git fetch origin 2>/dev/null || true
-BEHIND="$(git rev-list --left-right --count origin/main...HEAD 2>/dev/null | awk '{print $1}')" || BEHIND="?"
-if [ "$BEHIND" != "0" ]; then
-    echo "DIAG_FAIL: HEAD is behind origin/main (behind=$BEHIND)"
-    exit 1
-fi
-
-echo "  HEAD: $(git rev-parse --short HEAD)"
-echo "  Branch: $(git branch --show-current)"
-echo "  Tree: clean (aligned with origin/main)"
-_gate_pass "Repository state"
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 2. Architectural gates (family parity with verify_packaging)
-# ══════════════════════════════════════════════════════════════════════════════
-echo ""
-echo "== 2. Architectural gates =="
-
-declare -a GATES=(
-    "tools/check_doc_sync.sh"
-    "tools/check_test_suite_registration.sh"
-    "tools/check_test_hygiene.sh"
-)
-for gate_script in "${GATES[@]}"; do
-    gate_basename="$(basename "$gate_script" .sh)"
-    if [ ! -f "$gate_script" ]; then
-        _gate_blocked "$gate_basename" "gate script not found"
+echo "== 1. Architecture prerequisites =="
+for gate in tools/check_no_legacy_render_cli.sh tools/check_architecture_boundaries.sh tools/check_test_hygiene.sh; do
+    if [ ! -f "$gate" ]; then
+        blocked "$(basename "$gate")" "script missing"
         continue
     fi
-    if bash "$gate_script" > /dev/null 2>&1; then
-        _gate_pass "$gate_basename"
+    if bash "$gate" >/dev/null 2>&1; then
+        pass "$(basename "$gate")"
     else
-        _gate_fail "$gate_basename" "exit code $?"
+        fail "$(basename "$gate")" "gate returned non-zero"
     fi
 done
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 3. Layer A — STATIC enum audit (canonical taxonomy exists)
-# ══════════════════════════════════════════════════════════════════════════════
 echo ""
-echo "== 3. Layer A — STATIC enum audit (canonical taxonomy exists) =="
-echo "    Verifying that each of the 10 error classes has at least one"
-echo "    canonical enum entry in the codebase (render/text/motion/video/camera)."
-echo ""
-
-# Helper: assert that the canonical enum header contains the expected token.
-# grep is grep-discoverable + works on any host (no parsing needed).
-enum_audit() {
-    local class_name="$1" enum_token="$2"
-    local enum_class="$3"
-    local matched=0
-    # Determine candidate header paths by enum class name (canonical Cat-3 ref)
-    case "$enum_class" in
-        RenderErrorCode)
-            HEADER="${ROOT}/include/chronon3d/render/render_diagnostic.hpp"
-            ;;
-        TextErrorCode)
-            HEADER="${ROOT}/include/chronon3d/text/text_error.hpp"
-            ;;
-        MotionErrorCode)
-            HEADER="${ROOT}/include/chronon3d/presets/motion_error.hpp"
-            ;;
-        VideoSinkError)
-            # The VideoSinkError enum is defined in include/chronon3d/video/video_sink_error.hpp
-            # (canonical Cat-3 ref per the verify_video_pipeline_linux.sh forward-point §d)
-            HEADER="${ROOT}/include/chronon3d/video/video_sink_error.hpp"
-            ;;
-        CameraErrorCode)
-            HEADER="${ROOT}/include/chronon3d/camera/camera_error.hpp"
-            ;;
-        VideoDecoderError)
-            HEADER="${ROOT}/include/chronon3d/media/video/video_decoder_error.hpp"
-            ;;
-        TimelineError)
-            HEADER="${ROOT}/include/chronon3d/timeline/timeline_error.hpp"
-            ;;
-        *)
-            HEADER=""
-            ;;
-    esac
-
-    if [ -z "$HEADER" ] || [ ! -f "$HEADER" ]; then
-        _gate_gap "static_enum[${class_name}/${enum_class}]" \
-            "canonical header not found at expected path ($HEADER) — forward-point to enum-migration ticket"
-        return 0
-    fi
-
-    # Whole-token grep on enum body (avoids spurious matches in comments)
-    if grep -qE "(^|[^A-Za-z0-9_])${enum_token}([^A-Za-z0-9_]|\\\$)" "$HEADER" 2>/dev/null; then
-        _gate_pass "static_enum[${class_name}/${enum_class}] (${enum_token} in $HEADER)"
-        matched=1
+echo "== 2. Existing error taxonomy =="
+for row in "${STATIC_MATRIX[@]}"; do
+    IFS='|' read -r class token stable_code <<< "$row"
+    if grep -RqsE --exclude-dir=.git --exclude-dir=build -- "$token" "${SCAN_PATHS[@]}"; then
+        pass "$class maps to existing token $token"
     else
-        _gate_gap "static_enum[${class_name}/${enum_class}]" \
-            "${enum_token} not found in $HEADER — forward-point to enum extension ticket"
+        fail "$class" "existing engine/SDK token not found: $token"
     fi
-    return $matched
-}
 
-# Audit each row of the ERROR_MATRIX in Layer A
-STATIC_PASS=0
-STATIC_GAP=0
-while IFS='|' read -r class_name token enums _; do
-    if [ -z "$class_name" ]; then continue; fi
-    echo "  ── $class_name ──"
-    # `enums` is comma-separated list of "EnumClass:token" pairs
-    for enum_spec in $(echo "$enums" | tr ',' ' '); do
-        enum_class="${enum_spec%%:*}"
-        enum_token="${enum_spec#*:}"
-        enum_audit "$class_name" "$enum_token" "$enum_class"
-    done
-done <<< "$(printf '%s\n' "${ERROR_MATRIX[@]}")"
+    # Stable CLI codes are presentation constants and must be discoverable in
+    # the canonical formatter once the runtime path supports the class.
+    if grep -RqsF --exclude-dir=.git --exclude-dir=build -- "$stable_code" apps include src 2>/dev/null; then
+        pass "$class stable CLI code $stable_code"
+    else
+        fail "$class stable CLI code" "$stable_code not exposed by canonical formatter"
+    fi
+done
 
-# Note: a Layer-A PARTIAL pass (some enums missing) is acceptable — the
-# canonical enums may evolve (forward-point tickets).  We never emit
-# DIAG_FAIL from Layer A — gaps are documented, not blocking.
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 4. Layer B — STRUCTURED error contract enforcement (10 scenarios)
-# ══════════════════════════════════════════════════════════════════════════════
-echo ""
-echo "== 4. Layer B — STRUCTURED error contract enforcement (10 scenarios) =="
-echo "    Per-class stderr contract: every error MUST report the canonical"
-echo "    fields (code + message + composition_id + layer/node + frame +"
-echo "    asset + causa originale) AND must NOT emit any silent-fallback"
-echo "    marker (fallback frame | black frame | continue on error |"
-echo "    fallback to silence | something failed)."
-echo ""
-
-# Locate chronon3d_cli for Layer B/C runtime testing
-if [ -n "${CHRONON3D_DIAG_SKIP_RUNTIME}" ] && [ "${CHRONON3D_DIAG_SKIP_RUNTIME}" != "0" ]; then
-    RUNTIME_BLOCKED=true
-    _gate_blocked "runtime_layer" "skipped via CHRONON3D_DIAG_SKIP_RUNTIME=${CHRONON3D_DIAG_SKIP_RUNTIME}"
+if ! CLI_BIN="$(find_cli)"; then
+    echo ""
+    blocked "runtime diagnostics" "chronon3d_cli not found; set CHRONON3D_DIAG_CLI_BIN or build the CLI"
 else
-    if CLI_BIN="$(find_chronon3d_cli 2>/dev/null)"; then
-        CLI_SIZE=$(stat -c%s "$CLI_BIN" 2>/dev/null || echo 0)
-        _gate_pass "chronon3d_cli_binary (${CLI_BIN}, ${CLI_SIZE} bytes)"
+    echo ""
+    echo "== 3. Runtime canonical command surface =="
+    if CHRONON3D_CLI_BIN="$CLI_BIN" bash tools/verify_cli_render_surface_linux.sh >/dev/null 2>&1; then
+        pass "canonical CLI command surface"
     else
-        RUNTIME_BLOCKED=true
-        _gate_blocked "chronon3d_cli_binary" \
-            "not found — set CHRONON3D_DIAG_CLI_BIN or build via cmake --preset linux-content-dev -j$(nproc)"
-    fi
-fi
-
-# ── Per-class stderr contract helper ──────────────────────────────────────
-# Asserts that stderr contains: code token, at least 5 of 7 canonical fields,
-# and NO silent-fallback marker.  Also asserts stderr is non-empty and exit != 0.
-verify_class_contract() {
-    local class_name="$1" log="$2" cli_exit="$3" expected_code="$4"
-    local stderr_body matched=0 violations=()
-
-    stderr_body=$(cat "$log" 2>/dev/null || echo "")
-
-    # Assertion 1: exit code must be non-zero (fail-loud per Test #7 lineage)
-    if [ "$cli_exit" -eq 0 ]; then
-        violations+=("spurious clean exit (exit=0, expected nonzero fail-loud)")
-    fi
-
-    # Assertion 2: stderr must be non-empty (loud diagnostic required)
-    if [ -z "$stderr_body" ]; then
-        violations+=("empty stderr (no diagnostic emitted)")
-        MATCHED_FIELDS=0
-    else
-        # Assertion 3: the class code token appears (e.g. "FontNotFound")
-        if echo "$stderr_body" | grep -qiE "\\b${expected_code}\\b" 2>/dev/null; then
-            matched=$((matched + 1))
+        rc=$?
+        if [ "$rc" -eq 2 ]; then
+            blocked "canonical CLI command surface" "runtime surface gate blocked"
         else
-            violations+=("class code token '${expected_code}' not found in stderr")
+            fail "canonical CLI command surface" "runtime surface gate failed"
+        fi
+    fi
+
+    FORBIDDEN_MARKERS=(
+        'something failed'
+        'fallback frame'
+        'black frame'
+        'continue on error'
+        'fallback to silence'
+    )
+
+    run_case() {
+        local name="$1"
+        local expected_code="$2"
+        local required_fields_csv="$3"
+        shift 3
+
+        local stdout_log="$LOG_DIR/${name}.stdout"
+        local stderr_log="$LOG_DIR/${name}.stderr"
+        local rc=0
+
+        "$@" >"$stdout_log" 2>"$stderr_log" || rc=$?
+
+        local body
+        body="$(cat "$stderr_log" 2>/dev/null || true)"
+        local errors=()
+
+        if [ "$rc" -eq 0 ]; then
+            errors+=("spurious exit 0")
+        fi
+        if [ -z "$body" ]; then
+            errors+=("empty stderr")
+        fi
+        if ! grep -qF -- "$expected_code" "$stderr_log" 2>/dev/null; then
+            errors+=("missing stable code $expected_code")
         fi
 
-        # Assertion 4: at least 5 of 7 canonical fields appear (code + message +
-        # composition + layer/node + frame + asset + cause).  We count matched
-        # fields against CANONICAL_FIELDS using word-boundary grep.
-        MATCHED_FIELDS=0
-        for field in "${CANONICAL_FIELDS[@]}"; do
-            if echo "$stderr_body" | grep -qiE "\\b${field}\\b" 2>/dev/null; then
-                MATCHED_FIELDS=$((MATCHED_FIELDS + 1))
+        local field
+        IFS=',' read -r -a required_fields <<< "$required_fields_csv"
+        for field in "${required_fields[@]}"; do
+            [ -z "$field" ] && continue
+            if ! grep -qiF -- "$field" "$stderr_log" 2>/dev/null; then
+                errors+=("missing field $field")
             fi
         done
-        if [ "$MATCHED_FIELDS" -lt 5 ]; then
-            violations+=("only ${MATCHED_FIELDS}/${#CANONICAL_FIELDS[@]} canonical fields matched (min=5): ${CANONICAL_FIELDS[*]}")
-        fi
 
-        # Assertion 5: NO silent-fallback markers AND NO "something failed"
-        for marker in "${SILENT_FALLBACK_MARKERS[@]}"; do
-            if echo "$stderr_body" | grep -qiF "$marker" 2>/dev/null; then
-                violations+=("forbidden marker found: '${marker}' (user spec: 'Mai solo something failed')")
+        local marker
+        for marker in "${FORBIDDEN_MARKERS[@]}"; do
+            if grep -qiF -- "$marker" "$stderr_log" 2>/dev/null; then
+                errors+=("forbidden generic marker: $marker")
             fi
         done
-    fi
 
-    if [ "${#violations[@]}" -eq 0 ]; then
-        echo "  → ${class_name}: exit=${cli_exit}, fields=${MATCHED_FIELDS}/7, code=matched"
-        _gate_pass "class_contract[${class_name}]"
-    else
-        echo "  → ${class_name}: exit=${cli_exit}, fields=${MATCHED_FIELDS:-0}/7, code=NOT matched"
-        local preview
-        preview=$(echo "$stderr_body" | head -c 200 | tr '\n' ' ')
-        echo "    stderr preview: ${preview}"
-        for v in "${violations[@]}"; do
-            echo "    → $v"
-        done
-        _gate_fail "class_contract[${class_name}]" "${#violations[@]} violation(s)"
-    fi
-}
-
-if [ "$RUNTIME_BLOCKED" = true ]; then
-    echo ""
-    echo "  Layer B/C runtime testing BLOCKED (no chronon3d_cli binary)."
-    echo "  Per AGENTS.md §honest-limitation the static Layer A audit"
-    echo "  (Section 3 above) is the canonical fallback attestation."
-else
-    # ── 4.1  FontNotFound ──────────────────────────────────────────────────
-    echo ""
-    echo "  ── 4.1 FontNotFound ──"
-    set +e
-    "$CLI_BIN" still CertMissingFont "${OUTPUT_DIR}/font_nf.png" --frame 0 \
-        >"${LOG_DIR}/FontNotFound.stdout" 2>"${LOG_DIR}/FontNotFound.stderr"
-    exit_fn=$?
-    set -e
-    verify_class_contract "FontNotFound" "${LOG_DIR}/FontNotFound.stderr" "$exit_fn" "FontNotFound"
-
-    # ── 4.2  AssetNotFound ─────────────────────────────────────────────────
-    echo ""
-    echo "  ── 4.2 AssetNotFound ──"
-    set +e
-    "$CLI_BIN" still CertMissingImage "${OUTPUT_DIR}/asset_nf.png" --frame 0 \
-        >"${LOG_DIR}/AssetNotFound.stdout" 2>"${LOG_DIR}/AssetNotFound.stderr"
-    exit_an=$?
-    set -e
-    verify_class_contract "AssetNotFound" "${LOG_DIR}/AssetNotFound.stderr" "$exit_an" "AssetNotFound"
-
-    # ── 4.3  DecodeFailed ──────────────────────────────────────────────────
-    echo ""
-    echo "  ── 4.3 DecodeFailed ──"
-    # Sabotage asset: truncated PNG header (8-byte sig + IHDR chunk header)
-    printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01' \
-        > "$ASSETS_DIR/corrupt.png"
-    set +e
-    "$CLI_BIN" still CertCorruptPNG "${OUTPUT_DIR}/decode_fail.png" --frame 0 \
-        >"${LOG_DIR}/DecodeFailed.stdout" 2>"${LOG_DIR}/DecodeFailed.stderr"
-    exit_df=$?
-    set -e
-    verify_class_contract "DecodeFailed" "${LOG_DIR}/DecodeFailed.stderr" "$exit_df" "DecodeFailed"
-
-    # ── 4.4  InvalidCameraDescriptor ───────────────────────────────────────
-    echo ""
-    echo "  ── 4.4 InvalidCameraDescriptor ──"
-    NONEXISTENT_CAM="/tmp/chronon3d_diag_nonexistent_camera.json"
-    set +e
-    "$CLI_BIN" still CertImage "${OUTPUT_DIR}/cam_invalid.png" --frame 0 \
-        --camera-config "$NONEXISTENT_CAM" \
-        >"${LOG_DIR}/InvalidCameraDescriptor.stdout" 2>"${LOG_DIR}/InvalidCameraDescriptor.stderr"
-    exit_ic=$?
-    set -e
-    verify_class_contract "InvalidCameraDescriptor" "${LOG_DIR}/InvalidCameraDescriptor.stderr" "$exit_ic" "InvalidCameraDescriptor"
-
-    # ── 4.5  CameraTargetNotFound ──────────────────────────────────────────
-    echo ""
-    echo "  ── 4.5 CameraTargetNotFound ──"
-    set +e
-    "$CLI_BIN" still CertCameraDollyZoom "${OUTPUT_DIR}/cam_target.png" --frame 0 \
-        --camera-target "NonexistentTarget_98765" \
-        >"${LOG_DIR}/CameraTargetNotFound.stdout" 2>"${LOG_DIR}/CameraTargetNotFound.stderr"
-    exit_ct=$?
-    set -e
-    verify_class_contract "CameraTargetNotFound" "${LOG_DIR}/CameraTargetNotFound.stderr" "$exit_ct" "CameraTargetNotFound"
-
-    # ── 4.6  FrameDimensionExceeded ─────────────────────────────────────────
-    echo ""
-    echo "  ── 4.6 FrameDimensionExceeded ──"
-    # §honest-gap: spec verbatim says "frame dimension exceeded" — the canonical
-    # downstream cap is 16384 per VideoSinkError::MaxDimensionExceeded; we use
-    # 32768 here so the dimension exceeds the cap by 2x.  Forward-point: tighten
-    # to 16385 once the canonical cap moves to a config-driven knob.
-    set +e
-    "$CLI_BIN" still CertImage "${OUTPUT_DIR}/dim_exc.png" --frame 0 \
-        --width 32768 --height 32768 \
-        >"${LOG_DIR}/FrameDimensionExceeded.stdout" 2>"${LOG_DIR}/FrameDimensionExceeded.stderr"
-    exit_fd=$?
-    set -e
-    verify_class_contract "FrameDimensionExceeded" "${LOG_DIR}/FrameDimensionExceeded.stderr" "$exit_fd" "FrameDimensionExceeded"
-
-    # ── 4.7  MemoryBudgetExceeded ──────────────────────────────────────────
-    echo ""
-    echo "  ── 4.7 MemoryBudgetExceeded ──"
-    # §honest-gap: --memory-budget-mb may not be wired on the current CLI
-    # build.  The contract still holds if the CLI rejects UPFRONT at
-    # option-parse stage: exit!=0 + stderr contains "MemoryBudgetExceeded"
-    # AND at least 5 canonical fields.  Forward-point: explicit budget
-    # enforcement + 7-field contract on the runtime violation path.
-    set +e
-    "$CLI_BIN" still CertImage "${OUTPUT_DIR}/mem_budget.png" --frame 0 \
-        --memory-budget-mb 0 \
-        >"${LOG_DIR}/MemoryBudgetExceeded.stdout" 2>"${LOG_DIR}/MemoryBudgetExceeded.stderr"
-    exit_mb=$?
-    set -e
-    verify_class_contract "MemoryBudgetExceeded" "${LOG_DIR}/MemoryBudgetExceeded.stderr" "$exit_mb" "MemoryBudgetExceeded"
-
-    # ── 4.8  OutputOpenFailed ──────────────────────────────────────────────
-    echo ""
-    echo "  ── 4.8 OutputOpenFailed ──"
-    # /etc/foo.mp4 is non-writable (no write permission for the chronon user)
-    NONWRITABLE="/etc/chronon3d_diag_should_not_write.mp4"
-    set +e
-    "$CLI_BIN" still CertImage "$NONWRITABLE" --frame 0 \
-        >"${LOG_DIR}/OutputOpenFailed.stdout" 2>"${LOG_DIR}/OutputOpenFailed.stderr"
-    exit_oo=$?
-    set -e
-    verify_class_contract "OutputOpenFailed" "${LOG_DIR}/OutputOpenFailed.stderr" "$exit_oo" "OutputOpenFailed"
-
-    # ── 4.9  VideoEncoderFailed ────────────────────────────────────────────
-    echo ""
-    echo "  ── 4.9 VideoEncoderFailed ──"
-    # §honest-gap: --codec flag may reject at arg-parse level rather than the
-    # encoder level.  Contract still holds: exit!=0 + stderr contains
-    # "VideoEncoderFailed" AND at least 5 canonical fields.  Forward-point:
-    # explicit encoder-path runtime error report.
-    set +e
-    "$CLI_BIN" video CertImage "${OUTPUT_DIR}/enc_fail.mp4" \
-        --codec "nonexistent_codec_xyz" --frames "0-1" \
-        >"${LOG_DIR}/VideoEncoderFailed.stdout" 2>"${LOG_DIR}/VideoEncoderFailed.stderr"
-    exit_ve=$?
-    set -e
-    verify_class_contract "VideoEncoderFailed" "${LOG_DIR}/VideoEncoderFailed.stderr" "$exit_ve" "VideoEncoderFailed"
-
-    # ── 4.10 InvalidTimeRange ──────────────────────────────────────────────
-    echo ""
-    echo "  ── 4.10 InvalidTimeRange ──"
-    # §honest-gap: inverted range 100-50 may be auto-swapped by a tolerant
-    # arg-parser rather than rejected.  Contract still holds if the CLI
-    # rejects: exit!=0 + stderr contains "InvalidTimeRange" + 5 canonical
-    # fields.  Forward-point: explicit timeline-side validator.
-    set +e
-    "$CLI_BIN" video CertImage "${OUTPUT_DIR}/inv_time.mp4" \
-        --frames "100-50" \
-        >"${LOG_DIR}/InvalidTimeRange.stdout" 2>"${LOG_DIR}/InvalidTimeRange.stderr"
-    exit_tr=$?
-    set -e
-    verify_class_contract "InvalidTimeRange" "${LOG_DIR}/InvalidTimeRange.stderr" "$exit_tr" "InvalidTimeRange"
-fi
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 5. Layer C — CROSS-COVERAGE audit (7 canonical fields covered union-wide)
-# ══════════════════════════════════════════════════════════════════════════════
-echo ""
-echo "== 5. Layer C — CROSS-COVERAGE audit (7 canonical fields union) =="
-
-if [ "$RUNTIME_BLOCKED" = true ]; then
-    _gate_blocked "cross_coverage" "runtime layer blocked (see §4)"
-else
-    AGGREGATE="${LOG_DIR}/_aggregate_stderr.log"
-    : > "$AGGREGATE"
-    for log in "$LOG_DIR"/*.stderr; do
-        [ -s "$log" ] || continue
-        echo "===== $(basename "$log" .stderr) =====" >> "$AGGREGATE"
-        cat "$log" >> "$AGGREGATE"
-        echo "" >> "$AGGREGATE"
-    done
-
-    COVERED=0
-    MISSING=()
-    for field in "${CANONICAL_FIELDS[@]}"; do
-        if grep -qiE "\\b${field}\\b" "$AGGREGATE" 2>/dev/null; then
-            COVERED=$((COVERED + 1))
-            _gate_pass "field[${field}] (present in aggregate stderr)"
+        if [ "${#errors[@]}" -eq 0 ]; then
+            pass "runtime[$name] code=$expected_code"
         else
-            MISSING+=("$field")
-            _gate_fail "field[${field}]" "NOT found in any scenario stderr"
+            local preview
+            preview="$(tr '\n' ' ' < "$stderr_log" 2>/dev/null | head -c 240)"
+            fail "runtime[$name]" "${errors[*]}; stderr=${preview}"
         fi
-    done
+    }
 
     echo ""
-    echo "  Coverage: ${COVERED}/${#CANONICAL_FIELDS[@]} canonical fields covered union-wide"
-    [ "${#MISSING[@]}" -gt 0 ] && echo "  Missing:  ${MISSING[*]}"
+    echo "== 4. Runtime 10-class structured matrix =="
 
-    # Verify NO silent-fallback markers across the entire suite
-    for marker in "${SILENT_FALLBACK_MARKERS[@]}"; do
-        if grep -qiF "$marker" "$AGGREGATE" 2>/dev/null; then
-            _gate_fail "silent_fallback[${marker}]" \
-                "found in aggregate stderr (user spec: 'Mai solo something failed')"
-        else
-            _gate_pass "silent_fallback[${marker}] (absent)"
-        fi
-    done
+    run_case FontNotFound TEXT_FONT_NOT_FOUND \
+        'Composition:,Frame:,Asset:,Details:,Fix:' \
+        "$CLI_BIN" render CertMissingFont --frame 0 -o "$OUT_DIR/font.png"
+
+    run_case AssetNotFound ASSET_NOT_FOUND \
+        'Composition:,Frame:,Asset:,Details:,Fix:' \
+        "$CLI_BIN" render AssetNotFound --frame 0 -o "$OUT_DIR/asset.png"
+
+    run_case DecodeFailed DECODE_FAILED \
+        'Composition:,Frame:,Asset:,Details:,Fix:' \
+        "$CLI_BIN" render CertCorruptPNG --frame 0 -o "$OUT_DIR/decode.png"
+
+    run_case InvalidCameraDescriptor INVALID_CAMERA_DESCRIPTOR \
+        'Composition:,Frame:,Details:,Fix:' \
+        "$CLI_BIN" render CertInvalidCamera --frame 0 -o "$OUT_DIR/camera.png"
+
+    run_case CameraTargetNotFound CAMERA_TARGET_NOT_FOUND \
+        'Composition:,Frame:,Details:,Fix:' \
+        "$CLI_BIN" render CertCameraTargetMissing --frame 0 -o "$OUT_DIR/camera_target.png"
+
+    run_case FrameDimensionExceeded FRAME_DIMENSION_EXCEEDED \
+        'Composition:,Frame:,Details:,Fix:' \
+        "$CLI_BIN" render DimensionCheck --frame 0 -o "$OUT_DIR/dimension.png"
+
+    run_case MemoryBudgetExceeded MEMORY_BUDGET_EXCEEDED \
+        'Composition:,Frame:,Details:,Fix:' \
+        "$CLI_BIN" render MemoryBudgetCheck --frame 0 -o "$OUT_DIR/memory.png"
+
+    run_case OutputOpenFailed OUTPUT_OPEN_FAILED \
+        'Composition:,Frame:,Details:,Fix:' \
+        "$CLI_BIN" render OutputCheck --frame 0 -o /proc/chronon3d_diagnostics_output.png
+
+    run_case VideoEncoderFailed VIDEO_ENCODER_FAILED \
+        'Composition:,Frame:,Details:,Fix:' \
+        "$CLI_BIN" render CodecCheck --frames 0-1 -o "$OUT_DIR/encoder.mp4" --codec nonexistent_codec_xyz
+
+    run_case InvalidTimeRange INVALID_TIME_RANGE \
+        'Composition:,Details:,Fix:' \
+        "$CLI_BIN" render SequenceTimeRangeCheck --frames 100-50 -o "$OUT_DIR/frame_####.png"
+
+    echo ""
+    echo "== 5. Formatter baseline =="
+    run_case UnknownComposition UNKNOWN_COMPOSITION \
+        'Composition:,Details:,Fix:' \
+        "$CLI_BIN" render __ChrononMissingComposition__ --frame 0 -o "$OUT_DIR/missing.png"
 fi
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 6. §Honest gaps & forward-points
-# ══════════════════════════════════════════════════════════════════════════════
-echo ""
-echo "== 6. Honest gaps & forward-points =="
-
-_gate_gap "MemoryBudgetExceeded (runtime enforcement)" \
-    "--memory-budget-mb flag may be wired at arg-parse level only; forward-point to TICKET-MEMORY-BUDGET-RUNTIME-ENFORCE for runtime-side hard cap"
-_gate_gap "VideoEncoderFailed (encoder-level diagnostic)" \
-    "--codec flag may reject at arg-parse level rather than at encoder init; forward-point to TICKET-VIDEO-ENCODER-DIAGNOSTICS for runtime encoder failure path"
-_gate_gap "InvalidTimeRange (timeline validator)" \
-    "inverted range may be auto-swapped by tolerant arg-parser; forward-point to TICKET-TIMERANGE-VALIDATION for canonical timeline-side rejection"
-_gate_gap "CameraTargetNotFound (--camera-target flag surface)" \
-    "--camera-target flag may not be wired into the camera subsystem on all builds; forward-point to TICKET-CAMERA-TARGET-FLAG"
-_gate_gap "FrameDimensionExceeded (canonical cap knob)" \
-    "current canonical downstream cap is 16384 (VideoSinkError::MaxDimensionExceeded); test uses 32768 (hard 2x over); forward-point to TICKET-FRAME-DIMENSION-CAP-CONFIG for config-driven cap value"
-_gate_gap "Decoder path (DecodeFailed cross-decoder coverage)" \
-    "DecodeFailed verifies PNG-shape failure (TextErrorCode::ShapingFailed + VideoDecoderError). Forward-point: extend matrix to per-decoder failure modes (MP4, MP3, JPEG); tracked in TICKET-DECODER-CROSS-COVERAGE"
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 7. Cleanup
-# ══════════════════════════════════════════════════════════════════════════════
-echo ""
-echo "== 7. Cleanup =="
-
-if [ "$CHRONON3D_DIAG_KEEP_LOGS" = "1" ]; then
-    echo "  Keeping logs in: $LOG_DIR"
-    _gate_pass "cleanup (preserved: $LOG_DIR)"
-else
-    rm -rf "$TMP_DIR" 2>/dev/null || true
-    _gate_pass "cleanup (removed $TMP_DIR)"
-fi
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Final verdict
-# ══════════════════════════════════════════════════════════════════════════════
 echo ""
 echo "=============================================="
 echo " VERDICT"
@@ -623,41 +264,20 @@ echo "=============================================="
 echo "  PASS:    $PASS_COUNT"
 echo "  FAIL:    $FAIL_COUNT"
 echo "  BLOCKED: $BLOCKED_COUNT"
-echo "  GAP:     $GAP_COUNT"
 echo ""
 
-if [ "$RUNTIME_BLOCKED" = true ] && [ "$FAIL_COUNT" -gt 0 ]; then
-    # Runtime blocked AND Layer A enum audit failed (this VPS scenario):
-    # §honest-limitation preserved — does NOT pretend PASS.
-    echo "DIAGNOSTICS_FUNCTIONAL_BLOCKED"
-    echo ""
-    echo "  Diagnostics certification blocked: Layer B/C runtime blocked"
-    echo "  (no chronon3d_cli binary on this VPS) AND Layer A enum audit"
-    echo "  has $((FAIL_COUNT)) missing enum entries."
-    echo "  macchina-verifica DEFERRED to working build host per AGENTS.md §honest-limitation."
-    exit 2
-elif [ "$RUNTIME_BLOCKED" = true ]; then
-    # Runtime blocked but Layer A passed (static taxonomy attestation ready).
-    echo "DIAGNOSTICS_FUNCTIONAL_PARTIAL"
-    echo ""
-    echo "  Diagnostics taxonomy (Layer A) is in place; runtime Layer B/C"
-    echo "  requires a working build host for full contract enforcement."
-    echo "  macchina-verifica DEFERRED to working build host per"
-    echo "  AGENTS.md §honest-limitation.  Set CHRONON3D_DIAG_CLI_BIN or"
-    echo "  build chronon3d_cli to enable Layer B/C on this host."
-    echo "(non-blocking informational verdict — exit 0)"
-    exit 0
-elif [ "$FAIL_COUNT" -gt 0 ]; then
+if [ "$FAIL_COUNT" -gt 0 ]; then
     echo "DIAGNOSTICS_FUNCTIONAL_FAIL"
-    echo "  $FAIL_COUNT gate(s) failed.  $GAP_COUNT honest gap(s) documented."
+    echo "  structured error contract has $FAIL_COUNT failure(s)"
     exit 1
-else
-    echo "DIAGNOSTICS_FUNCTIONAL_PASS"
-    echo "  All $PASS_COUNT gates passed.  $GAP_COUNT honest gap(s) deferred."
-    echo "  10-class error matrix + 7-field structured contract enforced."
-    # AGENTS.md Rule #2 — addizionale [INFO] line on PASS (≤ 200 chars,
-    # grep-discoverable via [INFO] prefix + verify_diagnostics_linux
-    # self-identifier).  This is the canonical INFO-level diagnostic.
-    echo "[INFO] ${GATE_NAME}: 10-class error matrix + 7-field structured contract + 5 silent-fallback markers enforced on working build host"
-    exit 0
 fi
+
+if [ "$BLOCKED_COUNT" -gt 0 ]; then
+    echo "DIAGNOSTICS_FUNCTIONAL_BLOCKED"
+    echo "  runtime or prerequisite verification is blocked"
+    exit 2
+fi
+
+echo "DIAGNOSTICS_FUNCTIONAL_PASS"
+echo "[INFO] ${GATE_NAME}: canonical render path passed the 10-class structured error matrix"
+exit 0
