@@ -55,8 +55,8 @@ Composition image_proofs() {
         .color = {0.6f, 0.7f, 0.9f, 0.8f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {get_label_pos(col, row).x, get_label_pos(col, row).y}},
         .size = {get_cell_box(col, row).x, 18.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {get_label_pos(col, row).x, get_label_pos(col, row).y}},
         .align = TextAlign::Center
     }
 });
@@ -165,8 +165,8 @@ Composition image_proofs() {
         .color = Color::white()
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, box.y * 0.25f}},
         .size = {box.x - 24.0f, 18.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, box.y * 0.25f}},
         .align = TextAlign::Center
     }
 });

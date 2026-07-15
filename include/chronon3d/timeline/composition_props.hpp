@@ -24,13 +24,16 @@
 //   });
 // ============================================================================
 
+#include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <stdexcept>
 #include <charconv>
+#include <vector>
 
 namespace chronon3d {
 
@@ -64,6 +67,37 @@ struct PropsError {
     std::string         key;       // offending ValueMap key (empty if general)
     PropsErrorReason    reason;    // reason class
     std::string         message;   // human-readable detail
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  PropsSchema — declarative schema for typed composition props
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Supported prop types for schema introspection and CLI/JSON validation.
+enum class PropType {
+    String,
+    Integer,
+    Float,
+    Boolean,
+    Enum,
+    Color,
+    Path
+};
+
+/// Description of a single prop field.  Used to generate documentation,
+/// CLI help, JSON schema and example props without reflection.
+struct PropField {
+    std::string              name;          // machine identifier
+    PropType                 type;          // logical type
+    bool                     required{false};
+    std::string              description;   // human-readable help
+    std::optional<std::string> default_value; // stringified default
+    std::vector<std::string> enum_values;   // valid enum values when type == Enum
+};
+
+/// A collection of prop fields describing the public surface of a Props struct.
+struct PropsSchema {
+    std::vector<PropField> fields;
 };
 
 class ValueMap {
@@ -200,6 +234,20 @@ struct CompositionProps {
         }
         return *assets;
     }
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  PropsCodec<Props> — typed decode/encode + schema for a Props struct
+// ═════════════════════════════════════════════════════════════════════════════
+
+/// Codec that bridges the untyped `ValueMap` (CLI/JSON input) and a typed
+/// `Props` struct.  Carries a declarative schema for introspection plus
+/// decode/encode functions for round-trip conversion.
+template <typename Props>
+struct PropsCodec {
+    PropsSchema schema;
+    std::function<Result<Props, PropsError>(const ValueMap&, const Props&)> decode;
+    std::function<ValueMap(const Props&)> encode;
 };
 
 } // namespace chronon3d

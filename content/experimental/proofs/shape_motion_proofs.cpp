@@ -53,8 +53,8 @@ Composition shape_motion_proofs() {
         .color = {0.6f, 0.7f, 0.9f, 0.9f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -95.0f}},
         .size = {CELL_W - 30.0f, 24.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -95.0f}},
         .align = TextAlign::Center
     }
 });
