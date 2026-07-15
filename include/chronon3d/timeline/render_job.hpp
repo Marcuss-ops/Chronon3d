@@ -19,6 +19,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace chronon3d {
 
@@ -113,6 +114,12 @@ struct RenderJob {
     Frame      last_frame{0};
     Frame      frame_step{1};
 
+    // Optional non-contiguous frame selection for preview/contact-sheet jobs.
+    // When populated, the canonical executor renders these frames in order
+    // with one renderer/session and ignores the contiguous range loop. This is
+    // execution data on the existing RenderJob, not a preview-specific plan.
+    std::vector<Frame> selected_frames;
+
     std::string output;
 
     RenderSettings         settings;
@@ -164,6 +171,9 @@ struct RenderJob {
     }
 
     [[nodiscard]] Frame frame_count() const noexcept {
+        if (!selected_frames.empty()) {
+            return Frame{static_cast<std::int64_t>(selected_frames.size())};
+        }
         if (last_frame <= first_frame) return Frame{0};
         return last_frame - first_frame + Frame{1};
     }
