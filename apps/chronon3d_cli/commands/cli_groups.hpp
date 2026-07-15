@@ -12,9 +12,6 @@ void register_commands(CLI::App& app, CliContext& ctx);
 namespace group_render {
 void register_commands(CLI::App& app, CliContext& ctx);
 }
-namespace group_video {
-void register_commands(CLI::App& app, CliContext& ctx);
-}
 namespace group_telemetry {
 void register_commands(CLI::App& app, CliContext& ctx);
 }
@@ -33,9 +30,6 @@ inline void register_all_groups(CLI::App& app, CliContext& ctx) {
     group_core::register_commands(app, ctx);
 #ifdef CHRONON3D_HAS_CLI_RENDER
     group_render::register_commands(app, ctx);
-#endif
-#ifdef CHRONON3D_HAS_CLI_VIDEO
-    group_video::register_commands(app, ctx);
 #endif
 #ifdef CHRONON3D_HAS_CLI_TELEMETRY
     group_telemetry::register_commands(app, ctx);

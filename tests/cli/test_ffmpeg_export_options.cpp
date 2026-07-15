@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 
 #include <apps/chronon3d_cli/commands/video/common/video_export_common.hpp>
-#include <apps/chronon3d_cli/utils/video/video_job_plan.hpp>
+
 
 using namespace chronon3d::cli;
 
@@ -109,48 +109,6 @@ TEST_CASE("FfmpegExportOptions: assigning sub-structs propagates all fields") {
     CHECK(opts.sink.ffmpeg_mode == "png");
     CHECK(opts.sink.keep_frames);
     CHECK(opts.sink.chunks == 4);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// FfmpegExportOptions: make_ffmpeg_opts round-trip via VideoJobPlan
-// ─────────────────────────────────────────────────────────────────────────────
-
-TEST_CASE("FfmpegExportOptions: VideoJobPlan sub-structs round-trip correctly") {
-    // Simulate what plan_video_job() does: build VideoJobPlan with sub-structs
-    // then verify the fields are accessible through the sub-struct API.
-
-    VideoJobPlan plan;
-    plan.output.output = "/tmp/roundtrip.mp4";
-    plan.output.fps = 24;
-    plan.encoder.codec = "libx264";
-    plan.encoder.crf = 20;
-    plan.encoder.encoder_backend = "native";
-    plan.pipe.pipe_pixfmt = "rgba";
-    plan.warmup.warmup_renderer = true;
-    plan.warmup.warmup_framebuffers = 4;
-    plan.sink.sink_type = VideoSinkType::Ffmpeg;
-    plan.sink.chunks = 2;
-
-    // The make_ffmpeg_opts function copies sub-structs directly
-    // We can't call it directly (it's static in video_job_execute.cpp),
-    // but we can verify the sub-struct types are assignable.
-    FfmpegExportOptions opts;
-    opts.output = plan.output;
-    opts.encoder = plan.encoder;
-    opts.pipe = plan.pipe;
-    opts.warmup = plan.warmup;
-    opts.sink = plan.sink;
-
-    CHECK(opts.output.output == "/tmp/roundtrip.mp4");
-    CHECK(opts.output.fps == 24);
-    CHECK(opts.encoder.codec == "libx264");
-    CHECK(opts.encoder.crf == 20);
-    CHECK(opts.encoder.encoder_backend == "native");
-    CHECK(opts.pipe.pipe_pixfmt == "rgba");
-    CHECK(opts.warmup.warmup_renderer);
-    CHECK(opts.warmup.warmup_framebuffers == 4);
-    CHECK(opts.sink.sink_type == VideoSinkType::Ffmpeg);
-    CHECK(opts.sink.chunks == 2);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
