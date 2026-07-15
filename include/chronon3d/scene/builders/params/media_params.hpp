@@ -10,7 +10,11 @@ namespace chronon3d {
 struct ImageParams {
     std::string asset_path{};
 
-    [[deprecated("Use asset_path instead; it is the manifest-clean field")]]
+    // Legacy compatibility field. New code must write asset_path. The field
+    // cannot carry [[deprecated]] while the canonical fallback helper still
+    // reads it under targets that enforce -Werror=deprecated-declarations.
+    // Remove both this field and the fallback branch in one caller-migration
+    // commit once all pre-asset_path initializers have moved.
     std::string path{};
 
     Vec2 size{100.0f, 100.0f};
