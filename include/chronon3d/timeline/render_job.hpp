@@ -1,9 +1,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// timeline/render_job.hpp — canonical unified render job descriptor.
+// timeline/render_job.hpp — canonical unified render request and job values.
 //
-// RenderJob is the single value passed from CLI planning to execution for
-// still, sequence, and video modes.  It owns no backend/runtime/cache state;
-// those remain implementation details created by the executor.
+// RenderRequest is unresolved authoring/CLI input. RenderJob is the single
+// resolved value passed to execution for still, sequence, and video modes.
+// Neither owns backend/runtime/cache state; the executor creates those details.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #pragma once
@@ -32,8 +32,7 @@ enum class RenderMode : std::uint8_t {
     Video    = 2,
 };
 
-/// Video-specific values carried by the canonical job.  These are plain
-/// execution settings, not an encoder or resolver abstraction.
+/// Video-specific plain settings carried through the canonical request/job.
 struct VideoSettings {
     int         fps{30};
     int         crf{16};
@@ -59,9 +58,6 @@ struct VideoSettings {
     bool        dry_run{false};
 };
 
-/// Cross-mode execution controls previously stored in CLI-only job plans.
-/// Keeping them on RenderJob removes duplicated plan types while preserving a
-/// copyable, inspectable job value.
 struct RenderExecutionOptions {
     std::string log_level{"info"};
     bool benchmark_all{false};
@@ -100,9 +96,9 @@ struct RenderJobOutput {
     int frames_written{0};
 };
 
-/// Raw request for a render job.  This is the input to the unified
-/// resolve → execute pipeline.  It carries no resolved Composition or
-/// runtime state; those are produced by `resolve_render_request()`.
+/// Unresolved input to the canonical resolve → execute pipeline.
+/// It carries logical composition input but no Composition instance, registry
+/// pointer, renderer, resolver, cache, or runtime state.
 struct RenderRequest {
     std::string comp_id;
     CompositionInput input;
@@ -118,57 +114,44 @@ struct RenderRequest {
     RenderDiagnostics diagnostics{};
 };
 
-/// Resolved render job: a RenderRequest plus the resolved Composition and
-/// its metadata.  This is the value passed to `execute_render_job()`.
-struct ResolvedRenderJob {
-    RenderRequest request;
-    std::shared_ptr<const Composition> comp;
-    CompositionMetadata metadata;
-    const CompositionRegistry* registry{nullptr};
-
-    /// Convert to the legacy flat RenderJob used by the existing executor.
-    /// The registry pointer must be non-null.
-    [[nodiscard]] RenderJob to_legacy_job() const;
-};
-
-/// Single job descriptor covering still, sequence, and video rendering.
+/// Single resolved execution value covering still, sequence, and video.
 ///
 /// `registry` is a non-owning execution dependency pinned by the CLI/host.
-/// Composition ownership stays explicit through `comp`.
+/// Composition ownership stays explicit through `comp`. Metadata resolved from
+/// the descriptor is retained on the same value; no parallel plan/job type is
+/// introduced.
 struct RenderJob {
-    const CompositionRegistry*             registry{nullptr};
-    std::string                            comp_id;
-    std::shared_ptr<const Composition>     comp;
+    const CompositionRegistry* registry{nullptr};
+    std::string comp_id;
+    std::shared_ptr<const Composition> comp;
+    CompositionMetadata metadata{};
 
     RenderMode mode{RenderMode::Still};
-    Frame      still_frame{0};
-    Frame      first_frame{0};
-    Frame      last_frame{0};
-    Frame      frame_step{1};
+    Frame still_frame{0};
+    Frame first_frame{0};
+    Frame last_frame{0};
+    Frame frame_step{1};
 
     // Optional non-contiguous frame selection for preview/contact-sheet jobs.
-    // When populated, the canonical executor renders these frames in order
-    // with one renderer/session and ignores the contiguous range loop. This is
-    // execution data on the existing RenderJob, not a preview-specific plan.
+    // The canonical executor renders these frames in order with one session.
     std::vector<Frame> selected_frames;
 
     std::string output;
-
-    RenderSettings         settings;
-    VideoSettings          video_settings;
+    RenderSettings settings;
+    VideoSettings video_settings;
     RenderExecutionOptions execution;
-    RenderDiagnostics      diagnostics{};
+    RenderDiagnostics diagnostics{};
 
     static RenderJob still(std::string id,
                            std::shared_ptr<const Composition> c,
                            Frame frame,
                            std::string out) {
         RenderJob job;
-        job.comp_id     = std::move(id);
-        job.comp        = std::move(c);
-        job.mode        = RenderMode::Still;
+        job.comp_id = std::move(id);
+        job.comp = std::move(c);
+        job.mode = RenderMode::Still;
         job.still_frame = frame;
-        job.output      = std::move(out);
+        job.output = std::move(out);
         return job;
     }
 
@@ -178,12 +161,12 @@ struct RenderJob {
                               Frame last,
                               std::string out) {
         RenderJob job;
-        job.comp_id     = std::move(id);
-        job.comp        = std::move(c);
-        job.mode        = RenderMode::Sequence;
+        job.comp_id = std::move(id);
+        job.comp = std::move(c);
+        job.mode = RenderMode::Sequence;
         job.first_frame = first;
-        job.last_frame  = last;
-        job.output      = std::move(out);
+        job.last_frame = last;
+        job.output = std::move(out);
         return job;
     }
 
@@ -193,12 +176,12 @@ struct RenderJob {
                                Frame last,
                                std::string out) {
         RenderJob job;
-        job.comp_id     = std::move(id);
-        job.comp        = std::move(c);
-        job.mode        = RenderMode::Video;
+        job.comp_id = std::move(id);
+        job.comp = std::move(c);
+        job.mode = RenderMode::Video;
         job.first_frame = first;
-        job.last_frame  = last;
-        job.output      = std::move(out);
+        job.last_frame = last;
+        job.output = std::move(out);
         return job;
     }
 
@@ -211,28 +194,8 @@ struct RenderJob {
     }
 
     [[nodiscard]] explicit operator bool() const noexcept {
-        return comp != nullptr;
+        return registry != nullptr && comp != nullptr;
     }
 };
-
-// ── ResolvedRenderJob implementation ───────────────────────────────────────
-
-inline RenderJob ResolvedRenderJob::to_legacy_job() const {
-    RenderJob job;
-    job.registry = registry;
-    job.comp_id = request.comp_id;
-    job.comp = comp;
-    job.mode = request.mode;
-    job.still_frame = request.still_frame;
-    job.first_frame = request.first_frame;
-    job.last_frame = request.last_frame;
-    job.frame_step = request.frame_step;
-    job.output = request.output;
-    job.settings = request.settings;
-    job.video_settings = request.video_settings;
-    job.execution = request.execution;
-    job.diagnostics = request.diagnostics;
-    return job;
-}
 
 } // namespace chronon3d
