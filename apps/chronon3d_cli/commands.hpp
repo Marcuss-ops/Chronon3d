@@ -188,6 +188,12 @@ struct SchemaArgs {
     bool json{true};
 };
 
+// Phase 1d / Increment D
+struct ExamplePropsArgs {
+    std::string comp_id;
+    bool json{true};
+};
+
 int command_list(const CompositionRegistry& registry);
 int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root = "",
@@ -213,6 +219,9 @@ int command_text_def_inspect(const CompositionRegistry& registry, const TextDefI
 
 // Phase 1d / Increment C — `chronon schema <comp_id>`, JSON PropsSchema dump.
 int command_schema(const CompositionRegistry& registry, const SchemaArgs& args);
+
+// Phase 1d / Increment D — `chronon example-props <comp_id>`, default ValueMap JSON.
+int command_example_props(const CompositionRegistry& registry, const ExamplePropsArgs& args);
 
 } // namespace cli
 
