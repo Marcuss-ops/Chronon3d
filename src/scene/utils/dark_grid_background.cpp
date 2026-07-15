@@ -8,9 +8,9 @@ namespace chronon3d {
 // Underlying rasterization utility for grid backgrounds. The opinionated
 // compositions are owned by content/ and gated by CHRONON3D_BUILD_CONTENT.
 void register_dark_grid_background(CompositionRegistry& registry) {
-    registry.add("DarkGridBackground", [](const CompositionProps&) {
+    registry.add(CompositionDescriptor{.id = "DarkGridBackground", .factory = [](const CompositionProps&) {
         return scene::utils::dark_grid_background_scene(1920, 1080, {}, 150);
-    });
+    }});
 }
 
 } // namespace chronon3d

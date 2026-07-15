@@ -181,13 +181,13 @@ Composition special_name_typewriter() {
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_special_name_compositions(CompositionRegistry& registry) {
-    registry.add("SpecialNameFadeUp", [](const CompositionProps&) { return special_name_fade_up(); });
-    registry.add("SpecialNameSlideLeft", [](const CompositionProps&) { return special_name_slide_left(); });
-    registry.add("SpecialNameSlideRight", [](const CompositionProps&) { return special_name_slide_right(); });
-    registry.add("SpecialNameScaleIn", [](const CompositionProps&) { return special_name_scale_in(); });
-    registry.add("SpecialNameStamp", [](const CompositionProps&) { return special_name_stamp(); });
-    registry.add("SpecialNameBlurIn", [](const CompositionProps&) { return special_name_blur_in(); });
-    registry.add("SpecialNameTypewriter", [](const CompositionProps&) { return special_name_typewriter(); });
+    registry.add(CompositionDescriptor{.id = "SpecialNameFadeUp", .factory = [](const CompositionProps&) { return special_name_fade_up(); }});
+    registry.add(CompositionDescriptor{.id = "SpecialNameSlideLeft", .factory = [](const CompositionProps&) { return special_name_slide_left(); }});
+    registry.add(CompositionDescriptor{.id = "SpecialNameSlideRight", .factory = [](const CompositionProps&) { return special_name_slide_right(); }});
+    registry.add(CompositionDescriptor{.id = "SpecialNameScaleIn", .factory = [](const CompositionProps&) { return special_name_scale_in(); }});
+    registry.add(CompositionDescriptor{.id = "SpecialNameStamp", .factory = [](const CompositionProps&) { return special_name_stamp(); }});
+    registry.add(CompositionDescriptor{.id = "SpecialNameBlurIn", .factory = [](const CompositionProps&) { return special_name_blur_in(); }});
+    registry.add(CompositionDescriptor{.id = "SpecialNameTypewriter", .factory = [](const CompositionProps&) { return special_name_typewriter(); }});
 }
 
 } // namespace chronon3d::content::special_names
