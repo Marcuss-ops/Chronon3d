@@ -1,4 +1,8 @@
 ## 2026-07-15
+### `feat(cli): chronon resolve subcommand (Phase 1d / Increment F)`
+  ([TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION](docs/tickets/TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION.md))
+ResolvedCompositionSpec dump (`resolved` + `props` + `metadata:{width,height,fps,duration}`). Wraps canonical `CompositionRegistry::resolve` + `descriptor_of`. Zero new public SDK symbol.
+
 ### `feat(cli): chronon validate subcommand (Phase 1d / Increment E)`
   ([TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION](docs/tickets/TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION.md))
 Canonical decode+validate gate; `--props-file`/`--props-json` shared contract. Wraps canonical `CompositionRegistry::resolve`. Zero new public SDK symbol.

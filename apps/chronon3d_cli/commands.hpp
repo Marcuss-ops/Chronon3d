@@ -202,6 +202,14 @@ struct ValidateArgs {
     bool json{true};
 };
 
+// Phase 1d / Increment F — `chronon resolve <comp_id>`, full ResolvedSpec dump
+struct ResolveArgs {
+    std::string comp_id;
+    std::string props_file;     // reuses canonical load_props_file()
+    std::string props_json;     // inline JSON object (TU-local parse helper)
+    bool json{true};
+};
+
 int command_list(const CompositionRegistry& registry);
 int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root = "",
@@ -233,6 +241,9 @@ int command_example_props(const CompositionRegistry& registry, const ExampleProp
 
 // Phase 1d / Increment E — `chronon validate <comp_id>`, decode+validate gate.
 int command_validate(const CompositionRegistry& registry, const ValidateArgs& args);
+
+// Phase 1d / Increment F — `chronon resolve <comp_id>`, ResolvedSpecification dump.
+int command_resolve(const CompositionRegistry& registry, const ResolveArgs& args);
 
 } // namespace cli
 
