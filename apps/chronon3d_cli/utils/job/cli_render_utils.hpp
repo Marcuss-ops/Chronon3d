@@ -123,7 +123,14 @@ struct ResolvedComposition {
 /// Resolve a composition from the registry by composition id.
 /// Logs errors via spdlog on failure — check the result with operator bool().
 ResolvedComposition resolve_composition(const CompositionRegistry& registry,
-                                        const std::string& comp_id);
+                                         const std::string& comp_id);
+
+/// Resolve a composition using explicit CompositionProps. This is the shared
+/// path used by render, validate and watch --props-file; the registry remains
+/// the sole decoder/validator/factory authority.
+ResolvedComposition resolve_composition(const CompositionRegistry& registry,
+                                         const std::string& comp_id,
+                                         const CompositionProps& props);
 
 /// Create and configure a SoftwareRenderer from the given settings.
 /// If `config` is provided, passes it to SoftwareRenderer's Config-accepting
