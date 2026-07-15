@@ -23,6 +23,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     deterministic_tests.cmake
     text_golden_tests.cmake
     text_production_v1_tests.cmake
+    text_health_tests.cmake
     cache/parse_framebuffer_pool_clear_policy_tests.cmake
     diagnostic_overlay_tests.cmake
     presets_golden_tests.cmake
