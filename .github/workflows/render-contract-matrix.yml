@@ -7,8 +7,11 @@ on:
       - 'apps/chronon3d_cli/**'
       - 'include/chronon3d/timeline/render_job.hpp'
       - 'tests/cli/test_render_job_planning.cpp'
+      - 'tests/cli_tests.cmake'
       - 'tests/render_job_contract_tests.cmake'
       - 'tests/manifests/test_definitions.cmake'
+      - 'tests/manifests/test_aggregates.cmake'
+      - 'tools/check_render_asset_architecture.py'
       - 'cmake/presets/ci.json'
       - 'CMakeLists.txt'
       - '.github/workflows/render-contract-matrix.yml'
@@ -18,8 +21,11 @@ on:
       - 'apps/chronon3d_cli/**'
       - 'include/chronon3d/timeline/render_job.hpp'
       - 'tests/cli/test_render_job_planning.cpp'
+      - 'tests/cli_tests.cmake'
       - 'tests/render_job_contract_tests.cmake'
       - 'tests/manifests/test_definitions.cmake'
+      - 'tests/manifests/test_aggregates.cmake'
+      - 'tools/check_render_asset_architecture.py'
       - 'cmake/presets/ci.json'
       - 'CMakeLists.txt'
       - '.github/workflows/render-contract-matrix.yml'
@@ -74,7 +80,7 @@ jobs:
         run: cmake --build --preset ${{ matrix.config.build_preset }}
 
       - name: Run RenderJob contract
-        if: ${{ !matrix.config.core_only }}
+        if: ${{ ! matrix.config.core_only }}
         run: >-
           ctest --preset ${{ matrix.config.test_preset }}
           -R '^chronon3d_render_job_contract_tests$'
