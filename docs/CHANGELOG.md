@@ -1,4 +1,8 @@
 ## 2026-07-15
+### `feat(cli): chronon validate subcommand (Phase 1d / Increment E)`
+  ([TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION](docs/tickets/TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION.md))
+Canonical decode+validate gate; `--props-file`/`--props-json` shared contract. Wraps canonical `CompositionRegistry::resolve`. Zero new public SDK symbol.
+
 ### `feat(cli): chronon example-props subcommand (Phase 1d / Increment D)`
   ([TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION](docs/tickets/TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION.md))
 Emit canonical default ValueMap as JSON (companion to `chronon schema`). Wraps canonical `CompositionRegistry::descriptor_of`. Zero new public SDK symbol.

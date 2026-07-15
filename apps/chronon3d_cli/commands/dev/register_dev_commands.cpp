@@ -22,6 +22,9 @@ struct SchemaState { std::shared_ptr<SchemaArgs> args{std::make_shared<SchemaArg
 // Phase 1d / Increment D
 struct ExamplePropsState { std::shared_ptr<ExamplePropsArgs> args{std::make_shared<ExamplePropsArgs>()}; };
 
+// Phase 1d / Increment E
+struct ValidateState { std::shared_ptr<ValidateArgs> args{std::make_shared<ValidateArgs>()}; };
+
 void register_schema(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<SchemaState>();
     auto* cmd = app.add_subcommand("schema",
@@ -43,6 +46,22 @@ void register_example_props(CLI::App& app, CliContext& ctx) {
         "Emit JSON to stdout (default: on)");
     cmd->callback([state, &ctx]() {
         ctx.exit_code = command_example_props(ctx.registry, *state->args);
+    });
+}
+
+void register_validate(CLI::App& app, CliContext& ctx) {
+    auto state = std::make_shared<ValidateState>();
+    auto* cmd = app.add_subcommand("validate",
+        "Run canonical decode+validate pipeline; emits {valid: bool, ...} JSON");
+    cmd->add_option("id", state->args->comp_id, "Composition name")->required();
+    cmd->add_option("--props-file", state->args->props_file,
+        "Path to JSON props file (canonical load_props_file() parse)");
+    cmd->add_option("--props-json", state->args->props_json,
+        "Inline JSON object string (e.g. '{\"title\":\"X\"}')");
+    cmd->add_flag("--json,!--no-json", state->args->json,
+        "Emit JSON to stdout (default: on)");
+    cmd->callback([state, &ctx]() {
+        ctx.exit_code = command_validate(ctx.registry, *state->args);
     });
 }
 
@@ -109,6 +128,8 @@ void register_dev_commands(CLI::App& app, CliContext& ctx) {
     register_schema(app, ctx);
     // Phase 1d / Increment D
     register_example_props(app, ctx);
+    // Phase 1d / Increment E
+    register_validate(app, ctx);
 }
 
 }  // namespace chronon3d::cli
