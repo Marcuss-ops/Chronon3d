@@ -1,6 +1,8 @@
 # TICKET-CENTERED-TEXT-MIGRATION — Migrate centered_text/glow_text to canonical fluent API (Blocco 5.1)
 
-## Stato: OPEN (P2, depends on TICKET-TEXT-SPEC-MIGRATION P1)
+## Stato: OPEN (P2, Phase 2 IN-PROGRESS via blocco 5.2 bulk-migration catena)
+
+> Phase 2 bulk-migration catena aperta this session in [TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION](TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION.md) (NEW, per-AREA Chore B precedent: 7+1 sub-chori). Parent ticket rimane OPEN finché helper rimossi in `Blocco 5.2.I-FINAL` sub-chore. Forward-point dependency on TICKET-TEXT-SPEC-MIGRATION (P1) PRESERVED (rotation indipendente).
 
 ## Problema
 L'audit statico (Blocco 5.1) richiede di rimuovere i helper
@@ -82,7 +84,7 @@ warning).  La rimozione finale è deferred alla wave successiva.
 ## Phase tracking
 
 - **Phase 1 — Deprecation bridge (Blocco 5.1)**: DONE 2026-07-14 (commits FF-sync `b6397b90` + `74c924b9` + `bacbfc5a` + `cc3ad1a3`). `centered_text(CenterTextOptions)` + `glow_text(CenterTextOptions, glow_color, radius, intensity)` enhanced/updated `[[deprecated]]` markers; one-shot `spdlog::warn` runtime diagnostic fired via static-local bool gate (TICKET-104 precedent pattern). Cronaca estesa lives in [TICKET-BLOCO-5-1-3DOC-CAT5-ALIGN](TICKET-BLOCO-5-1-3DOC-CAT5-ALIGN.md) §Phase summary cronaca per AGENTS.md Cat-3 anti-dup.
-- **Phase 2 — Complete removal (Blocco 5.2, FORWARD-POINT)**: 100+ callers migration a `text(name, TextDefinition&)` direct construction (field mapping in §Soluzione accettabile sopra) → source deletion di `centered_text()` + `glow_text()` in `content/text/text_helpers_centered.hpp` → acceptance verification `0 reference + helper rimosso + 11/11 verde`. Cat-5 3-doc same-commit atomic per AGENTS.md §`### 2×-in-one-chore: deprecation reversal bundles forward-point tickets` rule.
+- **Phase 2 — Complete removal (Blocco 5.2, IN-PROGRESS 2026-07-14, this session)**: bulk-migration catena aperta in [TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION](TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION.md) (NEW canonical cronaca home per AGENTS.md Cat-3 anti-dup; full sub-chori inventory + 7+1 forward-points nel child ticket-home). Acceptance finale (sub-chore (i) HELPER-REMOVAL-FINAL P1): `0 reference a centered_text + glow_text + compute_single_line_glyph_layout in src/+include/+content/+tests/+apps/` + `bash tools/wrap_push.sh origin main` push-range 11/11 verde. Cat-5 3-doc same-commit atomic per AGENTS.md §`### 2×-in-one-chore: deprecation reversal bundles forward-point tickets` rule.
 
 ## See also
 - [TICKET-TEXT-SPEC-MIGRATION](TICKET-TEXT-SPEC-MIGRATION.md) (P1) — companion ticket; TICKET-CENTERED-TEXT-MIGRATION DEVE essere completato DOPO TICKET-TEXT-SPEC-MIGRATION per non rompere i callers (depends-on chain stabilito in §Stato header).
