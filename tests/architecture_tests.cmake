@@ -7,10 +7,6 @@ add_test(
 )
 set_tests_properties(chronon3d_architecture_includes_boundary PROPERTIES LABELS "architecture")
 
-# P0-5 — register the render-graph -> software-include_private boundary
-# guard.  Pattern precedent: chronon3d_architecture_includes_boundary above.
-# See tests/architecture/test_render_graph_excludes_software_private.py
-# for the rule semantics.
 add_test(
     NAME chronon3d_architecture_render_graph_software_boundary
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/architecture/test_render_graph_excludes_software_private.py
@@ -18,9 +14,6 @@ add_test(
 )
 set_tests_properties(chronon3d_architecture_render_graph_software_boundary PROPERTIES LABELS "architecture")
 
-# TICKET-SIMPLICITY-PIPELINE-PARITY — Python source-level audit verifying
-# that TextSpec ↔ TextDefinition round-trip covers all 30 sub-fields
-# bidirectionally.  PASS = all fields mapped, guaranteeing 0px render diff.
 add_test(
     NAME chronon3d_text_definition_round_trip_parity
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/architecture/test_text_definition_round_trip_parity.py
@@ -28,8 +21,6 @@ add_test(
 )
 set_tests_properties(chronon3d_text_definition_round_trip_parity PROPERTIES LABELS "architecture;text;parity")
 
-# py_compile check — verifies test_text_definition_round_trip_parity.py
-# has no syntax errors.
 add_test(
     NAME chronon3d_text_definition_round_trip_parity_py_compile
     COMMAND ${Python3_EXECUTABLE} -m py_compile ${CMAKE_CURRENT_SOURCE_DIR}/architecture/test_text_definition_round_trip_parity.py
@@ -37,7 +28,6 @@ add_test(
 )
 set_tests_properties(chronon3d_text_definition_round_trip_parity_py_compile PROPERTIES LABELS "architecture;text;parity")
 
-# TICKET-GATE-11 — backend sanitization audit.  Scans the include/chronon3d/
 add_test(
     NAME chronon3d_gate11_backend_sanitization
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_backend_sanitization.py
@@ -45,9 +35,6 @@ add_test(
 )
 set_tests_properties(chronon3d_gate11_backend_sanitization PROPERTIES LABELS "architecture;gate")
 
-# py_compile check — verifies check_backend_sanitization.py has no syntax
-# errors.  This catches Python syntax regressions at configure/test time
-# without requiring the full sanitization logic to run.
 add_test(
     NAME chronon3d_gate11_backend_sanitization_py_compile
     COMMAND ${Python3_EXECUTABLE} -m py_compile ${CMAKE_SOURCE_DIR}/tools/check_backend_sanitization.py
@@ -55,10 +42,7 @@ add_test(
 )
 set_tests_properties(chronon3d_gate11_backend_sanitization_py_compile PROPERTIES LABELS "architecture;gate")
 
-# Audit §§10-13 — fail-loud guard for the unified RenderJob executor and the
-# per-runtime asset resolver contract.  This prevents retired planners,
-# process-wide roots, CWD fallback, composition-owned resolvers and mega-header
-# umbrellas from silently returning.
+# Audit §§10-13 — unified RenderJob + per-runtime assets.
 add_test(
     NAME chronon3d_render_asset_architecture_guard
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_render_asset_architecture.py
@@ -74,3 +58,19 @@ add_test(
 )
 set_tests_properties(chronon3d_render_asset_architecture_guard_py_compile PROPERTIES
     LABELS "architecture;assets;render-job;gate")
+
+add_test(
+    NAME chronon3d_test_font_bootstrap_py_compile
+    COMMAND ${Python3_EXECUTABLE} -m py_compile ${CMAKE_SOURCE_DIR}/tools/bootstrap_test_fonts.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_test_font_bootstrap_py_compile PROPERTIES
+    LABELS "architecture;assets;fonts;gate")
+
+add_test(
+    NAME chronon3d_asset_consumer_shell_syntax
+    COMMAND bash -n ${CMAKE_SOURCE_DIR}/tools/sdk/run_asset_authoring_consumer.sh
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_asset_consumer_shell_syntax PROPERTIES
+    LABELS "architecture;assets;sdk;gate")
