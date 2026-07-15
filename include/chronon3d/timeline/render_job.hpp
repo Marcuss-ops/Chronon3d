@@ -9,6 +9,7 @@
 #pragma once
 
 #include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/cpu_budget.hpp>
 #include <chronon3d/core/types/frame.hpp>
@@ -99,6 +100,37 @@ struct RenderJobOutput {
     int frames_written{0};
 };
 
+/// Raw request for a render job.  This is the input to the unified
+/// resolve → execute pipeline.  It carries no resolved Composition or
+/// runtime state; those are produced by `resolve_render_request()`.
+struct RenderRequest {
+    std::string comp_id;
+    CompositionInput input;
+    RenderMode mode{RenderMode::Still};
+    Frame still_frame{0};
+    Frame first_frame{0};
+    Frame last_frame{0};
+    Frame frame_step{1};
+    std::string output;
+    RenderSettings settings;
+    VideoSettings video_settings;
+    RenderExecutionOptions execution;
+    RenderDiagnostics diagnostics{};
+};
+
+/// Resolved render job: a RenderRequest plus the resolved Composition and
+/// its metadata.  This is the value passed to `execute_render_job()`.
+struct ResolvedRenderJob {
+    RenderRequest request;
+    std::shared_ptr<const Composition> comp;
+    CompositionMetadata metadata;
+    const CompositionRegistry* registry{nullptr};
+
+    /// Convert to the legacy flat RenderJob used by the existing executor.
+    /// The registry pointer must be non-null.
+    [[nodiscard]] RenderJob to_legacy_job() const;
+};
+
 /// Single job descriptor covering still, sequence, and video rendering.
 ///
 /// `registry` is a non-owning execution dependency pinned by the CLI/host.
@@ -182,5 +214,25 @@ struct RenderJob {
         return comp != nullptr;
     }
 };
+
+// ── ResolvedRenderJob implementation ───────────────────────────────────────
+
+inline RenderJob ResolvedRenderJob::to_legacy_job() const {
+    RenderJob job;
+    job.registry = registry;
+    job.comp_id = request.comp_id;
+    job.comp = comp;
+    job.mode = request.mode;
+    job.still_frame = request.still_frame;
+    job.first_frame = request.first_frame;
+    job.last_frame = request.last_frame;
+    job.frame_step = request.frame_step;
+    job.output = request.output;
+    job.settings = request.settings;
+    job.video_settings = request.video_settings;
+    job.execution = request.execution;
+    job.diagnostics = request.diagnostics;
+    return job;
+}
 
 } // namespace chronon3d
