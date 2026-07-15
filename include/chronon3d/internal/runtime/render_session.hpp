@@ -56,7 +56,6 @@
 // ===========================================================================
 
 #include <memory>
-#include <optional>
 
 // Engine-generic field includes (acceptable from runtime/).
 #include <chronon3d/core/memory/arena.hpp>
@@ -126,11 +125,12 @@ struct RenderSession {
     // is 64 MiB, tunable via Config post-baseline.
     TextLayoutCache layout_cache;
 
-    // Canonical structured error channel for the most recent frame.
-    // GraphExecutor writes the existing NodeExecutionError here before
-    // returning nullptr; CLI/daemon consumers only format this value and
-    // do not invent a parallel error hierarchy.
-    std::optional<chronon3d::graph::NodeExecutionError> last_frame_error;
+    // Canonical structured error channel for the most recent top-level
+    // render invocation. GraphExecutor publishes the existing
+    // NodeExecutionError here. A shared_ptr is intentional: C++20's atomic
+    // shared_ptr free functions let parallel tile/precomp executors publish
+    // the first failure without racing on std::optional storage.
+    std::shared_ptr<const chronon3d::graph::NodeExecutionError> last_frame_error;
 
     /// Per-frame reset: telemetry counters zeroed; `previous_layers`
     /// preserved (the per-layer diff source-of-truth must survive across
