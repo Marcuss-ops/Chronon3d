@@ -49,12 +49,15 @@ int command_verify(const CompositionRegistry& registry, const std::string& outpu
     exit_code = 1;
 #endif
 
-#ifdef CHRONON3D_HAS_CLI_VIDEO
-    {
-        VideoCameraArgs camera_args;
-        camera_args.axis = "Pan";
-        camera_args.output = (std::filesystem::path(output_dir) / "camera_pan_smoke_verify.mp4").string();
-        if (command_video_camera(registry, camera_args) != 0) {
+#if defined(CHRONON3D_HAS_CLI_RENDER) && defined(CHRONON3D_HAS_CLI_VIDEO_EXPORT)
+    const auto available = registry.available();
+    if (!available.empty()) {
+        RenderArgs video_args;
+        video_args.comp_id = available.front();
+        video_args.frames = "0-1";
+        video_args.output =
+            (std::filesystem::path(output_dir) / "video_smoke_verify.mp4").string();
+        if (command_render(registry, video_args) != 0) {
             exit_code = 1;
         }
     }
