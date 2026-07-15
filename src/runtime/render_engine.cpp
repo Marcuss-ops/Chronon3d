@@ -178,6 +178,11 @@ std::shared_ptr<Framebuffer> RenderEngine::render(
     return m_impl->m_pipeline->render_composition(comp, frame);
 }
 
+const std::optional<graph::NodeExecutionError>&
+RenderEngine::last_render_error() const noexcept {
+    return m_impl->m_renderer->session().last_frame_error;
+}
+
 // ── Backend injection ─────────────────────────────────────────────────────
 
 void RenderEngine::set_image_backend(std::shared_ptr<image::ImageBackend> backend) {
