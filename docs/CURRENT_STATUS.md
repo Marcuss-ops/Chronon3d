@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@a5afcbcd` — current origin/main HEAD (2026-07-15). Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. **Current HEAD non certificato**: le run GitHub Actions sui commit recenti mostrano multipli gate in fallimento (core-build, sdk-build, architecture-check, install-consumer, full-validation, Linux/Windows). Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
+> **Snapshot:** `main@2e149e92` — observed origin/main HEAD (2026-07-15). Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. **Current HEAD non certificato**: il wiring è avanzato ma non esiste ancora una nuova run completa sullo stesso commit; le run GitHub Actions recenti hanno mostrato multipli gate in fallimento. Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
 
 
 ## Active Blockers (top 3)
@@ -17,7 +17,7 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 
 | Area | Stato | Note sintetiche |
 |---|---|---|
-| CLI V3 unification | WIRED | `render` è l’unico comando per still/sequence/video; `preview`, `watch`, `create` landed; alias `still`/`video` e planner legacy rimossi; props-file loader wired; macchina-verifica DEFERRED-WBH. |
+| CLI V3 unification | WIRED / NOT RUN | `render` è l’unico comando per still/sequence/video; `preview`, `watch`, `create` landed; alias e planner legacy rimossi. `check_no_legacy_render_cli.sh` è bloccante nei developer gate e `verify_cli_render_surface_linux.sh` controlla la registry runtime sul WBH. |
 | Push infrastructure | WIRED | `tools/monitor_push_divergence.sh` cron-friendly 5-min cadence; ADR-022 advisory gate. |
 | Text V1 Cert Step 11 (finale) | DEFERRED-VPS | BLOCKED on this VPS per TICKET-BUILD-ROT-CASCADE-CAMERA 409-error + TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV; macchina-verifica DEFERRED-WBH. |
 | Cert sequence (Test #4/#8/#9/#13/#14) | WBH-DEFERRED | Per `docs/cert_sequence_wbh_protocol.md`; VPS cannot run. |
@@ -33,14 +33,14 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 | Text API migration (Blocco 5.1/5.2) | PARTIAL | `centered_text`/`glow_text`/`TextSpec` overloads deprecated; 100+ caller bulk migration OPEN. |
 | Authoring facade | WIRED | Scene builder forwarders + context-typed `asset()` landed; macchina-verifica DEFERRED-WBH. |
 | Timeline props | WIRED | `PropsCodec`/`PropsSchema` typed composition props landed; macchina-verifica DEFERRED-WBH. |
-| Render job execution | WIRED | `RenderJob` execution-complete; `RenderJobPlan`/`VideoJobPlan` e gli executor separati ritirati; macchina-verifica DEFERRED-WBH. |
+| Render job execution | WIRED / GUARDED | `RenderJob` execution-complete; planner ed executor separati ritirati. Gate statico e smoke runtime impediscono il ritorno degli alias o dell'adapter mutabile. |
 | SDK C++ installabile | PASS | gate #10 PASS (sub-blocks A+B+C). |
 | SDK cross-language | NOT RUN | C ABI e formato `.chronon` da progettare. |
 | Render runtime | PASS | ImageCache + RenderSession::layout_cache landed. |
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
 | CompositionDescriptor migration | PARTIAL | `add(name, factory)` deprecated (ADR-027); 200+ legacy callers remain; Chore B bulk migration OPEN. |
 | Video pipeline | PASS | Structured error reporting (13 codes); atomic output; 98 video tests pass. |
-| CI infrastructure | FAIL | Sanitizers nightly/weekly; renderer-boundary gate; test-hygiene 3 invariants; **recent runs multi-gate failure su `main@0682937e`** (core-build, sdk-build, architecture-check, install-consumer, full-validation, Linux/Windows). |
+| CI infrastructure | FAIL | Sanitizers nightly/weekly; renderer-boundary gate; test-hygiene invariants. Le run recenti non autorizzano una nuova baseline verde. |
 | Test coverage | PASS | 5×5 deterministic matrix; 5×5 SafeArea matrix; 5 layout TEST_CASEs. |
 | Benchmark corpus | WIRED | 12-scene YAML corpus B00-B11 + sanity test harness landed; macchina-verifica DEFERRED-WBH. |
 | Auto-fit (ADR-018) | PARTIAL | engine-level DONE; canonical wrapper forward-pointed (ADR-gated). |
@@ -59,7 +59,7 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 | Direct comparison (Test #17) | GATE-WIRED | `docs/product-tests/TEST-17-COMPARISON.md` 8 metriche × 3 prodotti. |
 | Single source of truth (Test #12) | GATE-WIRED | 12/12 audits clean. |
 | Packaging cert (Test P1) | WIRED | `verify_packaging_linux.sh` 7-section FAIL-LOUD. |
-| Diagnostics cert (Test P2) | WIRED | `verify_diagnostics_linux.sh` 10-class + 7-field contract. |
+| Diagnostics cert (Test P2) | WIRED / NOT RUN | `verify_diagnostics_linux.sh` usa solo `render`, richiede 10 codici stabili e restituisce BLOCKED quando manca la verifica runtime; nessun PASS parziale. |
 | Determinism spec completeness (amend) | WIRED | `verify_determinism_linux.sh` 4→6 invariants. |
 | Compositing spec completeness (amend) | WIRED | `verify_compositing_effects_linux.sh` 10→14 effects. |
 | Camera full cert (Test GLOW-CERT sibling) | WIRED | `verify_camera_full_linux.sh` 7-section FAIL-LOUD. |
@@ -67,7 +67,7 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 | Render runtime cert (Test P3) | WIRED | `verify_render_runtime_linux.sh` 4 distinct sha256. |
 | Asset preflight cert (Test #7 sibling) | WIRED | `verify_asset_preflight_linux.sh` 10 sabotage scenarios. |
 | Timeline functional cert (Test P1) | WIRED | `verify_timeline_functional_linux.sh` 10 TEST_CASEs. |
-| Chronon product cert (orchestrator) | WIRED | `verify_chronon_product_linux.sh` 14 sub-gates. |
+| Chronon product cert (orchestrator) | WIRED / NOT RUN | `verify_chronon_product_linux.sh` esegue una lista unica di 15 sub-gate reali; il diagnostics gate non è più forward-pointed. |
 | Error handling cert | WIRED | `verify_error_handling_linux.sh` 10 scenarios. |
 | Performance cert | WIRED | `verify_performance_linux.sh` 5 scenarios + leak test. |
 | Sanitizer cert | WIRED | `verify_sanitizer_linux.sh` 0 OOB + 0 UAF + 0 UB + 0 data races. |
@@ -76,7 +76,9 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 
 ## Gate Audit — ultima verifica
 
-**`main@ef9c83f1` — 14/14 + 1 forward-pointed (BLOCKED)** (2026-07-12, Global DoD Sign-off baseline): orchestrator `tools/verify_chronon_product_linux.sh` end-to-end dry-run: 14/14 executable sub-gates PASS + 1 forward-pointed `verify_diagnostics_linux` (TICKET-VERIFY-DIAGNOSTICS-LINUX) = `CHRONON_PRODUCT_FUNCTIONAL_BLOCKED` (exit 2). Per-gate log: `/tmp/chronon3d_product_cert.log`. Full audit: [`docs/baselines/main-ef9c83f1-baseline.md`](docs/baselines/main-ef9c83f1-baseline.md). §honest-limitation: BLOCKED reported honestly per AGENTS.md; the 15th gate (verify_diagnostics_linux) is IMPLEMENTED but uses `forward_point_gate` instead of `run_gate` (TICKET-VERIFY-DIAGNOSTICS-ORCHESTRATOR-WIREIN forward-point).
+**`main@7878a627` — 15/15 gate eseguibili WIRED, NOT RUN** (2026-07-15): `verify_diagnostics_linux` è ora invocato con `run_gate` equivalente nella lista unica dell'orchestratore. Il gate diagnostico usa il comando `render` canonico e non può emettere PASS quando il binario runtime manca. Nessuna nuova certificazione dichiarata: serve una run WBH completa sullo stesso SHA.
+
+**`main@ef9c83f1` — 14/14 + 1 forward-pointed (BLOCKED)** (2026-07-12, baseline storica): 14/14 sub-gate eseguibili PASS + 1 forward-pointed `verify_diagnostics_linux` = `CHRONON_PRODUCT_FUNCTIONAL_BLOCKED` (exit 2). Baseline: [`docs/baselines/main-ef9c83f1-baseline.md`](docs/baselines/main-ef9c83f1-baseline.md).
 
 **`main@7eb5c2ba` — 11/11 PASS** (2026-07-06, certificata, regression-line preserved as historical reference). Baseline: [`docs/baselines/main-7eb5c2ba-baseline.md`](docs/baselines/main-7eb5c2ba-baseline.md).
 
