@@ -41,6 +41,7 @@ set(CHRONON3D_FAST_TEST_DEPS
     chronon3d_timeline_tests
 )
 chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_authoring_tests)
+chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_render_job_contract_tests)
 if(CHRONON3D_USE_BLEND2D)
     chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_deterministic_tests)
 endif()
