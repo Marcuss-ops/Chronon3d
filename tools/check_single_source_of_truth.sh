@@ -108,9 +108,12 @@ audit_concept() {
     local legacy_evidence=()
     for pat in "${legacy_patterns[@]}"; do
         local matches
-        matches=$(rg -l -t cpp "$pat" include/ src/ apps/ 2>/dev/null \
-            | grep -v "$canonical_path" \
-            | grep -v '\.git/' || true)
+    # AssetPath in the authoring helper is the canonical logical-path wrapper
+    # that converts to AssetRef; it is NOT a legacy asset type.
+    matches=$(rg -l -t cpp "$pat" include/ src/ apps/ 2>/dev/null \
+        | grep -v "$canonical_path" \
+        | grep -v "include/chronon3d/authoring/asset.hpp" \
+        | grep -v '\.git/' || true)
         if [ -n "$matches" ]; then
             local n_matches
             n_matches=$(printf '%s\n' "$matches" | wc -l)
