@@ -27,21 +27,11 @@ namespace chronon3d {
  * MUST use the descriptor form directly.
  *
  * Factory SSoT: descriptors_[id].factory is the single source of truth.
- * The former `factories_` map (formerly duplicate storage) has been
- * eliminated in TICKET-COMPOSITIONDESCRIPTOR-MIGRATION Phase-1 (2026-07-14).
- *
- * The legacy `add(name, factory)` overload is marked `[[deprecated]]`
- * per TICKET-COMPOSITIONDESCRIPTOR-MIGRATION Phase 2 (2026-07-14) with
- * build-flag escape hatch per AGENTS.md §`### 2×-in-one-chore` rule.
- * Will be REMOVED post V0.1 (subject to ABI-stability ADR per Cat-2
- * freeze — see docs/adr/ADR-027-compositiondescriptor-migration.md and
- * docs/tickets/TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.md).
+ * Typed props decode/validation/metadata resolution is exposed by the same
+ * descriptor through prepare_props and is run before factory invocation.
  *
  * Starts empty — compositions are added explicitly via add() during
  * startup (ExtensionModule::register_all) or directly by the host.
- *
- * Factories receive CompositionProps so external programs can pass
- * dynamic data to compositions without modifying Chronon.
  */
 class CompositionRegistry {
 public:
@@ -67,11 +57,6 @@ public:
     /// the 200+ pre-B2 call sites; internalized as
     /// `add(CompositionDescriptor{.id, .factory})` so the `factories_`
     /// map (formerly duplicate) has been eliminated.
-    ///
-    /// **Deprecated** since TICKET-COMPOSITIONDESCRIPTOR-MIGRATION Phase 2
-    /// (2026-07-14) per ADR-027 — REMOVAL is forward-pointed post V0.1
-    /// (Cat-2 freeze). Use the canonical `add(CompositionDescriptor{...})`
-    /// form instead. See docs/tickets/TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.md.
     [[deprecated("Use add(CompositionDescriptor{.id = name, .factory = f, ...}) for metadata support")]]
     void add(std::string name, Factory factory) {
         add(CompositionDescriptor{.id = std::move(name), .factory = std::move(factory)});
@@ -85,14 +70,30 @@ public:
         return create(name, props);
     }
 
-    /// Create a composition with the given props.
+    /// Create a composition with the given props. Typed descriptors execute
+    /// decode + validation + metadata resolution before the factory. The
+    /// factory is therefore responsible only for construction.
     [[nodiscard]] Composition create(std::string_view name,
                                      const CompositionProps& props) const {
         auto it = descriptors_.find(name);
         if (it == descriptors_.end()) {
             throw std::runtime_error(std::string("Unknown composition: ") + std::string(name));
         }
-        return it->second.factory(props);
+
+        const auto& descriptor = it->second;
+        if (descriptor.prepare_props) {
+            auto prepared = descriptor.prepare_props(props);
+            if (!prepared) {
+                const PropsError& error = prepared.error();
+                const std::string key = error.key.empty()
+                    ? std::string{}
+                    : " [" + error.key + "]";
+                throw std::runtime_error(
+                    "Composition '" + descriptor.id +
+                    "' props failed" + key + ": " + error.message);
+            }
+        }
+        return descriptor.factory(props);
     }
 
     [[nodiscard]] bool contains(std::string_view name) const {
@@ -132,11 +133,6 @@ public:
     }
 
 private:
-    // B2 — descriptors stored by id.  Single source of truth for both
-    // metadata queries (descriptor_of / descriptors) AND factory storage
-    // (create / contains / available).  The former `factories_` map
-    // (duplicate storage) was eliminated in
-    // TICKET-COMPOSITIONDESCRIPTOR-MIGRATION Phase-1 (2026-07-14).
     std::map<std::string, CompositionDescriptor, std::less<>> descriptors_;
 };
 
