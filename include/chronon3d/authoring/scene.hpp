@@ -20,14 +20,12 @@
 // matching branch.  No `std::function` overhead; the wrapper lambda
 // captures the user fn by move.
 //
-// ── FrameContext plumbing ─────────────────────────────────────────────
+// ── Canonical context plumbing ────────────────────────────────────────
 //
-// The handle stores an `authoring::FrameContext` so it can pass viewport
-// info to Layer → Text.  This is the same shape used in PR 3
-// (`Layer(LayerBuilder&, FrameContext)`).  Width + height are normalised
-// to f32; sub-frame time / duration / assets-root are intentionally
-// excluded — they live on the engine FrameContext propagated by the
-// composition render function, not on the authoring handle.
+// Rendering owns the single `chronon3d::FrameContext`. Scene converts its
+// width/height exactly once through `CanvasInfo::with_safe_area(...)`, then
+// carries CanvasInfo through Layer → Text placement. There is no separate
+// authoring FrameContext and no implicit 1920×1080 Scene constructor.
 //
 // ── Surface boundary (PR 4 + B2.2 + B2.3) ──────────────────────────────
 //
@@ -61,24 +59,19 @@ namespace chronon3d::authoring {
 
 class Scene {
 public:
-    /// Primary constructor — caller supplies a SceneBuilder (lifetime
-    /// owned by the composition's render-fn closure) plus the viewport
-    /// FrameContext used by Layer → Text resolution.  The SceneBuilder
-    /// should be constructed with a matching `FrameContext` (matching
-    /// width/height) so layer positions resolve as expected.
-    Scene(SceneBuilder& builder, FrameContext context) noexcept
-        : builder_(&builder), context_(std::move(context)) {}
+    /// Primary authoring constructor for callers that already have a custom
+    /// safe-area descriptor.
+    Scene(SceneBuilder& builder, CanvasInfo canvas) noexcept
+        : builder_(&builder), canvas_(std::move(canvas)) {}
 
-    /// Convenience overload — default 1920×1080 viewport, used when the
-    /// composition's FrameContext isn't known at Scene construction.
-    /// Prefer the explicit overload in production code.
-    ///
-    /// A2 — deprecated: silently assumes 1920×1080, which produces
-    /// misaligned text in non-16:9 compositions.  Use the two-arg ctor
-    /// Scene(builder, FrameContext::from_dimensions(w, h)) explicitly.
-    [[deprecated("Use Scene(builder, FrameContext::from_dimensions(w, h)) with explicit dimensions")]]
-    explicit Scene(SceneBuilder& builder) noexcept
-        : Scene(builder, FrameContext::default_viewport()) {}
+    /// Canonical render-to-authoring bridge:
+    /// chronon3d::FrameContext → CanvasInfo::with_safe_area(...).
+    Scene(SceneBuilder& builder, const chronon3d::FrameContext& frame_context)
+        : Scene(builder,
+                CanvasInfo::with_safe_area(
+                    static_cast<f32>(frame_context.width),
+                    static_cast<f32>(frame_context.height),
+                    SafeAreaPreset{})) {}
 
     Scene(const Scene&)            = delete;
     Scene& operator=(const Scene&) = delete;
@@ -96,7 +89,7 @@ public:
         using NakedFn = std::remove_cv_t<std::remove_reference_t<Fn>>;
         if constexpr (std::is_invocable_v<NakedFn, Layer&>) {
             builder_->layer(std::move(name), [this, fn = std::forward<Fn>(fn)](LayerBuilder& lb) {
-                Layer layer_handle(lb, context_);
+                Layer layer_handle(lb, canvas_);
                 fn(layer_handle);
             });
         } else {
@@ -200,7 +193,7 @@ public:
         if constexpr (std::is_invocable_v<NakedFn, Layer&>) {
             builder_->screen_layer(std::move(name),
                 [this, fn = std::forward<Fn>(fn)](LayerBuilder& lb) {
-                    Layer layer_handle(lb, context_);
+                    Layer layer_handle(lb, canvas_);
                     fn(layer_handle);
                 });
         } else {
@@ -220,7 +213,7 @@ public:
         if constexpr (std::is_invocable_v<NakedFn, Layer&>) {
             builder_->precomp_layer(std::move(name), std::move(comp_name),
                 [this, fn = std::forward<Fn>(fn)](LayerBuilder& lb) {
-                    Layer layer_handle(lb, context_);
+                    Layer layer_handle(lb, canvas_);
                     fn(layer_handle);
                 });
         } else {
@@ -248,11 +241,14 @@ public:
     // ── Read-only accessors (for tests and tooling) ──────────────────────
     [[nodiscard]] SceneBuilder&       mutable_builder()       noexcept { return *builder_; }
     [[nodiscard]] const SceneBuilder& builder()         const noexcept { return *builder_; }
-    [[nodiscard]] const FrameContext& context()         const noexcept { return context_; }
+    [[nodiscard]] const CanvasInfo&   canvas()          const noexcept { return canvas_; }
+
+    [[deprecated("Use canvas()")]]
+    [[nodiscard]] const CanvasInfo& context() const noexcept { return canvas_; }
 
 private:
     SceneBuilder* builder_;
-    FrameContext  context_;
+    CanvasInfo    canvas_;
 };
 
 } // namespace chronon3d::authoring
