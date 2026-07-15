@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot implementazione:** `main@64fe16ad` — observed origin/main HEAD (2026-07-15) post legacy-render-CLI gate fix e ticket di tracciamento incidente. Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. **Current lineage non certificata**: asset isolation, installed-authoring consumer e RenderJob matrix sono WIRED, ma GitHub non ha ancora pubblicato una run completa verde sullo stesso lineage. Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
+> **Snapshot implementazione:** `main@212f468d` — observed origin/main HEAD (2026-07-15) post legacy-render-CLI gate fix, ticket di tracciamento incidente e audit chiusura header authoring pubblici SDK. Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. **Current lineage non certificata**: asset isolation, installed-authoring consumer e RenderJob matrix sono WIRED, ma GitHub non ha ancora pubblicato una run completa verde sullo stesso lineage. Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
 
 ## Active Blockers (top 3)
 
