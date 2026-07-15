@@ -1,22 +1,14 @@
 # -- Timeline tests --
-# Unit tests for the chronon3d/timeline/ header-only descriptor
-# surface.  TIER=UNIT because the tests exercise pure struct + factory
-# contracts (RenderJob + VideoSettings + TypedCompositionDescriptor
-# decode/validate/factory) with no rendering backend, no Blend2D, and
-# no FontEngine.  Default link contract (chronon3d_pipeline) is the
-# OBJECT aggregate of every per-subsystem .o, which is enough to
-# resolve the public headers.
+# Pure unit coverage for RenderJob, CompositionDescriptor and PropsCodec.
+# No renderer backend, Blend2D or FontEngine is required.
 #
-# Locks three contracts:
-#   * test_render_job_video.cpp — post-rename RenderJob::video_job
-#     factory + VideoSettings default-initialization.
-#   * test_composition_descriptor_decode.cpp / test_props_codec.cpp —
-#     ValueMap → typed Props decode and schema introspection.
-#   * test_composition_descriptor_prepare.cpp — type-erased decode,
-#     validation and dynamic metadata resolution before factory creation.
-#
-# Per ADR-018, this file is also listed in CMAKE_CONFIGURE_DEPENDS
-# at the top of tests/CMakeLists.txt.
+# Contracts:
+#   * test_render_job_video.cpp — canonical RenderJob video construction.
+#   * test_composition_descriptor_decode.cpp — PropsCodec is the sole external
+#     ValueMap decoder; values without a codec fail instead of being ignored.
+#   * test_props_codec.cpp — schema introspection and codec round-trip.
+#   * test_composition_descriptor_prepare.cpp — decode, validation and dynamic
+#     metadata resolution happen before composition construction.
 chronon3d_add_test_suite(
     NAME chronon3d_timeline_tests
     TIER UNIT
