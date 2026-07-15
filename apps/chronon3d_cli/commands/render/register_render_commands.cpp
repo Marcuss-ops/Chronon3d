@@ -1,6 +1,7 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
 #include "../../utils/common/props_file.hpp"
+#include "../../utils/common/render_job_error_formatter.hpp"
 #include "../../utils/job/render_job.hpp"
 #include "render_profiles.hpp"
 
@@ -119,8 +120,7 @@ void add_video_options(CLI::App& cmd, RenderArgs& args) {
                       "Video codec/encoder name");
     video->add_option("--encode-preset,--preset", args.video_settings.encode_preset,
                       "Encoder preset");
-    video->add_option("--tune", args.video_settings.tune,
-                      "Encoder tune");
+    video->add_option("--tune", args.video_settings.tune, "Encoder tune");
     video->add_option("--hardware", args.video_settings.hardware_encoder,
                       "Hardware encoder: none, auto, nvenc, qsv, videotoolbox, amf");
     video->add_flag("--keep-frames", args.video_settings.keep_frames,
@@ -198,8 +198,7 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
         "--no-dirty-rects", args.pipeline.no_dirty_rects,
         "Disable dirty-rectangle invalidation");
     auto* tile_size = advanced->add_option(
-        "--tile-size", args.pipeline.tile_size,
-        "Tile size for dirty-rect execution");
+        "--tile-size", args.pipeline.tile_size, "Tile size for dirty-rect execution");
     auto* motion_blur = advanced->add_flag(
         "--motion-blur", args.pipeline.quality.motion_blur,
         "Enable temporal motion blur");
@@ -313,7 +312,11 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
         }
         auto result = execute_render_job(*job);
         if (!result) {
-            spdlog::error("Render job failed: {}", result.error().message);
+            if (job->mode == RenderMode::Video) {
+                print_render_error(result.error(), *job);
+            } else {
+                spdlog::error("Render job failed: {}", result.error().message);
+            }
             ctx.exit_code = 1;
             return;
         }
