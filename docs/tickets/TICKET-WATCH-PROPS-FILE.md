@@ -1,35 +1,37 @@
-# TICKET-WATCH-PROPS-FILE — Apply --props-file in watch subprocess (V0 forward-point)
+# TICKET-WATCH-PROPS-FILE — Apply --props-file in watch subprocess
 
-## Stato: OPEN (P2, depends on TICKET-ADD-LOADER-FOR-CHRONON-JSON P1)
+## Stato: DONE (2026-07-15)
 
-## Problema
-`chronon watch --props-file props.json` viene accettato dal subcommand
-(`apps/chronon3d_cli/commands/watch/register_watch_commands.cpp`) ma
-NON viene applicato al subprocess `chronon render` eseguito ad ogni
-cambio file.  L'audit §17 verbatim cita:
-```
+## Problema risolto
+
+`chronon watch --props-file props.json` veniva accettato dal subcommand ma
+non raggiungeva il subprocess `chronon render`. La preview poteva quindi
+mostrare dati diversi dal render normale.
+
+## Soluzione atterrata
+
+Il supervisor ora:
+
+1. passa `--props-file` al medesimo comando `chronon render` usato nel percorso normale;
+2. include il file props nello snapshot degli mtime, anche quando vive fuori da `src/`, `include/` e `apps/`;
+3. rilancia build e render quando il JSON cambia;
+4. usa quoting shell per binary, composition ID, output e props file;
+5. autodetecta il build root cercando `CMakeCache.txt` sopra il binary, eliminando il vecchio default hardcoded `bash build-fast.sh`;
+6. mantiene `--build` e `--no-build` come override espliciti.
+
+Flusso stabile:
+
+```bash
 chronon watch ProductLaunch \
   --frame 60 \
   --props-file props.json \
   -o /tmp/preview.png
 ```
-come flow aspirazionale, non come capability attuale.
 
-## Soluzione accettabile
-Quando `TICKET-ADD-LOADER-FOR-CHRONON-JSON` (P1) atterra il
-per-composition props decoder, il watch supervisor deve:
+Il daemon resta una warm render shell con cache persistenti; il supervisor
+watch è l'unico responsabile del rebuild e del re-exec del nuovo binary.
 
-1. Leggere `props_file` (JSON) all'inizio del ciclo di polling.
-2. Passarlo al subprocess `chronon render` come argomento `--props-file`.
-3. Rileggerlo ad ogni `mtimes_changed` (un cambio al file props conta
-   come cambio sorgente → re-render automatico).
+## Commit di chiusura
 
-## Dipendenze
-- **TICKET-ADD-LOADER-FOR-CHRONON-JSON** (P1, OPEN): il loader JSON che
-  decodifica i props per-composizione.  Senza questo, passare
-  `--props-file` a `chronon render` non ha alcun effetto.
-
-## Workaround attuale
-Gli utenti possono eseguire `chronon render <comp> --props-file props.json`
-manualmente, fuori dal loop del watch.  Il watch non blocca questo flow
-— semplicemente non lo automatizza.
+- `a640cc77` — forwarding props e build auto-detect
+- `32b1f869` — props file incluso negli mtime osservati
