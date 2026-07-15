@@ -11,7 +11,7 @@ P3 (cleanup chaser; no current blocker, no live work in flight).
 ## Problema
 
 WIP `stash@{0}` (origin: `19da5238` = "docs(state): persist cycle-rot bail-out",
-**474 commit dietro** current `origin/main@253a178d`) conteneva lavoro uncommitted
+**377 commit dietro** current `origin/main@253a178d`) conteneva lavoro uncommitted
 per due sub-chore della CompositionDescriptor migration:
 
 - **Phase 1c (CompositionInput CLI)** — `CompositionInputArgs` struct + campo
@@ -59,7 +59,7 @@ replacement canoniche il progetto ha già rilasciato (incluso il
 ## Evidenza
 
 - Stash base (WIP origin): commit `19da5238` = "docs(state): persist cycle-rot
-  bail-out" — 474 commit dietro current `origin/main@253a178d`.
+  bail-out" — 377 commit dietro current `origin/main@253a178d`.
 - Pre-drop local HEAD progression (intra-session FF): `99ec2102` → `a0c80878`
   → `a4c0de96` → `253a178d` (concurrent-agent churn pre-reset, tutti FF-eligible
   per il per-branch rebase invariant, tutti atomically absorbable).
@@ -100,9 +100,7 @@ authored).
   `origin/main@253a178d`; documentare l'evento di drop per AGENTS.md
   §honesty (canonical ticket-home + cite-only CHANGELOG entry).
 - **Out of scope**: re-architettare Phase 1c/1d from scratch; migrare i
-  200+ chiamanti esistenti `add(name, factory)` al canonical form
-  (tracker separati: `TICKET-CHORE-B-BULK-MIGRATION` /
-  `TICKET-COMPOSITIONDESCRIPTOR-MIGRATION`); reintrodurre i file
+  200+ chiamanti esistenti `add(name, factory)` al canonical form(tracker separato: `TICKET-COMPOSITIONDESCRIPTOR-MIGRATION`); reintrodurre i file
   `command_still.cpp` / `command_video.cpp` / `register_video_commands.cpp`
   cancellati (il progetto li ha ritirati intenzionalmente, vedi
   `TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3`).
@@ -181,11 +179,11 @@ interno non-milestone, non MVG pivot).
   un future re-introduction DEVE usare il canonical `SequenceSpec`
   extension pattern documented in
   `docs/tickets/TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3.md`
-  §Forward-points + `TICKET-PHASE3-TIMELINE-EXTENSION.md` §Phase-3-lineage.
+  §Forward-points (vedi [TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3](TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3.md) §Forward-points per il canonical SequenceSpec extension pattern).
 
 ## Historical notes
 
-(Session 2026-07-15, pomeriggio. WIP pre-esistente, 474 commit dietro
+(Session 2026-07-15, pomeriggio. WIP pre-esistente, 377 commit dietro
 current `origin/main@253a178d` al momento del drop. Sequenza:
 
 1. First-attempt a FF-pull + `git stash pop` ha rivelato la profondità
