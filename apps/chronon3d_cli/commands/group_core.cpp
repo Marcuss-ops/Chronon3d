@@ -19,13 +19,13 @@ struct VerifyState {
 };
 
 void register_list(CLI::App& app, CliContext& ctx) {
-    auto* cmd = app.add_subcommand("list", "List all registered compositions");
+    auto* cmd = app.add_subcommand("list", "List registered compositions and metadata");
     cmd->callback([&ctx]() { ctx.exit_code = command_list(ctx.registry); });
 }
 
 void register_info(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<InfoState>();
-    auto* cmd = app.add_subcommand("info", "Get information about a composition");
+    auto* cmd = app.add_subcommand("info", "Inspect a composition descriptor");
     cmd->add_option("id", *state->id, "Composition name")->required();
     cmd->callback([state, &ctx]() { ctx.exit_code = command_info(ctx.registry, *state->id); });
 }
@@ -44,13 +44,13 @@ void register_verify(CLI::App& app, CliContext& ctx) {
 }
 
 void register_daemon(CLI::App& app, CliContext& ctx) {
-    auto* cmd = app.add_subcommand("daemon", "Start hot-reload daemon with warm engine state");
+    auto* cmd = app.add_subcommand("daemon", "Start a warm render shell with persistent caches");
     auto assets_root = std::make_shared<std::string>();
     auto build_cmd = std::make_shared<std::string>("bash build-fast.sh cli");
     cmd->add_option("-a,--assets-root", *assets_root,
                     "Asset root directory (fonts, images)");
     cmd->add_option("-b,--build-cmd", *build_cmd,
-                    "Build command for reload (default: bash build-fast.sh cli)");
+                    "Build command used by the manual reload action");
     cmd->callback([assets_root, build_cmd, &ctx]() {
         ctx.exit_code = command_daemon(ctx.registry, *assets_root, *build_cmd);
     });
