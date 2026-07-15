@@ -1,64 +1,72 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// authoring/asset.hpp — thin authoring-side helper for asset paths.
+// authoring/asset.hpp — thin authoring-side helper for logical asset paths.
 //
-// Audit §10 (process-wide asset root ripout) calls for a thin authoring
-// syntax that authors an asset by logical path WITHOUT introducing a
-// per-composition resolver or singleton.  Resolution already lives in
-// the canonical `chronon3d::assets::AssetResolver` (per-runtime, owned
-// by `RenderRuntime::resolver()` since WP-8 PR 8.0) and consumes the
-// typed `chronon3d::assets::AssetRef<K>` (compile-time asset-kind
-// marker carrying path + owner + required).
+// `asset("path")` is deliberately resolution-free.  It carries only the
+// logical path metadata and converts to the canonical typed AssetRef requested
+// by the receiving authoring API:
 //
-// This header adds ONE pure-value factory function (`asset(path)` family)
-// that returns the canonical `assets::AssetRef<K>`.  It does NOT
-// introduce a new resolver, registry, singleton, or factory.
-// Cat-3 compliant per AGENTS.md (no new SDK singleton/registry).
+//   layer.image("logo", asset("images/logo.png"));
+//   layer.text("HELLO").font(asset("fonts/Inter.ttf"), 100);
 //
-// Usage:
-//   using namespace chronon3d::authoring;
-//   layer.image("logo", asset("images/logo.png"));         // AssetKind::Image (default)
-//   layer.text("HELLO").font(
-//       asset<assets::AssetKind::Font>("fonts/Inter-Bold.ttf"), 100);
+// Resolution remains owned by the per-runtime assets::AssetResolver.  This
+// header introduces no resolver, registry, singleton, CWD fallback, or global
+// asset root.
 //
-// Resolution semantics:
-//   `asset("path")` ONLY constructs the lightweight typed marker —
-//   resolution happens at materialization time against the per-runtime
-//   resolver (`software_renderer.runtime().resolver()` for SDK
-//   consumers; the literal engine handle for process wiring).  Callers
-//   MUST prime the resolver via `engine.set_assets_root()` OR construct
-//   the SoftwareRenderer with a `Config` whose `assets_root` field is
-//   populated; otherwise the path is preserved verbatim and surfaces
-//   as a preflight FAIL (the desired hard-fail per audit §10).
-//
+// The explicit `asset<AssetKind::K>(...)` form remains available for callers
+// that need to store a concretely typed AssetRef before passing it onward.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #pragma once
 
-#include <chronon3d/assets/asset_ref.hpp>      // chronon3d::assets::AssetRef<K>
+#include <chronon3d/assets/asset_ref.hpp>
 
 #include <string>
 #include <utility>
 
 namespace chronon3d::authoring {
 
-/// `asset("path")` — typed authoring-side asset path marker.
+/// Pure-value logical asset path used by the ergonomic `asset("...")` form.
 ///
-/// Returns `chronon3d::assets::AssetRef<K>` — the canonical typed asset
-/// reference carrying compile-time AssetKind and a (path, owner,
-/// required) triplet.  Pure value type — no resolution happens here.
-///
-/// Default asset kind is `AssetKind::Image` (the most common authoring
-/// case).  For fonts overwrite with `asset<AssetKind::Font>("...")`.
-///
-/// `required = true` (default) means the path is a hard dependency for
-/// preflight validation.  Callers that need soft dependencies can pass
-/// `false` explicitly at the cost of bypassing the canonical typed
-/// marker (the audit's thin API only guarantees hard path semantics).
-template <assets::AssetKind K = assets::AssetKind::Image>
+/// The receiving API supplies the asset kind through its parameter type:
+/// `Layer::image(..., ImageRef)` requests ImageRef, while
+/// `Text::font(FontRef, ...)` requests FontRef.  Conversion only wraps the
+/// logical path in the existing AssetRef type; it never resolves filesystem
+/// state.
+class AssetPath final {
+public:
+    // Backward-compatible default-kind marker for existing code that inspects
+    // `decltype(asset("..."))::kind`.  Contextual conversions are not limited
+    // to Image and remain the preferred ergonomic path.
+    static constexpr assets::AssetKind kind = assets::AssetKind::Image;
+
+    explicit AssetPath(std::string path, std::string owner = {})
+        : path_(std::move(path)), owner_(std::move(owner)) {}
+
+    [[nodiscard]] const std::string& path() const noexcept { return path_; }
+    [[nodiscard]] const std::string& owner() const noexcept { return owner_; }
+    [[nodiscard]] constexpr bool required() const noexcept { return true; }
+
+    template <assets::AssetKind K>
+    [[nodiscard]] operator assets::AssetRef<K>() const {
+        return assets::AssetRef<K>(path_, owner_, /*required=*/true);
+    }
+
+private:
+    std::string path_;
+    std::string owner_;
+};
+
+/// Context-typed authoring marker.  The destination overload determines K.
+[[nodiscard]] inline AssetPath asset(std::string path, std::string owner = {}) {
+    return AssetPath(std::move(path), std::move(owner));
+}
+
+/// Explicit typed form retained for stored references and compatibility.
+template <assets::AssetKind K>
 [[nodiscard]] inline assets::AssetRef<K>
-asset(std::string path, std::string owner = "") {
+asset(std::string path, std::string owner = {}) {
     return assets::AssetRef<K>(std::move(path), std::move(owner),
-                                /*required=*/true);
+                               /*required=*/true);
 }
 
 } // namespace chronon3d::authoring
