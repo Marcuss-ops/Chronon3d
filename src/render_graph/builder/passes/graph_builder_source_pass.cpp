@@ -68,11 +68,15 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             if (node.shape.type() == ShapeType::TextRun) {
                 auto run_shape = node.shape.text_run_shape_handle().value;
                 if (!run_shape) {
-                    throw std::logic_error(
-                        "[source-pass] layer='" + std::string(layer.name) + "' node='" + std::string(node.name) +
-                        "' ShapeType::TextRun but text_run_shape_handle().value is null — "
-                        "wiring failed to attach the shape. Check LayerBuilder::text_run() + "
-                        "materialize_text_run_shape().");
+                    // A null shape is a controlled materialization failure
+                    // (missing/corrupt font or empty content), not a graph
+                    // construction failure. Preserve the diagnostic while
+                    // returning a transparent frame so callers can inspect
+                    // the zero-glyph result without an exception.
+                    spdlog::error(
+                        "[source-pass] layer='{}' node='{}' TextRun materialization produced no shape",
+                        layer.name.c_str(), node.name.c_str());
+                    return graph.add_node(std::make_unique<ClearNode>(), node_ctx);
                 }
                 cache::NodeCacheKey run_key{
                     .scope = "layer.textrun:" + std::string(layer.name) + ":" + std::string(node.name),
