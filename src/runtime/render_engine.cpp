@@ -38,6 +38,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include <atomic>
 #include <optional>
 #include <utility>
 
@@ -178,9 +179,11 @@ std::shared_ptr<Framebuffer> RenderEngine::render(
     return m_impl->m_pipeline->render_composition(comp, frame);
 }
 
-const std::optional<graph::NodeExecutionError>&
+std::shared_ptr<const graph::NodeExecutionError>
 RenderEngine::last_render_error() const noexcept {
-    return m_impl->m_renderer->session().last_frame_error;
+    return std::atomic_load_explicit(
+        &m_impl->m_renderer->session().last_frame_error,
+        std::memory_order_acquire);
 }
 
 // ── Backend injection ─────────────────────────────────────────────────────
