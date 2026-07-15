@@ -41,6 +41,7 @@ set(CHRONON3D_FAST_TEST_DEPS
     chronon3d_timeline_tests
 )
 chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_authoring_tests)
+chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_text_health_tests)
 chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_render_job_contract_tests)
 if(CHRONON3D_USE_BLEND2D)
     chronon3d_append_target_if_present(CHRONON3D_FAST_TEST_DEPS chronon3d_deterministic_tests)
@@ -131,12 +132,10 @@ foreach(_target IN LISTS CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS)
     get_test_property(${_target} LABELS _existing_labels)
     if(_existing_labels)
         set_tests_properties(${_target} PROPERTIES
-            LABELS "${_existing_labels};sanitizer-subsystems"
-        )
+            LABELS "${_existing_labels};sanitizer-subsystems")
     else()
         set_tests_properties(${_target} PROPERTIES
-            LABELS "sanitizer-subsystems"
-        )
+            LABELS "sanitizer-subsystems")
     endif()
 endforeach()
 
