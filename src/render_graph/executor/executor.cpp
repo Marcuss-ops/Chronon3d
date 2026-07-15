@@ -65,7 +65,18 @@ namespace chronon3d::graph {
     const auto& consumer_counts = compiled.consumer_counts;
     const auto output = compiled.output;
 
+    // Never let a previous failed frame leak into the next invocation.
+    // The session is the canonical job-owned storage that survives after
+    // RenderGraphContext goes out of scope and is therefore the correct
+    // hand-off point for CLI/daemon diagnostics.
+    session.last_frame_error.reset();
+
     if (compiled.empty()) {
+        session.last_frame_error = NodeExecutionError{
+            RenderBackendErrorCode::InvalidInput,
+            "frame_graph",
+            "compiled frame graph is empty"
+        };
         return nullptr;
     }
 
@@ -108,19 +119,12 @@ namespace chronon3d::graph {
 
     // P0-1 / Fase A5 — after all nodes have executed, check whether any
     // node surfaced a backend failure.  The structured NodeExecutionError
-    // is stored in `ctx.frame_error` (accessible to callers after a
-    // nullptr return).  We return nullptr as the documented "engine error"
-    // signal; callers interpret null as a failed frame and should NOT
-    // publish an empty framebuffer as success.
-    //
-    // Callers that need structured error detail can read
-    // `*ctx.frame_error` after a nullptr return:
-    //   if (!fb && ctx.frame_error && ctx.frame_error->has_value()) {
-    //       const auto& err = ctx.frame_error->value();
-    //       // err.node_name, err.backend_code, err.message
-    //   }
+    // is stored in `ctx.frame_error` and copied into the job-owned session
+    // before returning nullptr.  CLI and daemon callers can therefore format
+    // the original error after the per-frame context has been destroyed.
     if (ctx.frame_error && ctx.frame_error->has_value()) {
         const auto& err = ctx.frame_error->value();
+        session.last_frame_error = err;
         spdlog::error(
             "[executor] frame {} failed: node '{}' error [{}] {}",
             static_cast<int>(ctx.frame_input.frame),
