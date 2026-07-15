@@ -1,5 +1,8 @@
 ## 2026-07-14
 
+### `chore(text): vacate Blocco 5.2.I helper-removal vacuous-truth verify` ([TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY](docs/tickets/TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY.md))
+Vacuous-truth audit: 3 helpers (`centered_text()` + `glow_text()` + `compute_single_line_glyph_layout()`) + header `text_helpers_centered.hpp` GIÀ assenti pre-session + zero callers across codebase. Sub-chore (i) HELPER-REMOVAL-FINAL P1 chiuso. Cat-5 3-doc atomic, ZERO source questo turno. Cronaca canonical ticket-home.
+
 ### `chore(text): vacate Blocco 5.2.C text-placement vacuous-truth verify` ([TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY](docs/tickets/TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY.md))
 Vacuous-truth audit: 3 inline + 4 helper-uses in `text_placement_compositions.cpp` GIÀ migrati a `TextDefinition` in M1.8 §2D (pre-deprecation). Sub-chore (c) chiuso. Cat-5 3-doc atomic, ZERO source questo turno. Cronaca canonical ticket-home.
 
