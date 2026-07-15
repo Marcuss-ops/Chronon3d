@@ -1,24 +1,7 @@
 // ==============================================================================
 // content/certification/cert_compositing.cpp
 //
-// TICKET-COMPOSITING-CERT — Compositing & Effects certification
-// compositions (P1).
-//
-// 10 compositions for the canonical verify_compositing_effects_linux.sh gate.
-// Each exercises one compositing/effect invariant:
-//
-//   CertOpacity         — two rects: one at opacity=0.3, one at 1.0
-//   CertBlur            — two rects: one blurred, one sharp
-//   CertGlow            — text with glow (preserve_source=true)
-//   CertGlowDisabled    — glow with intensity=0 (must equal no-glow)
-//   CertShadow          — rect with drop_shadow
-//   CertStroke          — rect with stroke outline
-//   CertMask            — masked rect (circle mask)
-//   CertBlendAdd        — rect with BlendMode::Add over background
-//   CertBlendMultiply   — rect with BlendMode::Multiply over background
-//   CertPrecomp         — precomp_layer referencing another composition
-//
-// 1920×1080 canvas. Determinism guaranteed by fixed frame=0 + FrameRate{30,1}.
+// TICKET-COMPOSITING-CERT — Compositing & Effects certification.
 // ==============================================================================
 
 #include <chronon3d/core/composition/composition_registry.hpp>
@@ -29,493 +12,300 @@
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 
+#include "content/certification/certification_descriptor.hpp"
+
 namespace chronon3d::content::certification {
 
 using namespace chronon3d;
 
-static constexpr int   kCompW     = 1920;
-static constexpr int   kCompH     = 1080;
-static constexpr float kCompCX    = static_cast<float>(kCompW) * 0.5f;
-static constexpr float kCompCY    = static_cast<float>(kCompH) * 0.5f;
-static constexpr float kCompRectW = 400.0f;
-static constexpr float kCompRectH = 300.0f;
+namespace {
 
-// ── Shared helpers ────────────────────────────────────────────────────────
+constexpr int kCompW = 1920;
+constexpr int kCompH = 1080;
+constexpr float kCompCX = static_cast<float>(kCompW) * 0.5f;
+constexpr float kCompCY = static_cast<float>(kCompH) * 0.5f;
+constexpr float kCompRectW = 400.0f;
+constexpr float kCompRectH = 300.0f;
 
-static void add_dark_bg(SceneBuilder& s) {
-    s.layer("bg", [](LayerBuilder& l) {
-        l.fullscreen_rect("bg", Color{0.02f, 0.02f, 0.05f, 1.0f});
+void add_dark_bg(SceneBuilder& scene) {
+    scene.layer("bg", [](LayerBuilder& layer) {
+        layer.fullscreen_rect("bg", Color{0.02f, 0.02f, 0.05f, 1.0f});
     });
 }
 
-static void add_white_rect(SceneBuilder& s, const char* id, f32 x, f32 y) {
-    s.layer(id, [=](LayerBuilder& l) {
-        l.position({x, y, 0.0f});
-        l.rect("r", RectParams{
-            .size = {kCompRectW, kCompRectH},
-            .color = {1.0f, 1.0f, 1.0f, 1.0f},
-            .pos = {0.0f, 0.0f, 0.0f},
-            .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
-            .stroke = {},
+void add_rect(LayerBuilder& layer,
+              Color color = Color{1.0f, 1.0f, 1.0f, 1.0f}) {
+    layer.rect("r", RectParams{
+        .size = {kCompRectW, kCompRectH},
+        .color = color,
+        .pos = {0.0f, 0.0f, 0.0f},
+        .fill = FillStyle::solid(color),
+        .stroke = {},
+    });
+}
+
+void center_rect(LayerBuilder& layer) {
+    layer.position({kCompCX - kCompRectW * 0.5f,
+                    kCompCY - kCompRectH * 0.5f,
+                    0.0f});
+}
+
+template <typename Build>
+Composition cert_scene(const char* name, Build&& build) {
+    return composition(
+        {.name = name,
+         .width = kCompW,
+         .height = kCompH,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 1},
+        [build = std::forward<Build>(build)](const FrameContext& ctx) -> Scene {
+            SceneBuilder scene(ctx);
+            build(scene);
+            return scene.build();
         });
-    });
 }
 
-// ── CertOpacity ───────────────────────────────────────────────────────────
+} // namespace
 
 Composition cert_opacity() {
-    return composition(
-        {.name = "CertOpacity", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            add_dark_bg(s);
-            // Left: full opacity white rect
-            add_white_rect(s, "full", 200.0f, kCompCY - kCompRectH * 0.5f);
-            // Right: 30% opacity white rect
-            s.layer("dim", [](LayerBuilder& l) {
-                l.position({kCompW - 200.0f - kCompRectW, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.opacity(0.3f);
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
-                    .stroke = {},
-                });
-            });
-            return s.build();
+    return cert_scene("CertOpacity", [](SceneBuilder& scene) {
+        add_dark_bg(scene);
+        scene.layer("full", [](LayerBuilder& layer) {
+            layer.position({200.0f, kCompCY - kCompRectH * 0.5f, 0.0f});
+            add_rect(layer);
         });
+        scene.layer("dim", [](LayerBuilder& layer) {
+            layer.position({kCompW - 200.0f - kCompRectW,
+                            kCompCY - kCompRectH * 0.5f,
+                            0.0f});
+            layer.opacity(0.3f);
+            add_rect(layer);
+        });
+    });
 }
-
-// ── CertBlur ──────────────────────────────────────────────────────────────
 
 Composition cert_blur() {
-    return composition(
-        {.name = "CertBlur", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            add_dark_bg(s);
-            // Left: sharp rect
-            add_white_rect(s, "sharp", 200.0f, kCompCY - kCompRectH * 0.5f);
-            // Right: blurred rect
-            s.layer("blurred", [](LayerBuilder& l) {
-                l.position({kCompW - 200.0f - kCompRectW, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.blur(12.0f);
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
-                    .stroke = {},
-                });
-            });
-            return s.build();
+    return cert_scene("CertBlur", [](SceneBuilder& scene) {
+        add_dark_bg(scene);
+        scene.layer("sharp", [](LayerBuilder& layer) {
+            layer.position({200.0f, kCompCY - kCompRectH * 0.5f, 0.0f});
+            add_rect(layer);
         });
+        scene.layer("blurred", [](LayerBuilder& layer) {
+            layer.position({kCompW - 200.0f - kCompRectW,
+                            kCompCY - kCompRectH * 0.5f,
+                            0.0f});
+            layer.blur(12.0f);
+            add_rect(layer);
+        });
+    });
 }
-
-// ── CertGlow ──────────────────────────────────────────────────────────────
 
 Composition cert_glow() {
-    return composition(
-        {.name = "CertGlow", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            add_dark_bg(s);
-            s.layer("glow_rect", [](LayerBuilder& l) {
-                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.glow(GlowParams{
-                    .radius = 24.0f,
-                    .intensity = 1.0f,
-                    .color = Color{0.3f, 0.6f, 1.0f, 1.0f},
-                    .preserve_source = true,
-                });
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
-                    .stroke = {},
-                });
+    return cert_scene("CertGlow", [](SceneBuilder& scene) {
+        add_dark_bg(scene);
+        scene.layer("glow_rect", [](LayerBuilder& layer) {
+            center_rect(layer);
+            layer.glow(GlowParams{
+                .radius = 24.0f,
+                .intensity = 1.0f,
+                .color = Color{0.3f, 0.6f, 1.0f, 1.0f},
+                .preserve_source = true,
             });
-            return s.build();
+            add_rect(layer);
         });
+    });
 }
-
-// ── CertGlowDisabled ──────────────────────────────────────────────────────
 
 Composition cert_glow_disabled() {
-    return composition(
-        {.name = "CertGlowDisabled", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            add_dark_bg(s);
-            // Glow with intensity=0 — must be a real no-op
-            s.layer("glow_zero", [](LayerBuilder& l) {
-                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.glow(GlowParams{
-                    .radius = 24.0f,
-                    .intensity = 0.0f,
-                    .color = Color{0.3f, 0.6f, 1.0f, 1.0f},
-                    .preserve_source = true,
-                });
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
-                    .stroke = {},
-                });
+    return cert_scene("CertGlowDisabled", [](SceneBuilder& scene) {
+        add_dark_bg(scene);
+        scene.layer("glow_zero", [](LayerBuilder& layer) {
+            center_rect(layer);
+            layer.glow(GlowParams{
+                .radius = 24.0f,
+                .intensity = 0.0f,
+                .color = Color{0.3f, 0.6f, 1.0f, 1.0f},
+                .preserve_source = true,
             });
-            return s.build();
+            add_rect(layer);
         });
+    });
 }
-
-// ── CertShadow ────────────────────────────────────────────────────────────
 
 Composition cert_shadow() {
-    return composition(
-        {.name = "CertShadow", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            add_dark_bg(s);
-            s.layer("shadow_rect", [](LayerBuilder& l) {
-                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.drop_shadow({8.0f, 8.0f}, Color{0.0f, 0.0f, 0.0f, 0.6f}, 16.0f);
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
-                    .stroke = {},
-                });
-            });
-            return s.build();
+    return cert_scene("CertShadow", [](SceneBuilder& scene) {
+        add_dark_bg(scene);
+        scene.layer("shadow_rect", [](LayerBuilder& layer) {
+            center_rect(layer);
+            layer.drop_shadow({8.0f, 8.0f},
+                              Color{0.0f, 0.0f, 0.0f, 0.6f}, 16.0f);
+            add_rect(layer);
         });
+    });
 }
-
-// ── CertStroke ────────────────────────────────────────────────────────────
 
 Composition cert_stroke() {
-    return composition(
-        {.name = "CertStroke", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            add_dark_bg(s);
-            // Left: no stroke
-            add_white_rect(s, "no_stroke", 200.0f, kCompCY - kCompRectH * 0.5f);
-            // Right: red stroke
-            s.layer("stroked", [](LayerBuilder& l) {
-                l.position({kCompW - 200.0f - kCompRectW, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
-                    .stroke = graphics::StrokeStyle{
-                        .color = {1.0f, 0.0f, 0.0f, 1.0f},
-                        .width = 6.0f,
-                    },
-                });
-            });
-            return s.build();
+    return cert_scene("CertStroke", [](SceneBuilder& scene) {
+        add_dark_bg(scene);
+        scene.layer("no_stroke", [](LayerBuilder& layer) {
+            layer.position({200.0f, kCompCY - kCompRectH * 0.5f, 0.0f});
+            add_rect(layer);
         });
+        scene.layer("stroked", [](LayerBuilder& layer) {
+            layer.position({kCompW - 200.0f - kCompRectW,
+                            kCompCY - kCompRectH * 0.5f,
+                            0.0f});
+            layer.rect("r", RectParams{
+                .size = {kCompRectW, kCompRectH},
+                .color = {1.0f, 1.0f, 1.0f, 1.0f},
+                .pos = {0.0f, 0.0f, 0.0f},
+                .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
+                .stroke = graphics::StrokeStyle{
+                    .color = {1.0f, 0.0f, 0.0f, 1.0f},
+                    .width = 6.0f,
+                },
+            });
+        });
+    });
 }
-
-// ── CertMask ──────────────────────────────────────────────────────────────
 
 Composition cert_mask() {
-    return composition(
-        {.name = "CertMask", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            add_dark_bg(s);
-            s.layer("masked", [](LayerBuilder& l) {
-                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.mask_circle(CircleMaskParams{
-                    .radius = 120.0f,
-                    .pos = {kCompRectW * 0.5f, kCompRectH * 0.5f, 0.0f},
-                    .inverted = false,
-                });
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
-                    .stroke = {},
-                });
+    return cert_scene("CertMask", [](SceneBuilder& scene) {
+        add_dark_bg(scene);
+        scene.layer("masked", [](LayerBuilder& layer) {
+            center_rect(layer);
+            layer.mask_circle(CircleMaskParams{
+                .radius = 120.0f,
+                .pos = {kCompRectW * 0.5f, kCompRectH * 0.5f, 0.0f},
+                .inverted = false,
             });
-            return s.build();
+            add_rect(layer);
         });
+    });
 }
-
-// ── CertBlendAdd ──────────────────────────────────────────────────────────
 
 Composition cert_blend_add() {
-    return composition(
-        {.name = "CertBlendAdd", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            // Mid-gray background
-            s.layer("bg", [](LayerBuilder& l) {
-                l.fullscreen_rect("bg", Color{0.3f, 0.3f, 0.3f, 1.0f});
-            });
-            // Blue additive rect — should brighten the background
-            s.layer("additive", [](LayerBuilder& l) {
-                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.blend(BlendMode::Add);
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {0.0f, 0.2f, 0.5f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{0.0f, 0.2f, 0.5f, 1.0f}),
-                    .stroke = {},
-                });
-            });
-            return s.build();
+    return cert_scene("CertBlendAdd", [](SceneBuilder& scene) {
+        scene.layer("bg", [](LayerBuilder& layer) {
+            layer.fullscreen_rect("bg", Color{0.3f, 0.3f, 0.3f, 1.0f});
         });
+        scene.layer("additive", [](LayerBuilder& layer) {
+            center_rect(layer);
+            layer.blend(BlendMode::Add);
+            add_rect(layer, Color{0.0f, 0.2f, 0.5f, 1.0f});
+        });
+    });
 }
-
-// ── CertBlendMultiply ─────────────────────────────────────────────────────
 
 Composition cert_blend_multiply() {
-    return composition(
-        {.name = "CertBlendMultiply", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            // Light gray background
-            s.layer("bg", [](LayerBuilder& l) {
-                l.fullscreen_rect("bg", Color{0.7f, 0.7f, 0.7f, 1.0f});
-            });
-            // Dark multiply rect — should darken the background
-            s.layer("mult", [](LayerBuilder& l) {
-                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.blend(BlendMode::Multiply);
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {0.3f, 0.5f, 0.3f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{0.3f, 0.5f, 0.3f, 1.0f}),
-                    .stroke = {},
-                });
-            });
-            return s.build();
+    return cert_scene("CertBlendMultiply", [](SceneBuilder& scene) {
+        scene.layer("bg", [](LayerBuilder& layer) {
+            layer.fullscreen_rect("bg", Color{0.7f, 0.7f, 0.7f, 1.0f});
         });
+        scene.layer("mult", [](LayerBuilder& layer) {
+            center_rect(layer);
+            layer.blend(BlendMode::Multiply);
+            add_rect(layer, Color{0.3f, 0.5f, 0.3f, 1.0f});
+        });
+    });
 }
-
-// ── CertPrecomp ───────────────────────────────────────────────────────────
 
 Composition cert_precomp() {
-    return composition(
-        {.name = "CertPrecomp", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            add_dark_bg(s);
-            s.precomp_layer("nested", "CertOpacity", [](LayerBuilder& l) {
-                l.position({0.0f, 0.0f, 0.0f});
-            });
-            return s.build();
+    return cert_scene("CertPrecomp", [](SceneBuilder& scene) {
+        add_dark_bg(scene);
+        scene.precomp_layer("nested", "CertOpacity", [](LayerBuilder& layer) {
+            layer.position({0.0f, 0.0f, 0.0f});
         });
+    });
 }
-
-// ── CertPlain (no-op baseline for glow pixel_hash contract) ──────────────
 
 Composition cert_plain() {
-    return composition(
-        {.name = "CertPlain", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            add_dark_bg(s);
-            // Plain white rect, no effects — used as baseline for the
-            // glow no-op contract: sha256(CertPlain) must equal sha256(CertGlowDisabled).
-            s.layer("plain_rect", [](LayerBuilder& l) {
-                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
-                    .stroke = {},
-                });
-            });
-            return s.build();
+    return cert_scene("CertPlain", [](SceneBuilder& scene) {
+        add_dark_bg(scene);
+        scene.layer("plain_rect", [](LayerBuilder& layer) {
+            center_rect(layer);
+            add_rect(layer);
         });
+    });
 }
-
-// ── CertClip (rect mask = clip rect) ──────────────────────────────────────
 
 Composition cert_clip() {
-    return composition(
-        {.name = "CertClip", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            add_dark_bg(s);
-            // White rect clipped to a smaller inner rect (rect mask = clip path).
-            // Pixels outside the clip rect should be dark (background).
-            s.layer("clipped", [](LayerBuilder& l) {
-                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.mask_rect(RectMaskParams{
-                    .size = {kCompRectW * 0.5f, kCompRectH * 0.5f},
-                    .pos = {kCompRectW * 0.25f, kCompRectH * 0.25f, 0.0f},
-                    .inverted = false,
-                });
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
-                    .stroke = {},
-                });
+    return cert_scene("CertClip", [](SceneBuilder& scene) {
+        add_dark_bg(scene);
+        scene.layer("clipped", [](LayerBuilder& layer) {
+            center_rect(layer);
+            layer.mask_rect(RectMaskParams{
+                .size = {kCompRectW * 0.5f, kCompRectH * 0.5f},
+                .pos = {kCompRectW * 0.25f, kCompRectH * 0.25f, 0.0f},
+                .inverted = false,
             });
-            return s.build();
+            add_rect(layer);
         });
+    });
 }
-
-// ── CertBlendNormal (no blending — source over) ───────────────────────────
 
 Composition cert_blend_normal() {
-    return composition(
-        {.name = "CertBlendNormal", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            add_dark_bg(s);
-            // Red rect with default blend (no l.blend() call) — source over.
-            // Center pixel should be the source red, not blended.
-            s.layer("normal", [](LayerBuilder& l) {
-                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {1.0f, 0.0f, 0.0f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{1.0f, 0.0f, 0.0f, 1.0f}),
-                    .stroke = {},
-                });
-            });
-            return s.build();
+    return cert_scene("CertBlendNormal", [](SceneBuilder& scene) {
+        add_dark_bg(scene);
+        scene.layer("normal", [](LayerBuilder& layer) {
+            center_rect(layer);
+            add_rect(layer, Color{1.0f, 0.0f, 0.0f, 1.0f});
         });
+    });
 }
-
-// ── CertBlendScreen (1 - (1-a)(1-b)) ────────────────────────────────────
 
 Composition cert_blend_screen() {
-    return composition(
-        {.name = "CertBlendScreen", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            // Mid-gray background
-            s.layer("bg", [](LayerBuilder& l) {
-                l.fullscreen_rect("bg", Color{0.3f, 0.3f, 0.3f, 1.0f});
-            });
-            // White rect with screen blend — should brighten background.
-            // screen(0.3, 1.0) = 1 - 0.7*0.0 = 1.0 (saturated to white)
-            s.layer("screen", [](LayerBuilder& l) {
-                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.blend(BlendMode::Screen);
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
-                    .stroke = {},
-                });
-            });
-            return s.build();
+    return cert_scene("CertBlendScreen", [](SceneBuilder& scene) {
+        scene.layer("bg", [](LayerBuilder& layer) {
+            layer.fullscreen_rect("bg", Color{0.3f, 0.3f, 0.3f, 1.0f});
         });
+        scene.layer("screen", [](LayerBuilder& layer) {
+            center_rect(layer);
+            layer.blend(BlendMode::Screen);
+            add_rect(layer);
+        });
+    });
 }
-
-// ── CertNested (glow + blur on one layer) ────────────────────────────────
 
 Composition cert_nested() {
-    return composition(
-        {.name = "CertNested", .width = kCompW, .height = kCompH,
-         .frame_rate = FrameRate{30, 1}, .duration = 1},
-        [](const FrameContext& ctx) -> Scene {
-            SceneBuilder s(ctx);
-            add_dark_bg(s);
-            // White rect with BOTH glow + blur applied to the same layer.
-            // Verifies the effect stack can compose multiple effects.
-            s.layer("nested_rect", [](LayerBuilder& l) {
-                l.position({kCompCX - kCompRectW * 0.5f, kCompCY - kCompRectH * 0.5f, 0.0f});
-                l.glow(GlowParams{
-                    .radius = 16.0f,
-                    .intensity = 0.8f,
-                    .color = Color{0.3f, 0.6f, 1.0f, 1.0f},
-                    .preserve_source = true,
-                });
-                l.blur(4.0f);
-                l.rect("r", RectParams{
-                    .size = {kCompRectW, kCompRectH},
-                    .color = {1.0f, 1.0f, 1.0f, 1.0f},
-                    .pos = {0.0f, 0.0f, 0.0f},
-                    .fill = FillStyle::solid(Color{1.0f, 1.0f, 1.0f, 1.0f}),
-                    .stroke = {},
-                });
+    return cert_scene("CertNested", [](SceneBuilder& scene) {
+        add_dark_bg(scene);
+        scene.layer("nested_rect", [](LayerBuilder& layer) {
+            center_rect(layer);
+            layer.glow(GlowParams{
+                .radius = 16.0f,
+                .intensity = 0.8f,
+                .color = Color{0.3f, 0.6f, 1.0f, 1.0f},
+                .preserve_source = true,
             });
-            return s.build();
+            layer.blur(4.0f);
+            add_rect(layer);
         });
+    });
 }
 
-// ── Registration ──────────────────────────────────────────────────────────
-
 void register_cert_compositing_compositions(CompositionRegistry& registry) {
-    registry.add("CertOpacity", [](const CompositionProps&) {
-        return cert_opacity();
-    });
-    registry.add("CertBlur", [](const CompositionProps&) {
-        return cert_blur();
-    });
-    registry.add("CertGlow", [](const CompositionProps&) {
-        return cert_glow();
-    });
-    registry.add("CertGlowDisabled", [](const CompositionProps&) {
-        return cert_glow_disabled();
-    });
-    registry.add("CertShadow", [](const CompositionProps&) {
-        return cert_shadow();
-    });
-    registry.add("CertStroke", [](const CompositionProps&) {
-        return cert_stroke();
-    });
-    registry.add("CertMask", [](const CompositionProps&) {
-        return cert_mask();
-    });
-    registry.add("CertBlendAdd", [](const CompositionProps&) {
-        return cert_blend_add();
-    });
-    registry.add("CertBlendMultiply", [](const CompositionProps&) {
-        return cert_blend_multiply();
-    });
-    registry.add("CertPrecomp", [](const CompositionProps&) {
-        return cert_precomp();
-    });
-    registry.add("CertPlain", [](const CompositionProps&) {
-        return cert_plain();
-    });
-    registry.add("CertClip", [](const CompositionProps&) {
-        return cert_clip();
-    });
-    registry.add("CertBlendNormal", [](const CompositionProps&) {
-        return cert_blend_normal();
-    });
-    registry.add("CertBlendScreen", [](const CompositionProps&) {
-        return cert_blend_screen();
-    });
-    registry.add("CertNested", [](const CompositionProps&) {
-        return cert_nested();
-    });
+    const auto add = [&](const char* id, auto factory) {
+        registry.add(certification_descriptor(
+            id, kCompW, kCompH, Frame{1}, std::move(factory)));
+    };
+
+    add("CertOpacity", [](const CompositionProps&) { return cert_opacity(); });
+    add("CertBlur", [](const CompositionProps&) { return cert_blur(); });
+    add("CertGlow", [](const CompositionProps&) { return cert_glow(); });
+    add("CertGlowDisabled", [](const CompositionProps&) { return cert_glow_disabled(); });
+    add("CertShadow", [](const CompositionProps&) { return cert_shadow(); });
+    add("CertStroke", [](const CompositionProps&) { return cert_stroke(); });
+    add("CertMask", [](const CompositionProps&) { return cert_mask(); });
+    add("CertBlendAdd", [](const CompositionProps&) { return cert_blend_add(); });
+    add("CertBlendMultiply", [](const CompositionProps&) { return cert_blend_multiply(); });
+    add("CertPrecomp", [](const CompositionProps&) { return cert_precomp(); });
+    add("CertPlain", [](const CompositionProps&) { return cert_plain(); });
+    add("CertClip", [](const CompositionProps&) { return cert_clip(); });
+    add("CertBlendNormal", [](const CompositionProps&) { return cert_blend_normal(); });
+    add("CertBlendScreen", [](const CompositionProps&) { return cert_blend_screen(); });
+    add("CertNested", [](const CompositionProps&) { return cert_nested(); });
 }
 
 } // namespace chronon3d::content::certification
