@@ -150,7 +150,7 @@ echo "=== 8 CONCEPT SSoT AUDITS ==="
 
 # 1. Asset (soft-cap=0: strict, no pre-existing rot tolerated)
 audit_concept "1. Asset" "class AssetRef" "include/chronon3d/assets/asset_ref.hpp" 1 0 \
-    "^struct Asset\b" "^class Asset\b" "AssetHandle\b" "AssetPath\b"
+    "^struct Asset\b" "^class Asset\b" "AssetHandle\b" "\bAssetPath\b"
 
 # 2. Placement (with hard-cap)
 # Direct count: TextSpec::position uses (legacy, per TICKET-TEXT-LEGACY-POSITION-ROT)
