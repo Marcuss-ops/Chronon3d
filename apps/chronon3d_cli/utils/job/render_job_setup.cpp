@@ -11,7 +11,7 @@
 namespace chronon3d::cli {
 
 void setup_render_job(const CompositionRegistry& registry,
-                      RenderJob& job,
+                      const RenderJob& job,
                       RenderJobSetupResult& out) {
     profiling::g_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
     profiling::g_peak_live_framebuffer_bytes.store(0, std::memory_order_relaxed);
@@ -20,8 +20,7 @@ void setup_render_job(const CompositionRegistry& registry,
     out.wall_t0 = profiling::now();
 
     out.setup_t0 = profiling::now();
-    out.renderer = create_renderer(
-        registry, job.settings, std::move(job.execution.config));
+    out.renderer = create_renderer(registry, job.settings, job.execution.config);
     const auto renderer_t1 = profiling::now();
 
     if (!out.renderer) {
@@ -64,9 +63,8 @@ void setup_render_job(const CompositionRegistry& registry,
         }
     }
 
-    out.renderer->counters()->reset();
-
     if (out.renderer->counters()) {
+        out.renderer->counters()->reset();
         out.renderer->counters()->framebuffer_allocations.store(out.saved_fb_alloc, std::memory_order_relaxed);
         out.renderer->counters()->framebuffer_reuses.store(out.saved_fb_reuses, std::memory_order_relaxed);
         out.renderer->counters()->framebuffer_bytes_allocated.store(out.saved_fb_bytes, std::memory_order_relaxed);
