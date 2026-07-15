@@ -1,5 +1,9 @@
 ## 2026-07-15
 
+### `docs(tickets): defer macchina-verify main@e416d231 to WBH`
+  ([TICKET-MACCHINA-VERIFY-MAIN-E416D231-WBH-DEFERRED](docs/tickets/TICKET-MACCHINA-VERIFY-MAIN-E416D231-WBH-DEFERRED.md))
+Cat-5 2-doc chaser-chore: 11/11 baseline cert per `origin/main@e416d231` DEFERRED-WBH per AGENTS.md §honesty-discipline. Diagnostic this-session: vcpkg env-block (MISSING), cache_diagnostics.hpp Forward-decl count = 3 (rot-pattern extended beyond claimed-fix), branch off-main `feat/composition-input-phase-1c-1d-v2` mid-WIP. Zero sourcecode. Cronaca canonical ticket-home.
+
 ### `docs(stubs): phase 3 sequence-spec stub done-by-existing`
   ([TICKET-PHASE3-SEQUENCE-PAIRS-EDGE-FIELDS](docs/tickets/TICKET-PHASE3-SEQUENCE-PAIRS-EDGE-FIELDS.md))
 Cat-5 2-doc chaser-chore: stub Phase 3 chiuso per SUPERSEDED-BY-EXISTING upstream. Zero sourcecode. Cronaca canonical ticket-home.
