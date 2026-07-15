@@ -42,7 +42,6 @@ add_test(
 )
 set_tests_properties(chronon3d_gate11_backend_sanitization_py_compile PROPERTIES LABELS "architecture;gate")
 
-# Audit §§10-13 — unified RenderJob + per-runtime assets.
 add_test(
     NAME chronon3d_render_asset_architecture_guard
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_render_asset_architecture.py
@@ -58,6 +57,22 @@ add_test(
 )
 set_tests_properties(chronon3d_render_asset_architecture_guard_py_compile PROPERTIES
     LABELS "architecture;assets;render-job;gate")
+
+add_test(
+    NAME chronon3d_authoring_public_header_closure
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_authoring_public_header_closure.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_authoring_public_header_closure PROPERTIES
+    LABELS "architecture;sdk;authoring;gate")
+
+add_test(
+    NAME chronon3d_authoring_public_header_closure_py_compile
+    COMMAND ${Python3_EXECUTABLE} -m py_compile ${CMAKE_SOURCE_DIR}/tools/check_authoring_public_header_closure.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_authoring_public_header_closure_py_compile PROPERTIES
+    LABELS "architecture;sdk;authoring;gate")
 
 add_test(
     NAME chronon3d_test_font_bootstrap_py_compile
