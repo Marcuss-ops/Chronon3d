@@ -1,16 +1,7 @@
 #pragma once
 
-// ---------------------------------------------------------------------------
-// Render Job Setup Phase
-//
-// Extracts the initialisation sub-steps from the monolithic
-// execute_render_job() — asset mounting, counter zeroing, renderer creation,
-// warmup, counter save/restore, and telemetry-store clearing — into a single
-// reusable setup helper.
-// ---------------------------------------------------------------------------
-
-#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/system_metrics.hpp>
 
 #include "render_job.hpp"
@@ -20,7 +11,6 @@
 
 namespace chronon3d::cli {
 
-/// Accumulated state produced by the setup phase of a render job.
 struct RenderJobSetupResult {
     std::shared_ptr<SoftwareRenderer> renderer;
     SystemMetricsCollector sys_metrics;
@@ -29,19 +19,16 @@ struct RenderJobSetupResult {
     profiling::Clock::time_point setup_t0;
     profiling::Clock::time_point setup_t1;
 
-    // Warmup counter baselines preserved across the counter reset
     uint64_t saved_fb_alloc{0};
     uint64_t saved_fb_reuses{0};
     uint64_t saved_fb_bytes{0};
     uint64_t saved_fb_peak{0};
 };
 
-/// Initialise the asset registry, create the renderer, run optional warmup,
-/// reset atomic counters, and clear per-event telemetry stores.
-/// Populates @p out with the setup result — check renderer via operator bool().
-/// @p plan is consumed (moved-into) by this function; do not access it after the call.
+/// Initialise renderer/runtime services for the canonical job.  The optional
+/// per-job Config is moved into the renderer and is moved-from afterwards.
 void setup_render_job(const CompositionRegistry& registry,
-                      RenderJobPlan& plan,
+                      RenderJob& job,
                       RenderJobSetupResult& out);
 
 } // namespace chronon3d::cli
