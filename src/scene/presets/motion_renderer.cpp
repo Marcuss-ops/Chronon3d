@@ -245,13 +245,13 @@ void draw_motion_object_impl(
         if (st.effects.glow_enabled) {
             // Bridge: copy the full GlowParams from the preset/MotionState so
             // layers/spread/softness/threshold/quality/etc. all flow through.
-            // We use with_glow() instead of glow() to avoid the double-glow
-            // routing — with_glow sets node->glow directly (which the
-            // text/image/shape processors check), while glow() would also
-            // push a LightGlow effect into the layer's effect stack.
+            // We use last_node_handle().with_glow() instead of glow() to avoid
+            // the double-glow routing — with_glow sets node->glow directly
+            // (which the text/image/shape processors check), while glow() would
+            // also push a LightGlow effect into the layer's effect stack.
             Glow node_glow = st.effects.glow;
             node_glow.enabled = true;
-            l.with_glow(node_glow);
+            l.last_node_handle().with_glow(node_glow);
         }
         if (st.effects.shadow_enabled) {
             l.drop_shadow(
