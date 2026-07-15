@@ -73,7 +73,7 @@
 #include <chronon3d/text/font_engine.hpp>                 // FontEngine — required for `Text::font_engine(FontEngine&)` reference parameter (also pulls in transitively via text_run_builder.hpp, but explicit for hygiene)
 #include <chronon3d/text/text_animator_property.hpp>      // TextAnimatorSpec
 #include <chronon3d/text/text_direction.hpp>              // TextDirection
-#include <chronon3d/text/resolve_text_placement.hpp>        // TextPlacement, CanvasInfo, resolve_text_placement
+#include <chronon3d/text/resolve_text_placement.hpp>      // TextPlacement, CanvasInfo, resolve_placement_origin
 
 #include <chronon3d/authoring/animator.hpp>
 #include <chronon3d/authoring/material.hpp>
@@ -87,6 +87,7 @@
 // `spec.text.font.*`).
 #include <chronon3d/assets/asset_ref.hpp>
 
+#include <cassert>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -102,41 +103,25 @@ class Layer;  // forward — Layer::text(...) returns Text
 // chronon3d::authoring::testing.
 namespace testing { class TextRunBuilderInspector; }
 
-// ── FrameContext — viewport information carried by Layer ───────────────
-//
-// Kept lean on purpose: only the dimensions needed by `.center()`.  Other
-// per-frame context (current_frame, fps, etc.) is the renderer's domain
-// and should NOT enter the authoring façade — a `.center()` call in a
-// non-rendering context still needs an answer, so we use the recorded
-// viewport at scene-authoring time.
-struct FrameContext {
-    f32 width  {1920.0f};
-    f32 height {1080.0f};
-
-    // ── A2 — deprecated: silently assumes 1920×1080, a footgun for
-    // non-16:9 compositions.  Prefer `FrameContext::default_viewport()`
-    // only in test/legacy code where 16:9 is the explicit intent.
-    [[deprecated("Use FrameContext::from_dimensions(w, h) with explicit viewport dimensions")]]
-    static FrameContext default_viewport() noexcept {
-        return FrameContext{1920.0f, 1080.0f};
-    }
-    static FrameContext from_dimensions(f32 w, f32 h) noexcept {
-        return FrameContext{w, h};
-    }
-};
+#ifdef CHRONON3D_BUILD_TESTS
+// Transitional source compatibility for the existing monolithic authoring
+// test fixture only. Production builds expose no authoring::FrameContext:
+// CanvasInfo is the sole authoring placement context.
+using FrameContext [[deprecated("Use chronon3d::CanvasInfo")]] = chronon3d::CanvasInfo;
+#endif
 
 // ── Text ─────────────────────────────────────────────────────────────────
 class Text {
 public:
-    /// Primary ctor. `style_registry` and `motion_registry` are pinned
-    /// references used by the ambient-resolution `.style(id)` /
-    /// `.motion(id)` variations (PR 3.5). Default-nullptr preserves
-    /// backward compatibility with callers that don't need ambient
-    /// resolution.
-    Text(PendingTextRun& pending, const FrameContext* ctx,
+    /// Primary ctor. `canvas` is the canonical placement context shared by
+    /// Scene → Layer → Text. `style_registry` and `motion_registry` are pinned
+    /// references used by the ambient-resolution `.style(id)` / `.motion(id)`
+    /// variations (PR 3.5). Default-nullptr preserves backward compatibility
+    /// with callers that don't need ambient registry resolution.
+    Text(PendingTextRun& pending, const CanvasInfo* canvas,
          const StyleRegistry*  style_registry  = nullptr,
          const MotionRegistry* motion_registry = nullptr) noexcept
-        : pending_(&pending), context_(ctx),
+        : pending_(&pending), canvas_(canvas),
           style_registry_(style_registry),
           motion_registry_(motion_registry) {}
 
@@ -224,28 +209,26 @@ public:
     // `spec.text.offset = {...}` line is gone (`tools/check_architecture_boundaries.sh`
     // gate #19 forbids its re-introduction).
     Text& at(Vec3 pos) {
-        pending_->params.text.placement.offset = {pos.x, pos.y};
+        pending_->params.text.placement = TextPlacement{
+            TextPlacementKind::Absolute, {pos.x, pos.y}};
         return *this;
     }
     Text& at(Vec2 pos) {
-        pending_->params.text.placement.offset = pos;
+        pending_->params.text.placement = TextPlacement{
+            TextPlacementKind::Absolute, pos};
         return *this;
     }
     /// f32 x, f32 y convenience — lifts to Absolute placement.
     Text& at(f32 x, f32 y) {
-        pending_->params.text.placement.offset = {x, y};
+        pending_->params.text.placement = TextPlacement{
+            TextPlacementKind::Absolute, {x, y}};
         return *this;
     }
 
     Text& center() {
-        // F2 — store semantic placement kind; resolution deferred to build().
-        // context_ guard: ensures the Layer properly wired a FrameContext
-        // at construction time (Layer ctor guarantees this for every Text handle).
-        assert(context_ && "Text::center(): FrameContext must be set (Layer ctor guarantees this)");
-        // Phase A3: position defaults to {0,0,0} — no redundant assign.
-        pending_->params.text.placement.offset = {0.0f, 0.0f};
+        assert(canvas_ && "Text::center(): CanvasInfo must be supplied by Layer");
+        place(TextPlacement{TextPlacementKind::CanvasCenter}, TextAnchor::Center);
         auto& layout = pending_->params.text.layout;
-        layout.anchor         = TextAnchor::Center;
         layout.align          = TextAlign::Center;
         layout.vertical_align = VerticalAlign::Middle;
         return *this;
@@ -280,24 +263,20 @@ public:
     ///   .place(TextPlacement{TextPlacementKind::CanvasCenter, {0, -100}})
     ///                                          — box center = canvas center + (0, -100)
     ///
-    /// Safe margins are derived from the canvas context (5% of each dimension).
+    /// Safe margins come from the canonical CanvasInfo passed by Scene/Layer.
     Text& place(TextPlacement placement) {
         return place(std::move(placement), TextAnchor::Center);
     }
 
-    /// Place the text box using high-level placement semantics with a
-    /// specific anchor.  The anchor determines which point of the box
-    /// aligns with the placement position.
-    ///
-    /// F2 — semantic placement kind is preserved through the pipeline;
-    /// resolution to concrete canvas coordinates is deferred to
-    /// LayerBuilder::build() which has access to the layer's canvas
-    /// dimensions at materialization time.
+    /// Resolve high-level placement against the canonical CanvasInfo and store
+    /// the resulting absolute pin point in the render specification. This keeps
+    /// the current materializer simple while preserving one placement resolver.
     Text& place(TextPlacement placement, TextAnchor anchor) {
-        // Phase A3: TextSpec only carries a 3D position; map the 2D placement
-        // offset into it.  The placement kind is consumed by the builder path
-        // when a TextDefinition is produced, but is not stored on TextSpec.
-        pending_->params.text.placement = placement;
+        assert(canvas_ && "Text::place(): CanvasInfo must be supplied by Layer");
+        const Vec2 pin = resolve_placement_origin(
+            *canvas_, pending_->params.text.layout.box, placement);
+        pending_->params.text.placement = TextPlacement{
+            TextPlacementKind::Absolute, pin};
         pending_->params.text.layout.anchor = anchor;
         return *this;
     }
@@ -560,9 +539,8 @@ private:
     friend class Layer;                                               // PR 3
     friend class testing::TextRunBuilderInspector;                    // TICKET-110 — test-only
 
-
     // TICKET-110 — demoted from public; reachable only via the friend grants above.
-    [[nodiscard]] PendingTextRun&       mutable_pending() noexcept { return *pending_; }
+    [[nodiscard]] PendingTextRun& mutable_pending() noexcept { return *pending_; }
 
     // Single field-map helper shared by explicit + ambient `.style(...)`
     // paths.  Owns the PR 3-equivalence contract.
@@ -610,7 +588,7 @@ private:
     }
 
     PendingTextRun* pending_;
-    const FrameContext* context_;
+    const CanvasInfo* canvas_;
     // PR 3.5 — ambient registry pointers, pinned at handle construction
     // by Layer::text(...). Read-only for the handle's lifetime; mutable
     // via the public accessor only for test introspection.
