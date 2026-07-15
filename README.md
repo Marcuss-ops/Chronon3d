@@ -10,11 +10,48 @@ i requisiti di release sono [`docs/RELEASE_GATE.md`](docs/RELEASE_GATE.md).
 ```bash
 bash tools/chronon-linux.sh
 ./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli list
+
+# Still
 ./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli \
   render BackgroundGrid --frame 0 -o output/test.png
+
+# Sequence
+./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli \
+  render BackgroundGrid --frames 0-90 -o output/frame_####.png
+
+# Video: the output extension selects RenderMode::Video
+./build/chronon/linux-release/apps/chronon3d_cli/chronon3d_cli \
+  render BackgroundGrid -o output/background_grid.mp4
 ```
 
+`render` è il comando canonico. Gli alias `still` e `video` sono deprecati e
+restano temporaneamente disponibili come adapter verso lo stesso `RenderJob`.
+
 Build incrementali: [`docs/FAST_BUILD.md`](docs/FAST_BUILD.md).
+
+## Asset authoring
+
+Gli asset sono path logici. L’authoring non risolve il filesystem e non possiede
+un asset root globale: la risoluzione avviene nel `AssetResolver` del singolo
+runtime configurato tramite `sdk::RenderEngine::set_assets_root(...)`.
+
+```cpp
+#include <chronon3d/authoring/asset.hpp>
+#include <chronon3d/authoring/layer.hpp>
+#include <chronon3d/authoring/text.hpp>
+#include <chronon3d/sdk/render_engine.hpp>
+
+using chronon3d::authoring::asset;
+
+layer.image("logo", asset("images/logo.png"));
+layer.text("HELLO").font(asset("fonts/Inter.ttf"), 100);
+
+chronon3d::sdk::RenderEngine engine;
+engine.set_assets_root("/srv/project/assets");
+```
+
+Gli include restano espliciti e focalizzati: non esiste un nuovo mega-header
+`chronon3d.hpp`, `authoring.hpp`, `render.hpp` o `advanced.hpp`.
 
 ## Architettura corrente
 
