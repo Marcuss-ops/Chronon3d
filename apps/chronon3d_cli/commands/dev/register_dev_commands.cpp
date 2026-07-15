@@ -19,6 +19,9 @@ struct RenderState { std::shared_ptr<RenderArgs> args{std::make_shared<RenderArg
 // Phase 1d / Increment C — TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION
 struct SchemaState { std::shared_ptr<SchemaArgs> args{std::make_shared<SchemaArgs>()}; };
 
+// Phase 1d / Increment D
+struct ExamplePropsState { std::shared_ptr<ExamplePropsArgs> args{std::make_shared<ExamplePropsArgs>()}; };
+
 void register_schema(CLI::App& app, CliContext& ctx) {
     auto state = std::make_shared<SchemaState>();
     auto* cmd = app.add_subcommand("schema",
@@ -28,6 +31,18 @@ void register_schema(CLI::App& app, CliContext& ctx) {
         "Emit JSON to stdout (default: on)");
     cmd->callback([state, &ctx]() {
         ctx.exit_code = command_schema(ctx.registry, *state->args);
+    });
+}
+
+void register_example_props(CLI::App& app, CliContext& ctx) {
+    auto state = std::make_shared<ExamplePropsState>();
+    auto* cmd = app.add_subcommand("example-props",
+        "Emit canonical example props (descriptor.schema field defaults) as JSON");
+    cmd->add_option("id", state->args->comp_id, "Composition name")->required();
+    cmd->add_flag("--json,!--no-json", state->args->json,
+        "Emit JSON to stdout (default: on)");
+    cmd->callback([state, &ctx]() {
+        ctx.exit_code = command_example_props(ctx.registry, *state->args);
     });
 }
 
@@ -92,6 +107,8 @@ void register_dev_commands(CLI::App& app, CliContext& ctx) {
     register_cache_stats(app, ctx);
     // Phase 1d / Increment C — TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION
     register_schema(app, ctx);
+    // Phase 1d / Increment D
+    register_example_props(app, ctx);
 }
 
 }  // namespace chronon3d::cli
