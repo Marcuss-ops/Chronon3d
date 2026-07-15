@@ -30,6 +30,8 @@ COMPOSITION_ROOTS = (ROOT / "content", ROOT / "examples")
 BANNED_IDENTIFIERS = (
     "RenderJobPlan",
     "VideoJobPlan",
+    "ResolvedRenderJob",
+    "to_legacy_job",
     "execute_video_job",
     "command_still",
     "command_video",
@@ -131,8 +133,6 @@ def main() -> int:
         )
     )
 
-    # Match ownership/construction shapes, not harmless type mentions in docs,
-    # function parameters or resolver adapters.
     resolver_construction = re.compile(
         r"\b(?:chronon3d::)?(?:assets::)?AssetResolver\s+[A-Za-z_]\w*\s*[;={]"
         r"|\bnew\s+(?:chronon3d::)?(?:assets::)?AssetResolver\b"
@@ -160,8 +160,9 @@ def main() -> int:
         return 1
 
     print(
-        "[RENDER-ASSET-ARCH-OK] no legacy planners/executors, global asset roots, "
-        "CWD asset fallbacks, composition-owned resolvers, or retired umbrellas"
+        "[RENDER-ASSET-ARCH-OK] one resolved RenderJob executor; no legacy "
+        "planner/bridge, global asset roots, CWD asset fallback, "
+        "composition-owned resolver, or retired umbrella"
     )
     return 0
 
