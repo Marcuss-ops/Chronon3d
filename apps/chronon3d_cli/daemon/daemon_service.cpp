@@ -173,8 +173,8 @@ void DaemonService::cmd_render(const std::vector<std::string>& args) {
     const auto t1 = profiling::now();
 
     if (!fb) {
-        const auto& structured = m_engine->last_render_error();
-        if (structured.has_value()) {
+        const auto structured = m_engine->last_render_error();
+        if (structured) {
             print_render_error(*structured, comp_id, frame);
         } else {
             print_render_error(
