@@ -81,8 +81,10 @@ log_warn() { if [[ "$wip" -eq 1 ]]; then echo "[WARN:skipped] $1"; return; fi; w
 # CURRENT_STATUS.md compresso (Fix #7) — è un'operazione di archival one-shot,
 # non una modifica operativa di file storici.
 if has_change '^docs/ARCHIVE/'; then
-  # Whitelist: CURRENT_STATUS_HISTORY.md is a one-shot archival dump
-  archive_changes=$(printf '%s\n' "$changed_files" | grep '^docs/ARCHIVE/' | grep -v '^docs/ARCHIVE/CURRENT_STATUS_HISTORY\.md$' || true)
+  # Whitelist: CURRENT_STATUS_HISTORY.md and FOLLOWUP_TICKETS_HISTORY.md are
+  # one-shot archival dumps of canonical index history (AGENTS.md §Docs canonical
+  # update discipline rule). They are not operative historical edits.
+  archive_changes=$(printf '%s\n' "$changed_files" | grep '^docs/ARCHIVE/' | grep -v '^docs/ARCHIVE/CURRENT_STATUS_HISTORY\.md$' | grep -v '^docs/ARCHIVE/FOLLOWUP_TICKETS_HISTORY\.md$' || true)
   if [[ -n "$archive_changes" ]]; then
     fail "R0: modificati o aggiunti file sotto docs/ARCHIVE/ (materiale storico, non operativo): $archive_changes"
   fi
