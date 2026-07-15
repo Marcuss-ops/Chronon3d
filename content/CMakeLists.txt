@@ -30,8 +30,14 @@ add_library(chronon3d_content OBJECT
     text/typewriter_build.cpp
 
     # ── Showcases ──────────────────────────────────────────────────────────
-    showcases/minimalist/minimalist_animations.cpp
+    # Minimalist text presets are split by responsibility. Registration remains
+    # a single canonical gateway for both text and image compositions.
+    showcases/minimalist/minimalist_text_common.cpp
+    showcases/minimalist/minimalist_text_intro.cpp
+    showcases/minimalist/minimalist_text_exit.cpp
+    showcases/minimalist/minimalist_text_diagnostics.cpp
     showcases/minimalist/minimalist_image_presets.cpp
+    showcases/minimalist/minimalist_registration.cpp
     showcases/special-names/special_names_animations.cpp
     showcases/important-words/important_words_animations.cpp
     showcases/grid/grid_showcase.cpp
