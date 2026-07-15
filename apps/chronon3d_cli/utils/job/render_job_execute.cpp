@@ -2,6 +2,7 @@
 #include "render_job_finalize.hpp"
 #include "render_job_loop.hpp"
 #include "render_job_setup.hpp"
+#include "../video/video_job_plan.hpp"
 
 #include <chronon3d/core/profiling/profiling.hpp>
 
@@ -9,6 +10,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <exception>
 
 namespace chronon3d::cli {
@@ -24,10 +26,30 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(RenderJob& job) {
             RenderJobErrorCode::InvalidJob,
             "RenderJob has no resolved Composition"};
     }
+
     if (job.mode == RenderMode::Video) {
-        return RenderJobError{
-            RenderJobErrorCode::UnsupportedMode,
-            "Video mode is not wired into the canonical executor yet"};
+        if (!validate_video_job(job)) {
+            return RenderJobError{
+                RenderJobErrorCode::ValidationFailed,
+                "Video RenderJob validation failed for '" + job.comp_id + "'"};
+        }
+
+        const int rc = job.video_settings.dry_run
+            ? dry_run_video_job(job)
+            : execute_video_job(job);
+        if (rc != 0) {
+            return RenderJobError{
+                RenderJobErrorCode::RenderFailed,
+                "Video render failed for composition '" + job.comp_id + "'"};
+        }
+
+        const int frames = static_cast<int>(
+            job.last_frame.integral() - job.first_frame.integral() + 1);
+        return RenderJobOutput{
+            .mode = RenderMode::Video,
+            .output = job.output,
+            .frames_written = job.video_settings.dry_run ? 0 : frames,
+        };
     }
 
     try {
