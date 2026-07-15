@@ -32,6 +32,24 @@ Area-specific helpers may fill shared metadata, but every registration must
 still enter the registry through `CompositionDescriptor`. No second registry or
 factory store is permitted.
 
+## Prepared composition contract
+
+The canonical descriptor preparation phase now returns `PreparedComposition`:
+
+```cpp
+struct PreparedComposition {
+    std::optional<CompositionMetadata> metadata;
+    std::optional<assets::AssetManifest> asset_manifest;
+    std::optional<std::filesystem::path> assets_root;
+    std::function<Composition()> construct;
+};
+```
+
+Typed props are decoded and validated once. The registry invokes the prepared
+construction closure rather than decoding a second time. `chronon validate`
+uses the declared manifest when available and only evaluates composition frames
+for descriptors that have not yet declared their assets.
+
 ## Completed work
 
 ### Chore A — initial bounded migration
@@ -65,13 +83,30 @@ duration metadata. `cert_multilingual.cpp` and `cert_compositing.cpp` were also
 collapsed onto shared data/build helpers to remove repeated registration and
 scene-construction boilerplate.
 
+### Sequence V2 area — DONE 2026-07-15
+
+`content/showcases/sequence-v2/sequence_v2_compositions.cpp` now registers all
+five compositions through canonical descriptors:
+
+- `SeqV2IntroOutro`
+- `SeqV2DeepNesting`
+- `SeqV2StaggeredTimeline`
+- `SeqV2TrimOffset`
+- `SeqV2MixedMedia`
+
+The descriptors publish dimensions, FPS, duration and category. Their prepared
+phase declares the required Poppins font; `SeqV2MixedMedia` additionally
+declares its optional placeholder image. The old `video` and `still` command
+examples were replaced by the canonical `chronon render` surface, and the image
+uses `ImageParams::asset_path` rather than the deprecated `path` member.
+
 ## Remaining areas
 
 | Order | Area | Status |
 |---:|---|---|
 | 1 | `content/multilingual/` | Re-audit: no longer present in current content target |
 | 2 | `content/certification/` | **DONE** |
-| 3 | `content/showcases/sequence-v2/` | OPEN |
+| 3 | `content/showcases/sequence-v2/` | **DONE** |
 | 4 | `content/experimental/` | OPEN |
 | 5 | `content/showcases/minimalist/` | OPEN |
 | 6 | `content/examples/` | OPEN |
@@ -98,6 +133,8 @@ must return no source callers. Then, in one atomic cleanup:
 
 ## Verification state
 
-The certification source inventory is descriptor-only by direct file review.
-A repository build and `ctest` execution are still required on a machine with a
-working checkout and dependencies; no green build is claimed by this update.
+The certification and Sequence V2 source inventories are descriptor-only by
+direct file review. Unit tests were updated to lock single-decode prepared
+construction and declarative manifest resolution. A repository build and
+`ctest` execution are still required on a machine with a working checkout and
+dependencies; no green build is claimed by this update.
