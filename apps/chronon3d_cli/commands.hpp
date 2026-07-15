@@ -189,7 +189,11 @@ int command_daemon(const CompositionRegistry& registry,
 int command_info(const CompositionRegistry& registry, const std::string& id);
 int command_doctor(const CompositionRegistry& registry);
 int command_verify(const CompositionRegistry& registry, const std::string& output_dir);
-int command_render(const CompositionRegistry& registry, const RenderArgs& args);
+int command_render(const CompositionRegistry& registry,
+                   const RenderArgs& args,
+                   const CompositionProps& props = {});
+int command_video(const CompositionRegistry& registry, const VideoArgs& args);
+int command_video_camera(const CompositionRegistry& registry, const VideoCameraArgs& args);
 int command_bench_convert(const CompositionRegistry& registry, const BenchConvertArgs& args);
 int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
 int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
