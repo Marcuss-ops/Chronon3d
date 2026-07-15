@@ -26,4 +26,5 @@ chronon3d_add_test_suite(
     SOURCES
         timeline/test_render_job_video.cpp
         timeline/test_composition_descriptor_decode.cpp
+        timeline/test_props_codec.cpp
 )

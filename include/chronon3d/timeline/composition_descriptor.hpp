@@ -76,6 +76,11 @@ struct CompositionDescriptor {
     /// Total frame count.
     std::optional<Frame> duration;
 
+    /// Declarative schema for the composition's typed props.  Populated
+    /// when the descriptor is built from a TypedCompositionDescriptor
+    /// that provides a PropsCodec.  Empty for legacy / non-typed props.
+    std::optional<PropsSchema> schema;
+
     /// Factory function — receives CompositionProps at create() time.
     /// Type uses raw std::function to avoid circular include with
     /// composition_registry.hpp.
@@ -158,6 +163,10 @@ struct TypedCompositionDescriptor {
     /// to the historical behavior of using typed_defaults only (CLI/JSON
     /// overrides are silently ignored, as the legacy `TICKET-TO-DO`
     /// block documented before this commit implemented the merge).
+    ///
+    /// NOTE: this is the LEGACY decode callback.  New code should prefer
+    /// `codec.decode` via PropsCodec, which also carries a declarative
+    /// schema.  If both are provided, `codec.decode` takes precedence.
     std::function<chronon3d::Result<Props, PropsError>(
         const ValueMap&, const Props&)> decode;
 
@@ -166,6 +175,12 @@ struct TypedCompositionDescriptor {
     /// wraps this into a CompositionProps-accepting factory for registry
     /// compatibility.
     std::function<Composition(const Props&)> factory;
+
+    /// Optional typed codec carrying schema + decode/encode.  When
+    /// provided, `codec.decode` is used in place of the legacy `decode`
+    /// callback and `codec.schema` is exported on the resulting
+    /// CompositionDescriptor for introspection by CLI/SDK.
+    std::optional<PropsCodec<Props>> codec;
 
     /// Convert to the non-templated CompositionDescriptor for registry storage.
     /// The factory is wrapped to convert CompositionProps → Props by:
@@ -196,6 +211,9 @@ struct TypedCompositionDescriptor {
         // which case the wrap falls through to defaults to preserve the
         // historical behavior of pre-decode compositions).
         auto typed_decode    = std::move(decode);
+        // New: typed codec (schema + decode/encode).  If present it
+        // supersedes the legacy `decode` callback and exports a schema.
+        auto typed_codec     = std::move(codec);
 
         // Compute and store metadata from defaults (pre-CLI-override).
         if (typed_metadata) {
@@ -206,28 +224,32 @@ struct TypedCompositionDescriptor {
             desc.duration = meta.duration;
         }
 
+        // Export the declarative props schema if a codec was supplied.
+        if (typed_codec) {
+            desc.schema = typed_codec->schema;
+        }
+
         // Wrap the typed factory to accept CompositionProps.
         desc.factory = [
             typed_factory   = std::move(typed_factory),
             typed_defaults  = std::move(typed_defaults),
             typed_validate  = std::move(typed_validate),
             typed_decode    = std::move(typed_decode),
+            typed_codec     = std::move(typed_codec),
             comp_id         = std::move(comp_id)
         ](const CompositionProps& cprops) -> Composition {
             // Begin with the bootstrap defaults so the user's decode
             // callback can mutate them in place via the `defs` reference.
             Props props = typed_defaults;
 
-            // 1. Optional decode step (ValueMap → Props merge).  When
-            //    decode is NULLOPT the historical behavior is preserved:
-            //    CLI/JSON overrides in cprops.values are silently ignored
-            //    and only typed_defaults reach validate/factory.  This
-            //    guards the forward-compat property for existing call sites
-            //    that adopt TypedCompositionDescriptor<Props> WITHOUT
-            //    providing a decode callback (e.g. composition scaffolding
-            //    work that predates this ticket).
-            if (typed_decode) {
-                auto decoded = typed_decode(cprops.values, typed_defaults);
+            // 1. Optional decode step (ValueMap → Props merge).  Priority:
+            //    - PropsCodec::decode (new, schema-carrying path)
+            //    - legacy `decode` callback (TICKET-V2-VALUEMAP-PROPS-MERGE)
+            //    When NEITHER is supplied the historical behavior is
+            //    preserved: CLI/JSON overrides in cprops.values are silently
+            //    ignored and only typed_defaults reach validate/factory.
+            auto run_decode = [&](const auto& decoder) {
+                auto decoded = decoder(cprops.values, typed_defaults);
                 if (!decoded) {
                     const PropsError& err = decoded.error();
                     throw std::runtime_error(
@@ -235,6 +257,12 @@ struct TypedCompositionDescriptor {
                         "' decode failed: [" + err.key + "] " + err.message);
                 }
                 props = std::move(decoded).value();
+            };
+
+            if (typed_codec && typed_codec->decode) {
+                run_decode(typed_codec->decode);
+            } else if (typed_decode) {
+                run_decode(typed_decode);
             }
 
             // 2. Validate if a validator was provided.

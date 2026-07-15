@@ -406,8 +406,8 @@ void add_hud(SceneBuilder& s, const FrameContext& ctx) {
         .color = chronon3d::Color{0.85f, 0.90f, 1.00f, 1.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {900.0f, 32.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = chronon3d::TextAlign::Left,
         .line_height = 1.20f,
         .tracking = 3.0f
@@ -425,8 +425,8 @@ void add_hud(SceneBuilder& s, const FrameContext& ctx) {
         .color = chronon3d::Color{0.75f, 0.78f, 0.95f, 1.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {260.0f, 24.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = chronon3d::TextAlign::Right,
         .line_height = 1.20f,
         .tracking = 2.0f

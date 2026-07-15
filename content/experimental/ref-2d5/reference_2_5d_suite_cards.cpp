@@ -59,8 +59,8 @@ Composition floating_cards_test() {
         .color = kWhite
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -108.0f}},
         .size = {220.0f, 40.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -108.0f}},
         .align = TextAlign::Left,
         .vertical_align = VerticalAlign::Middle
     }
@@ -71,8 +71,8 @@ Composition floating_cards_test() {
         .color = {0.72f, 0.82f, 0.96f, 1.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -70.0f}},
         .size = {220.0f, 28.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -70.0f}},
         .align = TextAlign::Left,
         .vertical_align = VerticalAlign::Middle
     }
@@ -84,8 +84,8 @@ Composition floating_cards_test() {
         .color = kWhite
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -120.0f}},
         .size = {260.0f, 44.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -120.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
     }
@@ -96,8 +96,8 @@ Composition floating_cards_test() {
         .color = kWhite
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -24.0f}},
         .size = {260.0f, 80.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -24.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
     }
@@ -108,8 +108,8 @@ Composition floating_cards_test() {
         .color = {0.82f, 0.80f, 0.98f, 1.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 34.0f}},
         .size = {260.0f, 30.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 34.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
     }
@@ -120,8 +120,8 @@ Composition floating_cards_test() {
         .color = kWhite
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 130.0f}},
         .size = {122.0f, 34.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 130.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
     }
@@ -133,8 +133,8 @@ Composition floating_cards_test() {
         .color = {0.92f, 0.94f, 1.0f, 1.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -110.0f}},
         .size = {190.0f, 36.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -110.0f}},
         .align = TextAlign::Left,
         .vertical_align = VerticalAlign::Middle
     }
@@ -145,8 +145,8 @@ Composition floating_cards_test() {
         .color = kWhite
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -58.0f}},
         .size = {190.0f, 56.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -58.0f}},
         .align = TextAlign::Left,
         .vertical_align = VerticalAlign::Middle
     }
@@ -157,8 +157,8 @@ Composition floating_cards_test() {
         .color = {0.22f, 0.92f, 0.76f, 1.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -12.0f}},
         .size = {190.0f, 28.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -12.0f}},
         .align = TextAlign::Left,
         .vertical_align = VerticalAlign::Middle
     }
@@ -188,8 +188,8 @@ Composition orbit_camera_test() {
         .paint = {.fill = {0.98f, 0.95f, 1.0f, 1.0f}, .fill_style = Fill::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {1.0f, 1.0f, 1.0f, 1.0f}}, {0.55f, {0.80f, 0.88f, 1.0f, 1.0f}}, {1.0f, {0.56f, 0.70f, 1.0f, 1.0f}}}), .stroke_enabled = true, .stroke_color = {0.10f, 0.22f, 0.50f, 0.72f}, .stroke_width = 2.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {1080.0f, 140.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle,
         .tracking = 1.0f
@@ -202,8 +202,8 @@ Composition orbit_camera_test() {
         .paint = {.fill = {0.76f, 0.74f, 0.98f, 0.92f}, .stroke_enabled = true, .stroke_color = {0.10f, 0.10f, 0.22f, 0.28f}, .stroke_width = 1.5f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 94.0f}},
         .size = {720.0f, 48.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 94.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle,
         .tracking = 8.0f
@@ -231,8 +231,8 @@ Composition z_stack_parallax_test() {
         .color = kWhite
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -18.0f}},
         .size = {size.x, 54.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -18.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
     }
@@ -243,8 +243,8 @@ Composition z_stack_parallax_test() {
         .color = {0.82f, 0.88f, 1.0f, 0.80f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 32.0f}},
         .size = {size.x, 42.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 32.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
     }
@@ -276,8 +276,8 @@ Composition shadow_glow_consistency_test() {
         .paint = {.fill = {1.0f, 0.96f, 1.0f, 1.0f}, .stroke_enabled = true, .stroke_color = {0.10f, 0.02f, 0.20f, 0.35f}, .stroke_width = 1.25f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -70.0f}},
         .size = {180.0f, 120.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -70.0f}},
         .align = TextAlign::Left,
         .vertical_align = VerticalAlign::Middle,
         .line_height = 1.0f
@@ -289,8 +289,8 @@ Composition shadow_glow_consistency_test() {
         .color = kWhite
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 104.0f}},
         .size = {118.0f, 30.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 104.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
     }
@@ -303,8 +303,8 @@ Composition shadow_glow_consistency_test() {
         .paint = {.fill = {0.98f, 0.92f, 1.0f, 1.0f}, .fill_style = Fill::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {1.0f, 0.98f, 1.0f, 1.0f}}, {0.60f, {0.88f, 0.72f, 1.0f, 1.0f}}, {1.0f, {0.72f, 0.40f, 1.0f, 1.0f}}}), .stroke_enabled = true, .stroke_color = {0.22f, 0.02f, 0.34f, 0.62f}, .stroke_width = 1.8f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {520.0f, 360.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle,
         .line_height = 0.92f,

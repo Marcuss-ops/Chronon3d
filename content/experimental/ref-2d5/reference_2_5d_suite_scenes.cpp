@@ -32,8 +32,8 @@ Composition depth_fog_test() {
         .color = {0.26f, 0.48f, 0.80f, 0.36f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -78.0f}},
         .size = {700.0f, 80.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -78.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
     }
@@ -44,8 +44,8 @@ Composition depth_fog_test() {
         .color = {0.40f, 0.64f, 0.92f, 0.52f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -8.0f}},
         .size = {780.0f, 96.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -8.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
     }
@@ -56,8 +56,8 @@ Composition depth_fog_test() {
         .color = {0.82f, 0.93f, 1.0f, 1.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 104.0f}},
         .size = {920.0f, 150.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 104.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle,
         .tracking = 0.0f
@@ -86,8 +86,8 @@ Composition extreme_perspective_test() {
         .paint = {.fill = {0.94f, 0.97f, 1.0f, 1.0f}, .fill_style = Fill::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {1.0f, 1.0f, 1.0f, 1.0f}}, {0.55f, {0.82f, 0.90f, 1.0f, 1.0f}}, {1.0f, {0.50f, 0.70f, 1.0f, 1.0f}}}), .stroke_enabled = true, .stroke_color = {0.18f, 0.28f, 0.58f, 0.55f}, .stroke_width = 2.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {1080.0f, 160.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle,
         .tracking = -2.0f
@@ -116,8 +116,8 @@ Composition y_rotation_text_test() {
         .paint = {.fill = {0.98f, 0.76f, 1.0f, 1.0f}, .fill_style = Fill::linear({0.0f, 0.0f}, {0.0f, 1.0f}, {{0.0f, {1.0f, 0.94f, 1.0f, 1.0f}}, {0.55f, {0.94f, 0.58f, 1.0f, 1.0f}}, {1.0f, {0.72f, 0.22f, 1.0f, 1.0f}}}), .stroke_enabled = true, .stroke_color = {0.24f, 0.02f, 0.30f, 0.56f}, .stroke_width = 1.8f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -24.0f}},
         .size = {700.0f, 120.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -24.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle,
         .tracking = -3.0f
@@ -129,8 +129,8 @@ Composition y_rotation_text_test() {
         .color = kWhite
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 112.0f}},
         .size = {300.0f, 56.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 112.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle,
         .tracking = 1.0f

@@ -65,8 +65,8 @@ Composition parallax_simple() {
         .color = Color{0.6f, 0.7f, 0.9f, 1}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {W*0.5f, 30},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = TextAlign::Left,
         .line_height = 1.2f,
         .tracking = 1.5f
@@ -124,8 +124,8 @@ Composition depth_scene() {
         .color = Color{0.6f, 0.7f, 0.9f, 0.5f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {200, 30},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = TextAlign::Right,
         .line_height = 1.2f,
         .tracking = 0.0f
@@ -159,8 +159,8 @@ Composition card_flip() {
         .color = Color{1.0f, 1.0f, 1.0f, 1.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {320, 80},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = TextAlign::Center,
         .line_height = 1.2f,
         .tracking = 8.0f
@@ -175,8 +175,8 @@ Composition card_flip() {
         .color = Color{0.4f, 0.6f, 0.9f, 1}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {320, 80},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = TextAlign::Center,
         .line_height = 1.2f,
         .tracking = 8.0f
@@ -249,8 +249,8 @@ Composition dof_showcase() {
         .color = Color{1.0f, 1.0f, 1.0f, 1.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {440, 60},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = TextAlign::Center,
         .line_height = 1.2f,
         .tracking = 6.0f
@@ -267,8 +267,8 @@ Composition dof_showcase() {
         .color = Color{0.6f, 0.7f, 0.9f, 0.8f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {400, 40},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = TextAlign::Center,
         .line_height = 1.2f,
         .tracking = 1.0f
@@ -305,8 +305,8 @@ Composition dof_showcase() {
         .color = Color{0.5f, 0.6f, 0.85f, 1}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {W * 0.55f, 30},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = TextAlign::Left,
         .line_height = 1.2f,
         .tracking = 1.5f
