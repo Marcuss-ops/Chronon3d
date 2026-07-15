@@ -27,6 +27,8 @@ set(_cli_test_sources
     cli/test_render_job_write_frame_sanity.cpp
 )
 
+# Video exporter tests are appended only when the implementation target exists.
+# The removed video command target must never be reintroduced here.
 if(TARGET chronon3d_cli_video_export)
     list(APPEND _cli_tests_link_targets
         chronon3d_cli_video_export

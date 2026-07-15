@@ -20,7 +20,7 @@ if(NOT CHRONON3D_ENABLE_VIDEO)
     return()
 endif()
 set(_video_contracts_link_targets
-    chronon3d_cli_video chronon3d_cli_render chronon3d_cli_core
+    chronon3d_cli_video_export chronon3d_cli_render chronon3d_cli_core
     chronon3d_sdk chronon3d_sdk_impl chronon3d_pipeline
     chronon3d_scene chronon3d_backend_software
     chronon3d_media_video chronon3d_backend_image

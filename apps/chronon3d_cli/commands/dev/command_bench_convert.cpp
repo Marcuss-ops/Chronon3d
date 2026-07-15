@@ -21,7 +21,7 @@ using namespace video;
 
 // ── BenchConvertArgs is defined in commands.hpp ──
 
-#ifdef CHRONON3D_HAS_CLI_VIDEO
+#ifdef CHRONON3D_HAS_CLI_VIDEO_EXPORT
 
 static uint64_t now_ns() {
     return profiling::timestamp_ns();
@@ -141,14 +141,14 @@ static BenchResult run_swscale_bench(
         .gb_s = gb_s,
     };
 }
-#endif // CHRONON3D_HAS_CLI_VIDEO
+#endif // CHRONON3D_HAS_CLI_VIDEO_EXPORT
 
 // ==========================================================================
 //  Public entry point: command_bench_convert
 // ==========================================================================
 
 int command_bench_convert(const CompositionRegistry& registry, const BenchConvertArgs& args) {
-#ifdef CHRONON3D_HAS_CLI_VIDEO
+#ifdef CHRONON3D_HAS_CLI_VIDEO_EXPORT
     const std::string fmt = normalize_output_format(args.format);
     if (fmt != "yuv420p" && fmt != "nv12") {
         spdlog::error(
@@ -163,7 +163,7 @@ int command_bench_convert(const CompositionRegistry& registry, const BenchConver
     render_args.comp_id = args.comp_id;
     render_args.frames  = std::to_string(args.frame);
 
-    auto plan = plan_render_job(registry, render_args);
+    auto plan = make_render_job(registry, render_args);
     if (!plan) {
         spdlog::error("Failed to plan render job for '{}'", args.comp_id);
         return 1;

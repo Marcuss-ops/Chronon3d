@@ -12,7 +12,7 @@
 //                                     no MP4 produced
 //   §15 portrait 1080×1920 — JSON sidecar (canonical — --props is NOT
 //                              a canonical flag per CHANGELOG line 1145
-//                              §honesty note + commands.hpp VideoArgs).
+//                              §honesty note + commands.hpp video arguments).
 //                              Assert 1080×1920 + 60 frames + centroid
 //                              ≤ 110 px from (540, 960) + safe-area
 //                              respected.

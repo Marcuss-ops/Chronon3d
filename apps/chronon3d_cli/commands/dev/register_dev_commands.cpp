@@ -71,7 +71,7 @@ void register_cache_stats(CLI::App& app, CliContext& ctx) {
 void register_dev_commands(CLI::App& app, CliContext& ctx) {
     register_render_all(app, ctx);
     register_batch(app, ctx);
-#ifdef CHRONON3D_HAS_CLI_VIDEO
+#ifdef CHRONON3D_HAS_CLI_VIDEO_EXPORT
     register_bench_convert(app, ctx);
 #endif
     register_cache_stats(app, ctx);

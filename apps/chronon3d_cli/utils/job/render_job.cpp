@@ -98,6 +98,9 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
             ? Frame{duration_last}
             : Frame{range.end};
 
+        // Preserve all encoder/export controls on the same canonical value.
+        // RenderArgs intentionally reuses VideoSettings instead of maintaining
+        // a CLI-only video argument mirror.
         job.video_settings = args.video_settings;
         finalize_video_settings(job);
     } else if (range.start == range.end) {

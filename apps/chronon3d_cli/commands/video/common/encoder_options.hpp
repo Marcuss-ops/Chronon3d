@@ -16,7 +16,7 @@ namespace chronon3d::cli {
 
 /// Encoder codec / quality settings.
 ///
-/// Owned by VideoJobPlan (or FfmpegExportOptions for backward compat).
+/// Owned by the video export plan (or FfmpegExportOptions for backward compat).
 /// Constructed once during planning phase and read-only thereafter.
 struct EncoderOptions {
     /// Video codec identifier (e.g. "auto", "libx264", "libx265", "mpeg4").
