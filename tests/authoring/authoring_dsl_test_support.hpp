@@ -92,6 +92,7 @@ inline bool operator==(Vec2 a, const doctest::Approx2D& b) {
 inline bool operator!=(Vec2 a, const doctest::Approx2D& b) { return !(a == b); }
 
 namespace chronon3d::authoring::testing {
+
 struct AnimatorTestAccess {
     static TextAnimatorSpec release(Animator&& a) {
         return std::move(a).release();
@@ -103,11 +104,35 @@ struct AnimatorTestAccess {
         return std::move(m).release();
     }
 };
+
 struct MaterialTestAccess {
     static TextMaterial release(Material&& m) {
         return std::move(m).release();
     }
 };
+
+// Authoring-test-only snapshot over the PendingTextRun owned by LayerBuilder.
+// The pointer remains non-owning; the owning LayerBuilder must outlive it.
+struct TextRunSnapshot {
+    std::string name;
+    const chronon3d::PendingTextRun* pending;
+
+    [[nodiscard]] const chronon3d::PendingTextRun* operator->() const noexcept {
+        return pending;
+    }
+    [[nodiscard]] const chronon3d::PendingTextRun& operator*() const noexcept {
+        return *pending;
+    }
+};
+
+class TextRunBuilderInspector {
+public:
+    [[nodiscard]] static TextRunSnapshot pending_of(chronon3d::authoring::Text& text) {
+        auto& pending = text.mutable_pending();
+        return TextRunSnapshot{std::string(pending.name), &pending};
+    }
+};
+
 } // namespace chronon3d::authoring::testing
 
 using chronon3d::authoring::testing::AnimatorTestAccess;
