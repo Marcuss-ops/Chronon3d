@@ -26,8 +26,8 @@ namespace {
 
 constexpr int kWidth = 128;
 constexpr int kHeight = 128;
-constexpr int kImageProbeX = 90;
-constexpr int kImageProbeY = 90;
+constexpr int kImageProbeX = 50;
+constexpr int kImageProbeY = 70;
 
 struct Rgb8 {
     std::uint8_t r{};
