@@ -2,7 +2,7 @@
 
 ## Stato
 
-OPEN (P2, future-chore stub)
+OPEN (P2) — future-chore stub
 
 ## Problema
 
