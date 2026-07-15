@@ -1,6 +1,7 @@
 #include "../../command_registry.hpp"
 #include "../../commands.hpp"
 #include "../../utils/common/props_file.hpp"
+#include "../../utils/common/props_inline.hpp"
 #include "../../utils/common/render_job_error_formatter.hpp"
 #include "../../utils/job/render_job.hpp"
 #include "render_profiles.hpp"
@@ -26,6 +27,7 @@ struct RenderState {
     std::shared_ptr<RenderArgs> args{std::make_shared<RenderArgs>()};
     std::string profile{"production"};
     std::string props_file;
+    std::string props_json;   // Phase 1c / Increment B (TICKET-PHASE1-C-CLI-VERSION2)
 };
 
 std::string lower_profile(std::string value) {
@@ -170,6 +172,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("-o,--output", args.output, "Output path (use #### for frame number)");
     cmd->add_option("--props-file", state->props_file,
                     "Flat JSON object containing composition props");
+    cmd->add_option("--props-json", state->props_json,
+                    "Inline flat JSON object containing composition props (mutually exclusive with --props-file)");
     cmd->add_option("--profile", state->profile,
                     "Render profile: draft | preview | production | maximum")
         ->default_val("production")
@@ -286,7 +290,12 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
         };
         apply_render_profile(render_args, state->profile, explicitly_set);
 
-        auto loaded = load_props_file(state->props_file);
+        // Phase 1c / Increment B — mutual-exclusion dispatch via the
+        // canonical `load_props_input()` helper (single source of truth
+        // for `--props-file` vs `--props-json` resolution, shared by
+        // `chronon validate` and `chronon resolve` too — AGENTS.md
+        // Cat-3 anti-dup).
+        auto loaded = load_props_input(state->props_file, state->props_json);
         if (!loaded.ok) {
             spdlog::error("{}", loaded.error);
             ctx.exit_code = 1;

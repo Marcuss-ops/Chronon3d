@@ -25,6 +25,8 @@ chronon3d_add_test_suite(
         ${CMAKE_CURRENT_SOURCE_DIR}/cli/test_validate_command.cpp
         # Phase 1d / Increment F
         ${CMAKE_CURRENT_SOURCE_DIR}/cli/test_resolve_command.cpp
+        # Phase 1c / Increment B — shared canonical `load_props_*` helpers
+        ${CMAKE_CURRENT_SOURCE_DIR}/cli/test_props_inline.cpp
 )
 
 # Wire into the FAST test aggregator (no rendering backend required).

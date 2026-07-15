@@ -18,10 +18,50 @@ struct PropsFileResult {
     std::string error;
 };
 
-/// Load a flat JSON object into the canonical CompositionProps/ValueMap bridge.
-/// Values may be strings, booleans or numbers. Nested objects, arrays and null
-/// are rejected deliberately: typed PropsCodec implementations remain the
+namespace detail {
+
+/// Internal helper shared by `load_props_file` (path-sourced) and
+/// `load_props_inline` (string-sourced). Walks a flat nlohmann::json
+/// object and populates `props.values` (string | bool | number only) +
+/// `keys` (insertion order).  Nested objects, arrays and null are
+/// rejected deliberately: typed PropsCodec implementations remain the
 /// single authority for decoding and validation.
+///
+/// **Internal aid only**: prefer the public load_props_file /
+/// load_props_inline / load_props_input entry points; this helper is
+/// exposed solely to avoid 3-callsite duplication of the same iteration
+/// loop (AGENTS.md Cat-3 anti-dup).
+inline std::pair<bool, std::string>
+parse_props_flat_object(const nlohmann::json& root,
+                        CompositionProps& props,
+                        std::vector<std::string>& keys) {
+    if (!root.is_object()) {
+        return {false, std::string("props JSON root must be a flat object")};
+    }
+    keys.reserve(root.size());
+    for (auto it = root.begin(); it != root.end(); ++it) {
+        const auto& value = it.value();
+        if (value.is_string()) {
+            props.values.set(it.key(), value.get<std::string>());
+        } else if (value.is_boolean()) {
+            props.values.set(it.key(), value.get<bool>() ? "true" : "false");
+        } else if (value.is_number()) {
+            props.values.set(it.key(), value.dump());
+        } else {
+            return {false, std::string("prop '") + it.key() +
+                    "' must be a scalar string, boolean or number"};
+        }
+        keys.push_back(it.key());
+    }
+    return {true, std::string{}};
+}
+
+} // namespace detail
+
+/// Load a flat JSON object from a path into the canonical
+/// CompositionProps/ValueMap bridge.  Refactored to delegate the
+/// iteration loop to `detail::parse_props_flat_object()` (Phase 1c
+/// Increment B — 3-callsite Cat-3 anti-dup refactor with `load_props_inline`).
 inline PropsFileResult load_props_file(const std::filesystem::path& path) {
     PropsFileResult result;
     if (path.empty()) {
@@ -43,26 +83,10 @@ inline PropsFileResult load_props_file(const std::filesystem::path& path) {
         return result;
     }
 
-    if (!root.is_object()) {
-        result.error = "Props file root must be a JSON object: " + path.string();
+    const auto [ok, err] = detail::parse_props_flat_object(root, result.props, result.keys);
+    if (!ok) {
+        result.error = "Props file '" + path.string() + "': " + err;
         return result;
-    }
-
-    result.keys.reserve(root.size());
-    for (auto it = root.begin(); it != root.end(); ++it) {
-        const auto& value = it.value();
-        if (value.is_string()) {
-            result.props.values.set(it.key(), value.get<std::string>());
-        } else if (value.is_boolean()) {
-            result.props.values.set(it.key(), value.get<bool>() ? "true" : "false");
-        } else if (value.is_number()) {
-            result.props.values.set(it.key(), value.dump());
-        } else {
-            result.error = "Prop '" + it.key() +
-                           "' must be a scalar string, boolean or number";
-            return result;
-        }
-        result.keys.push_back(it.key());
     }
 
     result.props.project_root = path.parent_path();

@@ -1,4 +1,8 @@
 ## 2026-07-15
+### `feat(cli): add render --props-json flag (Phase 1c / Increment B)`
+  ([TICKET-PHASE1-C-CLI-VERSION2](docs/tickets/TICKET-PHASE1-C-CLI-VERSION2.md))
+Adds `--props-json <inline>` to render (mutual-exclusive with `--props-file`); shared helpers in `props_inline.hpp` deduplicate the 3-callsite (render/validate/resolve) parser. Zero new public SDK symbol.
+
 ### `docs(tickets): phase 1d registry-introspection chaser-chore (SHIPPED)`
   ([TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION](docs/tickets/TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION.md))
 All 4 sub-commands shipped on `feat/composition-input-phase-1c-1d-v2`. Macchina-verify attestation: DEFERRED-WBH per TICKET-MACCHINA-VERIFY-MAIN-E416D231-WBH-DEFERRED (vcpkg env-block on this VPS).
