@@ -54,3 +54,23 @@ add_test(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(chronon3d_gate11_backend_sanitization_py_compile PROPERTIES LABELS "architecture;gate")
+
+# Audit §§10-13 — fail-loud guard for the unified RenderJob executor and the
+# per-runtime asset resolver contract.  This prevents retired planners,
+# process-wide roots, CWD fallback, composition-owned resolvers and mega-header
+# umbrellas from silently returning.
+add_test(
+    NAME chronon3d_render_asset_architecture_guard
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_render_asset_architecture.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_render_asset_architecture_guard PROPERTIES
+    LABELS "architecture;assets;render-job;gate")
+
+add_test(
+    NAME chronon3d_render_asset_architecture_guard_py_compile
+    COMMAND ${Python3_EXECUTABLE} -m py_compile ${CMAKE_SOURCE_DIR}/tools/check_render_asset_architecture.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(chronon3d_render_asset_architecture_guard_py_compile PROPERTIES
+    LABELS "architecture;assets;render-job;gate")
