@@ -4,6 +4,7 @@
 #include <chronon3d/core/cpu_budget.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/assets/asset_registry.hpp>
+#include <chronon3d/timeline/render_job.hpp>
 #include <string>
 #include <vector>
 #include <filesystem>
@@ -23,8 +24,8 @@ struct RenderQualityArgs {
     int    motion_blur_samples{8};
     float  shutter_angle_deg{180.0f};
     float  shutter_phase_deg{-90.0f};
-    int    motion_blur_pattern{1};          // 0=Uniform, 1=Stratified, 2=Halton
-    int    motion_blur_filter{0};           // 0=Box, 1=Triangle, 2=Gaussian
+    int    motion_blur_pattern{1};
+    int    motion_blur_filter{0};
     float  ssaa{1.0f};
 };
 
@@ -38,51 +39,39 @@ struct RenderPipelineArgs {
 
     bool   no_dirty_rects{false};
 
-    // Renderer warmup (preallocation + optional dummy frame)
     bool   warmup_renderer{false};
     size_t warmup_framebuffers{2};
     bool   warmup_dummy_frame{false};
 
-    // Debug: force scalar (non-SIMD) Normal blend for diagnosing regression
     bool   force_scalar_normal_blend{false};
-
-    // Framebuffer pool retention budget (MB). 0 = use default / env var.
     size_t fb_pool_budget_mb{0};
-
-    // P1-21: framebuffer pool clear policy. Values: "keep-warm" |
-    // "trim-after-job" | "trim-on-memory-pressure". Empty = use default.
     std::string fb_pool_clear_policy;
 
-    // SceneProgramCache capacity per Precomp node. 0 = use default (8).
     size_t program_cache_capacity{0};
-
-    // Auto-tune SceneProgramCache capacity based on hit/eviction ratio.
     bool program_cache_tune{false};
     size_t program_cache_tune_interval{30};
     size_t program_cache_tune_min_capacity{2};
     size_t program_cache_tune_max_capacity{128};
 
-    // Text layout debug overlay + structured log per TextRun.
     bool text_layout_debug{false};
-
-    // Diagnostic overlay on text layers (bbox, anchor, baseline).
     bool diagnostic_overlay{false};
     bool diagnostic_overlay_only{false};
-
-    // Text layout debug JSON export path. Append mode (JSONL).
     std::string text_layout_debug_json_path;
 };
 
 /// Canonical CLI render input for stills, sequences and video output.
+/// Video options reuse the same VideoSettings value carried by RenderJob;
+/// there is no CLI-only VideoArgs mirror.
 struct RenderArgs {
     std::string comp_id;
     std::string frames{"0"}; // Supports "0", "0-90", "0-90x5"
     std::string output;      // Output extension selects image or video mode
     RenderPipelineArgs pipeline{};
+    VideoSettings video_settings{};
     std::string log_level{"info"};
     bool benchmark_all{false};
     bool report{false};
-    std::string command_line; // reconstructed from argv
+    std::string command_line;
     chronon3d::CpuBudget cpu_budget;
 };
 
@@ -137,7 +126,6 @@ struct PreflightArgs {
     bool legacy_preflight{false};
 };
 
-// TICKET-V3-CLI-UNIFICATION-WATCH-SUPERVISOR (Blocco 4.1, Commit 1 of 3)
 struct WatchArgs {
     std::string comp_id;
     int frame{0};
@@ -150,7 +138,6 @@ struct WatchArgs {
     std::string props_file;
 };
 
-// Preview reuses RenderArgs → make_render_job → execute_render_job.
 struct PreviewArgs {
     std::string comp_id;
     std::string frames{"0,30,60,90"};
