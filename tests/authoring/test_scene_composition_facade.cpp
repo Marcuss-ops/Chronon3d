@@ -1,5 +1,4 @@
 #include "authoring_dsl_test_support.hpp"
-#include "../support/text_run_builder_inspection.hpp"
 
 using chronon3d::authoring::testing::TextRunBuilderInspector;
 
