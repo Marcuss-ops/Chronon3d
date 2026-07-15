@@ -81,8 +81,8 @@ Composition img_grid_test() {
         .color = Color{0.6f, 0.7f, 0.9f, 0.6f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {400, 40},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = TextAlign::Center,
         .line_height = 1.2f,
         .tracking = 4.0f

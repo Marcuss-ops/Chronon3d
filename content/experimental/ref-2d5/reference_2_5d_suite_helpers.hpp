@@ -28,8 +28,8 @@ inline void add_header(SceneBuilder& s, const std::string& id, const std::string
         .color = kWhite
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .size = {52.0f, 52.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
     }
@@ -41,8 +41,8 @@ inline void add_header(SceneBuilder& s, const std::string& id, const std::string
         .color = kWhite
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {84.0f, 0.0f}},
         .size = {1060.0f, 36.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {84.0f, 0.0f}},
         .align = TextAlign::Left,
         .vertical_align = VerticalAlign::Middle
     }
@@ -54,8 +54,8 @@ inline void add_header(SceneBuilder& s, const std::string& id, const std::string
         .color = {0.78f, 0.82f, 0.92f, 1.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {84.0f, 0.0f}},
         .size = {1060.0f, 24.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {84.0f, 0.0f}},
         .align = TextAlign::Left,
         .vertical_align = VerticalAlign::Middle
     }

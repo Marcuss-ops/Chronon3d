@@ -92,8 +92,8 @@ Composition shape_proofs() {
         .color = {0.55f, 0.65f, 0.8f, 0.85f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {(get_label_pos(col, row) - get_cell_pos(col, row)).x, (get_label_pos(col, row) - get_cell_pos(col, row)).y}},
         .size = {card_w - 20.0f, 20.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {(get_label_pos(col, row) - get_cell_pos(col, row)).x, (get_label_pos(col, row) - get_cell_pos(col, row)).y}},
         .align = TextAlign::Center
     }
 });
@@ -388,8 +388,8 @@ Composition shape_proofs() {
         .color = {1,1,1,1}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -14.0f}},
         .size = {120.0f, 20.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -14.0f}},
         .align = TextAlign::Center
     }
 });
@@ -415,8 +415,8 @@ Composition shape_proofs() {
         .color = {0,0,0,1}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -22.0f}},
         .size = {30.0f, 30.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -22.0f}},
         .align = TextAlign::Center
     }
 });
@@ -439,8 +439,8 @@ Composition shape_proofs() {
         .color = {1,1,1,1}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -14.0f}},
         .size = {48.0f, 24.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -14.0f}},
         .align = TextAlign::Center
     }
 });
@@ -477,8 +477,8 @@ Composition shape_proofs() {
         .color = {1,1,1,1}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -13.0f}},
         .size = {110.0f, 20.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -13.0f}},
         .align = TextAlign::Center
     }
 });
