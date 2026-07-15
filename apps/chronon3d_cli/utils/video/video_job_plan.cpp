@@ -96,10 +96,4 @@ std::optional<RenderJob> make_video_render_job(
     return job;
 }
 
-std::optional<RenderJob> plan_video_job(
-    const CompositionRegistry& registry,
-    const VideoArgs& args) {
-    return make_video_render_job(registry, args);
-}
-
 } // namespace chronon3d::cli
