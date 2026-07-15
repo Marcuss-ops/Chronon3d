@@ -18,6 +18,8 @@ set(_cli_tests_link_targets
 
 set(_cli_test_sources
     cli/test_frame_range_parser.cpp
+    cli/test_render_job_planning.cpp
+    cli/test_render_error_formatter.cpp
     cli/test_render_loop_integration.cpp
     cli/bench_json_tests.cpp
     cli/test_camera_path_command.cpp
