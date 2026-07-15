@@ -133,6 +133,11 @@ public:
     [[nodiscard]] f32 progress() const noexcept { return m_progress; }
     [[nodiscard]] const FrameContext& context() const noexcept { return m_ctx; }
 
+    /// Series authoring sugar: add sequential sequences with cumulative `from`.
+    [[nodiscard]] SeriesBuilder series(const std::string& name = {}) {
+        return m_builder.series(name);
+    }
+
     /// Escape hatch: access the underlying SceneBuilder for methods not
     /// yet wrapped by SequenceBuilder.
     [[nodiscard]] SceneBuilder& builder() noexcept { return m_builder; }
