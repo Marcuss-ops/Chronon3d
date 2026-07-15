@@ -113,8 +113,10 @@ Composition build_text_only_comp(SoftwareRenderer& renderer,
                                    with_glow, with_shadow]
                                    (LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.pin_to(Anchor::Center);
-                l.position(pos);
+                // Position the layer through the canonical pin contract.
+                // TextPlacement::Absolute is a canvas pin, not a layer
+                // offset; using both would apply two coordinate systems.
+                l.pin_to(AnchorPlacement{Anchor::Center, {pos.x, pos.y}});
 
                 if (with_glow) {
                     // Canonical TextGlowSpec → GlowParams pipeline
@@ -140,8 +142,7 @@ Composition build_text_only_comp(SoftwareRenderer& renderer,
                 l.text_run("text_run", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = text},
-                        .placement = TextPlacement{TextPlacementKind::Absolute,
-                                                   {pos.x, pos.y}},
+                        .placement = TextPlacement{},
                         .font = {.font_path = font_path,
                                  .font_family = "Inter",
                                  .font_weight = 700,

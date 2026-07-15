@@ -41,6 +41,11 @@ namespace chronon3d {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TextRunBuilder& LayerBuilder::animated_text(std::string name, TextRunSpec params) {
+    // Text runs use the text-specific coordinate path in the render graph.
+    // Keep the layer kind aligned with the primitive being registered;
+    // otherwise a normal-layer canvas transform shifts glyphs off-screen.
+    m_layer.kind = LayerKind::Text;
+
     // Apply layer-level defaults for font path and font size.
     // Font path: only applied when the caller left it empty.
     // Font size: always applied when set (callers can override per-run
