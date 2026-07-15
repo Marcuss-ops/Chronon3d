@@ -16,6 +16,21 @@ struct BatchState {
 
 struct RenderState { std::shared_ptr<RenderArgs> args{std::make_shared<RenderArgs>()}; };
 
+// Phase 1d / Increment C — TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION
+struct SchemaState { std::shared_ptr<SchemaArgs> args{std::make_shared<SchemaArgs>()}; };
+
+void register_schema(CLI::App& app, CliContext& ctx) {
+    auto state = std::make_shared<SchemaState>();
+    auto* cmd = app.add_subcommand("schema",
+        "Emit PropsSchema as machine-readable JSON (fields + types + defaults + enums)");
+    cmd->add_option("id", state->args->comp_id, "Composition name")->required();
+    cmd->add_flag("--json,!--no-json", state->args->json,
+        "Emit JSON to stdout (default: on)");
+    cmd->callback([state, &ctx]() {
+        ctx.exit_code = command_schema(ctx.registry, *state->args);
+    });
+}
+
 void register_render_all(CLI::App& app, CliContext& ctx) {
     auto output_dir = std::make_shared<std::string>(chronon_artifact_path("verify", "").string());
     auto* render_all = app.add_subcommand("render-all", "Render frame 0 of every registered composition");
@@ -75,6 +90,8 @@ void register_dev_commands(CLI::App& app, CliContext& ctx) {
     register_bench_convert(app, ctx);
 #endif
     register_cache_stats(app, ctx);
+    // Phase 1d / Increment C — TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION
+    register_schema(app, ctx);
 }
 
 }  // namespace chronon3d::cli

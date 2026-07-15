@@ -182,6 +182,12 @@ struct TextDefInspectArgs {
     std::string json_output;
 };
 
+// Phase 1d / Increment C — TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION
+struct SchemaArgs {
+    std::string comp_id;
+    bool json{true};
+};
+
 int command_list(const CompositionRegistry& registry);
 int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root = "",
@@ -204,6 +210,9 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
 int command_camera_path(const CompositionRegistry& registry, const CameraPathArgs& args);
 int command_inspect_text(const CompositionRegistry& registry, const InspectTextArgs& args);
 int command_text_def_inspect(const CompositionRegistry& registry, const TextDefInspectArgs& args);
+
+// Phase 1d / Increment C — `chronon schema <comp_id>`, JSON PropsSchema dump.
+int command_schema(const CompositionRegistry& registry, const SchemaArgs& args);
 
 } // namespace cli
 
