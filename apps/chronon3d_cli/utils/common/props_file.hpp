@@ -7,12 +7,14 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <vector>
 
 namespace chronon3d::cli {
 
 struct PropsFileResult {
     bool ok{false};
     CompositionProps props{};
+    std::vector<std::string> keys;
     std::string error;
 };
 
@@ -46,6 +48,7 @@ inline PropsFileResult load_props_file(const std::filesystem::path& path) {
         return result;
     }
 
+    result.keys.reserve(root.size());
     for (auto it = root.begin(); it != root.end(); ++it) {
         const auto& value = it.value();
         if (value.is_string()) {
@@ -59,6 +62,7 @@ inline PropsFileResult load_props_file(const std::filesystem::path& path) {
                            "' must be a scalar string, boolean or number";
             return result;
         }
+        result.keys.push_back(it.key());
     }
 
     result.props.project_root = path.parent_path();
