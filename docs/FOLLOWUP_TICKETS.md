@@ -8,6 +8,7 @@
 ## Open Blockers (≤10)
 
 | Ticket | Pri | Status | Description |
+| TICKET-CHECK-NO-DUAL-TEXT-API-REGEX-IMPROVEMENT | P2 | OPEN | Gate #25 [3/4] regex tightening forward-point (20 false-positive `.position` callsites; pre-existing rot). | [ticket](docs/tickets/TICKET-CHECK-NO-DUAL-TEXT-API-REGEX-IMPROVEMENT.md) |
 | TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3 | P2 | NEW | Audit §13 Phase 3 — deprecate `chronon still` + `chronon video` as alias TTL until V0.2; `chronon render` canonical. 5 forward-points registered (REMOVE-STILL + VIDEO-MODE + REMOVE-VIDEO + DRY-RUN-MIGRATION + PREFLIGHT-VS-INSPECT). | [ticket](docs/tickets/TICKET-V3-CLI-UNIFICATION-ALIASES-PHASE-3.md) |
 | TICKET-ADD-LOADER-FOR-CHRONON-JSON | P1 | NEW | `chronon render` extension per leggere `chronon.json` di un progetto esterno (manifest: name, version, assets_root, main) e caricare le composizioni (forward-point P1: subprocess dispatch a `./build/<name> --render <comp>`, ZERO nuove dipendenze; P2: shared-library load per V0.2; P3: JSON-only spec per V0.3+). Forward-point di `chronon create` (Blocco 4.2). | [ticket](docs/tickets/TICKET-ADD-LOADER-FOR-CHRONON-JSON.md) |
 | TICKET-WATCH-PROPS-FILE | P2 | CLI | OPEN | dev | `docs/tickets/TICKET-WATCH-PROPS-FILE.md` |
