@@ -7,7 +7,7 @@
 | Parent        | [TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION](TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION.md) (bulk-migration catena; sub-chore (g) row)        |
 | Asset class   | test file deletion (cat-3 minimal-surface; sequencing-dependence on Phase 3 helper-removal)                                                                          |
 | Scope         | Delete M1.8 §6 deprecation-bridge test blocks (purpose-built to test deprecated API) post-Phase-3 helper-removal                                                   |
-| Surface       | `tests/text/test_text_simplicity_adapters.cpp` (665 LoC; 8 of 10 TEST_CASE blocks deleted, 2 retained as canonical-API property tests)                              |
+| Surface       | `tests/text/test_text_simplicity_adapters.cpp` (665 LoC; 7 of 9 TEST_CASE blocks deleted, 2 retained as canonical-API property tests)                              |
 
 ## Stato: OPEN (replacement forward-point for retracted sub-chore (g) ticket)
 
@@ -77,7 +77,7 @@ After Phase 3 completes (`TICKET-CENTERED-TEXT-MIGRATION` Phase 3 forward-point 
 - **Parent**: [TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION.md](TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION.md) (parent bulk-migration catena; sub-chore (g) row → rot-discovery this-session + replacement forward-point = this ticket)
 - **Replaces**: [TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-MIGRATION.md](TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-MIGRATION.md) (RETRACTED 2026-07-15; original content retained as historical crona per AGENTS.md §Lint documentale)
 - **Sequencing-dependency**: [TICKET-CENTERED-TEXT-MIGRATION.md](TICKET-CENTERED-TEXT-MIGRATION.md) (P2 OPEN; Phase 3 forward-point = helper-removal canonical)
-- **Audit chaser-ticket**: [TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-NON-VACUOUS-AUDIT](TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-NON-VACUOUS-AUDIT.md) (catena origin; the audit non-vacuous finding triggered both the retracted migration ticket and this replacement deletion ticket)
+- **Audit chaser-ticket**: `TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-NON-VACUOUS-AUDIT.md` (**audit reference, file currently missing on origin/main** — verified this-session via `ls docs/tickets/` returning no entry. Audit provenance is preserved in the retracted migration ticket §Cross-link canonical + §Honest-discovery rot-detection; the rotating absence of the chaser-ticket file is itself an audit-trail rot. Future chore: either create the chaser ticket home OR drop the reference per AGENTS.md §Lint documentale minimum-surface)
 
 ## AGENTS.md governance rules applicate
 
