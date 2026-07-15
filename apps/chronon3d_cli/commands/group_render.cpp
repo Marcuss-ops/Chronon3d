@@ -236,7 +236,12 @@ void register_validate_commands(CLI::App& app, CliContext& ctx) {
             std::set<std::string>{"draft", "preview", "production", "maximum"},
             CLI::ignore_case));
     cmd->callback([state, &ctx]() {
-        ctx.exit_code = run_validate(ctx, *state);
+        try {
+            ctx.exit_code = run_validate(ctx, *state);
+        } catch (const std::exception& error) {
+            spdlog::error("Validation failed: {}", error.what());
+            ctx.exit_code = 1;
+        }
     });
 }
 
