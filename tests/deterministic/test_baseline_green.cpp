@@ -421,7 +421,7 @@ TEST_CASE("Baseline green §6: precomp cache-hit determinism — two consecutive
     // Il primo render MISS la cache, il secondo HIT.  Se la cache-
     // hit path fosse non deterministica, i due hash divergerebbero.
     CompositionRegistry registry;
-    registry.add("inner", [](const CompositionProps&) {
+    registry.add(CompositionDescriptor{.id = "inner", .factory = [](const CompositionProps&) {
         return Composition(
             CompositionSpec{.name = "inner", .width = 80, .height = 80, .duration = Frame{60}},
             [](const FrameContext& ctx) -> Scene {
@@ -435,7 +435,7 @@ TEST_CASE("Baseline green §6: precomp cache-hit determinism — two consecutive
                 return s.build();
             }
         );
-    });
+    }});
 
     Composition parent_comp(
         CompositionSpec{.width = 200, .height = 200, .duration = Frame{60}},

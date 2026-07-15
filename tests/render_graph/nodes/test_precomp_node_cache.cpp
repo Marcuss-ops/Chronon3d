@@ -387,7 +387,7 @@ TEST_CASE("precomp_cache: negative nested_frame returns empty") {
 
 TEST_CASE("precomp_cache: end-to-end via SoftwareRenderer does not crash") {
     CompositionRegistry registry;
-    registry.add("inner", [](const CompositionProps&) {
+    registry.add(CompositionDescriptor{.id = "inner", .factory = [](const CompositionProps&) {
         return Composition(
             CompositionSpec{.name="inner", .width=80, .height=80, .duration=Frame{60}},
             [](const FrameContext& ctx) -> Scene {
@@ -396,7 +396,7 @@ TEST_CASE("precomp_cache: end-to-end via SoftwareRenderer does not crash") {
                 return s.build();
             }
         );
-    });
+    }});
 
     // WP-3 close-out: SoftwareRenderer() no-arg ctor retired; use Config{}.
     auto renderer = test::make_renderer();
