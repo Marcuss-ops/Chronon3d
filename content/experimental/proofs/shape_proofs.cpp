@@ -575,7 +575,8 @@ Composition shape_proofs() {
             p.commands = make_rounded_rect_commands({0.0f, -18.0f}, {90.0f, 48.0f}, 10.0f);
             p.fill = Fill::solid_color({0.15f, 0.15f, 0.2f, 1.0f});
             p.stroke = PathStroke{.enabled = true, .color = {1, 1, 1, 1}, .width = 2.0f};
-            l.path("shape", p).with_shadow({
+            l.path("shape", p);
+            l.last_node_handle().with_shadow({
                 .enabled = true,
                 .offset = {0.0f, -8.0f},
                 .color = {0.0f, 0.0f, 0.0f, 0.8f},
@@ -591,7 +592,8 @@ Composition shape_proofs() {
             p.commands = make_rounded_rect_commands({0.0f, -18.0f}, {90.0f, 48.0f}, 10.0f);
             p.fill = Fill::solid_color({0.1f, 0.1f, 0.12f, 1.0f});
             p.stroke = PathStroke{.enabled = true, .color = {0.0f, 0.95f, 0.95f, 1.0f}, .width = 2.0f};
-            l.path("shape", p).with_glow({
+            l.path("shape", p);
+            l.last_node_handle().with_glow({
                 .enabled = true,
                 .radius = 12.0f,
                 .intensity = 1.0f,
@@ -607,7 +609,8 @@ Composition shape_proofs() {
             p.commands = make_rounded_rect_commands({0.0f, -18.0f}, {90.0f, 48.0f}, 10.0f);
             p.fill = Fill::solid_color({0.1f, 0.1f, 0.12f, 1.0f});
             p.stroke = PathStroke{.enabled = true, .color = {0.95f, 0.1f, 0.5f, 1.0f}, .width = 3.0f};
-            l.path("shape", p).with_glow({
+            l.path("shape", p);
+            l.last_node_handle().with_glow({
                 .enabled = true,
                 .radius = 24.0f,
                 .intensity = 3.0f,

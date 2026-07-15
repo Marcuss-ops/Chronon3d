@@ -230,7 +230,8 @@ Composition shape_motion_proofs() {
             cp.commands = make_rounded_rect_commands({0.0f, 15.0f}, {220.0f, 80.0f}, 16.0f);
             cp.fill = Fill::solid_color({0.12f, 0.12f, 0.16f, 1.0f});
             cp.stroke = PathStroke{.enabled = true, .color = {0.7f, 0.15f, 0.95f, 1.0f}, .width = 3.0f};
-            l.path("rect", cp).with_glow({
+            l.path("rect", cp);
+            l.last_node_handle().with_glow({
                 .enabled = true,
                 .radius = 12.0f + pulse * 28.0f,
                 .intensity = 1.0f + pulse * 4.0f,
