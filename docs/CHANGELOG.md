@@ -1,5 +1,9 @@
 ## 2026-07-15
 
+### `docs(followup): Cat-5 3-doc closeout on sub-chore (g) (user-auth)` ([TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-MIGRATION](tickets/TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-MIGRATION.md) · [DELETION-replacement](tickets/TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-DELETION.md))
+
+*(§honest-violation user-auth annotation)*. Per user explicit instruction (ask_user Q1 option C 2026-07-15): inserts row in `docs/FOLLOWUP_TICKETS.md` §Open Blockers for RETRACTED `TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-MIGRATION` + this cite-only entry. Cat-3 anti-dup DISCLOSED + AGENTS.md `### Docs canonical update discipline rule` non-compliant state (RETRACTED ticket in §Open Blockers = risorgenza forward-point dead). Replacement canonical OPEN TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-DELETION tracked in `Text API migration` P1 row per bulk-migration catena. Cronaca estesa (incl. §Honest-discovery rot-detection 5 premise failures + replacement-tracker forward-point) lives in canonical ticket-home per AGENTS.md Cat-3 anti-dup.
+
 ### `docs(tickets): track legacy render CLI gate failure on main` ([TICKET-LEGACY-RENDER-CLI-GATE-FAILURE](tickets/TICKET-LEGACY-RENDER-CLI-GATE-FAILURE.md))
 Ticket di tracciamento dell'incidente `check_no_legacy_render_cli.sh` su main: 7 violazioni della superficie CLI render legacy risolte e pushate. Cronaca estesa nel ticket-home.
 
