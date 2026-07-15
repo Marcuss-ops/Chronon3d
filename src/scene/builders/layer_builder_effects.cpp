@@ -1,79 +1,97 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/effects/effect_ids.hpp>
+
 #include <utility>
 
 namespace chronon3d {
 
 LayerBuilder& LayerBuilder::blur(f32 radius) {
-    m_layer.effects().push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::BlurGaussian}}, BlurParams{radius}});
+    m_layer.effects().push_back(EffectInstance{
+        effects::EffectDescriptor{.id = std::string{effects::ids::BlurGaussian}},
+        BlurParams{radius}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::tint(Color color, f32 amount) {
-    m_layer.effects().push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorTint}}, TintParams{color, amount}});
+    m_layer.effects().push_back(EffectInstance{
+        effects::EffectDescriptor{.id = std::string{effects::ids::ColorTint}},
+        TintParams{color, amount}});
     return *this;
 }
 
-LayerBuilder& LayerBuilder::brightness(f32 v) {
-    m_layer.effects().push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorBrightness}}, BrightnessParams{v}});
+LayerBuilder& LayerBuilder::brightness(f32 value) {
+    m_layer.effects().push_back(EffectInstance{
+        effects::EffectDescriptor{.id = std::string{effects::ids::ColorBrightness}},
+        BrightnessParams{value}});
     return *this;
 }
 
-LayerBuilder& LayerBuilder::contrast(f32 v) {
-    m_layer.effects().push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorContrast}}, ContrastParams{v}});
+LayerBuilder& LayerBuilder::contrast(f32 value) {
+    m_layer.effects().push_back(EffectInstance{
+        effects::EffectDescriptor{.id = std::string{effects::ids::ColorContrast}},
+        ContrastParams{value}});
     return *this;
 }
 
-LayerBuilder& LayerBuilder::saturation(f32 v) {
-    m_layer.effects().push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorSaturation}}, SaturationParams{v}});
+LayerBuilder& LayerBuilder::saturation(f32 value) {
+    m_layer.effects().push_back(EffectInstance{
+        effects::EffectDescriptor{.id = std::string{effects::ids::ColorSaturation}},
+        SaturationParams{value}});
     return *this;
 }
 
-LayerBuilder& LayerBuilder::hue_rotate(f32 deg) {
-    m_layer.effects().push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorHueRotate}}, HueRotateParams{deg}});
+LayerBuilder& LayerBuilder::hue_rotate(f32 degrees) {
+    m_layer.effects().push_back(EffectInstance{
+        effects::EffectDescriptor{.id = std::string{effects::ids::ColorHueRotate}},
+        HueRotateParams{degrees}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::invert(f32 amount) {
-    m_layer.effects().push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorInvert}}, InvertParams{amount}});
+    m_layer.effects().push_back(EffectInstance{
+        effects::EffectDescriptor{.id = std::string{effects::ids::ColorInvert}},
+        InvertParams{amount}});
     return *this;
 }
 
-LayerBuilder& LayerBuilder::vignette(f32 radius, f32 softness, f32 amount) {
-    m_layer.effects().push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::ColorVignette}}, VignetteParams{radius, softness, amount}});
+LayerBuilder& LayerBuilder::vignette(
+    f32 radius, f32 softness, f32 amount
+) {
+    m_layer.effects().push_back(EffectInstance{
+        effects::EffectDescriptor{.id = std::string{effects::ids::ColorVignette}},
+        VignetteParams{radius, softness, amount}});
     return *this;
 }
 
-LayerBuilder& LayerBuilder::drop_shadow(Vec2 offset, Color color, f32 radius) {
-    m_layer.effects().push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::LightDropShadow}}, DropShadowParams{offset, color, radius}});
+LayerBuilder& LayerBuilder::drop_shadow(
+    Vec2 offset, Color color, f32 radius
+) {
+    m_layer.effects().push_back(EffectInstance{
+        effects::EffectDescriptor{.id = std::string{effects::ids::LightDropShadow}},
+        DropShadowParams{offset, color, radius}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::glow(GlowParams params) {
     m_layer.effects().push_back(EffectInstance{
         effects::EffectDescriptor{.id = std::string{effects::ids::LightGlow}},
-        std::move(params)
-    });
+        std::move(params)});
     return *this;
 }
 
-LayerBuilder& LayerBuilder::bloom(f32 threshold, f32 radius, f32 intensity) {
-    m_layer.effects().push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::LightBloom}}, BloomParams{threshold, radius, intensity}});
+LayerBuilder& LayerBuilder::bloom(
+    f32 threshold, f32 radius, f32 intensity
+) {
+    m_layer.effects().push_back(EffectInstance{
+        effects::EffectDescriptor{.id = std::string{effects::ids::LightBloom}},
+        BloomParams{threshold, radius, intensity}});
     return *this;
 }
 
 LayerBuilder& LayerBuilder::fake_3d_wave(Fake3DWaveParams params) {
-    m_layer.effects().push_back(EffectInstance{effects::EffectDescriptor{.id = std::string{effects::ids::DistortFake3DWave}}, std::move(params)});
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::with_shadow(DropShadow shadow) {
-    layer_builder_internal::set_last_shadow(m_layer, shadow);
-    return *this;
-}
-
-LayerBuilder& LayerBuilder::with_glow(Glow glow) {
-    layer_builder_internal::set_last_glow(m_layer, glow);
+    m_layer.effects().push_back(EffectInstance{
+        effects::EffectDescriptor{.id = std::string{effects::ids::DistortFake3DWave}},
+        std::move(params)});
     return *this;
 }
 
