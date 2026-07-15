@@ -4,8 +4,10 @@
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/glyph_selector_spec.hpp>
 #include <chronon3d/text/paragraph_style.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
+#include <chronon3d/text/text_direction.hpp>
 #include <chronon3d/text/text_placement.hpp>
 
 #include <cstdint>
@@ -14,9 +16,6 @@
 #include <vector>
 
 namespace chronon3d {
-
-struct TextAnimatorSpec;
-struct GlyphSelectorSpec;
 
 struct TextLayoutSpec {
     Vec2 box{900.0f, 160.0f};
