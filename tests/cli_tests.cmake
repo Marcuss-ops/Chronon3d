@@ -62,3 +62,9 @@ chronon3d_add_test_suite(
 target_include_directories(chronon3d_cli_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli
 )
+
+if(NOT TARGET chronon3d_cli_video_export)
+    target_compile_definitions(chronon3d_cli_tests PRIVATE
+        CHRONON3D_TEST_VIDEO_EXPORT_DISABLED=1
+    )
+endif()
