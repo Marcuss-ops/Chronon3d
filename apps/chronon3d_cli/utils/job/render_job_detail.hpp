@@ -14,15 +14,15 @@ namespace chronon3d::cli {
 
 /// Writes a single render frame to disk and records telemetry.
 bool write_render_frame(const Composition& comp,
-                        SoftwareRenderer & renderer,
-                        Frame frame,
-                        const FrameRange& range,
-                        const std::string& output_pattern,
-                        bool& ok,
-                        std::vector<telemetry::FrameTelemetryRecord>& telemetry_frames,
-                        double& total_render_ms,
-                        double& total_encode_ms,
-                        int& frames_written);
+                         SoftwareRenderer & renderer,
+                         Frame frame,
+                         const FrameRange& range,
+                         const std::string& output_pattern,
+                         bool& ok,
+                         std::vector<telemetry::FrameTelemetryRecord>& telemetry_frames,
+                         double& total_render_ms,
+                         double& total_encode_ms,
+                         int& frames_written);
 
 /// Writes a pre-rendered framebuffer to disk (used for double-buffered pipeline).
 /// Returns the encode time in ms, or -1 on failure.
@@ -31,6 +31,7 @@ double write_frame_to_disk(std::shared_ptr<Framebuffer> fb,
                            Frame frame,
                            const FrameRange& range,
                            const std::string& output_pattern,
+                           const std::string& composition_id,
                            bool cache_hit,
                            double dirty_ratio,
                            double render_ms,
