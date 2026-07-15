@@ -31,14 +31,9 @@ namespace chronon3d::authoring {
 /// `Layer::image(..., ImageRef)` requests ImageRef, while
 /// `Text::font(FontRef, ...)` requests FontRef. Conversion only wraps the
 /// logical path in the existing AssetRef type; it never resolves filesystem
-/// state.
+/// state and therefore has no intrinsic AssetKind of its own.
 class LogicalAssetPath final {
 public:
-    // Backward-compatible default-kind marker for existing code that inspects
-    // `decltype(asset("..."))::kind`.  Contextual conversions are not limited
-    // to Image and remain the preferred ergonomic path.
-    static constexpr assets::AssetKind kind = assets::AssetKind::Image;
-
     explicit LogicalAssetPath(std::string path, std::string owner = {})
         : path_(std::move(path)), owner_(std::move(owner)) {}
 
@@ -56,8 +51,9 @@ private:
     std::string owner_;
 };
 
-/// Context-typed authoring marker.  The destination overload determines K.
-[[nodiscard]] inline LogicalAssetPath asset(std::string path, std::string owner = {}) {
+/// Context-typed authoring marker. The destination overload determines K.
+[[nodiscard]] inline LogicalAssetPath asset(std::string path,
+                                             std::string owner = {}) {
     return LogicalAssetPath(std::move(path), std::move(owner));
 }
 
