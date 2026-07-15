@@ -6,6 +6,13 @@ if(NOT CHRONON3D_BUILD_CONTENT)
     return()
 endif()
 
+# Test font fixtures are downloaded only when explicitly enabled.  The helper
+# fetches pinned GitHub blob objects and verifies their Git object checksums;
+# normal offline/local configurations remain network-free.
+option(CHRONON3D_BOOTSTRAP_TEST_FONTS
+    "Fetch checksum-pinned Poppins test fixtures into the build asset root"
+    OFF)
+
 chronon3d_add_test_suite(
     NAME chronon3d_content_tests
     TIER INTEGRATION
@@ -18,6 +25,22 @@ chronon3d_add_test_suite(
             certification/test_cert_text_bbox.cpp
             certification/test_cert_text_invariants.cpp
 )
+
+if(CHRONON3D_BOOTSTRAP_TEST_FONTS)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    add_custom_target(chronon3d_bootstrap_test_fonts
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/tools/bootstrap_test_fonts.py
+                --output-root ${CMAKE_BINARY_DIR}
+        BYPRODUCTS
+            ${CMAKE_BINARY_DIR}/assets/fonts/Poppins-Regular.ttf
+            ${CMAKE_BINARY_DIR}/assets/fonts/Poppins-OFL.txt
+        COMMENT "[Chronon3D] Fetching checksum-pinned Poppins test fixtures"
+        VERBATIM
+    )
+    add_dependencies(chronon3d_content_tests chronon3d_bootstrap_test_fonts)
+endif()
+
 # WHOLE_ARCHIVE removed — content uses explicit ExtensionRegistry registration
 if(CHRONON3D_BUILD_CONTENT)
     target_sources(chronon3d_content_tests PRIVATE
