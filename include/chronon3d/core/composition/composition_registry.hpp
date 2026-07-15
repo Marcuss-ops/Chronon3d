@@ -30,13 +30,25 @@ public:
         if (descriptors_.contains(descriptor.id)) {
             throw std::runtime_error("Duplicate composition: " + descriptor.id);
         }
-        if (!descriptor.factory) {
+        if (!descriptor.prepare_props && !descriptor.factory) {
             throw std::runtime_error(
-                "CompositionDescriptor has null factory: " + descriptor.id);
+                "CompositionDescriptor has neither prepare_props nor factory: " +
+                descriptor.id);
         }
+
+        // Canonicalize untyped registrations at the registry boundary. The
+        // resulting descriptor follows the same prepare → construct flow as a
+        // typed descriptor, without introducing a second execution path.
         if (!descriptor.prepare_props) {
-            throw std::runtime_error(
-                "CompositionDescriptor has null prepare_props: " + descriptor.id);
+            const Factory factory = descriptor.factory;
+            descriptor.prepare_props = [factory](const CompositionProps& props)
+                -> PreparedCompositionResult {
+                PreparedComposition prepared;
+                prepared.construct = [factory, props]() -> Composition {
+                    return factory(props);
+                };
+                return prepared;
+            };
         }
 
         const std::string key = descriptor.id;
@@ -66,9 +78,9 @@ public:
         }
 
         const CompositionDescriptor& descriptor = it->second;
-        auto prepared = descriptor.prepare_props(props);
-        if (!prepared) {
-            const PropsError& error = prepared.error();
+        auto prepared_result = descriptor.prepare_props(props);
+        if (!prepared_result) {
+            const PropsError& error = prepared_result.error();
             const std::string key = error.key.empty()
                 ? std::string{}
                 : " [" + error.key + "]";
@@ -76,7 +88,14 @@ public:
                 "Composition '" + descriptor.id +
                 "' props failed" + key + ": " + error.message);
         }
-        return descriptor.factory(props);
+
+        PreparedComposition prepared = std::move(prepared_result).value();
+        if (!prepared.construct) {
+            throw std::runtime_error(
+                "Composition '" + descriptor.id +
+                "' preparation returned no constructor");
+        }
+        return prepared.construct();
     }
 
     [[nodiscard]] bool contains(std::string_view name) const {
