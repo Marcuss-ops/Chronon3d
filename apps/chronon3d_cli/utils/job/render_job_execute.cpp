@@ -19,7 +19,7 @@
 
 namespace chronon3d::cli {
 
-Result<RenderJobOutput, RenderJobError> execute_render_job(RenderJob& job) {
+Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job) {
     if (!job.registry) {
         return RenderJobError{
             RenderJobErrorCode::InvalidJob,
@@ -137,7 +137,8 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(RenderJob& job) {
 
 bool execute_render_job(const CompositionRegistry& registry, RenderJob& job) {
     job.registry = &registry;
-    return static_cast<bool>(execute_render_job(job));
+    return static_cast<bool>(execute_render_job(
+        static_cast<const RenderJob&>(job)));
 }
 
 } // namespace chronon3d::cli
