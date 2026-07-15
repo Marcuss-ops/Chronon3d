@@ -1,9 +1,3 @@
-// ==============================================================================
-// Explicit CLI Group Registration
-// Each command group exports a register function that main.cpp calls.
-// This replaces the monolithic register_all_commands() approach with
-// per-group explicit registration, enabling fine-grained linker control.
-// ==============================================================================
 #pragma once
 
 #include <CLI/CLI.hpp>
@@ -12,42 +6,44 @@
 
 namespace chronon3d::cli {
 
-// Each group implements register_commands(CLI::App&, CliContext&)
-// using the existing register_*_commands functions.
 namespace group_core {
-    void register_commands(CLI::App& app, CliContext& ctx);
+void register_commands(CLI::App& app, CliContext& ctx);
 }
 namespace group_render {
-    void register_commands(CLI::App& app, CliContext& ctx);
+void register_commands(CLI::App& app, CliContext& ctx);
 }
 namespace group_video {
-    void register_commands(CLI::App& app, CliContext& ctx);
+void register_commands(CLI::App& app, CliContext& ctx);
 }
 namespace group_telemetry {
-    void register_commands(CLI::App& app, CliContext& ctx);
+void register_commands(CLI::App& app, CliContext& ctx);
 }
 namespace group_dev {
-    void register_commands(CLI::App& app, CliContext& ctx);
+void register_commands(CLI::App& app, CliContext& ctx);
 }
 namespace group_bench {
-    void register_commands(CLI::App& app, CliContext& ctx);
+void register_commands(CLI::App& app, CliContext& ctx);
 }
 
-// Master registration — calls all groups in dependency order.
-// Exposed as inline for convenience; each group is a separate target anyway.
+/// Register exactly the command groups linked into the executable.  Feature
+/// options such as CHRONON3D_ENABLE_VIDEO describe engine capability; they do
+/// not prove that a CLI archive exists, so target-presence definitions are the
+/// only valid gate here.
 inline void register_all_groups(CLI::App& app, CliContext& ctx) {
     group_core::register_commands(app, ctx);
+#ifdef CHRONON3D_HAS_CLI_RENDER
     group_render::register_commands(app, ctx);
-#ifdef CHRONON3D_ENABLE_SQLITE_TELEMETRY
-    group_telemetry::register_commands(app, ctx);
 #endif
-#ifdef CHRONON3D_ENABLE_VIDEO
+#ifdef CHRONON3D_HAS_CLI_VIDEO
     group_video::register_commands(app, ctx);
 #endif
-#ifdef CHRONON3D_BUILD_CLI_DEV
-    group_dev::register_commands(app, ctx);  // link-clean under -DCHRONON3D_BUILD_CLI_DEV=OFF
+#ifdef CHRONON3D_HAS_CLI_TELEMETRY
+    group_telemetry::register_commands(app, ctx);
 #endif
-#ifdef CHRONON3D_BUILD_BENCHMARKS
+#ifdef CHRONON3D_HAS_CLI_DEV
+    group_dev::register_commands(app, ctx);
+#endif
+#ifdef CHRONON3D_HAS_CLI_BENCH
     group_bench::register_commands(app, ctx);
 #endif
 }
