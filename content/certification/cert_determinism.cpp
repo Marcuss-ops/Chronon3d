@@ -2,16 +2,6 @@
 // content/certification/cert_determinism.cpp
 //
 // TICKET-DETERMINISM-CERT — Determinism & cache certification composition.
-//
-// A single minimal-surface composition for the canonical
-// verify_determinism_linux.sh gate:
-//
-//   CertDeterminism — solid white rect (400×300, centered) on dark background.
-//                      Every render at the same frame MUST produce pixel-identical
-//                      output (same sha256 hash). No random, no time dependency,
-//                      no external assets.
-//
-// 1920×1080 canvas. FrameRate{30,1}, duration=1, frame=0 only.
 // ==============================================================================
 
 #include <chronon3d/core/composition/composition_registry.hpp>
@@ -21,6 +11,8 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+
+#include "content/certification/certification_descriptor.hpp"
 
 namespace chronon3d::content::certification {
 
@@ -42,13 +34,13 @@ Composition cert_determinism() {
          .duration = 1},
         [](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
-            // Dark background
             s.layer("bg", [](LayerBuilder& l) {
                 l.fullscreen_rect("bg", Color{0.05f, 0.05f, 0.08f, 1.0f});
             });
-            // Solid white rect — deterministic, no random, no time dep
             s.layer("rect", [](LayerBuilder& l) {
-                l.position({kDetCX - kDetRectW * 0.5f, kDetCY - kDetRectH * 0.5f, 0.0f});
+                l.position({kDetCX - kDetRectW * 0.5f,
+                            kDetCY - kDetRectH * 0.5f,
+                            0.0f});
                 l.rect("r", RectParams{
                     .size = {kDetRectW, kDetRectH},
                     .color = {1.0f, 1.0f, 1.0f, 1.0f},
@@ -62,9 +54,9 @@ Composition cert_determinism() {
 }
 
 void register_cert_determinism_compositions(CompositionRegistry& registry) {
-    registry.add("CertDeterminism", [](const CompositionProps&) {
-        return cert_determinism();
-    });
+    registry.add(certification_descriptor(
+        "CertDeterminism", kDetW, kDetH, Frame{1},
+        [](const CompositionProps&) { return cert_determinism(); }));
 }
 
 } // namespace chronon3d::content::certification
