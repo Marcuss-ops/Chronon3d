@@ -26,6 +26,7 @@ ASSET_IMPLEMENTATION_ROOTS = (
 )
 
 COMPOSITION_ROOTS = (ROOT / "content", ROOT / "examples")
+LOGICAL_ASSET_HEADER = ROOT / "include" / "chronon3d" / "authoring" / "asset.hpp"
 
 BANNED_IDENTIFIERS = (
     "RenderJobPlan",
@@ -147,6 +148,22 @@ def main() -> int:
         )
     )
 
+    if LOGICAL_ASSET_HEADER.is_file():
+        cleaned_asset_header = strip_comments_and_literals(
+            LOGICAL_ASSET_HEADER.read_text(encoding="utf-8", errors="replace")
+        )
+        intrinsic_kind = re.search(
+            r"class\s+LogicalAssetPath\b.*?\bstatic\s+constexpr\b.*?\bkind\b",
+            cleaned_asset_header,
+            re.DOTALL,
+        )
+        if intrinsic_kind:
+            failures.append(
+                f"{LOGICAL_ASSET_HEADER.relative_to(ROOT)}:"
+                f"{line_number(cleaned_asset_header, intrinsic_kind.start())}: "
+                "LogicalAssetPath must remain kind-free"
+            )
+
     for umbrella in RETIRED_UMBRELLAS:
         if umbrella.exists():
             failures.append(
@@ -160,9 +177,9 @@ def main() -> int:
         return 1
 
     print(
-        "[RENDER-ASSET-ARCH-OK] one resolved RenderJob executor; no legacy "
-        "planner/bridge, global asset roots, CWD asset fallback, "
-        "composition-owned resolver, or retired umbrella"
+        "[RENDER-ASSET-ARCH-OK] one resolved RenderJob executor; kind-free "
+        "logical assets; no legacy planner/bridge, global asset roots, CWD "
+        "asset fallback, composition-owned resolver, or retired umbrella"
     )
     return 0
 
