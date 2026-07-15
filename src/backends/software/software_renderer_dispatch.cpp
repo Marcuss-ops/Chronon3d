@@ -74,7 +74,10 @@ uint64_t clipped_area(int32_t width, int32_t height, const std::optional<raster:
 /// Fase C3 — canonical unified pipeline.  This is the V0.2 SDK path;
 /// `render_scene()` overloads are @deprecated thin wrappers.
 std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
-                                                    Frame frame) {
+                                                     Frame frame) {
+    // Top-level invocation boundary: nested tile/precomp executors must not
+    // clear errors from sibling scopes. Reset exactly once before dispatch.
+    m_session.common.last_frame_error.reset();
     profiling::ProfilingGuard scope(&m_counters, m_runtime->framebuffer_pool_shared().get());
 
     auto res = graph::render_composition_frame(
@@ -88,6 +91,7 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render(const Composition& comp,
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
                                                             const Camera& camera, i32 width,
                                                             i32 height, float fps) {
+    m_session.common.last_frame_error.reset();
     // Cat-2 font preflight: warm both BLFontFace and FreeTypeFace caches
     // BEFORE any draw_text_run dispatch.  After this call, every
     // render-thread resolve_handle becomes a cache hit (no I/O).  The
