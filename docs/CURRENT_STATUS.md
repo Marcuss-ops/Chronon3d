@@ -1,15 +1,15 @@
 # Chronon3D — Current Status
 
-> **Snapshot:** `main@4edb6508` — post `refactor(camera): continuous-time camera motion params` (current HEAD, 2026-07-14; Cat-3 refactor chore on top of baseline `7eb5c2ba`). Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
+> **Snapshot:** `main@7dc553e5` — post `feat(cli): add shared flat props-file loader` (current HEAD, 2026-07-15; cumulative 39-commit lineage from `main@5246d7bb` spanning CLI V3 unification, Text Blocco 5.1/5.2 deprecations, Authoring facade, Timeline PropsCodec, RenderJob execution-complete, Camera continuous-time params, and Benchmark corpus). Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
 
 
 ## Active Blockers (top 3)
 
 | ID | Area | Stato | Scheda |
 |---|---|---|---|
-| TICKET-011 | mainline build rot (chronon3d_core_tests) | PARTIAL | [TICKET-011](tickets/TICKET-011.md) |
-| TICKET-036 | SceneBuilder::animated_camera() in test files | PLANNED | [TICKET-036](tickets/TICKET-036.md) |
-| TICKET-120 | 17/24 scene test failures | PARTIAL | [TICKET-120](tickets/TICKET-120.md) |
+| TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX | docs | OPEN | [TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX](tickets/TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX.md) |
+| TICKET-125-TEST-AGGREGATOR | testing | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
+| TICKET-TEST-FONT-ASSET-PATH | assets | OPEN | [TICKET-TEST-FONT-ASSET-PATH](tickets/TICKET-TEST-FONT-ASSET-PATH.md) |
 
 Per dettaglio: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
@@ -17,25 +17,32 @@ Per dettaglio: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Cronologi
 
 | Area | Stato | Note sintetiche |
 |---|---|---|
+| CLI V3 unification | PARTIAL | `preview`, `watch`, `create` landed; `still`/`video` deprecated aliases; props-file loader wired; macchina-verifica DEFERRED-WBH.
 | Push infrastructure | WIRED | `tools/monitor_push_divergence.sh` cron-friendly 5-min cadence; ADR-022 advisory gate. |
 | Text V1 Cert Step 11 (finale) | DEFERRED-VPS | BLOCKED on this VPS per TICKET-BUILD-ROT-CASCADE-CAMERA 409-error + TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV; macchina-verifica DEFERRED-WBH. |
 | Cert sequence (Test #4/#8/#9/#13/#14) | WBH-DEFERRED | Per `docs/cert_sequence_wbh_protocol.md`; VPS cannot run. |
 | Text V1 Cert Step 8+9 | DEFERRED-VPS | HARDER env-block than Step 7; spec-variant user centroid LOOSER than DoD §9 lock. |
 | Text V1 Cert Step 10 (negative-font) | COMMITTED-VPS-DEFERRED | cat-1 source committed; rebuild DEFERRED-WBH. |
 | Acceptance Suite | PASS | 20/20 contract tests landed. |
-| Camera V1 | FAIL (cert) | AE-parity 35/35 PASS. Build: 0 errori ✅. Cert: CAMERA_FUNCTIONAL_FAIL. |
+| Camera V1 | FAIL (cert) | AE-parity 35/35 PASS. Continuous-time motion params landed. Legacy adapters removed. Cert: CAMERA_FUNCTIONAL_FAIL. |
 | Executor | P2 OPEN (cat-5 forward-point) | Tile-prune skip-unification chaser-chore tracked. |
 | Glow Final (ChrononGlowFinalAE) | Done/Ready | Certified `1cb9cff2`; DoD §9 closed via 19px-sliver regression lock. |
 | Product Launch demo (Test #1) | PARTIAL | Composition + JSON landed; orchestrator `== Product demo ==` TODO body. |
 | Sanitizer gates (P2-A) | PARTIAL | 7 subsystems + ASAN/UBSAN/TSAN_OPTIONS wired; full ctest DEFERRED-WBH. |
 | Text Production V1 | PASS | Text Export V1 certified. Clip 06 closed. FU04 contract closed. |
+| Text API migration (Blocco 5.1/5.2) | PARTIAL | `centered_text`/`glow_text`/`TextSpec` overloads deprecated; 100+ caller bulk migration OPEN. |
+| Authoring facade | WIRED | Scene builder forwarders + context-typed `asset()` landed; macchina-verifica DEFERRED-WBH.
+| Timeline props | WIRED | `PropsCodec`/`PropsSchema` typed composition props landed; macchina-verifica DEFERRED-WBH.
+| Render job execution | WIRED | `RenderJob` execution-complete; separate `RenderJobPlan` retired; macchina-verifica DEFERRED-WBH.
 | SDK C++ installabile | PASS | gate #10 PASS (sub-blocks A+B+C). |
 | SDK cross-language | NOT RUN | C ABI e formato `.chronon` da progettare. |
 | Render runtime | PASS | ImageCache + RenderSession::layout_cache landed. |
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
+| CompositionDescriptor migration | PARTIAL | `add(name, factory)` deprecated (ADR-027); 200+ legacy callers remain; Chore B bulk migration OPEN.
 | Video pipeline | PASS | Structured error reporting (13 codes); atomic output; 98 video tests pass. |
 | CI infrastructure | PASS | Sanitizers nightly/weekly; renderer-boundary gate; test-hygiene 3 invariants; CI status JSON artifact. |
 | Test coverage | PASS | 5×5 deterministic matrix; 5×5 SafeArea matrix; 5 layout TEST_CASEs. |
+| Benchmark corpus | WIRED | 12-scene YAML corpus B00-B11 + sanity test harness landed; macchina-verifica DEFERRED-WBH.
 | Auto-fit (ADR-018) | PARTIAL | engine-level DONE; canonical wrapper forward-pointed (ADR-gated). |
 | Sistemi meta (Expressions V2 / V3) | PLANNED | V2 OFF di default; V3 subordinato a V1. |
 | 10-point friction audit | DONE (2026-07-08) | Lineage closed. |
@@ -83,6 +90,7 @@ Per dettaglio: [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Cronologi
 | NOT RUN | Gate / prova non ancora eseguita. |
 | BLOCKED | Bloccato da altro ticket o condizione esterna. |
 | PLANNED | Design presente, implementazione non iniziata. |
+| WIRED | Harness/impalcatura presente; verifica eseguibile differita o in attesa di risorse. |
 
 ## Link canonici
 
