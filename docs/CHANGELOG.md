@@ -1,5 +1,8 @@
 ## 2026-07-14
 
+### `chore(check): open Gate #25 regex-improvement forward-point ticket` ([TICKET-CHECK-NO-DUAL-TEXT-API-REGEX-IMPROVEMENT](docs/tickets/TICKET-CHECK-NO-DUAL-TEXT-API-REGEX-IMPROVEMENT.md))
+Open forward-point P2 per Gate #25 [3/4] regex tightening (20 false-positive `.position` callsites). Cat-5 3-doc. Cronaca estesa nel canonical ticket-home.
+
 ### `docs(composition): mark PHASE-3 PARTIAL + §Phase-3 Implementation History` ([TICKET-COMPOSITIONDESCRIPTOR-MIGRATION](docs/tickets/TICKET-COMPOSITIONDESCRIPTOR-MIGRATION.md))
 PHASE-3 (overload REMOVAL) split into Chore A (5-file bounded migration, DONE at `11409c38`) + Chore B (200+ bulk migration, OPEN per [ADR-028 DRAFT `68fc1f8a`](docs/adr/ADR-028-compositiondescriptor-removal.md)). 2 failed implementation attempts (non-greedy regex + paren-counting) reverted via `git restore`; legacy overload PRESERVED. macchina-verifica: `rg -c 'registry\.add\(\s*"[A-Za-z0-9_]+"\s*,' content apps tests` returns ~260 (Chore B debt). Cronaca estesa nel canonical ticket-home per AGENTS.md Cat-3 anti-dup.
 
