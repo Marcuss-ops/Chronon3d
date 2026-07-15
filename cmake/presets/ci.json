@@ -1,14 +1,12 @@
 {
   "version": 6,
-  "include": [
-    "base.json"
-  ],
+  "include": ["base.json"],
   "configurePresets": [
     {
       "name": "linux-ci",
       "inherits": "base-linux",
       "displayName": "Linux CI (daily install-consumer gate)",
-      "description": "Daily CI preset: CLI + content + tests + install_consumer_ci, no benchmarks/profiling/experimental. BuildType Debug, unity OFF. Wires `tools/install_consumer_test.sh` via `CHRONON3D_BUILD_INSTALL_CONSUMER_TEST=ON` and checksum-pinned font fixtures via `CHRONON3D_BOOTSTRAP_TEST_FONTS=ON`.",
+      "description": "Daily CI: CLI + content + tests + install consumer + checksum-pinned font fixtures.",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_UNITY_BUILD": "OFF",
@@ -25,7 +23,6 @@
       "hidden": true,
       "inherits": "linux-ci",
       "displayName": "Linux CI no-content (legacy)",
-      "description": "Legacy CI variant — hidden. Content off.",
       "cacheVariables": {
         "CHRONON3D_BUILD_CONTENT": "OFF",
         "CHRONON3D_BOOTSTRAP_TEST_FONTS": "OFF"
@@ -34,8 +31,7 @@
     {
       "name": "linux-ci-release-build",
       "inherits": "base-linux",
-      "displayName": "Linux CI Release Build (1.3.C/D/E migration target; replaces ci.yml Linux (Release) matrix entry)",
-      "description": "Pre-merge release-mode build preset for .github/workflows/ci.yml matrix entry 'Linux (Release)' (formerly linux-release). CLI + tests ON; content OFF; enable text+blend2d. BuildType=Release.",
+      "displayName": "Linux CI Release Build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -49,8 +45,7 @@
     {
       "name": "linux-ci-full-validation",
       "inherits": "base-linux",
-      "displayName": "Linux CI Full Validation (1.3.C/D/E migration target; replaces gates-full-validation.yml linux-full-validation reference)",
-      "description": "Heavy pre-merge validation preset for .github/workflows/gates-full-validation.yml (formerly linux-full-validation). Path-filtered to include/src/CMakeLists.txt. BuildType=Debug; everything except native-ffmpeg and profiling is ON.",
+      "displayName": "Linux CI Full Validation",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CHRONON3D_BUILD_CLI": "ON",
@@ -70,25 +65,71 @@
         "CHRONON3D_BOOTSTRAP_TEST_FONTS": "ON",
         "VCPKG_MANIFEST_FEATURES": "cli;blend2d;text;mesh;exr;telemetry;tests;benchmarks"
       }
+    },
+    {
+      "name": "linux-ci-render-video-contract",
+      "inherits": "base-linux",
+      "displayName": "RenderJob contract — video enabled",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_CLI_RENDER": "ON",
+        "CHRONON3D_BUILD_TESTS": "ON",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "OFF",
+        "CHRONON3D_USE_BLEND2D": "OFF",
+        "CHRONON3D_ENABLE_EXR": "OFF",
+        "CHRONON3D_ENABLE_MESH": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
+        "CHRONON3D_UNITY_BUILD": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "cli;tests"
+      }
+    },
+    {
+      "name": "linux-ci-render-image-contract",
+      "inherits": "linux-ci-render-video-contract",
+      "displayName": "RenderJob contract — video disabled",
+      "cacheVariables": {
+        "CHRONON3D_ENABLE_VIDEO": "OFF"
+      }
+    },
+    {
+      "name": "linux-ci-cli-core-only",
+      "inherits": "base-linux",
+      "displayName": "CLI core-only — render excluded",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CHRONON3D_BUILD_CLI": "ON",
+        "CHRONON3D_BUILD_CLI_RENDER": "OFF",
+        "CHRONON3D_BUILD_TESTS": "OFF",
+        "CHRONON3D_BUILD_CONTENT": "OFF",
+        "CHRONON3D_BUILD_DIAGNOSTICS": "OFF",
+        "CHRONON3D_ENABLE_VIDEO": "ON",
+        "CHRONON3D_ENABLE_NATIVE_FFMPEG": "OFF",
+        "CHRONON3D_ENABLE_TEXT": "OFF",
+        "CHRONON3D_USE_BLEND2D": "OFF",
+        "CHRONON3D_ENABLE_EXR": "OFF",
+        "CHRONON3D_ENABLE_MESH": "OFF",
+        "CHRONON3D_ENABLE_TELEMETRY": "OFF",
+        "CHRONON3D_UNITY_BUILD": "OFF",
+        "VCPKG_MANIFEST_FEATURES": "cli"
+      }
     }
   ],
   "buildPresets": [
     {
       "name": "linux-ci",
       "configurePreset": "linux-ci",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests"
-      ],
+      "targets": ["chronon3d_cli", "chronon3d_tests"],
       "jobs": 16
     },
     {
       "name": "linux-ci-nocontent",
       "configurePreset": "linux-ci-nocontent",
-      "targets": [
-        "chronon3d_cli",
-        "chronon3d_tests"
-      ],
+      "targets": ["chronon3d_cli", "chronon3d_tests"],
       "jobs": 16
     },
     {
@@ -102,32 +143,56 @@
       "configurePreset": "linux-ci-full-validation",
       "targets": ["chronon3d_cli", "chronon3d_tests"],
       "jobs": 16
+    },
+    {
+      "name": "linux-ci-render-video-contract",
+      "configurePreset": "linux-ci-render-video-contract",
+      "targets": ["chronon3d_render_job_contract_tests"],
+      "jobs": 8
+    },
+    {
+      "name": "linux-ci-render-image-contract",
+      "configurePreset": "linux-ci-render-image-contract",
+      "targets": ["chronon3d_render_job_contract_tests"],
+      "jobs": 8
+    },
+    {
+      "name": "linux-ci-cli-core-only",
+      "configurePreset": "linux-ci-cli-core-only",
+      "targets": ["chronon3d_cli"],
+      "jobs": 8
     }
   ],
   "testPresets": [
     {
       "name": "linux-ci-test",
       "configurePreset": "linux-ci",
-      "output": {
-        "outputOnFailure": true
-      }
+      "output": {"outputOnFailure": true}
     },
     {
       "name": "linux-ci-nocontent-test",
       "configurePreset": "linux-ci-nocontent",
-      "output": {
-        "outputOnFailure": true
-      }
+      "output": {"outputOnFailure": true}
     },
     {
       "name": "linux-ci-release-build-test",
       "configurePreset": "linux-ci-release-build",
-      "output": { "outputOnFailure": true }
+      "output": {"outputOnFailure": true}
     },
     {
       "name": "linux-ci-full-validation-test",
       "configurePreset": "linux-ci-full-validation",
-      "output": { "outputOnFailure": true }
+      "output": {"outputOnFailure": true}
+    },
+    {
+      "name": "linux-ci-render-video-contract-test",
+      "configurePreset": "linux-ci-render-video-contract",
+      "output": {"outputOnFailure": true}
+    },
+    {
+      "name": "linux-ci-render-image-contract-test",
+      "configurePreset": "linux-ci-render-image-contract",
+      "output": {"outputOnFailure": true}
     }
   ]
 }
