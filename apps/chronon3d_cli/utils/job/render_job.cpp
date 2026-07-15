@@ -49,7 +49,7 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
         job.first_frame = Frame{range.start};
 
         // `render Comp -o out.mp4` keeps RenderArgs' historical default
-        // frames="0" but means the full composition for Video mode.  An
+        // frames="0" but means the full composition for Video mode. An
         // explicit non-zero single frame remains a valid one-frame video.
         const auto duration_last = std::max<std::int64_t>(
             range.start, job.comp->duration().integral() - 1);
@@ -100,17 +100,6 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
     job.execution.config = std::move(cfg);
 
     return job;
-}
-
-std::optional<RenderJob> plan_render_job(const CompositionRegistry& registry,
-                                         const RenderArgs& args) {
-    return make_render_job(registry, args);
-}
-
-std::optional<RenderJob> plan_render_job(const CompositionRegistry& registry,
-                                         const RenderArgs& args,
-                                         const CompositionProps& props) {
-    return make_render_job(registry, args, props);
 }
 
 } // namespace chronon3d::cli
