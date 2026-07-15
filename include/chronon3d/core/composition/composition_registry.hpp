@@ -50,7 +50,13 @@ public:
         if (!descriptor.factory) {
             throw std::runtime_error("CompositionDescriptor has null factory: " + descriptor.id);
         }
-        descriptors_[std::move(descriptor.id)] = std::move(descriptor);
+
+        // Preserve descriptor.id inside the stored value. Moving the member
+        // directly into operator[] emptied it, which made descriptor-based
+        // discovery (`list`, `info`, SDK callers) lose the public ID even
+        // though the map key remained correct.
+        const std::string key = descriptor.id;
+        descriptors_.emplace(key, std::move(descriptor));
     }
 
     /// Legacy registration — preserved for backward compatibility with
