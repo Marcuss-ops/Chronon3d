@@ -1,4 +1,8 @@
 ## 2026-07-15
+### `docs(tickets): phase 1d registry-introspection chaser-chore (DONE)`
+  ([TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION](docs/tickets/TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION.md))
+All 4 sub-commands shipped (`chronon schema` | `example-props` | `validate` | `resolve`) on `feat/composition-input-phase-1c-1d-v2`. Cat-5 2-doc chaser-chore: ticket-home Stato → DONE.
+
 ### `feat(cli): chronon resolve subcommand (Phase 1d / Increment F)`
   ([TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION](docs/tickets/TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION.md))
 ResolvedCompositionSpec dump (`resolved` + `props` + `metadata:{width,height,fps,duration}`). Wraps canonical `CompositionRegistry::resolve` + `descriptor_of`. Zero new public SDK symbol.
