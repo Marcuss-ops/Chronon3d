@@ -1,16 +1,5 @@
 # ═══════════════════════════════════════════════════════════════════════════════
 # ci.yml — Chronon3d CI Pipeline
-#
-# Triggers:
-#   push to main    → Full suite (build + run ALL tests)
-#   pull_request    → Fast suite (build + run only fast tests for quick feedback)
-#
-# Matrix:
-#   linux-ci            — Debug build (profiling OFF, faster compile), full suite
-#   linux-ci-nocontent  — Debug, no content modules (validates modular build)
-#
-# Sanitizers (P2-A): ASan+UBSAN nightly + TSan weekly via
-#   nightly-sanitizers.yml (not on every push — too slow for fast feedback).
 # ═══════════════════════════════════════════════════════════════════════════════
 
 name: Chronon CI
@@ -53,8 +42,6 @@ jobs:
             test_preset: linux-ci-nocontent-test
             vcpkg_commit: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
 
-          # NOTE: ASan+UBSAN moved to nightly-sanitizers.yml (P2-A).
-
           - name: Windows (Release)
             slug: windows-release
             os: windows-latest
@@ -66,6 +53,9 @@ jobs:
     env:
       VCPKG_ROOT: ${{ github.workspace }}/vcpkg
       VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+      # Used only by checksum-pinned public fixture downloads. No repository
+      # content or user data is uploaded by the bootstrap helper.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout
@@ -74,12 +64,6 @@ jobs:
           submodules: recursive
           lfs: ${{ github.event_name == 'push' }}
 
-      # TICKET-110 — pre-build hygiene gate (gate #10b doctest, wired into
-      # tools/wrap_push.sh as Step 4.5a).  Runs BEFORE the cmake build
-      # because a duplicate DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN hardbreaks
-      # the link step; the cost is a single-grep audit (~1s) vs. a 5-10 min
-      # CI rebuild on a duplicate.  Local-only execution per the gate
-      # parity contract documented in docs/AGENT_WORKFLOW.md §6.
       - name: Gate / Test Hygiene (duplicate DOCTEST main)
         if: runner.os == 'Linux'
         working-directory: ${{ github.workspace }}
@@ -90,12 +74,8 @@ jobs:
         with:
           vcpkgGitCommitId: ${{ matrix.config.vcpkg_commit }}
 
-      # ── Configure (vcpkg installs dependencies automatically) ─────────
       - name: Configure
         run: cmake --preset ${{ matrix.config.preset }}
-
-      # ── Build: fast tests on PR, full suite on push to main ───────────
-      # Note: parallelism is handled by CMakePresets.json ("jobs": 16).
 
       - name: Build (Fast — PR)
         if: github.event_name == 'pull_request'
@@ -105,12 +85,11 @@ jobs:
         if: github.event_name != 'pull_request'
         run: cmake --build --preset ${{ matrix.config.build_preset }} --target chronon3d_tests
 
-      # ── Run Tests ─────────────────────────────────────────────────────
       - name: Run Tests (Fast — PR)
         if: github.event_name == 'pull_request'
         run: |
           ctest --preset ${{ matrix.config.test_preset }} \
-            -R "chronon3d_core_tests|chronon3d_scene_tests|chronon3d_cli_tests|chronon3d_optimizer_tests|chronon3d_cache_tests|chronon3d_compositor_tests" \
+            -R "chronon3d_core_tests|chronon3d_scene_tests|chronon3d_cli_tests|chronon3d_render_job_contract_tests|chronon3d_optimizer_tests|chronon3d_cache_tests|chronon3d_compositor_tests" \
             --output-on-failure \
             --output-junit test-results-${{ matrix.config.slug }}.xml
 
@@ -121,21 +100,11 @@ jobs:
             --output-on-failure \
             --output-junit test-results-${{ matrix.config.slug }}.xml
 
-      # ── Agent 2 / ci-showcase plan (Step 2/6) — daily smoke ──────────
-      # Smoke runs ONLY on push to main, on the linux-ci matrix (where
-      # CHRONON3D_BUILD_CONTENT=ON and the chronic showcase binary is
-      # already produced by the `Build (Full — Push)` step above).
-      # verify_cinematic_showcase.sh --smoke configures the showcase
-      # binary to 1 composition × 2 frames, skips A4.5 (no contact-sheet
-      # PNG) and A4.6 (no perf envelope), so daily CI stays artefact-
-      # free.  The full 5×6 cohort still runs nightly-manual via
-      # `.github/workflows/nightly-visual.yml`.
       - name: Cinematic showcase smoke (Linux Debug/CI, push only)
         if: github.event_name != 'pull_request' && matrix.config.preset == 'linux-ci' && runner.os == 'Linux'
         run: |
           bash tools/verify_cinematic_showcase.sh --smoke
 
-      # ── Clang-Tidy (static analysis, Linux only) ──────────────────────
       - name: Clang-Tidy (PR only)
         if: runner.os == 'Linux' && github.event_name == 'pull_request'
         run: |
@@ -160,10 +129,6 @@ jobs:
             exit 1
           fi
 
-      # ── P3-A: Generate machine-readable CI status JSON ─────────────
-      # Parses ctest JUnit XML into a structured JSON artifact with
-      # commit, tested_at, tests_total, passed, failed, skipped,
-      # gates_passed, and per-suite breakdowns.
       - name: Generate CI status JSON
         if: runner.os == 'Linux'
         run: |
