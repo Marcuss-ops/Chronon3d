@@ -2,15 +2,13 @@
 #include "../../commands/video/common/pipe_export_pipeline.hpp"
 #include "../../commands/video/common/video_export_common.hpp"
 
-#include <chronon3d/core/cancellation_token.hpp>
-
 #include <spdlog/spdlog.h>
+
+#include <utility>
 
 namespace chronon3d::cli {
 
-namespace {
-
-[[nodiscard]] FfmpegExportOptions make_ffmpeg_opts(const RenderJob& job) {
+FfmpegExportOptions make_ffmpeg_export_options(const RenderJob& job) {
     OutputOptions output;
     output.output = job.output;
     output.frames_dir_name = job.video_settings.frames_dir;
@@ -49,8 +47,6 @@ namespace {
     opts.sink = std::move(sink);
     return opts;
 }
-
-} // namespace
 
 int render_and_encode_ffmpeg(
     const CompositionRegistry& registry,
@@ -99,28 +95,6 @@ int render_and_encode_ffmpeg(
     }
 
     return 1;
-}
-
-int execute_video_job(const RenderJob& job) {
-    if (!validate_video_job(job)) {
-        return 1;
-    }
-
-    auto opts = make_ffmpeg_opts(job);
-
-    chronon3d::CancellationToken cancel_token;
-    install_signal_cancellation(cancel_token);
-    opts.cancellation_token = &cancel_token;
-
-    return render_and_encode_ffmpeg(
-        *job.registry,
-        *job.comp,
-        job.comp_id,
-        job.settings,
-        job.first_frame,
-        job.last_frame + Frame{1},
-        opts,
-        job.execution.cpu_budget);
 }
 
 } // namespace chronon3d::cli
