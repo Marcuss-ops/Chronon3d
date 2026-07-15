@@ -6,13 +6,21 @@
 
 namespace chronon3d::cli {
 
-int command_render(const CompositionRegistry& registry, const RenderArgs& args) {
-    auto job = make_render_job(registry, args);
-    if (!job) {
+int command_render(const CompositionRegistry& registry,
+                   const RenderArgs& args,
+                   const CompositionProps& props) {
+    auto request = make_render_request(registry, args, props);
+    if (!request) {
         return 1;
     }
 
-    auto result = execute_render_job(*job);
+    auto resolved = resolve_render_request(registry, std::move(*request));
+    if (!resolved) {
+        spdlog::error("Failed to resolve render request: {}", resolved.error().message);
+        return 1;
+    }
+
+    auto result = execute_render_job(*resolved);
     if (!result) {
         if (job->mode == RenderMode::Video) {
             print_render_error(result.error(), *job);

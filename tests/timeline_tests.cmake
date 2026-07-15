@@ -17,4 +17,5 @@ chronon3d_add_test_suite(
         timeline/test_composition_descriptor_decode.cpp
         timeline/test_props_codec.cpp
         timeline/test_composition_descriptor_prepare.cpp
+        timeline/test_registry_resolve.cpp
 )
