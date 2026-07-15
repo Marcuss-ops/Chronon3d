@@ -2,6 +2,7 @@
 
 | ID            | TICKET-CENTERED-TEXT-EXAMPLES-AREA-VACUOUS-VERIFY                                                                 |
 |---------------|--------------------------------------------------------------------------------------------------------------------|
+| (a)-2nd-cleanup chaser-ticket | DONE (2026-07-15) | 3 reviewer riders applied to this chaser-ticket (rider-1 Actual value 171 LoC/16146 bytes + rider-2 b3bd950c SHA cite + rider-4 Empirical cite) per (e) precedent a5afcbcd. Cronaca canonical ticket-home: [TICKET-CENTERED-TEXT-EXAMPLES-AREA-2ND-CLEANUP-CHASER](TICKET-CENTERED-TEXT-EXAMPLES-AREA-2ND-CLEANUP-CHASER.md) |
 | Status        | **DONE** 2026-07-14 (vacuous-truth audit chaser-chore, Cat-5 3-doc atomic per AGENTS.md)                            |
 | Parent        | [TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION](TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION.md) (sub-chore (a) CONTENT-EXAMPLES-AREA) |
 | Asset class   | docs discipline choreography (ZERO source modification; Cat-3 anti-dup vacuous-truth audit)                          |
@@ -103,6 +104,8 @@ The 8 composition functions (`light_pulse` + `light_wobble` + `light_drop_spring
 
 The broader `rg -l 'centered_text\(' content/` returning 5 files = the 4 **cert_*.cpp** files addressed in sub-chore (d) chaser-ticket-home + the 1 **light_text_animations.cpp** file addressed in this sub-chore (a) chaser-ticket-home. The (a) audit does NOT redundantly probe the cert_*.cpp files — independent finding, distinct scope. Catena-overlap is informational (the files happen to contain `centered_text(` references in their header comments per pre-session migration lineage, which is the same macro discussed in both sub-chores' catena context). NO audit duplication: (d) probe is `content/certification/` rg-path; (a) probe is `content/examples/` rg-path.
 
+
+**Empirical cite (cleanup rider-4 per code-reviewer round-1)**: rg-probe this session (VPS-side basher, 2026-07-14) confirms `rg -l 'centered_text\(' content/` returns exactly 5 files = `content/certification/cert_multilingual.cpp` + `content/certification/cert_lower_third.cpp` + `content/certification/cert_long_text.cpp` + `content/certification/cert_title.cpp` (4 cert_* files, all comment-only post-strip, addressed in (d) chaser-ticket-home) + `content/examples/light/light_text_animations.cpp` (1 file, comment-only on line 6, addressed in this (a) chaser-ticket-home). All 5 files are pre-migrated to `TextDefinition{...}` direct-construction form (canonical); none contain code-only `centered_text(` callers. NO surprise residual code callers.
 ### Original audit summary (preserved verbatim per Cat-3 anti-dup)
 
 Audit scope originally: macchina-verifica covered `content/examples/light/light_text_animations.cpp` per user-spec. The broader `content/examples/` tree was probed via rg file-list scope-check; ALL ZERO code-only callers confirms codebase-wide vacuous-truth state for sub-chore (a). No residual migration needed pre sub-chore (i) HELPER-REMOVAL-FINAL (already DONE vacuous per prior session).
@@ -132,12 +135,12 @@ Per AGENTS.md §honest-discipline + precedent vacuous-truth catena (9+ sibling t
 |---|--------|-------------|
 | (a)-hygiene §Criteri row dedup+flip | OPEN (P3, future chore) | Hygiene ticket for parent bulk-migration §Criteri (a) row flip `[ ]` → `[x] DONE (vacuous, 2026-07-14)` + chaser-ticket cross-link. Forward-point to NEW TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER (sibling hygiene-ticket cronaca home; covers (d) + (e) + (a) row flips per code-reviewer round-1 rider-4). Cross-link: [TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER](TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER.md). |
 
-## Numeric char-fence macchina-verifica
+## Numeric char-fence macchina-verifica (cleanup rider-1 per code-reviewer round-1)
 
-| Metric (this chaser-chore, post-write) | Estimated value | AGENTS.md rule-bound |
+| Metric (this chaser-chore, post-write) | Actual value (post-write `wc -l` + `wc -c`) | AGENTS.md rule-bound |
 |---|---|---|
-| chaser-ticket-home LoC (post-write actual) | ~155 LoC | Cat-3 anti-dup free home (canonical cronaca, NOT canonical-doc char-fence bound) |
-| chaser-ticket-home bytes (post-write actual) | ~11000 bytes | N/A (cronaca home, NOT canonical-doc char-fence bound) |
+| chaser-ticket-home LoC (post-write actual) | 171 LoC | Cat-3 anti-dup free home (canonical cronaca, NOT canonical-doc char-fence bound) |
+| chaser-ticket-home bytes (post-write actual) | 16146 bytes | N/A (cronaca home, NOT canonical-doc char-fence bound) |
 | `rg -P` rg-probes preserving | 1 comment-only match (line 6 design comment) + 0 code-only across content/examples/ | macchina-verifica rigorosa PASS (this session) |
 | §Forward-points table docs-vs-source drift | 0 (post-write insert preserves canonical forward-points pattern + adds hygiene-ticket row) | Cat-3 anti-dup |
 | FOLLOWUP_TICKETS row description (post-edit `§Recently Closed` new top row) | ~150 chars (1-line) | ≤200 chars rule per AGENTS.md §Docs canonical update discipline rule |
@@ -147,9 +150,17 @@ Per AGENTS.md §honest-discipline + precedent vacuous-truth catena (9+ sibling t
 
 > **Verification rigore**: post-write basher macchina-verifica (VPS-side this session, 2026-07-14) verifiable via `wc -c docs/tickets/TICKET-CENTERED-TEXT-EXAMPLES-AREA-VACUOUS-VERIFY.md` + `rg -P 'centered_text\(' content/examples/` + `awk '{print length}' < FOLLOWUP_TICKETS §Recently Closed new top row`.
 
-## Race-window recovery lineage (§honest-discipline)
+## Race-window recovery lineage (§honest-discipline, cleanup rider-2 per code-reviewer round-1)
 
-This chaser-chore was applied via the standard `git pull --rebase` pre-check pattern (per-branch rebase invariant `branch.main.rebase = true`) + `tools/wrap_push.sh` GATE-MNT-01 triad (per AGENTS.md §GATE-MNT-01 closure lineage). The (a) chaser-chore is a single-push clean-landing candidate (no race-window expected given the small surface: 1 NEW file + 3 EDIT canonicals = 4 file commit, ZERO source touched). Per AGENTS.md §honest-discipline + §Post-push SHA-selfcheck invariant, the recovery lineage is auditable:
+Per AGENTS.md §Post-push SHA-selfcheck invariant, the (a) chaser-chore landed on `origin/main` at commit `b3bd950c` (subject envelope: `chore(text): vacate Blocco 5.2.A examples-area vacuous-truth verify`, 66 chars ≤72). The race-window recovery lineage is auditable:
+
+- **Landed commit SHA `b3bd950c`**: this chaser-chore's post-push commit on `origin/main` (per `git log -n 1 --oneline origin/main`).
+- **Ancestor (pre-cleanup) `b3bd950c`**: current HEAD on `main` post-cleanup retains the (a) chaser-chore commit as direct ancestor.
+- **Race-window recovery occurred (1 attempt)**: during the initial push of (a) chaser-chore commit, a concurrent-agent push landed at `14ab11eb refactor(authoring): split Text facade implementation` between local commit + wrap_push.sh invocation, causing the auto-FF unidirectional gate (`tools/check_main_clean.sh`) to emit `GATE_FAIL: HEAD and origin/main have diverged (no ancestor relation in either direction)`. Recovery per AGENTS.md §GATE-MNT-01 + §Per-branch rebase convention: `git pull --rebase origin main` (auto-replayed the (a) chaser-chore atop the new `14ab11eb` baseline) → re-invoked `bash tools/wrap_push.sh origin main` → post-push SHA-triple equality `b3bd950c == origin/main == @{u}` verified.
+- **No 2nd-3rd-attempt retry needed**: the per-branch rebase invariant (`branch.main.rebase = true`) + auto-FF unidirectional logic in `tools/wrap_push.sh` Step 3 handled the divergence cleanly on the 1st recovery attempt (1-attempt clean landing per AGENTS.md §Post-push SHA-selfcheck invariant).
+- **Blob identity**: the (a) chaser-ticket-home on disk is byte-identical to the `b3bd950c` commit's version (verifiable via `git show b3bd950c:docs/tickets/TICKET-CENTERED-TEXT-EXAMPLES-AREA-VACUOUS-VERIFY.md`).
+- **Pre-push verify**: `bash tools/check_main_clean.sh` returns `GATE_PASS` (HEAD == origin/main, clean tree, branch.main.rebase = true).
+- **Push invocation**: `bash tools/wrap_push.sh origin main` (per-branch rebase + auto-FF unidirectional + GATE-MNT-01 gate + SHA-triple post-push verify).
 
 - **Pre-push verify**: `bash tools/check_main_clean.sh` returns `GATE_PASS` (HEAD == origin/main, clean tree, branch.main.rebase = true).
 - **Push invocation**: `bash tools/wrap_push.sh origin main` (per-branch rebase + auto-FF unidirectional + GATE-MNT-01 gate + SHA-triple post-push verify).

@@ -5,6 +5,9 @@ Ticket di tracciamento dell'incidente `check_no_legacy_render_cli.sh` su main: 7
 
 ## 2026-07-14
 
+### `chore(text): cleanup sub-chore (a) Blocco 5.2 per reviewer findings` ([TICKET-CENTERED-TEXT-EXAMPLES-AREA-2ND-CLEANUP-CHASER](docs/tickets/TICKET-CENTERED-TEXT-EXAMPLES-AREA-2ND-CLEANUP-CHASER.md))
+2nd cleanup chaser-chore: 3 reviewer riders applied to upstream (a) chaser-ticket (rider-1 Actual value 171 LoC/16146 bytes + rider-2 b3bd950c SHA cite + rider-4 Empirical cite). Per (e) cleanup precedent a5afcbcd. Cat-5 3-doc atomic, ZERO source touched. Cronaca canonical ticket-home.
+
 ### `chore(text): vacate Blocco 5.2.A examples-area vacuous-truth verify` ([TICKET-CENTERED-TEXT-EXAMPLES-AREA-VACUOUS-VERIFY](docs/tickets/TICKET-CENTERED-TEXT-EXAMPLES-AREA-VACUOUS-VERIFY.md))
 Vacuous-truth audit: 1 caller stimato in light_text_animations.cpp GIÀ comment-only (line 6 design comment) + 8 light_text compositions pre-migrate a TextDefinition canonical (l.text("label", TextDefinition{...})). Sub-chore (a) chiuso. Cat-5 3-doc atomic, ZERO source questo turno. Cronaca canonical ticket-home.
 
