@@ -1,5 +1,4 @@
 #include "render_job.hpp"
-#include "../common/render_error_formatter.hpp"
 
 #include "../common/cli_utils.hpp"
 
@@ -7,6 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <exception>
 #include <filesystem>
 #include <optional>
 
@@ -17,44 +17,12 @@ namespace {
 bool is_video_output(const std::string& output) {
     std::string ext = std::filesystem::path(output).extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+                   [](unsigned char c) {
+                       return static_cast<char>(std::tolower(c));
+                   });
     return ext == ".mp4" || ext == ".mov" || ext == ".mkv" ||
            ext == ".webm";
 }
-
-void finalize_video_settings(RenderJob& job) {
-    if (job.video_settings.frames_dir.empty()) {
-        job.video_settings.frames_dir =
-            "chronon_" + std::filesystem::path(job.comp_id).filename().string();
-    }
-
-    if (job.video_settings.tune.empty() &&
-        job.video_settings.codec == "libx264") {
-        job.video_settings.tune = "zerolatency";
-        spdlog::info(
-            "[video] Auto-selecting x264 tune=zerolatency for low-latency pipe export");
-    }
-
-#if defined(__linux__)
-    if (job.video_settings.pipe_pixfmt == "rgba" &&
-        job.comp->width() % 2 == 0 && job.comp->height() % 2 == 0 &&
-        job.video_settings.codec != "libx264rgb") {
-        job.video_settings.pipe_pixfmt = "yuv420p";
-        spdlog::info(
-            "[video] Auto-selecting yuv420p pipe pixel format for {}x{} output",
-            job.comp->width(), job.comp->height());
-    }
-
-    if (job.video_settings.pipe_writer == "io_uring") {
-        spdlog::warn(
-            "[video] io_uring pipe writer is experimental; use classic for stable exports");
-    }
-#endif
-}
-
-} // namespace
-
-namespace {
 
 void fill_execution_options(RenderExecutionOptions& execution,
                             const RenderPipelineArgs& pipeline,
@@ -69,11 +37,14 @@ void fill_execution_options(RenderExecutionOptions& execution,
     Config cfg;
     cfg.set_cpu_budget(cpu_budget);
     if (pipeline.fb_pool_budget_mb > 0) {
-        cfg.set_fb_pool_budget(pipeline.fb_pool_budget_mb * 1024ULL * 1024ULL);
+        cfg.set_fb_pool_budget(
+            pipeline.fb_pool_budget_mb * 1024ULL * 1024ULL);
     }
     if (!pipeline.fb_pool_clear_policy.empty()) {
         const auto& policy_str = pipeline.fb_pool_clear_policy;
-        if (auto parsed = chronon3d::cache::parse_framebuffer_pool_clear_policy(policy_str)) {
+        if (auto parsed =
+                chronon3d::cache::parse_framebuffer_pool_clear_policy(
+                    policy_str)) {
             cfg.set_fb_pool_clear_policy(*parsed);
         } else {
             spdlog::warn(
@@ -86,19 +57,69 @@ void fill_execution_options(RenderExecutionOptions& execution,
     execution.config = std::move(cfg);
 }
 
+void finalize_video_settings(RenderJob& job) {
+    if (job.video_settings.frames_dir.empty()) {
+        job.video_settings.frames_dir =
+            "chronon_" +
+            std::filesystem::path(job.comp_id).filename().string();
+    }
+
+    if (job.video_settings.tune.empty() &&
+        job.video_settings.codec == "libx264") {
+        job.video_settings.tune = "zerolatency";
+        spdlog::info(
+            "[video] Auto-selecting x264 tune=zerolatency for "
+            "low-latency pipe export");
+    }
+
+#if defined(__linux__)
+    if (job.video_settings.pipe_pixfmt == "rgba" &&
+        job.comp->width() % 2 == 0 && job.comp->height() % 2 == 0 &&
+        job.video_settings.codec != "libx264rgb") {
+        job.video_settings.pipe_pixfmt = "yuv420p";
+        spdlog::info(
+            "[video] Auto-selecting yuv420p pipe pixel format for {}x{} output",
+            job.comp->width(), job.comp->height());
+    }
+
+    if (job.video_settings.pipe_writer == "io_uring") {
+        spdlog::warn(
+            "[video] io_uring pipe writer is experimental; "
+            "use classic for stable exports");
+    }
+#endif
+}
+
+CompositionMetadata metadata_from_composition(const Composition& comp) {
+    return CompositionMetadata{
+        .width = comp.width(),
+        .height = comp.height(),
+        .fps = comp.frame_rate(),
+        .duration = comp.duration(),
+    };
+}
+
 } // namespace
 
-std::optional<RenderRequest> make_render_request(const CompositionRegistry& registry,
-                                                 const RenderArgs& args,
-                                                 const CompositionProps& props) {
+std::optional<RenderRequest> make_render_request(
+    const CompositionRegistry& registry,
+    const RenderArgs& args,
+    const CompositionProps& props) {
+    if (args.comp_id.empty() || !registry.contains(args.comp_id)) {
+        return std::nullopt;
+    }
+
     RenderRequest request;
     request.comp_id = args.comp_id;
     request.input.values = props.values;
     request.input.project_root = props.project_root;
     request.input.assets = props.assets;
     request.output = args.output;
-    request.settings = settings_from_args(args, true, args.pipeline.diagnostic);
-    request.settings.diagnostics.plan_output = args.pipeline.diagnostic_plan_output;
+    request.settings =
+        settings_from_args(args, true, args.pipeline.diagnostic);
+    request.settings.diagnostics.plan_output =
+        args.pipeline.diagnostic_plan_output;
+    request.video_settings = args.video_settings;
 
     const auto range = parse_frames(args.frames);
     request.frame_step = Frame{range.step};
@@ -106,20 +127,12 @@ std::optional<RenderRequest> make_render_request(const CompositionRegistry& regi
     if (is_video_output(args.output)) {
         request.mode = RenderMode::Video;
         request.first_frame = Frame{range.start};
+        request.last_frame = Frame{range.end};
 
-        // `render Comp -o out.mp4` keeps RenderArgs' historical default
-        // frames="0" but means the full composition for Video mode.  An
-        // explicit non-zero single frame remains a valid one-frame video.
-        auto resolved = resolve_composition(registry, args.comp_id, props);
-        if (!resolved) return std::nullopt;
-        const auto duration_last = std::max<std::int64_t>(
-            range.start, resolved.comp->duration().integral() - 1);
-        request.last_frame = (range.start == 0 && range.end == 0)
-            ? Frame{duration_last}
-            : Frame{range.end};
-
-        request.video_settings.frames_dir =
-            "chronon_" + std::filesystem::path(args.comp_id).filename().string();
+        // Video uses the same renderer/session warmup policy as the historical
+        // video path, now represented on the shared execution options.
+        request.execution.warmup_renderer = true;
+        request.execution.warmup_dummy_frame = true;
     } else if (range.start == range.end) {
         request.mode = RenderMode::Still;
         request.still_frame = Frame{range.start};
@@ -134,61 +147,94 @@ std::optional<RenderRequest> make_render_request(const CompositionRegistry& regi
     request.execution.report = args.report;
     request.execution.command_line = args.command_line;
     request.execution.diagnostic_plan = args.pipeline.diagnostic_plan;
-    if (request.mode == RenderMode::Video) {
-        request.execution.warmup_renderer = true;
-    }
-    fill_execution_options(request.execution, args.pipeline, args.cpu_budget);
+    fill_execution_options(
+        request.execution, args.pipeline, args.cpu_budget);
 
     return request;
 }
 
-Result<ResolvedRenderJob, RenderJobError> resolve_render_request(
+Result<RenderJob, RenderJobError> resolve_render_request(
     const CompositionRegistry& registry,
     RenderRequest request) {
     auto resolved = registry.resolve(request.comp_id, request.input);
     if (!resolved) {
-        const auto& err = resolved.error();
         return RenderJobError{
             RenderJobErrorCode::ValidationFailed,
-            "Failed to resolve composition '" + request.comp_id + "': " + err.message};
+            "Failed to resolve composition '" + request.comp_id +
+                "': " + resolved.error().message};
     }
-
-    auto desc = registry.descriptor_of(request.comp_id);
-    if (!desc || !desc->factory) {
+    if (!resolved->construct) {
         return RenderJobError{
             RenderJobErrorCode::InvalidJob,
-            "Composition '" + request.comp_id + "' has no factory"};
+            "Composition '" + request.comp_id +
+                "' has no prepared constructor"};
     }
 
-    Composition comp = desc->factory(resolved->props);
-    auto comp_ptr = std::make_shared<const Composition>(std::move(comp));
+    try {
+        Composition comp = resolved->construct();
+        auto comp_ptr =
+            std::make_shared<const Composition>(std::move(comp));
 
-    ResolvedRenderJob job;
-    job.request = std::move(request);
-    job.comp = std::move(comp_ptr);
-    job.metadata = resolved->metadata.value_or(CompositionMetadata{});
-    job.registry = &registry;
-    return job;
+        RenderJob job;
+        job.registry = &registry;
+        job.comp_id = std::move(request.comp_id);
+        job.comp = std::move(comp_ptr);
+        job.metadata = resolved->metadata.value_or(
+            metadata_from_composition(*job.comp));
+        job.mode = request.mode;
+        job.still_frame = request.still_frame;
+        job.first_frame = request.first_frame;
+        job.last_frame = request.last_frame;
+        job.frame_step = request.frame_step;
+        job.output = std::move(request.output);
+        job.settings = std::move(request.settings);
+        job.video_settings = std::move(request.video_settings);
+        job.execution = std::move(request.execution);
+        job.diagnostics = request.diagnostics;
+
+        // The CLI's default frames value is "0". For video output that means
+        // the full composition; a non-zero single frame remains one-frame video.
+        if (job.mode == RenderMode::Video &&
+            job.first_frame == Frame{0} && job.last_frame == Frame{0}) {
+            const auto duration_last = std::max<std::int64_t>(
+                0, job.metadata.duration.integral() - 1);
+            job.last_frame = Frame{duration_last};
+        }
+
+        if (job.mode == RenderMode::Video) {
+            finalize_video_settings(job);
+        }
+
+        return job;
+    } catch (const std::exception& error) {
+        return RenderJobError{
+            RenderJobErrorCode::SetupFailed,
+            "Composition construction failed for '" + request.comp_id +
+                "': " + error.what()};
+    }
 }
 
-std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
-                                         const RenderArgs& args) {
+std::optional<RenderJob> make_render_job(
+    const CompositionRegistry& registry,
+    const RenderArgs& args) {
     return make_render_job(registry, args, CompositionProps{});
 }
 
-std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
-                                         const RenderArgs& args,
-                                         const CompositionProps& props) {
+std::optional<RenderJob> make_render_job(
+    const CompositionRegistry& registry,
+    const RenderArgs& args,
+    const CompositionProps& props) {
     auto request = make_render_request(registry, args, props);
-    if (!request) {
-        return std::nullopt;
-    }
-    auto resolved = resolve_render_request(registry, std::move(*request));
+    if (!request) return std::nullopt;
+
+    auto resolved =
+        resolve_render_request(registry, std::move(*request));
     if (!resolved) {
-        spdlog::error("Failed to resolve render job: {}", resolved.error().message);
+        spdlog::error(
+            "Failed to resolve render job: {}", resolved.error().message);
         return std::nullopt;
     }
-    return resolved->to_legacy_job();
+    return std::move(resolved).value();
 }
 
 } // namespace chronon3d::cli
