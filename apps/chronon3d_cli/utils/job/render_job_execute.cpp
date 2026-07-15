@@ -32,6 +32,11 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
     }
 
     if (job.mode == RenderMode::Video) {
+        if (!job.selected_frames.empty()) {
+            return RenderJobError{
+                RenderJobErrorCode::InvalidJob,
+                "Video RenderJob cannot use non-contiguous selected_frames"};
+        }
 #ifdef CHRONON3D_ENABLE_VIDEO
         if (!validate_video_job(job)) {
             return RenderJobError{
@@ -88,26 +93,35 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
                 "Failed to create renderer for composition '" + job.comp_id + "'"};
         }
 
-        const Frame start = job.mode == RenderMode::Still
-            ? job.still_frame
-            : job.first_frame;
-        const Frame end = job.mode == RenderMode::Still
-            ? job.still_frame
-            : job.last_frame;
-        const Frame step = Frame{std::max<std::int64_t>(
-            1, job.frame_step.integral())};
+        const auto motion_blur_suffix =
+            chronon3d::is_motion_blur_active(job.settings.motion_blur)
+                ? fmt::format(" [MB {}smp {:.0f}°/{:.0f}°]",
+                              job.settings.motion_blur.samples,
+                              job.settings.motion_blur.shutter_angle_deg,
+                              job.settings.motion_blur.shutter_phase_deg)
+                : std::string{};
+        const auto ssaa_suffix = job.settings.ssaa_factor > 1.0f
+            ? fmt::format(" [SSAA {:.1f}x]", job.settings.ssaa_factor)
+            : std::string{};
 
-        spdlog::info("Rendering {} [{} -> {} step {}]{}{}...",
-                     job.comp_id, start, end, step,
-                     chronon3d::is_motion_blur_active(job.settings.motion_blur)
-                         ? fmt::format(" [MB {}smp {:.0f}°/{:.0f}°]",
-                                       job.settings.motion_blur.samples,
-                                       job.settings.motion_blur.shutter_angle_deg,
-                                       job.settings.motion_blur.shutter_phase_deg)
-                         : "",
-                     job.settings.ssaa_factor > 1.0f
-                         ? fmt::format(" [SSAA {:.1f}x]", job.settings.ssaa_factor)
-                         : "");
+        if (!job.selected_frames.empty()) {
+            spdlog::info("Rendering {} [{} selected frames]{}{}...",
+                         job.comp_id, job.selected_frames.size(),
+                         motion_blur_suffix, ssaa_suffix);
+        } else {
+            const Frame start = job.mode == RenderMode::Still
+                ? job.still_frame
+                : job.first_frame;
+            const Frame end = job.mode == RenderMode::Still
+                ? job.still_frame
+                : job.last_frame;
+            const Frame step = Frame{std::max<std::int64_t>(
+                1, job.frame_step.integral())};
+
+            spdlog::info("Rendering {} [{} -> {} step {}]{}{}...",
+                         job.comp_id, start, end, step,
+                         motion_blur_suffix, ssaa_suffix);
+        }
 
         setup.sys_metrics.sample_cpu_start();
         auto loop = run_render_job_loop(job, *setup.renderer);
@@ -116,7 +130,6 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
             job, setup, loop.telemetry_frames,
             loop.total_render_ms, loop.total_encode_ms, loop.frames_written,
             loop.ok, loop.loop_start, loop.loop_end);
-
         if (!ok) {
             return RenderJobError{
                 RenderJobErrorCode::RenderFailed,
