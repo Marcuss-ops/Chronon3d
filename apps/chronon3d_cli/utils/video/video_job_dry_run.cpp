@@ -1,60 +1,57 @@
-// ---------------------------------------------------------------------------
-// utils/video/video_job_dry_run.cpp — Phase 3: dry-run a VideoJobPlan
-// ---------------------------------------------------------------------------
-
 #include "video_job_plan.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
+
+#include <chronon3d/assets/asset_preflight_resolver.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
-#include <chronon3d/assets/asset_preflight_resolver.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
+
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::cli {
 
-int dry_run_video_job(const VideoJobPlan& plan) {
-    const int total = static_cast<int>(plan.end_exclusive - plan.start);
+int dry_run_video_job(const RenderJob& job) {
+    if (!validate_video_job(job)) {
+        return 1;
+    }
 
-    spdlog::info("[dry-run] Composition: {}", plan.comp_id);
+    const int total = static_cast<int>(
+        job.last_frame.integral() - job.first_frame.integral() + 1);
+
+    spdlog::info("[dry-run] Composition: {}", job.comp_id);
     spdlog::info("[dry-run]   Resolution: {}×{}",
-                 plan.comp->width(), plan.comp->height());
-    spdlog::info("[dry-run]   Frame range: {} – {} ({} frames)",
-                 plan.start, plan.end_exclusive, total);
-    spdlog::info("[dry-run]   FPS: {}", plan.output.fps);
+                 job.comp->width(), job.comp->height());
+    spdlog::info("[dry-run]   Frame range: {} – {} inclusive ({} frames)",
+                 job.first_frame, job.last_frame, total);
+    spdlog::info("[dry-run]   FPS: {}", job.video_settings.fps);
     spdlog::info("[dry-run]   Duration: {:.1f}s",
-                 static_cast<double>(total) / plan.output.fps);
-    spdlog::info("[dry-run]   Output: {}", plan.output.output);
+                 static_cast<double>(total) / job.video_settings.fps);
+    spdlog::info("[dry-run]   Output: {}", job.output);
     spdlog::info("[dry-run]   Sink: {} ({})",
-                 to_string(plan.sink.sink_type), plan.sink.ffmpeg_mode);
-    spdlog::info("[dry-run]   SSAA: {}×", plan.settings.ssaa_factor);
+                 job.video_settings.sink_type,
+                 job.video_settings.ffmpeg_mode);
+    spdlog::info("[dry-run]   SSAA: {}×", job.settings.ssaa_factor);
 
-    // Try to build the render graph to detect errors early
     try {
-        auto renderer = create_renderer(*plan.registry, plan.settings);
-        // 06 R3b — `create_renderer` returns `std::shared_ptr<SoftwareRenderer>`
-        // (the canonical CLI-side wire).  No dynamic_cast required; route the
-        // first arg through `->backend()` (post-R3b SoftwareRenderer derives
-        // only from Renderer, no implicit IS-A upcast to RenderBackend).
+        auto renderer = create_renderer(*job.registry, job.settings);
 
-        // ── Font preflight (P0 video/text — Fase 1) ────────────────────────
-        {
-            Scene scene = plan.comp->evaluate(plan.start);
-            auto preflight_result = AssetPreflightResolver::check(
-                scene, renderer->runtime().resolver(),
-                PreflightMode::FullComposition);
-            if (!preflight_result.ok()) {
-                std::string text = format_preflight_issues_text(preflight_result.issues);
-                spdlog::error("[dry-run] Asset preflight FAILED:\n{}", text);
-                return 1;
-            }
+        Scene scene = job.comp->evaluate(job.first_frame);
+        auto preflight_result = AssetPreflightResolver::check(
+            scene, renderer->runtime().resolver(),
+            PreflightMode::FullComposition);
+        if (!preflight_result.ok()) {
+            std::string text =
+                format_preflight_issues_text(preflight_result.issues);
+            spdlog::error("[dry-run] Asset preflight FAILED:\n{}", text);
+            return 1;
         }
 
         spdlog::info("[dry-run]   Backend: SoftwareRenderer");
         cache::NodeCache node_cache;
         auto fb = graph::render_composition_frame(
-            renderer->backend(), node_cache, plan.settings, plan.registry,
-            nullptr, *plan.comp, plan.start);
+            renderer->backend(), node_cache, job.settings, job.registry,
+            nullptr, *job.comp, job.first_frame);
         if (!fb) {
             spdlog::warn("[dry-run]   First frame render returned null");
         } else {
@@ -66,7 +63,7 @@ int dry_run_video_job(const VideoJobPlan& plan) {
         return 1;
     }
 
-    spdlog::info("[dry-run] ✅ Composition is valid — no rendering performed.");
+    spdlog::info("[dry-run] Composition is valid — no rendering performed.");
     return 0;
 }
 
