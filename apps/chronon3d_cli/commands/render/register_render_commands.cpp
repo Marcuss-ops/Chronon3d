@@ -50,6 +50,17 @@ void print_advanced_render_help(std::ostream& out) {
         "  --shutter-angle <degrees>\n"
         "  --shutter-phase <degrees>\n"
         "  --ssaa <factor>\n\n"
+        "Video output (active for .mp4/.mov/.mkv/.webm):\n"
+        "  --fps <N>\n"
+        "  --crf <0-51>\n"
+        "  --codec <name>\n"
+        "  --encode-preset <name>\n"
+        "  --tune <name>\n"
+        "  --hardware <none|auto|nvenc|qsv|videotoolbox|amf>\n"
+        "  --ffmpeg-mode <pipe|png>\n"
+        "  --encoder-backend <pipe|native>\n"
+        "  --keep-frames\n"
+        "  --dry-run\n\n"
         "Memory and cache:\n"
         "  --warmup-renderer\n"
         "  --warmup-framebuffers <N>\n"
@@ -74,6 +85,7 @@ void print_advanced_render_help(std::ostream& out) {
         "  --report\n\n"
         "Normal workflow:\n"
         "  chronon render Hero -o hero.png\n"
+        "  chronon render Hero --frames 0-90 -o hero.mp4\n"
         "  chronon render Hero --profile production -o hero.png\n\n"
         "Profiles: draft | preview | production | maximum\n"
         "Explicit advanced options always override profile defaults.\n";
@@ -91,6 +103,58 @@ void set_log_level(std::string_view level) {
     } else if (level == "error" || level == "err") {
         spdlog::set_level(spdlog::level::err);
     }
+}
+
+void add_video_options(CLI::App& cmd, RenderArgs& args) {
+    auto* video = cmd.add_option_group(
+        "Video output",
+        "Encoder controls used when the output extension selects video mode");
+
+    video->add_option("--fps", args.video_settings.fps, "Output frame rate")
+        ->check(CLI::Range(1, 240));
+    video->add_option("--crf", args.video_settings.crf,
+                      "Encoder quality (0-51, lower is higher quality)")
+        ->check(CLI::Range(0, 51));
+    video->add_option("--codec", args.video_settings.codec,
+                      "Video codec/encoder name");
+    video->add_option("--encode-preset,--preset", args.video_settings.encode_preset,
+                      "Encoder preset");
+    video->add_option("--tune", args.video_settings.tune,
+                      "Encoder tune");
+    video->add_option("--hardware", args.video_settings.hardware_encoder,
+                      "Hardware encoder: none, auto, nvenc, qsv, videotoolbox, amf");
+    video->add_flag("--keep-frames", args.video_settings.keep_frames,
+                    "Keep temporary PNG frames");
+    video->add_option("--frames-dir", args.video_settings.frames_dir,
+                      "Override temporary frames directory");
+    video->add_option("--chunks", args.video_settings.chunks,
+                      "Render frame range in N chunks")
+        ->check(CLI::Range(1, 1024));
+    video->add_option("--ffmpeg-mode", args.video_settings.ffmpeg_mode,
+                      "FFmpeg mode: pipe or png")
+        ->check(CLI::IsMember({"pipe", "png"}));
+    video->add_flag("--ffmpeg-verbose", args.video_settings.ffmpeg_verbose,
+                    "Show FFmpeg logs");
+    video->add_option("--pipe-pixfmt", args.video_settings.pipe_pixfmt,
+                      "Pipe pixel format")
+        ->check(CLI::IsMember({"rgba", "yuv420p", "nv12", "yuv444p"}));
+    video->add_option("--color-output", args.video_settings.color_output,
+                      "Output color space")
+        ->check(CLI::IsMember({"srgb", "rec709", "linearsrgb"}));
+    video->add_option("--pipe-writer", args.video_settings.pipe_writer,
+                      "Pipe writer: classic or io_uring")
+        ->check(CLI::IsMember({"classic", "io_uring"}));
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    video->add_option("--encoder-backend", args.video_settings.encoder_backend,
+                      "Encoder backend: pipe or native")
+        ->check(CLI::IsMember({"pipe", "native"}));
+#else
+    video->add_option("--encoder-backend", args.video_settings.encoder_backend,
+                      "Encoder backend: external FFmpeg pipe")
+        ->check(CLI::IsMember({"pipe"}));
+#endif
+    video->add_flag("--dry-run", args.video_settings.dry_run,
+                    "Validate video settings without rendering");
 }
 
 } // namespace
@@ -115,6 +179,8 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             CLI::ignore_case));
     cmd->add_option("-v,--log-level", args.log_level,
                     "Log level: trace | debug | info | warn | error");
+
+    add_video_options(*cmd, args);
 
     auto* advanced = cmd->add_option_group(
         "Advanced",
