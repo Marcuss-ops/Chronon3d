@@ -3,12 +3,14 @@
 // ═══════════════════════════════════════════════════════════════════════════
 #pragma once
 
+#include <chronon3d/assets/asset_manifest.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/timeline/composition_props.hpp>
 
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <stdexcept>
@@ -25,14 +27,19 @@ struct CompositionMetadata {
     Frame     duration{0};
 };
 
-using PreparedCompositionMetadata =
-    Result<std::optional<CompositionMetadata>, PropsError>;
+/// Fully prepared composition input. Props have already been decoded and
+/// validated. `construct` captures the typed props so construction never
+/// repeats decode or validation.
+struct PreparedComposition {
+    std::optional<CompositionMetadata> metadata;
+    std::optional<assets::AssetManifest> asset_manifest;
+    std::optional<std::filesystem::path> assets_root;
+    std::function<Composition()> construct;
+};
+
+using PreparedCompositionResult = Result<PreparedComposition, PropsError>;
 
 /// Canonical, registry-storeable composition description.
-///
-/// `prepare_props` is always callable. Untyped descriptors use the default
-/// no-op preparation; typed descriptors replace it with PropsCodec decode,
-/// validation and dynamic metadata resolution.
 struct CompositionDescriptor {
     std::string id;
     std::string category;
@@ -42,12 +49,14 @@ struct CompositionDescriptor {
     std::optional<Frame> duration;
     std::optional<PropsSchema> schema;
 
-    std::function<PreparedCompositionMetadata(const CompositionProps&)> prepare_props{
-        [](const CompositionProps&) -> PreparedCompositionMetadata {
-            return std::optional<CompositionMetadata>{};
-        }
-    };
+    /// Decode, validate and resolve all declarative information exactly once.
+    /// The registry installs a construction-only fallback for untyped
+    /// descriptors that provide only `factory`.
+    std::function<PreparedCompositionResult(const CompositionProps&)> prepare_props;
 
+    /// Registration compatibility surface for untyped descriptors and direct
+    /// callers. Canonical registry/CLI execution goes through prepare_props and
+    /// PreparedComposition::construct.
     std::function<Composition(const CompositionProps&)> factory;
 };
 
@@ -60,6 +69,8 @@ template <typename Props>
 struct TypedCompositionDescriptor {
     static_assert(std::is_default_constructible_v<Props>,
                   "Props must be default-constructible");
+    static_assert(std::is_copy_constructible_v<Props>,
+                  "Props must be copy-constructible for prepared construction");
 
     std::string id;
     std::string category;
@@ -67,6 +78,8 @@ struct TypedCompositionDescriptor {
 
     std::function<std::optional<std::string>(const Props&)> validate;
     std::function<CompositionMetadata(const Props&)> resolve_metadata;
+    std::function<assets::AssetManifest(const Props&)> resolve_assets;
+    std::function<std::filesystem::path(const Props&)> resolve_assets_root;
     std::function<Composition(const Props&)> factory;
     std::optional<PropsCodec<Props>> codec;
 
@@ -80,6 +93,8 @@ struct TypedCompositionDescriptor {
         auto typed_defaults = std::move(defaults);
         auto typed_validate = std::move(validate);
         auto typed_metadata = std::move(resolve_metadata);
+        auto typed_assets = std::move(resolve_assets);
+        auto typed_assets_root = std::move(resolve_assets_root);
         auto typed_factory = std::move(factory);
         auto typed_codec = std::move(codec);
 
@@ -124,12 +139,16 @@ struct TypedCompositionDescriptor {
             return typed_codec->decode(composition_props.values, typed_defaults);
         };
 
+        const auto construction_factory = typed_factory;
         descriptor.prepare_props = [
             decode_props,
             typed_validate,
-            typed_metadata
+            typed_metadata,
+            typed_assets,
+            typed_assets_root,
+            construction_factory
         ](const CompositionProps& composition_props)
-            -> PreparedCompositionMetadata {
+            -> PreparedCompositionResult {
             auto decoded = decode_props(composition_props);
             if (!decoded) {
                 return std::move(decoded).error();
@@ -146,12 +165,30 @@ struct TypedCompositionDescriptor {
                 }
             }
 
+            PreparedComposition prepared;
             if (typed_metadata) {
-                return std::optional<CompositionMetadata>{typed_metadata(props)};
+                prepared.metadata = typed_metadata(props);
             }
-            return std::optional<CompositionMetadata>{};
+            if (typed_assets) {
+                prepared.asset_manifest = typed_assets(props);
+            }
+            if (typed_assets_root) {
+                prepared.assets_root = typed_assets_root(props);
+            } else if (!composition_props.project_root.empty()) {
+                prepared.assets_root = composition_props.project_root;
+            }
+            prepared.construct = [
+                construction_factory,
+                props = std::move(props)
+            ]() -> Composition {
+                return construction_factory(props);
+            };
+            return prepared;
         };
 
+        // Direct descriptor.factory calls remain source-compatible. Canonical
+        // registry and CLI flows use prepare_props + construct and therefore
+        // decode only once.
         descriptor.factory = [
             decode_props,
             typed_factory = std::move(typed_factory),
