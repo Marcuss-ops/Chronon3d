@@ -1,3 +1,8 @@
+## 2026-07-15
+
+### `docs(tickets): track legacy render CLI gate failure on main` ([TICKET-LEGACY-RENDER-CLI-GATE-FAILURE](tickets/TICKET-LEGACY-RENDER-CLI-GATE-FAILURE.md))
+Ticket di tracciamento dell'incidente `check_no_legacy_render_cli.sh` su main: 7 violazioni della superficie CLI render legacy risolte e pushate. Cronaca estesa nel ticket-home.
+
 ## 2026-07-14
 
 ### `chore(text): vacate Blocco 5.2.A examples-area vacuous-truth verify` ([TICKET-CENTERED-TEXT-EXAMPLES-AREA-VACUOUS-VERIFY](docs/tickets/TICKET-CENTERED-TEXT-EXAMPLES-AREA-VACUOUS-VERIFY.md))
