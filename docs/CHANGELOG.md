@@ -2927,3 +2927,7 @@ Atomic cat-3 chore on `main` per FASE 5.1 (TICKET-SIMD-REGISTRY-V1). Lands 4 NEW
 
 ### docs(cascade): canonical-reset per 21ece2b3 unique-edit recovery variant ([TICKET-TEXT-RASTERIZATION-CACHE-MISSING-DECL](docs/tickets/TICKET-TEXT-RASTERIZATION-CACHE-MISSING-DECL.md))
 rot-cascade recovery via canonical reset. rot #1-#7 source-fixes identified as SEMANTIC RE-IMPLEMENTATIONS of upstream 71d1478b; rot #10 (TextRasterization redefinition) confirmed duplication. rot #8 forward-pointed. macchina-verifica DEFERRED-WBH.
+### `fix(cli+text): rot #8 fmt::v12 + rot profiling #include`
+  ([TICKET-FMT-PATH-JOIN-INCOMPLETE-TYPE](docs/tickets/TICKET-FMT-PATH-JOIN-INCOMPLETE-TYPE.md) · [TICKET-PROFILING-INCLUDE-MISSING](docs/tickets/TICKET-PROFILING-INCLUDE-MISSING.md))
+Duo rot-class-cascade closure: rot #8 pre-conversion `vector<path>` → `vector<string>` before `fmt::join` (Strategy B; vcpkg fmt v11.1.4 unavailable at baseline `cb2981c4...`); rot profiling added missing `<chronon3d/core/profiling/profiling.hpp>` for `profiling::g_current_counters` extern.
+Cat-3 minimal-surface 2-file source patch. macchina-verifica on `chronon3d_cli` target: verde. Broader 11/11 DEFERRED-WBH per AGENTS.md §rot-class-protection threshold (cascade halted at 14+ orthogonal pre-existing rot-classes).
