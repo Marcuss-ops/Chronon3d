@@ -86,7 +86,7 @@ Il comando canonico per la certificazione prodotto end-to-end è:
 bash tools/verify_chronon_product_linux.sh
 ```
 
-Questo orchestratore (definito a `tools/verify_chronon_product_linux.sh`, ~306 LoC, `set -euo pipefail` + 3-way `CHRONON_PRODUCT_FUNCTIONAL_{PASS,FAIL,BLOCKED}` verdict + `[INFO] ${GATE_NAME}: ...` addizionale al canonico `PASS`) copre i **21 item DoD** dello spec utente (13 zero-require + 8 one-of) via 14 sub-gate eseguibili + 1 forward-pointed:
+L'orchestratore usa una lista unica di **15 sub-gate eseguibili** e un verdict aggregato `CHRONON_PRODUCT_FUNCTIONAL_{PASS,FAIL,BLOCKED}`. Tutti i gate vengono eseguiti anche quando un gate precedente fallisce; non esistono più righe forward-pointed nel manifest prodotto.
 
 | # | Sub-gate | Copertura DoD |
 |---|----------|----------------|
@@ -104,9 +104,9 @@ Questo orchestratore (definito a `tools/verify_chronon_product_linux.sh`, ~306 L
 | 12 | `verify_packaging_linux` | 0 path assoluti nel pacchetto (1 item) |
 | 13 | `verify_performance_linux` | bonus gate |
 | 14 | `verify_sanitizer_linux` | 0 race rilevate + 0 leak ASan (2 item) |
-| 15 | `verify_diagnostics_linux` (forward-pointed) | bonus gate (forward-pointed) |
+| 15 | `verify_diagnostics_linux` | bonus gate: percorso `render` canonico, tassonomia 10 classi e formatter strutturato |
 
-L'output richiesto è **`CHRONON_PRODUCT_FUNCTIONAL_PASS`** (exit 0). Stato corrente osservato: **`CHRONON_PRODUCT_FUNCTIONAL_BLOCKED`** (exit 2) — 14/14 sub-gate eseguibili PASS + 1 forward-pointed. Dettaglio completo: [`docs/baselines/main-ef9c83f1-baseline.md`](docs/baselines/main-ef9c83f1-baseline.md). Conversion a PASS richiede l'implementazione del 15mo gate (`TICKET-VERIFY-DIAGNOSTICS-LINUX` + `TICKET-VERIFY-DIAGNOSTICS-ORCHESTRATOR-WIREIN`).
+L'output richiesto è **`CHRONON_PRODUCT_FUNCTIONAL_PASS`** (exit 0). Il wiring dei 15 gate è completo, ma il nuovo orchestratore e il diagnostics gate devono ancora essere eseguiti sullo stesso working-build-host commit prima di dichiarare una nuova baseline. L'ultima baseline prodotto osservata resta quella storica in [`docs/baselines/main-ef9c83f1-baseline.md`](docs/baselines/main-ef9c83f1-baseline.md).
 
 **HEAD corrente non è certificato**: le run GitHub Actions sui commit recenti mostrano multipli gate in fallimento (core-build, sdk-build, architecture-check, install-consumer, full-validation, Linux/Windows). Vedi [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) per lo stato aggiornato.
 
@@ -118,5 +118,5 @@ Un lavoro è chiuso soltanto quando:
 - i test pertinenti vengono eseguiti e passano;
 - i gate non sono indeboliti;
 - il branch è aggiornato su `origin/main`;
-- la PR è piccola e reviewable;
+- la modifica è piccola e reviewable;
 - i documenti riportano lo stesso stato osservato.
