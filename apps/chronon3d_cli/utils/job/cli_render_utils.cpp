@@ -17,6 +17,12 @@ namespace cli {
 
 ResolvedComposition resolve_composition(const CompositionRegistry& registry,
                                          const std::string& comp_id) {
+    return resolve_composition(registry, comp_id, CompositionProps{});
+}
+
+ResolvedComposition resolve_composition(const CompositionRegistry& registry,
+                                         const std::string& comp_id,
+                                         const CompositionProps& props) {
     ResolvedComposition result;
 
     if (!registry.contains(comp_id)) {
@@ -24,8 +30,12 @@ ResolvedComposition resolve_composition(const CompositionRegistry& registry,
         return result;
     }
 
-    auto comp_instance = registry.create(comp_id);
-    result.comp = std::make_shared<Composition>(std::move(comp_instance));
+    try {
+        auto comp_instance = registry.create(comp_id, props);
+        result.comp = std::make_shared<Composition>(std::move(comp_instance));
+    } catch (const std::exception& e) {
+        spdlog::error("Could not create composition '{}': {}", comp_id, e.what());
+    }
     return result;
 }
 
