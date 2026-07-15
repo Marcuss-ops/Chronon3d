@@ -1,5 +1,8 @@
 ## 2026-07-14
 
+### `chore(text): vacate Blocco 5.2.D cert-area vacuous-truth verify` ([TICKET-CENTERED-TEXT-CERTIFICATION-AREA-VACUOUS-VERIFY](docs/tickets/TICKET-CENTERED-TEXT-CERTIFICATION-AREA-VACUOUS-VERIFY.md))
+Vacuous-truth audit: 16 callers stimati in cert_multilingual + cert_lower_third + cert_long_text + cert_title GIÀ migrati a TextDefinition in M1.8 §2D; rg con comment-strip filter = 0 code-only callsites. Sub-chore (d) chiuso. Cat-5 3-doc atomic, ZERO source questo turno. Cronaca canonical ticket-home.
+
 ### `chore(text): vacate Blocco 5.2.I helper-removal vacuous-truth verify` ([TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY](docs/tickets/TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY.md))
 Vacuous-truth audit: 3 helpers (`centered_text()` + `glow_text()` + `compute_single_line_glyph_layout()`) + header `text_helpers_centered.hpp` GIÀ assenti pre-session + zero callers across codebase. Sub-chore (i) HELPER-REMOVAL-FINAL P1 chiuso. Cat-5 3-doc atomic, ZERO source questo turno. Cronaca canonical ticket-home.
 
