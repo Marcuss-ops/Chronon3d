@@ -20,16 +20,9 @@ namespace chronon3d::cli {
 
 struct VideoArgs;
 
-/// Source-compatible name only.  Video planning now produces the canonical
-/// RenderJob and no longer owns a parallel orchestration structure.
-using VideoJobPlan = chronon3d::RenderJob;
-
+/// Translate the deprecated `video` command arguments directly into the
+/// canonical RenderJob. No VideoJobPlan or parallel executor exists.
 [[nodiscard]] std::optional<RenderJob> make_video_render_job(
-    const CompositionRegistry& registry,
-    const VideoArgs& args);
-
-/// One-release compatibility name used only by legacy integrations.
-[[nodiscard]] std::optional<RenderJob> plan_video_job(
     const CompositionRegistry& registry,
     const VideoArgs& args);
 
@@ -37,7 +30,7 @@ using VideoJobPlan = chronon3d::RenderJob;
 [[nodiscard]] int dry_run_video_job(const RenderJob& job);
 
 /// Translate canonical VideoSettings into the existing FFmpeg exporter input.
-/// This is an adapter, not a job executor or a second orchestration path.
+/// This is an exporter adapter, not a job executor or orchestration path.
 [[nodiscard]] FfmpegExportOptions make_ffmpeg_export_options(
     const RenderJob& job);
 
