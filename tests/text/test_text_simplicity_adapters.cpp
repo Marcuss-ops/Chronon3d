@@ -30,6 +30,7 @@
 #include <chronon3d/authoring/text.hpp>                 // chronon3d::authoring::Text
 #include <chronon3d/authoring/material.hpp>              // chronon3d::authoring::Material
 #include <chronon3d/text/text_placement.hpp>            // TextPlacementKind
+#include <chronon3d/text/resolve_text_placement.hpp>     // CanvasInfo
 #include <chronon3d/core/types/sample_time.hpp>         // SampleTime
 
 // TICKET-104 follow-up pattern: spdlog::warn capture for runtime deprecation
@@ -259,7 +260,7 @@ TEST_CASE("Adapters: new API built node matches old API built node") {
         l.font_size(font_size);
 
         chronon3d::authoring::Layer lyr(
-            l, chronon3d::authoring::FrameContext::from_dimensions(width, height));
+            l, CanvasInfo::from_dimensions(width, height));
 
         auto&& txt = lyr.text(text)
                         .font("assets/fonts/Poppins-Bold.ttf", font_size)
@@ -329,7 +330,7 @@ TEST_CASE("Adapters: new API TextRunSpec matches old API centered_text spec") {
     lb.font_size(font_size);
 
     chronon3d::authoring::Layer lyr(
-        lb, chronon3d::authoring::FrameContext::from_dimensions(width, height));
+        lb, CanvasInfo::from_dimensions(width, height));
 
     auto&& txt = lyr.text(text)
                     .font("assets/fonts/Poppins-Bold.ttf", font_size)
@@ -465,7 +466,7 @@ Composition make_new_centered_composition(SoftwareRenderer& renderer,
                 l.font_size(font_size);
 
                 chronon3d::authoring::Layer lyr(
-                    l, chronon3d::authoring::FrameContext::from_dimensions(width, height));
+                    l, CanvasInfo::from_dimensions(width, height));
 
                 lyr.text(text)
                     .font("assets/fonts/Poppins-Bold.ttf", font_size)
@@ -564,7 +565,7 @@ Composition make_new_glow_composition(SoftwareRenderer& renderer,
                 l.font_size(font_size);
 
                 chronon3d::authoring::Layer lyr(
-                    l, chronon3d::authoring::FrameContext::from_dimensions(width, height));
+                    l, CanvasInfo::from_dimensions(width, height));
 
                 lyr.text(text)
                     .font("assets/fonts/Poppins-Bold.ttf", font_size)

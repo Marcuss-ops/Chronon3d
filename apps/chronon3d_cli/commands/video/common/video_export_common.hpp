@@ -93,7 +93,7 @@ inline Scene evaluate_video_scene(
 {
     return comp.evaluate(time.integral_frame(),
                          static_cast<f32>(time.fraction()),
-                         &renderer.runtime());
+                         &renderer.font_engine());
 }
 
 /// Convenience overload for callers that only have a discrete Frame
@@ -108,5 +108,6 @@ inline Scene evaluate_video_scene(
                                 SampleTime::from_frame_int(frame, comp.frame_rate()),
                                 renderer);
 }
+
 
 } // namespace chronon3d::cli

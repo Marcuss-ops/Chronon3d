@@ -57,7 +57,7 @@
 //   ```cpp
 //   LayerBuilder lb("my_comp", SampleTime{});
 //   lb.screen_dimensions(1920.0f, 1080.0f);
-//   authoring::Layer lyr(lb, authoring::FrameContext::from_dimensions(
+//   authoring::Layer lyr(lb, CanvasInfo::from_dimensions(
 //       1920.0f, 1080.0f));
 //   lyr.text("title").content("CHRONON3D").font("Inter-Bold.ttf", 96.0f)
 //                   .place(presets::text::title_centered("CHRONON3D").frame.placement,
