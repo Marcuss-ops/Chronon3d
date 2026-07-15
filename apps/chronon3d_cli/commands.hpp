@@ -61,7 +61,7 @@ struct RenderPipelineArgs {
 
 /// Canonical CLI render input for stills, sequences and video output.
 /// Video options reuse the same VideoSettings value carried by RenderJob;
-/// there is no CLI-only VideoArgs mirror.
+/// there is no CLI-only video argument mirror.
 struct RenderArgs {
     std::string comp_id;
     std::string frames{"0"}; // Supports "0", "0-90", "0-90x5"
