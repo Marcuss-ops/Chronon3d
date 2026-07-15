@@ -121,7 +121,18 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
         : Frame{0};
     try {
         for (Frame frame = Frame{0}; frame <= last; frame += Frame{1}) {
-            manifest.merge(comp->evaluate(frame).asset_manifest());
+            const FrameContext frame_ctx{
+                .frame = frame,
+                .local_frame = frame,
+                .frame_time = 0.0f,
+                .duration = comp->duration(),
+                .frame_rate = rate,
+                .width = comp->width(),
+                .height = comp->height(),
+                .assets_root = comp->assets_root(),
+                .assets = &ctx.assets
+            };
+            manifest.merge(comp->evaluate(frame_ctx).asset_manifest());
         }
     } catch (const std::exception& e) {
         spdlog::error("Asset manifest resolution failed: {}", e.what());
