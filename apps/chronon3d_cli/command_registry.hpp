@@ -16,6 +16,7 @@
 namespace chronon3d::cli {
 
 void register_render_commands(CLI::App& app, CliContext& ctx);
+void register_validate_commands(CLI::App& app, CliContext& ctx);
 void register_video_commands(CLI::App& app, CliContext& ctx);
 void register_dev_commands(CLI::App& app, CliContext& ctx);
 void register_inspect_commands(CLI::App& app, CliContext& ctx);
