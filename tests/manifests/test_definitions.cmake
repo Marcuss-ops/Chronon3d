@@ -5,6 +5,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     core_tests.cmake
     scene_tests.cmake
     cli_tests.cmake
+    render_job_contract_tests.cmake
     optimizer_tests.cmake
     preflight_tests.cmake
     cache_tests.cmake
