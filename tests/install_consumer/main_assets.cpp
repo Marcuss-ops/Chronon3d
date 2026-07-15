@@ -26,6 +26,8 @@ namespace {
 
 constexpr int kWidth = 128;
 constexpr int kHeight = 128;
+constexpr int kImageProbeX = 90;
+constexpr int kImageProbeY = 90;
 
 struct Rgb8 {
     std::uint8_t r{};
@@ -90,7 +92,8 @@ c3d::Composition make_composition() {
             scene.layer("headline", [](c3d::authoring::Layer& layer) {
                 layer.kind(c3d::LayerKind::Text);
                 layer.text("HELLO")
-                    .font(asset("fonts/Inter-Bold.ttf"), 28.0f);
+                    .font(asset("fonts/Inter-Bold.ttf"), 28.0f)
+                    .at(8.0f, 8.0f);
             });
         })
         .build();
@@ -138,7 +141,6 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Public logical refs resolve independently before rendering.
     const c3d::assets::ImageRef logical_image =
         c3d::authoring::asset("images/logo.png");
     const c3d::assets::FontRef logical_font =
@@ -183,9 +185,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    const Rgb8 a = pixel_at(output_a.value(), 20, 20);
-    const Rgb8 b = pixel_at(output_b.value(), 20, 20);
-    const Rgb8 a_again = pixel_at(output_a_again.value(), 20, 20);
+    const Rgb8 a = pixel_at(output_a.value(), kImageProbeX, kImageProbeY);
+    const Rgb8 b = pixel_at(output_b.value(), kImageProbeX, kImageProbeY);
+    const Rgb8 a_again = pixel_at(
+        output_a_again.value(), kImageProbeX, kImageProbeY);
     const bool isolated = a.r > 200 && a.g < 40 &&
                           b.g > 200 && b.r < 40 &&
                           a_again.r > 200 && a_again.g < 40;
