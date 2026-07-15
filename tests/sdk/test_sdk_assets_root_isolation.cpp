@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <stdexcept>
 #include <string>
 
 namespace c3d = chronon3d;
@@ -26,12 +27,24 @@ namespace {
 constexpr int kWidth = 128;
 constexpr int kHeight = 128;
 
-struct CwdGuard {
-    fs::path original{fs::current_path()};
-    ~CwdGuard() {
+class CwdGuard final {
+public:
+    CwdGuard() : original_(fs::current_path()) {}
+    CwdGuard(const CwdGuard&) = delete;
+    CwdGuard& operator=(const CwdGuard&) = delete;
+
+    ~CwdGuard() { restore(); }
+
+    void restore() noexcept {
+        if (restored_) return;
         std::error_code error;
-        fs::current_path(original, error);
+        fs::current_path(original_, error);
+        restored_ = true;
     }
+
+private:
+    fs::path original_;
+    bool restored_{false};
 };
 
 struct Rgb8 {
@@ -46,19 +59,20 @@ fs::path unique_test_root() {
            ("chronon3d-sdk-assets-root-" + std::to_string(stamp));
 }
 
-void write_solid_png(const fs::path& path, c3d::Color color) {
+bool write_solid_png(const fs::path& path, c3d::Color color) {
     fs::create_directories(path.parent_path());
     c3d::Framebuffer framebuffer{16, 16};
     framebuffer.clear(color);
-    REQUIRE(c3d::save_png(framebuffer, path.string()));
+    return c3d::save_png(framebuffer, path.string());
 }
 
-void write_font_probe(const fs::path& root, std::string marker) {
+bool write_font_probe(const fs::path& root, const std::string& marker) {
     const fs::path path = root / "fonts" / "Inter.ttf";
     fs::create_directories(path.parent_path());
     std::ofstream stream(path, std::ios::binary);
-    REQUIRE(stream.good());
+    if (!stream.good()) return false;
     stream << marker;
+    return stream.good();
 }
 
 c3d::Composition make_image_composition() {
@@ -98,11 +112,10 @@ c3d::sdk::RenderSettings deterministic_settings() {
 }
 
 Rgb8 pixel_at(const c3d::sdk::RenderOutput& output, int x, int y) {
-    REQUIRE(output.pixels != nullptr);
-    REQUIRE(x >= 0);
-    REQUIRE(y >= 0);
-    REQUIRE(x < output.width);
-    REQUIRE(y < output.height);
+    if (output.pixels == nullptr || x < 0 || y < 0 ||
+        x >= output.width || y >= output.height) {
+        throw std::out_of_range("pixel_at received an invalid RenderOutput coordinate");
+    }
 
     const std::size_t stride = output.bytes_per_row > 0
         ? static_cast<std::size_t>(output.bytes_per_row)
@@ -124,6 +137,12 @@ Rgb8 pixel_at(const c3d::sdk::RenderOutput& output, int x, int y) {
     };
 }
 
+void remove_test_root(const fs::path& root) {
+    std::error_code error;
+    fs::remove_all(root, error);
+    CHECK_FALSE(error);
+}
+
 } // namespace
 
 TEST_CASE("SDK asset roots remain isolated between RenderEngine instances") {
@@ -133,53 +152,59 @@ TEST_CASE("SDK asset roots remain isolated between RenderEngine instances") {
     const fs::path unrelated_cwd = fs::absolute(test_root / "unrelated-cwd");
 
     fs::create_directories(unrelated_cwd);
-    write_solid_png(root_a / "fixture.png", c3d::Color{1.0f, 0.0f, 0.0f, 1.0f});
-    write_solid_png(root_b / "fixture.png", c3d::Color{0.0f, 1.0f, 0.0f, 1.0f});
-    write_font_probe(root_a, "font-a");
-    write_font_probe(root_b, "font-b");
+    REQUIRE(write_solid_png(
+        root_a / "fixture.png", c3d::Color{1.0f, 0.0f, 0.0f, 1.0f}));
+    REQUIRE(write_solid_png(
+        root_b / "fixture.png", c3d::Color{0.0f, 1.0f, 0.0f, 1.0f}));
+    REQUIRE(write_font_probe(root_a, "font-a"));
+    REQUIRE(write_font_probe(root_b, "font-b"));
 
-    CwdGuard cwd_guard;
-    fs::current_path(unrelated_cwd);
+    {
+        CwdGuard cwd_guard;
+        fs::current_path(unrelated_cwd);
 
-    const c3d::Composition composition = make_image_composition();
-    const auto settings = deterministic_settings();
+        const c3d::Composition composition = make_image_composition();
+        const auto settings = deterministic_settings();
 
-    c3d::sdk::RenderEngine engine_a{settings};
-    c3d::sdk::RenderEngine engine_b{settings};
-    engine_a.set_assets_root(root_a);
-    engine_b.set_assets_root(root_b);
+        c3d::sdk::RenderEngine engine_a{settings};
+        c3d::sdk::RenderEngine engine_b{settings};
+        engine_a.set_assets_root(root_a);
+        engine_b.set_assets_root(root_b);
 
-    auto result_a = engine_a.render(composition, c3d::sdk::Frame{0});
-    auto result_b = engine_b.render(composition, c3d::sdk::Frame{0});
-    REQUIRE(result_a.has_value());
-    REQUIRE(result_b.has_value());
+        auto result_a = engine_a.render(composition, c3d::sdk::Frame{0});
+        auto result_b = engine_b.render(composition, c3d::sdk::Frame{0});
+        REQUIRE(result_a.has_value());
+        REQUIRE(result_b.has_value());
 
-    const Rgb8 pixel_a = pixel_at(result_a.value(), 20, 20);
-    const Rgb8 pixel_b = pixel_at(result_b.value(), 20, 20);
-    CHECK(pixel_a.r > 200);
-    CHECK(pixel_a.g < 40);
-    CHECK(pixel_b.g > 200);
-    CHECK(pixel_b.r < 40);
+        const Rgb8 pixel_a = pixel_at(result_a.value(), 20, 20);
+        const Rgb8 pixel_b = pixel_at(result_b.value(), 20, 20);
+        CHECK(pixel_a.r > 200);
+        CHECK(pixel_a.g < 40);
+        CHECK(pixel_b.g > 200);
+        CHECK(pixel_b.r < 40);
 
-    // Rendering through B must not mutate A's resolver or cache identity.
-    auto result_a_again = engine_a.render(composition, c3d::sdk::Frame{0});
-    REQUIRE(result_a_again.has_value());
-    const Rgb8 pixel_a_again = pixel_at(result_a_again.value(), 20, 20);
-    CHECK(pixel_a_again.r > 200);
-    CHECK(pixel_a_again.g < 40);
+        // Rendering through B must not mutate A's resolver or cache identity.
+        auto result_a_again = engine_a.render(composition, c3d::sdk::Frame{0});
+        REQUIRE(result_a_again.has_value());
+        const Rgb8 pixel_a_again = pixel_at(result_a_again.value(), 20, 20);
+        CHECK(pixel_a_again.r > 200);
+        CHECK(pixel_a_again.g < 40);
 
-    // The same logical font path resolves independently and ignores CWD.
-    c3d::assets::AssetResolver resolver_a;
-    c3d::assets::AssetResolver resolver_b;
-    resolver_a.mount(root_a);
-    resolver_b.mount(root_b);
-    REQUIRE(resolver_a.resolve("fonts/Inter.ttf").has_value());
-    REQUIRE(resolver_b.resolve("fonts/Inter.ttf").has_value());
-    CHECK(resolver_a.resolve("fonts/Inter.ttf").value()
-          != resolver_b.resolve("fonts/Inter.ttf").value());
+        // The same logical font path resolves independently and ignores CWD.
+        c3d::assets::AssetResolver resolver_a;
+        c3d::assets::AssetResolver resolver_b;
+        resolver_a.mount(root_a);
+        resolver_b.mount(root_b);
+        const auto font_a = resolver_a.resolve("fonts/Inter.ttf");
+        const auto font_b = resolver_b.resolve("fonts/Inter.ttf");
+        REQUIRE(font_a.has_value());
+        REQUIRE(font_b.has_value());
+        CHECK(font_a.value() != font_b.value());
 
-    std::error_code cleanup_error;
-    fs::remove_all(test_root, cleanup_error);
+        cwd_guard.restore();
+    }
+
+    remove_test_root(test_root);
 }
 
 TEST_CASE("AssetResolver fails closed for missing relative assets") {
@@ -196,16 +221,19 @@ TEST_CASE("AssetResolver fails closed for missing relative assets") {
         accidental << "cwd-fallback-must-not-be-used";
     }
 
-    CwdGuard cwd_guard;
-    fs::current_path(unrelated_cwd);
+    {
+        CwdGuard cwd_guard;
+        fs::current_path(unrelated_cwd);
 
-    c3d::assets::AssetResolver resolver;
-    CHECK_FALSE(resolver.resolve("fonts/Inter.ttf").has_value());
-    resolver.mount(empty_root);
-    CHECK_FALSE(resolver.resolve("fonts/Inter.ttf").has_value());
-    CHECK(resolver.resolve_lexical("fonts/Inter.ttf").has_value());
-    CHECK_FALSE(resolver.resolve("../escape.ttf").has_value());
+        c3d::assets::AssetResolver resolver;
+        CHECK_FALSE(resolver.resolve("fonts/Inter.ttf").has_value());
+        resolver.mount(empty_root);
+        CHECK_FALSE(resolver.resolve("fonts/Inter.ttf").has_value());
+        CHECK(resolver.resolve_lexical("fonts/Inter.ttf").has_value());
+        CHECK_FALSE(resolver.resolve("../escape.ttf").has_value());
 
-    std::error_code cleanup_error;
-    fs::remove_all(test_root, cleanup_error);
+        cwd_guard.restore();
+    }
+
+    remove_test_root(test_root);
 }
