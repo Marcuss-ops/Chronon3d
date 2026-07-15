@@ -75,21 +75,21 @@ namespace material = chronon3d::authoring::material;
 using chronon3d::authoring::selector;
 
 namespace doctest {
-struct Approx3D { Vec3 v; explicit Approx3D(Vec3 v_) : v(v_) {} };
-struct Approx2D { Vec2 v; explicit Approx2D(Vec2 v_) : v(v_) {} };
-} // namespace doctest
+struct Approx3D { Vec3 v; explicit Approx3D(const Vec3& v_) : v(v_) {} };
+struct Approx2D { Vec2 v; explicit Approx2D(const Vec2& v_) : v(v_) {} };
 
-inline bool operator==(Vec3 a, const doctest::Approx3D& b) {
+inline bool operator==(const Vec3& a, const Approx3D& b) {
     return a.x == doctest::Approx(b.v.x).epsilon(1e-5)
         && a.y == doctest::Approx(b.v.y).epsilon(1e-5)
         && a.z == doctest::Approx(b.v.z).epsilon(1e-5);
 }
-inline bool operator!=(Vec3 a, const doctest::Approx3D& b) { return !(a == b); }
-inline bool operator==(Vec2 a, const doctest::Approx2D& b) {
+inline bool operator!=(const Vec3& a, const Approx3D& b) { return !(a == b); }
+inline bool operator==(const Vec2& a, const Approx2D& b) {
     return a.x == doctest::Approx(b.v.x).epsilon(1e-5)
         && a.y == doctest::Approx(b.v.y).epsilon(1e-5);
 }
-inline bool operator!=(Vec2 a, const doctest::Approx2D& b) { return !(a == b); }
+inline bool operator!=(const Vec2& a, const Approx2D& b) { return !(a == b); }
+} // namespace doctest
 
 namespace chronon3d::authoring::testing {
 

@@ -320,3 +320,192 @@ TEST_CASE("Authoring / Scene::sequence / trim_after extends active duration") {
     chronon3d::Scene evaluated = builder.build();
     CHECK(evaluated.layers().size() == 1);
 }
+
+TEST_CASE("Authoring / Scene::sequence / freeze_at wins over loop_duration") {
+    chronon3d::SceneBuilder builder{engine_ctx(chronon3d::Frame{40})};
+    chronon3d::authoring::Scene scene{builder, author_canvas()};
+
+    std::vector<chronon3d::Frame> captured_locals;
+    scene.sequence(
+        "frozen_loop",
+        {.from = chronon3d::Frame{0},
+         .duration = chronon3d::Frame{60},
+         .freeze_at = chronon3d::Frame{7},
+         .loop_duration = chronon3d::Frame{30}},
+        [&](chronon3d::SequenceBuilder& seq) {
+            captured_locals.push_back(seq.local_frame());
+            seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
+                layer.rect("r", {.size = {10.0f, 10.0f},
+                                 .color = chronon3d::Color::white()});
+            });
+        });
+
+    REQUIRE(captured_locals.size() == 1);
+    // Without freeze, local would be 40 % 30 == 10. Freeze locks it at 7.
+    CHECK(captured_locals[0] == chronon3d::Frame{7});
+}namespace {
+
+chronon3d::SceneBuilder::SequenceSpec make_extended_spec() {
+    return {.from = chronon3d::Frame{10},
+            .duration = chronon3d::Frame{20},
+            .trim_after = chronon3d::Frame{15},
+            .premount = chronon3d::Frame{5}};
+}
+
+} // namespace
+
+TEST_CASE("Authoring / Scene::sequence / premount and trim_after extend active range both ways") {
+    // Frame 3 is before the premount window -> inactive.
+    {
+        chronon3d::SceneBuilder builder{engine_ctx(chronon3d::Frame{3})};
+        chronon3d::authoring::Scene scene{builder, author_canvas()};
+        scene.sequence(
+            "extended",
+            make_extended_spec(),
+            [](chronon3d::SequenceBuilder& seq) {
+                seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
+                    layer.rect("r", {.size = {10.0f, 10.0f},
+                                     .color = chronon3d::Color::white()});
+                });
+            });
+        chronon3d::Scene evaluated = builder.build();
+        CHECK(evaluated.layers().empty());
+    }
+
+    // Frame 5 is inside the premount -> active, clamped to first local frame.
+    {
+        chronon3d::SceneBuilder builder{engine_ctx(chronon3d::Frame{5})};
+        chronon3d::authoring::Scene scene{builder, author_canvas()};
+        std::vector<chronon3d::Frame> captured_locals;
+        scene.sequence(
+            "extended",
+            make_extended_spec(),
+            [&](chronon3d::SequenceBuilder& seq) {
+                captured_locals.push_back(seq.local_frame());
+                seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
+                    layer.rect("r", {.size = {10.0f, 10.0f},
+                                     .color = chronon3d::Color::white()});
+                });
+            });
+        chronon3d::Scene evaluated = builder.build();
+        REQUIRE(evaluated.layers().size() == 1);
+        REQUIRE(captured_locals.size() == 1);
+        CHECK(captured_locals[0] == chronon3d::Frame{0});
+    }
+
+    // Frame 44 is inside the trim_after extension -> active, clamped to last local frame.
+    {
+        chronon3d::SceneBuilder builder{engine_ctx(chronon3d::Frame{44})};
+        chronon3d::authoring::Scene scene{builder, author_canvas()};
+        std::vector<chronon3d::Frame> captured_locals;
+        scene.sequence(
+            "extended",
+            make_extended_spec(),
+            [&](chronon3d::SequenceBuilder& seq) {
+                captured_locals.push_back(seq.local_frame());
+                seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
+                    layer.rect("r", {.size = {10.0f, 10.0f},
+                                     .color = chronon3d::Color::white()});
+                });
+            });
+        chronon3d::Scene evaluated = builder.build();
+        REQUIRE(evaluated.layers().size() == 1);
+        REQUIRE(captured_locals.size() == 1);
+        CHECK(captured_locals[0] == chronon3d::Frame{19});
+    }
+}
+
+TEST_CASE("Authoring / Scene::sequence / loop_duration applied after trim_before") {
+    chronon3d::SceneBuilder builder{engine_ctx(chronon3d::Frame{40})};
+    chronon3d::authoring::Scene scene{builder, author_canvas()};
+
+    std::vector<chronon3d::Frame> captured_locals;
+    scene.sequence(
+        "looped_trimmed",
+        {.from = chronon3d::Frame{0},
+         .duration = chronon3d::Frame{60},
+         .trim_before = chronon3d::Frame{5},
+         .loop_duration = chronon3d::Frame{30}},
+        [&](chronon3d::SequenceBuilder& seq) {
+            captured_locals.push_back(seq.local_frame());
+            seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
+                layer.rect("r", {.size = {10.0f, 10.0f},
+                                 .color = chronon3d::Color::white()});
+            });
+        });
+
+    REQUIRE(captured_locals.size() == 1);
+    // 40 % 30 == 10, then +5 from trim_before.
+    CHECK(captured_locals[0] == chronon3d::Frame{15});
+}
+
+TEST_CASE("Authoring / Scene::sequence / freeze_at combined with trim_before") {
+    chronon3d::SceneBuilder builder{engine_ctx(chronon3d::Frame{50})};
+    chronon3d::authoring::Scene scene{builder, author_canvas()};
+
+    std::vector<chronon3d::Frame> captured_locals;
+    scene.sequence(
+        "frozen_trimmed",
+        {.from = chronon3d::Frame{0},
+         .duration = chronon3d::Frame{60},
+         .trim_before = chronon3d::Frame{3},
+         .freeze_at = chronon3d::Frame{7}},
+        [&](chronon3d::SequenceBuilder& seq) {
+            captured_locals.push_back(seq.local_frame());
+            seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
+                layer.rect("r", {.size = {10.0f, 10.0f},
+                                 .color = chronon3d::Color::white()});
+            });
+        });
+
+    REQUIRE(captured_locals.size() == 1);
+    CHECK(captured_locals[0] == chronon3d::Frame{10});
+}
+
+TEST_CASE("Authoring / Scene::sequence / freeze_at applies during premount") {
+    chronon3d::SceneBuilder builder{engine_ctx(chronon3d::Frame{5})};
+    chronon3d::authoring::Scene scene{builder, author_canvas()};
+
+    std::vector<chronon3d::Frame> captured_locals;
+    scene.sequence(
+        "frozen_premount",
+        {.from = chronon3d::Frame{10},
+         .duration = chronon3d::Frame{20},
+         .freeze_at = chronon3d::Frame{3},
+         .premount = chronon3d::Frame{5}},
+        [&](chronon3d::SequenceBuilder& seq) {
+            captured_locals.push_back(seq.local_frame());
+            seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
+                layer.rect("r", {.size = {10.0f, 10.0f},
+                                 .color = chronon3d::Color::white()});
+            });
+        });
+
+    REQUIRE(captured_locals.size() == 1);
+    // Without freeze, premount would clamp local to 0. Freeze locks it at 3.
+    CHECK(captured_locals[0] == chronon3d::Frame{3});
+}
+
+TEST_CASE("Authoring / Scene::sequence / loop_duration applies after postmount clamp") {
+    chronon3d::SceneBuilder builder{engine_ctx(chronon3d::Frame{25})};
+    chronon3d::authoring::Scene scene{builder, author_canvas()};
+
+    std::vector<chronon3d::Frame> captured_locals;
+    scene.sequence(
+        "looped_postmount",
+        {.from = chronon3d::Frame{0},
+         .duration = chronon3d::Frame{20},
+         .loop_duration = chronon3d::Frame{15},
+         .postmount = chronon3d::Frame{10}},
+        [&](chronon3d::SequenceBuilder& seq) {
+            captured_locals.push_back(seq.local_frame());
+            seq.layer("layer", [](chronon3d::LayerBuilder& layer) {
+                layer.rect("r", {.size = {10.0f, 10.0f},
+                                 .color = chronon3d::Color::white()});
+            });
+        });
+
+    REQUIRE(captured_locals.size() == 1);
+    // Postmount clamps local to duration-1 (19), then loop gives 19 % 15 == 4.
+    CHECK(captured_locals[0] == chronon3d::Frame{4});
+}

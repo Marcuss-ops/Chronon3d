@@ -141,6 +141,15 @@ public:
         return *this;
     }
 
+    /// B2.x — `Series` forwarder.  Delegates to `SceneBuilder::series(name)`
+    /// and returns the resulting `SeriesBuilder` so callers can chain
+    /// `.add(...)` calls.  The returned proxy references the same
+    /// `SceneBuilder` owned by this facade; it must not outlive this
+    /// `Scene` (and therefore the underlying `SceneBuilder`).
+    [[nodiscard]] SeriesBuilder series(const std::string& name = {}) {
+        return builder_->series(name);
+    }
+
     // ── B2.3 — camera(), background(), image(), screen_layer(), precomp()
     //
     // Five thin forwarders to existing SceneBuilder surfaces.  All
