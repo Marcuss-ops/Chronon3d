@@ -2,17 +2,7 @@
 
 ### `docs(stash): correct rot-pattern findings on 7a0ad484 (cat-5 chaser)`
   ([TICKET-COMPOSITION-INPUT-PHASE-1C-1D-STASH-DROP](docs/tickets/TICKET-COMPOSITION-INPUT-PHASE-1C-1D-STASH-DROP.md))
-Rot-class fix in same atomic chaser-chore per `7a0ad484` rot-pattern: (1) numeric typo
-474→377 (empirically verified via `git rev-list 19da5238..origin/main | wc -l`);
-(2) 3 forward-point ticket stubs created in `docs/tickets/`
-(TICKET-PHASE1-C-CLI-VERSION2 + TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION +
-TICKET-PHASE3-SEQUENCE-PAIRS-EDGE-FIELDS) per AGENTS.md §`### 2×-in-one-chore`
-rule ticket ↔ file invariant; (3) ticket-home §Confine + §Forward-points
-broken cross-refs REMOVED (TICKET-CHORE-B-BULK-MIGRATION +
-TICKET-PHASE3-TIMELINE-EXTENSION — both never existed as
-`docs/tickets/<ID>.md` files, per basher-verify); (4) CHANGELOG cite-only
-over-quota trimmed per strict Cat-3 anti-dup. Zero sourcecode modification.
-Cronaca estesa nel canonical ticket-home.
+Cat-5 3-doc chaser-chore: rot-pattern fix on `7a0ad484`. Zero sourcecode modification. Cronaca nel canonical ticket-home.
 
 ### `chore(stash): drop Phase 1c/1d (cat-5 chaser)`
   ([TICKET-COMPOSITION-INPUT-PHASE-1C-1D-STASH-DROP](docs/tickets/TICKET-COMPOSITION-INPUT-PHASE-1C-1D-STASH-DROP.md))
