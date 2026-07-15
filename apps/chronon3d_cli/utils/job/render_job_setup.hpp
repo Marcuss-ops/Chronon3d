@@ -25,10 +25,11 @@ struct RenderJobSetupResult {
     uint64_t saved_fb_peak{0};
 };
 
-/// Initialise renderer/runtime services for the canonical job.  The optional
-/// per-job Config is moved into the renderer and is moved-from afterwards.
+/// Initialise renderer/runtime services from an immutable canonical job.
+/// Config is copied into the renderer; RenderJob remains reusable and
+/// inspectable after execution.
 void setup_render_job(const CompositionRegistry& registry,
-                      RenderJob& job,
+                      const RenderJob& job,
                       RenderJobSetupResult& out);
 
 } // namespace chronon3d::cli
