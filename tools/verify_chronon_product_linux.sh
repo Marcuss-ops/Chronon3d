@@ -1,149 +1,117 @@
 #!/usr/bin/env bash
-# ═══════════════════════════════════════════════════════════════════════════
-# tools/verify_chronon_product_linux.sh
-#
 # Canonical Chronon3D product certification orchestrator.
 #
-# Invokes all 12 canonical cert gates in sequence and emits
-# `CHRONON_PRODUCT_FUNCTIONAL_PASS` only if ALL pass.
+# Runs every product gate, never aborts on the first sub-gate failure, and
+# emits one aggregate PASS/FAIL/BLOCKED verdict. There are no forward-pointed
+# entries: every row is an executable script path.
 #
-# Gate list (14 canonical + 1 forward-pointed = 15 total):
-#   1.  verify_repository_baseline_linux  — repo health + clean build + 11/11 baseline
-#   2.  verify_text_functional_linux       — Text V1 golden + preset + kinetic
-#   3.  verify_camera_functional_linux     — Camera V1 runtime cert
-#   4.  verify_render_runtime_linux        — 4 stills + 7 isolation
-#   5.  verify_video_pipeline_linux        — 16 video combinations
-#   6.  verify_asset_preflight_linux       — 10 sabotage scenarios
-#   7.  verify_timeline_functional_linux   — global/local frame, boundary, nested, overlap
-#   8.  verify_compositing_effects_linux   — 10 effects (opacity, blur, glow, shadow, etc.)
-#   9.  verify_determinism_linux           — 4 invariants (same-process, separate, cache, order)
-#   10. verify_error_handling_linux        — 10 error types (structured contract)
-#   11. install_consumer_test              — external consumer SDK (find_package + build + run)
-#   12. verify_packaging_linux             — relocatability (2 prefixes, mv, no abs paths)
-#   13. verify_performance_linux           — 5 scenarios + 100-iter memory leak test
-#   14. verify_sanitizer_linux             — ASan+UBSan (all tests) + TSan (7 subsystems)
-#   15. verify_diagnostics_linux           — [forward-pointed] diagnostics pipeline cert
-#
-# Design (per AGENTS.md Cat-3 anti-dup):
-#   - 1 canonical orchestrator (this file) — no per-category stub scripts.
-#   - All sub-gates run even if prior ones fail, so the aggregate report
-#     shows ALL verdicts in one invocation.
-#   - Forward-pointed gates are documented here; they emit BLOCKED with
-#     explicit ticket references until implemented.
-#
-# Per-gate contract (canonical exit codes):
-#   0 = PASS (all checks succeed)
-#   1 = FAIL (one or more checks fail)
-#   2 = BLOCKED (env blocker per §honest-limitation)
-#
-# Unified verdict:
-#   CHRONON_PRODUCT_FUNCTIONAL_PASS    — ALL gates returned 0
-#   CHRONON_PRODUCT_FUNCTIONAL_FAIL    — ≥1 gate returned 1
-#   CHRONON_PRODUCT_FUNCTIONAL_BLOCKED — ≥1 gate returned 2 + 0 FAILs
-#
-# Exit codes: 0 = PASS, 1 = FAIL, 2 = BLOCKED
-#
-# §honesty contract:
-#   - BLOCKED sub-gates reported with explicit forward-point diagnostic
-#   - [INFO] line on PASS only (per AGENTS.md §INFO-level diagnostic style)
-# ═══════════════════════════════════════════════════════════════════════════
+# Exit codes:
+#   0 = CHRONON_PRODUCT_FUNCTIONAL_PASS
+#   1 = CHRONON_PRODUCT_FUNCTIONAL_FAIL
+#   2 = CHRONON_PRODUCT_FUNCTIONAL_BLOCKED
+
+set -uo pipefail
 
 GATE_NAME="verify_chronon_product_linux"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$ROOT" || {
+    echo "CHRONON_PRODUCT_FUNCTIONAL_BLOCKED"
+    echo "  cannot enter repository root: $ROOT"
+    exit 2
+}
 
-ROOT="$(git rev-parse --show-toplevel)"
-cd "$ROOT"
-
-# NOTE: set -u + pipefail only — NO set -e (the orchestrator must run
-# ALL sub-gates even if some fail, and aggregate the results at the end).
-set -euo pipefail
+GATE_LOG="${CHRONON3D_PRODUCT_GATE_LOG:-/tmp/chronon3d_product_cert.log}"
+: > "$GATE_LOG"
 
 PASS_COUNT=0
 FAIL_COUNT=0
 BLOCKED_COUNT=0
 
-# Per-gate verdict log (machine-readable, one line per gate)
-GATE_LOG="/tmp/chronon3d_product_cert.log"
-: > "$GATE_LOG"
+GATE_NAMES=(
+    verify_repository_baseline_linux
+    verify_text_functional_linux
+    verify_camera_functional_linux
+    verify_render_runtime_linux
+    verify_video_pipeline_linux
+    verify_asset_preflight_linux
+    verify_timeline_functional_linux
+    verify_compositing_effects_linux
+    verify_determinism_linux
+    verify_error_handling_linux
+    install_consumer_test
+    verify_packaging_linux
+    verify_performance_linux
+    verify_sanitizer_linux
+    verify_diagnostics_linux
+)
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+GATE_SCRIPTS=(
+    tools/verify_repository_baseline_linux.sh
+    tools/verify_text_functional_linux.sh
+    tools/verify_camera_functional_linux.sh
+    tools/verify_render_runtime_linux.sh
+    tools/verify_video_pipeline_linux.sh
+    tools/verify_asset_preflight_linux.sh
+    tools/verify_timeline_functional_linux.sh
+    tools/verify_compositing_effects_linux.sh
+    tools/verify_determinism_linux.sh
+    tools/verify_error_handling_linux.sh
+    tools/install_consumer_test.sh
+    tools/verify_packaging_linux.sh
+    tools/verify_performance_linux.sh
+    tools/verify_sanitizer_linux.sh
+    tools/verify_diagnostics_linux.sh
+)
 
-# run_gate <gate-name> <script-path>
-# Runs the sub-gate script, captures exit code, classifies verdict.
-# Output is shown to the user AND appended to the log.
-# Always returns 0 — the orchestrator does NOT abort on per-gate failure.
+if [ "${#GATE_NAMES[@]}" -ne "${#GATE_SCRIPTS[@]}" ]; then
+    echo "CHRONON_PRODUCT_FUNCTIONAL_BLOCKED"
+    echo "  internal gate manifest mismatch"
+    exit 2
+fi
+
 run_gate() {
-    local name="$1" script="$2"
-
-    if [ ! -f "$script" ]; then
-        echo ""
-        echo "=============================================="
-        echo " [sub-gate] $name"
-        echo "=============================================="
-        echo "  [BLOCKED] script not found: $script"
-        BLOCKED_COUNT=$((BLOCKED_COUNT + 1))
-        echo "BLOCKED $name (script not found)" >> "$GATE_LOG"
-        return 0
-    fi
-
-    [ -x "$script" ] || chmod +x "$script" 2>/dev/null || true
+    local name="$1"
+    local script="$2"
 
     echo ""
     echo "=============================================="
     echo " [sub-gate] $name  ($script)"
     echo "=============================================="
 
+    if [ ! -f "$script" ]; then
+        echo "  [BLOCKED] script not found: $script"
+        echo "BLOCKED $name (script not found)" >> "$GATE_LOG"
+        BLOCKED_COUNT=$((BLOCKED_COUNT + 1))
+        return 0
+    fi
+
     local sub_exit=0
-    # Run the sub-gate. Output goes to terminal AND log.
-    # Use ; not || so PIPESTATUS is always captured (not just on failure).
-    bash "$script" 2>&1 | tee -a "$GATE_LOG" || true; sub_exit=${PIPESTATUS[0]}
+    bash "$script" 2>&1 | tee -a "$GATE_LOG"
+    sub_exit=${PIPESTATUS[0]}
 
     case "$sub_exit" in
         0)
             echo "  >> VERDICT: PASS ($name)"
-            PASS_COUNT=$((PASS_COUNT + 1))
             echo "PASS $name" >> "$GATE_LOG"
+            PASS_COUNT=$((PASS_COUNT + 1))
             ;;
         1)
             echo "  >> VERDICT: FAIL ($name)"
-            FAIL_COUNT=$((FAIL_COUNT + 1))
             echo "FAIL $name" >> "$GATE_LOG"
+            FAIL_COUNT=$((FAIL_COUNT + 1))
             ;;
         2)
-            echo "  >> VERDICT: BLOCKED ($name — env blocker)"
-            BLOCKED_COUNT=$((BLOCKED_COUNT + 1))
+            echo "  >> VERDICT: BLOCKED ($name)"
             echo "BLOCKED $name" >> "$GATE_LOG"
+            BLOCKED_COUNT=$((BLOCKED_COUNT + 1))
             ;;
         *)
             echo "  >> VERDICT: FAIL ($name — unexpected exit $sub_exit)"
-            FAIL_COUNT=$((FAIL_COUNT + 1))
             echo "FAIL $name (exit=$sub_exit)" >> "$GATE_LOG"
+            FAIL_COUNT=$((FAIL_COUNT + 1))
             ;;
     esac
-
-    return 0
 }
-
-# forward_point_gate <gate-name> <ticket-ref> <description>
-# Emits BLOCKED for gates not yet implemented, with explicit ticket reference.
-forward_point_gate() {
-    local name="$1" ticket="$2" desc="$3"
-
-    echo ""
-    echo "=============================================="
-    echo " [sub-gate] $name"
-    echo "=============================================="
-    echo "  [BLOCKED] $name — not yet implemented"
-    echo "             ticket: $ticket"
-    echo "             $desc"
-    BLOCKED_COUNT=$((BLOCKED_COUNT + 1))
-    echo "BLOCKED $name (forward-point: $ticket)" >> "$GATE_LOG"
-
-    return 0
-}
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 0. Preamble
-# ══════════════════════════════════════════════════════════════════════════════
 
 echo "=============================================="
 echo " verify_chronon_product_linux.sh"
@@ -151,89 +119,15 @@ echo " Chronon3D Unified Product Certification"
 echo "=============================================="
 echo ""
 echo "  Repository: $ROOT"
-echo "  HEAD:       $(git rev-parse --short HEAD)"
-echo "  Branch:     $(git branch --show-current 2>/dev/null || echo 'detached')"
+echo "  HEAD:       $(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+echo "  Branch:     $(git branch --show-current 2>/dev/null || echo detached)"
 echo "  Started:    $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "  Gate log:   $GATE_LOG"
-echo ""
+echo "  Gate count: ${#GATE_NAMES[@]} executable"
 
-# ══════════════════════════════════════════════════════════════════════════════
-# 1–12. Canonical cert gates (sequential, all run regardless of prior failures)
-# ══════════════════════════════════════════════════════════════════════════════
-
-echo "== Orchestrating 14 canonical cert gates + 1 forward-pointed =="
-echo "   (11 user-spec + 3 bonus: error_handling, performance, sanitizer)"
-echo "   (each gate runs to completion; aggregate verdict at end)"
-echo ""
-
-#  1 — Repository baseline
-run_gate "verify_repository_baseline_linux" \
-    "tools/verify_repository_baseline_linux.sh"
-
-#  2 — Text V1
-run_gate "verify_text_functional_linux" \
-    "tools/verify_text_functional_linux.sh"
-
-#  3 — Camera V1
-run_gate "verify_camera_functional_linux" \
-    "tools/verify_camera_functional_linux.sh"
-
-#  4 — Render runtime
-run_gate "verify_render_runtime_linux" \
-    "tools/verify_render_runtime_linux.sh"
-
-#  5 — Video pipeline
-run_gate "verify_video_pipeline_linux" \
-    "tools/verify_video_pipeline_linux.sh"
-
-#  6 — Asset preflight
-run_gate "verify_asset_preflight_linux" \
-    "tools/verify_asset_preflight_linux.sh"
-
-#  7 — Timeline & sequence
-run_gate "verify_timeline_functional_linux" \
-    "tools/verify_timeline_functional_linux.sh"
-
-#  8 — Compositing & effects
-run_gate "verify_compositing_effects_linux" \
-    "tools/verify_compositing_effects_linux.sh"
-
-#  9 — Determinism & cache
-run_gate "verify_determinism_linux" \
-    "tools/verify_determinism_linux.sh"
-
-# 10 — Error handling & diagnostics
-run_gate "verify_error_handling_linux" \
-    "tools/verify_error_handling_linux.sh"
-
-# 11 — External consumer SDK
-run_gate "install_consumer_test" \
-    "tools/install_consumer_test.sh"
-
-# 12 — Packaging & relocatability
-run_gate "verify_packaging_linux" \
-    "tools/verify_packaging_linux.sh"
-
-# 13 — Performance & memory benchmark
-run_gate "verify_performance_linux" \
-    "tools/verify_performance_linux.sh"
-
-# 14 — Sanitizer (ASan+UBSan+TSan)
-run_gate "verify_sanitizer_linux" \
-    "tools/verify_sanitizer_linux.sh"
-
-# ══════════════════════════════════════════════════════════════════════════════
-# 15. Forward-pointed gate (not yet implemented)
-# ══════════════════════════════════════════════════════════════════════════════
-
-# 15 — Diagnostics pipeline
-forward_point_gate "verify_diagnostics_linux" \
-    "TICKET-VERIFY-DIAGNOSTICS-LINUX" \
-    "Diagnostics pipeline cert (text_visibility_audit + render_diagnostic + audit snapshot)."
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Final verdict
-# ══════════════════════════════════════════════════════════════════════════════
+for index in "${!GATE_NAMES[@]}"; do
+    run_gate "${GATE_NAMES[$index]}" "${GATE_SCRIPTS[$index]}"
+done
 
 TOTAL=$((PASS_COUNT + FAIL_COUNT + BLOCKED_COUNT))
 
@@ -251,35 +145,20 @@ echo ""
 
 if [ "$FAIL_COUNT" -gt 0 ]; then
     echo "CHRONON_PRODUCT_FUNCTIONAL_FAIL"
-    echo ""
-    echo "  $FAIL_COUNT gate(s) FAILED out of $TOTAL total."
-    echo "  See per-gate output above and $GATE_LOG for details."
-    echo "  Per AGENTS.md §honesty: NO spurious PASS emitted."
-    echo ""
-    echo "  Failed gates:"
+    echo "  $FAIL_COUNT gate(s) failed out of $TOTAL."
     grep -E '^FAIL ' "$GATE_LOG" 2>/dev/null || true
     exit 1
-
-elif [ "$BLOCKED_COUNT" -gt 0 ]; then
-    echo "CHRONON_PRODUCT_FUNCTIONAL_BLOCKED"
-    echo ""
-    echo "  $BLOCKED_COUNT gate(s) BLOCKED out of $TOTAL total."
-    echo "  0 gates FAILED — all executable gates passed."
-    echo "  Blocked gates (env / forward-pointed):"
-    grep -E '^BLOCKED ' "$GATE_LOG" 2>/dev/null || true
-    echo ""
-    echo "  Per AGENTS.md §honest-limitation: macchina-verifica DEFERRED"
-    echo "  to working build host. Fix blockers and re-run."
-    exit 2
-
-else
-    echo "CHRONON_PRODUCT_FUNCTIONAL_PASS"
-    echo ""
-    echo "  All $PASS_COUNT gates passed. Chronon3D product certified."
-    echo ""
-    echo "  Certified gates:"
-    grep -E '^PASS ' "$GATE_LOG" 2>/dev/null || true
-    echo ""
-    echo "[INFO] ${GATE_NAME}: ${PASS_COUNT}/${TOTAL} gates PASS — Chronon3D product certification complete"
-    exit 0
 fi
+
+if [ "$BLOCKED_COUNT" -gt 0 ]; then
+    echo "CHRONON_PRODUCT_FUNCTIONAL_BLOCKED"
+    echo "  $BLOCKED_COUNT gate(s) blocked out of $TOTAL; no failures observed."
+    grep -E '^BLOCKED ' "$GATE_LOG" 2>/dev/null || true
+    exit 2
+fi
+
+echo "CHRONON_PRODUCT_FUNCTIONAL_PASS"
+echo "  All $PASS_COUNT executable gates passed on the same commit."
+grep -E '^PASS ' "$GATE_LOG" 2>/dev/null || true
+echo "[INFO] ${GATE_NAME}: ${PASS_COUNT}/${TOTAL} executable gates PASS"
+exit 0
