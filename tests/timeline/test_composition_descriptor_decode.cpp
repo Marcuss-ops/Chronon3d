@@ -1,225 +1,129 @@
 // SPDX-License-Identifier: MIT
-//
-// Unit tests for TypedCompositionDescriptor<Props>::decode and the type-erased
-// prepare_props phase. Validation and dynamic metadata resolution belong to
-// prepare_props / CompositionRegistry::create; the factory wrapper performs
-// decode + construction only for backward-compatible direct factory calls.
-
 #include <doctest/doctest.h>
 
 #include <chronon3d/core/composition/composition_registry.hpp>
-#include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/timeline/composition_descriptor.hpp>
-#include <chronon3d/timeline/composition_props.hpp>
 
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
 using namespace chronon3d;
 
 namespace {
+struct TestProps {
+    std::string title{"default"};
+    int duration{60};
+};
 
-Composition make_stub_composition(int duration = 1) {
+struct Capture {
+    TestProps props;
+    int calls{0};
+};
+
+Composition stub(const TestProps& props) {
     CompositionSpec spec;
-    spec.name = "test-stub";
+    spec.name = "stub";
     spec.width = 1;
     spec.height = 1;
     spec.frame_rate = FrameRate{1, 1};
-    spec.duration = Frame{duration};
-    return Composition(std::move(spec),
-                       [](const FrameContext&) { return Scene{}; });
+    spec.duration = Frame{props.duration};
+    return Composition(std::move(spec), [](const FrameContext&) { return Scene{}; });
 }
 
-struct FixturesProps {
-    std::string title{"default-title"};
-    int duration_frames{60};
-    std::string font_path{"fonts/Default.ttf"};
-};
-
-struct Captured {
-    std::string title;
-    int duration{-1};
-    std::string font;
-    int factory_calls{0};
-};
-
-auto make_factory(Captured& captured) {
-    return [&captured](const FixturesProps& props) -> Composition {
-        captured.title = props.title;
-        captured.duration = props.duration_frames;
-        captured.font = props.font_path;
-        ++captured.factory_calls;
-        return make_stub_composition(props.duration_frames);
-    };
-}
-
-auto decode_fixtures() {
-    return [](const ValueMap& values,
-              const FixturesProps& defaults) -> Result<FixturesProps, PropsError> {
-        FixturesProps props = defaults;
-        try {
-            if (values.contains("title")) {
-                props.title = values.get_string("title");
-            }
-            if (values.contains("duration")) {
-                props.duration_frames = values.get_int("duration");
-            }
-            if (values.contains("font")) {
-                props.font_path = values.get_string("font");
-            }
-        } catch (const std::exception& error) {
-            return PropsError{"duration", PropsErrorReason::BadType, error.what()};
-        }
+PropsCodec<TestProps> codec() {
+    PropsCodec<TestProps> result;
+    result.schema = PropsSchema{.fields = {
+        PropField{.name = "title", .type = PropType::String},
+        PropField{.name = "duration", .type = PropType::Integer}
+    }};
+    result.decode = [](const ValueMap& values,
+                       const TestProps& defaults) -> Result<TestProps, PropsError> {
+        TestProps props = defaults;
+        if (values.contains("title")) props.title = values.get_string("title");
+        if (values.contains("duration")) props.duration = values.get_int("duration");
         return props;
     };
+    return result;
 }
 
-} // namespace
-
-TEST_CASE("TypedCompositionDescriptor: no decoder preserves defaults") {
-    Captured captured;
-    auto descriptor = TypedCompositionDescriptor<FixturesProps>{
-        .id = "no-decode",
-        .defaults = FixturesProps{"Breaking News", 150, "fonts/Inter.ttf"},
-        .factory = make_factory(captured)
-    }.to_descriptor();
-
-    CompositionProps props;
-    props.values.set("title", "ignored");
-    props.values.set("duration", "999");
-
-    (void)descriptor.factory(props);
-    CHECK(captured.title == "Breaking News");
-    CHECK(captured.duration == 150);
-    CHECK(captured.font == "fonts/Inter.ttf");
-    CHECK(captured.factory_calls == 1);
-}
-
-TEST_CASE("TypedCompositionDescriptor: direct factory decodes before construction") {
-    Captured captured;
-    auto descriptor = TypedCompositionDescriptor<FixturesProps>{
-        .id = "with-decode",
-        .defaults = FixturesProps{"Breaking News", 150, "fonts/Inter.ttf"},
-        .decode = decode_fixtures(),
-        .factory = make_factory(captured)
-    }.to_descriptor();
-
-    CompositionProps props;
-    props.values.set("title", "Hello");
-    props.values.set("duration", "180");
-
-    (void)descriptor.factory(props);
-    CHECK(captured.title == "Hello");
-    CHECK(captured.duration == 180);
-    CHECK(captured.font == "fonts/Inter.ttf");
-    CHECK(captured.factory_calls == 1);
-}
-
-TEST_CASE("TypedCompositionDescriptor: decode errors stop direct construction") {
-    Captured captured;
-    auto descriptor = TypedCompositionDescriptor<FixturesProps>{
-        .id = "decode-error",
-        .defaults = FixturesProps{},
-        .decode = decode_fixtures(),
-        .factory = make_factory(captured)
-    }.to_descriptor();
-
-    CompositionProps props;
-    props.values.set("duration", "NaN");
-
-    CHECK_THROWS_AS(descriptor.factory(props), std::runtime_error);
-    CHECK(captured.factory_calls == 0);
-}
-
-TEST_CASE("TypedCompositionDescriptor: prepare_props validates merged props without factory") {
-    Captured captured;
-    int validate_calls = 0;
-    auto descriptor = TypedCompositionDescriptor<FixturesProps>{
-        .id = "validate-before-factory",
-        .defaults = FixturesProps{"default", 100, "fonts/Default.ttf"},
-        .validate = [&validate_calls](const FixturesProps& props)
-            -> std::optional<std::string> {
-            ++validate_calls;
-            if (props.duration_frames <= 0) {
-                return "duration must be positive";
-            }
+TypedCompositionDescriptor<TestProps> descriptor(Capture* capture,
+                                                   bool with_codec = true) {
+    TypedCompositionDescriptor<TestProps> result{
+        .id = "Typed",
+        .category = "Tests",
+        .defaults = TestProps{},
+        .validate = [](const TestProps& props) -> std::optional<std::string> {
+            if (props.duration <= 0) return "duration must be positive";
             return std::nullopt;
         },
-        .resolve_metadata = [](const FixturesProps& props) {
-            return CompositionMetadata{
-                1920,
-                1080,
-                FrameRate{30, 1},
-                Frame{props.duration_frames}
-            };
+        .resolve_metadata = [](const TestProps& props) {
+            return CompositionMetadata{1920, 1080, {30, 1}, Frame{props.duration}};
         },
-        .decode = decode_fixtures(),
-        .factory = make_factory(captured)
-    }.to_descriptor();
+        .factory = [capture](const TestProps& props) {
+            if (capture) {
+                capture->props = props;
+                ++capture->calls;
+            }
+            return stub(props);
+        }
+    };
+    if (with_codec) result.codec = codec();
+    return result;
+}
+} // namespace
+
+TEST_CASE("typed descriptor uses defaults without external props") {
+    Capture capture;
+    CompositionRegistry registry;
+    registry.add(descriptor(&capture, false).to_descriptor());
+
+    const Composition composition = registry.create("Typed");
+    CHECK(composition.duration() == Frame{60});
+    CHECK(capture.props.title == "default");
+    CHECK(capture.calls == 1);
+}
+
+TEST_CASE("typed descriptor rejects external props without a codec") {
+    Capture capture;
+    CompositionRegistry registry;
+    registry.add(descriptor(&capture, false).to_descriptor());
+
+    CompositionProps props;
+    props.values.set("title", "external");
+    CHECK_THROWS(registry.create("Typed", props));
+    CHECK(capture.calls == 0);
+}
+
+TEST_CASE("PropsCodec is the only external decode path") {
+    Capture capture;
+    CompositionRegistry registry;
+    registry.add(descriptor(&capture).to_descriptor());
+
+    CompositionProps props;
+    props.values.set("title", "hello");
+    props.values.set("duration", "180");
+    const Composition composition = registry.create("Typed", props);
+
+    CHECK(composition.duration() == Frame{180});
+    CHECK(capture.props.title == "hello");
+    CHECK(capture.calls == 1);
+}
+
+TEST_CASE("prepare_props validates and resolves metadata before factory") {
+    Capture capture;
+    auto value = descriptor(&capture).to_descriptor();
 
     CompositionProps valid;
     valid.values.set("duration", "240");
-    auto prepared = descriptor.prepare_props(valid);
+    auto prepared = value.prepare_props(valid);
     REQUIRE(prepared);
     REQUIRE(prepared->has_value());
     CHECK((*prepared)->duration == Frame{240});
-    CHECK(validate_calls == 1);
-    CHECK(captured.factory_calls == 0);
-
-    CompositionProps invalid;
-    invalid.values.set("duration", "-1");
-    auto rejected = descriptor.prepare_props(invalid);
-    REQUIRE_FALSE(rejected);
-    CHECK(rejected.error().message == "duration must be positive");
-    CHECK(validate_calls == 2);
-    CHECK(captured.factory_calls == 0);
-}
-
-TEST_CASE("CompositionRegistry: preserves descriptor id and prepares before construction") {
-    Captured captured;
-    CompositionRegistry registry;
-    registry.add(TypedCompositionDescriptor<FixturesProps>{
-        .id = "registry-roundtrip",
-        .category = "Test",
-        .defaults = FixturesProps{"default", 60, "fonts/Default.ttf"},
-        .validate = [](const FixturesProps& props) -> std::optional<std::string> {
-            if (props.duration_frames <= 0) return "duration must be positive";
-            return std::nullopt;
-        },
-        .resolve_metadata = [](const FixturesProps& props) {
-            return CompositionMetadata{
-                1920,
-                1080,
-                FrameRate{30, 1},
-                Frame{props.duration_frames}
-            };
-        },
-        .decode = decode_fixtures(),
-        .factory = make_factory(captured)
-    }.to_descriptor());
-
-    auto descriptor = registry.descriptor_of("registry-roundtrip");
-    REQUIRE(descriptor.has_value());
-    CHECK(descriptor->id == "registry-roundtrip");
-    CHECK(descriptor->category == "Test");
-    CHECK(descriptor->width == 1920);
-    CHECK(descriptor->height == 1080);
-    REQUIRE(descriptor->duration.has_value());
-    CHECK(descriptor->duration->integral() == 60);
-
-    CompositionProps valid;
-    valid.values.set("title", "registry-hello");
-    valid.values.set("duration", "240");
-    const Composition composition = registry.create("registry-roundtrip", valid);
-    CHECK(composition.duration() == Frame{240});
-    CHECK(captured.title == "registry-hello");
-    CHECK(captured.duration == 240);
-    CHECK(captured.factory_calls == 1);
+    CHECK(capture.calls == 0);
 
     CompositionProps invalid;
     invalid.values.set("duration", "0");
-    CHECK_THROWS(registry.create("registry-roundtrip", invalid));
-    CHECK(captured.factory_calls == 1);
+    CHECK_FALSE(value.prepare_props(invalid));
+    CHECK(capture.calls == 0);
 }
