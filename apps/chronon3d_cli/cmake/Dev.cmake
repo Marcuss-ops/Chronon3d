@@ -18,6 +18,8 @@ add_library(chronon3d_cli_dev STATIC
     commands/dev/command_text_def_inspect.cpp
     # Phase 1d / Increment C — TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION
     commands/dev/command_schema.cpp
+    # Phase 1d / Increment D
+    commands/dev/command_example_props.cpp
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_audit_helpers.cpp>
     $<$<AND:$<BOOL:${CHRONON3D_USE_BLEND2D}>,$<BOOL:${CHRONON3D_ENABLE_TEXT}>>:commands/dev/text_inspection_collector.cpp>
     utils/batch/batch_job_spec.cpp
