@@ -69,6 +69,17 @@ forbid_command() {
     echo "  [PASS] retired command absent: $name"
 }
 
+require_option() {
+    local help_file="$1"
+    local option="$2"
+    if grep -q -- "$option" "$help_file"; then
+        echo "  [PASS] option present: $option"
+        return 0
+    fi
+    echo "  [FAIL] option missing: $option"
+    return 1
+}
+
 FAILED=0
 require_command render || FAILED=1
 require_command preview || FAILED=1
@@ -80,13 +91,13 @@ if ! "$CLI_BIN" render --help >"$RENDER_HELP" 2>&1; then
     echo "  [FAIL] render --help failed"
     FAILED=1
 else
-    for option in --frame --frames --output; do
-        if grep -q -- "$option" "$RENDER_HELP"; then
-            echo "  [PASS] render option present: $option"
-        else
-            echo "  [FAIL] render option missing: $option"
-            FAILED=1
-        fi
+    for option in \
+        --frame --frames --output \
+        --fps --crf --codec --encode-preset --tune --hardware \
+        --keep-frames --frames-dir --chunks --ffmpeg-mode \
+        --pipe-pixfmt --color-output --pipe-writer \
+        --encoder-backend --dry-run; do
+        require_option "$RENDER_HELP" "$option" || FAILED=1
     done
 fi
 
@@ -95,12 +106,7 @@ if ! "$CLI_BIN" preview --help >"$PREVIEW_HELP" 2>&1; then
     FAILED=1
 else
     for option in --frames --contact-sheet --output-dir; do
-        if grep -q -- "$option" "$PREVIEW_HELP"; then
-            echo "  [PASS] preview option present: $option"
-        else
-            echo "  [FAIL] preview option missing: $option"
-            FAILED=1
-        fi
+        require_option "$PREVIEW_HELP" "$option" || FAILED=1
     done
 fi
 
@@ -108,12 +114,7 @@ if ! "$CLI_BIN" create --help >"$CREATE_HELP" 2>&1; then
     echo "  [FAIL] create --help failed"
     FAILED=1
 else
-    if grep -q -- '--template' "$CREATE_HELP"; then
-        echo "  [PASS] create template selector present"
-    else
-        echo "  [FAIL] create --template missing"
-        FAILED=1
-    fi
+    require_option "$CREATE_HELP" --template || FAILED=1
 fi
 
 if [ "$FAILED" -ne 0 ]; then
@@ -122,5 +123,5 @@ if [ "$FAILED" -ne 0 ]; then
 fi
 
 echo "CLI_RENDER_SURFACE_PASS"
-echo "[INFO] ${GATE_NAME}: render is canonical; preview/create present; still/video absent"
+echo "[INFO] ${GATE_NAME}: render owns image/video controls; preview/create present; still/video absent"
 exit 0
