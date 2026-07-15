@@ -20,11 +20,10 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace chronon3d {
-
-class CompositionRegistry;
 
 enum class RenderMode : std::uint8_t {
     Still    = 0,
