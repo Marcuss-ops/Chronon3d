@@ -286,6 +286,13 @@ private:
     /// member so lifetime is the runtime's, deterministic per engine.
     chronon3d::assets::AssetResolver                    m_resolver;
 
+    // diag accessor: per-runtime CacheDiagnostics instance (value member; construction happens
+    // at object-init time so even pre-populate() callers can use diagnostics() directly.
+    // The friend declaration in cache_diagnostics.hpp gives RenderRuntime access to the
+    // private default ctor.)
+    // PLACEMENT: declared BEFORE every cache that registers with it so that
+    // CacheDiagnostics outlives all registered caches during destruction.
+    chronon3d::cache::CacheDiagnostics                  m_diagnostics{};
     chronon3d::cache::NodeCache                         m_owned_node_cache{};
     std::shared_ptr<chronon3d::cache::FramebufferPool> m_owned_framebuffer_pool;
     chronon3d::graph::CompiledGraphCache                m_owned_graph_cache{};
@@ -303,11 +310,6 @@ private:
 
     // Fase B B1 — per-runtime image cache (replaces process-wide singleton)
     chronon3d::ImageCache                           m_image_cache;
-    // diag accessor: per-runtime CacheDiagnostics instance (value member; construction happens
-    // at object-init time so even pre-populate() callers can use diagnostics() directly.
-    // The friend declaration in cache_diagnostics.hpp gives RenderRuntime access to the
-    // private default ctor.)
-    chronon3d::cache::CacheDiagnostics                  m_diagnostics{};
     // framebuffer_store accessor: per-runtime PersistentFramebufferStore (value member); the
     // P1-13 closure migrated the class to pure instance ownership (no singleton, no
     // process-wide static config).  All configuration is per-instance (`m_cache_dir` initialised
