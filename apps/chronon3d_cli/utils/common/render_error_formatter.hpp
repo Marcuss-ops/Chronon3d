@@ -4,6 +4,7 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 
 #include <iostream>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -46,14 +47,36 @@ namespace render_error_detail {
            contains(error.message, "empty layout.font.font_path");
 }
 
+[[nodiscard]] inline bool is_unknown_composition(
+    const graph::NodeExecutionError& error) noexcept
+{
+    return contains(error.message, "unknown composition");
+}
+
+[[nodiscard]] inline bool is_composition_create_failure(
+    const graph::NodeExecutionError& error) noexcept
+{
+    return contains(error.message, "could not create composition");
+}
+
+[[nodiscard]] inline bool is_user_layer_name(std::string_view node_name) noexcept {
+    return !node_name.empty() &&
+           node_name != "composition_registry" &&
+           node_name != "frame_graph" &&
+           node_name != "render";
+}
+
 [[nodiscard]] inline const char* stable_cli_code(
     const graph::NodeExecutionError& error) noexcept
 {
     if (is_font_not_found(error)) {
         return "TEXT_FONT_NOT_FOUND";
     }
-    if (contains(error.message, "unknown composition")) {
+    if (is_unknown_composition(error)) {
         return "UNKNOWN_COMPOSITION";
+    }
+    if (is_composition_create_failure(error)) {
+        return "COMPOSITION_CREATE_FAILED";
     }
 
     switch (error.backend_code) {
@@ -73,6 +96,12 @@ namespace render_error_detail {
     if (is_font_not_found(error)) {
         return "Place the font under the project asset root\n"
                "or change the font path in TextStyle.";
+    }
+    if (is_unknown_composition(error)) {
+        return "Run `chronon list` and use one of the registered composition names.";
+    }
+    if (is_composition_create_failure(error)) {
+        return "Check the composition props and factory inputs, then retry the command.";
     }
 
     switch (error.backend_code) {
@@ -94,7 +123,7 @@ namespace render_error_detail {
 inline void print_render_error(
     const graph::NodeExecutionError& error,
     std::string_view composition_id,
-    Frame frame)
+    std::optional<Frame> frame)
 {
     const std::string asset = render_error_detail::extract_font_asset(error.message);
 
@@ -102,10 +131,12 @@ inline void print_render_error(
     if (!composition_id.empty()) {
         std::cerr << "Composition: " << composition_id << '\n';
     }
-    if (!error.node_name.empty()) {
+    if (render_error_detail::is_user_layer_name(error.node_name)) {
         std::cerr << "Layer: " << error.node_name << '\n';
     }
-    std::cerr << "Frame: " << frame.as_i64() << '\n';
+    if (frame.has_value()) {
+        std::cerr << "Frame: " << frame->as_i64() << '\n';
+    }
     if (!asset.empty()) {
         std::cerr << "Asset: " << asset << '\n';
     }
@@ -115,6 +146,21 @@ inline void print_render_error(
     std::cerr << "\nFix:\n"
               << render_error_detail::suggested_fix(error)
               << '\n';
+}
+
+inline void print_render_error(
+    const graph::NodeExecutionError& error,
+    std::string_view composition_id,
+    Frame frame)
+{
+    print_render_error(error, composition_id, std::optional<Frame>{frame});
+}
+
+inline void print_render_error(
+    const graph::NodeExecutionError& error,
+    std::string_view composition_id)
+{
+    print_render_error(error, composition_id, std::nullopt);
 }
 
 } // namespace chronon3d::cli
