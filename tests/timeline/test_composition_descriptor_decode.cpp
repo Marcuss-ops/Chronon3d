@@ -36,8 +36,9 @@
 //     3. defaults      (Props)
 //     4. validate      (std::function<...>)
 //     5. resolve_metadata (std::function<...>)
-//     6. decode        (std::function<Result<Props, PropsError>(...)>)
+//     6. decode        (std::function<Result<Props, PropsError>(...)>)  [legacy]
 //     7. factory       (std::function<Composition(const Props&)>)
+//     8. codec         (std::optional<PropsCodec<Props>>)              [new]
 //
 // Per C++20 aggregate-init, listed designators MUST follow the struct
 // declaration order.  Omitted members are default-initialized; this

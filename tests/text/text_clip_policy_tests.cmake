@@ -38,7 +38,7 @@ chronon3d_add_test_suite(
     NAME chronon3d_text_clip_policy_tests
     TIER INTEGRATION
     LINK_TARGETS chronon3d_pipeline chronon3d_backend_software chronon3d_scene chronon3d_text_core
-    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/test_text_clip_policy.cpp
+    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_clip_policy.cpp
 )
 
 # Wire into the FAST test aggregator (math + harness, no rendering
