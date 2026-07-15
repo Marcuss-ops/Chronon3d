@@ -201,24 +201,12 @@ public:
         static_assert(std::is_invocable_v<Fn, Scene&, const chronon3d::FrameContext&>,
                       "CompositionBuilder::scene(fn): fn must be invocable as "
                       "fn(chronon3d::authoring::Scene&, const chronon3d::FrameContext&).");
-        // Capture both user_fn and the (optional) custom-builder
-        // factory by move into the captured std::function.  Note that
-        // custom_builder_fn_ is itself stored on *this by member
-        // assignment above; we move it into the captured std::function
-        // by taking a local copy, so the lifetime of the closure is
-        // independent of *this once build() fires.
         auto custom_snapshot = custom_builder_fn_;
         render_fn_ = [user_fn = std::forward<Fn>(fn),
                       custom = std::move(custom_snapshot)]
             (const chronon3d::FrameContext& ctx) -> chronon3d::Scene {
-            // LOCAL SceneBuilder — one per evaluate() call, mirrors the
-            // engine's per-evaluate construction in
-            // chronon3d::Composition::evaluate_double.
             SceneBuilder builder = custom ? custom(ctx) : SceneBuilder(ctx);
-            Scene scene_handle(builder,
-                               FrameContext::from_dimensions(
-                                   static_cast<f32>(ctx.width),
-                                   static_cast<f32>(ctx.height)));
+            Scene scene_handle(builder, ctx);
             user_fn(scene_handle, ctx);
             return builder.build();
         };
@@ -229,21 +217,12 @@ public:
         static_assert(std::is_invocable_v<Fn, Scene&, const chronon3d::FrameContext&>,
                       "CompositionBuilder::scene(fn): fn must be invocable as "
                       "fn(chronon3d::authoring::Scene&, const chronon3d::FrameContext&).");
-        // Review/rvalue overload — supports fluent rvalue chains like
-        // composition().name("a").scene(...).build().  Setters on the
-        // other CompositionBuilder fields STILL use `&` only (the
-        // codebase philosophy for them is "declare-then-mutate"); this
-        // single `&&` overload on scene() unblocks the test fixture's
-        // chain calls without rewriting every user test case.
         auto custom_snapshot = custom_builder_fn_;
         render_fn_ = [user_fn = std::forward<Fn>(fn),
                       custom = std::move(custom_snapshot)]
             (const chronon3d::FrameContext& ctx) -> chronon3d::Scene {
             SceneBuilder builder = custom ? custom(ctx) : SceneBuilder(ctx);
-            Scene scene_handle(builder,
-                               FrameContext::from_dimensions(
-                                   static_cast<f32>(ctx.width),
-                                   static_cast<f32>(ctx.height)));
+            Scene scene_handle(builder, ctx);
             user_fn(scene_handle, ctx);
             return builder.build();
         };
