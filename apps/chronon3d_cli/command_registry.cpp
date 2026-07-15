@@ -5,7 +5,6 @@ namespace chronon3d::cli {
 void register_all_commands(CLI::App& app, CliContext& ctx) {
     register_basic_commands(app, ctx);
     register_render_commands(app, ctx);
-    register_video_commands(app, ctx);
     register_create_commands(app, ctx);
     // TICKET-V3-CLI-UNIFICATION-WATCH-SUPERVISOR (Blocco 4.1, Commit 1 of 3)
     register_watch_commands(app, ctx);
