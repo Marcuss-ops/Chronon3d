@@ -44,7 +44,7 @@ void build_reference_image_content(SceneBuilder& s, const FrameContext& ctx, con
 namespace chronon3d {
 
 void register_camera_tilt_clip(CompositionRegistry& registry) {
-    registry.add("CameraImageClip", [](const CompositionProps&) {
+    registry.add(CompositionDescriptor{.id = "CameraImageClip", .factory = [](const CompositionProps&) {
         CameraMotionParams params;
         params.axis = animation::MotionAxis::Tilt;
         params.duration = 60;
@@ -56,7 +56,7 @@ void register_camera_tilt_clip(CompositionRegistry& registry) {
             [](SceneBuilder& s, const FrameContext& ctx, const animation::CameraMotionParams& p) {
                 build_reference_image_content(s, ctx, p);
             });
-    });
+    }});
 }
 
 } // namespace chronon3d

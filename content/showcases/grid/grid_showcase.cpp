@@ -149,7 +149,7 @@ Composition grid_color_showcase() {
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_grid_compositions(CompositionRegistry& registry) {
-    registry.add("GridColorShowcase", [](const CompositionProps&) { return grid_color_showcase(); });
+    registry.add(CompositionDescriptor{.id = "GridColorShowcase", .factory = [](const CompositionProps&) { return grid_color_showcase(); }});
 }
 
 } // namespace chronon3d::content::grid
