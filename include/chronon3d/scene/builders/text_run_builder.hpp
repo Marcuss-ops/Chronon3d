@@ -20,8 +20,9 @@ namespace authoring { class Layer; }
 
 // Non-owning fluent handle over one PendingTextRun owned by LayerBuilder.
 // Glyph mutators append implicit full-range animator specs; font/layout
-// mutators update the canonical TextRunSpec directly. `commit()` is the sole
-// public lifecycle transition and routes consumption through mark_consumed().
+// mutators update the canonical TextRunSpec directly. `commit()` validates
+// and finalizes the pending spec, while LayerBuilder::build() marks it consumed
+// only after successful node materialization.
 class TextRunBuilder {
 public:
     TextRunBuilder(LayerBuilder* parent, PendingTextRun* pending);
