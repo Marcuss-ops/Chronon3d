@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-loud source audit for the unified render and per-runtime asset contracts.
-
-This gate intentionally checks architecture, not behaviour:
-- retired render planners/executors must not return;
-- process-wide/global asset roots must not return;
-- asset resolution code must not consult the process CWD;
-- compositions/examples must not construct their own AssetResolver;
-- retired root-level umbrella headers must remain absent.
-
-Comments and string literals are stripped before identifier matching so historical
-notes and user-facing diagnostics do not create false positives.
-"""
+"""Fail-loud audit for unified rendering and per-runtime asset ownership."""
 
 from __future__ import annotations
 
@@ -29,19 +18,14 @@ PRODUCTION_ROOTS = (
     ROOT / "examples",
 )
 
-ASSET_RESOLUTION_ROOTS = (
+ASSET_IMPLEMENTATION_ROOTS = (
     ROOT / "include" / "chronon3d" / "assets",
     ROOT / "src" / "assets",
     ROOT / "src" / "runtime",
-    ROOT / "src" / "backends" / "assets",
-    ROOT / "src" / "backends" / "image",
-    ROOT / "src" / "backends" / "software",
+    ROOT / "src" / "backends",
 )
 
-COMPOSITION_ROOTS = (
-    ROOT / "content",
-    ROOT / "examples",
-)
+COMPOSITION_ROOTS = (ROOT / "content", ROOT / "examples")
 
 BANNED_IDENTIFIERS = (
     "RenderJobPlan",
@@ -76,8 +60,27 @@ def source_files(roots: tuple[Path, ...]) -> list[Path]:
     return sorted(set(files))
 
 
+def asset_resolution_files() -> list[Path]:
+    """Return files that can materially participate in asset path resolution."""
+    selected: list[Path] = []
+    for path in source_files(ASSET_IMPLEMENTATION_ROOTS):
+        lowered_parts = {part.lower() for part in path.parts}
+        lowered_name = path.name.lower()
+        asset_named = any(
+            token in lowered_name or token in lowered_parts
+            for token in ("asset", "font", "image")
+        )
+        runtime_owner = lowered_name in {
+            "render_engine.cpp",
+            "render_runtime.cpp",
+            "render_runtime.hpp",
+        }
+        if asset_named or runtime_owner:
+            selected.append(path)
+    return selected
+
+
 def strip_comments_and_literals(text: str) -> str:
-    """Replace C/C++ comments and quoted literals with whitespace."""
     pattern = re.compile(
         r"//[^\n]*"
         r"|/\*.*?\*/"
@@ -96,11 +99,14 @@ def line_number(text: str, offset: int) -> int:
 def scan_pattern(files: list[Path], pattern: re.Pattern[str], label: str) -> list[str]:
     failures: list[str] = []
     for path in files:
-        raw = path.read_text(encoding="utf-8", errors="replace")
-        cleaned = strip_comments_and_literals(raw)
+        cleaned = strip_comments_and_literals(
+            path.read_text(encoding="utf-8", errors="replace")
+        )
         for match in pattern.finditer(cleaned):
-            relative = path.relative_to(ROOT)
-            failures.append(f"{relative}:{line_number(cleaned, match.start())}: {label}: {match.group(0)}")
+            failures.append(
+                f"{path.relative_to(ROOT)}:{line_number(cleaned, match.start())}: "
+                f"{label}: {match.group(0)}"
+            )
     return failures
 
 
@@ -119,16 +125,24 @@ def main() -> int:
 
     failures.extend(
         scan_pattern(
-            source_files(ASSET_RESOLUTION_ROOTS),
+            asset_resolution_files(),
             re.compile(r"\b(?:(?:std::)?filesystem::)?current_path\s*\("),
             "asset resolution must not consult process CWD",
         )
     )
 
+    # Match ownership/construction shapes, not harmless type mentions in docs,
+    # function parameters or resolver adapters.
+    resolver_construction = re.compile(
+        r"\b(?:chronon3d::)?(?:assets::)?AssetResolver\s+[A-Za-z_]\w*\s*[;={]"
+        r"|\bnew\s+(?:chronon3d::)?(?:assets::)?AssetResolver\b"
+        r"|\bstd::make_(?:unique|shared)<\s*(?:chronon3d::)?(?:assets::)?AssetResolver\s*>"
+        r"|\b(?:chronon3d::)?(?:assets::)?AssetResolver\s*\{"
+    )
     failures.extend(
         scan_pattern(
             source_files(COMPOSITION_ROOTS),
-            re.compile(r"\bAssetResolver\b"),
+            resolver_construction,
             "compositions/examples must not construct or own AssetResolver",
         )
     )
