@@ -77,6 +77,8 @@
 
 | Ticket | Description |
 |---|---|
+| TICKET-CENTERED-TEXT-OTHER-AREA-VACUOUS-VERIFY (CLEANUP) | P2 | DONE 2026-07-14 | docs(text): 2nd cleanup-chaser sub-chore (e) per code-reviewer round-1 — 4 cleanup riders applied (walkthrough + char-fence + disamb + hygiene forward). | [ticket](docs/tickets/TICKET-CENTERED-TEXT-OTHER-AREA-VACUOUS-VERIFY.md) |
+| TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER | P3 | NEW 2026-07-14 | docs: hygiene forward-point — parent bulk-migration §Criteri rows (d)-(e) rot-class fix; future-chore delegato. | [ticket](docs/tickets/TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER.md) |
 | TICKET-CENTERED-TEXT-OTHER-AREA-VACUOUS-VERIFY | P2 | DONE 2026-07-14 | docs(text): vacate Blocco 5.2.E other-area vacuous-truth — text_reveal + text_glow_helpers già pre-migrati M1.8 §2D; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-CENTERED-TEXT-OTHER-AREA-VACUOUS-VERIFY.md) |
 | TICKET-CENTERED-TEXT-CERTIFICATION-AREA-VACUOUS-VERIFY | P2 | DONE 2026-07-14 | docs(text): vacate Blocco 5.2.D cert-area vacuous-truth — 16 stimati in cert_* GIÀ migrati M1.8 §2D; 0 code-only callers post comment-filter; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-CENTERED-TEXT-CERTIFICATION-AREA-VACUOUS-VERIFY.md) |
 | TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY | P1 | DONE 2026-07-14 | docs(text): vacate Blocco 5.2.I helper-removal vacuous-truth — `centered_text`/`glow_text`/`compute_single_line_glyph_layout` già assenti pre-session + zero callers; cronaca in canonical ticket-home. | [ticket](docs/tickets/TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY.md) |

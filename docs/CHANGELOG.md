@@ -1,5 +1,8 @@
 ## 2026-07-14
 
+### `chore(text): cleanup sub-chore (e) Blocco 5.2 per reviewer findings` ([TICKET-CENTERED-TEXT-OTHER-AREA-VACUOUS-VERIFY](docs/tickets/TICKET-CENTERED-TEXT-OTHER-AREA-VACUOUS-VERIFY.md))
+2nd cleanup chaser-chore: 4 riders applied (rider-1 per-file walkthrough, rider-2 char-fence, rider-3 (e)vs(d) disambig, rider-4 hygiene forward-point). Cat-5 3-doc, ZERO source. Cronaca in canonical ticket-home.
+
 ### `chore(text): vacate Blocco 5.2.E other-area vacuous-truth verify` ([TICKET-CENTERED-TEXT-OTHER-AREA-VACUOUS-VERIFY](docs/tickets/TICKET-CENTERED-TEXT-OTHER-AREA-VACUOUS-VERIFY.md))
 Vacuous-truth audit: ~5 callers stimati in text_reveal.cpp + text_glow_helpers.hpp GIÀ assenti pre-session + zero code-only callers (text_reveal pre-migrato M1.8 §2D; text_glow_helpers ora contiene solo apply_ae_glow canonical AE-helper). Sub-chore (e) chiuso. Cat-5 3-doc atomic, ZERO source questo turno. Cronaca canonical ticket-home.
 
