@@ -1,59 +1,47 @@
-# TICKET-PREVIEW-CONTACT-SHEET — Contact-sheet composer for chronon preview (Commit 3b)
+# TICKET-PREVIEW-CONTACT-SHEET — Contact-sheet composer
 
-## Stato: OPEN (Commit 3b of Blocco 4.1, deferred from Commit 3a)
+## Stato
 
-## Problema
-`chronon preview --contact-sheet sheet.png` viene accettato dal
-subcommand (apps/chronon3d_cli/commands/preview/register_preview_commands.cpp)
-ma NON è ancora implementato (Commit 3a emette solo un warning one-time).
+**DONE (2026-07-15).**
 
-L'audit §18 verbatim cita la seconda fase:
-```
+## Soluzione atterrata
+
+`chronon preview` supporta:
+
+```bash
 chronon preview ProductLaunch \
   --frames 0,30,60,90 \
   --contact-sheet sheet.png
 ```
-come capability attesa.
 
-## Soluzione accettabile
-1. Dopo aver renderizzato tutti i frame in `<output_dir>/frame_NNNN.png`:
-   - Load ogni PNG via `load_image_as_framebuffer(path, cell_width, -1)`.
-     Il `cell_width` (default 640) è il target width per il resize
-     aspect-preserving.  `target_height = -1` mantiene l'aspect ratio.
-   - Costruisci un `std::shared_ptr<Framebuffer> grid` di dimensione:
-     - cols = ceil(sqrt(N))
-     - rows = ceil(N / cols)
-     - grid_w = cols * cell_w + (cols + 1) * cell_padding
-     - grid_h = rows * cell_h + (rows + 1) * cell_padding
-     dove `cell_w`, `cell_h` sono le dimensioni del PRIMO frame
-     caricato (dopo il resize aspect-preserving).
-2. Per ogni frame al cell (col, row):
-   - Calcola la posizione top-left: x = padding + col * (cell_w + padding),
-     y = padding + row * (cell_h + padding).
-   - Blit il Framebuffer sorgente nel grid via un helper in-file
-     `blit(Framebuffer& dst, const Framebuffer& src, int x, int y)`
-     (~50 LoC, no new public SDK API).
-3. Salva il grid via `save_png(*grid, contact_sheet_path)`.
+Il comando:
 
-## Vincoli
-- Niente nuove librerie (no stb_image_resize, no ImageMagick `montage`).
-- Niente nuove public SDK API (no `Framebuffer::blit_from`).
-- Niente nuovi singleton/registry/resolver/cache.
-- Tutto in-file nel `register_preview_commands.cpp` (sibling del
-  `copy_with_substitution` precedent in `register_create_commands.cpp`).
+1. costruisce un solo `RenderJob` con `selected_frames`;
+2. usa un solo renderer e una sola sessione per tutti i frame;
+3. salva i PNG per-frame nell'output directory;
+4. carica soltanto i frame realmente prodotti;
+5. compone una griglia `ceil(sqrt(N))` x `ceil(N / cols)`;
+6. preserva l'aspect ratio con `--cell-width`;
+7. applica `--cell-padding`;
+8. crea la directory del contact sheet quando necessario;
+9. propaga qualsiasi failure nell'exit code del comando.
 
-## Workaround attuale
-Gli utenti possono usare ImageMagick esternamente:
-```
-montage preview/frame_*.png -tile 2x2 -geometry +8+8 sheet.png
-```
-ma è un workaround shell, non l'integrazione canonica richiesta dall'audit.
+La composizione usa gli helper immagine canonici e non introduce una preview pipeline separata.
 
 ## Criteri di accettazione
-- `chronon preview ProductLaunch --frames 0,30,60,90 --contact-sheet sheet.png`
-  produce un file `sheet.png` con i 4 frame in un grid 2x2.
-- I frame sono scalati a `--cell-width` (default 640) con aspect ratio
-  preservato.
-- Un padding di `--cell-padding` px (default 8) separa le celle.
-- Il warning one-time di Commit 3a viene rimosso.
-- Subject envelope del Commit 3b ≤ 72 char.
+
+- [x] `--contact-sheet` produce un PNG grid;
+- [x] frame non contigui renderizzati in un solo `RenderJob`;
+- [x] stesso renderer/sessione per l'intera preview;
+- [x] aspect ratio preservato;
+- [x] padding configurabile;
+- [x] nessuna libreria esterna;
+- [x] nessuna nuova API SDK pubblica;
+- [x] failure propagate nell'exit code;
+- [ ] per-cell labels opzionali, tracciate separatamente da `TICKET-PREVIEW-CELL-LABELS`.
+
+## Riferimenti
+
+- `apps/chronon3d_cli/commands/preview/register_preview_commands.cpp`
+- `include/chronon3d/timeline/render_job.hpp`
+- `tools/verify_cli_render_surface_linux.sh`
