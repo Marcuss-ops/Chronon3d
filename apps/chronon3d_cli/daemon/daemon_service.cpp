@@ -5,6 +5,8 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 
+#include "utils/common/render_error_formatter.hpp"
+
 #include <spdlog/spdlog.h>
 
 #include <cstdio>
@@ -147,7 +149,14 @@ void DaemonService::cmd_render(const std::vector<std::string>& args) {
     output = format_output_path(output, static_cast<i32>(frame));
 
     if (!m_registry.contains(comp_id)) {
-        spdlog::error("Unknown composition: '{}'", comp_id);
+        print_render_error(
+            graph::NodeExecutionError{
+                graph::RenderBackendErrorCode::InvalidInput,
+                "composition_registry",
+                "unknown composition '" + comp_id + "'"
+            },
+            comp_id,
+            frame);
         return;
     }
 
@@ -164,7 +173,19 @@ void DaemonService::cmd_render(const std::vector<std::string>& args) {
     const auto t1 = profiling::now();
 
     if (!fb) {
-        spdlog::error("Failed to render frame {} of '{}'", frame, comp_id);
+        const auto& structured = m_engine->last_render_error();
+        if (structured.has_value()) {
+            print_render_error(*structured, comp_id, frame);
+        } else {
+            print_render_error(
+                graph::NodeExecutionError{
+                    graph::RenderBackendErrorCode::ExecutionFailure,
+                    "render",
+                    "renderer returned a null framebuffer without a structured node error"
+                },
+                comp_id,
+                frame);
+        }
         return;
     }
 
