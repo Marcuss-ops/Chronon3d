@@ -199,7 +199,12 @@ void register_watch_commands(CLI::App& app, CliContext& ctx) {
 
         spdlog::info("👁  Chronon3D Watch — comp={} frame={} output={}",
                      watch.comp_id, watch.frame, watch.output.string());
-        spdlog::info("   watch paths: [{}]", fmt::join(watch_paths, ", "));
+        std::vector<std::string> watch_path_strings;
+        watch_path_strings.reserve(watch_paths.size());
+        for (const auto& p : watch_paths) {
+            watch_path_strings.push_back(p.string());
+        }
+        spdlog::info("   watch paths: [{}]", fmt::join(watch_path_strings, ", "));
         spdlog::info("   build:       {}", watch.no_build ? "(skipped)" : build_command);
         spdlog::info("   binary:      {}", binary.string());
         spdlog::info("   press Ctrl+C to stop");
