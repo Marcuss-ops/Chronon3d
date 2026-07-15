@@ -188,7 +188,7 @@ TEST_CASE("Text health / fluent opacity animator reaches every glyph") {
     }
 }
 
-TEST_CASE("Text health / word wrapping creates multiple line units") {
+TEST_CASE("Text health / word wrapping increases layout height and respects box width") {
     TextHealthEnvironment env;
     const auto font = find_health_font(env.font_engine, 34.0f);
     REQUIRE_MESSAGE(font.has_value(), "No usable font found for wrapping test.");
@@ -203,8 +203,9 @@ TEST_CASE("Text health / word wrapping creates multiple line units") {
     const auto shape = materialize_or_fail(spec, env.font_engine);
     require_valid_shape(shape, spec.text.content.value);
     CHECK(shape->layout->wrap == TextWrap::Word);
-    CHECK(shape->layout->units.line_count >= 2);
-    CHECK(shape->layout->bounds.x <= doctest::Approx(spec.text.layout.box.x).epsilon(0.05));
+    CHECK(shape->layout->line_height > 0.0f);
+    CHECK(shape->layout->bounds.y > shape->layout->line_height * 1.5f);
+    CHECK(shape->layout->bounds.x <= spec.text.layout.box.x * 1.05f);
 }
 
 TEST_CASE("Text health / repeated materialization reuses the cached layout") {
