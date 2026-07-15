@@ -162,8 +162,20 @@ while IFS= read -r f; do
     case "$f" in
         include/chronon3d/scene/builders/builder_params.hpp) continue ;;
     esac
-    # grep -P: \s matches newlines, so this detects multi-line assignments.
-    file_hits=$(grep -Pon '\.position(?=\s*[={])' "$f" 2>/dev/null || true)
+    # Match ONLY TextSpec-qualified `.position` assignments. Other `.position`
+    # fields (RenderNode.world_transform.position, Layer.transform.position,
+    # Camera.position, MotionState.position, etc.) are NOT TextSpec-derived
+    # and don't trigger the gate. Real TextSpec.position sites emit patterns
+    # like `spec.position = X`, `text.position = X`, `p.text.position = X`,
+    # or brace-init `TextSpec{.position = X}` — the regex requires a var-name
+    # qualifier before `.position` (whitelisted TextSpec var names: spec, text,
+    # TextSpec, text_def, ts, myText, def, textSpec, t_spec, td, p, run_params)
+    # with optional `[{(]` between var-name and `.position` to handle brace-init
+    # and copy-constructor syntax. Gate TIGHTENING (precision improvement) per
+    # TICKET-CHECK-NO-DUAL-TEXT-API-REGEX-IMPROVEMENT.md.
+    # grep -P (PCRE): native support for `|` alternation, `\b` word-boundary,
+    # `(?=)` lookahead, `\s` newline-aware — no need for -E.
+    file_hits=$(grep -Pon '\b(spec|text|TextSpec|text_def|ts|myText|def|textSpec|t_spec|td|p|run_params)\s*[{(]?\s*\.position(?=\s*[={])' "$f" 2>/dev/null || true)
     if [ -n "$file_hits" ]; then
         hits="${hits}$(echo "$file_hits" | sed "s|^|$f:|")"$'\n'
     fi
