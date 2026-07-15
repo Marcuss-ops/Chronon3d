@@ -52,6 +52,21 @@ struct CanvasInfo {
     // computed from a SafeAreaPreset and the given canvas dimensions.
     [[nodiscard]] static CanvasInfo with_safe_area(
         f32 width, f32 height, const SafeAreaPreset& preset);
+
+#ifdef CHRONON3D_BUILD_TESTS
+    // Transitional helpers for the pre-unification monolithic authoring test
+    // fixture. They are absent from production builds; new tests must call
+    // CanvasInfo::with_safe_area(...) directly.
+    [[deprecated("Use CanvasInfo::with_safe_area(w, h, SafeAreaPreset{})")]]
+    [[nodiscard]] static CanvasInfo default_viewport() {
+        return with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
+    }
+
+    [[deprecated("Use CanvasInfo::with_safe_area(w, h, SafeAreaPreset{})")]]
+    [[nodiscard]] static CanvasInfo from_dimensions(f32 width, f32 height) {
+        return with_safe_area(width, height, SafeAreaPreset{});
+    }
+#endif
 };
 
 // ── ResolvedTextPlacement — output of the placement resolver ──────────────
