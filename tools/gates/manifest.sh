@@ -24,6 +24,7 @@ DEVELOPER_GATES=(
     check_test_hygiene.sh
     check_test_suite_registration.sh
     check_frame_value_convention.sh
+    check_no_legacy_render_cli.sh
     check_no_changelog_conflict_markers.sh
     check_text_golden_sources_aligned.sh
     check_doc_sha_dedup.sh
@@ -42,6 +43,7 @@ CI_PHASES=(
 # artifacts and a working build host.  Kept separate so the push wrapper
 # can run developer gates once and then append only these extra gates.
 WBH_ONLY_GATES=(
+    verify_cli_render_surface_linux.sh
     check_video_completeness.sh
     check_fix_cronograph.sh
     check_manual_touches_per_video.sh
