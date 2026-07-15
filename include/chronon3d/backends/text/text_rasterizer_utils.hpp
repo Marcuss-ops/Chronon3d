@@ -10,22 +10,12 @@
 
 namespace chronon3d {
 
-// Forward declaration — full definition is gated by CHRONON3D_USE_BLEND2D,
-// but TextRenderResources references std::shared_ptr<TextRasterization>
-// unconditionally in its public API.
+// Forward declaration — full definition lives in text_render_resources.hpp
+// (the canonical owner of the raster cache).  This header only needs the
+// type name for the apply_text_material() declaration below.
 struct TextRasterization;
 
 #ifdef CHRONON3D_USE_BLEND2D
-
-/// Result of a text-rasterization pass.  Kept lightweight so it can be
-/// cached by TextRenderResources::raster_cache as a shared_ptr.
-struct TextRasterization {
-    BLImage image;
-    float x_offset{0.0f};
-    float y_offset{0.0f};
-    BLTextMetrics metrics{};
-    BLFont font{};
-};
 
 /// Apply TextMaterial effects (gradient, bevel, highlight, shade, emissive)
 /// to a rasterized text BLImage in-place.
