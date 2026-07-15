@@ -64,7 +64,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>   // LayerBuilder + screen_dimensions
 #include <chronon3d/scene/builders/text_run_builder.hpp> // PendingTextRun, TextRunParams
 #include <chronon3d/text/text_placement.hpp>         // TextPlacement, TextPlacementKind
-#include <chronon3d/text/text_placement_resolver.hpp> // resolve_placement_origin
+#include <chronon3d/text/resolve_text_placement.hpp>  // CanvasInfo, resolve_placement_origin
 #include <chronon3d/core/types/sample_time.hpp>      // SampleTime
 
 #include <string>
@@ -76,12 +76,12 @@ using namespace chronon3d::authoring;
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-// Build a default 1920×1080 FrameContext explicitly.  This is what the
+// Build a default 1920×1080 CanvasInfo explicitly.  This is what the
 // authoring facade requires when constructed via `Layer(LayerBuilder)`
 // (the one-arg overload throws std::runtime_error if no
 // `screen_dimensions(...)` was set on the builder).
-static FrameContext default_frame_context() {
-    return FrameContext::from_dimensions(1920.0f, 1080.0f);
+static CanvasInfo default_canvas_info() {
+    return CanvasInfo::from_dimensions(1920.0f, 1080.0f);
 }
 
 // Build a minimal LayerBuilder pre-configured with screen_dimensions
@@ -113,7 +113,7 @@ static constexpr float kBBoxTolerance1px = 1.0f;
 
 TEST_CASE("Ergonomics: Layer::text returns a Text handle referencing a fresh PendingTextRun") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_frame_context());
+    Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("HELLO");
     REQUIRE(static_cast<bool>(t));  // handle is alive
@@ -138,7 +138,7 @@ TEST_CASE("Ergonomics: Layer::text returns a Text handle referencing a fresh Pen
 
 TEST_CASE("Ergonomics: setters return Text& (chainable)") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_frame_context());
+    Layer lyr(lb, default_canvas_info());
 
     // Each setter must compile and link — type-check + identity-check.
     auto t = lyr.text("");
@@ -166,7 +166,7 @@ TEST_CASE("Ergonomics: setters return Text& (chainable)") {
 
 TEST_CASE("Ergonomics: setters mutate PendingTextRun immediately (no commit required)") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_frame_context());
+    Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("");
     // Pre-mutation: empty content.
@@ -188,7 +188,7 @@ TEST_CASE("Ergonomics: setters mutate PendingTextRun immediately (no commit requ
 
 TEST_CASE("Ergonomics: content() updates the underlying spec value") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_frame_context());
+    Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("INITIAL");
     t.content("REPLACED");
@@ -201,7 +201,7 @@ TEST_CASE("Ergonomics: content() updates the underlying spec value") {
 
 TEST_CASE("Ergonomics: font(path, size) sets font_path + font_size correctly") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_frame_context());
+    Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("HELLO");
     t.font("fonts/Inter-Bold.ttf", 64.0f);
@@ -215,7 +215,7 @@ TEST_CASE("Ergonomics: font(path, size) sets font_path + font_size correctly") {
 
 TEST_CASE("Ergonomics: font_family / font_size / weight individual setters") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_frame_context());
+    Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("HELLO");
     t.font_family("DejaVu Sans");
@@ -240,7 +240,7 @@ TEST_CASE("Ergonomics: font_family / font_size / weight individual setters") {
 
 TEST_CASE("Ergonomics: place(CanvasCenter) routes through canonical resolver — pin = (960, 540)") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_frame_context());
+    Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("HELLO").font("fonts/Inter-Bold.ttf", 64.0f);
     t.place(TextPlacement{TextPlacementKind::CanvasCenter});
@@ -264,7 +264,7 @@ TEST_CASE("Ergonomics: place(CanvasCenter) routes through canonical resolver —
 
 TEST_CASE("Ergonomics: place(TopLeft) routes through canonical resolver — pin = (96, 54)") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_frame_context());
+    Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("HELLO").font("fonts/Inter-Bold.ttf", 64.0f);
     t.place(TextPlacement{TextPlacementKind::TopLeft});
@@ -283,7 +283,7 @@ TEST_CASE("Ergonomics: place(TopLeft) routes through canonical resolver — pin 
 
 TEST_CASE("Ergonomics: place(SafeAreaBottom) routes through canonical resolver — pin = (960, 1026)") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_frame_context());
+    Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("HELLO").font("fonts/Inter-Bold.ttf", 64.0f);
     t.place(TextPlacement{TextPlacementKind::SafeAreaBottom});
@@ -320,7 +320,7 @@ TEST_CASE("Ergonomics: place(SafeAreaBottom) routes through canonical resolver �
 
 TEST_CASE("Ergonomics: canonical centered-title chain uses ≤ 10 method calls (literal: 4)") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_frame_context());
+    Layer lyr(lb, default_canvas_info());
 
     // ── Canonical chain ──
     //
@@ -366,7 +366,7 @@ TEST_CASE("Ergonomics: canonical centered-title chain uses ≤ 10 method calls (
 
 TEST_CASE("Ergonomics: bbox is ≤ 1px from mathematical center via resolver cross-check") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_frame_context());
+    Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("HELLO").font("fonts/Inter-Bold.ttf", 64.0f);
     t.place(TextPlacement{TextPlacementKind::CanvasCenter});
@@ -410,8 +410,8 @@ TEST_CASE("Ergonomics: identical setter chains produce byte-equivalent PendingTe
     auto lb_a = make_layer_builder();
     auto lb_b = make_layer_builder();
 
-    Layer lyr_a(lb_a, default_frame_context());
-    Layer lyr_b(lb_b, default_frame_context());
+    Layer lyr_a(lb_a, default_canvas_info());
+    Layer lyr_b(lb_b, default_canvas_info());
 
     // ── Save the handles BEFORE the configuration chain.  Each
     // Layer::text("HELLO") call returns a non-owning Text handle

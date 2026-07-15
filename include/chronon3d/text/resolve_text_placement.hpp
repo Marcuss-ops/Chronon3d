@@ -22,6 +22,10 @@ struct CanvasInfo {
         f32 width,
         f32 height,
         const SafeAreaPreset& preset);
+
+    [[nodiscard]] static CanvasInfo from_dimensions(f32 width, f32 height) {
+        return with_safe_area(width, height, SafeAreaPreset{});
+    }
 };
 
 struct ResolvedTextPlacement {

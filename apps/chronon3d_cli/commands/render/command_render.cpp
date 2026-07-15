@@ -22,8 +22,8 @@ int command_render(const CompositionRegistry& registry,
 
     auto result = execute_render_job(*resolved);
     if (!result) {
-        if (job->mode == RenderMode::Video) {
-            print_render_error(result.error(), *job);
+        if (resolved->mode == RenderMode::Video) {
+            print_render_error(result.error(), *resolved);
         } else {
             // Frame-level image failures are already printed at the exact
             // renderer/output boundary with layer and frame context.

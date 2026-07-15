@@ -75,7 +75,7 @@ public:
 
     void build(SceneBuilder& s, const std::string& layer_name) {
         s.layer(layer_name, [this](LayerBuilder& builder) {
-            authoring::Layer layer(builder, authoring::FrameContext::from_dimensions(1920.0f, 1080.0f));
+            authoring::Layer layer(builder, CanvasInfo::from_dimensions(1920.0f, 1080.0f));
             auto& t = layer.text(text_)
                            .font(font_path_, font_size_)
                            .weight(font_weight_)
