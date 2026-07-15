@@ -4,7 +4,7 @@
 #include "render_job_setup.hpp"
 
 #ifdef CHRONON3D_HAS_CLI_VIDEO_EXPORT
-#include "../video/video_job_plan.hpp"
+#include "../video/video_export_support.hpp"
 #include <chronon3d/core/cancellation_token.hpp>
 #endif
 
