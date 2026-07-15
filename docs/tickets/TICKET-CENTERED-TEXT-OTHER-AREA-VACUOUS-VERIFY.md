@@ -36,14 +36,48 @@ I 5 callsites stimati sono **GIÀ migrati** a `TextDefinition{}` direct construc
 - `rg -l 'compute_single_line_glyph_layout\(' content/` = 0 files
 - Files-with-matches scope-check confirms audit completeness: no surprise residual callers in any content/ beyond the 4 cert_* files (already addressed in sub-chore (d) chaser-ticket).
 
-### Sample file evidence (this session)
+### Per-file walkthrough macchina-verifica (cleanup rider-1 per code-reviewer round-1)
 
-- `content/text/text_reveal.cpp` head-comment: contains marker about TextDefinition construction applied directly (legacy `centered_text()` no longer invoked). No code-only `centered_text\(` or `glow_text\(` references in body.
-- `content/text/text_glow_helpers.hpp`: contains ONLY canonical AE-glow helpers (`apply_ae_glow(AeGlowOptions)` + `TextGlowPresets::ae_cinematic_white()` reference); legacy deprecated `glow_text()` macro absent.
+| File | Status (this session, 2026-07-14) | rg-probe contents | Vacuous? |
+|---|---|---|---|
+| `content/text/text_reveal.cpp` | **FILE_DOES_NOT_EXIST** (vacuous via file-absence; pre-session removal lineage M1.8 §2D) | `rg -l text_reveal.cpp content/text/` returns 0 files; git log shows no recent addition | YES |
+| `content/text/text_glow_helpers.hpp` | **PRESENT** (98 LoC) | `rg -n 'centered_text\(\|glow_text\(\|compute_single_line_glyph_layout\(' content/text/text_glow_helpers.hpp` returns 0 matches; contains only canonical `apply_ae_glow(LayerBuilder& l, const AeGlowOptions& options = {})` + `AeGlowOptions` struct + `using chronon3d::*` parent-namespace imports | YES |
+| `content/text/text_helpers_typewriter.hpp` | **PRESENT** (sibling context, not in user-spec but covered per audit scope) | `rg -n 'centered_text\(\|glow_text\(\|compute_single_line_glyph_layout\(' content/text/text_helpers_typewriter.hpp` returns 0 matches | YES |
+| (catena context, not (e) territory per se) `include/chronon3d/text/text_helpers_centered.hpp` | **FILE_ABSENT** (per sub-chore (i) HELPER-REMOVAL-FINAL VACUOUS-VERIFY chaser-ticket-home) | `rg -l 'text_helpers_centered.hpp' include/` returns 0 files | YES (out-of-territory reference) |
+
+#### Sample evidence verbatim
+
+`content/text/text_glow_helpers.hpp` L82-L100:
+
+```cpp
+inline void apply_ae_glow(LayerBuilder& l, const AeGlowOptions& options = {}) {
+    auto glow = TextGlowPresets::ae_cinematic_white();
+
+    glow.inner_radius    = options.inner_radius;
+    glow.mid_radius      = options.mid_radius;
+    glow.bloom_radius    = options.bloom_radius;
+    // ... canonical AE-glow field propagation ...
+    l.glow(glow.to_glow_params());
+    // ... micro-shadow + drop-shadow forwarding ...
+}
+```
+
+This is the canonical AE-style multi-layer glow function (no legacy `glow_text()` macro). The `apply_ae_glow()` function calls a LIST of `glow.*` field setters + `l.glow(glow.to_glow_params())` (the canonical LayerBuilder builder pattern). NO `[[deprecated]]` markers, no `centered_text()` forwarding, no `glow_text()` macro definition. Vacuous confirmation: legacy `glow_text(CenterTextOptions, Color, float, float)` is absent; the file contains ONLY the modern AE-style helper.
 
 ## honest-limitation
 
-Audit scope: macchina-verifica covered content/text/text_reveal.cpp + content/text/text_glow_helpers.hpp + content/text/text_helpers_centered.hpp + content/text/text_helpers_typewriter.hpp per user-spec. The broader content/ tree (e.g., content/certification/ already addressed via sub-chore (d) chaser-ticket) was probed via rg file-list scope-check; ALL ZERO confirms codebase-wide vacuous-truth state for sub-chore (e). No residual migration needed pre sub-chore (i) HELPER-REMOVAL-FINAL (already DONE vacuous per prior session).
+### Audit scope disambiguation vs sub-chore (d) — cleanup rider-3 per code-reviewer round-1
+
+**Catena-overlap disambiguation (catena-overlap informational only, NOT audit duplication)**:
+
+- Sub-chore (e) audit scope (this chaser-ticket): **`content/text/`-scoped** per user-spec verbatim "Open sub-chore (e) CONTENT-OTHER-AREA Blocco 5.2 (text_reveal.cpp + text_glow_helpers.hpp helper-rename phase)". Per-file: 2 user-spec files (`content/text/text_reveal.cpp` FILE_ABSENT + `content/text/text_glow_helpers.hpp` PRESENT 98 LoC canonical-only) + 2 sibling context files (`content/text/text_helpers_typewriter.hpp` PRESENT clean + `include/chronon3d/text/text_helpers_centered.hpp` FILE_ABSENT referenced via sub-chore (i) catena).
+- Sub-chore (d) audit scope (sibling chaser-ticket): **`content/certification/`-scoped** per user-spec verbatim "Open sub-chore (d) CONTENT-CERTIFICATION-AREA Blocco 5.2 (~16 callsites in cert_multilingual + cert_lower_third + cert_long_text + cert_title)". Per-file: 4 user-spec files (`cert_multilingual.cpp` + `cert_lower_third.cpp` + `cert_long_text.cpp` + `cert_title.cpp` — all 0 code-only callers post comment-strip filter) + 9 sibling files (all 0 callers per files-with-matches probe). Cross-link: [TICKET-CENTERED-TEXT-CERTIFICATION-AREA-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-CERTIFICATION-AREA-VACUOUS-VERIFY.md).
+
+The broader `rg -l 'centered_text\(' content/` returning 4 files = the 4 **cert_*.cpp** files addressed in sub-chore (d) chaser-ticket-home. The (e) audit does NOT redundantly probe these files — independent finding, distinct scope. Catena-overlap is informational (the cert_*.cpp files happen to contain `centered_text(` references in their header comments per pre-session migration lineage, which is the same macro discussed in both sub-chores' catena context). NO audit duplication: (d) probe is `content/certification/` rg-path; (e) probe is `content/text/` rg-path.
+
+### Original audit summary (preserved verbatim per Cat-3 anti-dup)
+
+Audit scope originally: macchina-verifica covered `content/text/text_reveal.cpp` + `content/text/text_glow_helpers.hpp` + `content/text/text_helpers_centered.hpp` + `content/text/text_helpers_typewriter.hpp` per user-spec. The broader `content/` tree was probed via rg file-list scope-check; ALL ZERO confirms codebase-wide vacuous-truth state for sub-chore (e). No residual migration needed pre sub-chore (i) HELPER-REMOVAL-FINAL (already DONE vacuous per prior session).
 
 ## Soluzione applicata (vacuous-truth closure, Cat-5 3-doc atomic)
 
@@ -65,6 +99,27 @@ Per AGENTS.md §honest-discipline + precedent vacuous-truth catena (8+ sibling t
 - macchina-verifica: pre-existing migration ritenuta cat-equivalent Strict discipline preserved
 
 ## Forward-points
+
+| # | Status | Description |
+|---|--------|-------------|
+| (e)-hygiene §Criteri row dedup+flip | OPEN (P3, future chore) | Hygiene ticket for parent bulk-migration §Criteri rows (d)+(e) rot-class: (d) duplicate row × 2 → × 1 + cronaca cross-link; (e) status flip `[ ]` → `[x] DONE (vacuous, 2026-07-14)` + chaser-ticket cross-link. Forward-point to NEW TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER (this 2nd chaser-chore cleanup rider-4). Cross-link: [TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER](TICKET-CENTERED-TEXT-BULK-MIGRATION-CRITERI-DUPLICATE-BUG-CHASER.md). |
+
+## Numeric char-fence macchina-verifica (cleanup rider-2 per code-reviewer round-1)
+
+| Metric (this 2nd chaser-chore, post-write) | Estimated value | AGENTS.md rule-bound |
+|---|---|---|
+| chaser-ticket-home LoC delta | est. +~12 LoC (3 section replacements/inserts atop 83 LoC baseline = ~95 LoC) | Cat-3 anti-dup free home (canonical cronaca, NOT canonical-doc char-fence bound) |
+| chaser-ticket-home bytes delta | est. +~1,400 bytes (~8,800 bytes total post-edit) | N/A (cronaca home, NOT canonical-doc char-fence bound) |
+| `rg -P` rg-probes preserving | 0 matches across all 3 helpers (centered_text, glow_text, compute_single_line_glyph_layout) | macchina-verifica rigorosa PASS (this session) |
+| §Forward-points table docs-vs-source drift | 0 (post-write insert preserves canonical forward-points pattern + adds hygiene-ticket row) | Cat-3 anti-dup |
+| FOLLOWUP_TICKETS row description (post-edit `§Recently Closed` new top row) | ~150 chars (1-line) | ≤200 chars rule per AGENTS.md §Docs canonical update discipline rule |
+| Subject envelope (this 2nd chaser-chore commit) | `chore(text): cleanup sub-chore (e) Blocco 5.2 per reviewer findings` (56 chars) | ≤72 chars per `tools/check_commit_subject_length.sh` |
+| Changelog entry ≤300 chars cite-only | ✓ (every cite-only entry in `docs/CHANGELOG.md` §Recent commits ≤300 chars per AGENTS.md §Docs canonical update discipline rule) | Cat-3 anti-dup |
+| Gate 5 deny-everywhere preserved | 0 `#include <msdfgen>/<libtess2>/<unicode[/...]>` introduced | Gate 5 deny-everywhere preserved (zero source touched) |
+
+> **Verification rigore**: post-write basher macchina-verifica (VPS-side this session, 2026-07-14) verifiable via `wc -c docs/tickets/TICKET-CENTERED-TEXT-OTHER-AREA-VACUOUS-VERIFY.md` + `rg -P 'centered_text\(|glow_text\(' docs/` + `awk '{print length}' < FOLLOWUP_TICKETS §Recently Closed new top row`.
+
+## Old forward-points section (preserved for Cat-3 anti-dup cronaca ext)
 
 (*closed per Cronologia Chiusura (e)* — sub-chore move-forward a (f)/(g)/(h) ancora OPEN per parent forward-points table)
 
