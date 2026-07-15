@@ -2,6 +2,7 @@
 
 > **Snapshot:** `main@4edb6508` — post `refactor(camera): continuous-time camera motion params` (current HEAD, 2026-07-14; Cat-3 refactor chore on top of baseline `7eb5c2ba`). Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
 
+
 ## Active Blockers (top 3)
 
 | ID | Area | Stato | Scheda |
