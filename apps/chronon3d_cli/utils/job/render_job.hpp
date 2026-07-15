@@ -10,29 +10,18 @@
 
 namespace chronon3d::cli {
 
-/// Source-compatible name only: there is no second job-plan structure.
-/// Remove after all internal callers use RenderJob directly.
-using RenderJobPlan = chronon3d::RenderJob;
-
 /// Convert CLI render arguments into a RenderRequest (still/sequence/video).
 /// Does not resolve the composition or touch the registry beyond validation.
 std::optional<RenderRequest> make_render_request(const CompositionRegistry& registry,
                                                 const RenderArgs& args,
                                                 const CompositionProps& props = {});
 
-/// Convert CLI still arguments into a RenderRequest.
-std::optional<RenderRequest> make_render_request(const CompositionRegistry& registry,
-                                                const StillArgs& args);
-
-/// Convert CLI video arguments into a RenderRequest.
-std::optional<RenderRequest> make_render_request(const CompositionRegistry& registry,
-                                                const VideoArgs& args);
-
 /// Resolve a RenderRequest against the registry, producing a ResolvedRenderJob
 /// that carries the resolved Composition and its metadata.
 Result<ResolvedRenderJob, RenderJobError> resolve_render_request(
     const CompositionRegistry& registry,
     RenderRequest request);
+
 /// Convert CLI render arguments into the canonical RenderJob value.
 std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
                                          const RenderArgs& args);
@@ -49,7 +38,4 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
 
 /// Unified executor entry point for a resolved render request.
 Result<RenderJobOutput, RenderJobError> execute_render_job(const ResolvedRenderJob& job);
-
-/// One-release compatibility adapter for old two-argument call sites.
-bool execute_render_job(const CompositionRegistry& registry, RenderJob& job);
 } // namespace chronon3d::cli

@@ -142,85 +142,6 @@ std::optional<RenderRequest> make_render_request(const CompositionRegistry& regi
     return request;
 }
 
-std::optional<RenderRequest> make_render_request(const CompositionRegistry& /*registry*/,
-                                                 const StillArgs& args) {
-    RenderRequest request;
-    request.comp_id = args.comp_id;
-    request.mode = RenderMode::Still;
-    request.still_frame = args.frame;
-    request.output = args.output;
-    request.settings = settings_from_args(args, true, args.pipeline.diagnostic);
-    request.execution.log_level = args.log_level;
-    request.execution.diagnostic_plan = args.pipeline.diagnostic_plan;
-    fill_execution_options(request.execution, args.pipeline, {});
-    return request;
-}
-
-std::optional<RenderRequest> make_render_request(const CompositionRegistry& registry,
-                                                 const VideoArgs& args) {
-    if (args.comp_id.empty()) {
-        spdlog::error("[video] No composition specified.");
-        return std::nullopt;
-    }
-
-    const std::string output = args.output.empty()
-        ? chronon_artifact_path(
-              "videos",
-              std::filesystem::path(args.comp_id).filename().string() + ".mp4")
-              .string()
-        : args.output;
-
-    auto resolved = resolve_composition(registry, args.comp_id);
-    if (!resolved) return std::nullopt;
-
-    const auto& comp = *resolved.comp;
-    const Frame end_exclusive = (args.end > args.start)
-        ? args.end
-        : comp.duration();
-
-    RenderRequest request;
-    request.comp_id = args.comp_id;
-    request.mode = RenderMode::Video;
-    request.first_frame = args.start;
-    request.last_frame = Frame{end_exclusive.integral() - 1};
-    request.output = output;
-    request.settings = settings_from_args(args, true, args.pipeline.diagnostic);
-    request.settings.diagnostics.plan_output = args.pipeline.diagnostic_plan_output;
-
-    request.video_settings.fps = args.fps;
-    request.video_settings.crf = args.crf;
-    request.video_settings.codec = args.codec;
-    request.video_settings.encode_preset = args.encode_preset;
-    request.video_settings.tune = args.tune;
-    request.video_settings.keep_frames = args.keep_frames;
-    request.video_settings.frames_dir = args.frames_dir.empty()
-        ? ("chronon_" + std::filesystem::path(args.comp_id).filename().string())
-        : args.frames_dir;
-    request.video_settings.chunks = args.chunks;
-    request.video_settings.hardware_encoder = args.hardware_encoder;
-    request.video_settings.ffmpeg_mode = args.ffmpeg_mode;
-    request.video_settings.ffmpeg_verbose = args.ffmpeg_verbose;
-    request.video_settings.pipe_pixfmt = args.pipe_pixfmt;
-    request.video_settings.color_output = args.color_output;
-    request.video_settings.pipe_writer = args.pipe_writer;
-    request.video_settings.encoder_backend = args.encoder_backend;
-    request.video_settings.sink_type = "ffmpeg";
-    request.video_settings.dry_run = args.dry_run;
-
-    request.execution.log_level = args.log_level;
-    request.execution.command_line = args.command_line;
-    request.execution.diagnostic_plan = args.pipeline.diagnostic_plan;
-    request.execution.warmup_renderer =
-        args.pipeline.warmup_renderer || args.ffmpeg_mode == "pipe";
-    request.execution.warmup_framebuffers = args.pipeline.warmup_framebuffers;
-    request.execution.warmup_dummy_frame =
-        args.pipeline.warmup_dummy_frame || args.ffmpeg_mode == "pipe";
-    request.execution.cpu_budget = args.cpu_budget;
-    fill_execution_options(request.execution, args.pipeline, args.cpu_budget);
-
-    return request;
-}
-
 Result<ResolvedRenderJob, RenderJobError> resolve_render_request(
     const CompositionRegistry& registry,
     RenderRequest request) {
@@ -270,14 +191,4 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
     return resolved->to_legacy_job();
 }
 
-std::optional<RenderJob> plan_render_job(const CompositionRegistry& registry,
-                                         const RenderArgs& args) {
-    return make_render_job(registry, args);
-}
-
-std::optional<RenderJob> plan_render_job(const CompositionRegistry& registry,
-                                         const RenderArgs& args,
-                                         const CompositionProps& props) {
-    return make_render_job(registry, args, props);
-}
 } // namespace chronon3d::cli

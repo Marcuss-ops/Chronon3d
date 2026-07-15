@@ -2,7 +2,6 @@
 
 #include <apps/chronon3d_cli/commands/video/common/video_export_common.hpp>
 
-
 using namespace chronon3d::cli;
 
 // ─────────────────────────────────────────────────────────────────────────────
