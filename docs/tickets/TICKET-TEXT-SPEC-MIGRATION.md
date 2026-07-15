@@ -81,5 +81,11 @@ futura quando sarà disponibile un build host.
 - `from_text_spec()` adapter rimosso.
 - macchina-verifica: build + ctest 11/11 verde post-migrazione.
 
+## Phase tracking
+
+- **Phase 1 — Deprecation bridge (Blocco 5.1)**: DONE 2026-07-14 (commits FF-sync `74c924b9` + `bacbfc5a` + `cc3ad1a3`; ticket-locale commit `751ac167` pre-FF). `LayerBuilder::text(name, TextSpec)` overload + `chronon3d::from_text_spec(const TextSpec&)` marked `[[deprecated]]` con message verbatim che ruota al ticket-home (AGENTS.md §SHA cite pattern inline-only rule). Cronaca estesa lives in [TICKET-BLOCO-5-1-3DOC-CAT5-ALIGN](TICKET-BLOCO-5-1-3DOC-CAT5-ALIGN.md) §Phase summary cronaca per AGENTS.md Cat-3 anti-dup.
+- **Phase 2 — Caller migration + complete removal (Blocco 5.2, FORWARD-POINT)**: 124+ content callers + 56+ test callers + 1 production caller migration a `text(name, TextDefinition&)` direct construction (field mapping 1:1 in §Soluzione accettabile sopra) → source deletion di `LayerBuilder::text(name, TextSpec)` overload + `from_text_spec()` adapter → acceptance verification `0 reference + overload/adapter rimossi + 11/11 verde`. Cat-5 3-doc same-commit atomic per AGENTS.md §`### 2×-in-one-chore: deprecation reversal bundles forward-point tickets` rule.
+
 ## See also
 - [TICKET-CENTERED-TEXT-MIGRATION](TICKET-CENTERED-TEXT-MIGRATION.md) (P2) — i 100+ call sites di `centered_text` / `glow_text` tipicamente wrappano `TextSpec`; questo ticket DEVE essere completato DOPO TICKET-TEXT-SPEC-MIGRATION (P1) per non rompere i callers.
+- [TICKET-BLOCO-5-1-3DOC-CAT5-ALIGN](TICKET-BLOCO-5-1-3DOC-CAT5-ALIGN.md) (DONE 2026-07-14) — chaser-chore canonical ticket-home per la cronaca Blocco 5.2 forward-point tracking.

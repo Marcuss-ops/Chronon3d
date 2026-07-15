@@ -78,3 +78,12 @@ warning).  La rimozione finale è deferred alla wave successiva.
 - `centered_text()` helper rimosso.
 - `glow_text()` helper rimosso.
 - macchina-verifica: build + ctest 11/11 verde post-migrazione.
+
+## Phase tracking
+
+- **Phase 1 — Deprecation bridge (Blocco 5.1)**: DONE 2026-07-14 (commits FF-sync `b6397b90` + `74c924b9` + `bacbfc5a` + `cc3ad1a3`). `centered_text(CenterTextOptions)` + `glow_text(CenterTextOptions, glow_color, radius, intensity)` enhanced/updated `[[deprecated]]` markers; one-shot `spdlog::warn` runtime diagnostic fired via static-local bool gate (TICKET-104 precedent pattern). Cronaca estesa lives in [TICKET-BLOCO-5-1-3DOC-CAT5-ALIGN](TICKET-BLOCO-5-1-3DOC-CAT5-ALIGN.md) §Phase summary cronaca per AGENTS.md Cat-3 anti-dup.
+- **Phase 2 — Complete removal (Blocco 5.2, FORWARD-POINT)**: 100+ callers migration a `text(name, TextDefinition&)` direct construction (field mapping in §Soluzione accettabile sopra) → source deletion di `centered_text()` + `glow_text()` in `content/text/text_helpers_centered.hpp` → acceptance verification `0 reference + helper rimosso + 11/11 verde`. Cat-5 3-doc same-commit atomic per AGENTS.md §`### 2×-in-one-chore: deprecation reversal bundles forward-point tickets` rule.
+
+## See also
+- [TICKET-TEXT-SPEC-MIGRATION](TICKET-TEXT-SPEC-MIGRATION.md) (P1) — companion ticket; TICKET-CENTERED-TEXT-MIGRATION DEVE essere completato DOPO TICKET-TEXT-SPEC-MIGRATION per non rompere i callers (depends-on chain stabilito in §Stato header).
+- [TICKET-BLOCO-5-1-3DOC-CAT5-ALIGN](TICKET-BLOCO-5-1-3DOC-CAT5-ALIGN.md) (DONE 2026-07-14) — chaser-chore canonical ticket-home per la cronaca Blocco 5.2 forward-point tracking.
