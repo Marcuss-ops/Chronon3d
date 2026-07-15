@@ -7,7 +7,7 @@
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/timeline/composition_descriptor.hpp>
 
-#include <memory>
+#include <cstdint>
 #include <string>
 
 namespace c3d = chronon3d;
@@ -57,7 +57,6 @@ cli::RenderArgs args_for(std::string frames, std::string output) {
         .render_threads = 1,
         .decode_threads = 0,
         .encode_threads = 0,
-        .writer_threads = 0,
     };
     return args;
 }
