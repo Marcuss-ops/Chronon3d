@@ -4,6 +4,7 @@
 #include "render_job_setup.hpp"
 #include "../video/video_job_plan.hpp"
 
+#include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 
 #include <fmt/format.h>
@@ -34,9 +35,26 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(RenderJob& job) {
                 "Video RenderJob validation failed for '" + job.comp_id + "'"};
         }
 
-        const int rc = job.video_settings.dry_run
-            ? dry_run_video_job(job)
-            : execute_video_job(job);
+        int rc = 0;
+        if (job.video_settings.dry_run) {
+            rc = dry_run_video_job(job);
+        } else {
+            auto opts = make_ffmpeg_export_options(job);
+            chronon3d::CancellationToken cancel_token;
+            install_signal_cancellation(cancel_token);
+            opts.cancellation_token = &cancel_token;
+
+            rc = render_and_encode_ffmpeg(
+                *job.registry,
+                *job.comp,
+                job.comp_id,
+                job.settings,
+                job.first_frame,
+                job.last_frame + Frame{1},
+                opts,
+                job.execution.cpu_budget);
+        }
+
         if (rc != 0) {
             return RenderJobError{
                 RenderJobErrorCode::RenderFailed,
