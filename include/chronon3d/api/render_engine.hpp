@@ -162,11 +162,11 @@ public:
     std::shared_ptr<Framebuffer> render(
         const Composition& comp, Frame frame);
 
-    /// Structured error from the most recent failed frame, if the graph
-    /// executor reported one.  This exposes the existing NodeExecutionError
-    /// channel to OPP consumers such as the daemon; it does not define a
-    /// second error hierarchy.
-    [[nodiscard]] const std::optional<graph::NodeExecutionError>&
+    /// Immutable structured error snapshot from the most recent failed
+    /// frame, or nullptr when no graph error was published. This exposes the
+    /// existing NodeExecutionError channel to OPP consumers such as the
+    /// daemon; it does not define a second error hierarchy.
+    [[nodiscard]] std::shared_ptr<const graph::NodeExecutionError>
     last_render_error() const noexcept;
 
     // ── Backend injection ────────────────────────────────────────
