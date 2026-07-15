@@ -12,6 +12,8 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <utility>
 
 using namespace chronon3d;
 
@@ -19,12 +21,12 @@ namespace {
 
 struct TextHealthEnvironment {
     Config config{};
-    std::unique_ptr<runtime::RenderRuntime> runtime;
+    std::unique_ptr<chronon3d::runtime::RenderRuntime> runtime;
     FontEngine font_engine;
 
     TextHealthEnvironment()
-        : runtime(runtime::RenderRuntime::create(
-              runtime::RuntimeConfig{config, std::nullopt}).value()),
+        : runtime(chronon3d::runtime::RenderRuntime::create(
+              chronon3d::runtime::RuntimeConfig{config, std::nullopt}).value()),
           font_engine(runtime->resolver()) {}
 };
 
@@ -34,12 +36,13 @@ struct TextHealthEnvironment {
 ) {
     std::array<FontSpec, 4> candidates{};
 
-    candidates[0].font_path = "assets/fonts/Inter-Bold.ttf";
-    candidates[0].font_family = "Inter";
-    candidates[0].font_weight = 700;
+    // Prefer a broad Unicode system font, then the bundled project font.
+    candidates[0].font_family = "DejaVu Sans";
+    candidates[0].font_weight = 400;
 
-    candidates[1].font_family = "DejaVu Sans";
-    candidates[1].font_weight = 400;
+    candidates[1].font_path = "assets/fonts/Inter-Bold.ttf";
+    candidates[1].font_family = "Inter";
+    candidates[1].font_weight = 700;
 
     candidates[2].font_family = "Liberation Sans";
     candidates[2].font_weight = 400;
@@ -183,6 +186,25 @@ TEST_CASE("Text health / fluent opacity animator reaches every glyph") {
     for (const auto& glyph : shape->glyphs) {
         CHECK(glyph.opacity == doctest::Approx(0.35f));
     }
+}
+
+TEST_CASE("Text health / word wrapping creates multiple line units") {
+    TextHealthEnvironment env;
+    const auto font = find_health_font(env.font_engine, 34.0f);
+    REQUIRE_MESSAGE(font.has_value(), "No usable font found for wrapping test.");
+
+    auto spec = make_health_spec(
+        "Chronon3D wraps this sentence across multiple visible lines",
+        *font,
+        260.0f);
+    spec.text.layout.box.y = 500.0f;
+    spec.text.layout.align = TextAlign::Left;
+
+    const auto shape = materialize_or_fail(spec, env.font_engine);
+    require_valid_shape(shape, spec.text.content.value);
+    CHECK(shape->layout->wrap == TextWrap::Word);
+    CHECK(shape->layout->units.line_count >= 2);
+    CHECK(shape->layout->bounds.x <= doctest::Approx(spec.text.layout.box.x).epsilon(0.05));
 }
 
 TEST_CASE("Text health / repeated materialization reuses the cached layout") {
