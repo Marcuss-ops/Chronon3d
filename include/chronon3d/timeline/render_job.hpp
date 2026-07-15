@@ -192,8 +192,10 @@ struct RenderJob {
         return last_frame - first_frame + Frame{1};
     }
 
+    /// Composition-bound probe retained for factory-created jobs. The executor
+    /// separately validates the non-owning registry dependency before running.
     [[nodiscard]] explicit operator bool() const noexcept {
-        return registry != nullptr && comp != nullptr;
+        return comp != nullptr;
     }
 };
 
