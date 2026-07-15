@@ -31,8 +31,9 @@ std::optional<RenderJob> plan_render_job(const CompositionRegistry& registry,
                                          const RenderArgs& args,
                                          const CompositionProps& props);
 
-/// Canonical executor.  The job must carry a pinned registry and composition.
-Result<RenderJobOutput, RenderJobError> execute_render_job(RenderJob& job);
+/// Canonical immutable executor.  The job carries all pinned inputs and is not
+/// mutated while backend/runtime/cache state is created behind the facade.
+Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job);
 
 /// One-release compatibility adapter for old two-argument call sites.
 bool execute_render_job(const CompositionRegistry& registry, RenderJob& job);
