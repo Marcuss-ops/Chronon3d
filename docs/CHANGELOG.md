@@ -1,5 +1,8 @@
 ## 2026-07-14
 
+### `chore(text): vacate Blocco 5.2.C text-placement vacuous-truth verify` ([TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY](docs/tickets/TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY.md))
+Vacuous-truth audit: 3 inline + 4 helper-uses in `text_placement_compositions.cpp` GIÀ migrati a `TextDefinition` in M1.8 §2D (pre-deprecation). Sub-chore (c) chiuso. Cat-5 3-doc atomic, ZERO source questo turno. Cronaca canonical ticket-home.
+
 ### `chore(text): open Blocco 5.2 centered-text bulk migration ticket` ([TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION](docs/tickets/TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION.md))
 NEW ticket-home per per-AREA bulk migration di 100+ callers centered_text/glow_text → TextDefinition canonical (Blocco 5.2 execution rollout). 7+1 sub-chori forward-points + helper removal final. Cat-3 minimal-surface per sub-chore.
 
