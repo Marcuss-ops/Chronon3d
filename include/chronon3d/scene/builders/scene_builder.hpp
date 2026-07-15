@@ -106,6 +106,11 @@ class SceneBuilder {
         Frame from{0};
         Frame duration{0};
         Frame trim_before{0};  // Sequence V2: local frame offset
+        Frame trim_after{0};   // Extend active range past duration
+        std::optional<Frame> freeze_at;     // Freeze evaluation at this local frame
+        std::optional<Frame> loop_duration; // Loop content over this duration
+        Frame premount{0};     // Extra active frames before from
+        Frame postmount{0};    // Extra active frames after duration
     };
 
     // ── DECL-only templates (Phase-3.3 split; bodies in .inl) ────────
@@ -159,6 +164,11 @@ class SceneBuilder {
     // DECL-only template (body in detail/scene_builder_camera.inl)
     template <typename Fn>
     SceneBuilder& camera_rig(std::string name, Fn&& fn);
+
+    /// Series authoring sugar: add sequential sequences with cumulative `from`.
+    /// Returns a proxy builder; call .add() repeatedly, then finish by letting
+    /// it go out of scope.
+    [[nodiscard]] class SeriesBuilder series(const std::string& name = {});
 
     /// Stagger all layers in the scene by their spatial order.
     SceneBuilder& stagger(const StaggerConfig& config, StaggerOrder order = StaggerOrder::LeftToRight);
@@ -216,6 +226,48 @@ class SceneBuilder {
     std::optional<registry::ShapeRegistry> m_own_shape_registry;
     FontEngine* m_font_engine{nullptr};  // cascaded to LayerBuilder via layer() calls
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SeriesBuilder — authoring sugar for sequential sequences
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Provides a fluent API to stack sequences back-to-back without manually
+// tracking cumulative `from` values.  Each `add()` call appends a sequence
+// and advances the internal cursor by its duration.
+//
+// Usage:
+//   builder.series("main")
+//       .add("intro", Frame{60},  [](SequenceBuilder& seq){ ... })
+//       .add("body",  Frame{300}, [](SequenceBuilder& seq){ ... })
+//       .add("outro", Frame{90},  [](SequenceBuilder& seq){ ... });
+
+class SeriesBuilder {
+public:
+    explicit SeriesBuilder(SceneBuilder& builder, std::string name)
+        : m_builder(builder), m_name(std::move(name)) {}
+
+    template <typename Fn>
+    SeriesBuilder& add(const std::string& seq_name,
+                       Frame duration,
+                       Fn&& fn) {
+        m_builder.sequence(seq_name, {.from = m_cursor, .duration = duration},
+                           std::forward<Fn>(fn));
+        m_cursor = m_cursor + duration;
+        (void)m_name; // name is reserved for future introspection
+        return *this;
+    }
+
+    [[nodiscard]] Frame cursor() const noexcept { return m_cursor; }
+
+private:
+    SceneBuilder& m_builder;
+    std::string m_name;
+    Frame m_cursor{0};
+};
+
+inline SeriesBuilder SceneBuilder::series(const std::string& name) {
+    return SeriesBuilder{*this, name};
+}
 
 } // namespace chronon3d
 

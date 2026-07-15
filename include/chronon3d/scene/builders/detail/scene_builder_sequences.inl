@@ -47,13 +47,33 @@ namespace chronon3d {
         Scene& target_scene,
         registry::ShapeRegistry* shape_reg)
     {
-        bool active = cf >= spec.from && cf < spec.from + spec.duration;
+        // Active range includes premount/postmount and trim_after extension.
+        const Frame active_start = spec.from - spec.premount;
+        const Frame active_end = spec.from + spec.duration + spec.postmount + spec.trim_after;
+        bool active = cf >= active_start && cf < active_end;
 
-        // Apply trim_before offset.  When inactive, use trim_before
-        // as-is (avoid negative local frame).
-        const Frame local = active
-            ? (cf - spec.from + spec.trim_before)
-            : spec.trim_before;
+        // Compute local frame relative to sequence start.
+        Frame local = cf - spec.from;
+
+        // Clamp to [0, duration - 1] for premount/postmount.
+        if (local < Frame{0}) {
+            local = Frame{0};
+        } else if (spec.duration > Frame{0} && local >= spec.duration) {
+            local = Frame{spec.duration.integral() - 1};
+        }
+
+        // Apply looping over loop_duration if specified.
+        if (spec.loop_duration.has_value() && *spec.loop_duration > Frame{0}) {
+            local = Frame{local.integral() % spec.loop_duration->integral()};
+        }
+
+        // Apply freeze_at if specified (wins over loop and clamp).
+        if (spec.freeze_at.has_value()) {
+            local = *spec.freeze_at;
+        }
+
+        // Apply trim_before offset for internal authoring shift.
+        local = local + spec.trim_before;
 
         FrameContext local_ctx = parent_ctx;
         local_ctx.frame = local;

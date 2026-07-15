@@ -19,8 +19,7 @@
 
 namespace chronon3d::cli {
 
-Result<RenderJobOutput, RenderJobError> execute_render_job(
-    const RenderJob& job) {
+Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job) {
     if (!job.registry) {
         return RenderJobError{
             RenderJobErrorCode::InvalidJob,
