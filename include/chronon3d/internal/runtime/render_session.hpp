@@ -56,6 +56,7 @@
 // ===========================================================================
 
 #include <memory>
+#include <mutex>
 
 // Engine-generic field includes (acceptable from runtime/).
 #include <chronon3d/core/memory/arena.hpp>
@@ -75,6 +76,33 @@
 #include <chronon3d/text/text_run.hpp>
 
 namespace chronon3d {
+
+/// Thread-safe storage for the existing graph::NodeExecutionError channel.
+/// This is not a second error framework: it only preserves the first error
+/// emitted by parallel tile/precomp execution until the CLI consumes it.
+class RenderErrorSlot final {
+public:
+    void clear() {
+        std::lock_guard lock(m_mutex);
+        m_error.reset();
+    }
+
+    void publish_first(const graph::NodeExecutionError& error) {
+        std::lock_guard lock(m_mutex);
+        if (!m_error) {
+            m_error = std::make_shared<const graph::NodeExecutionError>(error);
+        }
+    }
+
+    [[nodiscard]] std::shared_ptr<const graph::NodeExecutionError> load() const {
+        std::lock_guard lock(m_mutex);
+        return m_error;
+    }
+
+private:
+    mutable std::mutex m_mutex;
+    std::shared_ptr<const graph::NodeExecutionError> m_error;
+};
 
 /// Engine-generic per-session rendering state.
 ///
@@ -125,19 +153,31 @@ struct RenderSession {
     // is 64 MiB, tunable via Config post-baseline.
     TextLayoutCache layout_cache;
 
-    // Canonical structured error channel for the most recent top-level
-    // render invocation. GraphExecutor publishes the existing
-    // NodeExecutionError here. A shared_ptr is intentional: C++20's atomic
-    // shared_ptr free functions let parallel tile/precomp executors publish
-    // the first failure without racing on std::optional storage.
-    std::shared_ptr<const chronon3d::graph::NodeExecutionError> last_frame_error;
+    // Heap-owned because RenderSession must remain movable while the slot
+    // itself contains a mutex. Reset happens once at the top-level renderer
+    // boundary; nested executors only publish_first().
+    std::unique_ptr<RenderErrorSlot> frame_error_slot{
+        std::make_unique<RenderErrorSlot>()};
+
+    void clear_last_frame_error() {
+        frame_error_slot->clear();
+    }
+
+    void publish_last_frame_error(const graph::NodeExecutionError& error) {
+        frame_error_slot->publish_first(error);
+    }
+
+    [[nodiscard]] std::shared_ptr<const graph::NodeExecutionError>
+    last_frame_error() const {
+        return frame_error_slot->load();
+    }
 
     /// Per-frame reset: telemetry counters zeroed; `previous_layers`
     /// preserved (the per-layer diff source-of-truth must survive across
     /// per-frame boundaries for the dirty-rect diff to work).
     void reset_frame_temporaries() {
         dirty_telemetry.reset_telemetry_counters();
-        last_frame_error.reset();
+        clear_last_frame_error();
     }
 
     // WP-3 PR 3.1 — per-session owned; accessors return local references
