@@ -3,7 +3,7 @@
 #include "render_job_loop.hpp"
 #include "render_job_setup.hpp"
 
-#ifdef CHRONON3D_ENABLE_VIDEO
+#ifdef CHRONON3D_HAS_CLI_VIDEO_EXPORT
 #include "../video/video_job_plan.hpp"
 #include <chronon3d/core/cancellation_token.hpp>
 #endif
@@ -37,7 +37,7 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
                 RenderJobErrorCode::InvalidJob,
                 "Video RenderJob cannot use non-contiguous selected_frames"};
         }
-#ifdef CHRONON3D_ENABLE_VIDEO
+#ifdef CHRONON3D_HAS_CLI_VIDEO_EXPORT
         if (!validate_video_job(job)) {
             return RenderJobError{
                 RenderJobErrorCode::ValidationFailed,
@@ -80,7 +80,7 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
 #else
         return RenderJobError{
             RenderJobErrorCode::UnsupportedMode,
-            "Video output requested but CHRONON3D_ENABLE_VIDEO is disabled"};
+            "Video output requested but the CLI video exporter target is disabled"};
 #endif
     }
 
