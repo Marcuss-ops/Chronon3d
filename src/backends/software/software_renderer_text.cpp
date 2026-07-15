@@ -156,7 +156,7 @@ FontPreflightSummary SoftwareRenderer::preflight_fonts(
 // `RenderIOFenceGuard` struct.
 std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
     const Scene& scene, const std::optional<Camera2_5D>& camera, i32 width, i32 height, float fps) {
-    m_session.common.last_frame_error.reset();
+    m_session.common.clear_last_frame_error();
     // Cat-2 font preflight + auto-arm — same pattern as the Camera
     // overload above.  RAII guard disarms on every exit path.
     RenderIOFenceGuard fence_guard(nullptr);
