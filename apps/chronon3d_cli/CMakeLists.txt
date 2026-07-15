@@ -83,10 +83,9 @@ endif()
 
 # ------------------------------------------------------------------------------
 # Low-level video exporters. This is not a second job executor or CLI path.
-# The canonical render target owns validation/dry-run/dispatch and links this
-# implementation target when media support is enabled.
+# It exists only when the canonical render target can own the dispatch.
 # ------------------------------------------------------------------------------
-if(CHRONON3D_ENABLE_VIDEO)
+if(CHRONON3D_ENABLE_VIDEO AND TARGET chronon3d_cli_render)
     add_library(chronon3d_cli_video_export STATIC
         commands/video/common/video_export_common.cpp
         commands/video/common/pipe_export_helpers.cpp
@@ -125,33 +124,26 @@ if(CHRONON3D_ENABLE_VIDEO)
         )
     endif()
 
-    if(TARGET chronon3d_cli_render)
-        target_sources(chronon3d_cli_render PRIVATE
-            utils/video/video_job_validate.cpp
-            utils/video/video_job_dry_run.cpp
-            utils/video/video_job_execute.cpp
-        )
-        target_link_libraries(chronon3d_cli_render PRIVATE
-            chronon3d_cli_video_export
-        )
-        target_compile_definitions(chronon3d_cli_render PRIVATE
-            CHRONON3D_HAS_CLI_VIDEO_EXPORT
-        )
-    endif()
+    target_sources(chronon3d_cli_render PRIVATE
+        utils/video/video_job_validate.cpp
+        utils/video/video_job_dry_run.cpp
+        utils/video/video_job_execute.cpp
+    )
+    target_link_libraries(chronon3d_cli_render PRIVATE
+        chronon3d_cli_video_export
+    )
+    target_compile_definitions(chronon3d_cli_render PRIVATE
+        CHRONON3D_HAS_CLI_VIDEO_EXPORT
+    )
 endif()
 
 # ------------------------------------------------------------------------------
 # Deprecated `video` alias. It only translates VideoArgs into RenderJob and
 # delegates to the canonical render executor. Video export itself remains
-# available to `render -o *.mp4` even when this alias target is disabled.
+# available to `render -o *.mp4` when this alias target is disabled.
 # ------------------------------------------------------------------------------
-if(CHRONON3D_ENABLE_VIDEO AND CHRONON3D_BUILD_CLI_VIDEO)
-    if(NOT TARGET chronon3d_cli_render)
-        message(FATAL_ERROR
-            "CHRONON3D_BUILD_CLI_VIDEO requires CHRONON3D_BUILD_CLI_RENDER: "
-            "the deprecated video command is an adapter to canonical render")
-    endif()
-
+if(CHRONON3D_ENABLE_VIDEO AND CHRONON3D_BUILD_CLI_VIDEO AND
+   TARGET chronon3d_cli_render)
     add_library(chronon3d_cli_video STATIC
         commands/group_video.cpp
         commands/video/register_video_commands.cpp
@@ -174,6 +166,9 @@ if(CHRONON3D_ENABLE_VIDEO AND CHRONON3D_BUILD_CLI_VIDEO)
         spdlog::spdlog_header_only
         fmt::fmt
     )
+elseif(CHRONON3D_ENABLE_VIDEO AND CHRONON3D_BUILD_CLI_VIDEO)
+    message(STATUS
+        "Skipping deprecated CLI command 'video': canonical render target is disabled")
 endif()
 
 # Core diagnostics compile only the legs whose command groups exist.
