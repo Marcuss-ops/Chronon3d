@@ -1,4 +1,7 @@
 ## 2026-07-15
+### `feat(cli): chronon schema subcommand (Phase 1d / Increment C)`
+  ([TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION](docs/tickets/TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION.md))
+Wraps canonical `CompositionRegistry::descriptor_of`. Zero new public SDK symbol.
 
 ### `docs(tickets): defer macchina-verify main@e416d231 to WBH`
   ([TICKET-MACCHINA-VERIFY-MAIN-E416D231-WBH-DEFERRED](docs/tickets/TICKET-MACCHINA-VERIFY-MAIN-E416D231-WBH-DEFERRED.md))
