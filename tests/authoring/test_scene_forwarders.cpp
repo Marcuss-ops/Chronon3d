@@ -89,7 +89,7 @@ TEST_CASE("Authoring / Scene::background chains with canonical Layer facade") {
     CHECK(scene_has_layer(evaluated, "title"));
 }
 
-TEST_CASE("Authoring / Scene::image adds the named image layer") {
+TEST_CASE("Authoring / Scene::image adds the named image node") {
     chronon3d::SceneBuilder builder{engine_ctx()};
     chronon3d::authoring::Scene scene{builder, author_canvas()};
 
@@ -103,7 +103,7 @@ TEST_CASE("Authoring / Scene::image adds the named image layer") {
     CHECK(&result == &scene);
 
     chronon3d::Scene evaluated = builder.build();
-    CHECK(scene_has_layer(evaluated, "logo"));
+    CHECK(scene_has_node(evaluated, "logo"));
 }
 
 TEST_CASE("Authoring / Scene::screen_layer wraps the canonical Layer facade") {
@@ -175,7 +175,7 @@ TEST_CASE("Authoring / Scene canonical verbs compose in one fluent chain") {
 
     chronon3d::Scene evaluated = builder.build();
     CHECK(scene_has_node(evaluated, "bg"));
-    CHECK(scene_has_layer(evaluated, "logo"));
+    CHECK(scene_has_node(evaluated, "logo"));
     CHECK(scene_has_layer(evaluated, "hud"));
     CHECK(scene_has_layer(evaluated, "title"));
     CHECK(evaluated.camera_2_5d().zoom == doctest::Approx(1.5f));
