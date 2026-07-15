@@ -2,9 +2,12 @@
 #include "render_job_finalize.hpp"
 #include "render_job_loop.hpp"
 #include "render_job_setup.hpp"
-#include "../video/video_job_plan.hpp"
 
+#ifdef CHRONON3D_ENABLE_VIDEO
+#include "../video/video_job_plan.hpp"
 #include <chronon3d/core/cancellation_token.hpp>
+#endif
+
 #include <chronon3d/core/profiling/profiling.hpp>
 
 #include <fmt/format.h>
@@ -29,6 +32,7 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(RenderJob& job) {
     }
 
     if (job.mode == RenderMode::Video) {
+#ifdef CHRONON3D_ENABLE_VIDEO
         if (!validate_video_job(job)) {
             return RenderJobError{
                 RenderJobErrorCode::ValidationFailed,
@@ -68,6 +72,11 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(RenderJob& job) {
             .output = job.output,
             .frames_written = job.video_settings.dry_run ? 0 : frames,
         };
+#else
+        return RenderJobError{
+            RenderJobErrorCode::UnsupportedMode,
+            "Video output requested but CHRONON3D_ENABLE_VIDEO is disabled"};
+#endif
     }
 
     try {
