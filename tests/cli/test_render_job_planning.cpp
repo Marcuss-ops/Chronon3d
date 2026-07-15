@@ -8,6 +8,7 @@
 #include <chronon3d/timeline/composition_descriptor.hpp>
 
 #include <cstdint>
+#include <memory>
 #include <string>
 
 namespace c3d = chronon3d;
@@ -63,16 +64,60 @@ cli::RenderArgs args_for(std::string frames, std::string output) {
 
 } // namespace
 
-TEST_CASE("RenderJob planner selects Still for one image frame") {
+TEST_CASE("RenderRequest resolves directly into the canonical RenderJob") {
     auto registry = make_registry();
-    auto job = cli::make_render_job(registry, args_for("60", "hero.png"));
+    auto request = cli::make_render_request(
+        registry, args_for("60", "hero.png"));
+
+    REQUIRE(request.has_value());
+    CHECK(request->mode == c3d::RenderMode::Still);
+    CHECK(request->still_frame == c3d::Frame{60});
+
+    auto resolved = cli::resolve_render_request(
+        registry, std::move(*request));
+    REQUIRE(resolved.has_value());
+    CHECK(resolved->mode == c3d::RenderMode::Still);
+    CHECK(resolved->still_frame == c3d::Frame{60});
+    CHECK(resolved->output == "hero.png");
+    CHECK(resolved->registry == &registry);
+    REQUIRE(resolved->comp != nullptr);
+    CHECK(resolved->metadata.width == 320);
+    CHECK(resolved->metadata.height == 180);
+    CHECK(resolved->metadata.duration == c3d::Frame{kDuration});
+}
+
+TEST_CASE("RenderJob resolution invokes prepared construction exactly once") {
+    auto prepare_calls = std::make_shared<int>(0);
+    auto construct_calls = std::make_shared<int>(0);
+
+    c3d::CompositionRegistry registry;
+    c3d::CompositionDescriptor descriptor;
+    descriptor.id = "PreparedOnce";
+    descriptor.prepare_props = [prepare_calls, construct_calls](
+        const c3d::CompositionProps&) -> c3d::PreparedCompositionResult {
+        ++*prepare_calls;
+        c3d::PreparedComposition prepared;
+        prepared.metadata = c3d::CompositionMetadata{
+            .width = 320,
+            .height = 180,
+            .fps = c3d::FrameRate{30, 1},
+            .duration = c3d::Frame{20},
+        };
+        prepared.construct = [construct_calls] {
+            ++*construct_calls;
+            return make_fixture_composition();
+        };
+        return prepared;
+    };
+    registry.add(std::move(descriptor));
+
+    auto args = args_for("0", "prepared.png");
+    args.comp_id = "PreparedOnce";
+    auto job = cli::make_render_job(registry, args);
 
     REQUIRE(job.has_value());
-    CHECK(job->mode == c3d::RenderMode::Still);
-    CHECK(job->still_frame == c3d::Frame{60});
-    CHECK(job->output == "hero.png");
-    CHECK(job->registry == &registry);
-    REQUIRE(job->comp != nullptr);
+    CHECK(*prepare_calls == 1);
+    CHECK(*construct_calls == 1);
 }
 
 TEST_CASE("RenderJob planner selects Sequence and preserves frame step") {
@@ -154,8 +199,8 @@ TEST_CASE("RenderJob planner preserves canonical video settings") {
     CHECK(job->video_settings.pipe_writer == "classic");
     CHECK(job->video_settings.encoder_backend == "pipe");
     CHECK(job->video_settings.dry_run);
-    CHECK_FALSE(job->execution.warmup_renderer);
-    CHECK_FALSE(job->execution.warmup_dummy_frame);
+    CHECK(job->execution.warmup_renderer);
+    CHECK(job->execution.warmup_dummy_frame);
 }
 
 TEST_CASE("RenderJob planner keeps non-video uppercase extensions on image modes") {
