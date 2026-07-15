@@ -84,6 +84,14 @@ bool validate_schema_surface(const CompositionDescriptor& descriptor,
     return ok;
 }
 
+void print_props_error(const std::string& comp_id, const PropsError& error) {
+    const std::string key = error.key.empty()
+        ? std::string{}
+        : " [" + error.key + "]";
+    spdlog::error("Props validation failed for '{}'{}: {}",
+                  comp_id, key, error.message);
+}
+
 int run_validate(CliContext& ctx, const ValidateState& args) {
     const auto descriptor = ctx.registry.descriptor_of(args.comp_id);
     if (!descriptor) {
@@ -99,36 +107,66 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
     }
     loaded.props.assets = &ctx.assets;
     if (!validate_schema_surface(*descriptor, loaded)) return 1;
-    fmt::print("[2/6] props decoded: {} value(s)\n", loaded.props.values.size());
+
+    std::optional<CompositionMetadata> resolved_metadata;
+    if (descriptor->prepare_props) {
+        auto prepared = descriptor->prepare_props(loaded.props);
+        if (!prepared) {
+            print_props_error(args.comp_id, prepared.error());
+            return 1;
+        }
+        resolved_metadata = std::move(prepared).value();
+        fmt::print("[2/6] props decoded: {} value(s)\n", loaded.props.values.size());
+        fmt::print("[3/6] props valid\n");
+    } else {
+        fmt::print("[2/6] props loaded: {} value(s) (legacy descriptor)\n",
+                   loaded.props.values.size());
+    }
 
     std::optional<Composition> comp;
     try {
-        comp.emplace(ctx.registry.create(args.comp_id, loaded.props));
+        // Typed descriptors have already passed prepare_props, so invoke the
+        // construction-only wrapper directly. Legacy descriptors retain the
+        // historical registry.create path because they expose no preparation.
+        comp.emplace(descriptor->prepare_props
+            ? descriptor->factory(loaded.props)
+            : ctx.registry.create(args.comp_id, loaded.props));
     } catch (const std::exception& e) {
-        spdlog::error("Props validation failed for '{}': {}", args.comp_id, e.what());
+        spdlog::error("Composition construction failed for '{}': {}", args.comp_id, e.what());
         return 1;
     }
-    fmt::print("[3/6] props valid\n");
+    if (!descriptor->prepare_props) {
+        fmt::print("[3/6] legacy factory accepted props\n");
+    }
 
-    const auto rate = comp->frame_rate();
+    const auto rate = resolved_metadata
+        ? resolved_metadata->fps
+        : comp->frame_rate();
+    const i32 width = resolved_metadata
+        ? resolved_metadata->width
+        : comp->width();
+    const i32 height = resolved_metadata
+        ? resolved_metadata->height
+        : comp->height();
+    const Frame duration = resolved_metadata
+        ? resolved_metadata->duration
+        : comp->duration();
     fmt::print("[4/6] metadata: {}x{}  {}/{} fps  {} frames\n",
-               comp->width(), comp->height(), rate.numerator, rate.denominator,
-               comp->duration().integral());
+               width, height, rate.numerator, rate.denominator,
+               duration.integral());
 
     assets::AssetManifest manifest;
-    const Frame last = comp->duration() > Frame{0}
-        ? comp->duration() - Frame{1}
-        : Frame{0};
+    const Frame last = duration > Frame{0} ? duration - Frame{1} : Frame{0};
     try {
         for (Frame frame = Frame{0}; frame <= last; frame += Frame{1}) {
             const FrameContext frame_ctx{
                 .frame = frame,
                 .local_frame = frame,
                 .frame_time = 0.0f,
-                .duration = comp->duration(),
+                .duration = duration,
                 .frame_rate = rate,
-                .width = comp->width(),
-                .height = comp->height(),
+                .width = width,
+                .height = height,
                 .assets_root = comp->assets_root(),
                 .assets = &ctx.assets
             };
