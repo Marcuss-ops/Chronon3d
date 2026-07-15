@@ -38,6 +38,7 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
@@ -161,20 +162,23 @@ public:
     std::shared_ptr<Framebuffer> render(
         const Composition& comp, Frame frame);
 
+    /// Structured error from the most recent failed frame, if the graph
+    /// executor reported one.  This exposes the existing NodeExecutionError
+    /// channel to OPP consumers such as the daemon; it does not define a
+    /// second error hierarchy.
+    [[nodiscard]] const std::optional<graph::NodeExecutionError>&
+    last_render_error() const noexcept;
+
     // ── Backend injection ────────────────────────────────────────
 
-    /// Set the image decoding/encoding backend (default: StbImageBackend).
     void set_image_backend(std::shared_ptr<image::ImageBackend> backend);
 
-    /// Set the video frame decoder.
     void set_video_decoder(std::shared_ptr<media::MediaFrameProvider> decoder);
 
     // ── Settings ─────────────────────────────────────────────────
 
-    /// Apply render settings (antialiasing, motion blur, dirty rects, etc.).
     void set_settings(const RenderSettings& settings);
 
-    /// Get current render settings.
     [[nodiscard]] const RenderSettings& settings() const noexcept;
 
     // ── Accessors ─────────────────────────────────────────────────
