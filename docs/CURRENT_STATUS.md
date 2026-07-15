@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot implementazione:** `main@8d63f407` — observed origin/main HEAD (2026-07-15) post pipeline `RenderRequest → RenderJob`, registry prepare/construct single-pass, asset isolation/fail-loud, installed-authoring consumer, header closure gate, RenderJob matrix e font bootstrap autenticato/checksum-pinned. Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. **Current lineage non certificata**: GitHub non ha ancora pubblicato una run completa verde sullo stesso lineage. Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
+> **Snapshot implementazione:** `main@04c1cb48` — observed origin/main HEAD (2026-07-15) post pipeline `RenderRequest → RenderJob`, registry prepare/construct single-pass, asset isolation/fail-loud, installed-authoring consumer, header closure gate, RenderJob matrix, font bootstrap autenticato/checksum-pinned e robust canonical signature helper nel gate CLI render. Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. **Current lineage non certificata**: GitHub non ha ancora pubblicato una run completa verde sullo stesso lineage. Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
 
 ## Active Blockers (top 3)
 
@@ -74,6 +74,8 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 | Test 18 founder dashboard | OPEN | Weekly scorecard aggregator + 8 metriche. |
 
 ## Gate Audit — ultima verifica
+
+**`main@04c1cb48` — gate helper refactor** (2026-07-15): `tools/check_no_legacy_render_cli.sh` ora usa helper `check_canonical()` per rendere le verifiche di firma robuste ai ritorni a capo di clang-format. Nessuna nuova certificazione funzionale dichiarata.
 
 **`main@8d63f407` — render/asset certification harness WIRED, NOT RUN** (2026-07-15): pipeline diretta `RenderRequest → RenderJob`, registry prepare/construct single-pass, workflow matrix video ON/OFF/core-only, suite RenderJob focalizzata, asset-root isolation, missing-image fail-loud, authoring FILE_SET closure, installed SDK consumer e Poppins bootstrap autenticato/checksum-pinned presenti. Nessuna run verde osservata sullo stesso lineage; nessun PASS dichiarato.
 
