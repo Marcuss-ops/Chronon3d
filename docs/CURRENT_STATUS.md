@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> **Snapshot implementazione:** `main@212f468d` — observed origin/main HEAD (2026-07-15) post legacy-render-CLI gate fix, ticket di tracciamento incidente e audit chiusura header authoring pubblici SDK. Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. **Current lineage non certificata**: asset isolation, installed-authoring consumer e RenderJob matrix sono WIRED, ma GitHub non ha ancora pubblicato una run completa verde sullo stesso lineage. Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
+> **Snapshot implementazione:** `main@8d63f407` — observed origin/main HEAD (2026-07-15) post pipeline `RenderRequest → RenderJob`, registry prepare/construct single-pass, asset isolation/fail-loud, installed-authoring consumer, header closure gate, RenderJob matrix e font bootstrap autenticato/checksum-pinned. Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. **Current lineage non certificata**: GitHub non ha ancora pubblicato una run completa verde sullo stesso lineage. Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
 
 ## Active Blockers (top 3)
 
@@ -16,7 +16,7 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 
 | Area | Stato | Note sintetiche |
 |---|---|---|
-| CLI V3 unification | WIRED / NOT RUN | `render` è l’unico comando per still/sequence/video; alias e planner legacy rimossi. Suite focalizzata `chronon3d_render_job_contract_tests` copre mode, range, step, estensioni e video-disabled; matrice video ON/OFF/core-only aggiunta ma non ancora osservata verde. |
+| CLI V3 unification | WIRED / NOT RUN | `render` è l’unico comando per still/sequence/video; alias e planner legacy rimossi. Suite focalizzata `chronon3d_render_job_contract_tests` copre mode, range, step, estensioni, video settings e video-disabled; matrice video ON/OFF/core-only aggiunta ma non ancora osservata verde. |
 | Push infrastructure | WIRED | `tools/monitor_push_divergence.sh` cron-friendly 5-min cadence; ADR-022 advisory gate. |
 | Text V1 Cert Step 11 (finale) | DEFERRED-VPS | BLOCKED on this VPS per TICKET-BUILD-ROT-CASCADE-CAMERA 409-error + TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV; macchina-verifica DEFERRED-WBH. |
 | Cert sequence (Test #4/#8/#9/#13/#14) | WBH-DEFERRED | Per `docs/cert_sequence_wbh_protocol.md`; VPS cannot run. |
@@ -30,17 +30,17 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 | Sanitizer gates (P2-A) | PARTIAL | 7 subsystems + ASAN/UBSAN/TSAN_OPTIONS wired; full ctest DEFERRED-WBH. |
 | Text Production V1 | PASS | Text Export V1 certified. Clip 06 closed. FU04 contract closed. |
 | Text API migration (Blocco 5.1/5.2) | PARTIAL | `centered_text`/`glow_text`/`TextSpec` overloads deprecated; 100+ caller bulk migration OPEN. |
-| Authoring facade | WIRED / GUARDED | `asset(path)` context-typed; due `RenderEngine` con root distinti, CWD ostile, font/image logical refs e missing-image fail-loud coperti da test. Gate statico vieta root globali, fallback CWD, resolver nelle composizioni e mega-header. |
-| Timeline props | WIRED | `PropsCodec`/`PropsSchema` typed composition props landed; macchina-verifica DEFERRED-WBH. |
-| Render job execution | WIRED / GUARDED | Unico `execute_render_job(const RenderJob&)`; planner/executor separati ritirati. Suite focalizzata e workflow matrix aggiunti; esecuzione CI NOT RUN/NOT OBSERVED. |
+| Authoring facade | WIRED / GUARDED | `asset(path)` è context-typed e kind-free; due `RenderEngine` con root distinti, CWD ostile, font/image logical refs e missing-image fail-loud coperti da test. Gate statico vieta root globali, fallback CWD, resolver nelle composizioni e mega-header. |
+| Timeline props | WIRED | `PropsCodec`/`PropsSchema` typed composition props landed; registry resolve ora trasporta il costruttore preparato senza una seconda decode/factory pass. |
+| Render job execution | WIRED / GUARDED | Pipeline unica `RenderRequest → RenderJob → execute_render_job(const RenderJob&)`; `ResolvedRenderJob`, conversioni legacy e executor separati vietati dal gate. Suite focalizzata e workflow matrix aggiunti; esecuzione CI NOT RUN/NOT OBSERVED. |
 | SDK C++ installabile | PASS baseline / WIRED extension | Gate #10 storico PASS. Nuovo FILE_SET authoring disgiunto, closure gate e consumer installato `check_assets` implementati; nuova estensione non ancora certificata su CI. |
 | SDK cross-language | NOT RUN | C ABI e formato `.chronon` da progettare. |
-| Render runtime | PASS baseline / WIRED fail-loud | Runtime per-instance certificato nella baseline storica; il bridge SDK ora propaga `NodeExecutionError` come `RenderError::RuntimeFailure`, con test missing-image non ancora osservato. |
+| Render runtime | PASS baseline / WIRED fail-loud | Runtime per-instance certificato nella baseline storica; il bridge SDK propaga `NodeExecutionError` come `RenderError::RuntimeFailure`, con test missing-image non ancora osservato. |
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
 | CompositionDescriptor migration | PARTIAL | `add(name, factory)` deprecated (ADR-027); 200+ legacy callers remain; Chore B bulk migration OPEN. |
 | Video pipeline | PASS | Structured error reporting (13 codes); atomic output; 98 video tests pass. |
-| CI infrastructure | FAIL | Nuovo workflow RenderJob matrix e font bootstrap checksum-pinned sono WIRED; le run recenti non autorizzano ancora una nuova baseline verde. |
-| Test coverage | PASS baseline / WIRED additions | Baseline: 5×5 deterministic matrix, 5×5 SafeArea matrix e layout tests. Aggiunti asset isolation, installed consumer e planner contract, ancora NOT RUN sul lineage corrente. |
+| CI infrastructure | FAIL | Workflow RenderJob matrix, suite fast aggiornata e font bootstrap autenticato/checksum-pinned sono WIRED; le run recenti non autorizzano ancora una nuova baseline verde. |
+| Test coverage | PASS baseline / WIRED additions | Baseline: 5×5 deterministic matrix, 5×5 SafeArea matrix e layout tests. Aggiunti asset isolation, installed consumer, single-pass registry e planner contract, ancora NOT RUN sul lineage corrente. |
 | Benchmark corpus | WIRED | 12-scene YAML corpus B00-B11 + sanity test harness landed; macchina-verifica DEFERRED-WBH. |
 | Auto-fit (ADR-018) | PARTIAL | engine-level DONE; canonical wrapper forward-pointed (ADR-gated). |
 | Sistemi meta (Expressions V2 / V3) | PLANNED | V2 OFF di default; V3 subordinato a V1. |
@@ -75,7 +75,7 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 
 ## Gate Audit — ultima verifica
 
-**`main@f4cc839c` — render/asset certification harness WIRED, NOT RUN** (2026-07-15): workflow matrix video ON/OFF/core-only, suite RenderJob focalizzata, asset-root isolation, missing-image fail-loud, authoring FILE_SET closure, installed SDK consumer e Poppins bootstrap checksum-pinned presenti. Nessuna run verde osservata sullo stesso lineage; nessun PASS dichiarato.
+**`main@8d63f407` — render/asset certification harness WIRED, NOT RUN** (2026-07-15): pipeline diretta `RenderRequest → RenderJob`, registry prepare/construct single-pass, workflow matrix video ON/OFF/core-only, suite RenderJob focalizzata, asset-root isolation, missing-image fail-loud, authoring FILE_SET closure, installed SDK consumer e Poppins bootstrap autenticato/checksum-pinned presenti. Nessuna run verde osservata sullo stesso lineage; nessun PASS dichiarato.
 
 **`main@7878a627` — 15/15 gate eseguibili WIRED, NOT RUN** (2026-07-15): `verify_diagnostics_linux` è ora invocato con `run_gate` equivalente nella lista unica dell'orchestratore. Il gate diagnostico usa il comando `render` canonico e non può emettere PASS quando il binario runtime manca. Nessuna nuova certificazione dichiarata: serve una run WBH completa sullo stesso SHA.
 
