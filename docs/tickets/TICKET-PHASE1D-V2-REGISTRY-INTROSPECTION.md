@@ -2,7 +2,16 @@
 
 ## Stato
 
-DONE (2026-07-15) — chaser-chore commit su `feat/composition-input-phase-1c-1d-v2`. All 4 sub-commands shipped; canonical `CompositionRegistry::descriptor_of` + `resolve` surface wrapped; zero new public SDK symbols.
+SHIPPED (2026-07-15, chaser-chore commit on `feat/composition-input-phase-1c-1d-v2`). All 4 sub-commands shipped; canonical `CompositionRegistry::descriptor_of` + `resolve` surface wrapped; zero new public SDK symbols.
+
+## Macchina-verify attestation: DEFERRED-WBH
+
+Per AGENTS.md §honesty-discipline (TICKET-MACCHINA-VERIFY-MAIN-E416D231-WBH-DEFERRED §honesty closure precedent):
+- NO `chronon3d_cli_tests` PASS attested (vcpkg env-block on this VPS).
+- NO `chronon3d_introspection_tests` PASS attested (vcpkg glm/magic_enum MISSING; build rot-pattern extended per cache_diagnostics.hpp Forward-decl rot).
+- NO 11/11 baseline gates attested on this VPS (env-block).
+
+When the work moves to a clean working build host (WBH) a future macchina-verify cycle will attest `chronon3d_cli_tests` PASS as the canonical closing-grade evidence for questo ticket. Forward-point: [TICKET-MACCHINA-VERIFY-MAIN-E416D231-WBH-DEFERRED](TICKET-MACCHINA-VERIFY-MAIN-E416D231-WBH-DEFERRED.md).
 
 ## Problema
 
