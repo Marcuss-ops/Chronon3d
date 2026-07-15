@@ -1,14 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // authoring/asset.hpp — thin authoring-side helper for logical asset paths.
 //
-// `asset("path")` is deliberately resolution-free.  It carries only the
-// logical path metadata and converts to the canonical typed AssetRef requested
-// by the receiving authoring API:
+// `asset("path")` is deliberately resolution-free and kind-free. It carries
+// only logical path metadata and converts to the canonical typed AssetRef
+// requested by the receiving authoring API:
 //
 //   layer.image("logo", asset("images/logo.png"));
 //   layer.text("HELLO").font(asset("fonts/Inter.ttf"), 100);
 //
-// Resolution remains owned by the per-runtime assets::AssetResolver.  This
+// Resolution remains owned by the per-runtime assets::AssetResolver. This
 // header introduces no resolver, registry, singleton, CWD fallback, or global
 // asset root.
 //
@@ -29,16 +29,11 @@ namespace chronon3d::authoring {
 ///
 /// The receiving API supplies the asset kind through its parameter type:
 /// `Layer::image(..., ImageRef)` requests ImageRef, while
-/// `Text::font(FontRef, ...)` requests FontRef.  Conversion only wraps the
+/// `Text::font(FontRef, ...)` requests FontRef. Conversion only wraps the
 /// logical path in the existing AssetRef type; it never resolves filesystem
 /// state.
 class AssetPath final {
 public:
-    // Backward-compatible default-kind marker for existing code that inspects
-    // `decltype(asset("..."))::kind`.  Contextual conversions are not limited
-    // to Image and remain the preferred ergonomic path.
-    static constexpr assets::AssetKind kind = assets::AssetKind::Image;
-
     explicit AssetPath(std::string path, std::string owner = {})
         : path_(std::move(path)), owner_(std::move(owner)) {}
 
@@ -56,7 +51,7 @@ private:
     std::string owner_;
 };
 
-/// Context-typed authoring marker.  The destination overload determines K.
+/// Context-typed authoring marker. The destination overload determines K.
 [[nodiscard]] inline AssetPath asset(std::string path, std::string owner = {}) {
     return AssetPath(std::move(path), std::move(owner));
 }
