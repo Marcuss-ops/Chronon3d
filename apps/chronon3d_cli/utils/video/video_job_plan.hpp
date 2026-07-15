@@ -24,22 +24,25 @@ struct VideoArgs;
 /// RenderJob and no longer owns a parallel orchestration structure.
 using VideoJobPlan = chronon3d::RenderJob;
 
-/// Convert the legacy `video` command arguments into RenderMode::Video.
 [[nodiscard]] std::optional<RenderJob> make_video_render_job(
     const CompositionRegistry& registry,
     const VideoArgs& args);
 
-/// One-release compatibility name.
+/// One-release compatibility name used only by legacy integrations.
 [[nodiscard]] std::optional<RenderJob> plan_video_job(
     const CompositionRegistry& registry,
     const VideoArgs& args);
 
 [[nodiscard]] bool validate_video_job(const RenderJob& job);
 [[nodiscard]] int dry_run_video_job(const RenderJob& job);
-[[nodiscard]] int execute_video_job(const RenderJob& job);
 
-/// Shared render + encode dispatch retained for command_video_camera, which
-/// constructs an ad-hoc composition rather than a registry RenderJob.
+/// Translate canonical VideoSettings into the existing FFmpeg exporter input.
+/// This is an adapter, not a job executor or a second orchestration path.
+[[nodiscard]] FfmpegExportOptions make_ffmpeg_export_options(
+    const RenderJob& job);
+
+/// Shared low-level exporter retained for command_video_camera, which creates
+/// an ad-hoc composition rather than a registry RenderJob.
 [[nodiscard]] int render_and_encode_ffmpeg(
     const CompositionRegistry& registry,
     const Composition& comp,
