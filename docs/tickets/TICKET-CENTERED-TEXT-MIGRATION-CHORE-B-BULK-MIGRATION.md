@@ -54,7 +54,9 @@ Mapping `glow_text(CenterTextOptions, glow_color, radius, intensity) → TextDef
 - [ ] **Per-AREA inventory basato-su fatti**: `rg -c 'centered_text\(' src/ include/ content/ tests/ apps/` ritorna distribuzione categorized per-file
 - [ ] **Sub-chore Blocco 5.2.A: CONTENT-EXAMPLES-AREA** DONE — `content/examples/light/light_text_animations.cpp` migration
 - [ ] **Sub-chore Blocco 5.2.B: CONTENT-COMMON-AREA** DONE — `content/common/animation_helpers.hpp` migration + TODO comment cleanup
-- [ ] **Sub-chore Blocco 5.2.C: CONTENT-TEXT-PLACEMENT-AREA** DONE — `content/text_placement/text_placement_compositions.cpp` (3 inline + 4 helper-uses) migration
+- [x] **Sub-chore Blocco 5.2.C: CONTENT-TEXT-PLACEMENT-AREA** DONE (vacuous-truth, 2026-07-14) — `content/text_placement/text_placement_compositions.cpp` migration pre-completed via M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (cronologia chiusura: [TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY.md)).
+
+- [ ] **Sub-chore Blocco 5.2.D: CONTENT-CERTIFICATION-AREA** DONE — `content/certification/cert_*.cpp` (multilingual + lower_third + long_text + title) 16 callsites migration
 - [ ] **Sub-chore Blocco 5.2.D: CONTENT-CERTIFICATION-AREA** DONE — `content/certification/cert_*.cpp` (multilingual + lower_third + long_text + title) 16 callsites migration
 - [ ] **Sub-chore Blocco 5.2.E: CONTENT-OTHER-AREA** DONE — `content/text/text_reveal.cpp` + `content/text/text_glow_helpers.hpp` helper removal phase
 - [ ] **Sub-chore Blocco 5.2.F: TESTS-DETERMINISTIC-AREA** DONE — `tests/deterministic/test_visual_regression_scenarios.cpp` 5 callsites + `tests/text/test_visual_regression_scenarios.cpp` migration (regression lock preservation CRITICAL)
@@ -73,7 +75,7 @@ Mapping `glow_text(CenterTextOptions, glow_color, radius, intensity) → TextDef
 |---|------------------------------------|-----------------------------------------------------------------------------|--------------------:|--------|
 | a | CONTENT-EXAMPLES-AREA              | `content/examples/light/light_text_animations.cpp`                          |                   1 | OPEN   |
 | b | CONTENT-COMMON-AREA                | `content/common/animation_helpers.hpp` (1 forward-decl + 1 TODO impl references) | 2 | OPEN   |
-| c | CONTENT-TEXT-PLACEMENT-AREA        | `content/text_placement/text_placement_compositions.cpp` (3 inline + 4 helper) | ~12 | OPEN |
+| c | CONTENT-TEXT-PLACEMENT-AREA        | `content/text_placement/text_placement_compositions.cpp` (3 inline + 4 helper) | ~12 | DONE (vacuous, 2026-07-14, M1.8 §2D pre-existing) |
 | d | CONTENT-CERTIFICATION-AREA         | `content/certification/cert_*.cpp` (multilingual + lower_third + long_text + title) | ~16 | OPEN |
 | e | CONTENT-OTHER-AREA                 | `content/text/text_reveal.cpp` + `content/text/text_glow_helpers.hpp`       |                  ~5 | OPEN   |
 | f | TESTS-DETERMINISTIC-AREA           | `tests/deterministic/test_visual_regression_scenarios.cpp` 5 callsites + `tests/text/test_visual_regression_scenarios.cpp` | ~5 | OPEN |
@@ -89,7 +91,7 @@ Total target: ~91 callsites + 3 helper functions. Counts approximated basato-su 
 |---|--------|-------------|
 | a | OPEN (P2) | Sub-chore Blocco 5.2.A: CONTENT-EXAMPLES-AREA migration. Cat-3 minimal-surface; ZERO new SDK API. macchina-verifica: `light_text_animations.cpp` non più references centered_text/glow_text. |
 | b | OPEN (P2) | Sub-chore Blocco 5.2.B: CONTENT-COMMON-AREA migration. animation_helpers.hpp TODO comment cleanup (`TODO: migrate to centered_text()...` → `TODO: migrate to canonical`). |
-| c | OPEN (P2) | Sub-chore Blocco 5.2.C: CONTENT-TEXT-PLACEMENT-AREA migration. 3 inline `centered_text({...})` (lines 237, 341, 461) + 4 helper-uses (1 make_centered_text_comp + scoped at compose call sites) → TextDefinition direct construction. |
+| c | DONE (vacuous, 2026-07-14) | Sub-chore Blocco 5.2.C: CONTENT-TEXT-PLACEMENT-AREA migration pre-completed via M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (cronologia chiusura: [TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY](TICKET-CENTERED-TEXT-PLACEMENT-AREA-VACUOUS-VERIFY.md)). ZERO source modification this session (cat-3 minimal-surface). NO macchina-verifica additional work needed. |
 | d | OPEN (P2) | Sub-chore Blocco 5.2.D: CONTENT-CERTIFICATION-AREA migration. ~16 callsites distribuiti su cert_multilingual (5 callsites) + cert_lower_third (2 callsites) + cert_long_text (1 callsite) + cert_title (1 callsite). |
 | e | OPEN (P2) | Sub-chore Blocco 5.2.E: CONTENT-OTHER-AREA migration. text_reveal.cpp + glow_text() helper itself (already partially migrated via text_glow_helpers.hpp:23 cross-link comment, ma ora helper rimosso). |
 | f | OPEN (P2) | Sub-chore Blocco 5.2.F: TESTS-DETERMINISTIC-AREA migration. ~5 callsites in test_visual_regression_scenarios.cpp (CenterTextOptions regression lock). **CRITICAL**: regression lock preservation obbligatorio (CenterTextOptions ↔ TextDefinition byte-equivalence test). |
