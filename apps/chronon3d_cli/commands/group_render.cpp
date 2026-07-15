@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <set>
@@ -108,68 +109,106 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
     loaded.props.assets = &ctx.assets;
     if (!validate_schema_surface(*descriptor, loaded)) return 1;
 
-    auto prepared = descriptor->prepare_props(loaded.props);
-    if (!prepared) {
-        print_props_error(args.comp_id, prepared.error());
+    auto prepared_result = descriptor->prepare_props(loaded.props);
+    if (!prepared_result) {
+        print_props_error(args.comp_id, prepared_result.error());
         return 1;
     }
-    const std::optional<CompositionMetadata> resolved_metadata =
-        std::move(prepared).value();
+    PreparedComposition prepared = std::move(prepared_result).value();
+    if (!prepared.construct) {
+        spdlog::error("Composition '{}' preparation returned no constructor",
+                      args.comp_id);
+        return 1;
+    }
     fmt::print("[2/6] props decoded: {} value(s)\n", loaded.props.values.size());
     fmt::print("[3/6] props valid\n");
 
     std::optional<Composition> composition;
+    const auto ensure_composition = [&]() -> Composition& {
+        if (!composition) {
+            composition.emplace(prepared.construct());
+        }
+        return *composition;
+    };
+
+    std::optional<CompositionMetadata> resolved_metadata = prepared.metadata;
+    if (!resolved_metadata && descriptor->width && descriptor->height &&
+        descriptor->fps && descriptor->duration) {
+        resolved_metadata = CompositionMetadata{
+            *descriptor->width,
+            *descriptor->height,
+            *descriptor->fps,
+            *descriptor->duration
+        };
+    }
+
     try {
-        composition.emplace(descriptor->factory(loaded.props));
+        if (!resolved_metadata) {
+            const Composition& value = ensure_composition();
+            resolved_metadata = CompositionMetadata{
+                value.width(),
+                value.height(),
+                value.frame_rate(),
+                value.duration()
+            };
+        }
     } catch (const std::exception& error) {
         spdlog::error("Composition construction failed for '{}': {}",
                       args.comp_id, error.what());
         return 1;
     }
 
-    const FrameRate rate = resolved_metadata
-        ? resolved_metadata->fps
-        : composition->frame_rate();
-    const i32 width = resolved_metadata
-        ? resolved_metadata->width
-        : composition->width();
-    const i32 height = resolved_metadata
-        ? resolved_metadata->height
-        : composition->height();
-    const Frame duration = resolved_metadata
-        ? resolved_metadata->duration
-        : composition->duration();
+    const FrameRate rate = resolved_metadata->fps;
+    const i32 width = resolved_metadata->width;
+    const i32 height = resolved_metadata->height;
+    const Frame duration = resolved_metadata->duration;
     fmt::print("[4/6] metadata: {}x{}  {}/{} fps  {} frames\n",
                width, height, rate.numerator, rate.denominator,
                duration.integral());
 
     assets::AssetManifest manifest;
-    const Frame last = duration > Frame{0} ? duration - Frame{1} : Frame{0};
+    std::filesystem::path assets_root;
+    bool used_declared_manifest = false;
+
     try {
-        for (Frame frame = Frame{0}; frame <= last; frame += Frame{1}) {
-            const FrameContext frame_context{
-                .frame = frame,
-                .local_frame = frame,
-                .frame_time = 0.0f,
-                .duration = duration,
-                .frame_rate = rate,
-                .width = width,
-                .height = height,
-                .assets_root = composition->assets_root(),
-                .assets = &ctx.assets
-            };
-            manifest.merge(composition->evaluate(frame_context).asset_manifest());
+        if (prepared.asset_manifest) {
+            manifest = std::move(*prepared.asset_manifest);
+            used_declared_manifest = true;
+            if (prepared.assets_root) {
+                assets_root = *prepared.assets_root;
+            } else {
+                assets_root = ensure_composition().assets_root();
+            }
+        } else {
+            Composition& value = ensure_composition();
+            assets_root = value.assets_root();
+            const Frame last = duration > Frame{0} ? duration - Frame{1} : Frame{0};
+            for (Frame frame = Frame{0}; frame <= last; frame += Frame{1}) {
+                const FrameContext frame_context{
+                    .frame = frame,
+                    .local_frame = frame,
+                    .frame_time = 0.0f,
+                    .duration = duration,
+                    .frame_rate = rate,
+                    .width = width,
+                    .height = height,
+                    .assets_root = assets_root,
+                    .assets = &ctx.assets
+                };
+                manifest.merge(value.evaluate(frame_context).asset_manifest());
+            }
         }
     } catch (const std::exception& error) {
         spdlog::error("Asset manifest resolution failed: {}", error.what());
         return 1;
     }
 
-    auto resolver = make_cli_resolver(composition->assets_root());
+    auto resolver = make_cli_resolver(assets_root);
     auto asset_result = AssetPreflightResolver::check_manifest(manifest, resolver);
     std::vector<PreflightIssue> issues = std::move(asset_result.issues);
-    fmt::print("[5/6] asset manifest/preflight: {} asset(s), {} issue(s)\n",
-               manifest.assets().size(), issues.size());
+    fmt::print("[5/6] asset manifest/preflight: {} asset(s), {} issue(s){}\n",
+               manifest.assets().size(), issues.size(),
+               used_declared_manifest ? " (declared)" : " (evaluated fallback)");
 
     RenderArgs settings_args;
     settings_args.comp_id = args.comp_id;
