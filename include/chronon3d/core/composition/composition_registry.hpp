@@ -5,6 +5,7 @@
 #include <chronon3d/timeline/composition_props.hpp>
 
 #include <algorithm>
+#include <filesystem>
 #include <functional>
 #include <map>
 #include <optional>
