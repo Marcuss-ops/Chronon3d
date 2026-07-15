@@ -1,5 +1,4 @@
 # ── Authoring DSL Tests ─────────────────────────────────────────────────
-# Per-area early-return gate (TICKET-CMAKE-TEST-MANIFEST-UNIFICATION).
 if(NOT (CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT))
     return()
 endif()
@@ -22,5 +21,3 @@ chronon3d_add_test_suite(
 if(CHRONON3D_ENABLE_TEXT AND CHRONON3D_USE_BLEND2D AND TARGET chronon3d_backend_text)
     target_link_libraries(chronon3d_authoring_tests PRIVATE chronon3d_backend_text)
 endif()
-
-target_compile_definitions(chronon3d_authoring_tests PRIVATE CHRONON3D_BUILD_TESTS)
