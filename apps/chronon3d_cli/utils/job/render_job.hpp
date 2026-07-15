@@ -17,10 +17,21 @@ using RenderJobPlan [[deprecated("Use chronon3d::RenderJob")]] = chronon3d::Rend
 std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
                                          const RenderArgs& args);
 
+/// Props-aware canonical job builder. CompositionProps flow through the
+/// existing registry descriptor/factory; no second decoder or renderer config.
+std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
+                                         const RenderArgs& args,
+                                         const CompositionProps& props);
+
 /// Transitional source-compatible name used by preview and older callers.
 [[deprecated("Use make_render_job()")]]
 std::optional<RenderJob> plan_render_job(const CompositionRegistry& registry,
                                          const RenderArgs& args);
+
+[[deprecated("Use make_render_job()")]]
+std::optional<RenderJob> plan_render_job(const CompositionRegistry& registry,
+                                         const RenderArgs& args,
+                                         const CompositionProps& props);
 
 /// Canonical executor.  The job must carry a pinned registry and composition.
 Result<RenderJobOutput, RenderJobError> execute_render_job(RenderJob& job);
