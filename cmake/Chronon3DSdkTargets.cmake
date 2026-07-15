@@ -41,6 +41,8 @@ target_sources(chronon3d_sdk INTERFACE
         "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/media_params.hpp"
         "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/text_params.hpp"
         "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/three_d_params.hpp"
+        "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/pending_text_run.hpp"
+        "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/text_run_materialization.hpp"
 )
 
 foreach(_entry IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)
