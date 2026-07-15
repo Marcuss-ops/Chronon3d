@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════════════════
-# run_developer_gates.sh — canonical developer gate chain (9 gates).
+# run_developer_gates.sh — canonical developer gate chain.
 #
 # Called by:
 #   - tools/wrap_push.sh (post-fetch, post-auto-FF, post-check_main_clean)
 #   - .githooks/pre-push     (git push pre-push hook)
 #
-# Single source of truth: the gate list lives HERE, not duplicated across
-# the wrapper and the hook.  All 9 gates are local-only, fast, and safe on
-# any push (no MP4/build artifacts required).
+# Single source of truth: the gate list lives in tools/gates/manifest.sh, not
+# duplicated across the wrapper and the hook.  Every developer gate is
+# local-only, fast, and safe on any push (no MP4/build artifacts required).
 #
 # Usage:
 #   bash tools/run_developer_gates.sh [remote] [branch]
