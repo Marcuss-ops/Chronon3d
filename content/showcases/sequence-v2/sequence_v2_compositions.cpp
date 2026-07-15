@@ -1,413 +1,377 @@
 // content/showcases/sequence-v2/sequence_v2_compositions.cpp
 //
-// Sequence V2 — Migration Step 3 showcase compositions.
-//
-// 5 new compositions that use ONLY the SequenceBuilder API (no legacy
-// SceneBuilder-only patterns).  Demonstrates:
-//   1. SeqV2IntroOutro         — basic sequential sequences (local_frame restart)
-//   2. SeqV2DeepNesting        — 3-level nested sequences
-//   3. SeqV2StaggeredTimeline  — overlapping sequences with animation
-//   4. SeqV2TrimOffset         — trim_before for delayed animation start
-//   5. SeqV2MixedMedia         — text + image in separate sequences (manifest)
-//
-// All compositions use s.sequence(name, spec, [](SequenceBuilder& seq) {...})
-// exclusively — zero legacy path.  AssetManifest is collected automatically
-// by LayerBuilder (text_run → font ref, image → image ref).
-//
-// Render:
-//   chronon3d_cli video SeqV2IntroOutro -o output/seq_v2_intro_outro.mp4
-//   chronon3d_cli still SeqV2IntroOutro --frame 10 -o output/seq_v2_f10.png
+// Sequence V2 showcases using the canonical descriptor and prepared-asset
+// pipeline. Render examples:
+//   chronon render SeqV2IntroOutro -o output/seq_v2_intro_outro.mp4
+//   chronon render SeqV2IntroOutro --frame 10 -o output/seq_v2_f10.png
 
-#include <chronon3d/core/composition/composition_registry.hpp>
-#include <chronon3d/core/types/frame_context.hpp>
-#include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/scene/builders/sequence_builder.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/motion/motion.hpp>
 #include <chronon3d/assets/asset_manifest.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
+#include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/sequence_builder.hpp>
+#include <chronon3d/text/text_definition.hpp>
+#include <chronon3d/timeline/composition.hpp>
+#include <chronon3d/timeline/composition_props.hpp>
 
-#include "content/common/background_helpers.hpp"
-#include <chronon3d/text/text_definition.hpp>  // F2.D — canonical DTO
+#include <filesystem>
+#include <string>
+#include <utility>
 
 namespace chronon3d::content::sequence_v2 {
 
-using namespace chronon3d::content::backgrounds;
-
 namespace {
 
-// ── Shared asset declarations ───────────────────────────────────────────────
-// Explicit AssetRef declarations for all assets used by these compositions.
-// This makes asset dependencies visible and typed — the canonical pattern
-// for Sequence V2 content (vs raw string paths).
-const chronon3d::assets::InternalAssetRef kTitleFont{
+constexpr i32 kWidth = 1920;
+constexpr i32 kHeight = 1080;
+constexpr FrameRate kFps{30, 1};
+
+const assets::InternalAssetRef kTitleFont{
     assets::AssetKind::Font,
     "assets/fonts/Poppins-Bold.ttf",
     "seq-v2/title-font",
     true
 };
-const chronon3d::assets::InternalAssetRef kPlaceholderImage{
+
+const assets::InternalAssetRef kPlaceholderImage{
     assets::AssetKind::Image,
     "assets/images/placeholder.png",
     "seq-v2/placeholder",
-    false  // soft dep — composition renders without it
+    false
 };
 
 constexpr Color kTextColor{0.94f, 0.95f, 0.98f, 1.0f};
 
-/// F2.D — returns canonical TextDefinition.
 TextDefinition title_text(const char* text, f32 size = 80.0f) {
     return TextDefinition{
         .content = {.value = text},
-        .style = {.font = {.font_path = kTitleFont.path, .font_size = size},
-                  .color = kTextColor},
-        .frame = {.size = {1400.0f, 200.0f}, .align = TextAlign::Center,
-                  .vertical_align = VerticalAlign::Middle,
-                  .line_height = 1.0f, .tracking = 4.0f},
+        .style = {
+            .font = {.font_path = kTitleFont.path, .font_size = size},
+            .color = kTextColor
+        },
+        .frame = {
+            .size = {1400.0f, 200.0f},
+            .align = TextAlign::Center,
+            .vertical_align = VerticalAlign::Middle,
+            .line_height = 1.0f,
+            .tracking = 4.0f
+        }
     };
 }
 
-/// F2.D — returns canonical TextDefinition.
 TextDefinition body_text(const char* text, f32 size = 48.0f) {
     return TextDefinition{
         .content = {.value = text},
-        .style = {.font = {.font_path = kTitleFont.path, .font_size = size},
-                  .color = Color{0.75f, 0.78f, 0.85f, 1.0f}},
-        .frame = {.size = {1200.0f, 400.0f}, .align = TextAlign::Center,
-                  .vertical_align = VerticalAlign::Middle,
-                  .line_height = 1.1f, .tracking = 2.0f},
+        .style = {
+            .font = {.font_path = kTitleFont.path, .font_size = size},
+            .color = Color{0.75f, 0.78f, 0.85f, 1.0f}
+        },
+        .frame = {
+            .size = {1200.0f, 400.0f},
+            .align = TextAlign::Center,
+            .vertical_align = VerticalAlign::Middle,
+            .line_height = 1.1f,
+            .tracking = 2.0f
+        }
     };
 }
 
-void add_seq_bg(SceneBuilder& s) {
-    add_common_background(s, BackgroundStyles::Minimalist());
-}
-
-// ── Fade-in animation applied inside a sequence ─────────────────────────────
-void apply_fade_in(LayerBuilder& l, Frame done_at = Frame{12}) {
+void apply_fade_in(LayerBuilder& layer, Frame done_at = Frame{12}) {
     chronon3d::timeline(0.0f)
         .to(done_at, 1.0f, Easing::OutCubic)
-        .apply_to(l.opacity_anim());
+        .apply_to(layer.opacity_anim());
 }
 
-// ── Slide-up + fade-in ──────────────────────────────────────────────────────
-void apply_slide_fade_in(LayerBuilder& l, f32 y_offset = 40.0f,
+void apply_slide_fade_in(LayerBuilder& layer,
+                         f32 y_offset = 40.0f,
                          Frame done_at = Frame{12}) {
-    l.position_anim()
-        .key(Frame{0}, Vec3{0.0f, y_offset, 0.0f}, EasingCurve{Easing::OutCubic})
-        .key(done_at, Vec3{0.0f, 0.0f, 0.0f}, EasingCurve{Easing::OutCubic});
-    apply_fade_in(l, done_at);
+    layer.position_anim()
+        .key(Frame{0}, Vec3{0.0f, y_offset, 0.0f},
+             EasingCurve{Easing::OutCubic})
+        .key(done_at, Vec3{0.0f, 0.0f, 0.0f},
+             EasingCurve{Easing::OutCubic});
+    apply_fade_in(layer, done_at);
 }
 
-// ── Fade-out animation ──────────────────────────────────────────────────────
-void apply_fade_out(LayerBuilder& l, Frame start, Frame end) {
-    l.opacity_anim()
+void apply_fade_out(LayerBuilder& layer, Frame start, Frame end) {
+    layer.opacity_anim()
         .key(Frame{0}, 1.0f, EasingCurve{Easing::Hold})
         .key(start, 1.0f, EasingCurve{Easing::Linear})
         .key(end, 0.0f, EasingCurve{Easing::InCubic});
 }
 
-} // anonymous namespace
+CompositionDescriptor sequence_descriptor(
+    std::string id,
+    Frame duration,
+    CompositionRegistry::Factory factory,
+    bool include_image = false) {
+    CompositionDescriptor descriptor;
+    descriptor.id = std::move(id);
+    descriptor.category = "Sequence V2";
+    descriptor.width = kWidth;
+    descriptor.height = kHeight;
+    descriptor.fps = kFps;
+    descriptor.duration = duration;
+    descriptor.factory = factory;
 
-// ═════════════════════════════════════════════════════════════════════════════
-// 1. SeqV2IntroOutro — basic sequential sequences
-// ═════════════════════════════════════════════════════════════════════════════
-//
-// Two non-overlapping sequences:
-//   intro (0–44): title fades in, holds
-//   outro (45–89): outro text fades in, title fades out
-//
-// Demonstrates: local_frame restarts at 0 for each sequence.
+    descriptor.prepare_props = [
+        factory = std::move(factory),
+        duration,
+        include_image
+    ](const CompositionProps& props) -> PreparedCompositionResult {
+        if (!props.values.empty()) {
+            return PropsError{
+                "",
+                PropsErrorReason::InvalidFormat,
+                "Sequence V2 showcases do not declare external props"
+            };
+        }
+
+        assets::AssetManifest manifest;
+        manifest.add(kTitleFont);
+        if (include_image) manifest.add(kPlaceholderImage);
+
+        PreparedComposition prepared;
+        prepared.metadata = CompositionMetadata{
+            kWidth, kHeight, kFps, duration
+        };
+        prepared.asset_manifest = std::move(manifest);
+        prepared.assets_root = props.project_root.empty()
+            ? std::filesystem::path{"."}
+            : props.project_root;
+        prepared.construct = [factory, props]() -> Composition {
+            return factory(props);
+        };
+        return prepared;
+    };
+    return descriptor;
+}
+
+} // namespace
+
 Composition seq_v2_intro_outro() {
-    return composition({.name = "SeqV2IntroOutro", .width = 1920, .height = 1080,
-                        .duration = 90},
+    return composition(
+        {.name = "SeqV2IntroOutro", .width = kWidth, .height = kHeight,
+         .frame_rate = kFps, .duration = Frame{90}},
         [](const FrameContext& ctx) {
-            SceneBuilder s(ctx);
-
-            s.sequence("intro", {.from = Frame{0}, .duration = Frame{45}},
-                [](SequenceBuilder& seq) {
-                    seq.layer("_bg", [](LayerBuilder& l) {
-                        l.fullscreen_rect("bg", Color{0.02f, 0.02f, 0.06f, 1.0f});
+            SceneBuilder scene(ctx);
+            scene.sequence("intro", {.from = Frame{0}, .duration = Frame{45}},
+                [](SequenceBuilder& sequence) {
+                    sequence.layer("_bg", [](LayerBuilder& layer) {
+                        layer.fullscreen_rect(
+                            "bg", Color{0.02f, 0.02f, 0.06f, 1.0f});
                     });
-                    seq.layer("title", [](LayerBuilder& l) {
-                        l.pin_to(Anchor::Center);
-                        apply_slide_fade_in(l, 30.0f, Frame{15});
-                        l.text("label", title_text("SEQUENCE V2"));
-                    });
-                });
-
-            s.sequence("outro", {.from = Frame{45}, .duration = Frame{45}},
-                [](SequenceBuilder& seq) {
-                    seq.layer("_bg_outro", [](LayerBuilder& l) {
-                        l.fullscreen_rect("bg", Color{0.04f, 0.02f, 0.08f, 1.0f});
-                    });
-                    seq.layer("outro_text", [](LayerBuilder& l) {
-                        l.pin_to(Anchor::Center);
-                        apply_slide_fade_in(l, -20.0f, Frame{15});
-                        l.text("label", title_text("LOCAL FRAME = 0"));
+                    sequence.layer("title", [](LayerBuilder& layer) {
+                        layer.pin_to(Anchor::Center);
+                        apply_slide_fade_in(layer, 30.0f, Frame{15});
+                        layer.text("label", title_text("SEQUENCE V2"));
                     });
                 });
-
-            return s.build();
+            scene.sequence("outro", {.from = Frame{45}, .duration = Frame{45}},
+                [](SequenceBuilder& sequence) {
+                    sequence.layer("_bg_outro", [](LayerBuilder& layer) {
+                        layer.fullscreen_rect(
+                            "bg", Color{0.04f, 0.02f, 0.08f, 1.0f});
+                    });
+                    sequence.layer("outro_text", [](LayerBuilder& layer) {
+                        layer.pin_to(Anchor::Center);
+                        apply_slide_fade_in(layer, -20.0f, Frame{15});
+                        layer.text("label", title_text("LOCAL FRAME = 0"));
+                    });
+                });
+            return scene.build();
         });
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// 2. SeqV2DeepNesting — 3-level nested sequences
-// ═════════════════════════════════════════════════════════════════════════════
-//
-//   act (0–119)
-//     chapter1 (0–59)
-//       title (0–19): "CHAPTER ONE" fades in
-//       body (20–59): body text slides in at local frame 0
-//     chapter2 (60–119)
-//       title (0–19): "CHAPTER TWO" fades in (local frame restarts!)
-//       body (20–59): body text slides in
-//
-// Demonstrates: 3-level nesting, nested local_frame propagation.
 Composition seq_v2_deep_nesting() {
-    return composition({.name = "SeqV2DeepNesting", .width = 1920, .height = 1080,
-                        .duration = 120},
+    return composition(
+        {.name = "SeqV2DeepNesting", .width = kWidth, .height = kHeight,
+         .frame_rate = kFps, .duration = Frame{120}},
         [](const FrameContext& ctx) {
-            SceneBuilder s(ctx);
-
-            s.sequence("act", {.from = Frame{0}, .duration = Frame{120}},
+            SceneBuilder scene(ctx);
+            scene.sequence("act", {.from = Frame{0}, .duration = Frame{120}},
                 [](SequenceBuilder& act) {
-                    // Chapter 1
-                    act.sequence("ch1", {.from = Frame{0}, .duration = Frame{60}},
-                        [](SequenceBuilder& ch) {
-                            ch.sequence("title", {.from = Frame{0}, .duration = Frame{20}},
-                                [](SequenceBuilder& seq) {
-                                    seq.layer("_bg", [](LayerBuilder& l) {
-                                        l.fullscreen_rect("bg", Color{0.01f, 0.03f, 0.08f, 1.0f});
+                    const auto chapter = [](SequenceBuilder& parent,
+                                            const char* id,
+                                            Frame from,
+                                            const char* title,
+                                            const char* body,
+                                            Color background) {
+                        parent.sequence(id, {.from = from, .duration = Frame{60}},
+                            [title, body, background](SequenceBuilder& chapter_seq) {
+                                chapter_seq.sequence(
+                                    "title", {.from = Frame{0}, .duration = Frame{20}},
+                                    [title, background](SequenceBuilder& sequence) {
+                                        sequence.layer("_bg", [background](LayerBuilder& layer) {
+                                            layer.fullscreen_rect("bg", background);
+                                        });
+                                        sequence.layer("chapter_title", [title](LayerBuilder& layer) {
+                                            layer.pin_to(Anchor::Center);
+                                            apply_fade_in(layer, Frame{10});
+                                            layer.text("label", title_text(title, 64.0f));
+                                        });
                                     });
-                                    seq.layer("ch1_title", [](LayerBuilder& l) {
-                                        l.pin_to(Anchor::Center);
-                                        apply_fade_in(l, Frame{10});
-                                        l.text("label", title_text("CHAPTER ONE", 64.0f));
+                                chapter_seq.sequence(
+                                    "body", {.from = Frame{20}, .duration = Frame{40}},
+                                    [body](SequenceBuilder& sequence) {
+                                        sequence.layer("chapter_body", [body](LayerBuilder& layer) {
+                                            layer.pin_to(Anchor::Center);
+                                            apply_slide_fade_in(layer, 30.0f, Frame{12});
+                                            layer.text("label", body_text(body));
+                                        });
                                     });
-                                });
+                            });
+                    };
 
-                            ch.sequence("body", {.from = Frame{20}, .duration = Frame{40}},
-                                [](SequenceBuilder& seq) {
-                                    seq.layer("ch1_body", [](LayerBuilder& l) {
-                                        l.pin_to(Anchor::Center);
-                                        apply_slide_fade_in(l, 30.0f, Frame{12});
-                                        l.text("label",
-                                            body_text("Nested sequences\ncarry local frame context."));
-                                    });
-                                });
-                        });
-
-                    // Chapter 2
-                    act.sequence("ch2", {.from = Frame{60}, .duration = Frame{60}},
-                        [](SequenceBuilder& ch) {
-                            ch.sequence("title", {.from = Frame{0}, .duration = Frame{20}},
-                                [](SequenceBuilder& seq) {
-                                    seq.layer("_bg2", [](LayerBuilder& l) {
-                                        l.fullscreen_rect("bg", Color{0.04f, 0.01f, 0.06f, 1.0f});
-                                    });
-                                    seq.layer("ch2_title", [](LayerBuilder& l) {
-                                        l.pin_to(Anchor::Center);
-                                        apply_fade_in(l, Frame{10});
-                                        l.text("label", title_text("CHAPTER TWO", 64.0f));
-                                    });
-                                });
-
-                            ch.sequence("body", {.from = Frame{20}, .duration = Frame{40}},
-                                [](SequenceBuilder& seq) {
-                                    seq.layer("ch2_body", [](LayerBuilder& l) {
-                                        l.pin_to(Anchor::Center);
-                                        apply_slide_fade_in(l, 30.0f, Frame{12});
-                                        l.text("label",
-                                            body_text("Local frame restarts\nfor each sequence."));
-                                    });
-                                });
-                        });
+                    chapter(act, "ch1", Frame{0}, "CHAPTER ONE",
+                            "Nested sequences\ncarry local frame context.",
+                            Color{0.01f, 0.03f, 0.08f, 1.0f});
+                    chapter(act, "ch2", Frame{60}, "CHAPTER TWO",
+                            "Local frame restarts\nfor each sequence.",
+                            Color{0.04f, 0.01f, 0.06f, 1.0f});
                 });
-
-            return s.build();
+            return scene.build();
         });
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// 3. SeqV2StaggeredTimeline — overlapping sequences with animation
-// ═════════════════════════════════════════════════════════════════════════════
-//
-// Three overlapping text sequences:
-//   "SEQUENCE" (0–49), "V2" (25–74), "SHOWCASE" (50–99)
-//
-// Each word fades in at its sequence start and fades out at its end.
-// Demonstrates: overlapping active windows, per-sequence animation timing.
 Composition seq_v2_staggered_timeline() {
-    return composition({.name = "SeqV2StaggeredTimeline", .width = 1920,
-                        .height = 1080, .duration = 100},
+    return composition(
+        {.name = "SeqV2StaggeredTimeline", .width = kWidth,
+         .height = kHeight, .frame_rate = kFps, .duration = Frame{100}},
         [](const FrameContext& ctx) {
-            SceneBuilder s(ctx);
-
-            // Top-level background covering the full composition duration
-            s.layer("_bg", [](LayerBuilder& l) {
-                l.fullscreen_rect("bg", Color{0.02f, 0.02f, 0.06f, 1.0f});
+            SceneBuilder scene(ctx);
+            scene.layer("_bg", [](LayerBuilder& layer) {
+                layer.fullscreen_rect("bg", Color{0.02f, 0.02f, 0.06f, 1.0f});
             });
 
-            s.sequence("word1", {.from = Frame{0}, .duration = Frame{50}},
-                [](SequenceBuilder& seq) {
-                    seq.layer("word1", [](LayerBuilder& l) {
-                        l.pin_to(Anchor::Center);
-                        l.position({0.0f, -80.0f, 0.0f});
-                        apply_fade_in(l, Frame{10});
-                        apply_fade_out(l, Frame{38}, Frame{48});
-                        l.text("label", title_text("SEQUENCE", 72.0f));
+            const auto word = [&scene](const char* sequence_id,
+                                       const char* text,
+                                       Frame from,
+                                       f32 y,
+                                       f32 size) {
+                scene.sequence(sequence_id,
+                    {.from = from, .duration = Frame{50}},
+                    [text, y, size](SequenceBuilder& sequence) {
+                        sequence.layer("word", [text, y, size](LayerBuilder& layer) {
+                            layer.pin_to(Anchor::Center);
+                            layer.position({0.0f, y, 0.0f});
+                            apply_fade_in(layer, Frame{10});
+                            apply_fade_out(layer, Frame{38}, Frame{48});
+                            layer.text("label", title_text(text, size));
+                        });
                     });
-                });
+            };
 
-            s.sequence("word2", {.from = Frame{25}, .duration = Frame{50}},
-                [](SequenceBuilder& seq) {
-                    seq.layer("word2", [](LayerBuilder& l) {
-                        l.pin_to(Anchor::Center);
-                        apply_fade_in(l, Frame{10});
-                        apply_fade_out(l, Frame{38}, Frame{48});
-                        l.text("label", title_text("V2", 96.0f));
-                    });
-                });
-
-            s.sequence("word3", {.from = Frame{50}, .duration = Frame{50}},
-                [](SequenceBuilder& seq) {
-                    seq.layer("word3", [](LayerBuilder& l) {
-                        l.pin_to(Anchor::Center);
-                        l.position({0.0f, 80.0f, 0.0f});
-                        apply_fade_in(l, Frame{10});
-                        apply_fade_out(l, Frame{38}, Frame{48});
-                        l.text("label", title_text("SHOWCASE", 72.0f));
-                    });
-                });
-
-            return s.build();
+            word("word1", "SEQUENCE", Frame{0}, -80.0f, 72.0f);
+            word("word2", "V2", Frame{25}, 0.0f, 96.0f);
+            word("word3", "SHOWCASE", Frame{50}, 80.0f, 72.0f);
+            return scene.build();
         });
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// 4. SeqV2TrimOffset — trim_before for delayed animation start
-// ═════════════════════════════════════════════════════════════════════════════
-//
-// A 90-frame composition with trim_before=20:
-//   - At global frame 0: local_frame = 0 - 0 + 20 = 20
-//   - The animation keyframes (which start at frame 0) are already 20 frames
-//     into their progression, so the text appears mid-animation.
-//
-// Demonstrates: trim_before remaps the local frame origin.
 Composition seq_v2_trim_offset() {
-    return composition({.name = "SeqV2TrimOffset", .width = 1920, .height = 1080,
-                        .duration = 90},
+    return composition(
+        {.name = "SeqV2TrimOffset", .width = kWidth, .height = kHeight,
+         .frame_rate = kFps, .duration = Frame{90}},
         [](const FrameContext& ctx) {
-            SceneBuilder s(ctx);
-
-            s.layer("_bg", [](LayerBuilder& l) {
-                l.fullscreen_rect("bg", Color{0.03f, 0.01f, 0.05f, 1.0f});
+            SceneBuilder scene(ctx);
+            scene.layer("_bg", [](LayerBuilder& layer) {
+                layer.fullscreen_rect("bg", Color{0.03f, 0.01f, 0.05f, 1.0f});
             });
 
-            s.sequence("main", {.from = Frame{0}, .duration = Frame{90}},
-                [](SequenceBuilder& seq) {
-                    seq.layer("text", [](LayerBuilder& l) {
-                        l.pin_to(Anchor::Center);
-                        // Animation keyframes: position drifts left → center over 30 frames.
-                        // With trim_before=20, at global frame 0 the local frame is already 20,
-                        // so the text starts nearly centered (80% through the drift).
-                        l.position_anim()
-                            .key(Frame{0},  Vec3{-120.0f, 0.0f, 0.0f},
-                                 EasingCurve{Easing::OutCubic})
-                            .key(Frame{30}, Vec3{0.0f, 0.0f, 0.0f},
-                                 EasingCurve{Easing::OutCubic});
-                        l.opacity_anim()
-                            .key(Frame{0},  0.0f, EasingCurve{Easing::OutCubic})
-                            .key(Frame{10}, 1.0f, EasingCurve{Easing::Linear});
-                        l.text("label", title_text("TRIM BEFORE"));
-                    });
+            const auto animated_text = [](SequenceBuilder& sequence,
+                                          const char* id,
+                                          f32 y,
+                                          const char* text,
+                                          bool body) {
+                sequence.layer(id, [y, text, body](LayerBuilder& layer) {
+                    layer.pin_to(Anchor::Center);
+                    layer.position({0.0f, y, 0.0f});
+                    layer.position_anim()
+                        .key(Frame{0}, Vec3{-120.0f, 0.0f, 0.0f},
+                             EasingCurve{Easing::OutCubic})
+                        .key(Frame{30}, Vec3{0.0f, 0.0f, 0.0f},
+                             EasingCurve{Easing::OutCubic});
+                    layer.opacity_anim()
+                        .key(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic})
+                        .key(Frame{10}, 1.0f, EasingCurve{Easing::Linear});
+                    layer.text("label", body ? body_text(text) : title_text(text));
                 });
+            };
 
-            // Trim-before variant: same animation but starts 20 frames into its content
-            s.sequence("trimmed", {.from = Frame{0}, .duration = Frame{90},
-                                   .trim_before = Frame{20}},
-                [](SequenceBuilder& seq) {
-                    seq.layer("trimmed_text", [](LayerBuilder& l) {
-                        l.pin_to(Anchor::Center);
-                        l.position({0.0f, 120.0f, 0.0f});
-                        l.position_anim()
-                            .key(Frame{0},  Vec3{-120.0f, 0.0f, 0.0f},
-                                 EasingCurve{Easing::OutCubic})
-                            .key(Frame{30}, Vec3{0.0f, 0.0f, 0.0f},
-                                 EasingCurve{Easing::OutCubic});
-                        l.opacity_anim()
-                            .key(Frame{0},  0.0f, EasingCurve{Easing::OutCubic})
-                            .key(Frame{10}, 1.0f, EasingCurve{Easing::Linear});
-                        l.text("label", body_text("← offset by trim_before=20"));
-                    });
+            scene.sequence("main", {.from = Frame{0}, .duration = Frame{90}},
+                [animated_text](SequenceBuilder& sequence) {
+                    animated_text(sequence, "text", 0.0f, "TRIM BEFORE", false);
                 });
-
-            return s.build();
+            scene.sequence("trimmed",
+                {.from = Frame{0}, .duration = Frame{90},
+                 .trim_before = Frame{20}},
+                [animated_text](SequenceBuilder& sequence) {
+                    animated_text(sequence, "trimmed_text", 120.0f,
+                                  "← offset by trim_before=20", true);
+                });
+            return scene.build();
         });
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// 5. SeqV2MixedMedia — text + image in separate sequences (manifest demo)
-// ═════════════════════════════════════════════════════════════════════════════
-//
-// Two overlapping sequences:
-//   title_seq (0–59): text layer with font asset
-//   image_seq (30–89): image layer with image asset
-//
-// The AssetManifest automatically collects both font and image refs.
-// Demonstrates: multi-asset manifest aggregation across sequence boundaries.
 Composition seq_v2_mixed_media() {
-    return composition({.name = "SeqV2MixedMedia", .width = 1920, .height = 1080,
-                        .duration = 90},
+    return composition(
+        {.name = "SeqV2MixedMedia", .width = kWidth, .height = kHeight,
+         .frame_rate = kFps, .duration = Frame{90}},
         [](const FrameContext& ctx) {
-            SceneBuilder s(ctx);
-
-            s.layer("_bg", [](LayerBuilder& l) {
-                l.fullscreen_rect("bg", Color{0.015f, 0.015f, 0.04f, 1.0f});
+            SceneBuilder scene(ctx);
+            scene.layer("_bg", [](LayerBuilder& layer) {
+                layer.fullscreen_rect(
+                    "bg", Color{0.015f, 0.015f, 0.04f, 1.0f});
             });
-
-            s.sequence("title_seq", {.from = Frame{0}, .duration = Frame{60}},
-                [](SequenceBuilder& seq) {
-                    seq.layer("title", [](LayerBuilder& l) {
-                        l.pin_to(Anchor::Center);
-                        l.position({0.0f, -100.0f, 0.0f});
-                        apply_fade_in(l, Frame{12});
-                        apply_fade_out(l, Frame{46}, Frame{58});
-                        l.text("label", title_text("MIXED MEDIA", 64.0f));
+            scene.sequence("title_seq",
+                {.from = Frame{0}, .duration = Frame{60}},
+                [](SequenceBuilder& sequence) {
+                    sequence.layer("title", [](LayerBuilder& layer) {
+                        layer.pin_to(Anchor::Center);
+                        layer.position({0.0f, -100.0f, 0.0f});
+                        apply_fade_in(layer, Frame{12});
+                        apply_fade_out(layer, Frame{46}, Frame{58});
+                        layer.text("label", title_text("MIXED MEDIA", 64.0f));
                     });
                 });
-
-            s.sequence("image_seq", {.from = Frame{30}, .duration = Frame{60}},
-                [](SequenceBuilder& seq) {
-                    seq.layer("image", [](LayerBuilder& l) {
-                        l.pin_to(Anchor::Center);
-                        l.position({0.0f, 80.0f, 0.0f});
-                        apply_fade_in(l, Frame{15});
-                        apply_fade_out(l, Frame{45}, Frame{58});
-                        l.image("hero", ImageParams{
+            scene.sequence("image_seq",
+                {.from = Frame{30}, .duration = Frame{60}},
+                [](SequenceBuilder& sequence) {
+                    sequence.layer("image", [](LayerBuilder& layer) {
+                        layer.pin_to(Anchor::Center);
+                        layer.position({0.0f, 80.0f, 0.0f});
+                        apply_fade_in(layer, Frame{15});
+                        apply_fade_out(layer, Frame{45}, Frame{58});
+                        layer.image("hero", ImageParams{
                             .path = kPlaceholderImage.path,
-                            .size = {600.0f, 400.0f},
+                            .size = {600.0f, 400.0f}
                         });
                     });
                 });
-
-            return s.build();
+            return scene.build();
         });
 }
 
-// ── Per-domain registration ──────────────────────────────────────────────────
 void register_sequence_v2_compositions(CompositionRegistry& registry) {
-    registry.add("SeqV2IntroOutro",
-        [](const CompositionProps&) { return seq_v2_intro_outro(); });
-    registry.add("SeqV2DeepNesting",
-        [](const CompositionProps&) { return seq_v2_deep_nesting(); });
-    registry.add("SeqV2StaggeredTimeline",
-        [](const CompositionProps&) { return seq_v2_staggered_timeline(); });
-    registry.add("SeqV2TrimOffset",
-        [](const CompositionProps&) { return seq_v2_trim_offset(); });
-    registry.add("SeqV2MixedMedia",
-        [](const CompositionProps&) { return seq_v2_mixed_media(); });
+    registry.add(sequence_descriptor(
+        "SeqV2IntroOutro", Frame{90},
+        [](const CompositionProps&) { return seq_v2_intro_outro(); }));
+    registry.add(sequence_descriptor(
+        "SeqV2DeepNesting", Frame{120},
+        [](const CompositionProps&) { return seq_v2_deep_nesting(); }));
+    registry.add(sequence_descriptor(
+        "SeqV2StaggeredTimeline", Frame{100},
+        [](const CompositionProps&) { return seq_v2_staggered_timeline(); }));
+    registry.add(sequence_descriptor(
+        "SeqV2TrimOffset", Frame{90},
+        [](const CompositionProps&) { return seq_v2_trim_offset(); }));
+    registry.add(sequence_descriptor(
+        "SeqV2MixedMedia", Frame{90},
+        [](const CompositionProps&) { return seq_v2_mixed_media(); }, true));
 }
 
 } // namespace chronon3d::content::sequence_v2
