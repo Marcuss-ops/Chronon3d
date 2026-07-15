@@ -1,87 +1,45 @@
 #pragma once
 
-// ---------------------------------------------------------------------------
-// utils/video/video_job_plan.hpp
-//
-// Item 18 — Video job plan refactoring.
-// Extracts plan/validate/execute/dry-run phases from the monolithic
-// command_video() so the command function becomes a thin dispatcher.
-// ---------------------------------------------------------------------------
-
+#include <chronon3d/backends/software/render_settings.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/cpu_budget.hpp>
 #include <chronon3d/core/types/frame.hpp>
-#include <chronon3d/backends/software/render_settings.hpp>
-#include "../../commands/video/common/video_export_common.hpp"
-#include "../../commands/video/common/output_options.hpp"
+#include <chronon3d/timeline/render_job.hpp>
+
 #include "../../commands/video/common/encoder_options.hpp"
+#include "../../commands/video/common/output_options.hpp"
 #include "../../commands/video/common/pipe_options.hpp"
-#include "../../commands/video/common/warmup_options.hpp"
 #include "../../commands/video/common/sink_options.hpp"
+#include "../../commands/video/common/video_export_common.hpp"
+#include "../../commands/video/common/warmup_options.hpp"
+
 #include <optional>
 #include <string>
 
 namespace chronon3d::cli {
 
-/// Aggregated parameters built during the planning phase.
-/// Owns the composition via shared_ptr so downstream phases are safe.
-///
-/// Uses focused sub-option structs (OutputOptions, EncoderOptions, etc.)
-/// instead of the monolithic FfmpegExportOptions.  FfmpegExportOptions is
-/// built from these sub-options only at the last moment in execute_video_job().
-struct VideoJobPlan {
-    const CompositionRegistry*            registry{};
-    std::shared_ptr<const Composition>    comp;
-    std::string                           comp_id;
+struct VideoArgs;
 
-    RenderSettings                        settings;
+/// Source-compatible name only.  Video planning now produces the canonical
+/// RenderJob and no longer owns a parallel orchestration structure.
+using VideoJobPlan = chronon3d::RenderJob;
 
-    OutputOptions                         output;
-    EncoderOptions                        encoder;
-    PipeOptions                           pipe;
-    RenderWarmupOptions                   warmup;
-    SinkOptions                           sink;
-
-    Frame start{0};
-    Frame end_exclusive{0};
-
-    chronon3d::CpuBudget cpu_budget;
-
-    bool dry_run{false};
-};
-
-/// Phase 1 — Plan.
-/// Resolve the composition, build sub-option structs (OutputOptions,
-/// EncoderOptions, etc.) from VideoArgs,
-/// handle end-inclusive-to-exclusive conversion.
-/// Returns std::nullopt on resolution failure.
-[[nodiscard]] std::optional<VideoJobPlan> plan_video_job(
+/// Convert the legacy `video` command arguments into RenderMode::Video.
+[[nodiscard]] std::optional<RenderJob> make_video_render_job(
     const CompositionRegistry& registry,
     const VideoArgs& args);
 
-/// Phase 2 — Validate.
-/// Check output path, ffmpeg availability, frame range, ffmpeg-mode,
-/// encoder-backend compatibility, and exporter existence.
-/// Returns true if the plan is ready to execute.
-[[nodiscard]] bool validate_video_job(const VideoJobPlan& plan);
+/// One-release compatibility name.
+[[nodiscard]] std::optional<RenderJob> plan_video_job(
+    const CompositionRegistry& registry,
+    const VideoArgs& args);
 
-/// Phase 3 — Dry-run.
-/// Log all plan details and attempt a single-frame render to catch errors
-/// early without performing the full export.
-/// Returns 0 on success, non-zero on error.
-[[nodiscard]] int dry_run_video_job(const VideoJobPlan& plan);
+[[nodiscard]] bool validate_video_job(const RenderJob& job);
+[[nodiscard]] int dry_run_video_job(const RenderJob& job);
+[[nodiscard]] int execute_video_job(const RenderJob& job);
 
-/// Phase 4 — Execute.
-/// Validate, install signal handlers, dispatch to the exporter pipeline.
-/// Returns 0 on success, non-zero on error.
-[[nodiscard]] int execute_video_job(const VideoJobPlan& plan);
-
-// ── Legacy entry point (kept for command_video_camera) ──────────────────────
-
-/// Shared render + encode dispatch used by both the job executor and
-/// the video-camera command (which builds its own composition on the fly).
-/// Validates internally as a safety net for direct callers (e.g.
-/// command_video_camera) that bypass validate_video_job().
+/// Shared render + encode dispatch retained for command_video_camera, which
+/// constructs an ad-hoc composition rather than a registry RenderJob.
 [[nodiscard]] int render_and_encode_ffmpeg(
     const CompositionRegistry& registry,
     const Composition& comp,
