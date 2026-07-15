@@ -1,5 +1,9 @@
 ## 2026-07-15
 
+### `docs(stubs): phase 3 sequence-spec stub done-by-existing`
+  ([TICKET-PHASE3-SEQUENCE-PAIRS-EDGE-FIELDS](docs/tickets/TICKET-PHASE3-SEQUENCE-PAIRS-EDGE-FIELDS.md))
+Cat-5 2-doc chaser-chore: stub Phase 3 chiuso per SUPERSEDED-BY-EXISTING upstream. Zero sourcecode. Cronaca canonical ticket-home.
+
 ### `docs(stash): correct rot-pattern findings on 7a0ad484 (cat-5 chaser)`
   ([TICKET-COMPOSITION-INPUT-PHASE-1C-1D-STASH-DROP](docs/tickets/TICKET-COMPOSITION-INPUT-PHASE-1C-1D-STASH-DROP.md))
 Cat-5 3-doc chaser-chore: rot-pattern fix on `7a0ad484`. Zero sourcecode modification. Cronaca nel canonical ticket-home.
