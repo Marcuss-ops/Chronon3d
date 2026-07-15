@@ -5,6 +5,8 @@
 #include <chronon3d/backends/software/runtime_adapter.hpp>  // Fase A2 — attach_software_backend factory
 #include <chronon3d/runtime/render_runtime.hpp>
 
+#include "../common/render_error_formatter.hpp"
+
 // Audit §10 — `<filesystem>` include was REMOVED (the unconditional
 // `cwd = current_path()` mount line that consumed `std::filesystem`
 // was deleted).  If a future caller re-introduces an EXPLICIT
@@ -26,7 +28,13 @@ ResolvedComposition resolve_composition(const CompositionRegistry& registry,
     ResolvedComposition result;
 
     if (!registry.contains(comp_id)) {
-        spdlog::error("Unknown composition: {}", comp_id);
+        print_render_error(
+            graph::NodeExecutionError{
+                graph::RenderBackendErrorCode::InvalidInput,
+                "composition_registry",
+                "unknown composition '" + comp_id + "'"
+            },
+            comp_id);
         return result;
     }
 
@@ -34,7 +42,13 @@ ResolvedComposition resolve_composition(const CompositionRegistry& registry,
         auto comp_instance = registry.create(comp_id, props);
         result.comp = std::make_shared<Composition>(std::move(comp_instance));
     } catch (const std::exception& e) {
-        spdlog::error("Could not create composition '{}': {}", comp_id, e.what());
+        print_render_error(
+            graph::NodeExecutionError{
+                graph::RenderBackendErrorCode::InvalidInput,
+                "composition_registry",
+                "could not create composition '" + comp_id + "': " + e.what()
+            },
+            comp_id);
     }
     return result;
 }
