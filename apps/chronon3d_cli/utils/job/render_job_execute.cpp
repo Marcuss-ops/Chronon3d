@@ -35,13 +35,15 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
         if (!job.selected_frames.empty()) {
             return RenderJobError{
                 RenderJobErrorCode::InvalidJob,
-                "Video RenderJob cannot use non-contiguous selected_frames"};
+                "InvalidRange: video RenderJob cannot use non-contiguous selected_frames"};
         }
 #ifdef CHRONON3D_HAS_CLI_VIDEO_EXPORT
         if (!validate_video_job(job)) {
             return RenderJobError{
                 RenderJobErrorCode::ValidationFailed,
-                "Video RenderJob validation failed for '" + job.comp_id + "'"};
+                "EncoderFailed: video export validation failed for composition '" +
+                    job.comp_id + "' using codec '" + job.video_settings.codec +
+                    "' output '" + job.output + "'"};
         }
 
         int rc = 0;
@@ -67,7 +69,9 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
         if (rc != 0) {
             return RenderJobError{
                 RenderJobErrorCode::RenderFailed,
-                "Video render failed for composition '" + job.comp_id + "'"};
+                "EncoderFailed: video encoder failed for composition '" +
+                    job.comp_id + "' using codec '" + job.video_settings.codec +
+                    "' output '" + job.output + "'"};
         }
 
         const int frames = static_cast<int>(
