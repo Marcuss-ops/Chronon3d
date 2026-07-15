@@ -19,6 +19,7 @@
 | Benchmark corpus | P1 | OPEN | `TICKET-BENCHMARK-CORPUS-OFFICIAL` + `TICKET-P1E-CPU-BUDGET-MEASUREMENT` + `TICKET-BENCH-CORPUS-TEST-DEFERRED`: 12 scene YAML B00-B11, misurazione CPU budget e test differito. | [corpus](tickets/TICKET-BENCHMARK-CORPUS-OFFICIAL.md) · [cpu-budget](tickets/TICKET-P1E-CPU-BUDGET-MEASUREMENT.md) · [bench-deferred](tickets/TICKET-BENCH-CORPUS-TEST-DEFERRED.md) |
 | Cache rot | P2 | OPEN | `TICKET-NODE-CACHE-KEY-COLLAPSE-ROT`: NodeCacheKey build rot. La chiusura del legacy executor è completata e protetta dal gate anti-regressione. | [node-cache](tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |
 | Tools / lint debt | P2 | OPEN | `TICKET-TOOLS-ORPHAN-AUDIT`: audit script orfani e tightening regex Gate #25. | [tools-audit](tickets/TICKET-TOOLS-ORPHAN-AUDIT.md) |
+| Sub-chore (g) migration ★ user-auth §honest-violation | P2 | RETRACTED* | `TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-MIGRATION` *(§honest-violation user-auth 2026-07-15): RETRACTED in d0f5c4f8 premisediscovery; user explicitly authorized this Open Blocker row via ask_user Q1 option C. Cat-3 anti-dup DISCLOSED + AGENTS.md `### Docs canonical update discipline rule` exception. Replacement canonical OPEN forward-point TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-DELETION tracked in `Text API migration` P1 row.* | [migration](tickets/TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-MIGRATION.md) |
 
 ---
 
