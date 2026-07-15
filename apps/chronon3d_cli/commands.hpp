@@ -194,6 +194,14 @@ struct ExamplePropsArgs {
     bool json{true};
 };
 
+// Phase 1d / Increment E
+struct ValidateArgs {
+    std::string comp_id;
+    std::string props_file;     // reuses canonical load_props_file()
+    std::string props_json;     // inline JSON object (TU-local parse helper)
+    bool json{true};
+};
+
 int command_list(const CompositionRegistry& registry);
 int command_daemon(const CompositionRegistry& registry,
                    const std::string& assets_root = "",
@@ -222,6 +230,9 @@ int command_schema(const CompositionRegistry& registry, const SchemaArgs& args);
 
 // Phase 1d / Increment D — `chronon example-props <comp_id>`, default ValueMap JSON.
 int command_example_props(const CompositionRegistry& registry, const ExamplePropsArgs& args);
+
+// Phase 1d / Increment E — `chronon validate <comp_id>`, decode+validate gate.
+int command_validate(const CompositionRegistry& registry, const ValidateArgs& args);
 
 } // namespace cli
 
