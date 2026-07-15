@@ -81,19 +81,20 @@ CANONICAL_HEADER="apps/chronon3d_cli/utils/job/render_job.hpp"
 CANONICAL_EXECUTOR="apps/chronon3d_cli/utils/job/render_job_execute.cpp"
 CANONICAL_REGISTRATION="apps/chronon3d_cli/command_registry.cpp"
 
-if ! grep -qE 'make_render_job[[:space:]]*\(' "$CANONICAL_HEADER"; then
+# Flatten files to make canonical signature checks robust to clang-format line breaks.
+if ! tr '\n' ' ' < "$CANONICAL_HEADER" | grep -qE 'make_render_job[[:space:]]*\('; then
     VIOLATIONS+=("canonical make_render_job declaration missing")
     echo "  [FAIL] canonical make_render_job declaration missing"
 fi
-if ! grep -qE 'execute_render_job[[:space:]]*\(const RenderJob&' "$CANONICAL_HEADER"; then
+if ! tr '\n' ' ' < "$CANONICAL_HEADER" | grep -qE 'execute_render_job[[:space:]]*\([[:space:]]*const RenderJob&'; then
     VIOLATIONS+=("canonical immutable executor declaration missing")
     echo "  [FAIL] canonical execute_render_job(const RenderJob&) declaration missing"
 fi
-if ! grep -qE 'execute_render_job[[:space:]]*\(const RenderJob&' "$CANONICAL_EXECUTOR"; then
+if ! tr '\n' ' ' < "$CANONICAL_EXECUTOR" | grep -qE 'execute_render_job[[:space:]]*\([[:space:]]*const RenderJob&'; then
     VIOLATIONS+=("canonical immutable executor definition missing")
     echo "  [FAIL] canonical execute_render_job(const RenderJob&) definition missing"
 fi
-if ! grep -qE 'register_render_commands[[:space:]]*\(' "$CANONICAL_REGISTRATION"; then
+if ! tr '\n' ' ' < "$CANONICAL_REGISTRATION" | grep -qE 'register_render_commands[[:space:]]*\('; then
     VIOLATIONS+=("canonical render command registration missing")
     echo "  [FAIL] canonical render command registration missing"
 fi
