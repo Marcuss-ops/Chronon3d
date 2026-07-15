@@ -10,6 +10,7 @@
 #include <fmt/ranges.h>
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -55,9 +56,7 @@ bool compose_contact_sheet(const std::vector<std::string>& png_paths,
                            const std::string& output_path,
                            int cell_width,
                            int cell_padding) {
-    if (png_paths.empty()) {
-        return false;
-    }
+    if (png_paths.empty()) return false;
 
     std::vector<std::shared_ptr<Framebuffer>> frames;
     frames.reserve(png_paths.size());
@@ -70,10 +69,7 @@ bool compose_contact_sheet(const std::vector<std::string>& png_paths,
         }
         frames.push_back(std::move(framebuffer));
     }
-
-    if (frames.empty()) {
-        return false;
-    }
+    if (frames.empty()) return false;
 
     const int count = static_cast<int>(frames.size());
     const int columns = static_cast<int>(
@@ -82,13 +78,12 @@ bool compose_contact_sheet(const std::vector<std::string>& png_paths,
         std::ceil(static_cast<double>(count) / columns));
     const int cell_height = frames.front()->height();
     const int actual_cell_width = frames.front()->width();
-
     const int width = columns * actual_cell_width +
                       (columns + 1) * cell_padding;
     const int height = rows * cell_height + (rows + 1) * cell_padding;
+
     auto sheet = std::make_shared<Framebuffer>(width, height);
     sheet->clear(Color{0.0f, 0.0f, 0.0f, 1.0f});
-
     for (int index = 0; index < count; ++index) {
         const int column = index % columns;
         const int row = index / columns;
@@ -108,7 +103,7 @@ void register_preview_commands(CLI::App& app, CliContext& ctx) {
 
     auto* command = app.add_subcommand(
         "preview",
-        "Render selected frames through the canonical RenderJob executor");
+        "Render selected frames through one canonical RenderJob session");
     command->add_option("<comp_id>", args.comp_id, "Composition to render")
         ->required();
     command->add_option("--frames", args.frames,
@@ -145,55 +140,58 @@ void register_preview_commands(CLI::App& app, CliContext& ctx) {
             return;
         }
 
-        spdlog::info("Preview {} frames [{}]", preview.comp_id,
-                     fmt::join(frames, ","));
+        RenderArgs render_args;
+        render_args.comp_id = preview.comp_id;
+        render_args.frames = std::to_string(frames.front());
+        render_args.output =
+            (preview.output_dir / "frame_####.png").string();
+        render_args.pipeline = preview.pipeline;
+        render_args.log_level = preview.log_level;
+        render_args.cpu_budget = ctx.cpu_budget;
+        render_args.command_line = ctx.command_line;
 
-        int rendered = 0;
-        int failed = 0;
-        std::vector<std::string> rendered_paths;
-        const auto started = std::chrono::steady_clock::now();
-
-        for (const int frame : frames) {
-            RenderArgs render_args;
-            render_args.comp_id = preview.comp_id;
-            render_args.frames = std::to_string(frame);
-            render_args.output = (preview.output_dir /
-                fmt::format("frame_{}.png", frame_suffix(frame))).string();
-            render_args.pipeline = preview.pipeline;
-            render_args.log_level = preview.log_level;
-            render_args.cpu_budget = ctx.cpu_budget;
-            render_args.command_line = ctx.command_line;
-
-            const auto frame_started = std::chrono::steady_clock::now();
-            auto job = make_render_job(ctx.registry, render_args);
-            if (!job) {
-                spdlog::error("preview: cannot build RenderJob for frame {}", frame);
-                ++failed;
-                continue;
-            }
-
-            auto result = execute_render_job(*job);
-            if (!result) {
-                spdlog::error("preview: frame {} failed: {}",
-                              frame, result.error().message);
-                ++failed;
-                continue;
-            }
-
-            const double elapsed_ms = std::chrono::duration<double, std::milli>(
-                std::chrono::steady_clock::now() - frame_started).count();
-            spdlog::info("frame {} -> {} ({:.1f} ms)",
-                         frame, result->output, elapsed_ms);
-            rendered_paths.push_back(result->output);
-            ++rendered;
+        auto job = make_render_job(ctx.registry, render_args);
+        if (!job) {
+            spdlog::error("preview: cannot build RenderJob for '{}'",
+                          preview.comp_id);
+            ctx.exit_code = 1;
+            return;
         }
 
+        job->mode = RenderMode::Sequence;
+        job->selected_frames.reserve(frames.size());
+        for (const int frame : frames) {
+            job->selected_frames.emplace_back(frame);
+        }
+        const auto [min_frame, max_frame] = std::minmax_element(
+            frames.begin(), frames.end());
+        job->first_frame = Frame{*min_frame};
+        job->last_frame = Frame{*max_frame};
+
+        spdlog::info("Preview {} frames [{}] in one renderer session",
+                     preview.comp_id, fmt::join(frames, ","));
+        const auto started = std::chrono::steady_clock::now();
+        auto result = execute_render_job(*job);
         const double total_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - started).count();
-        spdlog::info("Preview complete: {}/{} frames in {:.1f} ms",
-                     rendered, frames.size(), total_ms);
 
-        if (!preview.contact_sheet.empty() && !rendered_paths.empty()) {
+        if (!result) {
+            spdlog::error("preview failed: {}", result.error().message);
+            ctx.exit_code = 1;
+            return;
+        }
+
+        spdlog::info("Preview complete: {} frame(s) in {:.1f} ms",
+                     result->frames_written, total_ms);
+
+        if (!preview.contact_sheet.empty()) {
+            std::vector<std::string> rendered_paths;
+            rendered_paths.reserve(frames.size());
+            for (const int frame : frames) {
+                rendered_paths.push_back(
+                    (preview.output_dir /
+                     fmt::format("frame_{}.png", frame_suffix(frame))).string());
+            }
             if (!compose_contact_sheet(rendered_paths, preview.contact_sheet,
                                        preview.cell_width,
                                        preview.cell_padding)) {
@@ -201,7 +199,7 @@ void register_preview_commands(CLI::App& app, CliContext& ctx) {
             }
         }
 
-        ctx.exit_code = failed == 0 ? 0 : 1;
+        ctx.exit_code = 0;
     });
 }
 
