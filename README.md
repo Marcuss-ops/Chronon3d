@@ -24,8 +24,8 @@ bash tools/chronon-linux.sh
   render BackgroundGrid -o output/background_grid.mp4
 ```
 
-`render` è il comando canonico. Gli alias `still` e `video` sono deprecati e
-restano temporaneamente disponibili come adapter verso lo stesso `RenderJob`.
+`render` è l’unico comando canonico per still, sequence e video. I precedenti
+comandi separati `still` e `video` sono stati rimossi.
 
 Build incrementali: [`docs/FAST_BUILD.md`](docs/FAST_BUILD.md).
 
