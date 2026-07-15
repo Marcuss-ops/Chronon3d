@@ -1,5 +1,8 @@
 ## 2026-07-14
 
+### `chore(text): open Blocco 5.2 centered-text bulk migration ticket` ([TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION](docs/tickets/TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION.md))
+NEW ticket-home per per-AREA bulk migration di 100+ callers centered_text/glow_text → TextDefinition canonical (Blocco 5.2 execution rollout). 7+1 sub-chori forward-points + helper removal final. Cat-3 minimal-surface per sub-chore.
+
 ### `chore(check): open Gate #25 regex-improvement forward-point ticket` ([TICKET-CHECK-NO-DUAL-TEXT-API-REGEX-IMPROVEMENT](docs/tickets/TICKET-CHECK-NO-DUAL-TEXT-API-REGEX-IMPROVEMENT.md))
 Open forward-point P2 per Gate #25 [3/4] regex tightening (20 false-positive `.position` callsites). Cat-5 3-doc. Cronaca estesa nel canonical ticket-home.
 
