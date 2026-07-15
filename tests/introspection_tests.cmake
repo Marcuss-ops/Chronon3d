@@ -17,7 +17,10 @@ chronon3d_add_test_suite(
     NAME chronon3d_introspection_tests
     TIER UNIT
     LINK_TARGETS chronon3d_cli_dev
-    SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/cli/test_schema_command.cpp
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/cli/test_schema_command.cpp
+        # Phase 1d / Increment D
+        ${CMAKE_CURRENT_SOURCE_DIR}/cli/test_example_props_command.cpp
 )
 
 # Wire into the FAST test aggregator (no rendering backend required).
