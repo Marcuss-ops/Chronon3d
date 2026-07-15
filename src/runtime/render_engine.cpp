@@ -38,7 +38,6 @@
 
 #include <spdlog/spdlog.h>
 
-#include <atomic>
 #include <optional>
 #include <utility>
 
@@ -181,9 +180,7 @@ std::shared_ptr<Framebuffer> RenderEngine::render(
 
 std::shared_ptr<const graph::NodeExecutionError>
 RenderEngine::last_render_error() const noexcept {
-    return std::atomic_load_explicit(
-        &m_impl->m_renderer->session().last_frame_error,
-        std::memory_order_acquire);
+    return m_impl->m_renderer->session().last_frame_error();
 }
 
 // ── Backend injection ─────────────────────────────────────────────────────
