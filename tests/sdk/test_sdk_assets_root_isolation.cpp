@@ -7,6 +7,7 @@
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/sdk/render_engine.hpp>
+#include <chronon3d/sdk/render_error.hpp>
 #include <chronon3d/sdk/render_output.hpp>
 #include <chronon3d/sdk/render_settings.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -183,14 +184,12 @@ TEST_CASE("SDK asset roots remain isolated between RenderEngine instances") {
         CHECK(pixel_b.g > 200);
         CHECK(pixel_b.r < 40);
 
-        // Rendering through B must not mutate A's resolver or cache identity.
         auto result_a_again = engine_a.render(composition, c3d::sdk::Frame{0});
         REQUIRE(result_a_again.has_value());
         const Rgb8 pixel_a_again = pixel_at(result_a_again.value(), 20, 20);
         CHECK(pixel_a_again.r > 200);
         CHECK(pixel_a_again.g < 40);
 
-        // The same logical font path resolves independently and ignores CWD.
         c3d::assets::AssetResolver resolver_a;
         c3d::assets::AssetResolver resolver_b;
         resolver_a.mount(root_a);
@@ -207,6 +206,37 @@ TEST_CASE("SDK asset roots remain isolated between RenderEngine instances") {
     remove_test_root(test_root);
 }
 
+TEST_CASE("SDK render fails loud when a logical image is absent from its root") {
+    const fs::path test_root = unique_test_root();
+    const fs::path empty_root = fs::absolute(test_root / "empty-root");
+    const fs::path unrelated_cwd = fs::absolute(test_root / "cwd");
+    fs::create_directories(empty_root);
+
+    // Deliberately place a valid same-name image in CWD. The runtime must not
+    // discover it because only the engine-local resolver mount is authoritative.
+    REQUIRE(write_solid_png(
+        unrelated_cwd / "fixture.png",
+        c3d::Color{0.0f, 0.0f, 1.0f, 1.0f}));
+
+    {
+        CwdGuard cwd_guard;
+        fs::current_path(unrelated_cwd);
+
+        c3d::sdk::RenderEngine engine{deterministic_settings()};
+        engine.set_assets_root(empty_root);
+        const auto result = engine.render(
+            make_image_composition(), c3d::sdk::Frame{0});
+
+        REQUIRE_FALSE(result.has_value());
+        CHECK(result.error().code == c3d::sdk::RenderErrorCode::RuntimeFailure);
+        CHECK_FALSE(result.error().message.empty());
+
+        cwd_guard.restore();
+    }
+
+    remove_test_root(test_root);
+}
+
 TEST_CASE("AssetResolver fails closed for missing relative assets") {
     const fs::path test_root = unique_test_root();
     const fs::path empty_root = fs::absolute(test_root / "empty-root");
@@ -214,7 +244,6 @@ TEST_CASE("AssetResolver fails closed for missing relative assets") {
     fs::create_directories(empty_root);
     fs::create_directories(unrelated_cwd / "fonts");
 
-    // A file with the requested name exists in CWD. It must not be used.
     {
         std::ofstream accidental(unrelated_cwd / "fonts" / "Inter.ttf");
         REQUIRE(accidental.good());
