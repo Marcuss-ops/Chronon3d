@@ -128,9 +128,6 @@ std::optional<RenderRequest> make_render_request(
         request.mode = RenderMode::Video;
         request.first_frame = Frame{range.start};
         request.last_frame = Frame{range.end};
-
-        // Video uses the same renderer/session warmup policy as the historical
-        // video path, now represented on the shared execution options.
         request.execution.warmup_renderer = true;
         request.execution.warmup_dummy_frame = true;
     } else if (range.start == range.end) {
@@ -156,17 +153,18 @@ std::optional<RenderRequest> make_render_request(
 Result<RenderJob, RenderJobError> resolve_render_request(
     const CompositionRegistry& registry,
     RenderRequest request) {
-    auto resolved = registry.resolve(request.comp_id, request.input);
+    const std::string composition_id = request.comp_id;
+    auto resolved = registry.resolve(composition_id, request.input);
     if (!resolved) {
         return RenderJobError{
             RenderJobErrorCode::ValidationFailed,
-            "Failed to resolve composition '" + request.comp_id +
+            "Failed to resolve composition '" + composition_id +
                 "': " + resolved.error().message};
     }
     if (!resolved->construct) {
         return RenderJobError{
             RenderJobErrorCode::InvalidJob,
-            "Composition '" + request.comp_id +
+            "Composition '" + composition_id +
                 "' has no prepared constructor"};
     }
 
@@ -209,7 +207,7 @@ Result<RenderJob, RenderJobError> resolve_render_request(
     } catch (const std::exception& error) {
         return RenderJobError{
             RenderJobErrorCode::SetupFailed,
-            "Composition construction failed for '" + request.comp_id +
+            "Composition construction failed for '" + composition_id +
                 "': " + error.what()};
     }
 }
