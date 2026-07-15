@@ -10,8 +10,10 @@
 #include <chronon3d/timeline/composition_descriptor.hpp>
 #include <chronon3d/timeline/composition_props.hpp>
 
+#include <exception>
 #include <optional>
 #include <string>
+#include <utility>
 
 using namespace chronon3d;
 
