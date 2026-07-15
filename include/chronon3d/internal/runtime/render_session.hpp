@@ -56,10 +56,12 @@
 // ===========================================================================
 
 #include <memory>
+#include <optional>
 
 // Engine-generic field includes (acceptable from runtime/).
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/math/renderer_state.hpp>
+#include <chronon3d/render_graph/render_backend.hpp>
 // WP-3 PR 3.1 — full type includes required by per-session-owned members.
 // The previous WP-8 forward-declaring design (TICKET-013 boundary invariant)
 // is intentionally lifted here because pr 3.1 requires per-session
@@ -124,11 +126,18 @@ struct RenderSession {
     // is 64 MiB, tunable via Config post-baseline.
     TextLayoutCache layout_cache;
 
+    // Canonical structured error channel for the most recent frame.
+    // GraphExecutor writes the existing NodeExecutionError here before
+    // returning nullptr; CLI/daemon consumers only format this value and
+    // do not invent a parallel error hierarchy.
+    std::optional<chronon3d::graph::NodeExecutionError> last_frame_error;
+
     /// Per-frame reset: telemetry counters zeroed; `previous_layers`
     /// preserved (the per-layer diff source-of-truth must survive across
     /// per-frame boundaries for the dirty-rect diff to work).
     void reset_frame_temporaries() {
         dirty_telemetry.reset_telemetry_counters();
+        last_frame_error.reset();
     }
 
     // WP-3 PR 3.1 — per-session owned; accessors return local references
