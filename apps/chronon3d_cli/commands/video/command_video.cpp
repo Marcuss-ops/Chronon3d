@@ -4,11 +4,16 @@
 #include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
+#include <cstdio>
+
 namespace chronon3d::cli {
 
 int command_video(const CompositionRegistry& registry, const VideoArgs& args) {
-    fmt::print(stderr, "Deprecated: use chronon render {} -o {}.mp4\n",
-               args.comp_id, args.comp_id);
+    const std::string replacement_output = args.output.empty()
+        ? args.comp_id + ".mp4"
+        : args.output;
+    fmt::print(stderr, "Deprecated: use chronon render {} -o {}\n",
+               args.comp_id, replacement_output);
 
     auto job = make_video_render_job(registry, args);
     if (!job) {
