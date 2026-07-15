@@ -2,13 +2,37 @@
 
 | ID            | TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-MIGRATION                                                                                                                  |
 |---------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Status        | **OPEN** (P2, future chore — byte-equivalence regression lock preservation obbligatorio)                                                                            |
+| Status        | **RETRACTED** (2026-07-15, this-session discovery — premise failures; replaced by [TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-DELETION](TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-DELETION.md)) |
 | Parent        | [TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-NON-VACUOUS-AUDIT](TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-NON-VACUOUS-AUDIT.md) (audit chaser-ticket-home, this catena) |
 | Asset class   | source code refactor (cat-3 minimal-surface test file migration, Chore B precedent)                                                                              |
 | Scope         | 25 callers mapped from `centered_text(CenterTextOptions)` + `glow_text(...)` → `TextDefinition{}` direct construction in `tests/text/test_text_simplicity_adapters.cpp` |
 | Surface       | `tests/text/test_text_simplicity_adapters.cpp` (665 LoC, 18 code-only `centered_text(` callers + 7 code-only `glow_text(` callers)                            |
 
-## Stato: OPEN (forward-point registered from audit chaser-ticket; future-chore execution)
+## §Status: RETRACTED (2026-07-15, this-session)
+
+**RETRACTION REASON**: premise failures discovered during execution attempt. See §Honest-discovery rot-detection below. **Replacement forward-point**: `TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-DELETION` (test-deletion post Phase 3 helper-removal, NOT naive source-code migration).
+
+## §Honest-discovery rot-detection (2026-07-15, this-session)
+
+Discovery methodology: basher rg scan + content read + `thinker-with-files-gemini` analysis. Premise failures surfaced:
+
+- **Premise 1 — test purpose inversion**: `tests/text/test_text_simplicity_adapters.cpp` is M1.8 §6 file whose purpose (per its own header) is to test the DEPRECATION BRIDGE (i.e., that deprecated API still compiles, emits warnings, and new API produces byte-equivalent output). Migrating the file's calls from legacy to canonical inverts test intent (vacuous circular: `TextDefinition` vs `TextDefinition` with no legacy API validation).
+- **Premise 2 — byte-equivalence scope mismatch**: `kRefVR*` sentinel hashes reside in `tests/deterministic/test_visual_regression_scenarios.cpp` (the (f) sibling migration ticket scope `TICKET-CENTERED-TEXT-TESTS-DETERMINISTIC-AREA-MIGRATION`), NOT in this ticket's target file. Byte-equivalence tests IN target file (tests/text/test_text_simplicity_adapters.cpp §5-7) use `test::framebuffer_hash(*fb)` (Blend2D-gated), NOT `kRefVR*`.
+- **Premise 3 — cross-file scope mismatch**: 78 callers exist across `tests/` (24+16 in `test_text_definition.cpp`, 9 in `test_visual_regression_scenarios.cpp`, 18+7 in target file, 2 in `test_text_preset_subtitle.cpp`, 1 in `test_text_golden.cpp`, 1 in `text_visual_fixture.hpp`). The 1-file ticket scope directly contradicts the macchina-verifica criterion `rg 'tests/' = 0`. Adherence to macchina-verifica would require migration of 78 callers across 6 files (violates §Fare PR piccole e mirate).
+- **Premise 4 — local verification gap**: `ctest -R test_text_simplicity_adapters` and `ctest -R VisualRegression` are DEFERRED-WBH per VPS vcpkg glm/magic_enum env-block. Cannot empirically verify the CRITICAL byte-equivalence claim. §honest-discipline violation if I claim migration successful without empirical verification.
+- **Premise 5 — test_text_health.cpp false-premise**: rg confirmed ZERO `centered_text(` / `glow_text(` references in `tests/text/test_text_health.cpp`. The user request to "update test_text_health.cpp for deprecation-warning contract migration" operates on a false premise — no deprecation-warning contract with the legacy API exists in that file.
+
+## Thinker verdict (`thinker-with-files-gemini`, this-session)
+
+> Per cat-3 minimal-surface + delete-test-circolari principle + §honest-discipline: sub-chore (g) MUST BE REINTERPRETED AS TEST-DELETION post Phase 3 helper-removal, NOT source-code migration. The M1.8 §6 file's purpose is to validate the deprecation bridge; after Phase 3 (`centered_text()` + `glow_text()` + `CenterTextOptions` removed from headers per `TICKET-CENTERED-TEXT-HELPER-REMOVAL-FINAL-VACUOUS-VERIFY`), the deprecation-bridge tests have NO PURPOSE. They become vacuous circular tests (`TextDefinition` vs `TextDefinition` with no legacy traffic). Correct action: schedule the entire M1.8 §6 file for deletion in lockstep with Phase 3 helper-removal.
+
+## §Replacement forward-point
+
+[TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-DELETION](TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-DELETION.md) replaces this retracted ticket as the canonical sub-chore (g) execution-target.
+
+## Original cronaca (preserved as historical crona)
+
+Original-broken-premises content below retained for audit trail per AGENTS.md §Lint documentale "Cronaca estesa lives in canonical ticket-home". The dominant crona-style-corrective forward-point is the linked replacement ticket above. Cat-3 anti-dup: replacement ticket is the canonical exec-home, this file is the rot-discovery audit-record only.
 
 ## Problema
 
