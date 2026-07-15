@@ -108,6 +108,8 @@ Questo orchestratore (definito a `tools/verify_chronon_product_linux.sh`, ~306 L
 
 L'output richiesto è **`CHRONON_PRODUCT_FUNCTIONAL_PASS`** (exit 0). Stato corrente osservato: **`CHRONON_PRODUCT_FUNCTIONAL_BLOCKED`** (exit 2) — 14/14 sub-gate eseguibili PASS + 1 forward-pointed. Dettaglio completo: [`docs/baselines/main-ef9c83f1-baseline.md`](docs/baselines/main-ef9c83f1-baseline.md). Conversion a PASS richiede l'implementazione del 15mo gate (`TICKET-VERIFY-DIAGNOSTICS-LINUX` + `TICKET-VERIFY-DIAGNOSTICS-ORCHESTRATOR-WIREIN`).
 
+**HEAD corrente non è certificato**: le run GitHub Actions sui commit recenti mostrano multipli gate in fallimento (core-build, sdk-build, architecture-check, install-consumer, full-validation, Linux/Windows). Vedi [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) per lo stato aggiornato.
+
 ## Criterio di chiusura
 
 Un lavoro è chiuso soltanto quando:
