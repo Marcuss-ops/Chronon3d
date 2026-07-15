@@ -33,12 +33,6 @@ namespace chronon3d::authoring {
 class Layer;
 namespace testing { class TextRunBuilderInspector; }
 
-#ifdef CHRONON3D_BUILD_TESTS
-// Temporary compatibility for the remaining authoring test fixtures. Production
-// builds expose CanvasInfo as the sole placement context.
-using FrameContext [[deprecated("Use chronon3d::CanvasInfo")]] = chronon3d::CanvasInfo;
-#endif
-
 class Text {
 public:
 #include <chronon3d/authoring/detail/text_content_font.hpp>
