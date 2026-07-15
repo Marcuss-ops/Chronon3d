@@ -1,5 +1,8 @@
 ## 2026-07-14
 
+### `chore(text): audit sub-chore (f) Blocco 5.2 — non-vacuous` ([TICKET-CENTERED-TEXT-TESTS-DETERMINISTIC-AREA-NON-VACUOUS-AUDIT](docs/tickets/TICKET-CENTERED-TEXT-TESTS-DETERMINISTIC-AREA-NON-VACUOUS-AUDIT.md))
+Cat-5 3-doc audit: 9 rg matches (8 code-only + 1 comment) in test_visual_regression_scenarios.cpp + 2nd file FILE_NOT_FOUND. NON-VACUOUS (diverges from catena (c)/(d)/(e)/(i) all vacuous). ZERO source. Migration forward-pointed. Cronaca canonical.
+
 ### `chore(text): cleanup sub-chore (e) Blocco 5.2 per reviewer findings` ([TICKET-CENTERED-TEXT-OTHER-AREA-VACUOUS-VERIFY](docs/tickets/TICKET-CENTERED-TEXT-OTHER-AREA-VACUOUS-VERIFY.md))
 2nd cleanup chaser-chore: 4 riders applied (rider-1 per-file walkthrough, rider-2 char-fence, rider-3 (e)vs(d) disambig, rider-4 hygiene forward-point). Cat-5 3-doc, ZERO source. Cronaca in canonical ticket-home.
 
