@@ -19,6 +19,13 @@ using chronon3d::assets::FontRef;
 using chronon3d::assets::ImageRef;
 using chronon3d::authoring::asset;
 
+namespace {
+
+template <typename T>
+concept HasIntrinsicAssetKind = requires { T::kind; };
+
+} // namespace
+
 TEST_CASE("audit-§10: asset(path) carries only logical path metadata") {
     auto logical = asset("images/logo.png");
     CHECK(logical.path() == "images/logo.png");
@@ -68,7 +75,7 @@ TEST_CASE("audit-§10: logical asset converts to the consumer-requested kind") {
     namespace authoring = chronon3d::authoring;
 
     using LogicalAsset = decltype(asset("logical/path"));
-    static_assert(!requires { LogicalAsset::kind; },
+    static_assert(!HasIntrinsicAssetKind<LogicalAsset>,
                   "logical asset paths must not pretend to have an intrinsic kind");
     static_assert(std::is_convertible_v<LogicalAsset, ImageRef>);
     static_assert(std::is_convertible_v<LogicalAsset, FontRef>);
