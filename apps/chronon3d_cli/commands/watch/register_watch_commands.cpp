@@ -75,6 +75,10 @@ snapshot_mtimes(const std::vector<std::filesystem::path>& roots) {
     std::map<std::filesystem::path, std::filesystem::file_time_type> snapshot;
     for (const auto& root : roots) {
         std::error_code ec;
+        if (std::filesystem::is_regular_file(root, ec)) {
+            snapshot.emplace(root, std::filesystem::last_write_time(root, ec));
+            continue;
+        }
         if (!std::filesystem::is_directory(root, ec)) continue;
         for (std::filesystem::recursive_directory_iterator it(
                  root, std::filesystem::directory_options::skip_permission_denied, ec);
@@ -173,9 +177,12 @@ void register_watch_commands(CLI::App& app, CliContext& ctx) {
             return;
         }
 
-        std::vector<std::filesystem::path> watch_dirs = watch.watch_dirs;
-        if (watch_dirs.empty()) {
-            watch_dirs = {"src", "include", "apps"};
+        std::vector<std::filesystem::path> watch_paths = watch.watch_dirs;
+        if (watch_paths.empty()) {
+            watch_paths = {"src", "include", "apps"};
+        }
+        if (!watch.props_file.empty()) {
+            watch_paths.emplace_back(watch.props_file);
         }
 
         std::string build_command = watch.build_command;
@@ -192,15 +199,12 @@ void register_watch_commands(CLI::App& app, CliContext& ctx) {
 
         spdlog::info("👁  Chronon3D Watch — comp={} frame={} output={}",
                      watch.comp_id, watch.frame, watch.output.string());
-        spdlog::info("   watch dirs: [{}]", fmt::join(watch_dirs, ", "));
-        spdlog::info("   build:      {}", watch.no_build ? "(skipped)" : build_command);
-        spdlog::info("   binary:     {}", binary.string());
-        if (!watch.props_file.empty()) {
-            spdlog::info("   props:      {}", watch.props_file);
-        }
+        spdlog::info("   watch paths: [{}]", fmt::join(watch_paths, ", "));
+        spdlog::info("   build:       {}", watch.no_build ? "(skipped)" : build_command);
+        spdlog::info("   binary:      {}", binary.string());
         spdlog::info("   press Ctrl+C to stop");
 
-        auto previous = snapshot_mtimes(watch_dirs);
+        auto previous = snapshot_mtimes(watch_paths);
         spdlog::info("📸 Initial snapshot: {} files", previous.size());
         if (!watch.no_build && run_build(build_command) != 0) {
             ctx.exit_code = 1;
@@ -211,7 +215,7 @@ void register_watch_commands(CLI::App& app, CliContext& ctx) {
 
         while (true) {
             std::this_thread::sleep_for(std::chrono::milliseconds(watch.poll_ms));
-            auto current = snapshot_mtimes(watch_dirs);
+            auto current = snapshot_mtimes(watch_paths);
             if (!mtimes_changed(previous, current)) continue;
             spdlog::info("📝 Change detected ({} → {} files)",
                          previous.size(), current.size());
