@@ -1,29 +1,56 @@
-// ---------------------------------------------------------------------------
-// utils/video/video_job_execute.cpp — Phase 4: execute a validated VideoJobPlan
-// ---------------------------------------------------------------------------
-
 #include "video_job_plan.hpp"
 #include "../../commands/video/common/pipe_export_pipeline.hpp"
 #include "../../commands/video/common/video_export_common.hpp"
+
 #include <chronon3d/core/cancellation_token.hpp>
+
 #include <spdlog/spdlog.h>
 
 namespace chronon3d::cli {
 
-// ── Helper: assemble FfmpegExportOptions from focused sub-option structs ────
-// Single point where the legacy flat options struct is populated.
+namespace {
 
-[[nodiscard]] static FfmpegExportOptions make_ffmpeg_opts(const VideoJobPlan& plan) {
+[[nodiscard]] FfmpegExportOptions make_ffmpeg_opts(const RenderJob& job) {
+    OutputOptions output;
+    output.output = job.output;
+    output.frames_dir_name = job.video_settings.frames_dir;
+    output.fps = job.video_settings.fps;
+
+    EncoderOptions encoder;
+    encoder.codec = job.video_settings.codec;
+    encoder.hardware_encoder = job.video_settings.hardware_encoder;
+    encoder.encode_preset = job.video_settings.encode_preset;
+    encoder.tune = job.video_settings.tune;
+    encoder.crf = job.video_settings.crf;
+    encoder.encoder_backend = job.video_settings.encoder_backend;
+
+    PipeOptions pipe;
+    pipe.pipe_pixfmt = job.video_settings.pipe_pixfmt;
+    pipe.pipe_writer = job.video_settings.pipe_writer;
+    pipe.color_output = job.video_settings.color_output;
+    pipe.ffmpeg_verbose = job.video_settings.ffmpeg_verbose;
+
+    RenderWarmupOptions warmup;
+    warmup.warmup_renderer = job.execution.warmup_renderer;
+    warmup.warmup_framebuffers = job.execution.warmup_framebuffers;
+    warmup.warmup_dummy_frame = job.execution.warmup_dummy_frame;
+
+    SinkOptions sink;
+    sink.sink_type = VideoSinkType::Ffmpeg;
+    sink.ffmpeg_mode = job.video_settings.ffmpeg_mode;
+    sink.keep_frames = job.video_settings.keep_frames;
+    sink.chunks = job.video_settings.chunks;
+
     FfmpegExportOptions opts;
-    opts.output    = plan.output;
-    opts.encoder   = plan.encoder;
-    opts.pipe      = plan.pipe;
-    opts.warmup    = plan.warmup;
-    opts.sink      = plan.sink;
+    opts.output = std::move(output);
+    opts.encoder = std::move(encoder);
+    opts.pipe = std::move(pipe);
+    opts.warmup = std::move(warmup);
+    opts.sink = std::move(sink);
     return opts;
 }
 
-// ── Shared render + encode dispatch ─────────────────────────────────────────
+} // namespace
 
 int render_and_encode_ffmpeg(
     const CompositionRegistry& registry,
@@ -35,8 +62,6 @@ int render_and_encode_ffmpeg(
     const FfmpegExportOptions& opts,
     const chronon3d::CpuBudget& cpu_budget)
 {
-    // Safety-net validation for direct callers (e.g. command_video_camera)
-    // that bypass validate_video_job().
     if (opts.output.output.empty()) {
         spdlog::error("[video] No output path specified.");
         return 1;
@@ -50,16 +75,16 @@ int render_and_encode_ffmpeg(
         return 1;
     }
     if (opts.sink.ffmpeg_mode != "png" && opts.sink.ffmpeg_mode != "pipe") {
-        spdlog::error("[video] Unknown --ffmpeg-mode '{}'. Expected: png, pipe",
+        spdlog::error("[video] Unknown ffmpeg mode '{}'. Expected: png, pipe",
                       opts.sink.ffmpeg_mode);
         return 1;
     }
-    if (opts.encoder.encoder_backend == "native" && opts.sink.ffmpeg_mode != "pipe") {
-        spdlog::error("[video] --encoder-backend native requires --ffmpeg-mode pipe");
+    if (opts.encoder.encoder_backend == "native" &&
+        opts.sink.ffmpeg_mode != "pipe") {
+        spdlog::error("[video] Native encoder backend requires ffmpeg mode pipe");
         return 1;
     }
 
-    // Direct dispatch: pipe → render_and_encode_ffmpeg_pipe, png → chunked
     if (opts.sink.ffmpeg_mode == "pipe") {
         auto result = render_and_encode_ffmpeg_pipe(
             registry, comp, composition_id,
@@ -73,38 +98,29 @@ int render_and_encode_ffmpeg(
         return result.return_code;
     }
 
-    spdlog::error("[video] Unknown ffmpeg-mode '{}'. Expected one of: pipe, png",
-                  opts.sink.ffmpeg_mode);
     return 1;
 }
 
-// ── Phase 4 — Execute ───────────────────────────────────────────────────────
-
-int execute_video_job(const VideoJobPlan& plan) {
-    // Only FFmpeg sinks are supported (null-render/null-convert removed —
-    // use `bench` and `dev bench-convert` for benchmarking).
-    if (plan.sink.sink_type != VideoSinkType::Ffmpeg) {
-        spdlog::error("[video] Non-FFmpeg sink types not supported. Use 'bench' command for benchmarking.");
+int execute_video_job(const RenderJob& job) {
+    if (!validate_video_job(job)) {
         return 1;
     }
 
-    // ── FFmpeg path (pipe / png) ───────────────────────────────────────
-    auto opts = make_ffmpeg_opts(plan);
+    auto opts = make_ffmpeg_opts(job);
 
-    // ── Graceful cancellation (SIGINT/SIGTERM) ──
     chronon3d::CancellationToken cancel_token;
     install_signal_cancellation(cancel_token);
     opts.cancellation_token = &cancel_token;
 
     return render_and_encode_ffmpeg(
-        *plan.registry,
-        *plan.comp,
-        plan.comp_id,
-        plan.settings,
-        plan.start,
-        plan.end_exclusive,
+        *job.registry,
+        *job.comp,
+        job.comp_id,
+        job.settings,
+        job.first_frame,
+        job.last_frame + Frame{1},
         opts,
-        plan.cpu_budget);
+        job.execution.cpu_budget);
 }
 
 } // namespace chronon3d::cli
