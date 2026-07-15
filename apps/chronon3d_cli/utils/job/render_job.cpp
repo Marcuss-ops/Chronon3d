@@ -1,4 +1,5 @@
 #include "render_job.hpp"
+#include "../common/render_error_formatter.hpp"
 
 #include <spdlog/spdlog.h>
 
@@ -59,7 +60,20 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
 std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
                                          const RenderArgs& args,
                                          const CompositionProps& props) {
-    const auto range = parse_frames(args.frames);
+    const auto parsed_range = parse_frames_safe(args.frames);
+    if (!parsed_range.ok) {
+        print_render_error(
+            graph::NodeExecutionError{
+                graph::RenderBackendErrorCode::InvalidInput,
+                "render",
+                "InvalidRange: invalid frame range '" + args.frames + "': " +
+                    parsed_range.error,
+            },
+            args.comp_id);
+        return std::nullopt;
+    }
+    const auto& range = parsed_range.value;
+
     auto resolved = resolve_composition(registry, args.comp_id, props);
     if (!resolved) {
         return std::nullopt;
@@ -78,18 +92,12 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
         job.mode = RenderMode::Video;
         job.first_frame = Frame{range.start};
 
-        // `render Comp -o out.mp4` keeps RenderArgs' default frames="0" but
-        // means the full composition. An explicit non-zero single frame remains
-        // a valid one-frame video.
         const auto duration_last = std::max<std::int64_t>(
             range.start, job.comp->duration().integral() - 1);
         job.last_frame = (range.start == 0 && range.end == 0)
             ? Frame{duration_last}
             : Frame{range.end};
 
-        // Preserve all encoder/export controls on the same canonical value.
-        // RenderArgs intentionally reuses VideoSettings instead of maintaining
-        // a CLI-only VideoArgs mirror.
         job.video_settings = args.video_settings;
         finalize_video_settings(job);
     } else if (range.start == range.end) {
