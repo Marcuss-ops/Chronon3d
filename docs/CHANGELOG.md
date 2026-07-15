@@ -1,7 +1,7 @@
 ## 2026-07-15
-### `docs(tickets): phase 1d registry-introspection chaser-chore (DONE)`
+### `docs(tickets): phase 1d registry-introspection chaser-chore (SHIPPED)`
   ([TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION](docs/tickets/TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION.md))
-All 4 sub-commands shipped (`chronon schema` | `example-props` | `validate` | `resolve`) on `feat/composition-input-phase-1c-1d-v2`. Cat-5 2-doc chaser-chore: ticket-home Stato → DONE.
+All 4 sub-commands shipped on `feat/composition-input-phase-1c-1d-v2`. Macchina-verify attestation: DEFERRED-WBH per TICKET-MACCHINA-VERIFY-MAIN-E416D231-WBH-DEFERRED (vcpkg env-block on this VPS).
 
 ### `feat(cli): chronon resolve subcommand (Phase 1d / Increment F)`
   ([TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION](docs/tickets/TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION.md))
