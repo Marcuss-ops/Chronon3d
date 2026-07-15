@@ -8,8 +8,14 @@ namespace chronon3d::cli {
 
 std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
                                          const RenderArgs& args) {
+    return make_render_job(registry, args, CompositionProps{});
+}
+
+std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
+                                         const RenderArgs& args,
+                                         const CompositionProps& props) {
     const auto range = parse_frames(args.frames);
-    auto resolved = resolve_composition(registry, args.comp_id);
+    auto resolved = resolve_composition(registry, args.comp_id, props);
     if (!resolved) {
         return std::nullopt;
     }
@@ -67,6 +73,12 @@ std::optional<RenderJob> make_render_job(const CompositionRegistry& registry,
 std::optional<RenderJob> plan_render_job(const CompositionRegistry& registry,
                                          const RenderArgs& args) {
     return make_render_job(registry, args);
+}
+
+std::optional<RenderJob> plan_render_job(const CompositionRegistry& registry,
+                                         const RenderArgs& args,
+                                         const CompositionProps& props) {
+    return make_render_job(registry, args, props);
 }
 
 } // namespace chronon3d::cli
