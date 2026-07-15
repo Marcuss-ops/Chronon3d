@@ -52,6 +52,13 @@ std::string frame_suffix(int frame) {
     return buffer;
 }
 
+std::filesystem::path preview_frame_path(
+    const std::filesystem::path& output_dir,
+    int frame)
+{
+    return output_dir / fmt::format("frame_{}.png", frame_suffix(frame));
+}
+
 bool compose_contact_sheet(const std::vector<std::string>& png_paths,
                            const std::string& output_path,
                            int cell_width,
@@ -90,6 +97,17 @@ bool compose_contact_sheet(const std::vector<std::string>& png_paths,
         const int x = cell_padding + column * (actual_cell_width + cell_padding);
         const int y = cell_padding + row * (cell_height + cell_padding);
         sheet->blit(*frames[index], x, y);
+    }
+
+    const std::filesystem::path sheet_path(output_path);
+    if (sheet_path.has_parent_path()) {
+        std::error_code error;
+        std::filesystem::create_directories(sheet_path.parent_path(), error);
+        if (error) {
+            spdlog::error("preview: cannot create contact-sheet directory '{}': {}",
+                          sheet_path.parent_path().string(), error.message());
+            return false;
+        }
     }
 
     return save_png(*sheet, output_path);
@@ -152,8 +170,6 @@ void register_preview_commands(CLI::App& app, CliContext& ctx) {
 
         auto job = make_render_job(ctx.registry, render_args);
         if (!job) {
-            spdlog::error("preview: cannot build RenderJob for '{}'",
-                          preview.comp_id);
             ctx.exit_code = 1;
             return;
         }
@@ -167,39 +183,45 @@ void register_preview_commands(CLI::App& app, CliContext& ctx) {
             frames.begin(), frames.end());
         job->first_frame = Frame{*min_frame};
         job->last_frame = Frame{*max_frame};
+        job->frame_step = Frame{1};
 
         spdlog::info("Preview {} frames [{}] in one renderer session",
                      preview.comp_id, fmt::join(frames, ","));
         const auto started = std::chrono::steady_clock::now();
-        auto result = execute_render_job(*job);
+        const auto result = execute_render_job(*job);
         const double total_ms = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - started).count();
 
+        std::vector<std::string> rendered_paths;
+        rendered_paths.reserve(frames.size());
+        for (const int frame : frames) {
+            const auto path = preview_frame_path(preview.output_dir, frame);
+            if (std::filesystem::is_regular_file(path)) {
+                rendered_paths.push_back(path.string());
+            }
+        }
+
+        const int rendered = static_cast<int>(rendered_paths.size());
+        const int failed = static_cast<int>(frames.size()) - rendered;
         if (!result) {
             spdlog::error("preview failed: {}", result.error().message);
-            ctx.exit_code = 1;
-            return;
         }
+        spdlog::info("Preview complete: {}/{} frame(s) in {:.1f} ms",
+                     rendered, frames.size(), total_ms);
 
-        spdlog::info("Preview complete: {} frame(s) in {:.1f} ms",
-                     result->frames_written, total_ms);
-
+        bool contact_sheet_ok = true;
         if (!preview.contact_sheet.empty()) {
-            std::vector<std::string> rendered_paths;
-            rendered_paths.reserve(frames.size());
-            for (const int frame : frames) {
-                rendered_paths.push_back(
-                    (preview.output_dir /
-                     fmt::format("frame_{}.png", frame_suffix(frame))).string());
-            }
-            if (!compose_contact_sheet(rendered_paths, preview.contact_sheet,
-                                       preview.cell_width,
-                                       preview.cell_padding)) {
-                spdlog::warn("preview: contact sheet generation failed");
+            contact_sheet_ok = compose_contact_sheet(
+                rendered_paths, preview.contact_sheet,
+                preview.cell_width, preview.cell_padding);
+            if (!contact_sheet_ok) {
+                spdlog::error("preview: contact sheet generation failed");
+            } else {
+                spdlog::info("Contact sheet saved to {}", preview.contact_sheet);
             }
         }
 
-        ctx.exit_code = 0;
+        ctx.exit_code = result && failed == 0 && contact_sheet_ok ? 0 : 1;
     });
 }
 
