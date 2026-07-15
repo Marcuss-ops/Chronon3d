@@ -1,45 +1,37 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// timeline/render_job.hpp — D1: unified render job descriptor.
+// timeline/render_job.hpp — canonical unified render job descriptor.
 //
-// Replaces the pre-D1 split (cli::RenderJobPlan for render/still +
-// cli::VideoJobPlan for video + separate command paths) with a single
-// canonical RenderJob type covering all three render modes.
-//
-//   RenderMode::Still    — single frame to PNG
-//   RenderMode::Sequence — frame range to image sequence
-//   RenderMode::Video    — frame range encoded to video
-//
-// The CLI converts its args (RenderArgs / StillArgs / VideoArgs) into
-// a RenderJob and calls a single executor — no second orchestration.
-//
-// Per-frame execution state (RenderSession, CameraSession) is kept
-// separate from the job descriptor to preserve copy semantics.
+// RenderJob is the single value passed from CLI planning to execution for
+// still, sequence, and video modes.  It owns no backend/runtime/cache state;
+// those remain implementation details created by the executor.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #pragma once
 
-#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/backends/software/render_settings.hpp>
+#include <chronon3d/core/config.hpp>
+#include <chronon3d/core/cpu_budget.hpp>
+#include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/timeline/composition.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace chronon3d {
 
-// ── RenderMode ─────────────────────────────────────────────────────────
+class CompositionRegistry;
 
 enum class RenderMode : std::uint8_t {
-    Still    = 0,  // single frame → image file
-    Sequence = 1,  // frame range → image sequence
-    Video    = 2,  // frame range → video encode
+    Still    = 0,
+    Sequence = 1,
+    Video    = 2,
 };
 
-// ── VideoSettings ──────────────────────────────────────────────────────
-
-/// Video-specific parameters folded into the unified RenderJob.
-/// System-local config (ffmpeg path, pipe mode) lives outside the job.
+/// Video-specific values carried by the canonical job.  These are plain
+/// execution settings, not an encoder or resolver abstraction.
 struct VideoSettings {
     int         fps{30};
     int         crf{16};
@@ -49,54 +41,85 @@ struct VideoSettings {
     bool        keep_frames{false};
     std::string frames_dir;
     int         chunks{1};
+
+    std::string hardware_encoder{"none"};
+    std::string ffmpeg_mode{"pipe"};
+    bool        ffmpeg_verbose{false};
+    std::string pipe_pixfmt{"rgba"};
+    std::string color_output{"srgb"};
+    std::string pipe_writer{"classic"};
+#ifdef CHRONON3D_ENABLE_NATIVE_FFMPEG
+    std::string encoder_backend{"native"};
+#else
+    std::string encoder_backend{"pipe"};
+#endif
+    std::string sink_type{"ffmpeg"};
+    bool        dry_run{false};
 };
 
-// ── RenderDiagnostics (V2 placeholder, unchanged from P3-C) ────────────
+/// Cross-mode execution controls previously stored in CLI-only job plans.
+/// Keeping them on RenderJob removes duplicated plan types while preserving a
+/// copyable, inspectable job value.
+struct RenderExecutionOptions {
+    std::string log_level{"info"};
+    bool benchmark_all{false};
+    bool report{false};
+    bool diagnostic_plan{false};
+    std::string command_line;
+
+    bool        warmup_renderer{false};
+    std::size_t warmup_framebuffers{2};
+    bool        warmup_dummy_frame{false};
+
+    CpuBudget cpu_budget{};
+    std::optional<Config> config;
+};
 
 struct RenderDiagnostics {
     std::uint32_t version{0};
 };
 
-// ── RenderJob — canonical unified render descriptor ───────────────────
+enum class RenderJobErrorCode : std::uint8_t {
+    InvalidJob = 0,
+    UnsupportedMode,
+    SetupFailed,
+    ValidationFailed,
+    RenderFailed,
+};
 
-/// Single job descriptor covering still, sequence, and video render.
+struct RenderJobError {
+    RenderJobErrorCode code{RenderJobErrorCode::RenderFailed};
+    std::string message;
+};
+
+struct RenderJobOutput {
+    RenderMode mode{RenderMode::Still};
+    std::string output;
+    int frames_written{0};
+};
+
+/// Single job descriptor covering still, sequence, and video rendering.
 ///
-/// Copyable value type.  Per-frame execution payload (RenderSession,
-/// CameraSession) is assembled by the executor, NOT stored here.
-///
-/// Factory conveniences:
-///   RenderJob::still("hero", Frame{42}, "hero.png")
-///   RenderJob::sequence("intro", Frame{0}, Frame{90}, "frame_%04d.png")
-///   RenderJob::video_job("intro", Frame{0}, Frame{90}, "intro.mp4")
+/// `registry` is a non-owning execution dependency pinned by the CLI/host.
+/// Composition ownership stays explicit through `comp`.
 struct RenderJob {
-    // ── Identity ────────────────────────────────────────────────────
-
-    std::string                       comp_id;
-    std::shared_ptr<const Composition> comp;        // resolved from comp_id
-
-    // ── Mode + frames ───────────────────────────────────────────────
+    const CompositionRegistry*             registry{nullptr};
+    std::string                            comp_id;
+    std::shared_ptr<const Composition>     comp;
 
     RenderMode mode{RenderMode::Still};
-    Frame      still_frame{0};            // Still mode target frame
-    Frame      first_frame{0};            // Sequence / Video start (inclusive)
-    Frame      last_frame{0};             // Sequence / Video end (inclusive)
+    Frame      still_frame{0};
+    Frame      first_frame{0};
+    Frame      last_frame{0};
+    Frame      frame_step{1};
 
-    // ── Output ──────────────────────────────────────────────────────
+    std::string output;
 
-    std::string output;                    // file path or printf pattern
+    RenderSettings         settings;
+    VideoSettings          video_settings;
+    RenderExecutionOptions execution;
+    RenderDiagnostics      diagnostics{};
 
-    // ── Settings ────────────────────────────────────────────────────
-
-    RenderSettings settings;
-    VideoSettings  video_settings;
-
-    // ── Diagnostics ─────────────────────────────────────────────────
-
-    RenderDiagnostics diagnostics{};
-
-    // ── Factory conveniences ────────────────────────────────────────
-
-    /// Create a still-frame render job.
     static RenderJob still(std::string id,
                            std::shared_ptr<const Composition> c,
                            Frame frame,
@@ -110,45 +133,41 @@ struct RenderJob {
         return job;
     }
 
-    /// Create an image-sequence render job.
     static RenderJob sequence(std::string id,
                               std::shared_ptr<const Composition> c,
                               Frame first,
                               Frame last,
                               std::string out) {
         RenderJob job;
-        job.comp_id    = std::move(id);
-        job.comp       = std::move(c);
-        job.mode       = RenderMode::Sequence;
+        job.comp_id     = std::move(id);
+        job.comp        = std::move(c);
+        job.mode        = RenderMode::Sequence;
         job.first_frame = first;
         job.last_frame  = last;
-        job.output     = std::move(out);
+        job.output      = std::move(out);
         return job;
     }
 
-    /// Create a video render job.
     static RenderJob video_job(std::string id,
                                std::shared_ptr<const Composition> c,
                                Frame first,
                                Frame last,
                                std::string out) {
         RenderJob job;
-        job.comp_id    = std::move(id);
-        job.comp       = std::move(c);
-        job.mode       = RenderMode::Video;
+        job.comp_id     = std::move(id);
+        job.comp        = std::move(c);
+        job.mode        = RenderMode::Video;
         job.first_frame = first;
         job.last_frame  = last;
-        job.output     = std::move(out);
+        job.output      = std::move(out);
         return job;
     }
 
-    /// Frame count (valid for Sequence and Video modes).
     [[nodiscard]] Frame frame_count() const noexcept {
         if (last_frame <= first_frame) return Frame{0};
         return last_frame - first_frame + Frame{1};
     }
 
-    /// True if the composition has been resolved.
     [[nodiscard]] explicit operator bool() const noexcept {
         return comp != nullptr;
     }
