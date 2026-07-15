@@ -4,7 +4,6 @@
 
 option(CHRONON3D_BUILD_CLI_CORE      "Build the core CLI commands" ON)
 option(CHRONON3D_BUILD_CLI_RENDER    "Build the canonical render command" ON)
-option(CHRONON3D_BUILD_CLI_VIDEO     "Build the deprecated video command alias" ON)
 option(CHRONON3D_BUILD_CLI_TELEMETRY "Build telemetry commands" ON)
 option(CHRONON3D_BUILD_CLI_DEV       "Build developer commands" OFF)
 option(CHRONON3D_BUILD_CLI_BENCH     "Build benchmark commands" OFF)
@@ -55,7 +54,6 @@ if(CHRONON3D_BUILD_CLI_RENDER)
         commands/render/register_render_commands.cpp
         commands/render/command_render.cpp
         commands/render/command_preflight.cpp
-        commands/render/command_still.cpp
         commands/render/command_bake_layer.cpp
         commands/render/command_graph.cpp
         utils/job/render_job.cpp
@@ -135,48 +133,12 @@ if(CHRONON3D_ENABLE_VIDEO AND TARGET chronon3d_cli_render)
     target_compile_definitions(chronon3d_cli_render PRIVATE
         CHRONON3D_HAS_CLI_VIDEO_EXPORT
     )
-endif()
-
-# ------------------------------------------------------------------------------
-# Deprecated `video` alias. It only translates VideoArgs into RenderJob and
-# delegates to the canonical render executor. Video export itself remains
-# available to `render -o *.mp4` when this alias target is disabled.
-# ------------------------------------------------------------------------------
-if(CHRONON3D_ENABLE_VIDEO AND CHRONON3D_BUILD_CLI_VIDEO AND
-   TARGET chronon3d_cli_render)
-    add_library(chronon3d_cli_video STATIC
-        commands/group_video.cpp
-        commands/video/register_video_commands.cpp
-        commands/video/command_video.cpp
-        commands/video/command_video_camera.cpp
-        utils/video/video_job_plan.cpp
+    target_compile_definitions(chronon3d_cli_core PRIVATE
+        CHRONON3D_HAS_CLI_VIDEO_EXPORT
     )
-    target_include_directories(chronon3d_cli_video PRIVATE
-        ${CMAKE_SOURCE_DIR}
-        ${CMAKE_SOURCE_DIR}/apps/chronon3d_cli
-    )
-    target_link_libraries(chronon3d_cli_video PRIVATE
-        chronon3d_cli_core
-        chronon3d_cli_render
-        chronon3d_cli_video_export
-        chronon3d_pipeline
-        chronon3d_backend_image
-        chronon3d_media_video
-        CLI11::CLI11
-        spdlog::spdlog_header_only
-        fmt::fmt
-    )
-elseif(CHRONON3D_ENABLE_VIDEO AND CHRONON3D_BUILD_CLI_VIDEO)
-    message(STATUS
-        "Skipping deprecated CLI command 'video': canonical render target is disabled")
 endif()
 
 # Core diagnostics compile only the legs whose command groups exist.
-if(TARGET chronon3d_cli_video)
-    target_compile_definitions(chronon3d_cli_core PRIVATE
-        CHRONON3D_HAS_CLI_VIDEO
-    )
-endif()
 if(TARGET chronon3d_cli_render)
     target_compile_definitions(chronon3d_cli_core PRIVATE
         CHRONON3D_HAS_CLI_RENDER
@@ -251,12 +213,6 @@ if(CHRONON3D_BUILD_CLI_DEV)
         spdlog::spdlog_header_only
         fmt::fmt
     )
-    if(TARGET chronon3d_cli_video)
-        target_link_libraries(chronon3d_cli_dev PRIVATE chronon3d_cli_video)
-        target_compile_definitions(chronon3d_cli_dev PRIVATE
-            CHRONON3D_HAS_CLI_VIDEO
-        )
-    endif()
 endif()
 
 # ------------------------------------------------------------------------------
@@ -311,7 +267,6 @@ target_link_libraries(chronon3d_cli PRIVATE
 foreach(_cli_target IN ITEMS
         chronon3d_cli_render
         chronon3d_cli_video_export
-        chronon3d_cli_video
         chronon3d_cli_dev
         chronon3d_cli_bench
         chronon3d_cli_telemetry)
@@ -326,8 +281,8 @@ endforeach()
 if(TARGET chronon3d_cli_render)
     target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_HAS_CLI_RENDER)
 endif()
-if(TARGET chronon3d_cli_video)
-    target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_HAS_CLI_VIDEO)
+if(TARGET chronon3d_cli_video_export)
+    target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_HAS_CLI_VIDEO_EXPORT)
 endif()
 if(TARGET chronon3d_cli_telemetry)
     target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_HAS_CLI_TELEMETRY)
@@ -380,7 +335,6 @@ set_target_properties(chronon3d_cli_core chronon3d_cli PROPERTIES
 foreach(_cli_target IN ITEMS
         chronon3d_cli_render
         chronon3d_cli_video_export
-        chronon3d_cli_video
         chronon3d_cli_dev
         chronon3d_cli_bench
         chronon3d_cli_telemetry)
