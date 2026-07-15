@@ -23,7 +23,7 @@
 #include <blend2d/font.h>
 #include <blend2d/path.h>
 
-#include <chronon3d/backends/text/text_rasterizer_utils.hpp>  // P1-8: TextRasterization return type for lookup_raster_cache
+#include <chronon3d/backends/text/text_rasterizer_utils.hpp>  // P1-8: hash_text_style
 #include <chronon3d/core/types/types.hpp>
 #include <mutex>      // P1-9: std::call_once + std::once_flag for lazy materialization
 #include <optional>  // P1-9: lookup_glyph_atlas return type
@@ -48,6 +48,11 @@
 #endif
 
 namespace chronon3d {
+
+/// Cached rasterization result for a text run.
+struct TextRasterization {
+    BLImage image;
+};
 
 // Forward declarations
 namespace assets { class AssetResolver; }
