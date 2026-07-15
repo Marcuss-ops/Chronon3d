@@ -347,7 +347,7 @@ Composition seq_v2_mixed_media() {
                         apply_fade_in(layer, Frame{15});
                         apply_fade_out(layer, Frame{45}, Frame{58});
                         layer.image("hero", ImageParams{
-                            .path = kPlaceholderImage.path,
+                            .asset_path = kPlaceholderImage.path,
                             .size = {600.0f, 400.0f}
                         });
                     });
