@@ -1,3 +1,4 @@
+#include "content/showcases/minimalist/minimalist_image_presets.hpp"
 #include "content/showcases/minimalist/minimalist_text_presets.hpp"
 
 #include <chronon3d/core/composition/composition_registry.hpp>
@@ -26,17 +27,6 @@ CompositionDescriptor minimalist_descriptor(
     descriptor.factory = std::move(factory);
     return descriptor;
 }
-
-Composition minimalist_image_fade_in();
-Composition minimalist_image_focus_in();
-Composition minimalist_image_scale_drop();
-Composition minimalist_image_fade_shift_vertical();
-Composition minimalist_image_center_split();
-Composition minimalist_image_reveal_from_bottom();
-Composition minimalist_image_framing_bracket();
-Composition minimalist_image_tracking_breathing();
-Composition minimalist_image_elegant_exit();
-Composition minimalist_image_elastic_slide();
 
 } // namespace
 
