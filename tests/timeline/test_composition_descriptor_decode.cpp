@@ -110,20 +110,26 @@ TEST_CASE("PropsCodec is the only external decode path") {
     CHECK(capture.calls == 1);
 }
 
-TEST_CASE("prepare_props validates and resolves metadata before factory") {
+TEST_CASE("prepare_props validates and resolves metadata before construction") {
     Capture capture;
     auto value = descriptor(&capture).to_descriptor();
 
     CompositionProps valid;
     valid.values.set("duration", "240");
-    auto prepared = value.prepare_props(valid);
-    REQUIRE(prepared);
-    REQUIRE(prepared->has_value());
-    CHECK((*prepared)->duration == Frame{240});
+    auto result = value.prepare_props(valid);
+    REQUIRE(result);
+
+    PreparedComposition prepared = std::move(result).value();
+    REQUIRE(prepared.metadata.has_value());
+    CHECK(prepared.metadata->duration == Frame{240});
     CHECK(capture.calls == 0);
+
+    const Composition composition = prepared.construct();
+    CHECK(composition.duration() == Frame{240});
+    CHECK(capture.calls == 1);
 
     CompositionProps invalid;
     invalid.values.set("duration", "0");
     CHECK_FALSE(value.prepare_props(invalid));
-    CHECK(capture.calls == 0);
+    CHECK(capture.calls == 1);
 }
