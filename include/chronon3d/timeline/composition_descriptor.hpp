@@ -13,8 +13,9 @@
 //   SDK              → discoverable metadata for external consumers
 //   documentation    → auto-generated from registry descriptors
 //
-// ValueMap remains as the CLI/C-ABI bridge for external input; the
-// descriptor's factory still receives `CompositionProps` at create() time.
+// ValueMap remains as the CLI/C-ABI bridge for external input. Typed
+// descriptors expose a type-erased prepare_props callback so decode,
+// validation and dynamic metadata resolution happen before factory creation.
 //
 // Two tiers:
 //   CompositionDescriptor        — non-templated base, storeable in registry
@@ -55,6 +56,9 @@ struct CompositionMetadata {
     Frame     duration{0};
 };
 
+using PreparedCompositionMetadata =
+    Result<std::optional<CompositionMetadata>, PropsError>;
+
 // ── CompositionDescriptor (non-templated, registry-storeable) ─────────────
 
 struct CompositionDescriptor {
@@ -81,9 +85,16 @@ struct CompositionDescriptor {
     /// that provides a PropsCodec.  Empty for legacy / non-typed props.
     std::optional<PropsSchema> schema;
 
-    /// Factory function — receives CompositionProps at create() time.
-    /// Type uses raw std::function to avoid circular include with
-    /// composition_registry.hpp.
+    /// Type-erased props preparation. For typed descriptors this performs
+    /// ValueMap decode, typed validation and dynamic metadata resolution
+    /// without invoking the composition factory or rendering a frame.
+    std::function<PreparedCompositionMetadata(const CompositionProps&)> prepare_props;
+
+    /// Factory function — receives already-prepared CompositionProps at
+    /// create() time. Type uses raw std::function to avoid circular include
+    /// with composition_registry.hpp. Typed factories still decode the props
+    /// to construct their concrete Props value, but validation is owned by
+    /// prepare_props / CompositionRegistry::create rather than this wrapper.
     std::function<Composition(const CompositionProps&)> factory;
 };
 
@@ -154,15 +165,8 @@ struct TypedCompositionDescriptor {
 
     /// Decode CLI/JSON overrides (CompositionProps::values) into the
     /// typed `Props` struct.  When present, `to_descriptor()` invokes
-    /// this BEFORE `validate()` AND `factory()`; the typed_defaults act
-    /// as the bootstrap values the user mutates inside the lambda.
-    /// Returns a structed `PropsError` on missing/bad/out-of-range input
-    /// (see `composition_props.hpp`).  Forwarded via the canonical
-    /// `chronon3d::Result<Props, PropsError>` shape (NOT a custom
-    /// Result variant).  When left empty, `to_descriptor()` falls back
-    /// to the historical behavior of using typed_defaults only (CLI/JSON
-    /// overrides are silently ignored, as the legacy `TICKET-TO-DO`
-    /// block documented before this commit implemented the merge).
+    /// this before validation and factory creation; defaults are the
+    /// bootstrap values supplied to the decoder.
     ///
     /// NOTE: this is the LEGACY decode callback.  New code should prefer
     /// `codec.decode` via PropsCodec, which also carries a declarative
@@ -170,10 +174,9 @@ struct TypedCompositionDescriptor {
     std::function<chronon3d::Result<Props, PropsError>(
         const ValueMap&, const Props&)> decode;
 
-    /// Factory that receives the fully-constructed typed Props struct
-    /// (after decode + validate have run).  The TypedCompositionDescriptor
-    /// wraps this into a CompositionProps-accepting factory for registry
-    /// compatibility.
+    /// Factory that receives the fully-decoded typed Props struct.
+    /// Validation is performed by the descriptor's prepare_props callback
+    /// before CompositionRegistry invokes this factory.
     std::function<Composition(const Props&)> factory;
 
     /// Optional typed codec carrying schema + decode/encode.  When
@@ -183,39 +186,20 @@ struct TypedCompositionDescriptor {
     std::optional<PropsCodec<Props>> codec;
 
     /// Convert to the non-templated CompositionDescriptor for registry storage.
-    /// The factory is wrapped to convert CompositionProps → Props by:
-    ///   1. Starting with `.defaults` as the bootstrap Props,
-    ///   2. Invoking `.decode(cprops.values, defaults)` IF supplied — this is
-    ///      the ValueMap → typed Props merge that the legacy TODO block
-    ///      deferred; it allows CLI/JSON overrides to flow through,
-    ///   3. Calling `.validate(merged_props)` if a validator is present,
-    ///   4. Invoking `.factory(merged_props)`.
-    /// Resolve_metadata runs on `defaults` (pre-merge) so the registry can
-    /// report dimensions/fps/duration BEFORE the factory is invoked.
     [[nodiscard]] CompositionDescriptor to_descriptor() && {
         CompositionDescriptor desc;
 
-        // Capture comp_id BEFORE moving 'id' into desc.
         std::string comp_id = std::move(id);
-
         desc.id       = comp_id;
         desc.category = std::move(category);
 
-        // Capture typed fields by move into the factory wrapper.
-        auto typed_factory   = std::move(factory);
-        auto typed_defaults  = std::move(defaults);
-        auto typed_validate  = std::move(validate);
-        auto typed_metadata  = std::move(resolve_metadata);
-        // Implemented 2026-07-14 via TICKET-V2-VALUEMAP-PROPS-MERGE:
-        // captures the user-supplied decode callback (may be empty, in
-        // which case the wrap falls through to defaults to preserve the
-        // historical behavior of pre-decode compositions).
-        auto typed_decode    = std::move(decode);
-        // New: typed codec (schema + decode/encode).  If present it
-        // supersedes the legacy `decode` callback and exports a schema.
-        auto typed_codec     = std::move(codec);
+        auto typed_factory  = std::move(factory);
+        auto typed_defaults = std::move(defaults);
+        auto typed_validate = std::move(validate);
+        auto typed_metadata = std::move(resolve_metadata);
+        auto typed_decode   = std::move(decode);
+        auto typed_codec    = std::move(codec);
 
-        // Compute and store metadata from defaults (pre-CLI-override).
         if (typed_metadata) {
             CompositionMetadata meta = typed_metadata(typed_defaults);
             desc.width    = meta.width;
@@ -223,57 +207,66 @@ struct TypedCompositionDescriptor {
             desc.fps      = meta.fps;
             desc.duration = meta.duration;
         }
-
-        // Export the declarative props schema if a codec was supplied.
         if (typed_codec) {
             desc.schema = typed_codec->schema;
         }
 
-        // Wrap the typed factory to accept CompositionProps.
-        desc.factory = [
-            typed_factory   = std::move(typed_factory),
-            typed_defaults  = std::move(typed_defaults),
-            typed_validate  = std::move(typed_validate),
-            typed_decode    = std::move(typed_decode),
-            typed_codec     = std::move(typed_codec),
-            comp_id         = std::move(comp_id)
-        ](const CompositionProps& cprops) -> Composition {
-            // Begin with the bootstrap defaults so the user's decode
-            // callback can mutate them in place via the `defs` reference.
-            Props props = typed_defaults;
-
-            // 1. Optional decode step (ValueMap → Props merge).  Priority:
-            //    - PropsCodec::decode (new, schema-carrying path)
-            //    - legacy `decode` callback (TICKET-V2-VALUEMAP-PROPS-MERGE)
-            //    When NEITHER is supplied the historical behavior is
-            //    preserved: CLI/JSON overrides in cprops.values are silently
-            //    ignored and only typed_defaults reach validate/factory.
-            auto run_decode = [&](const auto& decoder) {
-                auto decoded = decoder(cprops.values, typed_defaults);
-                if (!decoded) {
-                    const PropsError& err = decoded.error();
-                    throw std::runtime_error(
-                        "Composition '" + comp_id +
-                        "' decode failed: [" + err.key + "] " + err.message);
-                }
-                props = std::move(decoded).value();
-            };
-
+        // Shared type-erased decoder used by both prepare_props and factory.
+        // It is intentionally pure and owns no registry/cache/global state.
+        const auto decode_props = [
+            typed_defaults,
+            typed_decode,
+            typed_codec
+        ](const CompositionProps& cprops) -> Result<Props, PropsError> {
             if (typed_codec && typed_codec->decode) {
-                run_decode(typed_codec->decode);
-            } else if (typed_decode) {
-                run_decode(typed_decode);
+                return typed_codec->decode(cprops.values, typed_defaults);
+            }
+            if (typed_decode) {
+                return typed_decode(cprops.values, typed_defaults);
+            }
+            return typed_defaults;
+        };
+
+        desc.prepare_props = [
+            decode_props,
+            typed_validate,
+            typed_metadata
+        ](const CompositionProps& cprops) -> PreparedCompositionMetadata {
+            auto decoded = decode_props(cprops);
+            if (!decoded) {
+                return std::move(decoded).error();
             }
 
-            // 2. Validate if a validator was provided.
+            Props props = std::move(decoded).value();
             if (typed_validate) {
-                if (auto err = typed_validate(props)) {
-                    throw std::runtime_error(
-                        "Composition '" + comp_id + "' validation failed: " + *err);
+                if (auto error = typed_validate(props)) {
+                    return PropsError{
+                        "",
+                        PropsErrorReason::InvalidFormat,
+                        std::move(*error)
+                    };
                 }
             }
 
-            // 3. Invoke the typed factory with the merged Props.
+            if (typed_metadata) {
+                return std::optional<CompositionMetadata>{typed_metadata(props)};
+            }
+            return std::optional<CompositionMetadata>{};
+        };
+
+        desc.factory = [
+            decode_props,
+            typed_factory = std::move(typed_factory),
+            comp_id = std::move(comp_id)
+        ](const CompositionProps& cprops) -> Composition {
+            auto decoded = decode_props(cprops);
+            if (!decoded) {
+                const PropsError& error = decoded.error();
+                throw std::runtime_error(
+                    "Composition '" + comp_id +
+                    "' decode failed: [" + error.key + "] " + error.message);
+            }
+            Props props = std::move(decoded).value();
             return typed_factory(props);
         };
 
