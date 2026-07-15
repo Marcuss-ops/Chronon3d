@@ -112,6 +112,14 @@ public:
         std::size_t num_shards     = 2,
         chronon3d::cache::CacheDiagnostics* diag = nullptr);
 
+    /// Register (or re-register) this cache with a diagnostics observer.
+    /// Replaces any previously registered handle atomically.
+    void set_diagnostics(chronon3d::cache::CacheDiagnostics& diag);
+
+    ~ConvertedFrameCache() {
+        m_diag_alive.store(false, std::memory_order_release);
+    }
+
     /// Look up a key.  Returns an empty ConvertedFrame on miss.
     /// On hit returns a ConvertedFrame view that keeps the entry
     /// alive even if the LRU later evicts it.
