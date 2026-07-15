@@ -325,6 +325,28 @@ foreach(_cli_target IN ITEMS
     endif()
 endforeach()
 
+# Target-presence macros drive command registration. Engine feature macros are
+# intentionally not used because a capability can be enabled while its CLI
+# group is excluded from a build profile.
+if(TARGET chronon3d_cli_render)
+    target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_HAS_CLI_RENDER)
+endif()
+if(TARGET chronon3d_cli_video)
+    target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_HAS_CLI_VIDEO)
+endif()
+if(TARGET chronon3d_cli_telemetry)
+    target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_HAS_CLI_TELEMETRY)
+endif()
+if(TARGET chronon3d_cli_dev)
+    target_compile_definitions(chronon3d_cli PRIVATE
+        CHRONON3D_HAS_CLI_DEV
+        CHRONON3D_BUILD_CLI_DEV
+    )
+endif()
+if(TARGET chronon3d_cli_bench)
+    target_compile_definitions(chronon3d_cli PRIVATE CHRONON3D_HAS_CLI_BENCH)
+endif()
+
 if(TARGET chronon3d_backend_text)
     target_link_libraries(chronon3d_cli PRIVATE chronon3d_backend_text)
 endif()
