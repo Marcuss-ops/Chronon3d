@@ -30,15 +30,14 @@ richiesta in questo commit.
 
 ### `chore(text): deprecate centered_text + glow_text (Blocco 5.1)`
   ([TICKET-CENTERED-TEXT-MIGRATION](docs/tickets/TICKET-CENTERED-TEXT-MIGRATION.md))
-2 marker corrections in `content/text/text_helpers_centered.hpp`:
-(1) `centered_text()` — Aggiunto `[[deprecated]]` (era privo di marker;
-emetteva compile warning silente). (2) `glow_text()` — Aggiornato il
-messaggio del marker esistente per puntare a `TICKET-CENTERED-TEXT-MIGRATION`
-invece di `centered_text()` (che ora è anch'esso deprecato, evita la
-routing-ciclica). Entrambi ora emettono compile warning verso il
-forward-point P2 ticket. Cat-3 minimal-surface (1 file EDIT, 2 LoC
-in net additions; ZERO source in `src/`/`include/`/`apps/`; ZERO new
-SDK API). Subject envelope 53 chars <= 72. macchina-verifica DEFERRED-WBH.
+- (1) `centered_text()`: aggiunto `[[deprecated]]` (era privo di marker;
+  silent compile-warning rot). Forward-point: TICKET-CENTERED-TEXT-MIGRATION P2.
+- (2) `glow_text()`: aggiornato `[[deprecated]]` message per puntare a
+  TextDefinition construction (l'old message puntava a centered_text che
+  è ORA anch'esso deprecato, routing cycle).
+- (3) Cat-3 minimal: 1 file EDIT (text_helpers_centered.hpp 2 LoC);
+  ZERO source in src/include/apps; ZERO new SDK API.
+
 
 ### `feat(cli): chronon preview --contact-sheet (audit Blocco 4.1)`
   ([TICKET-PREVIEW-CONTACT-SHEET](docs/tickets/TICKET-PREVIEW-CONTACT-SHEET.md))
