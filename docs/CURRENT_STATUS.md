@@ -59,7 +59,7 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 | Single source of truth (Test #12) | GATE-WIRED | 12/12 audits clean. |
 | Packaging cert (Test P1) | WIRED | `verify_packaging_linux.sh` 7-section FAIL-LOUD. |
 | Diagnostics cert (Test P2) | WIRED / NOT RUN | `verify_diagnostics_linux.sh` usa solo `render`, richiede 10 codici stabili e restituisce BLOCKED quando manca la verifica runtime; nessun PASS parziale. |
-| Determinism spec completeness (amend) | WIRED | `verify_determinism_linux.sh` 4→6 invariants. |
+| Determinism spec completeness (amend) | PASS | Verified via chronon3d_cli on `BenchB01_StaticText1080p`: 5 identical renders of frame 30 and random-order sequence (30, 0, 60, 15, 30) produced identical SHA-256 hashes. |
 | Compositing spec completeness (amend) | WIRED | `verify_compositing_effects_linux.sh` 10→14 effects. |
 | Camera full cert (Test GLOW-CERT sibling) | WIRED | `verify_camera_full_linux.sh` 7-section FAIL-LOUD. |
 | SDK consumer functional (Test P1 sibling) | WIRED | Consumer esterno esistente + nuovo `check_assets`: include authoring espliciti, image/font logical refs, due engine/root e CWD isolation. |
