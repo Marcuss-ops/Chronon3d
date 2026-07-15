@@ -1,0 +1,87 @@
+name: RenderJob Contract Matrix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/chronon3d_cli/**'
+      - 'include/chronon3d/timeline/render_job.hpp'
+      - 'tests/cli/test_render_job_planning.cpp'
+      - 'tests/render_job_contract_tests.cmake'
+      - 'tests/manifests/test_definitions.cmake'
+      - 'cmake/presets/ci.json'
+      - 'CMakeLists.txt'
+      - '.github/workflows/render-contract-matrix.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/chronon3d_cli/**'
+      - 'include/chronon3d/timeline/render_job.hpp'
+      - 'tests/cli/test_render_job_planning.cpp'
+      - 'tests/render_job_contract_tests.cmake'
+      - 'tests/manifests/test_definitions.cmake'
+      - 'cmake/presets/ci.json'
+      - 'CMakeLists.txt'
+      - '.github/workflows/render-contract-matrix.yml'
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - name: Video enabled
+            preset: linux-ci-render-video-contract
+            build_preset: linux-ci-render-video-contract
+            test_preset: linux-ci-render-video-contract-test
+            core_only: false
+          - name: Video disabled
+            preset: linux-ci-render-image-contract
+            build_preset: linux-ci-render-image-contract
+            test_preset: linux-ci-render-image-contract-test
+            core_only: false
+          - name: CLI core-only
+            preset: linux-ci-cli-core-only
+            build_preset: linux-ci-cli-core-only
+            test_preset: ''
+            core_only: true
+
+    name: ${{ matrix.config.name }}
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      VCPKG_BINARY_SOURCES: 'clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Architecture regression guard
+        run: python3 tools/check_render_asset_architecture.py
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 'cb2981c4e03d421fa03b9bb5044cd1986180e7e4'
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.config.preset }}
+
+      - name: Build focused target
+        run: cmake --build --preset ${{ matrix.config.build_preset }}
+
+      - name: Run RenderJob contract
+        if: ${{ !matrix.config.core_only }}
+        run: >-
+          ctest --preset ${{ matrix.config.test_preset }}
+          -R '^chronon3d_render_job_contract_tests$'
+          --output-on-failure
+
+      - name: Smoke core-only CLI
+        if: ${{ matrix.config.core_only }}
+        run: >-
+          build/chronon/${{ matrix.config.preset }}/apps/chronon3d_cli/chronon3d_cli
+          --help
