@@ -1,13 +1,25 @@
 ## 2026-07-15
 
+### `docs(stash): correct rot-pattern findings on 7a0ad484 (cat-5 chaser)`
+  ([TICKET-COMPOSITION-INPUT-PHASE-1C-1D-STASH-DROP](docs/tickets/TICKET-COMPOSITION-INPUT-PHASE-1C-1D-STASH-DROP.md))
+Rot-class fix in same atomic chaser-chore per `7a0ad484` rot-pattern: (1) numeric typo
+474→377 (empirically verified via `git rev-list 19da5238..origin/main | wc -l`);
+(2) 3 forward-point ticket stubs created in `docs/tickets/`
+(TICKET-PHASE1-C-CLI-VERSION2 + TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION +
+TICKET-PHASE3-SEQUENCE-PAIRS-EDGE-FIELDS) per AGENTS.md §`### 2×-in-one-chore`
+rule ticket ↔ file invariant; (3) ticket-home §Confine + §Forward-points
+broken cross-refs REMOVED (TICKET-CHORE-B-BULK-MIGRATION +
+TICKET-PHASE3-TIMELINE-EXTENSION — both never existed as
+`docs/tickets/<ID>.md` files, per basher-verify); (4) CHANGELOG cite-only
+over-quota trimmed per strict Cat-3 anti-dup. Zero sourcecode modification.
+Cronaca estesa nel canonical ticket-home.
+
 ### `chore(stash): drop Phase 1c/1d (cat-5 chaser)`
   ([TICKET-COMPOSITION-INPUT-PHASE-1C-1D-STASH-DROP](docs/tickets/TICKET-COMPOSITION-INPUT-PHASE-1C-1D-STASH-DROP.md))
-Drop WIP stash Phase 1c/1d (origin: `19da5238`, 474 commit dietro `origin/main@253a178d`) per
+Drop WIP stash Phase 1c/1d (origin: `19da5238`, 377 commit dietro `origin/main@253a178d`) per
 bailout conflitti strutturali su 15 file (12 UU + 3 DU); clean tree restored, zero sourcecode
 modification. Cronaca estesa nel canonical ticket-home per AGENTS.md Cat-3 anti-dup + §honesty
-disclosure. Forward-points: `TICKET-PHASE1-C-CLI-VERSION2` + `TICKET-PHASE1D-V2-REGISTRY-INTROSPECTION`
-+ `TICKET-PHASE3-SEQUENCE-PAIRS-EDGE-FIELDS` per future re-introduzione cronology-canonical
-compatibile con architettura upstream corrente.
+disclosure. (Forward-points documented in ticket-home.)
 
 ### `chore(text): audit sub-chore (g) Blocco 5.2 — vacuous rot-discovery` ([TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-NON-VACUOUS-AUDIT](docs/tickets/TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-NON-VACUOUS-AUDIT.md))
 Cat-5 3-doc retroactive audit-ticket reconstruction: 0 actual `centered_text(` + `glow_text(` function calls in `tests/text/test_text_simplicity_adapters.cpp` (665 LoC, per PCRE2-rg forensic probe this-session 2026-07-15); 11 total rg-matches classified as TEST_CASE name string literals (5: L73, L145, L172, L596, L619) + spdlog message string literals (6: L149, L154, L156, L164, L176, L189) — NO actual function-call coverage in the SUT. **VACUOUS via direct-call classification** (catena-precedent (a/c/d/e/i) all VACUOUS preserved; (f) NON-VACUOUS isolated-exception in `tests/deterministic/test_visual_regression_scenarios.cpp`). §honest-discipline rot-discovery disclosed: the prior `d0f5c4f8` §Honest-discovery rot-detection Surface row "18+7=25 callers verified" was inflated by string-literal substring rg-search (no comment-strip filter + no function-call semantic-check); the rot-discovery OVERALL conclusion (migration wrong, deletion correct) remains valid but the cited counts were rot-prone. DELETION forward-point PRESERVED (OPEN P3 per `d0f5c4f8`) — test purpose inversion premise is method-agnostic of caller-count dispute. Cat-5 home canonical cronaca per AGENTS.md `§honest-discipline` naked-truth disclosure over catena-coherence. ZERO source touched per cat-3 minimal-surface audit-only deliverable. Cronaca estesa in canonical ticket-home per AGENTS.md Cat-3 anti-dup.
