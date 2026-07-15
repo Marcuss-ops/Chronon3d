@@ -4,6 +4,8 @@
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 
+#include "../common/render_error_formatter.hpp"
+
 #include <spdlog/spdlog.h>
 
 #include <cmath>
@@ -19,15 +21,15 @@
 namespace chronon3d::cli {
 
 bool write_render_frame(const Composition& comp,
-                        SoftwareRenderer & renderer,
-                        Frame frame,
-                        const FrameRange& range,
-                        const std::string& output_pattern,
-                        bool& ok,
-                        std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames,
-                        double& total_render_ms,
-                        double& total_encode_ms,
-                        int& frames_written) {
+                         SoftwareRenderer & renderer,
+                         Frame frame,
+                         const FrameRange& range,
+                         const std::string& output_pattern,
+                         bool& ok,
+                         std::vector<chronon3d::telemetry::FrameTelemetryRecord>& telemetry_frames,
+                         double& total_render_ms,
+                         double& total_encode_ms,
+                         int& frames_written) {
     const auto hits_before = renderer.node_cache().stats().hits;
     const auto t0 = profiling::now();
     auto fb = renderer.render(comp, frame);
@@ -36,7 +38,19 @@ bool write_render_frame(const Composition& comp,
     const double dirty_ratio = renderer.last_dirty_area_ratio();
 
     if (!fb) {
-        spdlog::error("Failed to render frame {}", frame);
+        const auto& structured = renderer.session().last_frame_error;
+        if (structured.has_value()) {
+            print_render_error(*structured, comp.name(), frame);
+        } else {
+            print_render_error(
+                graph::NodeExecutionError{
+                    graph::RenderBackendErrorCode::ExecutionFailure,
+                    "render",
+                    "renderer returned a null framebuffer without a structured node error"
+                },
+                comp.name(),
+                frame);
+        }
         ok = false;
         return false;
     }
