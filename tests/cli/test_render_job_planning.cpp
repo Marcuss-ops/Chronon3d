@@ -15,7 +15,7 @@ namespace cli = chronon3d::cli;
 
 namespace {
 
-constexpr const char* kCompositionId = "RenderPlanningFixture";
+constexpr const char* kCompositionId = "RenderJobBuilderFixture";
 constexpr std::int64_t kDuration = 120;
 
 c3d::Composition make_fixture_composition() {
