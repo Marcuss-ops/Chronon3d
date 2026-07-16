@@ -77,11 +77,11 @@ static const char* kClipVariantNames[kClipVariantCount] = {
     "baseline", "expanded", "conservative", "full", "off"
 };
 static const Rect kClipRects[kClipVariantCount] = {
-    Rect{0.0f,    0.0f,    1920.0f, 1080.0f},  // Baseline
-    Rect{-100.0f, -100.0f, 2120.0f, 1280.0f},  // Expanded (FU04 violation response)
-    Rect{96.0f,   54.0f,   1824.0f, 1026.0f},  // Conservative (5% safe-area)
-    Rect{-1000.0f, -1000.0f, 3920.0f, 3080.0f}, // Full (way over-sized)
-    Rect{0.0f,    0.0f,    0.0f,    0.0f}     // Off (zero rect)
+    Rect{.origin = {0.0f, 0.0f}, .size = {1920.0f, 1080.0f}},
+    Rect{.origin = {-100.0f, -100.0f}, .size = {2120.0f, 1280.0f}},
+    Rect{.origin = {96.0f, 54.0f}, .size = {1824.0f, 1026.0f}},
+    Rect{.origin = {-1000.0f, -1000.0f}, .size = {3920.0f, 3080.0f}},
+    Rect{.origin = {0.0f, 0.0f}, .size = {0.0f, 0.0f}}
 };
 
 // The canary text — same as the §11 pipeline parity test.
@@ -269,17 +269,17 @@ OverlayResult render_with_overlay(SoftwareRenderer& renderer, ClipVariant varian
     constexpr Color kAnchorColor      {0.3f, 0.4f, 0.95f, 1.0f}; // blue
 
     // 1. box (900×200, centered at (960, 540))
-    draw_rect_outline(*out.fb, Rect{510.0f, 440.0f, 900.0f, 200.0f}, kBoxColor, 3);
+    draw_rect_outline(*out.fb, Rect{.origin = {510.0f, 440.0f}, .size = {900.0f, 200.0f}}, kBoxColor, 3);
 
     // 2. baseline (horizontal line at y=540, the canvas center)
     draw_hline(*out.fb, 0, 1919, 540, kBaselineColor, 2);
 
     // 3. ink-bbox (conservative estimate — canary at 96pt with 15 chars
     // produces roughly 800×130 px of ink centered on (960, 540))
-    draw_rect_outline(*out.fb, Rect{560.0f, 475.0f, 800.0f, 130.0f}, kInkBboxColor, 2);
+    draw_rect_outline(*out.fb, Rect{.origin = {560.0f, 475.0f}, .size = {800.0f, 130.0f}}, kInkBboxColor, 2);
 
     // 4. predicted-bbox (TextRunNode::predicted_bbox output, with 8px shadow spread)
-    draw_rect_outline(*out.fb, Rect{502.0f, 432.0f, 916.0f, 216.0f}, kPredictedColor, 2);
+    draw_rect_outline(*out.fb, Rect{.origin = {502.0f, 432.0f}, .size = {916.0f, 216.0f}}, kPredictedColor, 2);
 
     // 5. clip-rect (the variant's clip rect)
     if (clip_rect.size.x > 0.0f && clip_rect.size.y > 0.0f) {
@@ -290,8 +290,8 @@ OverlayResult render_with_overlay(SoftwareRenderer& renderer, ClipVariant varian
     draw_cross(*out.fb, 960, 540, kAnchorColor, 16, 3);
 
     // Cache for test verification
-    out.ink_bbox       = Rect{560.0f, 475.0f, 800.0f, 130.0f};
-    out.predicted_bbox = Rect{502.0f, 432.0f, 916.0f, 216.0f};
+    out.ink_bbox       = Rect{.origin = {560.0f, 475.0f}, .size = {800.0f, 130.0f}};
+    out.predicted_bbox = Rect{.origin = {502.0f, 432.0f}, .size = {916.0f, 216.0f}};
     return out;
 }
 

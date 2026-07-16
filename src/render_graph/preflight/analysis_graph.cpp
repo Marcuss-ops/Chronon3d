@@ -53,6 +53,9 @@ void populate_node_basics(
         rec.name     = node.name();
         rec.kind     = std::string(to_string(node.kind()));
         rec.layer_id = node.layer_id();
+        if (node.kind() == RenderGraphNodeKind::Composite) {
+            rec.layer_id.clear();
+        }
 
         const auto policy = node.cache_policy();
         rec.cacheable       = policy.enabled();

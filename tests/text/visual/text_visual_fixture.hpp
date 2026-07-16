@@ -71,6 +71,8 @@
 #include <chrono>
 #include <utility>
 
+using namespace chronon3d;
+
 // ── Composition + render pipeline ─────────────────────────────────────────
 // Aspect ratio bin + dim helpers (verbatim from original file).
 enum class AspectRatio : int { k16x9 = 0, k9x16 = 1 };

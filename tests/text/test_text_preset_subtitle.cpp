@@ -94,7 +94,7 @@ TEST_CASE("TextE2E: render_frame with text produces visible ink pixels") {
 
     chronon3d::content::text::CenterTextOptions opts;
     opts.text = "HELLO";
-    opts.font_path = "assets/fonts/Poppins-Bold.ttf";
+    opts.font_asset = "assets/fonts/Poppins-Bold.ttf";
     opts.font_size = 48.0f;
     opts.color = chronon3d::Color::white();
     opts.box = chronon3d::Vec2{400.0f, 100.0f};
@@ -139,7 +139,7 @@ TEST_CASE("TextE2E: materialize + draw_text_run produces visible ink pixels") {
     // Build TextSpec for centered text
     chronon3d::content::text::CenterTextOptions opts;
     opts.text = "HELLO";
-    opts.font_path = "assets/fonts/Poppins-Bold.ttf";
+    opts.font_asset = "assets/fonts/Poppins-Bold.ttf";
     opts.font_size = 48.0f;
     opts.color = chronon3d::Color::white();
     opts.box = chronon3d::Vec2{400.0f, 100.0f};

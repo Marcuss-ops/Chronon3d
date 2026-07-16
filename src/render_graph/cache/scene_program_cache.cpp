@@ -220,11 +220,11 @@ void SceneProgramCache::auto_tune() {
 // counter so the cost is one atomic load + a branch on the hot path.
 
 void SceneProgramCache::record_execution() {
+    const std::uint64_t count =
+        m_recorded_executions.fetch_add(1, std::memory_order_relaxed) + 1u;
     if (m_tune_mode != TuneMode::Auto) {
         return;
     }
-    const std::uint64_t count =
-        m_recorded_executions.fetch_add(1, std::memory_order_relaxed) + 1u;
     if (m_tune_config.interval == 0) {
         return;
     }
