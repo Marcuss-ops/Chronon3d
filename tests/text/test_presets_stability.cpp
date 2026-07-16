@@ -39,8 +39,8 @@ TEST_CASE("Presets: title_centered — default 96pt + 1920×1080 canvas-center p
     // 3. frame.placement matches canvas center (960, 540) for 1920×1080
     //    (single combined CHECK: x AND y locked together as one invariant)
     CHECK(def.frame.placement.kind == TextPlacementKind::Absolute);
-    CHECK(def.frame.placement.offset.x == doctest::Approx(960.0f)
-       && def.frame.placement.offset.y == doctest::Approx(540.0f));
+    CHECK(def.frame.placement.offset.x == doctest::Approx(960.0f));
+    CHECK(def.frame.placement.offset.y == doctest::Approx(540.0f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -53,8 +53,8 @@ TEST_CASE("Presets: subtitle_bottom — default 48pt + SafeAreaBottom pin (960, 
     CHECK(def.style.font.font_size == doctest::Approx(48.0f));
     // Pin point: 1920×1080, 5% safe-area bottom = (960, 1080 - 54) = (960, 1026).
     CHECK(def.frame.placement.kind == TextPlacementKind::Absolute);
-    CHECK(def.frame.placement.offset.x == doctest::Approx(960.0f)
-       && def.frame.placement.offset.y == doctest::Approx(1026.0f));
+    CHECK(def.frame.placement.offset.x == doctest::Approx(960.0f));
+    CHECK(def.frame.placement.offset.y == doctest::Approx(1026.0f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -67,8 +67,8 @@ TEST_CASE("Presets: caption_safe_area — default 36pt + SafeAreaCenter pin (960
     CHECK(def.style.font.font_size == doctest::Approx(36.0f));
     // Pin point: 1920×1080, SafeAreaCenter (5% margin symmetric) = (960, 540).
     CHECK(def.frame.placement.kind == TextPlacementKind::Absolute);
-    CHECK(def.frame.placement.offset.x == doctest::Approx(960.0f)
-       && def.frame.placement.offset.y == doctest::Approx(540.0f));
+    CHECK(def.frame.placement.offset.x == doctest::Approx(960.0f));
+    CHECK(def.frame.placement.offset.y == doctest::Approx(540.0f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -81,8 +81,8 @@ TEST_CASE("Presets: kinetic_word — default 120pt + canvas-center pin") {
     CHECK(def.style.font.font_size == doctest::Approx(120.0f));
     // Pin point: 1920×1080, CanvasCenter = (960, 540).
     CHECK(def.frame.placement.kind == TextPlacementKind::Absolute);
-    CHECK(def.frame.placement.offset.x == doctest::Approx(960.0f)
-       && def.frame.placement.offset.y == doctest::Approx(540.0f));
+    CHECK(def.frame.placement.offset.x == doctest::Approx(960.0f));
+    CHECK(def.frame.placement.offset.y == doctest::Approx(540.0f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -95,6 +95,6 @@ TEST_CASE("Presets: lower_third — default 42pt + SafeAreaLeft-lower pin (140, 
     CHECK(def.style.font.font_size == doctest::Approx(42.0f));
     // Pin point: 1920×1080, 5% safe-area left + lower-third offset = (140, 920).
     CHECK(def.frame.placement.kind == TextPlacementKind::Absolute);
-    CHECK(def.frame.placement.offset.x == doctest::Approx(140.0f)
-       && def.frame.placement.offset.y == doctest::Approx(920.0f));
+    CHECK(def.frame.placement.offset.x == doctest::Approx(140.0f));
+    CHECK(def.frame.placement.offset.y == doctest::Approx(920.0f));
 }

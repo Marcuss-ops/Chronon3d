@@ -45,6 +45,14 @@ SoftwareRenderer* setup_render_graph_context(
     // instead of the deprecated AssetRegistry::resolve() TLS API.
     if (const auto& root = scene.assets_root(); !root.empty()) {
         ctx.frame_input.assets_root = root.string();
+    } else if (sw_renderer) {
+        // SDK callers mount assets on the engine-owned resolver rather than
+        // on each legacy Composition.  Thread that canonical mount into the
+        // graph context so image/font nodes use the same per-engine root.
+        if (const auto root = sw_renderer->runtime().resolver().mount_root();
+            !root.empty()) {
+            ctx.frame_input.assets_root = root.string();
+        }
     }
 
     ctx.frame_input.light_context = scene.light_context();

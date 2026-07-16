@@ -26,6 +26,8 @@
 // preset variations (no SSAA, no motion-blur) and the gate's
 // "≥ 1 such pixel" threshold catches "all-zero framebuffer"
 // regressions with a stable boundary.
+#include <doctest/doctest.h>
+
 #include <chronon3d/sdk/render_engine.hpp>
 #include <chronon3d/sdk/render_output.hpp>
 #include <chronon3d/sdk/render_error.hpp>
