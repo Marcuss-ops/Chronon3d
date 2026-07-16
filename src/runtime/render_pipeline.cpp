@@ -45,7 +45,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
         m_renderer->render_settings(),
         m_renderer->composition_registry(),
         m_renderer->video_decoder(),
-        fps, "scene"
+        fps, "scene", m_renderer
     );
 }
 
@@ -71,7 +71,7 @@ std::shared_ptr<Framebuffer> RenderPipeline::render_scene(
         m_renderer->render_settings(),
         m_renderer->composition_registry(),
         m_renderer->video_decoder(),
-        fps, "scene"
+        fps, "scene", m_renderer
     );
 }
 
