@@ -66,6 +66,14 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
         return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
+    // Projected layers are rasterized through the camera projection matrix;
+    // keep their build-time culling conservative because a projected corner
+    // can cross the viewport edge even when the pre-projection layer bbox is
+    // outside it.  The executor performs the definitive clip in pixel space.
+    if (item.projected) {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    }
+
     if (!renderer) {
         return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
@@ -102,12 +110,23 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
                 : (item_source_world * layer_inv * node_matrix);
         }
 
+        if (ctx.policy.modular_coordinates &&
+            is_pinned_full_canvas_rect(item, node, ctx)) {
+            actual_world_matrix = canvas_center * actual_world_matrix;
+        }
+
         Mat4 matrix;
         if (use_local) {
             Mat4 shape_matrix = glm::inverse(item.world_matrix) * actual_world_matrix;
             matrix = canvas_center * ssaa_scale * shape_matrix;
         } else {
-            if (item.projected || centered) {
+            // In the modular direct-SourceNode path, item_source_world is
+            // already in canvas pixel space (the resolver supplied the
+            // implicit canvas translation).  Applying canvas_center again
+            // here makes the bbox disagree with execute() and culls centered
+            // shapes/effect stacks at the wrong location.
+            if (item.projected || item.native_3d ||
+                (centered && !(ctx.policy.modular_coordinates && !use_local))) {
                 matrix = canvas_center * ssaa_scale * actual_world_matrix;
             } else {
                 matrix = ssaa_scale * actual_world_matrix;

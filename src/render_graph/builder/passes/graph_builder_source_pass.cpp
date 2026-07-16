@@ -33,10 +33,14 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
         const bool use_local = ctx.policy.modular_coordinates &&
             layer_needs_transform && !item.native_3d;
-        const bool source_is_static = is_static || use_local;
+        // A local transform changes the rasterized placement, but it does not
+        // make an animated layer's source frame-invariant.  Treating
+        // `use_local` as static reused the first moving shape in dirty/tile
+        // sequences and left the old circle at the previous position.
+        const bool source_is_static = is_static;
 
         if (ctx.policy.diagnostics_enabled) {
-            spdlog::info(
+                spdlog::info(
                 "[source-pass] layer='{}' kind={} item_transform_any={} implicit_center_only={} custom_transform={} use_local={} centered={} tx={} ty={}",
                 layer.name.c_str(),
                 static_cast<int>(layer.kind),
@@ -50,9 +54,12 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
             );
         }
 
-        const Mat4 item_source_world = use_local
+        const Mat4 item_source_world = item.projected && !item.native_3d &&
+            std::abs(item.world_z) < 1e-4f
+            ? item.projection_matrix
+            : (use_local
             ? item.world_matrix
-            : source_space_world_matrix(item, ctx);
+            : source_space_world_matrix(item, ctx));
 
         if (layer.nodes.size() == 1) {
             const auto& node = layer.nodes[0];
@@ -143,9 +150,13 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     cache::fold_camera_into_params_hash(source_key, ctx.frame_input.camera_2_5d);
                 }
 
-                const Mat4 shape_matrix = use_local
+                Mat4 shape_matrix = use_local
                     ? node.world_transform.to_mat4()
                     : (item_source_world * node.world_transform.to_mat4());
+                if (ctx.policy.modular_coordinates &&
+                    is_pinned_full_canvas_rect(item, node, ctx)) {
+                    shape_matrix = implicit_canvas_center_matrix(ctx) * shape_matrix;
+                }
                 const f32 shape_opacity = use_local
                     ? node.world_transform.opacity
                     : (item.transform.opacity * node.world_transform.opacity);
@@ -169,7 +180,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                     std::string(node.name), node, source_key,
                     ctx.policy.modular_coordinates ? std::optional<Mat4>(shape_matrix) : std::optional<Mat4>(resolved_source_matrix),
                     ctx.policy.modular_coordinates ? std::optional<f32>(shape_opacity) : std::optional<f32>(resolved_source_opacity),
-                    source_is_static ? static_memory_cache("source") : frame_variant_cache("source")
+                    source_is_static ? static_memory_cache("source") : frame_variant_cache("source"),
+                    false
                 ), node_ctx);
             }
             return source;

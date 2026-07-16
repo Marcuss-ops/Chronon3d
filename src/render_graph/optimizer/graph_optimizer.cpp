@@ -258,12 +258,15 @@ size_t prune_branches(RenderGraph& graph, const RenderGraphContext& ctx) {
         }
 
         // Nodes with empty predicted bbox — bypass if single-input
-        if (!bypassed) {
+        if (!bypassed && ctx.frame_input.width > 0 && ctx.frame_input.height > 0) {
             auto bbox = node.predicted_bbox(ctx, {});
             if (bbox && bbox->is_empty()) {
                 const auto& our_inputs = graph.inputs(id);
                 if (our_inputs.size() == 1) {
                     GraphNodeId bypass_src = our_inputs[0];
+                    if (id == graph.output()) {
+                        graph.retarget_output(bypass_src);
+                    }
                     for (GraphNodeId n = 0; n < static_cast<GraphNodeId>(node_count); ++n) {
                         if (pruned[n] || !graph.has_node(n)) continue;
                         for (GraphNodeId in : graph.inputs(n)) {
