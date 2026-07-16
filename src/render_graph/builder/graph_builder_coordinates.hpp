@@ -189,7 +189,7 @@ inline Transform calculate_centered_transform(const Transform& t, const RenderGr
 // The resolver encapsulates ALL coordinate decisions:
 //
 //   - modular-coordinates local path (use_local)
-//   - implicit canvas-center strip (for pin_to(Center) layers)
+//   - parent layer placement, including implicit canvas-center
 //   - canvas-center bake for non-modular centered layers
 //
 // Opacity is handled separately (returned via the opacity output param)
@@ -200,12 +200,12 @@ inline Transform calculate_centered_transform(const Transform& t, const RenderGr
 
 /// Resolve TextRun placement in a single call.
 ///
-/// Equivalent to the old sequence:
-///   item_source_world = source_space_world_matrix(item, ctx)
-///   run_matrix = item_source_world * node.world_transform.to_mat4()
-///   if (!modular && centered) resolved = canvas_center * run_matrix
-/// but encapsulated so the source pass's TextRun branch doesn't depend
-/// on those helpers directly.
+/// TextRun glyphs are laid out in box-local coordinates.  The RenderNode
+/// transform contributes the text pin/anchor offset and the Layer transform
+/// remains the parent-space placement.  Both must therefore be composed once.
+/// Stripping an implicit canvas-center from the parent leaves the node's
+/// `T(-anchor)` uncompensated (for a 1920×1080 centered box: -960,-540),
+/// which rasterizes glyphs successfully but composites the ink off-canvas.
 inline TextRunPlacement resolve_text_run_placement(
     const LayerGraphItem& item,
     const ::chronon3d::RenderNode& node,
@@ -217,51 +217,23 @@ inline TextRunPlacement resolve_text_run_placement(
                         && needs_xform && !item.native_3d;
 
     if (use_local) {
-        // TICKET-TEXT-CLIP-PREDICTED-BBOX — for use_local=true, the
-        // downstream TransformNode handles the layer transform
-        // (layer_t) and layer opacity.  The TextRunNode only needs
-        // the node's own transform, matching the SourceNode path:
-        //   SourceNode: shape_matrix = node.world_transform.to_mat4()
-        //   SourceNode: shape_opacity = node.world_transform.opacity
-        //
-        // The node's world_transform already encodes the text box
-        // position (e.g. T(110, 360) for a 1700×360 box centered
-        // at (960, 540)).  The TransformNode's model matrix
-        // (= T(-cc) * item.world_matrix) handles canvas centering
-        // and layer scale via pixel_model = T(cc) * model * T(-cc).
-        //
-        // Baking layer_t into the placement would cause a double-
-        // transform (TextRun applies layer_t, TransformNode also
-        // applies layer_t).  Adding canvas center on top of the
-        // node's world_transform would double-translate.
-        //
-        // Mirror: graph_builder_source_pass.cpp ~line 155
-        // shape_matrix use_local branch.
+        // The downstream TransformNode handles the layer transform and layer
+        // opacity.  TextRunNode receives only the node-local text transform,
+        // matching the SourceNode local path and avoiding double application.
         out_opacity = node.world_transform.opacity;
         return TextRunPlacement{node.world_transform.to_mat4()};
     }
 
-    // Non-local path: build item-level world matrix.
-    // For implicit-centering-only layers, strip the canvas center
-    // so it's applied exactly once (re-applied below if centered).
-    Mat4 item_world = item.world_matrix;
-    if (is_implicit_2d_centering_only(item, ctx)) {
-        item_world = glm::inverse(implicit_canvas_center_matrix(ctx)) * item_world;
-    }
-
-    Mat4 matrix = item_world * node.world_transform.to_mat4();
+    // Non-local path: compose parent layer placement and node-local text
+    // placement directly.  In particular, retain an implicit canvas-center
+    // carried by item.world_matrix: it compensates the text box anchor offset
+    // exactly once instead of leaving the final model at -width/2,-height/2.
+    Mat4 matrix = item.world_matrix * node.world_transform.to_mat4();
     out_opacity = item.transform.opacity * node.world_transform.opacity;
 
-    // TICKET-TEXT-CLIP-PREDICTED-BBOX — do NOT re-bake the canvas
-    // center for implicit-centered layers.  The strip above already
-    // removed the implicit canvas-center from item_world, and the
-    // node.world_transform is already in canvas coords.  Re-baking
-    // here would double-translate implicit-centered layers to
-    // translate(1920, 1080) and push the rendered text off-canvas
-    // at the bottom-right corner.  For non-implicit-centered
-    // layers (e.g. l.scale(1.30)) the canvas center is NOT in
-    // item.world_matrix, so we DO need to bake it here so the
-    // centered text ends up at the canvas-center position.
+    // Projected/non-implicit centered paths may request centered rendering
+    // without carrying canvas-center in item.world_matrix.  Bake it only for
+    // those paths; implicit-centered layers already contain it above.
     if (should_use_centered_rendering(item, ctx) && !is_implicit_2d_centering_only(item, ctx)) {
         matrix = implicit_canvas_center_matrix(ctx) * matrix;
     }
