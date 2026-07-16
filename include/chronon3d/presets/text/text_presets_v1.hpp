@@ -132,6 +132,7 @@ namespace chronon3d::presets::text {
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
+    def.style.font.font_path = "assets/fonts/Poppins-Bold.ttf";
     def.style.font.font_family = "Poppins";
     def.style.font.font_weight = 700;
     def.style.font.font_style  = "normal";
@@ -169,6 +170,7 @@ namespace chronon3d::presets::text {
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
+    def.style.font.font_path = "assets/fonts/Poppins-Regular.ttf";
     def.style.font.font_family = "Poppins";
     def.style.font.font_weight = 600;
     def.style.font.font_style  = "normal";
@@ -203,6 +205,7 @@ namespace chronon3d::presets::text {
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
+    def.style.font.font_path = "assets/fonts/Poppins-Regular.ttf";
     def.style.font.font_family = "Poppins";
     def.style.font.font_weight = 500;
     def.style.font.font_style  = "normal";
@@ -238,6 +241,7 @@ namespace chronon3d::presets::text {
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
+    def.style.font.font_path = "assets/fonts/Poppins-Bold.ttf";
     def.style.font.font_family = "Poppins";
     def.style.font.font_weight = 900;
     def.style.font.font_style  = "normal";
@@ -273,6 +277,7 @@ namespace chronon3d::presets::text {
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
+    def.style.font.font_path = "assets/fonts/Poppins-Bold.ttf";
     def.style.font.font_family = "Poppins";
     def.style.font.font_weight = 700;
     def.style.font.font_style  = "normal";
