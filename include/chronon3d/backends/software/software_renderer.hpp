@@ -31,15 +31,9 @@ struct EffectStack; enum class BlendMode : unsigned char; enum class CompositeOp
 class SoftwareRenderer : public Renderer {
 public:
     // ── Render entry points ──────────────────────────────────────────
-    //
-    // Fase C3 — Canonical unified pipeline:
-    //   render(Composition, Frame) → render_composition_frame() → render_scene_via_graph()
-    //
-    // The render_scene() overloads below are @deprecated thin wrappers that
-    // construct a temporary Composition internally.  Migrate callers to
-    // build a Composition explicitly and call render(Composition, Frame).
-    //
-    // Canonical entry point (V0.2 SDK):
+    // Fase C3 — canonical entry: render(Composition, Frame) → render_composition_frame()
+    // → render_scene_via_graph().  The render_scene() overloads below are @deprecated thin
+    // wrappers.  Canonical V0.2 SDK entry point:
     std::shared_ptr<Framebuffer> render(const Composition& comp, Frame frame);
 
     /// @deprecated Fase C3 — use render(Composition, Frame) instead.
@@ -171,14 +165,8 @@ public:
 
     // ── Graph pipeline orchestration ───────────────────────────────────
     void mark_fast_path_reused(Frame frame, const Camera2_5D& cam, uint64_t combined_fp);
-    // Azione 20 — public-SDK ABI forwarder to commit_prev_frame_state.
-    //   The implementation in software_renderer.cpp is a pure 1-line
-    //   forwarder; in-tree call sites all go through commit_prev_frame_state
-    //   directly.  This declaration is preserved as a public-SDK ABI
-    //   commitment for out-of-tree consumers that may have linked against
-    //   this signature; removing it would be an ABI break.
-    //   See user-spec verbatim §4: "ABI/header pubblico ➜ documenta il
-    //   vincolo con commento, NON toccare."
+    // Azione 20 — kept as public-SDK ABI forwarder to commit_prev_frame_state
+    // (user-spec §4: "ABI/header pubblico ➜ documenta il vincolo, NON toccare").
     void commit_frame_state(Frame, const Camera2_5D&, uint64_t, uint64_t, uint64_t, uint64_t,
                             std::unordered_map<std::string, LayerBBoxState>&&);
     void commit_prev_frame_state(Frame, const Camera2_5D&, uint64_t, uint64_t, uint64_t, uint64_t,
