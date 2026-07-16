@@ -27,7 +27,6 @@
 //
 // Output: [TICKET-SDK-PACKAGING-CONSOLIDATION] one-liner on PASS.
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
 #include <array>
