@@ -213,6 +213,7 @@ Layer LayerBuilder::build() {
                 materialize_params, engine_for_shape, local_time,
                 spec.animated_doc);
             if (shape) {
+                shape->placement_kind = materialize_params.text.placement.kind;
                 node.world_transform.anchor = resolve_text_anchor(
                     materialize_params.text.layout.anchor,
                     shape->layout

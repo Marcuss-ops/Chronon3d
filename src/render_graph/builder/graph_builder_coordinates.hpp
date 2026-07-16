@@ -124,6 +124,12 @@ inline bool has_custom_render_transform(const LayerGraphItem& item, const Render
 inline bool layer_needs_render_transform(const LayerGraphItem& item, const RenderGraphContext& ctx) {
     if (!item.layer) return false;
 
+    // The legacy/non-modular path already resolves the complete world matrix
+    // into the source node. Adding a TransformNode there applies the parent
+    // placement a second time. TransformNode is owned by the modular path;
+    // keep the legacy path source-space only.
+    if (!ctx.policy.modular_coordinates) return false;
+
     // TextRunNode rasterizes directly into a full-canvas surface.  A
     // TransformNode after it cannot recover glyphs that were clipped while
     // their local anchor was negative, so text placement must be resolved in
@@ -147,6 +153,27 @@ inline Mat4 source_space_world_matrix(const LayerGraphItem& item, const RenderGr
     }
 
     return world;
+}
+
+// TextPlacement::Absolute is already expressed in canvas coordinates.  Text
+// layers can nevertheless carry the automatic canvas-centre transform from
+// their layer placement.  Remove that implicit parent before composing the
+// text node, including when the layer is aggregated by MultiSourceNode.
+inline Mat4 resolve_absolute_text_source_matrix(
+    const LayerGraphItem& item,
+    const RenderNode& node,
+    const RenderGraphContext& ctx,
+    Mat4 matrix) {
+    if (node.shape.type() != ShapeType::TextRun) return matrix;
+
+    const auto run_shape = node.shape.text_run_shape_handle().value;
+    const bool absolute_placement =
+        run_shape && run_shape->placement_kind == TextPlacementKind::Absolute;
+    if (absolute_placement && matrix_near(
+            item.transform.to_mat4(), implicit_canvas_center_matrix(ctx))) {
+        matrix = glm::inverse(implicit_canvas_center_matrix(ctx)) * matrix;
+    }
+    return matrix;
 }
 
 /// Strip the implicit canvas-center translation from a TransformNode matrix.
@@ -248,7 +275,9 @@ inline TextRunPlacement resolve_text_run_placement(
     // placement directly.  In particular, retain an implicit canvas-center
     // carried by item.world_matrix: it compensates the text box anchor offset
     // exactly once instead of leaving the final model at -width/2,-height/2.
-    Mat4 matrix = item.world_matrix * node.world_transform.to_mat4();
+    Mat4 parent_matrix = resolve_absolute_text_source_matrix(
+        item, node, ctx, item.world_matrix);
+    Mat4 matrix = parent_matrix * node.world_transform.to_mat4();
     out_opacity = item.transform.opacity * node.world_transform.opacity;
 
     // Projected/non-implicit centered paths may request centered rendering

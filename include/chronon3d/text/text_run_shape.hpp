@@ -36,6 +36,7 @@
 #include <chronon3d/text/text_material.hpp>              // TextMaterial
 #include <chronon3d/scene/model/shape/shape.hpp>           // TextPaint, TextShadow
 #include <chronon3d/scene/builders/builder_params.hpp>     // TextLayoutSpec
+#include <chronon3d/text/text_placement.hpp>               // TextPlacementKind
 
 #include <memory>
 #include <vector>
@@ -93,6 +94,7 @@ struct TextRunShape {
     TextMaterial material;                         // premium material settings
     TextPaint paint;                              // fill/stroke paint settings
     std::vector<TextShadow> shadows;              // per-layer shadow stack
+    TextPlacementKind placement_kind{TextPlacementKind::Absolute};
 
     // ── Animation driver payload (PR 8) ────────────────────────────────
     // Stored at materialization time so the per-frame driver

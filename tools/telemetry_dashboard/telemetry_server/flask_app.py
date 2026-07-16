@@ -87,6 +87,22 @@ def resolve_artifact_path(raw_path: str) -> Path | None:
             if resolved.exists() and resolved.is_file() and resolved.is_relative_to(resolved_root):
                 return resolved
 
+    # Historical telemetry can contain an absolute path from another checkout
+    # (for example `/home/.../output/dashboard/foo.png`). Re-anchor only the
+    # portion below `output/` in this checkout; the candidate remains confined
+    # to OUTPUT_DIR and does not widen the artifact roots.
+    if path.is_absolute():
+        parts = path.parts
+        try:
+            output_index = parts.index('output')
+        except ValueError:
+            output_index = -1
+        if output_index >= 0:
+            relative_output = Path(*parts[output_index + 1:])
+            candidate = (OUTPUT_DIR / relative_output).resolve()
+            if candidate.exists() and candidate.is_file() and candidate.is_relative_to(OUTPUT_DIR.resolve()):
+                return candidate
+
     return None
 
 @app.route('/api/login', methods=['POST'])
