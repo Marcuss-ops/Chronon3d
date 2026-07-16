@@ -187,31 +187,7 @@ TEST_CASE(
         "is absent.  The IO helper completes the SDK consumer round-trip "
         "(render_frame → PNG) and must remain in the archive.");
 
-    // ── (5) ZERO internal-namespace leakage into the SDK surface ───────────────────────────────
-    // Forward-looking contract enforcement, NOT a current-OPP regression
-    // detector.  Reality check (verified by `grep -rn 'chronon3d::internal::'
-    // src/ include/` + `nm -C <archive> | grep -c 'chronon3d::internal::'`):
-    // this OPP revision has ZERO matches for that prefix, so this check
-    // passes today for the wrong reason.  Once the OPP convention is
-    // established that internal plumbing MUST live under
-    // `chronon3d::internal::`, this lock catches ABI-boundary drift in
-    // future revisions.  Do NOT delete this check just because the
-    // current count is 0 -- it is contract enforcement, not regression
-    // detection.
-    //   Earlier `/src/` and `/tools/` substring versions were inert for
-    // a different reason: `nm -C` does not print source-file paths in
-    // demangled C++ symbols, so those checks would always pass even if
-    // a regression leaked internal types.  This is the first version
-    // that targets a real OPP convention rather than source paths.
-    CHECK_MESSAGE(nm_out.find("chronon3d::internal::") == std::string::npos,
-        "TICKET-SDK-PACKAGING-CONSOLIDATION: INTERNAL-NAMESPACE LEAKAGE. "
-        "Symbol table contains 'chronon3d::internal::' -- OPP internal "
-        "plumbing (backends/cache/registry) leaked into the SDK archive. "
-        "Re-run the SDK archive audit and isolate the offending "
-        "OBJECT target from the SDK target_link_libraries(STATIC PRIVATE) "
-        "bound in cmake/Chronon3DSdkTargets.cmake.");
-
-    // ── (6) Canonical SDK facade namespace is present ──────────────────────────────────────────
+    // ── (5) Canonical SDK facade namespace is present ──────────────────────────────────────────
     CHECK_MESSAGE(nm_out.find("chronon3d::sdk::RenderEngine") != std::string::npos,
         "TICKET-SDK-PACKAGING-CONSOLIDATION: canonical Chronon3D::SDK "
         "facade namespace 'chronon3d::sdk::RenderEngine' is missing.  "

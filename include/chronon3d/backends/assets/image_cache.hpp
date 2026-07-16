@@ -13,6 +13,8 @@
 
 namespace chronon3d {
 
+namespace assets { class AssetResolver; }
+
 struct CachedImage {
     int width{0};
     int height{0};
@@ -70,6 +72,9 @@ public:
     get_or_load(const std::string& path);
 
     void clear();
+    void set_asset_resolver(const assets::AssetResolver* resolver) noexcept {
+        m_asset_resolver = resolver;
+    }
     [[nodiscard]] usize size() const {
         return m_cache.stats().current_size;
     }
@@ -91,6 +96,7 @@ private:
     // parallel. The loader is invoked while holding the per-shard lock, which
     // serializes only concurrent loads of the same path (same shard).
     cache::LruCache<std::string, std::shared_ptr<CachedImage>> m_cache;
+    const assets::AssetResolver* m_asset_resolver{nullptr};
 };
 
 } // namespace chronon3d

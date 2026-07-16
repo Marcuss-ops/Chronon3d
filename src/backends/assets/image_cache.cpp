@@ -1,4 +1,5 @@
 #include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <spdlog/spdlog.h>
@@ -30,6 +31,15 @@ ImageCache::ImageCache(size_t capacity_bytes)
     : m_cache(capacity_bytes > 0 ? capacity_bytes : resolve_capacity()) {}
 
 std::shared_ptr<const CachedImage> ImageCache::get_or_load(const std::string& path) {
+    std::string resolved_path = path;
+    if (m_asset_resolver) {
+        const auto resolved = m_asset_resolver->resolve(path);
+        if (!resolved) {
+            spdlog::warn("ImageCache: asset '{}' is not present under the engine asset root", path);
+            return nullptr;
+        }
+        resolved_path = resolved->string();
+    }
     std::shared_ptr<image::ImageBackend> backend;
     {
         std::shared_lock<std::shared_mutex> lock(*m_backend_mutex);
@@ -40,10 +50,10 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(const std::string& pa
         return nullptr;
     }
 
-    auto shared = m_cache.compute_if_absent(path,
+    auto shared = m_cache.compute_if_absent(resolved_path,
         [&]() -> std::pair<std::shared_ptr<CachedImage>, size_t> {
             const auto t0 = profiling::now();
-            auto buffer = backend->load_image(path);
+            auto buffer = backend->load_image(resolved_path);
             if (!buffer || !buffer->pixels) {
                 return {std::make_shared<CachedImage>(), 1};
             }
