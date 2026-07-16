@@ -54,7 +54,7 @@ inline void attach_software_backend(SoftwareRenderer* renderer) {
         /* framebuffer_pool   = */ renderer->runtime().framebuffer_pool_shared(),
         /* asset_resolver     = */ &renderer->runtime().resolver(),
         /* text_resources     = */ renderer->text_render_resources(),
-        /* images             = */ nullptr,
+        /* images             = */ &renderer->image_renderer(),
         /* text_raster        = */ nullptr,
         /* debug_config       = */ nullptr,
     };
@@ -69,11 +69,17 @@ inline void attach_software_backend(SoftwareRenderer* renderer) {
     backends::software::internal::ProcessorSourceExtras extras{};
     extras.registry      = &renderer->software_registry();
     extras.image_backend = renderer->image_backend();
+    extras.image_renderer = &renderer->image_renderer();
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     extras.font_engine   = &renderer->font_engine();
 #endif
-    backend->attach_processor_context(
-        backends::software::internal::make_processor_context(services, extras));
+    auto processor_context =
+        backends::software::internal::make_processor_context(services, extras);
+    processor_context.image_renderer = &renderer->image_renderer();
+    processor_context.image_backend = renderer->image_backend();
+    backend->attach_processor_context(std::move(processor_context));
+    backend->attach_image_services(&renderer->image_renderer(),
+                                   renderer->image_backend());
 
     // Fase C2 — suppress deprecation warning; this is an internal test bridge.
 #if defined(__GNUC__) || defined(__clang__)

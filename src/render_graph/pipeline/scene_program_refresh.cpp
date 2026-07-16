@@ -25,6 +25,9 @@
 #include <chronon3d/render_graph/nodes/transform_node.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/nodes/track_matte_node.hpp>
+#include <chronon3d/render_graph/nodes/text_run_node.hpp>
+#include "../builder/graph_builder_coordinates.hpp"
+#include "refresh/layer_item.hpp"
 
 #include <string>
 #include <unordered_map>
@@ -152,6 +155,32 @@ void refresh_compiled_scene_program(
                 } else if (auto* multi = dynamic_cast<MultiSourceNode*>(&graph_node)) {
                     detail::refresh_multi_source_node(*multi,
                         resolved_by_name, is_static_cache, ctx);
+                } else if (auto* text = dynamic_cast<TextRunNode*>(&graph_node)) {
+                    if (binding.layer_index < layers.size()) {
+                        const auto& rl = layers[binding.layer_index];
+                        if (rl.layer && rl.layer->kind == LayerKind::Text
+                            && rl.layer->nodes.size() == 1) {
+                            const auto& render_ref = rl.layer->nodes[0];
+                            const auto item = detail::make_layer_graph_item_for_refresh(rl, ctx);
+                            f32 opacity = 1.0f;
+                            const auto placement = detail::resolve_text_run_placement(
+                                item, render_ref, ctx, opacity);
+                            cache::NodeCacheKey key{
+                                .scope = "layer.textrun:" + std::string(rl.layer->name)
+                                    + ":" + std::string(render_ref.name),
+                                .frame = ctx.frame_input.frame,
+                                .width = ctx.frame_input.width,
+                                .height = ctx.frame_input.height,
+                                .params_hash = hash_render_node_content_only(render_ref),
+                                .source_hash = hash_combine(
+                                    hash_string(render_ref.name),
+                                    hash_render_node_placement_only(render_ref))
+                            };
+                            text->refresh_placement(
+                                render_ref, placement,
+                                key, std::optional<f32>(opacity));
+                        }
+                    }
                 }
                 break;
             }
