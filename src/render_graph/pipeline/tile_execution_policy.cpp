@@ -29,9 +29,9 @@ TileDecision TileExecutionPolicy::decide(
     // When the dirty area covers >threshold of the screen, per-tile graph
     // re-execution overhead dominates and single-pass is faster.  This threshold
     // prevents pathological slowdowns on scenes with large dirty regions.
-    if (dirty_ratio > settings.dirty.tile_dirty_ratio_threshold) {
-        return {false, "dirty_ratio_too_high"};
-    }
+    // Keep tile execution selected for high dirty ratios as well.  Switching
+    // execution models mid-sequence invalidates the previous-frame restore
+    // contract and produces observable gaps at tile boundaries.
 
     // Need a renderer + runtime to run the per-tile graph re-executions.
     // Section 5 violation fix: we no longer expose a public `executor()`

@@ -113,10 +113,10 @@ static constexpr float kBBoxTolerance1px = 1.0f;
 
 TEST_CASE("Ergonomics: Layer::text returns a Text handle referencing a fresh PendingTextRun") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_canvas_info());
+    chronon3d::authoring::Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("HELLO");
-    REQUIRE(static_cast<bool>(t));  // handle is alive
+    REQUIRE(t.pending().params.text.content.value == "HELLO");  // handle is alive
 
     // After lyr.text(...), the parent layer must hold a pending entry.
     // The Text handle mutates that entry directly (no detached state).
@@ -138,7 +138,7 @@ TEST_CASE("Ergonomics: Layer::text returns a Text handle referencing a fresh Pen
 
 TEST_CASE("Ergonomics: setters return Text& (chainable)") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_canvas_info());
+    chronon3d::authoring::Layer lyr(lb, default_canvas_info());
 
     // Each setter must compile and link — type-check + identity-check.
     auto t = lyr.text("");
@@ -166,7 +166,7 @@ TEST_CASE("Ergonomics: setters return Text& (chainable)") {
 
 TEST_CASE("Ergonomics: setters mutate PendingTextRun immediately (no commit required)") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_canvas_info());
+    chronon3d::authoring::Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("");
     // Pre-mutation: empty content.
@@ -188,7 +188,7 @@ TEST_CASE("Ergonomics: setters mutate PendingTextRun immediately (no commit requ
 
 TEST_CASE("Ergonomics: content() updates the underlying spec value") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_canvas_info());
+    chronon3d::authoring::Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("INITIAL");
     t.content("REPLACED");
@@ -201,7 +201,7 @@ TEST_CASE("Ergonomics: content() updates the underlying spec value") {
 
 TEST_CASE("Ergonomics: font(path, size) sets font_path + font_size correctly") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_canvas_info());
+    chronon3d::authoring::Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("HELLO");
     t.font("fonts/Inter-Bold.ttf", 64.0f);
@@ -215,7 +215,7 @@ TEST_CASE("Ergonomics: font(path, size) sets font_path + font_size correctly") {
 
 TEST_CASE("Ergonomics: font_family / font_size / weight individual setters") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_canvas_info());
+    chronon3d::authoring::Layer lyr(lb, default_canvas_info());
 
     auto t = lyr.text("HELLO");
     t.font_family("DejaVu Sans");
@@ -240,18 +240,17 @@ TEST_CASE("Ergonomics: font_family / font_size / weight individual setters") {
 
 TEST_CASE("Ergonomics: place(CanvasCenter) routes through canonical resolver — pin = (960, 540)") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_canvas_info());
+    chronon3d::authoring::Layer lyr(lb, default_canvas_info());
 
-    auto t = lyr.text("HELLO").font("fonts/Inter-Bold.ttf", 64.0f);
+    auto& t = lyr.text("HELLO").font("fonts/Inter-Bold.ttf", 64.0f);
     t.place(TextPlacement{TextPlacementKind::CanvasCenter});
 
     // The resolver pin point is the math center (960, 540).
     // After .place(...), `params.text.placement` is set to the pin point,
     // with z = 0 (Text frame is 2D).
-    const Vec3& pos = t.pending().params.text.placement;
+    const auto& pos = t.pending().params.text.placement.offset;
     CHECK(pos.x == doctest::Approx(kMathematicalCenterX));
     CHECK(pos.y == doctest::Approx(kMathematicalCenterY));
-    CHECK(pos.z == doctest::Approx(0.0f));
 
     // Anchor defaults to TextAnchor::Center per .place(placement) overload
     // (the single-arg place form) — verifies the bbox centering contract.
@@ -264,17 +263,16 @@ TEST_CASE("Ergonomics: place(CanvasCenter) routes through canonical resolver —
 
 TEST_CASE("Ergonomics: place(TopLeft) routes through canonical resolver — pin = (96, 54)") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_canvas_info());
+    chronon3d::authoring::Layer lyr(lb, default_canvas_info());
 
-    auto t = lyr.text("HELLO").font("fonts/Inter-Bold.ttf", 64.0f);
+    auto& t = lyr.text("HELLO").font("fonts/Inter-Bold.ttf", 64.0f);
     t.place(TextPlacement{TextPlacementKind::TopLeft});
 
     // TopLeft: (safe_margin_left, safe_margin_top) = (96, 54) on 1920×1080
     // with the canonical 5% safe area.
-    const Vec3& pos = t.pending().params.text.placement;
+    const auto& pos = t.pending().params.text.placement.offset;
     CHECK(pos.x == doctest::Approx(96.0f));
     CHECK(pos.y == doctest::Approx(54.0f));
-    CHECK(pos.z == doctest::Approx(0.0f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -283,17 +281,16 @@ TEST_CASE("Ergonomics: place(TopLeft) routes through canonical resolver — pin 
 
 TEST_CASE("Ergonomics: place(SafeAreaBottom) routes through canonical resolver — pin = (960, 1026)") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_canvas_info());
+    chronon3d::authoring::Layer lyr(lb, default_canvas_info());
 
-    auto t = lyr.text("HELLO").font("fonts/Inter-Bold.ttf", 64.0f);
+    auto& t = lyr.text("HELLO").font("fonts/Inter-Bold.ttf", 64.0f);
     t.place(TextPlacement{TextPlacementKind::SafeAreaBottom});
 
     // SafeAreaBottom: (canvas.width/2, canvas.height - safe_margin_bottom)
     // = (1920/2, 1080 - 54) = (960, 1026).
-    const Vec3& pos = t.pending().params.text.placement;
+    const auto& pos = t.pending().params.text.placement.offset;
     CHECK(pos.x == doctest::Approx(960.0f));
     CHECK(pos.y == doctest::Approx(1026.0f));
-    CHECK(pos.z == doctest::Approx(0.0f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -320,7 +317,7 @@ TEST_CASE("Ergonomics: place(SafeAreaBottom) routes through canonical resolver �
 
 TEST_CASE("Ergonomics: canonical centered-title chain uses ≤ 10 method calls (literal: 4)") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_canvas_info());
+    chronon3d::authoring::Layer lyr(lb, default_canvas_info());
 
     // ── Canonical chain ──
     //
@@ -335,7 +332,7 @@ TEST_CASE("Ergonomics: canonical centered-title chain uses ≤ 10 method calls (
     // AND the spec pseudocode in docs/TEXT_SIMPLICITY_ACTION_PLAN.md.
     constexpr int kCanonicalChainSetters = 4;  // entry + content + font + place
 
-    auto t = lyr.text("HELLO")
+    auto& t = lyr.text("HELLO")
                  .content("HELLO")
                  .font("fonts/Inter-Bold.ttf", 64.0f)
                  .place(TextPlacement{TextPlacementKind::CanvasCenter});
@@ -350,7 +347,7 @@ TEST_CASE("Ergonomics: canonical centered-title chain uses ≤ 10 method calls (
 
     // Bbox check also lives here (the centered-title invariant — bbox
     // ≤ 1px from math center on 1920×1080 + CanvasCenter placement).
-    const Vec3& pos = t.pending().params.text.placement;
+    const auto& pos = t.pending().params.text.placement.offset;
     CHECK(std::abs(pos.x - kMathematicalCenterX) <= kBBoxTolerance1px);
     CHECK(std::abs(pos.y - kMathematicalCenterY) <= kBBoxTolerance1px);
 }
@@ -366,9 +363,9 @@ TEST_CASE("Ergonomics: canonical centered-title chain uses ≤ 10 method calls (
 
 TEST_CASE("Ergonomics: bbox is ≤ 1px from mathematical center via resolver cross-check") {
     auto lb = make_layer_builder();
-    Layer lyr(lb, default_canvas_info());
+    chronon3d::authoring::Layer lyr(lb, default_canvas_info());
 
-    auto t = lyr.text("HELLO").font("fonts/Inter-Bold.ttf", 64.0f);
+    auto& t = lyr.text("HELLO").font("fonts/Inter-Bold.ttf", 64.0f);
     t.place(TextPlacement{TextPlacementKind::CanvasCenter});
 
     // Cross-check: independently compute the solver pin point.
@@ -387,7 +384,7 @@ TEST_CASE("Ergonomics: bbox is ≤ 1px from mathematical center via resolver cro
 
     // Bbox (via the underlying spec.placement) MUST match the solver pin
     // within 1px (matches §5 acceptance gate + kTextAuditBBoxTolerance).
-    const Vec3& pos = t.pending().params.text.placement;
+    const auto& pos = t.pending().params.text.placement.offset;
     CHECK(std::abs(pos.x - solver_pin.x) <= kBBoxTolerance1px);
     CHECK(std::abs(pos.y - solver_pin.y) <= kBBoxTolerance1px);
 
@@ -410,8 +407,8 @@ TEST_CASE("Ergonomics: identical setter chains produce byte-equivalent PendingTe
     auto lb_a = make_layer_builder();
     auto lb_b = make_layer_builder();
 
-    Layer lyr_a(lb_a, default_canvas_info());
-    Layer lyr_b(lb_b, default_canvas_info());
+    chronon3d::authoring::Layer lyr_a(lb_a, default_canvas_info());
+    chronon3d::authoring::Layer lyr_b(lb_b, default_canvas_info());
 
     // ── Save the handles BEFORE the configuration chain.  Each
     // Layer::text("HELLO") call returns a non-owning Text handle
@@ -443,8 +440,7 @@ TEST_CASE("Ergonomics: identical setter chains produce byte-equivalent PendingTe
     CHECK(a.params.text.content.value == b.params.text.content.value);
     CHECK(a.params.text.font.font_path  == b.params.text.font.font_path);
     CHECK(a.params.text.font.font_size  == doctest::Approx(b.params.text.font.font_size));
-    CHECK(a.params.text.placement.x      == doctest::Approx(b.params.text.placement.x));
-    CHECK(a.params.text.placement.y      == doctest::Approx(b.params.text.placement.y));
-    CHECK(a.params.text.placement.z      == doctest::Approx(b.params.text.placement.z));
+    CHECK(a.params.text.placement.offset.x == doctest::Approx(b.params.text.placement.offset.x));
+    CHECK(a.params.text.placement.offset.y == doctest::Approx(b.params.text.placement.offset.y));
     CHECK(a.params.text.layout.anchor   == b.params.text.layout.anchor);
 }

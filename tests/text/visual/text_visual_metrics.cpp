@@ -100,7 +100,7 @@ inline ScenarioMetrics compute_metrics(const chronon3d::Framebuffer& fb,
                 ink += 1;
                 xmin = std::min(xmin, x); ymin = std::min(ymin, y);
                 xmax = std::max(xmax, x); ymax = std::max(ymax, y);
-                sum_l += chronon3d::luma(c);
+                sum_l += chronon3d::test::luma(c);
                 sum_a += a;
                 sum_x += x * a; sum_y += y * a;
             }

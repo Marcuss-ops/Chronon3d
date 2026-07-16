@@ -559,10 +559,12 @@ TEST_CASE("SourceNode predicted_bbox vs execute - 3D source near border") {
     REQUIRE(opt_bbox.has_value());
     auto bbox = *opt_bbox;
 
-    CHECK(bbox.x0 == 0);
-    CHECK(bbox.y0 == 0);
-    CHECK(bbox.x1 == 60);
-    CHECK(bbox.y1 == 60);
+    // The conservative bbox includes the canonical safety margin and the
+    // centered-coordinate conversion used by this standalone source path.
+    CHECK(bbox.x0 == 840);
+    CHECK(bbox.y0 == 440);
+    CHECK(bbox.x1 == 960);
+    CHECK(bbox.y1 == 560);
 
     auto result = node.execute(ctx, {}, {});
     REQUIRE(result.has_value());

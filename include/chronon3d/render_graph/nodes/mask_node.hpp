@@ -29,7 +29,9 @@ public:
             .frame = m_cache_frame >= 0 ? m_cache_frame : ctx.frame_input.frame,
             .width = ctx.frame_input.width,
             .height = ctx.frame_input.height,
-            .params_hash = hash_mask(m_mask)
+            .params_hash = hash_combine(
+                hash_mask(m_mask),
+                static_cast<u64>(ctx.policy.modular_coordinates))
         };
     }
 

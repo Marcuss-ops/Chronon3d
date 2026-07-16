@@ -161,6 +161,10 @@ CompiledFrameGraph FrameGraphCompiler::compile_with_reuse(
         if (options.run_optimizer) {
             [[maybe_unused]] const auto optimization_result =
                 optimizer::optimize_graph(graph, ctx);
+            // The optimizer may remove/rewrite the output node.  Re-read it
+            // before rebuilding levels; retaining the pre-optimization id
+            // can address a removed node on the reuse fall-through path.
+            compiled.output = graph.output();
         }
         build_execution_levels(graph, compiled.output, compiled);
         build_node_metadata(graph, ctx, compiled, options);

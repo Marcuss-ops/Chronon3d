@@ -105,8 +105,11 @@ struct TestContext {
     }
 
     void add_comp(const char* name, int w, int h, Color color) {
-        registry.add(name, [=](const CompositionProps&) {
-            return make_inner_comp(name, w, h, color);
+        registry.add(CompositionDescriptor{
+            .id = name,
+            .factory = [=](const CompositionProps&) {
+                return make_inner_comp(name, w, h, color);
+            },
         });
     }
 

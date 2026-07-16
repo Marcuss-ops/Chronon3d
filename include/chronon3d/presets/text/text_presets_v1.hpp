@@ -247,7 +247,7 @@ namespace chronon3d::presets::text {
     def.frame.anchor          = TextAnchor::Center;
     def.frame.align           = TextAlign::Center;
     def.frame.vertical_align  = VerticalAlign::Middle;
-    def.frame.wrap            = TextWrap::NoWrap;  // single-word
+    def.frame.wrap            = TextWrap::None;  // single-word
     def.frame.overflow        = TextOverflow::Clip;
     def.frame.line_height     = 0.90f;
     // Pin point: 1920×1080, CanvasCenter.

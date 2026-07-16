@@ -100,10 +100,13 @@ TEST_CASE("Project: registry accessor provides direct CompositionRegistry access
     CHECK(reg.available().size() == 1);
 
     // Direct registry add also visible through project
-    reg.add("B", [](const CompositionProps&) -> Composition {
-        return composition(
-            CompositionSpec{.name = "B", .width = 100, .height = 100},
-            [](const FrameContext&) -> Scene { return Scene{}; });
+    reg.add(CompositionDescriptor{
+        .id = "B",
+        .factory = [](const CompositionProps&) -> Composition {
+            return composition(
+                CompositionSpec{.name = "B", .width = 100, .height = 100},
+                [](const FrameContext&) -> Scene { return Scene{}; });
+        },
     });
     CHECK(project.size() == 2);
     CHECK(project.contains("B"));

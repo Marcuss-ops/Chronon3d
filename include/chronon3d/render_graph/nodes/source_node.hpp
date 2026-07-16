@@ -12,10 +12,12 @@ public:
     SourceNode(std::string name, const ::chronon3d::RenderNode& node, const cache::NodeCacheKey& key,
                std::optional<Mat4> matrix_override = std::nullopt,
                std::optional<f32> opacity_override = std::nullopt,
-               RenderNodeCachePolicy policy = static_memory_cache("source"))
+               RenderNodeCachePolicy policy = static_memory_cache("source"),
+               bool apply_camera_projection = true)
         : RenderGraphNode(policy)
         , m_name(std::move(name)), m_node(node), m_key(key),
-          m_matrix_override(matrix_override), m_opacity_override(opacity_override) {}
+          m_matrix_override(matrix_override), m_opacity_override(opacity_override),
+          m_apply_camera_projection(apply_camera_projection) {}
 
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Source; }
     std::string_view name() const noexcept override { return m_name; }
@@ -67,6 +69,7 @@ private:
     cache::NodeCacheKey m_key;
     std::optional<Mat4> m_matrix_override;
     std::optional<f32> m_opacity_override;
+    bool m_apply_camera_projection{true};
 };
 
 } // namespace chronon3d::graph

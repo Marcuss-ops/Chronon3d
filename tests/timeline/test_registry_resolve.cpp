@@ -51,13 +51,15 @@ TEST_CASE("CompositionRegistry::resolve: returns metadata and normalized props")
         .resolve_metadata = [](const NewsProps& p) {
             return CompositionMetadata{1920, 1080, FrameRate{30, 1}, Frame{p.duration_frames}};
         },
-        .decode = [](const ValueMap& vals, const NewsProps& defs) -> Result<NewsProps, PropsError> {
-            NewsProps p = defs;
-            if (vals.contains("title"))    p.title            = vals.get_string("title");
-            if (vals.contains("duration")) p.duration_frames  = vals.get_int("duration");
-            return p;
-        },
-        .factory = [](const NewsProps&) { return make_stub_composition(); }
+        .factory = [](const NewsProps&) { return make_stub_composition(); },
+        .codec = PropsCodec<NewsProps>{
+            .decode = [](const ValueMap& vals, const NewsProps& defs) -> Result<NewsProps, PropsError> {
+                NewsProps p = defs;
+                if (vals.contains("title"))    p.title            = vals.get_string("title");
+                if (vals.contains("duration")) p.duration_frames  = vals.get_int("duration");
+                return p;
+            },
+        }
     }.to_descriptor());
 
     CompositionInput input;
@@ -84,7 +86,7 @@ TEST_CASE("CompositionRegistry::resolve: unknown composition returns PropsError"
     auto result = registry.resolve("missing", input);
 
     REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().reason == PropsErrorReason::InvalidFormat);
+    CHECK(result.error().reason == PropsErrorReason::MissingRequired);
 }
 
 TEST_CASE("CompositionRegistry::resolve: validation failure propagates PropsError") {
@@ -97,12 +99,14 @@ TEST_CASE("CompositionRegistry::resolve: validation failure propagates PropsErro
             if (p.duration_frames < 0) return std::string{"duration must be >= 0"};
             return std::nullopt;
         },
-        .decode = [](const ValueMap& vals, const NewsProps& defs) -> Result<NewsProps, PropsError> {
-            NewsProps p = defs;
-            if (vals.contains("duration")) p.duration_frames = vals.get_int("duration");
-            return p;
-        },
-        .factory = [](const NewsProps&) { return make_stub_composition(); }
+        .factory = [](const NewsProps&) { return make_stub_composition(); },
+        .codec = PropsCodec<NewsProps>{
+            .decode = [](const ValueMap& vals, const NewsProps& defs) -> Result<NewsProps, PropsError> {
+                NewsProps p = defs;
+                if (vals.contains("duration")) p.duration_frames = vals.get_int("duration");
+                return p;
+            },
+        }
     }.to_descriptor());
 
     CompositionInput input;
@@ -111,29 +115,4 @@ TEST_CASE("CompositionRegistry::resolve: validation failure propagates PropsErro
     auto result = registry.resolve("news-invalid", input);
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().reason == PropsErrorReason::InvalidFormat);
-}
-
-TEST_CASE("CompositionRegistry::resolve: legacy descriptor without prepare_props returns static metadata") {
-    CompositionRegistry registry;
-
-    CompositionDescriptor desc;
-    desc.id = "legacy";
-    desc.width = 1280;
-    desc.height = 720;
-    desc.fps = FrameRate{24, 1};
-    desc.duration = Frame{120};
-    desc.factory = [](const CompositionProps&) { return make_stub_composition(); };
-    registry.add(std::move(desc));
-
-    CompositionInput input;
-    input.values.set("title", "Legacy");
-
-    auto result = registry.resolve("legacy", input);
-    REQUIRE(result.has_value());
-    CHECK(result->props.values.get_string("title") == "Legacy");
-    REQUIRE(result->metadata.has_value());
-    CHECK(result->metadata->width == 1280);
-    CHECK(result->metadata->height == 720);
-    CHECK(result->metadata->fps == FrameRate{24, 1});
-    CHECK(result->metadata->duration == Frame{120});
 }

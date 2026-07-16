@@ -20,6 +20,23 @@ inline Mat4 implicit_canvas_center_matrix(const RenderGraphContext& ctx) {
     ));
 }
 
+inline bool is_pinned_full_canvas_rect(
+    const LayerGraphItem& item,
+    const RenderNode& node,
+    const RenderGraphContext& ctx) {
+    if (!item.layer || !item.layer->layout.pin.has_value() ||
+        item.layer->layout.pin->anchor != Anchor::Center ||
+        node.shape.type() != ShapeType::Rect) {
+        return false;
+    }
+    const auto& rect = node.shape.rect();
+    const auto& pos = node.world_transform.position;
+    return rect.size.x >= static_cast<f32>(ctx.frame_input.width) &&
+           rect.size.y >= static_cast<f32>(ctx.frame_input.height) &&
+           std::abs(pos.x + ctx.frame_input.width * 0.5f) < 1e-3f &&
+           std::abs(pos.y + ctx.frame_input.height * 0.5f) < 1e-3f;
+}
+
 inline bool matrix_near(const Mat4& a, const Mat4& b, f32 eps = 1e-4f) {
     for (int i = 0; i < 4; ++i) {
         for (int j = 0; j < 4; ++j) {
@@ -67,8 +84,10 @@ inline bool should_use_centered_rendering(const LayerGraphItem& item, const Rend
     if (!ctx.policy.modular_coordinates) {
         return (item.layer && item.layer->uses_2_5d_projection);
     }
-    return is_implicit_2d_centering_only(item, ctx)
-        || (layer_needs_render_transform(item, ctx) && !item.native_3d);
+    // Explicit layer transforms are already resolved in canvas space by the
+    // modular SourceNode path.  Only the implicit canvas-center convention
+    // uses the centered transform handling.
+    return is_implicit_2d_centering_only(item, ctx);
 }
 
 /// True only when item.transform is exactly the automatic 2D centering transform.
@@ -87,7 +106,7 @@ inline bool should_use_centered_rendering(const LayerGraphItem& item, const Rend
 /// intent.  The kind check is a conservative gate that prevented the
 /// parity fix; the `matrix_near` check is the actual semantic guard.
 inline bool is_implicit_2d_centering_only(const LayerGraphItem& item, const RenderGraphContext& ctx) {
-    if (!ctx.policy.modular_coordinates) return false;
+    if (!ctx.policy.modular_coordinates) return item.projected;
     if (!item.layer) return false;
     // BUG 1 / TICKET-TEXT-XOFFSET-DOUBLE — Option A.  Text-kind
     // layers have internal centering semantics in the text layout
@@ -130,16 +149,14 @@ inline bool layer_needs_render_transform(const LayerGraphItem& item, const Rende
     // keep the legacy path source-space only.
     if (!ctx.policy.modular_coordinates) return false;
 
-    // TextRunNode rasterizes directly into a full-canvas surface.  A
-    // TransformNode after it cannot recover glyphs that were clipped while
-    // their local anchor was negative, so text placement must be resolved in
-    // the source matrix exactly once.
-    if (item.layer->kind == LayerKind::Text) return false;
-
+    // Software SourceNode rasterizes 2D primitives directly with their world
+    // matrix.  Sending a scaled/rotated shape through a local framebuffer
+    // first loses geometry that starts outside that intermediate surface;
+    // keep the transform in the source matrix.  TransformNode is reserved
+    // for paths that genuinely require a separate surface.
     return item.projected
-        || item.layer->kind == LayerKind::Precomp
-        || item.layer->kind == LayerKind::Video
-        || has_custom_render_transform(item, ctx);
+    || item.layer->kind == LayerKind::Precomp
+    || item.layer->kind == LayerKind::Video;
 }
 
 /// SourceNode already applies canvas_center when centered=true.
@@ -148,7 +165,9 @@ inline bool layer_needs_render_transform(const LayerGraphItem& item, const Rende
 inline Mat4 source_space_world_matrix(const LayerGraphItem& item, const RenderGraphContext& ctx) {
     Mat4 world = item.world_matrix;
 
-    if (is_implicit_2d_centering_only(item, ctx) && should_use_centered_rendering(item, ctx)) {
+    if (is_implicit_2d_centering_only(item, ctx) &&
+        should_use_centered_rendering(item, ctx) &&
+        layer_needs_render_transform(item, ctx)) {
         world = glm::inverse(implicit_canvas_center_matrix(ctx)) * world;
     }
 

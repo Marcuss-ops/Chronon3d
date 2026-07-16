@@ -159,8 +159,13 @@ void LayerPipelinePass::run(GraphBuildContext& ctx) {
                 static_cast<f32>(rctx.frame_input.width), static_cast<f32>(rctx.frame_input.height),
                 rctx.policy.diagnostics_enabled);
             if (proj.visible) {
+                Vec3 projected_position = proj.transform.position;
+                if (glm::length(Vec2(projected_position.x, projected_position.y)) < 1e-4f &&
+                    glm::length(Vec2(effective_transform.position.x, effective_transform.position.y)) > 1e-4f) {
+                    projected_position = effective_transform.position;
+                }
                 const Mat4 eff_proj = is_native_3d_layer(layer)
-                    ? Mat4(1.0f) : glm::translate(Mat4(1.0f), Vec3(proj.transform.position.x, proj.transform.position.y, 0.0f)) * glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
+                    ? Mat4(1.0f) : glm::translate(Mat4(1.0f), Vec3(projected_position.x, projected_position.y, 0.0f)) * glm::scale(Mat4(1.0f), Vec3(proj.perspective_scale, proj.perspective_scale, 1.0f));
                 current_3d_bin.push_back(LayerGraphItem{
                     .layer             = resolved_layer.layer,
                     .transform         = proj.transform,
