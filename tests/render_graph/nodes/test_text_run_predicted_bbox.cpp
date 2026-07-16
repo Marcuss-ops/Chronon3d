@@ -86,6 +86,60 @@ Composition build_anim_cert_title_comp(SoftwareRenderer& renderer) {
         });
 }
 
+// Reproduces the exact production-v1 failure mode where a normal layer carries
+// the implicit canvas-center while the TextRun carries a box-local
+// T(-width/2,-height/2) anchor.  The parent and node transforms must be
+// composed exactly once.  Stripping the parent center leaves the negative
+// anchor uncompensated and produces a fully transparent framebuffer.
+Composition build_full_canvas_visible_comp(SoftwareRenderer& renderer,
+                                           int width,
+                                           int height) {
+    const float box_width = static_cast<float>(width);
+    const float box_height = static_cast<float>(height);
+
+    return composition(
+        {.name = "TextRun/full_canvas_visible",
+         .width = width,
+         .height = height,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 1},
+        [&renderer, box_width, box_height](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("text_layer", [&renderer, box_width, box_height](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                l.pin_to(Anchor::Center);
+                l.text_run("text_run", TextRunSpec{
+                    .text = TextSpec{
+                        .content = {.value = "VISIBLE INK"},
+                        .placement = TextPlacement{
+                            TextPlacementKind::Absolute,
+                            {0.0f, 0.0f},
+                        },
+                        .font = {
+                            .font_path = "assets/fonts/Inter-Bold.ttf",
+                            .font_family = "Inter",
+                            .font_weight = 700,
+                            .font_size = 96.0f,
+                        },
+                        .layout = {
+                            .box = {box_width, box_height},
+                            .anchor = TextAnchor::Center,
+                            .align = TextAlign::Center,
+                            .vertical_align = VerticalAlign::Middle,
+                            .wrap = TextWrap::Word,
+                            .overflow = TextOverflow::Clip,
+                        },
+                        .appearance = {
+                            .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+                        },
+                    },
+                }).commit();
+            });
+            return s.build();
+        });
+}
+
 } // anonymous namespace
 
 // ── Regression lock ────────────────────────────────────────────────────
@@ -128,4 +182,54 @@ TEST_CASE("AnimCertTitle bbox centre X is within ±10 px of 960 (BUG 1 Option A 
     // because glyph ascender/descender geometry is height-dependent.
     const float cy = (bbox.y0 + bbox.y1) * 0.5f;
     CHECK(std::abs(cy - 540.0f) <= 30.0f);
+}
+
+TEST_CASE("Full-canvas TextRun keeps parent center and produces visible ink") {
+    struct CanvasCase {
+        const char* label;
+        int width;
+        int height;
+    };
+
+    const CanvasCase cases[] = {
+        {"16:9", 1920, 1080},
+        {"9:16", 1080, 1920},
+    };
+
+    for (const auto& test_case : cases) {
+        CAPTURE(test_case.label, test_case.width, test_case.height);
+
+        auto renderer = test::make_renderer();
+        auto comp = build_full_canvas_visible_comp(
+            renderer,
+            test_case.width,
+            test_case.height);
+        auto fb = renderer.render(comp, Frame{0});
+        REQUIRE(static_cast<bool>(fb));
+
+        const auto bbox = chronon3d::test::completeness::alpha_bbox(*fb);
+        const int visible_pixels =
+            chronon3d::test::completeness::count_visible_pixels(*fb);
+
+        INFO("Full-canvas bbox: x0=", bbox.x0, " y0=", bbox.y0,
+             " x1=", bbox.x1, " y1=", bbox.y1,
+             " visible_pixels=", visible_pixels);
+
+        CHECK_FALSE(bbox.empty());
+        CHECK(visible_pixels > 100);
+        CHECK(bbox.x0 >= 0);
+        CHECK(bbox.y0 >= 0);
+        CHECK(bbox.x1 < test_case.width);
+        CHECK(bbox.y1 < test_case.height);
+
+        const float actual_cx = (bbox.x0 + bbox.x1) * 0.5f;
+        const float actual_cy = (bbox.y0 + bbox.y1) * 0.5f;
+        const float expected_cx = static_cast<float>(test_case.width) * 0.5f;
+        const float expected_cy = static_cast<float>(test_case.height) * 0.5f;
+        const float tolerance_x = static_cast<float>(test_case.width) * 0.15f;
+        const float tolerance_y = static_cast<float>(test_case.height) * 0.15f;
+
+        CHECK(std::abs(actual_cx - expected_cx) < tolerance_x);
+        CHECK(std::abs(actual_cy - expected_cy) < tolerance_y);
+    }
 }
