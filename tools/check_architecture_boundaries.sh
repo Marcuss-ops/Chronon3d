@@ -324,20 +324,43 @@ else echo "PASS"; fi
 
 # ── 12. CMake module registry (AGENTS.md §2 / ADR-010 Decision 1) ──────────
 # Semantic: Every add_library(... OBJECT|INTERFACE) target declared in
-# src/**/CMakeLists.txt MUST also be listed in
-# cmake/Chronon3DRegistry.cmake. That registry is the SOLE registration
-# channel — anti-duplication per ANTI_DUPLICATION_RULES.md.  Reversed
-# guard: src OBJECT/INTERFACE libs not in registry -> FAIL.
+# src/**/CMakeLists.txt MUST also be listed in cmake/Chronon3DRegistry.cmake
+# (under CHRONON3D_REGISTRY_OBJECT_LIBS or CHRONON3D_REGISTRY_INTERFACE_LIBS).
+# That registry is the SOLE registration channel — anti-duplication per
+# ANTI_DUPLICATION_RULES.md.  Reversed guard: src OBJECT/INTERFACE libs
+# NOT listed in the registry -> FAIL.
+#
+# Sub-fix (ADR-010 Decision 1 — registry format audit): the previous grep
+# looked for `_add_library\(` in cmake/Chronon3DRegistry.cmake but the
+# registry uses `set(CHRONON3D_REGISTRY_*_LIBS …)` list blocks per its
+# own MAINTENANCE CONTRACT, not add_library() calls.  Parsing is now via
+# awk (same idiom as gate #16: POSIX regex, mawk-compatible, ignores
+# pure-comment lines + extracts lib names via `print $1`).  Diff invariant:
+# `comm -23 src_libs registry_libs` MUST be empty.
 echo -n "  [12/24] CMake module registry (semantic) ... "
 src_libs=$(grep -Rh --include='CMakeLists.txt' \
     -E '^[[:space:]]*add_library\([[:space:]]*[A-Za-z_][A-Za-z_0-9]*[[:space:]]+(OBJECT|INTERFACE)\b' \
     src/ 2>/dev/null \
     | sed -E 's/.*add_library\([[:space:]]*([A-Za-z_][A-Za-z_0-9]*).*/\1/' \
     | sort -u || true)
-registry_libs=$(grep -E '^[[:space:]]*add_library\(' \
-    cmake/Chronon3DRegistry.cmake 2>/dev/null \
-    | sed -E 's/.*add_library\([[:space:]]*([A-Za-z_][A-Za-z_0-9]*).*/\1/' \
-    | sort -u || true)
+# Registry entries live inside `set(CHRONON3D_REGISTRY_(OBJECT|INTERFACE)_LIBS …)`
+# blocks — parse via awk, mirroring gate #16 parsing of
+# CHRONON3D_SDK_PUBLIC_DEPS. POSIX regex (no GNU \s / \S); mawk-safe
+# per AGENTS.md §Regole di lavoro cross-platform portability.
+#
+# Forward-point (nested-paren brittleness): the closing-paren detector
+# `^[[:space:]]*\)$` pops `in_list` on any line that's purely `)`.  Currently
+# safe because CHRONON3D_REGISTRY_(OBJECT|INTERFACE)_LIBS blocks contain
+# NO nested function calls (verified against the maintenance contract).
+# If a future maintainer adds a `string(REPLACE …)` or
+# `target_link_libraries(…)` call inside one of these blocks, the gate
+# would exit `in_list` prematurely and miss subsequent lib names.
+# Fix-forward: switch to a parenthesis-depth counter.
+registry_libs=$(awk '
+    /set[[:space:]]*\([[:space:]]*CHRONON3D_REGISTRY_(OBJECT|INTERFACE)_LIBS/ { in_list=1; next }
+    /^[[:space:]]*\)$/ { in_list=0 }
+    in_list && /[^[:space:]]/ && !/^[[:space:]]*#/ { print $1 }
+' cmake/Chronon3DRegistry.cmake | sort -u || true)
 missing=$(comm -23 <(printf '%s\n' "$src_libs") \
                 <(printf '%s\n' "$registry_libs") 2>/dev/null \
             | tr -d '[:space:]' || true)
