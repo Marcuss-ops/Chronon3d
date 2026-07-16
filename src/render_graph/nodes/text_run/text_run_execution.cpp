@@ -81,7 +81,6 @@ graph::RenderOpResult render_text_run_item(
     chronon3d::update_text_run_shape_per_frame(local_shape, ctx.frame_input.sample_time);
 
     const glm::mat4 world_matrix = build_world_matrix(ctx, placement);
-
     return backend.draw_text_run(fb, local_shape, world_matrix, opacity);
 }
 

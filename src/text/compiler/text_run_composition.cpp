@@ -102,6 +102,16 @@ apply_composition_to_placed(
         if (last_glyph > placed.glyphs.size())
             last_glyph = placed.glyphs.size();
 
+        // HarfBuzz positions are shaped as one continuous run.  Once the
+        // composer breaks that run into lines, each line must restart at its
+        // paragraph origin; otherwise the second line keeps the cumulative
+        // x position of the first line and the rendered bbox grows back to
+        // the unwrapped paragraph width.
+        const float line_origin_x =
+            first_glyph < placed.glyphs.size()
+                ? placed.glyphs[first_glyph].x
+                : 0.0f;
+
         // ── Cumulative spacing accumulator ────────────────────────
         // Letter/word spacing should spread glyphs apart, not shift
         // them uniformly.  We accumulate the per-glyph spacing and
@@ -119,6 +129,7 @@ apply_composition_to_placed(
 
             // Cumulative spacing: spread glyphs apart.
             // Apply spacing + overhang in one pass.
+            g.x -= line_origin_x;
             g.x += spacing_accum - line.left_overhang;
             g.advance_x += per_glyph_spacing;
             spacing_accum += per_glyph_spacing;

@@ -98,9 +98,18 @@ ParagraphStyle effective_paragraph_style(
     const ResolvedParagraph& paragraph,
     const TextLayoutSpec& layout
 ) {
-    return paragraph.style == ParagraphStyle{}
+    ParagraphStyle style = paragraph.style == ParagraphStyle{}
         ? layout.paragraph
         : paragraph.style;
+
+    // Word wrapping is the bounded, greedy layout contract exposed by
+    // TextLayoutSpec.  Keep the advanced global composer opt-in; otherwise
+    // a resolved default paragraph style can bypass the width-aware greedy
+    // breaker and emit one unbounded line.
+    if (layout.wrap == TextWrap::Word) {
+        style.composer = ParagraphComposer::SingleLine;
+    }
+    return style;
 }
 
 void apply_vertical_alignment(

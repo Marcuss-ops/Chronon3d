@@ -73,6 +73,7 @@ SoftwareBackend::SoftwareBackend(SoftwareBackendServices services)
     , m_framebuffer_pool(std::move(services.framebuffer_pool))   // share ownership with services
     , m_asset_resolver(services.asset_resolver)
     , m_text_resources(services.text_resources)
+    , m_image_renderer(services.images)
 {
     // TICKET-118 — m_owner REMOVED.  The processor context that used to be
     // sourced via m_owner is supplied separately via
@@ -130,6 +131,9 @@ void SoftwareBackend::draw_node(Framebuffer& fb, const RenderNode& node,
             "Returning without rendering shape type={}.",
             static_cast<int>(node.shape.type()));
         return;
+    }
+    if (m_image_renderer != nullptr && m_proc_ctx.image_renderer == nullptr) {
+        m_proc_ctx.image_renderer = m_image_renderer;
     }
     auto* processor = m_proc_ctx.registry->get_shape(node.shape.type());
     if (!processor) {
@@ -285,4 +289,3 @@ graph::RenderOpResult SoftwareBackend::draw_text_run(
 }
 
 } // namespace chronon3d
-

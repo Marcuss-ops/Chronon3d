@@ -95,7 +95,7 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 // instead of source_space_world_matrix() +
                 // should_use_centered_rendering() + manual canvas-center bake.
                 f32 resolved_opacity = 0.0f;
-                const auto placement = resolve_text_run_placement(item, node, ctx, resolved_opacity);
+                auto placement = resolve_text_run_placement(item, node, ctx, resolved_opacity);
 
                 source = graph.add_node(std::make_unique<TextRunNode>(
                     std::string(node.name),
