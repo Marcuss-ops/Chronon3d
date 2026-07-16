@@ -31,7 +31,8 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         }
 
         const bool layer_needs_transform = layer_needs_render_transform(item, ctx);
-        const bool use_local = ctx.policy.modular_coordinates && layer_needs_transform && !item.native_3d;
+        const bool use_local = ctx.policy.modular_coordinates &&
+            layer_needs_transform && !item.native_3d;
         const bool source_is_static = is_static || use_local;
 
         if (ctx.policy.diagnostics_enabled) {
@@ -156,7 +157,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 // without implicit centering.
                 Mat4 resolved_source_matrix = shape_matrix;
                 f32 resolved_source_opacity = shape_opacity;
-                if (!ctx.policy.modular_coordinates && (should_use_centered_rendering(item, ctx) || item.projected)) {
+                if (!use_local && !ctx.policy.modular_coordinates &&
+                    (should_use_centered_rendering(item, ctx) || item.projected) &&
+                    !(item.layer && item.layer->uses_2_5d_projection)) {
                     const Mat4 cc = glm::translate(Mat4(1.0f),
                         Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
                     resolved_source_matrix = cc * shape_matrix;
@@ -236,9 +239,13 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // earlier ones on the shared framebuffer (matches pre-PR-6
         // behaviour for non-text items).
         for (const auto& node : layer.nodes) {
-            const Mat4 shape_matrix = use_local
+            const Mat4 raw_shape_matrix = use_local
                 ? node.world_transform.to_mat4()
                 : (item_source_world * node.world_transform.to_mat4());
+            const Mat4 shape_matrix = use_local
+                ? raw_shape_matrix
+                : resolve_absolute_text_source_matrix(
+                    item, node, ctx, raw_shape_matrix);
             const f32 shape_opacity = use_local
                 ? node.world_transform.opacity
                 : (item.transform.opacity * node.world_transform.opacity);
@@ -253,7 +260,9 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
         // Bake canvas_center into each item matrix when (centered || projected)
         // && !modular_coordinates.  The `item.projected` condition
         // ensures projected layers always get canvas_center.
-        if (!ctx.policy.modular_coordinates && (should_use_centered_rendering(item, ctx) || item.projected)) {
+        if (!use_local && !ctx.policy.modular_coordinates &&
+            (should_use_centered_rendering(item, ctx) || item.projected) &&
+            !(item.layer && item.layer->uses_2_5d_projection)) {
             const Mat4 cc = glm::translate(Mat4(1.0f),
                 Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
             for (auto& mi : items) {

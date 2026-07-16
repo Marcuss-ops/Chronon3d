@@ -186,7 +186,8 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(
         m_registry,
         m_video_decoder.get(),
         fps,
-        "scene"
+        "scene",
+        this
     );
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
     if (res && m_settings.diagnostics.enabled) {

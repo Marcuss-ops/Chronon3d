@@ -119,7 +119,8 @@ std::shared_ptr<Framebuffer> SoftwareRenderer::render_scene(const Scene& scene,
         m_registry,
         m_video_decoder.get(),
         fps,
-        "scene"
+        "scene",
+        this
     );
     return res;
 }
