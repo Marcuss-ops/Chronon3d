@@ -60,6 +60,8 @@
 // via `utils/render_effects_processor.hpp`, which we no longer include.
 #include <chronon3d/scene/model/layer/layer_effect.hpp>
 #include <chronon3d/backends/assets/image_cache.hpp>
+#include <chronon3d/backends/software/software_backend.hpp>
+#include "internal/software_processor_services.hpp"
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/cache/persistent_framebuffer_store.hpp>
 // P1-7 Chore 1 (commit A) — REMOVED the `#include
@@ -74,6 +76,41 @@
 #include <utility>
 
 namespace chronon3d {
+
+namespace {
+
+void rebind_moved_renderer_services(SoftwareRenderer& renderer) {
+    auto* runtime = &renderer.runtime();
+    if (!runtime->backend_attached()) return;
+
+    auto* backend = dynamic_cast<SoftwareBackend*>(&runtime->backend());
+    if (!backend) return;
+
+    SoftwareBackendServices services{};
+    services.counters = renderer.counters();
+    services.settings = &renderer.render_settings();
+    services.framebuffer_pool = renderer.framebuffer_pool();
+    services.asset_resolver = &runtime->resolver();
+    services.text_resources = renderer.text_render_resources();
+    services.images = &renderer.image_renderer();
+
+    backends::software::internal::ProcessorSourceExtras extras{};
+    extras.registry = &renderer.software_registry();
+    extras.image_backend = renderer.image_backend();
+    extras.image_renderer = &renderer.image_renderer();
+#ifdef CHRONON3D_HAS_BACKEND_TEXT
+    extras.font_engine = &renderer.font_engine();
+#endif
+    auto processor_context =
+        backends::software::internal::make_processor_context(services, extras);
+    processor_context.image_renderer = &renderer.image_renderer();
+    processor_context.image_backend = renderer.image_backend();
+    backend->attach_processor_context(std::move(processor_context));
+    backend->attach_image_services(&renderer.image_renderer(),
+                                   renderer.image_backend());
+}
+
+} // namespace
 
 // ── Lifecycle — move ops + dtor (single TU per ODR) ──────────────────────────
 //
@@ -109,8 +146,9 @@ SoftwareRenderer::SoftwareRenderer(SoftwareRenderer&& other) noexcept
           std::move(other.m_software_registry))
     , m_session(std::move(other.m_session))
 {
-    m_runtime = nullptr;
-    m_registry = nullptr;
+    other.m_runtime = nullptr;
+    other.m_registry = nullptr;
+    rebind_moved_renderer_services(*this);
 }
 
 SoftwareRenderer&
@@ -133,6 +171,7 @@ SoftwareRenderer::operator=(SoftwareRenderer&& other) noexcept
     m_session        = std::move(other.m_session);
     other.m_runtime = nullptr;
     other.m_registry = nullptr;
+    rebind_moved_renderer_services(*this);
     return *this;
 }
 

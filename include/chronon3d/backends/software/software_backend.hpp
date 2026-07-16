@@ -76,6 +76,11 @@ public:
     /// null REQUIRED services) is still owned by
     /// `make_software_backend()`.
     void attach_processor_context(SoftwareProcessorContext proc_ctx);
+    void attach_image_services(ImageRenderer* renderer,
+                               image::ImageBackend* backend) noexcept {
+        m_proc_ctx.image_renderer = renderer;
+        m_proc_ctx.image_backend = backend;
+    }
 
     ~SoftwareBackend() override;
 
@@ -138,6 +143,7 @@ private:
     // `m_proc_ctx.renderer` field is always nullptr after the new
     // construction path — no back-pointer to the SoftwareRenderer exists.
     SoftwareProcessorContext                       m_proc_ctx{};                    // TICKET-118 cached ctx
+    ImageRenderer*                                  m_image_renderer{nullptr};
 };
 
 // ═════════════════════════════════════════════════════════════════════════════

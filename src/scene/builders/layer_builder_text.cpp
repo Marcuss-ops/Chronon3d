@@ -176,9 +176,11 @@ Layer LayerBuilder::build() {
             spec.params.text.placement.offset.y,
             0.0f
         };
-            node.world_transform.anchor = resolve_text_anchor(
-                spec.params.text.layout.anchor,
-                spec.params.text.layout.box);
+            // The raster surface is sized to the laid-out ink, not to the
+            // authored layout box.  Resolve the anchor against that actual
+            // surface after materialization so CanvasCenter centers the ink
+            // exactly once while TopLeft remains box-local.
+            node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
             node.world_transform.scale = Vec3{1.0f, 1.0f, 1.0f};
             node.world_transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
             node.color = spec.params.text.appearance.color;
@@ -188,6 +190,14 @@ Layer LayerBuilder::build() {
             // Per-spec FontEngine override (set via trb.font_engine(...))
             // wins over the layer's default font_engine when present.
             FontEngine* engine_for_shape = spec.font_engine ? spec.font_engine : m_font_engine;
+            TextRunSpec materialize_params = spec.params;
+            if (materialize_params.text.placement.kind ==
+                TextPlacementKind::CanvasCenter) {
+                // CanvasCenter already centers the rasterized ink.  Applying
+                // box-relative vertical middle alignment as well would add
+                // the same centering offset a second time.
+                materialize_params.text.layout.vertical_align = VerticalAlign::Top;
+            }
 
             // ── PR 9 — forward the AnimatedTextDocument binding ────
             // When the scene author attached an AnimatedTextDocument
@@ -200,9 +210,14 @@ Layer LayerBuilder::build() {
             // behaviour (initial spec.text.content.value stays as the
             // static literal).
             auto shape = materialize_text_run_shape(
-                spec.params, engine_for_shape, local_time,
+                materialize_params, engine_for_shape, local_time,
                 spec.animated_doc);
             if (shape) {
+                node.world_transform.anchor = resolve_text_anchor(
+                    materialize_params.text.layout.anchor,
+                    shape->layout
+                        ? shape->layout->bounds
+                        : materialize_params.text.layout.box);
                 node.shape.text_run_shape_handle().value = std::move(shape);
             }
 #endif

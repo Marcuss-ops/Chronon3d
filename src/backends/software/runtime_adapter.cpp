@@ -19,6 +19,7 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <spdlog/spdlog.h>
 #include <stdexcept>
+#include <utility>
 
 namespace chronon3d::backends::software {
 
@@ -96,11 +97,17 @@ void attach_software_backend(chronon3d::SoftwareRenderer* renderer) {
     internal::ProcessorSourceExtras extras{};
     extras.registry      = &renderer->software_registry();
     extras.image_backend = renderer->image_backend();
+    extras.image_renderer = &renderer->image_renderer();
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     extras.font_engine   = &renderer->font_engine();
 #endif
-    backend->attach_processor_context(
-        internal::make_processor_context(services, extras));
+    auto processor_context =
+        internal::make_processor_context(services, extras);
+    processor_context.image_renderer = &renderer->image_renderer();
+    processor_context.image_backend = renderer->image_backend();
+    backend->attach_processor_context(std::move(processor_context));
+    backend->attach_image_services(&renderer->image_renderer(),
+                                   renderer->image_backend());
 
     // Fase C2 — attach_backend() is [[deprecated]] for public consumers.
     // This bridge is the canonical internal orchestration path; suppress

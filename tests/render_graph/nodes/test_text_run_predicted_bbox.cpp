@@ -108,12 +108,11 @@ Composition build_full_canvas_visible_comp(SoftwareRenderer& renderer,
             s.font_engine(&renderer.font_engine());
             s.layer("text_layer", [&renderer, box_width, box_height](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.pin_to(Anchor::Center);
                 l.text_run("text_run", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "VISIBLE INK"},
                         .placement = TextPlacement{
-                            TextPlacementKind::Absolute,
+                            TextPlacementKind::CanvasCenter,
                             {0.0f, 0.0f},
                         },
                         .font = {
@@ -197,7 +196,9 @@ TEST_CASE("Full-canvas TextRun keeps parent center and produces visible ink") {
     };
 
     for (const auto& test_case : cases) {
-        CAPTURE(test_case.label, test_case.width, test_case.height);
+        INFO("case=", test_case.label,
+             " width=", test_case.width,
+             " height=", test_case.height);
 
         auto renderer = test::make_renderer();
         auto comp = build_full_canvas_visible_comp(

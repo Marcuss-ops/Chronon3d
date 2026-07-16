@@ -112,6 +112,14 @@ public:
     /// canvas-space bbox without re-evaluating the scene.
     const TextRunPlacement& placement() const { return m_placement; }
 
+    /// Refresh frame-varying authoring placement when a compiled scene
+    /// program is reused for a new Scene payload.
+    void refresh_placement(
+        const ::chronon3d::RenderNode& render_ref,
+        TextRunPlacement placement,
+        const cache::NodeCacheKey& key,
+        std::optional<f32> opacity_override);
+
 private:
     std::string m_name;
     std::shared_ptr<TextRunShape> m_shape;

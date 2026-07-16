@@ -27,7 +27,12 @@ void apply_shadow_effect(
     const float ambient_blur  = std::max(contact_blur + 4.0f, p.radius * 2.0f);
     const float spread =
         std::max(std::abs(p.offset.x), std::abs(p.offset.y)) + ambient_blur;
-    auto effect_clip = expand_effect_clip(clip, w, h, spread);
+    // The EffectStackNode already allocates a spatially expanded ROI for the
+    // shadow.  The effect operates in that framebuffer's local coordinates;
+    // using the executor clip here can incorrectly describe the parent
+    // canvas and eliminate the source range after ROI translation.  The ROI
+    // itself is the canonical safe clip for this spatial effect.
+    const std::optional<raster::BBox> effect_clip = std::nullopt;
     i32 x_min_src = 0, x_max_src = w;
     i32 y_min_src = 0, y_max_src = h;
     i32 x_min_dst = 0, x_max_dst = w;
@@ -93,6 +98,7 @@ void apply_shadow_effect(
 
     auto contact_map = build_shadow(0.85f, contact_blur, 1.0f);
     auto ambient_map = build_shadow(0.30f, ambient_blur, 1.65f);
+
 
     // Composite shadow BEHIND content in-place
     for (i32 y = 0; y < roi_h; ++y) {
