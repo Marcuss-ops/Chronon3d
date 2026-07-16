@@ -4,6 +4,10 @@
 #include "refresh/multi_source.hpp"
 #include "refresh/effect_stack.hpp"
 #include "refresh/transform.hpp"
+#include <chronon3d/render_graph/nodes/text_run_node.hpp>
+#include "../builder/graph_builder_coordinates.hpp"
+#include "refresh/layer_item.hpp"
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 
 #include "../builder/graph_builder_pipeline.hpp"
 #include <chronon3d/scene/model/core/scene.hpp>
@@ -72,6 +76,37 @@ void refresh_compiled_graph_payloads(
                     static_cast<TransformNode&>(graph_node),
                     resolved_by_name, ctx);
                 break;
+            case RenderGraphNodeKind::TextRun: {
+                auto& text = static_cast<TextRunNode&>(graph_node);
+                for (const auto& [name, rl] : resolved_by_name) {
+                    if (!rl || !rl->layer || rl->layer->kind != LayerKind::Text
+                        || rl->layer->nodes.size() != 1
+                        || rl->layer->nodes[0].name != text.name()) {
+                        continue;
+                    }
+                    const auto& render_ref = rl->layer->nodes[0];
+                    const auto item = make_layer_graph_item_for_refresh(*rl, ctx);
+                    f32 opacity = 1.0f;
+                    const auto placement = resolve_text_run_placement(
+                        item, render_ref, ctx, opacity);
+                    cache::NodeCacheKey key{
+                        .scope = "layer.textrun:" + name + ":"
+                            + std::string(render_ref.name),
+                        .frame = ctx.frame_input.frame,
+                        .width = ctx.frame_input.width,
+                        .height = ctx.frame_input.height,
+                        .params_hash = hash_render_node_content_only(render_ref),
+                        .source_hash = hash_combine(
+                            hash_string(render_ref.name),
+                            hash_render_node_placement_only(render_ref))
+                    };
+                    text.refresh_placement(
+                        render_ref, placement, key,
+                        std::optional<f32>(opacity));
+                    break;
+                }
+                break;
+            }
             default:
                 break;
         }

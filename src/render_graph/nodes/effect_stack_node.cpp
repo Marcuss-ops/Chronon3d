@@ -139,6 +139,20 @@ NodeExecResult EffectStackNode::execute(
                 local_clip = std::nullopt;
             }
         }
+        // Effect implementations operate on the result framebuffer's local
+        // pixel coordinates.  Spatial effects are commonly rendered into a
+        // cropped ROI whose origin is expressed in canvas coordinates; pass
+        // the clip translated into that ROI before dispatching the stack.
+        if (local_clip) {
+            local_clip->x0 -= result->origin_x();
+            local_clip->y0 -= result->origin_y();
+            local_clip->x1 -= result->origin_x();
+            local_clip->y1 -= result->origin_y();
+            local_clip->clip_to(result->width(), result->height());
+            if (local_clip->is_empty()) {
+                local_clip = std::nullopt;
+            }
+        }
         const effects::EffectExecutionContext effect_context{
             .time_seconds = ctx.frame_input.time_seconds,
             .frame = ctx.frame_input.frame,

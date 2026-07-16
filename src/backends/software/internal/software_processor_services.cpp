@@ -24,7 +24,8 @@ make_processor_context(
     ctx.settings        = services.settings;
     ctx.registry        = extras.registry;
     ctx.image_backend   = extras.image_backend;
-    ctx.image_renderer  = services.images;
+    ctx.image_renderer  = extras.image_renderer ? extras.image_renderer
+                                                : services.images;
     ctx.asset_resolver  = services.asset_resolver;
     ctx.debug_config    = services.debug_config;
     ctx.text_resources  = services.text_resources;

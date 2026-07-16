@@ -135,6 +135,18 @@ TextRunNode::TextRunNode(
       m_opacity_override(opacity_override)
 {}
 
+void TextRunNode::refresh_placement(
+    const ::chronon3d::RenderNode& render_ref,
+    TextRunPlacement placement,
+    const cache::NodeCacheKey& key,
+    std::optional<f32> opacity_override)
+{
+    m_render_ref = render_ref;
+    m_placement = placement;
+    m_key = key;
+    m_opacity_override = opacity_override;
+}
+
 // =============================================================================
 // predicted_bbox
 // =============================================================================
@@ -460,7 +472,16 @@ NodeExecResult TextRunNode::execute(
 
     // ── 2. Validate pre-dispatch invariants. ──
     auto* backend = ctx.services.backend;
+    // A direct caller may execute the same node again with the frame error
+    // already latched.  Preserve the first diagnostic and avoid emitting a
+    // duplicate log (the executor treats the frame as failed already).
+    if (ctx.frame_error && ctx.frame_error->has_value()) {
+        return NodeExecResult{ctx.frame_error->value()};
+    }
     if (auto err = text_run::validate_execution(backend, m_name)) {
+        if (ctx.frame_error && !ctx.frame_error->has_value()) {
+            *ctx.frame_error = *err;
+        }
         return NodeExecResult{std::move(*err)};
     }
 
@@ -482,11 +503,15 @@ NodeExecResult TextRunNode::execute(
                 dispatch.error().code,
                 render_backend_error_code_name(dispatch.error().code),
                 dispatch.error().message);
-            return NodeExecResult{NodeExecutionError{
+            NodeExecutionError error{
                 dispatch.error().code,
                 m_name,
                 std::string(dispatch.error().message)
-            }};
+            };
+            if (ctx.frame_error && !ctx.frame_error->has_value()) {
+                *ctx.frame_error = error;
+            }
+            return NodeExecResult{std::move(error)};
         }
 
         items_drawn = dispatch.value().items_drawn;

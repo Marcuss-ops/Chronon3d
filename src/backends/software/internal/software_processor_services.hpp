@@ -58,6 +58,7 @@ namespace chronon3d::backends::software::internal {
 struct ProcessorSourceExtras {
     chronon3d::renderer::SoftwareRegistry*  registry{nullptr};
     chronon3d::image::ImageBackend*         image_backend{nullptr};
+    chronon3d::ImageRenderer*               image_renderer{nullptr};
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     chronon3d::FontEngine*                  font_engine{nullptr};
 #endif

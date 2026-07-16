@@ -51,6 +51,19 @@ inline bool matrix_near(const Mat4& a, const Mat4& b, f32 eps = 1e-4f) {
 /// downstream `build_world_matrix` (TICKET-104 fix: skip `canvas_center`
 /// when `matrix_override` is set) re-applies exactly once.
 inline bool should_use_centered_rendering(const LayerGraphItem& item, const RenderGraphContext& ctx) {
+    // Canonical TextPlacement{CanvasCenter, offset} is already lowered to
+    // the node's anchor-relative transform.  Text layers without a parent
+    // transform must receive the canvas translation in both coordinate
+    // policies; the non-modular path does not reach the modular branch below.
+    if (item.layer && item.layer->kind == LayerKind::Text
+        && !item.projected
+        && !item.native_3d) {
+        // A text layer with a parent transform keeps that parent for the
+        // TransformNode; marking it centered here would strip the parent
+        // before the local TextRun matrix is applied.  A parentless text
+        // layer, on the other hand, needs the one canvas-center bake.
+        return !item.transform.any();
+    }
     if (!ctx.policy.modular_coordinates) {
         return (item.layer && item.layer->uses_2_5d_projection);
     }
@@ -110,6 +123,12 @@ inline bool has_custom_render_transform(const LayerGraphItem& item, const Render
 /// Shared decision: should this layer get a TransformNode / local sub-pipeline?
 inline bool layer_needs_render_transform(const LayerGraphItem& item, const RenderGraphContext& ctx) {
     if (!item.layer) return false;
+
+    // TextRunNode rasterizes directly into a full-canvas surface.  A
+    // TransformNode after it cannot recover glyphs that were clipped while
+    // their local anchor was negative, so text placement must be resolved in
+    // the source matrix exactly once.
+    if (item.layer->kind == LayerKind::Text) return false;
 
     return item.projected
         || item.layer->kind == LayerKind::Precomp
@@ -215,6 +234,7 @@ inline TextRunPlacement resolve_text_run_placement(
     const bool needs_xform = layer_needs_render_transform(item, ctx);
     const bool use_local = ctx.policy.modular_coordinates
                         && needs_xform && !item.native_3d;
+
 
     if (use_local) {
         // The downstream TransformNode handles the layer transform and layer
