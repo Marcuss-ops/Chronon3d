@@ -22,13 +22,18 @@ public:
 
         Vec4 p0 = state.matrix * Vec4(local_start, 1);
         Vec4 p1 = state.matrix * Vec4(local_end,   1);
-        Color col = stroke.enabled ? stroke.color.to_linear() : node.color.to_linear();
-        if (stroke.enabled && stroke.color.a > 0.0f) {
+        const bool use_stroke = stroke.enabled &&
+            (stroke.width != 1.0f || stroke.color.r != 1.0f ||
+             stroke.color.g != 1.0f || stroke.color.b != 1.0f ||
+             stroke.color.a != 1.0f || stroke.trim_start != 0.0f ||
+             stroke.trim_end != 1.0f);
+        Color col = use_stroke ? stroke.color.to_linear() : node.color.to_linear();
+        if (use_stroke && stroke.color.a > 0.0f) {
             col.a *= state.opacity;
         } else {
             col.a *= state.opacity;
         }
-        const f32 thickness = stroke.enabled ? std::max(0.0f, stroke.width) : node.shape.line().thickness;
+        const f32 thickness = use_stroke ? std::max(0.0f, stroke.width) : node.shape.line().thickness;
         bline(fb, Vec2(p0.x, p0.y), Vec2(p1.x, p1.y), col, thickness, state.clip_rect);
     }
 

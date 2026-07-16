@@ -110,6 +110,7 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     // excluded, it always rendered full-canvas identically regardless
     // of zoom — the root cause of AE_CAM_02 hash collision.
     const bool apply_2_5d_projection =
+        m_apply_camera_projection &&
         ctx.frame_input.has_camera_2_5d &&
         shape_type != ShapeType::FakeBox3D;
     if (apply_2_5d_projection) {
@@ -161,7 +162,7 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
 
     // TICKET-122 FASE 3: GridPlane now goes through 2.5D projection above,
     // so it uses the standard compute_world_bbox path (not native 3D).
-    if (ctx.frame_input.has_camera_2_5d &&
+    if (m_apply_camera_projection && ctx.frame_input.has_camera_2_5d &&
         m_node.shape.type() == ShapeType::FakeBox3D) {
         const Mat4 world_matrix = m_matrix_override.value_or(m_node.world_transform.to_mat4());
         if (auto bbox = detail::projected_native_3d_bbox(ctx, m_node, world_matrix, spread)) {
@@ -247,6 +248,7 @@ NodeExecResult SourceNode::execute(
         // so the grid scales with zoom (matches predicted_bbox above).
         const ShapeType exec_shape_type = m_node.shape.type();
         const bool exec_apply_2_5d_projection =
+            m_apply_camera_projection &&
             ctx.frame_input.has_camera_2_5d &&
             exec_shape_type != ShapeType::FakeBox3D;
         if (exec_apply_2_5d_projection) {

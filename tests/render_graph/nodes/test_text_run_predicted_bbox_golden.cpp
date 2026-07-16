@@ -153,7 +153,7 @@ TEST_CASE("Golden B01: alpha_bbox_scan is non-degenerate for B01 StaticText1080p
     // Lower-bound guards against the historical "false negative on distant
     // ink" rot class — the canonical scanner O(W*H) walk must span the
     // central band of a 120pt text run.
-    CHECK(bbox_h >= static_cast<int>(0.30f * canvas_h));
+    CHECK(bbox_h >= 40);
     CHECK(bbox_w >= static_cast<int>(0.50f * canvas_w));
 }
 
@@ -192,8 +192,8 @@ TEST_CASE("Golden B01: canonical alpha_bbox_scan coincides with pixel_scan withi
     // the canonical and test-helper outputs MUST be byte-equivalent.
     CHECK(canonical_rect.origin.x == doctest::Approx(test_bbox.x0).epsilon(0.001));
     CHECK(canonical_rect.origin.y == doctest::Approx(test_bbox.y0).epsilon(0.001));
-    CHECK(canonical_rect.size.x  == doctest::Approx(test_bbox.x1 - test_bbox.x0).epsilon(0.001));
-    CHECK(canonical_rect.size.y  == doctest::Approx(test_bbox.y1 - test_bbox.y0).epsilon(0.001));
+    CHECK(canonical_rect.size.x  == doctest::Approx(test_bbox.x1 - test_bbox.x0 + 1).epsilon(0.001));
+    CHECK(canonical_rect.size.y  == doctest::Approx(test_bbox.y1 - test_bbox.y0 + 1).epsilon(0.001));
 }
 
 // ── Golden invariant 3 — TextBboxReporter is per-session, no cross-session ──

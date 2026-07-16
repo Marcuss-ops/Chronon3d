@@ -33,6 +33,7 @@
 #include <filesystem>
 
 using namespace chronon3d;
+using namespace chronon3d::test;
 // Azione 17 — factory functions relocated from `chronon3d::test` (in tests/visual/ae_parity/ae_parity_scenes.hpp)
 // to `chronon3d::content::ae_parity::ae_cam_scenes` (production-side, DEV-only per TICKET-CLI-ISOLATE-RUNTIME-DEV).
 // `using namespace` preserved verbatim so call sites at lines 137+ in this file remain un-renamed.

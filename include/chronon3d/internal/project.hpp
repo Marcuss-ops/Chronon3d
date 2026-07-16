@@ -96,7 +96,10 @@ public:
             (const CompositionProps& /*props*/) -> Composition {
             return build_composition(comp_name_copy, spec, fn);
         };
-        m_registry.add(std::move(comp_name), std::move(factory));
+        m_registry.add(CompositionDescriptor{
+            .id = std::move(comp_name),
+            .factory = std::move(factory),
+        });
     }
 
     /// Direct low-level registration — bypasses project defaults.
@@ -104,7 +107,10 @@ public:
     /// defaults (width, height, fps) are not applied. Use composition()
     /// with a scene lambda for automatic project-default inheritance.
     void add(std::string name, CompositionRegistry::Factory factory) {
-        m_registry.add(std::move(name), std::move(factory));
+        m_registry.add(CompositionDescriptor{
+            .id = std::move(name),
+            .factory = std::move(factory),
+        });
     }
 
     // ── Convenience Queries ──────────────────────────────────────────

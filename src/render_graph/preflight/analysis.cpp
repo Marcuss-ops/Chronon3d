@@ -43,7 +43,11 @@ std::string format_memory(size_t bytes) {
 
 const GraphPreflightNode* GraphPreflightReport::find_node(std::string_view name) const {
     for (const auto& n : nodes) {
-        if (n.name.find(name) != std::string::npos) return &n;
+        // A source whose predicted bbox is entirely outside the canvas is
+        // culled from the user-facing preflight lookup.  Its diagnostic
+        // record remains in `nodes` so callers can still inspect the reason.
+        if (n.name.find(name) != std::string::npos &&
+            (!(n.kind == "source" || n.kind == "Source") || !n.outside_canvas)) return &n;
     }
     return nullptr;
 }

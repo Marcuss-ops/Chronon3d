@@ -23,10 +23,9 @@ void compute_scene_root_bboxes(
         const Mat4 ssaa_scale = glm::scale(Mat4(1.0f), Vec3(ctx.policy.ssaa_factor, ctx.policy.ssaa_factor, 1.0f));
         const Mat4 canvas_center = glm::translate(Mat4(1.0f), Vec3(ctx.frame_input.width * 0.5f, ctx.frame_input.height * 0.5f, 0.0f));
         Mat4 matrix;
-        if (ctx.policy.modular_coordinates) {
-            matrix = canvas_center * ssaa_scale * node.world_transform.to_mat4();
-        } else {
-            matrix = ssaa_scale * node.world_transform.to_mat4();
+        matrix = ssaa_scale * node.world_transform.to_mat4();
+        if (ctx.policy.modular_coordinates && node.shape.type() == ShapeType::Line) {
+            matrix = canvas_center * matrix;
         }
         auto* processor = sw_renderer->software_registry().get_shape(node.shape.type());
         if (!processor) continue;

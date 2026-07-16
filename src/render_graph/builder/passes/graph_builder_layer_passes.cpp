@@ -92,11 +92,20 @@ void append_mask_pass_if_needed(RenderGraph& graph, GraphNodeId& layer_output,
     const Layer& layer = *item.layer;
     if (!layer.mask.enabled()) return;
 
+    Mask mask = layer.mask;
+    if (ctx.policy.modular_coordinates && !item.native_3d && !item.projected) {
+        // Mask coordinates are authored in the layer's centered local space,
+        // while MaskNode samples canvas pixels.  Convert the resolved layer
+        // translation back to the centered origin before rasterizing it.
+        mask.pos.x += item.transform.position.x - ctx.frame_input.width * 0.5f;
+        mask.pos.y += item.transform.position.y - ctx.frame_input.height * 0.5f;
+    }
+
     const bool is_static = layer.cache_static || item.is_static;
     // PR2-cleanup: MaskNode defaults to `static_memory_cache`; the legacy
     // `!is_static` A/B distinction was removed. Single node, taken as id.
     {
-        GraphNodeId masked = graph.add_node(std::make_unique<MaskNode>(layer.mask, is_static ? Frame{0} : Frame{-1}), node_ctx);
+        GraphNodeId masked = graph.add_node(std::make_unique<MaskNode>(std::move(mask), is_static ? Frame{0} : Frame{-1}), node_ctx);
         graph.connect(layer_output, masked);
         layer_output = masked;
     }

@@ -146,16 +146,6 @@ struct Segment {
 ///
 /// Example:
 ///   f32 pos = spring(ctx.frame, -300.0f, 0.0f, Spring::Gentle);
-[[nodiscard]] inline f32 spring(
-    Frame frame,
-    FrameRate fps,
-    f32 from,
-    f32 to,
-    const SpringConfig& config = {}
-) {
-    return ::chronon3d::spring(frame, fps, from, to, config);
-}
-
 // ── sequence — evaluate a sequence of animation segments ───────────────────
 
 /// Evaluate a sequence of animation segments in order.
@@ -335,18 +325,6 @@ struct Segment {
 
 /// Remap `value` from [in_min, in_max] to [out_min, out_max].
 /// Clamped by default.
-[[nodiscard]] inline f32 map(
-    f32 value,
-    f32 in_min, f32 in_max,
-    f32 out_min, f32 out_max,
-    bool clamped = true
-) {
-    if (in_max == in_min) return out_min;
-    f32 t = (value - in_min) / (in_max - in_min);
-    if (clamped) t = std::clamp(t, 0.0f, 1.0f);
-    return out_min + (out_max - out_min) * t;
-}
-
 /// Remap a frame from one range to [0, 1] (normalized progress).
 [[nodiscard]] inline f32 progress(Frame frame, Frame start, Frame end) {
     return map(static_cast<f32>(frame.integral()),

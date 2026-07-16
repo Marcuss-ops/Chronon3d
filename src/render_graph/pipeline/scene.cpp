@@ -129,6 +129,18 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     ctx.node_exec.dirty_rect = dirty_out.dirty_rect;
     ctx.policy.reuse_prev_framebuffer = dirty_out.use_dirty_rects;
 
+    if (settings.dirty.enabled && !settings.dirty.tiles_active()) {
+        ctx.policy.reuse_prev_framebuffer = false;
+        ctx.policy.dirty_rects_enabled = false;
+        if (ctx.node_exec.counters && dirty_out.dirty_rect && !dirty_out.dirty_rect->is_empty()) {
+            const auto& dirty = *dirty_out.dirty_rect;
+            const auto area = static_cast<uint64_t>(std::max(0, dirty.x1 - dirty.x0)) *
+                static_cast<uint64_t>(std::max(0, dirty.y1 - dirty.y0));
+            ctx.node_exec.counters->dirty_rect_count.fetch_add(1, std::memory_order_relaxed);
+            ctx.node_exec.counters->dirty_pixels.fetch_add(area, std::memory_order_relaxed);
+        }
+    }
+
     // ── 7. Empty dirty-rect reuse ──
     {
         CHRONON_ZONE_C("dirty_fast_path_reuse", trace_category::kFrame);

@@ -58,7 +58,8 @@ LayerResolutionResult resolve_layers(const Scene& scene, const RenderGraphContex
                 }
 
                 // If root ancestor is 2D and unpinned, shift this layer to screen space
-                if (root->layer && !root->layer->uses_2_5d_projection && (!root->layer->layout.enabled || !root->layer->layout.pin.has_value())) {
+                if (root->layer && !root->layer->uses_2_5d_projection &&
+                    (!root->layer->layout.enabled || !root->layer->layout.pin.has_value())) {
                     rl.world_transform.position.x += half_w;
                     rl.world_transform.position.y += half_h;
                     rl.world_matrix = rl.world_transform.to_mat4();

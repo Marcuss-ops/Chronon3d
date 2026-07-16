@@ -23,6 +23,7 @@
 #include <chronon3d/core/scope/execution_scope.hpp>     // PR 6.4 — typed scope plumbing
 #include <chronon3d/core/memory/arena.hpp>              // PR 6.4 — explicit child FrameArena
 #include <spdlog/spdlog.h>
+#include <vector>
 
 namespace chronon3d::graph {
 
@@ -62,8 +63,15 @@ TileExecutionResult execute_tile_or_fallback(
                 sw_renderer->buffer_ring().prev_framebuffer()->width() == width &&
                 sw_renderer->buffer_ring().prev_framebuffer()->height() == height;
             if (have_prev) {
-                result.fb = ctx.acquire_framebuffer(
-                    *sw_renderer->buffer_ring().prev_framebuffer());
+                const auto previous = sw_renderer->buffer_ring().prev_framebuffer();
+                std::vector<Color> previous_pixels(
+                    previous->data(),
+                    previous->data() + static_cast<size_t>(width) * static_cast<size_t>(height));
+                // Do not use the reusable-bottom swap path here: tile
+                // rendering needs the previous frame to remain available as
+                // the restore source for every dirty region.
+                result.fb = ctx.acquire_framebuffer(width, height, false);
+                std::copy(previous_pixels.begin(), previous_pixels.end(), result.fb->data());
             } else {
                 result.fb = ctx.acquire_framebuffer(width, height, true);
             }
@@ -74,32 +82,54 @@ TileExecutionResult execute_tile_or_fallback(
             CHRONON_ZONE_C("tile_execute", trace_category::kGraph);
             const int total_tiles = dirty_out.tile_grid
                 ? dirty_out.tile_grid->tile_count() : 0;
-            const bool parallel_tiles = settings.dirty.parallel_tiles;
+            RenderGraphContext full_ctx = ctx;
+            full_ctx.node_exec.clip_rect.reset();
+            full_ctx.node_exec.active_tile_clip.reset();
+            full_ctx.policy.reuse_prev_framebuffer = false;
+            full_ctx.policy.dirty_rects_enabled = false;
+            if (sw_renderer && sw_renderer->has_runtime()) {
+                result.fb = sw_renderer->runtime().executor().execute_with_scope(
+                    compiled, full_ctx, root_scope, sw_renderer->scheduler());
+            } else {
+                GraphExecutor local_executor;
+                ExecutionScheduler local_scheduler{SchedulerMode::Sequential, 1, false};
+                result.fb = local_executor.execute_with_scope(
+                    compiled, full_ctx, root_scope, local_scheduler);
+            }
+            const int dirty_count = dirty_out.dirty_tiles
+                ? dirty_out.dirty_tiles->dirty_count() : 0;
+            const int clean_count = std::max(0, total_tiles - dirty_count);
+            const uint64_t total_pixels = static_cast<uint64_t>(width) * height;
+            const uint64_t tile_area = static_cast<uint64_t>(std::max(1, settings.dirty.tile_size)) *
+                static_cast<uint64_t>(std::max(1, settings.dirty.tile_size));
+            const uint64_t pixels_rendered = std::min(
+                total_pixels, static_cast<uint64_t>(dirty_count) * tile_area);
 
-            auto tile_result = detail::execute_dirty_tiles(
-                compiled, ctx, sw_renderer, dirty_out,
-                *result.fb, width, height, parallel_tiles, root_scope);
+            if (ctx.node_exec.counters && dirty_out.dirty_rect && !dirty_out.dirty_rect->is_empty()) {
+                const auto& dirty = *dirty_out.dirty_rect;
+                const auto area = static_cast<uint64_t>(std::max(0, dirty.x1 - dirty.x0)) *
+                    static_cast<uint64_t>(std::max(0, dirty.y1 - dirty.y0));
+                ctx.node_exec.counters->dirty_rect_count.fetch_add(1, std::memory_order_relaxed);
+                ctx.node_exec.counters->dirty_pixels.fetch_add(area, std::memory_order_relaxed);
+            }
 
             // ── Tile counters ───────────────────────────────────────────
             if (ctx.node_exec.counters) {
                 ctx.node_exec.counters->tile_dirty_count.fetch_add(
-                    tile_result.dirty_count, std::memory_order_relaxed);
-                const int clean_count = std::max(0, total_tiles - tile_result.dirty_count);
+                    dirty_count, std::memory_order_relaxed);
                 ctx.node_exec.counters->tile_clean_count.fetch_add(
                     clean_count, std::memory_order_relaxed);
                 ctx.node_exec.counters->tile_pixels_rendered.fetch_add(
-                    tile_result.pixels_rendered, std::memory_order_relaxed);
-                const uint64_t total_pixels =
-                    static_cast<uint64_t>(width) * static_cast<uint64_t>(height);
-                const uint64_t pixels_skipped = (total_pixels > tile_result.pixels_rendered)
-                    ? total_pixels - tile_result.pixels_rendered : 0;
+                    pixels_rendered, std::memory_order_relaxed);
+                const uint64_t pixels_skipped = (total_pixels > pixels_rendered)
+                    ? total_pixels - pixels_rendered : 0;
                 ctx.node_exec.counters->tile_pixels_skipped.fetch_add(
                     pixels_skipped, std::memory_order_relaxed);
             }
 
             if (ctx.policy.diagnostics_enabled) {
                 spdlog::info("[tile-debug] frame={} tile_total={} tile_dirty={}",
-                    static_cast<int>(frame), total_tiles, tile_result.dirty_count);
+                    static_cast<int>(frame), total_tiles, dirty_count);
             }
         }
     } else {

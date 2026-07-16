@@ -46,6 +46,13 @@ OwnedFB RenderGraphContext::acquire_owned_fb(
         out = OwnedFB(new Framebuffer(w, h, clear),
                       PoolFbDeleter(DeleteFramebuffer{}));
     }
+    // The pool allocates origin-(0,0) storage, while cropped graph nodes
+    // address pixels in canvas coordinates.  Preserve the requested origin
+    // on the returned framebuffer so compositing and effect ROIs translate
+    // coordinates consistently with the transform scratch path.
+    if (bounds && (bounds->x0 != 0 || bounds->y0 != 0)) {
+        out->set_origin(bounds->x0, bounds->y0);
+    }
     return out;
 }
 

@@ -59,9 +59,23 @@ RenderNode RenderNodeFactory::line(std::pmr::memory_resource* res, std::string n
     node.shape.line().thickness = p.thickness;
     node.shape.line().stroke.trim_start = p.stroke.trim_start;
     node.shape.line().stroke.trim_end = p.stroke.trim_end;
-    node.shape.line().stroke.enabled = p.stroke.enabled;
+    const Color default_stroke_color{1, 1, 1, 1};
+    const bool custom_stroke = p.stroke.enabled &&
+        (p.stroke.width != 1.0f ||
+         p.stroke.color.r != default_stroke_color.r ||
+         p.stroke.color.g != default_stroke_color.g ||
+         p.stroke.color.b != default_stroke_color.b ||
+         p.stroke.color.a != default_stroke_color.a ||
+         p.stroke.trim_start != 0.0f || p.stroke.trim_end != 1.0f);
+    node.shape.line().stroke.enabled = custom_stroke;
     node.shape.line().stroke.color = p.stroke.color;
-    node.shape.line().stroke.width = p.stroke.width;
+    // LineParams historically exposes `thickness` as the primary line
+    // width.  The default stroke width is only a compatibility default; it
+    // must not silently override an explicitly requested thickness.
+    node.shape.line().stroke.width =
+        (p.stroke.width == 1.0f && p.thickness != 1.0f)
+            ? p.thickness
+            : p.stroke.width;
     node.shape.line().stroke.alignment = p.stroke.alignment;
     node.world_transform.position = p.from;
     node.world_transform.anchor = {0, 0, 0};

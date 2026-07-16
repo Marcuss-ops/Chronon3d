@@ -36,9 +36,21 @@ GraphNodeId append_root_sources(RenderGraph& graph, const Scene& scene,
             cache::fold_camera_into_params_hash(source_key, ctx.frame_input.camera_2_5d);
         }
 
+        // Root nodes already carry top-left pixel placement in their
+        // world transform (including the anchor baked by RenderNodeFactory).
+        // A canvas translation here would shift every standalone shape by
+        // half the frame and make dirty-region bboxes disagree with execute.
+        std::optional<Mat4> root_matrix;
+        if (ctx.policy.modular_coordinates && node.shape.type() == ShapeType::Line) {
+            root_matrix = glm::translate(Mat4(1.0f), Vec3(
+                ctx.frame_input.width * 0.5f,
+                ctx.frame_input.height * 0.5f,
+                0.0f));
+        }
         auto source = graph.add_node(std::make_unique<SourceNode>(
             std::string(node.name), node, source_key,
-            ctx.policy.modular_coordinates
+            root_matrix,
+            std::optional<f32>(node.world_transform.opacity)
         ));
 
         if (first_root_source) {
