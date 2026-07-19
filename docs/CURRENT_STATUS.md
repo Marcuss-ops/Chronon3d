@@ -28,7 +28,7 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 | Glow Final (ChrononGlowFinalAE) | Done/Ready | Certified `1cb9cff2`; DoD §9 closed via 19px-sliver regression lock. |
 | Product Launch demo (Test #1) | PARTIAL | Composition + JSON landed; orchestrator `== Product demo ==` TODO body. |
 | Sanitizer gates (P2-A) | PARTIAL | 7 subsystems + ASAN/UBSAN/TSAN_OPTIONS wired; full ctest DEFERRED-WBH. |
-| Text Production V1 | PASS | Text Export V1 certified. Clip 06 closed. FU04 contract closed. |
+| Text Production V1 | PARTIAL | Text Export V1 certified; RELEASE_GATE.md Text Production V1 criteria not yet met: 5/20 general presets, 0/8 subtitle presets, no tracked golden PNGs, no SRT/word-timing, per-word highlight not wired. |
 | Text Health | PASS | `chronon3d_text_health_tests` PASS (1/1) on main. |
 | Text API migration (Blocco 5.1/5.2) | PARTIAL | `centered_text`/`glow_text`/`TextSpec` overloads deprecated; 100+ caller bulk migration OPEN. |
 | Authoring facade | WIRED / GUARDED | `asset(path)` è context-typed e kind-free; due `RenderEngine` con root distinti, CWD ostile, font/image logical refs e missing-image fail-loud coperti da test. Gate statico vieta root globali, fallback CWD, resolver nelle composizioni e mega-header. |
