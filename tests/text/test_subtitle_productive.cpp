@@ -177,6 +177,112 @@ TEST_CASE("New subtitle presets have Subtitle category and valid fixtures") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Frame-rate conversion and [start, end) semantics
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("SubtitleTrackBuilder respects composition frame rate for cue timing") {
+    LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{0}, FrameRate{60, 1})};
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
+    chronon3d::authoring::Layer layer{lb, canvas};
+
+    SubtitleTrack track;
+    SubtitleCue cue;
+    cue.start_s = 1.0f;
+    cue.end_s = 4.0f;
+    cue.text = "Hello";
+    track.cues.push_back(cue);
+
+    layer.subtitles(track).build();
+
+    Layer built = lb.build();
+    CHECK(built.from == Frame{60});
+    CHECK(built.duration == Frame{180});
+}
+
+TEST_CASE("SubtitleTrackBuilder supports standard and fractional frame rates") {
+    const std::vector<FrameRate> rates = {
+        FrameRate{24000, 1001},
+        FrameRate{24, 1},
+        FrameRate{25, 1},
+        FrameRate{30000, 1001},
+        FrameRate{30, 1},
+        FrameRate{50, 1},
+        FrameRate{60, 1},
+    };
+
+    for (const auto& rate : rates) {
+        LayerBuilder lb{std::string{"test_layer_"} + std::to_string(rate.numerator),
+                        SampleTime::from_frame_int(Frame{0}, rate)};
+        lb.screen_dimensions(1920.0f, 1080.0f);
+        CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
+        chronon3d::authoring::Layer layer{lb, canvas};
+
+        SubtitleTrack track;
+        SubtitleCue cue;
+        cue.start_s = 1.0f;
+        cue.end_s = 4.0f;
+        cue.text = "Hello";
+        track.cues.push_back(cue);
+
+        layer.subtitles(track).build();
+        Layer built = lb.build();
+
+        const auto seconds_to_frame = [&rate](double s) {
+            return static_cast<Frame>(std::lround(s * static_cast<double>(rate.numerator) /
+                                                      static_cast<double>(rate.denominator)));
+        };
+        const Frame expected_start = seconds_to_frame(1.0);
+        const Frame expected_end = seconds_to_frame(4.0);
+        const Frame expected_duration = std::max(Frame{1}, expected_end - expected_start);
+
+        CHECK(built.from == expected_start);
+        CHECK(built.duration == expected_duration);
+    }
+}
+
+TEST_CASE("SubtitleTrackBuilder clamps zero-duration cues to at least one frame") {
+    LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})};
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
+    chronon3d::authoring::Layer layer{lb, canvas};
+
+    SubtitleTrack track;
+    SubtitleCue cue;
+    cue.start_s = 1.0f;
+    cue.end_s = 1.0f + (1.0f / 90000.0f); // less than one frame at 30 fps
+    cue.text = "Hello";
+    track.cues.push_back(cue);
+
+    layer.subtitles(track).build();
+    Layer built = lb.build();
+
+    CHECK(built.from == Frame{30});
+    CHECK(built.duration == Frame{1});
+}
+
+TEST_CASE("SubtitleTrackBuilder frame_rate override is used when set") {
+    LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})};
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
+    chronon3d::authoring::Layer layer{lb, canvas};
+
+    SubtitleTrack track;
+    SubtitleCue cue;
+    cue.start_s = 1.0f;
+    cue.end_s = 4.0f;
+    cue.text = "Hello";
+    track.cues.push_back(cue);
+
+    // Override the LayerBuilder's 30 fps with 60 fps.
+    layer.subtitles(track).frame_rate(FrameRate{60, 1}).build();
+    Layer built = lb.build();
+
+    CHECK(built.from == Frame{60});
+    CHECK(built.duration == Frame{180});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Authoring API (lightweight compile/link check)
 // ═══════════════════════════════════════════════════════════════════════════
 
