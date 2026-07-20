@@ -1,4 +1,19 @@
 ## 2026-07-20
+### `fix(text): geometric ink-bbox from FreeType outlines + matrix test l.center()` ([TICKET-TEXT-BBOX-OVERFLOW](docs/tickets/TICKET-TEXT-BBOX-OVERFLOW.md))
+Replaced approximate alpha-scan ink-bbox with geometric calculation from
+FreeType glyph outline bboxes transformed through the same matrices used
+for rasterization. Split layout/ink/effect bounds and removed hard-coded
+vertical offsets from subtitle presets. Added diagnostic fields
+(`layout_bbox`, `ink_bbox`, `effect_bbox`, `baseline`, `anchor_point`,
+`resolved_canvas_position`) in `TextVisibilityAudit`. Fixed the golden
+matrix subtitle overflow rot by adding `l.center()` in the test layer
+builder so `TextPlacementKind::Absolute` composes against a centered layer
+origin. `CHRONON3D_GOLDEN_MATRIX_FAST_MODE=1 ctest -R
+chronon3d_golden_matrix_subtitle_tests` now PASS without overflow at
+non-extreme scale. Remaining text visual suites (`text_preset_visual`,
+`text_golden`) still show hash/visibility regressions and are tracked as
+follow-up work.
+
 ### `feat(subtitle): productive subtitle foundation`
   ([TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION](docs/tickets/TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION.md))
 

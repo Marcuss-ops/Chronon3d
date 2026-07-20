@@ -129,7 +129,9 @@ compose_glow_pulse(const PresetMetadata& /*meta*/) {
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_caption_box(const PresetMetadata& /*meta*/) {
     TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("caption_box");
-    a.properties.push_back(PositionProperty{Vec3{0.0f, -30.0f, 0.0f}});
+    // No hard-coded positional offset: the preset relies on the
+    // caller-supplied semantic placement (SafeAreaBottom / center) so that
+    // layout/ink/effect bounds stay geometrically consistent.
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
 }
@@ -164,7 +166,9 @@ compose_subtitle_card(const PresetMetadata& /*meta*/) {
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_lower_third_safe(const PresetMetadata& /*meta*/) {
     TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("lower_third_safe");
-    a.properties.push_back(PositionProperty{Vec3{0.0f, -40.0f, 0.0f}});
+    // No hard-coded positional offset: the preset relies on the
+    // caller-supplied semantic placement (SafeAreaBottom / center) so that
+    // layout/ink/effect bounds stay geometrically consistent.
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
 }
@@ -266,7 +270,6 @@ TextPresetDescriptor caption_box_entry() {
                           LayerBuilderT& lb,
                           const TextSpecT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "caption_box", spec)
-          .fade_shift_vertical(Vec3{0.0f, -30.0f, 0.0f}, Frame{18})
           .fade_in(Frame{12});
     };
     d.animator_factory = compose_caption_box;
@@ -344,7 +347,7 @@ TextPresetDescriptor lower_third_safe_entry() {
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_lower_third_safe";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
-        chronon3d::registry::internal::wire_through_resolver(lb, "lower_third_safe", spec).fade_shift_vertical(Vec3{0.0f, -40.0f, 0.0f}, Frame{18}).fade_in(Frame{12});
+        chronon3d::registry::internal::wire_through_resolver(lb, "lower_third_safe", spec).fade_in(Frame{12});
     };
     d.animator_factory = compose_lower_third_safe;
     return d;

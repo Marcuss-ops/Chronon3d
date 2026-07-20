@@ -204,6 +204,23 @@ struct TextVisibilityAudit {
     // `should_disable_tile_pruning == true`. Zero-rect (default) when
     // the audit PASSes. Caller reads this when the flag is set and
     // substitutes it for the original tight `predicted_bbox`.
+
+    // ── geometric diagnostics (separated per ADR-019 Decision 2) ───────────
+    Rect layout_bbox{};                  // Layout box in local text-frame
+                                            // space (width/height from the
+                                            // shaped paragraph, baseline at
+                                            // local y = 0).
+    Rect ink_bbox{};                       // Geometric ink bbox in world
+                                            // space (outline-derived).
+    Rect effect_bbox{};                    // `ink_bbox` expanded by the
+                                            // effect padding (shadow/glow/
+                                            // stroke) in world space.
+    float baseline{0.0f};                  // World-space Y of the first
+                                            // baseline (local y=0).
+    Vec2 anchor_point{};                   // Resolved anchor point in
+                                            // world space (layer origin).
+    Vec2 resolved_canvas_position{};       // Final canvas translation from
+                                            // the world matrix (tx, ty).
 };
 
 /// `audit_text_visibility()` — single canonical pure function.
