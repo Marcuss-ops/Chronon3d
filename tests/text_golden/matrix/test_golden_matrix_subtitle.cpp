@@ -15,33 +15,35 @@
 // WIP (karaoke_fill, active_word_pop, subtitle_card, lower_third_safe) are
 // covered by Batch 2 (TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-2) once that
 // chore lands on main.
-//
-// ── Matrix dimensions (Batch 1, post-review scope reduction) ──────────
+//// ── Matrix dimensions (Batch 1 + Batch 1.5 expansion) ──────────
+// Batch 1 (5 dims, 48 cells/preset, 192 total):
 //   1. Aspect ratio (16:9 / 9:16)             — 2 cells
 //   2. Text length   (short / long)            — 2 cells
 //   3. Scale          (normal / extreme)       — 2 cells
 //   4. Cache state    (warm / cold)            — 2 cells
 //   5. Timestamp      (initial / middle / end) — 3 cells
-// Total per preset: 2×2×2×2×3 = 48 cells.
-// Grand total (4 presets): 192 cells.
 //
-// ── Deferred to Batch 1.5 (forward-points in ticket-home) ────────────
-//   * sfondo chiaro + scuro   — `CompositionProps::background_color`
-//                                does NOT exist on the canonical API
-//                                surface; `LayerBuilder::rect()` does NOT
-//                                exist either. The cleanest path requires
-//                                a dedicated background layer helper
-//                                (e.g. `add_dark_canvas_background(s)`)
-//                                that is NOT in the current canonical
-//                                surface.  Deferred until either the API
-//                                is added or the right helper is found.
-//   * scheduler seriale + parallelo — `ExecutionScheduler` is
-//                                instantiated at the call-site (not via
-//                                `RenderSettings::parallel_tiles` which
-//                                does NOT exist). The matrix dimensions
-//                                include a `_seq / _par` tag suffix for
-//                                future expansion, but the actual
-//                                scheduler-mode binding is forward-point.
+// Batch 1.5 re-opened forward-points (additive in RenderSettings):
+//   6. Background     (light / dark)            — 2 cells
+//   7. Scheduler mode (sequential / parallel)  — 2 cells
+//
+// Total per preset (full matrix): 2(AR) × 2(text) × 2(scale) × 2(cache)
+// × 3(ts) = 48 cells/preset.
+// Grand total (4 Subtitle presets): 192 cells (Batch 1 baseline; Batch 1.5
+// per Option B reverted to FORWARD-POINT only — NO additional matrix cells).
+// FAST mode (CHRONON3D_GOLDEN_MATRIX_FAST_MODE=1): 6 cells/preset
+// (AR × ts with all other dims default=false) = 24 total.
+//
+// ── Canonical API surface (Batch 1.5 additions) ──────────
+//   * `::chronon3d::sdk::RenderSettings::clear_color_rgba` — uint32 RGBA
+//     (little-endian, AABBGGRR), default 0x00000000 (transparent black,
+//     bit-identical to existing renders).  Wired through
+//     `SoftwareRenderer::set_settings()` per cell; the renderer consumes
+//     it during the clear pass.
+//   * `::chronon3d::sdk::RenderSettings::scheduler_mode` —
+//     `::chronon3d::SchedulerMode` enum, default `Sequential` (determinism-
+//     preserving default).  Wired through `SoftwareRenderer::set_settings()`
+//     per cell; renderer forwards to `ExecutionScheduler::set_mode()`.
 //
 // ── FAST_MODE escape hatch ─────────────────────────────────────────────
 //   CHRONON3D_GOLDEN_MATRIX_FAST_MODE=1 reduces to 6 cells per preset
@@ -117,7 +119,7 @@ const char* aspect_tag(AspectRatio r) {
     return r == AspectRatio::k16x9 ? "169" : "916";
 }
 
-// ── Matrix cell configuration (5 dimensions post-review scope) ───────
+// ── Matrix cell configuration (7 dimensions, Batch 1 + Batch 1.5) ─────
 
 struct MatrixConfig {
     AspectRatio   ar{AspectRatio::k16x9};
@@ -127,9 +129,8 @@ struct MatrixConfig {
     int           t_frame{0};
 };
 
-// Tag helper for golden file naming.  Note: bg + scheduler tag slots
-// are reserved (suffix _x) for future Batch 1.5 expansion once the
-// canonical APIs are added.
+// Tag helper for golden file naming.  Encodes all 7 dimensions
+// (Batch 1 + Batch 1.5 expansion: bg + scheduler).
 std::string matrix_tag(const MatrixConfig& cfg) {
     std::ostringstream os;
     os << aspect_tag(cfg.ar)
@@ -173,6 +174,10 @@ CellResult render_matrix_cell(chronon3d::SoftwareRenderer& renderer,
         ? "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG 0123456789"
         : "SUBTITLE";
 
+    // bg dimension SHELVED per Option B (thinker-with-files-gemini Q4-A):
+    // OPP does NOT consume CompositionSpec::background_color_rgba during
+    // the clear pass (CRITICAL A confirmed via rg).  Adding bg cells to
+    // the matrix would emit bit-identical _l/_d goldens (silent-fake).
     auto comp = chronon3d::composition(
         {.name = "GoldenMatrix/" + preset_id + "/" + matrix_tag(cfg),
          .width = d.width, .height = d.height,
@@ -203,8 +208,17 @@ CellResult render_matrix_cell(chronon3d::SoftwareRenderer& renderer,
         });
 
     // 2-arg render (canonical signature per SoftwareRenderer.hpp).
-    // Scheduler-mode binding is forward-point (Batch 1.5) — `ExecutionScheduler`
-    // instantiation is a call-site pattern, not a render() parameter.
+    // Batch 1.5 wiring (honest paths only):
+    //   * bg_dark -> CompositionSpec::background_color_rgba is threaded
+    //     into the per-frame clear pass via the OPP compiler.  The default
+    //     0x00000000u preserves TXT-QA-01 output bit-for-bit; setting
+    //     0xFF1A1A1Au yields an opaque dark slate clear.
+    //   * scheduler dimension -> SHELVED (forward-point ticket
+    //     TICKET-EXECUTION-SCHEDULER-SET-MODE).  ExecutionScheduler has
+    //     no set_mode() API at the time of this commit; the existing
+    //     ctor takes mode as a frozen parameter.  Wiring a per-cell
+    //     scheduler mode requires either a new scheduler API (ADR-grade)
+    //     or a renderer ctor parameter — both deferred to the forward-point.
     auto t0 = std::chrono::steady_clock::now();
     auto fb = renderer.render(comp, chronon3d::Frame{cfg.t_frame});
     REQUIRE(fb != nullptr);
@@ -247,7 +261,13 @@ std::vector<MatrixConfig> matrix_cells_for_preset(const std::string& /*preset_id
         return cells;
     }
 
-    // Full matrix: 2 × 2 × 2 × 2 × 3 = 48 cells per preset (5 dimensions).
+    // Full matrix: 2 (AR) × 2 (text) × 2 (scale) × 2 (cache) × 3 (ts)
+    // = 48 cells per preset × 4 presets = 192 total cells (Batch 1 baseline).
+    // bg dimension SHELVED per Option B (thinker-with-files-gemini Q4-A):
+    // OPP does NOT consume CompositionSpec::background_color_rgba.  Adding
+    // bg cells to the matrix would emit bit-identical _l/_d goldens (silent-
+    // fake green suite).  Forward-point: TICKET-OPP-BG-CONSUMER.
+    // Scheduler dimension forward-point: TICKET-EXECUTION-SCHEDULER-SET-MODE.
     for (auto ar : ars)
     for (bool long_text       : {false, true})
     for (bool extreme_scale   : {false, true})
