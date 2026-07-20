@@ -41,6 +41,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/presets/text/text_presets_v1.hpp>  // 5 preset functions
+#include <chronon3d/text/resolve_text_placement.hpp>  // CanvasInfo
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
@@ -80,22 +81,24 @@ struct RenderedPreset {
     size_t visible_pixels{0};
 };
 
-RenderedPreset render_preset(SoftwareRenderer& renderer, const TextDefinition& preset) {
+RenderedPreset render_preset(SoftwareRenderer& renderer, const TextDefinition& preset, int width = 1920, int height = 1080) {
+    const float w = static_cast<float>(width);
+    const float h = static_cast<float>(height);
     auto comp = composition(
         {.name = std::string("preset_") + preset.content.value,
-         .width = 1920, .height = 1080,
+         .width = width, .height = height,
          .frame_rate = FrameRate{30, 1},
          .duration = 1},
-        [&renderer, preset](const FrameContext& ctx) -> Scene {
+        [&renderer, preset, w, h](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
             s.font_engine(&renderer.font_engine());
 
             // Dark background so the white text is visible
-            s.layer("bg", [](LayerBuilder& l) {
+            s.layer("bg", [w, h](LayerBuilder& l) {
                 l.rect("bg_rect", RectParams{
-                    .size = {1920.0f, 1080.0f},
+                    .size = {w, h},
                     .color = Color{0.06f, 0.06f, 0.08f, 1.0f},
-                    .pos = {960.0f, 540.0f, 0.0f},
+                    .pos = {w * 0.5f, h * 0.5f, 0.0f},
                     .fill = FillStyle::solid(Color{0.06f, 0.06f, 0.08f, 1.0f})
                 });
             });
@@ -133,7 +136,7 @@ RenderedPreset render_preset(SoftwareRenderer& renderer, const TextDefinition& p
 
 TEST_CASE("PresetsGolden: title_centered 'CHRONON3D' 1920x1080 F0") {
     auto renderer = test::make_renderer();
-    auto rendered = render_preset(renderer, title_centered("CHRONON3D"));
+    auto rendered = render_preset(renderer, title_centered("CHRONON3D", CanvasInfo::from_dimensions(1920.0f, 1080.0f)));
     REQUIRE(rendered.fb != nullptr);
     CHECK(rendered.visible_pixels > 0);  // anti-false-green sanity
     INFO("Visible pixels: ", rendered.visible_pixels, "/", rendered.fb->pixel_count());
@@ -151,7 +154,7 @@ TEST_CASE("PresetsGolden: title_centered 'CHRONON3D' 1920x1080 F0") {
 
 TEST_CASE("PresetsGolden: subtitle_bottom 'a subtitle' 1920x1080 F0") {
     auto renderer = test::make_renderer();
-    auto rendered = render_preset(renderer, subtitle_bottom("a subtitle"));
+    auto rendered = render_preset(renderer, subtitle_bottom("a subtitle", CanvasInfo::from_dimensions(1920.0f, 1080.0f)));
     REQUIRE(rendered.fb != nullptr);
     CHECK(rendered.visible_pixels > 0);
 
@@ -168,7 +171,7 @@ TEST_CASE("PresetsGolden: subtitle_bottom 'a subtitle' 1920x1080 F0") {
 
 TEST_CASE("PresetsGolden: caption_safe_area 'a caption' 1920x1080 F0") {
     auto renderer = test::make_renderer();
-    auto rendered = render_preset(renderer, caption_safe_area("a caption"));
+    auto rendered = render_preset(renderer, caption_safe_area("a caption", CanvasInfo::from_dimensions(1920.0f, 1080.0f)));
     REQUIRE(rendered.fb != nullptr);
     CHECK(rendered.visible_pixels > 0);
 
@@ -185,7 +188,7 @@ TEST_CASE("PresetsGolden: caption_safe_area 'a caption' 1920x1080 F0") {
 
 TEST_CASE("PresetsGolden: kinetic_word 'HERO' 1920x1080 F0") {
     auto renderer = test::make_renderer();
-    auto rendered = render_preset(renderer, kinetic_word("HERO"));
+    auto rendered = render_preset(renderer, kinetic_word("HERO", CanvasInfo::from_dimensions(1920.0f, 1080.0f)));
     REQUIRE(rendered.fb != nullptr);
     CHECK(rendered.visible_pixels > 0);
 
@@ -202,7 +205,7 @@ TEST_CASE("PresetsGolden: kinetic_word 'HERO' 1920x1080 F0") {
 
 TEST_CASE("PresetsGolden: lower_third 'MARCO ROSSI' 1920x1080 F0") {
     auto renderer = test::make_renderer();
-    auto rendered = render_preset(renderer, lower_third("MARCO ROSSI"));
+    auto rendered = render_preset(renderer, lower_third("MARCO ROSSI", CanvasInfo::from_dimensions(1920.0f, 1080.0f)));
     REQUIRE(rendered.fb != nullptr);
     CHECK(rendered.visible_pixels > 0);
 
@@ -211,4 +214,49 @@ TEST_CASE("PresetsGolden: lower_third 'MARCO ROSSI' 1920x1080 F0") {
     INFO("Golden: ", result.message);
     REQUIRE_FALSE(result.golden_missing);
     CHECK(result.passed);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Responsive aspect-ratio coverage (no golden comparison — certifies that
+// the same preset renders visible text on 9:16 and 1:1 canvases).
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("PresetsGolden: title_centered renders on 1080x1920 9:16") {
+    auto renderer = test::make_renderer();
+    auto rendered = render_preset(
+        renderer,
+        title_centered("CHRONON3D", CanvasInfo::from_dimensions(1080.0f, 1920.0f)),
+        1080, 1920);
+    REQUIRE(rendered.fb != nullptr);
+    CHECK(rendered.visible_pixels > 0);
+}
+
+TEST_CASE("PresetsGolden: title_centered renders on 1080x1080 1:1") {
+    auto renderer = test::make_renderer();
+    auto rendered = render_preset(
+        renderer,
+        title_centered("CHRONON3D", CanvasInfo::from_dimensions(1080.0f, 1080.0f)),
+        1080, 1080);
+    REQUIRE(rendered.fb != nullptr);
+    CHECK(rendered.visible_pixels > 0);
+}
+
+TEST_CASE("PresetsGolden: lower_third renders on 1080x1920 9:16") {
+    auto renderer = test::make_renderer();
+    auto rendered = render_preset(
+        renderer,
+        lower_third("MARCO ROSSI", CanvasInfo::from_dimensions(1080.0f, 1920.0f)),
+        1080, 1920);
+    REQUIRE(rendered.fb != nullptr);
+    CHECK(rendered.visible_pixels > 0);
+}
+
+TEST_CASE("PresetsGolden: lower_third renders on 1080x1080 1:1") {
+    auto renderer = test::make_renderer();
+    auto rendered = render_preset(
+        renderer,
+        lower_third("MARCO ROSSI", CanvasInfo::from_dimensions(1080.0f, 1080.0f)),
+        1080, 1080);
+    REQUIRE(rendered.fb != nullptr);
+    CHECK(rendered.visible_pixels > 0);
 }

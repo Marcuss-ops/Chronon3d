@@ -33,6 +33,7 @@
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/paragraph_style.hpp>
+#include <chronon3d/text/text_span_override.hpp>
 
 #include <cstddef>
 #include <optional>
@@ -139,5 +140,13 @@ struct TextDocument {
 
 /// Hash a ParagraphRange (byte range + style).
 [[nodiscard]] u64 hash_paragraph_range(const ParagraphRange& pr);
+
+/// Append a single TextSpanOverride to a TextDocument as a runtime
+/// TextStyleSpan.  The override is merged on top of the supplied
+/// default_font for font-size multiplier calculations.
+void append_span_override(
+    TextDocument& doc,
+    const TextSpanOverride& over,
+    const FontSpec& default_font);
 
 } // namespace chronon3d

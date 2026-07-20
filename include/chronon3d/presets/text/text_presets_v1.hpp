@@ -16,8 +16,8 @@
 // `[[deprecated]]` attributes and emit one-shot `spdlog::warn` calls
 // pointing to this header as the migration target.
 //
-//   `centered_text(text)`          → `presets::text::title_centered(text)`
-//   `glow_text(text, glow_color)`  → `presets::text::kinetic_word(text)` +
+//   `centered_text(text)`          → `presets::text::title_centered(text, canvas)`
+//   `glow_text(text, glow_color)`  → `presets::text::kinetic_word(text, canvas)` +
 //                                    `def.effects.glow = GlowParams{...}`
 //                                    overlay
 //
@@ -57,23 +57,28 @@
 //   ```cpp
 //   LayerBuilder lb("my_comp", SampleTime{});
 //   lb.screen_dimensions(1920.0f, 1080.0f);
-//   authoring::Layer lyr(lb, CanvasInfo::from_dimensions(
-//       1920.0f, 1080.0f));
+//   const auto canvas = CanvasInfo::from_dimensions(1920.0f, 1080.0f);
+//   authoring::Layer lyr(lb, canvas);
 //   lyr.text("title").content("CHRONON3D").font("Inter-Bold.ttf", 96.0f)
-//                   .place(presets::text::title_centered("CHRONON3D").frame.placement,
+//                   .place(presets::text::title_centered("CHRONON3D", canvas).frame.placement,
 //                          TextAnchor::Center);
 //   // — OR — using the preset directly:
-//   lyr.text("title").content(presets::text::title_centered("CHRONON3D"));
+//   lyr.text("title").content(presets::text::title_centered("CHRONON3D", canvas));
 //   ```
 //   The canonical centered-title chain (with the preset feeding
 //   `content()`) is 4 method calls: satisfies the §2B criterion.
 //
 // PRESET CATALOG (5):
-//   1. title_centered(text, font_size, max_width)       — Canvas center, 96pt
-//   2. subtitle_bottom(text, font_size)                 — SafeAreaBottom, 48pt
-//   3. caption_safe_area(text, font_size)                — SafeAreaCenter, 36pt
-//   4. kinetic_word(text, font_size, accent_color)       — Canvas center, 120pt
-//   5. lower_third(text, font_size)                      — BottomLeft, 42pt
+//   1. title_centered(text, canvas, font_size, constraints, policy)
+//        — Canvas center, 96pt
+//   2. subtitle_bottom(text, canvas, font_size, constraints, policy)
+//        — SafeAreaBottom, 48pt
+//   3. caption_safe_area(text, canvas, font_size, constraints, policy)
+//        — SafeAreaCenter, 36pt
+//   4. kinetic_word(text, canvas, font_size, accent_color, constraints, policy)
+//        — Canvas center, 120pt
+//   5. lower_third(text, canvas, font_size, constraints, policy)
+//        — BottomLeft, 42pt
 //
 // Each preset sets:
 //   - content.value = the user-provided text
@@ -81,20 +86,22 @@
 //     to match the existing `centered_text()` helper in
 //     content/text/text_helpers_centered.hpp)
 //   - style.color = white (or accent_color for kinetic_word)
-//   - frame.size = layout box size
+//   - frame.size = layout box size derived from canvas + constraints
 //   - frame.anchor / frame.align / frame.vertical_align = Center / Middle
-//   - frame.placement = the resolved placement pin point for 1920×1080
-//     (caller can override via the returned TextDefinition)
+//   - frame.placement = semantic placement (CanvasCenter, SafeAreaBottom,
+//     SafeAreaCenter, BottomLeft) — no hard-coded coordinates.
 //
-// The frame.placement is hard-locked to the 1920×1080 canonical canvas pin
-// points to satisfy the §2B "centra un titolo in < 10 righe" criterion.
-// A future multi-canvas-resolution follow-up can parameterize position
-// via the `CanvasInfo` + `resolve_placement_origin` API; this is the
-// §6 of the M1.8 plan forward-point, deferred to keep §3C minimal.
+// The presets are fully responsive: they accept a `CanvasInfo` describing
+// the target canvas (width, height and safe-area margins) and size the
+// text box through `TextBoxConstraints` + `AspectRatioPolicy`.  This makes
+// the same preset work on 16:9, 9:16, 1:1 and arbitrary resolutions
+// without coordinate hard-coding.
 // ═══════════════════════════════════════════════════════════════════════════
 
+#include <chronon3d/presets/text/preset_constraints.hpp>  // TextBoxConstraints, AspectRatioPolicy, resolve_text_box_constraints
 #include <chronon3d/text/text_definition.hpp>       // TextDefinition, TextContent
-#include <chronon3d/text/text_placement.hpp>        // TextPlacement, TextPlacementKind
+#include <chronon3d/text/text_placement.hpp>        // TextPlacement, TextPlacementKind, SafeAreaPreset
+#include <chronon3d/text/resolve_text_placement.hpp>  // CanvasInfo
 #include <chronon3d/scene/builders/builder_params.hpp>  // TextContent, FontSpec
 #include <chronon3d/math/glm_types.hpp>             // Vec2, Vec3
 #include <chronon3d/math/color.hpp>                  // Color
@@ -105,30 +112,35 @@
 
 namespace chronon3d::presets::text {
 
+// Shared helpers imported from preset_constraints.hpp:
+//   TextBoxConstraints, AspectRatioPolicy, resolve_text_box_constraints()
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. title_centered
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Canonical hero/centered title preset.  Places the text at the canvas
-/// center on the 1920×1080 default canvas, Poppins-Bold 96pt (matches
-/// the `centered_text()` helper default).
+/// center, Poppins-Bold 96pt (matches the `centered_text()` helper default).
 ///
 /// Parameters:
 ///   text       — the string to render
+///   canvas     — target canvas (width, height, safe-area margins)
 ///   font_size  — target font size in canvas pixels (default 96.0f)
-///   max_width  — optional max layout box width; std::nullopt means
-///                no constraint (default box 900×160; same as
-///                centered_text() default)
+///   constraints — optional box sizing constraints
+///   policy     — aspect-ratio scaling policy
 ///
-/// Pin point: (960, 540) — canvas center for 1920×1080.
-///   (A future FU10 follow-up can parameterize the canvas via
-///   `resolve_placement_origin` + `CanvasInfo`; §3C keeps it hard-locked
-///   for simplicity.  Callers needing custom canvas size can override
-///   `def.frame.placement` after the call.)
+/// Placement: CanvasCenter + anchor Center.
 [[nodiscard]] inline TextDefinition title_centered(
     std::string text,
+    const CanvasInfo& canvas,
     float font_size = 96.0f,
-    std::optional<float> max_width = std::nullopt) noexcept
+    const TextBoxConstraints& constraints = TextBoxConstraints{
+        .width_fraction  = 900.0f / 1920.0f,
+        .height_fraction = 160.0f / 1080.0f,
+        .min_width       = 320.0f,
+        .min_height      = 48.0f,
+    },
+    AspectRatioPolicy policy = AspectRatioPolicy::FitCanvas) noexcept
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
@@ -138,19 +150,16 @@ namespace chronon3d::presets::text {
     def.style.font.font_style  = "normal";
     def.style.font.font_size   = font_size;
     def.style.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
-    // Layout box: width = max_width if set, else 900.0f default
-    //             height = 160.0f default (matches centered_text()).
-    const float w = max_width.value_or(900.0f);
-    def.frame.size            = Vec2{w, 160.0f};
+
+    def.frame.size            = resolve_text_box_constraints(constraints, canvas, policy);
     def.frame.anchor          = TextAnchor::Center;
     def.frame.align           = TextAlign::Center;
     def.frame.vertical_align  = VerticalAlign::Middle;
     def.frame.wrap            = TextWrap::Word;
     def.frame.overflow        = TextOverflow::Clip;
     def.frame.line_height     = 0.95f;
-    // Hard-locked pin point for 1920×1080 (canonical canvas).
-    def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
-                                        Vec2{960.0f, 540.0f}};
+    // Semantic placement: canvas center, no hard-coded coordinates.
+    def.frame.placement = TextPlacement{TextPlacementKind::CanvasCenter};
     return def;
 }
 
@@ -162,11 +171,18 @@ namespace chronon3d::presets::text {
 /// 5% safe-margin black background (sRGB-grey, no fill — visual
 /// sophistication deferred to user CSS).
 ///
-/// Pin point: (960, 1026) — bottom safe area for 1920×1080 (5% margin
-/// = 54px from bottom edge; 1080 - 54 = 1026).
+/// Placement: SafeAreaBottom + anchor Center.
 [[nodiscard]] inline TextDefinition subtitle_bottom(
     std::string text,
-    float font_size = 48.0f) noexcept
+    const CanvasInfo& canvas,
+    float font_size = 48.0f,
+    const TextBoxConstraints& constraints = TextBoxConstraints{
+        .width_fraction  = 1200.0f / 1920.0f,
+        .height_fraction = 100.0f / 1080.0f,
+        .min_width       = 240.0f,
+        .min_height      = 32.0f,
+    },
+    AspectRatioPolicy policy = AspectRatioPolicy::FitCanvas) noexcept
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
@@ -176,16 +192,16 @@ namespace chronon3d::presets::text {
     def.style.font.font_style  = "normal";
     def.style.font.font_size   = font_size;
     def.style.color = Color{0.9f, 0.9f, 0.9f, 1.0f};
-    def.frame.size            = Vec2{1200.0f, 100.0f};
+
+    def.frame.size            = resolve_text_box_constraints(constraints, canvas, policy);
     def.frame.anchor          = TextAnchor::Center;
     def.frame.align           = TextAlign::Center;
     def.frame.vertical_align  = VerticalAlign::Middle;
     def.frame.wrap            = TextWrap::Word;
     def.frame.overflow        = TextOverflow::Clip;
     def.frame.line_height     = 1.05f;
-    // Pin point: 1920×1080, SafeAreaBottom (5% margin).
-    def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
-                                        Vec2{960.0f, 1026.0f}};
+    // Semantic placement: bottom-center of safe area.
+    def.frame.placement = TextPlacement{TextPlacementKind::SafeAreaBottom};
     return def;
 }
 
@@ -197,11 +213,18 @@ namespace chronon3d::presets::text {
 /// (smaller than subtitle to leave breathing room; the 5% safe-area
 /// margin applies on all 4 sides).
 ///
-/// Pin point: (960, 540) — safe-area center for 1920×1080 (same as
-/// canvas center when safe area is symmetric, but documents the intent).
+/// Placement: SafeAreaCenter + anchor Center.
 [[nodiscard]] inline TextDefinition caption_safe_area(
     std::string text,
-    float font_size = 36.0f) noexcept
+    const CanvasInfo& canvas,
+    float font_size = 36.0f,
+    const TextBoxConstraints& constraints = TextBoxConstraints{
+        .width_fraction  = 1640.0f / 1920.0f,
+        .height_fraction = 80.0f / 1080.0f,
+        .min_width       = 240.0f,
+        .min_height      = 24.0f,
+    },
+    AspectRatioPolicy policy = AspectRatioPolicy::FitCanvas) noexcept
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
@@ -211,16 +234,16 @@ namespace chronon3d::presets::text {
     def.style.font.font_style  = "normal";
     def.style.font.font_size   = font_size;
     def.style.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
-    def.frame.size            = Vec2{1640.0f, 80.0f};   // 1920 - 2*140
+
+    def.frame.size            = resolve_text_box_constraints(constraints, canvas, policy);
     def.frame.anchor          = TextAnchor::Center;
     def.frame.align           = TextAlign::Center;
     def.frame.vertical_align  = VerticalAlign::Middle;
     def.frame.wrap            = TextWrap::Word;
     def.frame.overflow        = TextOverflow::Clip;
     def.frame.line_height     = 1.15f;
-    // Pin point: 1920×1080, SafeAreaCenter (5% margin symmetric).
-    def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
-                                        Vec2{960.0f, 540.0f}};
+    // Semantic placement: center of safe area bounds.
+    def.frame.placement = TextPlacement{TextPlacementKind::SafeAreaCenter};
     return def;
 }
 
@@ -233,11 +256,19 @@ namespace chronon3d::presets::text {
 /// is opt-in (default white; e.g. orange/red for "WARN", green for
 /// "OK" badge use cases).
 ///
-/// Pin point: (960, 540) — canvas center for 1920×1080.
+/// Placement: CanvasCenter + anchor Center.
 [[nodiscard]] inline TextDefinition kinetic_word(
     std::string text,
+    const CanvasInfo& canvas,
     float font_size = 120.0f,
-    std::optional<Color> accent_color = std::nullopt) noexcept
+    std::optional<Color> accent_color = std::nullopt,
+    const TextBoxConstraints& constraints = TextBoxConstraints{
+        .width_fraction  = 1600.0f / 1920.0f,
+        .height_fraction = 240.0f / 1080.0f,
+        .min_width       = 320.0f,
+        .min_height      = 64.0f,
+    },
+    AspectRatioPolicy policy = AspectRatioPolicy::FitCanvas) noexcept
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
@@ -247,16 +278,16 @@ namespace chronon3d::presets::text {
     def.style.font.font_style  = "normal";
     def.style.font.font_size   = font_size;
     def.style.color = accent_color.value_or(Color{1.0f, 1.0f, 1.0f, 1.0f});
-    def.frame.size            = Vec2{1600.0f, 240.0f};
+
+    def.frame.size            = resolve_text_box_constraints(constraints, canvas, policy);
     def.frame.anchor          = TextAnchor::Center;
     def.frame.align           = TextAlign::Center;
     def.frame.vertical_align  = VerticalAlign::Middle;
     def.frame.wrap            = TextWrap::None;  // single-word
     def.frame.overflow        = TextOverflow::Clip;
     def.frame.line_height     = 0.90f;
-    // Pin point: 1920×1080, CanvasCenter.
-    def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
-                                        Vec2{960.0f, 540.0f}};
+    // Semantic placement: canvas center.
+    def.frame.placement = TextPlacement{TextPlacementKind::CanvasCenter};
     return def;
 }
 
@@ -268,12 +299,18 @@ namespace chronon3d::presets::text {
 /// to the bottom-left safe area, white on dark-grey caption (visual
 /// sophistication deferred to user).
 ///
-/// Pin point: (140, 920) — bottom-left safe area for 1920×1080 (5% margin
-/// = 96px from left, 1080 - 160 = 920; matches the 1640-wide caption box
-/// starting at x=140 with 80px breathing room from the left edge).
+/// Placement: BottomLeft + anchor TopLeft.
 [[nodiscard]] inline TextDefinition lower_third(
     std::string text,
-    float font_size = 42.0f) noexcept
+    const CanvasInfo& canvas,
+    float font_size = 42.0f,
+    const TextBoxConstraints& constraints = TextBoxConstraints{
+        .width_fraction  = 1640.0f / 1920.0f,
+        .height_fraction = 100.0f / 1080.0f,
+        .min_width       = 240.0f,
+        .min_height      = 32.0f,
+    },
+    AspectRatioPolicy policy = AspectRatioPolicy::FitCanvas) noexcept
 {
     TextDefinition def{};
     def.content.value   = std::move(text);
@@ -283,19 +320,89 @@ namespace chronon3d::presets::text {
     def.style.font.font_style  = "normal";
     def.style.font.font_size   = font_size;
     def.style.color = Color{1.0f, 1.0f, 1.0f, 1.0f};
-    def.frame.size            = Vec2{1640.0f, 100.0f};
-    def.frame.anchor          = TextAnchor::TopLeft;  // text starts at pin
+
+    def.frame.size            = resolve_text_box_constraints(constraints, canvas, policy);
+    def.frame.anchor          = TextAnchor::BottomLeft;  // box sits on bottom-left safe area corner
     def.frame.align           = TextAlign::Left;
-    def.frame.vertical_align  = VerticalAlign::Top;
+    def.frame.vertical_align  = VerticalAlign::Bottom;
     def.frame.wrap            = TextWrap::Word;
     def.frame.overflow        = TextOverflow::Clip;
     def.frame.line_height     = 1.05f;
-    // Pin point: 1920×1080, SafeAreaLeft (5% margin = 96px from left,
-    // vertically centered in safe area at y=540 minus 160 vertical
-    // offset for the lower-third positioning = 920).
-    def.frame.placement = TextPlacement{TextPlacementKind::Absolute,
-                                        Vec2{140.0f, 920.0f}};
+    // Semantic placement: bottom-left corner of the safe area.
+    def.frame.placement = TextPlacement{TextPlacementKind::BottomLeft};
     return def;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Deprecated overloads — migration shims for the old hard-coded 1920×1080 API.
+// These overloads are provided temporarily so existing callers compile while
+// they migrate to the responsive CanvasInfo-based API.  They will be removed
+// once all callers have been updated (TICKET-SIMPLICITY-PRESETS).
+// ═══════════════════════════════════════════════════════════════════════════
+
+[[deprecated("Pass an explicit CanvasInfo — hard-coded 1920×1080 default is removed in V1. "
+             "See TICKET-SIMPLICITY-PRESETS.")]]
+[[nodiscard]] inline TextDefinition title_centered(
+    std::string text,
+    float font_size,
+    std::optional<float> max_width = std::nullopt) noexcept
+{
+    TextBoxConstraints constraints{
+        .width_fraction  = max_width.value_or(900.0f) / 1920.0f,
+        .height_fraction = 160.0f / 1080.0f,
+        .min_width       = 320.0f,
+        .min_height      = 48.0f,
+    };
+    return title_centered(std::move(text),
+                          CanvasInfo::from_dimensions(1920.0f, 1080.0f),
+                          font_size,
+                          constraints);
+}
+
+[[deprecated("Pass an explicit CanvasInfo — hard-coded 1920×1080 default is removed in V1. "
+             "See TICKET-SIMPLICITY-PRESETS.")]]
+[[nodiscard]] inline TextDefinition subtitle_bottom(
+    std::string text,
+    float font_size = 48.0f) noexcept
+{
+    return subtitle_bottom(std::move(text),
+                           CanvasInfo::from_dimensions(1920.0f, 1080.0f),
+                           font_size);
+}
+
+[[deprecated("Pass an explicit CanvasInfo — hard-coded 1920×1080 default is removed in V1. "
+             "See TICKET-SIMPLICITY-PRESETS.")]]
+[[nodiscard]] inline TextDefinition caption_safe_area(
+    std::string text,
+    float font_size = 36.0f) noexcept
+{
+    return caption_safe_area(std::move(text),
+                             CanvasInfo::from_dimensions(1920.0f, 1080.0f),
+                             font_size);
+}
+
+[[deprecated("Pass an explicit CanvasInfo — hard-coded 1920×1080 default is removed in V1. "
+             "See TICKET-SIMPLICITY-PRESETS.")]]
+[[nodiscard]] inline TextDefinition kinetic_word(
+    std::string text,
+    float font_size = 120.0f,
+    std::optional<Color> accent_color = std::nullopt) noexcept
+{
+    return kinetic_word(std::move(text),
+                        CanvasInfo::from_dimensions(1920.0f, 1080.0f),
+                        font_size,
+                        accent_color);
+}
+
+[[deprecated("Pass an explicit CanvasInfo — hard-coded 1920×1080 default is removed in V1. "
+             "See TICKET-SIMPLICITY-PRESETS.")]]
+[[nodiscard]] inline TextDefinition lower_third(
+    std::string text,
+    float font_size = 42.0f) noexcept
+{
+    return lower_third(std::move(text),
+                       CanvasInfo::from_dimensions(1920.0f, 1080.0f),
+                       font_size);
 }
 
 } // namespace chronon3d::presets::text

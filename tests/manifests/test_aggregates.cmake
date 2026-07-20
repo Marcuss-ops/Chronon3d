@@ -104,6 +104,7 @@ foreach(_target IN ITEMS
     chronon3d_text_golden_tests
     chronon3d_text_builder_ergonomics_tests
     chronon3d_text_definition_tests
+    chronon3d_text_rich_authoring_tests
     chronon3d_inspect_text_tests
 )
     chronon3d_append_target_if_present(CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS ${_target})
