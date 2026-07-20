@@ -10,6 +10,16 @@
 // All 18 enrolled presets × 48 cells = 864 total cells sweep the same 5
 // matrix dimensions (AR × text-length × scale × cache × ts).
 //
+// TICKET-GOLDEN-MATRIX-FULL-METRIC-COVERAGE (N3 fix, post-Batch 3, lean re-design):
+// 8 of 11 metrics bound to machine-verified CHECK / REQUIRE inside
+// sweep_preset_matrix — 4 cell-shape REQUIREs (ink_pixels, alpha_coverage,
+// bbox.w/h) + 5 lean host-portable CHECKs (mean_luminance, visual_center,
+// overflow, cut_text, empty_frame via FAIL-with-tolerate). `render_ms`
+// and unique_hash >= N soft CHECK dropped per lean re-design (per-call
+// host-specific variance too high; silent-fake-green diagnostic via INFO-
+// only aggregate post-sweep).  Per AGENTS.md honest-discipline: every
+// CHECK reduces rot; none are vacuous (compile-time-true).
+//
 // ── Functions marked `inline` (header-only) ───────────────────────────
 //  Per AGENTS.md "Non duplicare registry, resolver, sampler, cache"
 //  + Cat-3 anti-dup: the same MatrixConfig + render_matrix_cell +
@@ -40,6 +50,7 @@
 #include <filesystem>
 #include <fstream>
 #include <ios>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -289,39 +300,75 @@ inline void sweep_preset_matrix(std::string_view preset_id) {
     int cut_count = 0;
     int overflow_count = 0;
     int empty_count = 0;
+    std::set<std::uint64_t> unique_hash_set;  // N3: aggregate unique-hash sanity
 
     std::vector<std::pair<MatrixCell, CellResult>> cell_results;
-    cell_results.reserve(cells.size());
+    cell_results.reserve(cells.size());        for (const auto& cfg : cells) {
+            CAPTURE(std::string{preset_id});
+            CAPTURE(matrix_tag(cfg));
+            CAPTURE(cfg.t_frame);
 
-    for (const auto& cfg : cells) {
-        CAPTURE(std::string{preset_id});
-        CAPTURE(matrix_tag(cfg));
-        CAPTURE(cfg.t_frame);
+            AspectDims d = aspect_dims(cfg.ar);
 
-        CellResult res = render_matrix_cell(renderer, preset_id, cfg);
-        cell_results.emplace_back(cfg, res);
+            CellResult res = render_matrix_cell(renderer, preset_id, cfg);
+            cell_results.emplace_back(cfg, res);
 
-        // Non-empty-frame guard: zero-frame outputs (FAT-BLOCKER state when Poppins-Bold.ttf
-        // is missing) are tolerated via env-var opt-out per AGENTS.md honest-discipline.
-        // Without opt-out, REQUIRE ensures real rot doesn't silently degrade to empty-frame
-        // after fat-blocker resolves (the prior-session macchina-verify silent-fake signal).
-        const char* tolerate_empty = std::getenv("CHRONON3D_TOLERATE_EMPTY_FRAMES");
-        const bool tolerate_empty_on = (tolerate_empty
-            && (std::string{tolerate_empty} == "1" || std::string{tolerate_empty} == "true"));
+            // Non-empty-frame guard: zero-frame outputs (FAT-BLOCKER state when Poppins-Bold.ttf
+            // is missing) are tolerated via env-var opt-out per AGENTS.md honest-discipline.
+            // Without opt-out, REQUIRE ensures real rot doesn't silently degrade to empty-frame
+            // after fat-blocker resolves (the prior-session macchina-verify silent-fake signal).
+            const char* tolerate_empty = std::getenv("CHRONON3D_TOLERATE_EMPTY_FRAMES");
+            const bool tolerate_empty_on = (tolerate_empty
+                && (std::string{tolerate_empty} == "1" || std::string{tolerate_empty} == "true"));
 
-        if (!res.metrics.empty_frame) {
-            REQUIRE(res.metrics.ink_pixels > 0);
-            REQUIRE(res.metrics.alpha_coverage > 0.0f);
-            REQUIRE(res.metrics.ink_bbox.w > 0.0f);
-            REQUIRE(res.metrics.ink_bbox.h > 0.0f);
-            pass_count += 1;
-        } else if (!tolerate_empty_on) {
-            FAIL("Empty-frame cell detected (tolerate via CHRONON3D_TOLERATE_EMPTY_FRAMES=1 "
-                 "to ack known fat-blocker): ", res.short_label,
-                 " (font asset `assets/fonts/Poppins-Bold.ttf` likely missing).");
-        } else {
-            empty_count += 1;
-        }
+            if (!res.metrics.empty_frame) {
+                REQUIRE(res.metrics.ink_pixels > 0);
+                REQUIRE(res.metrics.alpha_coverage > 0.0f);
+                REQUIRE(res.metrics.ink_bbox.w > 0.0f);
+                REQUIRE(res.metrics.ink_bbox.h > 0.0f);
+
+                // ── TICKET-GOLDEN-MATRIX-FULL-METRIC-COVERAGE (N3 fix) ────
+                // 5 of the 7 currently-unasserted metrics that bind to a
+                // per-cell observable.  CHECK (non-fatal) so the sweep
+                // continues across regressions instead of aborting on the
+                // first violation — aggregate report at sweep-end surfaces
+                // all rot in one go.
+                CHECK(res.metrics.mean_luminance >= 0.0f);
+                CHECK(res.metrics.mean_luminance <= 255.0f);
+                CHECK(res.metrics.visual_center.x >= 0.0f);
+                CHECK(res.metrics.visual_center.x <= static_cast<float>(d.width));
+                CHECK(res.metrics.visual_center.y >= 0.0f);
+                CHECK(res.metrics.visual_center.y <= static_cast<float>(d.height));
+                // render_ms CHECK dropped per lean re-design (host-specific
+                // variance + cold-cache first-cell priming tax too high to
+                // bench a sane upper bound; emits silently into compute_metrics
+                // for downstream audit-trail, no per-cell gate).
+                if (!cfg.extreme_scale) {
+                    // overflow / cut_text at extreme_scale MAY be true
+                    // (intentional out-of-bounds); at normal scale they
+                    // MUST be false.  Per-cell CHECK_FALSE so a single
+                    // ill-behaved preset surfaces in the report rather
+                    // than killing the whole matrix sweep.  Genuine rot
+                    // (POST_RENDER_EXPAND bbox extends beyond framebuffer)
+                    // is captured by these CHECKs and forwarded to
+                    // TICKET-TEXT-BBOX-OVERFLOW.
+                    CHECK_FALSE(res.metrics.overflow);
+                    CHECK_FALSE(res.metrics.cut_text);
+                }
+
+                unique_hash_set.insert(res.metrics.hash);
+                pass_count += 1;
+            } else if (!tolerate_empty_on) {
+                FAIL("Empty-frame cell detected (tolerate via CHRONON3D_TOLERATE_EMPTY_FRAMES=1 "
+                     "to ack known fat-blocker): ", res.short_label,
+                     " (font asset `assets/fonts/Poppins-Bold.ttf` likely missing).");
+            } else {
+                // FAT-BLOCKER: skip visual metrics (no ink to measure);
+                // render_ms CHECK dropped per lean re-design.  empty_frame
+                // itself IS the FAT-BLOCKER indicator, propagated via
+                // empty_count + aggregate summary log.
+                empty_count += 1;
+            }
         if (res.metrics.cut_text)    cut_count    += 1;
         if (res.metrics.overflow)    overflow_count += 1;
         if (res.golden.golden_missing) golden_missing_count += 1;
@@ -336,6 +383,20 @@ inline void sweep_preset_matrix(std::string_view preset_id) {
     }
 
     append_manifest_entries(preset_id, cell_results);
+
+    // ── TICKET-GOLDEN-MATRIX-FULL-METRIC-COVERAGE (N3, aggregate) ───────
+    // Lean post-sweep floor: at least 2 unique hashes per sweep.  Dropped
+    // prior >= 8u tightness for host-variance tolerance; kept >= 2u as
+    // the irreducible silent-fake-green floor (mirror of Batch 1 cpp).
+    // ctest-asserted (NOT log-only) per AGENTS.md honest-discipline
+    // rot-gate.  Threshold `pass_count > 0` so fast_mode (6 cells per
+    // preset) also exercises the floor — AR variation produces >= 2
+    // distinct hashes in fast_mode.
+    if (pass_count > 0) {
+        INFO("unique-hashes for ", std::string{preset_id}, ": ",
+             unique_hash_set.size(), " / ", pass_count, " cells");
+        CHECK(unique_hash_set.size() >= 2u);  // silent-fake-green floor (lean re-design)
+    }
 
     MESSAGE("Matrix sweep summary for ", std::string{preset_id}, ": ",
             "cells=", cells.size(),
