@@ -13,6 +13,8 @@ set(CHRONON3D_AUTHORING_PUBLIC_HEADERS
     "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/composition.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/layer.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/scene.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/subtitle_track_builder.hpp"
+    "${CMAKE_SOURCE_DIR}/include/chronon3d/presets/text/subtitle.hpp"
 
     # layer.hpp includes this lightweight host-owned registry context directly.
     "${CMAKE_SOURCE_DIR}/include/chronon3d/extension/extension_context.hpp"

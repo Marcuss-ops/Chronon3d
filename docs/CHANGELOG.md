@@ -1,4 +1,10 @@
 ## 2026-07-20
+### `feat(subtitle): productive subtitle foundation`
+  ([TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION](docs/tickets/TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION.md))
+
+SubtitleTrackBuilder + 4 new Subtitle presets + SRT/VTT/JSON adapters + 10 TEST_CASEs.
+
+## 2026-07-20
 ### `feat(matrix): lean N3 metric coverage (drop render_ms, 2u hash floor)` ([TICKET-GOLDEN-MATRIX-FULL-METRIC-COVERAGE](docs/tickets/TICKET-GOLDEN-MATRIX-FULL-METRIC-COVERAGE.md) · [TICKET-TEXT-BBOX-OVERFLOW](docs/tickets/TICKET-TEXT-BBOX-OVERFLOW.md) NEW forward-point)
 Lean re-design of metric coverage honoring AGENTS.md host-portable principle.  5 of 11 metrics bound: mean_luminance `[0, 255]`, visual_center `[0, w] × [0, h]`, overflow + cut_text CHECK_FALSE at !extreme_scale, empty_frame via FAIL-with-tolerate_empty_frames escape. `render_ms` tight bounds dropped (host-variance + cold-cache priming tax); unique_hash soft CHECK `≥ 2u` floor retained (irreducible silent-fake-green detector; ctest-asserted, NOT log-only) at `pass_count > 0` threshold (fast_mode-friendly).  The non-extreme_scale CHECK_FALSE(overflow) surfaces a real renderer rot (`POST_RENDER_EXPAND actual.x=-214 vs predicted=0` — 16/24 Subtitle preset cells fail); forwarded atomically to TICKET-TEXT-BBOX-OVERFLOW (Cat-5 3-doc bundle per `### 2×-in-one-chore` precedent — TICKET-OPP-BG-CONSUMER lineage).  Cat-3 anti-dup: harness header + Batch 1 cpp mirror in lock-step; INTENTIONAL divergence breadcrumb on FAT-BLOCKER else-branch (`TICKET-GOLDEN-MATRIX-MIGRATE-BATCH-1` forward-point for canonical migration of Batch 1's ~250 LoC local `aspect_dims`/`sweep_preset_matrix`).  Pre-push verification scoped to `ctest -R 'golden_matrix'` (orphan VTT parser bug + productive-subtitle WIP OUT OF SCOPE per `§Fare PR piccole e mirate`).
 
