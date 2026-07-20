@@ -63,7 +63,19 @@ struct RectF {
     float x{0.0f}, y{0.0f}, w{0.0f}, h{0.0f};
 };
 
-// 8-metric ScenarioMetrics canon (PR-A3 / docs/01-baseline-green.md §2.4-2.5).  // drift-allow: stale-ref
+// 11-metric ScenarioMetrics canon (PR-A3 / docs/01-baseline-green.md §2.4-2.5 + TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-1 additive extension).  // drift-allow: stale-ref
+//
+// Fields 0-7 are the original 8-metric canon.  Fields 8-10 are the
+// golden-matrix trio (TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-1):
+//   * overflow       — any ink pixel within 2px of any framebuffer edge
+//                      (intended: bbox should NOT touch edges; this catches
+//                      text bleeding off-canvas due to missing safe area).
+//   * empty_frame    — `ink_pixels == 0` (catches fully-blank frames that
+//                      should not happen for visible timestamps).
+//   * cut_text       — bbox's right or bottom edge touches the framebuffer
+//                      edge (text appears sliced — likely truncated).
+// All 3 are pure derived booleans from the existing ink-walk; no new
+// iterations, no new helpers, no new canonical types.
 struct ScenarioMetrics {
     std::uint64_t hash{0};
     RectF         ink_bbox{};
@@ -72,14 +84,18 @@ struct ScenarioMetrics {
     float         alpha_coverage{0.0f};
     chronon3d::Vec2 visual_center{0.0f, 0.0f};
     float         render_ms{0.0f};
+    // ── golden-matrix trio (additive, TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-1) ──
+    bool          overflow{false};
+    bool          empty_frame{true};
+    bool          cut_text{false};
 };
 
-// Compute all 8 metrics from a single rendered framebuffer.  Hash is
+// Compute all 11 metrics from a single rendered framebuffer.  Hash is
 // delegated to chronon3d::test::framebuffer_hash (test-utils helper);
 // ink_scan walks every pixel with `a > 0.05f` filter to count ink +
-// bbox + visual_center; render_ms is the wall-clock between the
-// caller-supplied `t0` (typically renderer.render_frame entry) and the
-// function return.
+// bbox + visual_center + golden-matrix trio; render_ms is the
+// wall-clock between the caller-supplied `t0` (typically
+// renderer.render_frame entry) and the function return.
 inline ScenarioMetrics compute_metrics(const chronon3d::Framebuffer& fb,
                                          std::chrono::steady_clock::time_point t0) {
     ScenarioMetrics m;
@@ -87,11 +103,13 @@ inline ScenarioMetrics compute_metrics(const chronon3d::Framebuffer& fb,
 
     const int W = fb.width();
     const int H = fb.height();
+    constexpr int kEdgeProximityPx = 2;  // TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-1: overflow threshold
     int xmin = W, ymin = H, xmax = -1, ymax = -1;
     int ink = 0;
     double sum_l = 0.0;
     double sum_a = 0.0;
     double sum_x = 0.0, sum_y = 0.0;
+    bool any_pixel_near_edge = false;
     for (int y = 0; y < H; ++y) {
         for (int x = 0; x < W; ++x) {
             chronon3d::Color c = fb.get_pixel(x, y);
@@ -103,6 +121,12 @@ inline ScenarioMetrics compute_metrics(const chronon3d::Framebuffer& fb,
                 sum_l += chronon3d::test::luma(c);
                 sum_a += a;
                 sum_x += x * a; sum_y += y * a;
+                // overflow detection: any ink pixel within kEdgeProximityPx of any edge.
+                if (!any_pixel_near_edge &&
+                    (x < kEdgeProximityPx || y < kEdgeProximityPx ||
+                     x >= W - kEdgeProximityPx || y >= H - kEdgeProximityPx)) {
+                    any_pixel_near_edge = true;
+                }
             }
         }
     }
@@ -110,6 +134,8 @@ inline ScenarioMetrics compute_metrics(const chronon3d::Framebuffer& fb,
     m.ink_pixels     = ink;
     m.alpha_coverage = total > 0 ? static_cast<float>(ink) / static_cast<float>(total) : 0.0f;
     m.mean_luminance = ink > 0 ? static_cast<float>(sum_l / static_cast<double>(ink)) : 0.0f;
+    m.empty_frame    = (ink == 0);
+    m.overflow       = any_pixel_near_edge;
     if (ink > 0) {
         m.ink_bbox = RectF{static_cast<float>(xmin), static_cast<float>(ymin),
                            static_cast<float>(xmax - xmin + 1),
@@ -117,6 +143,10 @@ inline ScenarioMetrics compute_metrics(const chronon3d::Framebuffer& fb,
         m.visual_center = chronon3d::Vec2{static_cast<float>(sum_x / sum_a),
                                             static_cast<float>(sum_y / sum_a)};
     }
+    // cut-text: bbox right or bottom touches the framebuffer right or bottom
+    // edge (strict, pixel-perfect cut).  Empty frames cannot be "cut" by
+    // definition (xmax/ymax are -1, so the predicate is vacuously false).
+    m.cut_text = (ink > 0) && ((xmax >= W - 1) || (ymax >= H - 1));
     auto t1 = std::chrono::steady_clock::now();
     m.render_ms = std::chrono::duration<float, std::milli>(t1 - t0).count();
     return m;
