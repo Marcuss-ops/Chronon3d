@@ -19,6 +19,7 @@
 namespace chronon3d {
 
 struct TextLayoutSpec {
+    // Per-field phase tags (TICKET-TEXT-PROPERTY-PHASES — PreLayout = reflow): box/anchor/align/wrap/overflow/line_height/tracking/auto_fit/min/max_font_size/max_lines/ellipsis/paragraph/centering_mode/vertical_align. The runtime animated variants (TextAnimator::*) override these via PostLayout on a per-glyph basis.
     Vec2 box{900.0f, 160.0f};
     TextAnchor anchor{TextAnchor::Center};
     TextCenteringMode centering_mode{TextCenteringMode::LayoutBox};
@@ -37,6 +38,7 @@ struct TextLayoutSpec {
 };
 
 struct TextAppearanceSpec {
+    // Per-field phase tags (TICKET-TEXT-PROPERTY-PHASES — PostLayout = visual-only): color/paint/shadows/material/box_style. Animations targeting these properties apply per-glyph at the PostLayout stage and do NOT invalidate layout/shaping cache.
     Color color{1.0f, 1.0f, 1.0f, 1.0f};
     TextPaint paint{};
     std::vector<TextShadow> shadows{};
@@ -50,6 +52,13 @@ struct TextContent {
 };
 
 struct TextSpec {
+    // Per-field phase tags (TICKET-TEXT-PROPERTY-PHASES):
+    //   .content     → PreShaping substrate (value/pre_shaped are inputs to the PreShaping evaluator)
+    //   .placement   → PreLayout (reflow; affects paragraph composition)
+    //   .font        → PreLayout (reflow; font size feeds HarfBuzz shaping metrics)
+    //   .layout      → PreLayout (reflow; see TextLayoutSpec table above)
+    //   .appearance  → PostLayout (visual-only; see TextAppearanceSpec table above)
+    //   .spans[]     → mixed phase; per-span font is PreLayout, per-span color is PostLayout.
     TextContent content;
     TextPlacement placement{};
     FontSpec font;

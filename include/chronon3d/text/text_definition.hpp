@@ -56,6 +56,14 @@ class TextDocument;
 // from TextSpec::font + TextSpec::appearance fields.
 
 struct TextDefStyle {
+    // Per-field phase tags (TICKET-TEXT-PROPERTY-PHASES):
+    //   .font        → PreLayout (reflow; font size feeds HarfBuzz shaping metrics)
+    //   .color       → PostLayout (visual-only)
+    //   .paint       → PostLayout (visual-only)
+    //   .shadows     → PostLayout (visual-only)
+    //   .material    → PostLayout (visual-only)
+    //   .box_style   → PostLayout (visual-only)
+
     /// Font specification (path, family, weight, size).
     /// Maps to TextSpec::font.
     FontSpec font{};
@@ -83,6 +91,8 @@ struct TextDefStyle {
 // ═══════════════════════════════════════════════════════════════════════════
 
 struct TextFrame {
+    // Per-field phase tags (TICKET-TEXT-PROPERTY-PHASES): all (.size/.placement/.anchor/.align/.vertical_align/.wrap/.overflow/.centering_mode/.line_height/.tracking/.auto_fit/.min_font_size/.max_font_size/.max_lines/.ellipsis) are PreLayout (reflow). Animated overrides (TextAnimator::position/scale/rotation/skew/anchor/tracking/opacity/blur/fill_color/stroke_color/stroke_width/baseline_shift) run PostLayout per-glyph.
+
     /// Layout box size in canvas pixels (maps to TextSpec::layout.box).
     Vec2 size{900.0f, 160.0f};
 
@@ -157,6 +167,14 @@ struct TextAnimation {
 // ═══════════════════════════════════════════════════════════════════════════
 
 struct TextDefinition {
+    // Per-field phase tags (TICKET-TEXT-PROPERTY-PHASES):
+    //   .content     → PreShaping substrate (the value field is the input to PreShaping evaluators like CharacterOffset)
+    //   .spans[]     → mixed; per-span font is PreLayout, per-span color is PostLayout
+    //   .style       → font=PreLayout (reflow), color/paint/shadows/material/box_style=PostLayout (see TextDefStyle)
+    //   .frame       → PreLayout (reflow; per-field table above in TextFrame)
+    //   .paragraph   → PreLayout (reflow)
+    //   .animation   → PostLayout (visual-only; runtime animator stack applied per-frame per-glyph after layout)
+
     TextContent              content;     ///< text + pre-shaped glyphs (canonical from builder_params.hpp)
     std::vector<TextSpanOverride> spans;  ///< per-range style overrides (authoring-level)
     TextDefStyle             style;       ///< font, size, color, stroke, material
