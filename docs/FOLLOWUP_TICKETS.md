@@ -26,6 +26,8 @@
 Debiti differiti e cronologia dei ticket chiusi sono stati spostati in [`ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`](ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md) per rispettare il contratto documentale di ~10 righe sintetiche.
 
 | TICKET-TEXT-BBOX-OVERFLOW | P1 | OPEN | Renderer bbox rot (POST_RENDER_EXPAND actual.x=-214 vs predicted=0; 16/24 Subtitle baseline cells FAIL CHECK_FALSE(overflow)) | [doc](docs/tickets/TICKET-TEXT-BBOX-OVERFLOW.md) |
+| TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION | P1 | OPEN | SubtitleTrackBuilder fluent API + 4 new Subtitle presets + 10 TEST_CASEs (cherry-pick of orphan WIP; deferred: per-word karaoke-pop attach) | [doc](docs/tickets/TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION.md) |
+| TICKET-SUBTITLE-WORD-KARAOKE | P1 | OPEN | Per-word TextSpanOverride attach in SubtitleTrackBuilder::build() (chase-up of TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION) | [doc](docs/tickets/TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION.md) |
 ## Recently Closed
 
 - TICKET-PROFILING-INCLUDE-MISSING (rot-class: profiling/extern symbol missing); TICKET-FMT-PATH-JOIN-INCOMPLETE-TYPE (rot-class: fmt::v12 metafunction); atomic Duh-chore; cat-3 minimal surface 2-file source patch; broader 11/11 macchina-verifica PARTIAL → DEFERRED-WBH.

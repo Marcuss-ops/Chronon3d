@@ -56,14 +56,13 @@ void SubtitleTrackBuilder::build() {
         TextRunSpec run_spec =
             registry::wire_preset_text_run_params(preset_id_, spec);
 
-        // Preserve per-cue word timing as a custom animator signal if the
-        // preset supports word-level effects.  For now we attach the cue
-        // words as a TextSpanOverride per-word so the renderer can highlight
-        // the active word via WordStyleState.
-        for (const auto& word : cue.words) {
-            (void)word;
-            // Future: attach per-word span overrides keyed by semantic_id.
-        }
+        // Per-cue word timing is preserved in cue.words for the renderer to
+        // consume via WordStyleState at compose time.  The per-word
+        // TextSpanOverride attach + WordStyleState rendering hook is
+        // deferred to TICKET-SUBTITLE-WORD-KARAOKE: writing the no-op loop
+        // here shipped misleading dead code, so the loop body has been
+        // removed in this chore and re-introduced atomically with the
+        // karaoke-pop hook in that ticket.
 
         builder_->animated_text("subtitle_cue_" + std::to_string(i), run_spec)
             .commit()
