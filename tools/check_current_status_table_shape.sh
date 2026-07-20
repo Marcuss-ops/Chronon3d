@@ -72,10 +72,23 @@ okf()  { echo "[ OK ] $1"; }
 # -- preconditions ------------------------------------------------------------------
 [[ -f "$CS" ]] || { echo "[FAIL] missing $CS" >&2; exit 1; }
 
-# -- expected label roster (7 named rows; presence required) -------------------------
+# -- expected label roster (8 named rows; presence required) -------------------------
+# History note: the canonical "Text Production V1" single-row label was split into
+#   - "Text Rendering Core V1" (PASS observation: FreeType + HarfBuzz + FriBidi +
+#     shaping + layout + glyph cache + animator + selector certified on main)
+#   - "Text Production / CapCut-grade V1" (PARTIAL observation: 5/20 general
+#     presets + 0/8 subtitle + no tracked golden PNGs + no SRT/word-timing +
+#     per-word highlight not wired)
+# per [TICKET-TEXT-PRODUCTION-STATUS-CORRECTION](docs/tickets/TICKET-TEXT-PRODUCTION-
+# STATUS-CORRECTION.md) on 2026-07-15. The substring "Text Production" co-occurs
+# in BOTH labels' prefix, preserving grep-discoverability for downstream docs
+# (ROADMAP/FEATURES/RELEASE_GATE cross-references that cite "Text Production V1"
+# as a substring). The gate tolerates BOTH layouts as long as all canonical
+# substrings appear in the aggregated markdown tables of the file.
 EXPECTED_LABELS=(
   "Camera V1"
-  "Text Production V1"
+  "Text Production"              # substring of "Text Production / CapCut-grade V1"
+  "Text Rendering Core V1"       # elevated to PASS via the 2026-07-15 state-split
   "SDK C++ installabile"
   "SDK cross-language"
   "Render runtime"
