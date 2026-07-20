@@ -201,6 +201,14 @@ TimedTextDocument timed_text_from_vtt(const std::string& raw) {
 
         // VTT supports optional positioning after the arrow — trim it
         std::string_view end_part = ts_line.substr(arrow + 3);
+        // Strip leading whitespace left by the "--> " separator
+        // (e.g. "00:00:01.000 --> 00:00:04.000" → after arrow+3 starts with " 00:00:04.000").
+        // Without this, find_first_of below returns 0 and the timestamp is truncated to "".
+        while (!end_part.empty() && (end_part.front() == ' ' || end_part.front() == '\t')) {
+            end_part.remove_prefix(1);
+        }
+        // Then strip optional VTT positioning (line:50%, align:start, position:N%)
+        // that comes AFTER the second timestamp.
         auto end_space = end_part.find_first_of(" \t");
         if (end_space != std::string_view::npos) end_part = end_part.substr(0, end_space);
 
