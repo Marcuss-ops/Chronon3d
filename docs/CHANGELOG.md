@@ -1,6 +1,12 @@
 ## 2026-07-20
 ### `chore(golden): Batch 1.5 NETA-ZERO — bg+sched dims forwarded (Option B)` ([TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-1](docs/tickets/TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-1.md) · [TICKET-OPP-BG-CONSUMER](docs/tickets/TICKET-OPP-BG-CONSUMER.md) · [TICKET-EXECUTION-SCHEDULER-SET-MODE](docs/tickets/TICKET-EXECUTION-SCHEDULER-SET-MODE.md))
 
+### `chore(golden): matrix sweep across Emphasis+Cinematic+Reveal tiers` ([TICKET-GOLDEN-MATRIX-BATCH-3](docs/tickets/TICKET-GOLDEN-MATRIX-BATCH-3.md))
+
+864-cell coverage: 4 EMP + 4 CINE + 10 REVEAL = 18 presets × 48 cells.  Per-ticket narrative (cinematic-substitution disclosure + FAT-BLOCKER + 6 forward-points) lives at the canonical ticket-home.
+
+Refs: cinematic substitution (title_centered/kinetic_word/lower_third absent from registry; substituted with 4 actual descriptors animation_compositions/cinematic_text_camera/cinematic_title_reveal/tilt_sweep_title_v2).
+
 Both `sfondo chiaro + scuro` AND `scheduler seriale + parallelo` matrix dimensions SHELVED into forward-point tickets per thinker Option B + CRITICAL A (OPP does not consume `CompositionSpec::background_color_rgba`). Matrix stays at 192 cells (Batch 1 baseline). Cronaca canonical ticket-home; Round 1/2/3 honest-discipline lineage documented in `TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-1.md`. Cat-3 minimal-surface: 1 NEW forward-point ticket + 1 additive CompositionSpec field RETAINED (dead per Option B; future OPP wiring) + `render_settings.hpp` restored to HEAD (Round 1 dead fields removed).
 
 # `feat(golden): Batch 1.5 NETA-ZERO — bg + scheduler dims deferred (Option B per thinker)` ([TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-1](docs/tickets/TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-1.md) · [TICKET-OPP-BG-CONSUMER](docs/tickets/TICKET-OPP-BG-CONSUMER.md) · [TICKET-EXECUTION-SCHEDULER-SET-MODE](docs/tickets/TICKET-EXECUTION-SCHEDULER-SET-MODE.md) NEW forward-points)
