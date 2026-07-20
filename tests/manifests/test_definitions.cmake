@@ -40,6 +40,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     safe_area_placement_tests.cmake
     text_builder_ergonomics_tests.cmake
     text_rich_authoring_tests.cmake
+    subtitle_productive_tests.cmake
     animation_helpers_tests.cmake
     text_simplicity_adapters_tests.cmake
     text/text_clip_policy_tests.cmake

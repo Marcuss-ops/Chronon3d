@@ -38,14 +38,14 @@ class Text;
 
 class TextSpanBuilder {
 public:
-    TextSpanBuilder(Text& parent, TextSpanOverride& span) noexcept
-        : parent_(&parent), span_(&span) {}
+    TextSpanBuilder(Text& parent, std::size_t span_index) noexcept
+        : parent_(&parent), span_index_(span_index) {}
 
     // ── Span-level style overrides ─────────────────────────────────────
 
     /// Set the fill color for the current span.
     TextSpanBuilder& color(Color c) {
-        span_->color = c;
+        current_span().color = c;
         return *this;
     }
 
@@ -56,67 +56,67 @@ public:
 
     /// Set the font weight (100–900) for the current span.
     TextSpanBuilder& weight(int w) {
-        if (!span_->font) span_->font.emplace();
-        span_->font->font_weight = w;
+        if (!current_span().font) current_span().font.emplace();
+        current_span().font->font_weight = w;
         return *this;
     }
 
     /// Set the absolute font size for the current span (px).
     TextSpanBuilder& font_size(float size) {
-        if (!span_->font) span_->font.emplace();
-        span_->font->font_size = size;
+        if (!current_span().font) current_span().font.emplace();
+        current_span().font->font_size = size;
         return *this;
     }
 
     /// Set a relative font-size multiplier for the current span.
     TextSpanBuilder& scale(float multiplier) {
-        span_->font_size_multiplier = multiplier;
+        current_span().font_size_multiplier = multiplier;
         return *this;
     }
 
     /// Set the letter-spacing (tracking) override in pixels.
     TextSpanBuilder& tracking(float pixels) {
-        span_->tracking = pixels;
+        current_span().tracking = pixels;
         return *this;
     }
 
     /// Set the baseline shift for the current span (vertical offset
     /// from the baseline, in pixels).
     TextSpanBuilder& baseline_shift(float pixels) {
-        span_->baseline_shift = pixels;
+        current_span().baseline_shift = pixels;
         return *this;
     }
 
     /// Set a semantic identifier for the current span.
     TextSpanBuilder& semantic_id(std::string id) {
-        span_->semantic_id = std::move(id);
+        current_span().semantic_id = std::move(id);
         return *this;
     }
 
     /// Set the font path for the current span.
     TextSpanBuilder& font_path(std::string path) {
-        if (!span_->font) span_->font.emplace();
-        span_->font->font_path = std::move(path);
+        if (!current_span().font) current_span().font.emplace();
+        current_span().font->font_path = std::move(path);
         return *this;
     }
 
     /// Set the font family for the current span.
     TextSpanBuilder& font_family(std::string family) {
-        if (!span_->font) span_->font.emplace();
-        span_->font->font_family = std::move(family);
+        if (!current_span().font) current_span().font.emplace();
+        current_span().font->font_family = std::move(family);
         return *this;
     }
 
     /// Set an italic style for the current span.
     TextSpanBuilder& italic(bool value = true) {
-        if (!span_->font) span_->font.emplace();
-        span_->font->font_style = value ? "italic" : "normal";
+        if (!current_span().font) current_span().font.emplace();
+        current_span().font->font_style = value ? "italic" : "normal";
         return *this;
     }
 
     /// Set a stroke style for the current span.
     TextSpanBuilder& stroke(const TextStrokeStyle& style) {
-        span_->stroke = style;
+        current_span().stroke = style;
         return *this;
     }
 
@@ -125,7 +125,7 @@ public:
         TextStrokeStyle s;
         s.width_em = width_em;
         s.color = color;
-        span_->stroke = s;
+        current_span().stroke = s;
         return *this;
     }
 
@@ -134,9 +134,14 @@ public:
     /// TextSpanOverride covering the appended bytes is created.
     TextSpanBuilder span(std::string_view text);
 
+/// Access the currently open span.
+    TextSpanOverride& current_span() noexcept;
+
 private:
     Text* parent_{nullptr};
-    TextSpanOverride* span_{nullptr};
+    std::size_t span_index_{0};
+
+    friend class Text;
 };
 
 } // namespace chronon3d::authoring
