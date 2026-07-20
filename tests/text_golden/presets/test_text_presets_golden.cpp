@@ -40,6 +40,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/presets/text_presets.hpp>
+#include <chronon3d/text/resolve_text_placement.hpp>  // CanvasInfo
 
 #include <tests/visual/support/golden_test.hpp>
 #include <tests/helpers/test_utils.hpp>
@@ -107,6 +108,33 @@ void run_preset_golden_test(
     CHECK(result.passed);
 }
 
+// Non-golden sanity check: render the preset and ensure visible pixels
+// are produced.  Used for aspect ratios that do not yet have tracked
+// golden PNGs.
+void run_preset_sanity_test(
+    const char* case_name,
+    TextDefinition preset,
+    int expected_width,
+    int expected_height)
+{
+    auto renderer = test::make_renderer();
+    auto comp = build_preset_composition(renderer, case_name, std::move(preset));
+    auto fb = renderer.render(comp, Frame{0});
+    REQUIRE(fb != nullptr);
+    REQUIRE(fb->width()  == expected_width);
+    REQUIRE(fb->height() == expected_height);
+
+    size_t visible_pixels = 0;
+    const Color* data = fb->data();
+    constexpr float kThreshold = 5.0f / 255.0f;
+    for (size_t i = 0; i < fb->pixel_count(); ++i) {
+        if (data[i].r > kThreshold || data[i].g > kThreshold || data[i].b > kThreshold) {
+            ++visible_pixels;
+        }
+    }
+    CHECK(visible_pixels > 0);
+}
+
 } // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -117,7 +145,7 @@ TEST_CASE("F3.C Presets: title_preset — large bold centered title") {
     run_preset_golden_test(
         "F3C/Title",
         "f3c_title_preset",
-        presets::title_preset("CHRONON3D ENGINE"));
+        presets::title_preset("CHRONON3D ENGINE", CanvasInfo::from_dimensions(1920.0f, 1080.0f)));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -128,7 +156,7 @@ TEST_CASE("F3.C Presets: subtitle_preset — medium subtitle with background bar
     run_preset_golden_test(
         "F3C/Subtitle",
         "f3c_subtitle_preset",
-        presets::subtitle_preset("Motion Graphics • Real-Time • CPU-First"));
+        presets::subtitle_preset("Motion Graphics • Real-Time • CPU-First", CanvasInfo::from_dimensions(1920.0f, 1080.0f)));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -139,7 +167,7 @@ TEST_CASE("F3.C Presets: caption_preset — small bottom caption") {
     run_preset_golden_test(
         "F3C/Caption",
         "f3c_caption_preset",
-        presets::caption_preset("Frame 42 — Chronon3D v0.1 — 2026-07-10"));
+        presets::caption_preset("Frame 42 — Chronon3D v0.1 — 2026-07-10", CanvasInfo::from_dimensions(1920.0f, 1080.0f)));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -150,7 +178,7 @@ TEST_CASE("F3.C Presets: kinetic_hero_preset — premium hero with stroke and gl
     run_preset_golden_test(
         "F3C/KineticHero",
         "f3c_kinetic_hero_preset",
-        presets::kinetic_hero_preset("UNLEASH\nCREATIVITY"));
+        presets::kinetic_hero_preset("UNLEASH\nCREATIVITY", CanvasInfo::from_dimensions(1920.0f, 1080.0f)));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -161,5 +189,38 @@ TEST_CASE("F3.C Presets: lower_third_preset — broadcast-style L3 overlay") {
     run_preset_golden_test(
         "F3C/LowerThird",
         "f3c_lower_third_preset",
-        presets::lower_third_preset("John Doe • Creative Director"));
+        presets::lower_third_preset("John Doe • Creative Director", CanvasInfo::from_dimensions(1920.0f, 1080.0f)));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Responsive aspect-ratio coverage (no golden comparison — certifies that
+// the same preset renders visible text on 9:16 and 1:1 canvases).
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("F3.C Presets: title_preset renders on 1080x1920 9:16") {
+    run_preset_sanity_test(
+        "F3C/Title9x16",
+        presets::title_preset("CHRONON3D ENGINE", CanvasInfo::from_dimensions(1080.0f, 1920.0f)),
+        1080, 1920);
+}
+
+TEST_CASE("F3.C Presets: title_preset renders on 1080x1080 1:1") {
+    run_preset_sanity_test(
+        "F3C/Title1x1",
+        presets::title_preset("CHRONON3D ENGINE", CanvasInfo::from_dimensions(1080.0f, 1080.0f)),
+        1080, 1080);
+}
+
+TEST_CASE("F3.C Presets: lower_third_preset renders on 1080x1920 9:16") {
+    run_preset_sanity_test(
+        "F3C/LowerThird9x16",
+        presets::lower_third_preset("John Doe • Creative Director", CanvasInfo::from_dimensions(1080.0f, 1920.0f)),
+        1080, 1920);
+}
+
+TEST_CASE("F3.C Presets: lower_third_preset renders on 1080x1080 1:1") {
+    run_preset_sanity_test(
+        "F3C/LowerThird1x1",
+        presets::lower_third_preset("John Doe • Creative Director", CanvasInfo::from_dimensions(1080.0f, 1080.0f)),
+        1080, 1080);
 }

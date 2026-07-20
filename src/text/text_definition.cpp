@@ -24,6 +24,9 @@ TextDefinition from_text_spec(const TextSpec& spec) {
     // ── content (canonical TextContent from builder_params.hpp) ───────
     def.content = spec.content;
 
+    // ── spans (authoring-level overrides) ─────────────────────────────
+    def.spans = spec.spans;
+
     // ── style (TextDefStyle — font, color, paint, shadows, material) ──
     def.style.font     = spec.font;
     def.style.color    = spec.appearance.color;
@@ -61,16 +64,13 @@ TextDefinition from_text_spec(const TextSpec& spec) {
 TextDefinition from_text_run_spec(const TextRunSpec& spec) {
     TextDefinition def = from_text_spec(spec.text);
 
-    // ── animation (Phase A.3 placeholder — stored in TextAnimation) ────
-    // Forward-point: when TextAnimation is filled in Phase A.3,
-    // spec.animators and spec.selectors will be mapped here.
-    // All TextRunSpec-only fields are intentionally not yet mapped.
-    (void)spec.animators;
-    (void)spec.selectors;
-    (void)spec.direction;
-    (void)spec.language;
-    (void)spec.script;
-    (void)spec.cache_layout;
+    // ── animation (Phase A.3 — stored in TextAnimation) ─────────────────
+    def.animation.direction    = spec.direction;
+    def.animation.language     = spec.language;
+    def.animation.script       = spec.script;
+    def.animation.cache_layout = spec.cache_layout;
+    def.animation.animators    = spec.animators;
+    def.animation.selectors    = spec.selectors;
 
     return def;
 }
@@ -81,6 +81,9 @@ TextSpec from_text_definition(const TextDefinition& def) {
     // ── content ────────────────────────────────────────────────────────
     spec.content.value      = def.content.value;
     spec.content.pre_shaped = def.content.pre_shaped;
+
+    // ── spans (authoring-level overrides) ───────────────────────────────
+    spec.spans = def.spans;
 
     // ── font ───────────────────────────────────────────────────────────
     spec.font = def.style.font;
@@ -139,14 +142,25 @@ TextSpec from_text_definition(const TextDefinition& def) {
 //     TextSpanOverride fields) into TextStyleSpan entries at that point.
 //   - Returns by value (TextDocument is a small POD; no heap moves).
 TextDocument to_text_document(const TextDefinition& def) {
-    TextDocumentBuilder builder;
-    // defaults() via the from_text_definition() adapter — same path canonical
-    // code uses elsewhere, no drift.
-    builder.defaults(from_text_definition(def));
-    // Single-span fallback: covers [0, content.value.size()) with no
-    // per-span overrides.  Phase-B fills real spans from def.spans[].
-    builder.span(def.content.value);
-    return std::move(builder).build();
+    TextDocument doc;
+
+    // Content + defaults are taken from the canonical reverse adapter.
+    doc.utf8     = def.content.value;
+    doc.defaults = from_text_definition(def);
+
+    // Convert authoring-level TextSpanOverride entries into runtime
+    // TextStyleSpan entries.  The resolver (resolve_text_run_tree) already
+    // understands TextStyleSpan and preserves ligatures / contextual
+    // shaping by only splitting runs when the effective font actually
+    // changes.
+    for (const auto& over : def.spans) {
+        append_span_override(doc, over, doc.defaults.font);
+    }
+
+    if (!doc.utf8.empty()) {
+        doc.split_paragraphs();
+    }
+    return doc;
 }
 
 // ── to_text_run_spec — F2.D reverse adapter ──────────────────────────

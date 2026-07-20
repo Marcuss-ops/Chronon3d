@@ -9,6 +9,7 @@
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/text_direction.hpp>
 #include <chronon3d/text/text_placement.hpp>
+#include <chronon3d/text/text_span_override.hpp>
 
 #include <cstdint>
 #include <memory>
@@ -54,6 +55,11 @@ struct TextSpec {
     FontSpec font;
     TextLayoutSpec layout;
     TextAppearanceSpec appearance;
+
+    /// Per-range style overrides for rich text.  Each override covers
+    /// the UTF-8 byte range [byte_start, byte_end) inside content.value.
+    /// Empty vector means "single-style text".
+    std::vector<TextSpanOverride> spans{};
 };
 
 // Source-compatible aliases retained until the external migration closes.

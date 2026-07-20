@@ -854,7 +854,6 @@ TEST_CASE("to_text_document: TextSpanOverride lowered to TextStyleSpan") {
     span.byte_end   = 5;  // "Hello"
     span.color      = Color{1.0f, 0.0f, 0.0f, 1.0f};  // red
     span.font       = FontSpec{.font_family = "Bold", .font_weight = 700};
-    span.font_size  = 72.0f;
     def.spans.push_back(span);
 
     auto doc = to_text_document(def);
@@ -870,6 +869,22 @@ TEST_CASE("to_text_document: TextSpanOverride lowered to TextStyleSpan") {
     REQUIRE(doc.spans[0].appearance.has_value());
     CHECK(doc.spans[0].appearance->color.r == doctest::Approx(1.0f));
     CHECK(doc.spans[0].appearance->color.g == doctest::Approx(0.0f));
+}
+
+TEST_CASE("to_text_document: font_size override becomes multiplier") {
+    TextDefinition def;
+    def.content.value = "HelloWorld";  // 10 bytes
+    def.style.font.font_size = 48.0f;
+
+    TextSpanOverride span;
+    span.byte_start = 0;
+    span.byte_end   = 5;  // "Hello"
+    span.font_size  = 72.0f;
+    def.spans.push_back(span);
+
+    auto doc = to_text_document(def);
+
+    REQUIRE(doc.spans.size() == 1);
     // Font size override → multiplier (72/48 = 1.5)
     REQUIRE(doc.spans[0].font_size_multiplier.has_value());
     CHECK(doc.spans[0].font_size_multiplier.value() == doctest::Approx(1.5f));
@@ -935,7 +950,7 @@ TEST_CASE("to_text_document: paragraphs auto-split on newlines") {
     // split_paragraphs() should have created 3 paragraphs
     CHECK(doc.paragraphs.size() == 3);
     CHECK(doc.paragraphs[0].byte_start == 0);
-    CHECK(doc.paragraphs[2].byte_end   == 18);  // total utf8 length
+    CHECK(doc.paragraphs[2].byte_end   == 20);  // total utf8 length
 }
 
 TEST_CASE("to_text_document: empty content produces valid empty document") {
@@ -1006,7 +1021,7 @@ TEST_CASE("full convergence: centered_text → to_text_document → TextDocument
     // Paragraphs auto-split (single paragraph, no newlines)
     CHECK(doc.paragraphs.size() == 1);
     CHECK(doc.paragraphs[0].byte_start == 0);
-    CHECK(doc.paragraphs[0].byte_end   == 17);  // strlen("CONVERGE PHASE B")
+    CHECK(doc.paragraphs[0].byte_end   == 16);  // strlen("CONVERGE PHASE B")
 }
 
 TEST_CASE("full convergence: glow_text → to_text_document → TextDocument") {

@@ -1,12 +1,13 @@
 #pragma once
 
 #include <chronon3d/core/profiling/trace_categories.hpp>
+#include <chronon3d/core/profiling/render_counter_types.hpp>  // RenderCounters full definition
 #include <chrono>
 #include <cstdint>
 
 namespace chronon3d {
 
-struct RenderCounters;
+struct RenderCounters;  // kept for backward compatibility; full type above
 
 namespace cache {
     class FramebufferPool;
