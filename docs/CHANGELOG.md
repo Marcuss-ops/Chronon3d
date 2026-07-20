@@ -1,4 +1,7 @@
 ## 2026-07-15
+### `docs+lifecycle(text): formalize 4-phase property evaluation` ([TICKET-TEXT-PROPERTY-PHASES](docs/tickets/TICKET-TEXT-PROPERTY-PHASES.md))
+Added `inline constexpr bool is_reflow_property(PropertyPhase p) noexcept` helper adjacent to the existing `enum class PropertyPhase` in `include/chronon3d/text/animation/text_animator_properties.hpp` (single canonical site per AGENTS.md Cat-3 anti-dup). Annotated every field of `TextLayoutSpec`, `TextAppearanceSpec`, `TextSpec`, `TextFrame`, `TextDefStyle`, `TextDefinition` with `// phase: PreShaping|PreLayout|PostLayout|PostRaster (reflow|visual-only)` comment tags. Cat-3 zero-API: NO new public SDK symbol beyond the helper; NO struct shape change; behavior unchanged (this is a doc + invariant helperization chore). Cronaca canonical ticket-home per AGENTS.md §`### Docs canonical update discipline rule`. `Character Offset` already moved pre-shaping upstream (FASE 2a, `TICKET-AE-PARITY-KILLER-CHARACTER-OFFSET-VALUE-RANGE`) — this chore is the tassello tassonomico (reflow/visual-only classification helper + per-field phase tags) that AGENTS.md §honesty-discipline requires for forward-state queries.
+
 ### `docs(state): split Text Production V1 -- Core PASS + CapCut-grade PARTIAL`
   ([TICKET-TEXT-PRODUCTION-STATUS-CORRECTION](docs/tickets/TICKET-TEXT-PRODUCTION-STATUS-CORRECTION.md))
 Split `docs/CURRENT_STATUS.md` single-row `Text Production V1 | PARTIAL` into two

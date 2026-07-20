@@ -33,6 +33,20 @@ enum class PropertyPhase {
     PostRaster
 };
 
+/// Canonical reflow-vs-visual-only classifier.
+///
+/// `true` when the phase requires rebuilding shaping/layout/cache
+/// (PreShaping source-text mutations, PreLayout paragraph-composition
+/// inputs).  `false` when the phase is per-glyph visual-only or
+/// post-raster (PostLayout, PostRaster) — those mutate GlyphInstanceState
+/// or rasterizer output WITHOUT invalidating the layout cache.
+///
+/// TICKET-TEXT-PROPERTY-PHASES (FASE 2b follow-up): the helper is the
+/// single canonical place per AGENTS.md §Anti-duplication rules.
+inline constexpr bool is_reflow_property(PropertyPhase p) noexcept {
+    return p == PropertyPhase::PreShaping || p == PropertyPhase::PreLayout;
+}
+
 /// Return the phase for each property type at compile time.
 /// CharacterOffsetProperty is the only PreShaping property today;
 /// CharacterValue and text substitutions (future) will also be PreShaping.
