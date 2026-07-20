@@ -344,6 +344,48 @@ u64 hash_paragraph_range(const ParagraphRange& pr) {
     return seed;
 }
 
+void append_span_override(
+    TextDocument& doc,
+    const TextSpanOverride& over,
+    const FontSpec& default_font
+) {
+    TextStyleSpan span;
+    span.byte_start = over.byte_start;
+    span.byte_end   = over.byte_end;
+
+    if (over.font) {
+        span.font = *over.font;
+    }
+
+    if (over.color || over.stroke) {
+        TextAppearanceSpec app;
+        if (over.color) {
+            app.color = *over.color;
+        }
+        if (over.stroke) {
+            app.paint.stroke_enabled = true;
+            app.paint.stroke_width   = over.stroke->width_em;
+            if (over.stroke->color) {
+                app.paint.stroke_color = *over.stroke->color;
+            }
+        }
+        span.appearance = std::move(app);
+    }
+
+    if (over.tracking)        span.tracking        = *over.tracking;
+    if (over.baseline_shift)  span.baseline_shift  = *over.baseline_shift;
+    if (over.semantic_id)     span.semantic_id     = *over.semantic_id;
+    if (over.font_size_multiplier) {
+        span.font_size_multiplier = *over.font_size_multiplier;
+    } else if (over.font && over.font->font_size > 0.0f) {
+        // Absolute font size carried by the font override — no multiplier.
+    } else if (over.font_size && default_font.font_size > 0.0f) {
+        span.font_size_multiplier = *over.font_size / default_font.font_size;
+    }
+
+    doc.spans.push_back(std::move(span));
+}
+
 u64 hash_text_document(const TextDocument& doc) {
     u64 seed = hstring(doc.utf8);
 

@@ -33,6 +33,6 @@
 chronon3d_add_test_suite(
     NAME chronon3d_text_presets_stability_tests
     TIER UNIT
-    LINK_TARGETS chronon3d_text_core
+    LINK_TARGETS chronon3d_text_core chronon3d_backend_text
     SOURCES text/test_presets_stability.cpp
 )
