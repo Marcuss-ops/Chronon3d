@@ -1,4 +1,23 @@
 ## 2026-07-15
+### `docs(state): split Text Production V1 -- Core PASS + CapCut-grade PARTIAL`
+  ([TICKET-TEXT-PRODUCTION-STATUS-CORRECTION](docs/tickets/TICKET-TEXT-PRODUCTION-STATUS-CORRECTION.md))
+Split `docs/CURRENT_STATUS.md` single-row `Text Production V1 | PARTIAL` into two
+canonical rows: `Text Rendering Core V1 | PASS` (FreeType + HarfBuzz + FriBidi
++ shaping + layout + glyph cache + animator + selector certified; vedi ticket)
++ `Text Production / CapCut-grade V1 | PARTIAL` (Text Export V1 certified + 5/20
+general presets + 0/8 subtitle presets + no tracked golden PNGs + no SRT/word-
+timing + per-word highlight not wired; vedi ticket). Cat-3 minimal-surface:
+1-line edit `docs/CURRENT_STATUS.md` (`+2 -1`) + NEW `docs/tickets/TICKET-TEXT-
+PRODUCTION-STATUS-CORRECTION.md` cronaca-estesa canonical + `tools/check_current_
+status_table_shape.sh` EXPECTED_LABELS aggiornate (8 named rows: add "Text
+Rendering Core V1" + change "Text Production V1" → substring "Text Production"
+for the new "Text Production / CapCut-grade V1" label). Cronic extends in ticket-
+home per AGENTS.md v0.1 §`### Docs canonical update discipline rule` Cat-3 anti-
+dup. Per AGENTS.md §"Disciplina di aggiornamento dei canonici" `CURRENT_STATUS.md`
+update "Solo quando cambia lo stato presente di un'area"; l'elevazione `Text
+Rendering Core V1 → PASS` è una nuova area-state assertion (qualifica come
+state change, motivando l'edit).
+
 ### `feat(cli): add render --props-json flag (Phase 1c / Increment B)`
   ([TICKET-PHASE1-C-CLI-VERSION2](docs/tickets/TICKET-PHASE1-C-CLI-VERSION2.md))
 Adds `--props-json <inline>` to render (mutual-exclusive with `--props-file`); shared helpers in `props_inline.hpp` deduplicate the 3-callsite (render/validate/resolve) parser. Zero new public SDK symbol.
