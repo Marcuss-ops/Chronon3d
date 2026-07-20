@@ -9,6 +9,7 @@
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <functional>
 #include <string>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -57,6 +58,16 @@ struct CompositionSpec {
     FrameRate frame_rate{30, 1};
     Frame duration{0};
     std::string assets_root{""};
+
+    /// RGBA clear color for the composition's clear pass (LE AABBGGRR;
+    /// 0 = transparent black, preserves existing default-clear behaviour).
+    /// TICKET-GOLDEN-MATRIX-SUBTITLE-BATCH-1 Batch 1.5 FORWARD-POINT —
+    /// the field is ADDITIVE and DEFAULT-BIT-IDENTICAL (no existing caller
+    /// change), but the OPP consumer path (`SoftwareRenderer::render` →
+    /// `render_scene_via_graph` → OPP compiler) does NOT YET consume it
+    /// (CRITICAL A confirmed via rg this session).  See TICKET-OPP-BG-CONSUMER.
+    /// Field RETAINED so future OPP wiring can read it without re-introduction.
+    std::uint32_t background_color_rgba{0x00000000u};
 };
 
 class Composition {
