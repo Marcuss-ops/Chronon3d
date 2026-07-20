@@ -20,14 +20,16 @@
 | Cache rot | P2 | OPEN | `TICKET-NODE-CACHE-KEY-COLLAPSE-ROT`: NodeCacheKey build rot. La chiusura del legacy executor è completata e protetta dal gate anti-regressione. | [node-cache](tickets/TICKET-NODE-CACHE-KEY-COLLAPSE-ROT.md) |
 | Tools / lint debt | P2 | OPEN | `TICKET-TOOLS-ORPHAN-AUDIT`: audit script orfani e tightening regex Gate #25. | [tools-audit](tickets/TICKET-TOOLS-ORPHAN-AUDIT.md) |
 | Sub-chore (g) migration ★ user-auth §honest-violation | P2 | RETRACTED* | `TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-MIGRATION` *(§honest-violation user-auth 2026-07-15): RETRACTED in d0f5c4f8 premisediscovery; user explicitly authorized this Open Blocker row via ask_user Q1 option C. Cat-3 anti-dup DISCLOSED + AGENTS.md `### Docs canonical update discipline rule` exception. Replacement canonical OPEN forward-point TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-DELETION tracked in `Text API migration` P1 row.* | [migration](tickets/TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-MIGRATION.md) |
+| Text bbox overflow | P1 | CLOSED | `TICKET-TEXT-BBOX-OVERFLOW`: renderer bbox rot fixed via geometric ink-bbox from FreeType outlines + `l.center()` in matrix test. Golden matrix subtitle FAST mode now PASS without overflow. | [doc](tickets/TICKET-TEXT-BBOX-OVERFLOW.md) |
 
 ---
 
 Debiti differiti e cronologia dei ticket chiusi sono stati spostati in [`ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`](ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md) per rispettare il contratto documentale di ~10 righe sintetiche.
 
-| TICKET-TEXT-BBOX-OVERFLOW | P1 | OPEN | Renderer bbox rot (POST_RENDER_EXPAND actual.x=-214 vs predicted=0; 16/24 Subtitle baseline cells FAIL CHECK_FALSE(overflow)) | [doc](docs/tickets/TICKET-TEXT-BBOX-OVERFLOW.md) |
 | TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION | P1 | OPEN | SubtitleTrackBuilder fluent API + 4 new Subtitle presets + 10 TEST_CASEs (cherry-pick of orphan WIP; deferred: per-word karaoke-pop attach) | [doc](docs/tickets/TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION.md) |
 | TICKET-SUBTITLE-WORD-KARAOKE | P1 | OPEN | Per-word TextSpanOverride attach in SubtitleTrackBuilder::build() (chase-up of TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION) | [doc](docs/tickets/TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION.md) |
 ## Recently Closed
+
+- TICKET-TEXT-BBOX-OVERFLOW (renderer bbox rot; fixed via geometric ink-bbox + matrix test l.center(); golden matrix subtitle FAST mode PASS).
 
 - TICKET-PROFILING-INCLUDE-MISSING (rot-class: profiling/extern symbol missing); TICKET-FMT-PATH-JOIN-INCOMPLETE-TYPE (rot-class: fmt::v12 metafunction); atomic Duh-chore; cat-3 minimal surface 2-file source patch; broader 11/11 macchina-verifica PARTIAL → DEFERRED-WBH.

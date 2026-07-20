@@ -5,7 +5,12 @@
 namespace chronon3d {
 
 /// Compute ink-bounds from a rendered BLImage.
-/// Optionally trims trailing transparent rows (when box_enabled is false).
+///
+/// Performs a deterministic full-frame alpha scan. The image is never
+/// modified. The returned bounds are intended for audit / post-render
+/// reconciliation only; placement decisions must use the geometric
+/// outline-based bbox from the render graph.
+///
 /// Returns the fractional X-center of the ink bbox (or -1.0f if no ink found).
 float compute_text_ink_bbox(
     BLImage& img,

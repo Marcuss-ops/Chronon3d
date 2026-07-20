@@ -190,6 +190,11 @@ CellResult render_matrix_cell(chronon3d::SoftwareRenderer& renderer,
             s.font_engine(&renderer.font_engine());
             s.layer("matrix", [&s, preset_id, content, font_size, d]
                               (chronon3d::LayerBuilder& l) {
+                // Motion presets add layer transforms; establish the canvas
+                // origin explicitly so TextPlacementKind::CanvasCenter is
+                // composed against a centered root rather than the default
+                // layer origin.  See TICKET-TEXT-CENTER-CANVAS.
+                l.center();
                 const auto& preset = shared_text_preset_registry().get(preset_id);
                 auto base = chronon3d::content::text::centered_text(
                     chronon3d::content::text::CenterTextOptions{
