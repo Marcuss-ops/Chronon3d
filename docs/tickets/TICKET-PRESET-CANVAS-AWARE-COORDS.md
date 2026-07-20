@@ -1,6 +1,6 @@
 # TICKET-PRESET-CANVAS-AWARE-COORDS — Canvas-aware v1 text preset verification
 
-## Stato: DONE (2026-07-15, commit <this commit>)
+## Stato: DONE (2026-07-15, commit a902085c)
 
 ## Problema
 
