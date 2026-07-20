@@ -134,6 +134,41 @@ compose_caption_box(const PresetMetadata& /*meta*/) {
     return a;
 }
 
+
+// 23. karaoke_fill — word-level fill-colour sweep.
+[[nodiscard]] inline std::optional<TextAnimatorSpec>
+compose_karaoke_fill(const PresetMetadata& /*meta*/) {
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("karaoke_fill");
+    a.properties.push_back(OpacityProperty{1.0f});
+    return a;
+}
+
+// 24. active_word_pop — scale punch.
+[[nodiscard]] inline std::optional<TextAnimatorSpec>
+compose_active_word_pop(const PresetMetadata& /*meta*/) {
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("active_word_pop");
+    a.properties.push_back(ScaleProperty{Vec3{1.15f, 1.15f, 1.0f}});
+    a.properties.push_back(OpacityProperty{1.0f});
+    return a;
+}
+
+// 25. subtitle_card — rounded background card.
+[[nodiscard]] inline std::optional<TextAnimatorSpec>
+compose_subtitle_card(const PresetMetadata& /*meta*/) {
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("subtitle_card");
+    a.properties.push_back(OpacityProperty{1.0f});
+    return a;
+}
+
+// 26. lower_third_safe — lower-third dock.
+[[nodiscard]] inline std::optional<TextAnimatorSpec>
+compose_lower_third_safe(const PresetMetadata& /*meta*/) {
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("lower_third_safe");
+    a.properties.push_back(PositionProperty{Vec3{0.0f, -40.0f, 0.0f}});
+    a.properties.push_back(OpacityProperty{1.0f});
+    return a;
+}
+
 // ── 19. minimal_white ─────────────────────────────────────────────────────
 TextPresetDescriptor minimal_white_entry() {
     PresetMetadata meta;
@@ -238,6 +273,84 @@ TextPresetDescriptor caption_box_entry() {
     return d;
 }
 
+
+// ── 23. karaoke_fill ────────────────────────────────────────────────────
+TextPresetDescriptor karaoke_fill_entry() {
+    PresetMetadata meta;
+    meta.id           = "karaoke_fill";
+    meta.display_name = "KaraokeFill";
+    meta.category     = TextPresetCategory::Subtitle;
+    meta.description  = "Word-level karaoke fill sweep.";
+    meta.builtin      = true;
+    TextPresetDescriptor d;
+    d.id              = meta.id;
+    d.metadata        = meta;
+    d.fixture         = "tests/visual/text/subtitle_karaoke_fill";
+    d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
+        chronon3d::registry::internal::wire_through_resolver(lb, "karaoke_fill", spec).word_stagger(Frame{2}, Frame{12}).fade_in(Frame{10});
+    };
+    d.animator_factory = compose_karaoke_fill;
+    return d;
+}
+
+// ── 24. active_word_pop ──────────────────────────────────────────────────
+TextPresetDescriptor active_word_pop_entry() {
+    PresetMetadata meta;
+    meta.id           = "active_word_pop";
+    meta.display_name = "ActiveWordPop";
+    meta.category     = TextPresetCategory::Subtitle;
+    meta.description  = "Per-word scale pop driven by subtitle word timing.";
+    meta.builtin      = true;
+    TextPresetDescriptor d;
+    d.id              = meta.id;
+    d.metadata        = meta;
+    d.fixture         = "tests/visual/text/subtitle_active_word_pop";
+    d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
+        chronon3d::registry::internal::wire_through_resolver(lb, "active_word_pop", spec).scale_drop(1.15f, Frame{12}).fade_in(Frame{10});
+    };
+    d.animator_factory = compose_active_word_pop;
+    return d;
+}
+
+// ── 25. subtitle_card ────────────────────────────────────────────────────
+TextPresetDescriptor subtitle_card_entry() {
+    PresetMetadata meta;
+    meta.id           = "subtitle_card";
+    meta.display_name = "SubtitleCard";
+    meta.category     = TextPresetCategory::Subtitle;
+    meta.description  = "Rounded background card + fade_in.";
+    meta.builtin      = true;
+    TextPresetDescriptor d;
+    d.id              = meta.id;
+    d.metadata        = meta;
+    d.fixture         = "tests/visual/text/subtitle_subtitle_card";
+    d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
+        chronon3d::registry::internal::wire_through_resolver(lb, "subtitle_card", spec).fade_in(Frame{12});
+    };
+    d.animator_factory = compose_subtitle_card;
+    return d;
+}
+
+// ── 26. lower_third_safe ─────────────────────────────────────────────────
+TextPresetDescriptor lower_third_safe_entry() {
+    PresetMetadata meta;
+    meta.id           = "lower_third_safe";
+    meta.display_name = "LowerThirdSafe";
+    meta.category     = TextPresetCategory::Subtitle;
+    meta.description  = "Lower-third dock with safe-area margin.";
+    meta.builtin      = true;
+    TextPresetDescriptor d;
+    d.id              = meta.id;
+    d.metadata        = meta;
+    d.fixture         = "tests/visual/text/subtitle_lower_third_safe";
+    d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
+        chronon3d::registry::internal::wire_through_resolver(lb, "lower_third_safe", spec).fade_shift_vertical(Vec3{0.0f, -40.0f, 0.0f}, Frame{18}).fade_in(Frame{12});
+    };
+    d.animator_factory = compose_lower_third_safe;
+    return d;
+}
+
+
 // ── public factory surface ────────────────────────────────────────────────
 //
 // `create_text_presets()` returns the 4 Subtitle-category descriptors in
@@ -259,6 +372,10 @@ create_text_presets() {
         yellow_keyword_entry(),
         glow_pulse_entry(),
         caption_box_entry(),
+        karaoke_fill_entry(),
+        active_word_pop_entry(),
+        subtitle_card_entry(),
+        lower_third_safe_entry(),
     };
 }
 

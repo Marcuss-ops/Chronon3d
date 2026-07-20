@@ -29,6 +29,9 @@ add_library(chronon3d_scene OBJECT
     presets/phrase_group_builder.cpp
     # ── P2 joints API (Layer <-> Layer attachment) ───────────────────────
     joints/joints_api.cpp
+
+    # Authoring facade implementations that depend on LayerBuilder.
+    subtitle_track_builder.cpp
 )
 
 # ==============================================================================

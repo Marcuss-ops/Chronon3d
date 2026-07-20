@@ -40,6 +40,7 @@
 #include <chronon3d/extension/extension_context.hpp>  // PR 3.5 — needed to read style_registry/motion_registry pointers from the host-side ExtensionContext.
 #include <chronon3d/text/font_engine.hpp>             // FontEngine — transitive via layer_builder.hpp -> text_run_builder.hpp; explicit here so the surface can document `FontEngine` in the doc-comment without an include-graph lookup
 #include <chronon3d/authoring/text.hpp>
+#include <chronon3d/authoring/subtitle_track_builder.hpp>
 // Audit §10 — typed `assets::ImageRef` overload accepts the thin authoring
 // helper `authoring::asset("images/logo.png")`.  Bridge delegates to the
 // existing `image(name, ImageParams)` overload by extracting the canonical
@@ -255,6 +256,13 @@ public:
     Layer& font_engine(FontEngine* engine) {
         builder_->font_engine(engine);
         return *this;
+    }
+
+    /// Create a scheduled subtitle track from a canonical SubtitleTrack.
+    /// Returns a SubtitleTrackBuilder for fluent configuration; call
+    /// `.build()` to commit the cues as timed text-runs.
+    [[nodiscard]] SubtitleTrackBuilder subtitles(const presets::text::SubtitleTrack& track) {
+        return SubtitleTrackBuilder{*builder_, canvas_, track};
     }
 
     /// Read-only accessors — used by tests and tooling.
