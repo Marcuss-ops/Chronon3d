@@ -178,6 +178,31 @@ TextVisibilityAudit audit_text_visibility(
     // ── world_ink_bbox (transform pipeline) ───────────────────
     audit.world_ink_bbox       = transform_aabb(audit.local_ink_bbox, world_matrix);
 
+    // ── geometric diagnostics (ADR-019 Decision 2) ───────────────
+    // Layout box in local text-frame space. The paragraph box uses the
+    // shaped paragraph metrics: width from placed.total_width, height from
+    // ascent + descent, with the first baseline at local y = 0.
+    if (shape.layout) {
+        const auto& placed = shape.layout->placed;
+        const float layout_h = placed.ascent + placed.descent;
+        audit.layout_bbox = Rect{{0.0f, -placed.ascent},
+                                 {placed.total_width, layout_h}};
+    }
+    // Ink/effect bounds in world space. effect_bbox is the conservative
+    // bounds used for placement when effects are present.
+    audit.ink_bbox = audit.world_ink_bbox;
+    if (rect_is_finite(audit.world_ink_bbox)) {
+        audit.effect_bbox = expand_rect(audit.world_ink_bbox, effect_padding);
+    }
+    // Baseline is the world-space Y of local y=0 (the first baseline).
+    // anchor_point and resolved_canvas_position are derived from the world
+    // matrix translation; they coincide for the current 2.5D pipeline but
+    // are kept distinct for future anchor-offset work.
+    const Vec4 local_origin_world = world_matrix * Vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    audit.baseline = local_origin_world.y;
+    audit.anchor_point = Vec2{local_origin_world.x, local_origin_world.y};
+    audit.resolved_canvas_position = Vec2{world_matrix[3][0], world_matrix[3][1]};
+
     // ── caller-provided bboxes ─────────────────────────────────
     audit.predicted_bbox       = predicted_bbox;
     audit.clip_rect            = clip_rect;

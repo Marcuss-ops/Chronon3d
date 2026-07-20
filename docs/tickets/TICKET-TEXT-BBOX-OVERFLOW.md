@@ -1,6 +1,11 @@
 # TICKET-TEXT-BBOX-OVERFLOW — Renderer bbox expansion rot (POST_RENDER_EXPAND actual.x negative)
 
-## Stato: OPEN (2026-07-20, opened atomicamente with feat(matrix): lean N3 metric coverage)
+## Stato: DONE (2026-07-20, commit <sha>)
+
+Fix: geometric ink-bbox from FreeType outlines + `l.center()` in golden matrix
+subtitle test.  `CHRONON3D_GOLDEN_MATRIX_FAST_MODE=1 ctest -R
+chronon3d_golden_matrix_subtitle_tests` now PASS with no overflow at
+non-extreme scale.  See commit message for full diff.
 
 ## Problema
 

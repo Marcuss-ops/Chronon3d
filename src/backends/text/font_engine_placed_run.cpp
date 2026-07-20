@@ -46,6 +46,11 @@ PlacedGlyphRun resolve_placed_glyph_run(
         pg.x = pen_x + g.x_offset;
         pg.y = pen_y + g.y_offset;
 
+        pg.bbox_x0 = g.bbox_x0;
+        pg.bbox_y0 = g.bbox_y0;
+        pg.bbox_x1 = g.bbox_x1;
+        pg.bbox_y1 = g.bbox_y1;
+
         pg.raw_advance_x = g.advance_x;
         pg.advance_x = g.advance_x;
         pg.advance_y = g.advance_y;
