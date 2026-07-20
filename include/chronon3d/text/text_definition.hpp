@@ -10,6 +10,7 @@
                                                   // VerticalAlign, TextWrap, TextOverflow,
                                                   // TextCenteringMode
 #include <chronon3d/text/text_material.hpp>       // TextMaterial
+#include <chronon3d/text/text_span_override.hpp>  // TextSpanOverride
 #include <chronon3d/scene/model/shape/shape.hpp>  // TextPaint, TextShadow
 #include <chronon3d/scene/builders/builder_params.hpp>  // TextContent (canonical), TextSpec, TextRunSpec
 #include <chronon3d/text/text_placement.hpp>          // TextPlacement, TextPlacementKind
@@ -41,15 +42,8 @@ class TextDocument;
 // builder_params.hpp — we reuse it directly, NO duplication.
 // SpanOverride is a new authoring-only type that does not exist in
 // builder_params.hpp; it lives here and is lowered to TextStyleSpan
-// by the Phase B compiler.
-
-struct TextSpanOverride {
-    std::size_t byte_start{0};
-    std::size_t byte_end{0};
-    std::optional<FontSpec>  font;
-    std::optional<Color>     color;
-    std::optional<f32>       font_size;
-};
+// by the Phase B compiler.// TextSpanOverride is defined in <chronon3d/text/text_span_override.hpp>
+// and reused here by value.
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TextDefStyle — font, size, color, stroke, material (TextDefinition-scoped)

@@ -593,6 +593,15 @@ namespace {
     FontSpec effective_font = font_spec;
     effective_font.font_size = effective_font_size;
     doc.defaults.font = effective_font;
+
+    // Apply authoring-level span overrides so the materializer respects
+    // per-range font, color, tracking, stroke, etc.  The resolver will
+    // merge spans that share the same effective font, preserving
+    // ligatures and contextual shaping.
+    for (const auto& over : params.text.spans) {
+        append_span_override(doc, over, effective_font);
+    }
+
     doc.split_paragraphs();
 
     TextLayoutRequest request{&doc, &layout, effective_font};
