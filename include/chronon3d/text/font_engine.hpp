@@ -261,6 +261,15 @@ struct PlacedGlyph {
     float   y_offset{0.0f};
     float   x{0.0f};               // resolved cumulative x position = pen_x + x_offset
     float   y{0.0f};               // resolved cumulative y position = pen_y + y_offset
+
+    // Geometric ink bounding box relative to the glyph origin (pixels).
+    // Populated from FreeType glyph metrics during shaping; used by the
+    // canonical per-glyph bbox accumulator (compute_text_run_visual_bounds).
+    float   bbox_x0{0.0f};
+    float   bbox_y0{0.0f};
+    float   bbox_x1{0.0f};
+    float   bbox_y1{0.0f};
+
     size_t  byte_offset{0};        // byte offset in source text for this glyph's cluster
     size_t  byte_len{0};           // bytes in source text for this glyph's cluster
     u32     cluster{0};            // HarfBuzz cluster value

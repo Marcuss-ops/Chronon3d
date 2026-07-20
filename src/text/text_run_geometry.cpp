@@ -40,13 +40,13 @@ namespace chronon3d::renderer {
 //   - blur + stroke width + safety padding (8px)
 //   - 2.5D shear estimates (rotation.x/y tangent projection)
 //   - scale.z expansion
-//   - per-glyph advance from `placed.glyphs[i].advance_x`
-//     (TICKET-TEXT-CLIP-ASCENT: was a hardcoded 12 px approximation
-//      which clipped wider glyphs on the right edge of the scratch)
-//   - baseline-anchored ascent/descent from `placed.ascent/descent`
-//     (TICKET-TEXT-CLIP-ASCENT: was `placed.total_height` + `gy - pad`,
-//      which anchored the bbox to the baseline instead of the top of
-//      the glyph ink and clipped ~80% of ascender extents)
+//   - per-glyph outline bbox from `placed.glyphs[i].bbox_*`
+//     (FreeType glyph metrics populated during shaping; replaces the
+//      previous advance-based approximation so the predicted bbox
+//      matches the actual ink extents).
+//   - blur + stroke width + safety padding (8px)
+//   - 2.5D shear estimates (rotation.x/y tangent projection)
+//   - scale.z expansion
 //
 // Excludes: model transform, world-space projection, shadow padding,
 // spread (shadow/glow), and rasterizer margin.  Those are caller concerns.
@@ -89,6 +89,7 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
             const float descent = std::max({0.0f, placed.descent, font_size * 0.2f});
             for (std::size_t i = 0; i < glyphs.size(); ++i) {
                 const auto& g = glyphs[i];
+                const auto& pg = placed.glyphs[i];
                 const float gx = g.layout_position.x + g.position.x;
                 const float gy = g.layout_position.y + g.position.y;
                 // 2.5D-aware padding: per-glyph shears can swing the
@@ -107,13 +108,8 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
                             * (3.14159265f / 180.0f),
                         -1.5607f, 1.5607f)))
                     * std::abs(static_cast<float>(g.layout_position.x));
-                // TICKET-TEXT-CLIP-ASCENT — `pad` here adds only shear-based padding
-                // (rotation × layout_position tangent) plus per-glyph blur/stroke.
-                // The pre-fix code additionally added
-                //     scale_extra = abs(scale.z - 1.0) * abs(layout_position.y)
-                // which was an ad-hoc depth-scale hack that double-counted the 2.5D
-                // depth expansion against the new per-axis `scale_y = abs(scale.y * scale.z)`
-                // math.  Removed; `git log -p --follow` shows the full removal.
+                // `pad` adds only shear-based padding (rotation ×
+                // layout_position tangent) plus per-glyph blur/stroke.
                 const float pad = g.blur + g.stroke_width + 8.0f
                     + shear_x_extra + shear_y_extra;
                 // Per-axis scale combines local (x,y) axes with the
@@ -121,25 +117,42 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
                 // multiplier for the planar glyph extents).
                 const float scale_x = std::abs(g.scale.x * g.scale.z);
                 const float scale_y = std::abs(g.scale.y * g.scale.z);
-                // TICKET-TEXT-CLIP-ASCENT — use the real advance from
-                // the shaped glyph run, not a hardcoded 12 px
-                // approximation (which clipped wide glyphs on the
-                // right edge of the scratch surface — visible in the
-                // PNG symptom as "touches right edge").
-                // For the last glyph, use a conservative minimum ink
-                // width: the shaping advance under-reports the right
-                // boundary for italic, wide, or emoji glyphs that
-                // overhang their advance.  Using font_size * 1.2f as
-                // the floor ensures the scratch surface extends past
-                // the last glyph's visible ink.
-                const float raw_advance = std::abs(placed.glyphs[i].advance_x);
-                const float ink_floor = (i == glyphs.size() - 1)
-                    ? font_size * 1.2f : 0.0f;
-                const float advance = std::max(1.0f, std::max(raw_advance, ink_floor));
-                min_x = std::min(min_x, gx - pad);
-                max_x = std::max(max_x, gx + advance * scale_x + pad);
-                min_y = std::min(min_y, gy - ascent * scale_y - pad);
-                max_y = std::max(max_y, gy + descent * scale_y + pad);
+
+                // Use the FreeType outline bbox populated during shaping
+                // as the geometric source of truth for glyph ink.  This
+                // replaces the previous advance-based approximation that
+                // under-reported overhanging glyphs (italic, wide chars,
+                // emoji, etc.) and caused the predicted bbox to clip real
+                // ink or overflow the canvas.
+                const bool has_bbox =
+                    (pg.bbox_x0 != 0.0f || pg.bbox_x1 != 0.0f ||
+                     pg.bbox_y0 != 0.0f || pg.bbox_y1 != 0.0f);
+                float glyph_left, glyph_right, glyph_top, glyph_bottom;
+                if (has_bbox) {
+                    // bbox_* are relative to the glyph origin.  y is
+                    // positive-up (FreeType convention), so the screen
+                    // top is `gy - bbox_y0` and the screen bottom is
+                    // `gy - bbox_y1`.
+                    glyph_left   = gx + pg.bbox_x0 * scale_x;
+                    glyph_right  = gx + pg.bbox_x1 * scale_x;
+                    glyph_top    = gy - pg.bbox_y0 * scale_y;
+                    glyph_bottom = gy - pg.bbox_y1 * scale_y;
+                } else {
+                    // Fallback for zero-bbox glyphs (e.g. spaces):
+                    // advance gives the run width and line metrics give
+                    // the vertical extent.
+                    const float raw_advance = std::abs(pg.advance_x);
+                    const float advance = std::max(1.0f, raw_advance);
+                    glyph_left   = gx;
+                    glyph_right  = gx + advance * scale_x;
+                    glyph_top    = gy - ascent * scale_y;
+                    glyph_bottom = gy + descent * scale_y;
+                }
+
+                min_x = std::min(min_x, glyph_left - pad);
+                max_x = std::max(max_x, glyph_right + pad);
+                min_y = std::min(min_y, glyph_top - pad);
+                max_y = std::max(max_y, glyph_bottom + pad);
             }
         };
 
