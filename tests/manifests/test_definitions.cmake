@@ -40,6 +40,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     text_simplicity_adapters_tests.cmake
     text/text_clip_policy_tests.cmake
     text_presets_stability_tests.cmake
+    text_canvas_aware_presets_tests.cmake
     text_layout_advanced_tests.cmake
     content_tests.cmake
     showcase/CMakeLists.txt
