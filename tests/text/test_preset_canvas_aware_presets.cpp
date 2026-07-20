@@ -116,11 +116,13 @@ const std::vector<CanvasFixture> kCanvasFixtures = {
 // safe-area rectangle", not "the resolver uses SafeAreaPreset under
 // the hood".  The 5% margin matches SafeAreaPreset's default
 // convention (industry-standard title/action safe zone).
+constexpr f32 kSafeMargin = 0.05f;  // matches SafeAreaPreset default convention (5% of dimension, all 4 sides)
+
 bool pin_inside_safe_area(const Vec2& pin, const CanvasInfo& c) {
-    const f32 left   = 0.05f * c.width;
-    const f32 right  = 0.05f * c.width;
-    const f32 top    = 0.05f * c.height;
-    const f32 bottom = 0.05f * c.height;
+    const f32 left   = kSafeMargin * c.width;
+    const f32 right  = kSafeMargin * c.width;
+    const f32 top    = kSafeMargin * c.height;
+    const f32 bottom = kSafeMargin * c.height;
     return pin.x >= left
         && pin.x <= c.width  - right
         && pin.y >= top
@@ -169,7 +171,7 @@ TEST_CASE("ERT canvas-aware: subtitle_bottom across 5 canvas configurations") {
 
         // I2 — pin (canvas.width/2, canvas.height - safe_margin_bottom)
         //      is on the bottom safe-area edge → inside the safe area.
-        const f32 safe_margin_bottom = 0.05f * fixture.canvas.height;
+        const f32 safe_margin_bottom = kSafeMargin * fixture.canvas.height;
         const Vec2 pin{fixture.canvas.width * 0.5f, fixture.canvas.height - safe_margin_bottom};
         CHECK(pin_inside_safe_area(pin, fixture.canvas));
 
@@ -243,7 +245,7 @@ TEST_CASE("ERT canvas-aware: lower_third across 5 canvas configurations") {
 
         // I2 — pin (canvas.width/2, canvas.height - safe_margin_bottom)
         //      is on the bottom safe-area edge.
-        const f32 safe_margin_bottom = 0.05f * fixture.canvas.height;
+        const f32 safe_margin_bottom = kSafeMargin * fixture.canvas.height;
         const Vec2 pin{fixture.canvas.width * 0.5f, fixture.canvas.height - safe_margin_bottom};
         CHECK(pin_inside_safe_area(pin, fixture.canvas));
 
