@@ -3,13 +3,27 @@
 #include <chronon3d/registry/text_preset_registry.hpp>
 #include <chronon3d/registry/text_preset_resolver.hpp>
 
+#include <algorithm>
 #include <cmath>
 
 namespace chronon3d::authoring {
 
-Frame SubtitleTrackBuilder::seconds_to_frame(float seconds) {
-    // Default 30 fps mapping; fractional frames are truncated.
-    return Frame{static_cast<int>(std::lround(seconds * 30.0f))};
+FrameRate SubtitleTrackBuilder::active_frame_rate() const noexcept {
+    if (frame_rate_override_.has_value()) {
+        return frame_rate_override_.value();
+    }
+    if (builder_) {
+        return builder_->frame_rate();
+    }
+    return FrameRate{30, 1};
+}
+
+Frame SubtitleTrackBuilder::seconds_to_frame(float seconds) const {
+    const FrameRate fr = active_frame_rate();
+    return static_cast<Frame>(
+        std::lround(static_cast<double>(seconds) *
+                    static_cast<double>(fr.numerator) /
+                    static_cast<double>(fr.denominator)));
 }
 
 void SubtitleTrackBuilder::build() {
@@ -49,9 +63,10 @@ void SubtitleTrackBuilder::build() {
         TextPlacement placement{placement_kind_};
         spec.placement = placement;
 
-        // Schedule the cue.
+        // Schedule the cue using [start_frame, end_frame) semantics.
         const Frame start_frame = seconds_to_frame(cue.start_s);
-        const Frame duration_frames = seconds_to_frame(cue.end_s - cue.start_s);
+        const Frame end_frame = seconds_to_frame(cue.end_s);
+        const Frame duration_frames = std::max(Frame{1}, end_frame - start_frame);
 
         TextRunSpec run_spec =
             registry::wire_preset_text_run_params(preset_id_, spec);

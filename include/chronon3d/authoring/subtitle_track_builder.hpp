@@ -13,6 +13,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/text/resolve_text_placement.hpp>
 
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -74,9 +75,16 @@ public:
         return *this;
     }
 
+    /// Override the frame rate used to convert cue seconds to frames.
+    /// If not called, the frame rate is read from the parent LayerBuilder.
+    SubtitleTrackBuilder& frame_rate(FrameRate rate) {
+        frame_rate_override_ = rate;
+        return *this;
+    }
+
     /// Commit the track: create one text-run per cue with timing.
-    /// Cues are translated from seconds to frames using the default frame
-    /// rate (30 fps) unless the caller has set a frame rate on the builder.
+    /// Cues are translated from seconds to frames using the parent
+    /// LayerBuilder's frame rate, or the rate set via frame_rate().
     void build();
 
 private:
@@ -91,9 +99,10 @@ private:
     Vec2 box_size_{1400.0f, 200.0f};
     TextAlign align_{TextAlign::Center};
     TextPlacementKind placement_kind_{TextPlacementKind::SafeAreaBottom};
+    std::optional<FrameRate> frame_rate_override_{std::nullopt};
 
-    /// Convert seconds to Frame using a default 30 fps mapping.
-    [[nodiscard]] static Frame seconds_to_frame(float seconds);
+    [[nodiscard]] FrameRate active_frame_rate() const noexcept;
+    [[nodiscard]] Frame seconds_to_frame(float seconds) const;
 
     friend class Layer;
 };
