@@ -1,4 +1,7 @@
 ## 2026-07-20
+### `fix(subtitle): remove hardcoded 30 fps in SubtitleTrackBuilder` ([TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION](docs/tickets/TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION.md))
+`SubtitleTrackBuilder` now reads the composition frame rate from the parent `LayerBuilder` and converts cue seconds to frames with `std::lround`. Implements `[start_frame, end_frame)` semantics with `duration = max(1, end - start)`. Added a `.frame_rate(FrameRate)` fluent override for tests and callers. Verified for 24000/1001, 24/1, 25/1, 30000/1001, 30/1, 50/1 and 60/1. Zero-duration cues are clamped to at least one frame. `chronon3d_subtitle_productive_tests` PASS.
+
 ### `fix(text): geometric ink-bbox from FreeType outlines + matrix test l.center()` ([TICKET-TEXT-BBOX-OVERFLOW](docs/tickets/TICKET-TEXT-BBOX-OVERFLOW.md))
 Replaced approximate alpha-scan ink-bbox with geometric calculation from
 FreeType glyph outline bboxes transformed through the same matrices used

@@ -61,6 +61,7 @@ public:
         registry::ShapeRegistry* shape_registry = nullptr);
 
     // Timing.
+    [[nodiscard]] FrameRate frame_rate() const noexcept { return m_current_time.frame_rate; }
     LayerBuilder& parent(std::string name);
     LayerBuilder& from(Frame frame);
     LayerBuilder& duration(Frame frames);
