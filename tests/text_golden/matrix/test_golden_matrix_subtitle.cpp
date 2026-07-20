@@ -77,6 +77,7 @@
 #include <cstdint>
 #include <chrono>
 #include <fstream>
+#include <set>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -284,6 +285,15 @@ std::vector<MatrixConfig> matrix_cells_for_preset(const std::string& /*preset_id
     return cells;
 }
 
+// ── TICKET-GOLDEN-MATRIX-FULL-METRIC-COVERAGE (N3 fix, Batch 1 mirror, lean re-design) ─
+// Mirror of the shared harness header.  8 of 11 metrics bound to machine-
+// verified CHECK / REQUIRE — 4 cell-shape CHECKs (ink_pixels, alpha_coverage,
+// bbox.w/h) + 5 lean host-portable CHECKs (mean_luminance, visual_center,
+// overflow, cut_text, empty_frame via silent-empty semantics).
+// `render_ms` + unique_hash soft CHECK dropped per lean re-design.  Cat-3
+// anti-dup prescription: this mirror in local-namespace tracks the harness
+// header; canonical migration to `golden_matrix_harness.hpp` lives at
+// TICKET-GOLDEN-MATRIX-MIGRATE-BATCH-1.
 // Append a manifest JSONL entry for the cell (audit trail).  File is
 // opened once per preset sweep (not per cell) for I/O efficiency.
 void append_manifest_entries(const std::string& preset_id,
@@ -325,6 +335,7 @@ void sweep_preset_matrix(const std::string& preset_id) {
     int cut_count = 0;
     int overflow_count = 0;
     int empty_count = 0;
+    std::set<std::uint64_t> unique_hash_set;  // N3: aggregate unique-hash sanity
 
     std::vector<std::pair<MatrixConfig, CellResult>> cell_results;
     cell_results.reserve(cells.size());
@@ -334,6 +345,8 @@ void sweep_preset_matrix(const std::string& preset_id) {
         CAPTURE(matrix_tag(cfg));
         CAPTURE(cfg.t_frame);
 
+        AspectDims d = aspect_dims(cfg.ar);
+
         CellResult res = render_matrix_cell(renderer, preset_id, cfg);
         cell_results.emplace_back(cfg, res);
 
@@ -342,8 +355,30 @@ void sweep_preset_matrix(const std::string& preset_id) {
             CHECK(res.metrics.alpha_coverage > 0.0f);
             CHECK(res.metrics.ink_bbox.w > 0.0f);
             CHECK(res.metrics.ink_bbox.h > 0.0f);
+
+            // ── TICKET-GOLDEN-MATRIX-FULL-METRIC-COVERAGE (N3 fix) ────
+            // 5 of the 7 currently-unasserted metrics that bind to a
+            // per-cell observable.  Stays mirror-equivalent to the
+            // shared harness header (CRIT4 coverage-gap fix).
+            CHECK(res.metrics.mean_luminance >= 0.0f);
+            CHECK(res.metrics.mean_luminance <= 255.0f);
+            CHECK(res.metrics.visual_center.x >= 0.0f);
+            CHECK(res.metrics.visual_center.x <= static_cast<float>(d.width));
+            CHECK(res.metrics.visual_center.y >= 0.0f);
+            CHECK(res.metrics.visual_center.y <= static_cast<float>(d.height));
+            // render_ms CHECK dropped per lean re-design (mirror of harness).
+            if (!cfg.extreme_scale) {
+                CHECK_FALSE(res.metrics.overflow);
+                CHECK_FALSE(res.metrics.cut_text);
+            }
+
+            unique_hash_set.insert(res.metrics.hash);
             pass_count += 1;
         } else {
+            // INTENTIONAL divergence vs harness's FAIL-with-tolerate-empty
+            // escape; canonical migration tracked at
+            // TICKET-GOLDEN-MATRIX-MIGRATE-BATCH-1 (cat-3 anti-dup prescription).
+            // render_ms CHECK dropped per lean re-design (mirror of harness).
             empty_count += 1;
         }
         if (res.metrics.cut_text)    cut_count    += 1;
@@ -361,6 +396,20 @@ void sweep_preset_matrix(const std::string& preset_id) {
 
     // Single-file append after the sweep (I/O efficiency per M1 review).
     append_manifest_entries(preset_id, cell_results);
+
+    // ── TICKET-GOLDEN-MATRIX-FULL-METRIC-COVERAGE (N3, aggregate) ───────
+    // Lean post-sweep floor: at least 2 unique hashes per sweep.  Mirror
+    // of harness header: dropped prior >= 8u tightness for host-variance
+    // tolerance, kept >= 2u as the irreducible silent-fake-green floor.
+    // ctest-asserted (NOT log-only) per AGENTS.md honest-discipline
+    // rot-gate.  Lowered threshold to `pass_count > 0` so fast_mode (6
+    // cells per preset) also exercises the floor — variation across AR
+    // produces >= 2 distinct hashes in fast_mode.
+    if (pass_count > 0) {
+        INFO("unique-hashes for ", preset_id, ": ",
+             unique_hash_set.size(), " / ", pass_count, " cells");
+        CHECK(unique_hash_set.size() >= 2u);  // silent-fake-green floor (lean re-design)
+    }
 
     MESSAGE("Matrix sweep summary for ", preset_id, ": ",
             "cells=", cells.size(),
