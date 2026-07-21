@@ -35,7 +35,7 @@
 // ## Architectural invariants (AGENTS.md v0.1 freeze)
 //
 //  (1) SINGLE central registry.  AnimatorResolver queries ONLY
-//      `::chronon3d::registry::builtin_text_preset_registry()`.  This sub-TU
+//      `chronon3d::registry::builtin_text_preset_registry()`.  This sub-TU
 //      contributes to that single registry through the per-category factory
 //      surface (M1.5#13 lineage); it does NOT re-implement registration.
 //
@@ -43,8 +43,8 @@
 //      `std::vector<TextPresetDescriptor>` from `create_basic_reveal_presets()`;
 //      it does NOT call `TextPresetRegistry::register_preset`.
 //
-//  (3) Uses `::chronon3d::registry::internal::make_presetc_template` and
-//      `::chronon3d::registry::internal::wire_through_resolver` from
+//  (3) Uses `chronon3d::registry::internal::make_presetc_template` and
+//      `chronon3d::registry::internal::wire_through_resolver` from
 //      the shared internal helper header.
 //
 //  (4) Lives in the same `factory_reveal` namespace as the aggregator so
@@ -70,9 +70,9 @@
 
 namespace chronon3d::registry::register_helpers_internal::factory_reveal {
 
-using LayerBuilderT  = ::chronon3d::registry::internal::LayerBuilderT;
-using SceneBuilderT  = ::chronon3d::registry::internal::SceneBuilderT;
-using TextSpecT      = ::chronon3d::registry::internal::TextSpecT;
+using LayerBuilderT  = chronon3d::registry::internal::LayerBuilderT;
+using SceneBuilderT  = chronon3d::registry::internal::SceneBuilderT;
+using TextSpecT      = chronon3d::registry::internal::TextSpecT;
 
 // ── TU-local helper (Action 12b) ────────────────────────────────────────────
 //
@@ -112,7 +112,7 @@ TextPresetDescriptor make_reveal_descriptor(
 // 1. text_animations — fade_in(20) + scale_drop(0.95,30)
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_text_animations(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("text_animations");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("text_animations");
     a.properties.push_back(ScaleProperty{Vec3{0.95f, 0.95f, 1.0f}});
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
@@ -121,7 +121,7 @@ compose_text_animations(const PresetMetadata& /*meta*/) {
 // 2. fade_in — fade_in(15) + soft_pop(10)
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_fade_in(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("fade_in");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("fade_in");
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
 }
@@ -129,7 +129,7 @@ compose_fade_in(const PresetMetadata& /*meta*/) {
 // 3. blur_in — focus_in(4.0,30) + fade_in(15)
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_blur_in(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("blur_in");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("blur_in");
     a.properties.push_back(BlurProperty{4.0f});
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
@@ -138,7 +138,7 @@ compose_blur_in(const PresetMetadata& /*meta*/) {
 // 4. slide_up — fade_shift_vertical({0,200,0},25) + fade_in(15)
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_slide_up(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("slide_up");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("slide_up");
     a.properties.push_back(PositionProperty{Vec3{0.0f, 200.0f, 0.0f}});
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
@@ -147,7 +147,7 @@ compose_slide_up(const PresetMetadata& /*meta*/) {
 // 5. slide_down — fade_shift_vertical({0,-200,0},25) + fade_in(15)
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_slide_down(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("slide_down");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("slide_down");
     a.properties.push_back(PositionProperty{Vec3{0.0f, -200.0f, 0.0f}});
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
@@ -156,7 +156,7 @@ compose_slide_down(const PresetMetadata& /*meta*/) {
 // 6. scale_in — scale_drop(0.85,25) + soft_pop(15)
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_scale_in(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("scale_in");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("scale_in");
     a.properties.push_back(ScaleProperty{Vec3{0.85f, 0.85f, 1.0f}});
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
@@ -180,7 +180,7 @@ TextPresetDescriptor text_animations_entry() {
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
            const TextSpecT& spec) {
-            ::chronon3d::registry::internal::wire_through_resolver(lb, "text_animations", spec)
+            chronon3d::registry::internal::wire_through_resolver(lb, "text_animations", spec)
               .fade_in(Frame{20})
               .scale_drop(0.95f, Frame{30});
         });
@@ -202,7 +202,7 @@ TextPresetDescriptor fade_in_entry() {
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
            const TextSpecT& spec) {
-            ::chronon3d::registry::internal::wire_through_resolver(lb, "fade_in", spec)
+            chronon3d::registry::internal::wire_through_resolver(lb, "fade_in", spec)
               .fade_in(Frame{15})
               .soft_pop(Frame{10});
         });
@@ -224,7 +224,7 @@ TextPresetDescriptor blur_in_entry() {
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
            const TextSpecT& spec) {
-            ::chronon3d::registry::internal::wire_through_resolver(lb, "blur_in", spec)
+            chronon3d::registry::internal::wire_through_resolver(lb, "blur_in", spec)
               .focus_in(4.0f, Frame{30})
               .fade_in(Frame{15});
         });
@@ -246,7 +246,7 @@ TextPresetDescriptor slide_up_entry() {
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
            const TextSpecT& spec) {
-            ::chronon3d::registry::internal::wire_through_resolver(lb, "slide_up", spec)
+            chronon3d::registry::internal::wire_through_resolver(lb, "slide_up", spec)
               .fade_shift_vertical(Vec3{0.0f, 200.0f, 0.0f}, Frame{25})
               .fade_in(Frame{15});
         });
@@ -268,7 +268,7 @@ TextPresetDescriptor slide_down_entry() {
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
            const TextSpecT& spec) {
-            ::chronon3d::registry::internal::wire_through_resolver(lb, "slide_down", spec)
+            chronon3d::registry::internal::wire_through_resolver(lb, "slide_down", spec)
               .fade_shift_vertical(Vec3{0.0f, -200.0f, 0.0f}, Frame{25})
               .fade_in(Frame{15});
         });
@@ -290,7 +290,7 @@ TextPresetDescriptor scale_in_entry() {
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
            const TextSpecT& spec) {
-            ::chronon3d::registry::internal::wire_through_resolver(lb, "scale_in", spec)
+            chronon3d::registry::internal::wire_through_resolver(lb, "scale_in", spec)
               .scale_drop(0.85f, Frame{25})
               .soft_pop(Frame{15});
         });

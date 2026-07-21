@@ -86,7 +86,7 @@ public:
 
     [[nodiscard]] bool ok() const noexcept { return std::holds_alternative<T>(m_storage); }
     [[nodiscard]] explicit operator bool() const noexcept { return ok(); }
-    /// M1.5#7 — match ::chronon3d::Result<T,E>::has_value() and
+    /// M1.5#7 — match chronon3d::Result<T,E>::has_value() and
     /// std::expected::has_value() API surface.
     [[nodiscard]] bool has_value() const noexcept { return ok(); }
 
