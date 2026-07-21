@@ -21,6 +21,18 @@ struct WordStyleState {
     std::string semantic_id;
     float progress{0.0f};
     bool highlighted{false};
+    /// TICKET-WORD-TIMING-QUALITY: provenance classification of the
+    /// per-word timing that produced this state.  Routed through from
+    /// `TimedCue::word_timing_quality` by `active_word_style_at()` so
+    /// the renderer never has to walk the cue structure itself.
+    /// Defaults to `None` so a default-constructed state advertises
+    /// "no word-level data" — the conservative answer.
+    /// Fully-qualified `::chronon3d::` prefix pins the type lookup to the
+    /// parent namespace regardless of `using namespace chrono3d::presets::text;`
+    /// at test-file scope.  `WordTimingQuality` lives in `chronon3d`, NOT in
+    /// `presets::text`; the explicit qualification removes any ambiguity
+    /// for downstream readers and IDE tooling.
+    ::chronon3d::WordTimingQuality quality{::chronon3d::WordTimingQuality::None};
     std::optional<Color> color;
     std::optional<float> scale;
     std::optional<Color> background;
@@ -57,6 +69,7 @@ inline WordStyleState active_word_style_at(
     const auto* word = active_word_at(*cue, time_s);
     if (!word) return state;
     state.highlighted = true;
+    state.quality = cue->word_timing_quality;
     state.semantic_id = word->semantic_id;
     for (std::size_t i = 0; i < cue->words.size(); ++i) {
         if (cue->words[i].semantic_id == word->semantic_id) { state.word_index = i; break; }
