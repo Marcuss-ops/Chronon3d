@@ -31,6 +31,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 
 #include <tests/text_golden/text_completeness/pixel_scan_helpers.hpp>
+#include <tests/helpers/test_utils.hpp>
 
 #include <doctest/doctest.h>
 
