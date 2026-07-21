@@ -107,7 +107,7 @@ public:
     // existing ctor default — the executor overwrites it post-construction
     // when the compiled graph identity is known (see executor.cpp).
     static ExecutionScope make_root(
-        chronon3d::RenderSession&           session,
+        ::chronon3d::RenderSession&           session,
         FrameArena&                         arena,
         GraphInstanceId                     graph_id = kInvalidGraphInstanceId
     ) noexcept;
@@ -129,9 +129,9 @@ public:
     // On success, the returned scope has the `owner_key` already applied
     // (via the private `set_owner_key`) so callers don't need a separate
     // post-construction call.
-    static chronon3d::Result<ExecutionScope, ScopeError> make_child(
+    static ::chronon3d::Result<ExecutionScope, ScopeError> make_child(
         ExecutionScopeKind                  kind,
-        chronon3d::RenderSession&           session,
+        ::chronon3d::RenderSession&           session,
         FrameArena&                         arena,
         GraphInstanceId                     graph_id,
         const ExecutionScope*               parent,
@@ -139,7 +139,7 @@ public:
     ) noexcept;
 
     [[nodiscard]] ExecutionScopeKind           kind()      const noexcept { return m_kind; }
-    [[nodiscard]] chronon3d::RenderSession&    session()   const noexcept { return m_session; }
+    [[nodiscard]] ::chronon3d::RenderSession&    session()   const noexcept { return m_session; }
     [[nodiscard]] FrameArena&                  arena()     const noexcept { return m_arena; }
     [[nodiscard]] GraphInstanceId              graph_id()  const noexcept { return m_graph_id; }
     [[nodiscard]] const ExecutionScope*        parent()    const noexcept { return m_parent; }
@@ -176,7 +176,7 @@ private:
     // compile error after FASE 5.
     explicit ExecutionScope(
         ExecutionScopeKind                  kind,
-        chronon3d::RenderSession&           session,
+        ::chronon3d::RenderSession&           session,
         FrameArena&                         arena,
         GraphInstanceId                     graph_id,
         const ExecutionScope*               parent
@@ -214,7 +214,7 @@ private:
     }
 
     ExecutionScopeKind              m_kind;
-    chronon3d::RenderSession&       m_session;
+    ::chronon3d::RenderSession&       m_session;
     FrameArena&                     m_arena;
     GraphInstanceId                 m_graph_id{kInvalidGraphInstanceId};
     const ExecutionScope*           m_parent{nullptr};
@@ -225,7 +225,7 @@ private:
 // ── Inline factory definitions (kept out-of-class for readability) ─────
 
 inline ExecutionScope ExecutionScope::make_root(
-    chronon3d::RenderSession&           session,
+    ::chronon3d::RenderSession&           session,
     FrameArena&                         arena,
     GraphInstanceId                     graph_id
 ) noexcept {
@@ -234,9 +234,9 @@ inline ExecutionScope ExecutionScope::make_root(
         session, arena, graph_id, /*parent*/ nullptr);
 }
 
-inline chronon3d::Result<ExecutionScope, ScopeError> ExecutionScope::make_child(
+inline ::chronon3d::Result<ExecutionScope, ScopeError> ExecutionScope::make_child(
     ExecutionScopeKind                  kind,
-    chronon3d::RenderSession&           session,
+    ::chronon3d::RenderSession&           session,
     FrameArena&                         arena,
     GraphInstanceId                     graph_id,
     const ExecutionScope*               parent,
@@ -246,7 +246,7 @@ inline chronon3d::Result<ExecutionScope, ScopeError> ExecutionScope::make_child(
         return ScopeError{
             ScopeErrorCode::InvalidChildKind,
             kind, graph_id, owner_key,
-            static_cast<chronon3d::u32>(parent ? parent->chain_length() + 1 : 1)
+            static_cast<::chronon3d::u32>(parent ? parent->chain_length() + 1 : 1)
         };
     }
     if (!parent) {
@@ -259,14 +259,14 @@ inline chronon3d::Result<ExecutionScope, ScopeError> ExecutionScope::make_child(
         return ScopeError{
             ScopeErrorCode::ArenaAliasesParent,
             kind, graph_id, owner_key,
-            static_cast<chronon3d::u32>(parent->chain_length() + 1)
+            static_cast<::chronon3d::u32>(parent->chain_length() + 1)
         };
     }
     if (parent->chain_length() >= kMaxScopeChainLength) {
         return ScopeError{
             ScopeErrorCode::ChainLimitExceeded,
             kind, graph_id, owner_key,
-            static_cast<chronon3d::u32>(parent->chain_length() + 1)
+            static_cast<::chronon3d::u32>(parent->chain_length() + 1)
         };
     }
     if (kind == ExecutionScopeKind::Precomp
@@ -275,7 +275,7 @@ inline chronon3d::Result<ExecutionScope, ScopeError> ExecutionScope::make_child(
         return ScopeError{
             ScopeErrorCode::RecursiveOwner,
             kind, graph_id, owner_key,
-            static_cast<chronon3d::u32>(parent->chain_length() + 1)
+            static_cast<::chronon3d::u32>(parent->chain_length() + 1)
         };
     }
     ExecutionScope child(

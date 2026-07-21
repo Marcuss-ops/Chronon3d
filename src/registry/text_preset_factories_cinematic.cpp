@@ -15,8 +15,8 @@
 //
 //  (1) SINGLE central registry.
 //  (2) Factory surface is READ-ONLY descriptors.
-//  (3) Uses `chronon3d::registry::internal::make_presetc_template` and
-//      `chronon3d::registry::internal::wire_through_resolver`.
+//  (3) Uses `::chronon3d::registry::internal::make_presetc_template` and
+//      `::chronon3d::registry::internal::wire_through_resolver`.
 // ─────────────────────────────────────────────────────────────────────────────
 
 #include <chronon3d/registry/text_preset_descriptor.hpp>
@@ -32,16 +32,16 @@
 
 namespace chronon3d::registry::register_helpers_internal::factory_cinematic {
 
-using LayerBuilderT  = chronon3d::registry::internal::LayerBuilderT;
-using SceneBuilderT  = chronon3d::registry::internal::SceneBuilderT;
-using TextSpecT      = chronon3d::registry::internal::TextSpecT;
+using LayerBuilderT  = ::chronon3d::registry::internal::LayerBuilderT;
+using SceneBuilderT  = ::chronon3d::registry::internal::SceneBuilderT;
+using TextSpecT      = ::chronon3d::registry::internal::TextSpecT;
 
 // ── STAGE 2 helpers — Cinematic (4) compositor bodies (verbatim port) ─────
 
 // 1. animation_compositions — depth_reveal(280,45) + soft_pop(30) + float_idle(8,120)
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_animation_compositions(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("animation_compositions");
+    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("animation_compositions");
     a.properties.push_back(PositionProperty{Vec3{0.0f, 8.0f, 280.0f}});
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
@@ -50,7 +50,7 @@ compose_animation_compositions(const PresetMetadata& /*meta*/) {
 // 2. cinematic_text_camera — depth_reveal(260,50) + scale_drop(0.95,30) + soft_pop(24)
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_cinematic_text_camera(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("cinematic_text_camera");
+    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("cinematic_text_camera");
     a.properties.push_back(PositionProperty{Vec3{0.0f, 0.0f, 260.0f}});
     a.properties.push_back(ScaleProperty{Vec3{0.95f, 0.95f, 1.0f}});
     a.properties.push_back(OpacityProperty{1.0f});
@@ -61,7 +61,7 @@ compose_cinematic_text_camera(const PresetMetadata& /*meta*/) {
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_cinematic_title_reveal(const PresetMetadata& /*meta*/) {
     const EasingCurve eo_cine{Easing::OutCubic};
-    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("cinematic_title_reveal");
+    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("cinematic_title_reveal");
 
     ScaleProperty sp;
     sp.value.add_keyframe(Frame{0},  Vec3{0.92f, 0.92f, 1.0f}, eo_cine);
@@ -89,7 +89,7 @@ compose_cinematic_title_reveal(const PresetMetadata& /*meta*/) {
 // 4. tilt_sweep_title_v2 — scale_drop(1.08,45) + focus_in(2.5,30) + soft_pop(24)
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_tilt_sweep_title_v2(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("tilt_sweep_title_v2");
+    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("tilt_sweep_title_v2");
     a.properties.push_back(ScaleProperty{Vec3{1.08f, 1.08f, 1.0f}});
     a.properties.push_back(BlurProperty{2.5f});
     a.properties.push_back(OpacityProperty{1.0f});
@@ -115,7 +115,7 @@ TextPresetDescriptor animation_compositions_entry() {
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
                           const TextSpecT& spec) {
-        chronon3d::registry::internal::wire_through_resolver(lb, "animation_compositions", spec)
+        ::chronon3d::registry::internal::wire_through_resolver(lb, "animation_compositions", spec)
           .depth_reveal(280.0f, Frame{45})
           .soft_pop(Frame{30})
           .float_idle(8.0f, Frame{120});
@@ -185,7 +185,7 @@ TextPresetDescriptor cinematic_title_reveal_entry() {
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
                           const TextSpecT& spec) {
-        (void)chronon3d::registry::internal::wire_through_resolver(lb, "cinematic_title_reveal", spec);
+        (void)::chronon3d::registry::internal::wire_through_resolver(lb, "cinematic_title_reveal", spec);
     };
     d.animator_factory = compose_cinematic_title_reveal;
     return d;
@@ -209,7 +209,7 @@ TextPresetDescriptor tilt_sweep_title_v2_entry() {
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
                           const TextSpecT& spec) {
-        chronon3d::registry::internal::wire_through_resolver(lb, "tilt_sweep_title_v2", spec)
+        ::chronon3d::registry::internal::wire_through_resolver(lb, "tilt_sweep_title_v2", spec)
           .scale_drop(1.08f, Frame{45})
           .focus_in(2.5f, Frame{30})
           .soft_pop(Frame{24});

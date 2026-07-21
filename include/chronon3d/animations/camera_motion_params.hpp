@@ -10,7 +10,7 @@
 
 namespace chronon3d::animation {
 
-using Easing = chronon3d::Easing;
+using Easing = ::chronon3d::Easing;
 
 enum class MotionAxis {
     Tilt,
