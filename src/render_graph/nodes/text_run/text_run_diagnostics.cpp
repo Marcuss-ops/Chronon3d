@@ -76,4 +76,34 @@ void report_diagnostic(
     }
 }
 
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+void report_geometry_diagnostic(
+    std::string_view node_name,
+    const chronon3d::TextVisibilityAudit& audit
+) {
+    // Geometric diagnostics per ADR-019 Decision 2: layout, ink, and
+    // effect bounds are reported in canvas/world space along with the
+    // baseline and anchor/canvas position so that pipeline diagnostics
+    // can reconstruct the text box without re-scanning pixels.
+    spdlog::debug(
+        "[text-geometry] node='{}' "
+        "layout_bbox=({:.1f},{:.1f},{:.1f},{:.1f}) "
+        "ink_bbox=({:.1f},{:.1f},{:.1f},{:.1f}) "
+        "effect_bbox=({:.1f},{:.1f},{:.1f},{:.1f}) "
+        "baseline={:.1f} "
+        "anchor_point=({:.1f},{:.1f}) "
+        "resolved_canvas_position=({:.1f},{:.1f})",
+        node_name,
+        audit.layout_bbox.origin.x, audit.layout_bbox.origin.y,
+        audit.layout_bbox.size.x, audit.layout_bbox.size.y,
+        audit.ink_bbox.origin.x, audit.ink_bbox.origin.y,
+        audit.ink_bbox.size.x, audit.ink_bbox.size.y,
+        audit.effect_bbox.origin.x, audit.effect_bbox.origin.y,
+        audit.effect_bbox.size.x, audit.effect_bbox.size.y,
+        audit.baseline,
+        audit.anchor_point.x, audit.anchor_point.y,
+        audit.resolved_canvas_position.x, audit.resolved_canvas_position.y);
+}
+#endif
+
 }  // namespace chronon3d::graph::text_run

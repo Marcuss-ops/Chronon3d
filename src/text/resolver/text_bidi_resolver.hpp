@@ -27,7 +27,9 @@
 
 namespace chronon3d::text::resolver {
 
-// ── emit_via_bidi — bidi-segment a font-homogeneous sub-range ──────────────
+#include <filesystem>
+
+// ── emit_via_bidi — bidi-segment a font-homogeneous sub-range ──────────
 //
 // For one FontSubRange (already split by text_span_resolver), this helper
 // segments the byte slice through the backend's `segment_bidi_runs`
@@ -48,7 +50,8 @@ void emit_via_bidi(
     FontEngine&                             engine,
     const FontSubRange&                     sub,
     const ParagraphRange&                   para,
-    TextDirection                           override_dir
+    TextDirection                           override_dir,
+    const std::filesystem::path&            bundled_fonts_root
 );
 
 } // namespace chronon3d::text::resolver
