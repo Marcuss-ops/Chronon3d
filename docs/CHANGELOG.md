@@ -1,5 +1,16 @@
 ## 2026-07-21
 
+### `feat(tests): isolated alignment + auto-fit tests (TICKET-ISOLATED-ALIGNMENT-TESTS)`
+([TICKET-ISOLATED-ALIGNMENT-TESTS](docs/tickets/TICKET-ISOLATED-ALIGNMENT-TESTS.md))
+
+2 nuovi test binaries standalone (`chronon3d_text_alignment_isolated_tests` TIER INTEGRATION + `chronon3d_text_auto_fit_tests` TIER UNIT) registrati via `chronon3d_add_test_suite` in NEW `tests/text/CMakeLists.txt` (wire-in in `tests/manifests/test_definitions.cmake`). 6 TEST_CASE totali:
+- **Alignment (Pattern B, full render + alpha_bbox)**: 3 TEST_CASE Left/Center/Right con box NON-degenere 400x200 a position (200,200) anchor TopLeft — ortogonali al Test 7 di `text_alignment.cpp` (box degenere 1920x1080 == canvas). Tutti in EXPECT_FAIL mode (WARN + early-return) per il KNOWN LIMITATION che TextAlign non è applicato a single-line text (text_alignment.cpp:8-12). Activation protocol documentato nel ticket §Activation protocol (rimuovere `return;` quando l'alignment engine fissa TextAlign).
+- **Auto-fit (Pattern A, LocalEngine + materialize_text_run_shape)**: 3 TEST_CASE — (1) cache on/off determinism (stessa params + `cache_layout=true` vs `false` → identico font_size + bounds); (2) impossible min_font_size (`min=200` in 400x200 box → `font_size==200` AND `bounds>box` per explicit overflow, NO silent clip); (3) 5-run determinism certification.
+
+Cat-3 minimal-surface (zero nuovi simboli in `include/chronon3d/`, zero ABI impact, NO raw `add_executable`). Cronaca estesa SOLO in `docs/tickets/TICKET-ISOLATED-ALIGNMENT-TESTS.md` per Cat-3 anti-dup invariant. Forward-points: activation protocol rimuovere `return;` (quando alignment fissa TextAlign), integration con TICKET-OPENTYPE-FEATURES-PASS per ligature/kerning regression, visual verify sub-task.
+
+## 2026-07-21
+
 ### `feat(reference): CapCut corpus skeleton + parity test stub`
 ([TICKET-CAPCUT-REFERENCE-CORPUS](tickets/TICKET-CAPCUT-REFERENCE-CORPUS.md))
 Skeleton di `tests/reference/capcut/{static,subtitles,effects}/` con `.gitignore` locale per subdir (`current/` gitignored, `reference/` tracked-only-post-PR-review) + README policy blessed-only + test skeleton con 4 metric helpers inline + CMakeLists standalone via `chronon3d_add_test_suite(TIER INTEGRATION)`. Blessed PNGs NON committati (DEFERRED-PR-review forward-points a/b/c). Metriche riusate: `compute_ssim` (image_diff.hpp) + `alpha_bbox` + `ink_vertical_extent` (pixel_scan_helpers.hpp). Cat-3 minimal-surface (zero nuovi simboli in `include/chronon3d/`, zero ABI impact). Graceful-skip via `MESSAGE+CHECK(true)+return` quando corpus vuoto.
