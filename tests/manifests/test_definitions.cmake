@@ -59,3 +59,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     render_graph/pipeline/glow_fullframe_audit_tests.cmake
     sabotage_tests.cmake
 )
+
+# CapCut-grade parity test (TICKET-CAPCUT-REFERENCE-CORPUS, FU09 verdict CapCut-grade §Fase 9)
+reference/capcut/CMakeLists.txt

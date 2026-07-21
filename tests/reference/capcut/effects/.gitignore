@@ -1,0 +1,11 @@
+# Local .gitignore for tests/reference/capcut/effects/
+# Per TICKET-CAPCUT-REFERENCE-CORPUS policy:
+#   - current/ contains regenerable Chronon3D test outputs (gitignored)
+#   - reference/ contains blessed CapCut PNGs (tracked, but only after PR review)
+
+current/
+*.tmp
+*.swp
+*.bak
+.DS_Store
+Thumbs.db
