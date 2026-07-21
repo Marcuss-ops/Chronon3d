@@ -21,7 +21,7 @@ Stessa architettura FASE 9 (estrazione sotto-namespace `chronon3d::subns`) + ste
 
 Quando codice dentro `namespace chronon3d::subns { ... }` fa lookup qualificato `chronon3d::X` (parent namespace), clang formatta l'errore come `'X' in namespace 'chronon3d::chronon3d'` (concatenazione diagnostica del current scope + qualified lookup).
 
-## Scope (0 file)
+## Scope (21 file)
 
 | Area | File |
 |---|---|
