@@ -42,6 +42,26 @@ void SubtitleTrackBuilder::build() {
             "SubtitleTrackBuilder::build: unknown preset id '" + preset_id_ + "'");
     }
 
+    // Karaoke-style presets rely on per-word timing being trustworthy.
+    // By default they require Authoritative per-word timing and reject
+    // Estimated/None unless the caller explicitly opts in.
+    const bool is_karaoke_preset =
+        (preset_id_ == "karaoke_fill" || preset_id_ == "active_word_pop");
+    const bool enforce_authoritative =
+        (is_karaoke_preset || require_authoritative_) && !allow_estimated_;
+
+    if (enforce_authoritative) {
+        for (const auto& cue : track_->cues) {
+            if (cue.word_timing_quality != WordTimingQuality::Authoritative) {
+                throw std::runtime_error(
+                    "SubtitleTrackBuilder: preset '" + preset_id_ +
+                    "' requires Authoritative per-word timing. Set "
+                    ".allow_estimated_word_timing(true) to opt-in to "
+                    "uniform-split word timing.");
+            }
+        }
+    }
+
     const auto& preset = preset_registry.get(preset_id_);
 
     for (std::size_t i = 0; i < track_->cues.size(); ++i) {
