@@ -134,9 +134,9 @@ struct RenderSession {
     // `docs/refactor-roadmap/03-render-session-boundary.md`).  // drift-allow: stale-ref
     //   * scene_hasher_state: by-value (struct, default-constructible, movable).
     //   * program_store_state: heap (class with std::mutex, non-movable).
-    ::chronon3d::graph::SceneHasher scene_hasher_state{};
-    std::unique_ptr<::chronon3d::graph::SceneProgramStore>
-        program_store_state{std::make_unique<::chronon3d::graph::SceneProgramStore>()};
+    chronon3d::graph::SceneHasher scene_hasher_state{};
+    std::unique_ptr<chronon3d::graph::SceneProgramStore>
+        program_store_state{std::make_unique<chronon3d::graph::SceneProgramStore>()};
 
     // WP-3 PR 3.2 — `RendererLayerHistory` is gone; its payload lives in
     // `dirty_telemetry.previous_layers` (folded).  The struct members'
@@ -188,10 +188,10 @@ struct RenderSession {
     // is gone — the WP-3 PR 3.0 throw tests documented this; post 3.1
     // the tests assert the inverse: accessors NEVER throw on a freshly
     // default-constructed session.
-    [[nodiscard]] ::chronon3d::graph::SceneHasher&       scene_hasher()       noexcept { return scene_hasher_state; }
-    [[nodiscard]] const ::chronon3d::graph::SceneHasher& scene_hasher() const noexcept { return scene_hasher_state; }
-    [[nodiscard]] ::chronon3d::graph::SceneProgramStore&       program_store()       noexcept { return *program_store_state; }
-    [[nodiscard]] const ::chronon3d::graph::SceneProgramStore& program_store() const noexcept { return *program_store_state; }
+    [[nodiscard]] chronon3d::graph::SceneHasher&       scene_hasher()       noexcept { return scene_hasher_state; }
+    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const noexcept { return scene_hasher_state; }
+    [[nodiscard]] chronon3d::graph::SceneProgramStore&       program_store()       noexcept { return *program_store_state; }
+    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const noexcept { return *program_store_state; }
 
     /// Arena accessor (still engine-generic; lives on the session).
     [[nodiscard]] FrameArena&       arena()       noexcept { return *arena_ptr; }

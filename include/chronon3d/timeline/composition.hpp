@@ -163,13 +163,13 @@ public:
     /// (`id.empty()`) is treated as "no descriptor set" by
     /// `has_default_camera_descriptor()`.
     Composition& default_camera_descriptor(
-        ::chronon3d::camera_v1::CameraDescriptor descriptor) {
+        chronon3d::camera_v1::CameraDescriptor descriptor) {
         m_default_camera_desc = std::move(descriptor);
         return *this;
     }
 
     /// Read-only accessor for the CameraDescriptor in composition settings.
-    [[nodiscard]] const ::chronon3d::camera_v1::CameraDescriptor&
+    [[nodiscard]] const chronon3d::camera_v1::CameraDescriptor&
     default_camera_descriptor() const noexcept {
         return m_default_camera_desc;
     }
@@ -190,13 +190,13 @@ public:
     // conflict with the legacy `Camera camera` public data member
     // (TICKET-BUILD-ROT-CASCADE-CAMERA surface D).
     // ══════════════════════════════════════════════════════════════════════
-    Composition& camera_program(::chronon3d::camera_v1::CameraProgram program) {
+    Composition& camera_program(chronon3d::camera_v1::CameraProgram program) {
         m_camera_program = std::move(program);
         return *this;
     }
 
     /// Read-only accessor for the pre-compiled camera program.
-    [[nodiscard]] const ::chronon3d::camera_v1::CameraProgram&
+    [[nodiscard]] const chronon3d::camera_v1::CameraProgram&
     camera_program() const noexcept {
         return m_camera_program;
     }
@@ -269,14 +269,14 @@ private:
     // ── P3-F — the Composition is now IMMUTABLE on the camera side.
     //    Only the value-typed descriptor field remains; no cache, no
     //    throttle hash, no mutable unique_ptr<CameraProgram>.
-    ::chronon3d::camera_v1::CameraDescriptor m_default_camera_desc{};
+    chronon3d::camera_v1::CameraDescriptor m_default_camera_desc{};
 
     // ── P3-H + feat(api) public camera facade — pre-compiled program.
     //    Authoring-time entry point: the consumer calls
     //    `composition.camera(compile_camera(descriptor).value())` to
     //    set the program once.  The OPP renderer reads
     //    `m_camera_program` on each evaluate() call.
-    ::chronon3d::camera_v1::CameraProgram m_camera_program{};
+    chronon3d::camera_v1::CameraProgram m_camera_program{};
 
     CompositionSpec m_spec;
     SceneFunction m_render;

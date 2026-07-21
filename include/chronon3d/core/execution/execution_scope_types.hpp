@@ -68,7 +68,7 @@ struct ScopeError {
     ExecutionScopeKind  kind{ExecutionScopeKind::Root};
     GraphInstanceId     graph{kInvalidGraphInstanceId};
     std::uint64_t       owner_key{0u};
-    ::chronon3d::u32      requested_chain_length{0u};
+    chronon3d::u32      requested_chain_length{0u};
 };
 
 // ── Stable string-form name helpers ───────────────────────────────────────

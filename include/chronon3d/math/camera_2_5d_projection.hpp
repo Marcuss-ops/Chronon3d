@@ -95,7 +95,7 @@ inline bool project_world_point_2_5d(
 // code-review). The legacy single-scalar overload is unused; the canonical
 // `build_perspective_matrix(const camera_math::FocalPx&)` lives in
 // camera_projection_matrix.hpp (FASE 17) and is what project_layer_2_5d()
-// uses via `::chronon3d::build_perspective_matrix(focal_xy)`.
+// uses via `chronon3d::build_perspective_matrix(focal_xy)`.
 
 inline ProjectedLayer2_5D project_layer_2_5d(
     const Transform& layer_transform,
@@ -187,7 +187,7 @@ inline ProjectedLayer2_5D project_layer_2_5d(
     const Mat4 view = camera_math::view_matrix_for_camera(camera);
     const camera_math::FocalPx focal_xy = camera_math::focal_xy_from_camera(
         camera, viewport_width, viewport_height);
-    const Mat4 proj_mat = ::chronon3d::build_perspective_matrix(focal_xy);
+    const Mat4 proj_mat = chronon3d::build_perspective_matrix(focal_xy);
     out.projection_matrix = proj_mat * view * layer_matrix;
 
     // ── Diagnostic winding check ────────────────────────────────────────────

@@ -24,7 +24,7 @@ namespace chronon3d {
 
 // ── CurvePoint ──────────────────────────────────────────────────────────────
 // Defined in effect_params.hpp — included for convenience.
-using CurvePoint = ::chronon3d::CurvePoint;
+using CurvePoint = chronon3d::CurvePoint;
 
 // ── CompiledCurve ───────────────────────────────────────────────────────────
 // A 256-entry LUT pre-computed from control points.

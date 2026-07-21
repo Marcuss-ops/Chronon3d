@@ -84,10 +84,10 @@ struct SoftwareRenderSession {
     // `sw_renderer->scene_hasher()` invocation pattern (the inner
     // chain `sw_renderer->software_session().scene_hasher()` must
     // compile without forcing callers to spell `.common`).
-    [[nodiscard]] ::chronon3d::graph::SceneHasher&       scene_hasher()       { return common.scene_hasher(); }
-    [[nodiscard]] const ::chronon3d::graph::SceneHasher& scene_hasher() const { return common.scene_hasher(); }
-    [[nodiscard]] ::chronon3d::graph::SceneProgramStore&       program_store()       { return common.program_store(); }
-    [[nodiscard]] const ::chronon3d::graph::SceneProgramStore& program_store() const { return common.program_store(); }
+    [[nodiscard]] chronon3d::graph::SceneHasher&       scene_hasher()       { return common.scene_hasher(); }
+    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const { return common.scene_hasher(); }
+    [[nodiscard]] chronon3d::graph::SceneProgramStore&       program_store()       { return common.program_store(); }
+    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const { return common.program_store(); }
 
     /// Per-frame reset: empty the arena (canonical) and the software
     /// scratch (buffer ring NOT touched — it's needed for the previous
