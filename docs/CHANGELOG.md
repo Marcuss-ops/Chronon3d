@@ -11,6 +11,13 @@ Cat-3 minimal-surface (zero nuovi simboli in `include/chronon3d/`, zero ABI impa
 
 ## 2026-07-21
 
+### `chore(tests): migrate to make_renderer_shared (TICKET-ISOLATED-ALIGNMENT-TESTS chore fixup)`
+([TICKET-ISOLATED-ALIGNMENT-TESTS](docs/tickets/TICKET-ISOLATED-ALIGNMENT-TESTS.md) §§honest-discipline / Accepted deviations)
+
+Migrate `make_renderer()` (deprecated in `tests/helpers/test_utils.hpp:114`) → `make_renderer_shared()` nei 3 alignment TEST_CASE di `tests/text/test_text_alignment_isolated.cpp`. Alignments tests ora usano la canonical path (shared_ptr<SoftwareRenderer>) come richiesto dal comment di test_utils.hpp "Prefer this over make_renderer() in new tests". Auto-fit tests non toccati (già usano `LocalEngine` + `materialize_text_run_shape` Pattern A). Cat-3 minimal-surface (5 LoC modified, zero nuovi simboli, zero ABI impact). TICKET aggiornato con §Accepted deviations (3 deviation documentate: EXPECT_FAIL consistency con Test 7, "Hello" non espone kern/ligatures, CHANGELOG entry length).
+
+## 2026-07-21
+
 ### `feat(reference): CapCut corpus skeleton + parity test stub`
 ([TICKET-CAPCUT-REFERENCE-CORPUS](tickets/TICKET-CAPCUT-REFERENCE-CORPUS.md))
 Skeleton di `tests/reference/capcut/{static,subtitles,effects}/` con `.gitignore` locale per subdir (`current/` gitignored, `reference/` tracked-only-post-PR-review) + README policy blessed-only + test skeleton con 4 metric helpers inline + CMakeLists standalone via `chronon3d_add_test_suite(TIER INTEGRATION)`. Blessed PNGs NON committati (DEFERRED-PR-review forward-points a/b/c). Metriche riusate: `compute_ssim` (image_diff.hpp) + `alpha_bbox` + `ink_vertical_extent` (pixel_scan_helpers.hpp). Cat-3 minimal-surface (zero nuovi simboli in `include/chronon3d/`, zero ABI impact). Graceful-skip via `MESSAGE+CHECK(true)+return` quando corpus vuoto.

@@ -2,8 +2,9 @@
 
 ## Stato
 
-OPEN (2026-07-21, commit pending)
+OPEN (2026-07-21, commit `c388d196` + chore fixup pending)
 - **DONE (skeleton)**: 2 nuovi file di test + tests/text/CMakeLists.txt + wire-in in tests/manifests/test_definitions.cmake.
+- **DONE (chore fixup)**: `make_renderer()` (deprecated in `test_utils.hpp:114`) → `make_renderer_shared()` nei 3 alignment TEST_CASE (per AGENTS.md §honest-discipline + reviewer #1).
 - **OPEN (alignment activation)**: 3 TEST_CASE alignment in `EXPECT_FAIL` mode (WARN + early-return) — da attivare (rimuovere `return;`) quando l'alignment engine implementerà TextAlign per single-line text. Vedi §Activation protocol sotto.
 
 ## Problema
@@ -58,6 +59,14 @@ Quando l'alignment engine viene aggiornato per applicare `TextAlign` a single-li
 - **Fase 4 (future)**: word-binding + word-timing quality → TICKET-TIMED-WORD-BINDING + TICKET-WORD-TIMING-QUALITY (future ticket)
 - **Fase 9 (DONE)**: CapCut reference corpus → TICKET-CAPCUT-REFERENCE-CORPUS
 - **Alignment activation (future)**: rimuovere `return;` dai 3 alignment TEST_CASE quando l'alignment engine fissa TextAlign per single-line text
+- **LocalEngine extraction (future)**: `LocalEngine` struct in `tests/text/test_text_auto_fit.cpp` (linee 33-41) duplica verbatim quello in `tests/text/test_auto_fit_font_size.cpp:50-58`. Forward-point: estrarre in `tests/helpers/text_test_engine.hpp` quando un 3rd user appare (Cat-3 anti-dup deferred — 2 users = borderline). Per reviewer #3.
+- **§honest-discipline EXPECT_FAIL consistency**: i 3 alignment tests seguono il pattern `WARN + return` di Test 7 in `text_alignment.cpp` (consistency > novelty per AGENTS.md §Docs canonical update discipline). Alternative (run + accept FAIL) applicabile ma rompe consistency. Per reviewer #2.
+
+## §Accepted deviations
+
+- **Deviation #1 (reviewer #2)**: `EXPECT_FAIL` pattern con `WARN + return` upfront rende i test dormienti (unreachable code). Alternativa (real assert + FAIL today) più onesta ma rompe consistency con Test 7 di `text_alignment.cpp`. Scelta: consistency (forward-point documenta activation protocol).
+- **Deviation #2 (reviewer #4)**: "Hello" è troppo corto per esporre kern pairs / ligatures. Forward-point: aggiungere sub-case "AVATAR" (kern) o "office" (ligatures) per copertura TICKET-OPENTYPE-FEATURES-PASS.
+- **Deviation #3 (reviewer #5)**: CHANGELOG entry ~1100 char descrive activation protocol inline. Per Cat-3 anti-dup canonical entry dovrebbe essere ≤1 sentence + ticket link; attivazione dettagliata vive nel ticket §Activation protocol.
 
 ## Cross-link canonici
 
