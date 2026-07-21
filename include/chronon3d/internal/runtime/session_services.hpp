@@ -15,7 +15,7 @@
 // render_runtime ↔ render_session include cycle.
 //
 // Future code that needs to consult "what services back this session
-// without holding a Session*" can use `chronon3d::runtime::session_services(session)`
+// without holding a Session*" can use `::chronon3d::runtime::session_services(session)`
 // (declared in render_runtime.hpp) instead of reaching directly into
 // the field.
 //
@@ -37,11 +37,11 @@ namespace chronon3d { class AssetRegistry; }
 namespace chronon3d::runtime {
 
 struct SessionServices {
-    chronon3d::graph::GraphExecutor*         executor{nullptr};
-    chronon3d::cache::NodeCache*             node_cache{nullptr};
-    chronon3d::cache::FramebufferPool*       framebuffer_pool{nullptr};
-    chronon3d::graph::CompiledGraphCache*    graph_cache{nullptr};
-    chronon3d::AssetRegistry*                asset_registry{nullptr};
+    ::chronon3d::graph::GraphExecutor*         executor{nullptr};
+    ::chronon3d::cache::NodeCache*             node_cache{nullptr};
+    ::chronon3d::cache::FramebufferPool*       framebuffer_pool{nullptr};
+    ::chronon3d::graph::CompiledGraphCache*    graph_cache{nullptr};
+    ::chronon3d::AssetRegistry*                asset_registry{nullptr};
     // WP-3 PR 3.1 — `scene_hasher` and `program_store` pointer fields
     // were REMOVED here.  Both state engines are per-session owned.
     // Callers that previously read `services.scene_hasher` /

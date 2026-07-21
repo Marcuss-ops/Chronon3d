@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 // render_graph_context.hpp
 //
-// TICKET-010 — `chronon3d::graph::RenderGraphContext` is the per-frame state
+// TICKET-010 — `::chronon3d::graph::RenderGraphContext` is the per-frame state
 // passed to every graph node + the executor.  It used to be a "God object"
 // with 30+ flat fields split into 7 nested sub-contexts
 // (RenderFrameInfo / RenderCameraContext / RenderResourceContext /
@@ -111,13 +111,13 @@ namespace chronon3d::effects {
 // themselves; the SDK header stays lightweight.
 //
 // IMPORTANT: this declaration MUST stay OUTSIDE `namespace
-// chronon3d::graph { ... }`.  C++17 nested-namespace-declaration syntax
+// ::chronon3d::graph { ... }`.  C++17 nested-namespace-declaration syntax
 // (`namespace A::B {}`) is shorthand for `namespace A { namespace B {} }`,
-// so writing `namespace chronon3d::assets {}` inside `chronon3d::graph {}`
-// would create `chronon3d::graph::chronon3d::assets`, opening a new inner
+// so writing `namespace ::chronon3d::assets {}` inside `::chronon3d::graph {}`
+// would create `::chronon3d::graph::chronon3d::assets`, opening a new inner
 // `chronon3d` namespace that SHADOWS the global one for the rest of the
 // enclosing block — breaking every subsequent `chronon3d::X` lookup
-// (the 44-error `in namespace chronon3d::graph::chronon3d does not name a
+// (the 44-error `in namespace ::chronon3d::graph::chronon3d does not name a
 // type` cascade).
 namespace chronon3d::assets { class AssetResolver; }
 
@@ -163,7 +163,7 @@ struct RenderPolicy {
     /// process-wide `detail::g_debug_config`.  When nullptr, debug
     /// overlays (text-bbox, glow debug artefacts, future ink-bounds
     /// overlays) are skipped.
-    const chronon3d::DebugConfig* debug_config{nullptr};
+    const ::chronon3d::DebugConfig* debug_config{nullptr};
 
     bool cache_enabled{true};
     bool diagnostics_enabled{false};
@@ -243,7 +243,7 @@ struct RenderServices {
     /// `wire_catalog_pointers` from `SoftwareRenderer::scheduler()`
     /// (which forwards to `RenderRuntime::scheduler()`).  Lifetime is
     /// pinned to the owning runtime; never dereference past shutdown.
-    chronon3d::ExecutionScheduler* scheduler{nullptr};
+    ::chronon3d::ExecutionScheduler* scheduler{nullptr};
 
     /// PR-5 / PR-2-rewire — parent render session pointer.  PrecompNode
     /// borrows the session's arena (via `session->arena()`) for inner
@@ -251,7 +251,7 @@ struct RenderServices {
     /// for inner executor calls, and the session's `program_store` for
     /// cache lookups.  Set by scene.cpp when a SoftwareRenderer is
     /// available.  Null in test paths without a wired session.
-    chronon3d::RenderSession* session{nullptr};
+    ::chronon3d::RenderSession* session{nullptr};
 
     /// PR-9 — opaque sidecar pointer to the owning SoftwareRenderer.
     /// Set by scene.cpp / composition.cpp alongside `session` so that
@@ -272,7 +272,7 @@ struct RenderServices {
     /// NOTE: callers that dereference `asset_resolver` MUST
     /// `#include <chronon3d/assets/asset_resolver.hpp>` themselves;
     /// the SDK header stays lightweight (forward decl only above).
-    chronon3d::assets::AssetResolver* asset_resolver{nullptr};
+    ::chronon3d::assets::AssetResolver* asset_resolver{nullptr};
 };
 
 // ── Per-frame / per-node mutable workspace ──────────────────────────────────
@@ -280,7 +280,7 @@ struct RenderServices {
 // RenderTileContext + the full RenderScratchContext.
 struct NodeExecutionContext {
     // ── Telemetry (was RenderTelemetryContext) ─────────────────────────
-    chronon3d::RenderCounters* counters{nullptr};
+    ::chronon3d::RenderCounters* counters{nullptr};
     RenderProfiler* profiler{nullptr};
 
     std::vector<chronon3d::telemetry::NodeTelemetryRecord>  node_telemetry;

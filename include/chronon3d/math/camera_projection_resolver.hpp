@@ -223,7 +223,7 @@ struct CameraProjectionResolver {
 
         // -- 5. 6-plane frustum culling (optional) -----------------------------
         if (input.enable_frustum_culling) {
-            out.frustum_result = chronon3d::test_frustum_culling(
+            out.frustum_result = ::chronon3d::test_frustum_culling(
                 cam_min_x, cam_max_x, cam_min_y, cam_max_y, cam_min_z, cam_max_z,
                 focal_xy, input.viewport.width, input.viewport.height,
                 input.far_plane);
@@ -293,7 +293,7 @@ struct CameraProjectionResolver {
 
         // First pass: clip against near plane (require z >= nearZ)
         if (any_near) {
-            bool ok = chronon3d::clip_with_uv(
+            bool ok = ::chronon3d::clip_with_uv(
                 cam_corners.data(), cam_uvs.data(), 4,
                 clipped_corners, clipped_uvs, &corner_count,
                 camera_math::kNearClipZ, true);
@@ -321,7 +321,7 @@ struct CameraProjectionResolver {
             Vec2 far_uvs[6]{};
             int far_count = 0;
 
-            bool ok = chronon3d::clip_with_uv(
+            bool ok = ::chronon3d::clip_with_uv(
                 clipped_corners, clipped_uvs, corner_count,
                 far_clipped, far_uvs, &far_count,
                 input.far_plane, false);
@@ -387,7 +387,7 @@ struct CameraProjectionResolver {
         }
 
         // -- 10. Screen-space signed area (for diagnostics, not backface) -------
-        out.signed_area = chronon3d::compute_signed_area(out.corners, corner_count);
+        out.signed_area = ::chronon3d::compute_signed_area(out.corners, corner_count);
 
         // -- 11. Apply backface policy ------------------------------------------
         if (out.back_facing) {

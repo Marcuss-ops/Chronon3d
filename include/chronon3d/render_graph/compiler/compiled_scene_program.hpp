@@ -105,8 +105,8 @@ struct SceneStructureKey {
 // ── std::hash<SceneStructureKey> ────────────────────────────────────────────
 namespace std {
 template <>
-struct hash<chronon3d::graph::SceneStructureKey> {
-    size_t operator()(const chronon3d::graph::SceneStructureKey& key) const noexcept {
+struct hash<::chronon3d::graph::SceneStructureKey> {
+    size_t operator()(const ::chronon3d::graph::SceneStructureKey& key) const noexcept {
         size_t h = 1469598103934665603ULL;  // FNV-1a offset basis
         auto combine = [&](uint64_t v) {
             h ^= static_cast<size_t>(v);
