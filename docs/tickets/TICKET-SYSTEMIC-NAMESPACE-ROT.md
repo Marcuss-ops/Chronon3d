@@ -1,6 +1,33 @@
 # TICKET-SYSTEMIC-NAMESPACE-ROT — Systemic doubled-namespace rot across 19 files
 
-## Stato: OPEN (2026-07-21, commit pending)
+## Stato: PARTIAL (2026-07-21, commits `05d55ef` + `0946c814` + this commit)
+- **DONE (BLOCKER #1, `05d55ef`)**: cmake parse error in `tests/manifests/test_definitions.cmake:64` (entries fuori dal `set()` block).
+- **DONE (BLOCKER #2, `0946c814`)**: bare filename in `tests/text/CMakeLists.txt` SOURCES (no `${CMAKE_CURRENT_LIST_DIR}/` prefix).
+- **OPEN (rot verification)**: build di `chronon3d_text_health_tests` (singolo target) PASS con exit 0 — il rot non triggera in questo path. Verifica con `chronon3d_animations` (target citato nel TICKET-GRAPHICS-SHAPE-STYLE-ROT come già verde post-GradientStop fix) PENDING. Se verde anche quello, il rot è STALE / fixato da commit successivi e questo TICKET va CLOSED con §honest-discipline disclosure.
+
+## §Disclosure (2026-07-21, post-rebuild verification)
+
+**§honest-discipline deviation**: lo scope "19 file rot" documentato sopra è basato su osservazione del compilatore al commit `5518c619`. Dopo commit successivi (`c388d196` Fase 7 + `afe70f33` + `09aa0afb` + `05d55ef` + `0946c814`), il rot NON si triggera in `chronon3d_text_health_tests` (build singolo-target exit 0 con zero errori `chronon3d::chronon3d`).
+
+**§Root cause analysis (post-rebuild)**:
+1. **BLOCKER #1** era un cmake parse error ortogonale al rot (entries fuori dal set() block in test_definitions.cmake).
+2. **BLOCKER #2** era un cmake path resolution error ortogonale (bare filename in SOURCES di tests/text/CMakeLists.txt).
+3. **Il rot stesso** (qualificazione `chronon3d::X` → `::chronon3d::X`) non è ancora stato né confermato né fixato.
+
+**§Next-step action**: per chiudere il TICKET definitivamente, eseguire (in ordine):
+1. `ninja -C build/chronon/linux-content-dev chronon3d_animations` (singolo target, no multi-target syntax bug — vedi §Multi-target syntax note sotto)
+2. Se exit 0 → TICKET CLOSED con §honest-discipline disclosure (rot era stale / fixato indirettamente dai commit successivi).
+3. Se rot errors → targeted qualification `::chronon3d::X` sui file specifici riportati, rebuild, commit, verify.
+
+## §Multi-target syntax note (2026-07-21)
+
+**Trappola CMake CLI documentata**: `cmake --build <dir> --target A B C ...` (target separati da SPAZIO) **NON** funziona — CMake interpreta i target successivi come argomenti da passare al tool nativo (gmake/Ninja), risultando in errori tipo `gmake: Makefile: No such file or directory`. Sintassi corretta:
+- (a) `--target A --target B --target C` (flag separati)
+- (b) `cmake --build <dir> -- A B C` (passa target al tool nativo)
+- (c) `ninja -C <dir> <target>` (chiamata diretta Ninja)
+
+**§Forward-points (per future agenti)**:
+- Documentare la sintassi multi-target in `AGENTS.md §Build commands` (NON ora, deferred a chore separato per minimizzare blast radius).
 
 ## Problema
 
