@@ -26,6 +26,49 @@ quality), no preset-side flag (no `SubtitlePresetSpec` in canonical form
 — deferred), and "data IS the diagnostic" instead of fail-loud WARN
 (renderer reads `state.quality` directly; no new log macro).
 
+## 2026-07-21
+### `feat(subtitle): TimedWord → selector-list binding (TICKET-TIMED-WORD-BINDING)` ([TICKET-TIMED-WORD-BINDING](docs/tickets/TICKET-TIMED-WORD-BINDING.md))
+
+Adds 2 UTF-8 byte-offset fields (`byte_start`, `byte_end`) to `TimedWord`
+in `include/chronon3d/text/timed_text_document.hpp` (default `{0, 0}`
+conservative — never False-positive as "has byte mapping").  The 3
+canonical adapters (SRT / VTT / JSON) populate them:
+- SRT reuses the `split_words()` helper byte ranges verbatim.
+- VTT reuses the lambda capture `offset` (post-`strip_vtt_tags()`).
+- JSON: sequential `cue.text.find()` for source `words` array;
+  reuses the whitespace-split `start` variable for the auto-fallback.
+
+`SubtitleTrackBuilder::build()` now pushes N `GlyphSelectorSpec` (one per
+`TimedWord`) onto `TextRunSpec::selectors` (verified canonical field at
+`include/chronon3d/scene/builders/params/text_params.hpp:105`) with
+`unit = TextSelectorUnit::Word`, `start = i`, `end = i + 1`,
+`shape = TextSelectorShape::Hold`.  The selector math gives weight = 1.0
+ONLY for the matching word's glyphs at the active time window, so the
+existing preset animator (e.g. `active_word_pop` / `karaoke_fill` /
+`yellow_keyword`) naturally applies its highlight properties (color /
+scale / stroke / background) to the active word only — no separate
+per-word layer needed.
+
+5 TEST_CASEs added to `tests/text/test_subtitle_productive.cpp`:
+4 new (3 adapters + builder smoke) + 1 round-2 reviewer lock that
+asserts `TextRunSpec::selectors.size() == expected_count` post-wiring.
+UTF-8 test strengthened to use `naïve` (5 codepoints / 6 UTF-8 bytes,
+`ï` mid-word) instead of `café` (end-of-word multi-byte).
+
+TICKET §Accepted deviations documents 3 deviations from verdict spec:
+TimedWordBinding struct → field extension on existing `TimedWord`
+(Cat-3 anti-dup); `selector.by_semantic_id(active_word_id)` → per-word
+range selectors (no new SDK field, canonical math isolates naturally);
+TextSpanOverride attach → selector-list push (selector-driven dynamic
+highlight vs static per-range style).  4 §Forward-points cataloged
+including JSON find robustness (P1 OPEN per round-2 severity) +
+N-selectors perf for 100+ word cues + visual verify.
+
+Cat-3 minimal-surface: 1 header 2-field add + 3 adapter 2-line add each +
+1 builder N-selector loop + 5 tests + 1 NEW ticket + 2 canonical doc
+updates.  ZERO new SDK types.  ZERO `<msdfgen>/<libtess2>/<unicode[/...]>`
+(Gate 5 Check 11 deny-everywhere preserved).
+
 ## 2026-07-20
 ### `fix(subtitle): remove hardcoded 30 fps in SubtitleTrackBuilder` ([TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION](docs/tickets/TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION.md))
 `SubtitleTrackBuilder` now reads the composition frame rate from the parent `LayerBuilder` and converts cue seconds to frames with `std::lround`. Implements `[start_frame, end_frame)` semantics with `duration = max(1, end - start)`. Added a `.frame_rate(FrameRate)` fluent override for tests and callers. Verified for 24000/1001, 24/1, 25/1, 30000/1001, 30/1, 50/1 and 60/1. Zero-duration cues are clamped to at least one frame. `chronon3d_subtitle_productive_tests` PASS.
