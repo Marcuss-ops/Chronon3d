@@ -139,7 +139,8 @@ build_cache_key(
 shape_paragraph_runs(
     const std::vector<ResolvedTextRun>& para_runs,
     FontEngine& engine,
-    float tracking
+    float tracking,
+    const std::string& features = {}
 );
 
 // ═══════════════════════════════════════════════════════════════════════════

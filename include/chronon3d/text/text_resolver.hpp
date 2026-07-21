@@ -199,12 +199,14 @@ FontSpec resolve_fallback_fonts(
 /// @param run      The resolved text run (font + direction + text).
 /// @param engine   FontEngine for HarfBuzz shaping.
 /// @param tracking Per-cluster tracking spacing in pixels.
+/// @param features OpenType / HarfBuzz feature string (e.g. "liga=1,kern=0").
 /// @return A PlacedGlyphRun with positioned glyphs and cluster info.
 ///         Returns an empty run (no glyphs) if the font fails to load.
 [[nodiscard]] PlacedGlyphRun shape_resolved_run(
     const ResolvedTextRun& run,
     FontEngine& engine,
-    float tracking = 0.0f
+    float tracking = 0.0f,
+    const std::string& features = {}
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
