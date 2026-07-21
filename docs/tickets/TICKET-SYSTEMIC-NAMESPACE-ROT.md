@@ -1,6 +1,12 @@
 # TICKET-SYSTEMIC-NAMESPACE-ROT — Systemic doubled-namespace rot across 19 files
 
-## Stato: CLOSED-WONTFIX (2026-07-21, this commit) + forward-point [TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED](TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED.md)
+## Stato: OPEN — V6 structural fix (2026-07-21, this reopen commit reverts the prior `e3846d43` CLOSED-WONTFIX per user Path D instruction: full `ninja all` inventory + Path B structural fix on COMPLETE file list)
+
+**Path D intent**: il precedent commit `e3846d43` (CLOSED-WONTFIX + forward-point ADR `TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED`) è stato superato da user instruction Path D: completare l'inventario rotology con `ninja -C build/chronon/linux-content-dev all` (full build), estrarre lista completa file-errori, applicare Path B structural fix (namespace convert + ::chronon3d:: qualification) su TUTTA la lista, rebuild totale + smoke + commit.
+
+**L'ADR forward-point resta valido** come decision-grade ref per qualunque rotology non chiudibile da Path B structural fix (es. casi edge di Strategy E combined B+D+A).
+
+**Tempo stimato**: 60-90 min.
 
 **Verdict & disposition**: Systemic rotology confirmed via `ninja -C build/chronon/linux-content-dev <targets>` diagnostic. Mitigation via targeted `::chronon3d::X` qualification (Path B / Op1 attempted) closed 1 of 6 affected targets (`chronon3d_registry`: 394 errors → 0 across the 4 `text_preset_factories_*` files via 83 idempotent qualifications); the other 5 targets (`chronon3d_text_health_tests`, `chronon3d_effects`, `chronon3d_backend_software`, etc.) carry **1500+ remaining rot errors** with disjoint symbol scopes that cannot be closed by symbol-list extension without cascade iteration.
 
