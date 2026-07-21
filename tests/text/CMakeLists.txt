@@ -27,7 +27,7 @@ chronon3d_add_test_suite(
     NAME  chronon3d_text_alignment_isolated_tests
     TIER  INTEGRATION
     SOURCES
-        test_text_alignment_isolated.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/test_text_alignment_isolated.cpp
     LINK_TARGETS
         chronon3d_pipeline
         chronon3d_backend_software
@@ -43,7 +43,7 @@ chronon3d_add_test_suite(
     NAME  chronon3d_text_auto_fit_tests
     TIER  UNIT
     SOURCES
-        test_text_auto_fit.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/test_text_auto_fit.cpp
     LINK_TARGETS
         chronon3d_pipeline
 )
