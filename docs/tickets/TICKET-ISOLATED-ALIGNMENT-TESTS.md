@@ -66,7 +66,7 @@ Quando l'alignment engine viene aggiornato per applicare `TextAlign` a single-li
 
 - **Deviation #1 (reviewer #2)**: `EXPECT_FAIL` pattern con `WARN + return` upfront rende i test dormienti (unreachable code). Alternativa (real assert + FAIL today) più onesta ma rompe consistency con Test 7 di `text_alignment.cpp`. Scelta: consistency (forward-point documenta activation protocol).
 - **Deviation #2 (reviewer #4)**: "Hello" è troppo corto per esporre kern pairs / ligatures. Forward-point: aggiungere sub-case "AVATAR" (kern) o "office" (ligatures) per copertura TICKET-OPENTYPE-FEATURES-PASS.
-- **Deviation #3 (reviewer #5)**: CHANGELOG entry ~1100 char descrive activation protocol inline. Per Cat-3 anti-dup canonical entry dovrebbe essere ≤1 sentence + ticket link; attivazione dettagliata vive nel ticket §Activation protocol.
+- **Deviation #3 (reviewer #5)**: CHANGELOG entry descrive activation protocol inline. Per Cat-3 anti-dup canonical entry dovrebbe essere ≤1 sentence + ticket link; attivazione dettagliata vive nel ticket §Activation protocol. **RESOLVED in chore fixup `afe70f33`**: nuovo CHANGELOG entry per chore fixup (~600 char) linka al TICKET invece di duplicare activation protocol inline.
 
 ## Cross-link canonici
 
