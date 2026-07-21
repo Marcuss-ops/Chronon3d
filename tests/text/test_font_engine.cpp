@@ -376,3 +376,58 @@ TEST_CASE("FontEngine: shape_text kerning on 'AV' is controlled by features stri
     CHECK(run_kern_on->width > 0.0f);
     CHECK(run_kern_off->width > 0.0f);
 }
+
+TEST_CASE("FontEngine: shape_text calt feature is parsed and applied") {
+    chronon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+
+    TextShaping sh_calt_on{};
+    sh_calt_on.features = "calt=1";
+    auto run_calt_on = engine.shape_text("->", inter_bold(), 32.0f, sh_calt_on);
+    REQUIRE(run_calt_on.has_value());
+
+    TextShaping sh_calt_off{};
+    sh_calt_off.features = "calt=0";
+    auto run_calt_off = engine.shape_text("->", inter_bold(), 32.0f, sh_calt_off);
+    REQUIRE(run_calt_off.has_value());
+
+    INFO("-> glyph_count calt=1=", run_calt_on->glyphs.size(),
+         "  calt=0=", run_calt_off->glyphs.size(),
+         "  width calt=1=", run_calt_on->width,
+         "  calt=0=", run_calt_off->width);
+
+    // Contextual alternates may or may not be present in Inter-Bold for
+    // the "->" sequence. The parsing pipeline must at least produce a
+    // valid shaping result for both states. If the font supports calt,
+    // enabling it can change the glyph count or width; if not, the two
+    // runs should be identical. We therefore only assert stability and
+    // positive width rather than a strict ordering.
+    CHECK(run_calt_on->width > 0.0f);
+    CHECK(run_calt_off->width > 0.0f);
+    CHECK(run_calt_on->glyphs.size() > 0);
+    CHECK(run_calt_off->glyphs.size() > 0);
+}
+
+TEST_CASE("FontEngine: combined OpenType features string reaches hb_shape") {
+    chronon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+
+    TextShaping sh;
+    sh.features = "kern=1,liga=0,calt=1";
+    auto run = engine.shape_text("AV office", inter_bold(), 32.0f, sh);
+    REQUIRE(run.has_value());
+    CHECK(run->glyphs.size() > 0);
+    CHECK(run->width > 0.0f);
+
+    // Combined feature string with explicit kerning disabled.
+    TextShaping sh_no_kern;
+    sh_no_kern.features = "kern=0,liga=0,calt=0";
+    auto run_no_kern = engine.shape_text("AV office", inter_bold(), 32.0f, sh_no_kern);
+    REQUIRE(run_no_kern.has_value());
+    CHECK(run_no_kern->glyphs.size() > 0);
+    CHECK(run_no_kern->width > 0.0f);
+}

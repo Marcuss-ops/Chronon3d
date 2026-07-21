@@ -147,14 +147,15 @@ std::vector<Result<PlacedGlyphRun, TextLayoutError>>
 shape_paragraph_runs(
     const std::vector<ResolvedTextRun>& para_runs,
     FontEngine& engine,
-    float tracking
+    float tracking,
+    const std::string& features
 ) {
     std::vector<Result<PlacedGlyphRun, TextLayoutError>> per_run_results;
     per_run_results.reserve(para_runs.size());
 
     for (std::size_t ri = 0; ri < para_runs.size(); ++ri) {
         const auto& run = para_runs[ri];
-        PlacedGlyphRun placed = shape_resolved_run(run, engine, tracking);
+        PlacedGlyphRun placed = shape_resolved_run(run, engine, tracking, features);
 
         // ── Per-run failure detection ────────────────────────
         // A run whose text is non-empty but HarfBuzz produced zero

@@ -119,10 +119,12 @@ ResolvedTextTree resolve_text_run_tree(
 PlacedGlyphRun shape_resolved_run(
     const ResolvedTextRun& run,
     FontEngine& engine,
-    float tracking
+    float tracking,
+    const std::string& features
 ) {
     TextShaping shaping;
     shaping.direction = run.direction;
+    shaping.features = features;
 
     // TICKET-101 follow-up — defense-in-depth: canonicalize the
     // BCP-47 language tag before forwarding to HarfBuzz.  The

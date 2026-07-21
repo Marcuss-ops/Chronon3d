@@ -111,6 +111,7 @@ TextDocumentCompileResult compile_text_document(
             primary_font,
             index,
         };
+        request.features = layout.features;
         auto layout_result = compile_text_layout(request, services, &tree);
         if (!layout_result) {
             result.complete = false;

@@ -77,7 +77,8 @@ compile_text_layout(
     auto per_run_results = tci::shape_paragraph_runs(
         paragraph.runs,
         engine,
-        layout.tracking);
+        layout.tracking,
+        request.features);
     auto placed_result = tci::apply_failure_policy(
         std::move(per_run_results),
         request.shaping_failure_policy);
