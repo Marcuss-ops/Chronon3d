@@ -1,6 +1,13 @@
 # TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED — Architectural decision on namespace structure to close systemic rotology
 
-## Stato: OPEN (forward-point, 2026-07-21)
+## Stato: CLOSED-SUPERSEDED (2026-07-21, this commit)
+
+**Supersession notice**: questo ticket è stato aperto come forward-point ADR nelle iterazioni precedenti di TICKET-SYSTEMIC-NAMESPACE-ROT. Con il commit `chore(ticket): close rot + open forward-point` (che ha anche chiuso `TICKET-SYSTEMIC-NAMESPACE-ROT` come WONTFIX-2 e revertito il Path D V6 partial fix), il forward-point canonico per la decisione ADR è ora [TICKET-ROT-STRUCTURAL-FIX](TICKET-ROT-STRUCTURAL-FIX.md) (richiesto esplicitamente dall'utente Path C). Questo ticket rimane archiviato come cronaca storica delle opzioni A-E considerate; il successor-canonical ADR record-keeping è `TICKET-ROT-STRUCTURAL-FIX`.
+
+**Cat-3 anti-dup disclosure**: i 2 ticket (TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED + TICKET-ROT-STRUCTURAL-FIX) hanno scope parzialmente sovrapposto; per evitare cronaca duplicata in canonicals, `TICKET-ROT-STRUCTURAL-FIX.md` è il forward-point canonico. Le 5 strategie (A qualification / B nested-ns / C using-directive / D include-flatten / E combined) documentate in questo ticket §Architectural decisions to consider sono inherit in `TICKET-ROT-STRUCTURAL-FIX §Decision Matrix`. Chiudere questo ticket evita la drift canonica nella sezione `Open Blockers` di `docs/FOLLOWUP_TICKETS.md`.
+
+**Refs**: `TICKET-SYSTEMIC-NAMESPACE-ROT` (predecessore, multi-iteration), `TICKET-V6-RESIDUAL-ROTOLOGY` (Path D forward-point, anch'esso CLOSED-SUPERSEDED in this commit), `TICKET-ROT-STRUCTURAL-FIX` (canonical successor).
+
 
 **Predecessor**: [TICKET-SYSTEMIC-NAMESPACE-ROT](TICKET-SYSTEMIC-NAMESPACE-ROT.md) (CLOSED-WONTFIX 2026-07-21, blast-radius 1500+ errors across 27+ files / 6 OBJECT targets).
 
