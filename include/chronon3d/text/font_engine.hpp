@@ -241,6 +241,35 @@ struct TextShaping {
     // When empty (default), hb_buffer_guess_segment_properties()
     // auto-detects the language from the text's character range.
     std::string language{};
+
+    // OpenType / HarfBuzz shaping features string (e.g. "kern=1,liga=0",
+    // "ss01=1", "-dlig").  Empty default = "use the font's natural
+    // feature set" (HarfBuzz applies its implicit defaults: kern=1,
+    // liga=1, calt=1, etc.).  Forwarded to HarfBuzz through
+    // hb_feature_from_string → hb_feature_t array passed to hb_shape().
+    //
+    // Examples (all hoist to the same 4-byte OpenType feature tags):
+    //   "kern=1"     — apply standard kerning (default ON in most fonts)
+    //   "kern=0"     — disable kerning (used by tests to measure baseline)
+    //   "liga=0"     — disable standard ligatures (fi, fl, ffi, ...)
+    //   "liga=1"     — enable standard ligatures (fs, ff, ffi, ...)
+    //   "dlig=1"     — enable discretionary ligatures (font-specific)
+    //   "ss01=1"     — enable stylistic set 01 (font-specific glyphs)
+    //   "-liga"      — HarfBuzz shorthand for liga=0
+    //   "-kern"      — HarfBuzz shorthand for kern=0
+    //
+    // Multiple features comma-separated: "kern=1,liga=0,ss01=1".
+    // Threading through the call chain:
+    //   TextRunLayout::features  (= TextShapingFeatures type alias)
+    //     → TextShaping::features (this struct)
+    //       → parse_opentype_features() (anon-namespace in font_engine.cpp)
+    //         → hb_shape(font, buf, features.data(), features.size())
+    //
+    // See docs/tickets/TICKET-OPENTYPE-FEATURES-PASS.md for the full rationale
+    // and verbatim design contract.  Type alias `TextShapingFeatures` is defined
+    // in include/chronon3d/text/text_run_layout.hpp (TICKET-103a lineage) and
+    // refers to the same std::string bytewise layout.
+    std::string features{};
 };
 
 // ── PlacedGlyph ─────────────────────────────────────────────────────────
