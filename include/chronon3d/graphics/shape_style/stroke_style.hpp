@@ -111,7 +111,7 @@ inline PathStroke StrokeStyle::to_path_stroke() const {
         GradientFill gf;
         gf.stops.reserve(g.color_stops.size());
         for (const auto& cs : g.color_stops) {
-            chronon3d::GradientStop fs;
+            ::chronon3d::GradientStop fs;
             fs.offset = cs.position;
             fs.color  = cs.color;
             // Blend opacity stops into colour stop alpha.
@@ -159,7 +159,7 @@ inline ShapeStroke StrokeStyle::to_shape_stroke() const {
         GradientFill gf;
         gf.stops.reserve(g.color_stops.size());
         for (const auto& cs : g.color_stops) {
-            chronon3d::GradientStop fs;
+            ::chronon3d::GradientStop fs;
             fs.offset = cs.position;
             fs.color  = cs.color;
             if (!g.opacity_stops.empty()) {

@@ -84,11 +84,11 @@ inline Fill FillStyle::to_fill() const {
 
     const auto& g = *gradient;
 
-    auto convert_stops = [&]() -> std::vector<chronon3d::GradientStop> {
-        std::vector<chronon3d::GradientStop> out;
+    auto convert_stops = [&]() -> std::vector<::chronon3d::GradientStop> {
+        std::vector<::chronon3d::GradientStop> out;
         out.reserve(g.color_stops.size());
         for (const auto& s : g.color_stops) {
-            chronon3d::GradientStop fs;
+            ::chronon3d::GradientStop fs;
             fs.offset = s.position;
             fs.color  = s.color;
             if (!g.opacity_stops.empty()) {

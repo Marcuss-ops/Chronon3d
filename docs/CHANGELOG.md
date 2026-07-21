@@ -1,4 +1,10 @@
 ## 2026-07-21
+
+### `fix(graphics): qualify GradientStop lookup (TICKET-GRAPHICS-SHAPE-STYLE-ROT)`
+Qualifica `chronon3d::GradientStop` → `::chronon3d::GradientStop` in 5 call-site (stroke_style.hpp:2 + fill_style.hpp:3) per risolvere rot scope-lookup in sub-namespace `chronon3d::graphics`. `chronon3d_animations` rebuild PASS post-fix. Scope espanso a systemic rot 19 file → vedi [TICKET-SYSTEMIC-NAMESPACE-ROT](tickets/TICKET-SYSTEMIC-NAMESPACE-ROT.md). Cat-3 minimal-surface (zero nuovi simboli, zero ABI impact).
+- **Golden regen deferred** pending [TICKET-SYSTEMIC-NAMESPACE-ROT](tickets/TICKET-SYSTEMIC-NAMESPACE-ROT.md) closure (19 file systemic rot blocks 6 test targets).
+
+## 2026-07-21
 ### `docs(sync): allinea 4 canonical al codice attuale (TICKET-DOC-SYNC-CAPCUT-VERDICT)`
   ([TICKET-DOC-SYNC-CAPCUT-VERDICT](docs/tickets/TICKET-DOC-SYNC-CAPCUT-VERDICT.md))
 
