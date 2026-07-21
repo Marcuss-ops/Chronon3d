@@ -55,7 +55,7 @@ struct NodeCacheKey {
 // `docs/tickets/TICKET-ae-cam-hash-collision.md`).
 //
 // AGENTS.md v0.1 Cat-3 caveat: these 3 inline symbols constitute a small
-// surface-area extension under `chronon3d::cache::`. They are public-by-
+// surface-area extension under `::chronon3d::cache::`. They are public-by-
 // include-path (this header is in the SDK umbrella) but functionally
 // internal-by-usage: only the 7 render-graph propagation sites
 // (multi_source_node.cpp + source_node.cpp + TextRunNode.cpp + their 4

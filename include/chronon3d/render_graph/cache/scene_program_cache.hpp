@@ -4,7 +4,7 @@
 // scene_program_cache.hpp — Non-destructive LRU cache for CompiledSceneProgram.
 //
 // This cache sits between PrecompNode and the render graph compiler.  Backed
-// by chronon3d::cache::LruCache<…, std::shared_ptr<CompiledSceneProgram>>
+// by ::chronon3d::cache::LruCache<…, std::shared_ptr<CompiledSceneProgram>>
 // in CapacityMode::Count, with the sharded + per-shard mutex impl that the
 // rest of the codebase uses.
 //
@@ -47,7 +47,7 @@
 #include <memory>
 #include <string>
 
-// Forward declaration of chronon3d::RenderCounters (lives in
+// Forward declaration of ::chronon3d::RenderCounters (lives in
 // <chronon3d/core/profiling/counters.hpp>).  Declared at file scope here so
 // the SceneProgramCache can hold a pointer without pulling the whole
 // counters header into every TU that includes this file.
@@ -78,7 +78,7 @@ struct TuneConfig {
     std::size_t max_capacity = 128;
 };
 
-/// Counter pointer bound to a chronon3d::RenderCounters instance (forward
+/// Counter pointer bound to a ::chronon3d::RenderCounters instance (forward
 /// declared at file scope above; full definition lives in
 /// <chronon3d/core/profiling/counters.hpp>).
 using RenderCounters = ::chronon3d::RenderCounters;
@@ -105,7 +105,7 @@ public:
     explicit SceneProgramCache(
         std::size_t capacity  = 0,
         std::size_t num_shards = 2,
-        chronon3d::cache::CacheDiagnostics* diag = nullptr);
+        ::chronon3d::cache::CacheDiagnostics* diag = nullptr);
 
     // Non-copyable, non-movable.  Same as before (the legacy impl was the
     // same).  We need to hold a stable address because pointer-stability
@@ -208,9 +208,9 @@ public:
     [[nodiscard]] const TuneConfig& tune_config() const noexcept { return m_tune_config; }
 
     // ── Telemetry coupling ──────────────────────────────────────────────
-    /// Bind a chronon3d::RenderCounters instance (may be nullptr).  Hit,
+    /// Bind a ::chronon3d::RenderCounters instance (may be nullptr).  Hit,
     /// miss, and eviction events bump the corresponding atomic counters.
-    void set_counters(chronon3d::RenderCounters* counters) noexcept { m_counters = counters; }
+    void set_counters(::chronon3d::RenderCounters* counters) noexcept { m_counters = counters; }
     void set_log_label(std::string label) { m_log_label = std::move(label); }
 
     // ── Eviction callback ───────────────────────────────────────────────
@@ -227,14 +227,14 @@ private:
 
     /// The actual storage.  Backed by LruCache in Count mode (every entry
     /// contributes exactly 1 unit of weight).  Uses `std::hash<Key>` as
-    /// the default Hash template arg — chronon3d::graph already provides
+    /// the default Hash template arg — ::chronon3d::graph already provides
     /// `std::hash<SceneStructureKey>` in compiled_scene_program.hpp.
-    chronon3d::cache::LruCache<
+    ::chronon3d::cache::LruCache<
         graph::SceneStructureKey,
         std::shared_ptr<graph::CompiledSceneProgram>>
         m_cache;
 
-    chronon3d::cache::CacheDiagnostics::Handle m_diag_handle;
+    ::chronon3d::cache::CacheDiagnostics::Handle m_diag_handle;
     std::atomic<bool> m_diag_alive{true};
 
     /// Cache-side facade atomic counters (so auto_tune doesn't have to
@@ -258,7 +258,7 @@ private:
     /// callback needs to recompute the per-shard cap-change size).
     std::size_t m_shard_count;
 
-    chronon3d::RenderCounters* m_counters   = nullptr;
+    ::chronon3d::RenderCounters* m_counters   = nullptr;
     ProgramEvictCallback    m_user_on_evict;
     std::string             m_log_label;
     TuneMode                m_tune_mode  = TuneMode::Fixed;

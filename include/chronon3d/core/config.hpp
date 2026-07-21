@@ -20,7 +20,7 @@
 //   cfg.set_fb_pool_budget(512 * 1024 * 1024);
 //
 //   // Deprecated (singleton — still works, emits warning):
-//   const auto& cfg = chronon3d::Config::get();
+//   const auto& cfg = ::chronon3d::Config::get();
 //   if (cfg.debug().glow()) { ... }
 
 #include <cstddef>
@@ -85,7 +85,7 @@ public:
     /// Replaces the legacy implicit-clear-after-job pattern.  Default is
     /// `TrimAfterJob` (matches pre-P1-21 production behavior: pipe_export_loop
     /// unconditionally called clear() at the end of every job).
-    [[nodiscard]] chronon3d::cache::FramebufferPoolClearPolicy
+    [[nodiscard]] ::chronon3d::cache::FramebufferPoolClearPolicy
     framebuffer_pool_clear_policy() const noexcept {
         return framebuffer_pool_clear_policy_;
     }
@@ -111,9 +111,9 @@ private:
 
     // policy
     bool disable_persistent_framebuffer_cache_ = false;
-    chronon3d::cache::FramebufferPoolClearPolicy
+    ::chronon3d::cache::FramebufferPoolClearPolicy
         framebuffer_pool_clear_policy_{
-            chronon3d::cache::FramebufferPoolClearPolicy::TrimAfterJob};
+            ::chronon3d::cache::FramebufferPoolClearPolicy::TrimAfterJob};
 };
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -187,7 +187,7 @@ public:
     /// (non-static).  Overrides the env-resolved default
     /// (CHRONON3D_FB_POOL_CLEAR_POLICY).  The CLI flag
     /// `--fb-pool-clear-policy` calls this on the per-job Config.
-    void set_fb_pool_clear_policy(chronon3d::cache::FramebufferPoolClearPolicy policy);
+    void set_fb_pool_clear_policy(::chronon3d::cache::FramebufferPoolClearPolicy policy);
 
     /// Inject the CPU budget so the same immutable instance is used by
     /// the scheduler, decoder, encoder and writer pipeline.

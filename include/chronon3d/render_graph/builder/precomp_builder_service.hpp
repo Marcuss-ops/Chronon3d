@@ -4,7 +4,7 @@
 // render_graph/builder/precomp_builder_service.hpp
 //
 // TICKET-010 — typed alternative to the legacy
-// `chronon3d::graph::RenderResourceContext::precomp_build` std::function.
+// `::chronon3d::graph::RenderResourceContext::precomp_build` std::function.
 //
 // Ownership / wiring:
 //   - `PipelineCatalogs::precomp_builder` owns the service instance
@@ -51,7 +51,7 @@ public:
     /// Returns nullptr on failure.  PrecompNode already treats nullptr as
     /// "outer fail; return empty framebuffer".
     [[nodiscard]] virtual std::unique_ptr<CompiledSceneProgram>
-    build(const chronon3d::Scene& scene,
+    build(const ::chronon3d::Scene& scene,
           RenderGraphContext& nested_ctx) const = 0;
 };
 
@@ -68,7 +68,7 @@ public:
 class DefaultPrecompBuilder final : public PrecompBuilderService {
 public:
     [[nodiscard]] std::unique_ptr<CompiledSceneProgram>
-    build(const chronon3d::Scene& scene,
+    build(const ::chronon3d::Scene& scene,
           RenderGraphContext& nested_ctx) const override;
 };
 
