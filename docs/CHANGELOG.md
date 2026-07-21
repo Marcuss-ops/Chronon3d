@@ -1,5 +1,11 @@
 ## 2026-07-21
 
+### `feat(reference): CapCut corpus skeleton + parity test stub`
+([TICKET-CAPCUT-REFERENCE-CORPUS](tickets/TICKET-CAPCUT-REFERENCE-CORPUS.md))
+Skeleton di `tests/reference/capcut/{static,subtitles,effects}/` con `.gitignore` locale per subdir (`current/` gitignored, `reference/` tracked-only-post-PR-review) + README policy blessed-only + test skeleton con 4 metric helpers inline + CMakeLists standalone via `chronon3d_add_test_suite(TIER INTEGRATION)`. Blessed PNGs NON committati (DEFERRED-PR-review forward-points a/b/c). Metriche riusate: `compute_ssim` (image_diff.hpp) + `alpha_bbox` + `ink_vertical_extent` (pixel_scan_helpers.hpp). Cat-3 minimal-surface (zero nuovi simboli in `include/chronon3d/`, zero ABI impact). Graceful-skip via `MESSAGE+CHECK(true)+return` quando corpus vuoto.
+
+## 2026-07-21
+
 ### `fix(graphics): qualify GradientStop lookup (TICKET-GRAPHICS-SHAPE-STYLE-ROT)`
 Qualifica `chronon3d::GradientStop` → `::chronon3d::GradientStop` in 5 call-site (stroke_style.hpp:2 + fill_style.hpp:3) per risolvere rot scope-lookup in sub-namespace `chronon3d::graphics`. `chronon3d_animations` rebuild PASS post-fix. Scope espanso a systemic rot 19 file → vedi [TICKET-SYSTEMIC-NAMESPACE-ROT](tickets/TICKET-SYSTEMIC-NAMESPACE-ROT.md). Cat-3 minimal-surface (zero nuovi simboli, zero ABI impact).
 - **Golden regen deferred** pending [TICKET-SYSTEMIC-NAMESPACE-ROT](tickets/TICKET-SYSTEMIC-NAMESPACE-ROT.md) closure (19 file systemic rot blocks 6 test targets).
