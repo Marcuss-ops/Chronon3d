@@ -15,6 +15,7 @@
 #include <chronon3d/math/glm_types.hpp>
 
 #include <cstddef>
+#include <string>
 #include <vector>
 
 namespace chronon3d {
@@ -103,6 +104,20 @@ struct ParagraphLayout {
     /// Total bounding box of the paragraph (width, height).
     /// Includes left/right indent and hanging punctuation overhang.
     Vec2 bounds{0.0f, 0.0f};
+
+    /// True when the paragraph was truncated because the number of
+    /// composed lines exceeded ParagraphStyle::max_lines.  The caller
+    /// should append ParagraphStyle::ellipsis (or an ellipsis glyph) to
+    /// the last visible line when rendering.  This flag is only set when
+    /// max_lines > 0 and truncation actually occurred.
+    bool truncated{false};
+
+    /// When `truncated` is true, this holds the UTF-8 ellipsis string
+    /// from the style at compose time.  The composer does not shape the
+    /// ellipsis itself (that would require a second shaping pass and
+    /// complicate the cache key); instead it records the intended
+    /// ellipsis so that downstream renderers can apply it.
+    std::string rendered_ellipsis{};
 };
 
 } // namespace chronon3d

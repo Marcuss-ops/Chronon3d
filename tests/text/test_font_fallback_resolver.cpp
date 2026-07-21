@@ -420,13 +420,14 @@ TEST_CASE("FontFallbackResolver: emoji ZWJ family + Devanagari + symbols audit")
         auto result = resolver.resolve_runs(
             sample.text, stack, shaping, 0, TextDirection::LTR, style);
 
-        INFO("missing_clusters=", result.missing_clusters,
+        const std::size_t missing_count = result.missing_clusters;
+        INFO("missing_count=", missing_count,
              " runs.size()=", result.runs.size());
 
         // Fail-loud audit fires: at least the expected uncovered codepoints
         // are counted and logged via spdlog::error inside `resolve_runs`.
-        CHECK_MESSAGE(result.missing_clusters >= sample.min_expected_missing,
-            sample.name, " missing_clusters=", result.missing_clusters,
+        CHECK_MESSAGE(missing_count >= sample.min_expected_missing,
+            sample.name, " missing_count=", missing_count,
             " expected >= ", sample.min_expected_missing);
 
         // Tofu-sink contract: at least one run is emitted so text is not

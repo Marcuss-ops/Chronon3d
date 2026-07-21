@@ -58,6 +58,7 @@ add_library(chronon3d_text_core OBJECT
     text_scramble_helpers.cpp
     unicode/utf8_decoder.cpp
     unicode/whitespace.cpp
+    unicode/line_break.cpp
     boundary_resolver/text_unit_map.cpp
     boundary_resolver/text_unit_map_lookups.cpp
     internal/text_resolver_helpers.cpp

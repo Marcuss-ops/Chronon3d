@@ -48,4 +48,20 @@ chronon3d_add_test_suite(
         chronon3d_pipeline
 )
 
+# ──────────────────────────────────────────────────────────────────────────
+# 3. Unicode line breaking (UAX#14-style, no ICU)
+#    CJK / Thai / Devanagari / Arabic / Hebrew no-space wrapping,
+#    mixed-direction runs, max_lines and grapheme-safe ellipsis hint.
+# ──────────────────────────────────────────────────────────────────────────
+chronon3d_add_test_suite(
+    NAME  chronon3d_text_unicode_line_breaking_tests
+    TIER  UNIT
+    SOURCES
+        ${CMAKE_CURRENT_LIST_DIR}/test_unicode_line_breaking.cpp
+    LINK_TARGETS
+        chronon3d_text_core
+        chronon3d_pipeline
+        chronon3d_backend_software
+)
+
 endif()  # CHRONON3D_BUILD_TESTS
