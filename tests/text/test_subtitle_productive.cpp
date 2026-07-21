@@ -310,3 +310,149 @@ TEST_CASE("SubtitleTrackBuilder can be instantiated and configured") {
     // Build should not throw for a valid preset and non-empty track.
     CHECK_NOTHROW(builder.build());
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Word timing quality classification (TICKET-WORD-TIMING-QUALITY)
+//
+// Adapter-side classification of `TimedCue::word_timing_quality`:
+//   * SRT / VTT   → always `Estimated` (uniform-split heuristic — no
+//                   source per-word data exists in those formats).
+//   * JSON w/ `words` array (Whisper-style) → `Authoritative`.
+//   * JSON w/o `words` but with `text` → `Estimated` (auto-fallback).
+//   * JSON w/ neither (cue queued-empty) → cue filtered by the queue
+//                   guard, but default field is `None` for safety.
+//
+// Default-constructed `TimedCue` must report `None` so callers never
+// see a False-positive `Estimated` from an uninitialised cue.
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("TimedCue default word_timing_quality is None (conservative default)") {
+    TimedCue cue;
+    CHECK(cue.words.empty());
+    CHECK(cue.word_timing_quality == WordTimingQuality::None);
+}
+
+TEST_CASE("SRT adapter classifies per-word timing as Estimated") {
+    const char* srt = R"(1
+00:00:01,000 --> 00:00:04,000
+Hello world
+
+)";
+    auto track = subtitle_from_srt(srt);
+    REQUIRE(track.cues.size() == 1);
+    CHECK(track.cues[0].words.size() == 2);
+    CHECK(track.cues[0].word_timing_quality == WordTimingQuality::Estimated);
+}
+
+TEST_CASE("VTT adapter classifies per-word timing as Estimated") {
+    const char* vtt = R"(WEBVTT
+
+00:00:01.000 --> 00:00:04.000
+Hello world
+
+)";
+    auto track = subtitle_from_vtt(vtt);
+    REQUIRE(track.cues.size() == 1);
+    CHECK(track.cues[0].word_timing_quality == WordTimingQuality::Estimated);
+}
+
+TEST_CASE("JSON adapter classifies per-word timing as Authoritative when source provides words") {
+    const char* json = R"({
+  "cues": [
+    {
+      "id": "c1",
+      "start": 1.0, "end": 4.0,
+      "text": "Hello world",
+      "words": [
+        {"word": "Hello", "start": 1.0, "end": 1.5, "id": "w1"},
+        {"word": "world", "start": 2.5, "end": 4.0, "id": "w2"}
+      ]
+    }
+  ]
+})";
+    auto track = subtitle_from_json(json);
+    REQUIRE(track.cues.size() == 1);
+    CHECK(track.cues[0].words.size() == 2);
+    CHECK(track.cues[0].word_timing_quality == WordTimingQuality::Authoritative);
+}
+
+TEST_CASE("JSON adapter classifies per-word timing as Estimated when auto-fallback fires") {
+    const char* json = R"({
+  "cues": [
+    {
+      "id": "c1",
+      "start": 1.0, "end": 4.0,
+      "text": "Hello world"
+    }
+  ]
+})";
+    auto track = subtitle_from_json(json);
+    REQUIRE(track.cues.size() == 1);
+    CHECK(track.cues[0].words.size() == 2);
+    CHECK(track.cues[0].word_timing_quality == WordTimingQuality::Estimated);
+}
+
+TEST_CASE("active_word_style_at propagates cue word_timing_quality to WordStyleState") {
+    SubtitleTrack track;
+    SubtitleCue cue;
+    cue.start_s = 0.0f;
+    cue.end_s = 4.0f;
+    cue.text = "Hello world";
+    cue.words = {
+        TimedWord{"Hello", 0.0f, 2.0f, "w1"},
+        TimedWord{"world", 2.0f, 4.0f, "w2"},
+    };
+    cue.word_timing_quality = WordTimingQuality::Authoritative;
+    track.cues.push_back(cue);
+
+    auto state = active_word_style_at(track, 0.5f);
+    CHECK(state.highlighted);
+    CHECK(state.quality == WordTimingQuality::Authoritative);
+
+    // Mutate the cue and verify the helper re-reads (no caching).
+    track.cues[0].word_timing_quality = WordTimingQuality::Estimated;
+    auto state2 = active_word_style_at(track, 0.5f);
+    CHECK(state2.quality == WordTimingQuality::Estimated);
+}
+
+TEST_CASE("hash_timed_cue distinguishes Estimated vs Authoritative on otherwise-identical cue data") {
+    // TICKET-WORD-TIMING-QUALITY round-2 reviewer actioned (Finding C):
+    // regression lock for the 1-line hash mix.  Without this test a future
+    // refactor could remove the mix line silently without test-detection.
+    TimedCue a;
+    a.start_s = 1.0f;
+    a.end_s = 4.0f;
+    a.text = "Hello world";
+    a.words = {
+        TimedWord{"Hello", 1.0f, 2.5f, "w1"},
+        TimedWord{"world", 2.5f, 4.0f, "w2"},
+    };
+    a.source_id = "c1";
+    a.word_timing_quality = WordTimingQuality::Estimated;
+
+    TimedCue b = a;
+    b.word_timing_quality = WordTimingQuality::Authoritative;
+
+    CHECK(hash_timed_cue(a) != hash_timed_cue(b));
+}
+
+TEST_CASE("active_word_style_at keeps quality=None when cue has no words (early-return default)") {
+    // TICKET-WORD-TIMING-QUALITY round-2 reviewer actioned: lock the
+    // early-return contract.  When the cue exists but `cue.words.empty()`,
+    // the helper short-circuits BEFORE `state.quality = cue->word_timing_quality;`
+    // is set, so `state.quality` stays at the conservative default `None`.
+    // The cue's own quality field (set to Authoritative here) is irrelevant
+    // — the helper default is the contract the renderer can trust.
+    SubtitleTrack track;
+    SubtitleCue cue;
+    cue.start_s = 0.0f;
+    cue.end_s = 4.0f;
+    cue.text = "Hello world";
+    // cue.words left empty intentionally
+    cue.word_timing_quality = WordTimingQuality::Authoritative; // would normally propagate
+    track.cues.push_back(cue);
+
+    auto state = active_word_style_at(track, 2.0f);
+    CHECK(!state.highlighted);
+    CHECK(state.quality == WordTimingQuality::None);
+}

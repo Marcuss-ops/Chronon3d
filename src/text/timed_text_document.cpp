@@ -31,6 +31,11 @@ u64 hash_timed_cue(const TimedCue& cue) {
         if (cue.style->font_weight)  h = hcombine(h, hval(*cue.style->font_weight));
     }
     h = hcombine(h, hstring(cue.source_id));
+    // TICKET-WORD-TIMING-QUALITY: mix provenance to prevent
+    // Estimated↔Authoritative collision on otherwise-identical cue data
+    // (sparse JSON `words` array case: source-intended word-level but
+    // start/end are 0/0 hashes identically to a malformed Estimated cue).
+    h = hcombine(h, hval(static_cast<std::uint32_t>(cue.word_timing_quality)));
     return h;
 }
 
