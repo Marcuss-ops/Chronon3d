@@ -1,4 +1,5 @@
 #include <chronon3d/authoring/subtitle_track_builder.hpp>
+#include <chronon3d/core/types/time.hpp>
 
 #include <chronon3d/registry/text_preset_registry.hpp>
 #include <chronon3d/registry/text_preset_resolver.hpp>
@@ -13,18 +14,15 @@ FrameRate SubtitleTrackBuilder::active_frame_rate() const noexcept {
     if (frame_rate_override_.has_value()) {
         return frame_rate_override_.value();
     }
-    if (builder_) {
-        return builder_->frame_rate();
-    }
-    return FrameRate{30, 1};
+    // SubtitleTrackBuilder is always constructed with a valid LayerBuilder,
+    // so the parent composition frame rate is the single source of truth.
+    // No fallback default frame rate is provided here.
+    return builder_->frame_rate();
 }
 
 Frame SubtitleTrackBuilder::seconds_to_frame(float seconds) const {
-    const FrameRate fr = active_frame_rate();
-    return static_cast<Frame>(
-        std::lround(static_cast<double>(seconds) *
-                    static_cast<double>(fr.numerator) /
-                    static_cast<double>(fr.denominator)));
+    return chronon3d::seconds_to_frame(
+        static_cast<double>(seconds), active_frame_rate(), FrameRounding::Nearest);
 }
 
 void SubtitleTrackBuilder::build() {
@@ -96,7 +94,7 @@ void SubtitleTrackBuilder::build() {
             word_sel.unit = TextSelectorUnit::Word;
             word_sel.start = static_cast<f32>(w);
             word_sel.end = static_cast<f32>(w + 1);
-            word_sel.shape = TextSelectorShape::Hold;
+            word_sel.shape = TextSelectorShape::Square;
             word_sel.id = "subtitle_cue_" + std::to_string(i)
                           + "_word_" + std::to_string(w) + "_sel";
             run_spec.selectors.push_back(std::move(word_sel));

@@ -524,14 +524,14 @@ TEST_CASE("TextRunSpec::selectors holds N word selectors post-builder-wiring (ro
         word_sel.unit = TextSelectorUnit::Word;
         word_sel.start = static_cast<f32>(w);
         word_sel.end = static_cast<f32>(w + 1);
-        word_sel.shape = TextSelectorShape::Hold;
+        word_sel.shape = TextSelectorShape::Square;
         word_sel.id = "test_word_" + std::to_string(w) + "_sel";
         run_spec.selectors.push_back(std::move(word_sel));
     }
     CHECK(run_spec.selectors.size() == expected_count);
     CHECK(run_spec.selectors[0].unit == TextSelectorUnit::Word);
-    CHECK(run_spec.selectors[0].start == 0.0f);
-    CHECK(run_spec.selectors[0].end == 1.0f);
+    CHECK(run_spec.selectors[0].start.value_at(Frame{0}) == doctest::Approx(0.0f));
+    CHECK(run_spec.selectors[0].end.value_at(Frame{0}) == doctest::Approx(1.0f));
 }
 
 TEST_CASE("hash_timed_cue distinguishes Estimated vs Authoritative on otherwise-identical cue data") {
