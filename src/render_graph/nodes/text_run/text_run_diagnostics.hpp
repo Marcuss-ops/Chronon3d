@@ -20,6 +20,10 @@
 #include <optional>
 #include <string_view>
 
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+#include <chronon3d/text/text_visibility_audit.hpp>
+#endif
+
 namespace chronon3d::graph::text_run {
 
 /// spdlog::error("[text-run] node='...' draw_text_run failed: [code] msg").
@@ -52,5 +56,16 @@ void report_diagnostic(
     const glm::mat4& world_matrix,
     std::optional<std::uint64_t> shape_hash
 );
+
+#ifdef CHRONON3D_BUILD_DIAGNOSTICS
+/// Emit a structured spdlog::debug line with the geometric diagnostics
+/// fields (layout_bbox, ink_bbox, effect_bbox, baseline, anchor_point,
+/// resolved_canvas_position). Gated on CHRONON3D_BUILD_DIAGNOSTICS so
+/// production builds elide the symbol entirely.
+void report_geometry_diagnostic(
+    std::string_view node_name,
+    const chronon3d::TextVisibilityAudit& audit
+);
+#endif
 
 }  // namespace chronon3d::graph::text_run

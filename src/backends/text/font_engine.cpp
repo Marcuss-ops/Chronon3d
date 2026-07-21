@@ -7,6 +7,12 @@
 #include <chronon3d/text/typewriter_layout_cache.hpp>
 #include <spdlog/spdlog.h>
 
+// Cat-5 internal: definition of the cluster-fallback coverage probe free
+// function. See `src/backends/text/font_engine_internal.hpp` for the
+// consumer-facing declaration; the friend declaration on FontEngine
+// grants access to `m_impl`.
+#include "src/backends/text/font_engine_internal.hpp"
+
 #ifdef CHRONON3D_ENABLE_TEXT
 #include <ft2build.h>
 #include FT_FREETYPE_H
@@ -441,6 +447,52 @@ bool FontEngine::can_load(const FontSpec& spec) {
     return ok && inserted_it->second.valid();
 }
 
+// Cat-5: glyph coverage probe is a free function in the
+// `font_engine_internal` namespace, friend-declared on FontEngine. The
+// class itself does NOT expose `has_glyph_for_codepoint` as a public
+// method, keeping the public ABI minimal.
+namespace chronon3d::text::font_engine_internal {
+
+bool has_glyph_for_codepoint(FontEngine& engine, const FontSpec& spec, char32_t codepoint) {
+#ifdef CHRONON3D_ENABLE_TEXT
+    if (!engine.m_impl || !engine.m_impl->ft_library) return false;
+
+    auto get_face = [&engine](const FontSpec& spec) -> FaceEntry* {
+        {
+            std::shared_lock<std::shared_mutex> shared_lock(engine.m_impl->face_cache_mutex);
+            auto it = engine.m_impl->face_cache.find(spec);
+            if (it != engine.m_impl->face_cache.end()) {
+                return it->second.valid() ? &it->second : nullptr;
+            }
+        }
+        std::unique_lock<std::shared_mutex> unique_lock(engine.m_impl->face_cache_mutex);
+        auto it = engine.m_impl->face_cache.find(spec);
+        if (it == engine.m_impl->face_cache.end()) {
+            auto entry = engine.m_impl->load_face(spec);
+            if (!entry) return nullptr;
+            auto [inserted_it, ok] = engine.m_impl->face_cache.emplace(spec, std::move(*entry));
+            if (!ok) return nullptr;
+            it = inserted_it;
+        }
+        return it->second.valid() ? &it->second : nullptr;
+    };
+
+    FaceEntry* entry = get_face(spec);
+    if (!entry) return false;
+
+    hb_codepoint_t glyph = 0;
+    if (hb_font_get_nominal_glyph(entry->hb_font, static_cast<hb_codepoint_t>(codepoint), &glyph)) {
+        return glyph != 0;
+    }
+    return false;
+#else
+    (void)engine; (void)spec; (void)codepoint;
+    return false;
+#endif
+}
+
+} // namespace chronon3d::text::font_engine_internal
+
 // =============================================================================
 // Stub implementation (no FreeType / HarfBuzz available)
 // =============================================================================
@@ -489,6 +541,15 @@ size_t FontEngine::glyph_bbox_cache_size() const { return 0; }
 bool FontEngine::can_load(const FontSpec&) { return false; }
 
 #endif // CHRONON3D_ENABLE_TEXT
+
+// Cat-5: stub for the cluster-fallback coverage probe (no FreeType /
+// HarfBuzz available). Must mirror the full namespace declaration so
+// the symbol exists in both modes.
+namespace chronon3d::text::font_engine_internal {
+
+bool has_glyph_for_codepoint(FontEngine&, const FontSpec&, char32_t) { return false; }
+
+} // namespace chronon3d::text::font_engine_internal
 
 // ── resolve_placed_glyph_run (extracted to font_engine_placed_run.cpp) ────
 // FASE 14 — see src/backends/text/font_engine_placed_run.cpp
