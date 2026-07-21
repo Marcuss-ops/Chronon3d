@@ -46,7 +46,7 @@
 
 // TICKET-107 — per-category register helpers exposed to sibling TUs + tests
 // (sees the 4 helpers + register_builtin_presets lifted out of the file-local
-// anon namespace into `chronon3d::registry::register_helpers_internal`).
+// anon namespace into `::chronon3d::registry::register_helpers_internal`).
 #include "text_preset_register_helpers.hpp"
 #include "text_preset_internal_helpers.hpp"  // M1.5#13 (1/4) — shared factory helpers (NOT installed; lives under src/registry/).
 

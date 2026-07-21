@@ -88,8 +88,8 @@ struct PrecompInstanceKey {
 
 // std::hash support so PrecompInstanceKey can be used as an unordered_map key.
 template <>
-struct std::hash<chronon3d::graph::PrecompInstanceKey> {
-    std::size_t operator()(const chronon3d::graph::PrecompInstanceKey& k) const noexcept {
+struct std::hash<::chronon3d::graph::PrecompInstanceKey> {
+    std::size_t operator()(const ::chronon3d::graph::PrecompInstanceKey& k) const noexcept {
         // Combine two uint64_t hashes (same approach as boost::hash_combine).
         std::size_t h = std::hash<std::uint64_t>{}(k.graph);
         h ^= std::hash<std::uint64_t>{}(k.node) + 0x9e3779b9 + (h << 6) + (h >> 2);

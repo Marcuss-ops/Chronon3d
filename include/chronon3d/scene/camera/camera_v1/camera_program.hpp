@@ -252,7 +252,7 @@ public:
     /// duplication).  The base state is read from the internal descriptor.
     /// Only valid after compile_camera(); calls without compilation will
     /// produce an error diagnostic.
-    [[nodiscard]] chronon3d::Result<EvaluatedCamera, CameraEvaluationError>
+    [[nodiscard]] ::chronon3d::Result<EvaluatedCamera, CameraEvaluationError>
     evaluate(const CameraEvalContext& ctx,
              CameraSession& session) const;
 
@@ -281,7 +281,7 @@ public:
     }
 
 private:
-    friend chronon3d::Result<CameraProgram, CameraCompileError>
+    friend ::chronon3d::Result<CameraProgram, CameraCompileError>
     compile_camera(const CameraDescriptor&, const CameraCatalog*, CameraCompileContext&);
 
     // ── Runtime state ───────────────────────────────────────────────────

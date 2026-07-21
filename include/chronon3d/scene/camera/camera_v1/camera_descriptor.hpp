@@ -213,10 +213,10 @@ struct RegisteredMotionRef {
 /// within ε (linear interpolation between samples).
 ///
 /// Body of sample_at() is defined in camera_descriptor_adapters.cpp to keep
-/// the header lean (the impl uses chronon3d::animation::lerp + easing_value
+/// the header lean (the impl uses ::chronon3d::animation::lerp + easing_value
 /// + normalized_time which live in <chronon3d/animations/camera_motion_params.hpp>).
 struct CameraMotionParamsSource {
-    chronon3d::animation::CameraMotionParams params{};
+    ::chronon3d::animation::CameraMotionParams params{};
 
     /// Side-effect-free evaluation: given a ctx_frame, return the Camera2_5D
     /// pose per the canonical animation helpers.  Mirrors the body of the
