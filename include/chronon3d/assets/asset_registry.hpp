@@ -31,7 +31,7 @@ inline AssetId asset_id_from_path(const std::filesystem::path& path) {
 //   Removed `static AssetRegistry& instance()`.  The host (CLI, test runner)
 //   creates an AssetRegistry and passes it explicitly.
 //
-//   Path resolution is delegated to ::chronon3d::assets::AssetResolver
+//   Path resolution is delegated to chronon3d::assets::AssetResolver
 //   (owned by RenderRuntime as a sibling of AssetRegistry).  Use
 //   `runtime.resolver().resolve_lexical(path)` for deterministic,
 //   per-engine path resolution.

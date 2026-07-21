@@ -34,8 +34,8 @@
 //      `create_selector_reveal_presets()`; it does NOT call
 //      `TextPresetRegistry::register_preset`.
 //
-//  (3) Uses `::chronon3d::registry::internal::make_presetc_template` and
-//      `::chronon3d::registry::internal::wire_through_resolver` from
+//  (3) Uses `chronon3d::registry::internal::make_presetc_template` and
+//      `chronon3d::registry::internal::wire_through_resolver` from
 //      the shared internal helper header.
 //
 //  (4) Lives in the same `factory_reveal` namespace as the aggregator so
@@ -62,9 +62,9 @@
 
 namespace chronon3d::registry::register_helpers_internal::factory_reveal {
 
-using LayerBuilderT  = ::chronon3d::registry::internal::LayerBuilderT;
-using SceneBuilderT  = ::chronon3d::registry::internal::SceneBuilderT;
-using TextSpecT      = ::chronon3d::registry::internal::TextSpecT;
+using LayerBuilderT  = chronon3d::registry::internal::LayerBuilderT;
+using SceneBuilderT  = chronon3d::registry::internal::SceneBuilderT;
+using TextSpecT      = chronon3d::registry::internal::TextSpecT;
 
 // ── TU-local helper (Action 12b) ────────────────────────────────────────────
 //
@@ -99,7 +99,7 @@ TextPresetDescriptor make_reveal_descriptor(
 // 7. tracking_close — AGENT 2 — 35f timeline, tracking 0.18→0 (OutExpo) + opacity 0→1.
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_tracking_close(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("tracking_close");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("tracking_close");
 
     TrackingProperty tp;
     tp.pixels.add_keyframe(Frame{0},  0.18f, EasingCurve{Easing::OutExpo});
@@ -118,7 +118,7 @@ compose_tracking_close(const PresetMetadata& /*meta*/) {
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_masked_line_reveal(const PresetMetadata& /*meta*/) {
     const EasingCurve eo_line{Easing::OutCubic};
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("masked_line_reveal");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("masked_line_reveal");
     a.properties.push_back(PositionProperty{Vec3{120.0f, 0.0f, 0.0f}});
 
     // FASE 2b: Override default global Glyph selector with per-Line selector.
@@ -141,7 +141,7 @@ compose_masked_line_reveal(const PresetMetadata& /*meta*/) {
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_word_cascade(const PresetMetadata& /*meta*/) {
     const EasingCurve eo_words{Easing::OutCubic};
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("word_cascade");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("word_cascade");
 
     OpacityProperty op;
     op.value.add_keyframe(Frame{0},  0.0f,  eo_words);
@@ -178,7 +178,7 @@ compose_word_cascade(const PresetMetadata& /*meta*/) {
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_character_cascade(const PresetMetadata& /*meta*/) {
     const EasingCurve eo_char{Easing::OutCubic};
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("character_cascade");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("character_cascade");
 
     OpacityProperty op;
     op.value.add_keyframe(Frame{0},  0.0f,  eo_char);
@@ -232,7 +232,7 @@ TextPresetDescriptor tracking_close_entry() {
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
            const TextSpecT& spec) {
-            (void)::chronon3d::registry::internal::wire_through_resolver(lb, "tracking_close", spec);
+            (void)chronon3d::registry::internal::wire_through_resolver(lb, "tracking_close", spec);
         });
 }
 
@@ -254,7 +254,7 @@ TextPresetDescriptor masked_line_reveal_entry() {
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
            const TextSpecT& spec) {
-            ::chronon3d::registry::internal::wire_through_resolver(lb, "masked_line_reveal", spec)
+            chronon3d::registry::internal::wire_through_resolver(lb, "masked_line_reveal", spec)
               .center_split(Frame{30})
               .fade_shift_horizontal(Vec3{120.0f, 0.0f, 0.0f}, Frame{25});
         });
@@ -283,7 +283,7 @@ TextPresetDescriptor word_cascade_entry() {
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
            const TextSpecT& spec) {
-            (void)::chronon3d::registry::internal::wire_through_resolver(lb, "word_cascade", spec);
+            (void)chronon3d::registry::internal::wire_through_resolver(lb, "word_cascade", spec);
         });
 }
 
@@ -309,7 +309,7 @@ TextPresetDescriptor character_cascade_entry() {
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
            const TextSpecT& spec) {
-            (void)::chronon3d::registry::internal::wire_through_resolver(lb, "character_cascade", spec);
+            (void)chronon3d::registry::internal::wire_through_resolver(lb, "character_cascade", spec);
         });
 }
 
