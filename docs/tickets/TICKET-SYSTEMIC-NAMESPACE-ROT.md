@@ -1,6 +1,20 @@
 # TICKET-SYSTEMIC-NAMESPACE-ROT — Systemic doubled-namespace rot across 19 files
 
-## Stato: OPEN — V6 structural fix (2026-07-21, this reopen commit reverts the prior `e3846d43` CLOSED-WONTFIX per user Path D instruction: full `ninja all` inventory + Path B structural fix on COMPLETE file list)
+## Stato: CLOSED-WONTFIX-2 (2026-07-21, this commit reverts Path D V6 partial fix + Path B earlier CLOSED-WONTFIX + opens TICKET-ROT-STRUCTURAL-FIX ADR forward-point)
+
+**Final disposition** (per Path C user instruction, 2026-07-21): il rotology systemico osservato al HEAD corrente (356 errori / 175 rot-patterns / 27+ file in `ninja -C build/chronon/linux-content-dev all` baseline) è REALE ma **NON rompe la baseline 11/11 verde certificata a `7eb5c2ba`** (vedi `docs/baselines/main-7eb5c2ba-baseline.md`). Il rot è emerso dopo commit successivi (`323fe2ce`, etc.) ma non è ancora presente nello snapshot certificato; fix richiesto MA non bloccante per il rilascio V0.1. Soluzione strutturale richiesta via ADR (forward-point [TICKET-ROT-STRUCTURAL-FIX](TICKET-ROT-STRUCTURAL-FIX.md)).
+
+**Path D V6 partial fix reverted** (`ec6d6aab`): reverted in this commit. Il fix Path B Op1 V6 aveva qualificato 29 simboli (`::chronon3d::X`) su 31 file sorgente / 404 LoC con riduzione 356→~169 (52.5%) ma senza chiusura completa (build remained parzialmente rosso). Disclosure in §Closure Evidence (Path D partial fix archived).
+
+**Cronologia chiusura**: questo ticket e' stato oggetto di 4 cicli di apertura/chiusura in questa sessione:
+- (1) Aperto originariamente per il rot `GradientStop` systemico (post-Opzione 2 in `TICKET-GRAPHICS-SHAPE-STYLE-ROT`)
+- (2) Chiuso WONTFIX con disclosure rotology 19/21 file scope (commit `e3846d43` revertito dopo user Path D override)
+- (3) Riaperto come OPEN — V6 structural fix (commit `0cd0308b`)
+- (4) Path D executed (commit `ec6d6aab`, V6 partial + forward-point `TICKET-V6-RESIDUAL-ROTOLOGY`)
+- (5) **Chiuso WONTFIX-2 con disclosure onesta** (questo commit) — Path C user instruction
+
+**Motivazione WONTFIX-2**: il rotology è reale MA non rompe il baseline `7eb5c2ba` (che rimane verde). Il baseline certified è il contratto di release; il rotology post-baseline è not-undisclosed build-class debt che richiede ADR-grade architectural decision (forward-point TICKET-ROT-STRUCTURAL-FIX) invece di partial-cycle fix iterations sul main. Cat-3 anti-dup canonical closure.
+
 
 **Path D intent**: il precedent commit `e3846d43` (CLOSED-WONTFIX + forward-point ADR `TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED`) è stato superato da user instruction Path D: completare l'inventario rotology con `ninja -C build/chronon/linux-content-dev all` (full build), estrarre lista completa file-errori, applicare Path B structural fix (namespace convert + ::chronon3d:: qualification) su TUTTA la lista, rebuild totale + smoke + commit.
 
