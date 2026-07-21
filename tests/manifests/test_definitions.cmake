@@ -62,3 +62,6 @@ set(CHRONON3D_TEST_DEFINITIONS
 
 # CapCut-grade parity test (TICKET-CAPCUT-REFERENCE-CORPUS, FU09 verdict CapCut-grade §Fase 9)
 reference/capcut/CMakeLists.txt
+
+# Isolated alignment + auto-fit regression locks (TICKET-ISOLATED-ALIGNMENT-TESTS, FU07 verdict CapCut-grade §Fase 7)
+text/CMakeLists.txt
