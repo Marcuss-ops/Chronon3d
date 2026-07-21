@@ -25,6 +25,7 @@ set(CHRONON3D_TEST_DEFINITIONS
     text_golden_tests.cmake
     text_production_v1_tests.cmake
     text_health_tests.cmake
+    text_fallback_tests.cmake
     golden_matrix_subtitle_tests.cmake
     golden_matrix_emphasis_tests.cmake
     golden_matrix_cinematic_tests.cmake

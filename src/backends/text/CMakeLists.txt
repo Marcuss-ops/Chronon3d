@@ -6,7 +6,6 @@ add_library(chronon3d_backend_text OBJECT
     blend2d_glyph_conversion.cpp     # fill/stroke style applicator + Hb→BL glyph run converter
     freetype_outline_conversion.cpp  # FT_Outline→BLPath outline decoder
     glyph_texture_updater.cpp        # atlas-or-fill placed-glyph renderer
-    text_rasterizer_ink.cpp
     text_material.cpp
     font_engine.cpp
     font_engine_placed_run.cpp        # resolve_placed_glyph_run

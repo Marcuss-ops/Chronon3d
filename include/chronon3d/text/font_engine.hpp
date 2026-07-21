@@ -344,6 +344,25 @@ namespace chronon3d {
 //   auto run = engine.shape_text("Hello", FontSpec{"path.ttf", "Family", 400}, 32.0f);
 //   for (const auto& g : run.glyphs) { /* ... */ }
 
+// ── Cat-5: font engine internal namespace ────────────────────────
+//
+// Friend access for the cluster-fallback coverage probe free function
+// (declared in `src/backends/text/font_engine_internal.hpp`). Forward-
+// declared here as a non-member free function so the public ABI does not
+// expand with a new method on FontEngine. Placed BEFORE the FontEngine
+// class so the friend declaration inside its body resolves to this
+// already-declared symbol (a friend-qualified-name is NOT itself an
+// introducing declaration).
+class FontEngine;        // forward declare so the free function below
+                          // can reference FontEngine&.
+namespace text::font_engine_internal {
+    [[nodiscard]] bool has_glyph_for_codepoint(
+        FontEngine&     engine,
+        const FontSpec& spec,
+        char32_t         codepoint
+    );
+} // namespace text::font_engine_internal
+
 class FontEngine {
 public:
     /// WP-8 PR 8.0 — explicit AssetResolver ctor.  Every FontEngine owns a
@@ -413,9 +432,36 @@ public:
     [[nodiscard]] size_t glyph_bbox_cache_size() const;
 
 private:
+    // Cat-5 internal: friend access for the free-function probe declared
+    // in `src/backends/text/font_engine_internal.hpp`. The free function
+    // grants access to `m_impl` for the cluster-level fallback resolver
+    // WITHOUT expanding the public ABI.
+    friend bool text::font_engine_internal::has_glyph_for_codepoint(
+        FontEngine&, const FontSpec&, char32_t);
+
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 };
+
+// ── Cat-5: font engine internal namespace forward decls ──────────────
+//
+// The cluster-level fallback resolver (src/text/resolver/font_fallback_resolver.cpp)
+// needs a coverage-probe that doesn't shape text. We expose this as a free
+// function in `chronon3d::text::font_engine_internal::*`, friend-declared on
+// `FontEngine` so it can access `m_impl`. This avoids expanding the public
+// ABI with a new method. See `src/backends/text/font_engine_internal.hpp`
+// for the consumer-facing declaration.
+//
+// Declared here (after `FontSpec` / `FontIdentity` are visible, before
+// `FontEngine` so the friend declaration inside its class body picks up
+// the same symbol).
+namespace chronon3d::text::font_engine_internal {
+    [[nodiscard]] bool has_glyph_for_codepoint(
+        FontEngine&     engine,
+        const FontSpec& spec,
+        char32_t         codepoint
+    );
+} // namespace chronon3d::text::font_engine_internal
 
 // ── Free functions ────────────────────────────────────────────────────
 

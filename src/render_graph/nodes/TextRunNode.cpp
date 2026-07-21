@@ -572,10 +572,18 @@ NodeExecResult TextRunNode::execute(
             renderer::compute_text_run_visual_bounds(*m_shape));
         (void)local_ink_bbox;  // audit now reads it internally; see
                                 // TICKET-VISIBILITY-OVERRIDE-DEDUP.
-        verify_text_visibility(
+        const auto audit = verify_text_visibility(
             *m_shape, world_matrix, predicted_r, clip_r,
             fb.get(), m_name.c_str(),
             /*deduper=*/s_warn_deduper);
+
+        // Emit structured geometric diagnostics (layout/ink/effect bounds,
+        // baseline, anchor point, canvas position) when diagnostics are on.
+        // The fields are already computed by the canonical audit; this simply
+        // records them in the diagnostic log.
+        if (ctx.policy.diagnostics_enabled) {
+            text_run::report_geometry_diagnostic(m_name, audit);
+        }
     }
 #endif
 

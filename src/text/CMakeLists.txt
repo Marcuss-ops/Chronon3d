@@ -30,6 +30,7 @@ add_library(chronon3d_text_core OBJECT
     resolver/text_span_resolver.cpp
     resolver/text_bidi_resolver.cpp
     resolver/text_font_resolver.cpp
+    resolver/font_fallback_resolver.cpp
 
     text_run_hash.cpp
     text_layout_cache.cpp
