@@ -28,6 +28,8 @@
 #include <set>
 #include <shared_mutex>
 #include <unordered_map>
+#include <cctype>   // std::isspace for the OpenType feature token parser (TICKET-OPENTYPE-FEATURES-PASS)
+#include <vector>   // std::vector<hb_feature_t> return type for the parser
 
 namespace chronon3d {
 
@@ -64,6 +66,70 @@ struct GlyphBBoxCacheEntry {
 };
 
 } // namespace chronon3d
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TICKET-OPENTYPE-FEATURES-PASS — canonical OpenType feature parser.
+//
+// Each comma-separated token in `spec` is delegated to HarfBuzz's
+// native `hb_feature_from_string()` which understands the OT / HarfBuzz
+// grammar: "liga", "liga=1", "liga=0", "-liga", "ss01=2", "kern=0",
+// "-dlig", etc.  Whitespace around tokens is trimmed.  Empty input
+// yields an empty vector, preserving the historical
+// `hb_shape(buf, nullptr, 0)` semantics where HarfBuzz applies its
+// implicit defaults (kern=1, liga=1, calt=1, ...).
+//
+// Threading downstream:
+//
+//   TextRunLayout::features  (= TextShapingFeatures type alias)
+//     -> TextShaping::features            (set per-call by callers)
+//       -> parse_opentype_features()      (this anon-namespace helper)
+//          -> hb_shape(font, buf,
+//                      features.data(),
+//                      features.size())
+//
+// Malformed tokens are silently dropped (hb_feature_from_string returns
+// false): the user spec calls fail-loud via diagnostics for compilation-
+// level bugs but per-shape-call malformed tokens must not abort the
+// whole pipeline (Cat-3 minimal-surface contract).
+// ═══════════════════════════════════════════════════════════════════════════
+namespace {
+[[nodiscard]] std::vector<hb_feature_t>
+parse_opentype_features(std::string_view spec) {
+    std::vector<hb_feature_t> features;
+    if (spec.empty()) return features;
+
+    std::size_t start = 0;
+    while (start <= spec.size()) {
+        const std::size_t pos = spec.find(',', start);
+        const std::size_t end =
+            (pos == std::string_view::npos) ? spec.size() : pos;
+
+        std::string_view token = spec.substr(start, end - start);
+        while (!token.empty() &&
+               std::isspace(static_cast<unsigned char>(token.front()))) {
+            token.remove_prefix(1);
+        }
+        while (!token.empty() &&
+               std::isspace(static_cast<unsigned char>(token.back()))) {
+            token.remove_suffix(1);
+        }
+
+        if (!token.empty()) {
+            hb_feature_t feature{};
+            if (hb_feature_from_string(
+                    token.data(),
+                    static_cast<int>(token.size()),
+                    &feature)) {
+                features.push_back(feature);
+            }
+        }
+
+        if (end == spec.size()) break;
+        start = end + 1;
+    }
+    return features;
+}
+} // anonymous namespace
 
 namespace std {
 template<> struct hash<chronon3d::GlyphBBoxCacheKey> {
@@ -293,7 +359,16 @@ std::optional<GlyphRun> FontEngine::shape_text(
     }
 
     hb_buffer_guess_segment_properties(buf);
-    hb_shape(entry->hb_font, buf, nullptr, 0);
+
+    // TICKET-OPENTYPE-FEATURES-PASS — thread OpenType features explicitly
+    // to HarfBuzz (parsed by the canonical anon-namespace helper above).
+    // `shaping.features` e.g. "kern=1,liga=0" -> hb_feature_t array;
+    // empty string -> empty array -> hb_shape(buf, features.data(), 0)
+    // ≡ historical hb_shape(buf, nullptr, 0) (HarfBuzz default-on).
+    const auto hb_features = parse_opentype_features(shaping.features);
+    hb_shape(entry->hb_font, buf,
+             hb_features.data(),
+             static_cast<unsigned int>(hb_features.size()));
 
 
     unsigned int glyph_count = 0;
