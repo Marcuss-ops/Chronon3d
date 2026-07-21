@@ -36,6 +36,7 @@ Debiti differiti e cronologia dei ticket chiusi sono stati spostati in [`ARCHIVE
 | TICKET-FALSE-GREEN-TEST-AUDIT | P1 | DONE | Test hardening — missing-glyph audit + 6 falsi-verde fixes (anti-falso-verde / auto-fit ink bbox / alignment isolation / typewriter monotonic / clipping / UTF-8 require fb). Cat-3 minimal-surface. | [doc](docs/tickets/TICKET-FALSE-GREEN-TEST-AUDIT.md) |
 
 | TICKET-GRAPHICS-SHAPE-STYLE-ROT | P1 | Graphics | DONE-PARZIALE | build rot GradientStop RISOLTO (commit pending) — `::chronon3d::GradientStop` in stroke_style.hpp + fill_style.hpp. Scope espanso a systemic rot 19 file → vedi [TICKET-SYSTEMIC-NAMESPACE-ROT](tickets/TICKET-SYSTEMIC-NAMESPACE-ROT.md). Vedi [TICKET-GRAPHICS-SHAPE-STYLE-ROT](tickets/TICKET-GRAPHICS-SHAPE-STYLE-ROT.md). |
+| TICKET-CAPCUT-REFERENCE-CORPUS | P1 | Test | OPEN | corpus skeleton committato (this commit); blessed PNGs deferred-PR-review. Forward-points: (a) seed blessed static, (b) seed blessed subtitle, (c) seed blessed effect, (d) metric extraction IF reused, (e) WBH macchina-verifica. Policy blessed-only in tests/reference/capcut/README.md. Vedi [TICKET-CAPCUT-REFERENCE-CORPUS](tickets/TICKET-CAPCUT-REFERENCE-CORPUS.md). |
 ## Recently Closed
 
 - TICKET-TEXT-BBOX-OVERFLOW (renderer bbox rot; fixed via geometric ink-bbox + matrix test l.center(); golden matrix subtitle FAST mode PASS).
