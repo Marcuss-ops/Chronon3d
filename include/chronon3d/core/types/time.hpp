@@ -3,8 +3,16 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/types.hpp>
 
+#include <cmath>
+
 namespace chronon3d {
 using TimeSeconds = f64;
+
+enum class FrameRounding {
+    Nearest, ///< Round to the nearest frame (half values away from zero).
+    Floor,   ///< Round down to the previous frame.
+    Ceiling, ///< Round up to the next frame.
+};
 
 struct FrameRate {
     i32 numerator{30};
@@ -33,6 +41,30 @@ struct FrameRate {
     // Equality — needed for SampleTime::operator== (defaulted) to compile.
     constexpr bool operator==(const FrameRate&) const = default;
 };
+
+/// Convert a seconds value to a frame number using an explicit rounding policy.
+///
+/// This is the canonical place for seconds→frame conversion so that every
+/// consumer (subtitles, animations, audio scheduling) uses the same semantics.
+/// The default rounding is `Nearest`; callers that need [start, end)
+/// boundaries typically use `Nearest` for both endpoints.
+[[nodiscard]] inline Frame seconds_to_frame(
+    TimeSeconds seconds,
+    FrameRate rate,
+    FrameRounding rounding = FrameRounding::Nearest
+) {
+    const double raw = seconds * static_cast<double>(rate.numerator)
+                       / static_cast<double>(rate.denominator);
+    switch (rounding) {
+        case FrameRounding::Floor:
+            return static_cast<Frame>(std::floor(raw));
+        case FrameRounding::Ceiling:
+            return static_cast<Frame>(std::ceil(raw));
+        case FrameRounding::Nearest:
+        default:
+            return static_cast<Frame>(std::lround(raw));
+    }
+}
 
 struct TimeRange {
     Frame start{0};
