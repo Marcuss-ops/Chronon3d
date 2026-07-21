@@ -1,4 +1,7 @@
 ## 2026-07-21
+### `chore(rot): reopen TICKET-SYSTEMIC-NAMESPACE-ROT for Path D V6 structural fix` ([TICKET-SYSTEMIC-NAMESPACE-ROT](docs/tickets/TICKET-SYSTEMIC-NAMESPACE-ROT.md))
+Reverts prior `e3846d43` CLOSED-WONTFIX per user Path D instruction (full `ninja all` inventory + Path B structural fix on complete file list). L'ADR forward-point `TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED` resta valido per residual rotology che non si chiude con Path B. Cat-5 4-doc same-commit. Cronaca canonical ticket-home per Cat-3 anti-dup.
+
 
 ### `chore(docs): close ROT ticket + open ADR forward-point`
 ([TICKET-SYSTEMIC-NAMESPACE-ROT](docs/tickets/TICKET-SYSTEMIC-NAMESPACE-ROT.md) · [TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED](docs/tickets/TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED.md))
