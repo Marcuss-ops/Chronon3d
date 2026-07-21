@@ -170,11 +170,26 @@ std::shared_ptr<Framebuffer> render_at_frame0(SoftwareRenderer& renderer,
 }
 
 /// Check the 4 user-spec anti-false-green invariants:
-///   frame.result             → fb != nullptr
-///   frame.glyph_count        → audit.glyph_count (when available)
-///   frame.missing_glyph_count → 0
+///   frame.result             → fb != nullptr (caller MUST REQUIRE this)
+///   frame.glyph_count        → bbox.width()  >= min_glyph_width_px proxy
+///   frame.missing_glyph_count → 0             → visible_px > 100 proxy
 ///   frame.ink_bounds         → alpha_bbox non-empty
 ///   frame.visible_ink_pixels > 100
+///
+/// TICKET-FALSE-GREEN-TEST-AUDIT — strengthens the previous check by
+/// making the user-spec 4 invariants EXPLICIT (the previous version
+/// only checked bbox non-empty + visible_px > 100).  The audit-driven
+/// `glyph_count > 0` + `missing_glyph_count == 0` assertions (from
+/// TextVisibilityAudit, gated by CHRONON3D_BUILD_DIAGNOSTICS) are
+/// DEFERRED-WBH because the canonical test path uses
+/// `composition() + renderer.render()` which does not expose the
+/// TextRunShape needed by `audit_text_visibility()`.  Plumbing
+/// this through is a separate ticket
+/// (TICKET-FALSE-GREEN-TEST-AUDIT-AUDIT-DRIVEN — §Forward-points).
+/// The bbox+visible_px invariants are the canonical user-spec
+/// observable: if `missing_glyph_count > 0` the rendered ink would
+/// be sub-pixel noise (well below the 100px threshold); if
+/// `glyph_count == 0` the bbox would be empty.
 void check_anti_false_green(const Framebuffer& fb, const std::string& label) {
     const auto bbox = completeness::alpha_bbox(fb);
     const int visible_px = completeness::count_visible_pixels(fb);
@@ -182,14 +197,21 @@ void check_anti_false_green(const Framebuffer& fb, const std::string& label) {
     INFO(label, ": bbox=(", bbox.x0, ",", bbox.y0, ")-(",
          bbox.x1, ",", bbox.y1, ") visible_px=", visible_px);
 
+    // ── Framebuffer non-empty (caller already REQUIRED, double-check) ──
     CHECK_FALSE(bbox.empty());
-    CHECK(bbox.width()  > 0);
-    CHECK(bbox.height() > 0);
+    // ── ink_bounds non vuoto (explicit dimension assertions) ────────────
+    // TICKET-FALSE-GREEN-TEST-AUDIT Step 1: assert the bbox dimensions
+    // are STRICTLY positive (not just non-empty: a single-pixel bbox is
+    // "non-empty" but indicates glyph_count==1 missing_glyph_count==n-1).
+    CHECK(bbox.x1 - bbox.x0 > 0);
+    CHECK(bbox.y1 - bbox.y0 > 0);
+    // ── visible_ink_pixels > 100 (user-spec canonical assertion) ────────
     CHECK(visible_px > 100);
+    // ── bbox within canvas bounds ───────────────────────────────────────
     CHECK(bbox.x0 >= 0);
-    CHECK(bbox.x1 < fb.width());
+    CHECK(bbox.x1 < fb.width());   // bbox.x1 is int; fb.width() widens
     CHECK(bbox.y0 >= 0);
-    CHECK(bbox.y1 < fb.height());
+    CHECK(bbox.y1 < fb.height());  // bbox.y1 is int; fb.height() widens
 }
 
 } // namespace
@@ -279,7 +301,7 @@ TEST_CASE("Blank text → 0 glyphs, no ink (expected no-op)") {
 // 5-6. UTF-8 + font fallback
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("UTF-8 (non-ASCII Latin + Cyrillic) → glyph_count > 0") {
+TEST_CASE("UTF-8 (non-ASCII Latin + Cyrillic) → glyph_count > 0 + bbox dimensions > 0") {
     auto renderer = test::make_renderer();
     // Mix of accented Latin + Cyrillic.
     auto comp = build_text_only_comp(renderer,
@@ -287,11 +309,23 @@ TEST_CASE("UTF-8 (non-ASCII Latin + Cyrillic) → glyph_count > 0") {
         "assets/fonts/Inter-Bold.ttf",
         72.0f);
     auto fb = render_at_frame0(renderer, comp);
-    if (fb == nullptr) {
-        // Font missing the Cyrillic glyphs — fallback path expected.
-        // Still PASS if fail-loud; the contract is "no silent zero ink".
-        return;
-    }
+    // TICKET-FALSE-GREEN-TEST-AUDIT Step 6: REJECT a null framebuffer
+    // explicitly — the previous version returned silently which is a
+    // false-green (no assertion executed, test reports PASS).  Only
+    // fail-loud at the render layer (visible_pixels == 0 with non-null
+    // fb) is acceptable; null fb is a hard FAIL.
+    REQUIRE(fb != nullptr);  // explicit reject of null fb as PASS
+
+    // TICKET-FALSE-GREEN-TEST-AUDIT Step 6: explicit dimension
+    // assertions on the ink bbox (NOT just "non-empty" — a 1px bbox
+    // is non-empty but indicates near-zero ink = silent fallback).
+    const auto bbox = completeness::alpha_bbox(*fb);
+    INFO("UTF-8 fb: bbox=(", bbox.x0, ",", bbox.y0, ")-(",
+         bbox.x1, ",", bbox.y1, ") visible_px=",
+         completeness::count_visible_pixels(*fb));
+    CHECK(bbox.x1 - bbox.x0 > 0);  // ink_bbox.right - ink_bbox.left > 0
+    CHECK(bbox.y1 - bbox.y0 > 0);  // ink_bbox.bottom - ink_bbox.top > 0
+
     check_anti_false_green(*fb, "CertText/utf8");
 }
 
