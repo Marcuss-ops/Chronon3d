@@ -242,6 +242,19 @@ struct ParagraphStyle {
     ParagraphMarkGlyph paragraph_mark{ParagraphMarkGlyph::None};
     std::string       paragraph_mark_custom{};
 
+    // 15. max_lines — maximum number of lines allowed in the composed
+    /// paragraph.  0 = unlimited.  When the content would produce more
+    /// lines, the paragraph is truncated to `max_lines` lines and the
+    /// `truncated` flag is set on the resulting ParagraphLayout.  The
+    /// actual ellipsis rendering is the responsibility of the downstream
+    /// renderer, guided by `ellipsis` below.
+    int max_lines{0};
+
+    // 16. ellipsis — UTF-8 string used to indicate the paragraph was
+    /// truncated due to max_lines.  Default is U+2026 HORIZONTAL ELLIPSIS.
+    /// Empty string means no ellipsis hint is provided.
+    std::string ellipsis{"\xE2\x80\xA6"};  // U+2026
+
     // ── Equality ────────────────────────────────────────────────────────
     bool operator==(const ParagraphStyle&) const noexcept = default;
 };

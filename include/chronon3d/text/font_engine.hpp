@@ -484,13 +484,13 @@ private:
 // Declared here (after `FontSpec` / `FontIdentity` are visible, before
 // `FontEngine` so the friend declaration inside its class body picks up
 // the same symbol).
-namespace chronon3d::text::font_engine_internal {
+namespace text::font_engine_internal {
     [[nodiscard]] bool has_glyph_for_codepoint(
         FontEngine&     engine,
         const FontSpec& spec,
         char32_t         codepoint
     );
-} // namespace chronon3d::text::font_engine_internal
+} // namespace text::font_engine_internal
 
 // ── Free functions ────────────────────────────────────────────────────
 

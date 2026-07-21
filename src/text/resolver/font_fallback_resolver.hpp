@@ -37,12 +37,16 @@ struct FontStack {
 
 // ── FontFallbackResult — output of the fallback resolver ───────────────────
 struct FontFallbackResult {
-    /// Resolved text runs, each with a single font that covers its text.
-    std::vector<ResolvedTextRun> runs;
-
     /// Number of codepoints/clusters not covered by any font in the stack.
     /// A non-zero value is always logged via spdlog::error (fail-loud).
     std::size_t missing_clusters{0};
+
+    /// Resolved text runs, each with a single font that covers its text.
+    std::vector<ResolvedTextRun> runs;
+
+    FontFallbackResult() = default;
+    FontFallbackResult(std::size_t missing, std::vector<ResolvedTextRun> in_runs)
+        : missing_clusters(missing), runs(std::move(in_runs)) {}
 };
 
 // ── FontFallbackResolver — single canonical cluster fallback service ───────

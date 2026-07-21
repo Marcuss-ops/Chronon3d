@@ -25,6 +25,72 @@ Frame SubtitleTrackBuilder::seconds_to_frame(float seconds) const {
         static_cast<double>(seconds), active_frame_rate(), FrameRounding::Nearest);
 }
 
+std::vector<TimedWordBinding> SubtitleTrackBuilder::build_word_bindings(const TimedCue& cue) {
+    std::vector<TimedWordBinding> bindings;
+    bindings.reserve(cue.words.size());
+    for (std::size_t w = 0; w < cue.words.size(); ++w) {
+        const auto& word = cue.words[w];
+        bindings.push_back(TimedWordBinding{
+            .semantic_id = word.semantic_id,
+            .word_index  = w,
+            .total_words = cue.words.size(),
+            .byte_start  = word.byte_start,
+            .byte_end    = word.byte_end,
+            .start_s     = word.start_s,
+            .end_s       = word.end_s,
+        });
+    }
+    return bindings;
+}
+
+std::vector<GlyphSelectorSpec>
+SubtitleTrackBuilder::build_word_selectors(const TimedCue& cue, FrameRate frame_rate, Frame start_frame, std::size_t cue_index) {
+    std::vector<GlyphSelectorSpec> selectors;
+    if (cue.words.empty()) {
+        return selectors;
+    }
+
+    const std::size_t word_count = cue.words.size();
+    const f32 word_count_f = static_cast<f32>(word_count);
+
+    for (std::size_t w = 0; w < word_count; ++w) {
+        const f32 start_pct = (static_cast<f32>(w) * 100.0f) / word_count_f;
+        const f32 end_pct   = (static_cast<f32>(w + 1) * 100.0f) / word_count_f;
+
+        Frame word_start_frame = chronon3d::seconds_to_frame(
+            static_cast<double>(cue.words[w].start_s), frame_rate, FrameRounding::Nearest);
+        Frame word_end_frame = chronon3d::seconds_to_frame(
+            static_cast<double>(cue.words[w].end_s), frame_rate, FrameRounding::Nearest);
+        if (word_end_frame <= word_start_frame) {
+            word_end_frame = word_start_frame + Frame{1};
+        }
+
+        GlyphSelectorSpec word_sel;
+        word_sel.unit  = TextSelectorUnit::Word;
+        word_sel.shape = TextSelectorShape::Square;
+        word_sel.order = TextSelectorOrder::Forward;
+        word_sel.start = start_pct;
+        word_sel.end   = end_pct;
+        word_sel.id    = "subtitle_cue_" + std::to_string(cue_index)
+                          + "_word_" + std::to_string(w) + "_sel";
+
+        AnimatedValue<f32> amount;
+        // Only key "off" before the word if the word does not start
+        // exactly at the cue start (avoids two same-frame keys that
+        // would hide the 100% value on the active boundary).
+        if (start_frame < word_start_frame) {
+            amount.add_keyframe(start_frame, 0.0f, EasingCurve{Easing::Hold});
+        }
+        amount.add_keyframe(word_start_frame, 100.0f, EasingCurve{Easing::Hold});
+        amount.add_keyframe(word_end_frame, 0.0f, EasingCurve{Easing::Hold});
+        word_sel.amount = std::move(amount);
+
+        selectors.push_back(std::move(word_sel));
+    }
+
+    return selectors;
+}
+
 void SubtitleTrackBuilder::build() {
     if (!track_ || track_->cues.empty()) {
         return;
@@ -109,14 +175,9 @@ void SubtitleTrackBuilder::build() {
         // the index-based math.  Per-`byte_start`/`byte_end` on TimedWord
         // is populated by the 3 adapters (SRT/VTT/JSON) for downstream
         // TextSpanOverride mapping if needed.
-        for (std::size_t w = 0; w < cue.words.size(); ++w) {
-            GlyphSelectorSpec word_sel;
-            word_sel.unit = TextSelectorUnit::Word;
-            word_sel.start = static_cast<f32>(w);
-            word_sel.end = static_cast<f32>(w + 1);
-            word_sel.shape = TextSelectorShape::Square;
-            word_sel.id = "subtitle_cue_" + std::to_string(i)
-                          + "_word_" + std::to_string(w) + "_sel";
+        std::vector<GlyphSelectorSpec> word_selectors =
+            build_word_selectors(cue, active_frame_rate(), start_frame, i);
+        for (auto& word_sel : word_selectors) {
             run_spec.selectors.push_back(std::move(word_sel));
         }
 

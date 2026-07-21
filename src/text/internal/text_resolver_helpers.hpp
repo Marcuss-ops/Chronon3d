@@ -33,13 +33,25 @@
 #include <string_view>
 
 #include <chronon3d/text/font_engine.hpp>  // FontSpec (for apply_fontspec_canonicalization)
-#include "src/text/aliases.hpp"   // TICKET-099a — internal domain type aliases.
 
 namespace chronon3d {
 namespace text {
 namespace internal {
 
-using namespace chronon3d::text::domain;   // FontAssetId, Bcp47LanguageTag, etc.
+// NOTE: src/text/aliases.hpp is intentionally NOT included here.  The
+// `chronon3d::text::domain` namespace it defines is not visible in some
+// unity-build / include-order configurations because of an unclosed
+// `namespace chronon3d` in a transitive header (root cause under
+// investigation).  To keep this internal header self-contained, the
+// same domain aliases are re-declared directly in the internal namespace.
+// They are type-equivalent to the originals by design.
+using FontAssetId      = std::string_view;
+using ResolvedFontPath = std::string;
+using FontFamilyName   = std::string;
+using Bcp47LanguageTag = std::string;
+using TextPresetId     = std::string;
+using SelectorId       = std::string;
+using FontWeight       = int;
 
 // ── BCP-47 language tag helpers ────────────────────────────────────────────
 //
