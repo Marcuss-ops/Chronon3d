@@ -213,3 +213,69 @@ TEST_CASE("TextTypewriter 06: frame 0 has first character ink") {
     // The first character "T" at 96pt should produce some width.
     CHECK(bbox.width() > 20);
 }
+
+// ═══ Test 7 — TICKET-FALSE-GREEN-TEST-AUDIT Step 4: typewriter frame
+//                 sequence F0/F1/F5/F10/F20/finale with monotonic
+//                 cluster_visible_count + stable layout invariant.
+// ═══════════════════════════════════════════════════════════════════════
+TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT 7: typewriter F0/F1/F5/F10/F20/finale monotonic + stable layout") {
+    // Render at 6 frames spanning the typewriter reveal sequence.
+    // TICKET-FALSE-GREEN-TEST-AUDIT §Accepted deviations: cluster_visible_count
+    // == visible_pixels (proxy) holds ONLY for ASCII text (current text
+    // "TYPEWRITER REVEAL TEST" is ASCII — grapheme==byte==char step).
+    // For non-ASCII (combining marks, ZWJ emoji), the proxy under-counts
+    // graphemes; this is acceptable as the test text is deliberately ASCII
+    // per TICKET §Accepted deviations.
+    std::vector<std::size_t> frames = {0u, 1u, 5u, 10u, 20u, 30u};
+    std::vector<int>         visible_counts;
+    std::vector<AlphaBBox>   bboxes;
+    visible_counts.reserve(frames.size());
+    bboxes.reserve(frames.size());
+
+    int prev_vis = 0;
+    for (std::size_t f : frames) {
+        auto renderer = test::make_renderer();
+        auto fb = renderer.render(
+            build_typewriter_composition(renderer, f), Frame{f});
+        REQUIRE(fb != nullptr);
+
+        const int vis = count_visible_pixels(*fb);
+        const AlphaBBox bbox = alpha_bbox(*fb);
+        visible_counts.push_back(vis);
+        bboxes.push_back(bbox);
+
+        INFO("frame=", f, " visible=", vis, " prev=", prev_vis,
+             " bbox=(", bbox.x0, ",", bbox.y0, ")-(",
+             bbox.x1, ",", bbox.y1, ")");
+
+        // TICKET-FALSE-GREEN-TEST-AUDIT Step 4 (a): cluster_visible_count
+        // monotonic — visible_pixels never DECREASES as the typewriter
+        // reveals more characters.
+        CHECK(vis > 0);
+        if (prev_vis > 0) {
+            CHECK(vis >= prev_vis);
+        }
+        prev_vis = vis;
+    }
+
+    // TICKET-FALSE-GREEN-TEST-AUDIT Step 4 (b): stable layout invariant —
+    // the bbox must grow LEFT-TO-RIGHT monotonically (x0 stays the same
+    // since text starts at the same position; x1 increases as chars are
+    // revealed; y0/y1 stay stable since line height is fixed).
+    for (std::size_t i = 1; i < frames.size(); ++i) {
+        const auto& prev = bboxes[i - 1];
+        const auto& curr = bboxes[i];
+        INFO("frame transition: prev.f=", frames[i - 1],
+             " curr.f=", frames[i],
+             " prev.x1=", prev.x1, " curr.x1=", curr.x1,
+             " prev.y0=", prev.y0, " curr.y0=", curr.y0);
+        // The right edge of the bbox must NOT retreat leftward
+        // (no layout shift backwards as chars are revealed).
+        CHECK(curr.x1 >= prev.x1);
+        // The top edge must stay stable (line height fixed).
+        CHECK(std::abs(curr.y0 - prev.y0) <= 2);  // 2px tolerance for AA
+        // The bottom edge must stay stable (line height fixed).
+        CHECK(std::abs(curr.y1 - prev.y1) <= 2);
+    }
+}
+

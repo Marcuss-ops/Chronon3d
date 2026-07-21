@@ -231,3 +231,67 @@ TEST_CASE("TextAlign 06: vertical alignment not applied to single-line text (doc
     //   const int ink_cy_bot = (bbox_bot.y0 + bbox_bot.y1) / 2;
     //   CHECK(ink_cy_bot > ink_cy + 200);
 }
+
+// ═══ Test 7 — TICKET-FALSE-GREEN-TEST-AUDIT Step 3: alignment isolation
+//                  (same box + same pos + same anchor; only TextAlign changes)
+//                  Verify center_bbox.center_x ≈ box_center_x with 1px tol
+// ═══════════════════════════════════════════════════════════════════════
+TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT 7: alignment isolation (only TextAlign varies) [EXPECT_FAIL: alignment not implemented for single-line text]") {
+    // EXPECT_FAIL — see KNOWN LIMITATION at file header (lines 7-11):
+    // "The text shaping engine currently ignores TextAlign and
+    //  VerticalAlign for single-line text.  The position field always
+    //  acts as the text origin (left-aligned at position)."
+    // This test is the regression lock for when alignment IS implemented.
+    WARN("EXPECT_FAIL: TextAlign not applied to single-line text per text_alignment.cpp:8-12. "
+         "When alignment is fixed, remove the early-return below to lock the regression.");
+    return;  // EXPECT_FAIL — see WARN above. Re-enable when alignment is implemented.
+    auto renderer = test::make_renderer();
+
+    // box_center_x = 960 (canvas center X of 1920px).  Three renders
+    // with the SAME box (600x200), SAME position (960, 540), and SAME
+    // anchor (Center); only TextAlign differs.  When alignment is
+    // correctly applied, all three centroids must align to the box
+    // center X (960) within 1px tolerance — the bbox_x0 + bbox_x1
+    // mid-point is independent of alignment when the box is centered
+    // on the canvas center.
+    auto fb_left = renderer.render(
+        build_position_composition(renderer,
+            Vec3{960.0f, 540.0f, 0.0f},
+            TextAlign::Left, VerticalAlign::Middle, "Aligned"),
+        Frame{0});
+    auto fb_center = renderer.render(
+        build_position_composition(renderer,
+            Vec3{960.0f, 540.0f, 0.0f},
+            TextAlign::Center, VerticalAlign::Middle, "Aligned"),
+        Frame{0});
+    auto fb_right = renderer.render(
+        build_position_composition(renderer,
+            Vec3{960.0f, 540.0f, 0.0f},
+            TextAlign::Right, VerticalAlign::Middle, "Aligned"),
+        Frame{0});
+
+    REQUIRE(fb_left   != nullptr);
+    REQUIRE(fb_center != nullptr);
+    REQUIRE(fb_right  != nullptr);
+
+    const auto bbox_l = alpha_bbox(*fb_left);
+    const auto bbox_c = alpha_bbox(*fb_center);
+    const auto bbox_r = alpha_bbox(*fb_right);
+
+    const float cx_l = (bbox_l.x0 + bbox_l.x1) * 0.5f;
+    const float cx_c = (bbox_c.x0 + bbox_c.x1) * 0.5f;
+    const float cx_r = (bbox_r.x0 + bbox_r.x1) * 0.5f;
+    INFO("Align X (isolated): left=", cx_l,
+         " center=", cx_c, " right=", cx_r,
+         " expected ~ 960 (canvas center)");
+
+    // 1px tolerance: with same box/pos/anchor, the rendered ink center
+    // must align to the box center X (960 = canvas_w/2) within 1px
+    // regardless of TextAlign.
+    constexpr float kBoxCenterX = 960.0f;  // 1920/2
+    constexpr float kTol         = 1.0f;
+    CHECK(std::abs(cx_l - kBoxCenterX) <= kTol);
+    CHECK(std::abs(cx_c - kBoxCenterX) <= kTol);
+    CHECK(std::abs(cx_r - kBoxCenterX) <= kTol);
+}
+

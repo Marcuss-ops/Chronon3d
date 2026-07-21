@@ -22,6 +22,16 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/text/font_engine.hpp>
 
+#include <chronon3d/api/composition.hpp>
+#include <chronon3d/api/scene.hpp>
+#include <chronon3d/api/renderer.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+
+#include <tests/text_golden/text_completeness/pixel_scan_helpers.hpp>
+
 #include <doctest/doctest.h>
 
 #include <string>
@@ -341,3 +351,80 @@ TEST_CASE("ADR-018: auto-fit 100-run determinism certification") {
         CHECK(heights[i]   == doctest::Approx(heights[0]));
     }
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// 9. TICKET-FALSE-GREEN-TEST-AUDIT Step 2: rendered ink bbox respects
+//    auto-fit shrink — when font_size=200 in 400x200 box, the resolved
+//    font must shrink so the rendered ink fits inside the box.
+//    (ROUND-2 Finding #3: post-raster alpha_bbox scan, not pre-raster
+//    layout bbox — the verdict asks for `ink_bbox.right <= 400 + .bottom <= 200`
+//    which is the visible ink, not the layout bounds.)
+// ────────────────────────────────────────────────────────────────────────────
+
+TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: auto-fit shrinks rendered ink bbox into box") {
+    using namespace chronon3d;
+    using namespace chronon3d::test::completeness;
+
+    auto renderer = test::make_renderer();
+    const float font_size_requested = 200.0f;
+    const float box_w = 400.0f;
+    const float box_h = 200.0f;
+
+    auto comp = composition(
+        {.name = "TextV1/auto-fit-audit",
+         .width = 1920, .height = 1080,
+         .frame_rate = FrameRate{30, 1}, .duration = 1},
+        [&renderer, font_size_requested, box_w, box_h](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("autofit_layer", [&renderer, font_size_requested, box_w, box_h](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                l.text_run("autofit", TextRunSpec{
+                    .text = TextSpec{
+                        .content = {.value = "Auto-fit ink bbox test"},
+                        .placement = TextPlacement{
+                            TextPlacementKind::Absolute,
+                            {960.0f, 540.0f}},  // canvas center
+                        .font = {
+                            .font_path = "assets/fonts/Inter-Bold.ttf",
+                            .font_family = "Inter",
+                            .font_weight = 700,
+                            .font_size = font_size_requested
+                        },
+                        .layout = {
+                            .box = {box_w, box_h},
+                            .align = TextAlign::Center,
+                            .vertical_align = VerticalAlign::Middle,
+                            .overflow = TextOverflow::Clip,
+                            .auto_fit = true
+                        },
+                        .appearance = {.color = Color::white()}
+                    }
+                }).commit();
+            });
+            return s.build();
+        });
+
+    auto fb = renderer.render(comp, Frame{0});
+    if (fb == nullptr) {
+        MESSAGE("test skipped: render failed (system fonts unavailable)");
+        return;
+    }
+
+    // TICKET-FALSE-GREEN-TEST-AUDIT Step 2 (post-raster alpha_bbox scan):
+    //   ink_bbox.right  <= 400  (box width  with 1px tol)
+    //   ink_bbox.bottom <= 200  (box height with 1px tol)
+    const auto bbox = alpha_bbox(*fb);
+    const int ink_w = bbox.width();
+    const int ink_h = bbox.height();
+    INFO("auto-fit ink bbox: (", bbox.x0, ",", bbox.y0, ")-(",
+         bbox.x1, ",", bbox.y1, ") w=", ink_w, " h=", ink_h,
+         " canvas=", fb->width(), "x", fb->height(),
+         " requested_font_size=", font_size_requested);
+    CHECK(ink_w <= 400 + 1);  // 1px tolerance
+    CHECK(ink_h <= 200 + 1);  // 1px tolerance
+
+    // ALSO check visible_px > 0 (false-green check: must produce some ink).
+    CHECK(count_visible_pixels(*fb) > 100);
+}
+

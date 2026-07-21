@@ -1008,3 +1008,96 @@ TEST_CASE("TextCompleteness.TriFontNotCut 1920x1080") {
 
     verify_completeness_golden(*fb, "completeness_18_trifont_not_cut");
 }
+
+// ═══ Test — TICKET-FALSE-GREEN-TEST-AUDIT Step 5: deliberately-oversized
+//               font in small box — alpha_outside_clip_rect == 0 invariant.
+// ═══════════════════════════════════════════════════════════════════════════
+TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: font_size=200 in 400x200 box → alpha outside clip rect == 0") {
+    auto renderer = test::make_renderer();
+
+    // Build a self-contained composition: font_size=200 in box=400x200
+    // with TextOverflow::Clip.  The text WILL overflow the box vertically;
+    // the clip rect must enforce zero alpha outside.
+    const float font_size = 200.0f;
+    const float box_w = 400.0f;
+    const float box_h = 200.0f;
+    auto comp = composition(
+        {.name = "TextClipAudit/test",
+         .width = 1920, .height = 1080,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 1},
+        [&renderer, font_size, box_w, box_h](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("clip_layer", [&renderer, font_size, box_w, box_h](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                l.text_run("oversized", TextRunSpec{
+                    .text = TextSpec{
+                        .content = {.value = "ClipMe"},
+                        .placement = TextPlacement{
+                            TextPlacementKind::Absolute,
+                            {960.0f, 540.0f}},  // canvas center
+                        .font = {
+                            .font_path = "assets/fonts/Inter-Bold.ttf",
+                            .font_family = "Inter",
+                            .font_weight = 700,
+                            .font_size = font_size
+                        },
+                        .layout = {
+                            .box = {box_w, box_h},
+                            .align = TextAlign::Center,
+                            .vertical_align = VerticalAlign::Middle,
+                            .overflow = TextOverflow::Clip
+                        },
+                        .appearance = {.color = Color::white()}
+                    }
+                }).commit();
+            });
+            return s.build();
+        });
+
+    auto fb = renderer.render(comp, Frame{0});
+    REQUIRE(fb != nullptr);
+
+    // Compute the clip rect in canvas pixel coordinates.
+    // MANUAL COORDS — keep in sync with TextPlacement::Absolute + anchor=Center math.
+    // If the placement resolver / anchor semantics change, update these
+    // constants accordingly.  The clip rect represents the box bounds
+    // in canvas pixel space (placement center ± box/2).
+    //   placement = {960, 540} (canvas center)
+    //   anchor    = Center
+    //   box       = {400, 200}
+    //   clip rect = [960-200, 540-100, 960+200, 540+100] = [760, 440, 1160, 640].
+    const int clip_x0 = 760;
+    const int clip_y0 = 440;
+    const int clip_x1 = 1160;
+    const int clip_y1 = 640;
+
+    // TICKET-FALSE-GREEN-TEST-AUDIT Step 5: count alpha OUTSIDE the
+    // clip rect — must be ZERO (TextOverflow::Clip should mask all
+    // ink outside the box).
+    int outside_count = 0;
+    int inside_count  = 0;
+    for (int y = 0; y < static_cast<int>(fb->height()); ++y) {
+        const Color* row = fb->pixels_row(y);
+        for (int x = 0; x < static_cast<int>(fb->width()); ++x) {
+            if (row[x].a > 0.01f) {
+                if (x < clip_x0 || x > clip_x1 || y < clip_y0 || y > clip_y1) {
+                    ++outside_count;
+                } else {
+                    ++inside_count;
+                }
+            }
+        }
+    }
+    INFO("alpha_outside_clip_rect=", outside_count,
+         " alpha_inside_clip_rect=", inside_count,
+         " clip=(", clip_x0, ",", clip_y0, ")-(",
+         clip_x1, ",", clip_y1, ")");
+    // TICKET-FALSE-GREEN-TEST-AUDIT Step 5 (a): NO alpha outside clip rect.
+    CHECK(outside_count == 0);
+    // TICKET-FALSE-GREEN-TEST-AUDIT Step 5 (b): some alpha INSIDE clip rect
+    // (the text did render something — false-green check).
+    CHECK(inside_count > 100);
+}
+

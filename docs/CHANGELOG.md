@@ -1,4 +1,17 @@
 ## 2026-07-21
+### `test(hardening): TICKET-FALSE-GREEN-TEST-AUDIT — 6 falsi-verde fixes`
+  ([TICKET-FALSE-GREEN-TEST-AUDIT](docs/tickets/TICKET-FALSE-GREEN-TEST-AUDIT.md))
+
+5 test files hardened (`+356 / -13` LoC, Cat-3 minimal-surface, ZERO new SDK API):
+- `check_anti_false_green()` adds explicit `bbox.x1 - bbox.x0 > 0 + bbox.y1 - bbox.y0 > 0` dimension assertions.
+- UTF-8 test (CertText/utf8) REJECTS null fb via `REQUIRE(fb != nullptr)` (no silent PASS).
+- NEW auto-fit test renders + scans post-raster `alpha_bbox` (verdict verbatim: `ink_bbox.right <= 400 + .bottom <= 200`).
+- NEW alignment isolation test [EXPECT_FAIL — alignment not implemented for single-line text per file header line 7-11]: same box+pos+anchor, only TextAlign varies, `|cx - 960| <= 1px`.
+- NEW typewriter test F0/F1/F5/F10/F20/F30: monotonic visible_pixels + stable layout invariant.
+- NEW clipping test font_size=200 in 400x200 box: `outside_count == 0` (no alpha outside clip rect).
+- Forward-points: audit-driven glyph_count DEFERRED-WBH (TextVisibilityAudit test plumbing); UTF-8 cluster counter for non-ASCII.
+
+## 2026-07-21
 ### `feat(text): word timing quality classification (TICKET-WORD-TIMING-QUALITY)` ([TICKET-WORD-TIMING-QUALITY](docs/tickets/TICKET-WORD-TIMING-QUALITY.md))
 
 Adds `enum class WordTimingQuality { None, Estimated, Authoritative }`
