@@ -34,7 +34,7 @@ struct FrameContext {
     // callers may still set it directly in hand-built FrameContext.
     // New code should prefer `ctx.runtime->font_engine()`.
     FontEngine* font_engine{nullptr};
-    const ::chronon3d::runtime::RenderRuntime* runtime{nullptr};
+    const chronon3d::runtime::RenderRuntime* runtime{nullptr};
 
     [[nodiscard]] double fps() const { return frame_rate.fps(); }
 

@@ -129,7 +129,7 @@ struct RuntimeBuildError {
 /// Wraps engine Config with an optional assets_root path (seeds the
 /// per-runtime resolver, replacing the process-wide global fallback).
 struct RuntimeConfig {
-    ::chronon3d::Config                           config;
+    chronon3d::Config                           config;
     std::optional<std::filesystem::path>        assets_root;
 };
 
@@ -149,7 +149,7 @@ public:
     // |new RenderRuntime|make_unique<RenderRuntime` is HEAP-alloc focused
     // and does not match direct stack ctor calls).
     RenderRuntime() = delete;
-    explicit RenderRuntime(::chronon3d::Config config);
+    explicit RenderRuntime(chronon3d::Config config);
     ~RenderRuntime();
 
     // ── Fase C2 — Unified factory (canonical construction path) ──────────
@@ -177,7 +177,7 @@ public:
     // `friend` declarations in the private section.
 
     // ── Configuration ────────────────────────────────────────────────
-    [[nodiscard]] const ::chronon3d::Config& config() const noexcept { return m_config; }
+    [[nodiscard]] const chronon3d::Config& config() const noexcept { return m_config; }
 
     // ── Backend access (populated after attach_backend()) ────────────
     // WP-0 PR 0.1 — `noexcept` was REMOVED from the declaration: the
@@ -185,19 +185,19 @@ public:
     // `noexcept` declaration would terminate the process instead of
     // surfacing the error.  See `tools/check_architecture_boundaries.sh`
     // check [11/12] for the regression guard.
-    [[nodiscard]] ::chronon3d::graph::RenderBackend& backend();
-    [[nodiscard]] const ::chronon3d::graph::RenderBackend& backend() const;
+    [[nodiscard]] chronon3d::graph::RenderBackend& backend();
+    [[nodiscard]] const chronon3d::graph::RenderBackend& backend() const;
 
     // ── Backend slot predicates ──────────────────────────────────────
     [[nodiscard]] bool backend_attached() const noexcept { return static_cast<bool>(m_backend); }
 
     // ── Image cache (Fase B B1 — per-runtime, no longer process-wide) ─
-    [[nodiscard]] ::chronon3d::ImageCache&       image_cache()       noexcept { return m_image_cache; }
-    [[nodiscard]] const ::chronon3d::ImageCache& image_cache() const noexcept { return m_image_cache; }
+    [[nodiscard]] chronon3d::ImageCache&       image_cache()       noexcept { return m_image_cache; }
+    [[nodiscard]] const chronon3d::ImageCache& image_cache() const noexcept { return m_image_cache; }
 
     // ── Pipeline catalogs ────────────────────────────────────────────
-    [[nodiscard]] ::chronon3d::graph::PipelineCatalogs& catalogs() noexcept { return m_catalogs; }
-    [[nodiscard]] const ::chronon3d::graph::PipelineCatalogs& catalogs() const noexcept { return m_catalogs; }
+    [[nodiscard]] chronon3d::graph::PipelineCatalogs& catalogs() noexcept { return m_catalogs; }
+    [[nodiscard]] const chronon3d::graph::PipelineCatalogs& catalogs() const noexcept { return m_catalogs; }
 
     // ── Typed direct accessors (P1-15 canonical surface) ───────────
     // The legacy `Runtime::services()` accessor + `RenderServices`
@@ -206,10 +206,10 @@ public:
     // reference / pointer / shared_ptr for that subsystem).  Internal
     // bridges (runtime_adapter, test_utils) do the same — there is no
     // longer a service-locator alternative.
-    [[nodiscard]] ::chronon3d::AssetRegistry&               assets()         noexcept { return m_assets; }
+    [[nodiscard]] chronon3d::AssetRegistry&               assets()         noexcept { return m_assets; }
     // ── WP-8 PR 8.0 typed asset resolver (sibling of m_assets) ───────
-    [[nodiscard]] ::chronon3d::assets::AssetResolver&       resolver()       noexcept { return m_resolver; }
-    [[nodiscard]] const ::chronon3d::assets::AssetResolver& resolver() const noexcept { return m_resolver; }
+    [[nodiscard]] chronon3d::assets::AssetResolver&       resolver()       noexcept { return m_resolver; }
+    [[nodiscard]] const chronon3d::assets::AssetResolver& resolver() const noexcept { return m_resolver; }
 
     // ── WP-9 PR 9.0 — FontEngine slot ----------------------------------
     /// Non-owning accessor for the per-runtime FontEngine (forward-
@@ -227,23 +227,23 @@ public:
     /// Returns nullptr until the wiring commit lands; null-safe default
     /// allows Composition lambdas to fall back to the direct
     /// ctx.font_engine when no runtime is wired.
-    [[nodiscard]] ::chronon3d::FontEngine* font_engine() const noexcept { return m_font_engine; }
+    [[nodiscard]] chronon3d::FontEngine* font_engine() const noexcept { return m_font_engine; }
 
-    [[nodiscard]] ::chronon3d::cache::CacheDiagnostics&       diagnostics()       noexcept { return m_diagnostics; }
-    [[nodiscard]] const ::chronon3d::cache::CacheDiagnostics& diagnostics() const noexcept { return m_diagnostics; }
-    [[nodiscard]] ::chronon3d::cache::PersistentFramebufferStore&       framebuffer_store()       noexcept { return m_framebuffer_store; }
-    [[nodiscard]] const ::chronon3d::cache::PersistentFramebufferStore& framebuffer_store() const noexcept { return m_framebuffer_store; }
-    [[nodiscard]] ::chronon3d::cache::NodeCache&             node_cache()     noexcept { return m_owned_node_cache; }
-    [[nodiscard]] ::chronon3d::graph::CompiledGraphCache&    graph_cache()    noexcept { return m_owned_graph_cache; }
-    [[nodiscard]] std::shared_ptr<::chronon3d::cache::FramebufferPool> framebuffer_pool_shared() noexcept { return m_owned_framebuffer_pool; }
-    [[nodiscard]] ::chronon3d::cache::FramebufferPool&       framebuffer_pool() noexcept {
+    [[nodiscard]] chronon3d::cache::CacheDiagnostics&       diagnostics()       noexcept { return m_diagnostics; }
+    [[nodiscard]] const chronon3d::cache::CacheDiagnostics& diagnostics() const noexcept { return m_diagnostics; }
+    [[nodiscard]] chronon3d::cache::PersistentFramebufferStore&       framebuffer_store()       noexcept { return m_framebuffer_store; }
+    [[nodiscard]] const chronon3d::cache::PersistentFramebufferStore& framebuffer_store() const noexcept { return m_framebuffer_store; }
+    [[nodiscard]] chronon3d::cache::NodeCache&             node_cache()     noexcept { return m_owned_node_cache; }
+    [[nodiscard]] chronon3d::graph::CompiledGraphCache&    graph_cache()    noexcept { return m_owned_graph_cache; }
+    [[nodiscard]] std::shared_ptr<chronon3d::cache::FramebufferPool> framebuffer_pool_shared() noexcept { return m_owned_framebuffer_pool; }
+    [[nodiscard]] chronon3d::cache::FramebufferPool&       framebuffer_pool() noexcept {
         return *m_owned_framebuffer_pool;
     }
-    [[nodiscard]] ::chronon3d::graph::GraphExecutor&         executor()       noexcept { return *m_owned_executor; }
+    [[nodiscard]] chronon3d::graph::GraphExecutor&         executor()       noexcept { return *m_owned_executor; }
 
-    [[nodiscard]] ::chronon3d::graph::GraphNodeCatalog&      graph_node_registry() noexcept { return *m_owned_graph_node_registry; }
-    [[nodiscard]] ::chronon3d::effects::EffectCatalog&       effect_catalog() noexcept { return *m_owned_effect_catalog; }
-    [[nodiscard]] ::chronon3d::ExecutionScheduler&           scheduler()      noexcept { return *m_scheduler; }
+    [[nodiscard]] chronon3d::graph::GraphNodeCatalog&      graph_node_registry() noexcept { return *m_owned_graph_node_registry; }
+    [[nodiscard]] chronon3d::effects::EffectCatalog&       effect_catalog() noexcept { return *m_owned_effect_catalog; }
+    [[nodiscard]] chronon3d::ExecutionScheduler&           scheduler()      noexcept { return *m_scheduler; }
 
     // WP-3 PR 3.1 — `scene_hasher()` + `program_store()` accessors were
     // REMOVED here.  Both state engines are now per-session owned; reach
@@ -269,7 +269,7 @@ private:
     /// lives on SoftwareRenderer.  Production code uses
     /// `RenderRuntime::create(RuntimeConfig)`; the backend is then
     /// attached via the internal bridges listed as `friend` below.
-    void attach_backend(std::unique_ptr<::chronon3d::graph::RenderBackend> backend);
+    void attach_backend(std::unique_ptr<chronon3d::graph::RenderBackend> backend);
 
     // Friend the two internal bridges that need access to attach_backend().
     // Both are forward-declared above the class.  This keeps the public
@@ -279,12 +279,12 @@ private:
     friend void ::chronon3d::backends::software::attach_software_backend(::chronon3d::SoftwareRenderer*);
     friend void ::chronon3d::test::attach_software_backend(::chronon3d::SoftwareRenderer*);
 
-    ::chronon3d::Config                                   m_config;
-    ::chronon3d::graph::PipelineCatalogs                  m_catalogs;
-    ::chronon3d::AssetRegistry                            m_assets;
+    chronon3d::Config                                   m_config;
+    chronon3d::graph::PipelineCatalogs                  m_catalogs;
+    chronon3d::AssetRegistry                            m_assets;
     /// WP-8 PR 8.0 — typed asset resolver, sibling of m_assets; value
     /// member so lifetime is the runtime's, deterministic per engine.
-    ::chronon3d::assets::AssetResolver                    m_resolver;
+    chronon3d::assets::AssetResolver                    m_resolver;
 
     // diag accessor: per-runtime CacheDiagnostics instance (value member; construction happens
     // at object-init time so even pre-populate() callers can use diagnostics() directly.
@@ -292,14 +292,14 @@ private:
     // private default ctor.)
     // PLACEMENT: declared BEFORE every cache that registers with it so that
     // CacheDiagnostics outlives all registered caches during destruction.
-    ::chronon3d::cache::CacheDiagnostics                  m_diagnostics{};
-    ::chronon3d::cache::NodeCache                         m_owned_node_cache{};
-    std::shared_ptr<::chronon3d::cache::FramebufferPool> m_owned_framebuffer_pool;
-    ::chronon3d::graph::CompiledGraphCache                m_owned_graph_cache{};
-    std::unique_ptr<::chronon3d::graph::GraphExecutor>         m_owned_executor;
-    std::unique_ptr<::chronon3d::graph::GraphNodeCatalog>       m_owned_graph_node_registry;
-    std::unique_ptr<::chronon3d::effects::EffectCatalog>        m_owned_effect_catalog;
-    std::unique_ptr<::chronon3d::ExecutionScheduler>            m_scheduler;
+    chronon3d::cache::CacheDiagnostics                  m_diagnostics{};
+    chronon3d::cache::NodeCache                         m_owned_node_cache{};
+    std::shared_ptr<chronon3d::cache::FramebufferPool> m_owned_framebuffer_pool;
+    chronon3d::graph::CompiledGraphCache                m_owned_graph_cache{};
+    std::unique_ptr<chronon3d::graph::GraphExecutor>         m_owned_executor;
+    std::unique_ptr<chronon3d::graph::GraphNodeCatalog>       m_owned_graph_node_registry;
+    std::unique_ptr<chronon3d::effects::EffectCatalog>        m_owned_effect_catalog;
+    std::unique_ptr<chronon3d::ExecutionScheduler>            m_scheduler;
     // WP-3 PR 3.1 — `m_owned_scene_hasher` and `m_owned_program_store`
     // were REMOVED.  Both are now per-session owned (see
     // `RenderSession::scene_hasher` / `RenderSession::program_store`).
@@ -309,20 +309,20 @@ private:
     // — not a free-floating runtime-owned instance.
 
     // Fase B B1 — per-runtime image cache (replaces process-wide singleton)
-    ::chronon3d::ImageCache                           m_image_cache;
+    chronon3d::ImageCache                           m_image_cache;
     // framebuffer_store accessor: per-runtime PersistentFramebufferStore (value member); the
     // P1-13 closure migrated the class to pure instance ownership (no singleton, no
     // process-wide static config).  All configuration is per-instance (`m_cache_dir` initialised
     // JSON-default to `output/cache/framebuffers`, `m_disabled=false`) and routed through the
     // `runtime.framebuffer_store()` typed accessor (P1-15: was the non-owning
     // `RenderServices::framebuffer_store` pointer field; the pointer-bundle was deleted).
-    ::chronon3d::cache::PersistentFramebufferStore                  m_framebuffer_store{};
+    chronon3d::cache::PersistentFramebufferStore                  m_framebuffer_store{};
 
-    std::unique_ptr<::chronon3d::graph::RenderBackend>   m_backend;
+    std::unique_ptr<chronon3d::graph::RenderBackend>   m_backend;
     /// WP-9 PR 9.0 — runtime FontEngine slot.  Pointer (not value)
     /// because SoftwareRenderer still owns the engine; runtime holds a
     /// non-owning view reachable from composition lambdas.
-    ::chronon3d::FontEngine*                            m_font_engine{nullptr};
+    chronon3d::FontEngine*                            m_font_engine{nullptr};
     bool                                              m_populated{false};
 };
 

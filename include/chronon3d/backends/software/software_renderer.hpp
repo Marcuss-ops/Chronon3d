@@ -52,8 +52,8 @@ public:
                                                  Frame frame = 0,
                                                  f32 frame_time = 0.0f) const;
 
-    [[nodiscard]] ::chronon3d::FontPreflightSummary preflight_fonts(
-        const ::chronon3d::Scene& scene, const ::chronon3d::assets::AssetResolver& resolver);
+    [[nodiscard]] chronon3d::FontPreflightSummary preflight_fonts(
+        const chronon3d::Scene& scene, const chronon3d::assets::AssetResolver& resolver);
     // ── Construction / destruction ─────────────────────────────────────
     /// Canonical constructor — borrows an existing RenderRuntime.
     explicit SoftwareRenderer(runtime::RenderRuntime& rt, Config config);
@@ -123,8 +123,8 @@ public:
     [[nodiscard]] std::shared_ptr<cache::FramebufferPool> framebuffer_pool();
     [[nodiscard]] RenderCounters* counters()                             { return &m_counters; }
     [[nodiscard]] const RenderCounters* counters() const                 { return &m_counters; }
-    [[nodiscard]] ::chronon3d::ExecutionScheduler& scheduler() noexcept;
-    [[nodiscard]] const ::chronon3d::ExecutionScheduler& scheduler() const noexcept;
+    [[nodiscard]] chronon3d::ExecutionScheduler& scheduler() noexcept;
+    [[nodiscard]] const chronon3d::ExecutionScheduler& scheduler() const noexcept;
     [[nodiscard]] runtime::RenderRuntime& runtime() noexcept;
     [[nodiscard]] const runtime::RenderRuntime& runtime() const noexcept;
     [[nodiscard]] bool has_runtime() const noexcept { return m_runtime != nullptr; }
@@ -152,10 +152,10 @@ public:
     [[nodiscard]] const FrameHistory& frame_history() const      { return m_session.common.frame_history; }
     [[nodiscard]] DirtyHistory& dirty_telemetry()                { return m_session.common.dirty_telemetry; }
     [[nodiscard]] const DirtyHistory& dirty_telemetry() const    { return m_session.common.dirty_telemetry; }
-    [[nodiscard]] ::chronon3d::graph::SceneHasher& scene_hasher()  { return m_session.common.scene_hasher(); }
-    [[nodiscard]] const ::chronon3d::graph::SceneHasher& scene_hasher() const { return m_session.common.scene_hasher(); }
-    [[nodiscard]] ::chronon3d::graph::SceneProgramStore& program_store()      { return m_session.common.program_store(); }
-    [[nodiscard]] const ::chronon3d::graph::SceneProgramStore& program_store() const { return m_session.common.program_store(); }
+    [[nodiscard]] chronon3d::graph::SceneHasher& scene_hasher()  { return m_session.common.scene_hasher(); }
+    [[nodiscard]] const chronon3d::graph::SceneHasher& scene_hasher() const { return m_session.common.scene_hasher(); }
+    [[nodiscard]] chronon3d::graph::SceneProgramStore& program_store()      { return m_session.common.program_store(); }
+    [[nodiscard]] const chronon3d::graph::SceneProgramStore& program_store() const { return m_session.common.program_store(); }
     [[nodiscard]] RendererBufferRing& buffer_ring()               { return m_session.software.buffer_ring; }
     [[nodiscard]] const RendererBufferRing& buffer_ring() const   { return m_session.software.buffer_ring; }
     [[nodiscard]] TransformScratchBuffer& scratch_buffer()        { return m_session.software.scratch_buffer; }

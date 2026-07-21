@@ -6,7 +6,7 @@
 // ## Architectural invariants (AGENTS.md v0.1 freeze)
 //
 //  (1) SINGLE central registry.  AnimatorResolver queries ONLY
-//      `::chronon3d::registry::builtin_text_preset_registry()` (per
+//      `chronon3d::registry::builtin_text_preset_registry()` (per
 //      ANTI_DUPLICATION_RULES.md §registry/resolver).  This file does
 //      NOT introduce a new registry, preset type, sampler, or catalog.
 //
@@ -65,7 +65,7 @@
 //   text_preset_factories_kinetic.cpp / _cinematic.cpp / _social.cpp,
 //   each exporting the SAME symbol-name `create_text_presets()` in its
 //   own category-namespaced TU.  Callers disambiguate via
-//   `::chronon3d::registry::register_helpers_internal::factory_basic()` +
+//   `chronon3d::registry::register_helpers_internal::factory_basic()` +
 //   ..._factory_kinetic() etc.  This name-collision intent is intentional:
 //   each TU has its own anon namespace so the symbol does not collide at
 //   link time; the printable disambiguator comes from the namespace
@@ -89,9 +89,9 @@
 
 namespace chronon3d::registry::register_helpers_internal::factory_basic {
 
-using LayerBuilderT  = ::chronon3d::registry::internal::LayerBuilderT;
-using SceneBuilderT  = ::chronon3d::registry::internal::SceneBuilderT;
-using TextSpecT      = ::chronon3d::registry::internal::TextSpecT;
+using LayerBuilderT  = chronon3d::registry::internal::LayerBuilderT;
+using SceneBuilderT  = chronon3d::registry::internal::SceneBuilderT;
+using TextSpecT      = chronon3d::registry::internal::TextSpecT;
 
 // ── STAGE 2 helpers — Subtitle (4) compositor bodies (verbatim port) ─────
 //
@@ -111,7 +111,7 @@ compose_minimal_white(const PresetMetadata& /*meta*/) {
 // layer clock via `.word_stagger(Frame{3}, Frame{20})` in the builder body.
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_yellow_keyword(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("yellow_keyword");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("yellow_keyword");
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
 }
@@ -119,7 +119,7 @@ compose_yellow_keyword(const PresetMetadata& /*meta*/) {
 // 21. glow_pulse — continuous tracking-breathing idle (Frame{40}).
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_glow_pulse(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("glow_pulse");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("glow_pulse");
     a.properties.push_back(TrackingProperty{0.08f});
     return a;
 }
@@ -128,7 +128,7 @@ compose_glow_pulse(const PresetMetadata& /*meta*/) {
 // clock via `.fade_shift_vertical({0,-30,0}, Frame{18})` in the builder body.
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_caption_box(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("caption_box");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("caption_box");
     // No hard-coded positional offset: the preset relies on the
     // caller-supplied semantic placement (SafeAreaBottom / center) so that
     // layout/ink/effect bounds stay geometrically consistent.
@@ -140,7 +140,7 @@ compose_caption_box(const PresetMetadata& /*meta*/) {
 // 23. karaoke_fill — word-level fill-colour sweep.
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_karaoke_fill(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("karaoke_fill");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("karaoke_fill");
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
 }
@@ -148,7 +148,7 @@ compose_karaoke_fill(const PresetMetadata& /*meta*/) {
 // 24. active_word_pop — scale punch.
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_active_word_pop(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("active_word_pop");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("active_word_pop");
     a.properties.push_back(ScaleProperty{Vec3{1.15f, 1.15f, 1.0f}});
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
@@ -157,7 +157,7 @@ compose_active_word_pop(const PresetMetadata& /*meta*/) {
 // 25. subtitle_card — rounded background card.
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_subtitle_card(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("subtitle_card");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("subtitle_card");
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
 }
@@ -165,7 +165,7 @@ compose_subtitle_card(const PresetMetadata& /*meta*/) {
 // 26. lower_third_safe — lower-third dock.
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_lower_third_safe(const PresetMetadata& /*meta*/) {
-    TextAnimatorSpec a = ::chronon3d::registry::internal::make_presetc_template("lower_third_safe");
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("lower_third_safe");
     // No hard-coded positional offset: the preset relies on the
     // caller-supplied semantic placement (SafeAreaBottom / center) so that
     // layout/ink/effect bounds stay geometrically consistent.
@@ -195,7 +195,7 @@ TextPresetDescriptor minimal_white_entry() {
         // P1 — minimal_white now goes through the same path as the other
         // 21 built-ins (Sub-cases 7-9 invariants preserved: 1 RenderNode
         // produced when params.animators.empty()).
-        (void)::chronon3d::registry::internal::wire_through_resolver(lb, "minimal_white", spec);
+        (void)chronon3d::registry::internal::wire_through_resolver(lb, "minimal_white", spec);
     };
     d.animator_factory = compose_minimal_white;
     return d;
@@ -219,7 +219,7 @@ TextPresetDescriptor yellow_keyword_entry() {
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
                           const TextSpecT& spec) {
-        ::chronon3d::registry::internal::wire_through_resolver(lb, "yellow_keyword", spec)
+        chronon3d::registry::internal::wire_through_resolver(lb, "yellow_keyword", spec)
           .word_stagger(Frame{3}, Frame{20})
           .fade_in(Frame{12});
     };
@@ -245,7 +245,7 @@ TextPresetDescriptor glow_pulse_entry() {
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
                           const TextSpecT& spec) {
-        ::chronon3d::registry::internal::wire_through_resolver(lb, "glow_pulse", spec)
+        chronon3d::registry::internal::wire_through_resolver(lb, "glow_pulse", spec)
           .tracking_breathing(0.08f, Frame{40});
     };
     d.animator_factory = compose_glow_pulse;
@@ -269,7 +269,7 @@ TextPresetDescriptor caption_box_entry() {
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
                           const TextSpecT& spec) {
-        ::chronon3d::registry::internal::wire_through_resolver(lb, "caption_box", spec)
+        chronon3d::registry::internal::wire_through_resolver(lb, "caption_box", spec)
           .fade_in(Frame{12});
     };
     d.animator_factory = compose_caption_box;
@@ -290,7 +290,7 @@ TextPresetDescriptor karaoke_fill_entry() {
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_karaoke_fill";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
-        ::chronon3d::registry::internal::wire_through_resolver(lb, "karaoke_fill", spec).word_stagger(Frame{2}, Frame{12}).fade_in(Frame{10});
+        chronon3d::registry::internal::wire_through_resolver(lb, "karaoke_fill", spec).word_stagger(Frame{2}, Frame{12}).fade_in(Frame{10});
     };
     d.animator_factory = compose_karaoke_fill;
     return d;
@@ -309,7 +309,7 @@ TextPresetDescriptor active_word_pop_entry() {
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_active_word_pop";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
-        ::chronon3d::registry::internal::wire_through_resolver(lb, "active_word_pop", spec).scale_drop(1.15f, Frame{12}).fade_in(Frame{10});
+        chronon3d::registry::internal::wire_through_resolver(lb, "active_word_pop", spec).scale_drop(1.15f, Frame{12}).fade_in(Frame{10});
     };
     d.animator_factory = compose_active_word_pop;
     return d;
@@ -328,7 +328,7 @@ TextPresetDescriptor subtitle_card_entry() {
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_subtitle_card";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
-        ::chronon3d::registry::internal::wire_through_resolver(lb, "subtitle_card", spec).fade_in(Frame{12});
+        chronon3d::registry::internal::wire_through_resolver(lb, "subtitle_card", spec).fade_in(Frame{12});
     };
     d.animator_factory = compose_subtitle_card;
     return d;
@@ -347,7 +347,7 @@ TextPresetDescriptor lower_third_safe_entry() {
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_lower_third_safe";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
-        ::chronon3d::registry::internal::wire_through_resolver(lb, "lower_third_safe", spec).fade_in(Frame{12});
+        chronon3d::registry::internal::wire_through_resolver(lb, "lower_third_safe", spec).fade_in(Frame{12});
     };
     d.animator_factory = compose_lower_third_safe;
     return d;
