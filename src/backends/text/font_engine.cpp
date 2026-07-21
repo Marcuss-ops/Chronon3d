@@ -407,10 +407,27 @@ std::optional<GlyphRun> FontEngine::shape_text(
             FT_Error err = FT_Load_Glyph(face, gp.glyph_id, FT_LOAD_DEFAULT);
             if (err == 0) {
                 FT_GlyphSlot slot = face->glyph;
-                gp.bbox_x0 = static_cast<float>(slot->metrics.horiBearingX) * scale;
-                gp.bbox_y0 = static_cast<float>(slot->metrics.horiBearingY) * scale;
-                gp.bbox_x1 = gp.bbox_x0 + static_cast<float>(slot->metrics.width) * scale;
-                gp.bbox_y1 = gp.bbox_y0 - static_cast<float>(slot->metrics.height) * scale;
+                if (slot->format == FT_GLYPH_FORMAT_OUTLINE) {
+                    // Geometric outline bbox (FreeType 26.6 fixed coords).
+                    // This is the authoritative ink extent of the glyph
+                    // outline, superseding the grid-fitted slot->metrics
+                    // used for typographic advance. Using the real outline
+                    // closes the POST_RENDER_EXPAND gap where rasterized
+                    // ink spilled past the predicted bbox.
+                    FT_BBox outline_bbox;
+                    FT_Outline_Get_BBox(&slot->outline, &outline_bbox);
+                    gp.bbox_x0 = static_cast<float>(outline_bbox.xMin) * scale;
+                    gp.bbox_y0 = static_cast<float>(outline_bbox.yMax) * scale;
+                    gp.bbox_x1 = static_cast<float>(outline_bbox.xMax) * scale;
+                    gp.bbox_y1 = static_cast<float>(outline_bbox.yMin) * scale;
+                } else {
+                    // Fallback for bitmap/emoji glyphs (CBDT/SBIX etc.)
+                    // where an outline bbox is unavailable.
+                    gp.bbox_x0 = static_cast<float>(slot->metrics.horiBearingX) * scale;
+                    gp.bbox_y0 = static_cast<float>(slot->metrics.horiBearingY) * scale;
+                    gp.bbox_x1 = gp.bbox_x0 + static_cast<float>(slot->metrics.width) * scale;
+                    gp.bbox_y1 = gp.bbox_y0 - static_cast<float>(slot->metrics.height) * scale;
+                }
 
                 m_impl->glyph_bbox_cache.put(key, GlyphBBoxCacheEntry{
                     gp.bbox_x0, gp.bbox_y0, gp.bbox_x1, gp.bbox_y1
