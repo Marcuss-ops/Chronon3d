@@ -1,6 +1,8 @@
 # TICKET-GRAPHICS-SHAPE-STYLE-ROT — Build rot in graphics/shape_style headers
 
-## Stato: OPEN (2026-07-21, commit pending)
+## Stato: PARZIALE DONE (2026-07-21, commit `d0ed0876` + this commit)
+- **DONE (GradientStop rot)**: fix in `stroke_style.hpp` (2 call-site) + `fill_style.hpp` (3 call-site) → `::chronon3d::GradientStop`. `chronon3d_animations` rebuild PASS post-fix.
+- **OPEN (systemic rot, 19 file rimanenti)**: stesso pattern doubled-namespace in `camera/`, `effects/`, `core/`, `runtime/`, `internal/`, `render_graph/`, `backends/`, `timeline/`, `animations/`, `math/`. Tracciato in [TICKET-SYSTEMIC-NAMESPACE-ROT](TICKET-SYSTEMIC-NAMESPACE-ROT.md).
 
 ## Problema
 
@@ -106,6 +108,23 @@ Per validare il fix in ordine:
 - **Perché ora?**: rot scoperto da smoke test del verdict CapCut-grade su `main@5518c619`. Non bloccante per il rilascio V0.1 (i binari esistenti funzionano) ma impedisce qualsiasi futura build incrementale. Se pushed senza fix, il prossimo agente che tenta `cmake --build` ricrea la failure.
 - **Perché non hoistato a Fase 1/2 del verdict?**: il verdict CapCut-grade si focalizzava su text/subtitle geometry, non sui graphics headers. Il rot è **cross-cutting** tra le due aree (la Fase 9 stroke-style è stata emessa indipendentemente).
 - **Perché include/chronon3d/ e non src/?**: la modifica proposta (Opzione 1) tocca `fill_style_lerp.hpp` che vive in `include/chronon3d/graphics/shape_style/` — header pubblico. Per regola AGENTS.md §Feature freeze "no nuova API SDK", una modifica a header pubblico va giustificata: in questo caso è un fix di un rot esistente, non espansione di API. AGENTS.md Cat-3 zero-surface preservata (no nuovi simboli).
+
+## §Systemic rot expansion (2026-07-21, post Opzione 2 verification)
+
+Il rebuild post-fix Opzione 2 ha rivelato che il rot è **sistemic**, non isolato a GradientStop. Il pattern `chronon3d::chronon3d` (doubled-namespace in clang diagnostic) appare in ulteriori 19 file:
+
+- **camera**: `include/chronon3d/math/camera_2_5d_projection.hpp`, `include/chronon3d/scene/camera/camera_v1/camera_descriptor.hpp`, `include/chronon3d/scene/camera/camera_v1/camera_program.hpp`
+- **effects**: `include/chronon3d/effects/curves.hpp`, `include/chronon3d/effects/glow_pipeline.hpp`, `src/effects/effect_catalog.cpp` (+ missing `#include` per `EffectStack`)
+- **core**: `include/chronon3d/core/config.hpp`, `include/chronon3d/core/execution/execution_scope_types.hpp`, `include/chronon3d/core/scheduler/execution_scheduler.hpp`, `include/chronon3d/core/scope/execution_scope.hpp`, `include/chronon3d/core/types/frame_context.hpp`
+- **runtime/internal**: `include/chronon3d/runtime/render_runtime.hpp`, `include/chronon3d/internal/runtime/render_session.hpp`, `include/chronon3d/internal/runtime/session_services.hpp`
+- **render_graph**: `include/chronon3d/render_graph/builder/precomp_builder_service.hpp`, `include/chronon3d/render_graph/cache/scene_program_cache.hpp`
+- **backends**: `include/chronon3d/backends/software/software_renderer.hpp`, `include/chronon3d/backends/software/software_render_session.hpp`
+- **timeline**: `include/chronon3d/timeline/composition.hpp`
+- **animations**: `include/chronon3d/animations/camera_motion_params.hpp`
+
+**Root cause comune**: stessa architettura FASE 9 (estrazione sotto-namespace) + commit `1c6e4c88` (move lerp include outside `chronon3d::graphics` namespace) che ha cambiato il contesto di lookup per `chronon3d::X` da dentro `namespace chronon3d::subns { ... }`.
+
+**Strategia raccomandata (per TICKET-SYSTEMIC-NAMESPACE-ROT)**: stessa Opzione 2 (qualificazione `::chronon3d::X`) applicata in modo targeted per type, NON regex generico (rischio over-qualification di `chronon3d::subns::Y` legit). Aggiungere `#include` espliciti per tipi non transitivamente visibili (es. `EffectStack` in `effect_catalog.cpp`).
 
 ## §Forward-points
 

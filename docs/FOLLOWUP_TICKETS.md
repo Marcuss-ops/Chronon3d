@@ -35,7 +35,7 @@ Debiti differiti e cronologia dei ticket chiusi sono stati spostati in [`ARCHIVE
 
 | TICKET-FALSE-GREEN-TEST-AUDIT | P1 | DONE | Test hardening — missing-glyph audit + 6 falsi-verde fixes (anti-falso-verde / auto-fit ink bbox / alignment isolation / typewriter monotonic / clipping / UTF-8 require fb). Cat-3 minimal-surface. | [doc](docs/tickets/TICKET-FALSE-GREEN-TEST-AUDIT.md) |
 
-| TICKET-GRAPHICS-SHAPE-STYLE-ROT | P1 | Graphics | OPEN | build rot scoperto smoke test (stroke_style.hpp:114/162 + fill_style.hpp:87). SHA candidato `1c6e4c88` (lerp include outside namespace). Source-build FAIL su chronon3d_animations; binary observed 3/7 PASS. Minimal-surface fix Option 1 (#include fill.hpp in fill_style_lerp.hpp). Vedi [TICKET-GRAPHICS-SHAPE-STYLE-ROT](tickets/TICKET-GRAPHICS-SHAPE-STYLE-ROT.md). |
+| TICKET-GRAPHICS-SHAPE-STYLE-ROT | P1 | Graphics | DONE-PARZIALE | build rot GradientStop RISOLTO (commit pending) — `::chronon3d::GradientStop` in stroke_style.hpp + fill_style.hpp. Scope espanso a systemic rot 19 file → vedi [TICKET-SYSTEMIC-NAMESPACE-ROT](tickets/TICKET-SYSTEMIC-NAMESPACE-ROT.md). Vedi [TICKET-GRAPHICS-SHAPE-STYLE-ROT](tickets/TICKET-GRAPHICS-SHAPE-STYLE-ROT.md). |
 ## Recently Closed
 
 - TICKET-TEXT-BBOX-OVERFLOW (renderer bbox rot; fixed via geometric ink-bbox + matrix test l.center(); golden matrix subtitle FAST mode PASS).
