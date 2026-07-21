@@ -270,6 +270,22 @@ TimedTextDocument timed_text_from_json(const std::string& raw) {
                                         if (tw.semantic_id.empty()) {
                                             tw.semantic_id = cue.source_id + "-word" + std::to_string(cue.words.size());
                                         }
+                                        // TICKET-TIMED-WORD-BINDING: compute UTF-8
+                                        // byte offset within cue.text by sequential
+                                        // search starting AFTER the previous word's
+                                        // byte_end (words in JSON source are
+                                        // space-separated; sequential scan finds
+                                        // them unambiguously).
+                                        {
+                                            const std::size_t search_start =
+                                                cue.words.empty() ? 0 : cue.words.back().byte_end;
+                                            const std::size_t pos =
+                                                cue.text.find(tw.text, search_start);
+                                            if (pos != std::string::npos) {
+                                                tw.byte_start = pos;
+                                                tw.byte_end   = pos + tw.text.size();
+                                            }
+                                        }
                                         cue.words.push_back(std::move(tw));
                                         // TICKET-WORD-TIMING-QUALITY: the
                                         // source provided a `words` array —
@@ -333,6 +349,12 @@ TimedTextDocument timed_text_from_json(const std::string& raw) {
                             auto& words = cue.words;
                             TimedWord tw;
                             tw.text = word_str;
+                            // TICKET-TIMED-WORD-BINDING: byte offset comes
+                            // from the existing whitespace-split scan above
+                            // (`start` variable captures the byte position in
+                            // cue.text).
+                            tw.byte_start = start;
+                            tw.byte_end   = start + word_str.size();
                             f32 dur = cue.end_s - cue.start_s;
                             // We don't have per-word timings, so distribute evenly.
                             // This will be refined once word count is known.

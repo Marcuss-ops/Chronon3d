@@ -258,9 +258,14 @@ TimedTextDocument timed_text_from_vtt(const std::string& raw) {
 
         int word_idx = 0;
         for (const auto& [word_text, offset] : wranges) {
-            (void) offset;
             TimedWord tw;
             tw.text = word_text;
+            // TICKET-TIMED-WORD-BINDING: VTT lambda captures the byte
+            // offset of each word in cue_text; same UTF-8 byte semantics
+            // as SRT (strip_vtt_tags() above runs BEFORE this loop so
+            // byte ranges align with the displayed text).
+            tw.byte_start = offset;
+            tw.byte_end   = offset + word_text.size();
             f32 cue_dur = end_s - start_s;
             f32 word_dur = cue_dur / static_cast<f32>(wranges.size());
             tw.start_s = start_s + static_cast<f32>(word_idx) * word_dur;

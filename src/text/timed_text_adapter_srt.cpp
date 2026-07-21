@@ -135,6 +135,11 @@ TimedTextDocument timed_text_from_srt(const std::string& raw) {
         for (const auto& wr : wranges) {
             TimedWord tw;
             tw.text = std::string(wr.word);
+            // TICKET-TIMED-WORD-BINDING: byte offsets come straight from
+            // the split_words() helper which already captures UTF-8 byte
+            // ranges in the source string.
+            tw.byte_start = wr.offset;
+            tw.byte_end   = wr.offset + wr.length;
             // Distribute word timings evenly across the cue duration
             f32 cue_dur = end_s - start_s;
             f32 word_dur = cue_dur / static_cast<f32>(wranges.size());
