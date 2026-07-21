@@ -222,6 +222,11 @@ TimedTextDocument timed_text_from_json(const std::string& raw) {
                 if (j.peek() == '{') {
                     j.next(); // skip '{'
                     TimedCue cue;
+                    // TICKET-WORD-TIMING-QUALITY: tracks whether ANY words
+                    // for this cue came from the source `"words"` array.
+                    // Drives the Authoritative vs Estimated classification
+                    // (vs the auto-fallback path which leaves this false).
+                    bool words_from_source = false;
 
                     j.skip_whitespace();
                     while (!j.done() && j.peek() != '}') {
@@ -266,6 +271,13 @@ TimedTextDocument timed_text_from_json(const std::string& raw) {
                                             tw.semantic_id = cue.source_id + "-word" + std::to_string(cue.words.size());
                                         }
                                         cue.words.push_back(std::move(tw));
+                                        // TICKET-WORD-TIMING-QUALITY: the
+                                        // source provided a `words` array —
+                                        // even if individual word start/end
+                                        // are sparse, this is the
+                                        // Authoritative provenance (vs the
+                                        // Estimated auto-fallback below).
+                                        words_from_source = true;
                                         if (j.peek() == '}') j.next(); // skip '}'
                                     }
                                     j.skip_whitespace();
@@ -339,6 +351,19 @@ TimedTextDocument timed_text_from_json(const std::string& raw) {
                                 cue.words[wi].end_s = cue.start_s + static_cast<f32>(wi + 1) * per_word;
                             }
                         }
+                    }
+
+                    // TICKET-WORD-TIMING-QUALITY: classify per-cue
+                    // provenance.  Three-way decision driven by the two
+                    // upstream paths (source `words` array OR auto-fallback
+                    // uniform-split).  The queue guard below filters the
+                    // `None` borderline out for callers.
+                    if (words_from_source) {
+                        cue.word_timing_quality = WordTimingQuality::Authoritative;
+                    } else if (cue.words.empty()) {
+                        cue.word_timing_quality = WordTimingQuality::None;
+                    } else {
+                        cue.word_timing_quality = WordTimingQuality::Estimated;
                     }
 
                     if (cue.start_s >= 0.0f && cue.end_s > cue.start_s && !cue.text.empty()) {

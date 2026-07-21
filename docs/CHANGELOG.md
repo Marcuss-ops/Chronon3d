@@ -1,3 +1,31 @@
+## 2026-07-21
+### `feat(text): word timing quality classification (TICKET-WORD-TIMING-QUALITY)` ([TICKET-WORD-TIMING-QUALITY](docs/tickets/TICKET-WORD-TIMING-QUALITY.md))
+
+Adds `enum class WordTimingQuality { None, Estimated, Authoritative }`
+in `include/chronon3d/text/timed_text_document.hpp` plus a per-cue
+`word_timing_quality` field on `TimedCue` (default `None` = conservative;
+never False-positive as `Estimated`).  Propagated through `WordStyleState::quality`
+in `presets/text/subtitle.hpp` (single source of truth for the renderer —
+no second walk over the cue structure).
+
+3 adapters classify per-cue:
+- `timed_text_from_srt` / `timed_text_from_vtt` → `Estimated`
+  (uniform-split heuristic — no source per-word data in those formats).
+- `timed_text_from_json` → 3-way via `words_from_source` flag:
+  source `words` array → `Authoritative`; auto-fallback → `Estimated`;
+  empty cue → `None` (filtered by queue-guard).
+
+`hash_timed_cue` 1-line cache-key mix (collision avoidance for sparse
+JSON `words` array vs malformed Estimated cue).  7 new TEST_CASEs added
+to `tests/text/test_subtitle_productive.cpp` (incl. round-2 reviewer
+actioned sub-case test locking early-return semantics).
+
+TICKET §Accepted deviations documents 3 deviations from verdict spec:
+per-cue vs per-doc granularity (chose per-cue — JSON docs can mix
+quality), no preset-side flag (no `SubtitlePresetSpec` in canonical form
+— deferred), and "data IS the diagnostic" instead of fail-loud WARN
+(renderer reads `state.quality` directly; no new log macro).
+
 ## 2026-07-20
 ### `fix(subtitle): remove hardcoded 30 fps in SubtitleTrackBuilder` ([TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION](docs/tickets/TICKET-SUBTITLE-PRODUCTIVE-FOUNDATION.md))
 `SubtitleTrackBuilder` now reads the composition frame rate from the parent `LayerBuilder` and converts cue seconds to frames with `std::lround`. Implements `[start_frame, end_frame)` semantics with `duration = max(1, end - start)`. Added a `.frame_rate(FrameRate)` fluent override for tests and callers. Verified for 24000/1001, 24/1, 25/1, 30000/1001, 30/1, 50/1 and 60/1. Zero-duration cues are clamped to at least one frame. `chronon3d_subtitle_productive_tests` PASS.

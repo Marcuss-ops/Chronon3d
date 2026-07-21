@@ -23,6 +23,7 @@
 | Text bbox overflow | P1 | CLOSED | `TICKET-TEXT-BBOX-OVERFLOW`: renderer bbox rot fixed via geometric ink-bbox from FreeType outlines + `l.center()` in matrix test. Golden matrix subtitle FAST mode now PASS without overflow. | [doc](tickets/TICKET-TEXT-BBOX-OVERFLOW.md) |
 | Text shaping / OT features | P1 | OPEN | `TICKET-OPENTYPE-FEATURES-PASS`: `hb_shape()` features explicit pass-through via `TextShaping::features` + `parse_opentype_features()` anon-namespace helper in `font_engine.cpp`. Forward-points in ticket: plumbing `TextRunLayout::features → TextShaping::features`, variable-font axes (wght/wdth), extended OT feature matrix coverage. | [doc](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
 
+| Subtitle word timing quality | P1 | OPEN | `TICKET-WORD-TIMING-QUALITY`: per-cue `WordTimingQuality` enum (None / Estimated / Authoritative) on `TimedCue` + propagation through `WordStyleState`. SRT/VTT → Estimated (uniform-split); JSON → Authoritative when source `words` array present, Estimated when auto-fallback fires, None when empty. `hash_timed_cue` 1-line cache-key mix. TICKET §Accepted deviations documents 3 deviations from verdict spec (per-cue vs per-doc, no preset-side flag, data IS the diagnostic). | [doc](tickets/TICKET-WORD-TIMING-QUALITY.md) |
 ---
 
 Debiti differiti e cronologia dei ticket chiusi sono stati spostati in [`ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md`](ARCHIVE/FOLLOWUP_TICKETS_HISTORY.md) per rispettare il contratto documentale di ~10 righe sintetiche.

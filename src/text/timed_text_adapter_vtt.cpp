@@ -270,6 +270,15 @@ TimedTextDocument timed_text_from_vtt(const std::string& raw) {
             ++word_idx;
         }
 
+        // TICKET-WORD-TIMING-QUALITY: VTT format has cue-level timestamps
+        // and (rarely) inline `<00:00:01.000>word` cues; without explicit
+        // per-word timing in the source itself we always land on the
+        // uniform-split heuristic here.  Same `Estimated` semantics as
+        // SRT — animation only, never sync.
+        cue.word_timing_quality = wranges.empty()
+            ? WordTimingQuality::None
+            : WordTimingQuality::Estimated;
+
         doc.cues.push_back(std::move(cue));
     }
 
