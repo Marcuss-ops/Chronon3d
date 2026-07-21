@@ -480,6 +480,7 @@ namespace {
     cache_key.max_lines      = layout.max_lines;
     cache_key.overflow       = static_cast<int>(layout.overflow);
     cache_key.ellipsis       = layout.ellipsis;
+    cache_key.features       = layout.features;
 
     // ── ADR-018: Auto-fit font size binary search ─────────────────
     // Shrink-only: when auto_fit_font_size is true and the authored
@@ -518,6 +519,7 @@ namespace {
                 probe_doc.split_paragraphs();
                 TextLayoutRequest probe_req{
                     &probe_doc, &layout, probe_font};
+                probe_req.features = layout.features;
                 TextCompileServices probe_svc{&engine, nullptr};
                 auto probe = compile_text_layout(probe_req, probe_svc);
                 if (probe) {
@@ -542,6 +544,7 @@ namespace {
                     mid_doc.split_paragraphs();
                     TextLayoutRequest mid_req{
                         &mid_doc, &layout, mid_font};
+                    mid_req.features = layout.features;
                     TextCompileServices mid_svc{&engine, nullptr};
                     auto mid_res =
                         compile_text_layout(mid_req, mid_svc);
@@ -605,6 +608,7 @@ namespace {
     doc.split_paragraphs();
 
     TextLayoutRequest request{&doc, &layout, effective_font};
+    request.features = layout.features;
 
     // cache=nullptr to suppress compile_text_layout's internal cache dance
     // (its key collapses direction/language).  We own the cache here.

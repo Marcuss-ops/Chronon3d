@@ -35,6 +35,11 @@ struct TextLayoutSpec {
     i32 max_lines{0};
     bool ellipsis{false};
     ParagraphStyle paragraph{};
+
+    /// OpenType / HarfBuzz shaping features (e.g. "kern=1,liga=1,calt=0").
+    /// Empty default = use the font's natural feature set (HarfBuzz
+    /// applies its implicit defaults: kern=1, liga=1, calt=1, ...).
+    std::string features{};
 };
 
 struct TextAppearanceSpec {
