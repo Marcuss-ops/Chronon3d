@@ -18,6 +18,7 @@
 #include FT_FREETYPE_H
 #include FT_GLYPH_H
 #include FT_OUTLINE_H
+#include FT_BBOX_H
 
 #include <hb.h>
 #include <hb-ft.h>
@@ -543,7 +544,7 @@ bool FontEngine::can_load(const FontSpec& spec) {
 // `font_engine_internal` namespace, friend-declared on FontEngine. The
 // class itself does NOT expose `has_glyph_for_codepoint` as a public
 // method, keeping the public ABI minimal.
-namespace chronon3d::text::font_engine_internal {
+namespace text::font_engine_internal {
 
 bool has_glyph_for_codepoint(FontEngine& engine, const FontSpec& spec, char32_t codepoint) {
 #ifdef CHRONON3D_ENABLE_TEXT

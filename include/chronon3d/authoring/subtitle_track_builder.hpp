@@ -16,10 +16,27 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace chronon3d::authoring {
 
 class Layer;
+
+/// Binding between a `TimedWord` and the runtime `TextUnitMap::Word` selector.
+///
+/// This struct is the public, minimal surface for connecting subtitle word
+/// timing to per-word text animators.  It carries the same semantic id as the
+/// source `TimedWord` plus the byte range (UTF-8) that the runtime TextUnitMap
+/// can resolve into a word index.
+struct TimedWordBinding {
+    std::string semantic_id;
+    std::size_t word_index{0};
+    std::size_t total_words{0};
+    std::size_t byte_start{0};
+    std::size_t byte_end{0};
+    float start_s{0.0f};
+    float end_s{0.0f};
+};
 
 /// Builds scheduled text-runs from a SubtitleTrack.
 ///
@@ -104,6 +121,16 @@ public:
     /// Cues are translated from seconds to frames using the parent
     /// LayerBuilder's frame rate, or the rate set via frame_rate().
     void build();
+
+    /// Build the canonical binding records for each word in `cue`.
+    /// Exposed for unit tests; production code uses build().
+    [[nodiscard]] static std::vector<TimedWordBinding>
+    build_word_bindings(const TimedCue& cue);
+
+    /// Build the per-word GlyphSelectorSpec list for `cue`.
+    /// Exposed for unit tests; production code uses build().
+    [[nodiscard]] static std::vector<GlyphSelectorSpec>
+    build_word_selectors(const TimedCue& cue, FrameRate frame_rate, Frame start_frame, std::size_t cue_index = 0);
 
 private:
     LayerBuilder* builder_{nullptr};

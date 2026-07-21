@@ -82,6 +82,7 @@ FontFallbackResult FontFallbackResolver::resolve_runs(
     const ParagraphStyle& style
 ) {
     FontFallbackResult result;
+    result.missing_clusters = 0;
     if (text.empty() || stack.empty()) {
         return result;
     }
@@ -92,12 +93,12 @@ FontFallbackResult FontFallbackResolver::resolve_runs(
     std::size_t current_font_index = 0; // valid while in a run
     bool        in_run             = false;
     std::size_t missing            = 0;
+    std::vector<ResolvedTextRun> runs;
 
     std::size_t pos = 0;
     while (pos < text.size()) {
         const std::size_t cp_start = pos;
         const char32_t cp = unicode::decode_codepoint(text, pos);
-        const std::size_t cp_end = pos;
 
         const std::size_t font_index = find_font_for_codepoint(cp, stack);
 
@@ -125,7 +126,7 @@ FontFallbackResult FontFallbackResolver::resolve_runs(
             run.byte_offset = base_byte_offset + run_start;
             run.byte_len = cp_start - run_start;
             run.paragraph_style = style;
-            result.runs.push_back(std::move(run));
+            runs.push_back(std::move(run));
 
             // Start a new run from this codepoint.
             run_start = cp_start;
@@ -144,10 +145,11 @@ FontFallbackResult FontFallbackResolver::resolve_runs(
         run.byte_offset = base_byte_offset + run_start;
         run.byte_len = text.size() - run_start;
         run.paragraph_style = style;
-        result.runs.push_back(std::move(run));
+        runs.push_back(std::move(run));
     }
 
-    result.missing_clusters = missing;
+    std::memcpy(&result.missing_clusters, &missing, sizeof(missing));
+    result.runs = std::move(runs);
     return result;
 }
 

@@ -309,7 +309,11 @@ TextPresetDescriptor active_word_pop_entry() {
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_active_word_pop";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
-        chronon3d::registry::internal::wire_through_resolver(lb, "active_word_pop", spec).scale_drop(1.15f, Frame{12}).fade_in(Frame{10});
+        // The per-word scale punch comes from the TextAnimatorSpec's
+        // ScaleProperty applied through the word selectors emitted by
+        // SubtitleTrackBuilder.  No whole-layer scale transform is used
+        // so the highlight is strictly constrained to the active word.
+        chronon3d::registry::internal::wire_through_resolver(lb, "active_word_pop", spec).fade_in(Frame{10});
     };
     d.animator_factory = compose_active_word_pop;
     return d;

@@ -25,9 +25,9 @@
 
 #include "src/text/resolver/text_span_resolver.hpp"
 
-namespace chronon3d::text::resolver {
-
 #include <filesystem>
+
+namespace chronon3d::text::resolver {
 
 // ── emit_via_bidi — bidi-segment a font-homogeneous sub-range ──────────
 //
