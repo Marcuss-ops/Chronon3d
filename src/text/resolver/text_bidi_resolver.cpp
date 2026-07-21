@@ -33,8 +33,10 @@
 #include <chronon3d/backends/text/bidi_segmenter.hpp>  // segment_bidi_runs + BidiRun
 
 #include "src/text/resolver/font_resolver.hpp"
+#include "src/text/resolver/font_fallback_resolver.hpp"
 #include "src/text/resolver/text_span_resolver.hpp"
 
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -50,6 +52,10 @@ namespace chronon3d::text::resolver {
 // `emit_via_bidi` — for one FontSubRange, segment through bidi,
 // resolve the font through FontResolver, and push ResolvedTextRun
 // entries into `out`.
+//
+// `bundled_fonts_root` — directory to scan for bundled fallback fonts
+// (passed through to `make_default_font_stack`). Empty means "no bundled
+// fonts available" (fail-loud via spdlog::warn, primary-only stack).
 
 void emit_via_bidi(
     std::vector<ResolvedTextRun>&           out,
@@ -57,7 +63,8 @@ void emit_via_bidi(
     FontEngine&                             engine,
     const FontSubRange&                     sub,
     const ParagraphRange&                   para,
-    TextDirection                           override_dir
+    TextDirection                           override_dir,
+    const std::filesystem::path&            bundled_fonts_root
 );
 
 } // namespace chronon3d::text::resolver
@@ -85,48 +92,68 @@ void emit_via_bidi(
     FontEngine&                             engine,
     const FontSubRange&                     sub,
     const ParagraphRange&                   para,
-    TextDirection                           override_dir
+    TextDirection                           override_dir,
+    const std::filesystem::path&            bundled_fonts_root
 ) {
     std::string_view text = std::string_view(doc.utf8).substr(
         sub.byte_start, sub.byte_end - sub.byte_start);
 
-    // Resolve the font ONCE for this homogeneous sub-range.  The
-    // resolver object is stack-local (no allocation beyond the result);
-    // cheap to construct here on every emit call.
+    // Resolve the primary font through the canonical FontResolver first
+    // (canonicalization + file-family fallback).  Then build the
+    // cluster-level stack around it.
     FontRequest req;
     req.primary       = sub.font;
     req.extra_family_candidates      = kResolverExtras;
     req.extra_family_candidates_count = kResolverExtrasCnt;
     auto resolved = FontResolver{engine}.resolve(req);
 
+    // Only expand the default fallback stack when the resolved primary
+    // font is actually loadable.  This preserves fail-loud behaviour for
+    // missing/corrupt primary fonts (the bundled fallbacks must not turn
+    // an invalid font into a silent render).
+    FontStack stack;
+    if (engine.can_load(resolved.resolved)) {
+        stack = make_default_font_stack(engine, resolved.resolved, bundled_fonts_root);
+    } else {
+        stack.push_back(resolved.resolved);
+    }
+
+    FontFallbackResolver fallback_resolver{engine};
+
+    TextShaping shaping;
+    shaping.direction = (override_dir != TextDirection::Auto) ? override_dir : TextDirection::Auto;
+    if (!para.style.language.empty()) {
+        shaping.language = para.style.language;
+    }
+
     // No bidi branch: even non-bidi-input collapses to a single run
     // with the resolved font + override_dir (or LTR fallback).
     auto runs = segment_bidi_runs(text);
     if (runs.empty()) {
-        ResolvedTextRun run;
-        run.text = std::string(text);
-        run.font = resolved.resolved;
-        run.direction = (override_dir != TextDirection::Auto)
-                            ? override_dir : TextDirection::LTR;
-        run.byte_offset = sub.byte_start;
-        run.byte_len    = text.size();
-        run.paragraph_style = para.style;
-        out.push_back(std::move(run));
+        const TextDirection direction = (override_dir != TextDirection::Auto)
+                                            ? override_dir : TextDirection::LTR;
+        auto result = fallback_resolver.resolve_runs(
+            text, stack, shaping, sub.byte_start, direction, para.style);
+        for (auto& run : result.runs) {
+            out.push_back(std::move(run));
+        }
         return;
     }
 
     for (const auto& br : runs) {
-        ResolvedTextRun run;
-        run.text   = br.text;
-        run.font   = resolved.resolved;
         // When a paragraph has an explicit direction override, use it.
         // Otherwise use the bidi-resolved direction.
-        run.direction = (override_dir != TextDirection::Auto)
-                            ? override_dir : br.direction;
-        run.byte_offset = sub.byte_start + br.byte_offset;
-        run.byte_len    = br.text.size();
-        run.paragraph_style = para.style;
-        out.push_back(std::move(run));
+        const TextDirection direction = (override_dir != TextDirection::Auto)
+                                            ? override_dir : br.direction;
+
+        auto result = fallback_resolver.resolve_runs(
+            br.text, stack, shaping,
+            sub.byte_start + br.byte_offset,
+            direction, para.style);
+
+        for (auto& run : result.runs) {
+            out.push_back(std::move(run));
+        }
     }
 }
 

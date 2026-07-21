@@ -7,7 +7,7 @@
 // explicit semantic intent (per user-spec "moduli con nomi espliciti").
 //
 // Internal-only header: lives in src/backends/text/ alongside sibling
-// extraction files (`text_rasterizer_cache.cpp`, `text_rasterizer_ink.cpp`).
+// extraction files (`text_rasterizer_cache.cpp`).
 // NOT in `include/chronon3d/` — these utilities are internal-to-backend
 // and do NOT expand the public ABI surface (AGENTS.md Cat-5 compliant).
 //

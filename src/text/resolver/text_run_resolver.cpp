@@ -37,6 +37,7 @@
 #include "src/text/resolver/text_span_resolver.hpp"
 #include "src/text/resolver/text_bidi_resolver.hpp"
 
+#include <filesystem>
 #include <utility>
 
 namespace chronon3d {
@@ -85,11 +86,21 @@ ResolvedTextTree resolve_text_run_tree(
         // For each font-homogeneous sub-range, run bidi + emit runs
         // (text_bidi_resolver).  The bidi resolver internally calls
         // FontResolver (text_font_resolver) for the fallback chain.
+        //
+        // TODO(FOLLOWUP-RUNTIME-ASSETS-ROOT): forward the runtime's
+        // bundled_fonts_root here.  This orchestrator currently does
+        // not have a direct RenderRuntime handle (`engine` carries the
+        // FontEngine but the runtime's AssetRegistry/AssetResolver
+        // surface lives outside this call chain).  When the threading
+        // lands, the empty path triggers `spdlog::warn` from
+        // `make_default_font_stack` (fail-loud preserved).
+        const std::filesystem::path bundled_fonts_root{};
         for (const auto& sub : sub_ranges) {
             chronon3d::text::resolver::emit_via_bidi(
                 resolved_para.runs,
                 doc, engine, sub, para,
-                para.style.direction);
+                para.style.direction,
+                bundled_fonts_root);
         }
 
         // A paragraph may have no runs (empty paragraph — e.g. two

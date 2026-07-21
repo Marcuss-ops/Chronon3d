@@ -18,8 +18,6 @@
 #include "text_run_stages.hpp"
 #include "../../../utils/blend2d_bridge.hpp"
 
-#include <chronon3d/backends/text/text_rasterizer_ink.hpp>
-
 #include <cstdint>
 #include <limits>
 
@@ -27,22 +25,22 @@ namespace chronon3d::renderer::text_run_stages {
 
 namespace {
 
-// Transform a local image-space ink bbox (from s.img) into canvas-space
-// using the same model matrix + run-local offset that composite uses.
+// Transform the local geometric ink bbox (prepared in prepare_text_run via
+// compute_text_run_visual_bounds) into canvas-space using the same model
+// matrix + run-local offset that composite uses. This replaces the prior
+// alpha-scan of the scratch image so that placement never depends on a
+// pixel scan; the scratch-image alpha scan is retained only as a debug /    // audit helper (see alpha_bbox_scan).
 std::optional<raster::BBox> compute_canvas_ink_bbox(
-    BLImage& img,
     const Mat4& model_matrix,
     float offset_x,
-    float offset_y)
+    float offset_y,
+    float min_x,
+    float min_y,
+    float max_x,
+    float max_y)
 {
-    int ink_left = 0, ink_right = 0, ink_top = 0, ink_bottom = 0;
-    float ink_w = 0.0f;
-    const float ink_center = compute_text_ink_bbox(
-        img, 0, /*box_enabled=*/true, /*font_size=*/0.0f,
-        ink_left, ink_right, ink_top, ink_bottom, ink_w);
-
-    // compute_text_ink_bbox returns -1.0f when no visible ink is found.
-    if (ink_center < 0.0f || ink_left >= ink_right || ink_top >= ink_bottom) {
+    // Degenerate local bounds mean no visible ink.
+    if (min_x >= max_x || min_y >= max_y) {
         return std::nullopt;
     }
 
@@ -51,32 +49,31 @@ std::optional<raster::BBox> compute_canvas_ink_bbox(
     full_model = glm::translate(full_model,
         Vec3(offset_x, offset_y, 0.0f));
 
-    // Local bbox is inclusive pixel indices; convert to exclusive float bbox.
     const glm::vec4 corners[4] = {
-        {static_cast<float>(ink_left),     static_cast<float>(ink_top),     0.0f, 1.0f},
-        {static_cast<float>(ink_right) + 1.0f, static_cast<float>(ink_top),     0.0f, 1.0f},
-        {static_cast<float>(ink_left),     static_cast<float>(ink_bottom) + 1.0f, 0.0f, 1.0f},
-        {static_cast<float>(ink_right) + 1.0f, static_cast<float>(ink_bottom) + 1.0f, 0.0f, 1.0f},
+        {min_x, min_y, 0.0f, 1.0f},
+        {max_x, min_y, 0.0f, 1.0f},
+        {min_x, max_y, 0.0f, 1.0f},
+        {max_x, max_y, 0.0f, 1.0f},
     };
 
-    float min_x = std::numeric_limits<float>::infinity();
-    float min_y = std::numeric_limits<float>::infinity();
-    float max_x = -std::numeric_limits<float>::infinity();
-    float max_y = -std::numeric_limits<float>::infinity();
+    float canvas_min_x = std::numeric_limits<float>::infinity();
+    float canvas_min_y = std::numeric_limits<float>::infinity();
+    float canvas_max_x = -std::numeric_limits<float>::infinity();
+    float canvas_max_y = -std::numeric_limits<float>::infinity();
 
     for (const auto& c : corners) {
         const glm::vec4 wc = full_model * c;
-        min_x = std::min(min_x, wc.x);
-        min_y = std::min(min_y, wc.y);
-        max_x = std::max(max_x, wc.x);
-        max_y = std::max(max_y, wc.y);
+        canvas_min_x = std::min(canvas_min_x, wc.x);
+        canvas_min_y = std::min(canvas_min_y, wc.y);
+        canvas_max_x = std::max(canvas_max_x, wc.x);
+        canvas_max_y = std::max(canvas_max_y, wc.y);
     }
 
     return raster::BBox{
-        static_cast<i32>(std::floor(min_x)),
-        static_cast<i32>(std::floor(min_y)),
-        static_cast<i32>(std::ceil(max_x)),
-        static_cast<i32>(std::ceil(max_y))};
+        static_cast<i32>(std::floor(canvas_min_x)),
+        static_cast<i32>(std::floor(canvas_min_y)),
+        static_cast<i32>(std::ceil(canvas_max_x)),
+        static_cast<i32>(std::ceil(canvas_max_y))};
 }
 
 } // namespace
@@ -104,9 +101,12 @@ std::optional<raster::BBox> compute_canvas_ink_bbox(
 
     // Compute the intrinsic ink bbox BEFORE releasing s.img — node_runner
     // uses this to avoid a full-framebuffer alpha scan during post-render
-    // reconciliation.
+    // reconciliation. Use the geometric local-space bounds computed in
+    // prepare_text_run rather than scanning rendered pixels, so placement
+    // is deterministic and independent of rasterization.
     std::optional<raster::BBox> actual_ink_bbox = compute_canvas_ink_bbox(
-        s.img, params.model_matrix, s.offset_x, s.offset_y);
+        params.model_matrix, s.offset_x, s.offset_y,
+        s.min_x, s.min_y, s.max_x, s.max_y);
 
     chronon3d::blend2d_bridge::composite_bl_image_transformed(
         params.fb, s.img, full_model,
