@@ -257,6 +257,106 @@ TEST_CASE("FontFallbackResolver: multilingual corpus certifies per-cluster fallb
 // fires via spdlog::error in `resolve_runs` (see foot of the function).
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Shaping metrics corpus — locks cluster fallback + per-font shaping results.
+// Verdict samples: AVATAR, "office affine", CJK, Arabic, emoji family.
+// Records for each sample: run count, glyph count, width, missing clusters,
+// and the resolved font family for every shaped run.
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("FontFallbackResolver: shaping metrics corpus (AVATAR / office / CJK / Arabic / emoji)") {
+    Config cfg;
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+
+    FontStack stack;
+    stack.push_back(make_spec("assets/fonts/Inter-Bold.ttf", "Inter", 700, 32.0f));
+    stack.push_back(make_spec("assets/fonts/NotoNaskhArabic-Regular.ttf", "Noto Naskh Arabic", 400, 32.0f));
+
+    TextShaping shaping;
+    ParagraphStyle style;
+    FontFallbackResolver resolver{engine};
+
+    struct Metrics {
+        const char* name;
+        std::string text;
+        bool        expect_missing;
+    };
+
+    const std::string arabic =
+        "\xD9\x85"
+        "\xD8\xB1"
+        "\xD8\xAD"
+        "\xD8\xA8"
+        "\xD8\xA7";
+
+    // 👨‍👩‍👧‍👦 emoji ZWJ family (4 emoji + 3 ZWJ codepoints)
+    const std::string emoji_family =
+        "\xF0\x9F\x91\xA8"
+        "\xE2\x80\x8D"
+        "\xF0\x9F\x91\xA9"
+        "\xE2\x80\x8D"
+        "\xF0\x9F\x91\xA7"
+        "\xE2\x80\x8D"
+        "\xF0\x9F\x91\xA6";
+
+    std::vector<Metrics> samples = {
+        {"AVATAR", "AVATAR", false},
+        {"office affine", "office affine", false},
+        {"Arabic", std::string(arabic), false},
+        {"CJK", "\xE4\xBD\xA0\xE5\xA5\xBD", true},          // 你好
+        {"emoji family", emoji_family, true},
+    };
+
+    for (const auto& sample : samples) {
+        INFO("Sample: ", sample.name);
+        auto result = resolver.resolve_runs(
+            sample.text, stack, shaping, 0,
+            TextDirection::LTR, style);
+
+        std::size_t total_glyphs = 0;
+        float total_width = 0.0f;
+        for (const auto& run : result.runs) {
+            ResolvedTextRun r{run};
+            PlacedGlyphRun placed = shape_resolved_run(r, engine, 0.0f);
+            total_glyphs += placed.glyphs.size();
+            total_width += placed.total_width;
+
+            CHECK_MESSAGE(!placed.glyphs.empty(),
+                sample.name, " run shaped to empty glyphs (font=", run.font.font_family, ")");
+            CHECK_MESSAGE(!run.font.font_family.empty(),
+                sample.name, " run has empty font family");
+        }
+
+        INFO(sample.name,
+             " runs=", result.runs.size(),
+             " glyphs=", total_glyphs,
+             " width=", total_width,
+             " missing=", result.missing_clusters);
+
+        REQUIRE_MESSAGE(!result.runs.empty(),
+            sample.name, " produced no runs");
+        CHECK_MESSAGE(total_glyphs > 0,
+            sample.name, " produced zero shaped glyphs");
+        CHECK_MESSAGE(total_width > 0.0f,
+            sample.name, " produced zero shaped width");
+
+        if (sample.expect_missing) {
+            CHECK_MESSAGE(result.missing_clusters > 0,
+                sample.name, " should report missing clusters");
+        } else {
+            CHECK_MESSAGE(result.missing_clusters == 0,
+                sample.name, " unexpectedly reports missing clusters");
+            // Fully-covered samples should collapse to a single font run,
+            // proving the state-machine groups consecutive same-font clusters.
+            CHECK_MESSAGE(result.runs.size() == 1,
+                sample.name, " should resolve to a single run (got ",
+                result.runs.size(), ")");
+        }
+    }
+}
+
 TEST_CASE("FontFallbackResolver: emoji ZWJ family + Devanagari + symbols audit") {
     Config cfg;
     auto runtime = chronon3d::runtime::RenderRuntime::create(
