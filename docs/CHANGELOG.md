@@ -1,5 +1,9 @@
 ## 2026-07-21
 
+### `chore(docs): close ROT ticket + open ADR forward-point`
+([TICKET-SYSTEMIC-NAMESPACE-ROT](docs/tickets/TICKET-SYSTEMIC-NAMESPACE-ROT.md) · [TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED](docs/tickets/TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED.md))
+Cat-5 4-doc same-commit (2 ticket + FOLLOWUP_TICKETS + CHANGELOG, cronaca canonical ticket-home per Cat-3 anti-dup). TICKET-SYSTEMIC-NAMESPACE-ROT CLOSED-WONTFIX con rotology blast-radius disclosure (1500+ errori / 27+ file / 6 OBJECT targets). Mitigazione tentata via targeted `::chronon3d::X` qualification (Op1) su 6 simboli bounded (test_frustum_culling / clip_with_uv / compute_signed_area / build_perspective_matrix / camera_math / registry) — chiuso solo `chronon3d_registry` (394→0 across 4 file `text_preset_factories_*.cpp`); insufficiente sui restanti 5 target per disjoint symbol scopes (RenderSession / ExecutionScheduler / Config / RenderCounters / ImageCache / Scene / Easing + analoghi in effects/backend_software). Forward-point `TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED` aperto per ADR-grade architectural decision (Strategy A qualification / B nested-ns convert / C using-directive / D selective header re-include / E combined).
+
 ### `feat(tests): isolated alignment + auto-fit tests (TICKET-ISOLATED-ALIGNMENT-TESTS)`
 ([TICKET-ISOLATED-ALIGNMENT-TESTS](docs/tickets/TICKET-ISOLATED-ALIGNMENT-TESTS.md))
 
