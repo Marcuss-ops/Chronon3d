@@ -476,6 +476,74 @@ TEST_CASE("JSON adapter populates TimedWord byte offsets (source words array pat
     CHECK(track.cues[0].words[1].byte_end == 11u);
 }
 
+TEST_CASE("Karaoke preset requires Authoritative per-word timing by default") {
+    LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})};
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
+    chronon3d::authoring::Layer layer{lb, canvas};
+
+    SubtitleTrack track;
+    SubtitleCue cue;
+    cue.start_s = 1.0f;
+    cue.end_s = 4.0f;
+    cue.text = "Hello world";
+    cue.word_timing_quality = WordTimingQuality::Estimated;
+    cue.words = {
+        TimedWord{"Hello", 1.0f, 2.5f, "w1", 0u, 5u},
+        TimedWord{"world", 2.5f, 4.0f, "w2", 6u, 11u},
+    };
+    track.cues.push_back(cue);
+
+    auto builder = layer.subtitles(track).preset("active_word_pop");
+    CHECK_THROWS_AS(builder.build(), std::runtime_error);
+}
+
+TEST_CASE("Karaoke preset accepts Authoritative per-word timing") {
+    LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})};
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
+    chronon3d::authoring::Layer layer{lb, canvas};
+
+    SubtitleTrack track;
+    SubtitleCue cue;
+    cue.start_s = 1.0f;
+    cue.end_s = 4.0f;
+    cue.text = "Hello world";
+    cue.word_timing_quality = WordTimingQuality::Authoritative;
+    cue.words = {
+        TimedWord{"Hello", 1.0f, 2.5f, "w1", 0u, 5u},
+        TimedWord{"world", 2.5f, 4.0f, "w2", 6u, 11u},
+    };
+    track.cues.push_back(cue);
+
+    auto builder = layer.subtitles(track).preset("active_word_pop");
+    CHECK_NOTHROW(builder.build());
+}
+
+TEST_CASE("Karaoke preset accepts Estimated timing when explicitly allowed") {
+    LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})};
+    lb.screen_dimensions(1920.0f, 1080.0f);
+    CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
+    chronon3d::authoring::Layer layer{lb, canvas};
+
+    SubtitleTrack track;
+    SubtitleCue cue;
+    cue.start_s = 1.0f;
+    cue.end_s = 4.0f;
+    cue.text = "Hello world";
+    cue.word_timing_quality = WordTimingQuality::Estimated;
+    cue.words = {
+        TimedWord{"Hello", 1.0f, 2.5f, "w1", 0u, 5u},
+        TimedWord{"world", 2.5f, 4.0f, "w2", 6u, 11u},
+    };
+    track.cues.push_back(cue);
+
+    auto builder = layer.subtitles(track)
+                       .preset("active_word_pop")
+                       .allow_estimated_word_timing(true);
+    CHECK_NOTHROW(builder.build());
+}
+
 TEST_CASE("SubtitleTrackBuilder emits one GlyphSelectorSpec per TimedWord (karaoke-pop wiring)") {
     // TICKET-TIMED-WORD-BINDING: the builder must emit N selectors (one per
     // word) so the preset's existing animator applies its highlight properties
@@ -506,7 +574,11 @@ TEST_CASE("SubtitleTrackBuilder emits one GlyphSelectorSpec per TimedWord (karao
 
     // Use a karaoke-aware preset (any subtitle preset will work; the test
     // only verifies the builder emits N selectors regardless of preset).
-    CHECK_NOTHROW(layer.subtitles(track).preset("active_word_pop").build());
+    // The cue has Estimated per-word timing, so explicitly opt-in.
+    CHECK_NOTHROW(layer.subtitles(track)
+                       .preset("active_word_pop")
+                       .allow_estimated_word_timing(true)
+                       .build());
 }
 
 TEST_CASE("TextRunSpec::selectors holds N word selectors post-builder-wiring (round-2 reviewer lock)") {
