@@ -1,4 +1,7 @@
 ## 2026-07-21
+### `chore(ticket): close rot + open forward-point` ([TICKET-SYSTEMIC-NAMESPACE-ROT](docs/tickets/TICKET-SYSTEMIC-NAMESPACE-ROT.md) · [TICKET-ROT-STRUCTURAL-FIX](docs/tickets/TICKET-ROT-STRUCTURAL-FIX.md))
+Cat-5 4-doc same-commit per Path C user instruction. `git revert ec6d6aab` (V6 partial fix revertito). TICKET-SYSTEMIC-NAMESPACE-ROT → CLOSED-WONTFIX-2 con disclosure che rotology era REALE ma NON nel perimetro 11/11 baseline cert di `7eb5c2ba` (rotology post-baseline not breaking release contract). TICKET-V6-RESIDUAL-ROTOLOGY + TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED entrambi CLOSED-SUPERSEDED per Cat-3 anti-dup canonical-chain. Forward-point canonico aperto: `TICKET-ROT-STRUCTURAL-FIX` (ADR-grade architectural decision, 5-strategy Decision Matrix con Strategy E recommended per V6 evidence). Cronaca canonical ticket-home per Cat-3 anti-dup.
+
 ### `chore(rot): reopen TICKET-SYSTEMIC-NAMESPACE-ROT for Path D V6 structural fix` ([TICKET-SYSTEMIC-NAMESPACE-ROT](docs/tickets/TICKET-SYSTEMIC-NAMESPACE-ROT.md))
 Reverts prior `e3846d43` CLOSED-WONTFIX per user Path D instruction (full `ninja all` inventory + Path B structural fix on complete file list). L'ADR forward-point `TICKET-ARCH-ADR-NAMESPACE-ARCHITECTURE-REVISITED` resta valido per residual rotology che non si chiude con Path B. Cat-5 4-doc same-commit. Cronaca canonical ticket-home per Cat-3 anti-dup.
 
