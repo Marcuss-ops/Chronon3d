@@ -35,27 +35,19 @@ class RenderGraphNode;       // fwd decl: `<chronon3d/render_graph/nodes/render_
 struct TextBboxReporter;     // per-session reporter (text_bbox_reporter.hpp)
 
 // ── reconcile_text_bbox_after_render ────────────────────────────────────────
-// After a TextRun node renders, scan the rendered framebuffer's alpha channel
-// via the canonical `alpha_bbox_scan()` and expand `predicted` if the actual
-// ink extends beyond it.  Counter `text_bbox_contract_violations` is
-// incremented (when `counters != nullptr`) on expansion; a single warn-once
-// diagnostic is emitted per session via the provided `TextBboxReporter`
-// (thread-safe; no static/process-wide state).
+// Kept for ABI compatibility, but the POST_RENDER_EXPAND fallback has been
+// removed.  The predicted bbox is now the single source of truth and is
+// computed from FreeType outline bboxes (see src/backends/text/font_engine.cpp
+// and src/text/text_run_geometry.cpp), which already account for glyph ink
+// extents including negative side-bearings and descenders.
 //
 // Contract:
-//   - `framebuffer` MUST be a valid reference to a sized framebuffer.
-//     Caller is responsible for the null-check at the call site (matches
-//     the original guard pattern in node_runner.cpp).
-//   - `predicted` MUST be non-empty (caller-guarded).  An empty optional
-//     yields a no-op return.
-//   - `reporter` MUST outlive the function call.
-//   - Returns std::optional<raster::BBox> carrying the EXPANDED bbox iff
-//     expansion was needed.  std::nullopt on no-op paths (no ink found,
-//     non-expanding match, or empty input).
+//   - All parameters are accepted for backward compatibility but are ignored.
+//   - Always returns std::nullopt.
 //
-// Step 2 fix preserved: the canonical scanner never early-exits (closes
-// the historical `if (y > alpha_y1 + 2 && alpha_y1 >= alpha_y0) break;`
-// bug that lost second lines, subtitles, and far-down descenders).
+// The legacy alpha-scan + expansion code has been intentionally removed so
+// that under-sized predicted bboxes are surfaced at their source rather than
+// masked by a post-render expansion.
 std::optional<raster::BBox> reconcile_text_bbox_after_render(
     const RenderGraphNode& node,
     const Framebuffer& framebuffer,
