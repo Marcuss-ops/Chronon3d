@@ -35,6 +35,17 @@ struct TimedWord {
     f32         start_s{0.0f};  ///< word start in seconds
     f32         end_s{0.0f};    ///< word end in seconds
     std::string semantic_id;    ///< stable id, e.g. "cue3-word4" or "keyword-1"
+
+    // TICKET-TIMED-WORD-BINDING: UTF-8 byte offset in `cue.text` for
+    // mapping to TextSpanOverride (authoring-level per-range style override)
+    // and TextUnitMap byte indices.  NON grapheme count: UTF-8 byte
+    // boundaries are unambiguous and align directly with the canonical
+    // 8-level TextUnitMap `byte_to_*` ladder.  Default {0, 0} so a
+    // default-constructed TimedWord advertises "no byte mapping" (the
+    // conservative answer; callers MUST populate before passing through
+    // SubtitleTrackBuilder::build() to wire selectors).
+    std::size_t byte_start{0};
+    std::size_t byte_end{0};
 };
 
 // ── WordTimingQuality — provenance classification of per-word timing ────
