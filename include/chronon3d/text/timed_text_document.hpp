@@ -37,6 +37,30 @@ struct TimedWord {
     std::string semantic_id;    ///< stable id, e.g. "cue3-word4" or "keyword-1"
 };
 
+// ── WordTimingQuality — provenance classification of per-word timing ────
+//
+// TICKET-WORD-TIMING-QUALITY.  Per-cue discriminator that lets the
+// renderer decide whether pop/highlight animations are trustable
+// animation primitives or only uniform-split approximations.
+//
+//   None          — cue has no per-word breakdown (text-only cues)
+//   Estimated     — per-word timing derived by uniform split across the
+//                   cue duration (SRT/VTT always; JSON when the
+//                   "words" array is absent and an auto-fallback fires)
+//   Authoritative — per-word timing comes verbatim from the source
+//                   format (JSON/Whisper-only when the source actually
+//                   provides per-word start/end)
+//
+// The enum lives at per-cue granularity (NOT per-document) because a
+// JSON document can mix cues with and without word arrays; a per-doc
+// flag would either lie about the worst case or pessimise the best
+// case.  See docs/tickets/TICKET-WORD-TIMING-QUALITY.md for rationale.
+enum class WordTimingQuality {
+    None,
+    Estimated,
+    Authoritative,
+};
+
 // ── TimedCueStyle — per-cue style metadata ──────────────────────────────
 
 /// Speaker-dependent styling hints carried on each cue.  All fields are
@@ -67,6 +91,14 @@ struct TimedCue {
     /// the index (1-based string); for VTT the cue id if present; for
     /// JSON the id field.  Used for cache-key hashing and debugging.
     std::string source_id;
+
+    /// Provenance classification of the per-word timing in `words`.
+    /// TICKET-WORD-TIMING-QUALITY: per-cue field.  Adapters MUST set
+    /// this so the renderer can distinguish trustworthy (Authoritative)
+    /// word-level animation primitives from uniform-split estimates.
+    /// Defaults to `None` so a default-constructed cue advertises
+    /// "no per-word data" — never silently False-positive as Estimated.
+    WordTimingQuality word_timing_quality{WordTimingQuality::None};
 
     [[nodiscard]] bool operator==(const TimedCue&) const noexcept = default;
 };

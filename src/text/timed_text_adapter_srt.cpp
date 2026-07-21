@@ -145,6 +145,14 @@ TimedTextDocument timed_text_from_srt(const std::string& raw) {
             ++word_idx;
         }
 
+        // TICKET-WORD-TIMING-QUALITY: SRT format carries cue-level
+        // timing only; the per-word breakdown above is the uniform-split
+        // heuristic, so it is `Estimated` — usable for highlight
+        // animation but NEVER for source-of-truth sync.
+        cue.word_timing_quality = wranges.empty()
+            ? WordTimingQuality::None
+            : WordTimingQuality::Estimated;
+
         doc.cues.push_back(std::move(cue));
     }
 
