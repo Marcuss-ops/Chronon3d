@@ -1,4 +1,17 @@
 ## 2026-07-21
+### `docs(sync): allinea 4 canonical al codice attuale (TICKET-DOC-SYNC-CAPCUT-VERDICT)`
+  ([TICKET-DOC-SYNC-CAPCUT-VERDICT](docs/tickets/TICKET-DOC-SYNC-CAPCUT-VERDICT.md))
+
+4 canonical docs allineati al codice attuale (Cat-3 minimal-surface, ZERO source touched).
+- **§honest-discipline deviation disclosed**: verdict §Step 2 "word-binding OPEN, blocked on Fase 1 + Fase 4" NON applicato letteralmente — Fase 4 è DONE in `ce51d08a`, applicare letteralmente sarebbe cronaca falsa. Record `TICKET-TIMED-WORD-BINDING` marcato **DONE** (non OPEN) con link al ticket-home §Forward-points. Deviazione documentata in [TICKET-DOC-SYNC-CAPCUT-VERDICT](docs/tickets/TICKET-DOC-SYNC-CAPCUT-VERDICT.md) §Accepted deviations #1.
+- `CURRENT_STATUS.md` line 32 "Text Production / CapCut-grade V1" row: `4/8 subtitle presets + no SRT/word-timing + per-word highlight not wired` → `≥8 subtitle presets (10 test) + SRT/VTT/JSON adapters con byte_offset + word-timing-quality classification (Estimated/Authoritative) + per-word karaoke highlight wired via N GlyphSelectorSpec pushed on TextRunSpec::selectors`. NEW "Test hardening (false-green audit)" row (DONE).
+- `ROADMAP.md` NEW milestone `## M3 — CapCut-grade Parity (in progress, post-V0.2 cycle)` con 7 gate exit criteria verbatim dal verdict (geometric ink-bbox / cluster-fallback / fps-correctness / word-timing-quality / missing-glyph-audit / CapCut-reference / determinism).
+- `FOLLOWUP_TICKETS.md` rimosso record duplicato (TICKET-SUBTITLE-WORD-KARAOKE + TICKET-TIMED-WORD-BINDING nello stesso record); separati in 2 record distinti, ciascuno ≤1 riga sintetica + link al ticket-home. Aggiunto record DONE per `TICKET-FALSE-GREEN-TEST-AUDIT` + record DONE per `TICKET-DOC-SYNC-CAPCUT-VERDICT`.
+- `CHANGELOG.md` 3 commit entries della sessione (ce51d08a, e9999554, 780580da) verificati presenti + questo entry docs(sync) aggiunto.
+- Cronaca estesa SOLO in `docs/tickets/TICKET-DOC-SYNC-CAPCUT-VERDICT.md` (Cat-3 anti-dup invariant); canonical docs sintetici (≤1 riga per ticket + link).
+- Verifica `tools/check_doc_sync.sh` PASS post-edit.
+
+## 2026-07-21
 ### `test(hardening): TICKET-FALSE-GREEN-TEST-AUDIT — 6 falsi-verde fixes`
   ([TICKET-FALSE-GREEN-TEST-AUDIT](docs/tickets/TICKET-FALSE-GREEN-TEST-AUDIT.md))
 

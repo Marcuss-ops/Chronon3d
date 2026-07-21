@@ -485,6 +485,54 @@ Allineato con `docs/camera-plan/04-INTEGRATION_TESTS_AND_LEGACY_REMOVAL.md` PR b
 - test camera bloccanti verdi;
 - consumer esterno usa una camera compilata.
 
+## M3 — CapCut-grade Parity (in progress, post-V0.2 cycle)
+
+> **Origine:** verdict CapCut-grade (2026-07-21, sessione CapCut parity). Formalizza
+> il milestone di parità visiva e comportamentale con CapCut per la pipeline tipografica
+> Chronon3D (subtitle + kinetic typography + static text + rendering globale).
+> NON avviabile come milestone completamente macchina-verificata sul lineage corrente
+> per TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV blocker (this VPS).
+
+### Obiettivo
+
+Ottenere `CapCut-grade parity` = il rendering tipografico Chronon3D è indistinguibile
+dal rendering CapCut per i 7 gate exit criteria sotto elencati, su un corpus di
+riferimento CapCut blessed.
+
+### Gate di uscita (7, tutti obbligatori)
+
+| # | Gate | Stato attuale (post-sessione 2026-07-21) | Note |
+|---|---|---|---|
+| 1 | **geometric ink-bbox PASS** | FORWARD-POINT | `TICKET-INK-BBOX-GEOMETRIC` — rewrite `compute_text_ink_bbox()` iterando sui FT_Outline trasformati (verdict Fase 1) |
+| 2 | **cluster-fallback PASS** | FORWARD-POINT | `TICKET-FR-2-CLUSTER-FALLBACK` — `FontFallbackResolver::resolve_runs()` per grapheme/cluster (verdict Fase 2) |
+| 3 | **fps-correctness PASS** | PARTIAL (deferred-WBH) | SubtitleTrackBuilder `seconds_to_frame()` riscritto con FrameRate param + 7 rate verificate; macchina-verifica `tools/verify_*_linux.sh` DEFERRED-WBH |
+| 4 | **word-timing-quality PASS** | DONE (cat-3 minimal) | `TICKET-WORD-TIMING-QUALITY` — `enum class WordTimingQuality` + 3 adapter classification + 7 TEST_CASEs |
+| 5 | **missing-glyph-audit PASS** | DONE | `TICKET-FALSE-GREEN-TEST-AUDIT` — `check_anti_false_green()` dimension assertions + UTF-8 REQUIRE fb + 4 NEW TEST_CASEs (audit-driven glyph_count deferred-WBH) |
+| 6 | **CapCut-reference PASS** | FORWARD-POINT (NO blessed PNGs yet) | `TICKET-CAPCUT-REFERENCE-CORPUS` — corpus skeleton committato (`tests/reference/capcut/` + README blessed-only policy), blessed reference PNGs deferred-PR-review |
+| 7 | **determinism PASS** | PARTIAL (deferred-WBH) | determinism matrix 16 test PASS strutturalmente; macchina-verifica `tools/verify_determinism_linux.sh` DEFERRED-WBH |
+
+### Lavori (sequenza forward-only, atomic su main, no branch)
+
+- **Fase 1** — Geometric ink-bbox rewrite (gate 1): vedi `TICKET-INK-BBOX-GEOMETRIC`.
+- **Fase 2** — Cluster fallback + OpenType features (gate 2): vedi `TICKET-FR-2-CLUSTER-FALLBACK` + `TICKET-OPENTYPE-FEATURES-PASS`.
+- **Fase 3** — CapCut reference corpus blessing (gate 6): vedi `TICKET-CAPCUT-REFERENCE-CORPUS`. Policy: nessun blessed reference committato senza PR review esplicita.
+- **Fase 4** — Machine-verification end-to-end (gate 3, 5, 7): TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV chiusura prerequisita.
+
+### Cross-link canonici
+
+- [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) §Stato generale per area "Text Production / CapCut-grade V1" row + "Test hardening (false-green audit)" row;
+- [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md) `## Open Blockers` + `## Recently Closed` rows (TICKET-TIMED-WORD-BINDING DONE, TICKET-WORD-TIMING-QUALITY DONE, TICKET-FALSE-GREEN-TEST-AUDIT DONE, TICKET-INK-BBOX-GEOMETRIC OPEN, TICKET-FR-2-CLUSTER-FALLBACK OPEN, TICKET-CAPCUT-REFERENCE-CORPUS OPEN);
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) `## 2026-07-21` entries (3 commit rilevanti della sessione: ce51d08a, e9999554, 780580da);
+- [`docs/tickets/TICKET-DOC-SYNC-CAPCUT-VERDICT.md`](docs/tickets/TICKET-DOC-SYNC-CAPCUT-VERDICT.md) cronaca-estesa del chore doc-sync.
+
+### Non-goal M3
+
+- claim "CapCut parity DONE" senza blessed reference PNG committato (no greenwashing);
+- macchina-verifica end-to-end su VPS env-blocked (TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV forward-point);
+- expand del milestone prima che tutti i 7 gate siano PASS macchina-verificato (forward-only).
+
+---
+
 ## M3 — SDK Product V1
 
 ### Obiettivo
