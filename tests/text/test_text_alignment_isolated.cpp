@@ -127,9 +127,9 @@ TEST_CASE("align-left: ink.x0 ~ position.x (200) within 5px tolerance") {
          "the assertion.");
     return;  // EXPECT_FAIL — see WARN above. Re-enable when alignment is implemented.
 
-    auto renderer = make_renderer();
-    auto fb = renderer.render(
-        build_alignment_composition(renderer, TextAlign::Left), Frame{0});
+    auto renderer = make_renderer_shared();
+    auto fb = renderer->render(
+        build_alignment_composition(*renderer, TextAlign::Left), Frame{0});
     REQUIRE(fb != nullptr);
 
     const AlphaBBox bbox = alpha_bbox(*fb);
@@ -152,9 +152,9 @@ TEST_CASE("align-center: ink.center_x ~ box_center_x (400) within 1px") {
          "the assertion.");
     return;  // EXPECT_FAIL — see WARN above. Re-enable when alignment is implemented.
 
-    auto renderer = make_renderer();
-    auto fb = renderer.render(
-        build_alignment_composition(renderer, TextAlign::Center), Frame{0});
+    auto renderer = make_renderer_shared();
+    auto fb = renderer->render(
+        build_alignment_composition(*renderer, TextAlign::Center), Frame{0});
     REQUIRE(fb != nullptr);
 
     const AlphaBBox bbox = alpha_bbox(*fb);
@@ -176,9 +176,9 @@ TEST_CASE("align-right: ink.x1 ~ box_right (600) within 5px tolerance") {
          "the assertion.");
     return;  // EXPECT_FAIL — see WARN above. Re-enable when alignment is implemented.
 
-    auto renderer = make_renderer();
-    auto fb = renderer.render(
-        build_alignment_composition(renderer, TextAlign::Right), Frame{0});
+    auto renderer = make_renderer_shared();
+    auto fb = renderer->render(
+        build_alignment_composition(*renderer, TextAlign::Right), Frame{0});
     REQUIRE(fb != nullptr);
 
     const AlphaBBox bbox = alpha_bbox(*fb);
