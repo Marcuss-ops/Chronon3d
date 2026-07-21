@@ -82,6 +82,24 @@ public:
         return *this;
     }
 
+    /// Require per-word timing to be `Authoritative` for this track.
+    /// This is the default for karaoke presets IDs (e.g. karaoke_fill,
+    /// active_word_pop). Call `allow_estimated_word_timing(true)` to
+    /// explicitly opt-in to Estimated / source-less per-word animation.
+    SubtitleTrackBuilder& require_authoritative_word_timing(bool value = true) {
+        require_authoritative_ = value;
+        return *this;
+    }
+
+    /// Allow `Estimated` per-word timing (SRT/VTT, JSON auto-fallback).
+    /// When set, the builder will NOT fail on Estimated cues even for
+    /// karaoke presets. This is an explicit opt-in for formats that do
+    /// not provide real per-word timestamps.
+    SubtitleTrackBuilder& allow_estimated_word_timing(bool value = true) {
+        allow_estimated_ = value;
+        return *this;
+    }
+
     /// Commit the track: create one text-run per cue with timing.
     /// Cues are translated from seconds to frames using the parent
     /// LayerBuilder's frame rate, or the rate set via frame_rate().
@@ -100,6 +118,8 @@ private:
     TextAlign align_{TextAlign::Center};
     TextPlacementKind placement_kind_{TextPlacementKind::SafeAreaBottom};
     std::optional<FrameRate> frame_rate_override_{std::nullopt};
+    bool require_authoritative_{false};
+    bool allow_estimated_{false};
 
     [[nodiscard]] FrameRate active_frame_rate() const noexcept;
     [[nodiscard]] Frame seconds_to_frame(float seconds) const;
