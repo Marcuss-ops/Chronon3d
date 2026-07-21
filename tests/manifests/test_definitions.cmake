@@ -58,10 +58,8 @@ set(CHRONON3D_TEST_DEFINITIONS
     render_graph/compiler/fusion_pass_tests.cmake
     render_graph/pipeline/glow_fullframe_audit_tests.cmake
     sabotage_tests.cmake
+    # CapCut-grade parity test (TICKET-CAPCUT-REFERENCE-CORPUS, FU09 verdict CapCut-grade §Fase 9)
+    reference/capcut/CMakeLists.txt
+    # Isolated alignment + auto-fit regression locks (TICKET-ISOLATED-ALIGNMENT-TESTS, FU07 verdict CapCut-grade §Fase 7)
+    text/CMakeLists.txt
 )
-
-# CapCut-grade parity test (TICKET-CAPCUT-REFERENCE-CORPUS, FU09 verdict CapCut-grade §Fase 9)
-reference/capcut/CMakeLists.txt
-
-# Isolated alignment + auto-fit regression locks (TICKET-ISOLATED-ALIGNMENT-TESTS, FU07 verdict CapCut-grade §Fase 7)
-text/CMakeLists.txt
