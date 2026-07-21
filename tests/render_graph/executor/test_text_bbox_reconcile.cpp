@@ -6,14 +6,15 @@
 // per-session TextBboxReporter, and replaced the inline alpha-framebuffer
 // scan with the canonical `chronon3d::alpha_bbox_scan()`.
 //
+// POST_RENDER_EXPAND has been removed: the predicted bbox is now computed
+// from FreeType outline bboxes (see src/backends/text/font_engine.cpp and
+// src/text/text_run_geometry.cpp) and is the single source of truth.  This
+// file now locks the no-op contract of reconcile_text_bbox_after_render().
+//
 // Invariants locked:
-//   1. reconcile_text_bbox_after_render() expands the predicted bbox when
-//      the actual ink extends beyond it.
-//   2. The text_bbox_contract_violations counter is incremented on every
-//      expansion (not just the first).
-//   3. The reporter emits a warning exactly once per session.
-//   4. A fresh reporter for a new session can emit a warning again —
-//      there is no process-wide static state suppressing diagnostics.
+//   1. reconcile_text_bbox_after_render() always returns std::nullopt.
+//   2. No expansion, counter increment, or warning is emitted.
+//   3. Reporter state remains untouched.
 // ============================================================================
 
 #include <doctest/doctest.h>
@@ -65,7 +66,7 @@ void draw_ink(Framebuffer& fb, int x0, int y0, int w, int h) {
 
 } // namespace
 
-TEST_CASE("TextBboxReconcile: expands predicted bbox when ink exceeds prediction") {
+TEST_CASE("TextBboxReconcile: no longer expands predicted bbox when ink exceeds prediction") {
     MockTextRunNode node("text_run");
     Framebuffer fb(20, 20);
     fb.clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
@@ -79,14 +80,9 @@ TEST_CASE("TextBboxReconcile: expands predicted bbox when ink exceeds prediction
 
     auto expanded = reconcile_text_bbox_after_render(node, fb, predicted, &counters, reporter);
 
-    REQUIRE(expanded.has_value());
-    CHECK(expanded->x0 == 5);
-    CHECK(expanded->y0 == 5);
-    CHECK(expanded->x1 == 9);
-    CHECK(expanded->y1 == 9);
-
-    CHECK(counters.text_bbox_contract_violations.load() == 1);
-    CHECK(reporter.has_warned());
+    CHECK_FALSE(expanded.has_value());
+    CHECK(counters.text_bbox_contract_violations.load() == 0);
+    CHECK_FALSE(reporter.has_warned());
 }
 
 TEST_CASE("TextBboxReconcile: no expansion when ink fits inside predicted bbox") {
@@ -108,7 +104,7 @@ TEST_CASE("TextBboxReconcile: no expansion when ink fits inside predicted bbox")
     CHECK_FALSE(reporter.has_warned());
 }
 
-TEST_CASE("TextBboxReconcile: warning is emitted exactly once per session") {
+TEST_CASE("TextBboxReconcile: warning is never emitted after POST_RENDER_EXPAND removal") {
     MockTextRunNode node("text_run");
     Framebuffer fb(20, 20);
     fb.clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
@@ -118,23 +114,18 @@ TEST_CASE("TextBboxReconcile: warning is emitted exactly once per session") {
     RenderCounters counters;
     TextBboxReporter reporter;
 
-    // First expansion: warning emitted.
     auto expanded1 = reconcile_text_bbox_after_render(node, fb, predicted, &counters, reporter);
-    REQUIRE(expanded1.has_value());
-    CHECK(reporter.has_warned());
-    CHECK(counters.text_bbox_contract_violations.load() == 1);
+    CHECK_FALSE(expanded1.has_value());
+    CHECK_FALSE(reporter.has_warned());
+    CHECK(counters.text_bbox_contract_violations.load() == 0);
 
-    // Second expansion with the same reporter: still expands and still
-    // increments the counter, but does NOT warn again.
     auto expanded2 = reconcile_text_bbox_after_render(node, fb, predicted, &counters, reporter);
-    REQUIRE(expanded2.has_value());
-    CHECK(counters.text_bbox_contract_violations.load() == 2);
-    // The reporter state is the only observable side-effect of the
-    // warn-once logic; there is no process-wide static flag.
-    CHECK(reporter.has_warned());
+    CHECK_FALSE(expanded2.has_value());
+    CHECK_FALSE(reporter.has_warned());
+    CHECK(counters.text_bbox_contract_violations.load() == 0);
 }
 
-TEST_CASE("TextBboxReconcile: fresh reporter for a new session can warn again") {
+TEST_CASE("TextBboxReconcile: fresh reporter stays clean after POST_RENDER_EXPAND removal") {
     MockTextRunNode node("text_run");
     Framebuffer fb(20, 20);
     fb.clear(Color{0.0f, 0.0f, 0.0f, 0.0f});
@@ -146,21 +137,19 @@ TEST_CASE("TextBboxReconcile: fresh reporter for a new session can warn again") 
     {
         TextBboxReporter reporter;
         auto expanded = reconcile_text_bbox_after_render(node, fb, predicted, &counters, reporter);
-        REQUIRE(expanded.has_value());
-        CHECK(reporter.has_warned());
+        CHECK_FALSE(expanded.has_value());
+        CHECK_FALSE(reporter.has_warned());
     }
 
-    // A brand-new reporter must be able to emit a warning again — this
-    // proves the warning state is not stored in a static/global variable.
     {
         TextBboxReporter reporter;
         CHECK_FALSE(reporter.has_warned());
         auto expanded = reconcile_text_bbox_after_render(node, fb, predicted, &counters, reporter);
-        REQUIRE(expanded.has_value());
-        CHECK(reporter.has_warned());
+        CHECK_FALSE(expanded.has_value());
+        CHECK_FALSE(reporter.has_warned());
     }
 
-    CHECK(counters.text_bbox_contract_violations.load() == 2);
+    CHECK(counters.text_bbox_contract_violations.load() == 0);
 }
 
 TEST_CASE("TextBboxReconcile: empty predicted bbox is a no-op") {

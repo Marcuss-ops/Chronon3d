@@ -56,77 +56,20 @@ std::optional<raster::BBox> reconcile_text_bbox_after_render(
         return std::nullopt;
     }
 
-    // ── Determine the actual ink bbox with a three-tier fallback ─────────
-    // 1. Prefer the intrinsic bbox produced by the rasterizer (no scan).
-    // 2. Fall back to the predicted bbox (already includes effect padding).
-    // 3. Last resort: canonical full-framebuffer alpha-bbox scan.
-    raster::BBox actual;
-    bool have_actual = false;
-
-    if (actual_ink_bbox && !actual_ink_bbox->is_empty()) {
-        actual = *actual_ink_bbox;
-        have_actual = true;
-    } else if (predicted && !predicted->is_empty()) {
-        actual = *predicted;
-        have_actual = true;
-    } else {
-        const Rect ink_rect = alpha_bbox_scan(framebuffer);
-        if (ink_rect.size.x > 0.0f && ink_rect.size.y > 0.0f) {
-            actual = raster::BBox{
-                static_cast<i32>(ink_rect.origin.x),
-                static_cast<i32>(ink_rect.origin.y),
-                static_cast<i32>(ink_rect.origin.x) + static_cast<i32>(ink_rect.size.x),
-                static_cast<i32>(ink_rect.origin.y) + static_cast<i32>(ink_rect.size.y),
-            };
-            have_actual = true;
-        }
-    }
-
-    if (!have_actual) {
-        return std::nullopt;
-    }
-
-    // ── Expand the predicted bbox if ink exceeded prediction on any side ──
-    raster::BBox expanded = *predicted;
-    bool needs_expand = false;
-    if (actual.x0 < expanded.x0) { expanded.x0 = actual.x0; needs_expand = true; }
-    if (actual.y0 < expanded.y0) { expanded.y0 = actual.y0; needs_expand = true; }
-    if (actual.x1 > expanded.x1) { expanded.x1 = actual.x1; needs_expand = true; }
-    if (actual.y1 > expanded.y1) { expanded.y1 = actual.y1; needs_expand = true; }
-
-    if (!needs_expand) {
-        return std::nullopt;  // prediction was already correct — no work to do.
-    }
-
-    // ── Counter increment (profiling; always incremented regardless of
-    //    the warn-once state) ────────────────────────────────────────────
-    if (counters) {
-        counters->text_bbox_contract_violations.fetch_add(
-            1, std::memory_order_relaxed);
-    }
-
-    // ── Warn-once diagnostic (per-session; no static state) ────────────────
-    // Logged values: ORIGINAL predicted (semantically: what the producer
-    // claimed), ACTUAL ink bbox (what the scanner measured), and EXPANDED
-    // bbox (the conservative union used downstream).  Previous TU-local
-    // code logged the expanded bbox TWICE in the `predicted=` and
-    // `expanded=` fields (because `predicted_bbox = expanded;` had
-    // destructively mutated the variable before the message assembly).
-    // That confused output is now correct — the original prediction is
-    // preserved in the function-local `*predicted` reference.
-    if (reporter.mark_warned()) {
-        spdlog::warn(
-            "[text-bbox] POST_RENDER_EXPAND node={} "
-            "predicted=({}, {}, {}, {}) "
-            "actual=({}, {}, {}, {}) "
-            "expanded=({}, {}, {}, {})",
-            node.name(),
-            predicted->x0, predicted->y0, predicted->x1, predicted->y1,
-            actual.x0, actual.y0, actual.x1, actual.y1,
-            expanded.x0, expanded.y0, expanded.x1, expanded.y1);
-    }
-
-    return std::optional<raster::BBox>(expanded);
+    // Geometric ink bbox is now the single source of truth; the legacy
+    // POST_RENDER_EXPAND alpha-scan fallback has been removed.  The
+    // predicted bbox is computed from FreeType outline bboxes (see
+    // src/backends/text/font_engine.cpp + src/text/text_run_geometry.cpp),
+    // which already account for glyph ink extents including negative
+    // side-bearings and descenders.  Keeping a post-render expansion here
+    // masked under-sized predicted bboxes instead of fixing them at the
+    // source, so we no longer expand.
+    (void)framebuffer;
+    (void)actual_ink_bbox;
+    (void)counters;
+    (void)node;
+    (void)reporter;
+    return std::nullopt;
 }
 
 } // namespace chronon3d::graph

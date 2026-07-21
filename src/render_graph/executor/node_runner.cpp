@@ -266,32 +266,15 @@ void execute_single_node(
     }
 
     // TICKET-SIMPLICITY-CONSERVATIVE-BBOX — F1.C post-render alpha_bbox
-    // expansion.  After a TextRun node renders, delegate to
-    // `reconcile_text_bbox_after_render()` (P0 #1 extracted) which uses
-    // the canonical `alpha_bbox_scan()` from
-    // `<chronon3d/text/alpha_bbox_scanner.hpp>` to compute the actual
-    // ink bounding box.  If the actual ink extends beyond the predicted
-    // bbox, expand resolved_bboxes[id] so the compositor doesn't clip
-    // visible text.  This catches cases where predicted_bbox was
-    // technically valid (finite, non-empty) but under-estimated the
-    // glyph ink extent (e.g., tight font metrics, unexpected kerning,
-    // large descenders).
-    //
-    // P0 #1 co-located effects:
-    //   (a) Closes the duplicate alpha-framebuffer scan (previously a
-    //       TU-local peak-pixel loop in this file, now centralised in
-    //       `text_bbox_reconcile.{hpp,cpp}`).
-    //   (b) Closes the data-race-prone `static bool warned = false;`
-    //       pattern via the function-local `std::atomic<bool>` in the
-    //       helper (lock-free, thread-safe exactly-once).
-    //   (c) Closes the historical early-exit bug
-    //       `if (y > alpha_y1 + 2 && alpha_y1 >= alpha_y0) break;`
-    //       (lost second lines / subtitles / far-down descenders) —
-    //       the canonical scanner never early-exits.
+    // expansion has been removed.  The predicted bbox is now computed
+    // from FreeType outline bboxes (see src/backends/text/font_engine.cpp
+    // and src/text/text_run_geometry.cpp), which account for glyph ink
+    // extents including negative side-bearings and descenders.  The call
+    // to `reconcile_text_bbox_after_render()` is retained for ABI
+    // compatibility but it now always returns std::nullopt.
     //
     // Gated on: TextRun node kind, successful render (non-null fb),
-    // non-empty predicted_bbox (otherwise we already fall back to full
-    // canvas in the pre-render guard).
+    // non-empty predicted_bbox.
     if (node.kind() == RenderGraphNodeKind::TextRun &&
         cache_eval.result && predicted_bbox && !predicted_bbox->is_empty())
     {

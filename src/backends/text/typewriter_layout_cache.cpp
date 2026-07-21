@@ -7,11 +7,11 @@ namespace chronon3d::content::text {
 class TypewriterLayoutCache::Impl {
 public:
     Impl()
-        : cache(64, 2, chronon3d::cache::CapacityMode::Count) {}
+        : cache_(64, 2, cache::CapacityMode::Count) {}
 
-    chronon3d::cache::LruCache<
+    cache::LruCache<
         TypewriterLayoutKey,
-        std::shared_ptr<const TypewriterLayoutEntry>> cache;
+        std::shared_ptr<const TypewriterLayoutEntry>> cache_;
 };
 
 TypewriterLayoutCache::TypewriterLayoutCache()
@@ -23,17 +23,17 @@ TypewriterLayoutCache::TypewriterLayoutCache(TypewriterLayoutCache&&) noexcept =
 TypewriterLayoutCache& TypewriterLayoutCache::operator=(TypewriterLayoutCache&&) noexcept = default;
 
 std::shared_ptr<const TypewriterLayoutEntry> TypewriterLayoutCache::get(const TypewriterLayoutKey& key) {
-    auto val = m_impl->cache.get(key);
+    auto val = m_impl->cache_.get(key);
     if (val) return *val;
     return nullptr;
 }
 
 void TypewriterLayoutCache::put(const TypewriterLayoutKey& key, std::shared_ptr<const TypewriterLayoutEntry> entry) {
-    m_impl->cache.put(key, std::move(entry), 1);
+    m_impl->cache_.put(key, std::move(entry), 1);
 }
 
 void TypewriterLayoutCache::clear() {
-    m_impl->cache.clear();
+    m_impl->cache_.clear();
 }
 
 } // namespace chronon3d::content::text
