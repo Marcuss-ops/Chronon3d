@@ -21,6 +21,7 @@
 | Tools / lint debt | P2 | OPEN | `TICKET-TOOLS-ORPHAN-AUDIT`: audit script orfani e tightening regex Gate #25. | [tools-audit](tickets/TICKET-TOOLS-ORPHAN-AUDIT.md) |
 | Sub-chore (g) migration ★ user-auth §honest-violation | P2 | RETRACTED* | `TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-MIGRATION` *(§honest-violation user-auth 2026-07-15): RETRACTED in d0f5c4f8 premisediscovery; user explicitly authorized this Open Blocker row via ask_user Q1 option C. Cat-3 anti-dup DISCLOSED + AGENTS.md `### Docs canonical update discipline rule` exception. Replacement canonical OPEN forward-point TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-DELETION tracked in `Text API migration` P1 row.* | [migration](tickets/TICKET-CENTERED-TEXT-TESTS-TEXT-AREA-MIGRATION.md) |
 | Text bbox overflow | P1 | CLOSED | `TICKET-TEXT-BBOX-OVERFLOW`: renderer bbox rot fixed via geometric ink-bbox from FreeType outlines + `l.center()` in matrix test. Golden matrix subtitle FAST mode now PASS without overflow. | [doc](tickets/TICKET-TEXT-BBOX-OVERFLOW.md) |
+| Text shaping / OT features | P1 | OPEN | `TICKET-OPENTYPE-FEATURES-PASS`: `hb_shape()` features explicit pass-through via `TextShaping::features` + `parse_opentype_features()` anon-namespace helper in `font_engine.cpp`. Forward-points in ticket: plumbing `TextRunLayout::features → TextShaping::features`, variable-font axes (wght/wdth), extended OT feature matrix coverage. | [doc](tickets/TICKET-OPENTYPE-FEATURES-PASS.md) |
 
 ---
 
