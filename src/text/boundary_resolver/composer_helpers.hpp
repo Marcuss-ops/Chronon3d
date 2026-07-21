@@ -16,6 +16,7 @@
 
 #include "../unicode/utf8_decoder.hpp"
 #include "../unicode/whitespace.hpp"
+#include "../unicode/line_break.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -138,9 +139,21 @@ inline void apply_kinsoku(
         sc.mandatory_break  = is_mandatory_break_codepoint(cp);
         sc.hyphenation_point = is_soft_hyphen_at(source_text, sc.source_byte_start);
 
-        sc.allowed_break_after =
+        // Default to existing whitespace/punctuation rule; extend with
+        // UAX#14-style line-break pair analysis for CJK / Thai / Devanagari
+        // / Arabic / Hebrew and punctuation kinsoku.
+        bool can_break =
             sc.whitespace || sc.punctuation || sc.mandatory_break ||
             sc.hyphenation_point || (i + 1 == shaped.clusters.size());
+
+        if (!can_break && i + 1 < shaped.clusters.size()) {
+            const char32_t next_cp =
+                decode_codepoint_at(source_text, shaped.clusters[i + 1].byte_offset);
+            const auto lb_before = text::unicode::line_break_class(cp);
+            const auto lb_after  = text::unicode::line_break_class(next_cp);
+            can_break = text::unicode::is_line_break_opportunity(lb_before, lb_after);
+        }
+        sc.allowed_break_after = can_break;
 
         clusters.push_back(sc);
     }
@@ -353,6 +366,16 @@ inline void finalize_lines(
     std::string_view source_text,
     const PlacedGlyphRun& shaped
 ) {
+    // Apply max_lines truncation before line metrics are finalized.  The
+    // composer may still have computed the ellipsis string, but the actual
+    // shaping/rendering of the ellipsis is left to the downstream renderer
+    // because the composer operates on already-shaped clusters.
+    if (style.max_lines > 0 && result.lines.size() > static_cast<size_t>(style.max_lines)) {
+        result.lines.resize(static_cast<size_t>(style.max_lines));
+        result.truncated = true;
+        result.rendered_ellipsis = style.ellipsis;
+    }
+
     float max_line_width = 0.0f;
     float cumulative_height = style.space_before;
     // TEXT-PLY-01: tight_leading multiplier [0.0, 1.0) reduces effective

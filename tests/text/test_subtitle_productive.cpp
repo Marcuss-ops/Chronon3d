@@ -647,3 +647,56 @@ TEST_CASE("active_word_style_at keeps quality=None when cue has no words (early-
     CHECK(!state.highlighted);
     CHECK(state.quality == WordTimingQuality::None);
 }
+
+TEST_CASE("SubtitleTrackBuilder builds per-word selectors with percentage ranges and keyed amount") {
+    // TICKET-TIMED-WORD-BINDING: verify the binding struct and the
+    // generated word selectors cover equal percentage slices of the
+    // word unit space and activate only during their word timing window.
+    SubtitleCue cue;
+    cue.start_s = 1.0f;
+    cue.end_s = 4.0f;
+    cue.text = "Hello world again";
+    cue.word_timing_quality = WordTimingQuality::Authoritative;
+    cue.words = {
+        TimedWord{"Hello", 1.0f, 2.0f, "w1", 0u, 5u},
+        TimedWord{"world", 2.0f, 3.0f, "w2", 6u, 11u},
+        TimedWord{"again", 3.0f, 4.0f, "w3", 12u, 17u},
+    };
+
+    const auto bindings = chronon3d::authoring::SubtitleTrackBuilder::build_word_bindings(cue);
+    REQUIRE(bindings.size() == 3);
+    CHECK(bindings[0].semantic_id == "w1");
+    CHECK(bindings[0].word_index == 0u);
+    CHECK(bindings[0].total_words == 3u);
+
+    const FrameRate fr{30, 1};
+    const Frame start_frame{30};
+    const auto selectors =
+        chronon3d::authoring::SubtitleTrackBuilder::build_word_selectors(cue, fr, start_frame);
+    REQUIRE(selectors.size() == 3);
+
+    CHECK(selectors[0].unit == TextSelectorUnit::Word);
+    CHECK(selectors[0].shape == TextSelectorShape::Square);
+    CHECK(selectors[0].start.value_at(Frame{0}) == doctest::Approx(0.0f));
+    CHECK(selectors[0].end.value_at(Frame{0}) == doctest::Approx(100.0f / 3.0f));
+
+    CHECK(selectors[1].start.value_at(Frame{0}) == doctest::Approx(100.0f / 3.0f));
+    CHECK(selectors[1].end.value_at(Frame{0}) == doctest::Approx(200.0f / 3.0f));
+
+    // Word 0 covers cue start (1.0s) → 2.0s => frames [30, 60).
+    // Word 1 covers 2.0s → 3.0s => frames [60, 90).
+    // Word 2 covers 3.0s → 4.0s => frames [90, 120).
+    CHECK(selectors[0].amount.value_at(Frame{45}) == doctest::Approx(100.0f));
+    CHECK(selectors[0].amount.value_at(Frame{59}) == doctest::Approx(100.0f));
+    CHECK(selectors[0].amount.value_at(Frame{60}) == doctest::Approx(0.0f));
+
+    // Word 1 is active in the middle of its window and off before/after.
+    CHECK(selectors[1].amount.value_at(Frame{30}) == doctest::Approx(0.0f));
+    CHECK(selectors[1].amount.value_at(Frame{75}) == doctest::Approx(100.0f));
+    CHECK(selectors[1].amount.value_at(Frame{90}) == doctest::Approx(0.0f));
+
+    // Word 2 is off before its window and on inside, then off after.
+    CHECK(selectors[2].amount.value_at(Frame{80}) == doctest::Approx(0.0f));
+    CHECK(selectors[2].amount.value_at(Frame{105}) == doctest::Approx(100.0f));
+    CHECK(selectors[2].amount.value_at(Frame{130}) == doctest::Approx(0.0f));
+}
