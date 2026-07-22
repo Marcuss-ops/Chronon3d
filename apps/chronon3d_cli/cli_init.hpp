@@ -96,6 +96,10 @@ inline void init_compositions(CompositionRegistry& registry, AssetRegistry& /*as
     // Production CLI (CHRONON3D_BUILD_CLI_DEV=OFF) does NOT call this.
     register_dev_compositions(registry);
 #endif
+
+    // Freeze the registry after all startup registration is complete.
+    // Any runtime attempt to register a new composition will fail.
+    registry.freeze();
 }
 
 } // namespace chronon3d::cli
