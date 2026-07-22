@@ -70,6 +70,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/registry/text_preset_registry.hpp>
 #include <chronon3d/text/text_definition.hpp>
+#include <chronon3d/compat/text_spec_adapter.hpp>
 
 #include <content/text/text_helpers.hpp>
 #include <tests/visual/support/golden_test.hpp>
@@ -185,7 +186,7 @@ inline CellResult render_matrix_cell(chronon3d::SoftwareRenderer& renderer,
                         .color        = chronon3d::Color::white(),
                     });
                 if (preset.builder) {
-                    preset.builder(s, l, chronon3d::from_text_definition(base));
+                    preset.builder(s, l, chronon3d::chronon3d::compat::from_text_definition(base));
                 }
             });
             return s.build();

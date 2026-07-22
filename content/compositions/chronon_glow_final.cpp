@@ -57,6 +57,7 @@
 
 #include "content/common/text/cinematic_glow.hpp"
 #include <chronon3d/text/text_definition.hpp>
+#include <chronon3d/text/prepared_text.hpp>
 // chronon3d::content::text_reveal::apply_cinematic_glow +
 // CinematicGlowPreset — invoked inside build_chronon_glow_scene's
 // `s.layer("hero", ...)` lambda when `props.glow_enabled`.
@@ -171,29 +172,27 @@ void build_chronon_glow_scene(
     const bool apply_breath = props.scale_breath;
 
     s.layer("hero", [&, opacity, scale, apply_breath](chronon3d::LayerBuilder& l) {
-        l.animated_text("glow_pulse", chronon3d::TextRunSpec{
-            .text = chronon3d::from_text_definition(chronon3d::TextDefinition{
-                .content = {.value = props.text},
-                .style = {
-                    .font = {
-                        .font_path   = "assets/fonts/Inter-Bold.ttf",
-                        .font_family = "Inter",
-                        .font_weight = 700,
-                        .font_size   = layout.font_size,
-                    },
-                    .color = chronon3d::Color::white()
+        l.text("glow_pulse", chronon3d::TextDefinition{
+            .content = {.value = props.text},
+            .style = {
+                .font = {
+                    .font_path   = "assets/fonts/Inter-Bold.ttf",
+                    .font_family = "Inter",
+                    .font_weight = 700,
+                    .font_size   = layout.font_size,
                 },
-                .frame = {
-                    .size = layout.box,
-                    .placement = chronon3d::TextPlacement{
-                        chronon3d::TextPlacementKind::CanvasCenter,
-                        {},
-                    },
-                    .align = chronon3d::TextAlign::Center,
-                    .vertical_align = chronon3d::VerticalAlign::Middle
-                }
-            }),
-        }).commit();
+                .color = chronon3d::Color::white()
+            },
+            .frame = {
+                .size = layout.box,
+                .placement = chronon3d::TextPlacement{
+                    chronon3d::TextPlacementKind::CanvasCenter,
+                    {},
+                },
+                .align = chronon3d::TextAlign::Center,
+                .vertical_align = chronon3d::VerticalAlign::Middle
+            }
+        });
         // Per-frame envelope: opacity always; scale gated by the
         // scale_breath flag (Phase 3 SCALA fix means non-identity scale
         // does not break the canvas-center bake).

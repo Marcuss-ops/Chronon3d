@@ -45,7 +45,8 @@
 #include <chronon3d/scene/builders/text_run_builder.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <content/text/text_helpers.hpp>
-#include <chronon3d/text/text_definition.hpp>  // F2.C — from_text_definition()
+#include <chronon3d/text/text_definition.hpp>  // F2.C — chronon3d::compat::from_text_definition()
+#include <chronon3d/compat/text_spec_adapter.hpp>
 
 #include <tests/text/visual/text_visual_fixture.hpp>
 #include <tests/text/visual/text_visual_sentinels.hpp>
@@ -147,7 +148,7 @@ TEST_CASE("TextE2E: materialize + draw_text_run produces visible ink pixels") {
 
     // Materialize the text shape via the canonical helper
     chronon3d::TextRunSpec params;
-    params.text = std::move(from_text_definition(spec));
+    params.text = std::move(chronon3d::compat::from_text_definition(spec));
     chronon3d::SampleTime st = chronon3d::SampleTime::from_frame_int(0, chronon3d::FrameRate{30, 1});
     auto shape = chronon3d::materialize_text_run_shape(params, &engine, st);
     REQUIRE(shape != nullptr);

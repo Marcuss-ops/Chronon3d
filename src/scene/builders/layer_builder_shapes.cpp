@@ -3,7 +3,8 @@
 
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/registry/shape_ids.hpp>
-#include <chronon3d/text/text_definition.hpp>  // F3.D — to_text_run_spec / from_text_definition adapters for the 2 TextDefinition overloads below
+#include <chronon3d/text/text_definition.hpp>
+#include <chronon3d/text/prepared_text.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -183,12 +184,26 @@ LayerBuilder& LayerBuilder::grid_background(std::string name, GridBackgroundPara
 }
 
 LayerBuilder& LayerBuilder::text(std::string name, const TextDefinition& def) {
-    // F3.D — route the canonical authoring DTO through the lossless reverse
-    // adapter `to_text_run_spec()` and commit the resulting TextRunSpec via
-    // the animated-text pipeline.  This preserves the 6 spec-only animation
-    // fields (animators, selectors, direction, language, script, cache_layout)
-    // that would be dropped by the older from_text_definition() path.
-    return animated_text(std::move(name), to_text_run_spec(def)).commit();
+    // X2 canonical static text path: lower the authoring DTO to PreparedText
+    // and store it directly.  No reverse adapter to TextRunSpec / TextSpec.
+    m_layer.kind = LayerKind::Text;
+
+    PreparedText prepared = prepare_text(def);
+
+    if (!prepared.style.font.font_path.empty()) {
+        m_layer.asset_manifest.add_font(
+            prepared.style.font.font_path,
+            std::string(m_layer.name) + "/" + name);
+    }
+
+    auto spec_uptr = std::make_unique<PendingTextRun>(PendingTextRun{
+        .name = std::move(name),
+        .prepared = std::move(prepared),
+        .consumed = false,
+    });
+    m_text_runs.push_back(std::move(spec_uptr));
+
+    return *this;
 }
 
 LayerBuilder& LayerBuilder::text(std::string name, const TextSpec& spec) {

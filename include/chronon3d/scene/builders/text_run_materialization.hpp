@@ -3,6 +3,7 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/text/animated_text_document.hpp>
+#include <chronon3d/text/prepared_text.hpp>
 
 #include <memory>
 
@@ -17,6 +18,15 @@ struct TextRunShape;
 // nullptr when shaping/materialization cannot produce a valid run.
 [[nodiscard]] std::shared_ptr<TextRunShape> materialize_text_run_shape(
     const TextRunSpec& params,
+    FontEngine* engine,
+    SampleTime sample_time,
+    std::shared_ptr<const AnimatedTextDocument> animated_doc = nullptr
+);
+
+// X2 canonical materializer: consumes a PreparedText directly without
+// round-tripping through TextRunSpec / TextSpec.
+[[nodiscard]] std::shared_ptr<TextRunShape> materialize_prepared_text(
+    const PreparedText& prepared,
     FontEngine* engine,
     SampleTime sample_time,
     std::shared_ptr<const AnimatedTextDocument> animated_doc = nullptr

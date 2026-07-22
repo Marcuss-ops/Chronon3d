@@ -54,6 +54,8 @@ add_library(chronon3d_text_core OBJECT
     alpha_bbox_scanner.cpp
     text_visibility_reporting.cpp
     text_definition.cpp
+    prepared_text.cpp
+    ../compat/text_spec_adapter.cpp
     resolve_text_placement.cpp
     text_scramble_helpers.cpp
     unicode/utf8_decoder.cpp
