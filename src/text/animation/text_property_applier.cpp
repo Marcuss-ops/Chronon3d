@@ -10,7 +10,7 @@ namespace chronon3d::detail {
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // ONE source of truth for "what does property X do to a glyph state".
-// All 12 PostLayout TextAnimatorProperty variants are dispatched here.
+// All 13 PostLayout TextAnimatorProperty variants are dispatched here.
 // CharacterOffsetProperty was moved to the PreShaping phase (FASE 2a)
 // — it is evaluated in `apply_character_offset_to_source()` in
 // src/text/animation/text_pre_shaping.cpp BEFORE shaping.
@@ -125,6 +125,19 @@ void apply_property_to_glyph(
                 gs.fill = lerped;
             } else {
                 gs.fill = lerped;  // additive = lerp for colors.
+            }
+        }
+        else if constexpr (std::is_same_v<T, BackgroundColorProperty>) {
+            const Color lerped = {
+                gs.background.r + (p.color.r - gs.background.r) * weight,
+                gs.background.g + (p.color.g - gs.background.g) * weight,
+                gs.background.b + (p.color.b - gs.background.b) * weight,
+                gs.background.a + (p.color.a - gs.background.a) * weight,
+            };
+            if (blend == TextPropertyBlendMode::Replace) {
+                gs.background = lerped;
+            } else {
+                gs.background = lerped;
             }
         }
         else if constexpr (std::is_same_v<T, StrokeColorProperty>) {
