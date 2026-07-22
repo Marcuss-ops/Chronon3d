@@ -1,8 +1,13 @@
 # TICKET-TRN-01 — Transition inventory and architecture gate
 
+> **Nota:** questo ticket è stato raccolto nel master tracker
+> [`TICKET-TRN-TRANSITION-CLEANUP`](TICKET-TRN-TRANSITION-CLEANUP.md).
+> Le informazioni qui sotto restano valide per il solo TRN-01, ma lo stato
+> d’insieme e i forward points vengono mantenuti nel ticket master.
+
 ## Stato
 
-OPEN (TRN-01)
+SUPERSEDED BY TICKET-TRN-TRANSITION-CLEANUP
 
 ## Scopo
 
