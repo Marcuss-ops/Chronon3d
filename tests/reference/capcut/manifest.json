@@ -39,6 +39,24 @@
       "frame": 0
     },
     {
+      "id": "static_multiline_left",
+      "area": "static",
+      "text": "The quick brown fox\njumps over the lazy dog",
+      "font_path": "assets/fonts/Inter-Regular.ttf",
+      "font_family": "Inter",
+      "font_weight": 400,
+      "font_size": 56.0,
+      "tracking": 0.0,
+      "line_spacing": 1.25,
+      "width": 1920,
+      "height": 1080,
+      "placement": "CanvasCenter",
+      "offset": [0.0, 0.0],
+      "align": "Left",
+      "vertical_align": "Middle",
+      "frame": 0
+    },
+    {
       "id": "subtitle_bottom_inter",
       "area": "subtitles",
       "text": "Motion Graphics Engine",
@@ -52,6 +70,24 @@
       "height": 1080,
       "placement": "Absolute",
       "offset": [960.0, 980.0],
+      "align": "Center",
+      "vertical_align": "Bottom",
+      "frame": 0
+    },
+    {
+      "id": "subtitle_two_line_center",
+      "area": "subtitles",
+      "text": "This is the first line\nAnd this is the second",
+      "font_path": "assets/fonts/Inter-Bold.ttf",
+      "font_family": "Inter",
+      "font_weight": 700,
+      "font_size": 42.0,
+      "tracking": 0.0,
+      "line_spacing": 1.2,
+      "width": 1920,
+      "height": 1080,
+      "placement": "Absolute",
+      "offset": [960.0, 940.0],
       "align": "Center",
       "vertical_align": "Bottom",
       "frame": 0
@@ -74,6 +110,25 @@
       "vertical_align": "Middle",
       "effect": "opacity_fade",
       "frame": 15
+    },
+    {
+      "id": "effect_opacity_fade_inter_late",
+      "area": "effects",
+      "text": "Late Fade",
+      "font_path": "assets/fonts/Inter-Bold.ttf",
+      "font_family": "Inter",
+      "font_weight": 700,
+      "font_size": 96.0,
+      "tracking": 0.0,
+      "line_spacing": 1.2,
+      "width": 1920,
+      "height": 1080,
+      "placement": "CanvasCenter",
+      "offset": [0.0, 0.0],
+      "align": "Center",
+      "vertical_align": "Middle",
+      "effect": "opacity_fade",
+      "frame": 30
     }
   ]
 }
