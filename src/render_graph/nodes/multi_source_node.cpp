@@ -141,7 +141,7 @@ cache::NodeCacheKey MultiSourceNode::cache_key(const RenderGraphContext& ctx) co
         // `evaluate_animator_stack` mutates glyph state.  Without this
         // fold two animated frames with identical geometry would hit a
         // stale cache entry.  PR 10: use the frame overload so
-        // Scramble / Morph / CrossfadeLayouts / font-swap Cut frames
+        // Scramble / Morph / DissolveLayouts / font-swap Cut frames
         // driven by an AnimatedTextDocument also invalidate correctly.
         if (item.node && item.node->shape.type() == ShapeType::TextRun && item.node->shape.text_run_shape_handle().value) {
             key.params_hash = hash_combine(

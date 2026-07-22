@@ -77,24 +77,11 @@ ActiveTextState AnimatedTextDocument::sample_at(Frame frame) const {
         result.transition = SourceTextTransition::Hold;
         result.mix = 0.0f;
         return result;
-    }        // ── Exactly at the next keyframe: the next document becomes active ──
-        if (frame == next_kf->frame) {
-            // At the boundary, the incoming keyframe's document takes over.
-            result.active = &next_kf->document;
-            // At the boundary, no transition is in progress.
-            // next_kf->transition describes FROM next_kf TO its successor,
-            // which hasn't started yet, so we report Hold.
-            result.transition = SourceTextTransition::Hold;
-            result.mix = 0.0f;
-            result.crossfade_from = nullptr;
-            return result;
-    }
-
-    // ── Between keyframes ──────────────────────────────────────────────
+    }        // ── Between keyframes ──────────────────────────────────────────────
     // The transition type is determined by the PREVIOUS keyframe
     // (prev_kf.transition) — it governs how we move FROM prev TO next.
 
-    // Compute generic gap progress once (shared by CrossfadeLayouts, Scramble, Morph).
+    // Compute generic gap progress once (shared by DissolveLayouts, Scramble, Morph).
     const float gap = static_cast<float>(next_kf->frame - prev_kf.frame);
     const float pos  = static_cast<float>(frame - prev_kf.frame);
     const float raw_mix = (gap > 0.0f) ? (pos / gap) : 1.0f;
@@ -111,16 +98,19 @@ ActiveTextState AnimatedTextDocument::sample_at(Frame frame) const {
         break;
 
     case SourceTextTransition::Cut:
-        // Cut: instant switch to the next document.
-        result.active = &next_kf->document;
+        // Cut: the previous document stays visible until the NEXT keyframe
+        // boundary, then the new document replaces it instantly.
+        // Semantically identical to Hold for the visible text, but
+        // signals an editorial cut intent to the renderer / cache.
+        result.active = &prev_kf.document;
         result.transition = SourceTextTransition::Cut;
         result.mix = 0.0f;
         break;
 
-    case SourceTextTransition::CrossfadeLayouts: {
+    case SourceTextTransition::DissolveLayouts: {
         result.active = &next_kf->document;
-        result.crossfade_from = &prev_kf.document;
-        result.transition = SourceTextTransition::CrossfadeLayouts;
+        result.dissolve_from = &prev_kf.document;
+        result.transition = SourceTextTransition::DissolveLayouts;
         result.mix = mix;
         break;
     }
@@ -128,7 +118,7 @@ ActiveTextState AnimatedTextDocument::sample_at(Frame frame) const {
     case SourceTextTransition::Scramble: {
         // During the scramble phase, both documents are referenced.
         result.active = &next_kf->document;
-        result.crossfade_from = &prev_kf.document;
+        result.dissolve_from = &prev_kf.document;
         result.transition = SourceTextTransition::Scramble;
         result.mix = mix;
 
@@ -149,7 +139,7 @@ ActiveTextState AnimatedTextDocument::sample_at(Frame frame) const {
 
     case SourceTextTransition::Morph: {
         result.active = &next_kf->document;
-        result.crossfade_from = &prev_kf.document;
+        result.dissolve_from = &prev_kf.document;
         result.transition = SourceTextTransition::Morph;
         result.mix = mix;
 

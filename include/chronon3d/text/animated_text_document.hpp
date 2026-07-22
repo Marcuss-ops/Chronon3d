@@ -2,7 +2,7 @@
 
 // ═══════════════════════════════════════════════════════════════════════════
 // animated_text_document.hpp — Animated text document with keyframe
-// transitions (Hold, Cut, CrossfadeLayouts)
+// transitions (Hold, Cut, DissolveLayouts)
 //
 // PR 6 of the text pipeline.  Enables animating text content by switching
 // between TextDocument snapshots at keyframe boundaries, with optional
@@ -11,14 +11,14 @@
 // Usage:
 //   AnimatedTextDocument anim;
 //   anim.add_keyframe(Frame{0},   doc_a, SourceTextTransition::Hold);
-//   anim.add_keyframe(Frame{60},  doc_b, SourceTextTransition::CrossfadeLayouts);
+//   anim.add_keyframe(Frame{60},  doc_b, SourceTextTransition::DissolveLayouts);
 //   anim.add_keyframe(Frame{120}, doc_c, SourceTextTransition::Cut);
 //
 //   ActiveTextState state = anim.sample_at(Frame{90});
 //   // state.active → doc_b (crossfading in)
-//   // state.crossfade_from → doc_a (fading out)
+//   // state.dissolve_from → doc_a (fading out)
 //   // state.mix → 0.5 (halfway through the gap)
-//   // state.transition → CrossfadeLayouts
+//   // state.transition → DissolveLayouts
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/core/types/frame.hpp>
@@ -42,19 +42,20 @@ namespace chronon3d {
 ///                      instantly (step function).  During the gap, only the
 ///                      previous document is active.
 ///
-/// Cut:                At the keyframe boundary, the document instantly
+/// Cut:                The previous document stays visible until the next
+///                      keyframe boundary, then the document instantly
 ///                      switches to the new value.  No crossfade.
-///                      Semantically identical to Hold for discrete text,
-///                      but signals the intent of an editorial cut (useful
-///                      for render-graph optimisation — no need to keep
-///                      the outgoing layout alive).
+///                      Semantically identical to Hold for the visible
+///                      text, but signals the intent of an editorial cut
+///                      (useful for render-graph optimisation — no need
+///                      to keep the outgoing layout alive).
 ///
-/// CrossfadeLayouts:   During the gap between keyframes, both the outgoing
-///                      and incoming documents are active.  The renderer can
-///                      interpolate glyph positions and opacity to create a
-///                      smooth layout transition.  The active state carries
-///                      a `mix` factor from 0 (fully previous) to 1 (fully
-///                      next).
+/// DissolveLayouts:    During the gap between keyframes, both the outgoing
+///                      and incoming documents are active.  The renderer
+///                      dissolves from the outgoing to the incoming layout
+///                      using a `mix` factor from 0 (fully previous) to 1
+///                      (fully next).  This is a pure alpha dissolve, not
+///                      a positional morph.
 ///
 /// Scramble:           During the gap, characters are randomly substituted
 ///                      using a deterministic seed.  At mix=0 the text is
@@ -73,7 +74,7 @@ namespace chronon3d {
 enum class SourceTextTransition : u8 {
     Hold,
     Cut,
-    CrossfadeLayouts,
+    DissolveLayouts,
     Scramble,
     Morph,
 };
@@ -147,12 +148,12 @@ struct ActiveTextState {
     /// The primary document to render (always present when keyframes exist).
     const TextDocument* active{nullptr};
 
-    /// When transition == CrossfadeLayouts and we're inside the crossfade
+    /// When transition == DissolveLayouts and we're inside the crossfade
     /// gap, this points to the outgoing (previous) document.  Null otherwise.
-    const TextDocument* crossfade_from{nullptr};
+    const TextDocument* dissolve_from{nullptr};
 
-    /// 0.0 = fully crossfade_from, 1.0 = fully active.
-    /// Only meaningful when transition == CrossfadeLayouts, Scramble, or Morph;
+    /// 0.0 = fully dissolve_from, 1.0 = fully active.
+    /// Only meaningful when transition == DissolveLayouts, Scramble, or Morph;
     /// zero otherwise.
     float mix{0.0f};
 
@@ -172,7 +173,7 @@ struct ActiveTextState {
     /// ── Morph: character position map ─────────────────────────────────
     /// Maps character positions from the previous layout to the next.
     /// Each entry is (prev_index, next_index) where the character at
-    /// prev_index in crossfade_from maps to next_index in active.
+    /// prev_index in dissolve_from maps to next_index in active.
     /// -1 means the position has no counterpart (new or removed char).
     /// Only populated when transition == Morph.
     std::vector<std::pair<int, int>> morph_map;

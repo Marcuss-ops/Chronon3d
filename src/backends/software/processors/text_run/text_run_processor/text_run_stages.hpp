@@ -103,6 +103,10 @@ struct TextRunStageState {
     std::vector<BLFont>                    span_fonts;
     std::vector<std::size_t>               per_glyph_span_idx;
 
+    // Same as above, but for the optional dissolve (outgoing) side.
+    // Filled when shape.dissolve_layout is present at prepare time.
+    std::vector<std::size_t>               dissolve_per_glyph_span_idx;
+
     // Glyph bbox (run-local image extent, includes padding).
     float min_x{1e10f};
     float min_y{1e10f};
@@ -126,7 +130,7 @@ struct TextRunStageState {
 
     // Tier pre-classification (O(G) over `active` side and optional crossfade).
     BlurTiers active_tiers{};
-    BlurTiers crossfade_tiers{};
+    BlurTiers dissolve_tiers{};
 
     // All-active-glyphs index array (used by the shadow pass; no tiering).
     std::vector<std::uint32_t> all_active_glyphs;

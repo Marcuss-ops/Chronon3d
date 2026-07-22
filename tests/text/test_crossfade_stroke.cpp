@@ -6,7 +6,7 @@
 // Bug #5 fix context (already on main): `draw_run_layer()` stroke branch
 // in `src/backends/software/processors/text_run/text_run_processor.cpp`
 // used to read `layout.placed.glyphs[gi].glyph_id` (where `layout` is the
-// OUTGOING crossfade_from layout — longer than active when outgoing text
+// OUTGOING dissolve_from layout — longer than active when outgoing text
 // has more glyphs).  When the loop variable `gi` is bounded by the
 // ACTIVE glyph count, accessing `layout.placed[gi]` while `layout` is
 // the longer outgoing layout causes OOB read (Bug #5).  The fix replaces
@@ -19,13 +19,13 @@
 //
 // Test strategy:
 //   - Build a 2-keyframe AnimatedTextDocument with `SourceTextTransition::
-//     CrossfadeLayouts` where OUTGOING text is intentionally longer than
+//     DissolveLayouts` where OUTGOING text is intentionally longer than
 //     ACTIVE text (the OOB-triggering data shape that the buggy code would
 //     trip on).
 //   - Apply active state via `apply_active_state_to_text_run_shape` (the
-//     hook used by PR 11 to populate `shape->crossfade_layout` and
-//     `shape->crossfade_glyphs`).
-//   - Assert: shape->crossfade_layout->placed.glyphs.size() >
+//     hook used by PR 11 to populate `shape->dissolve_layout` and
+//     `shape->dissolve_glyphs`).
+//   - Assert: shape->dissolve_layout->placed.glyphs.size() >
 //     shape->layout->placed.glyphs.size() (data-shape OOB condition
 //     established in the shape).  If the future draw_run_layer() caller
 //     path is regressed to use the longer `layout.placed`, the OOB
@@ -84,7 +84,7 @@ std::shared_ptr<TextRunShape> make_real_shape(
     return shape;
 }
 
-/// Build a 2-keyframe CrossfadeLayouts doc where the OUTGOING text is
+/// Build a 2-keyframe DissolveLayouts doc where the OUTGOING text is
 /// explicitly LONGER than the ACTIVE text -- the OOB-triggering data
 /// shape that Bug #5 defends against.
 std::shared_ptr<AnimatedTextDocument> make_crossfade_longer_outgoing_doc(
@@ -96,7 +96,7 @@ std::shared_ptr<AnimatedTextDocument> make_crossfade_longer_outgoing_doc(
     SourceTextKeyframe kf0;
     kf0.frame = Frame{0};
     kf0.document.utf8 = outgoing_text;  // OUTGOING (longer)
-    kf0.transition = SourceTextTransition::CrossfadeLayouts;
+    kf0.transition = SourceTextTransition::DissolveLayouts;
     kf0.document.defaults.font = font;
     doc->add_keyframe(kf0);
     SourceTextKeyframe kf60;
@@ -114,17 +114,17 @@ std::shared_ptr<AnimatedTextDocument> make_crossfade_longer_outgoing_doc(
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // The apply_active_state_to_text_run_shape hook is the canonical prewarm
-// path that populates shape.crossfade_layout + shape.crossfade_glyphs.
+// path that populates shape.dissolve_layout + shape.dissolve_glyphs.
 // Once those slots are populated, the downstream `draw_run_layer`'s
 // stroke branch reads source_placed.glyphs[gi].glyph_id (Bug #5 fix),
 // where source_placed is bounded by the ACTIVE glyph count.  If the
-// bug regresses to read the OUTGOING layout (crossfade_layout),
+// bug regresses to read the OUTGOING layout (dissolve_layout),
 // `gi` would OOB when outgoing is longer than active.
 //
 // Pre-conditions for an OOB to actually fire in draw_run_layer():
-//   (a) shape is in crossfade (crossfade_layout != nullptr)
+//   (a) shape is in crossfade (dissolve_layout != nullptr)
 //   (b) outgoing text has MORE glyphs than active text
-//       (crossfade_layout->placed.glyphs.size() >
+//       (dissolve_layout->placed.glyphs.size() >
 //        shape->layout->placed.glyphs.size())
 //   (c) stroke is enabled AND the stroke branch uses the buggy path
 //
@@ -161,42 +161,42 @@ TEST_CASE("TICKET-068: crossfade shape with longer outgoing text establishes OOB
 
     // Sample at frame 30 -- in the middle of the gap, mix strictly in
     // (0, 1).  Per PR 11, apply_active_state_to_text_run_shape with a
-    // CrossfadeLayouts source keyframe populates the crossfade slots.
+    // DissolveLayouts source keyframe populates the crossfade slots.
     const auto state = shape->animated_doc->sample_at(Frame{30});
-    REQUIRE(state.transition == SourceTextTransition::CrossfadeLayouts);
-    REQUIRE(state.crossfade_from != nullptr);
+    REQUIRE(state.transition == SourceTextTransition::DissolveLayouts);
+    REQUIRE(state.dissolve_from != nullptr);
     REQUIRE(state.mix > 0.0f);
     REQUIRE(state.mix < 1.0f);
 
     // Apply state.  This is the PR 11 hook that populates
-    // shape.crossfade_layout + shape.crossfade_glyphs.
+    // shape.dissolve_layout + shape.dissolve_glyphs.
     REQUIRE(apply_active_state_to_text_run_shape(*shape, state, engine, layout));
 
     // ── Conditions established ─────────────────────────────────────
-    // (a) shape is in crossfade: crossfade_layout != nullptr.
-    REQUIRE(shape->crossfade_layout != nullptr);
-    REQUIRE_FALSE(shape->crossfade_glyphs.empty());
+    // (a) shape is in crossfade: dissolve_layout != nullptr.
+    REQUIRE(shape->dissolve_layout != nullptr);
+    REQUIRE_FALSE(shape->dissolve_glyphs.empty());
 
-    // shape.crossfade_layout->source_text is from the OUTGOING layout
-    // (crossfade_from side).
-    CHECK(shape->crossfade_layout->source_text == outgoing_text);
+    // shape.dissolve_layout->source_text is from the OUTGOING layout
+    // (dissolve_from side).
+    CHECK(shape->dissolve_layout->source_text == outgoing_text);
 
     // (b) OOB precondition: outgoing text has MORE glyphs than active
     // text.  This is the data-shape the buggy `layout.placed[gi]` would
     // OOB-read on.  With the fix in place, draw_run_layer's stroke
     // branch reads `source_placed[gi]` (ACTIVE, bounded) -- safe.
     const size_t active_glyph_count = shape->layout->placed.glyphs.size();
-    const size_t outgoing_glyph_count = shape->crossfade_layout->placed.glyphs.size();
+    const size_t outgoing_glyph_count = shape->dissolve_layout->placed.glyphs.size();
     MESSAGE("active_glyph_count  = " << active_glyph_count);
     MESSAGE("outgoing_glyph_count = " << outgoing_glyph_count);
     CHECK(outgoing_glyph_count > active_glyph_count);
 
-    // Sanity: shape.crossfade_glyphs must match crossfade_layout->placed.size().
-    CHECK(shape->crossfade_glyphs.size() == outgoing_glyph_count);
+    // Sanity: shape.dissolve_glyphs must match dissolve_layout->placed.size().
+    CHECK(shape->dissolve_glyphs.size() == outgoing_glyph_count);
 
     // Mix in (0, 1) at frame 30.
-    CHECK(shape->crossfade_mix > 0.0f);
-    CHECK(shape->crossfade_mix < 1.0f);
+    CHECK(shape->dissolve_mix > 0.0f);
+    CHECK(shape->dissolve_mix < 1.0f);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -206,7 +206,7 @@ TEST_CASE("TICKET-068: crossfade shape with longer outgoing text establishes OOB
 // Companion to the OOB-precondition test: post-gap, crossfade slots must
 // be cleared (per PR 11 spec) so the rendering path doesn't carry stale
 // data.  This guards a separate Bug #5-class failure mode: post-gap
-// strokes that mistakenly read a stale crossfade_layout slot.
+// strokes that mistakenly read a stale dissolve_layout slot.
 
 TEST_CASE("TICKET-068: crossfade post-gap clears slots; longer outgoing data doesn't leak forward") {
     chronon3d::Config cfg;
@@ -228,16 +228,16 @@ TEST_CASE("TICKET-068: crossfade post-gap clears slots; longer outgoing data doe
     // Mid-gap first.
     {
         const auto mid = shape->animated_doc->sample_at(Frame{30});
-        REQUIRE(mid.transition == SourceTextTransition::CrossfadeLayouts);
+        REQUIRE(mid.transition == SourceTextTransition::DissolveLayouts);
         REQUIRE(apply_active_state_to_text_run_shape(*shape, mid, engine, layout));
-        REQUIRE(shape->crossfade_layout != nullptr);
+        REQUIRE(shape->dissolve_layout != nullptr);
     }
 
     // Post-gap (frame 90).  Per PR 11, slots must be cleared.
     const auto post = shape->animated_doc->sample_at(Frame{90});
     CHECK(post.transition == SourceTextTransition::Hold);
     apply_active_state_to_text_run_shape(*shape, post, engine, layout);
-    CHECK(shape->crossfade_layout == nullptr);
-    CHECK(shape->crossfade_glyphs.empty());
-    CHECK(shape->crossfade_mix == 0.0f);
+    CHECK(shape->dissolve_layout == nullptr);
+    CHECK(shape->dissolve_glyphs.empty());
+    CHECK(shape->dissolve_mix == 0.0f);
 }

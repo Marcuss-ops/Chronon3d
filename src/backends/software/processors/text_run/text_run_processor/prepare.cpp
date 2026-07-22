@@ -175,6 +175,79 @@ namespace chronon3d::renderer::text_run_stages {
         s.per_glyph_span_idx.assign(layout.placed.glyphs.size(), 0);
     }
 
+    // ── Stage 1.4b — per-span font resolve for the dissolve side ───────
+    // When a text run is in the middle of a DissolveLayouts transition,
+    // the outgoing layout may have its own font spans (possibly different
+    // from the active side).  Resolve those fonts here and build a
+    // per-glyph span index into the same span_handles / span_fonts
+    // vectors so the raster stage can render the outgoing side without
+    // crashing on an unrelated active-side span map.
+    //
+    // To avoid leaving partial spans behind when any dissolve font fails,
+    // we resolve into local temporaries first and only append to `s`
+    // after every font validates.  On failure the dissolve side is
+    // silently skipped (dissolve_per_glyph_span_idx stays empty).
+    if (shape.dissolve_layout && !shape.dissolve_layout->placed.glyphs.empty()) {
+        const auto& dl = *shape.dissolve_layout;
+        const std::size_t span_offset = s.span_handles.size();
+        if (!dl.font_spans.empty()) {
+            std::vector<FontFaceHandle> temp_handles;
+            std::vector<BLFont>         temp_fonts;
+            temp_handles.reserve(dl.font_spans.size());
+            temp_fonts.reserve(dl.font_spans.size());
+            bool all_valid = true;
+            for (const auto& spn : dl.font_spans) {
+                FontFaceHandle span_handle = rctx.text_resources->resolve_handle(
+                    spn.font.font_path, dl.font_size, *rctx.asset_resolver);
+                if (!span_handle.valid()) {
+                    all_valid = false;
+                    break;
+                }
+                BLFont span_blfont;
+                span_blfont.createFromFace(*span_handle.bl_face,
+                    dl.font_size * static_cast<float>(s.raster_space.scale));
+                temp_handles.push_back(std::move(span_handle));
+                temp_fonts.push_back(std::move(span_blfont));
+            }
+            if (all_valid) {
+                s.span_handles.reserve(span_offset + temp_handles.size());
+                s.span_fonts.reserve(span_offset + temp_fonts.size());
+                s.span_handles.insert(
+                    s.span_handles.end(),
+                    std::make_move_iterator(temp_handles.begin()),
+                    std::make_move_iterator(temp_handles.end()));
+                s.span_fonts.insert(
+                    s.span_fonts.end(),
+                    std::make_move_iterator(temp_fonts.begin()),
+                    std::make_move_iterator(temp_fonts.end()));
+                s.dissolve_per_glyph_span_idx.assign(dl.placed.glyphs.size(), 0);
+                for (std::size_t si = 0; si < dl.font_spans.size(); ++si) {
+                    const auto& spn = dl.font_spans[si];
+                    const std::uint32_t span_end = std::min<std::uint32_t>(
+                        spn.glyph_end,
+                        static_cast<std::uint32_t>(s.dissolve_per_glyph_span_idx.size()));
+                    for (std::uint32_t gi = spn.glyph_begin; gi < span_end; ++gi) {
+                        s.dissolve_per_glyph_span_idx[gi] = span_offset + si;
+                    }
+                }
+            }
+            // If not all_valid, leave dissolve_per_glyph_span_idx empty
+            // so the raster stage skips the outgoing side.
+        } else {
+            // Fallback: single font for the entire outgoing layout.
+            FontFaceHandle single_handle = rctx.text_resources->resolve_handle(
+                dl.font.font_path, dl.font_size, *rctx.asset_resolver);
+            if (single_handle.valid()) {
+                s.span_handles.push_back(std::move(single_handle));
+                BLFont single_blfont;
+                single_blfont.createFromFace(*s.span_handles.back().bl_face,
+                    dl.font_size * static_cast<float>(s.raster_space.scale));
+                s.span_fonts.push_back(std::move(single_blfont));
+                s.dissolve_per_glyph_span_idx.assign(dl.placed.glyphs.size(), 0);
+            }
+        }
+    }
+
     // ── Stage 1.1 bbox expansion (active side + crossfade side) ──────────
     // Uses the canonical compute_text_run_visual_bounds() which handles
     // both active + crossfade sides, 2.5D shear/scale padding, and

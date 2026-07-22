@@ -16,7 +16,7 @@
 //       render loops.
 //   - Downsample pass when s.ss > 1.
 //
-// Mutates: s.img, s.glyphs_drawn, s.active_tiers, s.crossfade_tiers,
+// Mutates: s.img, s.glyphs_drawn, s.active_tiers, s.dissolve_tiers,
 //          s.all_active_glyphs (built here).
 
 #include "text_run_stages.hpp"
@@ -119,8 +119,8 @@ struct SingleGlyphRun {
 
     // ── Tier pre-classification (O(G) per side) ──────────────────────────
     s.active_tiers    = build_blur_tiers(shape.glyphs);
-    s.crossfade_tiers = (shape.crossfade_layout && !shape.crossfade_glyphs.empty())
-        ? build_blur_tiers(shape.crossfade_glyphs)
+    s.dissolve_tiers = (shape.dissolve_layout && !shape.dissolve_glyphs.empty())
+        ? build_blur_tiers(shape.dissolve_glyphs)
         : BlurTiers{};
 
     // All-active-glyphs index array for the shadow pass (no tiering).
@@ -145,7 +145,8 @@ struct SingleGlyphRun {
         const std::vector<GlyphInstanceState>& source_glyphs,
         const PlacedGlyphRun& source_placed,
         const std::vector<std::uint32_t>& tier_glyphs,
-        const TextRasterSpace& raster_space
+        const TextRasterSpace& raster_space,
+        const std::vector<std::size_t>& glyph_span_indices
     ) -> std::size_t {
         std::size_t drawn = 0;
         BLContext ctx(target);
@@ -178,7 +179,7 @@ struct SingleGlyphRun {
             ctx.setTransform(glyph_mat);
 
 #ifdef CHRONON3D_ENABLE_TEXT
-            const std::size_t span_idx = s.per_glyph_span_idx[gi];
+            const std::size_t span_idx = glyph_span_indices[gi];
             const FontFaceHandle& span_handle = s.span_handles[span_idx];
             if (eff_stroke.a > 0.0f && eff_stroke_w > 0.0f
                 && span_handle.ft_face != nullptr
@@ -217,7 +218,7 @@ struct SingleGlyphRun {
                 ctx.setFillStyle(to_bl_rgba(final_fill));
 
                 auto sgr = SingleGlyphRun::from(source_placed.glyphs[gi]);
-                const BLFont& span_font = s.span_fonts[s.per_glyph_span_idx[gi]];
+                const BLFont& span_font = s.span_fonts[glyph_span_indices[gi]];
                 ctx.fillGlyphRun(BLPoint(0.0, 0.0), span_font, sgr.bl_run);
             }
 
@@ -240,16 +241,18 @@ struct SingleGlyphRun {
             s, /* shape has no crossfade-side shadows */ s.img_w, s.img_h);
         if (shadow_img.empty()) shadow_img = BLImage(s.img_w, s.img_h, BL_FORMAT_PRGB32);
 
+        const f32 incoming_alpha = (shape.dissolve_layout && !shape.dissolve_glyphs.empty())
+            ? shape.dissolve_mix : 1.0f;
         const Color shadow_color = {
             shadow.color.r, shadow.color.g, shadow.color.b,
-            shadow.color.a * shadow.opacity
+            shadow.color.a * shadow.opacity * incoming_alpha
         };
         const TextRasterSpace shadow_space{1, s.offset_x, s.offset_y};
         const std::size_t sh_drawn = render_tier_to_image(
             shadow_img, shadow_color,
             detail::bucket_radius_for_tier(shadow.blur),
             shape.glyphs, layout.placed, s.all_active_glyphs,
-            shadow_space);
+            shadow_space, s.per_glyph_span_idx);
         if (sh_drawn == 0) {
             release_surface(s, std::move(shadow_img));
             continue;
@@ -285,7 +288,7 @@ struct SingleGlyphRun {
         const std::size_t drawn = render_tier_to_image(
             tier_img, std::nullopt, kBlurTierRadii[tier],
             shape.glyphs, layout.placed, s.active_tiers[tier],
-            s.raster_space);
+            s.raster_space, s.per_glyph_span_idx);
         if (drawn == 0) {
             release_surface(s, std::move(tier_img));
             continue;
@@ -295,25 +298,68 @@ struct SingleGlyphRun {
         {
             BLContext ctx(s.img);
             ctx.setCompOp(BL_COMP_OP_SRC_OVER);
+            const f32 incoming_alpha = (shape.dissolve_layout && !shape.dissolve_glyphs.empty())
+                ? shape.dissolve_mix : 1.0f;
+            ctx.setGlobalAlpha(static_cast<double>(incoming_alpha));
             ctx.blitImage(BLPoint(0, 0), tier_img);
             ctx.end();
         }
         release_surface(s, std::move(tier_img));
     }
 
-    // ── Stage 6 — Crossfade side (PR 11) ─────────────────────────────────
-    if (shape.crossfade_layout && !shape.crossfade_glyphs.empty()) {
+    // ── Stage 6 — Dissolve outgoing side (PR 11) ──────────────────────────
+    if (shape.dissolve_layout && !shape.dissolve_glyphs.empty()
+        && !s.dissolve_per_glyph_span_idx.empty()) {
         const f32 cf_fade = std::clamp(
-            1.0f - shape.crossfade_mix, 0.0f, 1.0f);
+            1.0f - shape.dissolve_mix, 0.0f, 1.0f);
+
+        // Outgoing shadows: same shadow settings applied symmetrically.
+        const auto& cf_layout = *shape.dissolve_layout;
+        std::vector<std::uint32_t> all_outgoing_glyphs(shape.dissolve_glyphs.size());
+        for (std::uint32_t gi = 0; gi < shape.dissolve_glyphs.size(); ++gi) {
+            all_outgoing_glyphs[gi] = gi;
+        }
+        for (const auto& shadow : shape.shadows) {
+            if (!shadow.enabled || shadow.opacity <= 0.0f) continue;
+
+            BLImage shadow_img = acquire_surface(s, s.img_w, s.img_h);
+            if (shadow_img.empty()) shadow_img = BLImage(s.img_w, s.img_h, BL_FORMAT_PRGB32);
+
+            const Color shadow_color = {
+                shadow.color.r, shadow.color.g, shadow.color.b,
+                shadow.color.a * shadow.opacity * cf_fade
+            };
+            const TextRasterSpace shadow_space{1, s.offset_x, s.offset_y};
+            const std::size_t sh_drawn = render_tier_to_image(
+                shadow_img, shadow_color,
+                detail::bucket_radius_for_tier(shadow.blur),
+                shape.dissolve_glyphs, cf_layout.placed, all_outgoing_glyphs,
+                shadow_space, s.dissolve_per_glyph_span_idx);
+            if (sh_drawn == 0) {
+                release_surface(s, std::move(shadow_img));
+                continue;
+            }
+
+            Mat4 shadow_model = params.model_matrix;
+            shadow_model = glm::translate(
+                shadow_model,
+                Vec3(s.offset_x + shadow.offset.x, s.offset_y + shadow.offset.y, 0.0f));
+
+            chronon3d::blend2d_bridge::composite_bl_image_transformed(
+                params.fb, shadow_img, shadow_model,
+                params.opacity, BlendMode::Normal);
+            release_surface(s, std::move(shadow_img));
+        }
+
         for (std::size_t tier = 0; tier < kNumBlurTiers; ++tier) {
-            if (s.crossfade_tiers[tier].empty()) continue;
+            if (s.dissolve_tiers[tier].empty()) continue;
             BLImage tier_img = acquire_surface(s, s.ss_img_w, s.ss_img_h);
             if (tier_img.empty()) tier_img = BLImage(s.ss_img_w, s.ss_img_h, BL_FORMAT_PRGB32);
             const std::size_t drawn = render_tier_to_image(
                 tier_img, std::nullopt, kBlurTierRadii[tier],
-                shape.crossfade_glyphs, shape.crossfade_layout->placed,
-                s.crossfade_tiers[tier],
-                s.raster_space);
+                shape.dissolve_glyphs, shape.dissolve_layout->placed,
+                s.dissolve_tiers[tier],
+                s.raster_space, s.dissolve_per_glyph_span_idx);
             if (drawn == 0) {
                 release_surface(s, std::move(tier_img));
                 continue;

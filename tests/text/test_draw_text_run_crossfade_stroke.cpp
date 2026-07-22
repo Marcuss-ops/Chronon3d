@@ -4,7 +4,7 @@
 //
 // TICKET-068 close-out (P1#5 / Bug #5 / Fase 1#5) was achieved by the
 // property-only `tests/text/test_crossfade_stroke.cpp`: it asserts the
-// OOB-precondition data shape (crossfade_layout->placed.glyphs.size()
+// OOB-precondition data shape (dissolve_layout->placed.glyphs.size()
 // > shape->layout->placed.glyphs.size()) and the post-gap slot-clear
 // lifecycle, but does NOT actually exercise the dispatch path.
 //
@@ -104,7 +104,7 @@ std::shared_ptr<AnimatedTextDocument> make_crossfade_longer_outgoing_doc(
     SourceTextKeyframe kf0;
     kf0.frame = Frame{0};
     kf0.document.utf8 = outgoing_text;
-    kf0.transition = SourceTextTransition::CrossfadeLayouts;
+    kf0.transition = SourceTextTransition::DissolveLayouts;
     kf0.document.defaults.font = font;
     doc->add_keyframe(kf0);
 
@@ -193,25 +193,25 @@ TEST_CASE("draw_text_run: crossfade + stroke with longer outgoing text does not 
 
     // Sample at frame 30 — middle of the gap, mix strictly in (0, 1).
     const auto state = shape->animated_doc->sample_at(Frame{30});
-    REQUIRE(state.transition == SourceTextTransition::CrossfadeLayouts);
-    REQUIRE(state.crossfade_from != nullptr);
+    REQUIRE(state.transition == SourceTextTransition::DissolveLayouts);
+    REQUIRE(state.dissolve_from != nullptr);
     REQUIRE(state.mix > 0.0f);
     REQUIRE(state.mix < 1.0f);
 
-    // apply_active_state_to_text_run_shape populates shape.crossfade_layout
-    // + shape.crossfade_glyphs from state.crossfade_from — this is the
+    // apply_active_state_to_text_run_shape populates shape.dissolve_layout
+    // + shape.dissolve_glyphs from state.dissolve_from — this is the
     // PR 11 hook that establishes the OOB-precondition data shape.
     REQUIRE(apply_active_state_to_text_run_shape(*shape, state, engine, layout));
 
     // ── OOB precondition established ─────────────────────────────────
-    REQUIRE(shape->crossfade_layout != nullptr);
-    REQUIRE_FALSE(shape->crossfade_glyphs.empty());
+    REQUIRE(shape->dissolve_layout != nullptr);
+    REQUIRE_FALSE(shape->dissolve_glyphs.empty());
     const size_t active_glyph_count  = shape->layout->placed.glyphs.size();
-    const size_t outgoing_glyph_count = shape->crossfade_layout->placed.glyphs.size();
+    const size_t outgoing_glyph_count = shape->dissolve_layout->placed.glyphs.size();
     MESSAGE("active_glyph_count   = " << active_glyph_count);
     MESSAGE("outgoing_glyph_count = " << outgoing_glyph_count);
     CHECK(outgoing_glyph_count > active_glyph_count);
-    CHECK(shape->crossfade_glyphs.size() == outgoing_glyph_count);
+    CHECK(shape->dissolve_glyphs.size() == outgoing_glyph_count);
 
     // ── INVOKE draw_text_run end-to-end ──────────────────────────────
     // The "does not crash" invariant is the primary regression check.
@@ -282,11 +282,11 @@ TEST_CASE("draw_text_run: crossfade + stroke with 33:3 ratio does not crash (no-
         outgoing_text, active_text, font);
 
     const auto state = shape->animated_doc->sample_at(Frame{30});
-    REQUIRE(state.transition == SourceTextTransition::CrossfadeLayouts);
+    REQUIRE(state.transition == SourceTextTransition::DissolveLayouts);
     REQUIRE(apply_active_state_to_text_run_shape(*shape, state, engine, layout));
 
-    REQUIRE(shape->crossfade_layout != nullptr);
-    REQUIRE(shape->crossfade_layout->placed.glyphs.size() > shape->layout->placed.glyphs.size());
+    REQUIRE(shape->dissolve_layout != nullptr);
+    REQUIRE(shape->dissolve_layout->placed.glyphs.size() > shape->layout->placed.glyphs.size());
 
     Framebuffer fb(128, 64);
     const Mat4 model = Mat4(1.0f);
@@ -355,13 +355,13 @@ TEST_CASE("draw_text_run: crossfade + stroke produces successful render (E2E ren
         outgoing_text, active_text, font);
 
     const auto state = shape->animated_doc->sample_at(Frame{30});
-    REQUIRE(state.transition == SourceTextTransition::CrossfadeLayouts);
-    REQUIRE(state.crossfade_from != nullptr);
+    REQUIRE(state.transition == SourceTextTransition::DissolveLayouts);
+    REQUIRE(state.dissolve_from != nullptr);
     REQUIRE(apply_active_state_to_text_run_shape(*shape, state, engine, layout));
 
-    REQUIRE(shape->crossfade_layout != nullptr);
-    REQUIRE_FALSE(shape->crossfade_glyphs.empty());
-    REQUIRE(shape->crossfade_layout->placed.glyphs.size() > shape->layout->placed.glyphs.size());
+    REQUIRE(shape->dissolve_layout != nullptr);
+    REQUIRE_FALSE(shape->dissolve_glyphs.empty());
+    REQUIRE(shape->dissolve_layout->placed.glyphs.size() > shape->layout->placed.glyphs.size());
 
     // ── RENDER-SUCCESS assertion ────────────────────────────────────
     // Unlike tests 1-2 (no-crash), this test REQUIRES the render to

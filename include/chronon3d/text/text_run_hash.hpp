@@ -28,7 +28,7 @@ namespace chronon3d {
 /// samples the doc at `frame` and folds the per-frame transition_type +
 /// active->utf8 + active->defaults.font + transition_text bytes +
 /// morph_map bytes + mix value into the cache key, so Scramble / Morph /
-/// CrossfadeLayouts / font-swap Cut renders correctly invalidate the
+/// DissolveLayouts / font-swap Cut renders correctly invalidate the
 /// executor's per-frame node cache without false hits and without leaking
 /// stale layout bytes.
 ///
