@@ -662,3 +662,26 @@ un'animazione in < 5 righe, diagnostica visuale con un comando CLI.
 ## Global DoD Sign-off (21-item) — PARTIAL-BLOCKED @ `main@ef9c83f1` (2026-07-12)
 
 Il comando canonico di certificazione prodotto `tools/verify_chronon_product_linux.sh` orchestra 14 sub-gate eseguibili + 1 forward-pointed che coprono i **21 item DoD** dello spec utente (13 zero-require + 8 one-of). Stato corrente osservato: **`CHRONON_PRODUCT_FUNCTIONAL_BLOCKED`** (14/14 PASS + 1 forward-pointed `verify_diagnostics_linux`). Dettaglio: [`docs/baselines/main-ef9c83f1-baseline.md`](docs/baselines/main-ef9c83f1-baseline.md). Forward-point: `TICKET-VERIFY-DIAGNOSTICS-LINUX` + `TICKET-VERIFY-DIAGNOSTICS-ORCHESTRATOR-WIREIN` (separati per AGENTS.md "Fare PR piccole e mirate"). M0 §10 closes: l'orchestratore esiste + esegue + riporta verdict onesto.
+
+---
+
+## Transitions cleanup roadmap (TRN-01..TRN-07)
+
+Stato: OPEN. Piano di 7 fasi per pulire e certificare le transizioni Layer,
+Camera e Text prima di aggiungerne di nuove.
+
+Master tracker: [`docs/tickets/TICKET-TRN-TRANSITION-CLEANUP.md`](docs/tickets/TICKET-TRN-TRANSITION-CLEANUP.md).
+
+| Fase | Obiettivo | Riferimento |
+|---|---|---|
+| TRN-01 | Inventario + gate architetturale | [`TICKET-TRN-01`](docs/tickets/TICKET-TRN-01.md) (superseded) |
+| TRN-02 | Timing canonico (`TransitionProgressSampler`) | Master tracker |
+| TRN-03 | Pulizia layer transitions | Master tracker |
+| TRN-04 | Correttezza transizioni testo | Master tracker |
+| TRN-05 | Pulizia camera transitions | Master tracker |
+| TRN-06 | Certificazione matrice minima | Master tracker |
+| TRN-07 | Vera `ClipTransitionNode` (Cut/Dissolve) | Master tracker |
+
+Gate di ingresso: nessuna nuova transizione finché non sono soddisfatti i
+criteri di Definition of Done elencati nel master tracker.
+
