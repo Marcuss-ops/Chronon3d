@@ -114,7 +114,7 @@ struct TextRunBuildResult {
 //   - `build_text_run()` above (populated the layout but NOT the
 //     TextUnitMap — leaked an empty `units` field to per-frame code paths
 //     and broke the selector's `total_units` query in Scramble/Morph/
-//     CrossfadeLayouts drivers)
+//     DissolveLayouts drivers)
 //   - `materialize_text_run_shape()` in `scene/builders/text_run_builder.cpp`
 //     (populated the unit map, but via its OWN inline pipeline)
 //
@@ -324,7 +324,7 @@ struct TextLayoutRequest {
 
 /// Single canonical TextRunLayout compiler.  Always populates `units`
 /// on success — that is the bug-fix for shape.layout->units being
-/// undefined after Scramble/Morph/CrossfadeLayouts transitions.
+/// undefined after Scramble/Morph/DissolveLayouts transitions.
 ///
 /// On failure returns `Err(TextLayoutError)` enumerating the cause.
 /// On success returns a `SharedTextRunLayout` whose members

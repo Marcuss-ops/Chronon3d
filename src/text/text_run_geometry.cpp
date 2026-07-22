@@ -55,7 +55,7 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
     const bool has_active =
         shape.layout != nullptr && !shape.glyphs.empty();
     const bool has_crossfade =
-        shape.crossfade_layout != nullptr && !shape.crossfade_glyphs.empty();
+        shape.dissolve_layout != nullptr && !shape.dissolve_glyphs.empty();
 
     if (!has_active && !has_crossfade) {
         return std::nullopt;
@@ -164,8 +164,8 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
         accumulate(shape.glyphs, shape.layout->placed);
     }
     if (has_crossfade) {
-        accumulate(shape.crossfade_glyphs,
-                  shape.crossfade_layout->placed);
+        accumulate(shape.dissolve_glyphs,
+                  shape.dissolve_layout->placed);
     }
 
     return TextRunLocalBounds{min_x, min_y, max_x, max_y};

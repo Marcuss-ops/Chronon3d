@@ -189,9 +189,9 @@ TEST_CASE("M1.5#3 lock — text_run_shape.hpp exposes the batched shape") {
         CHECK(s.cache == nullptr);
         CHECK(s.animated_doc == nullptr);   // PR 9
         CHECK(s.engine == nullptr);          // PR 9
-        CHECK(s.crossfade_layout == nullptr); // PR 11
-        CHECK(s.crossfade_glyphs.empty());
-        CHECK(s.crossfade_mix == 0.0f);
+        CHECK(s.dissolve_layout == nullptr); // PR 11
+        CHECK(s.dissolve_glyphs.empty());
+        CHECK(s.dissolve_mix == 0.0f);
         CHECK(s.animators.empty());           // PR 8 driver payload
         // Type-identity static_asserts on the fields that lack explicit
         // in-class default initializers in text_run_shape.hpp (the
@@ -211,8 +211,8 @@ TEST_CASE("M1.5#3 lock — text_run_shape.hpp exposes the batched shape") {
         static_assert(std::is_same_v<decltype(s.animated_doc),
                                       std::shared_ptr<const AnimatedTextDocument>>,
                       "TextRunShape::animated_doc must be shared_ptr<const AnimatedTextDocument>");
-        static_assert(std::is_same_v<decltype(s.crossfade_mix), float>,
-                      "TextRunShape::crossfade_mix must be float");
+        static_assert(std::is_same_v<decltype(s.dissolve_mix), float>,
+                      "TextRunShape::dissolve_mix must be float");
         static_assert(std::is_same_v<decltype(s.material), TextMaterial>,
                       "TextRunShape::material must be TextMaterial");
         static_assert(std::is_same_v<decltype(s.paint), TextPaint>,

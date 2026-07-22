@@ -205,7 +205,7 @@ Layer LayerBuilder::build() {
             // samples it at the layer's local integral frame and
             // routes the resulting ActiveTextState through
             // `apply_active_state_to_text_run_shape`, so transitions
-            // (Hold / Cut / CrossfadeLayouts / Scramble / Morph)
+            // (Hold / Cut / DissolveLayouts / Scramble / Morph)
             // drive layout swaps automatically.  nullptr → unchanged
             // behaviour (initial spec.text.content.value stays as the
             // static literal).
