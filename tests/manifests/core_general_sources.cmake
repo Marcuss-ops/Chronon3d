@@ -44,6 +44,7 @@ set(CORE_TEST_SOURCES
     core/animation/path/test_catmull_rom_path.cpp
     core/animation/path/test_spatial_bezier_path.cpp
     core/animation/test_quaternion_track.cpp
+    core/animation/test_transition_progress_sampler.cpp
     core/timeline/test_timeline.cpp
     core/timeline/test_timeline_builder.cpp
     core/timeline/test_code_first_composition.cpp
