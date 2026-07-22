@@ -25,14 +25,14 @@ build_empty_paragraph_layout(const TextDocument& doc) {
 Result<const ResolvedParagraph*, TextLayoutError>
 resolve_target_paragraph(
     const TextDocument& doc,
-    FontEngine& engine,
+    const TextCompileServices& services,
     const ResolvedTextTree* pre_resolved,
     std::size_t paragraph_index,
     ResolvedTextTree& local_storage
 ) {
     const ResolvedTextTree& tree = pre_resolved
         ? *pre_resolved
-        : (local_storage = resolve_text_run_tree(doc, engine), local_storage);
+        : (local_storage = resolve_text_run_tree(doc, *services.engine, services.bundled_fonts_root), local_storage);
 
     if (tree.paragraphs.empty()) {
         return TextLayoutError{

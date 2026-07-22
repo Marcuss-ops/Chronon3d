@@ -27,6 +27,7 @@
 #include <chronon3d/text/text_document.hpp>
 #include <chronon3d/text/text_run.hpp>
 
+#include <filesystem>
 #include <memory>
 #include <string>
 #include <vector>
@@ -53,6 +54,12 @@ struct ResolvedTextTree;
 struct TextRunBuildResult {
     /// Paragraph layouts (one per TextDocument paragraph).
     std::vector<std::shared_ptr<TextRunLayout>> paragraphs;
+
+    /// Total number of codepoints/clusters not covered by any font in the
+    /// fallback stack across all paragraphs.  Fail-loud audits log each
+    /// missing codepoint via spdlog::error; this counter lets callers
+    /// surface the aggregate without parsing logs.
+    std::size_t missing_glyph_count{0};
 
     /// True when every paragraph in the source document compiled
     /// successfully.  False when one or more paragraphs were skipped
@@ -86,15 +93,17 @@ struct TextRunBuildResult {
 ///                split_paragraphs() already called.
 /// @param engine  FontEngine for shaping.
 /// @param layout  Box dimensions, tracking, wrap mode, paragraph style, etc.
-/// @param cache   Optional TextLayoutCache for reusing layouts across frames.
-///                When non-null and cache_layout=true, build_text_run()
-///                checks the cache before re-shaping.
+/// @param cache               Optional TextLayoutCache for reusing layouts across frames.
+///                            When non-null and cache_layout=true, build_text_run()
+///                            checks the cache before re-shaping.
+/// @param bundled_fonts_root  Directory scanned for bundled fallback fonts.
 /// @return A TextRunBuildResult with one TextRunLayout per paragraph.
 [[nodiscard]] TextRunBuildResult build_text_run(
     const TextDocument& doc,
     FontEngine& engine,
     const TextLayoutSpec& layout,
-    TextLayoutCache* cache = nullptr
+    TextLayoutCache* cache = nullptr,
+    const std::filesystem::path& bundled_fonts_root = {}
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -248,6 +257,11 @@ struct TextLayoutError {
 struct TextCompileServices {
     FontEngine*      engine{nullptr};
     TextLayoutCache* cache{nullptr};
+
+    /// Directory scanned for bundled fallback fonts (e.g.
+    /// `<assets_root>/fonts`).  Empty means "no bundled fonts available";
+    /// the primary font is still used, but no extra fallbacks are loaded.
+    std::filesystem::path bundled_fonts_root;
 };
 
 /// Policy for handling per-run shaping failures in compile_text_layout.

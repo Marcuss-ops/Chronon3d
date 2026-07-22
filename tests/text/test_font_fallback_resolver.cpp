@@ -16,13 +16,16 @@
 
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/text_document.hpp>
 #include <chronon3d/text/text_resolver.hpp>
 
 #include "src/text/resolver/font_fallback_resolver.hpp"
 
+#include <cctype>
 #include <cstddef>
 #include <string>
 #include <string_view>
+#include <algorithm>
 
 using namespace chronon3d;
 using namespace chronon3d::text::resolver;
@@ -443,5 +446,93 @@ TEST_CASE("FontFallbackResolver: emoji ZWJ family + Devanagari + symbols audit")
             CHECK_MESSAGE(!run.font.font_family.empty(),
                 sample.name, " run has empty font family");
         }
+    }
+}
+
+namespace {
+
+std::filesystem::path test_repo_root() {
+    // Prefer the compile-time source dir macro, then the env var, then
+    // the current working directory. The source dir is the only reliable
+    // value when the test binary is run from the build directory.
+    const char* env_src = std::getenv("CHRONON3D_SOURCE_DIR");
+    if (env_src && std::filesystem::is_directory(env_src)) {
+        return std::filesystem::path(env_src);
+    }
+
+    // Derive repo root from this source file path:
+    // tests/text/test_font_fallback_resolver.cpp → repo root.
+    std::filesystem::path src(__FILE__);
+    for (int i = 0; i < 3 && !src.parent_path().empty(); ++i) {
+        src = src.parent_path();
+    }
+    if (std::filesystem::is_directory(src / "assets" / "fonts")) {
+        return src;
+    }
+
+    return std::filesystem::current_path();
+}
+
+} // namespace
+
+namespace {
+
+std::string to_lower(std::string_view s) {
+    std::string out(s);
+    std::transform(out.begin(), out.end(), out.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return out;
+}
+
+bool family_contains(const std::string& family, std::string_view substring) {
+    return to_lower(family).find(to_lower(substring)) != std::string::npos;
+}
+
+} // namespace
+
+TEST_CASE("resolve_text_run_tree: bundled_fonts_root propagated through pipeline") {
+    Config cfg;
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+
+    const std::filesystem::path repo_root = test_repo_root();
+    const std::filesystem::path fonts_dir = repo_root / "assets" / "fonts";
+
+    TextDocument doc;
+    // Latin + Arabic. Inter covers Latin; Arabic needs the bundled fallback.
+    const std::string arabic =
+        "\xD9\x85"
+        "\xD8\xB1"
+        "\xD8\xAD"
+        "\xD8\xA8"
+        "\xD8\xA7";
+    doc.utf8 = std::string("Hello ") + arabic;
+    doc.defaults.font.font_path = (fonts_dir / "Inter-Bold.ttf").generic_string();
+    doc.defaults.font.font_family = "Inter";
+    doc.defaults.font.font_size = 32.0f;
+    doc.split_paragraphs();
+
+    // With no bundled fonts root, Arabic is uncovered → missing glyph audit.
+    {
+        auto tree = resolve_text_run_tree(doc, engine);
+        CHECK(tree.missing_glyph_count > 0);
+    }
+
+    // With the bundled fonts root, Arabic should be covered by Noto Naskh Arabic.
+    {
+        INFO("repo_root=", test_repo_root().string(),
+             " fonts_dir=", fonts_dir.string(),
+             " exists=", std::filesystem::exists(fonts_dir));
+        auto tree = resolve_text_run_tree(doc, engine, fonts_dir);
+        INFO("missing_glyph_count=", tree.missing_glyph_count);
+        CHECK(tree.missing_glyph_count == 0);
+        REQUIRE(tree.paragraphs.size() == 1);
+        REQUIRE(tree.paragraphs[0].runs.size() == 2);
+        // Run order: Latin (Inter) first, then Arabic (Noto Naskh Arabic).
+        CHECK(family_contains(tree.paragraphs[0].runs[0].font.font_family, "inter"));
+        CHECK(family_contains(tree.paragraphs[0].runs[1].font.font_family, "noto naskh arabic"));
+        // The fallback run must actually point to the bundled file.
+        CHECK(tree.paragraphs[0].runs[1].font.font_path.find("NotoNaskhArabic") != std::string::npos);
     }
 }

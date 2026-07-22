@@ -34,6 +34,7 @@ namespace {
 // Fail-loud: missing directory or enumeration failure is logged via
 // spdlog::warn / spdlog::error, never silently swallowed.
 [[nodiscard]] std::vector<FontSpec> scan_bundled_fallback_fonts(
+    FontEngine& engine,
     const std::filesystem::path& bundled_fonts_root
 ) {
     std::vector<FontSpec> specs;
@@ -65,7 +66,19 @@ namespace {
         if (entry.path().extension() != ".ttf") continue;
         FontSpec spec;
         spec.font_path = entry.path().generic_string();
-        specs.push_back(std::move(spec));
+        // Populate family/style/weight from the face so downstream
+        // consumers (tests, identity, diagnostics) see meaningful
+        // metadata instead of an empty family string. A true result
+        // also means the font is loadable, so we skip the separate
+        // can_load() call here.
+        std::string family, style;
+        int weight = 0;
+        if (chronon3d::text::font_engine_internal::inspect_font(engine, spec, family, style, weight)) {
+            spec.font_family = std::move(family);
+            spec.font_style  = std::move(style);
+            spec.font_weight = weight;
+            specs.push_back(std::move(spec));
+        }
     }
     return specs;
 }
@@ -179,15 +192,16 @@ FontStack make_default_font_stack(
     FontStack stack;
     stack.push_back(primary);
 
-    // Scan the supplied base once per process and add every loadable .ttf
-    // that is not identical to the primary.
-    static const std::vector<FontSpec> bundled =
-        scan_bundled_fallback_fonts(bundled_fonts_root);
+    // Scan the supplied root every time. The directory is typically small,
+    // and caching by process lifetime would ignore different roots passed by
+    // different callers (e.g., tests vs. runtime).
+    const std::vector<FontSpec> bundled =
+        scan_bundled_fallback_fonts(engine, bundled_fonts_root);
     for (const auto& cand : bundled) {
         if (cand.font_path == primary.font_path) continue;
-        if (engine.can_load(cand)) {
-            stack.push_back(cand);
-        }
+        // Fonts are already validated by inspect_font() during scanning,
+        // so they are loadable. Skip the redundant can_load() call.
+        stack.push_back(cand);
     }
 
     return stack;
