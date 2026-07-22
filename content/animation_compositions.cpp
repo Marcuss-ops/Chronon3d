@@ -86,7 +86,7 @@ Composition anim_typewriter() {
                 .tracking = 3.0f,
                 .chars_per_frame = 0.3f,
                 .easing = EasingCurve{Easing::OutCubic},
-            }, ctx.frame, *engine);
+            }, ctx.frame(), *engine);
             // P0 #3 — structured error logged via spdlog (frame + message).
             // Non-fatal (best-effort): other layers of the scene still render.
             // Propagating the error up to the render job when text is REQUIRED
@@ -98,7 +98,7 @@ Composition anim_typewriter() {
             if (!result) {
                 spdlog::error(
                     "[AnimTypewriter] typewriter_build failed: frame={} message=\"{}\"",
-                    ctx.frame.integral(),
+                    ctx.frame().integral(),
                     result.error().message);
             }
         }

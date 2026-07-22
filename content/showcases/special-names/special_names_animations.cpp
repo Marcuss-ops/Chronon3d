@@ -163,7 +163,7 @@ Composition special_name_typewriter() {
             opts.tracking  = 14.0f;
             opts.color     = NAME_TEXT_GOLD;
             l.text("name", chronon3d::content::text::typewriter_text(
-                opts, ctx.frame, 0.8f,
+                opts, ctx.frame(), 0.8f,
                 {.easing = EasingCurve{Easing::OutCubic},
                  .start_delay = Frame{4},
                  .fade_chars = 0.5f}));
