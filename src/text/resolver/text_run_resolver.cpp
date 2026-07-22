@@ -162,7 +162,8 @@ ShapedTextTree resolve_and_shape(
     const TextDocument& doc,
     FontEngine& engine,
     float tracking,
-    const std::filesystem::path& bundled_fonts_root
+    const std::filesystem::path& bundled_fonts_root,
+    const std::string& features
 ) {
     ShapedTextTree result;
 
@@ -175,7 +176,7 @@ ShapedTextTree resolve_and_shape(
 
         for (const auto& run : para.runs) {
             shaped_para.shaped_runs.push_back(
-                shape_resolved_run(run, engine, tracking));
+                shape_resolved_run(run, engine, tracking, features));
         }
 
         result.paragraphs.push_back(std::move(shaped_para));
