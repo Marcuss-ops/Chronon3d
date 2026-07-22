@@ -154,6 +154,10 @@ struct FillColorProperty {
     Color color{1.0f, 1.0f, 1.0f, 1.0f};
 };
 
+struct BackgroundColorProperty {
+    Color color{0.0f, 0.0f, 0.0f, 0.0f};
+};
+
 struct StrokeColorProperty {
     Color color{0.0f, 0.0f, 0.0f, 1.0f};
 };
@@ -209,6 +213,7 @@ using TextAnimatorProperty = std::variant<
     OpacityProperty,
     BlurProperty,
     FillColorProperty,
+    BackgroundColorProperty,
     StrokeColorProperty,
     StrokeWidthProperty,
     TrackingProperty,

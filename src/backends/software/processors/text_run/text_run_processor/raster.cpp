@@ -179,6 +179,20 @@ struct SingleGlyphRun {
             ctx.setTransform(glyph_mat);
 
 #ifdef CHRONON3D_ENABLE_TEXT
+            // Per-glyph animated background (drawn behind stroke/fill).
+            if (g.background.a > 0.0f && op_alpha > 0.0f) {
+                const BLFont& span_font = s.span_fonts[glyph_span_indices[gi]];
+                const BLFontMetrics fm = span_font.metrics();
+                const double bg_y0 = -fm.ascent;
+                const double bg_h  = fm.ascent + fm.descent;
+                const double bg_x0 = source_placed.glyphs[gi].bbox_x0;
+                const double bg_w  = source_placed.glyphs[gi].bbox_x1 - bg_x0;
+                ctx.setFillStyle(to_bl_rgba(g.background));
+                ctx.setGlobalAlpha(static_cast<double>(g.background.a * op_alpha));
+                ctx.fillRect(BLRect(bg_x0, bg_y0, bg_w, bg_h));
+                ctx.setGlobalAlpha(1.0);
+            }
+
             const std::size_t span_idx = glyph_span_indices[gi];
             const FontFaceHandle& span_handle = s.span_handles[span_idx];
             if (eff_stroke.a > 0.0f && eff_stroke_w > 0.0f
