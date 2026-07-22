@@ -49,6 +49,7 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/track_matte_node.cpp
     nodes/per_pixel_dof_node.cpp
     nodes/transition/transition_node_math.cpp
+    transition/transition_catalog.cpp
     nodes/TextRunNode.cpp   # PR 3 (TextAnimator V2 batched text node)
     # M1.5#1 — extract execute() into single-responsibility helpers
     # under nodes/text_run/.  Internal-only; not exposed via include/.

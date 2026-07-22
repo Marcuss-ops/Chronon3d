@@ -175,30 +175,21 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     const bool has_in_trans = !layer.transition_in.transition_id.empty() && layer.transition_in.transition_id != "none";
     const bool has_out_trans = !layer.transition_out.transition_id.empty() && layer.transition_out.transition_id != "none";
 
-    if (has_in_trans || has_out_trans) {
-        std::string trans_id = "none";
-        LayerTransitionSpec active_spec;
-        bool is_out = false;
+    // Apply transition-in first, then transition-out.  Both can coexist;
+    // each TransitionNode evaluates its own progress window, so the
+    // inactive one is identity (p = 0 / p = 1) while the other runs.
+    if (has_in_trans) {
+        GraphNodeId trans_node = graph.add_node(std::make_unique<TransitionNode>(
+            std::string(layer.name), layer.transition_in, false, layer.from, layer.duration), node_ctx);
+        graph.connect(layer_output, trans_node);
+        layer_output = trans_node;
+    }
 
-        if (has_in_trans) {
-            trans_id = layer.transition_in.transition_id;
-            active_spec = layer.transition_in;
-            is_out = false;
-        } else if (has_out_trans) {
-            trans_id = layer.transition_out.transition_id;
-            active_spec = layer.transition_out;
-            is_out = true;
-        }
-
-        if (trans_id != "none") {
-            // PR2-cleanup: TransitionNode is intrinsically frame-variant via its ctor.
-            {
-                GraphNodeId trans_node = graph.add_node(std::make_unique<TransitionNode>(
-                    std::string(layer.name), active_spec, is_out, layer.from, layer.duration), node_ctx);
-                graph.connect(layer_output, trans_node);
-                layer_output = trans_node;
-            }
-        }
+    if (has_out_trans) {
+        GraphNodeId trans_node = graph.add_node(std::make_unique<TransitionNode>(
+            std::string(layer.name), layer.transition_out, true, layer.from, layer.duration), node_ctx);
+        graph.connect(layer_output, trans_node);
+        layer_output = trans_node;
     }
 
     append_composite_pass(graph, current, layer_output, *item.layer, (layer.cache_static || item.is_static), ctx, item.world_z, node_ctx);

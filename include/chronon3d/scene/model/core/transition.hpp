@@ -3,7 +3,10 @@
 #include <chronon3d/core/enum_utils.hpp>
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/math/color.hpp>
 #include <string>
+#include <variant>
 
 namespace chronon3d {
 
@@ -54,12 +57,82 @@ enum class TransitionDirection {
     return Easing::Linear;
 }
 
+// Per-transition typed parameter structs.  The old hard-coded constants
+// (feather, center, seed, speed, direction, colours) now live here as
+// explicit fields, so every transition can be cached and reasoned about
+// without reverse-engineering the renderer.
+struct CrossfadeParams {};
+
+struct SlideParams {
+    /// Relative distance to travel, expressed as a fraction of the layer
+    /// dimension along the chosen direction (1.0 = one full layer width/height).
+    float distance = 1.0f;
+};
+
+struct WipeLinearParams {};
+
+struct SmoothWipeParams {
+    /// Width of the soft edge, relative to the smaller screen dimension.
+    float feather = 0.1f;
+};
+
+struct CircleIrisParams {
+    /// Normalised centre of the iris ([0,1] in each axis).
+    Vec2 center{0.5f, 0.5f};
+    /// Softness of the iris edge, relative to the iris radius.
+    float feather = 0.1f;
+};
+
+struct FlashParams {
+    /// Tint colour used for the flash burst (default white).
+    Color color = Color::white();
+};
+
+struct ProceduralRemotionParams {
+    /// Seed that drives the procedural noise pattern.
+    float seed = 1.2f;
+    /// Colour of the inner / mid burn.
+    Color inner_color{1.0f, 0.45f, 0.0f, 1.0f};
+    Color mid_color{1.0f, 0.45f, 0.0f, 1.0f};
+    /// Colour of the outer hot leak.
+    Color outer_color{1.0f, 1.0f, 1.0f, 1.0f};
+};
+
+struct RemotionParams {
+    /// Speed multiplier for the procedural reveal.
+    float speed = 1.35f;
+    /// Directional seed for the noise pattern.
+    float direction = 3.0f;
+    /// Hue rotation angle applied to the procedural colour.
+    float angle = 0.0f;
+};
+
+using LayerTransitionParameters = std::variant<
+    std::monostate,
+    CrossfadeParams,
+    SlideParams,
+    WipeLinearParams,
+    SmoothWipeParams,
+    CircleIrisParams,
+    FlashParams,
+    ProceduralRemotionParams,
+    RemotionParams
+>;
+
+/// Typed descriptor for a layer reveal / exit transition.
+///
+/// `transition_id` is the canonical string id used by the scene builder and
+/// by serialisation; `parameters` is the typed, transition-specific data.
+/// The catalog (`LayerTransitionCatalog`) is the only place that still
+/// maps a string id to executable behaviour — new code must not add
+/// `if (transition_id == ...)` dispatchers elsewhere.
 struct LayerTransitionSpec {
     std::string transition_id{"none"};
     TransitionDirection direction{TransitionDirection::None};
     double duration{0.0}; // in seconds — 0 means no transition (static)
     double delay{0.0};
     Easing easing{Easing::Linear};
+    LayerTransitionParameters parameters{};
 };
 
 } // namespace chronon3d
