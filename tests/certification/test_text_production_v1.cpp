@@ -673,15 +673,26 @@ TEST_CASE("Animation frame-by-frame → visible ink changes across frames") {
     REQUIRE(fb15 != nullptr);
     REQUIRE(fb30 != nullptr);
 
-    const int area0  = completeness::count_visible_pixels(*fb0);
-    const int area15 = completeness::count_visible_pixels(*fb15);
-    const int area30 = completeness::count_visible_pixels(*fb30);
-    INFO("animation visible pixels: f0=", area0, " f15=", area15, " f30=", area30);
+    // Opacity changes the alpha *values* of pixels, not the visible
+    // bounding-box area (any alpha > 0 still counts as visible).
+    // Compare the summed alpha / total luminance instead.
+    auto frame_alpha_sum = [](const chronon3d::Framebuffer& fb) {
+        double sum = 0.0;
+        for (int y = 0; y < fb.height(); ++y)
+            for (int x = 0; x < fb.width(); ++x)
+                sum += fb.get_pixel(x, y).a;
+        return sum;
+    };
 
-    // Opacity 0 → 1: visible area must be non-decreasing and not constant.
-    CHECK(area0 <= area15);
-    CHECK(area15 <= area30);
-    CHECK(area30 > area0);
+    const double alpha0  = frame_alpha_sum(*fb0);
+    const double alpha15 = frame_alpha_sum(*fb15);
+    const double alpha30 = frame_alpha_sum(*fb30);
+    INFO("animation alpha sum: f0=", alpha0, " f15=", alpha15, " f30=", alpha30);
+
+    // Opacity 0 → 1: total alpha must be non-decreasing and strictly larger at the end.
+    CHECK(alpha0 <= alpha15);
+    CHECK(alpha15 <= alpha30);
+    CHECK(alpha30 > alpha0);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
