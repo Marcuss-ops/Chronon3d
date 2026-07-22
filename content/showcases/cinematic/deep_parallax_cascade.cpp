@@ -169,7 +169,7 @@ Composition deep_parallax_cascade() {
         motion.easing       = EasingCurve{Easing::OutExpo};
         motion.zoom         = 1100.0f;
         motion.fov_deg      = 60.0f;
-        s.camera().set(motion.evaluate(ctx.frame, Frame{0}, Frame{179}));
+        s.camera().set(motion.evaluate(ctx.frame(), Frame{0}, Frame{179}));
 
         return s.build();
     });

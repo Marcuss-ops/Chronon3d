@@ -329,8 +329,8 @@ Composition camera_binding_anchor_test() {
         shot.rig.orbit_yaw.set(0.0f); shot.rig.orbit_pitch.set(0.0f); shot.rig.roll.set(0.0f);
         shot.rig.projection_mode = Camera2_5DProjectionMode::Fov;
         shot.rig.fov_deg.set(50.0f);
-        shot.rig.target_name = (ctx.frame == 0) ? "origin_target" : "visual_center_target";
-        s.layer("frame_label", [ctx](LayerBuilder& l) { std::string label = (ctx.frame == 0) ? "LOOK AT PIVOT" : "LOOK AT VISUAL CENTER"; Color label_color = (ctx.frame == 0) ? Color{1.0f, 0.4f, 0.4f, 0.9f} : Color{0.4f, 1.0f, 0.4f, 0.9f}; l.pin_to(Anchor::TopLeft, 20.0f); l.text("hud", TextDefinition{
+        shot.rig.target_name = (ctx.frame() == 0) ? "origin_target" : "visual_center_target";
+        s.layer("frame_label", [ctx](LayerBuilder& l) { std::string label = (ctx.frame() == 0) ? "LOOK AT PIVOT" : "LOOK AT VISUAL CENTER"; Color label_color = (ctx.frame() == 0) ? Color{1.0f, 0.4f, 0.4f, 0.9f} : Color{0.4f, 1.0f, 0.4f, 0.9f}; l.pin_to(Anchor::TopLeft, 20.0f); l.text("hud", TextDefinition{
     .content = {.value = label},
     .style = {
         .font = {.font_size = 22.0f},

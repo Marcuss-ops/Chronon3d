@@ -77,9 +77,9 @@ Composition product_launch() {
         SceneBuilder s(ctx);
         if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
 
-        const f32 t   = static_cast<f32>(ctx.frame.integral());
-        const f32 fps = static_cast<f32>(ctx.frame_rate.numerator)
-                      / static_cast<f32>(ctx.frame_rate.denominator);
+        const f32 t   = static_cast<f32>(ctx.frame().integral());
+        const f32 fps = static_cast<f32>(ctx.frame_rate().numerator)
+                      / static_cast<f32>(ctx.frame_rate().denominator);
         (void)fps;  // fps is exposed via CompositionSpec; kept for debug-prints.
 
         // ── Background layer — dark cinematic gradient + vignette ─────

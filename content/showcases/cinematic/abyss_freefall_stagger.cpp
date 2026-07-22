@@ -173,7 +173,7 @@ Composition abyss_freefall_stagger() {
         cam.enabled = true;
         cam.zoom = 1100.0f;
         cam.fov_deg = 55.0f;
-        cam.rotation = cam_rot.evaluate(ctx.frame);
+        cam.rotation = cam_rot.evaluate(ctx.frame());
         cam.point_of_interest = {0.0f, 0.0f, 4000.0f};
         cam.point_of_interest_enabled = true;
         s.camera().set(cam);
