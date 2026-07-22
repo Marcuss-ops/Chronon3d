@@ -1,4 +1,5 @@
 #include <optional>
+#include <set>
 #include <string>
 
 #include <doctest/doctest.h>
@@ -8,6 +9,8 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_document.hpp>
 #include <chronon3d/text/text_resolver.hpp>
+#include <chronon3d/text/text_run.hpp>
+#include <chronon3d/text/text_run_builder.hpp>
 
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
@@ -33,12 +36,19 @@ struct ClusterMetrics {
 
 struct RunMetrics {
     TextDirection direction{TextDirection::LTR};
+    std::string font_family;
     std::vector<std::uint32_t> glyph_ids;
     std::vector<ClusterMetrics> clusters;
     std::vector<float> advances;
     std::vector<float> x_offsets;
     std::vector<float> y_offsets;
+    std::vector<float> xs;
+    std::vector<std::size_t> glyph_byte_offsets;
     float baseline{0.0f};
+    float ascent{0.0f};
+    float descent{0.0f};
+    float line_height{0.0f};
+    float total_width{0.0f};
     float ink_x0{0.0f}, ink_y0{0.0f}, ink_x1{0.0f}, ink_y1{0.0f};
 };
 
@@ -77,6 +87,11 @@ CorpusMetrics collect_corpus_metrics(
             RunMetrics r;
             r.direction = run.direction;
             r.baseline = placed.baseline;
+            r.ascent = placed.ascent;
+            r.descent = placed.descent;
+            r.line_height = placed.total_height;
+            r.total_width = placed.total_width;
+            r.font_family = run.font.font_family;
 
             float x0 =  std::numeric_limits<float>::max();
             float y0 =  std::numeric_limits<float>::max();
@@ -88,6 +103,8 @@ CorpusMetrics collect_corpus_metrics(
                 r.advances.push_back(g.advance_x);
                 r.x_offsets.push_back(g.x_offset);
                 r.y_offsets.push_back(g.y_offset);
+                r.xs.push_back(g.x);
+                r.glyph_byte_offsets.push_back(g.byte_offset);
 
                 if (g.bbox_x0 != 0.0f || g.bbox_x1 != 0.0f ||
                     g.bbox_y0 != 0.0f || g.bbox_y1 != 0.0f) {
@@ -157,6 +174,33 @@ bool has_runs(const CorpusMetrics& m) {
     return false;
 }
 
+std::size_t total_glyph_count(const CorpusMetrics& m) {
+    std::size_t n = 0;
+    for (const auto& p : m.paragraphs) {
+        for (const auto& r : p.runs) n += r.glyph_ids.size();
+    }
+    return n;
+}
+
+std::size_t total_cluster_count(const CorpusMetrics& m) {
+    std::size_t n = 0;
+    for (const auto& p : m.paragraphs) {
+        for (const auto& r : p.runs) n += r.clusters.size();
+    }
+    return n;
+}
+
+// Check that cluster byte ranges are inside the source string.
+void check_cluster_ranges(const CorpusMetrics& m, const std::string& source) {
+    for (const auto& p : m.paragraphs) {
+        for (const auto& r : p.runs) {
+            for (const auto& cl : r.clusters) {
+                CHECK(cl.byte_offset + cl.byte_len <= source.size());
+            }
+        }
+    }
+}
+
 } // namespace
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -173,6 +217,7 @@ TEST_CASE("ShapingCorpus: AVATAR records glyph IDs, advances and kerning") {
     auto doc = make_corpus_doc("AVATAR");
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
     REQUIRE(has_runs(m));
+    CHECK(m.missing_glyphs == 0);
 
     // AV kerning: the 'V' should be pulled left relative to a neutral pair.
     // We compare "AV" width against the sum of isolated "A" and "V" widths.
@@ -183,6 +228,20 @@ TEST_CASE("ShapingCorpus: AVATAR records glyph IDs, advances and kerning") {
     REQUIRE(a_run.has_value());
     REQUIRE(v_run.has_value());
     CHECK(av_run->width < a_run->width + v_run->width);
+
+    // Metrics invariants: glyph and cluster counts, positive advances,
+    // positive ascent/descent/line_height.
+    CHECK(total_glyph_count(m) > 0);
+    CHECK(total_cluster_count(m) > 0);
+    for (const auto& p : m.paragraphs) {
+        for (const auto& r : p.runs) {
+            CHECK(r.ascent > 0.0f);
+            CHECK(r.descent > 0.0f);
+            CHECK(r.line_height > 0.0f);
+            for (const auto& adv : r.advances) CHECK(adv >= 0.0f);
+        }
+    }
+    check_cluster_ranges(m, doc.utf8);
 }
 
 TEST_CASE("ShapingCorpus: office affine shows ligature behaviour") {
@@ -196,10 +255,20 @@ TEST_CASE("ShapingCorpus: office affine shows ligature behaviour") {
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
     REQUIRE(has_runs(m));
 
-    // Inter-Bold has standard ligatures.  "office" contains a possible 'ff'
-    // ligature and "affine" contains 'fi'.  The shaped glyph count should be
-    // less than or equal to the codepoint count, and clusters must map back
-    // to the original UTF-8 bytes.
+    // Explicit ligature check: "fi" should produce fewer glyphs when
+    // standard ligatures are enabled than when they are disabled.
+    auto fi_liga = engine.shape_text("fi", inter_bold_quality(), 32.0f,
+                                      TextShaping{.features = "liga=1"});
+    auto fi_no_liga = engine.shape_text("fi", inter_bold_quality(), 32.0f,
+                                         TextShaping{.features = "liga=0"});
+    REQUIRE(fi_liga.has_value());
+    REQUIRE(fi_no_liga.has_value());
+    INFO("fi liga glyphs=", fi_liga->glyphs.size(), " no-liga glyphs=", fi_no_liga->glyphs.size());
+    CHECK(fi_liga->glyphs.size() < fi_no_liga->glyphs.size());
+
+    // "office affine" contains possible 'ff' and 'fi' ligatures.
+    // The shaped glyph count should be less than or equal to the codepoint
+    // count, and clusters must map back to the original UTF-8 bytes.
     std::size_t total_glyphs = 0;
     std::size_t total_clusters = 0;
     for (const auto& p : m.paragraphs) {
@@ -210,15 +279,27 @@ TEST_CASE("ShapingCorpus: office affine shows ligature behaviour") {
     }
     CHECK(total_glyphs > 0);
     CHECK(total_clusters > 0);
+    CHECK(total_glyphs <= 12); // "office affine" has 12 codepoints
 
     // Verify every cluster maps back into the source text.
-    for (const auto& p : m.paragraphs) {
-        for (const auto& r : p.runs) {
-            for (const auto& cl : r.clusters) {
-                CHECK(cl.byte_offset + cl.byte_len <= doc.utf8.size());
-            }
-        }
-    }
+    check_cluster_ranges(m, doc.utf8);
+}
+
+TEST_CASE("ShapingCorpus: To WA records glyph and cluster metrics") {
+    chronon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+    if (!require_font(engine)) return;
+
+    auto doc = make_corpus_doc("To WA");
+    auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
+    REQUIRE(has_runs(m));
+    CHECK(m.missing_glyphs == 0);
+    check_cluster_ranges(m, doc.utf8);
+
+    CHECK(total_glyph_count(m) > 0);
+    CHECK(total_cluster_count(m) > 0);
 }
 
 TEST_CASE("ShapingCorpus: Cafe déjà vu cluster mapping is valid") {
@@ -232,6 +313,15 @@ TEST_CASE("ShapingCorpus: Cafe déjà vu cluster mapping is valid") {
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
     REQUIRE(has_runs(m));
     CHECK(m.missing_glyphs == 0);
+
+    check_cluster_ranges(m, doc.utf8);
+
+    // Layout metrics must be positive even if individual glyph bboxes are
+    // not populated by the backend in this configuration.
+    REQUIRE(!m.paragraphs.empty());
+    REQUIRE(!m.paragraphs[0].runs.empty());
+    CHECK(m.paragraphs[0].runs[0].total_width > 0.0f);
+    CHECK(m.paragraphs[0].runs[0].line_height > 0.0f);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -283,9 +373,34 @@ TEST_CASE("ShapingCorpus: Arabic contextual shaping differs from isolated forms"
     }
     CHECK(has_rtl);
     CHECK(m.missing_glyphs == 0);
+
+    // Contextual shaping: the same Arabic letters in a word should produce
+    // different glyph sequences than when shaped in isolation. We compare
+    // the full word "مرحبا" against the isolated letter "م".
+    if (engine.can_load(noto_naskh_arabic_quality())) {
+        auto word_run = engine.shape_text("مرحبا", noto_naskh_arabic_quality(), 32.0f,
+                                           TextShaping{.direction = TextDirection::RTL});
+        // Meem isolated form.
+        auto isolated_run = engine.shape_text("\xD9\x85", noto_naskh_arabic_quality(), 32.0f,
+                                               TextShaping{.direction = TextDirection::RTL});
+        REQUIRE(word_run.has_value());
+        REQUIRE(isolated_run.has_value());
+        REQUIRE(!word_run->glyphs.empty());
+        REQUIRE(!isolated_run->glyphs.empty());
+
+        // The full word must contain at least as many glyphs as the isolated
+        // letter; more importantly, the glyph set used by the word must differ
+        // from the single isolated glyph.
+        CHECK(word_run->glyphs.size() >= isolated_run->glyphs.size());
+        bool all_same = (word_run->glyphs.size() == isolated_run->glyphs.size())
+            && (word_run->glyphs[0].glyph_id == isolated_run->glyphs[0].glyph_id);
+        INFO("word first glyph=", word_run->glyphs[0].glyph_id,
+             " isolated meem=", isolated_run->glyphs[0].glyph_id);
+        CHECK(!all_same);
+    }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
 // 4. Hebrew
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -307,6 +422,14 @@ TEST_CASE("ShapingCorpus: Hebrew עברית shapes with RTL direction") {
         }
     }
     CHECK(has_rtl);
+    // Hebrew is not covered by the bundled fonts.  If the OS has no Hebrew
+    // fallback, the fail-loud audit should report missing glyphs.  The
+    // important invariant is that the run is not silently dropped.
+    for (const auto& p : m.paragraphs) {
+        for (const auto& r : p.runs) {
+            CHECK(!r.clusters.empty());
+        }
+    }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -323,14 +446,21 @@ TEST_CASE("ShapingCorpus: Devanagari हिन्दी shapes with clusters") {
     auto doc = make_corpus_doc("हिन्दी");
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
     REQUIRE(has_runs(m));
-    CHECK(m.missing_glyphs == 0);
+    // Devanagari is not covered by the bundled fonts.  If the OS has no
+    // Devanagari fallback, the fail-loud audit should report missing glyphs.
+    // The important invariant is that shaping still produces clusters.
+    for (const auto& p : m.paragraphs) {
+        for (const auto& r : p.runs) {
+            CHECK(!r.clusters.empty());
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 6. Thai
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("ShapingCorpus: Thai ภาษาไทย shapes without missing glyphs") {
+TEST_CASE("ShapingCorpus: Thai ภาษาไทย shapes with clusters") {
     chronon3d::Config cfg;
     auto runtime = chronon3d::runtime::RenderRuntime::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
@@ -340,11 +470,19 @@ TEST_CASE("ShapingCorpus: Thai ภาษาไทย shapes without missing glyp
     auto doc = make_corpus_doc("ภาษาไทย");
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
     REQUIRE(has_runs(m));
+    // Thai is not covered by the bundled fonts.  If the OS has no Thai
+    // fallback, the fail-loud audit should report missing glyphs.  The
+    // important invariant is that shaping still produces clusters.
+    for (const auto& p : m.paragraphs) {
+        for (const auto& r : p.runs) {
+            CHECK(!r.clusters.empty());
+        }
+    }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
 // 7. CJK
-// ═══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("ShapingCorpus: CJK 你好世界 shapes with valid advances") {
     chronon3d::Config cfg;
@@ -356,9 +494,13 @@ TEST_CASE("ShapingCorpus: CJK 你好世界 shapes with valid advances") {
     auto doc = make_corpus_doc("你好世界");
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
     REQUIRE(has_runs(m));
+    // CJK is not covered by the bundled fonts.  If the OS has no CJK
+    // fallback, the fail-loud audit should report missing glyphs.  The
+    // important invariant is that shaping still produces valid clusters.
 
     for (const auto& p : m.paragraphs) {
         for (const auto& r : p.runs) {
+            CHECK(!r.clusters.empty());
             for (const auto& cl : r.clusters) {
                 CHECK(cl.advance >= 0.0f);
             }
@@ -385,23 +527,20 @@ TEST_CASE("ShapingCorpus: emoji family ZWJ sequence stays in one cluster") {
 
     // The ZWJ sequence should be treated as one or more clusters but must not
     // be silently dropped / replaced by .notdef.  If a system emoji font is
-    // absent, shaping may return missing glyphs; in that case we just verify
-    // the run exists and the missing-glyph audit is consistent.
-    if (m.missing_glyphs == 0) {
-        bool found_emoji_cluster = false;
-        for (const auto& p : m.paragraphs) {
-            for (const auto& r : p.runs) {
-                for (const auto& cl : r.clusters) {
-                    if (cl.byte_len == family.size()) {
-                        found_emoji_cluster = true;
-                    }
+    // present, expect the whole sequence to be merged into one cluster; if
+    // the font is absent, the fail-loud missing-glyph audit must be active.
+    bool whole_sequence_cluster = false;
+    for (const auto& p : m.paragraphs) {
+        for (const auto& r : p.runs) {
+            for (const auto& cl : r.clusters) {
+                if (cl.byte_len == family.size()) {
+                    whole_sequence_cluster = true;
                 }
             }
         }
-        if (!found_emoji_cluster) {
-            MESSAGE("Emoji family cluster not merged — font may expose sequence as multiple glyphs");
-        }
     }
+    INFO("missing_glyphs=", m.missing_glyphs);
+    CHECK((whole_sequence_cluster || m.missing_glyphs > 0));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -418,16 +557,97 @@ TEST_CASE("ShapingCorpus: mixed RTL/LTR produces multiple directional runs") {
     // "Hello " + Arabic "سلام" + " World"
     const std::string mixed = "Hello \xD8\xB3\xD9\x84\xD8\xA7\xD9\x85 World";
     auto doc = make_corpus_doc(mixed);
+    // Use Noto Naskh Arabic (if available) so the Arabic portion is shaped
+    // with real RTL contextual forms instead of .notdef/LTR fallback.
+    if (engine.can_load(noto_naskh_arabic_quality())) {
+        doc.defaults.font = noto_naskh_arabic_quality();
+        doc.split_paragraphs();
+    }
     auto m = collect_corpus_metrics(doc, engine, test_repo_root() / "assets" / "fonts");
     REQUIRE(has_runs(m));
 
 #if defined(CHRONON3D_HAS_FRIBIDI)
     std::size_t run_count = 0;
+    bool has_ltr = false;
+    bool has_rtl = false;
     for (const auto& p : m.paragraphs) {
         run_count += p.runs.size();
+        for (const auto& r : p.runs) {
+            if (r.direction == TextDirection::LTR) has_ltr = true;
+            if (r.direction == TextDirection::RTL) has_rtl = true;
+        }
     }
     CHECK(run_count >= 2);
+    CHECK(has_ltr);
+    CHECK(has_rtl);
+
+    // Visual order: in an RTL run the glyphs are returned in visual
+    // (left-to-right screen) order, so their source byte offsets should be
+    // non-increasing as the eye moves from left to right.  We check the
+    // per-glyph byte offsets rather than the cluster array, because the
+    // cluster array is sorted by byte offset for layout consumers.
+    bool found_rtl_visual_order = false;
+    for (const auto& p : m.paragraphs) {
+        for (const auto& r : p.runs) {
+            if (r.direction != TextDirection::RTL || r.glyph_byte_offsets.size() < 2) continue;
+            bool byte_offsets_non_increasing = true;
+            for (std::size_t i = 1; i < r.glyph_byte_offsets.size(); ++i) {
+                if (r.glyph_byte_offsets[i] > r.glyph_byte_offsets[i - 1]) {
+                    byte_offsets_non_increasing = false;
+                    break;
+                }
+            }
+            if (byte_offsets_non_increasing) {
+                found_rtl_visual_order = true;
+                break;
+            }
+        }
+    }
+    CHECK(found_rtl_visual_order);
 #else
     MESSAGE("FriBidi not available — mixed-direction run split not verified");
 #endif
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+TEST_CASE("ShapingCorpus: word wrap reduces layout width") {
+    chronon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+    if (!require_font(engine)) return;
+
+    TextDocument doc;
+    doc.utf8 = "The quick brown fox jumps over the lazy dog";
+    doc.defaults.font = inter_bold_quality();
+    doc.defaults.font.font_size = 32.0f;
+    doc.split_paragraphs();
+
+    TextLayoutSpec wrapped;
+    wrapped.box = {200.0f, 600.0f};
+    wrapped.wrap = TextWrap::Word;
+    wrapped.paragraph.composer = ParagraphComposer::EveryLine;
+
+    TextLayoutSpec unwrapped;
+    unwrapped.box = {200.0f, 600.0f};
+    unwrapped.wrap = TextWrap::None;
+
+    auto wrapped_result = build_text_run(doc, engine, wrapped, nullptr, test_repo_root() / "assets" / "fonts");
+    auto unwrapped_result = build_text_run(doc, engine, unwrapped, nullptr, test_repo_root() / "assets" / "fonts");
+
+    REQUIRE(!wrapped_result.paragraphs.empty());
+    REQUIRE(!unwrapped_result.paragraphs.empty());
+
+    CHECK(wrapped_result.paragraphs[0]->bounds.x <= 200.0f);
+    CHECK(wrapped_result.paragraphs[0]->bounds.x <= unwrapped_result.paragraphs[0]->bounds.x);
+
+    // Wrapped layout should also be taller than a single line.
+    CHECK(wrapped_result.paragraphs[0]->bounds.y > 0.0f);
+
+    // Glyphs should be placed on at least two distinct vertical lines.
+    std::set<float> y_values;
+    for (const auto& g : wrapped_result.paragraphs[0]->placed.glyphs) {
+        y_values.insert(g.y);
+    }
+    CHECK(y_values.size() >= 2);
 }
