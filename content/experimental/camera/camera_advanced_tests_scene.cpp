@@ -107,7 +107,7 @@ Composition camera_subpixel_jitter_validation_test() {
         CameraShotProfile shot;
         shot.rig.mode = CameraRigMode::TwoNode;
         shot.rig.target_name = "camera_target";
-        shot.rig.orbit_yaw.set(static_cast<float>(ctx.frame) * 0.01f);
+        shot.rig.orbit_yaw.set(static_cast<float>(ctx.frame()) * 0.01f);
         shot.rig.orbit_radius.set(1000.0f);
         shot.rig.projection_mode = Camera2_5DProjectionMode::Fov;
         shot.rig.fov_deg.set(50.0f);

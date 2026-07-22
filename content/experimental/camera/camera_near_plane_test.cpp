@@ -107,7 +107,7 @@ Composition camera_near_plane_crossing_test() {
         s.layer("frame_hud", [ctx](LayerBuilder& l) {
             l.pin_to(Anchor::TopLeft, 20.0f);
             char buf[64];
-            snprintf(buf, sizeof(buf), "Frame %d / 90", static_cast<int>(ctx.frame));
+            snprintf(buf, sizeof(buf), "Frame %d / 90", static_cast<int>(ctx.frame()));
             l.text("hud", TextDefinition{
     .content = {.value = buf},
     .style = {
