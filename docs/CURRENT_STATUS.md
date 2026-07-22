@@ -1,6 +1,12 @@
 # Chronon3D — Current Status
 
-> **Snapshot implementazione:** `main@04c1cb48` — observed origin/main HEAD (2026-07-15) post pipeline `RenderRequest → RenderJob`, registry prepare/construct single-pass, asset isolation/fail-loud, installed-authoring consumer, header closure gate, RenderJob matrix, font bootstrap autenticato/checksum-pinned e robust canonical signature helper nel gate CLI render. Baseline verde certificata `main@7eb5c2ba` **11/11 PASS** ✅. **Current lineage non certificata**: GitHub non ha ancora pubblicato una run completa verde sullo stesso lineage. Feature freeze V0.1 revocato 2026-07-06. Linux-only. Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
+> Ultima revisione semantica: 2026-07-22.
+> Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
+> I commit successivi alla baseline non sono implicitamente certificati.
+> Lo SHA live del branch è fornito da Git/CI, non da questo documento.
+>
+> Feature freeze V0.1 revocato 2026-07-06. Linux-only.
+> Cronologia dettagliata in [`docs/ARCHIVE/CURRENT_STATUS_HISTORY.md`](docs/ARCHIVE/CURRENT_STATUS_HISTORY.md).
 
 ## Active Blockers (top 3)
 
