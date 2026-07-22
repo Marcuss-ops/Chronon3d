@@ -263,7 +263,7 @@ TEST_CASE("PR1-Torture: deterministic motion blur across two consecutive runs") 
             });
             // Animated rect: position interpolates 0 → 100 over duration.
             s.layer("moving", [ctx](LayerBuilder& l) {
-                const float t = static_cast<float>(ctx.frame) / 4.0f;
+                const float t = static_cast<float>(ctx.frame()) / 4.0f;
                 l.position({t * 60.0f, 0.0f, 0.0f});
                 l.rect("fill", {.size = {40, 40}, .color = {0.8f, 0.6f, 0.4f, 1.0f}});
             });
@@ -313,7 +313,7 @@ TEST_CASE("PR1-Torture: no clipping of fast objects across shutter window" * doc
                 l.fill(Color{0.0f, 0.0f, 0.0f, 1.0f});
             });
             s.layer("fast", [ctx](LayerBuilder& l) {
-                const float t = static_cast<float>(ctx.frame);
+                const float t = static_cast<float>(ctx.frame());
                 l.position({t * 100.0f - 60.0f, 0.0f, 0.0f});  // moves very fast
                 l.rect("fill", {.size = {20, 20}, .color = {1.0f, 1.0f, 1.0f, 1.0f}});
             });

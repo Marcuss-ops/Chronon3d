@@ -65,7 +65,7 @@ Composition build_test08_composition(SoftwareRenderer& renderer) {
             const std::size_t n_chars = std::string("TYPEWRITER TEST").size();
             const std::size_t reveal = std::min<std::size_t>(
                 n_chars,
-                static_cast<std::size_t>(ctx.frame.integral()));
+                static_cast<std::size_t>(ctx.frame().integral()));
             (void)reveal; // NOTE: TextSpec::layout has no reveal_characters
                            // field; per-character reveal is a M5+ feature
                            // (ADR-014 Decision 2, TICKET-GOLDEN-16).

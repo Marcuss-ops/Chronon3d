@@ -167,7 +167,7 @@ TEST_CASE("camera_descriptor_from(CameraMotionParams): bake reproduces legacy at
         Camera2_5D legacy = legacy_camera_motion_cam(fx.motion_params, Frame{frame_i});
 
         CameraEvalContext ctx;
-        ctx.frame = Frame{frame_i};
+        ctx = ctx.with_frame(Frame{frame_i});
         ctx.sample_time = integer_st;
         auto result = program.evaluate(ctx, session);
         REQUIRE(result.has_value());
@@ -210,7 +210,7 @@ TEST_CASE("camera_descriptor_from(CameraRig): OrbitMotion reproduces evaluate(Sa
         Camera2_5D legacy = fx.rig.evaluate(st, nullptr);
 
         CameraEvalContext ctx;
-        ctx.frame = Frame{static_cast<int>(std::round(st.frame))};
+        ctx = ctx.with_frame(Frame{static_cast<int>(std::round(st.frame))});
         ctx.sample_time = st;
         auto result = program.evaluate(ctx, session);
         REQUIRE(result.has_value());

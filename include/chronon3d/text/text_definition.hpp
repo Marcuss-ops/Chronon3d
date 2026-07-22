@@ -12,7 +12,10 @@
 #include <chronon3d/text/text_material.hpp>       // TextMaterial
 #include <chronon3d/text/text_span_override.hpp>  // TextSpanOverride
 #include <chronon3d/scene/model/shape/shape.hpp>  // TextPaint, TextShadow
-#include <chronon3d/scene/builders/builder_params.hpp>  // TextContent (canonical), TextSpec, TextRunSpec
+#include <chronon3d/text/text_content.hpp>           // TextContent (canonical)
+#include <chronon3d/text/text_shaping_options.hpp>   // TextShapingOptions
+#include <chronon3d/text/text_spec.hpp>               // TextSpec (transitional)
+#include <chronon3d/text/text_run_spec.hpp>           // TextRunSpec (transitional)
 #include <chronon3d/text/text_placement.hpp>          // TextPlacement, TextPlacementKind
 
 // Phase A.3 — TextAnimation fields (TextAnimatorSpec, GlyphSelectorSpec,
@@ -39,7 +42,7 @@ class TextDocument;
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // TextContent (value + pre_shaped) is the canonical struct from
-// builder_params.hpp — we reuse it directly, NO duplication.
+// <chronon3d/text/text_content.hpp> — we reuse it directly, NO duplication.
 // SpanOverride is a new authoring-only type that does not exist in
 // builder_params.hpp; it lives here and is lowered to TextStyleSpan
 // by the Phase B compiler.// TextSpanOverride is defined in <chronon3d/text/text_span_override.hpp>
@@ -175,7 +178,7 @@ struct TextDefinition {
     //   .paragraph   → PreLayout (reflow)
     //   .animation   → PostLayout (visual-only; runtime animator stack applied per-frame per-glyph after layout)
 
-    TextContent              content;     ///< text + pre-shaped glyphs (canonical from builder_params.hpp)
+    TextContent              content;     ///< text + pre-shaped glyphs (canonical from <chronon3d/text/text_content.hpp>)
     std::vector<TextSpanOverride> spans;  ///< per-range style overrides (authoring-level)
     TextDefStyle             style;       ///< font, size, color, stroke, material
     TextFrame                frame;       ///< layout box, position, alignment

@@ -49,8 +49,8 @@ namespace {
 
 static FrameContext asset_ctx(Frame frame = Frame{0}) {
     FrameContext ctx;
-    ctx.frame = frame;
-    ctx.frame_rate = {30, 1};
+    ctx = ctx.with_frame(frame);
+    ctx = ctx.with_frame_rate({30, 1});
     ctx.width = 1920;
     ctx.height = 1080;
     return ctx;

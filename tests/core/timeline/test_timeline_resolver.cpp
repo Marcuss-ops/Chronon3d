@@ -22,8 +22,8 @@ using namespace chronon3d;
 // ── Helper: build a FrameContext at a given frame ─────────────────────
 static FrameContext make_ctx(Frame frame, i32 fps_num = 30, i32 fps_den = 1) {
     FrameContext ctx;
-    ctx.frame = frame;
-    ctx.frame_rate = {fps_num, fps_den};
+    ctx = ctx.with_frame(frame);
+    ctx = ctx.with_frame_rate({fps_num, fps_den});
     ctx.width = 1920;
     ctx.height = 1080;
     return ctx;
@@ -310,7 +310,7 @@ TEST_CASE("TimelineResolver — effective context preserves parent properties") 
     FrameContext ctx = make_ctx(Frame{30});
     ctx.width = 1280;
     ctx.height = 720;
-    ctx.frame_rate = {24, 1};
+    ctx = ctx.with_frame_rate({24, 1});
     ctx.frame_time = 0.5f;
 
     auto result = TimelineResolver::resolve_one(seq, ctx);

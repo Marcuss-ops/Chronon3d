@@ -84,7 +84,31 @@ public:
     [[nodiscard]] bool is_first_frame() const { return frame() == 0; }
     [[nodiscard]] bool is_last_frame() const { return duration_ > 0 && frame() >= duration_ - 1; }
 
-    // ── Structural helper ────────────────────────────────────────────────
+    // ── Structural helpers ───────────────────────────────────────────────
+    // Return a copy of this context with a new global/local time pair.
+    // Useful for tests and animation loops that need to move the evaluation
+    // frame without rebuilding the whole context.
+    [[nodiscard]] FrameContext with_global_time(SampleTime new_global) const {
+        FrameContext dup = *this;
+        dup.global_time_ = new_global;
+        dup.local_time_ = new_global;
+        return dup;
+    }
+
+    [[nodiscard]] FrameContext with_frame(Frame f) const {
+        return with_global_time(SampleTime::from_frame_int(f, local_time_.frame_rate));
+    }
+
+    [[nodiscard]] FrameContext with_frame_rate(FrameRate rate) const {
+        return with_global_time(SampleTime::from_frame(local_time_.frame, rate));
+    }
+
+    [[nodiscard]] FrameContext with_duration(Frame d) const {
+        FrameContext dup = *this;
+        dup.duration_ = d;
+        return dup;
+    }
+
     // Returns a copy of this context with a new local_time and duration.
     // Useful for sequence/layer remapping without rebuilding non-temporal
     // state.

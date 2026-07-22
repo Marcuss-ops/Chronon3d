@@ -66,10 +66,10 @@ namespace {
 /// width/height irrelevant for the pure timeline tests.
 FrameContext make_ctx(Frame global_frame) {
     FrameContext ctx;
-    ctx.frame = global_frame;
+    ctx = ctx.with_frame(global_frame);
     ctx.local_frame = global_frame;
-    ctx.frame_rate = FrameRate{30, 1};
-    ctx.duration = Frame{200};  // composition runs to f200
+    ctx = ctx.with_frame_rate(FrameRate{30, 1});
+    ctx = ctx.with_duration(Frame{200});  // composition runs to f200
     ctx.width = 64;
     ctx.height = 64;
     return ctx;

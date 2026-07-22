@@ -106,12 +106,12 @@ private:
         std::vector<Resolution>& out
     ) {
         // Active check: parent's current frame must be within [from, from+duration)
-        if (!node.range.contains(parent_ctx.frame)) {
+        if (!node.range.contains(parent_ctx.frame())) {
             return;
         }
 
         // Compute local frame
-        const Frame local = node.range.to_local(parent_ctx.frame);
+        const Frame local = node.range.to_local(parent_ctx.frame());
 
         // Build local FrameContext
         const SampleTime local_time = SampleTime::from_frame(

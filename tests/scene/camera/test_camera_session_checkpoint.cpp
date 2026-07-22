@@ -83,7 +83,7 @@ Camera2_5D evaluate_cached_at(CameraSessionCache& cache,
     auto lease = cache.acquire(prog, shot_idx,
                                kCkptShotStart, target_frame, kCkptFps);
     CameraEvalContext ctx;
-    ctx.frame = Frame{target_frame};
+    ctx = ctx.with_frame(Frame{target_frame});
     ctx.sample_time = SampleTime::from_frame_int(target_frame, kCkptFps);
     auto r = prog.evaluate(ctx, lease.session());
     lease.commit();  // CAM-05: RAII — commit advances last_evaluated_frame
@@ -223,7 +223,7 @@ TEST_CASE("TICKET-031 §6 checkpoint restore: snapshot→mutate→restore ⇒ eq
 
     // Establish the reference camera at frame 50.
     CameraEvalContext ctx;
-    ctx.frame = Frame{50};
+    ctx = ctx.with_frame(Frame{50});
     ctx.sample_time = SampleTime::from_frame_int(50, kCkptFps);
     Camera2_5D ref = prog.evaluate(ctx, sess).value().camera;
 
