@@ -224,7 +224,7 @@ TEST_CASE("Text requested produces visible ink (anti-false-green core)") {
     auto renderer = test::make_renderer();
     auto comp = build_text_only_comp(renderer,
         "CHRONON TEXT TEST",
-        "assets/fonts/Inter-Bold.ttf",
+        chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
         96.0f);
     auto fb = render_at_frame0(renderer, comp);
     REQUIRE(fb != nullptr);
@@ -286,7 +286,7 @@ TEST_CASE("Blank text → 0 glyphs, no ink (expected no-op)") {
     auto renderer = test::make_renderer();
     auto comp = build_text_only_comp(renderer,
         "",
-        "assets/fonts/Inter-Bold.ttf",
+        chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
         96.0f);
     auto fb = render_at_frame0(renderer, comp);
     REQUIRE(fb != nullptr);
@@ -306,7 +306,7 @@ TEST_CASE("UTF-8 (non-ASCII Latin + Cyrillic) → glyph_count > 0 + bbox dimensi
     // Mix of accented Latin + Cyrillic.
     auto comp = build_text_only_comp(renderer,
         "Café façade — Привет",
-        "assets/fonts/Inter-Bold.ttf",
+        chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
         72.0f);
     auto fb = render_at_frame0(renderer, comp);
     // TICKET-FALSE-GREEN-TEST-AUDIT Step 6: REJECT a null framebuffer
@@ -334,7 +334,7 @@ TEST_CASE("Font fallback → glyph_count > 0 for missing-glyph codepoint") {
     // Use a font that may not contain all glyphs (Inter-Regular).
     auto comp = build_text_only_comp(renderer,
         "A B C 1 2 3 — fallback test",
-        "assets/fonts/Inter-Regular.ttf",
+        chronon3d::test::bundled_font_path("assets/fonts/Inter-Regular.ttf"),
         72.0f);
     auto fb = render_at_frame0(renderer, comp);
     REQUIRE(fb != nullptr);
@@ -349,7 +349,7 @@ TEST_CASE("Word wrapping within narrow box → multiple lines (count_ink_rows > 
     auto renderer = test::make_renderer();
     auto comp = build_text_only_comp(renderer,
         "The quick brown fox jumps over the lazy dog repeatedly",
-        "assets/fonts/Inter-Bold.ttf",
+        chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
         64.0f,
         TextAlign::Left,
         TextAnchor::TopLeft,
@@ -371,7 +371,7 @@ TEST_CASE("Auto-fit shrinks oversized text → bbox fits inside box") {
     // shrink it to fit.
     auto comp = build_text_only_comp(renderer,
         "Auto fit",
-        "assets/fonts/Inter-Bold.ttf",
+        chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
         400.0f,
         TextAlign::Center,
         TextAnchor::Center,
@@ -394,15 +394,15 @@ TEST_CASE("Alignment (left/center/right) → different centroid X") {
     auto renderer = test::make_renderer();
 
     auto fb_left = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "Aligned", "assets/fonts/Inter-Bold.ttf", 96.0f,
+        renderer, "Aligned", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
         TextAlign::Left, TextAnchor::TopLeft, Vec2{600.0f, 200.0f},
         Vec3{-200.0f, 0.0f, 0.0f}, 1920, 1080));
     auto fb_center = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "Aligned", "assets/fonts/Inter-Bold.ttf", 96.0f,
+        renderer, "Aligned", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
         TextAlign::Center, TextAnchor::Center, Vec2{600.0f, 200.0f},
         Vec3{0.0f, 0.0f, 0.0f}, 1920, 1080));
     auto fb_right = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "Aligned", "assets/fonts/Inter-Bold.ttf", 96.0f,
+        renderer, "Aligned", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
         TextAlign::Right, TextAnchor::TopRight, Vec2{600.0f, 200.0f},
         Vec3{200.0f, 0.0f, 0.0f}, 1920, 1080));
 
@@ -427,15 +427,15 @@ TEST_CASE("Placement (top/center/bottom) → different centroid Y") {
     auto renderer = test::make_renderer();
 
     auto fb_top = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "Y", "assets/fonts/Inter-Bold.ttf", 96.0f,
+        renderer, "Y", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
         TextAlign::Center, TextAnchor::TopCenter,
         Vec2{600.0f, 200.0f}, Vec3{0.0f, -300.0f, 0.0f}, 1920, 1080));
     auto fb_mid = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "Y", "assets/fonts/Inter-Bold.ttf", 96.0f,
+        renderer, "Y", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
         TextAlign::Center, TextAnchor::Center,
         Vec2{600.0f, 200.0f}, Vec3{0.0f, 0.0f, 0.0f}, 1920, 1080));
     auto fb_bot = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "Y", "assets/fonts/Inter-Bold.ttf", 96.0f,
+        renderer, "Y", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
         TextAlign::Center, TextAnchor::BottomCenter,
         Vec2{600.0f, 200.0f}, Vec3{0.0f, 300.0f, 0.0f}, 1920, 1080));
 
@@ -463,11 +463,11 @@ TEST_CASE("Placement (top/center/bottom) → different centroid Y") {
 TEST_CASE("Glow → core alpha preserved + halo extends bbox") {
     auto renderer = test::make_renderer();
     auto fb_plain = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "Glow", "assets/fonts/Inter-Bold.ttf", 96.0f,
+        renderer, "Glow", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
         TextAlign::Center, TextAnchor::Center, Vec2{600.0f, 200.0f},
         Vec3{0.0f, 0.0f, 0.0f}, 1920, 1080, false, false, false));
     auto fb_glow = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "Glow", "assets/fonts/Inter-Bold.ttf", 96.0f,
+        renderer, "Glow", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
         TextAlign::Center, TextAnchor::Center, Vec2{600.0f, 200.0f},
         Vec3{0.0f, 0.0f, 0.0f}, 1920, 1080, false, true, false));
 
@@ -495,11 +495,11 @@ TEST_CASE("Font weight (Bold vs Regular) → distinct alpha distribution") {
     // Same text rendered with Bold vs Regular font weight should produce
     // different glyph coverage (Bold has thicker strokes → more ink pixels).
     auto fb_bold = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "WeightTest", "assets/fonts/Inter-Bold.ttf", 96.0f,
+        renderer, "WeightTest", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
         TextAlign::Center, TextAnchor::Center, Vec2{600.0f, 200.0f},
         Vec3{0.0f, 0.0f, 0.0f}, 1920, 1080));
     auto fb_regular = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "WeightTest", "assets/fonts/Inter-Regular.ttf", 96.0f,
+        renderer, "WeightTest", chronon3d::test::bundled_font_path("assets/fonts/Inter-Regular.ttf"), 96.0f,
         TextAlign::Center, TextAnchor::Center, Vec2{600.0f, 200.0f},
         Vec3{0.0f, 0.0f, 0.0f}, 1920, 1080));
 
@@ -524,11 +524,11 @@ TEST_CASE("Font weight (Bold vs Regular) → distinct alpha distribution") {
 TEST_CASE("Shadow → ink pixel count >= plain (shadow extends glyphs)") {
     auto renderer = test::make_renderer();
     auto fb_plain = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "Shadow", "assets/fonts/Inter-Bold.ttf", 96.0f,
+        renderer, "Shadow", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
         TextAlign::Center, TextAnchor::Center, Vec2{600.0f, 200.0f},
         Vec3{0.0f, 0.0f, 0.0f}, 1920, 1080, false, false, false));
     auto fb_shadow = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "Shadow", "assets/fonts/Inter-Bold.ttf", 96.0f,
+        renderer, "Shadow", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
         TextAlign::Center, TextAnchor::Center, Vec2{600.0f, 200.0f},
         Vec3{0.0f, 0.0f, 0.0f}, 1920, 1080, false, false, true));
 
@@ -549,7 +549,7 @@ TEST_CASE("Shadow → ink pixel count >= plain (shadow extends glyphs)") {
 TEST_CASE("Typewriter frame 0 → near-empty; frame N → ink revealed") {
     auto renderer = test::make_renderer();
     auto comp_0 = build_text_only_comp(renderer,
-        "Typewriter reveal test", "assets/fonts/Inter-Bold.ttf", 96.0f);
+        "Typewriter reveal test", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f);
     // Note: the simple composition() does not animate per frame; this
     // test certifies the static-render surface (visible at Frame{0} has
     // the full text revealed).  Frame-by-frame typewriter animation is
@@ -573,7 +573,7 @@ TEST_CASE("Long text (200 chars) → wraps to multiple lines") {
     }
     auto comp = build_text_only_comp(renderer,
         long_text,
-        "assets/fonts/Inter-Bold.ttf",
+        chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
         32.0f,
         TextAlign::Left,
         TextAnchor::TopLeft,
@@ -594,7 +594,7 @@ TEST_CASE("Aspect 16:9 (1920x1080) → bbox fits inside canvas") {
     auto renderer = test::make_renderer();
     auto comp = build_text_only_comp(renderer,
         "16:9 EPIC TITLE",
-        "assets/fonts/Inter-Bold.ttf",
+        chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
         120.0f,
         TextAlign::Center,
         TextAnchor::Center,
@@ -611,7 +611,7 @@ TEST_CASE("Aspect 9:16 (1080x1920) → bbox fits inside canvas") {
     auto renderer = test::make_renderer();
     auto comp = build_text_only_comp(renderer,
         "9:16 PORTRAIT",
-        "assets/fonts/Inter-Bold.ttf",
+        chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
         72.0f,
         TextAlign::Center,
         TextAnchor::Center,
@@ -651,7 +651,7 @@ TEST_CASE("Animation frame-by-frame → visible ink changes across frames") {
                     .text = TextSpec{
                         .content = {.value = "Animated"},
                         .placement = TextPlacement{TextPlacementKind::CanvasCenter, {0.0f, 0.0f}},
-                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                        .font = {.font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
                                  .font_family = "Inter",
                                  .font_weight = 700,
                                  .font_size = 96.0f},
@@ -696,7 +696,7 @@ TEST_CASE("Text inside clip rect → visible ink (no over-clipping)") {
     // well-clipped text).
     auto comp = build_text_only_comp(renderer,
         "Clipped",
-        "assets/fonts/Inter-Bold.ttf",
+        chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
         96.0f,
         TextAlign::Center,
         TextAnchor::Center,
@@ -717,7 +717,7 @@ TEST_CASE("Alpha threshold > 100 visible pixels (canonical user-spec assertion)"
     auto renderer = test::make_renderer();
     auto fb = render_at_frame0(renderer, build_text_only_comp(renderer,
         "MIN 100 PIXELS",
-        "assets/fonts/Inter-Bold.ttf",
+        chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
         96.0f));
     REQUIRE(fb != nullptr);
     const int visible_px = completeness::count_visible_pixels(*fb);
