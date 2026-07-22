@@ -3,7 +3,7 @@
 //
 // P0-7: Typewriter / Kinetic Typography — frame-by-frame verification.
 //
-// The typewriter effect progressively reveals text character by character.
+// The typewriter effect progressively reveals text grapheme by grapheme.
 // We approximate this via string slicing at composition-build time
 // (same approach as ae_02_typewriter.cpp).
 //
@@ -35,6 +35,8 @@
 #include <tests/helpers/test_utils.hpp>
 #include <tests/text_golden/text_completeness/pixel_scan_helpers.hpp>
 
+#include <chronon3d/backends/text/text_unicode_utils.hpp>
+
 #include <string>
 #include <cstring>
 
@@ -46,13 +48,32 @@ namespace {
 
 constexpr const char* kTypewriterFull = "TYPEWRITER REVEAL TEST";
 
-// Frame-by-frame substring: simulates progressive character reveal.
+// Frame-by-frame substring: simulates progressive grapheme/cluster reveal.
+// Uses grapheme-aware slicing so that multi-byte characters (combining
+// marks, ZWJ emoji, CJK) are never split in the middle.
+std::string typewriter_text(std::string_view text,
+                            std::size_t frame_idx,
+                            std::size_t total_frames = 30) {
+    using chronon3d::detail::grapheme_cluster_count;
+    using chronon3d::detail::grapheme_byte_offset_at;
+
+    const std::size_t total_graphemes = grapheme_cluster_count(text);
+    if (total_graphemes == 0) return std::string();
+    // For ASCII input the numeric count equals the byte count; the
+    // grapheme-aware slicing matters for multi-byte scripts.
+    if (frame_idx == 0) {
+        const std::size_t first_len = grapheme_byte_offset_at(text, 1);
+        return std::string(text.substr(0, first_len));
+    }
+    const std::size_t revealed = std::max<std::size_t>(
+        1, (total_graphemes * frame_idx) / total_frames);
+    const std::size_t safe_revealed = std::min(revealed, total_graphemes);
+    const std::size_t byte_len = grapheme_byte_offset_at(text, safe_revealed);
+    return std::string(text.substr(0, byte_len));
+}
+
 std::string typewriter_text(std::size_t frame_idx, std::size_t total_frames = 30) {
-    const std::size_t n = std::strlen(kTypewriterFull);
-    if (frame_idx == 0) return std::string(1, kTypewriterFull[0]);
-    const std::size_t chars = std::max<std::size_t>(
-        1, (n * frame_idx) / total_frames);
-    return std::string(kTypewriterFull, std::min(chars, n));
+    return typewriter_text(kTypewriterFull, frame_idx, total_frames);
 }
 
 Composition build_typewriter_composition(
@@ -277,5 +298,27 @@ TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT 7: typewriter F0/F1/F5/F10/F20/finale m
         // The bottom edge must stay stable (line height fixed).
         CHECK(std::abs(curr.y1 - prev.y1) <= 2);
     }
+}
+
+// ═══ Test 8 — Grapheme-aware slicing does not split multi-byte characters ═
+TEST_CASE("TextTypewriter 08: grapheme-aware slicing preserves multi-byte clusters") {
+    using chronon3d::detail::grapheme_cluster_count;
+    using chronon3d::detail::grapheme_byte_offset_at;
+
+    // "café" has 4 graphemes; 'é' is two bytes. Byte-based slicing at
+    // 3 bytes would produce "caf" plus a broken UTF-8 tail. Grapheme-aware
+    // slicing must return a valid prefix ending on a grapheme boundary.
+    const char* multi = "café";
+    const std::size_t total = grapheme_cluster_count(multi);
+    CHECK(total == 4);
+
+    const std::string slice = typewriter_text(multi, 3, 30);
+    // We should have revealed at least one grapheme but fewer than all.
+    CHECK(!slice.empty());
+    CHECK(slice.size() < std::strlen(multi));
+    // The slice must be valid UTF-8 and end at a grapheme boundary.
+    const std::size_t slice_graphemes = grapheme_cluster_count(slice);
+    CHECK(slice_graphemes > 0);
+    CHECK(slice_graphemes < total);
 }
 
