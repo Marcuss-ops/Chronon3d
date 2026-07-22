@@ -245,9 +245,9 @@ inline float luma(const Color& c) {
 
 // ── Frame / RenderFrameInfo helpers ───────────────────────────────────────
 
-inline FrameContext make_ctx(Frame frame, int width = 1920, int height = 1080) {
+inline FrameContext make_ctx(Frame frame_value, int width = 1920, int height = 1080) {
     const FrameRate rate{30, 1};
-    const SampleTime st = SampleTime::from_frame_int(frame, rate);
+    const SampleTime st = SampleTime::from_frame_int(frame_value, rate);
     return make_frame_context(FrameContextParams{
         .global_time = st,
         .local_time = st,

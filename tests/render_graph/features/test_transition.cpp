@@ -3,12 +3,16 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/transition/transition_catalog.hpp>
 #include <tests/helpers/render_fixtures.hpp>
 #include <tests/helpers/test_utils.hpp>
 
 #include <xxhash.h>
-using namespace chronon3d;
+#include <stdexcept>
 
+using namespace chronon3d;
+using namespace chronon3d::graph;
 using namespace chronon3d::test;
 
 namespace {
@@ -43,6 +47,16 @@ Composition make_transition_comp(
 
         return s.build();
     });
+}
+
+LayerTransitionSpec spec(const char* id, float duration_seconds = 1.0f,
+                         Easing easing = Easing::Linear) {
+    LayerTransitionSpec s;
+    s.transition_id = id;
+    s.duration = duration_seconds;
+    s.delay = 0.0;
+    s.easing = easing;
+    return s;
 }
 
 } // namespace
@@ -106,6 +120,102 @@ TEST_CASE("Transition direction and different types execute successfully") {
         CHECK(framebuffer_hash(*fb0) != framebuffer_hash(*fb15));
         CHECK(framebuffer_hash(*fb15) != framebuffer_hash(*fb30));
     }
+}
+
+TEST_CASE("Transition in and out coexist on the same layer") {
+    auto renderer = test::make_renderer();
+
+    LayerTransitionSpec trans_in{
+        .transition_id = "crossfade",
+        .duration = 0.5,  // 15 frames at 30 fps
+        .delay = 0.0,
+        .easing = Easing::Linear
+    };
+    LayerTransitionSpec trans_out{
+        .transition_id = "crossfade",
+        .duration = 0.5,
+        .delay = 0.0,
+        .easing = Easing::Linear
+    };
+
+    auto comp = make_transition_comp(trans_in, trans_out, 60);
+
+    // Layer fully visible in the middle (after in, before out).
+    auto fb_mid = renderer.render(comp, 30);
+    REQUIRE(fb_mid != nullptr);
+    CHECK(fb_mid->get_pixel(50, 50).r == doctest::Approx(1.0f));
+
+    // Layer fading in at the start.
+    auto fb_start = renderer.render(comp, 7);
+    REQUIRE(fb_start != nullptr);
+    CHECK(fb_start->get_pixel(50, 50).r > 0.0f);
+    CHECK(fb_start->get_pixel(50, 50).r < fb_mid->get_pixel(50, 50).r);
+
+    // Layer fading out at the end.
+    auto fb_end = renderer.render(comp, 53);
+    REQUIRE(fb_end != nullptr);
+    CHECK(fb_end->get_pixel(50, 50).r < fb_mid->get_pixel(50, 50).r);
+}
+
+TEST_CASE("Unknown transition id fails loudly") {
+    auto renderer = test::make_renderer();
+
+    LayerTransitionSpec trans_in{
+        .transition_id = "typo_transition",
+        .duration = 1.0,
+        .delay = 0.0,
+        .easing = Easing::Linear
+    };
+    auto comp = make_transition_comp(trans_in, {});
+    REQUIRE_THROWS(renderer.render(comp, 0));
+}
+
+TEST_CASE("Typed parameters affect transition output") {
+    auto renderer = test::make_renderer();
+
+    LayerTransitionSpec trans_short = spec("slide", 1.0f);
+    trans_short.parameters = SlideParams{.distance = 0.5f};
+    LayerTransitionSpec trans_long = spec("slide", 1.0f);
+    trans_long.parameters = SlideParams{.distance = 2.0f};
+
+    auto comp_short = make_transition_comp(trans_short, {}, 60);
+    auto comp_long = make_transition_comp(trans_long, {}, 60);
+
+    auto fb_short = renderer.render(comp_short, 15);
+    auto fb_long = renderer.render(comp_long, 15);
+
+    REQUIRE(fb_short != nullptr);
+    REQUIRE(fb_long != nullptr);
+    CHECK(framebuffer_hash(*fb_short) != framebuffer_hash(*fb_long));
+}
+
+TEST_CASE("Cache key includes typed parameters") {
+    LayerTransitionSpec a = spec("slide", 1.0f);
+    a.parameters = SlideParams{.distance = 0.5f};
+    LayerTransitionSpec b = spec("slide", 1.0f);
+    b.parameters = SlideParams{.distance = 2.0f};
+
+    CHECK(hash_layer_transition_spec(a) != hash_layer_transition_spec(b));
+
+    LayerTransitionSpec c = spec("smooth_wipe", 1.0f);
+    c.parameters = SmoothWipeParams{.feather = 0.05f};
+    LayerTransitionSpec d = spec("smooth_wipe", 1.0f);
+    d.parameters = SmoothWipeParams{.feather = 0.20f};
+
+    CHECK(hash_layer_transition_spec(c) != hash_layer_transition_spec(d));
+}
+
+TEST_CASE("LayerTransitionCatalog rejects unknown ids") {
+    LayerTransitionCatalog catalog;
+    LayerTransitionCatalog::register_builtin(catalog);
+
+    LayerTransitionSpec known = spec("crossfade");
+    CHECK(catalog.contains("crossfade"));
+    CHECK(catalog.resolve(known) != nullptr);
+
+    LayerTransitionSpec unknown = spec("does_not_exist");
+    CHECK(!catalog.contains("does_not_exist"));
+    CHECK_THROWS(catalog.resolve(unknown));
 }
 
 TEST_CASE("Remotion-style transitions compute noise-driven masks and colors") {

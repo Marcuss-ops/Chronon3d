@@ -231,6 +231,10 @@ struct RenderServices {
     /// graph builder + dirty safety.
     const class effects::EffectCatalog* effect_catalog{nullptr};
 
+    /// Layer transition catalog — populated by `wire_catalog_pointers`,
+    /// consumed by TransitionNode to resolve executable transition programs.
+    const class LayerTransitionCatalog* transition_catalog{nullptr};
+
     /// TICKET-010 — typed alternative to the legacy `precomp_build`
     /// std::function.  Set by `wire_catalog_pointers(ctx, catalogs)`
     /// from `catalogs.precomp_builder.get()`.  When nullptr, callers

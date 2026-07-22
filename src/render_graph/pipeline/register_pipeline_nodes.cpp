@@ -111,6 +111,9 @@ void init_graph_pipeline_catalogs(PipelineCatalogs& catalogs) {
     // ── Register pipeline graph nodes (no content/compositions) ──
     register_pipeline_graph_nodes(catalogs.graph_nodes);
 
+    // ── Register built-in layer transitions ──────────────────────
+    LayerTransitionCatalog::register_builtin(catalogs.transition_catalog);
+
     // ── Freeze domain catalogs ───────────────────────────────────
     catalogs.graph_nodes.freeze();
     catalogs.effects.freeze();
@@ -118,8 +121,9 @@ void init_graph_pipeline_catalogs(PipelineCatalogs& catalogs) {
 }
 
 void wire_catalog_pointers(RenderGraphContext& ctx, const PipelineCatalogs& catalogs) {
-    ctx.services.node_catalog      = &catalogs.graph_nodes;
-    ctx.services.effect_catalog    = &catalogs.effects;
+    ctx.services.node_catalog         = &catalogs.graph_nodes;
+    ctx.services.effect_catalog       = &catalogs.effects;
+    ctx.services.transition_catalog   = &catalogs.transition_catalog;
     // Wire the typed builder only when the caller hasn't already installed
     // a custom service.  Tests / instrumentation can pre-set
     // `ctx.services.precomp_builder` to a non-null substitute before this
