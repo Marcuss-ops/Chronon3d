@@ -9,8 +9,9 @@
 #
 # Regole:
 #
-#   1. Qualsiasi cambio in src/runtime/**       ⇒ CURRENT_STATUS.md obbligatorio
-#      e ROADMAP.md obbligatorio.
+#   1. CURRENT_STATUS.md header must not claim to represent the live HEAD;
+#      must contain "Ultima revisione semantica" and "Ultima baseline certificata",
+#      and the referenced baseline document must exist.
 #   2. Qualsiasi cambio in include/chronon3d/**  ⇒ almeno un ADR in
 #      docs/adr/ deve esistere per l'area (warning).
 #   3. Qualsiasi cambio in src/render_graph/** o
@@ -90,15 +91,41 @@ if has_change '^docs/ARCHIVE/'; then
   fi
 fi
 
-# -- R1: src/runtime/** ⇒ CURRENT_STATUS.md + ROADMAP.md --------------------------
-# DOC-002: STATUS.md e NEXT_STEPS.md sono archiviati; i canonici sono
-# CURRENT_STATUS.md e ROADMAP.md (AGENTS.md §Documenti canonici).
-if has_change '^src/runtime/'; then
-  if   has_change '^docs/CURRENT_STATUS\.md$'; then okf "R1: CURRENT_STATUS.md aggiornato (src/runtime/**)"
-  else fail "R1: src/runtime/** toccato ma docs/CURRENT_STATUS.md assente"
+# -- R1: CURRENT_STATUS.md structural / semantic validity ------------------------
+# Replaces the old co-update rule with src/runtime/**. The canonical header
+# must not claim to represent the live branch HEAD; it must only report the
+# semantic revision date and the last certified baseline.
+if has_change '^docs/CURRENT_STATUS\.md$'; then
+  # Extract the leading blockquote header (all consecutive lines starting with '>').
+  header=$(sed -n '/^>/p' "docs/CURRENT_STATUS.md" | head -n 20)
+
+  if printf '%s' "$header" | grep -q 'Ultima revisione semantica:'; then
+    okf "R1: CURRENT_STATUS.md header contains 'Ultima revisione semantica'"
+  else
+    fail "R1: CURRENT_STATUS.md header missing 'Ultima revisione semantica:'"
   fi
-  if   has_change '^docs/ROADMAP\.md$'; then okf "R1: ROADMAP.md aggiornato"
-  else fail "R1: src/runtime/** toccato ma docs/ROADMAP.md assente"
+
+  if printf '%s' "$header" | grep -q 'Ultima baseline certificata:'; then
+    okf "R1: CURRENT_STATUS.md header contains 'Ultima baseline certificata'"
+  else
+    fail "R1: CURRENT_STATUS.md header missing 'Ultima baseline certificata:'"
+  fi
+
+  if printf '%s' "$header" | grep -qiE 'observed origin/main HEAD|HEAD live|main@.*observed'; then
+    fail "R1: CURRENT_STATUS.md header still contains a live-HEAD claim"
+  else
+    okf "R1: CURRENT_STATUS.md header contains no live-HEAD claim"
+  fi
+
+  baseline_sha=$(printf '%s' "$header" | grep -oE 'main@[0-9a-f]{7,40}' | head -n 1 | sed 's/main@//')
+  if [[ -n "$baseline_sha" ]]; then
+    if [[ -f "docs/baselines/main-${baseline_sha}-baseline.md" ]]; then
+      okf "R1: referenced baseline docs/baselines/main-${baseline_sha}-baseline.md exists"
+    else
+      fail "R1: referenced baseline docs/baselines/main-${baseline_sha}-baseline.md does not exist"
+    fi
+  else
+    warnf "R1: CURRENT_STATUS.md header does not reference a main@<sha> baseline"
   fi
 fi
 
