@@ -223,9 +223,8 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         {
             CHRONON_ZONE_C("evaluate_composition", trace_category::kTimeline);
             const FrameContext ctx{
+            .sample_time = SampleTime::from_frame(static_cast<double>(frame), comp.frame_rate()),
             .frame = frame,
-            .local_frame = frame,
-            .frame_time = 0.0f,
             .duration = comp.duration(),
             .frame_rate = comp.frame_rate(),
             .width = comp.width(),
@@ -284,9 +283,10 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                 const float w = samples.normalized_weights[s];
                 actual_weight_sum += w;
                 const FrameContext sub_ctx{
+                    .sample_time = SampleTime::from_frame(
+                        static_cast<double>(frame) + static_cast<double>(t),
+                        comp.frame_rate()),
                     .frame = frame,
-                    .local_frame = frame,
-                    .frame_time = t,
                     .duration = comp.duration(),
                     .frame_rate = comp.frame_rate(),
                     .width = comp.width(),
