@@ -57,6 +57,54 @@ inline Vec3 slerp_rotation(const Vec3& from_euler, const Vec3& to_euler, float t
     return quat_to_euler(qs);
 }
 
+// -------------------------------------------------------------------------
+// Canonical per-field transition policy (TRN-05).
+// Continuous fields are interpolated; discrete fields follow a
+// switch-at-boundary policy (from until t == 1, then to).
+// -------------------------------------------------------------------------
+Camera2_5D blend_camera_fields(float t, const Camera2_5D& from, const Camera2_5D& to) {
+    Camera2_5D out = from;
+
+    // Continuous fields.
+    out.position = glm::mix(from.position, to.position, t);
+    out.rotation = slerp_rotation(from.rotation, to.rotation, t);
+    out.fov_deg  = glm::mix(from.fov_deg, to.fov_deg, t);
+    out.zoom     = glm::mix(from.zoom, to.zoom, t);
+    out.dof.focus_distance = glm::mix(from.dof.focus_distance, to.dof.focus_distance, t);
+
+    if (from.point_of_interest_enabled && to.point_of_interest_enabled) {
+        out.point_of_interest = glm::mix(from.point_of_interest, to.point_of_interest, t);
+    }
+
+    // Discrete / structural fields: switch at the boundary.
+    if (t >= 1.0f) {
+        out.enabled       = to.enabled;
+        out.is_animated   = to.is_animated;
+        out.optics_mode   = to.optics_mode;
+        out.hierarchy_baked = to.hierarchy_baked;
+        out.parent_name   = to.parent_name;
+        out.target_name   = to.target_name;
+        out.point_of_interest_enabled = to.point_of_interest_enabled;
+        out.lens          = to.lens;
+        out.motion_blur   = to.motion_blur;
+    }
+
+    return out;
+}
+
+// Transition progress for a transition with N overlap frames.
+// Returns nullopt when no interpolation is needed (0 frames).
+// Returns t == 1.0 for a 1-frame transition (instant cut to target).
+std::optional<float> calculate_transition_t(int frame, int transition_frames, int overlap_start) {
+    if (transition_frames <= 0) return std::nullopt;
+    if (transition_frames == 1) return 1.0f;
+
+    int local_idx = frame - overlap_start;
+    int denom = transition_frames - 1;
+    float t = static_cast<float>(local_idx) / static_cast<float>(denom);
+    return std::clamp(t, 0.0f, 1.0f);
+}
+
 } // namespace
 
 // =========================================================================
@@ -160,100 +208,48 @@ class SmoothBlendTransition final : public CameraTransition {
 public:
     std::string id() const override { return "camera.transition.smooth_blend"; }
     Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
-        // Bug 4 fix: endpoint parity (matches contract transition(0)==from,
-        // transition(1)==to) AND preserve every non-animated field (is_animated,
-        // enabled, lens, hierarchy, motion_blur, dof.use_* etc.) by initializing
-        // out from `from` and only mutating the animated channels.
         if (t <= 0.0f) return from;
         if (t >= 1.0f) return to;
-        Camera2_5D out = from;
-        out.position = glm::mix(from.position, to.position, t);
-        if (from.point_of_interest_enabled && to.point_of_interest_enabled) {
-            out.point_of_interest = glm::mix(from.point_of_interest, to.point_of_interest, t);
-            out.point_of_interest_enabled = true;
-        } else {
-            out.point_of_interest = from.point_of_interest;
-            out.point_of_interest_enabled = from.point_of_interest_enabled;
-        }
-        out.rotation = slerp_rotation(from.rotation, to.rotation, t);
-        out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
-        out.zoom = glm::mix(from.zoom, to.zoom, t);
-        out.dof.focus_distance = glm::mix(from.dof.focus_distance, to.dof.focus_distance, t);
-        return out;
+        return blend_camera_fields(t, from, to);
     }
 };
 
-// --- Push -----------------------------------------------------------------
-class PushTransition final : public CameraTransition {
+// --- EaseOutBlend (formerly Push) -----------------------------------------
+class EaseOutBlendTransition final : public CameraTransition {
 public:
-    std::string id() const override { return "camera.transition.push"; }
+    std::string id() const override { return "camera.transition.ease_out_blend"; }
     Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
-        // Bug 4 fix: see SmoothBlend above.
         if (t <= 0.0f) return from;
         if (t >= 1.0f) return to;
         float et = t * (2.0f - t);  // ease-out
-        Camera2_5D out = from;
+        Camera2_5D out = blend_camera_fields(t, from, to);
         out.position = glm::mix(from.position, to.position, et);
-        if (from.point_of_interest_enabled && to.point_of_interest_enabled) {
-            out.point_of_interest = glm::mix(from.point_of_interest, to.point_of_interest, t);
-            out.point_of_interest_enabled = true;
-        } else {
-            out.point_of_interest = from.point_of_interest;
-            out.point_of_interest_enabled = from.point_of_interest_enabled;
-        }
-        out.rotation = slerp_rotation(from.rotation, to.rotation, t);
-        out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
-        out.zoom = glm::mix(from.zoom, to.zoom, t);
-        out.dof.focus_distance = glm::mix(from.dof.focus_distance, to.dof.focus_distance, t);
         return out;
     }
 };
 
-// --- WhipPan --------------------------------------------------------------
-class WhipPanTransition final : public CameraTransition {
+// --- SmoothRotationBlend (formerly WhipPan) -------------------------------
+class SmoothRotationBlendTransition final : public CameraTransition {
 public:
-    std::string id() const override { return "camera.transition.whip_pan"; }
+    std::string id() const override { return "camera.transition.smooth_rotation_blend"; }
     Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
-        // Bug 4 fix: see SmoothBlend above.
         if (t <= 0.0f) return from;
         if (t >= 1.0f) return to;
         float et = t * t * (3.0f - 2.0f * t);  // smoothstep
-        Camera2_5D out = from;
-        out.position = glm::mix(from.position, to.position, t);
+        Camera2_5D out = blend_camera_fields(t, from, to);
         out.rotation = slerp_rotation(from.rotation, to.rotation, et);
-        if (from.point_of_interest_enabled && to.point_of_interest_enabled) {
-            out.point_of_interest = glm::mix(from.point_of_interest, to.point_of_interest, et);
-            out.point_of_interest_enabled = true;
-        } else {
-            out.point_of_interest = from.point_of_interest;
-            out.point_of_interest_enabled = from.point_of_interest_enabled;
-        }
-        out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
-        out.zoom = glm::mix(from.zoom, to.zoom, t);
-        out.dof.focus_distance = glm::mix(from.dof.focus_distance, to.dof.focus_distance, t);
         return out;
     }
 };
 
-// --- FocusHandoff ---------------------------------------------------------
-class FocusHandoffTransition final : public CameraTransition {
+// --- FocusDistanceBlend (formerly FocusHandoff) ---------------------------
+class FocusDistanceBlendTransition final : public CameraTransition {
 public:
-    std::string id() const override { return "camera.transition.focus_handoff"; }
+    std::string id() const override { return "camera.transition.focus_distance_blend"; }
     Camera2_5D evaluate(float t, const Camera2_5D& from, const Camera2_5D& to) const override {
-        // Bug 4 fix: see SmoothBlend above.
         if (t <= 0.0f) return from;
         if (t >= 1.0f) return to;
-        Camera2_5D out = from;
-        out.position = glm::mix(from.position, to.position, t);
-        out.rotation = slerp_rotation(from.rotation, to.rotation, t);
-        out.fov_deg = glm::mix(from.fov_deg, to.fov_deg, t);
-        out.zoom = glm::mix(from.zoom, to.zoom, t);
-        out.dof.focus_distance = glm::mix(from.dof.focus_distance, to.dof.focus_distance, t);
-        if (from.point_of_interest_enabled && to.point_of_interest_enabled) {
-            out.point_of_interest = glm::mix(from.point_of_interest, to.point_of_interest, t);
-            out.point_of_interest_enabled = true;
-        }
-        return out;
+        return blend_camera_fields(t, from, to);
     }
 };
 
@@ -270,13 +266,13 @@ std::shared_ptr<CameraTransition> ShotTimelineResolver::default_smooth_blend() {
     return std::make_shared<SmoothBlendTransition>();
 }
 std::shared_ptr<CameraTransition> ShotTimelineResolver::default_push() {
-    return std::make_shared<PushTransition>();
+    return std::make_shared<EaseOutBlendTransition>();
 }
 std::shared_ptr<CameraTransition> ShotTimelineResolver::default_whip_pan() {
-    return std::make_shared<WhipPanTransition>();
+    return std::make_shared<SmoothRotationBlendTransition>();
 }
 std::shared_ptr<CameraTransition> ShotTimelineResolver::default_focus_handoff() {
-    return std::make_shared<FocusHandoffTransition>();
+    return std::make_shared<FocusDistanceBlendTransition>();
 }
 
 // =========================================================================
@@ -289,18 +285,36 @@ ShotTimelineResolver::ShotTimelineResolver(std::shared_ptr<ShotTimeline> timelin
     // Pull transitions from the catalog (single source of truth, populated by
     // register_camera_v1_builtins()). Fall back to local defaults when catalog
     // is null (e.g. tests that bypassed the bootstrap).
+    //
+    // TRN-05: canonical names are preferred, but we also look up the legacy
+    // alias so custom transitions registered only under the old name are not
+    // silently ignored.
     const auto* ctlg = catalog;
     auto fetch = [&](CameraTransitionKind k,
+                     CameraTransitionKind legacy,
                      std::shared_ptr<CameraTransition> fallback)
         -> std::shared_ptr<CameraTransition> {
-        auto t = ctlg ? ctlg->create(k) : nullptr;
-        return t ? t : fallback;
+        if (ctlg) {
+            if (auto t = ctlg->create(k)) return t;
+            if (auto t = ctlg->create(legacy)) return t;
+        }
+        return fallback;
     };
-    transitions_[CameraTransitionKind::Cut]          = fetch(CameraTransitionKind::Cut,          default_cut());
-    transitions_[CameraTransitionKind::SmoothBlend]  = fetch(CameraTransitionKind::SmoothBlend,  default_smooth_blend());
-    transitions_[CameraTransitionKind::Push]         = fetch(CameraTransitionKind::Push,         default_push());
-    transitions_[CameraTransitionKind::WhipPan]      = fetch(CameraTransitionKind::WhipPan,      default_whip_pan());
-    transitions_[CameraTransitionKind::FocusHandoff] = fetch(CameraTransitionKind::FocusHandoff, default_focus_handoff());
+    transitions_[CameraTransitionKind::Cut] =
+        fetch(CameraTransitionKind::Cut, CameraTransitionKind::Cut, default_cut());
+    transitions_[CameraTransitionKind::SmoothBlend] =
+        fetch(CameraTransitionKind::SmoothBlend, CameraTransitionKind::SmoothBlend, default_smooth_blend());
+    transitions_[CameraTransitionKind::EaseOutBlend] =
+        fetch(CameraTransitionKind::EaseOutBlend, CameraTransitionKind::Push, default_push());
+    transitions_[CameraTransitionKind::SmoothRotationBlend] =
+        fetch(CameraTransitionKind::SmoothRotationBlend, CameraTransitionKind::WhipPan, default_whip_pan());
+    transitions_[CameraTransitionKind::FocusDistanceBlend] =
+        fetch(CameraTransitionKind::FocusDistanceBlend, CameraTransitionKind::FocusHandoff, default_focus_handoff());
+
+    // Legacy aliases share the same instances as the canonical names.
+    transitions_[CameraTransitionKind::Push]         = transitions_[CameraTransitionKind::EaseOutBlend];
+    transitions_[CameraTransitionKind::WhipPan]      = transitions_[CameraTransitionKind::SmoothRotationBlend];
+    transitions_[CameraTransitionKind::FocusHandoff] = transitions_[CameraTransitionKind::FocusDistanceBlend];
 }
 
 void ShotTimelineResolver::set_transition(CameraTransitionKind kind,
@@ -407,83 +421,104 @@ ShotTimelineResolver::evaluate(int frame,
     const CameraShot& shot = *pair.current;
     int local_frame = frame - shot.start_frame;  // local time
 
-    // P3-H + sub-ticket C — cache-controlled session acquisition so a
-    // direct frame-100 render pre-rolls state as if frames 0..99 had been
-    // committed sequentially.  The cache is private to this resolver
-    // (mutable CameraSessionCache cache_) so simultaneous render-jobs
-    // each own their own session state (WP-3 isolation per the test
-    // `random_access_two_simultaneous_render_jobs_isolated` in
-    // tests/scene/camera/test_shot_timeline_random_access.cpp).
+    // TRN-05: the cache is owned by the timeline session, not by the
+    // resolver. This removes the duplicated session state and makes the
+    // caller the single source of truth for session state.
+    CameraSessionCache& cache = timeline_session.cache;
 
     // Check if we're in a transition overlap with the next shot.
-    if (pair.next && shot.transition_frames > 0 &&
-        shot.transition_out != CameraTransitionKind::Cut &&
-        frame >= shot.end_frame - shot.transition_frames) {
+    int overlap_start = shot.end_frame - shot.transition_frames;
+    bool in_overlap = pair.next && shot.transition_frames > 0 &&
+                      shot.transition_out != CameraTransitionKind::Cut &&
+                      frame >= overlap_start;
 
-        int overlap_start = shot.end_frame - shot.transition_frames;
-        int local_idx = frame - overlap_start;
-
-        // t ∈ [0, 1] inclusive: last overlap frame reaches t=1.
-        int denom = std::max(1, shot.transition_frames - 1);
-        float t = static_cast<float>(local_idx) / static_cast<float>(denom);
-        t = std::clamp(t, 0.0f, 1.0f);
-
-        // Use persistent sessions so DampedFollow survives across frames.
-        // CameraEvalContext has no base_target — the compiled path reads
-        // base state from the descriptor (CameraBaseSpec) directly.
-        // CAM-05 / TICKET-A3-CTX-FRAMERATE: FrameRate is forwarded bit-exact
-        // from the resolver caller (no 30 fps fixture inside the resolver).
-        auto ctx_from = CameraEvalContext::at(local_frame, fps);
-
-        int next_local = frame - pair.next->start_frame;
-        auto ctx_to = CameraEvalContext::at(std::max(0, next_local), fps);
-
-        // P3-H + sub-ticket C — random-access parity for transition overlap.
-        auto lease_from = cache_.acquire(shot.program, pair.idx,
-                                          shot.start_frame, frame, fps);
-        auto  eval_from = shot.program.evaluate(ctx_from, lease_from.session());
-        if (!eval_from) {
-            return CameraEvaluationError{
-                .code    = CameraErrorCode::TransitionEvaluationFailed,
-                .message = std::string("ShotTimeline transition from-shot '") + shot.name +
-                           "' evaluate failed: " + eval_from.error().message
-            };
-        }
-        lease_from.commit(eval_from.value().camera);
-
-        auto lease_to = cache_.acquire(pair.next->program, pair.idx + 1,
+    if (in_overlap) {
+        // TRN-05: true overlap — both shots are evaluated at their own
+        // local time during the overlap window. The successor shot starts
+        // at shot.end_frame, so its local time is frame - next.start_frame
+        // (clamped at 0 because it has not officially started yet).
+        auto maybe_t = calculate_transition_t(frame, shot.transition_frames, overlap_start);
+        if (!maybe_t.has_value()) {
+            // 0 frames: fall through to single-shot evaluation.
+        } else if (*maybe_t >= 1.0f) {
+            // 1 frame: instant cut to the incoming shot.
+            CameraEvalContext ctx = CameraEvalContext::at(0, fps);
+            auto lease = cache.acquire(pair.next->program, pair.idx + 1,
                                         pair.next->start_frame, frame, fps);
-        auto  eval_to = pair.next->program.evaluate(ctx_to, lease_to.session());
-        if (!eval_to) {
-            return CameraEvaluationError{
-                .code    = CameraErrorCode::TransitionEvaluationFailed,
-                .message = std::string("ShotTimeline transition to-shot '") + pair.next->name +
-                           "' evaluate failed: " + eval_to.error().message
-            };
+            auto eval_result = pair.next->program.evaluate(ctx, lease.session());
+            if (!eval_result) {
+                return CameraEvaluationError{
+                    .code    = CameraErrorCode::TransitionEvaluationFailed,
+                    .message = std::string("ShotTimeline one-frame transition to-shot '") +
+                               pair.next->name + "' evaluate failed: " +
+                               eval_result.error().message
+                };
+            }
+            lease.commit(eval_result.value().camera);
+            EvaluatedCamera enriched = eval_result.value();
+            enrich_resolve_diagnostics(enriched, pair.next->program,
+                                        pair.idx + 1, ctx.sample_time.seconds());
+            return enriched;
+        } else {
+            float t = *maybe_t;
+
+            // Use persistent sessions so DampedFollow survives across frames.
+            // CameraEvalContext has no base_target — the compiled path reads
+            // base state from the descriptor (CameraBaseSpec) directly.
+            // CAM-05 / TICKET-A3-CTX-FRAMERATE: FrameRate is forwarded bit-exact
+            // from the resolver caller (no 30 fps fixture inside the resolver).
+            auto ctx_from = CameraEvalContext::at(local_frame, fps);
+
+            int next_local = frame - pair.next->start_frame;
+            auto ctx_to = CameraEvalContext::at(std::max(0, next_local), fps);
+
+            // P3-H + sub-ticket C — random-access parity for transition overlap.
+            auto lease_from = cache.acquire(shot.program, pair.idx,
+                                            shot.start_frame, frame, fps);
+            auto  eval_from = shot.program.evaluate(ctx_from, lease_from.session());
+            if (!eval_from) {
+                return CameraEvaluationError{
+                    .code    = CameraErrorCode::TransitionEvaluationFailed,
+                    .message = std::string("ShotTimeline transition from-shot '") + shot.name +
+                               "' evaluate failed: " + eval_from.error().message
+                };
+            }
+            lease_from.commit(eval_from.value().camera);
+
+            auto lease_to = cache.acquire(pair.next->program, pair.idx + 1,
+                                            pair.next->start_frame, frame, fps);
+            auto  eval_to = pair.next->program.evaluate(ctx_to, lease_to.session());
+            if (!eval_to) {
+                return CameraEvaluationError{
+                    .code    = CameraErrorCode::TransitionEvaluationFailed,
+                    .message = std::string("ShotTimeline transition to-shot '") + pair.next->name +
+                               "' evaluate failed: " + eval_to.error().message
+                };
+            }
+            lease_to.commit(eval_to.value().camera);
+
+            Camera2_5D from_cam = eval_from.value().camera;
+            Camera2_5D to_cam   = eval_to.value().camera;
+            auto transition = get_transition(shot.transition_out);
+
+            // P3-H + sub-ticket C — merged ripple-through: both shots'
+            // resolve_diagnostics are concatenated with their respective
+            // shot_indices preserved (so a downstream dashboard can group
+            // diagnostics by shot_idx 0 / 1 + filter by code / severity).
+            EvaluatedCamera merged;
+            merged.camera = transition->evaluate(t, from_cam, to_cam);
+            EvaluatedCamera from_eval = eval_from.value();
+            EvaluatedCamera to_eval   = eval_to.value();
+            enrich_resolve_diagnostics(from_eval, shot.program, pair.idx,
+                                        ctx_from.sample_time.seconds());
+            enrich_resolve_diagnostics(to_eval, pair.next->program, pair.idx + 1,
+                                        ctx_to.sample_time.seconds());
+            merged.diagnostics.clear();
+            merged.resolve_diagnostics = std::move(from_eval.resolve_diagnostics);
+            auto tail = std::move(to_eval.resolve_diagnostics);
+            for (auto& rd : tail) merged.resolve_diagnostics.push_back(std::move(rd));
+            return merged;
         }
-        lease_to.commit(eval_to.value().camera);
-
-        Camera2_5D from_cam = eval_from.value().camera;
-        Camera2_5D to_cam   = eval_to.value().camera;
-        auto transition = get_transition(shot.transition_out);
-
-        // P3-H + sub-ticket C — merged ripple-through: both shots'
-        // resolve_diagnostics are concatenated with their respective
-        // shot_indices preserved (so a downstream dashboard can group
-        // diagnostics by shot_idx 0 / 1 + filter by code / severity).
-        EvaluatedCamera merged;
-        merged.camera = transition->evaluate(t, from_cam, to_cam);
-        EvaluatedCamera from_eval = eval_from.value();
-        EvaluatedCamera to_eval   = eval_to.value();
-        enrich_resolve_diagnostics(from_eval, shot.program, pair.idx,
-                                    ctx_from.sample_time.seconds());
-        enrich_resolve_diagnostics(to_eval, pair.next->program, pair.idx + 1,
-                                    ctx_to.sample_time.seconds());
-        merged.diagnostics.clear();
-        merged.resolve_diagnostics = std::move(from_eval.resolve_diagnostics);
-        auto tail = std::move(to_eval.resolve_diagnostics);
-        for (auto& rd : tail) merged.resolve_diagnostics.push_back(std::move(rd));
-        return merged;
     }
 
     // No transition — evaluate the current shot directly with local time.
@@ -501,14 +536,14 @@ ShotTimelineResolver::evaluate(int frame,
     // go directly through the public evaluate() path.)
     if (pair.next && shot.transition_out == CameraTransitionKind::Cut &&
         frame == shot.end_frame - 1) {
-        cache_.observe_cut_between(pair.idx, pair.idx + 1);
+        cache.observe_cut_between(pair.idx, pair.idx + 1);
     }
 
     // P3-H + sub-ticket C — cache-controlled acquisition for the single-shot
     // path.  The cache handles pre-roll walk (stateful programs) +
     // fingerprint invalidation + Cut-reset so direct-frame-100 produces
     // bit-exact state with sequential-0..100.
-    auto lease = cache_.acquire(shot.program, pair.idx,
+    auto lease = cache.acquire(shot.program, pair.idx,
                                  shot.start_frame, frame, fps);
     auto eval_result = shot.program.evaluate(ctx, lease.session());
     if (!eval_result) {
@@ -587,6 +622,14 @@ void CameraTransitionCatalog::register_defaults() {
         register_transition(CameraTransitionKind::Cut, ShotTimelineResolver::default_cut);
     if (!has(CameraTransitionKind::SmoothBlend))
         register_transition(CameraTransitionKind::SmoothBlend, ShotTimelineResolver::default_smooth_blend);
+    if (!has(CameraTransitionKind::EaseOutBlend))
+        register_transition(CameraTransitionKind::EaseOutBlend, ShotTimelineResolver::default_push);
+    if (!has(CameraTransitionKind::SmoothRotationBlend))
+        register_transition(CameraTransitionKind::SmoothRotationBlend, ShotTimelineResolver::default_whip_pan);
+    if (!has(CameraTransitionKind::FocusDistanceBlend))
+        register_transition(CameraTransitionKind::FocusDistanceBlend, ShotTimelineResolver::default_focus_handoff);
+
+    // Legacy aliases map to the same factories.
     if (!has(CameraTransitionKind::Push))
         register_transition(CameraTransitionKind::Push, ShotTimelineResolver::default_push);
     if (!has(CameraTransitionKind::WhipPan))
