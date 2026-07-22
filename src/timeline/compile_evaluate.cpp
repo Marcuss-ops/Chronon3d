@@ -161,7 +161,6 @@ compile_composition(const CompositionDefinition& definition,
     h ^= fnv1a64(&definition.composition.frame_rate.numerator,   sizeof(i32));
     h ^= fnv1a64(&definition.composition.frame_rate.denominator, sizeof(i32));
     h ^= fnv1a64(&definition.composition.duration, sizeof(Frame));
-    h ^= fnv1a64(definition.composition.assets_root.data(), definition.composition.assets_root.size());
 
     // Camera descriptor — use the canonical per-field fingerprint function.
     if (definition.camera.has_value()) {

@@ -16,19 +16,18 @@
 //
 // ── Why a builder chain (vs an engine-mirror shorthand) ──────────────
 //
-//   CompositionSpec is a 6-field struct (`name`, `width`, `height`,
-//   `frame_rate`, `duration`, `assets_root`).  A fluent chain reads more
+//   CompositionSpec is a 5-field struct (`name`, `width`, `height`,
+//   `frame_rate`, `duration`).  A fluent chain reads more
 //   naturally than `composition({.name=..., .width=...}, fn)`, matches
 //   the PR 1/2/3/5 design philosophy ("single `&` chain, no commit"),
 //   and keeps a natural place for future surface growth
 //   (`.extension_context(ctx)`, etc.).
 //
 // ── Closure signature (CompositionBuilder::scene) ─────────────────────
-//
-//   `fn(Scene&, const chronon3d::FrameContext&)` — Scene is the
-//   authoring facade (PR 4); FrameContext is the engine context with
-//   frame index / sub-frame time / duration / frame_rate / assets_root
-//   fields.  Two arguments, distinct types — the static_assert
+//    //   `fn(Scene&, const chronon3d::FrameContext&)` — Scene is the
+    //   authoring facade (PR 4); FrameContext is the engine context with
+    //   frame index / sub-frame time / duration / frame_rate fields.
+    //   Two arguments, distinct types — the static_assert
 //   `std::is_invocable_v<Fn, Scene&, const FrameContext&>` guards the
 //   closure signature BEFORE the lambda capture happens.
 //
@@ -56,11 +55,10 @@
 //       from outside the authoring façade.
 //
 // ── Surface boundary (PR 4) ───────────────────────────────────────────
-//
-//   Builder surface is intentionally narrow:
-//     • spec setters: name / width / height / duration / frame_rate /
-//       assets_root (one per CompositionSpec field).
-//     • .scene(fn) render-fn setter (one lambda per composition).
+//    //   Builder surface is intentionally narrow:
+    //     • spec setters: name / width / height / duration / frame_rate
+    //       (one per CompositionSpec field).
+    //     • .scene(fn) render-fn setter (one lambda per composition).
 //     • .custom_builder(fn) injection point for callers needing a
 //       non-default SceneBuilder ctor (custom pmr resource, custom
 //       shape_registry).
@@ -146,15 +144,6 @@ public:
     }
     CompositionBuilder&& frame_rate(FrameRate value) && {
         spec_.frame_rate = value;
-        return std::move(*this);
-    }
-
-    CompositionBuilder& assets_root(std::filesystem::path value) & {
-        spec_.assets_root = std::string{value.string()};
-        return *this;
-    }
-    CompositionBuilder&& assets_root(std::filesystem::path value) && {
-        spec_.assets_root = std::string{value.string()};
         return std::move(*this);
     }
 

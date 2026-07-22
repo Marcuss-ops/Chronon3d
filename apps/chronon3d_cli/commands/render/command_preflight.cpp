@@ -29,7 +29,7 @@ int command_preflight(const CompositionRegistry& registry, const PreflightArgs& 
     }
 
     auto comp = registry.create(args.comp_id);
-    auto resolver = make_cli_resolver(comp.assets_root());
+    auto resolver = make_cli_resolver(args.assets_root);
 
     // Sequence V2: collect the AssetManifest from sampled frames
     assets::AssetManifest manifest;

@@ -51,8 +51,8 @@
 //     apply_lighting_rig, shape primitives) reachable via
 //     `.configure_core(Fn)`).
 //   - `chronon3d::authoring::CompositionBuilder`  (fluent spec-builder
-//     with `.name/.width/.height/.duration/.frame_rate/.assets_root`
-//     setters + `.scene(fn)` render-fn setter + `.custom_builder(fn)`
+//     with `.name/.width/.height/.duration/.frame_rate` setters +
+//     `.scene(fn)` render-fn setter + `.custom_builder(fn)`
 //     injection point for callers needing non-default SceneBuilder +
 //     `.build()` terminal that returns the engine
 //     `chronon3d::Composition` directly so the registry is unchanged).

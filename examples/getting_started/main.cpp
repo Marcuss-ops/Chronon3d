@@ -31,7 +31,6 @@ int main() {
     project.name        = "Hello Chronon3D";
     project.default_width  = 1280;
     project.default_height = 720;
-    project.assets_root    = "assets";
 
     // 2. Register a composition — scene lambda, ~15 lines
     project.composition("TitleCard", {.duration = c3d::Frame{1}},

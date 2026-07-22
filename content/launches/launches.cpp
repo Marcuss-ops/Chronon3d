@@ -17,9 +17,9 @@
 namespace chronon3d::content::launches {
 
 void register_launches_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "ProductLaunch", .factory = [](const CompositionProps&) -> Composition {
+    registry.add(make_composition_descriptor("ProductLaunch", [](const CompositionProps&) -> Composition {
         return product_launch();
-    }});
+    }));
 }
 
 } // namespace chronon3d::content::launches

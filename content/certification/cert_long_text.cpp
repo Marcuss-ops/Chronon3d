@@ -88,9 +88,9 @@ Composition cert_long_text() {
 
 // ── Registration ──────────────────────────────────────────────────────
 void register_cert_long_text_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "CertLongText", .factory = [](const CompositionProps&) {
+    registry.add(make_composition_descriptor("CertLongText", [](const CompositionProps&) {
         return cert_long_text();
-    }});
+    }));
 }
 
 } // namespace chronon3d::content::certification

@@ -84,7 +84,6 @@ c3d::Composition make_image_composition() {
             .height = kHeight,
             .frame_rate = c3d::FrameRate{30, 1},
             .duration = c3d::Frame{1},
-            .assets_root = {},
         },
         [](const c3d::FrameContext& context) -> c3d::Scene {
             c3d::SceneBuilder builder{context};

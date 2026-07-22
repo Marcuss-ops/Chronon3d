@@ -398,11 +398,11 @@ Composition seq_v2_mixed_media() {
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_sequence_v2_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "SeqV2IntroOutro", .factory = [](const CompositionProps&) { return seq_v2_intro_outro(); }});
-    registry.add(CompositionDescriptor{.id = "SeqV2DeepNesting", .factory = [](const CompositionProps&) { return seq_v2_deep_nesting(); }});
-    registry.add(CompositionDescriptor{.id = "SeqV2StaggeredTimeline", .factory = [](const CompositionProps&) { return seq_v2_staggered_timeline(); }});
-    registry.add(CompositionDescriptor{.id = "SeqV2TrimOffset", .factory = [](const CompositionProps&) { return seq_v2_trim_offset(); }});
-    registry.add(CompositionDescriptor{.id = "SeqV2MixedMedia", .factory = [](const CompositionProps&) { return seq_v2_mixed_media(); }});
+    registry.add(make_composition_descriptor("SeqV2IntroOutro", [](const CompositionProps&) { return seq_v2_intro_outro(); }));
+    registry.add(make_composition_descriptor("SeqV2DeepNesting", [](const CompositionProps&) { return seq_v2_deep_nesting(); }));
+    registry.add(make_composition_descriptor("SeqV2StaggeredTimeline", [](const CompositionProps&) { return seq_v2_staggered_timeline(); }));
+    registry.add(make_composition_descriptor("SeqV2TrimOffset", [](const CompositionProps&) { return seq_v2_trim_offset(); }));
+    registry.add(make_composition_descriptor("SeqV2MixedMedia", [](const CompositionProps&) { return seq_v2_mixed_media(); }));
 }
 
 } // namespace chronon3d::content::sequence_v2

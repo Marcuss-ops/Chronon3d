@@ -184,14 +184,14 @@ Composition light_glow_pulse() {
 
 // ── Registration ──────────────────────────────────────────────────────────────
 void register_light_text_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "LightPulse", .factory = [](const CompositionProps&) { return light_pulse(); }});
-    registry.add(CompositionDescriptor{.id = "LightWobble", .factory = [](const CompositionProps&) { return light_wobble(); }});
-    registry.add(CompositionDescriptor{.id = "LightDropSpring", .factory = [](const CompositionProps&) { return light_drop_spring(); }});
-    registry.add(CompositionDescriptor{.id = "LightGlideBlur", .factory = [](const CompositionProps&) { return light_glide_blur(); }});
-    registry.add(CompositionDescriptor{.id = "LightRevealX", .factory = [](const CompositionProps&) { return light_reveal_x(); }});
-    registry.add(CompositionDescriptor{.id = "LightFloatUp", .factory = [](const CompositionProps&) { return light_float_up(); }});
-    registry.add(CompositionDescriptor{.id = "LightSpin", .factory = [](const CompositionProps&) { return light_spin(); }});
-    registry.add(CompositionDescriptor{.id = "LightGlowPulse", .factory = [](const CompositionProps&) { return light_glow_pulse(); }});
+    registry.add(make_composition_descriptor("LightPulse", [](const CompositionProps&) { return light_pulse(); }));
+    registry.add(make_composition_descriptor("LightWobble", [](const CompositionProps&) { return light_wobble(); }));
+    registry.add(make_composition_descriptor("LightDropSpring", [](const CompositionProps&) { return light_drop_spring(); }));
+    registry.add(make_composition_descriptor("LightGlideBlur", [](const CompositionProps&) { return light_glide_blur(); }));
+    registry.add(make_composition_descriptor("LightRevealX", [](const CompositionProps&) { return light_reveal_x(); }));
+    registry.add(make_composition_descriptor("LightFloatUp", [](const CompositionProps&) { return light_float_up(); }));
+    registry.add(make_composition_descriptor("LightSpin", [](const CompositionProps&) { return light_spin(); }));
+    registry.add(make_composition_descriptor("LightGlowPulse", [](const CompositionProps&) { return light_glow_pulse(); }));
 }
 
 } // namespace chronon3d::content::light_text

@@ -550,121 +550,91 @@ Composition bench_b11_portrait_1080x1920() {
 
 // ── Registry entry point ─────────────────────────────────────────────────
 // Single function: register all 12 main scenes + 3 B07 inner scenes
-// into the CompositionRegistry. Uses the `add(CompositionDescriptor{.factory, ...})`
+// into the CompositionRegistry. Uses `make_composition_descriptor(...)` and
 // canonical entry — descriptor-first metadata so future tooling can
 // inspect scene properties without instantiating the Composition.
 void register_bench_corpus_compositions(CompositionRegistry& registry) {
     using Desc = chronon3d::CompositionDescriptor;
 
-    registry.add(Desc{
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB00_EmptyFrame",
-        .category    = "bench/baseline",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/baseline"}, [](const chronon3d::CompositionProps&) {
             return bench_b00_empty_frame();
-        },
-    });
-    registry.add(Desc{
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB01_StaticText1080p",
-        .category    = "bench/text",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/text"}, [](const chronon3d::CompositionProps&) {
             return bench_b01_static_text_1080p();
-        },
-    });
-    registry.add(Desc{
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB02_Typewriter200Glyphs",
-        .category    = "bench/text",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/text"}, [](const chronon3d::CompositionProps&) {
             return bench_b02_typewriter_200_glyphs();
-        },
-    });
-    registry.add(Desc{
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB03_CinematicGlow1080p",
-        .category    = "bench/glow",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/glow"}, [](const chronon3d::CompositionProps&) {
             return bench_b03_cinematic_glow_1080p();
-        },
-    });
-    registry.add(Desc{
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB04_Layers100",
-        .category    = "bench/layers",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/layers"}, [](const chronon3d::CompositionProps&) {
             return bench_b04_layers_100();
-        },
-    });
-    registry.add(Desc{
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB05_Blur4K",
-        .category    = "bench/memory",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/memory"}, [](const chronon3d::CompositionProps&) {
             return bench_b05_blur_4k();
-        },
-    });
-    registry.add(Desc{
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB06_VideoOverlay1080p",
-        .category    = "bench/asset",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/asset"}, [](const chronon3d::CompositionProps&) {
             return bench_b06_video_overlay_1080p();
-        },
-    });
-    registry.add(Desc{
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB07_NestedPrecomps",
-        .category    = "bench/graph",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/graph"}, [](const chronon3d::CompositionProps&) {
             return bench_b07_nested_precomps();
-        },
-    });
-    registry.add(Desc{
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB08_DirtyRectSmallMotion",
-        .category    = "bench/dirtyrect",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/dirtyrect"}, [](const chronon3d::CompositionProps&) {
             return bench_b08_dirty_rect_small_motion();
-        },
-    });
-    registry.add(Desc{
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB09_LongForm10Minutes",
-        .category    = "bench/stability",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/stability"}, [](const chronon3d::CompositionProps&) {
             return bench_b09_long_form_10_minutes();
-        },
-    });
-    registry.add(Desc{
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB10_RandomFrameAccess",
-        .category    = "bench/cache",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/cache"}, [](const chronon3d::CompositionProps&) {
             return bench_b10_random_frame_access();
-        },
-    });
-    registry.add(Desc{
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB11_Portrait1080x1920",
-        .category    = "bench/portrait",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/portrait"}, [](const chronon3d::CompositionProps&) {
             return bench_b11_portrait_1080x1920();
-        },
-    });
+        }));
 
     // ── B07 inner precomps — registered so outer composition's precomp()
     // references resolve at evaluation time. These are NOT part of the
     // canonical 12-scene corpus; they are composition-graph dependencies.
-    registry.add(Desc{
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB07InnerA",
-        .category    = "bench/internal",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/internal"}, [](const chronon3d::CompositionProps&) {
             return bench_b07_inner::inner_a();
-        },
-    });
-    registry.add(Desc{
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB07InnerB",
-        .category    = "bench/internal",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/internal"}, [](const chronon3d::CompositionProps&) {
             return bench_b07_inner::inner_b();
-        },
-    });
-    registry.add(Desc{
+        }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
         .id          = "BenchB07InnerC",
-        .category    = "bench/internal",
-        .factory     = [](const chronon3d::CompositionProps&) {
+        .category    = "bench/internal"}, [](const chronon3d::CompositionProps&) {
             return bench_b07_inner::inner_c();
-        },
-    });
+        }));
 }
 
 } // namespace chronon3d::bench_corpus

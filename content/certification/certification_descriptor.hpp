@@ -18,15 +18,13 @@ CompositionDescriptor certification_descriptor(
     Frame duration,
     Factory&& factory,
     FrameRate fps = FrameRate{30, 1}) {
-    return CompositionDescriptor{
+    return make_composition_descriptor(CompositionDescriptor{
         .id = std::move(id),
         .category = "Certification",
         .width = width,
         .height = height,
         .fps = fps,
-        .duration = duration,
-        .factory = std::forward<Factory>(factory)
-    };
+        .duration = duration}, std::forward<Factory>(factory));
 }
 
 } // namespace chronon3d::content::certification

@@ -61,7 +61,6 @@ std::shared_ptr<const Composition> make_test_composition() {
     spec.height      = 1080;
     spec.frame_rate  = FrameRate{30, 1};
     spec.duration    = Frame{100};
-    spec.assets_root = "";
     return std::make_shared<Composition>(
         std::move(spec),
         [](const FrameContext&) { return Scene{}; });

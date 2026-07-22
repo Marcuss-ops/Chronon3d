@@ -60,9 +60,8 @@ RendererWarmupResult warmup_renderer(
                 .global_time = SampleTime::from_frame(static_cast<double>(options.dummy_frame), composition.frame_rate()),
                 .duration = composition.duration(),
                 .width = composition.width(),
-                .height = composition.height(),
-                .assets_root = composition.assets_root(),
-                .resource = std::pmr::get_default_resource(),
+            .height = composition.height(),
+            .resource = std::pmr::get_default_resource(),
                 .runtime = nullptr,
                 // P1-16: warmup no longer wires a standalone engine.
                 // The runtime path is the canonical source.

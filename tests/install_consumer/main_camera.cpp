@@ -106,7 +106,6 @@ int main(int argc, char* argv[]) {
         /* .height       */ 1080,
         /* .frame_rate   */ c3d::FrameRate{30, 1},
         /* .duration     */ 1,
-        /* .assets_root  */ assets_root,
     };
 
     // ── 4. Composition via the public camera facade ──────────────────
@@ -187,7 +186,7 @@ int main(int argc, char* argv[]) {
     settings.max_threads = 1;
 
     c3d::sdk::RenderEngine engine{settings};
-    engine.set_assets_root(std::filesystem::path{spec.assets_root});
+    engine.set_assets_root(std::filesystem::path{assets_root});
 
     // ── 6. Render frame 30 (the spec example) ─────────────────────────
     auto result = engine.render(comp, c3d::sdk::Frame{30});

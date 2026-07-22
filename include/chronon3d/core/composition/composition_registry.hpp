@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chronon3d/assets/asset_manifest.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/timeline/composition_descriptor.hpp>
 #include <chronon3d/timeline/composition_props.hpp>
@@ -21,7 +22,6 @@ namespace chronon3d {
 struct CompositionInput {
     ValueMap values;
     std::filesystem::path project_root;
-    AssetRegistry* assets = nullptr;
 };
 
 /// Fully resolved composition specification. The descriptor has already decoded
@@ -30,6 +30,7 @@ struct CompositionInput {
 struct ResolvedCompositionSpec {
     CompositionProps props;
     std::optional<CompositionMetadata> metadata;
+    std::optional<assets::AssetManifest> asset_manifest;
     std::function<Composition()> construct;
 };
 
@@ -40,8 +41,6 @@ struct ResolvedCompositionSpec {
  */
 class CompositionRegistry {
 public:
-    using Factory = std::function<Composition(const CompositionProps&)>;
-
     CompositionRegistry() = default;
 
     void add(CompositionDescriptor descriptor) {
@@ -51,24 +50,10 @@ public:
         if (descriptors_.contains(descriptor.id)) {
             throw std::runtime_error("Duplicate composition: " + descriptor.id);
         }
-        if (!descriptor.prepare_props && !descriptor.factory) {
-            throw std::runtime_error(
-                "CompositionDescriptor has neither prepare_props nor factory: " +
-                descriptor.id);
-        }
-
-        // Canonicalize untyped registrations once. All consumers subsequently
-        // use the same prepare → construct path.
         if (!descriptor.prepare_props) {
-            const Factory factory = descriptor.factory;
-            descriptor.prepare_props = [factory](const CompositionProps& props)
-                -> PreparedCompositionResult {
-                PreparedComposition prepared;
-                prepared.construct = [factory, props]() -> Composition {
-                    return factory(props);
-                };
-                return prepared;
-            };
+            throw std::runtime_error(
+                "CompositionDescriptor has no prepare_props: " +
+                descriptor.id);
         }
 
         const std::string key = descriptor.id;
@@ -84,7 +69,6 @@ public:
         CompositionInput input;
         input.values = props.values;
         input.project_root = props.project_root;
-        input.assets = props.assets;
 
         auto resolved = resolve(name, input);
         if (!resolved) {
@@ -120,7 +104,6 @@ public:
         CompositionProps props;
         props.values = input.values;
         props.project_root = input.project_root;
-        props.assets = input.assets;
 
         auto prepared_result = descriptor.prepare_props(props);
         if (!prepared_result) {
@@ -140,6 +123,7 @@ public:
         return ResolvedCompositionSpec{
             .props = std::move(props),
             .metadata = std::move(prepared.metadata),
+            .asset_manifest = std::move(prepared.asset_manifest),
             .construct = std::move(prepared.construct),
         };
     }

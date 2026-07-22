@@ -92,12 +92,12 @@ Composition cert_title_vertical() {
 
 // ── Registration ──────────────────────────────────────────────────────
 void register_cert_title_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "CertTitle", .factory = [](const CompositionProps&) {
+    registry.add(make_composition_descriptor("CertTitle", [](const CompositionProps&) {
         return cert_title();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertTitleVertical", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertTitleVertical", [](const CompositionProps&) {
         return cert_title_vertical();
-    }});
+    }));
 }
 
 } // namespace chronon3d::content::certification

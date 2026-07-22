@@ -124,6 +124,7 @@ struct PreflightArgs {
     std::string output;
     std::string json_file;
     bool legacy_preflight{false};
+    std::string assets_root;
 };
 
 struct WatchArgs {
@@ -200,6 +201,7 @@ struct ValidateArgs {
     std::string props_file;     // reuses canonical load_props_file()
     std::string props_json;     // inline JSON object (TU-local parse helper)
     bool json{true};
+    std::string assets_root;
 };
 
 // Phase 1d / Increment F — `chronon resolve <comp_id>`, full ResolvedSpec dump

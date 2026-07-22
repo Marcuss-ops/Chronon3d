@@ -53,21 +53,18 @@ void register_runtime_compositions(CompositionRegistry& registry) {
         return chronon3d::content::glow_final::make_chronon_glow_final(
             chronon3d::content::glow_final::default_landscape_props());
     };
-    registry.add(CompositionDescriptor{
-        .id = "ChrononGlowFinalAE",
-        .factory = make_landscape_comp});
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "ChrononGlowFinalAE"}, make_landscape_comp));
     // Step 8 §A: UN alias nel registry condiviso — chronon-glow-final
     // points to the SAME factory lambda as ChrononGlowFinalAE (no
     // duplicate factory lambdas).
-    registry.add(CompositionDescriptor{
-        .id = "chronon-glow-final",
-        .factory = make_landscape_comp});
-    registry.add(CompositionDescriptor{
-        .id = "ChrononGlowFinalAEPortrait",
-        .factory = [](const CompositionProps&) -> Composition {
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "chronon-glow-final"}, make_landscape_comp));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "ChrononGlowFinalAEPortrait"}, [](const CompositionProps&) -> Composition {
             return chronon3d::content::glow_final::make_chronon_glow_final(
                 chronon3d::content::glow_final::default_portrait_props());
-        }});
+        }));
 }
 
 } // namespace chronon3d
