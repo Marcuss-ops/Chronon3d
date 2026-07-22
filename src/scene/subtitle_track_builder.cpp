@@ -6,9 +6,45 @@
 #include <chronon3d/text/glyph_selector_spec.hpp>  // GlyphSelectorSpec, TextSelectorUnit, TextSelectorShape (TICKET-TIMED-WORD-BINDING)
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 
 namespace chronon3d::authoring {
+
+namespace {
+
+// Return the 0-based word index of the whitespace-delimited word that
+// starts at `byte_start` in `text`.  This mirrors the word segmentation
+// used by the SRT/VTT/JSON adapters, so a TimedWord's byte range can be
+// mapped to the TextUnitMap::Word index that the renderer will use.
+// Falls back to `fallback` when the exact start offset cannot be found
+// (e.g. punctuation-attached words or malformed input).
+[[nodiscard]] std::size_t word_index_for_byte_start(
+    std::string_view text,
+    std::size_t byte_start,
+    std::size_t fallback)
+{
+    std::size_t index = 0;
+    std::size_t i = 0;
+    while (i < text.size()) {
+        // Skip ASCII whitespace (cue text normalises to ASCII separators).
+        while (i < text.size() &&
+               (text[i] == ' ' || text[i] == '\t' || text[i] == '\n' || text[i] == '\r')) {
+            ++i;
+        }
+        if (i >= text.size()) break;
+        if (i == byte_start) return index;
+        // Consume non-whitespace word.
+        while (i < text.size() &&
+               text[i] != ' ' && text[i] != '\t' && text[i] != '\n' && text[i] != '\r') {
+            ++i;
+        }
+        ++index;
+    }
+    return fallback;
+}
+
+} // namespace
 
 FrameRate SubtitleTrackBuilder::active_frame_rate() const noexcept {
     if (frame_rate_override_.has_value()) {
@@ -30,9 +66,11 @@ std::vector<TimedWordBinding> SubtitleTrackBuilder::build_word_bindings(const Ti
     bindings.reserve(cue.words.size());
     for (std::size_t w = 0; w < cue.words.size(); ++w) {
         const auto& word = cue.words[w];
+        const std::size_t resolved_word_index =
+            word_index_for_byte_start(cue.text, word.byte_start, w);
         bindings.push_back(TimedWordBinding{
             .semantic_id = word.semantic_id,
-            .word_index  = w,
+            .word_index  = resolved_word_index,
             .total_words = cue.words.size(),
             .byte_start  = word.byte_start,
             .byte_end    = word.byte_end,
@@ -54,13 +92,17 @@ SubtitleTrackBuilder::build_word_selectors(const TimedCue& cue, FrameRate frame_
     const f32 word_count_f = static_cast<f32>(word_count);
 
     for (std::size_t w = 0; w < word_count; ++w) {
-        const f32 start_pct = (static_cast<f32>(w) * 100.0f) / word_count_f;
-        const f32 end_pct   = (static_cast<f32>(w + 1) * 100.0f) / word_count_f;
+        const auto& word = cue.words[w];
+        const std::size_t word_index =
+            word_index_for_byte_start(cue.text, word.byte_start, w);
+
+        const f32 start_pct = (static_cast<f32>(word_index) * 100.0f) / word_count_f;
+        const f32 end_pct   = (static_cast<f32>(word_index + 1) * 100.0f) / word_count_f;
 
         Frame word_start_frame = chronon3d::seconds_to_frame(
-            static_cast<double>(cue.words[w].start_s), frame_rate, FrameRounding::Nearest);
+            static_cast<double>(word.start_s), frame_rate, FrameRounding::Nearest);
         Frame word_end_frame = chronon3d::seconds_to_frame(
-            static_cast<double>(cue.words[w].end_s), frame_rate, FrameRounding::Nearest);
+            static_cast<double>(word.end_s), frame_rate, FrameRounding::Nearest);
         if (word_end_frame <= word_start_frame) {
             word_end_frame = word_start_frame + Frame{1};
         }
@@ -71,8 +113,11 @@ SubtitleTrackBuilder::build_word_selectors(const TimedCue& cue, FrameRate frame_
         word_sel.order = TextSelectorOrder::Forward;
         word_sel.start = start_pct;
         word_sel.end   = end_pct;
+        // The selector id carries the TimedWord semantic_id so the
+        // binding from timed-text source to renderer unit is explicit
+        // and diagnostics can trace a word back to its source id.
         word_sel.id    = "subtitle_cue_" + std::to_string(cue_index)
-                          + "_word_" + std::to_string(w) + "_sel";
+                          + "_word_" + word.semantic_id;
 
         AnimatedValue<f32> amount;
         // Only key "off" before the word if the word does not start
