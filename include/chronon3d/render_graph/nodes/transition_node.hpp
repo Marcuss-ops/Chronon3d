@@ -2,6 +2,7 @@
 
 #include <chronon3d/render_graph/nodes/render_graph_node.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/transition/transition_catalog.hpp>
 #include <chronon3d/scene/model/core/transition.hpp>
 #include <span>
 
@@ -20,30 +21,14 @@ public:
     RenderGraphNodeKind kind() const noexcept override { return RenderGraphNodeKind::Transition; }
     std::string_view name() const noexcept override { return m_full_name; }
 
-    cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override {
-        cache::NodeCacheKey key{
-            .scope = "transition:" + m_layer_name,
-            .frame = ctx.frame_input.frame,
-            .width = ctx.frame_input.width,
-            .height = ctx.frame_input.height,
-        };
-        key.params_hash = hash_string(m_spec.transition_id);
-        key.params_hash = hash_combine(key.params_hash, static_cast<u64>(m_is_out));
-        key.params_hash = hash_combine(key.params_hash, static_cast<u64>(m_spec.direction));
-        return key;
-    }
+    cache::NodeCacheKey cache_key(const RenderGraphContext& ctx) const override;
 
     [[nodiscard]] float compute_progress(const RenderGraphContext& ctx) const;
 
     std::optional<raster::BBox> predicted_bbox(
         const RenderGraphContext& ctx,
         std::span<const std::optional<raster::BBox>> input_bboxes
-    ) const override {
-        if (!input_bboxes.empty()) {
-            return input_bboxes[0];
-        }
-        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
-    }
+    ) const override;
 
     NodeExecResult execute(
         RenderGraphContext& ctx,
@@ -57,7 +42,10 @@ private:
     bool m_is_out{false};
     Frame m_layer_from{0};
     Frame m_layer_duration{-1};
-    std::string m_full_name;  // "Transition (" + transition_id + ")"
+    std::string m_full_name;
+    mutable std::unique_ptr<LayerTransitionProgram> m_program;
+
+    [[nodiscard]] const LayerTransitionProgram& resolve_program(const RenderGraphContext& ctx) const;
 };
 
 

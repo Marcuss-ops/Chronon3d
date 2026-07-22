@@ -14,6 +14,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
+#include <chronon3d/render_graph/transition/transition_catalog.hpp>
 #include <chronon3d/effects/effect_catalog.hpp>
 #include <chronon3d/extension/extension_catalog.hpp>
 #include <chronon3d/render_graph/builder/precomp_builder_service.hpp>
@@ -30,9 +31,10 @@ namespace chronon3d::graph {
 /// Constructed by the host, then passed by const-ref to the pipeline +
 /// graph coordinator.
 struct PipelineCatalogs {
-    GraphNodeCatalog       graph_nodes;
-    effects::EffectCatalog effects;
-    ExtensionCatalog       extensions;
+    GraphNodeCatalog             graph_nodes;
+    effects::EffectCatalog       effects;
+    LayerTransitionCatalog       transition_catalog;
+    ExtensionCatalog             extensions;
 
     /// TICKET-010 — typed builder that produces a `CompiledSceneProgram`
     /// for a nested composition (consumed by PrecompNode on cache miss).

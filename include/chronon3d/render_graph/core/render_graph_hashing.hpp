@@ -8,6 +8,7 @@
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <chronon3d/scene/model/layer/mask.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
+#include <chronon3d/scene/model/core/transition.hpp>
 #include <chronon3d/backends/video/video_source.hpp>
 #include <xxhash.h>
 
@@ -437,6 +438,49 @@ template <typename T>
     }
 
     return seed;
+}
+
+[[nodiscard]] inline u64 hash_layer_transition_parameters(const LayerTransitionParameters& params) {
+    return std::visit([](const auto& p) -> u64 {
+        using T = std::decay_t<decltype(p)>;
+        if constexpr (std::is_same_v<T, std::monostate>) {
+            return 0ULL;
+        } else if constexpr (std::is_same_v<T, CrossfadeParams>) {
+            return 0xcbf29ce484222325ULL;
+        } else if constexpr (std::is_same_v<T, WipeLinearParams>) {
+            return 0xcbf29ce484222326ULL;
+        } else if constexpr (std::is_same_v<T, SlideParams>) {
+            return hash_value(p.distance);
+        } else if constexpr (std::is_same_v<T, SmoothWipeParams>) {
+            return hash_value(p.feather);
+        } else if constexpr (std::is_same_v<T, CircleIrisParams>) {
+            u64 h = hash_vec2(p.center);
+            return hash_combine(h, hash_value(p.feather));
+        } else if constexpr (std::is_same_v<T, FlashParams>) {
+            return hash_color(p.color);
+        } else if constexpr (std::is_same_v<T, ProceduralRemotionParams>) {
+            u64 h = hash_value(p.seed);
+            h = hash_combine(h, hash_color(p.inner_color));
+            h = hash_combine(h, hash_color(p.mid_color));
+            return hash_combine(h, hash_color(p.outer_color));
+        } else if constexpr (std::is_same_v<T, RemotionParams>) {
+            u64 h = hash_value(p.speed);
+            h = hash_combine(h, hash_value(p.direction));
+            return hash_combine(h, hash_value(p.angle));
+        } else {
+            return hash_bytes(&p, sizeof(p));
+        }
+    }, params);
+}
+
+[[nodiscard]] inline u64 hash_layer_transition_spec(const LayerTransitionSpec& spec) {
+    u64 h = hash_string(spec.transition_id);
+    h = hash_combine(h, static_cast<u64>(spec.direction));
+    h = hash_combine(h, hash_bytes(&spec.duration, sizeof(spec.duration)));
+    h = hash_combine(h, hash_bytes(&spec.delay, sizeof(spec.delay)));
+    h = hash_combine(h, static_cast<u64>(spec.easing));
+    h = hash_combine(h, hash_layer_transition_parameters(spec.parameters));
+    return h;
 }
 
 [[nodiscard]] inline u64 hash_render_node_content_only(const RenderNode& n) {

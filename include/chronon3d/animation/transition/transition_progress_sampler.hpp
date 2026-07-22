@@ -12,7 +12,7 @@ namespace chronon3d {
 /// Direction of a transition. Only affects the final eased_progress:
 /// - In:  eased_progress goes from 0 to 1.
 /// - Out: eased_progress goes from 1 to 0 (i.e. 1 - ease(t)).
-enum class TransitionDirection : u8 {
+enum class TransitionProgressDirection : u8 {
     In,
     Out
 };
@@ -55,7 +55,7 @@ struct TransitionSample {
     SampleTime start,
     SampleTime end,
     const EasingCurve& easing = EasingCurve{Easing::Linear},
-    TransitionDirection direction = TransitionDirection::In
+    TransitionProgressDirection direction = TransitionProgressDirection::In
 ) {
     // All three samples must share the same frame-rate context; otherwise
     // comparing their frame coordinates is meaningless.  This is a cheap
@@ -94,7 +94,7 @@ struct TransitionSample {
     result.linear_progress = static_cast<float>(linear);
 
     float eased = easing.apply(result.linear_progress);
-    if (direction == TransitionDirection::Out) {
+    if (direction == TransitionProgressDirection::Out) {
         eased = 1.0f - eased;
     }
     result.eased_progress = eased;

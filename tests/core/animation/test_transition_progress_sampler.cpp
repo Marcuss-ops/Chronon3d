@@ -183,15 +183,15 @@ TEST_CASE("TransitionProgressSampler: Out direction inverts progress") {
     const EasingCurve linear{Easing::Linear};
 
     {
-        auto s = sample_transition(at_frame(0.0, rate), start, end, linear, TransitionDirection::Out);
+        auto s = sample_transition(at_frame(0.0, rate), start, end, linear, TransitionProgressDirection::Out);
         CHECK(s.eased_progress == doctest::Approx(1.0f));
     }
     {
-        auto s = sample_transition(at_frame(5.0, rate), start, end, linear, TransitionDirection::Out);
+        auto s = sample_transition(at_frame(5.0, rate), start, end, linear, TransitionProgressDirection::Out);
         CHECK(s.eased_progress == doctest::Approx(0.5f));
     }
     {
-        auto s = sample_transition(at_frame(10.0, rate), start, end, linear, TransitionDirection::Out);
+        auto s = sample_transition(at_frame(10.0, rate), start, end, linear, TransitionProgressDirection::Out);
         CHECK(s.eased_progress == doctest::Approx(0.0f));
     }
 }
