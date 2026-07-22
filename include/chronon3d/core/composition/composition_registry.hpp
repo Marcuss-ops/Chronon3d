@@ -44,6 +44,11 @@ public:
     CompositionRegistry() = default;
 
     void add(CompositionDescriptor descriptor) {
+        if (is_frozen()) {
+            throw std::runtime_error(
+                "CompositionRegistry is frozen; cannot add composition: " +
+                descriptor.id);
+        }
         if (descriptor.id.empty()) {
             throw std::runtime_error("CompositionDescriptor has an empty id");
         }
@@ -59,6 +64,14 @@ public:
         const std::string key = descriptor.id;
         descriptors_.emplace(key, std::move(descriptor));
     }
+
+    /// Freeze the registry. After freeze(), add() will reject any further
+    /// registration. This marks the end of the single-threaded startup
+    /// phase and the beginning of runtime resolution.
+    void freeze() noexcept { frozen_ = true; }
+
+    /// Query whether the registry has been frozen.
+    [[nodiscard]] bool is_frozen() const noexcept { return frozen_; }
 
     [[nodiscard]] Composition create(std::string_view name) const {
         return create(name, CompositionProps{});
@@ -159,10 +172,12 @@ public:
 
     void clear() noexcept {
         descriptors_.clear();
+        frozen_ = false;
     }
 
 private:
     std::map<std::string, CompositionDescriptor, std::less<>> descriptors_;
+    bool frozen_{false};
 };
 
 } // namespace chronon3d
