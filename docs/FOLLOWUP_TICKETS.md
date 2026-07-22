@@ -9,6 +9,7 @@
 
 | Epic / Area | Pri | Stato | Description | Links |
 |---|---|---|---|---|
+| Transitions cleanup | P1 | OPEN | `TICKET-TRN-01`: inventory + gate for Layer/Camera/Text transitions, rename `Timeline.Transition`, block new `if (transition_id == ...)`. | [trn-01](tickets/TICKET-TRN-01.md) |
 | P0 docs + test aggregator | P0 | OPEN | `TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX` + `TICKET-125-TEST-AGGREGATOR`: marker check extension e catalogo Tests 8-18. | [changelog](tickets/TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX.md) · [125](tickets/TICKET-125-test-aggregator.md) |
 | Text API migration | P1 | OPEN | `TICKET-TEXT-SPEC-MIGRATION` + `TICKET-CENTERED-TEXT-MIGRATION` + `TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION` + `TICKET-TEXT-SPEC-FORWARDER-REMOVAL`: deprecazione e migrazione 100+ caller legacy a `TextDefinition` canonica. | [text-spec](tickets/TICKET-TEXT-SPEC-MIGRATION.md) · [centered](tickets/TICKET-CENTERED-TEXT-MIGRATION.md) · [bulk](tickets/TICKET-CENTERED-TEXT-MIGRATION-CHORE-B-BULK-MIGRATION.md) · [forwarder](tickets/TICKET-TEXT-SPEC-FORWARDER-REMOVAL.md) |
 | Deprecated API removal | P1 | OPEN | `TICKET-DEPRECATED-API-REMOVAL`: master tracker per la rimozione graduale delle API deprecate (~490+ siti, soppressione globale CMake). | [deprecated-api](tickets/TICKET-DEPRECATED-API-REMOVAL.md) |

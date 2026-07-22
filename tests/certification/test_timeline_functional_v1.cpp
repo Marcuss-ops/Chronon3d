@@ -366,10 +366,10 @@ TEST_CASE("Timeline.Overlap") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 10. Transition — trim_before remap shifts the local frame origin
+// 10. TrimBeforeRemap — trim_before remap shifts the local frame origin
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("Timeline.Transition") {
+TEST_CASE("Timeline.TrimBeforeRemap") {
     // Sequence with trim_before=10: the local frame starts at 10 (not 0)
     // at the global from frame.  This simulates "start this sequence
     // 10 frames into its content" — the canonical transition semantic.
