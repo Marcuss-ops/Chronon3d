@@ -43,30 +43,26 @@ TEST_CASE("CAM-05: register_camera_v1_builtins_into() injects the 5 built-in tra
     // Each registered transition must be present in the catalog.
     CHECK(catalog.has(CameraTransitionKind::Cut));
     CHECK(catalog.has(CameraTransitionKind::SmoothBlend));
+    CHECK(catalog.has(CameraTransitionKind::EaseOutBlend));
+    CHECK(catalog.has(CameraTransitionKind::SmoothRotationBlend));
+    CHECK(catalog.has(CameraTransitionKind::FocusDistanceBlend));
+
+    // Legacy aliases still resolve.
     CHECK(catalog.has(CameraTransitionKind::Push));
     CHECK(catalog.has(CameraTransitionKind::WhipPan));
     CHECK(catalog.has(CameraTransitionKind::FocusHandoff));
 
-    // Exercise ALL 5 transition factories to confirm the catalog itself
-    // works (a registry without working factories is a hollow test).
-    // Full coverage is intentional: any future PR that adds SDK-callback
-    // wiring or factory-registration branching to a specific kind will
-    // immediately surface here.  Per-kind semantic coverage:
-    //   Cut           = discrete step (basic factory)
-    //   SmoothBlend   = eased blend (easing registrar)
-    //   WhipPan       = large angular delta (vector-delta registrar)
-    //   Push          = forward-push (translation-only registrar)
-    //   FocusHandoff  = dof-anchor shift (focus registrar)
+    // Exercise ALL canonical transition factories.
     auto cut      = catalog.create(CameraTransitionKind::Cut);
     auto blend    = catalog.create(CameraTransitionKind::SmoothBlend);
-    auto whippan  = catalog.create(CameraTransitionKind::WhipPan);
-    auto push     = catalog.create(CameraTransitionKind::Push);
-    auto handoff  = catalog.create(CameraTransitionKind::FocusHandoff);
+    auto ease     = catalog.create(CameraTransitionKind::EaseOutBlend);
+    auto smooth   = catalog.create(CameraTransitionKind::SmoothRotationBlend);
+    auto focus    = catalog.create(CameraTransitionKind::FocusDistanceBlend);
     CHECK(cut != nullptr);
     CHECK(blend != nullptr);
-    CHECK(whippan != nullptr);
-    CHECK(push != nullptr);
-    CHECK(handoff != nullptr);
+    CHECK(ease != nullptr);
+    CHECK(smooth != nullptr);
+    CHECK(focus != nullptr);
 }
 
 // ==============================================================================
@@ -84,13 +80,13 @@ TEST_CASE("CAM-05: register_camera_v1_builtins_into() is idempotent") {
     // here we verify it on a real catalog without crashing.
     register_camera_v1_builtins_into(catalog);
 
-    // Catalog state unchanged: still frozen, same 5 transitions.
+    // Catalog state unchanged: still frozen, same canonical transitions.
     CHECK(catalog.is_frozen());
     CHECK(catalog.has(CameraTransitionKind::Cut));
     CHECK(catalog.has(CameraTransitionKind::SmoothBlend));
-    CHECK(catalog.has(CameraTransitionKind::Push));
-    CHECK(catalog.has(CameraTransitionKind::WhipPan));
-    CHECK(catalog.has(CameraTransitionKind::FocusHandoff));
+    CHECK(catalog.has(CameraTransitionKind::EaseOutBlend));
+    CHECK(catalog.has(CameraTransitionKind::SmoothRotationBlend));
+    CHECK(catalog.has(CameraTransitionKind::FocusDistanceBlend));
 }
 
 } // namespace
