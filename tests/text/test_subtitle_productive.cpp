@@ -297,7 +297,7 @@ TEST_CASE("SubtitleTrackBuilder frame_rate override is used when set") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("SubtitleTrackBuilder can be instantiated and configured") {
-    LayerBuilder lb{"test_layer"};
+    LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})};
     lb.screen_dimensions(1920.0f, 1080.0f);
     CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
     chronon3d::authoring::Layer layer{lb, canvas};
@@ -759,6 +759,44 @@ TEST_CASE("active_word_pop renders a different highlighted word per frame") {
         }
     }
     CHECK(changed > 100);
+}
+
+TEST_CASE("TimedWordBinding maps semantic_id and byte range to TextUnitMap::Word index") {
+    // TICKET-TIMED-WORD-BINDING: the binding must resolve a TimedWord's
+    // byte_start into the corresponding whitespace-delimited word index
+    // in cue.text (i.e. the same index TextUnitMap::Word will use), not
+    // simply assume the words vector is ordered.
+    SubtitleCue cue;
+    cue.text = "alpha beta gamma";
+    cue.word_timing_quality = WordTimingQuality::Authoritative;
+    cue.words = {
+        TimedWord{"beta",  0.0f, 1.0f, "w_beta",  6u, 10u},
+        TimedWord{"alpha", 1.0f, 2.0f, "w_alpha", 0u,  5u},
+        TimedWord{"gamma", 2.0f, 3.0f, "w_gamma",11u, 16u},
+    };
+
+    const auto bindings = chronon3d::authoring::SubtitleTrackBuilder::build_word_bindings(cue);
+    REQUIRE(bindings.size() == 3);
+    CHECK(bindings[0].semantic_id == "w_beta");
+    CHECK(bindings[0].word_index == 1u); // beta is the second word in cue.text
+    CHECK(bindings[1].semantic_id == "w_alpha");
+    CHECK(bindings[1].word_index == 0u);
+    CHECK(bindings[2].semantic_id == "w_gamma");
+    CHECK(bindings[2].word_index == 2u);
+
+    const auto selectors =
+        chronon3d::authoring::SubtitleTrackBuilder::build_word_selectors(
+            cue, FrameRate{30, 1}, Frame{0}, 0);
+    REQUIRE(selectors.size() == 3);
+    CHECK(selectors[0].id.find("w_beta") != std::string::npos);
+    CHECK(selectors[1].id.find("w_alpha") != std::string::npos);
+    CHECK(selectors[2].id.find("w_gamma") != std::string::npos);
+
+    // Because word indices are resolved from byte ranges, the first
+    // emitted selector (words vector order = beta) should map to the
+    // second word unit, not the first.
+    CHECK(selectors[0].start.value_at(Frame{0}) == doctest::Approx(100.0f / 3.0f));
+    CHECK(selectors[0].end.value_at(Frame{0})   == doctest::Approx(200.0f / 3.0f));
 }
 
 TEST_CASE("SubtitleTrackBuilder builds per-word selectors with percentage ranges and keyed amount") {
