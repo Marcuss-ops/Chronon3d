@@ -38,7 +38,7 @@ TEST_CASE("LayerBuilder: opacity_anim bakes into transform at frame") {
 }
 
 TEST_CASE("LayerBuilder: static position() still works when no anim keys") {
-    LayerBuilder b("layer");
+    LayerBuilder b("layer", SampleTime{});
     b.rect("r", {.size = {10, 10}});
     b.position({100, 200, 0});
     Layer l = b.build();
@@ -80,7 +80,7 @@ TEST_CASE("LayerBuilder: font_engine setter and getter") {
     chronon3d::Config cfg;
     auto runtime = chronon3d::runtime::RenderRuntime::create(chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    LayerBuilder b("layer");
+    LayerBuilder b("layer", SampleTime{});
     CHECK(b.font_engine() == nullptr);
 
     b.font_engine(&engine);

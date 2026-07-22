@@ -16,7 +16,7 @@ CanvasInfo canvas(float width, float height) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Authoring/Layer: text() pushes a PendingTextRun with auto-generated name") {
-    LayerBuilder lb("test_layer");
+    LayerBuilder lb("test_layer", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
@@ -32,7 +32,7 @@ TEST_CASE("Authoring/Layer: text() pushes a PendingTextRun with auto-generated n
 }
 
 TEST_CASE("Authoring/Text: id() + content() store and propagate to underlying spec") {
-    LayerBuilder lb("id_content");
+    LayerBuilder lb("id_content", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("initial");
@@ -42,7 +42,7 @@ TEST_CASE("Authoring/Text: id() + content() store and propagate to underlying sp
 }
 
 TEST_CASE("Authoring/Text: font() / font_family() / weight() / italic() / font_size() cover FontSpec") {
-    LayerBuilder lb("font");
+    LayerBuilder lb("font", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("x");
@@ -61,7 +61,7 @@ TEST_CASE("Authoring/Text: font() / font_family() / weight() / italic() / font_s
 }
 
 TEST_CASE("Authoring/Text: at(Vec2) and at(Vec3) store two-dimensional placement") {
-    LayerBuilder lb("position");
+    LayerBuilder lb("position", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
 
@@ -82,7 +82,7 @@ TEST_CASE("Authoring/Text: at(Vec2) and at(Vec3) store two-dimensional placement
 }
 
 TEST_CASE("Authoring/Text: center() uses explicit CanvasInfo") {
-    LayerBuilder lb("center");
+    LayerBuilder lb("center", SampleTime{});
     Layer layer(lb, canvas(800.0f, 600.0f));
     Text t = layer.text("hero");
     t.center();
@@ -95,7 +95,7 @@ TEST_CASE("Authoring/Text: center() uses explicit CanvasInfo") {
 }
 
 TEST_CASE("Authoring/Text: center() uses CanvasInfo derived by Layer ctor") {
-    LayerBuilder lb("center_fb");
+    LayerBuilder lb("center_fb", SampleTime{});
     lb.screen_dimensions(1280.0f, 720.0f);
     Layer layer(lb);
     Text t = layer.text("x");
@@ -105,7 +105,7 @@ TEST_CASE("Authoring/Text: center() uses CanvasInfo derived by Layer ctor") {
 }
 
 TEST_CASE("Authoring/Text: layout setters propagate to spec.text.layout") {
-    LayerBuilder lb("layout_props");
+    LayerBuilder lb("layout_props", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("x");
@@ -142,7 +142,7 @@ TEST_CASE("Authoring/Text: layout setters propagate to spec.text.layout") {
 }
 
 TEST_CASE("Authoring/Text: color() mutates appearance.color only") {
-    LayerBuilder lb("color");
+    LayerBuilder lb("color", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("x");
@@ -156,7 +156,7 @@ TEST_CASE("Authoring/Text: color() mutates appearance.color only") {
 }
 
 TEST_CASE("Authoring/Text: material(Material) consumes Material into appearance.material") {
-    LayerBuilder lb("material_consume");
+    LayerBuilder lb("material_consume", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("x");
@@ -171,7 +171,7 @@ TEST_CASE("Authoring/Text: material(Material) consumes Material into appearance.
 }
 
 TEST_CASE("Authoring/Text: animate(Animator) consumes Animator into animators vector") {
-    LayerBuilder lb("animate_consume");
+    LayerBuilder lb("animate_consume", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("hero");
@@ -192,7 +192,7 @@ TEST_CASE("Authoring/Text: animate(Animator) consumes Animator into animators ve
 }
 
 TEST_CASE("Authoring/Text: multiple animate() calls accumulate in order") {
-    LayerBuilder lb("multi_anim");
+    LayerBuilder lb("multi_anim", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("x");
@@ -207,7 +207,7 @@ TEST_CASE("Authoring/Text: multiple animate() calls accumulate in order") {
 }
 
 TEST_CASE("Authoring/Text: style(id, registry) field-maps TextStyle to spec.text") {
-    LayerBuilder lb("style_map");
+    LayerBuilder lb("style_map", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     StyleRegistry styles;
@@ -245,7 +245,7 @@ TEST_CASE("Authoring/Text: style(id, registry) field-maps TextStyle to spec.text
 }
 
 TEST_CASE("Authoring/Text: style() with unknown id is a no-op") {
-    LayerBuilder lb("style_nomatch");
+    LayerBuilder lb("style_nomatch", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("FUTURI MILIONARI");
@@ -260,7 +260,7 @@ TEST_CASE("Authoring/Text: style() with unknown id is a no-op") {
 }
 
 TEST_CASE("Authoring/Text: motion(id, registry) appends resolved animator") {
-    LayerBuilder lb("motion_consume");
+    LayerBuilder lb("motion_consume", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     MotionRegistry motions;
@@ -278,7 +278,7 @@ TEST_CASE("Authoring/Text: motion(id, registry) appends resolved animator") {
 }
 
 TEST_CASE("Authoring/Text: configure_core(Fn) mutates raw TextRunSpec") {
-    LayerBuilder lb("configure");
+    LayerBuilder lb("configure", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("Anti-Dup");
@@ -296,7 +296,7 @@ TEST_CASE("Authoring/Text: configure_core(Fn) mutates raw TextRunSpec") {
 }
 
 TEST_CASE("Authoring/Text: end-to-end hero chain is mutator-agnostic to TextRunBuilder") {
-    LayerBuilder lb("hero");
+    LayerBuilder lb("hero", SampleTime{});
     Layer layer(lb, canvas(1920.0f, 1080.0f));
     layer.text("FUTURI MILIONARI")
         .id("hero-title")
@@ -323,7 +323,7 @@ TEST_CASE("Authoring/Text: end-to-end hero chain is mutator-agnostic to TextRunB
 }
 
 TEST_CASE("Authoring/Layer: text() state survives returned handle destruction") {
-    LayerBuilder lb("destroy");
+    LayerBuilder lb("destroy", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     {
         Layer layer(lb);

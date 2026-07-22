@@ -144,7 +144,7 @@ TEST_CASE("Text health / LayerBuilder emits one materialized TextRun node") {
 
     auto spec = make_health_spec("Builder to node", *font);
 
-    LayerBuilder builder("text_health_layer");
+    LayerBuilder builder("text_health_layer", SampleTime{});
     builder.screen_dimensions(1280.0f, 720.0f);
     builder.font_engine(&env.font_engine);
     builder.animated_text("health_text", std::move(spec)).commit();
@@ -168,7 +168,7 @@ TEST_CASE("Text health / fluent opacity animator reaches every glyph") {
 
     auto spec = make_health_spec("Animated opacity", *font);
 
-    LayerBuilder builder("animated_text_health");
+    LayerBuilder builder("animated_text_health", SampleTime{});
     builder.screen_dimensions(1280.0f, 720.0f);
     builder.font_engine(&env.font_engine);
     builder.animated_text("animated_text", std::move(spec))

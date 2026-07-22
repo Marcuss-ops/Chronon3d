@@ -139,7 +139,7 @@ TEST_CASE("Authoring/CompositionBuilder: build() consumes builder by rvalue") {
 }
 
 TEST_CASE("Authoring/Layer: explicit ctor throws when parent builder has no screen_dimensions") {
-    LayerBuilder lb("no_dims");
+    LayerBuilder lb("no_dims", SampleTime{});
     bool caught = false;
     std::string what_msg;
     try {
@@ -157,19 +157,19 @@ TEST_CASE("Authoring/Layer: explicit ctor throws when parent builder has no scre
 }
 
 TEST_CASE("Authoring/Layer: explicit ctor succeeds when parent builder has screen_dimensions set") {
-    LayerBuilder lb("with_dims");
+    LayerBuilder lb("with_dims", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     REQUIRE_NOTHROW(chronon3d::authoring::Layer{lb});
 }
 
 TEST_CASE("Authoring/Layer: explicit CanvasInfo ctor works without screen_dimensions") {
-    LayerBuilder lb("explicit_canvas");
+    LayerBuilder lb("explicit_canvas", SampleTime{});
     REQUIRE_NOTHROW(chronon3d::authoring::Layer{
         lb, explicit_canvas(1920.0f, 1080.0f)});
 }
 
 TEST_CASE("Authoring/Text: script(uint32_t) chain mutates pending params") {
-    LayerBuilder lb("script_round_trip");
+    LayerBuilder lb("script_round_trip", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     chronon3d::authoring::Layer layer(lb);
     chronon3d::authoring::Text text = layer.text("ŁATIN");
@@ -178,7 +178,7 @@ TEST_CASE("Authoring/Text: script(uint32_t) chain mutates pending params") {
 }
 
 TEST_CASE("Authoring/Text: default script=0u is preserved") {
-    LayerBuilder lb("script_default");
+    LayerBuilder lb("script_default", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     chronon3d::authoring::Layer layer(lb);
     chronon3d::authoring::Text text = layer.text("AUTODETECT");
@@ -186,7 +186,7 @@ TEST_CASE("Authoring/Text: default script=0u is preserved") {
 }
 
 TEST_CASE("Authoring/Text: style(id) propagates shaping.script when non-zero") {
-    LayerBuilder lb("script_propagate");
+    LayerBuilder lb("script_propagate", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     chronon3d::authoring::Layer layer(lb);
 
@@ -207,7 +207,7 @@ TEST_CASE("Authoring/Text: style(id) propagates shaping.script when non-zero") {
 }
 
 TEST_CASE("Authoring/Text: style(id) preserves existing script when style script is zero") {
-    LayerBuilder lb("script_zero");
+    LayerBuilder lb("script_zero", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     chronon3d::authoring::Layer layer(lb);
 
@@ -225,7 +225,7 @@ TEST_CASE("Authoring/Text: style(id) preserves existing script when style script
 }
 
 TEST_CASE("Authoring/Text: script accepts high-bit pattern without sign extension") {
-    LayerBuilder lb("script_highbit");
+    LayerBuilder lb("script_highbit", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     chronon3d::authoring::Layer layer(lb);
     chronon3d::authoring::Text text = layer.text("X");

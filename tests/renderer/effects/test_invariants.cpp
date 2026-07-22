@@ -264,11 +264,11 @@ TEST_CASE("Invariants: bloom_threshold_above_max_noop") {
 TEST_CASE("Invariants: effect_order_changes_hash") {
     using namespace chronon3d::graph;
 
-    LayerBuilder lb1("l1", std::pmr::get_default_resource());
+    LayerBuilder lb1("l1", SampleTime{}, std::pmr::get_default_resource());
     lb1.blur(10.0f).tint(Color::red(), 1.0f);
     auto l1 = lb1.build();
 
-    LayerBuilder lb2("l2", std::pmr::get_default_resource());
+    LayerBuilder lb2("l2", SampleTime{}, std::pmr::get_default_resource());
     lb2.tint(Color::red(), 1.0f).blur(10.0f);
     auto l2 = lb2.build();
 
@@ -283,22 +283,22 @@ TEST_CASE("Invariants: cache_key_changes_when_glow_params_change") {
     using namespace chronon3d::graph;
 
     // Base glow params
-    LayerBuilder lb_base("l", std::pmr::get_default_resource());
+    LayerBuilder lb_base("l", SampleTime{}, std::pmr::get_default_resource());
     lb_base.glow(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::white()});
     u64 hash_base = hash_effect_stack(lb_base.build().effects());
 
     // Different radius
-    LayerBuilder lb_radius("l", std::pmr::get_default_resource());
+    LayerBuilder lb_radius("l", SampleTime{}, std::pmr::get_default_resource());
     lb_radius.glow(GlowParams{.radius = 15.0f, .intensity = 0.8f, .color = Color::white()});
     u64 hash_radius = hash_effect_stack(lb_radius.build().effects());
 
     // Different intensity
-    LayerBuilder lb_intensity("l", std::pmr::get_default_resource());
+    LayerBuilder lb_intensity("l", SampleTime{}, std::pmr::get_default_resource());
     lb_intensity.glow(GlowParams{.radius = 10.0f, .intensity = 0.5f, .color = Color::white()});
     u64 hash_intensity = hash_effect_stack(lb_intensity.build().effects());
 
     // Different color
-    LayerBuilder lb_color("l", std::pmr::get_default_resource());
+    LayerBuilder lb_color("l", SampleTime{}, std::pmr::get_default_resource());
     lb_color.glow(GlowParams{.radius = 10.0f, .intensity = 0.8f, .color = Color::red()});
     u64 hash_color = hash_effect_stack(lb_color.build().effects());
 
@@ -311,23 +311,23 @@ TEST_CASE("Invariants: cache_key_changes_when_glow_params_change") {
 TEST_CASE("Invariants: cache_key_changes_when_glow_quality_params_change") {
     using namespace chronon3d::graph;
 
-    LayerBuilder lb_base("l", std::pmr::get_default_resource());
+    LayerBuilder lb_base("l", SampleTime{}, std::pmr::get_default_resource());
     lb_base.glow(GlowPresets::neon_blue(40.0f));
     u64 hash_base = hash_effect_stack(lb_base.build().effects());
 
-    LayerBuilder lb_falloff("l", std::pmr::get_default_resource());
+    LayerBuilder lb_falloff("l", SampleTime{}, std::pmr::get_default_resource());
     GlowParams falloff = GlowPresets::neon_blue(40.0f);
     falloff.falloff = 1.20f;
     lb_falloff.glow(falloff);
     u64 hash_falloff = hash_effect_stack(lb_falloff.build().effects());
 
-    LayerBuilder lb_core("l", std::pmr::get_default_resource());
+    LayerBuilder lb_core("l", SampleTime{}, std::pmr::get_default_resource());
     GlowParams core = GlowPresets::neon_blue(40.0f);
     core.core_strength = 0.95f;
     lb_core.glow(core);
     u64 hash_core = hash_effect_stack(lb_core.build().effects());
 
-    LayerBuilder lb_screen("l", std::pmr::get_default_resource());
+    LayerBuilder lb_screen("l", SampleTime{}, std::pmr::get_default_resource());
     GlowParams screen = GlowPresets::neon_blue(40.0f);
     screen.additive = false;
     lb_screen.glow(screen);
@@ -350,7 +350,7 @@ TEST_CASE("Invariants: dirty_rect_contains_glow_spread") {
     std::vector<std::optional<raster::BBox>> inputs = {input_bbox};
 
     // Glow with radius 30
-    LayerBuilder lb("l", std::pmr::get_default_resource());
+    LayerBuilder lb("l", SampleTime{}, std::pmr::get_default_resource());
     lb.glow(GlowParams{.radius = 30.0f, .intensity = 0.8f, .color = Color::white()});
     auto layer = lb.build();
 

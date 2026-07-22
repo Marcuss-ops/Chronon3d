@@ -16,7 +16,7 @@ chronon3d::AssetRegistry& fake_asset_registry() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Authoring/Layer + Text: ambient style(id) resolves via LayerBuilder::extension_context") {
-    LayerBuilder lb("ambient_style");
+    LayerBuilder lb("ambient_style", SampleTime{});
     StyleRegistry styles;
     TextStyle hero;
     hero.font_path = "fonts/Inter-Bold.ttf";
@@ -51,7 +51,7 @@ TEST_CASE("Authoring/Layer + Text: ambient style(id) resolves via LayerBuilder::
 }
 
 TEST_CASE("Authoring/Layer + Text: ambient motion(id) resolves via LayerBuilder::extension_context") {
-    LayerBuilder lb("ambient_motion");
+    LayerBuilder lb("ambient_motion", SampleTime{});
     MotionRegistry motions;
     TextAnimatorSpec preset;
     preset.id = "text.reveal.soft";
@@ -78,7 +78,7 @@ TEST_CASE("Authoring/Layer + Text: ambient motion(id) resolves via LayerBuilder:
 }
 
 TEST_CASE("Authoring/Layer + Text: ambient methods no-op when no ExtensionContext attached") {
-    LayerBuilder lb("no_ambient");
+    LayerBuilder lb("no_ambient", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("PLAIN");
@@ -95,7 +95,7 @@ TEST_CASE("Authoring/Layer + Text: ambient methods no-op when no ExtensionContex
 }
 
 TEST_CASE("Authoring/Layer + Text: ambient method no-op when ExtensionContext.style_registry is null") {
-    LayerBuilder lb("null_style");
+    LayerBuilder lb("null_style", SampleTime{});
     MotionRegistry motions;
     static chronon3d::CompositionRegistry comp;
     static chronon3d::graph::GraphNodeCatalog nodes;
@@ -120,7 +120,7 @@ TEST_CASE("Authoring/Layer + Text: ambient method no-op when ExtensionContext.st
 }
 
 TEST_CASE("Authoring/Layer + Text: dual-path coexist (explicit + ambient on the same handle)") {
-    LayerBuilder lb("dual");
+    LayerBuilder lb("dual", SampleTime{});
     StyleRegistry styles;
     TextStyle ambient_style;
     ambient_style.font_path = "ambient.ttf";
@@ -154,7 +154,7 @@ TEST_CASE("Authoring/Layer + Text: dual-path coexist (explicit + ambient on the 
 }
 
 TEST_CASE("Authoring/Layer + Text: ambient resolves unknown id to no-op") {
-    LayerBuilder lb("unknown_id");
+    LayerBuilder lb("unknown_id", SampleTime{});
     StyleRegistry styles;
     MotionRegistry motions;
     static chronon3d::CompositionRegistry comp;

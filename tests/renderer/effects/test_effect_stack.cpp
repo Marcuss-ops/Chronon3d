@@ -54,7 +54,7 @@ TEST_CASE("EffectStack: EffectStack is a vector of instances") {
 // LayerBuilder API builds the stack
 // ---------------------------------------------------------------------------
 TEST_CASE("EffectStack: blur() adds BlurParams to stack") {
-    LayerBuilder lb("test", std::pmr::get_default_resource());
+    LayerBuilder lb("test", SampleTime{}, std::pmr::get_default_resource());
     lb.blur(8.0f);
     auto layer = lb.build();
     REQUIRE(layer.effects().size() == 1);
@@ -63,7 +63,7 @@ TEST_CASE("EffectStack: blur() adds BlurParams to stack") {
 }
 
 TEST_CASE("EffectStack: tint() adds TintParams to stack") {
-    LayerBuilder lb("test", std::pmr::get_default_resource());
+    LayerBuilder lb("test", SampleTime{}, std::pmr::get_default_resource());
     lb.tint(Color::red(), 0.5f);
     auto layer = lb.build();
     REQUIRE(layer.effects().size() == 1);
@@ -71,7 +71,7 @@ TEST_CASE("EffectStack: tint() adds TintParams to stack") {
 }
 
 TEST_CASE("EffectStack: chained effects preserve order") {
-    LayerBuilder lb("test", std::pmr::get_default_resource());
+    LayerBuilder lb("test", SampleTime{}, std::pmr::get_default_resource());
     lb.blur(4.0f).tint(Color::blue(), 1.0f).brightness(0.1f);
     auto layer = lb.build();
     REQUIRE(layer.effects().size() == 3);
@@ -81,7 +81,7 @@ TEST_CASE("EffectStack: chained effects preserve order") {
 }
 
 TEST_CASE("EffectStack: drop_shadow and glow added to stack") {
-    LayerBuilder lb("test", std::pmr::get_default_resource());
+    LayerBuilder lb("test", SampleTime{}, std::pmr::get_default_resource());
     lb.drop_shadow({4,4}, Color::black(), 8.0f)
       .glow(GlowParams{.radius = 12.0f, .intensity = 0.9f, .color = Color::white()});
     auto layer = lb.build();
@@ -91,7 +91,7 @@ TEST_CASE("EffectStack: drop_shadow and glow added to stack") {
 }
 
 TEST_CASE("EffectStack: glow preset overload stores full GlowParams") {
-    LayerBuilder lb("test", std::pmr::get_default_resource());
+    LayerBuilder lb("test", SampleTime{}, std::pmr::get_default_resource());
     lb.glow(GlowPresets::neon_blue(55.0f));
 
     auto layer = lb.build();
@@ -106,7 +106,7 @@ TEST_CASE("EffectStack: glow preset overload stores full GlowParams") {
 }
 
 TEST_CASE("EffectStack: fake_3d_wave adds Fake3DWaveParams to stack") {
-    LayerBuilder lb("test", std::pmr::get_default_resource());
+    LayerBuilder lb("test", SampleTime{}, std::pmr::get_default_resource());
     lb.fake_3d_wave(Fake3DWaveParams{
         .amplitude_px = 12.0f,
         .frequency = 1.5f,

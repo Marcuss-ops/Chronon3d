@@ -6,7 +6,7 @@ using namespace chronon3d;
 
 
 TEST_CASE("LayerBuilder::slide_in creates animated keyframes") {
-    LayerBuilder builder("test", Frame{0});
+    LayerBuilder builder("test", Frame{0}, FrameRate{30, 1});
     builder.position({100.0f, 50.0f, 0.0f})
            .opacity(1.0f)
            .slide_in(Vec3{-200.0f, 0.0f, 0.0f}, Frame{45});
@@ -28,7 +28,7 @@ TEST_CASE("LayerBuilder::slide_in creates animated keyframes") {
 }
 
 TEST_CASE("LayerBuilder::soft_pop creates scale + opacity keyframes") {
-    LayerBuilder builder("test", Frame{0});
+    LayerBuilder builder("test", Frame{0}, FrameRate{30, 1});
     builder.scale({1.0f, 1.0f, 1.0f})
            .opacity(1.0f)
            .soft_pop(Frame{30});
@@ -47,7 +47,7 @@ TEST_CASE("LayerBuilder::soft_pop creates scale + opacity keyframes") {
 }
 
 TEST_CASE("LayerBuilder::float_idle creates looping position keyframes") {
-    LayerBuilder builder("test", Frame{0});
+    LayerBuilder builder("test", Frame{0}, FrameRate{30, 1});
     builder.position({0.0f, 0.0f, 0.0f})
            .float_idle(12.0f, Frame{120});
 
@@ -69,7 +69,7 @@ TEST_CASE("LayerBuilder::float_idle creates looping position keyframes") {
 }
 
 TEST_CASE("LayerBuilder::depth_reveal enables 3D and animates Z") {
-    LayerBuilder builder("test", Frame{0});
+    LayerBuilder builder("test", Frame{0}, FrameRate{30, 1});
     builder.position({0.0f, 0.0f, 0.0f})
            .opacity(1.0f)
            .depth_reveal(260.0f, Frame{45});
@@ -86,7 +86,7 @@ TEST_CASE("LayerBuilder::depth_reveal enables 3D and animates Z") {
 }
 
 TEST_CASE("LayerBuilder::card_flip_2_5d enables 3D and rotates Y") {
-    LayerBuilder builder("test", Frame{0});
+    LayerBuilder builder("test", Frame{0}, FrameRate{30, 1});
     builder.rotate({0.0f, 0.0f, 0.0f})
            .opacity(1.0f)
            .card_flip_2_5d(Frame{60});
@@ -106,7 +106,7 @@ TEST_CASE("LayerBuilder::card_flip_2_5d enables 3D and rotates Y") {
 }
 
 TEST_CASE("LayerBuilder::settle creates overshoot keyframes") {
-    LayerBuilder builder("test", Frame{0});
+    LayerBuilder builder("test", Frame{0}, FrameRate{30, 1});
     builder.scale({1.0f, 1.0f, 1.0f})
            .position({0.0f, 0.0f, 0.0f})
            .settle(0.08f, Frame{20});
