@@ -222,17 +222,15 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         Scene scene;
         {
             CHRONON_ZONE_C("evaluate_composition", trace_category::kTimeline);
-            const FrameContext ctx{
-            .sample_time = SampleTime::from_frame(static_cast<double>(frame), comp.frame_rate()),
-            .frame = frame,
+            const FrameContext ctx = make_frame_context({
+            .global_time = SampleTime::from_frame(static_cast<double>(frame), comp.frame_rate()),
             .duration = comp.duration(),
-            .frame_rate = comp.frame_rate(),
             .width = comp.width(),
             .height = comp.height(),
             .assets_root = comp.assets_root(),
             .font_engine = frame_runtime ? frame_runtime->font_engine() : nullptr,
             .runtime = frame_runtime,
-        };
+        });
         scene = comp.evaluate(ctx);
         }
         evaluate_ms = profiling::duration_ms(t_eval0, profiling::now());
@@ -282,19 +280,17 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                 const float t = sample_times[s];
                 const float w = samples.normalized_weights[s];
                 actual_weight_sum += w;
-                const FrameContext sub_ctx{
-                    .sample_time = SampleTime::from_frame(
+                const FrameContext sub_ctx = make_frame_context({
+                    .global_time = SampleTime::from_frame(
                         static_cast<double>(frame) + static_cast<double>(t),
                         comp.frame_rate()),
-                    .frame = frame,
                     .duration = comp.duration(),
-                    .frame_rate = comp.frame_rate(),
                     .width = comp.width(),
                     .height = comp.height(),
                     .assets_root = comp.assets_root(),
                     .font_engine = frame_runtime ? frame_runtime->font_engine() : nullptr,
                     .runtime = frame_runtime,
-                };
+                });
                 Scene sub = comp.evaluate(sub_ctx);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
 

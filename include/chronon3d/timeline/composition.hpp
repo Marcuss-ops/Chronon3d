@@ -244,19 +244,16 @@ private:
     [[nodiscard]] Scene evaluate_double(SampleTime sample_time,
                                         std::pmr::memory_resource* res,
                                         FontEngine* engine = nullptr) const {
-        const Frame integral = sample_time.integral_frame();
-        FrameContext ctx{
-            .sample_time = sample_time,
-            .frame       = integral,
+        FrameContext ctx = make_frame_context({
+            .global_time = sample_time,
             .duration    = m_spec.duration,
-            .frame_rate  = sample_time.frame_rate,
             .width       = m_spec.width,
             .height      = m_spec.height,
             .assets_root = m_spec.assets_root,
             .resource    = res,
-            // P1-16: font_engine field removed; engine is ignored on the
-            // legacy path. The canonical accessor is ctx.runtime->font_engine().
-        };
+            // P1-16: engine is ignored on the legacy path. The canonical
+            // accessor is ctx.runtime->font_engine().
+        });
         // No longer calling AssetRegistry::mount() globally — the assets root
         // is threaded through FrameContext → Scene → RenderGraphContext →
         // thread-local guard, so concurrent render jobs don't interfere.

@@ -191,16 +191,14 @@ NodeExecResult PrecompNode::execute_with_scope(
     // FontEngine via `ctx.runtime->font_engine()` when `ctx.runtime` is wired
     // (the standard rendering path).  Hand-built FrameContext (e.g. in tests
     // without a runtime) must read the engine through their own fallback path.
-    const FrameContext nested_frame_ctx{
-        .sample_time = SampleTime::from_frame(static_cast<double>(nested_frame), comp.frame_rate()),
-        .frame = nested_frame,
+    const FrameContext nested_frame_ctx = make_frame_context({
+        .global_time = SampleTime::from_frame(static_cast<double>(nested_frame), comp.frame_rate()),
         .duration = comp.duration(),
-        .frame_rate = comp.frame_rate(),
         .width = comp.width(),
         .height = comp.height(),
         .assets_root = comp.assets_root(),
         .resource = std::pmr::get_default_resource(),
-    };
+    });
     const Scene nested_scene = comp.evaluate(nested_frame_ctx);
 
     // ── 4. Compute SceneStructureKey for cache lookup ────────────────────
