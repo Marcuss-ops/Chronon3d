@@ -54,7 +54,7 @@ TEST_CASE("Dirty Rectangles V1 Pixel-Perfect Equivalence & Counters Test") {
     };
 
     Composition comp(spec, [](const FrameContext& ctx) {
-        SceneBuilder builder(ctx.resource);
+        SceneBuilder builder(ctx);
         
         // Background
         builder.rect("bg", {
@@ -137,7 +137,7 @@ TEST_CASE("Dirty rectangles stay stable for geometric backgrounds across frames"
     };
 
     Composition comp(spec, [](const FrameContext& ctx) {
-        SceneBuilder builder(ctx.resource);
+        SceneBuilder builder(ctx);
 
         builder.rect("bg", {
             .size = {192, 128},
