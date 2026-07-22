@@ -20,6 +20,17 @@ namespace chronon3d::graph {
     return static_cast<uint64_t>(std::llround(std::max(0.0, ms)));
 }
 
+/// Shared built-in pipeline catalogs.  Initialized once and reused across
+/// graph builds.  Populates graph_nodes + effects + layer transitions.
+[[nodiscard]] static const PipelineCatalogs& builtin_pipeline_catalogs() {
+    static const PipelineCatalogs s_catalogs = []() {
+        PipelineCatalogs c;
+        init_graph_pipeline_catalogs(c);
+        return c;
+    }();
+    return s_catalogs;
+}
+
 /// Build a full render graph from scratch (when cached graph not available).
 [[nodiscard]] static CompiledFrameGraph build_fresh_graph(
     RenderGraphContext& ctx,
@@ -38,17 +49,11 @@ namespace chronon3d::graph {
     pre_resolved.layers = resolved.layers;
     pre_resolved.camera = resolved.camera;
 
-    // Build pipeline catalogs once (function-local static — thread-safe
-    // in C++11).  Populates graph_nodes + effects only (no compositions).
-    static PipelineCatalogs s_catalogs = []() {
-        PipelineCatalogs c;
-        init_graph_pipeline_catalogs(c);
-        return c;
-    }();
-
-    // Wire catalog pointers + typed PrecompBuilderService into context
-    // (TICKET-010 — replaces wire_precomp_build_factory std::function).
-    wire_catalog_pointers(mutable_ctx, s_catalogs);
+    // The caller is responsible for wiring catalog pointers into the
+    // original context before build_or_reuse_graph branches.  We still
+    // wire the mutable copy used by the builder so node factories see
+    // the same service pointers during graph construction.
+    wire_catalog_pointers(mutable_ctx, builtin_pipeline_catalogs());
 
     RenderGraph graph = pipeline.build_with_resolved(scene, mutable_ctx, pre_resolved);
 
@@ -121,6 +126,15 @@ GraphBuildResult build_or_reuse_graph(
     auto* graph_cache = ctx.services.compiled_graph_cache;
 
     GraphBuildResult result;
+
+    // Wire catalog pointers (graph nodes, effects, layer transitions,
+    // typed precomp builder, etc.) into the *real* context before any
+    // branch is taken.  Previously this only happened inside
+    // build_fresh_graph on a local copy of the context, so cached graphs
+    // and the original context used by the executor saw a null catalog
+    // pointer (e.g. LayerTransitionCatalog).
+    wire_catalog_pointers(ctx, builtin_pipeline_catalogs());
+
     result.can_reuse = scene_structure_unchanged &&
         graph_cache != nullptr &&
         graph_cache->has(width, height);

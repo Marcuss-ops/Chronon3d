@@ -20,7 +20,8 @@ namespace {
 Composition make_transition_comp(
     LayerTransitionSpec trans_in,
     LayerTransitionSpec trans_out,
-    Frame duration = 30
+    Frame duration = 30,
+    Frame layer_duration = Frame{-1}
 ) {
     return composition(CompositionSpec{
         .name = "TransitionTest",
@@ -36,12 +37,15 @@ Composition make_transition_comp(
         });
 
         s.layer("trans_layer", [=](LayerBuilder& l) {
+            if (layer_duration >= Frame{0}) {
+                l.duration(layer_duration);
+            }
             l.transition_in(trans_in);
             l.transition_out(trans_out);
             l.rect("red_rect", {
                 .size = {80, 80},
                 .color = Color::red(),
-                .pos = {0, 0, 0}
+                .pos = {40, 40, 0}
             });
         });
 
@@ -125,9 +129,10 @@ TEST_CASE("Transition direction and different types execute successfully") {
 TEST_CASE("Transition in and out coexist on the same layer") {
     auto renderer = test::make_renderer();
 
+    // 2-second layer: crossfade in for 0.5s, crossfade out for the last 0.5s.
     LayerTransitionSpec trans_in{
         .transition_id = "crossfade",
-        .duration = 0.5,  // 15 frames at 30 fps
+        .duration = 0.5,
         .delay = 0.0,
         .easing = Easing::Linear
     };
@@ -138,7 +143,8 @@ TEST_CASE("Transition in and out coexist on the same layer") {
         .easing = Easing::Linear
     };
 
-    auto comp = make_transition_comp(trans_in, trans_out, 60);
+    // layer_duration must be finite for the out transition to ever start.
+    auto comp = make_transition_comp(trans_in, trans_out, /*duration=*/Frame{60}, /*layer_duration=*/Frame{60});
 
     // Layer fully visible in the middle (after in, before out).
     auto fb_mid = renderer.render(comp, 30);
@@ -171,22 +177,27 @@ TEST_CASE("Unknown transition id fails loudly") {
 }
 
 TEST_CASE("Typed parameters affect transition output") {
-    auto renderer = test::make_renderer();
+    // Use separate renderers so the composition cache cannot accidentally
+    // reuse the same program for the two compositions.
+    auto renderer_a = test::make_renderer();
+    auto renderer_b = test::make_renderer();
 
-    LayerTransitionSpec trans_short = spec("slide", 1.0f);
-    trans_short.parameters = SlideParams{.distance = 0.5f};
-    LayerTransitionSpec trans_long = spec("slide", 1.0f);
-    trans_long.parameters = SlideParams{.distance = 2.0f};
+    // smooth_wipe's feather changes the soft edge width, producing a
+    // visibly different mask even on a uniform background.
+    LayerTransitionSpec spec_a = spec("smooth_wipe", 1.0f);
+    spec_a.parameters = SmoothWipeParams{.feather = 0.05f};
+    LayerTransitionSpec spec_b = spec("smooth_wipe", 1.0f);
+    spec_b.parameters = SmoothWipeParams{.feather = 0.50f};
 
-    auto comp_short = make_transition_comp(trans_short, {}, 60);
-    auto comp_long = make_transition_comp(trans_long, {}, 60);
+    auto comp_a = make_transition_comp(spec_a, {}, Frame{60});
+    auto comp_b = make_transition_comp(spec_b, {}, Frame{60});
 
-    auto fb_short = renderer.render(comp_short, 15);
-    auto fb_long = renderer.render(comp_long, 15);
+    auto fb_a = renderer_a.render(comp_a, 15);
+    auto fb_b = renderer_b.render(comp_b, 15);
 
-    REQUIRE(fb_short != nullptr);
-    REQUIRE(fb_long != nullptr);
-    CHECK(framebuffer_hash(*fb_short) != framebuffer_hash(*fb_long));
+    REQUIRE(fb_a != nullptr);
+    REQUIRE(fb_b != nullptr);
+    CHECK(framebuffer_hash(*fb_a) != framebuffer_hash(*fb_b));
 }
 
 TEST_CASE("Cache key includes typed parameters") {
