@@ -148,6 +148,26 @@ Lo script di rigenerazione **NON** è incluso in questo repository per policy
 | `missing_glyphs` | 0 | inline helper `count_missing_glyphs` |
 | `cut_text` | false | inline helper `detect_cut_text` (alpha-bbox touches framebuffer edge) |
 
+## Manifest delle specifiche
+
+Il file [`manifest.json`](manifest.json) descrive in modo dichiarativo ogni caso
+riferimento: testo, font, dimensione, tracking, line spacing, risoluzione,
+placement ed effetto.
+
+`chronon3d_capcut_parity_tests` legge il manifest, genera automaticamente l'output
+Chronon3D in `current/` e lo confronta con il PNG blessed in `reference/`.
+
+Per rigenerare i PNG in `current/` (utile per revisione prima del blessing):
+
+```bash
+CHRONON3D_CAPCUT_RENDER_CURRENT=1 \
+  ctest --test-dir build/chronon/linux-content-dev \
+        -R chronon3d_capcut_parity_tests --output-on-failure
+```
+
+I file in `current/` sono gitignored e NON devono mai essere committati come
+reference blessed.
+
 ## Forward-points
 
 Vedi [TICKET-CAPCUT-REFERENCE-CORPUS §Forward-points](../../docs/tickets/TICKET-CAPCUT-REFERENCE-CORPUS.md#forward-points).
