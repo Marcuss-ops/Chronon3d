@@ -63,9 +63,16 @@ namespace chronon3d::camera_v1 {
 enum class CameraTransitionKind : std::uint8_t {
     Cut          = 0,  // instant switch (no interpolation)
     SmoothBlend  = 1,  // lerp position + slerp rotation over transition frames
-    Push         = 2,  // push camera directionally during transition
-    WhipPan      = 3,  // fast pan/swish between shots
-    FocusHandoff = 4,  // rack focus from one shot's focus to the next
+
+    // Deprecated legacy names — kept for source compatibility.
+    // Prefer EaseOutBlend, SmoothRotationBlend, and FocusDistanceBlend.
+    Push         = 2,  // deprecated, use EaseOutBlend
+    WhipPan      = 3,  // deprecated, use SmoothRotationBlend
+    FocusHandoff = 4,  // deprecated, use FocusDistanceBlend
+
+    EaseOutBlend        = 5,  // ease-out blend of position/rotation/optics
+    SmoothRotationBlend = 6,  // smoothstep-rotated blend (formerly WhipPan)
+    FocusDistanceBlend  = 7,  // blend with focus-distance emphasis
 };
 
 // =========================================================================
@@ -134,36 +141,27 @@ private:
 };
 
 // =========================================================================
-// ShotTimelineSession — per-shot persistent constraint state.
-// Avoids resetting stateful constraints (DampedFollow, banking) each frame
-// during a transition overlap.
+// ShotTimelineSession — owns the single source of truth for primed
+// CameraSession instances used by ShotTimelineResolver.
 //
-// P3-H: stores `std::shared_ptr<CameraSession>` per shot index instead
-// of `CameraSession` by value, so the full `CameraSession` type is not
-// required in this header (it lives in `<chronon3d/internal/...>`).
+// TRN-05: the legacy per-shot `std::unordered_map<int,
+// std::shared_ptr<CameraSession>>` has been removed; the canonical
+// CameraSessionCache is now the only persistent state holder.  This
+// removes the duplicated session state between the resolver and its
+// callers (the resolver previously kept its own `mutable
+// CameraSessionCache cache_` while also receiving an unused
+// ShotTimelineSession reference).
 //
-// PERFORMANCE IMPACT (P3-H code-review flag): the switch from
-// `std::unordered_map<int, CameraSession>` to
-// `std::unordered_map<int, std::shared_ptr<CameraSession>>` adds ONE
-// heap allocation per shot index on first access (the
-// `session_for(int)` helper creates the session on demand).  After the
-// first access, the slot is reused — no per-frame allocation.  Copy
-// and move semantics of `ShotTimelineSession` are no longer trivial
-// (shared_ptr refcount), but the session is owned by the per-job
-// `CameraRenderState::timeline_session` (NOT copied per frame), so the
-// per-frame impact is zero.  Documented here for the future refactor
-// that might consider `std::unique_ptr<CameraSession>` (lighter
-// per-slot) if the shared_ptr refcount overhead becomes a hot path.
+// The cache is movable but not copyable, matching the per-job ownership
+// model (DOC 03 §5): state lives with the render job that creates the
+// ShotTimelineSession, not inside the resolver.
 // =========================================================================
 struct ShotTimelineSession {
-    // Reuse the same sessions across frames keyed by shot index.
-    std::unordered_map<int, std::shared_ptr<CameraSession>> shot_sessions;
-    std::shared_ptr<CameraSession>& session_for(int shot_idx) {
-        auto& slot = shot_sessions[shot_idx];
-        if (!slot) slot = std::make_shared<CameraSession>();
-        return slot;
-    }
-    void reset() { shot_sessions.clear(); }
+    /// Canonical per-shot session cache.  The resolver reads and writes
+    /// this cache during evaluate(); the caller owns the state.
+    CameraSessionCache cache;
+
+    void reset() { cache.reset_all(); }
 };
 
 // =========================================================================
@@ -213,17 +211,6 @@ private:
     std::shared_ptr<CameraTransition> get_transition(CameraTransitionKind kind) const;
 
     std::map<CameraTransitionKind, std::shared_ptr<CameraTransition>> transitions_;
-
-    // P3-H + TICKET-CAMERA-FULL-LINUX sub-ticket C — random-access parity.
-    // The cache is the SOURCE OF TRUTH for primed CameraSession instances
-    // keyed by (program, shot_idx).  The mutable keyword lets the `const
-    // evaluate()` thread the cache through without changing the public
-    // const contract (same pattern as CameraProgram::framing_solver_ at
-    // include/chronon3d/scene/camera/camera_v1/camera_program.hpp — adds
-    // ONE cache per resolver = ONE cache per worker = WP-3 isolation per
-    // `RenderSession`/`SceneHasher`).  The cache is BY VALUE; no
-    // singleton / global; honors the per-job ownership rule (DOC 03 §5).
-    mutable CameraSessionCache cache_;
 };
 
 // =========================================================================

@@ -124,9 +124,10 @@ struct CameraRenderState {
     /// `CameraSessionCache` via `acquire(program_id, shot_idx, frame)`.
     camera_v1::CameraSession          program_session{};
 
-    /// Per-shot persistent constraint state for `ShotTimelineResolver::evaluate(frame, tls, fps)`.
-    /// Avoids resetting stateful constraints (DampedFollow + banking) at each
-    /// shot boundary.
+    /// Per-timeline session cache for `ShotTimelineResolver::evaluate(frame, tls, fps)`.
+    /// Owns the single source of truth for primed CameraSession instances
+    /// across shot boundaries (TRN-05). State persists for the render-job
+    /// lifetime so DampedFollow EMA + last_valid_camera survive transitions.
     camera_v1::ShotTimelineSession    timeline_session{};
 
     /// Per-framing-solver lookahead velocity state for

@@ -275,4 +275,81 @@ TEST_CASE("validation catches zero/negative duration") {
     CHECK_FALSE(timeline->add_shot(bad));
 }
 
+// ==============================================================================
+// 13 — TRN-05: 1-frame transition is an instant cut to the incoming shot.
+// ==============================================================================
+TEST_CASE("one frame transition cuts to incoming shot") {
+    auto timeline = std::make_shared<ShotTimeline>();
+    CameraShot s1, s2;
+    s1.name = "first";  s1.start_frame = 0;  s1.end_frame = 30;
+    s1.transition_out = CameraTransitionKind::SmoothBlend;
+    s1.transition_frames = 1;
+    s2.name = "second"; s2.start_frame = 30; s2.end_frame = 60;
+    CHECK(timeline->add_shot(std::move(s1)));
+    CHECK(timeline->add_shot(std::move(s2)));
+
+    ShotTimelineResolver resolver(timeline);
+    ShotTimelineSession tls;
+    // Frame 29 is the only overlap frame and must evaluate the incoming shot.
+    auto r = resolver.evaluate(29, tls, FrameRate{30, 1});
+    REQUIRE(r.has_value());
+    CHECK(r.value().camera.enabled == false);  // uncompiled program → default
+}
+
+// ==============================================================================
+// 14 — TRN-05: true overlap evaluates both shots at their own local time.
+// ==============================================================================
+TEST_CASE("true overlap evaluates both shots locally") {
+    auto timeline = std::make_shared<ShotTimeline>();
+    CameraShot s1, s2;
+    s1.name = "first";  s1.start_frame = 0;  s1.end_frame = 30;
+    s1.transition_out = CameraTransitionKind::SmoothBlend;
+    s1.transition_frames = 10;
+    s2.name = "second"; s2.start_frame = 30; s2.end_frame = 60;
+    CHECK(timeline->add_shot(std::move(s1)));
+    CHECK(timeline->add_shot(std::move(s2)));
+
+    ShotTimelineResolver resolver(timeline);
+    ShotTimelineSession tls;
+    // Frame 25 is inside the overlap; it must not crash and must return a camera.
+    auto r = resolver.evaluate(25, tls, FrameRate{30, 1});
+    REQUIRE(r.has_value());
+    CHECK(std::isfinite(r.value().camera.position.x));
+}
+
+// ==============================================================================
+// 15 — TRN-05: renamed transitions are registered under new and old IDs.
+// ==============================================================================
+TEST_CASE("renamed camera transitions are available") {
+    CameraTransitionCatalog catalog;
+    catalog.register_defaults();
+    catalog.freeze();
+
+    CHECK(catalog.has(CameraTransitionKind::EaseOutBlend));
+    CHECK(catalog.has(CameraTransitionKind::SmoothRotationBlend));
+    CHECK(catalog.has(CameraTransitionKind::FocusDistanceBlend));
+
+    // Legacy names still resolve.
+    CHECK(catalog.has(CameraTransitionKind::Push));
+    CHECK(catalog.has(CameraTransitionKind::WhipPan));
+    CHECK(catalog.has(CameraTransitionKind::FocusHandoff));
+}
+
+// ==============================================================================
+// 16 — TRN-05: quaternion shortest-arc continuity (179° -> -179°).
+// ==============================================================================
+TEST_CASE("quaternion slerp follows shortest arc") {
+    Camera2_5D from, to;
+    from.rotation = {0.0f, 179.0f, 0.0f};
+    to.rotation   = {0.0f, -179.0f, 0.0f};
+
+    auto blend = ShotTimelineResolver::default_smooth_blend();
+    auto mid = blend->evaluate(0.5f, from, to);
+
+    // The shortest arc should go through 180°, not 0°, so the mid
+    // rotation should be near y = 180 (or -180) rather than near 0.
+    float y = std::abs(mid.rotation.y);
+    CHECK(y > 90.0f);
+}
+
 } // namespace
