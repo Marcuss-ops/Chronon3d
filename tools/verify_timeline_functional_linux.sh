@@ -289,7 +289,7 @@ else
             ["reverse"]="Timeline.Reverse"
             ["nested_sequence"]="Timeline.NestedSequence"
             ["overlap"]="Timeline.Overlap"
-            ["transition"]="Timeline.Transition"
+            ["transition"]="Timeline.TrimBeforeRemap"
         )
         SCENARIOS_PASS=0
         SCENARIOS_FAIL=0
@@ -336,8 +336,7 @@ if [ -f "tests/certification/test_timeline_functional_v1.cpp" ]; then
         "Timeline.Freeze"
         "Timeline.Reverse"
         "Timeline.NestedSequence"
-        "Timeline.Overlap"
-        "Timeline.Transition"
+        "Timeline.Overlap"            "Timeline.TrimBeforeRemap"
     )
     KEY_FOUND=0
     KEY_MISSING=0
