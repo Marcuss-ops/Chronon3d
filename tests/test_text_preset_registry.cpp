@@ -1357,7 +1357,7 @@ TEST_CASE("TextPresetRegistry: AGENT-2 resolver-driven evolution tier (Sub-cases
             const auto& preset = reg.get(pid);
             chronon3d::SceneBuilder sb(1280, 720);
             chronon3d::LayerBuilder lb(
-                std::string{"agent2_invariant_"} + pid, chronon3d::Frame{0});
+                std::string{"agent2_invariant_"} + pid, chronon3d::Frame{0}, chronon3d::FrameRate{30, 1});
             CHECK_NOTHROW(preset.builder(sb, lb, make_test_text_spec()));
             lb.screen_dimensions(1280.0f, 720.0f);
             chronon3d::Layer built = lb.build();

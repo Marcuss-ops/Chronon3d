@@ -816,6 +816,114 @@ std::shared_ptr<TextRunShape> materialize_text_run_shape(
     return shape;
 }
 
+std::shared_ptr<TextRunShape> materialize_prepared_text(
+    const PreparedText& prepared,
+    FontEngine* engine,
+    SampleTime sample_time,
+    std::shared_ptr<const AnimatedTextDocument> animated_doc
+) {
+    using namespace text_run_materialize_detail;
+
+    const std::string& text = prepared.document.utf8;
+
+    // Early-out for empty / whitespace-only input (mirror the legacy path).
+    const bool only_whitespace =
+        text.empty() ||
+        std::all_of(text.begin(), text.end(),
+            [](unsigned char c) { return std::isspace(c); });
+    if (only_whitespace) {
+        const std::string sample =
+            text.size() > 16 ? text.substr(0, 16) + "..." : text;
+        spdlog::warn(
+            "materialize_prepared_text: text is empty or whitespace-only "
+            "(len={}, sample='{}') — skipping compile_text_layout",
+            text.size(), sample);
+        return nullptr;
+    }
+
+    FontEngine* use_engine = resolve_engine(engine);
+
+    // Default font fallback to preserve the legacy convenience behaviour.
+    PreparedText prepared_with_font = prepared;
+    if (prepared_with_font.style.font.font_path.empty() &&
+        prepared_with_font.style.font.font_family.empty()) {
+        prepared_with_font.style.font.font_path = "assets/fonts/Inter-Bold.ttf";
+    }
+
+    // Static cache shared across all prepared-text materializations.
+    static TextLayoutCache s_materializer_cache;
+    TextCompileServices services{
+        use_engine,
+        prepared_with_font.animation.cache_layout ? &s_materializer_cache : nullptr,
+    };
+
+    auto compiled = compile_text_layout(prepared_with_font, services);
+    if (!compiled) {
+        spdlog::warn(
+            "materialize_prepared_text: compile_text_layout failed — "
+            "kind={} msg={}",
+            static_cast<int>(compiled.error().kind),
+            compiled.error().message);
+        return nullptr;
+    }
+
+    auto text_layout = compiled.value();
+
+    // Defense-in-depth: zero glyphs for non-empty text is a failure.
+    if (text_layout->placed.glyphs.empty() && !text.empty()) {
+        spdlog::warn(
+            "materialize_prepared_text: merged PlacedGlyphRun has zero glyphs "
+            "for non-empty input");
+        return nullptr;
+    }
+
+    auto glyph_states = evaluate_animator_stack(
+        prepared_with_font.animation.animators,
+        text_layout->placed,
+        text,
+        sample_time);
+
+    auto shape = std::make_shared<TextRunShape>();
+    shape->layout   = text_layout;
+    shape->glyphs   = std::move(glyph_states);
+    shape->paint    = prepared_with_font.style.paint;
+    shape->material = prepared_with_font.style.material;
+    shape->shadows  = prepared_with_font.style.shadows;
+    shape->animators = prepared_with_font.animation.animators;
+    shape->animated_doc = animated_doc;
+    shape->engine      = use_engine;
+
+    TextLayoutSpec layout_spec;
+    layout_spec.box            = prepared_with_font.frame.size;
+    layout_spec.anchor         = prepared_with_font.frame.anchor;
+    layout_spec.align          = prepared_with_font.frame.align;
+    layout_spec.vertical_align = prepared_with_font.frame.vertical_align;
+    layout_spec.wrap           = prepared_with_font.frame.wrap;
+    layout_spec.overflow       = prepared_with_font.frame.overflow;
+    layout_spec.centering_mode = prepared_with_font.frame.centering_mode;
+    layout_spec.line_height    = prepared_with_font.frame.line_height;
+    layout_spec.tracking       = prepared_with_font.frame.tracking;
+    layout_spec.auto_fit       = prepared_with_font.frame.auto_fit;
+    layout_spec.min_font_size  = prepared_with_font.frame.min_font_size;
+    layout_spec.max_font_size  = prepared_with_font.frame.max_font_size;
+    layout_spec.max_lines      = prepared_with_font.frame.max_lines;
+    layout_spec.ellipsis       = prepared_with_font.frame.ellipsis;
+    layout_spec.features       = prepared_with_font.shaping.open_type_features;
+    shape->layout_spec = layout_spec;
+    shape->placement_kind = prepared_with_font.frame.placement.kind;
+
+    if (animated_doc && use_engine) {
+        const Frame integral = sample_time.integral_frame();
+        const ActiveTextState state = animated_doc->sample_at(integral);
+        if (state.active != nullptr) {
+            (void)apply_active_state_to_text_run_shape(
+                *shape, state, *use_engine, layout_spec);
+        }
+    }
+
+    return shape;
+}
+
 #endif // CHRONON3D_USE_BLEND2D
 
 } // namespace chronon3d

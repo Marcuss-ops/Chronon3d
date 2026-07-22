@@ -13,7 +13,7 @@
 // test_text_definition_round_trip.cpp — TICKET-SIMPLICITY-PIPELINE-PARITY
 //
 // EMPIRICAL VERIFICATION: TextSpec → from_text_spec() → TextDefinition →
-// from_text_definition() → TextSpec' is lossless for all 22 documented
+// chronon3d::compat::from_text_definition() → TextSpec' is lossless for all 22 documented
 // fields.  If this round-trip is identity, then LayerBuilder::text(name,
 // TextDefinition) and LayerBuilder::text(name, TextSpec) produce identical
 // TextRunSpec input to materialize_text_run_shape(), guaranteeing
@@ -24,7 +24,7 @@
 //      every field.
 //   2. Round-trip through the adapter chain: TextSpec → TextDefinition → TextSpec'
 //   3. Compare all 22 fields of the original and round-tripped TextSpec.
-//   4. Verify that from_text_definition(from_text_spec(spec)) == spec.
+//   4. Verify that chronon3d::compat::from_text_definition(from_text_spec(spec)) == spec.
 //
 // This test does NOT require a render backend — it operates purely on the
 // data structures.  It is designed to run as part of the architecture test
@@ -32,6 +32,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/text/text_definition.hpp>
+#include <chronon3d/compat/text_spec_adapter.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/math/color.hpp>
 
@@ -103,7 +104,7 @@ namespace test {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Round-trip: TextSpec → from_text_spec() → TextDefinition →
-//                       from_text_definition() → TextSpec'
+//                       chronon3d::compat::from_text_definition() → TextSpec'
 //
 // If TextSpec' == TextSpec for all 22 fields, then render/video/CLI output
 // is pixel-identical (0px difference).  This is because both the direct
@@ -119,7 +120,7 @@ TEST_CASE("TICKET-SIMPLICITY-PIPELINE-PARITY: TextSpec ↔ TextDefinition round-
     const TextDefinition def = from_text_spec(original);
 
     // Step 2: TextDefinition → TextSpec (adapter reverse)
-    const TextSpec roundtripped = from_text_definition(def);
+    const TextSpec roundtripped = chronon3d::compat::from_text_definition(def);
 
     // ═════════════════════════════════════════════════════════════════════
     // Field-by-field comparison — 22 fields total
@@ -243,7 +244,7 @@ TEST_CASE("TICKET-SIMPLICITY-PIPELINE-PARITY: TextSpec ↔ TextDefinition round-
 // Pipeline convergence test: both adapter paths produce identical output
 //
 // LayerBuilder::text(name, TextSpec)       → text_run(name, run).commit()
-// LayerBuilder::text(name, TextDefinition) → from_text_definition() → TextSpec
+// LayerBuilder::text(name, TextDefinition) → chronon3d::compat::from_text_definition() → TextSpec
 //                                            → text(name, TextSpec)
 //                                            → text_run(name, run).commit()
 //
@@ -257,14 +258,14 @@ TEST_CASE("TICKET-SIMPLICITY-PIPELINE-PARITY: adapter paths converge on identica
 
     // Path 1 (direct): TextSpec flows through the builder as-is
     // Path 2 (adapter): TextSpec → from_text_spec() → TextDefinition →
-    //                   from_text_definition() → TextSpec'
+    //                   chronon3d::compat::from_text_definition() → TextSpec'
     //
     // Both paths produce a TextSpec passed to text_run().commit().
     // If TextSpec' == TextSpec, the input to materialize_text_run_shape()
     // is identical → pixel-identical render output.
 
     const TextDefinition def = from_text_spec(original);
-    const TextSpec adapter_path = from_text_definition(def);
+    const TextSpec adapter_path = chronon3d::compat::from_text_definition(def);
 
     // The adapter-path TextSpec must be identical to the original.
     // We verify the 5 top-level sub-structs are identical.

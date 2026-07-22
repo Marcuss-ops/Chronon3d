@@ -75,6 +75,14 @@ struct CameraEvalContext {
     /// to a diagnostic warning in the compiled path).
     const ResolvedSceneTransforms* transforms{nullptr};
 
+    /// Return a copy with the frame and sample_time updated.
+    [[nodiscard]] CameraEvalContext with_frame(Frame f, FrameRate frame_rate) const {
+        CameraEvalContext c = *this;
+        c.frame = f;
+        c.sample_time = SampleTime::from_frame_int(f, frame_rate);
+        return c;
+    }
+
     /// Factory: a deterministic context at integer frame `f`, no sub-frame.
     /// CAM-05: FrameRate is now explicit — no more hardcoded 30 fps default.
     static CameraEvalContext at(Frame f, FrameRate frame_rate,

@@ -23,6 +23,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/text/text_definition.hpp>        // TextDefinition
+#include <chronon3d/compat/text_spec_adapter.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>  // TextSpec
 #include <chronon3d/scene/builders/layer_builder.hpp>   // LayerBuilder
 #include <chronon3d/scene/builders/text_run_builder.hpp> // PendingTextRun, TextRunParams
@@ -319,7 +320,7 @@ TEST_CASE("Adapters: new API TextRunSpec matches old API centered_text spec") {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
     TextDefinition def = centered_text(opts);
-    TextRunSpec old_spec = to_text_run_spec(def);
+    TextRunSpec old_spec = chronon3d::compat::to_text_run_spec(def);
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic pop
 #endif

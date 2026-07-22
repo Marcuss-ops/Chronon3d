@@ -123,7 +123,7 @@ TEST_CASE("runtime_camera_session_cache_failed_eval_does_not_mutate_cache — "
 
             // Evaluate: position == POI ⇒ distance-zero + Stop ⇒ ok=false.
             CameraEvalContext ctx;
-            ctx = ctx.with_frame(Frame{kTargetFrame});
+            ctx = ctx.with_frame(Frame{kTargetFrame}, kLeaseFps);
             ctx.sample_time = SampleTime::from_frame_int(Frame{kTargetFrame},
                                                           kLeaseFps);
             auto res = program.evaluate(ctx, lease.session());
@@ -169,7 +169,7 @@ TEST_CASE("runtime_camera_session_cache_failed_eval_does_not_mutate_cache — "
 
             // Evaluate: SkipFailedConstraint ⇒ ok=true with Warning diag.
             CameraEvalContext ctx;
-            ctx = ctx.with_frame(Frame{kTargetFrame});
+            ctx = ctx.with_frame(Frame{kTargetFrame}, kLeaseFps);
             ctx.sample_time = SampleTime::from_frame_int(Frame{kTargetFrame},
                                                           kLeaseFps);
             auto res = program.evaluate(ctx, lease.session());

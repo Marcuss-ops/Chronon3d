@@ -2,8 +2,10 @@
 
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/text/animated_text_document.hpp>
+#include <chronon3d/text/prepared_text.hpp>
 
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace chronon3d {
@@ -17,6 +19,7 @@ class FontEngine;
 struct PendingTextRun {
     std::string name;
     TextRunSpec params;
+    std::optional<PreparedText> prepared;
     FontEngine* font_engine{nullptr};
     bool consumed{false};
     std::shared_ptr<const AnimatedTextDocument> animated_doc{};
