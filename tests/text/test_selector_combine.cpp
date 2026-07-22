@@ -20,7 +20,7 @@ TEST_CASE("Combine: Add mode sums weights") {
     auto placed = make_test_placed_run(1);
     auto source = make_test_source(1);
     auto map = build_text_unit_map(placed, source);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     f32 w = evaluate_selectors({spec1, spec2}, map, 0, source, t);
     CHECK(w == doctest::Approx(0.75f));
@@ -40,7 +40,7 @@ TEST_CASE("Combine: Subtract mode") {
     auto placed = make_test_placed_run(1);
     auto source = make_test_source(1);
     auto map = build_text_unit_map(placed, source);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     f32 w = evaluate_selectors({spec1, spec2}, map, 0, source, t);
     CHECK(w == doctest::Approx(0.7f));
@@ -60,7 +60,7 @@ TEST_CASE("Combine: Min/Intersect mode") {
     auto placed = make_test_placed_run(1);
     auto source = make_test_source(1);
     auto map = build_text_unit_map(placed, source);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     f32 w = evaluate_selectors({spec1, spec2}, map, 0, source, t);
     CHECK(w == doctest::Approx(0.4f));
@@ -80,7 +80,7 @@ TEST_CASE("Combine: Max mode") {
     auto placed = make_test_placed_run(1);
     auto source = make_test_source(1);
     auto map = build_text_unit_map(placed, source);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     f32 w = evaluate_selectors({spec1, spec2}, map, 0, source, t);
     CHECK(w == doctest::Approx(0.7f));
@@ -100,7 +100,7 @@ TEST_CASE("Combine: Replace mode overwrites") {
     auto placed = make_test_placed_run(1);
     auto source = make_test_source(1);
     auto map = build_text_unit_map(placed, source);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     f32 w = evaluate_selectors({spec1, spec2}, map, 0, source, t);
     CHECK(w == doctest::Approx(0.2f));
@@ -133,11 +133,11 @@ TEST_CASE("Multi-sel: two selectors with different easings over time") {
     auto source = make_test_source(10);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t0 = SampleTime::from_frame_int(Frame{0});
+    SampleTime t0 = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
     f32 w0_mid = evaluate_selectors({spec1, spec2}, map, 5, source, t0);
     CHECK(w0_mid == doctest::Approx(0.3f).epsilon(0.01f));
 
-    SampleTime t20 = SampleTime::from_frame_int(Frame{20});
+    SampleTime t20 = SampleTime::from_frame_int(Frame{20}, FrameRate{30, 1});
     f32 w20_first = evaluate_selectors({spec1, spec2}, map, 0, source, t20);
     f32 w20_mid   = evaluate_selectors({spec1, spec2}, map, 5, source, t20);
     f32 w20_last  = evaluate_selectors({spec1, spec2}, map, 9, source, t20);
@@ -168,13 +168,13 @@ TEST_CASE("Multi-sel: offset-sweep selector composed with Subtract") {
     auto source = make_test_source(10);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t0 = SampleTime::from_frame_int(Frame{0});
+    SampleTime t0 = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
     f32 w0_first = evaluate_selectors({spec1, spec2}, map, 0, source, t0);
     f32 w0_last  = evaluate_selectors({spec1, spec2}, map, 9, source, t0);
     CHECK(w0_first == doctest::Approx(0.5f).epsilon(0.01f));
     CHECK(w0_last == doctest::Approx(1.0f));
 
-    SampleTime t20 = SampleTime::from_frame_int(Frame{20});
+    SampleTime t20 = SampleTime::from_frame_int(Frame{20}, FrameRate{30, 1});
     f32 w20_mid   = evaluate_selectors({spec1, spec2}, map, 5, source, t20);
     f32 w20_first = evaluate_selectors({spec1, spec2}, map, 0, source, t20);
     CHECK(w20_mid == doctest::Approx(0.5f).epsilon(0.01f));
@@ -213,11 +213,11 @@ TEST_CASE("Multi-sel: three selectors with Intersect → narrow active window") 
     auto source = make_test_source(10);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t0 = SampleTime::from_frame_int(Frame{0});
+    SampleTime t0 = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
     f32 w0 = evaluate_selectors({spec1, spec2, spec3}, map, 5, source, t0);
     CHECK(w0 == doctest::Approx(0.0f));
 
-    SampleTime t15 = SampleTime::from_frame_int(Frame{15});
+    SampleTime t15 = SampleTime::from_frame_int(Frame{15}, FrameRate{30, 1});
     f32 w15_first = evaluate_selectors({spec1, spec2, spec3}, map, 0, source, t15);
     f32 w15_mid   = evaluate_selectors({spec1, spec2, spec3}, map, 5, source, t15);
     f32 w15_last  = evaluate_selectors({spec1, spec2, spec3}, map, 9, source, t15);
@@ -250,19 +250,19 @@ TEST_CASE("Multi-sel: Max mode picks the stronger selector over time") {
     auto source = make_test_source(10);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t0 = SampleTime::from_frame_int(Frame{0});
+    SampleTime t0 = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
     f32 w0_first = evaluate_selectors({spec1, spec2}, map, 0, source, t0);
     f32 w0_last  = evaluate_selectors({spec1, spec2}, map, 9, source, t0);
     CHECK(w0_first < 0.1f);
     CHECK(w0_last > 0.9f);
 
-    SampleTime t15 = SampleTime::from_frame_int(Frame{15});
+    SampleTime t15 = SampleTime::from_frame_int(Frame{15}, FrameRate{30, 1});
     f32 w15_first = evaluate_selectors({spec1, spec2}, map, 0, source, t15);
     f32 w15_last  = evaluate_selectors({spec1, spec2}, map, 9, source, t15);
     CHECK(w15_first > 0.2f);
     CHECK(w15_last > 0.2f);
 
-    SampleTime t30 = SampleTime::from_frame_int(Frame{30});
+    SampleTime t30 = SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1});
     f32 w30_first = evaluate_selectors({spec1, spec2}, map, 0, source, t30);
     f32 w30_last  = evaluate_selectors({spec1, spec2}, map, 9, source, t30);
     CHECK(w30_first > 0.9f);

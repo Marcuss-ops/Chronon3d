@@ -50,7 +50,7 @@ TEST_CASE("DepthRoleResolver: farther roles have positive Z") {
 // ---------------------------------------------------------------------------
 
 TEST_CASE("LayerBuilder::depth_role sets z from resolver") {
-    LayerBuilder builder("test");
+    LayerBuilder builder("test", SampleTime{});
     builder.depth_role(DepthRole::Background);
     auto layer = builder.build();
     CHECK(layer.transform.position.z ==
@@ -58,7 +58,7 @@ TEST_CASE("LayerBuilder::depth_role sets z from resolver") {
 }
 
 TEST_CASE("LayerBuilder::depth_role + depth_offset applies offset") {
-    LayerBuilder builder("test");
+    LayerBuilder builder("test", SampleTime{});
     builder.depth_role(DepthRole::Midground).depth_offset(-150.0f);
     auto layer = builder.build();
     CHECK(layer.transform.position.z ==
@@ -67,7 +67,7 @@ TEST_CASE("LayerBuilder::depth_role + depth_offset applies offset") {
 
 TEST_CASE("LayerBuilder::depth_role wins over explicit position.z") {
     // Even if position sets z first, depth_role overrides at build time.
-    LayerBuilder builder("test");
+    LayerBuilder builder("test", SampleTime{});
     builder.position({100, 200, 9999.0f})   // explicit z
            .depth_role(DepthRole::Subject);  // should override z
     auto layer = builder.build();
@@ -78,7 +78,7 @@ TEST_CASE("LayerBuilder::depth_role wins over explicit position.z") {
 }
 
 TEST_CASE("LayerBuilder::depth_role None does not override position.z") {
-    LayerBuilder builder("test");
+    LayerBuilder builder("test", SampleTime{});
     builder.position({0, 0, 777.0f});
     auto layer = builder.build();
     CHECK(layer.transform.position.z == doctest::Approx(777.0f));
