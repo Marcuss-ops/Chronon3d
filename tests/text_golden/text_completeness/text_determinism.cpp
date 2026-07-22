@@ -27,10 +27,14 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 
 #include <tests/helpers/test_utils.hpp>
+#include <tests/helpers/pixel_assertions.hpp>
 #include <tests/text_golden/text_completeness/pixel_scan_helpers.hpp>
+
+#include <tbb/global_control.h>
 
 #include <array>
 #include <unordered_set>
+#include <vector>
 
 using namespace chronon3d;
 using namespace chronon3d::test;
@@ -293,4 +297,137 @@ TEST_CASE("TextDeterminism 06: different compositions give different hashes") {
 
     INFO("static hash=", h_static, " alt hash=", h_alt);
     CHECK(h_static != h_alt);
+}
+
+// ═══ Test 7 — Cold cache vs hot cache produce identical output ═══════════
+TEST_CASE("TextDeterminism 07: cold cache vs hot cache yields identical hash") {
+    auto renderer = test::make_renderer_shared();
+
+    // First render populates caches.
+    auto fb_cold = renderer->render(build_static_comp(*renderer), Frame{0});
+    REQUIRE(fb_cold != nullptr);
+    const auto hash_cold = framebuffer_hash(*fb_cold);
+
+    // Subsequent render reuses cached layout/raster data.
+    auto fb_warm = renderer->render(build_static_comp(*renderer), Frame{0});
+    REQUIRE(fb_warm != nullptr);
+    const auto hash_warm = framebuffer_hash(*fb_warm);
+
+    CHECK(hash_cold == hash_warm);
+
+    // Invalidate caches and force a rebuild.
+    renderer->clear_caches();
+    auto fb_rebuilt = renderer->render(build_static_comp(*renderer), Frame{0});
+    REQUIRE(fb_rebuilt != nullptr);
+    const auto hash_rebuilt = framebuffer_hash(*fb_rebuilt);
+
+    CHECK(hash_cold == hash_rebuilt);
+}
+
+// ═══ Test 8 — 1-thread vs 4-thread scheduler produces identical output ═════
+TEST_CASE("TextDeterminism 08: serial vs parallel scheduler yields identical hash") {
+    auto make_hash = [](int parallelism) -> std::uint64_t {
+        tbb::global_control gc(tbb::global_control::max_allowed_parallelism, parallelism);
+        auto renderer = test::make_renderer_shared();
+        auto fb = renderer->render(build_static_comp(*renderer), Frame{0});
+        REQUIRE(fb != nullptr);
+        return framebuffer_hash(*fb);
+    };
+
+    const auto hash_1t = make_hash(1);
+    const auto hash_4t = make_hash(4);
+
+    CHECK(hash_1t == hash_4t);
+}
+
+// ══ Test 9 — Sequential vs random frame access produces identical output ═══
+TEST_CASE("TextDeterminism 09: sequential vs random frame access yields identical hashes") {
+    // Build reference hashes by rendering frames 0..3 sequentially.
+    std::array<std::uint64_t, 4> ref_hashes{};
+    {
+        auto renderer = test::make_renderer_shared();
+        for (std::size_t f = 0; f < 4; ++f) {
+            auto fb = renderer->render(build_frame_comp(*renderer, f), Frame{f});
+            REQUIRE(fb != nullptr);
+            ref_hashes[f] = framebuffer_hash(*fb);
+        }
+    }
+
+    // Render the same frames in random order on a fresh renderer.
+    std::array<int, 4> random_order = {2, 0, 3, 1};
+    std::array<std::uint64_t, 4> random_hashes{};
+    {
+        auto renderer = test::make_renderer_shared();
+        for (int idx : random_order) {
+            auto fb = renderer->render(
+                build_frame_comp(*renderer, static_cast<std::size_t>(idx)),
+                Frame{static_cast<std::size_t>(idx)});
+            REQUIRE(fb != nullptr);
+            random_hashes[static_cast<std::size_t>(idx)] = framebuffer_hash(*fb);
+        }
+    }
+
+    for (std::size_t f = 0; f < 4; ++f) {
+        INFO("frame=", f, " ref=", ref_hashes[f], " random=", random_hashes[f]);
+        CHECK(ref_hashes[f] == random_hashes[f]);
+    }
+
+    // Sanity: frames should actually differ from each other.
+    CHECK(ref_hashes[0] != ref_hashes[1]);
+    CHECK(ref_hashes[1] != ref_hashes[2]);
+    CHECK(ref_hashes[2] != ref_hashes[3]);
+}
+
+// ═══ Test 10 — Seek patterns 0→20→40 and 40→0→20 produce identical output ══
+TEST_CASE("TextDeterminism 10: seek patterns 0->20->40 and 40->0->20 agree") {
+    auto render_sequence = [](const std::vector<std::size_t>& frames)
+        -> std::vector<std::uint64_t> {
+        auto renderer = test::make_renderer_shared();
+        std::vector<std::uint64_t> out;
+        out.reserve(frames.size());
+        for (std::size_t f : frames) {
+            auto fb = renderer->render(
+                build_frame_comp(*renderer, f), Frame{f});
+            REQUIRE(fb != nullptr);
+            out.push_back(framebuffer_hash(*fb));
+        }
+        return out;
+    };
+
+    const auto forward = render_sequence({0, 20, 40});
+    const auto reverse = render_sequence({40, 0, 20});
+
+    // forward[0] (frame 0) must match reverse[1] (frame 0).
+    CHECK(forward[0] == reverse[1]);
+    // forward[1] (frame 20) must match reverse[2] (frame 20).
+    CHECK(forward[1] == reverse[2]);
+    // forward[2] (frame 40) must match reverse[0] (frame 40).
+    CHECK(forward[2] == reverse[0]);
+
+    // Sanity: the three frames should differ from each other.
+    CHECK(forward[0] != forward[1]);
+    CHECK(forward[1] != forward[2]);
+}
+
+// ═══ Test 11 — Visual ink bbox (proxy for layout geometry) is deterministic ══
+TEST_CASE("TextDeterminism 11: visual ink bounding box is reproducible") {
+    auto renderer = test::make_renderer_shared();
+
+    auto fb1 = renderer->render(build_static_comp(*renderer), Frame{0});
+    auto fb2 = renderer->render(build_static_comp(*renderer), Frame{0});
+    REQUIRE(fb1 != nullptr);
+    REQUIRE(fb2 != nullptr);
+
+    const auto bb1 = bounding_box(*fb1, Color::white(), 0.1f);
+    const auto bb2 = bounding_box(*fb2, Color::white(), 0.1f);
+
+    INFO("bb1=", bb1.x0, ",", bb1.y0, "-", bb1.x1, ",", bb1.y1);
+    INFO("bb2=", bb2.x0, ",", bb2.y0, "-", bb2.x1, ",", bb2.y1);
+
+    CHECK(bb1.empty == bb2.empty);
+    CHECK(bb1.x0 == bb2.x0);
+    CHECK(bb1.y0 == bb2.y0);
+    CHECK(bb1.x1 == bb2.x1);
+    CHECK(bb1.y1 == bb2.y1);
+    CHECK(bb1.area() > 0);
 }
