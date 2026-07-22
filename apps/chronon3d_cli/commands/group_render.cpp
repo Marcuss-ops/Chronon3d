@@ -184,16 +184,14 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
             assets_root = value.assets_root();
             const Frame last = duration > Frame{0} ? duration - Frame{1} : Frame{0};
             for (Frame frame = Frame{0}; frame <= last; frame += Frame{1}) {
-                const FrameContext frame_context{
-                    .sample_time = SampleTime::from_frame(static_cast<double>(frame), rate),
-                    .frame = frame,
+                const FrameContext frame_context = make_frame_context({
+                    .global_time = SampleTime::from_frame(static_cast<double>(frame), rate),
                     .duration = duration,
-                    .frame_rate = rate,
                     .width = width,
                     .height = height,
                     .assets_root = assets_root,
                     .assets = &ctx.assets
-                };
+                });
                 manifest.merge(value.evaluate(frame_context).asset_manifest());
             }
         }

@@ -108,9 +108,9 @@ make_sequence_from_layer(const chronon3d::Layer& layer) {
 [[nodiscard]] inline TimelineSampleContext
 make_sample_context(const chronon3d::FrameContext& ctx) noexcept {
     return TimelineSampleContext{
-        .global_frame   = ctx.frame,
-        .local_frame    = ctx.frame,        // Step 2: identity map (compat)
-        .sequence_start = Frame{0},         // Step 2: sequence non esplicita
+        .global_frame   = ctx.frame(),
+        .local_frame    = ctx.frame(),        // Step 2: identity map (compat)
+        .sequence_start = Frame{0},            // Step 2: sequence non esplicita
         .fps            = static_cast<float>(ctx.fps())
     };
 }

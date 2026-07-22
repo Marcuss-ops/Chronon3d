@@ -224,9 +224,9 @@ evaluate(const CompiledComposition& compiled,
     }
 
     // Thread SampleTime into FrameContext before invoking the scene fn.
-    FrameContext fc  = context.frame_context;
-    fc.sample_time   = SampleTime::from_frame(static_cast<double>(frame), fc.frame_rate);
-    fc.frame         = frame;
+    FrameContext fc = context.frame_context.with_local_time(
+        SampleTime::from_frame(static_cast<double>(frame), context.frame_context.frame_rate()),
+        context.frame_context.duration());
 
     EvaluatedCompositionFrame result;
     try {
@@ -253,7 +253,7 @@ evaluate(const CompiledComposition& compiled,
         camera_v1::CameraEvalContext cam_ctx;
         cam_ctx.sample_time = SampleTime::from_frame(
             static_cast<double>(frame),
-            static_cast<FrameRate>(context.frame_context.frame_rate));
+            static_cast<FrameRate>(context.frame_context.frame_rate()));
         const auto cam_result =
             compiled.camera_program->evaluate(cam_ctx, session);
         if (cam_result.has_value()) {
