@@ -29,9 +29,12 @@
 
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
+#include <chronon3d/authoring/layer.hpp>
+#include <chronon3d/authoring/subtitle_track_builder.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/presets/text/subtitle.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/text/text_direction.hpp>
@@ -74,6 +77,14 @@ bool render_current_env_enabled() {
     return v != nullptr && (std::string_view{v} == "1" || std::string_view{v} == "true");
 }
 
+// ── Per-word timing entry used by subtitle cases ──────────────────────
+struct CapcutWord {
+    std::string text;
+    float       start_s = 0.0f;
+    float       end_s   = 0.0f;
+    std::string semantic_id;
+};
+
 // ── Reference case model ───────────────────────────────────────────────
 struct CapcutCase {
     std::string id;
@@ -94,6 +105,10 @@ struct CapcutCase {
     std::string vertical_align = "Middle";
     std::string effect      = "none";
     int         frame       = 0;
+    float       start_s     = 0.0f;
+    float       end_s       = 5.0f;
+    std::string word_timing_quality = "None";
+    std::vector<CapcutWord> words;
 };
 
 chronon3d::TextPlacementKind parse_placement(std::string_view s) {
@@ -155,6 +170,19 @@ std::vector<CapcutCase> load_manifest(const fs::path& repo_root) {
         c.vertical_align = item.value("vertical_align", std::string{"Middle"});
         c.effect        = item.value("effect", std::string{"none"});
         c.frame         = item.value("frame", 0);
+        c.start_s       = item.value("start_s", 0.0f);
+        c.end_s         = item.value("end_s", 5.0f);
+        c.word_timing_quality = item.value("word_timing_quality", std::string{"None"});
+        if (item.contains("words") && item["words"].is_array()) {
+            for (const auto& w : item["words"]) {
+                CapcutWord cw;
+                cw.text       = w.value("text", std::string{});
+                cw.start_s    = w.value("start_s", 0.0f);
+                cw.end_s      = w.value("end_s", 0.0f);
+                cw.semantic_id = w.value("semantic_id", std::string{});
+                c.words.push_back(std::move(cw));
+            }
+        }
         cases.push_back(std::move(c));
     }
     return cases;
@@ -206,10 +234,61 @@ std::shared_ptr<chronon3d::Framebuffer> render_subtitle_case(
     const CapcutCase& c,
     chronon3d::SoftwareRenderer& renderer)
 {
-    // Same rendering path as static; placement/alignment carry the
-    // subtitle semantics (bottom-centered). Future karaoke word-timing
-    // cases can switch to SubtitleTrackBuilder here.
-    return render_static_text_case(c, renderer);
+    using namespace chronon3d;
+    presets::text::SubtitleTrack track;
+    presets::text::SubtitleCue cue;
+    cue.text = c.text;
+    cue.start_s = c.start_s;
+    cue.end_s = c.end_s;
+    cue.word_timing_quality = WordTimingQuality::None;
+    if (c.word_timing_quality == "Estimated") cue.word_timing_quality = WordTimingQuality::Estimated;
+    if (c.word_timing_quality == "Authoritative") cue.word_timing_quality = WordTimingQuality::Authoritative;
+
+    std::size_t word_index = 0;
+    for (const auto& w : c.words) {
+        TimedWord tw;
+        tw.text = w.text;
+        tw.start_s = w.start_s;
+        tw.end_s = w.end_s;
+        tw.semantic_id = w.semantic_id.empty()
+                             ? (c.id + "-word-" + std::to_string(word_index))
+                             : w.semantic_id;
+        cue.words.push_back(std::move(tw));
+        ++word_index;
+    }
+    track.cues.push_back(std::move(cue));
+
+    const auto comp = composition(
+        {.name = c.id,
+         .width = c.width,
+         .height = c.height,
+         .frame_rate = FrameRate{30, 1},
+         .duration = std::max(1, c.frame + 1)},
+        [&c, &renderer, track = std::move(track)](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer(c.id + "_layer", [&c, &renderer, &track](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                CanvasInfo canvas = CanvasInfo::with_safe_area(static_cast<float>(c.width),
+                                                                static_cast<float>(c.height),
+                                                                SafeAreaPreset{});
+                authoring::Layer layer(l, canvas);
+                auto builder = layer.subtitles(track)
+                    .preset(c.effect.empty() || c.effect == "none" ? std::string{"minimal_white"}
+                                                                    : c.effect)
+                    .font(chronon3d::test::bundled_font_path(c.font_path), c.font_size)
+                    .color(Color::white())
+                    .box(Vec2{static_cast<float>(c.width), static_cast<float>(c.height)})
+                    .align(parse_align(c.align))
+                    .place(parse_placement(c.placement));
+                if (track.cues.front().word_timing_quality == WordTimingQuality::Authoritative) {
+                    builder.require_authoritative_word_timing(true);
+                }
+                builder.build();
+            });
+            return s.build();
+        });
+    return renderer.render(comp, Frame{c.frame});
 }
 
 std::shared_ptr<chronon3d::Framebuffer> render_effect_case(
