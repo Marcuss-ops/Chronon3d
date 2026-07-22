@@ -75,12 +75,10 @@ namespace chronon3d {
         // Apply trim_before offset for internal authoring shift.
         local = local + spec.trim_before;
 
-        FrameContext local_ctx = parent_ctx;
-        local_ctx.sample_time = SampleTime::from_frame(
-            static_cast<double>(local) + parent_ctx.sample_time.fraction(),
-            parent_ctx.frame_rate);
-        local_ctx.frame = local;
-        local_ctx.duration = spec.duration;
+        const SampleTime local_time = SampleTime::from_frame(
+            static_cast<double>(local) + parent_ctx.local_time().fraction(),
+            parent_ctx.frame_rate());
+        FrameContext local_ctx = parent_ctx.with_local_time(local_time, spec.duration);
 
         f32 progress = (spec.duration > Frame{0})
             ? std::clamp(
