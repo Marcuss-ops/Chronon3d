@@ -628,23 +628,60 @@ TEST_CASE("Aspect 9:16 (1080x1920) → bbox fits inside canvas") {
 // 18. Animation opacity — ink grows across frames (in-process frame loop)
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("Animation frame-by-frame → non-empty ink at every visible frame") {
+TEST_CASE("Animation frame-by-frame → visible ink changes across frames") {
     auto renderer = test::make_renderer();
-    // Static composition: the simple `composition()` factory does not
-    // animate per frame, but we exercise the renderer's frame-by-frame
-    // determinism (the same Frame{N} returns the same ink) — the
-    // dedicated animation tests live in `tests/text_golden/text_transforms_animation/`.
-    // Here we verify the multi-frame render surface produces the same
-    // anti-false-green result for every frame in [0, 1, 2].
-    auto comp = build_text_only_comp(renderer,
-        "Frame-invariant",
-        "assets/fonts/Inter-Bold.ttf",
-        96.0f);
-    for (Frame f : {Frame{0}, Frame{1}, Frame{2}}) {
-        auto fb = renderer.render(comp, f);
-        REQUIRE(fb != nullptr);
-        check_anti_false_green(*fb, "CertText/anim-frame-" + std::to_string(static_cast<int>(f)));
-    }
+
+    // Animate opacity from fully transparent at frame 0 to fully
+    // opaque at frame 30.  A real frame-by-frame test must show that
+    // the rendered output is not identical across frames.
+    auto comp = composition(
+        {.name = "TextV1/opacity-animation",
+         .width = 1920, .height = 1080,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 31},
+        [&renderer](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("opacity_anim_layer", [&renderer](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                l.opacity_anim().set(0.0f);
+                l.opacity_anim().add_keyframe(
+                    Frame{30}, 1.0f, EasingCurve{Easing::Linear});
+                l.text_run("title", TextRunSpec{
+                    .text = TextSpec{
+                        .content = {.value = "Animated"},
+                        .placement = TextPlacement{TextPlacementKind::CanvasCenter, {0.0f, 0.0f}},
+                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                 .font_family = "Inter",
+                                 .font_weight = 700,
+                                 .font_size = 96.0f},
+                        .layout = {.box = {800.0f, 200.0f},
+                                   .anchor = TextAnchor::Center,
+                                   .align = TextAlign::Center,
+                                   .vertical_align = VerticalAlign::Middle},
+                        .appearance = {.color = Color::white()}
+                    }
+                }).commit();
+            });
+            return s.build();
+        });
+
+    auto fb0  = renderer.render(comp, Frame{0});
+    auto fb15 = renderer.render(comp, Frame{15});
+    auto fb30 = renderer.render(comp, Frame{30});
+    REQUIRE(fb0  != nullptr);
+    REQUIRE(fb15 != nullptr);
+    REQUIRE(fb30 != nullptr);
+
+    const int area0  = completeness::count_visible_pixels(*fb0);
+    const int area15 = completeness::count_visible_pixels(*fb15);
+    const int area30 = completeness::count_visible_pixels(*fb30);
+    INFO("animation visible pixels: f0=", area0, " f15=", area15, " f30=", area30);
+
+    // Opacity 0 → 1: visible area must be non-decreasing and not constant.
+    CHECK(area0 <= area15);
+    CHECK(area15 <= area30);
+    CHECK(area30 > area0);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

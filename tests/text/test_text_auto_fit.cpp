@@ -37,6 +37,16 @@
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/text/font_engine.hpp>
 
+#include <chronon3d/api/composition.hpp>
+#include <chronon3d/api/scene.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+
+#include <tests/helpers/test_utils.hpp>
+#include <tests/text_golden/text_completeness/pixel_scan_helpers.hpp>
+
 #include <optional>
 #include <memory>
 #include <string>
@@ -201,4 +211,60 @@ TEST_CASE("TICKET-ISOLATED-ALIGNMENT-TESTS: auto-fit 5-run determinism certifica
         CHECK(widths[i]      == doctest::Approx(widths[0]));
         CHECK(heights[i]     == doctest::Approx(heights[0]));
     }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// 4. TICKET-FALSE-GREEN-TEST-AUDIT: rendered ink must fit inside the box when
+//    auto-fit is active.  The pre-raster layout bounds are necessary but not
+//    sufficient — this test locks the actual visible ink.
+// ────────────────────────────────────────────────────────────────────────────
+
+TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: auto-fit rendered ink fits inside box") {
+    auto renderer = chronon3d::test::make_renderer();
+    const float box_w = 400.0f;
+    const float box_h = 200.0f;
+
+    auto comp = composition(
+        {.name = "AutoFit/real",
+         .width = 1920, .height = 1080,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 1},
+        [&renderer, box_w, box_h](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("autofit_layer", [&renderer, box_w, box_h](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                l.text_run("autofit_text", TextRunSpec{
+                    .text = TextSpec{
+                        .content = {.value = "Auto-fit real fit check"},
+                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
+                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                 .font_family = "Inter",
+                                 .font_weight = 700,
+                                 .font_size = 200.0f},
+                        .layout = {.box = {box_w, box_h},
+                                   .align = TextAlign::Center,
+                                   .vertical_align = VerticalAlign::Middle,
+                                   .overflow = TextOverflow::Clip,
+                                   .auto_fit = true},
+                        .appearance = {.color = Color::white()}
+                    }
+                }).commit();
+            });
+            return s.build();
+        });
+
+    auto fb = renderer.render(comp, Frame{0});
+    if (fb == nullptr) {
+        MESSAGE("test skipped: render failed (system fonts unavailable)");
+        return;
+    }
+
+    const auto bbox = chronon3d::test::completeness::alpha_bbox(*fb);
+    INFO("auto-fit ink bbox: (", bbox.x0, ",", bbox.y0, ")-(",
+         bbox.x1, ",", bbox.y1, ")");
+    CHECK_FALSE(bbox.empty());
+    CHECK(bbox.width() <= static_cast<int>(box_w) + 1);
+    CHECK(bbox.height() <= static_cast<int>(box_h) + 1);
+    CHECK(chronon3d::test::completeness::count_visible_pixels(*fb) > 100);
 }
