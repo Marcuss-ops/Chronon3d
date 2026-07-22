@@ -238,7 +238,7 @@ TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: auto-fit rendered ink fits inside box"
                     .text = TextSpec{
                         .content = {.value = "Auto-fit real fit check"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
-                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                        .font = {.font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
                                  .font_family = "Inter",
                                  .font_weight = 700,
                                  .font_size = 200.0f},

@@ -25,10 +25,26 @@
 
 #include <xxhash.h>
 #include <cstring>
+#include <filesystem>
 #include <memory>
 #include <string>
 
 namespace chronon3d::test {
+
+// ── Repository-root helpers ───────────────────────────────────────────────
+
+/// Derive the repository root from the location of this header.
+/// Works regardless of the current working directory.
+inline std::filesystem::path test_repo_root() {
+    std::filesystem::path src(__FILE__);
+    // __FILE__ == <repo>/tests/helpers/test_utils.hpp
+    return std::filesystem::absolute(src).parent_path().parent_path().parent_path();
+}
+
+/// Return an absolute path to a bundled asset under the repo root.
+inline std::string bundled_font_path(const std::string& rel) {
+    return (test_repo_root() / rel).string();
+}
 
 // ── Renderer factories ────────────────────────────────────────────────────
 

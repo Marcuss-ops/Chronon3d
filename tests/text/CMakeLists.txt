@@ -64,4 +64,19 @@ chronon3d_add_test_suite(
         chronon3d_backend_software
 )
 
+# ──────────────────────────────────────────────────────────────────────────
+# 4. Oversized-text clip false-green audit (always built, no diagnostics gate)
+#    Verifies that text larger than its clip box is actually clipped.
+# ──────────────────────────────────────────────────────────────────────────
+chronon3d_add_test_suite(
+    NAME  chronon3d_text_clip_oversized_tests
+    TIER  INTEGRATION
+    SOURCES
+        ${CMAKE_CURRENT_LIST_DIR}/test_text_clip_oversized.cpp
+    LINK_TARGETS
+        chronon3d_pipeline
+        chronon3d_backend_software
+        chronon3d_visual_test_support
+)
+
 endif()  # CHRONON3D_BUILD_TESTS

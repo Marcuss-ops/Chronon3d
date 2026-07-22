@@ -145,11 +145,11 @@ TEST_CASE("Azione 18: typewriter_build error is non-fatal (scene still buildable
 
 // ─── Frame-by-frame monotonicity — no false-green static pass ───────────────
 //
-// Builds a typewriter scene once, then renders several frames.  The
-// visible ink area must be monotonically non-decreasing and strictly
-// larger at the final frame than at the start, proving the typewriter
-// effect actually reveals text over time rather than rendering the
-// whole text at every frame.
+// Builds the typewriter scene for each rendered frame so the reveal is
+// evaluated at the current frame.  The visible ink area must be
+// monotonically non-decreasing and strictly larger at the final frame
+// than at the start, proving the typewriter effect actually reveals
+// text over time rather than rendering the whole text at every frame.
 
 TEST_CASE("Azione 18: typewriter frame-by-frame ink area is monotonic") {
     chronon3d::Config cfg;
@@ -158,29 +158,29 @@ TEST_CASE("Azione 18: typewriter frame-by-frame ink area is monotonic") {
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
-    FrameContext ctx{.frame = Frame{0}, .width = 1920, .height = 1080};
-    ctx.font_engine = &engine;
-    SceneBuilder s(ctx);
-
-    TypewriterBuildOptions opts{
-        .text = "Typewriter",
-        .box = {1200.0f, 240.0f},
-        .font_size = 64.0f,
-        .tracking = 3.0f,
-        .chars_per_frame = 1.0f,
-    };
-
-    auto result = typewriter_build(s, "tw", opts, Frame{0}, engine);
-    REQUIRE(result.has_value());
-    CHECK(result.value() == true);
-
-    auto scene = std::make_shared<Scene>(s.build());
     auto comp = composition(
         {.name = "TypewriterFrames",
          .width = 1920, .height = 1080,
          .frame_rate = FrameRate{30, 1},
          .duration = 30},
-        [scene](const FrameContext&) -> Scene { return *scene; });
+        [&engine](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&engine);
+
+            TypewriterBuildOptions opts{
+                .text = "Typewriter",
+                .box = {1200.0f, 240.0f},
+                .font_size = 64.0f,
+                .tracking = 3.0f,
+                .chars_per_frame = 1.0f,
+            };
+
+            auto result = typewriter_build(s, "tw", opts, ctx.frame, engine);
+            REQUIRE(result.has_value());
+            CHECK(result.value() == true);
+
+            return s.build();
+        });
 
     auto renderer = chronon3d::test::make_renderer();
 
