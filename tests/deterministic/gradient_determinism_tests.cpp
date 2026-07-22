@@ -196,7 +196,7 @@ Composition make_gradient_animated_comp() {
             SceneBuilder s(ctx);
             s.rect("bg", {.size = {320, 180}, .color = Color{0.05f, 0.05f, 0.05f, 1.0f}, .pos = {0, 0, 0}});
             // Animate the rectangle's x position
-            float x = static_cast<float>(ctx.frame) * 2.0f;
+            float x = static_cast<float>(ctx.frame()) * 2.0f;
             s.layer("moving_gradient", [x](LayerBuilder& l) {
                 l.position({x - 160.0f, 0.0f, 0.0f});
                 l.rounded_rect("r", {

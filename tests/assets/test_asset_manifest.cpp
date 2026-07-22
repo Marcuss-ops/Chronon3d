@@ -111,8 +111,8 @@ TEST_CASE("AssetManifest — clear") {
 
 static FrameContext manifest_ctx() {
     FrameContext ctx;
-    ctx.frame = Frame{0};
-    ctx.frame_rate = {30, 1};
+    ctx = ctx.with_frame(Frame{0});
+    ctx = ctx.with_frame_rate({30, 1});
     ctx.width = 1920;
     ctx.height = 1080;
     return ctx;

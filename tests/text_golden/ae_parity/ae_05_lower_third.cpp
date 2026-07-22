@@ -5,7 +5,7 @@
 // News/documentary cinematic convention: name + subtitle on a partially-
 // transparent dark band occupying the bottom 25% of canvas.  Reuses the
 // 3-layer pattern from user_spec/11 but with a darker band emphasis and
-// alpha-animated reveal tied to ctx.frame.integral().
+// alpha-animated reveal tied to ctx.frame().integral().
 // Frame snapshots show progressive bar/text reveal:
 // f00: bar alpha 0.2 (very subtle), title 0.5
 // f15: bar alpha 0.6, title 0.85

@@ -100,7 +100,7 @@ TEST_CASE("Cinematic Motion: SampleTimeContinuityContactSheet — smooth sub-fra
                        .pos = {0, 0, 0}});
 
         // Moving rectangle: X = 20 + frame * 4
-        const float x = 20.0f + static_cast<float>(ctx.frame) * 4.0f
+        const float x = 20.0f + static_cast<float>(ctx.frame()) * 4.0f
                       + ctx.frame_time * 4.0f;
 
         s.layer("rect", [=](LayerBuilder& l) {

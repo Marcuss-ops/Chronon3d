@@ -146,7 +146,11 @@ TEST_CASE("SceneBuilder image primitive") {
 }
 
 TEST_CASE("SceneBuilder active/inactive layer lifecycle filters") {
-    FrameContext ctx{.frame = 10};
+    FrameContext ctx = make_frame_context(FrameContextParams{
+    .global_time = SampleTime::from_frame_int(10, FrameRate{30, 1}),
+    .width = 1920,
+    .height = 1080
+});
     auto scene = SceneBuilder{ctx}
         .layer("active-layer", [](LayerBuilder& l) {
             l.from(0).duration(20);

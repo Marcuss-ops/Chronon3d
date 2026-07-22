@@ -81,7 +81,7 @@ CameraDescriptor make_static_base() {
 
 // Pose-tracks source: a non-static source that, on its own, does NOT
 // force RequiresHistory.  (PoseTracksSource is frame-driven; evaluation
-// at frame N depends only on (descriptor, ctx.frame).)  Combined with
+// at frame N depends only on (descriptor, ctx.frame()).)  Combined with
 // DampedFollowConstraint, the DampedFollow dominates.
 CameraDescriptor make_pose_tracks_base() {
     CameraDescriptor desc = make_static_base();

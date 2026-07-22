@@ -21,8 +21,8 @@ using namespace chronon3d;
 // ── Helper: build a FrameContext at a given frame ─────────────────────
 static FrameContext make_seq_ctx(Frame frame, i32 w = 1920, i32 h = 1080) {
     FrameContext ctx;
-    ctx.frame = frame;
-    ctx.frame_rate = {30, 1};
+    ctx = ctx.with_frame(frame);
+    ctx = ctx.with_frame_rate({30, 1});
     ctx.width = w;
     ctx.height = h;
     return ctx;
@@ -298,7 +298,7 @@ TEST_CASE("SequenceBuilder — context propagation") {
     FrameContext ctx = make_seq_ctx(Frame{10});
     ctx.width = 1280;
     ctx.height = 720;
-    ctx.frame_rate = {24, 1};
+    ctx = ctx.with_frame_rate({24, 1});
     SceneBuilder s(ctx);
 
     s.sequence("test", {.from = Frame{0}, .duration = Frame{60}},

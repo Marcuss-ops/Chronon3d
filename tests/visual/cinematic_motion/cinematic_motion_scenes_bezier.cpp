@@ -120,7 +120,7 @@ Composition make_cache_parity_scene() {
         s.rect("bg", {.size = {960, 540}, .color = {0.05f, 0.05f, 0.08f, 1.0f},
                        .pos = {0, 0, 0}});
 
-        const float x = 80.0f + static_cast<float>(ctx.frame) * 8.0f;
+        const float x = 80.0f + static_cast<float>(ctx.frame()) * 8.0f;
 
         s.layer("moving_rect", [&](LayerBuilder& l) {
             l.position({x, 270, 0});

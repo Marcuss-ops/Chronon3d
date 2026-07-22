@@ -70,7 +70,7 @@ Composition make_depth_scene(f32 camera_x) {
         .duration = 2
     }, [camera_x](const FrameContext& ctx) {
         SceneBuilder s(ctx);
-        s.camera().enable(true).position({camera_x + static_cast<f32>(ctx.frame) * 0.1f, 0.0f, -1000.0f}).zoom(1000.0f).look_at({0.0f, 0.0f, 0.0f});
+        s.camera().enable(true).position({camera_x + static_cast<f32>(ctx.frame()) * 0.1f, 0.0f, -1000.0f}).zoom(1000.0f).look_at({0.0f, 0.0f, 0.0f});
         s.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 0.12f);
         s.directional_light({-0.35f, 1.0f, -0.65f}, Color{1.0f, 1.0f, 1.0f, 1.0f}, 0.88f);
 

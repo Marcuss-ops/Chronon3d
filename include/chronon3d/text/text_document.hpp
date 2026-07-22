@@ -30,10 +30,11 @@
 // and resolver logic follow in PR 2+.
 // ═══════════════════════════════════════════════════════════════════════════
 
-#include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/paragraph_style.hpp>
+#include <chronon3d/text/text_appearance_spec.hpp>
 #include <chronon3d/text/text_span_override.hpp>
+#include <chronon3d/text/text_spec.hpp>
 
 #include <cstddef>
 #include <optional>
