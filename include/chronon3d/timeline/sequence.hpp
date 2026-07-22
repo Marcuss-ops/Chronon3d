@@ -23,12 +23,12 @@ struct SequenceContext {
     // Like progress(), but holds at 0 before the sequence and at 1 after it ends.
     // Use this when an animation should stay at its final state once the window closes.
     [[nodiscard]] f32 held_progress() const {
-        if (!active && parent.frame >= from + duration) return 1.0f;
+        if (!active && parent.frame() >= from + duration) return 1.0f;
         return progress();
     }
 
     [[nodiscard]] f32 seconds() const {
-        return static_cast<f32>(frame) * (static_cast<f32>(parent.frame_rate.denominator) / static_cast<f32>(parent.frame_rate.numerator));
+        return static_cast<f32>(frame) * (static_cast<f32>(parent.frame_rate().denominator) / static_cast<f32>(parent.frame_rate().numerator));
     }
 };
 
@@ -36,8 +36,8 @@ struct SequenceContext {
  * Creates a SequenceContext from the current FrameContext.
  */
 inline SequenceContext sequence(const FrameContext& ctx, Frame from, Frame duration) {
-    bool active = ctx.frame >= from && ctx.frame < from + duration;
-    Frame local_frame = active ? Frame{ctx.frame - from} : Frame{0};
+    bool active = ctx.frame() >= from && ctx.frame() < from + duration;
+    Frame local_frame = active ? Frame{ctx.frame() - from} : Frame{0};
 
     return SequenceContext{
         .parent = ctx,

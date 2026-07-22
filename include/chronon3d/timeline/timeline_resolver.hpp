@@ -114,12 +114,10 @@ private:
         const Frame local = node.range.to_local(parent_ctx.frame);
 
         // Build local FrameContext
-        FrameContext local_ctx = parent_ctx;
-        local_ctx.sample_time = SampleTime::from_frame(
-            static_cast<double>(local) + parent_ctx.sample_time.fraction(),
-            parent_ctx.frame_rate);
-        local_ctx.frame = local;
-        local_ctx.duration = node.range.duration;
+        const SampleTime local_time = SampleTime::from_frame(
+            static_cast<double>(local) + parent_ctx.local_time().fraction(),
+            parent_ctx.frame_rate());
+        FrameContext local_ctx = parent_ctx.with_local_time(local_time, node.range.duration);
 
         // Compute progress
         const f32 progress = (node.range.duration > Frame{0})
@@ -162,7 +160,7 @@ private:
         const SequenceNode& node,
         const FrameContext& ctx
     ) {
-        return node.range.contains(ctx.frame);
+        return node.range.contains(ctx.frame());
     }
 };
 
