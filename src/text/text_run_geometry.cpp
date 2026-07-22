@@ -37,19 +37,17 @@ namespace chronon3d::renderer {
 // Single source of truth for per-glyph visual bounds.  Walks both active
 // and crossfade glyph vectors, accounting for:
 //   - layout position + animated offset
-//   - blur + stroke width + safety padding (8px)
-//   - 2.5D shear estimates (rotation.x/y tangent projection)
-//   - scale.z expansion
 //   - per-glyph outline bbox from `placed.glyphs[i].bbox_*`
 //     (FreeType glyph metrics populated during shaping; replaces the
 //      previous advance-based approximation so the predicted bbox
-//      matches the actual ink extents).
-//   - blur + stroke width + safety padding (8px)
+//      matches the actual ink extents)
+//   - per-glyph blur + stroke width
 //   - 2.5D shear estimates (rotation.x/y tangent projection)
 //   - scale.z expansion
 //
 // Excludes: model transform, world-space projection, shadow padding,
-// spread (shadow/glow), and rasterizer margin.  Those are caller concerns.
+// spread (shadow/glow), and heuristic rasterizer margin.  Those are caller
+// concerns.
 
 std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
     const TextRunShape& shape
@@ -108,9 +106,11 @@ std::optional<TextRunLocalBounds> compute_text_run_visual_bounds(
                             * (3.14159265f / 180.0f),
                         -1.5607f, 1.5607f)))
                     * std::abs(static_cast<float>(g.layout_position.x));
-                // `pad` adds only shear-based padding (rotation ×
-                // layout_position tangent) plus per-glyph blur/stroke.
-                const float pad = g.blur + g.stroke_width + 8.0f
+                // `pad` adds only per-glyph blur/stroke plus shear-based
+                // padding (rotation × layout_position tangent). No heuristic
+                // safety margin is added; the ink bbox is derived from the
+                // FreeType outline bboxes populated during shaping.
+                const float pad = g.blur + g.stroke_width
                     + shear_x_extra + shear_y_extra;
                 // Per-axis scale combines local (x,y) axes with the
                 // 2.5D depth scale (scale.z acts as a uniform expansion
@@ -217,7 +217,8 @@ raster::BBox compute_text_run_world_bbox(
         }
     }
 
-    const f32 pad = spread + 20.0f;
+    // Caller-provided spread only; no heuristic raster margin.
+    const f32 pad = spread;
     return {static_cast<i32>(std::floor(wx_min - pad)),
         static_cast<i32>(std::floor(wy_min - pad)),
         static_cast<i32>(std::ceil(wx_max + pad)),
