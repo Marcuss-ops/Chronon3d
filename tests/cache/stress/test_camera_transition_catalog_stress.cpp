@@ -38,6 +38,10 @@ constexpr int kDeadlineMs = 30'000;
 const std::vector<CameraTransitionKind> kAllKinds{
     CameraTransitionKind::Cut,
     CameraTransitionKind::SmoothBlend,
+    CameraTransitionKind::EaseOutBlend,
+    CameraTransitionKind::SmoothRotationBlend,
+    CameraTransitionKind::FocusDistanceBlend,
+    // Legacy aliases included for backward-compat coverage.
     CameraTransitionKind::Push,
     CameraTransitionKind::WhipPan,
     CameraTransitionKind::FocusHandoff,
@@ -116,13 +120,13 @@ TEST_CASE("CameraTransitionCatalog - pre-freeze concurrent register+read"
         catalog.register_transition(
             CameraTransitionKind::SmoothBlend,
             ShotTimelineResolver::default_smooth_blend);
-        catalog.register_transition(CameraTransitionKind::Push,
+        catalog.register_transition(CameraTransitionKind::EaseOutBlend,
                                     ShotTimelineResolver::default_push);
         catalog.register_transition(
-            CameraTransitionKind::WhipPan,
+            CameraTransitionKind::SmoothRotationBlend,
             ShotTimelineResolver::default_whip_pan);
         catalog.register_transition(
-            CameraTransitionKind::FocusHandoff,
+            CameraTransitionKind::FocusDistanceBlend,
             ShotTimelineResolver::default_focus_handoff);
         registers_done.store(5, std::memory_order_release);
 

@@ -174,6 +174,8 @@ public:
     CameraSessionCache() = default;
     CameraSessionCache(const CameraSessionCache&) = delete;
     CameraSessionCache& operator=(const CameraSessionCache&) = delete;
+    CameraSessionCache(CameraSessionCache&&) = default;
+    CameraSessionCache& operator=(CameraSessionCache&&) = default;
 
     /// Acquire (and prime) the session for `program` on `shot_idx`.  On
     /// entry the returned `CameraSessionLease` holds a guaranteed-valid
