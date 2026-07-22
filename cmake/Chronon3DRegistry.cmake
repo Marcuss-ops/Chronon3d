@@ -223,3 +223,37 @@ endforeach()
 # a stale string cannot survive a registry-list edit.
 set(CHRONON3D_FIND_DEPENDENCY_LINES "${_chronon3d_find_dep_lines}"
     CACHE INTERNAL "Auto-generated find_dependency lines (idempotent — rebuilt every configure)")
+
+# ── Helper functions for the two registry consumption patterns ────────────
+# The registry exposes a single list of OBJECT targets, but it is consumed
+# in two different ways:
+#
+#   1) SDK archive aggregation: each OBJECT target is linked PRIVATEly into
+#      the static `chronon3d_sdk_impl` archive.  This produces the installed
+#      `libchronon3d_sdk_impl.a`.
+#
+#   2) In-tree build-interface propagation: each OBJECT target's compiled
+#      .o files are attached to an INTERFACE aggregator (e.g.
+#      `chronon3d_pipeline`) via `$<BUILD_INTERFACE:$<TARGET_OBJECTS:...>>`.
+#      This lets in-tree consumers link only the aggregator and still get
+#      the object symbols.
+#
+# These two helpers make the consumption sites explicit and prevent
+# copy-pasted foreach loops from diverging.
+
+function(chronon3d_link_registered_objects_into_archive target)
+    foreach(obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
+        if(TARGET ${obj})
+            target_link_libraries(${target} PRIVATE ${obj})
+        endif()
+    endforeach()
+endfunction()
+
+function(chronon3d_expose_registered_objects_to_build_interface target)
+    foreach(obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
+        if(TARGET ${obj})
+            target_sources(${target} INTERFACE
+                $<BUILD_INTERFACE:$<TARGET_OBJECTS:${obj}>>)
+        endif()
+    endforeach()
+endfunction()
