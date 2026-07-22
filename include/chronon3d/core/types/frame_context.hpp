@@ -16,9 +16,11 @@ class FontEngine;     // TICKET-A4 follow-up — codex/agent2-font-bind-fixes:
                       // here so the existing include budget stays constant.
 
 struct FrameContext {
+    // Canonical temporal coordinate. All frame/time derived accessors below
+    // read from this value; `frame` is kept as a convenience mirror of
+    // sample_time.integral_frame() for code that still needs an integer id.
+    SampleTime sample_time{};
     Frame frame{0};
-    Frame local_frame{0};    // alias/local offset for sequences
-    f32   frame_time{0.0f};  // fractional frame for motion blur subsampling (0.0 = integral frame)
     Frame duration{0};
     FrameRate frame_rate{30, 1};
     i32 width{1920};
@@ -36,23 +38,21 @@ struct FrameContext {
     FontEngine* font_engine{nullptr};
     const chronon3d::runtime::RenderRuntime* runtime{nullptr};
 
-    [[nodiscard]] double fps() const { return frame_rate.fps(); }
+    [[nodiscard]] double fps() const { return sample_time.fps(); }
 
     // Effective time: integral frame + fractional offset.
     [[nodiscard]] double effective_frame() const {
-        return static_cast<double>(frame) + static_cast<double>(frame_time);
+        return sample_time.frame;
     }
 
     [[nodiscard]] TimeSeconds seconds() const {
-        return effective_frame()
-             * static_cast<double>(frame_rate.denominator)
-             / static_cast<double>(frame_rate.numerator);
+        return sample_time.seconds();
     }
 
     [[nodiscard]] double progress() const {
         if (duration <= 0) return 0.0;
         return std::clamp(
-            effective_frame() / static_cast<double>(duration),
+            sample_time.frame / static_cast<double>(duration),
             0.0,
             1.0
         );

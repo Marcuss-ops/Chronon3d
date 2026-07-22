@@ -63,9 +63,7 @@ inline SceneBuilder::SceneBuilder(i32 width, i32 height,
 inline SceneBuilder::SceneBuilder(const FrameContext& ctx,
                                   registry::ShapeRegistry* shape_registry)
     : scene_(ctx.resource),
-      current_time_(SampleTime::from_frame(
-          static_cast<double>(ctx.frame) + static_cast<double>(ctx.frame_time),
-          ctx.frame_rate)),
+      current_time_(ctx.sample_time),
       m_ctx(ctx), m_width(ctx.width), m_height(ctx.height) {
     if (shape_registry) {
         m_shape_registry = shape_registry;

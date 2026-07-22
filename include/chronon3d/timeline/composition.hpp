@@ -99,20 +99,21 @@ public:
     [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]
     [[nodiscard]] Scene evaluate(Frame frame,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
-        return evaluate(frame, 0.0f, res);
+        return evaluate(SampleTime::from_frame_int(frame, m_spec.frame_rate), res);
     }
 
     [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]
     [[nodiscard]] Scene evaluate(SampleTime time,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
-        return evaluate_double(time.frame, time.frame_rate, res);
+        return evaluate_double(time, res);
     }
 
     [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]
     [[nodiscard]] Scene evaluate(Frame frame, f32 frame_time,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
-        return evaluate_double(static_cast<double>(frame) + static_cast<double>(frame_time),
-                               m_spec.frame_rate, res);
+        return evaluate_double(SampleTime::from_frame(
+            static_cast<double>(frame) + static_cast<double>(frame_time),
+            m_spec.frame_rate), res);
     }
 
     // codex/agent2-font-bind-fixes — engine-aware evaluate overload.
@@ -133,8 +134,9 @@ public:
     [[nodiscard]] Scene evaluate(Frame frame, f32 frame_time,
                                  FontEngine* engine,
                                  std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
-        return evaluate_double(static_cast<double>(frame) + static_cast<double>(frame_time),
-                               m_spec.frame_rate, res, engine);
+        return evaluate_double(SampleTime::from_frame(
+            static_cast<double>(frame) + static_cast<double>(frame_time),
+            m_spec.frame_rate), res, engine);
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -239,20 +241,19 @@ public:
     Camera camera;
 
 private:
-    [[nodiscard]] Scene evaluate_double(double frame, FrameRate rate,
+    [[nodiscard]] Scene evaluate_double(SampleTime sample_time,
                                         std::pmr::memory_resource* res,
                                         FontEngine* engine = nullptr) const {
-        const Frame integral = static_cast<Frame>(std::floor(frame));
+        const Frame integral = sample_time.integral_frame();
         FrameContext ctx{
-            .frame      = integral,
-            .local_frame = integral,
-            .frame_time = static_cast<f32>(frame - std::floor(frame)),
-            .duration   = m_spec.duration,
-            .frame_rate = rate,
-            .width      = m_spec.width,
-            .height     = m_spec.height,
+            .sample_time = sample_time,
+            .frame       = integral,
+            .duration    = m_spec.duration,
+            .frame_rate  = sample_time.frame_rate,
+            .width       = m_spec.width,
+            .height      = m_spec.height,
             .assets_root = m_spec.assets_root,
-            .resource   = res,
+            .resource    = res,
             // P1-16: font_engine field removed; engine is ignored on the
             // legacy path. The canonical accessor is ctx.runtime->font_engine().
         };

@@ -185,9 +185,8 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
             const Frame last = duration > Frame{0} ? duration - Frame{1} : Frame{0};
             for (Frame frame = Frame{0}; frame <= last; frame += Frame{1}) {
                 const FrameContext frame_context{
+                    .sample_time = SampleTime::from_frame(static_cast<double>(frame), rate),
                     .frame = frame,
-                    .local_frame = frame,
-                    .frame_time = 0.0f,
                     .duration = duration,
                     .frame_rate = rate,
                     .width = width,
