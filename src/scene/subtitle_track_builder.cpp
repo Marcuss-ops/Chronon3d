@@ -156,30 +156,36 @@ void SubtitleTrackBuilder::build() {
         TextRunSpec run_spec =
             registry::wire_preset_text_run_params(preset_id_, spec);
 
-        // TICKET-TIMED-WORD-BINDING: emit N per-word selectors so the
-        // preset's existing animator (e.g. `yellow_keyword`, `karaoke_fill`,
-        // `active_word_pop`) naturally applies its highlight properties
-        // (color / scale / stroke / background) to the ACTIVE word only.
+        // TICKET-TIMED-WORD-BINDING: emit N per-word selectors and wire
+        // them into the preset animator's selector list so the preset's
+        // properties (fill / scale / stroke / background) apply ONLY to
+        // the active word.
         //
         // Mechanism (Cat-3 minimal-surface, Option c per thinker plan):
-        //   * One GlyphSelectorSpec per word with unit=Word, start=i, end=i+1.
-        //   * Selector math (`evaluate_selector`) returns weight=1.0 ONLY
-        //     for the word whose index falls in [start, end); weight=0.0
-        //     for all other words and adjacent glyphs.
+        //   * One GlyphSelectorSpec per word with unit=Word; start/end are
+        //     percentage ranges (0..100) mapped to word indices by the
+        //     TextUnitMap-based selector math.
+        //   * Selector math (`evaluate_compiled_selectors`) returns weight=1.0
+        //     for the active word and 0.0 for all other words.
         //   * The preset's animator multiplies its properties[] by the
         //     combined selector weight per glyph: the active word gets the
         //     highlight, neighbours stay at base.
         //
-        // No `semantic_id` field needed on GlyphSelectorSpec (zero new
-        // SDK type); the per-frame active-word resolution is implicit in
-        // the index-based math.  Per-`byte_start`/`byte_end` on TimedWord
-        // is populated by the 3 adapters (SRT/VTT/JSON) for downstream
-        // TextSpanOverride mapping if needed.
+        // The selectors live inside the first animator (the preset's own
+        // animator returned by wire_preset_text_run_params).  Putting them
+        // in TextRunSpec::selectors would orphan them because the
+        // materializer evaluates only animator-bound selectors during
+        // per-frame evaluation.
         std::vector<GlyphSelectorSpec> word_selectors =
             build_word_selectors(cue, active_frame_rate(), start_frame, i);
-        for (auto& word_sel : word_selectors) {
-            run_spec.selectors.push_back(std::move(word_sel));
+        if (!run_spec.animators.empty()) {
+            auto& preset_animator = run_spec.animators.front();
+            for (auto& word_sel : word_selectors) {
+                preset_animator.selectors.push_back(std::move(word_sel));
+            }
         }
+        // If the preset has no animator (e.g. minimal_white) there is no
+        // property to drive per-word highlighting; drop the selectors.
 
         builder_->animated_text("subtitle_cue_" + std::to_string(i), run_spec)
             .commit()

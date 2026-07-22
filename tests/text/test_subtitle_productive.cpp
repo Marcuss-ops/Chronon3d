@@ -2,6 +2,16 @@
 #include <chronon3d/authoring/subtitle_track_builder.hpp>
 #include <chronon3d/authoring/layer.hpp>
 #include <chronon3d/registry/text_preset_registry.hpp>
+#include <chronon3d/registry/text_preset_resolver.hpp>
+
+#include <chronon3d/api/composition.hpp>
+#include <chronon3d/api/scene.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+
+#include <tests/helpers/test_utils.hpp>
 
 #include <doctest/doctest.h>
 
@@ -301,7 +311,7 @@ TEST_CASE("SubtitleTrackBuilder can be instantiated and configured") {
 
     auto builder = layer.subtitles(track)
                        .preset("minimal_white")
-                       .font("fonts/Poppins-Bold.ttf", 48.0f)
+                       .font(chronon3d::test::bundled_font_path("assets/fonts/Poppins-Bold.ttf"), 48.0f)
                        .color(Color::white())
                        .box({1400.0f, 200.0f})
                        .align(TextAlign::Center)
@@ -546,15 +556,13 @@ TEST_CASE("Karaoke preset accepts Estimated timing when explicitly allowed") {
 
 TEST_CASE("SubtitleTrackBuilder emits one GlyphSelectorSpec per TimedWord (karaoke-pop wiring)") {
     // TICKET-TIMED-WORD-BINDING: the builder must emit N selectors (one per
-    // word) so the preset's existing animator applies its highlight properties
-    // to the ACTIVE word only (selector math gives weight=1.0 ONLY for the
-    // matching word's glyphs at the active time window).
+    // word) and wire them into the preset animator so the preset's highlight
+    // properties apply to the ACTIVE word only.
     //
     // We can't directly inspect the post-build run_spec from the public API
-    // (builder consumes it via commit()), so this test verifies the wiring
-    // produces the correct number of TextRunSpec::selectors entries by
-    // inspecting the LayerBuilder's internal state.  The build is also a
-    // no-throw smoke check for the karaoke-aware preset.
+    // (builder consumes it via commit()), so this test acts as a no-throw
+    // smoke check that the karaoke-aware preset builds without errors when
+    // per-word timing is available.
     LayerBuilder lb{"test_layer", SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1})};
     lb.screen_dimensions(1920.0f, 1080.0f);
     CanvasInfo canvas = CanvasInfo::with_safe_area(1920.0f, 1080.0f, SafeAreaPreset{});
@@ -581,29 +589,45 @@ TEST_CASE("SubtitleTrackBuilder emits one GlyphSelectorSpec per TimedWord (karao
                        .build());
 }
 
-TEST_CASE("TextRunSpec::selectors holds N word selectors post-builder-wiring (round-2 reviewer lock)") {
-    // Round-2 reviewer lock (TICKET-TIMED-WORD-BINDING Finding #1): assert
-    // that pushing N GlyphSelectorSpec entries onto TextRunSpec::selectors
-    // (the canonical field at include/chronon3d/scene/builders/params/text_params.hpp:105)
-    // results in selectors.size() == N.  This locks the structural contract
-    // without needing a full render pipeline.
-    TextRunSpec run_spec;
-    run_spec.text.content.value = "Hello world";
+TEST_CASE("Per-word selectors are wired into the preset animator (round-2 reviewer lock)") {
+    // Round-2 reviewer lock (TICKET-TIMED-WORD-BINDING Finding #1): the
+    // production builder moves word selectors into the preset animator's
+    // selectors list, not TextRunSpec::selectors.  This test locks the
+    // structural contract by replicating the wiring step.
+    SubtitleCue cue;
+    cue.text = "Hello world again";
+    cue.word_timing_quality = WordTimingQuality::Authoritative;
+    cue.words = {
+        TimedWord{"Hello", 1.0f, 2.0f, "w1", 0u, 5u},
+        TimedWord{"world", 2.0f, 3.0f, "w2", 6u, 11u},
+        TimedWord{"again", 3.0f, 4.0f, "w3", 12u, 17u},
+    };
 
-    const std::size_t expected_count = 5;
-    for (std::size_t w = 0; w < expected_count; ++w) {
-        GlyphSelectorSpec word_sel;
-        word_sel.unit = TextSelectorUnit::Word;
-        word_sel.start = static_cast<f32>(w);
-        word_sel.end = static_cast<f32>(w + 1);
-        word_sel.shape = TextSelectorShape::Square;
-        word_sel.id = "test_word_" + std::to_string(w) + "_sel";
-        run_spec.selectors.push_back(std::move(word_sel));
+    TextSpec spec;
+    spec.content.value = cue.text;
+    spec.font.font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf");
+    spec.font.font_size = 48.0f;
+
+    auto run_spec = chronon3d::registry::wire_preset_text_run_params("active_word_pop", spec);
+    REQUIRE(!run_spec.animators.empty());
+
+    const FrameRate fr{30, 1};
+    const auto word_selectors =
+        chronon3d::authoring::SubtitleTrackBuilder::build_word_selectors(cue, fr, Frame{30});
+    const std::size_t expected_count = word_selectors.size();
+    REQUIRE(expected_count == 3u);
+
+    auto& animator = run_spec.animators.front();
+    const std::size_t base_count = animator.selectors.size();
+    for (auto& sel : word_selectors) {
+        animator.selectors.push_back(std::move(sel));
     }
-    CHECK(run_spec.selectors.size() == expected_count);
-    CHECK(run_spec.selectors[0].unit == TextSelectorUnit::Word);
-    CHECK(run_spec.selectors[0].start.value_at(Frame{0}) == doctest::Approx(0.0f));
-    CHECK(run_spec.selectors[0].end.value_at(Frame{0}) == doctest::Approx(1.0f));
+
+    CHECK(animator.selectors.size() == base_count + expected_count);
+    const auto& first_word_sel = animator.selectors[base_count];
+    CHECK(first_word_sel.unit == TextSelectorUnit::Word);
+    CHECK(first_word_sel.start.value_at(Frame{0}) == doctest::Approx(0.0f));
+    CHECK(first_word_sel.end.value_at(Frame{0}) == doctest::Approx(100.0f / 3.0f));
 }
 
 TEST_CASE("hash_timed_cue distinguishes Estimated vs Authoritative on otherwise-identical cue data") {
@@ -646,6 +670,95 @@ TEST_CASE("active_word_style_at keeps quality=None when cue has no words (early-
     auto state = active_word_style_at(track, 2.0f);
     CHECK(!state.highlighted);
     CHECK(state.quality == WordTimingQuality::None);
+}
+
+TEST_CASE("active_word_pop renders a different highlighted word per frame") {
+    // TICKET-TIMED-WORD-BINDING end-to-end: build a subtitle cue with two
+    // words, render on frames where each word is active, and assert the
+    // resulting framebuffers differ.  This proves the word selector is
+    // wired into the preset animator and drives fill/scale per-word.
+    auto renderer = chronon3d::test::make_renderer();
+
+    SubtitleTrack track;
+    SubtitleCue cue;
+    cue.start_s = 0.0f;
+    cue.end_s = 2.0f;
+    cue.text = "One Two";
+    cue.word_timing_quality = WordTimingQuality::Authoritative;
+    cue.words = {
+        TimedWord{"One", 0.0f, 1.0f, "w1", 0u, 3u},
+        TimedWord{"Two", 1.0f, 2.0f, "w2", 4u, 7u},
+    };
+    track.cues.push_back(cue);
+
+    auto comp = chronon3d::composition(
+        {.name = "active_word_pop_test",
+         .width = 640, .height = 200,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 90},
+        [&track, &renderer](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("subtitle", [&track](LayerBuilder& lb) {
+                lb.screen_dimensions(640.0f, 200.0f);
+                CanvasInfo canvas =
+                    CanvasInfo::with_safe_area(640.0f, 200.0f, SafeAreaPreset{});
+                chronon3d::authoring::Layer layer{lb, canvas};
+                layer.subtitles(track)
+                    .preset("active_word_pop")
+                    .font(chronon3d::test::bundled_font_path("assets/fonts/Poppins-Bold.ttf"), 48.0f)
+                    .color(Color::white())
+                    .box({600.0f, 100.0f})
+                    .align(TextAlign::Center)
+                    .place(TextPlacementKind::CanvasCenter)
+                    .build();
+            });
+            return s.build();
+        });
+
+    // Word One is active at 0.5s (frame 15); word Two at 1.5s (frame 45).
+    auto fb_one = renderer.render(comp, Frame{15});
+    auto fb_two = renderer.render(comp, Frame{45});
+    REQUIRE(fb_one != nullptr);
+    REQUIRE(fb_two != nullptr);
+
+    auto count_visible = [](const Framebuffer& fb) {
+        int n = 0;
+        for (int y = 0; y < fb.height(); ++y) {
+            for (int x = 0; x < fb.width(); ++x) {
+                if (fb.get_pixel(x, y).a > 0.05f) ++n;
+            }
+        }
+        return n;
+    };
+    CHECK(count_visible(*fb_one) > 0);
+    CHECK(count_visible(*fb_two) > 0);
+
+    bool identical = true;
+    for (int y = 0; y < fb_one->height() && identical; ++y) {
+        for (int x = 0; x < fb_one->width(); ++x) {
+            if (fb_one->get_pixel(x, y) != fb_two->get_pixel(x, y)) {
+                identical = false;
+                break;
+            }
+        }
+    }
+    CHECK_FALSE(identical);
+
+    // The scale pop should make the active word's ink cover a slightly
+    // different set of pixels in each frame.  We deliberately avoid a
+    // strict colour check because FillColorProperty blending depends on
+    // the renderer's exact colour-space path; the important contract is
+    // that the per-word animator produces two visibly different frames.
+    int changed = 0;
+    for (int y = 0; y < fb_one->height(); ++y) {
+        for (int x = 0; x < fb_one->width(); ++x) {
+            if (fb_one->get_pixel(x, y) != fb_two->get_pixel(x, y)) {
+                ++changed;
+            }
+        }
+    }
+    CHECK(changed > 100);
 }
 
 TEST_CASE("SubtitleTrackBuilder builds per-word selectors with percentage ranges and keyed amount") {
