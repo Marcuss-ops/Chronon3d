@@ -121,12 +121,6 @@ constexpr float kBoxRightX  = 600.0f;   // = kPosX + kBoxW
 // (Left is the default).  Remove the early-return below to activate the
 // cross-alignment regression lock.
 TEST_CASE("align-left: ink.x0 ~ position.x (200) within 5px tolerance") {
-    WARN("EXPECT_FAIL: TextAlign not applied to single-line text per "
-         "tests/text_golden/text_completeness/text_alignment.cpp:8-12. "
-         "When alignment is fixed, remove the early-return below to activate "
-         "the assertion.");
-    return;  // EXPECT_FAIL — see WARN above. Re-enable when alignment is implemented.
-
     auto renderer = make_renderer_shared();
     auto fb = renderer->render(
         build_alignment_composition(*renderer, TextAlign::Left), Frame{0});
@@ -146,12 +140,6 @@ TEST_CASE("align-left: ink.x0 ~ position.x (200) within 5px tolerance") {
 // Today this fails because TextAlign is ignored → ink is left-aligned at
 // position.x=200, ink.center_x ~ 200 + ink_width/2 (NOT 400).
 TEST_CASE("align-center: ink.center_x ~ box_center_x (400) within 1px") {
-    WARN("EXPECT_FAIL: TextAlign not applied to single-line text per "
-         "tests/text_golden/text_completeness/text_alignment.cpp:8-12. "
-         "When alignment is fixed, remove the early-return below to activate "
-         "the assertion.");
-    return;  // EXPECT_FAIL — see WARN above. Re-enable when alignment is implemented.
-
     auto renderer = make_renderer_shared();
     auto fb = renderer->render(
         build_alignment_composition(*renderer, TextAlign::Center), Frame{0});
@@ -170,12 +158,6 @@ TEST_CASE("align-center: ink.center_x ~ box_center_x (400) within 1px") {
 // position.x + box.w (600) within 5px tolerance.  Today this fails because
 // TextAlign is ignored → ink.x1 ~ 200 + ink_width (NOT 600).
 TEST_CASE("align-right: ink.x1 ~ box_right (600) within 5px tolerance") {
-    WARN("EXPECT_FAIL: TextAlign not applied to single-line text per "
-         "tests/text_golden/text_completeness/text_alignment.cpp:8-12. "
-         "When alignment is fixed, remove the early-return below to activate "
-         "the assertion.");
-    return;  // EXPECT_FAIL — see WARN above. Re-enable when alignment is implemented.
-
     auto renderer = make_renderer_shared();
     auto fb = renderer->render(
         build_alignment_composition(*renderer, TextAlign::Right), Frame{0});

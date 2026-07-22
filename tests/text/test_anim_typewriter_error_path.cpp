@@ -37,6 +37,13 @@
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <content/text/text_helpers_typewriter.hpp>
 
+#include <chronon3d/api/composition.hpp>
+#include <chronon3d/api/scene.hpp>
+#include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/core/memory/framebuffer.hpp>
+#include <tests/helpers/test_utils.hpp>
+#include <tests/text_golden/text_completeness/pixel_scan_helpers.hpp>
+
 using namespace chronon3d;
 using namespace chronon3d::content::text;
 using test_text_quality::require_font;
@@ -134,4 +141,59 @@ TEST_CASE("Azione 18: typewriter_build error is non-fatal (scene still buildable
     // Scene is still buildable after the error + recovery.
     auto scene = s.build();
     CHECK_FALSE(scene.layers().empty());
+}
+
+// ─── Frame-by-frame monotonicity — no false-green static pass ───────────────
+//
+// Builds a typewriter scene once, then renders several frames.  The
+// visible ink area must be monotonically non-decreasing and strictly
+// larger at the final frame than at the start, proving the typewriter
+// effect actually reveals text over time rather than rendering the
+// whole text at every frame.
+
+TEST_CASE("Azione 18: typewriter frame-by-frame ink area is monotonic") {
+    chronon3d::Config cfg;
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+            chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+    if (!require_font(engine)) return;
+
+    FrameContext ctx{.frame = Frame{0}, .width = 1920, .height = 1080};
+    ctx.font_engine = &engine;
+    SceneBuilder s(ctx);
+
+    TypewriterBuildOptions opts{
+        .text = "Typewriter",
+        .box = {1200.0f, 240.0f},
+        .font_size = 64.0f,
+        .tracking = 3.0f,
+        .chars_per_frame = 1.0f,
+    };
+
+    auto result = typewriter_build(s, "tw", opts, Frame{0}, engine);
+    REQUIRE(result.has_value());
+    CHECK(result.value() == true);
+
+    auto scene = std::make_shared<Scene>(s.build());
+    auto comp = composition(
+        {.name = "TypewriterFrames",
+         .width = 1920, .height = 1080,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 30},
+        [scene](const FrameContext&) -> Scene { return *scene; });
+
+    auto renderer = chronon3d::test::make_renderer();
+
+    std::vector<int> visible_area;
+    for (Frame f : {Frame{0}, Frame{3}, Frame{6}, Frame{9}, Frame{12}, Frame{15}}) {
+        auto fb = renderer.render(comp, f);
+        REQUIRE(fb != nullptr);
+        visible_area.push_back(chronon3d::test::completeness::count_visible_pixels(*fb));
+    }
+
+    INFO("typewriter visible area over frames: ", visible_area);
+    for (std::size_t i = 1; i < visible_area.size(); ++i) {
+        CHECK(visible_area[i] >= visible_area[i - 1]);
+    }
+    CHECK(visible_area.back() > visible_area.front());
 }
