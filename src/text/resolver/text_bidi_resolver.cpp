@@ -57,7 +57,7 @@ namespace chronon3d::text::resolver {
 // (passed through to `make_default_font_stack`). Empty means "no bundled
 // fonts available" (fail-loud via spdlog::warn, primary-only stack).
 
-void emit_via_bidi(
+std::size_t emit_via_bidi(
     std::vector<ResolvedTextRun>&           out,
     const TextDocument&                     doc,
     FontEngine&                             engine,
@@ -86,7 +86,7 @@ constexpr std::size_t kResolverExtrasCnt = 0;
 
 } // namespace
 
-void emit_via_bidi(
+std::size_t emit_via_bidi(
     std::vector<ResolvedTextRun>&           out,
     const TextDocument&                     doc,
     FontEngine&                             engine,
@@ -126,6 +126,8 @@ void emit_via_bidi(
         shaping.language = para.style.language;
     }
 
+    std::size_t missing_clusters = 0;
+
     // No bidi branch: even non-bidi-input collapses to a single run
     // with the resolved font + override_dir (or LTR fallback).
     auto runs = segment_bidi_runs(text);
@@ -134,10 +136,11 @@ void emit_via_bidi(
                                             ? override_dir : TextDirection::LTR;
         auto result = fallback_resolver.resolve_runs(
             text, stack, shaping, sub.byte_start, direction, para.style);
+        missing_clusters += result.missing_clusters;
         for (auto& run : result.runs) {
             out.push_back(std::move(run));
         }
-        return;
+        return missing_clusters;
     }
 
     for (const auto& br : runs) {
@@ -151,10 +154,13 @@ void emit_via_bidi(
             sub.byte_start + br.byte_offset,
             direction, para.style);
 
+        missing_clusters += result.missing_clusters;
         for (auto& run : result.runs) {
             out.push_back(std::move(run));
         }
     }
+
+    return missing_clusters;
 }
 
 } // namespace chronon3d::text::resolver

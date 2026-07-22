@@ -44,6 +44,8 @@ struct FaceEntry {
     hb_font_t* hb_font{nullptr};
     std::string resolved_path;
     int font_weight{400};
+    std::string family_name;
+    std::string style_name;
     bool has_kerning{false};
 
     bool valid() const { return ft_face != nullptr && hb_font != nullptr; }
@@ -203,6 +205,31 @@ struct FontEngine::Impl {
         hb_buffer_pool.clear();
     }
 
+    // Shared helper: load/cached a FaceEntry for `spec`. Non-owning pointer
+    // to the cached entry, or nullptr if the font cannot be loaded. Follows
+    // the same shared_mutex dance as FontEngine::can_load().
+    [[nodiscard]] FaceEntry* get_face_entry(const FontSpec& spec) {
+        if (!ft_library) return nullptr;
+
+        {
+            std::shared_lock<std::shared_mutex> shared_lock(face_cache_mutex);
+            auto it = face_cache.find(spec);
+            if (it != face_cache.end()) {
+                return it->second.valid() ? &it->second : nullptr;
+            }
+        }
+        std::unique_lock<std::shared_mutex> unique_lock(face_cache_mutex);
+        auto it = face_cache.find(spec);
+        if (it == face_cache.end()) {
+            auto entry = load_face(spec);
+            if (!entry) return nullptr;
+            auto [inserted_it, ok] = face_cache.emplace(spec, std::move(*entry));
+            if (!ok) return nullptr;
+            it = inserted_it;
+        }
+        return it->second.valid() ? &it->second : nullptr;
+    }
+
     Impl() {
         FT_Error err = FT_Init_FreeType(&ft_library);
         if (err != 0) {
@@ -289,6 +316,8 @@ struct FontEngine::Impl {
         entry.hb_font = hb_font;
         entry.resolved_path = std::move(resolved);
         entry.font_weight = spec.font_weight;
+        entry.family_name = face->family_name ? face->family_name : std::string{};
+        entry.style_name = face->style_name ? face->style_name : std::string{};
         entry.has_kerning = FT_HAS_KERNING(face);
 
         return entry;
@@ -548,29 +577,8 @@ namespace text::font_engine_internal {
 
 bool has_glyph_for_codepoint(FontEngine& engine, const FontSpec& spec, char32_t codepoint) {
 #ifdef CHRONON3D_ENABLE_TEXT
-    if (!engine.m_impl || !engine.m_impl->ft_library) return false;
-
-    auto get_face = [&engine](const FontSpec& spec) -> FaceEntry* {
-        {
-            std::shared_lock<std::shared_mutex> shared_lock(engine.m_impl->face_cache_mutex);
-            auto it = engine.m_impl->face_cache.find(spec);
-            if (it != engine.m_impl->face_cache.end()) {
-                return it->second.valid() ? &it->second : nullptr;
-            }
-        }
-        std::unique_lock<std::shared_mutex> unique_lock(engine.m_impl->face_cache_mutex);
-        auto it = engine.m_impl->face_cache.find(spec);
-        if (it == engine.m_impl->face_cache.end()) {
-            auto entry = engine.m_impl->load_face(spec);
-            if (!entry) return nullptr;
-            auto [inserted_it, ok] = engine.m_impl->face_cache.emplace(spec, std::move(*entry));
-            if (!ok) return nullptr;
-            it = inserted_it;
-        }
-        return it->second.valid() ? &it->second : nullptr;
-    };
-
-    FaceEntry* entry = get_face(spec);
+    if (!engine.m_impl) return false;
+    FaceEntry* entry = engine.m_impl->get_face_entry(spec);
     if (!entry) return false;
 
     hb_codepoint_t glyph = 0;
@@ -580,6 +588,40 @@ bool has_glyph_for_codepoint(FontEngine& engine, const FontSpec& spec, char32_t 
     return false;
 #else
     (void)engine; (void)spec; (void)codepoint;
+    return false;
+#endif
+}
+
+bool inspect_font(
+    FontEngine&     engine,
+    const FontSpec& spec,
+    std::string&    out_family,
+    std::string&    out_style,
+    int&            out_weight
+) {
+#ifdef CHRONON3D_ENABLE_TEXT
+    if (!engine.m_impl) return false;
+    FaceEntry* entry = engine.m_impl->get_face_entry(spec);
+    if (!entry) return false;
+
+    out_family = entry->family_name;
+    out_style  = entry->style_name;
+    out_weight = entry->font_weight;
+
+    // Simple heuristic for weight/style from the face metadata.
+    auto lower = [](std::string s) {
+        std::transform(s.begin(), s.end(), s.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        return s;
+    };
+    if (out_weight == 400 && lower(out_style).find("bold") != std::string::npos) {
+        out_weight = 700;
+    }
+
+    return true;
+#else
+    (void)engine; (void)spec;
+    (void)out_family; (void)out_style; (void)out_weight;
     return false;
 #endif
 }

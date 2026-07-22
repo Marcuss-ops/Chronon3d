@@ -49,6 +49,10 @@ struct FontFallbackResult {
         : missing_clusters(missing), runs(std::move(in_runs)) {}
 };
 
+/// Alias for the canonical output of the fallback resolver.  Used by
+/// callers that prefer a service-oriented name (`ResolvedFontRunList`).
+using ResolvedFontRunList = FontFallbackResult;
+
 // ── FontFallbackResolver — single canonical cluster fallback service ───────
 //
 // The resolver holds a reference to the live FontEngine.  It performs only

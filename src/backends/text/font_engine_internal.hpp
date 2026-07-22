@@ -42,4 +42,18 @@ namespace chronon3d::text::font_engine_internal {
     char32_t            codepoint
 );
 
+/// Internal-only: load/cache the face for `spec` and return its metadata
+/// via the out-parameters. Used by the bundled fallback scanner to fill
+/// family/style/weight for fonts discovered from disk.
+///
+/// @return true iff the font was loadable. On false the out-parameters
+///         are left untouched.
+[[nodiscard]] bool inspect_font(
+    FontEngine&     engine,
+    const FontSpec& spec,
+    std::string&    out_family,
+    std::string&    out_style,
+    int&            out_weight
+);
+
 } // namespace chronon3d::text::font_engine_internal
