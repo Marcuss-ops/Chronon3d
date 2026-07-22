@@ -47,6 +47,7 @@ struct FaceEntry {
     std::string family_name;
     std::string style_name;
     bool has_kerning{false};
+    FT_UInt notdef_glyph_id{0};
 
     bool valid() const { return ft_face != nullptr && hb_font != nullptr; }
 };
@@ -319,6 +320,15 @@ struct FontEngine::Impl {
         entry.family_name = face->family_name ? face->family_name : std::string{};
         entry.style_name = face->style_name ? face->style_name : std::string{};
         entry.has_kerning = FT_HAS_KERNING(face);
+        // Cache the .notdef glyph index so the cluster fallback probe can
+        // distinguish a real glyph from the fallback .notdef glyph. Some
+        // fonts map missing codepoints to a non-zero .notdef index; checking
+        // only glyph_index != 0 is not enough in those cases.
+        // Resolve the .notdef glyph by its canonical PostScript name rather
+        // than by querying U+0000, which may map to a different glyph or to
+        // an empty cmap entry in some fonts.
+        FT_Int notdef_idx = FT_Get_Name_Index(face, const_cast<FT_String*>(".notdef"));
+        entry.notdef_glyph_id = (notdef_idx >= 0) ? static_cast<FT_UInt>(notdef_idx) : 0;
 
         return entry;
     }
@@ -573,6 +583,27 @@ bool FontEngine::can_load(const FontSpec& spec) {
 // `font_engine_internal` namespace, friend-declared on FontEngine. The
 // class itself does NOT expose `has_glyph_for_codepoint` as a public
 // method, keeping the public ABI minimal.
+namespace {
+
+// Codepoints that legitimately carry no visible ink (space, control,
+// line-break, joiners, etc.). Their glyphs are expected to have empty
+// outlines, so the coverage probe must not reject them on that basis.
+bool is_invisible_codepoint(char32_t cp) noexcept {
+    // ASCII whitespace / control.
+    if (cp <= 0x1F || (cp >= 0x7F && cp <= 0x9F)) return true;
+    if (cp == 0x20 || cp == 0xA0) return true;
+
+    // Unicode line/paragraph separators and general punctuation spaces.
+    if (cp == 0x2028 || cp == 0x2029) return true;
+    if (cp >= 0x2000 && cp <= 0x200D) return true;  // spaces + ZWNJ/ZWJ
+    if (cp == 0x202F || cp == 0x205F || cp == 0x2060) return true;
+    if (cp == 0xFEFF) return true;                    // BOM / zero-width no-break
+
+    return false;
+}
+
+} // anonymous namespace
+
 namespace text::font_engine_internal {
 
 bool has_glyph_for_codepoint(FontEngine& engine, const FontSpec& spec, char32_t codepoint) {
@@ -581,11 +612,35 @@ bool has_glyph_for_codepoint(FontEngine& engine, const FontSpec& spec, char32_t 
     FaceEntry* entry = engine.m_impl->get_face_entry(spec);
     if (!entry) return false;
 
-    hb_codepoint_t glyph = 0;
-    if (hb_font_get_nominal_glyph(entry->hb_font, static_cast<hb_codepoint_t>(codepoint), &glyph)) {
-        return glyph != 0;
+    // Use FreeType's strict cmap resolver instead of HarfBuzz's nominal probe.
+    // Some fonts map missing codepoints to a non-zero .notdef glyph, so we
+    // also reject glyphs that resolve to the cached .notdef index.
+    FT_UInt glyph_index = FT_Get_Char_Index(entry->ft_face, static_cast<FT_ULong>(codepoint));
+    if (glyph_index == 0 || glyph_index == entry->notdef_glyph_id) {
+        return false;
     }
-    return false;
+
+    // Some widely-used system/web fonts map unsupported codepoints to an
+    // empty space-like fallback glyph. For visible characters we therefore
+    // verify the glyph actually carries outline or bitmap ink; invisible
+    // characters (space, joiners, controls) are exempt because their real
+    // glyphs are expected to be empty.
+    if (is_invisible_codepoint(codepoint)) {
+        return true;
+    }
+
+    FT_Error err = FT_Load_Glyph(entry->ft_face, glyph_index, FT_LOAD_NO_SCALE);
+    if (err != 0) {
+        return false;
+    }
+    const FT_GlyphSlot slot = entry->ft_face->glyph;
+    if (slot->format == FT_GLYPH_FORMAT_OUTLINE) {
+        return slot->outline.n_points > 0;
+    }
+    if (slot->format == FT_GLYPH_FORMAT_BITMAP) {
+        return slot->bitmap.width > 0 && slot->bitmap.rows > 0;
+    }
+    return true;
 #else
     (void)engine; (void)spec; (void)codepoint;
     return false;
