@@ -90,7 +90,7 @@ TEST_CASE("Dirty Rects: Bounding box correct for simple shapes") {
         .name = "BBoxRectTest", .width = W, .height = H, .duration = 5
     };
     Composition comp_rect(spec, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx.resource);
+        SceneBuilder s(ctx);
         // Small rect at (30,20) with size (40,50) → bbox approximately
         // centered at (30,20) size 40×50 in centered coords
         s.rect("r", {
@@ -133,7 +133,7 @@ TEST_CASE("Dirty Rects: Bounding box correct for simple shapes") {
     Composition comp_circle(CompositionSpec{
         .name = "BBoxCircleTest", .width = W, .height = H, .duration = 5
     }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx.resource);
+        SceneBuilder s(ctx);
         s.circle("c", {
             .radius = 25,
             .color = Color::green(),
@@ -169,7 +169,7 @@ TEST_CASE("Dirty Rects: Inter-frame diff includes old and new position") {
     Composition comp(CompositionSpec{
         .name = "DirtyRectDiffTest", .width = W, .height = H, .duration = 3
     }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx.resource);
+        SceneBuilder s(ctx);
         float x = 40.0f + static_cast<float>(ctx.frame()) * 40.0f;  // frame 0→40, 1→80
         s.rect("moving", {
             .size = {30, 30},
@@ -235,7 +235,7 @@ TEST_CASE("Dirty Rects: Static scene skips redundant clears") {
     Composition comp(CompositionSpec{
         .name = "StaticScene", .width = W, .height = H, .duration = kFrames
     }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx.resource);
+        SceneBuilder s(ctx);
         s.rect("bg", {
             .size = {static_cast<float>(W), static_cast<float>(H)},
             .color = Color{0.1f, 0.15f, 0.2f, 1.0f},
@@ -294,7 +294,7 @@ TEST_CASE("Dirty Rects: Near-static scene with small animated element") {
     Composition comp(CompositionSpec{
         .name = "NearStatic", .width = W, .height = H, .duration = kFrames
     }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx.resource);
+        SceneBuilder s(ctx);
 
         // Large static background
         s.rect("bg", {
@@ -370,7 +370,7 @@ TEST_CASE("Dirty Rects: Output correct with effects (blur)") {
     Composition comp(CompositionSpec{
         .name = "UnsafeEffect", .width = W, .height = H, .duration = 3
     }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx.resource);
+        SceneBuilder s(ctx);
 
         // Moving rect with blur effect
         float x = 60.0f + static_cast<float>(ctx.frame()) * 20.0f;
@@ -433,7 +433,7 @@ TEST_CASE("Dirty Rects: Long sequence equivalence with moving elements") {
     Composition comp(CompositionSpec{
         .name = "LongDirtySeq", .width = W, .height = H, .duration = kFrames
     }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx.resource);
+        SceneBuilder s(ctx);
 
         // Static background
         s.rect("bg", {
