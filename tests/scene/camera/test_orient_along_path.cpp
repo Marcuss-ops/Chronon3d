@@ -105,7 +105,7 @@ CameraProgram compile_or_die_orient_along_path(const CameraDescriptor& desc) {
 Camera2_5D eval_at_or_die_orient(const CameraProgram& program,
                           CameraSession& session, Frame frame) {
     CameraEvalContext ctx;
-    ctx.frame = frame;
+    ctx = ctx.with_frame(frame);
     ctx.sample_time = SampleTime::from_frame_int(frame, kFpsOrientAlongPath);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -354,7 +354,7 @@ TEST_CASE("OrientAlongPath (d) — fully degenerate (StaticCameraSource, "
 
     // Build the eval context manually so we can also inspect diagnostics.
     CameraEvalContext ctx;
-    ctx.frame = Frame{0};
+    ctx = ctx.with_frame(Frame{0});
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kFpsOrientAlongPath);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -414,7 +414,7 @@ TEST_CASE("OrientAlongPath (e) — fully degenerate (no tangent, "
     CameraSession session;  // fresh → last_tangent = std::nullopt → step 2 cannot fire
 
     CameraEvalContext ctx;
-    ctx.frame = Frame{0};
+    ctx = ctx.with_frame(Frame{0});
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kFpsOrientAlongPath);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());

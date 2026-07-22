@@ -5,12 +5,18 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/text/font_engine.hpp>
 using namespace chronon3d;
 
 
 TEST_CASE("LayerBuilder: position_anim bakes into transform at frame") {
-    FrameContext ctx{.frame = 30, .resource = std::pmr::get_default_resource()};
+    FrameContext ctx = make_frame_context(FrameContextParams{
+    .global_time = SampleTime::from_frame_int(30, FrameRate{30, 1}),
+    .width = 1920,
+    .height = 1080,
+    .resource = std::pmr::get_default_resource()
+});
     SceneBuilder sb(ctx);
     sb.layer("hero", [](LayerBuilder& b) {
         b.rect("r", {.size = {10, 10}});
@@ -24,7 +30,12 @@ TEST_CASE("LayerBuilder: position_anim bakes into transform at frame") {
 }
 
 TEST_CASE("LayerBuilder: opacity_anim bakes into transform at frame") {
-    FrameContext ctx{.frame = 15, .resource = std::pmr::get_default_resource()};
+    FrameContext ctx = make_frame_context(FrameContextParams{
+    .global_time = SampleTime::from_frame_int(15, FrameRate{30, 1}),
+    .width = 1920,
+    .height = 1080,
+    .resource = std::pmr::get_default_resource()
+});
     SceneBuilder sb(ctx);
     sb.layer("fade", [](LayerBuilder& b) {
         b.rect("r", {.size = {10, 10}});
@@ -47,7 +58,12 @@ TEST_CASE("LayerBuilder: static position() still works when no anim keys") {
 }
 
 TEST_CASE("LayerBuilder: scale_anim bakes into transform") {
-    FrameContext ctx{.frame = 30, .resource = std::pmr::get_default_resource()};
+    FrameContext ctx = make_frame_context(FrameContextParams{
+    .global_time = SampleTime::from_frame_int(30, FrameRate{30, 1}),
+    .width = 1920,
+    .height = 1080,
+    .resource = std::pmr::get_default_resource()
+});
     SceneBuilder sb(ctx);
     sb.layer("s", [](LayerBuilder& b) {
         b.rect("r", {.size = {10, 10}});
@@ -60,7 +76,12 @@ TEST_CASE("LayerBuilder: scale_anim bakes into transform") {
 }
 
 TEST_CASE("LayerBuilder: animations resolve in layer-local time") {
-    FrameContext ctx{.frame = 90, .resource = std::pmr::get_default_resource()};
+    FrameContext ctx = make_frame_context(FrameContextParams{
+    .global_time = SampleTime::from_frame_int(90, FrameRate{30, 1}),
+    .width = 1920,
+    .height = 1080,
+    .resource = std::pmr::get_default_resource()
+});
     SceneBuilder sb(ctx);
     sb.layer("offset", [](LayerBuilder& b) {
         b.from(30)

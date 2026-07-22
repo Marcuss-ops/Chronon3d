@@ -35,7 +35,7 @@
 #include <chronon3d/text/text_animator_property.hpp>     // TextAnimatorSpec, GlyphInstanceState (transitive via animation/)
 #include <chronon3d/text/text_material.hpp>              // TextMaterial
 #include <chronon3d/scene/model/shape/shape.hpp>           // TextPaint, TextShadow
-#include <chronon3d/scene/builders/builder_params.hpp>     // TextLayoutSpec
+#include <chronon3d/text/text_layout_spec.hpp>     // TextLayoutSpec
 #include <chronon3d/text/text_placement.hpp>               // TextPlacementKind
 
 #include <memory>

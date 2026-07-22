@@ -80,7 +80,7 @@ CameraDescriptor make_klv_desc(const std::string& id_str,
 // requirement; explicit FrameRate from the caller, no 30 fps hidden).
 CameraEvalContext make_ctx(Frame f) {
     CameraEvalContext ctx;
-    ctx.frame = f;
+    ctx = ctx.with_frame(f);
     ctx.sample_time = SampleTime::from_frame_int(f, kKlvFps);
     return ctx;
 }

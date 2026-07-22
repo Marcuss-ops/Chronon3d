@@ -86,7 +86,7 @@ CameraProgram compile_or_die_cam01(const CameraDescriptor& desc,
 Camera2_5D eval_at_or_die_cam01(const CameraProgram& program,
                            CameraSession& session, Frame frame) {
     CameraEvalContext ctx;
-    ctx.frame = frame;
+    ctx = ctx.with_frame(frame);
     ctx.sample_time = SampleTime::from_frame_int(frame, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -789,7 +789,7 @@ TEST_CASE("compiled_orient_along_path_degenerate_hold — "
     // Evaluate at a frame within the hold segment (segment 0 ends at frame 30,
     // so frame 45 is mid-hold → tangent = (0,0,0)).
     CameraEvalContext ctx;
-    ctx.frame = Frame{45};
+    ctx = ctx.with_frame(Frame{45});
     ctx.sample_time = SampleTime::from_frame_int(Frame{45}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -826,7 +826,7 @@ TEST_CASE("compiled_orient_along_path_with_static_source_no_crash — "
     CameraSession session;
 
     CameraEvalContext ctx;
-    ctx.frame = Frame{0};
+    ctx = ctx.with_frame(Frame{0});
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -1147,7 +1147,7 @@ TEST_CASE("compiled_orientation_look_at_layer_no_transforms — "
     // returns without modifying rotation, mirroring the in-camera_program.cpp
     // early-return when ctx.transforms == nullptr.
     CameraEvalContext ctx;
-    ctx.frame = Frame{0};
+    ctx = ctx.with_frame(Frame{0});
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -1312,7 +1312,7 @@ TEST_CASE("compiled_orientation_single_look_at_constraint_skipped — "
     // Manually drive the evaluate() so we can introspect diagnostics.
     CameraSession session;
     CameraEvalContext ctx;
-    ctx.frame = Frame{0};
+    ctx = ctx.with_frame(Frame{0});
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -1806,7 +1806,7 @@ TEST_CASE("compiled_failure_policy_stop — "
     CameraSession session;
 
     CameraEvalContext ctx;
-    ctx.frame = Frame{0};
+    ctx = ctx.with_frame(Frame{0});
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     CHECK_FALSE(res.has_value());
@@ -1821,7 +1821,7 @@ TEST_CASE("compiled_failure_policy_skip_failed — "
     CameraSession session;
 
     CameraEvalContext ctx;
-    ctx.frame = Frame{0};
+    ctx = ctx.with_frame(Frame{0});
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     CHECK(res.has_value());  // failure was skipped, no subsequent constraints
@@ -1839,7 +1839,7 @@ TEST_CASE("compiled_failure_policy_keep_last_valid — "
     CameraSession session;
 
     CameraEvalContext ctx;
-    ctx.frame = Frame{0};
+    ctx = ctx.with_frame(Frame{0});
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     CHECK_FALSE(res.has_value());
@@ -1906,7 +1906,7 @@ TEST_CASE("compiled_uncompiled_evaluate_returns_error — "
 
     CameraSession session;
     CameraEvalContext ctx;
-    ctx.frame = Frame{0};
+    ctx = ctx.with_frame(Frame{0});
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
 
     auto res = program.evaluate(ctx, session);
@@ -2229,7 +2229,7 @@ TEST_CASE("compiled_trajectory_lens_dof_golden — "
 
     CameraSession session;
     CameraEvalContext ctx;
-    ctx.frame       = Frame{45};   // mid-beziersegment, deterministic
+    ctx = ctx.with_frame(Frame{45});   // mid-beziersegment, deterministic
     ctx.sample_time = SampleTime::from_frame_int(Frame{45}, kCam01Fps);
 
     // (b) 5 consecutive evaluations MUST yield identical hashes.

@@ -50,7 +50,7 @@ Composition make_camera_truth_orbit() {
         {.name = "CameraTruthOrbit", .width = 960, .height = 540, .duration = 61},
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            const Frame f = ctx.frame;
+            const Frame f = ctx.frame();
 
             // ── Background grid (2D, screen-space reference) ──────────
             s.layer("bg", [](LayerBuilder& l) {

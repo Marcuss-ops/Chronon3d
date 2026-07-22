@@ -230,7 +230,7 @@ Framebuffer render_motion_blur_comparison(SoftwareRenderer& renderer) {
         s.rect("bg", {.size = {240, 270}, .color = {0.02f, 0.02f, 0.03f, 1},
                        .pos = {0, 0, 0}});
 
-        const float x = 20.0f + static_cast<float>(ctx.frame) * 4.0f;
+        const float x = 20.0f + static_cast<float>(ctx.frame()) * 4.0f;
         s.layer("rect", [=](LayerBuilder& l) {
             l.position({x, 135, 0});
             l.rect("r", {.size = {30, 30}, .color = {0.9f, 0.9f, 0.9f, 1},

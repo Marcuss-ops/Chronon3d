@@ -394,7 +394,7 @@ TEST_CASE("VisualRegression/Typewriter — char reveal at midpoint frame") {
         {.name = "VR_Typewriter", .width = kVW, .height = kVH, .duration = 60},
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            const float t = static_cast<float>(ctx.frame) / 60.0f;
+            const float t = static_cast<float>(ctx.frame()) / 60.0f;
             const int   filled = static_cast<int>(t * 32.0f);
             for (int i = 0; i < filled; ++i) {
                 s.rect("c" + std::to_string(i),
@@ -417,7 +417,7 @@ TEST_CASE("VisualRegression/AnimGlyph — per-glyph opacity wobble snapshot") {
         {.name = "VR_AnimGlyph", .width = kVW, .height = kVH, .duration = 60},
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            const float phase = static_cast<float>(ctx.frame) * 0.1f;
+            const float phase = static_cast<float>(ctx.frame()) * 0.1f;
             for (int i = 0; i < 12; ++i) {
                 const float a = 0.4f + 0.5f * std::abs(
                     std::sin(phase + static_cast<float>(i) * 0.5f));
@@ -442,7 +442,7 @@ TEST_CASE("VisualRegression/AnimWord — per-word wave displacement snapshot") {
         {.name = "VR_AnimWord", .width = kVW, .height = kVH, .duration = 90},
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            const float phase = static_cast<float>(ctx.frame) * 0.05f;
+            const float phase = static_cast<float>(ctx.frame()) * 0.05f;
             for (int w = 0; w < 5; ++w) {
                 const float dy = 30.0f * std::sin(
                     phase + static_cast<float>(w) * 0.6f);

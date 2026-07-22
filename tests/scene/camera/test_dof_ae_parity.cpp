@@ -63,10 +63,10 @@ CompositionDefinition make_def(const std::string& name) {
 
 CompositionEvaluateContext make_ctx(Frame fr = Frame{0}) {
     CompositionEvaluateContext ctx;
-    ctx.frame_context.frame_rate = kDofAeFps;
+    ctx.frame_context = frame_context.with_frame_rate(kDofAeFps);
     ctx.frame_context.width      = kW;
     ctx.frame_context.height     = kH;
-    ctx.frame_context.frame      = fr;
+    ctx.frame_context = frame_context.with_frame(fr);
     return ctx;
 }
 

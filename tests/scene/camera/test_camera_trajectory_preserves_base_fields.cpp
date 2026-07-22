@@ -152,7 +152,7 @@ CameraProgram compile_or_die_traj_preserves(const CameraDescriptor& desc) {
 Camera2_5D eval_at_or_die_traj_preserves(const CameraProgram& program,
                           CameraSession& session, Frame frame) {
     CameraEvalContext ctx;
-    ctx.frame = frame;
+    ctx = ctx.with_frame(frame);
     ctx.sample_time = SampleTime::from_frame_int(frame, kFpsTrajPreserves);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());

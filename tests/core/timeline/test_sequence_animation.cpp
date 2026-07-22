@@ -21,8 +21,8 @@ using namespace chronon3d;
 // ── Helper: build a FrameContext at a given frame ─────────────────────
 static FrameContext anim_ctx(Frame frame) {
     FrameContext ctx;
-    ctx.frame = frame;
-    ctx.frame_rate = {30, 1};
+    ctx = ctx.with_frame(frame);
+    ctx = ctx.with_frame_rate({30, 1});
     ctx.width = 1920;
     ctx.height = 1080;
     return ctx;

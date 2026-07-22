@@ -242,8 +242,8 @@ TEST_CASE("Adapters: new API built node matches old API built node") {
 #endif
 
     FrameContext ctx;
-    ctx.frame      = Frame{0};
-    ctx.frame_rate = FrameRate{30, 1};
+    ctx = ctx.with_frame(Frame{0});
+    ctx = ctx.with_frame_rate(FrameRate{30, 1});
     ctx.width      = width;
     ctx.height     = height;
 

@@ -333,7 +333,7 @@ Composition make_motion_blur_composition(int w, int h) {
             // 3 semi-transparent moving rectangles — the central motion-blur
             // subject.  X advances 110 px/frame → at frame 2 they straddle
             // screen centre, ideal for temporal accumulation.
-            const float t = static_cast<float>(ctx.frame);
+            const float t = static_cast<float>(ctx.frame());
             struct MovingItem { Vec2 size; Color color; float x0; };
             const MovingItem items[] = {
                 {{46.0f, 46.0f}, {1.0f, 0.20f, 0.20f, 0.55f}, -160.0f},

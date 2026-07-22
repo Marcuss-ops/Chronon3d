@@ -12,7 +12,7 @@
 //
 // The test files use captured `frame_idx` to set per-frame animation state
 // (opacity / scale / position / blur). For the registered composition path,
-// the frame index is derived dynamically from `ctx.frame.integral() % 30` inside
+// the frame index is derived dynamically from `ctx.frame().integral() % 30` inside
 // the runtime lambda (CompositionProps has no frame field; the actual frame
 // is delivered per-render via FrameContext).  This matches the test files'
 // 0/15/30 snapshot buckets so the rendered output is bit-equivalent to the

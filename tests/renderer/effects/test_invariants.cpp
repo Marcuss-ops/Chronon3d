@@ -7,6 +7,7 @@
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/render_graph/nodes/effect_stack_node.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
 #include <chronon3d/math/glm_types.hpp>

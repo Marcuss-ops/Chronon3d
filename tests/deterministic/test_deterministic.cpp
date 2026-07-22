@@ -57,7 +57,7 @@ TEST_CASE("Pure Frame Evaluation") {
         spec,
         [](const FrameContext& ctx) {
             SceneBuilder builder(ctx.resource);
-            auto x = interpolate(ctx.frame, 0, 100, 0.0f, 100.0f);
+            auto x = interpolate(ctx.frame(), 0, 100, 0.0f, 100.0f);
             builder.rect("L1", {.size={100, 100}, .color=Color::white(), .pos={x, 0, 0}});
             return builder.build();
         }

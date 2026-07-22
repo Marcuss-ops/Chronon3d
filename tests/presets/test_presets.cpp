@@ -150,8 +150,8 @@ TEST_CASE("MotionPresetRegistry Dynamic Registration and Evaluation") {
     obj.preset(MotionPreset::None);
 
     FrameContext ctx;
-    ctx.frame = 10;
-    ctx.frame_rate = {60, 1};
+    ctx = ctx.with_frame(10);
+    ctx = ctx.with_frame_rate({60, 1});
 
     auto state = resolve_motion_state(ctx, obj);
     CHECK(custom_called == true);
@@ -187,8 +187,8 @@ TEST_CASE("MotionStyle and unified effects resolving") {
     CHECK(obj.style.cache_static == true);
 
     FrameContext ctx;
-    ctx.frame = 10;
-    ctx.frame_rate = {60, 1};
+    ctx = ctx.with_frame(10);
+    ctx = ctx.with_frame_rate({60, 1});
     auto state = resolve_motion_state(ctx, obj);
 
     CHECK(state.effects.glow_enabled == true);
@@ -215,8 +215,8 @@ TEST_CASE("Video and Stock MotionObject + 3D presets resolving") {
     CHECK(s_obj.stock_tag_value == "tag_name");
 
     FrameContext ctx;
-    ctx.frame = 15;
-    ctx.frame_rate = {60, 1};
+    ctx = ctx.with_frame(15);
+    ctx = ctx.with_frame_rate({60, 1});
 
     auto state = resolve_motion_state(ctx, v_obj);
     CHECK(state.visible == true);

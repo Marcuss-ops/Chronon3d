@@ -22,8 +22,8 @@ namespace {
 
 chronon3d::FrameContext engine_ctx(chronon3d::Frame cf = chronon3d::Frame{0}) {
     chronon3d::FrameContext context;
-    context.frame      = cf;
-    context.frame_rate = chronon3d::FrameRate{30, 1};
+    context = context.with_frame(cf);
+    context = context.with_frame_rate(chronon3d::FrameRate{30, 1});
     context.width      = 1920;
     context.height     = 1080;
     return context;
