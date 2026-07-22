@@ -115,11 +115,11 @@ private:
 
         // Build local FrameContext
         FrameContext local_ctx = parent_ctx;
+        local_ctx.sample_time = SampleTime::from_frame(
+            static_cast<double>(local) + parent_ctx.sample_time.fraction(),
+            parent_ctx.frame_rate);
         local_ctx.frame = local;
-        local_ctx.local_frame = local;
         local_ctx.duration = node.range.duration;
-        // Preserve sub-frame fraction from parent
-        local_ctx.frame_time = parent_ctx.frame_time;
 
         // Compute progress
         const f32 progress = (node.range.duration > Frame{0})

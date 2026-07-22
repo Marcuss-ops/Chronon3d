@@ -192,9 +192,8 @@ NodeExecResult PrecompNode::execute_with_scope(
     // (the standard rendering path).  Hand-built FrameContext (e.g. in tests
     // without a runtime) must read the engine through their own fallback path.
     const FrameContext nested_frame_ctx{
+        .sample_time = SampleTime::from_frame(static_cast<double>(nested_frame), comp.frame_rate()),
         .frame = nested_frame,
-        .local_frame = nested_frame,
-        .frame_time = 0.0f,
         .duration = comp.duration(),
         .frame_rate = comp.frame_rate(),
         .width = comp.width(),
