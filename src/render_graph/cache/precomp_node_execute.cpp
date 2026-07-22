@@ -196,7 +196,6 @@ NodeExecResult PrecompNode::execute_with_scope(
         .duration = comp.duration(),
         .width = comp.width(),
         .height = comp.height(),
-        .assets_root = comp.assets_root(),
         .resource = std::pmr::get_default_resource(),
     });
     const Scene nested_scene = comp.evaluate(nested_frame_ctx);

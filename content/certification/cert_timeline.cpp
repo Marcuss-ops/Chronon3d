@@ -261,21 +261,21 @@ Composition cert_timeline_animation() {
 // ── Registration ──────────────────────────────────────────────────────────
 
 void register_cert_timeline_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "CertTimelineBoundary", .factory = [](const CompositionProps&) {
+    registry.add(make_composition_descriptor("CertTimelineBoundary", [](const CompositionProps&) {
         return cert_timeline_boundary();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertTimelineLocalFrame", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertTimelineLocalFrame", [](const CompositionProps&) {
         return cert_timeline_local_frame();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertTimelineNested", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertTimelineNested", [](const CompositionProps&) {
         return cert_timeline_nested();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertTimelineOverlap", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertTimelineOverlap", [](const CompositionProps&) {
         return cert_timeline_overlap();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertTimelineAnimation", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertTimelineAnimation", [](const CompositionProps&) {
         return cert_timeline_animation();
-    }});
+    }));
 }
 
 } // namespace chronon3d::content::certification

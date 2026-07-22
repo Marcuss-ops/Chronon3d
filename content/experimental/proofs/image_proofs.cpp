@@ -264,14 +264,14 @@ Composition img_corner_smoothing();
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_image_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "ImgGradient", .factory = [](const CompositionProps&) { return img_gradient(); }});
-    registry.add(CompositionDescriptor{.id = "ImgChecker", .factory = [](const CompositionProps&) { return img_checker(); }});
-    registry.add(CompositionDescriptor{.id = "ImgGridTest", .factory = [](const CompositionProps&) { return img_grid_test(); }});
-    registry.add(CompositionDescriptor{.id = "ImgTestPattern", .factory = [](const CompositionProps&) { return img_test_pattern(); }});
-    registry.add(CompositionDescriptor{.id = "ImgShakeZoom", .factory = [](const CompositionProps&) { return img_shake_zoom(); }});
-    registry.add(CompositionDescriptor{.id = "ImgReferenceShakeReveal", .factory = [](const CompositionProps&) { return img_reference_shake_reveal(); }});
-    registry.add(CompositionDescriptor{.id = "ImgCornerSmoothing", .factory = [](const CompositionProps&) { return img_corner_smoothing(); }});
-    registry.add(CompositionDescriptor{.id = "ImageProofs", .factory = [](const CompositionProps&) { return image_proofs(); }});
+    registry.add(make_composition_descriptor("ImgGradient", [](const CompositionProps&) { return img_gradient(); }));
+    registry.add(make_composition_descriptor("ImgChecker", [](const CompositionProps&) { return img_checker(); }));
+    registry.add(make_composition_descriptor("ImgGridTest", [](const CompositionProps&) { return img_grid_test(); }));
+    registry.add(make_composition_descriptor("ImgTestPattern", [](const CompositionProps&) { return img_test_pattern(); }));
+    registry.add(make_composition_descriptor("ImgShakeZoom", [](const CompositionProps&) { return img_shake_zoom(); }));
+    registry.add(make_composition_descriptor("ImgReferenceShakeReveal", [](const CompositionProps&) { return img_reference_shake_reveal(); }));
+    registry.add(make_composition_descriptor("ImgCornerSmoothing", [](const CompositionProps&) { return img_corner_smoothing(); }));
+    registry.add(make_composition_descriptor("ImageProofs", [](const CompositionProps&) { return image_proofs(); }));
 }
 
 } // namespace chronon3d::content::images

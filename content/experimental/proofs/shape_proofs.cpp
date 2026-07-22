@@ -714,8 +714,8 @@ void register_shape_compositions(CompositionRegistry& registry) {
     static bool done = false;
     if (done) return;
     done = true;
-    registry.add(CompositionDescriptor{.id = "ShapeProofs", .factory = [](const CompositionProps&) { return shape_proofs(); }});
-    registry.add(CompositionDescriptor{.id = "ShapeMotionProofs", .factory = [](const CompositionProps&) { return shape_motion_proofs(); }});
+    registry.add(make_composition_descriptor("ShapeProofs", [](const CompositionProps&) { return shape_proofs(); }));
+    registry.add(make_composition_descriptor("ShapeMotionProofs", [](const CompositionProps&) { return shape_motion_proofs(); }));
 }
 
 } // namespace chronon3d::content::shapes

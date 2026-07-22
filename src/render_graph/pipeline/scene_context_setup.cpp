@@ -40,15 +40,10 @@ SoftwareRenderer* setup_render_graph_context(
     SoftwareRenderer* sw_renderer =
         static_cast<SoftwareRenderer*>(ctx.services.sw_renderer_sidecar);
 
-    // ── Per-composition assets root ───────────────────────────────────
-    // Deep code uses ctx.resolve_asset() or ctx.frame_input.assets_root
-    // instead of the deprecated AssetRegistry::resolve() TLS API.
-    if (const auto& root = scene.assets_root(); !root.empty()) {
-        ctx.frame_input.assets_root = root.string();
-    } else if (sw_renderer) {
-        // SDK callers mount assets on the engine-owned resolver rather than
-        // on each legacy Composition.  Thread that canonical mount into the
-        // graph context so image/font nodes use the same per-engine root.
+    // ── Runtime assets root ──────────────────────────────────────────
+    // Deep code uses ctx.resolve_asset() or ctx.frame_input.assets_root.
+    // Asset roots are owned by the render runtime, not by the scene.
+    if (sw_renderer) {
         if (const auto root = sw_renderer->runtime().resolver().mount_root();
             !root.empty()) {
             ctx.frame_input.assets_root = root.string();

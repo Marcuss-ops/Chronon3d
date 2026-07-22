@@ -27,7 +27,6 @@ c3d::Composition make_fixture_composition() {
             .height = 180,
             .frame_rate = c3d::FrameRate{30, 1},
             .duration = c3d::Frame{kDuration},
-            .assets_root = {},
         },
         [](const c3d::FrameContext&) { return c3d::Scene{}; },
     };
@@ -35,16 +34,14 @@ c3d::Composition make_fixture_composition() {
 
 c3d::CompositionRegistry make_registry() {
     c3d::CompositionRegistry registry;
-    registry.add(c3d::CompositionDescriptor{
+    registry.add(c3d::make_composition_descriptor(CompositionDescriptor{
         .id = kCompositionId,
         .width = 320,
         .height = 180,
         .fps = c3d::FrameRate{30, 1},
-        .duration = c3d::Frame{kDuration},
-        .factory = [](const c3d::CompositionProps&) {
+        .duration = c3d::Frame{kDuration}}, [](const c3d::CompositionProps&) {
             return make_fixture_composition();
-        },
-    });
+        }));
     return registry;
 }
 

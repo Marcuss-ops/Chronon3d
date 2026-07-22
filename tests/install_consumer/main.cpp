@@ -49,7 +49,6 @@ int main(int argc, char* argv[]) {
         /* .height       */ 360,
         /* .frame_rate   */ c3d::FrameRate{30, 1},
         /* .duration     */ 1,
-        /* .assets_root  */ assets_root,
     };
 
     // ── 2. Composition via SceneBuilder ──────────────────────────────
@@ -126,16 +125,16 @@ int main(int argc, char* argv[]) {
     settings.motion_blur = false;
     settings.max_threads = 1;
 
-    if (!std::filesystem::is_directory(spec.assets_root)) {
+    if (!std::filesystem::is_directory(assets_root)) {
         std::fprintf(stderr,
                      "[consumer-warn] assets_root '%s' is not a directory "
                      "— text layer may render blank, but GridBackground "
                      "keeps the pixel-hash >= 5/255.\n",
-                     spec.assets_root.c_str());
+                     assets_root);
     }
 
     c3d::sdk::RenderEngine engine{settings};
-    engine.set_assets_root(std::filesystem::path{spec.assets_root});
+    engine.set_assets_root(std::filesystem::path{assets_root});
 
     // ── 5. Render ────────────────────────────────────────────────────
     auto result = engine.render(comp, c3d::sdk::Frame{0});

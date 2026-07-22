@@ -16,16 +16,15 @@ constexpr FrameRate kFps{30, 1};
 CompositionDescriptor minimalist_descriptor(
     std::string id,
     Frame duration,
-    CompositionRegistry::Factory factory) {
-    CompositionDescriptor descriptor;
-    descriptor.id = std::move(id);
-    descriptor.category = "Minimalist";
-    descriptor.width = kWidth;
-    descriptor.height = kHeight;
-    descriptor.fps = kFps;
-    descriptor.duration = duration;
-    descriptor.factory = std::move(factory);
-    return descriptor;
+    std::function<Composition(const CompositionProps&)> factory) {
+    return make_composition_descriptor(CompositionDescriptor{
+        .id = std::move(id),
+        .category = "Minimalist",
+        .width = kWidth,
+        .height = kHeight,
+        .fps = kFps,
+        .duration = duration,
+    }, std::move(factory));
 }
 
 } // namespace

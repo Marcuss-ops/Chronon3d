@@ -105,13 +105,12 @@ CompositionRegistry make_typed_registry_with_codec_defaults() {
         PropField{"author",   PropType::String,  true,
                   "Author name",        std::nullopt},
     }};
-    desc.factory = [](const CompositionProps&) {
+    registry.add(make_composition_descriptor(std::move(desc), [](const CompositionProps&) {
         return composition({.name = "TestExamplePropsOK",
                             .width = 1920, .height = 1080,
                             .duration = Frame{60}},
                            [](const FrameContext&) {});
-    };
-    registry.add(std::move(desc));
+    }));
     return registry;
 }
 
@@ -125,13 +124,12 @@ CompositionRegistry make_legacy_registry_no_codec() {
     desc.fps      = FrameRate{24, 1};
     desc.duration = Frame{120};
     // NO desc.schema; canonical example is not introspectable.
-    desc.factory = [](const CompositionProps&) {
+    registry.add(make_composition_descriptor(std::move(desc), [](const CompositionProps&) {
         return composition({.name = "TestLegacyNoCodec",
                             .width = 1280, .height = 720,
                             .duration = Frame{120}},
                            [](const FrameContext&) {});
-    };
-    registry.add(std::move(desc));
+    }));
     return registry;
 }
 

@@ -42,10 +42,8 @@ int main() {
     auto comp = c3d::composition(
         {.name = "text_export_example",
          .width = 1280,
-         .height = 720,
-         .frame_rate = c3d::FrameRate{30, 1},
-         .duration = 1,
-         .assets_root = "assets"},
+         .height = 720,         .frame_rate = c3d::FrameRate{30, 1},
+          .duration = 1},
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
             if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());

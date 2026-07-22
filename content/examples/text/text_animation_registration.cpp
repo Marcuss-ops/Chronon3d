@@ -22,18 +22,18 @@ namespace chronon3d::content::anims {
 
 void register_text_animation_compositions(CompositionRegistry& registry) {
     // ── 5 easy animations (easy_text_animations.cpp) ─────────────────────
-    registry.add(CompositionDescriptor{.id = "AnimSlideUp", .factory = [](const CompositionProps&) { return anim_slide_up(); }});
-    registry.add(CompositionDescriptor{.id = "AnimScalePop", .factory = [](const CompositionProps&) { return anim_scale_pop(); }});
-    registry.add(CompositionDescriptor{.id = "AnimBlurFocus", .factory = [](const CompositionProps&) { return anim_blur_focus(); }});
-    registry.add(CompositionDescriptor{.id = "AnimSlideLeft", .factory = [](const CompositionProps&) { return anim_slide_left(); }});
-    registry.add(CompositionDescriptor{.id = "AnimBounceDrop", .factory = [](const CompositionProps&) { return anim_bounce_drop(); }});
+    registry.add(make_composition_descriptor("AnimSlideUp", [](const CompositionProps&) { return anim_slide_up(); }));
+    registry.add(make_composition_descriptor("AnimScalePop", [](const CompositionProps&) { return anim_scale_pop(); }));
+    registry.add(make_composition_descriptor("AnimBlurFocus", [](const CompositionProps&) { return anim_blur_focus(); }));
+    registry.add(make_composition_descriptor("AnimSlideLeft", [](const CompositionProps&) { return anim_slide_left(); }));
+    registry.add(make_composition_descriptor("AnimBounceDrop", [](const CompositionProps&) { return anim_bounce_drop(); }));
 
     // ── 5 typewriters (typewriter_animations.cpp) ─────────────────────────
-    registry.add(CompositionDescriptor{.id = "AnimTypewriterSimple", .factory = [](const CompositionProps&) { return anim_typewriter_simple(); }});
-    registry.add(CompositionDescriptor{.id = "AnimTypewriterCursor", .factory = [](const CompositionProps&) { return anim_typewriter_cursor(); }});
-    registry.add(CompositionDescriptor{.id = "AnimTypewriterSlide", .factory = [](const CompositionProps&) { return anim_typewriter_slide(); }});
-    registry.add(CompositionDescriptor{.id = "AnimTypewriterGlow", .factory = [](const CompositionProps&) { return anim_typewriter_glow(); }});
-    registry.add(CompositionDescriptor{.id = "AnimTypewriterStagger", .factory = [](const CompositionProps&) { return anim_typewriter_stagger(); }});
+    registry.add(make_composition_descriptor("AnimTypewriterSimple", [](const CompositionProps&) { return anim_typewriter_simple(); }));
+    registry.add(make_composition_descriptor("AnimTypewriterCursor", [](const CompositionProps&) { return anim_typewriter_cursor(); }));
+    registry.add(make_composition_descriptor("AnimTypewriterSlide", [](const CompositionProps&) { return anim_typewriter_slide(); }));
+    registry.add(make_composition_descriptor("AnimTypewriterGlow", [](const CompositionProps&) { return anim_typewriter_glow(); }));
+    registry.add(make_composition_descriptor("AnimTypewriterStagger", [](const CompositionProps&) { return anim_typewriter_stagger(); }));
 }
 
 } // namespace chronon3d::content::anims

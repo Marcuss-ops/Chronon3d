@@ -33,13 +33,13 @@ Composition y_rotation_text_test();       // ref_2_5d_suite_scenes.cpp
 // ── Per-domain registration ──────────────────────────────────────────────
 void register_effect_compositions(CompositionRegistry& registry) {
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
-    registry.add(CompositionDescriptor{.id = "FloatingCardsTest", .factory = [](const CompositionProps&) { return floating_cards_test();          }});
-    registry.add(CompositionDescriptor{.id = "OrbitCameraTest", .factory = [](const CompositionProps&) { return orbit_camera_test();            }});
-    registry.add(CompositionDescriptor{.id = "DepthFogTest", .factory = [](const CompositionProps&) { return depth_fog_test();               }});
-    registry.add(CompositionDescriptor{.id = "ZStackParallaxTest", .factory = [](const CompositionProps&) { return z_stack_parallax_test();        }});
-    registry.add(CompositionDescriptor{.id = "ShadowGlowConsistencyTest", .factory = [](const CompositionProps&) { return shadow_glow_consistency_test(); }});
-    registry.add(CompositionDescriptor{.id = "ExtremePerspectiveTest", .factory = [](const CompositionProps&) { return extreme_perspective_test();     }});
-    registry.add(CompositionDescriptor{.id = "YRotationTextTest", .factory = [](const CompositionProps&) { return y_rotation_text_test();         }});
+    registry.add(make_composition_descriptor("FloatingCardsTest", [](const CompositionProps&) { return floating_cards_test();          }));
+    registry.add(make_composition_descriptor("OrbitCameraTest", [](const CompositionProps&) { return orbit_camera_test();            }));
+    registry.add(make_composition_descriptor("DepthFogTest", [](const CompositionProps&) { return depth_fog_test();               }));
+    registry.add(make_composition_descriptor("ZStackParallaxTest", [](const CompositionProps&) { return z_stack_parallax_test();        }));
+    registry.add(make_composition_descriptor("ShadowGlowConsistencyTest", [](const CompositionProps&) { return shadow_glow_consistency_test(); }));
+    registry.add(make_composition_descriptor("ExtremePerspectiveTest", [](const CompositionProps&) { return extreme_perspective_test();     }));
+    registry.add(make_composition_descriptor("YRotationTextTest", [](const CompositionProps&) { return y_rotation_text_test();         }));
 #endif
 }
 

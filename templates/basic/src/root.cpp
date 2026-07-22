@@ -35,7 +35,6 @@ int main() {
     project.name           = "${PROJECT_NAME}";
     project.default_width  = 1280;
     project.default_height = 720;
-    project.assets_root    = "assets";
 
     // 2. Register the "HelloWorld" composition.
     make_hello_world(project);

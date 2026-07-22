@@ -28,7 +28,6 @@ TEST_CASE("Project: default metadata") {
     CHECK(project.default_width == 1920);
     CHECK(project.default_height == 1080);
     CHECK(project.default_fps == 30);
-    CHECK(project.assets_root == "");
     CHECK(project.size() == 0);
 }
 
@@ -100,14 +99,12 @@ TEST_CASE("Project: registry accessor provides direct CompositionRegistry access
     CHECK(reg.available().size() == 1);
 
     // Direct registry add also visible through project
-    reg.add(CompositionDescriptor{
-        .id = "B",
-        .factory = [](const CompositionProps&) -> Composition {
+    reg.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "B"}, [](const CompositionProps&) -> Composition {
             return composition(
                 CompositionSpec{.name = "B", .width = 100, .height = 100},
                 [](const FrameContext&) -> Scene { return Scene{}; });
-        },
-    });
+        }));
     CHECK(project.size() == 2);
     CHECK(project.contains("B"));
 }
@@ -122,16 +119,6 @@ TEST_CASE("Project: composition evaluates at frame 0") {
     auto comp = project.create("Eval");
     auto scene = comp.evaluate(Frame{0});
     CHECK(scene.layers().size() >= 1);
-}
-
-TEST_CASE("Project: assets_root threaded to composition") {
-    Project project;
-    project.assets_root = "/tmp/test_assets";
-
-    project.composition("WithAssets", {.duration = Frame{1}}, make_simple_scene);
-
-    auto comp = project.create("WithAssets");
-    CHECK(comp.assets_root() == "/tmp/test_assets");
 }
 
 TEST_CASE("Project: add() for direct factory registration") {
