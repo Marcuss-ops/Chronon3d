@@ -20,7 +20,7 @@
 // values/project_root/assets, none of which the 5 new scenes need — they
 // use hardcoded text content + the global SoftwareRenderer singleton).
 //
-// Frame index derived dynamically from `ctx.frame.integral() % 30` (matches
+// Frame index derived dynamically from `ctx.frame().integral() % 30` (matches
 // the test files' 0/15/30 snapshot buckets so rendered output is
 // bit-equivalent to the corresponding test snapshot).
 //
@@ -45,11 +45,11 @@ using chronon3d::content::glow_final::ChrononGlowProps;
 
 namespace chronon3d::test {
 
-// Map ctx.frame.integral() (any non-negative int) to one of the 3 snapshot
+// Map ctx.frame().integral() (any non-negative int) to one of the 3 snapshot
 // buckets {0, 15, 30} used by the test files.  Mirrors the test files'
 // `if (f == 0) ... if (f <= 15) ... else ...` pattern.
 static inline std::size_t snapshot_bucket_for(const FrameContext& ctx) {
-    const long v = ctx.frame.integral();
+    const long v = ctx.frame().integral();
     if (v <= 0)  return 0;
     if (v <= 15) return 15;
     return 30;

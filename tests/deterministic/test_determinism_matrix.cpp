@@ -71,7 +71,7 @@ Composition make_scene_animated() {
         {.name = "DetMatrix_Animated", .width = 320, .height = 180, .duration = 120},
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            float x = static_cast<float>(ctx.frame) * 1.5f;
+            float x = static_cast<float>(ctx.frame()) * 1.5f;
             s.rect("bg",    {.size = {320, 180}, .color = Color{0.05f, 0.05f, 0.1f, 1.0f}, .pos = {0, 0, 0}});
             s.rect("moving", {.size = {50, 50},  .color = Color::white(), .pos = {x - 160.0f, 0, 0}});
             return s.build();

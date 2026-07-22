@@ -30,7 +30,7 @@
 // provides the canonical scene builder.  Toggle `props.glow_enabled`
 // to compare with-glow vs without-glow without any other parameter
 // drift.  Per-frame opacity envelope is held identical (same
-// ctx.frame.integral).
+// ctx.frame().integral).
 //
 // AGENTS.md v0.1 Cat-2 freeze-compliant: zero new public API in
 // include/chronon3d/; reuses existing renderer + luma + alpha helpers

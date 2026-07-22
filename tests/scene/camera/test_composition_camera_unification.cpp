@@ -92,7 +92,7 @@ CompositionDefinition make_unify_def(const std::string& name,
 
 CompositionEvaluateContext make_unify_eval_ctx(FrameRate fps = kTestFps) {
     CompositionEvaluateContext ctx;
-    ctx.frame_context.frame_rate = fps;
+    ctx.frame_context = frame_context.with_frame_rate(fps);
     ctx.frame_context.width      = 320;
     ctx.frame_context.height     = 180;
     return ctx;

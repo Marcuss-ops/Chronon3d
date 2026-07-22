@@ -40,7 +40,6 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_run_builder.hpp>
 #include <chronon3d/text/text_run.hpp>
-#include <chronon3d/scene/builders/builder_params.hpp>
 
 namespace chronon3d {
 

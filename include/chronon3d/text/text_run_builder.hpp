@@ -22,8 +22,8 @@
 
 #include <chronon3d/core/types/result.hpp>
 #include <chronon3d/core/types/types.hpp>
-#include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/text/font_engine.hpp>
+#include <chronon3d/text/text_layout_spec.hpp>
 #include <chronon3d/text/text_document.hpp>
 #include <chronon3d/text/text_run.hpp>
 

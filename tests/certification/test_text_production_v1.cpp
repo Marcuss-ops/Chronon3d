@@ -58,6 +58,7 @@
 #include <chronon3d/api/renderer.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>

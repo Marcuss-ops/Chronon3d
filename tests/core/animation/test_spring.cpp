@@ -49,15 +49,15 @@ TEST_CASE("Spring — critically damped case") {
 
 TEST_CASE("Spring — FrameContext overload") {
     FrameContext ctx;
-    ctx.frame = Frame{0};
-    ctx.frame_rate = {30, 1};
+    ctx = ctx.with_frame(Frame{0});
+    ctx = ctx.with_frame_rate({30, 1});
 
     SUBCASE("frame 0 returns from") {
         CHECK(spring(ctx, 0.0f, 100.0f) == doctest::Approx(0.0f));
     }
 
     SUBCASE("high frame converges") {
-        ctx.frame = Frame{300};
+        ctx = ctx.with_frame(Frame{300});
         CHECK(spring(ctx, 0.0f, 100.0f) == doctest::Approx(100.0f).epsilon(0.01));
     }
 }

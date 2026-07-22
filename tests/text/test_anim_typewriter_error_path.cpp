@@ -31,6 +31,7 @@
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_error.hpp>
@@ -57,7 +58,11 @@ TEST_CASE("Azione 18: typewriter_build with valid text returns Ok(true)") {
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
-    FrameContext ctx{.frame = Frame{0}, .width = 1920, .height = 1080};
+    FrameContext ctx = make_frame_context(FrameContextParams{
+    .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
+    .width = 1920,
+    .height = 1080
+});
     ctx.font_engine = &engine;
     SceneBuilder s(ctx);
 
@@ -83,7 +88,11 @@ TEST_CASE("Azione 18: typewriter_build with empty text returns Err(EmptyText)") 
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
-    FrameContext ctx{.frame = Frame{0}, .width = 1920, .height = 1080};
+    FrameContext ctx = make_frame_context(FrameContextParams{
+    .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
+    .width = 1920,
+    .height = 1080
+});
     ctx.font_engine = &engine;
     SceneBuilder s(ctx);
 
@@ -111,7 +120,11 @@ TEST_CASE("Azione 18: typewriter_build error is non-fatal (scene still buildable
     FontEngine engine{runtime->resolver()};
     if (!require_font(engine)) return;
 
-    FrameContext ctx{.frame = Frame{0}, .width = 1920, .height = 1080};
+    FrameContext ctx = make_frame_context(FrameContextParams{
+    .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
+    .width = 1920,
+    .height = 1080
+});
     ctx.font_engine = &engine;
     SceneBuilder s(ctx);
 
@@ -175,7 +188,7 @@ TEST_CASE("Azione 18: typewriter frame-by-frame ink area is monotonic") {
                 .chars_per_frame = 1.0f,
             };
 
-            auto result = typewriter_build(s, "tw", opts, ctx.frame, engine);
+            auto result = typewriter_build(s, "tw", opts, ctx.frame(), engine);
             REQUIRE(result.has_value());
             CHECK(result.value() == true);
 

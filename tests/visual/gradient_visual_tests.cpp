@@ -573,7 +573,7 @@ Composition make_animated_gradient() {
             });
 
             // Animate the gradient's "to" position to create a sweeping effect
-            f32 t = static_cast<f32>(ctx.frame) / 30.0f;
+            f32 t = static_cast<f32>(ctx.frame()) / 30.0f;
             f32 sweep = t;  // 0 → 1 over the animation
 
             s.layer("animated_card", [sweep](LayerBuilder& l) {

@@ -34,7 +34,7 @@ public:
     void apply(Framebuffer&, const EffectParams& params,
                const effects::EffectExecutionContext& context) override {
         m_capture.time_seconds = context.time_seconds;
-        m_capture.frame = context.frame;
+        m_capture.frame = context.frame();
         m_capture.clip = context.clip;
         m_capture.quality = context.quality;
         m_capture.diagnostics_enabled = context.diagnostics_enabled;
@@ -49,7 +49,7 @@ private:
 TEST_CASE("EffectExecutionContext: default construction") {
     const EffectExecutionContext ctx;
     CHECK(ctx.time_seconds == 0.0f);
-    CHECK(ctx.frame == 0);
+    CHECK(ctx = ctx.with_frame(= 0));
     CHECK_FALSE(ctx.clip.has_value());
     CHECK(ctx.quality == RenderQuality::Final);
     CHECK_FALSE(ctx.diagnostics_enabled);
@@ -63,8 +63,8 @@ TEST_CASE("EffectExecutionContext: carries time_seconds") {
 
 TEST_CASE("EffectExecutionContext: carries frame number") {
     EffectExecutionContext ctx;
-    ctx.frame = 123;
-    CHECK(ctx.frame == 123);
+    ctx = ctx.with_frame(123);
+    CHECK(ctx = ctx.with_frame(= 123));
 }
 
 TEST_CASE("EffectExecutionContext: carries clip rect") {
@@ -103,7 +103,7 @@ TEST_CASE("EffectExecutionContext: designated initializer syntax") {
     };
 
     CHECK(ctx.time_seconds == 1.5f);
-    CHECK(ctx.frame == 10);
+    CHECK(ctx = ctx.with_frame(= 10));
     REQUIRE(ctx.clip.has_value());
     CHECK(ctx.clip->x0 == 5);
     CHECK(ctx.clip->x1 == 50);

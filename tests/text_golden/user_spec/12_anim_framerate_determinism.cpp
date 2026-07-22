@@ -65,7 +65,7 @@ Composition build_test12_composition(SoftwareRenderer& renderer, int fps, int sa
             // FrameContext exposes frame_rate directly; the field is
             // `numerator` per include/chronon3d/core/types/frame_context.hpp.
             const float t01 = static_cast<float>(sample_frame) /
-                              static_cast<float>(ctx.frame_rate.numerator);
+                              static_cast<float>(ctx.frame_rate().numerator);
             const float clamped = t01 > 1.0f ? 1.0f : t01;
             const float x_pos = 100.0f + 800.0f * clamped;
             s.layer("hero", [x_pos](LayerBuilder& l) {

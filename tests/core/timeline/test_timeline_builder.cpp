@@ -2,12 +2,17 @@
 #include <chronon3d/timeline/timeline_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/core/types/sample_time.hpp>
 #include <memory_resource>
 using namespace chronon3d;
 
 
 TEST_CASE("TimelineBuilder: track timing filters layers by frame") {
-    FrameContext ctx{.frame = Frame{0}, .width = 1920, .height = 1080};
+    FrameContext ctx = make_frame_context(FrameContextParams{
+    .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
+    .width = 1920,
+    .height = 1080
+});
     SceneBuilder s(ctx);
 
     TimelineBuilder t(s);
@@ -24,7 +29,11 @@ TEST_CASE("TimelineBuilder: track timing filters layers by frame") {
     CHECK(std::string(scene.layers()[0].name.c_str()) == "title");
 
     // At frame 25 both layers are active
-    FrameContext ctx25{.frame = Frame{25}, .width = 1920, .height = 1080};
+    FrameContext ctx25 = make_frame_context(FrameContextParams{
+    .global_time = SampleTime::from_frame_int(Frame{25}, FrameRate{30, 1}),
+    .width = 1920,
+    .height = 1080
+});
     SceneBuilder s25(ctx25);
     TimelineBuilder t25(s25);
     t25.add("title").from(Frame{0}).duration(Frame{30}).with([](LayerBuilder& lb) {
@@ -40,7 +49,11 @@ TEST_CASE("TimelineBuilder: track timing filters layers by frame") {
 }
 
 TEST_CASE("TimelineBuilder: stagger shifts keyframes by spatial order") {
-    FrameContext ctx{.frame = Frame{0}, .width = 1920, .height = 1080};
+    FrameContext ctx = make_frame_context(FrameContextParams{
+    .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
+    .width = 1920,
+    .height = 1080
+});
     SceneBuilder s(ctx);
 
     TimelineBuilder t(s);
@@ -81,7 +94,11 @@ TEST_CASE("TimelineBuilder: stagger shifts keyframes by spatial order") {
 }
 
 TEST_CASE("TimelineBuilder: camera track sets animated camera") {
-    FrameContext ctx{.frame = Frame{30}, .width = 1920, .height = 1080};
+    FrameContext ctx = make_frame_context(FrameContextParams{
+    .global_time = SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1}),
+    .width = 1920,
+    .height = 1080
+});
     SceneBuilder s(ctx);
 
     AnimatedCamera2_5D cam;
@@ -98,7 +115,11 @@ TEST_CASE("TimelineBuilder: camera track sets animated camera") {
 }
 
 TEST_CASE("TimelineBuilder: global stagger applies to all tracks") {
-    FrameContext ctx{.frame = Frame{0}, .width = 1920, .height = 1080};
+    FrameContext ctx = make_frame_context(FrameContextParams{
+    .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
+    .width = 1920,
+    .height = 1080
+});
     SceneBuilder s(ctx);
 
     TimelineBuilder t(s);

@@ -127,7 +127,7 @@ CameraDescriptor make_always_ok_desc(const std::string& id_str) {
 /// Build context at frame F with the project's 60 fps sample_time.
 CameraEvalContext make_ctx(Frame f) {
     CameraEvalContext ctx;
-    ctx.frame = f;
+    ctx = ctx.with_frame(f);
     ctx.sample_time = SampleTime::from_frame_int(f, kSessStateFps);
     return ctx;
 }
