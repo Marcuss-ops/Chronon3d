@@ -161,7 +161,7 @@ FontFallbackResult FontFallbackResolver::resolve_runs(
         runs.push_back(std::move(run));
     }
 
-    std::memcpy(&result.missing_clusters, &missing, sizeof(missing));
+    result.missing_clusters = missing;
     result.runs = std::move(runs);
     return result;
 }
