@@ -63,6 +63,7 @@ constexpr double kBboxErrMaxPx           = 2.0;
 constexpr double kSsimMinOnRoi           = 0.95;
 constexpr double kChangedPixelRatioMaxRoi = 0.05;
 constexpr double kSilhouetteMissingMax   = 0.05;
+constexpr double kVisualCenterErrMaxPx   = 1.5;
 constexpr int    kMissingGlyphsMax        = 0;
 
 // ── Subdir helpers ─────────────────────────────────────────────────────
@@ -337,10 +338,51 @@ struct SilhouetteResult {
     double mean_distance_px = 0.0;
 };
 
+struct VisualCenterError {
+    double cx = 0.0;
+    double cy = 0.0;
+    double distance_px = 0.0;
+};
+
+struct LineBreaksResult {
+    int actual_rows = 0;
+    int expected_rows = 0;
+    int diff = 0;
+};
+
 /// Compute silhouette coverage error: for every expected-ink pixel, find the
 /// nearest actual-ink pixel within max_distance_px. missing_ratio counts how
 /// many expected silhouette pixels are not covered by the actual silhouette
 /// within the dilation radius.
+VisualCenterError compute_visual_center_error(const chronon3d::Framebuffer& actual,
+                                               const chronon3d::Framebuffer& expected,
+                                               float alpha_epsilon = 0.01f) {
+    using namespace chronon3d::test::completeness;
+    VisualCenterError err;
+    const auto a = alpha_bbox(actual,   alpha_epsilon);
+    const auto e = alpha_bbox(expected, alpha_epsilon);
+    if (a.empty() || e.empty()) return err;
+    const double acx = (a.x0 + a.x1) * 0.5;
+    const double acy = (a.y0 + a.y1) * 0.5;
+    const double ecx = (e.x0 + e.x1) * 0.5;
+    const double ecy = (e.y0 + e.y1) * 0.5;
+    err.cx = acx;
+    err.cy = acy;
+    err.distance_px = std::hypot(acx - ecx, acy - ecy);
+    return err;
+}
+
+LineBreaksResult compute_line_breaks_error(const chronon3d::Framebuffer& actual,
+                                           const chronon3d::Framebuffer& expected,
+                                           float alpha_epsilon = 0.01f) {
+    using namespace chronon3d::test::completeness;
+    LineBreaksResult res;
+    res.actual_rows   = count_ink_rows(actual,   alpha_epsilon);
+    res.expected_rows = count_ink_rows(expected, alpha_epsilon);
+    res.diff = std::abs(res.actual_rows - res.expected_rows);
+    return res;
+}
+
 SilhouetteResult compute_silhouette_error(const chronon3d::Framebuffer& actual,
                                           const chronon3d::Framebuffer& expected,
                                           int max_distance_px = 2,
@@ -419,6 +461,8 @@ struct ParityReport {
     double ssim = 1.0;
     double changed_pixel_ratio = 0.0;
     double silhouette_missing_ratio = 0.0;
+    double visual_center_err_px = 0.0;
+    int line_breaks_diff = 0;
     int missing_glyphs = 0;
     bool cut_text = false;
     bool ok = true;
@@ -431,6 +475,8 @@ struct ParityReport {
             << " ssim=" << ssim
             << " changed_px=" << changed_pixel_ratio
             << " silhouette_missing=" << silhouette_missing_ratio
+            << " visual_center_err=" << visual_center_err_px
+            << " line_breaks_diff=" << line_breaks_diff
             << " missing_glyphs=" << missing_glyphs
             << " cut_text=" << (cut_text ? "yes" : "no");
         return oss.str();
@@ -468,6 +514,12 @@ ParityReport compare_against_reference(
     auto silhouette = compute_silhouette_error(actual, expected, 2, 0.01f);
     report.silhouette_missing_ratio = silhouette.missing_ratio;
 
+    auto visual_center = compute_visual_center_error(actual, expected, 0.01f);
+    report.visual_center_err_px = visual_center.distance_px;
+
+    auto line_breaks = compute_line_breaks_error(actual, expected, 0.01f);
+    report.line_breaks_diff = line_breaks.diff;
+
     report.ok = report.baseline_err <= kBaselineErrMaxPx &&
                 report.bbox_err.left <= kBboxErrMaxPx &&
                 report.bbox_err.right <= kBboxErrMaxPx &&
@@ -476,6 +528,8 @@ ParityReport compare_against_reference(
                 report.ssim >= kSsimMinOnRoi &&
                 report.changed_pixel_ratio <= kChangedPixelRatioMaxRoi &&
                 report.silhouette_missing_ratio <= kSilhouetteMissingMax &&
+                report.visual_center_err_px <= kVisualCenterErrMaxPx &&
+                report.line_breaks_diff == 0 &&
                 report.missing_glyphs == kMissingGlyphsMax &&
                 !report.cut_text;
     return report;
