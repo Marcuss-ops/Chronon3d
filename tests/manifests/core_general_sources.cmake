@@ -51,6 +51,7 @@ set(CORE_TEST_SOURCES
     core/timeline/test_sequence.cpp
     test_project.cpp
     core/timeline/test_timeline_resolver.cpp
+    core/timeline/test_layer_time_resolver.cpp
     core/timeline/test_sequence_builder.cpp
     core/timeline/test_sequence_animation.cpp
     core/timeline/test_sequence_integration.cpp

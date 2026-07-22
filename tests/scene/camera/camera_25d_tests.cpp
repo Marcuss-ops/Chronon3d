@@ -211,7 +211,7 @@ TEST_CASE("Test 9.8 — Camera 2.5D: Native 3D shapes do not undergo double proj
     // Native 3D shapes (e.g. mesh/FakeBox3D) bypass the layer's 2D canvas transform,
     // projecting directly into the camera space.
     // Here we verify they build without crashing and resolve correctly.
-    LayerBuilder builder("3d_box");
+    LayerBuilder builder("3d_box", SampleTime{});
     builder.enable_3d();
     Layer l = builder.build();
 

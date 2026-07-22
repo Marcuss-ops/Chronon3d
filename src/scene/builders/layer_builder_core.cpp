@@ -34,15 +34,11 @@ LayerBuilder::LayerBuilder(std::string name, SampleTime current_time, std::pmr::
     }
 }
 
-// ── Backward-compatible constructor (Frame → SampleTime) ────────────────────
+// ── Frame-based constructor (requires explicit FrameRate) ───────────────────
 
-LayerBuilder::LayerBuilder(std::string name, Frame current_frame, std::pmr::memory_resource* res,
-                           registry::ShapeRegistry* shape_registry)
-    : LayerBuilder(std::move(name), SampleTime::from_frame_int(current_frame, FrameRate{30, 1}), res, shape_registry) {}
-
-LayerBuilder::LayerBuilder(std::string name, std::pmr::memory_resource* res,
-                           registry::ShapeRegistry* shape_registry)
-    : LayerBuilder(std::move(name), SampleTime::from_frame_int(0, FrameRate{30, 1}), res, shape_registry) {}
+LayerBuilder::LayerBuilder(std::string name, Frame current_frame, FrameRate rate,
+                           std::pmr::memory_resource* res, registry::ShapeRegistry* shape_registry)
+    : LayerBuilder(std::move(name), SampleTime::from_frame_int(current_frame, rate), res, shape_registry) {}
 
 LayerBuilder& LayerBuilder::parent(std::string name) {
     m_layer.parent_name = std::pmr::string{name, m_layer.name.get_allocator()};

@@ -351,7 +351,7 @@ TEST_CASE("CameraRig: sub-frame evaluation") {
 // ===========================================================================
 TEST_CASE("LayerBuilder evaluates animated transform at sub-frame time") {
     // Create a layer with keyframed position
-    LayerBuilder builder("moving", Frame{0});
+    LayerBuilder builder("moving", Frame{0}, FrameRate{30, 1});
     builder.from(Frame{0}).duration(Frame{60});
 
     builder.position_anim()
@@ -391,7 +391,7 @@ TEST_CASE("AnimatedTransform is_time_dependent catches expression-only") {
 }
 
 TEST_CASE("LayerBuilder with expression-only opacity evaluates correctly") {
-    LayerBuilder builder("expr_layer", Frame{0});
+    LayerBuilder builder("expr_layer", Frame{0}, FrameRate{30, 1});
     builder.from(Frame{0}).duration(Frame{60});
     builder.opacity_anim().expression("0.5 + 0.5 * sin(time * 2)");
 
@@ -411,7 +411,7 @@ TEST_CASE("Composition → LayerBuilder → AnimatedTransform full motion blur p
     // 2. Evaluate animated transform with sub-frame precision
     // 3. All 8 sub-samples produce different positions
 
-    LayerBuilder builder("mb_layer", Frame{0});
+    LayerBuilder builder("mb_layer", Frame{0}, FrameRate{30, 1});
     builder.from(Frame{0}).duration(Frame{60});
 
     builder.position_anim()

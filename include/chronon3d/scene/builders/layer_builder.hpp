@@ -52,12 +52,9 @@ public:
         registry::ShapeRegistry* shape_registry = nullptr);
     explicit LayerBuilder(
         std::string name,
-        Frame current_frame = 0,
+        Frame current_frame,
+        FrameRate rate,
         std::pmr::memory_resource* resource = std::pmr::get_default_resource(),
-        registry::ShapeRegistry* shape_registry = nullptr);
-    explicit LayerBuilder(
-        std::string name,
-        std::pmr::memory_resource* resource,
         registry::ShapeRegistry* shape_registry = nullptr);
 
     // Timing.

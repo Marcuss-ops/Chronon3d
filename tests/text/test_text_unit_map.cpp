@@ -124,7 +124,7 @@ TEST_CASE("Exclude_spaces: per-cluster whitespace exclusion (real impl)") {
     spec.amount.set(100.0f);
     spec.exclude_spaces = true;
 
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     for (u32 i = 0; i < 5; ++i) {
         f32 w = evaluate_selector(spec, map, i, source, t, &placed);
@@ -149,7 +149,7 @@ TEST_CASE("Exclude_spaces: disabled -> all glyphs active regardless of source") 
     spec.amount.set(100.0f);
     spec.exclude_spaces = false;
 
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
     for (u32 i = 0; i < 5; ++i) {
         f32 w = evaluate_selector(spec, map, i, source, t, &placed);
         CHECK(w == doctest::Approx(1.0f));
@@ -169,7 +169,7 @@ TEST_CASE("Exclude_spaces: backward compatible -- placed==nullptr -> no-op") {
     spec.amount.set(100.0f);
     spec.exclude_spaces = true;
 
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
     for (u32 i = 0; i < 5; ++i) {
         f32 w = evaluate_selector(spec, map, i, source, t, nullptr);
         CHECK(w == doctest::Approx(1.0f));
@@ -196,7 +196,7 @@ TEST_CASE("Exclude_spaces: word unit excludes whole whitespace runs" * doctest::
     spec.amount.set(100.0f);
     spec.exclude_spaces = true;
 
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     for (u32 i = 0; i < 8; ++i) {
         f32 w = evaluate_selector(spec, map, i, source, t, &placed);
@@ -217,7 +217,7 @@ TEST_CASE("Exclude_spaces: single-glyph word that is a space gets excluded") {
     spec.amount.set(100.0f);
     spec.exclude_spaces = true;
 
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     f32 w_glyph1 = evaluate_selector(spec, map, 1, source, t, &placed);
     CHECK(w_glyph1 == doctest::Approx(0.0f));
