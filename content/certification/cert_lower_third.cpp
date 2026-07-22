@@ -121,9 +121,9 @@ Composition cert_lower_third() {
 
 // ── Registration ──────────────────────────────────────────────────────
 void register_cert_lower_third_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "CertLowerThird", .factory = [](const CompositionProps&) {
+    registry.add(make_composition_descriptor("CertLowerThird", [](const CompositionProps&) {
         return cert_lower_third();
-    }});
+    }));
 }
 
 } // namespace chronon3d::content::certification

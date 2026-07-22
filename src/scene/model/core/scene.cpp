@@ -35,7 +35,6 @@ Scene Scene::clone() const {
     s.m_rim = m_rim;
     s.m_depth_grade = m_depth_grade;
     s.m_hierarchy_baked = m_hierarchy_baked;
-    s.m_assets_root = m_assets_root;
     if (m_camera_2_5d) {
         s.m_camera_2_5d = std::make_unique<Camera2_5DRuntime>(*m_camera_2_5d);
     }

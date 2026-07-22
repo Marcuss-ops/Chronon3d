@@ -62,9 +62,9 @@ Composition cert_determinism() {
 }
 
 void register_cert_determinism_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "CertDeterminism", .factory = [](const CompositionProps&) {
+    registry.add(make_composition_descriptor("CertDeterminism", [](const CompositionProps&) {
         return cert_determinism();
-    }});
+    }));
 }
 
 } // namespace chronon3d::content::certification

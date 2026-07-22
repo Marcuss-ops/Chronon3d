@@ -98,8 +98,7 @@ static c3d::Composition make_bg_composition(const char* assets_root) {
         {.name = "sdk_text_bg_only",
          .width = 640, .height = 360,
          .frame_rate = c3d::FrameRate{30, 1},
-         .duration = 1,
-         .assets_root = assets_root},
+         .duration = 1},
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
             if (ctx.runtime) {
@@ -125,8 +124,7 @@ static c3d::Composition make_text_composition(const char* assets_root) {
         {.name = "sdk_text_consumer",
          .width = 640, .height = 360,
          .frame_rate = c3d::FrameRate{30, 1},
-         .duration = 1,
-         .assets_root = assets_root},
+         .duration = 1},
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
             if (ctx.runtime) {

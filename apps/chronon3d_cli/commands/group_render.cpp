@@ -35,6 +35,7 @@ struct ValidateState {
     std::string props_file;
     std::string output;
     std::string profile{"production"};
+    std::string assets_root;
 };
 
 std::string lower_copy(std::string value) {
@@ -106,7 +107,6 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
         spdlog::error("{}", loaded.error);
         return 1;
     }
-    loaded.props.assets = &ctx.assets;
     if (!validate_schema_surface(*descriptor, loaded)) return 1;
 
     auto prepared_result = descriptor->prepare_props(loaded.props);
@@ -167,21 +167,14 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
                duration.integral());
 
     assets::AssetManifest manifest;
-    std::filesystem::path assets_root;
     bool used_declared_manifest = false;
 
     try {
         if (prepared.asset_manifest) {
             manifest = std::move(*prepared.asset_manifest);
             used_declared_manifest = true;
-            if (prepared.assets_root) {
-                assets_root = *prepared.assets_root;
-            } else {
-                assets_root = ensure_composition().assets_root();
-            }
         } else {
             Composition& value = ensure_composition();
-            assets_root = value.assets_root();
             const Frame last = duration > Frame{0} ? duration - Frame{1} : Frame{0};
             for (Frame frame = Frame{0}; frame <= last; frame += Frame{1}) {
                 const FrameContext frame_context = make_frame_context({
@@ -200,7 +193,7 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
         return 1;
     }
 
-    auto resolver = make_cli_resolver(assets_root);
+    auto resolver = make_cli_resolver(args.assets_root);
     auto asset_result = AssetPreflightResolver::check_manifest(manifest, resolver);
     std::vector<PreflightIssue> issues = std::move(asset_result.issues);
     fmt::print("[5/6] asset manifest/preflight: {} asset(s), {} issue(s){}\n",
@@ -254,6 +247,8 @@ void register_validate_commands(CLI::App& app, CliContext& ctx) {
                         "Flat JSON object containing composition props");
     command->add_option("-o,--output", state->output,
                         "Optional output path to validate");
+    command->add_option("--assets-root", state->assets_root,
+                        "Root directory for resolving relative assets");
     command->add_option("--profile", state->profile,
                         "Render settings profile: draft | preview | production | maximum")
         ->default_val("production")

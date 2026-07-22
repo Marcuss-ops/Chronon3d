@@ -471,51 +471,51 @@ Composition cert_nested() {
 // ── Registration ──────────────────────────────────────────────────────────
 
 void register_cert_compositing_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "CertOpacity", .factory = [](const CompositionProps&) {
+    registry.add(make_composition_descriptor("CertOpacity", [](const CompositionProps&) {
         return cert_opacity();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertBlur", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertBlur", [](const CompositionProps&) {
         return cert_blur();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertGlow", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertGlow", [](const CompositionProps&) {
         return cert_glow();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertGlowDisabled", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertGlowDisabled", [](const CompositionProps&) {
         return cert_glow_disabled();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertShadow", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertShadow", [](const CompositionProps&) {
         return cert_shadow();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertStroke", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertStroke", [](const CompositionProps&) {
         return cert_stroke();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertMask", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertMask", [](const CompositionProps&) {
         return cert_mask();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertBlendAdd", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertBlendAdd", [](const CompositionProps&) {
         return cert_blend_add();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertBlendMultiply", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertBlendMultiply", [](const CompositionProps&) {
         return cert_blend_multiply();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertPrecomp", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertPrecomp", [](const CompositionProps&) {
         return cert_precomp();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertPlain", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertPlain", [](const CompositionProps&) {
         return cert_plain();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertClip", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertClip", [](const CompositionProps&) {
         return cert_clip();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertBlendNormal", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertBlendNormal", [](const CompositionProps&) {
         return cert_blend_normal();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertBlendScreen", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertBlendScreen", [](const CompositionProps&) {
         return cert_blend_screen();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertNested", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertNested", [](const CompositionProps&) {
         return cert_nested();
-    }});
+    }));
 }
 
 } // namespace chronon3d::content::certification

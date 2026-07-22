@@ -101,9 +101,6 @@ TypedCompositionDescriptor<PreparedProps> make_descriptor(
             manifest.add_image(props.image_path, "PreparedComposition/image");
             return manifest;
         },
-        .resolve_assets_root = [](const PreparedProps&) {
-            return std::filesystem::path{"assets"};
-        },
         .factory = [factory_calls](const PreparedProps& props) {
             ++*factory_calls;
             return stub_composition(props);
@@ -138,8 +135,6 @@ TEST_CASE("CompositionDescriptor: preparation resolves metadata and assets witho
     REQUIRE(prepared.asset_manifest.has_value());
     REQUIRE(prepared.asset_manifest->size() == 1);
     CHECK(prepared.asset_manifest->assets()[0].path == "images/hero.png");
-    REQUIRE(prepared.assets_root.has_value());
-    CHECK(*prepared.assets_root == std::filesystem::path{"assets"});
 
     CHECK(decode_calls == 1);
     CHECK(factory_calls == 0);

@@ -86,15 +86,13 @@ std::size_t count_non_black_pixels(const c3d::sdk::RenderOutput& out) {
     return above;
 }
 
-c3d::Composition build_composition(int width, int height,
-                                    const std::filesystem::path& assets_root) {
+c3d::Composition build_composition(int width, int height) {
     const c3d::CompositionSpec spec{
         /* .name         */ "gate10_p4_grid_background_phase4_regression",
         /* .width        */ width,
         /* .height       */ height,
         /* .frame_rate   */ c3d::FrameRate{30, 1},
         /* .duration     */ 1,
-        /* .assets_root  */ assets_root.string(),
     };
 
     return c3d::Composition{
@@ -156,7 +154,7 @@ c3d::Composition build_composition(int width, int height,
 TEST_CASE("SDK-RENDERER GATE-10-PHASE-4-BLACK: sdk::RenderEngine::render with "
           "GridBackgroundShape layer MUST produce a non-black PNG") {
     const std::filesystem::path assets_root = "assets";   // no asset needed for bg-only
-    c3d::Composition comp = build_composition(kWidth, kHeight, assets_root);
+    c3d::Composition comp = build_composition(kWidth, kHeight);
 
     // Default-camera path (no CameraDescriptor set on Composition),
     // matching the gate #10 Phase 4 narrower invocation pattern.

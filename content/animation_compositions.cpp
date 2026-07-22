@@ -140,18 +140,14 @@ Composition ae_camera_text_parity();
 
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_anim_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{
-        .id = "AnimFadeInText",
-        .factory = [](const CompositionProps&) { return anim_fade_in_text(); }});
-    registry.add(CompositionDescriptor{
-        .id = "AnimSlideText",
-        .factory = [](const CompositionProps&) { return anim_slide_text(); }});
-    registry.add(CompositionDescriptor{
-        .id = "AnimScaleText",
-        .factory = [](const CompositionProps&) { return anim_scale_text(); }});
-    registry.add(CompositionDescriptor{
-        .id = "AnimTypewriter",
-        .factory = [](const CompositionProps&) { return anim_typewriter(); }});
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "AnimFadeInText"}, [](const CompositionProps&) { return anim_fade_in_text(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "AnimSlideText"}, [](const CompositionProps&) { return anim_slide_text(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "AnimScaleText"}, [](const CompositionProps&) { return anim_scale_text(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "AnimTypewriter"}, [](const CompositionProps&) { return anim_typewriter(); }));
 
     // TICKET-REFACTOR-CONTENT-EXAMPLES-17 — the 10 text animation registrations
     // (5 easy + 5 typewriters) have been moved to
@@ -160,48 +156,37 @@ void register_anim_compositions(CompositionRegistry& registry) {
     // (See TICKET-REFACTOR-CONTENT-EXAMPLES-17 §A+§B for the full split.)
     register_text_animation_compositions(registry);
 
-    registry.add(CompositionDescriptor{
-        .id = "CatmullRomShowcase",
-        .factory = [](const CompositionProps&) { return catmull_rom_showcase(); }});
-    registry.add(CompositionDescriptor{
-        .id = "DollyZoomShowcase",
-        .factory = [](const CompositionProps&) { return dolly_zoom_showcase(); }});
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "CatmullRomShowcase"}, [](const CompositionProps&) { return catmull_rom_showcase(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "DollyZoomShowcase"}, [](const CompositionProps&) { return dolly_zoom_showcase(); }));
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
-    registry.add(CompositionDescriptor{
-        .id = "CameraSplineComparison",
-        .factory = [](const CompositionProps&) { return camera_spline_comparison(); }});
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "CameraSplineComparison"}, [](const CompositionProps&) { return camera_spline_comparison(); }));
 #endif
-    registry.add(CompositionDescriptor{
-        .id = "TiltSweepTitle",
-        .factory = [](const CompositionProps&) { return tilt_sweep_title(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TiltSweepTitleV2",
-        .factory = [](const CompositionProps&) { return tilt_sweep_title_v2(); }});
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TiltSweepTitle"}, [](const CompositionProps&) { return tilt_sweep_title(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TiltSweepTitleV2"}, [](const CompositionProps&) { return tilt_sweep_title_v2(); }));
 
     // Cinematic text + camera compositions (5 new, see cinematic_text_camera.cpp).
-    registry.add(CompositionDescriptor{
-        .id = "DeepParallaxCascade",
-        .factory = [](const CompositionProps&) { return deep_parallax_cascade(); }});
-    registry.add(CompositionDescriptor{
-        .id = "WhipPanHeroReveal",
-        .factory = [](const CompositionProps&) { return whip_pan_hero_reveal(); }});
-    registry.add(CompositionDescriptor{
-        .id = "OrbitHandheldGlow",
-        .factory = [](const CompositionProps&) { return orbit_handheld_glow(); }});
-    registry.add(CompositionDescriptor{
-        .id = "RackFocusTitleSwap",
-        .factory = [](const CompositionProps&) { return rack_focus_title_swap(); }});
-    registry.add(CompositionDescriptor{
-        .id = "AbyssFreefallStagger",
-        .factory = [](const CompositionProps&) { return abyss_freefall_stagger(); }});
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "DeepParallaxCascade"}, [](const CompositionProps&) { return deep_parallax_cascade(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "WhipPanHeroReveal"}, [](const CompositionProps&) { return whip_pan_hero_reveal(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "OrbitHandheldGlow"}, [](const CompositionProps&) { return orbit_handheld_glow(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "RackFocusTitleSwap"}, [](const CompositionProps&) { return rack_focus_title_swap(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "AbyssFreefallStagger"}, [](const CompositionProps&) { return abyss_freefall_stagger(); }));
 
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
     // AE parity stress test (see ae_camera_text_parity.cpp).  360 frames
     // covering static / dolly-zoom / orbit / rack-focus / whip-pan+
     // motion-blur / stress — renders cleanly via the standard CLI.
-    registry.add(CompositionDescriptor{
-        .id = "AECameraTextParity",
-        .factory = [](const CompositionProps&) { return ae_camera_text_parity(); }});
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "AECameraTextParity"}, [](const CompositionProps&) { return ae_camera_text_parity(); }));
 #endif
 }
 

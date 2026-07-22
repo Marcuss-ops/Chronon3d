@@ -33,13 +33,17 @@ struct CompositionMetadata {
 struct PreparedComposition {
     std::optional<CompositionMetadata> metadata;
     std::optional<assets::AssetManifest> asset_manifest;
-    std::optional<std::filesystem::path> assets_root;
     std::function<Composition()> construct;
 };
 
 using PreparedCompositionResult = Result<PreparedComposition, PropsError>;
 
 /// Canonical, registry-storeable composition description.
+///
+/// The descriptor contains only declarative metadata and a `prepare_props`
+/// function that decodes/validates props once and returns a
+/// `PreparedComposition`.  There is no factory field: construction is always
+/// reached through `PreparedComposition::construct`.
 struct CompositionDescriptor {
     std::string id;
     std::string category;
@@ -50,14 +54,7 @@ struct CompositionDescriptor {
     std::optional<PropsSchema> schema;
 
     /// Decode, validate and resolve all declarative information exactly once.
-    /// The registry installs a construction-only fallback for untyped
-    /// descriptors that provide only `factory`.
     std::function<PreparedCompositionResult(const CompositionProps&)> prepare_props;
-
-    /// Registration compatibility surface for untyped descriptors and direct
-    /// callers. Canonical registry/CLI execution goes through prepare_props and
-    /// PreparedComposition::construct.
-    std::function<Composition(const CompositionProps&)> factory;
 };
 
 /// Typed composition descriptor.
@@ -79,7 +76,6 @@ struct TypedCompositionDescriptor {
     std::function<std::optional<std::string>(const Props&)> validate;
     std::function<CompositionMetadata(const Props&)> resolve_metadata;
     std::function<assets::AssetManifest(const Props&)> resolve_assets;
-    std::function<std::filesystem::path(const Props&)> resolve_assets_root;
     std::function<Composition(const Props&)> factory;
     std::optional<PropsCodec<Props>> codec;
 
@@ -94,7 +90,6 @@ struct TypedCompositionDescriptor {
         auto typed_validate = std::move(validate);
         auto typed_metadata = std::move(resolve_metadata);
         auto typed_assets = std::move(resolve_assets);
-        auto typed_assets_root = std::move(resolve_assets_root);
         auto typed_factory = std::move(factory);
         auto typed_codec = std::move(codec);
 
@@ -145,7 +140,6 @@ struct TypedCompositionDescriptor {
             typed_validate,
             typed_metadata,
             typed_assets,
-            typed_assets_root,
             construction_factory
         ](const CompositionProps& composition_props)
             -> PreparedCompositionResult {
@@ -172,11 +166,6 @@ struct TypedCompositionDescriptor {
             if (typed_assets) {
                 prepared.asset_manifest = typed_assets(props);
             }
-            if (typed_assets_root) {
-                prepared.assets_root = typed_assets_root(props);
-            } else if (!composition_props.project_root.empty()) {
-                prepared.assets_root = composition_props.project_root;
-            }
             prepared.construct = [
                 construction_factory,
                 props = std::move(props)
@@ -186,29 +175,74 @@ struct TypedCompositionDescriptor {
             return prepared;
         };
 
-        // Direct descriptor.factory calls remain source-compatible. Canonical
-        // registry and CLI flows use prepare_props + construct and therefore
-        // decode only once.
-        descriptor.factory = [
-            decode_props,
-            typed_factory = std::move(typed_factory),
-            composition_id = std::move(composition_id)
-        ](const CompositionProps& composition_props) -> Composition {
-            auto decoded = decode_props(composition_props);
-            if (!decoded) {
-                const PropsError& error = decoded.error();
-                const std::string key = error.key.empty()
-                    ? std::string{}
-                    : " [" + error.key + "]";
-                throw std::runtime_error(
-                    "Composition '" + composition_id +
-                    "' props decode failed" + key + ": " + error.message);
-            }
-            return typed_factory(std::move(decoded).value());
-        };
-
         return descriptor;
     }
 };
+
+namespace detail {
+
+inline auto prepare_from_factory(std::function<Composition()> factory) {
+    return [factory = std::move(factory)](
+        const CompositionProps&) -> PreparedCompositionResult {
+        PreparedComposition prepared;
+        prepared.construct = factory;
+        return prepared;
+    };
+}
+
+inline auto prepare_from_factory(
+    std::function<Composition(const CompositionProps&)> factory) {
+    return [factory = std::move(factory)](
+        const CompositionProps& props) -> PreparedCompositionResult {
+        PreparedComposition prepared;
+        prepared.construct = [factory, props]() { return factory(props); };
+        return prepared;
+    };
+}
+
+} // namespace detail
+
+/// Create a descriptor for a composition whose factory does not need props.
+/// The returned descriptor is fully canonical: it stores only `prepare_props`
+/// and the construction closure lives in `PreparedComposition::construct`.
+inline CompositionDescriptor make_composition_descriptor(
+    std::string id,
+    std::function<Composition()> factory) {
+    CompositionDescriptor descriptor;
+    descriptor.id = std::move(id);
+    descriptor.prepare_props = detail::prepare_from_factory(std::move(factory));
+    return descriptor;
+}
+
+/// Create a descriptor for a composition whose factory receives the raw
+/// `CompositionProps`.  Props are captured at prepare time and forwarded to
+/// the factory at construction time.
+inline CompositionDescriptor make_composition_descriptor(
+    std::string id,
+    std::function<Composition(const CompositionProps&)> factory) {
+    CompositionDescriptor descriptor;
+    descriptor.id = std::move(id);
+    descriptor.prepare_props = detail::prepare_from_factory(std::move(factory));
+    return descriptor;
+}
+
+/// Decorate an existing `CompositionDescriptor` with a no-props construction
+/// closure.  All other fields (width, height, fps, duration, schema, ...) are
+/// preserved.
+inline CompositionDescriptor make_composition_descriptor(
+    CompositionDescriptor descriptor,
+    std::function<Composition()> factory) {
+    descriptor.prepare_props = detail::prepare_from_factory(std::move(factory));
+    return descriptor;
+}
+
+/// Decorate an existing `CompositionDescriptor` with a construction closure that
+/// receives the raw `CompositionProps`.  All other fields are preserved.
+inline CompositionDescriptor make_composition_descriptor(
+    CompositionDescriptor descriptor,
+    std::function<Composition(const CompositionProps&)> factory) {
+    descriptor.prepare_props = detail::prepare_from_factory(std::move(factory));
+    return descriptor;
+}
 
 } // namespace chronon3d

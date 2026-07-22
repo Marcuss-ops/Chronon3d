@@ -399,9 +399,9 @@ Composition cert_multilingual() {
 
 // ── Registration ──────────────────────────────────────────────────────
 void register_cert_multilingual_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "CertMultilingual", .factory = [](const CompositionProps&) {
+    registry.add(make_composition_descriptor("CertMultilingual", [](const CompositionProps&) {
         return cert_multilingual();
-    }});
+    }));
 }
 
 } // namespace chronon3d::content::certification
