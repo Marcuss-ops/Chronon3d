@@ -224,39 +224,22 @@ struct TextDefinition {
 /// Full implementation in src/text/text_definition.cpp.
 [[nodiscard]] TextDefinition from_text_run_spec(const TextRunSpec& spec);
 
-/// Convert the canonical TextDefinition back to a TextSpec.
-/// This is the reverse adapter of from_text_spec(); it maps
-///   def.content → spec.content
-///   def.style   → spec.font / spec.appearance
-///   def.frame   → spec.layout / spec.position
-///   def.paragraph → spec.layout.paragraph
-/// Note: the z component of spec.position is always 0 because
-/// TextFrame stores only a 2D TextPlacement offset.
-/// Full implementation in src/text/text_definition.cpp.
-[[nodiscard]] TextSpec from_text_definition(const TextDefinition& def);
-
-/// F2.D — Reverse adapter (canonical TextDefinition → TextRunSpec).
-/// Documented LOSSY DROP: TextAnimation.start_delay + .duration are not representable in TextRunSpec.
-/// See ADR-019 §A.1 + test_text_definition.cpp group 19.
-[[nodiscard]] TextRunSpec to_text_run_spec(const TextDefinition& def);
-
 /// Phase B — lower the canonical TextDefinition into a TextDocument
 /// (the runtime pipeline model consumed by compile_text_layout()).
 ///
 /// Maps:
 ///   - content.value → doc.utf8
-///   - style + frame + paragraph → doc.defaults (via from_text_definition)
+///   - style + frame + paragraph → doc.defaults
 ///   - spans (TextSpanOverride) → doc.spans (TextStyleSpan)
 ///   - paragraph → split_paragraphs()
 ///
-/// Callers that need a TextLayoutSpec for compile_text_layout() should also
-/// call from_text_definition() to obtain the matching TextSpec.layout.
+/// Callers that need a TextLayoutSpec for compile_text_layout() should use
+/// <chronon3d/compat/text_spec_adapter.hpp> only during the migration.
 ///
 /// Usage:
 ///   TextDefinition def = centered_text(opts);
-///   TextDocument doc = to_text_document(def);
-///   TextSpec spec = from_text_definition(def);
-///   TextLayoutRequest req{&doc, &spec.layout, spec.font};
+///   PreparedText prepared = prepare_text(def).value();
+///   TextLayoutRequest req{&prepared.document, &prepared.frame, prepared.style.font};
 ///   auto result = compile_text_layout(req, services);
 [[nodiscard]] TextDocument to_text_document(const TextDefinition& def);
 

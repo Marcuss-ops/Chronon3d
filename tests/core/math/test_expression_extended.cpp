@@ -224,7 +224,7 @@ TEST_CASE("expression: constants") {
 
 TEST_CASE("expression: context variables") {
     ExpressionContext ctx;
-    ctx = ctx.with_frame(30.0);
+    ctx.frame = 30.0;
     ctx.time = 1.0;
     ctx.fps = 30.0;
     ctx.width = 1920.0;
@@ -287,7 +287,7 @@ TEST_CASE("expression: thisProperty") {
 TEST_CASE("expression: cross-layer reference via layer resolver") {
     ExpressionContext ctx;
     ctx.time = 1.0;
-    ctx = ctx.with_frame(30.0);
+    ctx.frame = 30.0;
     ctx.value = 50.0;
 
     // Mock resolver: "bg" layer opacity = 0.8, position.x = 100
@@ -446,7 +446,7 @@ TEST_CASE("expression: backward compatibility — legacy API unchanged") {
 
 TEST_CASE("expression: context-aware API with empty layer resolver") {
     ExpressionContext ctx;
-    ctx = ctx.with_frame(10.0);
+    ctx.frame = 10.0;
     ctx.time = 0.5;
 
     // Should still work for basic expressions even with empty resolver
