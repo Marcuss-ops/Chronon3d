@@ -43,7 +43,7 @@ Composition make_moving_circle_comp(int width, int height, int duration) {
     return Composition(CompositionSpec{
         .name = "MovingCircleTile", .width = width, .height = height, .duration = duration
     }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx.resource);
+        SceneBuilder s(ctx);
         // Static background
         s.rect("bg", {
             .size = {200.0f, 150.0f},
@@ -239,7 +239,7 @@ TEST_CASE("Dirty Tiles: Two distant moving objects render correctly") {
     Composition comp(CompositionSpec{
         .name = "TwoDistantObjects", .width = W, .height = H, .duration = 6
     }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx.resource);
+        SceneBuilder s(ctx);
 
         // Static background
         s.rect("bg", {

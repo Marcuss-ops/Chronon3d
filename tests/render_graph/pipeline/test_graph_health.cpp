@@ -347,7 +347,7 @@ TEST_CASE("GraphHealth: dirty rects on and off render identically") {
     };
 
     Composition comp(spec, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx.resource);
+        SceneBuilder s(ctx);
 
         s.layer("bg", [](LayerBuilder& l) {
             l.rect("bg", {
