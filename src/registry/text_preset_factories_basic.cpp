@@ -145,11 +145,12 @@ compose_karaoke_fill(const PresetMetadata& /*meta*/) {
     return a;
 }
 
-// 24. active_word_pop — scale punch.
+// 24. active_word_pop — scale punch + yellow fill on the active word.
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_active_word_pop(const PresetMetadata& /*meta*/) {
     TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("active_word_pop");
     a.properties.push_back(ScaleProperty{Vec3{1.15f, 1.15f, 1.0f}});
+    a.properties.push_back(FillColorProperty{Color::yellow()});
     a.properties.push_back(OpacityProperty{1.0f});
     return a;
 }

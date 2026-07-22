@@ -43,7 +43,7 @@ struct TimedWordBinding {
 /// Usage:
 ///   layer.subtitles(track)
 ///        .preset("karaoke_fill")
-///        .font("fonts/Poppins-Bold.ttf", 48.0f)
+///        .font("assets/fonts/Poppins-Bold.ttf", 48.0f)
 ///        .color(Color::White)
 ///        .box({1400.0f, 200.0f})
 ///        .align(TextAlign::Center)
@@ -138,7 +138,7 @@ private:
     const presets::text::SubtitleTrack* track_{nullptr};
 
     std::string preset_id_{"minimal_white"};
-    std::string font_path_{"fonts/Poppins-Bold.ttf"};
+    std::string font_path_{"assets/fonts/Poppins-Bold.ttf"};
     float font_size_{48.0f};
     Color color_{1.0f, 1.0f, 1.0f, 1.0f};
     Vec2 box_size_{1400.0f, 200.0f};
