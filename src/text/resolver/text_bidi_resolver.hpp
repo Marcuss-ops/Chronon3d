@@ -44,7 +44,9 @@ namespace chronon3d::text::resolver {
 // uses override_dir for every run regardless of bidi segmentation
 // signals (preserves the pre-split behaviour).
 
-void emit_via_bidi(
+/// @return Number of codepoints/clusters in the sub-range not covered by
+/// any font in the fallback stack (fail-loud audit count).
+[[nodiscard]] std::size_t emit_via_bidi(
     std::vector<ResolvedTextRun>&           out,
     const TextDocument&                     doc,
     FontEngine&                             engine,

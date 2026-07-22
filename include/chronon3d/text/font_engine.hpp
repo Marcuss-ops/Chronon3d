@@ -390,6 +390,14 @@ namespace text::font_engine_internal {
         const FontSpec& spec,
         char32_t         codepoint
     );
+
+    [[nodiscard]] bool inspect_font(
+        FontEngine&     engine,
+        const FontSpec& spec,
+        std::string&    out_family,
+        std::string&    out_style,
+        int&            out_weight
+    );
 } // namespace text::font_engine_internal
 
 class FontEngine {
@@ -461,12 +469,14 @@ public:
     [[nodiscard]] size_t glyph_bbox_cache_size() const;
 
 private:
-    // Cat-5 internal: friend access for the free-function probe declared
-    // in `src/backends/text/font_engine_internal.hpp`. The free function
-    // grants access to `m_impl` for the cluster-level fallback resolver
+    // Cat-5 internal: friend access for the free-function probes declared
+    // in `src/backends/text/font_engine_internal.hpp`. The free functions
+    // grant access to `m_impl` for the cluster-level fallback resolver
     // WITHOUT expanding the public ABI.
     friend bool text::font_engine_internal::has_glyph_for_codepoint(
         FontEngine&, const FontSpec&, char32_t);
+    friend bool text::font_engine_internal::inspect_font(
+        FontEngine&, const FontSpec&, std::string&, std::string&, int&);
 
     struct Impl;
     std::unique_ptr<Impl> m_impl;
@@ -489,6 +499,14 @@ namespace text::font_engine_internal {
         FontEngine&     engine,
         const FontSpec& spec,
         char32_t         codepoint
+    );
+
+    [[nodiscard]] bool inspect_font(
+        FontEngine&     engine,
+        const FontSpec& spec,
+        std::string&    out_family,
+        std::string&    out_style,
+        int&            out_weight
     );
 } // namespace text::font_engine_internal
 

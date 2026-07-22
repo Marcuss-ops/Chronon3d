@@ -39,7 +39,7 @@ compile_text_layout(
     ResolvedTextTree local_storage{};
     auto paragraph_result = tci::resolve_target_paragraph(
         doc,
-        engine,
+        services,
         pre_resolved,
         request.paragraph_index,
         local_storage);
@@ -134,7 +134,8 @@ TextRunBuildResult build_text_run(
     const TextDocument& doc,
     FontEngine& engine,
     const TextLayoutSpec& layout,
-    TextLayoutCache* cache
+    TextLayoutCache* cache,
+    const std::filesystem::path& bundled_fonts_root
 ) {
     TextRunBuildResult result;
     if (doc.utf8.empty() && doc.paragraphs.empty()) {
@@ -145,8 +146,10 @@ TextRunBuildResult build_text_run(
         doc,
         engine,
         layout,
-        cache);
+        cache,
+        bundled_fonts_root);
     result.complete = compiled.complete;
+    result.missing_glyph_count = compiled.missing_glyph_count;
 
     for (auto& paragraph : compiled.paragraphs) {
         if (paragraph.result) {

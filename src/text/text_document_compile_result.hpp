@@ -46,6 +46,7 @@
 #include <chronon3d/text/text_run_builder.hpp>     // TextLayoutError, TextLayoutSpec
 
 #include <cstddef>
+#include <filesystem>
 #include <memory>
 #include <vector>
 
@@ -95,6 +96,10 @@ struct TextDocumentCompileResult {
     /// or any other per-paragraph failure surfaced by compile_text_layout
     /// or the multi-font pre-check).
     bool complete{true};
+
+    /// Total number of codepoints/clusters not covered by any font in the
+    /// fallback stack across all paragraphs.
+    std::size_t missing_glyph_count{0};
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -118,18 +123,20 @@ struct TextDocumentCompileResult {
 ///   - `apply_spacing_collapse()` (post-process, uses source_index)
 ///   - tests (regression lock for per-paragraph failure contract).
 ///
-/// @param doc    The TextDocument to compile.  Caller must have called
-///               `split_paragraphs()` first.
-/// @param engine FontEngine for shaping + fallback.
-/// @param layout Box / tracking / wrap / paragraph style spec.
-/// @param cache  Optional TextLayoutCache for cache lookup/store.
+/// @param doc                 The TextDocument to compile.  Caller must have called
+///                            `split_paragraphs()` first.
+/// @param engine                FontEngine for shaping + fallback.
+/// @param layout                Box / tracking / wrap / paragraph style spec.
+/// @param cache                 Optional TextLayoutCache for cache lookup/store.
+/// @param bundled_fonts_root    Directory scanned for bundled fallback fonts.
 /// @return The accumulator.  Inspect `complete` for the document-level
 ///         outcome and `paragraphs[i]` for the per-paragraph outcome.
 [[nodiscard]] TextDocumentCompileResult compile_text_document(
     const TextDocument& doc,
     FontEngine& engine,
     const TextLayoutSpec& layout,
-    TextLayoutCache* cache = nullptr
+    TextLayoutCache* cache = nullptr,
+    const std::filesystem::path& bundled_fonts_root = {}
 );
 
 } // namespace text_internal

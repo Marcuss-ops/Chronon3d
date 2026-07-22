@@ -34,6 +34,7 @@
 #include <chronon3d/text/text_document.hpp>
 
 #include <cstddef>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -88,6 +89,12 @@ struct ResolvedParagraph {
 /// entries by bidi direction and font changes.
 struct ResolvedTextTree {
     std::vector<ResolvedParagraph> paragraphs;
+
+    /// Total number of codepoints/clusters that were not covered by any
+    /// font in the fallback stack.  Fail-loud audits log each missing
+    /// codepoint via spdlog::error; this counter lets callers surface the
+    /// aggregate without parsing logs.
+    std::size_t missing_glyph_count{0};
 
     /// Convenience: total number of runs across all paragraphs.
     [[nodiscard]] size_t total_runs() const {
@@ -180,13 +187,19 @@ FontSpec resolve_fallback_fonts(
 ///      d. Resolve font fallback for each bidi run.
 ///      e. Emit ResolvedTextRun entries.
 ///
-/// @param doc    The TextDocument to resolve.  Must be validated.
-/// @param engine FontEngine for font fallback resolution.
+/// @param doc                 The TextDocument to resolve.  Must be validated.
+/// @param engine                FontEngine for font fallback resolution.
+/// @param bundled_fonts_root    Directory scanned for bundled fallback fonts
+///                              (e.g. `<assets_root>/fonts`).  Empty means
+///                              "no bundled fonts available" — the primary
+///                              font is still used, but no extra fallbacks
+///                              are loaded.
 /// @return A ResolvedTextTree with one ResolvedParagraph per document
 ///         paragraph, each containing resolved runs.
 [[nodiscard]] ResolvedTextTree resolve_text_run_tree(
     const TextDocument& doc,
-    FontEngine& engine
+    FontEngine& engine,
+    const std::filesystem::path& bundled_fonts_root = {}
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -217,15 +230,17 @@ FontSpec resolve_fallback_fonts(
 /// Convenience wrapper that calls resolve_text_run_tree() then
 /// shape_resolved_run() on every ResolvedTextRun.
 ///
-/// @param doc      The TextDocument (paragraphs must be pre-split).
-/// @param engine   FontEngine for fallback + shaping.
-/// @param tracking Per-cluster tracking in pixels.
+/// @param doc                 The TextDocument (paragraphs must be pre-split).
+/// @param engine                FontEngine for fallback + shaping.
+/// @param tracking              Per-cluster tracking in pixels.
+/// @param bundled_fonts_root    Directory scanned for bundled fallback fonts.
 /// @return A ShapedTextTree with one ShapedParagraph per paragraph,
 ///         each containing PlacedGlyphRun entries ready for the compositor.
 [[nodiscard]] ShapedTextTree resolve_and_shape(
     const TextDocument& doc,
     FontEngine& engine,
-    float tracking = 0.0f
+    float tracking = 0.0f,
+    const std::filesystem::path& bundled_fonts_root = {}
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
