@@ -48,7 +48,8 @@ namespace chronon3d {
 
 ResolvedTextTree resolve_text_run_tree(
     const TextDocument& doc,
-    FontEngine& engine
+    FontEngine& engine,
+    const std::filesystem::path& bundled_fonts_root
 ) {
     ResolvedTextTree tree;
 
@@ -87,16 +88,8 @@ ResolvedTextTree resolve_text_run_tree(
         // (text_bidi_resolver).  The bidi resolver internally calls
         // FontResolver (text_font_resolver) for the fallback chain.
         //
-        // TODO(FOLLOWUP-RUNTIME-ASSETS-ROOT): forward the runtime's
-        // bundled_fonts_root here.  This orchestrator currently does
-        // not have a direct RenderRuntime handle (`engine` carries the
-        // FontEngine but the runtime's AssetRegistry/AssetResolver
-        // surface lives outside this call chain).  When the threading
-        // lands, the empty path triggers `spdlog::warn` from
-        // `make_default_font_stack` (fail-loud preserved).
-        const std::filesystem::path bundled_fonts_root{};
         for (const auto& sub : sub_ranges) {
-            chronon3d::text::resolver::emit_via_bidi(
+            tree.missing_glyph_count += chronon3d::text::resolver::emit_via_bidi(
                 resolved_para.runs,
                 doc, engine, sub, para,
                 para.style.direction,
@@ -111,6 +104,7 @@ ResolvedTextTree resolve_text_run_tree(
 
     return tree;
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Public API: shape_resolved_run (single-run HarfBuzz shaping)
@@ -167,11 +161,12 @@ PlacedGlyphRun shape_resolved_run(
 ShapedTextTree resolve_and_shape(
     const TextDocument& doc,
     FontEngine& engine,
-    float tracking
+    float tracking,
+    const std::filesystem::path& bundled_fonts_root
 ) {
     ShapedTextTree result;
 
-    auto tree = resolve_text_run_tree(doc, engine);
+    auto tree = resolve_text_run_tree(doc, engine, bundled_fonts_root);
 
     for (const auto& para : tree.paragraphs) {
         ShapedParagraph shaped_para;

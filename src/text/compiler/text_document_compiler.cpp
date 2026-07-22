@@ -68,7 +68,8 @@ TextDocumentCompileResult compile_text_document(
     const TextDocument& doc,
     FontEngine& engine,
     const TextLayoutSpec& layout,
-    TextLayoutCache* cache
+    TextLayoutCache* cache,
+    const std::filesystem::path& bundled_fonts_root
 ) {
     TextDocumentCompileResult result;
     result.complete = true;
@@ -77,8 +78,9 @@ TextDocumentCompileResult compile_text_document(
         return result;
     }
 
-    auto tree = resolve_text_run_tree(doc, engine);
-    TextCompileServices services{&engine, cache};
+    auto tree = resolve_text_run_tree(doc, engine, bundled_fonts_root);
+    TextCompileServices services{&engine, cache, bundled_fonts_root};
+    result.missing_glyph_count = tree.missing_glyph_count;
     const FontSpec primary_font = doc.defaults.font;
 
     for (std::size_t index = 0; index < tree.paragraphs.size(); ++index) {

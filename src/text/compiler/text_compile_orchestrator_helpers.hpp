@@ -11,7 +11,7 @@ build_empty_paragraph_layout(const TextDocument& doc);
 [[nodiscard]] Result<const ResolvedParagraph*, TextLayoutError>
 resolve_target_paragraph(
     const TextDocument& doc,
-    FontEngine& engine,
+    const TextCompileServices& services,
     const ResolvedTextTree* pre_resolved,
     std::size_t paragraph_index,
     ResolvedTextTree& local_storage
