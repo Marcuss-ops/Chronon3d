@@ -16,9 +16,9 @@ TEST_CASE("FrameContext basics") {
     SUBCASE("Temporal accessors") {
         CHECK(ctx.global_time() == global);
         CHECK(ctx.local_time() == global);
-        CHECK(ctx.frame()() == Frame{30});
+        CHECK(ctx.frame() == Frame{30});
         CHECK(ctx.frame_fraction() == doctest::Approx(0.0));
-        CHECK(ctx.frame_rate()() == FrameRate{30, 1});
+        CHECK(ctx.frame_rate() == FrameRate{30, 1});
     }
 
     SUBCASE("Time conversion") {
@@ -46,8 +46,8 @@ TEST_CASE("FrameContext local vs global time") {
 
     CHECK(ctx.global_time() == global);
     CHECK(ctx.local_time() == local);
-    CHECK(ctx.frame()() == Frame{10});
-    CHECK(ctx.frame_rate()() == FrameRate{24, 1});
+    CHECK(ctx.frame() == Frame{10});
+    CHECK(ctx.frame_rate() == FrameRate{24, 1});
 }
 
 TEST_CASE("FrameContext with_local_time") {
@@ -105,7 +105,7 @@ TEST_CASE("FrameContext edge cases") {
             .global_time = SampleTime::from_frame(10.25, FrameRate{24, 1}),
             .duration = Frame{100},
         });
-        CHECK(ctx.frame()() == Frame{10});
+        CHECK(ctx.frame() == Frame{10});
         CHECK(ctx.frame_fraction() == doctest::Approx(0.25));
     }
 }

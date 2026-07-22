@@ -306,9 +306,9 @@ TEST_CASE("SequenceBuilder — context propagation") {
             const auto& c = seq.context();
             CHECK(c.width == 1280);
             CHECK(c.height == 720);
-            CHECK(c.frame_rate.numerator == 24);
-            CHECK(c.frame == Frame{10});
-            CHECK(c.local_frame == Frame{10});
-            CHECK(c.duration == Frame{60});
+            CHECK(c.frame_rate().numerator == 24);
+            CHECK(c.frame() == Frame{10});
+            CHECK(c.local_time().integral_frame() == Frame{10});
+            CHECK(c.duration() == Frame{60});
         });
 }

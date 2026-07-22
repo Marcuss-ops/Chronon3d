@@ -47,15 +47,15 @@ TEST_CASE("TimelineResolver — flat sequence: active window") {
         CHECK(results[0].active_path.size() == 1);
         CHECK(results[0].active_path[0].name == "intro");
         CHECK(results[0].active_path[0].local_frame == Frame{0});
-        CHECK(results[0].effective_context.frame == Frame{0});
-        CHECK(results[0].effective_context.local_frame == Frame{0});
+        CHECK(results[0].effective_context.frame() == Frame{0});
+        CHECK(results[0].effective_context.local_time().integral_frame() == Frame{0});
     }
 
     SUBCASE("mid-sequence: correct local frame") {
         auto results = TimelineResolver::resolve({root}, make_ctx(Frame{50}));
         REQUIRE(results.size() == 1);
         CHECK(results[0].active_path[0].local_frame == Frame{20});
-        CHECK(results[0].effective_context.frame == Frame{20});
+        CHECK(results[0].effective_context.frame() == Frame{20});
     }
 
     SUBCASE("at end frame (exclusive): no resolution") {
@@ -112,7 +112,7 @@ TEST_CASE("TimelineResolver — nested sequence: chained local frame") {
         CHECK(results[0].active_path.size() == 1);
         CHECK(results[0].active_path[0].name == "chapter");
         CHECK(results[0].active_path[0].local_frame == Frame{20});
-        CHECK(results[0].effective_context.frame == Frame{20});
+        CHECK(results[0].effective_context.frame() == Frame{20});
 
         // Second: title (nested inside chapter)
         CHECK(results[1].active_path.size() == 2);
@@ -120,7 +120,7 @@ TEST_CASE("TimelineResolver — nested sequence: chained local frame") {
         CHECK(results[1].active_path[0].local_frame == Frame{20});
         CHECK(results[1].active_path[1].name == "title");
         CHECK(results[1].active_path[1].local_frame == Frame{20});
-        CHECK(results[1].effective_context.frame == Frame{20});
+        CHECK(results[1].effective_context.frame() == Frame{20});
     }
 
     SUBCASE("global 130 → chapter.local=30, body.local=0") {
@@ -136,7 +136,7 @@ TEST_CASE("TimelineResolver — nested sequence: chained local frame") {
         CHECK(results[1].active_path.size() == 2);
         CHECK(results[1].active_path[1].name == "body");
         CHECK(results[1].active_path[1].local_frame == Frame{0});
-        CHECK(results[1].effective_context.frame == Frame{0});
+        CHECK(results[1].effective_context.frame() == Frame{0});
     }
 
     SUBCASE("global 99 → not active (before chapter)") {
@@ -174,7 +174,7 @@ TEST_CASE("TimelineResolver — 3-level nesting") {
         CHECK(results[2].active_path.size() == 3);
         CHECK(results[2].active_path[2].name == "title");
         CHECK(results[2].active_path[2].local_frame == Frame{0});
-        CHECK(results[2].effective_context.frame == Frame{0});
+        CHECK(results[2].effective_context.frame() == Frame{0});
     }
 
     SUBCASE("global 120 → project.local=120, chapter.local=20, title.local=20") {
@@ -183,7 +183,7 @@ TEST_CASE("TimelineResolver — 3-level nesting") {
 
         CHECK(results[2].active_path[2].name == "title");
         CHECK(results[2].active_path[2].local_frame == Frame{20});
-        CHECK(results[2].effective_context.frame == Frame{20});
+        CHECK(results[2].effective_context.frame() == Frame{20});
     }
 
     SUBCASE("global 130 → project.local=130, chapter.local=30, title inactive") {
@@ -207,7 +207,7 @@ TEST_CASE("TimelineResolver — trim_before offset") {
         auto results = TimelineResolver::resolve({seq}, make_ctx(Frame{50}));
         REQUIRE(results.size() == 1);
         CHECK(results[0].active_path[0].local_frame == Frame{10});
-        CHECK(results[0].effective_context.frame == Frame{10});
+        CHECK(results[0].effective_context.frame() == Frame{10});
     }
 
     SUBCASE("global 70 → local = 20 + trim_before = 30") {
@@ -311,19 +311,17 @@ TEST_CASE("TimelineResolver — effective context preserves parent properties") 
     ctx.width = 1280;
     ctx.height = 720;
     ctx = ctx.with_frame_rate({24, 1});
-    ctx.frame_time = 0.5f;
 
     auto result = TimelineResolver::resolve_one(seq, ctx);
     REQUIRE(result.has_value());
 
     const auto& eff = result->effective_context;
-    CHECK(eff.frame == Frame{30});
-    CHECK(eff.local_frame == Frame{30});
+    CHECK(eff.frame() == Frame{30});
+    CHECK(eff.local_time().integral_frame() == Frame{30});
     CHECK(eff.width == 1280);
     CHECK(eff.height == 720);
-    CHECK(eff.frame_rate.numerator == 24);
-    CHECK(eff.frame_time == doctest::Approx(0.5f));
-    CHECK(eff.duration == Frame{60});
+    CHECK(eff.frame_rate().numerator == 24);
+    CHECK(eff.duration() == Frame{60});
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

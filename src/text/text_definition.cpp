@@ -75,20 +75,16 @@ TextDefinition from_text_run_spec(const TextRunSpec& spec) {
     return def;
 }
 
-TextSpec from_text_definition(const TextDefinition& def) {
+// Helper: build the legacy TextSpec defaults that TextDocument still needs
+// until TextDocument::defaults migrates to TextDefStyle (X3).
+[[nodiscard]] static TextSpec defaults_from_definition(const TextDefinition& def) {
     TextSpec spec;
 
-    // ── content ────────────────────────────────────────────────────────
     spec.content.value      = def.content.value;
     spec.content.pre_shaped = def.content.pre_shaped;
+    spec.spans              = def.spans;
+    spec.font               = def.style.font;
 
-    // ── spans (authoring-level overrides) ───────────────────────────────
-    spec.spans = def.spans;
-
-    // ── font ───────────────────────────────────────────────────────────
-    spec.font = def.style.font;
-
-    // ── layout ─────────────────────────────────────────────────────────
     spec.layout.box            = def.frame.size;
     spec.layout.anchor         = def.frame.anchor;
     spec.layout.align          = def.frame.align;
@@ -105,18 +101,12 @@ TextSpec from_text_definition(const TextDefinition& def) {
     spec.layout.ellipsis       = def.frame.ellipsis;
     spec.layout.paragraph      = def.paragraph;
 
-    // ── appearance ───────────────────────────────────────────────────────
     spec.appearance.color     = def.style.color;
     spec.appearance.paint     = def.style.paint;
     spec.appearance.shadows   = def.style.shadows;
     spec.appearance.material  = def.style.material;
     spec.appearance.box_style = def.style.box_style;
 
-    // ── position (TICKET-TEXT-LEGACY-POSITION-ROT sub-area ii, write direction) ──
-    // Faithful mirror: legacy `.position = Vec3{x, y, 0}` is byte-equivalent
-    // to `TextPlacement{TextPlacementKind::Absolute, {x, y}}` (Z=0 explicit
-    // per M1.8 §5A). Hardcoding `Absolute` matches the prior semantic of
-    // `.position` carrying already-resolved coords.
     spec.placement = {TextPlacementKind::Absolute, {def.frame.placement.offset.x, def.frame.placement.offset.y}};
 
     return spec;
@@ -127,32 +117,12 @@ TextSpec from_text_definition(const TextDefinition& def) {
 // Lowers the authoring TextDefinition DTO into the runtime TextDocument
 // pipeline model.  Routes via the canonical TextDocumentBuilder to avoid
 // introducing a parallel construction path (AGENTS.md §Anti-duplicazione).
-//
-// Phase-A.3 placeholders (def.effects, def.animation) are trivially empty
-// structs (no-op at the document level today).  Effects/animators attach
-// directly to the RenderNode in the runtime compile phase (F3.B/C spawn),
-// not to TextDocument.
-//
-// Anti-duplicazione honour:
-//   - Uses existing TextDocumentBuilder (canonical pipeline DTO factory).
-//   - Defaults are taken from `from_text_definition(def)` so source + sink
-//     share the same field-set semantics (no drift between adapters).
-//   - The fallback span covers exactly the bytes of `def.content.value`;
-//     the F3 phase-B lowerer will expand `def.spans` (AUTHORING-level
-//     TextSpanOverride fields) into TextStyleSpan entries at that point.
-//   - Returns by value (TextDocument is a small POD; no heap moves).
 TextDocument to_text_document(const TextDefinition& def) {
     TextDocument doc;
 
-    // Content + defaults are taken from the canonical reverse adapter.
     doc.utf8     = def.content.value;
-    doc.defaults = from_text_definition(def);
+    doc.defaults = defaults_from_definition(def);
 
-    // Convert authoring-level TextSpanOverride entries into runtime
-    // TextStyleSpan entries.  The resolver (resolve_text_run_tree) already
-    // understands TextStyleSpan and preserves ligatures / contextual
-    // shaping by only splitting runs when the effective font actually
-    // changes.
     for (const auto& over : def.spans) {
         append_span_override(doc, over, doc.defaults.font);
     }
@@ -161,29 +131,6 @@ TextDocument to_text_document(const TextDefinition& def) {
         doc.split_paragraphs();
     }
     return doc;
-}
-
-// ── to_text_run_spec — F2.D reverse adapter ──────────────────────────
-//
-// Converts the canonical TextDefinition back to TextRunSpec, carrying the
-// spec-only fields (animators, selectors, direction, language, script,
-// cache_layout) that TextSpec cannot represent.
-//
-// Base fields reuse from_text_definition() so the two reverse adapters
-// stay in sync.  Frame envelope (start_delay + duration) is intentionally
-// dropped because TextRunSpec has no representation for it.
-TextRunSpec to_text_run_spec(const TextDefinition& def) {
-    TextRunSpec run;
-    run.text = from_text_definition(def);
-
-    run.direction    = def.animation.direction;
-    run.language     = def.animation.language;
-    run.script       = def.animation.script;
-    run.cache_layout = def.animation.cache_layout;
-    run.animators    = def.animation.animators;
-    run.selectors    = def.animation.selectors;
-
-    return run;
 }
 
 } // namespace chronon3d

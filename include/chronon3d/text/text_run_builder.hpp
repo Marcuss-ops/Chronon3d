@@ -25,6 +25,7 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_layout_spec.hpp>
 #include <chronon3d/text/text_document.hpp>
+#include <chronon3d/text/prepared_text.hpp>
 #include <chronon3d/text/text_run.hpp>
 
 #include <filesystem>
@@ -345,6 +346,18 @@ struct TextLayoutRequest {
     TextLayoutError
 > compile_text_layout(
     const TextLayoutRequest& request,
+    TextCompileServices& services,
+    const ResolvedTextTree* pre_resolved = nullptr
+);
+
+/// X2 canonical overload: compile a paragraph from a PreparedText payload.
+/// The compiler consumes TextDefStyle, TextFrame, and TextShapingOptions
+/// directly instead of reverse-adapting to TextSpec/TextLayoutSpec.
+[[nodiscard]] Result<
+    std::shared_ptr<TextRunLayout>,
+    TextLayoutError
+> compile_text_layout(
+    const PreparedText& prepared,
     TextCompileServices& services,
     const ResolvedTextTree* pre_resolved = nullptr
 );

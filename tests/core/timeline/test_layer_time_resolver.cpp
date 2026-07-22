@@ -1,6 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/scene/model/layer/layer_time_resolver.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
+#include <chronon3d/scene/builders/layer_builder.hpp>
 
 using namespace chronon3d;
 

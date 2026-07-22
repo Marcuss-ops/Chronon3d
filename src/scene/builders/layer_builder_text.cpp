@@ -20,7 +20,8 @@
 #include <chronon3d/text/font_engine.hpp>
 #include <chronon3d/text/text_run.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
-#include <chronon3d/text/text_definition.hpp>  // F3.D — to_text_run_spec() for TextDefinition overload (F2.D lossless reverse adapter)
+#include <chronon3d/text/text_definition.hpp>
+#include <chronon3d/text/prepared_text.hpp>
 #include <chronon3d/text/resolve_text_placement.hpp>     // F2 — resolve_placement_origin for build-time semantic placement
 // TICKET-104 -- internal helper consumed by the per-spec
 // materialization site below.  Forward declaration is intentionally
@@ -166,16 +167,46 @@ Layer LayerBuilder::build() {
             node.shape.set_type(ShapeType::TextRun);
             node.font_engine = m_font_engine;
 
-            // F2 — TextSpec now carries the resolved position directly.
-            // TICKET-TEXT-LEGACY-POSITION-ROT: legacy .position Vec3 read removed
-        // upstream; reconstruct Vec3 from TextPlacement 2D offset (Z=0, M1.8 §5A).
-        // Mirrors the canonical pattern in src/scene/model/render_node_factory.cpp:290
-        // and src/text/text_definition.cpp:110.
-        node.world_transform.position = Vec3{
-            spec.params.text.placement.offset.x,
-            spec.params.text.placement.offset.y,
-            0.0f
-        };
+            // X2 canonical static-text path: use PreparedText directly.
+            if (spec.prepared.has_value()) {
+                const PreparedText& prepared = *spec.prepared;
+
+                node.world_transform.position = Vec3{
+                    prepared.frame.placement.offset.x,
+                    prepared.frame.placement.offset.y,
+                    0.0f
+                };
+                node.world_transform.anchor = Vec3{0.0f, 0.0f, 0.0f};
+                node.world_transform.scale = Vec3{1.0f, 1.0f, 1.0f};
+                node.world_transform.rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+                node.color = prepared.style.color;
+                node.fill = Fill::solid_color(prepared.style.color);
+
+#ifdef CHRONON3D_USE_BLEND2D
+                FontEngine* engine_for_shape = spec.font_engine ? spec.font_engine : m_font_engine;
+                auto shape = materialize_prepared_text(
+                    prepared, engine_for_shape, local_time, spec.animated_doc);
+                if (shape) {
+                    shape->placement_kind = prepared.frame.placement.kind;
+                    node.world_transform.anchor = resolve_text_anchor(
+                        prepared.frame.anchor,
+                        shape->layout
+                            ? shape->layout->bounds
+                            : prepared.frame.size);
+                    node.shape.text_run_shape_handle().value = std::move(shape);
+                }
+#endif
+                (void)chronon3d::text_internal::mark_consumed(spec);
+                continue;
+            }
+
+            // Legacy TextRunSpec path (kept for animated_text and deprecated
+            // text_run entry points until X5).
+            node.world_transform.position = Vec3{
+                spec.params.text.placement.offset.x,
+                spec.params.text.placement.offset.y,
+                0.0f
+            };
             // The raster surface is sized to the laid-out ink, not to the
             // authored layout box.  Resolve the anchor against that actual
             // surface after materialization so CanvasCenter centers the ink
@@ -199,16 +230,6 @@ Layer LayerBuilder::build() {
                 materialize_params.text.layout.vertical_align = VerticalAlign::Top;
             }
 
-            // ── PR 9 — forward the AnimatedTextDocument binding ────
-            // When the scene author attached an AnimatedTextDocument
-            // via `.from_animated_document(doc)`, the materializer
-            // samples it at the layer's local integral frame and
-            // routes the resulting ActiveTextState through
-            // `apply_active_state_to_text_run_shape`, so transitions
-            // (Hold / Cut / DissolveLayouts / Scramble / Morph)
-            // drive layout swaps automatically.  nullptr → unchanged
-            // behaviour (initial spec.text.content.value stays as the
-            // static literal).
             auto shape = materialize_text_run_shape(
                 materialize_params, engine_for_shape, local_time,
                 spec.animated_doc);
@@ -222,21 +243,6 @@ Layer LayerBuilder::build() {
                 node.shape.text_run_shape_handle().value = std::move(shape);
             }
 #endif
-            // On failure (or BLEND2D OFF), text_run_shape_handle().value
-            // remains null and we rely on the graph-builder source-pass
-            // to emit its existing one-shot `spdlog::error` for null-
-            // shape fallthrough.  We do NOT silently drop the
-            // placeholder node, so the user sees the failure at compose
-            // time, not just in build-time logs.
-            //
-            // TICKET-104 — mark the spec as consumed via the canonical
-            // process-wide counter (`text_internal::mark_consumed`).
-            // The previous direct assignment (`spec.consumed = true;`)
-            // was a silent no-op: the field flipped but no observer
-            // ever noticed.  The new helper increments
-            // `g_consumed_decrements` so tests can assert that the
-            // decrement is REAL.  See src/text/pending_text_run_impl.hpp
-            // for the counter contract.
             (void)chronon3d::text_internal::mark_consumed(spec);
         }
     }

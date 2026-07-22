@@ -64,13 +64,13 @@ TEST_CASE("Spring — FrameContext overload") {
 
 TEST_CASE("Spring — SequenceContext overload") {
     FrameContext parent;
-    parent.frame = Frame{10};
-    parent.frame_rate = {30, 1};
+    parent = parent.with_frame(Frame{10});
+    parent = parent.with_frame_rate({30, 1});
 
     SequenceContext seq = sequence(parent, Frame{0}, Frame{60});
 
     SUBCASE("frame 0 in sequence returns from") {
-        parent.frame = Frame{0};
+        parent = parent.with_frame(Frame{0});
         seq = sequence(parent, Frame{0}, Frame{60});
         CHECK(spring(seq, 0.0f, 100.0f) == doctest::Approx(0.0f));
     }

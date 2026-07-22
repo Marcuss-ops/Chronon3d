@@ -130,6 +130,49 @@ compile_text_layout(
     return text_layout;
 }
 
+Result<std::shared_ptr<TextRunLayout>, TextLayoutError>
+compile_text_layout(
+    const PreparedText& prepared,
+    TextCompileServices& services,
+    const ResolvedTextTree* pre_resolved
+) {
+    // X2 canonical path: synthesise a transient TextLayoutSpec from the
+    // canonical TextFrame and dispatch to the existing request-based
+    // implementation.  This keeps the compiler's internal logic unchanged
+    // while exposing the canonical PreparedText API to callers.
+    TextLayoutSpec layout;
+    layout.box = prepared.frame.size;
+    layout.anchor = prepared.frame.anchor;
+    layout.centering_mode = prepared.frame.centering_mode;
+    layout.align = prepared.frame.align;
+    layout.vertical_align = prepared.frame.vertical_align;
+    layout.wrap = prepared.frame.wrap;
+    layout.overflow = prepared.frame.overflow;
+    layout.line_height = prepared.frame.line_height;
+    layout.tracking = prepared.frame.tracking;
+    layout.auto_fit = prepared.frame.auto_fit;
+    layout.min_font_size = prepared.frame.min_font_size;
+    layout.max_font_size = prepared.frame.max_font_size;
+    layout.max_lines = prepared.frame.max_lines;
+    layout.ellipsis = prepared.frame.ellipsis;
+    layout.paragraph = prepared.document.paragraphs.empty()
+        ? ParagraphStyle{}
+        : prepared.document.paragraphs.front().style;
+    layout.features = prepared.shaping.open_type_features;
+
+    TextLayoutRequest request{
+        &prepared.document,
+        &layout,
+        prepared.style.font,
+        0,
+    };
+    request.direction = prepared.shaping.direction;
+    request.language = prepared.shaping.language;
+    request.features = prepared.shaping.open_type_features;
+
+    return compile_text_layout(request, services, pre_resolved);
+}
+
 TextRunBuildResult build_text_run(
     const TextDocument& doc,
     FontEngine& engine,

@@ -25,12 +25,12 @@ TEST_CASE("Composition foundation") {
         bool called = false;
         Composition comp(spec, [&](const FrameContext& ctx) {
             called = true;
-            CHECK(ctx = ctx.with_frame(= 150));
-            CHECK(ctx = ctx.with_duration(= 300));
+            CHECK(ctx.frame() == Frame{150});
+            CHECK(ctx.duration() == Frame{300});
             return Scene{};
         });
 
-        auto scene = comp.evaluate(150);
+        auto scene = comp.evaluate(Frame{150});
         CHECK(called);
     }
 }

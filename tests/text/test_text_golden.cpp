@@ -51,7 +51,8 @@
 #include <tests/visual/support/golden_test.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <content/text/text_helpers.hpp>
-#include <chronon3d/text/text_definition.hpp>  // F2.C — from_text_definition()
+#include <chronon3d/text/text_definition.hpp>  // F2.C — chronon3d::compat::from_text_definition()
+#include <chronon3d/compat/text_spec_adapter.hpp>
 
 #include <chrono>
 #include <filesystem>
@@ -115,7 +116,7 @@ Composition build_preset_composition(SoftwareRenderer& renderer,
                 });
             s.layer("hero", [&s, &preset, base](LayerBuilder& l) {
                 if (preset.builder) {
-                    preset.builder(s, l, from_text_definition(base));
+                    preset.builder(s, l, chronon3d::compat::from_text_definition(base));
                 }
             });
             return s.build();

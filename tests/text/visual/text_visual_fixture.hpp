@@ -66,7 +66,8 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/registry/text_preset_registry.hpp>
 #include <content/text/text_helpers.hpp>
-#include <chronon3d/text/text_definition.hpp>  // F2.C — from_text_definition()
+#include <chronon3d/text/text_definition.hpp>  // F2.C — chronon3d::compat::from_text_definition()
+#include <chronon3d/compat/text_spec_adapter.hpp>
 
 #include <chrono>
 #include <utility>
@@ -146,7 +147,7 @@ inline Composition build_preset_composition(const std::string& preset_id,
                 // MultiSourceNode instead of TextRunNode — the duplicate's animators
                 // (fade_in / scale_drop) can blank the static text at early frames.
                 if (preset.builder) {
-                    preset.builder(s, l, from_text_definition(base));
+                    preset.builder(s, l, chronon3d::compat::from_text_definition(base));
                 }
             });
             return s.build();

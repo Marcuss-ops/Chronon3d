@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // test_text_definition.cpp — F2.A/F2.C adapter convergence tests
 //
-// Verifies that from_text_spec() / from_text_run_spec() / from_text_definition()
+// Verifies that from_text_spec() / from_text_run_spec() / chronon3d::compat::from_text_definition()
 // / to_text_document() produce correct TextDefinition objects and that
 // centered_text() / glow_text() / typewriter_text() / text_run() converge
 // to the canonical TextDefinition → TextDocument (compile_text_layout)
@@ -13,9 +13,9 @@
 //   3. centered_text() convergence — CenterTextOptions → TextDefinition (F2.C)
 //   4. glow_text() convergence — CenterTextOptions → TextDefinition (F2.C)
 //   5. typewriter_text() convergence — CenterTextOptions → TextDefinition (F2.C)
-//   6. from_text_definition() — reverse adapter: TextDefinition → TextSpec
+//   6. chronon3d::compat::from_text_definition() — reverse adapter: TextDefinition → TextSpec
 //   7. Round-trip no-data-loss — TextSpec → TextDef → TextSpec (F2.C reverse)
-//   8. Full round-trip: centered_text() → from_text_definition() → TextSpec
+//   8. Full round-trip: centered_text() → chronon3d::compat::from_text_definition() → TextSpec
 //   9. Default TextSpec — default-constructed TextSpec maps to sensible defaults
 //  10. TextSpanOverride — authoring-level span overrides are independent
 //  12. to_text_document() — Phase B: TextDefinition → TextDocument lowering
@@ -55,6 +55,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/text/text_definition.hpp>
+#include <chronon3d/compat/text_spec_adapter.hpp>
 #include <chronon3d/text/text_document.hpp>              // TextDocument — Phase B
 #include <chronon3d/scene/builders/builder_params.hpp>  // TextSpec, TextRunSpec, TextContent
 #include <chronon3d/core/types/frame.hpp>               // Frame
@@ -432,13 +433,13 @@ TEST_CASE("typewriter_text convergence: partial reveal produces substring") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 6. from_text_definition() — reverse adapter: TextDefinition → TextSpec (F2.C)
+// 6. chronon3d::compat::from_text_definition() — reverse adapter: TextDefinition → TextSpec (F2.C)
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("from_text_definition: content round-trips correctly") {
     TextDefinition def;
     def.content.value = "Reverse test";
-    auto spec = from_text_definition(def);
+    auto spec = chronon3d::compat::from_text_definition(def);
     CHECK(spec.content.value == "Reverse test");
 }
 
@@ -451,7 +452,7 @@ TEST_CASE("from_text_definition: font round-trips correctly") {
         .font_style  = "normal",
         .font_size   = 36.0f,
     };
-    auto spec = from_text_definition(def);
+    auto spec = chronon3d::compat::from_text_definition(def);
     CHECK(spec.font.font_path   == "fonts/Reverse.ttf");
     CHECK(spec.font.font_family == "Reverse");
     CHECK(spec.font.font_weight == 500);
@@ -463,7 +464,7 @@ TEST_CASE("from_text_definition: appearance round-trips correctly") {
     def.style.color = Color{0.1f, 0.2f, 0.3f, 0.4f};
     def.style.paint.stroke_enabled = true;
     def.style.paint.stroke_width   = 4.0f;
-    auto spec = from_text_definition(def);
+    auto spec = chronon3d::compat::from_text_definition(def);
     CHECK(spec.appearance.color.r == doctest::Approx(0.1f));
     CHECK(spec.appearance.color.g == doctest::Approx(0.2f));
     CHECK(spec.appearance.color.b == doctest::Approx(0.3f));
@@ -488,7 +489,7 @@ TEST_CASE("from_text_definition: layout round-trips correctly") {
     def.frame.max_lines     = 4;
     def.frame.ellipsis      = true;
     def.frame.placement.offset = {200.0f, 300.0f};
-    auto spec = from_text_definition(def);
+    auto spec = chronon3d::compat::from_text_definition(def);
 
     CHECK(spec.layout.box.x            == doctest::Approx(640.0f));
     CHECK(spec.layout.box.y            == doctest::Approx(480.0f));
@@ -548,7 +549,7 @@ TEST_CASE("round-trip: TextSpec → TextDefinition → TextSpec preserves all fi
 
     // Single round-trip: forward + reverse
     auto def = from_text_spec(original);
-    auto restored = from_text_definition(def);
+    auto restored = chronon3d::compat::from_text_definition(def);
 
     // Every field must survive the full round-trip
     CHECK(restored.content.value == original.content.value);
@@ -592,7 +593,7 @@ TEST_CASE("round-trip: TextSpec → TextDefinition → TextSpec preserves all fi
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 8. Full convergence: centered_text() → from_text_definition() → TextSpec
+// 8. Full convergence: centered_text() → chronon3d::compat::from_text_definition() → TextSpec
 // ═══════════════════════════════════════════════════════════════════════════
 // This tests the full F2.C adapter chain: helper → TextDefinition → TextSpec
 // → (downstream pipeline).  Verifies no data loss across the full chain.
@@ -614,8 +615,8 @@ TEST_CASE("full convergence: centered_text → from_text_definition → TextSpec
 
     // F2.C: centered_text() returns TextDefinition
     auto def = centered_text(opts);
-    // F2.C: from_text_definition() converts back to TextSpec
-    auto spec = from_text_definition(def);
+    // F2.C: chronon3d::compat::from_text_definition() converts back to TextSpec
+    auto spec = chronon3d::compat::from_text_definition(def);
 
     // Verify the full chain preserves all authored values
     CHECK(spec.content.value == "CONVERGE");
@@ -834,7 +835,7 @@ TEST_CASE("to_text_document: defaults set from from_text_definition") {
 
     auto doc = to_text_document(def);
 
-    // The defaults TextSpec should match from_text_definition(def)
+    // The defaults TextSpec should match chronon3d::compat::from_text_definition(def)
     CHECK(doc.defaults.content.value == "Defaults test");
     CHECK(doc.defaults.font.font_path == "fonts/Test.ttf");
     CHECK(doc.defaults.font.font_size == doctest::Approx(80.0f));
@@ -1108,7 +1109,7 @@ TEST_CASE("to_text_document: deterministic across repeated calls") {
 // 14. text_run() convergence — TextDefinition → TextRunSpec → from_text_run_spec()
 // ═══════════════════════════════════════════════════════════════════════════
 // Verifies that LayerBuilder::text_run(name, TextDefinition) — which internally
-// does TextDefinition → from_text_definition() → TextSpec → TextRunSpec →
+// does TextDefinition → chronon3d::compat::from_text_definition() → TextSpec → TextRunSpec →
 // text_run(name, TextRunSpec) — preserves all authored values through the
 // full adapter chain.  We test at the adapter level (not through LayerBuilder)
 // because the builder requires heavy scene/registry dependencies.
@@ -1116,7 +1117,7 @@ TEST_CASE("to_text_document: deterministic across repeated calls") {
 TEST_CASE("text_run convergence: TextDefinition → TextRunSpec → from_text_run_spec round-trip") {
     // Simulate what LayerBuilder::text_run(name, TextDefinition) does:
     //   TextRunSpec run;
-    //   run.text = from_text_definition(def);
+    //   run.text = chronon3d::compat::from_text_definition(def);
     //   text_run(name, std::move(run));
     //
     // Then verify from_text_run_spec(run) produces the same TextDefinition.
@@ -1133,7 +1134,7 @@ TEST_CASE("text_run convergence: TextDefinition → TextRunSpec → from_text_ru
     original.frame.placement.offset = {400.0f, 300.0f};
 
     // Step 1: TextDefinition → TextSpec (what text_run(name, TextDefinition) does)
-    TextSpec spec = from_text_definition(original);
+    TextSpec spec = chronon3d::compat::from_text_definition(original);
     // Step 2: TextSpec → TextRunSpec (wrapping)
     TextRunSpec run;
     run.text = std::move(spec);
@@ -1160,7 +1161,7 @@ TEST_CASE("text_run convergence: TextDefinition → TextRunSpec → from_text_ru
 }
 
 TEST_CASE("text_run convergence: centered_text → from_text_definition → TextRunSpec → from_text_run_spec") {
-    // Full chain: centered_text() → TextDefinition → from_text_definition() →
+    // Full chain: centered_text() → TextDefinition → chronon3d::compat::from_text_definition() →
     // TextSpec → TextRunSpec → from_text_run_spec() → TextDefinition
     // This is the adapter-level path that LayerBuilder::text_run(name, TextDefinition)
     // uses internally.
@@ -1179,7 +1180,7 @@ TEST_CASE("text_run convergence: centered_text → from_text_definition → Text
 
     // Simulate text_run(name, def) adapter path
     TextRunSpec run;
-    run.text = from_text_definition(def);
+    run.text = chronon3d::compat::from_text_definition(def);
     auto restored = from_text_run_spec(run);
 
     CHECK(restored.content.value == "CENTERED_RUN");
@@ -1197,7 +1198,7 @@ TEST_CASE("text_run convergence: centered_text → from_text_definition → Text
 }
 
 TEST_CASE("text_run convergence: glow_text → from_text_definition → TextRunSpec → from_text_run_spec") {
-    // Full chain: glow_text() → TextDefinition → from_text_definition() →
+    // Full chain: glow_text() → TextDefinition → chronon3d::compat::from_text_definition() →
     // TextSpec → TextRunSpec → from_text_run_spec() → TextDefinition
     CenterTextOptions opts;
     opts.text      = "GLOW_RUN";
@@ -1208,7 +1209,7 @@ TEST_CASE("text_run convergence: glow_text → from_text_definition → TextRunS
     auto def = glow_text(opts, Color{1.0f, 1.0f, 0.0f, 1.0f}, 30.0f, 0.8f);
 
     TextRunSpec run;
-    run.text = from_text_definition(def);
+    run.text = chronon3d::compat::from_text_definition(def);
     auto restored = from_text_run_spec(run);
 
     CHECK(restored.content.value == "GLOW_RUN");
@@ -1222,7 +1223,7 @@ TEST_CASE("text_run convergence: glow_text → from_text_definition → TextRunS
 }
 
 TEST_CASE("text_run convergence: typewriter_text → from_text_definition → TextRunSpec → from_text_run_spec") {
-    // Full chain: typewriter_text() → TextDefinition → from_text_definition() →
+    // Full chain: typewriter_text() → TextDefinition → chronon3d::compat::from_text_definition() →
     // TextSpec → TextRunSpec → from_text_run_spec() → TextDefinition
     CenterTextOptions opts;
     opts.text      = "TYPEWRITER_RUN";
@@ -1233,7 +1234,7 @@ TEST_CASE("text_run convergence: typewriter_text → from_text_definition → Te
     auto def = typewriter_text(opts, Frame{1000}, 1.0f);
 
     TextRunSpec run;
-    run.text = from_text_definition(def);
+    run.text = chronon3d::compat::from_text_definition(def);
     auto restored = from_text_run_spec(run);
 
     CHECK(restored.content.value == "TYPEWRITER_RUN");
@@ -1554,7 +1555,7 @@ TEST_CASE("TextAnimation: reverse adapter drops animation (TextDef-only by desig
     def.animation.language     = "ja";
     def.animation.script       = 0x4A616E20u;  // 'Jpan ' OpenType script tag
     def.animation.cache_layout = false;
-    auto spec = from_text_definition(def);   // spec has no animation field
+    auto spec = chronon3d::compat::from_text_definition(def);   // spec has no animation field
     (void)spec;
     auto restored = from_text_spec(spec);   // default TextAnimation
     CHECK(restored.animation.animators.empty());
@@ -1597,7 +1598,7 @@ TEST_CASE("to_text_run_spec: forward mapping populates all 6 animation fields") 
     def.animation.script       = 0x41726162u;  // 'Arab' OpenType tag
     def.animation.cache_layout = false;
 
-    auto run = to_text_run_spec(def);
+    auto run = chronon3d::compat::to_text_run_spec(def);
 
     // The 6 animation fields must all be carried over verbatimly
     REQUIRE(run.animators.size() == 1);
@@ -1612,7 +1613,7 @@ TEST_CASE("to_text_run_spec: forward mapping populates all 6 animation fields") 
 }
 
 TEST_CASE("to_text_run_spec: base spec reuses from_text_definition (no manual remap drift)") {
-    // The base TextSpec fields must be populated via from_text_definition() —
+    // The base TextSpec fields must be populated via chronon3d::compat::from_text_definition() —
     // verifying that the F2.D adapter does NOT manually map the 22 base
     // fields (drift-prevention pattern documented in the header).
     TextDefinition def;
@@ -1626,9 +1627,9 @@ TEST_CASE("to_text_run_spec: base spec reuses from_text_definition (no manual re
     def.style.color = Color{0.4f, 0.6f, 0.8f, 1.0f};
     def.frame.placement.offset = {400.0f, 300.0f};
 
-    auto run = to_text_run_spec(def);
-    // The behavior MUST match from_text_definition(def): 22 base fields preserved
-    auto direct_spec = from_text_definition(def);
+    auto run = chronon3d::compat::to_text_run_spec(def);
+    // The behavior MUST match chronon3d::compat::from_text_definition(def): 22 base fields preserved
+    auto direct_spec = chronon3d::compat::from_text_definition(def);
 
     CHECK(run.text.content.value == direct_spec.content.value);
     CHECK(run.text.font.font_path == direct_spec.font.font_path);
@@ -1652,7 +1653,7 @@ TEST_CASE("to_text_run_spec: empty def yields empty animation vectors + default 
     // probe default TextRunSpec fields too (direction=Auto, language="",
     // script=0, cache_layout=true — TextRunSpec's defaults).
     TextDefinition def;
-    auto run = to_text_run_spec(def);
+    auto run = chronon3d::compat::to_text_run_spec(def);
 
     CHECK(run.animators.empty());
     CHECK(run.selectors.empty());
@@ -1679,7 +1680,7 @@ TEST_CASE("to_text_run_spec: Frame start_delay/duration are lossily dropped (can
     animator.id = "fade_in";
     def.animation.animators.push_back(animator);
 
-    auto run = to_text_run_spec(def);
+    auto run = chronon3d::compat::to_text_run_spec(def);
     // Verification is on the ROUND-TRIPPED definition (returned by
     // from_text_run_spec), not on run_spec directly (TextRunSpec lacks these
     // fields at all).
@@ -1719,7 +1720,7 @@ TEST_CASE("to_text_run_spec: round-trip is idempotent for the 6 spec-only fields
     def.animation.cache_layout = true;
 
     // Round-trip: def → run_spec → def
-    auto run = to_text_run_spec(def);
+    auto run = chronon3d::compat::to_text_run_spec(def);
     auto restored = from_text_run_spec(run);
 
     // The 6 spec-only fields must round-trip exactly
@@ -1800,8 +1801,8 @@ TEST_CASE("F3.D: helper-site centered_text + animation augmentation flows throug
     def.animation.cache_layout = true;
 
     // Simulate the F3.D wire in LayerBuilder::text_run(name, TextDefinition):
-    //   text_run(name, to_text_run_spec(def));
-    auto run = to_text_run_spec(def);
+    //   text_run(name, chronon3d::compat::to_text_run_spec(def));
+    auto run = chronon3d::compat::to_text_run_spec(def);
 
     // The 6 spec-only animation fields must all reach the TextRunSpec.
     // (This is the contract that F3.D enables for the 17 helper sites.)
