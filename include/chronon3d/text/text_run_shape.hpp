@@ -23,9 +23,9 @@
 //       FontEngine*                   engine;          // PR 9 per-frame resample
 //       TextLayoutSpec                layout_spec;
 //       TextLayoutCache*              cache;           // Fase B3 (was shared_text_layout_cache)
-//       SharedTextRunLayout           crossfade_layout;
-//       std::vector<GlyphInstanceState> crossfade_glyphs;
-//       float                         crossfade_mix;   // PR 11
+//       SharedTextRunLayout           dissolve_layout;
+//       std::vector<GlyphInstanceState> dissolve_glyphs;
+//       float                         dissolve_mix;   // PR 11
 //
 // No new public classes.  No logic changes.  No signature changes.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -132,31 +132,31 @@ struct TextRunShape {
     // (layouts are built fresh each frame — acceptable for tests).
     TextLayoutCache* cache{nullptr};
 
-    // ── PR 11 — CrossfadeLayouts per-glyph blend state ────────────────
+    // ── PR 11 — DissolveLayouts per-glyph blend state ────────────────
     //
     // Populated by `apply_active_state_to_text_run_shape` ONLY when
     // `AnimatedTextDocument::sample_at` returns transition ==
-    // CrossfadeLayouts AND mix is strictly inside (0, 1).  Cleared
+    // DissolveLayouts AND mix is strictly inside (0, 1).  Cleared
     // (reset to nullptr / empty vector) when mix reaches 0 or 1, or
     // when the next keyframe takes ownership (`active` pointer changes
     // to a different keyframe).  Empty slots ⇒ no crossfade work; the
     // per-frame driver and the compositor both short-circuit on that.
     //
-    // `crossfade_layout` holds the SharedTextRunLayout for the OUTGOING
+    // `dissolve_layout` holds the SharedTextRunLayout for the OUTGOING
     // document so the executor can read glyph positions without paying
     // a shaping cost.  It is built lazily on first frame inside the
     // gap via `build_text_run` (with the shared TextLayoutCache); the
     // cache key naturally aligns with what `prewarm_text_run_layout_for_frame`
     // populates ahead of time.
     //
-    // `crossfade_glyphs` mirrors `glyphs`: a per-glyph animated state
-    // vector of length `crossfade_layout->placed.glyphs.size()`, seeded
+    // `dissolve_glyphs` mirrors `glyphs`: a per-glyph animated state
+    // vector of length `dissolve_layout->placed.glyphs.size()`, seeded
     // from `make_initial_glyph_states` and re-evaluated each frame via
     // `evaluate_animator_stack_into` so the AE-style animator stack
     // applies to BOTH sides during the gap.
     //
-    // `crossfade_mix` mirrors `state.mix`: 0 = fully active side, 1 =
-    // fully next side.  The compositor folds this into per-glyph
+    // `dissolve_mix` mirrors `state.mix`: 0 = fully outgoing side, 1 =
+    // fully incoming side.  The compositor folds this into per-glyph
     // opacity: outgoing side fades by (1 - mix), incoming side by mix.
     // Stored so the compositor (and the hash fold) can read the value
     // without re-sampling the animated_doc — it stays stable across
@@ -164,16 +164,16 @@ struct TextRunShape {
     //
     // Lifecycle contract — apply + driver:
     //   1. apply_active_state_to_text_run_shape (PR 11) populates
-    //      crossfade_layout + crossfade_glyphs on entering the gap,
-    //      updates crossfade_mix on every frame INSIDE the gap, and
+    //      dissolve_layout + dissolve_glyphs on entering the gap,
+    //      updates dissolve_mix on every frame INSIDE the gap, and
     //      clears all three slots on transitioning OUT of the gap.
     //   2. update_text_run_shape_per_frame runs the animator stack
-    //      against crossfade_glyphs on every frame inside the gap
+    //      against dissolve_glyphs on every frame inside the gap
     //      so per-glyph animators (transform / opacity / blur) apply
     //      to BOTH sides symmetrically.
-    SharedTextRunLayout crossfade_layout{};                       // nullptr when no crossfade
-    std::vector<GlyphInstanceState> crossfade_glyphs{};          // empty when no crossfade
-    float crossfade_mix{0.0f};                                   // current blend factor
+    SharedTextRunLayout dissolve_layout{};                       // nullptr when no crossfade
+    std::vector<GlyphInstanceState> dissolve_glyphs{};          // empty when no crossfade
+    float dissolve_mix{0.0f};                                   // current blend factor
 };
 
 } // namespace chronon3d

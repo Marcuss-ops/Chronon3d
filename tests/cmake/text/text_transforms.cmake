@@ -8,15 +8,16 @@
 # ═══════════════════════════════════════════════════════════════════════════
 
 # 01_rotate_z — Z-axis rotation in the canvas plane (3 rotations × 2 ARs).
-target_sources(chronon3d_text_golden_tests
-    PRIVATE
-        text_golden/text_transforms_animation/01_rotate_z_not_cut.cpp
-)
-add_test(
-    NAME TextRotateZ
-    COMMAND chronon3d_text_golden_tests --test-case="TextTransforms.RotateZ *"
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
+# DEFERRED: source file is not yet implemented (TICKET-FASE2-TRANSFORMS-ANIMATION §10).
+# target_sources(chronon3d_text_golden_tests
+#     PRIVATE
+#         text_golden/text_transforms_animation/01_rotate_z_not_cut.cpp
+# )
+# add_test(
+#     NAME TextRotateZ
+#     COMMAND chronon3d_text_golden_tests --test-case="TextTransforms.RotateZ *"
+#     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+# )
 
 # 02_scale — uniform 0.5× / 1.5× / 2.0× + non-uniform 0.96×1.04.
 target_sources(chronon3d_text_golden_tests

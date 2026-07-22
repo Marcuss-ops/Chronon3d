@@ -123,22 +123,22 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time,
 ///     fall back to `state.active->utf8` otherwise.  No crossfade
 ///     slots touched (Scramble/Morph shape their per-frame text into
 ///     `shape.layout` directly).
-///   * CrossfadeLayouts (PR 11) — render the `state.active->utf8` into
-///     `shape.layout` AND populate `shape.crossfade_layout` from
-///     `state.crossfade_from` (and `shape.crossfade_glyphs` seeded
+///   * DissolveLayouts (PR 11) — render the `state.active->utf8` into
+///     `shape.layout` AND populate `shape.dissolve_layout` from
+///     `state.dissolve_from` (and `shape.dissolve_glyphs` seeded
 ///     from the new placed run) when `state.mix` is strictly inside
-///     (0, 1).  Outside the gap (mix on the boundary, crossfade_from
-///     null, transition != CrossfadeLayouts), the crossfade slots are
+///     (0, 1).  Outside the gap (mix on the boundary, dissolve_from
+///     null, transition != DissolveLayouts), the crossfade slots are
 ///     reset so the compositor short-circuits.  The blend itself
 ///     happens in the compositor (`draw_text_run`'s tiered loop),
 ///     which composites the outgoing glyph vector with per-glyph
-///     opacity fold `(1 - shape.crossfade_mix)` against the active
+///     opacity fold `(1 - shape.dissolve_mix)` against the active
 ///     side.  See `compute_text_run_world_bbox` for the bounding-box
 ///     union and `draw_text_run` for the per-glyph loop.
 ///
 /// Algorithm (M1.5#2 decomposition):
 ///   1. text_state_sampler::select_target_text(state)        → target_text
-///   2. text_state_sampler::is_in_crossfade_gap(state)       → in_gap
+///   2. text_state_sampler::is_in_dissolve_gap(state)       → in_gap
 ///   3. text_font_state::compute_effective_font(state, layout) → FontSpec
 ///   4. text_layout_rebuild::target_effective_state(...)
 ///                                       → EffectiveTextState (target)
@@ -166,7 +166,7 @@ void update_text_run_shape_per_frame(TextRunShape& shape, SampleTime time,
 
 /// Eagerly populate `shared_text_layout_cache()` with the layout that
 /// `shape` will produce at `frame` if its attached AnimatedTextDocument
-/// follows a Scramble / Morph / CrossfadeLayouts path.
+/// follows a Scramble / Morph / DissolveLayouts path.
 ///
 /// Purpose
 /// ------

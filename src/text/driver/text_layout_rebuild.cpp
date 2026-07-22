@@ -5,7 +5,7 @@
 #include "text_layout_rebuild.hpp"
 
 #include "text_font_state.hpp"      // compute_effective_font_for_prewarm
-#include "text_state_sampler.hpp"   // is_in_crossfade_gap / select_target_text
+#include "text_state_sampler.hpp"   // is_in_dissolve_gap / select_target_text
 
 namespace chronon3d::text::driver {
 
@@ -78,7 +78,7 @@ bool rebuild_active_side(
     return true;
 }
 
-bool rebuild_crossfade_slot(
+bool rebuild_dissolve_slot(
     TextRunShape& shape,
     const ActiveTextState& state,
     const FontSpec& effective_font_outgoing,
@@ -86,41 +86,41 @@ bool rebuild_crossfade_slot(
     FontEngine& engine,
     TextLayoutCache* cache
 ) {
-    if (state.crossfade_from == nullptr) {
+    if (state.dissolve_from == nullptr) {
         return false;
     }
-    const std::string& cf_utf8 = state.crossfade_from->utf8;
+    const std::string& cf_utf8 = state.dissolve_from->utf8;
 
     const bool no_gap_work =
-        !is_in_crossfade_gap(state) || cf_utf8.empty();
+        !is_in_dissolve_gap(state) || cf_utf8.empty();
 
     if (no_gap_work) {
         // Out-of-gap clear (PR 11 contract)
-        if (shape.crossfade_layout) {
-            shape.crossfade_layout.reset();
+        if (shape.dissolve_layout) {
+            shape.dissolve_layout.reset();
         }
-        if (!shape.crossfade_glyphs.empty()) {
-            shape.crossfade_glyphs.clear();
+        if (!shape.dissolve_glyphs.empty()) {
+            shape.dissolve_glyphs.clear();
         }
-        shape.crossfade_mix = 0.0f;
+        shape.dissolve_mix = 0.0f;
         return false;
     }
 
     // Inside the gap: fast-path skip when source_text already matches.
     const bool same_layout =
-        shape.crossfade_layout
-        && shape.crossfade_layout->source_text == cf_utf8;
+        shape.dissolve_layout
+        && shape.dissolve_layout->source_text == cf_utf8;
 
-    if (same_layout && shape.crossfade_mix == state.mix) {
+    if (same_layout && shape.dissolve_mix == state.mix) {
         // mix already tracked; cache lookup would hit anyway.
-        shape.crossfade_mix = state.mix;  // idempotent refresh
+        shape.dissolve_mix = state.mix;  // idempotent refresh
         return false;
     }
 
     if (cf_utf8.empty()) {
-        shape.crossfade_layout.reset();
-        shape.crossfade_glyphs.clear();
-        shape.crossfade_mix = 0.0f;
+        shape.dissolve_layout.reset();
+        shape.dissolve_glyphs.clear();
+        shape.dissolve_mix = 0.0f;
         return false;
     }
 
@@ -134,17 +134,17 @@ bool rebuild_crossfade_slot(
         build_text_run(cf_td, engine, layout_spec, cache_ptr);
 
     if (!cf_result.paragraphs.empty() && cf_result.paragraphs.front()) {
-        shape.crossfade_layout = cf_result.paragraphs.front();
-        shape.crossfade_glyphs = make_initial_glyph_states(
-            shape.crossfade_layout->placed);
-        shape.crossfade_mix = state.mix;
+        shape.dissolve_layout = cf_result.paragraphs.front();
+        shape.dissolve_glyphs = make_initial_glyph_states(
+            shape.dissolve_layout->placed);
+        shape.dissolve_mix = state.mix;
         return true;
     }
     // Build failed (e.g. font load failure) — clear slot rather than
     // leave stale state.
-    shape.crossfade_layout.reset();
-    shape.crossfade_glyphs.clear();
-    shape.crossfade_mix = 0.0f;
+    shape.dissolve_layout.reset();
+    shape.dissolve_glyphs.clear();
+    shape.dissolve_mix = 0.0f;
     return false;
 }
 
@@ -179,13 +179,13 @@ bool prewarm_for_frame(
 
     // Crossfade-side prewarm (only inside the gap)
     bool cf_ok = true;
-    const bool in_gap = is_in_crossfade_gap(state);
-    if (in_gap && state.crossfade_from != nullptr
-        && !state.crossfade_from->utf8.empty())
+    const bool in_gap = is_in_dissolve_gap(state);
+    if (in_gap && state.dissolve_from != nullptr
+        && !state.dissolve_from->utf8.empty())
     {
         TextDocument cf_td;
-        cf_td.utf8         = state.crossfade_from->utf8;
-        cf_td.defaults.font = state.crossfade_from->defaults.font;
+        cf_td.utf8         = state.dissolve_from->utf8;
+        cf_td.defaults.font = state.dissolve_from->defaults.font;
         cf_td.split_paragraphs();
         TextRunBuildResult cf_result =
             build_text_run(cf_td, engine, layout_spec, cache_ptr);

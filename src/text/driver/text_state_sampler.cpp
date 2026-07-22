@@ -13,9 +13,9 @@ std::string select_target_text(const ActiveTextState& state) {
     switch (state.transition) {
         case SourceTextTransition::Hold:
         case SourceTextTransition::Cut:
-        case SourceTextTransition::CrossfadeLayouts:
+        case SourceTextTransition::DissolveLayouts:
             // No transition-text blending for these modes (Hold/Cut are
-            // discrete; CrossfadeLayouts blends per-glyph in the
+            // discrete; DissolveLayouts blends per-glyph in the
             // compositor).
             return state.active->utf8;
 
@@ -32,18 +32,9 @@ std::string select_target_text(const ActiveTextState& state) {
     return {};  // unreachable in well-formed enum usage
 }
 
-std::optional<std::string> select_crossfade_target_text(
-    const ActiveTextState& state
-) {
-    if (state.crossfade_from == nullptr) {
-        return std::nullopt;
-    }
-    return state.crossfade_from->utf8;
-}
-
-bool is_in_crossfade_gap(const ActiveTextState& state) {
-    return state.transition == SourceTextTransition::CrossfadeLayouts
-        && state.crossfade_from != nullptr
+bool is_in_dissolve_gap(const ActiveTextState& state) {
+    return state.transition == SourceTextTransition::DissolveLayouts
+        && state.dissolve_from != nullptr
         && state.mix > 0.0f
         && state.mix < 1.0f;
 }

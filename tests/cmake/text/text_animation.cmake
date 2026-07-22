@@ -29,3 +29,15 @@ add_test(
     COMMAND chronon3d_text_golden_tests --test-case="TextAnim.Opacity_*"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
+
+# TRN-04 — AnimatedTextDocument DissolveLayouts golden coverage
+# (0%, 25%, 50%, 75%, 100% of a 30-frame dissolve).
+target_sources(chronon3d_text_golden_tests
+    PRIVATE
+        text_golden/text_dissolve/text_dissolve.cpp
+)
+add_test(
+    NAME TextDissolve
+    COMMAND chronon3d_text_golden_tests --test-case="TextDissolve.*"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
