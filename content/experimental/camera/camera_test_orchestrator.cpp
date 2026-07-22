@@ -34,7 +34,7 @@ Scene camera_test_orchestrator(
     const std::vector<int>& report_frames
 ) {
     Scene scene = s.build();
-    scene.resolve_hierarchy(ctx.frame);
+    scene.resolve_hierarchy(ctx.frame());
 
     // Build ResolvedSceneTransforms directly from the already-resolved scene layer
     // world transforms to avoid double parenting.  ResolvedSceneTransforms is the
@@ -51,7 +51,7 @@ Scene camera_test_orchestrator(
     };
 
     // Evaluate camera rig from profile
-    Camera2_5D cam = shot.rig.evaluate(ctx.frame, &resolved);
+    Camera2_5D cam = shot.rig.evaluate(ctx.frame(), &resolved);
 
     // Apply auto fit if requested
     if (shot.auto_fit && !fit_layers.empty()) {
@@ -77,7 +77,7 @@ Scene camera_test_orchestrator(
     // Perform validation
     auto report = shot.validator.validate(cam, resolved, {static_cast<f32>(ctx.width), static_cast<f32>(ctx.height)});
     report.composition_name = comp_name;
-    report.frame = static_cast<int>(ctx.frame);
+    report.frame = static_cast<int>(ctx.frame());
 
     // Collect dolly metrics
     if (comp_name == "CameraDollyPerspectiveScaleTest") {
@@ -120,12 +120,12 @@ Scene camera_test_orchestrator(
             return 0.0f;
         };
 
-        if (ctx.frame == 0) {
+        if (ctx.frame() == 0) {
             state.front_area_0 = f_area;
             state.mid_area_0 = m_area;
             state.back_area_0 = b_area;
             state.fov_error_0 = compute_dolly_fov_error(f_area, b_area);
-        } else if (ctx.frame == 45) {
+        } else if (ctx.frame() == 45) {
             state.front_area_45 = f_area;
             state.mid_area_45 = m_area;
             state.back_area_45 = b_area;
@@ -142,7 +142,7 @@ Scene camera_test_orchestrator(
     // Collect Jerk metrics
     if (comp_name == "CameraKinematicJerkAndInterpolationTest") {
         JerkState state{};
-        if (ctx.frame > 0) {
+        if (ctx.frame() > 0) {
             std::ifstream in_state("CameraKinematicJerkAndInterpolationTest_state.bin", std::ios::binary);
             if (in_state) {
                 in_state.read(reinterpret_cast<char*>(&state), sizeof(JerkState));
@@ -193,7 +193,7 @@ Scene camera_test_orchestrator(
     // Collect Jitter metrics
     if (comp_name == "CameraSubpixelJitterValidationTest") {
         JitterState state{};
-        if (ctx.frame > 0) {
+        if (ctx.frame() > 0) {
             std::ifstream in_state("CameraSubpixelJitterValidationTest_state.bin", std::ios::binary);
             if (in_state) {
                 in_state.read(reinterpret_cast<char*>(&state), sizeof(JitterState));
@@ -236,7 +236,7 @@ Scene camera_test_orchestrator(
     // Determine if we should emit report for current frame
     bool should_report = false;
     for (int rf : report_frames) {
-        if (static_cast<int>(ctx.frame) == rf) {
+        if (static_cast<int>(ctx.frame()) == rf) {
             should_report = true;
             break;
         }
@@ -293,8 +293,8 @@ Scene camera_test_orchestrator(
         }
 
         std::string path = comp_name + "_report.json";
-        if (ctx.frame != 90 && ctx.frame != 119) {
-            std::string frame_str = std::to_string(static_cast<int>(ctx.frame));
+        if (ctx.frame() != 90 && ctx.frame() != 119) {
+            std::string frame_str = std::to_string(static_cast<int>(ctx.frame()));
             while (frame_str.length() < 4) frame_str = "0" + frame_str;
             path = comp_name + "_report_" + frame_str + ".json";
         }
@@ -415,7 +415,7 @@ Scene camera_test_orchestrator(
         }
         else if (comp_name == "CameraRollPanTiltGridTest") {
             float expected_roll = 10.0f;
-            if (ctx.frame == 0) expected_roll = 0.0f;
+            if (ctx.frame() == 0) expected_roll = 0.0f;
             float measured_roll = cam.rotation.z;
             float roll_error = std::abs(expected_roll - measured_roll);
 
@@ -723,7 +723,7 @@ Scene camera_test_orchestrator(
     // Precompute camera path with jerk values for the overlay (used by kinematic tests)
     CameraPathVisualization path_vis;
     if (comp_name == "CameraKinematicJerkAndInterpolationTest") {
-        path_vis.current_frame = static_cast<int>(ctx.frame);
+        path_vis.current_frame = static_cast<int>(ctx.frame());
         path_vis.total_frames = 90;
         std::vector<Vec3> path_positions;
         path_positions.reserve(91);

@@ -159,7 +159,7 @@ void add_text_stack(SceneBuilder& s, const FrameContext& ctx) {
     // In the stress segment (frames 300–359) `text_near` is yanked past
     // the camera — past the near plane — to expose clipping or
     // perspective-divide artefacts.
-    const Frame f = ctx.frame;
+    const Frame f = ctx.frame();
 
     auto near_z = AnimatedValue<float>{-500.0f};
     near_z.key(Frame{300}, -500.0f)
@@ -218,7 +218,7 @@ void add_targets(SceneBuilder& s) {
 
 // Build a `Camera2_5D` for the current frame based on the segment table.
 Camera2_5D evaluate_segment_camera(const FrameContext& ctx) {
-    const Frame f = ctx.frame;
+    const Frame f = ctx.frame();
 
     // Segment-local animated values.  Keys are placed at the segment
     // boundaries only, so each AnimatedValue is constant within a segment
@@ -388,7 +388,7 @@ void add_hud(SceneBuilder& s, const FrameContext& ctx) {
     // Tiny HUD that prints which segment is active — useful for frame
     // triage without needing to inspect a generated report.  Always
     // renders (opacity low enough not to mask the text subject).
-    const Frame f = ctx.frame;
+    const Frame f = ctx.frame();
     const char* seg_name = "static";
     if      (f >= 60  && f < 120) seg_name = "dolly_zoom";
     else if (f >= 120 && f < 180) seg_name = "orbit";

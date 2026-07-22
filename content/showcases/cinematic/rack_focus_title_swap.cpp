@@ -183,8 +183,8 @@ Composition rack_focus_title_swap() {
 
         Camera2_5D cam;
         cam.enabled = true;
-        cam.position = {0.0f, 0.0f, cam_z.evaluate(ctx.frame)};
-        cam.zoom = cam_zoom.evaluate(ctx.frame);
+        cam.position = {0.0f, 0.0f, cam_z.evaluate(ctx.frame())};
+        cam.zoom = cam_zoom.evaluate(ctx.frame());
         cam.fov_deg = 50.0f;
         cam.point_of_interest = {0.0f, 0.0f, 0.0f};
         cam.point_of_interest_enabled = true;

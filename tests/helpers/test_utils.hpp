@@ -246,12 +246,15 @@ inline float luma(const Color& c) {
 // ── Frame / RenderFrameInfo helpers ───────────────────────────────────────
 
 inline FrameContext make_ctx(Frame frame, int width = 1920, int height = 1080) {
-    FrameContext ctx;
-    ctx.frame = frame;
-    ctx.frame_rate = FrameRate{30, 1};
-    ctx.width = width;
-    ctx.height = height;
-    return ctx;
+    const FrameRate rate{30, 1};
+    const SampleTime st = SampleTime::from_frame_int(frame, rate);
+    return make_frame_context(FrameContextParams{
+        .global_time = st,
+        .local_time = st,
+        .duration = Frame{0},
+        .width = width,
+        .height = height,
+    });
 }
 
 /// Minimal RenderFrameInfo for unit tests that call nodes' cache_key() or

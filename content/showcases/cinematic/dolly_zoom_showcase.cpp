@@ -99,7 +99,7 @@ Composition dolly_zoom_showcase() {
         s.layer("hud", [ctx](LayerBuilder& l) {
             l.position({-560.0f, 320.0f, 0.0f});
             l.text("frame_label", TextDefinition{
-                .content = {.value = "Dolly Zoom: t = " + std::to_string(static_cast<int>(ctx.frame))},
+                .content = {.value = "Dolly Zoom: t = " + std::to_string(static_cast<int>(ctx.frame()))},
                 .style = {.font = {.font_size = 18.0f},
                           .color = {0.75f, 0.78f, 0.95f, 1.0f}},
                 .frame = {.size = {1100, 40}, .align = TextAlign::Left},

@@ -166,7 +166,7 @@ Composition whip_pan_hero_reveal() {
         cam_pos.key(Frame{15},   Vec3{  200.0f, 0.0f, -1000.0f}, EasingCurve{Easing::OutBack});
         cam_pos.key(Frame{22},   Vec3{    0.0f, 0.0f, -1000.0f}, EasingCurve{Easing::OutQuad});
         cam_pos.key(Frame{90},   Vec3{    0.0f, 0.0f, -1000.0f}, EasingCurve{Easing::Linear});
-        const Vec3 pos_now = cam_pos.evaluate(ctx.frame);
+        const Vec3 pos_now = cam_pos.evaluate(ctx.frame());
         Camera2_5D cam;
         cam.enabled = true;
         cam.position = pos_now;

@@ -149,7 +149,7 @@ chronon3d::Vec3 scale_for_frame(long frame_idx) {
 // via `TextPlacementKind::CanvasCenter` placement (Phase 3 SCALA fix).
 //
 // `frame_idx` is Frame::integral(); passes 0/15/30 directly for snapshot
-// tests, or the live ctx.frame.integral() for CLI runtime.
+// tests, or the live ctx.frame().integral() for CLI runtime.
 //
 // Action 14/2 (closed on this commit): the prior `FontEngine* engine`
 // parameter has been REMOVED — the Sole canonical call site
@@ -257,7 +257,7 @@ chronon3d::Composition make_chronon_glow_final(ChrononGlowProps props) {
         [props](const chronon3d::FrameContext& ctx) -> chronon3d::Scene {
             chronon3d::SceneBuilder s(ctx);
             build_chronon_glow_scene(
-                s, props, ctx.frame.integral());
+                s, props, ctx.frame().integral());
             return s.build();
         });
 }

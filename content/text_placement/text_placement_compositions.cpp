@@ -498,8 +498,8 @@ Composition make_cache_invalidation() {
         [](const FrameContext& ctx) {
             // Frame-dependent text content
             const char* word;
-            if (ctx.frame <= 30)       word = "HELLO";
-            else if (ctx.frame <= 60)  word = "WORLD";
+            if (ctx.frame() <= 30)       word = "HELLO";
+            else if (ctx.frame() <= 60)  word = "WORLD";
             else                       word = "CENTER";
 
             SceneBuilder s(ctx);

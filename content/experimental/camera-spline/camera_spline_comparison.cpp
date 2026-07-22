@@ -66,13 +66,13 @@ Composition camera_spline_comparison() {
         motion.zoom = 800.0f;
         motion.fov_deg = 60.0f;
 
-        Camera2_5D cam = motion.evaluate(ctx.frame, Frame{0}, Frame{119});
+        Camera2_5D cam = motion.evaluate(ctx.frame(), Frame{0}, Frame{119});
         s.camera().set(cam);
 
         s.layer("hud", [ctx](LayerBuilder& l) {
             l.position({-560.0f, 320.0f, 0.0f});
             l.text("frame_label", TextDefinition{
-    .content = {.value = "Catmull-Rom: t = " + std::to_string(static_cast<int>(ctx.frame))},
+    .content = {.value = "Catmull-Rom: t = " + std::to_string(static_cast<int>(ctx.frame()))},
     .style = {
         .font = {.font_size = 18.0f},
         .color = {0.75f, 0.78f, 0.95f, 1.0f}
