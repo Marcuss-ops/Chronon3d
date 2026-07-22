@@ -240,7 +240,8 @@ FontSpec resolve_fallback_fonts(
     const TextDocument& doc,
     FontEngine& engine,
     float tracking = 0.0f,
-    const std::filesystem::path& bundled_fonts_root = {}
+    const std::filesystem::path& bundled_fonts_root = {},
+    const std::string& features = {}
 );
 
 // ═══════════════════════════════════════════════════════════════════════════
