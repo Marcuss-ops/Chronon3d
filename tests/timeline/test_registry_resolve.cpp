@@ -116,3 +116,28 @@ TEST_CASE("CompositionRegistry::resolve: validation failure propagates PropsErro
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().reason == PropsErrorReason::InvalidFormat);
 }
+
+TEST_CASE("CompositionRegistry::freeze blocks registration; clear resets freeze") {
+    CompositionRegistry registry;
+
+    registry.add(make_composition_descriptor(
+        "first",
+        [](const CompositionProps&) { return make_stub_composition(); }));
+
+    CHECK_FALSE(registry.is_frozen());
+    registry.freeze();
+    CHECK(registry.is_frozen());
+
+    CHECK_THROWS_AS(
+        registry.add(make_composition_descriptor(
+            "second",
+            [](const CompositionProps&) { return make_stub_composition(); })),
+        std::runtime_error);
+
+    registry.clear();
+    CHECK_FALSE(registry.is_frozen());
+
+    CHECK_NOTHROW(registry.add(make_composition_descriptor(
+        "second",
+        [](const CompositionProps&) { return make_stub_composition(); })));
+}

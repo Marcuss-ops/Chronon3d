@@ -74,6 +74,12 @@ public:
     [[nodiscard]] CompositionRegistry& registry() noexcept { return m_registry; }
     [[nodiscard]] const CompositionRegistry& registry() const noexcept { return m_registry; }
 
+    /// Seal the project registry so no further compositions can be added.
+    void freeze() noexcept { m_registry.freeze(); }
+
+    /// Query whether the project registry has been frozen.
+    [[nodiscard]] bool is_frozen() const noexcept { return m_registry.is_frozen(); }
+
     // ── Composition Registration ─────────────────────────────────────
 
     /// Register a composition from a scene function (lambda).
