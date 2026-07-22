@@ -94,7 +94,7 @@ constexpr float kBoxRightX  = 600.0f;   // = kPosX + kBoxW
                             TextPlacementKind::Absolute,
                             {kPosX, kPosY}},
                         .font = {
-                            .font_path = "assets/fonts/Inter-Bold.ttf",
+                            .font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 48.0f

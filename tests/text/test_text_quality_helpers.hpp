@@ -8,12 +8,23 @@
 
 #include <cmath>
 #include <cstddef>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
 #include <optional>
 
 namespace test_text_quality {
+
+inline std::filesystem::path test_repo_root() {
+    std::filesystem::path src(__FILE__);
+    // tests/text/test_text_quality_helpers.hpp -> repo root
+    return std::filesystem::absolute(src).parent_path().parent_path().parent_path();
+}
+
+inline std::string bundled_font_path(const std::string& rel) {
+    return (test_repo_root() / rel).string();
+}
 
 // `FontSpec`, `FontEngine`, `GlyphRun` all live in `chronon3d::` and the
 // helpers below refer to them unqualified; an explicit using-directive
@@ -23,7 +34,7 @@ using namespace chronon3d;
 
 inline FontSpec inter_bold_quality() {
     return FontSpec{
-        .font_path = "assets/fonts/Inter-Bold.ttf",
+        .font_path = bundled_font_path("assets/fonts/Inter-Bold.ttf"),
         .font_family = "Inter",
         .font_weight = 700,
     };
@@ -48,7 +59,7 @@ inline std::optional<GlyphRun> shape(FontEngine& engine, std::string_view text,
 
 inline FontSpec noto_naskh_arabic_quality() {
     return FontSpec{
-        .font_path = "assets/fonts/NotoNaskhArabic-Bold.ttf",
+        .font_path = bundled_font_path("assets/fonts/NotoNaskhArabic-Bold.ttf"),
         .font_family = "Noto Naskh Arabic",
         .font_weight = 700,
     };
