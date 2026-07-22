@@ -43,7 +43,7 @@ Composition make_two_corner_scene(int width, int height, int duration) {
     return Composition(CompositionSpec{
         .name = "TwoCornerParallel", .width = width, .height = height, .duration = duration
     }, [=](const FrameContext& ctx) {
-        SceneBuilder s(ctx.resource);
+        SceneBuilder s(ctx);
         // Full-frame static background
         s.rect("bg", {
             .size = {static_cast<float>(width), static_cast<float>(height)},
@@ -246,7 +246,7 @@ TEST_CASE("TileParallel: Stress — medium resolution with multiple tile sizes")
     Composition comp(CompositionSpec{
         .name = "Stress1080p", .width = W, .height = H, .duration = kFrames
     }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx.resource);
+        SceneBuilder s(ctx);
         // Complex scene: background + many elements to exercise parallelism
         s.rect("bg", {
             .size = {640.0f, 360.0f},
@@ -319,7 +319,7 @@ TEST_CASE("TileParallel: Stress — full-screen dirty (all tiles dirty) still co
     Composition comp(CompositionSpec{
         .name = "FullScreenDirty", .width = W, .height = H, .duration = kFrames
     }, [](const FrameContext& ctx) {
-        SceneBuilder s(ctx.resource);
+        SceneBuilder s(ctx);
         float r = 0.2f + static_cast<float>(ctx.frame()) * 0.1f;
         float g = 0.3f;
         float b = 0.5f + static_cast<float>(ctx.frame()) * 0.05f;
