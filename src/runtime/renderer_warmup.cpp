@@ -57,9 +57,8 @@ RendererWarmupResult warmup_renderer(
         FontEngine* engine = &renderer.font_engine();
         for (int pass = 0; pass < 2; ++pass) {
             FrameContext warmup_ctx{
+                .sample_time = SampleTime::from_frame(static_cast<double>(options.dummy_frame), composition.frame_rate()),
                 .frame = options.dummy_frame,
-                .local_frame = options.dummy_frame,
-                .frame_time = 0.0f,
                 .duration = composition.duration(),
                 .frame_rate = composition.frame_rate(),
                 .width = composition.width(),

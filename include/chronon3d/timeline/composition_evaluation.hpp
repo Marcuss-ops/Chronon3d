@@ -150,9 +150,7 @@ struct CompositionEvaluationServices {
 /// order, names, and types are FROZEN between §8.1 and §8.4.
 struct CompositionEvaluationContext {
     CompositionEvaluationServices services{};
-    Frame                        frame{0};
-    f32                          frame_time{0.0f};
-    FrameRate                    frame_rate{30, 1};
+    SampleTime                   sample_time{};
     i32                          width{0};
     i32                          height{0};
     std::string_view             name{};

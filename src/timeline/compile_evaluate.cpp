@@ -223,10 +223,10 @@ evaluate(const CompiledComposition& compiled,
         return err;
     }
 
-    // Thread Frame into FrameContext::frame before invoking the scene fn.
+    // Thread SampleTime into FrameContext before invoking the scene fn.
     FrameContext fc  = context.frame_context;
+    fc.sample_time   = SampleTime::from_frame(static_cast<double>(frame), fc.frame_rate);
     fc.frame         = frame;
-    fc.local_frame   = frame;
 
     EvaluatedCompositionFrame result;
     try {
