@@ -14,6 +14,9 @@
 
 #include "src/text/unicode/utf8_decoder.hpp"
 
+#include <chronon3d/backends/text/text_unicode_utils.hpp>
+
+#include <fmt/format.h>
 #include <spdlog/spdlog.h>
 
 #include <cstddef>
@@ -100,49 +103,74 @@ FontFallbackResult FontFallbackResolver::resolve_runs(
         return result;
     }
 
-    // State machine: group consecutive codepoints that resolve to the same
-    // font in the stack.
+    // State machine: group consecutive *grapheme clusters* that resolve to
+    // the same font in the stack.  Extended grapheme clusters keep combining
+    // marks, ZWJ emoji sequences, regional-indicator flag pairs, etc. together
+    // so they are never split across font runs (Cat-3 anti-duplication:
+    // exactly one canonical cluster-fallback path).
     std::size_t run_start          = 0;
     std::size_t current_font_index = 0; // valid while in a run
     bool        in_run             = false;
     std::size_t missing            = 0;
     std::vector<ResolvedTextRun> runs;
 
-    std::size_t pos = 0;
-    while (pos < text.size()) {
-        const std::size_t cp_start = pos;
-        const char32_t cp = unicode::decode_codepoint(text, pos);
+    const std::size_t cluster_count = chronon3d::detail::grapheme_cluster_count(text);
+    for (std::size_t i = 0; i < cluster_count; ++i) {
+        const std::size_t cluster_start =
+            (i == 0) ? 0 : chronon3d::detail::grapheme_byte_offset_at(text, i);
+        const std::size_t cluster_end =
+            chronon3d::detail::grapheme_byte_offset_at(text, i + 1);
+        const std::string_view cluster =
+            text.substr(cluster_start, cluster_end - cluster_start);
 
-        const std::size_t font_index = find_font_for_codepoint(cp, stack);
+        const std::size_t font_index =
+            find_font_for_cluster(cluster, stack);
 
         if (font_index == stack.size()) {
-            // Fail-loud audit: no font in the stack covers this codepoint.
+            // Fail-loud audit: no font in the stack covers this cluster.
             ++missing;
+
+            std::string codepoints;
+            constexpr std::size_t kMaxLoggedCodepoints = 8;
+            std::size_t           logged               = 0;
+            std::size_t           probe                = 0;
+            while (probe < cluster.size() && logged < kMaxLoggedCodepoints) {
+                const char32_t cp = unicode::decode_codepoint(cluster, probe);
+                if (!codepoints.empty()) codepoints += ' ';
+                codepoints += fmt::format("U+{:04X}", static_cast<unsigned int>(cp));
+                ++logged;
+            }
+            if (probe < cluster.size()) {
+                codepoints += " ...";
+            }
+
             spdlog::error(
-                "[font-fallback] Missing glyph for codepoint U+{:04X} "
-                "(no font in stack covers it)",
-                static_cast<unsigned int>(cp));
+                "[font-fallback] Missing glyph for cluster [{}] at byte offset "
+                "{}..{} (no font in stack covers all visible codepoints)",
+                codepoints,
+                base_byte_offset + cluster_start,
+                base_byte_offset + cluster_end);
         }
 
         if (!in_run) {
-            run_start = cp_start;
+            run_start = cluster_start;
             current_font_index = font_index;
             in_run = true;
         } else if (font_index != current_font_index) {
             // Flush the previous run.
             ResolvedTextRun run;
-            run.text = std::string(text.substr(run_start, cp_start - run_start));
+            run.text = std::string(text.substr(run_start, cluster_start - run_start));
             run.font = (current_font_index < stack.size())
                            ? stack.fonts[current_font_index]
                            : stack.fonts[0]; // missing → primary as tofu sink
             run.direction = direction;
             run.byte_offset = base_byte_offset + run_start;
-            run.byte_len = cp_start - run_start;
+            run.byte_len = cluster_start - run_start;
             run.paragraph_style = style;
             runs.push_back(std::move(run));
 
-            // Start a new run from this codepoint.
-            run_start = cp_start;
+            // Start a new run from this cluster.
+            run_start = cluster_start;
             current_font_index = font_index;
         }
     }
@@ -166,17 +194,33 @@ FontFallbackResult FontFallbackResolver::resolve_runs(
     return result;
 }
 
-// ── find_font_for_codepoint ────────────────────────────────────────────────
-std::size_t FontFallbackResolver::find_font_for_codepoint(
-    char32_t cp,
+// ── find_font_for_cluster ──────────────────────────────────────────────────
+std::size_t FontFallbackResolver::find_font_for_cluster(
+    std::string_view cluster,
     const FontStack& stack
 ) const {
+    // Decode the cluster once so we do not re-parse UTF-8 for every font in
+    // the stack.  A font covers a cluster when it covers every visible
+    // codepoint in it.  Invisible codepoints (ZWJ, variation selectors,
+    // whitespace, controls, etc.) are treated as covered by any font by the
+    // underlying probe, so they do not force a fallback.
+    std::vector<char32_t> cps;
+    cps.reserve(8);
+    std::size_t pos = 0;
+    while (pos < cluster.size()) {
+        cps.push_back(unicode::decode_codepoint(cluster, pos));
+    }
+
     for (std::size_t i = 0; i < stack.fonts.size(); ++i) {
-        // Cat-5 internal: the glyph-coverage probe lives in the
-        // `font_engine_internal` namespace, friend-declared on FontEngine;
-        // not in the public FontEngine API.
-        if (chronon3d::text::font_engine_internal::has_glyph_for_codepoint(
-                engine_, stack.fonts[i], cp)) {
+        bool covers = true;
+        for (char32_t cp : cps) {
+            if (!chronon3d::text::font_engine_internal::has_glyph_for_codepoint(
+                    engine_, stack.fonts[i], cp)) {
+                covers = false;
+                break;
+            }
+        }
+        if (covers) {
             return i;
         }
     }

@@ -94,9 +94,13 @@ public:
 private:
     FontEngine& engine_;
 
-    // Returns the index of the first font in `stack` that covers `cp`,
-    // or `stack.size()` if none does.
-    [[nodiscard]] std::size_t find_font_for_codepoint(char32_t cp, const FontStack& stack) const;
+    // Returns the index of the first font in `stack` that covers every
+    // codepoint in `cluster`, or `stack.size()` if none does.  Invisible
+    // codepoints (ZWJ, variation selectors, whitespace, controls, etc.)
+    // do not affect coverage because the probe treats them as covered by
+    // any font.
+    [[nodiscard]] std::size_t find_font_for_cluster(
+        std::string_view cluster, const FontStack& stack) const;
 };
 
 /// Build a default fallback stack for a resolved primary font.  The stack

@@ -360,6 +360,133 @@ TEST_CASE("FontFallbackResolver: shaping metrics corpus (AVATAR / office / CJK /
     }
 }
 
+TEST_CASE("FontFallbackResolver: emoji ZWJ family stays in a single run when uncovered") {
+    Config cfg;
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+
+    FontStack stack;
+    stack.push_back(make_spec("assets/fonts/Inter-Bold.ttf", "Inter", 700, 32.0f));
+
+    TextShaping shaping;
+    ParagraphStyle style;
+    FontFallbackResolver resolver{engine};
+
+    // 👨‍👩‍👧‍👦 emoji ZWJ family — one extended grapheme cluster.
+    const std::string emoji_zwj_family =
+        "\xF0\x9F\x91\xA8"  // 👨 U+1F468
+        "\xE2\x80\x8D"      // ZWJ  U+200D
+        "\xF0\x9F\x91\xA9"  // 👩 U+1F469
+        "\xE2\x80\x8D"      // ZWJ
+        "\xF0\x9F\x91\xA7"  // 👧 U+1F467
+        "\xE2\x80\x8D"      // ZWJ
+        "\xF0\x9F\x91\xA6"; //  U+1F466
+
+    auto result = resolver.resolve_runs(
+        emoji_zwj_family, stack, shaping, 0, TextDirection::LTR, style);
+
+    // The whole ZWJ sequence is one cluster; even though the emoji are
+    // uncovered, the cluster is emitted as a single tofu-sink run rather
+    // than being split mid-sequence.
+    CHECK(result.missing_clusters == 1);
+    CHECK(result.runs.size() == 1);
+    if (!result.runs.empty()) {
+        CHECK(result.runs[0].text == emoji_zwj_family);
+        CHECK(result.runs[0].font.font_family == "Inter");
+    }
+}
+
+TEST_CASE("FontFallbackResolver: invisible-only cluster resolves to primary") {
+    Config cfg;
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+
+    FontStack stack;
+    stack.push_back(make_spec("assets/fonts/Inter-Bold.ttf", "Inter", 700, 32.0f));
+
+    TextShaping shaping;
+    ParagraphStyle style;
+    FontFallbackResolver resolver{engine};
+
+    // ZWJ + ZWNJ — two invisible codepoints, no visible ink.
+    const std::string invisible =
+        "\xE2\x80\x8D"  // ZWJ  U+200D
+        "\xE2\x80\x8C"; // ZWNJ U+200C
+
+    auto result = resolver.resolve_runs(
+        invisible, stack, shaping, 0, TextDirection::LTR, style);
+
+    CHECK(result.missing_clusters == 0);
+    CHECK(result.runs.size() == 1);
+    if (!result.runs.empty()) {
+        CHECK(result.runs[0].font.font_family == "Inter");
+    }
+}
+
+TEST_CASE("FontFallbackResolver: combining mark cluster is not split from base") {
+    Config cfg;
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+
+    FontStack stack;
+    stack.push_back(make_spec("assets/fonts/Inter-Bold.ttf", "Inter", 700, 32.0f));
+
+    TextShaping shaping;
+    ParagraphStyle style;
+    FontFallbackResolver resolver{engine};
+
+    // Latin "e" + combining acute (U+0301) forms one extended grapheme cluster.
+    // The resolver must keep the base and its combining mark in the same run.
+    const std::string combining = std::string("e") + "\xCC\x81";
+
+    auto result = resolver.resolve_runs(
+        combining, stack, shaping, 0, TextDirection::LTR, style);
+
+    CHECK(result.runs.size() == 1);
+    if (!result.runs.empty()) {
+        CHECK(result.runs[0].text == combining);
+        CHECK(result.runs[0].font.font_family == "Inter");
+    }
+}
+
+TEST_CASE("FontFallbackResolver: whole-cluster fallback selects covering font") {
+    Config cfg;
+    auto runtime = chronon3d::runtime::RenderRuntime::create(
+        chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
+    FontEngine engine{runtime->resolver()};
+
+    FontStack stack;
+    stack.push_back(make_spec("assets/fonts/Inter-Bold.ttf", "Inter", 700, 32.0f));
+    stack.push_back(make_spec("assets/fonts/NotoNaskhArabic-Regular.ttf", "Noto Naskh Arabic", 400, 32.0f));
+
+    TextShaping shaping;
+    ParagraphStyle style;
+    FontFallbackResolver resolver{engine};
+
+    const std::string arabic =
+        "\xD9\x85"
+        "\xD8\xB1"
+        "\xD8\xAD"
+        "\xD8\xA8"
+        "\xD8\xA7";
+
+    auto result = resolver.resolve_runs(
+        arabic, stack, shaping, 0, TextDirection::RTL, style);
+
+    // The whole Arabic word is one directional run; Inter does not cover
+    // any of the visible codepoints, so the fallback font that covers the
+    // whole cluster must be selected atomically.
+    CHECK(result.missing_clusters == 0);
+    CHECK(result.runs.size() == 1);
+    if (!result.runs.empty()) {
+        CHECK(result.runs[0].text == arabic);
+        CHECK(result.runs[0].font.font_family == "Noto Naskh Arabic");
+    }
+}
+
 TEST_CASE("FontFallbackResolver: emoji ZWJ family + Devanagari + symbols audit") {
     Config cfg;
     auto runtime = chronon3d::runtime::RenderRuntime::create(
@@ -414,9 +541,12 @@ TEST_CASE("FontFallbackResolver: emoji ZWJ family + Devanagari + symbols audit")
         "\xE1\x8E\xB1"; // Ꮁ  U+13B1 (Cherokee)
 
     std::vector<Sample> samples = {
-        {"Emoji ZWJ family",              emoji_zwj_family,              /* emoji-only uncovered */ 4},
-        {"Devanagari",                    devanagari_hindi,              /* all 6 uncovered */    6},
-        {"Armenian+Georgian+Cherokee",    armenian_georgian_cherokee,    /* all 6 uncovered */    6},
+        // Emoji ZWJ family (👨‍👩‍👧‍👦) is a single extended grapheme cluster.
+        {"Emoji ZWJ family",              emoji_zwj_family,              /* 1 cluster uncovered */ 1},
+        // Devanagari "हिन्दी" has 3 extended grapheme clusters (हो, न्, दी).
+        {"Devanagari",                    devanagari_hindi,              /* 3 clusters uncovered */ 3},
+        // Armenian/Georgian/Cherokee letters are standalone clusters.
+        {"Armenian+Georgian+Cherokee",    armenian_georgian_cherokee,    /* 6 clusters uncovered */ 6},
     };
 
     for (const auto& sample : samples) {
