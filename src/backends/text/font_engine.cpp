@@ -34,6 +34,27 @@
 
 namespace chronon3d {
 
+namespace {
+
+// Anonymous helper used by both the FreeType build and the no-text stub to
+// decide whether a codepoint can be considered covered without requiring a
+// real glyph (space, control, joiners, variation selectors, etc.).
+bool is_invisible_codepoint(char32_t cp) noexcept {
+    // ASCII whitespace / control.
+    if (cp <= 0x1F || (cp >= 0x7F && cp <= 0x9F)) return true;
+    if (cp == 0x20 || cp == 0xA0) return true;
+
+    // Unicode line/paragraph separators and general punctuation spaces.
+    if (cp == 0x2028 || cp == 0x2029) return true;
+    if (cp >= 0x2000 && cp <= 0x200D) return true;  // spaces + ZWNJ/ZWJ
+    if (cp == 0x202F || cp == 0x205F || cp == 0x2060) return true;
+    if (cp == 0xFEFF) return true;                    // BOM / zero-width no-break
+
+    return false;
+}
+
+} // anonymous namespace
+
 // =============================================================================
 // Full implementation with FreeType + HarfBuzz
 // =============================================================================
@@ -583,32 +604,19 @@ bool FontEngine::can_load(const FontSpec& spec) {
 // `font_engine_internal` namespace, friend-declared on FontEngine. The
 // class itself does NOT expose `has_glyph_for_codepoint` as a public
 // method, keeping the public ABI minimal.
-namespace {
-
-// Codepoints that legitimately carry no visible ink (space, control,
-// line-break, joiners, etc.). Their glyphs are expected to have empty
-// outlines, so the coverage probe must not reject them on that basis.
-bool is_invisible_codepoint(char32_t cp) noexcept {
-    // ASCII whitespace / control.
-    if (cp <= 0x1F || (cp >= 0x7F && cp <= 0x9F)) return true;
-    if (cp == 0x20 || cp == 0xA0) return true;
-
-    // Unicode line/paragraph separators and general punctuation spaces.
-    if (cp == 0x2028 || cp == 0x2029) return true;
-    if (cp >= 0x2000 && cp <= 0x200D) return true;  // spaces + ZWNJ/ZWJ
-    if (cp == 0x202F || cp == 0x205F || cp == 0x2060) return true;
-    if (cp == 0xFEFF) return true;                    // BOM / zero-width no-break
-
-    return false;
-}
-
-} // anonymous namespace
-
 namespace text::font_engine_internal {
 
 bool has_glyph_for_codepoint(FontEngine& engine, const FontSpec& spec, char32_t codepoint) {
 #ifdef CHRONON3D_ENABLE_TEXT
     if (!engine.m_impl) return false;
+
+    // Invisible codepoints carry no visible ink (space, joiners, controls,
+    // variation selectors, etc.). They do not require a real glyph from the
+    // font, so the coverage probe must not reject them on that basis.
+    if (is_invisible_codepoint(codepoint)) {
+        return true;
+    }
+
     FaceEntry* entry = engine.m_impl->get_face_entry(spec);
     if (!entry) return false;
 
@@ -618,15 +626,6 @@ bool has_glyph_for_codepoint(FontEngine& engine, const FontSpec& spec, char32_t 
     FT_UInt glyph_index = FT_Get_Char_Index(entry->ft_face, static_cast<FT_ULong>(codepoint));
     if (glyph_index == 0 || glyph_index == entry->notdef_glyph_id) {
         return false;
-    }
-
-    // Some widely-used system/web fonts map unsupported codepoints to an
-    // empty space-like fallback glyph. For visible characters we therefore
-    // verify the glyph actually carries outline or bitmap ink; invisible
-    // characters (space, joiners, controls) are exempt because their real
-    // glyphs are expected to be empty.
-    if (is_invisible_codepoint(codepoint)) {
-        return true;
     }
 
     FT_Error err = FT_Load_Glyph(entry->ft_face, glyph_index, FT_LOAD_NO_SCALE);
@@ -737,7 +736,11 @@ bool FontEngine::can_load(const FontSpec&) { return false; }
 // the symbol exists in both modes.
 namespace chronon3d::text::font_engine_internal {
 
-bool has_glyph_for_codepoint(FontEngine&, const FontSpec&, char32_t) { return false; }
+bool has_glyph_for_codepoint(FontEngine&, const FontSpec&, char32_t cp) {
+    // Mirrors the invisible-codepoint short-circuit in the full build so
+    // that cluster-fallback semantics stay consistent across builds.
+    return is_invisible_codepoint(cp);
+}
 
 } // namespace chronon3d::text::font_engine_internal
 
