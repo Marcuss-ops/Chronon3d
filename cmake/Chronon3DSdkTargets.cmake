@@ -6,11 +6,7 @@ add_library(chronon3d_sdk_impl STATIC
     ${CMAKE_SOURCE_DIR}/src/sdk_impl_marker.cpp
 )
 
-foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
-    if(TARGET ${_reg_obj})
-        target_link_libraries(chronon3d_sdk_impl PRIVATE ${_reg_obj})
-    endif()
-endforeach()
+chronon3d_link_registered_objects_into_archive(chronon3d_sdk_impl)
 
 include(${CMAKE_SOURCE_DIR}/cmake/Chronon3DSdkArchive.cmake)
 set_target_properties(chronon3d_sdk_impl PROPERTIES EXPORT_NAME SDKImpl)

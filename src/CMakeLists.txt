@@ -155,17 +155,14 @@ target_link_libraries(chronon3d_pipeline INTERFACE
 # targets (INTERFACE → INTERFACE → OBJECT).  Tests that link only
 # chronon3d_pipeline (e.g. chronon3d_authoring_tests) would see
 # undefined references to symbols from chronon3d_scene,
-# chronon3d_backend_software, etc.  The same workaround is applied to
-# chronon3d_sdk in cmake/Chronon3DSdkTargets.cmake.  Here we attach
+# chronon3d_backend_software, etc.  The in-tree workaround is to attach
 # the objects to chronon3d_pipeline so ALL in-tree consumers (tests,
 # CLI via sdk→pipeline) get them without each target needing to also
-# link chronon3d_sdk_impl.
-foreach(_reg_obj IN LISTS CHRONON3D_REGISTRY_OBJECT_LIBS)
-    if(TARGET ${_reg_obj})
-        target_sources(chronon3d_pipeline INTERFACE
-            $<BUILD_INTERFACE:$<TARGET_OBJECTS:${_reg_obj}>>)
-    endif()
-endforeach()
+# link chronon3d_sdk_impl.  The SDK archive uses a separate helper that
+# links the same OBJECT targets into libchronon3d_sdk_impl.a (see
+# chronon3d_link_registered_objects_into_archive in
+# cmake/Chronon3DRegistry.cmake).
+chronon3d_expose_registered_objects_to_build_interface(chronon3d_pipeline)
 
 # ==============================================================================
 # SDK consumer-facing surface — moved to `cmake/Chronon3DSdkTargets.cmake`.
