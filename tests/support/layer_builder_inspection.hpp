@@ -36,7 +36,7 @@
 //     using chronon3d::builders::testing::LayerBuilderInspector;
 //     using chronon3d::builders::testing::PendingRunSnapshot;
 //
-//     LayerBuilder lb("...", Frame{0});
+//     LayerBuilder lb("...", Frame{0}, FrameRate{30, 1});
 //     const auto pre = LayerBuilderInspector::pending_runs(lb);
 //     for (const PendingRunSnapshot& snap : pre) {
 //         CHECK(snap.name == "camera_text");

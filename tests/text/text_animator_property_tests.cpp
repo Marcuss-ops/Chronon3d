@@ -97,7 +97,7 @@ TEST_CASE("Property: OpacityProperty reduces opacity") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -113,7 +113,7 @@ TEST_CASE("Property: PositionProperty offsets glyph") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -130,7 +130,7 @@ TEST_CASE("Property: ScaleProperty scales down glyph") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -147,7 +147,7 @@ TEST_CASE("Property: RotationProperty adds rotation") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -163,7 +163,7 @@ TEST_CASE("Property: BlurProperty adds blur") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -179,7 +179,7 @@ TEST_CASE("Property: FillColorProperty changes color") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -197,7 +197,7 @@ TEST_CASE("Property: property with zero selector weight has no effect") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -226,7 +226,7 @@ TEST_CASE("Stack: two animators combine position additively") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec1, spec2}, placed, source, t);
 
@@ -249,7 +249,7 @@ TEST_CASE("Stack: Replace mode overwrites previous animator") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     // Default is Add for transforms, but opacity uses multiply semantics.
     // Let's test explicit Replace for opacity.
@@ -275,7 +275,7 @@ TEST_CASE("Stack: selector controls per-glyph weight") {
 
     auto placed = make_test_placed_run_prop(10);
     auto source = make_source_prop(10);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -303,7 +303,7 @@ TEST_CASE("Stack: multiple properties in one animator") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -322,7 +322,7 @@ TEST_CASE("Stack: disabled animator is skipped") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -342,7 +342,7 @@ TEST_CASE("Property: BaselineShiftProperty shifts glyph vertically") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -358,7 +358,7 @@ TEST_CASE("Property: BaselineShiftProperty with partial weight") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -375,7 +375,7 @@ TEST_CASE("Property: StrokeColorProperty sets stroke") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -397,7 +397,7 @@ TEST_CASE("Property: StrokeColorProperty with partial weight") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -426,7 +426,7 @@ TEST_CASE("Property: ScaleProperty Add accumulates deltas") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec1, spec2}, placed, source, t);
 
@@ -453,7 +453,7 @@ TEST_CASE("Property: ScaleProperty Multiply composes factors") {
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec1, spec2}, placed, source, t);
 
@@ -466,7 +466,7 @@ TEST_CASE("Property: ScaleProperty Add vs Multiply produce different results") {
     // Same single 50% scale, Add vs Multiply should differ from identity in different ways
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     TextAnimatorSpec add_spec;
     add_spec.id = "add";
@@ -517,7 +517,7 @@ TEST_CASE("Property: TrackingProperty cumulative — single glyph is unaffected"
 
     auto placed = make_test_placed_run_prop(1);
     auto source = make_source_prop(1);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -538,7 +538,7 @@ TEST_CASE("Property: TrackingProperty cumulative — N glyphs spread evenly") {
     constexpr size_t N = 5;
     auto placed = make_test_placed_run_prop(N);
     auto source = make_source_prop(N);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -563,7 +563,7 @@ TEST_CASE("Property: TrackingProperty cumulative — first and last hold the gap
     constexpr size_t N = 8;
     auto placed = make_test_placed_run_prop(N);
     auto source = make_source_prop(N);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -585,7 +585,7 @@ TEST_CASE("Property: TrackingProperty with partial selector weight halves the sp
     constexpr size_t N = 5;
     auto placed = make_test_placed_run_prop(N);
     auto source = make_source_prop(N);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -612,7 +612,7 @@ TEST_CASE("Property: TrackingProperty Replace matches Add when starting from ide
     constexpr size_t N = 4;
     auto placed = make_test_placed_run_prop(N);
     auto source = make_source_prop(N);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     auto states = evaluate_animator_stack({spec}, placed, source, t);
 
@@ -655,7 +655,7 @@ TEST_CASE("Property: TrackingProperty Replace vs Add in a multi-animator stack")
 
     auto placed = make_test_placed_run_prop(N);
     auto source = make_source_prop(N);
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     // Replace path — Animator 2 overwrites Animator 1's contribution.
     {

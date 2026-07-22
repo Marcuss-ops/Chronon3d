@@ -48,14 +48,14 @@ Composition make_shadow_scene(bool casts, bool accepts,
 } // namespace
 
 TEST_CASE("Shadow builder: casts_shadows sets material flag") {
-    LayerBuilder lb("test");
+    LayerBuilder lb("test", SampleTime{});
     lb.enable_3d().casts_shadows(true);
     Layer l = lb.build();
     CHECK(l.material().casts_shadows == true);
 }
 
 TEST_CASE("Shadow builder: accepts_shadows sets material flag") {
-    LayerBuilder lb("test");
+    LayerBuilder lb("test", SampleTime{});
     lb.enable_3d().accepts_shadows(false);
     Layer l = lb.build();
     CHECK(l.material().accepts_shadows == false);

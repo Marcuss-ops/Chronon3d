@@ -19,7 +19,7 @@ TEST_CASE("Evaluate: basic selector with default params") {
     auto source = make_test_source(5);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     for (u32 i = 0; i < 5; ++i) {
         f32 w = evaluate_selector(spec, map, i, source, t);
@@ -41,7 +41,7 @@ TEST_CASE("Evaluate: offset shifts the active window") {
     auto source = make_test_source(4);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     f32 w0 = evaluate_selector(spec, map, 0, source, t);
     f32 w2 = evaluate_selector(spec, map, 2, source, t);
@@ -68,7 +68,7 @@ TEST_CASE("Evaluate: amount scales the weight") {
     auto source = make_test_source(3);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     f32 w = evaluate_selector(spec, map, 0, source, t);
     CHECK(w == doctest::Approx(0.5f));
@@ -86,7 +86,7 @@ TEST_CASE("Evaluate: RampUp shape produces gradient") {
     auto source = make_test_source(3);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     f32 w0 = evaluate_selector(spec, map, 0, source, t);
     f32 w2 = evaluate_selector(spec, map, 2, source, t);
@@ -106,7 +106,7 @@ TEST_CASE("Evaluate: Reverse order inverts progression") {
     auto source = make_test_source(3);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t = SampleTime::from_frame_int(Frame{0});
+    SampleTime t = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     f32 w0 = evaluate_selector(spec, map, 0, source, t);
     f32 w2 = evaluate_selector(spec, map, 2, source, t);
@@ -149,8 +149,8 @@ TEST_CASE("Evaluate: deterministic random seed") {
     auto source = make_test_source(5);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t1 = SampleTime::from_frame_int(Frame{0});
-    SampleTime t2 = SampleTime::from_frame_int(Frame{0});
+    SampleTime t1 = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+    SampleTime t2 = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
 
     for (u32 i = 0; i < 5; ++i) {
         f32 w1 = evaluate_selector(spec, map, i, source, t1);
@@ -186,17 +186,17 @@ TEST_CASE("Animated: start sweeps across glyphs over time") {
     auto source = make_test_source(10);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t0 = SampleTime::from_frame_int(Frame{0});
+    SampleTime t0 = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
     f32 w0_first = evaluate_selector(spec, map, 0, source, t0);
     CHECK(w0_first == doctest::Approx(1.0f));
 
-    SampleTime t30 = SampleTime::from_frame_int(Frame{30});
+    SampleTime t30 = SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1});
     f32 w30_first = evaluate_selector(spec, map, 0, source, t30);
     f32 w30_last  = evaluate_selector(spec, map, 9, source, t30);
     CHECK(w30_first == doctest::Approx(0.0f));
     CHECK(w30_last == doctest::Approx(1.0f));
 
-    SampleTime t60 = SampleTime::from_frame_int(Frame{60});
+    SampleTime t60 = SampleTime::from_frame_int(Frame{60}, FrameRate{30, 1});
     f32 w60 = evaluate_selector(spec, map, 0, source, t60);
     CHECK(w60 == doctest::Approx(0.0f));
 }
@@ -215,17 +215,17 @@ TEST_CASE("Animated: offset slides the window with easing") {
     auto source = make_test_source(8);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t0 = SampleTime::from_frame_int(Frame{0});
+    SampleTime t0 = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
     f32 w0_first = evaluate_selector(spec, map, 0, source, t0);
     f32 w0_last  = evaluate_selector(spec, map, 7, source, t0);
     CHECK(w0_first > 0.0f);
     CHECK(w0_last == doctest::Approx(0.0f));
 
-    SampleTime t30 = SampleTime::from_frame_int(Frame{30});
+    SampleTime t30 = SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1});
     f32 w30_first = evaluate_selector(spec, map, 0, source, t30);
     CHECK(w30_first == doctest::Approx(w0_first));
 
-    SampleTime t15 = SampleTime::from_frame_int(Frame{15});
+    SampleTime t15 = SampleTime::from_frame_int(Frame{15}, FrameRate{30, 1});
     f32 w15_first = evaluate_selector(spec, map, 0, source, t15);
     f32 w15_mid   = evaluate_selector(spec, map, 4, source, t15);
     CHECK(w15_first == doctest::Approx(0.0f));
@@ -245,17 +245,17 @@ TEST_CASE("Animated: end shrinks the active range") {
     auto source = make_test_source(10);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t0 = SampleTime::from_frame_int(Frame{0});
+    SampleTime t0 = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
     f32 w0 = evaluate_selector(spec, map, 5, source, t0);
     CHECK(w0 == doctest::Approx(1.0f));
 
-    SampleTime t20 = SampleTime::from_frame_int(Frame{20});
+    SampleTime t20 = SampleTime::from_frame_int(Frame{20}, FrameRate{30, 1});
     f32 w20_first = evaluate_selector(spec, map, 0, source, t20);
     f32 w20_last  = evaluate_selector(spec, map, 9, source, t20);
     CHECK(w20_first == doctest::Approx(1.0f));
     CHECK(w20_last == doctest::Approx(0.0f));
 
-    SampleTime t40 = SampleTime::from_frame_int(Frame{40});
+    SampleTime t40 = SampleTime::from_frame_int(Frame{40}, FrameRate{30, 1});
     f32 w40 = evaluate_selector(spec, map, 0, source, t40);
     CHECK(w40 == doctest::Approx(0.0f));
 }
@@ -273,9 +273,9 @@ TEST_CASE("Animated: amount fades with OutCubic easing") {
     auto source = make_test_source(3);
     auto map = build_text_unit_map(placed, source);
 
-    SampleTime t0  = SampleTime::from_frame_int(Frame{0});
-    SampleTime t15 = SampleTime::from_frame_int(Frame{15});
-    SampleTime t30 = SampleTime::from_frame_int(Frame{30});
+    SampleTime t0  = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1});
+    SampleTime t15 = SampleTime::from_frame_int(Frame{15}, FrameRate{30, 1});
+    SampleTime t30 = SampleTime::from_frame_int(Frame{30}, FrameRate{30, 1});
 
     f32 w0  = evaluate_selector(spec, map, 0, source, t0);
     f32 w15 = evaluate_selector(spec, map, 0, source, t15);
