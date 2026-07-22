@@ -11,6 +11,7 @@ if(CHRONON3D_USE_BLEND2D AND CHRONON3D_ENABLE_TEXT)
         text/test_text_quality_shaping.cpp
         text/test_text_quality_tracking.cpp
         text/test_text_quality_arabic.cpp
+        text/test_text_shaping_corpus.cpp
         text/test_text_bidi.cpp
         text/test_text_font_determinism.cpp
         text/test_resolve_placed_glyph_run_cluster_golden.cpp
