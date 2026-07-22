@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 //
 // M1.5#2 — internal helper: text_state_sampler.
-// Selects the target text + crossfade target text + gap-in/out decision
-// from an `ActiveTextState` sample.  Pure projection — no shape mutation,
-// no cache access, no HarfBuzz.  Called by both
-// `apply_active_state_to_text_run_shape` and `prewarm_text_run_layout_for_frame`
-// via the orchestrator at `src/text/text_run_driver.cpp`.
+// Selects the target text + transition-text decision from an
+// `ActiveTextState` sample.  Pure projection — no shape mutation, no cache
+// access, no HarfBuzz.  Called by both `apply_active_state_to_text_run_shape`
+// and `prewarm_text_run_layout_for_frame` via the orchestrator at
+// `src/text/text_run_driver.cpp`.
 //
 // Internal-only — NOT in include/chronon3d/.
 
@@ -13,13 +13,12 @@
 
 #include <chronon3d/text/animated_text_document.hpp>
 
-#include <optional>
 #include <string>
 
 namespace chronon3d::text::driver {
 
 /// Honours `target_text` selection per `SourceTextTransition`:
-///   - Hold / Cut / CrossfadeLayouts → `state.active->utf8` (the
+///   - Hold / Cut / DissolveLayouts → `state.active->utf8` (the
 ///     transition_text is empty for these modes / mixed per-glyph in the
 ///     compositor, not in the layout).
 ///   - Scramble / Morph             → `state.transition_text` (filled
@@ -30,16 +29,9 @@ namespace chronon3d::text::driver {
 /// this as a no-op opportunity).
 [[nodiscard]] std::string select_target_text(const ActiveTextState& state);
 
-/// Same selection logic for the OUTGOING (crossfade_from) side.  Only
-/// meaningful inside the gap; the orchestrator must combine this with
-/// `is_in_crossfade_gap()` before calling the rebuild path.
-[[nodiscard]] std::optional<std::string> select_crossfade_target_text(
-    const ActiveTextState& state
-);
-
 /// True iff the per-frame transition expects to shape crossfade slots:
-/// `state.transition == CrossfadeLayouts` AND `state.crossfade_from != nullptr`
+/// `state.transition == DissolveLayouts` AND `state.dissolve_from != nullptr`
 /// AND `0 < state.mix < 1`.
-[[nodiscard]] bool is_in_crossfade_gap(const ActiveTextState& state);
+[[nodiscard]] bool is_in_dissolve_gap(const ActiveTextState& state);
 
 }  // namespace chronon3d::text::driver

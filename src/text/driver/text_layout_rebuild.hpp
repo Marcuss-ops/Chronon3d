@@ -3,7 +3,7 @@
 // M1.5#2 — internal helper: text_layout_rebuild.
 // Owns the per-frame rebuild path: EffectiveTextState projection,
 // fast-path comparison, `build_text_run` invocation with cache,
-// CrossfadeLayouts lifecycle on `shape.crossfade_*`, and the prewarm
+// DissolveLayouts lifecycle on `shape.crossfade_*`, and the prewarm
 // hook.  All mutations to `shape->layout` / `shape->glyphs` /
 // `shape->crossfade_*` route through this module so the rules are
 // co-located and testable.
@@ -63,18 +63,18 @@ namespace chronon3d::text::driver {
     TextLayoutCache* cache
 );
 
-/// CrossfadeLayouts lifecycle on `shape.crossfade_*` slots (PR 11):
-///   - inside the gap   → rebuild `crossfade_layout`+`crossfade_glyphs`
+/// DissolveLayouts lifecycle on `shape.crossfade_*` slots (PR 11):
+///   - inside the gap   → rebuild `dissolve_layout`+`dissolve_glyphs`
 ///                       with the existing fast-path skip on cache hit;
-///   - outside the gap  → reset crossfade_layout, clear crossfade_glyphs,
-///                       zero crossfade_mix.
+///   - outside the gap  → reset dissolve_layout, clear dissolve_glyphs,
+///                       zero dissolve_mix.
 ///
 /// `in_gap` is supplied by the orchestrator (via
-/// `text_state_sampler::is_in_crossfade_gap`).
-[[nodiscard]] bool rebuild_crossfade_slot(
+/// `text_state_sampler::is_in_dissolve_gap`).
+[[nodiscard]] bool rebuild_dissolve_slot(
     TextRunShape& shape,
     const ActiveTextState& state,
-    const FontSpec& effective_font_outgoing,  // state.crossfade_from->defaults.font
+    const FontSpec& effective_font_outgoing,  // state.dissolve_from->defaults.font
     const TextLayoutSpec& layout_spec,
     FontEngine& engine,
     TextLayoutCache* cache

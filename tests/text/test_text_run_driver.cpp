@@ -6,7 +6,7 @@ static chronon3d::TextLayoutCache s_text_cache;
 // Covers:
 //   1. update_text_run_shape_per_frame with Position/Opacity/Scale animators
 //   2. No-op semantics when layout is null or animators empty
-//   3. apply_active_state_to_text_run_shape for Hold/Cut/CrossfadeLayouts
+//   3. apply_active_state_to_text_run_shape for Hold/Cut/DissolveLayouts
 //   4. apply_active_state_to_text_run_shape for Scramble/Morph transitions
 //      (returns true on first call, false when text matches existing layout)
 //   5. Determinism: same shape+animators produce same glyph state

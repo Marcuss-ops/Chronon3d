@@ -3,15 +3,15 @@
 // text_run_driver.cpp — Per-frame driver (M1.5#2 ORCHESTRATOR).
 //
 // Splits into single-responsibility helpers under src/text/driver/:
-//   * text_state_sampler    — select_target_text / is_in_crossfade_gap
+//   * text_state_sampler    — select_target_text / is_in_dissolve_gap
 //   * text_font_state       — compute_effective_font (carries P0-2 fix)
 //   * text_layout_rebuild   — EffectiveTextState projection + fast-path
-//                             match + build_text_run + CrossfadeLayouts
+//                             match + build_text_run + DissolveLayouts
 //                             lifecycle + prewarm
 // This file keeps:
 //   - the cheap-path animator-stack evaluation that isn't about
 //     layout (and thus doesn't fit the rebuild module);
-//   - the crossfade_glyphs animator mirror (extends the cheap-path to
+//   - the dissolve_glyphs animator mirror (extends the cheap-path to
 //     the outgoing slot, only meaningful inside the gap);
 //   - the three public free-function entry points
 //     (update/apply/prewarm).  Each of those is now a thin wrapper
@@ -28,7 +28,7 @@
 //        d) compare against text_layout_rebuild::current_effective_state
 //           → fast-path hit (return false) OR
 //        e) text_layout_rebuild::rebuild_active_side (swap layout + glyphs)
-//        f) text_layout_rebuild::rebuild_crossfade_slot (PR 11 lifecycle)
+//        f) text_layout_rebuild::rebuild_dissolve_slot (PR 11 lifecycle)
 //   3. `prewarm_text_run_layout_for_frame` calls:
 //        a) text_state_sampler::select_target_text
 //        b) text_font_state::compute_effective_font_for_prewarm
@@ -117,22 +117,22 @@ void update_text_run_shape_per_frame(
         time
     );
 
-    // ── PR 11 — mirror the animator stack onto crossfade_glyphs when
+    // ── PR 11 — mirror the animator stack onto dissolve_glyphs when
     //    inside the gap, so per-glyph animators (transform / opacity /
     //    blur / color / etc.) apply symmetrically to both sides. ────
-    if (!shape.crossfade_glyphs.empty() && shape.crossfade_layout) {
-        if (shape.crossfade_glyphs.size()
-            != shape.crossfade_layout->placed.glyphs.size())
+    if (!shape.dissolve_glyphs.empty() && shape.dissolve_layout) {
+        if (shape.dissolve_glyphs.size()
+            != shape.dissolve_layout->placed.glyphs.size())
         {
-            shape.crossfade_glyphs = make_initial_glyph_states(
-                shape.crossfade_layout->placed);
+            shape.dissolve_glyphs = make_initial_glyph_states(
+                shape.dissolve_layout->placed);
         }
         evaluate_animator_stack_into(
-            shape.crossfade_glyphs,
+            shape.dissolve_glyphs,
             shape.animators,
-            shape.crossfade_layout->placed,
-            shape.crossfade_layout->source_text,
-            shape.crossfade_layout->units,
+            shape.dissolve_layout->placed,
+            shape.dissolve_layout->source_text,
+            shape.dissolve_layout->units,
             time
         );
     }
@@ -170,12 +170,12 @@ bool apply_active_state_to_text_run_shape(
         const EffectiveTextState current_state = current_effective_state(*shape.layout);
         if (fast_path_hit(current_state, target_state)) {
             // M1.5#2 closure: cache would hit → no rebuild.  Crucially
-            // we still update crossfade_mix inside rebuild_crossfade_slot
+            // we still update dissolve_mix inside rebuild_dissolve_slot
             // below so the compositor sees the latest mix, then return
             // BEFORE the active-side rebuild (no work).
-            (void)rebuild_crossfade_slot(
-                shape, state, /*outgoing=*/state.crossfade_from
-                    ? state.crossfade_from->defaults.font
+            (void)rebuild_dissolve_slot(
+                shape, state, /*outgoing=*/state.dissolve_from
+                    ? state.dissolve_from->defaults.font
                     : effective_font,
                 layout_spec, engine, cache);
             return false;
@@ -189,9 +189,9 @@ bool apply_active_state_to_text_run_shape(
     // outcome: an ActiveTextState transition out-of-gap clears the
     // outgoing slots even when the active side stays cached.
     const FontSpec outgoing_font =
-        state.crossfade_from ? state.crossfade_from->defaults.font
+        state.dissolve_from ? state.dissolve_from->defaults.font
                              : effective_font;
-    (void)rebuild_crossfade_slot(
+    (void)rebuild_dissolve_slot(
         shape, state, outgoing_font, layout_spec, engine, cache);
 
     return active_rebuilt;

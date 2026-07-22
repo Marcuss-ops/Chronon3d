@@ -136,7 +136,7 @@ Questo è un altro sampler locale da unificare in TRN-02.
 enum class SourceTextTransition : u8 {
     Hold,
     Cut,
-    CrossfadeLayouts,
+    DissolveLayouts,
     Scramble,
     Morph,
 };
@@ -148,9 +148,9 @@ enum class SourceTextTransition : u8 {
 |---|---|---|
 | `Hold` | A rimane fino al boundary di B | OK, ma documentazione va allineata |
 | `Cut` | A rimane fino al boundary di B | Semantica uguale a Hold; va resa esplicita o corretta |
-| `CrossfadeLayouts` | B a piena opacità, A con `1 - mix` | Non è un vero dissolve: sovraesposizione al 50% |
+| `DissolveLayouts` | B a piena opacità, A con `1 - mix` | Non è un vero dissolve: sovraesposizione al 50% |
 | `Scramble` | caratteri sostituiti deterministici | OK regression baseline |
-| `Morph` | testo interpolato + morph_map | Contratto da chiare rispetto a CrossfadeLayouts |
+| `Morph` | testo interpolato + morph_map | Contratto da chiare rispetto a DissolveLayouts |
 
 ### Progress sampler locale
 

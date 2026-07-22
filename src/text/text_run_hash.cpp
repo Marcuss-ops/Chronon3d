@@ -13,7 +13,7 @@
 
 // PR 10 — sample-time fold of AnimatedTextDocument for cache-key
 // invalidation.  We fold a small subset of ActiveTextState into the hash
-// so Scramble / Morph / CrossfadeLayouts frames don't share stale
+// so Scramble / Morph / DissolveLayouts frames don't share stale
 // entries.
 #include <chronon3d/text/animated_text_document.hpp>
 
@@ -165,9 +165,9 @@ u64 hash_text_run_shape(const TextRunShape& s, Frame frame) {
         seed = hash_combine(seed, hash_value(d.font.font_size));
     }
 
-    if (state.crossfade_from != nullptr) {
-        const auto& d = state.crossfade_from->defaults;
-        seed = hash_combine(seed, hash_string(state.crossfade_from->utf8));
+    if (state.dissolve_from != nullptr) {
+        const auto& d = state.dissolve_from->defaults;
+        seed = hash_combine(seed, hash_string(state.dissolve_from->utf8));
         seed = hash_combine(seed, hash_string(d.font.font_path));
         seed = hash_combine(seed, hash_string(d.font.font_family));
         seed = hash_combine(seed, hash_value(d.font.font_weight));
