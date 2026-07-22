@@ -113,7 +113,6 @@ std::optional<RenderRequest> make_render_request(
     request.comp_id = args.comp_id;
     request.input.values = props.values;
     request.input.project_root = props.project_root;
-    request.input.assets = props.assets;
     request.output = args.output;
     request.settings =
         settings_from_args(args, true, args.pipeline.diagnostic);

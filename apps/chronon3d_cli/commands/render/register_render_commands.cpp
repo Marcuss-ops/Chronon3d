@@ -301,7 +301,6 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
             ctx.exit_code = 1;
             return;
         }
-        loaded.props.assets = &ctx.assets;
 
         render_args.command_line = ctx.command_line;
         render_args.cpu_budget = ctx.cpu_budget;

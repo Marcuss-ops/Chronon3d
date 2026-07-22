@@ -403,37 +403,37 @@ Composition minimalist_image_elegant_exit();
 Composition minimalist_image_elastic_slide();
 
 void register_minimalist_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "MinimalistTextFadeUp", .factory = [](const CompositionProps&) { return minimalist_text_fade_up(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextTrackingReveal", .factory = [](const CompositionProps&) { return minimalist_text_tracking_reveal(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextClipReveal", .factory = [](const CompositionProps&) { return minimalist_text_clip_reveal(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextFadeDown", .factory = [](const CompositionProps&) { return minimalist_text_fade_down(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextSoftScale", .factory = [](const CompositionProps&) { return minimalist_text_soft_scale(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextBlurFocus", .factory = [](const CompositionProps&) { return minimalist_text_blur_focus(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextSlideLeft", .factory = [](const CompositionProps&) { return minimalist_text_slide_left(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextSlideRight", .factory = [](const CompositionProps&) { return minimalist_text_slide_right(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextScalePop", .factory = [](const CompositionProps&) { return minimalist_text_scale_pop(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextFloatIn", .factory = [](const CompositionProps&) { return minimalist_text_float_in(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextFloatInNoGlow", .factory = [](const CompositionProps&) { return minimalist_text_float_in_no_glow(); }});  // BUG 2 diagnostic
-    registry.add(CompositionDescriptor{.id = "MinimalistTextLetterRise", .factory = [](const CompositionProps&) { return minimalist_text_letter_rise(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextDriftIn", .factory = [](const CompositionProps&) { return minimalist_text_drift_in(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextTiltIn", .factory = [](const CompositionProps&) { return minimalist_text_tilt_in(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextMaskReveal", .factory = [](const CompositionProps&) { return minimalist_text_mask_reveal(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextSnapPop", .factory = [](const CompositionProps&) { return minimalist_text_snap_pop(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextFadeAway", .factory = [](const CompositionProps&) { return minimalist_text_fade_away(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextScaleOut", .factory = [](const CompositionProps&) { return minimalist_text_scale_out(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextSlideUpOut", .factory = [](const CompositionProps&) { return minimalist_text_slide_up_out(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextBlurAway", .factory = [](const CompositionProps&) { return minimalist_text_blur_away(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistTextTiltOut", .factory = [](const CompositionProps&) { return minimalist_text_tilt_out(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistImageFadeIn", .factory = [](const CompositionProps&) { return minimalist_image_fade_in(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistImageFocusIn", .factory = [](const CompositionProps&) { return minimalist_image_focus_in(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistImageScaleDrop", .factory = [](const CompositionProps&) { return minimalist_image_scale_drop(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistImageFadeShiftVertical", .factory = [](const CompositionProps&) { return minimalist_image_fade_shift_vertical(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistImageCenterSplit", .factory = [](const CompositionProps&) { return minimalist_image_center_split(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistImageRevealFromBottom", .factory = [](const CompositionProps&) { return minimalist_image_reveal_from_bottom(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistImageFramingBracket", .factory = [](const CompositionProps&) { return minimalist_image_framing_bracket(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistImageTrackingBreathing", .factory = [](const CompositionProps&) { return minimalist_image_tracking_breathing(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistImageElegantExit", .factory = [](const CompositionProps&) { return minimalist_image_elegant_exit(); }});
-    registry.add(CompositionDescriptor{.id = "MinimalistImageElasticSlide", .factory = [](const CompositionProps&) { return minimalist_image_elastic_slide(); }});
+    registry.add(make_composition_descriptor("MinimalistTextFadeUp", [](const CompositionProps&) { return minimalist_text_fade_up(); }));
+    registry.add(make_composition_descriptor("MinimalistTextTrackingReveal", [](const CompositionProps&) { return minimalist_text_tracking_reveal(); }));
+    registry.add(make_composition_descriptor("MinimalistTextClipReveal", [](const CompositionProps&) { return minimalist_text_clip_reveal(); }));
+    registry.add(make_composition_descriptor("MinimalistTextFadeDown", [](const CompositionProps&) { return minimalist_text_fade_down(); }));
+    registry.add(make_composition_descriptor("MinimalistTextSoftScale", [](const CompositionProps&) { return minimalist_text_soft_scale(); }));
+    registry.add(make_composition_descriptor("MinimalistTextBlurFocus", [](const CompositionProps&) { return minimalist_text_blur_focus(); }));
+    registry.add(make_composition_descriptor("MinimalistTextSlideLeft", [](const CompositionProps&) { return minimalist_text_slide_left(); }));
+    registry.add(make_composition_descriptor("MinimalistTextSlideRight", [](const CompositionProps&) { return minimalist_text_slide_right(); }));
+    registry.add(make_composition_descriptor("MinimalistTextScalePop", [](const CompositionProps&) { return minimalist_text_scale_pop(); }));
+    registry.add(make_composition_descriptor("MinimalistTextFloatIn", [](const CompositionProps&) { return minimalist_text_float_in(); }));
+    registry.add(make_composition_descriptor("MinimalistTextFloatInNoGlow", [](const CompositionProps&) { return minimalist_text_float_in_no_glow(); }));  // BUG 2 diagnostic
+    registry.add(make_composition_descriptor("MinimalistTextLetterRise", [](const CompositionProps&) { return minimalist_text_letter_rise(); }));
+    registry.add(make_composition_descriptor("MinimalistTextDriftIn", [](const CompositionProps&) { return minimalist_text_drift_in(); }));
+    registry.add(make_composition_descriptor("MinimalistTextTiltIn", [](const CompositionProps&) { return minimalist_text_tilt_in(); }));
+    registry.add(make_composition_descriptor("MinimalistTextMaskReveal", [](const CompositionProps&) { return minimalist_text_mask_reveal(); }));
+    registry.add(make_composition_descriptor("MinimalistTextSnapPop", [](const CompositionProps&) { return minimalist_text_snap_pop(); }));
+    registry.add(make_composition_descriptor("MinimalistTextFadeAway", [](const CompositionProps&) { return minimalist_text_fade_away(); }));
+    registry.add(make_composition_descriptor("MinimalistTextScaleOut", [](const CompositionProps&) { return minimalist_text_scale_out(); }));
+    registry.add(make_composition_descriptor("MinimalistTextSlideUpOut", [](const CompositionProps&) { return minimalist_text_slide_up_out(); }));
+    registry.add(make_composition_descriptor("MinimalistTextBlurAway", [](const CompositionProps&) { return minimalist_text_blur_away(); }));
+    registry.add(make_composition_descriptor("MinimalistTextTiltOut", [](const CompositionProps&) { return minimalist_text_tilt_out(); }));
+    registry.add(make_composition_descriptor("MinimalistImageFadeIn", [](const CompositionProps&) { return minimalist_image_fade_in(); }));
+    registry.add(make_composition_descriptor("MinimalistImageFocusIn", [](const CompositionProps&) { return minimalist_image_focus_in(); }));
+    registry.add(make_composition_descriptor("MinimalistImageScaleDrop", [](const CompositionProps&) { return minimalist_image_scale_drop(); }));
+    registry.add(make_composition_descriptor("MinimalistImageFadeShiftVertical", [](const CompositionProps&) { return minimalist_image_fade_shift_vertical(); }));
+    registry.add(make_composition_descriptor("MinimalistImageCenterSplit", [](const CompositionProps&) { return minimalist_image_center_split(); }));
+    registry.add(make_composition_descriptor("MinimalistImageRevealFromBottom", [](const CompositionProps&) { return minimalist_image_reveal_from_bottom(); }));
+    registry.add(make_composition_descriptor("MinimalistImageFramingBracket", [](const CompositionProps&) { return minimalist_image_framing_bracket(); }));
+    registry.add(make_composition_descriptor("MinimalistImageTrackingBreathing", [](const CompositionProps&) { return minimalist_image_tracking_breathing(); }));
+    registry.add(make_composition_descriptor("MinimalistImageElegantExit", [](const CompositionProps&) { return minimalist_image_elegant_exit(); }));
+    registry.add(make_composition_descriptor("MinimalistImageElasticSlide", [](const CompositionProps&) { return minimalist_image_elastic_slide(); }));
 }
 
 } // namespace chronon3d::content::minimalist

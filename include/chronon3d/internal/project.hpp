@@ -57,8 +57,8 @@ struct CompositionRegistrationSpec {
  * entry point for registering all compositions in a project. It wraps
  * the existing CompositionRegistry to maintain engine compatibility.
  *
- * Project-level defaults (width, height, fps, assets_root) are inherited
- * by compositions that don't specify their own overrides.
+ * Project-level defaults (width, height, fps) are inherited by
+ * compositions that don't specify their own overrides.
  */
 class Project {
 public:
@@ -69,7 +69,6 @@ public:
     i32 default_width{1920};
     i32 default_height{1080};
     i32 default_fps{30};
-    std::string assets_root{""};
 
     // ── Registry Access (for CLI / engine integration) ───────────────
     [[nodiscard]] CompositionRegistry& registry() noexcept { return m_registry; }
@@ -96,21 +95,18 @@ public:
             (const CompositionProps& /*props*/) -> Composition {
             return build_composition(comp_name_copy, spec, fn);
         };
-        m_registry.add(CompositionDescriptor{
-            .id = std::move(comp_name),
-            .factory = std::move(factory),
-        });
+        m_registry.add(make_composition_descriptor(CompositionDescriptor{
+            .id = std::move(comp_name)}, std::move(factory)));
     }
 
     /// Direct low-level registration — bypasses project defaults.
     /// The factory has full control over Composition construction — project
     /// defaults (width, height, fps) are not applied. Use composition()
     /// with a scene lambda for automatic project-default inheritance.
-    void add(std::string name, CompositionRegistry::Factory factory) {
-        m_registry.add(CompositionDescriptor{
-            .id = std::move(name),
-            .factory = std::move(factory),
-        });
+    void add(std::string name,
+             std::function<Composition(const CompositionProps&)> factory) {
+        m_registry.add(make_composition_descriptor(CompositionDescriptor{
+            .id = std::move(name)}, std::move(factory)));
     }
 
     // ── Convenience Queries ──────────────────────────────────────────
@@ -160,7 +156,6 @@ private:
             .height = h,
             .frame_rate = FrameRate{fps_val, 1},
             .duration = dur,
-            .assets_root = assets_root,
         };
 
         return chronon3d::composition(std::move(comp_spec), scene_fn);

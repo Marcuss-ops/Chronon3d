@@ -67,7 +67,7 @@ Composition make_anim_typewriter_glow_no_glow() {
 }
 
 void register_glow_ab_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "AnimTypewriterGlowNoGlow", .factory = [](const CompositionProps&) { return make_anim_typewriter_glow_no_glow(); }});
+    registry.add(make_composition_descriptor("AnimTypewriterGlowNoGlow", [](const CompositionProps&) { return make_anim_typewriter_glow_no_glow(); }));
 }
 
 } // namespace chronon3d::test::glow_ab

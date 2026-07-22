@@ -21,9 +21,8 @@
 namespace chronon3d::content::backgrounds {
 
 void register_grid_clean_background(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{
-        .id = "GridCleanBackground",
-        .factory = [](const CompositionProps&) {
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "GridCleanBackground"}, [](const CompositionProps&) {
             return composition({.name = "GridCleanBackground", .duration = 90},
                 [](const FrameContext& ctx) {
                     SceneBuilder s(ctx);
@@ -35,8 +34,7 @@ void register_grid_clean_background(CompositionRegistry& registry) {
                     });
                     return s.build();
                 });
-        },
-    });
+        }));
 }
 
 } // namespace chronon3d::content::backgrounds

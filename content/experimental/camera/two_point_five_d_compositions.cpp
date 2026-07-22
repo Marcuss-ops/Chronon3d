@@ -344,31 +344,31 @@ Composition camera_yaw_negative_test();
 
 void register_2d5_compositions(CompositionRegistry& registry) {
     // Product compositions
-    registry.add(CompositionDescriptor{.id = "ParallaxSimple", .factory = [](const CompositionProps&) { return parallax_simple(); }});
-    registry.add(CompositionDescriptor{.id = "DepthScene", .factory = [](const CompositionProps&) { return depth_scene(); }});
-    registry.add(CompositionDescriptor{.id = "CardFlip", .factory = [](const CompositionProps&) { return card_flip(); }});
-    registry.add(CompositionDescriptor{.id = "DofShowcase", .factory = [](const CompositionProps&) { return dof_showcase(); }});
+    registry.add(make_composition_descriptor("ParallaxSimple", [](const CompositionProps&) { return parallax_simple(); }));
+    registry.add(make_composition_descriptor("DepthScene", [](const CompositionProps&) { return depth_scene(); }));
+    registry.add(make_composition_descriptor("CardFlip", [](const CompositionProps&) { return card_flip(); }));
+    registry.add(make_composition_descriptor("DofShowcase", [](const CompositionProps&) { return dof_showcase(); }));
 #ifdef CHRONON3D_BUILD_DIAGNOSTICS
     // Diagnostic camera test compositions
-    registry.add(CompositionDescriptor{.id = "CameraOrbitTargetLockTest", .factory = [](const CompositionProps&) { return camera_orbit_target_lock_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraDollyPerspectiveScaleTest", .factory = [](const CompositionProps&) { return camera_dolly_perspective_scale_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraParentNullRigTest", .factory = [](const CompositionProps&) { return camera_parent_null_rig_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraRollPanTiltGridTest", .factory = [](const CompositionProps&) { return camera_roll_pan_tilt_grid_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraSafeFramingAspectRatioTest_16_9", .factory = [](const CompositionProps&) { return camera_safe_framing_aspect_ratio_16_9(); }});
-    registry.add(CompositionDescriptor{.id = "CameraSafeFramingAspectRatioTest_1_1", .factory = [](const CompositionProps&) { return camera_safe_framing_aspect_ratio_1_1(); }});
-    registry.add(CompositionDescriptor{.id = "CameraSafeFramingAspectRatioTest_9_16", .factory = [](const CompositionProps&) { return camera_safe_framing_aspect_ratio_9_16(); }});
-    registry.add(CompositionDescriptor{.id = "CameraSafeFramingAspectRatioTest_4_5", .factory = [](const CompositionProps&) { return camera_safe_framing_aspect_ratio_4_5(); }});
-    registry.add(CompositionDescriptor{.id = "CameraFrustumCullingPrecisionTest", .factory = [](const CompositionProps&) { return camera_frustum_culling_precision_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraKinematicJerkAndInterpolationTest", .factory = [](const CompositionProps&) { return camera_kinematic_jerk_interpolation_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraDepthSortingStressTest", .factory = [](const CompositionProps&) { return camera_depth_sorting_stress_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraSubpixelJitterValidationTest", .factory = [](const CompositionProps&) { return camera_subpixel_jitter_validation_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraMultiTargetBoundingBoxFitTest", .factory = [](const CompositionProps&) { return camera_multi_target_bounding_box_fit_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraDepthPerspectiveScaleDiagnosticTest", .factory = [](const CompositionProps&) { return camera_depth_perspective_scale_diagnostic_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraCoordinateContractTest", .factory = [](const CompositionProps&) { return camera_coordinate_contract_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraBindingAnchorTest", .factory = [](const CompositionProps&) { return camera_binding_anchor_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraFrontBaselineTest", .factory = [](const CompositionProps&) { return camera_front_baseline_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraYawPositiveTest", .factory = [](const CompositionProps&) { return camera_yaw_positive_test(); }});
-    registry.add(CompositionDescriptor{.id = "CameraYawNegativeTest", .factory = [](const CompositionProps&) { return camera_yaw_negative_test(); }});
+    registry.add(make_composition_descriptor("CameraOrbitTargetLockTest", [](const CompositionProps&) { return camera_orbit_target_lock_test(); }));
+    registry.add(make_composition_descriptor("CameraDollyPerspectiveScaleTest", [](const CompositionProps&) { return camera_dolly_perspective_scale_test(); }));
+    registry.add(make_composition_descriptor("CameraParentNullRigTest", [](const CompositionProps&) { return camera_parent_null_rig_test(); }));
+    registry.add(make_composition_descriptor("CameraRollPanTiltGridTest", [](const CompositionProps&) { return camera_roll_pan_tilt_grid_test(); }));
+    registry.add(make_composition_descriptor("CameraSafeFramingAspectRatioTest_16_9", [](const CompositionProps&) { return camera_safe_framing_aspect_ratio_16_9(); }));
+    registry.add(make_composition_descriptor("CameraSafeFramingAspectRatioTest_1_1", [](const CompositionProps&) { return camera_safe_framing_aspect_ratio_1_1(); }));
+    registry.add(make_composition_descriptor("CameraSafeFramingAspectRatioTest_9_16", [](const CompositionProps&) { return camera_safe_framing_aspect_ratio_9_16(); }));
+    registry.add(make_composition_descriptor("CameraSafeFramingAspectRatioTest_4_5", [](const CompositionProps&) { return camera_safe_framing_aspect_ratio_4_5(); }));
+    registry.add(make_composition_descriptor("CameraFrustumCullingPrecisionTest", [](const CompositionProps&) { return camera_frustum_culling_precision_test(); }));
+    registry.add(make_composition_descriptor("CameraKinematicJerkAndInterpolationTest", [](const CompositionProps&) { return camera_kinematic_jerk_interpolation_test(); }));
+    registry.add(make_composition_descriptor("CameraDepthSortingStressTest", [](const CompositionProps&) { return camera_depth_sorting_stress_test(); }));
+    registry.add(make_composition_descriptor("CameraSubpixelJitterValidationTest", [](const CompositionProps&) { return camera_subpixel_jitter_validation_test(); }));
+    registry.add(make_composition_descriptor("CameraMultiTargetBoundingBoxFitTest", [](const CompositionProps&) { return camera_multi_target_bounding_box_fit_test(); }));
+    registry.add(make_composition_descriptor("CameraDepthPerspectiveScaleDiagnosticTest", [](const CompositionProps&) { return camera_depth_perspective_scale_diagnostic_test(); }));
+    registry.add(make_composition_descriptor("CameraCoordinateContractTest", [](const CompositionProps&) { return camera_coordinate_contract_test(); }));
+    registry.add(make_composition_descriptor("CameraBindingAnchorTest", [](const CompositionProps&) { return camera_binding_anchor_test(); }));
+    registry.add(make_composition_descriptor("CameraFrontBaselineTest", [](const CompositionProps&) { return camera_front_baseline_test(); }));
+    registry.add(make_composition_descriptor("CameraYawPositiveTest", [](const CompositionProps&) { return camera_yaw_positive_test(); }));
+    registry.add(make_composition_descriptor("CameraYawNegativeTest", [](const CompositionProps&) { return camera_yaw_negative_test(); }));
 #endif
 }
 

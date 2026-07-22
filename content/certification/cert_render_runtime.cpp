@@ -223,18 +223,18 @@ Composition cert_composite() {
 
 // ── Registration ──────────────────────────────────────────────────────────
 void register_cert_render_runtime_compositions(CompositionRegistry& registry) {
-    registry.add(CompositionDescriptor{.id = "CertRectangle", .factory = [](const CompositionProps&) {
+    registry.add(make_composition_descriptor("CertRectangle", [](const CompositionProps&) {
         return cert_rectangle();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertImage", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertImage", [](const CompositionProps&) {
         return cert_image();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertText", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertText", [](const CompositionProps&) {
         return cert_text();
-    }});
-    registry.add(CompositionDescriptor{.id = "CertComposite", .factory = [](const CompositionProps&) {
+    }));
+    registry.add(make_composition_descriptor("CertComposite", [](const CompositionProps&) {
         return cert_composite();
-    }});
+    }));
 }
 
 } // namespace chronon3d::content::certification

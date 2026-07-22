@@ -3,8 +3,8 @@
 // ── utils/common/cli_asset_preflight_utils.hpp
 //
 // Shared helper for CLI commands that need an AssetResolver mounted at
-// the composition's assets root (or CWD if empty).
-// Used by command_preflight and command_still.
+// the render runtime's assets root.
+// Used by command_preflight and the render/validate commands.
 
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <filesystem>
@@ -12,9 +12,9 @@
 
 namespace chronon3d::cli {
 
-/// Create an AssetResolver mounted at the composition's assets root.
+/// Create an AssetResolver mounted at the runtime assets root.
 /// F0.2 — the `current_path()` fallback has been removed.  Callers MUST
-/// pass a non-empty assets_root (from `comp.assets_root()`).
+/// pass a non-empty assets_root obtained from the render request/runtime.
 inline chronon3d::assets::AssetResolver make_cli_resolver(
     const std::string& assets_root) {
     chronon3d::assets::AssetResolver resolver;

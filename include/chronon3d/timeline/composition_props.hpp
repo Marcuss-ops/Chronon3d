@@ -168,20 +168,13 @@ private:
 /// Canonical registration uses CompositionDescriptor or
 /// TypedCompositionDescriptor<Props>. PropsCodec owns typed decoding; factories
 /// receive data only after CompositionRegistry has completed prepare_props.
+///
+/// CompositionProps contains only serializable product values. Asset
+/// resolution (logical path → physical path) and the asset registry belong to
+/// the render runtime, not to the composition props.
 struct CompositionProps {
     ValueMap values;
     std::filesystem::path project_root;
-    AssetRegistry* assets{nullptr};
-
-    [[nodiscard]] AssetRegistry& require_assets() const {
-        if (!assets) {
-            throw std::logic_error(
-                "CompositionProps::require_assets(): assets pointer is null. "
-                "Create the composition through CompositionRegistry or set "
-                "CompositionProps::assets explicitly.");
-        }
-        return *assets;
-    }
 };
 
 /// Single typed bridge between ValueMap and a composition Props structure.

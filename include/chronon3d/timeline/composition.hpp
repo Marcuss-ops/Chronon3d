@@ -57,7 +57,6 @@ struct CompositionSpec {
     i32 height{1080};
     FrameRate frame_rate{30, 1};
     Frame duration{0};
-    std::string assets_root{""};
 
     /// RGBA clear color for the composition's clear pass (LE AABBGGRR;
     /// 0 = transparent black, preserves existing default-clear behaviour).
@@ -82,18 +81,13 @@ public:
     [[nodiscard]] FrameRate frame_rate() const { return m_spec.frame_rate; }
     [[nodiscard]] Frame duration() const { return m_spec.duration; }
     [[nodiscard]] const std::string& name() const { return m_spec.name; }
-    [[nodiscard]] const std::string& assets_root() const { return m_spec.assets_root; }
 
     /// Direct evaluation from a pre-built FrameContext.
     /// This is the natural V2 entry point: callers that already have a
     /// FrameContext (e.g. tests, content compositions) can pass it
     /// directly without extracting individual fields.
     [[nodiscard]] Scene evaluate(const FrameContext& ctx) const {
-        Scene result = m_render(ctx);
-        if (!ctx.assets_root.empty()) {
-            result.set_assets_root(ctx.assets_root);
-        }
-        return result;
+        return m_render(ctx);
     }
 
     [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]

@@ -21,8 +21,7 @@ TEST_CASE("Authoring/CompositionBuilder: fields accumulate via fluent setters") 
       .width(1920)
       .height(1080)
       .duration(Frame{60})
-      .frame_rate(FrameRate{30, 1})
-      .assets_root(std::filesystem::path{"assets"});
+      .frame_rate(FrameRate{30, 1});
 
     chronon3d::Composition comp = std::move(cb).build();
     CHECK(comp.name() == "hero-showcase");
@@ -30,7 +29,6 @@ TEST_CASE("Authoring/CompositionBuilder: fields accumulate via fluent setters") 
     CHECK(comp.height() == 1080);
     CHECK(comp.duration().integral() == 60);
     CHECK(comp.frame_rate().numerator == 30);
-    CHECK(comp.assets_root() == "assets");
 }
 
 TEST_CASE("Authoring/CompositionBuilder: empty composition (no .scene()) renders zero layers") {
