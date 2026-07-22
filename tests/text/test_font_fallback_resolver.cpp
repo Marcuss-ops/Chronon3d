@@ -400,22 +400,23 @@ TEST_CASE("FontFallbackResolver: emoji ZWJ family + Devanagari + symbols audit")
         "\xE0\xA4\xA6"  // द  U+0926
         "\xE0\xA5\x80"; // ी  U+0940
 
-    // Greek letters + math operators + currency.
-    const std::string greek_math_currency =
-        "\xCE\xB1"      // α  U+03B1
-        "\xCE\xB2"      // β  U+03B2
-        "\xCE\xB3"      // γ  U+03B3
-        " "
-        "\xE2\x88\x91"  // ∑  U+2211
-        "\xE2\x88\x9E"  // ∞  U+221E
-        " "
-        "\xE2\x82\xAC"  // €  U+20AC
-        "$";             // $  U+0024 (covered by Inter)
+    // Scripts that are not covered by either Inter-Bold or
+    // NotoNaskhArabic-Regular (Armenian, Georgian, Cherokee).
+    // Note: the original Greek/math/currency sample was dropped because
+    // Inter-Bold actually ships real glyphs for αβγ/∑∞/€/$ in this
+    // repository, which made the missing-glyph expectation unreliable.
+    const std::string armenian_georgian_cherokee =
+        "\xD4\xB1"      // Ա  U+0531 (Armenian)
+        "\xD5\xA1"      // ա  U+0561 (Armenian)
+        "\xE1\x83\x90"  // დ  U+10D0 (Georgian)
+        "\xE1\x83\xA1"  // ს  U+10E1 (Georgian)
+        "\xE1\x8E\xA0"  // Ꭰ  U+13A0 (Cherokee)
+        "\xE1\x8E\xB1"; // Ꮁ  U+13B1 (Cherokee)
 
     std::vector<Sample> samples = {
-        {"Emoji ZWJ family",   emoji_zwj_family,       /* emoji-only uncovered */ 4},
-        {"Devanagari",         devanagari_hindi,       /* all 6 uncovered */    6},
-        {"Greek+math+currency",greek_math_currency,    /* αβγ + ∑∞ + € */       6},
+        {"Emoji ZWJ family",              emoji_zwj_family,              /* emoji-only uncovered */ 4},
+        {"Devanagari",                    devanagari_hindi,              /* all 6 uncovered */    6},
+        {"Armenian+Georgian+Cherokee",    armenian_georgian_cherokee,    /* all 6 uncovered */    6},
     };
 
     for (const auto& sample : samples) {
