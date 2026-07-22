@@ -46,8 +46,9 @@ struct GlyphInstanceState {
     // before HarfBuzz).  Kept for ABI compat; remove in a follow-up.
     i32 character_offset{0};          // [deprecated] always 0
 
-    Color fill{1.0f, 1.0f, 1.0f, 1.0f};   // final fill color
-    Color stroke{0.0f, 0.0f, 0.0f, 0.0f};  // stroke color (alpha=0 → disabled)
+    Color fill{1.0f, 1.0f, 1.0f, 1.0f};     // final fill color
+    Color background{0.0f, 0.0f, 0.0f, 0.0f}; // background rect color (alpha=0 → disabled)
+    Color stroke{0.0f, 0.0f, 0.0f, 0.0f};     // stroke color (alpha=0 → disabled)
     f32 stroke_width{0.0f};                 // stroke width
 };
 

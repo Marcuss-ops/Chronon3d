@@ -761,6 +761,100 @@ TEST_CASE("active_word_pop renders a different highlighted word per frame") {
     CHECK(changed > 100);
 }
 
+TEST_CASE("active_word_pop renders background and stroke on the active word") {
+    // End-to-end regression: the active_word_pop preset now drives not only
+    // fill + scale but also per-glyph background + stroke.  We render the
+    // same cue once with the first word active and once before the cue
+    // starts, then assert that the active word region contains dark pixels
+    // contributed by the background/stroke.
+    auto renderer = chronon3d::test::make_renderer();
+
+    SubtitleTrack track;
+    SubtitleCue cue;
+    cue.start_s = 0.0f;
+    cue.end_s = 2.0f;
+    cue.text = "One Two";
+    cue.word_timing_quality = WordTimingQuality::Authoritative;
+    cue.words = {
+        TimedWord{"One", 0.0f, 1.0f, "w1", 0u, 3u},
+        TimedWord{"Two", 1.0f, 2.0f, "w2", 4u, 7u},
+    };
+    track.cues.push_back(cue);
+
+    auto comp = chronon3d::composition(
+        {.name = "active_word_pop_bg_stroke_test",
+         .width = 640, .height = 200,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 90},
+        [&track, &renderer](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("subtitle", [&track](LayerBuilder& lb) {
+                lb.screen_dimensions(640.0f, 200.0f);
+                CanvasInfo canvas =
+                    CanvasInfo::with_safe_area(640.0f, 200.0f, SafeAreaPreset{});
+                chronon3d::authoring::Layer layer{lb, canvas};
+                layer.subtitles(track)
+                    .preset("active_word_pop")
+                    .font(chronon3d::test::bundled_font_path("assets/fonts/Poppins-Bold.ttf"), 48.0f)
+                    .color(Color::white())
+                    .box({600.0f, 100.0f})
+                    .align(TextAlign::Center)
+                    .place(TextPlacementKind::CanvasCenter)
+                    .build();
+            });
+            return s.build();
+        });
+
+    // Frame 15 -> word "One" is active.  Frame 45 -> word "Two" is active.
+    auto fb_one = renderer.render(comp, Frame{15});
+    auto fb_two = renderer.render(comp, Frame{45});
+    REQUIRE(fb_one != nullptr);
+    REQUIRE(fb_two != nullptr);
+
+    // Compute the bounding box of visible pixels for the first active frame.
+    int min_x = fb_one->width(), min_y = fb_one->height();
+    int max_x = 0, max_y = 0;
+    for (int y = 0; y < fb_one->height(); ++y) {
+        for (int x = 0; x < fb_one->width(); ++x) {
+            if (fb_one->get_pixel(x, y).a > 0.05f) {
+                min_x = std::min(min_x, x);
+                min_y = std::min(min_y, y);
+                max_x = std::max(max_x, x);
+                max_y = std::max(max_y, y);
+            }
+        }
+    }
+    CHECK(min_x < max_x);
+    CHECK(min_y < max_y);
+
+    // Inside the active word region we should find dark pixels that come
+    // from the dark background (Color{0.05,0.05,0.05,0.92}) and/or the
+    // black stroke.  A pure fill-only render would have no such dark pixels.
+    int dark_pixels = 0;
+    for (int y = min_y; y <= max_y; ++y) {
+        for (int x = min_x; x <= max_x; ++x) {
+            const auto c = fb_one->get_pixel(x, y);
+            if (c.a > 0.05f && (c.r + c.g + c.b) < 0.4f) {
+                ++dark_pixels;
+            }
+        }
+    }
+    CHECK(dark_pixels > 0);
+
+    // The two frames should differ (the active word moves from One to Two).
+    bool identical = true;
+    for (int y = 0; y < fb_one->height() && identical; ++y) {
+        for (int x = 0; x < fb_one->width(); ++x) {
+            if (fb_one->get_pixel(x, y) != fb_two->get_pixel(x, y)) {
+                identical = false;
+                break;
+            }
+        }
+    }
+    CHECK_FALSE(identical);
+}
+
 TEST_CASE("TimedWordBinding maps semantic_id and byte range to TextUnitMap::Word index") {
     // TICKET-TIMED-WORD-BINDING: the binding must resolve a TimedWord's
     // byte_start into the corresponding whitespace-delimited word index
