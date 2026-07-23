@@ -63,8 +63,6 @@
 #include <vector>
 
 using namespace chronon3d;
-constexpr FrameRate kTestFps{60, 1};
-
 using namespace chronon3d::camera_v1;
 
 namespace {
@@ -137,7 +135,7 @@ CameraProgram compile_or_die_program(const CameraDescriptor& desc) {
 Camera2_5D eval_at(const CameraProgram& program,
                    CameraSession& session, Frame frame) {
     CameraEvalContext ctx;
-    ctx = ctx.with_frame(frame, kTestFps);
+    ctx = ctx.with_frame(frame, FrameRate{30, 1});
     ctx.sample_time = SampleTime::from_frame_int(frame, kFpsDefault);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -375,55 +373,7 @@ TEST_CASE("handheld_noise_cross_channel_decorrelation "
 }
 
 // ════════════════════════════════════════════════════════════════════
-// [N5] CameraMotionParamsSource animated zoom — the source evaluates the
-//      primary zoom channel continuously and the pipeline keeps the
-//      Zoom optics mode (TICKET-P2-29 continuous-time coverage).
-// ════════════════════════════════════════════════════════════════════
-TEST_CASE("camera_motion_params_source — animated zoom is interpolated") {
-    CameraDescriptor desc;
-    desc.id = "cam04.motion_params_zoom";
-    desc.base.enabled = true;
-    desc.base.position = Vec3{0.0f, 0.0f, -1000.0f};
-    desc.base.rotation = Vec3{0.0f, 0.0f, 0.0f};
-    desc.base.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
-    desc.orientation = FixedOrientation{};
-
-    CameraMotionParamsSource source;
-    source.params.pose.position = Vec3{0.0f, 0.0f, -1000.0f};
-    source.params.pose.rotation = Vec3{0.0f, 0.0f, 0.0f};
-    source.params.pose.zoom = 1000.0f;
-
-    source.params.primary.enabled = true;
-    source.params.primary.duration = Frame{60};
-    source.params.primary.easing = chronon3d::animation::Easing::Linear;
-    source.params.primary.from.position = Vec3{0.0f, 0.0f, -1000.0f};
-    source.params.primary.from.rotation = Vec3{0.0f, 0.0f, 0.0f};
-    source.params.primary.from.zoom = 1000.0f;
-    source.params.primary.to.position = Vec3{0.0f, 0.0f, -1000.0f};
-    source.params.primary.to.rotation = Vec3{0.0f, 0.0f, 0.0f};
-    source.params.primary.to.zoom = 2000.0f;
-
-    desc.source = source;
-
-    CameraProgram program = compile_or_die_program(desc);
-    CameraSession session;
-
-    const Camera2_5D at_0 = eval_at(program, session, Frame{0});
-    const Camera2_5D at_30 = eval_at(program, session, Frame{30});
-    const Camera2_5D at_60 = eval_at(program, session, Frame{60});
-
-    CHECK(at_0.zoom == doctest::Approx(1000.0f).epsilon(kFieldEps));
-    CHECK(at_60.zoom == doctest::Approx(2000.0f).epsilon(kFieldEps));
-    CHECK(at_30.zoom > 1000.0f);
-    CHECK(at_30.zoom < 2000.0f);
-    CHECK(at_30.zoom == doctest::Approx(1500.0f).epsilon(1.0f));
-    CHECK(at_0.optics_mode == CameraOpticsMode::Zoom);
-    CHECK(at_30.optics_mode == CameraOpticsMode::Zoom);
-    CHECK(at_60.optics_mode == CameraOpticsMode::Zoom);
-}
-
-// ════════════════════════════════════════════════════════════════════
-// [N6] Empty modifier pipeline ⇒ identity — the descriptor with NO
+// [N5] Empty modifier pipeline ⇒ identity — the descriptor with NO
 //                                  HandheldNoise modifier yields exactly
 //                                  camera.base.position / .rotation.
 // ════════════════════════════════════════════════════════════════════

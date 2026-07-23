@@ -29,7 +29,6 @@ set(_TEXT_BUILDER_ERGONOMICS_TEST_SOURCES
 chronon3d_add_test_suite(
     NAME chronon3d_text_builder_ergonomics_tests
     TIER UNIT
-    LINK_TARGETS chronon3d_text_core chronon3d_scene chronon3d_core
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/text/test_text_builder_ergonomics.cpp
 )
 

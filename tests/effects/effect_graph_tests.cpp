@@ -158,7 +158,7 @@ TEST_CASE("Test 10.7 — Disabled effects do not affect hash or rendering") {
     });
 
     Composition comp_disabled_effect({.width = 100, .height = 100}, [](const FrameContext& ctx) {
-        LayerBuilder builder("test_layer", ctx.resource);
+        LayerBuilder builder("test_layer", Frame{0}, FrameRate{30, 1}, ctx.resource);
         builder.blur(10.0f);
         builder.rect("white_rect", {.size = {40, 40}, .color = Color::white()});
 

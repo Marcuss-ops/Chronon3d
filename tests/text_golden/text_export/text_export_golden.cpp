@@ -60,7 +60,7 @@ Composition build_text_export_composition(SoftwareRenderer& renderer) {
             // Text layer — "TEXT EXPORT V1" centered, white, Inter-Bold 48pt
             s.layer("title", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("title", TextRunSpec{
+                l.animated_text("title", TextRunSpec{
                     .text = TextSpec{.content = {.value = "TEXT EXPORT V1"},.placement = TextPlacement{TextPlacementKind::Absolute, {320.0f, 180.0f}},.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                                  .font_family = "Inter",
                                  .font_weight = 700,

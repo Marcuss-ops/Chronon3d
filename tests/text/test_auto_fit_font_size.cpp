@@ -380,7 +380,7 @@ TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: auto-fit shrinks rendered ink bbox int
             s.font_engine(&renderer.font_engine());
             s.layer("autofit_layer", [&renderer, font_size_requested, box_w, box_h](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("autofit", TextRunSpec{
+                l.animated_text("autofit", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "Auto-fit ink bbox test"},
                         .placement = TextPlacement{

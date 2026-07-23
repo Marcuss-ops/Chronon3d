@@ -175,7 +175,7 @@ TEST_CASE("TICKET-104 (1) TextRunBuilder::commit drops orphaned selectors (selec
     // Build a minimal layer.  SampleTime default-constructs at frame 0.
     LayerBuilder layer("ticket_104_layer_1", SampleTime{});
 
-    // Push a text_run spec via the canonical `.text_run(name, params)`
+    // Push a text_run spec via the canonical `.animated_text(name, params)`
     // entry point.  Use minimal TextRunSpec (only the required
     // fields populated -- the rest get their default member init).
     TextRunSpec params;
@@ -184,7 +184,7 @@ TEST_CASE("TICKET-104 (1) TextRunBuilder::commit drops orphaned selectors (selec
     params.text.font.font_size         = 32.0f;
     params.text.font.font_weight       = 400;
     // No direction/language/features defaults -- cat-3 freeze uses defaults.
-    TextRunBuilder& trb = layer.text_run("orphan_entry", std::move(params));
+    TextRunBuilder& trb = layer.animated_text("orphan_entry", std::move(params));
 
     // ── Wire `.selector(...)` WITHOUT a preceding `.animator(...)`. ──
     // The TICKET-104 contract: this is a semantic failure mode that

@@ -685,7 +685,7 @@ TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {    
 // animators[0].id carries the `presetc_<preset_id>` prefix from the
 // new Stage 5 resolver.  Every preset EXCEPT `minimal_white` (no
 // canonical motion) pushes at least one TextAnimatorSpec via
-// `lb.text_run(...).commit()` BEFORE the layer-level motion chain.
+// `lb.animated_text(...).commit()` BEFORE the layer-level motion chain.
 // Sub-case 29 already covers the rich-paint path on cinematic_text_camera
 // (animators[0].id strictly equal to "ctc_rich_cinematic_text_camera"),
 // so Sub-case 30 only probes plain-spec wiring to keep assertions
@@ -851,7 +851,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
             }
 
             // Stage 5 wiring: every other preset routes through
-            // `lb.text_run(...).commit()`, leaving exactly one entry
+            // `lb.animated_text(...).commit()`, leaving exactly one entry
             // with the resolver's property-composed spec on animators[0]
             // (plain-spec path; rich-spec pushes the anchor ahead of the
             // canonical — Sub-case 29 already covers that).
@@ -1348,7 +1348,7 @@ TEST_CASE("TextPresetRegistry: AGENT-2 resolver-driven evolution tier (Sub-cases
     SUBCASE("44) agents cross-link invariant — 4 mandatory presets produce ≥1 RenderNode") {
         // Brief DoD: number of glyphs invariant.  Layer-level consistent:
         // each preset's resolver-driven spec routes through the canonical
-        // lb.text_run(...) which produces ≥1 RenderNode.
+        // lb.animated_text(...) which produces ≥1 RenderNode.
         const auto reg = make_default_text_preset_registry();
         for (const auto& pid : {"cinematic_title_reveal", "tracking_close",
                                 "word_cascade", "character_cascade"}) {

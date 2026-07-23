@@ -119,7 +119,7 @@ Composition build_anchor_composition(
             s.layer("anchored", [spec, canvas_w, canvas_h](LayerBuilder& l) {
                 // Apply anchor BEFORE the text_run.
                 l.anchor(spec.anchor);
-                l.text_run("title", TextRunParams{
+                l.animated_text("title", TextRunParams{
                     .text = {
                         .content = {.value = "ANCHOR"},
                         .placement = TextPlacement{TextPlacementKind::Absolute,

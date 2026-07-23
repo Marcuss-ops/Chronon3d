@@ -63,7 +63,7 @@ Composition build_text_comp(SoftwareRenderer& renderer,
             s.layer("afg_layer", [&renderer, text, font_path, opacity](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 if (opacity < 1.0f) l.opacity(opacity);
-                l.text_run("afg_test", TextRunSpec{
+                l.animated_text("afg_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = text},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {100.0f, 540.0f}},
@@ -109,7 +109,7 @@ Composition build_tw_comp(SoftwareRenderer& renderer, std::size_t frame_idx) {
             s.font_engine(&renderer.font_engine());
             s.layer("tw_layer", [&renderer, sliced](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("tw_test", TextRunSpec{
+                l.animated_text("tw_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = sliced},
                         .font = {

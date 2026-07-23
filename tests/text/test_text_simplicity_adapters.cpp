@@ -207,7 +207,7 @@ TEST_CASE("Adapters: backward compat — LayerBuilder::text_run() routes through
     params.text.content.value = "BACKCOMPAT";
     params.text.font.font_family = "Inter";
     params.text.font.font_size   = 48.0f;
-    TextRunBuilder& trb = lb.text_run("backcompat_entry", std::move(params));
+    TextRunBuilder& trb = lb.animated_text("backcompat_entry", std::move(params));
 
     const PendingTextRun& pending = trb.build_spec();
     CHECK(pending.params.text.content.value == "BACKCOMPAT");
