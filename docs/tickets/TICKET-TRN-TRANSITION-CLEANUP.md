@@ -464,14 +464,18 @@ Implementato in `tests/render_graph/features/test_transition_certification.cpp`:
 
 La suite TRN-06 passa (11/11 casi, 69 asserzioni).
 
-## TRN-07 — Vera transizione tra clip
+## TRN-07 — Vera transizione tra clip ✅ DONE
 
-Iniziare soltanto con:
+Implementato in `src/render_graph/nodes/clip_transition_node.cpp`:
 
-1. `Cut`;
-2. `Dissolve`.
+* `ClipTransitionNode` con due input A e B;
+* `ClipTransitionKind::Cut` — restituisce A per `p < 1` e B per `p >= 1`;
+* `ClipTransitionKind::Dissolve` — `output = A*(1-p) + B*p` per canale nello spazio alpha premoltiplicato;
+* gestione della policy di resize (`ScaleToFit` / `ErrorOnMismatch`);
+* cache key completa (kind, easing, fit, from, duration);
+* test in `tests/render_graph/features/test_clip_transition.cpp` che verificano Cut, Dissolve a 0/0.5/1, mismatch e scale-to-fit (4 casi, 39 asserzioni pass).
 
-Dopo Cut e Dissolve corretti e certificati:
+Nuove transizioni clip da aggiungere solo dopo certificazione:
 
 * Push;
 * Slide;
