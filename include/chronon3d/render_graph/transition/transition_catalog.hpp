@@ -6,6 +6,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -50,6 +51,18 @@ public:
         bool is_out,
         const RenderGraphContext& ctx
     ) const = 0;
+
+    /// Return the predicted output bounding box for this transition.
+    /// The default implementation returns the input bbox unchanged.
+    /// Programs that move pixels or introduce full-frame effects should
+    /// override this and return the full output canvas.
+    [[nodiscard]] virtual std::optional<raster::BBox> predicted_bbox(
+        const std::optional<raster::BBox>& input_bbox,
+        const RenderGraphContext& ctx
+    ) const {
+        (void)ctx;
+        return input_bbox;
+    }
 };
 
 /// Catalog of built-in layer transitions.
