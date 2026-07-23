@@ -321,9 +321,9 @@ Scene make_static_scene() {
     // Use the 2-D overload with explicit dimensions matching the TestFixture's
     // ctx.frame_input (320×180).  The default constructor uses 1920×1080,
     // causing the FrameGraphCompiler to cull all nodes as out-of-bounds.
-    SceneBuilder s(FrameContext{.frame = Frame{0},
-                               .frame_rate = FrameRate{30, 1},
-                               .width = 320, .height = 180});
+    SceneBuilder s(make_frame_context(FrameContextParams{
+        .global_time = SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
+        .width = 320, .height = 180}));
     s.rect("bg",        {.size = {320.0f, 180.0f}, .color = Color{0.1f, 0.15f, 0.2f, 1.0f}, .pos = {0, 0, 0}});
     s.rect("red_box",   {.size = {60.0f, 60.0f},   .color = Color::red(),                   .pos = {-80.0f, -40.0f, 0}});
     s.rect("green_box", {.size = {60.0f, 60.0f},   .color = Color::green(),                 .pos = {0, -40.0f, 0}});
