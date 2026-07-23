@@ -169,8 +169,13 @@ struct ShotTimelineSession {
 // =========================================================================
 class ShotTimelineResolver {
 public:
+    /// Construct a resolver tied to a timeline and a transition catalog.
+    /// The catalog is the single source of truth for creating transitions;
+    /// passing a catalog that does not register a requested kind results
+    /// in a fallback to Cut (fail-closed) rather than leaking internal
+    /// default factories.
     explicit ShotTimelineResolver(std::shared_ptr<ShotTimeline> timeline,
-                                   const class CameraTransitionCatalog* catalog = nullptr);
+                                   const CameraTransitionCatalog& catalog);
 
     /// Evaluate the camera at `frame` using the timeline + transitions.
     /// Uses local frame time (frame - shot.start_frame) for each shot's program.
@@ -195,21 +200,10 @@ public:
              ShotTimelineSession& timeline_session,
              FrameRate             fps) const;
 
-    /// Set the transition for a specific kind.
-    void set_transition(CameraTransitionKind kind,
-                         std::shared_ptr<CameraTransition> t);
-
-    /// Public factories for testing / direct construction.
-    static std::shared_ptr<CameraTransition> default_cut();
-    static std::shared_ptr<CameraTransition> default_smooth_blend();
-    static std::shared_ptr<CameraTransition> default_push();
-    static std::shared_ptr<CameraTransition> default_whip_pan();
-    static std::shared_ptr<CameraTransition> default_focus_handoff();
-
 private:
-    std::shared_ptr<ShotTimeline> timeline_;
     std::shared_ptr<CameraTransition> get_transition(CameraTransitionKind kind) const;
 
+    std::shared_ptr<ShotTimeline> timeline_;
     std::map<CameraTransitionKind, std::shared_ptr<CameraTransition>> transitions_;
 };
 

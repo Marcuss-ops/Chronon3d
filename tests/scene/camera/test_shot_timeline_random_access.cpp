@@ -61,6 +61,13 @@ namespace {
 // ----------------------------------------------------------------------------
 // Test rig helpers.
 // ----------------------------------------------------------------------------
+CameraTransitionCatalog make_test_catalog() {
+    CameraTransitionCatalog catalog;
+    catalog.register_defaults();
+    catalog.freeze();
+    return catalog;
+}
+
 struct SingleShotTimeline {
     std::shared_ptr<ShotTimeline> timeline;
 
@@ -95,7 +102,7 @@ struct ResolveSurfaceRow {
 ResolveSurfaceRow render_one(const std::shared_ptr<ShotTimeline>& timeline,
                               int frame) {
     ResolveSurfaceRow row;
-    ShotTimelineResolver resolver(timeline);
+    ShotTimelineResolver resolver(timeline, make_test_catalog());
     ShotTimelineSession  tls;
     auto r = resolver.evaluate(frame, tls, kTestFps);
     if (!r.has_value()) return row;
@@ -118,7 +125,7 @@ ResolveSurfaceRow render_one(const std::shared_ptr<ShotTimeline>& timeline,
 ResolveSurfaceRow render_range_then_one(
         const std::shared_ptr<ShotTimeline>& timeline,
         int first, int last, int target_frame) {
-    ShotTimelineResolver resolver(timeline);
+    ShotTimelineResolver resolver(timeline, make_test_catalog());
     ShotTimelineSession  tls;
     for (int f = first; f <= last; ++f) (void)resolver.evaluate(f, tls, kTestFps);
     auto r = resolver.evaluate(target_frame, tls, kTestFps);
@@ -292,7 +299,7 @@ TEST_CASE("random_access: two simultaneous render jobs isolated") {
 TEST_CASE("random_access: diagnostics contract — 6-field ripple-through surface") {
     auto timeline = SingleShotTimeline(0, 100).timeline;
 
-    ShotTimelineResolver resolver(timeline);
+    ShotTimelineResolver resolver(timeline, make_test_catalog());
     ShotTimelineSession  tls;
 
     auto r = resolver.evaluate(75, tls, kTestFps);
