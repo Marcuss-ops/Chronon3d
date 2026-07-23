@@ -1,4 +1,5 @@
 #include <doctest/doctest.h>
+#include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/model/layer/layer_time_resolver.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
@@ -108,7 +109,10 @@ TEST_CASE("LayerTimeResolver: local_time agrees with deprecated local_frame") {
         for (Frame f = -10; f <= 40; f += 5) {
             auto st = SampleTime::from_frame_int(f, rate);
             auto via_local_time = layer.local_time(st).integral_frame();
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
             auto via_local_frame = layer.local_frame(f, rate);
+#pragma GCC diagnostic pop
             CHECK(via_local_time == via_local_frame);
         }
     };
