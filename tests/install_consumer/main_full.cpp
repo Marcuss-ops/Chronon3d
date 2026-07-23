@@ -101,8 +101,8 @@ int main(int argc, char* argv[]) {
         spec,
         [&](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
-            if (ctx.runtime && ctx.runtime->font_engine()) {
-                s.font_engine(ctx.runtime->font_engine());
+            if (ctx.runtime) {
+                s.font_engine(&ctx.runtime->font_engine());
             }
 
             // SURFACE: image (background grid background — exercises
