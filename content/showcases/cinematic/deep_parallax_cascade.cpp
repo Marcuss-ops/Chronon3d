@@ -96,7 +96,7 @@ Composition deep_parallax_cascade() {
         // REPLACES any auto-bound pointer (same setter used by
         // SceneBuilder(ctx) ctor auto-forward) — re-assignment is
         // idempotent and safe.
-        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
+        if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());
 
         // ── Background: dark with a vertical cyan halo behind the hero ─────
         s.layer("bg_halo", [](LayerBuilder& l) {

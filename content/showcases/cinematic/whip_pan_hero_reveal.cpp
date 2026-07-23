@@ -75,7 +75,7 @@ Composition whip_pan_hero_reveal() {
         // header comment for the rationale; same single bind at
         // scene-build time forwards the engine into every subsequent
         // LayerBuilder.created-via-s.layer(...) call.
-        if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
+        if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());
 
         // ── Deep magenta+black backdrop with pink vignette accents ──────
         s.layer("bg", [](LayerBuilder& l) {

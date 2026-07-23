@@ -36,6 +36,7 @@
 #include <chronon3d/render_graph/pipeline/register_pipeline_nodes.hpp>
 #include <chronon3d/render_graph/registry/graph_node_catalog.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
+#include <chronon3d/text/font_engine.hpp>
 #include <spdlog/spdlog.h>
 
 #include <atomic>
@@ -59,25 +60,16 @@ RenderRuntime::RenderRuntime(chronon3d::Config config)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Fase C2 — unified factory (canonical construction path)
+// Fase C2 / R1 — internal runtime assembly
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// The factory wraps the single-arg constructor + optional asset mounting
-// into a Result-returning static method.  If `populate()` throws (e.g.
-// scheduler construction failure), the exception is caught and converted
-// to a RuntimeBuildError.  Asset mount failures (invalid path, IO error)
-// also produce a structured error instead of propagating an exception
-// out of the constructor.
-//
-// Backend attachment is deliberately NOT in this factory — the backend
-// depends on per-instance state from SoftwareRenderer (counters, settings)
-// which is constructed at a higher level (RenderEngine::Impl).  The
-// higher-level orchestration calls the (now-deprecated) attach_backend()
-// through suppression-guarded internal bridges (runtime_adapter.cpp,
-// test_utils.hpp).
+// Single internal function that builds a fully-populated RenderRuntime.
+// Shared by RenderRuntime::create() and sdk::RenderEngine.  Backend
+// attachment is deliberately NOT here — the backend depends on per-
+// instance state from SoftwareRenderer, which is wired at a higher level.
 
 Result<std::unique_ptr<RenderRuntime>, RuntimeBuildError>
-RenderRuntime::create(RuntimeConfig cfg) {
+detail::assemble_runtime(RuntimeConfig cfg) {
     try {
         auto runtime = std::make_unique<RenderRuntime>(std::move(cfg.config));  // calls populate()
 
@@ -89,14 +81,20 @@ RenderRuntime::create(RuntimeConfig cfg) {
     } catch (const std::exception& e) {
         return RuntimeBuildError{
             RuntimeBuildError::Code::InternalError,
-            std::string{"RenderRuntime::create(): populate failed — "} + e.what()
+            std::string{"assemble_runtime(): populate failed — "} + e.what()
         };
     } catch (...) {
         return RuntimeBuildError{
             RuntimeBuildError::Code::InternalError,
-            "RenderRuntime::create(): populate failed — unknown exception"
+            "assemble_runtime(): populate failed — unknown exception"
         };
     }
+}
+
+// Public factory is a thin wrapper around the internal assembly function.
+Result<std::unique_ptr<RenderRuntime>, RuntimeBuildError>
+RenderRuntime::create(RuntimeConfig cfg) {
+    return detail::assemble_runtime(std::move(cfg));
 }
 
 RenderRuntime::~RenderRuntime() = default;
@@ -124,6 +122,12 @@ void RenderRuntime::populate() {
     // WP-3 PR 3.1 — no longer populating m_owned_scene_hasher /
     // m_owned_program_store here: both are per-session owned in the
     // WP-3 PR 3.1 architecture.
+
+    // ── WP-9 PR 9.0 / R1 — runtime owns the per-runtime FontEngine.
+    // It is constructed from the typed AssetResolver and lives as long
+    // as the runtime so that every composition lambda sees a stable
+    // engine via ctx.runtime->font_engine().
+    m_font_engine_owned = std::make_unique<chronon3d::FontEngine>(m_resolver);
 
     // ── Populate builtin processors/effects + freeze the catalogs ───
     // TICKET-011 — these registrations previously lived in

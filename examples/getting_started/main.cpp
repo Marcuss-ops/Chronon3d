@@ -37,7 +37,7 @@ int main() {
     project.composition("TitleCard", {.duration = c3d::Frame{1}},
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
-            if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
+            if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());
 
             s.layer("bg", [](c3d::LayerBuilder& l) {
                 l.fill(c3d::Color{0.1f, 0.1f, 0.15f, 1.0f});

@@ -53,21 +53,28 @@ struct RenderEngine::Impl {
 
     Config                                       m_config;
     AssetRegistry                                m_assets;
-    runtime::RenderRuntime                       m_runtime;
+    std::unique_ptr<runtime::RenderRuntime>    m_runtime;
     std::unique_ptr<SoftwareRenderer>            m_renderer;
     // RenderPipeline needs both the renderer (backend) and the runtime
     // (services).  Both are constructed before the pipeline is emplace()d
     // in the body, so std::optional is the right storage here.
     std::optional<runtime::RenderPipeline>       m_pipeline;
 
-    // Fase C2 — unified constructor (replaces the two previous overloads).
-    // assets_root is optional; when provided, set_assets_root() is called
-    // after the runtime + renderer + backend wiring is complete.
+    // Fase C2 / R1 — unified constructor delegates runtime assembly to
+    // the shared internal `assemble_runtime()` helper.
     explicit Impl(Config config, std::optional<std::filesystem::path> assets_root = std::nullopt)
         : m_config(std::move(config))
-        , m_runtime(m_config)        // RenderRuntime ctor calls populate()
-        , m_renderer(std::make_unique<SoftwareRenderer>(m_runtime, m_config))
     {
+        auto runtime_result = runtime::detail::assemble_runtime(
+            runtime::RuntimeConfig{.config = m_config, .assets_root = assets_root});
+        if (!runtime_result) {
+            throw std::runtime_error(
+                "RenderEngine::Impl: runtime assembly failed: " +
+                runtime_result.error().message);
+        }
+        m_runtime = std::move(runtime_result).value();
+        m_renderer = std::make_unique<SoftwareRenderer>(*m_runtime, m_config);
+
         m_renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
 
         // Fase A2 — unify backend construction through the canonical
@@ -78,7 +85,7 @@ struct RenderEngine::Impl {
         chronon3d::backends::software::attach_software_backend(m_renderer.get());
 
         // TICKET-011a follow-up #1 — publish the RenderPipeline facade.
-        m_pipeline.emplace(m_renderer.get(), m_runtime);
+        m_pipeline.emplace(m_renderer.get(), *m_runtime);
 
         if (assets_root.has_value()) {
             set_assets_root(*assets_root);
@@ -92,7 +99,7 @@ struct RenderEngine::Impl {
     ~Impl() = default;
 
     void set_assets_root(const std::filesystem::path& root) {
-        m_runtime.resolver().mount(root);                             // WP-8 PR 8.0 sibling resolver, mounted inside the runtime
+        m_runtime->resolver().mount(root);                            // WP-8 PR 8.0 sibling resolver, mounted inside the runtime
         // AssetRegistry no longer holds a mount root; path resolution
         // is the resolver's job.
     }
@@ -143,7 +150,7 @@ std::string RenderEngine::assets_root() const noexcept {
     // different asset roots now observe their own value.
     // Returns by value so callers cannot hold a reference past a
     // concurrent `set_assets_root()` from another thread.
-    return m_impl->m_runtime.resolver().mount_root().string();
+    return m_impl->m_runtime->resolver().mount_root().string();
 }
 
 // ── Composition registry ───────────────────────────────────────────────────

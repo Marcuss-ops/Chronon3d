@@ -228,7 +228,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
             .width = comp.width(),
             .height = comp.height(),
             .assets_root = comp.assets_root(),
-            .font_engine = frame_runtime ? frame_runtime->font_engine() : nullptr,
+            .font_engine = frame_runtime ? &frame_runtime->font_engine() : nullptr,
             .runtime = frame_runtime,
         });
         scene = comp.evaluate(ctx);
@@ -288,7 +288,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                     .width = comp.width(),
                     .height = comp.height(),
                     .assets_root = comp.assets_root(),
-                    .font_engine = frame_runtime ? frame_runtime->font_engine() : nullptr,
+                    .font_engine = frame_runtime ? &frame_runtime->font_engine() : nullptr,
                     .runtime = frame_runtime,
                 });
                 Scene sub = comp.evaluate(sub_ctx);

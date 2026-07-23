@@ -52,10 +52,7 @@ SoftwareRenderer::SoftwareRenderer(runtime::RenderRuntime& rt, Config config)
     , m_owned_runtime_storage{}
     , m_runtime(&rt)
     , m_software_registry(std::make_unique<renderer::SoftwareRegistry>())
-#ifdef CHRONON3D_ENABLE_TEXT
-    , m_font_engine(std::make_unique<FontEngine>(m_runtime->resolver()))
     , m_text_render_resources(std::make_unique<TextRenderResources>())
-#endif
 {
     // Fase B B1 — wire per-runtime ImageCache (replaces process-wide singleton)
     m_image_renderer.set_cache(&m_runtime->image_cache());
@@ -73,10 +70,7 @@ SoftwareRenderer::SoftwareRenderer(Config config)
         std::make_unique<runtime::RenderRuntime>(m_config);
     m_runtime = m_owned_runtime_storage.get();
     m_software_registry = std::make_unique<renderer::SoftwareRegistry>();
-#ifdef CHRONON3D_ENABLE_TEXT
-    m_font_engine = std::make_unique<FontEngine>(m_runtime->resolver());
     m_text_render_resources = std::make_unique<TextRenderResources>();
-#endif
     // Fase B B1 — wire per-runtime ImageCache (replaces process-wide singleton)
     m_image_renderer.set_cache(&m_runtime->image_cache());
     m_runtime->image_cache().set_asset_resolver(&m_runtime->resolver());

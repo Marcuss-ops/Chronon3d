@@ -77,8 +77,8 @@ inline SceneBuilder::SceneBuilder(const FrameContext& ctx,
     // Explicit override guarantee: a composition lambda that calls
     // `s.font_engine(X)` later REPLACES this auto-bind with its own
     // pointer, so per-composition overrides continue to work.
-    if (ctx.runtime && ctx.runtime->font_engine()) {
-        m_font_engine = ctx.runtime->font_engine();
+    if (ctx.runtime) {
+        m_font_engine = &ctx.runtime->font_engine();
     }
 }
 

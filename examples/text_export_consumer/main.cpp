@@ -48,7 +48,7 @@ int main() {
          .assets_root = "assets"},
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
-            if (ctx.runtime && ctx.runtime->font_engine()) s.font_engine(ctx.runtime->font_engine());
+            if (ctx.runtime) s.font_engine(&ctx.runtime->font_engine());
 
             // Dark background
             s.layer("bg", [](c3d::LayerBuilder& l) {
