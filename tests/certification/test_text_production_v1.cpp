@@ -139,7 +139,7 @@ Composition build_text_only_comp(SoftwareRenderer& renderer,
                                   6.0f);
                 }
 
-                l.text_run("text_run", TextRunSpec{
+                l.animated_text("text_run", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = text},
                         .placement = TextPlacement{
@@ -718,7 +718,7 @@ TEST_CASE("Animation frame-by-frame → visible ink changes across frames") {
                 l.opacity_anim().set(0.0f);
                 l.opacity_anim().add_keyframe(
                     Frame{30}, 1.0f, EasingCurve{Easing::Linear});
-                l.text_run("title", TextRunSpec{
+                l.animated_text("title", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "Animated"},
                         .placement = TextPlacement{TextPlacementKind::CanvasCenter, {0.0f, 0.0f}},

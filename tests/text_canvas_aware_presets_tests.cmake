@@ -33,6 +33,5 @@
 chronon3d_add_test_suite(
     NAME chronon3d_text_canvas_aware_presets_tests
     TIER UNIT
-    LINK_TARGETS chronon3d_text_core chronon3d_backend_text
     SOURCES text/test_preset_canvas_aware_presets.cpp
 )

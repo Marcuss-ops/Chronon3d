@@ -52,8 +52,6 @@
 #include <string>
 
 using namespace chronon3d;
-constexpr FrameRate kTestFps{60, 1};
-
 using namespace chronon3d::camera_v1;
 
 namespace {
@@ -125,7 +123,7 @@ TEST_CASE(
         CameraSession session;
 
         CameraEvalContext ctx;
-        ctx = ctx.with_frame(Frame{0}, kTestFps);
+        ctx = ctx.with_frame(Frame{0}, FrameRate{30, 1});
         ctx.sample_time = SampleTime::from_frame_int(Frame{0}, FrameRate{60, 1});
         REQUIRE(ctx.transforms == nullptr);  // default-init sentinel.
 
@@ -157,7 +155,7 @@ TEST_CASE(
         CameraSession session;
 
         CameraEvalContext ctx;
-        ctx = ctx.with_frame(Frame{0}, kTestFps);
+        ctx = ctx.with_frame(Frame{0}, FrameRate{30, 1});
         ctx.sample_time = SampleTime::from_frame_int(Frame{0}, FrameRate{60, 1});
 
         auto res = prog.evaluate(ctx, session);
@@ -176,7 +174,7 @@ TEST_CASE(
         CameraSession session;
 
         CameraEvalContext ctx;
-        ctx = ctx.with_frame(Frame{0}, kTestFps);
+        ctx = ctx.with_frame(Frame{0}, FrameRate{30, 1});
         ctx.sample_time = SampleTime::from_frame_int(Frame{0}, FrameRate{60, 1});
 
         auto res = prog.evaluate(ctx, session);
@@ -202,7 +200,7 @@ TEST_CASE(
         const Frame frames[] = {Frame{0}, Frame{30}, Frame{60}};
         for (const Frame& f : frames) {
             CameraEvalContext ctx;
-            ctx = ctx.with_frame(f, kTestFps);
+            ctx = ctx.with_frame(f, FrameRate{30, 1});
             ctx.sample_time = SampleTime::from_frame_int(f, FrameRate{60, 1});
             REQUIRE(ctx.transforms == nullptr);
 

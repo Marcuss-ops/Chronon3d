@@ -43,7 +43,7 @@
 // keep the documented call site self-contained — no symbol that future
 // readers must look up. When Phase 2 Killer 4 lands, refactor 22.0f into a
 // named constant at that scope (e.g. `static constexpr f32 kYawMaxDeg = 22.0f;`):
-//   l.text_run("rot_fan", {.content = "PER GLYPH 3D", ...})
+//   l.animated_text("rot_fan", {.content = "PER GLYPH 3D", ...})
 //     .animate(animator("rot_fan_selector_char")
 //                .select(selector(TextSelectorUnit::Character)
 //                          .shape_smooth()

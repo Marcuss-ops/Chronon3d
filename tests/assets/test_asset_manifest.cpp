@@ -124,7 +124,7 @@ TEST_CASE("AssetManifest — text_run collects font asset") {
         TextRunSpec p;
         p.text.font.font_path = "assets/fonts/Inter-Bold.ttf";
         p.text.content.value = "Hello";
-        (void)l.text_run("label", std::move(p));
+        (void)l.animated_text("label", std::move(p));
     });
 
     Scene scene = s.build();
@@ -180,7 +180,7 @@ TEST_CASE("AssetManifest — multiple layers aggregate") {
         TextRunSpec p;
         p.text.font.font_path = "assets/fonts/Inter-Bold.ttf";
         p.text.content.value = "Hello";
-        (void)l.text_run("label", std::move(p));
+        (void)l.animated_text("label", std::move(p));
     });
     s.layer("bg", [](LayerBuilder& l) {
         l.image("photo", {.path = "assets/bg.png", .size = {100, 100}});
@@ -201,7 +201,7 @@ TEST_CASE("AssetManifest — sequence layers propagate to scene") {
                 TextRunSpec p;
                 p.text.font.font_path = "assets/fonts/Poppins-Bold.ttf";
                 p.text.content.value = "INTRO";
-                (void)l.text_run("label", std::move(p));
+                (void)l.animated_text("label", std::move(p));
             });
         });
 

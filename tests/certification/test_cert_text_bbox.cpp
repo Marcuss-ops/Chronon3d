@@ -52,7 +52,7 @@ Composition build_cert_title_comp(SoftwareRenderer& renderer) {
             s.font_engine(&renderer.font_engine());
             s.layer("title", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("title_text", TextRunSpec{
+                l.animated_text("title_text", TextRunSpec{
                     .text = TextSpec{.content    = {.value = "EPIC TITLE"},.font       = {.font_path = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
@@ -79,7 +79,7 @@ Composition build_cert_lower_third_comp(SoftwareRenderer& renderer) {
             // (no background rect: bbox check measures text-only)
             s.layer("title_line", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("title", TextRunSpec{
+                l.animated_text("title", TextRunSpec{
                     .text = TextSpec{.content    = {.value = "BREAKING NEWS"},.font       = {.font_path = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
@@ -91,7 +91,7 @@ Composition build_cert_lower_third_comp(SoftwareRenderer& renderer) {
             // Subtitle: below title
             s.layer("subtitle_line", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("subtitle", TextRunSpec{
+                l.animated_text("subtitle", TextRunSpec{
                     .text = TextSpec{.content    = {.value = "Chronon3D Text Engine — Production Ready"},.font       = {.font_path = "assets/fonts/Inter-Regular.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 400,

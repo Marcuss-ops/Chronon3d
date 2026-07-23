@@ -107,7 +107,7 @@ TEST_CASE("Assets.MissingFontFailsPreflight") {
             TextRunSpec p;
             p.text.font.font_path = "assets/fonts/DOES_NOT_EXIST.ttf";
             p.text.content.value = "Hello";
-            (void)l.text_run("label", std::move(p));
+            (void)l.animated_text("label", std::move(p));
         });
         Scene scene = s.build();
 
@@ -127,7 +127,7 @@ TEST_CASE("Assets.MissingFontFailsPreflight") {
             TextRunSpec p;
             p.text.font.font_path = "assets/fonts/Missing-Bold.ttf";
             p.text.content.value = "Test";
-            (void)l.text_run("text_node", std::move(p));
+            (void)l.animated_text("text_node", std::move(p));
         });
         Scene scene = s.build();
 
@@ -145,7 +145,7 @@ TEST_CASE("Assets.MissingFontFailsPreflight") {
             TextRunSpec p;
             p.text.font.font_path = "assets/fonts/DOES_NOT_EXIST.ttf";
             p.text.content.value = "Hello";
-            (void)l.text_run("label", std::move(p));
+            (void)l.animated_text("label", std::move(p));
         });
         Scene scene = s.build();
 
@@ -230,7 +230,7 @@ TEST_CASE("Assets.MissingVideoFailsPreflight") {
             TextRunSpec p;
             p.text.font.font_path = "assets/fonts/Nope.ttf";
             p.text.content.value = "X";
-            (void)l.text_run("text", std::move(p));
+            (void)l.animated_text("text", std::move(p));
         });
         s.layer("bg_layer", [](LayerBuilder& l) {
             l.image("bg", {.path = "assets/images/nope.png", .size = {100, 100}});
@@ -281,7 +281,7 @@ static Scene make_two_asset_scene(Frame build_frame) {
         TextRunSpec p;
         p.text.font.font_path = "assets/fonts/Early.ttf";
         p.text.content.value = "EARLY";
-        (void)l.text_run("label", std::move(p));
+        (void)l.animated_text("label", std::move(p));
     });
     // Late layer: active at frame 60-89, uses image
     s.layer("late", [](LayerBuilder& l) {

@@ -115,7 +115,7 @@ void draw_content(LayerBuilder& l, const MotionObject& obj, const MotionState& s
         // TextRunSpec) and reaches the render graph via shape_ids::TextRun
         // (the ONLY surviving text shape descriptor in the authoring
         // registry). The downstream RenderNode is flagged ShapeType::TextRun
-        // — same node shape as if the user had called `l.text_run(...)`
+        // — same node shape as if the user had called `l.animated_text(...)`
         // directly. Anti-duplication rule respected: no second code path.
         chronon3d::TextRunSpec run_params;
         run_params.text = chronon3d::TextSpec{
