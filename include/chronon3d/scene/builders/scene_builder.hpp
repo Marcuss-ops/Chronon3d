@@ -11,6 +11,7 @@
 #include <chronon3d/scene/camera/camera_rig_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/node_handle.hpp>
+#include <chronon3d/scene/model/core/clip_transition.hpp>
 #include <chronon3d/scene/builders/null_builder.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
@@ -138,6 +139,14 @@ class SceneBuilder {
 
     template <typename Fn>
     SceneBuilder& null_layer(std::string name, Fn&& fn);
+
+    /// Schedule a clip-to-clip transition between two named layers.
+    /// During graph compilation the outgoing layer (name_a) and the
+    /// incoming layer (name_b) are rendered as sub-pipelines and fed
+    /// into a ClipTransitionNode over the half-open window [from, from+duration).
+    SceneBuilder& clip_transition(std::string name_a, std::string name_b,
+                                  const ClipTransitionSpec& spec,
+                                  Frame from, Frame duration);
 
     // ── A4: [[deprecated]] — use last_node_handle() for explicit node access ──
     [[deprecated("Use last_node_handle().position(pos) for explicit node access")]]

@@ -41,6 +41,12 @@ void ResolvePass::run(GraphBuildContext& ctx) {
                 std::string(rl.layer->track_matte.source_layer));
         }
     }
+
+    // Build lookup tables for clip transitions.
+    for (const auto& ct : ctx.scene->clip_transitions()) {
+        ctx.clip_transition_source_names.insert(std::string(ct.layer_a));
+        ctx.clip_transition_by_target[std::string(ct.layer_b)] = ct;
+    }
 }
 
 } // namespace chronon3d::graph::detail
