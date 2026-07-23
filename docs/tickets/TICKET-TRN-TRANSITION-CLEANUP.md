@@ -437,15 +437,15 @@ TransitionCatalog
 * decidere `DissolveLayouts` contro vero `MorphLayouts`;
 * aggiungere golden frame 0%, 25%, 50%, 75%, 100%.
 
-## TRN-05 — Pulizia camera
+## TRN-05 — Pulizia camera ✅ DONE (commit `34adffdd`)
 
-* decidere overlap reale;
-* correggere durata di un frame;
-* rimuovere lo stato sessione duplicato;
-* usare soltanto il catalogo;
-* definire una policy per ogni campo della camera;
-* rinominare transizioni che non rispettano ancora il comportamento promesso;
-* testare continuità quaternion e tutti i parametri.
+* decidere overlap reale → **implementato**: overlap reale `[end-N, end)` tra due shot;
+* correggere durata di un frame → **implementato**: `transition_frames == 1` produce cut istantaneo al target (`t = 1.0f`);
+* rimuovere lo stato sessione duplicato → **implementato**: `ShotTimelineSession` contiene solo `CameraSessionCache cache`;
+* usare soltanto il catalogo → **implementato**: `ShotTimelineResolver` legge le transizioni da `CameraTransitionCatalog`;
+* definire una policy per ogni campo della camera → **implementato**: `blend_camera_fields()` distingue campi continui vs discreti;
+* rinominare transizioni che non rispettano ancora il comportamento promesso → **implementato**: `Push→EaseOutBlend`, `WhipPan→SmoothRotationBlend`, `FocusHandoff→FocusDistanceBlend` (alias legacy mantenuti);
+* testare continuità quaternion e tutti i parametri → **testato**: `tests/scene/camera/test_shot_timeline.cpp` (casi 13-16).
 
 ## TRN-06 — Certificazione delle transizioni già presenti
 
