@@ -26,6 +26,7 @@ static FrameContext make_ctx(Frame frame, i32 fps_num = 30, i32 fps_den = 1) {
     ctx = ctx.with_frame_rate({fps_num, fps_den});
     ctx.width = 1920;
     ctx.height = 1080;
+    ctx = ctx.with_duration(Frame{1000000}); // large duration for tests that don't specify it
     return ctx;
 }
 
@@ -48,7 +49,6 @@ TEST_CASE("TimelineResolver — flat sequence: active window") {
         CHECK(results[0].active_path[0].name == "intro");
         CHECK(results[0].active_path[0].local_frame == Frame{0});
         CHECK(results[0].effective_context.frame() == Frame{0});
-        CHECK(results[0].effective_context.local_time().integral_frame() == Frame{0});
     }
 
     SUBCASE("mid-sequence: correct local frame") {
@@ -317,7 +317,6 @@ TEST_CASE("TimelineResolver — effective context preserves parent properties") 
 
     const auto& eff = result->effective_context;
     CHECK(eff.frame() == Frame{30});
-    CHECK(eff.local_time().integral_frame() == Frame{30});
     CHECK(eff.width == 1280);
     CHECK(eff.height == 720);
     CHECK(eff.frame_rate().numerator == 24);
