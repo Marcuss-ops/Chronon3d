@@ -185,9 +185,6 @@ private:
     const CompositionRegistry* m_registry{nullptr};
     runtime::RenderRuntime* m_runtime{nullptr};
     std::unique_ptr<runtime::RenderRuntime> m_owned_runtime_storage;
-#ifdef CHRONON3D_ENABLE_TEXT
-    std::unique_ptr<FontEngine> m_font_engine;
-#endif
     std::unique_ptr<TextRenderResources> m_text_render_resources;
     std::unique_ptr<renderer::SoftwareRegistry> m_software_registry;
     SoftwareRenderSession m_session;

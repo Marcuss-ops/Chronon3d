@@ -87,20 +87,11 @@ const TextRenderResources* SoftwareRenderer::text_render_resources() const {
     return m_text_render_resources.get();
 }
 
-// WP-8 PR 8.1 — sole owner of font_engine() accessor body.  Cannot be
-// defined in another TU because unique_ptr<FontEngine>'s deleter must be
-// instantiated exactly once to avoid ODR violation.
-#ifdef CHRONON3D_ENABLE_TEXT
-FontEngine& SoftwareRenderer::font_engine() { return *m_font_engine; }
-const FontEngine& SoftwareRenderer::font_engine() const { return *m_font_engine; }
-#else
-FontEngine& SoftwareRenderer::font_engine() {
-    throw std::logic_error("SoftwareRenderer::font_engine called on a non-text build (CHRONON3D_ENABLE_TEXT=OFF)");
-}
-const FontEngine& SoftwareRenderer::font_engine() const {
-    throw std::logic_error("SoftwareRenderer::font_engine called on a non-text build (CHRONON3D_ENABLE_TEXT=OFF)");
-}
-#endif
+// R1 — runtime owns the FontEngine; the renderer delegates to it.
+// The accessor body lives here (single TU) because it dereferences
+// runtime::RenderRuntime, whose complete type is available here.
+FontEngine& SoftwareRenderer::font_engine() { return m_runtime->font_engine(); }
+const FontEngine& SoftwareRenderer::font_engine() const { return m_runtime->font_engine(); }
 
 // ── preflight_fonts (TICKET-087 / Cat-2) ─────────────────────────────────────
 //
