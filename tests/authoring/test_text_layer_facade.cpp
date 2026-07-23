@@ -1,6 +1,7 @@
 #include "authoring_dsl_test_support.hpp"
 
 using chronon3d::CanvasInfo;
+using chronon3d::SampleTime;
 using chronon3d::authoring::Layer;
 using chronon3d::authoring::Text;
 using chronon3d::authoring::testing::TextRunBuilderInspector;

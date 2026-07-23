@@ -206,7 +206,7 @@ Camera2_5D eval_orbit_motion(const CameraBaseSpec& base,
     const Vec3 world_forward{
         std::cos(pitch_rad) * std::sin(yaw_rad),
         std::sin(pitch_rad),
-        std::cos(pitch_rad) * std::cos(yaw_rad)
+        -std::cos(pitch_rad) * std::cos(yaw_rad)
     };
     const Vec3 orbit_position = target_pos + world_forward * radius;
 

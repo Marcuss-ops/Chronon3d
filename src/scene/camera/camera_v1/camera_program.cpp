@@ -350,18 +350,17 @@ EvaluatedCameraSource CameraProgram::evaluate_compiled_source(const CameraEvalCo
         // runtime evaluates the motion math natively via sample_at() at the
         // given frame.  Mathematically equivalent within ε to the prior
         // bake (61 keyframes via linear interpolation between samples).
-        Camera2_5D cam;
-        cam.enabled = base.enabled;
-        cam.is_animated = true;
-        // sample_at() returns the FULL pose for ctx_frame.
-        cam = cmps->sample_at(ctx.frame);
+        Camera2_5D cam = cmps->sample_at(ctx.frame);
         // Carry forward base fields (lens, DOF, motion blur, parent_name).
         cam.lens = base.lens;
         cam.dof = base.dof;
         cam.motion_blur = base.motion_blur;
         cam.parent_name = base.parent_name;
-        // Central projection dispatch.
-        apply_projection_spec(base.projection, ctx, cam);
+        // sample_at() already evaluated the projection (zoom) channel; do NOT
+        // re-apply the static base projection or we would clobber the
+        // animated zoom.  The adapter always uses ZoomProjection, so the
+        // optics mode stays Zoom.
+        cam.optics_mode = CameraOpticsMode::Zoom;
         // No trajectory tangent / roll — CameraMotionParamsSource is not
         // a trajectory; the orientation stage handles its own fallbacks
         // (Fixed / LookAt / etc.).
