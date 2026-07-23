@@ -78,7 +78,7 @@ Composition anim_typewriter() {
     return composition({.name = "AnimTypewriter", .width = 1920, .height = 1080, .duration = 90}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
-        if (FontEngine* engine = (ctx.runtime ? ctx.runtime->font_engine() : nullptr)) {
+        if (FontEngine* engine = (ctx.runtime ? &ctx.runtime->font_engine() : nullptr)) {
             auto result = text::typewriter_build(s, "tw", {
                 .text = "Typewriter",
                 .box = {1200.0f, 240.0f},

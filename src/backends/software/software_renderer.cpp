@@ -136,12 +136,8 @@ SoftwareRenderer::SoftwareRenderer(SoftwareRenderer&& other) noexcept
     , m_runtime(other.m_runtime)
     , m_owned_runtime_storage(
           std::move(other.m_owned_runtime_storage))
-#ifdef CHRONON3D_ENABLE_TEXT
-    , m_font_engine(
-          std::move(other.m_font_engine))
     , m_text_render_resources(
           std::move(other.m_text_render_resources))
-#endif
     , m_software_registry(
           std::move(other.m_software_registry))
     , m_session(std::move(other.m_session))
@@ -163,10 +159,7 @@ SoftwareRenderer::operator=(SoftwareRenderer&& other) noexcept
     m_registry       = other.m_registry;
     m_runtime        = other.m_runtime;
     m_owned_runtime_storage = std::move(other.m_owned_runtime_storage);
-#ifdef CHRONON3D_ENABLE_TEXT
-    m_font_engine    = std::move(other.m_font_engine);
     m_text_render_resources = std::move(other.m_text_render_resources);
-#endif
     m_software_registry = std::move(other.m_software_registry);
     m_session        = std::move(other.m_session);
     other.m_runtime = nullptr;
