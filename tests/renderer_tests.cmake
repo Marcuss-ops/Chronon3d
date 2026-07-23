@@ -252,6 +252,7 @@ chronon3d_add_test_suite(
         golden/roadmap_2_5d_suite.cpp
         golden/stroked_shape_golden_tests.cpp
         golden/suite_chronon3d_tests.cpp
+        golden/test_clip_transition_golden.cpp
         visual/support/golden_test.cpp
         visual/support/image_diff.cpp
 )
