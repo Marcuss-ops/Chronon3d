@@ -10,7 +10,7 @@
 | TICKET-125-TEST-AGGREGATOR | testing | OPEN | [TICKET-125](tickets/TICKET-125-test-aggregator.md) |
 | TICKET-TEXT-SPEC-MIGRATION | text | OPEN | [TICKET-TEXT-SPEC-MIGRATION](tickets/TICKET-TEXT-SPEC-MIGRATION.md) |
 
-Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+Indice completo (10 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWUP_TICKETS.md). Nuovo blocker: `TICKET-MODULAR-GRAPH-FALSE-REMOVAL` (percorso `use_modular_graph = false` non mantenuto). Cronologia ticket chiusi: [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
 
 ## Stato generale per area
 
@@ -38,6 +38,7 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 | Render job execution | WIRED / GUARDED | Pipeline unica `RenderRequest → RenderJob → execute_render_job(const RenderJob&)`; `ResolvedRenderJob`, conversioni legacy e executor separati vietati dal gate. Suite focalizzata e workflow matrix aggiunti; esecuzione CI NOT RUN/NOT OBSERVED. |
 | SDK C++ installabile | PASS baseline / WIRED extension | Gate #10 storico PASS. Nuovo FILE_SET authoring disgiunto, closure gate e consumer installato `check_assets` implementati; nuova estensione non ancora certificata su CI. |
 | SDK cross-language | NOT RUN | C ABI e formato `.chronon` da progettare. |
+| Modular graph legacy path | PARTIAL | `use_modular_graph = false` ancora esposto in CLI e `RenderSettings`, ma non mantenuto; 6 test in `test_unified_transform_path` e `test_pipeline_robustness` falliscono su quel percorso. Tracciato in [TICKET-MODULAR-GRAPH-FALSE-REMOVAL](tickets/TICKET-MODULAR-GRAPH-FALSE-REMOVAL.md). |
 | Render runtime | PASS baseline / WIRED fail-loud | Runtime per-instance certificato nella baseline storica; il bridge SDK propaga `NodeExecutionError` come `RenderError::RuntimeFailure`, con test missing-image non ancora osservato. |
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
 | CompositionDescriptor migration | PARTIAL | `add(name, factory)` deprecated (ADR-027); 200+ legacy callers remain; Chore B bulk migration OPEN. |
