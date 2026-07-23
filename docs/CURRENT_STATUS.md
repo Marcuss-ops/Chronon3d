@@ -78,6 +78,7 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 | Build (4346d7f068cb11ab26598417b13b5277b7e55ad6) | PARTIAL | chronon3d_cli verde post rebase-21ece2b3 (upstream rot #8 for-loop fix merged at apps/chronon3d_cli/commands/watch/register_watch_commands.cpp; our profiling.hpp include at src/backends/text/text_render_resources.cpp preserved); broader 11/11 macchina-verifica DEFERRED-WBH per AGENTS.md §rot-class-protection threshold (post-2nd-rebase [ahead 4, behind 0] vs upstream 4e203dde (chaser-chaser close cat-5 deferred)). |
 
 | Layer transitions (TRN-03) | PASS | compute_progress centralizzato su `sample_transition()`; cache key include durata/delay/easing/direzione e parametri tipizzati; in/out coexist nel medesimo layer via due nodi seriali; catalogo fail-loud su ID sconosciuto. |
+| Text transitions (TRN-04) | PASS | semantica Cut corretta (A fino al boundary di B); dissolve testuale con alpha complementari (incoming alpha = mix, outgoing alpha = 1 - mix); effetti fill/stroke/shadow/blur/material/font spans/bbox applicati simmetricamente; golden frames al 0/25/50/75/100%. |
 | Clip transitions (TRN-07) | PARTIAL | Cut + Dissolve implementati e unit-testati; scale-to-fit policy per risoluzioni diverse; Push/Slide/Wipe/Iris/Zoom/Flash/Blur procedurali deferred al completamento della certificazione. |
 
 ## Gate Audit — ultima verifica
