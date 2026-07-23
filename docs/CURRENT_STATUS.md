@@ -77,6 +77,8 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 | Test 18 founder dashboard | OPEN | Weekly scorecard aggregator + 8 metriche. |
 | Build (4346d7f068cb11ab26598417b13b5277b7e55ad6) | PARTIAL | chronon3d_cli verde post rebase-21ece2b3 (upstream rot #8 for-loop fix merged at apps/chronon3d_cli/commands/watch/register_watch_commands.cpp; our profiling.hpp include at src/backends/text/text_render_resources.cpp preserved); broader 11/11 macchina-verifica DEFERRED-WBH per AGENTS.md §rot-class-protection threshold (post-2nd-rebase [ahead 4, behind 0] vs upstream 4e203dde (chaser-chaser close cat-5 deferred)). |
 
+| Clip transitions (TRN-07) | PARTIAL | Cut + Dissolve implementati e unit-testati; scale-to-fit policy per risoluzioni diverse; Push/Slide/Wipe/Iris/Zoom/Flash/Blur procedurali deferred al completamento della certificazione. |
+
 ## Gate Audit — ultima verifica
 
 **`main@04c1cb48` — gate helper refactor** (2026-07-15): `tools/check_no_legacy_render_cli.sh` ora usa helper `check_canonical()` per rendere le verifiche di firma robuste ai ritorni a capo di clang-format. Nessuna nuova certificazione funzionale dichiarata.
