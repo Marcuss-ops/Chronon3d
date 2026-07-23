@@ -543,44 +543,44 @@ TEST_CASE("FramebufferPool: trim_after_job honors FramebufferPoolClearPolicy") {
     using chronon3d::cache::FramebufferPoolClearPolicy;
 
     SUBCASE("KeepWarm: trim_after_job is a no-op") {
-        FramebufferPool pool(64ULL * 1024ULL * 1024ULL);
-        pool.set_clear_policy(FramebufferPoolClearPolicy::KeepWarm);
+        auto pool = std::make_shared<FramebufferPool>(64ULL * 1024ULL * 1024ULL);
+        pool->set_clear_policy(FramebufferPoolClearPolicy::KeepWarm);
 
         // Acquire and release a framebuffer to populate the pool.
-        auto fb = pool.acquire(64, 64);
-        pool.release(fb.get());
-        REQUIRE(pool.available_count() >= 1);
+        auto fb = pool->acquire(64, 64);
+        fb.reset();
+        REQUIRE(pool->available_count() >= 1);
 
         // trim_after_job must NOT clear (KeepWarm preserves warm state).
-        pool.trim_after_job();
-        CHECK(pool.available_count() >= 1);
+        pool->trim_after_job();
+        CHECK(pool->available_count() >= 1);
     }
 
     SUBCASE("TrimAfterJob: trim_after_job calls clear()") {
-        FramebufferPool pool(64ULL * 1024ULL * 1024ULL);
-        pool.set_clear_policy(FramebufferPoolClearPolicy::TrimAfterJob);
+        auto pool = std::make_shared<FramebufferPool>(64ULL * 1024ULL * 1024ULL);
+        pool->set_clear_policy(FramebufferPoolClearPolicy::TrimAfterJob);
 
-        auto fb = pool.acquire(64, 64);
-        pool.release(fb.get());
-        REQUIRE(pool.available_count() >= 1);
+        auto fb = pool->acquire(64, 64);
+        fb.reset();
+        REQUIRE(pool->available_count() >= 1);
 
         // trim_after_job MUST clear (TrimAfterJob drops all pooled FBs).
-        pool.trim_after_job();
-        CHECK(pool.available_count() == 0);
+        pool->trim_after_job();
+        CHECK(pool->available_count() == 0);
     }
 
     SUBCASE("TrimOnMemoryPressure: trim_after_job is a no-op (LRU handles it)") {
-        FramebufferPool pool(64ULL * 1024ULL * 1024ULL);
-        pool.set_clear_policy(FramebufferPoolClearPolicy::TrimOnMemoryPressure);
+        auto pool = std::make_shared<FramebufferPool>(64ULL * 1024ULL * 1024ULL);
+        pool->set_clear_policy(FramebufferPoolClearPolicy::TrimOnMemoryPressure);
 
-        auto fb = pool.acquire(64, 64);
-        pool.release(fb.get());
-        REQUIRE(pool.available_count() >= 1);
+        auto fb = pool->acquire(64, 64);
+        fb.reset();
+        REQUIRE(pool->available_count() >= 1);
 
         // trim_after_job must NOT clear (TrimOnMemoryPressure relies on
         // automatic LRU eviction when max_retained_bytes is exceeded).
-        pool.trim_after_job();
-        CHECK(pool.available_count() >= 1);
+        pool->trim_after_job();
+        CHECK(pool->available_count() >= 1);
     }
 
     SUBCASE("set_clear_policy / clear_policy round-trip") {
