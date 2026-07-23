@@ -61,11 +61,14 @@ namespace {
 // ----------------------------------------------------------------------------
 // Test rig helpers.
 // ----------------------------------------------------------------------------
-CameraTransitionCatalog make_test_catalog() {
-    CameraTransitionCatalog catalog;
-    catalog.register_defaults();
-    catalog.freeze();
-    return catalog;
+const CameraTransitionCatalog& make_test_catalog() {
+    static auto catalog = [] {
+        auto c = std::make_shared<CameraTransitionCatalog>();
+        c->register_defaults();
+        c->freeze();
+        return c;
+    }();
+    return *catalog;
 }
 
 struct SingleShotTimeline {
@@ -164,7 +167,7 @@ bool rows_equal(const ResolveSurfaceRow& a, const ResolveSurfaceRow& b) {
 // with sequential access for any per-frame deterministic surface.
 // ==============================================================================
 TEST_CASE("random_access: sequential 0..100 vs direct frame 100 same surface") {
-    auto timeline = SingleShotTimeline(0, 100).timeline;
+    auto timeline = SingleShotTimeline(0, 101).timeline;
 
     // Direct access: frame 100 only (fresh resolver, fresh cache, fresh session).
     auto row_direct = render_one(timeline, 100);

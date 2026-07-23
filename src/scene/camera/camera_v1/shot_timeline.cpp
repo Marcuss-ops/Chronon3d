@@ -309,6 +309,26 @@ ShotTimelineResolver::ShotTimelineResolver(std::shared_ptr<ShotTimeline> timelin
     transitions_[CameraTransitionKind::FocusHandoff] = transitions_[CameraTransitionKind::FocusDistanceBlend];
 }
 
+std::shared_ptr<CameraTransition> ShotTimelineResolver::default_cut() {
+    return make_default_cut();
+}
+
+std::shared_ptr<CameraTransition> ShotTimelineResolver::default_smooth_blend() {
+    return make_default_smooth_blend();
+}
+
+std::shared_ptr<CameraTransition> ShotTimelineResolver::default_push() {
+    return make_default_ease_out_blend();
+}
+
+std::shared_ptr<CameraTransition> ShotTimelineResolver::default_whip_pan() {
+    return make_default_smooth_rotation_blend();
+}
+
+std::shared_ptr<CameraTransition> ShotTimelineResolver::default_focus_handoff() {
+    return make_default_focus_distance_blend();
+}
+
 std::shared_ptr<CameraTransition> ShotTimelineResolver::get_transition(
         CameraTransitionKind kind) const {
     auto it = transitions_.find(kind);
@@ -411,16 +431,35 @@ ShotTimelineResolver::evaluate(int frame,
     const CameraShot& shot = *pair.current;
     int local_frame = frame - shot.start_frame;  // local time
 
-    // TRN-05: the cache is owned by the timeline session, not by the
-    // resolver. This removes the duplicated session state and makes the
-    // caller the single source of truth for session state.
-    CameraSessionCache& cache = timeline_session.cache;
-
     // Check if we're in a transition overlap with the next shot.
     int overlap_start = shot.end_frame - shot.transition_frames;
     bool in_overlap = pair.next && shot.transition_frames > 0 &&
                       shot.transition_out != CameraTransitionKind::Cut &&
                       frame >= overlap_start;
+
+    // Uncompiled shot: surface a deterministic "Uncompiled" diagnostic
+    // without attempting to evaluate the program. This keeps the
+    // CameraProgram::evaluate uncompiled-error contract intact while
+    // allowing timeline-level tests to observe the 6-field ripple-through
+    // surface.
+    if (!shot.program.is_compiled() && !in_overlap) {
+        auto ctx = CameraEvalContext::at(local_frame, fps);
+        EvaluatedCamera result;
+        result.camera = Camera2_5D{};
+        result.diagnostics.push_back({
+            CameraProgramDiagnostic::Severity::Warning,
+            "Uncompiled: CameraProgram has not been compiled; "
+            "call compile_camera() first."
+        });
+        enrich_resolve_diagnostics(result, shot.program, pair.idx,
+                                   ctx.sample_time.seconds());
+        return result;
+    }
+
+    // TRN-05: the cache is owned by the timeline session, not by the
+    // resolver. This removes the duplicated session state and makes the
+    // caller the single source of truth for session state.
+    CameraSessionCache& cache = timeline_session.cache;
 
     if (in_overlap) {
         // TRN-05: true overlap — both shots are evaluated at their own
