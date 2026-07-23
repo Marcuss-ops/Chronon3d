@@ -51,6 +51,7 @@ enum class RenderGraphNodeKind {
     TrackMatte,
     Output,
     Transition,
+    ClipTransition,
     TextRun
 };
 
