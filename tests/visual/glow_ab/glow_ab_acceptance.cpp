@@ -69,7 +69,7 @@ std::shared_ptr<Framebuffer> render_glow_params(
         [glow](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
             s.layer("hero", [&](LayerBuilder& l) {
-                l.text_run("txt", TextRunSpec{
+                l.animated_text("txt", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "GLOW"},
                         .placement = TextPlacement{

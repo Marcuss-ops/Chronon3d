@@ -17,7 +17,6 @@ set(_ANIMATION_HELPERS_TEST_SOURCES
 chronon3d_add_test_suite(
     NAME chronon3d_animation_helpers_tests
     TIER UNIT
-    LINK_TARGETS chronon3d_text_core
     SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/animations/test_animation_helpers.cpp
 )
 

@@ -73,7 +73,7 @@ Composition build_anim_cert_title_comp(SoftwareRenderer& renderer) {
             s.layer("title", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.pin_to(Anchor::Center);
-                l.text_run("title_text", TextRunSpec{
+                l.animated_text("title_text", TextRunSpec{
                     .text = TextSpec{.content    = {.value = "EPIC TITLE"},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
@@ -108,7 +108,7 @@ Composition build_full_canvas_visible_comp(SoftwareRenderer& renderer,
             s.font_engine(&renderer.font_engine());
             s.layer("text_layer", [&renderer, box_width, box_height](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("text_run", TextRunSpec{
+                l.animated_text("text_run", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "VISIBLE INK"},
                         .placement = TextPlacement{

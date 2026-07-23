@@ -54,7 +54,7 @@ Composition build_test01_composition(SoftwareRenderer& renderer) {
             s.font_engine(&renderer.font_engine());
             s.layer("hero", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("title", TextRunSpec{
+                l.animated_text("title", TextRunSpec{
                     .text = TextSpec{.content = {.value = "Chronon3D Text Engine"},.placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                                  .font_family = "Inter",
                                  .font_weight = 700,

@@ -5,18 +5,18 @@
 // + 5 mandatory test categories + 6-field diagnostics contract probe.
 //
 // TEST STRATEGY (cat-1 determinism-locks):
-//   All five tests use UNCOMPILED CameraProgram instances (the default
-//   state of CameraProgram{}).  This is INTENTIONAL: uncompiled programs
-//   produce a deterministic "Uncompiled" diagnostic surface in BOTH
-//   sequential and direct access paths, so the invariants we test here
-//   are surface-level (cache state + 6-field contract) and do NOT
-//   require the full compile_camera() infrastructure.  The stateful
-//   program path (DampedFollowConstraint EMA bit-exact parity between
-//   sequential and direct access) is covered manually on a fit build
-//   host; the cache integration is structurally correct by
+//   All tests use a COMPILED CameraProgram instance that produces a
+//   deterministic `MissingTransforms` warning (LookAtLayer with an empty
+//   target).  The compiled program still yields a deterministic
+//   diagnostic surface in BOTH sequential and direct access paths, so
+//   the invariants we test here are surface-level (cache state +
+//   6-field contract) and do NOT require stateful constraints.  The
+//   stateful program path (DampedFollowConstraint EMA bit-exact parity
+//   between sequential and direct access) is covered manually on a fit
+//   build host; the cache integration is structurally correct by
 //   construction (cache.acquire pre-rolls from `last_evaluated_frame
-//   - PREROLL_MAX` to `target - 1` per the TICKET-031 contract, so
-//   any stateful program would round-trip identically).
+//   - PREROLL_MAX` to `target - 1` per the TICKET-031 contract, so any
+//   stateful program would round-trip identically).
 //
 // TESTS:
 //   1. sequential_vs_direct — direct frame 100 vs cumulative 0..100
@@ -47,6 +47,8 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/scene/camera/camera_v1/shot_timeline.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 
 #include <memory>
 #include <optional>
@@ -58,17 +60,36 @@ using namespace chronon3d::camera_v1;
 
 namespace {
 
+constexpr char kTestCameraId[] = "random-access-test-cam";
+
 // ----------------------------------------------------------------------------
 // Test rig helpers.
 // ----------------------------------------------------------------------------
-const CameraTransitionCatalog& make_test_catalog() {
-    static auto catalog = [] {
-        auto c = std::make_shared<CameraTransitionCatalog>();
-        c->register_defaults();
-        c->freeze();
-        return c;
-    }();
-    return *catalog;
+std::unique_ptr<CameraTransitionCatalog> make_test_catalog() {
+    auto catalog = std::make_unique<CameraTransitionCatalog>();
+    catalog->register_defaults();
+    catalog->freeze();
+    return catalog;
+}
+
+// Build a compiled CameraProgram that produces a deterministic diagnostic.
+// LookAtLayer with an empty target emits a MissingTransforms warning; the
+// warning is idempotent and identical across random access/sequential paths.
+CameraProgram make_test_program() {
+    CameraDescriptor desc;
+    desc.id = kTestCameraId;
+    desc.base.enabled = true;
+    desc.base.position = Vec3{0.0f, 0.0f, -1000.0f};
+    desc.base.rotation = Vec3{0.0f, 0.0f, 0.0f};
+    desc.base.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
+    desc.source = StaticCameraSource{};
+    desc.orientation = LookAtLayer{"missing-target"};  // missing transforms → deterministic warning
+
+    auto result = compile_camera(desc, /*catalog=*/nullptr);
+    REQUIRE(result.has_value());
+    auto program = std::move(result).value();
+    REQUIRE(program.is_compiled());
+    return program;
 }
 
 struct SingleShotTimeline {
@@ -80,7 +101,7 @@ struct SingleShotTimeline {
         shot.name        = "main-shot";
         shot.start_frame = start_frame;
         shot.end_frame   = end_frame;
-        shot.program     = CameraProgram{};  // uncompiled (deterministic diagnostic surface)
+        shot.program     = make_test_program();  // compiled (deterministic diagnostic surface)
         timeline->add_shot(std::move(shot));
     }
 };
@@ -105,7 +126,7 @@ struct ResolveSurfaceRow {
 ResolveSurfaceRow render_one(const std::shared_ptr<ShotTimeline>& timeline,
                               int frame) {
     ResolveSurfaceRow row;
-    ShotTimelineResolver resolver(timeline, make_test_catalog());
+    ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession  tls;
     auto r = resolver.evaluate(frame, tls, kTestFps);
     if (!r.has_value()) return row;
@@ -128,7 +149,7 @@ ResolveSurfaceRow render_one(const std::shared_ptr<ShotTimeline>& timeline,
 ResolveSurfaceRow render_range_then_one(
         const std::shared_ptr<ShotTimeline>& timeline,
         int first, int last, int target_frame) {
-    ShotTimelineResolver resolver(timeline, make_test_catalog());
+    ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession  tls;
     for (int f = first; f <= last; ++f) (void)resolver.evaluate(f, tls, kTestFps);
     auto r = resolver.evaluate(target_frame, tls, kTestFps);
@@ -177,16 +198,14 @@ TEST_CASE("random_access: sequential 0..100 vs direct frame 100 same surface") {
     // frame 100 evaluates with the warmed session.
     auto row_seq_target = render_range_then_one(timeline, 0, 99, 100);
 
-    // Both must surface the same diagnostic (camera_id, shot_index == 0,
-    // camera_id carries "uncompiled" because the default CameraProgram{};
-    // in the rig is uncompiled).
+    // Both must surface the same diagnostic (camera_id, shot_index == 0).
     CHECK(row_direct.has_camera_id);
     CHECK(row_direct.camera_id == row_seq_target.camera_id);
     CHECK(row_direct.shot_index == 0);
     CHECK(row_seq_target.shot_index == 0);
     CHECK(row_direct.code == row_seq_target.code);
     CHECK(row_direct.message == row_seq_target.message);
-    CHECK(row_direct.camera_id.find("uncompiled") != std::string::npos);
+    CHECK(row_direct.camera_id == kTestCameraId);
 }
 
 // ==============================================================================
@@ -210,7 +229,7 @@ TEST_CASE("random_access: random frame order produces same per-shot surface") {
         auto row = render_one(timeline, f);
         CHECK(row.has_camera_id);
         CHECK(row.shot_index == 0);
-        CHECK(row.camera_id.find("uncompiled") != std::string::npos);
+        CHECK(row.camera_id == kTestCameraId);
     }
 }
 
@@ -245,8 +264,6 @@ TEST_CASE("random_access: checkpoint restore on fresh resolver parity") {
 // regardless of how many times the frame is rendered).  The cache
 // commit semantics make the post-commit state stable; the next-frame
 // re-evaluate is expected to produce the bit-identical result.
-// In the uncompiled-program path, this is trivially true (the program
-// emits the same diagnostic every time); the test locks the invariant.
 // ==============================================================================
 TEST_CASE("random_access: retry same frame is idempotent") {
     auto timeline = SingleShotTimeline().timeline;
@@ -302,7 +319,7 @@ TEST_CASE("random_access: two simultaneous render jobs isolated") {
 TEST_CASE("random_access: diagnostics contract — 6-field ripple-through surface") {
     auto timeline = SingleShotTimeline(0, 100).timeline;
 
-    ShotTimelineResolver resolver(timeline, make_test_catalog());
+    ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession  tls;
 
     auto r = resolver.evaluate(75, tls, kTestFps);
@@ -311,7 +328,7 @@ TEST_CASE("random_access: diagnostics contract — 6-field ripple-through surfac
     REQUIRE(!eval.resolve_diagnostics.empty());
 
     const auto& rd = eval.resolve_diagnostics.front();
-    CHECK(!rd.camera_id.empty());
+    CHECK(rd.camera_id == kTestCameraId);
     CHECK(rd.shot_index == 0);
     CHECK(rd.sample_time_seconds > 0.0);
     // Valid-enum check: severity must be one of the canonical 3 values.
@@ -321,6 +338,6 @@ TEST_CASE("random_access: diagnostics contract — 6-field ripple-through surfac
     CHECK((rd.severity == CameraResolveDiagnostic::Severity::Info ||
            rd.severity == CameraResolveDiagnostic::Severity::Warning ||
            rd.severity == CameraResolveDiagnostic::Severity::Error));
-    CHECK(!rd.code.empty());
+    CHECK(rd.code == "LookAtLayerMissingTarget");
     CHECK(!rd.message.empty());
 }

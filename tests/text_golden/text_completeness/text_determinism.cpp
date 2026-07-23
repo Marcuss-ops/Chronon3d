@@ -74,7 +74,7 @@ Composition build_frame_comp(SoftwareRenderer& renderer,
             s.font_engine(&renderer.font_engine());
             s.layer("det_layer", [&renderer, text, font_size](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("det_test", TextRunSpec{
+                l.animated_text("det_test", TextRunSpec{
                     .text = TextSpec{.content = {.value = text},.placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
@@ -103,7 +103,7 @@ Composition build_static_comp(SoftwareRenderer& renderer) {
             s.font_engine(&renderer.font_engine());
             s.layer("static_layer", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("static_test", TextRunSpec{
+                l.animated_text("static_test", TextRunSpec{
                     .text = TextSpec{.content = {.value = "DETERMINISTIC"},.placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
@@ -132,7 +132,7 @@ Composition build_alt_comp(SoftwareRenderer& renderer) {
             s.font_engine(&renderer.font_engine());
             s.layer("alt_layer", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("alt_test", TextRunSpec{
+                l.animated_text("alt_test", TextRunSpec{
                     .text = TextSpec{.content = {.value = "DIFFERENT"},.placement = TextPlacement{TextPlacementKind::Absolute, {200.0f, 200.0f}},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",

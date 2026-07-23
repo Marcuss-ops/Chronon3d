@@ -205,7 +205,7 @@ TEST_CASE("Debug.TimelineJSONOutput") {
         TextRunSpec p;
         p.text.font.font_path = "assets/fonts/Poppins-Bold.ttf";
         p.text.content.value = "HELLO";
-        (void)l.text_run("label", std::move(p));
+        (void)l.animated_text("label", std::move(p));
     });
     Scene scene = s.build();
 
@@ -326,7 +326,7 @@ TEST_CASE("Debug.MultipleAssetTypesInOutput") {
         TextRunSpec p;
         p.text.font.font_path = "assets/fonts/Inter-Bold.ttf";
         p.text.content.value = "Hello";
-        (void)l.text_run("text", std::move(p));
+        (void)l.animated_text("text", std::move(p));
         l.image("bg", {.path = "assets/bg.png", .size = {1920, 1080}});
     });
     Scene scene = s.build();

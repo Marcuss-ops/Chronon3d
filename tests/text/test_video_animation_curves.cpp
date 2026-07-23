@@ -82,7 +82,7 @@ TEST_CASE("VideoAnim.Opacity_Keyframes_0p40_0p85_0p50_1920x1080") {
                 l.opacity_anim().set(0.40f);
                 l.opacity_anim().add_keyframe(Frame{15}, 0.85f, EasingCurve{Easing::Linear});
                 l.opacity_anim().add_keyframe(Frame{30}, 0.50f, EasingCurve{Easing::Linear});
-                l.text_run("title", TextRunParams{
+                l.animated_text("title", TextRunParams{
                     .text = {
                         .content = {.value = "KEYFRAMES"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},
@@ -185,7 +185,7 @@ TEST_CASE("VideoAnim.Scale_Peak_at_f15_1920x1080") {
                 l.scale_anim().set(Vec3{1.0f, 1.0f, 1.0f});
                 l.scale_anim().add_keyframe(Frame{15}, Vec3{1.5f, 1.5f, 1.5f}, EasingCurve{Easing::Linear});
                 l.scale_anim().add_keyframe(Frame{30}, Vec3{1.0f, 1.0f, 1.0f}, EasingCurve{Easing::Linear});
-                l.text_run("title", TextRunParams{
+                l.animated_text("title", TextRunParams{
                     .text = {
                         .content = {.value = "SCALE"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},
@@ -264,7 +264,7 @@ TEST_CASE("VideoAnim.Position_Bounded_centroid_1920x1080") {
                 l.position_anim().set(Vec3{400.0f, 540.0f, 0.0f});
                 l.position_anim().add_keyframe(Frame{15}, Vec3{1520.0f, 540.0f, 0.0f}, EasingCurve{Easing::Linear});
                 l.position_anim().add_keyframe(Frame{30}, Vec3{400.0f, 540.0f, 0.0f}, EasingCurve{Easing::Linear});
-                l.text_run("title", TextRunParams{
+                l.animated_text("title", TextRunParams{
                     .text = {
                         .content = {.value = "PATH"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},

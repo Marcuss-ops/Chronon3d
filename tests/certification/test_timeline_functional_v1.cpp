@@ -65,14 +65,13 @@ namespace {
 /// Build a FrameContext with a specific global frame, default 30fps +
 /// width/height irrelevant for the pure timeline tests.
 FrameContext make_ctx(Frame global_frame) {
-    FrameContext ctx;
-    ctx = ctx.with_frame(global_frame);
-    ctx.local_frame = global_frame;
-    ctx = ctx.with_frame_rate(FrameRate{30, 1});
-    ctx = ctx.with_duration(Frame{200});  // composition runs to f200
-    ctx.width = 64;
-    ctx.height = 64;
-    return ctx;
+    FrameContextParams p;
+    p.global_time = SampleTime::from_frame_int(global_frame, FrameRate{30, 1});
+    p.local_time = SampleTime::from_frame_int(global_frame, FrameRate{30, 1});
+    p.duration = Frame{200};  // composition runs to f200
+    p.width = 64;
+    p.height = 64;
+    return make_frame_context(p);
 }
 
 /// Build the canonical sequence fixture: from=50, duration=30,
@@ -99,7 +98,7 @@ TEST_CASE("Timeline.SequenceExactStart") {
         REQUIRE(r->active_path.size() == 1);
         CHECK(r->active_path[0].name == "canonical_boundary");
         CHECK(r->active_path[0].local_frame.integral() == 0);
-        CHECK(r->effective_context.frame.integral() == 0);
+        CHECK(r->effective_context.frame().integral() == 0);
     }
 
     SUBCASE("resolve at f50 via SequenceRange.contains + to_local") {
@@ -293,7 +292,7 @@ TEST_CASE("Timeline.NestedSequence") {
         CHECK(title_res.active_path[0].local_frame.integral() == 20);
         CHECK(title_res.active_path[1].name == "title");
         CHECK(title_res.active_path[1].local_frame.integral() == 0);
-        CHECK(title_res.effective_context.frame.integral() == 0);
+        CHECK(title_res.effective_context.frame().integral() == 0);
     }
 
     SUBCASE("global f130 → active_path innermost local==10") {
