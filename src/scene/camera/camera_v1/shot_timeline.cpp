@@ -253,63 +253,55 @@ public:
     }
 };
 
-} // namespace
-
-// =========================================================================
-// Default transition factories
-// =========================================================================
-
-std::shared_ptr<CameraTransition> ShotTimelineResolver::default_cut() {
+// Default transition factories (anonymous namespace — only the catalog
+// should use these; they are not part of the public API).
+std::shared_ptr<CameraTransition> make_default_cut() {
     return std::make_shared<CutTransition>();
 }
-std::shared_ptr<CameraTransition> ShotTimelineResolver::default_smooth_blend() {
+std::shared_ptr<CameraTransition> make_default_smooth_blend() {
     return std::make_shared<SmoothBlendTransition>();
 }
-std::shared_ptr<CameraTransition> ShotTimelineResolver::default_push() {
+std::shared_ptr<CameraTransition> make_default_ease_out_blend() {
     return std::make_shared<EaseOutBlendTransition>();
 }
-std::shared_ptr<CameraTransition> ShotTimelineResolver::default_whip_pan() {
+std::shared_ptr<CameraTransition> make_default_smooth_rotation_blend() {
     return std::make_shared<SmoothRotationBlendTransition>();
 }
-std::shared_ptr<CameraTransition> ShotTimelineResolver::default_focus_handoff() {
+std::shared_ptr<CameraTransition> make_default_focus_distance_blend() {
     return std::make_shared<FocusDistanceBlendTransition>();
 }
+
+} // namespace
 
 // =========================================================================
 // ShotTimelineResolver
 // =========================================================================
 
 ShotTimelineResolver::ShotTimelineResolver(std::shared_ptr<ShotTimeline> timeline,
-                                           const CameraTransitionCatalog* catalog)
+                                           const CameraTransitionCatalog& catalog)
     : timeline_(std::move(timeline)) {
-    // Pull transitions from the catalog (single source of truth, populated by
-    // register_camera_v1_builtins()). Fall back to local defaults when catalog
-    // is null (e.g. tests that bypassed the bootstrap).
-    //
-    // TRN-05: canonical names are preferred, but we also look up the legacy
-    // alias so custom transitions registered only under the old name are not
-    // silently ignored.
-    const auto* ctlg = catalog;
+    // TRN-05: CameraTransitionCatalog is the single source of truth for
+    // transition creation.  The resolver does not use its own factories
+    // as a fallback; an unregistered kind is handled by a hardcoded
+    // Cut (fail-closed) so the resolver never creates transitions
+    // outside the catalog.
+    auto fail_closed = std::make_shared<CutTransition>();
     auto fetch = [&](CameraTransitionKind k,
-                     CameraTransitionKind legacy,
-                     std::shared_ptr<CameraTransition> fallback)
-        -> std::shared_ptr<CameraTransition> {
-        if (ctlg) {
-            if (auto t = ctlg->create(k)) return t;
-            if (auto t = ctlg->create(legacy)) return t;
-        }
-        return fallback;
+                     CameraTransitionKind legacy) -> std::shared_ptr<CameraTransition> {
+        if (auto t = catalog.create(k)) return t;
+        if (auto t = catalog.create(legacy)) return t;
+        return fail_closed;
     };
     transitions_[CameraTransitionKind::Cut] =
-        fetch(CameraTransitionKind::Cut, CameraTransitionKind::Cut, default_cut());
+        fetch(CameraTransitionKind::Cut, CameraTransitionKind::Cut);
     transitions_[CameraTransitionKind::SmoothBlend] =
-        fetch(CameraTransitionKind::SmoothBlend, CameraTransitionKind::SmoothBlend, default_smooth_blend());
+        fetch(CameraTransitionKind::SmoothBlend, CameraTransitionKind::SmoothBlend);
     transitions_[CameraTransitionKind::EaseOutBlend] =
-        fetch(CameraTransitionKind::EaseOutBlend, CameraTransitionKind::Push, default_push());
+        fetch(CameraTransitionKind::EaseOutBlend, CameraTransitionKind::Push);
     transitions_[CameraTransitionKind::SmoothRotationBlend] =
-        fetch(CameraTransitionKind::SmoothRotationBlend, CameraTransitionKind::WhipPan, default_whip_pan());
+        fetch(CameraTransitionKind::SmoothRotationBlend, CameraTransitionKind::WhipPan);
     transitions_[CameraTransitionKind::FocusDistanceBlend] =
-        fetch(CameraTransitionKind::FocusDistanceBlend, CameraTransitionKind::FocusHandoff, default_focus_handoff());
+        fetch(CameraTransitionKind::FocusDistanceBlend, CameraTransitionKind::FocusHandoff);
 
     // Legacy aliases share the same instances as the canonical names.
     transitions_[CameraTransitionKind::Push]         = transitions_[CameraTransitionKind::EaseOutBlend];
@@ -317,16 +309,14 @@ ShotTimelineResolver::ShotTimelineResolver(std::shared_ptr<ShotTimeline> timelin
     transitions_[CameraTransitionKind::FocusHandoff] = transitions_[CameraTransitionKind::FocusDistanceBlend];
 }
 
-void ShotTimelineResolver::set_transition(CameraTransitionKind kind,
-                                           std::shared_ptr<CameraTransition> t) {
-    if (t) transitions_[kind] = std::move(t);
-}
-
 std::shared_ptr<CameraTransition> ShotTimelineResolver::get_transition(
         CameraTransitionKind kind) const {
     auto it = transitions_.find(kind);
     if (it != transitions_.end()) return it->second;
-    return default_cut();
+    // Should never happen: the constructor populates the map from the
+    // catalog, and unknown kinds fall back to Cut. Keep a hardcoded
+    // fallback here to avoid UB in release builds.
+    return make_default_cut();
 }
 
 // =============================================================================
@@ -618,24 +608,26 @@ void CameraTransitionCatalog::freeze() {
 }
 
 void CameraTransitionCatalog::register_defaults() {
+    // Built-in transitions are created through the anonymous-namespace
+    // factories below; CameraTransitionCatalog is the only public path.
     if (!has(CameraTransitionKind::Cut))
-        register_transition(CameraTransitionKind::Cut, ShotTimelineResolver::default_cut);
+        register_transition(CameraTransitionKind::Cut, make_default_cut);
     if (!has(CameraTransitionKind::SmoothBlend))
-        register_transition(CameraTransitionKind::SmoothBlend, ShotTimelineResolver::default_smooth_blend);
+        register_transition(CameraTransitionKind::SmoothBlend, make_default_smooth_blend);
     if (!has(CameraTransitionKind::EaseOutBlend))
-        register_transition(CameraTransitionKind::EaseOutBlend, ShotTimelineResolver::default_push);
+        register_transition(CameraTransitionKind::EaseOutBlend, make_default_ease_out_blend);
     if (!has(CameraTransitionKind::SmoothRotationBlend))
-        register_transition(CameraTransitionKind::SmoothRotationBlend, ShotTimelineResolver::default_whip_pan);
+        register_transition(CameraTransitionKind::SmoothRotationBlend, make_default_smooth_rotation_blend);
     if (!has(CameraTransitionKind::FocusDistanceBlend))
-        register_transition(CameraTransitionKind::FocusDistanceBlend, ShotTimelineResolver::default_focus_handoff);
+        register_transition(CameraTransitionKind::FocusDistanceBlend, make_default_focus_distance_blend);
 
     // Legacy aliases map to the same factories.
     if (!has(CameraTransitionKind::Push))
-        register_transition(CameraTransitionKind::Push, ShotTimelineResolver::default_push);
+        register_transition(CameraTransitionKind::Push, make_default_ease_out_blend);
     if (!has(CameraTransitionKind::WhipPan))
-        register_transition(CameraTransitionKind::WhipPan, ShotTimelineResolver::default_whip_pan);
+        register_transition(CameraTransitionKind::WhipPan, make_default_smooth_rotation_blend);
     if (!has(CameraTransitionKind::FocusHandoff))
-        register_transition(CameraTransitionKind::FocusHandoff, ShotTimelineResolver::default_focus_handoff);
+        register_transition(CameraTransitionKind::FocusHandoff, make_default_focus_distance_blend);
 }
 
 } // namespace chronon3d::camera_v1

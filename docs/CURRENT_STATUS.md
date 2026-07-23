@@ -79,6 +79,7 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 
 | Layer transitions (TRN-03) | PASS | compute_progress centralizzato su `sample_transition()`; cache key include durata/delay/easing/direzione e parametri tipizzati; in/out coexist nel medesimo layer via due nodi seriali; catalogo fail-loud su ID sconosciuto. |
 | Text transitions (TRN-04) | PASS | semantica Cut corretta (A fino al boundary di B); dissolve testuale con alpha complementari (incoming alpha = mix, outgoing alpha = 1 - mix); effetti fill/stroke/shadow/blur/material/font spans/bbox applicati simmetricamente; golden frames al 0/25/50/75/100%. |
+| Camera transitions (TRN-05) | PASS | contratto di overlap reale con tempi locali per entrambi gli shot; transition_frames==1 mappa a cut istantaneo; stato sessione unificato in ShotTimelineSession/CameraSessionCache; CameraTransitionCatalog è l'unico percorso per creare transizioni. |
 | Clip transitions (TRN-07) | PARTIAL | Cut + Dissolve implementati e unit-testati; scale-to-fit policy per risoluzioni diverse; Push/Slide/Wipe/Iris/Zoom/Flash/Blur procedurali deferred al completamento della certificazione. |
 
 ## Gate Audit — ultima verifica
