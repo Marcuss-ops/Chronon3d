@@ -167,7 +167,8 @@ struct ShotTimelineSession {
 // =========================================================================
 // ShotTimelineResolver — evaluates camera at a frame with transitions.
 // =========================================================================
-class CameraTransitionCatalog; // forward declaration (constructor takes const&)
+class CameraTransitionCatalog;  // forward declaration (defined below)
+
 class ShotTimelineResolver {
 public:
     /// Construct a resolver tied to a timeline and a transition catalog.
@@ -177,14 +178,6 @@ public:
     /// default factories.
     explicit ShotTimelineResolver(std::shared_ptr<ShotTimeline> timeline,
                                    const CameraTransitionCatalog& catalog);
-
-    /// Convenience factories for the built-in transitions (shims that delegate
-    /// to the anonymous default factories; kept for test ergonomics).
-    [[nodiscard]] static std::shared_ptr<CameraTransition> default_cut();
-    [[nodiscard]] static std::shared_ptr<CameraTransition> default_smooth_blend();
-    [[nodiscard]] static std::shared_ptr<CameraTransition> default_push();
-    [[nodiscard]] static std::shared_ptr<CameraTransition> default_whip_pan();
-    [[nodiscard]] static std::shared_ptr<CameraTransition> default_focus_handoff();
 
     /// Evaluate the camera at `frame` using the timeline + transitions.
     /// Uses local frame time (frame - shot.start_frame) for each shot's program.

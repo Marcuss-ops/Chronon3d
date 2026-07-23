@@ -186,7 +186,7 @@ inline CellResult render_matrix_cell(chronon3d::SoftwareRenderer& renderer,
                         .color        = chronon3d::Color::white(),
                     });
                 if (preset.builder) {
-                    preset.builder(s, l, chronon3d::chronon3d::compat::from_text_definition(base));
+                    preset.builder(s, l, chronon3d::compat::from_text_definition(base));
                 }
             });
             return s.build();

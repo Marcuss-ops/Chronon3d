@@ -88,7 +88,7 @@ constexpr float kBoxRightX  = 600.0f;   // = kPosX + kBoxW
             s.layer("align_layer",
                 [&renderer, h_align](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("align_test", TextRunSpec{
+                l.animated_text("align_test", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "Short\nMuch longer line"},
                         .placement = TextPlacement{

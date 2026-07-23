@@ -56,7 +56,7 @@ Composition build_clip_test_composition(
             s.font_engine(&renderer.font_engine());
             s.layer("clip_layer", [&renderer, text, font_size, position](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("clip_test", TextRunSpec{
+                l.animated_text("clip_test", TextRunSpec{
                     .text = TextSpec{.content = {.value = std::string{text}},.placement = TextPlacement{TextPlacementKind::Absolute, {position.x, position.y}},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",

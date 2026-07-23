@@ -30,6 +30,12 @@ using namespace chronon3d::camera_v1;
 
 namespace {
 
+class DummyTransition : public CameraTransition {
+public:
+    std::string id() const override { return "dummy.transition"; }
+    chronon3d::Camera2_5D evaluate(float, const chronon3d::Camera2_5D& from, const chronon3d::Camera2_5D&) const override { return from; }
+};
+
 constexpr int kPostFreezeIterations = 4000;
 constexpr int kPreFreezeReadIterations = 1500;
 constexpr unsigned kStressThreads = 16;
@@ -93,7 +99,7 @@ TEST_CASE("CameraTransitionCatalog - post-freeze lock-free stress"
     CHECK_THROWS_WITH(
         catalog.register_transition(
             CameraTransitionKind::Cut,
-            ShotTimelineResolver::default_cut),
+            []() { return std::make_shared<DummyTransition>(); }),
         "CameraTransitionCatalog: frozen");
 }
 
@@ -103,7 +109,7 @@ TEST_CASE("CameraTransitionCatalog - pre-freeze concurrent register+read"
     // Seed one entry so readers always see *something* during the pre-
     // freeze window.
     catalog.register_transition(CameraTransitionKind::Cut,
-                                ShotTimelineResolver::default_cut);
+                                []() { return std::make_shared<DummyTransition>(); });
 
     std::atomic<int> registers_done{0};
 
@@ -119,23 +125,32 @@ TEST_CASE("CameraTransitionCatalog - pre-freeze concurrent register+read"
     threads.emplace_back([&]() {
         catalog.register_transition(
             CameraTransitionKind::SmoothBlend,
-            ShotTimelineResolver::default_smooth_blend);
+            []() { return std::make_shared<DummyTransition>(); });
         catalog.register_transition(CameraTransitionKind::EaseOutBlend,
-                                    ShotTimelineResolver::default_push);
+                                    []() { return std::make_shared<DummyTransition>(); });
         catalog.register_transition(
             CameraTransitionKind::SmoothRotationBlend,
-            ShotTimelineResolver::default_whip_pan);
+            []() { return std::make_shared<DummyTransition>(); });
         catalog.register_transition(
             CameraTransitionKind::FocusDistanceBlend,
-            ShotTimelineResolver::default_focus_handoff);
-        registers_done.store(5, std::memory_order_release);
+            []() { return std::make_shared<DummyTransition>(); });
+        catalog.register_transition(
+            CameraTransitionKind::Push,
+            []() { return std::make_shared<DummyTransition>(); });
+        catalog.register_transition(
+            CameraTransitionKind::WhipPan,
+            []() { return std::make_shared<DummyTransition>(); });
+        catalog.register_transition(
+            CameraTransitionKind::FocusHandoff,
+            []() { return std::make_shared<DummyTransition>(); });
+        registers_done.store(8, std::memory_order_release);
 
         // Hammer register_transition a few times (idempotent overwrites)
         // to ensure the writers' gate closes cleanly under churn.
         for (int i = 0; i < 100; ++i) {
             catalog.register_transition(
                 CameraTransitionKind::Cut,
-                ShotTimelineResolver::default_cut);
+                []() { return std::make_shared<DummyTransition>(); });
         }
         catalog.freeze();
         registers_done.fetch_add(1, std::memory_order_release);
@@ -174,7 +189,7 @@ TEST_CASE("CameraTransitionCatalog - pre-freeze concurrent register+read"
                           .count();
     REQUIRE(elapsed_ms < kDeadlineMs);
 
-    CHECK(registers_done.load(std::memory_order_acquire) >= 6);
+    CHECK(registers_done.load(std::memory_order_acquire) >= 9);
     REQUIRE(catalog.is_frozen());
 
     // After freeze, all five kinds must be present and resolvable.

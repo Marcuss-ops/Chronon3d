@@ -90,7 +90,7 @@ Composition build_typewriter_composition(
             s.font_engine(&renderer.font_engine());
             s.layer("tw_layer", [&renderer, frame_idx](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("tw_test", TextRunSpec{
+                l.animated_text("tw_test", TextRunSpec{
                     .text = TextSpec{.content = {.value = typewriter_text(frame_idx)},.placement = TextPlacement{TextPlacementKind::Absolute, {100.0f, 540.0f}},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",

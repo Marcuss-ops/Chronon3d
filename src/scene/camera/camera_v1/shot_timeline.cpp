@@ -354,7 +354,7 @@ inline std::string derive_camera_id(const CameraProgram& prog,
     if (const auto* d = prog.descriptor()) {
         if (!d->id.empty()) return d->id;
         if (prog.is_compiled()) {
-            char hex[24];
+            char hex[48];
             std::snprintf(hex, sizeof(hex),
                           "shot%d-fp-%016llx",
                           shot_idx,

@@ -95,7 +95,7 @@ Composition build_b01_static_text_1080p_comp(SoftwareRenderer& renderer) {
             s.layer("b01_layer", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.pin_to(Anchor::Center);
-                l.text_run("b01_text", TextRunSpec{
+                l.animated_text("b01_text", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = kSampleText},
                         .font = {

@@ -234,7 +234,7 @@ TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: auto-fit rendered ink fits inside box"
             s.font_engine(&renderer.font_engine());
             s.layer("autofit_layer", [&renderer, box_w, box_h](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("autofit_text", TextRunSpec{
+                l.animated_text("autofit_text", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "Auto-fit real fit check"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},

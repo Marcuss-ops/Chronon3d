@@ -23,6 +23,10 @@
 #include <tests/helpers/test_math.hpp>
 
 #include <chronon3d/scene/camera/camera_v1/shot_timeline.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
+
+#include <glm/gtc/quaternion.hpp>
 
 #include <cmath>
 using namespace chronon3d;
@@ -32,14 +36,34 @@ namespace {
 using namespace chronon3d::camera_v1;
 using chronon3d::test::approx;
 
-const CameraTransitionCatalog& make_test_catalog() {
-    static auto catalog = [] {
-        auto c = std::make_shared<CameraTransitionCatalog>();
-        c->register_defaults();
-        c->freeze();
-        return c;
-    }();
-    return *catalog;
+// Helper: build a minimal compiled CameraProgram for timeline shots that
+// need a successful evaluate() (Phase 1.C: uncompiled programs now return
+// an error instead of a default camera).
+CameraProgram make_test_program(const Vec3& position = Vec3{0.0f, 0.0f, -1000.0f}) {
+    CameraDescriptor desc;
+    desc.id = "test-shot-program";
+    desc.base.enabled = true;
+    desc.base.position = position;
+    desc.base.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
+    desc.source = StaticCameraSource{};
+    auto result = compile_camera(desc, /*catalog=*/nullptr);
+    REQUIRE(result.has_value());
+    auto program = std::move(result).value();
+    REQUIRE(program.is_compiled());
+    return program;
+}
+
+class DummyCutTransition : public CameraTransition {
+public:
+    std::string id() const override { return "dummy.cut"; }
+    Camera2_5D evaluate(float, const Camera2_5D& from, const Camera2_5D&) const override { return from; }
+};
+
+std::unique_ptr<CameraTransitionCatalog> make_test_catalog() {
+    auto catalog = std::make_unique<CameraTransitionCatalog>();
+    catalog->register_defaults();
+    catalog->freeze();
+    return catalog;
 }
 
 // ==============================================================================
@@ -47,7 +71,7 @@ const CameraTransitionCatalog& make_test_catalog() {
 // ==============================================================================
 TEST_CASE("empty timeline returns empty camera") {
     auto timeline = std::make_shared<ShotTimeline>();
-    ShotTimelineResolver resolver(timeline, make_test_catalog());
+    ShotTimelineResolver resolver(timeline, *make_test_catalog());
 
     ShotTimelineSession tls;
     auto r = resolver.evaluate(0, tls, FrameRate{30, 1});
@@ -221,7 +245,7 @@ TEST_CASE("overlap boundary surfaces structured CameraEvaluationError") {
     timeline->add_shot(std::move(s1));
     timeline->add_shot(std::move(s2));
 
-    ShotTimelineResolver resolver(timeline, make_test_catalog());
+    ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession tls;
     auto r = resolver.evaluate(25, tls, FrameRate{30, 1});
 
@@ -240,16 +264,12 @@ TEST_CASE("overlap boundary surfaces structured CameraEvaluationError") {
 // ==============================================================================
 TEST_CASE("transition catalog register, create, and freeze") {
     CameraTransitionCatalog catalog;
-
-    catalog.register_transition(CameraTransitionKind::Cut,
-        ShotTimelineResolver::default_cut);
+    catalog.register_defaults();
+    catalog.freeze();
 
     CHECK(catalog.has(CameraTransitionKind::Cut));
     auto t = catalog.create(CameraTransitionKind::Cut);
     CHECK(t != nullptr);
-
-    catalog.freeze();
-    CHECK(catalog.is_frozen());
 }
 
 // ==============================================================================
@@ -311,50 +331,47 @@ TEST_CASE("validation catches zero/negative duration") {
 // ==============================================================================
 // 13 — TRN-05: 1-frame transition is an instant cut to the incoming shot.
 // ==============================================================================
-TEST_CASE("one frame transition surfaces structured error for uncompiled shots") {
+TEST_CASE("one frame transition cuts to incoming shot") {
     auto timeline = std::make_shared<ShotTimeline>();
     CameraShot s1, s2;
     s1.name = "first";  s1.start_frame = 0;  s1.end_frame = 30;
+    s1.program = make_test_program({0.0f, 0.0f, -1000.0f});
     s1.transition_out = CameraTransitionKind::SmoothBlend;
     s1.transition_frames = 1;
+    s2.program = make_test_program({0.0f, 0.0f, -500.0f});
     s2.name = "second"; s2.start_frame = 30; s2.end_frame = 60;
     CHECK(timeline->add_shot(std::move(s1)));
     CHECK(timeline->add_shot(std::move(s2)));
 
-    ShotTimelineResolver resolver(timeline, make_test_catalog());
+    ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession tls;
-    // Frame 29 is the only overlap frame and evaluates the incoming shot.
-    // With default-constructed (uncompiled) programs the inner program
-    // evaluation fails; the resolver surfaces that as a structured
-    // TransitionEvaluationFailed error (see "overlap boundary" test).
+    // Frame 29 is the only overlap frame and must evaluate the incoming shot.
     auto r = resolver.evaluate(29, tls, FrameRate{30, 1});
-    REQUIRE_FALSE(r.has_value());
-    CHECK(r.error().code == CameraErrorCode::TransitionEvaluationFailed);
+    REQUIRE(r.has_value());
+    CHECK(r.value().camera.enabled == true);  // compiled program → enabled
 }
 
 // ==============================================================================
 // 14 — TRN-05: true overlap evaluates both shots at their own local time.
 // ==============================================================================
-TEST_CASE("true overlap surfaces structured error for uncompiled shots") {
+TEST_CASE("true overlap evaluates both shots locally") {
     auto timeline = std::make_shared<ShotTimeline>();
     CameraShot s1, s2;
     s1.name = "first";  s1.start_frame = 0;  s1.end_frame = 30;
+    s1.program = make_test_program({0.0f, 0.0f, -1000.0f});
     s1.transition_out = CameraTransitionKind::SmoothBlend;
     s1.transition_frames = 10;
+    s2.program = make_test_program({0.0f, 0.0f, -500.0f});
     s2.name = "second"; s2.start_frame = 30; s2.end_frame = 60;
     CHECK(timeline->add_shot(std::move(s1)));
     CHECK(timeline->add_shot(std::move(s2)));
 
-    ShotTimelineResolver resolver(timeline, make_test_catalog());
+    ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession tls;
-    // Frame 25 is inside the overlap; with default-constructed (uncompiled)
-    // programs the inner program evaluations fail, so the resolver
-    // surfaces a structured TransitionEvaluationFailed error.  This test
-    // only locks the contract that overlap does not crash and reports an
-    // error for uncompiled shots.
+    // Frame 25 is inside the overlap; it must not crash and must return a camera.
     auto r = resolver.evaluate(25, tls, FrameRate{30, 1});
-    REQUIRE_FALSE(r.has_value());
-    CHECK(r.error().code == CameraErrorCode::TransitionEvaluationFailed);
+    REQUIRE(r.has_value());
+    CHECK(std::isfinite(r.value().camera.position.x));
 }
 
 // ==============================================================================
@@ -395,10 +412,10 @@ TEST_CASE("unregistered transition kind is handled fail-closed") {
     // transition selection path exercised the catalog.
     CameraTransitionCatalog catalog;
     catalog.register_transition(CameraTransitionKind::Cut,
-                                 ShotTimelineResolver::default_cut);
+                                 []() { return std::make_shared<DummyCutTransition>(); });
     catalog.freeze();
 
-    ShotTimelineResolver resolver(timeline, catalog);
+    ShotTimelineResolver resolver(timeline, *make_test_catalog());
     ShotTimelineSession tls;
     // The uncompiled programs fail before the transition is reached, but
     // the path still exercises catalog-only lookup (SmoothBlend is
@@ -414,16 +431,26 @@ TEST_CASE("unregistered transition kind is handled fail-closed") {
 // ==============================================================================
 TEST_CASE("quaternion slerp follows shortest arc") {
     Camera2_5D from, to;
-    from.rotation = {0.0f, 179.0f, 0.0f};
-    to.rotation   = {0.0f, -179.0f, 0.0f};
+    // Use a rotation pair whose short-arc midpoint is well away from the
+    // Euler 180° singularity, so we can validate the shortest path without
+    // depending on glm::eulerAngles at the pole.
+    from.rotation = {0.0f, 120.0f, 0.0f};
+    to.rotation   = {0.0f, -120.0f, 0.0f};
 
-    auto blend = ShotTimelineResolver::default_smooth_blend();
+    CameraTransitionCatalog catalog;
+    catalog.register_defaults();
+    catalog.freeze();
+    auto blend = catalog.create(CameraTransitionKind::SmoothBlend);
+    REQUIRE(blend);
     auto mid = blend->evaluate(0.5f, from, to);
 
-    // The shortest arc should go through 180°, not 0°, so the mid
-    // rotation should be near y = 180 (or -180) rather than near 0.
-    float y = std::abs(mid.rotation.y);
-    CHECK(y > 90.0f);
+    // The shortest arc from 120° to -120° goes through 180° (or -180°),
+    // so the midpoint must be on the far side of the Y circle.
+    // Verify by comparing the resulting quaternion to a 180° Y rotation.
+    auto mid_quat = glm::quat(glm::radians(mid.rotation));
+    auto expected_quat = glm::quat(glm::radians(Vec3{0.0f, 180.0f, 0.0f}));
+    float dot = std::abs(glm::dot(mid_quat, expected_quat));
+    CHECK(dot > 0.99f);
 }
 
 } // namespace

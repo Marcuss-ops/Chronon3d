@@ -154,7 +154,7 @@ TextPresetDescriptor cinematic_text_camera_entry() {
         if (auto canonical = ::chronon3d::registry::AnimatorResolver::compose_for("cinematic_text_camera")) {
             params.animators.push_back(*canonical);
         }
-        lb.text_run("camera_text", params)
+        lb.animated_text("camera_text", params)
           .commit()
           .depth_reveal(260.0f, Frame{50})
           .scale_drop(0.95f, Frame{30})

@@ -56,7 +56,7 @@ Composition build_edge_comp(SoftwareRenderer& renderer, std::string text) {
             s.font_engine(&renderer.font_engine());
             s.layer("edge_layer", [&renderer, text](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("edge_test", TextRunSpec{
+                l.animated_text("edge_test", TextRunSpec{
                     .text = TextSpec{.content = {.value = text},.placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},.font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",

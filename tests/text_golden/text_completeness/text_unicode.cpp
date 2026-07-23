@@ -65,7 +65,7 @@ Composition build_unicode_composition(
             s.font_engine(&renderer.font_engine());
             s.layer("unicode_layer", [&renderer, text, font_path, font_size](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("unicode_test", TextRunSpec{
+                l.animated_text("unicode_test", TextRunSpec{
                     .text = TextSpec{.content = {.value = std::string{text}},.placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},.font = {
                             .font_path = std::string{font_path},
                             .font_family = "default",

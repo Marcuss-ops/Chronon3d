@@ -105,7 +105,7 @@ Composition build_kerning_composition(
             SceneBuilder s(ctx);
             s.font_engine(&renderer.font_engine());
             s.layer("kerning", [font_size_pt, tracking_px](LayerBuilder& l) {
-                l.text_run("kerning_pair_text", TextRunParams{
+                l.animated_text("kerning_pair_text", TextRunParams{
                     .text = {
                         // TextSpec field order: content, position, font,
                         // layout, appearance (C++20 designated-init order

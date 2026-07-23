@@ -114,7 +114,7 @@ Composition build_completeness_composition(
                 if (glow_params.enabled) {
                     l.glow(glow_params);
                 }
-                l.text_run("title", TextRunSpec{
+                l.animated_text("title", TextRunSpec{
                     .text = {
                         .content = {.value = std::string{text}},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},
@@ -166,7 +166,7 @@ Composition build_multifont_composition(SoftwareRenderer& renderer) {
             s.font_engine(&renderer.font_engine());
             s.layer("hero", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("regular", TextRunSpec{
+                l.animated_text("regular", TextRunSpec{
                     .text = {
                         .content = {.value = "Regular "},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
@@ -184,7 +184,7 @@ Composition build_multifont_composition(SoftwareRenderer& renderer) {
                         .appearance = {.color = Color::white()}
                     }
                 }).commit();
-                l.text_run("bold", TextRunSpec{
+                l.animated_text("bold", TextRunSpec{
                     .text = {
                         .content = {.value = "BOLD Italic gyqp \u00C1\u00C9\u00CD"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
@@ -222,7 +222,7 @@ Composition build_trifont_composition(SoftwareRenderer& renderer) {
             s.layer("hero", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 // Run 1: Inter Bold
-                l.text_run("inter", TextRunSpec{
+                l.animated_text("inter", TextRunSpec{
                     .text = {
                         .content = {.value = "HAMBURGER "},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
@@ -241,7 +241,7 @@ Composition build_trifont_composition(SoftwareRenderer& renderer) {
                     }
                 }).commit();
                 // Run 2: Poppins Regular
-                l.text_run("poppins", TextRunSpec{
+                l.animated_text("poppins", TextRunSpec{
                     .text = {
                         .content = {.value = "gyqp \u00C1\u00C9 "},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
@@ -260,7 +260,7 @@ Composition build_trifont_composition(SoftwareRenderer& renderer) {
                     }
                 }).commit();
                 // Run 3: Poppins Bold
-                l.text_run("poppins-bold", TextRunSpec{
+                l.animated_text("poppins-bold", TextRunSpec{
                     .text = {
                         .content = {.value = "\u00CD\u00D3\u00DA descenders"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
@@ -1031,7 +1031,7 @@ TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: font_size=200 in 400x200 box → alpha
             s.font_engine(&renderer.font_engine());
             s.layer("clip_layer", [&renderer, font_size, box_w, box_h](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text_run("oversized", TextRunSpec{
+                l.animated_text("oversized", TextRunSpec{
                     .text = TextSpec{
                         .content = {.value = "ClipMe"},
                         .placement = TextPlacement{
