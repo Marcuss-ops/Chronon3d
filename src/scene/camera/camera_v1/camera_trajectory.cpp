@@ -390,8 +390,8 @@ CameraTrajectoryBuilder& CameraTrajectoryBuilder::arc_length_parameterized(bool 
 }
 
 std::shared_ptr<CameraTrajectory> CameraTrajectoryBuilder::build() {
-    if (pts_.size() < 2) {
-        throw std::invalid_argument("CameraTrajectoryBuilder: need >= 2 points");
+    if (pts_.empty()) {
+        throw std::invalid_argument("CameraTrajectoryBuilder: need at least one point");
     }
     auto out = std::make_shared<CameraTrajectory>();
     out->points_   = std::move(pts_);

@@ -1,5 +1,6 @@
 #include "authoring_dsl_test_support.hpp"
 
+using chronon3d::SampleTime;
 using chronon3d::authoring::testing::TextRunBuilderInspector;
 
 namespace {

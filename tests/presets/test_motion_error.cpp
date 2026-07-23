@@ -168,7 +168,7 @@ TEST_CASE("motion_error::C.08 motion_preset_packs().apply(slide_in) does NOT thr
     // `seed_builtin_presets()`. The apply callback invokes
     // `add_keyframe()` on the LayerBuilder's anim tracks; this is the
     // §5.0b non-regression for the success path.
-    chronon3d::LayerBuilder lb("test_layer", chronon3d::Frame{0});
+    chronon3d::LayerBuilder lb("test_layer", chronon3d::Frame{0}, chronon3d::FrameRate{30, 1});
     const auto& reg = chronon3d::presets::motion_preset_packs();
     CHECK_NOTHROW(reg.apply(lb, "slide_in"));
 }
@@ -177,7 +177,7 @@ TEST_CASE("motion_error::C.09 apply(missing-id) throws MotionError with code+pat
     // User-spec verbatim invariant:
     //   `MotionError {.code=MotionPresetNotFound, .path=missing-id}`
     // Locks the canonical replacement-message invariant.
-    chronon3d::LayerBuilder lb("test_layer", chronon3d::Frame{0});
+    chronon3d::LayerBuilder lb("test_layer", chronon3d::Frame{0}, chronon3d::FrameRate{30, 1});
     chronon3d::presets::MotionPresetPackRegistry reg;  // empty registry → guaranteed miss
     bool caught = false;
     try {
@@ -197,7 +197,7 @@ TEST_CASE("motion_error::C.10 MotionError from apply(missing) catchable as std::
     // The §5.0b backward-compat invariant IN PRACTICE: a caller using
     // `catch (const std::runtime_error&)` (the pre-§5.0b pattern)
     // continues to handle the unknown-preset failure correctly.
-    chronon3d::LayerBuilder lb("test_layer", chronon3d::Frame{0});
+    chronon3d::LayerBuilder lb("test_layer", chronon3d::Frame{0}, chronon3d::FrameRate{30, 1});
     chronon3d::presets::MotionPresetPackRegistry reg;
     bool caught_as_runtime = false;
     try {

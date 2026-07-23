@@ -63,6 +63,8 @@
 #include <vector>
 
 using namespace chronon3d;
+constexpr FrameRate kTestFps{60, 1};
+
 using namespace chronon3d::camera_v1;
 
 namespace {
@@ -135,7 +137,7 @@ CameraProgram compile_or_die_program(const CameraDescriptor& desc) {
 Camera2_5D eval_at(const CameraProgram& program,
                    CameraSession& session, Frame frame) {
     CameraEvalContext ctx;
-    ctx = ctx.with_frame(frame);
+    ctx = ctx.with_frame(frame, kTestFps);
     ctx.sample_time = SampleTime::from_frame_int(frame, kFpsDefault);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());

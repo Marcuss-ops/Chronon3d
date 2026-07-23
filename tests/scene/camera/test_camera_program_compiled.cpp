@@ -86,7 +86,7 @@ CameraProgram compile_or_die_cam01(const CameraDescriptor& desc,
 Camera2_5D eval_at_or_die_cam01(const CameraProgram& program,
                            CameraSession& session, Frame frame) {
     CameraEvalContext ctx;
-    ctx = ctx.with_frame(frame);
+    ctx = ctx.with_frame(frame, kCam01Fps);
     ctx.sample_time = SampleTime::from_frame_int(frame, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -288,10 +288,11 @@ TEST_CASE("compiled_orbit_motion_source — "
     CAPTURE(cam.position.x);
     CAPTURE(cam.position.y);
     CAPTURE(cam.position.z);
-    // forward = (0, 0, 1), so position = target(0,0,0) + forward*radius(1000) = (0,0,1000).
+    // Chronon3D camera forward is -Z; yaw=0/pitch=0 looks down -Z, so the
+    // camera sits at target(0,0,0) + (0,0,-radius) = (0,0,-1000).
     CHECK(cam.position.x == doctest::Approx(0.0f).epsilon(kCam01Eps));
     CHECK(cam.position.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
-    CHECK(cam.position.z == doctest::Approx(1000.0f).epsilon(kCam01Eps));
+    CHECK(cam.position.z == doctest::Approx(-1000.0f).epsilon(kCam01Eps));
 }
 
 TEST_CASE("compiled_trajectory_motion_source — "
@@ -789,7 +790,7 @@ TEST_CASE("compiled_orient_along_path_degenerate_hold — "
     // Evaluate at a frame within the hold segment (segment 0 ends at frame 30,
     // so frame 45 is mid-hold → tangent = (0,0,0)).
     CameraEvalContext ctx;
-    ctx = ctx.with_frame(Frame{45});
+    ctx = ctx.with_frame(Frame{45}, kCam01Fps);
     ctx.sample_time = SampleTime::from_frame_int(Frame{45}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -826,7 +827,7 @@ TEST_CASE("compiled_orient_along_path_with_static_source_no_crash — "
     CameraSession session;
 
     CameraEvalContext ctx;
-    ctx = ctx.with_frame(Frame{0});
+    ctx = ctx.with_frame(Frame{0}, kCam01Fps);
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -1147,7 +1148,7 @@ TEST_CASE("compiled_orientation_look_at_layer_no_transforms — "
     // returns without modifying rotation, mirroring the in-camera_program.cpp
     // early-return when ctx.transforms == nullptr.
     CameraEvalContext ctx;
-    ctx = ctx.with_frame(Frame{0});
+    ctx = ctx.with_frame(Frame{0}, kCam01Fps);
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -1312,7 +1313,7 @@ TEST_CASE("compiled_orientation_single_look_at_constraint_skipped — "
     // Manually drive the evaluate() so we can introspect diagnostics.
     CameraSession session;
     CameraEvalContext ctx;
-    ctx = ctx.with_frame(Frame{0});
+    ctx = ctx.with_frame(Frame{0}, kCam01Fps);
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -1397,7 +1398,7 @@ TEST_CASE("compiled_orbit_basis_forward_per_yaw — "
         CAPTURE(cam.position.x); CAPTURE(cam.position.y); CAPTURE(cam.position.z);
         CHECK(cam.position.x == doctest::Approx(0.0f).epsilon(kCam01Eps));
         CHECK(cam.position.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
-        CHECK(cam.position.z == doctest::Approx(1000.0f).epsilon(kCam01Eps));
+        CHECK(cam.position.z == doctest::Approx(-1000.0f).epsilon(kCam01Eps));
         CHECK(cam.point_of_interest_enabled);
         CHECK(cam.point_of_interest.x == doctest::Approx(0.0f).epsilon(kCam01Eps));
         CHECK(cam.point_of_interest.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
@@ -1488,7 +1489,7 @@ TEST_CASE("compiled_orbit_track_x_camera_local_basis — "
         CAPTURE(cam.position.x); CAPTURE(cam.position.y); CAPTURE(cam.position.z);
         CHECK(cam.position.x == doctest::Approx(100.0f).epsilon(kCam01Eps));
         CHECK(cam.position.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
-        CHECK(cam.position.z == doctest::Approx(1000.0f).epsilon(kCam01Eps));
+        CHECK(cam.position.z == doctest::Approx(-1000.0f).epsilon(kCam01Eps));
     }
     // yaw=180° -> basis_forward=(0,0,1), basis_right=(-1,0,0), pos=(-100,0,-1000)
     {
@@ -1608,7 +1609,7 @@ TEST_CASE("compiled_orbit_rotation_coherence_independent_of_radius — "
         auto program = compile_or_die_cam01(desc);
         CameraSession session;
         auto cam = eval_at_or_die_cam01(program, session, Frame{0});
-        CHECK(cam.position.z == doctest::Approx(1000.0f).epsilon(kCam01Eps));
+        CHECK(cam.position.z == doctest::Approx(-1000.0f).epsilon(kCam01Eps));
         CHECK(cam.rotation.x == doctest::Approx(0.0f).epsilon(kCam01Eps));
         CHECK(cam.rotation.y == doctest::Approx(0.0f).epsilon(kCam01Eps));
         CHECK(cam.rotation.z == doctest::Approx(0.0f).epsilon(kCam01Eps));
@@ -1643,7 +1644,7 @@ TEST_CASE("compiled_orbit_roll_rotation — "
     CAPTURE(cam.rotation.z);
     CHECK(cam.rotation.z == doctest::Approx(30.0f).epsilon(kCam01Eps));
     // position unaffected by roll (roll is a rotation around the look axis)
-    CHECK(cam.position.z == doctest::Approx(1000.0f).epsilon(kCam01Eps));
+    CHECK(cam.position.z == doctest::Approx(-1000.0f).epsilon(kCam01Eps));
 }
 
 TEST_CASE("compiled_orbit_with_parent — "
@@ -1668,7 +1669,7 @@ TEST_CASE("compiled_orbit_with_parent — "
     // parent_name must propagate through the compiled path
     CHECK(cam.parent_name == "camera_rig_null");
     // position/rotation carry through unchanged when no transforms are in context
-    CHECK(cam.position.z == doctest::Approx(1000.0f).epsilon(kCam01Eps));
+    CHECK(cam.position.z == doctest::Approx(-1000.0f).epsilon(kCam01Eps));
     CHECK(cam.rotation.z == doctest::Approx(0.0f).epsilon(kCam01Eps));
 }
 
@@ -1806,7 +1807,7 @@ TEST_CASE("compiled_failure_policy_stop — "
     CameraSession session;
 
     CameraEvalContext ctx;
-    ctx = ctx.with_frame(Frame{0});
+    ctx = ctx.with_frame(Frame{0}, kCam01Fps);
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     CHECK_FALSE(res.has_value());
@@ -1821,7 +1822,7 @@ TEST_CASE("compiled_failure_policy_skip_failed — "
     CameraSession session;
 
     CameraEvalContext ctx;
-    ctx = ctx.with_frame(Frame{0});
+    ctx = ctx.with_frame(Frame{0}, kCam01Fps);
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     CHECK(res.has_value());  // failure was skipped, no subsequent constraints
@@ -1839,7 +1840,7 @@ TEST_CASE("compiled_failure_policy_keep_last_valid — "
     CameraSession session;
 
     CameraEvalContext ctx;
-    ctx = ctx.with_frame(Frame{0});
+    ctx = ctx.with_frame(Frame{0}, kCam01Fps);
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
     auto res = program.evaluate(ctx, session);
     CHECK_FALSE(res.has_value());
@@ -1906,7 +1907,7 @@ TEST_CASE("compiled_uncompiled_evaluate_returns_error — "
 
     CameraSession session;
     CameraEvalContext ctx;
-    ctx = ctx.with_frame(Frame{0});
+    ctx = ctx.with_frame(Frame{0}, kCam01Fps);
     ctx.sample_time = SampleTime::from_frame_int(Frame{0}, kCam01Fps);
 
     auto res = program.evaluate(ctx, session);
@@ -2229,7 +2230,7 @@ TEST_CASE("compiled_trajectory_lens_dof_golden — "
 
     CameraSession session;
     CameraEvalContext ctx;
-    ctx = ctx.with_frame(Frame{45});   // mid-beziersegment, deterministic
+    ctx = ctx.with_frame(Frame{45}, kCam01Fps);   // mid-beziersegment, deterministic
     ctx.sample_time = SampleTime::from_frame_int(Frame{45}, kCam01Fps);
 
     // (b) 5 consecutive evaluations MUST yield identical hashes.

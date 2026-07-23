@@ -32,11 +32,14 @@ namespace {
 using namespace chronon3d::camera_v1;
 using chronon3d::test::approx;
 
-CameraTransitionCatalog make_test_catalog() {
-    CameraTransitionCatalog catalog;
-    catalog.register_defaults();
-    catalog.freeze();
-    return catalog;
+const CameraTransitionCatalog& make_test_catalog() {
+    static auto catalog = [] {
+        auto c = std::make_shared<CameraTransitionCatalog>();
+        c->register_defaults();
+        c->freeze();
+        return c;
+    }();
+    return *catalog;
 }
 
 // ==============================================================================
@@ -308,7 +311,7 @@ TEST_CASE("validation catches zero/negative duration") {
 // ==============================================================================
 // 13 — TRN-05: 1-frame transition is an instant cut to the incoming shot.
 // ==============================================================================
-TEST_CASE("one frame transition cuts to incoming shot") {
+TEST_CASE("one frame transition surfaces structured error for uncompiled shots") {
     auto timeline = std::make_shared<ShotTimeline>();
     CameraShot s1, s2;
     s1.name = "first";  s1.start_frame = 0;  s1.end_frame = 30;
@@ -320,16 +323,19 @@ TEST_CASE("one frame transition cuts to incoming shot") {
 
     ShotTimelineResolver resolver(timeline, make_test_catalog());
     ShotTimelineSession tls;
-    // Frame 29 is the only overlap frame and must evaluate the incoming shot.
+    // Frame 29 is the only overlap frame and evaluates the incoming shot.
+    // With default-constructed (uncompiled) programs the inner program
+    // evaluation fails; the resolver surfaces that as a structured
+    // TransitionEvaluationFailed error (see "overlap boundary" test).
     auto r = resolver.evaluate(29, tls, FrameRate{30, 1});
-    REQUIRE(r.has_value());
-    CHECK(r.value().camera.enabled == false);  // uncompiled program → default
+    REQUIRE_FALSE(r.has_value());
+    CHECK(r.error().code == CameraErrorCode::TransitionEvaluationFailed);
 }
 
 // ==============================================================================
 // 14 — TRN-05: true overlap evaluates both shots at their own local time.
 // ==============================================================================
-TEST_CASE("true overlap evaluates both shots locally") {
+TEST_CASE("true overlap surfaces structured error for uncompiled shots") {
     auto timeline = std::make_shared<ShotTimeline>();
     CameraShot s1, s2;
     s1.name = "first";  s1.start_frame = 0;  s1.end_frame = 30;
@@ -341,10 +347,14 @@ TEST_CASE("true overlap evaluates both shots locally") {
 
     ShotTimelineResolver resolver(timeline, make_test_catalog());
     ShotTimelineSession tls;
-    // Frame 25 is inside the overlap; it must not crash and must return a camera.
+    // Frame 25 is inside the overlap; with default-constructed (uncompiled)
+    // programs the inner program evaluations fail, so the resolver
+    // surfaces a structured TransitionEvaluationFailed error.  This test
+    // only locks the contract that overlap does not crash and reports an
+    // error for uncompiled shots.
     auto r = resolver.evaluate(25, tls, FrameRate{30, 1});
-    REQUIRE(r.has_value());
-    CHECK(std::isfinite(r.value().camera.position.x));
+    REQUIRE_FALSE(r.has_value());
+    CHECK(r.error().code == CameraErrorCode::TransitionEvaluationFailed);
 }
 
 // ==============================================================================

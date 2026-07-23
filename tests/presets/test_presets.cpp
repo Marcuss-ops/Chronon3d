@@ -245,19 +245,19 @@ TEST_CASE("TextStyle presets return correctly configured styles") {
 TEST_CASE("Subtitle and Karaoke models specification") {
     presets::text::SubtitleTrack track;
     presets::text::SubtitleCue cue;
-    cue.start = 0;
-    cue.end = 60;
+    cue.start_s = 0.0f;
+    cue.end_s = 60.0f;
     cue.text = "Hello World";
-    
-    presets::text::WordTiming w1{.word = "Hello", .start = 0, .end = 30};
-    presets::text::WordTiming w2{.word = "World", .start = 30, .end = 60};
+
+    presets::text::TimedWord w1{.text = "Hello", .start_s = 0.0f, .end_s = 30.0f, .semantic_id = "w1"};
+    presets::text::TimedWord w2{.text = "World", .start_s = 30.0f, .end_s = 60.0f, .semantic_id = "w2"};
     cue.words.push_back(w1);
     cue.words.push_back(w2);
-    
+
     track.cues.push_back(cue);
-    
+
     REQUIRE(track.cues.size() == 1);
     CHECK(track.cues[0].text == "Hello World");
     REQUIRE(track.cues[0].words.size() == 2);
-    CHECK(track.cues[0].words[1].word == "World");
+    CHECK(track.cues[0].words[1].text == "World");
 }

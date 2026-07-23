@@ -68,6 +68,8 @@
 #include <cmath>
 
 using namespace chronon3d;
+constexpr FrameRate kTestFps{60, 1};
+
 using namespace chronon3d::camera_v1;
 using namespace chronon3d::animation;
 
@@ -191,7 +193,7 @@ AnimatedCamera2_5D make_legacy_dolly() {
 Camera2_5D run_compiled_cam(const CameraProgram& program, Frame f) {
     CameraSession session;
     CameraEvalContext ctx;
-    ctx = ctx.with_frame(f);
+    ctx = ctx.with_frame(f, kTestFps);
     ctx.sample_time = SampleTime::from_frame_int(f, kFpsDefault);
     auto res = program.evaluate(ctx, session);
     REQUIRE(res.has_value());
@@ -371,7 +373,7 @@ TEST_CASE("CAM-DOC 04 [4]: serial vs parallel — 1000 frames, two arrays must b
         // must reset it per-thread to avoid any state being shared).
         CameraSession local_session;
         CameraEvalContext ctx;
-        ctx = ctx.with_frame(Frame{i});
+        ctx = ctx.with_frame(Frame{i}, kTestFps);
         ctx.sample_time = SampleTime::from_frame_int(Frame{i}, kFpsDefault);            auto res = program.evaluate(ctx, local_session);
         REQUIRE(res.has_value());  // runtime requirement; in production this is
                           // outside the test budget.
@@ -459,7 +461,7 @@ TEST_CASE("CAM-DOC 04 [5]: random-access — sequence [5,100,0,50,25,10,0] yield
     CameraSession session;  // same session reused across random-access calls
     for (Frame f : seq) {
         CameraEvalContext ctx;
-        ctx = ctx.with_frame(f);
+        ctx = ctx.with_frame(f, kTestFps);
         ctx.sample_time = SampleTime::from_frame_int(f, kFpsDefault);
         auto res = program.evaluate(ctx, session);
         REQUIRE(res.has_value());
