@@ -22,6 +22,10 @@ namespace chronon3d::rendering {
     struct DepthGrade;
 }
 
+namespace chronon3d::graph {
+struct GraphBuildContext;
+} // namespace chronon3d::graph
+
 namespace chronon3d::graph::detail {
 
 // ── Core builder functions ────────────────────────────────────────────
@@ -37,11 +41,24 @@ GraphNodeId append_root_sources(RenderGraph& graph, const Scene& scene,
 GraphNodeId build_matte_sub_pipeline(RenderGraph& graph, const LayerGraphItem& item,
                                       const RenderGraphContext& ctx);
 
+/// Build the render-graph nodes for a layer up to (but not including) the
+/// final composite onto the current output.  This is used both for the
+/// normal layer pipeline and for sub-pipelines consumed by track mattes or
+/// clip transitions.
+GraphNodeId build_layer_output_node(
+    RenderGraph& graph, const LayerGraphItem& item,
+    RenderGraphContext& ctx,
+    const Camera2_5DRuntime& cam25d,
+    std::span<const ShadowCasterInfo> casters,
+    const rendering::DepthGrade& depth_grade,
+    const BuilderContext& node_ctx);
+
 void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
                            GraphNodeId& current, RenderGraphContext& ctx,
                            const Camera2_5DRuntime& cam25d,
                            std::span<const ShadowCasterInfo> casters,
-                           const rendering::DepthGrade& depth_grade);
+                           const rendering::DepthGrade& depth_grade,
+                           const GraphBuildContext* build_ctx = nullptr);
 
 void sort_camera25d_layers(std::vector<LayerGraphItem>& items);
 
