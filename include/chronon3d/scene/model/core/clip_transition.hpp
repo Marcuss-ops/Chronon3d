@@ -1,6 +1,8 @@
 #pragma once
 
 #include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/core/types/frame.hpp>
+#include <string>
 
 namespace chronon3d {
 
@@ -34,6 +36,16 @@ struct ClipTransitionSpec {
     ClipTransitionKind kind{ClipTransitionKind::Cut};
     Easing easing{Easing::Linear};
     ClipTransitionFitPolicy fit{ClipTransitionFitPolicy::ScaleToFit};
+};
+
+/// Scene-level relationship that wires two named layers through a
+/// ClipTransitionNode during graph compilation.
+struct SceneClipTransition {
+    std::string layer_a;
+    std::string layer_b;
+    ClipTransitionSpec spec;
+    Frame from{0};
+    Frame duration{0};
 };
 
 } // namespace chronon3d

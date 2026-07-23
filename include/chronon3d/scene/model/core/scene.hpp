@@ -3,6 +3,7 @@
 #include <chronon3d/scene/model/render/render_node.hpp>
 #include <filesystem>
 #include <chronon3d/scene/model/layer/layer.hpp>
+#include <chronon3d/scene/model/core/clip_transition.hpp>
 #include <chronon3d/scene/model/camera/camera_projection_source.hpp>
 #include <chronon3d/scene/model/layer/layer_hierarchy.hpp>
 #include <chronon3d/rendering/light_context.hpp>
@@ -57,6 +58,9 @@ public:
     [[nodiscard]] std::pmr::vector<RenderNode>& nodes() { return m_nodes; }
     [[nodiscard]] const std::pmr::vector<Layer>& layers() const { return m_layers; }
     [[nodiscard]] std::pmr::vector<Layer>& layers() { return m_layers; }
+
+    [[nodiscard]] const std::pmr::vector<SceneClipTransition>& clip_transitions() const { return m_clip_transitions; }
+    [[nodiscard]] std::pmr::vector<SceneClipTransition>& clip_transitions() { return m_clip_transitions; }
 
     // ── Camera accessors (defined in scene.cpp) ──────────────────────────
     void set_camera_2_5d(Camera2_5DRuntime camera);
@@ -145,6 +149,7 @@ public:
 private:
     std::pmr::vector<RenderNode> m_nodes;
     std::pmr::vector<Layer> m_layers;
+    std::pmr::vector<SceneClipTransition> m_clip_transitions;
     std::unique_ptr<Camera2_5DRuntime> m_camera_2_5d;
     rendering::LightContext m_lights{};
     rendering::RimLight m_rim{};

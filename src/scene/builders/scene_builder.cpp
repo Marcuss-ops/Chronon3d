@@ -141,6 +141,19 @@ NodeHandle SceneBuilder::last_node_handle() {
     return NodeHandle(scene_.last_node());
 }
 
+SceneBuilder& SceneBuilder::clip_transition(std::string name_a, std::string name_b,
+                                            const ClipTransitionSpec& spec,
+                                            Frame from, Frame duration) {
+    scene_.clip_transitions().push_back(SceneClipTransition{
+        .layer_a = std::move(name_a),
+        .layer_b = std::move(name_b),
+        .spec = spec,
+        .from = from,
+        .duration = duration,
+    });
+    return *this;
+}
+
 } // namespace chronon3d
 
 #if defined(__GNUC__) || defined(__clang__)

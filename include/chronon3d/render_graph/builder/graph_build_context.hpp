@@ -3,6 +3,7 @@
 #include <chronon3d/render_graph/render_graph.hpp>
 #include <chronon3d/render_graph/render_graph_context.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
+#include <chronon3d/scene/model/core/clip_transition.hpp>
 #include <chronon3d/scene/model/render/resolved_types.hpp>
 
 #include <memory_resource>
@@ -43,6 +44,8 @@ struct GraphBuildContext {
     std::unordered_map<std::string, bool>         is_static_cache;
     std::unordered_set<std::string>               matte_source_names;
     std::unordered_map<std::string, const ResolvedLayer*> name_to_resolved;
+    std::unordered_set<std::string>               clip_transition_source_names;
+    std::unordered_map<std::string, SceneClipTransition> clip_transition_by_target;
 
     // ── Current graph output (updated by passes) ───────────────────────
     GraphNodeId current_output{k_invalid_node};

@@ -30,6 +30,7 @@ Scene Scene::clone() const {
     Scene s(m_nodes.get_allocator().resource());
     s.m_nodes = m_nodes;
     s.m_layers = m_layers;
+    s.m_clip_transitions = m_clip_transitions;
     s.m_lights = m_lights;
     s.m_rim = m_rim;
     s.m_depth_grade = m_depth_grade;

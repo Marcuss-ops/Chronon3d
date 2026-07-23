@@ -70,18 +70,14 @@ GraphNodeId append_root_sources(RenderGraph& graph, const Scene& scene,
     return current;
 }
 
-void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
-                           GraphNodeId& current, RenderGraphContext& ctx,
-                           const Camera2_5DRuntime& cam25d,
-                           std::span<const ShadowCasterInfo> casters,
-                           const rendering::DepthGrade& depth_grade) {
-    BuilderContext node_ctx{
-        .layer_id = std::string(item.layer->name),
-        .opacity_evaluator = [opacity = item.layer->anim_transform.opacity](const RenderFrameInfo& info) -> float {
-            return opacity.evaluate(info.sample_time);
-        }
-    };
-
+GraphNodeId build_layer_output_node(
+    RenderGraph& graph, const LayerGraphItem& item,
+    RenderGraphContext& ctx,
+    const Camera2_5DRuntime& cam25d,
+    std::span<const ShadowCasterInfo> casters,
+    const rendering::DepthGrade& depth_grade,
+    const BuilderContext& node_ctx)
+{
     GraphNodeId layer_output = append_source_pass(graph, item, ctx, node_ctx);
     const Layer& layer = *item.layer;
 
@@ -107,16 +103,9 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
     }
 
     if (layer.kind == LayerKind::Adjustment) {
-        const bool is_static = layer.cache_static || item.is_static;
-        const auto policy = is_static ? static_memory_cache("adjustment") : frame_variant_cache("adjustment");
-        for (const auto& eff : layer.effects()) {
-            chronon3d::EffectStack stack;
-            stack.push_back(eff);
-            GraphNodeId adj_id = graph.add_node(std::make_unique<AdjustmentNode>(std::move(stack), policy), node_ctx);
-            graph.connect(current, adj_id);
-            current = adj_id;
-        }
-        return;
+        // Adjustment layers are a scene-level effect applied to the current
+        // composite, not a layer output. They should not be built here.
+        return k_invalid_node;
     }
 
     const bool mask_before_transform =
@@ -192,7 +181,45 @@ void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
         layer_output = trans_node;
     }
 
-    append_composite_pass(graph, current, layer_output, *item.layer, (layer.cache_static || item.is_static), ctx, item.world_z, node_ctx);
+    return layer_output;
+}
+
+void append_layer_pipeline(RenderGraph& graph, const LayerGraphItem& item,
+                           GraphNodeId& current, RenderGraphContext& ctx,
+                           const Camera2_5DRuntime& cam25d,
+                           std::span<const ShadowCasterInfo> casters,
+                           const rendering::DepthGrade& depth_grade,
+                           const GraphBuildContext*) {
+    BuilderContext node_ctx{
+        .layer_id = std::string(item.layer->name),
+        .opacity_evaluator = [opacity = item.layer->anim_transform.opacity](const RenderFrameInfo& info) -> float {
+            return opacity.evaluate(info.sample_time);
+        }
+    };
+
+    const Layer& layer = *item.layer;
+
+    // Adjustment layers are a scene-level effect applied to the current
+    // composite, not a layer output. Handle them before the normal
+    // layer pipeline.
+    if (layer.kind == LayerKind::Adjustment) {
+        const bool is_static = layer.cache_static || item.is_static;
+        const auto policy = is_static ? static_memory_cache("adjustment") : frame_variant_cache("adjustment");
+        for (const auto& eff : layer.effects()) {
+            chronon3d::EffectStack stack;
+            stack.push_back(eff);
+            GraphNodeId adj_id = graph.add_node(std::make_unique<AdjustmentNode>(std::move(stack), policy), node_ctx);
+            graph.connect(current, adj_id);
+            current = adj_id;
+        }
+        return;
+    }
+
+    GraphNodeId layer_output = build_layer_output_node(
+        graph, item, ctx, cam25d, casters, depth_grade, node_ctx);
+
+    const bool is_static = layer.cache_static || item.is_static;
+    append_composite_pass(graph, current, layer_output, layer, is_static, ctx, item.world_z, node_ctx);
 }
 
 void sort_camera25d_layers(std::vector<LayerGraphItem>& items) {
