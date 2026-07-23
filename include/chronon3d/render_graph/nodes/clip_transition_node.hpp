@@ -31,8 +31,6 @@ private:
     ClipTransitionSpec m_spec;
     Frame m_from{0};
     Frame m_duration{0};
-
-    [[nodiscard]] float compute_progress(const RenderGraphContext& ctx) const;
 };
 
 } // namespace chronon3d::graph
