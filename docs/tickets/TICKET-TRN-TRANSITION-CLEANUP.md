@@ -447,24 +447,22 @@ TransitionCatalog
 * rinominare transizioni che non rispettano ancora il comportamento promesso → **implementato**: `Push→EaseOutBlend`, `WhipPan→SmoothRotationBlend`, `FocusHandoff→FocusDistanceBlend` (alias legacy mantenuti);
 * testare continuità quaternion e tutti i parametri → **testato**: `tests/scene/camera/test_shot_timeline.cpp` (casi 13-16).
 
-## TRN-06 — Certificazione delle transizioni già presenti
+## TRN-06 — Certificazione delle transizioni già presenti ✅ DONE
 
-Matrice minima:
+Implementato in `tests/render_graph/features/test_transition_certification.cpp`:
 
-```text
-16:9 e 9:16
-ingresso e uscita
-durata 1, 2, 10, 30 frame
-linear e tre easing
-quattro direzioni
-cache cold/warm
-scheduler seriale/parallelo
-accesso sequenziale/casuale
-alpha trasparente e opaco
-frame iniziale, medio, finale
-```
+* 16:9 e 9:16;
+* ingresso (`transition_in`) e uscita (`transition_out`) per crossfade;
+* durate 1, 2, 10, 30 frame;
+* easing Linear, InQuad, OutQuad, InCubic (distinti a t=0.5);
+* direzioni Left/Right/Up/Down per slide e wipe;
+* cache cold/warm deterministica;
+* scheduler seriale/parallelo (determinismo);
+* accesso sequenziale/casuale tramite fresh renderer;
+* contenuto opaco e semitrasparente;
+* campionamento start/middle/end.
 
-Solo quando questa matrice è verde ha senso aggiungere nuove transizioni.
+La suite TRN-06 passa (11/11 casi, 69 asserzioni).
 
 ## TRN-07 — Vera transizione tra clip
 
