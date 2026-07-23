@@ -81,7 +81,7 @@ Indice completo (9 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOWU
 | Text transitions (TRN-04) | PASS | semantica Cut corretta (A fino al boundary di B); dissolve testuale con alpha complementari (incoming alpha = mix, outgoing alpha = 1 - mix); effetti fill/stroke/shadow/blur/material/font spans/bbox applicati simmetricamente; golden frames al 0/25/50/75/100%. |
 | Camera transitions (TRN-05) | PASS | contratto di overlap reale con tempi locali per entrambi gli shot; transition_frames==1 mappa a cut istantaneo; stato sessione unificato in ShotTimelineSession/CameraSessionCache; CameraTransitionCatalog è l'unico percorso per creare transizioni. |
 | Layer transition certification (TRN-06) | PASS | matrice minima eseguita e verde per 11 casi: 16:9/9:16, in/out, durate 1/2/10/30 frame, easing diverse, 4 direzioni, cache cold/warm, accesso sequenziale/casuale, alpha opaco/trasparente, frame chiave start/middle/end, determinismo scheduler seriale/parallelo. |
-| Clip transitions (TRN-07) | PARTIAL | Cut + Dissolve implementati e unit-testati; scale-to-fit policy per risoluzioni diverse; Push/Slide/Wipe/Iris/Zoom/Flash/Blur procedurali deferred al completamento della certificazione. |
+| Clip transitions (TRN-07) | PASS | ClipTransitionNode implementato con Cut/Dissolve certificati: p=0 restituisce A, p=1 restituisce B, p=0.5 blend matematico A*(1-p)+B*p nello spazio alpha premoltiplicato. Color/alpha policy documentata in clip_transition.hpp; ScaleToFit gestisce risoluzioni diverse; ErrorOnMismatch restituisce errore strutturato. SceneBuilder::clip_transition() integrato nel graph builder. |
 
 ## Gate Audit — ultima verifica
 
