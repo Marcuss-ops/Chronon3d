@@ -146,10 +146,11 @@
 #ifdef DOCTEST_SKIP
 #define SKIP(msg) DOCTEST_SKIP(msg)  // TICKET-DOCTEST-SKIP-ROT
 #else
-// Fallback for older doctest versions without DOCTEST_SKIP: exit the test
-// body early. The test is recorded as passed, which is acceptable for
-// temporarily disabling a test that is waiting on a renderer/implementation fix.
-#define SKIP(msg) do { (void)(msg); return; } while(0)
+// Fallback for older doctest versions without DOCTEST_SKIP: fail loudly.
+// A test that is marked SKIP must never be silently recorded as passed;
+// an explicit failure forces the caller to either fix the underlying issue
+// or upgrade to a doctest that provides DOCTEST_SKIP.
+#define SKIP(msg) DOCTEST_FAIL(msg)
 #endif
 #endif
 
