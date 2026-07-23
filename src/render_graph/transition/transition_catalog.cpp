@@ -104,6 +104,14 @@ public:
         (void)progress; (void)direction; (void)is_out; (void)ctx;
         out = *src;
     }
+
+    [[nodiscard]] std::optional<raster::BBox> predicted_bbox(
+        const std::optional<raster::BBox>& input_bbox,
+        const RenderGraphContext& ctx
+    ) const override {
+        (void)ctx;
+        return input_bbox;
+    }
 };
 
 class CrossfadeProgram final : public LayerTransitionProgram {
@@ -127,6 +135,14 @@ public:
                 dst_row[x] = src_row[x] * t;
             }
         }
+    }
+
+    [[nodiscard]] std::optional<raster::BBox> predicted_bbox(
+        const std::optional<raster::BBox>& input_bbox,
+        const RenderGraphContext& ctx
+    ) const override {
+        (void)ctx;
+        return input_bbox;
     }
 };
 
@@ -189,6 +205,13 @@ private:
             }
         }
     }
+
+    [[nodiscard]] std::optional<raster::BBox> predicted_bbox(
+        const std::optional<raster::BBox>& /*input_bbox*/,
+        const RenderGraphContext& ctx
+    ) const override {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    }
 };
 
 class MaskBasedWipeProgram final : public LayerTransitionProgram {
@@ -221,6 +244,13 @@ public:
                 dst_row[x] = src_row[x] * mask_val;
             }
         }
+    }
+
+    [[nodiscard]] std::optional<raster::BBox> predicted_bbox(
+        const std::optional<raster::BBox>& /*input_bbox*/,
+        const RenderGraphContext& ctx
+    ) const override {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
 private:
@@ -271,6 +301,13 @@ public:
                 dst_row[x] = out_color;
             }
         }
+    }
+
+    [[nodiscard]] std::optional<raster::BBox> predicted_bbox(
+        const std::optional<raster::BBox>& /*input_bbox*/,
+        const RenderGraphContext& ctx
+    ) const override {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
 private:
@@ -332,6 +369,13 @@ public:
         }
     }
 
+    [[nodiscard]] std::optional<raster::BBox> predicted_bbox(
+        const std::optional<raster::BBox>& /*input_bbox*/,
+        const RenderGraphContext& ctx
+    ) const override {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
+    }
+
 private:
     ProceduralRemotionParams m_params;
 };
@@ -383,6 +427,13 @@ public:
                 dst_row[x] = res;
             }
         }
+    }
+
+    [[nodiscard]] std::optional<raster::BBox> predicted_bbox(
+        const std::optional<raster::BBox>& /*input_bbox*/,
+        const RenderGraphContext& ctx
+    ) const override {
+        return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
 private:

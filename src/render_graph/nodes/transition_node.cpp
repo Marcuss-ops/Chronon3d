@@ -67,7 +67,6 @@ cache::NodeCacheKey TransitionNode::cache_key(const RenderGraphContext& ctx) con
     };
     key.params_hash = hash_layer_transition_spec(m_spec);
     key.params_hash = hash_combine(key.params_hash, static_cast<u64>(m_is_out));
-    key.params_hash = hash_combine(key.params_hash, static_cast<u64>(m_spec.direction));
     return key;
 }
 
@@ -75,22 +74,27 @@ std::optional<raster::BBox> TransitionNode::predicted_bbox(
     const RenderGraphContext& ctx,
     std::span<const std::optional<raster::BBox>> input_bboxes
 ) const {
-    raster::BBox input_bbox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
-    if (!input_bboxes.empty() && input_bboxes[0].has_value()) {
-        input_bbox = *input_bboxes[0];
+    std::optional<raster::BBox> input_bbox;
+    if (!input_bboxes.empty()) {
+        input_bbox = input_bboxes[0];
     }
 
-    // If the transition does not move pixels (crossfade / flash / remotion)
-    // the bbox is unchanged.  Mask-based and slide transitions can affect
-    // the whole canvas, so conservatively expand to the full frame.
-    const auto id = m_spec.transition_id;
-    if (id == "slide" || id == "wipe_linear" || id == "smooth_wipe" ||
-        id == "circle_iris" || id == "flash" || id == "procedural_remotion" ||
-        id == "remotion") {
+    // Empty id means "no transition": keep the input bbox unchanged and
+    // avoid touching the catalog.  If there is no input, fall back to the
+    // full output canvas.
+    if (m_spec.transition_id.empty()) {
+        return input_bbox.value_or(raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height});
+    }
+
+    // Delegates to the program so the node stays free of string-based
+    // transition dispatch.  Empty / missing input falls back to the
+    // full output canvas.
+    if (!input_bbox.has_value()) {
         return raster::BBox{0, 0, ctx.frame_input.width, ctx.frame_input.height};
     }
 
-    return input_bbox;
+    const LayerTransitionProgram& program = resolve_program(ctx);
+    return program.predicted_bbox(input_bbox, ctx);
 }
 
 const LayerTransitionProgram& TransitionNode::resolve_program(const RenderGraphContext& ctx) const {
@@ -124,7 +128,7 @@ NodeExecResult TransitionNode::execute(
 
     auto out_fb = ctx.acquire_owned_fb(w, h, false);
 
-    if (m_spec.transition_id == "none" || m_spec.transition_id.empty()) {
+    if (m_spec.transition_id.empty()) {
         *out_fb = *src;
         return NodeExecResult{std::move(out_fb)};
     }
