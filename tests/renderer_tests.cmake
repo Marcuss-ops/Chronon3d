@@ -133,6 +133,7 @@ chronon3d_add_test_suite(
         render_graph/compiler/test_frame_graph_compiler.cpp
         render_graph/core/test_node_identity.cpp
         render_graph/features/test_transition.cpp
+        render_graph/features/test_clip_transition.cpp
         render_graph/features/test_unified_transform_path.cpp
         render_graph/nodes/test_mask_node_rg_integration.cpp
         render_graph/nodes/test_mask_node_unit.cpp
