@@ -43,6 +43,7 @@ add_library(chronon3d_graph_nodes OBJECT
     nodes/transform_node.cpp
     nodes/transform_kernels.cpp
     nodes/transition_node.cpp
+    nodes/clip_transition_node.cpp
     nodes/effect_stack_node.cpp
     nodes/clear_node.cpp
     nodes/composite_node.cpp
