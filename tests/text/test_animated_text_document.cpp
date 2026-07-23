@@ -127,6 +127,18 @@ TEST_CASE("AnimatedTextDocument: Cut keeps previous document until next boundary
     CHECK(state.active->utf8 == "DocB");
 }
 
+TEST_CASE("AnimatedTextDocument: Cut keeps previous document until one frame before boundary") {
+    AnimatedTextDocument anim;
+    anim.add_keyframe(make_kf(0,  "DocA", SourceTextTransition::Cut));
+    anim.add_keyframe(make_kf(60, "DocB", SourceTextTransition::Hold));
+
+    // One frame before the boundary: still "DocA".
+    auto state = anim.sample_at(Frame{59});
+    CHECK(state.active->utf8 == "DocA");
+    CHECK(state.transition == SourceTextTransition::Cut);
+    CHECK(state.mix == 0.0f);
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 5. DissolveLayouts transition
 // ═══════════════════════════════════════════════════════════════════════════
