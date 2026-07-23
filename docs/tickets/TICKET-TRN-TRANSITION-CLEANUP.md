@@ -472,30 +472,26 @@ pipeline tramite `SceneBuilder::clip_transition()`:
 * `ClipTransitionNode` con due input A e B;
 * `ClipTransitionKind::Cut` — restituisce A per `p < 1` e B per `p >= 1`;
 * `ClipTransitionKind::Dissolve` — `output = A*(1-p) + B*p` per canale nello spazio alpha premoltiplicato;
+* `ClipTransitionKind::Push`, `Slide`, `Wipe`, `Iris`, `Zoom`, `Flash` — transizioni spaziali ed effetto con parametrizzazione (direzione, centro, feather, colore flash, zoom scale);
+* `ClipTransitionSpec` esteso con `direction`, `center`, `feather`, `flash_color`, `zoom_scale`;
 * gestione della policy di resize (`ScaleToFit` / `ErrorOnMismatch`);
-* cache key completa (kind, easing, fit, from, duration);
+* cache key completa (kind, easing, fit, from, duration, direction, center, feather, flash_color, zoom_scale, fps);
+* compositing premultiplied-over per `Push`/`Slide`;
 * `SceneBuilder::clip_transition(name_a, name_b, spec, from, duration)` aggiunge una
   `SceneClipTransition` alla scena;
 * il graph builder (`LayerPipelinePass`) risolve le due sub-pipeline dei layer A e B,
   le collega a `ClipTransitionNode` e compone il risultato al posto del layer target;
 * i layer sorgente di una clip transition vengono renderizzati solo come sub-pipeline,
   evitando la composizione normale;
-* test in `tests/render_graph/features/test_clip_transition.cpp` che verificano Cut, Dissolve a 0/0.5/1, mismatch e scale-to-fit (4 casi, 39 asserzioni pass);
+* test in `tests/render_graph/features/test_clip_transition.cpp` che verificano Cut, Dissolve, Push, Slide, Wipe, Iris, Zoom, Flash, mismatch e scale-to-fit (10 casi, 71 asserzioni pass);
 * test di integrazione `tests/render_graph/pipeline/test_clip_transition_scene_integration.cpp`
   che esercita il percorso completo `SceneBuilder → render graph → SoftwareRenderer` per
   Cut e Dissolve (2 casi).
 
-Nuove transizioni clip da aggiungere solo dopo certificazione:
+Nuove transizioni clip future (post-certificazione):
 
-* Push;
-* Slide;
-* Linear Wipe;
-* Smooth Wipe;
-* Iris;
 * Blur Dissolve;
-* Zoom;
-* Flash;
-* effetti procedurali.
+* effetti procedurali (Remotion-style).
 
 ---
 
