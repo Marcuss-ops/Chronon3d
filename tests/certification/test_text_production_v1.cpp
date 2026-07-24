@@ -471,20 +471,26 @@ TEST_CASE("Auto-fit shrinks oversized text → bbox fits inside box") {
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("Alignment (left/center/right) → different centroid X") {
-    auto renderer = test::make_renderer();
+    // Use independent render sessions: the three cases intentionally share
+    // the same scene/node names, while their layout alignment differs.
+    // Sharing a renderer would exercise the scene cache key rather than the
+    // alignment contract under test.
+    auto renderer_left = test::make_renderer();
+    auto renderer_center = test::make_renderer();
+    auto renderer_right = test::make_renderer();
 
-    auto fb_left = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "Aligned", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
+    auto fb_left = render_at_frame0(renderer_left, build_text_only_comp(
+        renderer_left, "Short\nMuch longer line", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
         TextAlign::Left, TextAnchor::TopLeft, Vec2{600.0f, 200.0f},
-        Vec3{-200.0f, 0.0f, 0.0f}, 1920, 1080));
-    auto fb_center = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "Aligned", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
-        TextAlign::Center, TextAnchor::Center, Vec2{600.0f, 200.0f},
         Vec3{0.0f, 0.0f, 0.0f}, 1920, 1080));
-    auto fb_right = render_at_frame0(renderer, build_text_only_comp(
-        renderer, "Aligned", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
-        TextAlign::Right, TextAnchor::TopRight, Vec2{600.0f, 200.0f},
-        Vec3{200.0f, 0.0f, 0.0f}, 1920, 1080));
+    auto fb_center = render_at_frame0(renderer_center, build_text_only_comp(
+        renderer_center, "Short\nMuch longer line", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
+        TextAlign::Center, TextAnchor::TopLeft, Vec2{600.0f, 200.0f},
+        Vec3{0.0f, 0.0f, 0.0f}, 1920, 1080));
+    auto fb_right = render_at_frame0(renderer_right, build_text_only_comp(
+        renderer_right, "Short\nMuch longer line", chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"), 96.0f,
+        TextAlign::Right, TextAnchor::TopLeft, Vec2{600.0f, 200.0f},
+        Vec3{0.0f, 0.0f, 0.0f}, 1920, 1080));
 
     REQUIRE(fb_left != nullptr);
     REQUIRE(fb_center != nullptr);

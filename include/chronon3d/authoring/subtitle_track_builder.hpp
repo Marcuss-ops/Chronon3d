@@ -88,7 +88,19 @@ public:
 
     /// Set placement kind for every cue.
     SubtitleTrackBuilder& place(TextPlacementKind kind) {
-        placement_kind_ = kind;
+        placement_ = TextPlacement{kind};
+        return *this;
+    }
+
+    /// Set the complete semantic placement, including an absolute/additive offset.
+    SubtitleTrackBuilder& place(TextPlacement placement) {
+        placement_ = placement;
+        return *this;
+    }
+
+    /// Set vertical alignment within the cue layout box.
+    SubtitleTrackBuilder& vertical_align(VerticalAlign align) {
+        vertical_align_ = align;
         return *this;
     }
 
@@ -143,7 +155,8 @@ private:
     Color color_{1.0f, 1.0f, 1.0f, 1.0f};
     Vec2 box_size_{1400.0f, 200.0f};
     TextAlign align_{TextAlign::Center};
-    TextPlacementKind placement_kind_{TextPlacementKind::SafeAreaBottom};
+    TextPlacement placement_{TextPlacementKind::SafeAreaBottom};
+    VerticalAlign vertical_align_{VerticalAlign::Middle};
     std::optional<FrameRate> frame_rate_override_{std::nullopt};
     bool require_authoritative_{false};
     bool allow_estimated_{false};
