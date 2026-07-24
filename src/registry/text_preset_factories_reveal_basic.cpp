@@ -3,7 +3,7 @@
 // FASE 1 Step 1 → split (Stage 1) — Reveal-category text-preset factory TU,
 // BASIC sub-bucket.  Extracted from `text_preset_factories_reveal.cpp`
 // together with the matching `selectors` sub-bucket.  This TU emits the
-// 6 simple entrance-animation presets; the 4 selector-driven counterparts
+// 8 simple entrance-animation presets; the 4 selector-driven counterparts
 // live in `text_preset_factories_reveal_selectors.cpp`.  The parent
 // `text_preset_factories_reveal.cpp` is reduced to a thin aggregator.
 //
@@ -24,13 +24,15 @@
 //
 // ## Content (verbatim port from the pre-split file)
 //
-//   ── REVEAL · BASIC (6) ────────────────────────────────────────────────────
+//   ── REVEAL · BASIC (8) ────────────────────────────────────────────────────
 //     1.  text_animations            (PR 41cda40c, kept)
 //     2.  fade_in                    (Stage 3)
 //     3.  blur_in                    (Stage 3)
 //     4.  slide_up                   (Stage 3)
 //     5.  slide_down                 (Stage 3)
 //     6.  scale_in                   (Stage 3)
+//     7.  zoom_in                    (CapCut V1 catalog)
+//     8.  slide_left                 (CapCut V1 catalog)
 //
 // ## Architectural invariants (AGENTS.md v0.1 freeze)
 //
@@ -103,7 +105,7 @@ TextPresetDescriptor make_reveal_descriptor(
 }
 } // namespace (TU-local helper)
 
-// ── STAGE 2 helpers — Reveal · BASIC (6) compositor bodies ─────────────────
+// ── STAGE 2 helpers — Reveal · BASIC (8) compositor bodies ─────────────────
 //
 // Each helper mirrors the corresponding pre-TEXT-RES-01
 // `AnimatorResolver::compose_for(...)` branched body verbatim.  Naming
@@ -274,6 +276,14 @@ TextPresetDescriptor slide_down_entry() {
         });
 }
 
+// Forward declarations for the additional V1 catalog entries.  Their
+// compositor bodies remain next to the entry implementations below.
+[[nodiscard]] inline std::optional<TextAnimatorSpec>
+compose_zoom_in(const PresetMetadata& /*meta*/);
+
+[[nodiscard]] inline std::optional<TextAnimatorSpec>
+compose_slide_left(const PresetMetadata& /*meta*/);
+
 // ── 6.  scale_in ──────────────────────────────────────────────────────────
 TextPresetDescriptor scale_in_entry() {
     return make_reveal_descriptor(
@@ -296,10 +306,72 @@ TextPresetDescriptor scale_in_entry() {
         });
 }
 
+// 7. zoom_in — stronger scale entrance for title cards.
+[[nodiscard]] inline std::optional<TextAnimatorSpec>
+compose_zoom_in(const PresetMetadata& /*meta*/) {
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("zoom_in");
+    a.properties.push_back(ScaleProperty{Vec3{0.70f, 0.70f, 1.0f}});
+    a.properties.push_back(OpacityProperty{1.0f});
+    return a;
+}
+
+// 8. slide_left — horizontal entrance complementary to slide_up/down.
+[[nodiscard]] inline std::optional<TextAnimatorSpec>
+compose_slide_left(const PresetMetadata& /*meta*/) {
+    TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("slide_left");
+    a.properties.push_back(PositionProperty{Vec3{200.0f, 0.0f, 0.0f}});
+    a.properties.push_back(OpacityProperty{1.0f});
+    return a;
+}
+
+// ── 7. zoom_in ────────────────────────────────────────────────────────────
+TextPresetDescriptor zoom_in_entry() {
+    return make_reveal_descriptor(
+        PresetMetadata{
+            .id           = "zoom_in",
+            .display_name = "ZoomIn",
+            .category     = TextPresetCategory::Reveal,
+            .description  = "Deep scale entrance (0.70 → 1.0) over Frame{28} "
+                             "+ opacity ramp for title cards and hero text.",
+            .builtin      = true,
+        },
+        "tests/visual/text/reveal_zoom_in",
+        compose_zoom_in,
+        []([[maybe_unused]] SceneBuilderT& sb,
+           LayerBuilderT& lb,
+           const TextDefinitionT& spec) {
+            chronon3d::registry::internal::wire_through_resolver(lb, "zoom_in", spec)
+              .scale_drop(0.70f, Frame{28})
+              .fade_in(Frame{18});
+        });
+}
+
+// ── 8. slide_left ─────────────────────────────────────────────────────────
+TextPresetDescriptor slide_left_entry() {
+    return make_reveal_descriptor(
+        PresetMetadata{
+            .id           = "slide_left",
+            .display_name = "SlideLeft",
+            .category     = TextPresetCategory::Reveal,
+            .description  = "Horizontal slide from the right (offset {200,0,0}) "
+                             "+ fade_in over Frame{25}.",
+            .builtin      = true,
+        },
+        "tests/visual/text/reveal_slide_left",
+        compose_slide_left,
+        []([[maybe_unused]] SceneBuilderT& sb,
+           LayerBuilderT& lb,
+           const TextDefinitionT& spec) {
+            chronon3d::registry::internal::wire_through_resolver(lb, "slide_left", spec)
+              .fade_shift_horizontal(Vec3{200.0f, 0.0f, 0.0f}, Frame{25})
+              .fade_in(Frame{15});
+        });
+}
+
 
 // ── public factory surface (sub-bucket: BASIC) ─────────────────────────────
 //
-// `create_basic_reveal_presets()` returns the 6 Reveal · BASIC descriptors
+// `create_basic_reveal_presets()` returns the 8 Reveal · BASIC descriptors
 // in canonical Reveal insertion order (basic precedes the 4 selectors
 // emitted by `create_selector_reveal_presets()`).
 [[nodiscard]] std::vector<TextPresetDescriptor>
@@ -311,6 +383,8 @@ create_basic_reveal_presets() {
         slide_up_entry(),
         slide_down_entry(),
         scale_in_entry(),
+        zoom_in_entry(),
+        slide_left_entry(),
     };
 }
 

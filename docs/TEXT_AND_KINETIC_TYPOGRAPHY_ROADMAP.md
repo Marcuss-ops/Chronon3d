@@ -56,7 +56,7 @@ Sono già presenti fondazioni valide:
 - materiali testuali, gradienti, stroke, glow e bevel;
 - `AnimatedTextDocument` per sostituzione, scramble e morph;
 - text on path con margini, reverse, perpendicular e force alignment;
-- `TextPresetRegistry` con 26 preset built-in (18 generali + 8 subtitle);
+- `TextPresetRegistry` con 28 preset built-in (20 generali + 8 subtitle);
 - `AnimatorResolver` che produce `TextAnimatorSpec` per i preset;
 - cache di layout e glyph atlas;
 - test strutturali per registry, resolver e parte del layout.
@@ -245,7 +245,7 @@ Opera sull’immagine o sulla maschera rasterizzata:
 
 ## 3.4 Claim di stabilità non verificati visivamente
 
-I 26 preset sono presenti nel registro, ma i test attuali verificano soprattutto:
+I 28 preset sono presenti nel registro, ma i test attuali verificano soprattutto:
 
 - metadata;
 - presenza del builder;
@@ -265,7 +265,7 @@ Usare queste definizioni:
 - **visivamente verificato**: golden frame e metriche approvate;
 - **stabile**: test strutturali, visuali, determinismo e multi-resolution sono verdi sullo stesso commit.
 
-Fino al completamento della suite visuale, i 26 preset non devono essere descritti come tutti stabili.
+Fino al completamento della suite visuale, i 28 preset non devono essere descritti come tutti stabili.
 
 ---
 
@@ -365,7 +365,7 @@ Eliminare la duplicazione tra `TextPresetRegistry` e `AnimatorResolver`.
 ### Definition of Done
 
 - nessuna seconda tabella degli ID;
-- nessun confronto manuale duplicato per 26 preset;
+- nessun confronto manuale duplicato per 28 preset;
 - built-in e custom passano dalla stessa pipeline;
 - registry, resolver e authoring producono lo stesso `TextAnimatorSpec`.
 

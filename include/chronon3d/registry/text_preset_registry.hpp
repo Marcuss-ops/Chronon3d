@@ -180,7 +180,7 @@ private:
 };
 
 /// Helper mirroring `make_default_shape_registry()` pattern — populates a
-/// FRESH `TextPresetRegistry` with the 26 built-in text presets
+/// FRESH `TextPresetRegistry` with the 28 built-in text presets
 /// (Reveal/Emphasis/Subtitle/Cinematic tiers, per
 /// `docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md` §Fase 10).  Most
 /// production code should use `builtin_text_preset_registry()` (process-
@@ -205,7 +205,7 @@ private:
 TextPresetRegistry make_default_text_preset_registry();
 
 /// `builtin_text_preset_registry()` returns a process-stable shared
-/// instance of the 26 built-in text presets.  This is the SINGLE source
+/// instance of the 28 built-in text presets.  This is the SINGLE source
 /// of truth that `AnimatorResolver::compose_for(preset_id)` queries — the
 /// resolver NEVER constructs or manages its own registry.  Uses a
 /// thread-safe magic-static (C++11) to ensure exactly one seed per
@@ -225,7 +225,7 @@ builtin_text_preset_registry() noexcept;
 ///
 /// Companion surface to `builtin_text_preset_registry()`: returns a
 /// non-owning `std::span<const TextPresetDescriptor>` view of the
-/// 26 built-in descriptors (in registry-sorted order).
+/// 28 built-in descriptors (in registry-sorted order).
 ///
 /// Architectural invariants:
 ///   - Delegated to `builtin_text_preset_registry().list()` so the

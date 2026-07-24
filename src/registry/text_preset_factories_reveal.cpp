@@ -4,15 +4,15 @@
 // THIN AGGREGATOR.  Originally 518 LoC with 10 entry() functions colocated
 // with the `create_text_presets()` return site; split into 2 sub-buckets:
 //
-//   • `text_preset_factories_reveal_basic.cpp`     → 6 entrance-animation
+//   • `text_preset_factories_reveal_basic.cpp`     → 8 entrance-animation
 //     presets (text_animations / fade_in / blur_in / slide_up / slide_down /
-//     scale_in), exposed as `create_basic_reveal_presets()`.
+//     scale_in / zoom_in / slide_left), exposed as `create_basic_reveal_presets()`.
 //   • `text_preset_factories_reveal_selectors.cpp` → 4 selector-driven
 //     presets (tracking_close / masked_line_reveal / word_cascade /
 //     character_cascade), exposed as `create_selector_reveal_presets()`.
 //
 // This aggregator preserves the canonical Reveal insertion order
-// (basic precedes selectors → 6 + 4 = 10 descriptors in stable order).
+// (basic precedes selectors → 8 + 4 = 12 descriptors in stable order).
 // The per-category factory surface (`create_text_presets()`) is unchanged
 // so the consumer `src/registry/text_preset_registry.cpp:202` keeps
 // compiling un-modified.
@@ -56,8 +56,8 @@ namespace chronon3d::registry::register_helpers_internal::factory_reveal {
 
 // ── public factory surface (Reveal category, aggregator) ──────────────────
 //
-// `create_text_presets()` returns the 10 Reveal-category descriptors in
-// canonical insertion order: 6 BASIC (sub-bucket 1) followed by 4
+// `create_text_presets()` returns the 12 Reveal-category descriptors in
+// canonical insertion order: 8 BASIC (sub-bucket 1) followed by 4
 // SELECTORS (sub-bucket 2).  The total count + order is preserved
 // byte-identical to the pre-split implementation.
 [[nodiscard]] std::vector<TextPresetDescriptor>
