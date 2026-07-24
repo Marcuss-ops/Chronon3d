@@ -46,6 +46,7 @@
 #include <tests/visual/support/image_diff.hpp>
 
 #include <algorithm>
+#include <cstdlib>
 #include <cmath>
 #include <cstdlib>
 #include <filesystem>
@@ -131,7 +132,10 @@ chronon3d::VerticalAlign parse_vertical_align(std::string_view s) {
 
 std::vector<CapcutCase> load_manifest(const fs::path& repo_root) {
     std::vector<CapcutCase> cases;
-    const fs::path manifest_path = repo_root / kCapcutRoot / "manifest.json";
+    const char* override_path = std::getenv("CHRONON3D_CAPCUT_MANIFEST");
+    const fs::path manifest_path = override_path && *override_path
+        ? fs::path{override_path}
+        : repo_root / kCapcutRoot / "manifest.json";
     if (!fs::exists(manifest_path)) {
         INFO("manifest not found: " << manifest_path.string());
         return cases;
@@ -186,6 +190,13 @@ std::vector<CapcutCase> load_manifest(const fs::path& repo_root) {
         cases.push_back(std::move(c));
     }
     return cases;
+}
+
+fs::path capcut_corpus_root(const fs::path& repo_root) {
+    const char* override_path = std::getenv("CHRONON3D_CAPCUT_CORPUS_ROOT");
+    return override_path && *override_path
+        ? fs::path{override_path}
+        : repo_root / kCapcutRoot;
 }
 
 // ── Rendering helpers ──────────────────────────────────────────────────
@@ -623,6 +634,7 @@ ParityReport compare_against_reference(
 TEST_CASE("capcut/static: ROI + baseline + bbox + silhouette + SSIM + missing_glyphs + cut_text") {
     const auto repo_root = chronon3d::test::test_repo_root();
     const auto all_cases = load_manifest(repo_root);
+    const auto corpus_root = capcut_corpus_root(repo_root);
     const bool render_current = render_current_env_enabled();
     int compared = 0;
     int skipped_no_ref = 0;
@@ -630,8 +642,8 @@ TEST_CASE("capcut/static: ROI + baseline + bbox + silhouette + SSIM + missing_gl
     for (const auto& c : all_cases) {
         if (c.area != "static") continue;
 
-        const fs::path current_path  = repo_root / kCapcutRoot / "static" / "current"  / (c.id + ".png");
-        const fs::path reference_path = repo_root / kCapcutRoot / "static" / "reference" / (c.id + ".png");
+        const fs::path current_path  = corpus_root / "static" / "current"  / (c.id + ".png");
+        const fs::path reference_path = corpus_root / "static" / "reference" / (c.id + ".png");
 
         auto renderer = chronon3d::test::make_renderer_shared();
         auto actual = render_case(c, *renderer);
@@ -668,6 +680,7 @@ TEST_CASE("capcut/static: ROI + baseline + bbox + silhouette + SSIM + missing_gl
 TEST_CASE("capcut/subtitles: ROI + baseline + bbox + silhouette + SSIM + missing_glyphs + cut_text") {
     const auto repo_root = chronon3d::test::test_repo_root();
     const auto all_cases = load_manifest(repo_root);
+    const auto corpus_root = capcut_corpus_root(repo_root);
     const bool render_current = render_current_env_enabled();
     int compared = 0;
     int skipped_no_ref = 0;
@@ -675,8 +688,8 @@ TEST_CASE("capcut/subtitles: ROI + baseline + bbox + silhouette + SSIM + missing
     for (const auto& c : all_cases) {
         if (c.area != "subtitles") continue;
 
-        const fs::path current_path  = repo_root / kCapcutRoot / "subtitles" / "current"  / (c.id + ".png");
-        const fs::path reference_path = repo_root / kCapcutRoot / "subtitles" / "reference" / (c.id + ".png");
+        const fs::path current_path  = corpus_root / "subtitles" / "current"  / (c.id + ".png");
+        const fs::path reference_path = corpus_root / "subtitles" / "reference" / (c.id + ".png");
 
         auto renderer = chronon3d::test::make_renderer_shared();
         auto actual = render_case(c, *renderer);
@@ -712,6 +725,7 @@ TEST_CASE("capcut/subtitles: ROI + baseline + bbox + silhouette + SSIM + missing
 TEST_CASE("capcut/effects: ROI + baseline + bbox + silhouette + SSIM + missing_glyphs + cut_text") {
     const auto repo_root = chronon3d::test::test_repo_root();
     const auto all_cases = load_manifest(repo_root);
+    const auto corpus_root = capcut_corpus_root(repo_root);
     const bool render_current = render_current_env_enabled();
     int compared = 0;
     int skipped_no_ref = 0;
@@ -719,8 +733,8 @@ TEST_CASE("capcut/effects: ROI + baseline + bbox + silhouette + SSIM + missing_g
     for (const auto& c : all_cases) {
         if (c.area != "effects") continue;
 
-        const fs::path current_path  = repo_root / kCapcutRoot / "effects" / "current"  / (c.id + ".png");
-        const fs::path reference_path = repo_root / kCapcutRoot / "effects" / "reference" / (c.id + ".png");
+        const fs::path current_path  = corpus_root / "effects" / "current"  / (c.id + ".png");
+        const fs::path reference_path = corpus_root / "effects" / "reference" / (c.id + ".png");
 
         auto renderer = chronon3d::test::make_renderer_shared();
         auto actual = render_case(c, *renderer);
