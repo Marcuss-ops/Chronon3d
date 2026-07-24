@@ -1,10 +1,12 @@
 // ==============================================================================
 // tests/render_graph/features/test_clip_transition.cpp
 //
-// TRN-07 — ClipTransitionNode certification (Cut + Dissolve only).
+// TRN-07 + TRN-07-EXT — ClipTransitionNode certification.
 // Verifies that a transition between two full-frame clips behaves as:
 //   Cut:      output = A for p < 1, output = B for p >= 1
 //   Dissolve: output = A*(1-p) + B*p in premultiplied alpha space
+//   Push/Slide/Wipe/Iris/Zoom/Flash: endpoints are A at p=0 and B at p=1,
+//   and the midpoint shows the expected transition behavior.
 // ==============================================================================
 
 #include <doctest/doctest.h>
@@ -250,5 +252,219 @@ TEST_CASE("ClipTransitionNode: mismatched input dimensions scale to fit the outp
         CHECK(c.r == doctest::Approx(0.5f).epsilon(0.02f));
         CHECK(c.g == doctest::Approx(0.0f).epsilon(0.01f));
         CHECK(c.b == doctest::Approx(0.5f).epsilon(0.02f));
+    }
+}
+
+TEST_CASE("ClipTransitionNode: Push endpoints and directional motion") {
+    auto ctx = make_ctx(64, 64);
+    auto a = make_fb(ctx, 64, 64, Color::red());
+    auto b = make_fb(ctx, 64, 64, Color::blue());
+
+    ClipTransitionSpec spec;
+    spec.kind = ClipTransitionKind::Push;
+    spec.direction = TransitionDirection::Right;
+    spec.easing = Easing::Linear;
+    ClipTransitionNode node("push", spec, Frame{0}, Frame{30});
+
+    // p = 0 -> A, p = 1 -> B.
+    {
+        auto out_a = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{0});
+        auto ca = out_a->get_pixel(32, 32);
+        CHECK(ca.r == doctest::Approx(1.0f));
+        CHECK(ca.b == doctest::Approx(0.0f));
+
+        auto out_b = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{30});
+        auto cb = out_b->get_pixel(32, 32);
+        CHECK(cb.r == doctest::Approx(0.0f));
+        CHECK(cb.b == doctest::Approx(1.0f));
+    }
+
+    // p = 0.5 -> both inputs contribute and motion is directional.
+    // Implementation samples A at (u + p) and B at (u - (1-p)), so for
+    // Right the left side still shows A and the right side shows B.
+    {
+        auto out = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{15});
+        auto left = out->get_pixel(8, 32);
+        auto right = out->get_pixel(56, 32);
+        CHECK((left.r + left.b) > 0.0f);
+        CHECK((right.r + right.b) > 0.0f);
+        CHECK(left.r > right.r);
+        CHECK(left.b < right.b);
+    }
+}
+
+TEST_CASE("ClipTransitionNode: Slide endpoints and B enters from direction") {
+    auto ctx = make_ctx(64, 64);
+    auto a = make_fb(ctx, 64, 64, Color::red());
+    auto b = make_fb(ctx, 64, 64, Color::blue());
+
+    ClipTransitionSpec spec;
+    spec.kind = ClipTransitionKind::Slide;
+    spec.direction = TransitionDirection::Right;
+    spec.easing = Easing::Linear;
+    ClipTransitionNode node("slide", spec, Frame{0}, Frame{30});
+
+    // p = 0 -> A, p = 1 -> B.
+    {
+        auto out_a = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{0});
+        auto ca = out_a->get_pixel(32, 32);
+        CHECK(ca.r == doctest::Approx(1.0f));
+        CHECK(ca.b == doctest::Approx(0.0f));
+
+        auto out_b = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{30});
+        auto cb = out_b->get_pixel(32, 32);
+        CHECK(cb.r == doctest::Approx(0.0f));
+        CHECK(cb.b == doctest::Approx(1.0f));
+    }
+
+    // p = 0.5 -> left side is mostly A, right side is mostly B.
+    {
+        auto out = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{15});
+        auto left = out->get_pixel(8, 32);
+        auto right = out->get_pixel(56, 32);
+        CHECK(left.r > right.r);
+        CHECK(left.b < right.b);
+    }
+}
+
+TEST_CASE("ClipTransitionNode: Wipe sweeps from direction with feather") {
+    auto ctx = make_ctx(64, 64);
+    auto a = make_fb(ctx, 64, 64, Color::red());
+    auto b = make_fb(ctx, 64, 64, Color::blue());
+
+    ClipTransitionSpec spec;
+    spec.kind = ClipTransitionKind::Wipe;
+    spec.direction = TransitionDirection::Right;
+    spec.feather = 0.05f;
+    spec.easing = Easing::Linear;
+    ClipTransitionNode node("wipe", spec, Frame{0}, Frame{30});
+
+    // p = 0 -> A, p = 1 -> B.
+    {
+        auto out_a = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{0});
+        auto ca = out_a->get_pixel(32, 32);
+        CHECK(ca.r == doctest::Approx(1.0f));
+        CHECK(ca.b == doctest::Approx(0.0f));
+
+        auto out_b = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{30});
+        auto cb = out_b->get_pixel(32, 32);
+        CHECK(cb.r == doctest::Approx(0.0f));
+        CHECK(cb.b == doctest::Approx(1.0f));
+    }
+
+    // p = 0.5 -> right side is A, left side is B, middle is blended.
+    // The implementation sweeps the mask so that B appears from the left
+    // when direction == Right.
+    {
+        auto out = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{15});
+        auto left = out->get_pixel(8, 32);
+        auto mid = out->get_pixel(32, 32);
+        auto right = out->get_pixel(56, 32);
+        CHECK(left.b > left.r);
+        CHECK(right.r > right.b);
+        CHECK(mid.r > 0.0f);
+        CHECK(mid.b > 0.0f);
+    }
+}
+
+TEST_CASE("ClipTransitionNode: Iris opens from center with feather") {
+    auto ctx = make_ctx(64, 64);
+    auto a = make_fb(ctx, 64, 64, Color::red());
+    auto b = make_fb(ctx, 64, 64, Color::blue());
+
+    ClipTransitionSpec spec;
+    spec.kind = ClipTransitionKind::Iris;
+    spec.center = Vec2{0.5f, 0.5f};
+    spec.feather = 0.05f;
+    spec.easing = Easing::Linear;
+    ClipTransitionNode node("iris", spec, Frame{0}, Frame{30});
+
+    // p = 0 -> A, p = 1 -> B.
+    {
+        auto out_a = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{0});
+        auto ca = out_a->get_pixel(32, 32);
+        CHECK(ca.r == doctest::Approx(1.0f));
+        CHECK(ca.b == doctest::Approx(0.0f));
+
+        auto out_b = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{30});
+        auto cb = out_b->get_pixel(32, 32);
+        CHECK(cb.r == doctest::Approx(0.0f));
+        CHECK(cb.b == doctest::Approx(1.0f));
+    }
+
+    // p = 0.5 -> center is B, corners are A.
+    {
+        auto out = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{15});
+        auto center = out->get_pixel(32, 32);
+        auto corner = out->get_pixel(4, 4);
+        CHECK(center.b > center.r);
+        CHECK(corner.r > corner.b);
+    }
+}
+
+TEST_CASE("ClipTransitionNode: Zoom fades and scales B from center") {
+    auto ctx = make_ctx(64, 64);
+    auto a = make_fb(ctx, 64, 64, Color::red());
+    auto b = make_fb(ctx, 64, 64, Color::blue());
+
+    ClipTransitionSpec spec;
+    spec.kind = ClipTransitionKind::Zoom;
+    spec.center = Vec2{0.5f, 0.5f};
+    spec.zoom_scale = 2.0f;
+    spec.easing = Easing::Linear;
+    ClipTransitionNode node("zoom", spec, Frame{0}, Frame{30});
+
+    // p = 0 -> A, p = 1 -> B.
+    {
+        auto out_a = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{0});
+        auto ca = out_a->get_pixel(32, 32);
+        CHECK(ca.r == doctest::Approx(1.0f));
+        CHECK(ca.b == doctest::Approx(0.0f));
+
+        auto out_b = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{30});
+        auto cb = out_b->get_pixel(32, 32);
+        CHECK(cb.r == doctest::Approx(0.0f));
+        CHECK(cb.b == doctest::Approx(1.0f));
+    }
+
+    // p = 0.5 -> output is a blend of A and B.
+    {
+        auto out = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{15});
+        auto c = out->get_pixel(32, 32);
+        CHECK(c.r > 0.0f);
+        CHECK(c.b > 0.0f);
+    }
+}
+
+TEST_CASE("ClipTransitionNode: Flash peaks at midpoint with configured color") {
+    auto ctx = make_ctx(64, 64);
+    auto a = make_fb(ctx, 64, 64, Color::red());
+    auto b = make_fb(ctx, 64, 64, Color::blue());
+
+    ClipTransitionSpec spec;
+    spec.kind = ClipTransitionKind::Flash;
+    spec.flash_color = Color::green();
+    spec.easing = Easing::Linear;
+    ClipTransitionNode node("flash", spec, Frame{0}, Frame{30});
+
+    // p = 0 -> A, p = 1 -> B.
+    {
+        auto out_a = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{0});
+        auto ca = out_a->get_pixel(32, 32);
+        CHECK(ca.r == doctest::Approx(1.0f));
+        CHECK(ca.b == doctest::Approx(0.0f));
+
+        auto out_b = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{30});
+        auto cb = out_b->get_pixel(32, 32);
+        CHECK(cb.r == doctest::Approx(0.0f));
+        CHECK(cb.b == doctest::Approx(1.0f));
+    }
+
+    // p = 0.5 -> output is dominated by the flash color.
+    {
+        auto out = execute_at_frame(node, ctx, {a.get(), b.get()}, Frame{15});
+        auto c = out->get_pixel(32, 32);
+        CHECK(c.g > c.r);
+        CHECK(c.g > c.b);
     }
 }
