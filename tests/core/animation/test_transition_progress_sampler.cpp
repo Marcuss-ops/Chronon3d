@@ -162,6 +162,68 @@ TEST_CASE("TransitionProgressSampler: one-frame duration") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// 3b. Two-frame duration
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("TransitionProgressSampler: two-frame duration") {
+    const FrameRate rate{30, 1};
+    const SampleTime start = at_frame(10.0, rate);
+    const SampleTime end   = at_frame(12.0, rate);
+    const EasingCurve linear{Easing::Linear};
+
+    {
+        auto s = sample_transition(at_frame(10.0, rate), start, end, linear);
+        CHECK(s.active);
+        CHECK(s.linear_progress == doctest::Approx(0.0f));
+    }
+
+    {
+        auto s = sample_transition(at_frame(11.0, rate), start, end, linear);
+        CHECK(s.active);
+        CHECK(s.linear_progress == doctest::Approx(0.5f));
+    }
+
+    {
+        auto s = sample_transition(at_frame(12.0, rate), start, end, linear);
+        CHECK(s.after);
+        CHECK(s.linear_progress == doctest::Approx(1.0f));
+    }
+
+    {
+        auto s = sample_transition(at_frame(11.5, rate), start, end, linear);
+        CHECK(s.active);
+        CHECK(s.linear_progress == doctest::Approx(0.75f));
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3c. Thirty-frame duration
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("TransitionProgressSampler: thirty-frame duration") {
+    const FrameRate rate{30, 1};
+    const SampleTime start = at_frame(0.0, rate);
+    const SampleTime end   = at_frame(30.0, rate);
+    const EasingCurve linear{Easing::Linear};
+
+    for (Frame f = 0; f <= 30; ++f) {
+        auto s = sample_transition(at_frame(static_cast<double>(f), rate), start, end, linear);
+        check_sanity(s);
+        const float expected = static_cast<float>(f) / 30.0f;
+        CHECK(s.linear_progress == doctest::Approx(expected).epsilon(1e-5f));
+        CHECK(s.eased_progress == doctest::Approx(expected).epsilon(1e-5f));
+        if (f < 30) {
+            CHECK(s.active);
+            CHECK(!s.after);
+        } else {
+            CHECK(s.after);
+            CHECK(!s.active);
+        }
+        CHECK(!s.before);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // 4. Easing application and direction
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -269,7 +331,134 @@ TEST_CASE("TransitionProgressSampler: standard broadcast frame rates give same n
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 7. Sub-frame sampling
+// 7. Same frame coordinate yields identical normalized progress across rates
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("TransitionProgressSampler: identical frame coordinate gives identical progress across frame rates") {
+    const std::vector<FrameRate> rates = {
+        FrameRate{24000, 1001}, // 23.976
+        FrameRate{24, 1},
+        FrameRate{25, 1},
+        FrameRate{30000, 1001}, // 29.97
+        FrameRate{30, 1},
+        FrameRate{50, 1},
+        FrameRate{60, 1},
+    };
+
+    std::vector<float> progress_values;
+    for (const auto& rate : rates) {
+        const SampleTime start = at_frame(0.0, rate);
+        const SampleTime end   = at_frame(30.0, rate);
+        const SampleTime mid   = at_frame(15.5, rate);
+        const EasingCurve linear{Easing::Linear};
+
+        auto s = sample_transition(mid, start, end, linear);
+        check_sanity(s);
+        CHECK(s.active);
+        progress_values.push_back(s.linear_progress);
+    }
+
+    for (size_t i = 1; i < progress_values.size(); ++i) {
+        CHECK(progress_values[i] == doctest::Approx(progress_values[0]).epsilon(1e-6f));
+    }
+
+    CHECK(progress_values[0] == doctest::Approx(15.5f / 30.0f).epsilon(1e-6f));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 8. Cross-frame-rate correctness for 0/1/2/30 frame durations
+// ═══════════════════════════════════════════════════════════════════════════
+
+TEST_CASE("TransitionProgressSampler: 0/1/2/30 frame durations are frame-rate independent") {
+    const std::vector<FrameRate> rates = {
+        FrameRate{24000, 1001}, // 23.976
+        FrameRate{24, 1},
+        FrameRate{25, 1},
+        FrameRate{30000, 1001}, // 29.97
+        FrameRate{30, 1},
+        FrameRate{50, 1},
+        FrameRate{60, 1},
+    };
+
+    for (const auto& rate : rates) {
+        const EasingCurve linear{Easing::Linear};
+
+        // Duration 0: behaves as a cut at the start frame.
+        {
+            const SampleTime start = at_frame(10.0, rate);
+            const SampleTime end   = at_frame(10.0, rate);
+            auto s = sample_transition(start, start, end, linear);
+            CHECK(s.after);
+            CHECK(s.linear_progress == doctest::Approx(1.0f));
+
+            auto before = sample_transition(at_frame(9.9999, rate), start, end, linear);
+            CHECK(before.before);
+            CHECK(before.linear_progress == doctest::Approx(0.0f));
+        }
+
+        // Duration 1: exactly one active frame, progress 0..1 over that frame.
+        {
+            const SampleTime start = at_frame(10.0, rate);
+            const SampleTime end   = at_frame(11.0, rate);
+            auto s0 = sample_transition(start, start, end, linear);
+            CHECK(s0.active);
+            CHECK(s0.linear_progress == doctest::Approx(0.0f));
+
+            auto s1 = sample_transition(at_frame(10.5, rate), start, end, linear);
+            CHECK(s1.active);
+            CHECK(s1.linear_progress == doctest::Approx(0.5f));
+
+            auto s_end = sample_transition(end, start, end, linear);
+            CHECK(s_end.after);
+            CHECK(s_end.linear_progress == doctest::Approx(1.0f));
+        }
+
+        // Duration 2: midpoint at 0.5, endpoints at 0 and 1.
+        {
+            const SampleTime start = at_frame(20.0, rate);
+            const SampleTime end   = at_frame(22.0, rate);
+            auto s0 = sample_transition(start, start, end, linear);
+            CHECK(s0.active);
+            CHECK(s0.linear_progress == doctest::Approx(0.0f));
+
+            auto s1 = sample_transition(at_frame(21.0, rate), start, end, linear);
+            CHECK(s1.active);
+            CHECK(s1.linear_progress == doctest::Approx(0.5f));
+
+            auto s_end = sample_transition(end, start, end, linear);
+            CHECK(s_end.after);
+            CHECK(s_end.linear_progress == doctest::Approx(1.0f));
+        }
+
+        // Duration 30: sampled at 25%, 50%, 75% and exact endpoints.
+        {
+            const SampleTime start = at_frame(0.0, rate);
+            const SampleTime end   = at_frame(30.0, rate);
+
+            auto s0 = sample_transition(start, start, end, linear);
+            CHECK(s0.linear_progress == doctest::Approx(0.0f));
+
+            auto s25 = sample_transition(at_frame(7.5, rate), start, end, linear);
+            CHECK(s25.active);
+            CHECK(s25.linear_progress == doctest::Approx(0.25f).epsilon(1e-6f));
+
+            auto s50 = sample_transition(at_frame(15.0, rate), start, end, linear);
+            CHECK(s50.active);
+            CHECK(s50.linear_progress == doctest::Approx(0.5f).epsilon(1e-6f));
+
+            auto s75 = sample_transition(at_frame(22.5, rate), start, end, linear);
+            CHECK(s75.active);
+            CHECK(s75.linear_progress == doctest::Approx(0.75f).epsilon(1e-6f));
+
+            auto s100 = sample_transition(end, start, end, linear);
+            CHECK(s100.after);
+            CHECK(s100.linear_progress == doctest::Approx(1.0f));
+        }
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 8. Sub-frame sampling
 // ═══════════════════════════════════════════════════════════════════════════
 
 TEST_CASE("TransitionProgressSampler: sub-frame samples are deterministic and distinct") {
