@@ -10,7 +10,7 @@ add_library(chronon3d_registry OBJECT
     # Phase 3.2 — AnimatorResolver implementations moved out of the public
     # header (include/chronon3d/registry/animator_resolver.hpp) into this
     # .cpp so the header is declaration-only. The three static bodies
-    # (spec_is_rich + rich_paint_anchor + compose_for — 22-branch
+    # (spec_is_rich + rich_paint_anchor + compose_for — registry-dispatched
     # resolver table) now link from this OBJECT library.
     animator_resolver.cpp
     # M1.5#13 (1/4) — per-category text-preset factory TUs.  Each TU
@@ -23,7 +23,7 @@ add_library(chronon3d_registry OBJECT
     # single 518-LoC `text_preset_factories_reveal.cpp`; split into 3 TUs
     # (basic sub-bucket + selectors sub-bucket + thin aggregator) so each
     # file carries a single ownership scope:
-    #   • factory_reveal_basic    → 6 entrance-animation presets
+    #   • factory_reveal_basic    → 8 entrance-animation presets
     #     (text_animations / fade_in / blur_in / slide_up / slide_down / scale_in)
     #   • factory_reveal_selectors → 4 selector-driven presets
     #     (tracking_close / masked_line_reveal / word_cascade / character_cascade)

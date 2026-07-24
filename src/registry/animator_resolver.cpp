@@ -9,7 +9,7 @@
 // ## TEXT-RES-01 refactor (this commit)
 // `compose_for(preset_id)` is now an O(log n) registry lookup + dispatcher
 // (5 lines).  There is NO per-id ELSE-IF table in this TU anymore.  The
-// hardcoded 22-branch dispatch moved to per-entry `animator_factory`
+// hardcoded dispatch moved to per-entry `animator_factory`
 // closures stored in `TextPresetDescriptor` (see
 // src/registry/text_preset_registry.cpp).
 //
@@ -87,7 +87,7 @@ TextAnimatorSpec AnimatorResolver::rich_paint_anchor(std::string_view preset_id)
 // ── compose_for — Stage 5 (Cluster A DoD #2 — registry-only dispatcher) ────
 //
 // TEXT-RES-01 query path.  Three lines of business logic;
-// everything that previously lived here as a 22-branch ELSE-IF chain
+// everything that previously lived here as an ELSE-IF chain
 // now lives in per-entry `animator_factory` closures inside
 // `TextPresetDescriptor` (see text_preset_registry.cpp).
 //
@@ -96,7 +96,7 @@ TextAnimatorSpec AnimatorResolver::rich_paint_anchor(std::string_view preset_id)
 //   2. Preset with no canonical motion (e.g. `minimal_white`,
 //      whose `animator_factory` returns std::nullopt internally);
 //   3. Preset whose `animator_factory` field is null (defensive —
-//      should never happen for the 22 built-ins but the check is
+//      should never happen for the built-ins but the check is
 //      cheap).
 //
 // Performance: each invocation is
@@ -104,7 +104,7 @@ TextAnimatorSpec AnimatorResolver::rich_paint_anchor(std::string_view preset_id)
 //   (b) one std::map::find(O(log n));
 //   (c) one std::function::operator() (inlinable for non-capturing
 //       closures — most `compose_*` helpers qualify).
-// The pre-TEXT-RES-01 hot path was a 22-branch ELSE-IF chain, also
+// The pre-TEXT-RES-01 hot path was an ELSE-IF chain, also
 // O(1) but with a much larger compiled footprint; the registry path
 // has the same asymptotic cost on the hot path with a smaller binary
 // AND a single source of truth (the registry).

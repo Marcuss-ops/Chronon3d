@@ -104,7 +104,7 @@ make_preset_base_definition(const std::string& text, AspectSpec d) {
 }
 
 // Single shared TextPresetRegistry instance — frozen at static-init time so
-// the 16 TEST_CASEs don't each rebuild + re-register the 22 builtin entries.
+// the 16 TEST_CASEs don't each rebuild + re-register the 28 builtin entries.
 // Lifted-to-file-scope was a PR-A4 code-reviewer fix (would otherwise
 // rebuild 128 times — once per emit_preset_gate call).
 inline const chronon3d::registry::TextPresetRegistry& shared_text_preset_registry() {

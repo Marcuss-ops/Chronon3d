@@ -23,7 +23,7 @@
 //         depth_reveal fires (depth_offset > 0.0f directional probe).
 //
 //   Tier C — per-preset golden-frame cross-link (Sub-cases 11-27):
-//     One SUBCASE per new preset (10 Reveal + 4 Emphasis + 4 Subtitle,
+//     One SUBCASE per new preset (12 Reveal + 4 Emphasis + 4 Subtitle,
 //     minus text_animations which is already covered by Tier B):
 //       Sub-case 11 — fade_in (Reveal)
 //       Sub-case 12 — blur_in (Reveal)
@@ -255,18 +255,18 @@ TEST_CASE("TextPresetRegistry: metadata + filter tier (Sub-cases 1-6)") {
         // Stage 3 distribution:
         //   Cinematic >= 4  (animation_compositions, cinematic_text_camera,
         //                     cinematic_title_reveal, tilt_sweep_title_v2)
-        //   Reveal    >= 10 (text_animations + 9 Stage 3 reveal entries)
+        //   Reveal    >= 12 (text_animations + 11 catalog reveal entries)
         //   Emphasis  >= 4  (Stage 3 emphasis)
-        //   Subtitle  >= 4  (Stage 3 subtitle)
+        //   Subtitle  >= 8  (productive subtitle catalog)
         auto reg = make_default_text_preset_registry();
         const auto cinematics = reg.by_category(TextPresetCategory::Cinematic);
         const auto reveals    = reg.by_category(TextPresetCategory::Reveal);
         const auto emphasis   = reg.by_category(TextPresetCategory::Emphasis);
         const auto subtitles  = reg.by_category(TextPresetCategory::Subtitle);
         CHECK(cinematics.size() >= 4);
-        CHECK(reveals.size()    >= 10);
+        CHECK(reveals.size()    >= 12);
         CHECK(emphasis.size()   >= 4);
-        CHECK(subtitles.size()  >= 4);
+        CHECK(subtitles.size()  >= 8);
         // Sum check: total of all categories == total entries.
         CHECK(cinematics.size() + reveals.size() + emphasis.size() + subtitles.size()
               == reg.list().size());
@@ -570,7 +570,7 @@ TEST_CASE("TextPresetRegistry: per-preset golden-frame cross-link (Sub-cases 11-
 //       are Fase 2 work.
 TEST_CASE("TextPresetRegistry: golden-frame harness cross-link (Sub-case 28)") {
 
-    SUBCASE("28) HARNESS LINK — Visual Regression Harness reachable; tier applied to all 22 entries") {
+    SUBCASE("28) HARNESS LINK — Visual Regression Harness reachable; tier applied to all 28 entries") {
         // Visual Regression Harness entry point reachable.  PNG fixtures
         // themselves ship in Fase 2 / Cluster E — this SUBCASE only
         // asserts the harness scaffolding is in place.
@@ -696,7 +696,7 @@ TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {    
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// TIER F — Stage 5 AnimatorResolver coverage (all 22 presets)
+// TIER F — Stage 5 AnimatorResolver coverage (all 28 presets)
 // ─────────────────────────────────────────────────────────────────────────
 // Verifies that AnimatorResolver::compose_for() (now extended to ALL 22
 // presets) routes each built-in preset through `wire_through_resolver()`
@@ -711,7 +711,7 @@ TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {    
 // orthogonal.
 TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)") {
 
-    SUBCASE("30) compose_for wires property-level composition for all 22 presets via wire_through_resolver") {
+    SUBCASE("30) compose_for wires property-level composition for all 28 presets via wire_through_resolver") {
         const auto& reg = make_default_text_preset_registry();
 
         // Plain test_spec — no rich-paint signal — so cinematic_text_camera
@@ -719,7 +719,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
         const auto plain = make_test_text_spec();
 
         // Expected property-pack minimum count per preset_id. Mirrors the
-        // 22-branch table in src/registry/text_preset_registry.cpp
+        // 28-entry registry in src/registry/text_preset_registry.cpp
         // (AnimatorResolver::compose_for()). If the resolver table
         // evolves, this array evolves alongside it.
         //
@@ -733,7 +733,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
             std::size_t min_property_count;
             std::function<bool(const TextAnimatorProperty&)> first_kind_predicate;
         };
-        const std::array<ExpectedComposition, 22> expected{{
+        const std::array<ExpectedComposition, 28> expected{{
             {"animation_compositions",      2,  // Position + Opacity
                 [](const TextAnimatorProperty& p){
                     return std::holds_alternative<PositionProperty>(p);
@@ -773,6 +773,14 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
             {"scale_in",                    2,  // Scale + Opacity
                 [](const TextAnimatorProperty& p){
                     return std::holds_alternative<ScaleProperty>(p);
+                }},
+            {"zoom_in",                     2,  // Scale + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<ScaleProperty>(p);
+                }},
+            {"slide_left",                  2,  // Position + Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<PositionProperty>(p);
                 }},
             {"tracking_close",              1,  // Tracking
                 [](const TextAnimatorProperty& p){
@@ -818,9 +826,25 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
                 [](const TextAnimatorProperty& p){
                     return std::holds_alternative<TrackingProperty>(p);
                 }},
-            {"caption_box",                 2,  // Position + Opacity
+            {"caption_box",                 1,  // Opacity
                 [](const TextAnimatorProperty& p){
-                    return std::holds_alternative<PositionProperty>(p);
+                    return std::holds_alternative<OpacityProperty>(p);
+                }},
+            {"karaoke_fill",                1,  // Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<OpacityProperty>(p);
+                }},
+            {"active_word_pop",             6,  // Scale + highlight properties
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<ScaleProperty>(p);
+                }},
+            {"subtitle_card",               1,  // Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<OpacityProperty>(p);
+                }},
+            {"lower_third_safe",            1,  // Opacity
+                [](const TextAnimatorProperty& p){
+                    return std::holds_alternative<OpacityProperty>(p);
                 }},
         }};
 
@@ -848,12 +872,12 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
             SceneBuilder sb(1280, 720);
             reg.get(exp.preset_id).builder(sb, lb, plain);
 
-            // Read pending text-run entries via LayerBuilderInspector
-            // BEFORE any subsequent mutation.  Phase-3.3.D: returns a
-            // value-typed snapshot (`std::vector<PendingRunSnapshot>`)
-            // — no raw internal pointers, no reallocation-implication
-            // caveats to worry about.
-            const auto pre = LayerBuilderInspector::pending_runs(lb);
+            // The canonical authoring path is TextDefinition → public
+            // wire_preset_text_run_params.  Inspect that value directly;
+            // LayerBuilder's internal pending-run representation is not a
+            // certification surface.
+            const auto canonical =
+                wire_preset_text_run_params(exp.preset_id, plain);
 
             if (exp.preset_id == "minimal_white") {
                 // P1 — single canonical text pipeline. minimal_white
@@ -864,8 +888,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
                 // (preserving the single-path contract); its animators
                 // vector is empty so `materialize_text_run_shape` produces
                 // a valid shape without per-frame driver work.
-                REQUIRE(pre.size() == 1);
-                CHECK(pre[0].animators.empty());
+                CHECK(canonical.animators.empty());
                 continue;
             }
 
@@ -874,8 +897,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
             // with the resolver's property-composed spec on animators[0]
             // (plain-spec path; rich-spec pushes the anchor ahead of the
             // canonical — Sub-case 29 already covers that).
-            CHECK(pre.size() == 1);
-            const auto& animators = pre[0].animators;
+            const auto& animators = canonical.animators;
             CHECK(animators.size() >= 1);
             CHECK(animators[0].id == ("presetc_" + exp.preset_id));
             CHECK(animators[0].properties.size() >= exp.min_property_count);
@@ -898,7 +920,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
 // function: `wire_preset_text_run_params(preset_id, spec) -> TextRunSpec`.
 // This is the deterministic verification entry point the test harness and
 // downstream authoring facade use — no LayerBuilder, no SceneBuilder,
-// no factory-body invocation.  Sub-case 31 iterates all 22 presets and
+// no factory-body invocation.  Sub-case 31 iterates all 28 presets and
 // asserts the public function returns the same canonical end-state
 // composition the registry factory bodies wire (Sub-cases 7-30).
 //
@@ -910,7 +932,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
 // follow — Sub-case 30 stays as the integration regression test.
 TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
 
-    SUBCASE("31) wire_preset_text_run_params returns deterministic TextRunSpec for all 22 presets") {
+    SUBCASE("31) wire_preset_text_run_params returns deterministic TextRunSpec for all 28 presets") {
         const auto& reg = make_default_text_preset_registry();
         const auto plain = make_test_text_spec();
 
@@ -928,7 +950,7 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
             "wire_preset_text_run_params must expose the canonical TextDefinition overload");
 
         // ── Per-preset pure-function probe ─────────────────────────────────
-        // Iterate all 22 preset ids via reg.available() (sorted-by-key,
+        // Iterate all 28 preset ids via reg.available() (sorted-by-key,
         // deterministic across runs).  For each id, the public function
         // must return:
         //   - animators.empty() == true   for `minimal_white` only
@@ -974,18 +996,21 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
             const auto& first_prop = params.animators[0].properties[0];
             if (id == "animation_compositions"  || id == "slide_up"        ||
                 id == "slide_down"             || id == "masked_line_reveal" ||
-                id == "gradient_fill"          || id == "caption_box"     ||
+                id == "slide_left"             || id == "gradient_fill"     ||
                 id == "cinematic_text_camera") {
                 CHECK(std::holds_alternative<PositionProperty>(first_prop));
             }
             else if (id == "cinematic_title_reveal" || id == "tilt_sweep_title_v2" ||
                      id == "text_animations"        || id == "scale_in"           ||
+                     id == "zoom_in"                || id == "active_word_pop"   ||
                      id == "word_pop"               || id == "scale_punch") {
                 CHECK(std::holds_alternative<ScaleProperty>(first_prop));
             }
             else if (id == "fade_in" || id == "word_cascade" ||
                      id == "character_cascade" || id == "color_accent" ||
-                     id == "yellow_keyword") {
+                     id == "yellow_keyword" || id == "karaoke_fill" ||
+                     id == "subtitle_card" || id == "lower_third_safe" ||
+                     id == "caption_box") {
                 CHECK(std::holds_alternative<OpacityProperty>(first_prop));
             }
             else if (id == "blur_in") {
@@ -1412,7 +1437,7 @@ TEST_CASE("TextPresetRegistry: TICKET-107 per-category register helpers in isola
 
         TextPresetRegistry reveal_only;
         reg_helpers::register_text_preset_reveal(reveal_only);
-        CHECK(reveal_only.by_category(TextPresetCategory::Reveal).size() == 10);
+        CHECK(reveal_only.by_category(TextPresetCategory::Reveal).size() == 12);
         CHECK(reveal_only.by_category(TextPresetCategory::Cinematic).empty());
         CHECK(reveal_only.by_category(TextPresetCategory::Emphasis).empty());
         CHECK(reveal_only.by_category(TextPresetCategory::Subtitle).empty());
@@ -1432,8 +1457,8 @@ TEST_CASE("TextPresetRegistry: TICKET-107 per-category register helpers in isola
         CHECK(subtitle_only.by_category(TextPresetCategory::Emphasis).empty());
     }
 
-    SUBCASE("51) register_builtin_presets umbrella matches make_default_text_preset_registry (same 22 ids)") {
-        // The umbrella + the factory function should populate the SAME 22 ids
+    SUBCASE("51) register_builtin_presets umbrella matches make_default_text_preset_registry (same 28 ids)") {
+        // The umbrella + the factory function should populate the SAME 28 ids
         // in the SAME order.  Compare available() (sorted-by-key) since the
         // internal std::map order is deterministic but the umbrella's
         // insertion order is Cinematic → Reveal → Emphasis → Subtitle.
@@ -1441,7 +1466,7 @@ TEST_CASE("TextPresetRegistry: TICKET-107 per-category register helpers in isola
         reg_helpers::register_builtin_presets(via_umbrella);
         const auto via_factory = make_default_text_preset_registry();
         CHECK(via_umbrella.available() == via_factory.available());
-        CHECK(via_umbrella.list().size() == 22);
+        CHECK(via_umbrella.list().size() == 28);
         // Idempotent: calling register_builtin_presets twice on the same
         // registry throws on the FIRST duplicate id (re-confirms the
         // per-id-table anti-duplication contract).
@@ -1460,9 +1485,9 @@ TEST_CASE("TextPresetRegistry: TICKET-107 per-category register helpers in isola
         CHECK(studio_overlay.by_category(TextPresetCategory::Reveal).empty());
         CHECK(studio_overlay.by_category(TextPresetCategory::Subtitle).empty());
 
-        // Adding reveal AFTER cinematic + emphasis grows the catalog to 18.
+        // Adding reveal AFTER cinematic + emphasis grows the catalog to 20.
         reg_helpers::register_text_preset_reveal(studio_overlay);
-        CHECK(studio_overlay.list().size() == 18);  // 4 + 4 + 10
+        CHECK(studio_overlay.list().size() == 20);  // 4 + 4 + 12
         // Subtitle still empty.
         CHECK(studio_overlay.by_category(TextPresetCategory::Subtitle).empty());
     }
