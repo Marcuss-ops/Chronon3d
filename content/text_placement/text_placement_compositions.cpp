@@ -18,19 +18,13 @@
 // M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (2026-07-10):
 //   - 4 helper functions (make_centered_text_comp, make_1080p_centered,
 //     make_clipping_comp, make_multires) refactored to compute the
-//     canonical TextDefinition from CenterTextOptions internally;
-//     the 9 call sites passing CenterTextOptions unchanged.
-//   - 3 inline `centered_text({...})` call sites (A.7 multisource,
+//     canonical TextDefinition at the composition boundary.
+//   - 3 inline convenience-helper call sites (A.7 multisource,
 //     C.1 box alignment, F.1 cache invalidation) replaced with
 //     `TextDefinition{}` directly.
-//   - The legacy `centered_text()` wrapper is no longer invoked
+//   - The removed convenience wrapper is no longer invoked
 //     anywhere in this file (gate [2/4] satisfied).
-//   - `CenterTextOptions` struct definition is preserved (still used
-//     as the helper input parameter type — matches the §2D migration
-//     principle "minimize breakage of helper signatures").
-//   - `#include <content/text/text_helpers.hpp>` is preserved
-//     (provides `CenterTextOptions`); the `centered_text`/`glow_text`
-//     deprecated wrappers are NOT invoked.
+//   - no convenience-options authoring type or wrapper is retained.
 
 #include "text_placement_compositions.hpp"
 
@@ -42,13 +36,9 @@
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 
-#include <content/text/text_helpers.hpp>
-
 #include <string>
 
 namespace chronon3d::content::text_placement {
-
-using namespace chronon3d::content::text;   // for CenterTextOptions (input type)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Shared helpers
@@ -73,38 +63,29 @@ inline void add_dark_background(SceneBuilder& s) {
 /// (anim, glow, shadow, scale, etc.).
 using TextLayerSetup = std::function<void(LayerBuilder&)>;
 
-/// M1.8 §2D — convert the legacy CenterTextOptions (helper input type)
-/// to the canonical TextDefinition (F2.A DTO) used by LayerBuilder::text().
-/// This is the same conversion that the deprecated `centered_text()`
-/// wrapper performed; we inline it here to avoid invoking the deprecated
-/// path.  Field mapping is byte-equivalent to the centered_text() body
-/// in `content/text/text_helpers_centered.hpp`.
-inline TextDefinition options_to_definition(const CenterTextOptions& opts) {
+inline TextDefinition make_text_definition(std::string text, Vec2 box,
+                                           f32 font_size, f32 tracking,
+                                           int max_lines = 0) {
     return TextDefinition{
-    .content = {.value = opts.text},
+    .content = {.value = std::move(text)},
     .style = {
-        .font = {.font_path   = opts.font_asset,
-                       .font_family = opts.font_family,
-                       .font_weight = opts.font_weight,
-                       .font_style  = opts.font_style,
-                       .font_size   = opts.font_size},
-        .color = opts.color
+        .font = {.font_path = "assets/fonts/Poppins-Bold.ttf",
+                 .font_family = "Poppins", .font_weight = 700,
+                 .font_size = font_size},
+        .color = kWhite
     },
     .frame = {
-        .size = opts.box,
-        .placement = {TextPlacementKind::Absolute, opts.pos},
+        .size = box,
+        .placement = {TextPlacementKind::Absolute, {0.0f, 0.0f}},
         .anchor = TextAnchor::Center,
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle,
         .wrap = TextWrap::Word,
         .overflow = TextOverflow::Clip,
         .centering_mode = TextCenteringMode::PixelInk,
-        .line_height = opts.line_height,
-        .tracking = opts.tracking,
-        .auto_fit = opts.auto_fit,
-        .min_font_size = opts.min_font_size,
-        .max_font_size = opts.max_font_size,
-        .max_lines = opts.max_lines
+        .line_height = 1.10f,
+        .tracking = tracking,
+        .max_lines = max_lines
     }
 };
 }
@@ -116,15 +97,10 @@ Composition make_centered_text_comp(
     const char* name,
     int width, int height,
     Frame duration,
-    CenterTextOptions opts,
+    TextDefinition opts,
     TextLayerSetup setup = {})
 {
-    // M1.8 §2D — pre-compute the canonical TextDefinition once per
-    // composition (NOT per frame; the same def is reused across all
-    // frames because the opts are captured by value).  This avoids
-    // invoking the deprecated `centered_text()` wrapper at the call
-    // site while preserving byte-equivalent field semantics.
-    TextDefinition def = options_to_definition(opts);
+    TextDefinition def = std::move(opts);
     return composition(
         {.name = name, .width = width, .height = height, .duration = duration},
         [def = std::move(def), setup = std::move(setup)](const FrameContext& ctx) {
@@ -140,7 +116,7 @@ Composition make_centered_text_comp(
 }
 
 /// Shortcut: centered text at 1920×1080, 60f duration, default font size.
-Composition make_1080p_centered(const char* name, CenterTextOptions opts,
+Composition make_1080p_centered(const char* name, TextDefinition opts,
                                  TextLayerSetup setup = {}) {
     return make_centered_text_comp(name, 1920, 1080, kDefaultDuration,
                                     std::move(opts), std::move(setup));
@@ -154,20 +130,14 @@ Composition make_1080p_centered(const char* name, CenterTextOptions opts,
 
 // A.1 — Static text, centered, no .pos, no animation.
 Composition make_static_center_no_pos() {
-    return make_1080p_centered("TextPlaceStaticCenter", {
-        .text = "CENTERED",
-        .font_size = kDefaultFontSize,
-        .tracking = 4.0f,
-    });
+    return make_1080p_centered("TextPlaceStaticCenter",
+        make_text_definition("CENTERED", {1200.0f, 240.0f}, kDefaultFontSize, 4.0f));
 }
 
 // A.2 — Animated text (fade-in + slight slide-up), centered, no .pos.
 Composition make_animated_center_no_pos() {
-    return make_1080p_centered("TextPlaceAnimatedCenter", {
-        .text = "ANIMATED",
-        .font_size = kDefaultFontSize,
-        .tracking = 4.0f,
-    }, [](LayerBuilder& l) {
+    return make_1080p_centered("TextPlaceAnimatedCenter",
+        make_text_definition("ANIMATED", {1200.0f, 240.0f}, kDefaultFontSize, 4.0f), [](LayerBuilder& l) {
         l.opacity_anim()
             .key(Frame{0},  0.0f, EasingCurve{Easing::OutCubic})
             .key(Frame{22}, 1.0f, EasingCurve{Easing::Linear});
@@ -179,22 +149,16 @@ Composition make_animated_center_no_pos() {
 
 // A.3 — Scale 1.30, centered, no .pos.
 Composition make_scale_130_center_no_pos() {
-    return make_1080p_centered("TextPlaceScale130", {
-        .text = "SCALE 1.30",
-        .font_size = kDefaultFontSize,
-        .tracking = 3.0f,
-    }, [](LayerBuilder& l) {
+    return make_1080p_centered("TextPlaceScale130",
+        make_text_definition("SCALE 1.30", {1200.0f, 240.0f}, kDefaultFontSize, 3.0f), [](LayerBuilder& l) {
         l.scale_anim().key(Frame{0}, Vec3{1.30f, 1.30f, 1.0f}, EasingCurve{Easing::Linear});
     });
 }
 
 // A.4 — Glow + drop shadow, centered, no .pos.
 Composition make_glow_shadow_center_no_pos() {
-    return make_1080p_centered("TextPlaceGlowShadow", {
-        .text = "GLOW+SHADOW",
-        .font_size = kDefaultFontSize,
-        .tracking = 5.0f,
-    }, [](LayerBuilder& l) {
+    return make_1080p_centered("TextPlaceGlowShadow",
+        make_text_definition("GLOW+SHADOW", {1200.0f, 240.0f}, kDefaultFontSize, 5.0f), [](LayerBuilder& l) {
         l.glow({
             .enabled = true,
             .radius = 24.0f,
@@ -212,30 +176,21 @@ Composition make_glow_shadow_center_no_pos() {
 
 // A.5 — Multiline text, centered middle, no .pos.
 Composition make_multiline_center_middle() {
-    return make_1080p_centered("TextPlaceMultiline", {
-        .text = "LINE ONE\nLINE TWO\nLINE THREE",
-        .box = {1600.0f, 400.0f},
-        .font_size = 72.0f,
-        .tracking = 2.0f,
-        .max_lines = 3,
-    });
+    return make_1080p_centered("TextPlaceMultiline",
+        make_text_definition("LINE ONE\nLINE TWO\nLINE THREE", {1600.0f, 400.0f}, 72.0f, 2.0f, 3));
 }
 
 // A.6 — Small box with overflow clip, centered, no .pos.
 // The box is intentionally narrow so text would overflow without clip.
 Composition make_small_box_overflow_clip() {
-    return make_1080p_centered("TextPlaceSmallBox", {
-        .text = "OVERFLOW CLIP TEST",
-        .box = {300.0f, 100.0f},
-        .font_size = 48.0f,
-        .tracking = 1.0f,
-    });
+    return make_1080p_centered("TextPlaceSmallBox",
+        make_text_definition("OVERFLOW CLIP TEST", {300.0f, 100.0f}, 48.0f, 1.0f));
 }
 
 // A.7 — Multisource: text + decorative rectangle in the same layer.
 // The layer is pinned to center; text and rect share the coordinate space.
-// M1.8 §2D — inline `centered_text({...})` replaced with
-// `TextDefinition{}` directly.  All CenterTextOptions
+// M1.8 §2D — inline convenience helper replaced with
+// `TextDefinition{}` directly.
 // defaults (box={1200,240}, pos={0,0,0}, font_asset="assets/fonts/Poppins-Bold.ttf",
 // font_family="Poppins", font_weight=700, font_style="normal", color=Color{1,1,1,1},
 // max_lines=1, auto_fit=false, line_height=0.95, min_font_size=12, max_font_size=160)
@@ -290,12 +245,8 @@ Composition make_multisource_text_plus_shape() {
 // A.8 — Portrait 1080×1920, centered, no .pos.
 Composition make_portrait_1080x1920_center() {
     return make_centered_text_comp("TextPlacePortrait", 1080, 1920,
-                                    kDefaultDuration, {
-        .text = "PORTRAIT",
-        .box = {900.0f, 300.0f},
-        .font_size = 80.0f,
-        .tracking = 8.0f,
-    });
+                                    kDefaultDuration,
+                                    make_text_definition("PORTRAIT", {900.0f, 300.0f}, 80.0f, 8.0f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -305,11 +256,8 @@ Composition make_portrait_1080x1920_center() {
 // B.1 — Static: pin_to(Center) + text, no animation.
 // Expected: alpha centroid ≈ canvas center {960, 540}.
 Composition make_antidouble_static() {
-    return make_1080p_centered("TextPlaceAntiDoubleStatic", {
-        .text = "STATIC",
-        .font_size = kDefaultFontSize,
-        .tracking = 6.0f,
-    });
+    return make_1080p_centered("TextPlaceAntiDoubleStatic",
+        make_text_definition("STATIC", {1200.0f, 240.0f}, kDefaultFontSize, 6.0f));
 }
 
 // B.2 — Animated: pin_to(Center) + position_anim + text.
@@ -317,11 +265,8 @@ Composition make_antidouble_static() {
 // Bug-catcher: if alpha centroid ≈ canvas center * 2 (e.g. {1920, 1080}),
 // the graph builder is applying canvas-center translation twice.
 Composition make_antidouble_animated() {
-    return make_1080p_centered("TextPlaceAntiDoubleAnimated", {
-        .text = "ANIMATED",
-        .font_size = kDefaultFontSize,
-        .tracking = 6.0f,
-    }, [](LayerBuilder& l) {
+    return make_1080p_centered("TextPlaceAntiDoubleAnimated",
+        make_text_definition("ANIMATED", {1200.0f, 240.0f}, kDefaultFontSize, 6.0f), [](LayerBuilder& l) {
         // Slight animation — moves from offset to origin.
         // At frame 0, text should be at canvas_center + {30, 20}.
         // At frame 30, text should settle at canvas_center.
@@ -338,8 +283,8 @@ Composition make_antidouble_animated() {
 // C.1 — Visible debug rect + centered text in the same box dimensions.
 // Verifies that align, vertical_align, anchor and box are applied correctly:
 // the text alpha centroid should be near the box center, not the top-left.
-// M1.8 §2D — inline `centered_text({...})` replaced with
-// `TextDefinition{}` directly.  All CenterTextOptions
+// M1.8 §2D — inline convenience helper replaced with
+// `TextDefinition{}` directly.
 // defaults (pos={0,0,0}, font_asset="assets/fonts/Poppins-Bold.ttf",
 // font_family="Poppins", font_weight=700, font_style="normal", color=Color{1,1,1,1},
 // max_lines=1, auto_fit=false, line_height=0.95, min_font_size=12, max_font_size=160)
@@ -397,11 +342,8 @@ Composition make_box_alignment() {
 // Shared helper for clipping-test compositions.
 // Each call site provides a setup lambda that applies the effect under test.
 Composition make_clipping_comp(const char* name, TextLayerSetup setup) {
-    return make_1080p_centered(name, {
-        .text = "CLIP TEST",
-        .font_size = kDefaultFontSize,
-        .tracking = 3.0f,
-    }, std::move(setup));
+    return make_1080p_centered(name,
+        make_text_definition("CLIP TEST", {1200.0f, 240.0f}, kDefaultFontSize, 3.0f), std::move(setup));
 }
 
 Composition make_clip_blur_0() {
@@ -458,12 +400,10 @@ Composition make_clip_scale_200() {
 // Verifies that pin_to(Anchor::Center) correctly resolves to width/2, height/2
 // dynamically — never hardcoded to 960×540.
 Composition make_multires(const char* name, int w, int h) {
-    return make_centered_text_comp(name, w, h, kDefaultDuration, {
-        .text = "CENTER",
-        .box = {static_cast<f32>(w) * 0.80f, static_cast<f32>(h) * 0.25f},
-        .font_size = (w >= h) ? 96.0f : 64.0f,
-        .tracking = 4.0f,
-    });
+    return make_centered_text_comp(name, w, h, kDefaultDuration,
+        make_text_definition("CENTER", {static_cast<f32>(w) * 0.80f,
+                                         static_cast<f32>(h) * 0.25f},
+                             (w >= h) ? 96.0f : 64.0f, 4.0f));
 }
 
 Composition make_multires_1920x1080() {
@@ -488,7 +428,7 @@ Composition make_multires_3840x2160() {
 //   - Text actually changes (not served from stale cache)
 //   - BBox changes with content
 //   - Center remains correct across all frames
-// M1.8 §2D — inline `centered_text({...})` replaced with
+// M1.8 §2D — inline convenience helper replaced with
 // `TextDefinition{}` directly.  The runtime-determined
 // `word` value is captured into the TextDefinition::content.value (std::string).
 Composition make_cache_invalidation() {
@@ -543,62 +483,62 @@ Composition make_cache_invalidation() {
 
 void register_text_placement_compositions(CompositionRegistry& registry) {
     // Group A — Dashboard
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceStaticCenter",     .factory = [](const CompositionProps&) { return make_static_center_no_pos(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceAnimatedCenter",   .factory = [](const CompositionProps&) { return make_animated_center_no_pos(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceScale130",         .factory = [](const CompositionProps&) { return make_scale_130_center_no_pos(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceGlowShadow",       .factory = [](const CompositionProps&) { return make_glow_shadow_center_no_pos(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceMultiline",        .factory = [](const CompositionProps&) { return make_multiline_center_middle(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceSmallBox",         .factory = [](const CompositionProps&) { return make_small_box_overflow_clip(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceMultisource",      .factory = [](const CompositionProps&) { return make_multisource_text_plus_shape(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlacePortrait",         .factory = [](const CompositionProps&) { return make_portrait_1080x1920_center(); }});
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceStaticCenter"}, [](const CompositionProps&) { return make_static_center_no_pos(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceAnimatedCenter"}, [](const CompositionProps&) { return make_animated_center_no_pos(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceScale130"}, [](const CompositionProps&) { return make_scale_130_center_no_pos(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceGlowShadow"}, [](const CompositionProps&) { return make_glow_shadow_center_no_pos(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceMultiline"}, [](const CompositionProps&) { return make_multiline_center_middle(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceSmallBox"}, [](const CompositionProps&) { return make_small_box_overflow_clip(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceMultisource"}, [](const CompositionProps&) { return make_multisource_text_plus_shape(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlacePortrait"}, [](const CompositionProps&) { return make_portrait_1080x1920_center(); }));
 
     // Group B — Anti-double-translation
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceAntiDoubleStatic",   .factory = [](const CompositionProps&) { return make_antidouble_static(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceAntiDoubleAnimated", .factory = [](const CompositionProps&) { return make_antidouble_animated(); }});
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceAntiDoubleStatic"}, [](const CompositionProps&) { return make_antidouble_static(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceAntiDoubleAnimated"}, [](const CompositionProps&) { return make_antidouble_animated(); }));
 
     // Group C — Layout box
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceBoxAlign",          .factory = [](const CompositionProps&) { return make_box_alignment(); }});
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceBoxAlign"}, [](const CompositionProps&) { return make_box_alignment(); }));
 
     // Group D — Clipping
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceClipBlur0",         .factory = [](const CompositionProps&) { return make_clip_blur_0(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceClipBlur7",         .factory = [](const CompositionProps&) { return make_clip_blur_7(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceClipBlur20",        .factory = [](const CompositionProps&) { return make_clip_blur_20(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceClipGlow40",        .factory = [](const CompositionProps&) { return make_clip_glow_40(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceClipShadow80",      .factory = [](const CompositionProps&) { return make_clip_shadow_80(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceClipScale130",      .factory = [](const CompositionProps&) { return make_clip_scale_130(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceClipScale200",      .factory = [](const CompositionProps&) { return make_clip_scale_200(); }});
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceClipBlur0"}, [](const CompositionProps&) { return make_clip_blur_0(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceClipBlur7"}, [](const CompositionProps&) { return make_clip_blur_7(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceClipBlur20"}, [](const CompositionProps&) { return make_clip_blur_20(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceClipGlow40"}, [](const CompositionProps&) { return make_clip_glow_40(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceClipShadow80"}, [](const CompositionProps&) { return make_clip_shadow_80(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceClipScale130"}, [](const CompositionProps&) { return make_clip_scale_130(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceClipScale200"}, [](const CompositionProps&) { return make_clip_scale_200(); }));
 
     // Group E — Multi-resolution
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceMultiRes1920x1080", .factory = [](const CompositionProps&) { return make_multires_1920x1080(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceMultiRes1280x720",  .factory = [](const CompositionProps&) { return make_multires_1280x720(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceMultiRes1080x1920", .factory = [](const CompositionProps&) { return make_multires_1080x1920(); }});
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceMultiRes3840x2160", .factory = [](const CompositionProps&) { return make_multires_3840x2160(); }});
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceMultiRes1920x1080"}, [](const CompositionProps&) { return make_multires_1920x1080(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceMultiRes1280x720"}, [](const CompositionProps&) { return make_multires_1280x720(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceMultiRes1080x1920"}, [](const CompositionProps&) { return make_multires_1080x1920(); }));
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceMultiRes3840x2160"}, [](const CompositionProps&) { return make_multires_3840x2160(); }));
 
     // Group F — Cache invalidation
-    registry.add(CompositionDescriptor{
-        .id = "TextPlaceCacheInvalidation", .factory = [](const CompositionProps&) { return make_cache_invalidation(); }});
+    registry.add(make_composition_descriptor(CompositionDescriptor{
+        .id = "TextPlaceCacheInvalidation"}, [](const CompositionProps&) { return make_cache_invalidation(); }));
 }
 
 } // namespace chronon3d::content::text_placement

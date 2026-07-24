@@ -95,4 +95,10 @@ namespace chronon3d::registry {
 wire_preset_text_run_params(std::string_view preset_id,
                             TextSpec spec) noexcept;
 
+/// Canonical authoring overload. The runtime TextRunSpec remains an
+/// implementation transport, but callers provide TextDefinition only.
+[[nodiscard]] TextRunSpec
+wire_preset_text_run_params(std::string_view preset_id,
+                            const TextDefinition& definition) noexcept;
+
 }  // namespace chronon3d::registry

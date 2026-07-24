@@ -36,6 +36,7 @@
 #pragma once
 
 #include <chronon3d/scene/builders/builder_params.hpp>  // TextSpec, TextAnimatorSpec,
+#include <chronon3d/text/text_definition.hpp>
                                                           // Vec3, GlyphSelectorSpec,
                                                           // TextSelectorUnit,
                                                           // TextSelectorShape,
@@ -127,7 +128,7 @@ using FixtureId = std::string;
 using TextPresetBuilder = std::function<
     void(::chronon3d::SceneBuilder&,
          ::chronon3d::LayerBuilder&,
-         const ::chronon3d::TextSpec&)>;
+         const ::chronon3d::TextDefinition&)>;
 
 // ── AnimatorFactory ─────────────────────────────────────────────────────────
 //

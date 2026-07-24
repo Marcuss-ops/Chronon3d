@@ -65,9 +65,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/registry/text_preset_registry.hpp>
-#include <content/text/text_helpers.hpp>
-#include <chronon3d/text/text_definition.hpp>  // F2.C — chronon3d::compat::from_text_definition()
-#include <chronon3d/compat/text_spec_adapter.hpp>
+#include <chronon3d/text/text_definition.hpp>
 
 #include <chrono>
 #include <utility>
@@ -84,22 +82,24 @@ inline AspectSpec aspect_dims(AspectRatio r) {
                                     : AspectSpec{1080, 1920};
 }
 
-// CenterTextOptions builder for the preset-text baseline.  Source-of-truth
-// for the `make_preset_base_opts` helper — see PR-A4 review-fix that
+// Canonical TextDefinition builder for the preset-text baseline.  Source-of-truth
+// for the `make_preset_base_definition` helper — see PR-A4 review-fix that
 // lifted the font/path choices to a single constant.
-inline chronon3d::content::text::CenterTextOptions
-make_preset_base_opts(const std::string& text,
-                      AspectSpec d) {
+inline chronon3d::TextDefinition
+make_preset_base_definition(const std::string& text, AspectSpec d) {
     constexpr const char* kVFont = "assets/fonts/Poppins-Bold.ttf";
     const f32 font_size = (d.width >= d.height) ? 96.0f : 64.0f;
-    return chronon3d::content::text::CenterTextOptions{
-        .text        = text,
-        .box         = Vec2{d.width * 0.85f, d.height * 0.85f},
-        .font_asset   = kVFont,
-        .font_family = "Poppins",
-        .font_weight = 700,
-        .font_size   = font_size,
-        .color       = Color::white(),
+    return chronon3d::TextDefinition{
+        .content = {.value = text},
+        .style = {
+            .font = {.font_path = kVFont, .font_family = "Poppins",
+                     .font_weight = 700, .font_size = font_size},
+            .color = Color::white(),
+        },
+        .frame = {.size = Vec2{d.width * 0.85f, d.height * 0.85f},
+                  .anchor = chronon3d::TextAnchor::Center,
+                  .align = chronon3d::TextAlign::Center,
+                  .vertical_align = chronon3d::VerticalAlign::Middle},
     };
 }
 
@@ -137,9 +137,8 @@ inline Composition build_preset_composition(const std::string& preset_id,
         [preset, preset_id, t_frame, r, font_engine](const chronon3d::FrameContext& ctx) -> chronon3d::Scene {
             chronon3d::SceneBuilder s(ctx);
             if (font_engine) s.font_engine(font_engine);
-            auto base = chronon3d::content::text::centered_text(
-                make_preset_base_opts("THE QUICK BROWN FOX JUMPS",
-                                       aspect_dims(r)));
+            auto base = make_preset_base_definition(
+                "THE QUICK BROWN FOX JUMPS", aspect_dims(r));
             s.layer("hero", [&s, &preset, base](chronon3d::LayerBuilder& l) {
                 // The preset builder (wire_through_resolver) already creates the
                 // canonical text-run entry.  A second l.text(…) call would produce
@@ -147,7 +146,7 @@ inline Composition build_preset_composition(const std::string& preset_id,
                 // MultiSourceNode instead of TextRunNode — the duplicate's animators
                 // (fade_in / scale_drop) can blank the static text at early frames.
                 if (preset.builder) {
-                    preset.builder(s, l, chronon3d::compat::from_text_definition(base));
+                    preset.builder(s, l, base);
                 }
             });
             return s.build();

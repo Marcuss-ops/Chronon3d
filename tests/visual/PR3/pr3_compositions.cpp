@@ -41,6 +41,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <chronon3d/text/text_definition.hpp>
 using namespace chronon3d;
 using namespace chronon3d::test;
 
@@ -96,25 +97,21 @@ TextSpec make_text(const std::string& utf8,
     // Z=0 hard-coded (null offset, anchors via layered l.position calls),
     // safe-drop per M1.8 §5A. Static value -> inline TextPlacement (no
     // local variable extraction needed since [0,0] has no runtime deps).
-    return TextSpec{
-        .content    = TextContent{.value = utf8},
-        .placement  = chronon3d::TextPlacement{chronon3d::TextPlacementKind::Absolute, {0.0f, 0.0f}},
-        .font       = FontSpec{
+    return TextDefinition{
+    .content = TextContent{.value = utf8},
+    .style = {
+        .font = FontSpec{
             .font_path   = font_path,
             .font_family = family,
             .font_weight = 700,
             .font_style  = "normal",
             .font_size   = size_pt,
-        },
-        .layout     = TextLayoutSpec{
-            .box         = box,
-            .line_height = 1.20f,
-            .tracking    = 1.0f,
-        },
-        .appearance = TextAppearanceSpec{
-            .color = color,
-        },
-    };
+        }
+    },
+    .frame = {
+        .placement = chronon3d::TextPlacement{chronon3d::TextPlacementKind::Absolute, {0.0f, 0.0f}}
+    }
+};
 }
 
 // ── Render-helper with custom RenderSettings ─────────────────────────────────

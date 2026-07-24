@@ -206,12 +206,6 @@ LayerBuilder& LayerBuilder::text(std::string name, const TextDefinition& def) {
     return *this;
 }
 
-LayerBuilder& LayerBuilder::text(std::string name, const TextSpec& spec) {
-    // Backward-compatible TextSpec overload: lift to the canonical
-    // TextDefinition and reuse the canonical overload.
-    return text(std::move(name), from_text_spec(spec));
-}
-
 LayerBuilder& LayerBuilder::shape(std::string_view id, std::string name, registry::ShapeParams params) {
     m_layer.nodes.push_back(m_shape_registry->create_node(
         id,

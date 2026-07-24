@@ -16,6 +16,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/text/text_definition.hpp>
 
 namespace chronon3d::test {
 
@@ -42,16 +43,23 @@ inline Composition make_pipeline_parity_canary(const CompositionProps& /*props*/
                 // TICKET-TEXT-LEGACY-POSITION-ROT (sub-area test-fixture site):
                 // legacy .position Vec3 removed upstream; migrate to .placement.
                 // Z=0 explicit in legacy code, safe-drop per M1.8 §5A.
-                l.text("canary_text", TextSpec{.content = {.value = std::string(kPipelineParityText)},.placement = chronon3d::TextPlacement{chronon3d::TextPlacementKind::Absolute, {960.0f, 540.0f}},.font = {
+                l.text("canary_text", TextDefinition{
+    .content = {.value = std::string(kPipelineParityText)},
+    .style = {
+        .font = {
                         .font_path = "assets/fonts/Inter-Bold.ttf",
                         .font_family = "Inter",
                         .font_size = 96.0f,
-                    },.layout = {
-                        .box = Vec2{900.0f, 200.0f},
-                        .anchor = TextAnchor::Center,
-                        .align = TextAlign::Center,
-                        .vertical_align = VerticalAlign::Middle,
-                    },});
+                    }
+    },
+    .frame = {
+        .placement = chronon3d::TextPlacement{chronon3d::TextPlacementKind::Absolute, {960.0f, 540.0f}},
+        .size = Vec2{900.0f, 200.0f},
+        .anchor = TextAnchor::Center,
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle
+    }
+});
             });
             return s.build();
         });

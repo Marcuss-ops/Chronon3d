@@ -22,7 +22,7 @@
 //   - 3 rotations × 2 ARs = 6 PNG goldens
 //   - All NOT cut: no edge touch + bbox height > 0 + width > 0
 //   - Re-bake command: `CHRONON3D_UPDATE_GOLDENS=1 ctest -R
-//     chronon3d_text_golden_tests --test-case="TextTransforms.RotateZ *"`
+//     chronon3d_text_transform_tests --test-case="TextTransforms.RotateZ *"`
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>

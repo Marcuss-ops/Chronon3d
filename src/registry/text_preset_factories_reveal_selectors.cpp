@@ -64,7 +64,7 @@ namespace chronon3d::registry::register_helpers_internal::factory_reveal {
 
 using LayerBuilderT  = chronon3d::registry::internal::LayerBuilderT;
 using SceneBuilderT  = chronon3d::registry::internal::SceneBuilderT;
-using TextSpecT      = chronon3d::registry::internal::TextSpecT;
+using TextDefinitionT = chronon3d::registry::internal::TextDefinitionT;
 
 // ── TU-local helper (Action 12b) ────────────────────────────────────────────
 //
@@ -231,7 +231,7 @@ TextPresetDescriptor tracking_close_entry() {
         compose_tracking_close,
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
-           const TextSpecT& spec) {
+           const TextDefinitionT& spec) {
             (void)chronon3d::registry::internal::wire_through_resolver(lb, "tracking_close", spec);
         });
 }
@@ -253,7 +253,7 @@ TextPresetDescriptor masked_line_reveal_entry() {
         compose_masked_line_reveal,
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
-           const TextSpecT& spec) {
+           const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "masked_line_reveal", spec)
               .center_split(Frame{30})
               .fade_shift_horizontal(Vec3{120.0f, 0.0f, 0.0f}, Frame{25});
@@ -282,7 +282,7 @@ TextPresetDescriptor word_cascade_entry() {
         compose_word_cascade,
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
-           const TextSpecT& spec) {
+           const TextDefinitionT& spec) {
             (void)chronon3d::registry::internal::wire_through_resolver(lb, "word_cascade", spec);
         });
 }
@@ -308,7 +308,7 @@ TextPresetDescriptor character_cascade_entry() {
         compose_character_cascade,
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
-           const TextSpecT& spec) {
+           const TextDefinitionT& spec) {
             (void)chronon3d::registry::internal::wire_through_resolver(lb, "character_cascade", spec);
         });
 }

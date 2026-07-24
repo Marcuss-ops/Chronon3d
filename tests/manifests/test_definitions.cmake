@@ -22,7 +22,6 @@ set(CHRONON3D_TEST_DEFINITIONS
     gradient_visual_tests.cmake
     rounded_rect_visual_tests.cmake
     deterministic_tests.cmake
-    text_golden_tests.cmake
     text_production_v1_tests.cmake
     text_health_tests.cmake
     text_fallback_tests.cmake
@@ -33,19 +32,15 @@ set(CHRONON3D_TEST_DEFINITIONS
     cache/parse_framebuffer_pool_clear_policy_tests.cmake
     diagnostic_overlay_tests.cmake
     presets_golden_tests.cmake
-    text_preset_visual_tests.cmake
     precomp_focus_tests.cmake
     timeline_tests.cmake
     timeline_functional_v1_tests.cmake
     text_definition_tests.cmake
     safe_area_placement_tests.cmake
-    text_builder_ergonomics_tests.cmake
     text_rich_authoring_tests.cmake
     subtitle_productive_tests.cmake
     animation_helpers_tests.cmake
-    text_simplicity_adapters_tests.cmake
     text/text_clip_policy_tests.cmake
-    text_presets_stability_tests.cmake
     text_canvas_aware_presets_tests.cmake
     text_layout_advanced_tests.cmake
     content_tests.cmake

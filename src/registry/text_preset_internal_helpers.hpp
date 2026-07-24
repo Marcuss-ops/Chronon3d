@@ -51,6 +51,7 @@
 // builder bodies in the factories).
 
 #include <chronon3d/registry/text_preset_resolver.hpp>
+#include <chronon3d/compat/text_spec_adapter.hpp>
 // Public Cluster B free function `wire_preset_text_run_params(preset_id, spec)`
 // reached by wire_through_resolver below.
 
@@ -67,7 +68,7 @@ namespace chronon3d::registry::internal {
 // ergonomic only — they do NOT introduce new public API.
 using LayerBuilderT = ::chronon3d::LayerBuilder;
 using SceneBuilderT = ::chronon3d::SceneBuilder;
-using TextSpecT     = ::chronon3d::TextSpec;
+using TextDefinitionT = ::chronon3d::TextDefinition;
 
 // ── make_presetc_template — TEXT-RES-01 scaffold factory ────────────────────
 //
@@ -122,11 +123,18 @@ make_presetc_template(std::string_view preset_id) {
 [[nodiscard]] inline LayerBuilderT&
 wire_through_resolver(LayerBuilderT& lb,
                       std::string_view preset_id,
-                      const TextSpecT& spec) {
-    TextRunSpec params =
-        ::chronon3d::registry::wire_preset_text_run_params(preset_id, spec);
+                      const TextDefinitionT& spec) {
+    TextRunSpec params = ::chronon3d::registry::wire_preset_text_run_params(
+        preset_id, spec);
     const std::string entry_name = std::string{preset_id} + "_text";
-    return lb.text_run(entry_name, params).commit();
+    TextDefinitionT canonical = spec;
+    canonical.animation.animators = std::move(params.animators);
+    canonical.animation.selectors = std::move(params.selectors);
+    canonical.animation.direction = params.direction;
+    canonical.animation.language = std::move(params.language);
+    canonical.animation.script = params.script;
+    canonical.animation.cache_layout = params.cache_layout;
+    return lb.text(entry_name, canonical);
 }
 
 } // namespace chronon3d::registry::internal

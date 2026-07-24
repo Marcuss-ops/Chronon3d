@@ -65,6 +65,7 @@
 #include <cmath>
 #include <cstdint>
 #include <string>
+#include <chronon3d/text/text_definition.hpp>
 
 using namespace chronon3d;
 
@@ -96,22 +97,24 @@ Composition build_b01_static_text_1080p_comp(SoftwareRenderer& renderer) {
                 l.font_engine(&renderer.font_engine());
                 l.pin_to(Anchor::Center);
                 l.animated_text("b01_text", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = kSampleText},
-                        .font = {
+                    .text = TextDefinition{
+    .content = {.value = kSampleText},
+    .style = {
+        .font = {
                             .font_path   = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size   = kFontSize,
                         },
-                        .layout = {
-                            .box            = {static_cast<float>(kCanvasW),
+        .color = Color{1.0f, 1.0f, 1.0f, 1.0f}
+    },
+    .frame = {
+        .size = {static_cast<float>(kCanvasW),
                                                 static_cast<float>(kCanvasH)},
-                            .align          = TextAlign::Center,
-                            .vertical_align = VerticalAlign::Middle,
-                        },
-                        .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},
-                    },
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle
+    }
+},
                 });
             });
             return s.build();

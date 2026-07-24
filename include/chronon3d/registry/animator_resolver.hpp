@@ -37,6 +37,7 @@
 #pragma once
 
 #include <chronon3d/scene/builders/builder_params.hpp>  // TextSpec, TextAnimatorSpec, Vec3,
+#include <chronon3d/text/text_definition.hpp>
                                                           // TextPropertyBlendMode, GlyphSelectorSpec,
                                                           // TextSelectorUnit, TextSelectorShape,
                                                           // OpacityProperty, PositionProperty,
@@ -54,7 +55,7 @@ struct AnimatorResolver {
 
     /// Stage 4 — fired when the spec carries ANY rich-paint signal
     /// (stroke_enabled / fill_style / stroke_style).  See .cpp for body.
-    [[nodiscard]] static bool spec_is_rich(const TextSpec& spec) noexcept;
+    [[nodiscard]] static bool spec_is_rich(const TextDefinition& spec) noexcept;
 
     /// Stage 4 — `ctc_rich_<preset_id>` anchor TextAnimatorSpec.
     /// See .cpp for body.

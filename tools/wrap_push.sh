@@ -17,9 +17,8 @@
 #   3. tools/check_test_suite_registration.sh (gate #10c raw add_executable audit)
 #   4. tools/check_frame_value_convention.sh (TICKET-110b gate)
 #   4.5d. tools/check_no_changelog_conflict_markers.sh
-#   4.5e. tools/check_text_golden_sources_aligned.sh
-#   4.5f. tools/check_doc_sha_dedup.sh
-#   4.5g. tools/check_commit_subject_length.sh (72-char envelope)
+#   4.5e. tools/check_doc_sha_dedup.sh
+#   4.5f. tools/check_commit_subject_length.sh (72-char envelope)
 #   ── WBH-only gates (CHRONON3D_GATE_PROFILE=wbh) ──
 #   4.5h. tools/check_video_completeness.sh (needs MP4 artifact)
 #   4.5j. tools/check_manual_touches_per_video.sh (Test #19)

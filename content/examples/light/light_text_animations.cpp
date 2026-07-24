@@ -3,7 +3,7 @@
 // 8 Light 2D Text Entrance Animations — 5 second (150 frame) compositions.
 //
 // Design:
-//   • text::centered_text() — Poppins-Bold 90pt, modern, bright (0.95,0.96,0.99)
+//   • canonical TextDefinition — Poppins-Bold 90pt, modern, bright (0.95,0.96,0.99)
 //   • MinimalistGrid background + ae_cinematic_white glow
 //   • 150 frames = 5 seconds at 30 fps (as requested)
 //   • Opacity 0.30 → 1.0 fade-in (text faintly visible from frame 0)

@@ -257,6 +257,13 @@ wire_preset_text_run_params(std::string_view preset_id,
     return out;
 }
 
+TextRunSpec
+wire_preset_text_run_params(std::string_view preset_id,
+                            const TextDefinition& definition) noexcept {
+    auto run = ::chronon3d::compat::to_text_run_spec(definition);
+    return wire_preset_text_run_params(preset_id, std::move(run.text));
+}
+
 // ── make_default_text_preset_registry ──────────────────────────────────────
 TextPresetRegistry make_default_text_preset_registry() {
     TextPresetRegistry r;

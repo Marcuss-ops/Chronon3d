@@ -17,7 +17,7 @@
 
 namespace chronon3d::content::text {
 
-TextDefinition typewriter_text(CenterTextOptions o,
+TextDefinition typewriter_text(TextDefinition o,
     Frame frame,
     f32 chars_per_frame,
     TypewriterOptions tw)
@@ -26,40 +26,40 @@ TextDefinition typewriter_text(CenterTextOptions o,
     using chronon3d::detail::grapheme_byte_offset_at;
 
     const f32 raw_frame = static_cast<f32>(frame) - static_cast<f32>(tw.start_delay);
-    const f32 total_chars_f = static_cast<f32>(grapheme_cluster_count(o.text));
+    const f32 total_chars_f = static_cast<f32>(grapheme_cluster_count(o.content.value));
 
     auto make_base = [&](std::string value, Color c) -> TextDefinition {
         return TextDefinition{
             .content = {.value = std::move(value)},
             .style = {
-                .font = {.font_path   = std::move(o.font_asset),
-                         .font_family = std::move(o.font_family),
-                         .font_weight = o.font_weight,
-                         .font_style  = std::move(o.font_style),
-                         .font_size   = o.font_size},
+                .font = {.font_path   = o.style.font.font_path,
+                         .font_family = o.style.font.font_family,
+                         .font_weight = o.style.font.font_weight,
+                         .font_style  = o.style.font.font_style,
+                         .font_size   = o.style.font.font_size},
                 .color = c
             },
             .frame = {
-                .size = o.box,
-                .placement = TextPlacement{TextPlacementKind::Absolute, {o.pos.x, o.pos.y}},
-                .anchor = TextAnchor::Center,
-                .align = TextAlign::Center,
-                .vertical_align = VerticalAlign::Middle,
-                .wrap = TextWrap::Word,
-                .overflow = TextOverflow::Clip,
-                .centering_mode = TextCenteringMode::PixelInk,
-                .line_height = o.line_height,
-                .tracking = o.tracking,
-                .auto_fit = o.auto_fit,
-                .min_font_size = o.min_font_size,
-                .max_font_size = o.max_font_size,
-                .max_lines = o.max_lines
+                .size = o.frame.size,
+                .placement = o.frame.placement,
+                .anchor = o.frame.anchor,
+                .align = o.frame.align,
+                .vertical_align = o.frame.vertical_align,
+                .wrap = o.frame.wrap,
+                .overflow = o.frame.overflow,
+                .centering_mode = o.frame.centering_mode,
+                .line_height = o.frame.line_height,
+                .tracking = o.frame.tracking,
+                .auto_fit = o.frame.auto_fit,
+                .min_font_size = o.frame.min_font_size,
+                .max_font_size = o.frame.max_font_size,
+                .max_lines = o.frame.max_lines
             }
         };
     };
 
     if (raw_frame < 0.0f || total_chars_f <= 0.0f) {
-        Color c = o.color;
+        Color c = o.style.color;
         c.a = 0.0f;
         return make_base(std::string(" "), c);
     }
@@ -69,7 +69,7 @@ TextDefinition typewriter_text(CenterTextOptions o,
     const f32 eased_t  = tw.easing.apply(linear_t);
 
     if (eased_t >= 1.0f) {
-        return make_base(std::move(o.text), o.color);
+        return make_base(std::move(o.content.value), o.style.color);
     }
 
     const size_t revealed = static_cast<size_t>(eased_t * total_chars_f);
@@ -77,9 +77,9 @@ TextDefinition typewriter_text(CenterTextOptions o,
 
     std::string visible = (revealed == 0)
         ? std::string(" ")
-        : o.text.substr(0, grapheme_byte_offset_at(o.text, revealed));
+        : o.content.value.substr(0, grapheme_byte_offset_at(o.content.value, revealed));
 
-    Color c = o.color;
+    Color c = o.style.color;
     if (tw.fade_chars > 0.0f && revealed < static_cast<size_t>(total_chars_f) && revealed > 0) {
         const f32 fade_range = std::clamp(tw.fade_chars, 0.0f, 1.0f);
         const f32 fade_t = std::clamp(1.0f - fade_range * partial, 0.25f, 1.0f);

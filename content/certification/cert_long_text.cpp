@@ -7,7 +7,7 @@
 // 1920×1080 canvas, text box centrato con margini safe.
 //
 // M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (2026-07-10):
-//   - 1 `text::centered_text({...})` call site migrated to
+//   - 1 convenience-helper call site migrated to
 //     canonical `TextDefinition{}` API (F2.C adapter).
 //   - `text_helpers.hpp` include removed (no longer used).
 // ==============================================================================
