@@ -9,7 +9,7 @@
 //
 // Phase-3.2 mechanical slim: this header is now DECLARATION-ONLY.
 // The three static bodies (spec_is_rich + rich_paint_anchor +
-// compose_for — the 22-branch resolver table) live in
+// compose_for — the registry-dispatched resolver table) live in
 // `src/registry/animator_resolver.cpp`.  The contract is preserved
 // verbatim; behaviour is bit-compatible.
 //
@@ -62,10 +62,10 @@ struct AnimatorResolver {
     [[nodiscard]] static TextAnimatorSpec
     rich_paint_anchor(std::string_view preset_id);
 
-    /// Stage 5 — Cluster A DoD #2 closure (all 22 presets).  Returns
+    /// Stage 5 — Cluster A DoD #2 closure (all 28 presets).  Returns
     /// std::nullopt for `minimal_white` and any unknown id (fail-safe
     /// path that routes to a plain `lb.text(...)`).
-    /// See .cpp for the 22-branch table.
+    /// See .cpp for the registry-dispatched table.
     [[nodiscard]] static std::optional<TextAnimatorSpec>
     compose_for(std::string_view preset_id);
 };
