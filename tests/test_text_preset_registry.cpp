@@ -1426,7 +1426,7 @@ TEST_CASE("TextPresetRegistry: TICKET-107 per-category register helpers in isola
 
         TextPresetRegistry subtitle_only;
         reg_helpers::register_text_preset_subtitle(subtitle_only);
-        CHECK(subtitle_only.by_category(TextPresetCategory::Subtitle).size() == 4);
+        CHECK(subtitle_only.by_category(TextPresetCategory::Subtitle).size() == 8);
         CHECK(subtitle_only.by_category(TextPresetCategory::Cinematic).empty());
         CHECK(subtitle_only.by_category(TextPresetCategory::Reveal).empty());
         CHECK(subtitle_only.by_category(TextPresetCategory::Emphasis).empty());

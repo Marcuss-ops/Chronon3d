@@ -10,15 +10,10 @@
 //   - Center: ink.center_x ~ box_center_x        (within 1px tolerance, per verdict)
 //   - Right:  ink.x1       ~ position.x + box.w  (within 5px tolerance)
 //
-// KNOWN LIMITATION (tests/text_golden/text_completeness/text_alignment.cpp:8-12):
-// The text shaping engine currently ignores TextAlign for single-line text
-// — the `position` field always acts as the text origin (left-aligned at
-// position).  Therefore, all 3 alignments produce IDENTICAL ink (left-aligned
-// at (200, 200)) and the regression-lock assertions would FAIL today.
+// The canonical layout engine must honour TextAlign for every authored frame,
+// including multiline text; these assertions are release-blocking.
 //
-// This test follows the EXPECT_FAIL pattern (WARN + early-return) used by
-// the existing Test 7 in text_alignment.cpp — when alignment is implemented,
-// remove the early-return in each TEST_CASE to activate the assertions.
+// The assertions stay active in every certification build.
 //
 // DISTINCTION FROM TEST 7 (text_alignment.cpp):
 // Test 7 uses a DEGENERATE box (1920x1080 == canvas, position=(960,540)) so
@@ -89,28 +84,19 @@ constexpr float kBoxRightX  = 600.0f;   // = kPosX + kBoxW
             s.layer("align_layer",
                 [&renderer, h_align](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.animated_text("align_test", TextRunSpec{
-                    .text = TextDefinition{
-    .content = {.value = "Short\nMuch longer line"},
-    .style = {
-        .font = {
-                            .font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
-                            .font_family = "Inter",
-                            .font_weight = 700,
-                            .font_size = 48.0f
-                        },
-        .color = Color::white()
-    },
-    .frame = {
-        .placement = TextPlacement{
-                            TextPlacementKind::Absolute,
-                            {kPosX, kPosY}},
-        .size = {kBoxW, kBoxH},
-        .align = h_align,
-        .vertical_align = VerticalAlign::Middle
-    }
-}
-                }).commit();
+                TextDefinition definition;
+                definition.content.value = "Short\nMuch longer line";
+                definition.style.font.font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf");
+                definition.style.font.font_family = "Inter";
+                definition.style.font.font_weight = 700;
+                definition.style.font.font_size = 48.0f;
+                definition.style.color = Color::white();
+                definition.frame.size = {kBoxW, kBoxH};
+                definition.frame.placement = TextPlacement{TextPlacementKind::Absolute, {kPosX, kPosY}};
+                definition.frame.anchor = TextAnchor::TopLeft;
+                definition.frame.align = h_align;
+                definition.frame.vertical_align = VerticalAlign::Middle;
+                l.text("align_test", std::move(definition));
             });
             return s.build();
         });
@@ -134,9 +120,7 @@ TEST_CASE("align-left: ink.x0 ~ position.x (200) within 5px tolerance") {
     CHECK_FALSE(bbox.empty());
     INFO("Left align bbox: x0=", bbox.x0, " expected ~ ", kPosX);
     // 5px tolerance accounts for font ascent/metrics offset.
-    // KNOWN LIMITATION: TextAlign is currently ignored by the text engine for
-    // single-line text. WARN keeps the regression lock visible without blocking.
-    WARN(std::abs(bbox.x0 - kPosX) <= 5);
+    CHECK(std::abs(bbox.x0 - kPosX) <= 5);
 }
 
 // ═══ Test 2 — Center alignment: ink.center_x ~ box_center_x (400) 1px ═════
@@ -156,8 +140,7 @@ TEST_CASE("align-center: ink.center_x ~ box_center_x (400) within 1px") {
     const float ink_cx = (bbox.x0 + bbox.x1) * 0.5f;
     INFO("Center align ink_cx=", ink_cx, " expected ~ ", kBoxCenterX);
     // 1px tolerance per verdict spec ("center_bbox.center_x ~ frame_center_x (1px)").
-    // KNOWN LIMITATION: TextAlign is currently ignored by the text engine.
-    WARN(std::abs(ink_cx - kBoxCenterX) <= 1.0f);
+    CHECK(std::abs(ink_cx - kBoxCenterX) <= 1.0f);
 }
 
 // ═══ Test 3 — Right alignment: ink.x1 ~ box_right (600) within 5px ═════════
@@ -173,6 +156,5 @@ TEST_CASE("align-right: ink.x1 ~ box_right (600) within 5px tolerance") {
     const AlphaBBox bbox = alpha_bbox(*fb);
     CHECK_FALSE(bbox.empty());
     INFO("Right align bbox: x1=", bbox.x1, " expected ~ ", kBoxRightX);
-    // KNOWN LIMITATION: TextAlign is currently ignored by the text engine.
-    WARN(std::abs(bbox.x1 - kBoxRightX) <= 5);
+    CHECK(std::abs(bbox.x1 - kBoxRightX) <= 5);
 }
