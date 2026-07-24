@@ -7,7 +7,7 @@
 // 1920×1080 canvas, "BREAKING NEWS" + subtitle.
 //
 // M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (2026-07-10):
-//   - 2 `text::centered_text({...})` call sites migrated to
+//   - 2 convenience-helper call sites migrated to
 //     canonical `TextDefinition{}` API (F2.C adapter).
 //   - `text_helpers.hpp` include removed (no longer used).
 // ==============================================================================

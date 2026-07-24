@@ -27,8 +27,8 @@ endif()
 #   20. Alpha threshold > 100 (canonical)
 #
 # Registered as INTEGRATION tier (depends on the production Chronon3D
-# renderer + composition pipeline).  Linked against the same targets
-# as `chronon3d_text_golden_tests` (chronon3d_sdk + chronon3d_software
+# renderer + composition pipeline).  Linked against the canonical SDK
+# and software targets (chronon3d_sdk + chronon3d_software
 # + chronon3d_content + chronon3d_runtime + chronon3d_text_core).
 #
 # macchina-verifica on a working build host: `ctest --test-dir

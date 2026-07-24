@@ -22,6 +22,7 @@
 
 #include <tests/helpers/test_utils.hpp>
 #include <tests/text_golden/text_completeness/pixel_scan_helpers.hpp>
+#include <chronon3d/text/text_definition.hpp>
 
 using namespace chronon3d;
 
@@ -40,20 +41,24 @@ TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: clip policy contains oversized text") 
             s.font_engine(&renderer.font_engine());
             s.layer("clip_oversized_layer", [&renderer, box_w, box_h](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text("clip_oversized_text", TextSpec{
-                    .content = {.value = "OVERSIZED"},
-                    .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f}},
-                    .font = {.font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
+                l.text("clip_oversized_text", TextDefinition{
+    .content = {.value = "OVERSIZED"},
+    .style = {
+        .font = {.font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
                              .font_family = "Inter",
                              .font_weight = 700,
                              .font_size = 200.0f},
-                    .layout = {.box = {box_w, box_h},
-                               .anchor = TextAnchor::Center,
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle,
-                               .overflow = TextOverflow::Clip},
-                    .appearance = {.color = Color::white()}
-                });
+        .color = Color::white()
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f}},
+        .size = {box_w, box_h},
+        .anchor = TextAnchor::Center,
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .overflow = TextOverflow::Clip
+    }
+});
             });
             return s.build();
         });

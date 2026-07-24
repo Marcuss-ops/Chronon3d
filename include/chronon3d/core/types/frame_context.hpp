@@ -45,6 +45,8 @@ public:
     // ── Non-temporal public data ───────────────────────────────────────────
     i32 width{1920};
     i32 height{1080};
+    std::string assets_root{};
+    AssetRegistry* assets{nullptr};
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
     // ── WP-9 PR 9.0 — Runtime accessor threaded into composition ctx ─
     // P1-16: the canonical access path is `ctx.runtime->font_engine()`.

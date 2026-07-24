@@ -40,11 +40,11 @@ inline void add_black_background(SceneBuilder& s) {
 // drop-shadow-ready color.  Designed for AnimFadeIn, AnimSlide, AnimScale.
 //
 // Standard centered text: bare TextDefinition with only the fields the classic
-// renderer pipeline understands.  Avoids centered_text() which adds
+// renderer pipeline understands.  Avoids the removed convenience helper which adds
 // TextAnchor/TextCenteringMode/TextWrap/TextOverflow fields that the
 // current scene compiler may not handle — causing 100%-transparent frames.
 //
-// TODO: migrate to centered_text() once the M1.5 text compiler pipeline
+// TODO: migrate remaining callers to TextDefinition once the M1.5 text compiler pipeline
 // fully supports the extended layout fields (TextAnchor::Center,
 // TextCenteringMode::PixelInk, TextWrap::Word, etc.).
 inline TextDefinition make_text(const std::string& text, f32 font_size = 64.0f) {

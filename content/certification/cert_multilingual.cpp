@@ -33,7 +33,7 @@
 //   - Background:    PASS (grid minimalista visibile)
 //
 // M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (2026-07-10):
-//   - 12 `text::centered_text({...})` call sites migrated to
+//   - 12 convenience-helper call sites migrated to
 //     canonical `TextDefinition{}` API (F2.C adapter).
 //   - `text_helpers.hpp` include removed (no longer used).
 // ==============================================================================

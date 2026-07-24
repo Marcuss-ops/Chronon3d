@@ -83,15 +83,21 @@ Composition build_composition(SoftwareRenderer& renderer, std::size_t frame_idx,
             s.layer("hero", [frame_idx, motion_blur_on](LayerBuilder& l) {
                 l.text("motion_blur", {
                     .content = {.value = "MOTION BLUR"},
-                    .placement = TextPlacement{TextPlacementKind::Absolute, {640.0f + x_offset_for(frame_idx), 360.0f}},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                             .font_family = "Inter",
-                             .font_weight = 700,
-                             .font_size = 180.0f},
-                    .layout = {.box = {1100.0f, 200.0f},
-                               .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color::white()},
+                    .style = {
+                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                 .font_family = "Inter",
+                                 .font_weight = 700,
+                                 .font_size = 180.0f},
+                        .color = Color::white()
+                    },
+                    .frame = {
+                        .size = {1100.0f, 200.0f},
+                        .placement = TextPlacement{
+                            TextPlacementKind::Absolute,
+                            {640.0f + x_offset_for(frame_idx), 360.0f}},
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle
+                    }
                 });
                 if (motion_blur_on) {
                     l.blur(13.0f);  // tier 3 of kBlurTierRadii = {{0,2,7,13,20}}

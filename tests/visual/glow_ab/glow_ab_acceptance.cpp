@@ -34,6 +34,7 @@
 
 #include <cmath>
 #include <memory>
+#include <chronon3d/text/text_definition.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::test;
@@ -69,23 +70,23 @@ std::shared_ptr<Framebuffer> render_glow_params(
         [glow](const FrameContext& ctx) -> Scene {
             SceneBuilder s(ctx);
             s.layer("hero", [&](LayerBuilder& l) {
-                l.animated_text("txt", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = "GLOW"},
+                l.text("txt", TextDefinition{
+                    .content = {.value = "GLOW"},
+                    .style = {
+                        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                 .font_family = "Inter",
+                                 .font_weight = 700,
+                                 .font_size = 120.0f},
+                        .color = Color::white()
+                    },
+                    .frame = {
+                        .size = {600.0f, 200.0f},
                         .placement = TextPlacement{
                             TextPlacementKind::CanvasCenter, {}},
-                        .font = {
-                            .font_path = "assets/fonts/Inter-Bold.ttf",
-                            .font_family = "Inter",
-                            .font_weight = 700,
-                            .font_size = 120.0f,
-                        },
-                        .layout = {.box = {600.0f, 200.0f},
-                                   .align = TextAlign::Center,
-                                   .vertical_align = VerticalAlign::Middle},
-                        .appearance = {.color = Color::white()},
-                    },
-                }).commit();
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle
+                    }
+                });
                 if (glow.enabled && glow.intensity > 0.0f) {
                     l.glow(glow);
                 }

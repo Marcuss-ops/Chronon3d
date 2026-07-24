@@ -43,10 +43,10 @@ namespace chronon3d::registry {
 // This is the wire-up trigger that the cinematic factories use to
 // push a `ctc_rich_<preset_id>` TextAnimatorSpec onto the TextRun BEFORE
 // the canonical motion chain runs.
-bool AnimatorResolver::spec_is_rich(const TextSpec& spec) noexcept {
-    return spec.appearance.paint.stroke_enabled
-        || spec.appearance.paint.fill_style.has_value()
-        || spec.appearance.paint.stroke_style.has_value();
+bool AnimatorResolver::spec_is_rich(const TextDefinition& spec) noexcept {
+    return spec.style.paint.stroke_enabled
+        || spec.style.paint.fill_style.has_value()
+        || spec.style.paint.stroke_style.has_value();
 }
 
 // ── rich_paint_anchor — Stage 4 contract (unchanged from Phase 3.2) ────────

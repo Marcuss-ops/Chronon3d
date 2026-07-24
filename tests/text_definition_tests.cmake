@@ -1,8 +1,6 @@
 # tests/text_definition_tests.cmake
 # ─────────────────────────────────────────────────────────────────────
-# TICKET-SIMPLICITY-TEXTDEFINITION §3 — Lock tests for the canonical
-# TextDefinition adapter chain (from_text_spec / from_text_run_spec /
-# from_text_definition + compile_to_canonical).
+# Canonical TextDefinition authoring and lowering tests.
 #
 # Highlights:
 #   - Pure struct operations (no rendering / no Blend2D / no graphics
@@ -22,5 +20,5 @@ chronon3d_add_test_suite(
     NAME chronon3d_text_definition_tests
     TIER UNIT
     LINK_TARGETS chronon3d_pipeline
-    SOURCES text/test_text_definition.cpp
+    SOURCES text/test_text_definition_canonical.cpp
 )

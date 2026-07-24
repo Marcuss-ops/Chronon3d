@@ -20,7 +20,7 @@
 //           .bloom_radius     = 36.0f,
 //           .inner_intensity  = 0.70f,
 //       });
-//       l.text("t", centered_text({.text = "TITLE", .font_size = 96}));
+//       l.text("t", TextDefinition{/* title */});
 //   });
 //
 

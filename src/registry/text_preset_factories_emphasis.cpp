@@ -32,7 +32,7 @@ namespace chronon3d::registry::register_helpers_internal::factory_emphasis {
 
 using LayerBuilderT  = chronon3d::registry::internal::LayerBuilderT;
 using SceneBuilderT  = chronon3d::registry::internal::SceneBuilderT;
-using TextSpecT      = chronon3d::registry::internal::TextSpecT;
+using TextDefinitionT = chronon3d::registry::internal::TextDefinitionT;
 
 // ── STAGE 2 helpers — Emphasis (4) compositor bodies (verbatim port) ──────
 
@@ -105,7 +105,7 @@ TextPresetDescriptor word_pop_entry() {
     d.fixture         = "tests/visual/text/emphasis_word_pop";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
-                          const TextSpecT& spec) {
+                          const TextDefinitionT& spec) {
         (void)chronon3d::registry::internal::wire_through_resolver(lb, "word_pop", spec);
     };
     d.animator_factory = compose_word_pop;
@@ -128,7 +128,7 @@ TextPresetDescriptor scale_punch_entry() {
     d.fixture         = "tests/visual/text/emphasis_scale_punch";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
-                          const TextSpecT& spec) {
+                          const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "scale_punch", spec)
           .scale_drop(0.70f, Frame{12})
           .soft_pop(Frame{20});
@@ -154,7 +154,7 @@ TextPresetDescriptor color_accent_entry() {
     d.fixture         = "tests/visual/text/emphasis_color_accent";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
-                          const TextSpecT& spec) {
+                          const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "color_accent", spec)
           .fade_in(Frame{12});
     };
@@ -178,7 +178,7 @@ TextPresetDescriptor gradient_fill_entry() {
     d.metadata        = meta;
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
-                          const TextSpecT& spec) {
+                          const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "gradient_fill", spec)
           .fade_shift_vertical(Vec3{0.0f, 80.0f, 0.0f}, Frame{20})
           .fade_in(Frame{15});

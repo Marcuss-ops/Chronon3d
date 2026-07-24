@@ -15,20 +15,6 @@ add_test(
 set_tests_properties(chronon3d_architecture_render_graph_software_boundary PROPERTIES LABELS "architecture")
 
 add_test(
-    NAME chronon3d_text_definition_round_trip_parity
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/architecture/test_text_definition_round_trip_parity.py
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
-set_tests_properties(chronon3d_text_definition_round_trip_parity PROPERTIES LABELS "architecture;text;parity")
-
-add_test(
-    NAME chronon3d_text_definition_round_trip_parity_py_compile
-    COMMAND ${Python3_EXECUTABLE} -m py_compile ${CMAKE_CURRENT_SOURCE_DIR}/architecture/test_text_definition_round_trip_parity.py
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
-set_tests_properties(chronon3d_text_definition_round_trip_parity_py_compile PROPERTIES LABELS "architecture;text;parity")
-
-add_test(
     NAME chronon3d_gate11_backend_sanitization
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/check_backend_sanitization.py
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}

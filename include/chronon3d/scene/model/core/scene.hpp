@@ -139,6 +139,9 @@ public:
 
     [[nodiscard]] std::pmr::memory_resource* resource() const { return m_nodes.get_allocator().resource(); }
 
+    [[nodiscard]] const std::filesystem::path& assets_root() const { return m_assets_root; }
+    void set_assets_root(std::filesystem::path root) { m_assets_root = std::move(root); }
+
     // Asset manifest: aggregated from all layers during build.
     [[nodiscard]] const assets::AssetManifest& asset_manifest() const { return m_manifest; }
     [[nodiscard]] assets::AssetManifest& asset_manifest() { return m_manifest; }
@@ -152,6 +155,7 @@ private:
     rendering::RimLight m_rim{};
     rendering::DepthGrade m_depth_grade{};
     bool m_hierarchy_baked{false};
+    std::filesystem::path m_assets_root;
     assets::AssetManifest m_manifest;
 
     // P3-H public camera facade — internal camera state stored on the

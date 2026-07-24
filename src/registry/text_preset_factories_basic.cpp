@@ -91,7 +91,7 @@ namespace chronon3d::registry::register_helpers_internal::factory_basic {
 
 using LayerBuilderT  = chronon3d::registry::internal::LayerBuilderT;
 using SceneBuilderT  = chronon3d::registry::internal::SceneBuilderT;
-using TextSpecT      = chronon3d::registry::internal::TextSpecT;
+using TextDefinitionT = chronon3d::registry::internal::TextDefinitionT;
 
 // ── STAGE 2 helpers — Subtitle (4) compositor bodies (verbatim port) ─────
 //
@@ -196,7 +196,7 @@ TextPresetDescriptor minimal_white_entry() {
     d.fixture         = "tests/visual/text/subtitle_minimal_white";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
-                          const TextSpecT& spec) {
+                          const TextDefinitionT& spec) {
         // P1 — minimal_white now goes through the same path as the other
         // 21 built-ins (Sub-cases 7-9 invariants preserved: 1 RenderNode
         // produced when params.animators.empty()).
@@ -223,7 +223,7 @@ TextPresetDescriptor yellow_keyword_entry() {
     d.fixture         = "tests/visual/text/subtitle_yellow_keyword";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
-                          const TextSpecT& spec) {
+                          const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "yellow_keyword", spec)
           .word_stagger(Frame{3}, Frame{20})
           .fade_in(Frame{12});
@@ -249,7 +249,7 @@ TextPresetDescriptor glow_pulse_entry() {
     d.fixture         = "tests/visual/text/subtitle_glow_pulse";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
-                          const TextSpecT& spec) {
+                          const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "glow_pulse", spec)
           .tracking_breathing(0.08f, Frame{40});
     };
@@ -273,7 +273,7 @@ TextPresetDescriptor caption_box_entry() {
     d.fixture         = "tests/visual/text/subtitle_caption_box";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
-                          const TextSpecT& spec) {
+                          const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "caption_box", spec)
           .fade_in(Frame{12});
     };
@@ -294,7 +294,7 @@ TextPresetDescriptor karaoke_fill_entry() {
     d.id              = meta.id;
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_karaoke_fill";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
+    d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "karaoke_fill", spec).word_stagger(Frame{2}, Frame{12}).fade_in(Frame{10});
     };
     d.animator_factory = compose_karaoke_fill;
@@ -313,7 +313,7 @@ TextPresetDescriptor active_word_pop_entry() {
     d.id              = meta.id;
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_active_word_pop";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
+    d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextDefinitionT& spec) {
         // The per-word scale punch comes from the TextAnimatorSpec's
         // ScaleProperty applied through the word selectors emitted by
         // SubtitleTrackBuilder.  No whole-layer scale transform is used
@@ -336,7 +336,7 @@ TextPresetDescriptor subtitle_card_entry() {
     d.id              = meta.id;
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_subtitle_card";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
+    d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "subtitle_card", spec).fade_in(Frame{12});
     };
     d.animator_factory = compose_subtitle_card;
@@ -355,7 +355,7 @@ TextPresetDescriptor lower_third_safe_entry() {
     d.id              = meta.id;
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_lower_third_safe";
-    d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextSpecT& spec) {
+    d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "lower_third_safe", spec).fade_in(Frame{12});
     };
     d.animator_factory = compose_lower_third_safe;

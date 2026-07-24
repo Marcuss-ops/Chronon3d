@@ -7,7 +7,7 @@
 // CertTitleVertical:  1080×1920 (9:16), stesso testo per TikTok/Shorts
 //
 // M1.8 §2D / TICKET-SIMPLICITY-MIGRATE-COMPOSITIONS (2026-07-10):
-//   - 1 `text::centered_text({...})` call site (in make_cert_title_comp
+//   - 1 convenience-helper call site (in make_cert_title_comp
 //     helper, shared by CertTitle + CertTitleVertical) migrated to
 //     canonical `TextDefinition{}` API (F2.C adapter).
 //   - `text_helpers.hpp` include removed (no longer used).

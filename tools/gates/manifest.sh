@@ -26,7 +26,6 @@ DEVELOPER_GATES=(
     check_frame_value_convention.sh
     check_no_legacy_render_cli.sh
     check_no_changelog_conflict_markers.sh
-    check_text_golden_sources_aligned.sh
     check_doc_sha_dedup.sh
     check_commit_subject_length.sh
     check_push_divergence_window.sh

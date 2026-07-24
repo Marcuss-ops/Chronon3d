@@ -51,6 +51,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <chronon3d/text/text_definition.hpp>
 
 using namespace chronon3d;
 
@@ -235,20 +236,24 @@ TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: auto-fit rendered ink fits inside box"
             s.layer("autofit_layer", [&renderer, box_w, box_h](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.animated_text("autofit_text", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = "Auto-fit real fit check"},
-                        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
-                        .font = {.font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
+                    .text = TextDefinition{
+    .content = {.value = "Auto-fit real fit check"},
+    .style = {
+        .font = {.font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
                                  .font_family = "Inter",
                                  .font_weight = 700,
                                  .font_size = 200.0f},
-                        .layout = {.box = {box_w, box_h},
-                                   .align = TextAlign::Center,
-                                   .vertical_align = VerticalAlign::Middle,
-                                   .overflow = TextOverflow::Clip,
-                                   .auto_fit = true},
-                        .appearance = {.color = Color::white()}
-                    }
+        .color = Color::white()
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
+        .size = {box_w, box_h},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .overflow = TextOverflow::Clip,
+        .auto_fit = true
+    }
+}
                 }).commit();
             });
             return s.build();

@@ -120,6 +120,7 @@ namespace reg_helpers = chronon3d::registry::register_helpers_internal;
 #include <array>        // std::array<ExpectedComposition, 22>
 #include <variant>      // std::holds_alternative for Sub-case 30/31 kind checks
 #include <filesystem>
+#include <chronon3d/text/text_definition.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::registry;
@@ -127,12 +128,21 @@ using namespace chronon3d::registry;
 // ── Fixture: minimal TextSpec with non-empty content ────────────────────
 // Designated-initializer aggregate initialisation matches the content/
 // text helpers canonical idiom in `content/text/text_helpers_centered.hpp`.
-inline TextSpec make_test_text_spec() {
-    return TextSpec{.content    = {.value = "Hello"},.font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+inline TextDefinition make_test_text_spec() {
+    return TextDefinition{
+    .content = {.value = "Hello"},
+    .style = {
+        .font = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
                        .font_family = "Poppins",
                        .font_weight = 700,
                        .font_style  = "normal",
-                       .font_size   = 96.0f},.layout     = {.box = {1200.0f, 240.0f}},.appearance = {.color = {1.0f, 1.0f, 1.0f, 1.0f}},};
+                       .font_size   = 96.0f},
+        .color = {1.0f, 1.0f, 1.0f, 1.0f}
+    },
+    .frame = {
+        .size = {1200.0f, 240.0f}
+    }
+};
 }
 
 // ── Fixture: rich-paint TextSpec (Stage 4 wiring probe) ─────────────────
@@ -145,17 +155,26 @@ inline TextSpec make_test_text_spec() {
 // TextAnimatorSpec with id prefix "ctc_rich_cinematic_text_camera" onto
 // the TextRunSpec.animators vector BEFORE the canonical motion-preset
 // chain runs (depth_reveal + scale_drop + soft_pop).
-inline TextSpec make_chronon_rich_text_spec() {
-    return TextSpec{.content    = {.value = "CHRONON"},.font       = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
+inline TextDefinition make_chronon_rich_text_spec() {
+    return TextDefinition{
+    .content = {.value = "CHRONON"},
+    .style = {
+        .font = {.font_path   = "assets/fonts/Poppins-Bold.ttf",
                        .font_family = "Poppins",
                        .font_weight = 700,
                        .font_style  = "normal",
-                       .font_size   = 96.0f},.layout     = {.box = {1200.0f, 240.0f}},.appearance = {.color = {1.0f, 1.0f, 1.0f, 1.0f},
-                       .paint  = {.fill = {1.0f, 1.0f, 1.0f, 1.0f},
+                       .font_size   = 96.0f},
+        .color = {1.0f, 1.0f, 1.0f, 1.0f},
+        .paint = {.fill = {1.0f, 1.0f, 1.0f, 1.0f},
                                   // ── Richness trigger (bool signal) ──
                                   .stroke_enabled = true,
                                   .stroke_color  = {0.0f, 0.0f, 0.0f, 1.0f},
-                                  .stroke_width  = 2.0f}},};
+                                  .stroke_width  = 2.0f}
+    },
+    .frame = {
+        .size = {1200.0f, 240.0f}
+    }
+};
 }
 
 // ── Per-preset helper: build → verify node added (Tier C) ──────────────
@@ -164,7 +183,7 @@ inline TextSpec make_chronon_rich_text_spec() {
 inline std::size_t invoke_and_node_count(const TextPreset& preset,
                                           SceneBuilder& sb,
                                           LayerBuilder& lb,
-                                          const TextSpec& ts) {
+                                          const TextDefinition& ts) {
     preset.builder(sb, lb, ts);
     lb.screen_dimensions(1280.0f, 720.0f);
     Layer built = lb.build();
@@ -290,7 +309,7 @@ TEST_CASE("TextPresetRegistry: strict API tier (Sub-cases 7-9)") {
         auto reg = make_default_text_preset_registry();
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("invocation_test_layer", Frame{0}, FrameRate{30, 1});
-        TextSpec ts = make_test_text_spec();
+        TextDefinition ts = make_test_text_spec();
 
         for (const auto& preset : reg.list()) {
             CAPTURE(preset.id);
@@ -302,7 +321,7 @@ TEST_CASE("TextPresetRegistry: strict API tier (Sub-cases 7-9)") {
         auto reg = make_default_text_preset_registry();
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("state_effect_test_layer", Frame{0}, FrameRate{30, 1});
-        const TextSpec ts = make_test_text_spec();
+        const TextDefinition ts = make_test_text_spec();
 
         const std::size_t expected_minimum = reg.list().size();  // 1 text() call per preset.
         std::size_t invoked_count = 0;
@@ -324,7 +343,7 @@ TEST_CASE("TextPresetRegistry: strict API tier (Sub-cases 7-9)") {
 
         SceneBuilder sb(1280, 720);
         LayerBuilder lb("motion_probe_layer", Frame{0}, FrameRate{30, 1});
-        const TextSpec ts = make_test_text_spec();
+        const TextDefinition ts = make_test_text_spec();
 
         const auto& preset = reg.get("cinematic_text_camera");
         REQUIRE_NOTHROW(preset.builder(sb, lb, ts));
@@ -613,10 +632,10 @@ TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {    
         REQUIRE(reg.get("cinematic_text_camera").metadata.category == TextPresetCategory::Cinematic);
 
         // ── Fixture: spec.content.value = "CHRONON" with rich paint. ────
-        TextSpec rich_spec = make_chronon_rich_text_spec();
+        TextDefinition rich_spec = make_chronon_rich_text_spec();
         REQUIRE_FALSE(rich_spec.content.value.empty());
         CHECK(rich_spec.content.value == "CHRONON");
-        CHECK(rich_spec.appearance.paint.stroke_enabled);
+        CHECK(rich_spec.style.paint.stroke_enabled);
 
         // ── Pre-build assertion: invariants hold BEFORE preset.builder ───
         SceneBuilder sb(1280, 720);
@@ -902,9 +921,11 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
         // via `decltype(function-name)` which yields the function type.
         static_assert(
             std::is_same_v<
-                decltype(wire_preset_text_run_params),
-                TextRunSpec(std::string_view, TextSpec) noexcept>,
-            "wire_preset_text_run_params must return TextRunSpec via (string_view, TextSpec) noexcept");
+                decltype(static_cast<TextRunSpec(*)(std::string_view,
+                                                     const TextDefinition&) noexcept>(
+                    &wire_preset_text_run_params)),
+                TextRunSpec(*)(std::string_view, const TextDefinition&) noexcept>,
+            "wire_preset_text_run_params must expose the canonical TextDefinition overload");
 
         // ── Per-preset pure-function probe ─────────────────────────────────
         // Iterate all 22 preset ids via reg.available() (sorted-by-key,
@@ -1007,7 +1028,7 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
         // mis-tuned (e.g. takes const-ref only), the move is silently
         // elided into a copy and this assertion over-constructs; we
         // include it as a compile-time + runtime smoke test.
-        TextSpec movable = make_test_text_spec();
+        TextDefinition movable = make_test_text_spec();
         const std::string original_value = movable.content.value;
         const auto moved_params =
             wire_preset_text_run_params("fade_in", std::move(movable));

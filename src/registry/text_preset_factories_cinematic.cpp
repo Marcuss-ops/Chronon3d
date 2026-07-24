@@ -25,6 +25,7 @@
 #include <chronon3d/scene/builders/builder_params.hpp>
 
 #include "text_preset_internal_helpers.hpp"
+#include <chronon3d/compat/text_spec_adapter.hpp>
 
 #include <optional>
 #include <string>
@@ -34,7 +35,7 @@ namespace chronon3d::registry::register_helpers_internal::factory_cinematic {
 
 using LayerBuilderT  = chronon3d::registry::internal::LayerBuilderT;
 using SceneBuilderT  = chronon3d::registry::internal::SceneBuilderT;
-using TextSpecT      = chronon3d::registry::internal::TextSpecT;
+using TextDefinitionT = chronon3d::registry::internal::TextDefinitionT;
 
 // ── STAGE 2 helpers — Cinematic (4) compositor bodies (verbatim port) ─────
 
@@ -114,7 +115,7 @@ TextPresetDescriptor animation_compositions_entry() {
     d.fixture         = "tests/visual/cinematic_motion/DeepParallaxCascade";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
-                          const TextSpecT& spec) {
+                          const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "animation_compositions", spec)
           .depth_reveal(280.0f, Frame{45})
           .soft_pop(Frame{30})
@@ -144,9 +145,10 @@ TextPresetDescriptor cinematic_text_camera_entry() {
     d.fixture         = "tests/visual/camera/camera_visual_tests";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
-                          const TextSpecT& spec) {
+                          const TextDefinitionT& spec) {
         TextRunSpec params;
-        params.text = spec;
+        const auto legacy_spec = ::chronon3d::compat::from_text_definition(spec);
+        params.text = legacy_spec;
         if (::chronon3d::registry::AnimatorResolver::spec_is_rich(spec)) {
             params.animators.push_back(
                 ::chronon3d::registry::AnimatorResolver::rich_paint_anchor("cinematic_text_camera"));
@@ -184,7 +186,7 @@ TextPresetDescriptor cinematic_title_reveal_entry() {
     d.fixture         = "tests/visual/cinematic_motion/cinematic_title_reveal";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
-                          const TextSpecT& spec) {
+                          const TextDefinitionT& spec) {
         (void)chronon3d::registry::internal::wire_through_resolver(lb, "cinematic_title_reveal", spec);
     };
     d.animator_factory = compose_cinematic_title_reveal;
@@ -208,7 +210,7 @@ TextPresetDescriptor tilt_sweep_title_v2_entry() {
     d.fixture         = "tests/visual/cinematic_motion/tilt_sweep_title_v2";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
-                          const TextSpecT& spec) {
+                          const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "tilt_sweep_title_v2", spec)
           .scale_drop(1.08f, Frame{45})
           .focus_in(2.5f, Frame{30})

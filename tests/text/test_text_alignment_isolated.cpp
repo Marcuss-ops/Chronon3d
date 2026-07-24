@@ -47,6 +47,7 @@
 #include <tests/text_golden/text_completeness/pixel_scan_helpers.hpp>
 
 #include <cmath>
+#include <chronon3d/text/text_definition.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::test;
@@ -89,24 +90,26 @@ constexpr float kBoxRightX  = 600.0f;   // = kPosX + kBoxW
                 [&renderer, h_align](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.animated_text("align_test", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = "Short\nMuch longer line"},
-                        .placement = TextPlacement{
-                            TextPlacementKind::Absolute,
-                            {kPosX, kPosY}},
-                        .font = {
+                    .text = TextDefinition{
+    .content = {.value = "Short\nMuch longer line"},
+    .style = {
+        .font = {
                             .font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 48.0f
                         },
-                        .layout = {
-                            .box = {kBoxW, kBoxH},
-                            .align = h_align,
-                            .vertical_align = VerticalAlign::Middle
-                        },
-                        .appearance = {.color = Color::white()}
-                    }
+        .color = Color::white()
+    },
+    .frame = {
+        .placement = TextPlacement{
+                            TextPlacementKind::Absolute,
+                            {kPosX, kPosY}},
+        .size = {kBoxW, kBoxH},
+        .align = h_align,
+        .vertical_align = VerticalAlign::Middle
+    }
+}
                 }).commit();
             });
             return s.build();
