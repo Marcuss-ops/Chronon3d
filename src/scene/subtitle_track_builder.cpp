@@ -188,10 +188,15 @@ void SubtitleTrackBuilder::build() {
         spec.appearance.color = color_;
         spec.layout.box = box_size_;
         spec.layout.align = align_;
+        spec.layout.vertical_align = vertical_align_;
+        spec.layout.anchor = vertical_align_ == VerticalAlign::Bottom
+            ? TextAnchor::BottomCenter
+            : (vertical_align_ == VerticalAlign::Top
+                ? TextAnchor::TopCenter
+                : TextAnchor::Center);
 
         // Resolve placement through the canonical resolver.
-        TextPlacement placement{placement_kind_};
-        spec.placement = placement;
+        spec.placement = placement_;
 
         // Schedule the cue using [start_frame, end_frame) semantics.
         const Frame start_frame = seconds_to_frame(cue.start_s);

@@ -190,9 +190,11 @@ Layer LayerBuilder::build() {
                     shape->placement_kind = prepared.frame.placement.kind;
                     node.world_transform.anchor = resolve_text_anchor(
                         prepared.frame.anchor,
-                        shape->layout
-                            ? shape->layout->bounds
-                            : prepared.frame.size);
+                        // Placement anchors the authored layout box.  Using
+                        // the ink bounds here applies horizontal/vertical
+                        // alignment a second time and shifts centered text
+                        // away from its canvas pin.
+                        prepared.frame.size);
                     node.shape.text_run_shape_handle().value = std::move(shape);
                 }
 #endif
@@ -237,9 +239,10 @@ Layer LayerBuilder::build() {
                 shape->placement_kind = materialize_params.text.placement.kind;
                 node.world_transform.anchor = resolve_text_anchor(
                     materialize_params.text.layout.anchor,
-                    shape->layout
-                        ? shape->layout->bounds
-                        : materialize_params.text.layout.box);
+                    // The transform pins the authored layout box; the ink
+                    // bounds already include alignment and must not become a
+                    // second anchor reference.
+                    materialize_params.text.layout.box);
                 node.shape.text_run_shape_handle().value = std::move(shape);
             }
 #endif
