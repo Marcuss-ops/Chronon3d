@@ -34,6 +34,7 @@
 #include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
+#include <chronon3d/effects/presets/glow_presets.hpp>
 #include <chronon3d/presets/text/subtitle.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
@@ -48,7 +49,6 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cmath>
-#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -311,6 +311,38 @@ std::shared_ptr<chronon3d::Framebuffer> render_effect_case(
     chronon3d::SoftwareRenderer& renderer)
 {
     using namespace chronon3d;
+    if (c.effect == "glow_pulse") {
+        const auto comp = composition(
+            {.name = c.id,
+             .width = c.width,
+             .height = c.height,
+             .frame_rate = FrameRate{30, 1},
+             .duration = std::max(1, c.frame + 1)},
+            [&c, &renderer](const FrameContext& ctx) -> Scene {
+                SceneBuilder s(ctx);
+                s.font_engine(&renderer.font_engine());
+                s.layer(c.id + "_layer", [&c, &renderer](LayerBuilder& l) {
+                    l.font_engine(&renderer.font_engine());
+                    l.glow(GlowPresets::neon_blue(45.0f));
+                    TextDefinition definition;
+                    definition.content.value = c.text;
+                    definition.style.font.font_path = chronon3d::test::bundled_font_path(c.font_path);
+                    definition.style.font.font_family = c.font_family;
+                    definition.style.font.font_weight = c.font_weight;
+                    definition.style.font.font_size = c.font_size;
+                    definition.frame.placement = TextPlacement{
+                        parse_placement(c.placement), Vec2{c.offset_x, c.offset_y}};
+                    definition.frame.align = parse_align(c.align);
+                    definition.frame.vertical_align = parse_vertical_align(c.vertical_align);
+                    definition.frame.line_height = c.line_spacing;
+                    definition.frame.tracking = c.tracking;
+                    definition.style.color = Color::white();
+                    l.text(c.id + "_text", std::move(definition));
+                });
+                return s.build();
+            });
+        return renderer.render(comp, Frame{c.frame});
+    }
     if (c.effect == "opacity_fade") {
         const auto comp = composition(
             {.name = c.id,
