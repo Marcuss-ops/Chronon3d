@@ -7,8 +7,8 @@
 # Blend2D + SoftwareRenderer). LINK_TARGETS override to add chronon3d_visual_test_support
 # for image_diff.hpp::compute_ssim reuse (Cat-3 anti-dup: don't duplicate SSIM impl).
 #
-# Skeleton phase: blessed reference corpus is empty. All TEST_CASEs skip
-# gracefully via MESSAGE+CHECK(true)+return pattern until PR-review-seeded.
+# Release certification is strict: every manifest case must have a blessed
+# CapCut reference. Missing references are failures, never skips.
 #
 # Per AGENTS.md ADR-018: this file is included via tests/manifests/test_definitions.cmake
 # (NOT via add_subdirectory) because tests/reference/capcut/ is a leaf test area,

@@ -2,10 +2,10 @@
 
 ## Stato
 
-OPEN (2026-07-21, commit `c388d196` + chore fixup pending)
-- **DONE (skeleton)**: 2 nuovi file di test + tests/text/CMakeLists.txt + wire-in in tests/manifests/test_definitions.cmake.
-- **DONE (chore fixup)**: `make_renderer()` (deprecated in `test_utils.hpp:114`) → `make_renderer_shared()` nei 3 alignment TEST_CASE (per AGENTS.md §honest-discipline + reviewer #1).
-- **OPEN (alignment activation)**: 3 TEST_CASE alignment in `EXPECT_FAIL` mode (WARN + early-return) — da attivare (rimuovere `return;`) quando l'alignment engine implementerà TextAlign per single-line text. Vedi §Activation protocol sotto.
+DONE (2026-07-24)
+- 2 test binary standalone compilati ed eseguiti con successo.
+- I 3 casi alignment sono assertions bloccanti e passano tramite `TextDefinition` pubblico.
+- I 3 casi auto-fit sono assertions bloccanti su determinismo cache, overflow esplicito e 5-run determinism.
 
 ## Problema
 
@@ -45,32 +45,21 @@ Il verdict CapCut-grade Chronon3D (§Fase 7) richiede test isolati che blocchino
 - Test 2 (impossible min_font_size): `min=200` in 400x200 box → `font_size == 200` AND `bounds.x > 400` AND `bounds.y > 200` (explicit overflow, NO silent clip)
 - Test 3 (5-run determinism): 5 chiamate con stessa params → bit-identico output
 
-### Activation protocol (per future agent che fixa TextAlign)
-
-Quando l'alignment engine viene aggiornato per applicare `TextAlign` a single-line text:
-1. Rimuovere `return;` (riga con comment `EXPECT_FAIL — see WARN above`) da ciascuno dei 3 TEST_CASE in `tests/text/test_text_alignment_isolated.cpp`.
-2. Rimuovere la riga `WARN("EXPECT_FAIL: ...");` corrispondente.
-3. Verificare che i 3 test PASSINO con la nuova implementazione.
-4. Cross-link questo ticket nel commit che fixa l'alignment.
-
 ## Forward-points
 
 - **Fase 1 (DONE)**: bbox fix + cluster-fallback → TICKET-INK-BBOX-GEOMETRIC + TICKET-OPENTYPE-FEATURES-PASS (future ticket)
 - **Fase 4 (future)**: word-binding + word-timing quality → TICKET-TIMED-WORD-BINDING + TICKET-WORD-TIMING-QUALITY (future ticket)
 - **Fase 9 (DONE)**: CapCut reference corpus → TICKET-CAPCUT-REFERENCE-CORPUS
-- **Alignment activation (future)**: rimuovere `return;` dai 3 alignment TEST_CASE quando l'alignment engine fissa TextAlign per single-line text
 - **LocalEngine extraction (future)**: `LocalEngine` struct in `tests/text/test_text_auto_fit.cpp` (linee 33-41) duplica verbatim quello in `tests/text/test_auto_fit_font_size.cpp:50-58`. Forward-point: estrarre in `tests/helpers/text_test_engine.hpp` quando un 3rd user appare (Cat-3 anti-dup deferred — 2 users = borderline). Per reviewer #3.
-- **§honest-discipline EXPECT_FAIL consistency**: i 3 alignment tests seguono il pattern `WARN + return` di Test 7 in `text_alignment.cpp` (consistency > novelty per AGENTS.md §Docs canonical update discipline). Alternative (run + accept FAIL) applicabile ma rompe consistency. Per reviewer #2.
 
 ## §Accepted deviations
 
-- **Deviation #1 (reviewer #2)**: `EXPECT_FAIL` pattern con `WARN + return` upfront rende i test dormienti (unreachable code). Alternativa (real assert + FAIL today) più onesta ma rompe consistency con Test 7 di `text_alignment.cpp`. Scelta: consistency (forward-point documenta activation protocol).
 - **Deviation #2 (reviewer #4)**: "Hello" è troppo corto per esporre kern pairs / ligatures. Forward-point: aggiungere sub-case "AVATAR" (kern) o "office" (ligatures) per copertura TICKET-OPENTYPE-FEATURES-PASS.
 - **Deviation #3 (reviewer #5)**: ~~CHANGELOG entry descrive activation protocol inline. Per Cat-3 anti-dup canonical entry dovrebbe essere ≤1 sentence + ticket link; attivazione dettagliata vive nel ticket §Activation protocol.~~ **RESOLVED in chore fixup `afe70f33`**: nuovo CHANGELOG entry sintetizzato per Cat-3 ≤1 sentence + link discipline (linka al TICKET invece di duplicare activation protocol inline).
 
 ## Cross-link canonici
 
-- `docs/FOLLOWUP_TICKETS.md`: row OPEN P1 (riga aggiunta in questo commit)
+- `docs/FOLLOWUP_TICKETS.md`: row DONE P1
 - `docs/CHANGELOG.md`: entry 2026-07-21
 - `tests/text_golden/text_completeness/text_alignment.cpp`: Test 7 (EXPECT_FAIL precedent con box degenere, distinto da questo file)
 - `tests/text/test_auto_fit_font_size.cpp`: 8 TEST_CASE esistenti per auto-fit (Pattern A precedent); questo file aggiunge 3 TEST_CASE ortogonali (cache on/off + impossible min + 5-run)

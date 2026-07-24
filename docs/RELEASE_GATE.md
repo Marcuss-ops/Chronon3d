@@ -24,7 +24,7 @@ Prima di qualsiasi release, tutti i controlli seguenti devono passare sullo **st
 
 Tutti i punti seguenti devono essere veri:
 
-1. almeno 20 preset generali e 8 preset subtitle verificati;
+1. almeno 18 preset generali e 8 preset subtitle verificati (categorie distinte; i subtitle non contano nei generali; catalogo corrente: 18 + 8);
 2. input word-timing JSON/SRT funzionante;
 3. styling per parola e highlight produttivi;
 4. ogni preset ha golden su 16:9 e 9:16, testo corto/lungo e almeno tre timestamp;

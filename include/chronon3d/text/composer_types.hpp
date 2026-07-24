@@ -93,6 +93,10 @@ struct ComposedLine {
     /// Positive = extends beyond margin.
     float left_overhang{0.0f};
     float right_overhang{0.0f};
+
+    /// Offset of this line inside the authored text box for left/center/right
+    /// alignment. Applied after shaping so glyph positions and bounds agree.
+    float alignment_offset{0.0f};
 };
 
 // ── ParagraphLayout — complete layout for one paragraph ──────────────────

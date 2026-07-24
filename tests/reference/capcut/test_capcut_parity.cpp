@@ -206,24 +206,22 @@ std::shared_ptr<chronon3d::Framebuffer> render_static_text_case(
             s.font_engine(&renderer.font_engine());
             s.layer(c.id + "_layer", [&c, &renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                TextRunSpec spec;
-                spec.text.content.value = c.text;
-                spec.text.placement = TextPlacement{
+                TextDefinition definition;
+                definition.content.value = c.text;
+                definition.frame.placement = TextPlacement{
                     parse_placement(c.placement),
                     Vec2{c.offset_x, c.offset_y}};
-                spec.text.font.font_path   = chronon3d::test::bundled_font_path(c.font_path);
-                spec.text.font.font_family = c.font_family;
-                spec.text.font.font_weight = c.font_weight;
-                spec.text.font.font_size   = c.font_size;
-                spec.text.layout.box            = Vec2{static_cast<float>(c.width), static_cast<float>(c.height)};
-                spec.text.layout.align          = parse_align(c.align);
-                spec.text.layout.vertical_align = parse_vertical_align(c.vertical_align);
-                spec.text.layout.line_height    = c.line_spacing;
-                spec.text.layout.tracking       = c.tracking;
-                spec.text.appearance.color = Color::white();
-                spec.direction = TextDirection::LTR;
-                spec.language  = "en";
-                l.animated_text(c.id + "_text", std::move(spec)).commit();
+                definition.style.font.font_path   = chronon3d::test::bundled_font_path(c.font_path);
+                definition.style.font.font_family = c.font_family;
+                definition.style.font.font_weight = c.font_weight;
+                definition.style.font.font_size   = c.font_size;
+                definition.frame.size            = Vec2{static_cast<float>(c.width), static_cast<float>(c.height)};
+                definition.frame.align          = parse_align(c.align);
+                definition.frame.vertical_align = parse_vertical_align(c.vertical_align);
+                definition.frame.line_height    = c.line_spacing;
+                definition.frame.tracking       = c.tracking;
+                definition.style.color = Color::white();
+                l.text(c.id + "_text", std::move(definition));
             });
             return s.build();
         });
@@ -311,23 +309,21 @@ std::shared_ptr<chronon3d::Framebuffer> render_effect_case(
                     l.opacity_anim().set(0.0f);
                     l.opacity_anim().add_keyframe(
                         Frame{30}, 1.0f, EasingCurve{Easing::Linear});
-                    TextRunSpec spec;
-                    spec.text.content.value = c.text;
-                    spec.text.placement = TextPlacement{
+                    TextDefinition definition;
+                    definition.content.value = c.text;
+                    definition.frame.placement = TextPlacement{
                         parse_placement(c.placement),
                         Vec2{c.offset_x, c.offset_y}};
-                    spec.text.font.font_path   = chronon3d::test::bundled_font_path(c.font_path);
-                    spec.text.font.font_family = c.font_family;
-                    spec.text.font.font_weight = c.font_weight;
-                    spec.text.font.font_size   = c.font_size;
-                    spec.text.layout.align          = parse_align(c.align);
-                    spec.text.layout.vertical_align = parse_vertical_align(c.vertical_align);
-                    spec.text.layout.line_height    = c.line_spacing;
-                    spec.text.layout.tracking       = c.tracking;
-                    spec.text.appearance.color = Color::white();
-                    spec.direction = TextDirection::LTR;
-                    spec.language  = "en";
-                    l.animated_text(c.id + "_text", std::move(spec)).commit();
+                    definition.style.font.font_path   = chronon3d::test::bundled_font_path(c.font_path);
+                    definition.style.font.font_family = c.font_family;
+                    definition.style.font.font_weight = c.font_weight;
+                    definition.style.font.font_size   = c.font_size;
+                    definition.frame.align          = parse_align(c.align);
+                    definition.frame.vertical_align = parse_vertical_align(c.vertical_align);
+                    definition.frame.line_height    = c.line_spacing;
+                    definition.frame.tracking       = c.tracking;
+                    definition.style.color = Color::white();
+                    l.text(c.id + "_text", std::move(definition));
                 });
                 return s.build();
             });
@@ -656,11 +652,10 @@ TEST_CASE("capcut/static: ROI + baseline + bbox + silhouette + SSIM + missing_gl
         CHECK(report.ok);
     }
 
-    if (compared == 0) {
-        MESSAGE("§blessed-reference static/ corpus is empty — see TICKET-CAPCUT-REFERENCE-CORPUS §Forward-points (a)");
-        MESSAGE("Set CHRONON3D_CAPCUT_RENDER_CURRENT=1 to generate current/ previews from the manifest.");
-        CHECK(true);
-    }
+    REQUIRE_MESSAGE(compared > 0,
+                    "CapCut static parity compared zero fixtures: blessed reference corpus is missing.");
+    REQUIRE_MESSAGE(skipped_no_ref == 0,
+                    "CapCut static parity has missing blessed references: " << skipped_no_ref);
 
 }
 
@@ -702,11 +697,10 @@ TEST_CASE("capcut/subtitles: ROI + baseline + bbox + silhouette + SSIM + missing
         CHECK(report.ok);
     }
 
-    if (compared == 0) {
-        MESSAGE("§blessed-reference subtitles/ corpus is empty — see TICKET-CAPCUT-REFERENCE-CORPUS §Forward-points (b)");
-        MESSAGE("Set CHRONON3D_CAPCUT_RENDER_CURRENT=1 to generate current/ previews from the manifest.");
-        CHECK(true);
-    }
+    REQUIRE_MESSAGE(compared > 0,
+                    "CapCut subtitle parity compared zero fixtures: blessed reference corpus is missing.");
+    REQUIRE_MESSAGE(skipped_no_ref == 0,
+                    "CapCut subtitle parity has missing blessed references: " << skipped_no_ref);
 }
 
 TEST_CASE("capcut/effects: ROI + baseline + bbox + silhouette + SSIM + missing_glyphs + cut_text") {
@@ -747,11 +741,10 @@ TEST_CASE("capcut/effects: ROI + baseline + bbox + silhouette + SSIM + missing_g
         CHECK(report.ok);
     }
 
-    if (compared == 0) {
-        MESSAGE("§blessed-reference effects/ corpus is empty — see TICKET-CAPCUT-REFERENCE-CORPUS §Forward-points (c)");
-        MESSAGE("Set CHRONON3D_CAPCUT_RENDER_CURRENT=1 to generate current/ previews from the manifest.");
-        CHECK(true);
-    }
+    REQUIRE_MESSAGE(compared > 0,
+                    "CapCut effects parity compared zero fixtures: blessed reference corpus is missing.");
+    REQUIRE_MESSAGE(skipped_no_ref == 0,
+                    "CapCut effects parity has missing blessed references: " << skipped_no_ref);
 }
 
 // ── Metric helper unit tests (Cat-3 invariant: helpers must be testable

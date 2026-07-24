@@ -209,7 +209,7 @@ per pipeline video automatizzate.
 2. Introdurre timed text/SRT/JSON e word timing.
 3. Implementare highlight, karaoke, word pop e subtitle layout policies.
 4. Completare Wiggly/Wave/Random selector richiesti dai preset.
-5. Stabilizzare almeno 20 preset generali e 8 subtitle.
+5. Stabilizzare almeno 18 preset generali e 8 subtitle (categorie distinte; i subtitle non contano nei generali; catalogo corrente: 18 + 8).
 6. Aggiungere golden 16:9/9:16, testo corto/lungo e più timestamp.
 7. Verificare 24/30/60 fps e determinismo seriale/parallelo.
 8. ~~Esporre esempi pubblici tramite `Chronon3D::SDK`.~~ **DONE** — Text Export V1 certificato (vedi sotto).
@@ -396,7 +396,7 @@ Sequenza di lavoro — 5 step incrementali. Ogni step è un commit atomic su `ma
 
 4. **Referee pipeline** (TICKET-AE-PARITY-DRIVER). `tools/ae_parity_referee.sh`: per ogni AE-parity scene, `reference/after_effects/scene_NNN_frame_NN.png` (AE-side mock futuro) + `reference/chronon3d/scene_NNN_frame_NN.png` (engine output) + diff harness `mean_abs_diff + perceptual color metric` con lock a 5/255 threshold. Rigoroso: nessun claim di "AE-like" finché referee non passa su almeno 10/15 scene cinematic. Step forward-only: prima le 5 scene storiche (ae_01..05) devono passare referee come proof-of-concept.
 
-5. **Cinematic preset registry + SDK certifier**. Promozione dei 22 preset (4 basic + 8 kinetic + 4 cinematic + 6 subtitle) da `builtin_text_presets()` (M1.5#13 Step 1/4) a `built_in_text_presets_v1()` API pubblica. Consumer SDK `tests/install_consumer/` deve linkare almeno 3 cinematic preset senza includere header `internal/`/`test/`/etc. (manifest-clean DoD §P3-H — `cmake/Chronon3DPublicHeaders.cmake` scope + `tools/install_consumer_test.sh` end-to-end 11/11 PASS). `docs/FEATURES.md` Text paragrafo aggiornato da "Parziali" → "Presenti" per cinematic kinetic typography.
+5. **Cinematic preset registry + SDK certifier**. Promozione dei 26 preset (18 generali + 8 subtitle) da `builtin_text_presets()` a `built_in_text_presets_v1()` API pubblica. Consumer SDK `tests/install_consumer/` deve linkare almeno 3 cinematic preset senza includere header `internal/`/`test/`/etc. (manifest-clean DoD §P3-H — `cmake/Chronon3DPublicHeaders.cmake` scope + `tools/install_consumer_test.sh` end-to-end 11/11 PASS). `docs/FEATURES.md` Text paragrafo aggiornato da "Parziali" → "Presenti" per cinematic kinetic typography.
 
 ### Gate di uscita
 
@@ -432,7 +432,7 @@ Il floor target originario di 288 PNG è matematicamente irraggiungibile. I test
 - Workstream cinematic track: ticket rows `TICKET-AE-PARITY-CINEMATIC-{01..20}` (01..05 DONE Phase D) + `TICKET-AE-PARITY-SUITE` (umbrella 5→20 transition tracker) + `TICKET-AE-PARITY-KILLER-*` (4 killer);
 - Concurrency precond: `TICKET-GOLDEN-CAPTURE` (Phase C capture pipeline rot parent) + `TICKET-GATE-10-PHASE-4-FIX` (gate #10 FU5);
 - Referee spec: roadmap stub `docs/adr/ADR-015-ae-parity-cinematic-expansion.md` (PLANNED, da stilare al primo commit cinematico successivo alla revoca freeze);  <!-- drift-allow: stale-ref -->
-- Match RElease gate §Text Production V1: 20 preset generali + 8 subtitle verificati (TICKET-AE-PARITY-CINEMATIC tracks i 20 generali; i 8 subtitle sono cross-link a TICKET-GOLDEN-30 + TICKET-AE-PARITY-CINEMATIC-20 karaoke_word_highlight).
+- Match Release gate §Text Production V1: 18 preset generali + 8 subtitle verificati (categorie distinte; i 8 subtitle sono cross-link a TICKET-GOLDEN-30 + TICKET-AE-PARITY-CINEMATIC-20 karaoke_word_highlight).
 
 ## M2 — Camera Production V1
 
@@ -684,4 +684,3 @@ Master tracker: [`docs/tickets/TICKET-TRN-TRANSITION-CLEANUP.md`](docs/tickets/T
 
 Gate di ingresso: nessuna nuova transizione finché non sono soddisfatti i
 criteri di Definition of Done elencati nel master tracker.
-

@@ -381,30 +381,20 @@ TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: auto-fit shrinks rendered ink bbox int
             s.font_engine(&renderer.font_engine());
             s.layer("autofit_layer", [&renderer, font_size_requested, box_w, box_h](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.animated_text("autofit", TextRunSpec{
-                    .text = TextDefinition{
-    .content = {.value = "Auto-fit ink bbox test"},
-    .style = {
-        .font = {
-                            .font_path = "assets/fonts/Inter-Bold.ttf",
-                            .font_family = "Inter",
-                            .font_weight = 700,
-                            .font_size = font_size_requested
-                        },
-        .color = Color::white()
-    },
-    .frame = {
-        .placement = TextPlacement{
-                            TextPlacementKind::Absolute,
-                            {960.0f, 540.0f}},
-        .size = {box_w, box_h},
-        .align = TextAlign::Center,
-        .vertical_align = VerticalAlign::Middle,
-        .overflow = TextOverflow::Clip,
-        .auto_fit = true
-    }
-}
-                }).commit();
+                TextDefinition definition;
+                definition.content.value = "Auto-fit ink bbox test";
+                definition.style.font.font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf");
+                definition.style.font.font_family = "Inter";
+                definition.style.font.font_weight = 700;
+                definition.style.font.font_size = font_size_requested;
+                definition.style.color = Color::white();
+                definition.frame.size = {box_w, box_h};
+                definition.frame.placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}};
+                definition.frame.align = TextAlign::Center;
+                definition.frame.vertical_align = VerticalAlign::Middle;
+                definition.frame.overflow = TextOverflow::Clip;
+                definition.frame.auto_fit = true;
+                l.text("autofit", std::move(definition));
             });
             return s.build();
         });
@@ -431,4 +421,3 @@ TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: auto-fit shrinks rendered ink bbox int
     // ALSO check visible_px > 0 (false-green check: must produce some ink).
     CHECK(count_visible_pixels(*fb) > 100);
 }
-
