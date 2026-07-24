@@ -37,6 +37,17 @@ namespace chronon3d {
 
 /// Determines the behaviour between two consecutive SourceTextKeyframes.
 ///
+/// TRN-04 design note:
+///   * Cut is semantically identical to Hold: the previous document stays
+///     visible until the next keyframe boundary, then switches instantly.
+///     Cut only signals an editorial cut intent (the renderer may free the
+///     outgoing layout immediately at the boundary).
+///   * DissolveLayouts is a pure alpha-only crossfade between the outgoing
+///     and incoming full layouts.  Incoming alpha = mix; outgoing alpha =
+///     1 - mix.  It is NOT a positional glyph morph.
+///   * Morph is the separate positional glyph-morph transition.  Both
+///     transitions coexist because they serve different visual purposes.
+///
 /// Hold:               The previous document remains visible until the next
 ///                      keyframe arrives, then the new document replaces it
 ///                      instantly (step function).  During the gap, only the
