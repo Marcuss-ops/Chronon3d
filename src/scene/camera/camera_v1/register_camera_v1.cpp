@@ -25,8 +25,11 @@
 //      explicit constructor argument to `ShotTimelineResolver`).
 //   2. The bootstrap is `register_camera_v1_builtins_into(catalog)` below:
 //      callers pass their own catalog reference, no global state involved.
-//   3. The library `ShotTimelineResolver::default_*()` factories are still
-//      available for unit tests that don't bootstrap a full catalog.
+//   3. The default transition implementations live as anonymous-namespace
+//      `make_default_*()` factories in `shot_timeline.cpp`; they are an
+//      internal implementation detail used by `CameraTransitionCatalog::
+//      register_defaults()`. External callers (including unit tests) get
+//      the built-ins through `register_camera_v1_builtins_into(catalog)`.
 //
 // Reference: docs/camera-plan/03-MOTION_TRAJECTORY_TIMELINE_DETERMINISM.md
 //            §5 (Per-job ownership enforcement).
