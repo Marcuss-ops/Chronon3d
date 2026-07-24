@@ -3,7 +3,7 @@
 #include "content/common/text/glyph_layout.hpp"  // layout_glyphs()
 
 #include <chronon3d/runtime/render_runtime.hpp>   // Anchor, GlowParams
-#include <chronon3d/text/text_definition.hpp>     // from_text_spec
+#include <chronon3d/text/text_definition.hpp>
 
 #include <algorithm>  // std::max
 #include <stdexcept>

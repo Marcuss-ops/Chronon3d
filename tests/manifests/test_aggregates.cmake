@@ -64,8 +64,6 @@ foreach(_target IN ITEMS
     chronon3d_rounded_rect_visual_tests
     chronon3d_render_graph_node_visual_tests
     chronon3d_pr3_composition_visual_tests
-    chronon3d_text_preset_visual_tests
-    chronon3d_text_golden_tests
     chronon3d_presets_golden_tests
     chronon3d_diagnostic_overlay_tests
 )
@@ -98,11 +96,6 @@ endif()
 
 set(CHRONON3D_TEXT_FULL_ACCEPTANCE_DEPS "")
 foreach(_target IN ITEMS
-    chronon3d_text_presets_stability_tests
-    chronon3d_text_simplicity_adapters_tests
-    chronon3d_text_preset_visual_tests
-    chronon3d_text_golden_tests
-    chronon3d_text_builder_ergonomics_tests
     chronon3d_text_definition_tests
     chronon3d_text_rich_authoring_tests
     chronon3d_inspect_text_tests
@@ -119,7 +112,6 @@ endforeach()
 set(CHRONON3D_SANITIZER_SUBSYSTEMS_DEPS "")
 foreach(_target IN ITEMS
     chronon3d_core_tests
-    chronon3d_text_presets_stability_tests
     chronon3d_visibility_contract_tests
     chronon3d_text_clip_policy_tests
     chronon3d_inspect_text_tests

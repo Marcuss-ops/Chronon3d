@@ -3,11 +3,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // text_definition.cpp — F2.A adapter implementations
 //
-// from_text_spec() and from_text_run_spec() adapt the existing TextSpec /
-// TextRunSpec (builder_params.hpp) into the canonical TextDefinition DTO.
+// TextRunSpec is lowered into the canonical TextDefinition DTO only at the
+// internal runtime boundary; authoring has no reverse TextSpec adapter.
 //
 // These adapters bridge the F2.A (canonical struct) and F2.C (full adapter
-// phase) milestones.  During F2.C, text()/text_run()/centered_text() will
+// phase) milestones.  During F2.C, text()/text_run() use this canonical DTO.
 // call these adapters to produce a single TextDefinition.
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -18,7 +18,7 @@
 
 namespace chronon3d {
 
-TextDefinition from_text_spec(const TextSpec& spec) {
+[[nodiscard]] TextDefinition definition_from_legacy_spec(const TextSpec& spec) {
     TextDefinition def;
 
     // ── content (canonical TextContent from builder_params.hpp) ───────
@@ -62,7 +62,7 @@ TextDefinition from_text_spec(const TextSpec& spec) {
 }
 
 TextDefinition from_text_run_spec(const TextRunSpec& spec) {
-    TextDefinition def = from_text_spec(spec.text);
+    TextDefinition def = definition_from_legacy_spec(spec.text);
 
     // ── animation (Phase A.3 — stored in TextAnimation) ─────────────────
     def.animation.direction    = spec.direction;

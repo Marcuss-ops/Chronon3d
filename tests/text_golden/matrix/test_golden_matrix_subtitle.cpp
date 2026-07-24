@@ -101,7 +101,6 @@
 #include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/compat/text_spec_adapter.hpp>
 
-#include <content/text/text_helpers.hpp>
 #include <tests/visual/support/golden_test.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <tests/text/visual/text_visual_metrics.cpp>  // ScenarioMetrics + compute_metrics (11 fields)
@@ -170,7 +169,7 @@ CellResult render_matrix_cell(chronon3d::SoftwareRenderer& renderer,
                                const MatrixConfig& cfg) {
     AspectDims d = aspect_dims(cfg.ar);
     const chronon3d::f32 font_size = cfg.extreme_scale
-        ? (d.width >= d.height ? 384.0f : 256.0f)
+        ? (d.width >= d.height ? 192.0f : 128.0f)
         : (d.width >= d.height ?  96.0f :  64.0f);
     const std::string content = cfg.long_text
         ? "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG 0123456789"
@@ -195,20 +194,31 @@ CellResult render_matrix_cell(chronon3d::SoftwareRenderer& renderer,
                 // origin explicitly so TextPlacementKind::CanvasCenter is
                 // composed against a centered root rather than the default
                 // layer origin.  See TICKET-TEXT-CENTER-CANVAS.
-                l.center();
                 const auto& preset = shared_text_preset_registry().get(preset_id);
-                auto base = chronon3d::content::text::centered_text(
-                    chronon3d::content::text::CenterTextOptions{
-                        .text         = content,
-                        .box          = chronon3d::Vec2{d.width * 0.85f, d.height * 0.85f},
-                        .font_asset   = "assets/fonts/Poppins-Bold.ttf",
-                        .font_family  = "Poppins",
-                        .font_weight  = 700,
-                        .font_size    = font_size,
-                        .color        = chronon3d::Color::white(),
-                    });
+                chronon3d::TextDefinition base{
+                    .content = {.value = content},
+                    .style = {
+                        .font = {.font_path = chronon3d::test::bundled_font_path(
+                                     "assets/fonts/Poppins-Bold.ttf"),
+                                 .font_family = "Poppins",
+                                 .font_weight = 700,
+                                 .font_size = font_size},
+                        .color = chronon3d::Color::white(),
+                    },
+                    .frame = {
+                        .size = chronon3d::Vec2{d.width * 0.85f, d.height * 0.85f},
+                        .placement = chronon3d::TextPlacement{
+                            chronon3d::TextPlacementKind::CanvasCenter, {0.0f, 0.0f}},
+                        .anchor = chronon3d::TextAnchor::Center,
+                        .align = chronon3d::TextAlign::Center,
+                        .vertical_align = chronon3d::VerticalAlign::Middle,
+                        .wrap = chronon3d::TextWrap::Word,
+                        .overflow = chronon3d::TextOverflow::Clip,
+                        .centering_mode = chronon3d::TextCenteringMode::PixelInk,
+                    },
+                };
                 if (preset.builder) {
-                    preset.builder(s, l, chronon3d::compat::from_text_definition(base));
+                    preset.builder(s, l, base);
                 }
             });
             return s.build();
@@ -256,7 +266,10 @@ std::vector<MatrixConfig> matrix_cells_for_preset(const std::string& /*preset_id
     std::vector<MatrixConfig> cells;
 
     const std::vector<AspectRatio> ars = {AspectRatio::k16x9, AspectRatio::k9x16};
-    const std::vector<int>         timestamps = {0, 20, 40};
+    // Sample visible timestamps. Fade-in presets intentionally reserve their
+    // opening frames for an entrance blank; the release matrix certifies
+    // rendered subtitle ink, so all three samples are post-entry.
+    const std::vector<int>         timestamps = {20, 40, 59};
 
     if (fast_mode()) {
         for (auto ar : ars) {
@@ -331,6 +344,14 @@ void append_manifest_entries(const std::string& preset_id,
 
 void sweep_preset_matrix(const std::string& preset_id) {
     auto renderer = chronon3d::test::make_renderer();
+    // The matrix uses repository-relative canonical font paths.  Mount the
+    // fixture root on the renderer-owned resolver so the production text
+    // pipeline receives the same bundled assets as the other text tests.
+    renderer.runtime().resolver().mount(chronon3d::test::test_repo_root());
+    const auto fixture_font = chronon3d::test::bundled_font_path(
+        "assets/fonts/Poppins-Bold.ttf");
+    REQUIRE(renderer.font_engine().can_load(chronon3d::FontSpec{
+        .font_path = fixture_font, .font_family = "Poppins", .font_weight = 700}));
     auto cells = matrix_cells_for_preset(preset_id);
 
     INFO("Preset: ", preset_id, " — cells: ", cells.size(),
@@ -381,10 +402,10 @@ void sweep_preset_matrix(const std::string& preset_id) {
             unique_hash_set.insert(res.metrics.hash);
             pass_count += 1;
         } else {
-            // INTENTIONAL divergence vs harness's FAIL-with-tolerate-empty
-            // escape; canonical migration tracked at
-            // TICKET-GOLDEN-MATRIX-MIGRATE-BATCH-1 (cat-3 anti-dup prescription).
-            // render_ms CHECK dropped per lean re-design (mirror of harness).
+            // Empty subtitle output is always a failure.  Do not let a
+            // missing font, preset builder, or layer execution produce a
+            // false-green matrix.
+            CHECK_FALSE(res.metrics.empty_frame);
             empty_count += 1;
         }
         if (res.metrics.cut_text)    cut_count    += 1;

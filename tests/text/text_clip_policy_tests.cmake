@@ -44,9 +44,8 @@ chronon3d_add_test_suite(
 # Wire into the FAST test aggregator (math + harness, no rendering
 # backend required for the base identity checks). Mirrors the pattern used
 # for chronon3d_text_definition_tests + chronon3d_safe_area_placement_tests
-# + chronon3d_text_builder_ergonomics_tests + chronon3d_text_simplicity_adapters_tests
+# + chronon3d_text_builder_ergonomics_tests
 # + chronon3d_animation_helpers_tests. Gated by `CHRONON3D_BUILD_DIAGNOSTICS`
 # via the early return above; only append the target to the FAST aggregator
 # when the executable exists.
 list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_text_clip_policy_tests)
-

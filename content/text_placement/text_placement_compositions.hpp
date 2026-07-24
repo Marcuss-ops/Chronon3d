@@ -3,7 +3,7 @@
 // ── Text Placement Test Suite — Content Compositions ───────────────────────
 //
 // Canonical test compositions that exercise the TextRun placement pipeline:
-// pin_to(Anchor::Center) + centered_text(...) with NO .pos workaround.
+// pin_to(Anchor::Center) + canonical TextDefinition with NO .pos workaround.
 //
 // These are registerable via CompositionRegistry so they can be rendered
 // from the CLI (`chronon3d_cli render TextPlaceStaticCenter`) AND used
@@ -11,7 +11,7 @@
 //
 // Design rule (enforced by the golden tests):
 //   - NO composition uses .pos = {960,540,0} as a centering workaround
-//   - ALL composition use l.pin_to(Anchor::Center) + l.text("...", centered_text({...}))
+//   - ALL compositions use l.pin_to(Anchor::Center) + l.text("...", definition)
 //
 // Namespace: chronon3d::content::text_placement
 

@@ -52,6 +52,7 @@
 #include <algorithm>
 #include <cmath>
 #include <string>
+#include <chronon3d/text/text_definition.hpp>
 
 using namespace chronon3d;
 
@@ -74,12 +75,21 @@ Composition build_anim_cert_title_comp(SoftwareRenderer& renderer) {
                 l.font_engine(&renderer.font_engine());
                 l.pin_to(Anchor::Center);
                 l.animated_text("title_text", TextRunSpec{
-                    .text = TextSpec{.content    = {.value = "EPIC TITLE"},.font       = {.font_path   = "assets/fonts/Inter-Bold.ttf",
+                    .text = TextDefinition{
+    .content = {.value = "EPIC TITLE"},
+    .style = {
+        .font = {.font_path   = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
-                                       .font_size   = 120.0f},.layout     = {.box            = {1920.0f, 1080.0f},
-                                       .align          = TextAlign::Center,
-                                       .vertical_align = VerticalAlign::Middle},.appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}},},
+                                       .font_size   = 120.0f},
+        .color = Color{1.0f, 1.0f, 1.0f, 1.0f}
+    },
+    .frame = {
+        .size = {1920.0f, 1080.0f},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle
+    }
+},
                 });
             });
             return s.build();
@@ -109,30 +119,30 @@ Composition build_full_canvas_visible_comp(SoftwareRenderer& renderer,
             s.layer("text_layer", [&renderer, box_width, box_height](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.animated_text("text_run", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = "VISIBLE INK"},
-                        .placement = TextPlacement{
-                            TextPlacementKind::CanvasCenter,
-                            {0.0f, 0.0f},
-                        },
-                        .font = {
+                    .text = TextDefinition{
+    .content = {.value = "VISIBLE INK"},
+    .style = {
+        .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = 96.0f,
                         },
-                        .layout = {
-                            .box = {box_width, box_height},
-                            .anchor = TextAnchor::Center,
-                            .align = TextAlign::Center,
-                            .vertical_align = VerticalAlign::Middle,
-                            .wrap = TextWrap::Word,
-                            .overflow = TextOverflow::Clip,
+        .color = Color{1.0f, 1.0f, 1.0f, 1.0f}
+    },
+    .frame = {
+        .placement = TextPlacement{
+                            TextPlacementKind::CanvasCenter,
+                            {0.0f, 0.0f},
                         },
-                        .appearance = {
-                            .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
-                        },
-                    },
+        .size = {box_width, box_height},
+        .anchor = TextAnchor::Center,
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .wrap = TextWrap::Word,
+        .overflow = TextOverflow::Clip
+    }
+},
                 }).commit();
             });
             return s.build();

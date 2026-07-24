@@ -11,13 +11,13 @@
 //
 // ── M1.8 §5A / TICKET-SIMPLICITY-DEPRECATION NOTICE ──
 // This header is the CANONICAL REPLACEMENT for the deprecated
-// `content::text::centered_text()` + `content::text::glow_text()` helpers.
+// the removed content convenience helpers.
 // Per the §5A atomic commit, those two helpers now carry compile-time
 // `[[deprecated]]` attributes and emit one-shot `spdlog::warn` calls
 // pointing to this header as the migration target.
 //
-//   `centered_text(text)`          → `presets::text::title_centered(text, canvas)`
-//   `glow_text(text, glow_color)`  → `presets::text::kinetic_word(text, canvas)` +
+//   centered authoring             → `presets::text::title_centered(text, canvas)`
+//   glow authoring                 → `presets::text::kinetic_word(text, canvas)` +
 //                                    `def.effects.glow = GlowParams{...}`
 //                                    overlay
 //
@@ -29,8 +29,8 @@
 // ANTI-DUPLICATION HONOUR (AGENTS.md §anti-duplication rules):
 //   - Reuses `TextContent` (builder_params.hpp canonical).
 //   - Reuses `TextDefStyle` + `TextFrame` + `TextPlacement` (all canonical).
-//   - Reuses the same `from_text_spec` adapter chain as the existing
-//     `centered_text()` / `glow_text()` helpers (so the preset pipeline
+//   - Reuses the same canonical lowering chain as the runtime
+//     removed content helpers (so the preset pipeline
 //     is the SAME pipeline as the helper pipeline).
 //   - Does NOT introduce `PresetCache` / `PresetRegistry` / `PresetResolver`
 //     — these are forbidden by AGENTS.md anti-duplication (would be a
@@ -43,8 +43,8 @@
 // LIFECYCLE:
 //   - F2.A baseline:  TextDefinition is the SOLE canonical authoring DTO
 //                     (F2.A commit, 2026-07-10).
-//   - F2.C:           text() / text_run() / centered_text() / glow_text()
-//                     all return TextDefinition via from_text_spec().
+//   - F2.C:           text() / text_run() canonical authoring
+//                     all return TextDefinition through canonical lowering.
 //   - §3C (this):     5 reusable preset functions returning TextDefinition.
 //                     Companion: test_presets_stability.cpp (15 assertions
 //                     = 5 presets × 3 invariants per preset).
@@ -83,7 +83,7 @@
 // Each preset sets:
 //   - content.value = the user-provided text
 //   - style.font.font_size / font_family / font_weight (Poppins defaults
-//     to match the existing `centered_text()` helper in
+//     to match the former centered helper in
 //     content/text/text_helpers_centered.hpp)
 //   - style.color = white (or accent_color for kinetic_word)
 //   - frame.size = layout box size derived from canvas + constraints
@@ -120,7 +120,7 @@ namespace chronon3d::presets::text {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// Canonical hero/centered title preset.  Places the text at the canvas
-/// center, Poppins-Bold 96pt (matches the `centered_text()` helper default).
+/// center, Poppins-Bold 96pt (matches the canonical default).
 ///
 /// Parameters:
 ///   text       — the string to render

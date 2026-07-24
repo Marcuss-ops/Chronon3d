@@ -7,7 +7,7 @@
 // (PR 6.8.5 precedent) for future golden acquisition.
 //
 // Two scenario archetypes:
-//   (A) Text-bearing scenarios use canonical centered_text(CenterTextOptions)
+//   (A) Text-bearing scenarios use canonical TextDefinition authoring
 //       from content/text/text_helpers.hpp (per PR-A2) via SceneBuilder:
 //       s.layer("hero", [&](LayerBuilder& l) { l.text("k", ts); });
 //   (B) Animation scenarios use FrameContext-driven rect stand-ins; the
@@ -51,7 +51,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <tests/helpers/pixel_assertions.hpp>
-#include <content/text/text_helpers.hpp>
+#include <chronon3d/text/text_definition.hpp>
 
 #include <chrono>
 #include <cmath>
@@ -187,35 +187,38 @@ inline ScenarioMetrics compute_metrics(const Framebuffer& fb,
         CHECK(m.ink_pixels > 0);                                            \
     } while (0)
 
-// ── Shared CenterTextOptions helpers (canonical fan-out per PR-A2) ──────
-
-using chronon3d::content::text::centered_text;
-using chronon3d::content::text::CenterTextOptions;
+// ── Shared TextDefinition helpers (canonical fan-out per PR-A2) ─────────
 
 constexpr int kVW = 800;
 constexpr int kVH = 600;
 constexpr const char* kVFont = "assets/fonts/Poppins-Bold.ttf";  // PR-A3 fix G1: kVFps removed (dead code)
 
-inline CenterTextOptions make_opts(const std::string& text,
+inline TextDefinition make_opts(const std::string& text,
                                    f32 size,
                                    const Color& color,
                                    Vec2 box = {kVW * 0.85f, kVH * 0.85f},
                                    int max_lines = 0) {  // PR-A3 fix C: max_lines=0=unlimited; pass N to enable wrap
-    return CenterTextOptions{
-        .text        = text,
-        .box         = box,
-        .font_asset  = kVFont,
-        .font_family = "Poppins",
-        .font_weight = 700,
-        .font_size   = size,
-        .color       = color,
-        .max_lines   = max_lines,
+    return TextDefinition{
+        .content = {.value = text},
+        .style = {.font = {.font_path = kVFont,
+                           .font_family = "Poppins",
+                           .font_weight = 700,
+                           .font_size = size},
+                  .color = color},
+        .frame = {.size = box,
+                  .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+                  .anchor = TextAnchor::Center,
+                  .align = TextAlign::Center,
+                  .vertical_align = VerticalAlign::Middle,
+                  .wrap = TextWrap::Word,
+                  .overflow = TextOverflow::Clip,
+                  .centering_mode = TextCenteringMode::PixelInk,
+                  .max_lines = max_lines},
     };
 }
 
 inline Composition make_text_composition(const std::string& name,
-                                            const CenterTextOptions& opt) {
-    auto ts = centered_text(opt);
+                                            const TextDefinition& ts) {
     return composition(
         {.name = name, .width = kVW, .height = kVH, .duration = 1},
         [ts](const FrameContext& ctx) {
@@ -271,9 +274,8 @@ TEST_CASE("VisualRegression/Tracking — wide positive tracking (+200em)") {
 // §4 Stroke ────────────────────────────────────────────────────────────────
 TEST_CASE("VisualRegression/Stroke — thick stroke style applied via TextAppearanceSpec.stroke") {
     auto renderer = make_renderer();
-    // CenterTextOptions does not carry stroke; we build the TextSpec
-    // directly to apply the canonical stroke style.
-    auto spec = centered_text(make_opts("STROKE", 96.0f, Color::black()));
+    // TextDefinition carries the full canonical paint model.
+    auto spec = make_opts("STROKE", 96.0f, Color::black());
     // PR-A3 fix B2: stroke lives on TextPaint (shape.hpp), not on TextAppearanceSpec.
     spec.style.paint.stroke_enabled = true;
     spec.style.paint.stroke_width   = 8.0f;
@@ -294,7 +296,7 @@ TEST_CASE("VisualRegression/Stroke — thick stroke style applied via TextAppear
 // §5 Gradient fill ────────────────────────────────────────────────────────
 TEST_CASE("VisualRegression/Gradient — gradient fill on canonical text") {
     auto renderer = make_renderer();
-    auto spec = centered_text(make_opts("GRADIENT", 96.0f, Color::white()));
+    auto spec = make_opts("GRADIENT", 96.0f, Color::white());
     // Inject a two-stop linear gradient via the appearance paint.
     // PR-A3 fix B3: text gradient is one field on TextMaterial.gradient_angle;
     // multi-stop linear gradient is via TextPaint.fill_style = Fill::linear(...).
@@ -321,7 +323,7 @@ TEST_CASE("VisualRegression/Gradient — gradient fill on canonical text") {
 // §6 Shadow ────────────────────────────────────────────────────────────────
 TEST_CASE("VisualRegression/Shadow — drop shadow applied via l.drop_shadow") {
     auto renderer = make_renderer();
-    auto spec = centered_text(make_opts("SHADOW", 96.0f, Color::black()));
+    auto spec = make_opts("SHADOW", 96.0f, Color::black());
     auto comp = composition(
         {.name = "VR_Shadow", .width = kVW, .height = kVH, .duration = 1},
         [spec](const FrameContext& ctx) {
@@ -341,7 +343,7 @@ TEST_CASE("VisualRegression/Shadow — drop shadow applied via l.drop_shadow") {
 // §7 Glow ──────────────────────────────────────────────────────────────────
 TEST_CASE("VisualRegression/Glow — AE-style multi-layer glow via l.glow") {
     auto renderer = make_renderer();
-    auto spec = centered_text(make_opts("GLOW", 96.0f, Color::white()));
+    auto spec = make_opts("GLOW", 96.0f, Color::white());
     auto comp = composition(
         {.name = "VR_Glow", .width = kVW, .height = kVH, .duration = 1},
         [spec](const FrameContext& ctx) {
@@ -369,7 +371,7 @@ TEST_CASE("VisualRegression/Glow — AE-style multi-layer glow via l.glow") {
 // §8 Blur ──────────────────────────────────────────────────────────────────
 TEST_CASE("VisualRegression/Blur — gaussian blur radius applied via l.blur") {
     auto renderer = make_renderer();
-    auto spec = centered_text(make_opts("BLUR", 96.0f, Color::black()));
+    auto spec = make_opts("BLUR", 96.0f, Color::black());
     auto comp = composition(
         {.name = "VR_Blur", .width = kVW, .height = kVH, .duration = 1},
         [spec](const FrameContext& ctx) {
@@ -503,11 +505,11 @@ TEST_CASE("VisualRegression/EmojiFallback — mixed emoji + ASCII sample") {
 // §15 Scale extreme — very small + very large dual composition ───────────
 TEST_CASE("VisualRegression/ScaleExtreme — small + huge dual composition") {
     auto renderer = make_renderer();
-    auto tiny = centered_text(make_opts("tiny", 8.0f, Color{0.0f, 0.0f, 0.5f, 1.0f},
-                                              Vec2{160.0f, 30.0f}));
+    auto tiny = make_opts("tiny", 8.0f, Color{0.0f, 0.0f, 0.5f, 1.0f},
+                                              Vec2{160.0f, 30.0f});
     tiny.frame.placement = TextPlacement{TextPlacementKind::Absolute, {-260.0f, 150.0f}};  // PR-A3 fix F: NW anchor
-    auto huge = centered_text(make_opts("HUGE", 220.0f, Color{0.86f, 0.08f, 0.24f, 1.0f},
-                                              Vec2{kVW * 0.95f, kVH * 0.95f}));
+    auto huge = make_opts("HUGE", 220.0f, Color{0.86f, 0.08f, 0.24f, 1.0f},
+                                              Vec2{kVW * 0.95f, kVH * 0.95f});
     huge.frame.placement = TextPlacement{TextPlacementKind::Absolute, {260.0f, -100.0f}};  // PR-A3 fix F: SE anchor
     auto comp = composition(
         {.name = "VR_ScaleExtreme", .width = kVW, .height = kVH, .duration = 1},

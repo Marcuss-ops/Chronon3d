@@ -8,7 +8,6 @@
 //   typewriter_build.cpp   — typewriter_build, typewriter_text
 
 #include "typewriter_options.hpp"
-#include "text_helpers_centered.hpp"
 #include <chronon3d/text/typewriter_layout_cache.hpp>
 
 namespace chronon3d { class SceneBuilder; }
@@ -63,7 +62,7 @@ using chronon3d::content::text::CompiledTypewriterGlyph;
     FontEngine& engine);
 
 /// F2.C — canonical authoring helper.  Returns TextDefinition.
-TextDefinition typewriter_text(CenterTextOptions o,
+TextDefinition typewriter_text(TextDefinition o,
     Frame frame,
     f32 chars_per_frame = 1.5f,
     TypewriterOptions tw = {});

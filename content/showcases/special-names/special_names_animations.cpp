@@ -157,11 +157,17 @@ Composition special_name_typewriter() {
                 .aura_strength = 0.0f,   // skip aura pass
                 .bloom_strength = 0.80f, // compensate for skipped core+aura
             });
-            chronon3d::content::text::CenterTextOptions opts;
-            opts.text      = DEMO_NAME;
-            opts.font_size = 110.0f;
-            opts.tracking  = 14.0f;
-            opts.color     = NAME_TEXT_GOLD;
+            chronon3d::TextDefinition opts{
+                .content = {.value = DEMO_NAME},
+                .style = {.font = {.font_path = "assets/fonts/Poppins-Bold.ttf",
+                                   .font_size = 110.0f},
+                          .color = NAME_TEXT_GOLD},
+                .frame = {.size = {1200.0f, 240.0f},
+                          .anchor = chronon3d::TextAnchor::Center,
+                          .align = chronon3d::TextAlign::Center,
+                          .vertical_align = chronon3d::VerticalAlign::Middle,
+                          .tracking = 14.0f},
+            };
             l.text("name", chronon3d::content::text::typewriter_text(
                 opts, ctx.frame(), 0.8f,
                 {.easing = EasingCurve{Easing::OutCubic},

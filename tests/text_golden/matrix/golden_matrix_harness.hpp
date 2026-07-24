@@ -72,7 +72,6 @@
 #include <chronon3d/text/text_definition.hpp>
 #include <chronon3d/compat/text_spec_adapter.hpp>
 
-#include <content/text/text_helpers.hpp>
 #include <tests/visual/support/golden_test.hpp>
 #include <tests/helpers/test_utils.hpp>
 #include <tests/text/visual/text_visual_metrics.cpp>  // ScenarioMetrics + compute_metrics
@@ -175,18 +174,30 @@ inline CellResult render_matrix_cell(chronon3d::SoftwareRenderer& renderer,
             s.layer("matrix", [&s, preset_id_str, content, font_size, d]
                               (chronon3d::LayerBuilder& l) {
                 const auto& preset = shared_text_preset_registry().get(preset_id_str);
-                auto base = chronon3d::content::text::centered_text(
-                    chronon3d::content::text::CenterTextOptions{
-                        .text         = content,
-                        .box          = chronon3d::Vec2{d.width * 0.85f, d.height * 0.85f},
-                        .font_asset   = "assets/fonts/Poppins-Bold.ttf",
-                        .font_family  = "Poppins",
-                        .font_weight  = 700,
-                        .font_size    = font_size,
-                        .color        = chronon3d::Color::white(),
-                    });
+                chronon3d::TextDefinition base{
+                    .content = {.value = content},
+                    .style = {
+                        .font = {.font_path = chronon3d::test::bundled_font_path(
+                                     "assets/fonts/Poppins-Bold.ttf"),
+                                 .font_family = "Poppins",
+                                 .font_weight = 700,
+                                 .font_size = font_size},
+                        .color = chronon3d::Color::white(),
+                    },
+                    .frame = {
+                        .size = chronon3d::Vec2{d.width * 0.85f, d.height * 0.85f},
+                        .placement = chronon3d::TextPlacement{
+                            chronon3d::TextPlacementKind::Absolute, {0.0f, 0.0f}},
+                        .anchor = chronon3d::TextAnchor::Center,
+                        .align = chronon3d::TextAlign::Center,
+                        .vertical_align = chronon3d::VerticalAlign::Middle,
+                        .wrap = chronon3d::TextWrap::Word,
+                        .overflow = chronon3d::TextOverflow::Clip,
+                        .centering_mode = chronon3d::TextCenteringMode::PixelInk,
+                    },
+                };
                 if (preset.builder) {
-                    preset.builder(s, l, chronon3d::compat::from_text_definition(base));
+                    preset.builder(s, l, base);
                 }
             });
             return s.build();
@@ -314,14 +325,10 @@ inline void sweep_preset_matrix(std::string_view preset_id) {
             CellResult res = render_matrix_cell(renderer, preset_id, cfg);
             cell_results.emplace_back(cfg, res);
 
-            // Non-empty-frame guard: zero-frame outputs (FAT-BLOCKER state when Poppins-Bold.ttf
-            // is missing) are tolerated via env-var opt-out per AGENTS.md honest-discipline.
-            // Without opt-out, REQUIRE ensures real rot doesn't silently degrade to empty-frame
-            // after fat-blocker resolves (the prior-session macchina-verify silent-fake signal).
-            const char* tolerate_empty = std::getenv("CHRONON3D_TOLERATE_EMPTY_FRAMES");
-            const bool tolerate_empty_on = (tolerate_empty
-                && (std::string{tolerate_empty} == "1" || std::string{tolerate_empty} == "true"));
-
+            // An empty framebuffer is never a valid subtitle result.  There is
+            // deliberately no environment escape hatch: allowing one would
+            // turn a missing font/preset/layer into a false-green matrix.
+            CHECK_FALSE(res.metrics.empty_frame);
             if (!res.metrics.empty_frame) {
                 REQUIRE(res.metrics.ink_pixels > 0);
                 REQUIRE(res.metrics.alpha_coverage > 0.0f);
@@ -359,15 +366,9 @@ inline void sweep_preset_matrix(std::string_view preset_id) {
 
                 unique_hash_set.insert(res.metrics.hash);
                 pass_count += 1;
-            } else if (!tolerate_empty_on) {
-                FAIL("Empty-frame cell detected (tolerate via CHRONON3D_TOLERATE_EMPTY_FRAMES=1 "
-                     "to ack known fat-blocker): ", res.short_label,
-                     " (font asset `assets/fonts/Poppins-Bold.ttf` likely missing).");
             } else {
-                // FAT-BLOCKER: skip visual metrics (no ink to measure);
-                // render_ms CHECK dropped per lean re-design.  empty_frame
-                // itself IS the FAT-BLOCKER indicator, propagated via
-                // empty_count + aggregate summary log.
+                // Keep the aggregate diagnostic even though CHECK_FALSE above
+                // already fails the test.
                 empty_count += 1;
             }
         if (res.metrics.cut_text)    cut_count    += 1;

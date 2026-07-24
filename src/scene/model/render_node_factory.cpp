@@ -3,6 +3,7 @@
 #include <chronon3d/text/font_engine.hpp>
 
 #include <utility>
+#include <chronon3d/text/text_definition.hpp>
 
 namespace chronon3d {
 
@@ -231,7 +232,7 @@ RenderNode RenderNodeFactory::text(
     // default (Inter-Bold).  Without this, the renderer would fail to
     // locate a font when materializing via the supplied engine.
     // Preserved from the pre-step-2 implementation for back-compat so
-    // external callers that construct minimal `TextSpec{.content = {...}}`
+    // external callers that construct minimal TextDefinition values
     // (e.g. tests, presets) still resolve a usable font path before
     // the engine path-load kicks in.
     if (p.font.font_path.empty()) {

@@ -37,6 +37,7 @@
 
 #include <string>
 #include <vector>
+#include <chronon3d/text/text_definition.hpp>
 
 using namespace chronon3d;
 
@@ -381,26 +382,28 @@ TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: auto-fit shrinks rendered ink bbox int
             s.layer("autofit_layer", [&renderer, font_size_requested, box_w, box_h](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.animated_text("autofit", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = "Auto-fit ink bbox test"},
-                        .placement = TextPlacement{
-                            TextPlacementKind::Absolute,
-                            {960.0f, 540.0f}},  // canvas center
-                        .font = {
+                    .text = TextDefinition{
+    .content = {.value = "Auto-fit ink bbox test"},
+    .style = {
+        .font = {
                             .font_path = "assets/fonts/Inter-Bold.ttf",
                             .font_family = "Inter",
                             .font_weight = 700,
                             .font_size = font_size_requested
                         },
-                        .layout = {
-                            .box = {box_w, box_h},
-                            .align = TextAlign::Center,
-                            .vertical_align = VerticalAlign::Middle,
-                            .overflow = TextOverflow::Clip,
-                            .auto_fit = true
-                        },
-                        .appearance = {.color = Color::white()}
-                    }
+        .color = Color::white()
+    },
+    .frame = {
+        .placement = TextPlacement{
+                            TextPlacementKind::Absolute,
+                            {960.0f, 540.0f}},
+        .size = {box_w, box_h},
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle,
+        .overflow = TextOverflow::Clip,
+        .auto_fit = true
+    }
+}
                 }).commit();
             });
             return s.build();

@@ -184,18 +184,11 @@ public:
     LayerBuilder& tiled_image(std::string name, ImageParams params);
     LayerBuilder& grid_background(std::string name, GridBackgroundParams params);
 
-    // Canonical simple-text path. TextSpec remains a compatibility adapter
-    // until the dedicated TextSpec migration is completed.
+    // Canonical simple-text path.
     LayerBuilder& text(std::string name, const TextDefinition& definition);
-    [[deprecated("Use text(name, const TextDefinition&)")]]
-    LayerBuilder& text(std::string name, const TextSpec& spec);
 
     [[nodiscard]] TextRunBuilder& animated_text(
         std::string name, TextRunSpec params);
-    [[deprecated("Use animated_text(name, TextRunSpec) instead")]]
-    TextRunBuilder& text_run(std::string name, TextRunSpec params) {
-        return animated_text(std::move(name), std::move(params));
-    }
 
     LayerBuilder& shape(
         std::string_view id, std::string name, registry::ShapeParams params);

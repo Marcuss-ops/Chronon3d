@@ -93,7 +93,7 @@ public:
         TextRunSpec seed_spec{};
         seed_spec.text.content.value = std::move(content);
 
-        TextRunBuilder& builder = builder_->text_run(
+        TextRunBuilder& builder = builder_->animated_text(
             generated_name,
             std::move(seed_spec)
         );

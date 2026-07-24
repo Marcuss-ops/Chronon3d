@@ -72,7 +72,7 @@ namespace chronon3d::registry::register_helpers_internal::factory_reveal {
 
 using LayerBuilderT  = chronon3d::registry::internal::LayerBuilderT;
 using SceneBuilderT  = chronon3d::registry::internal::SceneBuilderT;
-using TextSpecT      = chronon3d::registry::internal::TextSpecT;
+using TextDefinitionT = chronon3d::registry::internal::TextDefinitionT;
 
 // ── TU-local helper (Action 12b) ────────────────────────────────────────────
 //
@@ -179,7 +179,7 @@ TextPresetDescriptor text_animations_entry() {
         compose_text_animations,
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
-           const TextSpecT& spec) {
+           const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "text_animations", spec)
               .fade_in(Frame{20})
               .scale_drop(0.95f, Frame{30});
@@ -201,7 +201,7 @@ TextPresetDescriptor fade_in_entry() {
         compose_fade_in,
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
-           const TextSpecT& spec) {
+           const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "fade_in", spec)
               .fade_in(Frame{15})
               .soft_pop(Frame{10});
@@ -223,7 +223,7 @@ TextPresetDescriptor blur_in_entry() {
         compose_blur_in,
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
-           const TextSpecT& spec) {
+           const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "blur_in", spec)
               .focus_in(4.0f, Frame{30})
               .fade_in(Frame{15});
@@ -245,7 +245,7 @@ TextPresetDescriptor slide_up_entry() {
         compose_slide_up,
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
-           const TextSpecT& spec) {
+           const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "slide_up", spec)
               .fade_shift_vertical(Vec3{0.0f, 200.0f, 0.0f}, Frame{25})
               .fade_in(Frame{15});
@@ -267,7 +267,7 @@ TextPresetDescriptor slide_down_entry() {
         compose_slide_down,
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
-           const TextSpecT& spec) {
+           const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "slide_down", spec)
               .fade_shift_vertical(Vec3{0.0f, -200.0f, 0.0f}, Frame{25})
               .fade_in(Frame{15});
@@ -289,7 +289,7 @@ TextPresetDescriptor scale_in_entry() {
         compose_scale_in,
         []([[maybe_unused]] SceneBuilderT& sb,
            LayerBuilderT& lb,
-           const TextSpecT& spec) {
+           const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "scale_in", spec)
               .scale_drop(0.85f, Frame{25})
               .soft_pop(Frame{15});

@@ -30,7 +30,7 @@ enum class AssetKind : unsigned char {
 //   * `kind`     : `AssetKind` (Font/Image/Video/Audio).
 //   * `path`     : path raw (relativo a `assets_root` o assoluto).
 //   * `owner`    : identificatore logico del "proprietario" dell'asset
-//                  (es. "LightPulse/text/label", "CenterTextOptions/label",
+//                  (es. "LightPulse/text/label", "TextDefinition/label",
 //                  "SceneBuilder::image(\"hero\")"). Discriminant per
 //                  `AssetManifest::entry_for(owner)`. Unico per scena.
 //   * `required` : se true, l'asset è HARD-REQUIRED (mancanza = FAIL
