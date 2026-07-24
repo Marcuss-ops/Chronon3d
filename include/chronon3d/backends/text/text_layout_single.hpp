@@ -450,11 +450,15 @@ inline TextLayoutResult layout_single_run(const TextLayoutInput& input) {
         line.descent = metric_descent;
         line.baseline = line.ascent;
 
+        // Alignment is relative to the authored frame when a box exists,
+        // not merely to the longest line. This is the CapCut contract:
+        // short lines center/right-align inside the full text box.
+        const float alignment_width = max_width > 0.0f ? max_width : max_seen_width;
         float dx = 0.0f;
         if (input.style.align == TextAlign::Center) {
-            dx = (max_seen_width - line.width) * 0.5f;
+            dx = (alignment_width - line.width) * 0.5f;
         } else if (input.style.align == TextAlign::Right) {
-            dx = max_seen_width - line.width;
+            dx = alignment_width - line.width;
         }
         line.position = {dx, static_cast<float>(i) * line_height};
 

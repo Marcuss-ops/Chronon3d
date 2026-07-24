@@ -93,7 +93,7 @@ using LayerBuilderT  = chronon3d::registry::internal::LayerBuilderT;
 using SceneBuilderT  = chronon3d::registry::internal::SceneBuilderT;
 using TextDefinitionT = chronon3d::registry::internal::TextDefinitionT;
 
-// ── STAGE 2 helpers — Subtitle (4) compositor bodies (verbatim port) ─────
+// ── Subtitle (8) compositor bodies ───────────────────────────────────────
 //
 // Each closure mirrors the corresponding pre-TEXT-RES-01
 // `AnimatorResolver::compose_for(...)` branched body verbatim.  Naming
@@ -365,7 +365,7 @@ TextPresetDescriptor lower_third_safe_entry() {
 
 // ── public factory surface ────────────────────────────────────────────────
 //
-// `create_text_presets()` returns the 4 Subtitle-category descriptors in
+// `create_text_presets()` returns the 8 Subtitle-category descriptors in
 // the canonical Cinematic → Reveal → Emphasis → Subtitle insertion order
 // expected by `register_text_preset_subtitle(...)` (Subtitle is the LAST
 // category in the umbrella's seed order).  This function does NOT call

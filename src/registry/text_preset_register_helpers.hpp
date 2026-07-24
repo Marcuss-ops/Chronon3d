@@ -50,10 +50,10 @@ void register_text_preset_reveal(TextPresetRegistry& r);
 /// Seed only the Emphasis category (4 entries) into `r`.
 void register_text_preset_emphasis(TextPresetRegistry& r);
 
-/// Seed only the Subtitle category (4 entries) into `r`.
+/// Seed only the Subtitle category (8 entries) into `r`.
 void register_text_preset_subtitle(TextPresetRegistry& r);
 
-/// Seed all 22 built-in entries (delegates to the 4 per-category helpers,
+/// Seed all 26 built-in entries (delegates to the 4 per-category helpers,
 /// preserving Cinematic → Reveal → Emphasis → Subtitle insertion order).
 /// This is the umbrella previously declared in
 /// `src/registry/text_preset_registry.cpp` anon namespace; now reachable
