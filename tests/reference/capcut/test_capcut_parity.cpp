@@ -215,7 +215,11 @@ std::shared_ptr<chronon3d::Framebuffer> render_static_text_case(
                 definition.style.font.font_family = c.font_family;
                 definition.style.font.font_weight = c.font_weight;
                 definition.style.font.font_size   = c.font_size;
-                definition.frame.size            = Vec2{static_cast<float>(c.width), static_cast<float>(c.height)};
+                // The manifest dimensions describe the canvas, not the text
+                // layout box.  Keeping the canonical authoring box here lets
+                // CanvasCenter/Absolute placement resolve the text box once;
+                // using the full canvas dimensions double-applies the center
+                // offset and pushes centered ink off to the right/bottom.
                 definition.frame.align          = parse_align(c.align);
                 definition.frame.vertical_align = parse_vertical_align(c.vertical_align);
                 definition.frame.line_height    = c.line_spacing;
@@ -276,9 +280,11 @@ std::shared_ptr<chronon3d::Framebuffer> render_subtitle_case(
                                                                     : c.effect)
                     .font(chronon3d::test::bundled_font_path(c.font_path), c.font_size)
                     .color(Color::white())
-                    .box(Vec2{static_cast<float>(c.width), static_cast<float>(c.height)})
                     .align(parse_align(c.align))
-                    .place(parse_placement(c.placement));
+                    .vertical_align(parse_vertical_align(c.vertical_align))
+                    .place(TextPlacement{
+                        parse_placement(c.placement),
+                        Vec2{c.offset_x, c.offset_y}});
                 if (track.cues.front().word_timing_quality == WordTimingQuality::Authoritative) {
                     builder.require_authoritative_word_timing(true);
                 }
