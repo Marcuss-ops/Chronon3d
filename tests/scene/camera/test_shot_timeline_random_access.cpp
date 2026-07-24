@@ -72,10 +72,32 @@ std::unique_ptr<CameraTransitionCatalog> make_test_catalog() {
     return catalog;
 }
 
+// Build a compiled CameraProgram at a specific position.  No LookAtLayer
+// is attached so the program is silent (no diagnostics), making it ideal
+// for asserting camera field parity in overlap transitions.
+CameraProgram make_program_at_position(const Vec3& position, const char* id) {
+    CameraDescriptor desc;
+    desc.id = id;
+    desc.base.enabled = true;
+    desc.base.position = position;
+    desc.base.rotation = Vec3{0.0f, 0.0f, 0.0f};
+    desc.base.projection = ZoomProjection{AnimatedValue<float>{1000.0f}};
+    desc.source = StaticCameraSource{};
+
+    auto result = compile_camera(desc, /*catalog=*/nullptr);
+    REQUIRE(result.has_value());
+    auto program = std::move(result).value();
+    REQUIRE(program.is_compiled());
+    return program;
+}
+
 // Build a compiled CameraProgram that produces a deterministic diagnostic.
 // LookAtLayer with an empty target emits a MissingTransforms warning; the
 // warning is idempotent and identical across random access/sequential paths.
 CameraProgram make_test_program() {
+    auto program = make_program_at_position(Vec3{0.0f, 0.0f, -1000.0f}, kTestCameraId);
+    // Re-compile with the diagnostic-inducing LookAtLayer orientation.
+    // (CameraProgram is immutable, so we rebuild from a fresh descriptor.)
     CameraDescriptor desc;
     desc.id = kTestCameraId;
     desc.base.enabled = true;
@@ -87,7 +109,7 @@ CameraProgram make_test_program() {
 
     auto result = compile_camera(desc, /*catalog=*/nullptr);
     REQUIRE(result.has_value());
-    auto program = std::move(result).value();
+    program = std::move(result).value();
     REQUIRE(program.is_compiled());
     return program;
 }
@@ -175,6 +197,32 @@ bool rows_equal(const ResolveSurfaceRow& a, const ResolveSurfaceRow& b) {
            a.severity == b.severity &&
            a.code == b.code &&
            a.message == b.message;
+}
+
+// Build a two-shot timeline with an overlap window for transition testing.
+std::shared_ptr<ShotTimeline> make_two_shot_timeline(int first_end,
+                                                     int second_start,
+                                                     int transition_frames,
+                                                     CameraTransitionKind kind) {
+    auto timeline = std::make_shared<ShotTimeline>();
+
+    CameraShot s1;
+    s1.name = "first";
+    s1.start_frame = 0;
+    s1.end_frame = first_end;
+    s1.program = make_program_at_position(Vec3{0.0f, 0.0f, -1000.0f}, "first-cam");
+    s1.transition_out = kind;
+    s1.transition_frames = transition_frames;
+
+    CameraShot s2;
+    s2.name = "second";
+    s2.start_frame = second_start;
+    s2.end_frame = second_start + 60;
+    s2.program = make_program_at_position(Vec3{100.0f, 0.0f, -1000.0f}, "second-cam");
+
+    timeline->add_shot(std::move(s1));
+    timeline->add_shot(std::move(s2));
+    return timeline;
 }
 
 } // namespace
@@ -340,4 +388,52 @@ TEST_CASE("random_access: diagnostics contract — 6-field ripple-through surfac
            rd.severity == CameraResolveDiagnostic::Severity::Error));
     CHECK(rd.code == "LookAtLayerMissingTarget");
     CHECK(!rd.message.empty());
+}
+
+// ==============================================================================
+// TEST 7 — overlap continuity under random access (TRN-05)
+// During a transition overlap, both shots must be evaluated at their
+// own local times.  A direct jump into the overlap must produce the same
+// blended camera as sequentially rendering up to that frame.
+// ==============================================================================
+TEST_CASE("random_access: direct jump into overlap equals sequential render") {
+    // Shot 1: [0, 30) with a 5-frame SmoothBlend overlap into shot 2.
+    // Shot 2: [25, 85).  Overlap window = frames 25, 26, 27, 28, 29.
+    auto timeline = make_two_shot_timeline(30, 25, 5, CameraTransitionKind::SmoothBlend);
+
+    const int overlap_frame = 27;
+
+    // Direct access: fresh resolver, fresh cache, fresh session.
+    Camera2_5D direct_cam;
+    {
+        ShotTimelineResolver resolver(timeline, *make_test_catalog());
+        ShotTimelineSession tls;
+        auto r = resolver.evaluate(overlap_frame, tls, kTestFps);
+        REQUIRE(r.has_value());
+        direct_cam = r.value().camera;
+    }
+
+    // Sequential access: render every frame from 0 up to overlap_frame
+    // using a single resolver + session, then compare the camera.
+    Camera2_5D seq_cam;
+    {
+        ShotTimelineResolver resolver(timeline, *make_test_catalog());
+        ShotTimelineSession tls;
+        for (int f = 0; f <= overlap_frame; ++f) {
+            auto r = resolver.evaluate(f, tls, kTestFps);
+            REQUIRE(r.has_value());
+            if (f == overlap_frame) {
+                seq_cam = r.value().camera;
+            }
+        }
+    }
+
+    CHECK(direct_cam.position.x == doctest::Approx(seq_cam.position.x));
+    CHECK(direct_cam.position.y == doctest::Approx(seq_cam.position.y));
+    CHECK(direct_cam.position.z == doctest::Approx(seq_cam.position.z));
+    CHECK(direct_cam.rotation.x == doctest::Approx(seq_cam.rotation.x));
+    CHECK(direct_cam.rotation.y == doctest::Approx(seq_cam.rotation.y));
+    CHECK(direct_cam.rotation.z == doctest::Approx(seq_cam.rotation.z));
+    CHECK(direct_cam.fov_deg == doctest::Approx(seq_cam.fov_deg));
+    CHECK(direct_cam.zoom == doctest::Approx(seq_cam.zoom));
 }
