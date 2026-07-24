@@ -24,6 +24,7 @@
 #include <doctest/doctest.h>
 
 #include <chronon3d/backends/software/software_renderer.hpp>
+#include <chronon3d/core/scheduler/scheduler_mode.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
@@ -107,8 +108,21 @@ LayerTransitionSpec make_spec(const char* id,
     return s;
 }
 
+// Map a SchedulerMode to the canonical env-var string that
+// parse_scheduler_mode() accepts.  scheduler_mode_name() returns title-case
+// display names (e.g. "TbbFixed") which are NOT recognised by the parser,
+// so using it here silently made every mode fall back to TbbFixed.
+std::string_view scheduler_mode_env_name(SchedulerMode mode) {
+    switch (mode) {
+        case SchedulerMode::Sequential: return "sequential";
+        case SchedulerMode::TbbFixed:   return "fixed";
+        case SchedulerMode::TbbAutomatic:
+        default:                         return "auto";
+    }
+}
+
 std::shared_ptr<SoftwareRenderer> make_renderer_with_scheduler(SchedulerMode mode) {
-    std::string value(scheduler_mode_name(mode));
+    std::string value(scheduler_mode_env_name(mode));
     const char* prev = std::getenv("CHRONON3D_SCHEDULER_MODE");
     std::string prev_str = prev ? prev : "";
 
@@ -377,7 +391,22 @@ TEST_CASE("TRN-06: transparent content transitions are deterministic") {
 // ==============================================================================
 // 10. Serial vs parallel scheduler determinism.
 // ==============================================================================
+TEST_CASE("TRN-06: scheduler mode env strings are accepted by the parser") {
+    SchedulerMode parsed;
+    CHECK(parse_scheduler_mode("sequential", parsed));
+    CHECK(parsed == SchedulerMode::Sequential);
+    CHECK(parse_scheduler_mode("fixed", parsed));
+    CHECK(parsed == SchedulerMode::TbbFixed);
+    CHECK(parse_scheduler_mode("auto", parsed));
+    CHECK(parsed == SchedulerMode::TbbAutomatic);
+}
+
 TEST_CASE("TRN-06: crossfade is identical under sequential and parallel scheduler") {
+    // NOTE: the helper above must use the lower-case env-var tokens that
+    // parse_scheduler_mode() accepts ("sequential", "fixed", "auto"), not
+    // the title-case display names returned by scheduler_mode_name().
+    // Otherwise the renderer silently falls back to the default mode and
+    // this test would compare the same scheduler twice.
     LayerTransitionSpec in = make_spec("crossfade", 30);
     auto comp = make_transition_comp(kDim16_9, in, {}, Frame{31}, Frame{31}, false);
 
