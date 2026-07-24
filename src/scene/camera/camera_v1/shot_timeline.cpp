@@ -309,26 +309,6 @@ ShotTimelineResolver::ShotTimelineResolver(std::shared_ptr<ShotTimeline> timelin
     transitions_[CameraTransitionKind::FocusHandoff] = transitions_[CameraTransitionKind::FocusDistanceBlend];
 }
 
-std::shared_ptr<CameraTransition> ShotTimelineResolver::default_cut() {
-    return make_default_cut();
-}
-
-std::shared_ptr<CameraTransition> ShotTimelineResolver::default_smooth_blend() {
-    return make_default_smooth_blend();
-}
-
-std::shared_ptr<CameraTransition> ShotTimelineResolver::default_push() {
-    return make_default_ease_out_blend();
-}
-
-std::shared_ptr<CameraTransition> ShotTimelineResolver::default_whip_pan() {
-    return make_default_smooth_rotation_blend();
-}
-
-std::shared_ptr<CameraTransition> ShotTimelineResolver::default_focus_handoff() {
-    return make_default_focus_distance_blend();
-}
-
 std::shared_ptr<CameraTransition> ShotTimelineResolver::get_transition(
         CameraTransitionKind kind) const {
     auto it = transitions_.find(kind);
