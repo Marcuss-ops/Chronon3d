@@ -4,6 +4,7 @@
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/render_graph/core/render_graph_hashing.hpp>
+#include <chronon3d/render_graph/nodes/transition_node.hpp>
 #include <chronon3d/render_graph/transition/transition_catalog.hpp>
 #include <tests/helpers/render_fixtures.hpp>
 #include <tests/helpers/test_utils.hpp>
@@ -200,6 +201,25 @@ TEST_CASE("Typed parameters affect transition output") {
     CHECK(framebuffer_hash(*fb_a) != framebuffer_hash(*fb_b));
 }
 
+TEST_CASE("Cache key includes duration, delay, easing and direction") {
+    LayerTransitionSpec base = spec("crossfade", 1.0f);
+    LayerTransitionSpec duration = base;
+    duration.duration = 2.0f;
+    LayerTransitionSpec delay = base;
+    delay.delay = 0.5f;
+    LayerTransitionSpec easing = base;
+    easing.easing = Easing::OutCubic;
+    LayerTransitionSpec direction = spec("slide", 1.0f);
+    direction.direction = TransitionDirection::Right;
+    LayerTransitionSpec direction2 = direction;
+    direction2.direction = TransitionDirection::Left;
+
+    CHECK(hash_layer_transition_spec(base) != hash_layer_transition_spec(duration));
+    CHECK(hash_layer_transition_spec(base) != hash_layer_transition_spec(delay));
+    CHECK(hash_layer_transition_spec(base) != hash_layer_transition_spec(easing));
+    CHECK(hash_layer_transition_spec(direction) != hash_layer_transition_spec(direction2));
+}
+
 TEST_CASE("Cache key includes typed parameters") {
     LayerTransitionSpec a = spec("slide", 1.0f);
     a.parameters = SlideParams{.distance = 0.5f};
@@ -214,6 +234,30 @@ TEST_CASE("Cache key includes typed parameters") {
     d.parameters = SmoothWipeParams{.feather = 0.20f};
 
     CHECK(hash_layer_transition_spec(c) != hash_layer_transition_spec(d));
+
+    LayerTransitionSpec e = spec("circle_iris", 1.0f);
+    e.parameters = CircleIrisParams{.center = Vec2{0.5f, 0.5f}, .feather = 0.1f};
+    LayerTransitionSpec f = spec("circle_iris", 1.0f);
+    f.parameters = CircleIrisParams{.center = Vec2{0.25f, 0.75f}, .feather = 0.3f};
+    CHECK(hash_layer_transition_spec(e) != hash_layer_transition_spec(f));
+
+    LayerTransitionSpec g = spec("flash", 1.0f);
+    g.parameters = FlashParams{.color = Color::white()};
+    LayerTransitionSpec h = spec("flash", 1.0f);
+    h.parameters = FlashParams{.color = Color::red()};
+    CHECK(hash_layer_transition_spec(g) != hash_layer_transition_spec(h));
+
+    LayerTransitionSpec i = spec("procedural_remotion", 1.0f);
+    i.parameters = ProceduralRemotionParams{.seed = 1.2f, .inner_color = Color::white()};
+    LayerTransitionSpec j = spec("procedural_remotion", 1.0f);
+    j.parameters = ProceduralRemotionParams{.seed = 3.4f, .inner_color = Color::black()};
+    CHECK(hash_layer_transition_spec(i) != hash_layer_transition_spec(j));
+
+    LayerTransitionSpec k = spec("remotion", 1.0f);
+    k.parameters = RemotionParams{.speed = 1.35f, .direction = 3.0f, .angle = 0.0f};
+    LayerTransitionSpec l = spec("remotion", 1.0f);
+    l.parameters = RemotionParams{.speed = 2.0f, .direction = 1.0f, .angle = 1.57f};
+    CHECK(hash_layer_transition_spec(k) != hash_layer_transition_spec(l));
 }
 
 TEST_CASE("LayerTransitionCatalog rejects unknown ids") {
@@ -226,7 +270,42 @@ TEST_CASE("LayerTransitionCatalog rejects unknown ids") {
 
     LayerTransitionSpec unknown = spec("does_not_exist");
     CHECK(!catalog.contains("does_not_exist"));
-    CHECK_THROWS(catalog.resolve(unknown));
+    CHECK_THROWS(static_cast<void>(catalog.resolve(unknown)));
+}
+
+TEST_CASE("TransitionNode in/out split cache key") {
+    LayerTransitionSpec s = spec("crossfade", 1.0f);
+    TransitionNode in_node("layer", s, false, Frame{0}, Frame{30});
+    TransitionNode out_node("layer", s, true, Frame{0}, Frame{30});
+
+    // Minimal RenderGraphContext is sufficient: cache_key only reads frame_input.
+    RenderGraphContext ctx;
+    ctx.frame_input.frame = 0;
+    ctx.frame_input.width = 100;
+    ctx.frame_input.height = 100;
+    ctx.frame_input.fps = 30.0f;
+
+    auto in_key = in_node.cache_key(ctx);
+    auto out_key = out_node.cache_key(ctx);
+
+    // is_out is folded into params_hash; the rest of the key should match.
+    CHECK(in_key.params_hash != out_key.params_hash);
+    CHECK(in_key.scope == out_key.scope);
+    CHECK(in_key.frame == out_key.frame);
+    CHECK(in_key.width == out_key.width);
+    CHECK(in_key.height == out_key.height);
+}
+
+TEST_CASE("Identical transition specs produce identical cache keys") {
+    LayerTransitionSpec a = spec("crossfade", 1.0f);
+    a.direction = TransitionDirection::Right;
+    a.delay = 0.25;
+    a.easing = Easing::OutQuad;
+    a.parameters = SmoothWipeParams{.feather = 0.15f};
+
+    LayerTransitionSpec b = a;
+
+    CHECK(hash_layer_transition_spec(a) == hash_layer_transition_spec(b));
 }
 
 TEST_CASE("Remotion-style transitions compute noise-driven masks and colors") {
