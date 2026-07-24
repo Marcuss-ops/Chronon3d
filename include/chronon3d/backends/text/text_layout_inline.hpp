@@ -409,11 +409,12 @@ inline TextLayoutResult layout_inline_runs(const TextLayoutInput& input) {
             line.text += run.text;
         }
 
+        const float alignment_width = max_width_limit > 0.0f ? max_width_limit : max_width;
         float dx = 0.0f;
         if (input.style.align == TextAlign::Center) {
-            dx = (max_width - line.width) * 0.5f;
+            dx = (alignment_width - line.width) * 0.5f;
         } else if (input.style.align == TextAlign::Right) {
-            dx = max_width - line.width;
+            dx = alignment_width - line.width;
         }
         line.position.x = dx;
 

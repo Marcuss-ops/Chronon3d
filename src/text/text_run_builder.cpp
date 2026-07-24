@@ -91,8 +91,20 @@ compile_text_layout(
     }
 
     // 5. Compose and vertically align positioned glyphs.
-    const ParagraphStyle paragraph_style =
+    ParagraphStyle paragraph_style =
         tci::effective_paragraph_style(paragraph, layout);
+    switch (layout.align) {
+    case TextAlign::Center:
+        paragraph_style.justification = TextJustification::Center;
+        break;
+    case TextAlign::Right:
+        paragraph_style.justification = TextJustification::Right;
+        break;
+    case TextAlign::Left:
+    default:
+        paragraph_style.justification = TextJustification::Left;
+        break;
+    }
     ParagraphLayout composed = tci::compose_paragraph(
         merged,
         layout.box.x - paragraph_style.left_indent - paragraph_style.right_indent,

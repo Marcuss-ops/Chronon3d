@@ -21,7 +21,7 @@ Chronon3D come gold standard. Per la parity con CapCut serve un riferimento
 - ✅ Test skeleton `test_capcut_parity.cpp` con metric helpers (SSIM reuse + inline baseline/bbox/missing_glyphs/cut_text)
 - ✅ CMakeLists.txt standalone con `chronon3d_add_test_suite(TIER INTEGRATION)` + LINK_TARGETS override per `chronon3d_visual_test_support`
 - ✅ Wire-in in `tests/manifests/test_definitions.cmake` (ADR-018 pattern)
-- ⏳ ≥1 blessed reference PNG per area (DEFERRED-PR-review, see §Forward-points)
+- ⏳ Ogni caso del manifest deve avere un blessed reference PNG per area (input esterno: export reale CapCut, non generabile dal repository)
 - ⏳ Metric extraction to `tests/visual/support/capcut_metrics.hpp` IF metric helpers reused elsewhere (DEFERRED post-Fase 9)
 - ⏳ WBH macchina-verifica: `ctest -R chronon3d_capcut_parity_tests --output-on-failure` (DEFERRED-WBH per `TICKET-VCPKG-BOOTSTRAP-LINUX-CONTENT-DEV` precedent)
 
@@ -64,15 +64,14 @@ tests/reference/capcut/
 | missing_glyphs | 0 |
 | cut_text | false |
 
-### Graceful-skip pattern
-Skeleton phase = corpus vuoto. Tutti i test skip con:
+### Strict release pattern
+Il parity gate non ammette fallback quando manca una reference:
 ```cpp
-if (refs.empty()) {
-    MESSAGE("§blessed-reference corpus not yet populated for <area>/ — see TICKET-CAPCUT-REFERENCE-CORPUS §Forward-points");
-    CHECK(true);  // graceful-skip
-    return;
-}
+REQUIRE(compared > 0);
+REQUIRE(skipped_no_ref == 0);
 ```
+La modalità `current/` può solo generare preview Chronon3D; non può mai diventare
+una reference blessed.
 
 ## §Forward-points
 

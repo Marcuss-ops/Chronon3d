@@ -424,6 +424,23 @@ inline void finalize_lines(
         }
         apply_justification(line, line_available, line_style, clusters);
 
+        // Horizontal alignment is a box-level property. Paragraph
+        // justification determines only spacing; this offset places the
+        // finished line inside the authored frame without reshaping it.
+        switch (line_style.justification) {
+        case TextJustification::Center:
+        case TextJustification::FullLastLineCenter:
+            line.alignment_offset = (line_available - line.final_width) * 0.5f;
+            break;
+        case TextJustification::Right:
+        case TextJustification::FullLastLineRight:
+            line.alignment_offset = line_available - line.final_width;
+            break;
+        default:
+            line.alignment_offset = 0.0f;
+            break;
+        }
+
         // Baseline Y
         if (line.cluster_count > 0) {
             line.baseline_y = cumulative_height + clusters[line.first_cluster].ascent;

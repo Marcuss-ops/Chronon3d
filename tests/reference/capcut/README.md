@@ -1,6 +1,6 @@
 # CapCut Reference Corpus — Blessed PNG policy
 
-**Status**: OPEN (corpus skeleton committato, blessed PNGs deferred-PR-review)
+**Status**: RELEASE-BLOCKING until every manifest case has a blessed PNG
 **Ticket**: [TICKET-CAPCUT-REFERENCE-CORPUS](../../docs/tickets/TICKET-CAPCUT-REFERENCE-CORPUS.md)
 
 ## Policy

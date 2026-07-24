@@ -130,6 +130,7 @@ apply_composition_to_placed(
             // Cumulative spacing: spread glyphs apart.
             // Apply spacing + overhang in one pass.
             g.x -= line_origin_x;
+            g.x += line.alignment_offset;
             g.x += spacing_accum - line.left_overhang;
             g.advance_x += per_glyph_spacing;
             spacing_accum += per_glyph_spacing;

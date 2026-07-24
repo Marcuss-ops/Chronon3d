@@ -5,7 +5,7 @@
 // metadata-only cataloguing of the 5 compositionally-derived entries.
 // Stage 2 (PR `ba107a7d`) filled the no-op builders (c3d-001)
 // with real LayerBuilder API calls.  Stage 3 (PR-c3d-002 copy-modify)
-// shipped the 17 addizionali ceiling, reaching 22 entries total
+// shipped the initial addizionali ceiling; the current registry exposes 26 entries total
 // (≥20+, DoD #1 verde).
 //
 // ## TEXT-RES-01 refactor (this commit)
@@ -140,7 +140,7 @@ void TextPresetRegistry::reset() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// register_builtin_presets — 22 entries (TEXT-RES-01 shape)
+// register_builtin_presets — 26 entries (TEXT-RES-01 shape)
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Each entry exposes 5 fields per the TEXT-RES-01 spec:
@@ -157,7 +157,7 @@ void TextPresetRegistry::reset() {
 // Convention: fully-qualified path under `tests/visual/` (mirrors
 // the pre-refactor `// golden-frame-link:` comment convention).
 //
-// All 22 entries:
+// All 26 entries:
 //   ─ REVEAL (10) ─────────────────────────────────────────────────────
 //     1.  text_animations            (PR 41cda40c, kept)
 //     2.  fade_in                    (Stage 3)
@@ -212,7 +212,7 @@ void register_text_preset_emphasis(TextPresetRegistry& r) {
 }
 
 void register_text_preset_subtitle(TextPresetRegistry& r) {
-    // ── Subtitle (4) — Stage 3 ───────────────────────────────────────────
+    // ── Subtitle (8) — productive subtitle catalog ─────────────────────
     // M1.5#13 (1/4) — Subtitle-category descriptors now come from the basic
     // factory TU (text_preset_factories_basic.cpp).  The factory returns an
     // std::vector<TextPresetDescriptor> in canonical insertion order; the
@@ -223,7 +223,7 @@ void register_text_preset_subtitle(TextPresetRegistry& r) {
 }
 void register_builtin_presets(TextPresetRegistry& r) {
     // FASE 5 (TICKET-098) — delegate to per-category helpers; order is:
-    //   Cinematic (4) → Reveal (10) → Emphasis (4) → Subtitle (4).
+    //   Cinematic (4) → Reveal (10) → Emphasis (4) → Subtitle (8).
     register_text_preset_cinematic(r);
     register_text_preset_reveal(r);
     register_text_preset_emphasis(r);
