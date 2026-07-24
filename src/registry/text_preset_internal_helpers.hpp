@@ -19,9 +19,8 @@
 //  (c) `wire_through_resolver(lb, preset_id, spec)` — engine-side factory
 //      body helper that delegates to the Cluster B public API
 //      (`::chronon3d::registry::wire_preset_text_run_params`) then
-//      routes the returned `TextRunSpec` through
-//      `lb.text_run(<name>, params).commit()`.  Single canonical pipeline
-//      for all 22 built-ins.
+//      routes the returned `TextRunSpec` through the canonical text builder.
+//      Single canonical pipeline for all 28 built-ins.
 //
 // ## Architectural invariants (AGENTS.md v0.1 freeze)
 //   - This header is INTERNAL ONLY.  Not installed.  Not reachable from
@@ -83,7 +82,7 @@ using TextDefinitionT = ::chronon3d::TextDefinition;
 // appends the entry-specific properties / selector overrides.  This is
 // the FACTORED equivalent of the pre-TEXT-RES-01
 // `AnimatorResolver::compose_for` preamble, kept in ONE place (here, in
-// this internal helper header) so all 22 built-in entries share the
+// this internal helper header) so all 28 built-in entries share the
 // canonical scaffold.  Verbatim port from the anon namespace of
 // `src/registry/text_preset_registry.cpp` (commit pre-M1.5#13).
 [[nodiscard]] inline TextAnimatorSpec

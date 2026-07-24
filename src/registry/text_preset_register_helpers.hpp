@@ -6,7 +6,7 @@
 // (`chronon3d::registry::register_helpers_internal`) so tests can
 // exercise each category in isolation.
 //
-// The 22 entry() factories + 22 compose_<id>() helpers stay colocated
+// The 28 entry() factories + 28 compose_<id>() helpers stay colocated
 // in the registry impl TU and remain anon-namespace internal.  The 4
 // narrow per-category register functions are reachable from tests
 // (and any sibling internal TU) by including this header.
@@ -44,7 +44,7 @@ namespace register_helpers_internal {
 /// contract) so callers can guard on `r.contains(id)` before invoking.
 void register_text_preset_cinematic(TextPresetRegistry& r);
 
-/// Seed only the Reveal category (10 entries) into `r`.
+/// Seed only the Reveal category (12 entries) into `r`.
 void register_text_preset_reveal(TextPresetRegistry& r);
 
 /// Seed only the Emphasis category (4 entries) into `r`.
@@ -53,7 +53,7 @@ void register_text_preset_emphasis(TextPresetRegistry& r);
 /// Seed only the Subtitle category (8 entries) into `r`.
 void register_text_preset_subtitle(TextPresetRegistry& r);
 
-/// Seed all 26 built-in entries (delegates to the 4 per-category helpers,
+/// Seed all 28 built-in entries (delegates to the 4 per-category helpers,
 /// preserving Cinematic → Reveal → Emphasis → Subtitle insertion order).
 /// This is the umbrella previously declared in
 /// `src/registry/text_preset_registry.cpp` anon namespace; now reachable

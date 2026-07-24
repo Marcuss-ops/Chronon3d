@@ -5,7 +5,7 @@
 // metadata-only cataloguing of the 5 compositionally-derived entries.
 // Stage 2 (PR `ba107a7d`) filled the no-op builders (c3d-001)
 // with real LayerBuilder API calls.  Stage 3 (PR-c3d-002 copy-modify)
-// shipped the initial addizionali ceiling; the current registry exposes 26 entries total
+// shipped the initial addizionali ceiling; the current registry exposes 28 entries total
 // (≥20+, DoD #1 verde).
 //
 // ## TEXT-RES-01 refactor (this commit)
@@ -140,7 +140,7 @@ void TextPresetRegistry::reset() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// register_builtin_presets — 26 entries (TEXT-RES-01 shape)
+// register_builtin_presets — 28 entries (TEXT-RES-01 shape)
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // Each entry exposes 5 fields per the TEXT-RES-01 spec:
@@ -157,8 +157,8 @@ void TextPresetRegistry::reset() {
 // Convention: fully-qualified path under `tests/visual/` (mirrors
 // the pre-refactor `// golden-frame-link:` comment convention).
 //
-// All 26 entries:
-//   ─ REVEAL (10) ─────────────────────────────────────────────────────
+// All 28 entries:
+//   ─ REVEAL (12) ─────────────────────────────────────────────────────
 //     1.  text_animations            (PR 41cda40c, kept)
 //     2.  fade_in                    (Stage 3)
 //     3.  blur_in                    (Stage 3)
@@ -169,24 +169,26 @@ void TextPresetRegistry::reset() {
 //     8.  masked_line_reveal         (Stage 3)
 //     9.  word_cascade               (Stage 3)
 //     10. character_cascade          (Stage 3)
+//     11. zoom_in                    (CapCut V1 catalog)
+//     12. slide_left                 (CapCut V1 catalog)
 //
 //   ─ EMPHASIS (4) ───────────────────────────────────────────────────
-//     11. word_pop                   (Stage 3)
-//     12. scale_punch                (Stage 3)
-//     13. color_accent               (Stage 3)
-//     14. gradient_fill              (Stage 3)
+//     13. word_pop                   (Stage 3)
+//     14. scale_punch                (Stage 3)
+//     15. color_accent               (Stage 3)
+//     16. gradient_fill              (Stage 3)
 //
 //   ─ CINEMATIC (4) ──────────────────────────────────────────────────
-//     15. animation_compositions     (PR 41cda40c, kept)
-//     16. cinematic_text_camera      (PR 41cda40c, kept)
-//     17. cinematic_title_reveal     (PR 41cda40c, kept)
-//     18. tilt_sweep_title_v2        (PR 41cda40c, kept)
+//     17. animation_compositions     (PR 41cda40c, kept)
+//     18. cinematic_text_camera      (PR 41cda40c, kept)
+//     19. cinematic_title_reveal     (PR 41cda40c, kept)
+//     20. tilt_sweep_title_v2        (PR 41cda40c, kept)
 //
 //   ─ SUBTITLE (4) ───────────────────────────────────────────────────
-//     19. minimal_white              (Stage 3 — no motion)
-//     20. yellow_keyword             (Stage 3)
-//     21. glow_pulse                 (Stage 3)
-//     22. caption_box                (Stage 3)
+//     21. minimal_white              (Stage 3 — no motion)
+//     22. yellow_keyword             (Stage 3)
+//     23. glow_pulse                 (Stage 3)
+//     24. caption_box                (Stage 3)
 
 namespace register_helpers_internal {
 
@@ -198,7 +200,7 @@ void register_text_preset_cinematic(TextPresetRegistry& r) {
 }
 
 void register_text_preset_reveal(TextPresetRegistry& r) {
-    // ── Reveal (10) — FASE 1: delegates to per-category factory ─────────
+    // ── Reveal (12) — FASE 1: delegates to per-category factory ─────────
     for (auto& desc : register_helpers_internal::factory_reveal::create_text_presets()) {
         r.register_preset(std::move(desc));
     }
@@ -223,7 +225,7 @@ void register_text_preset_subtitle(TextPresetRegistry& r) {
 }
 void register_builtin_presets(TextPresetRegistry& r) {
     // FASE 5 (TICKET-098) — delegate to per-category helpers; order is:
-    //   Cinematic (4) → Reveal (10) → Emphasis (4) → Subtitle (8).
+    //   Cinematic (4) → Reveal (12) → Emphasis (4) → Subtitle (8).
     register_text_preset_cinematic(r);
     register_text_preset_reveal(r);
     register_text_preset_emphasis(r);
@@ -281,7 +283,7 @@ TextPresetRegistry make_default_text_preset_registry() {
 // `register_preset` call (e.g. someone monkey-patching from a test
 // or a future authoring facade) throws `std::runtime_error`.  Production
 // consumers should treat this returned ref as READ-ONLY beyond the
-// 22 built-ins.
+// 28 built-ins.
 const TextPresetRegistry&
 builtin_text_preset_registry() noexcept {
     static const TextPresetRegistry r = []{

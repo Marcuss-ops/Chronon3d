@@ -1,14 +1,14 @@
 // ─── test_text_preset_descriptor.cpp — TEXT-RES-01 dedicated test ───────────
 //
 // Verifies the SINGLE-REGISTRY invariant from `TEXT-RES-01`:
-//   1. Each of the 22 built-in text presets is registered via
+//   1. Each of the 28 built-in text presets is registered via
 //      `TextPresetDescriptor` with shape
 //      `{ id, metadata, builder, animator_factory, fixture }`.
 //   2. Every `animator_factory` closure is NON-NULL for the 21 motion
 //      presets + returns std::nullopt for `minimal_white` (the only
 //      preset with no canonical motion).
 //   3. Every `fixture` (golden-frame fixture path) is NON-EMPTY for
-//      all 22 entries — the Visual Regression Harness link is locked
+//      all 28 entries — the Visual Regression Harness link is locked
 //      at registration time, NOT in a sidecar comment.
 //   4. `id` and `metadata.id` are kept in sync at the descriptor
 //      level (register-time invariant).
@@ -41,7 +41,7 @@ using chronon3d::registry::make_default_text_preset_registry;
 using chronon3d::registry::AnimatorResolver;
 
 // ─────────────────────────────────────────────────────────────────────────
-// TIER A — descriptor field completeness (all 22 built-ins)
+// TIER A — descriptor field completeness (all 28 built-ins)
 // ─────────────────────────────────────────────────────────────────────────
 TEST_CASE("TextPresetDescriptor: each built-in populates {id, metadata, builder, animator_factory, fixture} (Sub-cases A1-A4)") {
 
@@ -206,7 +206,7 @@ TEST_CASE("TextPresetDescriptor: fail-safe paths (Sub-cases D1-D2)") {
         rogue.id = "rogue_addition";
         rogue.metadata.id = rogue.id;
         rogue.builder = [](chronon3d::SceneBuilder&, chronon3d::LayerBuilder&,
-                          const chronon3d::TextSpec&){};
+                          const chronon3d::TextDefinition&){};
         CHECK_THROWS_AS(r.register_preset(rogue), std::runtime_error);
     }
 }

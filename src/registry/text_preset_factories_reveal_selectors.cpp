@@ -4,7 +4,7 @@
 // SELECTOR-driven sub-bucket.  Extracted from `text_preset_factories_reveal.cpp`
 // together with the matching `basic` sub-bucket.  This TU emits the 4
 // presets that override the default global Glyph selector with an animated
-// per-unit selector (Tracking / Line / Word / Grapheme); the 6 simple
+// per-unit selector (Tracking / Line / Word / Grapheme); the 8 simple
 // entrance-animation presets live in `text_preset_factories_reveal_basic.cpp`.
 // The parent `text_preset_factories_reveal.cpp` is reduced to a thin
 // aggregator.
