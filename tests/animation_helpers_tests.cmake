@@ -23,5 +23,5 @@ chronon3d_add_test_suite(
 # Wire into the FAST test aggregator (pure math harness, no rendering
 # backend required). Mirrors the pattern used for chronon3d_text_definition_tests
 # + chronon3d_safe_area_placement_tests + chronon3d_text_builder_ergonomics_tests
-# + chronon3d_text_simplicity_adapters_tests.
+# + chronon3d_text_definition_tests.
 list(APPEND CHRONON3D_FAST_TEST_DEPS chronon3d_animation_helpers_tests)

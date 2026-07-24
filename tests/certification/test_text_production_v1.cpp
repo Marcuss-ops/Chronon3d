@@ -77,6 +77,8 @@
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <chronon3d/text/text_definition.hpp>
+#include <chronon3d/text/prepared_text.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::test;
@@ -139,26 +141,27 @@ Composition build_text_only_comp(SoftwareRenderer& renderer,
                                   6.0f);
                 }
 
-                l.animated_text("text_run", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = text},
-                        .placement = TextPlacement{
-                            TextPlacementKind::CanvasCenter,
-                            {pos.x, pos.y}},
+                l.text("text_run", TextDefinition{
+                    .content = {.value = text},
+                    .style = {
                         .font = {.font_path = font_path,
                                  .font_family = "Inter",
                                  .font_weight = 700,
                                  .font_size = font_size},
-                        .layout = {.box = box,
-                                   .anchor = anchor,
-                                   .align = align,
-                                   .vertical_align = VerticalAlign::Middle,
-                                   .wrap = TextWrap::Word,
-                                   .overflow = TextOverflow::Clip,
-                                   .auto_fit = auto_fit},
-                        .appearance = {.color = Color{1.0f, 1.0f, 1.0f, 1.0f}}
+                        .color = Color{1.0f, 1.0f, 1.0f, 1.0f}
+                    },
+                    .frame = {
+                        .size = box,
+                        .placement = TextPlacement{
+                            TextPlacementKind::CanvasCenter, {pos.x, pos.y}},
+                        .anchor = anchor,
+                        .align = align,
+                        .vertical_align = VerticalAlign::Middle,
+                        .wrap = TextWrap::Word,
+                        .overflow = TextOverflow::Clip,
+                        .auto_fit = auto_fit
                     }
-                }).commit();
+                });
             });
             return s.build();
         });
@@ -182,27 +185,33 @@ void check_shape_glyph_invariants(
     float font_size,
     const std::string& label
 ) {
-    TextRunSpec spec;
-    spec.text.content.value = text;
-    spec.text.placement = TextPlacement{
-        TextPlacementKind::CanvasCenter, {0.0f, 0.0f}};
-    spec.text.font = {.font_path   = font_path,
-                      .font_family = "Inter",
-                      .font_weight = 700,
-                      .font_size   = font_size};
-    spec.text.layout = {.box            = {1920.0f, 1080.0f},
-                        .anchor         = TextAnchor::Center,
-                        .align          = TextAlign::Center,
-                        .vertical_align = VerticalAlign::Middle,
-                        .wrap           = TextWrap::Word,
-                        .overflow       = TextOverflow::Clip};
-    spec.text.appearance.color = Color::white();
-    spec.direction    = TextDirection::LTR;
-    spec.language     = "en";
-    spec.cache_layout = false;
+    TextDefinition spec{
+        .content = {.value = text},
+        .style = {
+            .font = {.font_path = font_path,
+                     .font_family = "Inter",
+                     .font_weight = 700,
+                     .font_size = font_size},
+            .color = Color::white()
+        },
+        .frame = {
+            .size = {1920.0f, 1080.0f},
+            .placement = TextPlacement{
+                TextPlacementKind::CanvasCenter, {0.0f, 0.0f}},
+            .anchor = TextAnchor::Center,
+            .align = TextAlign::Center,
+            .vertical_align = VerticalAlign::Middle,
+            .wrap = TextWrap::Word,
+            .overflow = TextOverflow::Clip
+        },
+        .animation = {
+            .direction = TextDirection::LTR,
+            .language = "en"
+        }
+    };
 
-    auto shape = materialize_text_run_shape(
-        spec, &renderer.font_engine(), SampleTime{});
+    auto shape = materialize_prepared_text(
+        prepare_text(spec), &renderer.font_engine(), SampleTime{});
     INFO(label, ": materialize returned nullptr");
     REQUIRE(shape != nullptr);
     INFO(label, ": TextRunShape has no layout");
@@ -718,21 +727,23 @@ TEST_CASE("Animation frame-by-frame → visible ink changes across frames") {
                 l.opacity_anim().set(0.0f);
                 l.opacity_anim().add_keyframe(
                     Frame{30}, 1.0f, EasingCurve{Easing::Linear});
-                l.animated_text("title", TextRunSpec{
-                    .text = TextSpec{
-                        .content = {.value = "Animated"},
-                        .placement = TextPlacement{TextPlacementKind::CanvasCenter, {0.0f, 0.0f}},
+                l.text("title", TextDefinition{
+                    .content = {.value = "Animated"},
+                    .style = {
                         .font = {.font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf"),
                                  .font_family = "Inter",
                                  .font_weight = 700,
                                  .font_size = 96.0f},
-                        .layout = {.box = {800.0f, 200.0f},
-                                   .anchor = TextAnchor::Center,
-                                   .align = TextAlign::Center,
-                                   .vertical_align = VerticalAlign::Middle},
-                        .appearance = {.color = Color::white()}
+                        .color = Color::white()
+                    },
+                    .frame = {
+                        .size = {800.0f, 200.0f},
+                        .placement = TextPlacement{TextPlacementKind::CanvasCenter, {0.0f, 0.0f}},
+                        .anchor = TextAnchor::Center,
+                        .align = TextAlign::Center,
+                        .vertical_align = VerticalAlign::Middle
                     }
-                }).commit();
+                });
             });
             return s.build();
         });

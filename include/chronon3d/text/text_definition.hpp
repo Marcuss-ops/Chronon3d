@@ -202,23 +202,6 @@ struct TextDefinition {
 //   def.frame.position = spec.position;
 //   // ... etc.
 
-/// Convert a TextSpec to the canonical TextDefinition.
-/// Full implementation in src/text/text_definition.cpp.
-///
-/// TICKET-TEXT-SPEC-MIGRATION (2026-07-14, P1 OPEN):
-/// marked `[[deprecated]]` per audit Blocco 5.1 verbatim "Elimina
-/// `TextSpec` dai contenuti".  Callers MUST migrate to direct
-/// `TextDefinition` construction (all `TextSpec` fields map 1:1 to
-/// `TextDefinition` sub-structs: `.content` → `.content`, `.font` →
-/// `.style.font`, `.layout` → `.frame`, `.appearance` → `.style.*`).
-/// The 56+ test files + 1 production caller
-/// (`src/scene/builders/layer_builder_shapes.cpp:197`) are tracked in
-/// this ticket (P1, OPEN).
-[[deprecated("Use direct TextDefinition construction — see "
-             "TICKET-TEXT-SPEC-MIGRATION (Blocco 5.1). "
-             "This adapter is removed after the migration lands.")]]
-[[nodiscard]] TextDefinition from_text_spec(const TextSpec& spec);
-
 /// Convert a TextRunSpec to the canonical TextDefinition.
 /// Includes animators (maps to TextAnimation placeholder — Phase A.3).
 /// Full implementation in src/text/text_definition.cpp.
@@ -237,7 +220,7 @@ struct TextDefinition {
 /// <chronon3d/compat/text_spec_adapter.hpp> only during the migration.
 ///
 /// Usage:
-///   TextDefinition def = centered_text(opts);
+///   TextDefinition def = make_text_definition(opts);
 ///   PreparedText prepared = prepare_text(def).value();
 ///   TextLayoutRequest req{&prepared.document, &prepared.frame, prepared.style.font};
 ///   auto result = compile_text_layout(req, services);

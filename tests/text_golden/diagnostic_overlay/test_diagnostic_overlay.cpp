@@ -55,6 +55,7 @@
 #include <cstdint>
 #include <string>
 #include <vector>
+#include <chronon3d/text/text_definition.hpp>
 
 using namespace chronon3d;
 using namespace chronon3d::test;
@@ -228,10 +229,19 @@ OverlayResult render_with_overlay(SoftwareRenderer& renderer, ClipVariant varian
             // Text layer — canary at canvas center
             s.layer("text", [&renderer, clip_rect](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.text("label", TextSpec{.content    = {.value = std::string(kCanaryText)},.placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},.font       = {.font_size = 96.0f},.layout     = {.box = Vec2{900.0f, 200.0f},
-                                   .anchor = TextAnchor::Center,
-                                   .align  = TextAlign::Center,
-                                   .vertical_align = VerticalAlign::Middle},});
+                l.text("label", TextDefinition{
+    .content = {.value = std::string(kCanaryText)},
+    .style = {
+        .font = {.font_size = 96.0f}
+    },
+    .frame = {
+        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
+        .size = Vec2{900.0f, 200.0f},
+        .anchor = TextAnchor::Center,
+        .align = TextAlign::Center,
+        .vertical_align = VerticalAlign::Middle
+    }
+});
             });
 
             return s.build();
