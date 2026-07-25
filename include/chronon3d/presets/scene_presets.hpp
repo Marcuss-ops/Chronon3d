@@ -55,8 +55,8 @@ inline FillStyle linear_gradient_h(Color left, Color right) {
     });
 }
 
-// Helper: create TextSpec with minimal boilerplate.
-inline TextSpec text_preset(
+// Helper: create the canonical public text definition with minimal boilerplate.
+inline TextDefinition text_preset(
     std::string text,
     f32 font_size,
     int font_weight,
@@ -68,19 +68,21 @@ inline TextSpec text_preset(
     std::string font_family = "Inter",
     std::string font_style = "normal"
 ) {
-    TextSpec tp;
+    TextDefinition tp;
     tp.content.value = std::move(text);
-    tp.layout.box = size;
-    tp.placement = TextPlacement{TextPlacementKind::Absolute, {pos.x, pos.y}};
-    tp.font.font_path = std::move(font_path);
-    tp.font.font_family = std::move(font_family);
-    tp.font.font_weight = font_weight;
-    tp.font.font_style = std::move(font_style);
-    tp.font.font_size = font_size;
-    tp.appearance.color = color;
-    tp.layout.align = align;
-    tp.layout.vertical_align = VerticalAlign::Middle;
-    tp.placement = TextPlacement{TextPlacementKind::Absolute, {pos.x, pos.y}};
+    tp.style.font.font_path = std::move(font_path);
+    tp.style.font.font_family = std::move(font_family);
+    tp.style.font.font_weight = font_weight;
+    tp.style.font.font_style = std::move(font_style);
+    tp.style.font.font_size = font_size;
+    tp.style.color = color;
+    tp.frame.size = size;
+    tp.frame.placement = TextPlacement{TextPlacementKind::Absolute, {pos.x, pos.y}};
+    tp.frame.anchor = TextAnchor::Center;
+    tp.frame.align = align;
+    tp.frame.vertical_align = VerticalAlign::Middle;
+    tp.frame.wrap = TextWrap::Word;
+    tp.frame.overflow = TextOverflow::Clip;
     return tp;
 }
 
