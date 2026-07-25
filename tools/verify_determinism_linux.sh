@@ -72,7 +72,8 @@ find_chronon3d_cli() {
 # Render a single still and return its sha256.
 still_hash() {
     local comp="$1" frame="$2" out="$3"
-    "$CLI_BIN" still "$comp" "$out" --frame "$frame" >/dev/null 2>&1 || return 1
+    "$CLI_BIN" render "$comp" --frame "$frame" --output "$out" \
+        --profile production >/dev/null 2>&1 || return 1
     [ -s "$out" ] || return 1
     sha256sum "$out" | awk '{print $1}'
 }
@@ -176,7 +177,8 @@ else
     for i in 1 2 3 4 5; do
         OUT="${OUTPUT_DIR}/sep_proc_${i}.png"
         # Each run is a separate CLI invocation (fresh process)
-        H=$("$CLI_BIN" still "CertDeterminism" "$OUT" --frame 0 >/dev/null 2>&1 \
+        H=$("$CLI_BIN" render "CertDeterminism" --output "$OUT" --frame 0 \
+            --profile production >/dev/null 2>&1 \
             && sha256sum "$OUT" 2>/dev/null | awk '{print $1}')
         [ -n "$H" ] && HASHES="$HASHES $H" || { _gate_fail "sep_proc_$i" "render failed"; }
     done
@@ -277,8 +279,8 @@ else
     H_T8=""
     OUT_T1="${OUTPUT_DIR}/thread_1.png"
     OUT_T8="${OUTPUT_DIR}/thread_8.png"
-    H_T1=$(CHRONON3D_THREADS=1 "$CLI_BIN" still "CertDeterminism" "$OUT_T1" --frame 0 >/dev/null 2>&1 && sha256sum "$OUT_T1" 2>/dev/null | awk '{print $1}')
-    H_T8=$(CHRONON3D_THREADS=8 "$CLI_BIN" still "CertDeterminism" "$OUT_T8" --frame 0 >/dev/null 2>&1 && sha256sum "$OUT_T8" 2>/dev/null | awk '{print $1}')
+    H_T1=$(CHRONON3D_THREADS=1 "$CLI_BIN" render "CertDeterminism" --output "$OUT_T1" --frame 0 --profile production >/dev/null 2>&1 && sha256sum "$OUT_T1" 2>/dev/null | awk '{print $1}')
+    H_T8=$(CHRONON3D_THREADS=8 "$CLI_BIN" render "CertDeterminism" --output "$OUT_T8" --frame 0 --profile production >/dev/null 2>&1 && sha256sum "$OUT_T8" 2>/dev/null | awk '{print $1}')
     if [ -n "$H_T1" ] && [ -n "$H_T8" ]; then
         if [ "$H_T1" = "$H_T8" ]; then
             _gate_pass "thread_concurrency_1_eq_8 (hash=$H_T1)"
@@ -304,8 +306,8 @@ else
     FIRST_OUT="${OUTPUT_DIR}/cache_first.png"
     SECOND_OUT="${OUTPUT_DIR}/cache_second.png"
     # Render twice; capture stderr+stdout for metrics
-    CHRONON3D_THREADS=1 "$CLI_BIN" still "CertDeterminism" "$FIRST_OUT" --frame 0 > "$METRICS_OUT.first" 2>&1
-    CHRONON3D_THREADS=1 "$CLI_BIN" still "CertDeterminism" "$SECOND_OUT" --frame 0 > "$METRICS_OUT.second" 2>&1
+    CHRONON3D_THREADS=1 "$CLI_BIN" render "CertDeterminism" --output "$FIRST_OUT" --frame 0 --profile production > "$METRICS_OUT.first" 2>&1
+    CHRONON3D_THREADS=1 "$CLI_BIN" render "CertDeterminism" --output "$SECOND_OUT" --frame 0 --profile production > "$METRICS_OUT.second" 2>&1
     cat "$METRICS_OUT.first" "$METRICS_OUT.second" > "$METRICS_OUT"
     rm -f "$METRICS_OUT.first" "$METRICS_OUT.second"
 
