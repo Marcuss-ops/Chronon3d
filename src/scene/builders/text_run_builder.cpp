@@ -19,15 +19,29 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
-// `<filesystem>` REMOVED per audit §10 (the `current_path()` mount
-// line that consumed it in `text_run_materialize_detail::resolve_engine`
-// was deleted).  If a future caller needs filesystem operations,
-// restore the include at this site.
+#include <filesystem>
 #include <iterator>
 #include <utility>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {
+
+namespace {
+
+// Keep font fallback resolution anchored to the authored primary font.  The
+// canonical TextDefinition path used to leave bundled_fonts_root empty, which
+// silently degraded fallback to primary-only even when the repository font
+// bundle was present.  A sibling directory is the narrowest deterministic
+// fallback scope and also works for absolute SDK asset paths.
+[[nodiscard]] std::filesystem::path bundled_font_root_for(const FontSpec& font) {
+    if (font.font_path.empty()) {
+        return {};
+    }
+    const auto parent = std::filesystem::path{font.font_path}.parent_path();
+    return parent.empty() ? std::filesystem::path{"."} : parent;
+}
+
+} // namespace
 
 // ── Private ctor ────────────────────────────────────────────────────────
 
@@ -520,7 +534,8 @@ namespace {
                 TextLayoutRequest probe_req{
                     &probe_doc, &layout, probe_font};
                 probe_req.features = layout.features;
-                TextCompileServices probe_svc{&engine, nullptr};
+                TextCompileServices probe_svc{
+                    &engine, nullptr, bundled_font_root_for(probe_font)};
                 auto probe = compile_text_layout(probe_req, probe_svc);
                 if (probe) {
                     const auto& b = probe.value()->bounds;
@@ -545,7 +560,8 @@ namespace {
                     TextLayoutRequest mid_req{
                         &mid_doc, &layout, mid_font};
                     mid_req.features = layout.features;
-                    TextCompileServices mid_svc{&engine, nullptr};
+                    TextCompileServices mid_svc{
+                        &engine, nullptr, bundled_font_root_for(mid_font)};
                     auto mid_res =
                         compile_text_layout(mid_req, mid_svc);
                     if (mid_res) {
@@ -612,7 +628,8 @@ namespace {
 
     // cache=nullptr to suppress compile_text_layout's internal cache dance
     // (its key collapses direction/language).  We own the cache here.
-    TextCompileServices services{&engine, /*cache=*/nullptr};
+    TextCompileServices services{
+        &engine, /*cache=*/nullptr, bundled_font_root_for(effective_font)};
 
     auto compiled = compile_text_layout(request, services);
     if (!compiled) {
@@ -855,6 +872,7 @@ std::shared_ptr<TextRunShape> materialize_prepared_text(
     TextCompileServices services{
         use_engine,
         prepared_with_font.animation.cache_layout ? &s_materializer_cache : nullptr,
+        bundled_font_root_for(prepared_with_font.style.font),
     };
 
     auto compiled = compile_text_layout(prepared_with_font, services);
