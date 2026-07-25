@@ -55,7 +55,8 @@ inline TextDefinition make_text(const std::string& text, f32 font_size = 64.0f) 
         .color = TEXT_COLOR
     },
     .frame = {.size = {BOX_W, BOX_H},
-.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}},
+.placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
+.anchor = TextAnchor::Center,
 .align = TextAlign::Center,
 .vertical_align = VerticalAlign::Middle,
 .line_height = 0.95f,
