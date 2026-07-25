@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 
-import { fetchRuns, fetchRunDetail, outputPathToArtifactUrl } from './api/telemetryApi.js';
+import { fetchRuns, fetchRunDetail } from './api/telemetryApi.js';
 import { formatBytes, formatIso, formatCounterValue } from './utils/format.jsx';
 import { API_BASE } from './data/constants.js';
 import { copyTextToClipboard } from './utils/clipboard.js';
@@ -23,14 +23,6 @@ import ComparisonMetrics from './components/ComparisonMetrics.jsx';
 import { getAggregatedLayers, getAggregatedNodes } from './utils/aggregate.js';
 
 function App() {
-  const latestEngineRenders = [
-    ['Text', 'output/dashboard/latest_cert_text.png'],
-    ['Title', 'output/dashboard/latest_cert_title.png'],
-    ['Multilingual', 'output/dashboard/latest_cert_multilingual.png'],
-    ['Lower third', 'output/dashboard/latest_cert_lower_third.png'],
-    ['Scale pop', 'output/dashboard/latest_anim_scale_pop.png'],
-  ];
-
   const [isAuthenticated, setIsAuthenticated] = useState(true);
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -555,42 +547,6 @@ function App() {
             <div className="loading-spinner" />
             <p>Loading telemetry details...</p>
           </div>
-        )}
-
-        {!loading && !runDetail && !error && (
-          <section className="glass-panel" style={{ padding: '28px', marginTop: '8px' }}>
-            <div className="content-header" style={{ marginBottom: '22px' }}>
-              <div>
-                <h1 className="run-title">Chronon3D Text Render Gallery</h1>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: 6 }}>
-                  Latest engine renders — telemetry database is currently empty.
-                </p>
-              </div>
-              <span className="preview-badge">PNG / 1920×1080</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
-              {latestEngineRenders.map(([label, path]) => (
-                <a
-                  key={path}
-                  href={outputPathToArtifactUrl(path)}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
-                >
-                  <figure style={{ margin: 0 }}>
-                    <div style={{ aspectRatio: '16 / 9', overflow: 'hidden', borderRadius: '10px', background: '#111827', border: '1px solid var(--border-color)' }}>
-                      <img
-                        src={outputPathToArtifactUrl(path)}
-                        alt={`${label} engine render`}
-                        style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
-                      />
-                    </div>
-                    <figcaption style={{ color: 'var(--text-primary)', fontWeight: 700, marginTop: 8 }}>{label}</figcaption>
-                  </figure>
-                </a>
-              ))}
-            </div>
-          </section>
         )}
 
         {runDetail && runDetail.run && (
