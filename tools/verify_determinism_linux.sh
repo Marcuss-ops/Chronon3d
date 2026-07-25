@@ -83,10 +83,10 @@ still_hash() {
 all_identical() {
     local hashes="$1" label="$2"
     local unique
-    unique=$(echo "$hashes" | tr ' ' '\n' | sort -u | wc -l)
+    unique=$(printf '%s\n' "$hashes" | tr ' ' '\n' | sed '/^$/d' | sort -u | wc -l)
     if [ "$unique" -eq 1 ]; then
         local first
-        first=$(echo "$hashes" | awk '{print $1}')
+        first=$(printf '%s\n' "$hashes" | awk 'NF {print $1; exit}')
         _gate_pass "$label (all=$first)"
     else
         _gate_fail "$label" "$unique unique hashes found (expected 1)"
