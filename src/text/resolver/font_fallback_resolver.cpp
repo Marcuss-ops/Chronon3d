@@ -30,7 +30,7 @@ namespace chronon3d::text::resolver {
 namespace {
 
 // Scan `bundled_fonts_root` (e.g. `<assets_root>/fonts`) for loadable
-// `.ttf` files. The path is supplied by the caller — typically the
+// TrueType/OpenType faces. The path is supplied by the caller — typically the
 // `RenderRuntime::config().assets_root` (or similar) — so behaviour is
 // independent of the current working directory.
 //
@@ -66,7 +66,12 @@ namespace {
     for (const auto& entry : iter) {
         std::error_code entry_ec;
         if (!entry.is_regular_file(entry_ec) || entry_ec) continue;
-        if (entry.path().extension() != ".ttf") continue;
+        // FreeType accepts TrueType collections as well as standalone TTF
+        // faces. CJK production fonts are commonly shipped as TTC files;
+        // excluding them silently made the cluster fallback look complete
+        // while dropping every CJK glyph to .notdef.
+        const auto extension = entry.path().extension();
+        if (extension != ".ttf" && extension != ".ttc" && extension != ".otf") continue;
         FontSpec spec;
         spec.font_path = entry.path().generic_string();
         // Populate family/style/weight from the face so downstream
