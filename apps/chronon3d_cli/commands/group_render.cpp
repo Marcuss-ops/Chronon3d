@@ -182,7 +182,7 @@ int run_validate(CliContext& ctx, const ValidateState& args) {
                     .duration = duration,
                     .width = width,
                     .height = height,
-                    .assets_root = assets_root,
+                    .assets_root = args.assets_root,
                     .assets = &ctx.assets
                 });
                 manifest.merge(value.evaluate(frame_context).asset_manifest());

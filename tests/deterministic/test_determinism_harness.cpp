@@ -26,10 +26,10 @@ Composition make_static_test_comp() {
         {.name = "DeterminismHarness", .width = 320, .height = 180, .duration = 10},
         [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.rect("bg", {.size = {320, 180}, .color = Color{0.1f, 0.15f, 0.2f, 1.0f}, .pos = {0, 0, 0}});
-            s.rect("red_box", {.size = {60, 60}, .color = Color::red(), .pos = {-80, -40, 0}});
-            s.rect("green_box", {.size = {60, 60}, .color = Color::green(), .pos = {0, -40, 0}});
-            s.rect("blue_box", {.size = {60, 60}, .color = Color::blue(), .pos = {80, -40, 0}});
+            s.rect("bg", {.size = {320, 180}, .color = Color{0.1f, 0.15f, 0.2f, 1.0f}, .pos = {160, 90, 0}});
+            s.rect("red_box", {.size = {60, 60}, .color = Color::red(), .pos = {80, 90, 0}});
+            s.rect("green_box", {.size = {60, 60}, .color = Color::green(), .pos = {160, 90, 0}});
+            s.rect("blue_box", {.size = {60, 60}, .color = Color::blue(), .pos = {240, 90, 0}});
             return s.build();
         }
     );

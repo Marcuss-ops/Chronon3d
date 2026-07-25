@@ -191,7 +191,9 @@ inline ScenarioMetrics compute_metrics(const Framebuffer& fb,
 
 constexpr int kVW = 800;
 constexpr int kVH = 600;
-constexpr const char* kVFont = "assets/fonts/Poppins-Bold.ttf";  // PR-A3 fix G1: kVFps removed (dead code)
+// Resolve assets from the repository root so this suite is independent of the
+// process working directory (ctest runs from the build tree).
+inline const std::string kVFont = bundled_font_path("assets/fonts/Poppins-Bold.ttf");
 
 inline TextDefinition make_opts(const std::string& text,
                                    f32 size,
@@ -507,10 +509,10 @@ TEST_CASE("VisualRegression/ScaleExtreme — small + huge dual composition") {
     auto renderer = make_renderer();
     auto tiny = make_opts("tiny", 8.0f, Color{0.0f, 0.0f, 0.5f, 1.0f},
                                               Vec2{160.0f, 30.0f});
-    tiny.frame.placement = TextPlacement{TextPlacementKind::Absolute, {-260.0f, 150.0f}};  // PR-A3 fix F: NW anchor
+    tiny.frame.placement = TextPlacement{TextPlacementKind::Absolute, {160.0f, 150.0f}};
     auto huge = make_opts("HUGE", 220.0f, Color{0.86f, 0.08f, 0.24f, 1.0f},
                                               Vec2{kVW * 0.95f, kVH * 0.95f});
-    huge.frame.placement = TextPlacement{TextPlacementKind::Absolute, {260.0f, -100.0f}};  // PR-A3 fix F: SE anchor
+    huge.frame.placement = TextPlacement{TextPlacementKind::Absolute, {600.0f, 400.0f}};
     auto comp = composition(
         {.name = "VR_ScaleExtreme", .width = kVW, .height = kVH, .duration = 1},
         [tiny, huge](const FrameContext& ctx) {
