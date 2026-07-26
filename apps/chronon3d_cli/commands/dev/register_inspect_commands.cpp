@@ -58,7 +58,9 @@ void register_inspect_commands(CLI::App& app, CliContext& ctx) {
         cmd->add_option("-o,--output", args.output, "Output file path (to check writability)");
         cmd->add_option("--json", args.json_file, "Path to output preflight JSON report");
         cmd->add_option("--assets-root", args.assets_root, "Root directory for resolving relative assets");
-        cmd->callback([state, &ctx]() { ctx.exit_code = command_preflight(ctx.registry, *state->args); });
+        cmd->callback([state, &ctx]() {
+            ctx.exit_code = command_preflight(ctx.registry, *state->args, ctx.assets);
+        });
     }
 
     // --- inspect-text (§12 FU09 / TICKET-SIMPLICITY-INSPECT-TEXT) ---

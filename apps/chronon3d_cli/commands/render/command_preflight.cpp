@@ -13,7 +13,8 @@
 namespace chronon3d {
 namespace cli {
 
-int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args) {
+int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args,
+                      AssetRegistry& assets) {
     if (!registry.contains(args.comp_id)) {
         spdlog::error("Unknown composition: {}", args.comp_id);
         return 1;
