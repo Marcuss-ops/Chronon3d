@@ -38,7 +38,18 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // On success, make_pipe_export_result() renames it to the final path.
     // On failure, the .partial file is cleaned up.
     session->original_output_path = opts.output.output;
-    session->opts.output.output += ".partial";
+    // Keep the media extension at the end so FFmpeg can infer the muxer
+    // (`file.mp4.partial` is not recognized as an MP4 output).
+    const auto final_output_path = std::filesystem::path(opts.output.output);
+    auto partial_output_path = final_output_path;
+    const auto extension = final_output_path.extension();
+    if (extension.empty()) {
+        partial_output_path += ".partial";
+    } else {
+        partial_output_path.replace_filename(
+            final_output_path.stem().string() + ".partial" + extension.string());
+    }
+    session->opts.output.output = partial_output_path.string();
     session->start_frame = start;
     session->end_frame = end;
     session->canvas_width = comp.width();
