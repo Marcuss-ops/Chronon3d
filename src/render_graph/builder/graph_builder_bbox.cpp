@@ -139,8 +139,6 @@ raster::BBox compute_layer_bbox(const LayerGraphItem& item, const RenderGraphCon
         }
 
         f32 spread = 0.0f;
-        if (node.shadow.enabled) spread = std::max(spread, node.shadow.radius);
-        if (node.glow.enabled)   spread = std::max(spread, node.glow.radius);
 
         raster::BBox node_bbox = processor->compute_world_bbox(node.shape, matrix, spread);
         if (!node_bbox.is_empty()) {

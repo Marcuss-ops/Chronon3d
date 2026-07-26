@@ -300,7 +300,6 @@ RenderNode RenderNodeFactory::text_run(
 ) {
     auto node = base(res, std::move(name));
     node.shape.set_type(ShapeType::TextRun);
-    node.font_engine = engine;
 
     // World transform from TextRunDefinition (deep-nested field paths).
     node.world_transform.position = Vec3{p.text.placement.offset.x, p.text.placement.offset.y, 0.0f};

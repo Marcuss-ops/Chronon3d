@@ -12,8 +12,6 @@ class SoftwareShapeProcessor final : public ShapeProcessor {
 public:
     void draw(const SoftwareProcessorContext& rctx, Framebuffer& fb, const RenderNode& node, const RenderState& state,
               const Camera& camera, i32 width, i32 height) override {
-        if (node.shadow.enabled)
-            draw_shadow(fb, node, state);
         const Color linear_color = node.color.to_linear();
         Color fill_color = linear_color;
         fill_color.a *= state.opacity;

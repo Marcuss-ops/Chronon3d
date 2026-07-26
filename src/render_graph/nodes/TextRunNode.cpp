@@ -171,15 +171,6 @@ std::optional<raster::BBox> TextRunNode::predicted_bbox(
     const Mat4 matrix = text_run::build_world_matrix(ctx, m_placement);
 
     f32 spread = 0.0f;
-    if (m_render_ref.shadow.enabled) {
-        spread = std::max(spread,
-            m_render_ref.shadow.radius
-            + std::max(std::abs(m_render_ref.shadow.offset.x),
-                       std::abs(m_render_ref.shadow.offset.y)));
-    }
-    if (m_render_ref.glow.enabled) {
-        spread = std::max(spread, m_render_ref.glow.radius);
-    }
     spread += 8.0f;
 
 #ifdef CHRONON3D_ENABLE_TEXT

@@ -3,7 +3,7 @@
 //
 // A4 — replaces the implicit "last node" pattern where `.at()`,
 // `.scale_node()`, `.rotate_node()`, `.anchor_node()`, `.node_opacity()`,
-// `.with_shadow()`, `.with_glow()` all mutated whichever node happened
+// polish setters previously mutated whichever node happened to be last.
 // to be the last one pushed into the layer/scene.
 //
 // With NodeHandle, every shape-creation method that returns a handle
@@ -66,16 +66,6 @@ public:
     }
 
     // ── Polish ─────────────────────────────────────────────────────────
-
-    NodeHandle& with_shadow(DropShadow shadow) {
-        node_->shadow = shadow;
-        return *this;
-    }
-
-    NodeHandle& with_glow(Glow glow) {
-        node_->glow = glow;
-        return *this;
-    }
 
     // ── Read-only access ───────────────────────────────────────────────
 

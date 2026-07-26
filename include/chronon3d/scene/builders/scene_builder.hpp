@@ -158,11 +158,6 @@ class SceneBuilder {
     SceneBuilder& anchor(Vec3 a);
     [[deprecated("Use last_node_handle().opacity(v) for explicit node access")]]
     SceneBuilder& opacity(f32 a);
-    [[deprecated("Use last_node_handle().with_shadow(s) for explicit node access")]]
-    SceneBuilder& with_shadow(DropShadow shadow);
-    [[deprecated("Use last_node_handle().with_glow(g) for explicit node access")]]
-    SceneBuilder& with_glow(Glow glow);
-
     // ── A4 — Explicit node handle for the last pushed node ────────────
     [[nodiscard]] NodeHandle last_node_handle();
 
