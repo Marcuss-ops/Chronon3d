@@ -130,13 +130,15 @@ void track_pipe_encoder_process(
     }
 }
 
-void warmup_pipe_renderer(
+chronon3d::Result<chronon3d::runtime::RendererWarmupResult,
+                  chronon3d::runtime::PreparationError>
+warmup_pipe_renderer(
     SoftwareRenderer & renderer,
     const Composition& comp,
     const FfmpegExportOptions& opts)
 {
     if (!opts.warmup.warmup_renderer) {
-        return;
+        return runtime::RendererWarmupResult{};
     }
 
     uint64_t saved_fb_alloc = 0;
@@ -163,7 +165,12 @@ void warmup_pipe_renderer(
     if (!preparation.ok()) {
         spdlog::error("[video] Render preparation FAILED:\n{}",
                       preparation.diagnostic());
-        return;
+        return preparation.preparation_error.value_or(
+            runtime::PreparationError{
+                .code = runtime::PreparationError::Code::InternalError,
+                .message = preparation.diagnostic(),
+                .phase = "render preparation",
+            });
     }
     const auto warmup_t1 = profiling::now();
 
@@ -231,6 +238,7 @@ void warmup_pipe_renderer(
     }
 
     chronon3d::telemetry::clear_telemetry_stores();
+    return preparation.warmup;
 }
 
 double pipe_write_blocked_ms(bool is_native, IVideoEncoder& encoder) {
