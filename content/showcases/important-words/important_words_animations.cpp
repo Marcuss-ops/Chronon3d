@@ -116,11 +116,9 @@ static void build_important_phrase(SceneBuilder& s,
         l.opacity_anim()
             .key(Frame{0}, 0.0f, EasingCurve{Easing::Linear})
             .key(start_frame, 1.0f, EasingCurve{Easing::OutCubic});
-        l.position_anim()
-            .key(Frame{0}, Vec3{0.0f, y_offset + 20.0f, 0.0f},
-                 EasingCurve{Easing::OutCubic})
-            .key(start_frame, Vec3{0.0f, y_offset, 0.0f},
-                 EasingCurve{Easing::OutCubic});
+        // Keep every row fixed while it fades in. This avoids transient
+        // overlap between neighboring phrases during the staggered reveal.
+        l.position(Vec3{0.0f, y_offset, 0.0f});
 
         l.text(node_name, TextDefinition{
             .content = {.value = std::string(phrase)},
