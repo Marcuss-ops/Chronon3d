@@ -51,11 +51,10 @@ SoftwareRenderer::SoftwareRenderer(runtime::RenderRuntime& rt, Config config)
     : m_config(std::move(config))
     , m_owned_runtime_storage{}
     , m_runtime(&rt)
+    , m_image_renderer(rt.image_cache())
     , m_software_registry(std::make_unique<renderer::SoftwareRegistry>())
     , m_text_render_resources(std::make_unique<TextRenderResources>())
 {
-    // Fase B B1 — wire per-runtime ImageCache (replaces process-wide singleton)
-    m_image_renderer.set_cache(&m_runtime->image_cache());
     m_runtime->image_cache().set_asset_resolver(&m_runtime->resolver());
     backends::software::register_builtin_processors(*m_software_registry);
 }
@@ -65,14 +64,12 @@ SoftwareRenderer::SoftwareRenderer(runtime::RenderRuntime& rt, Config config)
 // above with a pre-built `runtime::RenderRuntime` instance.
 SoftwareRenderer::SoftwareRenderer(Config config)
     : m_config(std::move(config))
+    , m_owned_runtime_storage(std::make_unique<runtime::RenderRuntime>(m_config))
+    , m_runtime(m_owned_runtime_storage.get())
+    , m_image_renderer(m_runtime->image_cache())
 {
-    m_owned_runtime_storage =
-        std::make_unique<runtime::RenderRuntime>(m_config);
-    m_runtime = m_owned_runtime_storage.get();
     m_software_registry = std::make_unique<renderer::SoftwareRegistry>();
     m_text_render_resources = std::make_unique<TextRenderResources>();
-    // Fase B B1 — wire per-runtime ImageCache (replaces process-wide singleton)
-    m_image_renderer.set_cache(&m_runtime->image_cache());
     m_runtime->image_cache().set_asset_resolver(&m_runtime->resolver());
     backends::software::register_builtin_processors(*m_software_registry);
 }
