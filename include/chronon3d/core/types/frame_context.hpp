@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/core/types/time.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>  // WP-9 PR 9.0 — full def for runtime->font_engine()
+#include <chronon3d/core/types/sample_time.hpp>
 #include <algorithm>
 #include <memory_resource>
 #include <optional>
@@ -9,7 +9,7 @@
 
 namespace chronon3d {
 
-// (RenderRuntime is now fully included — forward decl removed)
+namespace runtime { class RenderRuntime; }
 class AssetRegistry;  // forward declaration for migration path
 class FontEngine;     // TICKET-A4 follow-up — codex/agent2-font-bind-fixes:
                       // WP-8 PR 8.0 strict binding means composition
@@ -49,12 +49,9 @@ public:
     AssetRegistry* assets{nullptr};
     std::pmr::memory_resource* resource{std::pmr::get_default_resource()};
     // ── WP-9 PR 9.0 — Runtime accessor threaded into composition ctx ─
-    // P1-16: the canonical access path is `ctx.runtime->font_engine()`.
-    // The legacy `ctx.font_engine` direct field is kept for backward
-    // compatibility during the migration; it is populated automatically
-    // by Composition::evaluate_double when a runtime is supplied, and
-    // callers may still set it directly in hand-built FrameContext.
-    // New code should prefer `ctx.runtime->font_engine()`.
+    // The runtime is the canonical owner of shared render services. The
+    // direct pointer remains available for isolated contexts that do not
+    // have a runtime (for example, small authoring and unit-test scenes).
     FontEngine* font_engine{nullptr};
     const chronon3d::runtime::RenderRuntime* runtime{nullptr};
 

@@ -349,7 +349,7 @@ namespace text_run_materialize_detail {
 /// nodes, text audit, or any path without a SoftwareRenderer), falls back
 /// to a process-wide FontEngine backed by a DEFAULT-CONSTRUCTED
 /// AssetResolver (intentionally UN-mounted — the historical
-/// `mount(current_path())` wiring was REMOVED per audit §10).
+/// implicit-CWD mounting was REMOVED per audit §10).
 ///
 /// Behaviour after the unmount:
 ///   - Absolute font paths (e.g. "/usr/share/fonts/Inter.ttf") still
@@ -367,7 +367,7 @@ namespace text_run_materialize_detail {
 ///
 /// Cat-3 minimal-surface: the resolver remains a per-TU function-local
 /// static (no new public symbols introduced).  The previous `mount(
-/// current_path())` wiring becomes a no-op mount-then-unmount dance
+/// implicit-CWD wiring becomes a no-op mount-then-unmount dance
 /// removed entirely per audit §10.
 ///
 /// Thread safety: the C++11 magic-statics rule guarantees the

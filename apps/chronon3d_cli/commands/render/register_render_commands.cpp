@@ -42,7 +42,6 @@ void print_advanced_render_help(std::ostream& out) {
         "Chronon3D render — Advanced\n"
         "===========================\n\n"
         "Renderer pipeline:\n"
-        "  --graph / --no-graph\n"
         "  --no-dirty-rects\n"
         "  --tile-size <N>\n"
         "  --motion-blur\n"
@@ -196,8 +195,6 @@ void register_render_commands(CLI::App& app, CliContext& ctx) {
                        "Log graph preflight diagnostics before each frame");
     advanced->add_option("--diagnostic-plan-output", args.pipeline.diagnostic_plan_output,
                          "Write graph preflight report to a path pattern");
-    advanced->add_flag("--graph,!--no-graph", args.pipeline.use_modular_graph,
-                       "Use modular RenderGraph path");
     auto* no_dirty_rects = advanced->add_flag(
         "--no-dirty-rects", args.pipeline.no_dirty_rects,
         "Disable dirty-rectangle invalidation");

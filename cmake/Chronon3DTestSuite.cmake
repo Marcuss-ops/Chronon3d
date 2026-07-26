@@ -136,6 +136,18 @@ function(chronon3d_add_test_suite)
             "custom third-party deps like chronon3d_backend_text).")
     endif()
 
+    # Internal tests must never pull the monolithic SDK archive into their
+    # link closure. A few legacy call sites still spell the old SDK targets
+    # explicitly; strip those names at the canonical registration boundary
+    # so the SDK archive has one supported consumer tier.
+    if(NOT ARG_TIER STREQUAL "SDK")
+        list(REMOVE_ITEM ARG_LINK_TARGETS chronon3d_sdk chronon3d_sdk_impl)
+        list(FIND ARG_LINK_TARGETS chronon3d_pipeline _pipeline_index)
+        if(_pipeline_index EQUAL -1)
+            list(APPEND ARG_LINK_TARGETS chronon3d_pipeline)
+        endif()
+    endif()
+
     # Register sources to the GLOBAL property (preserves §12.1
     # behavior for the §12.3 gate).  Paths are canonicalised to
     # absolute paths so the Python gate (which walks the filesystem

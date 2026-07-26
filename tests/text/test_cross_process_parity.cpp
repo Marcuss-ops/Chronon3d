@@ -31,16 +31,10 @@
 //                        `ffmpeg -vframes 1` to extract frame 0 to a PNG,
 //                        loaded in-process → SSIM >= 0.98 + mean err
 //                        <= 3/255 (gated on `ffmpeg` on PATH).
-//   #4 Render graph:     in-process with use_modular_graph = true +
-//                        set_diagnostic_mode(true). Forces the explicit
-//                        graph path. NOT byte-exact hash with #1
-//                        (diagnostic mode allocates side-buffers).
+//   #4 Render graph:     in-process with diagnostic mode enabled.
 //                        Use SSIM >= 0.999 + mean_err <= 1/255 instead.
-//   #5 Direct pipeline:  in-process with use_modular_graph = false.
-//                        Forces the legacy scene-level path. NOT
-//                        byte-exact hash with #1 (different transform
-//                        matrices + caching). Use SSIM >= 0.999 +
-//                        mean_err <= 1/255 instead.
+//   #5 Render graph:     in-process through the normal production path.
+//                        Use SSIM >= 0.999 + mean_err <= 1/255 instead.
 //
 // Canary: content::certification::cert_title() → "CertTitle" composition
 // text="EPIC TITLE", Inter Bold 120pt centered, 1920×1080, dark grid bg.
@@ -364,8 +358,7 @@ PipelineResult render_pipeline_direct(const Composition& comp) {
 
     auto renderer = test::make_renderer_shared();
     RenderSettings settings;
-    settings.use_modular_graph = false;
-    renderer->set_settings(settings);
+        renderer->set_settings(settings);
     auto fb = renderer->render(comp, Frame{0});
     REQUIRE(fb != nullptr);
     out.fb = fb;

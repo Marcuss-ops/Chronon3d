@@ -11,7 +11,6 @@ TEST_CASE("benchmark_report to_json produces correct schema") {
     report.height = 1080;
     report.frames = 120;
     report.warmup = 10;
-    report.modular_graph = true;
     report.metrics.time_to_first_frame_ms = 120.0;
     report.metrics.avg_frame_ms = 14.5;
     report.metrics.median_frame_ms = 13.8;
@@ -56,7 +55,6 @@ TEST_CASE("benchmark_report to_json produces correct schema") {
     CHECK(js["render"]["height"] == 1080);
     CHECK(js["render"]["frames"] == 120);
     CHECK(js["render"]["warmup"] == 10);
-    CHECK(js["render"]["modular_graph"] == true);
 
     CHECK(js["metrics"]["time_to_first_frame_ms"] == doctest::Approx(120.0));
     CHECK(js["metrics"]["avg_frame_ms"] == doctest::Approx(14.5));
@@ -114,7 +112,6 @@ TEST_CASE("benchmark_report roundtrip from_json") {
     original.height = 720;
     original.frames = 60;
     original.warmup = 5;
-    original.modular_graph = false;
     original.metrics.time_to_first_frame_ms = 100.0;
     original.metrics.avg_frame_ms = 20.0;
     original.metrics.p50_frame_ms = 19.0;
@@ -146,7 +143,6 @@ TEST_CASE("benchmark_report roundtrip from_json") {
     CHECK(loaded.height == 720);
     CHECK(loaded.frames == 60);
     CHECK(loaded.warmup == 5);
-    CHECK(loaded.modular_graph == false);
     CHECK(loaded.metrics.time_to_first_frame_ms == doctest::Approx(100.0));
     CHECK(loaded.metrics.avg_frame_ms == doctest::Approx(20.0));
     CHECK(loaded.metrics.p50_frame_ms == doctest::Approx(19.0));

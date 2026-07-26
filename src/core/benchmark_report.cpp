@@ -32,7 +32,6 @@ nlohmann::json to_json(const BenchmarkReport& report, bool include_frame_times) 
     render["height"] = report.height;
     render["frames"] = report.frames;
     render["warmup"] = report.warmup;
-    render["modular_graph"] = report.modular_graph;
     js["render"] = render;
 
     nlohmann::json metrics;
@@ -116,7 +115,6 @@ BenchmarkReport benchmark_report_from_json(const nlohmann::json& js) {
         report.height = render.value("height", 0);
         report.frames = render.value("frames", 0);
         report.warmup = render.value("warmup", 0);
-        report.modular_graph = render.value("modular_graph", false);
     }
 
     if (js.contains("metrics") && js["metrics"].is_object()) {

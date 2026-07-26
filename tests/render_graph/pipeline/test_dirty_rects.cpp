@@ -77,8 +77,7 @@ TEST_CASE("Dirty Rectangles V1 Pixel-Perfect Equivalence & Counters Test") {
     // 2. Render frame 10 WITHOUT dirty rects (Baseline)
     auto renderer_baseline = test::make_renderer();
     RenderSettings settings_baseline;
-    settings_baseline.use_modular_graph = true;
-    settings_baseline.dirty.enabled = false;
+        settings_baseline.dirty.enabled = false;
     settings_baseline.dirty.use_bitmask = false;
     renderer_baseline.set_settings(settings_baseline);
 
@@ -88,8 +87,7 @@ TEST_CASE("Dirty Rectangles V1 Pixel-Perfect Equivalence & Counters Test") {
     // 3. Render frame 10 WITH dirty rects (Optimized)
     auto renderer_opt = test::make_renderer();
     RenderSettings settings_opt;
-    settings_opt.use_modular_graph = true;
-    settings_opt.dirty.enabled = true;
+        settings_opt.dirty.enabled = true;
     renderer_opt.set_settings(settings_opt);
 
     auto fb_opt = renderer_opt.render(comp, 10);
@@ -181,15 +179,13 @@ TEST_CASE("Dirty rectangles stay stable for geometric backgrounds across frames"
 
     auto renderer_baseline = test::make_renderer();
     RenderSettings settings_baseline;
-    settings_baseline.use_modular_graph = true;
-    settings_baseline.dirty.enabled = false;
+        settings_baseline.dirty.enabled = false;
     settings_baseline.dirty.use_bitmask = false;
     renderer_baseline.set_settings(settings_baseline);
 
     auto renderer_opt = test::make_renderer();
     RenderSettings settings_opt;
-    settings_opt.use_modular_graph = true;
-    settings_opt.dirty.enabled = true;
+        settings_opt.dirty.enabled = true;
     renderer_opt.set_settings(settings_opt);
 
     int total_mismatches = 0;

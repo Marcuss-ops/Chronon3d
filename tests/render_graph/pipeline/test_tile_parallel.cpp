@@ -83,8 +83,7 @@ TEST_CASE("TileParallel: Determinism — three independent renderers produce ide
     auto ra = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         s.dirty.use_bitmask = true;
         s.dirty.tile_size = 32;
         ra.set_settings(s);
@@ -94,8 +93,7 @@ TEST_CASE("TileParallel: Determinism — three independent renderers produce ide
     auto rb = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         s.dirty.use_bitmask = true;
         s.dirty.tile_size = 32;
         rb.set_settings(s);
@@ -105,8 +103,7 @@ TEST_CASE("TileParallel: Determinism — three independent renderers produce ide
     auto rc = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         s.dirty.use_bitmask = true;
         s.dirty.tile_size = 32;
         rc.set_settings(s);
@@ -141,8 +138,7 @@ TEST_CASE("TileParallel: Determinism — same renderer twice produces identical 
     auto renderer = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         s.dirty.use_bitmask = true;
         s.dirty.tile_size = 32;
         renderer.set_settings(s);
@@ -158,8 +154,7 @@ TEST_CASE("TileParallel: Determinism — same renderer twice produces identical 
     auto renderer2 = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         s.dirty.use_bitmask = true;
         s.dirty.tile_size = 32;
         renderer2.set_settings(s);
@@ -188,8 +183,7 @@ TEST_CASE("TileParallel: Determinism — parallel tiles match baseline (no tiles
     auto baseline = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = false;
+                s.dirty.enabled = false;
         baseline.set_settings(s);
     }
 
@@ -197,8 +191,7 @@ TEST_CASE("TileParallel: Determinism — parallel tiles match baseline (no tiles
     auto opt = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         s.dirty.use_bitmask = true;
         s.dirty.tile_size = 32;
         opt.set_settings(s);
@@ -276,8 +269,7 @@ TEST_CASE("TileParallel: Stress — medium resolution with multiple tile sizes")
         auto renderer = test::make_renderer();
         {
             RenderSettings s;
-            s.use_modular_graph = true;
-            s.dirty.enabled = true;
+                        s.dirty.enabled = true;
             s.dirty.use_bitmask = true;
             s.dirty.tile_size = tsize;
             renderer.set_settings(s);
@@ -335,8 +327,7 @@ TEST_CASE("TileParallel: Stress — full-screen dirty (all tiles dirty) still co
     auto baseline = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = false;
+                s.dirty.enabled = false;
         baseline.set_settings(s);
     }
 
@@ -344,8 +335,7 @@ TEST_CASE("TileParallel: Stress — full-screen dirty (all tiles dirty) still co
     auto opt = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         s.dirty.use_bitmask = true;
         s.dirty.tile_size = 32;
         opt.set_settings(s);
@@ -401,8 +391,7 @@ TEST_CASE("TileParallel: Stress — fine-grained tiles (tile_size=16), many fram
     auto renderer = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         s.dirty.use_bitmask = true;
         s.dirty.tile_size = 16;  // 8 × 6 = 48 tiles — many small tasks
         renderer.set_settings(s);

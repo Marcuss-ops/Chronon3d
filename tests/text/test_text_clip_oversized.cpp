@@ -51,8 +51,8 @@ TEST_CASE("TICKET-FALSE-GREEN-TEST-AUDIT: clip policy contains oversized text") 
         .color = Color::white()
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f}},
         .size = {box_w, box_h},
+        .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{960.0f, 540.0f}},
         .anchor = TextAnchor::Center,
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle,

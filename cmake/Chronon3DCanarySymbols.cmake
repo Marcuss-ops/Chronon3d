@@ -60,7 +60,7 @@
 #   [4] runtime        → chronon3d::RenderSession::arena          (class accessor; src/runtime/render_session.cpp)
 #   [5] graph          → chronon3d::graph::register_pipeline_graph_nodes (NS=chronon3d::graph; src/render_graph/pipeline/)
 #   [6] software_backend → chronon3d::SoftwareRenderer::buffer_ring (member fn; src/backends/software/software_renderer.cpp)
-#   [7] text_core      → chronon3d::glyph_atlas_lookup            (conditional CHRONON3D_ENABLE_TEXT; NS=chronon3d)
+#   [7] text_core      → chronon3d::build_text_run                 (conditional CHRONON3D_ENABLE_TEXT; canonical text compile entry)
 #   [8] diagnostics    → chronon3d::effects::EffectCatalog::freeze (NS=chronon3d::effects; src/effects/)
 #
 # BEST-EFFORT (1/9 NOT YET in merged archive — separate manifest-filter fix):
@@ -92,7 +92,7 @@ set(CHRONON3D_SDK_CANARY_SYMBOLS
     # Skip when text is OFF (`CHRONON3D_ENABLE_TEXT != ON`); matches
     # the consumer's `try_compile(CHRONON3D_HAVE_TEXT_CORE, …)` probe
     # in `tests/install_consumer/CMakeLists.txt`.
-    "text_core|chronon3d::glyph_atlas_lookup|CHRONON3D_ENABLE_TEXT|chronon3d_text_core"
+    "text_core|chronon3d::build_text_run|CHRONON3D_ENABLE_TEXT|chronon3d_text_core"
 
     # #area=diagnostics #lib=chronon3d_diagnostics  # GUARD=CHRONON3D_BUILD_DIAGNOSTICS
     # Skip when diagnostics are OFF (`CHRONON3D_BUILD_DIAGNOSTICS != ON`);

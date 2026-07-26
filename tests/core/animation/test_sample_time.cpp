@@ -2,8 +2,6 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/math/glm_types.hpp>
-#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
-#include <chronon3d/scene/model/camera/camera_rig.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 using namespace chronon3d;
 
@@ -286,64 +284,6 @@ TEST_CASE("AnimatedValue: Frame and SampleTime agree at integer frames") {
         Vec3 sample_val = v.evaluate(SampleTime::from_frame_int(f, rate));
         CHECK(glm::length(frame_val - sample_val) < 0.001f);
     }
-}
-
-// ===========================================================================
-// AnimatedCamera2_5D sub-frame evaluation
-// ===========================================================================
-TEST_CASE("AnimatedCamera2_5D: sub-frame evaluation") {
-    AnimatedCamera2_5D cam;
-    cam.position
-        .key(0, Vec3{0, 0, -1000})
-        .key(60, Vec3{100, 0, -1000});
-
-    // Integer frame
-    Camera2_5D c0 = cam.evaluate(Frame{0});
-    Camera2_5D c30 = cam.evaluate(Frame{30});
-    Camera2_5D c60 = cam.evaluate(Frame{60});
-
-    CHECK(c0.position.x == doctest::Approx(0.0f));
-    CHECK(c30.position.x == doctest::Approx(50.0f));
-    CHECK(c60.position.x == doctest::Approx(100.0f));
-
-    // Sub-frame: frame 30.5 should be slightly past midpoint
-    Camera2_5D c30_5 = cam.evaluate(SampleTime::from_frame(30.5, FrameRate{30, 1}));
-    CHECK(c30_5.position.x > 50.0f);
-    CHECK(c30_5.position.x < 100.0f);
-}
-
-TEST_CASE("AnimatedCamera2_5D: Frame and SampleTime agree at integer frames") {
-    AnimatedCamera2_5D cam;
-    cam.position
-        .key(0, Vec3{0, 0, -1000})
-        .key(60, Vec3{100, 200, -500});
-
-    const FrameRate rate{30, 1};
-    for (int f = 0; f <= 60; f += 15) {
-        Camera2_5D frame_cam = cam.evaluate(Frame{f});
-        Camera2_5D sample_cam = cam.evaluate(SampleTime::from_frame_int(f, rate));
-        CHECK(glm::length(frame_cam.position - sample_cam.position) < 0.001f);
-    }
-}
-
-// ===========================================================================
-// CameraRig sub-frame evaluation
-// ===========================================================================
-TEST_CASE("CameraRig: sub-frame evaluation") {
-    CameraRig rig;
-    rig.mode = CameraRigMode::OneNode;
-    rig.target.set(Vec3{0, 0, 0});
-    rig.tilt.key(0, 0.0f).key(60, 60.0f);
-
-    Camera2_5D c0 = rig.evaluate(Frame{0});
-    Camera2_5D c30 = rig.evaluate(Frame{30});
-
-    CHECK(c0.rotation.x == doctest::Approx(0.0f));
-    CHECK(c30.rotation.x == doctest::Approx(30.0f));
-
-    // Sub-frame
-    Camera2_5D c15_5 = rig.evaluate(SampleTime::from_frame(15.5, FrameRate{30, 1}));
-    CHECK(c15_5.rotation.x == doctest::Approx(15.5f).epsilon(0.01f));
 }
 
 // ===========================================================================

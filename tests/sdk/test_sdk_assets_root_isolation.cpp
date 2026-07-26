@@ -19,6 +19,8 @@
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <atomic>
+#include <thread>
 
 namespace c3d = chronon3d;
 namespace fs = std::filesystem;
@@ -107,8 +109,20 @@ c3d::sdk::RenderSettings deterministic_settings() {
     settings.deterministic = true;
     settings.dirty_rects = false;
     settings.motion_blur = false;
-    settings.max_threads = 1;
     return settings;
+}
+
+c3d::Composition empty_composition() {
+    return c3d::Composition{
+        c3d::CompositionSpec{
+            .name = "sdk_thread_contract",
+            .width = kWidth,
+            .height = kHeight,
+            .frame_rate = c3d::FrameRate{30, 1},
+            .duration = c3d::Frame{1},
+        },
+        [](const c3d::FrameContext&) -> c3d::Scene { return c3d::Scene{}; },
+    };
 }
 
 Rgb8 pixel_at(const c3d::sdk::RenderOutput& output, int x, int y) {
@@ -264,4 +278,45 @@ TEST_CASE("AssetResolver fails closed for missing relative assets") {
     }
 
     remove_test_root(test_root);
+}
+
+TEST_CASE("SDK RenderEngine serializes render and settings mutation") {
+    c3d::sdk::RenderEngine engine{deterministic_settings()};
+    const c3d::Composition composition = empty_composition();
+    std::atomic<bool> failed{false};
+
+    std::thread renderer([&] {
+        for (int i = 0; i < 12; ++i) {
+            const auto result = engine.render(composition, c3d::sdk::Frame{i});
+            if (!result.has_value() || result.value().pixels == nullptr ||
+                result.value().elapsed_milliseconds < 0.0) {
+                failed.store(true, std::memory_order_relaxed);
+            }
+        }
+    });
+    std::thread settings([&] {
+        for (int i = 0; i < 12; ++i) {
+            auto next = deterministic_settings();
+            next.width = kWidth + (i % 2);
+            next.height = kHeight + (i % 2);
+            engine.set_settings(next);
+        }
+    });
+
+    renderer.join();
+    settings.join();
+    CHECK_FALSE(failed.load(std::memory_order_relaxed));
+}
+
+TEST_CASE("SDK RenderSettings dimensions control the returned output") {
+    auto settings = deterministic_settings();
+    settings.width = 37;
+    settings.height = 29;
+    c3d::sdk::RenderEngine engine{settings};
+
+    const auto result = engine.render(empty_composition(), c3d::sdk::Frame{0});
+    REQUIRE(result.has_value());
+    CHECK(result.value().width == settings.width);
+    CHECK(result.value().height == settings.height);
+    CHECK(result.value().bytes_per_row == static_cast<std::size_t>(settings.width * 4));
 }

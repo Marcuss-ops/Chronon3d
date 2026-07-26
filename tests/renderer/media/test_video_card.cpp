@@ -97,8 +97,7 @@ TEST_CASE("VideoCard: video_size controls decoder dimensions") {
     auto comp = make_video_card_comp(0.0f, {320, 180});
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
     auto decoder = std::make_shared<SizeCaptureDecoder>();
     renderer.set_video_decoder(decoder);
     auto fb = renderer.render(comp, 0);

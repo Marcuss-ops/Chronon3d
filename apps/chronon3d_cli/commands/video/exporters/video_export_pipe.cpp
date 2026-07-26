@@ -30,7 +30,6 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     // Phase 2-4 — Warmup
     RenderSettings render_opts = settings;
-    render_opts.use_modular_graph = true;
     warmup_pipe_renderer(*session->renderer, comp, opts);
     warmup_pipe_pool(*session);
     session->sys_metrics.sample_cpu_start();

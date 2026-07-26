@@ -97,9 +97,13 @@ cleanup_register() {
     _CLEANUP_DIRS+=("$@")
     trap '
         rc=$?
-        for d in "${_CLEANUP_DIRS[@]}"; do
-            [[ -n "$d" && -d "$d" ]] && rm -rf "$d" 2>/dev/null || true
-        done
+        if [[ "${CHRONON3D_KEEP_CONSUMER_TEMP:-0}" != "1" ]]; then
+            for d in "${_CLEANUP_DIRS[@]}"; do
+                [[ -n "$d" && -d "$d" ]] && rm -rf "$d" 2>/dev/null || true
+            done
+        else
+            log "keeping consumer temp directories (CHRONON3D_KEEP_CONSUMER_TEMP=1)"
+        fi
         exit "$rc"
     ' EXIT
 }

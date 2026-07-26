@@ -30,7 +30,7 @@
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/core/types/frame.hpp>
-#include <chronon3d/core/types/frame_rate.hpp>
+#include <chronon3d/core/types/time.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
@@ -100,10 +100,6 @@ int main(int argc, char* argv[]) {
         spec,
         [&](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
-            if (ctx.runtime) {
-                s.font_engine(&ctx.runtime->font_engine());
-            }
-
             // SURFACE: image (background grid background — exercises
             // the shape/grid surface via LayerBuilder).
             s.layer("background", [&ctx](c3d::LayerBuilder& l) {
@@ -183,7 +179,6 @@ int main(int argc, char* argv[]) {
     settings.deterministic       = true;
     settings.dirty_rects         = false;
     settings.motion_blur         = false;
-    settings.max_threads         = 1;
 
     c3d::sdk::RenderEngine engine{settings};
     engine.set_assets_root(std::filesystem::path{assets_root});

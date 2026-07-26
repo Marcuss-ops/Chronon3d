@@ -7,7 +7,7 @@
 #include <chronon3d/geometry/mesh.hpp>
 #include <chronon3d/scene/model/shape/fill.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
-#include <chronon3d/scene/model/render/render_runtime.hpp>
+#include <chronon3d/scene/model/render/render_node_params.hpp>
 #include <vector>
 #include <memory>
 #include <string>

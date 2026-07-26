@@ -73,16 +73,8 @@ std::optional<RenderArgs> parse_batch_job_spec(std::string_view spec, std::strin
             return std::nullopt;
         }
     }
-    if (parts.size() > 4 && !parts[4].empty()) {
-        std::string bool_error;
-        args.pipeline.use_modular_graph = parse_bool(parts[4], false, &bool_error);
-        if (!bool_error.empty()) {
-            if (error) *error = bool_error;
-            return std::nullopt;
-        }
-    }
-    if (parts.size() > 5) {
-        if (error) *error = "expected at most 5 fields: composition|frames|output|diagnostic|graph";
+    if (parts.size() > 4) {
+        if (error) *error = "expected at most 4 fields: composition|frames|output|diagnostic";
         return std::nullopt;
     }
 

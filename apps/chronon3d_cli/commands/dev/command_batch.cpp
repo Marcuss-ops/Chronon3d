@@ -24,8 +24,7 @@ int command_batch(const CompositionRegistry& registry, const std::vector<std::st
             .comp_id = parsed->comp_id,
             .frames = parsed->frames,
             .output = parsed->output,
-            .diagnostic = parsed->pipeline.diagnostic,
-            .use_modular_graph = parsed->pipeline.use_modular_graph
+            .diagnostic = parsed->pipeline.diagnostic
         });
     }
 
@@ -36,7 +35,6 @@ int command_batch(const CompositionRegistry& registry, const std::vector<std::st
         args.frames = job.frames;
         args.output = job.output;
         args.pipeline.diagnostic = job.diagnostic;
-        args.pipeline.use_modular_graph = job.use_modular_graph;
         return command_render(registry, args) == 0;
     });
 

@@ -15,6 +15,7 @@
 // ============================================================================
 
 #include <chronon3d/timeline/compile_evaluate.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_descriptor_fingerprint.hpp>
 
 // Bodies-only headers — kept out of the public API to keep surface includes
 // transitively minimal.
@@ -189,8 +190,7 @@ compile_composition(const CompositionDefinition& definition,
 //
 // Camera2_5D resolution (P3-F):
 //   * Reads Camera2_5D from the compiled camera program
-//     (`CompiledComposition::camera_program->evaluate(...)`).  NEVER from
-//     `Composition::camera` (the legacy field, freshly `[[deprecated]]`).
+//     (`CompiledComposition::camera_program->evaluate(...)`).
 //     The legacy `redecompose_camera_from_descriptor` helper that
 //     inverse-project-a-program-onto-the-legacy-field has been REMOVED
 //     in P3-F alongside the mutable camera cache inside Composition.
@@ -242,8 +242,8 @@ evaluate(const CompiledComposition& compiled,
         return err;
     }
 
-    // P3-F: consume Camera2_5D from the compiled program.  NEVER from
-    // `Composition::camera`.  The `redecompose_camera_from_descriptor`
+    // P3-F: consume Camera2_5D from the compiled program.  Never use a
+    // legacy composition field.  The `redecompose_camera_from_descriptor`
     // helper was REMOVED in P3-F (no mutable state inside Composition).
     // Adapter-only: `CompiledComposition::camera_program` is null when the
     // caller supplied `CompositionDefinition` without a CameraDescriptor.

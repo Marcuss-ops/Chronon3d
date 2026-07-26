@@ -3,11 +3,9 @@
 # ─────────────────────────────────────────────────────────────────────
 # CAM-DOC 04 — Camera architecture boundary grep checks (6 total).
 #
-# Verifies that the new camera_v1 specialty is used in production code
-# and that the legacy authoring surface is only referenced from
-# sanctioned bridge adapter paths (camera_descriptor_adapters.*,
-# camera_rig_animated_presets.hpp, scene_builder.hpp method definition,
-# timeline_builder.{hpp,cpp}, and the existing legacy-shape tests).
+# Verifies that the camera_v1 descriptor/program is the only active
+# authoring and evaluation architecture. Retired symbols are checked
+# against the active source tree; no compatibility allowlist is needed.
 #
 # This gate blocks regression of the migration to the compiled
 # CameraProgram pipeline. Each check is independent; the script exits
@@ -144,13 +142,11 @@ if [ -n "$hits" ]; then
     echo "FAIL"; echo "$hits" | sed 's/^/    /'; FAILED=1
 else echo "PASS"; fi
 
-# ── 3. SceneBuilder::animated_camera() method call sites ────────────
-# SceneBuilder::animated_camera(cam) takes a legacy AnimatedCamera2_5D
-# and bridges it through evaluate(t). New production call sites MUST go
-# through the camera_v1 descriptor + compile_camera() pipeline.  The
-# method DEFINITION itself (scene_builder.hpp) is exempt; only CALL
-# sites (`animated_camera(\n` or `.animated_camera(`) are flagged.
-echo -n "  [3/6] SceneBuilder::animated_camera()   ... "
+# ── 3. Retired animated-camera entry point ───────────────────────────
+# The former animated_camera() API has been replaced by camera_pose(),
+# which stores a V1 descriptor on the Scene and uses the canonical source
+# evaluator for the authoring-time snapshot.
+echo -n "  [3/6] retired animated_camera()        ... "
 # Match either `animated_camera(<obj>)` (free-function call) or
 # `.animated_camera(` (method call).  We exclude the SceneBuilder method
 # DEFINITION line (`SceneBuilder& animated_camera(const`).

@@ -2,7 +2,6 @@
 #include "camera_visual_scenes.hpp"
 
 #include <chronon3d/scene/builders/builder_params.hpp>
-#include <chronon3d/scene/model/camera/camera_rig.hpp>
 using namespace chronon3d;
 
 namespace chronon3d::test {
@@ -90,14 +89,14 @@ Composition make_parallax_stack_composition() {
                 l.rect("card", {.size = {120.0f, 120.0f}, .color = Color::red(), .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color::red())});
             });
 
-            AnimatedCamera2_5D cam;
+            camera_v1::PoseTracksSource cam;
             cam.position
                 .key(0, Vec3{0.0f, 0.0f, -1000.0f})
                 .key(30, Vec3{200.0f, 0.0f, -1000.0f}, EasingCurve{Easing::InOutCubic});
             cam.zoom.set(1000.0f);
-            cam.point_of_interest.set({0.0f, 0.0f, 0.0f});
-            cam.point_of_interest_enabled = true;
-            s.animated_camera(cam);
+            cam.target.set({0.0f, 0.0f, 0.0f});
+            cam.use_target = true;
+            s.camera_pose(cam);
 
             return s.build();
         }
@@ -134,7 +133,7 @@ Composition make_orbit_two_node_composition() {
                 l.circle("dot", {.radius = 24.0f, .color = Color{0.15f, 0.85f, 1.0f, 1.0f}, .pos = {0.0f, 0.0f, 0.0f}, .fill = FillStyle::solid(Color{0.15f, 0.85f, 1.0f, 1.0f})});
             });
 
-            AnimatedCamera2_5D cam;
+            camera_v1::PoseTracksSource cam;
             const f32 r = 1200.0f;
             const f32 start_angle = glm::radians(-25.0f);
             const f32 end_angle = glm::radians(25.0f);
@@ -150,9 +149,9 @@ Composition make_orbit_two_node_composition() {
                 });
             }
             cam.zoom.set(1000.0f);
-            cam.point_of_interest.set({0.0f, 0.0f, 0.0f});
-            cam.point_of_interest_enabled = true;
-            s.animated_camera(cam);
+            cam.target.set({0.0f, 0.0f, 0.0f});
+            cam.use_target = true;
+            s.camera_pose(cam);
 
             return s.build();
         }

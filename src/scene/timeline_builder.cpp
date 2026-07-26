@@ -33,7 +33,7 @@ TimelineBuilder& TimelineBuilder::with(std::function<void(LayerBuilder&)> fn) {
     return *this;
 }
 
-TimelineBuilder& TimelineBuilder::with_camera(const AnimatedCamera2_5D& cam) {
+TimelineBuilder& TimelineBuilder::with_camera_pose(const camera_v1::PoseTracksSource& cam) {
     if (!m_tracks.empty()) {
         m_tracks[m_cursor].camera = cam;
         m_tracks[m_cursor].is_camera = true;
@@ -57,7 +57,7 @@ void TimelineBuilder::apply() {
     // 1. Build every track into the scene
     for (const auto& track : m_tracks) {
         if (track.is_camera && track.camera) {
-            m_scene.animated_camera(*track.camera);
+            m_scene.camera_pose(*track.camera);
         } else if (track.layer_fn) {
             m_scene.layer(track.name, [&](LayerBuilder& lb) {
                 if (track.duration >= Frame{0}) {

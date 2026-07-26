@@ -180,12 +180,11 @@ Framebuffer render_two_node_target_lock_contact_sheet(
                           .pos = {-8, -8, 0}});
         });
 
-        s.camera_rig("main_rig", [=](CameraRigBuilder& rig) {
-            rig.two_node("camera_target");
-            rig.orbit_yaw(0, 0.0f, 60, 60.0f, EasingCurve{Easing::InOutCubic});
-            rig.dolly(0, -200.0f, 60, -100.0f, EasingCurve{Easing::InOutCubic});
-            rig.fov(50.0f);
-        });
+        s.camera()
+            .enable()
+            .position({0.0f, 0.0f, -200.0f})
+            .target("camera_target")
+            .fov(50.0f);
 
         return s.build();
     });

@@ -152,8 +152,11 @@ void FrameGraphCompiler::build_node_metadata(
     }
 
     // ── Work Package 4.4 — input-aware refinement (Merkle-style) ────────
-    for (const auto& level : compiled.levels) {
-        for (GraphNodeId id : level) {
+    // Resolve from sinks toward sources so consumer identities already carry
+    // their own downstream context when they are folded into a producer.
+    for (auto level_it = compiled.levels.rbegin();
+         level_it != compiled.levels.rend(); ++level_it) {
+        for (GraphNodeId id : *level_it) {
             if (id >= node_count) continue;
             auto& node_info = compiled.nodes[id];
             if (!node_info.reachable) continue;
@@ -172,7 +175,41 @@ void FrameGraphCompiler::build_node_metadata(
                 input_sids.push_back(input_info.stable_node_id.value);
             }
             std::sort(input_sids.begin(), input_sids.end());
+            // Include both sides of the local graph neighbourhood.  A source
+            // node can be materialised more than once for a derived pass
+            // (for example, a shadow caster): those instances may have the
+            // same layer/name/kind and no inputs, but they feed different
+            // consumers.  Folding sorted consumer identities keeps the ID
+            // content-derived without using the volatile graph-node index.
+            std::vector<uint64_t> consumer_sids;
+            consumer_sids.reserve(children[id].size());
+            for (GraphNodeId child_id : children[id]) {
+                if (child_id >= node_count) continue;
+                const auto& child_info = compiled.nodes[child_id];
+                if (!child_info.reachable ||
+                    child_info.stable_node_id == kInvalidStableNodeId) {
+                    continue;
+                }
+                consumer_sids.push_back(child_info.stable_node_id.value);
+            }
+            std::sort(consumer_sids.begin(), consumer_sids.end());
+
+            constexpr uint64_t kInputDomain = 0x494e505554ULL;    // INPUT
+            constexpr uint64_t kConsumerDomain = 0x434f4e53554d4552ULL; // CONSUMER
+            h ^= kInputDomain;
+            h *= 0x100000001b3ULL;
+            h ^= static_cast<uint64_t>(input_sids.size());
+            h *= 0x100000001b3ULL;
             for (uint64_t sid : input_sids) {
+                h ^= sid;
+                h *= 0x100000001b3ULL;
+                folded = true;
+            }
+            h ^= kConsumerDomain;
+            h *= 0x100000001b3ULL;
+            h ^= static_cast<uint64_t>(consumer_sids.size());
+            h *= 0x100000001b3ULL;
+            for (uint64_t sid : consumer_sids) {
                 h ^= sid;
                 h *= 0x100000001b3ULL;
                 folded = true;
@@ -192,9 +229,29 @@ void FrameGraphCompiler::build_node_metadata(
             if (sid == kInvalidStableNodeId) continue;
             auto [it, inserted] = seen.emplace(sid, static_cast<GraphNodeId>(i));
             if (!inserted) {
+                const auto describe_consumers = [&](GraphNodeId node_id) {
+                    std::string text;
+                    for (GraphNodeId child_id : compiled.nodes[node_id].consumers) {
+                        if (!text.empty()) text += ",";
+                        text += std::to_string(child_id);
+                        if (child_id < compiled.nodes.size()) {
+                            text += ":" + compiled.nodes[child_id].name;
+                        }
+                    }
+                    return text.empty() ? std::string{"-"} : text;
+                };
                 throw std::runtime_error(
                     "FrameGraphCompiler: stable_node_id collision between nodes "
-                    + std::to_string(it->second) + " and " + std::to_string(i));
+                    + std::to_string(it->second) + " (layer='"
+                    + compiled.nodes[it->second].layer_id + "', name='"
+                    + compiled.nodes[it->second].name + "', kind="
+                    + std::to_string(static_cast<int>(compiled.nodes[it->second].kind))
+                    + ") and " + std::to_string(i) + " (layer='"
+                    + compiled.nodes[i].layer_id + "', name='"
+                    + compiled.nodes[i].name + "', kind="
+                    + std::to_string(static_cast<int>(compiled.nodes[i].kind))
+                    + ", consumers=" + describe_consumers(i) + ")"
+                    + "; first_consumers=" + describe_consumers(it->second));
             }
         }
     }

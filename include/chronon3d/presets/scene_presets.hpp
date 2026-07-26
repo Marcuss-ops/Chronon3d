@@ -4,8 +4,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
-#include <chronon3d/scene/model/camera/camera_rig.hpp>
-#include <chronon3d/scene/camera/camera_rig_animated_presets.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_presets.hpp>
 #include <chronon3d/animation/effects/stagger.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/text_placement.hpp>
@@ -16,7 +15,7 @@ namespace chronon3d::scene_presets {
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Scene Presets — professional pre-composed scenes using the Chronon3D motion
-// system, camera rig, stagger, and text animator.
+// system, camera V1, stagger, and text animator.
 //
 // Each preset returns a Composition that can be evaluated at any frame.
 //

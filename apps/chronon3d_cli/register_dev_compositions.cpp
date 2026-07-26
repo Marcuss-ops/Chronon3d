@@ -23,7 +23,7 @@
 //   - ChrononGlowFinalAE_NoGlow             (content/compositions/chronon_glow_final.hpp)
 //   - AECameraTextParity                    (content/experimental/ae-parity/, DIAGNOSTICS gated)
 //
-// Step 8 §A: `chronon-glow-final-portrait` was MOVED to PRODUCTION as
+// Step 8 §A: the portrait composition was moved to production as
 // `ChrononGlowFinalAEPortrait` (the canonical name) — see
 // apps/chronon3d_cli/register_runtime_compositions.cpp.
 // ============================================================================
@@ -117,7 +117,7 @@ void register_dev_compositions(CompositionRegistry& registry) {
     // (which is in content/ and unchanged).  DEV-only per user spec.
     test::glow_ab::register_glow_ab_compositions(registry);
 
-    // (6) Step 8 §A: REMOVED `chronon-glow-final-portrait` from DEV.
+    // (6) Step 8 §A: portrait composition is production-owned.
     // The portrait variant is now `ChrononGlowFinalAEPortrait` in PRODUCTION
     // (registered via register_runtime_compositions.cpp).  The DEV-only
     // alias was removed per Cat-3 anti-dup (single source of truth: the

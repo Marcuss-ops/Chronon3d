@@ -28,7 +28,6 @@ struct RenderSettings {
     bool motion_blur{false};           ///< Enable analogue motion-blur path
     bool dirty_rects{false};           ///< Use dirty-rect optimisation
     bool deterministic{false};         ///< Force deterministic scheduling
-    int  max_threads{0};               ///< 0 = auto-detect
 };
 
 } // namespace chronon3d::sdk

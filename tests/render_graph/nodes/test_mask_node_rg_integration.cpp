@@ -33,8 +33,7 @@ namespace mask_rg_impl {
 SoftwareRenderer make_mask_rg_renderer() {
     auto r = test::make_renderer();
     RenderSettings s;
-    s.use_modular_graph = true;
-    r.set_settings(s);
+        r.set_settings(s);
     return r;
 }
 }  // namespace mask_rg_impl

@@ -4,6 +4,7 @@
 #include <chronon3d/api/scene.hpp>
 #include <chronon3d/api/renderer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/text/text_definition.hpp>
 using namespace chronon3d;
 
 
@@ -54,7 +55,7 @@ TEST_CASE("Shape model and SceneBuilder") {
         Composition comp(spec, [](const FrameContext& ctx) {
             SceneBuilder s(ctx.resource);
             s.layer("text-layer", [](LayerBuilder& l) {
-                // PR3→PR4 migration: TextSpec is composable.  Top-level
+                // PR3→PR4 migration: TextDefinition is composable.  Top-level
                 // `text` flat field replaced by `.content.value`; remaining
                 // text-layout knobs live inside `.layout`.
                 //
@@ -71,7 +72,7 @@ TEST_CASE("Shape model and SceneBuilder") {
                     // order: box, anchor, centering_mode, align, vertical_align,
                     // wrap, overflow, line_height, tracking, auto_fit,
                     // min_font_size, max_font_size, max_lines, ellipsis.
-                    .layout  = {
+                    .frame  = {
                         .wrap          = TextWrap::Character,
                         .overflow      = TextOverflow::Ellipsis,
                         .auto_fit      = true,

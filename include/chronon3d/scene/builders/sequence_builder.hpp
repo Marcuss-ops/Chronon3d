@@ -121,8 +121,8 @@ public:
 
     [[nodiscard]] CameraApi camera() { return m_builder.camera(); }
 
-    SequenceBuilder& animated_camera(const AnimatedCamera2_5D& cam) {
-        m_builder.animated_camera(cam);
+    SequenceBuilder& camera_pose(const camera_v1::PoseTracksSource& cam) {
+        m_builder.camera_pose(cam);
         return *this;
     }
 

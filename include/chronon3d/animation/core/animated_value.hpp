@@ -371,6 +371,13 @@ public:
         return m_keyframes;
     }
 
+    /// Read-only access to the constant value used when no keyframe applies.
+    /// This is part of the value's semantic state; callers such as
+    /// deterministic fingerprints must not infer it from keyframes.
+    [[nodiscard]] const T& default_value() const noexcept {
+        return m_default_value;
+    }
+
     void clear() { m_keyframes.clear(); m_roving_dirty = true; m_auto_bezier_dirty = false; }
 
     // ── AnimationTrack<T> declarative builder────────────────────────

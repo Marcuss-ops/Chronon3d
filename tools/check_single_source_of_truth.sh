@@ -15,7 +15,7 @@
 #   2. Placement    : canonical = struct TextPlacement (include/chronon3d/text/text_placement.hpp)
 #                     + HARD-CAP for TICKET-TEXT-LEGACY-POSITION-ROT pre-existing rot
 #   3. Layout       : canonical = class TextLayoutEngine (include/chronon3d/backends/text/text_layout_engine.hpp)
-#   4. Animation    : canonical = motion::Timeline<T> (include/chronon3d/animation/motion/timeline.hpp)
+#   4. Animation    : canonical = MotionTimeline<T> (include/chronon3d/animation/motion/motion.hpp)
 #   5. Composition  : canonical = struct CompositionDescriptor (include/chronon3d/timeline/composition_descriptor.hpp)
 #                     + HARD-CAP for pre-existing `class Composition` rot
 #   6. Render       : canonical = class RenderJob (include/chronon3d/timeline/render_job.hpp)
@@ -167,7 +167,7 @@ audit_concept "3. Layout" "class TextLayoutEngine" "include/chronon3d/backends/t
     "^class TextLayoutCompiler\b" "^class LayoutEngine\b"
 
 # 4. Animation (soft-cap=0: strict)
-audit_concept "4. Animation" "motion::Timeline" "include/chronon3d/animation/motion/" 1 0 \
+audit_concept "4. Animation" "MotionTimeline" "include/chronon3d/animation/motion/motion.hpp" 1 0 \
     "^class AnimationSampler\b" "^class MotionSampler\b"
 
 # 5. Composition (with hard-cap for pre-existing `class Composition` rot)

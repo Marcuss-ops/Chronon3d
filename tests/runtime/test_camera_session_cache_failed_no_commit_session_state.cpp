@@ -76,9 +76,12 @@ bool camera_pos_is_sentinel(const Camera2_5D& c) {
         && c.position.z == doctest::Approx(kSentinelPos.z).epsilon(1e-5f);
 }
 
-/// Fixture for subcase (a): DistanceConstraint + Stop policy.  Position
-/// ramps from Frame 10 → Frame 11; Frame 10 PASSES (distance 1000 > 10),
-/// Frame 11 lands EXACTLY at POI (distance-zero, FAIL).
+/// Fixture for subcase (a): DistanceConstraint + Stop policy.  Under the
+/// current Camera V1 contract, PoseTracksSource owns the evaluated target
+/// (base.point_of_interest is not consulted once a pose source is active).
+/// The source therefore explicitly enables its target and keeps it at the
+/// origin: Frame 10 PASSES (distance 1000 > 10), Frame 11 lands EXACTLY at
+/// POI (distance-zero, FAIL).
 CameraDescriptor make_failing_at_target1_desc(const std::string& id_str) {
     CameraDescriptor desc;
     desc.id = id_str;
@@ -93,7 +96,8 @@ CameraDescriptor make_failing_at_target1_desc(const std::string& id_str) {
     // Two keyframes so the linear interpolation at Frame 11 lands exactly at POI.
     pts.position.key(Frame{kTarget0}, Vec3{0.0f, 0.0f, -1000.0f}, Easing::Linear);
     pts.position.key(Frame{kTarget1}, Vec3{0.0f, 0.0f,     0.0f}, Easing::Linear);
-    pts.use_target = false;
+    pts.target = AnimatedValue<Vec3>{Vec3{0.0f, 0.0f, 0.0f}};
+    pts.use_target = true;
     desc.source = pts;
     desc.constraints.push_back(
         DistanceConstraint{/*min_distance=*/10.0f, /*max_distance=*/1000.0f});
@@ -197,9 +201,9 @@ TEST_CASE("runtime_camera_session_cache_failed_no_commit_session_state — "
                                        kTarget1, kSessStateFps);
         auto ctx_a = make_ctx(Frame{kTarget1});
         auto res_a = program.evaluate(ctx_a, lease_a.session());
+        REQUIRE_FALSE(res_a.has_value());  // gate feature: Frame 11 = distance-zero.
         CAPTURE(res_a.error().code);  // docs which failure branch was taken.
         CAPTURE(res_a.error().message);
-        REQUIRE_FALSE(res_a.has_value());  // gate feature: Frame 11 = distance-zero.
         CHECK(res_a.error().code ==
               CameraErrorCode::ConstraintFailure);
         CHECK(res_a.error().message.find("distance-zero") != std::string::npos);

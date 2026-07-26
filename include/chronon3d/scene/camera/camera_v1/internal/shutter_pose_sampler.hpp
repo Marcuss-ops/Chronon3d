@@ -10,12 +10,8 @@
 // accumulating the resulting framebuffers (see
 // `src/render_graph/pipeline/composition.cpp :: render_composition_frame()`).
 //
-// PR1: Renamed from `CameraMotionBlurIntegrator` and moved to `internal/`
-// to make the boundary explicit: this is a pose-side helper used by
-// CameraProgram / CameraDescriptor, NOT a public API for application code.
-// The public-legacy header `camera_motion_blur.hpp` re-exports the class
-// as a typedef `CameraMotionBlurIntegrator = ShutterPoseSampler` so 1.x
-// callers compile unchanged.
+// This is a pose-side helper used by CameraProgram / CameraDescriptor,
+// not an application-facing API.
 //
 // Sub-sample distribution responsibilities (now leverages
 // chronon3d::temporal::generate_temporal_samples):

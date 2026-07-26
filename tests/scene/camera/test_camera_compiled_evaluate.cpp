@@ -9,11 +9,8 @@
 //                                                 meaningful Camera2_5D
 //                                                 (no empty result, no
 //                                                 early bail).
-//   [2] parity compiled vs non-compiled       — field-by-field comparison
-//                                                 between the V1 compiled
-//                                                 path and the legacy
-//                                                 AnimatedCamera2_5D path
-//                                                 on equivalent inputs.
+//   [2] canonical source execution            — PoseTracksSource is evaluated
+//                                                 through the compiled V1 path.
 //   [3] golden struct hash determinism        — 5 fresh compile+evaluate
 //                                                 rounds over identical
 //                                                 inputs produce bit-
@@ -56,9 +53,7 @@
 #include <chronon3d/scene/camera/camera_v1/camera_motion_context.hpp>
 
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
-#include <chronon3d/scene/model/camera/camera_rig.hpp>
 
-#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 
 #include <chronon3d/animations/camera_motion_params.hpp>
 
@@ -150,7 +145,7 @@ CameraDescriptor make_dolly_descriptor() {
     // use_target = true so point_of_interest_enabled flag is set (matches
     // the [1] CAT-1 test expectation); no quaternion look-at is applied
     // because orientation = FixedOrientation (single-look-at route is
-    // exercised in test_camera_descriptor_adapters.cpp Test 2).
+    // exercised by the canonical compiled camera tests).
     desc.source = PoseTracksSource{};
     {
         PoseTracksSource pts;
@@ -167,25 +162,9 @@ CameraDescriptor make_dolly_descriptor() {
     // Orientation: FixedOrientation so rotation comes from PoseTracksSource
     // keyframes verbatim.  This isolates the deterministic PoseTracksSource
     // pipeline (the LookAtPoint route is exercised in test_camera_descriptors'
-    // test_camera_descriptor_adapters.cpp separately).
+    // the dedicated camera source tests separately).
     desc.orientation = FixedOrientation{};
     return desc;
-}
-
-// Build the equivalent legacy AnimatedCamera2_5D for parity tests.
-AnimatedCamera2_5D make_legacy_dolly() {
-    AnimatedCamera2_5D cam;
-    cam.enabled = true;
-    EasingCurve easing = Easing::InOutCubic;
-    cam.position.key(Frame{0},  Vec3{0.0f, 0.0f, -1200.0f})
-                .key(Frame{90}, Vec3{0.0f, 0.0f, -800.0f}, easing);
-    cam.rotation.key(Frame{0},  Vec3{0.0f, 0.0f, 0.0f})
-                .key(Frame{90}, Vec3{10.0f, 0.0f, 0.0f}, easing);
-    cam.zoom.set(1000.0f);
-    cam.fov_deg.set(50.0f);
-    cam.point_of_interest.set(Vec3{0.0f, 0.0f, 0.0f});
-    cam.point_of_interest_enabled = true;
-    return cam;
 }
 
 Camera2_5D run_compiled_cam(const CameraProgram& program, Frame f) {
@@ -249,50 +228,6 @@ TEST_CASE("CAM-DOC 04 [1]: compiled CameraProgram::evaluate() produces a populat
     // Diagnostics: no error-level entries from a well-formed descriptor.
     // NOTE: empty-id descriptors are now rejected at compile time (STEP 8
     // validation), so this sub-test was removed.
-}
-
-// ════════════════════════════════════════════════════════════════════
-// [2] parity compiled vs non-compiled — field-by-field at 30 SampleTime pts.
-// ════════════════════════════════════════════════════════════════════
-TEST_CASE("CAM-DOC 04 [2]: parity compiled pipeline == legacy AnimatedCamera2_5D (field-by-field)") {
-    // Build both pipelines from equivalent inputs.  The legacy
-    // AnimatedCamera2_5D has no direct "LookAtPoint" intent — its
-    // `point_of_interest_enabled` flag plays that role.  We assert
-    // point_of_interest equality and the transform field-by-field.
-    AnimatedCamera2_5D legacy = make_legacy_dolly();
-    CameraDescriptor desc = make_dolly_descriptor();
-    CameraProgram program = compile_or_die_compiled_evaluate(desc);
-
-    // Box-tolerance: linear interpolation between keyframes vs exact
-    // keyframe evaluation may diverge up to ~0.5 frame * easing.  We
-    // pick a frame-coincident set (every integer frame 0..90) so that
-    // keyframe evaluation in the legacy side coincides with the V1
-    // side's keyframe evaluation, allowing a tight ε.
-    constexpr float kEpsilon = 1e-3f;
-    for (Frame f{0}; f <= Frame{90}; f = Frame{f.integral() + 3}) {
-        Camera2_5D legacy_cam = legacy.evaluate(f);
-
-        auto cam_parity = run_compiled_cam(program, f);
-
-        // Position, rotation, zoom are the parity-critical fields.
-        CAPTURE(f.integral());
-        CHECK(cam_parity.position.x ==
-              doctest::Approx(legacy_cam.position.x).epsilon(kEpsilon));
-        CHECK(cam_parity.position.y ==
-              doctest::Approx(legacy_cam.position.y).epsilon(kEpsilon));
-        CHECK(cam_parity.position.z ==
-              doctest::Approx(legacy_cam.position.z).epsilon(kEpsilon));
-        CHECK(cam_parity.rotation.x ==
-              doctest::Approx(legacy_cam.rotation.x).epsilon(kEpsilon));
-        CHECK(cam_parity.rotation.y ==
-              doctest::Approx(legacy_cam.rotation.y).epsilon(kEpsilon));
-        CHECK(cam_parity.rotation.z ==
-              doctest::Approx(legacy_cam.rotation.z).epsilon(kEpsilon));
-        CHECK(cam_parity.zoom ==
-              doctest::Approx(legacy_cam.zoom).epsilon(kEpsilon));
-        CHECK(cam_parity.point_of_interest_enabled ==
-              legacy_cam.point_of_interest_enabled);
-    }
 }
 
 // ════════════════════════════════════════════════════════════════════

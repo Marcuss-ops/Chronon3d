@@ -1,4 +1,5 @@
 #include "authoring_dsl_test_support.hpp"
+#include <chronon3d/assets/asset_registry.hpp>
 
 using chronon3d::SampleTime;
 using chronon3d::authoring::Layer;

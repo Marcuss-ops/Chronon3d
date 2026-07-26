@@ -2,9 +2,7 @@
 
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
-#include <chronon3d/scene/model/camera/camera.hpp>
 #include <chronon3d/scene/model/core/scene.hpp>
-#include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <functional>
@@ -23,8 +21,7 @@
 // The Composition shape that survives is:
 //
 //   * CompositionSpec (the static name / width / height / frame_rate / duration).
-//   * Composition class public API (`evaluate` + Scene fn + legacy
-//     `[[deprecated]] Camera camera` field).
+//   * Composition class public API (`evaluate` + Scene fn).
 //   * Composition's canonical authoring-time camera surface:
 //     `default_camera_descriptor(CameraDescriptor)` setter,
 //     `default_camera_descriptor()` const getter,
@@ -34,7 +31,7 @@
 //   * `Composition::default_camera_program()`          — lazy compile cache.
 //   * `Composition::invalidate_default_camera_program()` — cache reset.
 //   * `Composition::redecompose_camera_from_descriptor(SampleTime)` — inverse
-//     projection onto the legacy `Camera camera` field.
+//     projection onto the removed mutable camera state.
 //
 // New V2 staging path (the canonical path going forward):
 //   `CompositionDefinition` → `chronon3d::compile_composition(...)` →
@@ -96,47 +93,18 @@ public:
         return result;
     }
 
-    [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]
-    [[nodiscard]] Scene evaluate(Frame frame,
-                                 std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
-        return evaluate(SampleTime::from_frame_int(frame, m_spec.frame_rate), res);
-    }
-
-    [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]
-    [[nodiscard]] Scene evaluate(SampleTime time,
-                                 std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
-        return evaluate_double(time, res);
-    }
-
-    [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]
-    [[nodiscard]] Scene evaluate(Frame frame, f32 frame_time,
-                                 std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
-        return evaluate_double(SampleTime::from_frame(
-            static_cast<double>(frame) + static_cast<double>(frame_time),
-            m_spec.frame_rate), res);
-    }
-
-    // codex/agent2-font-bind-fixes — engine-aware evaluate overload.
-    // Same semantics as the 3-arg version above, but additionally threads
-    // the per-frame FontEngine from the render pipeline
-    // (SoftwareRenderer::font_engine()) into FrameContext::font_engine,
-    // which is then auto-forwarded by SceneBuilder(ctx) onto every
-    // LayerBuilder.  Without this overload the WP-8 PR 8.0 strict
-    // binding in `materialize_text_run_shape` rejects the resolve_engine
-    // lookup (engine=nullptr if no other binding path) and text layers
-    // render blank.  Existing 1/2/3-arg overloads continue to default
-    // engine=nullptr for backwards compatibility.
-    //
-    // Parameter ordering: engine BEFORE memres (engine is the more
-    // semantically important binding; memres is defaulted so callers
-    // don't need to write `get_default_resource()` everywhere).
-    [[deprecated("Use timeline V2: compile_composition() + evaluate() instead")]]
-    [[nodiscard]] Scene evaluate(Frame frame, f32 frame_time,
-                                 FontEngine* engine,
-                                 std::pmr::memory_resource* res = std::pmr::get_default_resource()) const {
-        return evaluate_double(SampleTime::from_frame(
-            static_cast<double>(frame) + static_cast<double>(frame_time),
-            m_spec.frame_rate), res, engine);
+    /// Evaluate one integral frame using the composition's immutable spec.
+    /// This is the supported convenience entry point; sub-frame evaluation
+    /// and service injection belong to an explicit FrameContext.
+    [[nodiscard]] Scene evaluate(Frame frame) const {
+        const auto sample = SampleTime::from_frame_int(frame, m_spec.frame_rate);
+        return evaluate(make_frame_context({
+            .global_time = sample,
+            .duration = m_spec.duration,
+            .width = m_spec.width,
+            .height = m_spec.height,
+            .assets_root = m_spec.assets_root,
+        }));
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -153,9 +121,9 @@ public:
     //      SINGLE immutable compilation.
     //   4. Per frame, call `chronon3d::evaluate(compiled, ctx, f)`.
     //
-    // The legacy `[[deprecated]] Camera camera` field stays in place for
-    // forward-compat with classic golden harnesses; it's NEVER read by
-    // the post-P3-F render path.
+    // The removed mutable Camera field is intentionally not part of this
+    // authoring surface. Camera state is represented by the descriptor or
+    // the pre-compiled canonical CameraProgram above.
     // ══════════════════════════════════════════════════════════════════════
 
     /// Set the canonical default-camera CameraDescriptor.
@@ -188,9 +156,8 @@ public:
     // renderer consumes the program on the per-frame evaluate path,
     // skipping the `compile_camera(...)` step on the hot loop.
     //
-    // Renamed from `camera(p)` to `camera_program(p)` to resolve name
-    // conflict with the legacy `Camera camera` public data member
-    // (TICKET-BUILD-ROT-CASCADE-CAMERA surface D).
+    // The explicit name keeps the pre-compiled program distinct from the
+    // descriptor-based authoring surface.
     // ══════════════════════════════════════════════════════════════════════
     Composition& camera_program(chronon3d::camera_v1::CameraProgram program) {
         m_camera_program = std::move(program);
@@ -219,54 +186,10 @@ public:
         return !m_default_camera_desc.id.empty();
     }
 
-public:
-    /// Legacy public Camera field (renderable + mutable for tests/golden
-    /// harnesses).  P3-F keeps this field in place but the class no longer
-    /// offers ANY method to project V1 camera state INTO it.  The cache
-    /// + redecompose helpers are removed: there is no lazy compile, no
-    /// inverse projection, and writing to this field is no longer the
-    /// canonical camera input.
-    ///
-    ///   * The OPP renderer MUST consume `Camera2_5D` from the compiled
-    ///     program inside `CompiledComposition::camera_program`.  Reading
-    ///     `comp.camera` directly from the render path is forbidden.
-    ///   * The legacy adapter
-    ///     `camera_v1::camera_descriptor_from(const Camera&)` is the
-    ///     canonical one-way bridge from this field to the V1 descriptor
-    ///     surface, used by transition code only.
-    ///   * For new authoring, set the V2 path on `CompositionDefinition`
-    ///     and run `chronon3d::compile_composition(...)` +
-    ///     `chronon3d::evaluate(...)`.
-    [[deprecated("Use CompositionDefinition::camera")]]
-    Camera camera;
-
 private:
-    [[nodiscard]] Scene evaluate_double(SampleTime sample_time,
-                                        std::pmr::memory_resource* res,
-                                        FontEngine* engine = nullptr) const {
-        FrameContext ctx = make_frame_context({
-            .global_time = sample_time,
-            .duration    = m_spec.duration,
-            .width       = m_spec.width,
-            .height      = m_spec.height,
-            .assets_root = m_spec.assets_root,
-            .resource    = res,
-            // P1-16: engine is ignored on the legacy path. The canonical
-            // accessor is ctx.runtime->font_engine().
-        });
-        // No longer calling AssetRegistry::mount() globally — the assets root
-        // is threaded through FrameContext → Scene → RenderGraphContext →
-        // thread-local guard, so concurrent render jobs don't interfere.
-        Scene result = m_render(ctx);
-        if (!ctx.assets_root.empty()) {
-            result.set_assets_root(ctx.assets_root);
-        }
-        return result;
-    }
-
-    // ── P3-F — the Composition is now IMMUTABLE on the camera side.
-    //    Only the value-typed descriptor field remains; no cache, no
-    //    throttle hash, no mutable unique_ptr<CameraProgram>.
+    // ── P3-F — the Composition is immutable on the camera side.
+    //    Only the value-typed descriptor field remains; no cache or lazy
+    //    inverse projection is retained.
     chronon3d::camera_v1::CameraDescriptor m_default_camera_desc{};
 
     // ── P3-H + feat(api) public camera facade — pre-compiled program.

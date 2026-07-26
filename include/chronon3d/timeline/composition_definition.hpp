@@ -3,31 +3,23 @@
 // ============================================================================
 // include/chronon3d/timeline/composition_definition.hpp
 //
-// P3-C (V0.2 timeline staging) — `CompositionDefinition` lives NEXT to
-// the legacy `chronon3d::Composition` class.  This commit does NOT
-// replace or migrate the legacy surface; the new struct is introduced
-// in parallel as the structural root for the upcoming V2 pipeline.
+// P3-C (V0.2 timeline) — `CompositionDefinition` is the explicit immutable
+// input for the compiled composition pipeline.
 //
 // Layout (per V2 staging contract — see docs/TEXT_AND_KINETIC_TYPOGRAPHY_ROADMAP.md
 // §timeline V2 and the PASS A/B/C notes in the orchestrator):
 //
 //   chronon3d::CompositionDefinition   (this file)
-//        ├── chronon3d::CompositionSpec          (legacy reuse)
-//        ├── chronon3d::SceneFunction            (alias declared here;
-//        │                                         redundant `using` of the
-//        │                                         legacy alias for stable
-//        │                                         local naming inside the
-//        │                                         struct body)
+//        ├── chronon3d::CompositionSpec          (shared value spec)
+//        ├── chronon3d::SceneFunction            (local alias for the
+//        │                                         canonical scene callback)
 //        └── std::optional<camera_v1::CameraDescriptor>
-//             (V2 substitution for the legacy `Composition::default_camera_descriptor(...)`;
-//             `nullopt` means: identity / 2.5D null-rig, equivalent to the legacy
-//             `Composition::default_camera_2_5d(...)` path)
+//             (optional canonical camera descriptor; `nullopt` means no
+//             authored camera)
 //
 // Anti-DRY note (Rule 4 ANTI_DUPLICATION_RULES):
-//   The legacy `Composition` keeps its own `CompositionSpec` + CameraDescriptor
-//   members + `*_default_camera_*` API.  `CompositionDefinition` is a NEW struct,
-//   not a migration.  Migration to the V2 surface (PASS B/C of the V0.2 plan)
-//   will remove the legacy duplication in follow-up commits.
+//   The scene-function Composition remains available for authoring, while
+//   this definition is the explicit value passed to compilation.
 //
 // Surface-cost note:
 //   Including this header drags `camera_v1/CameraDescriptor`, `Composition`,
@@ -47,15 +39,14 @@ namespace chronon3d {
 // ─────────────────────────────────────────────────────────────────────────────
 // chronon3d::CompositionDefinition
 //
-//   V2 staging struct.  Sits NEXT to (does NOT replace) the legacy
-//   `chronon3d::Composition`.  Holds the static recipe of one composition:
-//     * `composition` \u2014 the timing/timeline-bound `CompositionSpec` (re-uses the
-//       legacy struct verbatim \u2014 single-source-of-truth for timeline keys).
+//   Explicit compiled-pipeline input. Holds the static recipe of one
+//   composition:
+//     * `composition` \u2014 the timing/timeline-bound `CompositionSpec`.
 //     * `scene`       \u2014 a `SceneFunction` (signature `Scene(const FrameContext&)`)
 //                       the V2 driver invokes per frame to materialise a Scene.
 //     * `camera`      \u2014 a V1-shape authoring descriptor (camera_v1::CameraDescriptor)
 //                       when set; `std::nullopt` falls back to identity / 2.5D null-rig
-//                       (legacy Composition::default_camera_2_5d() path).
+//                       (no authored camera path).
 //
 //   Move-and-copy friendly: trivially copyable + trivially destructible assuming
 //   `SceneFunction` (std::function) is the only non-trivial member and the std::function

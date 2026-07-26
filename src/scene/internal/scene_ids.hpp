@@ -32,9 +32,8 @@
 //                      NOT redefined here; cross-referenced for
 //                      type-taxonomy completeness.
 //   MediaRef      — typed wrapper for media clip references (video / audio).
-//                   Pre-P1-#8 sites held raw `std::string` paths; future
-//                   P1-FU commits migrate `video_path / audio_path` to
-//                   this typed slot.
+//                   Pre-P1-#8 sites held raw paths; this typed slot is now
+//                   the canonical media identity.
 //   CameraClipID  — typed wrapper for camera clip identifiers.
 //                   Pre-P1-#8 sites held `std::string` rule names; future
 //                   P1-FU commits migrate `camera_clip.m_rules_centered[].name`
@@ -106,14 +105,9 @@ struct LayerID {
 // MediaRef — typed wrapper for media clip references (video / audio).
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Forward-point: pre-P1-#8 sites held `std::string` paths
-// (`std::string video_path; std::string audio_path;` in scene-build
-// descriptors).  This struct is the canonical "slot identity" for the
-// planned P1-FU migration that replaces raw paths with managed
-// MediaRefs (see M1.7 Asset Readiness lineage).  Adding the type now
-// (purely additive, no caller migration in this commit) means the
-// future P1-FU commits only need to swap path → MediaRef at the
-// call sites without forwarding declarations.
+// MediaRef is the canonical slot identity replacing raw media paths in
+// scene-build descriptors (see M1.7 Asset Readiness lineage).  All new
+// scene identity code must use this managed reference type.
 struct MediaRef {
     std::uint64_t value{0};
     constexpr MediaRef() noexcept = default;

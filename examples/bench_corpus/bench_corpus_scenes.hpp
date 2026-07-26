@@ -46,6 +46,7 @@
 
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/core/composition/composition_registry.hpp>
 
 namespace chronon3d::bench_corpus {
 

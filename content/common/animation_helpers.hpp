@@ -3,7 +3,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/text/text_definition.hpp>
-#include <chronon3d/animation/motion/timeline.hpp>
+#include <chronon3d/animation/motion/motion.hpp>
 #include <functional>
 #include <string>
 
@@ -74,7 +74,7 @@ inline TextDefinition make_text(const std::string& text, f32 font_size = 64.0f) 
 //   - the TextDefinition (so make_text() vs txt_center() variants stay available)
 //   - the background style (TextAnimBg)
 //   - a setup lambda that wires position_anim / scale_anim / opacity_anim
-//     using motion::Timeline<T> for declarative easing.
+//     using chronon3d::MotionTimeline<T> for declarative easing.
 //
 // The helper handles the shared skeleton (bg layer + centered text layer
 // + drop shadow + text spec) so composition authors write only anim logic.
@@ -121,7 +121,7 @@ inline Composition make_text_anim(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Convenience: motion::Timeline<Vec3> / <f32> shorthands for the common
+//  Convenience: MotionTimeline<Vec3> / <f32> shorthands for the common
 //  "in / out" animation shape used by all 5 easy + 3 basic anims.
 //
 //  Animations finish at Frame{6} on duration=60 compositions, matching the
@@ -132,12 +132,12 @@ inline Composition make_text_anim(
 //      then holds for the remaining frames.  Using Frame{6} explicitly yields
 //      the same visual behaviour.
 
-inline motion::Timeline<f32> text_anim_opacity(f32 peak = 1.0f, Frame done_at = Frame{6}) {
-    return motion::timeline(0.0f).to(done_at, peak, Easing::OutCubic);
+inline chronon3d::MotionTimeline<f32> text_anim_opacity(f32 peak = 1.0f, Frame done_at = Frame{6}) {
+    return chronon3d::timeline(0.0f).to(done_at, peak, Easing::OutCubic);
 }
 
-inline motion::Timeline<f32> text_anim_opacity_outback(Frame done_at = Frame{6}) {
-    return motion::timeline(0.0f).to(done_at, 1.0f, Easing::OutBack);
+inline chronon3d::MotionTimeline<f32> text_anim_opacity_outback(Frame done_at = Frame{6}) {
+    return chronon3d::timeline(0.0f).to(done_at, 1.0f, Easing::OutBack);
 }
 
 } // namespace chronon3d::content::animation_helpers

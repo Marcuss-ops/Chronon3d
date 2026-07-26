@@ -138,14 +138,14 @@ TEST_CASE("Test 17.4 — Text layout alignment Center/Middle") {
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t1", {
                 .content = {.value = "Centered Middle"},
-                .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 128.0f}},
-                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                         .font_family = "Inter",
-                         .font_size = 24.0f},
-                .layout = {.box = {240.0f, 100.0f},
-                           .align = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle},
-                .appearance = {.color = Color::white()},
+                .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                   .font_family = "Inter",
+                                   .font_size = 24.0f},
+                          .color = Color::white()},
+                .frame = {.size = {240.0f, 100.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 128.0f}},
+                          .align = TextAlign::Center,
+                          .vertical_align = VerticalAlign::Middle},
             });
         });
         return s.build();
@@ -165,17 +165,17 @@ TEST_CASE("Test 17.5 — Text auto-fit automatic sizing") {
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t2", {
                 .content = {.value = "This is a very long title that needs to fit inside a small box automatically without overflowing"},
-                .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 64.0f}},
-                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                         .font_family = "Inter",
-                         .font_size = 48.0f},
-                .layout = {.box = {240.0f, 100.0f},
-                           .align = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle,
-                           .auto_fit = true,
-                           .min_font_size = 8.0f,
-                           .max_font_size = 48.0f},
-                .appearance = {.color = Color::white()},
+                .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                   .font_family = "Inter",
+                                   .font_size = 48.0f},
+                          .color = Color::white()},
+                .frame = {.size = {240.0f, 100.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 64.0f}},
+                          .align = TextAlign::Center,
+                          .vertical_align = VerticalAlign::Middle,
+                          .auto_fit = true,
+                          .min_font_size = 8.0f,
+                          .max_font_size = 48.0f},
             });
         });
         return s.build();
@@ -195,16 +195,16 @@ TEST_CASE("Test 17.6 — Text max-lines and ellipsis truncation") {
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t3", {
                 .content = {.value = "Line One Wordy\nLine Two Wordy\nLine Three Wordy\nLine Four Wordy"},
-                .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 64.0f}},
-                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                         .font_family = "Inter",
-                         .font_size = 20.0f},
-                .layout = {.box = {240.0f, 100.0f},
-                           .align = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle,
-                           .max_lines = 2,
-                           .ellipsis = true},
-                .appearance = {.color = Color::white()},
+                .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                   .font_family = "Inter",
+                                   .font_size = 20.0f},
+                          .color = Color::white()},
+                .frame = {.size = {240.0f, 100.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 64.0f}},
+                          .align = TextAlign::Center,
+                          .vertical_align = VerticalAlign::Middle,
+                          .max_lines = 2,
+                          .ellipsis = true},
             });
         });
         return s.build();
@@ -224,14 +224,14 @@ TEST_CASE("Test 17.7 — Text style (Cyan neon-like coloring)") {
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t4", {
                 .content = {.value = "CYAN NEON"},
-                .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 64.0f}},
-                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                         .font_family = "Inter",
-                         .font_size = 28.0f},
-                .layout = {.box = {240.0f, 100.0f},
-                           .align = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle},
-                .appearance = {.color = Color{0.0f, 1.0f, 0.8f, 1.0f}}, // Cyan
+                .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                   .font_family = "Inter",
+                                   .font_size = 28.0f},
+                          .color = Color{0.0f, 1.0f, 0.8f, 1.0f}}, // Cyan
+                .frame = {.size = {240.0f, 100.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 64.0f}},
+                          .align = TextAlign::Center,
+                          .vertical_align = VerticalAlign::Middle},
             });
         });
         return s.build();
@@ -251,18 +251,18 @@ TEST_CASE("Test 17.8 — Subtitle backing box rendering") {
         s.layer("text_layer", [](LayerBuilder& l) {
             l.text("t5", {
                 .content = {.value = "Subtitle Box"},
-                .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 64.0f}},
-                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
-                         .font_family = "Inter",
-                         .font_size = 22.0f},
-                .layout = {.box = {240.0f, 80.0f},
-                           .align = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle},
-                .appearance = {.color = Color{0.9f, 0.9f, 0.9f, 1.0f},
-                               .box_style = {.enabled = true,
-                                             .padding = {16.0f, 8.0f},
-                                             .radius = 8.0f,
-                                             .background = Color{0.0f, 0.0f, 0.0f, 0.65f}}},
+                .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                                   .font_family = "Inter",
+                                   .font_size = 22.0f},
+                          .color = Color{0.9f, 0.9f, 0.9f, 1.0f},
+                          .box_style = {.enabled = true,
+                                        .padding = {16.0f, 8.0f},
+                                        .radius = 8.0f,
+                                        .background = Color{0.0f, 0.0f, 0.0f, 0.65f}}},
+                .frame = {.size = {240.0f, 80.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, {128.0f, 64.0f}},
+                          .align = TextAlign::Center,
+                          .vertical_align = VerticalAlign::Middle},
             });
         });
         return s.build();

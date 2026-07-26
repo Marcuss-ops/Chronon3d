@@ -28,7 +28,7 @@ Indice completo (10 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOW
 | Text V1 Cert Step 8+9 | DEFERRED-VPS | HARDER env-block than Step 7; spec-variant user centroid LOOSER than DoD §9 lock. |
 | Text V1 Cert Step 10 (negative-font) | COMMITTED-VPS-DEFERRED | cat-1 source committed; rebuild DEFERRED-WBH. |
 | Acceptance Suite | PASS | 20/20 contract tests landed. |
-| Camera V1 | FAIL (cert) | AE-parity 35/35 PASS. Continuous-time motion params landed. Legacy adapters removed. Cert: CAMERA_FUNCTIONAL_FAIL. |
+| Camera V1 | FAIL (cert) | AE-parity 35/35 PASS. Continuous-time motion params landed. `AnimatedCamera2_5D`, `CameraShotProfile` and imperative `CameraRig` surfaces removed; `camera_pose()` stores the V1 descriptor and render compiles one program per render. Functional certification remains open. |
 | Executor | P2 OPEN (cat-5 forward-point) | Tile-prune skip-unification chaser-chore tracked. |
 | Glow Final (ChrononGlowFinalAE) | Done/Ready | Certified `1cb9cff2`; DoD §9 closed via 19px-sliver regression lock. |
 | Product Launch demo (Test #1) | PARTIAL | Composition + JSON landed; orchestrator `== Product demo ==` TODO body. |

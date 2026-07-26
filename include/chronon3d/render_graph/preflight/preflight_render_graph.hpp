@@ -31,6 +31,8 @@
 #include <string_view>
 #include <vector>
 
+namespace chronon3d::assets { class AssetResolver; }
+
 namespace chronon3d::graph {
 
 // ── Visibility classification ──────────────────────────────────────────────
@@ -140,7 +142,8 @@ GraphPreflightReport debug_preflight_render_graph(
     const RenderSettings&       settings,
     const CompositionRegistry*  registry,
     media::MediaFrameProvider*   video_decoder,
-    float fps = 30.0f
+    float fps = 30.0f,
+    chronon3d::assets::AssetResolver* asset_resolver = nullptr
 );
 
 } // namespace chronon3d::graph

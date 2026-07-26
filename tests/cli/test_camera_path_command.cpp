@@ -7,7 +7,7 @@
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
-#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
+
 #include <chronon3d/math/glm_types.hpp>
 #include <nlohmann/json.hpp>
 #include <fmt/format.h>
@@ -362,7 +362,7 @@ TEST_CASE("CameraPath: step larger than range produces single sample") {
 }
 
 TEST_CASE("CameraPath: composition with animated camera via SceneBuilder") {
-    // Test that a composition using animated_camera() in SceneBuilder
+    // Test that a composition using camera_pose() in SceneBuilder
     // produces a valid camera path when sampled
     CompositionSpec spec;
     spec.name = "AnimatedCamTest";
@@ -372,10 +372,10 @@ TEST_CASE("CameraPath: composition with animated camera via SceneBuilder") {
 
     Composition comp(spec, [](const FrameContext& ctx) -> Scene {
         SceneBuilder builder(ctx);
-        AnimatedCamera2_5D cam;
+        camera_v1::PoseTracksSource cam;
         cam.position.set(Vec3{0.0f, 0.0f, -1000.0f});
         cam.zoom.set(1000.0f);
-        builder.animated_camera(cam);
+        builder.camera_pose(cam);
         return builder.build();
     });
 

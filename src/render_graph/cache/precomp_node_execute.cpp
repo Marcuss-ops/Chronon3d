@@ -183,7 +183,6 @@ NodeExecResult PrecompNode::execute_with_scope(
     nested_ctx.frame_input.frame   = nested_frame;
     nested_ctx.frame_input.width   = comp.width();
     nested_ctx.frame_input.height  = comp.height();
-    nested_ctx.frame_input.camera = comp.camera;
     nested_ctx.node_exec.current_identity.graph = static_cast<GraphInstanceId>(precomp_key.graph);
 
     // F1.D: P1-16 — the legacy `FrameContext::font_engine` field is REMOVED;
@@ -199,6 +198,9 @@ NodeExecResult PrecompNode::execute_with_scope(
         .resource = std::pmr::get_default_resource(),
     });
     const Scene nested_scene = comp.evaluate(nested_frame_ctx);
+    // Nested compositions carry camera state on the materialized Scene.
+    nested_ctx.frame_input.camera_2_5d = nested_scene.camera_2_5d();
+    nested_ctx.frame_input.has_camera_2_5d = nested_scene.camera_2_5d().enabled;
 
     // ── 4. Compute SceneStructureKey for cache lookup ────────────────────
     SceneHasher hasher;

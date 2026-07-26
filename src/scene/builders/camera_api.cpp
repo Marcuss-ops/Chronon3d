@@ -8,8 +8,9 @@ CameraApi& CameraApi::set(Camera2_5D camera) {
     return *this;
 }
 
-CameraApi& CameraApi::set_animated(const AnimatedCamera2_5D& cam) {
-    return set(cam.evaluate(owner_->frame()));
+CameraApi& CameraApi::set_pose_tracks(const camera_v1::PoseTracksSource& cam) {
+    owner_->camera_pose(cam);
+    return *this;
 }
 
 CameraApi& CameraApi::enable(bool enabled) {

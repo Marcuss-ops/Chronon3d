@@ -10,7 +10,7 @@ inline Composition depth_product_reveal() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        s.animated_camera(camera_rig::low_angle_reveal({
+        s.camera_pose(camera_v1::presets::low_angle_reveal({
             .from_position = {0.0f, -200.0f, -1200.0f},
             .to_position   = {0.0f, 30.0f, -850.0f},
             .from_tilt = 22.0f,

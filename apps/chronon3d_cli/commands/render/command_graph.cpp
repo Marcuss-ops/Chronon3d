@@ -194,16 +194,21 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
     if (!resolved) return 1;
 
     const auto& comp = *resolved.comp;
-    auto scene = comp.evaluate(args.frame);
-
     RenderSettings settings;
-    settings.use_modular_graph = true;
     settings.diagnostics.enabled = args.plan;
     auto renderer = create_renderer(registry, settings);
+    auto scene = comp.evaluate(make_frame_context({
+        .global_time = SampleTime::from_frame_int(args.frame, comp.frame_rate()),
+        .duration = comp.duration(),
+        .width = comp.width(),
+        .height = comp.height(),
+        .assets_root = comp.assets_root(),
+        .runtime = &renderer->runtime(),
+    }));
 
     if (args.plan) {
         auto ctx = chronon3d::graph::make_graph_context(
-            renderer->backend(), renderer->node_cache(), comp.camera,
+            renderer->backend(), renderer->node_cache(), Camera{},
             comp.width(), comp.height(),
             args.frame, 0.0f,
             settings, &registry, nullptr,
@@ -226,7 +231,7 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
         const bool need_dot = !args.output.empty();
         const auto stats = graph::analyze_scene_graph(
             renderer->backend(), renderer->node_cache(), scene,
-            comp.camera, comp.width(), comp.height(),
+            Camera{}, comp.width(), comp.height(),
             args.frame, 0.0f, settings, &registry, nullptr,
             static_cast<float>(comp.frame_rate().fps()),
             /*execute=*/true, /*include_dot=*/need_dot
@@ -241,7 +246,7 @@ int command_graph(const CompositionRegistry& registry, const GraphArgs& args) {
     const std::string dot_path = args.output.empty() ? "output/graph.dot" : args.output;
     const auto stats = graph::analyze_scene_graph(
         renderer->backend(), renderer->node_cache(), scene,
-        comp.camera, comp.width(), comp.height(),
+        Camera{}, comp.width(), comp.height(),
         args.frame, 0.0f, settings, &registry, nullptr,
         static_cast<float>(comp.frame_rate().fps()),
         /*execute=*/false, /*include_dot=*/true

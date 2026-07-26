@@ -45,8 +45,10 @@ if [[ "${CHRONON3D_INSTALL_TEST_FAST:-0}" == "1" ]]; then
     log "FAST mode ON: reusing SDK_BUILD=$SDK_BUILD"
     [[ -f "$SDK_BUILD/CMakeCache.txt" ]] \
         || fail "FAST mode requires SDK_BUILD/CMakeCache.txt"
-    [[ -f "$SDK_PREFIX/install_manifest.json" ]] \
-        || fail "FAST mode requires a finished SDK install"
+    [[ -f "$SDK_PREFIX/lib/cmake/Chronon3D/Chronon3DConfig.cmake" ]] \
+        || fail "FAST mode requires an installed Chronon3D package config"
+    [[ -f "$SDK_PREFIX/lib/libchronon3d_sdk_impl.a" ]] \
+        || fail "FAST mode requires the installed SDK archive"
 else
     SDK_BUILD="$(mktemp_dir chronon3d_install_consumer_sdk_build)"
     SDK_PREFIX="$(mktemp_dir chronon3d_install_consumer_prefix)"

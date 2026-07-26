@@ -27,20 +27,26 @@ int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs&
     const auto& comp = *resolved.comp;
 
     RenderSettings settings;
-    settings.use_modular_graph = true;
     settings.text_layout_debug = args.diagnostic_overlay || args.diagnostic_overlay_only;
     settings.diagnostic_overlay_only = args.diagnostic_overlay_only;
     auto renderer = create_renderer(registry, settings);
 
     const auto frame = static_cast<Frame>(args.frame);
-    auto scene = comp.evaluate(frame);
+    auto scene = comp.evaluate(make_frame_context({
+        .global_time = SampleTime::from_frame_int(frame, comp.frame_rate()),
+        .duration = comp.duration(),
+        .width = comp.width(),
+        .height = comp.height(),
+        .assets_root = comp.assets_root(),
+        .runtime = &renderer->runtime(),
+    }));
 
     // Build the full render graph for the scene
     graph::RenderGraphContext graph_ctx;
     graph_ctx.frame_input.frame = frame;
     graph_ctx.frame_input.width = comp.width();
     graph_ctx.frame_input.height = comp.height();
-    graph_ctx.frame_input.camera = comp.camera;
+    graph_ctx.frame_input.camera = Camera{};
     graph_ctx.services.backend = &renderer->backend();
     graph_ctx.services.node_cache = &renderer->node_cache();
     graph_ctx.services.framebuffer_pool = renderer->framebuffer_pool();

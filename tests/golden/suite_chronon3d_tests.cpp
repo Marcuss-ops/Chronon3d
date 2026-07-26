@@ -515,10 +515,6 @@ TEST_CASE("Chronon3d Suite: Shadow System Tests") {
             });
             return s.build();
         });
-        comp.camera.transform.position.x = 0.0f;
-        comp.camera.transform.position.y = 0.0f;
-        comp.camera.transform.position.z = -comp.camera.focal_length(128.0f);
-
         auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
 
@@ -551,10 +547,6 @@ TEST_CASE("Chronon3d Suite: Cinematic Bloom Tests") {
         });
         return s.build();
     });
-    comp.camera.transform.position.x = 256.0f;
-    comp.camera.transform.position.y = 64.0f;
-    comp.camera.transform.position.z = -comp.camera.focal_length(512.0f);
-
     auto fb = renderer.render(comp, 0);
     REQUIRE(fb != nullptr);
 
@@ -824,10 +816,6 @@ TEST_CASE("Chronon3d Suite: SSAA 2x Quality Verification") {
             });
             return s.build();
         });
-        comp.camera.transform.position.x = 256.0f;
-        comp.camera.transform.position.y = 64.0f;
-        comp.camera.transform.position.z = -comp.camera.focal_length(512.0f);
-
         auto fb = renderer.render(comp, 0);
         REQUIRE(fb != nullptr);
         verify_golden_or_create(*fb, "bloom-threshold-knee_ssaa2.png");

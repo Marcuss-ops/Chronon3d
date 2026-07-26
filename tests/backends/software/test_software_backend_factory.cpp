@@ -22,11 +22,10 @@
 // Three layers of coverage so the regression stays deterministic regardless
 // of build mode:
 //
-//   1. Static-grep (BOTH modes): reads `src/backends/software/software_
-//      backend.cpp` and asserts each canonical assert() guard AND each
-//      MissingXxx release branch is present.  This is the defence-in-depth
-//      layer — the source-level regression lock that survives even when
-//      debug builds abort before reaching Result::err at runtime.
+//   1. Static-grep (BOTH modes): reads the factory implementation and checks
+//      the canonical structured validation branches.  The factory deliberately
+//      has no duplicate debug `assert` layer: Result is the single validation
+//      contract in every build mode.
 //
 //   2. Happy path (BOTH modes): submits a fully-wired SoftwareBackend
 //      Services from a live SoftwareRenderer and asserts the factory
@@ -34,11 +33,8 @@
 //      route (renderer.runtime() → make_software_backend(...).value())
 //      does not regress.
 //
-//   3. Result::err exercise (NDEBUG-only): in release builds (`-DNDEBUG`)
-//      the asserts are stripped, so we can exercise each REQUIRED-field
-//      null path and verify the structured Code + field_name exactly.
-//      In debug builds (`#ifndef NDEBUG`) the asserts abort the test
-//      runner before reaching Result::err, so this layer is gated.
+//   3. Result::err exercise: the structured Result is the sole validation
+//      contract, so each REQUIRED-field null path is tested in every build.
 //
 // Pattern precedent: tests/text/test_font_io_fence.cpp (Cat-2 regression
 // for synchronous font I/O re-introduction).  Same static-grep discipline,
@@ -98,7 +94,7 @@ SoftwareBackendServices services_from_renderer(SoftwareRenderer& r) noexcept {
 // Project-relative path.  `add_test` in `tests/backends_software_tests.cmake`
 // sets `WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}` so this resolves relative
 // to the project root correctly.
-constexpr const char* kBackendCppPath = "src/backends/software/software_backend.cpp";
+constexpr const char* kBackendCppPath = "src/backends/software/software_backend_factory.cpp";
 
 bool source_contains(std::string_view needle) {
     std::ifstream f(kBackendCppPath);
@@ -125,21 +121,21 @@ TEST_CASE("make_software_backend: accepts a valid services bundle and returns un
 }
 
 // ═════════════════════════════════════════════════════════════════════════
-// 2a. Static-grep: every REQUIRED field has an `assert(...)` guard
-//     running under `#ifndef NDEBUG`.  Pattern precedent:
-//     `tests/text/test_font_io_fence.cpp`.
+// 2a. Static-grep: the factory keeps one canonical validation path.
 //
 //     TICKET-118 — `assert(services.owner` CHECK dropped (the field
 //     has been removed from SoftwareBackendServices).
 // ═════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("make_software_backend: source contains canonical assert() guards for each REQUIRED service (static-grep)") {
+TEST_CASE("make_software_backend: source contains one canonical validation path (static-grep)") {
     REQUIRE(std::filesystem::exists(kBackendCppPath));
-    CHECK(source_contains("assert(services.counters"));
-    CHECK(source_contains("assert(services.settings"));
-    CHECK(source_contains("assert(services.asset_resolver"));
-    CHECK(source_contains("assert(services.text_resources"));
-    CHECK(source_contains("assert(services.framebuffer_pool"));
+    CHECK(source_contains("Single source of truth"));
+    CHECK(source_contains("if (services.counters == nullptr)"));
+    CHECK(source_contains("if (services.settings == nullptr)"));
+    CHECK(source_contains("if (!services.framebuffer_pool)"));
+    CHECK(source_contains("if (services.asset_resolver == nullptr)"));
+    CHECK(source_contains("if (services.text_resources == nullptr)"));
+    CHECK_FALSE(source_contains("assert(services."));
 }
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -181,10 +177,8 @@ TEST_CASE("make_software_backend: source contains Result::err release branch for
     CHECK(source_contains("MissingTextResources"));
 }
 
-#if defined(NDEBUG)
 // ═════════════════════════════════════════════════════════════════════════
-// 3. Result::err exercise — release-only.  Debug builds assert() before
-//    Result::err can run, aborting the test runner.
+// 3. Result::err exercise — all build modes.
 //
 //    These TEST_CASEs verify the production release path explicitly:
 //    each REQUIRED service is nulled in turn, and we assert
@@ -246,4 +240,3 @@ TEST_CASE("make_software_backend: null text_resources → Result::err(MissingTex
     CHECK(r.error().code   == SoftwareBackendServicesError::Code::MissingTextResources);
     CHECK(r.error().field_name == "text_resources");
 }
-#endif // defined(NDEBUG)

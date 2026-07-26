@@ -8,7 +8,6 @@
 # ==============================================================================
 
 set(CHRONON3D_AUTHORING_PUBLIC_HEADERS
-    "${CMAKE_SOURCE_DIR}/include/chronon3d/assets/asset_ref.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/asset.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/composition.hpp"
     "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/layer.hpp"

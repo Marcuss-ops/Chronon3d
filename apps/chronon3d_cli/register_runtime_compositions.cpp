@@ -9,8 +9,6 @@
 //      CameraImageClip (the canonical "always available" production surfaces).
 //   2. ChrononGlowFinalAE + ChrononGlowFinalAEPortrait — the canonical
 //      user-spec cinematic-glow compositions (landscape + portrait).
-//      Plus the legacy alias `chronon-glow-final` (shares the landscape
-//      factory lambda — no duplicate lambdas).
 //
 // Cat-3 minimal-surface: consumes the existing
 // register_builtin_compositions.hpp public surface + the header-only
@@ -41,10 +39,9 @@ void register_runtime_compositions(CompositionRegistry& registry) {
     // PRODUCTION entry point; the NoGlow sibling lives in
     // register_dev_compositions (DEV-gated, A/B acceptance).
     //
-    // Step 8 §A: 2 production entries + 1 legacy alias.
+    // Step 8 §A: 2 production entries.
     //   - ChrononGlowFinalAE         (canonical landscape, new)
     //   - ChrononGlowFinalAEPortrait (canonical portrait, NEW — moved from DEV)
-    //   - chronon-glow-final         (legacy alias, SHARED lambda with landscape)
     //
     // The portrait variant uses a SEPARATE lambda (different default props)
     // — the user spec says "non due factory lambda identiche" is about the
@@ -55,11 +52,6 @@ void register_runtime_compositions(CompositionRegistry& registry) {
     };
     registry.add(make_composition_descriptor(CompositionDescriptor{
         .id = "ChrononGlowFinalAE"}, make_landscape_comp));
-    // Step 8 §A: UN alias nel registry condiviso — chronon-glow-final
-    // points to the SAME factory lambda as ChrononGlowFinalAE (no
-    // duplicate factory lambdas).
-    registry.add(make_composition_descriptor(CompositionDescriptor{
-        .id = "chronon-glow-final"}, make_landscape_comp));
     registry.add(make_composition_descriptor(CompositionDescriptor{
         .id = "ChrononGlowFinalAEPortrait"}, [](const CompositionProps&) -> Composition {
             return chronon3d::content::glow_final::make_chronon_glow_final(

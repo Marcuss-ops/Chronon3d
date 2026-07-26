@@ -56,14 +56,14 @@ SceneCameraFacade& SceneCameraFacade::timeline(
 
 SceneCameraFacade& SceneCameraFacade::preset(
     const std::string& preset_id,
-    const CameraPresetCatalog& catalog) {
+    const camera_v1::CameraCatalog& catalog) {
     // Resolve the preset by id and forward the resolved descriptor to
     // `descriptor(...)` so the storage path is single-source.  If the
     // catalog's resolve API uses a different name, the call site is
     // updated here (single point of maintenance).
-    auto resolved = catalog.resolve(preset_id);
-    if (resolved.has_value()) {
-        return this->descriptor(std::move(resolved.value()));
+    const auto* resolved = catalog.find_descriptor(preset_id);
+    if (resolved != nullptr) {
+        return this->descriptor(*resolved);
     }
     // Resolution failure: leave the scene's descriptor untouched so the
     // call site can detect a no-op (rather than a default-constructed
