@@ -2,6 +2,7 @@
 
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/media/media_placement.hpp>
+#include <chronon3d/backends/image/image_decode_options.hpp>
 #include <chronon3d/scene/model/shape/shape.hpp>
 
 #include <string>
@@ -25,6 +26,7 @@ struct ImageParams {
     ImageCrop crop{};
     f32 opacity{1.0f};
     f32 radius{0.0f};
+    ImageDecodeOptions decode_options{};
 };
 
 namespace detail {
