@@ -14,7 +14,7 @@
 //   - CertComposite: 4 layers → layer order + no exploded geometry
 //
 // 1920×1080 canvas. Determinism guaranteed by fixed frame=0 + FrameRate{30,1}
-// + duration=1 (single-frame evaluation).
+// + a single-frame evaluation.
 // ==============================================================================
 
 #include <chronon3d/core/composition/composition_registry.hpp>

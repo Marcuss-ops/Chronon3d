@@ -94,7 +94,6 @@ chronon3d_add_test_suite(
         runtime/test_telemetry_report.cpp
         runtime/test_telemetry_semantic.cpp
         scene/shapes/mask_tests.cpp
-        stabilization/test_stabilization.cpp
 )
 _chronon3d_renderer_target_finalize(chronon3d_renderer_core_tests)
 
@@ -226,10 +225,8 @@ chronon3d_add_test_suite(
     TIER   INTEGRATION
     LINK_TARGETS ${_RENDERER_LINK_TARGETS}
     SOURCES
-        renderer/camera/test_animated_camera.cpp
         renderer/camera/test_camera_motion.cpp
         renderer/camera/test_dof.cpp
-        renderer/camera/test_lens_model.cpp
         renderer/camera/test_per_pixel_dof.cpp
         renderer/2d5/test_card3d_material.cpp
         renderer/2d5/test_card3d_rasterizer.cpp

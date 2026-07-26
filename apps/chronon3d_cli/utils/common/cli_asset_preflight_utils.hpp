@@ -13,7 +13,7 @@
 namespace chronon3d::cli {
 
 /// Create an AssetResolver mounted at the runtime assets root.
-/// F0.2 — the `current_path()` fallback has been removed.  Callers MUST
+/// F0.2 — the implicit CWD fallback has been removed.  Callers MUST
 /// pass a non-empty assets_root obtained from the render request/runtime.
 inline chronon3d::assets::AssetResolver make_cli_resolver(
     const std::string& assets_root) {

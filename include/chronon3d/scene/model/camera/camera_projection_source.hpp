@@ -29,7 +29,7 @@ namespace chronon3d {
 enum class CameraOpticsMode { Zoom, FieldOfView, PhysicalLens };
 
 // DEPRECATED: Camera2_5DProjectionMode is superseded by CameraOpticsMode.
-// Still used by authoring structs (CameraRig, CameraMotionPath, CatmullRomCameraMotion)
+// Still used by authoring structs (Camera V1, CameraMotionPath, CatmullRomCameraMotion)
 // but Camera2_5D no longer carries this field. Transition to optics_mode.
 enum class Camera2_5DProjectionMode { Zoom, Fov };
 

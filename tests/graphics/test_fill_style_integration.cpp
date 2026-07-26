@@ -35,8 +35,7 @@ using chronon3d::test::sample_right;
 static std::shared_ptr<Framebuffer> render_frame(const Composition& comp, Frame frame) {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
     return renderer.render(comp, frame);
 }
 

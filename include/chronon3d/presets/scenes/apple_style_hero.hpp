@@ -10,7 +10,7 @@ inline Composition apple_style_hero() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        s.animated_camera(camera_rig::parallax_pan({
+        s.camera_pose(camera_v1::presets::parallax_pan({
             .from_position = {-20.0f, 0.0f, -1000.0f},
             .to_position   = { 20.0f, 0.0f, -1000.0f},
             .target = {0.0f, 0.0f, 0.0f},

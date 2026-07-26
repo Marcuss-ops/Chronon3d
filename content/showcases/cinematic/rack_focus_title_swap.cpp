@@ -15,6 +15,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
@@ -23,7 +24,7 @@
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/animation/path/catmull_rom_path.hpp>
 #include <chronon3d/animation/effects/wiggle.hpp>
-#include <chronon3d/animation/motion/timeline.hpp>
+#include <chronon3d/animation/motion/motion.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/text/text_glow_spec.hpp>
 #include <chronon3d/text/font_engine.hpp>

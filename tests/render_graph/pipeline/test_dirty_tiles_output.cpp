@@ -72,8 +72,7 @@ TEST_CASE("Dirty Tiles: Smoke test — renders without crash with tile settings"
 
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    settings.dirty.tile_size = 32;
+        settings.dirty.tile_size = 32;
     settings.dirty.use_bitmask = true;
     settings.dirty.enabled = true;
     renderer.set_settings(settings);
@@ -99,8 +98,7 @@ TEST_CASE("Dirty Tiles: Pixel-perfect equivalence with moving element") {
     auto baseline = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = false;
+                s.dirty.enabled = false;
         baseline.set_settings(s);
     }
 
@@ -108,8 +106,7 @@ TEST_CASE("Dirty Tiles: Pixel-perfect equivalence with moving element") {
     auto opt = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         s.dirty.use_bitmask = true;
         s.dirty.tile_size = 32;
         opt.set_settings(s);
@@ -138,8 +135,7 @@ TEST_CASE("Dirty Tiles: Dirty rect counters still active with tiles on") {
 
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    settings.dirty.enabled = true;
+        settings.dirty.enabled = true;
     settings.dirty.use_bitmask = true;
     settings.dirty.tile_size = 32;
     renderer.set_settings(settings);
@@ -168,8 +164,7 @@ TEST_CASE("Dirty Tiles: First frame renders full frame (no prev fb)") {
 
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    settings.dirty.enabled = true;
+        settings.dirty.enabled = true;
     settings.dirty.use_bitmask = true;
     settings.dirty.tile_size = 32;
     renderer.set_settings(settings);
@@ -200,8 +195,7 @@ TEST_CASE("Dirty Tiles: Correct output across different tile sizes") {
         auto baseline = test::make_renderer();
         {
             RenderSettings s;
-            s.use_modular_graph = true;
-            s.dirty.enabled = false;
+                        s.dirty.enabled = false;
             baseline.set_settings(s);
         }
 
@@ -209,8 +203,7 @@ TEST_CASE("Dirty Tiles: Correct output across different tile sizes") {
         auto opt = test::make_renderer();
         {
             RenderSettings s;
-            s.use_modular_graph = true;
-            s.dirty.enabled = true;
+                        s.dirty.enabled = true;
             s.dirty.use_bitmask = true;
             s.dirty.tile_size = tsize;
             opt.set_settings(s);
@@ -271,16 +264,14 @@ TEST_CASE("Dirty Tiles: Two distant moving objects render correctly") {
     auto baseline = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = false;
+                s.dirty.enabled = false;
         baseline.set_settings(s);
     }
 
     auto opt = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         s.dirty.use_bitmask = true;
         s.dirty.tile_size = 32;
         opt.set_settings(s);

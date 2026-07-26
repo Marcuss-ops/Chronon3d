@@ -46,8 +46,7 @@ std::shared_ptr<Framebuffer> render_with_dirty(const Composition& comp, Frame f,
                                                 bool dirty_on) {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    settings.dirty.enabled = dirty_on;
+        settings.dirty.enabled = dirty_on;
     renderer.set_settings(settings);
     return renderer.render(comp, f);
 }
@@ -118,8 +117,7 @@ TEST_CASE("Dirty Rects: Bounding box correct for simple shapes") {
     {
         auto r = test::make_renderer();
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         r.set_settings(s);
         r.render(comp_rect, 0);  // Render frame 0 baseline
         r.counters()->reset();         // Reset counters for frame 1
@@ -145,8 +143,7 @@ TEST_CASE("Dirty Rects: Bounding box correct for simple shapes") {
     {
         auto r = test::make_renderer();
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         r.set_settings(s);
         r.render(comp_circle, 0); // Render frame 0 baseline
         r.counters()->reset();          // Reset counters for frame 1
@@ -199,8 +196,7 @@ TEST_CASE("Dirty Rects: Inter-frame diff includes old and new position") {
     {
         auto r = test::make_renderer();
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         r.set_settings(s);
         r.render(comp, 0);
         r.counters()->reset();
@@ -251,8 +247,7 @@ TEST_CASE("Dirty Rects: Static scene skips redundant clears") {
 
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    settings.dirty.enabled = true;
+        settings.dirty.enabled = true;
     renderer.set_settings(settings);
 
     // Render all frames
@@ -317,15 +312,13 @@ TEST_CASE("Dirty Rects: Near-static scene with small animated element") {
     // Reference: render all frames without dirty rects
     auto ref_renderer = test::make_renderer();
     RenderSettings ref_settings;
-    ref_settings.use_modular_graph = true;
-    ref_settings.dirty.enabled = false;
+        ref_settings.dirty.enabled = false;
     ref_renderer.set_settings(ref_settings);
 
     // Optimized: render all frames with dirty rects
     auto opt_renderer = test::make_renderer();
     RenderSettings opt_settings;
-    opt_settings.use_modular_graph = true;
-    opt_settings.dirty.enabled = true;
+        opt_settings.dirty.enabled = true;
     opt_renderer.set_settings(opt_settings);
 
     int total_mismatches = 0;
@@ -389,8 +382,7 @@ TEST_CASE("Dirty Rects: Output correct with effects (blur)") {
     // Render frame 0 and 1 with dirty rects ON
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    settings.dirty.enabled = true;
+        settings.dirty.enabled = true;
     renderer.set_settings(settings);
 
     auto fb0 = renderer.render(comp, 0);
@@ -460,14 +452,12 @@ TEST_CASE("Dirty Rects: Long sequence equivalence with moving elements") {
     auto r_clean = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         r_dirty.set_settings(s);
     }
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = false;
+                s.dirty.enabled = false;
         r_clean.set_settings(s);
     }
 

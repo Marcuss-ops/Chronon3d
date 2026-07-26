@@ -84,9 +84,9 @@ void verify_pr3_golden(const Framebuffer& fb, const std::string& name) {
     CHECK(result.passed);
 }
 
-// ── TextSpec helpers (designated-init; equivalent to PR2 inlined literal) ────
+// ── TextDefinition helpers (designated-init; equivalent to PR2 inlined literal) ────
 
-TextSpec make_text(const std::string& utf8,
+TextDefinition make_text(const std::string& utf8,
                    const std::string& font_path,
                    const std::string& family,
                    float size_pt,
@@ -106,9 +106,11 @@ TextSpec make_text(const std::string& utf8,
             .font_weight = 700,
             .font_style  = "normal",
             .font_size   = size_pt,
-        }
+        },
+        .color = color,
     },
     .frame = {
+        .size = box,
         .placement = chronon3d::TextPlacement{chronon3d::TextPlacementKind::Absolute, {0.0f, 0.0f}}
     }
 };
@@ -119,8 +121,7 @@ TextSpec make_text(const std::string& utf8,
 std::shared_ptr<Framebuffer> render_with(const Composition& comp, int frame,
                                          RenderSettings settings) {
     auto renderer = test::make_renderer();
-    settings.use_modular_graph = true;
-    (void)settings.motion_blur.mode;
+        (void)settings.motion_blur.mode;
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
     return renderer.render(comp, Frame{frame});

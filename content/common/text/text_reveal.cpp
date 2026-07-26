@@ -32,13 +32,18 @@ void build_text_reveal_line(SceneBuilder& s, const TextRevealDescriptor& d) {
             // truncate text to 60 chars (intentional, no ellipsis — keeps log lines bounded)
             "Text: '" + d.text.substr(0, 60) + "'");
     }
-    // P0-2 fix(perf/text): construct ShapedGlyphLine with ref_offset_x=0.0f
-    // so the 3-arg overload applies d.ref_offset_x exactly once.  This keeps
-    // the 2-arg path byte-equivalent with the pre-P0-2 implementation (which
-    // passed d.ref_offset_x into the ctor and read gc.center_x directly).
-    ShapedGlyphLine line(d.text, d.font_size, d.font_spec,
-                         d.tracking, 0.0f /*ref_offset_x*/, *engine);
-    build_text_reveal_line(s, d, line);
+    // Canonical fail-soft shaping entry point. The reveal path requires a
+    // valid shape, so convert the optional result into the existing
+    // fail-loud contract at this boundary without retaining the deprecated
+    // six-argument constructor.
+    auto line = shape_glyph_line(d.text, d.font_size, d.font_spec,
+                                 d.tracking, *engine);
+    if (!line) {
+        throw std::runtime_error(
+            "build_text_reveal_line: unable to shape text '" +
+            d.text.substr(0, 60) + "'");
+    }
+    build_text_reveal_line(s, d, *line);
 }
 
 // build_text_reveal_line (3-arg overload) — P0-2 single-shape path.

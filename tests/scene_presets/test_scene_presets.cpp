@@ -8,7 +8,7 @@ using namespace chronon3d;
 // ── Helper ────────────────────────────────────────────────────────────────────
 
 static Scene evaluate_preset(const Composition& comp, Frame frame) {
-    return comp.evaluate(frame, std::pmr::get_default_resource());
+    return comp.evaluate(frame);
 }
 
 // ── SaaSIntro ─────────────────────────────────────────────────────────────────

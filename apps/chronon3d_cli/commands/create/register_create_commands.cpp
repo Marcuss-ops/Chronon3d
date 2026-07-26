@@ -180,7 +180,7 @@ void register_create_commands(CLI::App& app, CliContext& ctx) {
             return;
         }
 
-        const auto dst = std::filesystem::current_path() / a.name;
+        const auto dst = std::filesystem::absolute(a.name);
         if (std::filesystem::exists(dst)) {
             if (!a.force) {
                 fmt::print(stderr,

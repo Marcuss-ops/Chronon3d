@@ -1,4 +1,5 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
@@ -18,8 +19,8 @@
 #include <tbb/blocked_range.h>
 #include <hwy/highway.h>
 
-// P1 #11 — Composition::evaluate() is deprecated; render_composition_frame
-// is the bridge that still calls it until the V2 migration completes.
+// The pipeline still uses Composition's deprecated convenience overloads
+// while the canonical compiled-composition path is adopted by all callers.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
@@ -129,8 +130,13 @@ std::shared_ptr<Framebuffer> render_composition_frame(
     int layer_count = 0;
 
     auto call_graph = [&](const Scene& scene, Frame fr, f32 t) {
+        // The scene camera is the sole authored runtime camera state.
+        // The graph receives a neutral context camera for plain 2D scenes;
+        // authored Camera2_5D state is applied by the scene itself.
+        Camera context_camera{};
         return render_scene_via_graph(
-            backend, node_cache, scene, comp.camera, rw, rh, fr, t, settings, registry, video_decoder,
+            backend, node_cache, scene, context_camera,
+            rw, rh, fr, t, settings, registry, video_decoder,
             static_cast<float>(comp.frame_rate().fps()),
             comp.name(),
             sw_sidecar
@@ -151,29 +157,33 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         (settings.motion_blur.mode == MotionBlurMode::TemporalAccumulation) &&
         (settings.motion_blur.samples > 1);
 
-    // ═══════════════════════════════════════════════════════════════════
-    // Compile the default camera descriptor ONCE per render_composition_frame.
-    // The compiled CameraProgram is reused in both the single-frame and the
-    // motion-blur (temporal accumulation) branches.  CameraSession is persistent
-    // across evaluations to preserve stateful constraint state (e.g. DampedFollow).
-    // ═══════════════════════════════════════════════════════════════════════
+    // Compile the default camera descriptor once per render.  The descriptor
+    // may come from Composition or from the SceneBuilder V1 pose surface.
+    // The resulting immutable program is reused across all motion-blur samples.
     camera_v1::CameraSession camera_session;
     std::optional<camera_v1::CameraProgram> compiled_program;
-    {
+    auto compile_scene_camera = [&](const Scene& scene) {
+        if (compiled_program.has_value()) return;
+
+        const camera_v1::CameraDescriptor* descriptor = nullptr;
         if (comp.has_default_camera_descriptor()) {
-            camera_v1::CameraCompileContext compile_ctx{};
-            auto result = camera_v1::compile_camera(
-                comp.default_camera_descriptor(), nullptr, compile_ctx);
-            if (result.has_value()) {
-                compiled_program.emplace(std::move(result).value());
-            } else {
-                spdlog::warn(
-                    "[default-camera] compile_camera failed for '{}': "
-                    "keeping scene default camera",
-                    comp.name());
-            }
+            descriptor = &comp.default_camera_descriptor();
+        } else if (scene.default_camera_descriptor().has_value()) {
+            descriptor = &scene.default_camera_descriptor().value();
         }
-    }
+        if (descriptor == nullptr) return;
+
+        camera_v1::CameraCompileContext compile_ctx{};
+        auto result = camera_v1::compile_camera(*descriptor, nullptr, compile_ctx);
+        if (result.has_value()) {
+            compiled_program.emplace(std::move(result).value());
+        } else {
+            spdlog::warn(
+                "[default-camera] compile_camera failed for '{}': "
+                "keeping scene default camera",
+                comp.name());
+        }
+    };
 
     // Helper: evaluate the ONCE-compiled camera program for the given
     // frame and stamp the resulting Camera2_5D onto the scene.
@@ -233,6 +243,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
         });
         scene = comp.evaluate(ctx);
         }
+        compile_scene_camera(scene);
         evaluate_ms = profiling::duration_ms(t_eval0, profiling::now());
         layer_count = static_cast<int>(scene.layers().size());
 
@@ -293,6 +304,7 @@ std::shared_ptr<Framebuffer> render_composition_frame(
                 });
                 Scene sub = comp.evaluate(sub_ctx);
                 if (s == 0) layer_count = static_cast<int>(sub.layers().size());
+                compile_scene_camera(sub);
 
                 // Apply the default camera to each sub-frame scene.
                 apply_default_camera(sub, frame);

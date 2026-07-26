@@ -116,11 +116,10 @@ struct DiagnosticSettings {
 // related flags live next to each other.  In particular, all dirty-rect /
 // tile / bitmask knobs are under `dirty`; see DirtyRenderSettings.
 struct RenderSettings {
-    /**
-     * Compatibility toggle for the modular graph coordinate convention.
-     * false = top-left scene coordinates, true = centered modular graph coordinates.
-     */
-    bool use_modular_graph{true};
+    /// Reject unresolved image assets before executing the graph.
+    /// The public SDK enables this contract; internal authoring/debug paths
+    /// keep the historical placeholder behavior unless they opt in.
+    bool fail_on_missing_assets{false};
 
     /**
      * Global motion blur settings.

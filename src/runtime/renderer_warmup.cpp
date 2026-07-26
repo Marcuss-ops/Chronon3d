@@ -56,23 +56,11 @@ RendererWarmupResult warmup_renderer(
         // "no FontEngine available" during the dummy-frame passes.
         FontEngine* engine = &renderer.font_engine();
         for (int pass = 0; pass < 2; ++pass) {
-            FrameContext warmup_ctx = make_frame_context({
-                .global_time = SampleTime::from_frame(static_cast<double>(options.dummy_frame), composition.frame_rate()),
-                .duration = composition.duration(),
-                .width = composition.width(),
-            .height = composition.height(),
-            .resource = std::pmr::get_default_resource(),
-                .runtime = nullptr,
-                // P1-16: warmup no longer wires a standalone engine.
-                // The runtime path is the canonical source.
-            });
-            auto scene = composition.evaluate(warmup_ctx);
-            auto fb = renderer.render_scene(
-                scene,
-                composition.camera,
-                composition.width(),
-                composition.height(),
-                30.0f);
+            // Warm the same canonical Composition → RenderGraph path used by
+            // production. Do not construct a Scene/Camera pair here: that
+            // was the deprecated render_scene adapter and could warm a path
+            // different from the one users actually execute.
+            auto fb = renderer.render(composition, options.dummy_frame);
             (void)fb; // discard the result
         }
     }

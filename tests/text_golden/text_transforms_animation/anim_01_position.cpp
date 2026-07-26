@@ -2,7 +2,7 @@
 // tests/text_golden/text_transforms_animation/anim_01_position.cpp
 //
 // TICKET-FASE2-TRANSFORMS-ANIMATION §10 — Position animation test.
-// Verifies that text with `position_x(motion::timeline(...))` (a
+// Verifies that text with `position_x(chronon3d::timeline(...))` (a
 // position animation in X) produces a monotonically shifting centroid
 // across the animation frames.
 //

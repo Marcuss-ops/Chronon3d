@@ -20,10 +20,15 @@
 
 #include <chronon3d/api/composition.hpp>
 #include <chronon3d/api/scene.hpp>
+#include <chronon3d/sdk/render_engine.hpp>
+#include <chronon3d/sdk/render_output.hpp>
+#include <chronon3d/sdk/render_settings.hpp>
+#include <chronon3d/backends/image/image_writer.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
 
 #include <cmath>
 #include <cstdio>
@@ -98,12 +103,10 @@ static c3d::Composition make_bg_composition(const char* assets_root) {
         {.name = "sdk_text_bg_only",
          .width = 640, .height = 360,
          .frame_rate = c3d::FrameRate{30, 1},
-         .duration = 1},
+         .duration = 1,
+         .assets_root = assets_root},
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
-            if (ctx.runtime) {
-                s.font_engine(&ctx.runtime->font_engine());
-            }
 
             // Background layer only
             s.layer("bg", [](c3d::LayerBuilder& l) {
@@ -124,12 +127,10 @@ static c3d::Composition make_text_composition(const char* assets_root) {
         {.name = "sdk_text_consumer",
          .width = 640, .height = 360,
          .frame_rate = c3d::FrameRate{30, 1},
-         .duration = 1},
+         .duration = 1,
+         .assets_root = assets_root},
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
-            if (ctx.runtime) {
-                s.font_engine(&ctx.runtime->font_engine());
-            }
 
             // Background layer
             s.layer("bg", [](c3d::LayerBuilder& l) {
@@ -178,7 +179,6 @@ int main(int argc, char* argv[]) {
     settings.deterministic = true;
     settings.dirty_rects = false;
     settings.motion_blur = false;
-    settings.max_threads = 1;
 
     c3d::sdk::RenderEngine engine{settings};
     engine.set_assets_root(std::filesystem::path{assets_root});
@@ -200,8 +200,6 @@ int main(int argc, char* argv[]) {
     // ═══════════════════════════════════════════════════════════════
     auto bg_comp = make_bg_composition(assets_root);
     bg_comp.default_camera_descriptor(make_cam());
-    bg_comp.camera.transform.position = c3d::Vec3{0.0f, 0.0f, -1000.0f};
-    bg_comp.camera.set_rotation_euler(c3d::Vec3{0.0f, 180.0f, 0.0f});
 
     auto bg_result = engine.render(bg_comp, c3d::sdk::Frame{0});
     if (!bg_result.has_value()) {
@@ -224,8 +222,6 @@ int main(int argc, char* argv[]) {
     // ═══════════════════════════════════════════════════════════════
     auto text_comp = make_text_composition(assets_root);
     text_comp.default_camera_descriptor(make_cam());
-    text_comp.camera.transform.position = c3d::Vec3{0.0f, 0.0f, -1000.0f};
-    text_comp.camera.set_rotation_euler(c3d::Vec3{0.0f, 180.0f, 0.0f});
 
     auto text_result = engine.render(text_comp, c3d::sdk::Frame{0});
     if (!text_result.has_value()) {

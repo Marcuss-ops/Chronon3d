@@ -24,6 +24,8 @@
 #include <chronon3d/core/profiling/counters.hpp>
 #include <chronon3d/core/profiling/trace_categories.hpp>
 #include <chronon3d/core/config.hpp>
+#include <chronon3d/assets/asset_resolver.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 
 #include "helpers.hpp"
 #include "scene_internal.hpp"
@@ -76,6 +78,23 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
     SoftwareRenderer* sw_renderer =
         detail::setup_render_graph_context(ctx, scene, sw_sidecar);
 
+    // The SDK contract is fail-closed for unresolved assets. Run the same
+    // graph preflight against the owning runtime resolver before any backend
+    // can substitute a diagnostic placeholder for a missing image.
+    if (settings.fail_on_missing_assets) {
+        auto report = debug_preflight_render_graph(
+            backend, node_cache, scene, camera, width, height,
+            frame, frame_time, settings, registry, video_decoder,
+            static_cast<float>(fps),
+            sw_renderer ? &sw_renderer->runtime().resolver() : nullptr);
+        if (report.has_warning_containing("MISSING_ASSET") ||
+            report.has_warning_containing("ASSET_RESOLVER_UNAVAILABLE")) {
+            spdlog::error("[graph-preflight] render rejected because an asset "
+                          "could not be resolved");
+            return nullptr;
+        }
+    }
+
     // ── 1-3. Resolved-scene reuse + Fingerprints + Static-scene fast-path ──
     auto reuse_eval = detail::evaluate_early_reuse_phases(
         ctx, scene, frame, static_cast<int>(width),
@@ -101,7 +120,8 @@ std::shared_ptr<Framebuffer> render_scene_via_graph(
         auto report = debug_preflight_render_graph(
             backend, node_cache, scene, camera, width, height,
             frame, frame_time, settings, registry, video_decoder,
-            static_cast<float>(fps));
+            static_cast<float>(fps),
+            sw_renderer ? &sw_renderer->runtime().resolver() : nullptr);
         spdlog::info("[graph-preflight] label='{}' frame={} size={}x{}\n{}",
                      diagnostic_label, static_cast<int>(frame), width, height, report.to_text());
         if (!settings.diagnostics.plan_output.empty()) {

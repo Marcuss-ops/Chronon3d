@@ -58,8 +58,8 @@
 //   glow       → layer-level glow effect + warm color
 //   tracking   → rect width (visual "spacing")
 //   placement  → rect position
-//   transform  → rotate_z motion::timeline
-//   animation  → position_x motion::timeline
+//   transform  → rotate_z chronon3d::timeline
+//   animation  → position_x chronon3d::timeline
 //   frame      → passed at render time
 //
 // AGENTS.md v0.1 freeze compliance: no new public API, no new
@@ -79,7 +79,7 @@
 #include <chronon3d/core/types/sample_time.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
-#include <chronon3d/animation/motion/timeline.hpp>
+#include <chronon3d/animation/motion/motion.hpp>
 #include <chronon3d/effects/effect_params.hpp>
 
 #include <tests/helpers/test_utils.hpp>
@@ -153,7 +153,7 @@ Composition build_comp(const CompSpec& spec) {
                     l.glow(g);
                 }
                 if (spec.rotation_z != 0.0f) {
-                    // Static Z-rotation via motion::timeline (LayerBuilder
+                    // Static Z-rotation via chronon3d::timeline (LayerBuilder
                     // takes a Timeline, not a raw float). 1-segment
                     // timeline holds the constant rotation value.
                     l.rotate(Vec3{0.0f, 0.0f, spec.rotation_z});
@@ -345,7 +345,7 @@ TEST_CASE("Cache invariance: 8 input dimensions produce distinct keys (or distin
         INFO("transform dim: cache_misses " << misses_before << "→" << misses_after);
         CHECK(misses_after > misses_before);
     }
-    SUBCASE("animation: with position_x motion::timeline") {
+    SUBCASE("animation: with position_x chronon3d::timeline") {
         // Render at frame 15 (mid-animation, distinct from baseline frame 0).
         // The composition duration must be long enough to allow frame 15.
         auto renderer = make_cached_renderer();

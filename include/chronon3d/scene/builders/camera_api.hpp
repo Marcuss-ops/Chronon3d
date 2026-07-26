@@ -1,7 +1,7 @@
 #pragma once
 
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
-#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <string>
 
 namespace chronon3d {
@@ -15,7 +15,7 @@ public:
         : owner_(&owner) {}
 
     CameraApi& set(Camera2_5D camera);
-    CameraApi& set_animated(const AnimatedCamera2_5D& cam);
+    CameraApi& set_pose_tracks(const camera_v1::PoseTracksSource& cam);
     CameraApi& enable(bool enabled = true);
     CameraApi& position(Vec3 p);
     CameraApi& zoom(f32 value);

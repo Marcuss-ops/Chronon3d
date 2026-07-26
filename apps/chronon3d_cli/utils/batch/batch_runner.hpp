@@ -12,7 +12,6 @@ struct BatchJob {
     std::string frames{"0"};
     std::string output;
     bool diagnostic = false;
-    bool use_modular_graph = false;
 };
 
 struct BatchSummary {

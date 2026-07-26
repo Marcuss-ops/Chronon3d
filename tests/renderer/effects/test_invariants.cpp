@@ -108,8 +108,7 @@ TEST_CASE("Invariants: bbox_expands_with_glow_radius") {
 TEST_CASE("Invariants: alpha_zero_noop") {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
 
     // Scene with ONLY background
     Composition comp_bg({.width = 100, .height = 100, .duration = 1}, [](const FrameContext& ctx) {
@@ -169,8 +168,7 @@ TEST_CASE("Invariants: alpha_zero_noop") {
 TEST_CASE("Invariants: blur_radius_zero_noop") {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
 
     Composition comp_no_blur({.width = 100, .height = 100, .duration = 1}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
@@ -201,8 +199,7 @@ TEST_CASE("Invariants: blur_radius_zero_noop") {
 TEST_CASE("Invariants: glow_intensity_zero_noop") {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
 
     Composition comp_no_glow({.width = 100, .height = 100, .duration = 1}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
@@ -233,8 +230,7 @@ TEST_CASE("Invariants: glow_intensity_zero_noop") {
 TEST_CASE("Invariants: bloom_threshold_above_max_noop") {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
 
     Composition comp_no_bloom({.width = 100, .height = 100, .duration = 1}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
@@ -370,8 +366,7 @@ TEST_CASE("Invariants: dirty_rect_contains_glow_spread") {
 TEST_CASE("Invariants: no_nan_after_effect_stack") {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
 
     Composition comp({.width = 100, .height = 100, .duration = 1}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);

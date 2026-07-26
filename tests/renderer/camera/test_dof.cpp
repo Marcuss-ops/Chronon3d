@@ -172,30 +172,3 @@ TEST_CASE("DOF: legacy model unchanged (backward compat)") {
     f32 blur = compute_dof_blur_radius(d, kDefaultLens, -500.0f);
     CHECK(blur == doctest::Approx(10.0f));
 }
-
-TEST_CASE("DOF: AnimatedCamera2_5D dof_enabled flag works with constant values") {
-    AnimatedCamera2_5D cam;
-    cam.dof_enabled = true;
-    cam.aperture.set(0.03f);
-    cam.max_blur.set(12.0f);
-    // Not animated — but dof_enabled should still activate DoF.
-    Camera2_5D result = cam.evaluate(Frame{30});
-    CHECK(result.dof.enabled == true);
-    CHECK(result.dof.aperture == doctest::Approx(0.03f));
-    CHECK(result.dof.max_blur == doctest::Approx(12.0f));
-}
-
-TEST_CASE("DOF: AnimatedCamera2_5D physical model propagates to Camera2_5D") {
-    AnimatedCamera2_5D cam;
-    cam.dof_enabled = true;
-    cam.use_physical_model = true;
-    cam.focal_length.set(85.0f);
-    cam.f_stop.set(4.0f);
-    cam.focus_distance.set(1500.0f);
-
-    Camera2_5D result = cam.evaluate(Frame{30});
-    CHECK(result.dof.use_physical_model == true);
-    CHECK(result.lens.focal_length == doctest::Approx(85.0f));
-    CHECK(result.lens.f_stop == doctest::Approx(4.0f));
-    CHECK(result.dof.focus_distance == doctest::Approx(1500.0f));
-}

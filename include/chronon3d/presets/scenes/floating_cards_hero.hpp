@@ -10,7 +10,7 @@ inline Composition floating_cards_hero() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        s.animated_camera(camera_rig::subtle_float({
+        s.camera_pose(camera_v1::presets::subtle_float({
             .base_position = {0.0f, 0.0f, -1000.0f},
             .x_amplitude = 12.0f,
             .y_amplitude = 6.0f,

@@ -3,8 +3,7 @@
 // ============================================================================
 // include/chronon3d/timeline/compiled_composition.hpp
 //
-// P3-C (V0.2 timeline staging) — `CompiledComposition` lives NEXT to
-// the legacy `chronon3d::Composition` class.  It is the V2 staging
+// P3-C (V0.2 timeline) — `CompiledComposition` is the immutable
 // handle for a ready-to-evaluate composition: the static recipe
 // (`CompositionDefinition`) PLUS its compiled `camera_v1::CameraProgram`,
 // keyed by a stable `fingerprint`.
@@ -17,10 +16,8 @@
 //      multiple per-thread `RenderJob` and per-worker `CameraSession`
 //      lifetimes without duplicating the heavy camera program state.
 //
-// Anti-DRY note (Rule 4 ANTI_DUPLICATION_RULES):
-//   `CompiledComposition` is the V2 staging synonym for the legacy
-//   `Composition`+`Composition::default_camera_descriptor(...)` pair.
-//   The legacy surface stays put until V2 promotion closes.
+// The authored Composition remains a convenient scene-function input; this
+// value is the immutable compiled form used by explicit pipeline consumers.
 // ============================================================================
 
 #include <cstdint>
@@ -34,8 +31,7 @@ namespace chronon3d {
 // ─────────────────────────────────────────────────────────────────────────────
 // chronon3d::CompiledComposition
 //
-//   V2 staging struct.  Sits NEXT to (does NOT replace) the legacy
-//   `chronon3d::Composition`.  Holds the immutable evaluate-ready handle:
+//   Immutable evaluate-ready handle:
 //
 //   * `definition`      \u2014 shared view of the static `CompositionDefinition`;
 //                          reference-counted so per-worker session caches

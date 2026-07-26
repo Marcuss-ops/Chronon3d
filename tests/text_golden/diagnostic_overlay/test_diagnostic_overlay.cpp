@@ -235,8 +235,8 @@ OverlayResult render_with_overlay(SoftwareRenderer& renderer, ClipVariant varian
         .font = {.font_size = 96.0f}
     },
     .frame = {
-        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
         .size = Vec2{900.0f, 200.0f},
+        .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},
         .anchor = TextAnchor::Center,
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle

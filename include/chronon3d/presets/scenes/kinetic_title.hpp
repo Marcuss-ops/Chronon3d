@@ -10,7 +10,7 @@ inline Composition kinetic_title() {
     }, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
 
-        s.animated_camera(camera_rig::focus_pull({
+        s.camera_pose(camera_v1::presets::focus_pull({
             .position = {0.0f, 0.0f, -1000.0f},
             .zoom = 1000.0f,
             .from_focus_z = 0.0f,

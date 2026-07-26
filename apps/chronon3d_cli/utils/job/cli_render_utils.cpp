@@ -8,7 +8,7 @@
 #include "../common/render_error_formatter.hpp"
 
 // Audit §10 — `<filesystem>` include was REMOVED (the unconditional
-// `cwd = current_path()` mount line that consumed `std::filesystem`
+// The old implicit-CWD mount line that consumed `std::filesystem`
 // was deleted).  If a future caller re-introduces an EXPLICIT
 // `--assets-root` CLI flag wiring, restore the include here.
 #include <cassert>
@@ -100,7 +100,7 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
     // command and the crashing `video` command), so mounting here covers
     // every code path.  Capturing cwd into a local avoids the racy
     // global mutable CWD read across the two mount() calls.
-    // Audit §10 — the previous `cwd = current_path()` unconditional
+    // Audit §10 — the previous unconditional CWD mount
     // mount on `renderer->runtime().resolver()` was REMOVED.  That mount
     // was a process-wide asset root in disguise (every CLI invocation —
     // `render`, `video`, `bench_convert`, preflight — silently snapshotted

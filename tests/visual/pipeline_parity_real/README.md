@@ -12,8 +12,8 @@ The pipeline-parity real test currently asserts SDK-still == CLI-still
 via `framebuffer_hash` (XXH64 over the rendered PNG pixels). The
 regression golden will add a secondary, cross-pipeline lock:
 
-  1. For each variant (default / `--no-graph` / `--graph` /
-     `--diagnostic-overlay` / `--diagnostic-overlay-only`), capture
+  1. For each variant (default / `--diagnostic-overlay` /
+     `--diagnostic-overlay-only`), capture
      the expected `framebuffer_hash` of the canary render.
   2. Hash the table of expected hashes (the "hash-of-hash") and store
      it as a single golden value.

@@ -22,14 +22,8 @@
 //   - render-graph executor / graph-cache concrete types
 //   - asset-registry handle
 //
-// Migration plan (§5 of the orchestration doc):
-//   - Pass A (P1-B): introduce canonical `render(...)` and
-//     [[deprecated]] wrappers on legacy accessors.
-//   - Pass B (P1-F): migrate CLI / tests / consumer / benchmarks to
-//     the canonical API.
-//   - Pass C (P1-C): move legacy accessors to
-//     `chronon3d::advanced::RenderEngineAccess`.
-//   - Pass D (P1-F final): remove legacy accessors from V0.1 freeze.
+// This is the complete supported V0.1 engine surface. Internal adapters,
+// compatibility accessors, and concrete graph services are not exported.
 // ═════════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/core/types/result.hpp>     // canonical Result<T, E> (only allowed non-sdk include)

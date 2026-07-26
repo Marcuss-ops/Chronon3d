@@ -17,17 +17,6 @@ endif()
 
 # --- Opzioni di Compilazione Globali ---
 add_compile_options(-ffp-contract=off)
-# M1.5#8 / TICKET-GATE-10-PHASE-4-BLACK — suppress -Werror=deprecated-declarations
-# globally.  Inclusion of `include/chronon3d/timeline/composition.hpp` exposes
-# `Composition::evaluate(...)` overloads marked `[[deprecated("Use timeline V2:
-# compile_composition() + evaluate() instead")]]`.  Several production TUs
-# (renderer_warmup, pipeline/composition, precomp_node_execute) still call the
-# legacy overloads and would otherwise block the build of any target that
-# transitively compiles them.  A future migration to timeline V2 will
-# remove this flag.  Scope is global but tight: ONLY the deprecated-declarations
-# diagnostic is downgraded; all other -Werror categories remain active.
-add_compile_options(-Wno-error=deprecated-declarations)
-
 # --- Configurazione Strumenti di Build (ccache / linkers) ---
 if(NOT DEFINED CMAKE_CXX_COMPILER_LAUNCHER AND DEFINED ENV{CMAKE_CXX_COMPILER_LAUNCHER})
     set(CMAKE_CXX_COMPILER_LAUNCHER "$ENV{CMAKE_CXX_COMPILER_LAUNCHER}")
@@ -60,12 +49,6 @@ endif()
 # --- Opzioni del Progetto --
 option(CHRONON3D_UNITY_BUILD "Enable unity (jumbo) build" OFF)
 option(CHRONON3D_BUILD_TESTS "Build Chronon3d tests" OFF)
-# TICKET-COMPOSITIONDESCRIPTOR-MIGRATION PHASE-2.5-BUILD-FLAG-WIRING (2026-07-14).
-# When ON, promote -Wdeprecated-declarations to error for chronon3d_core_tests only
-# (escape hatch for SDK-consumer builds with -Werror OR the future posture that
-# reverts the global -Wno-error=deprecated-declarations suppression at line 28).
-# Default OFF preserves the current 200+ legacy-caller build posture.
-option(CHRONON3D_REQUIRES_DESCRIPTOR_REGISTRATION "Promote -Wdeprecated-declarations to error for chronon3d_core_tests (gates SDK-consumer builds until 200+ legacy add(name, factory) callers are migrated per ADR-027)" OFF)
 option(CHRONON3D_BUILD_CLI "Build Chronon3d CLI" ON)
 option(CHRONON3D_BUILD_BENCHMARKS "Build Chronon3d benchmarks" OFF)
 option(CHRONON3D_BUILD_CONTENT "Build bundled content compositions (proofs, demos)" OFF)

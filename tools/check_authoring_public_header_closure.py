@@ -23,6 +23,14 @@ RELATIVE_INCLUDE = re.compile(
     r'^\s*#\s*include\s*"([^"\n]+)"', re.MULTILINE
 )
 
+FORBIDDEN_PUBLIC_HEADERS = {
+    "chronon3d/cache/framebuffer_pool.hpp",
+    "chronon3d/scene/camera/camera_v1/camera_session_cache.hpp",
+    "chronon3d/scene/camera/camera_v1/register_camera_v1.hpp",
+    "chronon3d/scene/camera/camera_v1/shot_timeline.hpp",
+    "chronon3d/scene/model/render/render_runtime.hpp",
+}
+
 
 def manifest_paths(path: Path) -> set[str]:
     return set(MANIFEST_ENTRY.findall(path.read_text(encoding="utf-8")))
@@ -58,6 +66,16 @@ def main() -> int:
     failures: list[str] = []
 
     failures.extend(
+        f"internal implementation header installed as public: include/{relative}"
+        for relative in sorted(installed & FORBIDDEN_PUBLIC_HEADERS)
+    )
+    failures.extend(
+        f"internal namespace installed as public: include/{relative}"
+        for relative in sorted(installed)
+        if "/internal/" in relative or relative.startswith("chronon3d/internal/")
+    )
+
+    failures.extend(
         f"duplicate FILE_SET membership: {relative}"
         for relative in sorted(established & authoring_additions)
     )
@@ -68,6 +86,10 @@ def main() -> int:
         if relative.startswith("chronon3d/authoring/")
     }
     audited.update(authoring_additions)
+    audited.update({
+        "chronon3d/scene/camera/camera_v1/camera_presets.hpp",
+        "chronon3d/scene/camera/camera_v1/camera_preset_params.hpp",
+    })
 
     for relative in sorted(audited):
         source = INCLUDE_ROOT / relative

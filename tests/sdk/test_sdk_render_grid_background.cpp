@@ -158,8 +158,6 @@ TEST_CASE("SDK-RENDERER GATE-10-PHASE-4-BLACK: sdk::RenderEngine::render with "
 
     // Default-camera path (no CameraDescriptor set on Composition),
     // matching the gate #10 Phase 4 narrower invocation pattern.
-    comp.camera.transform.position = c3d::Vec3{0.0f, 0.0f, -1000.0f};
-    comp.camera.set_rotation_euler(c3d::Vec3{0.0f, 180.0f, 0.0f});
 
     c3d::sdk::RenderSettings settings{};
     settings.width  = kWidth;
@@ -168,7 +166,6 @@ TEST_CASE("SDK-RENDERER GATE-10-PHASE-4-BLACK: sdk::RenderEngine::render with "
     settings.deterministic       = true;
     settings.dirty_rects         = false;
     settings.motion_blur         = false;
-    settings.max_threads         = 1;
 
     c3d::sdk::RenderEngine engine{settings};
     engine.set_assets_root(assets_root);
