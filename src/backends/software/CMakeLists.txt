@@ -2,38 +2,21 @@
 # src/backends/software/CMakeLists.txt — chronon3d_backend_software
 # ==============================================================================
 
-# TICKET-011 cmake-boundary (OBJECT lift) — chronon3d_backend_software is now
-# an OBJECT library; its compiled objects are aggregated into
-# chronon3d_sdk_impl.a (see src/CMakeLists.txt).  Tests / CLI executables
-# resolve the .o files transitively through chronon3d_pipeline → OBJECT deps.
+# Software backend objects are aggregated into the SDK implementation target.
 add_library(chronon3d_backend_software OBJECT
-    # Top-level files only — subsystem sources are in per-directory CMakeLists.txt
+    # Subsystem sources are registered by their directory CMakeLists files.
     software_compositor.cpp
-    # M1.5#12 — SoftwareRenderer split: main = lifecycle + RenderRuntime forwarders;
-    # 4 companion TUs hold construction / dispatch / text / effects per the
-    # `software_backend_factory.cpp` M1.5#12 pattern (1/4 factory + dispatch +
-    # text + effects).  No new public API.  ABI invariant.  Move ops confined
-    # to software_renderer.cpp (ODR — single TU).
     software_renderer.cpp
-    software_renderer_factory.cpp    # M1.5#12 -TICKET-M1.5#12 1/4 — 2 construction ctors
-    software_renderer_dispatch.cpp   # M1.5#12 2/4 — render/draw_node/composite/apply_blur/apply_per_pixel_dof
-    software_renderer_text.cpp       # M1.5#12 3/4 — preflight + text-aware render_scene + accessors + RAII
-    software_renderer_effects.cpp    # M1.5#12 4/4 — apply_effect_stack single forwarder
+    software_renderer_factory.cpp
+    software_renderer_dispatch.cpp
+    software_renderer_text.cpp
+    software_renderer_effects.cpp
     software_backend.cpp
-    software_backend_factory.cpp   # M1.5#12 1/4 — make_software_backend() factory (UNIQUE validation source)
+    software_backend_factory.cpp
     software_processor_context.cpp
-    # M1.5#7 — OOL ctor/dtor for `SoftwareSessionResources` (needed because
-    # the default constructor now std::make_unique's a `TextRenderResources`
-    # via raw new and must delete it on destruction — the prior inline `= default`
-    # ctor was sufficient when `TextRenderResources*` defaulted to nullptr).
     software_session_resources.cpp
-    # TICKET-118 — internal bridge that lets SoftwareBackend build a complete
-    # `SoftwareProcessorContext` without holding a SoftwareRenderer* back-pointer.
-    # Strictly under src/; never installed; not in include/chronon3d/.
+    # Internal bridge, never installed as public API.
     internal/software_processor_services.cpp
-    # TICKET-121 — Phase 1 frame-bound allocation counter (thread_local, no
-    # public API).  Lives alongside TICKET-118 internal bridge; the same
-    # $<BUILD_INTERFACE:...> pattern keeps it strictly under src/.
     internal/frame_alloc_counter.cpp
     runtime_adapter.cpp
     buffer_ring.cpp
@@ -54,8 +37,6 @@ target_link_libraries(chronon3d_backend_software
         fmt::fmt
         xxHash::xxhash
         TBB::tbb
-        # text_run_processor.cpp calls compute_text_run_world_bbox() which
-        # now lives in chronon3d_text_core (text_run_geometry.cpp).
         $<$<BOOL:${CHRONON3D_ENABLE_TEXT}>:chronon3d_text_core>
 )
 if(CHRONON3D_USE_BLEND2D)
@@ -67,27 +48,14 @@ if(CHRONON3D_USE_BLEND2D)
 endif()
 if(TARGET chronon3d_backend_text)
     target_link_libraries(chronon3d_backend_software PUBLIC chronon3d_backend_text)
-    # Expose to the compiler so callers (e.g. software_renderer.cpp) can guard
-    # text-backend-only initializers.  Prevents link errors when Blend2D /
-    # text backend are disabled.
-    # PUBLIC: required so all consumers (chronon3d_runtime, chronon3d_sdk_impl)
-    # see the same SoftwareProcessorContext/ProcessorSourceExtras layout.
-    # PRIVATE was an ODR violation — see TICKET-GATE-10 stack-smashing fix.
+    # Keep capability layout consistent for all consumers of the context.
     target_compile_definitions(chronon3d_backend_software PUBLIC CHRONON3D_HAS_BACKEND_TEXT)
 endif()
 
 if(CHRONON3D_BUILD_DIAGNOSTICS)
     target_link_libraries(chronon3d_backend_software PRIVATE chronon3d_backend_software_diagnostics)
 endif()
-# TICKET-118 — BUILD_INTERFACE include dir exposes the new internal bridge
-# (`internal/software_processor_services.hpp`) ONLY to in-build consumers
-# (sibling TUs in the same library, plus test binaries during the build).
-# The header is NEVER installed — `$<BUILD_INTERFACE:...>` is the canonical
-# CMake idiom that satisfies the "no source-tree-prefixed paths in
-# INTERFACE_INCLUDE_DIRECTORIES" check while still propagating the directory
-# for compile-time ""-includes (`#include "internal/software_processor_services.hpp"`).
-# If we ever provide an install rule, we will need to revisit — for now,
-# the internal bridge stays strictly under src/.
+# Expose internal bridge headers only to in-tree consumers.
 target_include_directories(chronon3d_backend_software
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
