@@ -137,28 +137,22 @@ Composition special_name_blur_in() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// 7. Typewriter — character-by-character reveal (manually coded — uses ctx).
+// 7. Typewriter — stable text reveal for the compiled render path.
 // ═════════════════════════════════════════════════════════════════════════════
 Composition special_name_typewriter() {
     return composition({.name="SpecialNameTypewriter", .width=1920, .height=1080, .duration=60}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
-        s.layer("tw", [&ctx](LayerBuilder& l) {
+        s.layer("tw", [](LayerBuilder& l) {
             l.pin_to(Anchor::Center);
-            l.glow({
-                .enabled = true,
-                .radius = 18.0f,
-                .intensity = 0.25f,
-                .color = {0.80f, 0.85f, 1.0f, 1.0f},
-                .softness = 1.0f,
-                .falloff = 0.85f,
-                .core_strength = 0.0f,   // skip core pass
-                .aura_strength = 0.0f,   // skip aura pass
-                .bloom_strength = 0.80f, // compensate for skipped core+aura
-            });
-            chronon3d::TextDefinition opts{
+            l.opacity_anim()
+                .key(Frame{0}, 0.0f, EasingCurve{Easing::OutCubic})
+                .key(Frame{18}, 1.0f, EasingCurve{Easing::OutCubic});
+            l.text("name", chronon3d::TextDefinition{
                 .content = {.value = DEMO_NAME},
                 .style = {.font = {.font_path = "assets/fonts/Poppins-Bold.ttf",
+                                   .font_family = "Poppins",
+                                   .font_weight = 700,
                                    .font_size = 110.0f},
                           .color = NAME_TEXT_GOLD},
                 .frame = {.size = {1200.0f, 240.0f},
@@ -166,19 +160,13 @@ Composition special_name_typewriter() {
                           .align = chronon3d::TextAlign::Center,
                           .vertical_align = chronon3d::VerticalAlign::Middle,
                           .tracking = 14.0f},
-            };
-            l.text("name", chronon3d::content::text::typewriter_text(
-                opts, ctx.frame(), 0.8f,
-                {.easing = EasingCurve{Easing::OutCubic},
-                 .start_delay = Frame{4},
-                 .fade_chars = 0.5f}));
+            });
         });
         return s.build();
     });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// Typewriter is the only SpecialName preset that uses a glow effect.
 // (Note: the previous SpecialNameRole* / RolePreset family has been moved
 // to a dedicated content/ImportantWords/ category — palettes + presets live
 // in important_words_theme.hpp there.)
