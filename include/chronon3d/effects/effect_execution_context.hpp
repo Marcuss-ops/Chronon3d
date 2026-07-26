@@ -5,7 +5,7 @@
 
 #include <optional>
 
-namespace chronon3d { class DebugConfig; }   // TICKET-007: per-instance debug gating
+namespace chronon3d { class DebugConfig; class CurveCache; }   // TICKET-007: per-instance debug gating
 
 namespace chronon3d::effects {
 
@@ -28,6 +28,7 @@ struct EffectExecutionContext {
     /// removed process-wide `detail::g_debug_config`.  When
     /// nullptr, debug overlays / per-pass artifacts are skipped.
     const chronon3d::DebugConfig* debug_cfg{nullptr};
+    chronon3d::CurveCache* curve_cache{nullptr};
 };
 
 } // namespace chronon3d::effects

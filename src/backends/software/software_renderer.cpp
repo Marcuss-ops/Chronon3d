@@ -98,6 +98,7 @@ void rebind_moved_renderer_services(SoftwareRenderer& renderer) {
     extras.registry = &renderer.software_registry();
     extras.image_backend = renderer.image_backend();
     extras.image_renderer = &renderer.image_renderer();
+    extras.curve_cache = &runtime->curve_cache();
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     extras.font_engine = &renderer.font_engine();
 #endif
