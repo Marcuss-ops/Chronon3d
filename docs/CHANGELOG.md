@@ -1,4 +1,9 @@
 ## 2026-07-26
+### `feat(anim): interpolate extrapolate + options struct`
+  ([TICKET-EXTRAPOLATE-ENUM](docs/tickets/TICKET-EXTRAPOLATE-ENUM.md) Fase 2)
+Helper interni `chronon3d::animation::detail::wrap_unit(t, Extrapolate)` + `apply_extrapolation(t, left, right)` + nuovo overload canonico `interpolate(f32, f32, f32, f32, f32, InterpolateOptions)` in `include/chronon3d/animation/easing/interpolate.hpp` (Cat-3 anti-dup: UN solo overload usa la pipeline `detail::apply_extrapolation`). Vecchio `interpolate(..., ClampMode clamp = ClampMode::Clamp)` delegato al nuovo via adapter `ClampMode → InterpolateOptions{ext, ext, easing}` (bit-equivalent backward-compat). User-facing `animation/interpolate.hpp` ri-exporter `Extrapolate` + `InterpolateOptions` via `#include <easing/interpolate.hpp>` + nuovo overload `interpolate(Frame, FrameRange, ValueRange, InterpolateOptions)` (reuse `FrameRange`/`ValueRange` esistenti). 8 SUBCASEs `tests/core/animation/test_interpolate.cpp` lockano Clamp / Extend-before / Extend-after / Wrap-after / Wrap-before / Asymmetric / start==end / Endpoint-preservation + adapter bit-equivalence (6-point sweep). Zero ABI break: firme esistenti invariate, `ClampMode` legacy preservato. Cat-3 minimal-surface: 2 detail helpers + 1 new overload chain. Cronaca estesa nel canonical ticket-home.
+
+## 2026-07-26
 ### `docs(adr): ADR-017 render-preparation-orchestrator` ([ADR-017](docs/adr/ADR-017-render-preparation-orchestrator.md))
 ### `feat(animation): add Extrapolate enum + InterpolateOptions (TICKET-EXTRAPOLATE-ENUM bundle)`
   ([TICKET-EXTRAPOLATE-ENUM](docs/tickets/TICKET-EXTRAPOLATE-ENUM.md))

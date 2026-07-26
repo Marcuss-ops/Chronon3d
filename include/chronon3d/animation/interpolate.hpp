@@ -40,6 +40,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/animation/easing/interpolate.hpp>
 #include <chronon3d/animation/easing/spring.hpp>
 #include <chronon3d/animation/effects/stagger.hpp>
 #include <chronon3d/core/types/frame.hpp>
@@ -82,7 +83,9 @@ struct Segment {
 /// Interpolate a value over a frame range with optional easing.
 ///
 /// Maps `frame` from [range.start, range.end] to [values.from, values.to].
-/// Frame is clamped to the range by default (no overshoot).
+/// Frame is clamped to the range by default (no overshoot). For asymmetric
+/// extrapolation (e.g. Clamp-before + Extend-after), use the InterpolateOptions
+/// overload below.
 ///
 /// Example:
 ///   f32 opacity = interpolate(ctx.frame, {0, 15}, {0.0f, 1.0f});
@@ -93,14 +96,31 @@ struct Segment {
     ValueRange values,
     EasingCurve easing = EasingCurve{Easing::Linear}
 ) {
+    return interpolate(frame, range, values,
+                       InterpolateOptions{Extrapolate::Clamp, Extrapolate::Clamp, easing});
+}
+
+/// Interpolate with explicit extrapolation policies + easing.
+/// TICKET-EXTRAPOLATE-ENUM Fase 2: re-uses the canonical InterpolateOptions math
+/// from `<chronon3d/animation/easing/interpolate.hpp>`. Game-preserves the
+/// existing user surface (`interpolate(frame, {start,end}, {from,to}, easing)`)
+/// while exposing `Extrapolate::Extend` (`{start,end}, {from,to}, InterpolateOptions)`)
+/// for spring/overshoot authoring.
+///
+/// Example:
+///   // Spring overshoot: keep going past 1.0 on the way to target
+///   f32 scale = interpolate(ctx.frame, {0, 30}, {0.5f, 1.0f},
+///                           InterpolateOptions{Extrapolate::Clamp, Extrapolate::Extend, Easing::OutBack});
+[[nodiscard]] inline f32 interpolate(
+    Frame frame,
+    FrameRange range,
+    ValueRange values,
+    InterpolateOptions opts
+) {
     const f32 f = static_cast<f32>(frame.integral());
     const f32 s = static_cast<f32>(range.start.integral());
     const f32 e = static_cast<f32>(range.end.integral());
-    if (e == s) return values.from;
-    f32 t = (f - s) / (e - s);
-    t = std::clamp(t, 0.0f, 1.0f);
-    t = easing.apply(t);
-    return values.from + (values.to - values.from) * t;
+    return chronon3d::interpolate(f, s, e, values.from, values.to, opts);
 }
 
 /// Interpolate with explicit scalar arguments (backward-compatible overload).
@@ -123,7 +143,8 @@ struct Segment {
     Vec2 to,
     EasingCurve easing = EasingCurve{Easing::Linear}
 ) {
-    const f32 t = interpolate(frame, range, ValueRange{0.0f, 1.0f}, easing);
+    const f32 t = interpolate(frame, range, ValueRange{0.0f, 1.0f},
+                              InterpolateOptions{Extrapolate::Clamp, Extrapolate::Clamp, easing});
     return from + (to - from) * t;
 }
 
@@ -135,7 +156,8 @@ struct Segment {
     Vec3 to,
     EasingCurve easing = EasingCurve{Easing::Linear}
 ) {
-    const f32 t = interpolate(frame, range, ValueRange{0.0f, 1.0f}, easing);
+    const f32 t = interpolate(frame, range, ValueRange{0.0f, 1.0f},
+                              InterpolateOptions{Extrapolate::Clamp, Extrapolate::Clamp, easing});
     return from + (to - from) * t;
 }
 
