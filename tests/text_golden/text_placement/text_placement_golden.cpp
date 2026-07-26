@@ -190,14 +190,10 @@ bool alpha_touches_edge(const Framebuffer& fb, float alpha_threshold = 0.05f) {
     return false;
 }
 
-// ── Modular ON/OFF renderer factory ──────────────────────────────────────
-// Shared by G.1 (centroid parity) and G.2 (parity + edge-touch) test cases.
-// Creating a renderer with use_modular_graph toggled is non-trivial (4 calls)
-// so we extract it to a single helper to keep the two paths in lockstep.
-SoftwareRenderer make_mod_renderer_for_test(bool modular) {
+// ── Canonical renderer factory ───────────────────────────────────────────
+SoftwareRenderer make_renderer_for_test() {
     SoftwareRenderer renderer(Config{});
     RenderSettings settings;
-    settings.use_modular_graph = modular;
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
     test::attach_software_backend(&renderer);
@@ -689,7 +685,6 @@ TEST_CASE("TextPlace Debug Overlay — markers drawn") {
     // Create renderer with text_layout_debug enabled.
     SoftwareRenderer renderer(Config{});
     RenderSettings settings;
-    settings.use_modular_graph = true;
     settings.text_layout_debug = true;
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
@@ -749,18 +744,11 @@ TEST_CASE("TextPlace Debug Overlay — markers drawn") {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Group G — modular_coordinates ON/OFF parity
+// Group G — canonical RenderGraph placement and clipping
 // ═══════════════════════════════════════════════════════════════════════════
 
-// G.1 — Verify that the same composition renders identically (or near-identically)
-// with modular_coordinates ON and OFF.  If the centroid shifts, there is
-// still a double-translation path gated on the modular_coordinates flag.
-//
-// We test a subset of representative compositions:
-//   - Static center (basic pin_to path)
-//   - Animated center (exercises use_local path)
-//   - Box alignment (exercises align/vertical_align)
-//   - Multisource (text + rect in same layer)
+// G.1 — Canonical RenderGraph placement regression.
+// Representative compositions must render with visible, centered content.
 
 using CompFactory = Composition (*)();
 
@@ -770,7 +758,7 @@ struct ModCoordParityCase {
     Frame       frame;
 };
 
-TEST_CASE("TextPlace modular_coordinates ON/OFF — centroid parity") {
+TEST_CASE("TextPlace canonical RenderGraph — centroid regression") {
     std::vector<ModCoordParityCase> cases{
         {"StaticCenter",  make_static_center_no_pos,    Frame{0}},
         {"AnimatedCenter", make_animated_center_no_pos,  Frame{30}},
@@ -778,101 +766,41 @@ TEST_CASE("TextPlace modular_coordinates ON/OFF — centroid parity") {
         {"Multisource",   make_multisource_text_plus_shape, Frame{0}},
     };
 
-    // Helper: use the file-static make_mod_renderer_for_test(...).
-    // No local lambda — keeps G.1 and G.2 in lockstep with one
-    // canonical renderer-init pattern.
-
     for (auto& tc : cases) {
         INFO("Case: ", tc.label);
 
-        auto renderer_on = make_mod_renderer_for_test(true);
-        auto comp_on = tc.factory();
-        auto fb_on = renderer_on.render(comp_on, tc.frame);
-        REQUIRE(fb_on != nullptr);
+        auto fb = make_renderer_for_test().render(tc.factory(), tc.frame);
+        REQUIRE(fb != nullptr);
 
-        auto renderer_off = make_mod_renderer_for_test(false);
-        auto comp_off = tc.factory();
-        auto fb_off = renderer_off.render(comp_off, tc.frame);
-        REQUIRE(fb_off != nullptr);
-
-        auto c_on  = compute_alpha_centroid(*fb_on);
-        auto c_off = compute_alpha_centroid(*fb_off);
-
-        CHECK(c_on.max_alpha > 0.3f);
-        CHECK(c_off.max_alpha > 0.3f);
-
-        INFO("ON  centroid: (", c_on.x, ", ", c_on.y, ")");
-        INFO("OFF centroid: (", c_off.x, ", ", c_off.y, ")");
-
-        // The centroids should be within 5% of canvas width of each other.
-        // Exact match is ideal but slight floating-point / rounding
-        // differences between the two coordinate paths are acceptable.
-        const f32 tolerance = static_cast<f32>(fb_on->width()) * 0.05f;
-        CHECK(std::abs(c_on.x - c_off.x) < tolerance);
-        CHECK(std::abs(c_on.y - c_off.y) < tolerance);
+        const auto centroid = compute_alpha_centroid(*fb);
+        CHECK(centroid.max_alpha > 0.3f);
+        CHECK(std::abs(centroid.x - static_cast<f32>(fb->width()) * 0.5f) <
+              static_cast<f32>(fb->width()) * kAntiDoubleCenterToleranceW);
+        CHECK(std::abs(centroid.y - static_cast<f32>(fb->height()) * 0.5f) <
+              static_cast<f32>(fb->height()) * kAntiDoubleCenterToleranceH);
     }
 }
 
-// G.2 — Edge-touch parity: if ON doesn't clip, OFF shouldn't either.
-// G.2 — ON/OFF parity: render with use_modular_graph=true AND=false
-// for each composition.  HARDENED: previously the OFF path was skipped
-// (commented as "may hit pre-existing issues") — now BOTH paths are
-// exercised as a real regression gate.  Each path must:
-//   - render successfully (no exception / null framebuffer)
-//   - have visible alpha (max_alpha > 0.3)
-//   - not touch the framebuffer edge (CHECK_FALSE on alpha_touches_edge)
-// ON vs OFF parity also requires centroid drift < 5% canvas width
-// (the same 5% tolerance as G.1) to prove the two paths converge.
-TEST_CASE("TextPlace modular_coordinates ON/OFF — parity check") {
+// G.2 — Canonical RenderGraph edge-touch regression.
+TEST_CASE("TextPlace canonical RenderGraph — edge-touch regression") {
     std::vector<ModCoordParityCase> cases{
         {"GlowShadow", make_glow_shadow_center_no_pos, Frame{0}},
         {"Scale130",   make_scale_130_center_no_pos,   Frame{0}},
         {"Blur20",     make_clip_blur_20,              Frame{0}},
     };
 
-    // Helper: file-static make_mod_renderer_for_test(bool) — see anon namespace.
-    int rendered_on = 0;
-    int rendered_off = 0;
     for (auto& tc : cases) {
         INFO("Case: ", tc.label);
 
-        // ON path — hard-fail on render exception / null fb.
-        std::shared_ptr<Framebuffer> fb_on;
+        std::shared_ptr<Framebuffer> fb;
         try {
-            fb_on = make_mod_renderer_for_test(true).render(tc.factory(), tc.frame);
+            fb = make_renderer_for_test().render(tc.factory(), tc.frame);
         } catch (const std::exception& e) {
-            FAIL("ON render failed for ", tc.label, ": ", e.what());
+            FAIL("Render failed for ", tc.label, ": ", e.what());
         }
-        REQUIRE(fb_on != nullptr);
-        ++rendered_on;
-        auto c_on = compute_alpha_centroid(*fb_on);
-        CHECK(c_on.max_alpha > 0.3f);
-        // No edge touch on ON path — modular graph must not clip.
-        CHECK_FALSE(alpha_touches_edge(*fb_on));
-
-        // OFF path (formerly skipped — now exercised).
-        std::shared_ptr<Framebuffer> fb_off;
-        try {
-            fb_off = make_mod_renderer_for_test(false).render(tc.factory(), tc.frame);
-        } catch (const std::exception& e) {
-            FAIL("OFF render failed for ", tc.label, ": ", e.what(),
-                 " — non-modular graph path must also produce a framebuffer.");
-        }
-        REQUIRE(fb_off != nullptr);
-        ++rendered_off;
-        auto c_off = compute_alpha_centroid(*fb_off);
-        CHECK(c_off.max_alpha > 0.3f);
-        // No edge touch on OFF path either — parity with ON.
-        CHECK_FALSE(alpha_touches_edge(*fb_off));
-
-        // ON/OFF centroid parity (5% canvas width, same as G.1).
-        const f32 tolerance = static_cast<f32>(fb_on->width()) * 0.05f;
-        INFO("ON  centroid: (", c_on.x, ", ", c_on.y,
-             ")  OFF centroid: (", c_off.x, ", ", c_off.y,
-             ")  tolerance ", tolerance, "px");
-        CHECK(std::abs(c_on.x - c_off.x) < tolerance);
-        CHECK(std::abs(c_on.y - c_off.y) < tolerance);
+        REQUIRE(fb != nullptr);
+        const auto centroid = compute_alpha_centroid(*fb);
+        CHECK(centroid.max_alpha > 0.3f);
+        CHECK_FALSE(alpha_touches_edge(*fb));
     }
-    CHECK(static_cast<size_t>(rendered_on)  == cases.size());
-    CHECK(static_cast<size_t>(rendered_off) == cases.size());
 }

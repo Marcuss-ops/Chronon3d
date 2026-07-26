@@ -91,8 +91,7 @@ TEST_CASE("Render Determinism & Telemetry Hash") {
 
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
 
     // Render run 1
     renderer.counters()->reset();

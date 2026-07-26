@@ -485,7 +485,7 @@ TEST_CASE("AE_CAM_09: motion_blur — golden match at key frames") {
     cfg.threshold = effects_threshold();  // Motion blur has inherent variance.
     auto comp = make_ae_cam_09_motion_blur();
 
-    // Motion blur is configured on the camera object (AnimatedCamera2_5D);
+    // Motion blur is configured on the camera descriptor;
     // the renderer picks it up via the composition's camera settings.
     // For deterministic sampling, the renderer uses the camera-level
     // motion_blur config (samples, shutter_angle, pattern, filter).

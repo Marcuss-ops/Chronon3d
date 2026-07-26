@@ -1,7 +1,7 @@
 // ==============================================================================
 // tests/scene/camera/test_camera_motion_blur.cpp
 //
-// PR8 — CameraMotionBlurIntegrator tests.
+// PR8 — canonical shutter pose sampler tests.
 //
 // Tests:
 //   1. Disabled: returns evaluator result unchanged
@@ -22,7 +22,7 @@
 
 #include <tests/helpers/test_math.hpp>
 
-#include <chronon3d/scene/camera/camera_v1/camera_motion_blur.hpp>
+#include <chronon3d/scene/camera/camera_v1/internal/shutter_pose_sampler.hpp>
 #include <chronon3d/core/types/sample_time.hpp>
 
 #include <cmath>
@@ -32,6 +32,7 @@ using namespace chronon3d;
 namespace {
 
 using namespace chronon3d::camera_v1;
+using chronon3d::camera_v1::internal::ShutterPoseSampler;
 using chronon3d::test::approx;
 
 // ==============================================================================
@@ -41,7 +42,7 @@ TEST_CASE("PR8: disabled motion blur returns center-frame result") {
     MotionBlurSettings mb;
     mb.mode = MotionBlurMode::Off;
     mb.samples = 8;
-    CameraMotionBlurIntegrator integrator(mb);
+    ShutterPoseSampler integrator(mb);
 
     FrameRate fr{30, 1};
     auto result = integrator.evaluate(10.0, fr, [](SampleTime st) {
@@ -61,7 +62,7 @@ TEST_CASE("PR8: single sample returns evaluator result") {
     MotionBlurSettings mb;
     mb.mode = MotionBlurMode::TemporalAccumulation;
     mb.samples = 1;
-    CameraMotionBlurIntegrator integrator(mb);
+    ShutterPoseSampler integrator(mb);
 
     FrameRate fr{30, 1};
     auto result = integrator.evaluate(5.0, fr, [](SampleTime st) {
@@ -84,7 +85,7 @@ TEST_CASE("PR8: uniform box filter averages position") {
     mb.filter = TemporalFilter::Box;
     mb.shutter_angle_deg = 180.0f;
     mb.shutter_phase_deg = 0.0f;  // window starts at frame
-    CameraMotionBlurIntegrator integrator(mb);
+    ShutterPoseSampler integrator(mb);
 
     FrameRate fr{30, 1};
     auto result = integrator.evaluate(10.0, fr, [](SampleTime st) {
@@ -110,7 +111,7 @@ TEST_CASE("PR8: triangle filter center-weights sub-samples") {
     mb.filter = TemporalFilter::Triangle;
     mb.shutter_angle_deg = 180.0f;
     mb.shutter_phase_deg = -90.0f;  // center around frame
-    CameraMotionBlurIntegrator integrator(mb);
+    ShutterPoseSampler integrator(mb);
 
     FrameRate fr{30, 1};
     // Camera moves from 0 at shutter open to 1000 at shutter close.
@@ -139,7 +140,7 @@ TEST_CASE("PR8: gaussian filter bell-weights sub-samples") {
     mb.filter = TemporalFilter::Gaussian;
     mb.shutter_angle_deg = 180.0f;
     mb.shutter_phase_deg = -90.0f;
-    CameraMotionBlurIntegrator integrator(mb);
+    ShutterPoseSampler integrator(mb);
 
     FrameRate fr{30, 1};
     // Camera moves linearly. Gaussian weights emphasize center.
@@ -162,7 +163,7 @@ TEST_CASE("PR8: static camera unchanged by motion blur") {
     MotionBlurSettings mb;
     mb.mode = MotionBlurMode::TemporalAccumulation;
     mb.samples = 8;
-    CameraMotionBlurIntegrator integrator(mb);
+    ShutterPoseSampler integrator(mb);
 
     Camera2_5D baseline;
     baseline.position = {100, 200, -500};
@@ -193,7 +194,7 @@ TEST_CASE("PR8: moving camera produces smeared position") {
     mb.filter = TemporalFilter::Box;
     mb.shutter_angle_deg = 180.0f;
     mb.shutter_phase_deg = -90.0f;
-    CameraMotionBlurIntegrator integrator(mb);
+    ShutterPoseSampler integrator(mb);
 
     FrameRate fr{60, 1};
     // Camera moves from pos=0 at shutter open to pos=100 at shutter close.
@@ -224,8 +225,8 @@ TEST_CASE("PR8: narrow shutter angle reduces blur spread") {
     wide = narrow;
     wide.shutter_angle_deg = 360.0f;
 
-    CameraMotionBlurIntegrator integrator_narrow(narrow);
-    CameraMotionBlurIntegrator integrator_wide(wide);
+    ShutterPoseSampler integrator_narrow(narrow);
+    ShutterPoseSampler integrator_wide(wide);
 
     FrameRate fr{60, 1};
     auto eval_fn = [](SampleTime st) {
@@ -253,7 +254,7 @@ TEST_CASE("PR8: rotation uses quaternion slerp average") {
     mb.samples = 3;
     mb.filter = TemporalFilter::Box;
     mb.pattern = TemporalSamplePattern::Uniform;
-    CameraMotionBlurIntegrator integrator(mb);
+    ShutterPoseSampler integrator(mb);
 
     FrameRate fr{30, 1};
     auto result = integrator.evaluate(10.0, fr, [](SampleTime st) {
@@ -276,8 +277,8 @@ TEST_CASE("PR8: deterministic motion blur with fixed seed") {
     mb.samples = 8;
     mb.pattern = TemporalSamplePattern::Stratified;
     mb.jitter_seed = 42;
-    CameraMotionBlurIntegrator integrator1(mb);
-    CameraMotionBlurIntegrator integrator2(mb);
+    ShutterPoseSampler integrator1(mb);
+    ShutterPoseSampler integrator2(mb);
 
     FrameRate fr{30, 1};
     int call_count = 0;
@@ -306,7 +307,7 @@ TEST_CASE("PR8: halton pattern produces valid sub-samples") {
     mb.samples = 10;
     mb.pattern = TemporalSamplePattern::Halton;
     mb.filter = TemporalFilter::Box;
-    CameraMotionBlurIntegrator integrator(mb);
+    ShutterPoseSampler integrator(mb);
 
     FrameRate fr{30, 1};
     auto result = integrator.evaluate(10.0, fr, [](SampleTime) {
@@ -329,7 +330,7 @@ TEST_CASE("PR8: focus distance accumulated across sub-samples") {
     mb.samples = 4;
     mb.filter = TemporalFilter::Box;
     mb.pattern = TemporalSamplePattern::Uniform;
-    CameraMotionBlurIntegrator integrator(mb);
+    ShutterPoseSampler integrator(mb);
 
     FrameRate fr{30, 1};
     auto result = integrator.evaluate(10.0, fr, [](SampleTime) {
@@ -353,12 +354,12 @@ TEST_CASE("VideoCompleteness.MotionBlur.Shutter0_HashEquivalent_To_Off") {
     MotionBlurSettings mb_off{};
     mb_off.mode = MotionBlurMode::Off;
     mb_off.samples = 8;
-    CameraMotionBlurIntegrator integrator_off(mb_off);
+    ShutterPoseSampler integrator_off(mb_off);
 
     MotionBlurSettings mb_shutter0 = mb_off;
     mb_shutter0.mode = MotionBlurMode::TemporalAccumulation;
     mb_shutter0.shutter_angle_deg = 0.0f;
-    CameraMotionBlurIntegrator integrator_shutter0(mb_shutter0);
+    ShutterPoseSampler integrator_shutter0(mb_shutter0);
 
     FrameRate fr{30, 1};
     auto eval_fn = [](SampleTime st) {
@@ -403,13 +404,13 @@ TEST_CASE("VideoCompleteness.MotionBlur.Shutter0_HashEquivalent_To_Off") {
 TEST_CASE("VideoCompleteness.MotionBlur.Stationary_NoStreak_2px") {
     MotionBlurSettings mb_off{};
     mb_off.mode = MotionBlurMode::Off;
-    CameraMotionBlurIntegrator integrator_off(mb_off);
+    ShutterPoseSampler integrator_off(mb_off);
 
     MotionBlurSettings mb_on{};
     mb_on.mode = MotionBlurMode::TemporalAccumulation;
     mb_on.samples = 8;
     mb_on.shutter_angle_deg = 180.0f;
-    CameraMotionBlurIntegrator integrator_on(mb_on);
+    ShutterPoseSampler integrator_on(mb_on);
 
     FrameRate fr{30, 1};
     Camera2_5D static_cam;
@@ -446,14 +447,14 @@ TEST_CASE("VideoCompleteness.MotionBlur.Stationary_NoStreak_2px") {
 TEST_CASE("VideoCompleteness.MotionBlur.MotionFollowsDirection_X_Spread") {
     MotionBlurSettings mb_off{};
     mb_off.mode = MotionBlurMode::Off;
-    CameraMotionBlurIntegrator integrator_off(mb_off);
+    ShutterPoseSampler integrator_off(mb_off);
 
     MotionBlurSettings mb_on{};
     mb_on.mode = MotionBlurMode::TemporalAccumulation;
     mb_on.samples = 8;
     mb_on.shutter_angle_deg = 180.0f;
     mb_on.shutter_phase_deg = 0.0f;   // window starts at frame center
-    CameraMotionBlurIntegrator integrator_on(mb_on);
+    ShutterPoseSampler integrator_on(mb_on);
 
     FrameRate fr{60, 1};
     auto eval_fn = [](SampleTime st) {
@@ -490,14 +491,14 @@ TEST_CASE("VideoCompleteness.MotionBlur.MotionFollowsDirection_X_Spread") {
 TEST_CASE("VideoCompleteness.MotionBlur.SourceReadable_Luminance_0p90") {
     MotionBlurSettings mb_off{};
     mb_off.mode = MotionBlurMode::Off;
-    CameraMotionBlurIntegrator integrator_off(mb_off);
+    ShutterPoseSampler integrator_off(mb_off);
 
     MotionBlurSettings mb_on{};
     mb_on.mode = MotionBlurMode::TemporalAccumulation;
     mb_on.samples = 8;
     mb_on.shutter_angle_deg = 180.0f;
     mb_on.shutter_phase_deg = 0.0f;
-    CameraMotionBlurIntegrator integrator_on(mb_on);
+    ShutterPoseSampler integrator_on(mb_on);
 
     FrameRate fr{30, 1};
     Camera2_5D baseline;
@@ -522,4 +523,3 @@ TEST_CASE("VideoCompleteness.MotionBlur.SourceReadable_Luminance_0p90") {
 }
 
 } // namespace
-

@@ -372,14 +372,12 @@ TEST_CASE("GraphHealth: dirty rects on and off render identically") {
 
     auto baseline = test::make_renderer();
     RenderSettings baseline_settings;
-    baseline_settings.use_modular_graph = true;
-    baseline_settings.dirty.enabled = false;
+        baseline_settings.dirty.enabled = false;
     baseline.set_settings(baseline_settings);
 
     auto dirty = test::make_renderer();
     RenderSettings dirty_settings;
-    dirty_settings.use_modular_graph = true;
-    dirty_settings.dirty.enabled = true;
+        dirty_settings.dirty.enabled = true;
     dirty.set_settings(dirty_settings);
 
     auto fb0_base = baseline.render(comp, 0);

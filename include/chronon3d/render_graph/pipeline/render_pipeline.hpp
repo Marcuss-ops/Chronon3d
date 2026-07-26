@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Fase C3 — Canonical composition pipeline (single unified path):
 //
-//   Definition      → Composition::evaluate(frame, frame_engine)
+//   Definition      → Composition::evaluate(FrameContext)
 //   Compiler        → build_or_reuse_graph() → CompiledFrameGraph
 //   Evaluator       → render_composition_frame() [SSAA, motion blur]
 //   GraphCompiler   → render_scene_via_graph() [12-phase pipeline]

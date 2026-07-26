@@ -42,7 +42,7 @@ using namespace chronon3d::bench_corpus;
 // resource. Mirrors the canonical `evaluate(...)` pattern used by
 // `tests/scene_presets/test_scene_presets.cpp`.
 static inline Scene eval_at(const Composition& comp, Frame frame) {
-    return comp.evaluate(frame, std::pmr::get_default_resource());
+    return comp.evaluate(frame);
 }
 
 // Common dimension/duration + 3-frame shape-count assertion suite.

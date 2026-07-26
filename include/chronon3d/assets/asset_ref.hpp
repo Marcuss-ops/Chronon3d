@@ -7,7 +7,7 @@
 //   2.  Stores the raw path + owner + required flag (replacing scattered
 //       raw `std::string path` locals)
 //   3.  Resolves via AssetResolver (canonical engine-local path resolution)
-//   4.  Imports into AssetRegistry (id-based lookup + dedup)
+//   4.  Is collected into the per-scene AssetManifest by authoring code
 //
 // Callers that need to deposit a typed asset into the manifest construct
 // an `assets::InternalAssetRef` and pass it to `assets::AssetManifest::add(...)`
@@ -19,11 +19,9 @@
 
 #include <chronon3d/assets/asset_manifest.hpp>        // assets::AssetKind + assets::InternalAssetRef + assets::AssetManifest
 #include <chronon3d/assets/asset_resolver.hpp>        // assets::AssetResolver
-#include <chronon3d/assets/asset_registry.hpp>        // AssetRegistry, AssetId
 
 #include <filesystem>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -35,7 +33,6 @@ namespace chronon3d::assets {
 ///
 /// K is one of the four `assets::AssetKind` values (Image / Font / Video / Audio).
 /// The template parameter enables:
-///   - `import()` to call the correct `AssetRegistry::import_*()` method
 ///   - Type-safe factory functions (`AssetRef<Image>` is downstream-friendly)
 ///   - `if constexpr` dispatch in template code that consumes assets
 ///
@@ -89,34 +86,6 @@ public:
     [[nodiscard]] std::optional<std::filesystem::path>
     resolve_lexical(const AssetResolver& resolver) const {
         return resolver.resolve_lexical(path_);
-    }
-
-    // ── Import (unifies AssetRegistry) ────────────────────────────────
-
-    /// Resolve the path and import into `registry`, returning the
-    /// stable AssetId.  The resolver is used to canonicalize the path;
-    /// if resolution fails, throws std::runtime_error.
-    ///
-    /// Compile-time dispatch on K calls the correct import_*() method
-    /// (import_image / import_font / import_video / import_audio).
-    [[nodiscard]] AssetId import(AssetRegistry&        registry,
-                                 const AssetResolver& resolver) const {
-        auto resolved = resolve(resolver);
-        if (!resolved) {
-            throw std::runtime_error(
-                "AssetRef::import: cannot resolve path '" + path_ + "'");
-        }
-        if constexpr (K == assets::AssetKind::Image) {
-            return registry.import_image(*resolved);
-        } else if constexpr (K == assets::AssetKind::Font) {
-            return registry.import_font(*resolved);
-        } else if constexpr (K == assets::AssetKind::Video) {
-            return registry.import_video(*resolved);
-        } else if constexpr (K == assets::AssetKind::Audio) {
-            return registry.import_audio(*resolved);
-        } else {
-            static_assert(K != K, "AssetRef::import: unknown AssetKind");
-        }
     }
 
 private:

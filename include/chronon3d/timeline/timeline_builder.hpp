@@ -2,7 +2,7 @@
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
-#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <chronon3d/animation/effects/stagger.hpp>
 #include <string>
 #include <vector>
@@ -21,7 +21,7 @@ namespace chronon3d {
  *       l.text("t", {...});
  *       l.soft_pop();
  *   })
- *   .add("camera").from(0).duration(120).with_camera(camera_rig::hero_push_in())
+ *   .add("camera").from(0).duration(120).with_camera_pose(camera_v1::presets::hero_push_in())
  *   .stagger({"title"}, StaggerConfig{.delay_per_unit = Frame{4}}, StaggerOrder::LeftToRight)
  *   .apply();
  */
@@ -39,7 +39,7 @@ public:
 
     // ── Content ────────────────────────────────────────────────────────────
     TimelineBuilder& with(std::function<void(LayerBuilder&)> fn);
-    TimelineBuilder& with_camera(const AnimatedCamera2_5D& cam);
+    TimelineBuilder& with_camera_pose(const camera_v1::PoseTracksSource& cam);
 
     // ── Stagger (applied in apply() after all tracks are built) ──────────
     TimelineBuilder& stagger(const std::vector<std::string>& names,
@@ -57,7 +57,7 @@ private:
         Frame from{0};
         Frame duration{-1};
         std::function<void(LayerBuilder&)> layer_fn;
-        std::optional<AnimatedCamera2_5D> camera;
+        std::optional<camera_v1::PoseTracksSource> camera;
         bool is_camera{false};
     };
 

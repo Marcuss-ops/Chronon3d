@@ -92,10 +92,6 @@ int main() {
     cam.failure_policy = c3d::camera_v1::CameraFailurePolicy::Stop;
     comp.default_camera_descriptor(std::move(cam));
 
-    // Legacy camera fallback (P3-F bridge)
-    comp.camera.transform.position = c3d::Vec3{0.0f, 0.0f, -1000.0f};
-    comp.camera.set_rotation_euler(c3d::Vec3{0.0f, 180.0f, 0.0f});
-
     // ── 2. Render with sdk::RenderEngine ────────────────────────────
     c3d::sdk::RenderSettings settings{};
     settings.width = 1280;
@@ -104,7 +100,6 @@ int main() {
     settings.deterministic = true;
     settings.dirty_rects = false;
     settings.motion_blur = false;
-    settings.max_threads = 1;
 
     c3d::sdk::RenderEngine engine{settings};
     engine.set_assets_root(std::filesystem::path{"assets"});

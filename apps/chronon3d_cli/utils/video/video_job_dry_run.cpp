@@ -36,7 +36,14 @@ int dry_run_video_job(const RenderJob& job) {
     try {
         auto renderer = create_renderer(*job.registry, job.settings);
 
-        Scene scene = job.comp->evaluate(job.first_frame);
+        Scene scene = job.comp->evaluate(make_frame_context({
+            .global_time = SampleTime::from_frame_int(job.first_frame, job.comp->frame_rate()),
+            .duration = job.comp->duration(),
+            .width = job.comp->width(),
+            .height = job.comp->height(),
+            .assets_root = job.comp->assets_root(),
+            .runtime = &renderer->runtime(),
+        }));
         auto preflight_result = AssetPreflightResolver::check(
             scene, renderer->runtime().resolver(),
             PreflightMode::FullComposition);

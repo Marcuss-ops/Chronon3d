@@ -23,6 +23,7 @@
 
 #include "typewriter_animations.hpp"
 
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>

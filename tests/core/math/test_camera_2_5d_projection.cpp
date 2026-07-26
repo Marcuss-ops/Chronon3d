@@ -133,6 +133,7 @@ TEST_CASE("Camera2_5D projection: wider FOV creates smaller focal length") {
 TEST_CASE("Camera2_5D projection: FOV mode changes perspective scale") {
     Camera2_5D cam35;
     cam35.enabled = true;
+    cam35.optics_mode = CameraOpticsMode::FieldOfView;
     cam35.position = {0, 0, -1000};
     cam35.fov_deg = 35.0f;
 
@@ -333,9 +334,11 @@ TEST_CASE("Camera2_5D projection: project_layer_2_5d normalizes out.transform to
         const f32 s = std::sin(half);
         const f32 c = std::cos(half);
         Transform tr;
-        tr.position  = {100.0f, 50.0f, -500.0f};
+        // Keep the transformed card in front of the camera even after the
+        // deliberately non-default anchor is applied to the model matrix.
+        tr.position  = {100.0f, 50.0f, 1000.0f};
         tr.scale     = {2.0f, 3.0f, 4.0f};   // scale.z = 4.0f, must be reset
-        tr.rotation  = Quat(c, s, 0.0f, 0.0f);  // arbitrary (w,x,y,z), must be reset to identity
+        tr.rotation  = Quat(c, 0.0f, 0.0f, s);  // Z rotation keeps the card front-facing
         tr.anchor    = {100.0f, 200.0f, 300.0f};  // off-origin, must be reset
         auto out = project_layer_2_5d(tr, cam, 1280, 720);
         CHECK(out.visible);

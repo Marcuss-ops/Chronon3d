@@ -121,8 +121,7 @@ inline std::shared_ptr<SoftwareRenderer> make_renderer_shared() {
 #pragma GCC diagnostic pop
 #endif
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer->set_settings(settings);
+        renderer->set_settings(settings);
     renderer->set_image_backend(std::make_shared<image::StbImageBackend>());
     attach_software_backend(renderer.get());
     return renderer;
@@ -140,8 +139,7 @@ inline SoftwareRenderer make_renderer() {
 #pragma GCC diagnostic pop
 #endif
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
     attach_software_backend(&renderer);
     return renderer;
@@ -158,44 +156,9 @@ inline SoftwareRenderer make_renderer_ssaa(float factor) {
 #pragma GCC diagnostic pop
 #endif
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    settings.ssaa_factor = std::max(1.0f, factor);
+        settings.ssaa_factor = std::max(1.0f, factor);
     renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
-    attach_software_backend(&renderer);
-    return renderer;
-}
-
-/// Overload: equivalent to make_renderer() but accepts a `modular_coordinates`
-/// flag for source-compatibility with callers that previously distinguished
-/// the two toggles.  Centralises the (bool modular) signature used by all PR2
-/// RG integration tests and goldens.  Note: this does NOT call
-/// set_image_backend() because the PR2 node tests assume pure software backend
-/// and don't write PNGs.
-///
-/// History: `RenderSettings::modular_coordinates` was retired by upstream
-/// refactor (bf3aaa47).  Pre-refactor, the helper set BOTH `use_modular_graph
-/// = true` AND `modular_coordinates = <arg>`, with `modular_coordinates` as a
-/// fine-tune on top of the modular-graph invariant.  Post-refactor, the only
-/// remaining knob is `use_modular_graph` (the on/off switch for "centered
-/// modular graph coordinates vs top-left scene coordinates").  We preserve
-/// the prior invariant (modular-graph ON regardless of `<arg>`) to avoid
-/// silently changing observed rendering for tests that passed `false`.  The
-/// parameter is kept for ABI/source compatibility and is documented as a
-/// no-op until a downstream knob reappears.
-/// @deprecated Prefer make_renderer_shared() — uses create_renderer() canonical path.
-inline SoftwareRenderer make_renderer(bool /*modular_coordinates_unused*/) {
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-    SoftwareRenderer renderer(Config{});
-#if defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-    RenderSettings settings;
-    settings.use_modular_graph = true;     // preserved invariant
-    renderer.set_settings(settings);
     attach_software_backend(&renderer);
     return renderer;
 }

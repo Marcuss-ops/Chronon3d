@@ -21,7 +21,6 @@ concept PipelinableArgs = requires(const Args& a) {
     a.pipeline.diagnostic;
     a.pipeline.diagnostic_plan;
     a.pipeline.diagnostic_plan_output;
-    a.pipeline.use_modular_graph;
     a.pipeline.no_dirty_rects;
     a.pipeline.tile_size;
     a.pipeline.quality.motion_blur;
@@ -44,7 +43,7 @@ concept PipelinableArgs = requires(const Args& a) {
 };
 
 /// Build a RenderSettings from any args struct that has the standard render fields
-/// (pipeline.use_modular_graph, pipeline.quality.motion_blur, etc.).
+/// (pipeline.quality.motion_blur, etc.).
 /// motion_blur_allowed: set to false for composition types that don't support it.
 /// diagnostic: pass args.pipeline.diagnostic if available, otherwise defaults to false.
 template<PipelinableArgs Args>
@@ -55,7 +54,6 @@ RenderSettings settings_from_args(const Args& args,
     s.diagnostics.enabled       = diagnostic || args.pipeline.diagnostic;
     s.diagnostics.plan          = args.pipeline.diagnostic_plan;
     s.diagnostics.plan_output   = args.pipeline.diagnostic_plan_output;
-    s.use_modular_graph         = args.pipeline.use_modular_graph;
     if (args.pipeline.no_dirty_rects) {
         s.dirty.enabled = false;
         s.dirty.use_bitmask = false;

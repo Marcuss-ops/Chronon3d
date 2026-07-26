@@ -224,8 +224,7 @@ FrameMetrics compute_frame_metrics(const Framebuffer& fb, int frame_num) {
 
 RenderSettings default_settings() {
     RenderSettings s;
-    s.use_modular_graph = true;
-    return s;
+        return s;
 }
 
 } // namespace chronon3d::test::parity_harness

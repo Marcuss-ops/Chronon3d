@@ -19,16 +19,13 @@ target_sources(chronon3d_scene PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/register_camera_v1.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_framing_solver.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/shot_timeline.cpp
-    # PR1 — Renamed to internal/shutter_pose_sampler.{hpp,cpp}.
-    # The old `camera_motion_blur.cpp` is retired; the public header
-    # `include/.../camera_motion_blur.hpp` is now a 5-line typedef shim  # drift-allow: stale-ref
+    # Canonical internal shutter-pose sampler implementation.
     # that re-exports `ShutterPoseSampler` for ABI compatibility.
     ${CMAKE_CURRENT_SOURCE_DIR}/internal/shutter_pose_sampler.cpp
     # PR1 — CameraDescriptor → compiled CameraProgram compiler.
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_program_compiler.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_builtin_presets.cpp
-    # PR1 — pure adapters from legacy authoring types (CameraMotionParams /
-    #        CameraRig / CameraShotProfile) to CameraDescriptor.
+    # CameraMotionParamsSource evaluation and its authoring adapter.
     ${CMAKE_CURRENT_SOURCE_DIR}/camera_descriptor_adapters.cpp
     # TICKET-031 — canonical stateful-constraint pre-roll + fingerprint
     # invalidation + Cut reset + per-worker session isolation.

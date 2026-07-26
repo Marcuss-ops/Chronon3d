@@ -43,7 +43,10 @@ namespace chronon3d::authoring {
 // Forward-declare the test-only release accessor.  The struct itself is
 // defined in `tests/authoring/test_animator_dsl.cpp` so this is the only
 // public surface needed by the builder header.
-namespace testing { struct MaterialTestAccess; }
+namespace testing {
+struct MaterialTestAccess;
+struct AnimatorTestAccess;
+}
 
 class Material {
 public:

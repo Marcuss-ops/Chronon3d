@@ -33,9 +33,8 @@
 //
 // ── Lifetime model — SceneBuilder lives INSIDE the SceneFunction ────
 //
-//   Each `Composition::evaluate(frame)` constructs a fresh SceneBuilder
-//   inside the render-fn closure (the engine already does this in
-//   `chronon3d::Composition::evaluate_double` via `m_render(ctx)`).
+//   Each `Composition::evaluate(FrameContext)` constructs a fresh
+//   SceneBuilder inside the render-fn closure via `m_render(ctx)`.
 //   PR 4's render-fn mirrors that — the owned-builder is a local
 //   variable inside the closure, NOT a member of CompositionBuilder.
 //   This avoids dangling-pointer pitfalls when a Composition is moved

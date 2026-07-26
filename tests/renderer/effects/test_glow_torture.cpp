@@ -29,8 +29,7 @@ std::shared_ptr<Framebuffer> render_glow_comp(
 ) {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
 
     Composition comp({.width = width, .height = height, .duration = duration}, std::move(build));
     return renderer.render(comp, frame);
@@ -121,17 +120,19 @@ TEST_CASE("GlowTorture: neon text preserves a sharp core and creates a cyan halo
                 // order of the corresponding sub-struct (C++ designated-init rule).
                 l.text("word", {
                     .content    = {.value = "CHRONON3D"},
-                    .font       = {
+                    .style      = {
+                        .font = {
                         .font_path  = "assets/fonts/Inter-Bold.ttf",
                         .font_family = "Inter",
                         .font_size  = 54.0f,
+                        },
+                        .color = Color{0.96f, 0.99f, 1.0f, 1.0f},
                     },
-                    .layout     = {
-                        .box            = {300.0f, 90.0f},
+                    .frame     = {
+                        .size            = {300.0f, 90.0f},
                         .align         = TextAlign::Center,
                         .vertical_align = VerticalAlign::Middle,
                     },
-                    .appearance = {.color = Color{0.96f, 0.99f, 1.0f, 1.0f}},
                 });
             });
             return s.build();
@@ -165,17 +166,19 @@ TEST_CASE("GlowTorture: tiny bright text stays readable") {
                 }
                 l.text("tiny_text", {
                     .content    = {.value = "small readable glow"},
-                    .font       = {
+                    .style      = {
+                        .font = {
                         .font_path  = "assets/fonts/Inter-Bold.ttf",
                         .font_family = "Inter",
                         .font_size  = 20.0f,
+                        },
+                        .color = Color::white(),
                     },
-                    .layout     = {
-                        .box           = {220.0f, 34.0f},
+                    .frame     = {
+                        .size           = {220.0f, 34.0f},
                         .align         = TextAlign::Center,
                         .vertical_align = VerticalAlign::Middle,
                     },
-                    .appearance = {.color = Color::white()},
                 });
             });
             return s.build();

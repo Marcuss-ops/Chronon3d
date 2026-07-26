@@ -156,17 +156,6 @@ target_link_libraries(chronon3d_content
 # ==============================================================================
 if(CHRONON3D_BUILD_DIAGNOSTICS)
     target_sources(chronon3d_content PRIVATE
-        # ── Camera diagnostic suite ──
-        experimental/camera/two_point_five_d_compositions.cpp
-        experimental/camera/camera_calibration_scene.cpp
-        experimental/camera/camera_test_orchestrator.cpp
-        experimental/camera/camera_advanced_tests_rig.cpp
-        experimental/camera/camera_advanced_tests_scene.cpp
-        experimental/camera/camera_advanced_tests_diag.cpp
-        experimental/camera/camera_near_plane_test.cpp
-        experimental/camera/camera_pitch_tests.cpp
-        experimental/camera/camera_floor_grid_test.cpp
-
         # ── 2.5D reference suite ──
         experimental/ref-2d5/reference_2_5d_suite_scenes.cpp
         experimental/ref-2d5/reference_2_5d_suite_cards.cpp

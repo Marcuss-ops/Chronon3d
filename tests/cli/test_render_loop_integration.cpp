@@ -55,8 +55,7 @@ static Composition make_integration_comp(int width, int height, int duration) {
 static std::shared_ptr<SoftwareRenderer> make_integration_renderer() {
     CompositionRegistry registry;
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    return chronon3d::cli::create_renderer(registry, settings);
+        return chronon3d::cli::create_renderer(registry, settings);
 }
 
 /// Background consumer that drains the queue and releases arena buffers.

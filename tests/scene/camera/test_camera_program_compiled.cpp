@@ -34,8 +34,8 @@
 //   ✗ Deterministic fingerprint                 [CAM-02]
 //   ✗ CameraEvaluationDependency metadata       [CAM-02]
 //
-// This file does NOT include legacy headers (animated_camera_2_5d.hpp /
-// camera_rig.hpp) — the canonical compiled path is exercised end-to-end.
+// This file does NOT include legacy headers (
+// imperative camera headers) — the canonical compiled path is exercised end-to-end.
 // ==============================================================================
 #include <doctest/doctest.h>
 
@@ -1651,7 +1651,7 @@ TEST_CASE("compiled_orbit_with_parent — "
           "through to the evaluated Camera2_5D (AE parity: orbit camera respects "
           "parent transform hierarchy)") {
     auto desc = make_cam01_base_desc("test.t024.parent");
-    desc.base.parent_name = "camera_rig_null";
+    desc.base.parent_name = "camera_target_null";
     OrbitMotion orbit;
     orbit.target.set(Vec3{0.0f, 0.0f, 0.0f});
     orbit.yaw.set(0.0f);
@@ -1666,7 +1666,7 @@ TEST_CASE("compiled_orbit_with_parent — "
     CameraSession session;
     auto cam = eval_at_or_die_cam01(program, session, Frame{0});
     // parent_name must propagate through the compiled path
-    CHECK(cam.parent_name == "camera_rig_null");
+    CHECK(cam.parent_name == "camera_target_null");
     // position/rotation carry through unchanged when no transforms are in context
     CHECK(cam.position.z == doctest::Approx(1000.0f).epsilon(kCam01Eps));
     CHECK(cam.rotation.z == doctest::Approx(0.0f).epsilon(kCam01Eps));

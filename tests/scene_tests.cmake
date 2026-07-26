@@ -57,15 +57,12 @@ chronon3d_add_test_suite(
         render_graph/pipeline/test_graph_cache.cpp
         extension/test_graph_node_catalog.cpp
         scene/transform_hierarchy_tests.cpp
-        scene/camera_rig_tests.cpp
         scene/camera_shot_validator_tests.cpp
         scene/camera_projection_tests.cpp
         scene/camera_framing_tests.cpp
-        scene/camera_path_sampler_tests.cpp
         scene/camera/test_camera_registry.cpp
         scene/camera/test_camera_program.cpp
         scene/camera/test_camera_program_compiled.cpp   # CAM-01 / DOC 04: baseline compiled-path tests
-        scene/camera/test_camera_descriptor_adapters.cpp
         scene/camera/test_composition_default_camera.cpp   # TICKET-034: CameraDescriptor as canonical default in composition settings
         scene/camera/test_camera_constraints_p5.cpp
         scene/camera/test_camera_session_checkpoint.cpp   # TICKET-031 — stateful constraint checkpoint + canonical pre-roll
@@ -107,7 +104,6 @@ chronon3d_add_test_suite(
         scene/camera/test_orient_along_path.cpp   # Agent1 DoD: 4-sub-test OrientAlongPath regression lock (Step 4)
         scene/camera/test_camera_trajectory_preserves_base_fields.cpp   # CAM-DoD Agent1: TrajectoryMotion carry-forward (lens/DOF/motion_blur/parent/POI)
         scene/camera/test_camera_stabilization.cpp
-        scene/camera/test_camera_projection_contract.cpp
         scene/camera/test_dof_ae_parity.cpp   # FASE 5 — DOF AE parity: 6 test categories (enable, rack focus, aperture, physical lens, projection independence, disabled fields)
         scene/camera/golden_projection_test.cpp   # C7 — DOC 02 / TICKET-035 freeze: 6-mode golden projection
         scene/camera/test_camera_near_plane_clip.cpp
@@ -154,8 +150,8 @@ target_include_directories(chronon3d_camera_compiled_evaluate_tests PRIVATE ${CM
 
 # CAM-DOC 04 architecture boundary gate — shadows the bash script so
 # `ctest -L camera_architecture_gate` runs the lint before any of the
-# scene tests below.  Fails the gate on legacy AnimatedCamera2_5D /
-# CameraRig / SceneBuilder animated_camera usages, tan(fov) outside
+# scene tests below.  Fails the gate on retired camera authoring /
+# invalid SceneBuilder camera_pose usages, tan(fov) outside
 # camera_math/, or compile_camera() in hot paths.  See
 # tools/check_camera_architecture.sh for the rule definitions.
 add_test(NAME chronon3d_camera_architecture_gate

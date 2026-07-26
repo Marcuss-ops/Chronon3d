@@ -62,6 +62,24 @@ inline bool clip_with_uv(
 
     int out_idx = 0;
 
+    // Preserve the caller's winding and vertex indexing when no clipping is
+    // needed.  Besides avoiding needless work, this makes the no-op contract
+    // observable to callers that keep parallel per-vertex data.
+    bool all_inside = true;
+    for (int i = 0; i < count_in; ++i) {
+        all_inside = all_inside && (clip_above
+            ? verts_in[i].z >= z_thresh
+            : verts_in[i].z <= z_thresh);
+    }
+    if (all_inside) {
+        for (int i = 0; i < count_in; ++i) {
+            verts_out[i] = verts_in[i];
+            uvs_out[i] = uvs_in[i];
+        }
+        *count_out = count_in;
+        return true;
+    }
+
     for (int i = 0; i < count_in; ++i) {
         const int j = (i + 1) % count_in;
         const Vec3& curr = verts_in[i];

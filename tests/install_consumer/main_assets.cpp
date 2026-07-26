@@ -107,7 +107,6 @@ c3d::sdk::RenderSettings make_settings() {
     settings.deterministic = true;
     settings.dirty_rects = false;
     settings.motion_blur = false;
-    settings.max_threads = 1;
     return settings;
 }
 
