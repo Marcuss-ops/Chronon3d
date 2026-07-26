@@ -110,6 +110,15 @@ inline f32 spring(const FrameContext& ctx,
                          from, to, config);
 }
 
+// Marked [[deprecated]] per TICKET-ANIM-SEQUENCE-CONSOLIDATE — same
+// gradual deprecation policy as the `sequence(ctx, from, duration)`
+// factory (include/chronon3d/timeline/sequence.hpp:36). The canonical
+// productive path is `spring(FrameContext&, ...)` (line above) or
+// `spring(Frame, FrameRate, ...)` — both delegate to the canonical
+// sample_spring(TimeSeconds, ...) without requiring a SequenceContext
+// adapter. Forward-point: Phase 2 ticket removes this overload once
+// call-sites migrate to FrameContext-aware spring().
+[[deprecated("Use spring(FrameContext&, ...) / spring(Frame, FrameRate, ...) (TICKET-ANIM-SEQUENCE-CONSOLIDATE) — gradual deprecation per AGENTS.md §2×-in-one-chore")]]
 inline f32 spring(const SequenceContext& ctx,
                   f32 from,
                   f32 to,
