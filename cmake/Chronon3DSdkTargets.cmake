@@ -21,26 +21,6 @@ target_link_libraries(chronon3d_sdk INTERFACE
     $<INSTALL_INTERFACE:chronon3d_sdk_impl>
 )
 
-# Transitive implementation fragments and umbrella subheaders belong to the
-# same public_headers FILE_SET installed by Chronon3DSdkInstall.cmake.
-target_sources(chronon3d_sdk INTERFACE
-    FILE_SET public_headers
-    TYPE HEADERS
-    BASE_DIRS "${CMAKE_SOURCE_DIR}/include"
-    FILES
-        "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_content_font.hpp"
-        "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_placement_layout.hpp"
-        "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_appearance_animation.hpp"
-        "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_registry_access.hpp"
-        "${CMAKE_SOURCE_DIR}/include/chronon3d/authoring/detail/text_private.hpp"
-        "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/shape_params.hpp"
-        "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/media_params.hpp"
-        "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/text_params.hpp"
-        "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/params/three_d_params.hpp"
-        "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/pending_text_run.hpp"
-        "${CMAKE_SOURCE_DIR}/include/chronon3d/scene/builders/text_run_materialization.hpp"
-)
-
 foreach(_entry IN LISTS CHRONON3D_SDK_PUBLIC_DEPS)
     string(REPLACE "|" ";" _pair "${_entry}")
     list(GET _pair 0 _target_alias)

@@ -15,7 +15,6 @@
 #include <tests/helpers/test_math.hpp>
 
 #include <chronon3d/scene/camera/camera_path_validation.hpp>
-#include <chronon3d/scene/camera/camera_path_sampler.hpp>
 #include <chronon3d/scene/camera/camera_shot_validator.hpp>
 #include <chronon3d/scene/camera/camera_projection.hpp>
 #include <chronon3d/core/types/sample_time.hpp>

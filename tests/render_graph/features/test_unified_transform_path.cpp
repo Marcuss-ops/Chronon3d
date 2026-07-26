@@ -199,7 +199,7 @@ TEST_CASE("Unified 2.5D projection: Rect and Image share the same projected laye
 }
 
 TEST_CASE("Unified compositing: z order beats paint order") {
-    SKIP("TICKET-MODULAR-GRAPH-FALSE-REMOVAL: composition-based 3D layer rendering is not yet supported (no 2.5D camera in Composition::camera).");
+    SKIP("TICKET-MODULAR-GRAPH-FALSE-REMOVAL: composition-based 3D layer rendering is not yet supported in the canonical scene camera path.");
     SoftwareRenderer renderer = test::make_renderer();
     auto comp = composition({
         .name = "UnifiedZOrder",
@@ -253,7 +253,7 @@ TEST_CASE("Unified compositing: z order beats paint order") {
 }
 
 TEST_CASE("Unified FakeBox3D: front face matches Rect in shared composition") {
-    SKIP("TICKET-MODULAR-GRAPH-FALSE-REMOVAL: composition-based FakeBox3D rendering requires 2.5D camera support in Composition::camera.");
+    SKIP("TICKET-MODULAR-GRAPH-FALSE-REMOVAL: composition-based FakeBox3D rendering requires canonical 2.5D scene camera support.");
     SoftwareRenderer renderer = test::make_renderer();
     auto comp = composition({
         .name = "UnifiedFakeBox3DFrontParity",

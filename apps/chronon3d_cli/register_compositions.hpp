@@ -22,7 +22,7 @@
 //      DEV/test compositions.  ONLY called when CHRONON3D_BUILD_CLI_DEV=ON.
 //      Registers: PipelineParityCanary, AnimTypewriterGlowNoGlow,
 //      CameraTruthTest, CameraTruthOrbit, AE_CAM_01..10,
-//      chronon-glow-final-portrait, ChrononGlowFinalAE_NoGlow,
+//      ChrononGlowFinalAEPortrait, ChrononGlowFinalAE_NoGlow,
 //      ae_08_glow_pulse / ae_10_scale_pop / ae_12 / ae_14 / motion_blur_text,
 //      AECameraTextParity (DIAGNOSTICS gated).
 //

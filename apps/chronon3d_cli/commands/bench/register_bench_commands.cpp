@@ -15,7 +15,6 @@ void register_bench_commands(CLI::App& app, CliContext& ctx) {
     cmd->add_option("id", args.comp_id, "Composition name")->required();
     cmd->add_option("--frames", args.frames, "Measured frames")->default_val(120);
     cmd->add_option("--warmup", args.warmup, "Warmup frames")->default_val(10);
-    cmd->add_flag("--graph,!--no-graph", args.use_modular_graph, "Use modular RenderGraph path");
     cmd->add_flag("--no-dirty-rects", args.no_dirty_rects, "Disable dirty-rectangle invalidation (dirty rects are ON by default)");
     cmd->add_option("--json", args.json_file, "Path to output benchmark JSON telemetry");
     cmd->add_option("--stats-json", args.stats_json_file, "Path to output F3.1 fusion stats JSON (passes_before_fusion/passes_after_fusion/bytes_saved_by_fusion)");

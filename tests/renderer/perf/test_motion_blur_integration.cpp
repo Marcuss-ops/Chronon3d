@@ -44,11 +44,10 @@ Composition make_moving_layer_comp(int w, int h, f32 x_left, f32 x_right) {
                 .fill  = FillStyle::solid(Color::red())
             });
         });
-        AnimatedCamera2_5D cam;
-        cam.enabled = true;
+        camera_v1::PoseTracksSource cam;
         cam.position.set(Vec3{0.0f, 0.0f, -1000.0f});
         cam.zoom.set(1000.0f);
-        s.animated_camera(cam);
+        s.camera_pose(cam);
         return s.build();
     });
 }

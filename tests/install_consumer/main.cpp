@@ -29,6 +29,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
+#include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/backends/image/image_writer.hpp>
 
 #include <cstddef>
@@ -56,9 +57,6 @@ int main(int argc, char* argv[]) {
         spec,
         [](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
-            if (ctx.runtime) {
-                s.font_engine(&ctx.runtime->font_engine());
-            }
 
             // Background layer: GridBackground (built-in, no font needed)
             s.layer("background", [&ctx](c3d::LayerBuilder& l) {
@@ -111,10 +109,6 @@ int main(int argc, char* argv[]) {
     descriptor.failure_policy = c3d::camera_v1::CameraFailurePolicy::Stop;
     comp.default_camera_descriptor(std::move(descriptor));
 
-    // Legacy camera bridge (render_composition_frame still reads comp.camera)
-    comp.camera.transform.position = c3d::Vec3{0.0f, 0.0f, -1000.0f};
-    comp.camera.set_rotation_euler(c3d::Vec3{0.0f, 180.0f, 0.0f});
-
     // ── 4. Render settings ───────────────────────────────────────────
     c3d::sdk::RenderSettings settings{};
     settings.width = spec.width;
@@ -123,7 +117,6 @@ int main(int argc, char* argv[]) {
     settings.deterministic = true;
     settings.dirty_rects = false;
     settings.motion_blur = false;
-    settings.max_threads = 1;
 
     if (!std::filesystem::is_directory(assets_root)) {
         std::fprintf(stderr,

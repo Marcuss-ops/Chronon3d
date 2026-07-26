@@ -13,6 +13,7 @@
 
 #include <chronon3d/math/glm_types.hpp>
 #include <chronon3d/math/camera_projection_contract.hpp>
+#include <chronon3d/math/near_plane_clip.hpp>
 #include <cstdint>
 
 namespace chronon3d {

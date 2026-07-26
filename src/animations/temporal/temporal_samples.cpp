@@ -27,7 +27,7 @@ namespace {
 // Halton sequence (low-discrepancy, base 2)
 //
 // Returns value ∈ [0, 1) for index `n` (n >= 1) at base 2.
-// Identical formula to the previous CameraMotionBlurIntegrator::halton().
+// Canonical deterministic Halton sequence used by shutter pose sampling.
 // ──────────────────────────────────────────────────────────────────────────────
 [[nodiscard]] double halton_base2(unsigned n) noexcept {
     double result = 0.0;

@@ -71,15 +71,12 @@ inline SceneBuilder::SceneBuilder(const FrameContext& ctx,
         m_own_shape_registry.emplace(registry::make_default_shape_registry());
         m_shape_registry = &*m_own_shape_registry;
     }
-    // WP-9 PR 9.0 / P1-16 — auto-forward the per-frame FontEngine from
-    // the FrameContext's runtime to the builder's m_font_engine slot.
-    // The canonical access path is `ctx.runtime->font_engine()`.
+    // Auto-forward the per-frame FontEngine from the public frame context.
+    // Runtime internals stay behind the SDK boundary.
     // Explicit override guarantee: a composition lambda that calls
     // `s.font_engine(X)` later REPLACES this auto-bind with its own
     // pointer, so per-composition overrides continue to work.
-    if (ctx.runtime) {
-        m_font_engine = &ctx.runtime->font_engine();
-    }
+    m_font_engine = ctx.font_engine;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -101,11 +98,6 @@ inline FontEngine* SceneBuilder::font_engine() const {
 
 inline CameraApi SceneBuilder::camera() {
     return CameraApi(*this);
-}
-
-inline SceneBuilder& SceneBuilder::animated_camera(const AnimatedCamera2_5D& cam) {
-    set_camera(cam.evaluate(current_time_));
-    return *this;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

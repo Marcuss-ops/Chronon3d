@@ -69,7 +69,6 @@ struct BenchmarkReport {
     int height{};
     int frames{};
     int warmup{};
-    bool modular_graph{};
     BenchmarkMetrics metrics{};
     BenchmarkMemoryMetrics memory{};
     BenchmarkQualityMetrics quality{};

@@ -13,7 +13,9 @@
 #include <chronon3d/render_graph/render_backend.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <stdexcept>
+#include <mutex>
 #include <vector>
 
 namespace chronon3d::sdk {
@@ -31,8 +33,7 @@ chronon3d::RenderSettings convert_settings(const RenderSettings& sdk) {
     internal.motion_blur.shutter_phase_deg = 0.0f;
     internal.dirty.enabled                 = sdk.dirty_rects;
     internal.force_scalar_normal_blend     = sdk.deterministic;
-    // TODO(P1): wire sdk.max_threads through to the execution scheduler.
-    (void)sdk.max_threads;
+    internal.fail_on_missing_assets       = true;
     return internal;
 }
 
@@ -59,6 +60,29 @@ void framebuffer_to_rgba8(const Framebuffer& fb,
     }
 }
 
+void resize_rgba8_nearest(const std::vector<std::uint8_t>& source,
+                          i32 source_width,
+                          i32 source_height,
+                          i32 target_width,
+                          i32 target_height,
+                          std::vector<std::uint8_t>& out) {
+    out.resize(static_cast<usize>(target_width) * target_height * 4);
+    for (i32 y = 0; y < target_height; ++y) {
+        const i32 source_y = std::min(source_height - 1,
+                                      (y * source_height) / target_height);
+        for (i32 x = 0; x < target_width; ++x) {
+            const i32 source_x = std::min(source_width - 1,
+                                          (x * source_width) / target_width);
+            const usize source_offset =
+                (static_cast<usize>(source_y) * source_width + source_x) * 4;
+            const usize target_offset =
+                (static_cast<usize>(y) * target_width + x) * 4;
+            std::copy_n(source.data() + source_offset, 4,
+                        out.data() + target_offset);
+        }
+    }
+}
+
 RenderError runtime_error(std::string message) {
     return RenderError{
         .code = RenderErrorCode::RuntimeFailure,
@@ -70,13 +94,20 @@ RenderError runtime_error(std::string message) {
 
 struct RenderEngine::Impl {
     chronon3d::RenderEngine   engine;
+    // The public contract allows settings mutation while a render is active
+    // and serializes concurrent renders on one engine instance.  Keep the
+    // synchronization at the SDK boundary so the internal OPP adapter does
+    // not need to expose or duplicate a second ownership protocol.
+    std::mutex                state_mutex;
     std::vector<std::uint8_t> pixel_buffer;
+    RenderSettings             settings{};
     RenderOutput              last_output{};
 
     Impl() : engine() {}
 
-    explicit Impl(RenderSettings settings)
+    explicit Impl(RenderSettings settings_in)
         : engine() {
+        settings = settings_in;
         engine.set_settings(convert_settings(settings));
     }
 };
@@ -102,7 +133,15 @@ RenderEngine& RenderEngine::operator=(RenderEngine&& other) noexcept {
 
 chronon3d::Result<RenderOutput, RenderError>
 RenderEngine::render(const chronon3d::Composition& composition, Frame frame) {
+    std::lock_guard lock(m_impl->state_mutex);
     try {
+        if (m_impl->settings.width <= 0 || m_impl->settings.height <= 0) {
+            return RenderError{
+                .code = RenderErrorCode::InvalidSettings,
+                .message = "RenderSettings width and height must be positive",
+            };
+        }
+        const auto started = std::chrono::steady_clock::now();
         auto framebuffer = m_impl->engine.render(
             composition, chronon3d::Frame{frame.integral()});
 
@@ -121,15 +160,26 @@ RenderEngine::render(const chronon3d::Composition& composition, Frame frame) {
                 "internal RenderEngine::render() returned a null framebuffer");
         }
 
-        framebuffer_to_rgba8(*framebuffer, m_impl->pixel_buffer);
+        std::vector<std::uint8_t> rendered_pixels;
+        framebuffer_to_rgba8(*framebuffer, rendered_pixels);
+        if (framebuffer->width() == m_impl->settings.width &&
+            framebuffer->height() == m_impl->settings.height) {
+            m_impl->pixel_buffer = std::move(rendered_pixels);
+        } else {
+            resize_rgba8_nearest(rendered_pixels, framebuffer->width(),
+                                 framebuffer->height(), m_impl->settings.width,
+                                 m_impl->settings.height, m_impl->pixel_buffer);
+        }
 
         RenderOutput output;
         output.frame         = frame;
-        output.width         = framebuffer->width();
-        output.height        = framebuffer->height();
+        output.width         = m_impl->settings.width;
+        output.height        = m_impl->settings.height;
         output.format        = PixelFormat::Rgba8;
-        output.bytes_per_row = static_cast<std::size_t>(framebuffer->width()) * 4;
+        output.bytes_per_row = static_cast<std::size_t>(output.width) * 4;
         output.pixels        = m_impl->pixel_buffer.data();
+        output.elapsed_milliseconds = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - started).count();
 
         m_impl->last_output = output;
         return output;
@@ -144,10 +194,13 @@ RenderEngine::render(const chronon3d::Composition& composition, Frame frame) {
 }
 
 void RenderEngine::set_settings(const RenderSettings& settings) {
+    std::lock_guard lock(m_impl->state_mutex);
+    m_impl->settings = settings;
     m_impl->engine.set_settings(convert_settings(settings));
 }
 
 void RenderEngine::set_assets_root(std::filesystem::path root) {
+    std::lock_guard lock(m_impl->state_mutex);
     // A relative value is an explicit caller choice, not a resolver fallback.
     // Canonicalize it once at assignment so later CWD changes cannot alter the
     // engine-local mount.

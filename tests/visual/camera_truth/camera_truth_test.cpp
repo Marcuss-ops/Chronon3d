@@ -101,16 +101,16 @@ Composition make_camera_truth_test() {
             });
 
             // ── Camera: TwoNode, pans across frames 0/30/60 ───────────
-            AnimatedCamera2_5D cam;
+            camera_v1::PoseTracksSource cam;
             // Camera starts at origin, moves right, then left.
             cam.position
                 .key(Frame{0},  Vec3{0.0f,   0.0f, -1000.0f})
                 .key(Frame{30}, Vec3{300.0f, 0.0f, -1000.0f})
                 .key(Frame{60}, Vec3{-300.0f, 0.0f, -1000.0f});
             cam.zoom.set(1000.0f);
-            cam.point_of_interest.set({0.0f, 0.0f, 0.0f});
-            cam.point_of_interest_enabled = true;
-            s.animated_camera(cam);
+            cam.target.set({0.0f, 0.0f, 0.0f});
+            cam.use_target = true;
+            s.camera_pose(cam);
 
             // ── Diagnostic: log world→screen projection for each card ─
             // Camera at z=-1000, cards at z=0, 500, 1000.

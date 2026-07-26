@@ -47,10 +47,11 @@ make_software_backend(SoftwareBackendServices services) {
     // the diagnostic on failure.
     // no longer exists on SoftwareBackendServices; processors are wired
     // post-construction via attach_processor_context().
+    // TICKET-118: validation remains contractive; the removed ownership
+    // field is intentionally not part of this factory contract.
 
     // ── Release path: ordered validation matches the user spec:
     //    counters → settings → framebuffer_pool → asset_resolver → text_resources.
-    // TICKET-118 — MissingOwner branch REMOVED.  Renumbered Code enum values.
     if (services.counters == nullptr)
         return err(SoftwareBackendServicesError::Code::MissingCounters,          "counters");
     if (services.settings == nullptr)

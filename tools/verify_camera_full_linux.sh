@@ -360,9 +360,9 @@ dod_check_exists() {
 
 # 8 "0" DoD criteria (progressive, NOT literal)
 log "[0/8] legacy AnimatedCamera2_5D:           $(dod_count_pattern 'AnimatedCamera2_5D') matches (baseline: high)"
-log "[0/8] legacy CameraRig:                   $(dod_count_pattern 'CameraRig') matches (baseline: high; canonical: descriptor adapter)"
+log "[0/8] legacy imperative camera types:    $(dod_count_pattern 'CameraRig|AnimatedCamera2_5D|CameraShotProfile') matches (canonical: V1 descriptor)"
 log "[0/8] legacy CameraShotProfile:           $(dod_count_pattern 'CameraShotProfile') matches (baseline: deprecated per STEP 7)"
-log "[0/8] descriptor adapter call sites:     $(dod_count_pattern 'camera_descriptor_from') matches (canonical V1 path)"
+log "[0/8] descriptor adapter call sites:     $(dod_count_pattern 'camera_descriptor_from') matches (supported motion-params bridge)"
 log "[0/8] Camera2_5D::projection_mode:        $(dod_count_pattern 'Camera2_5D::projection_mode') matches (deprecated per ADR-011)"
 log "[0/8] Direct Camera2_5D{ construction:   $(dod_count_pattern 'Camera2_5D\\s*\\{') matches (sent + tests dominate)"
 log "[0/8] Unchecked .value() crashes:         tracking via test runtime, not source count"

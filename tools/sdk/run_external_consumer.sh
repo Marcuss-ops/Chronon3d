@@ -141,6 +141,18 @@ fi
 cmake "${CMAKE_ARGS[@]}" 1>&2 \
     || fail "consumer cmake configure failed"
 
+# Install the shared asset tree before the first build.  check_full's
+# post-build fixture command creates `assets/`; placing the symlink first
+# makes that command write test_image.png into the same tree used by the
+# text consumers instead of shadowing the font directory with an empty
+# build-local directory.
+if [[ -d "$REPO_ROOT/assets" ]]; then
+    ln -s "$REPO_ROOT/assets" "$CONS_BUILD/assets"
+    log "symlinked assets before build: $CONS_BUILD/assets -> $REPO_ROOT/assets"
+else
+    log "WARNING: $REPO_ROOT/assets not found — text consumer may fail to shape glyphs"
+fi
+
 # ── Build consumer ────────────────────────────────────────────────────
 cmake --build "$CONS_BUILD" --target check_install 1>&2 \
     || fail "consumer cmake --build failed"
@@ -148,6 +160,13 @@ cmake --build "$CONS_BUILD" --target check_install 1>&2 \
 # ── Build text consumer (Text Export V1 certifier) ────────────────────
 cmake --build "$CONS_BUILD" --target check_text 1>&2 \
     || fail "consumer cmake --build check_text failed"
+
+# These targets are part of the installed SDK contract as well.  Keeping them
+# configured but unbuilt would leave camera/full-surface regressions invisible.
+cmake --build "$CONS_BUILD" --target check_camera 1>&2 \
+    || fail "consumer cmake --build check_camera failed"
+cmake --build "$CONS_BUILD" --target check_full 1>&2 \
+    || fail "consumer cmake --build check_full failed"
 
 consumer_bin="$CONS_BUILD/check_install"
 [[ -x "$consumer_bin" ]] || fail "consumer binary not found at $consumer_bin"
@@ -173,23 +192,20 @@ check_pixel_hash_strict() {
     # 4-channel data; any channel > 5/255 passes (alpha-aware).
     local py_rc py_out
     set +e
-    py_out="$(python3 - "$png" <<'PYEOF' 2>/dev/null)
+    py_out="$(python3 -c '
 import sys
 try:
     from PIL import Image
 except ImportError:
     sys.exit(2)
-img = Image.open(sys.argv[1]).convert('RGBA')
+img = Image.open(sys.argv[1]).convert("RGBA")
 w, h = img.size
-above = 0
-for r, g, b, a in img.getdata():
-    if a > 5 or r > 5 or g > 5 or b > 5:
-        above += 1
+above = sum(1 for r, g, b, a in img.getdata()
+            if a > 5 or r > 5 or g > 5 or b > 5)
 img.close()
-print(f'PASS above={above}/{w*h} (any_channel>5/255 alpha-aware)')
+print(f"PASS above={above}/{w*h} (any_channel>5/255 alpha-aware)")
 sys.exit(0 if above >= 1 else 1)
-PYEOF
-)"
+' "$png" 2>/dev/null)"
     py_rc=$?
     set -e
     if [[ "$py_rc" -eq 0 ]]; then
@@ -208,11 +224,8 @@ PYEOF
 # (e.g. assets/fonts/Inter-Bold.ttf) must be reachable relative to CWD
 # for the text consumer (check_text) to shape glyphs.  A symlink avoids
 # copying the entire asset tree into the temp dir.
-if [[ -d "$REPO_ROOT/assets" ]]; then
-    ln -sfn "$REPO_ROOT/assets" "$CONS_BUILD/assets"
-    log "symlinked assets: $CONS_BUILD/assets -> $REPO_ROOT/assets"
-else
-    log "WARNING: $REPO_ROOT/assets not found — text consumer may fail to shape glyphs"
+if [[ -L "$CONS_BUILD/assets" ]]; then
+    log "assets link ready: $CONS_BUILD/assets -> $(readlink "$CONS_BUILD/assets")"
 fi
 
 # ── Run text consumer FIRST (Text Export V1 — primary gate) ──────────
@@ -222,8 +235,10 @@ fi
 text_bin="$CONS_BUILD/check_text"
 [[ -x "$text_bin" ]] || fail "text consumer binary not found at $text_bin"
 log "running text consumer: $text_bin (CWD=$CONS_BUILD)"
+set +e
 text_output="$(cd "$CONS_BUILD" && "$text_bin" 2>&1)"
 text_rc=$?
+set -e
 text_pass=0
 if [[ "$text_output" == *"[TEXT-OK]"* ]]; then
     text_pass=1
@@ -254,8 +269,10 @@ fi
 # to CWD (sdk_consumer_output.png — see tests/install_consumer/main.cpp)
 # lands inside CONS_BUILD alongside the build artifacts.
 log "running grid consumer: $consumer_bin (CWD=$CONS_BUILD)"
+set +e
 consumer_output="$(cd "$CONS_BUILD" && "$consumer_bin" 2>&1)"
 consumer_rc=$?
+set -e
 grid_pass=0
 if [[ "$consumer_output" == *"[BOUNDARY-OK]"* ]]; then
     grid_pass=1
@@ -290,10 +307,47 @@ else
     grid_pass=0
 fi
 
+# ── Run camera and full-surface consumers ─────────────────────────────
+camera_bin="$CONS_BUILD/check_camera"
+[[ -x "$camera_bin" ]] || fail "camera consumer binary not found at $camera_bin"
+log "running camera consumer: $camera_bin (CWD=$CONS_BUILD)"
+set +e
+camera_output="$(cd "$CONS_BUILD" && "$camera_bin" 2>&1)"
+camera_rc=$?
+set -e
+camera_pass=0
+if [[ "$camera_output" == *"[CAMERA-OK]"* ]]; then
+    camera_pass=1
+    log "Camera consumer: $camera_output"
+else
+    log "Camera consumer stdout/stderr:"
+    printf "%s\n" "$camera_output" >&2
+    log "Camera consumer FAILED (rc=$camera_rc, no [CAMERA-OK] marker)"
+fi
+
+full_bin="$CONS_BUILD/check_full"
+[[ -x "$full_bin" ]] || fail "full consumer binary not found at $full_bin"
+log "running full consumer: $full_bin (CWD=$CONS_BUILD)"
+set +e
+full_output="$(cd "$CONS_BUILD" && "$full_bin" 2>&1)"
+full_rc=$?
+set -e
+full_pass=0
+if [[ "$full_output" == *"[FULL-OK]"* ]]; then
+    full_pass=1
+    log "Full consumer: $full_output"
+else
+    log "Full consumer stdout/stderr:"
+    printf "%s\n" "$full_output" >&2
+    log "Full consumer FAILED (rc=$full_rc, no [FULL-OK] marker)"
+fi
+
 # ── Summary ───────────────────────────────────────────────────────────
 log "=== Phase 4 summary ==="
 log "  Text Export V1 (check_text): $([[ $text_pass -eq 1 ]] && echo PASS || echo FAIL)"
 log "  Grid boundary  (check_install): $([[ $grid_pass -eq 1 ]] && echo PASS || echo FAIL)"
+log "  Camera facade  (check_camera): $([[ $camera_pass -eq 1 ]] && echo PASS || echo FAIL)"
+log "  Full surface   (check_full): $([[ $full_pass -eq 1 ]] && echo PASS || echo FAIL)"
 
 if [[ "$text_pass" -ne 1 ]]; then
     fail "Text Export V1 gate FAILED — [TEXT-OK] not reached"
@@ -305,6 +359,14 @@ if [[ "$grid_pass" -ne 1 ]]; then
     # tracked separately.  The text consumer (check_text) is the primary
     # Phase 4 gate for Text Export V1.
     log "WARNING: Grid boundary gate FAILED (non-fatal for Text Export V1)"
+fi
+
+if [[ "$camera_pass" -ne 1 ]]; then
+    fail "Camera install consumer FAILED — [CAMERA-OK] not reached"
+fi
+
+if [[ "$full_pass" -ne 1 ]]; then
+    fail "Full install consumer FAILED — [FULL-OK] not reached"
 fi
 
 exit 0

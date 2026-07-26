@@ -22,8 +22,7 @@ struct RenderSample {
 inline SoftwareRenderer make_regression_renderer(bool diagnostics = false) {
     SoftwareRenderer renderer(Config{});
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    settings.diagnostics.enabled = diagnostics;
+        settings.diagnostics.enabled = diagnostics;
     renderer.set_settings(settings);
     return renderer;
 }

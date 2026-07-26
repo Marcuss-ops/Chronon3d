@@ -253,7 +253,7 @@ std::span<const NamedCameraPreset> builtin_camera_presets() {
                 base_spec(Vec3{0.0f, 0.0f, -1000.0f}),
                 roll_reveal_pts(8.0f, 1000.0f))),
 
-        // ── 3. camera_rig presets (7) ──────────────────────────────────
+        // ── 3. Camera V1 presets (7) ──────────────────────────────────
 
         // ── camera.rig.hero_push_in ───────────────────────────────────
         make_preset("camera.rig.hero_push_in", "push-in",

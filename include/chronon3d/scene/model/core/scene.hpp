@@ -30,7 +30,6 @@ using Camera2_5DRuntime = Camera2_5D;
 // `CameraSession` include into every TU that touches a Scene.
 class SceneCameraFacade;
 namespace camera_v1 { class ShotTimeline; }
-class CameraPresetCatalog;
 
 class Scene {
 public:

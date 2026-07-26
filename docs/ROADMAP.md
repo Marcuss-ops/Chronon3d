@@ -453,7 +453,7 @@ coprire i movimenti cinematografici necessari al motion graphics 2.5D.
 6. Completare clipping near/far necessario al renderer.
 7. Migliorare DOF senza creare un secondo sistema ottico.
 8. ~~Aggiungere parity test e golden sul percorso compilato.~~ **Chiuso da C1–C7** (golden in `tests/scene/camera/golden_projection_test.cpp`, SHA `eb1ce8e5`; `FocalPx` + `ViewportRect` + `focal_xy_from_camera` + `effective_viewport` con offset; anamorphic_squeeze SOLO X; sentinel regression subrect-fits-canvas).
-9. Migrare preset e composizioni, poi deprecare/rimuovere authoring legacy.
+9. ~~Migrare preset e composizioni, poi rimuovere `AnimatedCamera2_5D`, `CameraShotProfile` e `CameraRig`.~~ **Parziale** — superfici imperative rimosse e preset/composizioni migrate; resta la certificazione funzionale e la verifica completa dei test installabili.
 ### M2.A3 — Agent3 ticket cluster: compiler semantics, session policy, cache lease, framerate explicit (PLANNED, post-freeze)
 
 Origine: prompt operativo **Agent3 — Compiler, Session, Errori, Legacy Cleanup** (2026-07-04). Si applica ai file `camera_v1/*` (`include/chronon3d/scene/camera/camera_v1/*.hpp` + `src/scene/camera/camera_v1/*.cpp`) — **non** al type-level deletion già coperto da [ADR-011](adr/ADR-011-camera-legacy-deletion.md) (AnimatedCamera2_5D / dual CameraRig / CameraShotProfile / camera_descriptor_adapters / Camera2_5D::projection_mode). Stato attuale: tutti i sotto-ticket sono **PLANNED** (nessun codice toccato durante freeze). Workstream design-FROZEN 2026-07-04.

@@ -2,7 +2,7 @@
 // chronon3d/src/scene/camera/camera_v1/internal/shutter_pose_sampler.cpp
 //
 // Internal helper used by CameraProgram / CameraDescriptor for shutter-aware
-// pose evaluation.  PR1: renamed from `CameraMotionBlurIntegrator` and
+// pose evaluation.  The implementation is intentionally internal and
 // deduplicated against `src/render_graph/pipeline/composition.cpp` —
 // sample-time / jitter / filter-weight generation now goes through
 // chronon3d::temporal::generate_temporal_samples (single source of truth).

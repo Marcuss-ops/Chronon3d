@@ -38,6 +38,7 @@ using namespace chronon3d;
 static Camera2_5D make_test_camera() {
     Camera2_5D cam;
     cam.position = {0.0f, 0.0f, -1000.0f};
+    cam.optics_mode = CameraOpticsMode::FieldOfView;
     cam.fov_deg = 50.0f;
     // Default lookAt: camera at (0,0,-1000) looks toward origin
     // No POI set → uses rotation_quaternion which is identity by default

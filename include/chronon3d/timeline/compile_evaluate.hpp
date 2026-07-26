@@ -19,8 +19,8 @@
 // `<chronon3d/timeline/compiled_composition.hpp>`) so the contract holds at
 // the type level: no syntactic mutation is possible.
 //
-// Sits NEXT TO the legacy `chronon3d::Composition` class — does NOT replace or
-// migrate it.  V2 promotion closes the duplication in a later PR.
+// This header owns the explicit immutable composition/camera compilation
+// surface. The render pipeline evaluates authored scenes through FrameContext.
 //
 // Bodies live out-of-line in `src/timeline/compile_evaluate.cpp` so the heavy
 // `camera_v1/camera_program_compiler.hpp + spdlog` translation-unit cost is
@@ -137,10 +137,8 @@ compile_composition(const CompositionDefinition& definition,
 //   equivalent `EvaluatedCompositionFrame` values.  `frame` threads into
 //   `FrameContext::frame` before invoking the captured `SceneFunction`.
 //
-// OUT OF SCOPE for this commit (future V2 PR):  Camera2_5D resolution by
-// forwarding through `CameraProgram::evaluate()`.  The current implementation
-// sets `EvaluatedCompositionFrame::camera = std::nullopt` because the camera
-// evaluation pipeline is still wired through the legacy `Composition` path.
+// Camera2_5D resolution is returned when the compiled definition contains a
+// camera program; an absent authored camera remains `std::nullopt`.
 // ─────────────────────────────────────────────────────────────────────────────
 Result<EvaluatedCompositionFrame, CompositionEvaluateError>
 evaluate(const CompiledComposition& compiled,

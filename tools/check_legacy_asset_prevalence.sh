@@ -110,10 +110,9 @@ names=(AST_ITEM_A AST_ITEM_B AST_ITEM_C AST_ITEM_D AST_ITEM_E)
 # ── AST_ITEM_A: path raw sparsi (font_path / image_path / video_path / audio_path)
 #    Scope ristretto a content/ + src/scene/ (esclude include/chronon3d/ che
 #    ospita i field `.path` dei type system canonici come FontSpec.path).
-#    Tightened: excludes struct field accesses like `.font_path = "..."`
-#    (canonical API) by requiring no preceding dot/alphanumeric. Only catches
-#    bare variable declarations `std::string font_path{...}` etc.
-c=$(count_hits '(^|[^a-zA-Z0-9_.])(font_path|image_path|video_path|audio_path)\b' \
+#    Tightened: excludes comments, log labels and canonical field accesses
+#    like `.font_path = "..."`; only catches raw path-owner declarations.
+c=$(count_hits '(^|[;{])[[:space:]]*(const[[:space:]]+)?(std::string|std::filesystem::path|fs::path|Path)[[:space:]]+(font_path|image_path|video_path|audio_path)\b' \
     content src/scene)
 printf "%-12s %8d hits   (scope: content/ + src/scene/ — exclude include/chronon3d/ .path field reads)\n" "${names[0]}" "$c"
 total=$((total + c))

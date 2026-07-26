@@ -5,8 +5,7 @@
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
-#include <chronon3d/scene/model/camera/camera_rig.hpp>
-#include <chronon3d/scene/camera/camera_rig_animated_presets.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_presets.hpp>
 #include <chronon3d/animation/stagger.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
 #include <chronon3d/text/text_material.hpp>
@@ -21,7 +20,7 @@ namespace chronon3d::scene_presets {
 // SaaSIntroPremium — the "definition of done" composition.
 //
 // Uses ALL major rendering features together:
-//   - CameraRig::hero_push_in
+//   - camera_v1::presets::hero_push_in
 //   - TextAnimator (per-character reveal)
 //   - TextMaterial::premium()
 //   - LayerBuilder::depth_reveal / soft_pop / settle
@@ -53,7 +52,7 @@ inline Composition saas_intro_premium() {
         s.apply_depth_grade(rendering::DepthGrade::atmospheric());
 
         // ── Camera: hero push-in ─────────────────────────────────
-        s.animated_camera(camera_rig::hero_push_in({
+        s.camera_pose(camera_v1::presets::hero_push_in({
             .from_position = {0.0f, 0.0f, -1200.0f},
             .to_position   = {0.0f, 0.0f, -800.0f},
             .from_tilt = -4.0f,

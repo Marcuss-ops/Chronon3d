@@ -35,8 +35,7 @@ TEST_CASE("Builtin background compositions are registered") {
 TEST_CASE("Analytical verification of GridCleanBackground render") {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
     renderer.set_image_backend(std::make_shared<image::StbImageBackend>());
 
     chronon3d::CompositionRegistry registry = s_bg_registry;

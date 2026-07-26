@@ -18,7 +18,7 @@
 //
 // 3 TEST_CASEs × 3 frames per case (f0, f15, f30) = 9 f00/f15/f30
 // invariants on a 1920×1080 canvas.  Uses the same canonical
-// `motion::timeline(initial).to(Frame, value, Easing)` fluent chain as
+// `chronon3d::timeline(initial).to(Frame, value, Easing)` fluent chain as
 // `tests/text_golden/text_transforms_animation/anim_01_position.cpp` +
 // `anim_02_opacity.cpp` (TICKET-FASE2-TRANSFORMS-ANIMATION §10
 // baseline).  Distinct from FASE2 §10 because the keyframe VALUES

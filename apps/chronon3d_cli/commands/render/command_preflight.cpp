@@ -2,7 +2,6 @@
 #include "../../cli_context.hpp"
 #include "../../utils/common/cli_asset_preflight_utils.hpp"
 #include <chronon3d/assets/render_preflight.hpp>
-#include <chronon3d/assets/asset_registry.hpp>
 #include <chronon3d/assets/asset_resolver.hpp>
 #include <chronon3d/assets/asset_preflight_resolver.hpp>
 #include <fmt/format.h>
@@ -14,7 +13,7 @@
 namespace chronon3d {
 namespace cli {
 
-int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args, AssetRegistry& assets) {
+int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args) {
     if (!registry.contains(args.comp_id)) {
         spdlog::error("Unknown composition: {}", args.comp_id);
         return 1;
@@ -34,27 +33,25 @@ int command_preflight(const CompositionRegistry& registry, const PreflightArgs& 
     // Sequence V2: collect the AssetManifest from sampled frames
     assets::AssetManifest manifest;
     for (Frame f = args.start; f <= args.end; f += static_cast<Frame>(args.sample_step)) {
-        auto scene = comp.evaluate(f);
+        const auto sample = SampleTime::from_frame_int(f, comp.frame_rate());
+        auto scene = comp.evaluate(make_frame_context({
+            .global_time = sample,
+            .duration = comp.duration(),
+            .width = comp.width(),
+            .height = comp.height(),
+            .assets_root = comp.assets_root(),
+        }));
         manifest.merge(scene.asset_manifest());
     }
 
-    // FIX 8: V2 manifest-based preflight is the DEFAULT path.
-    // Legacy RenderPreflight is opt-in behind --legacy-preflight.
+    // Manifest-based preflight is the sole composition validation path.
     auto manifest_result = AssetPreflightResolver::check_manifest(manifest, resolver);
 
     std::vector<PreflightIssue> all_issues;
     all_issues.insert(all_issues.end(), manifest_result.issues.begin(), manifest_result.issues.end());
 
-    // Legacy RenderPreflight: opt-in only
-    if (args.legacy_preflight) {
-        auto& preflight = RenderPreflight::instance();
-        if (!args.output.empty()) {
-            preflight.require_output_path(args.output);
-        }
-        auto legacy_issues = preflight.validate(assets, resolver);
-        all_issues.insert(all_issues.end(), legacy_issues.begin(), legacy_issues.end());
-    } else if (!args.output.empty()) {
-        // Even without legacy, check output path writability
+    if (!args.output.empty()) {
+        // Output-path writability remains a separate CLI boundary check.
         auto& preflight = RenderPreflight::instance();
         preflight.require_output_path(args.output);
         auto output_issues = preflight.validate(assets, resolver);

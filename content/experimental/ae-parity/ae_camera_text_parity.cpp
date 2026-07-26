@@ -201,7 +201,7 @@ void add_targets(SceneBuilder& s) {
     // `camera_target` is the TwoNode look-at point, parked at the
     // origin.  Even though we evaluate the camera manually (no rig
     // lookup), keeping these null-equivalent layers makes the scene
-    // compatible with compositions that switch to a `CameraShotProfile`.
+    // compatible with compositions that switch to a camera_v1 descriptor.
     s.layer("camera_target", [](LayerBuilder& l) {
         l.enable_3d();
         l.position({0.0f, 0.0f, 0.0f});

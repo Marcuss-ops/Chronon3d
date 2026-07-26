@@ -108,7 +108,7 @@ private:
 
     // Global visibility thresholds (default: disabled).
     // Mutable because require_frame_visibility() is called on const validators
-    // from the camera_test_orchestrator's const CameraShotProfile reference.
+    // from the camera diagnostic orchestrator's descriptor reference.
     mutable bool  m_frame_visibility_enabled{false};
     mutable float m_min_frame_visible_ratio{0.005f};
 };

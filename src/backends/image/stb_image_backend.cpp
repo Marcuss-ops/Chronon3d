@@ -35,7 +35,7 @@ std::string resolve_existing_path(const std::string& path) {
         return input.lexically_normal().string();
     }
 
-    fs::path current = fs::current_path();
+    fs::path current = fs::absolute(".");
     for (int depth = 0; depth < 8; ++depth) {
         const fs::path candidate = current / input;
         if (fs::exists(candidate)) {

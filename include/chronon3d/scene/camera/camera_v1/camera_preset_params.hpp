@@ -1,10 +1,10 @@
 #pragma once
 // ==============================================================================
-// chronon3d/scene/camera/camera_rig_params.hpp
+// chronon3d/scene/camera/camera_v1_preset_params.hpp
 //
-// Parameter structs for the camera_rig convenience helpers (hero_push_in, etc.).
-// Extracted from camera_rig.hpp to break circular dependency with
-// register_camera_rig_motions.hpp.
+// Parameter structs for the canonical camera V1 presets.
+// Kept separate from camera_presets.hpp to keep preset data lightweight.
+// preset registration.
 //
 // These are pure data structs — no evaluation logic, just parameter containers.
 // ==============================================================================
@@ -13,7 +13,7 @@
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/math/glm_types.hpp>
 
-namespace chronon3d::camera_rig {
+namespace chronon3d::camera_v1::presets {
 
 struct HeroPushInParams {
     Vec3  from_position{0.0f, 0.0f, -1200.0f};
@@ -100,4 +100,4 @@ struct SubtleFloatParams {
     Frame start_frame{0};
 };
 
-} // namespace chronon3d::camera_rig
+} // namespace chronon3d::camera_v1::presets

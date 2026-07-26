@@ -8,8 +8,7 @@
 //   (3) ogni render ha CameraSession distinta
 //   (4) FOV/Zoom/PhysicalLens/DOF/motion blur end-to-end
 //   (5) random access deterministico
-//   (6) parity legacy adapter vs descriptor
-//   (7) modifica descriptor → nuovo fingerprint
+//   (6) modifica descriptor → nuovo fingerprint
 //
 // These tests validate the P3-F invariant: Composition has NO mutable
 // camera state.  The canonical path is the V2 staging pipeline
@@ -40,12 +39,10 @@
 #include <chronon3d/timeline/evaluated_composition_frame.hpp>
 
 #include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
-#include <chronon3d/scene/camera/camera_v1/camera_descriptor_adapters.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program.hpp>
 #include <chronon3d/scene/camera/camera_v1/camera_program_compiler.hpp>
 #include <chronon3d/internal/scene/camera/v1/camera_session.hpp>
 
-#include <chronon3d/scene/model/camera/camera.hpp>           // Legacy Camera struct
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>      // Camera2_5D
 
 #include <chronon3d/core/types/result.hpp>
@@ -376,70 +373,7 @@ TEST_CASE("P3-F [5]: random access — sequence [5,100,0,50,25,10,0] is bit-stab
 }
 
 // ════════════════════════════════════════════════════════════════════════
-// (6) parity legacy adapter vs descriptor — `camera_v1::camera_descriptor_from`
-//     (the P3-E adapter) and a hand-crafted CameraDescriptor with the
-//     same field values MUST produce byte-identical CompiledCompositions
-//     and equivalent evaluate() output.  Proves the adapter is the
-//     canonical one-way bridge from the legacy slim Camera struct.
-// ════════════════════════════════════════════════════════════════════════
-TEST_CASE("P3-F [6]: parity — legacy Camera adapter == hand-crafted descriptor") {
-    // Deterministic legacy Camera (the legacy field that's now `[[deprecated]]`).
-    chronon3d::Camera legacy_cam{};
-    legacy_cam.fov_deg              = 60.0f;
-    legacy_cam.transform.position   = Vec3{10.0f, 20.0f, -500.0f};
-    legacy_cam.transform.rotation   = Vec3{0.0f, 5.0f, 0.0f};
-
-    // (a) Adapter pristine output.
-    CameraDescriptor desc_a = camera_v1::camera_descriptor_from(legacy_cam);
-
-    // (b) Hand-crafted descriptor — same id tag + same field values.
-    CameraDescriptor desc_b;
-    desc_b.id          = desc_a.id;            // identity deduced from
-                                               // adapter contract.
-    desc_b.source      = StaticCameraSource{};
-    desc_b.orientation = FixedOrientation{};
-    desc_b.base.position = legacy_cam.transform.position;
-    desc_b.base.rotation = legacy_cam.rotation_euler();
-    {
-        FovProjection proj{};
-        proj.fov_deg.set(legacy_cam.fov_deg);
-        desc_b.base.projection = std::move(proj);
-        desc_b.base.lens.focal_length  = legacy_cam.focal_length(36.0f);
-        desc_b.base.lens.f_stop        = 2.8f;
-        desc_b.base.lens.sensor_width  = 36.0f;
-        desc_b.base.lens.sensor_height = 24.0f;
-        desc_b.base.lens.gate_fit      = GateFit::Fill;
-    }
-
-    // Compile both + evaluate both at frame 0.
-    CompositionDefinition def_a = make_unify_def("unify_parity_a");
-    def_a.camera = desc_a;
-    CompositionDefinition def_b = make_unify_def("unify_parity_b");
-    def_b.camera = desc_b;
-
-    auto cc_a_res = compile_composition(def_a, {});
-    auto cc_b_res = compile_composition(def_b, {});
-    REQUIRE(cc_a_res.has_value());
-    REQUIRE(cc_b_res.has_value());
-    CompiledComposition cc_a = std::move(cc_a_res).value();
-    CompiledComposition cc_b = std::move(cc_b_res).value();
-
-    // Fingerprint equality proves byte-level content equivalence.
-    CHECK(cc_a.fingerprint == cc_b.fingerprint);
-
-    // Evaluate-result equivalence (per-frame Camera2_5D output).
-    auto eval_ctx = make_unify_eval_ctx();
-    auto ev_a = evaluate(cc_a, eval_ctx, Frame{0});
-    auto ev_b = evaluate(cc_b, eval_ctx, Frame{0});
-    REQUIRE(ev_a.has_value());
-    REQUIRE(ev_b.has_value());
-    REQUIRE(ev_a->camera.has_value());
-    REQUIRE(ev_b->camera.has_value());
-    check_cam2_5d_match(*ev_a->camera, *ev_b->camera);
-}
-
-// ════════════════════════════════════════════════════════════════════════
-// (7) modifica descriptor → nuovo fingerprint — fingerprint changes when
+// (6) modifica descriptor → nuovo fingerprint — fingerprint changes when
 //     a single descriptor byte changes, and re-compiling the same
 //     descriptor produces the same fingerprint.  The fingerprint is
 //     deterministic, content-stable, and any-mutation-detectable.

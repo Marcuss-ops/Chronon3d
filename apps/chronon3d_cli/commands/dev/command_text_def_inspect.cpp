@@ -83,7 +83,6 @@ int command_text_def_inspect(const CompositionRegistry& registry,
     //    pass.  RenderSettings are hardcoded (dev command, no user-exposed
     //    knobs needed) — the same pattern as `command_text_visibility.cpp`.
     RenderSettings settings;
-    settings.use_modular_graph = true;
     settings.dirty.enabled = false;
     auto renderer = create_renderer(registry, settings);
     auto fb = renderer->render(comp, args.frame);

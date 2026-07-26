@@ -8,10 +8,8 @@
 //   1. pruning OFF            (SDK dirty.enabled=false == CLI --no-dirty-rects)
 //   2. 1 thread               (SDK tbb::global_control == CLI CHRONON3D_THREADS=1)
 //   3. warm/cold cache        (fresh vs reused renderer / --warmup-renderer)
-//   4. modular graph OFF      (SDK use_modular_graph=false == CLI --no-graph)
-//   5. modular graph ON       (SDK use_modular_graph=true == CLI --graph)
-//   6. diagnostic overlay ON  (SDK text_layout_debug == CLI --diagnostic-overlay)
-//   7. diagnostic overlay ONLY (same + diagnostic_overlay_only)
+//   4. diagnostic overlay ON  (SDK text_layout_debug == CLI --diagnostic-overlay)
+//   5. diagnostic overlay ONLY (same + diagnostic_overlay_only)
 //
 // Each test compares a u64 hash of the SDK-rendered PNG with a u64 hash
 // of the CLI-subprocess-rendered PNG; byte-exact equality == parity.
@@ -100,46 +98,6 @@ TEST_CASE("real pipeline parity: warm/cold cache") {
     CHECK(sdk_cold_hash == sdk_warm_hash);
     CHECK(sdk_cold_hash == cli_cold_hash);
     CHECK(sdk_cold_hash == cli_warm_hash);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Test: modular graph OFF parity
-//   SDK: RenderSettings.use_modular_graph = false
-//   CLI: --no-graph
-// ═══════════════════════════════════════════════════════════════════════════
-TEST_CASE("real pipeline parity: modular graph OFF") {
-    const auto tmp = ph::make_temp_dir();
-    const std::string sdk_png = (tmp / "sdk_nograph.png").string();
-    const std::string cli_png = (tmp / "cli_nograph.png").string();
-
-    auto settings = ph::default_settings();
-    settings.use_modular_graph = false;
-
-    const auto sdk_hash = ph::render_sdk_to_png(sdk_png, settings);
-    REQUIRE(ph::run_cli_still(cli_png, "--no-graph"));
-    const auto cli_hash = ph::hash_from_png(cli_png);
-
-    CHECK(sdk_hash == cli_hash);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// Test: modular graph ON (explicit) parity
-//   SDK: RenderSettings.use_modular_graph = true
-//   CLI: --graph
-// ═══════════════════════════════════════════════════════════════════════════
-TEST_CASE("real pipeline parity: modular graph ON (explicit)") {
-    const auto tmp = ph::make_temp_dir();
-    const std::string sdk_png = (tmp / "sdk_graph.png").string();
-    const std::string cli_png = (tmp / "cli_graph.png").string();
-
-    auto settings = ph::default_settings();
-    settings.use_modular_graph = true;
-
-    const auto sdk_hash = ph::render_sdk_to_png(sdk_png, settings);
-    REQUIRE(ph::run_cli_still(cli_png, "--graph"));
-    const auto cli_hash = ph::hash_from_png(cli_png);
-
-    CHECK(sdk_hash == cli_hash);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

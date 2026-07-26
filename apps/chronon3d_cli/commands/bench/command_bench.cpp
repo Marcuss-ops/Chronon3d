@@ -156,16 +156,12 @@ std::vector<BenchmarkSummary> load_grouped_summaries(const std::filesystem::path
 
 void run_render_benchmark(benchmark::State& state) {
     auto& ctx = *g_bench_context;
-    const int width = ctx.composition->width();
-    const int height = ctx.composition->height();
     auto* counters = ctx.renderer->counters();
 
     for (auto _ : state) {
         for (int i = 0; i < ctx.frames; ++i) {
             const auto frame = static_cast<Frame>(ctx.warmup + i);
-            auto scene = ctx.composition->evaluate(frame);
-            ctx.renderer->render_scene(scene, ctx.composition->camera, width, height, 30.0f);
-            benchmark::DoNotOptimize(scene);
+            ctx.renderer->render(*ctx.composition, frame);
         }
         benchmark::DoNotOptimize(counters);
         benchmark::ClobberMemory();
@@ -259,7 +255,6 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
 
     auto composition = registry.create(args.comp_id);
     RenderSettings settings;
-    settings.use_modular_graph = args.use_modular_graph;
     if (args.no_dirty_rects) {
         settings.dirty.enabled = false;
         settings.dirty.use_bitmask = false;
@@ -299,8 +294,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
 
     for (int i = 0; i < args.warmup; ++i) {
         const auto frame = static_cast<Frame>(i);
-        auto scene = composition.evaluate(frame);
-        renderer->render_scene(scene, composition.camera, composition.width(), composition.height(), 30.0f);
+        renderer->render(composition, frame);
     }
 
     uint64_t saved_fb_alloc = 0;
@@ -338,7 +332,6 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     benchmark::AddCustomContext("comp_id", args.comp_id);
     benchmark::AddCustomContext("frames", std::to_string(args.frames));
     benchmark::AddCustomContext("warmup", std::to_string(args.warmup));
-    benchmark::AddCustomContext("use_modular_graph", args.use_modular_graph ? "true" : "false");
     benchmark::AddCustomContext("dirty_rects_status", context.no_dirty_rects ? "disabled" : "enabled");
     benchmark::AddCustomContext("warmup_renderer", args.warmup_renderer ? "true" : "false");
 

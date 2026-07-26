@@ -8,14 +8,13 @@
 #include <chronon3d/scene/model/shape/transform_3d.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/scene/builders/camera_api.hpp>
-#include <chronon3d/scene/camera/camera_rig_builder.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 #include <chronon3d/scene/builders/node_handle.hpp>
 #include <chronon3d/scene/model/core/clip_transition.hpp>
 #include <chronon3d/scene/builders/null_builder.hpp>
 #include <chronon3d/registry/shape_registry.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
-#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
+#include <chronon3d/scene/camera/camera_v1/camera_descriptor.hpp>
 #include <chronon3d/scene/model/core/hierarchy_resolver.hpp>  // ResolvedSceneTransforms
 #include <chronon3d/scene/model/core/scene.hpp>
 #include <chronon3d/rendering/light_context.hpp>
@@ -52,7 +51,7 @@ class SequenceBuilder;  // forward decl — Sequence V2 facade (sequence_builder
 //                                          precomp_layer /
 //                                          video_layer / null_layer)
 //     detail/scene_builder_sequences.inl  (sequence)
-//     detail/scene_builder_camera.inl     (camera_rig + edit_camera)
+//     scene_builder_inline.inl             (edit_camera + member bodies)
 //
 // These are bottom-included at the bottom of this header (mirrors the
 // existing Phase-3.3 split). Bodies in .inl files marked `inline` for
@@ -81,8 +80,8 @@ class SceneBuilder {
 
     [[nodiscard]] CameraApi camera();
 
-    /// Set camera from an AnimatedCamera2_5D, evaluated at the current time.
-    SceneBuilder& animated_camera(const AnimatedCamera2_5D& cam);
+    /// Set camera from the canonical V1 pose source at the current time.
+    SceneBuilder& camera_pose(const camera_v1::PoseTracksSource& cam);
 
     SceneBuilder& ambient_light(Color color = Color{1, 1, 1, 1}, f32 intensity = 0.2f);
     SceneBuilder& directional_light(Vec3 direction, Color color = Color{1, 1, 1, 1},
@@ -170,10 +169,6 @@ class SceneBuilder {
     [[nodiscard]] Scene build();
     [[nodiscard]] const Camera2_5D& camera_2_5d() const;
 
-    // DECL-only template (body in detail/scene_builder_camera.inl)
-    template <typename Fn>
-    SceneBuilder& camera_rig(std::string name, Fn&& fn);
-
     /// Series authoring sugar: add sequential sequences with cumulative `from`.
     /// Returns a proxy builder; call .add() repeatedly, then finish by letting
     /// it go out of scope.
@@ -215,15 +210,13 @@ class SceneBuilder {
 
     [[nodiscard]] Frame current_integer_frame() const;
 
-    /// Always merge the layer's asset manifest into the scene, then
-    /// conditionally add the layer to the scene's renderable list.
-    /// This ensures the manifest is complete even for inactive layers
-    /// (needed by AssetPreflightResolver FullComposition mode).
+    /// Keep every authored layer in the scene and merge its manifest.
+    /// RenderGraph consumers apply `active_at(frame)` at evaluation time;
+    /// dropping inactive layers here made FrameOnly preflight impossible for
+    /// scenes authored at a different current frame.
     void commit_layer(Layer layer) {
         scene_.asset_manifest().merge(layer.asset_manifest);
-        if (layer.active_at(current_integer_frame())) {
-            scene_.add_layer(std::move(layer));
-        }
+        scene_.add_layer(std::move(layer));
     }
 
     Scene scene_;
@@ -293,9 +286,8 @@ inline SeriesBuilder SceneBuilder::series(const std::string& name) {
 //                                       (Phase-3.3)
 //   * scene_builder_sequences.inl    — templated sequence() body
 //                                       (Phase-3.3)
-//   * scene_builder_camera.inl       — templated camera_rig() body + the
-//                                       edit_camera() friend-of-CameraApi
-//                                       helper                          (Phase-3.3)
+//   * scene_builder_inline.inl       — edit_camera() friend-of-CameraApi
+//                                       helper and non-template member bodies
 //
 // Non-template bodies are marked `inline` in their .inl so ODR is satisfied
 // when this header is included in multiple TUs. Templates are implicitly
@@ -303,4 +295,3 @@ inline SeriesBuilder SceneBuilder::series(const std::string& name) {
 #include "chronon3d/scene/builders/detail/scene_builder_inline.inl"
 #include "chronon3d/scene/builders/detail/scene_builder_layers.inl"
 #include <chronon3d/scene/builders/sequence_builder.hpp>
-#include "chronon3d/scene/builders/detail/scene_builder_camera.inl"

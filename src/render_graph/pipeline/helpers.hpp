@@ -138,7 +138,7 @@ namespace chronon3d::graph {
             // Keep node clipping in sync with framebuffer reuse.
             .diagnostics_enabled = settings.diagnostics.enabled,
             .ssaa_factor         = settings.ssaa_factor,
-            .modular_coordinates = settings.use_modular_graph,
+            .modular_coordinates = true,
             .text_layout_debug    = settings.text_layout_debug,
             .diagnostic_overlay_only = settings.diagnostic_overlay_only,
             .optimize_compositing = settings.compositing.optimize_compositing,

@@ -94,8 +94,7 @@ TEST_CASE("Coordinate Centered vs Top Left - Opacity only keeps implicit centeri
 
     auto renderer = test::make_renderer();
     RenderSettings settings = renderer.render_settings();
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
 
     Camera camera;
     auto fb = renderer.render_scene(scene, camera, 1536, 1024, 30.0f);
@@ -346,8 +345,7 @@ TEST_CASE("Test visivi e lettura pixel in C++ - Alpha blending") {
 
     auto renderer = test::make_renderer();
     RenderSettings settings = renderer.render_settings();
-    settings.use_modular_graph = false;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
 
     Camera camera;
 

@@ -74,26 +74,27 @@ std::unique_ptr<IVideoEncoder> create_video_encoder(const FfmpegExportOptions& o
     const FfmpegExportOptions& opts,
     const chronon3d::CpuBudget& cpu_budget);
 
-/// Canonical video-pipeline evaluate: threads the renderer's FontEngine
-/// into the composition evaluation so text shapes materialize correctly.
-/// All video exporters MUST use this instead of calling comp.evaluate()
-/// directly — without the engine, materialize_text_run_shape logs
-/// "no FontEngine available" and returns nullptr, causing blank text.
+/// Canonical video-pipeline evaluation: supplies the renderer-owned runtime
+/// through an explicit FrameContext so text services are resolved per render.
 ///
 /// Non reintroduce shared_font_engine() or a global singleton:
 /// the project removed them intentionally.
 ///
-/// SampleTime overload — canonical.  Decomposes into integral frame +
-/// sub-frame fraction for the engine-aware evaluate(Frame, f32, FontEngine*)
-/// path.  Callers with a Frame can use the convenience overload below.
+/// SampleTime overload — preserves sub-frame evaluation without a hidden
+/// engine argument.
 inline Scene evaluate_video_scene(
     const Composition& comp,
     SampleTime time,
     SoftwareRenderer& renderer)
 {
-    return comp.evaluate(time.integral_frame(),
-                         static_cast<f32>(time.fraction()),
-                         &renderer.font_engine());
+    return comp.evaluate(make_frame_context({
+        .global_time = time,
+        .duration = comp.duration(),
+        .width = comp.width(),
+        .height = comp.height(),
+        .assets_root = comp.assets_root(),
+        .runtime = &renderer.runtime(),
+    }));
 }
 
 /// Convenience overload for callers that only have a discrete Frame

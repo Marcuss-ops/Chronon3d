@@ -11,7 +11,7 @@ inline Composition saas_intro() {
         SceneBuilder s(ctx);
 
         // Camera: push-in
-        s.animated_camera(camera_rig::hero_push_in({
+        s.camera_pose(camera_v1::presets::hero_push_in({
             .from_position = {0.0f, 0.0f, -1100.0f},
             .to_position   = {0.0f, 0.0f, -750.0f},
             .from_tilt = -3.0f,

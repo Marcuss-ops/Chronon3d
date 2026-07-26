@@ -152,14 +152,16 @@ Composition make_hero_push_scene() {
             l.position({0.0f, -20.0f, 0.0f}).glow(GlowPresets::neon_blue(26.0f));
             l.text("hero", {
                 .content = {.value = "SaaS"},
-                .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
-                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 96.0f},
-                .layout = {.box = {700.0f, 140.0f},
+                          .color = Color{0.92f, 0.97f, 1.0f, 1.0f}},
+                .frame = {
+                          .size = {700.0f, 140.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
                            .align = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle},
-                .appearance = {.color = Color{0.92f, 0.97f, 1.0f, 1.0f}},
+                           .vertical_align = VerticalAlign::Middle,
+                          }
             });
         });
 
@@ -167,14 +169,16 @@ Composition make_hero_push_scene() {
             l.position({0.0f, 110.0f, 0.0f});
             l.text("sub", {
                 .content = {.value = "BUILD • LAUNCH • SCALE"},
-                .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
-                .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
+                .style = {.font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                          .font_family = "Inter",
                          .font_size = 22.0f},
-                .layout = {.box = {720.0f, 42.0f},
+                          .color = Color{0.72f, 0.88f, 1.0f, 1.0f}},
+                .frame = {
+                          .size = {720.0f, 42.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
                            .align = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle},
-                .appearance = {.color = Color{0.72f, 0.88f, 1.0f, 1.0f}},
+                           .vertical_align = VerticalAlign::Middle,
+                          }
             });
         });
 
@@ -187,14 +191,16 @@ Composition make_hero_push_scene() {
             });
             l.text("cta_text", {
                 .content = {.value = "PART 1"},
-                .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
-                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 34.0f},
-                .layout = {.box = {260.0f, 60.0f},
+                          .color = Color::white()},
+                .frame = {
+                          .size = {260.0f, 60.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
                            .align = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle},
-                .appearance = {.color = Color::white()},
+                           .vertical_align = VerticalAlign::Middle,
+                          }
             });
         });
 
@@ -225,25 +231,29 @@ Composition make_buttery_card_scene(f32 rotation_y) {
             l.position({0.0f, 0.0f, 0.0f});
             l.text("title", {
                 .content = {.value = "Buttery Smooth"},
-                .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -10.0f}},
-                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 66.0f},
-                .layout = {.box = {700.0f, 120.0f},
+                          .color = Color{1.0f, 0.22f, 0.82f, 1.0f}},
+                .frame = {
+                          .size = {700.0f, 120.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -10.0f}},
                            .align = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle},
-                .appearance = {.color = Color{1.0f, 0.22f, 0.82f, 1.0f}},
+                           .vertical_align = VerticalAlign::Middle,
+                          }
             });
             l.text("subtitle", {
                 .content = {.value = "Motion design quality text with soft glow"},
-                .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 100.0f}},
-                .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
+                .style = {.font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                          .font_family = "Inter",
                          .font_size = 22.0f},
-                .layout = {.box = {700.0f, 48.0f},
+                          .color = Color{0.82f, 0.78f, 0.92f, 1.0f}},
+                .frame = {
+                          .size = {700.0f, 48.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 100.0f}},
                            .align = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle},
-                .appearance = {.color = Color{0.82f, 0.78f, 0.92f, 1.0f}},
+                           .vertical_align = VerticalAlign::Middle,
+                          }
             });
         });
 
@@ -373,16 +383,18 @@ Composition make_depth_fog_scene() {
             s.layer(label, [=](LayerBuilder& l) {
                 l.enable_3d().position({0.0f, 0.0f, z}).opacity(std::clamp(1.0f - z / 1800.0f, 0.22f, 1.0f));
                 l.text(label, {
-                    .content = {.value = label},
-                    .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
-                    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                .content = {.value = label},
+                .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                              .font_family = "Inter",
                              .font_size = 62.0f},
-                    .layout = {.box = {800.0f, 110.0f},
+                          .color = Color{0.62f, 0.82f, 1.0f, 1.0f}},
+                .frame = {
+                          .size = {800.0f, 110.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
                                .align = TextAlign::Center,
-                               .vertical_align = VerticalAlign::Middle},
-                    .appearance = {.color = Color{0.62f, 0.82f, 1.0f, 1.0f}}
-                });
+                               .vertical_align = VerticalAlign::Middle,
+                          }
+            });
             });
         }
 
@@ -421,14 +433,16 @@ Composition make_orbit_stability_scene(float yaw) {
             l.rounded_rect("card", {.size = {220.0f, 260.0f}, .radius = 24.0f, .color = Color{0.82f, 0.24f, 0.96f, 1.0f}});
             l.text("title", {
                 .content = {.value = "ORBIT"},
-                .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -6.0f}},
-                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 48.0f},
-                .layout = {.box = {220.0f, 80.0f},
+                          .color = Color::white()},
+                .frame = {
+                          .size = {220.0f, 80.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, -6.0f}},
                            .align = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle},
-                .appearance = {.color = Color::white()},
+                           .vertical_align = VerticalAlign::Middle,
+                          }
             });
         });
 
@@ -456,14 +470,16 @@ Composition make_fake_extrusion_scene() {
             l.position({10.0f, 12.0f, -20.0f});
             l.text("back", {
                 .content = {.value = "SaaS"},
-                .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
-                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 100.0f},
-                .layout = {.box = {620.0f, 140.0f},
+                          .color = Color{0.10f, 0.18f, 0.42f, 1.0f}},
+                .frame = {
+                          .size = {620.0f, 140.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
                            .align = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle},
-                .appearance = {.color = Color{0.10f, 0.18f, 0.42f, 1.0f}},
+                           .vertical_align = VerticalAlign::Middle,
+                          }
             });
         });
 
@@ -471,14 +487,16 @@ Composition make_fake_extrusion_scene() {
             l.position({0.0f, 0.0f, 0.0f}).glow(GlowPresets::soft_cyan(20.0f));
             l.text("front", {
                 .content = {.value = "SaaS"},
-                .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
-                .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+                .style = {.font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                          .font_family = "Inter",
                          .font_size = 100.0f},
-                .layout = {.box = {620.0f, 140.0f},
+                          .color = Color::white()},
+                .frame = {
+                          .size = {620.0f, 140.0f},
+                          .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{0.0f, 0.0f}},
                            .align = TextAlign::Center,
-                           .vertical_align = VerticalAlign::Middle},
-                .appearance = {.color = Color::white()},
+                           .vertical_align = VerticalAlign::Middle,
+                          }
             });
         });
 

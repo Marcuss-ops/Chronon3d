@@ -1,13 +1,14 @@
 #pragma once
 
-#include <chronon3d/math/projector_2_5d.hpp>
 #include <chronon3d/math/glm_types.hpp>
+#include <chronon3d/math/projector_2_5d.hpp>
 
 namespace chronon3d {
 
+// Renderer-owned parameters carried by a RenderNode, independent of runtime services.
 struct FakeBox3DRenderState {
     renderer::ProjectionContext projection;
-    Mat4 world_matrix{1.0f};  // layer TRS — transforms local vertices to world space
+    Mat4 world_matrix{1.0f};
 };
 
 struct GridPlaneRenderState {

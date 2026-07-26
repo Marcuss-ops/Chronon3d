@@ -16,12 +16,10 @@ using namespace chronon3d;
 namespace {
 
 std::shared_ptr<Framebuffer> render_with_effects(
-    std::function<void(LayerBuilder&)> effect_fn,
-    bool modular = true
+    std::function<void(LayerBuilder&)> effect_fn
 ) {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = modular;
     renderer.set_settings(settings);
 
     Composition comp({
@@ -146,8 +144,7 @@ TEST_CASE("Test 10.6 — Drop shadow renders offset shadow pixels") {
 TEST_CASE("Test 10.7 — Disabled effects do not affect hash or rendering") {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
 
     Composition comp_no_effect({.width = 100, .height = 100}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);

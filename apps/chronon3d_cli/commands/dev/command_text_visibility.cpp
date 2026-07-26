@@ -63,7 +63,6 @@ int command_text_visibility(const CompositionRegistry& registry,
 
     // Render the composition at the requested frame so we can scan real ink pixels.
     RenderSettings settings;
-    settings.use_modular_graph = true;
     settings.dirty.enabled = false;
     auto renderer = create_renderer(registry, settings);
     auto fb = renderer->render(comp, Frame{args.frame});
@@ -73,7 +72,14 @@ int command_text_visibility(const CompositionRegistry& registry,
     }
 
     // Evaluate the scene to walk TextRun nodes.
-    Scene scene = comp.evaluate(Frame{args.frame});
+    Scene scene = comp.evaluate(make_frame_context({
+        .global_time = SampleTime::from_frame_int(Frame{args.frame}, comp.frame_rate()),
+        .duration = comp.duration(),
+        .width = comp.width(),
+        .height = comp.height(),
+        .assets_root = comp.assets_root(),
+        .runtime = &renderer->runtime(),
+    }));
 
     nlohmann::json js;
     js["composition"] = args.comp_id;

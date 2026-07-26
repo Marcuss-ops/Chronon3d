@@ -251,8 +251,7 @@ TEST_CASE("TileCache: Integration — render with tiles shows cache activity") {
     auto renderer = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         s.dirty.use_bitmask = true;
         s.dirty.tile_size = 32;
         renderer.set_settings(s);
@@ -336,8 +335,7 @@ TEST_CASE("TileCache: Integration — pixel-perfect output with tile cache") {
     auto baseline = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = false;
+                s.dirty.enabled = false;
         baseline.set_settings(s);
     }
 
@@ -345,8 +343,7 @@ TEST_CASE("TileCache: Integration — pixel-perfect output with tile cache") {
     auto opt = test::make_renderer();
     {
         RenderSettings s;
-        s.use_modular_graph = true;
-        s.dirty.enabled = true;
+                s.dirty.enabled = true;
         s.dirty.use_bitmask = true;
         s.dirty.tile_size = 32;
         opt.set_settings(s);

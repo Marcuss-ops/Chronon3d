@@ -117,10 +117,6 @@ int main(int argc, char* argv[]) {
         spec,
         [&](const c3d::FrameContext& ctx) -> c3d::Scene {
             c3d::SceneBuilder s(ctx);
-            if (ctx.runtime) {
-                s.font_engine(&ctx.runtime->font_engine());
-            }
-
             // Background layer: GridBackground (built-in, no font needed)
             s.layer("background", [&ctx](c3d::LayerBuilder& l) {
                 l.kind(c3d::LayerKind::Shape);
@@ -183,7 +179,6 @@ int main(int argc, char* argv[]) {
     settings.deterministic = true;
     settings.dirty_rects = false;
     settings.motion_blur = false;
-    settings.max_threads = 1;
 
     c3d::sdk::RenderEngine engine{settings};
     engine.set_assets_root(std::filesystem::path{assets_root});

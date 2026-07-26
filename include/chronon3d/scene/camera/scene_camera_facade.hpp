@@ -45,9 +45,8 @@ class Scene;
 // need to include, because the setters are pass-through).
 namespace camera_v1 {
     class ShotTimeline;
+    class CameraCatalog;
 }
-
-class CameraPresetCatalog;  // forward decl; full type in camera_catalog.hpp
 
 // ── SceneCameraFacade ───────────────────────────────────────────────────
 //
@@ -92,7 +91,7 @@ public:
     // on the bound `Scene`.  The catalog lookup API is documented in
     // `chronon3d/scene/camera/camera_v1/camera_catalog.hpp`.
     SceneCameraFacade& preset(const std::string& preset_id,
-                              const CameraPresetCatalog& catalog);
+                              const camera_v1::CameraCatalog& catalog);
 
 private:
     Scene& scene_;

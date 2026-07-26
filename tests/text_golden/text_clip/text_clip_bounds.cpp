@@ -375,7 +375,7 @@ TEST_CASE("Clip 06 TextClip DebugLayout Diagnostic 1920x1080") {
     // Debug render (text_layout_debug = true)
     auto renderer_debug = test::make_renderer_shared();
     RenderSettings debug_settings;
-    debug_settings.use_modular_graph = true;  // mirror make_renderer_shared
+    // mirror make_renderer_shared
     debug_settings.text_layout_debug = true;
     renderer_debug->set_settings(debug_settings);
     auto fb_debug = renderer_debug->render(

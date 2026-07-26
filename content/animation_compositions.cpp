@@ -1,10 +1,10 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/animation/motion/motion.hpp>
-#include <chronon3d/runtime/render_runtime.hpp>
 #include "content/common/animation_helpers.hpp"
 #include "content/text/text_helpers.hpp"
 
@@ -68,7 +68,7 @@ Composition anim_scale_text() {
 }
 
 // ── AnimTypewriter: per-character typewriter reveal ─────────────────────
-// F0.2b — static current_path() resolver REMOVED.
+// F0.2b — static process-wide resolver REMOVED.
 // F0.3 — typewriter_build now returns Result<bool, TextError>;
 //        structured error replaces silent return (non-fatal best-effort).
 // WP-9 PR 9.0 — anim_typewriter now sources the engine via

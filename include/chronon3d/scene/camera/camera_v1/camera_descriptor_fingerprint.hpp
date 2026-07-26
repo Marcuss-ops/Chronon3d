@@ -63,6 +63,8 @@ public:
 template <typename T>
 inline void hash_animated_value(Fnv1aHasher& h,
                                 const chronon3d::AnimatedValue<T>& av) {
+    h.mix_bytes(&av.default_value(), sizeof(T));
+    h.mix_str(av.expression());
     h.mix_bool(av.is_time_dependent());
     const auto& kfs = av.keyframes();
     h.mix_u64(kfs.size());

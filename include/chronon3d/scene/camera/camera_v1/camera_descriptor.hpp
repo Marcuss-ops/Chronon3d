@@ -9,9 +9,8 @@
 // compile_camera() to produce an immutable CameraProgram.
 //
 // The variant-based source, orientation, and constraint types replace:
-//   - AnimatedCamera2_5D         → PoseTracksSource
-//   - CameraRig (modern)          → OrbitMotion
-//   - CameraMotionParams          → PoseTracksSource + IdleOscillation
+//   - imperative camera authoring         → canonical V1 source variants
+//   - CameraMotionParams          → CameraMotionParamsSource
 //   - camera_motion::dolly/pan    → preset descriptor
 //   - OrientationPolicy enum      → OrientationSpec variant
 //   - CameraConstraintSpec (PR6+) → replaces CameraConstraintRegistry
@@ -146,7 +145,7 @@ struct CameraBaseSpec {
 struct StaticCameraSource {};
 
 /// Keyframed position / rotation / target / zoom / FOV.
-/// Replaces AnimatedCamera2_5D and the imperative camera_rig::* helpers
+/// Keyframed camera pose source for camera V1 authoring.
 /// (hero_push_in, orbit_yaw, parallax_pan, dolly_zoom, focus_pull,
 ///  low_angle_reveal, subtle_float).
 ///
@@ -171,7 +170,7 @@ struct PoseTracksSource {
 };
 
 /// Orbit around a target with yaw/pitch/radius + track/dolly/roll.
-/// Replaces the modern CameraRig (in namespace chronon3d).
+/// Canonical orbit source for camera V1 authoring.
 ///
 ///     yaw     = horizontal orbit angle (degrees)
 ///     pitch   = vertical orbit angle (degrees)
@@ -212,7 +211,7 @@ struct RegisteredMotionRef {
 /// the 61-keyframe discretization.  Mathematically equivalent to the prior bake
 /// within ε (linear interpolation between samples).
 ///
-/// Body of sample_at() is defined in camera_descriptor_adapters.cpp to keep
+/// Body of sample_at() is defined in the camera motion source implementation to keep
 /// the header lean (the impl uses chronon3d::animation::lerp + easing_value
 /// + normalized_time which live in <chronon3d/animations/camera_motion_params.hpp>).
 struct CameraMotionParamsSource {
@@ -221,7 +220,7 @@ struct CameraMotionParamsSource {
     /// Side-effect-free evaluation: given a ctx_frame, return the Camera2_5D
     /// pose per the canonical animation helpers.  Mirrors the body of the
     /// (now-removed) local eval_camera_motion_params() in
-    /// camera_descriptor_adapters.cpp; see TICKET-P2-29 for the migration
+    /// camera motion source implementation; see TICKET-P2-29 for the migration
     /// lineage.  Mathematically equivalent to the prior 60-sample bake
     /// (61 keyframes via linear interpolation between samples) within ε.
     Camera2_5D sample_at(Frame ctx_frame) const;

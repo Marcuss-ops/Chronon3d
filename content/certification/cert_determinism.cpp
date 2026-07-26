@@ -11,7 +11,7 @@
 //                      output (same sha256 hash). No random, no time dependency,
 //                      no external assets.
 //
-// 1920×1080 canvas. FrameRate{30,1}, duration=1, frame=0 only.
+// 1920×1080 canvas. FrameRate{30,1}, one evaluated frame at frame 0.
 // ==============================================================================
 
 #include <chronon3d/core/composition/composition_registry.hpp>

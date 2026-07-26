@@ -15,6 +15,7 @@
 // distance), use EffectFootprint which is computed at runtime.
 
 #include <cstdint>
+#include <chronon3d/effects/effect_type.hpp>
 
 namespace chronon3d::effects {
 

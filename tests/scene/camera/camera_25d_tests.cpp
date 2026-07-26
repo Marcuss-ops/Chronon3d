@@ -16,7 +16,7 @@ using namespace chronon3d;
 // PR3 followup note:
 // The five projection assertions below (Tests 9.2, 9.3, 9.4, 9.5, 9.7) currently
 // produce all-zero pixels because the SoftwareRenderer path used here
-// (`enable_3d()` + `s.camera()` + `RenderSettings{use_modular_graph=true}` on a
+// (`enable_3d()` + `s.camera()` on a
 // 200x200 framebuffer) does not yet apply per-pixel 2.5D projection in the way
 // the original tests assumed. They were re-introduced active (not under a dead-code preprocessor guard)
 // in PR3 to replace three previously-disabled tests. Until the renderer projection
@@ -27,7 +27,7 @@ using namespace chronon3d;
 // is verified to draw through the modular graph path.
 namespace {
 
-std::shared_ptr<Framebuffer> render_with_camera(
+std::shared_ptr<Framebuffer> render_with_camera_pose(
     bool cam_enabled,
     Vec3 cam_pos,
     f32 cam_zoom,
@@ -38,8 +38,7 @@ std::shared_ptr<Framebuffer> render_with_camera(
 ) {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
 
     Composition comp({
         .name = "Camera25DTest",
@@ -52,7 +51,7 @@ std::shared_ptr<Framebuffer> render_with_camera(
         // Full ambient light so 3D content is fully visible (tests are about projection, not lighting)
         s.ambient_light(Color{1.0f, 1.0f, 1.0f, 1.0f}, 1.0f);
 
-        // Build the camera via fluent chain (matches test_camera_rig.cpp pattern).
+        // Build the camera via the canonical fluent chain.
         // Aggregate-init s.camera().set({...}) silently zeroes omitted
         // projection_mode/fov_deg fields, leading to NaN focal lengths and
         // black pixels in earlier harnesses. Fluent is field-safe. Note that
@@ -86,8 +85,8 @@ std::shared_ptr<Framebuffer> render_with_camera(
 TEST_CASE("Test 9.1 — 2D layer stays flat if camera is disabled") {
     // When camera is disabled, layer is not projected into 3D.
     // Let's render a layer with and without camera position modifications.
-    auto fb1 = render_with_camera(false, {100, 100, -1000}, 1000.0f, false, {0, 0, 0});
-    auto fb2 = render_with_camera(false, {0, 0, -1000}, 1000.0f, false, {0, 0, 0});
+    auto fb1 = render_with_camera_pose(false, {100, 100, -1000}, 1000.0f, false, {0, 0, 0});
+    auto fb2 = render_with_camera_pose(false, {0, 0, -1000}, 1000.0f, false, {0, 0, 0});
 
     // They must be identical since camera parameters are ignored when disabled.
     REQUIRE(fb1 != nullptr);
@@ -97,8 +96,8 @@ TEST_CASE("Test 9.1 — 2D layer stays flat if camera is disabled") {
 
 TEST_CASE("Test 9.2 — 3D layers are projected when camera is enabled") {
     // With camera enabled and layer 3D active, camera movement shifts the projected position.
-    auto fb1 = render_with_camera(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 0});
-    auto fb2 = render_with_camera(true, {100, 0, -1000}, 1000.0f, true, {0, 0, 0}); // camera shifted X
+    auto fb1 = render_with_camera_pose(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 0});
+    auto fb2 = render_with_camera_pose(true, {100, 0, -1000}, 1000.0f, true, {0, 0, 0}); // camera shifted X
 
     REQUIRE(fb1 != nullptr);
     REQUIRE(fb2 != nullptr);
@@ -112,8 +111,8 @@ TEST_CASE("Test 9.2 — 3D layers are projected when camera is enabled") {
 TEST_CASE("Test 9.3 — Z depth offset changes scale size under camera projection") {
     // Perspective check: layer closer (negative Z towards camera) is larger;
     // layer farther (positive Z away from camera) is smaller.
-    auto fb_near = render_with_camera(true, {0, 0, -1000}, 1000.0f, true, {0, 0, -300}); // closer
-    auto fb_far  = render_with_camera(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 300});  // further
+    auto fb_near = render_with_camera_pose(true, {0, 0, -1000}, 1000.0f, true, {0, 0, -300}); // closer
+    auto fb_far  = render_with_camera_pose(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 300});  // further
 
     REQUIRE(fb_near != nullptr);
     REQUIRE(fb_far  != nullptr);
@@ -124,8 +123,8 @@ TEST_CASE("Test 9.3 — Z depth offset changes scale size under camera projectio
 
 TEST_CASE("Test 9.4 — Camera 2.5D: X rotation causes vertical foreshortening") {
     // Rotated around X by 60 deg should squeeze the height by half (cos(60) = 0.5)
-    auto fb_flat = render_with_camera(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 0}, {0, 0, 0});
-    auto fb_rot  = render_with_camera(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 0}, {60, 0, 0});
+    auto fb_flat = render_with_camera_pose(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 0}, {0, 0, 0});
+    auto fb_rot  = render_with_camera_pose(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 0}, {60, 0, 0});
 
     REQUIRE(fb_flat != nullptr);
     REQUIRE(fb_rot  != nullptr);
@@ -136,8 +135,8 @@ TEST_CASE("Test 9.4 — Camera 2.5D: X rotation causes vertical foreshortening")
 
 TEST_CASE("Test 9.5 — Camera 2.5D: Y rotation causes horizontal foreshortening") {
     // Rotated around Y by 60 deg should squeeze the width by half (cos(60) = 0.5)
-    auto fb_flat = render_with_camera(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 0}, {0, 0, 0});
-    auto fb_rot  = render_with_camera(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 0}, {0, 60, 0});
+    auto fb_flat = render_with_camera_pose(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 0}, {0, 0, 0});
+    auto fb_rot  = render_with_camera_pose(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 0}, {0, 60, 0});
 
     REQUIRE(fb_flat != nullptr);
     REQUIRE(fb_rot  != nullptr);
@@ -148,7 +147,7 @@ TEST_CASE("Test 9.5 — Camera 2.5D: Y rotation causes horizontal foreshortening
 
 TEST_CASE("Test 9.6 — Camera 2.5D: 90 deg rotation collapses the layer projection") {
     // A 90 deg rotation around Y collapses thickness to 0 width.
-    auto fb_rot = render_with_camera(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 0}, {0, 90, 0});
+    auto fb_rot = render_with_camera_pose(true, {0, 0, -1000}, 1000.0f, true, {0, 0, 0}, {0, 90, 0});
     REQUIRE(fb_rot != nullptr);
 
     bool has_red = false;
@@ -169,8 +168,7 @@ TEST_CASE("Test 9.6 — Camera 2.5D: 90 deg rotation collapses the layer project
 TEST_CASE("Test 9.7 — Camera 2.5D: 3D layers are sorted by depth before rendering") {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
 
     Composition comp({
         .name = "DepthSorting",
@@ -229,4 +227,3 @@ TEST_CASE("Test 9.8 — Camera 2.5D: Native 3D shapes do not undergo double proj
     REQUIRE(scene.layers().size() == 1);
     CHECK(scene.layers()[0].uses_2_5d_projection);
 }
-

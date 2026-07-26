@@ -2,7 +2,7 @@
 // tests/text_golden/text_transforms_animation/anim_02_opacity.cpp
 //
 // TICKET-FASE2-TRANSFORMS-ANIMATION §10 — Opacity animation test.
-// Verifies that text with `opacity_timeline(motion::timeline(...))`
+// Verifies that text with `opacity_timeline(chronon3d::timeline(...))`
 // produces a changing max_alpha across frames (alpha-weighted centroid
 // max_alpha reflects the layer's opacity multiplier).
 //

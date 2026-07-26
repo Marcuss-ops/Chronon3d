@@ -69,8 +69,7 @@ namespace node_goldens_impl {
 SoftwareRenderer make_node_golden_renderer(bool /*modular*/ = false) {
     auto r = test::make_renderer();
     RenderSettings s;
-    s.use_modular_graph = true;
-    // RenderSettings no longer carries modular_coordinates directly.
+        // RenderSettings no longer carries modular_coordinates directly.
     r.set_settings(s);
     return r;
 }

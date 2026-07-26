@@ -2,7 +2,6 @@
 
 #include <chronon3d/animation/effects/wiggle.hpp>
 #include <chronon3d/scene/model/camera/camera_2_5d.hpp>
-#include <chronon3d/scene/camera/animated_camera_2_5d.hpp>
 #include <algorithm>
 #include <cmath>
 
@@ -60,19 +59,6 @@ struct CameraShakeConfig {
         }
     }
 
-    // Apply shake to an AnimatedCamera2_5D by adding keyframes for the shake
-    // displacement at regular intervals. Useful for baking shake into keyframes.
-    void bake_into(AnimatedCamera2_5D& cam, Frame start, Frame end, Frame step = Frame{1}) const {
-        for (Frame f = start; f <= end; f += step) {
-            Camera2_5D base = cam.evaluate(f);
-            apply_to(base, f - start, end - start);
-            cam.position.key(f, base.position);
-            cam.rotation.key(f, base.rotation);
-            if (zoom_amp > 0.0f) {
-                cam.zoom.key(f, base.zoom);
-            }
-        }
-    }
 };
 
 // ── Shake Presets ────────────────────────────────────────────────────────────

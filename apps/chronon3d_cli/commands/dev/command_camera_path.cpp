@@ -193,7 +193,13 @@ int command_camera_path(const CompositionRegistry& registry,
     samples.reserve(static_cast<size_t>((end - start) / step) + 1);
 
     for (Frame f = start; f <= end; f += Frame{step}) {
-        Scene scene = comp.evaluate(f);
+        Scene scene = comp.evaluate(make_frame_context({
+            .global_time = SampleTime::from_frame_int(f, comp.frame_rate()),
+            .duration = comp.duration(),
+            .width = comp.width(),
+            .height = comp.height(),
+            .assets_root = comp.assets_root(),
+        }));
 
         const auto& cam = scene.camera_2_5d();
         PathSample s;

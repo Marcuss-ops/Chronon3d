@@ -39,13 +39,15 @@ GraphPreflightReport debug_preflight_render_graph(
     const RenderSettings&      settings,
     const CompositionRegistry* registry,
     media::MediaFrameProvider*  video_decoder,
-    float fps
+    float fps,
+    chronon3d::assets::AssetResolver* asset_resolver
 ) {
     // ── 1. Build context (same as debug_scene_graph) ─────────────────────
     auto ctx = make_graph_context(
         backend, node_cache, camera, width, height,
         frame, frame_time, settings, registry, video_decoder, fps
     );
+    ctx.services.asset_resolver = asset_resolver;
     ctx.policy.diagnostics_enabled = true;
     ctx.frame_input.light_context = scene.light_context();
     const auto resolved_camera = resolve_scene_camera(scene);

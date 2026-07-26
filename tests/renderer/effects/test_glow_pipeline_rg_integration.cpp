@@ -33,8 +33,7 @@ namespace glow_rg_impl {
 SoftwareRenderer make_glow_rg_renderer() {
     auto r = test::make_renderer();
     RenderSettings s;
-    s.use_modular_graph = true;
-    r.set_settings(s);
+        r.set_settings(s);
     return r;
 }
 }  // namespace glow_rg_impl

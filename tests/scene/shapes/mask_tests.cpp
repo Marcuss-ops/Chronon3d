@@ -17,8 +17,7 @@ std::shared_ptr<Framebuffer> render_masked_layer(
 ) {
     auto renderer = test::make_renderer();
     RenderSettings settings;
-    settings.use_modular_graph = true;
-    renderer.set_settings(settings);
+        renderer.set_settings(settings);
 
     Composition comp({
         .name = "MaskTest",

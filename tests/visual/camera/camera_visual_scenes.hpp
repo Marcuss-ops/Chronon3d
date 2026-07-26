@@ -2,7 +2,6 @@
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/timeline/composition.hpp>
-#include <chronon3d/scene/model/camera/camera_rig.hpp>
 #include <string>
 
 namespace chronon3d::test {

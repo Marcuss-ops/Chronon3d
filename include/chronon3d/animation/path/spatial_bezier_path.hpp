@@ -303,7 +303,7 @@ enum class AutoOrientMode {
     return Vec3{pitch, yaw, roll_deg};
 }
 
-// ── CameraMotionPath — lets CameraRig follow a 3D bezier path ───────────────
+// ── CameraMotionPath — lets Camera V1 follow a 3D bezier path ───────────────
 //
 // Usage:
 //   CameraMotionPath motion;

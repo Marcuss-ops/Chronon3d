@@ -43,7 +43,7 @@ namespace {
 
 // ── CertTitle-style composition ───────────────────────────────────────────
 // "EPIC TITLE" 120 pt Inter Bold, centred on 1920×1080.
-// Position {960, 540, 0}: canvas-absolute centre (modular_graph offsets internally).
+// Position {960, 540, 0}: canvas-absolute centre.
 Composition build_cert_title_comp(SoftwareRenderer& renderer) {
     return composition(
         {.name = "CertTitle/bbox_test", .width = 1920, .height = 1080,
@@ -54,20 +54,18 @@ Composition build_cert_title_comp(SoftwareRenderer& renderer) {
             s.layer("title", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.animated_text("title_text", TextRunSpec{
-                    .text = TextDefinition{
+                    .text = TextSpec{
     .content = {.value = "EPIC TITLE"},
-    .style = {
-        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
                                        .font_size = 120.0f},
-        .color = Color::white()
-    },
-    .frame = {
-        .size = {1920.0f, 1080.0f},
+    .layout = {
+        .box = {1920.0f, 1080.0f},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
-    }
+    },
+    .appearance = {.color = Color::white()}
 }
                 }).commit();
             });
@@ -90,20 +88,18 @@ Composition build_cert_lower_third_comp(SoftwareRenderer& renderer) {
             s.layer("title_line", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.animated_text("title", TextRunSpec{
-                    .text = TextDefinition{
+                    .text = TextSpec{
     .content = {.value = "BREAKING NEWS"},
-    .style = {
-        .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
+    .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 700,
                                        .font_size = 42.0f},
-        .color = Color::white()
-    },
-    .frame = {
-        .size = {1920.0f - kMargin * 2.0f, 60.0f},
+    .layout = {
+        .box = {1920.0f - kMargin * 2.0f, 60.0f},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
-    }
+    },
+    .appearance = {.color = Color::white()}
 }
                 }).commit();
             });
@@ -111,20 +107,18 @@ Composition build_cert_lower_third_comp(SoftwareRenderer& renderer) {
             s.layer("subtitle_line", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
                 l.animated_text("subtitle", TextRunSpec{
-                    .text = TextDefinition{
+                    .text = TextSpec{
     .content = {.value = "Chronon3D Text Engine — Production Ready"},
-    .style = {
-        .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
+    .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                                        .font_family = "Inter",
                                        .font_weight = 400,
                                        .font_size = 24.0f},
-        .color = Color{0.85f, 0.85f, 0.9f, 1.0f}
-    },
-    .frame = {
-        .size = {1920.0f - kMargin * 2.0f, 40.0f},
+    .layout = {
+        .box = {1920.0f - kMargin * 2.0f, 40.0f},
         .align = TextAlign::Center,
         .vertical_align = VerticalAlign::Middle
-    }
+    },
+    .appearance = {.color = Color{0.85f, 0.85f, 0.9f, 1.0f}}
 }
                 }).commit();
             });

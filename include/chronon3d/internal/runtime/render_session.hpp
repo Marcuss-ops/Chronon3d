@@ -61,7 +61,6 @@
 // Engine-generic field includes (acceptable from runtime/).
 #include <chronon3d/core/memory/arena.hpp>
 #include <chronon3d/math/renderer_state.hpp>
-#include <chronon3d/render_graph/render_backend.hpp>
 // WP-3 PR 3.1 — full type includes required by per-session-owned members.
 // The previous WP-8 forward-declaring design (TICKET-013 boundary invariant)
 // is intentionally lifted here because pr 3.1 requires per-session
@@ -76,6 +75,8 @@
 #include <chronon3d/text/text_run.hpp>
 
 namespace chronon3d {
+
+namespace graph { struct NodeExecutionError; }
 
 /// Thread-safe storage for the existing graph::NodeExecutionError channel.
 /// This is not a second error framework: it only preserves the first error

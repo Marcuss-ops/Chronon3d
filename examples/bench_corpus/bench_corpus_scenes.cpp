@@ -13,6 +13,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include "bench_corpus_scenes.hpp"
+#include <chronon3d/runtime/render_runtime.hpp>
 
 #include <chronon3d/presets/scenes/legacy_text_animator.hpp>
 #include <chronon3d/core/composition/composition_registry.hpp>

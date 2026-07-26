@@ -143,12 +143,12 @@ TEST_CASE("Universal Glow: works on Text layers") {
             // declaration order (C++ designated-init rule).
             l.text("t", {
                 .content    = {.value = "GLOW"},
-                .font       = {.font_size = 14.0f},
-                .layout     = {
-                    .box   = {30.0f, 20.0f},
+                .style      = {.font = {.font_size = 14.0f},
+                               .color = Color::white()},
+                .frame      = {
+                    .size  = {30.0f, 20.0f},
                     .align = TextAlign::Center,
                 },
-                .appearance = {.color = Color::white()},
             });
             l.glow(GlowParams{.radius = 8.0f, .intensity = 1.0f, .color = Color::green()});
         });
@@ -171,4 +171,3 @@ TEST_CASE("Universal Glow: works on Text layers") {
     }
     CHECK(found_green_glow);
 }
-

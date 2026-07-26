@@ -171,9 +171,7 @@ TEST_CASE("compute_signed_area: clockwise quad gives negative area") {
     };
     f32 area = compute_signed_area(verts, 4);
     // Area magnitude = 100*100 = 10000, sign depends on winding.
-    // The Shoelace formula returns twice the area / 2 i.e. half, so |area| = 5000.
-    CHECK(std::abs(area) > 4900.0f);
-    CHECK(std::abs(area) < 5100.0f);
+    CHECK(std::abs(area) == doctest::Approx(10000.0f));
 }
 
 TEST_CASE("compute_signed_area: less than 3 vertices returns 0") {

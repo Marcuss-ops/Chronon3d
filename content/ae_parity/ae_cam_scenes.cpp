@@ -15,7 +15,6 @@
 
 #include <chronon3d/scene/builders/scene_builder.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
-#include <chronon3d/scene/model/camera/camera_rig.hpp>
 
 #include <cmath>
 
@@ -138,15 +137,15 @@ Composition make_ae_cam_02_zoom_fov() {
                            Vec2{40.0f, 40.0f}, Color{0.85f, 0.2f, 1.0f, 1.0f});
 
             // Animated camera: zoom from 500→1500 over 60 frames.
-            AnimatedCamera2_5D cam;
+            camera_v1::PoseTracksSource cam;
             cam.position.set({0.0f, 0.0f, -1000.0f});
-            cam.point_of_interest.set({0.0f, 0.0f, 0.0f});
-            cam.point_of_interest_enabled = true;
+            cam.target.set({0.0f, 0.0f, 0.0f});
+            cam.use_target = true;
             cam.zoom
                 .key(Frame{0}, 500.0f)
                 .key(Frame{30}, 1000.0f, EasingCurve{Easing::InOutCubic})
                 .key(Frame{60}, 1500.0f, EasingCurve{Easing::InOutCubic});
-            s.animated_camera(cam);
+            s.camera_pose(cam);
 
             return s.build();
         }
@@ -185,18 +184,18 @@ Composition make_ae_cam_03_two_node_poi() {
             // Animated camera: Z-dolly from -600 → -1000 → -1400 with
             // POI tracking the three cards at different depths.
             // Dolly changes distance → different perspective scale per frame.
-            AnimatedCamera2_5D cam;
+            camera_v1::PoseTracksSource cam;
             cam.position
                 .key(Frame{0}, Vec3{0.0f, 0.0f, -600.0f})
                 .key(Frame{30}, Vec3{0.0f, 0.0f, -1000.0f})
                 .key(Frame{60}, Vec3{0.0f, 0.0f, -1400.0f});
             cam.zoom.set(1000.0f);
-            cam.point_of_interest
+            cam.target
                 .key(Frame{0}, Vec3{0.0f, 0.0f, 100.0f})
                 .key(Frame{30}, Vec3{0.0f, 0.0f, 0.0f})
                 .key(Frame{60}, Vec3{0.0f, 0.0f, -100.0f});
-            cam.point_of_interest_enabled = true;
-            s.animated_camera(cam);
+            cam.use_target = true;
+            s.camera_pose(cam);
 
             return s.build();
         }
@@ -225,22 +224,22 @@ Composition make_ae_cam_04_parent_null() {
                            Color{0.99f, 0.44f, 0.82f, 1.0f});
 
             // A null (rig) layer that the camera parents to.
-            s.null_layer("camera_rig", [](LayerBuilder& l) {
+            s.null_layer("camera_target", [](LayerBuilder& l) {
                 l.position({0.0f, 0.0f, 0.0f});
             });
 
             // Camera Z-dolly: camera depth changes from z=-600 → z=-1000 → z=-1400
             // while zoom stays constant at 1000, producing different perspective
             // scales (zoom/distance varies) per frame.
-            AnimatedCamera2_5D cam;
+            camera_v1::PoseTracksSource cam;
             cam.position
                 .key(Frame{0}, Vec3{0.0f, 0.0f, -600.0f})
                 .key(Frame{30}, Vec3{0.0f, 0.0f, -1000.0f})
                 .key(Frame{60}, Vec3{0.0f, 0.0f, -1400.0f});
             cam.zoom.set(1000.0f);
-            cam.point_of_interest.set({0.0f, 0.0f, 0.0f});
-            cam.point_of_interest_enabled = true;
-            s.animated_camera(cam);
+            cam.target.set({0.0f, 0.0f, 0.0f});
+            cam.use_target = true;
+            s.camera_pose(cam);
 
             return s.build();
         }
@@ -289,7 +288,7 @@ Composition make_ae_cam_05_orbit() {
             const f32 start_angle = glm::radians(-60.0f);
             const f32 end_angle = glm::radians(60.0f);
             constexpr int kSamples = 5;
-            AnimatedCamera2_5D cam;
+            camera_v1::PoseTracksSource cam;
             for (int i = 0; i <= kSamples; ++i) {
                 const f32 t = static_cast<f32>(i) / static_cast<f32>(kSamples);
                 const f32 angle = start_angle + (end_angle - start_angle) * t;
@@ -302,9 +301,9 @@ Composition make_ae_cam_05_orbit() {
                 });
             }
             cam.zoom.set(1000.0f);
-            cam.point_of_interest.set({0.0f, 0.0f, 0.0f});
-            cam.point_of_interest_enabled = true;
-            s.animated_camera(cam);
+            cam.target.set({0.0f, 0.0f, 0.0f});
+            cam.use_target = true;
+            s.camera_pose(cam);
 
             return s.build();
         }
@@ -335,16 +334,16 @@ Composition make_ae_cam_06_dolly_zoom() {
                            Color{0.9f, 0.2f, 0.2f, 0.4f});
 
             // Dolly zoom: camera moves backward while zooming in.
-            AnimatedCamera2_5D cam;
+            camera_v1::PoseTracksSource cam;
             cam.position
                 .key(Frame{0}, Vec3{0.0f, 0.0f, -500.0f})
                 .key(Frame{60}, Vec3{0.0f, 0.0f, -2000.0f});
             cam.zoom
                 .key(Frame{0}, 500.0f)
                 .key(Frame{60}, 2000.0f);
-            cam.point_of_interest.set({0.0f, 0.0f, 0.0f});
-            cam.point_of_interest_enabled = true;
-            s.animated_camera(cam);
+            cam.target.set({0.0f, 0.0f, 0.0f});
+            cam.use_target = true;
+            s.camera_pose(cam);
 
             return s.build();
         }
@@ -419,24 +418,22 @@ Composition make_ae_cam_08_dof() {
                            Color{0.2f, 0.5f, 1.0f, 1.0f});
 
             // Camera with DOF: focus distance animates near→mid→far.
-            AnimatedCamera2_5D cam;
+            camera_v1::PoseTracksSource cam;
             cam.position.set({0.0f, 0.0f, -1000.0f});
             cam.zoom.set(1000.0f);
-            cam.point_of_interest.set({0.0f, 0.0f, 0.0f});
-            cam.point_of_interest_enabled = true;
+            cam.target.set({0.0f, 0.0f, 0.0f});
+            cam.use_target = true;
 
-            // Enable DOF via AnimatedCamera2_5D native fields.
-            cam.dof_enabled = true;
             cam.aperture.set(0.025f);
             cam.max_blur.set(24.0f);
-            // Animate focus_z: near card (frame 0) → mid card (frame 60) → far card (frame 120).
-            // Legacy model: blur = |layer_world_z - focus_z| * aperture.  focus_z must
+            // Animate focus distance: near card (frame 0) → mid card (frame 60) → far card (frame 120).
+            // The focus distance follows the same world-space Z convention.  It must
             // equal the card's world-space Z for zero blur at the focal point.
-            cam.focus_z
+            cam.focus_distance
                 .key(Frame{0}, -400.0f)    // near card is at z=-400, focus on it
                 .key(Frame{60}, 0.0f)      // mid card at z=0
                 .key(Frame{120}, 400.0f);  // far card at z=400
-            s.animated_camera(cam);
+            s.camera_pose(cam);
 
             return s.build();
         }
@@ -475,19 +472,19 @@ Composition make_ae_cam_09_motion_blur() {
             // scales at each frame.  Non-mirror-symmetric positions ensure
             // all 3 frames are unique.
             // NOTE: Motion blur is configured via RenderSettings at render time.
-            AnimatedCamera2_5D cam;
+            camera_v1::PoseTracksSource cam;
             cam.position
                 .key(Frame{0}, Vec3{-800.0f, 0.0f, -600.0f})
                 .key(Frame{15}, Vec3{0.0f, 0.0f, -1000.0f})
                 .key(Frame{30}, Vec3{800.0f, 0.0f, -1400.0f});
             cam.zoom.set(1000.0f);
-            cam.point_of_interest
+            cam.target
                 .key(Frame{0}, Vec3{-400.0f, 0.0f, 100.0f})
                 .key(Frame{15}, Vec3{0.0f, 0.0f, 0.0f})
                 .key(Frame{30}, Vec3{400.0f, 0.0f, -100.0f});
-            cam.point_of_interest_enabled = true;
+            cam.use_target = true;
 
-            s.animated_camera(cam);
+            s.camera_pose(cam);
 
             return s.build();
         }

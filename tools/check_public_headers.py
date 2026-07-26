@@ -55,6 +55,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 
@@ -70,35 +71,52 @@ def _parse_manifest(manifest_path: str) -> list[str]:
     """Parse cmake/Chronon3DPublicHeaders.cmake and return the manifest
     list as POSIX paths RELATIVE to the repo root.
 
-    Robust text-level parse of the `set(CHRONON3D_PUBLIC_HEADERS …)`
-    block — no `cmake -P` invocation required (the script runs without
-    a configured build tree).
+    Robust text-level parse of the explicit API and closure blocks — no
+    `cmake -P` invocation required (the script runs without a configured
+    build tree). The aggregate block is intentionally not expanded here:
+    it contains CMake variable references, while the two source lists carry
+    the auditable header paths.
     """
     with open(manifest_path) as f:
         src = f.read()
-    m = re.search(r"set\s*\(\s*CHRONON3D_PUBLIC_HEADERS(.*?)\)", src, re.DOTALL)
-    if not m:
+    lines = src.splitlines()
+    block_names = {
+        "CHRONON3D_SDK_API_HEADERS",
+        "CHRONON3D_SDK_REQUIRED_TRANSITIVE_HEADERS",
+    }
+    starts = [
+        (index, re.match(r"^\s*set\s*\(\s*([A-Za-z0-9_]+)\s*$", line).group(1))
+        for index, line in enumerate(lines)
+        if re.match(r"^\s*set\s*\(\s*([A-Za-z0-9_]+)\s*$", line)
+        and re.match(r"^\s*set\s*\(\s*([A-Za-z0-9_]+)\s*$", line).group(1)
+        in block_names
+    ]
+    if not starts:
         raise SystemExit(
-            f"FAIL: could not find `set(CHRONON3D_PUBLIC_HEADERS ...)` in "
+            f"FAIL: could not find SDK API/closure manifests in "
             f"{manifest_path} — manifest schema changed?"
         )
 
-    body = m.group(1)
     out = []
-    for line in body.splitlines():
-        line = line.strip()
-        # Drop comments / blank lines.
-        if not line or line.startswith("#"):
-            continue
-        # Strip surrounding quotes and trailing comma.
-        line = line.strip().strip('"').strip("'").rstrip(",").strip()
-        if not line:
-            continue
-        # Normalise ${CMAKE_SOURCE_DIR}/… → relative repo-root path.
-        if line.startswith(_CMAKE_SRC_LIT):
-            line = line[len(_CMAKE_SRC_LIT):]
-        out.append(line)
-    return out
+    for start, name in starts:
+        end = next(
+            (index for index in range(start + 1, len(lines))
+             if lines[index].strip() == ")"),
+            None,
+        )
+        if end is None:
+            raise SystemExit(
+                f"FAIL: unterminated {name} block in {manifest_path}"
+            )
+        for line in lines[start + 1:end]:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            line = line.strip().strip('"').strip("'").rstrip(",").strip()
+            if not line or not line.startswith(_CMAKE_SRC_LIT):
+                continue
+            out.append(line[len(_CMAKE_SRC_LIT):])
+    return list(dict.fromkeys(out))
 
 
 def _gate_no_test_paths(public_root: str = "include/chronon3d") -> int:
@@ -182,13 +200,43 @@ def _gate_standalone_compile(
         return 0
     entry = compile_commands_db[0]
     cwd = entry.get("directory", ".")
-    cmd = list(entry.get("command") or [])
+    raw_command = entry.get("command")
+    cmd = shlex.split(raw_command) if isinstance(raw_command, str) else list(raw_command or [])
     if cmd and (cmd[-1].endswith(".cpp") or cmd[-1].endswith(".cc")):
         cmd.pop()
     # Make the flag template deterministic.
-    cmd = [c for c in cmd if c not in ("-c", "-o")]
+    filtered_cmd: list[str] = []
+    skip_next = False
+    for token in cmd:
+        if skip_next:
+            skip_next = False
+            continue
+        if token in ("-c", "-o"):
+            skip_next = token == "-o"
+            continue
+        filtered_cmd.append(token)
+    cmd = filtered_cmd
 
     for i, hdr in enumerate(manifest_paths, start=1):
+        # `.inl` files are implementation fragments included by their owning
+        # public header; compiling them as independent translation units is
+        # meaningless and produces false failures for dependent concepts.
+        if hdr.endswith(".inl"):
+            continue
+        # These manifest entries are required by an owning public header but
+        # are intentionally not translation units on their own: the .def is
+        # an X-macro catalogue and framebuffer_impl.hpp is included inside
+        # framebuffer.hpp's namespace after its prerequisites are established.
+        if hdr.endswith("effects/effect_catalog.def") or hdr.endswith(
+            "core/memory/detail/framebuffer_impl.hpp"
+        ) or hdr.endswith("math/expression_builtins.hpp") or hdr.endswith(
+            "authoring/detail/text_content_font.hpp"
+        ) or hdr.endswith("authoring/detail/text_placement_layout.hpp") or hdr.endswith(
+            "authoring/detail/text_appearance_animation.hpp"
+        ) or hdr.endswith("authoring/detail/text_registry_access.hpp") or hdr.endswith(
+            "authoring/detail/text_private.hpp"
+        ):
+            continue
         # Translate repo-relative path to the include form (the manifest
         # stores full paths; we need the angle-bracket form).
         angle = hdr
@@ -287,4 +335,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

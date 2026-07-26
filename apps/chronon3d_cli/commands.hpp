@@ -30,7 +30,6 @@ struct RenderQualityArgs {
 };
 
 struct RenderPipelineArgs {
-    bool   use_modular_graph{true};
     bool   diagnostic{false};
     bool   diagnostic_plan{false};
     std::string diagnostic_plan_output;
@@ -87,7 +86,6 @@ struct BenchArgs {
     std::string comp_id;
     int frames{100};
     int warmup{10};
-    bool use_modular_graph{true};
     bool no_dirty_rects{false};
 
     std::string json_file;
@@ -123,7 +121,6 @@ struct PreflightArgs {
     int sample_step{1};
     std::string output;
     std::string json_file;
-    bool legacy_preflight{false};
     std::string assets_root;
 };
 
@@ -227,7 +224,7 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args);
 int command_graph(const CompositionRegistry& registry, const GraphArgs& args);
 int command_batch(const CompositionRegistry& registry, const std::vector<std::string>& job_specs);
 int command_telemetry(const TelemetryArgs& args);
-int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args, AssetRegistry& assets);
+int command_preflight(const CompositionRegistry& registry, const PreflightArgs& args);
 int command_watch(const CompositionRegistry& registry, const WatchArgs& args);
 int command_preview(const CompositionRegistry& registry, const PreviewArgs& args);
 int command_bake_layer(const CompositionRegistry& registry, const BakeLayerArgs& args);

@@ -2,8 +2,7 @@
 // ==============================================================================
 // chronon3d/scene/model/camera/camera_common_types.hpp
 //
-// Lightweight types used by both camera_rig.hpp (Core) and camera_2_5d.hpp
-// (Feature) so that camera_rig.hpp doesn't need the full camera_2_5d.hpp.
+// Lightweight camera types shared by the projection model and scene values.
 //
 // Contains: TemporalSamplePattern, TemporalFilter, DepthOfFieldSettings
 // These are pure data types with no heavy dependencies.

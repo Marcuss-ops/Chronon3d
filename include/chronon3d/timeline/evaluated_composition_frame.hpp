@@ -3,22 +3,18 @@
 // ============================================================================
 // include/chronon3d/timeline/evaluated_composition_frame.hpp
 //
-// P3-C (V0.2 timeline staging) — `EvaluatedCompositionFrame` lives NEXT to
-// the legacy `Composition` class.  It is the V2 staging OUTPUT of one
+// P3-C (V0.2 timeline staging) — `EvaluatedCompositionFrame` is the typed
+// output of one
 // composition evaluated at one FrameContext point in time:
 //
 //   - `scene`   \u2014 the fully-resolved `Scene` for this frame (consumers
 //                can route directly to the V2 render driver).
 //   - `camera`  \u2014 optionally the fully-resolved `Camera2_5D` for this
 //                frame; `std::nullopt` means identity / 2.5D null-rig
-//                (legacy Composition::default_camera_2_5d() path).
+//                (an absent authored camera).
 //
-// Anti-DRY note (Rule 4 ANTI_DUPLICATION_RULES):
-//   There is a `chronon3d::timeline::composition_evaluation.hpp` helper
-//   in the existing surface that emits `Scene + optional<Camera2_5D>`
-//   for a given `Composition`.  `EvaluatedCompositionFrame` is a typed
-//   POD-version of the same shape \u2014 it does NOT subsume the evaluation
-//   helper; both coexist.  V2 promotion will converge them.
+// The result is intentionally a value object so callers do not need a
+// second composition-evaluation helper with a parallel return shape.
 #include <optional>
 
 #include <chronon3d/scene/model/core/scene.hpp>                  // Scene (canonical)
