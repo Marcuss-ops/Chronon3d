@@ -585,15 +585,9 @@ namespace {
         }
     }
 
-    // FIX #3b — shared cache across all threads.  TextLayoutCache is
-    // already thread-safe via its own std::shared_mutex in Impl
-    // (shared_lock for find, unique_lock for store).  find() returns
-    // shared_ptr so pointer lifetime is safe across concurrent
-    // store/evict.  Previously `thread_local` meant each worker thread
-    // in multi-chunk video export had its own cold cache — same
-    // composition rendered 5× never hit on threads 2-5.
-    static TextLayoutCache s_materializer_cache;
-    auto& cache = s_materializer_cache;
+    // Cache ownership follows the runtime-owned FontEngine; no process-wide
+    // cache is retained by this materializer.
+    auto& cache = engine.text_layout_cache();
     if (params.cache_layout) {
         if (auto cached = cache.find(cache_key)) {
             auto text_layout = std::const_pointer_cast<TextRunLayout>(cached);
@@ -867,11 +861,10 @@ std::shared_ptr<TextRunShape> materialize_prepared_text(
         prepared_with_font.style.font.font_path = "assets/fonts/Inter-Bold.ttf";
     }
 
-    // Static cache shared across all prepared-text materializations.
-    static TextLayoutCache s_materializer_cache;
     TextCompileServices services{
         use_engine,
-        prepared_with_font.animation.cache_layout ? &s_materializer_cache : nullptr,
+        prepared_with_font.animation.cache_layout
+            ? &use_engine->text_layout_cache() : nullptr,
         bundled_font_root_for(prepared_with_font.style.font),
     };
 
