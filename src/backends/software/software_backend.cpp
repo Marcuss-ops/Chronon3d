@@ -6,6 +6,7 @@
 #include <chronon3d/backends/software/software_processor_context.hpp>
 #include "internal/software_processor_services.hpp"  // TICKET-118 (PUBLIC via parent CMakeLists)
 #include <chronon3d/backends/software/software_registry.hpp>    // TICKET-118: SoftwareRegistry full type for draw_node dispatch
+#include "utils/render_effects_processor.hpp"
 #include <chronon3d/scene/model/render/render_node.hpp>          // TICKET-118: RenderNode full type for draw_node (node.shape.type())
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/profiling/trace_categories.hpp>
@@ -217,17 +218,8 @@ void SoftwareBackend::apply_effect_stack(
     effects::EffectExecutionContext local_context = context;
     local_context.clip = local_clip;
     local_context.curve_cache = m_proc_ctx.curve_cache;
-    for (const auto& effect : stack) {
-        if (!effect.enabled) continue;
-        auto* processor = m_proc_ctx.registry->get_effect(
-            effect.param_type_index());
-        if (!processor) {
-            throw std::runtime_error(
-                "No software effect processor registered for effect type " +
-                std::to_string(static_cast<int>(effect.effect_type)));
-        }
-        processor->apply(fb, effect.params, local_context);
-    }
+    renderer::apply_effect_stack(
+        fb, stack, local_context, *m_proc_ctx.registry);
 }
 
 // ── apply_per_pixel_dof ───────────────────────────────────────────────────
