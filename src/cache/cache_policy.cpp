@@ -8,9 +8,7 @@
 
 #include <chronon3d/cache/cache_policy.hpp>
 #include <chronon3d/core/config.hpp>
-#include <atomic>
 #include <cstddef>
-#include <mutex>
 
 namespace chronon3d::cache {
 
@@ -107,44 +105,14 @@ CachePolicy resolve_cache_policy(
     return policy;
 }
 
-// ── Globally-injected CacheConfig (set once by SoftwareRenderer) ─────────
-
-// FASE 3 (TICKET-079) — Globally-injected CacheConfig set once at startup by
-// SoftwareRenderer.  First-call-wins via atomic CAS; eliminates std::once_flag +
-// std::call_once (per AGENTS.md pattern `is serialised + idempotent without an
-// external std::once_flag`).  Pointer borrow retained for `cache_config`'s
-// lifetime — caller responsibility documented in `RenderRuntime::populate()`.
-namespace {
-    const chronon3d::CacheConfig* s_global_cache_config = nullptr;
-    std::atomic<bool>              s_global_cache_config_set{false};
-} // namespace
-
-void set_global_cache_config(const chronon3d::CacheConfig& cache_config) {
-    bool expected = false;
-    if (s_global_cache_config_set.compare_exchange_strong(
-            expected, true,
-            std::memory_order_acq_rel, std::memory_order_relaxed)) {
-        s_global_cache_config = &cache_config;
-    }
-}
-
 CachePolicy resolve_cache_policy(
     CacheDomain                domain,
     std::optional<std::size_t> override_capacity)
 {
-    // Fallback: if no global config has been injected (e.g. before
-    // SoftwareRenderer construction), create a Config from environment
-    // variables and extract its cache sub-config.
-    if (s_global_cache_config) {
-        return resolve_cache_policy(domain, override_capacity,
-                                    *s_global_cache_config);
-    }
-    {
-        static const chronon3d::Config s_fallback_config =
-            chronon3d::Config::from_environment();
-        return resolve_cache_policy(domain, override_capacity,
-                                    s_fallback_config.cache());
-    }
+    const chronon3d::Config fallback_config =
+        chronon3d::Config::from_environment();
+    return resolve_cache_policy(domain, override_capacity,
+                                fallback_config.cache());
 }
 
 } // namespace chronon3d::cache

@@ -84,15 +84,12 @@ struct CachePolicy {
     std::optional<std::size_t>     override_capacity,
     const chronon3d::CacheConfig&  cache_config);
 
-/// Convenience overload that reads from a globally-injected CacheConfig
-/// (set once at startup by SoftwareRenderer).  Falls back to Config::get()
-/// only when the global config hasn't been injected yet (e.g. tests).
+/// Convenience overload for standalone cache construction.  It snapshots the
+/// environment into a local Config value; no process-wide configuration is
+/// retained. Runtime-owned caches should prefer the explicit overload above.
 [[nodiscard]] CachePolicy resolve_cache_policy(
     CacheDomain                    domain,
     std::optional<std::size_t>     override_capacity = std::nullopt);
-
-/// Inject the global CacheConfig once at startup (called by SoftwareRenderer).
-void set_global_cache_config(const chronon3d::CacheConfig& cache_config);
 
 /// Convenience: map a domain's CacheCapacityUnit to LruCache's CapacityMode.
 /// Used by cache facade constructors so the mode is derived from the

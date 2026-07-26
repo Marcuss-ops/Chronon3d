@@ -12,7 +12,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 cd "$REPO_ROOT"
 
 SEARCH_PATHS=(include src tests apps)
-PATTERN='global_curve_cache|set_global_capacity_bytes|global_capacity_bytes|ImageCache::global_|static[[:space:]]+(std::)?(unordered_map|unordered_set|map|set)[^;]*cache'
+PATTERN='global_curve_cache|set_global_capacity_bytes|global_capacity_bytes|ImageCache::global_|set_global_cache_config|s_global_cache_config|static[[:space:]]+(std::)?(unordered_map|unordered_set|map|set)[^;]*cache'
 
 matches="$(rg -n --hidden \
     --glob '!build/**' \
