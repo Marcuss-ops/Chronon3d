@@ -9,6 +9,7 @@
 #include <chronon3d/effects/effect_execution_context.hpp>
 #include <chronon3d/backends/software/effect_processor.hpp>
 #include <chronon3d/backends/software/software_registry.hpp>
+#include <chronon3d/backends/software/builtin_processors.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include "src/backends/software/utils/render_effects_processor.hpp"
 #include <tests/helpers/test_utils.hpp>
@@ -163,8 +164,11 @@ TEST_CASE("EffectExecutionContext: context flows through renderer::apply_effect_
         .diagnostics_enabled = false
     };
 
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+
     // Should apply blur without crashing
-    apply_effect_stack(fb, stack, context);
+    apply_effect_stack(fb, stack, context, registry);
 
     // Verify the framebuffer was modified (blur changes pixels)
     CHECK(fb.pixels_row(0) != nullptr);
@@ -187,8 +191,11 @@ TEST_CASE("EffectExecutionContext: clip reaches internal dispatcher") {
         .diagnostics_enabled = false
     };
 
+    SoftwareRegistry registry;
+    register_builtin_processors(registry);
+
     // Should apply tint with clip without crashing
-    apply_effect_stack(fb, stack, context);
+    apply_effect_stack(fb, stack, context, registry);
 }
 
 TEST_CASE("EffectExecutionContext: SoftwareRenderer::apply_effect_stack plumbing") {
