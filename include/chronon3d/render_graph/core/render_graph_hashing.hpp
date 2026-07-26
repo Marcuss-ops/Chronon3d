@@ -391,11 +391,6 @@ template <typename T>
         seed = hash_combine(seed, hash_value(t.style.material.inner_shadow_blur));
         seed = hash_combine(seed, hash_color(t.style.material.inner_shadow_color));
         seed = hash_combine(seed, hash_value(t.style.material.emissive));
-        seed = hash_combine(seed, hash_value(t.style.material.use_material_shadow));
-        seed = hash_combine(seed, hash_vec2(t.style.material.shadow_offset));
-        seed = hash_combine(seed, hash_value(t.style.material.shadow_blur));
-        seed = hash_combine(seed, hash_value(t.style.material.shadow_opacity));
-        seed = hash_combine(seed, hash_color(t.style.material.shadow_color));
     }
 
     // ── TextShaping (direction, script, language) ────────────────
