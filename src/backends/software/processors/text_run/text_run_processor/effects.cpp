@@ -19,11 +19,13 @@
 
 #include "text_run_stages.hpp"
 #include <chronon3d/backends/text/text_rasterizer_utils.hpp>  // apply_text_material
+#include <chronon3d/backends/text/text_render_resources.hpp>
+#include <stdexcept>
 
 namespace chronon3d::renderer::text_run_stages {
 
 [[nodiscard]] graph::RenderOpResult apply_text_run_effects(
-    const SoftwareProcessorContext& /* rctx */,
+    const SoftwareProcessorContext& rctx,
     const TextRunDrawParams&        params,
     TextRunStageState&              s
 ) {
@@ -35,7 +37,11 @@ namespace chronon3d::renderer::text_run_stages {
     }
 
     if (params.shape.material.enabled) {
-        apply_text_material(s.img, params.shape.material);
+        if (!rctx.text_resources) {
+            throw std::runtime_error("text material requires runtime-owned TextRenderResources");
+        }
+        auto scratch = rctx.text_resources->scratch_manager.acquire();
+        apply_text_material(s.img, params.shape.material, *scratch);
     }
 
     // Material apply is a per-pixel mutation; does NOT alter glyphs_drawn
