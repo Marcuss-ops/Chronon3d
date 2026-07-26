@@ -250,7 +250,7 @@ Composition subtitle_yellow_fade() {
     return composition({.name="SubtitleYellowFade", .width=1920, .height=1080, .duration=60}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
-        build_yellow_subtitle(s, "subtitle_01", "THIS IS YOUR STORY", Frame{6}, Frame{46});
+        build_yellow_subtitle(s, "subtitle_01", "THIS IS YOUR STORY", Frame{6}, Frame{55});
         return s.build();
     });
 }
