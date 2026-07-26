@@ -179,12 +179,12 @@ private:
     Config            m_config;
     RenderSettings    m_settings{};
     RenderCounters    m_counters;
+    std::unique_ptr<runtime::RenderRuntime> m_owned_runtime_storage;
+    runtime::RenderRuntime* m_runtime{nullptr};
     ImageRenderer     m_image_renderer;
     std::shared_ptr<media::MediaFrameProvider> m_video_decoder;
     std::shared_ptr<image::ImageBackend> m_image_backend;
     const CompositionRegistry* m_registry{nullptr};
-    runtime::RenderRuntime* m_runtime{nullptr};
-    std::unique_ptr<runtime::RenderRuntime> m_owned_runtime_storage;
     std::unique_ptr<TextRenderResources> m_text_render_resources;
     std::unique_ptr<renderer::SoftwareRegistry> m_software_registry;
     SoftwareRenderSession m_session;
