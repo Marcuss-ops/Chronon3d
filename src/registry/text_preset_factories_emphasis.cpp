@@ -89,7 +89,6 @@ compose_gradient_fill(const PresetMetadata& /*meta*/) {
 // ── 1. word_pop ──────────────────────────────────────────────────────────
 TextPresetDescriptor word_pop_entry() {
     PresetMetadata meta;
-    meta.id           = "word_pop";
     meta.display_name = "WordPop";
     meta.category     = TextPresetCategory::Emphasis;
     meta.description  = "Bouncy scale overshoot (1.0 → 1.15) + soft_pop.  "
@@ -100,7 +99,7 @@ TextPresetDescriptor word_pop_entry() {
     meta.builtin      = true;
 
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "word_pop";
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/emphasis_word_pop";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
@@ -115,7 +114,6 @@ TextPresetDescriptor word_pop_entry() {
 // ── 2. scale_punch ───────────────────────────────────────────────────────
 TextPresetDescriptor scale_punch_entry() {
     PresetMetadata meta;
-    meta.id           = "scale_punch";
     meta.display_name = "ScalePunch";
     meta.category     = TextPresetCategory::Emphasis;
     meta.description  = "Compression scale_drop (1.0 → 0.7) + soft_pop "
@@ -123,7 +121,7 @@ TextPresetDescriptor scale_punch_entry() {
     meta.builtin      = true;
 
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "scale_punch";
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/emphasis_scale_punch";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
@@ -140,7 +138,6 @@ TextPresetDescriptor scale_punch_entry() {
 // ── 3. color_accent ──────────────────────────────────────────────────────
 TextPresetDescriptor color_accent_entry() {
     PresetMetadata meta;
-    meta.id           = "color_accent";
     meta.display_name = "ColorAccent";
     meta.category     = TextPresetCategory::Emphasis;
     meta.description  = "Pure fade_in; colour comes from spec.appearance.color "
@@ -149,7 +146,7 @@ TextPresetDescriptor color_accent_entry() {
     meta.builtin      = true;
 
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "color_accent";
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/emphasis_color_accent";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
@@ -165,7 +162,6 @@ TextPresetDescriptor color_accent_entry() {
 // ── 4. gradient_fill ─────────────────────────────────────────────────────
 TextPresetDescriptor gradient_fill_entry() {
     PresetMetadata meta;
-    meta.id           = "gradient_fill";
     meta.display_name = "GradientFill";
     meta.category     = TextPresetCategory::Emphasis;
     meta.description  = "Short downward slide + fade_in; gradient paint "
@@ -173,7 +169,7 @@ TextPresetDescriptor gradient_fill_entry() {
     meta.builtin      = true;
 
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "gradient_fill";
     d.fixture         = "tests/visual/text/emphasis_gradient_fill";
     d.metadata        = meta;
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,

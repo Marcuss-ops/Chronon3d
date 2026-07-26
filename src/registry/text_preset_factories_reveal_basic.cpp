@@ -91,12 +91,13 @@ using TextDefinitionT = chronon3d::registry::internal::TextDefinitionT;
 // extraction-de-boilerplate.
 namespace {
 TextPresetDescriptor make_reveal_descriptor(
+        std::string id,
         PresetMetadata metadata,
         std::string fixture,
         AnimatorFactory animator,
         TextPresetBuilder builder) {
     TextPresetDescriptor d;
-    d.id               = metadata.id;
+    d.id               = std::move(id);
     d.metadata         = std::move(metadata);
     d.fixture          = std::move(fixture);
     d.builder          = std::move(builder);
@@ -168,8 +169,8 @@ compose_scale_in(const PresetMetadata& /*meta*/) {
 // ── 1.  text_animations ───────────────────────────────────────────────────
 TextPresetDescriptor text_animations_entry() {
     return make_reveal_descriptor(
+        "text_animations",
         PresetMetadata{
-            .id           = "text_animations",
             .display_name = "Text animations utility (typewriter + emphasis)",
             .category     = TextPresetCategory::Reveal,
             .description  = "Reveal-oriented text animation utilities — typewriter "
@@ -191,8 +192,8 @@ TextPresetDescriptor text_animations_entry() {
 // ── 2.  fade_in ───────────────────────────────────────────────────────────
 TextPresetDescriptor fade_in_entry() {
     return make_reveal_descriptor(
+        "fade_in",
         PresetMetadata{
-            .id           = "fade_in",
             .display_name = "FadeIn",
             .category     = TextPresetCategory::Reveal,
             .description  = "Pure opacity ramp over Frame{15}, no spatial motion. "
@@ -213,8 +214,8 @@ TextPresetDescriptor fade_in_entry() {
 // ── 3.  blur_in ───────────────────────────────────────────────────────────
 TextPresetDescriptor blur_in_entry() {
     return make_reveal_descriptor(
+        "blur_in",
         PresetMetadata{
-            .id           = "blur_in",
             .display_name = "BlurIn",
             .category     = TextPresetCategory::Reveal,
             .description  = "Focus ramp (4.0 → 0.0 blur) over Frame{30}, paired with "
@@ -235,8 +236,8 @@ TextPresetDescriptor blur_in_entry() {
 // ── 4.  slide_up ──────────────────────────────────────────────────────────
 TextPresetDescriptor slide_up_entry() {
     return make_reveal_descriptor(
+        "slide_up",
         PresetMetadata{
-            .id           = "slide_up",
             .display_name = "SlideUp",
             .category     = TextPresetCategory::Reveal,
             .description  = "Vertical slide-up (from below, offset {0,200,0}) + "
@@ -257,8 +258,8 @@ TextPresetDescriptor slide_up_entry() {
 // ── 5.  slide_down ────────────────────────────────────────────────────────
 TextPresetDescriptor slide_down_entry() {
     return make_reveal_descriptor(
+        "slide_down",
         PresetMetadata{
-            .id           = "slide_down",
             .display_name = "SlideDown",
             .category     = TextPresetCategory::Reveal,
             .description  = "Vertical slide-down (from above, offset {0,-200,0}) + "
@@ -287,8 +288,8 @@ compose_slide_left(const PresetMetadata& /*meta*/);
 // ── 6.  scale_in ──────────────────────────────────────────────────────────
 TextPresetDescriptor scale_in_entry() {
     return make_reveal_descriptor(
+        "scale_in",
         PresetMetadata{
-            .id           = "scale_in",
             .display_name = "ScaleIn",
             .category     = TextPresetCategory::Reveal,
             .description  = "Scale drop (0.85 → 1.0) over Frame{25} + soft_pop "
@@ -327,8 +328,8 @@ compose_slide_left(const PresetMetadata& /*meta*/) {
 // ── 7. zoom_in ────────────────────────────────────────────────────────────
 TextPresetDescriptor zoom_in_entry() {
     return make_reveal_descriptor(
+        "zoom_in",
         PresetMetadata{
-            .id           = "zoom_in",
             .display_name = "ZoomIn",
             .category     = TextPresetCategory::Reveal,
             .description  = "Deep scale entrance (0.70 → 1.0) over Frame{28} "
@@ -349,8 +350,8 @@ TextPresetDescriptor zoom_in_entry() {
 // ── 8. slide_left ─────────────────────────────────────────────────────────
 TextPresetDescriptor slide_left_entry() {
     return make_reveal_descriptor(
+        "slide_left",
         PresetMetadata{
-            .id           = "slide_left",
             .display_name = "SlideLeft",
             .category     = TextPresetCategory::Reveal,
             .description  = "Horizontal slide from the right (offset {200,0,0}) "

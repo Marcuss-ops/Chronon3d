@@ -28,7 +28,7 @@
 // ## TEXT-RES-01 surface
 // - `TextPresenterDescriptor` (canonical type, in
 //   `text_preset_descriptor.hpp`) holds:
-//     { id, metadata{id,display_name,category,description,builtin},
+//     { id, metadata{display_name,category,description,builtin},
 //       builder, animator_factory, fixture }.
 // - `TextPresetDescriptor` is the only descriptor type. Its metadata fields
 //   live under `.metadata.*`; builders use the free-standing

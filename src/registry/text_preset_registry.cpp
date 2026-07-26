@@ -68,11 +68,6 @@ void TextPresetRegistry::register_preset(TextPresetDescriptor preset) {
             "TextPresetRegistry::register_preset: duplicate id '"
             + preset.id + "'");
     }
-    // Sanity: keep `id` and `metadata.id` in sync (id is duplicated
-    // at descriptor top level for O(1) lookahead / inspection).
-    if (preset.metadata.id != preset.id) {
-        preset.metadata.id = preset.id;
-    }
     m_presets.emplace(preset.id, std::move(preset));
 }
 
