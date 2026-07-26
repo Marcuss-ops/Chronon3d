@@ -9,9 +9,11 @@
 //                          ALL animation sources (keyframe, timeline, spring,
 //                          expression, preset) compile INTO this.
 //   MotionTimeline<T>    — fluent segment-oriented builder; replaces
-//                          the legacy timeline API.
-//   SpringConfig         — damped harmonic oscillator parameters; baked to
-//                          keyframes by MotionTimeline::spring().
+//                          the legacy timeline API. Uses canonical
+//                          chronon3d::SpringConfig + sample_spring()
+//                          (defined in animation/easing/spring.hpp) for
+//                          spring physics — single source of truth
+//                          (TICKET-ANIM-SPRING-UNIFY).
 //   Motion<T>            — canonical type alias for AnimatedValue<T>.
 //                          The old AnimatedValue<T> continues to work
 //                          (deprecated .key()) but new code should
@@ -26,9 +28,10 @@
 //   Motion<f32> anim;
 //   from_program(anim, prog);
 //
-//   // Spring
+//   // Spring (canonical SpringConfig from animation/easing/spring.hpp)
 //   auto spring_prog = timeline(0.0f)
-//       .spring(SpringConfig{.stiffness = 80.0f, .damping = 12.0f}, 1.0f)
+//       .spring(Frame{60}, 1.0f,
+//               SpringConfig{.stiffness = 80.0f, .damping = 12.0f})
 //       .compile();
 //
 // ═══════════════════════════════════════════════════════════════════════════
@@ -38,7 +41,9 @@
 #include <chronon3d/animation/core/animated_value.hpp>
 #include <chronon3d/animation/core/keyframe.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/animation/easing/spring.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/core/types/time.hpp>
 #include <chronon3d/core/types/types.hpp>
 
 #include <cmath>
@@ -95,24 +100,18 @@ inline void from_program(Motion<T>& dest, MotionProgram<T>&& program) {
     from_program(dest, program);
 }
 
-// ── SpringConfig — damped harmonic oscillator parameters ────────────────
+// ── SpringConfig — canonical damped harmonic oscillator parameters ───────
+// DELETED: motion-local SpringConfig was removed (TICKET-ANIM-SPRING-UNIFY,
+// Cat-3 anti-dup). Use chronon3d::SpringConfig from
+// animation/easing/spring.hpp — the unique canonical source of truth.
+// Spring physics are sampled via chronon3d::sample_spring(TimeSeconds, ...),
+// which is the single closed-form function for the damped harmonic oscillator
+// with initial velocity support.
 
-/// Parameters for a critically-damped mass-spring-damper system.
-///
-/// The motion follows:
-///   f(t) = target + (initial - target) * (1 + ωt) * e^(-ωt)
-/// where ω = sqrt(stiffness).
-///
-/// Precomputed into keyframes at 1-frame granularity by
-/// MotionTimeline::spring().  At 1-frame spacing, linear interpolation
-/// between adjacent samples is sufficient to approximate the continuous
-/// curve (the critically-damped response has no oscillation, so linear
-/// interpolation at 60 fps is visually indistinguishable from exact).
-struct SpringConfig {
-    f32   stiffness{100.0f};   // spring constant (higher = faster settling)
-    f32   damping{10.0f};      // normalized damping ratio (≥1 = no overshoot)
-    Frame duration{60};        // how many frames to precompute
-};
+/// Canonical bake framerate used by MotionTimeline::spring() to convert
+/// frame deltas to TimeSeconds when precomputing keyframes.
+/// 60 fps matches the canvas output canonical.
+inline constexpr f32 kSpringBakeFps = 60.0f;
 
 // ── MotionTimeline<T> ───────────────────────────────────────────────────
 
@@ -123,7 +122,7 @@ struct SpringConfig {
 ///   auto prog = timeline(-25.0f)
 ///       .to(Frame{35}, -14.0f, Easing::OutCubic)
 ///       .to(Frame{75},  -8.0f, Easing::InOutSine)
-///       .spring(SpringConfig{.stiffness = 80.0f}, 0.0f)
+///       .spring(Frame{60}, 0.0f, SpringConfig{.stiffness = 80.0f})
 ///       .compile();
 ///
 ///   from_program(my_anim, prog);
@@ -169,36 +168,31 @@ public:
 
     /// Append spring physics from the current value toward `target`.
     ///
-    /// Bakes a critically-damped harmonic oscillator response into
-    /// keyframes at 1-frame granularity.  The spring settles over
-    /// `config.duration` frames from the current timeline position.
+    /// Bakes sample_spring(TimeSeconds, ...) into keyframes at 1-frame
+    /// granularity over `duration` frames (sampled at kSpringBakeFps).
+    /// Delegates to the canonical closed-form function — the single
+    /// source of truth for damped harmonic oscillator evaluation
+    /// (TICKET-ANIM-SPRING-UNIFY).
     ///
-    /// Each baked keyframe uses Easing::Hold so the evaluator
-    /// steps directly to the precomputed value — no interpolation
-    /// between frames is needed at 1-frame spacing.
-    MotionTimeline& spring(const SpringConfig& config, T target) {
+    /// Each baked keyframe uses Easing::Hold so the evaluator steps
+    /// directly to the precomputed value.
+    MotionTimeline& spring(Frame duration, T target,
+                           const SpringConfig& config = {}) {
         static_assert(std::is_arithmetic_v<T>,
                       "Spring physics requires an arithmetic type (f32, f64, int)");
         const Frame start_frame = current_frame();
         const T     start_value = current_value();
+        const Frame end_frame   = start_frame + duration;
 
-        const f32 omega = std::sqrt(config.stiffness);
-        const Frame end_frame = start_frame + config.duration;
+        const f32 from_f = static_cast<f32>(start_value);
+        const f32 to_f   = static_cast<f32>(target);
 
-        // Sample at each frame: critically-damped response
-        //   f(t) = target + (start - target) * (1 + ωt) * e^(-ωt)
-        // where ω = sqrt(stiffness).
         for (Frame f = start_frame; f <= end_frame; f = f + Frame{1}) {
-            const f32 t = static_cast<f32>(f - start_frame);
-            const f32 decay = std::exp(-omega * t);
-            const f32 factor = (T{1} + omega * t) * decay;
-            T value = target + (start_value - target) * factor;
-
-            // Use Hold easing so the evaluator steps to the precomputed
-            // value exactly.  At 1-frame granularity the critically-damped
-            // response has no oscillation, so Hold produces the correct
-            // continuous curve.
-            m_segments.push_back(Segment{f, value, EasingCurve{Easing::Hold}});
+            const TimeSeconds t = static_cast<TimeSeconds>(f - start_frame)
+                                  / static_cast<TimeSeconds>(kSpringBakeFps);
+            const f32 value = sample_spring(t, from_f, to_f, config);
+            m_segments.push_back(
+                Segment{f, static_cast<T>(value), EasingCurve{Easing::Hold}});
         }
         return *this;
     }
