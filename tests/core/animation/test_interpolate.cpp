@@ -29,9 +29,9 @@ TEST_CASE("interpolate basics") {
 //
 // Behavior contract locked BEFORE any Extrapolate {Clamp, Extend, Wrap}
 // introduction (Fase 1). Each SUBCASE targets a single observable behavior
-// of the current ClampMode{Clamp}-only implementation. All assertions must
+// of the current Clamp-only implementation. All assertions must
 // PASS bit-identical against the codebase at landing, and remain valid
-// through the ClampMode → Extrapolate migration (which must be a
+// through the Extrapolate migration (which must be a
 // backward-compatible adapter per the migration plan).
 //
 // Rationale: the upcoming Extrapolate::Wrap + Extrapolate::Extend
@@ -50,14 +50,14 @@ TEST_CASE("interpolate baseline lock") {
         CHECK(interpolate(100.0f, 0.0f, 100.0f, 0.0f, 1.0f) == doctest::Approx(1.0f));
     }
 
-    SUBCASE("Strict clamp before range (ClampMode default)") {
+    SUBCASE("Strict clamp before range (default)") {
         // Locks: t < 0 → t clamped to 0 → output_start, for several
         // negative inputs including extreme value. NO Extend or Wrap.
         CHECK(interpolate(-1.0f,    0.0f, 100.0f, 0.0f, 1.0f) == doctest::Approx(0.0f));
         CHECK(interpolate(-1000.0f, 0.0f, 100.0f, 0.0f, 1.0f) == doctest::Approx(0.0f));
     }
 
-    SUBCASE("Strict clamp after range (ClampMode default)") {
+    SUBCASE("Strict clamp after range (default)") {
         // Locks: t > 1 → t clamped to 1 → output_end for several positive
         // over-shoots including extreme value.
         CHECK(interpolate(101.0f,  0.0f, 100.0f, 0.0f, 1.0f) == doctest::Approx(1.0f));
@@ -201,24 +201,18 @@ TEST_CASE("interpolate Extrapolate semantics") {
     }
 }
 
-TEST_CASE("interpolate legacy ClampMode adapter — Cat-3 bit-equivalent") {
-    // Locks ClampMode backward-compat adapter → InterpolateOptions. Legacy
-    // overload must produce bit-identical results for any input that does
-    // NOT exercise Extend/Wrap — proven by sampling 6 points across the
-    // range and asserting exact equality across both call styles.
-    auto legacy = [](f32 input, f32 s, f32 e, f32 from, f32 to,
-                     EasingCurve easing = EasingCurve{Easing::Linear}) {
-        return interpolate(input, s, e, from, to, easing, ClampMode::Clamp);
+
+TEST_CASE("interpolate Extend keeps out-of-range values linear") {
+    const InterpolateOptions options{
+        .left = Extrapolate::Extend,
+        .right = Extrapolate::Extend,
+        .easing = EasingCurve{Easing::OutBack},
     };
-    auto modern = [](f32 input, f32 s, f32 e, f32 from, f32 to,
-                     EasingCurve easing = EasingCurve{Easing::Linear}) {
-        return interpolate(input, s, e, from, to,
-                           InterpolateOptions{Extrapolate::Clamp,
-                                              Extrapolate::Clamp,
-                                              easing});
-    };
-    for (f32 v : {-50.0f, 0.0f, 25.0f, 50.0f, 100.0f, 150.0f}) {
-        CHECK(legacy(v, 0.0f, 100.0f, 0.0f, 1.0f)
-              == doctest::Approx(modern(v, 0.0f, 100.0f, 0.0f, 1.0f)));
-    }
+
+    // OutBack intentionally overshoots inside the range, but explicit
+    // Extend must remain a predictable linear continuation outside it.
+    CHECK(interpolate(-50.0f, 0.0f, 100.0f, 0.0f, 1.0f, options)
+          == doctest::Approx(-0.5f));
+    CHECK(interpolate(150.0f, 0.0f, 100.0f, 0.0f, 1.0f, options)
+          == doctest::Approx(1.5f));
 }

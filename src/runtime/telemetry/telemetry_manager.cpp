@@ -9,7 +9,6 @@
 #include <filesystem>
 #include <thread>
 #include <chrono>
-#include <random>
 #include <sstream>
 #include <iomanip>
 #include <cstdlib>
@@ -352,15 +351,21 @@ std::string TelemetryManager::generate_uuid() {
     if (const char* env = std::getenv("CHRONON3D_RUN_ID")) {
         return env;
     }
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    static std::uniform_int_distribution<uint32_t> dis(0, 0xFFFFFFFF);
+
+    // A run identifier is an observability token, not a visual random
+    // source. Keep it free of process-global PRNG state: timestamp gives
+    // cross-process separation and the atomic counter separates calls made
+    // within the same clock tick.
+    static std::atomic<uint64_t> sequence{0};
+    const auto now = std::chrono::system_clock::now().time_since_epoch();
+    const auto ticks = static_cast<uint64_t>(now.count());
+    const auto serial = sequence.fetch_add(1, std::memory_order_relaxed);
 
     std::ostringstream oss;
-    oss << "run_" 
-        << std::hex << std::setw(8) << std::setfill('0') << dis(gen)
-        << "_" 
-        << std::hex << std::setw(8) << std::setfill('0') << dis(gen);
+    oss << "run_"
+        << std::hex << std::setw(16) << std::setfill('0') << ticks
+        << "_"
+        << std::hex << std::setw(16) << std::setfill('0') << serial;
     return oss.str();
 }
 

@@ -10,6 +10,7 @@
 set(CHRONON3D_RUNTIME_SOURCES
     telemetry/telemetry_manager.cpp
     renderer_warmup.cpp
+    render_preparation.cpp
     render_engine.cpp
     sdk_render_engine.cpp       # P1-A — sdk::RenderEngine PIMPL impl
     # ── P2 motion-graph pre-warm orchestrator (public facade) ──────────────
@@ -23,6 +24,14 @@ set(CHRONON3D_RUNTIME_SOURCES
     #    header stays free of graph::SceneHasher and SceneProgramStore
     #    full-type includes (TICKET-013 / TICKET-017 boundary).
     render_session.cpp
+    # ── TICKET-ASSET-PREP-BARRIER — ResourcePreparation 5-phase
+    #    barrier (font-load / image-decode / video-metadata / audio-index
+    #    / layout-preparation).  Stateless helper that bridges the gap
+    #    between AssetPreflightResolver (path-exists check) and the
+    #    actual per-frame render loop; emits a structured
+    #    chronon3d::runtime::PreparationError fail-loud BEFORE the
+    #    encoder if any required asset cannot be resolved.
+    resource_preparation.cpp
 )
 
 if(CHRONON3D_ENABLE_TELEMETRY)
@@ -45,6 +54,9 @@ target_link_libraries(chronon3d_runtime PUBLIC
     chronon3d_backend_software
     chronon3d_backend_image
 )
+if(CHRONON3D_ENABLE_NATIVE_FFMPEG)
+    target_link_libraries(chronon3d_runtime PUBLIC chronon3d_ffmpeg_full)
+endif()
 target_include_directories(chronon3d_runtime PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_include_directories(chronon3d_runtime
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include_private

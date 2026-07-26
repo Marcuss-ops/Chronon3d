@@ -1,5 +1,6 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/random.hpp>
+#include <chronon3d/core/random/deterministic_random.hpp>
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -17,6 +18,18 @@ TEST_CASE("deterministic_random — same input → same output (lock)") {
         CHECK(deterministic_random(RandomSeed{UINT64_MAX}, 1024)
               == deterministic_random(RandomSeed{UINT64_MAX}, 1024));
     }
+}
+
+TEST_CASE("core random API delegates to the canonical stateless sampler") {
+    using chronon3d::random::range;
+    using chronon3d::random::stable_seed;
+    using chronon3d::random::unit;
+
+    const auto seed = stable_seed("important-title");
+    CHECK(unit(seed, 7) == unit(chronon3d::random::Seed{seed}, 7));
+    CHECK(range(seed, 7, -2.0f, 2.0f) >= -2.0f);
+    CHECK(range(seed, 7, -2.0f, 2.0f) < 2.0f);
+    CHECK(unit("important-title", 7) == unit(seed, 7));
 }
 
 TEST_CASE("deterministic_random — different seed → different output") {
@@ -103,14 +116,15 @@ TEST_CASE("deterministic_random — golden platform lock (cross-OS bit-stable)")
     // Reference values computed locally on Linux (glibc) — locked here
     // to make any divergence visible at CI time.
     SUBCASE("(RandomSeed{12345}, 67) bit-stable canonical output") {
-        const f32 expected = 0.93846482f;  // 24-bit-mantissa normalization lock
+        // Vector for the documented hash-combine + SplitMix finalizer.
+        const f32 expected = 0.115754783f;
         f32 actual = deterministic_random(RandomSeed{12345}, 67);
         CHECK(actual == doctest::Approx(expected));
     }
 
-    SUBCASE("(RandomSeed{0}, 0) → identity-equivalent zero floor") {
-        // (seed=0, index=0) → x=0 → (x>>40)=0 → 0/16777216 = 0.0f
-        CHECK(deterministic_random(RandomSeed{0}, 0) == 0.0f);
+    SUBCASE("(RandomSeed{0}, 0) bit-stable") {
+        CHECK(deterministic_random(RandomSeed{0}, 0)
+              == doctest::Approx(0.883310795f));
     }
 
     SUBCASE("(RandomSeed{0}, 1) bit-stable") {

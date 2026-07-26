@@ -19,7 +19,7 @@
 //   3.  PreviousFrameInvisible — f49 → inactive         (key test)
 //   4.  NextFrameInvisible     — f80 → inactive         (key test)
 //   5.  AnimationUsesLocalFrame — local = global - sequence_start
-//   6.  Freeze                  — held_progress = 1.0 after sequence ends
+//   6.  Freeze                  — resolver becomes inactive after sequence ends
 //   7.  Reverse                 — reversed = duration-1 - local
 //   8.  NestedSequence          — outer+inner TimelineResolver path
 //   9.  Overlap                 — two sequences overlapping in time
@@ -30,8 +30,6 @@
 //   * SequenceNode  { name, range, children }       — tree topology
 //   * TimelineResolver::resolve_one(node, ctx)     — single-node path
 //   * TimelineResolver::resolve(roots, ctx)        — multi-root path
-//   * SequenceContext::sequence(ctx, from, dur)    — animation-centric factory
-//   * SequenceContext::held_progress()             — freeze semantic
 //   * Frame arithmetic (operator-, operator<=>)    — frame math
 //
 // AGENTS.md v0.1 freeze compliance:
@@ -49,7 +47,6 @@
 
 #include <chronon3d/timeline/sequence_node.hpp>
 #include <chronon3d/timeline/timeline_resolver.hpp>
-#include <chronon3d/timeline/sequence.hpp>
 #include <chronon3d/core/types/frame.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 
@@ -191,19 +188,17 @@ TEST_CASE("Timeline.AnimationUsesLocalFrame") {
         const int expected_local = g - 50;
         CHECK(r->active_path[0].local_frame.integral() == expected_local);
 
-        // Also verify the SequenceContext factory path (the animation-
-        // centric entry point) returns the same local frame.
-        auto seq = sequence(make_ctx(global_frame), from, duration);
-        CHECK(seq.active);
-        CHECK(seq.frame.integral() == expected_local);
     }
 
-    // Sanity check: progress() at f50 (local 0) ≈ 0, at f79 (local 29)
-    // ≈ 29/30 = 0.9666.
-    auto seq50 = sequence(make_ctx(Frame{50}), from, duration);
-    auto seq79 = sequence(make_ctx(Frame{79}), from, duration);
-    CHECK(seq50.progress() == doctest::Approx(0.0f).epsilon(1e-6));
-    CHECK(seq79.progress() == doctest::Approx(29.0f / 30.0f).epsilon(1e-6));
+    // The resolver owns the local-frame/progress mapping.
+    auto at_start = TimelineResolver::resolve_one(
+        node, make_ctx(Frame{50}));
+    auto at_end = TimelineResolver::resolve_one(
+        node, make_ctx(Frame{79}));
+    REQUIRE(at_start.has_value());
+    REQUIRE(at_end.has_value());
+    CHECK(at_start->active_path[0].progress == doctest::Approx(0.0f));
+    CHECK(at_end->active_path[0].progress == doctest::Approx(29.0f / 30.0f));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -214,21 +209,15 @@ TEST_CASE("Timeline.Freeze") {
     const Frame from{50};
     const Frame duration{30};
 
-    // During the sequence, held_progress == progress() (active=true).
-    auto seq_active = sequence(make_ctx(Frame{60}), from, duration);
-    CHECK(seq_active.active);
-    CHECK(seq_active.held_progress() == doctest::Approx(10.0f / 30.0f).epsilon(1e-6));
-    CHECK(seq_active.held_progress() == doctest::Approx(seq_active.progress()).epsilon(1e-6));
+    auto active = TimelineResolver::resolve_one(
+        make_canonical_sequence(), make_ctx(Frame{60}));
+    REQUIRE(active.has_value());
+    CHECK(active->active_path[0].progress == doctest::Approx(10.0f / 30.0f));
 
-    // After the sequence ends, held_progress == 1.0 (frozen at end).
-    auto seq_after = sequence(make_ctx(Frame{100}), from, duration);
-    CHECK_FALSE(seq_after.active);
-    CHECK(seq_after.held_progress() == doctest::Approx(1.0f).epsilon(1e-6));
-
-    // Before the sequence starts, held_progress == 0.0 (frozen at start).
-    auto seq_before = sequence(make_ctx(Frame{10}), from, duration);
-    CHECK_FALSE(seq_before.active);
-    CHECK(seq_before.held_progress() == doctest::Approx(0.0f).epsilon(1e-6));
+    CHECK_FALSE(TimelineResolver::resolve_one(
+        make_canonical_sequence(), make_ctx(Frame{100})).has_value());
+    CHECK_FALSE(TimelineResolver::resolve_one(
+        make_canonical_sequence(), make_ctx(Frame{10})).has_value());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -243,19 +232,26 @@ TEST_CASE("Timeline.Reverse") {
     // (f50, local 0) maps to the END of the reversed timeline (29);
     // the local_frame at the end (f79, local 29) maps to the START (0).
     for (int g = 50; g <= 79; ++g) {
-        const int local = g - 50;
-        const int reversed = 30 - 1 - local;  // 29, 28, ..., 0
-        auto seq = sequence(make_ctx(Frame{g}), from, duration);
+        const int expected_local = g - 50;
+        const int reversed = 30 - 1 - expected_local;  // 29, 28, ..., 0
+        auto resolved = TimelineResolver::resolve_one(
+            make_canonical_sequence(), make_ctx(Frame{g}));
+        REQUIRE(resolved.has_value());
+        const Frame local = resolved->active_path[0].local_frame;
         const Frame reversed_frame{reversed};
-        CHECK(seq.frame.integral() == local);
-        CHECK((duration - Frame{1} - seq.frame).integral() == reversed_frame.integral());
+        CHECK(local.integral() == expected_local);
+        CHECK((duration - Frame{1} - local).integral() == reversed_frame.integral());
     }
 
     // Boundary: f50 → reversed=29, f79 → reversed=0.
-    auto seq50 = sequence(make_ctx(Frame{50}), from, duration);
-    auto seq79 = sequence(make_ctx(Frame{79}), from, duration);
-    CHECK((duration - Frame{1} - seq50.frame).integral() == 29);
-    CHECK((duration - Frame{1} - seq79.frame).integral() == 0);
+    auto start = TimelineResolver::resolve_one(
+        make_canonical_sequence(), make_ctx(Frame{50}));
+    auto end = TimelineResolver::resolve_one(
+        make_canonical_sequence(), make_ctx(Frame{79}));
+    REQUIRE(start.has_value());
+    REQUIRE(end.has_value());
+    CHECK((duration - Frame{1} - start->active_path[0].local_frame).integral() == 29);
+    CHECK((duration - Frame{1} - end->active_path[0].local_frame).integral() == 0);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

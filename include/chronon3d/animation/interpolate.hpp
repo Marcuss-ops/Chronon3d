@@ -80,6 +80,15 @@ struct Segment {
 
 // ── interpolate — frame-based value interpolation ──────────────────────────
 
+// Forward declaration keeps the legacy easing adapter below a thin wrapper
+// over the options-based facade, regardless of declaration order.
+[[nodiscard]] inline f32 interpolate(
+    Frame frame,
+    FrameRange range,
+    ValueRange values,
+    const InterpolateOptions& options
+);
+
 /// Interpolate a value over a frame range with optional easing.
 ///
 /// Maps `frame` from [range.start, range.end] to [values.from, values.to].
@@ -115,7 +124,7 @@ struct Segment {
     Frame frame,
     FrameRange range,
     ValueRange values,
-    InterpolateOptions opts
+    const InterpolateOptions& opts
 ) {
     const f32 f = static_cast<f32>(frame.integral());
     const f32 s = static_cast<f32>(range.start.integral());
@@ -132,7 +141,8 @@ struct Segment {
     f32 to,
     EasingCurve easing = EasingCurve{Easing::Linear}
 ) {
-    return interpolate(frame, FrameRange{start, end}, ValueRange{from, to}, easing);
+    return interpolate(frame, FrameRange{start, end}, ValueRange{from, to},
+                       InterpolateOptions{Extrapolate::Clamp, Extrapolate::Clamp, easing});
 }
 
 /// Interpolate between two Vec2 positions over a frame range.

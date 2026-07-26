@@ -19,7 +19,7 @@ add_library(chronon3d_scene OBJECT
     presets/camera_motion_clip.cpp
     presets/motion_renderer.cpp
     presets/motion_resolver.cpp
-    presets/motion_preset_registry.cpp
+    presets/motion_preset_catalog.cpp
     presets/motion_presets_reveal.cpp
     presets/motion_presets_3d.cpp
     presets/motion_presets_glow.cpp

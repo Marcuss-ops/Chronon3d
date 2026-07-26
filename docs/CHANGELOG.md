@@ -1,4 +1,30 @@
 ## 2026-07-26
+
+- **Render preparation barrier chiusa** — `prepare_render()` è ora il solo
+  orchestratore produttivo per preflight, preparazione risorse, popolamento
+  delle cache runtime e warmup prima del render/encoder; il P2 è chiuso in
+  [TICKET-ASSET-PREP-BARRIER](tickets/TICKET-ASSET-PREP-BARRIER.md).
+- **SDK render boundary** — `chronon3d::RenderEngine::render()` ora esegue
+  la stessa barriera prima del graph pipeline, coprendo anche i consumer
+  SDK che non passano dai command CLI.
+### `refactor(motion): make built-in preset catalog immutable`
+`MotionPresetPackRegistry` è stata sostituita da `MotionPresetCatalog`: i
+preset built-in vengono assemblati da un builder confinato all’inizializzazione
+e il percorso di rendering espone soltanto lookup/apply const.
+
+### `refactor(anim): remove legacy SequenceContext surface`
+Rimosso fisicamente `SequenceContext`, il factory `sequence(FrameContext, ...)`,
+l'overload spring dedicato e `timeline/sequence.hpp`. I test timeline e la
+certificazione usano ora soltanto `FrameContext`, `SequenceBuilder` e
+`TimelineResolver`; i filtri Sequence/FrameContext/Spring risultano verdi.
+
+### `feat(content): image-backed important-story showcase`
+NEW `ImportantStoryImage`: usa `assets/images/minimalist_landscape.png` con cinque frasi importanti, nomi `DIRECTOR · ACTOR · WRITER`, sottotitolo e animazioni leggere di fade/slide/scale con palette cromatica distinta.
+
+### `feat(render): asset preparation barrier` ([TICKET-ASSET-PREP-BARRIER](docs/tickets/TICKET-ASSET-PREP-BARRIER.md))
+NEW `include/chronon3d/runtime/resource_preparation.hpp` + `src/runtime/resource_preparation.cpp` con classe statica `chronon3d::runtime::ResourcePreparation::prepare(AssetManifest, AssetResolver, PreparationOptions) → Result<PreparedAssets, PreparationError>` (5 fasi sequential: font-load / image-decode / video-metadata / audio-index / layout-preparation). Pipeline esplicita 3-stage che sostituisce il literal `delayRender()` nel frame loop: `plan_render → prepare(plan) → execute(plan, prepared)`. Fail-loud default: il primo required-asset irrisolvibile abort prima dell'encoder con `PreparationError{ .code = MissingAsset, .path, .owner, .phase }` strutturato; modalità `WarnAndSkip` (CLI preview) accumula `ResourceDiagnostics::warnings[]` invece. Cat-3 minimal-surface (1 NEW header + 1 NEW impl + 1 NEW test, zero ABI break, zero new singleton/registry/resolver/cache, zero `<msdfgen>/<libtess2>/<unicode[/...]>`). NEW test `tests/runtime/test_resource_preparation.cpp` (7 TEST_CASE + 5 SUBCASE lockano contract). Cronaca estesa canonical ticket-home.
+
+## 2026-07-26
 ### `chore(anim): deprecate SequenceContext entry points` ([TICKET-ANIM-SEQUENCE-CONSOLIDATE](docs/tickets/TICKET-ANIM-SEQUENCE-CONSOLIDATE.md))
 Marcatura `[[deprecated]]` function-level su due entry points del Sequence surface: `inline SequenceContext sequence(const FrameContext& ctx, Frame from, Frame duration)` factory in `include/chronon3d/timeline/sequence.hpp:36` + `inline f32 spring(const SequenceContext& ctx, ...)` overload in `include/chronon3d/animation/easing/spring.hpp:113` (NON type-level: `SequenceContext` struct intatta per AGENTS.md §"2×-in-one-chore" non-drop rule). I 22 caller esistenti (10 in `tests/core/timeline/test_sequence.cpp` + 9 in `tests/certification/test_timeline_functional_v1.cpp` + 2 in `tests/core/animation/test_spring.cpp` + 1 in `tools/verify_timeline_functional_linux.sh`) continuano a compilare via `-Wno-error=deprecated-declarations` a `CMakeLists.txt:28` — emettono warning espliciti come indicator-to-migrate per la Phase 2 (SequenceWindow pure-math adapter + bulk caller migration).  Cronaca estesa canonical ticket-home.
 

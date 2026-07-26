@@ -1,95 +1,45 @@
 #include <doctest/doctest.h>
-#include <chronon3d/timeline/sequence.hpp>
+
+#include <chronon3d/core/types/frame_context.hpp>
+
 using namespace chronon3d;
 
+namespace {
 
-TEST_CASE("Sequence — active window") {
-    FrameContext ctx;
-    ctx = ctx.with_frame(Frame{50});
-    ctx = ctx.with_frame_rate({30, 1});
-
-    SUBCASE("before sequence: inactive, frame=0, progress=0") {
-        auto seq = sequence(ctx, Frame{60}, Frame{30});
-        CHECK(seq.active == false);
-        CHECK(seq.frame == 0);
-        CHECK(seq.progress() == 0.0f);
-    }
-
-    SUBCASE("at start frame: active, local frame=0, progress=0") {
-        ctx = ctx.with_frame(Frame{60});
-        auto seq = sequence(ctx, Frame{60}, Frame{30});
-        CHECK(seq.active == true);
-        CHECK(seq.frame == 0);
-        CHECK(seq.progress() == 0.0f);
-    }
-
-    SUBCASE("mid-sequence: correct local frame and progress") {
-        ctx = ctx.with_frame(Frame{75});
-        auto seq = sequence(ctx, Frame{60}, Frame{30});
-        CHECK(seq.active == true);
-        CHECK(seq.frame == 15);
-        CHECK(seq.progress() == doctest::Approx(0.5f));
-        CHECK(seq.seconds() == doctest::Approx(0.5f));
-    }
-
-    SUBCASE("at end frame (exclusive): inactive") {
-        ctx = ctx.with_frame(Frame{90});
-        auto seq = sequence(ctx, Frame{60}, Frame{30});
-        CHECK(seq.active == false);
-    }
-
-    SUBCASE("sequence starting at frame 0") {
-        ctx = ctx.with_frame(Frame{0});
-        auto seq = sequence(ctx, Frame{0}, Frame{30});
-        CHECK(seq.active == true);
-        CHECK(seq.frame == 0);
-    }
+FrameContext make_local_context(Frame global, Frame local, Frame duration) {
+    const FrameRate rate{30, 1};
+    return make_frame_context({
+        .global_time = SampleTime::from_frame_int(global, rate),
+        .local_time = SampleTime::from_frame_int(local, rate),
+        .duration = duration,
+    });
 }
 
-TEST_CASE("Sequence — held_progress") {
-    FrameContext ctx;
-    ctx = ctx.with_frame_rate({30, 1});
+} // namespace
 
-    SUBCASE("before sequence: held_progress returns 0") {
-        ctx = ctx.with_frame(Frame{5});
-        auto seq = sequence(ctx, Frame{20}, Frame{25});
-        CHECK(seq.held_progress() == 0.0f);
-    }
+TEST_CASE("FrameContext — canonical local frame and progress") {
+    const auto ctx = make_local_context(Frame{75}, Frame{15}, Frame{30});
 
-    SUBCASE("at start: held_progress == progress == 0") {
-        ctx = ctx.with_frame(Frame{20});
-        auto seq = sequence(ctx, Frame{20}, Frame{25});
-        CHECK(seq.held_progress() == doctest::Approx(seq.progress()));
-    }
-
-    SUBCASE("mid-sequence: held_progress == progress") {
-        ctx = ctx.with_frame(Frame{30});
-        auto seq = sequence(ctx, Frame{20}, Frame{25});
-        CHECK(seq.active == true);
-        CHECK(seq.held_progress() == doctest::Approx(seq.progress()));
-    }
-
-    SUBCASE("after sequence: held_progress returns 1") {
-        ctx = ctx.with_frame(Frame{50});
-        auto seq = sequence(ctx, Frame{20}, Frame{25});
-        CHECK(seq.active == false);
-        CHECK(seq.held_progress() == doctest::Approx(1.0f));
-    }
-
-    SUBCASE("immediately after end: held_progress returns 1") {
-        ctx = ctx.with_frame(Frame{45});  // from=20, duration=25, end=45 (exclusive)
-        auto seq = sequence(ctx, Frame{20}, Frame{25});
-        CHECK(seq.active == false);
-        CHECK(seq.held_progress() == doctest::Approx(1.0f));
-    }
+    CHECK(ctx.global_time().integral_frame() == Frame{75});
+    CHECK(ctx.local_time().integral_frame() == Frame{15});
+    CHECK(ctx.frame() == Frame{15});
+    CHECK(ctx.progress() == doctest::Approx(0.5));
+    CHECK(ctx.seconds() == doctest::Approx(0.5));
 }
 
-TEST_CASE("Sequence — zero duration guard") {
-    FrameContext ctx;
-    ctx = ctx.with_frame(Frame{10});
-    ctx = ctx.with_frame_rate({30, 1});
+TEST_CASE("FrameContext — local time is independent of global time") {
+    const auto before = make_local_context(Frame{50}, Frame{0}, Frame{30});
+    const auto after = make_local_context(Frame{90}, Frame{0}, Frame{30});
 
-    auto seq = sequence(ctx, Frame{10}, Frame{0});
-    CHECK(seq.progress() == 0.0f);
-    CHECK(seq.held_progress() == doctest::Approx(1.0f));
+    CHECK(before.frame() == Frame{0});
+    CHECK(after.frame() == Frame{0});
+    CHECK(before.progress() == doctest::Approx(0.0));
+    CHECK(after.progress() == doctest::Approx(0.0));
+}
+
+TEST_CASE("FrameContext — zero duration progress guard") {
+    const auto ctx = make_local_context(Frame{10}, Frame{0}, Frame{0});
+
+    CHECK(ctx.progress() == doctest::Approx(0.0));
+    CHECK(ctx.duration() == Frame{0});
 }

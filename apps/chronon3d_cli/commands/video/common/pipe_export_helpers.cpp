@@ -3,7 +3,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/cpu_budget.hpp>
-#include <chronon3d/runtime/renderer_warmup.hpp>
+#include <chronon3d/runtime/render_preparation.hpp>
 
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <algorithm>
@@ -145,16 +145,26 @@ void warmup_pipe_renderer(
     uint64_t saved_fb_peak = 0;
 
     const auto warmup_t0 = profiling::now();
-    runtime::warmup_renderer(renderer, comp, runtime::RendererWarmupOptions{
-        .width = comp.width(),
-        .height = comp.height(),
-        .framebuffer_count = opts.warmup.warmup_framebuffers,
-        .preallocate_framebuffers = true,
-        .touch_memory = true,
-        .render_dummy_frame = opts.warmup.warmup_dummy_frame,
-        .dummy_frame = 0,
-        .quiet = false,
-    });
+    const auto preparation = runtime::prepare_render(
+        &renderer, comp,
+        runtime::RenderPreparationOptions{
+            .warmup_renderer = true,
+            .warmup = runtime::RendererWarmupOptions{
+                .width = comp.width(),
+                .height = comp.height(),
+                .framebuffer_count = opts.warmup.warmup_framebuffers,
+                .preallocate_framebuffers = true,
+                .touch_memory = true,
+                .render_dummy_frame = opts.warmup.warmup_dummy_frame,
+                .dummy_frame = 0,
+                .quiet = false,
+            },
+        });
+    if (!preparation.ok()) {
+        spdlog::error("[video] Render preparation FAILED:\n{}",
+                      preparation.diagnostic());
+        return;
+    }
     const auto warmup_t1 = profiling::now();
 
     if (renderer.counters()) {
