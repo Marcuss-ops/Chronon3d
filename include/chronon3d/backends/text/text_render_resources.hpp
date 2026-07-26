@@ -303,6 +303,12 @@ struct FontFaceHandle {
 // TSan-clean.
 
 struct TextScratchState {
+    std::vector<float> alpha;
+    std::vector<float> h_max;
+    std::vector<float> v_max;
+    std::vector<float> blur_tmp;
+    std::vector<float> inner_shadow_src;
+    std::vector<float> inner_shadow_blurred;
     std::vector<uint32_t> blur_buffer;
 
     struct SurfaceEntry {
