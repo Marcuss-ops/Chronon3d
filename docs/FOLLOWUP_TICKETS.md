@@ -9,6 +9,7 @@
 
 | Epic / Area | Pri | Stato | Description | Links |
 |---|---|---|---|---|
+| Animation refactor | P2 | OPEN | `TICKET-EXTRAPOLATE-ENUM`: forward-ticket bundle per Fase 1 — Estrapolate enum + InterpolateOptions aggiunti additivamente in `include/chronon3d/animation/easing/interpolate.hpp`; `ClampMode` legacy preservato. Step successivo: `feat(animation): add extrapolation policies` (helper `chronon3d::animation::detail::{wrap_unit, apply_extrapolation}` + nuovo overload `interpolate(..., InterpolateOptions&)`). Deprecation finale `ClampMode` vincolata a ADR-016 Addendum Decision 7. | [extrapolate](tickets/TICKET-EXTRAPOLATE-ENUM.md) |
 | Transitions cleanup | P1 | OPEN | `TICKET-TRN-TRANSITION-CLEANUP`: master tracker per pulizia layer/camera/text transitions (7 fasi TRN-01..TRN-07). `TICKET-TRN-01` incorporato (superseded). | [trn-cleanup](tickets/TICKET-TRN-TRANSITION-CLEANUP.md) · [trn-01](tickets/TICKET-TRN-01.md) |
 | Modular graph legacy path | P2 | OPEN | `TICKET-MODULAR-GRAPH-FALSE-REMOVAL`: rimozione o migrazione del percorso `use_modular_graph = false`; 6 test render_graph falliscono sul percorso legacy non mantenuto. | [modular-graph](tickets/TICKET-MODULAR-GRAPH-FALSE-REMOVAL.md) |
 | P0 docs + test aggregator | P0 | OPEN | `TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX` + `TICKET-125-TEST-AGGREGATOR`: marker check extension e catalogo Tests 8-18. | [changelog](tickets/TICKET-CHANGELOG-UPSTREAM-MARKERS-FIX.md) · [125](tickets/TICKET-125-test-aggregator.md) |
