@@ -53,9 +53,6 @@ public:
     ImageCache(ImageCache&&) noexcept = default;
     ImageCache& operator=(ImageCache&&) noexcept = default;
 
-    // ── Capacity ────────────────────────────────────────────────────
-    static void set_global_capacity_bytes(size_t capacity_bytes);
-
     void set_backend(std::shared_ptr<image::ImageBackend> backend) {
         std::unique_lock<std::shared_mutex> lock(*m_backend_mutex);
         m_backend = std::move(backend);
