@@ -50,6 +50,15 @@ def resolve_artifact_path(raw_path: str) -> Path | None:
     are rejected.
     """
     path = Path(raw_path)
+    # Video exports are published atomically: telemetry can be recorded just
+    # before the final `.partial` -> final rename.  Resolve that historical
+    # telemetry alias to the published media file when it exists.
+    partial_marker = '.partial.'
+    if partial_marker in path.name:
+        published_name = path.name.replace(partial_marker, '.', 1)
+        published_path = path.with_name(published_name)
+        if published_path.exists() and published_path.is_file():
+            path = published_path
 
     for root in ALLOWED_ARTIFACT_ROOTS:
         resolved_root = root.resolve()
