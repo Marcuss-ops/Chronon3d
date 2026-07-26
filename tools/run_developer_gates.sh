@@ -38,6 +38,10 @@ for gate in "${DEVELOPER_GATES[@]}"; do
     echo "  [${idx}/${GATE_COUNT}] ${gate}"
 
     case "$gate" in
+        *.py)
+            python3 "${SCRIPT_DIR}/${gate}" \
+                || { echo "GATE_FAIL: ${gate} (exit $?)" >&2; exit 1; }
+            ;;
         check_commit_subject_length.sh)
             bash "${SCRIPT_DIR}/${gate}" "${COMPARISON_REF}" \
                 || { echo "GATE_FAIL: ${gate} (exit $?)" >&2; exit 1; }
