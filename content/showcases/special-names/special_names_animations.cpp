@@ -36,19 +36,11 @@ Composition make_special_name_comp(const char* name, AnimSetup setup) {
             s.layer("name", [&](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
                 setup(l);
-                // ── Subtle white-blue glow — bloom-only (skip core+aura for perf) ──
-                l.glow({
-                    .enabled = true,
-                    .radius = 18.0f,
-                    .intensity = 0.25f,
-                    .color = {0.80f, 0.85f, 1.0f, 1.0f},
-                    .softness = 1.0f,
-                    .falloff = 0.85f,
-                    .core_strength = 0.0f,   // skip core pass
-                    .aura_strength = 0.0f,   // skip aura pass
-                    .bloom_strength = 0.80f, // compensate for skipped core+aura
-                });
-                l.text("name", TextDefinition{
+                // Keep the text position stable during animated bounds.
+                // Layer glow expands a cached layer surface and can reuse
+                // stale origin coordinates while the name moves; a text
+                // shadow provides the same soft lift without that drift.
+                auto name_text = TextDefinition{
     .content = {.value = DEMO_NAME},
     .style = {
         .font = {
@@ -62,7 +54,8 @@ Composition make_special_name_comp(const char* name, AnimSetup setup) {
     .frame = {
         .tracking = 14.0f
     }
-});
+                };
+                l.text("name", std::move(name_text));
             });
             return s.build();
         });
