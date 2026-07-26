@@ -171,7 +171,7 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
 // Refactor: `text(...)` now wraps the supplied `TextDefaults` into a
 // `TextRunDefinition` and delegates to `materialize_text_run_shape(...)`,
 // the single canonical materializer shared with `text_run()` and
-// `LayerBuilder::build()`.  The legacy `ShapeType::Text` code path
+// `LayerBuilder::build()`.  The legacy text-shape code path
 // that built a `TextShape` (paint / shadows / material / font fields /
 // style.{...}/ box.{...}) is REMOVED from this factory.  Step 3
 // (M1.5#9) dropped the orphan `create_text_processor()` + factory

@@ -63,8 +63,8 @@ TEST_CASE("Shape model and SceneBuilder") {
                 // `RenderNodeFactory::text(...)` which delegates to
                 // `materialize_text_run_shape(...)` and emits
                 // `ShapeType::TextRun` (variant index 14).  The legacy
-                // `ShapeType::Text` route (variant index 6) is reserved
-                // for direct `Shape::set_type(ShapeType::Text)` callers
+                // The retired legacy text payload (variant index 6) is not
+                // producible through ShapeType.
                 // (e.g. tests/renderer/helpers/test_stroke_gradient_helpers).
                 l.text("test-text", {
                     .content = {.value = "Hello"},
@@ -91,7 +91,7 @@ TEST_CASE("Shape model and SceneBuilder") {
         const auto& nodes = layers[0].nodes;
         REQUIRE(nodes.size() == 1);
         // M1.5#9 step 2: factory emits ShapeType::TextRun; the legacy
-        // ShapeType::Text path (`text().style.*`) was REMOVED from the
+        // legacy text-shape path (`text().style.*`) was REMOVED from the
         // factory and is reserved for direct Shape::set_type(...) calls.
         // The legacy `.style.{auto_fit, max_lines, wrap, ...}` field
         // checks have been retired because those fields are now routed

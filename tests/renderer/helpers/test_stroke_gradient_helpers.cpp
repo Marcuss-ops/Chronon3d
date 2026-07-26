@@ -136,7 +136,7 @@ TEST_CASE("stroke_has_gradient: Line type returns false") {
 
 TEST_CASE("stroke_has_gradient: Text type returns false") {
     Shape s;
-    s.set_type(ShapeType::Text);
+    s.set_type(ShapeType::None);
     CHECK_FALSE(stroke_has_gradient(s));
 }
 
@@ -264,7 +264,7 @@ TEST_CASE("resolve_stroke_gradient_color: Line type returns transparent") {
 
 TEST_CASE("resolve_stroke_gradient_color: Text type returns transparent") {
     Shape s;
-    s.set_type(ShapeType::Text);
+    s.set_type(ShapeType::None);
     Color c = resolve_stroke_gradient_color(s, {100.0f, 100.0f}, {200.0f, 200.0f});
     CHECK(c.r == doctest::Approx(0.0f));
     CHECK(c.g == doctest::Approx(0.0f));
@@ -308,13 +308,9 @@ TEST_CASE("resolve_stroke_gradient_color: zero-length gradient direction returns
 // safe_shape_size_for_fill — zero-size guard
 // ══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("safe_shape_size_for_fill: Text with box.enabled=false returns {1,1}") {
+TEST_CASE("safe_shape_size_for_fill: unknown shape returns {1,1}") {
     Shape s;
-    s.set_type(ShapeType::Text);
-    s.text().box.enabled = false;
-    s.text().box.size = {0.0f, 0.0f};
-    // shape_size_for_fill returns {0,0} because box.enabled=false,
-    // safe_shape_size_for_fill must guard with {1,1} fallback.
+    s.set_type(ShapeType::None);
     Vec2 sz = safe_shape_size_for_fill(s);
     CHECK(sz.x > 0.0f);
     CHECK(sz.y > 0.0f);

@@ -126,16 +126,6 @@ GraphNodeId append_source_pass(RenderGraph& graph, const LayerGraphItem& item,
                 return source;
             }
 
-            // ShapeType::Text is deprecated — all text now routes through
-            // ShapeType::TextRun (set by LayerBuilder::text_run()).  If this
-            // triggers, the caller is using the legacy text() API without
-            // the TextRun migration.
-            if (node.shape.type() == ShapeType::Text) {
-                throw std::logic_error(
-                    "[source-pass] ShapeType::Text is deprecated; use TextRun. "
-                    "LayerBuilder::text() should be migrated to text_run(). "
-                    "layer='" + std::string(layer.name) + "' node='" + std::string(node.name) + "'");
-            }
             {
                 cache::NodeCacheKey source_key{
                     .scope = "layer.source:" + std::string(layer.name) + ":" + std::string(node.name),
