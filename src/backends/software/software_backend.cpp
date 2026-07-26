@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cassert>
 #include <memory>
+#include <stdexcept>
 #include <optional>
 #include <string>
 #include <utility>
@@ -32,7 +33,6 @@ namespace chronon3d {
 namespace chronon3d::renderer {
 void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip, int passes);
 void apply_color_effects(Framebuffer& fb, const LayerEffect& effect, const std::optional<raster::BBox>& clip);
-void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, const effects::EffectExecutionContext& context);
 }
 
 namespace chronon3d {
@@ -209,9 +209,25 @@ void SoftwareBackend::apply_effect_stack(
         }
     }
 
+    if (!m_proc_ctx.registry) {
+        throw std::runtime_error(
+            "SoftwareBackend::apply_effect_stack requires a processor registry");
+    }
+
     effects::EffectExecutionContext local_context = context;
     local_context.clip = local_clip;
-    renderer::apply_effect_stack(fb, stack, local_context);
+    local_context.curve_cache = m_proc_ctx.curve_cache;
+    for (const auto& effect : stack) {
+        if (!effect.enabled) continue;
+        auto* processor = m_proc_ctx.registry->get_effect(
+            effect.param_type_index());
+        if (!processor) {
+            throw std::runtime_error(
+                "No software effect processor registered for effect type " +
+                std::to_string(static_cast<int>(effect.effect_type)));
+        }
+        processor->apply(fb, effect.params, local_context);
+    }
 }
 
 // ── apply_per_pixel_dof ───────────────────────────────────────────────────

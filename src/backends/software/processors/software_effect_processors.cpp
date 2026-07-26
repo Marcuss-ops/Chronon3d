@@ -8,6 +8,7 @@
 #include "effects/stroke/stroke.hpp"
 #include <chronon3d/effects/curves.hpp>
 #include <chronon3d/effects/color_pipeline.hpp>
+#include <stdexcept>
 
 namespace chronon3d::renderer {
 
@@ -34,6 +35,99 @@ public:
             e.tint = Color{p->color.r, p->color.g, p->color.b, p->color.a * p->amount};
             apply_color_effects(fb, e);
         }
+    }
+};
+
+class SoftwareBrightnessEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<BrightnessParams>(&params);
+        if (!p) throw std::runtime_error("Brightness processor received invalid parameters");
+        LayerEffect e; e.brightness = p->value;
+        apply_color_effects(fb, e, context.clip);
+    }
+};
+
+class SoftwareContrastEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<ContrastParams>(&params);
+        if (!p) throw std::runtime_error("Contrast processor received invalid parameters");
+        LayerEffect e; e.contrast = p->value;
+        apply_color_effects(fb, e, context.clip);
+    }
+};
+
+class SoftwareGlowEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<GlowParams>(&params);
+        if (!p) throw std::runtime_error("Glow processor received invalid parameters");
+        if (p->intensity > 0.0f)
+            apply_glow_effect(fb, *p, context.clip, context.debug_cfg);
+    }
+};
+
+class SoftwareSaturationEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<SaturationParams>(&params);
+        if (!p) throw std::runtime_error("Saturation processor received invalid parameters");
+        apply_saturation(fb, p->value, context.clip);
+    }
+};
+
+class SoftwareHueRotateEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<HueRotateParams>(&params);
+        if (!p) throw std::runtime_error("HueRotate processor received invalid parameters");
+        apply_hue_rotate(fb, p->degrees, context.clip);
+    }
+};
+
+class SoftwareInvertEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<InvertParams>(&params);
+        if (!p) throw std::runtime_error("Invert processor received invalid parameters");
+        apply_invert(fb, p->amount, context.clip);
+    }
+};
+
+class SoftwareVignetteEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<VignetteParams>(&params);
+        if (!p) throw std::runtime_error("Vignette processor received invalid parameters");
+        apply_vignette(fb, p->radius, p->softness, p->amount, p->color, context.clip);
+    }
+};
+
+class SoftwareDropShadowEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<DropShadowParams>(&params);
+        if (!p) throw std::runtime_error("DropShadow processor received invalid parameters");
+        apply_shadow_effect(fb, *p, context.clip, context.diagnostics_enabled);
+    }
+};
+
+class SoftwareBloomEffectProcessor final : public EffectProcessor {
+public:
+    void apply(Framebuffer& fb, const EffectParams& params,
+               const effects::EffectExecutionContext& context) override {
+        const auto* p = std::get_if<BloomParams>(&params);
+        if (!p) throw std::runtime_error("Bloom processor received invalid parameters");
+        apply_bloom_effect(fb, *p, context.clip, context.diagnostics_enabled);
     }
 };
 
@@ -117,19 +211,21 @@ public:
 class SoftwareCurvesEffectProcessor final : public EffectProcessor {
 public:
     void apply(Framebuffer& fb, const EffectParams& params,
-               const effects::EffectExecutionContext& /*context*/) override {
+               const effects::EffectExecutionContext& context) override {
         if (auto* p = std::get_if<CurvesParams>(&params)) {
-            // Use the global curve cache to share with dispatch and other processors
+            if (!context.curve_cache) {
+                throw std::runtime_error("Curves processor requires a runtime-owned CurveCache");
+            }
             ColorPipeline pipeline;
             CurvesStage stage;
             if (!p->master.empty())
-                stage.master = global_curve_cache().get_or_compile(p->master);
+                stage.master = context.curve_cache->get_or_compile(p->master);
             if (!p->red.empty())
-                stage.red = global_curve_cache().get_or_compile(p->red);
+                stage.red = context.curve_cache->get_or_compile(p->red);
             if (!p->green.empty())
-                stage.green = global_curve_cache().get_or_compile(p->green);
+                stage.green = context.curve_cache->get_or_compile(p->green);
             if (!p->blue.empty())
-                stage.blue = global_curve_cache().get_or_compile(p->blue);
+                stage.blue = context.curve_cache->get_or_compile(p->blue);
             pipeline.add_stage(stage);
             pipeline.apply(fb);
         }
@@ -194,6 +290,42 @@ std::unique_ptr<EffectProcessor> create_blur_effect_processor() {
 
 std::unique_ptr<EffectProcessor> create_tint_effect_processor() {
     return std::make_unique<SoftwareTintEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_brightness_effect_processor() {
+    return std::make_unique<SoftwareBrightnessEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_contrast_effect_processor() {
+    return std::make_unique<SoftwareContrastEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_glow_effect_processor() {
+    return std::make_unique<SoftwareGlowEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_drop_shadow_effect_processor() {
+    return std::make_unique<SoftwareDropShadowEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_bloom_effect_processor() {
+    return std::make_unique<SoftwareBloomEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_saturation_effect_processor() {
+    return std::make_unique<SoftwareSaturationEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_hue_rotate_effect_processor() {
+    return std::make_unique<SoftwareHueRotateEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_invert_effect_processor() {
+    return std::make_unique<SoftwareInvertEffectProcessor>();
+}
+
+std::unique_ptr<EffectProcessor> create_vignette_effect_processor() {
+    return std::make_unique<SoftwareVignetteEffectProcessor>();
 }
 
 std::unique_ptr<EffectProcessor> create_fake_3d_wave_effect_processor() {

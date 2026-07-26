@@ -86,8 +86,4 @@ private:
 /// Hash a set of control points for curve identity comparison.
 [[nodiscard]] uint64_t hash_curve_points(const std::vector<CurvePoint>& points);
 
-/// Globally accessible curve cache (thread-safe single-threaded assumption).
-/// Reuses CompiledCurve objects across all dispatch paths (processor + stack).
-[[nodiscard]] CurveCache& global_curve_cache();
-
 } // namespace chronon3d

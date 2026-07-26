@@ -26,6 +26,7 @@
 #include <chronon3d/effects/effect_params.hpp>
 #include <chronon3d/effects/effect_execution_context.hpp>
 #include <algorithm>
+#include <stdexcept>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {
@@ -269,17 +270,19 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
         case Curves: {
             auto* p = std::get_if<CurvesParams>(&inst.params);
             if (p) {
-                // Use global cache to avoid re-compiling identical curves
+                if (!context.curve_cache) {
+                    throw std::runtime_error("Curves effect requires a runtime-owned CurveCache");
+                }
                 ColorPipeline pipeline;
                 CurvesStage stage;
                 if (!p->master.empty())
-                    stage.master = global_curve_cache().get_or_compile(p->master);
+                    stage.master = context.curve_cache->get_or_compile(p->master);
                 if (!p->red.empty())
-                    stage.red = global_curve_cache().get_or_compile(p->red);
+                    stage.red = context.curve_cache->get_or_compile(p->red);
                 if (!p->green.empty())
-                    stage.green = global_curve_cache().get_or_compile(p->green);
+                    stage.green = context.curve_cache->get_or_compile(p->green);
                 if (!p->blue.empty())
-                    stage.blue = global_curve_cache().get_or_compile(p->blue);
+                    stage.blue = context.curve_cache->get_or_compile(p->blue);
                 pipeline.add_stage(stage);
                 pipeline.apply(fb, clip);
             }
@@ -309,24 +312,5 @@ void apply_effect_stack(Framebuffer& fb, const EffectStack& stack,
     }
 }
 
-// ── Node-level glow primitive ────────────────────────────────────────────────
-
-void draw_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state) {
-    if (node.glow.intensity <= 0.0f || node.glow.color.a <= 0.0f) return;
-
-    const Color base    = node.glow.color.to_linear();
-    const Mat4& model   = state.matrix;
-
-    constexpr int LAYERS = 5;
-    for (int i = LAYERS; i >= 1; --i) {
-        const f32 t      = static_cast<f32>(i) / LAYERS;
-        const f32 expand = node.glow.radius * t;
-        const f32 alpha  = base.a * node.glow.intensity * (1.0f - t) * state.opacity;
-        if (alpha > 0.0f)
-            renderer::draw_transformed_shape(fb, node.shape, model, {base.r, base.g, base.b, alpha}, expand, &state, nullptr, node.corner_radius);
-    }
-}
-
 } // namespace renderer
 } // namespace chronon3d
-

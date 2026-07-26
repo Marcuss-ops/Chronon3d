@@ -5,6 +5,7 @@
 #include <chronon3d/backends/assets/image_cache.hpp>
 #include <chronon3d/core/config.hpp>
 #include <chronon3d/core/types/result.hpp>     // Result<T,E> for create() factory
+#include <chronon3d/effects/curves.hpp>
 
 // ----------------------------------------------------------------------
 // runtime/render_runtime.hpp
@@ -194,6 +195,8 @@ public:
     // ── Image cache (Fase B B1 — per-runtime, no longer process-wide) ─
     [[nodiscard]] chronon3d::ImageCache&       image_cache()       noexcept { return m_image_cache; }
     [[nodiscard]] const chronon3d::ImageCache& image_cache() const noexcept { return m_image_cache; }
+    [[nodiscard]] chronon3d::CurveCache& curve_cache() noexcept { return m_curve_cache; }
+    [[nodiscard]] const chronon3d::CurveCache& curve_cache() const noexcept { return m_curve_cache; }
 
     // ── Pipeline catalogs ────────────────────────────────────────────
     [[nodiscard]] chronon3d::graph::PipelineCatalogs& catalogs() noexcept { return m_catalogs; }
@@ -298,6 +301,7 @@ private:
 
     // Fase B B1 — per-runtime image cache (replaces process-wide singleton)
     chronon3d::ImageCache                           m_image_cache;
+    chronon3d::CurveCache                           m_curve_cache;
     // framebuffer_store accessor: per-runtime PersistentFramebufferStore (value member); the
     // P1-13 closure migrated the class to pure instance ownership (no singleton, no
     // process-wide static config).  All configuration is per-instance (`m_cache_dir` initialised

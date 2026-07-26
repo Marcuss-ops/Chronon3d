@@ -14,9 +14,6 @@ public:
               const Camera& camera, i32 width, i32 height) override {
         if (node.shadow.enabled)
             draw_shadow(fb, node, state);
-        if (node.glow.enabled)
-            draw_glow(fb, node, state);
-
         const Color linear_color = node.color.to_linear();
         Color fill_color = linear_color;
         fill_color.a *= state.opacity;

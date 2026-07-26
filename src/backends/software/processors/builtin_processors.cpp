@@ -38,6 +38,15 @@ std::unique_ptr<ShapeProcessor> create_grid_plane_processor();
 // Forward declarations for effect processors
 std::unique_ptr<EffectProcessor> create_blur_effect_processor();
 std::unique_ptr<EffectProcessor> create_tint_effect_processor();
+std::unique_ptr<EffectProcessor> create_brightness_effect_processor();
+std::unique_ptr<EffectProcessor> create_contrast_effect_processor();
+std::unique_ptr<EffectProcessor> create_glow_effect_processor();
+std::unique_ptr<EffectProcessor> create_drop_shadow_effect_processor();
+std::unique_ptr<EffectProcessor> create_bloom_effect_processor();
+std::unique_ptr<EffectProcessor> create_saturation_effect_processor();
+std::unique_ptr<EffectProcessor> create_hue_rotate_effect_processor();
+std::unique_ptr<EffectProcessor> create_invert_effect_processor();
+std::unique_ptr<EffectProcessor> create_vignette_effect_processor();
 std::unique_ptr<EffectProcessor> create_fake_3d_wave_effect_processor();
 std::unique_ptr<EffectProcessor> create_exposure_effect_processor();
 std::unique_ptr<EffectProcessor> create_levels_effect_processor();
@@ -81,6 +90,15 @@ void register_builtin_processors(SoftwareRegistry& registry) {
     // Effects
     registry.register_effect_processor<BlurParams>(create_blur_effect_processor());
     registry.register_effect_processor<TintParams>(create_tint_effect_processor());
+    registry.register_effect_processor<BrightnessParams>(create_brightness_effect_processor());
+    registry.register_effect_processor<ContrastParams>(create_contrast_effect_processor());
+    registry.register_effect_processor<DropShadowParams>(create_drop_shadow_effect_processor());
+    registry.register_effect_processor<GlowParams>(create_glow_effect_processor());
+    registry.register_effect_processor<BloomParams>(create_bloom_effect_processor());
+    registry.register_effect_processor<SaturationParams>(create_saturation_effect_processor());
+    registry.register_effect_processor<HueRotateParams>(create_hue_rotate_effect_processor());
+    registry.register_effect_processor<InvertParams>(create_invert_effect_processor());
+    registry.register_effect_processor<VignetteParams>(create_vignette_effect_processor());
     registry.register_effect_processor<Fake3DWaveParams>(create_fake_3d_wave_effect_processor());
     registry.register_effect_processor<ExposureParams>(create_exposure_effect_processor());
     registry.register_effect_processor<LevelsParams>(create_levels_effect_processor());

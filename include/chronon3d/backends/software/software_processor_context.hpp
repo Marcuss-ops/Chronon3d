@@ -35,6 +35,7 @@ class SoftwareRegistry;
 } // namespace renderer
 
 class ImageRenderer;
+class CurveCache;
 namespace image {
 class ImageBackend;
 } // namespace image
@@ -54,6 +55,7 @@ struct SoftwareProcessorContext {
     renderer::SoftwareRegistry*                      registry{nullptr};        // REQUIRED
     image::ImageBackend*                             image_backend{nullptr};
     ImageRenderer*                                   image_renderer{nullptr};
+    CurveCache*                                      curve_cache{nullptr};
     const DebugConfig*                               debug_config{nullptr};    // optional, for text-bbox debug overlays
     const assets::AssetResolver*                     asset_resolver{nullptr};  // optional, for font/text resolution
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
