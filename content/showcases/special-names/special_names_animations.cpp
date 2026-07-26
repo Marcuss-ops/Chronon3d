@@ -51,7 +51,13 @@ Composition make_special_name_comp(const char* name, AnimSetup setup) {
                 l.text("name", TextDefinition{
     .content = {.value = DEMO_NAME},
     .style = {
-        .font = {.font_size = 110.0f}
+        .font = {
+            .font_path = "assets/fonts/Poppins-Bold.ttf",
+            .font_family = "Poppins",
+            .font_weight = 700,
+            .font_size = 110.0f,
+        },
+        .color = NAME_TEXT,
     },
     .frame = {
         .tracking = 14.0f
