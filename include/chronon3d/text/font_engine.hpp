@@ -28,6 +28,7 @@ namespace chronon3d::assets { class AssetResolver; }
 namespace chronon3d::content::text { class TypewriterLayoutCache; }
 
 namespace chronon3d {
+class TextLayoutCache;
 // ── GlyphPosition
 // Coordinates are in logical (unscaled) font units; multiply by
 // (font_size / face_units_per_em) to get pixel values.
@@ -461,6 +462,9 @@ public:
     /// Per-runtime cache for typewriter text layouts.
     [[nodiscard]] chronon3d::content::text::TypewriterLayoutCache& typewriter_layout_cache();
 
+    /// Runtime-owned cache for compiled text layouts.
+    [[nodiscard]] TextLayoutCache& text_layout_cache() noexcept;
+
     /// Return true if the given font file can be loaded.
     [[nodiscard]] bool can_load(const FontSpec& spec);
 
@@ -480,6 +484,7 @@ private:
 
     struct Impl;
     std::unique_ptr<Impl> m_impl;
+    std::unique_ptr<TextLayoutCache> m_text_layout_cache;
 };
 
 // ── Cat-5: font engine internal namespace forward decls ──────────────

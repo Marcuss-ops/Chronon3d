@@ -5,6 +5,7 @@
 #include <chronon3d/cache/lru_cache.hpp>
 #include <chronon3d/backends/text/text_layout_engine.hpp>
 #include <chronon3d/text/typewriter_layout_cache.hpp>
+#include <chronon3d/text/text_layout_cache.hpp>
 #include <spdlog/spdlog.h>
 
 // Cat-5 internal: definition of the cluster-fallback coverage probe free
@@ -363,7 +364,8 @@ struct FontEngine::Impl {
 
 // WP-8 PR 8.0 — explicit-resolver ctor (canonical).
 FontEngine::FontEngine(const chronon3d::assets::AssetResolver& resolver)
-    : m_impl(std::make_unique<Impl>(&resolver)) {}
+    : m_impl(std::make_unique<Impl>(&resolver)),
+      m_text_layout_cache(std::make_unique<TextLayoutCache>()) {}
 
 // =====================================================================
 
@@ -580,6 +582,10 @@ chronon3d::content::text::TypewriterLayoutCache& FontEngine::typewriter_layout_c
     return *m_impl->typewriter_layout_cache;
 }
 
+TextLayoutCache& FontEngine::text_layout_cache() noexcept {
+    return *m_text_layout_cache;
+}
+
 bool FontEngine::can_load(const FontSpec& spec) {
     if (!m_impl || !m_impl->ft_library) return false;
     {
@@ -699,7 +705,8 @@ struct FontEngine::Impl {
 };
 
 FontEngine::FontEngine(const chronon3d::assets::AssetResolver& resolver)
-    : m_impl(std::make_unique<Impl>(&resolver)) {}
+    : m_impl(std::make_unique<Impl>(&resolver)),
+      m_text_layout_cache(std::make_unique<TextLayoutCache>()) {}
 
 FontEngine::~FontEngine() = default;
 FontEngine::FontEngine(FontEngine&&) noexcept = default;
@@ -728,6 +735,10 @@ void FontEngine::clear_cache() {}
 size_t FontEngine::glyph_bbox_cache_size() const { return 0; }
 
 bool FontEngine::can_load(const FontSpec&) { return false; }
+
+TextLayoutCache& FontEngine::text_layout_cache() noexcept {
+    return *m_text_layout_cache;
+}
 
 #endif // CHRONON3D_ENABLE_TEXT
 
