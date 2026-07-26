@@ -184,10 +184,6 @@ namespace detail {
     u64 random_seed
 );
 
-/// Deterministic hash-based unit float in [0, 1).
-/// Uses the same key every time for the same (seed, unit_index) pair.
-[[nodiscard]] f32 hash_to_unit_float(u64 seed, u64 unit_index);
-
 /// Returns true if `cp` is a Unicode whitespace or separator character.
 /// Covers ASCII (space, tab, CR, LF) plus common Unicode whitespace:
 /// U+00A0 NBSP, U+1680 ogham space, U+2000–U+200A (en/em/thin/hair spaces),
@@ -308,17 +304,6 @@ namespace detail {
     u32 glyph_index,
     std::string_view source,
     const PlacedGlyphRun* placed
-);
-
-/// Returns a deterministic permutation of [0..total_units) seeded by `seed`,
-/// precomputed via Fisher-Yates and cached per-thread per (seed, total).
-/// The returned vector has length `total_units`; entry `perm[i]` is the
-/// output position where the original index `i` lands after the shuffle.
-/// This guarantees a bijection — every output position is hit exactly once,
-/// unlike the previous `floor(rand * total)` scheme which could collide.
-[[nodiscard]] const std::vector<u32>& get_or_build_permutation(
-    u64 seed,
-    u32 total_units
 );
 
 } // namespace detail

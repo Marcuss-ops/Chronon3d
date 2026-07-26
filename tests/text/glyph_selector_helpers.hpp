@@ -2,6 +2,7 @@
 
 #include <doctest/doctest.h>
 #include <chronon3d/text/glyph_selector.hpp>
+#include <chronon3d/animation/random.hpp>  // TICKET-RANDOM-UNIFY — RandomSeed + deterministic_random + build_random_permutation (canonical API)
 #include <string>
 #include <vector>
 
