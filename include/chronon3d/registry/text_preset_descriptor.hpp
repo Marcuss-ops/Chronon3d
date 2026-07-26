@@ -95,12 +95,8 @@ to_string(TextPresetCategory c) {
 // ── PresetMetadata ──────────────────────────────────────────────────────────
 //
 // Display-side data for an individual text preset: name, category, free-text
-// description, builtin flag.  All fields are POD; no function pointers or
-// engines live here.  `id` is duplicated at the descriptor top level for
-// O(1) map key lookup (mirrors entries' map key); downstream consumers
-// should refer to `TextPresetDescriptor::id` rather than `metadata.id`.
+// description, builtin flag. The identity belongs only to the descriptor.
 struct PresetMetadata {
-    std::string id;             // snake_case ASCII, unique across the registry.
     std::string display_name;   // human-readable, no canon constraints.
     TextPresetCategory category{TextPresetCategory::Reveal};
     std::string description;    // one-line free-text description.
@@ -137,7 +133,7 @@ using TextPresetBuilder = std::function<
 // TextAnimatorSpec for the other 21.  The factory takes
 // `const PresetMetadata&` so it has read access to display / category /
 // fixture data, and may dispatch to per-id rendering based on
-// `meta.id` if it needs to apply id-specific tweaks (e.g. when the spec
+// descriptor identity if it needs to apply id-specific tweaks (e.g. when the spec
 // is rich / carries live-paint signals — the golden-frame wiring
 // invariant in TICKET-A4).
 //
@@ -167,7 +163,7 @@ using AnimatorFactory = std::function<
 // Anti-duplication-guardrail: there is exactly ONE descriptor type.
 // ANTI_DUPLICATION_RULES.md §registry/resolver.
 struct TextPresetDescriptor {
-    std::string id;                       // O(1) lookup key — mirrors m_presets key.
+    std::string id;                       // O(1) lookup key — sole preset identity.
     PresetMetadata metadata;              // display + category + builtin
     TextPresetBuilder builder{};          // engine-side factory (call site)
     AnimatorFactory animator_factory{};   // resolver-side factory (Stage 5)
