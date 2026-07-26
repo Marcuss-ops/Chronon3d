@@ -7,6 +7,8 @@
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/text/text_definition.hpp>
 
+#include <string_view>
+
 #include "content/common/animation_helpers.hpp"
 #include "important_words_theme.hpp"
 
@@ -103,6 +105,44 @@ static void build_important_word(SceneBuilder& s,
     });
 }
 
+static void build_important_phrase(SceneBuilder& s,
+                                   std::string_view layer_name,
+                                   std::string_view phrase,
+                                   f32 y_offset,
+                                   Frame start_frame) {
+    const std::string node_name = std::string(layer_name) + "_text";
+    s.layer(std::string(layer_name), [phrase, y_offset, start_frame, node_name](LayerBuilder& l) {
+        l.pin_to(Anchor::Center);
+        l.opacity_anim()
+            .key(Frame{0}, 0.0f, EasingCurve{Easing::Linear})
+            .key(start_frame, 1.0f, EasingCurve{Easing::OutCubic});
+        l.position_anim()
+            .key(Frame{0}, Vec3{0.0f, y_offset + 20.0f, 0.0f},
+                 EasingCurve{Easing::OutCubic})
+            .key(start_frame, Vec3{0.0f, y_offset, 0.0f},
+                 EasingCurve{Easing::OutCubic});
+
+        l.text(node_name, TextDefinition{
+            .content = {.value = std::string(phrase)},
+            .style = {
+                .font = {
+                    .font_path = "assets/fonts/Poppins-Bold.ttf",
+                    .font_family = "Poppins",
+                    .font_weight = 700,
+                    .font_size = 64.0f,
+                },
+                .color = {1.0f, 1.0f, 1.0f, 1.0f},
+            },
+            .frame = {
+                .size = {1600.0f, 100.0f},
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+                .tracking = 3.0f,
+            },
+        });
+    });
+}
+
 // Duration tuning (per user request: "stay on screen a bit longer"):
 //   single-word comps: 60 → 90 frame (+50% on-screen presence)
 //   trio:               90 → 120 frame (+33%, gives 40 frame per word)
@@ -159,12 +199,26 @@ Composition important_word_trio() {
     });
 }
 
+Composition important_phrases_stack() {
+    return composition({.name="ImportantPhrasesStack", .width=1920, .height=1080, .duration=90}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        add_black_background(s);
+        build_important_phrase(s, "phrase_01", "KEEP MOVING",          -240.0f, Frame{4});
+        build_important_phrase(s, "phrase_02", "FOCUS ON WHAT MATTERS", -120.0f, Frame{8});
+        build_important_phrase(s, "phrase_03", "MAKE IT SIMPLE",           0.0f, Frame{12});
+        build_important_phrase(s, "phrase_04", "SHOW YOUR STORY",         120.0f, Frame{16});
+        build_important_phrase(s, "phrase_05", "CREATE WITH PURPOSE",     240.0f, Frame{20});
+        return s.build();
+    });
+}
+
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_important_word_compositions(CompositionRegistry& registry) {
     registry.add(make_composition_descriptor("ImportantWordDirectorLight", [](const CompositionProps&) { return important_word_director_light(); }));
     registry.add(make_composition_descriptor("ImportantWordActorWarm", [](const CompositionProps&) { return important_word_actor_warm(); }));
     registry.add(make_composition_descriptor("ImportantWordWriterCool", [](const CompositionProps&) { return important_word_writer_cool(); }));
     registry.add(make_composition_descriptor("ImportantWordTrio", [](const CompositionProps&) { return important_word_trio(); }));
+    registry.add(make_composition_descriptor("ImportantPhrasesStack", [](const CompositionProps&) { return important_phrases_stack(); }));
 }
 
 } // namespace chronon3d::content::important_words
