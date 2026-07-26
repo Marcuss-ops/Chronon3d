@@ -7,7 +7,7 @@
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
-#include <chronon3d/assets/asset_preflight_resolver.hpp>
+#include <chronon3d/runtime/render_preparation.hpp>
 
 #include <spdlog/spdlog.h>
 #include <filesystem>
@@ -127,13 +127,12 @@ std::unique_ptr<PipeExportSession> setup_pipe_export_session(
     // Missing fonts fail early with a clear error instead of crashing or
     // producing black frames.
     {
-        Scene scene = evaluate_video_scene(comp, start, *sw_renderer);
-        auto preflight_result = AssetPreflightResolver::check(
-            scene, sw_renderer->runtime().resolver(),
-            PreflightMode::FullComposition);
-        if (!preflight_result.ok()) {
-            std::string text = format_preflight_issues_text(preflight_result.issues);
-            spdlog::error("[video] Asset preflight FAILED:\n{}", text);
+        const auto preparation = runtime::prepare_render(
+            sw_renderer, comp,
+            runtime::RenderPreparationOptions{.warmup_renderer = false});
+        if (!preparation.ok()) {
+            spdlog::error("[video] Render preparation FAILED:\n{}",
+                          preparation.diagnostic());
             return session;
         }
     }

@@ -1,5 +1,5 @@
 #include <chronon3d/presets/motion_resolver.hpp>
-#include <chronon3d/presets/motion_preset_registry.hpp>
+#include <chronon3d/presets/motion_preset_catalog.hpp>
 #include <chronon3d/animation/easing/interpolate.hpp>
 
 #include <algorithm>
@@ -74,9 +74,9 @@ MotionState resolve_motion_state(const FrameContext& ctx, const MotionObject& ob
 
     const f32 t = obj.time_value.normalized(ctx.frame());
 
-    auto& registry = MotionPresetRegistry::instance();
-    if (registry.contains(obj.preset_value)) {
-        registry.get(obj.preset_value).resolve(ctx, obj, t, st);
+    const auto& catalog = motion_preset_catalog();
+    if (catalog.contains(obj.preset_value)) {
+        catalog.get(obj.preset_value).resolve(ctx, obj, t, st);
     }
 
     // Apply custom modular animations

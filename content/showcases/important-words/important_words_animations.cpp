@@ -1,6 +1,7 @@
 #include <chronon3d/core/composition/composition_registry.hpp>
 #include <chronon3d/core/types/frame_context.hpp>
 #include <chronon3d/scene/builders/scene_builder.hpp>
+#include <chronon3d/scene/builders/sequence_builder.hpp>
 #include <chronon3d/scene/builders/builder_params.hpp>
 #include <chronon3d/timeline/composition.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
@@ -8,9 +9,11 @@
 #include <chronon3d/text/text_definition.hpp>
 
 #include <array>
+#include <string>
 #include <string_view>
 
 #include "content/common/animation_helpers.hpp"
+#include "content/showcases/minimalist/minimalist_theme.hpp"
 #include "important_words_theme.hpp"
 
 namespace chronon3d::content::important_words {
@@ -26,15 +29,18 @@ using namespace chronon3d::content;
 // `visible_in_out` is (fade_in_frame, hold_until_frame, fade_out_frame).
 // All three must be in [0, duration].
 // `layer_suffix` disambiguates layer names in multi-word compositions (Trio).
+enum class WordMotion { FadeSlide, ScalePop, BlurFocus, SlideLeft, SlideRight };
+
 static void build_important_word(SceneBuilder& s,
                                 const WordPreset& word,
                                 const WordPalette& palette,
                                 Frame fade_in, Frame hold_until, Frame fade_out,
-                                std::string_view layer_suffix = {}) {
+                                std::string_view layer_suffix = {},
+                                WordMotion motion = WordMotion::FadeSlide) {
     const std::string lname = layer_suffix.empty()
         ? std::string("word")
         : std::string("word_") + std::string(layer_suffix);
-    s.layer(lname, [word, palette, fade_in, hold_until, fade_out](LayerBuilder& l) {
+    s.layer(lname, [word, palette, fade_in, hold_until, fade_out, motion](LayerBuilder& l) {
         l.pin_to(Anchor::Center);
         // ── Opacity: hold at 0 until 4f before fade_in, then quick transition ──
         // This prevents layers from slowly fading in from frame 0 in the Trio.
@@ -45,11 +51,22 @@ static void build_important_word(SceneBuilder& s,
             .key(Frame{fade_in},     1.0f,  EasingCurve{Easing::OutCubic})
             .key(Frame{hold_until},  1.0f,  EasingCurve{Easing::Linear})
             .key(Frame{fade_out},    0.0f,  EasingCurve{Easing::InCubic});
+        const f32 x_in = motion == WordMotion::SlideLeft ? -120.0f
+                         : motion == WordMotion::SlideRight ? 120.0f : 0.0f;
         l.position_anim()
-            .key(Frame{0},           Vec3{0.0f, WORD_LOWER_Y + 30.0f, 0.0f}, EasingCurve{Easing::Linear})
-            .key(kPreFade,           Vec3{0.0f, WORD_LOWER_Y + 30.0f, 0.0f}, EasingCurve{Easing::Linear})
+            .key(Frame{0},           Vec3{x_in, WORD_LOWER_Y + 30.0f, 0.0f}, EasingCurve{Easing::Linear})
+            .key(kPreFade,           Vec3{x_in, WORD_LOWER_Y + 30.0f, 0.0f}, EasingCurve{Easing::Linear})
             .key(Frame{fade_in},     Vec3{0.0f, WORD_LOWER_Y,        0.0f}, EasingCurve{Easing::OutCubic})
             .key(Frame{fade_out},    Vec3{0.0f, WORD_LOWER_Y + 12.0f, 0.0f}, EasingCurve{Easing::InCubic});
+        if (motion == WordMotion::ScalePop) {
+            l.scale_anim()
+                .key(Frame{0}, Vec3{0.82f, 0.82f, 1.0f}, EasingCurve{Easing::OutBack})
+                .key(Frame{fade_in}, Vec3{1.0f, 1.0f, 1.0f}, EasingCurve{Easing::OutBack});
+        } else if (motion == WordMotion::BlurFocus) {
+            l.blur_anim()
+                .key(Frame{0}, 14.0f, EasingCurve{Easing::OutCubic})
+                .key(Frame{fade_in}, 0.0f, EasingCurve{Easing::OutCubic});
+        }
         // ── Gradient backdrop — modern material pill shape ──────────
         // Subtle vertical gradient: lighter at top, darker at bottom.
         // Thin white stroke (0.12 alpha) for a clean modern edge.
@@ -83,23 +100,67 @@ static void build_important_word(SceneBuilder& s,
     });
 }
 
-static void build_important_phrase(SceneBuilder& s,
-                                   std::string_view layer_name,
-                                   std::string_view phrase,
-                                   f32 y_offset,
-                                   Frame start_frame) {
-    const std::string node_name = std::string(layer_name) + "_text";
-    s.layer(std::string(layer_name), [phrase, y_offset, start_frame, node_name](LayerBuilder& l) {
+static Composition make_lower_word_animation(const char* name,
+                                             const WordPreset& word,
+                                             const WordPalette& palette,
+                                             WordMotion motion) {
+    return composition({.name = name, .width = 1920, .height = 1080, .duration = 90},
+        [word, palette, motion](const FrameContext& ctx) {
+            SceneBuilder s(ctx);
+            add_black_background(s);
+            build_important_word(s, word, palette, Frame{10}, Frame{70}, Frame{84}, {}, motion);
+            return s.build();
+        });
+}
+
+struct PhraseLine {
+    std::string_view id;
+    std::string_view text;
+    f32 y_offset;
+};
+
+inline constexpr std::array<PhraseLine, 5> kImportantPhrases{{
+    {"phrase_01", "KEEP MOVING",           -240.0f},
+    {"phrase_02", "FOCUS ON WHAT MATTERS", -120.0f},
+    {"phrase_03", "MAKE IT SIMPLE",           0.0f},
+    {"phrase_04", "SHOW YOUR STORY",        120.0f},
+    {"phrase_05", "CREATE WITH PURPOSE",    240.0f},
+}};
+
+using PhraseStartFrames = std::array<Frame, kImportantPhrases.size()>;
+
+struct PhraseStackPreset {
+    std::string_view name;
+    Frame duration;
+    PhraseStartFrames starts;
+};
+
+inline constexpr std::array<PhraseStackPreset, 4> kPhraseStackPresets{{
+    {"ImportantPhrasesStack", Frame{90},
+     {Frame{4}, Frame{8}, Frame{12}, Frame{16}, Frame{20}}},
+    {"ImportantPhrasesStackFast", Frame{60},
+     {Frame{0}, Frame{3}, Frame{6}, Frame{9}, Frame{12}}},
+    {"ImportantPhrasesStackSlow", Frame{120},
+     {Frame{8}, Frame{28}, Frame{48}, Frame{68}, Frame{88}}},
+    {"ImportantPhrasesStackReverse", Frame{90},
+     {Frame{20}, Frame{16}, Frame{12}, Frame{8}, Frame{4}}},
+}};
+
+static void build_important_phrase(SequenceBuilder& sequence,
+                                   const PhraseLine& phrase) {
+    const std::string layer_name{phrase.id};
+    const std::string node_name = layer_name + "_text";
+    sequence.layer(layer_name, [phrase, node_name](LayerBuilder& l) {
         l.pin_to(Anchor::Center);
         l.opacity_anim()
             .key(Frame{0}, 0.0f, EasingCurve{Easing::Linear})
-            .key(start_frame, 1.0f, EasingCurve{Easing::OutCubic});
-        // Keep every row fixed while it fades in. This avoids transient
-        // overlap between neighboring phrases during the staggered reveal.
-        l.position(Vec3{0.0f, y_offset, 0.0f});
+            .key(Frame{8}, 1.0f, EasingCurve{Easing::OutCubic});
+        // The sequence owns the global start frame; this builder only uses
+        // local time, so random-access rendering is equivalent to playback.
+        l.position(Vec3{0.0f, phrase.y_offset, 0.0f});
 
         l.text(node_name, TextDefinition{
-            .content = {.value = std::string(phrase)},
+            .content = {.value = std::string(phrase.text)},
             .style = {
                 .font = {
                     .font_path = "assets/fonts/Poppins-Bold.ttf",
@@ -211,39 +272,21 @@ Composition important_word_trio() {
     });
 }
 
-static Composition make_phrase_stack(std::string_view composition_name,
-                                     Frame duration,
-                                     std::array<Frame, 5> starts) {
-    return composition({.name=std::string(composition_name), .width=1920, .height=1080, .duration=duration}, [starts](const FrameContext& ctx) {
-        SceneBuilder s(ctx);
-        add_black_background(s);
-        build_important_phrase(s, "phrase_01", "KEEP MOVING",          -240.0f, starts[0]);
-        build_important_phrase(s, "phrase_02", "FOCUS ON WHAT MATTERS", -120.0f, starts[1]);
-        build_important_phrase(s, "phrase_03", "MAKE IT SIMPLE",           0.0f, starts[2]);
-        build_important_phrase(s, "phrase_04", "SHOW YOUR STORY",         120.0f, starts[3]);
-        build_important_phrase(s, "phrase_05", "CREATE WITH PURPOSE",     240.0f, starts[4]);
-        return s.build();
+static Composition make_phrase_stack(PhraseStackPreset preset) {
+    return composition({.name=std::string(preset.name), .width=1920, .height=1080, .duration=preset.duration}, [preset](const FrameContext& ctx) {
+        SceneBuilder scene(ctx);
+        add_black_background(scene);
+        for (std::size_t i = 0; i < kImportantPhrases.size(); ++i) {
+            const Frame from = preset.starts[i];
+            scene.sequence(
+                std::string(kImportantPhrases[i].id),
+                {.from = from, .duration = preset.duration - from},
+                [phrase = kImportantPhrases[i]](SequenceBuilder& sequence) {
+                    build_important_phrase(sequence, phrase);
+                });
+        }
+        return scene.build();
     });
-}
-
-Composition important_phrases_stack() {
-    return make_phrase_stack("ImportantPhrasesStack", Frame{90},
-                             {Frame{4}, Frame{8}, Frame{12}, Frame{16}, Frame{20}});
-}
-
-Composition important_phrases_stack_fast() {
-    return make_phrase_stack("ImportantPhrasesStackFast", Frame{60},
-                             {Frame{0}, Frame{3}, Frame{6}, Frame{9}, Frame{12}});
-}
-
-Composition important_phrases_stack_slow() {
-    return make_phrase_stack("ImportantPhrasesStackSlow", Frame{120},
-                             {Frame{8}, Frame{28}, Frame{48}, Frame{68}, Frame{88}});
-}
-
-Composition important_phrases_stack_reverse() {
-    return make_phrase_stack("ImportantPhrasesStackReverse", Frame{90},
-                             {Frame{20}, Frame{16}, Frame{12}, Frame{8}, Frame{4}});
 }
 
 Composition subtitle_yellow_fade() {
@@ -281,18 +324,139 @@ Composition important_words_red_lower() {
     });
 }
 
+Composition important_word_focus() {
+    return make_lower_word_animation("ImportantWordFocus", {"FOCUS", {500.0f, 140.0f}, 72.0f, 8.0f, 32.0f, 28.0f, 10.0f}, PALETTE_WARM, WordMotion::FadeSlide);
+}
+
+Composition important_word_action() {
+    return make_lower_word_animation("ImportantWordAction", {"ACTION", {560.0f, 140.0f}, 72.0f, 8.0f, 32.0f, 28.0f, 10.0f}, PALETTE_LIGHT, WordMotion::ScalePop);
+}
+
+Composition important_word_create() {
+    return make_lower_word_animation("ImportantWordCreate", {"CREATE", {560.0f, 140.0f}, 72.0f, 8.0f, 32.0f, 28.0f, 10.0f}, PALETTE_COOL, WordMotion::BlurFocus);
+}
+
+Composition important_word_story() {
+    return make_lower_word_animation("ImportantWordStory", {"STORY", {500.0f, 140.0f}, 72.0f, 8.0f, 32.0f, 28.0f, 10.0f}, PALETTE_LIGHT, WordMotion::SlideLeft);
+}
+
+Composition important_word_impact() {
+    return make_lower_word_animation("ImportantWordImpact", {"IMPACT", {560.0f, 140.0f}, 72.0f, 8.0f, 32.0f, 28.0f, 10.0f}, PALETTE_COOL, WordMotion::SlideRight);
+}
+
+// ── Image + words showcase ────────────────────────────────────────────────
+// A compact end-to-end example using an asset already shipped by the repo.
+// The image does the visual anchoring; five short phrases, a name line and a
+// subtitle provide the readable story layer.  Motion is deliberately limited
+// to opacity, position and scale so the composition stays cheap for the SDK.
+Composition important_story_image() {
+    return composition({.name="ImportantStoryImage", .width=1920, .height=1080, .duration=150}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        chronon3d::content::minimalist::add_minimalist_background(s);
+
+        s.layer("story_image", [](LayerBuilder& l) {
+            l.pin_to(Anchor::Center);
+            l.position_anim()
+                .key(Frame{0}, Vec3{-500.0f, 36.0f, 0.0f}, EasingCurve{Easing::OutCubic})
+                .key(Frame{42}, Vec3{-500.0f, 0.0f, 0.0f}, EasingCurve{Easing::OutCubic})
+                .key(Frame{120}, Vec3{-500.0f, 0.0f, 0.0f}, EasingCurve{Easing::Linear})
+                .key(Frame{150}, Vec3{-530.0f, 0.0f, 0.0f}, EasingCurve{Easing::InCubic});
+            l.scale_anim()
+                .key(Frame{0}, Vec3{1.04f, 1.04f, 1.0f}, EasingCurve{Easing::OutCubic})
+                .key(Frame{42}, Vec3{1.0f, 1.0f, 1.0f}, EasingCurve{Easing::OutCubic});
+            l.opacity_anim()
+                .key(Frame{0}, 0.0f, EasingCurve{Easing::Linear})
+                .key(Frame{24}, 1.0f, EasingCurve{Easing::OutCubic})
+                .key(Frame{120}, 1.0f, EasingCurve{Easing::Linear})
+                .key(Frame{150}, 0.0f, EasingCurve{Easing::InCubic});
+            chronon3d::content::minimalist::add_image_border(l);
+            l.image("landscape", {
+                .path = chronon3d::content::minimalist::IMAGE_PATH,
+                .size = chronon3d::content::minimalist::IMAGE_SIZE,
+                .radius = chronon3d::content::minimalist::IMAGE_RADIUS
+            });
+        });
+
+        const std::array<std::pair<const char*, Color>, 5> lines = {{
+            {"KEEP MOVING",       {1.00f, 0.45f, 0.30f, 1.0f}},
+            {"FOCUS ON WHAT MATTERS", {1.00f, 0.76f, 0.22f, 1.0f}},
+            {"MAKE IT SIMPLE",     {0.45f, 0.86f, 1.00f, 1.0f}},
+            {"SHOW YOUR STORY",    {0.75f, 0.55f, 1.00f, 1.0f}},
+            {"CREATE WITH PURPOSE",{1.00f, 0.38f, 0.62f, 1.0f}},
+        }};
+        for (std::size_t i = 0; i < lines.size(); ++i) {
+            const auto [text, color] = lines[i];
+            const Frame start{static_cast<Frame>(30 + i * 9)};
+            const f32 y = -190.0f + static_cast<f32>(i) * 82.0f;
+            s.layer("story_phrase_" + std::to_string(i), [text, color, start, y](LayerBuilder& l) {
+                l.pin_to(Anchor::Center);
+                l.position(Vec3{440.0f, y, 0.0f});
+                l.opacity_anim()
+                    .key(Frame{0}, 0.0f, EasingCurve{Easing::Hold})
+                    .key(start, 0.0f, EasingCurve{Easing::Hold})
+                    .key(start + Frame{8}, 1.0f, EasingCurve{Easing::OutCubic})
+                    .key(Frame{132}, 1.0f, EasingCurve{Easing::Linear})
+                    .key(Frame{150}, 0.0f, EasingCurve{Easing::InCubic});
+                l.text("phrase", TextDefinition{
+                    .content = {.value = text},
+                    .style = {.font = {.font_path = "assets/fonts/Poppins-Bold.ttf",
+                                       .font_family = "Poppins", .font_weight = 700,
+                                       .font_size = 42.0f},
+                              .color = color},
+                    .frame = {.size = {760.0f, 72.0f}, .align = TextAlign::Left,
+                              .vertical_align = VerticalAlign::Middle, .tracking = 1.5f}
+                });
+            });
+        }
+
+        s.layer("story_heading", [](LayerBuilder& l) {
+            l.pin_to(Anchor::Center).position({440.0f, -310.0f, 0.0f});
+            l.opacity_anim().key(Frame{0}, 0.0f).key(Frame{45}, 1.0f, EasingCurve{Easing::OutCubic});
+            l.text("heading", TextDefinition{
+                .content = {.value = "MAKE IT MATTER"},
+                .style = {.font = {.font_path = "assets/fonts/Poppins-Bold.ttf",
+                                   .font_family = "Poppins", .font_weight = 700,
+                                   .font_size = 68.0f}, .color = {1.0f, 1.0f, 1.0f, 1.0f}},
+                .frame = {.size = {760.0f, 90.0f}, .align = TextAlign::Left,
+                          .vertical_align = VerticalAlign::Middle, .tracking = 2.0f}
+            });
+        });
+
+        s.layer("story_subtitle", [](LayerBuilder& l) {
+            l.pin_to(Anchor::Center).position({440.0f, 300.0f, 0.0f});
+            l.opacity_anim().key(Frame{45}, 0.0f).key(Frame{65}, 1.0f, EasingCurve{Easing::OutCubic});
+            l.text("subtitle", TextDefinition{
+                .content = {.value = "DIRECTOR  ·  ACTOR  ·  WRITER"},
+                .style = {.font = {.font_path = "assets/fonts/Poppins-Bold.ttf",
+                                   .font_family = "Poppins", .font_weight = 600,
+                                   .font_size = 28.0f}, .color = {1.0f, 0.82f, 0.24f, 1.0f}},
+                .frame = {.size = {760.0f, 60.0f}, .align = TextAlign::Left,
+                          .vertical_align = VerticalAlign::Middle, .tracking = 2.0f}
+            });
+        });
+        return s.build();
+    });
+}
+
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_important_word_compositions(CompositionRegistry& registry) {
     registry.add(make_composition_descriptor("ImportantWordDirectorLight", [](const CompositionProps&) { return important_word_director_light(); }));
     registry.add(make_composition_descriptor("ImportantWordActorWarm", [](const CompositionProps&) { return important_word_actor_warm(); }));
     registry.add(make_composition_descriptor("ImportantWordWriterCool", [](const CompositionProps&) { return important_word_writer_cool(); }));
     registry.add(make_composition_descriptor("ImportantWordTrio", [](const CompositionProps&) { return important_word_trio(); }));
-    registry.add(make_composition_descriptor("ImportantPhrasesStack", [](const CompositionProps&) { return important_phrases_stack(); }));
-    registry.add(make_composition_descriptor("ImportantPhrasesStackFast", [](const CompositionProps&) { return important_phrases_stack_fast(); }));
-    registry.add(make_composition_descriptor("ImportantPhrasesStackSlow", [](const CompositionProps&) { return important_phrases_stack_slow(); }));
-    registry.add(make_composition_descriptor("ImportantPhrasesStackReverse", [](const CompositionProps&) { return important_phrases_stack_reverse(); }));
+    for (const PhraseStackPreset preset : kPhraseStackPresets) {
+        registry.add(make_composition_descriptor(
+            std::string(preset.name),
+            [preset](const CompositionProps&) { return make_phrase_stack(preset); }));
+    }
     registry.add(make_composition_descriptor("SubtitleYellowFade", [](const CompositionProps&) { return subtitle_yellow_fade(); }));
     registry.add(make_composition_descriptor("ImportantWordsRedLower", [](const CompositionProps&) { return important_words_red_lower(); }));
+    registry.add(make_composition_descriptor("ImportantStoryImage", [](const CompositionProps&) { return important_story_image(); }));
+    registry.add(make_composition_descriptor("ImportantWordFocus", [](const CompositionProps&) { return important_word_focus(); }));
+    registry.add(make_composition_descriptor("ImportantWordAction", [](const CompositionProps&) { return important_word_action(); }));
+    registry.add(make_composition_descriptor("ImportantWordCreate", [](const CompositionProps&) { return important_word_create(); }));
+    registry.add(make_composition_descriptor("ImportantWordStory", [](const CompositionProps&) { return important_word_story(); }));
+    registry.add(make_composition_descriptor("ImportantWordImpact", [](const CompositionProps&) { return important_word_impact(); }));
 }
 
 } // namespace chronon3d::content::important_words

@@ -11,9 +11,9 @@
 // `chronon3d::TextAnimatorSpec` — the same struct produced by `Animator`
 // (PR 1) and consumed by the existing per-glyph animation pipeline.
 //
-// ── Domain separation vs `chronon3d::presets::motion::MotionPresetRegistry` ───
+// ── Domain separation vs the enum-keyed motion catalog ──────────────────────
 //
-//   `presets::motion::MotionPresetRegistry` is keyed by enum and returns
+//   `presets::motion::MotionPresetCatalog` is keyed by enum and returns
 //   `MotionPresetDescriptor` (camera / generic-property motion).
 //   `authoring::MotionRegistry` is keyed by string and returns
 //   `TextAnimatorSpec` (per-glyph text animation presets).

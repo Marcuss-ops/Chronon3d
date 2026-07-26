@@ -5,13 +5,13 @@
 // All variants converge to a settled state by `t = 1` of the animation window.
 // =============================================================================
 
-#include <chronon3d/presets/motion_preset_registry.hpp>
+#include <chronon3d/presets/motion_preset_catalog.hpp>
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <cmath>
 
 namespace chronon3d::presets::motion {
 
-void register_reveal_presets(MotionPresetRegistry& r) {
+void register_reveal_presets(detail::MotionPresetCatalogBuilder& r) {
     r.register_preset({
         MotionPreset::None, "None", [](const FrameContext&, const MotionObject&, f32, MotionState&) {}
     });

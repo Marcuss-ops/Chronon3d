@@ -112,10 +112,6 @@ include/chronon3d/render_graph/registry/*
 src/render_graph/registry/*
 include/chronon3d/scene/registry/*
 src/scene/registry/*
-include/chronon3d/scene/builders/commands/*
-src/scene/builders/commands/*
-include/chronon3d/scene/builders/layer_command.hpp
-include/chronon3d/scene/builders/layer_command_registry.hpp
 include/chronon3d/scene/validation/*
 src/scene/validation/*
 include/chronon3d/scene/builders/scene_builder.hpp
@@ -359,9 +355,7 @@ Sono tollerati come legacy ma **nessun nuovo singleton può essere aggiunto**.
 | `AssetRegistry::instance()` | `include/chronon3d/assets/asset_registry.hpp` | PR 3 — `AssetResolver` passato via `ExtensionContext` |
 | `ShapeRegistry::instance()` | `include/chronon3d/registry/shape_registry.hpp` | Da passare via `ExtensionContext` o `PipelineCatalogs` |
 | `GraphBuildRegistry::instance()` | `include/chronon3d/render_graph/builder/graph_build_registry.hpp` | Da passare via `RenderGraphContext` |
-| `LayerCommandRegistry::instance()` | `include/chronon3d/scene/builders/layer_command_registry.hpp` | Da passare via `SceneBuilder` context |
 | `SceneValidationRegistry::instance()` | `include/chronon3d/scene/validation/scene_validation_registry.hpp` | Da passare via `ExtensionContext` |
-| `MotionPresetRegistry::instance()` | `include/chronon3d/presets/motion_preset_registry.hpp` | Da passare via `ExtensionContext` |
 | `ChartRegistry::instance()` | `include/chronon3d/motion_studio/chart/chart_registry.hpp` | Feature Zone — da valutare se necessario |
 
 **Regola:** Ogni nuovo PR che tocca uno di questi file deve includere il piano di de-singletonizzazione o giustificare perché non è ancora possibile.

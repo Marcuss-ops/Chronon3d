@@ -14,8 +14,6 @@
 #include <chronon3d/scene/model/shape/shape.hpp>  // TextPaint, TextShadow
 #include <chronon3d/text/text_content.hpp>           // TextContent (canonical)
 #include <chronon3d/text/text_shaping_options.hpp>   // TextShapingOptions
-#include <chronon3d/text/text_spec.hpp>               // TextSpec (transitional)
-#include <chronon3d/text/text_run_spec.hpp>           // TextRunSpec (transitional)
 #include <chronon3d/text/text_placement.hpp>          // TextPlacement, TextPlacementKind
 
 // Phase A.3 — TextAnimation fields (TextAnimatorSpec, GlyphSelectorSpec,
@@ -187,26 +185,8 @@ struct TextDefinition {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Adapter functions — TextSpec / TextRunSpec → TextDefinition
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// Forward-point: full adapter implementations land in F2.C (text()/
-// text_run() become adapters).  For now, callers can populate TextDefinition
-// directly from TextSpec fields (all fields are public with matching names).
-//
-//   TextDefinition def;
-//   def.content.value = spec.content.value;
-//   def.style.font    = spec.font;
-//   def.style.color   = spec.appearance.color;
-//   def.frame.size    = spec.layout.box;
-//   def.frame.position = spec.position;
-//   // ... etc.
-
-/// Convert a TextRunSpec to the canonical TextDefinition.
-/// Includes animators (maps to TextAnimation placeholder — Phase A.3).
-/// Full implementation in src/text/text_definition.cpp.
-[[nodiscard]] TextDefinition from_text_run_spec(const TextRunSpec& spec);
-
 /// Phase B — lower the canonical TextDefinition into a TextDocument
 /// (the runtime pipeline model consumed by compile_text_layout()).
 ///
@@ -216,8 +196,8 @@ struct TextDefinition {
 ///   - spans (TextSpanOverride) → doc.spans (TextStyleSpan)
 ///   - paragraph → split_paragraphs()
 ///
-/// Callers that need a TextLayoutSpec for compile_text_layout() should use
-/// <chronon3d/compat/text_spec_adapter.hpp> only during the migration.
+/// Callers that need a TextLayoutSpec for compile_text_layout() should lower
+/// through `to_text_document()` and the canonical prepared-text pipeline.
 ///
 /// Usage:
 ///   TextDefinition def = make_text_definition(opts);

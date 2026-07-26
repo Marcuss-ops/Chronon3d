@@ -37,7 +37,7 @@ TEST_CASE("Deterministic Spring") {
     // TICKET-ANIM-SPRING-UNIFY: spring math canonicalized to
     // `sample_spring(TimeSeconds, f32 from, f32 to, SpringConfig)`.
     // The legacy `spring(f32 t,...)` overload is gone — only the
-    // Frame/FrameContext/SequenceContext wrappers remain (which
+    // Frame and FrameContext wrappers remain (which
     // delegate to sample_spring).
 
     // After 0 seconds, it should be at initial position

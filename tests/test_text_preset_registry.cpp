@@ -180,7 +180,7 @@ inline TextDefinition make_chronon_rich_text_spec() {
 // ── Per-preset helper: build → verify node added (Tier C) ──────────────
 // Returns `built.nodes.size()` after invoking the preset.  Used by
 // every Tier-C SUBCASE to keep the boilerplate uniform.
-inline std::size_t invoke_and_node_count(const TextPreset& preset,
+inline std::size_t invoke_and_node_count(const TextPresetDescriptor& preset,
                                           SceneBuilder& sb,
                                           LayerBuilder& lb,
                                           const TextDefinition& ts) {
@@ -287,14 +287,14 @@ TEST_CASE("TextPresetRegistry: metadata + filter tier (Sub-cases 1-6)") {
 
     SUBCASE("6) freeze() blocks further registration (EffectCatalog parity)") {
         TextPresetRegistry reg;
-        TextPreset p;
+        TextPresetDescriptor p;
         p.id = "foo";
         p.metadata.category = TextPresetCategory::Reveal;
         reg.register_preset(p);
         CHECK(reg.contains("foo"));
         reg.freeze();
         CHECK(reg.is_frozen());
-        TextPreset q;
+        TextPresetDescriptor q;
         q.id = "bar";
         CHECK_THROWS_AS(reg.register_preset(q), std::runtime_error);
     }

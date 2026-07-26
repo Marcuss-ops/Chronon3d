@@ -99,22 +99,6 @@ public:
     LayerBuilder& pin_to(AnchorPlacement placement, f32 margin = 0.0f);
     LayerBuilder& keep_in_safe_area(SafeArea area = {});
     LayerBuilder& fit_text();
-    LayerBuilder& center() {
-        m_layer.transform.position = {
-            m_screen_width * 0.5f,
-            m_screen_height * 0.5f,
-            0.0f};
-        return *this;
-    }
-
-    LayerBuilder& font(std::string path) {
-        m_default_font_path = std::move(path);
-        return *this;
-    }
-    LayerBuilder& font_size(f32 size) {
-        m_default_font_size = size;
-        return *this;
-    }
 
     // Explicit node-level access. Shape creation remains LayerBuilder-based;
     // node mutation is always performed through this handle.
@@ -262,8 +246,6 @@ private:
     f32 m_screen_width{1920.0f};
     f32 m_screen_height{1080.0f};
     bool m_screen_dimensions_explicit{false};
-    std::string m_default_font_path;
-    std::optional<f32> m_default_font_size;
     FontEngine* m_font_engine{nullptr};
     registry::ShapeRegistry* m_shape_registry{nullptr};
     std::optional<registry::ShapeRegistry> m_own_shape_registry;

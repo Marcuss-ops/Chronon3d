@@ -70,7 +70,6 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/registry/text_preset_registry.hpp>
 #include <chronon3d/text/text_definition.hpp>
-#include <chronon3d/compat/text_spec_adapter.hpp>
 
 #include <tests/visual/support/golden_test.hpp>
 #include <tests/helpers/test_utils.hpp>

@@ -87,7 +87,7 @@ TEST_CASE("Authoring/Text: center() uses explicit CanvasInfo") {
     LayerBuilder lb("center", SampleTime{});
     Layer layer(lb, canvas(800.0f, 600.0f));
     Text t = layer.text("hero");
-    t.center();
+    t.place(chronon3d::TextPlacement{chronon3d::TextPlacementKind::CanvasCenter}, TextAnchor::Center);
     CHECK(TextRunBuilderInspector::pending_of(t)->params.text.placement.offset
           == doctest::Approx2D(Vec2{400.0f, 300.0f}));
     const auto& layout = TextRunBuilderInspector::pending_of(t)->params.text.layout;
@@ -101,7 +101,7 @@ TEST_CASE("Authoring/Text: center() uses CanvasInfo derived by Layer ctor") {
     lb.screen_dimensions(1280.0f, 720.0f);
     Layer layer(lb);
     Text t = layer.text("x");
-    t.center();
+    t.place(chronon3d::TextPlacement{chronon3d::TextPlacementKind::CanvasCenter}, TextAnchor::Center);
     CHECK(TextRunBuilderInspector::pending_of(t)->params.text.placement.offset
           == doctest::Approx2D(Vec2{640.0f, 360.0f}));
 }
@@ -273,7 +273,9 @@ TEST_CASE("Authoring/Text: motion(id, registry) appends resolved animator") {
     preset.properties.emplace_back(BlurProperty{12.0f});
     motions.register_motion("text.reveal.soft", preset);
     Text t = layer.text("hero");
-    t.font("Inter-Bold.ttf", 106.0f).center().motion("text.reveal.soft", motions);
+    t.font("Inter-Bold.ttf", 106.0f)
+     .place(chronon3d::TextPlacement{chronon3d::TextPlacementKind::CanvasCenter}, TextAnchor::Center)
+     .motion("text.reveal.soft", motions);
     REQUIRE(TextRunBuilderInspector::pending_of(t)->params.animators.size() == 1);
     CHECK(TextRunBuilderInspector::pending_of(t)->params.animators[0].id == "text.reveal.soft");
     CHECK(TextRunBuilderInspector::pending_of(t)->params.animators[0].properties.size() == 2);
@@ -303,7 +305,7 @@ TEST_CASE("Authoring/Text: end-to-end hero chain is mutator-agnostic to TextRunB
     layer.text("FUTURI MILIONARI")
         .id("hero-title")
         .font("assets/fonts/Inter-Bold.ttf", 106.0f)
-        .center()
+        .place(chronon3d::TextPlacement{chronon3d::TextPlacementKind::CanvasCenter}, TextAnchor::Center)
         .box({1500.0f, 220.0f})
         .align(TextAlign::Center)
         .vertical_align(VerticalAlign::Middle)

@@ -69,6 +69,38 @@ TEST_CASE("Spring sample_spring — initial velocity (v0 != 0)") {
     }
 }
 
+TEST_CASE("Spring sample_spring exposes deterministic velocity") {
+    const SpringConfig config{
+        .mass = 1.0f, .stiffness = 100.0f, .damping = 15.0f,
+        .initial_velocity = 10.0f};
+
+    const SpringSample at_zero = sample_spring(0.0, 0.0f, 1.0f, config);
+    const SpringSample at_time = sample_spring(0.1, 0.0f, 1.0f, config);
+
+    CHECK(at_zero.value == 0.0f);
+    CHECK(at_zero.velocity == 10.0f);
+    CHECK(std::isfinite(at_time.value));
+    CHECK(std::isfinite(at_time.velocity));
+    const SpringSample repeated = sample_spring(0.1, 0.0f, 1.0f, config);
+    CHECK(at_time.value == repeated.value);
+    CHECK(at_time.velocity == repeated.velocity);
+}
+
+TEST_CASE("Spring invalid configuration fails clearly") {
+    CHECK_THROWS_AS(
+        sample_spring(0.1, 0.0f, 1.0f,
+                            SpringConfig{.mass = 0.0f}),
+        std::invalid_argument);
+    CHECK_THROWS_AS(
+        sample_spring(0.1, 0.0f, 1.0f,
+                            SpringConfig{.stiffness = -1.0f}),
+        std::invalid_argument);
+    CHECK_THROWS_AS(
+        sample_spring(0.1, 0.0f, 1.0f,
+                            SpringConfig{.damping = -1.0f}),
+        std::invalid_argument);
+}
+
 TEST_CASE("Spring sample_spring — overdamped case") {
     // zeta = damping / (2 * sqrt(stiffness * mass))
     // zeta > 1 ⇒ overdamped; no oscillation.
@@ -102,20 +134,6 @@ TEST_CASE("Spring — FrameContext overload") {
     SUBCASE("high frame converges") {
         ctx = ctx.with_frame(Frame{300});
         CHECK(spring(ctx, 0.0f, 100.0f) == doctest::Approx(100.0f).epsilon(0.01));
-    }
-}
-
-TEST_CASE("Spring — SequenceContext overload") {
-    FrameContext parent;
-    parent = parent.with_frame(Frame{10});
-    parent = parent.with_frame_rate({30, 1});
-
-    SequenceContext seq = sequence(parent, Frame{0}, Frame{60});
-
-    SUBCASE("frame 0 in sequence returns from") {
-        parent = parent.with_frame(Frame{0});
-        seq = sequence(parent, Frame{0}, Frame{60});
-        CHECK(spring(seq, 0.0f, 100.0f) == doctest::Approx(0.0f));
     }
 }
 

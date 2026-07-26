@@ -1,6 +1,6 @@
 # Chronon3D — Current Status
 
-> Ultima revisione semantica: 2026-07-22.
+> Ultima revisione semantica: 2026-07-26.
 > Ultima baseline certificata: `main@7eb5c2ba`, 11/11 PASS.
 > I commit successivi alla baseline non sono implicitamente certificati.
 > Lo SHA live del branch è fornito da Git/CI, non da questo documento.
@@ -37,14 +37,15 @@ Indice completo (10 blocker sintetici): [`docs/FOLLOWUP_TICKETS.md`](docs/FOLLOW
 | Text Production / CapCut-grade V1 | PARTIAL | Canonical TextDefinition path, catalogo 20 preset generali + 8 subtitle, subtitle matrix 192/192 non-empty, alignment e auto-fit focused tests PASS. CapCut parity is now a strict release-blocking gate, but the repository still has zero blessed PNG exports from CapCut. Vedi [TICKET-CAPCUT-REFERENCE-CORPUS](tickets/TICKET-CAPCUT-REFERENCE-CORPUS.md). |
 | Test hardening (false-green audit) | PASS | Auto-fit e alignment sono assertions bloccanti; il parity harness non accetta più reference mancanti o corpus vuoti. Vedi [TICKET-FALSE-GREEN-TEST-AUDIT](tickets/TICKET-FALSE-GREEN-TEST-AUDIT.md). |
 | Text Health | PASS | `chronon3d_text_health_tests` PASS (1/1) on main. |
-| Text API migration (Blocco 5.1/5.2) | PASS | Public authoring and preset paths use `TextDefinition`; `centered_text`, `glow_text`, public reverse adapters and legacy fixture targets were removed. Internal runtime transport structs remain implementation details. |
+| Text API migration (Blocco 5.1/5.2) | PARTIAL | Static authoring and preset paths use `TextDefinition`; public reverse adapters and legacy fixture targets were removed. `animated_text(TextRunSpec)` and internal text transport structs still require the physical migration tracked by [TICKET-DEPRECATED-API-REMOVAL](tickets/TICKET-DEPRECATED-API-REMOVAL.md). |
+| Animation / local-time / asset preparation | PASS (focused) | Un solo interpolate con `Extrapolate`, una `SpringConfig`, random deterministico per stagger, sequence su `FrameContext` locale e barriera `prepare_render()` verificati con test mirati; full baseline non ricalcolata su questo worktree. |
 | Authoring facade | WIRED / GUARDED | `asset(path)` è context-typed e kind-free; due `RenderEngine` con root distinti, CWD ostile, font/image logical refs e missing-image fail-loud coperti da test. Gate statico vieta root globali, fallback CWD, resolver nelle composizioni e mega-header. |
 | Timeline props | WIRED | `PropsCodec`/`PropsSchema` typed composition props landed; registry resolve ora trasporta il costruttore preparato senza una seconda decode/factory pass. |
 | Render job execution | WIRED / GUARDED | Pipeline unica `RenderRequest → RenderJob → execute_render_job(const RenderJob&)`; `ResolvedRenderJob`, conversioni legacy e executor separati vietati dal gate. Suite focalizzata e workflow matrix aggiunti; esecuzione CI NOT RUN/NOT OBSERVED. |
 | SDK C++ installabile | PASS baseline / WIRED extension | Gate #10 storico PASS. Nuovo FILE_SET authoring disgiunto, closure gate e consumer installato `check_assets` implementati; nuova estensione non ancora certificata su CI. |
 | SDK cross-language | NOT RUN | C ABI e formato `.chronon` da progettare. |
 | Modular graph legacy path | PARTIAL | `use_modular_graph = false` ancora esposto in CLI e `RenderSettings`, ma non mantenuto; 6 test in `test_unified_transform_path` e `test_pipeline_robustness` falliscono su quel percorso. Tracciato in [TICKET-MODULAR-GRAPH-FALSE-REMOVAL](tickets/TICKET-MODULAR-GRAPH-FALSE-REMOVAL.md). |
-| Render runtime | PASS baseline / WIRED fail-loud | Runtime per-instance certificato nella baseline storica; il bridge SDK propaga `NodeExecutionError` come `RenderError::RuntimeFailure`, con test missing-image non ancora osservato. |
+| Render runtime | PASS baseline / WIRED fail-loud | Runtime per-instance certificato nella baseline storica; `prepare_render()` orchestra preflight, resource preparation e warmup nei percorsi CLI e nella boundary `chronon3d::RenderEngine::render()`, con test fail-loud/idempotenza/null-renderer mirati. |
 | Composition pipeline | PASS | Canonical pipeline documented; Sequence V2 + Asset Readiness code-complete. |
 | CompositionDescriptor migration | PARTIAL | `add(name, factory)` deprecated (ADR-027); 200+ legacy callers remain; Chore B bulk migration OPEN. |
 | Video pipeline | PASS | Structured error reporting (13 codes); atomic output; 98 video tests pass. |
