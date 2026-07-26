@@ -506,13 +506,14 @@ inline void seed_builtin_presets(MotionPresetCatalogBuilder& reg) {
 
 // ── Immutable built-in catalog ─────────────────────────────────────────
 
+inline const MotionPresetCatalog kBuiltinMotionPresetCatalog = []() {
+    detail::MotionPresetCatalogBuilder builder;
+    detail::seed_builtin_presets(builder);
+    return std::move(builder).build();
+}();
+
 [[nodiscard]] inline const MotionPresetCatalog& motion_preset_catalog() {
-    static const MotionPresetCatalog catalog = []() {
-        detail::MotionPresetCatalogBuilder builder;
-        detail::seed_builtin_presets(builder);
-        return std::move(builder).build();
-    }();
-    return catalog;
+    return kBuiltinMotionPresetCatalog;
 }
 
 } // namespace chronon3d::presets

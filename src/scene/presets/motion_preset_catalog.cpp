@@ -10,6 +10,16 @@
 
 namespace chronon3d::presets::motion {
 
+namespace {
+
+const MotionPresetDescriptor kMissingMotionPresetDescriptor{
+    MotionPreset::None,
+    "None",
+    [](const FrameContext&, const MotionObject&, f32, MotionState&) {}
+};
+
+} // namespace
+
 void register_reveal_presets(detail::MotionPresetCatalogBuilder&);
 void register_3d_presets(detail::MotionPresetCatalogBuilder&);
 void register_glow_presets(detail::MotionPresetCatalogBuilder&);
@@ -53,25 +63,21 @@ const MotionPresetDescriptor& MotionPresetCatalog::get(MotionPreset preset) cons
         });
     if (it != m_presets.end()) return *it;
 
-    static const MotionPresetDescriptor fallback{
-        MotionPreset::None,
-        "None",
-        [](const FrameContext&, const MotionObject&, f32, MotionState&) {}
-    };
-    return fallback;
+    return kMissingMotionPresetDescriptor;
 }
 
+const MotionPresetCatalog kBuiltinMotionPresetCatalog = [] {
+    detail::MotionPresetCatalogBuilder builder;
+    register_reveal_presets(builder);
+    register_3d_presets(builder);
+    register_glow_presets(builder);
+    register_idle_presets(builder);
+    register_impact_presets(builder);
+    return std::move(builder).build();
+}();
+
 const MotionPresetCatalog& motion_preset_catalog() {
-    static const MotionPresetCatalog catalog = [] {
-        detail::MotionPresetCatalogBuilder builder;
-        register_reveal_presets(builder);
-        register_3d_presets(builder);
-        register_glow_presets(builder);
-        register_idle_presets(builder);
-        register_impact_presets(builder);
-        return std::move(builder).build();
-    }();
-    return catalog;
+    return kBuiltinMotionPresetCatalog;
 }
 
 } // namespace chronon3d::presets::motion

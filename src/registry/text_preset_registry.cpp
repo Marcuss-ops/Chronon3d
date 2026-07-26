@@ -284,29 +284,21 @@ wire_preset_text_run_params(std::string_view preset_id,
 TextPresetRegistry make_default_text_preset_registry() {
     TextPresetRegistry r;
     register_helpers_internal::register_builtin_presets(r);
+    r.freeze();
     return r;
 }
 
 // ── builtin_text_preset_registry ──────────────────────────────────────────
 //
-// Process-stable shared instance.  C++11 guarantees thread-safe
-// initialization of the magic-static on first call; subsequent calls
-// hand back the same `const TextPresetRegistry&` reference.
-//
-// Frozen contract: post-seed `r.freeze()` ensures any later
-// `register_preset` call (e.g. someone monkey-patching from a test
-// or a future authoring facade) throws `std::runtime_error`.  Production
-// consumers should treat this returned ref as READ-ONLY beyond the
-// 28 built-ins.
+// Built-in catalog storage is a single immutable namespace-scope object.
+// The accessor is intentionally only a view; production consumers cannot
+// mutate the frozen catalog through this API.
+const TextPresetRegistry kBuiltinTextPresetRegistry =
+    make_default_text_preset_registry();
+
 const TextPresetRegistry&
 builtin_text_preset_registry() noexcept {
-    static const TextPresetRegistry r = []{
-        TextPresetRegistry reg;
-        register_helpers_internal::register_builtin_presets(reg);
-        reg.freeze();
-        return reg;
-    }();
-    return r;
+    return kBuiltinTextPresetRegistry;
 }
 
 } // namespace chronon3d::registry
