@@ -7,6 +7,7 @@
 #include <chronon3d/graphics/shape_style/fill_style.hpp>
 #include <chronon3d/text/text_definition.hpp>
 
+#include <array>
 #include <string_view>
 
 #include "content/common/animation_helpers.hpp"
@@ -197,17 +198,39 @@ Composition important_word_trio() {
     });
 }
 
-Composition important_phrases_stack() {
-    return composition({.name="ImportantPhrasesStack", .width=1920, .height=1080, .duration=90}, [](const FrameContext& ctx) {
+static Composition make_phrase_stack(std::string_view composition_name,
+                                     Frame duration,
+                                     std::array<Frame, 5> starts) {
+    return composition({.name=std::string(composition_name), .width=1920, .height=1080, .duration=duration}, [starts](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         add_black_background(s);
-        build_important_phrase(s, "phrase_01", "KEEP MOVING",          -240.0f, Frame{4});
-        build_important_phrase(s, "phrase_02", "FOCUS ON WHAT MATTERS", -120.0f, Frame{8});
-        build_important_phrase(s, "phrase_03", "MAKE IT SIMPLE",           0.0f, Frame{12});
-        build_important_phrase(s, "phrase_04", "SHOW YOUR STORY",         120.0f, Frame{16});
-        build_important_phrase(s, "phrase_05", "CREATE WITH PURPOSE",     240.0f, Frame{20});
+        build_important_phrase(s, "phrase_01", "KEEP MOVING",          -240.0f, starts[0]);
+        build_important_phrase(s, "phrase_02", "FOCUS ON WHAT MATTERS", -120.0f, starts[1]);
+        build_important_phrase(s, "phrase_03", "MAKE IT SIMPLE",           0.0f, starts[2]);
+        build_important_phrase(s, "phrase_04", "SHOW YOUR STORY",         120.0f, starts[3]);
+        build_important_phrase(s, "phrase_05", "CREATE WITH PURPOSE",     240.0f, starts[4]);
         return s.build();
     });
+}
+
+Composition important_phrases_stack() {
+    return make_phrase_stack("ImportantPhrasesStack", Frame{90},
+                             {Frame{4}, Frame{8}, Frame{12}, Frame{16}, Frame{20}});
+}
+
+Composition important_phrases_stack_fast() {
+    return make_phrase_stack("ImportantPhrasesStackFast", Frame{60},
+                             {Frame{0}, Frame{3}, Frame{6}, Frame{9}, Frame{12}});
+}
+
+Composition important_phrases_stack_slow() {
+    return make_phrase_stack("ImportantPhrasesStackSlow", Frame{120},
+                             {Frame{8}, Frame{28}, Frame{48}, Frame{68}, Frame{88}});
+}
+
+Composition important_phrases_stack_reverse() {
+    return make_phrase_stack("ImportantPhrasesStackReverse", Frame{90},
+                             {Frame{20}, Frame{16}, Frame{12}, Frame{8}, Frame{4}});
 }
 
 // ── Per-domain registration ──────────────────────────────────────────────────
@@ -217,6 +240,9 @@ void register_important_word_compositions(CompositionRegistry& registry) {
     registry.add(make_composition_descriptor("ImportantWordWriterCool", [](const CompositionProps&) { return important_word_writer_cool(); }));
     registry.add(make_composition_descriptor("ImportantWordTrio", [](const CompositionProps&) { return important_word_trio(); }));
     registry.add(make_composition_descriptor("ImportantPhrasesStack", [](const CompositionProps&) { return important_phrases_stack(); }));
+    registry.add(make_composition_descriptor("ImportantPhrasesStackFast", [](const CompositionProps&) { return important_phrases_stack_fast(); }));
+    registry.add(make_composition_descriptor("ImportantPhrasesStackSlow", [](const CompositionProps&) { return important_phrases_stack_slow(); }));
+    registry.add(make_composition_descriptor("ImportantPhrasesStackReverse", [](const CompositionProps&) { return important_phrases_stack_reverse(); }));
 }
 
 } // namespace chronon3d::content::important_words
