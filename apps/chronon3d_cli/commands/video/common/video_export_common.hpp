@@ -18,6 +18,7 @@
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
 #include <chronon3d/core/cancellation_token.hpp>
 #include <chronon3d/presets/camera_motion_clip.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/renderer_warmup.hpp>
 #include <string>
 #include <memory>
@@ -93,6 +94,7 @@ inline Scene evaluate_video_scene(
         .width = comp.width(),
         .height = comp.height(),
         .assets_root = comp.assets_root(),
+        .font_engine = &renderer.runtime().font_engine(),
         .runtime = &renderer.runtime(),
     }));
 }

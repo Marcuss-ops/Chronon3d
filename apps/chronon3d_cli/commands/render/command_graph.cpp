@@ -3,6 +3,7 @@
 #include <chronon3d/cache/cache_diagnostics.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
 #include <chronon3d/render_graph/builder/graph_builder.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/scene/model/render/resolved_types.hpp>
 #include <chronon3d/math/projector_2_5d.hpp>
 #include <fmt/format.h>

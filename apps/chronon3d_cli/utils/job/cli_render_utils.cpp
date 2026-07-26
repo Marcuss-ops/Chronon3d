@@ -12,6 +12,8 @@
 // was deleted).  If a future caller re-introduces an EXPLICIT
 // `--assets-root` CLI flag wiring, restore the include here.
 #include <cassert>
+#include <cstdlib>
+#include <filesystem>
 #include <spdlog/spdlog.h>
 
 namespace chronon3d {
@@ -89,6 +91,15 @@ std::shared_ptr<SoftwareRenderer> create_renderer(
         // Replaces the previously-inlined services bundle +
         // make_software_backend + attach_processor_context duplicate.
         chronon3d::backends::software::attach_software_backend(renderer.get());
+    }
+
+    // Explicit CLI asset mounting for standalone renders.  Do not fall back
+    // to the process CWD: callers must opt in so an unrelated working
+    // directory can never silently become the project's asset root.
+    if (const char* assets_root = std::getenv("CHRONON3D_CLI_ASSETS_ROOT");
+        assets_root && *assets_root) {
+        renderer->runtime().resolver().mount(std::filesystem::path{assets_root});
+        spdlog::debug("CLI assets root mounted: {}", assets_root);
     }
 
     // FIX (video-pipeline SEGV): capture cwd once and mount it on both
