@@ -19,8 +19,8 @@ using namespace chronon3d;
 
 namespace {
 
-TextSpec make_defaults() {
-    TextSpec ts;
+TextDefaults make_defaults() {
+    TextDefaults ts;
     ts.content.value = "";  // placeholder — actual text is in TextDocument.utf8
     ts.font.font_path = "assets/fonts/Inter-Bold.ttf";
     ts.font.font_family = "Inter";

@@ -203,7 +203,7 @@ Composition bench_b04_layers_100() {
                 op.key(Frame{0}, 0.0f, EasingCurve{Easing::Hold});
                 op.key(delay,    0.0f, EasingCurve{Easing::OutCubic});
                 op.key(delay + Frame{15}, 1.0f, EasingCurve{Easing::Linear});
-                l.settle(0.06f, Frame{10});
+                l.motion("settle", {.amount = 0.06f, .duration = Frame{10}});
             });
         }
         return s.build();
@@ -278,7 +278,7 @@ Composition bench_b06_video_overlay_1080p() {
                 TextAlign::Center, {1400.0f, 100.0f}, {0.0f, 0.0f, 0.0f}
             ));
             l.drop_shadow({0.0f, 8.0f}, {0.0f, 0.0f, 0.0f, 0.55f}, 18.0f);
-            l.fade_in(Frame{15}, EasingCurve{Easing::OutCubic});
+            l.motion("fade_in", {.duration = Frame{15}, .easing = EasingCurve{Easing::OutCubic}});
         });
         return s.build();
     });
@@ -489,7 +489,7 @@ Composition bench_b09_long_form_10_minutes() {
                 TextAlign::Center, {1400.0f, 110.0f}, {0.0f, 0.0f, 0.0f}
             ));
             // Single fade-in animation; rest of the timeline is static.
-            l.fade_in(Frame{15}, EasingCurve{Easing::OutCubic});
+            l.motion("fade_in", {.duration = Frame{15}, .easing = EasingCurve{Easing::OutCubic}});
         });
         return s.build();
     });

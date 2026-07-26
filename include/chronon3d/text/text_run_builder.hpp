@@ -352,7 +352,7 @@ struct TextLayoutRequest {
 
 /// X2 canonical overload: compile a paragraph from a PreparedText payload.
 /// The compiler consumes TextDefStyle, TextFrame, and TextShapingOptions
-/// directly instead of reverse-adapting to TextSpec/TextLayoutSpec.
+/// directly instead of reverse-adapting to TextDefaults/TextLayoutSpec.
 [[nodiscard]] Result<
     std::shared_ptr<TextRunLayout>,
     TextLayoutError

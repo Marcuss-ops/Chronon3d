@@ -181,7 +181,7 @@ void SubtitleTrackBuilder::build() {
             continue;
         }
 
-        TextSpec spec;
+        TextDefaults spec;
         spec.content.value = cue.text;
         spec.font.font_path = font_path_;
         spec.font.font_size = font_size_;
@@ -203,7 +203,7 @@ void SubtitleTrackBuilder::build() {
         const Frame end_frame = seconds_to_frame(cue.end_s);
         const Frame duration_frames = std::max(Frame{1}, end_frame - start_frame);
 
-        TextRunSpec run_spec =
+        TextRunDefinition run_spec =
             registry::wire_preset_text_run_params(preset_id_, spec);
 
         // TICKET-TIMED-WORD-BINDING: emit N per-word selectors and wire
@@ -223,7 +223,7 @@ void SubtitleTrackBuilder::build() {
         //
         // The selectors live inside the first animator (the preset's own
         // animator returned by wire_preset_text_run_params).  Putting them
-        // in TextRunSpec::selectors would orphan them because the
+        // in TextRunDefinition::selectors would orphan them because the
         // materializer evaluates only animator-bound selectors during
         // per-frame evaluation.
         std::vector<GlyphSelectorSpec> word_selectors =
@@ -237,7 +237,7 @@ void SubtitleTrackBuilder::build() {
         // If the preset has no animator (e.g. minimal_white) there is no
         // property to drive per-word highlighting; drop the selectors.
 
-        builder_->animated_text("subtitle_cue_" + std::to_string(i), run_spec)
+        builder_->text_run("subtitle_cue_" + std::to_string(i), run_spec)
             .commit()
             .start_at(start_frame)
             .duration(duration_frames);

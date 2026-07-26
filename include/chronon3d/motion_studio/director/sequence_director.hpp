@@ -12,7 +12,7 @@
 //    director.beat("typing_done", Frame{120});
 //
 //    l.position(...)            // optional static
-//    l.soft_pop( director.frame("hero_in") );
+//    l.motion("soft_pop", {.duration = director.frame("hero_in")});
 //    l.opacity_anim().key( director.frame("cards_in"), 0.0f, … )
 //                     .key( director.frame("cards_in") + 20, 1.0f, … );
 //

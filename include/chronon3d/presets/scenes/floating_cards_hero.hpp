@@ -69,7 +69,7 @@ inline Composition floating_cards_hero() {
                     sp.title, 18.0f, 700, {0.90f, 0.92f, 0.98f, 1.0f},
                     TextAlign::Center, {220.0f, 36.0f}, {0.0f, 20.0f, 1.0f}
                 ));
-                l.depth_reveal(sp.depth_z, Frame{40});
+                l.motion("depth_reveal", {.amount = sp.depth_z, .duration = Frame{40}});
             });
         }
 
@@ -86,7 +86,7 @@ inline Composition floating_cards_hero() {
                 TextAlign::Center, {900.0f, 70.0f}
             ));
             l.glow(GlowParams{.radius = 18.0f, .intensity = 0.30f, .color = Color{0.3f, 0.6f, 1.0f, 1.0f}, .threshold = 0.0f});
-            l.float_idle(8.0f, Frame{100});
+            l.motion("float_idle", {.amount = 8.0f, .cycle = Frame{100}});
         });
 
         return s.build();

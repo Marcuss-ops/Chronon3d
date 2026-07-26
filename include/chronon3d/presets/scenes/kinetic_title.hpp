@@ -74,7 +74,7 @@ inline Composition kinetic_title() {
             ));
             l.glow(GlowParams{.radius = 24.0f, .intensity = 0.40f, .color = Color{0.50f, 0.30f, 1.0f, 1.0f}, .threshold = 0.0f});
             l.bloom(0.60f, 20.0f, 0.35f);
-            l.settle(0.08f, Frame{30});
+            l.motion("settle", {.amount = 0.08f, .duration = Frame{30}});
         });
 
         s.layer("subtitle", [](LayerBuilder& l) {

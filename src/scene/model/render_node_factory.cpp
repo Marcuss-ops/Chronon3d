@@ -168,8 +168,8 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
 
 // ── M1.5#9 steps 2-4 — RenderNodeFactory::text() (DONE) ─────────────────
 //
-// Refactor: `text(...)` now wraps the supplied `TextSpec` into a
-// `TextRunSpec` and delegates to `materialize_text_run_shape(...)`,
+// Refactor: `text(...)` now wraps the supplied `TextDefaults` into a
+// `TextRunDefinition` and delegates to `materialize_text_run_shape(...)`,
 // the single canonical materializer shared with `text_run()` and
 // `LayerBuilder::build()`.  The legacy `ShapeType::Text` code path
 // that built a `TextShape` (paint / shadows / material / font fields /
@@ -181,7 +181,7 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
 // rasterizer infrastructure (`src/backends/text/text_rasterizer_render.cpp`
 // + `Blend2DResources` + `FtGlyphPathBuilder` + `rasterize_text_to_bl_image`).
 //
-// Back-compat: existing 3-arg callers `text(res, name, TextSpec)`
+// Back-compat: existing 3-arg callers `text(res, name, TextDefaults)`
 // still compile and behave identically for non-materialization
 // properties (anchor, position, color, fill, layout.box-derived
 // transform).  Materialization of paint / shadows / material / font
@@ -201,7 +201,7 @@ RenderNode RenderNodeFactory::grid_background(std::pmr::memory_resource* res, st
 RenderNode RenderNodeFactory::text(
     std::pmr::memory_resource* res,
     std::string name,
-    TextSpec p,
+    TextDefaults p,
     FontEngine* engine /* = nullptr, see header */
 ) {
     auto node = base(res, std::move(name));
@@ -221,7 +221,7 @@ RenderNode RenderNodeFactory::text(
     // ORDERING INVARIANT: read `p.layout.{anchor,box}` and
     // `p.position` and `p.appearance.{color,shadows,paint,material}`
     // HERE, before the std::move(p) into run_spec.text below.
-    // Reordering breaks world_transform resolution (the source TextSpec
+    // Reordering breaks world_transform resolution (the source TextDefaults
     // members would be moved-from by the time these reads happen).
     const TextAnchor   box_anchor = p.layout.anchor;
     const Vec2         box_size   = p.layout.box;
@@ -246,12 +246,12 @@ RenderNode RenderNodeFactory::text(
 
     // ── Delegate to canonical materializer ──
     //
-    // Wrap the legacy TextSpec into the canonical TextRunSpec and
+    // Wrap the legacy TextDefaults into the canonical TextRunDefinition and
     // delegate to `materialize_text_run_shape(...)`.  cache_layout=true
     // mirrors the TextRunBuilder default; animators/selectors are
     // empty for the simple text() path (callers wanting animated
     // text should use `text_run()` or `LayerBuilder::text_run(...)`).
-    TextRunSpec run_spec;
+    TextRunDefinition run_spec;
     run_spec.text         = std::move(p);
     run_spec.cache_layout = true;
 
@@ -294,7 +294,7 @@ RenderNode RenderNodeFactory::text(
 RenderNode RenderNodeFactory::text_run(
     std::pmr::memory_resource* res,
     std::string name,
-    TextRunSpec p,    // canonical composable (TextRunSpec was the prior alias)
+    TextRunDefinition p,    // canonical composable (TextRunDefinition was the prior alias)
     FontEngine* engine,
     SampleTime sample_time
 ) {
@@ -302,13 +302,13 @@ RenderNode RenderNodeFactory::text_run(
     node.shape.set_type(ShapeType::TextRun);
     node.font_engine = engine;
 
-    // World transform from TextRunSpec (deep-nested field paths).
+    // World transform from TextRunDefinition (deep-nested field paths).
     node.world_transform.position = Vec3{p.text.placement.offset.x, p.text.placement.offset.y, 0.0f};
     node.world_transform.anchor = resolve_text_anchor(
         p.text.layout.anchor, p.text.layout.box);
 
 #ifdef CHRONON3D_USE_BLEND2D
-    // ── Pass canonical composite TextRunSpec directly ───────────────
+    // ── Pass canonical composite TextRunDefinition directly ───────────────
     auto shape = materialize_text_run_shape(p, engine, sample_time);
     if (!shape) {
         // Materialization failed (shaping / empty text).  Leave

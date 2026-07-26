@@ -89,7 +89,7 @@ Composition build_anim_position_composition(
                 auto& pos = l.position_anim();
                 pos.set(Vec3{400.0f, 0.0f, 0.0f});
                 pos.add_keyframe(Frame{30}, Vec3{1520.0f, 0.0f, 0.0f}, EasingCurve{Easing::Linear});
-                l.animated_text("title", TextRunParams{
+                l.text_run("title", TextRunDefinition{
                     .text = {
                         .content = {.value = "MOVE"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {static_cast<float>(canvas_w) * 0.5f, cy}},

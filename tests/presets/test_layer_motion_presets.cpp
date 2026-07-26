@@ -9,7 +9,7 @@ TEST_CASE("LayerBuilder::slide_in creates animated keyframes") {
     LayerBuilder builder("test", Frame{0}, FrameRate{30, 1});
     builder.position({100.0f, 50.0f, 0.0f})
            .opacity(1.0f)
-           .slide_in(Vec3{-200.0f, 0.0f, 0.0f}, Frame{45});
+           .motion("slide_in", {.vector = Vec3{-200.0f, 0.0f, 0.0f}, .duration = Frame{45}});
 
     Layer l = builder.build();
     CHECK(l.anim_transform.is_animated());
@@ -31,7 +31,7 @@ TEST_CASE("LayerBuilder::soft_pop creates scale + opacity keyframes") {
     LayerBuilder builder("test", Frame{0}, FrameRate{30, 1});
     builder.scale({1.0f, 1.0f, 1.0f})
            .opacity(1.0f)
-           .soft_pop(Frame{30});
+           .motion("soft_pop", {.duration = Frame{30}});
 
     Layer l = builder.build();
     CHECK(l.anim_transform.scale.is_animated());
@@ -49,7 +49,7 @@ TEST_CASE("LayerBuilder::soft_pop creates scale + opacity keyframes") {
 TEST_CASE("LayerBuilder::float_idle creates looping position keyframes") {
     LayerBuilder builder("test", Frame{0}, FrameRate{30, 1});
     builder.position({0.0f, 0.0f, 0.0f})
-           .float_idle(12.0f, Frame{120});
+           .motion("float_idle", {.amount = 12.0f, .cycle = Frame{120}});
 
     Layer l = builder.build();
     CHECK(l.anim_transform.position.is_animated());
@@ -72,7 +72,7 @@ TEST_CASE("LayerBuilder::depth_reveal enables 3D and animates Z") {
     LayerBuilder builder("test", Frame{0}, FrameRate{30, 1});
     builder.position({0.0f, 0.0f, 0.0f})
            .opacity(1.0f)
-           .depth_reveal(260.0f, Frame{45});
+           .motion("depth_reveal", {.amount = 260.0f, .duration = Frame{45}});
 
     Layer l = builder.build();
     CHECK(l.uses_2_5d_projection);
@@ -89,7 +89,7 @@ TEST_CASE("LayerBuilder::card_flip_2_5d enables 3D and rotates Y") {
     LayerBuilder builder("test", Frame{0}, FrameRate{30, 1});
     builder.rotate({0.0f, 0.0f, 0.0f})
            .opacity(1.0f)
-           .card_flip_2_5d(Frame{60});
+           .motion("card_flip_2_5d", {.duration = Frame{60}});
 
     Layer l = builder.build();
     CHECK(l.uses_2_5d_projection);
@@ -109,7 +109,7 @@ TEST_CASE("LayerBuilder::settle creates overshoot keyframes") {
     LayerBuilder builder("test", Frame{0}, FrameRate{30, 1});
     builder.scale({1.0f, 1.0f, 1.0f})
            .position({0.0f, 0.0f, 0.0f})
-           .settle(0.08f, Frame{20});
+           .motion("settle", {.amount = 0.08f, .duration = Frame{20}});
 
     Layer l = builder.build();
     CHECK(l.anim_transform.scale.is_animated());

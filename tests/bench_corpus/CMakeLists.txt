@@ -1,7 +1,7 @@
 # tests/bench_corpus/CMakeLists.txt — Sanity test for the 12-scene bench corpus.
 #
 # Forward-point 2 of TICKET-TEXT-ANIMATOR-WORKING-TREE-MIGRATION.
-# Locks-in regressions on the recently migrated TextAnimator→animated_text
+# Locks-in regressions on the recently migrated TextAnimator→text_run
 # call sites by sanity-checking dimension / duration / shape count
 # post-evaluate for every bench_b00..b11 factory.
 #

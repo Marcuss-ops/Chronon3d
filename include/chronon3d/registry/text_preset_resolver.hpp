@@ -6,11 +6,11 @@
 // LayerBuilder / SceneBuilder / Materialiser).
 //
 // ## Canonical "custom_preset" entry point
-// `wire_preset_text_run_params(preset_id, spec) -> TextRunSpec` is THE
+// `wire_preset_text_run_params(preset_id, spec) -> TextRunDefinition` is THE
 // canonical compute entry point for "custom preset" authoring flows: it
 // packages the registered `TextPresetDescriptor` (catalog) + the resolved
 // `TextAnimatorSpec` (from `AnimatorResolver::compose_for(preset_id)`)
-// into a single `TextRunSpec` value inspection-friendly.  Authoring
+// into a single `TextRunDefinition` value inspection-friendly.  Authoring
 // facades and SDK consumers should NOT instantiate ad-hoc descriptors
 // or hand-rolled `TextAnimatorSpec` builders — route everything through
 // this single function (or, for LayerBuilder-side wiring, through the
@@ -18,8 +18,8 @@
 // in `src/registry/text_preset_registry.cpp`, which calls into this
 // function for plain compositions).
 //
-// The function takes (preset_id, TextSpec) and returns a fully-populated
-// `TextRunSpec` whose:
+// The function takes (preset_id, TextDefaults) and returns a fully-populated
+// `TextRunDefinition` whose:
 //
 //   - `text`       = the supplied `spec` (moved into the returned value);
 //   - `animators`  = a vector with the resolved TextAnimatorSpec from
@@ -46,21 +46,21 @@
 //
 // Anti-circular dep: this header DOES NOT include any
 // `content/text/text_*.hpp`.  `builder_params.hpp` provides the full
-// `TextSpec` / `TextRunSpec` types from the registry's canonical
+// `TextDefaults` / `TextRunDefinition` types from the registry's canonical
 // type system; `wire_preset_text_run_params` is implemented once in
 // `src/registry/text_preset_registry.cpp` next to the AnimatorResolver
 // it delegates to.
 
 #pragma once
 
-#include <chronon3d/scene/builders/builder_params.hpp>  // TextSpec, TextRunSpec
+#include <chronon3d/scene/builders/builder_params.hpp>  // TextDefaults, TextRunDefinition
 
 #include <string_view>
 #include <utility>      // std::move
 
 namespace chronon3d::registry {
 
-/// Build a TextRunSpec populated with the AnimatorResolver composition
+/// Build a TextRunDefinition populated with the AnimatorResolver composition
 /// for the given preset.  The returned value's `animators` vector contains
 /// EXACTLY ONE entry when the resolver can produce a TextAnimatorSpec
 /// for `preset_id`, and ZERO entries when the preset has no canonical
@@ -87,17 +87,17 @@ namespace chronon3d::registry {
 /// @param preset_id  Id of the preset in the registered catalog ("fade_in",
 ///                   "cinematic_text_camera", …).  Unknown ids yield an
 ///                   `animators.empty() == true` return value (fail-safe).
-/// @param spec       The TextSpec that will populate
+/// @param spec       The TextDefaults that will populate
 ///                   `params.text` (moved into the returned value).
-/// @return TextRunSpec with `text = spec` and `animators.size()` in
+/// @return TextRunDefinition with `text = spec` and `animators.size()` in
 ///         {0, 1} depending on the resolver's output.
-[[nodiscard]] TextRunSpec
+[[nodiscard]] TextRunDefinition
 wire_preset_text_run_params(std::string_view preset_id,
-                            TextSpec spec) noexcept;
+                            TextDefaults spec) noexcept;
 
-/// Canonical authoring overload. The runtime TextRunSpec remains an
+/// Canonical authoring overload. The runtime TextRunDefinition remains an
 /// implementation transport, but callers provide TextDefinition only.
-[[nodiscard]] TextRunSpec
+[[nodiscard]] TextRunDefinition
 wire_preset_text_run_params(std::string_view preset_id,
                             const TextDefinition& definition) noexcept;
 
