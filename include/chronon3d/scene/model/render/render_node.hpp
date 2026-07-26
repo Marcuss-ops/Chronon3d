@@ -16,16 +16,6 @@
 
 namespace chronon3d {
 
-class FontEngine;  // forward declaration
-
-// Soft drop shadow drawn behind the shape.
-struct DropShadow {
-    bool  enabled{false};
-    Vec2  offset{0.0f, 8.0f};
-    Color color{0.0f, 0.0f, 0.0f, 0.35f};
-    f32   radius{12.0f};
-};
-
 // Soft glow emanating outward from the shape.
 // Unified with GlowParams from effect_params.hpp — the single source of truth.
 
@@ -53,7 +43,6 @@ struct RenderNode {
     Color color{1, 1, 1, 1};
     Fill fill{true, FillType::Solid, {1, 1, 1, 1}, {}};
     Shape shape;
-    DropShadow shadow;
     // Mesh moved to Shape::MeshShape (shape variant index 13).
     // Access via: node.shape.mesh_shape().mesh
     f32 corner_radius{0.0f};
@@ -64,10 +53,6 @@ struct RenderNode {
     RenderNodeParams params;
 
     bool visible{true};
-
-    // FontEngine pointer for precise text shaping / glyph metrics.
-    // Set by LayerBuilder when the layer has a configured FontEngine.
-    FontEngine* font_engine{nullptr};
 
     // ── TextRun discrimination now lives in the Shape variant ────────
     // Check node.shape.type() == ShapeType::TextRun.

@@ -28,7 +28,6 @@ void Layer3DDelegate::add_fake_box3d(Layer& layer, std::string name, FakeBox3DPa
     node.world_transform.position    = {0, 0, 0};
     node.world_transform.anchor      = {0.0f, 0.0f, 0.0f};
     node.color = p.color;
-    node.font_engine = font_engine;
     layer.nodes.push_back(std::move(node));
 }
 
@@ -46,7 +45,6 @@ void Layer3DDelegate::add_grid_plane(Layer& layer, std::string name, GridPlanePa
     node.shape.grid_plane().fade_min_alpha = p.fade_min_alpha;
     node.world_transform.position        = {0, 0, 0};
     node.color = p.color;
-    node.font_engine = font_engine;
     layer.nodes.push_back(std::move(node));
 }
 
@@ -213,7 +211,6 @@ LayerBuilder& LayerBuilder::shape(std::string_view id, std::string name, registr
         std::move(name),
         std::move(params)
     ));
-    m_layer.nodes.back().font_engine = m_font_engine;
     return *this;
 }
 

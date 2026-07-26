@@ -391,10 +391,6 @@ template <typename T>
         seed = hash_combine(seed, hash_value(t.style.material.inner_shadow_blur));
         seed = hash_combine(seed, hash_color(t.style.material.inner_shadow_color));
         seed = hash_combine(seed, hash_value(t.style.material.emissive));
-        seed = hash_combine(seed, hash_value(t.style.material.use_material_glow));
-        seed = hash_combine(seed, hash_value(t.style.material.glow_radius));
-        seed = hash_combine(seed, hash_value(t.style.material.glow_intensity));
-        seed = hash_combine(seed, hash_color(t.style.material.glow_color));
         seed = hash_combine(seed, hash_value(t.style.material.use_material_shadow));
         seed = hash_combine(seed, hash_vec2(t.style.material.shadow_offset));
         seed = hash_combine(seed, hash_value(t.style.material.shadow_blur));
@@ -492,16 +488,6 @@ template <typename T>
     seed = hash_combine(seed, hash_value(n.visible));
     seed = hash_combine(seed, hash_surface_policy(n.surface_policy));
     seed = hash_combine(seed, hash_transform_policy(n.transform_policy));
-    if (n.shadow.enabled) {
-        seed = hash_combine(seed, hash_vec2(n.shadow.offset));
-        seed = hash_combine(seed, hash_color(n.shadow.color));
-        seed = hash_combine(seed, hash_bytes(&n.shadow.radius, sizeof(f32)));
-    }
-    if (n.glow.enabled) {
-        seed = hash_combine(seed, hash_bytes(&n.glow.radius, sizeof(f32)));
-        seed = hash_combine(seed, hash_bytes(&n.glow.intensity, sizeof(f32)));
-        seed = hash_combine(seed, hash_color(n.glow.color));
-    }
     return seed;
 }
 

@@ -15,7 +15,6 @@ public:
         CHRONON_ZONE_C("tiled_image_render", trace_category::kImage);
         rctx.counters->images_sampled.fetch_add(1, std::memory_order_relaxed);
 
-        draw_shadow(fb, node, state);
         rctx.image_renderer->draw_image_tiled(node.shape.image(), state, fb);
     }
 

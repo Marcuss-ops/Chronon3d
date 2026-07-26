@@ -154,7 +154,6 @@ Layer LayerBuilder::build() {
             RenderNode& node = m_layer.nodes.emplace_back(res);
             node.name = std::pmr::string{spec.name, res};
             node.shape.set_type(ShapeType::TextRun);
-            node.font_engine = m_font_engine;
 
             // X2 canonical static-text path: use PreparedText directly.
             if (spec.prepared.has_value()) {

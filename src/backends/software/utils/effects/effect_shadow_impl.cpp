@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// effect_shadow_impl.cpp — DropShadow effect + node-level draw_shadow
+// effect_shadow_impl.cpp — DropShadow effect
 //
 // Extracted from effect_stack.cpp to keep the dispatcher focused on
 // orchestration.
@@ -120,27 +120,6 @@ void apply_shadow_effect(
             fb_row[dx] = compositor::blend(fb_row[dx], shadow_px, BlendMode::Normal);
         }
     }
-}
-
-// ── Node-level shadow primitive ──────────────────────────────────────────────
-
-void draw_shadow(Framebuffer& fb, const RenderNode& node, const RenderState& state) {
-    if (node.shadow.color.a <= 0.0f) return;
-
-    const Color base        = node.shadow.color.to_linear();
-    const Mat4& base_model  = state.matrix;
-    Mat4 shadow_model = glm::translate(Mat4(1.0f), Vec3(node.shadow.offset.x, node.shadow.offset.y, 0)) * base_model;
-
-    constexpr int LAYERS = 6;
-    for (int i = LAYERS; i >= 1; --i) {
-        const f32 t      = static_cast<f32>(i) / LAYERS;
-        const f32 spread = node.shadow.radius * t;
-        const f32 alpha  = base.a * (1.0f - t * t) * state.opacity;
-        if (alpha > 0.0f)
-            renderer::draw_transformed_shape(fb, node.shape, shadow_model, {base.r, base.g, base.b, alpha}, spread, &state, nullptr, node.corner_radius);
-    }
-    renderer::draw_transformed_shape(fb, node.shape, shadow_model,
-                           {base.r, base.g, base.b, base.a * 0.7f * state.opacity}, 0.0f, &state, nullptr, node.corner_radius);
 }
 
 } // namespace renderer

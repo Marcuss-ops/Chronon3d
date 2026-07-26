@@ -90,9 +90,7 @@ GraphNodeId build_layer_output_node(
             layer.blend_mode == BlendMode::Normal &&
             !layer.track_matte.active() &&
             (layer.transition_in.transition_id.empty() || layer.transition_in.transition_id == "none") &&
-            (layer.transition_out.transition_id.empty() || layer.transition_out.transition_id == "none") &&
-            !layer.nodes[0].shadow.enabled &&
-            !layer.nodes[0].glow.enabled;
+            (layer.transition_out.transition_id.empty() || layer.transition_out.transition_id == "none");
 
         const auto* source_node = dynamic_cast<const SourceNode*>(&graph.node(layer_output));
         const bool can_seed = source_node && source_node->can_seed_full_frame(ctx);
