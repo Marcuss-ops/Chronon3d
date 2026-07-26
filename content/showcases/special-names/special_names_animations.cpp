@@ -6,6 +6,9 @@
 #include <chronon3d/animation/easing/easing.hpp>
 #include <chronon3d/text/text_definition.hpp>
 
+#include <functional>
+#include <utility>
+
 #include "content/common/animation_helpers.hpp"
 #include "content/text/text_helpers.hpp"   // M1.8 §2D — kept for typewriter_text() in special_name_typewriter()
 #include "special_names_theme.hpp"
@@ -36,10 +39,7 @@ Composition make_special_name_comp(const char* name, AnimSetup setup) {
             s.layer("name", [&](LayerBuilder& l) {
                 l.pin_to(Anchor::Center);
                 setup(l);
-                // Keep the text position stable during animated bounds.
-                // Layer glow expands a cached layer surface and can reuse
-                // stale origin coordinates while the name moves; a text
-                // shadow provides the same soft lift without that drift.
+                // Keep text styling explicit and effects disabled for stable animated bounds.
                 auto name_text = TextDefinition{
     .content = {.value = DEMO_NAME},
     .style = {
@@ -178,7 +178,7 @@ Composition special_name_typewriter() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// (Note: SpecialNameSplit removed — replaced by glow on all compositions.)
+// Typewriter is the only SpecialName preset that uses a glow effect.
 // (Note: the previous SpecialNameRole* / RolePreset family has been moved
 // to a dedicated content/ImportantWords/ category — palettes + presets live
 // in important_words_theme.hpp there.)
