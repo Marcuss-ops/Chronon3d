@@ -6,6 +6,7 @@
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
+#include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/telemetry/telemetry_manager.hpp>
 
 #include <spdlog/spdlog.h>
