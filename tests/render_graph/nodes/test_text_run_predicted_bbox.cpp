@@ -135,6 +135,73 @@ Composition build_full_canvas_visible_comp(SoftwareRenderer& renderer,
         });
 }
 
+Composition build_pinned_absolute_animation_comp(SoftwareRenderer& renderer) {
+    return composition(
+        {.name = "TextRun/pinned_absolute_animation_boundary",
+         .width = 1920,
+         .height = 1080,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 60},
+        [&renderer](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("name", [&renderer](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                l.pin_to(Anchor::Center);
+                l.position_anim()
+                    .key(Frame{0}, Vec3{0.0f, 30.0f, 0.0f},
+                         EasingCurve{Easing::OutCubic})
+                    .key(Frame{22}, Vec3{0.0f, 0.0f, 0.0f},
+                         EasingCurve{Easing::OutCubic});
+                l.text("name", TextDefinition{
+                    .content = {.value = "ALEX MORGAN"},
+                    .style = {
+                        .font = {
+                            .font_path = "assets/fonts/Poppins-Bold.ttf",
+                            .font_family = "Poppins",
+                            .font_weight = 700,
+                            .font_size = 110.0f,
+                        },
+                        .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+                    },
+                    .frame = {.tracking = 14.0f},
+                });
+            });
+            return s.build();
+        });
+}
+
+Composition build_unpinned_absolute_center_comp(SoftwareRenderer& renderer) {
+    return composition(
+        {.name = "TextRun/unpinned_absolute_center",
+         .width = 1920,
+         .height = 1080,
+         .frame_rate = FrameRate{30, 1},
+         .duration = 1},
+        [&renderer](const FrameContext& ctx) -> Scene {
+            SceneBuilder s(ctx);
+            s.font_engine(&renderer.font_engine());
+            s.layer("name", [&renderer](LayerBuilder& l) {
+                l.font_engine(&renderer.font_engine());
+                l.position(Vec3{960.0f, 540.0f, 0.0f});
+                l.text("name", TextDefinition{
+                    .content = {.value = "ALEX MORGAN"},
+                    .style = {
+                        .font = {
+                            .font_path = "assets/fonts/Poppins-Bold.ttf",
+                            .font_family = "Poppins",
+                            .font_weight = 700,
+                            .font_size = 110.0f,
+                        },
+                        .color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+                    },
+                    .frame = {.tracking = 14.0f},
+                });
+            });
+            return s.build();
+        });
+}
+
 } // anonymous namespace
 
 // ── Regression lock ────────────────────────────────────────────────────
@@ -229,4 +296,46 @@ TEST_CASE("Full-canvas TextRun keeps parent center and produces visible ink") {
         CHECK(std::abs(actual_cx - expected_cx) < tolerance_x);
         CHECK(std::abs(actual_cy - expected_cy) < tolerance_y);
     }
+}
+
+TEST_CASE("Pinned absolute TextRun stays centered across animation boundary") {
+    auto renderer = test::make_renderer();
+    auto comp = build_pinned_absolute_animation_comp(renderer);
+
+    for (const Frame frame : {Frame{21}, Frame{22}, Frame{23}, Frame{30}, Frame{59}}) {
+        INFO("frame=", frame);
+        auto fb = renderer.render(comp, frame);
+        REQUIRE(static_cast<bool>(fb));
+
+        const auto bbox = chronon3d::test::completeness::alpha_bbox(*fb);
+        INFO("bbox: x0=", bbox.x0, " y0=", bbox.y0,
+             " x1=", bbox.x1, " y1=", bbox.y1);
+        CHECK_FALSE(bbox.empty());
+
+        const float center_x = (bbox.x0 + bbox.x1) * 0.5f;
+        CHECK(std::abs(center_x - 960.0f) <= 10.0f);
+
+        if (frame >= Frame{22}) {
+            const float center_y = (bbox.y0 + bbox.y1) * 0.5f;
+            CHECK(std::abs(center_y - 540.0f) <= 30.0f);
+        }
+    }
+}
+
+TEST_CASE("Unpinned absolute TextRun retains implicit-center removal") {
+    auto renderer = test::make_renderer();
+    auto comp = build_unpinned_absolute_center_comp(renderer);
+    auto fb = renderer.render(comp, Frame{0});
+    REQUIRE(static_cast<bool>(fb));
+
+    const auto bbox = chronon3d::test::completeness::alpha_bbox(*fb);
+    INFO("bbox: x0=", bbox.x0, " y0=", bbox.y0,
+         " x1=", bbox.x1, " y1=", bbox.y1);
+    CHECK_FALSE(bbox.empty());
+
+    // The unpinned absolute branch deliberately strips the implicit center;
+    // this complementary lock prevents the pinned fix from changing that
+    // pre-existing placement contract.
+    const float center_x = (bbox.x0 + bbox.x1) * 0.5f;
+    CHECK(std::abs(center_x - 960.0f) > 100.0f);
 }
