@@ -6,6 +6,7 @@
 #include <chronon3d/cache/lru_cache.hpp>
 #include <string>
 #include <memory>
+#include <optional>
 #include <shared_mutex>
 #ifdef CHRONON3D_USE_BLEND2D
 #include <blend2d.h>
@@ -68,6 +69,11 @@ public:
     [[nodiscard]] std::shared_ptr<const CachedImage>
     get_or_load(const std::string& path);
 
+    /// Lookup-only path used by frame rendering. Never touches the backend
+    /// and never performs filesystem I/O; preparation must populate the entry.
+    [[nodiscard]] std::shared_ptr<const CachedImage>
+    find(const std::string& path);
+
     void clear();
     void set_asset_resolver(const assets::AssetResolver* resolver) noexcept {
         m_asset_resolver = resolver;
@@ -94,6 +100,9 @@ private:
     // serializes only concurrent loads of the same path (same shard).
     cache::LruCache<std::string, std::shared_ptr<CachedImage>> m_cache;
     const assets::AssetResolver* m_asset_resolver{nullptr};
+
+    [[nodiscard]] std::optional<std::string>
+    canonical_key(const std::string& path) const;
 };
 
 } // namespace chronon3d

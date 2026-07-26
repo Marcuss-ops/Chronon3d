@@ -3,22 +3,31 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <spdlog/spdlog.h>
+#include <filesystem>
 
 namespace chronon3d {
 
 ImageCache::ImageCache(size_t capacity_bytes)
     : m_cache(capacity_bytes > 0 ? capacity_bytes : 512ULL * 1024ULL * 1024ULL) {}
 
-std::shared_ptr<const CachedImage> ImageCache::get_or_load(const std::string& path) {
-    std::string resolved_path = path;
-    if (m_asset_resolver) {
-        const auto resolved = m_asset_resolver->resolve(path);
-        if (!resolved) {
-            spdlog::warn("ImageCache: asset '{}' is not present under the engine asset root", path);
-            return nullptr;
-        }
-        resolved_path = resolved->string();
+std::optional<std::string> ImageCache::canonical_key(const std::string& path) const {
+    if (!m_asset_resolver) {
+        return std::filesystem::path(path).lexically_normal().string();
     }
+    const auto resolved = m_asset_resolver->resolve_lexical(path);
+    if (!resolved) {
+        return std::nullopt;
+    }
+    return resolved->lexically_normal().string();
+}
+
+std::shared_ptr<const CachedImage> ImageCache::get_or_load(const std::string& path) {
+    const auto key = canonical_key(path);
+    if (!key) {
+        spdlog::warn("ImageCache: asset '{}' is outside the engine asset root", path);
+        return nullptr;
+    }
+    const std::string& resolved_path = *key;
     std::shared_ptr<image::ImageBackend> backend;
     {
         std::shared_lock<std::shared_mutex> lock(*m_backend_mutex);
@@ -97,6 +106,15 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(const std::string& pa
         return nullptr;
     }
     return shared;
+}
+
+std::shared_ptr<const CachedImage> ImageCache::find(const std::string& path) {
+    const auto key = canonical_key(path);
+    if (!key) {
+        return nullptr;
+    }
+    const auto cached = m_cache.get(*key);
+    return cached ? *cached : nullptr;
 }
 
 void ImageCache::clear() {

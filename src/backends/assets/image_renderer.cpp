@@ -201,12 +201,12 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
         return false;
     }
 
+    std::shared_ptr<const CachedImage> cached_hold;
     const CachedImage* cached = nullptr;
     const auto t_decode0 = profiling::now();
-    // Fase B B1: get_or_load returns shared_ptr; cache holds its own copy.
-    // .get() is safe here because the cache pins the entry for the
-    // lifetime of this function.
-    cached = m_cache.get().get_or_load(image.path).get();
+    // Rendering is lookup-only: preparation owns all backend I/O and decode.
+    cached_hold = m_cache.get().find(image.path);
+    cached = cached_hold.get();
     const auto t_decode1 = profiling::now();
     const double decode_ms = profiling::duration_ms(t_decode0, t_decode1);
     if (profiling::g_current_counters && decode_ms > 0.0) {
@@ -428,12 +428,12 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
         return false;
     }
 
+    std::shared_ptr<const CachedImage> cached_hold;
     const CachedImage* cached = nullptr;
     const auto t_decode0 = profiling::now();
-    // Fase B B1: get_or_load returns shared_ptr; cache holds its own copy.
-    // .get() is safe here because the cache pins the entry for the
-    // lifetime of this function.
-    cached = m_cache.get().get_or_load(image.path).get();
+    // Rendering is lookup-only: preparation owns all backend I/O and decode.
+    cached_hold = m_cache.get().find(image.path);
+    cached = cached_hold.get();
     const auto t_decode1 = profiling::now();
     const double decode_ms = profiling::duration_ms(t_decode0, t_decode1);
     if (profiling::g_current_counters && decode_ms > 0.0) {
