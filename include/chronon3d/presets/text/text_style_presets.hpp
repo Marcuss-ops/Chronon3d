@@ -149,15 +149,6 @@ inline TextStyle premium_hero_title() {
     style.material.top_highlight_opacity = 0.28f;
     style.material.bottom_shade_opacity = 0.18f;
     style.material.emissive = 1.10f;
-    style.material.use_material_glow = true;
-    style.material.glow_radius = 24.0f;
-    style.material.glow_intensity = 0.92f;
-    style.material.glow_color = {0.55f, 0.72f, 1.0f, 0.75f};
-    style.material.use_material_shadow = true;
-    style.material.shadow_offset = {0.0f, 10.0f};
-    style.material.shadow_blur = 18.0f;
-    style.material.shadow_opacity = 0.50f;
-    style.material.shadow_color = {0.0f, 0.0f, 0.0f, 1.0f};
     style.shadows.push_back(TextShadow{
         .enabled = true,
         .offset = {0.0f, 12.0f},
@@ -203,9 +194,6 @@ inline TextStyle premium_subtitle() {
     style.material.bevel_px = 0.8f;
     style.material.top_highlight_opacity = 0.22f;
     style.material.bottom_shade_opacity = 0.10f;
-    style.material.glow_radius = 10.0f;
-    style.material.glow_intensity = 0.45f;
-    style.material.glow_color = {0.62f, 0.82f, 1.0f, 0.45f};
     style.shadows.push_back(TextShadow{
         .enabled = true,
         .offset = {0.0f, 4.0f},
@@ -242,10 +230,6 @@ inline TextStyle premium_cta() {
     style.material.top_color = {1.0f, 1.0f, 1.0f, 0.98f};
     style.material.bottom_color = {0.95f, 0.97f, 1.0f, 0.90f};
     style.material.bevel_px = 0.9f;
-    style.material.use_material_glow = true;
-    style.material.glow_radius = 8.0f;
-    style.material.glow_intensity = 0.38f;
-    style.material.glow_color = {1.0f, 0.58f, 0.18f, 0.35f};
     style.shadows.push_back(TextShadow{
         .enabled = true,
         .offset = {0.0f, 2.0f},

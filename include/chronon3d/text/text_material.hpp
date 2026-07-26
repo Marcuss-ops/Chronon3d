@@ -7,8 +7,7 @@ namespace chronon3d {
 
 // Premium material properties for text rendering.
 // When enabled, the rasterized text is post-processed to apply gradient fill,
-// bevel, top highlight, bottom shade, emissive boost, and optionally
-// overrides the node-level glow and shadow with material-specific values.
+// bevel, top highlight, bottom shade, inner shadow and emissive boost.
 struct TextMaterial {
     bool enabled{false};
 
@@ -48,26 +47,9 @@ struct TextMaterial {
     // 1.0 = normal, >1 = brighter, <1 = dimmer.
     float emissive{1.0f};
 
-    // ── Glow override ─────────────────────────────────────────
-    // When use_material_glow is true, the node-level glow is replaced
-    // with these values.
-    bool use_material_glow{false};
-    float glow_radius{8.0f};
-    float glow_intensity{0.8f};
-    Color glow_color{0.0f, 1.0f, 0.8f, 0.8f};
-
-    // ── Shadow override ───────────────────────────────────────
-    // When use_material_shadow is true, the node-level shadow is
-    // replaced with these values.
-    bool use_material_shadow{false};
-    Vec2 shadow_offset{0.0f, 6.0f};
-    float shadow_blur{8.0f};
-    float shadow_opacity{0.5f};
-    Color shadow_color{0.0f, 0.0f, 0.0f, 0.5f};
-
     // ── Presets ─────────────────────────────────────────────────
 
-    /// Full premium look: gradient + bevel + highlights + glow + shadow.
+    /// Full premium look: gradient + bevel + highlights + emissive finish.
     static TextMaterial premium() {
         TextMaterial m;
         m.enabled = true;
@@ -79,19 +61,10 @@ struct TextMaterial {
         m.top_highlight_opacity   = 0.25f;
         m.bottom_shade_opacity    = 0.15f;
         m.emissive                = 1.05f;
-        m.use_material_glow       = true;
-        m.glow_radius             = 12.0f;
-        m.glow_intensity          = 0.60f;
-        m.glow_color              = {0.6f, 0.7f, 1.0f, 0.7f};
-        m.use_material_shadow     = true;
-        m.shadow_offset           = {0.0f, 8.0f};
-        m.shadow_blur             = 12.0f;
-        m.shadow_opacity          = 0.45f;
-        m.shadow_color            = {0.0f, 0.0f, 0.0f, 1.0f};
         return m;
     }
 
-    /// Neon glow: bright gradient + strong glow.
+    /// Neon: bright gradient with an emissive finish.
     static TextMaterial neon() {
         TextMaterial m;
         m.enabled = true;
@@ -100,15 +73,6 @@ struct TextMaterial {
         m.bevel_px                = 0.0f;
         m.top_highlight_opacity   = 0.15f;
         m.emissive                = 1.20f;
-        m.use_material_glow       = true;
-        m.glow_radius             = 20.0f;
-        m.glow_intensity          = 1.0f;
-        m.glow_color              = {0.0f, 1.0f, 0.8f, 0.8f};
-        m.use_material_shadow     = true;
-        m.shadow_offset           = {0.0f, 4.0f};
-        m.shadow_blur             = 6.0f;
-        m.shadow_opacity          = 0.35f;
-        m.shadow_color            = {0.0f, 0.0f, 0.0f, 0.6f};
         return m;
     }
 
@@ -122,10 +86,6 @@ struct TextMaterial {
         m.bevel_highlight_opacity = 0.60f;
         m.top_highlight_opacity   = 0.30f;
         m.emissive            = 1.0f;
-        m.use_material_glow   = true;
-        m.glow_radius         = 6.0f;
-        m.glow_intensity      = 0.35f;
-        m.glow_color          = {0.8f, 0.85f, 1.0f, 0.5f};
         return m;
     }
 

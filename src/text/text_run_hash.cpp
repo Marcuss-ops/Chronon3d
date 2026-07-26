@@ -109,12 +109,6 @@ u64 hash_text_run_shape(const TextRunShape& s) {
         seed = hash_combine(seed, hash_color(s.material.bottom_color));
         seed = hash_combine(seed, hash_value(s.material.bevel_px));
         seed = hash_combine(seed, hash_value(s.material.emissive));
-        seed = hash_combine(seed, hash_value(s.material.use_material_glow));
-        seed = hash_combine(seed, hash_value(s.material.glow_radius));
-        seed = hash_combine(seed, hash_value(s.material.glow_intensity));
-        seed = hash_combine(seed, hash_value(s.material.use_material_shadow));
-        seed = hash_combine(seed, hash_value(s.material.shadow_blur));
-        seed = hash_combine(seed, hash_value(s.material.shadow_opacity));
     }
 
     // Paint
