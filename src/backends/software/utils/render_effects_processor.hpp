@@ -36,7 +36,6 @@ void apply_invert(Framebuffer& fb, f32 amount, const std::optional<raster::BBox>
 void apply_vignette(Framebuffer& fb, f32 radius, f32 softness, f32 amount, Color color, const std::optional<raster::BBox>& clip = std::nullopt);
 
 void draw_shadow(Framebuffer& fb, const RenderNode& node, const RenderState& state);
-void draw_glow(Framebuffer& fb, const RenderNode& node, const RenderState& state);
 
 } // namespace renderer
 } // namespace chronon3d

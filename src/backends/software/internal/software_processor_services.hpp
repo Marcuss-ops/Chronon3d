@@ -59,6 +59,7 @@ struct ProcessorSourceExtras {
     chronon3d::renderer::SoftwareRegistry*  registry{nullptr};
     chronon3d::image::ImageBackend*         image_backend{nullptr};
     chronon3d::ImageRenderer*               image_renderer{nullptr};
+    chronon3d::CurveCache*                  curve_cache{nullptr};
 #ifdef CHRONON3D_HAS_BACKEND_TEXT
     chronon3d::FontEngine*                  font_engine{nullptr};
 #endif

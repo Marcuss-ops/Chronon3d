@@ -141,13 +141,4 @@ std::shared_ptr<const CompiledCurve> CurveCache::get_or_compile(
     return curve;
 }
 
-// =============================================================================
-// Global curve cache
-// =============================================================================
-
-CurveCache& global_curve_cache() {
-    static CurveCache cache;
-    return cache;
-}
-
 } // namespace chronon3d
