@@ -59,10 +59,11 @@ target_link_libraries(chronon3d_backend_software
         $<$<BOOL:${CHRONON3D_ENABLE_TEXT}>:chronon3d_text_core>
 )
 if(CHRONON3D_USE_BLEND2D)
-    target_link_libraries(chronon3d_backend_software PRIVATE chronon3d_blend2d_paint)
-endif()
-if(CHRONON3D_USE_BLEND2D)
-    target_link_libraries(chronon3d_backend_software PUBLIC blend2d::blend2d)
+    target_link_libraries(
+        chronon3d_backend_software
+        PUBLIC blend2d::blend2d
+        PRIVATE chronon3d_blend2d_paint
+    )
 endif()
 if(TARGET chronon3d_backend_text)
     target_link_libraries(chronon3d_backend_software PUBLIC chronon3d_backend_text)
