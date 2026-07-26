@@ -123,8 +123,6 @@ using FixtureId = std::string;
 // register a TextSpec onto a LayerBuilder using the preset's motion +
 // paint recipe.  Non-null per the registry-internal invariant enforced
 // at register time (test test_text_preset_registry.cpp Sub-case 3).
-// Signature unchanged from the pre-refactor `TextPreset::Builder`
-// typedef for full back-compat.
 using TextPresetBuilder = std::function<
     void(::chronon3d::SceneBuilder&,
          ::chronon3d::LayerBuilder&,
@@ -176,17 +174,6 @@ struct TextPresetDescriptor {
     FixtureId fixture{};                  // golden-frame fixture path
                                           // (Visual Regression Harness)
 
-    // ── Back-compat: nested `Builder` member-typedef ─────────────────────────
-    // The PRE-TEXT-RES-01 `struct TextPreset` declared
-    //     using Builder = std::function<...>;
-    // AS a *nested* member typedef.  Post-refactor, the same typedef lives
-    // at namespace scope as `TextPresetBuilder` (canonical, free-standing).
-    // To preserve compile-time back-compat for any downstream consumer
-    // that wrote `TextPreset::Builder func;`, resurface the same typedef
-    // as a nested member here.  Identical signature, identical type
-    // (pointing at the free-standing alias).  Costs nothing; keeps
-    // ANTI_DUPLICATION_RULES.md §back-compat-aliases intact.
-    using Builder = TextPresetBuilder;
 };
 
 } // namespace chronon3d::registry

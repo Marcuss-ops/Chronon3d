@@ -6,12 +6,12 @@
 // `ctx.frame` as a phase index (independent of `t`).
 // =============================================================================
 
-#include <chronon3d/presets/motion_preset_registry.hpp>
+#include <chronon3d/presets/motion_preset_catalog.hpp>
 #include <cmath>
 
 namespace chronon3d::presets::motion {
 
-void register_idle_presets(MotionPresetRegistry& r) {
+void register_idle_presets(detail::MotionPresetCatalogBuilder& r) {
     r.register_preset({
         MotionPreset::ParallaxDrift, "ParallaxDrift", [](const FrameContext& ctx, const MotionObject& obj, f32, MotionState& st) {
             st.position.x += std::sin(static_cast<f32>(ctx.frame()) * 0.025f) * 20.0f * obj.motion3d.parallax;

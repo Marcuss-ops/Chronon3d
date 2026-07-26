@@ -100,6 +100,12 @@ Result<RenderJobOutput, RenderJobError> execute_render_job(const RenderJob& job)
                 "Failed to create renderer for composition '" +
                     job.comp_id + "'"};
         }
+        if (!setup.preparation_ok) {
+            return RenderJobError{
+                RenderJobErrorCode::SetupFailed,
+                "Render preparation failed for composition '" +
+                    job.comp_id + "': " + setup.preparation_diagnostic};
+        }
 
         const auto motion_blur_suffix =
             chronon3d::is_motion_blur_active(job.settings.motion_blur)

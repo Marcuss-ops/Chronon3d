@@ -18,7 +18,7 @@
 // system in modular centered mode causes rects to render in unexpected
 // quadrants. SequenceBuilder::rect() delegates to the sub_builder's
 // SceneBuilder::rect(), ensuring nodes are added to the sub_builder's
-// scene (properly guarded by the if(active) check in sequence()).
+// scene (properly guarded by the canonical SceneBuilder::sequence() path).
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <doctest/doctest.h>

@@ -50,7 +50,6 @@
 // builder bodies in the factories).
 
 #include <chronon3d/registry/text_preset_resolver.hpp>
-#include <chronon3d/compat/text_spec_adapter.hpp>
 // Public Cluster B free function `wire_preset_text_run_params(preset_id, spec)`
 // reached by wire_through_resolver below.
 

@@ -190,7 +190,7 @@ public:
         for (Frame f = start_frame; f <= end_frame; f = f + Frame{1}) {
             const TimeSeconds t = static_cast<TimeSeconds>(f - start_frame)
                                   / static_cast<TimeSeconds>(kSpringBakeFps);
-            const f32 value = sample_spring(t, from_f, to_f, config);
+            const f32 value = sample_spring(t, from_f, to_f, config).value;
             m_segments.push_back(
                 Segment{f, static_cast<T>(value), EasingCurve{Easing::Hold}});
         }

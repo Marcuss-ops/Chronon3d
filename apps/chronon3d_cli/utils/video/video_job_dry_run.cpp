@@ -1,7 +1,7 @@
 #include "video_export_support.hpp"
 #include "../../utils/job/cli_render_utils.hpp"
 
-#include <chronon3d/assets/asset_preflight_resolver.hpp>
+#include <chronon3d/runtime/render_preparation.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/cache/node_cache.hpp>
 #include <chronon3d/render_graph/pipeline/render_pipeline.hpp>
@@ -36,21 +36,15 @@ int dry_run_video_job(const RenderJob& job) {
     try {
         auto renderer = create_renderer(*job.registry, job.settings);
 
-        Scene scene = job.comp->evaluate(make_frame_context({
-            .global_time = SampleTime::from_frame_int(job.first_frame, job.comp->frame_rate()),
-            .duration = job.comp->duration(),
-            .width = job.comp->width(),
-            .height = job.comp->height(),
-            .assets_root = job.comp->assets_root(),
-            .runtime = &renderer->runtime(),
-        }));
-        auto preflight_result = AssetPreflightResolver::check(
-            scene, renderer->runtime().resolver(),
-            PreflightMode::FullComposition);
-        if (!preflight_result.ok()) {
-            std::string text =
-                format_preflight_issues_text(preflight_result.issues);
-            spdlog::error("[dry-run] Asset preflight FAILED:\n{}", text);
+        const auto preparation = runtime::prepare_render(
+            renderer.get(), *job.comp,
+            runtime::RenderPreparationOptions{
+                .warmup_renderer = false,
+                .reference_frame = job.first_frame,
+            });
+        if (!preparation.ok()) {
+            spdlog::error("[dry-run] Render preparation FAILED:\n{}",
+                          preparation.diagnostic());
             return 1;
         }
 
@@ -58,7 +52,7 @@ int dry_run_video_job(const RenderJob& job) {
         cache::NodeCache node_cache;
         auto fb = graph::render_composition_frame(
             renderer->backend(), node_cache, job.settings, job.registry,
-            nullptr, *job.comp, job.first_frame);
+            nullptr, *job.comp, job.first_frame, renderer.get());
         if (!fb) {
             spdlog::warn("[dry-run]   First frame render returned null");
         } else {

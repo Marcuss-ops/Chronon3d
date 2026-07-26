@@ -8,8 +8,8 @@
 //   ResolvedSequence — output of resolving one node at a given frame
 //
 // These types are the data model consumed by TimelineResolver (in
-// timeline_resolver.hpp).  They do NOT modify the existing SequenceContext
-// or SceneBuilder::sequence() — those remain backward-compatible.
+// timeline_resolver.hpp). They are the canonical temporal model used by
+// TimelineResolver and SceneBuilder::sequence().
 //
 // The key insight: a Sequence is NOT a layer.  It is a temporal scope
 // that maps a parent frame to a local frame.  Layers are built by the

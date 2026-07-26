@@ -2,12 +2,12 @@
 
 #include <chronon3d/animation/effects/animated_transform.hpp>
 #include <chronon3d/animation/easing/easing.hpp>
+#include <chronon3d/core/random/deterministic_random.hpp>
 #include <chronon3d/scene/model/layer/layer.hpp>
 #include <chronon3d/presets/motion_object.hpp>
 #include <vector>
 #include <numeric>
 #include <algorithm>
-#include <random>
 #include <functional>
 #include <string>
 
@@ -29,7 +29,7 @@ struct StaggerConfig {
     Frame delay_per_unit{4};
     EasingCurve easing{Easing::OutCubic};
     f32 randomize{0.0f};         // 0..1, variance relative to delay_per_unit
-    unsigned random_seed{0};    // 0 = use random_device seed
+    unsigned random_seed{0};    // deterministic seed; zero is a valid seed
 };
 
 inline Frame compute_stagger_delay(size_t rank, size_t total, const StaggerConfig& config) {
@@ -40,9 +40,11 @@ inline Frame compute_stagger_delay(size_t rank, size_t total, const StaggerConfi
     Frame base = Frame{static_cast<int>(eased * max_delay)};
 
     if (config.randomize > 0.0f) {
-        static thread_local std::mt19937 rng(config.random_seed ? config.random_seed : std::random_device{}());
-        std::uniform_real_distribution<f32> dist(-1.0f, 1.0f);
-        f32 variance = dist(rng) * static_cast<f32>(config.delay_per_unit) * config.randomize;
+        const u64 index = (static_cast<u64>(total) << 32) |
+                          static_cast<u64>(rank);
+        const f32 variance = random::range(
+            static_cast<u64>(config.random_seed), index, -1.0f, 1.0f) *
+            static_cast<f32>(config.delay_per_unit) * config.randomize;
         base += Frame{static_cast<int>(std::lround(variance))};
     }
     return base;
@@ -66,8 +68,10 @@ std::vector<size_t> compute_stagger_ranks_impl(
     std::iota(indices.begin(), indices.end(), 0);
 
     if (order == StaggerOrder::Random) {
-        std::mt19937 rng(config.random_seed ? config.random_seed : std::random_device{}());
-        std::shuffle(indices.begin(), indices.end(), rng);
+        const auto permutation = random::permutation(
+            random::Seed{static_cast<u64>(config.random_seed)},
+            static_cast<u32>(indices.size()));
+        indices.assign(permutation.begin(), permutation.end());
     } else if (order == StaggerOrder::CenterOut || order == StaggerOrder::CenterIn) {
         Vec3 centroid{0.0f};
         for (size_t i = 0; i < items.size(); ++i) {

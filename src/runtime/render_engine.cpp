@@ -31,6 +31,7 @@
 #include <chronon3d/api/render_engine.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
 #include <chronon3d/runtime/render_pipeline.hpp>
+#include <chronon3d/runtime/render_preparation.hpp>
 #include <chronon3d/backends/image/stb_image_backend.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/backends/software/runtime_adapter.hpp>  // Fase A2 — attach_software_backend factory
@@ -177,6 +178,22 @@ std::shared_ptr<Framebuffer> RenderEngine::render_scene(
 std::shared_ptr<Framebuffer> RenderEngine::render(
     const Composition& comp, Frame frame)
 {
+    // Canonical engine boundary: every Composition render performs the
+    // synchronous preflight/resource barrier before graph execution. CLI
+    // jobs may prepare earlier to report setup timing, but this boundary is
+    // the final protection for SDK and direct engine consumers.
+    const auto preparation = runtime::prepare_render(
+        m_impl->m_renderer.get(), comp,
+        runtime::RenderPreparationOptions{
+            .warmup_renderer = false,
+            .reference_frame = frame,
+        });
+    if (!preparation.ok()) {
+        throw std::runtime_error(
+            "Render preparation failed for composition '" +
+            comp.name() + "': " + preparation.diagnostic());
+    }
+
     // P1-F Pass D — replaces the removed `render_frame()` (which had been
     // `[[deprecated("Use RenderEngine::render()")]]` since Pass A).  Same
     // implementation: delegates into the OPP-side `RenderPipeline` facade

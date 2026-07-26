@@ -5,14 +5,14 @@
 // Requires Motion3D::enabled == true on the MotionObject.
 // =============================================================================
 
-#include <chronon3d/presets/motion_preset_registry.hpp>
+#include <chronon3d/presets/motion_preset_catalog.hpp>
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <algorithm>
 #include <cmath>
 
 namespace chronon3d::presets::motion {
 
-void register_3d_presets(MotionPresetRegistry& r) {
+void register_3d_presets(detail::MotionPresetCatalogBuilder& r) {
     r.register_preset({
         MotionPreset::PushIn3D, "PushIn3D", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
             st.opacity *= interpolate(t, 0.0f, 0.28f, 0.0f, 1.0f, Easing::OutCubic);

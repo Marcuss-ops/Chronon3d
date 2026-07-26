@@ -18,15 +18,6 @@ Text& at(f32 x, f32 y) {
     return *this;
 }
 
-Text& center() {
-    assert(canvas_ && "Text::center(): CanvasInfo must be supplied by Layer");
-    place(TextPlacement{TextPlacementKind::CanvasCenter}, TextAnchor::Center);
-    auto& layout = pending_->params.text.layout;
-    layout.align = TextAlign::Center;
-    layout.vertical_align = VerticalAlign::Middle;
-    return *this;
-}
-
 Text& place(TextPlacement placement) {
     return place(std::move(placement), TextAnchor::Center);
 }

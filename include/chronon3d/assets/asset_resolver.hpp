@@ -79,7 +79,7 @@ public:
     /// std::nullopt for any of the missing-asset conditions listed at
     /// the class doc-comment.
     [[nodiscard]] std::optional<std::filesystem::path>
-    resolve(const std::filesystem::path& path) const;
+    virtual resolve(const std::filesystem::path& path) const;
 
     /// Resolve `path` WITHOUT touching the filesystem.  Faster than
     /// resolve() for hot paths (preflight validation, font lookup).

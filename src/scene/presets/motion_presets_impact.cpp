@@ -6,13 +6,13 @@
 // from the animation's normalized `t`.
 // =============================================================================
 
-#include <chronon3d/presets/motion_preset_registry.hpp>
+#include <chronon3d/presets/motion_preset_catalog.hpp>
 #include <chronon3d/animation/easing/interpolate.hpp>
 #include <cmath>
 
 namespace chronon3d::presets::motion {
 
-void register_impact_presets(MotionPresetRegistry& r) {
+void register_impact_presets(detail::MotionPresetCatalogBuilder& r) {
     r.register_preset({
         MotionPreset::FocusPull, "FocusPull", [](const FrameContext&, const MotionObject& obj, f32 t, MotionState& st) {
             st.opacity *= interpolate(t, 0.0f, 0.24f, 0.0f, 1.0f, Easing::OutCubic);

@@ -3,7 +3,7 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/core/telemetry/telemetry_bundle.hpp>
 #include <chronon3d/runtime/render_runtime.hpp>
-#include <chronon3d/assets/asset_preflight_resolver.hpp>
+#include <chronon3d/runtime/render_preparation.hpp>
 #include <spdlog/spdlog.h>
 #include <filesystem>
 #include <thread>
@@ -65,13 +65,13 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
     {
         Config preflight_cfg = Config::from_environment(cpu_budget);
         auto preflight_renderer = create_renderer(registry, settings, std::move(preflight_cfg));
-        Scene scene = evaluate_video_scene(comp, start, *preflight_renderer);
-        auto preflight_result = AssetPreflightResolver::check(
-            scene, preflight_renderer->runtime().resolver(),
-            PreflightMode::FullComposition);
-        if (!preflight_result.ok()) {
-            std::string text = format_preflight_issues_text(preflight_result.issues);
-            spdlog::error("[video] Asset preflight FAILED:\n{}", text);
+        const auto preparation = runtime::prepare_render(
+            preflight_renderer.get(), comp,
+            runtime::RenderPreparationOptions{.warmup_renderer = false,
+                                              .reference_frame = start});
+        if (!preparation.ok()) {
+            spdlog::error("[video] Render preparation FAILED:\n{}",
+                          preparation.diagnostic());
             return result;
         }
     }
@@ -121,16 +121,27 @@ ChunkedExportResult render_and_encode_ffmpeg_chunked(
                 uint64_t saved_fb_peak = 0;
                 if (opts.warmup.warmup_renderer) {
                     const auto warmup_t0 = profiling::now();
-                    runtime::warmup_renderer(*renderer, comp, runtime::RendererWarmupOptions{
-                        .width = comp.width(),
-                        .height = comp.height(),
-                        .framebuffer_count = opts.warmup.warmup_framebuffers,
-                        .preallocate_framebuffers = true,
-                        .touch_memory = true,
-                        .render_dummy_frame = opts.warmup.warmup_dummy_frame,
-                        .dummy_frame = 0,
-                        .quiet = false,
-                    });
+                    const auto worker_preparation = runtime::prepare_render(
+                        renderer.get(), comp,
+                        runtime::RenderPreparationOptions{
+                            .warmup_renderer = true,
+                            .warmup = runtime::RendererWarmupOptions{
+                                .width = comp.width(),
+                                .height = comp.height(),
+                                .framebuffer_count = opts.warmup.warmup_framebuffers,
+                                .preallocate_framebuffers = true,
+                                .touch_memory = true,
+                                .render_dummy_frame = opts.warmup.warmup_dummy_frame,
+                                .dummy_frame = 0,
+                                .quiet = false,
+                            },
+                        });
+                    if (!worker_preparation.ok()) {
+                        spdlog::error("[video] Render preparation FAILED in chunk {}:\n{}",
+                                      chunk.start, worker_preparation.diagnostic());
+                        failed.store(true);
+                        return;
+                    }
                     const auto warmup_t1 = profiling::now();
 
                     if (renderer->counters()) {

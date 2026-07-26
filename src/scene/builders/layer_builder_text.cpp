@@ -47,17 +47,6 @@ TextRunBuilder& LayerBuilder::animated_text(std::string name, TextRunSpec params
     // otherwise a normal-layer canvas transform shifts glyphs off-screen.
     m_layer.kind = LayerKind::Text;
 
-    // Apply layer-level defaults for font path and font size.
-    // Font path: only applied when the caller left it empty.
-    // Font size: always applied when set (callers can override per-run
-    // by chaining .font_size() on the returned TextRunBuilder).
-    if (params.text.font.font_path.empty() && !m_default_font_path.empty()) {
-        params.text.font.font_path = m_default_font_path;
-    }
-    if (m_default_font_size.has_value()) {
-        params.text.font.font_size = *m_default_font_size;
-    }
-
     // Sequence V2: collect font asset reference
     if (!params.text.font.font_path.empty()) {
         m_layer.asset_manifest.add_font(

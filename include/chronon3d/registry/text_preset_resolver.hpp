@@ -8,10 +8,10 @@
 // ## Canonical "custom_preset" entry point
 // `wire_preset_text_run_params(preset_id, spec) -> TextRunSpec` is THE
 // canonical compute entry point for "custom preset" authoring flows: it
-// packages the registered `TextPreset` (catalog) + the resolved
+// packages the registered `TextPresetDescriptor` (catalog) + the resolved
 // `TextAnimatorSpec` (from `AnimatorResolver::compose_for(preset_id)`)
 // into a single `TextRunSpec` value inspection-friendly.  Authoring
-// facades and SDK consumers should NOT instantiate ad-hoc `TextPreset`
+// facades and SDK consumers should NOT instantiate ad-hoc descriptors
 // or hand-rolled `TextAnimatorSpec` builders — route everything through
 // this single function (or, for LayerBuilder-side wiring, through the
 // registry-internal `wire_through_resolver(lb, preset_id, spec)` helper

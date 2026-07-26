@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// motion_error.hpp — §5.0b — Typed exception for MotionPresetPackRegistry
+// motion_error.hpp — Typed exception for the immutable motion catalog
 //
 // Per the §5 user-spec `resolve().compile().is_valid()` chain-method closure
 // (commit `b8b6014c`, 2026-07-11), the next sub-step is closing the
 // `std::runtime_error`-as-control-flow rot pattern in the canonical
-// `MotionPresetPackRegistry` — specifically the `apply()` lookup miss
+// `MotionPresetCatalog` — specifically the `apply()` lookup miss
 // branch (3 throw sites total; this commit migrates ONLY the `apply()`
 // site per the user's "small-blast-radius" mandate).
 //
@@ -25,25 +25,20 @@
 //      Field declaration order is `path` then `code` (matches the user's
 //      literal member listing).
 //   3. `std::runtime_error::what()` returns a one-line diagnostic of
-//      the form `MotionPresetPackRegistry: MotionPresetNotFound 'missing-id'`
+//      the form `MotionPresetCatalog: MotionPresetNotFound 'missing-id'`
 //      composed from `to_string(MotionErrorCode)` + `path`.
 //
 // ENUM (verbatim from user spec):
 //   `enum class MotionErrorCode { MotionPresetNotFound, UnknownPackId, ... }`
 // Two members currently in use:
-//   • `MotionPresetNotFound` — thrown by `MotionPresetPackRegistry::apply()`
+//   • `MotionPresetNotFound` — thrown by `MotionPresetCatalog::apply()`
 //     when the lookup id does not match any registered preset (sole
 //     user-spec migration target for this commit).
 //   • `UnknownPackId` — reserved for future pack-namespaced `apply()`
 //     variants (NOT currently thrown; future-proof).
 //
-// OUT-OF-SCOPE (intentionally NOT migrated in this commit):
-//   • `MotionPresetPackRegistry::register_preset()` — frozen-registry and
-//     duplicate-id throw sites are NOT migrated, per the user-spec
-//     "Migrate `MotionPresetPackRegistry::apply(lb, id)`" wording. They
-//     continue to throw `std::runtime_error` until a future §5.x
-//     forward-point commit. The class docblock above documents this
-//     scope decision.
+// Catalog construction is the only mutable phase and rejects duplicate ids
+// before the immutable catalog becomes visible to render code.
 //
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -54,7 +49,7 @@
 
 namespace chronon3d::presets {
 
-/// Error codes emitted by `MotionPresetPackRegistry::apply()` (and
+/// Error codes emitted by `MotionPresetCatalog::apply()` (and
 /// future pack-namespaced variants). Each variant maps to a single
 /// categorized failure path so callers can switch on `.code`
 /// programmatically instead of parsing string messages.
@@ -87,7 +82,7 @@ enum class MotionErrorCode {
     return "<unknown-MotionErrorCode>";
 }
 
-/// Typed exception for `MotionPresetPackRegistry` lookup failures.
+/// Typed exception for `MotionPresetCatalog` lookup failures.
 /// Inherits `std::runtime_error` so existing catch-blocks that
 /// `catch (const std::runtime_error&)` continue to compile + run
 /// unchanged — backward-compatibility is a hard requirement of this
@@ -110,7 +105,7 @@ public:
     /// has no default ctor — hence the constructor).
     MotionError(MotionErrorCode code_, std::string path_)
         : std::runtime_error(
-              std::string("MotionPresetPackRegistry: ")
+              std::string("MotionPresetCatalog: ")
               + to_string(code_) + " '" + path_ + "'")
         , path(std::move(path_))
         , code(code_)

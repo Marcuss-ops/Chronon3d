@@ -9,10 +9,7 @@
 // (≥20+, DoD #1 verde).
 //
 // ## TEXT-RES-01 refactor (this commit)
-// - Struct shape: `TextPreset` → `TextPresetDescriptor` (canonical type,
-//   in `text_preset_descriptor.hpp`).  The legacy `TextPreset` typedef
-//   in `text_preset_registry.hpp` is preserved as a back-compat shim,
-//   so signature churn is kept to the .cpp consumers + 3 test files.
+// - `TextPresetDescriptor` is the only descriptor type.
 // - The 22 `_entry()` builders now expose TWO membership functions:
 //     1. `builder`        — engine-side factory (LayerBuilder wire,
 //                           unchanged semantics from Stage 3).
@@ -34,11 +31,6 @@
 // SceneBuilder / LayerBuilder / TextSpec are pulled in here, in the .cpp,
 // where the builder bodies actually use them.
 //
-// ── content::text::TextSpec ↔ chronon3d::TextSpec bridge ───────────────
-// (TICKET-012) The `content::text::TextSpec` alias lives in
-// `include/chronon3d/registry/text_preset_registry.hpp` (single source
-// of truth).  No per-TU bridge is needed here.
-
 #include <chronon3d/registry/text_preset_registry.hpp>
 
 #include <chronon3d/registry/text_preset_resolver.hpp>   // Cluster B public API surface
@@ -262,8 +254,35 @@ wire_preset_text_run_params(std::string_view preset_id,
 TextRunSpec
 wire_preset_text_run_params(std::string_view preset_id,
                             const TextDefinition& definition) noexcept {
-    auto run = ::chronon3d::compat::to_text_run_spec(definition);
-    return wire_preset_text_run_params(preset_id, std::move(run.text));
+    TextSpec spec;
+    spec.content = definition.content;
+    spec.spans = definition.spans;
+    spec.font = definition.style.font;
+    spec.layout.box = definition.frame.size;
+    spec.layout.anchor = definition.frame.anchor;
+    spec.layout.align = definition.frame.align;
+    spec.layout.vertical_align = definition.frame.vertical_align;
+    spec.layout.wrap = definition.frame.wrap;
+    spec.layout.overflow = definition.frame.overflow;
+    spec.layout.centering_mode = definition.frame.centering_mode;
+    spec.layout.line_height = definition.frame.line_height;
+    spec.layout.tracking = definition.frame.tracking;
+    spec.layout.auto_fit = definition.frame.auto_fit;
+    spec.layout.min_font_size = definition.frame.min_font_size;
+    spec.layout.max_font_size = definition.frame.max_font_size;
+    spec.layout.max_lines = definition.frame.max_lines;
+    spec.layout.ellipsis = definition.frame.ellipsis;
+    spec.layout.paragraph = definition.paragraph;
+    spec.appearance.color = definition.style.color;
+    spec.appearance.paint = definition.style.paint;
+    spec.appearance.shadows = definition.style.shadows;
+    spec.appearance.material = definition.style.material;
+    spec.appearance.box_style = definition.style.box_style;
+    spec.placement = {
+        TextPlacementKind::Absolute,
+        {definition.frame.placement.offset.x, definition.frame.placement.offset.y}
+    };
+    return wire_preset_text_run_params(preset_id, std::move(spec));
 }
 
 // ── make_default_text_preset_registry ──────────────────────────────────────

@@ -37,7 +37,7 @@
 // ============================================================================
 
 #include <chronon3d/text/glyph_selector.hpp>
-#include <chronon3d/animation/random.hpp>  // TICKET-RANDOM-UNIFY — canonical deterministic_random + build_random_permutation
+#include <chronon3d/core/random/deterministic_random.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -103,8 +103,8 @@ CompiledSelector compile_selector(
     c.total_units = unit_map.unit_count(spec.unit);
 
     if (spec.randomize_order && c.total_units > 0) {
-        c.random_permutation = build_random_permutation(
-            RandomSeed{spec.random_seed}, c.total_units);
+        c.random_permutation = random::permutation(
+            random::Seed{spec.random_seed}, c.total_units);
     }
 
     if (spec.exclude_spaces && placed != nullptr && c.total_units > 0) {
