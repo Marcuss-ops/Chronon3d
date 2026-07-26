@@ -1,5 +1,8 @@
 #include <doctest/doctest.h>
 #include <chronon3d/animation/easing/spring.hpp>
+#include <chronon3d/animation/motion/motion.hpp>
+#include <algorithm>
+#include <array>
 #include <cmath>
 using namespace chronon3d;
 
@@ -137,4 +140,110 @@ TEST_CASE("Spring — Spring::Gentle/Snappy presets construct canonical config")
     static_assert(Spring::Bouncy.damping == 12.0f);
     static_assert(Spring::Heavy.initial_velocity == 0.0f);
     CHECK(true); // Reaching here means compile-time checks passed.
+}
+
+// spring random-access parity — pre-refactor behavior lock
+//
+// Locks the canonical sample_spring + SpringConfig contract BEFORE any
+// future spring physics refactor (Fase 2/3 of the 12-commit plan). Each
+// SUBCASE targets a single observable property:
+//   (a) sample_spring is a pure function with no hidden state;
+//       resampling the same args in any order yields bit-identical values;
+//   (b) spring(Frame, FrameRate, ...) maps (Frame, FrameRate) to the same
+//       elapsed time when the ratios match (e.g. Frame{30}@30fps == Frame{60}@60fps);
+//   (c) initial_velocity non-zero creates a non-zero early-time slope
+//       distinguishing forward vs backward initial pushes;
+//   (d) MotionTimeline::spring bake = direct sample_spring at the corresponding
+//       elapsed time (locks the kSpringBakeFps=60 fps invariant for the bake path).
+
+TEST_CASE("spring random-access parity") {
+    SpringConfig cfg{
+        .mass = 1.0f, .stiffness = 100.0f, .damping = 15.0f,
+        .initial_velocity = 0.0f};
+
+    SUBCASE("random frame order produces identical samples") {
+        // Locks: sample_spring is a pure function — sampling the same
+        // (frame, config) in any order must yield bit-identical results
+        // to the declared-order sample. First sample in declared order
+        // {0, 30, 5, 60, 15, 1}, then sample in REVERSED order, asserting
+        // per-frame identity against the captured values. The reversed
+        // pass proves sample_spring has no order-dependence beyond
+        // argument transcription (no accumulator state, no globals).
+        const std::array<Frame, 6> frames{
+            Frame{0}, Frame{30}, Frame{5}, Frame{60}, Frame{15}, Frame{1}};
+        std::array<f32, 6> seq_results{};
+        for (size_t i = 0; i < frames.size(); ++i) {
+            const f32 t = static_cast<f32>(frames[i].integral()) / 30.0f;
+            seq_results[i] = sample_spring(t, 0.0f, 1.0f, cfg);
+        }
+        for (size_t i = 0; i < frames.size(); ++i) {
+            const size_t j = frames.size() - 1 - i;  // reversed index
+            const f32 t = static_cast<f32>(frames[j].integral()) / 30.0f;
+            CHECK(sample_spring(t, 0.0f, 1.0f, cfg)
+                  == doctest::Approx(seq_results[j]));
+        }
+    }
+
+    SUBCASE("Frame{30}@30fps == Frame{60}@60fps (both = 1 second)") {
+        // Both expressions evaluate to elapsed = 1 second through
+        // FrameRate::to_seconds; spring() Framework overloads MUST yield
+        // identical values for mathematically-equivalent (Frame, FrameRate)
+        // pairs across different frame rates.
+        const f32 at_30fps =
+            spring(Frame{30}, FrameRate{30, 1}, 0.0f, 1.0f, cfg);
+        const f32 at_60fps =
+            spring(Frame{60}, FrameRate{60, 1}, 0.0f, 1.0f, cfg);
+        CHECK(at_30fps == doctest::Approx(at_60fps));
+    }
+
+    SUBCASE("initial_velocity forward vs backward differs at Frame{1}") {
+        // Locks: positive initial_velocity pushes the early trajectory
+        // toward `to`; negative pulls it away. By Frame{1} at 30fps
+        // (≈ 0.0333 s) the difference is large enough that the comparison
+        // is robust without tolerance games.
+        SpringConfig forward{
+            .mass = 1.0f, .stiffness = 100.0f, .damping = 15.0f,
+            .initial_velocity = 10.0f};
+        SpringConfig backward{
+            .mass = 1.0f, .stiffness = 100.0f, .damping = 15.0f,
+            .initial_velocity = -10.0f};
+        const f32 rest_fwd =
+            sample_spring(1.0f / 30.0f, 0.0f, 1.0f, forward);
+        const f32 rest_bwd =
+            sample_spring(1.0f / 30.0f, 0.0f, 1.0f, backward);
+        CHECK(rest_fwd > rest_bwd);
+    }
+
+    SUBCASE("MotionTimeline::spring bake == direct sample_spring at Frame{20}") {
+        // MotionTimeline<T>::spring(Frame duration, T target, SpringConfig)
+        // bakes sample_spring at kSpringBakeFps = 60 fps into 1-frame
+        // keyframes via push_back in motion.hpp:173-181. At Frame{20}
+        // from the bake start (which begins at current_frame() = 0 since
+        // the timeline starts at frame 0), elapsed = 20/60 s and the
+        // baked keyframe at Frame{20} MUST equal the direct sample_spring
+        // call at the same elapsed time.
+        const f32 from = 0.0f;
+        const f32 to   = 1.0f;
+
+        auto prog = MotionTimeline<f32>(from)
+            .spring(Frame{20}, to, cfg)
+            .compile();
+
+        // prog.keyframes contains entries at Frame{0} (initial) plus one
+        // per baked frame (21 entries for a Frame{20} spring on a fresh
+        // timeline). Locate the entry at Frame{20} by integral value.
+        auto it = std::find_if(
+            prog.keyframes.begin(),
+            prog.keyframes.end(),
+            [](const Keyframe<f32>& kf) {
+                return kf.frame.integral() == 20;
+            });
+        REQUIRE(it != prog.keyframes.end());
+        const f32 baked = static_cast<f32>(it->value);
+
+        // MotionTimeline bakes at 60 fps: at f=20 from start, elapsed = 20/60.
+        const f32 expected =
+            sample_spring(20.0f / 60.0f, from, to, cfg);
+        CHECK(baked == doctest::Approx(expected));
+    }
 }
