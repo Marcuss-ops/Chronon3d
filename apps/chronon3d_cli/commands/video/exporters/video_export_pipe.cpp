@@ -30,7 +30,12 @@ PipeExportResult render_and_encode_ffmpeg_pipe(
 
     // Phase 2-4 — Warmup
     RenderSettings render_opts = settings;
-    warmup_pipe_renderer(*session->renderer, comp, opts);
+    const auto warmup_result = warmup_pipe_renderer(*session->renderer, comp, opts);
+    if (!warmup_result) {
+        spdlog::error("[video] export aborted: render preparation failed: {}",
+                      warmup_result.error().message);
+        return PipeExportResult{};
+    }
     warmup_pipe_pool(*session);
     session->sys_metrics.sample_cpu_start();
 

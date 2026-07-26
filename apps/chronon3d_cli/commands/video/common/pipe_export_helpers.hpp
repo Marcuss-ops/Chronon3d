@@ -6,6 +6,7 @@
 #include <chronon3d/core/system_metrics.hpp>
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/types/frame.hpp>
+#include <chronon3d/runtime/render_preparation.hpp>
 
 #include <exception>
 #include <memory>
@@ -48,7 +49,9 @@ void track_pipe_encoder_process(
     IVideoEncoder& encoder,
     SystemMetricsCollector& sys_metrics);
 
-void warmup_pipe_renderer(
+[[nodiscard]] chronon3d::Result<chronon3d::runtime::RendererWarmupResult,
+                                chronon3d::runtime::PreparationError>
+warmup_pipe_renderer(
     SoftwareRenderer & renderer,
     const Composition& comp,
     const FfmpegExportOptions& opts);
