@@ -31,7 +31,8 @@ private:
     [[nodiscard]] std::shared_ptr<const Framebuffer> rounded_framebuffer(
         const std::string& path,
         const CachedImage& cached,
-        float radius
+        float radius,
+        ImageDecodeOptions options
     );
 
     std::reference_wrapper<ImageCache> m_cache;

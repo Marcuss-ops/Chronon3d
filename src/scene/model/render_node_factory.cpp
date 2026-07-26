@@ -116,6 +116,7 @@ RenderNode RenderNodeFactory::image(std::pmr::memory_resource* res, std::string 
     node.shape.image().crop = p.crop;
     node.shape.image().opacity = p.opacity;
     node.shape.image().radius = p.radius;
+    node.shape.image().decode_options = p.decode_options;
     node.corner_radius = p.radius;
     node.world_transform.anchor = {p.size.x * 0.5f, p.size.y * 0.5f, 0.0f};
     node.world_transform.position = p.pos;
@@ -137,6 +138,7 @@ RenderNode RenderNodeFactory::tiled_image(std::pmr::memory_resource* res, std::s
     node.shape.image().path = chronon3d::detail::image_params_resolve_path(p);
     node.shape.image().size = p.size;
     node.shape.image().opacity = p.opacity;
+    node.shape.image().decode_options = p.decode_options;
     node.world_transform.position = p.pos;
     node.world_transform.anchor = {0, 0, 0};
     node.color = Color{1, 1, 1, p.opacity};
