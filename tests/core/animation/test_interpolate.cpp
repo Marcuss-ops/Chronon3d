@@ -95,3 +95,130 @@ TEST_CASE("interpolate baseline lock") {
         CHECK(interpolate(100.0f, 0.0f, 100.0f, 0.0f, 1.0f, EasingCurve{Easing::OutCubic}) == doctest::Approx(1.0f));
     }
 }
+
+// ── Extrapolate semantics — TICKET-EXTRAPOLATE-ENUM Fase 2 ──────────────
+//
+// Locks the per-policy behavior added in commit `feat(anim): interpolate
+// extrapolate + options struct`. The InterpolateOptions overload drives
+// each SUBCASE through the same `chronon3d::animation::detail::apply_extrapolation`
+// pipeline as production callers, so any regression in the helpers or
+// the policy branching surfaces here without touching existing baseline
+// locks above.
+TEST_CASE("interpolate Extrapolate semantics") {
+
+    SUBCASE("default InterpolateOptions{} == Clamp-before / Clamp-after") {
+        CHECK(interpolate(-50.0f,    0.0f, 100.0f, 0.0f, 1.0f,
+                          InterpolateOptions{}) == doctest::Approx(0.0f));
+        CHECK(interpolate(-1000.0f, 0.0f, 100.0f, 0.0f, 1.0f,
+                          InterpolateOptions{}) == doctest::Approx(0.0f));
+        CHECK(interpolate(150.0f,  0.0f, 100.0f, 0.0f, 1.0f,
+                          InterpolateOptions{}) == doctest::Approx(1.0f));
+        CHECK(interpolate(1000.0f, 0.0f, 100.0f, 0.0f, 1.0f,
+                          InterpolateOptions{}) == doctest::Approx(1.0f));
+    }
+
+    SUBCASE("Extend before: input<in_start → t kept raw (negative)") {
+        // in_end - in_start = 100, input - in_start = -50 → t = -0.5.
+        // Extend.left keeps raw; Linear easing passes through;
+        // output = 0 + (1 - 0) * -0.5 = -0.5.
+        InterpolateOptions ext{Extrapolate::Extend, Extrapolate::Extend};
+        CHECK(interpolate(-50.0f, 0.0f, 100.0f, 0.0f, 1.0f, ext)
+              == doctest::Approx(-0.5f));
+        // Larger negative values also un-clamped.
+        CHECK(interpolate(-1000.0f, 0.0f, 100.0f, 0.0f, 1.0f, ext)
+              == doctest::Approx(-10.0f));
+    }
+
+    SUBCASE("Extend after: input>in_end → t kept raw (overshoot)") {
+        // input=150 → t=1.5 → Extend.right keeps → Linear(1.5)=1.5 → out=1.5.
+        InterpolateOptions ext{Extrapolate::Extend, Extrapolate::Extend};
+        CHECK(interpolate(150.0f, 0.0f, 100.0f, 0.0f, 1.0f, ext)
+              == doctest::Approx(1.5f));
+        CHECK(interpolate(250.0f, 0.0f, 100.0f, 0.0f, 1.0f, ext)
+              == doctest::Approx(2.5f));
+    }
+
+    SUBCASE("Wrap after: modulo-1 fold-in") {
+        InterpolateOptions w{Extrapolate::Wrap, Extrapolate::Wrap};
+        // input=150 → t=1.5 → fmod(1.5, 1) = 0.5 → output 0.5.
+        CHECK(interpolate(150.0f, 0.0f, 100.0f, 0.0f, 1.0f, w)
+              == doctest::Approx(0.5f));
+        // input=125 → t=1.25 → fmod(1.25, 1) = 0.25 → output 0.25.
+        CHECK(interpolate(125.0f, 0.0f, 100.0f, 0.0f, 1.0f, w)
+              == doctest::Approx(0.25f));
+        // input=200 → t=2.00 → fmod(2.00, 1) = 0.0 → output 0.0.
+        CHECK(interpolate(200.0f, 0.0f, 100.0f, 0.0f, 1.0f, w)
+              == doctest::Approx(0.0f));
+    }
+
+    SUBCASE("Wrap before: negative values fold into [0, 1)") {
+        // input=-50 → t=-0.5 → fmod(-0.5, 1) = -0.5 → +1.0 = 0.5 → out 0.5.
+        InterpolateOptions w{Extrapolate::Wrap, Extrapolate::Wrap};
+        CHECK(interpolate(-50.0f, 0.0f, 100.0f, 0.0f, 1.0f, w)
+              == doctest::Approx(0.5f));
+        // input=-25 → t=-0.25 → wrap to 0.75.
+        CHECK(interpolate(-25.0f, 0.0f, 100.0f, 0.0f, 1.0f, w)
+              == doctest::Approx(0.75f));
+    }
+
+    SUBCASE("Asymmetric: Clamp-left + Extend-right mixed") {
+        // Negative side clamps (safe); positive side extends (overshoot).
+        InterpolateOptions asym{Extrapolate::Clamp, Extrapolate::Extend};
+        CHECK(interpolate(-50.0f, 0.0f, 100.0f, 0.0f, 1.0f, asym)
+              == doctest::Approx(0.0f));
+        CHECK(interpolate(150.0f, 0.0f, 100.0f, 0.0f, 1.0f, asym)
+              == doctest::Approx(1.5f));
+    }
+
+    SUBCASE("start == end: short-circuits to out_start regardless of policy") {
+        // The range-degenerate guard runs BEFORE apply_extrapolation, so
+        // the edge case behavior is identical across all 3 Extrapolate
+        // values.
+        InterpolateOptions ext{Extrapolate::Extend, Extrapolate::Extend};
+        InterpolateOptions w{Extrapolate::Wrap, Extrapolate::Wrap};
+        CHECK(interpolate(50.0f,  100.0f, 100.0f, 5.0f, 10.0f,
+                          InterpolateOptions{}) == doctest::Approx(5.0f));
+        CHECK(interpolate(50.0f,  100.0f, 100.0f, 5.0f, 10.0f, ext)
+              == doctest::Approx(5.0f));
+        CHECK(interpolate(50.0f,  100.0f, 100.0f, 5.0f, 10.0f, w)
+              == doctest::Approx(5.0f));
+        CHECK(interpolate(-99.0f, 0.0f,   0.0f,   3.7f, 9.2f, ext)
+              == doctest::Approx(3.7f));
+    }
+
+    SUBCASE("Endpoint preservation: input==in_start||in_end is policy-invariant") {
+        // t exactly at 0 or 1 falls through apply_extrapolation unchanged.
+        InterpolateOptions ext{Extrapolate::Extend, Extrapolate::Extend};
+        InterpolateOptions w{Extrapolate::Wrap,   Extrapolate::Wrap};
+        CHECK(interpolate(0.0f,   0.0f, 100.0f, 0.0f, 1.0f, ext)
+              == doctest::Approx(0.0f));
+        CHECK(interpolate(100.0f, 0.0f, 100.0f, 0.0f, 1.0f, ext)
+              == doctest::Approx(1.0f));
+        CHECK(interpolate(0.0f,   0.0f, 100.0f, 0.0f, 1.0f, w)
+              == doctest::Approx(0.0f));
+        CHECK(interpolate(100.0f, 0.0f, 100.0f, 0.0f, 1.0f, w)
+              == doctest::Approx(1.0f));
+    }
+}
+
+TEST_CASE("interpolate legacy ClampMode adapter — Cat-3 bit-equivalent") {
+    // Locks ClampMode backward-compat adapter → InterpolateOptions. Legacy
+    // overload must produce bit-identical results for any input that does
+    // NOT exercise Extend/Wrap — proven by sampling 6 points across the
+    // range and asserting exact equality across both call styles.
+    auto legacy = [](f32 input, f32 s, f32 e, f32 from, f32 to,
+                     EasingCurve easing = EasingCurve{Easing::Linear}) {
+        return interpolate(input, s, e, from, to, easing, ClampMode::Clamp);
+    };
+    auto modern = [](f32 input, f32 s, f32 e, f32 from, f32 to,
+                     EasingCurve easing = EasingCurve{Easing::Linear}) {
+        return interpolate(input, s, e, from, to,
+                           InterpolateOptions{Extrapolate::Clamp,
+                                              Extrapolate::Clamp,
+                                              easing});
+    };
+    for (f32 v : {-50.0f, 0.0f, 25.0f, 50.0f, 100.0f, 150.0f}) {
+        CHECK(legacy(v, 0.0f, 100.0f, 0.0f, 1.0f)
+              == doctest::Approx(modern(v, 0.0f, 100.0f, 0.0f, 1.0f)));
+    }
+}
