@@ -76,12 +76,13 @@ using TextDefinitionT = chronon3d::registry::internal::TextDefinitionT;
 // (each TU keeps its own private copy with internal linkage).
 namespace {
 TextPresetDescriptor make_reveal_descriptor(
+        std::string id,
         PresetMetadata metadata,
         std::string fixture,
         AnimatorFactory animator,
         TextPresetBuilder builder) {
     TextPresetDescriptor d;
-    d.id               = metadata.id;
+    d.id               = std::move(id);
     d.metadata         = std::move(metadata);
     d.fixture          = std::move(fixture);
     d.builder          = std::move(builder);
@@ -215,8 +216,8 @@ compose_character_cascade(const PresetMetadata& /*meta*/) {
 // ── 7.  tracking_close ────────────────────────────────────────────────────
 TextPresetDescriptor tracking_close_entry() {
     return make_reveal_descriptor(
+        "tracking_close",
         PresetMetadata{
-            .id           = "tracking_close",
             .display_name = "TrackingClose",
             .category     = TextPresetCategory::Reveal,
             .description  = "Letter-spacing idle pulse (tracking_breathing) over "
@@ -239,8 +240,8 @@ TextPresetDescriptor tracking_close_entry() {
 // ── 8.  masked_line_reveal ────────────────────────────────────────────────
 TextPresetDescriptor masked_line_reveal_entry() {
     return make_reveal_descriptor(
+        "masked_line_reveal",
         PresetMetadata{
-            .id           = "masked_line_reveal",
             .display_name = "MaskedLineReveal",
             .category     = TextPresetCategory::Reveal,
             .description  = "Center-split mask reveal with per-Line selector.  "
@@ -263,8 +264,8 @@ TextPresetDescriptor masked_line_reveal_entry() {
 // ── 9.  word_cascade ──────────────────────────────────────────────────────
 TextPresetDescriptor word_cascade_entry() {
     return make_reveal_descriptor(
+        "word_cascade",
         PresetMetadata{
-            .id           = "word_cascade",
             .display_name = "WordCascade",
             .category     = TextPresetCategory::Reveal,
             .description  = "Per-word stagger (Frame{3} delay) + fade_in.  Each "
@@ -290,8 +291,8 @@ TextPresetDescriptor word_cascade_entry() {
 // ── 10. character_cascade ─────────────────────────────────────────────────
 TextPresetDescriptor character_cascade_entry() {
     return make_reveal_descriptor(
+        "character_cascade",
         PresetMetadata{
-            .id           = "character_cascade",
             .display_name = "CharacterCascade",
             .category     = TextPresetCategory::Reveal,
             .description  = "Per-grapheme stagger (Frame{1} delay) + fade_in.  "

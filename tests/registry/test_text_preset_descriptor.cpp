@@ -10,8 +10,7 @@
 //   3. Every `fixture` (golden-frame fixture path) is NON-EMPTY for
 //      all 28 entries — the Visual Regression Harness link is locked
 //      at registration time, NOT in a sidecar comment.
-//   4. `id` and `metadata.id` are kept in sync at the descriptor
-//      level (register-time invariant).
+//   4. the descriptor owns the sole preset ID.
 //   5. The animator_factory contract: `register_builtin_presets()`
 //      and `AnimatorResolver::compose_for(<id>)` agree on the
 //      output.  AnimatorResolver is a thin registry dispatcher —
@@ -45,17 +44,13 @@ using chronon3d::registry::AnimatorResolver;
 // ─────────────────────────────────────────────────────────────────────────
 TEST_CASE("TextPresetDescriptor: each built-in populates {id, metadata, builder, animator_factory, fixture} (Sub-cases A1-A4)") {
 
-    SUBCASE("A1) every built-in id and metadata.id are non-empty AND in sync at registration time") {
+    SUBCASE("A1) every built-in descriptor id is non-empty") {
         const auto& r = builtin_text_preset_registry();
         REQUIRE(r.list().size() >= 21);  // DoD #1 floor — matches Sub-case 2 of test_text_preset_registry.cpp.
 
         for (const auto& d : r.list()) {
             CAPTURE(d.id);
             CHECK_FALSE(d.id.empty());
-            CHECK_FALSE(d.metadata.id.empty());
-            // TEXT-RES-01 invariant: top-level `id` == `metadata.id`
-            // (kept in sync by `TextPresetRegistry::register_preset`).
-            CHECK(d.id == d.metadata.id);
         }
     }
 
@@ -204,7 +199,6 @@ TEST_CASE("TextPresetDescriptor: fail-safe paths (Sub-cases D1-D2)") {
         // Subsequent register attempts throw.
         TextPresetDescriptor rogue;
         rogue.id = "rogue_addition";
-        rogue.metadata.id = rogue.id;
         rogue.builder = [](chronon3d::SceneBuilder&, chronon3d::LayerBuilder&,
                           const chronon3d::TextDefinition&){};
         CHECK_THROWS_AS(r.register_preset(rogue), std::runtime_error);

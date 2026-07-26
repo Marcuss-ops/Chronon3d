@@ -181,7 +181,6 @@ compose_lower_third_safe(const PresetMetadata& /*meta*/) {
 // ── 19. minimal_white ─────────────────────────────────────────────────────
 TextPresetDescriptor minimal_white_entry() {
     PresetMetadata meta;
-    meta.id           = "minimal_white";
     meta.display_name = "MinimalWhite";
     meta.category     = TextPresetCategory::Subtitle;
     meta.description  = "No-motion baseline. Routes through `wire_through_resolver` "
@@ -191,7 +190,7 @@ TextPresetDescriptor minimal_white_entry() {
     meta.builtin      = true;
 
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "minimal_white";
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_minimal_white";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
@@ -209,7 +208,6 @@ TextPresetDescriptor minimal_white_entry() {
 // ── 20. yellow_keyword ────────────────────────────────────────────────────
 TextPresetDescriptor yellow_keyword_entry() {
     PresetMetadata meta;
-    meta.id           = "yellow_keyword";
     meta.display_name = "YellowKeyword";
     meta.category     = TextPresetCategory::Subtitle;
     meta.description  = "Per-word stagger (Frame{3}) + fade_in.  Pair with a "
@@ -218,7 +216,7 @@ TextPresetDescriptor yellow_keyword_entry() {
     meta.builtin      = true;
 
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "yellow_keyword";
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_yellow_keyword";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
@@ -235,7 +233,6 @@ TextPresetDescriptor yellow_keyword_entry() {
 // ── 21. glow_pulse ────────────────────────────────────────────────────────
 TextPresetDescriptor glow_pulse_entry() {
     PresetMetadata meta;
-    meta.id           = "glow_pulse";
     meta.display_name = "GlowPulse";
     meta.category     = TextPresetCategory::Subtitle;
     meta.description  = "Continuous tracking-breathing idle (Frame{40}) — "
@@ -244,7 +241,7 @@ TextPresetDescriptor glow_pulse_entry() {
     meta.builtin      = true;
 
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "glow_pulse";
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_glow_pulse";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
@@ -260,7 +257,6 @@ TextPresetDescriptor glow_pulse_entry() {
 // ── 22. caption_box ───────────────────────────────────────────────────────
 TextPresetDescriptor caption_box_entry() {
     PresetMetadata meta;
-    meta.id           = "caption_box";
     meta.display_name = "CaptionBox";
     meta.category     = TextPresetCategory::Subtitle;
     meta.description  = "Short downward dock (offset.y=30) + fade_in. "
@@ -268,7 +264,7 @@ TextPresetDescriptor caption_box_entry() {
     meta.builtin      = true;
 
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "caption_box";
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_caption_box";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
@@ -285,13 +281,12 @@ TextPresetDescriptor caption_box_entry() {
 // ── 23. karaoke_fill ────────────────────────────────────────────────────
 TextPresetDescriptor karaoke_fill_entry() {
     PresetMetadata meta;
-    meta.id           = "karaoke_fill";
     meta.display_name = "KaraokeFill";
     meta.category     = TextPresetCategory::Subtitle;
     meta.description  = "Word-level karaoke fill sweep.";
     meta.builtin      = true;
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "karaoke_fill";
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_karaoke_fill";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextDefinitionT& spec) {
@@ -304,13 +299,12 @@ TextPresetDescriptor karaoke_fill_entry() {
 // ── 24. active_word_pop ──────────────────────────────────────────────────
 TextPresetDescriptor active_word_pop_entry() {
     PresetMetadata meta;
-    meta.id           = "active_word_pop";
     meta.display_name = "ActiveWordPop";
     meta.category     = TextPresetCategory::Subtitle;
     meta.description  = "Per-word scale pop driven by subtitle word timing.";
     meta.builtin      = true;
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "active_word_pop";
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_active_word_pop";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextDefinitionT& spec) {
@@ -327,13 +321,12 @@ TextPresetDescriptor active_word_pop_entry() {
 // ── 25. subtitle_card ────────────────────────────────────────────────────
 TextPresetDescriptor subtitle_card_entry() {
     PresetMetadata meta;
-    meta.id           = "subtitle_card";
     meta.display_name = "SubtitleCard";
     meta.category     = TextPresetCategory::Subtitle;
     meta.description  = "Rounded background card + fade_in.";
     meta.builtin      = true;
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "subtitle_card";
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_subtitle_card";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextDefinitionT& spec) {
@@ -346,13 +339,12 @@ TextPresetDescriptor subtitle_card_entry() {
 // ── 26. lower_third_safe ─────────────────────────────────────────────────
 TextPresetDescriptor lower_third_safe_entry() {
     PresetMetadata meta;
-    meta.id           = "lower_third_safe";
     meta.display_name = "LowerThirdSafe";
     meta.category     = TextPresetCategory::Subtitle;
     meta.description  = "Lower-third dock with safe-area margin.";
     meta.builtin      = true;
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "lower_third_safe";
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_lower_third_safe";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextDefinitionT& spec) {
