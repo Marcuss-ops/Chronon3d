@@ -43,22 +43,26 @@ int main() {
             });
 
             s.layer("title", [&ctx](c3d::LayerBuilder& l) {
-                l.font("fonts/Inter-Bold.ttf")
-                 .font_size(72.0f)
-                 .center();
-                l.animated_text("t", c3d::TextRunSpec{
-                    .text = c3d::TextDefinition{
-    .content = {.value = "Hello, Chronon3D!"},
-    .style = {
-        .font = {.font_family = "Inter", .font_weight = 700},
-        .color = c3d::Color::white()
-    },
-    .frame = {
-        .size = {static_cast<float>(ctx.width),
-                                           static_cast<float>(ctx.height)}
-    }
-}
-                }).commit();
+                l.text("t", c3d::TextDefinition{
+                    .content = {.value = "Hello, Chronon3D!"},
+                    .style = {
+                        .font = {
+                            .font_path = "fonts/Inter-Bold.ttf",
+                            .font_family = "Inter",
+                            .font_weight = 700,
+                            .font_size = 72.0f,
+                        },
+                        .color = c3d::Color::white(),
+                    },
+                    .frame = {
+                        .size = {
+                            static_cast<float>(ctx.width),
+                            static_cast<float>(ctx.height),
+                        },
+                        .align = c3d::TextAlign::Center,
+                        .vertical_align = c3d::VerticalAlign::Middle,
+                    },
+                });
             });
 
             return s.build();

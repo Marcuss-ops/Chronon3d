@@ -175,16 +175,16 @@ TEST_CASE("TICKET-104 (1) TextRunBuilder::commit drops orphaned selectors (selec
     // Build a minimal layer.  SampleTime default-constructs at frame 0.
     LayerBuilder layer("ticket_104_layer_1", SampleTime{});
 
-    // Push a text_run spec via the canonical `.animated_text(name, params)`
-    // entry point.  Use minimal TextRunSpec (only the required
+    // Push a text_run spec via the canonical `.text_run(name, params)`
+    // entry point.  Use minimal TextRunDefinition (only the required
     // fields populated -- the rest get their default member init).
-    TextRunSpec params;
+    TextRunDefinition params;
     params.text.content.value          = "orphan-selectors";
     params.text.font.font_family       = "DejaVu Sans";   // system fallback
     params.text.font.font_size         = 32.0f;
     params.text.font.font_weight       = 400;
     // No direction/language/features defaults -- cat-3 freeze uses defaults.
-    TextRunBuilder& trb = layer.animated_text("orphan_entry", std::move(params));
+    TextRunBuilder& trb = layer.text_run("orphan_entry", std::move(params));
 
     // ── Wire `.selector(...)` WITHOUT a preceding `.animator(...)`. ──
     // The TICKET-104 contract: this is a semantic failure mode that
@@ -255,7 +255,7 @@ TEST_CASE("TICKET-104 (1) TextRunBuilder::commit drops orphaned selectors (selec
 
     // Secondary structural assertion: the spec's selector list is NOT
     // populated (orphan was dropped, not silently attached).  In the
-    // current TextRunSpec surface, selectors live on
+    // current TextRunDefinition surface, selectors live on
     // `TextAnimatorSpec::selectors` -- with no animators registered,
     // the implicit per-mutator animator would still be the only entry
     // — and ONLY if a mutator was invoked.  `.selector(...)` alone

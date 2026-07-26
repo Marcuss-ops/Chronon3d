@@ -38,7 +38,7 @@
 // chronon3d::FrameContext — captured-by-value in the composition lambda.
 
 #include <chronon3d/scene/builders/builder_params.hpp>
-// TextDefinition / TextRunSpec / TextPlacementKind::CanvasCenter /
+// TextDefinition / TextRunDefinition / TextPlacementKind::CanvasCenter /
 // TextAlign / VerticalAlign / Vec2 / Vec3 / Color — used by the inner
 // scene composer (build_chronon_glow_scene below).
 
@@ -49,7 +49,7 @@
 // chronon3d::LayerBuilder — the inner lambda receives one of these.
 
 #include <chronon3d/text/text_run_shape.hpp>
-// chronon3d::TextRunSpec — used in the composer below.
+// chronon3d::TextRunDefinition — used in the composer below.
 
 #include <chronon3d/timeline/composition.hpp>
 // chronon3d::composition / chronon3d::Composition / Scene — return type

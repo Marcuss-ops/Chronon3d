@@ -138,7 +138,7 @@ TEST_CASE("Universal Glow: works on Text layers") {
         SceneBuilder s(ctx);
         s.layer("l", [](LayerBuilder& l) {
             l.position({0, 0, 0});
-            // PR3→PR4 migration: TextSpec is composable.  Reorder
+            // PR3→PR4 migration: TextDefaults is composable.  Reorder
             // designators inside `.layout` to match TextLayoutSpec's
             // declaration order (C++ designated-init rule).
             l.text("t", {

@@ -55,14 +55,14 @@ struct LocalEngine {
     {}
 };
 
-[[nodiscard]] TextRunSpec make_autofit_params(
+[[nodiscard]] TextRunDefinition make_autofit_params(
     const std::string& utf8,
     float font_size,
     bool auto_fit,
     float min_font_size = 8.0f,
     float max_font_size = 96.0f
 ) {
-    TextRunSpec params;
+    TextRunDefinition params;
     params.text.content.value              = utf8;
     params.text.font.font_family           = "DejaVu Sans";
     params.text.font.font_size             = font_size;

@@ -20,7 +20,7 @@ namespace authoring { class Layer; }
 
 // Non-owning fluent handle over one PendingTextRun owned by LayerBuilder.
 // Glyph mutators append implicit full-range animator specs; font/layout
-// mutators update the canonical TextRunSpec directly. `commit()` validates
+// mutators update the canonical TextRunDefinition directly. `commit()` validates
 // and finalizes the pending spec, while LayerBuilder::build() marks it consumed
 // only after successful node materialization.
 class TextRunBuilder {
@@ -49,7 +49,7 @@ public:
 
     LayerBuilder& commit();
 
-    [[nodiscard]] const TextRunSpec& spec() const noexcept {
+    [[nodiscard]] const TextRunDefinition& spec() const noexcept {
         return m_spec->params;
     }
     [[nodiscard]] const PendingTextRun& build_spec() const noexcept {

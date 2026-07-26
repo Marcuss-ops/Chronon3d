@@ -76,7 +76,7 @@
 // PresetMetadata, TextPresetDescriptor, TextPresetCategory, AnimatorFactory.
 
 #include <chronon3d/scene/builders/builder_params.hpp>
-// canonical ::chronon3d::TextSpec (via internal::TextSpecT alias),
+// canonical ::chronon3d::TextDefaults (via internal::TextSpecT alias),
 // TextAnimatorSpec, AnimatedValue<>, EasingCurve, Easing.
 
 #include "text_preset_internal_helpers.hpp"
@@ -108,7 +108,7 @@ compose_minimal_white(const PresetMetadata& /*meta*/) {
 }
 
 // 20. yellow_keyword — fade_in(12).  Word-stagger frame sequence lives on the
-// layer clock via `.word_stagger(Frame{3}, Frame{20})` in the builder body.
+// layer clock via `.motion("word_stagger", {.delay = Frame{3}, .duration = Frame{20}})` in the builder body.
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_yellow_keyword(const PresetMetadata& /*meta*/) {
     TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("yellow_keyword");
@@ -125,7 +125,7 @@ compose_glow_pulse(const PresetMetadata& /*meta*/) {
 }
 
 // 22. caption_box — fade_in(12).  Vertical dock offset lives on the layer
-// clock via `.fade_shift_vertical({0,-30,0}, Frame{18})` in the builder body.
+// clock via `.motion("fade_shift_vertical", {.vector = {0,-30,0}, .duration = Frame{18}})` in the builder body.
 [[nodiscard]] inline std::optional<TextAnimatorSpec>
 compose_caption_box(const PresetMetadata& /*meta*/) {
     TextAnimatorSpec a = chronon3d::registry::internal::make_presetc_template("caption_box");
@@ -225,8 +225,8 @@ TextPresetDescriptor yellow_keyword_entry() {
                           LayerBuilderT& lb,
                           const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "yellow_keyword", spec)
-          .word_stagger(Frame{3}, Frame{20})
-          .fade_in(Frame{12});
+          .motion("word_stagger", {.duration = Frame{20}, .delay = Frame{3}})
+          .motion("fade_in", {.duration = Frame{12}});
     };
     d.animator_factory = compose_yellow_keyword;
     return d;
@@ -251,7 +251,7 @@ TextPresetDescriptor glow_pulse_entry() {
                           LayerBuilderT& lb,
                           const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "glow_pulse", spec)
-          .tracking_breathing(0.08f, Frame{40});
+          .motion("tracking_breathing", {.scale = 0.08f, .duration = Frame{40}});
     };
     d.animator_factory = compose_glow_pulse;
     return d;
@@ -275,7 +275,7 @@ TextPresetDescriptor caption_box_entry() {
                           LayerBuilderT& lb,
                           const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "caption_box", spec)
-          .fade_in(Frame{12});
+          .motion("fade_in", {.duration = Frame{12}});
     };
     d.animator_factory = compose_caption_box;
     return d;
@@ -295,7 +295,7 @@ TextPresetDescriptor karaoke_fill_entry() {
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_karaoke_fill";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextDefinitionT& spec) {
-        chronon3d::registry::internal::wire_through_resolver(lb, "karaoke_fill", spec).word_stagger(Frame{2}, Frame{12}).fade_in(Frame{10});
+        chronon3d::registry::internal::wire_through_resolver(lb, "karaoke_fill", spec).motion("word_stagger", {.duration = Frame{12}, .delay = Frame{2}}).motion("fade_in", {.duration = Frame{10}});
     };
     d.animator_factory = compose_karaoke_fill;
     return d;
@@ -318,7 +318,7 @@ TextPresetDescriptor active_word_pop_entry() {
         // ScaleProperty applied through the word selectors emitted by
         // SubtitleTrackBuilder.  No whole-layer scale transform is used
         // so the highlight is strictly constrained to the active word.
-        chronon3d::registry::internal::wire_through_resolver(lb, "active_word_pop", spec).fade_in(Frame{10});
+        chronon3d::registry::internal::wire_through_resolver(lb, "active_word_pop", spec).motion("fade_in", {.duration = Frame{10}});
     };
     d.animator_factory = compose_active_word_pop;
     return d;
@@ -337,7 +337,7 @@ TextPresetDescriptor subtitle_card_entry() {
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_subtitle_card";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextDefinitionT& spec) {
-        chronon3d::registry::internal::wire_through_resolver(lb, "subtitle_card", spec).fade_in(Frame{12});
+        chronon3d::registry::internal::wire_through_resolver(lb, "subtitle_card", spec).motion("fade_in", {.duration = Frame{12}});
     };
     d.animator_factory = compose_subtitle_card;
     return d;
@@ -356,7 +356,7 @@ TextPresetDescriptor lower_third_safe_entry() {
     d.metadata        = meta;
     d.fixture         = "tests/visual/text/subtitle_lower_third_safe";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb, LayerBuilderT& lb, const TextDefinitionT& spec) {
-        chronon3d::registry::internal::wire_through_resolver(lb, "lower_third_safe", spec).fade_in(Frame{12});
+        chronon3d::registry::internal::wire_through_resolver(lb, "lower_third_safe", spec).motion("fade_in", {.duration = Frame{12}});
     };
     d.animator_factory = compose_lower_third_safe;
     return d;

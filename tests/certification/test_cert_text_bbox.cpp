@@ -53,8 +53,8 @@ Composition build_cert_title_comp(SoftwareRenderer& renderer) {
             s.font_engine(&renderer.font_engine());
             s.layer("title", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.animated_text("title_text", TextRunSpec{
-                    .text = TextSpec{
+                l.text_run("title_text", TextRunDefinition{
+                    .text = TextDefaults{
     .content = {.value = "EPIC TITLE"},
     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
@@ -87,8 +87,8 @@ Composition build_cert_lower_third_comp(SoftwareRenderer& renderer) {
             // (no background rect: bbox check measures text-only)
             s.layer("title_line", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.animated_text("title", TextRunSpec{
-                    .text = TextSpec{
+                l.text_run("title", TextRunDefinition{
+                    .text = TextDefaults{
     .content = {.value = "BREAKING NEWS"},
     .font = {.font_path = "assets/fonts/Inter-Bold.ttf",
                                        .font_family = "Inter",
@@ -106,8 +106,8 @@ Composition build_cert_lower_third_comp(SoftwareRenderer& renderer) {
             // Subtitle: below title
             s.layer("subtitle_line", [&renderer](LayerBuilder& l) {
                 l.font_engine(&renderer.font_engine());
-                l.animated_text("subtitle", TextRunSpec{
-                    .text = TextSpec{
+                l.text_run("subtitle", TextRunDefinition{
+                    .text = TextDefaults{
     .content = {.value = "Chronon3D Text Engine — Production Ready"},
     .font = {.font_path = "assets/fonts/Inter-Regular.ttf",
                                        .font_family = "Inter",

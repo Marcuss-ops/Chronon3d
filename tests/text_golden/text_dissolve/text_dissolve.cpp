@@ -128,7 +128,7 @@ Composition build_dissolve_composition(
             auto animated_doc = make_dissolve_document();
 
             s.layer("dissolve", [cx, cy, canvas_w, canvas_h, animated_doc](LayerBuilder& l) {
-                TextRunSpec spec;
+                TextRunDefinition spec;
                 spec.text.content.value = "DISSOLVE";
                 spec.text.placement = TextPlacement{
                     TextPlacementKind::Absolute, {cx, cy}};
@@ -157,7 +157,7 @@ Composition build_dissolve_composition(
                     },
                 };
 
-                l.animated_text("title", spec)
+                l.text_run("title", spec)
                  .from_animated_document(std::move(animated_doc))
                  .commit();
             });

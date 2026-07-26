@@ -97,7 +97,7 @@ namespace testing {
         //   * `params.animators` (vector copy, full TextAnimatorSpec elements)
         //
         // NOT copied (intentional, hard-odometer of forward-changes):
-        //   * `params.text` (TextRunSpec typically very heavy; tests
+        //   * `params.text` (TextRunDefinition typically very heavy; tests
         //                    that need it pull `text_run(name, ...)`
         //                    directly).
         //   * `params.motion(...)` any-of — same as above.

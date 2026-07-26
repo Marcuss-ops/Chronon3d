@@ -45,8 +45,8 @@ AnimatedTextDocument make_two_keyframe_doc(const std::string& text_a,
     return doc;
 }
 
-TextRunSpec make_spec(const std::string& literal_text) {
-    TextRunSpec spec;
+TextRunDefinition make_spec(const std::string& literal_text) {
+    TextRunDefinition spec;
     spec.text.content.value = literal_text;
     spec.text.font.font_family = "DejaVu Sans";
     spec.text.font.font_size   = 32.0f;
@@ -65,7 +65,7 @@ TEST_CASE("TextRunBuilder+PendingDoc: static path keeps initial text") {
     auto runtime = chronon3d::runtime::RenderRuntime::create(
             chronon3d::runtime::RuntimeConfig{cfg, std::nullopt}).value();
     FontEngine engine{runtime->resolver()};
-    TextRunSpec spec = make_spec("Static initial text");
+    TextRunDefinition spec = make_spec("Static initial text");
 
     auto shape = materialize_text_run_shape(
         spec, &engine, SampleTime::from_frame_int(Frame{0}, FrameRate{30, 1}),
@@ -105,7 +105,7 @@ TEST_CASE("TextRunBuilder+PendingDoc: animated_doc drives layout content + per-f
     doc.add_keyframe(kf60);
     auto shared_doc = std::make_shared<const AnimatedTextDocument>(std::move(doc));
 
-    TextRunSpec spec = make_spec("INITIAL_PLACEHOLDER_NOT_USED");
+    TextRunDefinition spec = make_spec("INITIAL_PLACEHOLDER_NOT_USED");
 
     // Materialize at frame 0 — materializer routes the doc, layout carries
     // the active document's text "Apple".
@@ -148,7 +148,7 @@ TEST_CASE("TextRunBuilder: from_animated_document binds into PendingTextRun") {
     auto doc_ptr = std::make_shared<const AnimatedTextDocument>(std::move(doc));
 
     LayerBuilder layer("animated_layer", Frame{30}, FrameRate{30, 1});
-    auto& trb = layer.animated_text("doc_bound", TextRunSpec{});
+    auto& trb = layer.text_run("doc_bound", TextRunDefinition{});
     trb.from_animated_document(doc_ptr);
 
     const auto& pending = trb.build_spec();
@@ -162,7 +162,7 @@ TEST_CASE("TextRunBuilder: from_animated_document binds into PendingTextRun") {
 
 TEST_CASE("TextRunBuilder: animated_doc defaults to nullptr (no binding)") {
     LayerBuilder layer("plain", Frame{0}, FrameRate{30, 1});
-    auto& trb = layer.animated_text("plain_text", TextRunSpec{});
+    auto& trb = layer.text_run("plain_text", TextRunDefinition{});
     (void)trb.font_size(48.0f).opacity(1.0f);
 
     const auto& pending = trb.build_spec();

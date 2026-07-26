@@ -99,7 +99,7 @@ inline Composition saas_intro() {
                 32.0f, 400, {0.55f, 0.60f, 0.70f, 1.0f},
                 TextAlign::Center, {800.0f, 60.0f}
             ));
-            l.slide_in({0.0f, 30.0f, 0.0f}, Frame{30}, EasingCurve{Easing::OutCubic});
+            l.motion("slide_in", {.vector = Vec3{0.0f, 30.0f, 0.0f}, .duration = Frame{30}, .easing = EasingCurve{Easing::OutCubic}});
             l.opacity(0.55f);
         });
 
@@ -129,7 +129,7 @@ inline Composition saas_intro() {
                     cards[i].label, 20.0f, 600, {0.85f, 0.87f, 0.92f, 1.0f},
                     TextAlign::Center, {260.0f, 40.0f}, {0.0f, 20.0f, 0.0f}
                 ));
-                l.soft_pop(Frame{35});
+                l.motion("soft_pop", {.duration = Frame{35}});
             });
         }
 
@@ -150,7 +150,7 @@ inline Composition saas_intro() {
                 "Get Started", 18.0f, 700, {1.0f, 1.0f, 1.0f, 1.0f},
                 TextAlign::Center, {240.0f, 56.0f}
             ));
-            l.settle(0.06f, Frame{25});
+            l.motion("settle", {.amount = 0.06f, .duration = Frame{25}});
         });
 
         return s.build();

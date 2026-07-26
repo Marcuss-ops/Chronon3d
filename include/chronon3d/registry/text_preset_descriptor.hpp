@@ -35,7 +35,7 @@
 
 #pragma once
 
-#include <chronon3d/scene/builders/builder_params.hpp>  // TextSpec, TextAnimatorSpec,
+#include <chronon3d/scene/builders/builder_params.hpp>  // TextDefaults, TextAnimatorSpec,
 #include <chronon3d/text/text_definition.hpp>
                                                           // Vec3, GlyphSelectorSpec,
                                                           // TextSelectorUnit,
@@ -120,7 +120,7 @@ using FixtureId = std::string;
 // ── TextPresetBuilder ───────────────────────────────────────────────────────
 //
 // `builder` is the engine-side factory — invoked by the call site to
-// register a TextSpec onto a LayerBuilder using the preset's motion +
+// register a TextDefaults onto a LayerBuilder using the preset's motion +
 // paint recipe.  Non-null per the registry-internal invariant enforced
 // at register time (test test_text_preset_registry.cpp Sub-case 3).
 using TextPresetBuilder = std::function<

@@ -4,7 +4,7 @@
 
 #include "text_font_state.hpp"
 
-#include <chronon3d/scene/builders/builder_params.hpp>  // TextSpec
+#include <chronon3d/scene/builders/builder_params.hpp>  // TextDefaults
 
 namespace chronon3d::text::driver {
 
@@ -15,17 +15,17 @@ namespace {
 // the old `font_path.empty()` gate that suppressed family/weight/style
 // overrides when the path matched is removed.
 //
-// `defaults` is a pointer to the active document's TextSpec defaults
+// `defaults` is a pointer to the active document's TextDefaults defaults
 // (TextDocument::defaults.font), forwarded from
 // compute_effective_font.  Nullable for shapes with no active doc.
 FontSpec apply_overrides_h(
     FontSpec basis,
-    const chronon3d::TextSpec* defaults
+    const chronon3d::TextDefaults* defaults
 ) {
     if (defaults == nullptr) {
         return basis;
     }
-    // `defaults` is a TextSpec* — its `.font` member is the FontSpec
+    // `defaults` is a TextDefaults* — its `.font` member is the FontSpec
     // we copy into.  `basis` IS the FontSpec, so direct field access.
     if (!defaults->font.font_path.empty()) {
         basis.font_path = defaults->font.font_path;
@@ -59,7 +59,7 @@ FontSpec compute_effective_font(
         basis = state.active->defaults.font;
     }
     // Forward active-doc overrides only when an active document is bound.
-    const chronon3d::TextSpec* override_src =
+    const chronon3d::TextDefaults* override_src =
         (state.active != nullptr) ? &state.active->defaults : nullptr;
     return apply_overrides_h(basis, override_src);
 }

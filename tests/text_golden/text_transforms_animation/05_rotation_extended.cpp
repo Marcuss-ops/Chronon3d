@@ -92,7 +92,7 @@ Composition build_rotation_ext_composition(
             s.layer("hero", [rotate_z_deg, cx, cy, canvas_w, canvas_h]
                             (LayerBuilder& l) {
                 l.rotate(Vec3{0.0f, 0.0f, rotate_z_deg});
-                l.animated_text("title", TextRunParams{
+                l.text_run("title", TextRunDefinition{
                     .text = {
                         .content = {.value = "ROTATED"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},

@@ -592,7 +592,7 @@ TEST_CASE("SubtitleTrackBuilder emits one GlyphSelectorSpec per TimedWord (karao
 TEST_CASE("Per-word selectors are wired into the preset animator (round-2 reviewer lock)") {
     // Round-2 reviewer lock (TICKET-TIMED-WORD-BINDING Finding #1): the
     // production builder moves word selectors into the preset animator's
-    // selectors list, not TextRunSpec::selectors.  This test locks the
+    // selectors list, not TextRunDefinition::selectors.  This test locks the
     // structural contract by replicating the wiring step.
     SubtitleCue cue;
     cue.text = "Hello world again";
@@ -603,7 +603,7 @@ TEST_CASE("Per-word selectors are wired into the preset animator (round-2 review
         TimedWord{"again", 3.0f, 4.0f, "w3", 12u, 17u},
     };
 
-    TextSpec spec;
+    TextDefaults spec;
     spec.content.value = cue.text;
     spec.font.font_path = chronon3d::test::bundled_font_path("assets/fonts/Inter-Bold.ttf");
     spec.font.font_size = 48.0f;

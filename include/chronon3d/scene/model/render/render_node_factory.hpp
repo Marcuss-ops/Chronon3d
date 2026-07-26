@@ -46,9 +46,9 @@ public:
     // ── text factory (M1.5#9 step 2 — delegate to materialize_text_run_shape) ──
     //
     // Public signature is back-compat: callers that pass only
-    // `(res, name, TextSpec)` still compile (engine gets the default
+    // `(res, name, TextDefaults)` still compile (engine gets the default
     // `nullptr`).  Internally `text(...)` now wraps the supplied
-    // `TextSpec` into a `TextRunSpec{.text = p}` and delegates to the
+    // `TextDefaults` into a `TextRunDefinition{.text = p}` and delegates to the
     // canonical materializer `materialize_text_run_shape(...)`, sharing
     // the same core used by `text_run()` and `LayerBuilder::build()`.
     //
@@ -64,12 +64,12 @@ public:
     static RenderNode text(
         std::pmr::memory_resource* res,
         std::string name,
-        TextSpec p,
+        TextDefaults p,
         FontEngine* engine = nullptr);
 
     // ── text-run factory ──
     //
-    // Materializes a TextRunSpec (canonical composable; TextRunSpec was
+    // Materializes a TextRunDefinition (canonical composable; TextRunDefinition was
     // the prior alias) into a `RenderNode` flagged with
     // `is_text_run_shape=true`.  Shares its core with
     // `LayerBuilder::text_run(...)` via the helper
@@ -82,7 +82,7 @@ public:
     static RenderNode text_run(
         std::pmr::memory_resource* res,
         std::string name,
-        TextRunSpec p,
+        TextRunDefinition p,
         FontEngine* engine = nullptr,
         SampleTime sample_time = {});
 
