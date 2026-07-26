@@ -34,7 +34,16 @@ struct SequenceContext {
 
 /**
  * Creates a SequenceContext from the current FrameContext.
+ *
+ * Marked [[deprecated]] per TICKET-ANIM-SEQUENCE-CONSOLIDATE. Use
+ * SequenceBuilder + FrameContext::local_time() — they are the canonical
+ * productive path through SceneBuilder::sequence(...) →
+ * compile_sequence(...) (include/chronon3d/scene/builders/detail/
+ * scene_builder_sequences.inl:42). This factory is preserved for the
+ * current 22+ caller sites until Phase 2 (ticket forward-point) lands
+ * the SequenceWindow pure-math adapter + bulk caller migration.
  */
+[[deprecated("Use SequenceBuilder + FrameContext::local_time() (TICKET-ANIM-SEQUENCE-CONSOLIDATE) — gradual deprecation per AGENTS.md §2×-in-one-chore")]]
 inline SequenceContext sequence(const FrameContext& ctx, Frame from, Frame duration) {
     bool active = ctx.frame() >= from && ctx.frame() < from + duration;
     Frame local_frame = active ? Frame{ctx.frame() - from} : Frame{0};
