@@ -38,10 +38,14 @@ float rounded_rect_coverage(float x, float y, float w, float h, float radius) {
     return std::clamp(r + 0.5f - dist, 0.0f, 1.0f);
 }
 
-std::string rounded_cache_key(const std::string& path, int width, int height, float radius) {
+std::string rounded_cache_key(const std::string& path, int width, int height,
+                              float radius, ImageDecodeOptions options) {
     const int quantized_radius = static_cast<int>(std::round(radius * 64.0f));
     std::ostringstream key;
-    key << path << '#' << width << 'x' << height << "#r" << quantized_radius;
+    key << path << '#' << width << 'x' << height << "#r" << quantized_radius
+        << "#cs" << static_cast<int>(options.color_space)
+        << "#pm" << static_cast<int>(options.premultiply)
+        << "#ori" << static_cast<int>(options.orientation);
     return key.str();
 }
 
@@ -147,13 +151,14 @@ void apply_rounded_coverage(Framebuffer& fb, float radius) {
 std::shared_ptr<const Framebuffer> ImageRenderer::rounded_framebuffer(
     const std::string& path,
     const CachedImage& cached,
-    float radius
+    float radius,
+    ImageDecodeOptions options
 ) {
     if (!cached.fb_img || radius <= 0.0f) {
         return nullptr;
     }
 
-    const std::string key = rounded_cache_key(path, cached.width, cached.height, radius);
+    const std::string key = rounded_cache_key(path, cached.width, cached.height, radius, options);
     {
         std::lock_guard<std::mutex> lock(*m_rounded_mutex);
         auto it = m_rounded_framebuffers.find(key);
@@ -205,7 +210,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     const CachedImage* cached = nullptr;
     const auto t_decode0 = profiling::now();
     // Rendering is lookup-only: preparation owns all backend I/O and decode.
-    cached_hold = m_cache.get().find(image.path);
+    cached_hold = m_cache.get().find(image.path, image.decode_options);
     cached = cached_hold.get();
     const auto t_decode1 = profiling::now();
     const double decode_ms = profiling::duration_ms(t_decode0, t_decode1);
@@ -349,7 +354,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     if (use_cached_fb && image.radius <= 0.0f) {
         blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &state);
     } else if (use_cached_fb && image.radius > 0.0f) {
-        if (auto rounded = rounded_framebuffer(image.path, *cached, scaled_radius)) {
+        if (auto rounded = rounded_framebuffer(image.path, *cached, scaled_radius, image.decode_options)) {
             blend2d_bridge::composite_framebuffer_transformed(fb, *rounded, scaled_model, final_opacity, BlendMode::Normal, &state);
         }
     } else if (cached && cached->fb_img && !using_placeholder) {
@@ -386,7 +391,7 @@ bool ImageRenderer::draw_image(const ImageShape& image, const RenderState& state
     if (use_cached_fb && image.radius <= 0.0f) {
         blend2d_bridge::composite_framebuffer_transformed(fb, *cached->fb_img, scaled_model, final_opacity, BlendMode::Normal, &state);
     } else if (use_cached_fb && image.radius > 0.0f) {
-        if (auto rounded = rounded_framebuffer(image.path, *cached, scaled_radius)) {
+        if (auto rounded = rounded_framebuffer(image.path, *cached, scaled_radius, image.decode_options)) {
             blend2d_bridge::composite_framebuffer_transformed(fb, *rounded, scaled_model, final_opacity, BlendMode::Normal, &state);
         }
     } else if (cached && cached->fb_img && !using_placeholder) {
@@ -432,7 +437,7 @@ bool ImageRenderer::draw_image_tiled(const ImageShape& image, const RenderState&
     const CachedImage* cached = nullptr;
     const auto t_decode0 = profiling::now();
     // Rendering is lookup-only: preparation owns all backend I/O and decode.
-    cached_hold = m_cache.get().find(image.path);
+    cached_hold = m_cache.get().find(image.path, image.decode_options);
     cached = cached_hold.get();
     const auto t_decode1 = profiling::now();
     const double decode_ms = profiling::duration_ms(t_decode0, t_decode1);
