@@ -26,7 +26,7 @@
 // ============================================================================
 
 #include <chronon3d/text/glyph_selector.hpp>
-#include "glyph_selector_random.hpp"  // FASE 8 — Random permutation cache
+#include <chronon3d/animation/random.hpp>  // TICKET-RANDOM-UNIFY — canonical deterministic_random + build_random_permutation
 
 #include <algorithm>
 #include <cmath>
@@ -150,7 +150,8 @@ u32 apply_selector_order(
         }
 
         case TextSelectorOrder::Random: {
-            const auto& perm = get_or_build_permutation(random_seed, total_units);
+            const auto perm = build_random_permutation(
+                RandomSeed{random_seed}, total_units);
             return perm[original_index];
         }
     }
