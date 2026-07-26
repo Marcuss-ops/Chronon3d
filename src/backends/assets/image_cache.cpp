@@ -3,32 +3,11 @@
 #include <chronon3d/core/profiling/profiling.hpp>
 #include <chronon3d/simd/kernels.hpp>
 #include <spdlog/spdlog.h>
-#include <atomic>
-#include <cstdlib>
 
 namespace chronon3d {
 
-namespace {
-    size_t            s_image_cache_capacity = 0;
-    std::atomic<bool> s_image_cache_capacity_flag{false};
-} // namespace
-
-void ImageCache::set_global_capacity_bytes(size_t capacity_bytes) {
-    bool expected = false;
-    if (s_image_cache_capacity_flag.compare_exchange_strong(
-            expected, true,
-            std::memory_order_acq_rel, std::memory_order_relaxed)) {
-        s_image_cache_capacity = capacity_bytes;
-    }
-}
-
-static size_t resolve_capacity() {
-    constexpr size_t kFallback = 512ULL * 1024ULL * 1024ULL;
-    return s_image_cache_capacity > 0 ? s_image_cache_capacity : kFallback;
-}
-
 ImageCache::ImageCache(size_t capacity_bytes)
-    : m_cache(capacity_bytes > 0 ? capacity_bytes : resolve_capacity()) {}
+    : m_cache(capacity_bytes > 0 ? capacity_bytes : 512ULL * 1024ULL * 1024ULL) {}
 
 std::shared_ptr<const CachedImage> ImageCache::get_or_load(const std::string& path) {
     std::string resolved_path = path;
