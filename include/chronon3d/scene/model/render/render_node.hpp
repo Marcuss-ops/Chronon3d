@@ -28,7 +28,6 @@ struct DropShadow {
 
 // Soft glow emanating outward from the shape.
 // Unified with GlowParams from effect_params.hpp — the single source of truth.
-using Glow = GlowParams;
 
 // What kind of surface the node naturally produces.
 // IntrinsicSize: content-driven layers such as text, shapes and images.
@@ -55,7 +54,6 @@ struct RenderNode {
     Fill fill{true, FillType::Solid, {1, 1, 1, 1}, {}};
     Shape shape;
     DropShadow shadow;
-    GlowParams glow;
     // Mesh moved to Shape::MeshShape (shape variant index 13).
     // Access via: node.shape.mesh_shape().mesh
     f32 corner_radius{0.0f};
