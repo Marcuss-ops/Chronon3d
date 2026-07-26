@@ -61,21 +61,20 @@ struct TextRunShape;
 struct Mesh;
 
 enum class ShapeType {
-    None,
-    Rect,
-    RoundedRect,
-    Circle,
-    Line,
-    Path,
-    Text,
-    Image,
-    TiledImage,       // dedicated TiledImageShape payload (index 12)
-    GridBackground,
-    Mesh,             // dedicated MeshShape payload (index 13)
-    FakeBox3D,
-    GridPlane,
-    FakeExtrudedText,
-    TextRun,          // now has dedicated TextRunShapeHandle payload
+    None = 0,
+    Rect = 1,
+    RoundedRect = 2,
+    Circle = 3,
+    Line = 4,
+    Path = 5,
+    Image = 7,
+    TiledImage = 12,       // dedicated TiledImageShape payload (index 12)
+    GridBackground = 8,
+    Mesh = 13,             // dedicated MeshShape payload (index 13)
+    FakeBox3D = 9,
+    GridPlane = 10,
+    FakeExtrudedText = 11,
+    TextRun = 14,          // now has dedicated TextRunShapeHandle payload
 };
 
 enum class PlaneAxis { XZ, XY };
@@ -378,7 +377,7 @@ inline ShapeType shape_type_from_payload(const ShapePayload& p) {
         case 3:  return ShapeType::Circle;
         case 4:  return ShapeType::Line;
         case 5:  return ShapeType::Path;
-        case 6:  return ShapeType::Text;
+        case 6:  return ShapeType::None; // retired legacy TextShape payload
         case 7:  return ShapeType::Image;
         case 8:  return ShapeType::GridBackground;
         case 9:  return ShapeType::FakeBox3D;
@@ -399,7 +398,6 @@ inline size_t payload_index_for_type(ShapeType t) {
         case ShapeType::Circle:           return 3;
         case ShapeType::Line:             return 4;
         case ShapeType::Path:             return 5;
-        case ShapeType::Text:             return 6;
         case ShapeType::Image:            return 7;
         case ShapeType::TiledImage:       return 12;
         case ShapeType::GridBackground:   return 8;
