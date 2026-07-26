@@ -643,8 +643,9 @@ else echo "PASS"; fi
 # Phase A5 dropped the duplicate `chronon3d::TextEffects` struct that lived
 # on `TextDefinition` (Phase A.3 introduced it as a "post-compositor
 # decorator surface" — but the renderer never consumed it; `def.effects.*`
-# was silently a no-op).  All glow/bevel effect authority now lives on
-# `TextDefinition.style.material` (the canonical `TextMaterial` seam).
+# was silently a no-op).  Internal material passes live on
+# `TextDefinition.style.material`; external glow/drop-shadow effects live on
+# the layer `EffectStack`.
 #
 # This gate forbids re-introduction of:
 #   1. The struct declaration `struct TextEffects` (struct-keyword guard).
@@ -652,7 +653,7 @@ else echo "PASS"; fi
 #
 # Both are mechanical reintroduction patterns; structural-parity is locked
 # by the regression test in tests/text/test_text_definition.cpp Group 17
-# (`Phase A5 — TextEffects ELIMINATED + TextMaterial canonical seam`).
+# (`Phase A5 — TextEffects ELIMINATED + single effect ownership`).
 # Future edits that need a PostTextMaterial seam must update ADR + open a
 # new ticket — not silently re-add the deleted struct.
 echo -n "  [22/24] TextEffects ELIMINATED       ... "
@@ -668,9 +669,8 @@ if [ -n "$hits" ]; then
     echo "    \`chronon3d::TextEffects\` struct + \`TextDefinition::effects\`"
     echo "    field + all consumers (\`content/text/text_helpers_centered.hpp\`"
     echo "    \`glow_text()\`, \`tests/text/test_text_definition.cpp\` Group 4"
-    echo "    Phase A5 migration).  Canonical seam: "
-    echo "    \`TextDefinition.style.material.{glow_*, bevel_*}\` (TextMaterial"
-    echo "    is the SINGLE compositor surface; no duplicate authority).  See"
+    echo "    Phase A5 migration).  Internal material seam: TextMaterial;"
+    echo "    external glow/drop-shadow seam: layer EffectStack.  See"
     echo "    \`docs/CHANGELOG.md\` Phase A5 entry + Group 17 structural-parity"
     echo "    test in \`tests/text/test_text_definition.cpp\`.  To re-introduce"
     echo "    a PostTextMaterial seam you MUST update ADR + open a new ticket."
