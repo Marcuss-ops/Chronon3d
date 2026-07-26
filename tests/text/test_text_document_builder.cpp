@@ -118,8 +118,8 @@ TEST_CASE("TextDocumentBuilder: multiple spans with different styles") {
     CHECK(doc.validate());
 }
 
-TEST_CASE("TextDocumentBuilder: defaults sets document-level TextSpec") {
-    TextSpec defaults;
+TEST_CASE("TextDocumentBuilder: defaults sets document-level TextDefaults") {
+    TextDefaults defaults;
     defaults.font.font_size = 48.0f;
     defaults.appearance.color = Color{0.5f, 0.5f, 0.5f, 1.0f};
 

@@ -207,7 +207,7 @@ void UiBuilder::emit(chronon3d::SceneBuilder& s) {
                         .pos     = {0.0f, 0.0f, 0.0f},
                     });
                     if (!n.text_value.empty()) {
-                        chronon3d::TextSpec tp;
+                        chronon3d::TextDefaults tp;
                         tp.content.value      = n.text_value;
                         tp.layout.box      = {n.resolved_size.x, n.resolved_size.y};
                         tp.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}};
@@ -240,7 +240,7 @@ void UiBuilder::emit(chronon3d::SceneBuilder& s) {
                         .pos    = {0.0f, -n.resolved_size.y * 0.5f + 14.0f, 0.0f},
                     });
                     // Title label (top-left of card).
-                    chronon3d::TextSpec title;
+                    chronon3d::TextDefaults title;
                     title.content.value      = n.text_value;
                     title.layout.box      = {n.resolved_size.x - 24.0f, 28.0f};
                     title.placement = TextPlacement{TextPlacementKind::Absolute, {-n.resolved_size.x * 0.5f + 12.0f,
@@ -256,7 +256,7 @@ void UiBuilder::emit(chronon3d::SceneBuilder& s) {
                     l.text("title", title);
 
                     // Value (big number, centred).
-                    chronon3d::TextSpec value;
+                    chronon3d::TextDefaults value;
                     value.content.value      = n.subtext_value;
                     value.layout.box      = {n.resolved_size.x - 24.0f, 48.0f};
                     value.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 4.0f}};
@@ -272,7 +272,7 @@ void UiBuilder::emit(chronon3d::SceneBuilder& s) {
 
                     // Trend (bottom-left of card).
                     std::string arrow = n.trend_positive ? "▲ " : "▼ ";
-                    chronon3d::TextSpec trend;
+                    chronon3d::TextDefaults trend;
                     trend.content.value      = arrow + std::to_string(static_cast<int>(std::abs(n.trend_value))) + "%";
                     trend.layout.box      = {n.resolved_size.x - 24.0f, 24.0f};
                     trend.placement = TextPlacement{TextPlacementKind::Absolute, {-n.resolved_size.x * 0.5f + 12.0f,
@@ -312,7 +312,7 @@ void UiBuilder::emit(chronon3d::SceneBuilder& s) {
                     const chronon3d::Color shown_color = n.typed_value.empty()
                         ? chronon3d::Color{0.55f, 0.60f, 0.70f, 1.0f}
                         : n.fg_color;
-                    chronon3d::TextSpec tp;
+                    chronon3d::TextDefaults tp;
                     tp.content.value      = shown;
                     tp.layout.box      = {n.resolved_size.x - 24.0f, n.resolved_size.y};
                     tp.placement = TextPlacement{TextPlacementKind::Absolute, {-n.resolved_size.x * 0.5f + 14.0f, 0.0f}};

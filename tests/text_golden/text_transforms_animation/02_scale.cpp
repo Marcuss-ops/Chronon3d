@@ -111,7 +111,7 @@ Composition build_scale_composition(
                 } else {
                     l.scale({scale_uniform, scale_uniform, 1.0f});
                 }
-                l.animated_text("title", TextRunParams{
+                l.text_run("title", TextRunDefinition{
                     .text = {
                         .content = {.value = "SCALED"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},

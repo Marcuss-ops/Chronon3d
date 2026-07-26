@@ -23,7 +23,7 @@ namespace chronon3d::scene_presets {
 //   - camera_v1::presets::hero_push_in
 //   - TextAnimator (per-character reveal)
 //   - TextMaterial::premium()
-//   - LayerBuilder::depth_reveal / soft_pop / settle
+//   - LayerBuilder::motion("depth_reveal" / "soft_pop" / "settle")
 //   - StaggerLayers (depth-ordered)
 //   - Card3DMaterial::premium_card()
 //   - LightingRig::SaaSBlue()
@@ -133,7 +133,7 @@ inline Composition saas_intro_premium() {
                 32.0f, 400, {0.55f, 0.60f, 0.70f, 1.0f},
                 TextAlign::Center, {800.0f, 60.0f}
             ));
-            l.slide_in({0.0f, 30.0f, 0.0f}, Frame{30}, EasingCurve{Easing::OutCubic});
+            l.motion("slide_in", {.vector = Vec3{0.0f, 30.0f, 0.0f}, .duration = Frame{30}, .easing = EasingCurve{Easing::OutCubic}});
             l.opacity(0.55f);
         });
 
@@ -209,7 +209,7 @@ inline Composition saas_intro_premium() {
                 l.glow(GlowParams{.radius = 14.0f, .intensity = 0.20f, .color = cards[i].accent, .threshold = 0.0f});
 
                 // Animate: depth reveal from behind
-                l.depth_reveal(200.0f + static_cast<f32>(i) * 40.0f, Frame{40});
+                l.motion("depth_reveal", {.amount = 200.0f + static_cast<f32>(i) * 40.0f, .duration = Frame{40}});
             });
         }
 
@@ -237,7 +237,7 @@ inline Composition saas_intro_premium() {
                 TextAlign::Center, {240.0f, 56.0f}
             ));
             l.glow(GlowParams{.radius = 10.0f, .intensity = 0.25f, .color = Color{0.3f, 0.6f, 1.0f, 1.0f}, .threshold = 0.0f});
-            l.settle(0.06f, Frame{25});
+            l.motion("settle", {.amount = 0.06f, .duration = Frame{25}});
         });
 
         // ── Floating accent particles ────────────────────────────
@@ -258,7 +258,7 @@ inline Composition saas_intro_premium() {
                     .color = p.color,
                 });
                 l.glow(8.0f, 0.40f, p.color, 0.0f);
-                l.float_idle(12.0f, Frame{90});
+                l.motion("float_idle", {.amount = 12.0f, .cycle = Frame{90}});
             });
         }
 

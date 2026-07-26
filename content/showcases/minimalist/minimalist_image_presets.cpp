@@ -12,7 +12,7 @@ Composition minimalist_image_fade_in() {
         add_minimalist_background(s);
         s.layer("image_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
-            l.fade_in(Frame{45});
+            l.motion("fade_in", {.duration = Frame{45}});
             add_image_border(l);
             l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
@@ -50,7 +50,7 @@ Composition minimalist_image_scale_drop() {
         add_minimalist_background(s);
         s.layer("image_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
-            l.scale_drop(1.08f, Frame{45});
+            l.motion("scale_drop", {.scale = 1.08f, .duration = Frame{45}});
             add_image_border(l);
             l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
@@ -65,7 +65,7 @@ Composition minimalist_image_fade_shift_vertical() {
         add_minimalist_background(s);
         s.layer("image_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
-            l.fade_shift_vertical(Vec3{0.0f, 40.0f, 0.0f}, Frame{45});
+            l.motion("fade_shift_vertical", {.vector = Vec3{0.0f, 40.0f, 0.0f}, .duration = Frame{45}});
             add_image_border(l);
             l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
@@ -80,7 +80,7 @@ Composition minimalist_image_center_split() {
         add_minimalist_background(s);
         s.layer("image_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
-            l.center_split(Frame{45});
+            l.motion("center_split", {.duration = Frame{45}});
             add_image_border(l);
             l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
@@ -95,7 +95,7 @@ Composition minimalist_image_reveal_from_bottom() {
         add_minimalist_background(s);
         s.layer("image_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
-            l.reveal_from_bottom(60.0f, Frame{45});
+            l.motion("reveal_from_bottom", {.amount = 60.0f, .duration = Frame{45}});
             add_image_border(l);
             l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
@@ -110,7 +110,7 @@ Composition minimalist_image_framing_bracket() {
         add_minimalist_background(s);
         s.layer("image_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
-            l.framing_bracket(Frame{45});
+            l.motion("framing_bracket", {.duration = Frame{45}});
             add_image_border(l);
             l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
@@ -125,7 +125,7 @@ Composition minimalist_image_tracking_breathing() {
         add_minimalist_background(s);
         s.layer("image_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
-            l.tracking_breathing(1.04f, Frame{120});
+            l.motion("tracking_breathing", {.scale = 1.04f, .duration = Frame{120}});
             add_image_border(l);
             l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });
@@ -173,7 +173,7 @@ Composition minimalist_image_elastic_slide() {
         add_minimalist_background(s);
         s.layer("image_layer", [](auto& l) {
             l.pin_to(Anchor::Center);
-            l.fade_shift_horizontal(Vec3{-120.0f, 0.0f, 0.0f}, Frame{60}, EasingCurve{Easing::OutBack});
+            l.motion("fade_shift_horizontal", {.vector = Vec3{-120.0f, 0.0f, 0.0f}, .duration = Frame{60}, .easing = EasingCurve{Easing::OutBack}});
             add_image_border(l);
             l.image("img", {.path = IMAGE_PATH, .size = IMAGE_SIZE, .radius = IMAGE_RADIUS});
         });

@@ -110,10 +110,10 @@ void register_builtin_shapes(ShapeRegistry& registry) {
     //
     // The legacy `Text` ShapeDescriptor entry was REMOVED. Every text node
     // now enters the authoring layer through `LayerBuilder::text(name,
-    // TextSpec)` which is a transitional shim into
-    // `text_run(name, TextRunSpec).commit()`. The downstream RenderNode
+    // TextDefaults)` which is a transitional shim into
+    // `text_run(name, TextRunDefinition).commit()`. The downstream RenderNode
     // is flagged ShapeType::TextRun regardless of whether animators are
-    // populated (an empty-animators TextRunSpec still synthesizes a valid
+    // populated (an empty-animators TextRunDefinition still synthesizes a valid
     // TextRunShape via `materialize_text_run_shape`).
     registry.register_shape(ShapeDescriptor{
         .id = std::string{shape_ids::TextRun},
@@ -121,7 +121,7 @@ void register_builtin_shapes(ShapeRegistry& registry) {
         .kind = ShapeKind::Primitive,
         .description = "Text run with per-glyph AE-style animations; routed to a TextRunNode in the render graph",
         .builtin = true,
-        .factory = make_factory<TextRunSpec>([](auto* res, std::string name, TextRunSpec spec) {
+        .factory = make_factory<TextRunDefinition>([](auto* res, std::string name, TextRunDefinition spec) {
             return RenderNodeFactory::text_run(res, std::move(name), std::move(spec));
         }),
     });

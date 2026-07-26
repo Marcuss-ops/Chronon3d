@@ -28,7 +28,7 @@
 // (content → core/registry, mai viceversa) is preserved.
 // The header `include/chronon3d/registry/text_preset_registry.hpp` stays
 // include-light (forward-decls only); full type definitions of
-// SceneBuilder / LayerBuilder / TextSpec are pulled in here, in the .cpp,
+// SceneBuilder / LayerBuilder / TextDefaults are pulled in here, in the .cpp,
 // where the builder bodies actually use them.
 //
 #include <chronon3d/registry/text_preset_registry.hpp>
@@ -42,7 +42,7 @@
 #include "text_preset_register_helpers.hpp"
 #include "text_preset_internal_helpers.hpp"  // M1.5#13 (1/4) — shared factory helpers (NOT installed; lives under src/registry/).
 
-#include <chronon3d/scene/builders/builder_params.hpp>   // full TextSpec (canonical), TextRunSpec, AnimatorResolver types.
+#include <chronon3d/scene/builders/builder_params.hpp>   // full TextDefaults (canonical), TextRunDefinition, AnimatorResolver types.
 
 #include <stdexcept>
 #include <utility>      // std::move for wire_preset_text_run_params implementation.
@@ -239,11 +239,11 @@ void register_builtin_presets(TextPresetRegistry& r) {
 // This is the SINGLE source of truth for the per-id mapping — adding
 // a 23rd preset is now a single `*_entry()` factory above, NOTHING in
 // `src/registry/animator_resolver.cpp` changes.
-TextRunSpec
+TextRunDefinition
 wire_preset_text_run_params(std::string_view preset_id,
-                            TextSpec spec) noexcept {
+                            TextDefaults spec) noexcept {
     auto composed = ::chronon3d::registry::AnimatorResolver::compose_for(preset_id);
-    TextRunSpec out;
+    TextRunDefinition out;
     out.text = std::move(spec);
     if (composed) {
         out.animators.push_back(std::move(*composed));
@@ -251,10 +251,10 @@ wire_preset_text_run_params(std::string_view preset_id,
     return out;
 }
 
-TextRunSpec
+TextRunDefinition
 wire_preset_text_run_params(std::string_view preset_id,
                             const TextDefinition& definition) noexcept {
-    TextSpec spec;
+    TextDefaults spec;
     spec.content = definition.content;
     spec.spans = definition.spans;
     spec.font = definition.style.font;

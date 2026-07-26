@@ -74,7 +74,7 @@ struct LocalEngine {
 //
 // All 3 tests share this helper; each test overrides the fields it cares
 // about (cache_layout, min/max, font_size) directly on the returned spec.
-[[nodiscard]] TextRunSpec make_autofit_params(
+[[nodiscard]] TextRunDefinition make_autofit_params(
     const std::string& utf8,
     float font_size,
     bool auto_fit,
@@ -82,7 +82,7 @@ struct LocalEngine {
     float max_font_size = 200.0f,
     bool cache_layout   = true
 ) {
-    TextRunSpec params;
+    TextRunDefinition params;
     params.text.content.value                    = utf8;
     params.text.font.font_family                 = "DejaVu Sans";
     params.text.font.font_size                   = font_size;

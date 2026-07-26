@@ -18,12 +18,12 @@ PreparedText prepare_text(const TextDefinition& def) {
 
     // 1. Lower the document model (content, spans, paragraphs).
     //    to_text_document() is kept as an internal helper; it still uses
-    //    TextSpec defaults inside TextDocument for the runtime span resolver.
+    //    TextDefaults defaults inside TextDocument for the runtime span resolver.
     pt.document = to_text_document(def);
 
     // 2. Carry the canonical style/frame/shaping/animation sub-structs
     //    directly, so the compiler never needs to round-trip through
-    //    TextSpec/TextRunSpec.
+    //    TextDefaults/TextRunDefinition.
     pt.style   = def.style;
     pt.frame   = def.frame;
     pt.shaping = TextShapingOptions{

@@ -22,7 +22,7 @@
 // IMPORTANT — anti-circular dependency
 //   This .cpp is part of the chronon3d_registry OBJECT library.
 //   It must NOT include any `content/text/text_*.hpp` or any
-//   other TU that drags content-side state.  The canonical TextSpec
+//   other TU that drags content-side state.  The canonical TextDefaults
 //   type is pulled in via the single include of
 //   `<chronon3d/registry/animator_resolver.hpp>`, which the header
 //   already declared #include-ing
@@ -38,7 +38,7 @@ namespace chronon3d::registry {
 
 // ── spec_is_rich — Stage 4 contract (unchanged from Phase 3.2) ─────────────
 //
-// Returns true when the caller-authored TextSpec carries at least one
+// Returns true when the caller-authored TextDefaults carries at least one
 // "richly-painted" signal (stroke_enabled OR fill_style OR stroke_style).
 // This is the wire-up trigger that the cinematic factories use to
 // push a `ctc_rich_<preset_id>` TextAnimatorSpec onto the TextRun BEFORE

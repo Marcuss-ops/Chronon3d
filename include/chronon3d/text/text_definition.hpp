@@ -54,7 +54,7 @@ class TextDocument;
 // chronon3d::TextStyle in shape.hpp (which is the registry-resolved style
 // used by the authoring facade's .style(id, registry) path).
 // TextDefStyle is the TextDefinition-internal representation that maps
-// from TextSpec::font + TextSpec::appearance fields.
+// from TextDefaults::font + TextDefaults::appearance fields.
 
 struct TextDefStyle {
     // Per-field phase tags (TICKET-TEXT-PROPERTY-PHASES):
@@ -66,24 +66,24 @@ struct TextDefStyle {
     //   .box_style   → PostLayout (visual-only)
 
     /// Font specification (path, family, weight, size).
-    /// Maps to TextSpec::font.
+    /// Maps to TextDefaults::font.
     FontSpec font{};
 
-    /// Fill color (maps to TextSpec::appearance.color).
+    /// Fill color (maps to TextDefaults::appearance.color).
     Color color{1.0f, 1.0f, 1.0f, 1.0f};
 
     /// Paint settings (stroke enabled, stroke color, stroke width).
-    /// Maps to TextSpec::appearance.paint.
+    /// Maps to TextDefaults::appearance.paint.
     TextPaint paint{};
 
-    /// Per-layer shadow stack (maps to TextSpec::appearance.shadows).
+    /// Per-layer shadow stack (maps to TextDefaults::appearance.shadows).
     std::vector<TextShadow> shadows{};
 
     /// Premium material settings (gradient, bevel, neon, etc.).
-    /// Maps to TextSpec::appearance.material.
+    /// Maps to TextDefaults::appearance.material.
     TextMaterial material{};
 
-    /// Box background style (maps to TextSpec::appearance.box_style).
+    /// Box background style (maps to TextDefaults::appearance.box_style).
     TextBoxStyle box_style{};
 };
 
@@ -94,53 +94,53 @@ struct TextDefStyle {
 struct TextFrame {
     // Per-field phase tags (TICKET-TEXT-PROPERTY-PHASES): all (.size/.placement/.anchor/.align/.vertical_align/.wrap/.overflow/.centering_mode/.line_height/.tracking/.auto_fit/.min_font_size/.max_font_size/.max_lines/.ellipsis) are PreLayout (reflow). Animated overrides (TextAnimator::position/scale/rotation/skew/anchor/tracking/opacity/blur/fill_color/stroke_color/stroke_width/baseline_shift) run PostLayout per-glyph.
 
-    /// Layout box size in canvas pixels (maps to TextSpec::layout.box).
+    /// Layout box size in canvas pixels (maps to TextDefaults::layout.box).
     Vec2 size{900.0f, 160.0f};
 
     /// Canonical placement semantics + 2D pin offset (the F3 lossless
     /// round-trip channel; replaces the redundant Vec3 position +
-    /// TextPlacementKind + Vec2 offset triple). Depth (TextSpec's old
+    /// TextPlacementKind + Vec2 offset triple). Depth (TextDefaults's old
     /// position.z) is intentionally not preserved — the render pipeline
     /// operates on 2D pin coordinates via resolve_text_placement().
     TextPlacement placement{TextPlacementKind::Absolute};
 
-    /// Anchor point for positioning (maps to TextSpec::layout.anchor).
+    /// Anchor point for positioning (maps to TextDefaults::layout.anchor).
     TextAnchor anchor{TextAnchor::Center};
 
-    /// Horizontal text alignment (maps to TextSpec::layout.align).
+    /// Horizontal text alignment (maps to TextDefaults::layout.align).
     TextAlign align{TextAlign::Center};
 
-    /// Vertical alignment within the box (maps to TextSpec::layout.vertical_align).
+    /// Vertical alignment within the box (maps to TextDefaults::layout.vertical_align).
     VerticalAlign vertical_align{VerticalAlign::Middle};
 
-    /// Text wrapping mode (maps to TextSpec::layout.wrap).
+    /// Text wrapping mode (maps to TextDefaults::layout.wrap).
     TextWrap wrap{TextWrap::Word};
 
-    /// Overflow handling (maps to TextSpec::layout.overflow).
+    /// Overflow handling (maps to TextDefaults::layout.overflow).
     TextOverflow overflow{TextOverflow::Clip};
 
-    /// Centering mode (maps to TextSpec::layout.centering_mode).
+    /// Centering mode (maps to TextDefaults::layout.centering_mode).
     TextCenteringMode centering_mode{TextCenteringMode::LayoutBox};
 
-    /// Line height multiplier (maps to TextSpec::layout.line_height).
+    /// Line height multiplier (maps to TextDefaults::layout.line_height).
     f32 line_height{1.2f};
 
-    /// Per-cluster tracking in pixels (maps to TextSpec::layout.tracking).
+    /// Per-cluster tracking in pixels (maps to TextDefaults::layout.tracking).
     f32 tracking{0.0f};
 
-    /// Auto-fit: shrink font to fit box (maps to TextSpec::layout.auto_fit).
+    /// Auto-fit: shrink font to fit box (maps to TextDefaults::layout.auto_fit).
     bool auto_fit{false};
 
-    /// Minimum font size for auto-fit (maps to TextSpec::layout.min_font_size).
+    /// Minimum font size for auto-fit (maps to TextDefaults::layout.min_font_size).
     f32 min_font_size{12.0f};
 
-    /// Maximum font size for auto-fit (maps to TextSpec::layout.max_font_size).
+    /// Maximum font size for auto-fit (maps to TextDefaults::layout.max_font_size).
     f32 max_font_size{160.0f};
 
-    /// Maximum number of lines (0 = unlimited) (maps to TextSpec::layout.max_lines).
+    /// Maximum number of lines (0 = unlimited) (maps to TextDefaults::layout.max_lines).
     i32 max_lines{0};
 
-    /// Append ellipsis on overflow (maps to TextSpec::layout.ellipsis).
+    /// Append ellipsis on overflow (maps to TextDefaults::layout.ellipsis).
     bool ellipsis{false};
 };
 

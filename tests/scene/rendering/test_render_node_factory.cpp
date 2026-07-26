@@ -88,10 +88,10 @@ TEST_CASE("Missing image returns placeholder/fallback instead of crashing") {
 TEST_CASE("RenderNodeFactory preserves gradient text paint") {
     auto* res = std::pmr::get_default_resource();
 
-    // PR3→PR4 migration: TextSpec is the composable form.  The flat
+    // PR3→PR4 migration: TextDefaults is the composable form.  The flat
     // `TextParams.text/.size/.paint` fields no longer exist; use the
     // nested sub-structs.
-    TextSpec p;
+    TextDefaults p;
     p.content.value  = "SaaS";
     p.layout.box     = {640.0f, 240.0f};
     p.appearance.paint.fill_style = Fill::linear(
@@ -127,7 +127,7 @@ TEST_CASE("RenderNode content hash ignores placement but honors policy") {
     // (independent of materialization).  The test continues to verify
     // that placement changes don't move the content hash and that
     // surface/transform policy moves BOTH content + placement hashes.
-    auto node_a = RenderNodeFactory::text(res, "title", TextSpec{
+    auto node_a = RenderNodeFactory::text(res, "title", TextDefaults{
         .content = {.value = "This is a long line that should wrap cleanly"},
         .font = {.font_size = 72.0f},
         .layout = {.box = {640.0f, 180.0f}}

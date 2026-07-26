@@ -60,7 +60,7 @@
 // PresetMetadata, TextPresetDescriptor, TextPresetCategory, AnimatorFactory.
 
 #include <chronon3d/scene/builders/builder_params.hpp>
-// canonical ::chronon3d::TextSpec, TextAnimatorSpec, AnimatedValue<>,
+// canonical ::chronon3d::TextDefaults, TextAnimatorSpec, AnimatedValue<>,
 // EasingCurve, Easing, Frame.
 
 #include "text_preset_internal_helpers.hpp"
@@ -183,8 +183,8 @@ TextPresetDescriptor text_animations_entry() {
            LayerBuilderT& lb,
            const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "text_animations", spec)
-              .fade_in(Frame{20})
-              .scale_drop(0.95f, Frame{30});
+              .motion("fade_in", {.duration = Frame{20}})
+              .motion("scale_drop", {.scale = 0.95f, .duration = Frame{30}});
         });
 }
 
@@ -205,8 +205,8 @@ TextPresetDescriptor fade_in_entry() {
            LayerBuilderT& lb,
            const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "fade_in", spec)
-              .fade_in(Frame{15})
-              .soft_pop(Frame{10});
+              .motion("fade_in", {.duration = Frame{15}})
+              .motion("soft_pop", {.duration = Frame{10}});
         });
 }
 
@@ -227,8 +227,8 @@ TextPresetDescriptor blur_in_entry() {
            LayerBuilderT& lb,
            const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "blur_in", spec)
-              .focus_in(4.0f, Frame{30})
-              .fade_in(Frame{15});
+              .motion("focus_in", {.amount = 4.0f, .duration = Frame{30}})
+              .motion("fade_in", {.duration = Frame{15}});
         });
 }
 
@@ -249,8 +249,8 @@ TextPresetDescriptor slide_up_entry() {
            LayerBuilderT& lb,
            const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "slide_up", spec)
-              .fade_shift_vertical(Vec3{0.0f, 200.0f, 0.0f}, Frame{25})
-              .fade_in(Frame{15});
+              .motion("fade_shift_vertical", {.vector = Vec3{0.0f, 200.0f, 0.0f}, .duration = Frame{25}})
+              .motion("fade_in", {.duration = Frame{15}});
         });
 }
 
@@ -271,8 +271,8 @@ TextPresetDescriptor slide_down_entry() {
            LayerBuilderT& lb,
            const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "slide_down", spec)
-              .fade_shift_vertical(Vec3{0.0f, -200.0f, 0.0f}, Frame{25})
-              .fade_in(Frame{15});
+              .motion("fade_shift_vertical", {.vector = Vec3{0.0f, -200.0f, 0.0f}, .duration = Frame{25}})
+              .motion("fade_in", {.duration = Frame{15}});
         });
 }
 
@@ -301,8 +301,8 @@ TextPresetDescriptor scale_in_entry() {
            LayerBuilderT& lb,
            const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "scale_in", spec)
-              .scale_drop(0.85f, Frame{25})
-              .soft_pop(Frame{15});
+              .motion("scale_drop", {.scale = 0.85f, .duration = Frame{25}})
+              .motion("soft_pop", {.duration = Frame{15}});
         });
 }
 
@@ -341,8 +341,8 @@ TextPresetDescriptor zoom_in_entry() {
            LayerBuilderT& lb,
            const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "zoom_in", spec)
-              .scale_drop(0.70f, Frame{28})
-              .fade_in(Frame{18});
+              .motion("scale_drop", {.scale = 0.70f, .duration = Frame{28}})
+              .motion("fade_in", {.duration = Frame{18}});
         });
 }
 
@@ -363,8 +363,8 @@ TextPresetDescriptor slide_left_entry() {
            LayerBuilderT& lb,
            const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "slide_left", spec)
-              .fade_shift_horizontal(Vec3{200.0f, 0.0f, 0.0f}, Frame{25})
-              .fade_in(Frame{15});
+              .motion("fade_shift_horizontal", {.vector = Vec3{200.0f, 0.0f, 0.0f}, .duration = Frame{25}})
+              .motion("fade_in", {.duration = Frame{15}});
         });
 }
 

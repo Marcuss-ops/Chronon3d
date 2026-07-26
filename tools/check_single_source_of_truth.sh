@@ -47,7 +47,7 @@
 # line on PASS addizionale al GATE_PASS.
 
 # ── Hard-caps for pre-existing rot (regression-detector semantics) ─────
-# TICKET-TEXT-LEGACY-POSITION-ROT tracks 200+ TextSpec::position sites; the
+# TICKET-TEXT-LEGACY-POSITION-ROT tracks 200+ TextDefaults::position sites; the
 # audit reports the current count and FAILS ONLY IF the count exceeds the
 # cap (i.e., a regression above the known baseline). User-calibratable via env.
 # KNOWN_COMPOSITION_ROTS=2 honors the pre-existing `class Composition` in
@@ -153,13 +153,13 @@ audit_concept "1. Asset" "class AssetRef" "include/chronon3d/assets/asset_ref.hp
     "^struct Asset\b" "^class Asset\b" "AssetHandle\b" "\bAssetPath\b"
 
 # 2. Placement (with hard-cap)
-# Direct count: TextSpec::position uses (legacy, per TICKET-TEXT-LEGACY-POSITION-ROT)
-position_count=$(rg -c "TextSpec::position" -t cpp include/ src/ apps/ 2>/dev/null | awk -F: '{s+=$2} END{print s+0}')
+# Direct count: TextDefaults::position uses (legacy, per TICKET-TEXT-LEGACY-POSITION-ROT)
+position_count=$(rg -c "TextDefaults::position" -t cpp include/ src/ apps/ 2>/dev/null | awk -F: '{s+=$2} END{print s+0}')
 if [ "${position_count:-0}" -le "${KNOWN_PLACEMENT_ROTS}" ]; then
-    echo "  PASS  2. Placement: canonical TextPlacement at include/chronon3d/text/text_placement.hpp; TextSpec::position count=$position_count (≤ cap=$KNOWN_PLACEMENT_ROTS, TICKET-TEXT-LEGACY-POSITION-ROT pre-existing rot)"
+    echo "  PASS  2. Placement: canonical TextPlacement at include/chronon3d/text/text_placement.hpp; TextDefaults::position count=$position_count (≤ cap=$KNOWN_PLACEMENT_ROTS, TICKET-TEXT-LEGACY-POSITION-ROT pre-existing rot)"
 else
-    echo "  FAIL  2. Placement: TextSpec::position count=$position_count exceeds cap=$KNOWN_PLACEMENT_ROTS (regression above the TICKET-TEXT-LEGACY-POSITION-ROT baseline)"
-    VIOLATIONS+=("2. Placement: TextSpec::position count=$position_count exceeds cap=$KNOWN_PLACEMENT_ROTS (regression above TICKET-TEXT-LEGACY-POSITION-ROT baseline)")
+    echo "  FAIL  2. Placement: TextDefaults::position count=$position_count exceeds cap=$KNOWN_PLACEMENT_ROTS (regression above the TICKET-TEXT-LEGACY-POSITION-ROT baseline)"
+    VIOLATIONS+=("2. Placement: TextDefaults::position count=$position_count exceeds cap=$KNOWN_PLACEMENT_ROTS (regression above TICKET-TEXT-LEGACY-POSITION-ROT baseline)")
 fi
 
 # 3. Layout (soft-cap=0: strict)

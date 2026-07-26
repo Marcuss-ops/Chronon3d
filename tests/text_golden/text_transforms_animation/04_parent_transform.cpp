@@ -112,7 +112,7 @@ Composition build_parent_transform_composition(
             // Child layer with parent pointer.
             s.layer("child_layer", [canvas_w, canvas_h](LayerBuilder& l) {
                 l.parent("parent_layer");
-                l.animated_text("title", TextRunParams{
+                l.text_run("title", TextRunDefinition{
                     .text = {
                         .content = {.value = "CHILD"},
                         .placement = TextPlacement{TextPlacementKind::Absolute,

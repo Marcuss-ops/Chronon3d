@@ -9,7 +9,7 @@
 // golden via the canonical `verify_golden()` helper.
 //
 // 6 overlay elements (per the §4C spec):
-//   1. box (green)            — the TextSpec.layout.box
+//   1. box (green)            — the TextDefaults.layout.box
 //   2. baseline (yellow)      — the text baseline (horizontal line)
 //   3. ink-bbox (cyan)        — the rendered alpha-bbox
 //   4. predicted-bbox (red)   — the producer's predicted bbox
@@ -265,7 +265,7 @@ OverlayResult render_with_overlay(SoftwareRenderer& renderer, ClipVariant varian
     // The overlay is for developer diagnostics: when comparing PNGs
     // across pipeline variants, the colors reveal which bbox is which.
     // The 6 elements:
-    //   1. box (green)            — TextSpec.layout.box (900×200, canvas center)
+    //   1. box (green)            — TextDefaults.layout.box (900×200, canvas center)
     //   2. baseline (yellow)      — horizontal line at canvas center
     //   3. ink-bbox (cyan)        — conservative estimate of rendered ink
     //   4. predicted-bbox (red)   — TextRunNode::predicted_bbox output

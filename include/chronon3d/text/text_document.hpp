@@ -8,7 +8,7 @@
 // solutions with a principled data model that separates:
 //
 //   1. Source text (utf8)          — what characters
-//   2. Defaults (TextSpec)         — fallback font, size, appearance
+//   2. Defaults (TextDefaults)         — fallback font, size, appearance
 //   3. TextStyleSpan[]             — per-range overrides (font, color, …)
 //   4. ParagraphRange[]            — paragraph boundaries + paragraph styles
 //
@@ -16,7 +16,7 @@
 //
 //   TextDocument
 //       ↓
-//   TextStyleResolver (resolve spans → per-run TextSpec)
+//   TextStyleResolver (resolve spans → per-run TextDefaults)
 //       ↓
 //   Bidi segmentation + HarfBuzz shaping
 //       ↓
@@ -34,7 +34,7 @@
 #include <chronon3d/text/paragraph_style.hpp>
 #include <chronon3d/text/text_appearance_spec.hpp>
 #include <chronon3d/text/text_span_override.hpp>
-#include <chronon3d/text/text_spec.hpp>
+#include <chronon3d/text/text_defaults.hpp>
 
 #include <cstddef>
 #include <optional>
@@ -92,7 +92,7 @@ struct TextDocument {
     /// Default font, layout, and appearance for the entire document.
     /// Spans override specific fields; anything not overridden falls back
     /// to these defaults.
-    TextSpec defaults;
+    TextDefaults defaults;
 
     /// Style overrides for specific byte ranges.
     /// Sorted by byte_start, non-overlapping.
@@ -122,7 +122,7 @@ struct TextDocument {
 
     // Equality is intentionally omitted — use hash comparison for cache
     // keys and field-by-field checks in tests.
-    // TextSpec does not expose `operator==`, so a defaulted `operator==`
+    // TextDefaults does not expose `operator==`, so a defaulted `operator==`
     // on TextDocument would not compile when instantiated.
 };
 

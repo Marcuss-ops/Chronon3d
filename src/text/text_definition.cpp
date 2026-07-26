@@ -13,8 +13,8 @@
 namespace chronon3d {
 
 // Helper: build the runtime document defaults from the authoring DTO.
-[[nodiscard]] static TextSpec defaults_from_definition(const TextDefinition& def) {
-    TextSpec spec;
+[[nodiscard]] static TextDefaults defaults_from_definition(const TextDefinition& def) {
+    TextDefaults spec;
 
     spec.content.value      = def.content.value;
     spec.content.pre_shaped = def.content.pre_shaped;

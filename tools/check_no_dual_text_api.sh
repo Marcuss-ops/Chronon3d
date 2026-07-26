@@ -12,7 +12,7 @@
 #   [1/4] LayerBuilder::text_<variant>              (canonical: text + text_run only)
 #   [2/4] centered_text / glow_text DEFINITION       (canonical: src/presets/ + include/
 #                                                      chronon3d/presets/ registry only)
-#   [3/4] TextSpec.position non-migrated ASSIGNMENT  (canonical: TextFrame::place(.offset))
+#   [3/4] TextDefaults.position non-migrated ASSIGNMENT  (canonical: TextFrame::place(.offset))
 #   [4/4] pin_to + TextAnchor co-occurrence in text layers (advisory; ADR-019
 #                                                       coordinate-level confusion)
 #
@@ -143,39 +143,39 @@ else
     echo "PASS"
 fi
 
-# ── [3/4] TextSpec.position non-migrated ASSIGNMENT ───────────────────
-# `TextSpec.position` is the legacy ambiguous-pos semantic discouraged by
+# ── [3/4] TextDefaults.position non-migrated ASSIGNMENT ───────────────────
+# `TextDefaults.position` is the legacy ambiguous-pos semantic discouraged by
 # ADR-019 Decision 3.  Migration target: `.place(TextPlacement::CanvasCenter)`
 # + `.offset(...)` on `TextFrame`.  New raw assignments of
-# `TextSpec::position` indicate the migration wasn't applied.
+# `TextDefaults::position` indicate the migration wasn't applied.
 #
 # Detection: filter `.position\s*[={]` on lines that ALSO reference
-# `TextSpec` (limiting false positives from .position field on Layer,
+# `TextDefaults` (limiting false positives from .position field on Layer,
 # Shape, etc.).  Path scope excludes `include/chronon3d/scene/builders/`
 # (the header that DEFINES the field is allowed to declare it as a
 # default-initialized field; assignments happen in callers).
 
-echo -n "  [3/4] TextSpec.position non-migrated assignment ... "
+echo -n "  [3/4] TextDefaults.position non-migrated assignment ... "
 hits=""
 while IFS= read -r f; do
     [ -z "$f" ] && continue
     case "$f" in
         include/chronon3d/scene/builders/builder_params.hpp) continue ;;
     esac
-    # Match ONLY TextSpec-qualified `.position` assignments. Other `.position`
+    # Match ONLY TextDefaults-qualified `.position` assignments. Other `.position`
     # fields (RenderNode.world_transform.position, Layer.transform.position,
-    # Camera.position, MotionState.position, etc.) are NOT TextSpec-derived
-    # and don't trigger the gate. Real TextSpec.position sites emit patterns
+    # Camera.position, MotionState.position, etc.) are NOT TextDefaults-derived
+    # and don't trigger the gate. Real TextDefaults.position sites emit patterns
     # like `spec.position = X`, `text.position = X`, `p.text.position = X`,
-    # or brace-init `TextSpec{.position = X}` — the regex requires a var-name
-    # qualifier before `.position` (whitelisted TextSpec var names: spec, text,
-    # TextSpec, text_def, ts, myText, def, textSpec, t_spec, td, p, run_params)
+    # or brace-init `TextDefaults{.position = X}` — the regex requires a var-name
+    # qualifier before `.position` (whitelisted TextDefaults var names: spec, text,
+    # TextDefaults, text_def, ts, myText, def, textSpec, t_spec, td, p, run_params)
     # with optional `[{(]` between var-name and `.position` to handle brace-init
     # and copy-constructor syntax. Gate TIGHTENING (precision improvement) per
     # TICKET-CHECK-NO-DUAL-TEXT-API-REGEX-IMPROVEMENT.md.
     # grep -P (PCRE): native support for `|` alternation, `\b` word-boundary,
     # `(?=)` lookahead, `\s` newline-aware — no need for -E.
-    file_hits=$(grep -Pon '\b(spec|text|TextSpec|text_def|ts|myText|def|textSpec|t_spec|td|p|run_params)\s*[{(]?\s*\.position(?=\s*[={])' "$f" 2>/dev/null || true)
+    file_hits=$(grep -Pon '\b(spec|text|TextDefaults|text_def|ts|myText|def|textSpec|t_spec|td|p|run_params)\s*[{(]?\s*\.position(?=\s*[={])' "$f" 2>/dev/null || true)
     if [ -n "$file_hits" ]; then
         hits="${hits}$(echo "$file_hits" | sed "s|^|$f:|")"$'\n'
     fi
@@ -184,13 +184,13 @@ done < <(grep -Rl --include='*.hpp' --include='*.cpp' --include='*.h' \
 hits=$(echo "$hits" | grep -v '^$' || true)
 if [ -n "$hits" ]; then
     echo "FAIL"
-    echo "  NEW TextSpec.position raw assignment(s) outside migration target scope:"
+    echo "  NEW TextDefaults.position raw assignment(s) outside migration target scope:"
     echo "$hits" | sed 's/^/    /'
     echo "  → Migrate to TextFrame::place(TextPlacement::CanvasCenter).offset(...)"
     echo "    or TextFrame::position explicitly with intent cross-link in"
-    echo "     ADR-019 §3.  Direct TextSpec.position assignment violates F2.A"
+    echo "     ADR-019 §3.  Direct TextDefaults.position assignment violates F2.A"
     echo "    canonical DTO mandate + M1.8 §6 'no API deprecate in compositions'."
-    VIOLATIONS+=("[3/4] TextSpec.position non-migrated: $(echo "$hits" | tr '\n' ' ')")
+    VIOLATIONS+=("[3/4] TextDefaults.position non-migrated: $(echo "$hits" | tr '\n' ' ')")
     FAILED=1
 else
     echo "PASS"

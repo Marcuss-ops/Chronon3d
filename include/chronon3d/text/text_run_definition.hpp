@@ -1,15 +1,14 @@
 #pragma once
 
 // ═══════════════════════════════════════════════════════════════════════════
-// text_run_spec.hpp — Legacy animated text-run specification (transitional)
+// text_run_definition.hpp — Runtime text-run definition.
 //
-// Moved from <chronon3d/scene/builders/params/text_params.hpp> to the text
-// module.  New code should prefer TextDefinition with a non-empty
-// TextAnimation.
+// This payload combines a TextDefaults document substrate with the
+// per-glyph animation stack used by the text compiler.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/text/text_direction.hpp>
-#include <chronon3d/text/text_spec.hpp>
+#include <chronon3d/text/text_defaults.hpp>
 #include <chronon3d/text/glyph_selector_spec.hpp>
 #include <chronon3d/text/text_animator_property.hpp>
 
@@ -19,8 +18,8 @@
 
 namespace chronon3d {
 
-struct TextRunSpec {
-    TextSpec text;
+struct TextRunDefinition {
+    TextDefaults text;
     TextDirection direction{TextDirection::Auto};
     std::string language;
     std::uint32_t script{0u};

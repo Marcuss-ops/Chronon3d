@@ -79,7 +79,7 @@ public:
     Layer& operator=(Layer&&)      = default;
 
     /// Push a new text-run entry into the parent layer and return a
-    /// `Text` handle that mutates the new pending TextRunSpec in place.
+    /// `Text` handle that mutates the new pending TextRunDefinition in place.
     ///
     /// The new entry's `name` is auto-generated as `text_<N>` where N is
     /// the per-Layer instance counter.  Multiple `.text(...)` calls on the
@@ -90,10 +90,10 @@ public:
 
         // Push the empty pending entry first.  Materialized when
         // LayerBuilder::build() runs.
-        TextRunSpec seed_spec{};
+        TextRunDefinition seed_spec{};
         seed_spec.text.content.value = std::move(content);
 
-        TextRunBuilder& builder = builder_->animated_text(
+        TextRunBuilder& builder = builder_->text_run(
             generated_name,
             std::move(seed_spec)
         );
@@ -247,7 +247,7 @@ public:
     // in `include/chronon3d/authoring/text.hpp`).  Resolution order at
     // materialization (see `src/scene/builders/layer_builder.cpp:397` —
     // `spec.font_engine ? spec.font_engine : m_font_engine`):
-    //   1. TextRunSpec/PendingTextRun.font_engine bound via Text::font_engine(...)
+    //   1. TextRunDefinition/PendingTextRun.font_engine bound via Text::font_engine(...)
     //   2. LayerBuilder.m_font_engine bound here.
     //   3. The owning SoftwareRenderer's `renderer.font_engine()` (built
     //      from `runtime().resolver()`) at the draw site.

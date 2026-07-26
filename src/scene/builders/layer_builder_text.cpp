@@ -2,7 +2,7 @@
 // layer_builder_text.cpp — TextRun registration + Layer materialization
 // ============================================================================
 //
-// Contains text-related LayerBuilder methods: animated_text(), the text()
+// Contains text-related LayerBuilder methods: text_run(), the text()
 // overloads, and the final Layer::build() materialization (which resolves
 // timing, bakes animated transforms/effects, and materialises pending
 // text-run specs into RenderNodes).
@@ -41,7 +41,7 @@ namespace chronon3d {
 // TextRunBuilder — PR 4 (TextAnimator V2)
 // ═══════════════════════════════════════════════════════════════════════════
 
-TextRunBuilder& LayerBuilder::animated_text(std::string name, TextRunSpec params) {
+TextRunBuilder& LayerBuilder::text_run(std::string name, TextRunDefinition params) {
     // Text runs use the text-specific coordinate path in the render graph.
     // Keep the layer kind aligned with the primitive being registered;
     // otherwise a normal-layer canvas transform shifts glyphs off-screen.
@@ -66,7 +66,7 @@ TextRunBuilder& LayerBuilder::animated_text(std::string name, TextRunSpec params
     // mutators write directly into the spec inside m_text_runs.
     // Pool storage means the returned reference stays
     // valid for the lifetime of the LayerBuilder — even across many
-    // `.animated_text(...)` calls.
+    // `.text_run(...)` calls.
     m_text_run_builders.push_back(
         std::make_unique<TextRunBuilder>(this, spec_ptr));
     return *m_text_run_builders.back();
@@ -122,8 +122,8 @@ Layer LayerBuilder::build() {
 
     // ── PR 4 — Materialize pending text-run specs ───────────────────
     //
-    // For each PendingTextRun pushed via `LayerBuilder::animated_text(name,
-    // TextRunSpec)`, evaluate the animator stack at the layer's
+    // For each PendingTextRun pushed via `LayerBuilder::text_run(name,
+    // TextRunDefinition)`, evaluate the animator stack at the layer's
     // current local time and append a corresponding RenderNode
     // flagged with ShapeType::TextRun.  The graph-builder
     // source-pass (PR 3) auto-routes these to a TextRunNode.
@@ -191,7 +191,7 @@ Layer LayerBuilder::build() {
                 continue;
             }
 
-            // Legacy TextRunSpec path (kept for animated_text and deprecated
+            // Legacy TextRunDefinition path (kept for text_run and deprecated
             // text_run entry points until X5).
             node.world_transform.position = Vec3{
                 spec.params.text.placement.offset.x,
@@ -212,7 +212,7 @@ Layer LayerBuilder::build() {
             // Per-spec FontEngine override (set via trb.font_engine(...))
             // wins over the layer's default font_engine when present.
             FontEngine* engine_for_shape = spec.font_engine ? spec.font_engine : m_font_engine;
-            TextRunSpec materialize_params = spec.params;
+            TextRunDefinition materialize_params = spec.params;
             if (materialize_params.text.placement.kind ==
                 TextPlacementKind::CanvasCenter) {
                 // CanvasCenter already centers the rasterized ink.  Applying

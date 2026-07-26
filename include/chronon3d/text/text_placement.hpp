@@ -9,7 +9,7 @@
 // TextPlacement bundles two pieces of information that were previously split
 // across the resolver signature (a `TextPlacement` enum + a separate `Vec2
 // offset` parameter) into one cohesive rendering-specification item.  This
-// eliminates the `TextSpec.position` ambiguity — instead of two loose fields
+// eliminates the `TextDefaults.position` ambiguity — instead of two loose fields
 // (position enum + position offset) the authoring layer now has ONE struct.
 //
 // Lifecycle:

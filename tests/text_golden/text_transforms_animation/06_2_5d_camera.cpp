@@ -93,7 +93,7 @@ Composition build_2_5d_composition(
                 l.enable_3d(true);
                 // Push the layer 50 units forward in Z (subtle depth).
                 l.depth_offset(50.0f);
-                l.animated_text("title", TextRunParams{
+                l.text_run("title", TextRunDefinition{
                     .text = {
                         .content = {.value = "2.5D"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},

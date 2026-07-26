@@ -67,7 +67,7 @@ inline Composition apple_style_hero() {
                 26.0f, 400, {0.45f, 0.45f, 0.50f, 1.0f},
                 TextAlign::Center, {700.0f, 50.0f}
             ));
-            l.slide_in({0.0f, 25.0f, 0.0f}, Frame{35}, EasingCurve{Easing::OutCubic});
+            l.motion("slide_in", {.vector = Vec3{0.0f, 25.0f, 0.0f}, .duration = Frame{35}, .easing = EasingCurve{Easing::OutCubic}});
         });
 
         s.layer("cta_primary", [](LayerBuilder& l) {
@@ -80,7 +80,7 @@ inline Composition apple_style_hero() {
                 "Learn More", 16.0f, 600, {1.0f, 1.0f, 1.0f, 1.0f},
                 TextAlign::Center, {150.0f, 50.0f}
             ));
-            l.soft_pop(Frame{30});
+            l.motion("soft_pop", {.duration = Frame{30}});
         });
 
         s.layer("cta_secondary", [](LayerBuilder& l) {
@@ -93,7 +93,7 @@ inline Composition apple_style_hero() {
                 "Watch the film", 15.0f, 500, {0.05f, 0.05f, 0.08f, 1.0f},
                 TextAlign::Center, {130.0f, 50.0f}
             ));
-            l.settle(0.05f, Frame{25});
+            l.motion("settle", {.amount = 0.05f, .duration = Frame{25}});
         });
 
         return s.build();

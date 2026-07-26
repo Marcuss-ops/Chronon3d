@@ -15,7 +15,7 @@
 //     full text_run_builder.hpp chain is overkill.
 //
 // Anti-circular: full type definitions of `PendingTextRun`,
-// `TextRunSpec`, `TextRunSpec`, and `TextRunBuilder` live in
+// `TextRunDefinition`, `TextRunDefinition`, and `TextRunBuilder` live in
 // <chronon3d/scene/builders/text_run_builder.hpp>.  This header
 // only forward-declares them.
 
@@ -36,7 +36,7 @@ namespace chronon3d {
     // Full definition: <chronon3d/scene/builders/text_run_builder.hpp>.
     // The canonical fields consumed by the test inspector are:
     //   * std::string                              name;
-    //   * TextRunSpec                            params;
+    //   * TextRunDefinition                            params;
     // See the inspector header for the snapshot view.
     struct PendingTextRun;
 
@@ -46,17 +46,17 @@ namespace chronon3d {
     // `PendingRunSnapshot::animators` for stable post-build reads.
     //
     // Full definition: <chronon3d/scene/builders/text_run_builder.hpp>.
-    struct TextRunSpec;
+    struct TextRunDefinition;
 
     // ── Text-run spec ───────────────────────────────────────────────────────
-    // Forward-declared.  Distinct from TextRunSpec (which is the
-    // build-time commit payload); TextRunSpec is the authoring
+    // Forward-declared.  Distinct from TextRunDefinition (which is the
+    // build-time commit payload); TextRunDefinition is the authoring
     // façade's ae-spec value type (TextRunBuilder currently emits
-    // a TextRunSpec slot).
+    // a TextRunDefinition slot).
     //
-    // Full definition: <chronon3d/text/text_run_spec.hpp>
+    // Full definition: <chronon3d/text/text_run_definition.hpp>
     // (or <chronon3d/scene/builders/text_run_builder.hpp>).
-    struct TextRunSpec;
+    struct TextRunDefinition;
 
     // ── Text-run builder (authoring façade) ─────────────────────────────────
     // Forward-declared.  The `.text_run(...)` method on LayerBuilder

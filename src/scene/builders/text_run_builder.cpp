@@ -125,7 +125,7 @@ TextRunBuilder& TextRunBuilder::scale(Vec3 s) {
 }
 
 TextRunBuilder& TextRunBuilder::font_size(f32 v) {
-    // Font size lives inside the composable TextSpec under
+    // Font size lives inside the composable TextDefaults under
     // .text().font.font_size — it affects HarfBuzz shaping upstream of
     // any glyph-level animation, so this mutator updates the BASE
     // parameter (no animator injection).
@@ -144,7 +144,7 @@ TextRunBuilder& TextRunBuilder::font_size(f32 v) {
 }
 
 TextRunBuilder& TextRunBuilder::font(std::string path) {
-    // Font path shorthand — sets the composable TextSpec's font_path
+    // Font path shorthand — sets the composable TextDefaults's font_path
     // directly.  This triggers font resolution at materialization time.
     m_spec->params.text.font.font_path = std::move(path);
     return *this;
@@ -313,7 +313,7 @@ LayerBuilder& TextRunBuilder::commit() {
     // LayerBuilder::build() reads m_text_runs directly; the spec is
     // already up-to-date.  Touching m_cache_layout=false here forces
     // a re-shape even if the layout cache already contains an entry
-    // for the spec's TextRunSpec (because user edits may have
+    // for the spec's TextRunDefinition (because user edits may have
     // changed shaping inputs).
     m_spec->params.cache_layout = m_cache_layout;
 
@@ -334,8 +334,8 @@ LayerBuilder& TextRunBuilder::commit() {
 // ═══════════════════════════════════════════════════════════════════════════
 // materialize_text_run_shape — shared helper
 //
-// Reads the composable nested TextRunSpec fields after the PR3→PR4
-// migration (TextRunSpec is now an alias of TextRunSpec — see
+// Reads the composable nested TextRunDefinition fields after the PR3→PR4
+// migration (TextRunDefinition is now an alias of TextRunDefinition — see
 // builder_params.hpp).
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -433,7 +433,7 @@ namespace text_run_materialize_detail {
 namespace {
 
 [[nodiscard]] Result<std::shared_ptr<TextRunLayout>, TextLayoutError> compile_or_cache_layout(
-    const TextRunSpec& params,
+    const TextRunDefinition& params,
     FontEngine& engine
 ) {
     // ═════════════════════════════════════════════════════════════════
@@ -461,7 +461,7 @@ namespace {
 
     // Default to Inter-Bold when no font_path or font_family is set.
     // Prevents "failed to load font '' (error=1)" downstream when the
-    // TextRunSpec was authored without a font (e.g. scene tests that
+    // TextRunDefinition was authored without a font (e.g. scene tests that
     // don't wire a FontEngine or set a default font_path on the layer).
     // This matches the longstanding default in
     // src/scene/model/render_node_factory.cpp and
@@ -684,7 +684,7 @@ namespace {
 } // anonymous namespace
 
 std::shared_ptr<TextRunShape> materialize_text_run_shape(
-    const TextRunSpec& params,
+    const TextRunDefinition& params,
     FontEngine* engine,
     SampleTime sample_time,
     std::shared_ptr<const AnimatedTextDocument> animated_doc

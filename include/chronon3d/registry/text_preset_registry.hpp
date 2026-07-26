@@ -21,7 +21,7 @@
 //
 // ## Costruttori builder vs builder stampati
 // - `TextPresetBuilder` (defined in `text_preset_descriptor.hpp`) =
-//   std::function<void(SceneBuilder&, LayerBuilder&, const TextSpec&)>;
+//   std::function<void(SceneBuilder&, LayerBuilder&, const TextDefaults&)>;
 //   le firme sono verificate al call site.  I built-in sono real
 //   builders seeded via `register_builtin_presets()`.
 //

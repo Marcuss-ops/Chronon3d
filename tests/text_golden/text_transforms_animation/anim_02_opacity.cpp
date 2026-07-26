@@ -90,7 +90,7 @@ Composition build_anim_opacity_composition(
                 auto& opacity = l.opacity_anim();
                 opacity.set(1.0f);
                 opacity.add_keyframe(Frame{30}, 0.1f, EasingCurve{Easing::Linear});
-                l.animated_text("title", TextRunParams{
+                l.text_run("title", TextRunDefinition{
                     .text = {
                         .content = {.value = "FADE"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {cx, cy}},

@@ -130,8 +130,8 @@ TextPresetDescriptor scale_punch_entry() {
                           LayerBuilderT& lb,
                           const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "scale_punch", spec)
-          .scale_drop(0.70f, Frame{12})
-          .soft_pop(Frame{20});
+          .motion("scale_drop", {.scale = 0.70f, .duration = Frame{12}})
+          .motion("soft_pop", {.duration = Frame{20}});
     };
     d.animator_factory = compose_scale_punch;
     return d;
@@ -156,7 +156,7 @@ TextPresetDescriptor color_accent_entry() {
                           LayerBuilderT& lb,
                           const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "color_accent", spec)
-          .fade_in(Frame{12});
+          .motion("fade_in", {.duration = Frame{12}});
     };
     d.animator_factory = compose_color_accent;
     return d;
@@ -180,8 +180,8 @@ TextPresetDescriptor gradient_fill_entry() {
                           LayerBuilderT& lb,
                           const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "gradient_fill", spec)
-          .fade_shift_vertical(Vec3{0.0f, 80.0f, 0.0f}, Frame{20})
-          .fade_in(Frame{15});
+          .motion("fade_shift_vertical", {.vector = Vec3{0.0f, 80.0f, 0.0f}, .duration = Frame{20}})
+          .motion("fade_in", {.duration = Frame{15}});
     };
     d.animator_factory = compose_gradient_fill;
     return d;

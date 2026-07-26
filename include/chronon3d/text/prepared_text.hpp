@@ -12,7 +12,7 @@
 //   - TextAnimation  (animators, selectors, timing)
 //
 // X2 canonization step: the compiler no longer reverse-adapts the canonical
-// TextDefinition back into TextSpec/TextRunSpec/TextLayoutSpec; it reads
+// TextDefinition back into TextDefaults/TextRunDefinition/TextLayoutSpec; it reads
 // the canonical sub-structs directly from PreparedText.
 // ═══════════════════════════════════════════════════════════════════════════
 

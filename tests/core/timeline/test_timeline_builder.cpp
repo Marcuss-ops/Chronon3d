@@ -59,11 +59,11 @@ TEST_CASE("TimelineBuilder: stagger shifts keyframes by spatial order") {
     TimelineBuilder t(s);
     t.add("a").from(Frame{0}).duration(Frame{60}).with([](LayerBuilder& lb) {
         lb.position({-100.0f, 0.0f, 0.0f});
-        lb.slide_in({-200.0f, 0.0f, 0.0f}, Frame{20});
+        lb.motion("slide_in", {.vector = Vec3{-200.0f, 0.0f, 0.0f}, .duration = Frame{20}});
     })
     .add("b").from(Frame{0}).duration(Frame{60}).with([](LayerBuilder& lb) {
         lb.position({100.0f, 0.0f, 0.0f});
-        lb.slide_in({0.0f, 0.0f, 0.0f}, Frame{20});
+        lb.motion("slide_in", {.vector = Vec3{0.0f, 0.0f, 0.0f}, .duration = Frame{20}});
     })
     .stagger({"a", "b"}, StaggerConfig{.delay_per_unit = Frame{4}}, StaggerOrder::LeftToRight)
     .apply();
@@ -128,11 +128,11 @@ TEST_CASE("TimelineBuilder: global stagger applies to all tracks") {
     TimelineBuilder t(s);
     t.add("x").from(Frame{0}).duration(Frame{60}).with([](LayerBuilder& lb) {
         lb.position({0.0f, 0.0f, 0.0f});
-        lb.slide_in({-50.0f, 0.0f, 0.0f}, Frame{10});
+        lb.motion("slide_in", {.vector = Vec3{-50.0f, 0.0f, 0.0f}, .duration = Frame{10}});
     })
     .add("y").from(Frame{0}).duration(Frame{60}).with([](LayerBuilder& lb) {
         lb.position({200.0f, 0.0f, 0.0f});
-        lb.slide_in({150.0f, 0.0f, 0.0f}, Frame{10});
+        lb.motion("slide_in", {.vector = Vec3{150.0f, 0.0f, 0.0f}, .duration = Frame{10}});
     })
     .stagger(StaggerConfig{.delay_per_unit = Frame{6}}, StaggerOrder::LeftToRight)
     .apply();

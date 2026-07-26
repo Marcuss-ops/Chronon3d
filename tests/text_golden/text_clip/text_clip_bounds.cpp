@@ -113,7 +113,7 @@ Composition build_clip_composition(
                 if (glow_params.enabled) {
                     l.glow(glow_params);
                 }
-                l.animated_text("title", TextRunSpec{
+                l.text_run("title", TextRunDefinition{
                     .text = {
                         .content = {.value = "HAMBURGER"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, {960.0f, 540.0f}},

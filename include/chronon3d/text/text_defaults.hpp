@@ -1,12 +1,10 @@
 #pragma once
 
 // ═══════════════════════════════════════════════════════════════════════════
-// text_spec.hpp — Legacy whole-text specification (transitional canonical)
+// text_defaults.hpp — Runtime defaults for a TextDocument.
 //
-// Moved from <chronon3d/scene/builders/params/text_params.hpp> to the text
-// module.  This header exists for backward compatibility while the runtime
-// pipeline migrates to TextDocument / TextDefinition.  New code should
-// prefer TextDefinition/TextDocument.
+// TextDefaults contains the fallback style/layout substrate used by the
+// document compiler. Authoring code should prefer TextDefinition.
 // ═══════════════════════════════════════════════════════════════════════════
 
 #include <chronon3d/text/font_engine.hpp>            // FontSpec
@@ -20,7 +18,7 @@
 
 namespace chronon3d {
 
-struct TextSpec {
+struct TextDefaults {
     // Per-field phase tags (TICKET-TEXT-PROPERTY-PHASES):
     //   .content     → PreShaping substrate (value/pre_shaped are inputs to the PreShaping evaluator)
     //   .placement   → PreLayout (reflow; affects paragraph composition)

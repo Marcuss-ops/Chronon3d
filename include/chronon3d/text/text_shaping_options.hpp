@@ -5,7 +5,7 @@
 //
 // Holds the HarfBuzz/OpenType shaping parameters that influence glyph
 // selection and positioning.  Previously these fields were scattered
-// across TextRunSpec (direction/language/script) and TextLayoutSpec
+// across TextRunDefinition (direction/language/script) and TextLayoutSpec
 // (features).  This struct is the single canonical location for the
 // X1 canonization step.
 // ═══════════════════════════════════════════════════════════════════════════

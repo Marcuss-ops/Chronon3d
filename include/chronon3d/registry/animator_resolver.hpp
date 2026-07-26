@@ -19,10 +19,10 @@
 // compile time; no runtime registry lookup is performed.
 //
 // Anti-circular dependency: this header DOES NOT include any
-// `content/text/text_*.hpp`.  It pulls the canonical TextSpec +
+// `content/text/text_*.hpp`.  It pulls the canonical TextDefaults +
 // TextAnimatorSpec + property types from
 // `<chronon3d/scene/builders/builder_params.hpp>`.  External callers
-// that instantiate `chronon3d::TextSpec` can pass it to the resolver
+// that instantiate `chronon3d::TextDefaults` can pass it to the resolver
 // unchanged.
 //
 // Cross-references:
@@ -36,7 +36,7 @@
 // ==============================================================================
 #pragma once
 
-#include <chronon3d/scene/builders/builder_params.hpp>  // TextSpec, TextAnimatorSpec, Vec3,
+#include <chronon3d/scene/builders/builder_params.hpp>  // TextDefaults, TextAnimatorSpec, Vec3,
 #include <chronon3d/text/text_definition.hpp>
                                                           // TextPropertyBlendMode, GlyphSelectorSpec,
                                                           // TextSelectorUnit, TextSelectorShape,

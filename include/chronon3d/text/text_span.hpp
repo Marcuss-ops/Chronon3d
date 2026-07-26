@@ -3,7 +3,7 @@
 // ─── Chronon3D — TextSpan POD foundation (FASE 4, Blocco B) ───────────────
 //
 // Per-span style/motion/identity overrides that complement (do NOT replace)
-// the document/paragraph-level `TextSpec` shape canonised by
+// the document/paragraph-level `TextDefaults` shape canonised by
 // `docs/MIGRATION_TEXT_SPEC.md` (TICKET-002 🟢 Done).
 //
 // Hierarchy:    TextDocument → Paragraph → TextSpan[] → per-span overrides
@@ -12,7 +12,7 @@
 // Guard:        DO NOT wire into `TextLayoutEngine` in this PR (Fase 4 step 2 only).
 //
 // Naming convention:
-//   * whole-text shape / arg-shaped  → `…Spec` suffix   (TextSpec, TextLayoutSpec,
+//   * whole-text shape / arg-shaped  → `…Spec` suffix   (TextDefaults, TextLayoutSpec,
 //                                                      FontSpec — per MIGRATION_TEXT_SPEC.md §1)
 //   * span-shaped overrides         → `…Style` suffix  (TextSpanStyle, TextStrokeStyle,
 //                                                      TextHighlightStyle — this file)
@@ -60,7 +60,7 @@ struct TextSpanIdentity {
 
 // ─── Style (per-span POD overrides) ──────────────────────────────────────
 
-/// `std::optional<T>` semantically: empty = fall back to TextSpec default
+/// `std::optional<T>` semantically: empty = fall back to TextDefaults default
 /// at render; filled = override; merge logic lives in rendering layer.
 struct TextSpanStyle {
     std::optional<Color>             color;
@@ -90,7 +90,7 @@ struct TextSpanMotion {
 
 /// A contiguous text segment within a Paragraph or directly under an
 /// unstructured TextDocument. Strict inheritance: overrides apply ONLY
-/// to fields set in `style`; unset fields fall back to TextSpec defaults
+/// to fields set in `style`; unset fields fall back to TextDefaults defaults
 /// at render time (post Fase 4 step 2).
 struct TextSpan {
     std::string                       text;            ///< UTF-8 text content
