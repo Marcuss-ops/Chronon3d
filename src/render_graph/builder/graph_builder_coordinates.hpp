@@ -188,7 +188,14 @@ inline Mat4 resolve_absolute_text_source_matrix(
     const auto run_shape = node.shape.text_run_shape_handle().value;
     const bool absolute_placement =
         run_shape && run_shape->placement_kind == TextPlacementKind::Absolute;
-    if (absolute_placement && matrix_near(
+    // A pinned layer owns the canvas-center translation.  Do not strip it
+    // when an animated layer happens to land exactly at (0, 0): that would
+    // make the final keyframe use only the text node's box-local origin and
+    // visibly jump to the upper-left corner.  The old condition was only
+    // safe for an unpinned parent whose absolute placement was already in
+    // canvas coordinates.
+    const bool layer_is_pinned = item.layer && item.layer->layout.pin.has_value();
+    if (absolute_placement && !layer_is_pinned && matrix_near(
             item.transform.to_mat4(), implicit_canvas_center_matrix(ctx))) {
         matrix = glm::inverse(implicit_canvas_center_matrix(ctx)) * matrix;
     }
