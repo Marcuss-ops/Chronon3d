@@ -14,7 +14,6 @@ add_library(chronon3d_text_core OBJECT
     glyph_selector.cpp
     glyph_selector_math.cpp
     glyph_selector_compile.cpp
-    glyph_selector_random.cpp
     path_sampler.cpp
     pending_text_run_impl.cpp
     single_line_composer.cpp

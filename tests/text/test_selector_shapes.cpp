@@ -114,9 +114,9 @@ TEST_CASE("Order: FromCenter even count") {
 }
 
 TEST_CASE("Order: Random is bijective (true permutation, no collisions)") {
-    using namespace detail;
+    // TICKET-RANDOM-UNIFY: by-value canonical API (no thread_local cache).
     for (u32 n : {1u, 2u, 3u, 5u, 10u, 16u, 50u, 100u}) {
-        const auto& perm = get_or_build_permutation(42, n);
+        const auto perm = build_random_permutation(RandomSeed{42}, n);
         REQUIRE(perm.size() == n);
 
         std::vector<u32> sorted(perm.begin(), perm.end());
@@ -128,12 +128,11 @@ TEST_CASE("Order: Random is bijective (true permutation, no collisions)") {
 }
 
 TEST_CASE("Order: Random same seed -> same permutation; shuffle is non-trivial") {
-    using namespace detail;
     constexpr u32 N = 32;
     constexpr u64 SEED_A = 12345;
 
-    const auto& a1 = get_or_build_permutation(SEED_A, N);
-    const auto& a2 = get_or_build_permutation(SEED_A, N);
+    const auto a1 = build_random_permutation(RandomSeed{SEED_A}, N);
+    const auto a2 = build_random_permutation(RandomSeed{SEED_A}, N);
     REQUIRE(a1.size() == N);
     REQUIRE(a2.size() == N);
     for (u32 i = 0; i < N; ++i) {
@@ -197,17 +196,15 @@ TEST_CASE("Order: Random is deterministic via apply_selector_order") {
 // Hash determinism tests
 // ═══════════════════════════════════════════════════════════════════════════
 
-TEST_CASE("Hash: same input → same output") {
-    using namespace detail;
-
-    CHECK(hash_to_unit_float(12345, 67) == hash_to_unit_float(12345, 67));
+// ── deterministic_random — migrated from `chronon3d::detail::hash_to_unit_float` per TICKET-RANDOM-UNIFY
+TEST_CASE("deterministic_random: same input → same output") {
+    CHECK(deterministic_random(RandomSeed{12345}, 67)
+          == deterministic_random(RandomSeed{12345}, 67));
 }
 
-TEST_CASE("Hash: different seed → different output") {
-    using namespace detail;
-
-    f32 a = hash_to_unit_float(1, 100);
-    f32 b = hash_to_unit_float(2, 100);
+TEST_CASE("deterministic_random: different seed → different output") {
+    f32 a = deterministic_random(RandomSeed{1}, 100);
+    f32 b = deterministic_random(RandomSeed{2}, 100);
     CHECK(a != b);
     CHECK(a >= 0.0f);
     CHECK(a < 1.0f);
@@ -215,10 +212,8 @@ TEST_CASE("Hash: different seed → different output") {
     CHECK(b < 1.0f);
 }
 
-TEST_CASE("Hash: different unit_index → different output") {
-    using namespace detail;
-
-    f32 a = hash_to_unit_float(42, 0);
-    f32 b = hash_to_unit_float(42, 1);
+TEST_CASE("deterministic_random: different unit_index → different output") {
+    f32 a = deterministic_random(RandomSeed{42}, 0);
+    f32 b = deterministic_random(RandomSeed{42}, 1);
     CHECK(a != b);
 }
