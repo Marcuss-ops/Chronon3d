@@ -44,7 +44,7 @@
 #  17. src/-only header on public path       — TICKET-ae-cam-hash-collision
 #  18. V2 AssetPreflight stubs RETIRED       — Phase A1 close-out
 #        (asset_readiness_v2.hpp always-green stubs + accumulate_preflight_result)
-#  19. TextSpec::offset RETIRED              — Phase A3 close-out
+#  19. TextDefaults::offset RETIRED              — Phase A3 close-out
 #        (dual-channel placement pattern: spec.placement.offset is canonical)
 #  20. TextFrame consolidated placement      — Phase A4 close-out
 #        (TextFrame.{position,placement_kind,offset} → TextPlacement placement)#  21. Asset namespace canonicalization      — Phase A2 close-out
@@ -581,8 +581,8 @@ if [ -n "$hits" ]; then
     FAILED=1
 else echo "PASS"; fi
 
-# ── 19. TextSpec::offset RETIRED (Phase A3 close-out) ───────────────────────────────────────────────────
-# After Phase A3, TextSpec has NO `Vec2 offset{}` field. The pin position
+# ── 19. TextDefaults::offset RETIRED (Phase A3 close-out) ───────────────────────────────────────────────────
+# After Phase A3, TextDefaults has NO `Vec2 offset{}` field. The pin position
 # lives only in `spec.placement.offset` (bundled with the placement kind
 # via struct TextPlacement). This gate forbids re-introducing the redundant
 # dual-channel representation that confused `.offset = ...` with
@@ -593,7 +593,7 @@ else echo "PASS"; fi
 # position). Files matching `*glyph_selector*` are explicitly exempted
 # so the gate does not false-positive on the AnimationOffset property
 # setter chain.
-echo -n "  [19/24] TextSpec::offset RETIRED        ... "
+echo -n "  [19/24] TextDefaults::offset RETIRED        ... "
 # Path filter exempts files touching `GlyphSelectorSpec::offset`
 # (animator property for phase shift, NOT a pin position):
 #   * src/text/glyph_selector_compile.cpp  (compile path)
@@ -606,7 +606,7 @@ hits=$(grep -Rn --include='*.hpp' --include='*.cpp' --include='*.h' \
     || true)
 if [ -n "$hits" ]; then
     echo "FAIL"
-    echo "  TextSpec::offset re-introduced (Phase A3 closed it):"
+    echo "  TextDefaults::offset re-introduced (Phase A3 closed it):"
     echo "$hits" | sed 's/^/    /'
     echo "  → Migrate to \`spec.placement.offset\` (bundled with"
     echo "    TextPlacement.kind). GlyphSelectorSpec::offset is exempt"
@@ -776,7 +776,7 @@ fi
 #
 # Concept 2 (Placement) has a HARD-CAP for the pre-existing
 # TICKET-TEXT-LEGACY-POSITION-ROT rot: 200+ sites still assign
-# `TextSpec{.position = Vec3{...}}` (tracked open blocker). The audit
+# `TextDefaults{.position = Vec3{...}}` (tracked open blocker). The audit
 # reports the current count and FAILS ONLY IF the count exceeds the cap
 # (i.e., a regression above the known baseline). This is the
 # established pattern for tracking pre-existing rot without failing the
@@ -809,7 +809,7 @@ fi
 #                                                  src/scene/presets/ + src/presets/ +
 #                                                  include/chronon3d/presets/ +
 #                                                  content/text/)
-#   [3/4] TextSpec.position non-migrated       (hard-cap 250 grandfathered sites
+#   [3/4] TextDefaults.position non-migrated       (hard-cap 250 grandfathered sites
 #                                                  tracked by TICKET-TEXT-LEGACY-POSITION-ROT)
 #   [4/4] pin_to + TextAnchor + .text() co-occurrence per TU
 #                                                 (blocking per ADR-019 §3)
@@ -848,7 +848,7 @@ if [ -n "$hits_2" ]; then
     VIOLATIONS+=("[2/4] centered_text/glow_text outside canonical preset scope ($(echo "$hits_2" | wc -l) site(s))")
 fi
 
-# [3/4] TextSpec.position non-migrated ASSIGNMENT (HARD-CAP 250 grandfathered).
+# [3/4] TextDefaults.position non-migrated ASSIGNMENT (HARD-CAP 250 grandfathered).
 # Cap matches SSoT Concept 2 ceiling for TICKET-TEXT-LEGACY-POSITION-ROT;
 # raising the cap requires TICKET-TEXT-LEGACY-POSITION-ROT forward-point
 # regime review (NOT a silent bump). include/chronon3d/scene/builders/
@@ -871,7 +871,7 @@ done < <(grep -Rl --include='*.hpp' --include='*.cpp' --include='*.h' \
 # regime review (NOT a silent bump). include/chronon3d/scene/builders/
 # builder_params.hpp is exempt because it is the field-declaration site.
 if [ "$hits_3_count" -gt 76 ]; then
-    VIOLATIONS+=("[3/4] TextSpec.position assignments ($hits_3_count > 76 hard-cap, TICKET-TEXT-LEGACY-POSITION-ROT forward-point)")
+    VIOLATIONS+=("[3/4] TextDefaults.position assignments ($hits_3_count > 76 hard-cap, TICKET-TEXT-LEGACY-POSITION-ROT forward-point)")
 fi
 
 # [4/4] pin_to + TextAnchor + .text() co-occurrence per TU (ADR-019 §3).

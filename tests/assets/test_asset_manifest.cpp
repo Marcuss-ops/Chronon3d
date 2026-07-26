@@ -121,10 +121,10 @@ static FrameContext manifest_ctx() {
 TEST_CASE("AssetManifest — text_run collects font asset") {
     SceneBuilder s(manifest_ctx());
     s.layer("title", [](LayerBuilder& l) {
-        TextRunSpec p;
+        TextRunDefinition p;
         p.text.font.font_path = "assets/fonts/Inter-Bold.ttf";
         p.text.content.value = "Hello";
-        (void)l.animated_text("label", std::move(p));
+        (void)l.text_run("label", std::move(p));
     });
 
     Scene scene = s.build();
@@ -177,10 +177,10 @@ TEST_CASE("AssetManifest — empty path not collected") {
 TEST_CASE("AssetManifest — multiple layers aggregate") {
     SceneBuilder s(manifest_ctx());
     s.layer("title", [](LayerBuilder& l) {
-        TextRunSpec p;
+        TextRunDefinition p;
         p.text.font.font_path = "assets/fonts/Inter-Bold.ttf";
         p.text.content.value = "Hello";
-        (void)l.animated_text("label", std::move(p));
+        (void)l.text_run("label", std::move(p));
     });
     s.layer("bg", [](LayerBuilder& l) {
         l.image("photo", {.path = "assets/bg.png", .size = {100, 100}});
@@ -198,10 +198,10 @@ TEST_CASE("AssetManifest — sequence layers propagate to scene") {
     s.sequence("intro", {.from = Frame{0}, .duration = Frame{30}},
         [](SceneBuilder& s) {
             s.layer("title", [](LayerBuilder& l) {
-                TextRunSpec p;
+                TextRunDefinition p;
                 p.text.font.font_path = "assets/fonts/Poppins-Bold.ttf";
                 p.text.content.value = "INTRO";
-                (void)l.animated_text("label", std::move(p));
+                (void)l.text_run("label", std::move(p));
             });
         });
 

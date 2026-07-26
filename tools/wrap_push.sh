@@ -39,7 +39,7 @@
 # references any standalone script for this invariant; Gate #25 is the
 # single canonical enforcement surface (4 categories:
 # LayerBuilder::text_<variant>, centered_text/glow_text definitions,
-# TextSpec.position assignments, pin_to+TextAnchor co-occurrence).
+# TextDefaults.position assignments, pin_to+TextAnchor co-occurrence).
 #
 # Behaviour (post TICKET-076 closure, 2026-06-30, + GATE-MNT-01-EXT
 # closure 2026-07-04 — auto-repair of per-branch rebase on push):

@@ -185,7 +185,7 @@ LayerBuilder& LayerBuilder::grid_background(std::string name, GridBackgroundPara
 
 LayerBuilder& LayerBuilder::text(std::string name, const TextDefinition& def) {
     // X2 canonical static text path: lower the authoring DTO to PreparedText
-    // and store it directly.  No reverse adapter to TextRunSpec / TextSpec.
+    // and store it directly.  No reverse adapter to TextRunDefinition / TextDefaults.
     m_layer.kind = LayerKind::Text;
 
     PreparedText prepared = prepare_text(def);

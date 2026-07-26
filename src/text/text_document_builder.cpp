@@ -61,12 +61,12 @@ void TextDocumentBuilder::commit_current_span() {
 // defaults
 // ═══════════════════════════════════════════════════════════════════════════
 
-TextDocumentBuilder& TextDocumentBuilder::defaults(TextSpec spec) & {
+TextDocumentBuilder& TextDocumentBuilder::defaults(TextDefaults spec) & {
     doc_.defaults = std::move(spec);
     return *this;
 }
 
-TextDocumentBuilder&& TextDocumentBuilder::defaults(TextSpec spec) && {
+TextDocumentBuilder&& TextDocumentBuilder::defaults(TextDefaults spec) && {
     doc_.defaults = std::move(spec);
     return std::move(*this);
 }

@@ -18,7 +18,7 @@ class FontEngine;
 // payload before consumption but does not own or commit this entry.
 struct PendingTextRun {
     std::string name;
-    TextRunSpec params;
+    TextRunDefinition params;
     std::optional<PreparedText> prepared;
     FontEngine* font_engine{nullptr};
     bool consumed{false};

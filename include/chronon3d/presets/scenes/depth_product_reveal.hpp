@@ -75,7 +75,7 @@ inline Composition depth_product_reveal() {
                 "Next-gen platform", 15.0f, 400, {0.50f, 0.55f, 0.70f, 1.0f},
                 TextAlign::Center, {300.0f, 30.0f}, {0.0f, 65.0f, 0.0f}
             ));
-            l.card_flip_2_5d(Frame{50});
+            l.motion("card_flip_2_5d", {.duration = Frame{50}});
             l.drop_shadow({0.0f, 20.0f}, {0.0f, 0.0f, 0.0f, 0.35f}, 40.0f);
         });
 
@@ -92,7 +92,7 @@ inline Composition depth_product_reveal() {
                 l.enable_3d(true);
                 l.circle("dot", {.radius = 6.0f, .color = n.color, .pos = {0.0f, 0.0f, 0.0f}});
                 l.glow(GlowParams{.radius = 12.0f, .intensity = 0.60f, .color = n.color, .threshold = 0.0f});
-                l.float_idle(10.0f, Frame{80});
+                l.motion("float_idle", {.amount = 10.0f, .cycle = Frame{80}});
             });
         }
 
@@ -103,7 +103,7 @@ inline Composition depth_product_reveal() {
                 "The Future of Product", 56.0f, 800, {0.95f, 0.96f, 1.0f, 1.0f},
                 TextAlign::Center, {900.0f, 80.0f}
             ));
-            l.depth_reveal(300.0f, Frame{45});
+            l.motion("depth_reveal", {.amount = 300.0f, .duration = Frame{45}});
         });
 
         TextAnimator tagline;

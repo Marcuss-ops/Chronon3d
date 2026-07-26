@@ -49,7 +49,7 @@
 // PresetMetadata, TextPresetDescriptor, TextPresetCategory, AnimatorFactory.
 
 #include <chronon3d/scene/builders/builder_params.hpp>
-// canonical ::chronon3d::TextSpec, TextAnimatorSpec, AnimatedValue<>,
+// canonical ::chronon3d::TextDefaults, TextAnimatorSpec, AnimatedValue<>,
 // EasingCurve, Easing, Frame, GlyphSelectorSpec, TextSelectorUnit,
 // TextSelectorShape.
 
@@ -255,8 +255,8 @@ TextPresetDescriptor masked_line_reveal_entry() {
            LayerBuilderT& lb,
            const TextDefinitionT& spec) {
             chronon3d::registry::internal::wire_through_resolver(lb, "masked_line_reveal", spec)
-              .center_split(Frame{30})
-              .fade_shift_horizontal(Vec3{120.0f, 0.0f, 0.0f}, Frame{25});
+              .motion("center_split", {.duration = Frame{30}})
+              .motion("fade_shift_horizontal", {.vector = Vec3{120.0f, 0.0f, 0.0f}, .duration = Frame{25}});
         });
 }
 

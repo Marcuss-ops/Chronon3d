@@ -15,7 +15,7 @@
 //
 //   Tier B — strict API invocation / state-effect (Sub-cases 7-9):
 //     (7) BUILDER INVOCATION: each built-in builder runs CHECK_NOTHROW
-//         on a real SceneBuilder(1280,720) + LayerBuilder + TextSpec.
+//         on a real SceneBuilder(1280,720) + LayerBuilder + TextDefaults.
 //     (8) BUILDER STATE-EFFECT: `lb.text(name, spec)` adds a node
 //         (built.nodes.size() ≥ reg.list().size() — strictly stronger
 //         than `builder != nullptr` which Sub-case 4 still asserts).
@@ -82,7 +82,7 @@
 
 // ── Stage-2/3 full type defs required by invocation tests ─────────────
 // The builder bodies now use the real SceneBuilder / LayerBuilder /
-// TextSpec APIs.  The test must include their full defs to instantiate
+// TextDefaults APIs.  The test must include their full defs to instantiate
 // fixtures.  This is consistent with the .cpp impl which also pulls
 // these in (anti-circular: header stays include-light; this test + the
 // .cpp pull in the full defs).
@@ -125,7 +125,7 @@ namespace reg_helpers = chronon3d::registry::register_helpers_internal;
 using namespace chronon3d;
 using namespace chronon3d::registry;
 
-// ── Fixture: minimal TextSpec with non-empty content ────────────────────
+// ── Fixture: minimal TextDefaults with non-empty content ────────────────────
 // Designated-initializer aggregate initialisation matches the content/
 // text helpers canonical idiom in `content/text/text_helpers_centered.hpp`.
 inline TextDefinition make_test_text_spec() {
@@ -145,7 +145,7 @@ inline TextDefinition make_test_text_spec() {
 };
 }
 
-// ── Fixture: rich-paint TextSpec (Stage 4 wiring probe) ─────────────────
+// ── Fixture: rich-paint TextDefaults (Stage 4 wiring probe) ─────────────────
 // Triggers the Stage-4 AnimatorResolver in cinematic_text_camera via the
 // three rich-paint signals the resolver keys off:
 //   - appearance.paint.fill_style.has_value()  (Fill populated)
@@ -153,7 +153,7 @@ inline TextDefinition make_test_text_spec() {
 //   - appearance.paint.stroke_style populated  (optional, has_value() proxy)
 // With ANY of those signals firing, the resolver pushes a global-selector
 // TextAnimatorSpec with id prefix "ctc_rich_cinematic_text_camera" onto
-// the TextRunSpec.animators vector BEFORE the canonical motion-preset
+// the TextRunDefinition.animators vector BEFORE the canonical motion-preset
 // chain runs (depth_reveal + scale_drop + soft_pop).
 inline TextDefinition make_chronon_rich_text_spec() {
     return TextDefinition{
@@ -704,7 +704,7 @@ TEST_CASE("TextPresetRegistry: TextAnimator V2 wiring tier (Sub-case 29)") {    
 // animators[0].id carries the `presetc_<preset_id>` prefix from the
 // new Stage 5 resolver.  Every preset EXCEPT `minimal_white` (no
 // canonical motion) pushes at least one TextAnimatorSpec via
-// `lb.animated_text(...).commit()` BEFORE the layer-level motion chain.
+// `lb.text_run(...).commit()` BEFORE the layer-level motion chain.
 // Sub-case 29 already covers the rich-paint path on cinematic_text_camera
 // (animators[0].id strictly equal to "ctc_rich_cinematic_text_camera"),
 // so Sub-case 30 only probes plain-spec wiring to keep assertions
@@ -893,7 +893,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
             }
 
             // Stage 5 wiring: every other preset routes through
-            // `lb.animated_text(...).commit()`, leaving exactly one entry
+            // `lb.text_run(...).commit()`, leaving exactly one entry
             // with the resolver's property-composed spec on animators[0]
             // (plain-spec path; rich-spec pushes the anchor ahead of the
             // canonical — Sub-case 29 already covers that).
@@ -917,7 +917,7 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
 // TIER G — Cluster B public API surface (Sub-case 31)
 // ─────────────────────────────────────────────────────────────────────────
 // Stage 5+ exposes the AnimatorResolver table via a SINGLE public free
-// function: `wire_preset_text_run_params(preset_id, spec) -> TextRunSpec`.
+// function: `wire_preset_text_run_params(preset_id, spec) -> TextRunDefinition`.
 // This is the deterministic verification entry point the test harness and
 // downstream authoring facade use — no LayerBuilder, no SceneBuilder,
 // no factory-body invocation.  Sub-case 31 iterates all 28 presets and
@@ -932,21 +932,21 @@ TEST_CASE("TextPresetRegistry: Stage 5 AnimatorResolver coverage (Sub-case 30)")
 // follow — Sub-case 30 stays as the integration regression test.
 TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
 
-    SUBCASE("31) wire_preset_text_run_params returns deterministic TextRunSpec for all 28 presets") {
+    SUBCASE("31) wire_preset_text_run_params returns deterministic TextRunDefinition for all 28 presets") {
         const auto& reg = make_default_text_preset_registry();
         const auto plain = make_test_text_spec();
 
         // Signature contract check — the public free function lives
         // in <chronon3d/registry/text_preset_resolver.hpp> with the
-        // exact signature (string_view, TextSpec) -> TextRunSpec.
+        // exact signature (string_view, TextDefaults) -> TextRunDefinition.
         // The compile-time assertion below verifies the resolved type
         // via `decltype(function-name)` which yields the function type.
         static_assert(
             std::is_same_v<
-                decltype(static_cast<TextRunSpec(*)(std::string_view,
+                decltype(static_cast<TextRunDefinition(*)(std::string_view,
                                                      const TextDefinition&) noexcept>(
                     &wire_preset_text_run_params)),
-                TextRunSpec(*)(std::string_view, const TextDefinition&) noexcept>,
+                TextRunDefinition(*)(std::string_view, const TextDefinition&) noexcept>,
             "wire_preset_text_run_params must expose the canonical TextDefinition overload");
 
         // ── Per-preset pure-function probe ─────────────────────────────────
@@ -976,7 +976,7 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
 
             if (id == "minimal_white") {
                 // No canonical motion → public function returns
-                // TextRunSpec with animators.empty() == true.  The
+                // TextRunDefinition with animators.empty() == true.  The
                 // caller routes via plain lb.text(...) which does not
                 // require an AnimatorResolver entry.
                 CHECK(params.animators.empty());
@@ -1037,7 +1037,7 @@ TEST_CASE("TextPresetRegistry: Cluster B public API surface (Sub-case 31)") {
         }
 
         // ── Unknown id contract (fail-safe path) ───────────────────────────
-        // The public function must return TextRunSpec with empty
+        // The public function must return TextRunDefinition with empty
         // animators when called with an id that is not in the registered
         // catalog.  This is the fail-safe fallback for any downstream
         // authoring facade that misroutes a preset id.
@@ -1394,7 +1394,7 @@ TEST_CASE("TextPresetRegistry: AGENT-2 resolver-driven evolution tier (Sub-cases
     SUBCASE("44) agents cross-link invariant — 4 mandatory presets produce ≥1 RenderNode") {
         // Brief DoD: number of glyphs invariant.  Layer-level consistent:
         // each preset's resolver-driven spec routes through the canonical
-        // lb.animated_text(...) which produces ≥1 RenderNode.
+        // lb.text_run(...) which produces ≥1 RenderNode.
         const auto reg = make_default_text_preset_registry();
         for (const auto& pid : {"cinematic_title_reveal", "tracking_close",
                                 "word_cascade", "character_cascade"}) {

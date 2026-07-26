@@ -281,13 +281,13 @@ TEST_CASE("Authoring/Text: motion(id, registry) appends resolved animator") {
     CHECK(TextRunBuilderInspector::pending_of(t)->params.animators[0].properties.size() == 2);
 }
 
-TEST_CASE("Authoring/Text: configure_core(Fn) mutates raw TextRunSpec") {
+TEST_CASE("Authoring/Text: configure_core(Fn) mutates raw TextRunDefinition") {
     LayerBuilder lb("configure", SampleTime{});
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("Anti-Dup");
     t.font("Anton.ttf", 200.0f);
-    t.configure_core([](chronon3d::TextRunSpec& p) {
+    t.configure_core([](chronon3d::TextRunDefinition& p) {
         p.direction = TextDirection::RTL;
         p.language = "ar";
         p.cache_layout = false;

@@ -97,7 +97,7 @@ Composition make_typewriter_class(SoftwareRenderer& r, FrameRate rate) {
                 opacity.set(0.0f);
                 opacity.add_keyframe(Frame{30}, 1.0f, EasingCurve{Easing::Linear});
                 opacity.add_keyframe(Frame{90}, 1.0f, EasingCurve{Easing::Linear});
-                l.animated_text("title", TextRunParams{
+                l.text_run("title", TextRunDefinition{
                     .text = {
                         .content = {.value = "FPS_TEST"},
                         .placement = TextPlacement{TextPlacementKind::Absolute, Vec2{cx, cy}},

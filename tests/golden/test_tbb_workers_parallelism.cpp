@@ -68,7 +68,7 @@ Composition make_breathing_comp() {
             add_common_background(s);
             s.layer("image_layer", [](auto& l) {
                 l.pin_to(Anchor::Center);
-                l.tracking_breathing(1.04f, Frame{120});
+                l.motion("tracking_breathing", {.scale = 1.04f, .duration = Frame{120}});
                 add_image_border(l, IMAGE_SIZE);
                 l.image("img", {
                     .path = IMAGE_PATH,

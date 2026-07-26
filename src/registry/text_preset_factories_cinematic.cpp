@@ -117,9 +117,9 @@ TextPresetDescriptor animation_compositions_entry() {
                           LayerBuilderT& lb,
                           const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "animation_compositions", spec)
-          .depth_reveal(280.0f, Frame{45})
-          .soft_pop(Frame{30})
-          .float_idle(8.0f, Frame{120});
+          .motion("depth_reveal", {.amount = 280.0f, .duration = Frame{45}})
+          .motion("soft_pop", {.duration = Frame{30}})
+          .motion("float_idle", {.amount = 8.0f, .cycle = Frame{120}});
     };
     d.animator_factory = compose_animation_compositions;
     return d;
@@ -146,7 +146,7 @@ TextPresetDescriptor cinematic_text_camera_entry() {
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
                           const TextDefinitionT& spec) {
-        TextRunSpec params = ::chronon3d::registry::wire_preset_text_run_params(
+        TextRunDefinition params = ::chronon3d::registry::wire_preset_text_run_params(
             "cinematic_text_camera", spec);
         if (::chronon3d::registry::AnimatorResolver::spec_is_rich(spec)) {
             params.animators.push_back(
@@ -155,11 +155,11 @@ TextPresetDescriptor cinematic_text_camera_entry() {
         if (auto canonical = ::chronon3d::registry::AnimatorResolver::compose_for("cinematic_text_camera")) {
             params.animators.push_back(*canonical);
         }
-        lb.animated_text("camera_text", params)
+        lb.text_run("camera_text", params)
           .commit()
-          .depth_reveal(260.0f, Frame{50})
-          .scale_drop(0.95f, Frame{30})
-          .soft_pop(Frame{24});
+          .motion("depth_reveal", {.amount = 260.0f, .duration = Frame{50}})
+          .motion("scale_drop", {.scale = 0.95f, .duration = Frame{30}})
+          .motion("soft_pop", {.duration = Frame{24}});
     };
     d.animator_factory = compose_cinematic_text_camera;
     return d;
@@ -211,9 +211,9 @@ TextPresetDescriptor tilt_sweep_title_v2_entry() {
                           LayerBuilderT& lb,
                           const TextDefinitionT& spec) {
         chronon3d::registry::internal::wire_through_resolver(lb, "tilt_sweep_title_v2", spec)
-          .scale_drop(1.08f, Frame{45})
-          .focus_in(2.5f, Frame{30})
-          .soft_pop(Frame{24});
+          .motion("scale_drop", {.scale = 1.08f, .duration = Frame{45}})
+          .motion("focus_in", {.amount = 2.5f, .duration = Frame{30}})
+          .motion("soft_pop", {.duration = Frame{24}});
     };
     d.animator_factory = compose_tilt_sweep_title_v2;
     return d;

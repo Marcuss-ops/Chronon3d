@@ -46,11 +46,11 @@ public:
 
     // ── Document-level defaults ──────────────────────────────────────
 
-    /// Set the default TextSpec (font, layout, appearance) for the
+    /// Set the default TextDefaults (font, layout, appearance) for the
     /// entire document.  Spans that don't override specific fields
     /// fall back to these defaults.
-    TextDocumentBuilder& defaults(TextSpec spec) &;
-    TextDocumentBuilder&& defaults(TextSpec spec) &&;
+    TextDocumentBuilder& defaults(TextDefaults spec) &;
+    TextDocumentBuilder&& defaults(TextDefaults spec) &&;
 
     // ── Span building ────────────────────────────────────────────────
 

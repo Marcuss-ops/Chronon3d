@@ -113,7 +113,7 @@ TEST_CASE("GlowTorture: neon text preserves a sharp core and creates a cyan halo
                     g.additive = false;
                     l.glow(g);
                 }
-                // PR3→PR4 migration: TextSpec is composable.  Flat fields
+                // PR3→PR4 migration: TextDefaults is composable.  Flat fields
                 // `.text/.size/.font_path/.font_family/.font_size/.color/.align/.vertical_align`
                 // become nested under `.content/.font/.layout/.appearance`.
                 // Field order inside each brace-init matches the declaration

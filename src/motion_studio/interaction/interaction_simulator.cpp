@@ -137,7 +137,7 @@ void CursorBuilder::emit() {
             : moves_.back().to_pos;
         s_.layer(overlay_id, [t, final_pos](chronon3d::LayerBuilder& l) {
             l.position({final_pos.x, final_pos.y - 60.0f, 0.0f});
-            chronon3d::TextSpec tp;
+            chronon3d::TextDefaults tp;
             tp.content.value = t.text;
             tp.layout.box      = {320.0f, 28.0f};
             tp.placement = TextPlacement{TextPlacementKind::Absolute, {0.0f, 0.0f}};

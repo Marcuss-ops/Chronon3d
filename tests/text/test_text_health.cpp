@@ -59,12 +59,12 @@ struct TextHealthEnvironment {
     return std::nullopt;
 }
 
-[[nodiscard]] TextRunSpec make_health_spec(
+[[nodiscard]] TextRunDefinition make_health_spec(
     std::string text,
     FontSpec font,
     float box_width = 1000.0f
 ) {
-    TextRunSpec spec;
+    TextRunDefinition spec;
     spec.text.content.value = std::move(text);
     spec.text.font = std::move(font);
     spec.text.layout.box = {box_width, 320.0f};
@@ -86,7 +86,7 @@ struct TextHealthEnvironment {
 }
 
 [[nodiscard]] std::shared_ptr<TextRunShape> materialize_or_fail(
-    const TextRunSpec& spec,
+    const TextRunDefinition& spec,
     FontEngine& engine
 ) {
     return materialize_text_run_shape(spec, &engine, SampleTime{});
@@ -147,7 +147,7 @@ TEST_CASE("Text health / LayerBuilder emits one materialized TextRun node") {
     LayerBuilder builder("text_health_layer", SampleTime{});
     builder.screen_dimensions(1280.0f, 720.0f);
     builder.font_engine(&env.font_engine);
-    builder.animated_text("health_text", std::move(spec)).commit();
+    builder.text_run("health_text", std::move(spec)).commit();
 
     Layer layer = builder.build();
     REQUIRE(layer.nodes.size() == 1);
@@ -168,10 +168,10 @@ TEST_CASE("Text health / fluent opacity animator reaches every glyph") {
 
     auto spec = make_health_spec("Animated opacity", *font);
 
-    LayerBuilder builder("animated_text_health", SampleTime{});
+    LayerBuilder builder("text_run_health", SampleTime{});
     builder.screen_dimensions(1280.0f, 720.0f);
     builder.font_engine(&env.font_engine);
-    builder.animated_text("animated_text", std::move(spec))
+    builder.text_run("text_run", std::move(spec))
         .opacity(0.35f)
         .commit();
 

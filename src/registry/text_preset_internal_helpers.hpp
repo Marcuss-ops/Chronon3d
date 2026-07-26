@@ -19,7 +19,7 @@
 //  (c) `wire_through_resolver(lb, preset_id, spec)` — engine-side factory
 //      body helper that delegates to the Cluster B public API
 //      (`::chronon3d::registry::wire_preset_text_run_params`) then
-//      routes the returned `TextRunSpec` through the canonical text builder.
+//      routes the returned `TextRunDefinition` through the canonical text builder.
 //      Single canonical pipeline for all 28 built-ins.
 //
 // ## Architectural invariants (AGENTS.md v0.1 freeze)
@@ -30,13 +30,13 @@
 //     (ANTI_DUPLICATION_RULES.md §registry/resolver preserved — the
 //     `builtin_text_preset_registry()` remains the single source of truth).
 //   - No `content/text/text_*.hpp` includes — the canonical
-//     `::chronon3d::TextSpec` is reached via `builder_params.hpp`.
+//     `::chronon3d::TextDefaults` is reached via `builder_params.hpp`.
 // ─────────────────────────────────────────────────────────────────────────────
 
 #pragma once
 
 #include <chronon3d/scene/builders/builder_params.hpp>
-// canonical ::chronon3d::TextSpec, TextAnimatorSpec, GlyphSelectorSpec,
+// canonical ::chronon3d::TextDefaults, TextAnimatorSpec, GlyphSelectorSpec,
 // TextSelectorUnit, TextSelectorShape, TextPropertyBlendMode,
 // Position/Scale/Opacity/Blur/TrackingProperty, ...
 
@@ -108,7 +108,7 @@ make_presetc_template(std::string_view preset_id) {
 //
 // Thin factory-body helper that delegates to the Cluster B public API
 // (`wire_preset_text_run_params`) and then routes the returned
-// TextRunSpec through `lb.text_run(<entry_name>, params).commit()`.
+// TextRunDefinition through `lb.text_run(<entry_name>, params).commit()`.
 // Single canonical pipeline: every text preset enters the render graph
 // as a TextRunShape (ShapeType::TextRun), regardless of whether the
 // resolver wired a TextAnimatorSpec or not.
@@ -122,7 +122,7 @@ make_presetc_template(std::string_view preset_id) {
 wire_through_resolver(LayerBuilderT& lb,
                       std::string_view preset_id,
                       const TextDefinitionT& spec) {
-    TextRunSpec params = ::chronon3d::registry::wire_preset_text_run_params(
+    TextRunDefinition params = ::chronon3d::registry::wire_preset_text_run_params(
         preset_id, spec);
     const std::string entry_name = std::string{preset_id} + "_text";
     TextDefinitionT canonical = spec;

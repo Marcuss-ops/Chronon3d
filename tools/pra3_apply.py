@@ -135,17 +135,17 @@ text = text.replace(old_ml, new_ml, 1)
 # Color::crimson() anchor intact; B1 silently replaces it below).
 # ──────────────────────────────────────────────────────────────────────────
 old_scale_ext = (
-    "    TextSpec tiny = centered_text(make_opts(\"tiny\", 8.0f, Color::navy(),\n"
+    "    TextDefaults tiny = centered_text(make_opts(\"tiny\", 8.0f, Color::navy(),\n"
     "                                              Vec2{160.0f, 30.0f}));\n"
-    "    TextSpec huge = centered_text(make_opts(\"HUGE\", 480.0f, Color::crimson(),\n"
+    "    TextDefaults huge = centered_text(make_opts(\"HUGE\", 480.0f, Color::crimson(),\n"
     "                                              Vec2{kVW * 0.95f, kVH * 0.95f}));\n"
 )
 new_scale_ext = (
     "    // PR-A3 fix E+F: 8pt tiny at NW (default centered) + 220pt huge at SE.\n"
     "    // 220pt fits 760x510 box; SE position keeps inks visually separated.\n"
-    "    TextSpec tiny = centered_text(make_opts(\"tiny\", 8.0f, Color::navy(),\n"
+    "    TextDefaults tiny = centered_text(make_opts(\"tiny\", 8.0f, Color::navy(),\n"
     "                                              Vec2{160.0f, 30.0f}));\n"
-    "    TextSpec huge = centered_text(make_opts(\"HUGE\", 220.0f, Color::crimson(),\n"
+    "    TextDefaults huge = centered_text(make_opts(\"HUGE\", 220.0f, Color::crimson(),\n"
     "                                              Vec2{kVW * 0.95f, kVH * 0.85f}));\n"
     "    huge.position = { 260.0f,  -80.0f, 0.0f};  // PR-A3 fix F: SE for 220pt text\n"
 )
