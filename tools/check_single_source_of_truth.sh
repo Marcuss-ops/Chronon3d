@@ -26,7 +26,8 @@
 # 4 SPECIFIC FAIL PATTERNS (from user spec):
 #   (a) asset legacy+v2:           struct Asset/AssetHandle coexisting with AssetRef
 #   (b) offset+placement.offset:   standalone .offset fields outside TextPlacement
-#   (c) text effects+material glow: TextEffects struct coexisting with TextMaterial.use_material_glow
+#   (c) text effects+material glow: duplicate authorities must be absent;
+#       external glow/drop-shadow authority lives in EffectStack.
 #   (d) CLI/SDK render:            unified orchestration via audit_text_visibility()
 #
 # Output pattern: bash VIOLATIONS array (per check_no_dual_text_api.sh convention).
@@ -236,8 +237,8 @@ fi
 # (c) text effects+material glow (TextEffects struct coexisting with TextMaterial.use_material_glow)
 text_effects_count=$(rg -c -t cpp "^struct TextEffects\b" include/ src/ apps/ 2>/dev/null | awk -F: '{s+=$2} END{print s+0}')
 material_glow_count=$(rg -c -t cpp "use_material_glow" include/ src/ apps/ 2>/dev/null | awk -F: '{s+=$2} END{print s+0}')
-if [ "${text_effects_count:-0}" -eq 0 ] && [ "${material_glow_count:-0}" -gt 0 ]; then
-    echo "  PASS  (c) text effects+material glow: only TextMaterial.use_material_glow exists ($material_glow_count sites); TextEffects eliminated per Phase A5"
+if [ "${text_effects_count:-0}" -eq 0 ] && [ "${material_glow_count:-0}" -eq 0 ]; then
+    echo "  PASS  (c) text effects+material glow: duplicate text effect authorities absent; external effects use EffectStack"
 else
     echo "  FAIL  (c) text effects+material glow: TextEffects=$text_effects_count (should be 0 post-Phase A5); use_material_glow=$material_glow_count"
     VIOLATIONS+=("(c) text effects+material glow: TextEffects=$text_effects_count, use_material_glow=$material_glow_count (Phase A5 should have eliminated TextEffects)")
