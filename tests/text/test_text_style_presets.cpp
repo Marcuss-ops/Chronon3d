@@ -10,7 +10,6 @@ TEST_CASE("Text presets: premium stack exposes richer text styles") {
         CHECK(style.paint.stroke_enabled == true);
         CHECK(style.paint.stroke_width > 0.0f);
         CHECK(style.material.enabled == true);
-        CHECK(style.material.use_material_glow == true);
         CHECK(style.shadows.size() >= 2);
     }
 
@@ -20,6 +19,6 @@ TEST_CASE("Text presets: premium stack exposes richer text styles") {
         CHECK(style.vertical_align == VerticalAlign::Middle);
         CHECK(style.paint.stroke_enabled == true);
         CHECK(style.material.enabled == true);
-        CHECK(style.material.use_material_glow == true);
+        CHECK(style.shadows.size() >= 1);
     }
 }

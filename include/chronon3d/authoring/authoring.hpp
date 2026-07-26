@@ -12,8 +12,8 @@
 //   - `Selector`        (GlyphSelectorSpec builder)
 //
 // PR 2 ships:
-//   - `Material`        (TextMaterial wrapper, fluent bevel/glow/shadow/
-//                        gradient/inner_shadow/highlight/emissive)
+//   - `Material`        (TextMaterial wrapper, fluent bevel/gradient/
+//                        inner_shadow/highlight/emissive; external effects use EffectStack)
 //   - `material::*`    factories (premium/neon/glass/flat)
 //
 // PR 5 ships (promoted ahead of PR 3+4 per user direction):
