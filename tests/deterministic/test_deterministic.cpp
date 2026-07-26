@@ -34,17 +34,23 @@ TEST_CASE("Deterministic Spring") {
     f32 from = 0.0f;
     f32 to = 100.0f;
 
+    // TICKET-ANIM-SPRING-UNIFY: spring math canonicalized to
+    // `sample_spring(TimeSeconds, f32 from, f32 to, SpringConfig)`.
+    // The legacy `spring(f32 t,...)` overload is gone — only the
+    // Frame/FrameContext/SequenceContext wrappers remain (which
+    // delegate to sample_spring).
+
     // After 0 seconds, it should be at initial position
-    CHECK(spring(0.0f, from, to) == 0.0f);
-    
+    CHECK(sample_spring(0.0, from, to) == 0.0f);
+
     // After some time, it should move towards target
-    f32 mid = spring(0.5f, from, to);
+    f32 mid = sample_spring(0.5, from, to);
     CHECK(mid > 0.0f);
     CHECK(mid < 200.0f); // might overshoot depending on damping
 
     // Determinism Tier 1: multiple evaluations at same t must give
     // the same result (spring is a pure function of time).
-    CHECK(spring(0.5f, from, to) == mid);
+    CHECK(sample_spring(0.5, from, to) == mid);
 }
 
 TEST_CASE("Pure Frame Evaluation") {
