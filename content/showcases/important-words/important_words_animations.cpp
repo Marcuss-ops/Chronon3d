@@ -54,24 +54,12 @@ static void build_important_word(SceneBuilder& s,
         // Subtle vertical gradient: lighter at top, darker at bottom.
         // Thin white stroke (0.12 alpha) for a clean modern edge.
         {
-            Color top_c = palette.backdrop;
-            top_c.r = std::min(1.0f, top_c.r * 1.12f);
-            top_c.g = std::min(1.0f, top_c.g * 1.12f);
-            top_c.b = std::min(1.0f, top_c.b * 1.12f);
-            Color bot_c = palette.backdrop;
-            bot_c.r *= 0.88f;
-            bot_c.g *= 0.88f;
-            bot_c.b *= 0.88f;
-            l.rounded_rect("bg", {
+            l.rect("bg", {
                 .size   = word.rect_outer_size,
-                .radius = word.corner_radius,
                 .color  = palette.backdrop,
                 .pos    = {0.0f, 0.0f, 0.0f},
-                .fill   = graphics::FillStyle::linear(
-                    {0.0f, -word.rect_outer_size.y * 0.5f},
-                    {0.0f,  word.rect_outer_size.y * 0.5f},
-                    {{0.0f, top_c}, {1.0f, bot_c}}),
-                .stroke = {true, {1.0f, 1.0f, 1.0f, 0.12f}, 1.5f},
+                .fill   = graphics::FillStyle::solid(palette.backdrop),
+                .stroke = {false, {}, 0.0f},
             });
         }
         // ── WHITE word on top — DMSans-Bold (modern geometric sans) ──
@@ -90,19 +78,8 @@ static void build_important_word(SceneBuilder& s,
         .tracking = word.tracking
     }
 };
-            def.style.shadows.push_back(TextShadow{
-                .enabled = true,
-                .offset  = {0.0f, 4.0f},
-                .blur    = 6.0f,
-                .opacity = 0.50f,
-                .color   = {0.0f, 0.0f, 0.0f, 1.0f},
-            });
             l.text("name", def);
         }
-        // ── SOFT black drop shadow (radius 16, 0.55 alpha) ───────────────
-        // The wider blur + low alpha gives a diffuse contact-shadow look
-        // rather than a hard drop shadow. Geometry shared via theme.hpp.
-        l.drop_shadow(WORD_SHADOW_OFFSET, palette.shadow, WORD_SHADOW_RADIUS);
     });
 }
 
@@ -137,6 +114,42 @@ static void build_important_phrase(SceneBuilder& s,
                 .align = TextAlign::Center,
                 .vertical_align = VerticalAlign::Middle,
                 .tracking = 3.0f,
+            },
+        });
+    });
+}
+
+static void build_yellow_subtitle(SceneBuilder& s,
+                                  std::string_view layer_name,
+                                  std::string_view subtitle,
+                                  Frame start_frame,
+                                  Frame end_frame) {
+    const std::string node_name = std::string(layer_name) + "_text";
+    s.layer(std::string(layer_name), [subtitle, start_frame, end_frame, node_name](LayerBuilder& l) {
+        l.pin_to(Anchor::Center);
+        l.opacity_anim()
+            .key(Frame{0}, 0.0f, EasingCurve{Easing::Linear})
+            .key(start_frame, 1.0f, EasingCurve{Easing::OutCubic})
+            .key(end_frame, 1.0f, EasingCurve{Easing::Linear})
+            .key(end_frame + Frame{5}, 0.0f, EasingCurve{Easing::InCubic});
+        l.position(Vec3{0.0f, 390.0f, 0.0f});
+        l.text(node_name, TextDefinition{
+            .content = {.value = std::string(subtitle)},
+            .style = {
+                .font = {
+                    .font_path = "assets/fonts/Poppins-Bold.ttf",
+                    .font_family = "Poppins",
+                    .font_weight = 600,
+                    .font_size = 48.0f,
+                },
+                .color = {1.0f, 0.88f, 0.05f, 1.0f},
+                .paint = {.fill = {1.0f, 0.88f, 0.05f, 1.0f}},
+            },
+            .frame = {
+                .size = {1600.0f, 84.0f},
+                .align = TextAlign::Center,
+                .vertical_align = VerticalAlign::Middle,
+                .tracking = 1.0f,
             },
         });
     });
@@ -233,6 +246,41 @@ Composition important_phrases_stack_reverse() {
                              {Frame{20}, Frame{16}, Frame{12}, Frame{8}, Frame{4}});
 }
 
+Composition subtitle_yellow_fade() {
+    return composition({.name="SubtitleYellowFade", .width=1920, .height=1080, .duration=60}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        add_black_background(s);
+        build_yellow_subtitle(s, "subtitle_01", "THIS IS YOUR STORY", Frame{6}, Frame{46});
+        return s.build();
+    });
+}
+
+Composition important_words_red_lower() {
+    return composition({.name="ImportantWordsRedLower", .width=1920, .height=1080, .duration=105}, [](const FrameContext& ctx) {
+        SceneBuilder s(ctx);
+        add_black_background(s);
+        build_important_word(s, WordPreset{
+            .label = "FOCUS",
+            .rect_outer_size = {500.0f, 140.0f},
+            .font_size = 72.0f,
+            .tracking = 8.0f,
+            .pad_x = 32.0f,
+            .pad_y = 28.0f,
+            .corner_radius = 10.0f,
+        }, PALETTE_WARM, Frame{8}, Frame{34}, Frame{44}, "focus");
+        build_important_word(s, WordPreset{
+            .label = "ACTION",
+            .rect_outer_size = {560.0f, 140.0f},
+            .font_size = 72.0f,
+            .tracking = 8.0f,
+            .pad_x = 32.0f,
+            .pad_y = 28.0f,
+            .corner_radius = 10.0f,
+        }, PALETTE_WARM, Frame{52}, Frame{78}, Frame{88}, "action");
+        return s.build();
+    });
+}
+
 // ── Per-domain registration ──────────────────────────────────────────────────
 void register_important_word_compositions(CompositionRegistry& registry) {
     registry.add(make_composition_descriptor("ImportantWordDirectorLight", [](const CompositionProps&) { return important_word_director_light(); }));
@@ -243,6 +291,8 @@ void register_important_word_compositions(CompositionRegistry& registry) {
     registry.add(make_composition_descriptor("ImportantPhrasesStackFast", [](const CompositionProps&) { return important_phrases_stack_fast(); }));
     registry.add(make_composition_descriptor("ImportantPhrasesStackSlow", [](const CompositionProps&) { return important_phrases_stack_slow(); }));
     registry.add(make_composition_descriptor("ImportantPhrasesStackReverse", [](const CompositionProps&) { return important_phrases_stack_reverse(); }));
+    registry.add(make_composition_descriptor("SubtitleYellowFade", [](const CompositionProps&) { return subtitle_yellow_fade(); }));
+    registry.add(make_composition_descriptor("ImportantWordsRedLower", [](const CompositionProps&) { return important_words_red_lower(); }));
 }
 
 } // namespace chronon3d::content::important_words
