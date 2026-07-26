@@ -1,7 +1,7 @@
 #include <doctest/doctest.h>
 #include <chronon3d/presets/phrase/phrase_group_builder.hpp>
 #include <chronon3d/presets/style_kit.hpp>
-#include <chronon3d/presets/motion_preset_registry.hpp>
+#include <chronon3d/presets/motion_preset_catalog.hpp>
 #include <chronon3d/presets/motion_resolver.hpp>
 
 using namespace chronon3d::presets;
@@ -128,41 +128,23 @@ TEST_CASE("StyleKit Preset Factories and Defaults") {
 
 }
 
-TEST_CASE("MotionPresetRegistry Dynamic Registration and Evaluation") {
-    auto& registry = MotionPresetRegistry::instance();
+TEST_CASE("MotionPresetCatalog builtins are deterministic and immutable") {
+    const auto& catalog = motion_preset_catalog();
 
-    // 1. Verify standard built-in preset is registered
-    CHECK(registry.contains(MotionPreset::PopIn));
-    CHECK(registry.get(MotionPreset::PopIn).name == "PopIn");
-
-    // 2. Register custom callback for MotionPreset::None to test dynamic resolution override
-    bool custom_called = false;
-    registry.register_preset({
-        MotionPreset::None,
-        "CustomNone",
-        [&](const FrameContext&, const MotionObject&, f32, MotionState& st) {
-            custom_called = true;
-            st.opacity = 0.42f;
-        }
-    });
+    CHECK(catalog.contains(MotionPreset::PopIn));
+    CHECK(catalog.get(MotionPreset::PopIn).name == "PopIn");
+    CHECK(catalog.contains(MotionPreset::None));
 
     MotionObject obj;
-    obj.preset(MotionPreset::None);
-
+    obj.preset(MotionPreset::PopIn);
     FrameContext ctx;
     ctx = ctx.with_frame(10);
     ctx = ctx.with_frame_rate({60, 1});
 
-    auto state = resolve_motion_state(ctx, obj);
-    CHECK(custom_called == true);
-    CHECK(state.opacity == doctest::Approx(0.42f));
-
-    // 3. Restore standard None resolver to avoid breaking downstream pipeline tests
-    registry.register_preset({
-        MotionPreset::None,
-        "None",
-        [](const FrameContext&, const MotionObject&, f32, MotionState&) {}
-    });
+    const auto first = resolve_motion_state(ctx, obj);
+    const auto second = resolve_motion_state(ctx, obj);
+    CHECK(first.opacity == second.opacity);
+    CHECK(first.position == second.position);
 }
 
 TEST_CASE("MotionStyle and unified effects resolving") {

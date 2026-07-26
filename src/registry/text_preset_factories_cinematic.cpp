@@ -20,12 +20,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 #include <chronon3d/registry/text_preset_descriptor.hpp>
+#include <chronon3d/registry/text_preset_resolver.hpp>
 #include <chronon3d/registry/animator_resolver.hpp>
 
 #include <chronon3d/scene/builders/builder_params.hpp>
 
 #include "text_preset_internal_helpers.hpp"
-#include <chronon3d/compat/text_spec_adapter.hpp>
 
 #include <optional>
 #include <string>
@@ -146,9 +146,8 @@ TextPresetDescriptor cinematic_text_camera_entry() {
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
                           LayerBuilderT& lb,
                           const TextDefinitionT& spec) {
-        TextRunSpec params;
-        const auto legacy_spec = ::chronon3d::compat::from_text_definition(spec);
-        params.text = legacy_spec;
+        TextRunSpec params = ::chronon3d::registry::wire_preset_text_run_params(
+            "cinematic_text_camera", spec);
         if (::chronon3d::registry::AnimatorResolver::spec_is_rich(spec)) {
             params.animators.push_back(
                 ::chronon3d::registry::AnimatorResolver::rich_paint_anchor("cinematic_text_camera"));

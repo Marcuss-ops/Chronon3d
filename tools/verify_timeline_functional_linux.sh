@@ -8,7 +8,7 @@
 # adapted to the timeline & sequence V1 spec: 10 user-spec scenarios
 # (4 key boundary tests + animation uses local_frame, freeze, reverse,
 # nested sequence, overlap, transition) covering the timeline API
-# surface (SequenceRange, SequenceNode, TimelineResolver, SequenceContext).
+# surface (SequenceRange, SequenceNode, TimelineResolver, SequenceBuilder).
 #
 # §honesty contract (AGENTS.md):
 #   - BLOCKED steps reported with explicit diagnostic, not silently skipped.

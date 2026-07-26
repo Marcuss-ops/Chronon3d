@@ -27,6 +27,7 @@ set(CORE_TEST_SOURCES
     text/test_text_placement_resolver.cpp
     core/animation/test_animation.cpp
     core/animation/test_interpolate.cpp
+    animation/test_spring_canonical.cpp
     core/animation/test_deterministic_random.cpp
     core/animation/test_spring.cpp
     core/animation/test_animated_value.cpp
@@ -86,6 +87,7 @@ set(CORE_TEST_SOURCES
     runtime/test_camera_session_keep_last_valid.cpp
     runtime/test_camera_session_cache_failed_no_commit.cpp
     runtime/test_render_runtime_isolation.cpp
+    runtime/test_resource_preparation.cpp
     runtime/test_camera_session_cache_failed_no_commit_session_state.cpp
     ${CMAKE_SOURCE_DIR}/tools/test_software_renderer_boundary_consistency.cpp
 )

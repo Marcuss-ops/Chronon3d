@@ -56,7 +56,7 @@ side-channel for tests registered in other `.cmake` files (e.g.
 | 02 | §2 node handles (last_node implicit-path gate) | `chronon3d_last_node_handles_tests` | `d10f933c` | INTEGRATION | B |
 | 03 | (planned §3) text canonical tests | (orchestrator comment-block, no orchestrator entry; APPENded surface via `tests/text_golden_tests.cmake`) | (Phase B future) | — | B-pipeline |
 | 04 | §4 typed props | `chronon3d_typed_props_tests` | §4 entry | INTEGRATION | B |
-| 05 | §5 motion preset registry | `chronon3d_motion_preset_registry_tests` | §5 entry | INTEGRATION | B |
+| 05 | §5 motion preset catalog | `chronon3d_scene_tests --test-case='MotionPresetCatalog*'` | §5 entry | INTEGRATION | B |
 | 06 | §6 RenderJob CLI↔SDK parity | `chronon3d_render_job_parity_tests` | §6 entry | INTEGRATION | B |
 | 07 | §7 TypedProps strict-mode | `chronon3d_typed_props_strict_mode_tests` | §7 entry | INTEGRATION | B |
 | 08 | §8 metadata parity | `chronon3d_metadata_parity_tests` | §8 entry | INTEGRATION | B |
@@ -106,7 +106,7 @@ Phase A meta          chronon3d_acceptance_tests
 §1                    chronon3d_public_authoring_api_tests
 §2                    chronon3d_last_node_handles_tests
 §4                    chronon3d_typed_props_tests
-§5                    chronon3d_motion_preset_registry_tests
+§5                    chronon3d_scene_tests --test-case='MotionPresetCatalog*'
 §6                    chronon3d_render_job_parity_tests
 §7                    chronon3d_typed_props_strict_mode_tests
 §8                    chronon3d_metadata_parity_tests

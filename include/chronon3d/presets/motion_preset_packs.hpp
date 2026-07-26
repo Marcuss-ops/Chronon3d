@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// motion_preset_packs.hpp — C3: canonical pack-based motion preset registry.
+// motion_preset_packs.hpp — canonical immutable motion preset catalog.
 //
 // Replaces the pre-C3 pattern of hardcoded LayerBuilder preset methods
 // (slide_in, soft_pop, fade_in, …) with a single canonical registry
@@ -16,7 +16,7 @@
 // Usage:
 //   #include <chronon3d/presets/motion_preset_packs.hpp>
 //
-//   auto& reg = chronon3d::presets::motion_preset_packs();
+//   auto& catalog = chronon3d::presets::motion_preset_catalog();
 //   reg.apply(lb, "slide_in");          // default params
 //
 //   // Enumerate available presets in a pack:
@@ -30,12 +30,13 @@
 #include <chronon3d/presets/motion_error.hpp>
 #include <chronon3d/scene/builders/layer_builder.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
-#include <map>
 #include <stdexcept>  // std::runtime_error (kept for register_preset() — out of §5.0b scope)
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace chronon3d::presets {
@@ -56,35 +57,24 @@ struct MotionPresetDescriptor {
     std::function<void(LayerBuilder&)> apply;
 };
 
-// ── MotionPresetPackRegistry ───────────────────────────────────────────
+// ── Immutable motion preset catalog ────────────────────────────────────
 
 /// Canonical registry of motion presets organized into named packs.
 ///
 /// Presets use hardcoded default targets (Vec3{0,0,0}, opacity 1.0f,
-/// scale Vec3{1,1,1}) matching the LayerCommand convention.  For
+/// scale Vec3{1,1,1}) matching the default motion convention.  For
 /// custom targets, use LayerBuilder::position_anim() etc. directly.
-class MotionPresetPackRegistry {
+class MotionPresetCatalog {
 public:
-    MotionPresetPackRegistry() = default;
-
-    void register_preset(MotionPresetDescriptor preset) {
-        if (m_frozen) {
-            throw std::runtime_error(
-                "MotionPresetPackRegistry: cannot register '" + preset.id +
-                "' — registry is frozen");
-        }
-        if (m_presets.contains(preset.id)) {
-            throw std::runtime_error(
-                "MotionPresetPackRegistry: duplicate preset '" + preset.id + "'");
-        }
-        m_presets[preset.id] = std::move(preset);
-    }
-
-    void freeze() noexcept { m_frozen = true; }
-    [[nodiscard]] bool is_frozen() const noexcept { return m_frozen; }
+    explicit MotionPresetCatalog(std::vector<MotionPresetDescriptor> presets)
+        : m_presets(std::move(presets)) {}
 
     void apply(LayerBuilder& lb, std::string_view preset_id) const {
-        auto it = m_presets.find(preset_id);
+        const auto it = std::find_if(
+            m_presets.begin(), m_presets.end(),
+            [preset_id](const MotionPresetDescriptor& preset) {
+                return preset.id == preset_id;
+            });
         if (it == m_presets.end()) {
             // §5.0b — typed-exception migration: throw MotionError
             // (subclass of std::runtime_error) instead of plain
@@ -100,40 +90,63 @@ public:
             throw MotionError(MotionErrorCode::MotionPresetNotFound,
                               std::string(preset_id));
         }
-        it->second.apply(lb);
+        it->apply(lb);
     }
 
     [[nodiscard]] std::vector<std::string> pack_ids(std::string_view pack_name) const {
         std::vector<std::string> result;
-        for (const auto& [id, desc] : m_presets) {
-            if (desc.pack == pack_name) result.push_back(id);
+        for (const auto& desc : m_presets) {
+            if (desc.pack == pack_name) result.push_back(desc.id);
         }
         return result;
     }
 
     [[nodiscard]] std::vector<std::string> ids() const {
         std::vector<std::string> result;
-        for (const auto& [id, _] : m_presets) result.push_back(id);
+        for (const auto& preset : m_presets) result.push_back(preset.id);
         return result;
     }
 
     [[nodiscard]] bool contains(std::string_view id) const {
-        return m_presets.contains(id);
+        return std::any_of(
+            m_presets.begin(), m_presets.end(),
+            [id](const MotionPresetDescriptor& preset) {
+                return preset.id == id;
+            });
     }
 
     [[nodiscard]] std::size_t size() const noexcept { return m_presets.size(); }
-    void clear() noexcept { m_presets.clear(); m_frozen = false; }
-
 private:
-    std::map<std::string, MotionPresetDescriptor, std::less<>> m_presets;
-    bool m_frozen{false};
+    std::vector<MotionPresetDescriptor> m_presets;
 };
 
 // ── Seeding ────────────────────────────────────────────────────────────
 
 namespace detail {
 
-inline void seed_builtin_presets(MotionPresetPackRegistry& reg) {
+class MotionPresetCatalogBuilder {
+public:
+    void register_preset(MotionPresetDescriptor preset) {
+        if (std::any_of(
+                m_presets.begin(), m_presets.end(),
+                [&preset](const MotionPresetDescriptor& existing) {
+                    return existing.id == preset.id;
+                })) {
+            throw std::runtime_error(
+                "MotionPresetCatalogBuilder: duplicate preset '" + preset.id + "'");
+        }
+        m_presets.push_back(std::move(preset));
+    }
+
+    [[nodiscard]] MotionPresetCatalog build() && {
+        return MotionPresetCatalog(std::move(m_presets));
+    }
+
+private:
+    std::vector<MotionPresetDescriptor> m_presets;
+};
+
+inline void seed_builtin_presets(MotionPresetCatalogBuilder& reg) {
 
     // ══════════════════════════════════════════════════════════════════
     // chronon3d-motion-basic — entry/exit transitions
@@ -418,16 +431,15 @@ inline void seed_builtin_presets(MotionPresetPackRegistry& reg) {
 
 } // namespace detail
 
-// ── Process-wide singleton ─────────────────────────────────────────────
+// ── Immutable built-in catalog ─────────────────────────────────────────
 
-[[nodiscard]] inline const MotionPresetPackRegistry& motion_preset_packs() {
-    static const MotionPresetPackRegistry reg = []() {
-        MotionPresetPackRegistry r;
-        detail::seed_builtin_presets(r);
-        r.freeze();
-        return r;
+[[nodiscard]] inline const MotionPresetCatalog& motion_preset_catalog() {
+    static const MotionPresetCatalog catalog = []() {
+        detail::MotionPresetCatalogBuilder builder;
+        detail::seed_builtin_presets(builder);
+        return std::move(builder).build();
     }();
-    return reg;
+    return catalog;
 }
 
 } // namespace chronon3d::presets

@@ -27,6 +27,19 @@ TEST_CASE("compute_stagger_delay single element") {
     CHECK(compute_stagger_delay(0, 1, config) == Frame{0});
 }
 
+TEST_CASE("compute_stagger_delay randomization is stateless") {
+    StaggerConfig config{
+        .delay_per_unit = Frame{10},
+        .easing = EasingCurve{Easing::Linear},
+        .randomize = 0.5f,
+        .random_seed = 0,
+    };
+
+    const Frame first = compute_stagger_delay(2, 10, config);
+    CHECK(compute_stagger_delay(2, 10, config) == first);
+    CHECK(compute_stagger_delay(1, 10, config) != first);
+}
+
 TEST_CASE("stagger_layers LeftToRight ordering") {
     std::pmr::vector<Layer> layers;
     layers.reserve(3);
@@ -282,4 +295,3 @@ TEST_CASE("stagger_layers Random ordering with fixed seed") {
     std::sort(sorted.begin(), sorted.end());
     CHECK(sorted == expected);
 }
-

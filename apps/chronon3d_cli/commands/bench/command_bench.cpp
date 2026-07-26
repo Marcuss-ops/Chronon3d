@@ -7,7 +7,7 @@
 #include <chronon3d/backends/software/software_renderer.hpp>
 #include <chronon3d/core/profiling/benchmark_report.hpp>
 #include <chronon3d/core/telemetry/render_telemetry.hpp>
-#include <chronon3d/runtime/renderer_warmup.hpp>
+#include <chronon3d/runtime/render_preparation.hpp>
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <spdlog/spdlog.h>
@@ -272,16 +272,26 @@ int command_bench(const CompositionRegistry& registry, const BenchArgs& args) {
     }
 
     if (args.warmup_renderer) {
-        auto warmup = runtime::warmup_renderer(*renderer, composition, runtime::RendererWarmupOptions{
-            .width = composition.width(),
-            .height = composition.height(),
-            .framebuffer_count = args.warmup_framebuffers,
-            .preallocate_framebuffers = true,
-            .touch_memory = true,
-            .render_dummy_frame = args.warmup_dummy_frame,
-            .dummy_frame = 0,
-            .quiet = args.quiet
-        });
+        const auto preparation = runtime::prepare_render(
+            renderer.get(), composition,
+            runtime::RenderPreparationOptions{
+                .warmup_renderer = true,
+                .warmup = runtime::RendererWarmupOptions{
+                    .width = composition.width(),
+                    .height = composition.height(),
+                    .framebuffer_count = args.warmup_framebuffers,
+                    .preallocate_framebuffers = true,
+                    .touch_memory = true,
+                    .render_dummy_frame = args.warmup_dummy_frame,
+                    .dummy_frame = 0,
+                    .quiet = args.quiet,
+                },
+            });
+        if (!preparation.ok()) {
+            spdlog::error("Render preparation failed: {}", preparation.diagnostic());
+            return 1;
+        }
+        const auto& warmup = preparation.warmup;
         if (!args.quiet) {
             spdlog::info("Renderer warmup: {} framebuffers, {} bytes, {:.2f} ms",
                          warmup.framebuffers_created, warmup.pool_bytes_after, warmup.elapsed_ms);
