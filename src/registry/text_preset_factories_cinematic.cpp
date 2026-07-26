@@ -101,7 +101,6 @@ compose_tilt_sweep_title_v2(const PresetMetadata& /*meta*/) {
 // ── 1. animation_compositions ────────────────────────────────────────────
 TextPresetDescriptor animation_compositions_entry() {
     PresetMetadata meta;
-    meta.id           = "animation_compositions";
     meta.display_name = "Animation compositions utility suite";
     meta.category     = TextPresetCategory::Cinematic;
     meta.description  = "Catalogues helper functions for animation compositions "
@@ -110,7 +109,7 @@ TextPresetDescriptor animation_compositions_entry() {
     meta.builtin      = true;
 
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "animation_compositions";
     d.metadata        = meta;
     d.fixture         = "tests/visual/cinematic_motion/DeepParallaxCascade";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
@@ -128,7 +127,6 @@ TextPresetDescriptor animation_compositions_entry() {
 // ── 2. cinematic_text_camera ─────────────────────────────────────────────
 TextPresetDescriptor cinematic_text_camera_entry() {
     PresetMetadata meta;
-    meta.id           = "cinematic_text_camera";
     meta.display_name = "Cinematic text-camera compositions (5 hero comps)";
     meta.category     = TextPresetCategory::Cinematic;
     meta.description  = "5 hero cinematic compositions (DeepParallaxCascade, "
@@ -140,7 +138,7 @@ TextPresetDescriptor cinematic_text_camera_entry() {
     meta.builtin      = true;
 
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "cinematic_text_camera";
     d.metadata        = meta;
     d.fixture         = "tests/visual/camera/camera_visual_tests";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
@@ -168,7 +166,6 @@ TextPresetDescriptor cinematic_text_camera_entry() {
 // ── 3. cinematic_title_reveal ────────────────────────────────────────────
 TextPresetDescriptor cinematic_title_reveal_entry() {
     PresetMetadata meta;
-    meta.id           = "cinematic_title_reveal";
     meta.display_name = "Cinematic title reveal (push-in/tilt variants)";
     meta.category     = TextPresetCategory::Cinematic;
     meta.description  = "Cinematic title reveal utilities — push-in + tilt "
@@ -180,7 +177,7 @@ TextPresetDescriptor cinematic_title_reveal_entry() {
     meta.builtin      = true;
 
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "cinematic_title_reveal";
     d.metadata        = meta;
     d.fixture         = "tests/visual/cinematic_motion/cinematic_title_reveal";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
@@ -195,7 +192,6 @@ TextPresetDescriptor cinematic_title_reveal_entry() {
 // ── 4. tilt_sweep_title_v2 ───────────────────────────────────────────────
 TextPresetDescriptor tilt_sweep_title_v2_entry() {
     PresetMetadata meta;
-    meta.id           = "tilt_sweep_title_v2";
     meta.display_name = "Tilt-sweep title v2";
     meta.category     = TextPresetCategory::Cinematic;
     meta.description  = "Tilt-sweep title with cinematic push-in reveal, "
@@ -204,7 +200,7 @@ TextPresetDescriptor tilt_sweep_title_v2_entry() {
     meta.builtin      = true;
 
     TextPresetDescriptor d;
-    d.id              = meta.id;
+    d.id              = "tilt_sweep_title_v2";
     d.metadata        = meta;
     d.fixture         = "tests/visual/cinematic_motion/tilt_sweep_title_v2";
     d.builder         = []([[maybe_unused]] SceneBuilderT& sb,
