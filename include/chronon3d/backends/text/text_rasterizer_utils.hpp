@@ -19,7 +19,8 @@ struct TextRasterization;
 
 /// Apply TextMaterial effects (gradient, bevel, highlight, shade, emissive)
 /// to a rasterized text BLImage in-place.
-void apply_text_material(BLImage& img, const TextMaterial& mat);
+struct TextScratchState;
+void apply_text_material(BLImage& img, const TextMaterial& mat, TextScratchState& scratch);
 
 #endif // CHRONON3D_USE_BLEND2D
 
