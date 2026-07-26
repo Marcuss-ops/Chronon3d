@@ -36,6 +36,7 @@ DEVELOPER_GATES=(
     check_no_preset_catalog_magic_statics.sh
     check_no_software_effect_dispatch_switch.sh
     check_no_legacy_umbrella_includes.sh
+    check_no_text_material_external_effects.sh
     check_architecture_boundaries.sh
 )
 

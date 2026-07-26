@@ -162,14 +162,11 @@ TEST_CASE("Authoring/Text: material(Material) consumes Material into appearance.
     lb.screen_dimensions(1920.0f, 1080.0f);
     Layer layer(lb);
     Text t = layer.text("x");
-    Material m = material::premium().bevel(2.0f).glow(8.0f, 0.5f);
+    Material m = material::premium().bevel(2.0f);
     t.material(std::move(m));
     const auto& captured = TextRunBuilderInspector::pending_of(t)->params.text.appearance.material;
     CHECK(captured.enabled == true);
     CHECK(captured.bevel_px == doctest::Approx(2.0f));
-    CHECK(captured.use_material_glow == true);
-    CHECK(captured.glow_radius == doctest::Approx(8.0f));
-    CHECK(captured.glow_intensity == doctest::Approx(0.5f));
 }
 
 TEST_CASE("Authoring/Text: animate(Animator) consumes Animator into animators vector") {
@@ -314,7 +311,7 @@ TEST_CASE("Authoring/Text: end-to-end hero chain is mutator-agnostic to TextRunB
         .tracking(-1.0f)
         .auto_fit(58.0f, 2)
         .color(Color::white())
-        .material(material::premium().bevel(1.5f).glow(14.0f, 0.45f))
+        .material(material::premium().bevel(1.5f))
         .animate(animator("hero-reveal")
             .select(selector(TextSelectorUnit::Grapheme)
                 .smooth().exclude_spaces()

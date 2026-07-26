@@ -2,7 +2,7 @@
 // Material — fluent authoring façade over `TextMaterial`.
 //
 // Wraps a `TextMaterial` value and exposes the most-commonly-tuned knobs
-// (gradient / bevel / glow / shadow / inner-shadow / highlight / emissive)
+// (gradient / bevel / inner-shadow / highlight / emissive)
 // as chainable setters.  Less-common fields are reachable via the
 // `configure_core(Fn)` escape hatch so the surface stays small while the
 // engine's full material model remains one template-mutation away.
@@ -11,8 +11,7 @@
 //
 //   auto style = material::premium()
 //                    .bevel(1.5f)
-//                    .glow(14.0f, 0.45f)
-//                    .shadow({0.0f, 8.0f}, 16.0f);
+//                    .inner_shadow({0.0f, 2.0f}, 4.0f, Color::black());
 //
 // The builder is move-only. Consumers pull the spec out via the rvalue
 // `release()` helper (see `friend` declarations below).
@@ -139,100 +138,6 @@ public:
     Material&& bevel_highlight_color(Color c) && {
         value_.bevel_highlight_color = c;
         value_.enabled               = true;
-        return std::move(*this);
-    }
-
-    // ── Glow override (replaces node-level glow when enabled) ─────────────
-    Material& glow(f32 radius, f32 intensity) & {
-        value_.use_material_glow = true;
-        value_.glow_radius       = radius;
-        value_.glow_intensity    = intensity;
-        value_.enabled           = true;
-        return *this;
-    }
-    Material&& glow(f32 radius, f32 intensity) && {
-        value_.use_material_glow = true;
-        value_.glow_radius       = radius;
-        value_.glow_intensity    = intensity;
-        value_.enabled           = true;
-        return std::move(*this);
-    }
-    Material& glow_color(Color c) & {
-        value_.glow_color        = c;
-        value_.use_material_glow = true;
-        value_.enabled           = true;
-        return *this;
-    }
-    Material&& glow_color(Color c) && {
-        value_.glow_color        = c;
-        value_.use_material_glow = true;
-        value_.enabled           = true;
-        return std::move(*this);
-    }
-    Material& no_glow() & {
-        value_.use_material_glow = false;
-        return *this;
-    }
-    Material&& no_glow() && {
-        value_.use_material_glow = false;
-        return std::move(*this);
-    }
-
-    // ── Shadow override (replaces node-level shadow when enabled) ─────────
-    Material& shadow(Vec2 offset, f32 blur) & {
-        value_.use_material_shadow = true;
-        value_.shadow_offset       = offset;
-        value_.shadow_blur         = blur;
-        value_.enabled             = true;
-        return *this;
-    }
-    Material&& shadow(Vec2 offset, f32 blur) && {
-        value_.use_material_shadow = true;
-        value_.shadow_offset       = offset;
-        value_.shadow_blur         = blur;
-        value_.enabled             = true;
-        return std::move(*this);
-    }
-    Material& shadow(Vec2 offset, f32 blur, f32 opacity) & {
-        value_.use_material_shadow = true;
-        value_.shadow_offset       = offset;
-        value_.shadow_blur         = blur;
-        value_.shadow_opacity      = opacity;
-        value_.enabled             = true;
-        return *this;
-    }
-    Material&& shadow(Vec2 offset, f32 blur, f32 opacity) && {
-        value_.use_material_shadow = true;
-        value_.shadow_offset       = offset;
-        value_.shadow_blur         = blur;
-        value_.shadow_opacity      = opacity;
-        value_.enabled             = true;
-        return std::move(*this);
-    }
-    Material& shadow(Vec2 offset, f32 blur, f32 opacity, Color color) & {
-        value_.use_material_shadow = true;
-        value_.shadow_offset       = offset;
-        value_.shadow_blur         = blur;
-        value_.shadow_opacity      = opacity;
-        value_.shadow_color        = color;
-        value_.enabled             = true;
-        return *this;
-    }
-    Material&& shadow(Vec2 offset, f32 blur, f32 opacity, Color color) && {
-        value_.use_material_shadow = true;
-        value_.shadow_offset       = offset;
-        value_.shadow_blur         = blur;
-        value_.shadow_opacity      = opacity;
-        value_.shadow_color        = color;
-        value_.enabled             = true;
-        return std::move(*this);
-    }
-    Material& no_shadow() & {
-        value_.use_material_shadow = false;
-        return *this;
-    }
-    Material&& no_shadow() && {
-        value_.use_material_shadow = false;
         return std::move(*this);
     }
 

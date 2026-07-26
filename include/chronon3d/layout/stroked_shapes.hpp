@@ -165,10 +165,6 @@ inline TextMaterial DarkGlassTitle() {
     m.bevel_px = 1.0f;
     m.top_highlight_opacity = 0.20f;
     m.bottom_shade_opacity = 0.10f;
-    m.use_material_glow = true;
-    m.glow_radius = 10.0f;
-    m.glow_intensity = 0.45f;
-    m.glow_color = {0.72f, 0.56f, 1.0f, 0.60f};
     return m;
 }
 
