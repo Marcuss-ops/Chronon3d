@@ -29,6 +29,7 @@ DEVELOPER_GATES=(
     check_doc_sha_dedup.sh
     check_commit_subject_length.sh
     check_push_divergence_window.sh
+    check_unique_cmake_source_ownership.py
     check_architecture_boundaries.sh
 )
 
