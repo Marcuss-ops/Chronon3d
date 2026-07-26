@@ -3,6 +3,7 @@
 #include <chronon3d/core/types/types.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/backends/image/image_backend.hpp>
+#include <chronon3d/backends/image/image_decode_options.hpp>
 #include <chronon3d/cache/lru_cache.hpp>
 #include <string>
 #include <memory>
@@ -67,12 +68,14 @@ public:
     /// Load an image from path (synchronous).  Returns shared_ptr to
     /// immutable CachedImage, or nullptr on failure.
     [[nodiscard]] std::shared_ptr<const CachedImage>
-    get_or_load(const std::string& path);
+    get_or_load(const std::string& path,
+                ImageDecodeOptions options = {});
 
     /// Lookup-only path used by frame rendering. Never touches the backend
     /// and never performs filesystem I/O; preparation must populate the entry.
     [[nodiscard]] std::shared_ptr<const CachedImage>
-    find(const std::string& path);
+    find(const std::string& path,
+         ImageDecodeOptions options = {});
 
     void clear();
     void set_asset_resolver(const assets::AssetResolver* resolver) noexcept {
@@ -98,11 +101,11 @@ private:
     // concurrent get_or_load_shared() lookups for different paths proceed in
     // parallel. The loader is invoked while holding the per-shard lock, which
     // serializes only concurrent loads of the same path (same shard).
-    cache::LruCache<std::string, std::shared_ptr<CachedImage>> m_cache;
+    cache::LruCache<ImageAssetKey, std::shared_ptr<CachedImage>, ImageAssetKeyHash> m_cache;
     const assets::AssetResolver* m_asset_resolver{nullptr};
 
-    [[nodiscard]] std::optional<std::string>
-    canonical_key(const std::string& path) const;
+    [[nodiscard]] std::optional<ImageAssetKey>
+    canonical_key(const std::string& path, ImageDecodeOptions options) const;
 };
 
 } // namespace chronon3d

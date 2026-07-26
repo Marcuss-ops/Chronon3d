@@ -49,6 +49,7 @@
 #include <vector>
 #include <chronon3d/text/text_material.hpp>
 #include <chronon3d/media/media_placement.hpp>
+#include <chronon3d/backends/image/image_decode_options.hpp>
 #include <chronon3d/text/font_engine.hpp>  // TextDirection, TextShaping, TextWrap
 
 namespace chronon3d {
@@ -254,6 +255,7 @@ struct ImageShape {
     ImageCrop crop{};
     f32 opacity{1.0f};
     f32 radius{0.0f};
+    ImageDecodeOptions decode_options{};
 };
 
 struct FakeBox3DShape {

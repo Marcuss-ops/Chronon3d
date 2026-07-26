@@ -10,24 +10,29 @@ namespace chronon3d {
 ImageCache::ImageCache(size_t capacity_bytes)
     : m_cache(capacity_bytes > 0 ? capacity_bytes : 512ULL * 1024ULL * 1024ULL) {}
 
-std::optional<std::string> ImageCache::canonical_key(const std::string& path) const {
+std::optional<ImageAssetKey> ImageCache::canonical_key(
+    const std::string& path, ImageDecodeOptions options) const {
+    ImageAssetKey key{.options = options};
     if (!m_asset_resolver) {
-        return std::filesystem::path(path).lexically_normal().string();
+        key.canonical_path = std::filesystem::path(path).lexically_normal();
+        return key;
     }
     const auto resolved = m_asset_resolver->resolve_lexical(path);
     if (!resolved) {
         return std::nullopt;
     }
-    return resolved->lexically_normal().string();
+    key.canonical_path = resolved->lexically_normal();
+    return key;
 }
 
-std::shared_ptr<const CachedImage> ImageCache::get_or_load(const std::string& path) {
-    const auto key = canonical_key(path);
+std::shared_ptr<const CachedImage> ImageCache::get_or_load(
+    const std::string& path, ImageDecodeOptions options) {
+    const auto key = canonical_key(path, options);
     if (!key) {
         spdlog::warn("ImageCache: asset '{}' is outside the engine asset root", path);
         return nullptr;
     }
-    const std::string& resolved_path = *key;
+    const std::string resolved_path = key->canonical_path.string();
     std::shared_ptr<image::ImageBackend> backend;
     {
         std::shared_lock<std::shared_mutex> lock(*m_backend_mutex);
@@ -38,7 +43,7 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(const std::string& pa
         return nullptr;
     }
 
-    auto shared = m_cache.compute_if_absent(resolved_path,
+    auto shared = m_cache.compute_if_absent(*key,
         [&]() -> std::pair<std::shared_ptr<CachedImage>, size_t> {
             const auto t0 = profiling::now();
             auto buffer = backend->load_image(resolved_path);
@@ -108,8 +113,9 @@ std::shared_ptr<const CachedImage> ImageCache::get_or_load(const std::string& pa
     return shared;
 }
 
-std::shared_ptr<const CachedImage> ImageCache::find(const std::string& path) {
-    const auto key = canonical_key(path);
+std::shared_ptr<const CachedImage> ImageCache::find(
+    const std::string& path, ImageDecodeOptions options) {
+    const auto key = canonical_key(path, options);
     if (!key) {
         return nullptr;
     }
