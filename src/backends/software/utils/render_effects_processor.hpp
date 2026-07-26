@@ -13,7 +13,6 @@ namespace renderer {
 
 void apply_blur(Framebuffer& fb, f32 radius, const std::optional<raster::BBox>& clip = std::nullopt, int passes = 2);
 void apply_color_effects(Framebuffer& fb, const LayerEffect& effect, const std::optional<raster::BBox>& clip = std::nullopt);
-void apply_effect_stack(Framebuffer& fb, const EffectStack& stack, const effects::EffectExecutionContext& context);
 void apply_fake_3d_wave(Framebuffer& fb, const Fake3DWaveParams& params, float time_seconds);
 
 // ── Individual effect implementations (extracted from effect_stack.cpp) ──
@@ -35,7 +34,6 @@ void apply_hue_rotate(Framebuffer& fb, f32 degrees, const std::optional<raster::
 void apply_invert(Framebuffer& fb, f32 amount, const std::optional<raster::BBox>& clip = std::nullopt);
 void apply_vignette(Framebuffer& fb, f32 radius, f32 softness, f32 amount, Color color, const std::optional<raster::BBox>& clip = std::nullopt);
 
-void draw_shadow(Framebuffer& fb, const RenderNode& node, const RenderState& state);
 
 } // namespace renderer
 } // namespace chronon3d

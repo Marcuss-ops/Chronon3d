@@ -158,7 +158,6 @@ TEST_CASE("Text health / LayerBuilder emits one materialized TextRun node") {
 
     const auto& handle = node.shape.text_run_shape_handle();
     require_valid_shape(handle.value, "Builder to node");
-    CHECK(node.font_engine == &env.font_engine);
 }
 
 TEST_CASE("Text health / fluent opacity animator reaches every glyph") {

@@ -152,12 +152,6 @@ std::optional<raster::BBox> SourceNode::predicted_bbox(
     }
 
     f32 spread = 0.0f;
-    if (m_node.shadow.enabled) {
-        spread = std::max(spread, m_node.shadow.radius + std::max(std::abs(m_node.shadow.offset.x), std::abs(m_node.shadow.offset.y)));
-    }
-    if (m_node.glow.enabled) {
-        spread = std::max(spread, m_node.glow.radius);
-    }
     spread += 8.0f;
 
     // TICKET-122 FASE 3: GridPlane now goes through 2.5D projection above,

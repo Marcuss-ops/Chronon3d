@@ -70,12 +70,6 @@ std::optional<raster::BBox> MultiSourceNode::predicted_bbox(
         }
 
         f32 spread = 0.0f;
-        if (item.node->shadow.enabled) {
-            spread = std::max(spread, item.node->shadow.radius + std::max(std::abs(item.node->shadow.offset.x), std::abs(item.node->shadow.offset.y)));
-        }
-        if (item.node->glow.enabled) {
-            spread = std::max(spread, item.node->glow.radius);
-        }
         spread += 8.0f;
 
         raster::BBox bbox;

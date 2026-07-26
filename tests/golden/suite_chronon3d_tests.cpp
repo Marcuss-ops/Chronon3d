@@ -248,16 +248,13 @@ TEST_CASE("Chronon3d Suite: Mandatory Visual Snapshots") {
     Composition comp_shadow(CompositionSpec{.width = 512, .height = 512}, [](const FrameContext& ctx) {
         SceneBuilder s(ctx);
         // White square in center with drop shadow
-        s.rect("square", {
-            .size = {150, 150},
-            .color = Color::white(),
-            .pos = {-75, -75, 0}
-        });
-        s.with_shadow({
-            .enabled = true,
-            .offset = {30.0f, 30.0f},
-            .color = Color{0.0f, 0.0f, 0.0f, 0.8f},
-            .radius = 20.0f
+        s.layer("square", [&](LayerBuilder& l) {
+            l.rect("square", {
+                .size = {150, 150},
+                .color = Color::white(),
+                .pos = {-75, -75, 0}
+            });
+            l.drop_shadow({30.0f, 30.0f}, {0.0f, 0.0f, 0.0f, 0.8f}, 20.0f);
         });
         return s.build();
     });
@@ -502,16 +499,13 @@ TEST_CASE("Chronon3d Suite: Shadow System Tests") {
     SUBCASE("Drop Shadow Containment") {
         Composition comp(CompositionSpec{.width = 128, .height = 128}, [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.rect("box", {
-                .size = {40, 40},
-                .color = Color::white(),
-                .pos = {0, 0, 0}
-            });
-            s.with_shadow({
-                .enabled = true,
-                .offset = {20.0f, 20.0f},
-                .color = Color{0, 0, 0, 1},
-                .radius = 0.0f // sharp shadow
+            s.layer("box", [&](LayerBuilder& l) {
+                l.rect("box", {
+                    .size = {40, 40},
+                    .color = Color::white(),
+                    .pos = {0, 0, 0}
+                });
+                l.drop_shadow({20.0f, 20.0f}, {0, 0, 0, 1}, 0.0f);
             });
             return s.build();
         });
@@ -787,16 +781,13 @@ TEST_CASE("Chronon3d Suite: SSAA 2x Quality Verification") {
     SUBCASE("Shadow SSAA 2x") {
         Composition comp(CompositionSpec{.width = 512, .height = 512}, [](const FrameContext& ctx) {
             SceneBuilder s(ctx);
-            s.rect("square", {
-                .size = {150, 150},
-                .color = Color::white(),
-                .pos = {-75, -75, 0}
-            });
-            s.with_shadow({
-                .enabled = true,
-                .offset = {30.0f, 30.0f},
-                .color = Color{0.0f, 0.0f, 0.0f, 0.8f},
-                .radius = 20.0f
+            s.layer("square", [&](LayerBuilder& l) {
+                l.rect("square", {
+                    .size = {150, 150},
+                    .color = Color::white(),
+                    .pos = {-75, -75, 0}
+                });
+                l.drop_shadow({30.0f, 30.0f}, {0.0f, 0.0f, 0.0f, 0.8f}, 20.0f);
             });
             return s.build();
         });

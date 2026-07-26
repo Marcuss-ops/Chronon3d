@@ -119,16 +119,6 @@ SceneBuilder& SceneBuilder::opacity(f32 a) {
     return *this;
 }
 
-SceneBuilder& SceneBuilder::with_shadow(DropShadow shadow) {
-    scene_.last_node().shadow = shadow;
-    return *this;
-}
-
-SceneBuilder& SceneBuilder::with_glow(Glow glow) {
-    scene_.last_node().glow = glow;
-    return *this;
-}
-
 Scene SceneBuilder::build() {
     LayoutSolver().solve(scene_, m_width, m_height);
     scene_.resolve_hierarchy(current_integer_frame());
