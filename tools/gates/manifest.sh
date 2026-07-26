@@ -31,6 +31,7 @@ DEVELOPER_GATES=(
     check_push_divergence_window.sh
     check_unique_cmake_source_ownership.py
     check_no_process_wide_caches.sh
+    check_no_runtime_image_decode.sh
     check_architecture_boundaries.sh
 )
 
