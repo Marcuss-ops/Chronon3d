@@ -17,7 +17,6 @@ public:
         // Increment images sampled counter
         rctx.counters->images_sampled.fetch_add(1, std::memory_order_relaxed);
 
-        draw_shadow(fb, node, state);
         rctx.image_renderer->draw_image(node.shape.image(), state, fb);
     }
 
