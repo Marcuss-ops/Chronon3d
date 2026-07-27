@@ -9,7 +9,7 @@
 # Per AGENTS.md v0.1 Cat-3 + §honesty: metadata-only; comp_id is
 # FORWARD-POINTED. The current canonical production space lacks a
 # dedicated blur-4k scene; the proxy is a per-pixel-DOF test
-# composition (see include/chronon3d/backends/software/utils/effects/per_pixel_dof.hpp
+# composition (see include/chronon3d/backends/software/effects/per_pixel_dof.hpp
 # for the canonical blur kernel).
 # ─────────────────────────────────────────────────────────────────────────
 
@@ -61,6 +61,6 @@ forward_points:
   - { name: "gather SIMD metadata",    ticket: "TICKET-PIXEL-KERNEL-REGISTRY" }
 
 cross_link:
-  - "include/chronon3d/backends/software/utils/effects/per_pixel_dof.hpp"
+  - "include/chronon3d/backends/software/effects/per_pixel_dof.hpp"
   - "src/backends/software/simd/highway_dof_kernels.cpp"
   - "configs/benchmark_machines.yaml"

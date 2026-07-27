@@ -32,6 +32,7 @@ DEVELOPER_GATES=(
     check_unique_cmake_source_ownership.py
     check_no_process_wide_caches.sh
     check_no_runtime_image_decode.sh
+    check_no_hidden_render_scratch.sh
     check_no_dead_shape_type_text.sh
     check_no_preset_catalog_magic_statics.sh
     check_no_software_effect_dispatch_switch.sh
