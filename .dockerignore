@@ -1,0 +1,23 @@
+build/
+build-*/
+dist/
+.cache/
+.ccache/
+*.log
+.git/
+.github/
+docs/
+tests/
+tools/
+examples/
+
+# The prebuilt runtime image copies only the already-verified SDK artifacts.
+!build/
+build/*
+!build/sdk-check/
+build/sdk-check/*
+!build/sdk-check/apps/
+!build/sdk-check/apps/chronon3d_cli/
+!build/sdk-check/apps/chronon3d_cli/chronon3d_cli
+!build/sdk-check/src/
+!build/sdk-check/src/libchronon3d_c.so

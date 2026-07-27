@@ -10,10 +10,12 @@
 #include <chronon3d/api/render_engine.hpp>
 #include <chronon3d/core/memory/framebuffer.hpp>
 #include <chronon3d/math/color.hpp>
+#include <chronon3d/media/video/video_sink_factory.hpp>
 #include <chronon3d/render_graph/render_backend.hpp>
 
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
 #include <stdexcept>
 #include <mutex>
 #include <vector>
@@ -88,6 +90,37 @@ RenderError runtime_error(std::string message) {
         .code = RenderErrorCode::RuntimeFailure,
         .message = std::move(message),
     };
+}
+
+chronon3d::media::video::VideoCodec convert_codec(VideoCodec codec) {
+    using Source = VideoCodec;
+    using Target = chronon3d::media::video::VideoCodec;
+    switch (codec) {
+        case Source::H264: return Target::H264;
+        case Source::H265: return Target::H265;
+        case Source::VP9:  return Target::VP9;
+        case Source::AV1:  return Target::AV1;
+        case Source::Auto:
+        default:           return Target::Auto;
+    }
+}
+
+chronon3d::media::video::VideoContainer convert_container(
+    VideoContainer container, const std::filesystem::path& output_path) {
+    using Source = VideoContainer;
+    using Target = chronon3d::media::video::VideoContainer;
+    switch (container) {
+        case Source::Mp4:  return Target::Mp4;
+        case Source::Mkv:  return Target::Mkv;
+        case Source::WebM: return Target::WebM;
+        case Source::Auto:
+        default: {
+            const auto extension = output_path.extension().string();
+            if (extension == ".mkv") return Target::Mkv;
+            if (extension == ".webm") return Target::WebM;
+            return Target::Mp4;
+        }
+    }
 }
 
 } // namespace
@@ -191,6 +224,137 @@ RenderEngine::render(const chronon3d::Composition& composition, Frame frame) {
             .message = "render: unknown exception",
         };
     }
+}
+
+chronon3d::Result<RenderReport, RenderError>
+RenderEngine::render_to_file(const RenderFileRequest& request,
+                             const RenderCallbacks& callbacks) {
+    std::lock_guard lock(m_impl->state_mutex);
+
+    if (!request.composition) {
+        return RenderError{RenderErrorCode::InvalidComposition,
+                            "RenderFileRequest composition must not be null"};
+    }
+    if (request.output_path.empty()) {
+        return RenderError{RenderErrorCode::InvalidSettings,
+                            "RenderFileRequest output_path must not be empty"};
+    }
+    if (!request.video.overwrite && std::filesystem::exists(request.output_path)) {
+        return RenderError{RenderErrorCode::InvalidSettings,
+                            "output already exists and overwrite is disabled"};
+    }
+    if (m_impl->settings.width <= 0 || m_impl->settings.height <= 0) {
+        return RenderError{RenderErrorCode::InvalidSettings,
+                            "RenderSettings width and height must be positive"};
+    }
+
+    const auto start = request.start_frame.integral();
+    const auto end = request.end_frame.integral();
+    const auto step = request.step.integral();
+    if (end < start || step <= 0 || request.frame_rate.numerator <= 0 ||
+        request.frame_rate.denominator <= 0) {
+        return RenderError{RenderErrorCode::InvalidSettings,
+                            "invalid frame range or frame rate"};
+    }
+
+    using namespace chronon3d::media::video;
+    VideoSinkConfig config;
+    config.stream.width = m_impl->settings.width;
+    config.stream.height = m_impl->settings.height;
+    config.stream.frame_rate_num = request.frame_rate.numerator;
+    config.stream.frame_rate_den = request.frame_rate.denominator;
+    config.stream.submitted_format = media::video::PixelFormat::RGBA8;
+    config.encoder.codec = convert_codec(request.video.codec);
+    config.encoder.bitrate = request.video.bitrate;
+    config.encoder.crf = request.video.crf;
+    const auto temp_path = request.output_path.string() + ".chronon.tmp." +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) +
+        request.output_path.extension().string();
+    config.output.output_path = temp_path;
+    config.output.container = convert_container(request.video.container, request.output_path);
+    config.output.overwrite = request.video.overwrite;
+    config.label = "sdk::RenderEngine::render_to_file";
+
+    auto sink = create_video_sink(config);
+    if (!sink || !sink->open(config)) {
+        const auto message = sink ? sink->last_error_message()
+                                  : std::string{"video sink unavailable"};
+        return RenderError{RenderErrorCode::BackendUnavailable,
+                            message.empty() ? "failed to open video sink" : message};
+    }
+
+    const auto started = std::chrono::steady_clock::now();
+    const auto total = ((end - start) / step) + 1;
+    std::vector<std::uint8_t> pixels;
+    std::uint64_t rendered = 0;
+
+    auto fail = [&](RenderError error) -> chronon3d::Result<RenderReport, RenderError> {
+        sink->close();
+        std::error_code cleanup_error;
+        std::filesystem::remove(temp_path, cleanup_error);
+        return error;
+    };
+
+    for (std::int64_t frame = start; frame <= end; frame += step) {
+        if (callbacks.is_cancelled && callbacks.is_cancelled()) {
+            return fail(RenderError{RenderErrorCode::Cancelled,
+                                    "render cancelled by callback"});
+        }
+
+        auto framebuffer = m_impl->engine.render(
+            *request.composition, chronon3d::Frame{frame});
+        if (const auto error = m_impl->engine.last_render_error()) {
+            return fail(runtime_error(error->message.empty()
+                ? "internal render graph reported a frame error" : error->message));
+        }
+        if (!framebuffer) {
+            return fail(runtime_error("internal renderer returned a null framebuffer"));
+        }
+
+        framebuffer_to_rgba8(*framebuffer, pixels);
+        VideoFrameView view;
+        view.data = pixels.data();
+        view.stride_bytes = static_cast<std::size_t>(config.stream.width) * 4;
+        view.width = config.stream.width;
+        view.height = config.stream.height;
+        view.pixel_format = media::video::PixelFormat::RGBA8;
+        view.pts = static_cast<std::int64_t>(rendered);
+        if (!sink->submit(view)) {
+            const auto message = sink->last_error_message();
+            return fail(RenderError{RenderErrorCode::RuntimeFailure,
+                message.empty() ? "video sink rejected a rendered frame" : message});
+        }
+
+        ++rendered;
+        if (callbacks.progress) {
+            callbacks.progress(Frame{frame}, Frame{total});
+        }
+        if (end - frame < step) break;
+    }
+
+    if (!sink->flush() || !sink->close()) {
+        const auto message = sink->last_error_message();
+        std::error_code cleanup_error;
+        std::filesystem::remove(temp_path, cleanup_error);
+        return RenderError{RenderErrorCode::RuntimeFailure,
+            message.empty() ? "video sink failed while finalizing output" : message};
+    }
+
+    std::error_code publish_error;
+    std::filesystem::rename(temp_path, request.output_path, publish_error);
+    if (publish_error) {
+        std::error_code cleanup_error;
+        std::filesystem::remove(temp_path, cleanup_error);
+        return RenderError{RenderErrorCode::RuntimeFailure,
+            "cannot publish output atomically: " + publish_error.message()};
+    }
+
+    return RenderReport{
+        .output_path = request.output_path,
+        .rendered_frames = rendered,
+        .elapsed_seconds = std::chrono::duration<double>(
+            std::chrono::steady_clock::now() - started).count(),
+    };
 }
 
 void RenderEngine::set_settings(const RenderSettings& settings) {

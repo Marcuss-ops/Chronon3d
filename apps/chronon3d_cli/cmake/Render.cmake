@@ -9,6 +9,7 @@ add_library(chronon3d_cli_render STATIC
     commands/render/command_preflight.cpp
     commands/render/command_bake_layer.cpp
     commands/render/command_graph.cpp
+    commands/render/command_render_plan.cpp
     utils/job/render_job.cpp
     utils/job/render_job_setup.cpp
     utils/job/render_job_finalize.cpp

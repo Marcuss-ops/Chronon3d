@@ -11,6 +11,7 @@ void register_commands(CLI::App& app, CliContext& ctx);
 }
 namespace group_render {
 void register_commands(CLI::App& app, CliContext& ctx);
+void register_render_plan_command(CLI::App& app, CliContext& ctx);
 }
 namespace group_telemetry {
 void register_commands(CLI::App& app, CliContext& ctx);

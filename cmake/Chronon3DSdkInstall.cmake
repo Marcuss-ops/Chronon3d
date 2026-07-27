@@ -82,6 +82,24 @@ install(TARGETS ${_chronon3d_install_targets}
     FILE_SET authoring_headers DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
+if(TARGET chronon3d_c)
+    install(TARGETS chronon3d_c
+        EXPORT Chronon3DTargets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+endif()
+
+if(TARGET chronon3d_cli)
+    set_target_properties(chronon3d_cli PROPERTIES
+        INSTALL_RPATH "$ORIGIN/../lib"
+    )
+    install(TARGETS chronon3d_cli
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()
+
 # Export internal targets WITHOUT NAMESPACE — they remain importable so the
 # transitive link closure resolves through Chronon3D::SDK, while the public
 # Chronon3D:: namespace still exposes only the SDK alias.
@@ -107,4 +125,9 @@ install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/Chronon3DConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/Chronon3DConfigVersion.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Chronon3D
+)
+
+install(FILES
+    "${CMAKE_SOURCE_DIR}/schemas/chronon.render-plan.v1.schema.json"
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/chronon3d/schemas
 )
