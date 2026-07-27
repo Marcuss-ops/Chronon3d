@@ -231,7 +231,7 @@ public:
     // resolves the path at materialization.
     [[nodiscard]] NodeHandle image(std::string name, assets::ImageRef ref) {
         ImageParams p;
-        p.asset_path = ref.path();
+        p.source = std::move(ref);
         return image(std::move(name), std::move(p));
     }
 
